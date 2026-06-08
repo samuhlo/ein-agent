@@ -108,7 +108,7 @@ Do not add SDD ceremony. Do not delegate just to look sophisticated. But do not 
 
 ### 2. Simple Delegation
 
-Delegate when the work would inflate parent context or requires focused exploration, validation, or multi-file implementation, but does not yet need a full SDD flow.
+Delegate when the work would inflate parent context or requires focused exploration, validation, or multi-file implementation, but does not yet need the full ein-sdd flow.
 
 Examples:
 
