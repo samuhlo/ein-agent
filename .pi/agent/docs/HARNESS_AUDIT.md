@@ -19,7 +19,7 @@ Componentes encontrados:
 | Extensiones | `~/.pi/agent/extensions` | OK |
 | Docs | `~/.pi/agent/docs` | OK |
 | Backups | `~/.pi/agent/backups` | OK |
-| Memoria Pi | `/Users/samu/.engram-pi` | OK |
+| Memoria Pi | `~/.engram` via `mcp.json` (MCP stdio) | OK |
 | Rollback | OpenCode intacto | OK |
 
 Extensiones activas conocidas:

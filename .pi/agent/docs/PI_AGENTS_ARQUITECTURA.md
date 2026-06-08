@@ -124,25 +124,31 @@ Bloquea comandos destructivos, escrituras en secretos y cambios peligrosos en Gi
 Archivo:
 
 ```text
-~/.pi/agent/extensions/ein-engram.ts
+~/.pi/agent/mcp.json
+```
+
+Ein conecta Engram via MCP (stdio transport):
+
+```json
+{
+  "mcpServers": {
+    "engram": {
+      "command": "/opt/homebrew/bin/engram",
+      "args": ["mcp", "--tools=agent"],
+      "lifecycle": "lazy"
+    }
+  }
+}
 ```
 
 Capas:
 
-- Engram: `~/.engram-pi`.
-- Snapshot local: `.piagents/session.md`.
+- Engram: `~/.engram` (DB SQLite con 15 tools disponibles en el perfil `agent`).
+- Snapshot de sesion: `.piagents/session.md` (generado por Pi runtime).
 
-Modo:
+El perfil `--tools=agent` expone tools de lectura/escritura de memoria para el modelo: `engram_save`, `engram_search`, `engram_context`, `engram_timeline`, entre otras. Instalacion inicial: `engram setup pi`.
 
-```bash
-EIN_MEMORY_MODE=local+engram
-```
-
-Valores:
-
-- `local+engram`
-- `engram-only`
-- `local-only`
+Context7 (docs de librerias) queda pendiente de soporte de MCP remoto HTTP en Pi.
 
 ## Linear
 

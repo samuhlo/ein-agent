@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "engram": {
+      "command": "/opt/homebrew/bin/engram",
+      "args": ["mcp", "--tools=agent"],
+      "directTools": false,
+      "lifecycle": "lazy"
+    }
+  }
+}
