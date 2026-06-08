@@ -219,10 +219,10 @@ interface AgentEntry {
 	filePath?: string;
 }
 
-const KEEP_CURRENT = "Keep current";
-const INHERIT_MODEL = "Inherit active/default model";
-const CUSTOM_MODEL = "Custom model id";
-const INHERIT_THINKING = "Inherit effort";
+const KEEP_CURRENT = "Mantener actual";
+const INHERIT_MODEL = "Heredar modelo activo/por defecto";
+const CUSTOM_MODEL = "Id de modelo personalizado";
+const INHERIT_THINKING = "Heredar esfuerzo";
 const THINKING_OPTIONS: (ThinkingLevel | typeof INHERIT_THINKING)[] = [
 	INHERIT_THINKING,
 	"off",
@@ -848,7 +848,7 @@ type ModelPanelResult =
 	| { type: "custom"; agent: string | "all"; config: AgentModelConfig }
 	| { type: "cancel" };
 
-const SET_ALL_AGENTS = "Set all agents";
+const SET_ALL_AGENTS = "Configurar todos los agentes";
 
 class SddModelPanel implements OverlayComponent {
 	private cursor = 0;
@@ -1062,9 +1062,9 @@ class SddModelPanel implements OverlayComponent {
 		const lines: string[] = [];
 		const line = (text = "") =>
 			truncateToWidth(text, Math.max(1, width), "…", true);
-		lines.push(line("Assign Models to Agents"));
+		lines.push(line("Asignar modelos a agentes"));
 		lines.push("");
-		lines.push(line("Current assignments:"));
+		lines.push(line("Asignaciones actuales:"));
 		lines.push("");
 		for (let i = 0; i < this.rows.length; i++) {
 			const row = this.rows[i] ?? SET_ALL_AGENTS;
@@ -1077,15 +1077,15 @@ class SddModelPanel implements OverlayComponent {
 		}
 		lines.push("");
 		lines.push(
-			line(`${this.cursor === this.rows.length ? "▸" : " "} Continue`),
+			line(`${this.cursor === this.rows.length ? "▸" : " "} Continuar`),
 		);
 		lines.push(
-			line(`${this.cursor === this.rows.length + 1 ? "▸" : " "} ← Back`),
+			line(`${this.cursor === this.rows.length + 1 ? "▸" : " "} ← Volver`),
 		);
 		lines.push("");
 		lines.push(
 			line(
-				"j/k: navigate • enter: change model / confirm • e: change effort • i: inherit all • c: custom model • ctrl+s: save • esc: back",
+				"j/k: navegar • enter: cambiar modelo/confirmar • e: esfuerzo • i: heredar todos • c: modelo personalizado • ctrl+s: guardar • esc: volver",
 			),
 		);
 		return lines;
@@ -1096,9 +1096,9 @@ class SddModelPanel implements OverlayComponent {
 		const options = this.filteredModelOptions();
 		const line = (text = "") =>
 			truncateToWidth(text, Math.max(1, width), "…", true);
-		lines.push(line(`Select model for ${this.selectedRow}`));
+		lines.push(line(`Seleccionar modelo para ${this.selectedRow}`));
 		lines.push("");
-		lines.push(line(`◎ ${this.query || "search..."}`));
+		lines.push(line(`◎ ${this.query || "buscar..."}`));
 		lines.push("");
 		const maxVisible = 12;
 		const start = Math.max(
@@ -1113,10 +1113,10 @@ class SddModelPanel implements OverlayComponent {
 			const focused = i === this.modelCursor;
 			lines.push(line(`${focused ? "▸" : " "} ${options[i]}`));
 		}
-		if (options.length === 0) lines.push(line("  No matching models"));
+		if (options.length === 0) lines.push(line("  Sin modelos coincidentes"));
 		lines.push("");
 		lines.push(
-			line("j/k: navigate • type: search • enter: select • esc: back"),
+			line("j/k: navegar • escribe: buscar • enter: seleccionar • esc: volver"),
 		);
 		return lines;
 	}
@@ -1152,14 +1152,14 @@ class SddModelPanel implements OverlayComponent {
 		const lines: string[] = [];
 		const line = (text = "") =>
 			truncateToWidth(text, Math.max(1, width), "…", true);
-		lines.push(line(`Select effort for ${this.selectedRow}`));
+		lines.push(line(`Seleccionar esfuerzo para ${this.selectedRow}`));
 		lines.push("");
 		for (let i = 0; i < THINKING_OPTIONS.length; i++) {
 			const focused = i === this.effortCursor;
 			lines.push(line(`${focused ? "▸" : " "} ${THINKING_OPTIONS[i]}`));
 		}
 		lines.push("");
-		lines.push(line("j/k: navigate • enter: select • esc: back"));
+		lines.push(line("j/k: navegar • enter: seleccionar • esc: volver"));
 		return lines;
 	}
 
@@ -1213,7 +1213,7 @@ async function handleModelsCommand(ctx: ExtensionContext): Promise<void> {
 	const savedConfig = await readSavedModelConfigAsync(ctx.cwd);
 	if (savedConfig.status === "invalid") {
 		ctx.ui.notify(
-			`Ein cannot open model config because ${savedConfig.path} is invalid JSON or not an object. Fix or remove the file, then run /ein:models again.`,
+			`Ein no puede abrir la config de modelos: ${savedConfig.path} no es JSON valido u objeto. Corrigelo o eliminalo y vuelve a ejecutar /ein:models.`,
 			"warning",
 		);
 		return;
@@ -1227,8 +1227,8 @@ async function handleModelsCommand(ctx: ExtensionContext): Promise<void> {
 				? "inherit"
 				: (config[result.agent]?.model ?? "inherit");
 		const custom = await ctx.ui.input(
-			`${result.agent === "all" ? "all agents" : result.agent} custom model id`,
-			current === "inherit" ? "provider/model" : current,
+			`${result.agent === "all" ? "todos los agentes" : result.agent} — id de modelo personalizado`,
+			current === "inherit" ? "proveedor/modelo" : current,
 		);
 		if (custom === undefined) return;
 		const trimmed = custom.trim();
@@ -1259,9 +1259,9 @@ async function handleModelsCommand(ctx: ExtensionContext): Promise<void> {
 	const applyResult = await applyModelConfigAsync(ctx.cwd, result.config);
 	ctx.ui.notify(
 		[
-			"Ein global model config saved.",
-			`Global config: ${modelConfigPath(ctx.cwd)}`,
-			`Agents updated: ${applyResult.updated}`,
+			"Config de modelos guardada.",
+			`Config global: ${modelConfigPath(ctx.cwd)}`,
+			`Agentes actualizados: ${applyResult.updated}`,
 			...describeModelConfig(ctx.cwd, result.config),
 		].join("\n"),
 		"info",
@@ -1271,16 +1271,16 @@ async function handleModelsCommand(ctx: ExtensionContext): Promise<void> {
 async function handlePersonaCommand(ctx: ExtensionContext): Promise<void> {
 	const current = readPersonaMode(ctx.cwd);
 	const selected = await ctx.ui.select(
-		`Ein persona (current: ${current})`,
+		`Persona de Ein (actual: ${current})`,
 		[...PERSONA_OPTIONS],
 	);
 	if (selected !== "samuhlo" && selected !== "neutral") return;
 	writePersonaMode(ctx.cwd, selected);
 	ctx.ui.notify(
 		[
-			`Ein persona set to: ${selected}`,
+			`Persona actualizada: ${selected}`,
 			`Config: ${personaConfigPath(ctx.cwd)}`,
-			"Run /reload or start a new Pi session for already-injected prompts to refresh.",
+			"Reinicia Pi o abre una sesion nueva para que el cambio tome efecto.",
 		].join("\n"),
 		"info",
 	);
@@ -1291,7 +1291,7 @@ async function runLinearPreflight(ctx: ExtensionContext): Promise<void> {
 		if (!ctx.hasUI) return;
 		// Attempt lightweight Linear project detection from cwd
 		// This is intentionally minimal - just a brief status hint
-		ctx.ui.notify("Ein session started. Linear preflight check complete.", "info");
+		ctx.ui.notify("Sesion Ein iniciada. Preflight Linear completado.", "info");
 	} catch {
 		// Silently skip Linear preflight if unavailable
 	}
@@ -1312,14 +1312,14 @@ export default function einAi(pi: ExtensionAPI): void {
 			const modelResult = await applySavedModelConfig(ctx);
 			if (ctx.hasUI && modelResult.invalidPath) {
 				ctx.ui.notify(
-					`Ein skipped model config because ${modelResult.invalidPath} is invalid JSON or not an object. Fix or remove the file, then run /ein:models again.`,
+					`Ein omitio la config de modelos: ${modelResult.invalidPath} no es JSON valido. Corrigelo o eliminalo y vuelve a ejecutar /ein:models.`,
 					"warning",
 				);
 				return;
 			}
 			if (ctx.hasUI && modelResult.updated > 0) {
 				ctx.ui.notify(
-					`Ein applied SDD model config to ${modelResult.updated} agent(s). Global SDD assets ready: ${installResult.agents} new agent(s), ${installResult.chains} new chain(s), ${installResult.support} new support file(s).`,
+					`Config de modelos aplicada a ${modelResult.updated} agente(s). Assets SDD listos: ${installResult.agents} agente(s), ${installResult.chains} chain(s), ${installResult.support} soporte.`,
 					"info",
 				);
 			}
@@ -1329,7 +1329,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				const message =
 					error instanceof Error ? error.message : String(error);
 				ctx.ui.notify(
-					`Ein model config sweep failed: ${message}`,
+					`Error al aplicar config de modelos: ${message}`,
 					"warning",
 				);
 			}
@@ -1379,12 +1379,12 @@ export default function einAi(pi: ExtensionAPI): void {
 
 	pi.registerCommand("ein:ai:install-sdd", {
 		description:
-			"Repair or refresh global Ein SDD subagent and chain assets.",
+			"Reinstalar o refrescar los agentes y chains SDD globales de Ein",
 		handler: async (args, ctx) => {
 			const force = args.includes("--force");
 			const result = installSddAssets(ctx.cwd, force);
 			ctx.ui.notify(
-				`Global Ein SDD assets installed: ${result.agents} agent(s), ${result.chains} chain(s), ${result.support} support file(s), ${result.skipped} already present.`,
+				`Assets SDD instalados: ${result.agents} agente(s), ${result.chains} chain(s), ${result.support} soporte, ${result.skipped} ya presentes.`,
 				"info",
 			);
 		},
@@ -1392,21 +1392,21 @@ export default function einAi(pi: ExtensionAPI): void {
 
 	pi.registerCommand("ein:ai:sdd-preflight", {
 		description:
-			"Run or reuse the lazy SDD preflight for this Pi session.",
+			"Ejecutar o reutilizar el preflight SDD para esta sesion de Pi",
 		handler: async (_args, ctx) => {
 			await runSddPreflight(ctx);
 		},
 	});
 
 	pi.registerCommand("ein:models", {
-		description: "Configure global per-agent models for Ein.",
+		description: "Ver o configurar los modelos activos por agente en Ein",
 		handler: async (_args, ctx) => {
 			await handleModelsCommand(ctx);
 		},
 	});
 
 	pi.registerCommand("ein:persona", {
-		description: "Switch Ein persona between samuhlo and neutral.",
+		description: "Cambiar la persona de Ein entre samuhlo y neutral",
 		handler: async (_args, ctx) => {
 			await handlePersonaCommand(ctx);
 		},
