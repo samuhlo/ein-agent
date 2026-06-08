@@ -73,6 +73,16 @@ Skills y mantenimiento:
 /ein:doctor-output
 ```
 
+Ayuda y diagnostico:
+
+```text
+/ein:help
+/ein:help full
+/ein:status
+/ein:doctor
+/ein:doctor-output
+```
+
 ## Flujo SDD
 
 Flujo unico `ein-sdd`: **init → explore → design → apply → verify**.

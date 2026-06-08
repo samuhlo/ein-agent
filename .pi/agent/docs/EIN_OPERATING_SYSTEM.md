@@ -91,6 +91,8 @@ Los comandos nativos `/skill:*` siguen activos. Usalos cuando quieras inyectar u
 
 Usa `/ein:status` para una vista rapida del sistema.
 
+Usa `/ein:help` o `/ein:help full` para la lista de comandos disponibles.
+
 Usa `/ein:doctor-output` para smoke checks tecnicos. Si devuelve `FAIL`, revisa antes de usar flujos de entrega o mutacion. Si devuelve `OK_WITH_WARNINGS`, el sistema es usable pero hay algo que endurecer.
 
 ## Recovery

@@ -1413,42 +1413,189 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:status", {
-		description: "Show Ein package status for this project.",
+		description: "Ver estado del sistema Ein (agentes, chains, skills, proyecto)",
 		handler: async (_args, ctx) => {
-			const agentsInstalled = existsSync(
-				join(einPiAgentHome(), "agents", "sdd-apply.md"),
-			);
-			const chainsInstalled = existsSync(
-				join(einPiAgentHome(), "chains", "ein-sdd.chain.md"),
-			);
-			const openspecConfigured = existsSync(
-				join(ctx.cwd, "openspec", "config.yaml"),
-			);
-			const staleSddAssets = sddGlobalAssetDriftCount();
-			const staleLocalOverrides = sddLocalOverrideDriftCount(ctx.cwd);
-			const modelConfig = await readModelConfigAsync(ctx.cwd);
-			ctx.ui.notify(
-				[
-					"Ein package is active.",
-					`Persona: ${readPersonaMode(ctx.cwd)}`,
-					`Global SDD agents: ${agentsInstalled ? "installed" : "not installed"}`,
-					`Global SDD chains: ${chainsInstalled ? "installed" : "not installed"}`,
-					`Global SDD assets stale: ${staleSddAssets} file(s)${
-						staleSddAssets > 0
-							? " — run /ein:ai:install-sdd --force to refresh intentionally"
-							: ""
-					}`,
-					`Project-local SDD override drift: ${staleLocalOverrides} file(s)${
-						staleLocalOverrides > 0
-							? " — run /ein:ai:install-sdd --force only if you intentionally want to replace local overrides"
-							: ""
-					}`,
-					`OpenSpec config: ${openspecConfigured ? "present" : "missing"}`,
-					`Global model config: ${existsSync(modelConfigPath(ctx.cwd)) ? "present" : "missing"}`,
-					...describeModelConfig(ctx.cwd, modelConfig),
-				].join("\n"),
-				staleSddAssets > 0 || staleLocalOverrides > 0 ? "warning" : "info",
-			);
+			const home = einPiAgentHome();
+			const agentsDir = join(home, "agents");
+			const chainsDir = join(home, "chains");
+			const skillsLocalDir = join(home, "skills", "local");
+			const skillsDownloadedDir = join(home, "skills", "downloaded");
+			const mcpFile = join(home, "mcp.json");
+
+			const agents = existsSync(agentsDir)
+				? readdirSync(agentsDir).filter((f) => f.endsWith(".md")).sort()
+				: [];
+			const chains = existsSync(chainsDir)
+				? readdirSync(chainsDir).filter((f) => f.endsWith(".chain.md")).sort()
+				: [];
+
+			function countDirs(dir: string): number {
+				if (!existsSync(dir)) return 0;
+				try {
+					return readdirSync(dir).length;
+				} catch {
+					return 0;
+				}
+			}
+
+			const localSkills = countDirs(skillsLocalDir);
+			const downloadedSkills = countDirs(skillsDownloadedDir);
+			const openspecConfigured = existsSync(join(ctx.cwd, "openspec", "config.yaml"));
+			const staleDrift = sddGlobalAssetDriftCount();
+
+			let mcpServers: string[] = [];
+			if (existsSync(mcpFile)) {
+				try {
+					const cfg = JSON.parse(readFileSync(mcpFile, "utf8")) as {
+						mcpServers?: Record<string, unknown>;
+					};
+					mcpServers = Object.keys(cfg.mcpServers ?? {});
+				} catch {
+					mcpServers = [];
+				}
+			}
+
+			const lines: string[] = [];
+			lines.push("/// 000. EIN STATUS");
+			lines.push(`autor: samuhlo`);
+			lines.push(`persona: ${readPersonaMode(ctx.cwd)}`);
+			lines.push(`estado: ${staleDrift > 0 ? "drift detectado" : "operativo"}`);
+			lines.push("");
+
+			lines.push("■ 001. SDD");
+			lines.push(`agentes: ${agents.length}`);
+			for (const a of agents) lines.push(`- ${a}`);
+			lines.push(`chains: ${chains.length}`);
+			for (const c of chains) lines.push(`- ${c}`);
+			if (staleDrift > 0)
+				lines.push(`drift: ${staleDrift} archivo(s) desincronizado(s) — /ein:ai:install-sdd --force para refrescar`);
+			lines.push("");
+
+			lines.push("■ 002. SKILLS");
+			lines.push(`locales: ${localSkills}`);
+			lines.push(`descargadas: ${downloadedSkills}`);
+			lines.push("");
+
+			lines.push("■ 003. PROYECTO");
+			lines.push(`openspec: ${openspecConfigured ? "configurado" : "no configurado — /sdd-init para arrancar"}`);
+			lines.push(`modelo: ${existsSync(modelConfigPath(ctx.cwd)) ? "config presente" : "sin config local"}`);
+			lines.push("");
+
+			lines.push("■ 004. MCP");
+			if (mcpServers.length > 0) {
+				lines.push(`servidores: ${mcpServers.join(", ")}`);
+			} else {
+				lines.push("servidores: ninguno configurado");
+			}
+			lines.push("");
+
+			lines.push("■ 005. DIAGNOSTICO");
+			lines.push(`- ${"/ein:doctor-output"} para smoke checks tecnicos`);
+			lines.push(`- ${"/ein:doctor"} para diagnostico explicativo`);
+
+			const level = staleDrift > 0 ? "warning" : "info";
+			ctx.ui.notify(lines.join("\n"), level);
+		},
+	});
+
+	pi.registerCommand("ein:help", {
+		description: "Ayuda del sistema Ein — usa 'full' para detalle completo",
+		handler: async (args, ctx) => {
+			const mode = (Array.isArray(args) ? args.join(" ") : String(args ?? ""))
+				.trim()
+				.toLowerCase();
+			const lines: string[] = [];
+
+			if (mode === "full") {
+				lines.push("// 000. RESUMEN");
+				lines.push("");
+				lines.push("Ein esta listo. Autor: samuhlo.");
+				lines.push(
+					"Esta guia muestra que comando usar segun objetivo y que limites respeta cada flujo.",
+				);
+				lines.push("");
+				lines.push("// 000b. USO RECOMENDADO: HABLA CON EIN");
+				lines.push("");
+				lines.push("Ein entiende lenguaje natural. No necesitas aprender comandos slash.");
+				lines.push("Flujos canonicos:");
+				lines.push("");
+				lines.push("  Nueva tarea seria  →  'Nueva tarea: ... montala en Linear y prepara SDD'");
+				lines.push("  Continuar SDD      →  'continua con SDD'");
+				lines.push("  Aplicar            →  'aplica el primer batch'");
+				lines.push("  Verificar          →  'verifica'");
+				lines.push("  Sincronizar Linear →  'sincroniza Linear'");
+				lines.push("");
+				lines.push(
+					"Los comandos slash (/ein:*) son controles avanzados de emergencia o uso manual.",
+				);
+				lines.push("");
+				lines.push("// 001. COMANDOS CORE");
+				lines.push("");
+				lines.push("- /ein:status           → estado rapido del workbench.");
+				lines.push("- /ein:persona          → ver/cambiar estilo (samuhlo|neutral).");
+				lines.push("- /ein:models           → ver modelos activos.");
+				lines.push("- /ein:help [full]      → esta ayuda.");
+				lines.push("");
+				lines.push("// 002. FLUJO SDD");
+				lines.push("");
+				lines.push("- SDD fluye via lenguaje natural o chain ein-sdd.");
+				lines.push("- /sdd-init             → bootstrap openspec/config.yaml en el proyecto.");
+				lines.push("- /ein:ai:sdd-preflight → preflight SDD (modo y store de artefactos).");
+				lines.push("- /ein:ai:install-sdd   → reinstalar/refrescar assets SDD globales.");
+				lines.push("");
+				lines.push("// 003. FLUJO LINEAR");
+				lines.push("");
+				lines.push("- /ein:linear:new <request>       → crea/reusa trabajo con preflight.");
+				lines.push("- /ein:linear:project-bootstrap   → siembra fases + milestones.");
+				lines.push("- /ein:linear:milestones <proj>   → lista milestones.");
+				lines.push("- /ein:linear:help                → ayuda especifica de Linear.");
+				lines.push("");
+				lines.push("// 004. FLUJO GITHUB");
+				lines.push("");
+				lines.push("- GitHub fluye via el agente ein-github (lenguaje natural o /ein:github:*).");
+				lines.push("");
+				lines.push("// 005. SKILLS");
+				lines.push("");
+				lines.push("- /ein:skills                     → inventario y resolucion de skills.");
+				lines.push("- /ein:skills:advisor <tarea>     → advisor de skills para una tarea.");
+				lines.push("");
+				lines.push("// 006. DIAGNOSTICO");
+				lines.push("");
+				lines.push("- /ein:doctor                     → diagnostico explicativo del sistema.");
+				lines.push("- /ein:doctor-output              → smoke checks tecnicos (OK/WARN/FAIL).");
+				lines.push("");
+				lines.push("// 007. GATES Y LIMITES");
+				lines.push("");
+				lines.push("- Delivery no se encadena automaticamente.");
+				lines.push("- Commit != push != PR != merge (cada fase requiere intencion explicita).");
+				lines.push(
+					"- Si la peticion es ambigua, se pide aclaracion antes de acciones irreversibles.",
+				);
+				ctx.ui.notify(lines.join("\n"), "info");
+				return;
+			}
+
+			lines.push("/// 000. AYUDA EIN");
+			lines.push("autor: samuhlo");
+			lines.push("");
+			lines.push("■ 001. CORE");
+			lines.push("- /ein:status | /ein:persona | /ein:models | /ein:help [full]");
+			lines.push("");
+			lines.push("■ 002. SDD");
+			lines.push("- /sdd-init → bootstrap openspec en el proyecto actual");
+			lines.push("- SDD fluye via lenguaje natural o chain ein-sdd");
+			lines.push("");
+			lines.push("■ 003. LINEAR");
+			lines.push("- /ein:linear:new | :project-bootstrap | :milestones | :help");
+			lines.push("");
+			lines.push("■ 004. SKILLS");
+			lines.push("- /ein:skills | /ein:skills:advisor <tarea>");
+			lines.push("");
+			lines.push("■ 005. DIAGNOSTICO");
+			lines.push("- /ein:doctor | /ein:doctor-output");
+			lines.push("");
+			lines.push("- detalle: /ein:help full");
+			ctx.ui.notify(lines.join("\n"), "info");
 		},
 	});
 }

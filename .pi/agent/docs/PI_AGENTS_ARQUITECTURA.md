@@ -187,19 +187,19 @@ Grupos principales:
 
 ```text
 /ein:status
-/ein:help full
-/ein:sdd-preflight
-/ein:sdd:new
-/ein:sdd:apply
-/ein:sdd:verify
+/ein:help [full]
+/ein:persona
+/ein:models
+/sdd-init
+/ein:ai:sdd-preflight
+/ein:ai:install-sdd
 /ein:linear:new
-/ein:github:pr
+/ein:linear:project-bootstrap
+/ein:linear:milestones
+/ein:linear:help
 /ein:skills
-/ein:skills update
-/ein:skills add <skill>
-/ein:skills clean
-/ein:skills:advisor
-/ein:orchestrate
+/ein:skills:advisor <tarea>
+/ein:doctor
 /ein:doctor-output
 ```
 
