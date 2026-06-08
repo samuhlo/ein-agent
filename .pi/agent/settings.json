@@ -1,0 +1,62 @@
+{
+  "theme": "dark",
+  "quietStartup": false,
+  "enableInstallTelemetry": false,
+  "enableSkillCommands": true,
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 16384,
+    "keepRecentTokens": 24000
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000,
+    "provider": {
+      "maxRetryDelayMs": 60000
+    }
+  },
+  "extensions": [
+    "/Users/samu/.pi/agent/extensions"
+  ],
+  "prompts": [
+    "/Users/samu/.pi/agent/prompts"
+  ],
+  "skills": [
+    "/Users/samu/.pi/agent/skills/local",
+    "/Users/samu/.pi/agent/skills/downloaded"
+  ],
+  "lastChangelogVersion": "0.78.1",
+  "defaultProvider": "minimax",
+  "defaultModel": "MiniMax-M2.7",
+  "enabledModels": [
+    "minimax/MiniMax-M2.7",
+    "openai-codex/gpt-5.5",
+    "minimax/MiniMax-M2.7-highspeed"
+  ],
+  "packages": [
+    "npm:pi-subagents"
+  ],
+  "subagents": {
+    "agentOverrides": {
+      "orchestrator_planner_agent": {
+        "disabled": true
+      },
+      "linear_light_agent": {
+        "disabled": true
+      },
+      "github_light_agent": {
+        "disabled": true
+      },
+      "github_writer_agent": {
+        "disabled": true
+      },
+      "github_review_heavy_agent": {
+        "disabled": true
+      },
+      "design_image_heavy_agent": {
+        "disabled": true
+      }
+    }
+  }
+}

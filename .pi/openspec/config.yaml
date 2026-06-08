@@ -1,0 +1,19 @@
+# Ein OpenSpec Configuration
+# Sistema de artifacts para SDD (Spec-Driven Development)
+
+project:
+  name: ein-pi
+  type: auto
+  test_command: auto
+
+sdd:
+  mode: both
+  artifact_store: openspec
+  pr_strategy: chained
+  review_budget: 400
+
+persona:
+  active: architect
+  available:
+    - architect
+    - neutral

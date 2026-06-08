@@ -1,0 +1,159 @@
+{
+  "version": 1,
+  "updatedAt": "2026-06-01T15:26:59.352Z",
+  "entries": {
+    "vite": {
+      "name": "vite",
+      "source": {
+        "repo": "antfu/skills",
+        "skill": "vite"
+      },
+      "hash": "7a96b654c210b97a50498495ebbb69f6f3c4a7dc9e403ad8e89efa17c25e8825",
+      "installedAt": "2026-05-29T17:51:45.156Z"
+    },
+    "vitest": {
+      "name": "vitest",
+      "source": {
+        "repo": "antfu/skills",
+        "skill": "vitest"
+      },
+      "hash": "cabca6b1defd712892d9e5d15658b69e0c59287628ba23c85e0a93d94b6597a8",
+      "installedAt": "2026-05-29T17:51:46.359Z"
+    },
+    "vue": {
+      "name": "vue",
+      "source": {
+        "repo": "antfu/skills",
+        "skill": "vue"
+      },
+      "hash": "64c5282303420a497eab1347e97845ec772ccdcac56104cbe1e0d35a1db6ce79",
+      "installedAt": "2026-05-29T17:51:48.773Z"
+    },
+    "nuxt": {
+      "name": "nuxt",
+      "source": {
+        "repo": "antfu/skills",
+        "skill": "nuxt"
+      },
+      "hash": "c91db3c17d0a19a3c9901c648b111a069f9dcf36f7271962ddb8ed28d330a9e4",
+      "installedAt": "2026-05-29T17:51:49.980Z"
+    },
+    "hono": {
+      "name": "hono",
+      "source": {
+        "repo": "yusukebe/hono-skill",
+        "skill": "hono"
+      },
+      "hash": "220e5e1b12bbaeec49ec362b6e2262d77632d0536e9758bba9acbbc323fef990",
+      "installedAt": "2026-05-29T17:51:57.345Z"
+    },
+    "gsap-core": {
+      "name": "gsap-core",
+      "source": {
+        "repo": "greensock/gsap-skills",
+        "skill": "gsap-core"
+      },
+      "hash": "c4a01101d9e1aafbf4b49f75d74f9349790d8741981ba0237c990093863035a6",
+      "installedAt": "2026-05-29T17:52:03.315Z"
+    },
+    "gsap-scrolltrigger": {
+      "name": "gsap-scrolltrigger",
+      "source": {
+        "repo": "greensock/gsap-skills",
+        "skill": "gsap-scrolltrigger"
+      },
+      "hash": "1cdc5647693783cb7a662d84a5de434c88a051ed56b4d33597c9b5782b5973e6",
+      "installedAt": "2026-05-29T17:52:04.481Z"
+    },
+    "gsap-timeline": {
+      "name": "gsap-timeline",
+      "source": {
+        "repo": "greensock/gsap-skills",
+        "skill": "gsap-timeline"
+      },
+      "hash": "54981c2feec5a9c0d57988aeb32315af32bdeadd261550d5e9db7a7b1f08b487",
+      "installedAt": "2026-05-29T17:52:13.028Z"
+    },
+    "typescript": {
+      "name": "typescript",
+      "source": {
+        "repo": "wshobson/agents",
+        "skill": "typescript-advanced-types"
+      },
+      "hash": "cdb885ca76ed5147c025e57a165c17eae923dff5faa9236cf0fe4365394a9a9d",
+      "installedAt": "2026-05-29T17:56:43.534Z"
+    },
+    "bun": {
+      "name": "bun",
+      "source": {
+        "repo": "midudev/autoskills",
+        "skill": "bun"
+      },
+      "hash": "902720797715750b56c8f678b24c4c76d31d03af439b497af9653a7686c7fa7b",
+      "installedAt": "2026-05-29T17:56:48.554Z"
+    },
+    "drizzle": {
+      "name": "drizzle",
+      "source": {
+        "repo": "bobmatnyc/claude-mpm-skills",
+        "skill": "drizzle-orm"
+      },
+      "hash": "c529584660addc49f40be6ae2926d99fb18091b77f440d68e5a37bd67119927e",
+      "installedAt": "2026-05-29T17:59:35.919Z"
+    },
+    "tailwind-css-patterns": {
+      "name": "tailwind-css-patterns",
+      "source": {
+        "repo": "giuseppe-trisciuoglio/developer-kit",
+        "skill": "tailwind-css-patterns"
+      },
+      "hash": "494e720d98c6e9012a2e24375abdc153eab73c13970f073478d383e900869c2d",
+      "installedAt": "2026-06-01T15:26:22.770Z"
+    },
+    "zod": {
+      "name": "zod",
+      "source": {
+        "repo": "pproenca/dot-skills",
+        "skill": "zod"
+      },
+      "hash": "b53dbfa6b2647afde6a147f569d2202c8a8f9855f5ddd5f636e11f9f0cfac973",
+      "installedAt": "2026-06-01T15:26:35.098Z"
+    },
+    "react": {
+      "name": "react",
+      "source": {
+        "repo": "vercel-labs/agent-skills",
+        "skill": "react-best-practices"
+      },
+      "hash": "74f142d28d360d78e8bac4f239a84c87f0ced9015729bc72b5458d82ff45b015",
+      "installedAt": "2026-06-01T15:26:38.283Z"
+    },
+    "next": {
+      "name": "next",
+      "source": {
+        "repo": "vercel-labs/next-skills",
+        "skill": "next-best-practices"
+      },
+      "hash": "4bf1b21f7a66848642c150cab284f24c004ad6da0f717eed4fe9db74eaa6b6a8",
+      "installedAt": "2026-06-01T15:26:39.908Z"
+    },
+    "nodejs-best-practices": {
+      "name": "nodejs-best-practices",
+      "source": {
+        "repo": "sickn33/antigravity-awesome-skills",
+        "skill": "nodejs-best-practices"
+      },
+      "hash": "3e025f24a1948fcbfe666eabc757f5b426271b08a420a86dba1ea7518cc7b369",
+      "installedAt": "2026-06-01T15:26:53.234Z"
+    },
+    "gsap-react": {
+      "name": "gsap-react",
+      "source": {
+        "repo": "greensock/gsap-skills",
+        "skill": "gsap-react"
+      },
+      "hash": "7d3b52822681a4158e371f895c58fb7030ecaf33f585a534b7162f9e92c5d893",
+      "installedAt": "2026-06-01T15:26:59.352Z"
+    }
+  }
+}

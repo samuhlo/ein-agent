@@ -1,0 +1,20 @@
+# === Secretos y credenciales (NUNCA versionar) ===
+.pi/agent/auth.json
+
+# === Estado de runtime / sesiones (específico de máquina) ===
+.pi/agent/run-history.jsonl
+.pi/agent/sessions/
+.pi/agent/backups/
+.pi/agent/.atl/
+.pi/agent/.piagents/
+.pi/agent/.sdd/
+.pi/openspec/changes/
+
+# === Dependencias y binarios (reproducibles) ===
+.pi/**/node_modules/
+.pi/agent/npm/
+.pi/agent/bin/
+
+# === Ruido de herramientas ===
+.claude/
+.DS_Store
