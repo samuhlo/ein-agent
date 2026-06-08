@@ -4,16 +4,16 @@ Bind this to the parent Pi session only. Do not apply it to SDD executor phase a
 
 ## Subagent Inventory
 
-Ein has these subagents available. **Use `subagent` tool to invoke them — never execute their work directly from the parent session.**
+Ein has these subagents available. **Use the `subagent` tool to invoke them — never execute their work directly from the parent session.**
 
 | Agent | Tools | When to use |
 | ----- | ----- | ----------- |
 | `ein-linear` | linear_viewer, linear_list_projects, linear_list_issues, linear_create_issue, linear_update_issue, linear_search_issues, linear_create_comment, etc. | **ALL Linear operations**: list projects, create/read/update/search issues, create comments, sync states. NEVER run `curl` to Linear API directly. |
 | `ein-github` | bash, read, grep, glob | **GitHub delivery**: git operations, branches, commits, PRs, reviews, checks. NEVER run `git` or `gh` directly for delivery actions. |
-| `sdd-apply` | read, grep, glob, edit, write, bash | **SDD implementation phase** when task warrants full SDD lifecycle. |
-| `sdd-verify` | read, grep, glob, bash | **SDD verification phase** after implementation. |
-| `sdd-explore` | read, grep, glob, bash | **SDD exploration phase** for ambiguous or large features. |
-| `sdd-design` | read, grep, glob, bash | **SDD design phase** for architectural decisions. |
+| `sdd-explore` | read, grep, glob, webfetch | **SDD exploration phase** for ambiguous or large features. |
+| `sdd-design` | read, grep, glob, write, edit | **SDD design phase**: propuesta, spec y tareas in one plan. |
+| `sdd-apply` | read, grep, glob, edit, write, bash | **SDD implementation phase**. |
+| `sdd-verify` | read, grep, glob, bash, write, edit | **SDD verification phase** after implementation. |
 
 **How to delegate:**
 
@@ -24,25 +24,19 @@ await subagent({ agent: "ein-github", task: "create branch feature/xyz from main
 
 ## Chain Inventory
 
-**Use chains for multi-phase workflows — do NOT invoke individual SDD phase agents directly for complete workflows.**
+**Use the chain for the multi-phase SDD flow — do NOT invoke individual SDD phase agents directly for a complete workflow.**
 
 | Chain | Phases | When to use |
 | ----- | ------ | ----------- |
-| `sdd-full` | init → explore → proposal → spec → design → tasks → apply → verify → sync → archive | **Full SDD lifecycle** when work is approved and ready for complete implementation |
-| `sdd-plan` | init → proposal → spec → design → tasks | **Planning only** when you need specs/design/tasks but not implementation yet |
-| `sdd-verify` | apply → verify → sync → archive | **Verification** after implementation is complete |
+| `ein-sdd` | init → explore → design → apply → verify | **The SDD flow** for a change: planning (design) through implementation and verification |
 
 **SDD Invocation — CRITICAL:**
 
 ```
-# For full SDD (complete workflow):
-await subagent({ chain: "sdd-full", task: "SAM-328: Motor determinista calculatePlanning()" })
-
-# For SDD planning only (up to tasks, no implementation):
-await subagent({ chain: "sdd-plan", task: "SAM-328: Motor determinista calculatePlanning()" })
+await subagent({ chain: "ein-sdd", task: "SAM-328: Motor determinista calculatePlanning()" })
 ```
 
-**NEVER use `sdd-apply` directly when the user asks for SDD.** The `sdd-apply` agent is only for the implementation phase within `sdd-full` chain — not as a standalone agent for full SDD.
+**NEVER use `sdd-apply` directly when the user asks for SDD.** The `sdd-apply` agent is only the implementation phase inside the `ein-sdd` chain — not a standalone agent for the full flow. For a quick re-verification of an already-implemented change you may invoke `sdd-verify` directly.
 
 ## Identity Contract
 
@@ -114,7 +108,7 @@ Do not add SDD ceremony. Do not delegate just to look sophisticated. But do not 
 
 ### 2. Simple Delegation
 
-Delegate when the work would inflate parent context or requires focused exploration, validation, or multi-file implementation, but does not yet need a full SDD lifecycle.
+Delegate when the work would inflate parent context or requires focused exploration, validation, or multi-file implementation, but does not yet need a full SDD flow.
 
 Examples:
 
@@ -131,15 +125,14 @@ Examples:
 | -------- | ------- |
 | `ein-linear` | Linear operations: list projects, create/read/update issues, search, comments |
 | `ein-github` | GitHub delivery: branches, commits, PRs, reviews, checks |
-| `sdd-apply` | SDD implementation phase |
-| `sdd-verify` | SDD verification phase |
 | `sdd-explore` | SDD exploration phase |
 | `sdd-design` | SDD design phase |
+| `sdd-apply` | SDD implementation phase |
+| `sdd-verify` | SDD verification phase |
 
 **Delegation syntax:**
 
 ```
-Use the `subagent` tool with `agent: "ein-linear"` or `agent: "ein-github"`:
 await subagent({ agent: "ein-linear", task: "...", context: "fresh" })
 await subagent({ agent: "ein-github", task: "...", context: "fork" })
 ```
@@ -147,7 +140,7 @@ await subagent({ agent: "ein-github", task: "...", context: "fork" })
 **Default balanced pattern for bounded implementation:**
 
 ```text
-parent clarifies and checks git → ein-linear scouts context when heavy → worker (parent or subagent) writes → ein-github reviews diff → parent validates and reports
+parent clarifies and checks git → sdd-explore maps context when heavy → sdd-apply (or parent for one-file) writes → ein-github reviews diff → parent validates and reports
 ```
 
 Do not make every task SDD. Do make non-trivial tasks multi-agent at the narrowest useful point.
@@ -161,8 +154,7 @@ Triggers:
 - unclear requirements or acceptance criteria;
 - architectural/product decisions;
 - cross-cutting behavior changes;
-- expected large diff or reviewer burden;
-- need for specs/design/tasks before safe implementation;
+- need for a design plan (propuesta/spec/tareas) before safe implementation;
 - user explicitly asks to use SDD, or invokes `/sdd-new`, `/sdd-ff`, or `/sdd-continue`.
 
 If the request is large enough for SDD, do not jump directly to implementation. Calibrate context, create artifacts, and ask for approval at the appropriate gates.
@@ -231,47 +223,39 @@ stop writes → parent captures git status → ein-github fresh audits affected 
 SDD phases:
 
 ```text
-init → explore → proposal → spec → design → tasks → apply → verify → archive
+init → explore → design → apply → verify
 ```
 
-Dependency graph:
-
-```text
-proposal → spec ─┬→ tasks → apply → verify → archive
-proposal → design ┘
-```
+`design` is a single planning phase: it produces `design.md` with the propuesta, the spec (RFC 2119 + Given/When/Then), and the actionable task checklist. There is no separate proposal/spec/tasks phase.
 
 **SDD Invocation Rule:**
 When the user asks to use SDD, start SDD, or run SDD for a task:
-- **DO**: Use `subagent({ chain: "sdd-full", task: "..." })` for complete SDD
-- **DO**: Use `subagent({ chain: "sdd-plan", task: "..." })` for planning only
-- **NEVER**: Use `sdd-apply` directly as a standalone agent for SDD
+- **DO**: Use `subagent({ chain: "ein-sdd", task: "..." })` for the full flow.
+- **NEVER**: Use `sdd-apply` directly as a standalone agent for SDD.
 
-The individual `sdd-*` agents (sdd-apply, sdd-verify, etc.) are **phase agents used internally by chains** — they are not meant to be invoked directly by the parent session for full SDD workflows.
+The individual `sdd-*` agents (sdd-apply, sdd-verify, etc.) are **phase agents used internally by the chain** — they are not meant to be invoked directly by the parent session for the full workflow.
 
 ## Lazy SDD Preflight
 
 Do not ask SDD setup questions on session start. The first time the user initiates an SDD process in a Pi session, run the SDD preflight once and keep those choices for the rest of that session. Runtime trigger detection is intentionally deterministic: slash SDD flows and `/sdd-init` run preflight automatically; for natural-language requests, the parent/orchestrator decides semantically whether SDD is needed and must run/reuse `/ein:ai:sdd-preflight` before continuing.
 
-**Hard gate:** `openspec/config.yaml`, existing SDD changes, installed `.pi`/global SDD assets, or a todo named "preflight" are not session preflight. They are project context only. Do not mark SDD preflight complete, start `sdd-init`, launch SDD subagents/chains, or move to explore/proposal/spec/design/tasks until this session has either:
+**Hard gate:** `openspec/config.yaml`, existing SDD changes, installed `.pi`/global SDD assets, or a todo named "preflight" are not session preflight. They are project context only. Do not mark SDD preflight complete, start `sdd-init`, launch SDD subagents/chains, or move to explore/design until this session has either:
 
 1. an injected `## SDD Session Preflight` block, or
-2. an explicit user answer in the current conversation covering all four preflight choices below.
+2. an explicit user answer in the current conversation covering all preflight choices below.
 
-If neither exists and `/ein:ai:sdd-preflight` cannot be invoked from the current context, ask the four choices manually with `ask_user_question` before any SDD phase work. Treat missing Engram availability as a reason to ask/confirm artifact store, not as permission to assume defaults.
+If neither exists and `/ein:ai:sdd-preflight` cannot be invoked from the current context, ask the choices manually with `ask_user_question` before any SDD phase work. Treat missing Engram availability as a reason to ask/confirm artifact store, not as permission to assume defaults.
 
 The preflight captures:
 
 - execution mode: `interactive` or `auto`;
-- artifact store: `openspec`, `engram`, or `both` when callable memory tools are available;
-- chained PR strategy: `auto-forecast`, `ask-always`, `single-pr-default`, or `force-chained`;
-- review budget in changed lines.
+- artifact store: `openspec`, `engram`, or `both` when callable memory tools are available.
 
 The package should ensure SDD assets are present as global Pi runtime assets without the user needing to remember per-project setup commands. If assets are missing, install them non-destructively into:
 
 ```text
 ~/.pi/agent/agents/sdd-*.md
-~/.pi/agent/chains/sdd-*.chain.md
+~/.pi/agent/chains/ein-sdd.chain.md
 ```
 
 Manual install commands are recovery/debug paths, not the happy path. `/ein:ai:sdd-preflight` and `/ein:sdd-preflight` are the explicit preflight commands for agent/orchestrator use. If the user explicitly changes SDD preferences later in the same session, follow the new instruction.
@@ -303,7 +287,7 @@ When Engram or another callable memory package is available, the parent owns mem
 - Read context: parent/orchestrator searches memory, selects relevant observations, and passes them into subagent prompts. Subagents should not independently search memory during normal runtime unless the parent explicitly instructs them to retrieve a specific artifact or observation.
 - Write context: subagents MUST save significant discoveries, decisions, bug fixes, and completed SDD phase artifacts to memory before returning when memory tools are available.
 - Prompt forwarding: when delegating, add a concrete instruction such as: `If you make important discoveries, decisions, or fix bugs, save them to Engram via the available memory save tool with project: '<project>' before returning.`
-- SDD artifact keys: in memory/hybrid mode, phase artifacts should use stable topic keys such as `sdd/<change>/proposal`, `sdd/<change>/spec`, `sdd/<change>/design`, `sdd/<change>/tasks`, `sdd/<change>/apply-progress`, and `sdd/<change>/verify-report`.
+- SDD artifact keys: in memory/hybrid mode, phase artifacts should use stable topic keys such as `sdd/<change>/design`, `sdd/<change>/apply-progress`, and `sdd/<change>/verify-report`.
 - If memory tools are unavailable, do not pretend persistence exists; return artifacts inline and/or write OpenSpec files.
 
 ## Execution Mode
@@ -382,7 +366,6 @@ Samu's core skills:
 
 - `linear-workflow` — for Linear operations
 - `github-workflow` — for GitHub delivery
-- `ein-discipline` — for SDD and work discipline
 - `comment-style` — for code comments
 
 If a subagent reports `skill_resolution`, interpret it as project/user skill resolution:
@@ -413,7 +396,6 @@ Common intent hints, not hard routing:
 | PR review / GitHub PR URL  | project review skill, then `pr-review` |
 | Post-ready review comments | `comment-writer`                       |
 | Create/open/prepare PR     | `branch-pr`                            |
-| Split/stack/large PR       | `chained-pr`                           |
 
 Keep this lightweight: loading a skill should improve the immediate task, not force extra ceremony.
 
@@ -439,14 +421,6 @@ STRICT TDD MODE IS ACTIVE. Test runner: <command>. Follow RED, GREEN, TRIANGULAT
 ```
 
 Do not rely on the child agent to discover this independently.
-
-## Review Workload Guard
-
-After `sdd-tasks` and before `sdd-apply`, inspect the task output for review workload risk.
-
-If estimated changed lines exceed 400, chained PRs are recommended, or a decision is needed, pause and ask unless the user already approved a delivery strategy.
-
-Automatic mode does not override reviewer burnout protection.
 
 ## Safety
 

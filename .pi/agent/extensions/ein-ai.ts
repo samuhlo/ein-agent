@@ -193,14 +193,9 @@ const CONFIRM_BASH_PATTERNS: RegExp[] = [
 const SDD_AGENT_NAMES = [
 	"sdd-init",
 	"sdd-explore",
-	"sdd-proposal",
-	"sdd-spec",
 	"sdd-design",
-	"sdd-tasks",
 	"sdd-apply",
 	"sdd-verify",
-	"sdd-sync",
-	"sdd-archive",
 ] as const;
 const SDD_AGENT_NAME_SET = new Set<string>(SDD_AGENT_NAMES);
 
@@ -1400,7 +1395,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				join(einPiAgentHome(), "agents", "sdd-apply.md"),
 			);
 			const chainsInstalled = existsSync(
-				join(einPiAgentHome(), "chains", "sdd-full.chain.md"),
+				join(einPiAgentHome(), "chains", "ein-sdd.chain.md"),
 			);
 			const openspecConfigured = existsSync(
 				join(ctx.cwd, "openspec", "config.yaml"),
