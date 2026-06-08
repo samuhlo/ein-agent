@@ -143,7 +143,7 @@ Ein conecta Engram via MCP (stdio transport):
 
 Capas:
 
-- Engram: `~/.engram` (DB SQLite con 15 tools disponibles en el perfil `agent`).
+- Engram Pi: `~/.engram-pi` (DB SQLite separada de OpenCode; 15 tools disponibles en el perfil `agent`).
 - Snapshot de sesion: `.piagents/session.md` (generado por Pi runtime).
 
 El perfil `--tools=agent` expone tools de lectura/escritura de memoria para el modelo: `engram_save`, `engram_search`, `engram_context`, `engram_timeline`, entre otras. Instalacion inicial: `engram setup pi`.

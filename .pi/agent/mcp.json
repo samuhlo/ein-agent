@@ -3,6 +3,9 @@
     "engram": {
       "command": "/opt/homebrew/bin/engram",
       "args": ["mcp", "--tools=agent"],
+      "environment": {
+        "ENGRAM_DATA_DIR": "/Users/samu/.engram-pi"
+      },
       "directTools": false,
       "lifecycle": "lazy"
     }
