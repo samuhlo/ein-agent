@@ -14,16 +14,13 @@ Ruta base por cambio:
 
 `openspec/changes/<cambio>/`
 
-Archivos esperados:
+Archivos esperados (flujo `ein-sdd`):
 
-- `proposal.md`
-- `specs/<dominio>/spec.md`
+- `init.md`
+- `exploration.md`
 - `design.md`
-- `tasks.md`
 - `apply-progress.md`
 - `verify-report.md`
-- `sync-report.md`
-- `archive-report.md`
 
 Configuracion global:
 
@@ -38,50 +35,28 @@ Campos minimos:
 - `runtime`
 - `package_manager`
 - `default_commands`: `test`, `build`, `lint`, `typecheck` (o `none`)
-- `strict_tdd_mode`: `required` | `recommended` | `off`
-- `required_skills`
-- `skill_digest`
-- `forbidden_tools`
-- `rules.proposal`, `rules.spec`, `rules.design`, `rules.tasks`, `rules.apply`, `rules.verify`
+- `strict_tdd`
+- `rules.design`, `rules.apply`, `rules.verify`
 
-## `proposal.md`
+## `exploration.md`
 
-Secciones minimas:
+Notas de exploracion: scope, riesgos, dependencias y prior art. Sin implementacion.
 
-- `Resumen`
-- `Contexto actual`
-- `Ruta propuesta`
-- `Riesgos`
-- `Supuestos`
-- `Siguiente paso`
+## `design.md`
 
-## `specs/<dominio>/spec.md`
+Artefacto unico de planificacion con tres secciones:
 
-Regla:
+### A. Propuesta
+- `Intent`, `Scope` (y non-goals), `Affected areas`, `Risks`, `Rollback`, `Success criteria`.
 
-- Si no existe spec canonica, escribir el comportamiento completo.
-- Si ya existe `openspec/specs/<dominio>/spec.md`, usar secciones `ADDED Requirements`, `MODIFIED Requirements` o `REMOVED Requirements`.
-- Cada requirement debe incluir escenarios Given/When/Then cuando sea observable.
+### B. Spec
+- Requirements en estilo RFC 2119.
+- Escenarios Given/When/Then por requirement observable.
 
-## `tasks.md`
-
-Regla:
-
-- Solo tareas checkbox: `- [ ]` o `- [x]`.
-
-Cada tarea debe incluir:
-
-- `id` (ejemplo `1.1`)
-- `title`
-- `why`
-- `skills`
-- `skill_digest` o referencia a digest usado
-- `verify`
-
-Opcional recomendado cuando aplique:
-
-- `architecture`
-- `avoid`
+### C. Tareas
+- Solo checkbox: `- [ ]` o `- [x]`.
+- Cada tarea: descripcion, archivos afectados, skills necesarias, orden/dependencias.
+- Sin review workload forecast ni chained-PR planning.
 
 ## `apply-progress.md`
 
@@ -90,6 +65,7 @@ Secciones minimas por batch:
 - `Batch`
 - `Tareas completadas`
 - `Archivos tocados`
+- `TDD Cycle Evidence` (cuando strict TDD activo)
 - `Decisiones tecnicas`
 - `Riesgos`
 - `Checks ejecutados` (o `none`)
@@ -102,6 +78,7 @@ Secciones minimas:
 - `Estado global`: `Passed` | `Failed` | `Partial` | `Not Ready`
 - `Comandos/checks` con resultado individual
 - `Criterios revisados`
+- `Strict TDD compliance` (cuando aplique)
 - `Riesgos`
 - `Decision`
 - `Siguiente paso`
@@ -113,8 +90,8 @@ Regla:
 ## Gates Entre Fases
 
 - `/ein:sdd:new` requiere `openspec/config.yaml`.
-- `/ein:sdd:apply` requiere `openspec/config.yaml`, `proposal.md`, `tasks.md` y digest de skills cuando aplique.
-- `/ein:sdd:verify` requiere `openspec/config.yaml`, `tasks.md` y `apply-progress.md` cuando hubo implementacion.
+- `/ein:sdd:apply` requiere `openspec/config.yaml` y `design.md` (seccion Tareas).
+- `/ein:sdd:verify` requiere `openspec/config.yaml`, `design.md` y `apply-progress.md` cuando hubo implementacion.
 - Si no hay tareas pendientes, `/ein:sdd:apply` debe parar y derivar a `/ein:sdd:verify`.
 
 ## Contrato De Resultado Entre Fases
@@ -126,5 +103,6 @@ Cada fase debe devolver al menos:
 - `artefactos escritos`
 - `riesgos`
 - `siguiente paso`
+- `skill_resolution`
 
 Esto no obliga un formato JSON en la respuesta al usuario. La salida final puede ser Markdown humano, pero estos elementos deben estar presentes.

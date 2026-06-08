@@ -1,5 +1,7 @@
 # Ein Harness Audit
 
+> **Documento histórico.** Auditoría puntual del workbench. Para el estado vigente ver `AGENTS.md`, `EIN_OPERATING_SYSTEM.md` y `PI_AGENTS_ARQUITECTURA.md`. Flujo actual: único `ein-sdd` (init → explore → design → apply → verify); eliminados Full SDD, `ein-design` y el review-workload gate; skill-injection automática en `ein-ai`.
+
 Auditoria del sistema Ein Pi Workbench. Compara el estado actual de `~/.pi/agent` contra la guia de referencia de Pi Agents de 30 harnesses.
 
 ## Snapshot Actual

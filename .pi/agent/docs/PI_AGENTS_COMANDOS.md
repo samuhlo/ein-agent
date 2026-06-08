@@ -35,21 +35,15 @@ Los comandos `/ein:*` existen como **control manual y fallback**. La ruta feliz 
 
 | Agente | Archivo | Proposito |
 | --- | --- | --- |
-| `ein-planner` | `agents/ein-planner.md` | [DEPRECATED] Compatibilidad para checkpoints antiguos |
 | `ein-linear` | `agents/ein-linear.md` | Linear preflight, issues, proyectos, sync y comentarios humanos |
 | `ein-github` | `agents/ein-github.md` | GitHub delivery, PRs, reviews y sync opcional |
-| `ein-design` | `agents/ein-design.md` | Analisis de imagen/diseno y accesibilidad |
-| `sdd-*` | `agents/sdd-*.md` | Fases SDD invocadas por chains |
+| `sdd-*` | `agents/sdd-*.md` | Fases SDD (`init`, `explore`, `design`, `apply`, `verify`) invocadas por la chain |
 
-### Chains Ein visibles
+### Chain Ein visible
 
 | Chain | Uso |
 | --- | --- |
-| `ein-sdd-lite` | SDD Lite por defecto: contexto minimo, explore y tasks |
-| `ein-sdd-full` | Full SDD opt-in: proposal/spec/design antes de tasks |
-| `ein-apply-verify` | Apply aprobado y verify con evidencia |
-| `ein-delivery` | Delivery GitHub con gates y sync Linear opcional |
-| `ein-sdd-plan-lite`, `ein-sdd-apply-verify`, `ein-linear-bootstrap` | [DEPRECATED] Compatibilidad legacy; no usar para trabajo nuevo |
+| `ein-sdd` | Flujo SDD unico: init → explore → design → apply → verify |
 
 Tu mensaje original se preserva. Las reglas de routing viven en el system prompt, no como reemplazo de tu texto.
 
@@ -70,7 +64,7 @@ Estos son los flujos canonicos:
 - Ein crea/reusa issue en Linear y se detiene en checkpoint. SDD se prepara cuando dices `continua con SDD`.
 
 **Continuar con SDD:** `continua con SDD`
-- Ein usa SDD Lite por defecto y espera confirmacion antes de aplicar.
+- Ein usa el flujo `ein-sdd` y espera confirmacion antes de aplicar.
 
 **Aplicar:** `aplica el primer batch`
 - Ein aplica el siguiente batch pendiente del SDD activo.
@@ -120,24 +114,21 @@ Reglas Linear:
 - Reutiliza proyectos/issues antes de crear duplicados.
 - Verifica metadata tras crear o actualizar.
 - No empieza implementacion despues de planificar sin checkpoint humano.
-- `/ein:linear:start` delega a `ein-linear`; `ein-linear-bootstrap` queda deprecated/legacy.
+- `/ein:linear:start` delega a `ein-linear`.
 
 ## SDD
 
-| Comando | Subagente | Que hace |
+| Comando | Subagente/Chain | Que hace |
 | --- | --- | --- |
-| `/ein:sdd:init` | legacy planner | Inicializa o revisa contexto SDD minimo |
-| `/ein:sdd-preflight` | directo | Define modo, store, PR strategy y presupuesto de review por sesion |
-| `/ein:sdd:new <cambio>` | `ein-sdd-lite` | Explora cambio y crea tareas con SDD Lite |
-| `/ein:sdd:apply <scope>` | `ein-apply-verify` | Aplica batch aprobado y verifica |
-| `/ein:sdd:verify <scope>` | `ein-apply-verify` | Verifica checks reales sin inventar evidencia |
-| `/ein:sdd:continue` | legacy planner | Continua flujo con checkpoint |
-| `/ein:sdd-status` | directo | Muestra estado de chains SDD |
-| `/ein:sdd:full` | `ein-sdd-full` | Ejecuta Full SDD solo con opt-in explicito |
-| `/ein:sdd:plan` | `ein-sdd-lite` | Ejecuta SDD Lite default |
-| `/ein:sdd:verify-flow` | `ein-apply-verify` | Ejecuta apply+verify visible sin sync/archive automaticos |
+| `/ein:sdd:init` | `sdd-init` | Inicializa o revisa contexto SDD minimo (`openspec/config.yaml`) |
+| `/ein:sdd-preflight` | directo | Define modo de ejecucion y store de artefactos por sesion |
+| `/ein:sdd:new <cambio>` | `ein-sdd` | Ejecuta el flujo: explore + design (propuesta+spec+tareas) |
+| `/ein:sdd:apply <scope>` | `sdd-apply` | Aplica batch aprobado con evidencia (strict TDD si aplica) |
+| `/ein:sdd:verify <scope>` | `sdd-verify` | Verifica checks reales y evidencia TDD sin inventar |
+| `/ein:sdd:continue` | directo | Continua el flujo con checkpoint |
+| `/ein:sdd-status` | directo | Muestra estado del cambio SDD activo |
 
-Ein usa OpenSpec como store file-backed: `openspec/config.yaml`, `openspec/changes/` y `openspec/specs/`. Hay aliases legacy de SDD por compatibilidad, pero la interfaz publica canonica es `/ein:sdd:*`.
+Ein usa OpenSpec como store file-backed: `openspec/config.yaml` y `openspec/changes/`. La interfaz publica canonica es `/ein:sdd:*`.
 
 ## GitHub
 
@@ -189,7 +180,6 @@ Valores:
 | `/ein:skills add <skill>` | Instala skill puntual por catalogo |
 | `/ein:skills clean [--yes]` | Plan o apply de archivado en `archived/` |
 | `/ein:skills:advisor <tarea>` | Resolve + digest para soporte de ejecucion |
-| `/ein:design:image <path-or-url>` | Analiza diseno/imagen con `ein-design` |
 | `/ein:orchestrate <tarea>` | Fuerza planificador de orquestacion |
 
 Pi mantiene `/skill:*` activo por configuracion (`enableSkillCommands: true`). Ein no lo reemplaza: lo usa como capacidad directa. Para soporte de tarea usa `/ein:skills:advisor` (tools `ein_skill_resolve` + `ein_skill_digest`), y para mantenimiento usa `/ein:skills`.

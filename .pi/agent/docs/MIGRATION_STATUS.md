@@ -1,5 +1,7 @@
 # Estado De Migracion Ein
 
+> **Documento histórico.** Registra la migración OpenCode → Pi en su momento (extensiones `samuhlo-*`, fases SDD antiguas). Para el estado vigente ver `AGENTS.md`, `EIN_OPERATING_SYSTEM.md` y `PI_AGENTS_ARQUITECTURA.md`. Flujo actual: único `ein-sdd` (init → explore → design → apply → verify); eliminados Full SDD, `ein-design` y el review-workload gate.
+
 ## Completado
 
 - Pi instalado con Bun: `@earendil-works/pi-coding-agent@0.75.5`.
@@ -19,7 +21,7 @@
 - Extension `samuhlo-engram` creada con herramientas `engram_context`, `engram_search` y `engram_save` via CLI local.
 - Extension `samuhlo-orchestrator` creada con routing simple/complejo hacia agents/chains visibles.
 - Extension `samuhlo-skill-registry` creada para bloque 4: inventario, resolucion, digest y feedback de skills.
-- `samuhlo-orchestrator` ahora inyecta `Skill Digest` en prompt de subagentes y anade `Skill Feedback` post-ejecucion.
+- `ein-ai` inyecta automaticamente las rutas `SKILL.md` resueltas en el prompt de cada subagente via `before_agent_start` (`resolveSkillInjection`).
 - Extension `samuhlo-doctor` creada: reporta estado del workbench, detecta el secreto local de Linear y verifica que las demas extensiones cargan.
 - Extension `samuhlo-backup` creada: genera snapshot automatico antes de primera mutacion de `~/.pi/agent` por sesion y comando manual `/ein:backup`.
 - Extension `samuhlo-context7-bridge` creada: smoke test pasa para `context7_resolve_library` y `context7_query_docs`.

@@ -1,36 +1,30 @@
-# Samuhlo-PI OpenSpec
+# Ein OpenSpec
 
-Este directorio contiene los artifacts del sistema SDD.
+Este directorio contiene los artifacts del sistema SDD de Ein.
 
 ## Estructura
 
 ```
 openspec/
 ├── config.yaml          ← Configuración del proyecto
-├── specs/               ← Specs aceptados (fuente de verdad)
-│   └── {dominio}/
-│       └── spec.md
-└── changes/             ← Cambios activos y archivados
-    ├── {change-name}/
-    │   ├── proposal.md
-    │   ├── spec.md
-    │   ├── design.md
-    │   ├── tasks.md
-    │   ├── apply-progress.md
-    │   ├── verify-report.md
-    │   └── sync-report.md
-    └── archive/
-        └── YYYY-MM-DD-{change-name}/
+└── changes/             ← Cambios activos
+    └── {change-name}/
+        ├── init.md
+        ├── exploration.md
+        ├── design.md         ← propuesta + spec + tareas
+        ├── apply-progress.md
+        └── verify-report.md
 ```
 
-## Para iniciar un cambio SDD
+## Flujo
 
-1. Crear carpeta: `openspec/changes/mi-cambio/`
-2. Crear `proposal.md` con la propuesta
-3. Seguir el flujo SDD
+El flujo `ein-sdd` ejecuta: init → explore → design → apply → verify.
+`design.md` reune propuesta, spec (RFC 2119 + Given/When/Then) y tareas en un solo artefacto.
 
 ## Comandos
 
-- `/samuhlo:sdd-init` - Inicializar proyecto
-- `/samuhlo:status` - Ver estado del sistema
-
+- `/ein:sdd:init` — inicializar contexto (`config.yaml`)
+- `/ein:sdd:new <cambio>` — explore + design
+- `/ein:sdd:apply <cambio>` — implementar por batches
+- `/ein:sdd:verify <cambio>` — verificar con evidencia
+- `/ein:status` — estado del sistema

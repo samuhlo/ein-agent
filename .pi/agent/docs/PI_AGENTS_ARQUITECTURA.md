@@ -32,7 +32,7 @@ Solo `commandPrefix` es configurable.
 1. **Politica**: `AGENTS.md` define reglas globales.
 2. **Branding**: `ein-brand.ts` carga nombre, prefijo y autor.
 3. **Rutas**: `ein-paths.ts` centraliza paths y binarios.
-4. **Orquestacion**: el prompt padre decide directo vs agentes/chains visibles; `ein-orchestrator.ts` solo inyecta esa politica y aplica guards pequenos.
+4. **Orquestacion**: el prompt padre decide directo vs agentes/chains visibles; `ein-ai.ts` solo inyecta esa politica y aplica guards pequenos.
 5. **Herramientas**: Linear, Doctor, Engram, Context7, MiniMax, backups, guardrails.
 6. **Prompts**: workflows diarios en `prompts/`.
 7. **Skills**: mantenimiento de stack fijo + advisor de tarea. `/skill:*` queda activo como interfaz nativa de Pi.
@@ -55,17 +55,12 @@ Estos archivos viven en `~/.pi/agent/agents/` y `~/.pi/agent/chains/`:
 
 | Nombre | Proposito | Tipo |
 | --- | --- | --- |
-| `ein-planner` | [DEPRECATED] Compatibilidad para checkpoints antiguos | Agent |
 | `ein-linear` | Preflight, CRUD Linear, sync y comentarios humanos | Agent |
 | `ein-github` | Delivery GitHub, PR, review y sync opcional | Agent |
-| `ein-design` | Imagen/diseno, accesibilidad y preservacion visual | Agent |
-| `ein-sdd-lite` | SDD Lite por defecto | Chain |
-| `ein-sdd-full` | Full SDD opt-in | Chain |
-| `ein-apply-verify` | Apply aprobado + verify visible | Chain |
-| `ein-delivery` | Delivery GitHub con gates | Chain |
-| `ein-sdd-plan-lite`, `ein-sdd-apply-verify`, `ein-linear-bootstrap` | [DEPRECATED] Alias/ruta legacy de compatibilidad | Chain |
+| `sdd-init`, `sdd-explore`, `sdd-design`, `sdd-apply`, `sdd-verify` | Fases SDD | Agent |
+| `ein-sdd` | Flujo SDD unico: init → explore → design → apply → verify | Chain |
 
-La diferencia entre `light` y `heavy` determina el modelo usado: `minimax/MiniMax-M2.7` para light, `openai-codex/gpt-5.5` para heavy.
+El nivel de modelo por agente se configura con `/ein:models` (ver seccion Modelos).
 
 ### Como funciona el routing
 
@@ -91,7 +86,7 @@ Eso es una **regression**. El comportamiento esperado es: texto original del usu
 Archivo:
 
 ```text
-~/.pi/agent/extensions/ein-orchestrator.ts
+~/.pi/agent/extensions/ein-ai.ts
 ```
 
 Responsabilidades:
@@ -119,7 +114,7 @@ El orquestador visible es la interfaz primaria de UX: cuando hablas con Ein en n
 Archivo:
 
 ```text
-~/.pi/agent/extensions/ein-guardrails.ts
+~/.pi/agent/extensions/ein-ai.ts
 ```
 
 Bloquea comandos destructivos, escrituras en secretos y cambios peligrosos en Git. Esta capa protege en runtime; no depende solo del prompt.
@@ -234,7 +229,7 @@ Assets preferidos:
 ~/.pi/agent/chains/ein-*.chain.md
 ```
 
-SDD Lite es el default: `/ein:sdd:new` y `/ein:sdd:plan` usan `ein-sdd-lite`. Full SDD necesita opt-in: `/ein:sdd:full` o una peticion explicita de proposal/spec/design. `/ein:sdd-preflight` prepara la sesion con modo, store de artefactos, estrategia PR y presupuesto de review. Los nombres `ein-sdd-plan-lite` y `ein-sdd-apply-verify` quedan como legacy/deprecated.
+El flujo `ein-sdd` es el unico: `/ein:sdd:new` ejecuta la cadena init → explore → design → apply → verify, donde `design` reune propuesta, spec y tareas. `/ein:sdd-preflight` prepara la sesion con modo de ejecucion y store de artefactos.
 
 ## Backups
 
@@ -309,4 +304,4 @@ export EIN_MEMORY_MODE=engram-only
 
 ### El agente no explica suficiente
 
-Revisar `enforceTeachingQuality(...)` en `ein-orchestrator.ts`.
+Revisar `enforceTeachingQuality(...)` en `ein-ai.ts`.

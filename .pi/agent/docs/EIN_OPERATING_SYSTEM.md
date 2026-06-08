@@ -8,23 +8,17 @@ Manual diario para usar tu workbench Pi sin friccion.
 
 Ein usa **pi-subagents visible**. Linear, GitHub, design y las fases SDD son archivos Markdown en `~/.pi/agent/agents/*.md`; los flujos repetibles viven como chains en `~/.pi/agent/chains/*.chain.md`.
 
-Tu mensaje original se conserva. El padre Ein decide la ruta desde el prompt padre: responde directo si es pequeno, delega con `subagent` cuando aporta foco, usa SDD Lite cuando hay cambio serio, y reserva Full SDD para opt-in explicito. Si una peticion natural genera un payload `/run-chain`, eso es una regresion.
+Tu mensaje original se conserva. El padre Ein decide la ruta desde el prompt padre: responde directo si es pequeno, delega con `subagent` cuando aporta foco, y usa el flujo `ein-sdd` cuando hay cambio serio. Si una peticion natural genera un payload `/run-chain`, eso es una regresion.
 
 **Agentes Ein visibles:**
 
 - `ein-linear` — preflight, issues, proyectos, sync y comentarios humanos en Linear.
 - `ein-github` — branch, commit, PR, review y sync delivery con gates.
-- `ein-design` — analisis de imagen/diseno con accesibilidad.
-- `sdd-*` — fases SDD especializadas cuando una chain las invoca.
-- `ein-planner` — legacy/deprecated; compatibilidad para checkpoints antiguos, no ruta feliz de planificacion natural.
+- `sdd-*` — fases SDD especializadas (`sdd-init`, `sdd-explore`, `sdd-design`, `sdd-apply`, `sdd-verify`) que la chain invoca.
 
-**Chains principales:**
+**Chain:**
 
-- `ein-sdd-lite` — SDD Lite por defecto para slash workflow explicito.
-- `ein-sdd-full` — Full SDD solo con opt-in explicito.
-- `ein-apply-verify` — apply aprobado + verify visible.
-- `ein-delivery` — delivery GitHub con sync Linear opcional.
-- `ein-sdd-plan-lite`, `ein-sdd-apply-verify`, `ein-linear-bootstrap` — legacy/deprecated; compatibilidad temporal, no camino feliz.
+- `ein-sdd` — el flujo SDD: init → explore → design → apply → verify.
 
 Los comandos `/ein:*` son **fallback/manual**. Si ves `Actua como orquestador... HARD REQUIREMENT...` o una chain generada desde lenguaje natural, es una **regression** — el texto del usuario deberia preservarse.
 
@@ -51,11 +45,9 @@ Si la tarea es seria, usa flujo SDD.
 ## Flujo recomendado
 
 1. `/ein:sdd:init` si no hay contexto.
-2. `/ein:sdd:new <cambio>` para SDD Lite via `ein-sdd-lite`: contexto minimo, explore y tasks.
+2. `/ein:sdd:new <cambio>` ejecuta `ein-sdd`: explore y design (propuesta + spec + tareas).
 3. `/ein:sdd:apply <cambio>` en batches pequenos.
 4. `/ein:sdd:verify <cambio>` para comprobar con evidencia.
-
-Usa `/ein:sdd:full <cambio>` solo cuando quieras Full SDD con proposal/spec/design antes de tasks.
 
 ## Modelos
 

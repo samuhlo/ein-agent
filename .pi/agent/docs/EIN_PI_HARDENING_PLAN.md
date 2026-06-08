@@ -1,5 +1,7 @@
 # Ein Pi Hardening Plan
 
+> **Documento histórico.** Plan de endurecimiento del proceso de migración. Para el estado vigente ver `AGENTS.md`, `EIN_OPERATING_SYSTEM.md` y `PI_AGENTS_ARQUITECTURA.md`. Flujo actual: único `ein-sdd` (init → explore → design → apply → verify).
+
 Este documento convierte la migracion OpenCode -> Pi Agents en un plan de endurecimiento progresivo. La meta no es copiar OpenCode 1:1, sino hacer que Ein funcione como un workbench mas solido, barato, didactico y adaptado a Samu.
 
 ## Principio Base

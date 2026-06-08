@@ -9,7 +9,7 @@ Esta guia explica Ein, el workbench local construido sobre Pi Coding Agent. Ein 
 - Las reglas globales viven en `~/.pi/agent/AGENTS.md`.
 - Los comandos viven como prompt templates y extension commands en `~/.pi/agent/prompts` y `~/.pi/agent/extensions`.
 - Las skills viven dentro de Pi, separadas entre `downloaded` y `local`. Los comandos `/skill:*` siguen activos.
-- El prompt padre de Ein decide entre trabajo directo, agentes visibles y SDD Lite. Las chains quedan para flujos explicitamente repetibles o slash commands manuales.
+- El prompt padre de Ein decide entre trabajo directo, agentes visibles y el flujo `ein-sdd`. La chain queda para el flujo SDD explicito o slash commands manuales.
 - Engram de Pi esta separado en `/Users/samu/.engram-pi`.
 
 ## Como Arrancar
@@ -52,7 +52,6 @@ directo: <tarea>
 ```text
 /ein:sdd:init
 /ein:sdd:new <cambio>
-/ein:sdd:full <cambio>
 /ein:sdd:apply <cambio>
 /ein:sdd:verify <cambio>
 /ein:sdd:continue <cambio>
@@ -76,7 +75,6 @@ directo: <tarea>
 ```
 
 ```text
-/ein:design:image <path-or-url> [--sdd] [--apply]
 /ein:skills
 /ein:skills update
 /ein:skills add zod
@@ -101,15 +99,10 @@ Algunos comandos antiguos quedan como aliases de compatibilidad cuando existen. 
 - Herramientas Engram basicas mediante CLI local: `engram_context`, `engram_search`, `engram_save`.
 - Orquestador Pi con routing simple/directo vs agents/chains visibles.
 - Delegacion visible con `pi-subagents`:
-  - `ein-planner` (deprecated/legacy)
   - `ein-linear`
   - `ein-github`
-  - `ein-design`
-  - `ein-sdd-lite`
-  - `ein-sdd-full`
-  - `ein-apply-verify`
-  - `ein-sdd-plan-lite`, `ein-sdd-apply-verify`, `ein-linear-bootstrap` (deprecated/legacy)
-  - `ein-delivery`
+  - `sdd-*` (init, explore, design, apply, verify)
+  - chain `ein-sdd`
 - Bloque 4 skills reforzado:
   - `ein_skill_registry`
   - `ein_skill_resolve`
@@ -167,12 +160,11 @@ OpenCode tenia funciones integradas en `opencode.json`. Pi prefiere primitivas:
 
 La migracion buena no copia el JSON: reconstruye el workflow en piezas mas simples.
 
-## SDD Lite vs Full SDD
+## Flujo SDD
 
-- **SDD Lite** es el default: contexto minimo, exploracion compacta y tareas accionables.
-- **Full SDD** es opt-in: usalo solo con `/ein:sdd:full` o cuando pidas proposal/spec/design de forma explicita.
+- **Flujo unico `ein-sdd`**: init → explore → design → apply → verify. `design` reune propuesta, spec y tareas en un solo artefacto.
 - **Apply** no ocurre automaticamente despues de planificar; hace falta scope aprobado.
-- **Linear** arranca por `ein-linear`; la chain bootstrap antigua queda solo para compatibilidad manual.
+- **Linear** arranca por `ein-linear` (preflight obligatorio antes de SDD salvo "no linear").
 
 ## Rollback
 
