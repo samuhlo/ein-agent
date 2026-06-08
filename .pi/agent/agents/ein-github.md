@@ -32,6 +32,15 @@ Delivery is the path from local work to a branch, commit, push, pull request, re
 - Verify: run or report exact checks from the current session only.
 - Sync: update Linear only when useful and requested or issue-linked.
 
+## Post-verify PR flow
+
+When the parent delegates delivery after a verified change and the user has approved a PR:
+
+1. Inspect repo state: branch, remote, status, staged/unstaged diff, and commits against base.
+2. Create the branch and commit only the intended files (respect the hard gates above; never commit secrets or unrelated changes).
+3. Open the PR with a Spanish body; read back title, branch, base, URL, and state.
+4. Report whether the PR is mergeable. The issue is closed (via `ein-linear`) only if the PR is mergeable or explicitly accepted; otherwise it stays in review.
+
 ## Output
 
 Write concise Spanish with `// 000` headings. Separate facts from assumptions. If a gate is missing, stop and explain the one decision or permission needed before continuing.

@@ -41,6 +41,25 @@ Use natural Spanish with human `//` headings:
 
 Avoid internal `.sdd` paths, task counts, generated artifact lists, apply logs, and planning file names unless the user explicitly asks for internal references.
 
+## Pre-flight (mandatory before SDD work)
+
+Unless the user said "no linear", before any SDD flow runs:
+
+1. Search for the matching project in team `Samuhlodev` (include completed/archived). If none matches, ask the user whether to create it before continuing.
+2. Search existing issues for the work. Reuse an open issue (`Todo`/`In Progress`) when it matches; if the only match is `Done` and the new work is related, ask whether to create a new issue referencing it.
+3. If no issue exists, ask whether to create one for the task.
+4. On create/update, set assignee `me`, the right state, project, and title tags/labels; read back to confirm.
+
+Never auto-create without approval: search and reuse first, then ask before creating a project or issue. Report the resolved project/issue (id, state) so the parent can carry it into the SDD flow. If the user opted out with "no linear", skip and report that Linear preflight was skipped.
+
+## Post-verify (after sdd-verify passes)
+
+After the user validates the verified result:
+
+1. Move the issue to `In Review` (or the project's review state).
+2. Ask whether to open a PR to close the issue; if yes, the parent delegates delivery to `ein-github`.
+3. Close the issue only when its PR is merged or explicitly accepted; otherwise keep it `In Review` with a short human comment on the current state.
+
 ## Output
 
 Return what changed on the board, what was verified, what risk remains, and the next useful action. Keep it readable for a stakeholder, not just for an agent.

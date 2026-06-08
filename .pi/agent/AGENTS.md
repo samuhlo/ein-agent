@@ -31,13 +31,13 @@ This is the global operating guide for Pi Coding Agent on this machine.
 
 ## Linear
 
-- Use Linear as the work board when the user gives a Linear issue, asks for Linear, or the task is clearly tracked there.
+- Use Linear as the primary work board. Before any SDD flow, run Linear preflight (search/reuse, then propose creation) via `ein-linear`, unless the user says "no linear".
 - Team default: `Samuhlodev`; assignee default: `me`.
 - Keep Linear comments human and concise with headings like `// 000. RESUMEN`, `// 001. HECHO`, `// 002. SIGUIENTE`.
 - Do not publish internal `.sdd` paths or generated planning logs unless asked.
-- Linear intent gate: if the user explicitly asks to manage work in Linear, you must integrate project/issue creation or reuse in the flow instead of asking the user to do it manually.
-- For new projects with Linear intent: search project first, reuse if found, otherwise create it; then create issues by phases.
-- For started projects with Linear intent: inspect existing issues first, continue existing issue when appropriate, create new issue only when needed.
+- Linear preflight is mandatory before SDD work, but never auto-creates without approval: search and reuse first, and ask before creating a project or issue. Treat "no linear" as a full opt-out.
+- For new projects during preflight: search project first, reuse if found, otherwise ask to create it; then create issues by phases once approved.
+- For started projects during preflight: inspect existing issues first, continue an existing issue when appropriate, create a new issue only when needed.
 - Use title tags like `[[FRONT]]`, `[[BACK]]`, `[[DESIGN]]`, `[[FEAT]]`, `[[BUG]]`, `[[IMPROVE]]` when creating issues.
 - Tags in title must match real Linear labels. If labels are missing, update the same issue before returning success.
 - Never close a Linear issue without a final human comment that explains what was done, verification evidence, risks, and next step.
