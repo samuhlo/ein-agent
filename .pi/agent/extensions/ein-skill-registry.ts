@@ -547,6 +547,30 @@ function getOrCreateRegistry(cwd: string): SkillEntry[] {
   return refreshRegistry(cwd);
 }
 
+// Deterministic skill injection for subagents.
+// Called by the orchestrator (ein-ai before_agent_start) so phase agents
+// receive exact SKILL.md paths instead of relying on the parent model to ask.
+export function resolveSkillInjection(cwd: string, task: string, limit = 6): string {
+  const cleanTask = (task ?? "").trim();
+  if (!cleanTask) return "";
+  let registry: SkillEntry[];
+  try {
+    registry = getOrCreateRegistry(cwd);
+  } catch {
+    return "";
+  }
+  const resolved = resolveSkills(registry, cleanTask, undefined, limit);
+  if (!resolved.length) return "";
+  return [
+    "## Skills to load before work",
+    "",
+    "Read these exact SKILL.md files before reading, writing, reviewing, testing, or creating artifacts:",
+    ...resolved.map((skill) => `- ${skill.path}`),
+    "",
+    "For each skill, apply its rules; if one does not fit the task, note why you skip it.",
+  ].join("\n");
+}
+
 export default function einSkillRegistry(pi: ExtensionAPI) {
 
   pi.registerTool({

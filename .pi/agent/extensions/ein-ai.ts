@@ -29,6 +29,7 @@ import {
 	renderSddPreflightPrompt,
 	type SddPreflightPreferences,
 } from "../lib/sdd-preflight.ts";
+import { resolveSkillInjection } from "./ein-skill-registry.ts";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ASSETS_DIR = join(PACKAGE_ROOT, "assets");
@@ -273,6 +274,22 @@ function readAgentStartNames(event: unknown): string[] {
 
 function isNamedAgentStartEvent(event: unknown): boolean {
 	return readAgentStartNames(event).length > 0;
+}
+
+function readAgentTask(event: unknown): string {
+	const candidates = [
+		readStringPath(event, ["task"]),
+		readStringPath(event, ["prompt"]),
+		readStringPath(event, ["userPrompt"]),
+		readStringPath(event, ["input", "task"]),
+		readStringPath(event, ["input", "prompt"]),
+		readStringPath(event, ["message"]),
+	].filter(
+		(value): value is string =>
+			typeof value === "string" && value.trim().length > 0,
+	);
+	if (candidates.length > 0) return candidates.join("\n");
+	return readStringPath(event, ["systemPrompt"]) ?? "";
 }
 
 function evaluateDeniedCommand(
@@ -1341,8 +1358,15 @@ export default function einAi(pi: ExtensionAPI): void {
 		const einPrompt = isNamedAgent || isSddAgent
 			? ""
 			: `\n\n${buildEinPrompt(readPersonaMode(ctx.cwd))}`;
+		// Deterministic skill injection: phase/named subagents receive exact
+		// SKILL.md paths resolved from their task, not the parent model's discretion.
+		let skillsPrompt = "";
+		if (isNamedAgent || isSddAgent) {
+			const block = resolveSkillInjection(ctx.cwd, readAgentTask(event));
+			if (block) skillsPrompt = `\n\n${block}`;
+		}
 		return {
-			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}`,
+			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${skillsPrompt}`,
 		};
 	});
 
