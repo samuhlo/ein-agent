@@ -38,25 +38,6 @@
     "npm:pi-subagents"
   ],
   "subagents": {
-    "agentOverrides": {
-      "orchestrator_planner_agent": {
-        "disabled": true
-      },
-      "linear_light_agent": {
-        "disabled": true
-      },
-      "github_light_agent": {
-        "disabled": true
-      },
-      "github_writer_agent": {
-        "disabled": true
-      },
-      "github_review_heavy_agent": {
-        "disabled": true
-      },
-      "design_image_heavy_agent": {
-        "disabled": true
-      }
-    }
+    "disableBuiltins": true
   }
 }

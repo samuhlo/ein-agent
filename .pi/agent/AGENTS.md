@@ -67,13 +67,13 @@ This is the global operating guide for Pi Coding Agent on this machine.
 
 - Pi subagent delegation is provided by `pi-subagents`. Use the visible `subagent` tool, not Ein legacy `*_agent` wrapper tools.
 - Natural user messages stay natural. Do not rewrite normal conversation into generated `/run-chain` or `/run` payloads.
-- The parent prompt coordinates first: answer directly for small work, delegate with `subagent` when focus helps, use SDD Lite for serious implementation, and use Full SDD only with explicit opt-in.
+- The parent prompt coordinates first: answer directly for small work, delegate with `subagent` when focus helps, and use the `ein-sdd` flow for serious implementation.
 - Slash commands `/ein:*` are fallback/manual control. They may route to agents/chains because the user invoked a command explicitly; they are not the default UX.
-- Linear start/status planning uses `ein-linear` directly. Deprecated bootstrap chains are compatibility only.
-- Explicit SDD slash workflow defaults to SDD Lite through `ein-sdd-lite`; Full SDD requires clear user intent such as `full sdd`, `proposal`, `spec`, or `design`.
+- Linear start/status planning uses `ein-linear` directly.
+- The explicit SDD slash workflow runs the single `ein-sdd` chain (init → explore → design → apply → verify).
 - Simple local edits/questions can be handled directly.
 - Substantial, risky, multi-file, Linear, GitHub, design, review, security, auth, performance, or migration work must be coordinated by the visible parent session first.
-- Preferred visible subagents: `scout`, `worker`, `reviewer`, `oracle`, `context-builder`, plus `ein-linear`, `ein-github`, `ein-design`, and SDD phase agents such as `sdd-explore`, `sdd-apply`, and `sdd-verify` when appropriate.
+- Preferred visible subagents: `ein-linear`, `ein-github`, and the SDD phase agents `sdd-init`, `sdd-explore`, `sdd-design`, `sdd-apply`, `sdd-verify`. Builtin pi-subagents (scout/worker/reviewer/oracle/context-builder) are disabled.
 - Subagents must detect stack and use relevant skills before editing or verifying.
 - Prefer silent skill path resolution: pass exact `SKILL.md` paths to subagents when available. Use digest/advisor flows only for debug, ambiguity, or when a compact summary is explicitly useful.
 - Keep Pi native skill commands enabled. `/skill:*` is a direct escape hatch, not the public Ein command layer.
