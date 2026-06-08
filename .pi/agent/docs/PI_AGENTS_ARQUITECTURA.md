@@ -148,7 +148,7 @@ Capas:
 
 El perfil `--tools=agent` expone tools de lectura/escritura de memoria para el modelo: `engram_save`, `engram_search`, `engram_context`, `engram_timeline`, entre otras. Instalacion inicial: `engram setup pi`.
 
-Context7 (docs de librerias) queda pendiente de soporte de MCP remoto HTTP en Pi.
+Context7 (docs de librerias) corre via `bunx --bun @upstash/context7-mcp` (stdio). La clave `CONTEXT7_API_KEY` se exporta desde `~/.zshrc` y se hereda por el proceso — no va en `mcp.json`.
 
 ## Linear
 

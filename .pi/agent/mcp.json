@@ -8,6 +8,11 @@
       },
       "directTools": false,
       "lifecycle": "lazy"
+    },
+    "context7": {
+      "command": "bunx",
+      "args": ["--bun", "@upstash/context7-mcp"],
+      "lifecycle": "lazy"
     }
   }
 }
