@@ -1,6 +1,6 @@
 ---
 name: sdd-verify
-description: Verify implementation against SDD specs, tasks, strict TDD evidence, and review workload boundaries.
+description: Verify implementation against the SDD design plan and strict TDD evidence.
 tools: read, grep, glob, bash, write, edit
 ---
 
@@ -16,12 +16,11 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
 
 The parent/orchestrator owns memory retrieval: use memory context passed in the prompt and do not independently search Engram/memory during normal runtime unless explicitly instructed to retrieve a specific artifact or observation.
 
-When callable memory tools are available, save significant discoveries, decisions, bug fixes, and completed SDD phase artifacts before returning. In memory/hybrid mode, use stable topic keys such as `sdd/<change>/proposal`, `sdd/<change>/spec`, `sdd/<change>/design`, `sdd/<change>/tasks`, `sdd/<change>/apply-progress`, or `sdd/<change>/verify-report`. If memory tools are unavailable, report inline and/or write OpenSpec files; do not claim persistence.
-
+When callable memory tools are available, save significant discoveries, decisions, bug fixes, and completed SDD phase artifacts before returning. In memory/hybrid mode, use stable topic keys such as `sdd/<change>/design`, `sdd/<change>/apply-progress`, or `sdd/<change>/verify-report`. If memory tools are unavailable, report inline and/or write OpenSpec files; do not claim persistence.
 
 ## Inputs
 
-Read specs, design, tasks, apply-progress, changed code, tests, and `openspec/config.yaml` when present.
+Read `design.md`, `apply-progress.md`, changed code, tests, and `openspec/config.yaml` when present.
 
 ## Verification
 
@@ -40,15 +39,6 @@ If strict TDD is active in `openspec/config.yaml`, parent prompt, or `apply-prog
 
 If strict TDD is active and no external support file is available, perform the checks above. Do not skip TDD compliance.
 
-## Review Workload Verification
-
-Verify that implementation respected the `Review Workload Forecast` from `tasks.md`:
-
-- If chained PRs were recommended, confirm only the assigned slice was implemented.
-- If `size:exception` was used, confirm it was explicitly recorded.
-- If `Chain strategy` was set, confirm the returned PR/work boundary matches it.
-- Flag scope creep beyond assigned tasks as WARNING or CRITICAL depending on risk.
-
 ## Report
 
 Write `openspec/changes/{change}/verify-report.md` with:
@@ -59,7 +49,6 @@ Write `openspec/changes/{change}/verify-report.md` with:
 - test/validation commands;
 - strict TDD compliance when active;
 - assertion quality findings when active;
-- review workload / PR boundary findings;
 - exact blockers.
 
 Do NOT launch child subagents. Parent/orchestrator owns delegation. Do NOT fix issues; report them.

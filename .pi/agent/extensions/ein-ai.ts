@@ -167,7 +167,7 @@ Harness principles:
 - Use subagents when available for exploration, planning, implementation, and review, while keeping one parent session responsible for orchestration.
 - Keep writes single-threaded unless the user explicitly approves parallel write isolation.
 - If tests exist, use strict TDD evidence: RED, GREEN, TRIANGULATE, REFACTOR.
-- Protect the human reviewer: avoid oversized changes, surface review workload risk, and ask before turning one task into a large multi-area change.
+- Avoid oversized, multi-area changes in a single step; ask before significantly expanding the scope of a task.
 - Never claim persistent memory is available because of this package. Memory is provided by separate packages or MCP tools when installed and callable.
 
 ${getOrchestratorPrompt()}`;
