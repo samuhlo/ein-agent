@@ -9,32 +9,21 @@ import { join } from "node:path";
 
 const execAsync = promisify(exec);
 
-// EIN-PI block letter ASCII art - clean and simple
+// EIN block-letter logo. Clean, readable, single weight.
 const TEXT_LOGO = [
-  "   ██████    ██████   ██████   ███████  ██    ██",
-  "  ██    ██  ██    ██  ██   ██  ██       ██    ██",
-  "  ██    ██  ██    ██  ██████   █████    ██    ██",
-  "  ██    ██  ██    ██  ██   ██  ██       ██    ██",
-  "   ██████    ██████   ██████   ███████   ██████ ",
-  "                                                  ",
-  "   ██████   ███████  ████████  ██████   ██████   ███████",
-  "  ██    ██  ██          ██    ██   ██  ██   ██  ██     ",
-  "  ██    ██  ███████     ██    ██████   ██████   █████  ",
-  "  ██    ██       ██    ██    ██   ██  ██   ██  ██     ",
-  "   ██████   ███████    ██    ██████   ██████   ███████",
+  "████████  ██████  ██    ██",
+  "██          ██    ███   ██",
+  "██████      ██    ████  ██",
+  "██          ██    ██ ██ ██",
+  "██          ██    ██  ████",
+  "████████  ██████  ██   ███",
 ];
+
+// EIN brand gold #FFCA40
+const GOLD = { r: 255, g: 202, b: 64 } as const;
 
 function rgb(r: number, g: number, b: number, text: string): string {
   return `\x1b[38;2;${r};${g};${b}m${text}\x1b[39m`;
-}
-
-function normalizeAscii(lines: string[]): string[] {
-  const trimmed = lines.map((l) => l.replace(/\s+$/g, ""));
-  const nonEmpty = trimmed.filter((l) => l.trim().length > 0);
-  const minLead = nonEmpty.length
-    ? Math.min(...nonEmpty.map((l) => (l.match(/^\s*/) || [""])[0].length))
-    : 0;
-  return trimmed.map((l) => (l.length >= minLead ? l.slice(minLead) : l));
 }
 
 function padLines(lines: string[]): { lines: string[]; width: number } {
@@ -42,31 +31,8 @@ function padLines(lines: string[]): { lines: string[]; width: number } {
   return { lines: lines.map((l) => l.padEnd(width)), width };
 }
 
-type CellType =
-  | "banner"
-  | "label"
-  | "value"
-  | "dim"
-  | "accent"
-  | "none";
+type CellType = "banner" | "logo-tip" | "label" | "value" | "dim" | "accent" | "none";
 type LayoutCell = { char: string; type: CellType };
-
-function buildLetterStrokeMap(lines: string[]): { orderMap: Map<string, number>; maxOrder: number } {
-  const orderMap = new Map<string, number>();
-  let order = 0;
-
-  for (let y = 0; y < lines.length; y++) {
-    const line = lines[y] ?? "";
-    for (let x = 0; x < line.length; x++) {
-      const ch = line[x];
-      if (ch !== " ") {
-        orderMap.set(`${x}:${y}`, order++);
-      }
-    }
-  }
-
-  return { orderMap, maxOrder: Math.max(1, order - 1) };
-}
 
 class LayoutBuilder {
   lines: LayoutCell[][] = [];
@@ -91,10 +57,10 @@ class LayoutBuilder {
   }
 }
 
-const FULL_INTRO_MIN_ROWS = 24;
+const FULL_INTRO_MIN_ROWS = 22;
 const FULL_INTRO_MIN_COLS = 80;
-const MINIMAL_INTRO_MIN_ROWS = 16;
-const MINIMAL_INTRO_MIN_COLS = 50;
+const MINIMAL_INTRO_MIN_ROWS = 14;
+const MINIMAL_INTRO_MIN_COLS = 40;
 const RESIZE_DEBOUNCE_MS = 150;
 const RESIZE_GRACE_PERIOD_MS = 300;
 
@@ -126,6 +92,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     if (!ctx.hasUI) return;
 
+    // No animated intro while running a CLI command (pi update, pi install, ...).
     const isCLICommand =
       process.argv.length > 2 &&
       !process.argv.every((arg) => arg.startsWith("-") || arg.endsWith(".ts"));
@@ -135,8 +102,14 @@ export default function (pi: ExtensionAPI) {
 
     process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
 
-    const logoBase = padLines(normalizeAscii(TEXT_LOGO));
-    const letterStroke = buildLetterStrokeMap(logoBase.lines);
+    const logoBase = padLines(TEXT_LOGO);
+
+    // Reveal sweeps left-to-right across the logo, then a glint passes once.
+    const REVEAL_SPEED = 1.4; // logo columns per tick
+    const REVEAL_END_TICK = Math.ceil(logoBase.width / REVEAL_SPEED) + 4;
+    const GLINT_START_TICK = REVEAL_END_TICK + 3;
+    const GLINT_END_TICK = GLINT_START_TICK + 12;
+    const FINISH_TICK = GLINT_END_TICK + 18;
 
     let gitBranch = "Not a git repo";
     let extensionsCount = await countExtensions();
@@ -206,8 +179,7 @@ export default function (pi: ExtensionAPI) {
         state.timer = setInterval(() => {
           tick++;
           const elapsed = Date.now() - animStart;
-          const finishedAnimation = tick > letterStroke.maxOrder + 30;
-          if (finishedAnimation || elapsed > HARD_TIMEOUT_MS) {
+          if (tick > FINISH_TICK || elapsed > HARD_TIMEOUT_MS) {
             cleanup();
             return;
           }
@@ -246,27 +218,35 @@ export default function (pi: ExtensionAPI) {
           render(width: number): string[] {
             if (state.mode === "skip") return [];
 
-            const logoProgress = Math.min(1, tick / (letterStroke.maxOrder + 15));
+            const revealHead = tick * REVEAL_SPEED;
+            const logoLeft = Math.max(0, Math.floor((width - logoBase.width) / 2));
+
+            const glintActive = tick >= GLINT_START_TICK && tick <= GLINT_END_TICK;
+            const glintLocal =
+              ((tick - GLINT_START_TICK) /
+                Math.max(1, GLINT_END_TICK - GLINT_START_TICK)) *
+              (logoBase.width + 2);
+            const glintHead = logoLeft + glintLocal;
 
             const b = new LayoutBuilder();
             b.addRow();
             b.center(width);
 
-            // Draw logo with fade-in effect
+            // Logo with left-to-right pen sweep.
             for (let logoI = 0; logoI < logoBase.lines.length; logoI++) {
               const logoLine = logoBase.lines[logoI];
               b.addRow();
-              for (const ch of logoLine) {
+              for (let x = 0; x < logoLine.length; x++) {
+                const ch = logoLine[x];
                 if (ch === " ") {
                   b.add("none", " ");
+                  continue;
+                }
+                if (x <= revealHead) {
+                  const age = revealHead - x;
+                  b.add(age < 1.6 ? "logo-tip" : "banner", ch);
                 } else {
-                  // Simple fade-in based on progress
-                  const shouldShow = Math.random() < logoProgress || tick > letterStroke.maxOrder + 10;
-                  if (shouldShow) {
-                    b.add("banner", ch);
-                  } else {
-                    b.add("none", " ");
-                  }
+                  b.add("none", " ");
                 }
               }
               b.center(width);
@@ -293,25 +273,21 @@ export default function (pi: ExtensionAPI) {
                 ["TOOLS:", `${customTools.length} custom`],
               ];
 
-              const narrowLabelW = Math.max(...rows.map(([l]) => l.length));
-              const narrowValueW = Math.max(
+              const labelW = Math.max(...rows.map(([l]) => l.length));
+              const valueW = Math.max(
                 0,
                 Math.min(
                   Math.max(...rows.map(([, v]) => v.length)),
-                  Math.max(8, width - narrowLabelW - 4),
+                  Math.max(8, width - labelW - 4),
                 ),
               );
 
-              const addNarrowRow = (label: string, value: string) => {
-                b.addRow();
-                b.add("label", label.padEnd(narrowLabelW));
-                b.add("none", "  ");
-                b.add("value", fit(value, narrowValueW));
-                b.center(width);
-              };
-
               for (const [label, value] of rows) {
-                addNarrowRow(label, value);
+                b.addRow();
+                b.add("label", label.padEnd(labelW));
+                b.add("none", "  ");
+                b.add("value", fit(value, valueW));
+                b.center(width);
               }
 
               b.addRow();
@@ -320,30 +296,44 @@ export default function (pi: ExtensionAPI) {
 
             const out: string[] = [];
 
-            for (const row of b.lines) {
+            for (let y = 0; y < b.lines.length; y++) {
+              const row = b.lines[y];
               let line = "";
-              for (const cell of row) {
-                if (cell.type === "none") {
+              for (let x = 0; x < row.length; x++) {
+                const cell = row[x];
+                if (cell.type === "none" || cell.char === " ") {
                   line += cell.char;
                   continue;
                 }
 
-                if (cell.type === "banner") {
-                  // Ein brand colors: cyan/teal gradient
-                  const hue = 0.5 + (cell.char.charCodeAt(0) % 20) * 0.02;
-                  const r = Math.floor(50 + hue * 30);
-                  const g = Math.floor(200 + hue * 55);
-                  const bCol = Math.floor(220 + hue * 35);
-                  line += rgb(r, g, bCol, cell.char);
+                if (cell.type === "banner" || cell.type === "logo-tip") {
+                  // Glint sweep: a single warm highlight passes after the reveal.
+                  if (glintActive && x >= glintHead - 1 && x <= glintHead + 1) {
+                    line += `\x1b[1m` + rgb(255, 250, 220, cell.char) + `\x1b[22m`;
+                    continue;
+                  }
+                  // Pen tip: brighter leading edge of the sweep.
+                  if (cell.type === "logo-tip") {
+                    line += `\x1b[1m` + rgb(255, 232, 150, cell.char) + `\x1b[22m`;
+                    continue;
+                  }
+                  // Settled gold with a subtle living shimmer.
+                  const s = 0.9 + Math.sin(x * 0.16 + y * 0.55 + tick * 0.08) * 0.1;
+                  line += rgb(
+                    Math.min(255, Math.round(GOLD.r * s)),
+                    Math.min(255, Math.round(GOLD.g * s)),
+                    Math.min(255, Math.round(GOLD.b * s)),
+                    cell.char,
+                  );
                   continue;
                 }
 
                 switch (cell.type) {
                   case "label":
-                    line += rgb(100, 200, 220, cell.char);
+                    line += rgb(190, 150, 70, cell.char);
                     break;
                   case "value":
-                    line += rgb(150, 230, 240, cell.char);
+                    line += rgb(255, 224, 150, cell.char);
                     break;
                   case "dim":
                     line += theme.fg("dim", cell.char);
