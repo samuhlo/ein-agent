@@ -49,7 +49,6 @@ const CACHE_JSON = ".skill-registry.cache.json";
 
 const PROJECT_SKILL_DIRS = [
   "skills",
-  ".opencode/skills",
   ".claude/skills",
   ".gemini/skills",
   ".cursor/skills",
@@ -57,7 +56,6 @@ const PROJECT_SKILL_DIRS = [
   ".codex/skills",
   ".qwen/skills",
   ".kiro/skills",
-  ".openclaw/skills",
   ".pi/skills",
   ".agent/skills",
   ".agents/skills",
@@ -68,7 +66,6 @@ const USER_SKILL_DIRS = [
   join(homedir(), ".pi/agent/skills"),
   join(homedir(), ".pi/agent/skills/local"),
   join(homedir(), ".pi/agent/skills/downloaded"),
-  join(homedir(), ".cache/opencode/skills"),
   join(homedir(), ".cache/cline/skills"),
   join(homedir(), ".cache/coze/skills"),
 ];

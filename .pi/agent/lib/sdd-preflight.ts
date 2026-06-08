@@ -7,8 +7,8 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ASSETS_DIR = join(PACKAGE_ROOT, "assets");
 
-function gentlePiAgentHome(): string {
-	return process.env.GENTLE_PI_AGENT_HOME ?? join(homedir(), ".pi", "agent");
+function einAgentHome(): string {
+	return join(homedir(), ".pi", "agent");
 }
 
 export type SddExecutionMode = "interactive" | "auto";
@@ -99,7 +99,7 @@ export function installSddAssets(
 	_cwd: string,
 	force: boolean,
 ): { agents: number; chains: number; support: number; skipped: number } {
-	const agentHome = gentlePiAgentHome();
+	const agentHome = einAgentHome();
 	const agents = copyDirectoryFiles(
 		join(ASSETS_DIR, "agents"),
 		join(agentHome, "agents"),

@@ -101,7 +101,7 @@ Si algo se rompe:
 2. correr `/ein:doctor-output`
 3. revisar backup en `~/.pi/agent/backups/auto/`
 4. recuperar archivo desde snapshot
-5. si hace falta, volver a OpenCode (`opencode-trabajo` / `ocw`)
+5. si el problema persiste, revisar logs en `~/.pi/agent/logs/tool-failures.ndjson`
 
 ## Checklist rapido antes de cerrar una tarea seria
 

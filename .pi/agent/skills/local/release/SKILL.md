@@ -1,108 +1,80 @@
 ---
 name: release
-description: "Release gentle-pi through GitHub and npm. Trigger: release, publish, npm publish, GitHub release, version bump."
-license: Apache-2.0
-metadata:
-  author: gentleman-programming
-  version: "1.0"
+description: "Publish an Ein release via GitHub and npm. Trigger: release, publish, npm publish, GitHub release, version bump."
+triggers:
+  - release
+  - publish
+  - npm publish
+  - GitHub release
+  - version bump
+stack:
+  - git
+  - gh
+  - npm
+  - bun
+cost: high
+type: workflow
 ---
 
-## When to Use
+# Release Skill
 
-Use this skill when preparing, publishing, or verifying a `gentle-pi` release.
+Use this skill when preparing, publishing, or verifying an Ein release.
 
-## Hard Rules
+## Rules
 
-- Do not publish `gentle-pi` to npm from a local machine.
-- npm publishing MUST go through the GitHub Actions workflow `.github/workflows/publish.yml` so provenance, environment protection, and registry credentials are controlled by GitHub.
-- Use a clean worktree for release commits. Do not package unrelated local files or scratch artifacts.
-- Run a fresh review before pushing a code release unless the change is trivial docs-only.
-- Never skip package verification. The publish workflow runs verification again, but local validation should still pass before tagging.
+- Always run tests before tagging.
+- Do not publish to npm from a local machine — use the CI workflow.
+- Tag format: `v<semver>` (e.g. `v1.2.0`).
+- Changelog must be updated before tagging.
+- Never force-push a tag.
 
-## Release Procedure
+## Steps
 
-1. **Inspect state**
+### 1. Pre-release checks
 
-   ```bash
-   git status --short
-   git fetch origin main --tags
-   git log --oneline --decorate --max-count=5 origin/main
-   ```
+```bash
+bun test
+bun run build
+```
 
-2. **Prepare the release commit**
+### 2. Bump version
 
-   - Apply only intended changes.
-   - Bump `package.json` to the next semver version.
-   - Keep lockfile changes out unless dependency resolution actually changed.
+Update `package.json` version. Commit:
 
-3. **Verify locally**
+```bash
+git add package.json
+git commit -m "chore(release): bump version to v<version>"
+```
 
-   ```bash
-   pnpm test
-   pnpm publish --dry-run --no-git-checks
-   ```
+### 3. Tag
 
-   The dry run is allowed because it does not publish. It verifies package contents and lifecycle scripts.
+```bash
+git tag -a v<version> -m "v<version>"
+git push origin v<version>
+```
 
-4. **Commit and push**
+### 4. GitHub Release
 
-   ```bash
-   git add <intended-files>
-   git commit -m "<type(scope): release-ready change>"
-   git push origin HEAD:main
-   ```
+```bash
+gh release create v<version> \
+  --title "v<version>" \
+  --generate-notes
+```
 
-5. **Create the GitHub release**
+### 5. Verify CI
 
-   ```bash
-   git tag -a v<version> -m "gentle-pi v<version>"
-   git push origin v<version>
-   gh release create v<version> \
-     --repo Gentleman-Programming/gentle-pi \
-     --title "gentle-pi v<version>" \
-     --notes "<release notes>"
-   ```
+```bash
+gh run list --workflow publish.yml --limit 3
+gh run watch <run-id> --exit-status
+```
 
-6. **Publish npm through GitHub Actions**
+### 6. Verify npm publish
 
-   ```bash
-   gh workflow run publish.yml \
-     --repo Gentleman-Programming/gentle-pi \
-     --ref main \
-     -f dist-tag=latest
-   ```
+```bash
+npm view ein@<version> version --registry=https://registry.npmjs.org/
+```
 
-   Watch the run and fail the release if it fails:
+## Troubleshooting
 
-   ```bash
-   gh run list --repo Gentleman-Programming/gentle-pi --workflow publish.yml --limit 3
-   gh run watch <run-id> --repo Gentleman-Programming/gentle-pi --exit-status
-   ```
-
-7. **Verify npm**
-
-   ```bash
-   npm view gentle-pi@<version> version --registry=https://registry.npmjs.org/
-   npm dist-tag ls gentle-pi --registry=https://registry.npmjs.org/
-   ```
-
-## Failure Handling
-
-- If a local `npm publish` fails, do not retry locally. Use the GitHub workflow instead.
-- If the workflow fails, inspect logs with:
-
-  ```bash
-  gh run view <run-id> --repo Gentleman-Programming/gentle-pi --log
-  ```
-
-- If npm verification is briefly stale after a successful workflow, check the exact version first (`npm view gentle-pi@<version> version`) before assuming publish failed.
-
-## Output Contract
-
-Report:
-
-- Commit SHA pushed to `main`.
-- GitHub release URL.
-- Publish workflow run URL and conclusion.
-- npm exact version and `latest` dist-tag.
-- Any remaining follow-up or warnings.
+- If CI fails, check `gh run view <run-id> --log`.
+- If npm verify is stale immediately after publish, wait 30s and retry.

@@ -143,7 +143,7 @@ Ein conecta Engram via MCP (stdio transport):
 
 Capas:
 
-- Engram Pi: `~/.engram-pi` (DB SQLite separada de OpenCode; 15 tools disponibles en el perfil `agent`).
+- Engram: `~/.engram-pi` (DB SQLite; 15 tools disponibles en el perfil `agent`).
 - Snapshot de sesion: `.piagents/session.md` (generado por Pi runtime).
 
 El perfil `--tools=agent` expone tools de lectura/escritura de memoria para el modelo: `engram_save`, `engram_search`, `engram_context`, `engram_timeline`, entre otras. Instalacion inicial: `engram setup pi`.
@@ -225,7 +225,7 @@ Algunos aliases legacy se mantienen para no romper memoria muscular ni prompts a
 
 ### SDD runtime
 
-Ein sigue el modelo OpenSpec de `gentle-pi`: la configuracion vive en `openspec/config.yaml`, los cambios activos en `openspec/changes/` y la verdad canonica en `openspec/specs/`.
+Ein usa OpenSpec: la configuracion vive en `openspec/config.yaml` y los cambios activos en `openspec/changes/`.
 
 Assets preferidos:
 

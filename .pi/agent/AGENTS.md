@@ -9,7 +9,6 @@ This is the global operating guide for Pi Coding Agent on this machine.
 - Work stack-aware by default. Detect the project language/framework before planning or coding.
 - If backend and frontend signals both matter for the requested work, ask one short clarification question before choosing runtime, package manager, ORM, or framework workflow.
 - Preserve existing project conventions unless a change is clearly safer or simpler.
-- Keep OpenCode intact as rollback. Do not delete or mutate `/Users/samu/.config/opencode-trabajo/opencode` unless explicitly requested.
 
 ## Stack Detection
 
@@ -77,7 +76,7 @@ This is the global operating guide for Pi Coding Agent on this machine.
 - Subagents must detect stack and use relevant skills before editing or verifying.
 - Prefer silent skill path resolution: pass exact `SKILL.md` paths to subagents when available. Use digest/advisor flows only for debug, ambiguity, or when a compact summary is explicitly useful.
 - Keep Pi native skill commands enabled. `/skill:*` is a direct escape hatch, not the public Ein command layer.
-- Pi Engram memory is separate from OpenCode and uses `/Users/samu/.engram-pi`.
+- Engram memory lives at `~/.engram-pi` (Pi-specific DB).
 - Continuity protocol: on project work, recover context from Engram and local snapshot before proposing next actions.
 - If the user asks "where did we stop", do not answer from guesswork: use memory context, local snapshot, and current repo state.
 - After substantial work, persist a concise session snapshot and memory note.
