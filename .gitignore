@@ -1,23 +1,23 @@
 # === Secretos y credenciales (NUNCA versionar) ===
-.pi/agent/auth.json
+ein-pi/agent/auth.json
 
 # === Estado de runtime / sesiones (específico de máquina) ===
-.pi/agent/run-history.jsonl
-.pi/agent/sessions/
-.pi/agent/backups/
-.pi/agent/.atl/
-.pi/agent/.piagents/
-.pi/agent/.sdd/
-.pi/openspec/changes/
+ein-pi/agent/run-history.jsonl
+ein-pi/agent/sessions/
+ein-pi/agent/backups/
+ein-pi/agent/.atl/
+ein-pi/agent/.piagents/
+ein-pi/agent/.sdd/
+ein-pi/openspec/changes/
 
 # === Dependencias y binarios (reproducibles) ===
-.pi/**/node_modules/
-.pi/agent/npm/
-.pi/agent/bin/
+ein-pi/**/node_modules/
+ein-pi/agent/npm/
+ein-pi/agent/bin/
 
 # === Ruido de herramientas ===
 .claude/
 .DS_Store
 # Local Pi runtime state
 .atl/
-.pi/settings.json
+ein-pi/agent/settings.json

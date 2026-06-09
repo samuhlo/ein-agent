@@ -1,6 +1,6 @@
 // =============================================================================
 // BUNDLE TEMPLATE
-// Builds src/assets/template.tar.gz from ../.pi/agent.
+// Builds src/assets/template.tar.gz from ../ein-pi/agent.
 // - allowlist of Ein-owned content (never secrets/runtime/binaries)
 // - JSON-aware tokenization of mcp.json + settings.json into {{TOKENS}}
 // Run: bun run bundle-template
@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = dirname(HERE);
 const REPO_ROOT = dirname(INSTALLER_ROOT);
-const SOURCE = join(REPO_ROOT, ".pi", "agent");
+const SOURCE = join(REPO_ROOT, "ein-pi", "agent");
 const OUT = join(INSTALLER_ROOT, "src", "assets", "template.tar.gz");
 
 // Ein-owned content. Everything else (auth.json, npm/, sessions/, backups/,
