@@ -1,8 +1,15 @@
 {
   "name": "ein-web-motion-stack",
-  "version": 2,
+  "version": 3,
+  "policy": {
+    "layers": [
+      "local: skills opinadas propias (workflow, disciplina, convenciones). Insustituibles.",
+      "downloaded: set curado SOLO de fuentes fiables (onmax, antfu, greensock, vercel-labs, yusukebe, midudev).",
+      "context7: todo lo demas (drizzle, zod, typescript, postgres, express, nodejs...) se resuelve on-demand."
+    ],
+    "note": "No mantener una skill por cada tecnologia. Lo no listado en catalog se cubre con Context7."
+  },
   "core": [
-    "typescript",
     "bun",
     "vite",
     "vitest",
@@ -11,10 +18,12 @@
     "nuxt-ui",
     "nuxt-content",
     "nuxt-seo",
+    "pinia",
     "hono",
-    "drizzle",
-    "postgresql-table-design",
     "tailwind-v4",
+    "ts-library",
+    "tsdown",
+    "vueuse",
     "gsap-core",
     "gsap-scrolltrigger",
     "gsap-timeline",
@@ -22,213 +31,60 @@
     "gsap-performance",
     "motion",
     "tresjs",
-    "frontend-design",
-    "web-quality-audit",
-    "accessibility",
-    "document-writer",
-    "comment-style",
-    "github-workflow",
-    "linear-workflow",
-    "work-unit-commits",
-    "comment-writer"
+    "web-design-guidelines",
+    "document-writer"
   ],
   "secondary": [
     "react",
     "next",
-    "zod",
-    "nodejs-best-practices",
-    "express",
-    "playwright-best-practices",
-    "gsap-react",
-    "gsap-plugins",
-    "gsap-utils",
-    "vueuse",
-    "ts-library",
-    "tsdown",
-    "core-web-vitals",
-    "performance",
-    "seo",
-    "best-practices",
+    "reka-ui",
     "nuxt-modules",
-    "nuxt-studio",
     "nuxthub",
     "nuxt-better-auth",
-    "cognitive-doc-design",
-    "branch-pr",
-    "issue-creation"
+    "vue-best-practices",
+    "vue-router-best-practices",
+    "vue-testing-best-practices",
+    "gsap-plugins",
+    "gsap-utils",
+    "gsap-react",
+    "playwright-best-practices"
   ],
   "catalog": {
-    "typescript": {
-      "repo": "wshobson/agents",
-      "skill": "typescript-advanced-types"
-    },
-    "bun": {
-      "repo": "midudev/autoskills",
-      "skill": "bun"
-    },
-    "vite": {
-      "repo": "antfu/skills",
-      "skill": "vite"
-    },
-    "vitest": {
-      "repo": "antfu/skills",
-      "skill": "vitest"
-    },
-    "vue": {
-      "repo": "antfu/skills",
-      "skill": "vue"
-    },
-    "nuxt": {
-      "repo": "antfu/skills",
-      "skill": "nuxt"
-    },
-    "nuxt-ui": {
-      "repo": "antfu/skills",
-      "skill": "nuxt-ui"
-    },
-    "nuxt-content": {
-      "repo": "antfu/skills",
-      "skill": "nuxt-content"
-    },
-    "nuxt-seo": {
-      "repo": "antfu/skills",
-      "skill": "nuxt-seo"
-    },
-    "nuxt-modules": {
-      "repo": "antfu/skills",
-      "skill": "nuxt-modules"
-    },
-    "nuxt-studio": {
-      "repo": "antfu/skills",
-      "skill": "nuxt-studio"
-    },
-    "nuxthub": {
-      "repo": "antfu/skills",
-      "skill": "nuxthub"
-    },
-    "nuxt-better-auth": {
-      "repo": "antfu/skills",
-      "skill": "nuxt-better-auth"
-    },
-    "hono": {
-      "repo": "yusukebe/hono-skill",
-      "skill": "hono"
-    },
-    "drizzle": {
-      "repo": "bobmatnyc/claude-mpm-skills",
-      "skill": "drizzle-orm"
-    },
-    "tailwind-v4": {
-      "repo": "vercel-labs/agent-skills",
-      "skill": "tailwind-v4"
-    },
-    "gsap-core": {
-      "repo": "greensock/gsap-skills",
-      "skill": "gsap-core"
-    },
-    "gsap-scrolltrigger": {
-      "repo": "greensock/gsap-skills",
-      "skill": "gsap-scrolltrigger"
-    },
-    "gsap-timeline": {
-      "repo": "greensock/gsap-skills",
-      "skill": "gsap-timeline"
-    },
-    "gsap-frameworks": {
-      "repo": "greensock/gsap-skills",
-      "skill": "gsap-frameworks"
-    },
-    "gsap-performance": {
-      "repo": "greensock/gsap-skills",
-      "skill": "gsap-performance"
-    },
-    "gsap-plugins": {
-      "repo": "greensock/gsap-skills",
-      "skill": "gsap-plugins"
-    },
-    "gsap-utils": {
-      "repo": "greensock/gsap-skills",
-      "skill": "gsap-utils"
-    },
-    "gsap-react": {
-      "repo": "greensock/gsap-skills",
-      "skill": "gsap-react"
-    },
-    "motion": {
-      "repo": "antfu/skills",
-      "skill": "motion"
-    },
-    "tresjs": {
-      "repo": "antfu/skills",
-      "skill": "tresjs"
-    },
-    "frontend-design": {
-      "repo": "navi-42/auto-skills",
-      "skill": "frontend-design"
-    },
-    "web-quality-audit": {
-      "repo": "antfu/skills",
-      "skill": "web-quality-audit"
-    },
-    "accessibility": {
-      "repo": "antfu/skills",
-      "skill": "accessibility"
-    },
-    "core-web-vitals": {
-      "repo": "antfu/skills",
-      "skill": "core-web-vitals"
-    },
-    "performance": {
-      "repo": "antfu/skills",
-      "skill": "performance"
-    },
-    "seo": {
-      "repo": "antfu/skills",
-      "skill": "seo"
-    },
-    "best-practices": {
-      "repo": "antfu/skills",
-      "skill": "best-practices"
-    },
-    "document-writer": {
-      "repo": "antfu/skills",
-      "skill": "document-writer"
-    },
-    "zod": {
-      "repo": "pproenca/dot-skills",
-      "skill": "zod"
-    },
-    "react": {
-      "repo": "vercel-labs/agent-skills",
-      "skill": "react-best-practices"
-    },
-    "next": {
-      "repo": "vercel-labs/next-skills",
-      "skill": "next-best-practices"
-    },
-    "nodejs-best-practices": {
-      "repo": "sickn33/antigravity-awesome-skills",
-      "skill": "nodejs-best-practices"
-    },
-    "express": {
-      "repo": "ferdhie/awesome-skills",
-      "skill": "express"
-    },
-    "playwright-best-practices": {
-      "repo": "currents-dev/playwright-best-practices-skill",
-      "skill": "playwright-best-practices"
-    },
-    "vueuse": {
-      "repo": "antfu/skills",
-      "skill": "vueuse"
-    },
-    "ts-library": {
-      "repo": "antfu/skills",
-      "skill": "ts-library"
-    },
-    "tsdown": {
-      "repo": "antfu/skills",
-      "skill": "tsdown"
-    }
+    "nuxt": { "repo": "onmax/nuxt-skills", "skill": "nuxt" },
+    "vue": { "repo": "onmax/nuxt-skills", "skill": "vue" },
+    "nuxt-ui": { "repo": "onmax/nuxt-skills", "skill": "nuxt-ui" },
+    "nuxt-content": { "repo": "onmax/nuxt-skills", "skill": "nuxt-content" },
+    "nuxt-seo": { "repo": "onmax/nuxt-skills", "skill": "nuxt-seo" },
+    "nuxt-modules": { "repo": "onmax/nuxt-skills", "skill": "nuxt-modules" },
+    "nuxthub": { "repo": "onmax/nuxt-skills", "skill": "nuxthub" },
+    "nuxt-better-auth": { "repo": "onmax/nuxt-skills", "skill": "nuxt-better-auth" },
+    "reka-ui": { "repo": "onmax/nuxt-skills", "skill": "reka-ui" },
+    "motion": { "repo": "onmax/nuxt-skills", "skill": "motion" },
+    "tresjs": { "repo": "onmax/nuxt-skills", "skill": "tresjs" },
+    "ts-library": { "repo": "onmax/nuxt-skills", "skill": "ts-library" },
+    "document-writer": { "repo": "onmax/nuxt-skills", "skill": "document-writer" },
+    "vite": { "repo": "antfu/skills", "skill": "vite" },
+    "vitest": { "repo": "antfu/skills", "skill": "vitest" },
+    "tsdown": { "repo": "antfu/skills", "skill": "tsdown" },
+    "pinia": { "repo": "antfu/skills", "skill": "pinia" },
+    "vueuse": { "repo": "antfu/skills", "skill": "vueuse-functions" },
+    "vue-best-practices": { "repo": "antfu/skills", "skill": "vue-best-practices" },
+    "vue-router-best-practices": { "repo": "antfu/skills", "skill": "vue-router-best-practices" },
+    "vue-testing-best-practices": { "repo": "antfu/skills", "skill": "vue-testing-best-practices" },
+    "web-design-guidelines": { "repo": "antfu/skills", "skill": "web-design-guidelines" },
+    "tailwind-v4": { "repo": "vercel-labs/agent-skills", "skill": "tailwind-v4" },
+    "react": { "repo": "vercel-labs/agent-skills", "skill": "react-best-practices" },
+    "next": { "repo": "vercel-labs/next-skills", "skill": "next-best-practices" },
+    "hono": { "repo": "yusukebe/hono-skill", "skill": "hono" },
+    "bun": { "repo": "midudev/autoskills", "skill": "bun" },
+    "gsap-core": { "repo": "greensock/gsap-skills", "skill": "gsap-core" },
+    "gsap-scrolltrigger": { "repo": "greensock/gsap-skills", "skill": "gsap-scrolltrigger" },
+    "gsap-timeline": { "repo": "greensock/gsap-skills", "skill": "gsap-timeline" },
+    "gsap-frameworks": { "repo": "greensock/gsap-skills", "skill": "gsap-frameworks" },
+    "gsap-performance": { "repo": "greensock/gsap-skills", "skill": "gsap-performance" },
+    "gsap-plugins": { "repo": "greensock/gsap-skills", "skill": "gsap-plugins" },
+    "gsap-utils": { "repo": "greensock/gsap-skills", "skill": "gsap-utils" },
+    "gsap-react": { "repo": "greensock/gsap-skills", "skill": "gsap-react" },
+    "playwright-best-practices": { "repo": "currents-dev/playwright-best-practices-skill", "skill": "playwright-best-practices" }
   }
 }

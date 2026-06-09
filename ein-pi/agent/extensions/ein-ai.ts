@@ -1627,7 +1627,12 @@ export default function einAi(pi: ExtensionAPI): void {
 				lines.push("");
 				lines.push("// 005. SKILLS");
 				lines.push("");
-				lines.push("- /ein:skills                     → inventario y resolucion de skills.");
+				lines.push("- /ein:skills                     → status del stack (perfil, drift, fuera de stack).");
+				lines.push("- /ein:skills update              → actualiza locales (repo) + bajadas (catalogo).");
+				lines.push("- /ein:skills update --local      → solo locales desde el repo ein-agent.");
+				lines.push("- /ein:skills update --downloaded → solo bajadas desde el catalogo.");
+				lines.push("- /ein:skills add <skill>         → instala una skill del catalogo.");
+				lines.push("- /ein:skills clean [--yes]       → purga bajadas fuera de stack.");
 				lines.push("- /ein:skills:advisor <tarea>     → advisor de skills para una tarea.");
 				lines.push("");
 				lines.push("// 006. DIAGNOSTICO");
@@ -1662,7 +1667,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			lines.push("- /ein:linear:new | :project-bootstrap | :milestones | :help");
 			lines.push("");
 			lines.push("■ 004. SKILLS");
-			lines.push("- /ein:skills | /ein:skills:advisor <tarea>");
+			lines.push("- /ein:skills [update [--local|--downloaded]|add|clean] | /ein:skills:advisor <tarea>");
 			lines.push("");
 			lines.push("■ 005. DIAGNOSTICO");
 			lines.push("- /ein:doctor | /ein:doctor-output");

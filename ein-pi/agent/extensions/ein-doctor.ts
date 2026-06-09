@@ -246,6 +246,7 @@ function doctorSmokeReport(): string {
     "ein-doctor.ts",
     "ein-linear.ts",
     "ein-paths.ts",
+    "ein-skill-maintenance.ts",
     "ein-skill-registry.ts",
     "sdd-init.ts",
   ];

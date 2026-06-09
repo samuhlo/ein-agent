@@ -2,7 +2,7 @@
 // VERIFY (doctor)
 // Pure filesystem + lookPath port of ein-doctor.ts's smoke checks. Validates a
 // deployed ~/.pi/agent without launching pi. Mirrors the in-pi doctor's
-// canonical expectations: 8 extensions, 7 agents, 1 chain, brand triplet,
+// canonical expectations: 9 extensions, 7 agents, 1 chain, brand triplet,
 // ENGRAM_DATA_DIR containing .engram-pi.
 // =============================================================================
 
@@ -83,6 +83,7 @@ const CORE_EXTENSIONS = [
   "ein-doctor.ts",
   "ein-linear.ts",
   "ein-paths.ts",
+  "ein-skill-maintenance.ts",
   "ein-skill-registry.ts",
   "sdd-init.ts",
 ];
