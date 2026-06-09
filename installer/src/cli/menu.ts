@@ -8,6 +8,9 @@ import { playBanner } from "../tui/banner.ts";
 import { bold, gold, goldDim } from "../tui/theme.ts";
 import { runInstall } from "./install.ts";
 import { runDoctorCommand } from "./doctor.ts";
+import { runUpdate } from "./update.ts";
+import { runUninstall } from "./uninstall.ts";
+import { runRestore } from "./restore.ts";
 
 type Action = "install" | "doctor" | "update" | "uninstall" | "restore" | "quit";
 
@@ -20,7 +23,7 @@ export async function runMenu(): Promise<number> {
     options: [
       { value: "install", label: gold("Install"), hint: "instalar o reparar Ein" },
       { value: "doctor", label: gold("Doctor"), hint: "diagnostico del despliegue" },
-      { value: "update", label: goldDim("Update"), hint: "actualizar Ein y pi" },
+      { value: "update", label: gold("Update"), hint: "actualizar Ein y pi" },
       { value: "uninstall", label: goldDim("Uninstall"), hint: "eliminar Ein" },
       { value: "restore", label: goldDim("Restore"), hint: "restaurar backup" },
       { value: "quit", label: "Salir", hint: "" },
@@ -38,10 +41,11 @@ export async function runMenu(): Promise<number> {
     case "doctor":
       return runDoctorCommand();
     case "update":
+      return runUpdate([]);
     case "uninstall":
+      return runUninstall([]);
     case "restore":
-      p.outro(`'${action}' aun no disponible (Fase 5).`);
-      return 0;
+      return runRestore([]);
     default:
       return 0;
   }

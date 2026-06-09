@@ -7,6 +7,9 @@
 import { runDoctorCommand } from "./cli/doctor.ts";
 import { runInstall } from "./cli/install.ts";
 import { runMenu } from "./cli/menu.ts";
+import { runUpdate } from "./cli/update.ts";
+import { runUninstall } from "./cli/uninstall.ts";
+import { runRestore } from "./cli/restore.ts";
 
 function printHelp(): void {
   console.log("ein — instalador del workbench Ein sobre Pi");
@@ -28,6 +31,12 @@ async function main(): Promise<number> {
   switch (cmd) {
     case "install":
       return runInstall(rest);
+    case "update":
+      return runUpdate(rest);
+    case "uninstall":
+      return runUninstall(rest);
+    case "restore":
+      return runRestore(rest);
     case "doctor":
       return runDoctorCommand();
     case "--version":
