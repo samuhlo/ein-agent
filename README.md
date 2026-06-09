@@ -49,6 +49,10 @@ Ein usa **Engram** para mantener contexto entre sesiones. No reexplica el proyec
 
 Ein no ejecuta comandos destructivos sin confirmación. Tiene una lista explícita de patrones denegados (`git reset --hard`, `rm -rf`, `DROP TABLE`, etc.) y patrones que requieren confirmación explícita antes de proceder.
 
+### Persona docente
+
+En modo `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón nuevo, endpoint, decisión de arquitectura, código no trivial, seguridad) Ein no entrega un parte de estado: **te enseña cómo funciona por dentro** — qué hace cada pieza y cómo encajan, el mecanismo paso a paso. Lo trivial sigue siendo breve. El objetivo es que termines entendiendo mejor el sistema, no solo qué se tocó.
+
 ---
 
 ## Instalación
@@ -199,11 +203,11 @@ Hace backup del estado actual, redespliega el workbench y actualiza `pi`. Tu `au
 ## Publicar una nueva release
 
 ```bash
-git tag installer-v0.3.0
-git push origin installer-v0.3.0
+git tag installer-v0.4.0
+git push origin installer-v0.4.0
 ```
 
-GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.2.0`.
+GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.3.0`.
 
 ---
 
