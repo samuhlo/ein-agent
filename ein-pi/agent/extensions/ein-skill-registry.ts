@@ -296,9 +296,71 @@ function resolveSkills(registry: SkillEntry[], task: string, explicitStack?: "no
   return [...unique.values()];
 }
 
+const STACK_PROFILE_PATH = join(AGENT_DIR, "skills", "stack-profile.json");
+
+// Map of detection-keyword -> Context7 library query, read from the stack
+// profile. These are technologies deliberately NOT given a curated skill; the
+// model pulls fresh docs from Context7 on demand instead.
+function loadContext7Map(): Record<string, string> {
+  try {
+    const raw = JSON.parse(readFileSync(STACK_PROFILE_PATH, "utf8")) as { context7?: unknown };
+    const map = raw.context7;
+    if (map && typeof map === "object" && !Array.isArray(map)) {
+      const out: Record<string, string> = {};
+      for (const [key, value] of Object.entries(map as Record<string, unknown>)) {
+        if (typeof value === "string") out[key.toLowerCase()] = value;
+      }
+      return out;
+    }
+  } catch {
+    // no profile / parse error -> no Context7 routing
+  }
+  return {};
+}
+
+// Detect Context7-routed technologies mentioned in the task. Deduped by query.
+function detectContext7(task: string): Array<{ tech: string; query: string }> {
+  const lower = task.toLowerCase();
+  const map = loadContext7Map();
+  const seen = new Set<string>();
+  const out: Array<{ tech: string; query: string }> = [];
+  for (const [tech, query] of Object.entries(map)) {
+    const escaped = tech.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`\\b${escaped}\\b`, "i").test(lower) && !seen.has(query)) {
+      seen.add(query);
+      out.push({ tech, query });
+    }
+  }
+  return out;
+}
+
+// Full Context7 section for the digest output.
+function context7Section(task: string): string[] {
+  const libs = detectContext7(task);
+  if (!libs.length) return [];
+  return [
+    "",
+    "■ 003. CONTEXT7 (techs sin skill curada)",
+    "Estas tecnologias no tienen skill en el stack. Trae docs frescas on-demand:",
+    ...libs.map((l) => `  - ${l.tech} -> resolve-library-id "${l.query}" -> query-docs (solo el topic de la tarea)`),
+    "- No vuelques toda la doc: pide el topic concreto y aplica solo lo relevante.",
+  ];
+}
+
 function digestSkillGuidelines(skills: SkillEntry[], task: string, stack: string): string {
+  const c7 = context7Section(task);
+
   if (!skills.length) {
-    return `/// 000. SKILL DIGEST\n- **Task:** ${task || "(no task provided)"}\n- **Stack:** ${stack}\n- No se encontraron skills con buena senal. Usa skill manual o refina la tarea.`;
+    const base = [
+      "/// 000. SKILL DIGEST",
+      `- **Task:** ${task || "(no task provided)"}`,
+      `- **Stack:** ${stack}`,
+    ];
+    if (!c7.length) {
+      base.push("- No se encontraron skills con buena senal. Usa skill manual o refina la tarea.");
+      return base.join("\n");
+    }
+    return [...base, ...c7].join("\n");
   }
 
   const header = [
@@ -322,7 +384,7 @@ function digestSkillGuidelines(skills: SkillEntry[], task: string, stack: string
     "- Cuando edites codigo, explica en la salida que reglas seguiste y que riesgo evitaste.",
   ];
 
-  return [...header, ...protocol].join("\n");
+  return [...header, ...protocol, ...c7].join("\n");
 }
 
 function formatRegistry(entries: SkillEntry[], source: string, totalFiltered: number): string {
@@ -550,22 +612,36 @@ function getOrCreateRegistry(cwd: string): SkillEntry[] {
 export function resolveSkillInjection(cwd: string, task: string, limit = 6): string {
   const cleanTask = (task ?? "").trim();
   if (!cleanTask) return "";
-  let registry: SkillEntry[];
+  let registry: SkillEntry[] = [];
   try {
     registry = getOrCreateRegistry(cwd);
   } catch {
-    return "";
+    registry = [];
   }
   const resolved = resolveSkills(registry, cleanTask, undefined, limit);
-  if (!resolved.length) return "";
-  return [
-    "## Skills to load before work",
-    "",
-    "Read these exact SKILL.md files before reading, writing, reviewing, testing, or creating artifacts:",
-    ...resolved.map((skill) => `- ${skill.path}`),
-    "",
-    "For each skill, apply its rules; if one does not fit the task, note why you skip it.",
-  ].join("\n");
+  const c7 = detectContext7(cleanTask);
+  if (!resolved.length && !c7.length) return "";
+
+  const parts: string[] = [];
+  if (resolved.length) {
+    parts.push(
+      "## Skills to load before work",
+      "",
+      "Read these exact SKILL.md files before reading, writing, reviewing, testing, or creating artifacts:",
+      ...resolved.map((skill) => `- ${skill.path}`),
+      "",
+      "For each skill, apply its rules; if one does not fit the task, note why you skip it.",
+    );
+  }
+  if (c7.length) {
+    if (parts.length) parts.push("");
+    parts.push(
+      "## Context7 (no curated skill)",
+      "These technologies have no curated skill. Fetch fresh docs via Context7 (resolve-library-id then query-docs) for the task topic before using them:",
+      ...c7.map((l) => `- ${l.tech} -> ${l.query}`),
+    );
+  }
+  return parts.join("\n");
 }
 
 export default function einSkillRegistry(pi: ExtensionAPI) {
@@ -656,7 +732,7 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
     if (task === "sin tarea") {
       ctx.ui.notify(`Tip: usa ${slashCommand("skills")} <tarea> para obtener resolve+digest utiles para tu caso.`, "info");
     }
-    pi.sendUserMessage(`Usa \`ein_skill_registry\`, luego \`ein_skill_resolve\` y \`ein_skill_digest\` para esta tarea: ${task}. Devuelve resumen didactico en espanol.`);
+    pi.sendUserMessage(`Usa \`ein_skill_registry\`, luego \`ein_skill_resolve\` y \`ein_skill_digest\` para esta tarea: ${task}. El digest incluye, para tecnologias sin skill curada, instruccion de Context7 (resolve-library-id + query-docs) que debes ejecutar para traer docs frescas. Devuelve resumen didactico en espanol.`);
   };
 
   pi.registerCommand(commandName("skills:advisor"), {

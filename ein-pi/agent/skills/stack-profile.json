@@ -82,5 +82,18 @@
     "gsap-plugins": { "repo": "greensock/gsap-skills", "skill": "gsap-plugins" },
     "gsap-utils": { "repo": "greensock/gsap-skills", "skill": "gsap-utils" },
     "gsap-react": { "repo": "greensock/gsap-skills", "skill": "gsap-react" }
+  },
+  "context7": {
+    "drizzle": "drizzle-orm",
+    "zod": "zod",
+    "postgres": "postgresql",
+    "postgresql": "postgresql",
+    "express": "express",
+    "tailwind": "tailwindcss",
+    "tailwindcss": "tailwindcss",
+    "playwright": "playwright",
+    "typescript": "typescript",
+    "prisma": "prisma",
+    "trpc": "trpc"
   }
 }
