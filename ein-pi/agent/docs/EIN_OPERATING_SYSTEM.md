@@ -171,6 +171,8 @@ Si el doctor dice `FAIL`, hay algo roto: arréglalo antes de entregar nada. Si d
 /ein:persona neutral   → modo directo (texto plano, sin adornos)
 ```
 
+En modo `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón nuevo, endpoint, decisión de arquitectura, código no trivial, seguridad) Ein **te enseña cómo funciona por dentro**: qué hace cada pieza nueva y cómo encajan entre sí, el mecanismo real paso a paso — no un simple parte de "qué hice". Lo trivial (un typo, un ajuste pequeño) sigue siendo breve.
+
 ---
 
 ## Seguridad (lo importante)
