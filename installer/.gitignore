@@ -2,3 +2,4 @@ node_modules/
 dist/
 src/assets/template.tar.gz
 *.log
+*.bun-build
