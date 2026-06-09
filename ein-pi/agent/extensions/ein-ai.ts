@@ -668,6 +668,61 @@ function projectSettingsPath(cwd: string): string {
 	return join(cwd, ".pi", "settings.json");
 }
 
+function globalSettingsPath(): string {
+	return join(einPiAgentHome(), "settings.json");
+}
+
+function updateGlobalDefaultModel(provider: string, model: string): void {
+	const path = globalSettingsPath();
+	let settings: Record<string, unknown> = {};
+	if (existsSync(path)) {
+		try {
+			const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+			if (isRecord(parsed)) settings = parsed;
+		} catch {
+			settings = {};
+		}
+	}
+	settings.defaultProvider = provider;
+	settings.defaultModel = model;
+	mkdirSync(dirname(path), { recursive: true });
+	writeFileSync(path, `${JSON.stringify(settings, null, "\t")}\n`);
+}
+
+// Modelo predeterminado por preset. El orquestador usa el defaultProvider/defaultModel
+// del settings global; los subagentes usan ~/.pi/ein/models.json.
+const MODEL_FULL: AgentModelConfig = {
+	"sdd-design": { model: "openai-codex/gpt-5.5" },
+	"sdd-init": { model: "minimax/MiniMax-M2.7" },
+	"sdd-explore": { model: "minimax/MiniMax-M2.7" },
+	"sdd-apply": { model: "minimax/MiniMax-M2.7" },
+	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
+	"ein-linear": { model: "minimax/MiniMax-M2.7" },
+	"ein-github": { model: "minimax/MiniMax-M2.7" },
+};
+const MODEL_FULL_ORCH = { provider: "openai-codex", model: "gpt-5.5" } as const;
+
+const MODEL_LITE: AgentModelConfig = {
+	"sdd-design": { model: "minimax/MiniMax-M2.7" },
+	"sdd-init": { model: "minimax/MiniMax-M2.7" },
+	"sdd-explore": { model: "minimax/MiniMax-M2.7" },
+	"sdd-apply": { model: "minimax/MiniMax-M2.7" },
+	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
+	"ein-linear": { model: "minimax/MiniMax-M2.7" },
+	"ein-github": { model: "minimax/MiniMax-M2.7" },
+};
+const MODEL_LITE_ORCH = { provider: "minimax", model: "MiniMax-M2.7" } as const;
+
+function applyPreset(cwd: string, preset: "full" | "lite"): string {
+	const config = preset === "full" ? MODEL_FULL : MODEL_LITE;
+	const orch = preset === "full" ? MODEL_FULL_ORCH : MODEL_LITE_ORCH;
+	writeModelConfig(cwd, config);
+	updateGlobalDefaultModel(orch.provider, orch.model);
+	return preset === "full"
+		? `Modo full activo.\n- Orquestador → gpt-5.5\n- sdd-design → gpt-5.5\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`
+		: `Modo lite activo. Todos los agentes → MiniMax-M2.7.\nReinicia Pi para que el cambio de orquestador tome efecto.`;
+}
+
 function updateBuiltinModelOverride(
 	cwd: string,
 	name: string,
@@ -1405,6 +1460,22 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
+	pi.registerCommand("ein:models:full", {
+		description: "Preset full: orquestador + sdd-design → gpt-5.5, resto → MiniMax-M2.7",
+		handler: (_args, ctx) => {
+			const msg = applyPreset(ctx.cwd, "full");
+			ctx.ui.notify(msg, "info");
+		},
+	});
+
+	pi.registerCommand("ein:models:lite", {
+		description: "Preset lite: todos los agentes → MiniMax-M2.7 (escape de rate-limit gpt-5.5)",
+		handler: (_args, ctx) => {
+			const msg = applyPreset(ctx.cwd, "lite");
+			ctx.ui.notify(msg, "info");
+		},
+	});
+
 	pi.registerCommand("ein:persona", {
 		description: "Cambiar la persona de Ein entre samuhlo y neutral",
 		handler: async (_args, ctx) => {
@@ -1580,6 +1651,8 @@ export default function einAi(pi: ExtensionAPI): void {
 			lines.push("");
 			lines.push("■ 001. CORE");
 			lines.push("- /ein:status | /ein:persona | /ein:models | /ein:help [full]");
+			lines.push("- /ein:models:full  → preset gpt-5.5 (orquestador + sdd-design)");
+			lines.push("- /ein:models:lite  → preset MiniMax-M2.7 todo (escape rate-limit)");
 			lines.push("");
 			lines.push("■ 002. SDD");
 			lines.push("- /sdd-init → bootstrap openspec en el proyecto actual");
