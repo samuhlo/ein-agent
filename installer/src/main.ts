@@ -6,6 +6,7 @@
 
 import { runDoctorCommand } from "./cli/doctor.ts";
 import { runInstall } from "./cli/install.ts";
+import { runMenu } from "./cli/menu.ts";
 
 function printHelp(): void {
   console.log("ein — instalador del workbench Ein sobre Pi");
@@ -39,9 +40,8 @@ async function main(): Promise<number> {
       printHelp();
       return 0;
     case undefined:
-      // No args → interactive TUI (Fase 4). For now, show help.
-      printHelp();
-      return 0;
+      // No args → interactive TUI menu.
+      return runMenu();
     default:
       console.error(`comando desconocido: ${cmd}`);
       printHelp();

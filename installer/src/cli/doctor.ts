@@ -8,24 +8,33 @@ import { detectPlatform } from "../core/platform.ts";
 import { runDoctor, type DoctorReport } from "../core/verify.ts";
 import { AGENT_DIR } from "../core/paths.ts";
 import { existsSync } from "node:fs";
+import { bold, gold, goldDim, rgb } from "../tui/theme.ts";
 
 const GLYPH: Record<string, string> = { OK: "✓", WARN: "!", FAIL: "✗" };
 
+function glyph(level: string): string {
+  const g = GLYPH[level] ?? "?";
+  if (level === "OK") return rgb(120, 200, 120, g);
+  if (level === "WARN") return rgb(230, 200, 90, g);
+  if (level === "FAIL") return rgb(230, 110, 110, g);
+  return g;
+}
+
 export function renderReport(report: DoctorReport): string {
   const lines: string[] = [];
-  lines.push("/// DOCTOR EIN");
+  lines.push(bold(gold("/// DOCTOR EIN")));
   lines.push("");
-  lines.push(`resultado: ${report.result}`);
+  lines.push(`resultado: ${bold(gold(report.result))}`);
   lines.push(`fail: ${report.fail}  |  warn: ${report.warn}  |  total: ${report.total}`);
   lines.push("");
   for (const group of report.groups) {
-    lines.push(`■ ${group.title}`);
+    lines.push(goldDim(`■ ${group.title}`));
     for (const c of group.checks) {
-      lines.push(`  ${GLYPH[c.level] ?? "?"} ${c.level.padEnd(4)} ${c.name}: ${c.detail}`);
+      lines.push(`  ${glyph(c.level)} ${c.level.padEnd(4)} ${c.name}: ${c.detail}`);
     }
     lines.push("");
   }
-  lines.push("■ DECISION");
+  lines.push(goldDim("■ DECISION"));
   if (report.fail) {
     lines.push("  revisar FAIL antes de usar Ein.");
   } else if (report.warn) {

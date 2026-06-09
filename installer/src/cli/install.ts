@@ -17,6 +17,8 @@ import {
 import { writeMarker } from "../core/version.ts";
 import { runDoctor } from "../core/verify.ts";
 import { renderReport } from "./doctor.ts";
+import { playBanner } from "../tui/banner.ts";
+import { bold, gold } from "../tui/theme.ts";
 
 export type InstallFlags = {
   yes: boolean;
@@ -58,7 +60,8 @@ export async function runInstall(args: string[]): Promise<number> {
   const flags = parseInstallFlags(args);
   const platform: Platform = detectPlatform();
 
-  p.intro("Instalador Ein");
+  await playBanner();
+  p.intro(bold(gold("Instalador Ein")));
   p.log.info(`Plataforma: ${describePlatform(platform)}`);
 
   // 1. Check dependencies.
