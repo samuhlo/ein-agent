@@ -20,4 +20,3 @@ ein-pi/agent/bin/
 .DS_Store
 # Local Pi runtime state
 .atl/
-ein-pi/agent/settings.json
