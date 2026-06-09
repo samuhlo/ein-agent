@@ -9,14 +9,15 @@ import { join } from "node:path";
 
 const execAsync = promisify(exec);
 
-// EIN block-letter logo. Clean, readable, single weight.
+// EIN block-letter logo. Clean, readable, 3-wide strokes (38 cols, 7 rows).
 const TEXT_LOGO = [
-  "████████  ██████  ██    ██",
-  "██          ██    ███   ██",
-  "██████      ██    ████  ██",
-  "██          ██    ██ ██ ██",
-  "██          ██    ██  ████",
-  "████████  ██████  ██   ███",
+  "██████████    █████████    ███     ███",
+  "███              ███       ████    ███",
+  "███              ███       █████   ███",
+  "███████          ███       ███ ██  ███",
+  "███              ███       ███  ██ ███",
+  "███              ███       ███   █████",
+  "██████████    █████████    ███    ████",
 ];
 
 // EIN brand gold #FFCA40

@@ -8,14 +8,15 @@
 
 import { GOLD, GOLD_BRIGHT, GOLD_DIM, colorEnabled } from "./theme.ts";
 
-// EIN block-letter logo (26 cols, 6 rows, uniform width).
+// EIN block-letter logo (38 cols, 7 rows, uniform width, 3-wide strokes).
 const TEXT_LOGO = [
-  "████████  ██████  ██    ██",
-  "██          ██    ███   ██",
-  "██████      ██    ████  ██",
-  "██          ██    ██ ██ ██",
-  "██          ██    ██  ████",
-  "████████  ██████  ██   ███",
+  "██████████    █████████    ███     ███",
+  "███              ███       ████    ███",
+  "███              ███       █████   ███",
+  "███████          ███       ███ ██  ███",
+  "███              ███       ███  ██ ███",
+  "███              ███       ███   █████",
+  "██████████    █████████    ███    ████",
 ];
 
 const SUBTITLE = "SAMUHLO · PI WORKBENCH";
