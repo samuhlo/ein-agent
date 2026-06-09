@@ -6,7 +6,15 @@
 // Run: bun run bundle-template
 // =============================================================================
 
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -73,6 +81,10 @@ async function main(): Promise<void> {
 
     tokenizeMcp(staging);
     tokenizeSettings(staging);
+
+    // src/assets/ holds only the generated tarball (gitignored), so the dir is
+    // absent on a fresh checkout (CI). Ensure it exists before tar writes to it.
+    mkdirSync(dirname(OUT), { recursive: true });
 
     // tar from inside staging so paths are relative (./agents, ./extensions...).
     const proc = Bun.spawn(["tar", "-czf", OUT, "."], { cwd: staging, stderr: "pipe" });
