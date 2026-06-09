@@ -32,9 +32,33 @@ await subagent({ agent: "ein-github", task: "create branch feature/xyz from main
 
 **SDD Invocation — CRITICAL:**
 
+The `subagent` tool's `chain` field is an **array of step objects**, never a
+string. `chain: "ein-sdd"` is INVALID and fails with `chain.0: must be object`.
+The tool has no "run chain by name". To launch the SDD flow, pass the full
+inline step array below — copy it verbatim and change only the top-level `task`:
+
 ```
-await subagent({ chain: "ein-sdd", task: "SAM-328: Motor determinista calculatePlanning()" })
+await subagent({
+  task: "SAM-328: Motor determinista calculatePlanning()",
+  chain: [
+    { agent: "sdd-init",    task: "{task}", output: "init.md",            outputMode: "file-only", progress: true },
+    { agent: "sdd-explore", task: "{task}", reads: "init.md",             output: "exploration.md",   outputMode: "file-only", progress: true },
+    { agent: "sdd-design",  task: "{task}", reads: "init.md+exploration.md", output: "design.md",      outputMode: "file-only", progress: true },
+    { agent: "sdd-apply",   task: "{task}", reads: "design.md",           output: "apply-progress.md", outputMode: "file-only", progress: true },
+    { agent: "sdd-verify",  task: "{task}", reads: "design.md+apply-progress.md", output: "verify-report.md", outputMode: "file-only", progress: true }
+  ]
+})
 ```
+
+Hard rules for this call:
+- `chain` is an ARRAY; every element is an OBJECT with an `agent` string. Never a string.
+- Keep `task: "{task}"` on every step so each phase sees the original request.
+- Never drop the `reads`/`output` wiring — it passes artifacts between phases.
+
+Deterministic manual fallback (user-typed, not a parent tool call): the user can
+run `/run-chain ein-sdd -- <task>`, which expands the saved chain by name. If a
+chain tool call ever fails validation, fall back to building the array above
+exactly; do not retry with a string.
 
 **NEVER use `sdd-apply` directly when the user asks for SDD.** The `sdd-apply` agent is only the implementation phase inside the `ein-sdd` chain — not a standalone agent for the full flow. For a quick re-verification of an already-implemented change you may invoke `sdd-verify` directly.
 
@@ -230,7 +254,9 @@ init → explore → design → apply → verify
 
 **SDD Invocation Rule:**
 When the user asks to use SDD, start SDD, or run SDD for a task:
-- **DO**: Use `subagent({ chain: "ein-sdd", task: "..." })` for the full flow.
+- **DO**: Launch the full flow with the inline `chain` step array shown in
+  "SDD Invocation — CRITICAL" above (`chain` is an array of objects, never a string).
+- **NEVER**: Pass `chain: "ein-sdd"` as a string — it fails validation.
 - **NEVER**: Use `sdd-apply` directly as a standalone agent for SDD.
 
 The individual `sdd-*` agents (sdd-apply, sdd-verify, etc.) are **phase agents used internally by the chain** — they are not meant to be invoked directly by the parent session for the full workflow.
