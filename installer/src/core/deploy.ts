@@ -6,7 +6,7 @@
 // tarball, so re-extracting only overwrites Ein-owned files).
 // =============================================================================
 
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,11 +19,28 @@ import { renderTemplate, type TemplateVars } from "./template.ts";
 import { run } from "./exec.ts";
 import { AGENT_DIR, ENGRAM_DIR, HOME } from "./paths.ts";
 
+export type DeployOptions = {
+  skipLinear?: boolean;
+};
+
 export type DeployResult = {
   agentDir: string;
   engramCommand: string;
   engramFound: boolean;
 };
+
+// Files owned by the Linear integration. Removed when user opts out.
+const LINEAR_FILES = [
+  join("agents", "ein-linear.md"),
+  join("extensions", "ein-linear.ts"),
+];
+
+function removeLinearFiles(agentDir: string): void {
+  for (const rel of LINEAR_FILES) {
+    const full = join(agentDir, rel);
+    if (existsSync(full)) rmSync(full);
+  }
+}
 
 // Extract the tarball into a target dir using the system `tar`.
 async function extractTarball(tarPath: string, target: string): Promise<void> {
@@ -41,7 +58,7 @@ function templateConfig(fileName: string, vars: TemplateVars): void {
   writeFileSync(path, rendered);
 }
 
-export async function deployTemplate(platform: Platform): Promise<DeployResult> {
+export async function deployTemplate(platform: Platform, opts: DeployOptions = {}): Promise<DeployResult> {
   // Bun's compiled binary exposes the embedded file via its import path; in dev
   // (bun run) it resolves to the real file on disk. Read bytes and stage them
   // so `tar` has a concrete path to read from.
@@ -62,6 +79,8 @@ export async function deployTemplate(platform: Platform): Promise<DeployResult> 
 
     templateConfig("mcp.json", vars);
     templateConfig("settings.json", vars);
+
+    if (opts.skipLinear) removeLinearFiles(AGENT_DIR);
 
     return {
       agentDir: AGENT_DIR,

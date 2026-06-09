@@ -7,7 +7,7 @@
 import * as p from "@clack/prompts";
 import { describePlatform, detectPlatform, type Platform } from "../core/platform.ts";
 import { checkDeps, installBun, installEngramDep, installGh, installPi } from "../core/deps.ts";
-import { deployTemplate } from "../core/deploy.ts";
+import { deployTemplate, type DeployOptions } from "../core/deploy.ts";
 import {
   ensureContext7Export,
   hasSecret,
@@ -24,6 +24,7 @@ export type InstallFlags = {
   yes: boolean;
   noEngram: boolean;
   noSecrets: boolean;
+  noLinear: boolean;
 };
 
 export function parseInstallFlags(args: string[]): InstallFlags {
@@ -31,6 +32,7 @@ export function parseInstallFlags(args: string[]): InstallFlags {
     yes: args.includes("--yes") || args.includes("-y"),
     noEngram: args.includes("--no-engram"),
     noSecrets: args.includes("--no-secrets"),
+    noLinear: args.includes("--no-linear"),
   };
 }
 
@@ -63,6 +65,18 @@ export async function runInstall(args: string[]): Promise<number> {
   await playBanner();
   p.intro(bold(gold("Instalador Ein")));
   p.log.info(`Plataforma: ${describePlatform(platform)}`);
+
+  // Ask about Linear early so all subsequent steps are aware.
+  let skipLinear = flags.noLinear;
+  if (!flags.yes && !flags.noLinear) {
+    const withLinear = await p.confirm({
+      message: "¿Incluir integración con Linear? (gestión de tareas e issues)",
+      initialValue: true,
+    });
+    if (p.isCancel(withLinear)) { p.cancel("Instalacion cancelada."); process.exit(1); }
+    skipLinear = !withLinear;
+    if (skipLinear) p.log.info("Linear omitido. Puedes activarlo despues con `ein install`.");
+  }
 
   // 1. Check dependencies.
   let deps = checkDeps(platform);
@@ -124,7 +138,8 @@ export async function runInstall(args: string[]): Promise<number> {
   // 5. Deploy template (re-resolve engram after possible install).
   const s = p.spinner();
   s.start("Desplegando Ein en ~/.pi/agent");
-  const deployed = await deployTemplate(platform);
+  const deployOpts: DeployOptions = { skipLinear };
+  const deployed = await deployTemplate(platform, deployOpts);
   s.stop(
     `Ein desplegado (engram: ${deployed.engramFound ? deployed.engramCommand : "no resuelto, usando PATH"})`,
   );
@@ -133,7 +148,7 @@ export async function runInstall(args: string[]): Promise<number> {
   if (!flags.noSecrets && !flags.yes) {
     p.log.step("Configuracion de secrets (todo opcional)");
     await maybeSecret("context7", "Context7 API key", flags);
-    await maybeSecret("linear", "Linear API key", flags);
+    if (!skipLinear) await maybeSecret("linear", "Linear API key", flags);
     await maybeSecret("minimax", "MiniMax API key", flags);
   }
 

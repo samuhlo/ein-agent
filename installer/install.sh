@@ -116,7 +116,14 @@ main() {
   ensure_on_path
 
   printf '\n'
-  ok "Listo. Ejecuta ${BOLD}${GOLD}ein${RESET} para empezar."
+
+  # When piped via `curl | bash`, stdin is the pipe (not the terminal).
+  # Reopen /dev/tty so the TUI can read keyboard input.
+  if [ -e /dev/tty ]; then
+    exec "${INSTALL_DIR}/${BINARY_NAME}" </dev/tty
+  else
+    ok "Listo. Ejecuta ${BOLD}${GOLD}ein${RESET} para empezar."
+  fi
 }
 
 main "$@"
