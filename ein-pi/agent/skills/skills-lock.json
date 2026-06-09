@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-01T15:26:59.352Z",
+  "updatedAt": "2026-06-09T17:22:21.480Z",
   "entries": {
     "vite": {
       "name": "vite",
@@ -23,20 +23,20 @@
     "vue": {
       "name": "vue",
       "source": {
-        "repo": "antfu/skills",
+        "repo": "onmax/nuxt-skills",
         "skill": "vue"
       },
-      "hash": "64c5282303420a497eab1347e97845ec772ccdcac56104cbe1e0d35a1db6ce79",
-      "installedAt": "2026-05-29T17:51:48.773Z"
+      "hash": "1bcdb00123936e31e6c7e5fe9a540c481152ff339ba0e73cf100eac9ebec6e49",
+      "installedAt": "2026-06-09T17:16:42.630Z"
     },
     "nuxt": {
       "name": "nuxt",
       "source": {
-        "repo": "antfu/skills",
+        "repo": "onmax/nuxt-skills",
         "skill": "nuxt"
       },
-      "hash": "c91db3c17d0a19a3c9901c648b111a069f9dcf36f7271962ddb8ed28d330a9e4",
-      "installedAt": "2026-05-29T17:51:49.980Z"
+      "hash": "50ef61524f00b838cb5dac7910c118f01a1d61942e6227106774d5b541460906",
+      "installedAt": "2026-06-09T17:16:44.277Z"
     },
     "hono": {
       "name": "hono",
@@ -74,15 +74,6 @@
       "hash": "54981c2feec5a9c0d57988aeb32315af32bdeadd261550d5e9db7a7b1f08b487",
       "installedAt": "2026-05-29T17:52:13.028Z"
     },
-    "typescript": {
-      "name": "typescript",
-      "source": {
-        "repo": "wshobson/agents",
-        "skill": "typescript-advanced-types"
-      },
-      "hash": "cdb885ca76ed5147c025e57a165c17eae923dff5faa9236cf0fe4365394a9a9d",
-      "installedAt": "2026-05-29T17:56:43.534Z"
-    },
     "bun": {
       "name": "bun",
       "source": {
@@ -91,33 +82,6 @@
       },
       "hash": "902720797715750b56c8f678b24c4c76d31d03af439b497af9653a7686c7fa7b",
       "installedAt": "2026-05-29T17:56:48.554Z"
-    },
-    "drizzle": {
-      "name": "drizzle",
-      "source": {
-        "repo": "bobmatnyc/claude-mpm-skills",
-        "skill": "drizzle-orm"
-      },
-      "hash": "c529584660addc49f40be6ae2926d99fb18091b77f440d68e5a37bd67119927e",
-      "installedAt": "2026-05-29T17:59:35.919Z"
-    },
-    "tailwind-css-patterns": {
-      "name": "tailwind-css-patterns",
-      "source": {
-        "repo": "giuseppe-trisciuoglio/developer-kit",
-        "skill": "tailwind-css-patterns"
-      },
-      "hash": "494e720d98c6e9012a2e24375abdc153eab73c13970f073478d383e900869c2d",
-      "installedAt": "2026-06-01T15:26:22.770Z"
-    },
-    "zod": {
-      "name": "zod",
-      "source": {
-        "repo": "pproenca/dot-skills",
-        "skill": "zod"
-      },
-      "hash": "b53dbfa6b2647afde6a147f569d2202c8a8f9855f5ddd5f636e11f9f0cfac973",
-      "installedAt": "2026-06-01T15:26:35.098Z"
     },
     "react": {
       "name": "react",
@@ -137,15 +101,6 @@
       "hash": "4bf1b21f7a66848642c150cab284f24c004ad6da0f717eed4fe9db74eaa6b6a8",
       "installedAt": "2026-06-01T15:26:39.908Z"
     },
-    "nodejs-best-practices": {
-      "name": "nodejs-best-practices",
-      "source": {
-        "repo": "sickn33/antigravity-awesome-skills",
-        "skill": "nodejs-best-practices"
-      },
-      "hash": "3e025f24a1948fcbfe666eabc757f5b426271b08a420a86dba1ea7518cc7b369",
-      "installedAt": "2026-06-01T15:26:53.234Z"
-    },
     "gsap-react": {
       "name": "gsap-react",
       "source": {
@@ -154,6 +109,321 @@
       },
       "hash": "7d3b52822681a4158e371f895c58fb7030ecaf33f585a534b7162f9e92c5d893",
       "installedAt": "2026-06-01T15:26:59.352Z"
+    },
+    "nuxt-ui": {
+      "name": "nuxt-ui",
+      "source": {
+        "repo": "onmax/nuxt-skills",
+        "skill": "nuxt-ui"
+      },
+      "hash": "307770c967e0eae5ed6be199f8e1c36493446bcd60c5c29dc9bb1b9e1056a024",
+      "installedAt": "2026-06-09T17:16:46.225Z"
+    },
+    "nuxt-content": {
+      "name": "nuxt-content",
+      "source": {
+        "repo": "onmax/nuxt-skills",
+        "skill": "nuxt-content"
+      },
+      "hash": "9de34d5e8ae384649ae31a4a6d7b69d83a5b0061debc8f8f375e0a2ed963c10b",
+      "installedAt": "2026-06-09T17:16:48.113Z"
+    },
+    "nuxt-seo": {
+      "name": "nuxt-seo",
+      "source": {
+        "repo": "onmax/nuxt-skills",
+        "skill": "nuxt-seo"
+      },
+      "hash": "7ab9fe7281c85ded667ca4de69b74a55e05452d9cd7eb65680156ebb9ec6c555",
+      "installedAt": "2026-06-09T17:16:49.894Z"
+    },
+    "pinia": {
+      "name": "pinia",
+      "source": {
+        "repo": "antfu/skills",
+        "skill": "pinia"
+      },
+      "hash": "b2fe5e5a8bfce301114a1e0bd40244cda310572a1804cf49e3fd64e4e5852e0a",
+      "installedAt": "2026-06-09T17:16:51.667Z"
+    },
+    "ts-library": {
+      "name": "ts-library",
+      "source": {
+        "repo": "onmax/nuxt-skills",
+        "skill": "ts-library"
+      },
+      "hash": "c248c0f777d1239caf12c13b989e7bd147a4326750b13a30305f409208b8247c",
+      "installedAt": "2026-06-09T17:16:56.920Z"
+    },
+    "tsdown": {
+      "name": "tsdown",
+      "source": {
+        "repo": "antfu/skills",
+        "skill": "tsdown"
+      },
+      "hash": "4d9d6bee8a55f17423427c5f4b98cdaa02190da854e8de777971fb0b9c281b66",
+      "installedAt": "2026-06-09T17:16:58.826Z"
+    },
+    "vueuse": {
+      "name": "vueuse",
+      "source": {
+        "repo": "antfu/skills",
+        "skill": "vueuse-functions"
+      },
+      "hash": "341ad36588fbe2b79a347ef9350f4a450e28d90374e0154047db1be87148c58e",
+      "installedAt": "2026-06-09T17:17:01.141Z"
+    },
+    "gsap-frameworks": {
+      "name": "gsap-frameworks",
+      "source": {
+        "repo": "greensock/gsap-skills",
+        "skill": "gsap-frameworks"
+      },
+      "hash": "4852e85a48088d9044b08ebd1db607915b628c0c3ec7e04300713f546728fbdf",
+      "installedAt": "2026-06-09T17:17:07.861Z"
+    },
+    "gsap-performance": {
+      "name": "gsap-performance",
+      "source": {
+        "repo": "greensock/gsap-skills",
+        "skill": "gsap-performance"
+      },
+      "hash": "863842ac2d7aee53fd4f0025c960173d7ad3e658a5715b89b2211fa280213c1f",
+      "installedAt": "2026-06-09T17:17:09.277Z"
+    },
+    "motion": {
+      "name": "motion",
+      "source": {
+        "repo": "onmax/nuxt-skills",
+        "skill": "motion"
+      },
+      "hash": "9ad239a2c79f1548138d7c7195d26bf4e27f4c34bd42551ed85974bcb6e2f6b0",
+      "installedAt": "2026-06-09T17:17:11.530Z"
+    },
+    "tresjs": {
+      "name": "tresjs",
+      "source": {
+        "repo": "onmax/nuxt-skills",
+        "skill": "tresjs"
+      },
+      "hash": "444bf2d89037a93ed030ae8244e9e1a94f1d1aee8ae07b168480e71296b909c0",
+      "installedAt": "2026-06-09T17:17:13.320Z"
+    },
+    "web-design-guidelines": {
+      "name": "web-design-guidelines",
+      "source": {
+        "repo": "antfu/skills",
+        "skill": "web-design-guidelines"
+      },
+      "hash": "65a2e7d85753383ae0f88df15475d58b9e39723e9c4bb6891421d6144a85f79c",
+      "installedAt": "2026-06-09T17:17:15.194Z"
+    },
+    "document-writer": {
+      "name": "document-writer",
+      "source": {
+        "repo": "onmax/nuxt-skills",
+        "skill": "document-writer"
+      },
+      "hash": "98ebad3c4c619a7fee27587cd571e35632c1a897626d98361f71a65525f3f538",
+      "installedAt": "2026-06-09T17:17:17.173Z"
+    },
+    "reka-ui": {
+      "name": "reka-ui",
+      "source": {
+        "repo": "onmax/nuxt-skills",
+        "skill": "reka-ui"
+      },
+      "hash": "62aea7b7bec75cb39b5c21fff6385e7a1533a405bb1e1979efb68204dd97c041",
+      "installedAt": "2026-06-09T17:17:22.585Z"
+    },
+    "nuxt-modules": {
+      "name": "nuxt-modules",
+      "source": {
+        "repo": "onmax/nuxt-skills",
+        "skill": "nuxt-modules"
+      },
+      "hash": "b79a2efa4e36229e4ddf3e4f6aff46850a8660ae570c752290f6da055539f842",
+      "installedAt": "2026-06-09T17:17:24.491Z"
+    },
+    "nuxthub": {
+      "name": "nuxthub",
+      "source": {
+        "repo": "onmax/nuxt-skills",
+        "skill": "nuxthub"
+      },
+      "hash": "015a21a19984d3d8a1950cffd8a4f215bd869a6872bbb5e9d1c72509c9b7edc3",
+      "installedAt": "2026-06-09T17:17:26.310Z"
+    },
+    "nuxt-better-auth": {
+      "name": "nuxt-better-auth",
+      "source": {
+        "repo": "onmax/nuxt-skills",
+        "skill": "nuxt-better-auth"
+      },
+      "hash": "5dbbfacd1430498d1a947207360d0234344fd70c514240efe91c8124f6d90e7f",
+      "installedAt": "2026-06-09T17:17:28.182Z"
+    },
+    "vue-best-practices": {
+      "name": "vue-best-practices",
+      "source": {
+        "repo": "antfu/skills",
+        "skill": "vue-best-practices"
+      },
+      "hash": "66bf09d99563e5ae1c695c8b0fb48ad9a9c061a25439803e1a326ad04bed2251",
+      "installedAt": "2026-06-09T17:17:29.986Z"
+    },
+    "vue-router-best-practices": {
+      "name": "vue-router-best-practices",
+      "source": {
+        "repo": "antfu/skills",
+        "skill": "vue-router-best-practices"
+      },
+      "hash": "deec7c255e902cb969f656850d41f90a98e7848c2e44275e30247ce3f5fa0ba8",
+      "installedAt": "2026-06-09T17:17:32.307Z"
+    },
+    "vue-testing-best-practices": {
+      "name": "vue-testing-best-practices",
+      "source": {
+        "repo": "antfu/skills",
+        "skill": "vue-testing-best-practices"
+      },
+      "hash": "c847c2529ce512210ce2b5541b1d4e1cc06f7f38b605e1646564f964fd0abbe2",
+      "installedAt": "2026-06-09T17:17:34.152Z"
+    },
+    "gsap-plugins": {
+      "name": "gsap-plugins",
+      "source": {
+        "repo": "greensock/gsap-skills",
+        "skill": "gsap-plugins"
+      },
+      "hash": "791bda0e6e460511fe82a78e745db519b88ffaeeab4d04a74879a03ca4f41740",
+      "installedAt": "2026-06-09T17:17:35.502Z"
+    },
+    "gsap-utils": {
+      "name": "gsap-utils",
+      "source": {
+        "repo": "greensock/gsap-skills",
+        "skill": "gsap-utils"
+      },
+      "hash": "1ab2387f6e694718a4f1b5acf2a4ab16e1b884c3428adf5f6b26d830f00826cf",
+      "installedAt": "2026-06-09T17:17:36.833Z"
+    },
+    "branch-pr": {
+      "name": "branch-pr",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/branch-pr"
+      },
+      "hash": "050804564bc821c545bf5e5556e4ad985df1884a5c63c2eb0f9ede48cc9c4f06",
+      "installedAt": "2026-06-09T17:17:39.822Z"
+    },
+    "chained-pr": {
+      "name": "chained-pr",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/chained-pr"
+      },
+      "hash": "5103e65b98dc39210d137c3d8ebb5f140c523c3aad5f0265da1423eef2f104a1",
+      "installedAt": "2026-06-09T17:17:39.823Z"
+    },
+    "cognitive-doc-design": {
+      "name": "cognitive-doc-design",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/cognitive-doc-design"
+      },
+      "hash": "751ed954505bb55f964b350e8f57c8ce77a085046b228f4ad4e14a596f0a8aec",
+      "installedAt": "2026-06-09T17:17:39.824Z"
+    },
+    "comment-style": {
+      "name": "comment-style",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/comment-style"
+      },
+      "hash": "a4e2dc5fad4ceac8fa813b7c795950f7fc53887cc80ecb5b05f951dc481eb4ca",
+      "installedAt": "2026-06-09T17:17:39.824Z"
+    },
+    "comment-writer": {
+      "name": "comment-writer",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/comment-writer"
+      },
+      "hash": "6e8f9b226f1febace890407d395e0ba3a5e644cfc2066b467d6b49d01be003d5",
+      "installedAt": "2026-06-09T17:17:39.824Z"
+    },
+    "ein-discipline": {
+      "name": "ein-discipline",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/ein-discipline"
+      },
+      "hash": "5aaaf2c18dfc39f948869d78a8e3ab3c912dc0570656c79974169f08ce960203",
+      "installedAt": "2026-06-09T17:17:39.824Z"
+    },
+    "github-workflow": {
+      "name": "github-workflow",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/github-workflow"
+      },
+      "hash": "7cddd56d564e224a2b25934f361b2a893cf02f99484cc74410b39039bf79fd58",
+      "installedAt": "2026-06-09T17:17:39.825Z"
+    },
+    "issue-creation": {
+      "name": "issue-creation",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/issue-creation"
+      },
+      "hash": "2c06693247e2067ded920854bf098f43051a7f48faeec151bb3906f2e35e19ff",
+      "installedAt": "2026-06-09T17:17:39.825Z"
+    },
+    "judgment-day": {
+      "name": "judgment-day",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/judgment-day"
+      },
+      "hash": "99052894c437d2298ad8d64b84c23b612dc496d3d99a6e064803c2c98279817e",
+      "installedAt": "2026-06-09T17:17:39.825Z"
+    },
+    "linear-workflow": {
+      "name": "linear-workflow",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/linear-workflow"
+      },
+      "hash": "237c9a14bbae11c756cf6c877177f1d00b20b76ae672aeec4758fd4e37ab04d4",
+      "installedAt": "2026-06-09T17:17:39.825Z"
+    },
+    "release": {
+      "name": "release",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/release"
+      },
+      "hash": "6c797abf8b3f60ec3555abcb3245232e08a6e1edef7a60b02afbbc8e5c831b8c",
+      "installedAt": "2026-06-09T17:17:39.825Z"
+    },
+    "skill-registry": {
+      "name": "skill-registry",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/skill-registry"
+      },
+      "hash": "aa35c129265aa9423f6f510941b858a303df7d3e898ffe6694204d99805ea330",
+      "installedAt": "2026-06-09T17:17:39.825Z"
+    },
+    "work-unit-commits": {
+      "name": "work-unit-commits",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/work-unit-commits"
+      },
+      "hash": "c1a185b07dfcb1fa582ea08e66ecd00a24c8867e47a4c6822f56b2d14f1043fc",
+      "installedAt": "2026-06-09T17:17:39.826Z"
     }
   }
 }

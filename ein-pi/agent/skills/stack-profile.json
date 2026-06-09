@@ -20,7 +20,6 @@
     "nuxt-seo",
     "pinia",
     "hono",
-    "tailwind-v4",
     "ts-library",
     "tsdown",
     "vueuse",
@@ -46,8 +45,7 @@
     "vue-testing-best-practices",
     "gsap-plugins",
     "gsap-utils",
-    "gsap-react",
-    "playwright-best-practices"
+    "gsap-react"
   ],
   "catalog": {
     "nuxt": { "repo": "onmax/nuxt-skills", "skill": "nuxt" },
@@ -72,7 +70,6 @@
     "vue-router-best-practices": { "repo": "antfu/skills", "skill": "vue-router-best-practices" },
     "vue-testing-best-practices": { "repo": "antfu/skills", "skill": "vue-testing-best-practices" },
     "web-design-guidelines": { "repo": "antfu/skills", "skill": "web-design-guidelines" },
-    "tailwind-v4": { "repo": "vercel-labs/agent-skills", "skill": "tailwind-v4" },
     "react": { "repo": "vercel-labs/agent-skills", "skill": "react-best-practices" },
     "next": { "repo": "vercel-labs/next-skills", "skill": "next-best-practices" },
     "hono": { "repo": "yusukebe/hono-skill", "skill": "hono" },
@@ -84,7 +81,6 @@
     "gsap-performance": { "repo": "greensock/gsap-skills", "skill": "gsap-performance" },
     "gsap-plugins": { "repo": "greensock/gsap-skills", "skill": "gsap-plugins" },
     "gsap-utils": { "repo": "greensock/gsap-skills", "skill": "gsap-utils" },
-    "gsap-react": { "repo": "greensock/gsap-skills", "skill": "gsap-react" },
-    "playwright-best-practices": { "repo": "currents-dev/playwright-best-practices-skill", "skill": "playwright-best-practices" }
+    "gsap-react": { "repo": "greensock/gsap-skills", "skill": "gsap-react" }
   }
 }
