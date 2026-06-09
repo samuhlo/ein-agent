@@ -31,6 +31,16 @@ Además de la cadena SDD, Ein incluye dos agentes especializados que gestionan e
 - **ein-linear** — Crea y actualiza issues, milestones y proyectos en Linear. Mantiene sincronía entre el OpenSpec y el estado real del backlog.
 - **ein-github** — Abre PRs bien documentadas, gestiona branches y conecta cada unidad de trabajo con su issue correspondiente.
 
+### Sistema de skills (3 capas)
+
+Ein no acumula manuales que se quedan viejos. Organiza el conocimiento en tres capas:
+
+1. **Locales** (`skills/local/`) — skills opinadas propias (workflow, disciplina, convenciones). Insustituibles. Se sincronizan desde este repo de GitHub.
+2. **Bajadas** (`skills/downloaded/`) — set **curado** de fuentes fiables: [onmax/nuxt-skills](https://github.com/onmax/nuxt-skills) (ecosistema Nuxt), [antfu/skills](https://github.com/antfu/skills) (Vue/tooling), greensock (GSAP), vercel-labs (React/Next), yusukebe (Hono), midudev (Bun).
+3. **Context7** — todo lo demás (Drizzle, Zod, Tailwind, Postgres...) se resuelve **on-demand** con docs frescas, sin guardar nada que envejezca.
+
+El comando `/ein:skills` mantiene las capas 1 y 2 al día; el advisor decide, por tarea, si usar una skill curada o tirar de Context7. Todo se configura en `skills/stack-profile.json` (`catalog` + mapa `context7`).
+
 ### Memoria persistente
 
 Ein usa **Engram** para mantener contexto entre sesiones. No reexplica el proyecto cada vez que se abre — recuerda el estado, las decisiones de diseño y el progreso del OpenSpec.
@@ -111,9 +121,26 @@ Una vez instalado, Pi expone estos comandos:
 /ein:persona            Alternar entre persona "samuhlo" y "neutral"
 ```
 
+### Skills
+```
+/ein:skills                       Estado del stack (perfil, drift, fuera de stack)
+/ein:skills update [--local|--downloaded]   Actualiza locales (repo) + bajadas (catálogo)
+/ein:skills add <skill>           Instala una skill del catálogo
+/ein:skills clean [--yes]         Borra skills fuera de stack
+/ein:skills:advisor <tarea>       Qué skills usar + digest con Context7
+```
+
+### Linear
+```
+/ein:linear:new <petición>              Crea o reutiliza una issue
+/ein:linear:project-bootstrap <proy>    Proyecto + milestones + issues base
+/ein:linear:milestones <proyecto>       Lista milestones
+/ein:linear:help                        Ayuda de Linear
+```
+
 ### Diagnóstico
 ```
-/ein:doctor             Smoke test completo del entorno (44 checks, 8 grupos)
+/ein:doctor             Smoke test completo del entorno (45 checks, 8 grupos)
 /ein:doctor-output      Versión compacta, sin lanzar pi
 /ein:help               Referencia de todos los comandos /ein:*
 /ein:help full          Guía completa con flujos canónicos
@@ -144,8 +171,8 @@ ein-agent/
 │   └── agent/
 │       ├── agents/         # 7 agentes (5 SDD + ein-linear + ein-github)
 │       ├── chains/         # Cadena ein-sdd
-│       ├── extensions/     # 8 extensiones del runtime de Pi
-│       ├── skills/         # 13 locales + 41 del ecosistema Pi
+│       ├── extensions/     # 9 extensiones del runtime de Pi
+│       ├── skills/         # 13 locales + 34 bajadas curadas + mapa Context7
 │       ├── prompts/        # Prompts del sistema
 │       ├── brand.json      # Identidad de Ein
 │       ├── models.json     # Modelos disponibles
@@ -172,11 +199,17 @@ Hace backup del estado actual, redespliega el workbench y actualiza `pi`. Tu `au
 ## Publicar una nueva release
 
 ```bash
-git tag installer-v0.2.0
-git push origin installer-v0.2.0
+git tag installer-v0.3.0
+git push origin installer-v0.3.0
 ```
 
-GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente.
+GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.2.0`.
+
+---
+
+## Roadmap
+
+**Fase 2b — Selector multi-perfil (no construido todavía).** Poder tener varios perfiles (`profiles/<persona>.json`), cada uno con su propia persona y su propio stack de skills, para que otra persona pueda instalar Ein con un stack distinto. La base ya existe (`stack-profile.json` es un perfil con nombre y `loadProfile()` lee una ruta resoluble); falta el selector y el acople persona ↔ perfil.
 
 ---
 

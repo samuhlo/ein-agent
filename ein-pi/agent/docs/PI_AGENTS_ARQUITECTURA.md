@@ -1,313 +1,139 @@
-# Ein: guia tecnica de arquitectura
+# Ein: guía técnica de arquitectura
 
 Author: samuhlo
 
-## Proposito
+## Propósito
 
-Ein es el workbench local construido sobre Pi Coding Agent. Su objetivo es dar una capa de trabajo segura, didactica y extensible: tareas simples van por ruta barata, tareas complejas escalan a subagentes, y las acciones irreversibles quedan protegidas por hard gates.
+Ein es el workbench local construido sobre Pi Coding Agent. Da una capa de trabajo segura, didáctica y extensible: tareas simples por ruta barata, tareas complejas escalan a subagentes, y las acciones irreversibles quedan protegidas por hard gates.
 
 ## Branding
 
-Archivo:
-
-```text
-~/.pi/agent/brand.json
-```
-
-Configuracion actual:
+`~/.pi/agent/brand.json`:
 
 ```json
-{
-  "agentName": "Ein",
-  "commandPrefix": "ein",
-  "author": "samuhlo"
-}
+{ "agentName": "Ein", "commandPrefix": "ein", "author": "samuhlo" }
 ```
 
-Ein mantiene identidad fija: `agentName=Ein` y `author=samuhlo`.
-Solo `commandPrefix` es configurable.
+Identidad fija: `agentName=Ein`, `author=samuhlo`. Solo `commandPrefix` es configurable.
 
 ## Capas del sistema
 
-1. **Politica**: `AGENTS.md` define reglas globales.
+1. **Política**: `AGENTS.md` define reglas globales.
 2. **Branding**: `ein-brand.ts` carga nombre, prefijo y autor.
 3. **Rutas**: `ein-paths.ts` centraliza paths y binarios.
-4. **Orquestacion**: el prompt padre decide directo vs agentes/chains visibles; `ein-ai.ts` solo inyecta esa politica y aplica guards pequenos.
-5. **Herramientas**: Linear, Doctor, Engram, Context7, MiniMax, backups, guardrails.
-6. **Prompts**: workflows diarios en `prompts/`.
-7. **Skills**: mantenimiento de stack fijo + advisor de tarea. `/skill:*` queda activo como interfaz nativa de Pi.
+4. **Orquestación**: el prompt padre (cargado por `ein-ai.ts` desde `assets/orchestrator.md`) decide directo vs agentes/chains.
+5. **Herramientas**: Linear, Doctor, Engram, Context7, skills, guardrails.
+6. **Skills**: stack curado + advisor de tarea + Context7 para el resto.
 
-## Arquitectura de Agentes: pi-subagents visible
+## Extensiones (9)
 
-Ein utiliza una arquitectura de **pi-subagents visible**. Esto significa que las capacidades como planificacion, Linear, GitHub y diseno estan implementadas como archivos Markdown en `~/.pi/agent/agents/*.md`, y los workflows repetibles como chains en `~/.pi/agent/chains/*.chain.md`.
+Todas en `~/.pi/agent/extensions/` y cargadas por directorio:
 
-### Principios fundamentales
+| Extensión | Responsabilidad |
+| --- | --- |
+| `ein-ai.ts` | Orquestador: inyecta prompt padre, guards, modelos (`/ein:models*`), persona, status, help, install-sdd |
+| `ein-banner.ts` | Banner dorado animado al iniciar (gradiente + shine + subtítulo SAMUHLO) |
+| `ein-brand.ts` | Identidad de marca (`commandName`, `slashCommand`, persona) |
+| `ein-doctor.ts` | Diagnóstico (`/ein:doctor`, `/ein:doctor-output`) |
+| `ein-linear.ts` | Capa Linear (GraphQL) + comandos `/ein:linear:*` |
+| `ein-paths.ts` | Rutas canónicas del workbench |
+| `ein-skill-maintenance.ts` | Updater de skills (`/ein:skills`): locales desde repo + bajadas desde catálogo |
+| `ein-skill-registry.ts` | Advisor/registro de skills + digest con Context7 + inyección a subagentes |
+| `sdd-init.ts` | Comando `/sdd-init` |
 
-1. **Prompts invisibles al chat.** Ein no reemplaza el mensaje del usuario con prompts internos largos. Las reglas de routing se inyectan via system prompt y permanecen invisibles en la conversacion. Tu texto original se preserva.
+## Agentes y chain visibles
 
-2. **Agentes Ein bajo `~/.pi/agent/agents/`.** Linear, GitHub, design y SDD son agentes visibles de Pi. No se duplican con subprocess privados.
+`~/.pi/agent/agents/` y `~/.pi/agent/chains/`:
 
-3. **`/ein:*` es control manual de emergencia.** Los comandos slash son puntos de entrada para control manual directo. No son la ruta feliz — son el fallback cuando el routing nativo no cubre el caso.
-
-### Agentes y chains visibles
-
-Estos archivos viven en `~/.pi/agent/agents/` y `~/.pi/agent/chains/`:
-
-| Nombre | Proposito | Tipo |
+| Nombre | Tipo | Propósito |
 | --- | --- | --- |
-| `ein-linear` | Preflight, CRUD Linear, sync y comentarios humanos | Agent |
-| `ein-github` | Delivery GitHub, PR, review y sync opcional | Agent |
-| `sdd-init`, `sdd-explore`, `sdd-design`, `sdd-apply`, `sdd-verify` | Fases SDD | Agent |
-| `ein-sdd` | Flujo SDD unico: init → explore → design → apply → verify | Chain |
+| `ein-linear` | Agent | Preflight, CRUD Linear, sync, comentarios humanos |
+| `ein-github` | Agent | Delivery GitHub, PR, review |
+| `sdd-init/explore/design/apply/verify` | Agent | Fases SDD |
+| `ein-sdd` | Chain | Flujo SDD: init → explore → design → apply → verify |
 
-El nivel de modelo por agente se configura con `/ein:models` (ver seccion Modelos).
+**Invocación de la chain (importante):** el tool `subagent` recibe `chain` como **array de objetos** (pasos), nunca como string. `chain: "ein-sdd"` falla validación. El atajo manual fiable es `/run-chain ein-sdd -- <tarea>`, que expande el nombre a pasos internamente. Ver `assets/orchestrator.md`.
 
-### Como funciona el routing
+## Routing
 
-Cuando hablas con Ein en lenguaje natural:
+1. Tu mensaje se entrega **sin modificar** al modelo.
+2. El system prompt contiene las reglas de routing.
+3. Ein decide: directo, delega a un agente visible, o ejecuta la chain.
+4. Los nombres y outputs de los agentes son **visibles** en la conversación.
 
-1. Tu mensaje se entrega **sin modificaciones** al modelo.
-2. El system prompt contiene las reglas de routing hacia los agentes nativos.
-3. Ein decide si ejecuta directo, delega a un agente visible, o ejecuta una chain SDD/GitHub cuando el flujo lo justifica. Linear start/status usa `ein-linear` directo.
-4. Los nombres y outputs de los agentes nativos son **visibles** en la conversacion — no monologos internos ocultos.
-
-### Arquitectura anterior (regression)
-
-Si ves un prompt visible como:
-
-```
-Actua como orquestador... HARD REQUIREMENT...
-```
-
-Eso es una **regression**. El comportamiento esperado es: texto original del usuario + llamadas visibles a agentes nativos de Pi. No debe aparecer texto de orchestration como parte del chat.
-
-## Orquestador
-
-Archivo:
-
-```text
-~/.pi/agent/extensions/ein-ai.ts
-```
-
-Responsabilidades:
-
-- cargar el prompt padre Ein,
-- preservar input natural sin transformarlo a `/run-chain`,
-- aplicar el guard de continuacion ambigua,
-- dejar que slash commands explicitas usen rutas manuales,
-- limpiar monologo interno,
-- aplicar quality gate didactico,
-- registrar fallos en telemetria local.
-
-El orquestador visible es la interfaz primaria de UX: cuando hablas con Ein en natural, el orquestador recibe tu peticion, decide el camino y ejecuta. Los comandos slash (`/ein:*`) son puntos de entrada de emergencia para control manual, no la ruta principal.
+Si ves un bloque tipo `Actúa como orquestador... HARD REQUIREMENT...` en el chat, es una **regresión**: el texto del usuario debe preservarse.
 
 ## Modelos
 
-| Nivel | Uso | Modelo |
-| --- | --- | --- |
-| Standard | tareas normales | `minimax/MiniMax-M2.7` |
-| Heavy | review, seguridad, arquitectura, bloqueos | `openai-codex/gpt-5.5` |
-| Planner | orquestacion explicita | `openai-codex/gpt-5.5` |
+Por defecto (preset `full`): orquestador + `sdd-design` → `gpt-5.5`; resto → `MiniMax-M2.7`.
+
+| Comando | Efecto |
+| --- | --- |
+| `/ein:models` | Menú por agente |
+| `/ein:models:full` | Orquestador + `sdd-design` → gpt-5.5, resto → MiniMax-M2.7 |
+| `/ein:models:lite` | Todo → MiniMax-M2.7 (escape de rate-limit) |
+
+El orquestador se controla con `defaultProvider`/`defaultModel` en `settings.json`; los subagentes con `~/.pi/ein/models.json`. Cambiar el orquestador requiere reiniciar Pi.
 
 ## Guardrails
 
-Archivo:
-
-```text
-~/.pi/agent/extensions/ein-ai.ts
-```
-
-Bloquea comandos destructivos, escrituras en secretos y cambios peligrosos en Git. Esta capa protege en runtime; no depende solo del prompt.
+En `ein-ai.ts`: bloquea comandos destructivos, escrituras en secretos y cambios peligrosos en Git en runtime (no solo por prompt).
 
 ## Memoria
 
-Archivo:
+`~/.pi/agent/mcp.json` conecta Engram via MCP (stdio) sobre `~/.engram-pi`. Context7 corre via `bunx --bun @upstash/context7-mcp`. Ambos son lazy. `CONTEXT7_API_KEY` se exporta desde el shell rc, no va en `mcp.json`.
 
-```text
-~/.pi/agent/mcp.json
-```
-
-Ein conecta Engram via MCP (stdio transport):
-
-```json
-{
-  "mcpServers": {
-    "engram": {
-      "command": "/opt/homebrew/bin/engram",
-      "args": ["mcp", "--tools=agent"],
-      "lifecycle": "lazy"
-    }
-  }
-}
-```
-
-Capas:
-
-- Engram: `~/.engram-pi` (DB SQLite; 15 tools disponibles en el perfil `agent`).
-- Snapshot de sesion: `.piagents/session.md` (generado por Pi runtime).
-
-El perfil `--tools=agent` expone tools de lectura/escritura de memoria para el modelo: `engram_save`, `engram_search`, `engram_context`, `engram_timeline`, entre otras. Instalacion inicial: `engram setup pi`.
-
-Context7 (docs de librerias) corre via `bunx --bun @upstash/context7-mcp` (stdio). La clave `CONTEXT7_API_KEY` se exporta desde `~/.zshrc` y se hereda por el proceso — no va en `mcp.json`.
-
-## Linear
-
-Archivo:
-
-```text
-~/.pi/agent/extensions/ein-linear.ts
-```
-
-La capa Linear usa `linearGraphql(...)` para queries y `linearMutation(...)` para mutaciones. Las mutaciones pasan por `LINEAR_MUTATION_CONTRACTS` para evitar regresiones de tipos `ID` vs `String`. Estas tools siguen registradas porque `ein-linear` las necesita como capa API; el agente decide el flujo humano.
-
-## Doctor
-
-Archivo:
-
-```text
-~/.pi/agent/extensions/ein-doctor.ts
-```
-
-Comandos:
-
-```text
-/ein:doctor
-/ein:doctor-output
-```
-
-`/ein:doctor-output` ejecuta smoke checks estaticos del sistema Ein. Revisa core, comandos canonicos, SDD, skills, guardrails, integraciones y contratos Linear. Devuelve `OK`, `OK_WITH_WARNINGS` o `FAIL`.
-
-`/ein:doctor` queda como diagnostico explicativo. `/ein:doctor-output` queda como salida tecnica rapida y verificable.
-
-## Comandos
-
-La interfaz publica canonica usa siempre `/ein:*`.
-
-Grupos principales:
-
-```text
-/ein:status
-/ein:help [full]
-/ein:persona
-/ein:models
-/sdd-init
-/ein:ai:sdd-preflight
-/ein:ai:install-sdd
-/ein:linear:new
-/ein:linear:project-bootstrap
-/ein:linear:milestones
-/ein:linear:help
-/ein:skills
-/ein:skills:advisor <tarea>
-/ein:doctor
-/ein:doctor-output
-```
-
-### Skills subsystem
+## Skills (3 capas)
 
 Archivos:
 
 ```text
-~/.pi/agent/skills/stack-profile.json
-~/.pi/agent/skills/skills-lock.json
-~/.pi/agent/skills/archived/
+~/.pi/agent/skills/local/            # opinadas propias (sync desde el repo GitHub)
+~/.pi/agent/skills/downloaded/       # set curado de fuentes fiables
+~/.pi/agent/skills/stack-profile.json # core, secondary, catalog, context7
+~/.pi/agent/skills/skills-lock.json   # instaladas + hash
 ```
 
-Reglas:
+Capas:
+1. **local**: insustituibles, sincronizadas desde `samuhlo/ein-agent` (sparse clone).
+2. **downloaded**: curado de onmax/antfu/greensock/vercel-labs/yusukebe/midudev.
+3. **context7**: lo no listado en `catalog` (mapa `context7` del perfil) se trae on-demand.
 
-- `/ein:skills` muestra estado del stack fijo y chequea hashes.
-- `/ein:skills update` instala faltantes core y actualiza core cuando cambia hash en fuente.
-- `/ein:skills add <skill>` instala skill puntual desde catalogo.
-- `/ein:skills clean [--yes]` archiva extras en `archived/` (no borra directo).
-- `/ein:skills:advisor <tarea>` mantiene el flujo de resolve/digest para ejecucion.
+Comandos (`ein-skill-maintenance.ts`):
+- `/ein:skills` → estado (perfil, drift de hash, fuera de stack).
+- `/ein:skills update [--local|--downloaded]` → clona fuentes, hashea, copia si cambió, reconcilia el lock de forma autoritativa.
+- `/ein:skills add <skill>` → instala una del catálogo.
+- `/ein:skills clean [--yes]` → **borra** las bajadas fuera de `core+secondary` (no archiva).
 
-Algunos aliases legacy se mantienen para no romper memoria muscular ni prompts antiguos, pero no deben documentarse como ruta principal.
+Advisor (`ein-skill-registry.ts`): `/ein:skills:advisor <tarea>` resuelve skills relevantes y, para techs sin skill curada, emite instrucción de Context7 (`resolve-library-id` + `query-docs`). La inyección a subagentes (`resolveSkillInjection`) incluye tanto rutas `SKILL.md` como la guía de Context7.
 
-### SDD runtime
+## SDD runtime
 
-Ein usa OpenSpec: la configuracion vive en `openspec/config.yaml` y los cambios activos en `openspec/changes/`.
+OpenSpec file-backed: `openspec/config.yaml` y `openspec/changes/`. El flujo `ein-sdd` se lanza por lenguaje natural o por la chain (no por `/ein:sdd:new`). Preparación: `/ein:ai:install-sdd`, `/ein:ai:sdd-preflight`, `/sdd-init`.
 
-Assets preferidos:
+## Doctor
 
-```text
-~/.pi/agent/agents/sdd-*.md
-~/.pi/agent/agents/ein-*.md
-~/.pi/agent/chains/ein-*.chain.md
-```
+`ein-doctor.ts`: `/ein:doctor` (explicado) y `/ein:doctor-output` (smoke estático, ~45 checks: core, MCP, agentes+chain, extensiones (9), skills, guardrails, runtime, integraciones). Devuelve `OK` / `OK_WITH_WARNINGS` / `FAIL`.
 
-El flujo `ein-sdd` es el unico: `/ein:sdd:new` ejecuta la cadena init → explore → design → apply → verify, donde `design` reune propuesta, spec y tareas. `/ein:sdd-preflight` prepara la sesion con modo de ejecucion y store de artefactos.
+## Instalador
 
-## Backups
-
-Archivo:
-
-```text
-~/.pi/agent/extensions/ein-backup.ts
-```
-
-Ein crea backup automatico al mutar `~/.pi/agent` y permite snapshot manual con:
-
-```text
-/ein:backup
-```
-
-## Telemetria
-
-Archivo generado bajo demanda:
-
-```text
-~/.pi/agent/logs/tool-failures.ndjson
-```
-
-Registra fallos de subagentes/tools sin bloquear la respuesta.
+Carpeta `installer/` del repo (Bun + TypeScript, compilado a binarios standalone). Comandos del binario `ein`: `install`, `update`, `uninstall`, `restore`, `doctor` (+ menú TUI sin args). Flags: `--yes`, `--no-engram`, `--no-secrets`, `--no-linear`. Backups en `~/.pi/agent/backups/installer/` antes de mutar; restore reversible. Releases por tag `installer-v*` (GitHub Actions cross-compila 4 targets).
 
 ## Reglas de mantenimiento
 
-1. `AGENTS.md` es la politica fuente.
-2. `brand.json` define el prefijo (`commandPrefix`).
-3. No registres comandos con prefijos hardcoded.
-4. No agregues alias antiguos salvo decision explicita. Si se agregan, documentalos como compatibilidad, no como interfaz publica.
-5. Toda mutacion Linear debe usar `linearMutation(...)`.
-6. Los comandos informativos deben ser read-only.
-7. Si una tool falla, revisar `tool-failures.ndjson`.
-8. Si agregas un comando publico, actualiza `/ein:help full` y `PI_AGENTS_COMANDOS.md`.
+1. `AGENTS.md` es la política fuente.
+2. `brand.json` define el prefijo; no hardcodear prefijos.
+3. Si añades una extensión, actualiza `CORE_EXTENSIONS` en `ein-doctor.ts` y `installer/src/core/verify.ts`.
+4. Toda mutación Linear usa `linearMutation(...)`.
+5. Si añades un comando público, actualiza `/ein:help full` y `PI_AGENTS_COMANDOS.md`.
+6. Para añadir una skill, edita `catalog` (fuente fiable) o `context7` (mapa) en `stack-profile.json`.
 
 ## Troubleshooting
 
-### Cambiar el prefijo de comandos
+- **Cambiar prefijo**: edita `commandPrefix` en `brand.json`.
+- **Linear falla**: `/ein:doctor-output`.
+- **Algo roto**: `ein restore` (terminal) recupera un backup.
 
-Edita:
+## Futuro (Fase 2b, no construido)
 
-```text
-~/.pi/agent/brand.json
-```
-
-Ejemplo:
-
-```json
-{
-  "commandPrefix": "tachikoma"
-}
-```
-
-`agentName` siempre se normaliza a `Ein` y `author` a `samuhlo`.
-
-### Linear falla con GraphQL
-
-Ejecuta:
-
-```text
-/ein:doctor-output
-```
-
-### No quiero snapshot local
-
-Usa:
-
-```bash
-export EIN_MEMORY_MODE=engram-only
-```
-
-### El agente no explica suficiente
-
-Revisar `enforceTeachingQuality(...)` en `ein-ai.ts`.
+Selector multi-perfil: `profiles/<persona>.json` + persona acoplada a un stack distinto, para que otras personas instalen Ein con su propio set de skills. La base existe (`stack-profile.json` es un perfil con nombre y `loadProfile()` lee una ruta resoluble); falta el selector.

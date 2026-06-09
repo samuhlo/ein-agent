@@ -1,114 +1,194 @@
-# Ein Operating System
+# Ein, explicado fácil
 
 Author: samuhlo
 
-Manual diario para usar tu workbench Pi sin friccion.
+Este documento explica Ein como si nunca lo hubieras visto. Sin tecnicismos donde no hacen falta.
 
-## Arquitectura de delegacion visible
+## ¿Qué es Ein?
 
-Ein usa **pi-subagents visible**. Linear, GitHub, design y las fases SDD son archivos Markdown en `~/.pi/agent/agents/*.md`; los flujos repetibles viven como chains en `~/.pi/agent/chains/*.chain.md`.
+Ein es tu **ayudante de programación**. Funciona encima de un programa llamado **Pi**. Piensa en Pi como el motor, y en Ein como el coche montado a tu gusto: tus reglas, tus colores, tus atajos.
 
-Tu mensaje original se conserva. El padre Ein decide la ruta desde el prompt padre: responde directo si es pequeno, delega con `subagent` cuando aporta foco, y usa el flujo `ein-sdd` cuando hay cambio serio. Si una peticion natural genera un payload `/run-chain`, eso es una regresion.
+Cuando abres Pi, hablas con Ein en lenguaje normal ("añade un botón aquí", "arregla este bug") y Ein decide cómo hacerlo: lo hace él mismo si es pequeño, o reparte el trabajo entre **ayudantes especializados** (subagentes) si es grande.
 
-**Agentes Ein visibles:**
+## Las 3 cosas que tienes que saber
 
-- `ein-linear` — preflight, issues, proyectos, sync y comentarios humanos en Linear.
-- `ein-github` — branch, commit, PR, review y sync delivery con gates.
-- `sdd-*` — fases SDD especializadas (`sdd-init`, `sdd-explore`, `sdd-design`, `sdd-apply`, `sdd-verify`) que la chain invoca.
+1. **Hablas normal.** No necesitas memorizar comandos. Los comandos `/ein:*` son botones de emergencia para control manual.
+2. **Para trabajo serio, Ein usa SDD.** Es una forma ordenada de trabajar en 5 pasos (lo vemos abajo).
+3. **Ein recuerda y se mantiene solo.** Tiene memoria entre sesiones y puede actualizar sus propias capacidades (skills).
 
-**Chain:**
+---
 
-- `ein-sdd` — el flujo SDD: init → explore → design → apply → verify.
+## Instalar Ein (en cualquier ordenador)
 
-Los comandos `/ein:*` son **fallback/manual**. Si ves `Actua como orquestador... HARD REQUIREMENT...` o una chain generada desde lenguaje natural, es una **regression** — el texto del usuario deberia preservarse.
+Una sola línea en la terminal:
 
-## Regla 1
+```bash
+curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
+```
 
-Si la tarea es pequena, hazla directa.
+Esto descarga el instalador y **abre un menú bonito** (en dorado, tu marca). Desde ahí eliges qué hacer. La primera vez, elige **Install**.
 
-Si la tarea es seria, usa flujo SDD.
+El instalador, paso a paso:
+1. Mira tu ordenador (Mac o Linux, qué procesador, qué terminal).
+2. Instala lo que falte: `bun` y `pi` (obligatorios), `engram` y `gh` (opcionales).
+3. Te pregunta si quieres **Linear** (gestor de tareas). Si dices que no, no lo instala.
+4. Copia Ein a su sitio (`~/.pi/agent`) y ajusta las rutas a TU ordenador automáticamente.
+5. Te pregunta por tus claves secretas (opcional).
+6. Pasa el "médico" (doctor) para confirmar que todo está bien.
 
-## Cuando usar directo
+Comandos del instalador (en la terminal, no dentro de Pi):
 
-- typo o copy pequeno
-- ajuste visual pequeno
-- pregunta tecnica puntual
+```bash
+ein            # abre el menú
+ein install    # instala o repara Ein
+ein update     # actualiza Ein y Pi (hace copia de seguridad antes)
+ein doctor     # revisa que todo esté bien
+ein uninstall  # quita Ein (NO borra tus claves ni tus sesiones)
+ein restore    # vuelve a una copia de seguridad anterior
+```
 
-## Cuando usar SDD
+Nunca toca tu `auth.json`, tus sesiones ni tus copias de seguridad.
 
-- feature nueva
-- bug complejo
-- cambios multiarchivo
-- decisiones de arquitectura
-- trabajo con riesgo de regresion
+---
 
-## Flujo recomendado
+## Cómo trabajar día a día
 
-1. `/ein:sdd:init` si no hay contexto.
-2. `/ein:sdd:new <cambio>` ejecuta `ein-sdd`: explore y design (propuesta + spec + tareas).
-3. `/ein:sdd:apply <cambio>` en batches pequenos.
-4. `/ein:sdd:verify <cambio>` para comprobar con evidencia.
+Abre Pi escribiendo `pi` en la terminal. Verás el banner dorado de EIN con tu nombre debajo: **SAMUHLO · PI WORKBENCH**.
 
-## Modelos
+**Regla de oro:**
+- Tarea pequeña (un typo, un ajuste visual, una pregunta) → Ein lo hace directo.
+- Tarea seria (una feature, un bug difícil, varios archivos) → Ein usa SDD.
 
-- Normal: `minimax/MiniMax-M2.7`
-- Pesado: `openai-codex/gpt-5.5`
-- Orquestacion compleja: `openai-codex/gpt-5.5`
+Ejemplos de cosas que puedes decirle:
+- `"Nueva tarea: añade un selector de fechas. Móntala en Linear y prepara SDD"`
+- `"continúa con SDD"`
+- `"aplica el primer batch"`
+- `"verifica"`
 
-## Skills
+---
 
-Para tareas con contexto ambiguo:
+## SDD: trabajar en orden (5 pasos)
 
-1. `/ein:skills:advisor [tarea]`
-2. resolver skills sugeridas
-3. revisar digest compacto
-4. ejecutar con feedback de skills
+SDD es la forma seria de trabajar. Son 5 fases, cada una hecha por un ayudante distinto:
 
-Para mantenimiento del stack fijo:
+```
+init  →  explore  →  design  →  apply  →  verify
+```
 
-- `/ein:skills` -> estado
-- `/ein:skills update` -> instala faltantes core y actualiza por hash
-- `/ein:skills add zod` -> instala skill puntual
-- `/ein:skills clean [--yes]` -> archiva extras en `archived/`
+- **init**: entiende el proyecto.
+- **explore**: mira el código antes de tocar nada (qué hay, qué riesgos).
+- **design**: hace el plan (propuesta + especificación + lista de tareas).
+- **apply**: programa, en trozos pequeños, con tests.
+- **verify**: comprueba que todo funciona de verdad.
 
-Los comandos nativos `/skill:*` siguen activos. Usalos cuando quieras inyectar una skill completa a mano. Para SDD, Ein prefiere pasar rutas exactas de `SKILL.md` cuando el padre ya resolvio skills. El digest queda para advisor/debug o para casos donde un resumen compacto aporte claridad.
+Para empezar SDD en un proyecto: `/ein:ai:install-sdd`. Luego trabajas hablando normal ("continúa con SDD").
+
+---
+
+## Modelos (el "cerebro" que usa Ein)
+
+Ein puede usar dos cerebros:
+- **gpt-5.5**: el más listo, para pensar mucho. Pero gasta más y a veces se queda sin cupo.
+- **MiniMax-M2.7**: rápido y barato, para el resto.
+
+Por defecto, los "pensadores" usan gpt-5.5:
+- El **orquestador** (la sesión principal) → gpt-5.5
+- **sdd-design** (la fase de diseño) → gpt-5.5
+- Todo lo demás → MiniMax-M2.7
+
+Dos botones para cambiar al instante:
+- `/ein:models:full` → vuelve al reparto de arriba (gpt-5.5 para pensar).
+- `/ein:models:lite` → **todo a MiniMax-M2.7**. Úsalo cuando gpt-5.5 te diga "sin cupo". Así nunca te quedas parado.
+
+> Tras cambiar el modelo del orquestador, reinicia Pi para que tome efecto. Los subagentes cambian al instante.
+
+---
+
+## Skills: el conocimiento extra de Ein
+
+Una **skill** es un manual corto sobre una tecnología o una forma de trabajar. Ein las usa para hacer mejor su trabajo. Hay **3 capas**:
+
+1. **Locales** (`skills/local/`): tus reglas propias (cómo comentas, cómo haces commits, tu disciplina). Son tuyas, nadie más las tiene. Se sincronizan desde tu repo de GitHub.
+2. **Bajadas** (`skills/downloaded/`): un grupo **pequeño y de confianza** traído de fuentes buenas (onmax para Nuxt, antfu para Vue, greensock para GSAP, vercel, etc.).
+3. **Context7**: para todo lo demás (drizzle, zod, tailwind, postgres...), Ein **pide la documentación fresca en el momento**, sin guardar un manual que se quede viejo.
+
+La idea: pocas skills pero buenas, y para el resto, documentación al día con Context7.
+
+Comandos de skills (dentro de Pi):
+
+```text
+/ein:skills                    → ver el estado (qué hay, qué cambió)
+/ein:skills update             → actualiza locales (tu repo) + bajadas (sus fuentes)
+/ein:skills update --local     → solo las locales
+/ein:skills update --downloaded→ solo las bajadas
+/ein:skills add <skill>        → instala una skill del catálogo
+/ein:skills clean              → enseña qué sobra (fuera de tu stack)
+/ein:skills clean --yes        → borra lo que sobra
+/ein:skills:advisor <tarea>    → te dice qué skills usar para una tarea concreta
+```
+
+**El advisor con Context7:** cuando le pides ayuda para una tarea, Ein mira qué tecnologías hay. Si tiene skill curada, la usa. Si no (por ejemplo "drizzle" o "zod"), te dice que traiga la doc fresca de Context7. Así nunca trabaja a ciegas.
+
+Para cambiar el catálogo de skills, edita `~/.pi/agent/skills/stack-profile.json`: ahí están las listas `core`/`secondary`, el `catalog` (de dónde sale cada skill) y el mapa `context7` (qué tecnologías van por Context7).
+
+---
 
 ## Linear y GitHub
 
-- Linear = tablero de trabajo
-- GitHub = entrega
-- `ein-linear` = ruta diaria para start/status/sync Linear
-- No mezclar reporte interno SDD con comentario humano en Linear salvo que lo pidas
+- **Linear** = tu tablero de tareas.
+- **GitHub** = donde entregas el código (ramas, PRs).
+- `ein-linear` es el ayudante para Linear; `ein-github` para GitHub.
 
-## Seguridad
+Comandos de Linear:
 
-- No tocar secretos
-- No compartir `auth.json`
-- Guardrails activos
-- Backup automatico en primera mutacion de config por sesion
+```text
+/ein:linear:new <petición>                 → crea o reutiliza una issue
+/ein:linear:project-bootstrap <proyecto>   → crea proyecto + milestones + issues base
+/ein:linear:milestones <proyecto>          → lista los milestones
+/ein:linear:help                           → ayuda de Linear
+```
 
-## Diagnostico
+---
 
-Usa `/ein:status` para una vista rapida del sistema.
+## Diagnóstico (¿está todo bien?)
 
-Usa `/ein:help` o `/ein:help full` para la lista de comandos disponibles.
+```text
+/ein:status          → vista rápida del sistema
+/ein:help            → lista de comandos (usa /ein:help full para todo)
+/ein:doctor          → revisión completa y explicada
+/ein:doctor-output   → revisión técnica rápida (45 checks)
+```
 
-Usa `/ein:doctor-output` para smoke checks tecnicos. Si devuelve `FAIL`, revisa antes de usar flujos de entrega o mutacion. Si devuelve `OK_WITH_WARNINGS`, el sistema es usable pero hay algo que endurecer.
+Si el doctor dice `FAIL`, hay algo roto: arréglalo antes de entregar nada. Si dice `OK`, todo en orden.
 
-## Recovery
+---
 
-Si algo se rompe:
+## Persona (cómo te habla Ein)
 
-1. correr `/ein:doctor`
-2. correr `/ein:doctor-output`
-3. revisar backup en `~/.pi/agent/backups/auto/`
-4. recuperar archivo desde snapshot
-5. si el problema persiste, revisar logs en `~/.pi/agent/logs/tool-failures.ndjson`
+```text
+/ein:persona           → ver la persona activa
+/ein:persona samuhlo   → modo docente (explica bien, con estructura)
+/ein:persona neutral   → modo directo (texto plano, sin adornos)
+```
 
-## Checklist rapido antes de cerrar una tarea seria
+---
 
-- hay plan
-- se aplico solo el scope
-- hay verificacion real
-- hay riesgos reportados
-- el siguiente paso esta claro
+## Seguridad (lo importante)
+
+- Ein **nunca** toca tus secretos ni tu `auth.json`.
+- Tiene guardrails: no ejecuta comandos peligrosos (como borrar cosas a lo bruto) sin confirmar.
+- Antes de cambiar su propia configuración, hace copia de seguridad.
+
+---
+
+## Si algo se rompe
+
+1. `/ein:doctor` para ver qué falla.
+2. `/ein:doctor-output` para el detalle técnico.
+3. Desde la terminal: `ein restore` para volver a una copia anterior.
+
+---
+
+## Futuro (todavía no hecho)
+
+- **Multi-perfil (Fase 2b):** poder tener varios perfiles (`profiles/<persona>.json`), cada uno con su propia persona y su propio stack de skills. Así otra persona podría instalar Ein con un stack distinto al tuyo. La base ya está lista (el `stack-profile.json` es un perfil con nombre), solo falta el selector. **No está construido todavía.**

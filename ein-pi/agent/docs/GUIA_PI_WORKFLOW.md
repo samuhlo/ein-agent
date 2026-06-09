@@ -1,145 +1,124 @@
-# Guia Ein
+# Guía Ein (cómo trabajar)
 
-Ein es un workbench de IA construido sobre Pi Coding Agent. Combina orquestacion inteligente, un flujo SDD estructurado, integracion con Linear y GitHub, y un sistema de skills por stack.
+Ein es un workbench de IA sobre Pi Coding Agent. Combina orquestación, un flujo SDD en 5 fases, integración con Linear y GitHub, y un sistema de skills en 3 capas.
 
-## Como Arrancar
+## Cómo arrancar
 
 ```bash
 pi
 ```
 
-Si el binario aun no esta en el PATH de la terminal actual:
+Si Pi no está en el PATH de esta terminal:
 
 ```bash
 export PATH="$HOME/.bun/bin:$PATH"
 pi
 ```
 
-## Como Funciona
+Verás el banner dorado de EIN con tu nombre: **SAMUHLO · PI WORKBENCH**.
 
-El prompt padre de Ein recibe tu mensaje en lenguaje natural y decide la ruta:
+## Cómo decide Ein qué hacer
 
-- **Trabajo simple** → responde directamente.
-- **Trabajo enfocado** → delega a un subagente visible (`ein-linear`, `ein-github`, fase SDD).
+Le hablas en lenguaje natural y el prompt padre decide la ruta:
+
+- **Trabajo simple** → lo hace directo.
+- **Trabajo enfocado** → delega a un subagente visible (`ein-linear`, `ein-github`, una fase SDD).
 - **Trabajo complejo** → ejecuta la chain `ein-sdd` (init → explore → design → apply → verify).
 
-Si quieres forzar modo directo sin pasar por el orquestador:
+Tu mensaje original se conserva siempre.
+
+## Flujos típicos (hablando natural)
 
 ```text
-directo: <tarea>
-```
-
-## Comandos Principales
-
-SDD:
-
-```text
-/ein:sdd:init
-/ein:sdd:new <cambio>
-/ein:sdd:apply <cambio>
-/ein:sdd:verify <cambio>
-/ein:sdd:continue <cambio>
-```
-
-Linear:
-
-```text
-/ein:linear:new <request>
-/ein:linear:start <issue-id>
-/ein:linear:sync <issue-id>
-/ein:linear:verify <issue-id>
-/ein:linear:close <issue-id>
-```
-
-GitHub:
-
-```text
-/ein:github:branch <issue-or-topic>
-/ein:github:commit <issue-or-topic>
-/ein:github:pr <issue-or-topic>
-/ein:github:review [pr-or-diff]
-/ein:github:sync <issue-id>
-```
-
-Skills y mantenimiento:
-
-```text
-/ein:skills
-/ein:skills update
-/ein:skills add <skill>
-/ein:skills clean
-/ein:skills:advisor <tarea>
-/ein:backup
-/ein:doctor-output
-```
-
-Ayuda y diagnostico:
-
-```text
-/ein:help
-/ein:help full
-/ein:status
-/ein:doctor
-/ein:doctor-output
+Nueva tarea: <descripción>. Móntala en Linear y prepara SDD
+continúa con SDD
+aplica el primer batch
+verifica
+sincroniza Linear
 ```
 
 ## Flujo SDD
 
-Flujo unico `ein-sdd`: **init → explore → design → apply → verify**.
+Flujo único `ein-sdd`: **init → explore → design → apply → verify**.
 
-- `design` reune propuesta, spec tecnica y tareas en un solo artefacto `design.md`.
-- `apply` no ocurre automaticamente despues de planificar; requiere scope aprobado.
-- Linear preflight es obligatorio antes de SDD, salvo "no linear".
+- `design` reúne propuesta + spec técnica + tareas en un solo `design.md`.
+- `apply` no ocurre solo: necesita un scope aprobado.
+- El preflight de Linear es obligatorio antes de SDD, salvo que digas "no linear".
+
+Para preparar SDD en un proyecto: `/ein:ai:install-sdd`. El preflight: `/ein:ai:sdd-preflight`.
+
+> El flujo se lanza por lenguaje natural o por la chain. No hay `/ein:sdd:new`.
 
 ## Modelos
 
-| Nivel | Uso | Modelo |
-| --- | --- | --- |
-| Base | tareas normales | `minimax/MiniMax-M2.7` |
-| Heavy | review, seguridad, arquitectura | `openai-codex/gpt-5.5` |
-| Orquestador | chains explicitas | `openai-codex/gpt-5.5` |
+| Quién | Modelo (preset full) |
+| --- | --- |
+| Orquestador (sesión principal) | `gpt-5.5` |
+| `sdd-design` | `gpt-5.5` |
+| Resto de agentes | `MiniMax-M2.7` |
 
-## Secretos y Auth
+- `/ein:models:full` → reparto de arriba.
+- `/ein:models:lite` → todo a `MiniMax-M2.7` (cuando gpt-5.5 se queda sin cupo).
 
-Las claves viven en `~/.config/opencode-secrets/` y nunca se commitean ni se pegan en logs:
+## Skills (3 capas)
 
-- `minimax-api-key` — MiniMax
-- `linear-api-key` — Linear (tambien acepta `LINEAR_API_KEY` o `LINEAR_TOKEN` en entorno)
-- `context7-api-key` — Context7
+1. **Locales** (`skills/local/`): tus reglas propias. Se sincronizan desde tu repo GitHub.
+2. **Bajadas** (`skills/downloaded/`): set curado de fuentes fiables (onmax, antfu, greensock, vercel, yusukebe, midudev).
+3. **Context7**: lo demás (drizzle, zod, tailwind, postgres...) se trae fresco en el momento.
 
-## Subagentes Visibles
+Mantenimiento:
 
-| Agente | Proposito |
+```text
+/ein:skills                     → estado
+/ein:skills update              → actualiza locales + bajadas
+/ein:skills clean --yes         → borra lo que sobra (fuera de stack)
+/ein:skills:advisor <tarea>     → qué skills usar + digest con Context7
+```
+
+La inyección de skills es automática: antes de cada delegación a un subagente, Ein resuelve las skills relevantes e inyecta sus rutas `SKILL.md` (y la guía de Context7 para techs sin skill) en el system prompt del subagente.
+
+El perfil vive en `~/.pi/agent/skills/stack-profile.json`.
+
+## Subagentes y chain
+
+| Agente | Para qué |
 | --- | --- |
 | `ein-linear` | Preflight, CRUD Linear, sync |
 | `ein-github` | Delivery GitHub, PR, review |
-| `sdd-init` | Inicializar cambio SDD |
-| `sdd-explore` | Explorar codebase y riesgos |
-| `sdd-design` | Propuesta + spec + tareas unificados |
-| `sdd-apply` | Implementar con TDD estricto |
+| `sdd-init` | Inicializar el cambio SDD |
+| `sdd-explore` | Explorar código y riesgos |
+| `sdd-design` | Propuesta + spec + tareas |
+| `sdd-apply` | Implementar con TDD |
 | `sdd-verify` | Verificar evidencia y calidad |
 
-Chain unica: `ein-sdd`.
+Chain única: `ein-sdd`. Los builtins de pi-subagents (scout/worker/reviewer/oracle/context-builder) están desactivados.
 
-Los builtins de pi-subagents (scout/worker/reviewer/oracle/context-builder) estan desactivados.
+> Para lanzar la chain por tool, `chain` es un **array de pasos** (objetos), nunca un string. El atajo manual fiable es `/run-chain ein-sdd -- <tarea>`.
 
-## Skills
+## Secretos
 
-El stack principal esta definido en `~/.pi/agent/skills/stack-profile.json` (ein-web-motion-stack v2: Nuxt, Vue, GSAP, Drizzle, Hono, Tailwind v4, Bun).
+Las claves viven en `~/.config/opencode-secrets/` y nunca se commitean:
 
-Skills en disco: `~/.pi/agent/skills/local/` y `~/.pi/agent/skills/downloaded/`.
+- `minimax-api-key`, `linear-api-key`, `context7-api-key`.
 
-La inyeccion de skills es automatica: antes de cada delegacion a un subagente, Ein resuelve las skills relevantes para la tarea e inyecta sus rutas `SKILL.md` en el system prompt del subagente.
+`CONTEXT7_API_KEY` se exporta desde tu shell rc (no va en `mcp.json`).
 
 ## Memoria
 
-Engram corre como MCP via `~/.pi/agent/mcp.json`, usando la DB `~/.engram-pi`. Context7 corre via `bunx @upstash/context7-mcp`.
+Engram corre como MCP (`~/.pi/agent/mcp.json`) sobre la DB `~/.engram-pi`. Context7 corre via `bunx @upstash/context7-mcp`. Ambos son lazy: arrancan solo cuando el modelo llama una tool.
 
-Ambos son lazy: solo arrancan cuando el modelo llama una tool.
-
-## Diagnostico
+## Diagnóstico
 
 ```text
-/ein:status          → vista compacta del estado operativo
-/ein:doctor-output   → smoke test tecnico (OK / OK_WITH_WARNINGS / FAIL)
+/ein:status          → vista compacta
+/ein:doctor          → diagnóstico explicado
+/ein:doctor-output   → smoke test técnico (45 checks)
+```
+
+## Instalar / actualizar (terminal)
+
+```bash
+ein install   # instalar o reparar
+ein update    # actualizar (con backup)
+ein doctor    # revisar
 ```
