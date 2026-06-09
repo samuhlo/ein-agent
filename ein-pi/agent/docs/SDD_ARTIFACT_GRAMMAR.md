@@ -89,10 +89,12 @@ Regla:
 
 ## Gates Entre Fases
 
-- `/ein:sdd:new` requiere `openspec/config.yaml`.
-- `/ein:sdd:apply` requiere `openspec/config.yaml` y `design.md` (seccion Tareas).
-- `/ein:sdd:verify` requiere `openspec/config.yaml`, `design.md` y `apply-progress.md` cuando hubo implementacion.
-- Si no hay tareas pendientes, `/ein:sdd:apply` debe parar y derivar a `/ein:sdd:verify`.
+El flujo `ein-sdd` se lanza por lenguaje natural o por la chain (no por comandos `/ein:sdd:*`). Los gates entre fases son:
+
+- La fase `design` requiere `openspec/config.yaml` (creado por `init`/`/sdd-init`).
+- La fase `apply` requiere `openspec/config.yaml` y `design.md` (sección Tareas).
+- La fase `verify` requiere `openspec/config.yaml`, `design.md` y `apply-progress.md` cuando hubo implementación.
+- Si no hay tareas pendientes, `apply` debe parar y derivar a `verify`.
 
 ## Contrato De Resultado Entre Fases
 
