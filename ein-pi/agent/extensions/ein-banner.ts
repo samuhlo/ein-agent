@@ -22,8 +22,80 @@ const TEXT_LOGO = [
 // EIN brand gold #FFCA40
 const GOLD = { r: 255, g: 202, b: 64 } as const;
 
+// Wordmark shown under the logo so the author's name always appears.
+const SUBTITLE = "SAMUHLO · PI WORKBENCH";
+const RULE_CH = "─";
+
+// Metallic gradient anchors: deep gold → brand gold → bright gold.
+const DEEP_GOLD = { r: 198, g: 138, b: 28 } as const;
+const BRIGHT_GOLD = { r: 255, g: 238, b: 170 } as const;
+const SUBTITLE_GOLD = { r: 255, g: 224, b: 150 } as const;
+const RULE_GOLD = { r: 190, g: 150, b: 70 } as const;
+
+type RGB = { r: number; g: number; b: number };
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function clampByte(n: number): number {
+  return Math.max(0, Math.min(255, Math.round(n)));
+}
+
+// Diagonal metallic gold at normalized position d in [0,1].
+function goldAt(d: number): RGB {
+  if (d <= 0.5) {
+    const t = d / 0.5;
+    return {
+      r: lerp(DEEP_GOLD.r, GOLD.r, t),
+      g: lerp(DEEP_GOLD.g, GOLD.g, t),
+      b: lerp(DEEP_GOLD.b, GOLD.b, t),
+    };
+  }
+  const t = (d - 0.5) / 0.5;
+  return {
+    r: lerp(GOLD.r, BRIGHT_GOLD.r, t),
+    g: lerp(GOLD.g, BRIGHT_GOLD.g, t),
+    b: lerp(GOLD.b, BRIGHT_GOLD.b, t),
+  };
+}
+
+// Per-cell metallic color: diagonal gradient + a sweeping shine band + breathing.
+function logoColor(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  tick: number,
+): { color: RGB; bold: boolean } {
+  const SHINE_PERIOD = 24;
+  const SHINE_BAND = 5;
+  const diagMax = width + (height - 1) * 2;
+  const shinePos =
+    ((tick % SHINE_PERIOD) / SHINE_PERIOD) * (diagMax + SHINE_BAND * 2) - SHINE_BAND;
+  const breathe = 0.96 + Math.sin(tick * 0.12) * 0.04;
+
+  const d = (x / Math.max(1, width - 1)) * 0.6 + (y / Math.max(1, height - 1)) * 0.4;
+  let col = goldAt(d);
+
+  const diag = x + y * 2;
+  const dist = Math.abs(diag - shinePos);
+  let bold = false;
+  if (dist < SHINE_BAND) {
+    const boost = (1 - dist / SHINE_BAND) ** 2 * 0.85;
+    col = {
+      r: lerp(col.r, 255, boost),
+      g: lerp(col.g, 250, boost),
+      b: lerp(col.b, 230, boost),
+    };
+    bold = boost > 0.5;
+  }
+
+  return { color: { r: col.r * breathe, g: col.g * breathe, b: col.b * breathe }, bold };
+}
+
 function rgb(r: number, g: number, b: number, text: string): string {
-  return `\x1b[38;2;${r};${g};${b}m${text}\x1b[39m`;
+  return `\x1b[38;2;${clampByte(r)};${clampByte(g)};${clampByte(b)}m${text}\x1b[39m`;
 }
 
 function padLines(lines: string[]): { lines: string[]; width: number } {
@@ -31,8 +103,8 @@ function padLines(lines: string[]): { lines: string[]; width: number } {
   return { lines: lines.map((l) => l.padEnd(width)), width };
 }
 
-type CellType = "banner" | "logo-tip" | "label" | "value" | "dim" | "accent" | "none";
-type LayoutCell = { char: string; type: CellType };
+type CellType = "banner" | "label" | "value" | "dim" | "accent" | "none";
+type LayoutCell = { char: string; type: CellType; color?: RGB; bold?: boolean };
 
 class LayoutBuilder {
   lines: LayoutCell[][] = [];
@@ -44,6 +116,11 @@ class LayoutBuilder {
   add(type: CellType, text: string) {
     const row = this.lines[this.lines.length - 1];
     for (const char of text) row.push({ char, type });
+  }
+
+  // Add a single char with an explicit precomputed color (and optional bold).
+  addColored(char: string, color: RGB, bold = false) {
+    this.lines[this.lines.length - 1].push({ char, type: "banner", color, bold });
   }
 
   center(width: number) {
@@ -104,12 +181,15 @@ export default function (pi: ExtensionAPI) {
 
     const logoBase = padLines(TEXT_LOGO);
 
-    // Reveal sweeps left-to-right across the logo, then a glint passes once.
-    const REVEAL_SPEED = 1.4; // logo columns per tick
-    const REVEAL_END_TICK = Math.ceil(logoBase.width / REVEAL_SPEED) + 4;
-    const GLINT_START_TICK = REVEAL_END_TICK + 3;
-    const GLINT_END_TICK = GLINT_START_TICK + 12;
-    const FINISH_TICK = GLINT_END_TICK + 18;
+    // Reveal sweeps left-to-right; a metallic shine then sweeps repeatedly while
+    // the accent rule draws out and the subtitle types in.
+    const REVEAL_SPEED = 1.5; // logo columns per tick
+    const REVEAL_END_TICK = Math.ceil(logoBase.width / REVEAL_SPEED) + 3;
+    const RULE_START_TICK = REVEAL_END_TICK - 2;
+    const RULE_END_TICK = RULE_START_TICK + 8;
+    const SUB_START_TICK = RULE_END_TICK - 2;
+    const SUB_END_TICK = SUB_START_TICK + Math.ceil(SUBTITLE.length / 1.6);
+    const FINISH_TICK = SUB_END_TICK + 16;
 
     let gitBranch = "Not a git repo";
     let extensionsCount = await countExtensions();
@@ -219,35 +299,63 @@ export default function (pi: ExtensionAPI) {
             if (state.mode === "skip") return [];
 
             const revealHead = tick * REVEAL_SPEED;
-            const logoLeft = Math.max(0, Math.floor((width - logoBase.width) / 2));
-
-            const glintActive = tick >= GLINT_START_TICK && tick <= GLINT_END_TICK;
-            const glintLocal =
-              ((tick - GLINT_START_TICK) /
-                Math.max(1, GLINT_END_TICK - GLINT_START_TICK)) *
-              (logoBase.width + 2);
-            const glintHead = logoLeft + glintLocal;
+            const logoH = logoBase.lines.length;
 
             const b = new LayoutBuilder();
             b.addRow();
             b.center(width);
 
-            // Logo with left-to-right pen sweep.
+            // Logo: left-to-right pen sweep, then metallic gradient + shine.
             for (let logoI = 0; logoI < logoBase.lines.length; logoI++) {
               const logoLine = logoBase.lines[logoI];
               b.addRow();
               for (let x = 0; x < logoLine.length; x++) {
                 const ch = logoLine[x];
-                if (ch === " ") {
+                if (ch === " " || x > revealHead) {
                   b.add("none", " ");
                   continue;
                 }
-                if (x <= revealHead) {
-                  const age = revealHead - x;
-                  b.add(age < 1.6 ? "logo-tip" : "banner", ch);
+                const age = revealHead - x;
+                if (age < 1.6) {
+                  b.addColored(ch, BRIGHT_GOLD, true);
                 } else {
-                  b.add("none", " ");
+                  const c = logoColor(x, logoI, logoBase.width, logoH, tick);
+                  b.addColored(ch, c.color, c.bold);
                 }
+              }
+              b.center(width);
+            }
+
+            // Accent rule, drawn from the center outward.
+            {
+              b.addRow();
+              const prog = Math.max(
+                0,
+                Math.min(1, (tick - RULE_START_TICK) / Math.max(1, RULE_END_TICK - RULE_START_TICK)),
+              );
+              const half = Math.floor((logoBase.width / 2) * prog);
+              const center = Math.floor(logoBase.width / 2);
+              for (let x = 0; x < logoBase.width; x++) {
+                if (Math.abs(x - center) <= half) b.addColored(RULE_CH, RULE_GOLD);
+                else b.add("none", " ");
+              }
+              b.center(width);
+            }
+
+            // Subtitle, typewriter reveal left-to-right.
+            {
+              b.addRow();
+              const pad = Math.max(0, Math.floor((logoBase.width - SUBTITLE.length) / 2));
+              const reveal = Math.floor((tick - SUB_START_TICK) * 1.6);
+              for (let x = 0; x < logoBase.width; x++) {
+                const i = x - pad;
+                const ch = i >= 0 && i < SUBTITLE.length ? SUBTITLE[i] : " ";
+                if (i < 0 || i >= SUBTITLE.length || ch === " " || tick < SUB_START_TICK || i > reveal) {
+                  b.add("none", " ");
+                  continue;
+                }
+                if (reveal - i < 2) b.addColored(ch, BRIGHT_GOLD, true);
+                else b.addColored(ch, SUBTITLE_GOLD);
               }
               b.center(width);
             }
@@ -306,25 +414,10 @@ export default function (pi: ExtensionAPI) {
                   continue;
                 }
 
-                if (cell.type === "banner" || cell.type === "logo-tip") {
-                  // Glint sweep: a single warm highlight passes after the reveal.
-                  if (glintActive && x >= glintHead - 1 && x <= glintHead + 1) {
-                    line += `\x1b[1m` + rgb(255, 250, 220, cell.char) + `\x1b[22m`;
-                    continue;
-                  }
-                  // Pen tip: brighter leading edge of the sweep.
-                  if (cell.type === "logo-tip") {
-                    line += `\x1b[1m` + rgb(255, 232, 150, cell.char) + `\x1b[22m`;
-                    continue;
-                  }
-                  // Settled gold with a subtle living shimmer.
-                  const s = 0.9 + Math.sin(x * 0.16 + y * 0.55 + tick * 0.08) * 0.1;
-                  line += rgb(
-                    Math.min(255, Math.round(GOLD.r * s)),
-                    Math.min(255, Math.round(GOLD.g * s)),
-                    Math.min(255, Math.round(GOLD.b * s)),
-                    cell.char,
-                  );
+                // Precomputed metallic color (logo, rule, subtitle).
+                if (cell.color) {
+                  const body = rgb(cell.color.r, cell.color.g, cell.color.b, cell.char);
+                  line += cell.bold ? `\x1b[1m${body}\x1b[22m` : body;
                   continue;
                 }
 
