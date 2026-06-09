@@ -5,6 +5,7 @@
 // =============================================================================
 
 import { runDoctorCommand } from "./cli/doctor.ts";
+import { runInstall } from "./cli/install.ts";
 
 function printHelp(): void {
   console.log("ein — instalador del workbench Ein sobre Pi");
@@ -21,9 +22,11 @@ function printHelp(): void {
 }
 
 async function main(): Promise<number> {
-  const [cmd] = process.argv.slice(2);
+  const [cmd, ...rest] = process.argv.slice(2);
 
   switch (cmd) {
+    case "install":
+      return runInstall(rest);
     case "doctor":
       return runDoctorCommand();
     case "--version":

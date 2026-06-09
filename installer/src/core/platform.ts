@@ -116,7 +116,8 @@ export function detectPlatform(): Platform {
   const distro = os === "linux" ? detectLinuxDistro() : "unknown";
   const packageManager = detectPackageManager(os, distro);
   const shell = detectShell();
-  const home = homedir();
+  // Respect $HOME (standard on POSIX; also lets tests target a temp home).
+  const home = process.env.HOME ?? homedir();
   const shellRc = detectShellRc(shell, home);
   return { os, arch, distro, packageManager, shell, shellRc, home };
 }
