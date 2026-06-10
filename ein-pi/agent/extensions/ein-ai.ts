@@ -30,6 +30,7 @@ import {
 	type SddPreflightPreferences,
 } from "../lib/sdd-preflight.ts";
 import { resolveSkillInjection } from "./ein-skill-registry.ts";
+import { humanizeAge, listRecentSessions } from "../lib/sessions";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ASSETS_DIR = join(PACKAGE_ROOT, "assets");
@@ -1485,6 +1486,25 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
+	pi.registerCommand("ein:resume", {
+		description: "Listar sesiones recientes con el comando para recuperarlas",
+		handler: async (_args, ctx) => {
+			const sessions = listRecentSessions(8);
+			const lines: string[] = ["/// 000. SESIONES RECIENTES", ""];
+			if (!sessions.length) {
+				lines.push("- No hay sesiones guardadas todavia.");
+			} else {
+				lines.push("- Atajos: `pi -c` (continuar ultima) · `pi -r` (elegir sesion)");
+				lines.push("");
+				for (const s of sessions) {
+					lines.push(`- ${s.project} (${humanizeAge(s.ageMs)})`);
+					lines.push(`  pi --session ${s.id}`);
+				}
+			}
+			ctx.ui.notify(lines.join("\n"), "info");
+		},
+	});
+
 	pi.registerCommand("ein:status", {
 		description: "Ver estado del sistema Ein (agentes, chains, skills, proyecto)",
 		handler: async (_args, ctx) => {
@@ -1607,6 +1627,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				lines.push("- /ein:status           → estado rapido del workbench.");
 				lines.push("- /ein:persona          → ver/cambiar estilo (samuhlo|neutral).");
 				lines.push("- /ein:models           → ver modelos activos.");
+				lines.push("- /ein:resume           → sesiones recientes + pi --session <id>.");
 				lines.push("- /ein:help [full]      → esta ayuda.");
 				lines.push("");
 				lines.push("// 002. FLUJO SDD");
@@ -1657,9 +1678,10 @@ export default function einAi(pi: ExtensionAPI): void {
 			lines.push("autor: samuhlo");
 			lines.push("");
 			lines.push("■ 001. CORE");
-			lines.push("- /ein:status | /ein:persona | /ein:models | /ein:help [full]");
+			lines.push("- /ein:status | /ein:persona | /ein:models | /ein:resume | /ein:help [full]");
 			lines.push("- /ein:models:full  → preset gpt-5.5 (orquestador + sdd-design)");
 			lines.push("- /ein:models:lite  → preset MiniMax-M2.7 todo (escape rate-limit)");
+			lines.push("- /ein:resume       → sesiones recientes + pi --session <id>");
 			lines.push("");
 			lines.push("■ 002. SDD");
 			lines.push("- /sdd-init → bootstrap openspec en el proyecto actual");

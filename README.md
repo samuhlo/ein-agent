@@ -58,6 +58,10 @@ En modo `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón nue
 - **`ask_user_question`** (vía `rpiv-ask-user-question`): en los checkpoints (gates SDD, confirmaciones de delivery, bifurcaciones de scope) Ein te pregunta con diálogos estructurados —single/multi-select, previews, en español— en vez de prosa. Solo cuando la respuesta cambia el siguiente paso.
 - **`pi-mcp-adapter`**: los servidores MCP (engram, context7) van por un proxy de un solo tool (~200 tokens) en vez de cargar todas sus defs (10k+ tokens/server). engram por proxy; context7 con `directTools` para el digest.
 
+### Sesiones recientes
+
+El banner muestra al arrancar tus **sesiones recientes** (de todos los proyectos, con su antigüedad). Recupéralas con `pi -c` (última), `pi -r` (elegir) o `pi --session <id>`; el comando `/ein:resume` lista las recientes con su `id` listo para copiar.
+
 ---
 
 ## Instalación
@@ -208,11 +212,11 @@ Hace backup del estado actual, redespliega el workbench y actualiza `pi`. Tu `au
 ## Publicar una nueva release
 
 ```bash
-git tag installer-v0.5.0
-git push origin installer-v0.5.0
+git tag installer-v0.6.0
+git push origin installer-v0.6.0
 ```
 
-GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.4.0`.
+GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.5.0`.
 
 ---
 

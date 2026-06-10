@@ -150,6 +150,14 @@ Comandos de Linear:
 
 ---
 
+## Sesiones recientes
+
+Al abrir Pi, el banner muestra tus **sesiones recientes** (de todos los proyectos, con su antigüedad). Para retomar una:
+
+- `pi -c` → continúa la última sesión.
+- `pi -r` → elige una de una lista.
+- `pi --session <id>` → abre una concreta. El comando `/ein:resume` (dentro de Pi) te lista las recientes con su `id` listo para copiar.
+
 ## Diagnóstico (¿está todo bien?)
 
 ```text

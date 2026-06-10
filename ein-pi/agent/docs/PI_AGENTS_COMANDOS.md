@@ -22,6 +22,9 @@ El prefijo (`ein`) sale de `~/.pi/agent/brand.json`. Si quieres otro prefijo, ca
 | `/ein:persona` | Muestra la persona activa |
 | `/ein:persona samuhlo` | Modo docente (explica con estructura) |
 | `/ein:persona neutral` | Modo directo (texto plano) |
+| `/ein:resume` | Lista sesiones recientes (todos los proyectos) con `pi --session <id>` para recuperarlas |
+
+Recuperar una sesión: `pi -c` (continuar la última), `pi -r` (elegir de una lista), o `pi --session <id>` (una concreta). El banner muestra las sesiones recientes al arrancar.
 
 ## Modelos
 

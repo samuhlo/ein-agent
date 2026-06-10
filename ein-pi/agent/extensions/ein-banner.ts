@@ -6,6 +6,7 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 
 const execAsync = promisify(exec);
 
@@ -196,6 +197,20 @@ export default function (pi: ExtensionAPI) {
     let extensionsCount = await countExtensions();
     let mcpServersCount = 0;
 
+    // Recent sessions across projects (distinct projects), excluding this one.
+    let recentSessions: RecentSession[] = [];
+    try {
+      const currentSessionPath = (
+        ctx as unknown as { sessionManager?: { getSessionFile?: () => string | undefined } }
+      ).sessionManager?.getSessionFile?.();
+      recentSessions = listRecentSessions(3, {
+        dedupeByProject: true,
+        excludePath: currentSessionPath,
+      });
+    } catch {
+      recentSessions = [];
+    }
+
     const allCommands = pi.getCommands();
     const skills = allCommands.filter((c) => c.source === "skill");
     const allTools = pi.getAllTools();
@@ -378,8 +393,7 @@ export default function (pi: ExtensionAPI) {
                 ["MCP:", `${mcpServersCount} server(s)`],
                 ["EXTENSIONS:", `${extensionsCount} active`],
                 ["AGENTS:", `${skills.length} loaded`],
-                ["VER:", `v${VERSION}`],
-                ["TOOLS:", `${customTools.length} custom`],
+                ["VER:", `v${VERSION} · ${customTools.length} tools`],
               ];
 
               const labelW = Math.max(...rows.map(([l]) => l.length));
@@ -396,6 +410,23 @@ export default function (pi: ExtensionAPI) {
                 b.add("label", label.padEnd(labelW));
                 b.add("none", "  ");
                 b.add("value", fit(value, valueW));
+                b.center(width);
+              }
+
+              // Recent sessions (distinct projects) + resume hint.
+              if (recentSessions.length) {
+                b.addRow();
+                b.center(width);
+                b.addRow();
+                b.add("label", "SESIONES RECIENTES");
+                b.center(width);
+                for (const s of recentSessions) {
+                  b.addRow();
+                  b.add("value", `• ${s.project} (${humanizeAge(s.ageMs)})`);
+                  b.center(width);
+                }
+                b.addRow();
+                b.add("dim", "pi -c continuar · pi -r elegir · /ein:resume");
                 b.center(width);
               }
 
