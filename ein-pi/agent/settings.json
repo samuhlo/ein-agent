@@ -35,7 +35,9 @@
     "minimax/MiniMax-M2.7-highspeed"
   ],
   "packages": [
-    "npm:pi-subagents"
+    "npm:pi-subagents",
+    "npm:@juicesharp/rpiv-ask-user-question",
+    "npm:@juicesharp/rpiv-i18n"
   ],
   "subagents": {
     "disableBuiltins": true

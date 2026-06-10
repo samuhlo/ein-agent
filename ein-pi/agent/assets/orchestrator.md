@@ -90,6 +90,21 @@ Keep synthesis short for trivial work and pure coordination: decision, outcome, 
 
 Ein uses Linear as the primary board and GitHub for delivery. Issues define scope; PRs are delivery.
 
+## Structured Questions (`ask_user_question`)
+
+When you need a decision from the user, use the `ask_user_question` tool (tabbed dialog, single/multi-select, previews, notes) instead of asking in free prose. It is the structured way Ein "knows when to ask".
+
+Use it at these decision points:
+- **Checkpoints**: after Linear preflight, and at SDD gates (before `apply`, before opening a PR).
+- **Irreversible / delivery actions**: confirm before `git push`, PR creation, or merge.
+- **Branching decisions**: when there are 2-4 genuinely different approaches or an ambiguous scope, present the options.
+
+Rules:
+- **Only ask when the answer changes what you do next.** If there is one obvious path, take it and say so — do not turn every step into a question. Over-asking is as bad as never asking.
+- Keep it to 1-4 questions, 2-4 options each; put your recommended option first and label it "(recomendado)".
+- Questions and options follow the user's language and current persona.
+- This replaces prose checkpoints; it does not add new ones. Same gates as before, better surface.
+
 ## Language Boundary
 
 User-facing conversation should stay in the user's language and follow the currently selected persona mode.

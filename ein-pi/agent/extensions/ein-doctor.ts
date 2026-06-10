@@ -79,6 +79,8 @@ async function doctorReport(): Promise<string> {
   const hasLinearToken = Boolean(
     process.env.LINEAR_API_KEY || process.env.LINEAR_TOKEN || existsSync(LINEAR_KEY_PATH),
   );
+  const packages = (settings.packages as unknown[] | undefined) ?? [];
+  const hasAskUserQuestion = packages.includes("npm:@juicesharp/rpiv-ask-user-question");
   const hasContext7Key =
     existsSync(CONTEXT7_KEY_PATH) || Boolean(process.env.CONTEXT7_API_KEY);
   const hasMcp = existsSync(join(AGENT_DIR, "mcp.json"));
@@ -183,6 +185,8 @@ function doctorSmokeReport(): string {
   const hasLinearToken = Boolean(
     process.env.LINEAR_API_KEY || process.env.LINEAR_TOKEN || existsSync(LINEAR_KEY_PATH),
   );
+  const packages = (settings.packages as unknown[] | undefined) ?? [];
+  const hasAskUserQuestion = packages.includes("npm:@juicesharp/rpiv-ask-user-question");
 
   const checksCore: CheckResult[] = [
     check(existsSync(brandFile), "brand.json", "Archivo de marca presente."),
@@ -302,6 +306,11 @@ function doctorSmokeReport(): string {
       existsSync(join(AGENT_DIR, "backups", "auto")),
       "backup auto",
       "Directorio de backup automatico presente.",
+    ),
+    check(
+      hasAskUserQuestion,
+      "ask-user-question",
+      "Paquete ask-user-question declarado en settings.",
     ),
   ];
 

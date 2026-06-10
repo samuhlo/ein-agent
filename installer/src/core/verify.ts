@@ -182,9 +182,15 @@ export function runDoctor(platform: Platform): DoctorReport {
     warn(hasGh, "gh cli", "GitHub CLI disponible (entrega)."),
   ];
 
+  const settingsPackages = (settings.value.packages as unknown[] | undefined) ?? [];
   const checksIntegrations: CheckResult[] = [
     warn(hasLinearToken, "linear token", "Token Linear detectable en entorno o archivo."),
     warn(hasContext7, "context7 key", "Key Context7 detectable."),
+    check(
+      settingsPackages.includes("npm:@juicesharp/rpiv-ask-user-question"),
+      "ask-user-question",
+      "Paquete ask-user-question declarado en settings.",
+    ),
   ];
 
   void platform;
