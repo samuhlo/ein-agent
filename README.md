@@ -208,11 +208,11 @@ Hace backup del estado actual, redespliega el workbench y actualiza `pi`. Tu `au
 ## Publicar una nueva release
 
 ```bash
-git tag installer-v0.4.0
-git push origin installer-v0.4.0
+git tag installer-v0.5.0
+git push origin installer-v0.5.0
 ```
 
-GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.3.0`.
+GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.4.0`.
 
 ---
 
