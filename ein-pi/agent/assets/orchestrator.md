@@ -41,17 +41,18 @@ inline step array below — copy it verbatim and change only the top-level `task
 await subagent({
   task: "SAM-328: Motor determinista calculatePlanning()",
   chain: [
-    { agent: "sdd-init",    task: "{task}", output: "init.md",            outputMode: "file-only", progress: true },
-    { agent: "sdd-explore", task: "{task}", reads: "init.md",             output: "exploration.md",   outputMode: "file-only", progress: true },
-    { agent: "sdd-design",  task: "{task}", reads: "init.md+exploration.md", output: "design.md",      outputMode: "file-only", progress: true },
-    { agent: "sdd-apply",   task: "{task}", reads: "design.md",           output: "apply-progress.md", outputMode: "file-only", progress: true },
-    { agent: "sdd-verify",  task: "{task}", reads: "design.md+apply-progress.md", output: "verify-report.md", outputMode: "file-only", progress: true }
+    { agent: "sdd-init",    task: "{task}", output: "init.md",                                    outputMode: "file-only", progress: true },
+    { agent: "sdd-explore", task: "{task}", reads: ["init.md"],                                   output: "exploration.md",    outputMode: "file-only", progress: true },
+    { agent: "sdd-design",  task: "{task}", reads: ["init.md", "exploration.md"],                 output: "design.md",         outputMode: "file-only", progress: true },
+    { agent: "sdd-apply",   task: "{task}", reads: ["design.md"],                                 output: "apply-progress.md", outputMode: "file-only", progress: true },
+    { agent: "sdd-verify",  task: "{task}", reads: ["design.md", "apply-progress.md"],            output: "verify-report.md",  outputMode: "file-only", progress: true }
   ]
 })
 ```
 
 Hard rules for this call:
 - `chain` is an ARRAY; every element is an OBJECT with an `agent` string. Never a string.
+- `reads` MUST be a JSON array of filenames: `["init.md"]`, `["init.md", "exploration.md"]`. NEVER a string or `+`-concatenated string like `"init.md+exploration.md"` — that only works in `.chain.md` files, not in inline tool calls. Using a string here causes `chain.N.reads: must be array` validation failure.
 - Keep `task: "{task}"` on every step so each phase sees the original request.
 - Never drop the `reads`/`output` wiring — it passes artifacts between phases.
 
@@ -228,6 +229,7 @@ These are parent-orchestrator stop rules. Once any trigger fires, the parent mus
 6. **Incident rule**: after wrong `cwd`, accidental repo/worktree mutation, failed merge recovery, confusing test command, or environment workaround, stop and delegate to a fresh-agent audit (use `context: "fresh"`).
 7. **Long-session rule**: if accumulating work is no longer clearly local — roughly 20 tool calls, 5 exploratory file reads, or 2 non-mechanical edits without delegation — pause and delegate to `ein-linear`, `ein-github`, or appropriate `sdd-*` agent instead of silently continuing monolithically.
 8. **Fresh review rule**: use `context: "fresh"` for adversarial review of diffs, conflicts, PR readiness, and incident audits. Use forked context for continuity-oriented tasks.
+9. **Subagent retry rule — HARD STOP**: if a subagent call fails, returns no result, or returns output that doesn't answer the task, you may retry **once** with a clearer task description. After two failures for the same task, **stop immediately**, report the failure to the user, and ask how to proceed. NEVER loop retrying the same subagent with variations — each attempt burns tokens and context without recovering from the underlying problem.
 
 ### Cost and Context Balance
 
