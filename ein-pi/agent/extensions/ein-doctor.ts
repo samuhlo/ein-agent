@@ -218,6 +218,11 @@ function doctorSmokeReport(): string {
       "Engram apunta a DB Pi (~/.engram-pi).",
     ),
     check("context7" in mcpServers, "mcp context7", "Servidor Context7 configurado."),
+    check(
+      packages.includes("npm:pi-mcp-adapter"),
+      "mcp adapter",
+      "pi-mcp-adapter declarado (proxy MCP, ahorro de contexto).",
+    ),
   ];
 
   const SDD_AGENTS = [

@@ -79,9 +79,19 @@ El orquestador se controla con `defaultProvider`/`defaultModel` en `settings.jso
 
 En `ein-ai.ts`: bloquea comandos destructivos, escrituras en secretos y cambios peligrosos en Git en runtime (no solo por prompt).
 
-## Memoria
+## Memoria y MCP
 
-`~/.pi/agent/mcp.json` conecta Engram via MCP (stdio) sobre `~/.engram-pi`. Context7 corre via `bunx --bun @upstash/context7-mcp`. Ambos son lazy. `CONTEXT7_API_KEY` se exporta desde el shell rc, no va en `mcp.json`.
+`~/.pi/agent/mcp.json` conecta Engram (stdio) sobre `~/.engram-pi` y Context7 (`bunx --bun @upstash/context7-mcp`). Ambos lazy. `CONTEXT7_API_KEY` se exporta desde el shell rc, no va en `mcp.json`.
+
+El cableado MCP usa **`pi-mcp-adapter`** (declarado en `settings.json` packages): un proxy de un solo tool `mcp()` (~200 tokens) en vez de cargar todas las defs (10k+ tokens/server). Estrategia híbrida:
+- **engram** → proxy (`directTools: false`). Sus 15 tools no inflan el contexto; el modelo los descubre on-demand vía `mcp()`. Ahí está el ahorro.
+- **context7** → `directTools: true`. Sus 2 tools (`resolve-library-id`, `query-docs`) se exponen como first-class para que el digest de Context7 (`ein-skill-registry.ts`) funcione sin cambios.
+
+Comandos del adapter: `/mcp` (panel), `/mcp setup`, `/mcp reconnect <server>`. Tras tocar `directTools`, `/mcp reconnect context7` fuerza el registro de tools.
+
+## Paquetes (settings.json)
+
+Ein declara en `settings.json` → `packages`: `pi-subagents` (subagentes), `pi-mcp-adapter` (proxy MCP), `@juicesharp/rpiv-ask-user-question` (tool `ask_user_question`: diálogos estructurados en checkpoints), `@juicesharp/rpiv-i18n` (locale; español en `~/.config/rpiv-i18n/locale.json`). Pi resuelve estos paquetes (su subsistema de extensiones es npm por dentro).
 
 ## Skills (3 capas)
 

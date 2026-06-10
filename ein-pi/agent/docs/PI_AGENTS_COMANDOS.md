@@ -78,7 +78,17 @@ Reglas: team por defecto `Samuhlodev`; reutiliza antes de crear duplicados.
 | Comando | Qué hace |
 | --- | --- |
 | `/ein:doctor` | Diagnóstico completo y explicado |
-| `/ein:doctor-output` | Smoke checks técnicos (45 checks: core, MCP, agentes, extensiones, skills, guardrails, integraciones) |
+| `/ein:doctor-output` | Smoke checks técnicos (47 checks: core, MCP, agentes, extensiones, skills, guardrails, integraciones) |
+
+## MCP (pi-mcp-adapter)
+
+| Comando | Qué hace |
+| --- | --- |
+| `/mcp` | Panel de servidores MCP (estado, toggles) |
+| `/mcp setup` | Configuración guiada / importar configs |
+| `/mcp reconnect <server>` | Conecta/reconecta un servidor (fuerza el registro de directTools) |
+
+MCP va por el adapter: engram por proxy (`mcp()`, ahorro de contexto), context7 con `directTools` (tools first-class para el digest). El tool `ask_user_question` (de rpiv-ask-user-question) no es un comando: Ein lo invoca en checkpoints para pedirte decisiones con diálogos estructurados.
 
 `FAIL` bloquea: hay algo roto. `OK` = todo en orden.
 

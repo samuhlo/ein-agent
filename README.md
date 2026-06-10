@@ -53,6 +53,11 @@ Ein no ejecuta comandos destructivos sin confirmación. Tiene una lista explíci
 
 En modo `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón nuevo, endpoint, decisión de arquitectura, código no trivial, seguridad) Ein no entrega un parte de estado: **te enseña cómo funciona por dentro** — qué hace cada pieza y cómo encajan, el mecanismo paso a paso. Lo trivial sigue siendo breve. El objetivo es que termines entendiendo mejor el sistema, no solo qué se tocó.
 
+### Preguntas estructuradas y MCP eficiente
+
+- **`ask_user_question`** (vía `rpiv-ask-user-question`): en los checkpoints (gates SDD, confirmaciones de delivery, bifurcaciones de scope) Ein te pregunta con diálogos estructurados —single/multi-select, previews, en español— en vez de prosa. Solo cuando la respuesta cambia el siguiente paso.
+- **`pi-mcp-adapter`**: los servidores MCP (engram, context7) van por un proxy de un solo tool (~200 tokens) en vez de cargar todas sus defs (10k+ tokens/server). engram por proxy; context7 con `directTools` para el digest.
+
 ---
 
 ## Instalación
@@ -144,7 +149,7 @@ Una vez instalado, Pi expone estos comandos:
 
 ### Diagnóstico
 ```
-/ein:doctor             Smoke test completo del entorno (45 checks, 8 grupos)
+/ein:doctor             Smoke test completo del entorno (47 checks, 8 grupos)
 /ein:doctor-output      Versión compacta, sin lanzar pi
 /ein:help               Referencia de todos los comandos /ein:*
 /ein:help full          Guía completa con flujos canónicos

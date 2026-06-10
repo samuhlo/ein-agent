@@ -12,7 +12,8 @@
     "context7": {
       "command": "bunx",
       "args": ["--bun", "@upstash/context7-mcp"],
-      "lifecycle": "lazy"
+      "lifecycle": "lazy",
+      "directTools": true
     }
   }
 }

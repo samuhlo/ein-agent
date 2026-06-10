@@ -104,6 +104,7 @@ export function runDoctor(platform: Platform): DoctorReport {
   const mcpServers = (mcp.value.mcpServers as Record<string, unknown>) ?? {};
   const engramServer = mcpServers.engram as Record<string, unknown> | undefined;
   const engramEnv = (engramServer?.environment as Record<string, unknown>) ?? {};
+  const settingsPackages = (settings.value.packages as unknown[] | undefined) ?? [];
 
   const localSkills = countSkillFiles(LOCAL_SKILLS_DIR);
   const downloadedSkills = countSkillFiles(DOWNLOADED_SKILLS_DIR);
@@ -141,6 +142,11 @@ export function runDoctor(platform: Platform): DoctorReport {
       "Ruta de engram resuelta (sin tokens sin templar).",
     ),
     check("context7" in mcpServers, "mcp context7", "Servidor Context7 configurado."),
+    check(
+      settingsPackages.includes("npm:pi-mcp-adapter"),
+      "mcp adapter",
+      "pi-mcp-adapter declarado (proxy MCP, ahorro de contexto).",
+    ),
   ];
 
   const checksAgents: CheckResult[] = [
@@ -182,7 +188,6 @@ export function runDoctor(platform: Platform): DoctorReport {
     warn(hasGh, "gh cli", "GitHub CLI disponible (entrega)."),
   ];
 
-  const settingsPackages = (settings.value.packages as unknown[] | undefined) ?? [];
   const checksIntegrations: CheckResult[] = [
     warn(hasLinearToken, "linear token", "Token Linear detectable en entorno o archivo."),
     warn(hasContext7, "context7 key", "Key Context7 detectable."),
