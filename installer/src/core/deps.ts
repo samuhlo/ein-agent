@@ -4,10 +4,12 @@
 // git/curl are check-only prerequisites.
 // =============================================================================
 
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Platform } from "./platform.ts";
 import { lookPath, run } from "./exec.ts";
 import { installEngram, resolveEngram } from "./engram.ts";
-import { BUN_BIN_DIR, LOCAL_BIN_DIR } from "./paths.ts";
+import { AGENT_DIR, BUN_BIN_DIR, LOCAL_BIN_DIR } from "./paths.ts";
 
 export type DepId = "git" | "curl" | "bun" | "pi" | "engram" | "gh";
 
@@ -72,6 +74,38 @@ export async function installPi(): Promise<InstallStep> {
 export async function installEngramDep(platform: Platform): Promise<InstallStep> {
   const result = await installEngram(platform);
   return { ok: result.ok, detail: result.detail };
+}
+
+// Install the Pi extension packages declared in the deployed settings.json
+// (pi-subagents, pi-mcp-adapter, ask-user-question, i18n...). Idempotent:
+// `pi install` reports "up to date" when already present. Best-effort.
+export async function installDeclaredPackages(): Promise<InstallStep> {
+  const pi = lookPath("pi", EXTRA_PATH);
+  if (!pi) return { ok: false, detail: "pi no disponible; salto paquetes" };
+  const settingsPath = join(AGENT_DIR, "settings.json");
+  if (!existsSync(settingsPath)) return { ok: true, detail: "sin settings.json" };
+
+  let packages: string[] = [];
+  try {
+    const parsed = JSON.parse(readFileSync(settingsPath, "utf8")) as { packages?: unknown };
+    if (Array.isArray(parsed.packages)) {
+      packages = parsed.packages.filter((p): p is string => typeof p === "string");
+    }
+  } catch {
+    return { ok: false, detail: "settings.json ilegible" };
+  }
+  if (packages.length === 0) return { ok: true, detail: "sin paquetes declarados" };
+
+  let ok = 0;
+  const failed: string[] = [];
+  for (const pkg of packages) {
+    const res = await run(pi, ["install", pkg], { extraPath: EXTRA_PATH });
+    if (res.ok) ok += 1;
+    else failed.push(pkg);
+  }
+  return failed.length === 0
+    ? { ok: true, detail: `${ok} paquetes instalados/al dia` }
+    : { ok: false, detail: `fallaron: ${failed.join(", ")}` };
 }
 
 // gh: best-effort via the platform package manager. Optional, never blocks.

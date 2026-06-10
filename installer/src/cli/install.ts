@@ -6,7 +6,14 @@
 
 import * as p from "@clack/prompts";
 import { describePlatform, detectPlatform, type Platform } from "../core/platform.ts";
-import { checkDeps, installBun, installEngramDep, installGh, installPi } from "../core/deps.ts";
+import {
+  checkDeps,
+  installBun,
+  installDeclaredPackages,
+  installEngramDep,
+  installGh,
+  installPi,
+} from "../core/deps.ts";
 import { deployTemplate, type DeployOptions } from "../core/deploy.ts";
 import {
   ensureContext7Export,
@@ -143,6 +150,12 @@ export async function runInstall(args: string[]): Promise<number> {
   s.stop(
     `Ein desplegado (engram: ${deployed.engramFound ? deployed.engramCommand : "no resuelto, usando PATH"})`,
   );
+
+  // 5b. Install declared Pi extension packages (subagents, mcp-adapter, ask-user-question, i18n).
+  const sPkgs = p.spinner();
+  sPkgs.start("Instalando paquetes de Pi declarados");
+  const pkgs = await installDeclaredPackages();
+  sPkgs.stop(pkgs.detail);
 
   // 6. Secrets wizard.
   if (!flags.noSecrets && !flags.yes) {

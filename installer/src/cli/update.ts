@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { detectPlatform } from "../core/platform.ts";
 import { snapshot } from "../core/backup.ts";
 import { deployTemplate } from "../core/deploy.ts";
-import { installPi } from "../core/deps.ts";
+import { installDeclaredPackages, installPi } from "../core/deps.ts";
 import { runDoctor } from "../core/verify.ts";
 import { readMarker, writeMarker, latestInstallerTag, INSTALLER_VERSION } from "../core/version.ts";
 import { renderReport } from "./doctor.ts";
@@ -51,6 +51,12 @@ export async function runUpdate(args: string[]): Promise<number> {
     const r = await installPi();
     sPi.stop(r.detail);
   }
+
+  // 3b. Ensure declared Pi extension packages are installed.
+  const sPkgs = p.spinner();
+  sPkgs.start("Verificando paquetes de Pi declarados");
+  const pkgs = await installDeclaredPackages();
+  sPkgs.stop(pkgs.detail);
 
   // 4. Refresh marker.
   writeMarker(marker?.channel ?? "stable");
