@@ -1146,6 +1146,24 @@ class SddModelPanel implements OverlayComponent {
 		delete this.draft[name];
 	}
 
+	private static addBorder(title: string, lines: string[], width: number): string[] {
+		const inner = Math.max(4, width - 2);
+		const titleVis = vaStrip(title).length;
+		const leftDash = 2;
+		const rightDash = Math.max(1, inner - 2 - leftDash - titleVis);
+		const top =
+			`${AP.d}${AP.gray}┌${'─'.repeat(leftDash)}${AP.r} ${title} ` +
+			`${AP.d}${AP.gray}${'─'.repeat(rightDash)}┐${AP.r}`;
+		const bottom = `${AP.d}${AP.gray}└${'─'.repeat(inner)}┘${AP.r}`;
+		const result: string[] = [top];
+		for (const line of lines) {
+			const pad = Math.max(0, inner - vaStrip(line).length);
+			result.push(`${AP.d}${AP.gray}│${AP.r}${line}${' '.repeat(pad)}${AP.d}${AP.gray}│${AP.r}`);
+		}
+		result.push(bottom);
+		return result;
+	}
+
 	private filteredModelOptions(): string[] {
 		const query = this.query.trim().toLowerCase();
 		if (!query) return this.modelOptions;
@@ -1155,17 +1173,17 @@ class SddModelPanel implements OverlayComponent {
 	}
 
 	private renderAgentList(width: number): string[] {
-		const tr = (t = '') => truncateToWidth(t, Math.max(1, width), '…', true);
-		const C1 = 18; // agent name visual width
-		const C2 = 16; // model visual width
+		const inner = Math.max(4, width - 2);
+		const tr = (t = '') => truncateToWidth(t, inner, '…', true);
+		const C1 = 18;
+		const C2 = 16;
 		const lines: string[] = [];
 
-		lines.push(tr(`  ${AP.gold}${AP.b}■ MODELOS DE AGENTES${AP.r}`));
 		lines.push(tr(''));
 		lines.push(tr(
-			`  ${AP.d}${AP.gray}${'AGENTE'.padEnd(C1)}  ${'MODELO'.padEnd(C2)}  ESFUERZO${AP.r}`
+			` ${AP.d}${AP.gray}${'AGENTE'.padEnd(C1)}  ${'MODELO'.padEnd(C2)}  ESFUERZO${AP.r}`
 		));
-		lines.push(tr(`  ${AP.d}${AP.gray}${'─'.repeat(C1 + C2 + 12)}${AP.r}`));
+		lines.push(tr(` ${AP.d}${AP.gray}${'─'.repeat(C1 + C2 + 12)}${AP.r}`));
 		lines.push(tr(''));
 
 		let prevGroup = '';
@@ -1197,7 +1215,7 @@ class SddModelPanel implements OverlayComponent {
 			if (group !== prevGroup) {
 				const sep = `─── ${group} `;
 				lines.push(tr(
-					`  ${AP.d}${AP.gray}${sep}${'─'.repeat(Math.max(2, C1 + C2 + 8 - sep.length))}${AP.r}`
+					` ${AP.d}${AP.gray}${sep}${'─'.repeat(Math.max(2, C1 + C2 + 6 - sep.length))}${AP.r}`
 				));
 				prevGroup = group;
 			}
@@ -1214,37 +1232,39 @@ class SddModelPanel implements OverlayComponent {
 		const saveFoc = this.cursor === this.rows.length;
 		const cancelFoc = this.cursor === this.rows.length + 1;
 		lines.push(tr(
-			`  ${saveFoc ? `${AP.gold}▸${AP.r}` : ' '} ${AP.grn}✓ Guardar${AP.r}` +
+			` ${saveFoc ? `${AP.gold}▸${AP.r}` : ' '} ${AP.grn}✓ Guardar${AP.r}` +
 			`        ` +
 			`${cancelFoc ? `${AP.gold}▸${AP.r}` : ' '} ${AP.d}${AP.gray}✗ Cancelar${AP.r}`
 		));
 		lines.push(tr(''));
 		lines.push(tr(
-			`  ${AP.d}${AP.gray}↑↓ navegar · Enter modelo · e esfuerzo · i heredar · Ctrl+S guardar${AP.r}`
+			` ${AP.d}${AP.gray}↑↓ · Enter modelo · e esfuerzo · i heredar · Ctrl+S guardar${AP.r}`
 		));
+		lines.push(tr(''));
 
-		return lines;
+		const title = `${AP.gold}${AP.b}■ MODELOS DE AGENTES${AP.r}`;
+		return SddModelPanel.addBorder(title, lines, width);
 	}
 
 	private renderModelPicker(width: number): string[] {
-		const tr = (t = '') => truncateToWidth(t, Math.max(1, width), '…', true);
+		const inner = Math.max(4, width - 2);
+		const tr = (t = '') => truncateToWidth(t, inner, '…', true);
 		const options = this.filteredModelOptions();
 		const lines: string[] = [];
 		const isControlOpt = (s: string) => (MODEL_CONTROL_OPTIONS as readonly string[]).includes(s);
 
 		const agentLabel = this.selectedRow === SET_ALL_AGENTS ? 'todos los agentes' : this.selectedRow;
-		lines.push(tr(`  ${AP.gold}${AP.b}■ MODELO${AP.r}  ${AP.d}${AP.gray}para:${AP.r}  ${AP.wht}${agentLabel}${AP.r}`));
 		lines.push(tr(''));
 
 		const searchText = this.query
 			? `${AP.wht}${this.query}${AP.r}`
 			: `${AP.d}${AP.gray}buscar...${AP.r}`;
-		lines.push(tr(`  ${AP.gray}◎${AP.r}  ${searchText}`));
-		lines.push(tr(`  ${AP.d}${AP.gray}${'─'.repeat(Math.max(10, width - 6))}${AP.r}`));
+		lines.push(tr(` ${AP.gray}◎${AP.r}  ${searchText}`));
+		lines.push(tr(` ${AP.d}${AP.gray}${'─'.repeat(Math.max(10, inner - 2))}${AP.r}`));
 		lines.push(tr(''));
 
 		if (options.length === 0) {
-			lines.push(tr(`  ${AP.d}${AP.gray}sin modelos coincidentes${AP.r}`));
+			lines.push(tr(` ${AP.d}${AP.gray}sin modelos coincidentes${AP.r}`));
 		} else {
 			const maxVisible = 12;
 			const start = Math.max(
@@ -1264,7 +1284,7 @@ class SddModelPanel implements OverlayComponent {
 
 				if (!addedSep && !isControlOpt(opt)) {
 					addedSep = true;
-					lines.push(tr(`  ${AP.d}${AP.gray}${'─'.repeat(Math.max(10, width - 6))}${AP.r}`));
+					lines.push(tr(` ${AP.d}${AP.gray}${'─'.repeat(Math.max(10, inner - 2))}${AP.r}`));
 				}
 
 				let label: string;
@@ -1289,19 +1309,22 @@ class SddModelPanel implements OverlayComponent {
 						label = focused ? `${AP.b}${vaModelColor(opt)}` : vaModelColor(opt);
 					}
 				}
-				lines.push(tr(`  ${cur} ${label}`));
+				lines.push(tr(` ${cur} ${label}`));
 			}
 
 			if (end < options.length) {
-				lines.push(tr(`  ${AP.d}${AP.gray}··· ${options.length - end} más${AP.r}`));
+				lines.push(tr(` ${AP.d}${AP.gray}··· ${options.length - end} más${AP.r}`));
 			}
 		}
 
 		lines.push(tr(''));
 		lines.push(tr(
-			`  ${AP.d}${AP.gray}↑↓ navegar · Enter seleccionar · tipo buscar · Esc volver${AP.r}`
+			` ${AP.d}${AP.gray}↑↓ navegar · Enter seleccionar · tipo buscar · Esc volver${AP.r}`
 		));
-		return lines;
+		lines.push(tr(''));
+
+		const title = `${AP.gold}${AP.b}■ MODELO${AP.r}  ${AP.d}${AP.gray}para:${AP.r}  ${AP.wht}${agentLabel}${AP.r}`;
+		return SddModelPanel.addBorder(title, lines, width);
 	}
 
 	private handleEffortInput(data: string): void {
@@ -1332,11 +1355,11 @@ class SddModelPanel implements OverlayComponent {
 	}
 
 	private renderEffortPicker(width: number): string[] {
-		const tr = (t = '') => truncateToWidth(t, Math.max(1, width), '…', true);
+		const inner = Math.max(4, width - 2);
+		const tr = (t = '') => truncateToWidth(t, inner, '…', true);
 		const lines: string[] = [];
 
 		const agentLabel = this.selectedRow === SET_ALL_AGENTS ? 'todos los agentes' : this.selectedRow;
-		lines.push(tr(`  ${AP.gold}${AP.b}■ ESFUERZO${AP.r}  ${AP.d}${AP.gray}para:${AP.r}  ${AP.wht}${agentLabel}${AP.r}`));
 		lines.push(tr(''));
 
 		for (let i = 0; i < THINKING_OPTIONS.length; i++) {
@@ -1353,12 +1376,15 @@ class SddModelPanel implements OverlayComponent {
 				const colored = vaEffortColor(opt as ThinkingLevel);
 				label = focused ? `${AP.b}${colored}` : colored;
 			}
-			lines.push(tr(`  ${cur} ${label}`));
+			lines.push(tr(` ${cur} ${label}`));
 		}
 
 		lines.push(tr(''));
-		lines.push(tr(`  ${AP.d}${AP.gray}↑↓ navegar · Enter seleccionar · Esc volver${AP.r}`));
-		return lines;
+		lines.push(tr(` ${AP.d}${AP.gray}↑↓ navegar · Enter seleccionar · Esc volver${AP.r}`));
+		lines.push(tr(''));
+
+		const title = `${AP.gold}${AP.b}■ ESFUERZO${AP.r}  ${AP.d}${AP.gray}para:${AP.r}  ${AP.wht}${agentLabel}${AP.r}`;
+		return SddModelPanel.addBorder(title, lines, width);
 	}
 }
 
