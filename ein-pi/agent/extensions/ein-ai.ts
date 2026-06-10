@@ -907,6 +907,22 @@ type ModelPanelResult =
 	| { type: "cancel" };
 
 const SET_ALL_AGENTS = "Configurar todos los agentes";
+const ORCHESTRATOR_ROW = "__orchestrator__";
+
+function readOrchestratorModel(): string | undefined {
+	const path = globalSettingsPath();
+	if (!existsSync(path)) return undefined;
+	try {
+		const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+		if (!isRecord(parsed)) return undefined;
+		const prov = typeof parsed.defaultProvider === "string" ? parsed.defaultProvider : "";
+		const model = typeof parsed.defaultModel === "string" ? parsed.defaultModel : undefined;
+		if (!model) return undefined;
+		return prov ? `${prov}/${model}` : model;
+	} catch {
+		return undefined;
+	}
+}
 
 // ─── Models panel visual helpers ─────────────────────────────────────────────
 const AP = {
@@ -965,7 +981,7 @@ class SddModelPanel implements OverlayComponent {
 		done: (result: ModelPanelResult) => void,
 	) {
 		this.draft = cloneModelConfig(initialConfig);
-		this.rows = [SET_ALL_AGENTS, ...agents];
+		this.rows = [ORCHESTRATOR_ROW, SET_ALL_AGENTS, ...agents];
 		this.modelOptions = modelOptions;
 		this.done = done;
 	}
@@ -1013,7 +1029,9 @@ class SddModelPanel implements OverlayComponent {
 			return;
 		}
 		if (data === "e") {
-			this.selectedRow = this.rows[this.cursor] ?? SET_ALL_AGENTS;
+			const row = this.rows[this.cursor] ?? SET_ALL_AGENTS;
+			if (row === ORCHESTRATOR_ROW) return; // orchestrator has no effort setting
+			this.selectedRow = row;
 			this.mode = "effort";
 			this.effortCursor = 0;
 			return;
@@ -1098,10 +1116,16 @@ class SddModelPanel implements OverlayComponent {
 		}
 	}
 
+	private get agentNames(): string[] {
+		return this.rows.filter(r => r !== ORCHESTRATOR_ROW && r !== SET_ALL_AGENTS);
+	}
+
 	private applyModelSelection(model: string | undefined): void {
 		const row = this.rows[this.cursor];
 		if (row === SET_ALL_AGENTS) {
-			for (const name of this.rows.slice(1)) this.setModel(name, model);
+			for (const name of this.agentNames) this.setModel(name, model);
+			// also update orchestrator when "set all"
+			this.setModel(ORCHESTRATOR_ROW, model);
 			return;
 		}
 		if (!row) return;
@@ -1111,16 +1135,18 @@ class SddModelPanel implements OverlayComponent {
 	private applyThinkingSelection(thinking: ThinkingLevel | undefined): void {
 		const row = this.selectedRow;
 		if (row === SET_ALL_AGENTS) {
-			for (const name of this.rows.slice(1)) this.setThinking(name, thinking);
+			for (const name of this.agentNames) this.setThinking(name, thinking);
 			return;
 		}
+		if (row === ORCHESTRATOR_ROW) return; // orchestrator has no effort setting
 		this.setThinking(row, thinking);
 	}
 
 	private applyInherit(): void {
 		const row = this.rows[this.cursor];
 		if (row === SET_ALL_AGENTS) {
-			for (const name of this.rows.slice(1)) this.clearEntry(name);
+			for (const name of this.agentNames) this.clearEntry(name);
+			this.clearEntry(ORCHESTRATOR_ROW);
 			return;
 		}
 		if (row) this.clearEntry(row);
@@ -1193,16 +1219,28 @@ class SddModelPanel implements OverlayComponent {
 			const focused = i === this.cursor;
 			const cur = focused ? `${AP.gold}▸${AP.r}` : ' ';
 
+			if (row === ORCHESTRATOR_ROW) {
+				const model = this.draft[ORCHESTRATOR_ROW]?.model;
+				const nameStr = focused
+					? `${AP.b}${AP.gold}◈ Orquestador${AP.r}`
+					: `${AP.wht}◈ Orquestador${AP.r}`;
+				lines.push(tr(
+					`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${AP.d}${AP.gray}─${AP.r}`
+				));
+				lines.push(tr(` ${AP.d}${AP.gray}${'─'.repeat(C1 + C2 + 10)}${AP.r}`));
+				continue;
+			}
+
 			if (row === SET_ALL_AGENTS) {
-				const allModels = this.rows.slice(1).map(n => this.draft[n]?.model);
-				const allEfforts = this.rows.slice(1).map(n => this.draft[n]?.thinking);
+				const allModels = this.agentNames.map(n => this.draft[n]?.model);
+				const allEfforts = this.agentNames.map(n => this.draft[n]?.thinking);
 				const uniqM = [...new Set(allModels)];
 				const uniqE = [...new Set(allEfforts)];
 				const mStr = uniqM.length === 1 ? vaModelColor(uniqM[0]) : `${AP.gold}mixed${AP.r}`;
 				const eStr = uniqE.length === 1 ? vaEffortColor(uniqE[0]) : `${AP.gold}mixed${AP.r}`;
 				const label = focused
-					? `${AP.b}${AP.wht}Todos los agentes${AP.r}`
-					: `${AP.d}Todos los agentes${AP.r}`;
+					? `${AP.b}${AP.wht}⊞  Todos los agentes${AP.r}`
+					: `${AP.d}⊞  Todos los agentes${AP.r}`;
 				lines.push(tr(`${cur} ${vaPad(label, C1)}  ${vaPad(mStr, C2)}  ${eStr}`));
 				lines.push(tr(''));
 				continue;
@@ -1418,16 +1456,26 @@ async function handleModelsCommand(ctx: ExtensionContext): Promise<void> {
 		);
 		return;
 	}
-	let config = savedConfig.status === "valid" ? savedConfig.config : {};
+	// Seed config with current orchestrator model so it appears in the panel
+	const orchModelStr = readOrchestratorModel();
+	let config: AgentModelConfig = {
+		...(savedConfig.status === "valid" ? savedConfig.config : {}),
+		...(orchModelStr ? { [ORCHESTRATOR_ROW]: { model: orchModelStr } } : {}),
+	};
 	let result = await showSddModelPanel(ctx, config);
 	while (result.type === "custom") {
 		config = cloneModelConfig(result.config);
+		const isOrch = result.agent === ORCHESTRATOR_ROW;
 		const current =
-			result.agent === "all"
+			result.agent === "all" || isOrch
 				? "inherit"
 				: (config[result.agent]?.model ?? "inherit");
+		const label = result.agent === "all"
+			? "todos los agentes"
+			: isOrch ? "Orquestador (formato: proveedor/modelo)"
+			: result.agent;
 		const custom = await ctx.ui.input(
-			`${result.agent === "all" ? "todos los agentes" : result.agent} — id de modelo personalizado`,
+			`${label} — id de modelo personalizado`,
 			current === "inherit" ? "proveedor/modelo" : current,
 		);
 		if (custom === undefined) return;
@@ -1441,6 +1489,8 @@ async function handleModelsCommand(ctx: ExtensionContext): Promise<void> {
 						model: trimmed,
 					};
 				}
+				// Also update orchestrator when setting all
+				next[ORCHESTRATOR_ROW] = { model: trimmed };
 				config = next;
 			} else {
 				config = {
@@ -1455,17 +1505,31 @@ async function handleModelsCommand(ctx: ExtensionContext): Promise<void> {
 		result = await showSddModelPanel(ctx, config);
 	}
 	if (result.type !== "save") return;
-	writeModelConfig(ctx.cwd, result.config);
-	const applyResult = await applyModelConfigAsync(ctx.cwd, result.config);
-	ctx.ui.notify(
-		[
-			"Config de modelos guardada.",
-			`Config global: ${modelConfigPath(ctx.cwd)}`,
-			`Agentes actualizados: ${applyResult.updated}`,
-			...describeModelConfig(ctx.cwd, result.config),
-		].join("\n"),
-		"info",
+
+	// Extract orchestrator entry and persist separately
+	const orchEntry = result.config[ORCHESTRATOR_ROW];
+	const subagentConfig = Object.fromEntries(
+		Object.entries(result.config).filter(([k]) => k !== ORCHESTRATOR_ROW),
 	);
+	writeModelConfig(ctx.cwd, subagentConfig);
+	const applyResult = await applyModelConfigAsync(ctx.cwd, subagentConfig);
+
+	const notifyLines: string[] = ["Config de modelos guardada."];
+	if (orchEntry?.model) {
+		const slash = orchEntry.model.indexOf('/');
+		const provider = slash > 0 ? orchEntry.model.slice(0, slash) : "";
+		const model = slash > 0 ? orchEntry.model.slice(slash + 1) : orchEntry.model;
+		if (provider && model) {
+			updateGlobalDefaultModel(provider, model);
+			notifyLines.push(`Orquestador → ${orchEntry.model} (reinicia Pi para aplicar)`);
+		}
+	}
+	notifyLines.push(
+		`Config global: ${modelConfigPath(ctx.cwd)}`,
+		`Agentes actualizados: ${applyResult.updated}`,
+		...describeModelConfig(ctx.cwd, subagentConfig),
+	);
+	ctx.ui.notify(notifyLines.join("\n"), "info");
 }
 
 async function handlePersonaCommand(ctx: ExtensionContext): Promise<void> {
