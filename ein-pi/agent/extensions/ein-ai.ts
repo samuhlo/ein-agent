@@ -908,6 +908,44 @@ type ModelPanelResult =
 
 const SET_ALL_AGENTS = "Configurar todos los agentes";
 
+// ─── Models panel visual helpers ─────────────────────────────────────────────
+const AP = {
+	r: '\x1b[0m', b: '\x1b[1m', d: '\x1b[2m',
+	gold: '\x1b[33m', cyan: '\x1b[36m', grn: '\x1b[32m',
+	gray: '\x1b[90m', wht: '\x1b[37m',
+} as const;
+
+function vaStrip(s: string): string {
+	return s.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+function vaPad(s: string, w: number): string {
+	const vis = vaStrip(s).length;
+	return vis < w ? s + ' '.repeat(w - vis) : s;
+}
+
+function vaModelColor(id: string | undefined): string {
+	if (!id) return `${AP.d}${AP.gray}inherit${AP.r}`;
+	const short = id.includes('/') ? id.split('/').pop()! : id;
+	if (/^gpt-5|^o1|^o3/i.test(short)) return `${AP.gold}${short}${AP.r}`;
+	if (/minimax|claude|gemini|llama/i.test(short)) return `${AP.cyan}${short}${AP.r}`;
+	return `${AP.wht}${short}${AP.r}`;
+}
+
+function vaEffortColor(lvl: ThinkingLevel | undefined): string {
+	if (!lvl) return `${AP.d}${AP.gray}─${AP.r}`;
+	const MAP: Record<ThinkingLevel, string> = {
+		off:     `${AP.gray}○  off${AP.r}`,
+		minimal: `${AP.d}▪  minimal${AP.r}`,
+		low:     `${AP.wht}▪▪  low${AP.r}`,
+		medium:  `${AP.cyan}▪▪▪  medium${AP.r}`,
+		high:    `${AP.gold}▪▪▪▪  high${AP.r}`,
+		xhigh:   `${AP.b}${AP.gold}▪▪▪▪▪  xhigh${AP.r}`,
+	};
+	return MAP[lvl];
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 class SddModelPanel implements OverlayComponent {
 	private cursor = 0;
 	private mode: "agents" | "models" | "effort" = "agents";
@@ -1117,65 +1155,152 @@ class SddModelPanel implements OverlayComponent {
 	}
 
 	private renderAgentList(width: number): string[] {
+		const tr = (t = '') => truncateToWidth(t, Math.max(1, width), '…', true);
+		const C1 = 18; // agent name visual width
+		const C2 = 16; // model visual width
 		const lines: string[] = [];
-		const line = (text = "") =>
-			truncateToWidth(text, Math.max(1, width), "…", true);
-		lines.push(line("Asignar modelos a agentes"));
-		lines.push("");
-		lines.push(line("Asignaciones actuales:"));
-		lines.push("");
+
+		lines.push(tr(`  ${AP.gold}${AP.b}■ MODELOS DE AGENTES${AP.r}`));
+		lines.push(tr(''));
+		lines.push(tr(
+			`  ${AP.d}${AP.gray}${'AGENTE'.padEnd(C1)}  ${'MODELO'.padEnd(C2)}  ESFUERZO${AP.r}`
+		));
+		lines.push(tr(`  ${AP.d}${AP.gray}${'─'.repeat(C1 + C2 + 12)}${AP.r}`));
+		lines.push(tr(''));
+
+		let prevGroup = '';
+
 		for (let i = 0; i < this.rows.length; i++) {
 			const row = this.rows[i] ?? SET_ALL_AGENTS;
 			const focused = i === this.cursor;
-			const label =
-				row === SET_ALL_AGENTS
-					? this.renderSetAllLabel(row)
-					: this.renderAgentLabel(row);
-			lines.push(line(`${focused ? "▸" : " "} ${label}`));
+			const cur = focused ? `${AP.gold}▸${AP.r}` : ' ';
+
+			if (row === SET_ALL_AGENTS) {
+				const allModels = this.rows.slice(1).map(n => this.draft[n]?.model);
+				const allEfforts = this.rows.slice(1).map(n => this.draft[n]?.thinking);
+				const uniqM = [...new Set(allModels)];
+				const uniqE = [...new Set(allEfforts)];
+				const mStr = uniqM.length === 1 ? vaModelColor(uniqM[0]) : `${AP.gold}mixed${AP.r}`;
+				const eStr = uniqE.length === 1 ? vaEffortColor(uniqE[0]) : `${AP.gold}mixed${AP.r}`;
+				const label = focused
+					? `${AP.b}${AP.wht}Todos los agentes${AP.r}`
+					: `${AP.d}Todos los agentes${AP.r}`;
+				lines.push(tr(`${cur} ${vaPad(label, C1)}  ${vaPad(mStr, C2)}  ${eStr}`));
+				lines.push(tr(''));
+				continue;
+			}
+
+			const group = SDD_AGENT_NAME_SET.has(row) ? 'SDD'
+				: (row === 'ein-linear' || row === 'ein-github') ? 'ENTREGA'
+				: 'OTROS';
+
+			if (group !== prevGroup) {
+				const sep = `─── ${group} `;
+				lines.push(tr(
+					`  ${AP.d}${AP.gray}${sep}${'─'.repeat(Math.max(2, C1 + C2 + 8 - sep.length))}${AP.r}`
+				));
+				prevGroup = group;
+			}
+
+			const model = this.draft[row]?.model;
+			const effort = this.draft[row]?.thinking;
+			const nameStr = focused ? `${AP.b}${AP.gold}${row}${AP.r}` : row;
+			lines.push(tr(
+				`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${vaEffortColor(effort)}`
+			));
 		}
-		lines.push("");
-		lines.push(
-			line(`${this.cursor === this.rows.length ? "▸" : " "} Continuar`),
-		);
-		lines.push(
-			line(`${this.cursor === this.rows.length + 1 ? "▸" : " "} ← Volver`),
-		);
-		lines.push("");
-		lines.push(
-			line(
-				"j/k: navegar • enter: cambiar modelo/confirmar • e: esfuerzo • i: heredar todos • c: modelo personalizado • ctrl+s: guardar • esc: volver",
-			),
-		);
+
+		lines.push(tr(''));
+		const saveFoc = this.cursor === this.rows.length;
+		const cancelFoc = this.cursor === this.rows.length + 1;
+		lines.push(tr(
+			`  ${saveFoc ? `${AP.gold}▸${AP.r}` : ' '} ${AP.grn}✓ Guardar${AP.r}` +
+			`        ` +
+			`${cancelFoc ? `${AP.gold}▸${AP.r}` : ' '} ${AP.d}${AP.gray}✗ Cancelar${AP.r}`
+		));
+		lines.push(tr(''));
+		lines.push(tr(
+			`  ${AP.d}${AP.gray}↑↓ navegar · Enter modelo · e esfuerzo · i heredar · Ctrl+S guardar${AP.r}`
+		));
+
 		return lines;
 	}
 
 	private renderModelPicker(width: number): string[] {
-		const lines: string[] = [];
+		const tr = (t = '') => truncateToWidth(t, Math.max(1, width), '…', true);
 		const options = this.filteredModelOptions();
-		const line = (text = "") =>
-			truncateToWidth(text, Math.max(1, width), "…", true);
-		lines.push(line(`Seleccionar modelo para ${this.selectedRow}`));
-		lines.push("");
-		lines.push(line(`◎ ${this.query || "buscar..."}`));
-		lines.push("");
-		const maxVisible = 12;
-		const start = Math.max(
-			0,
-			Math.min(
-				this.modelCursor - Math.floor(maxVisible / 2),
-				Math.max(0, options.length - maxVisible),
-			),
-		);
-		const end = Math.min(options.length, start + maxVisible);
-		for (let i = start; i < end; i++) {
-			const focused = i === this.modelCursor;
-			lines.push(line(`${focused ? "▸" : " "} ${options[i]}`));
+		const lines: string[] = [];
+		const isControlOpt = (s: string) => (MODEL_CONTROL_OPTIONS as readonly string[]).includes(s);
+
+		const agentLabel = this.selectedRow === SET_ALL_AGENTS ? 'todos los agentes' : this.selectedRow;
+		lines.push(tr(`  ${AP.gold}${AP.b}■ MODELO${AP.r}  ${AP.d}${AP.gray}para:${AP.r}  ${AP.wht}${agentLabel}${AP.r}`));
+		lines.push(tr(''));
+
+		const searchText = this.query
+			? `${AP.wht}${this.query}${AP.r}`
+			: `${AP.d}${AP.gray}buscar...${AP.r}`;
+		lines.push(tr(`  ${AP.gray}◎${AP.r}  ${searchText}`));
+		lines.push(tr(`  ${AP.d}${AP.gray}${'─'.repeat(Math.max(10, width - 6))}${AP.r}`));
+		lines.push(tr(''));
+
+		if (options.length === 0) {
+			lines.push(tr(`  ${AP.d}${AP.gray}sin modelos coincidentes${AP.r}`));
+		} else {
+			const maxVisible = 12;
+			const start = Math.max(
+				0,
+				Math.min(
+					this.modelCursor - Math.floor(maxVisible / 2),
+					Math.max(0, options.length - maxVisible),
+				),
+			);
+			const end = Math.min(options.length, start + maxVisible);
+			let addedSep = false;
+
+			for (let i = start; i < end; i++) {
+				const opt = options[i] ?? '';
+				const focused = i === this.modelCursor;
+				const cur = focused ? `${AP.gold}▸${AP.r}` : ' ';
+
+				if (!addedSep && !isControlOpt(opt)) {
+					addedSep = true;
+					lines.push(tr(`  ${AP.d}${AP.gray}${'─'.repeat(Math.max(10, width - 6))}${AP.r}`));
+				}
+
+				let label: string;
+				if (opt === KEEP_CURRENT) {
+					label = focused ? `${AP.b}${AP.wht}${opt}${AP.r}` : `${AP.d}${opt}${AP.r}`;
+				} else if (opt === INHERIT_MODEL) {
+					label = focused ? `${AP.b}${AP.wht}${opt}${AP.r}` : `${AP.d}${opt}${AP.r}`;
+				} else if (opt === CUSTOM_MODEL) {
+					label = focused
+						? `${AP.b}${AP.cyan}${opt}…${AP.r}`
+						: `${AP.d}${AP.gray}${opt}…${AP.r}`;
+				} else {
+					const parts = opt.split('/');
+					if (parts.length >= 2) {
+						const provider = parts.slice(0, -1).join('/');
+						const modelPart = parts[parts.length - 1]!;
+						const colored = vaModelColor(modelPart);
+						label = focused
+							? `${AP.d}${AP.gray}${provider}/${AP.r}${AP.b}${colored}`
+							: `${AP.d}${AP.gray}${provider}/${AP.r}${colored}`;
+					} else {
+						label = focused ? `${AP.b}${vaModelColor(opt)}` : vaModelColor(opt);
+					}
+				}
+				lines.push(tr(`  ${cur} ${label}`));
+			}
+
+			if (end < options.length) {
+				lines.push(tr(`  ${AP.d}${AP.gray}··· ${options.length - end} más${AP.r}`));
+			}
 		}
-		if (options.length === 0) lines.push(line("  Sin modelos coincidentes"));
-		lines.push("");
-		lines.push(
-			line("j/k: navegar • escribe: buscar • enter: seleccionar • esc: volver"),
-		);
+
+		lines.push(tr(''));
+		lines.push(tr(
+			`  ${AP.d}${AP.gray}↑↓ navegar · Enter seleccionar · tipo buscar · Esc volver${AP.r}`
+		));
 		return lines;
 	}
 
@@ -1207,42 +1332,33 @@ class SddModelPanel implements OverlayComponent {
 	}
 
 	private renderEffortPicker(width: number): string[] {
+		const tr = (t = '') => truncateToWidth(t, Math.max(1, width), '…', true);
 		const lines: string[] = [];
-		const line = (text = "") =>
-			truncateToWidth(text, Math.max(1, width), "…", true);
-		lines.push(line(`Seleccionar esfuerzo para ${this.selectedRow}`));
-		lines.push("");
+
+		const agentLabel = this.selectedRow === SET_ALL_AGENTS ? 'todos los agentes' : this.selectedRow;
+		lines.push(tr(`  ${AP.gold}${AP.b}■ ESFUERZO${AP.r}  ${AP.d}${AP.gray}para:${AP.r}  ${AP.wht}${agentLabel}${AP.r}`));
+		lines.push(tr(''));
+
 		for (let i = 0; i < THINKING_OPTIONS.length; i++) {
+			const opt = THINKING_OPTIONS[i];
 			const focused = i === this.effortCursor;
-			lines.push(line(`${focused ? "▸" : " "} ${THINKING_OPTIONS[i]}`));
+			const cur = focused ? `${AP.gold}▸${AP.r}` : ' ';
+
+			let label: string;
+			if (opt === INHERIT_THINKING) {
+				label = focused
+					? `${AP.b}${AP.wht}─  Heredar (por defecto)${AP.r}`
+					: `${AP.d}${AP.gray}─  Heredar (por defecto)${AP.r}`;
+			} else {
+				const colored = vaEffortColor(opt as ThinkingLevel);
+				label = focused ? `${AP.b}${colored}` : colored;
+			}
+			lines.push(tr(`  ${cur} ${label}`));
 		}
-		lines.push("");
-		lines.push(line("j/k: navegar • enter: seleccionar • esc: volver"));
+
+		lines.push(tr(''));
+		lines.push(tr(`  ${AP.d}${AP.gray}↑↓ navegar · Enter seleccionar · Esc volver${AP.r}`));
 		return lines;
-	}
-
-	private renderSetAllLabel(row: string): string {
-		const models = this.rows
-			.slice(1)
-			.map((name) => this.draft[name]?.model ?? "inherit");
-		const efforts = this.rows
-			.slice(1)
-			.map((name) => this.draft[name]?.thinking ?? "inherit");
-		const firstModel = models[0] ?? "inherit";
-		const firstEffort = efforts[0] ?? "inherit";
-		const modelLabel = models.every((value) => value === firstModel)
-			? firstModel
-			: "mixed";
-		const effortLabel = efforts.every((value) => value === firstEffort)
-			? firstEffort
-			: "mixed";
-		return `${row.padEnd(20)} model=${modelLabel}, effort=${effortLabel}`;
-	}
-
-	private renderAgentLabel(row: string): string {
-		const model = this.draft[row]?.model ?? "inherit";
-		const effort = this.draft[row]?.thinking ?? "inherit";
-		return `${row.padEnd(20)} model=${model}, effort=${effort}`;
 	}
 }
 
