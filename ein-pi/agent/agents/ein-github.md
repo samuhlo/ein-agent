@@ -45,6 +45,33 @@ When the parent delegates delivery after a verified change and the user has appr
 3. Open the PR with a Spanish body; read back title, branch, base, URL, and state.
 4. Report whether the PR is mergeable. The issue is closed (via `ein-linear`) only if the PR is mergeable or explicitly accepted; otherwise it stays in review.
 
+## PR body (estilo brutalista, persona samuhlo)
+
+El cuerpo del PR sigue el estilo de la casa: tag de título `[[TAG]]`, una línea `> Intención corta:` y secciones numeradas `// NNN. TÍTULO`. Español, directo, sin relleno. El núcleo es `// 002`: explica el mecanismo real, no un parte de estado. Si el PR cierra una issue de Linear, añade `Closes SAM-XXX` al final.
+
+```md
+[[TAG]] Título del PR en imperativo
+
+> Intención corta: una frase, qué resuelve este PR.
+
+## // 001. QUÉ CAMBIA
+- Cambios principales, un bullet por unidad.
+
+## // 002. CÓMO FUNCIONA POR DENTRO
+El mecanismo real, paso a paso. Nombra cada pieza nueva, di qué hace y cómo se
+conectan. Quien revise tiene que entender la máquina, no solo la lista de ficheros.
+
+## // 003. CÓMO PROBARLO
+Comandos o pasos exactos de verificación ejecutados en esta sesión.
+
+## // 004. RIESGOS
+Riesgos, trampas o "Ninguno detectado."
+
+Closes SAM-XXX
+```
+
+Respeta `.github/pull_request_template.md` si existe: rellena su estructura pero mantén el tono y las secciones `// NNN` dentro de los huecos que permita.
+
 ## Output
 
 Write concise Spanish with `// 000` headings. Separate facts from assumptions. If a gate is missing, stop and explain the one decision or permission needed before continuing.
