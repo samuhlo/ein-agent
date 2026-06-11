@@ -42,9 +42,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          cat > /tmp/release-notes.md << 'EOF'
+          Instalador de Ein. Instala con:
+
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/installer/install.sh | bash
+          ```
+          EOF
           gh release create "${GITHUB_REF_NAME}" \
             --title "Ein installer ${GITHUB_REF_NAME}" \
-            --notes "Instalador de Ein. Instala con:\n\n\`curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/installer/install.sh | bash\`" \
+            --notes-file /tmp/release-notes.md \
             dist/ein-installer-darwin-arm64 \
             dist/ein-installer-darwin-x64 \
             dist/ein-installer-linux-arm64 \

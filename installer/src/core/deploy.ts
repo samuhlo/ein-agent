@@ -3,7 +3,9 @@
 // Extracts the embedded template tarball into ~/.pi/agent and applies path
 // templating to mcp.json + settings.json. Idempotent: never touches user
 // state (auth.json, sessions/, backups/, .sdd/, etc. are simply not in the
-// tarball, so re-extracting only overwrites Ein-owned files).
+// tarball). User-owned fields in settings.json (defaultProvider, defaultModel,
+// theme, enabledModels, packages) are preserved across updates via a
+// read-before / merge-after pattern around the tarball extraction.
 // =============================================================================
 
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -28,6 +30,49 @@ export type DeployResult = {
   engramCommand: string;
   engramFound: boolean;
 };
+
+// Fields in settings.json that belong to the user, not to Ein.
+// These survive across `ein update` re-deployments.
+const USER_SETTINGS_KEYS = [
+  "defaultProvider",
+  "defaultModel",
+  "theme",
+  "lastChangelogVersion",
+  "enabledModels",
+  "packages",
+] as const;
+
+type UserSettings = Partial<Record<(typeof USER_SETTINGS_KEYS)[number], unknown>>;
+
+function readUserSettings(agentDir: string): UserSettings {
+  const path = join(agentDir, "settings.json");
+  if (!existsSync(path)) return {};
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const record = parsed as Record<string, unknown>;
+    const result: UserSettings = {};
+    for (const key of USER_SETTINGS_KEYS) {
+      if (key in record) result[key] = record[key];
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function mergeUserSettings(agentDir: string, saved: UserSettings): void {
+  if (Object.keys(saved).length === 0) return;
+  const path = join(agentDir, "settings.json");
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+    const merged = { ...(parsed as Record<string, unknown>), ...saved };
+    writeFileSync(path, `${JSON.stringify(merged, null, "\t")}\n`);
+  } catch {
+    // Leave freshly-extracted file as-is if merge fails
+  }
+}
 
 // Files owned by the Linear integration. Removed when user opts out.
 const LINEAR_FILES = [
@@ -59,6 +104,9 @@ function templateConfig(fileName: string, vars: TemplateVars): void {
 }
 
 export async function deployTemplate(platform: Platform, opts: DeployOptions = {}): Promise<DeployResult> {
+  // Preserve user-owned settings before extraction overwrites the file.
+  const userSettings = readUserSettings(AGENT_DIR);
+
   // Bun's compiled binary exposes the embedded file via its import path; in dev
   // (bun run) it resolves to the real file on disk. Read bytes and stage them
   // so `tar` has a concrete path to read from.
@@ -79,6 +127,9 @@ export async function deployTemplate(platform: Platform, opts: DeployOptions = {
 
     templateConfig("mcp.json", vars);
     templateConfig("settings.json", vars);
+
+    // Restore user-owned fields (model, theme, etc.) that the tarball reset.
+    mergeUserSettings(AGENT_DIR, userSettings);
 
     if (opts.skipLinear) removeLinearFiles(AGENT_DIR);
 
