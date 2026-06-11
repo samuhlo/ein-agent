@@ -36,12 +36,14 @@ interface SddPreflightCallbacks {
 				chains: number;
 				support: number;
 				skipped: number;
+				installed: number;
 		  }
 		| Promise<{
 				agents: number;
 				chains: number;
 				support: number;
 				skipped: number;
+				installed: number;
 		  }>;
 	applyModelConfig?: (
 		cwd: string,
@@ -116,10 +118,11 @@ export function installSddAssets(
 		force,
 	);
 	return {
-		agents: agents.copied,
-		chains: chains.copied,
-		support: support.copied,
+		agents: agents.copied + agents.skipped,
+		chains: chains.copied + chains.skipped,
+		support: support.copied + support.skipped,
 		skipped: agents.skipped + chains.skipped + support.skipped,
+		installed: agents.copied + chains.copied + support.copied,
 	};
 }
 
@@ -277,7 +280,7 @@ export async function ensureSddPreflight(
 					`PR chaining: ${prefs.chainedPrStrategy}`,
 					`Review budget: ${prefs.reviewBudgetLines} changed lines`,
 					`Preference source: ${prefs.prompted ? "user prompt" : "defaults (no interactive UI available)"}`,
-					`Global SDD assets ready: ${result.agents} agent(s), ${result.chains} chain(s), ${result.support} support file(s), ${result.skipped} already present.`,
+					`Global SDD assets ready: ${result.agents} agent(s), ${result.chains} chain(s), ${result.support} support file(s) available (${result.skipped} already present).`,
 					modelRoutingLine,
 				].join("\n"),
 				modelResult.invalidPath ? "warning" : "info",

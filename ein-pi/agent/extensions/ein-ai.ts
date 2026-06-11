@@ -1636,7 +1636,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			const force = args.includes("--force");
 			const result = installSddAssets(ctx.cwd, force);
 			ctx.ui.notify(
-				`Assets SDD instalados: ${result.agents} agente(s), ${result.chains} chain(s), ${result.support} soporte, ${result.skipped} ya presentes.`,
+				`Assets SDD: ${result.agents} agente(s), ${result.chains} chain(s), ${result.support} soporte disponibles (${result.installed} instalados, ${result.skipped} ya presentes).`,
 				"info",
 			);
 		},
