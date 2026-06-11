@@ -3,7 +3,7 @@ import { basename, dirname, join, relative } from "node:path";
 import { homedir } from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, slashCommand } from "./ein-brand";
-import { AGENT_DIR, LOCAL_SKILLS_DIR, DOWNLOADED_SKILLS_DIR } from "./ein-paths";
+import { AGENT_DIR, DOWNLOADED_SKILLS_DIR, LOCAL_SKILLS_DIR } from "./ein-paths";
 
 type SkillScope = "project" | "user";
 
@@ -63,9 +63,9 @@ const PROJECT_SKILL_DIRS = [
 ];
 
 const USER_SKILL_DIRS = [
-  join(homedir(), ".pi/agent/skills"),
-  join(homedir(), ".pi/agent/skills/local"),
-  join(homedir(), ".pi/agent/skills/downloaded"),
+  join(AGENT_DIR, "skills"),
+  LOCAL_SKILLS_DIR,
+  DOWNLOADED_SKILLS_DIR,
   join(homedir(), ".cache/cline/skills"),
   join(homedir(), ".cache/coze/skills"),
 ];

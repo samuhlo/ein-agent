@@ -1,0 +1,13 @@
+{
+  "core": [
+    "ein-ai.ts",
+    "ein-banner.ts",
+    "ein-brand.ts",
+    "ein-doctor.ts",
+    "ein-linear.ts",
+    "ein-paths.ts",
+    "ein-skill-maintenance.ts",
+    "ein-skill-registry.ts",
+    "sdd-init.ts"
+  ]
+}

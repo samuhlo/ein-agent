@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -6,7 +6,30 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 const HOME = homedir();
 
 export const PI_HOME = join(HOME, ".pi");
-export const AGENT_DIR = join(PI_HOME, "agent");
+export const AGENT_DIR = process.env.EIN_PI_AGENT_HOME ?? join(PI_HOME, "agent");
+
+function loadCoreExtensions(): string[] {
+  try {
+    const raw = readFileSync(join(AGENT_DIR, "extensions-manifest.json"), "utf8");
+    const parsed = JSON.parse(raw) as { core?: unknown };
+    if (Array.isArray(parsed.core)) return parsed.core as string[];
+  } catch {
+    // fallback to hardcoded list if manifest not yet deployed
+  }
+  return [
+    "ein-ai.ts",
+    "ein-banner.ts",
+    "ein-brand.ts",
+    "ein-doctor.ts",
+    "ein-linear.ts",
+    "ein-paths.ts",
+    "ein-skill-maintenance.ts",
+    "ein-skill-registry.ts",
+    "sdd-init.ts",
+  ];
+}
+
+export const CORE_EXTENSIONS: string[] = loadCoreExtensions();
 export const SECRETS_DIR = join(HOME, ".config", "opencode-secrets");
 export const ENGRAM_DIR = join(HOME, ".engram-pi");
 export const LOCAL_SKILLS_DIR = join(AGENT_DIR, "skills", "local");

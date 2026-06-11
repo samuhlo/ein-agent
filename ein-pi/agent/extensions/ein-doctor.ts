@@ -7,6 +7,7 @@ import { commandName, loadBrand, slashCommand } from "./ein-brand";
 import {
   AGENT_DIR,
   CONTEXT7_KEY_PATH,
+  CORE_EXTENSIONS,
   ENGRAM_DIR,
   LINEAR_KEY_PATH,
   LOCAL_SKILLS_DIR,
@@ -248,17 +249,6 @@ function doctorSmokeReport(): string {
     ),
   ];
 
-  const CORE_EXTENSIONS = [
-    "ein-ai.ts",
-    "ein-banner.ts",
-    "ein-brand.ts",
-    "ein-doctor.ts",
-    "ein-linear.ts",
-    "ein-paths.ts",
-    "ein-skill-maintenance.ts",
-    "ein-skill-registry.ts",
-    "sdd-init.ts",
-  ];
   const checksExtensions: CheckResult[] = CORE_EXTENSIONS.map((e) =>
     check(
       existsSync(join(AGENT_DIR, "extensions", e)),

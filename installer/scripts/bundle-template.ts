@@ -28,7 +28,7 @@ const OUT = join(INSTALLER_ROOT, "src", "assets", "template.tar.gz");
 // Ein-owned content. Everything else (auth.json, npm/, sessions/, backups/,
 // .atl/, .piagents/, .sdd/, bin/, disabled-skill-conflicts/, run-history) is
 // intentionally left out.
-const INCLUDE_FILES = ["AGENTS.md", "brand.json", "models.json", "mcp.json", "settings.json"];
+const INCLUDE_FILES = ["AGENTS.md", "brand.json", "extensions-manifest.json", "models.json", "mcp.json", "settings.json"];
 const INCLUDE_DIRS = ["agents", "assets", "chains", "docs", "extensions", "lib", "prompts", "skills"];
 
 function tokenizeMcp(staging: string): void {

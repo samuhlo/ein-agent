@@ -76,17 +76,33 @@ function parseJson(path: string): { ok: boolean; value: Record<string, unknown> 
 
 const SDD_AGENTS = ["sdd-init.md", "sdd-explore.md", "sdd-design.md", "sdd-apply.md", "sdd-verify.md"];
 const DELIVERY_AGENTS = ["ein-linear.md", "ein-github.md"];
-const CORE_EXTENSIONS = [
-  "ein-ai.ts",
-  "ein-banner.ts",
-  "ein-brand.ts",
-  "ein-doctor.ts",
-  "ein-linear.ts",
-  "ein-paths.ts",
-  "ein-skill-maintenance.ts",
-  "ein-skill-registry.ts",
-  "sdd-init.ts",
-];
+
+// Single source of truth: read from extensions-manifest.json deployed alongside extensions.
+// Falls back to hardcoded list if the file is absent (e.g. mid-deployment failure).
+function loadCoreExtensions(): string[] {
+  const manifestPath = join(AGENT_DIR, "extensions-manifest.json");
+  if (existsSync(manifestPath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(manifestPath, "utf8")) as { core?: unknown };
+      if (Array.isArray(parsed.core)) return parsed.core as string[];
+    } catch {
+      // fall through to hardcoded list
+    }
+  }
+  return [
+    "ein-ai.ts",
+    "ein-banner.ts",
+    "ein-brand.ts",
+    "ein-doctor.ts",
+    "ein-linear.ts",
+    "ein-paths.ts",
+    "ein-skill-maintenance.ts",
+    "ein-skill-registry.ts",
+    "sdd-init.ts",
+  ];
+}
+
+const CORE_EXTENSIONS = loadCoreExtensions();
 
 export function runDoctor(platform: Platform): DoctorReport {
   const brandFile = join(AGENT_DIR, "brand.json");
@@ -124,6 +140,11 @@ export function runDoctor(platform: Platform): DoctorReport {
       "Hay modelos habilitados.",
     ),
     check(settings.value.enableSkillCommands === true, "enableSkillCommands", "Comandos /skill:* activos."),
+    check(
+      existsSync(join(AGENT_DIR, "extensions-manifest.json")),
+      "extensions-manifest.json",
+      "Manifiesto de extensiones presente.",
+    ),
   ];
 
   const checksMcp: CheckResult[] = [

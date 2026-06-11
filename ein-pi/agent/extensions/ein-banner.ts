@@ -6,6 +6,7 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { AGENT_DIR } from "./ein-paths";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 
 const execAsync = promisify(exec);
@@ -159,7 +160,7 @@ function currentIntroMode(): IntroMode {
 
 async function countExtensions(): Promise<number> {
   try {
-    const extDir = join(os.homedir(), ".pi", "agent", "extensions");
+    const extDir = join(AGENT_DIR, "extensions");
     const files = await readdir(extDir);
     return files.filter((f) => f.endsWith(".ts")).length;
   } catch {
@@ -231,7 +232,7 @@ export default function (pi: ExtensionAPI) {
       (async () => {
         try {
           const raw = await readFile(
-            join(os.homedir(), ".pi", "agent", "mcp.json"),
+            join(AGENT_DIR, "mcp.json"),
             "utf8",
           );
           const cfg = JSON.parse(raw);
