@@ -15,7 +15,7 @@ export PATH="$HOME/.bun/bin:$PATH"
 pi
 ```
 
-Verás el banner dorado de EIN con tu nombre: **SAMUHLO · PI WORKBENCH**.
+Verás el banner EIN (concrete + I amarilla) con tu nombre: **SAMUHLO · PI WORKBENCH**.
 
 ## Cómo decide Ein qué hacer
 

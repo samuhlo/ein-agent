@@ -1,5 +1,8 @@
 # Ein
 
+[![Release](https://img.shields.io/github/v/release/samuhlo/ein-agent?label=release&color=FFCA40)](https://github.com/samuhlo/ein-agent/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-737373.svg)](LICENSE)
+
 **Ein** es un workbench de desarrollo de software autónomo construido sobre [Pi Coding Agent](https://github.com/earendil-works/pi-coding-agent). Transforma la forma en que un ingeniero aborda tareas complejas: en lugar de ejecutar el agente paso a paso, Ein planifica, implementa y verifica de forma autónoma siguiendo una metodología estructurada — con memoria persistente, integración nativa con Linear y GitHub, y guardrails que evitan que el agente tome decisiones destructivas sin confirmación.
 
 **Diseñado para una persona. Entrenado para saber cuándo actuar y cuándo preguntar.**
@@ -103,7 +106,7 @@ Al ejecutar `ein install` (o al lanzarlo desde el menú) se presenta un wizard c
 El binario `ein` gestiona el workbench. El runtime de uso diario es `pi`.
 
 ```bash
-ein                 # Menú interactivo (TUI gold)
+ein                 # Menú interactivo (TUI brutalista)
 ein install         # Instala o repara Ein
 ein update          # Actualiza Ein y pi (hace backup previo)
 ein doctor          # Diagnóstico completo sin lanzar pi
@@ -194,7 +197,7 @@ ein-agent/
 └── installer/              # Instalador cross-platform (macOS + Linux)
     ├── src/cli/            # install, update, uninstall, restore, doctor
     ├── src/core/           # deploy, deps, secrets, backup, verify...
-    ├── src/tui/            # Banner gold #FFCA40 + prompts
+    ├── src/tui/            # Banner brutalista (paleta plana de marca) + prompts
     ├── scripts/            # bundle-template + build cross-compile
     └── install.sh          # Bootstrap curl | bash
 ```

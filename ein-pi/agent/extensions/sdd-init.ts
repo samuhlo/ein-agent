@@ -6,7 +6,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
-import { applySavedModelConfig } from "./ein-ai.ts";
+import { applySavedModelConfig } from "../lib/model-config.ts";
 import { ensureSddPreflight, installSddAssets } from "../lib/sdd-preflight.ts";
 type ExtensionAPI = any;
 

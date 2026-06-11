@@ -79,6 +79,15 @@ async function main(): Promise<void> {
       cpSync(src, join(staging, dir), { recursive: true });
     }
 
+    // assets/agents y assets/chains son la copia "de fábrica" que usa
+    // installSddAssets para reparar instalaciones. Se generan aquí desde las
+    // fuentes (agents/, chains/) — única fuente de verdad, drift imposible.
+    for (const dir of ["agents", "chains"]) {
+      const src = join(SOURCE, dir);
+      if (!existsSync(src)) continue;
+      cpSync(src, join(staging, "assets", dir), { recursive: true, force: true });
+    }
+
     tokenizeMcp(staging);
     tokenizeSettings(staging);
 

@@ -42,9 +42,9 @@ const USER_SETTINGS_KEYS = [
   "packages",
 ] as const;
 
-type UserSettings = Partial<Record<(typeof USER_SETTINGS_KEYS)[number], unknown>>;
+export type UserSettings = Partial<Record<(typeof USER_SETTINGS_KEYS)[number], unknown>>;
 
-function readUserSettings(agentDir: string): UserSettings {
+export function readUserSettings(agentDir: string): UserSettings {
   const path = join(agentDir, "settings.json");
   if (!existsSync(path)) return {};
   try {
@@ -61,7 +61,7 @@ function readUserSettings(agentDir: string): UserSettings {
   }
 }
 
-function mergeUserSettings(agentDir: string, saved: UserSettings): void {
+export function mergeUserSettings(agentDir: string, saved: UserSettings): void {
   if (Object.keys(saved).length === 0) return;
   const path = join(agentDir, "settings.json");
   try {

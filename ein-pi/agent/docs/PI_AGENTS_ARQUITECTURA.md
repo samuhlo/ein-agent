@@ -31,8 +31,8 @@ Todas en `~/.pi/agent/extensions/` y cargadas por directorio:
 
 | Extensión | Responsabilidad |
 | --- | --- |
-| `ein-ai.ts` | Orquestador: inyecta prompt padre, guards, modelos (`/ein:models*`), persona, status, help, install-sdd |
-| `ein-banner.ts` | Banner dorado animado al iniciar (gradiente + shine + subtítulo SAMUHLO) |
+| `ein-ai.ts` | Ensamblador principal: registra hooks y comandos `/ein:*`; la lógica vive en `lib/` (`persona`, `guardrails`, `model-config`, `models-panel`, `sdd-preflight`) |
+| `ein-banner.ts` | Banner brutalista al iniciar (paleta plana de brand.json, reveal único, subtítulo SAMUHLO) |
 | `ein-brand.ts` | Identidad de marca (`commandName`, `slashCommand`, persona) |
 | `ein-doctor.ts` | Diagnóstico (`/ein:doctor`, `/ein:doctor-output`) |
 | `ein-linear.ts` | Capa Linear (GraphQL) + comandos `/ein:linear:*` |

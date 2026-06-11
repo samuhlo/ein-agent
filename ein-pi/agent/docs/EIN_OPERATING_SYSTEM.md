@@ -26,7 +26,7 @@ Una sola línea en la terminal:
 curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
 ```
 
-Esto descarga el instalador y **abre un menú bonito** (en dorado, tu marca). Desde ahí eliges qué hacer. La primera vez, elige **Install**.
+Esto descarga el instalador y **abre un menú bonito** (con tu paleta brutalista de marca). Desde ahí eliges qué hacer. La primera vez, elige **Install**.
 
 El instalador, paso a paso:
 1. Mira tu ordenador (Mac o Linux, qué procesador, qué terminal).
@@ -53,7 +53,7 @@ Nunca toca tu `auth.json`, tus sesiones ni tus copias de seguridad.
 
 ## Cómo trabajar día a día
 
-Abre Pi escribiendo `pi` en la terminal. Verás el banner dorado de EIN con tu nombre debajo: **SAMUHLO · PI WORKBENCH**.
+Abre Pi escribiendo `pi` en la terminal. Verás el banner EIN en blanco concreto con la I amarilla y tu nombre debajo: **SAMUHLO · PI WORKBENCH**.
 
 **Regla de oro:**
 - Tarea pequeña (un typo, un ajuste visual, una pregunta) → Ein lo hace directo.

@@ -7,10 +7,10 @@
 // =============================================================================
 
 import { closeSync, openSync, readSync, readdirSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { AGENT_DIR } from "../extensions/ein-paths";
 
-const SESSIONS_DIR = join(homedir(), ".pi", "agent", "sessions");
+const SESSIONS_DIR = join(AGENT_DIR, "sessions");
 
 export type RecentSession = {
   project: string;

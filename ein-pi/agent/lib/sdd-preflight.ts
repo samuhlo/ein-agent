@@ -1,15 +1,11 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { AGENT_DIR } from "../extensions/ein-paths";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ASSETS_DIR = join(PACKAGE_ROOT, "assets");
-
-function einAgentHome(): string {
-	return join(homedir(), ".pi", "agent");
-}
 
 export type SddExecutionMode = "interactive" | "auto";
 export type SddArtifactStore = "openspec" | "engram" | "both";
@@ -100,21 +96,20 @@ function copyDirectoryFiles(
 export function installSddAssets(
 	_cwd: string,
 	force: boolean,
-): { agents: number; chains: number; support: number; skipped: number } {
-	const agentHome = einAgentHome();
+): { agents: number; chains: number; support: number; skipped: number; installed: number } {
 	const agents = copyDirectoryFiles(
 		join(ASSETS_DIR, "agents"),
-		join(agentHome, "agents"),
+		join(AGENT_DIR, "agents"),
 		force,
 	);
 	const chains = copyDirectoryFiles(
 		join(ASSETS_DIR, "chains"),
-		join(agentHome, "chains"),
+		join(AGENT_DIR, "chains"),
 		force,
 	);
 	const support = copyDirectoryFiles(
 		join(ASSETS_DIR, "support"),
-		join(agentHome, "gentle-ai", "support"),
+		join(AGENT_DIR, "gentle-ai", "support"),
 		force,
 	);
 	return {
@@ -124,6 +119,35 @@ export function installSddAssets(
 		skipped: agents.skipped + chains.skipped + support.skipped,
 		installed: agents.copied + chains.copied + support.copied,
 	};
+}
+
+// Cuenta archivos de assets/ (agents, chains) que faltan o difieren de la
+// copia instalada en AGENT_DIR. Usado por /ein:status para detectar drift.
+export function sddGlobalAssetDriftCount(): number {
+	let stale = 0;
+	for (const subdir of ["agents", "chains"] as const) {
+		const assetDir = join(ASSETS_DIR, subdir);
+		if (!existsSync(assetDir)) continue;
+		for (const entry of readdirSync(assetDir, { withFileTypes: true })) {
+			if (!entry.isFile()) continue;
+			const installedPath = join(AGENT_DIR, subdir, entry.name);
+			try {
+				if (!existsSync(installedPath)) {
+					stale += 1;
+					continue;
+				}
+				if (
+					readFileSync(join(assetDir, entry.name), "utf8") !==
+					readFileSync(installedPath, "utf8")
+				) {
+					stale += 1;
+				}
+			} catch {
+				stale += 1;
+			}
+		}
+	}
+	return stale;
 }
 
 export function isSddPreflightTrigger(text: string): boolean {

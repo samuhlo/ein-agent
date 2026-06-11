@@ -1,7 +1,7 @@
 # Ein installer
 
 Instalador cross-platform (macOS + Linux) del workbench **Ein** sobre Pi Coding Agent.
-Bun + TypeScript, compilado a binarios standalone, con TUI gold `#FFCA40`.
+Bun + TypeScript, compilado a binarios standalone, con TUI brutalista (paleta plana de marca: Carbon, Concrete, Structure, Yellow `#FFCA40`).
 
 ## Instalación
 
