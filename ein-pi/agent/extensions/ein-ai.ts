@@ -706,7 +706,7 @@ const MODEL_FULL: AgentModelConfig = {
 const MODEL_FULL_ORCH = { provider: "openai-codex", model: "gpt-5.5" } as const;
 
 const MODEL_LITE: AgentModelConfig = {
-	"sdd-design": { model: "minimax/MiniMax-M2.7" },
+	"sdd-design": { model: "minimax/MiniMax-M3" },
 	"sdd-init": { model: "minimax/MiniMax-M2.7" },
 	"sdd-explore": { model: "minimax/MiniMax-M2.7" },
 	"sdd-apply": { model: "minimax/MiniMax-M2.7" },
@@ -714,7 +714,7 @@ const MODEL_LITE: AgentModelConfig = {
 	"ein-linear": { model: "minimax/MiniMax-M2.7" },
 	"ein-github": { model: "minimax/MiniMax-M2.7" },
 };
-const MODEL_LITE_ORCH = { provider: "minimax", model: "MiniMax-M2.7" } as const;
+const MODEL_LITE_ORCH = { provider: "minimax", model: "MiniMax-M3" } as const;
 
 function applyPreset(cwd: string, preset: "full" | "lite"): string {
 	const config = preset === "full" ? MODEL_FULL : MODEL_LITE;
@@ -723,7 +723,7 @@ function applyPreset(cwd: string, preset: "full" | "lite"): string {
 	updateGlobalDefaultModel(orch.provider, orch.model);
 	return preset === "full"
 		? `Modo full activo.\n- Orquestador → gpt-5.5\n- sdd-design → gpt-5.5\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`
-		: `Modo lite activo. Todos los agentes → MiniMax-M2.7.\nReinicia Pi para que el cambio de orquestador tome efecto.`;
+		: `Modo lite activo.\n- Orquestador → MiniMax-M3\n- sdd-design → MiniMax-M3\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`;
 }
 
 function updateBuiltinModelOverride(
@@ -1666,7 +1666,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:models:lite", {
-		description: "Preset lite: todos los agentes → MiniMax-M2.7 (escape de rate-limit gpt-5.5)",
+		description: "Preset lite: orquestador + sdd-design → MiniMax-M3, resto → MiniMax-M2.7",
 		handler: (_args, ctx) => {
 			const msg = applyPreset(ctx.cwd, "lite");
 			ctx.ui.notify(msg, "info");
@@ -1874,7 +1874,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			lines.push("■ 001. CORE");
 			lines.push("- /ein:status | /ein:persona | /ein:models | /ein:resume | /ein:help [full]");
 			lines.push("- /ein:models:full  → preset gpt-5.5 (orquestador + sdd-design)");
-			lines.push("- /ein:models:lite  → preset MiniMax-M2.7 todo (escape rate-limit)");
+			lines.push("- /ein:models:lite  → preset MiniMax-M3 (orch + design) / M2.7 (resto)");
 			lines.push("- /ein:resume       → sesiones recientes + pi --session <id>");
 			lines.push("");
 			lines.push("■ 002. SDD");
