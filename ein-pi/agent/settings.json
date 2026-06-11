@@ -1,6 +1,6 @@
 {
   "theme": "dark",
-  "quietStartup": false,
+  "quietStartup": true,
   "enableInstallTelemetry": false,
   "enableSkillCommands": true,
   "compaction": {

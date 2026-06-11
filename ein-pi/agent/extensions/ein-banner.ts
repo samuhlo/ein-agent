@@ -1,10 +1,18 @@
+// =============================================================================
+// EIN BANNER — brutalist industrial intro
+// Brand: Carbon #0C0011 · Concrete White #FAF3F0 · Structure Gray #737373 ·
+// Industrial Yellow #FFCA40. Flat color, no metallic gradients: the logo is
+// concrete with the I in yellow (like the brand wordmark's yellow glyph),
+// a structural rule, and a spec-plate info grid with yellow block markers.
+// =============================================================================
+
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { VERSION } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
-import * as os from "node:os";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, readdir } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { AGENT_DIR } from "./ein-paths";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
@@ -22,83 +30,35 @@ const TEXT_LOGO = [
   "██████████    █████████    ███    ████",
 ];
 
-// EIN brand gold #FFCA40
-const GOLD = { r: 255, g: 202, b: 64 } as const;
+// Logo column ranges: E = 0..9, I = 14..22, N = 27..37.
+const LOGO_I_START = 12;
+const LOGO_I_END = 25;
 
-// Wordmark shown under the logo so the author's name always appears.
-const SUBTITLE = "SAMUHLO · PI WORKBENCH";
+const SUBTITLE = ".SAMUHLO · PI WORKBENCH";
 const RULE_CH = "─";
 
-// Metallic gradient anchors: deep gold → brand gold → bright gold.
-const DEEP_GOLD = { r: 198, g: 138, b: 28 } as const;
-const BRIGHT_GOLD = { r: 255, g: 238, b: 170 } as const;
-const SUBTITLE_GOLD = { r: 255, g: 224, b: 150 } as const;
-const RULE_GOLD = { r: 190, g: 150, b: 70 } as const;
-
+// Brand palette (flat — no gradients).
 type RGB = { r: number; g: number; b: number };
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
+const CARBON: RGB = { r: 12, g: 0, b: 17 }; // #0C0011
+const CONCRETE: RGB = { r: 250, g: 243, b: 240 }; // #FAF3F0
+const STRUCTURE: RGB = { r: 115, g: 115, b: 115 }; // #737373
+const YELLOW: RGB = { r: 255, g: 202, b: 64 }; // #FFCA40
 
 function clampByte(n: number): number {
   return Math.max(0, Math.min(255, Math.round(n)));
 }
 
-// Diagonal metallic gold at normalized position d in [0,1].
-function goldAt(d: number): RGB {
-  if (d <= 0.5) {
-    const t = d / 0.5;
-    return {
-      r: lerp(DEEP_GOLD.r, GOLD.r, t),
-      g: lerp(DEEP_GOLD.g, GOLD.g, t),
-      b: lerp(DEEP_GOLD.b, GOLD.b, t),
-    };
-  }
-  const t = (d - 0.5) / 0.5;
-  return {
-    r: lerp(GOLD.r, BRIGHT_GOLD.r, t),
-    g: lerp(GOLD.g, BRIGHT_GOLD.g, t),
-    b: lerp(GOLD.b, BRIGHT_GOLD.b, t),
-  };
+function fgSeq(c: RGB): string {
+  return `\x1b[38;2;${clampByte(c.r)};${clampByte(c.g)};${clampByte(c.b)}m`;
 }
 
-// Per-cell metallic color: diagonal gradient + a sweeping shine band + breathing.
-function logoColor(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  tick: number,
-): { color: RGB; bold: boolean } {
-  const SHINE_PERIOD = 24;
-  const SHINE_BAND = 5;
-  const diagMax = width + (height - 1) * 2;
-  const shinePos =
-    ((tick % SHINE_PERIOD) / SHINE_PERIOD) * (diagMax + SHINE_BAND * 2) - SHINE_BAND;
-  const breathe = 0.96 + Math.sin(tick * 0.12) * 0.04;
-
-  const d = (x / Math.max(1, width - 1)) * 0.6 + (y / Math.max(1, height - 1)) * 0.4;
-  let col = goldAt(d);
-
-  const diag = x + y * 2;
-  const dist = Math.abs(diag - shinePos);
-  let bold = false;
-  if (dist < SHINE_BAND) {
-    const boost = (1 - dist / SHINE_BAND) ** 2 * 0.85;
-    col = {
-      r: lerp(col.r, 255, boost),
-      g: lerp(col.g, 250, boost),
-      b: lerp(col.b, 230, boost),
-    };
-    bold = boost > 0.5;
-  }
-
-  return { color: { r: col.r * breathe, g: col.g * breathe, b: col.b * breathe }, bold };
+function bgSeq(c: RGB): string {
+  return `\x1b[48;2;${clampByte(c.r)};${clampByte(c.g)};${clampByte(c.b)}m`;
 }
 
-function rgb(r: number, g: number, b: number, text: string): string {
-  return `\x1b[38;2;${clampByte(r)};${clampByte(g)};${clampByte(b)}m${text}\x1b[39m`;
+// Column-based flat logo color: I in industrial yellow, E/N in concrete.
+function logoLetterColor(x: number): RGB {
+  return x >= LOGO_I_START && x <= LOGO_I_END ? YELLOW : CONCRETE;
 }
 
 function padLines(lines: string[]): { lines: string[]; width: number } {
@@ -106,8 +66,18 @@ function padLines(lines: string[]): { lines: string[]; width: number } {
   return { lines: lines.map((l) => l.padEnd(width)), width };
 }
 
-type CellType = "banner" | "label" | "value" | "dim" | "accent" | "none";
-type LayoutCell = { char: string; type: CellType; color?: RGB; bold?: boolean };
+function shortenHome(path: string): string {
+  const home = homedir();
+  return path.startsWith(home) ? `~${path.slice(home.length)}` : path;
+}
+
+type LayoutCell = {
+  char: string;
+  color?: RGB;
+  bg?: RGB;
+  bold?: boolean;
+  dim?: boolean;
+};
 
 class LayoutBuilder {
   lines: LayoutCell[][] = [];
@@ -116,28 +86,22 @@ class LayoutBuilder {
     this.lines.push([]);
   }
 
-  add(type: CellType, text: string) {
+  add(text: string, color?: RGB, opts: { bg?: RGB; bold?: boolean; dim?: boolean } = {}) {
     const row = this.lines[this.lines.length - 1];
-    for (const char of text) row.push({ char, type });
-  }
-
-  // Add a single char with an explicit precomputed color (and optional bold).
-  addColored(char: string, color: RGB, bold = false) {
-    this.lines[this.lines.length - 1].push({ char, type: "banner", color, bold });
+    for (const char of text) {
+      row.push({ char, color, bg: opts.bg, bold: opts.bold, dim: opts.dim });
+    }
   }
 
   center(width: number) {
     const row = this.lines[this.lines.length - 1];
     const pad = Math.max(0, Math.floor((width - row.length) / 2));
-    const prefix: LayoutCell[] = Array.from({ length: pad }, () => ({
-      char: " ",
-      type: "none" as const,
-    }));
+    const prefix: LayoutCell[] = Array.from({ length: pad }, () => ({ char: " " }));
     this.lines[this.lines.length - 1] = prefix.concat(row);
   }
 }
 
-const FULL_INTRO_MIN_ROWS = 22;
+const FULL_INTRO_MIN_ROWS = 23;
 const FULL_INTRO_MIN_COLS = 80;
 const MINIMAL_INTRO_MIN_ROWS = 14;
 const MINIMAL_INTRO_MIN_COLS = 40;
@@ -158,13 +122,32 @@ function currentIntroMode(): IntroMode {
   return pickIntroMode(rows, cols);
 }
 
+async function countMdFiles(dir: string): Promise<number> {
+  try {
+    const files = await readdir(dir);
+    return files.filter((f) => f.endsWith(".md")).length;
+  } catch {
+    return 0;
+  }
+}
+
 async function countExtensions(): Promise<number> {
   try {
-    const extDir = join(AGENT_DIR, "extensions");
-    const files = await readdir(extDir);
+    const files = await readdir(join(AGENT_DIR, "extensions"));
     return files.filter((f) => f.endsWith(".ts")).length;
   } catch {
     return 0;
+  }
+}
+
+// Ein version from the installer marker; "dev" when deployed by hand.
+async function readEinVersion(): Promise<string> {
+  try {
+    const raw = await readFile(join(AGENT_DIR, ".ein-install.json"), "utf8");
+    const parsed = JSON.parse(raw) as { version?: unknown };
+    return typeof parsed.version === "string" && parsed.version ? `v${parsed.version}` : "dev";
+  } catch {
+    return "dev";
   }
 }
 
@@ -184,18 +167,21 @@ export default function (pi: ExtensionAPI) {
 
     const logoBase = padLines(TEXT_LOGO);
 
-    // Reveal sweeps left-to-right; a metallic shine then sweeps repeatedly while
-    // the accent rule draws out and the subtitle types in.
-    const REVEAL_SPEED = 1.5; // logo columns per tick
-    const REVEAL_END_TICK = Math.ceil(logoBase.width / REVEAL_SPEED) + 3;
+    // Reveal sweeps left-to-right once; everything settles into flat color.
+    const REVEAL_SPEED = 2.0; // logo columns per tick
+    const REVEAL_END_TICK = Math.ceil(logoBase.width / REVEAL_SPEED) + 2;
     const RULE_START_TICK = REVEAL_END_TICK - 2;
-    const RULE_END_TICK = RULE_START_TICK + 8;
+    const RULE_END_TICK = RULE_START_TICK + 6;
     const SUB_START_TICK = RULE_END_TICK - 2;
-    const SUB_END_TICK = SUB_START_TICK + Math.ceil(SUBTITLE.length / 1.6);
-    const FINISH_TICK = SUB_END_TICK + 16;
+    const SUB_END_TICK = SUB_START_TICK + Math.ceil(SUBTITLE.length / 2);
+    const FINISH_TICK = SUB_END_TICK + 4;
 
-    let gitBranch = "Not a git repo";
-    let extensionsCount = await countExtensions();
+    let gitBranch = "no git";
+    const [einVersion, extensionsCount, agentsCount] = await Promise.all([
+      readEinVersion(),
+      countExtensions(),
+      countMdFiles(join(AGENT_DIR, "agents")),
+    ]);
     let mcpServersCount = 0;
 
     // Recent sessions across projects (distinct projects), excluding this one.
@@ -213,17 +199,17 @@ export default function (pi: ExtensionAPI) {
     }
 
     const allCommands = pi.getCommands();
-    const skills = allCommands.filter((c) => c.source === "skill");
+    const skillsCount = allCommands.filter((c) => c.source === "skill").length;
     const allTools = pi.getAllTools();
-    const customTools = allTools.filter(
+    const toolsCount = allTools.filter(
       (t) => !["builtin", "sdk"].includes(t.sourceInfo.source),
-    );
+    ).length;
 
     setTimeout(() => {
       execAsync(`git -C "${ctx.cwd}" branch --show-current`)
         .then(({ stdout }) => {
           const b = stdout.trim();
-          gitBranch = b ? `On branch ${b}` : "Detached HEAD";
+          gitBranch = b || "detached";
         })
         .catch(() => {});
     }, 100);
@@ -231,10 +217,7 @@ export default function (pi: ExtensionAPI) {
     setTimeout(() => {
       (async () => {
         try {
-          const raw = await readFile(
-            join(AGENT_DIR, "mcp.json"),
-            "utf8",
-          );
+          const raw = await readFile(join(AGENT_DIR, "mcp.json"), "utf8");
           const cfg = JSON.parse(raw);
           mcpServersCount = Object.keys(cfg.mcpServers || {}).length;
         } catch {
@@ -271,7 +254,7 @@ export default function (pi: ExtensionAPI) {
         if (state.timer) clearInterval(state.timer);
 
         const animStart = Date.now();
-        const HARD_TIMEOUT_MS = 4000;
+        const HARD_TIMEOUT_MS = 3000;
 
         state.timer = setInterval(() => {
           tick++;
@@ -316,34 +299,28 @@ export default function (pi: ExtensionAPI) {
             if (state.mode === "skip") return [];
 
             const revealHead = tick * REVEAL_SPEED;
-            const logoH = logoBase.lines.length;
-
             const b = new LayoutBuilder();
-            b.addRow();
-            b.center(width);
 
-            // Logo: left-to-right pen sweep, then metallic gradient + shine.
-            for (let logoI = 0; logoI < logoBase.lines.length; logoI++) {
-              const logoLine = logoBase.lines[logoI];
+            // Logo: single left-to-right reveal, flat brand colors after.
+            for (const logoLine of logoBase.lines) {
               b.addRow();
               for (let x = 0; x < logoLine.length; x++) {
                 const ch = logoLine[x];
                 if (ch === " " || x > revealHead) {
-                  b.add("none", " ");
+                  b.add(" ");
                   continue;
                 }
                 const age = revealHead - x;
-                if (age < 1.6) {
-                  b.addColored(ch, BRIGHT_GOLD, true);
+                if (age < 2) {
+                  b.add(ch, CONCRETE, { bold: true });
                 } else {
-                  const c = logoColor(x, logoI, logoBase.width, logoH, tick);
-                  b.addColored(ch, c.color, c.bold);
+                  b.add(ch, logoLetterColor(x));
                 }
               }
               b.center(width);
             }
 
-            // Accent rule, drawn from the center outward.
+            // Structural rule, drawn from the center outward.
             {
               b.addRow();
               const prog = Math.max(
@@ -353,81 +330,112 @@ export default function (pi: ExtensionAPI) {
               const half = Math.floor((logoBase.width / 2) * prog);
               const center = Math.floor(logoBase.width / 2);
               for (let x = 0; x < logoBase.width; x++) {
-                if (Math.abs(x - center) <= half) b.addColored(RULE_CH, RULE_GOLD);
-                else b.add("none", " ");
+                if (Math.abs(x - center) <= half) b.add(RULE_CH, STRUCTURE);
+                else b.add(" ");
               }
               b.center(width);
             }
 
-            // Subtitle, typewriter reveal left-to-right.
+            // Subtitle: typewriter; the leading dot is yellow like the wordmark.
             {
               b.addRow();
               const pad = Math.max(0, Math.floor((logoBase.width - SUBTITLE.length) / 2));
-              const reveal = Math.floor((tick - SUB_START_TICK) * 1.6);
+              const reveal = Math.floor((tick - SUB_START_TICK) * 2);
               for (let x = 0; x < logoBase.width; x++) {
                 const i = x - pad;
                 const ch = i >= 0 && i < SUBTITLE.length ? SUBTITLE[i] : " ";
                 if (i < 0 || i >= SUBTITLE.length || ch === " " || tick < SUB_START_TICK || i > reveal) {
-                  b.add("none", " ");
+                  b.add(" ");
                   continue;
                 }
-                if (reveal - i < 2) b.addColored(ch, BRIGHT_GOLD, true);
-                else b.addColored(ch, SUBTITLE_GOLD);
+                b.add(ch, i === 0 ? YELLOW : STRUCTURE, { bold: i === 0 });
               }
               b.center(width);
             }
 
             if (state.mode === "full") {
-              b.addRow();
-              b.center(width);
-
               const fit = (v: unknown, w: number) =>
                 String(v ?? "")
                   .replace(/\s+/g, " ")
                   .trim()
-                  .slice(0, w)
-                  .padEnd(w);
+                  .slice(0, w);
 
-              const rows: Array<[string, string]> = [
-                ["GIT:", gitBranch],
-                ["PATH:", ctx.cwd],
-                ["MCP:", `${mcpServersCount} server(s)`],
-                ["EXTENSIONS:", `${extensionsCount} active`],
-                ["AGENTS:", `${skills.length} loaded`],
-                ["VER:", `v${VERSION} · ${customTools.length} tools`],
-              ];
+              b.addRow();
+              b.center(width);
 
-              const labelW = Math.max(...rows.map(([l]) => l.length));
-              const valueW = Math.max(
-                0,
-                Math.min(
-                  Math.max(...rows.map(([, v]) => v.length)),
-                  Math.max(8, width - labelW - 4),
-                ),
-              );
-
-              for (const [label, value] of rows) {
+              // Version plate: yellow block tag (carbon text) + pi version.
+              {
                 b.addRow();
-                b.add("label", label.padEnd(labelW));
-                b.add("none", "  ");
-                b.add("value", fit(value, valueW));
+                b.add(` EIN ${einVersion} `, CARBON, { bg: YELLOW, bold: true });
+                b.add("  ");
+                b.add(`PI v${VERSION}`, STRUCTURE);
                 b.center(width);
               }
 
-              // Recent sessions (distinct projects) + resume hint.
+              b.addRow();
+              b.center(width);
+
+              // Spec grid: two columns, yellow block markers, gray labels,
+              // concrete values. Every row is padded to the same visible
+              // width so independent centering keeps the columns aligned.
+              const L = 8; // label width
+              const V = 14; // left value width
+              const RV = 20; // right value width
+              const GRID_W = 2 + L + V + 2 + L + RV;
+              const pairs: Array<[[string, string], [string, string]]> = [
+                [
+                  ["AGENTS", `${agentsCount}`],
+                  ["EXT", `${extensionsCount}`],
+                ],
+                [
+                  ["SKILLS", `${skillsCount}`],
+                  ["MCP", `${mcpServersCount} server(s)`],
+                ],
+                [
+                  ["TOOLS", `${toolsCount}`],
+                  ["GIT", fit(gitBranch, RV)],
+                ],
+              ];
+              for (const [[l1, v1], [l2, v2]] of pairs) {
+                b.addRow();
+                b.add("■ ", YELLOW);
+                b.add(l1.padEnd(L), STRUCTURE);
+                b.add(v1.padEnd(V), CONCRETE);
+                b.add("■ ", YELLOW);
+                b.add(l2.padEnd(L), STRUCTURE);
+                b.add(v2.padEnd(RV), CONCRETE);
+                b.center(width);
+              }
+
+              // Working path on its own row, same total width as the grid.
+              {
+                b.addRow();
+                b.add("■ ", YELLOW);
+                b.add("PATH".padEnd(L), STRUCTURE);
+                b.add(fit(shortenHome(ctx.cwd), GRID_W - 2 - L).padEnd(GRID_W - 2 - L), CONCRETE);
+                b.center(width);
+              }
+
+              // Recent sessions (distinct projects) + resume hint. Rows are
+              // padded to GRID_W so they left-align with the spec grid.
               if (recentSessions.length) {
                 b.addRow();
                 b.center(width);
                 b.addRow();
-                b.add("label", "SESIONES RECIENTES");
+                b.add("■ ", YELLOW);
+                b.add("SESIONES RECIENTES".padEnd(GRID_W - 2), STRUCTURE, { bold: true });
                 b.center(width);
                 for (const s of recentSessions) {
                   b.addRow();
-                  b.add("value", `• ${s.project} (${humanizeAge(s.ageMs)})`);
+                  b.add("  ");
+                  const label = s.project;
+                  const age = ` (${humanizeAge(s.ageMs)})`;
+                  b.add(fit(label, GRID_W - 2 - age.length), CONCRETE);
+                  b.add(age.padEnd(Math.max(0, GRID_W - 2 - fit(label, GRID_W - 2 - age.length).length)), STRUCTURE);
                   b.center(width);
                 }
                 b.addRow();
-                b.add("dim", "pi -c continuar · pi -r elegir · /ein:resume");
+                b.add("pi -c continuar · pi -r elegir · /ein:resume".padEnd(GRID_W), STRUCTURE, { dim: true });
                 b.center(width);
               }
 
@@ -436,40 +444,18 @@ export default function (pi: ExtensionAPI) {
             }
 
             const out: string[] = [];
-
-            for (let y = 0; y < b.lines.length; y++) {
-              const row = b.lines[y];
+            for (const row of b.lines) {
               let line = "";
-              for (let x = 0; x < row.length; x++) {
-                const cell = row[x];
-                if (cell.type === "none" || cell.char === " ") {
-                  line += cell.char;
+              for (const cell of row) {
+                if (!cell.color && !cell.bg) {
+                  line += cell.dim ? theme.fg("dim", cell.char) : cell.char;
                   continue;
                 }
-
-                // Precomputed metallic color (logo, rule, subtitle).
-                if (cell.color) {
-                  const body = rgb(cell.color.r, cell.color.g, cell.color.b, cell.char);
-                  line += cell.bold ? `\x1b[1m${body}\x1b[22m` : body;
-                  continue;
-                }
-
-                switch (cell.type) {
-                  case "label":
-                    line += rgb(190, 150, 70, cell.char);
-                    break;
-                  case "value":
-                    line += rgb(255, 224, 150, cell.char);
-                    break;
-                  case "dim":
-                    line += theme.fg("dim", cell.char);
-                    break;
-                  case "accent":
-                    line += theme.fg("accent", cell.char);
-                    break;
-                  default:
-                    line += cell.char;
-                }
+                let body = cell.color ? `${fgSeq(cell.color)}${cell.char}\x1b[39m` : cell.char;
+                if (cell.bg) body = `${bgSeq(cell.bg)}${body}\x1b[49m`;
+                if (cell.bold) body = `\x1b[1m${body}\x1b[22m`;
+                if (cell.dim) body = `\x1b[2m${body}\x1b[22m`;
+                line += body;
               }
               out.push(truncateToWidth(line, Math.max(1, width), ""));
             }

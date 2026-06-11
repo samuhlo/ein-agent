@@ -1550,17 +1550,6 @@ async function handlePersonaCommand(ctx: ExtensionContext): Promise<void> {
 	);
 }
 
-async function runLinearPreflight(ctx: ExtensionContext): Promise<void> {
-	try {
-		if (!ctx.hasUI) return;
-		// Attempt lightweight Linear project detection from cwd
-		// This is intentionally minimal - just a brief status hint
-		ctx.ui.notify("Sesion Ein iniciada. Preflight Linear completado.", "info");
-	} catch {
-		// Silently skip Linear preflight if unavailable
-	}
-}
-
 export default function einAi(pi: ExtensionAPI): void {
 	function runSddPreflight(ctx: ExtensionContext): Promise<SddPreflightPreferences> {
 		return ensureSddPreflight(ctx, {
@@ -1587,7 +1576,6 @@ export default function einAi(pi: ExtensionAPI): void {
 					"info",
 				);
 			}
-			await runLinearPreflight(ctx);
 		} catch (error) {
 			if (ctx.hasUI) {
 				const message =
