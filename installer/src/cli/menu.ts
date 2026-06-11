@@ -5,7 +5,7 @@
 
 import * as p from "@clack/prompts";
 import { playBanner } from "../tui/banner.ts";
-import { bold, gold, goldDim } from "../tui/theme.ts";
+import { bold, gold, structure } from "../tui/theme.ts";
 import { runInstall } from "./install.ts";
 import { runDoctorCommand } from "./doctor.ts";
 import { runUpdate } from "./update.ts";
@@ -24,8 +24,8 @@ export async function runMenu(): Promise<number> {
       { value: "install", label: gold("Install"), hint: "instalar o reparar Ein" },
       { value: "doctor", label: gold("Doctor"), hint: "diagnostico del despliegue" },
       { value: "update", label: gold("Update"), hint: "actualizar Ein y pi" },
-      { value: "uninstall", label: goldDim("Uninstall"), hint: "eliminar Ein" },
-      { value: "restore", label: goldDim("Restore"), hint: "restaurar backup" },
+      { value: "uninstall", label: structure("Uninstall"), hint: "eliminar Ein" },
+      { value: "restore", label: structure("Restore"), hint: "restaurar backup" },
       { value: "quit", label: "Salir", hint: "" },
     ],
   });

@@ -1,6 +1,9 @@
 # === Secretos y credenciales (NUNCA versionar) ===
 ein-pi/agent/auth.json
 
+# === Restos de migraciones (ruido interno) ===
+ein-pi/agent/disabled-skill-conflicts/
+
 # === Estado de runtime / sesiones (específico de máquina) ===
 ein-pi/agent/run-history.jsonl
 ein-pi/agent/sessions/

@@ -30,6 +30,7 @@ import {
 	type SddPreflightPreferences,
 } from "../lib/sdd-preflight.ts";
 import { resolveSkillInjection } from "./ein-skill-registry.ts";
+import { loadPalette } from "./ein-brand.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -925,10 +926,16 @@ function readOrchestratorModel(): string | undefined {
 }
 
 // ─── Models panel visual helpers ─────────────────────────────────────────────
+// Truecolor desde la paleta de marca (brand.json). Sin matices fuera de marca:
+// la jerarquía se expresa con bold/dim, no con más colores.
+const BRAND = loadPalette();
+function fg(c: { r: number; g: number; b: number }): string {
+	return `\x1b[38;2;${c.r};${c.g};${c.b}m`;
+}
 const AP = {
 	r: '\x1b[0m', b: '\x1b[1m', d: '\x1b[2m',
-	gold: '\x1b[33m', cyan: '\x1b[36m', grn: '\x1b[32m',
-	gray: '\x1b[90m', wht: '\x1b[37m',
+	gold: fg(BRAND.yellow), cyan: fg(BRAND.concrete), grn: fg(BRAND.yellow),
+	gray: fg(BRAND.structure), wht: fg(BRAND.concrete),
 } as const;
 
 function vaStrip(s: string): string {

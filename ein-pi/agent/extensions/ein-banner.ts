@@ -15,6 +15,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { AGENT_DIR } from "./ein-paths";
+import { loadPalette, type RGB } from "./ein-brand";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 
 const execAsync = promisify(exec);
@@ -37,12 +38,12 @@ const LOGO_I_END = 25;
 const SUBTITLE = ".SAMUHLO · PI WORKBENCH";
 const RULE_CH = "─";
 
-// Brand palette (flat — no gradients).
-type RGB = { r: number; g: number; b: number };
-const CARBON: RGB = { r: 12, g: 0, b: 17 }; // #0C0011
-const CONCRETE: RGB = { r: 250, g: 243, b: 240 }; // #FAF3F0
-const STRUCTURE: RGB = { r: 115, g: 115, b: 115 }; // #737373
-const YELLOW: RGB = { r: 255, g: 202, b: 64 }; // #FFCA40
+// Brand palette (flat — no gradients). Fuente única: brand.json via ein-brand.
+const PALETTE = loadPalette();
+const CARBON: RGB = PALETTE.carbon;
+const CONCRETE: RGB = PALETTE.concrete;
+const STRUCTURE: RGB = PALETTE.structure;
+const YELLOW: RGB = PALETTE.yellow;
 
 function clampByte(n: number): number {
   return Math.max(0, Math.min(255, Math.round(n)));

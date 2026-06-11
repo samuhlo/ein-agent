@@ -1,5 +1,11 @@
 {
   "agentName": "Ein",
   "commandPrefix": "ein",
-  "author": "samuhlo"
+  "author": "samuhlo",
+  "colors": {
+    "carbon": "#0C0011",
+    "concrete": "#FAF3F0",
+    "structure": "#737373",
+    "yellow": "#FFCA40"
+  }
 }
