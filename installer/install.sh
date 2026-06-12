@@ -118,8 +118,13 @@ main() {
   printf '\n'
 
   # When piped via `curl | bash`, stdin is the pipe (not the terminal).
-  # Reopen /dev/tty so the TUI can read keyboard input.
-  if [ -e /dev/tty ]; then
+  # On Linux we reopen /dev/tty so the TUI can read keyboard input. On macOS
+  # that freezes the TUI: kqueue (Bun's event loop on Darwin) cannot poll
+  # /dev/tty, so keypresses never arrive. There we just tell the user to run
+  # the binary, which gets a real terminal stdin and works.
+  if [ -t 0 ]; then
+    exec "${INSTALL_DIR}/${BINARY_NAME}"
+  elif [ "$OS" = "linux" ] && [ -e /dev/tty ]; then
     exec "${INSTALL_DIR}/${BINARY_NAME}" </dev/tty
   else
     ok "Listo. Ejecuta ${BOLD}${GOLD}ein${RESET} para empezar."

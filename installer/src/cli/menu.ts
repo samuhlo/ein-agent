@@ -15,6 +15,14 @@ import { runRestore } from "./restore.ts";
 type Action = "install" | "doctor" | "update" | "uninstall" | "restore" | "quit";
 
 export async function runMenu(): Promise<number> {
+  // Sin stdin interactivo, el menu de clack no recibe teclas y se queda
+  // congelado (p.ej. macOS via curl|bash: kqueue no puede hacer poll de
+  // /dev/tty). Mejor avisar y salir limpio que colgarse.
+  if (!process.stdin.isTTY) {
+    console.log("ein: el menu interactivo necesita un terminal.");
+    console.log("Ejecuta `ein` directamente, o un subcomando: ein install | doctor | update");
+    return 0;
+  }
   await playBanner();
   p.intro(bold(gold("Ein — gestor del workbench")));
 
