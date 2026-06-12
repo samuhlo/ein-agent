@@ -26,7 +26,10 @@ import {
 	handlePersonaCommand,
 	readPersonaMode,
 } from "../lib/persona.ts";
-import { confirmCommand } from "../lib/guardrails.ts";
+import {
+	confirmCommand,
+	confirmDelegatedDelivery,
+} from "../lib/guardrails.ts";
 import {
 	SDD_AGENT_NAMES,
 	SDD_AGENT_NAME_SET,
@@ -173,6 +176,10 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.on("tool_call", async (event, ctx) => {
+		// Delegaciones con push: el usuario confirma aquí (sesión con UI) y se
+		// emite el grant one-shot que el guard headless del subagente consume.
+		if (event.toolName === "subagent")
+			return confirmDelegatedDelivery(event.input, ctx);
 		if (event.toolName !== "bash") return undefined;
 		if (!isRecord(event.input) || typeof event.input.command !== "string")
 			return undefined;

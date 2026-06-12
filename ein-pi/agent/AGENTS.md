@@ -40,6 +40,9 @@ This is the global operating guide for Pi Coding Agent on this machine.
 - Use title tags like `[[FRONT]]`, `[[BACK]]`, `[[DESIGN]]`, `[[FEAT]]`, `[[BUG]]`, `[[IMPROVE]]` when creating issues.
 - Tags in title must match real Linear labels. If labels are missing, update the same issue before returning success.
 - Never close a Linear issue without a final human comment that explains what was done, verification evidence, risks, and next step.
+- The parent session never calls `linear_*` tools directly. Every Linear read or mutation is delegated to `ein-linear`, even trivial ones: the subagent owns the stateId gate, the brutalist templates, and the read-back verification.
+- Opening a PR moves the issue to `In Review`, never to `Done`. Move to `Done` only when the PR is merged or the user explicitly accepts the result, and only after a read-back confirms the state actually changed.
+- Never report a Linear update as done based on the tool call alone: require the read-back evidence from `ein-linear`.
 
 ## GitHub
 
@@ -49,6 +52,9 @@ This is the global operating guide for Pi Coding Agent on this machine.
 - Never claim a check passed unless it ran in the current session.
 - PRs are Spanish by default, direct, rich Markdown, and no AI attribution.
 - When opening PRs or syncing GitHub with Linear, publish human-readable status comments (not robotic dumps) with clear summary, state, checks, and next step.
+- Delivery actions (branch, commit, push, PR) are executed via `ein-github`, even when they look trivial: the subagent owns the hard gates and the brutalist PR template.
+- Pushes inside a delegation are pre-authorized by the user: when the parent delegates a task that includes a push, the harness asks the user for confirmation at delegation time and issues a one-shot delivery grant that the subagent consumes. Delegate once; do not re-delegate the same push in a loop.
+- If a delegation to `ein-github` is blocked or fails, do not silently fall back to running delivery inline. Report the blocker and ask. If the user explicitly asks for inline delivery, still apply `ein-github`'s hard gates and PR template.
 
 ## Human Approval Gates (Hard Stop)
 

@@ -28,6 +28,7 @@ GitHub delivery tasks (branch creation, push, PR creation, PR listing, conflict 
 5. Use Spanish for PR bodies by default, unless the user asks for another language.
 6. Never add AI attribution or `Co-authored-by` lines.
 7. After creating or editing a PR, run a read-back and verify title, branch, base, URL, state, and body.
+8. You run headless: you cannot ask the user anything. `git push` is guarded by Ein safety policy; when the parent delegates a push, the user already confirmed it and a one-shot delivery grant lets your first `git push` through. If a guarded command is still blocked, do not retry and do not improvise asking for confirmation: return a single report stating that the parent must confirm with the user and re-delegate.
 
 ## Delivery phases
 

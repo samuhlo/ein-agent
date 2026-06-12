@@ -390,6 +390,15 @@ export function updateGlobalDefaultModel(provider: string, model: string): void 
 	}
 	settings.defaultProvider = provider;
 	settings.defaultModel = model;
+	// Si enabledModels existe, el picker (ctrl+p) solo ofrece esa lista; un
+	// modelo de orquestador fuera de ella quedaría inseleccionable.
+	const modelId = `${provider}/${model}`;
+	if (
+		Array.isArray(settings.enabledModels) &&
+		!settings.enabledModels.includes(modelId)
+	) {
+		settings.enabledModels = [...settings.enabledModels, modelId];
+	}
 	mkdirSync(dirname(path), { recursive: true });
 	writeFileSync(path, `${JSON.stringify(settings, null, "\t")}\n`);
 }

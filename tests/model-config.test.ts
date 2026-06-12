@@ -92,4 +92,38 @@ describe("modelo del orquestador (settings.json global)", () => {
 		expect(settings.theme).toBe("dark");
 		expect(settings.packages).toEqual(["npm:pi-subagents"]);
 	});
+
+	test("añade el modelo a enabledModels si la lista existe y no lo contiene", () => {
+		writeFileSync(
+			join(TEST_AGENT_HOME, "settings.json"),
+			JSON.stringify({ enabledModels: ["minimax/MiniMax-M2.7"] }),
+		);
+		updateGlobalDefaultModel("minimax", "MiniMax-M3");
+		const settings = JSON.parse(
+			readFileSync(join(TEST_AGENT_HOME, "settings.json"), "utf8"),
+		) as Record<string, unknown>;
+		expect(settings.enabledModels).toEqual([
+			"minimax/MiniMax-M2.7",
+			"minimax/MiniMax-M3",
+		]);
+	});
+
+	test("no duplica en enabledModels ni crea la lista si no existe", () => {
+		writeFileSync(
+			join(TEST_AGENT_HOME, "settings.json"),
+			JSON.stringify({ enabledModels: ["minimax/MiniMax-M3"] }),
+		);
+		updateGlobalDefaultModel("minimax", "MiniMax-M3");
+		let settings = JSON.parse(
+			readFileSync(join(TEST_AGENT_HOME, "settings.json"), "utf8"),
+		) as Record<string, unknown>;
+		expect(settings.enabledModels).toEqual(["minimax/MiniMax-M3"]);
+
+		writeFileSync(join(TEST_AGENT_HOME, "settings.json"), JSON.stringify({}));
+		updateGlobalDefaultModel("minimax", "MiniMax-M3");
+		settings = JSON.parse(
+			readFileSync(join(TEST_AGENT_HOME, "settings.json"), "utf8"),
+		) as Record<string, unknown>;
+		expect(settings.enabledModels).toBeUndefined();
+	});
 });
