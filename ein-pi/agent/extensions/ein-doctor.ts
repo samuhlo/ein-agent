@@ -75,6 +75,11 @@ async function doctorReport(): Promise<string> {
   const localSkills = countSkillFiles(LOCAL_SKILLS_DIR);
   const downloadedSkills = countSkillFiles(DOWNLOADED_SKILLS_DIR);
 
+  let settings: Record<string, unknown> = {};
+  try {
+    settings = JSON.parse(readFileSync(join(AGENT_DIR, "settings.json"), "utf8")) as Record<string, unknown>;
+  } catch { /* ignore */ }
+
   const hasEngram = await cliExists("engram");
   const hasGh = await cliExists("gh");
   const hasLinearToken = Boolean(
