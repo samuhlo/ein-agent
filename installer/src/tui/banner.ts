@@ -6,6 +6,7 @@
 // gradientes ni shine. Fallback estático en non-TTY / NO_COLOR.
 // =============================================================================
 
+import { INSTALLER_VERSION } from "../core/version.ts";
 import { CONCRETE, STRUCTURE, YELLOW, colorEnabled } from "./theme.ts";
 
 // EIN block-letter logo (38 cols, 7 rows, uniform width, 3-wide strokes).
@@ -23,7 +24,7 @@ const TEXT_LOGO = [
 const LOGO_I_START = 14;
 const LOGO_I_END = 22;
 
-const SUBTITLE = ".SAMUHLO · PI WORKBENCH";
+const SUBTITLE = `.SAMUHLO · PI WORKBENCH · v${INSTALLER_VERSION}`;
 const RULE_CH = "─";
 
 type RGB = { r: number; g: number; b: number };
