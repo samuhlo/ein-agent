@@ -108,7 +108,7 @@ export function runDoctor(platform: Platform): DoctorReport {
   const brandFile = join(AGENT_DIR, "brand.json");
   const settingsFile = join(AGENT_DIR, "settings.json");
   const mcpFile = join(AGENT_DIR, "mcp.json");
-  const einAiFile = join(AGENT_DIR, "extensions", "ein-ai.ts");
+  const guardrailsFile = join(AGENT_DIR, "lib", "guardrails.ts");
   const agentsDir = join(AGENT_DIR, "agents");
   const chainsDir = join(AGENT_DIR, "chains");
 
@@ -116,7 +116,8 @@ export function runDoctor(platform: Platform): DoctorReport {
   const settings = parseJson(settingsFile);
   const mcp = parseJson(mcpFile);
 
-  const einAiRaw = readIfExists(einAiFile);
+  // Los patrones de guardrails viven en lib/guardrails.ts desde el refactor P2.
+  const guardrailsRaw = readIfExists(guardrailsFile);
   const mcpServers = (mcp.value.mcpServers as Record<string, unknown>) ?? {};
   const engramServer = mcpServers.engram as Record<string, unknown> | undefined;
   const engramEnv = (engramServer?.environment as Record<string, unknown>) ?? {};
@@ -188,9 +189,9 @@ export function runDoctor(platform: Platform): DoctorReport {
   ];
 
   const checksGuardrails: CheckResult[] = [
-    check(einAiRaw.includes("git\\s+reset\\s+--hard"), "guardrails git reset", "Bloqueo de git reset --hard activo."),
-    check(einAiRaw.includes("DENIED_BASH_PATTERNS"), "guardrails bash deny", "Lista de comandos bash denegados activa."),
-    check(einAiRaw.includes("CONFIRM_BASH_PATTERNS"), "guardrails bash confirm", "Lista de confirmacion de comandos activa."),
+    check(guardrailsRaw.includes("git\\s+reset\\s+--hard"), "guardrails git reset", "Bloqueo de git reset --hard activo."),
+    check(guardrailsRaw.includes("DENIED_BASH_PATTERNS"), "guardrails bash deny", "Lista de comandos bash denegados activa."),
+    check(guardrailsRaw.includes("CONFIRM_BASH_PATTERNS"), "guardrails bash confirm", "Lista de confirmacion de comandos activa."),
   ];
 
   const hasEngramBin = lookPath("engram", extraPath) !== null;

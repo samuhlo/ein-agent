@@ -149,7 +149,7 @@ function doctorSmokeReport(): string {
   const brandFile = join(AGENT_DIR, "brand.json");
   const settingsFile = join(AGENT_DIR, "settings.json");
   const mcpFile = join(AGENT_DIR, "mcp.json");
-  const einAiFile = join(AGENT_DIR, "extensions", "ein-ai.ts");
+  const guardrailsFile = join(AGENT_DIR, "lib", "guardrails.ts");
   const agentsDir = join(AGENT_DIR, "agents");
   const chainsDir = join(AGENT_DIR, "chains");
 
@@ -181,7 +181,7 @@ function doctorSmokeReport(): string {
     mcpParseOk = false;
   }
 
-  const einAiRaw = readIfExists(einAiFile);
+  const guardrailsRaw = readIfExists(guardrailsFile);
   const mcpServers = (mcpCfg.mcpServers as Record<string, unknown>) ?? {};
   const engramServer = mcpServers.engram as Record<string, unknown> | undefined;
   const engramEnv = (engramServer?.environment as Record<string, unknown>) ?? {};
@@ -279,17 +279,17 @@ function doctorSmokeReport(): string {
 
   const checksGuardrails: CheckResult[] = [
     check(
-      einAiRaw.includes("git\\s+reset\\s+--hard"),
+      guardrailsRaw.includes("git\\s+reset\\s+--hard"),
       "guardrails git reset",
       "Bloqueo de git reset --hard activo.",
     ),
     check(
-      einAiRaw.includes("DENIED_BASH_PATTERNS"),
+      guardrailsRaw.includes("DENIED_BASH_PATTERNS"),
       "guardrails bash deny",
       "Lista de comandos bash denegados activa.",
     ),
     check(
-      einAiRaw.includes("CONFIRM_BASH_PATTERNS"),
+      guardrailsRaw.includes("CONFIRM_BASH_PATTERNS"),
       "guardrails bash confirm",
       "Lista de confirmacion de comandos activa.",
     ),

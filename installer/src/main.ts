@@ -10,6 +10,7 @@ import { runMenu } from "./cli/menu.ts";
 import { runUpdate } from "./cli/update.ts";
 import { runUninstall } from "./cli/uninstall.ts";
 import { runRestore } from "./cli/restore.ts";
+import { INSTALLER_VERSION } from "./core/version.ts";
 
 function printHelp(): void {
   console.log("ein — instalador del workbench Ein sobre Pi");
@@ -41,7 +42,7 @@ async function main(): Promise<number> {
       return runDoctorCommand();
     case "--version":
     case "-v":
-      console.log("ein-installer 0.1.0");
+      console.log(`ein-installer ${INSTALLER_VERSION}`);
       return 0;
     case "help":
     case "--help":
