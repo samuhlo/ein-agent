@@ -79,6 +79,7 @@ This is the global operating guide for Pi Coding Agent on this machine.
 - Simple local edits/questions can be handled directly.
 - Substantial, risky, multi-file, Linear, GitHub, design, review, security, auth, performance, or migration work must be coordinated by the visible parent session first.
 - Preferred visible subagents: `ein-linear`, `ein-github`, and the SDD phase agents `sdd-init`, `sdd-explore`, `sdd-design`, `sdd-apply`, `sdd-verify`. Builtin pi-subagents (scout/worker/reviewer/oracle/context-builder) are disabled.
+- Never pass an ad hoc `model` override when delegating to a subagent, and never retry a failed delegation with a different model you picked yourself. Model routing comes exclusively from `/ein:models` (frontmatter of the agent files). If a delegation fails with a provider/API-key error, report it to the user instead of guessing another model.
 - Subagents must detect stack and use relevant skills before editing or verifying.
 - Prefer silent skill path resolution: pass exact `SKILL.md` paths to subagents when available. Use digest/advisor flows only for debug, ambiguity, or when a compact summary is explicitly useful.
 - Keep Pi native skill commands enabled. `/skill:*` is a direct escape hatch, not the public Ein command layer.

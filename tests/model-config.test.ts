@@ -16,6 +16,8 @@ process.env.EIN_PI_AGENT_HOME = TEST_AGENT_HOME;
 process.env.EIN_PI_CONFIG_HOME = TEST_CONFIG_HOME;
 
 const {
+	applyModelConfigAsync,
+	listDiscoverableAgents,
 	readModelConfig,
 	writeModelConfig,
 	readOrchestratorModel,
@@ -125,5 +127,60 @@ describe("modelo del orquestador (settings.json global)", () => {
 			readFileSync(join(TEST_AGENT_HOME, "settings.json"), "utf8"),
 		) as Record<string, unknown>;
 		expect(settings.enabledModels).toBeUndefined();
+	});
+});
+
+describe("routing de agentes de ~/.pi/agent/agents (fuente user)", () => {
+	// Regresión: pi-subagents carga estos agentes como "user" y solo lee el
+	// modelo de su frontmatter; si ein los trata como builtin, el routing
+	// acaba en subagents.agentOverrides y pi-subagents lo ignora.
+	const AGENTS_DIR = join(TEST_AGENT_HOME, "agents");
+
+	beforeAll(() => {
+		mkdirSync(AGENTS_DIR, { recursive: true });
+		writeFileSync(
+			join(AGENTS_DIR, "sdd-apply.md"),
+			"---\nname: sdd-apply\ndescription: test agent\ntools: read\n---\n\nbody\n",
+		);
+	});
+
+	test("applyModelConfigAsync escribe model: en el frontmatter, no en settings", async () => {
+		writeModelConfig(CWD, {
+			"sdd-apply": { model: "minimax/MiniMax-M2.7" },
+		});
+		const result = await applyModelConfigAsync(
+			CWD,
+			readModelConfig(CWD),
+		);
+		expect(result.updated).toBeGreaterThanOrEqual(1);
+		const content = readFileSync(join(AGENTS_DIR, "sdd-apply.md"), "utf8");
+		expect(content).toContain("model: minimax/MiniMax-M2.7");
+	});
+
+	test("disableBuiltins oculta los builtins de pi-subagents del descubrimiento", () => {
+		const builtinDir = join(
+			TEST_AGENT_HOME,
+			"npm",
+			"node_modules",
+			"pi-subagents",
+			"agents",
+		);
+		mkdirSync(builtinDir, { recursive: true });
+		writeFileSync(
+			join(builtinDir, "scout.md"),
+			"---\nname: scout\ndescription: builtin\ntools: read\n---\n\nbody\n",
+		);
+
+		writeFileSync(join(TEST_AGENT_HOME, "settings.json"), JSON.stringify({}));
+		let names = listDiscoverableAgents(CWD).map((agent) => agent.name);
+		expect(names).toContain("scout");
+
+		writeFileSync(
+			join(TEST_AGENT_HOME, "settings.json"),
+			JSON.stringify({ subagents: { disableBuiltins: true } }),
+		);
+		names = listDiscoverableAgents(CWD).map((agent) => agent.name);
+		expect(names).not.toContain("scout");
+		expect(names).toContain("sdd-apply");
 	});
 });

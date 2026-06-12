@@ -328,10 +328,39 @@ function sortDiscovered(discovered: AgentEntry[]): AgentEntry[] {
 	return [...sddFirst, ...rest];
 }
 
+// Solo los agentes del paquete pi-subagents son "builtin": para ellos el
+// routing va por subagents.agentOverrides en settings.json, que es lo único
+// que pi-subagents honra para builtins. Los agentes de ~/.pi/agent/agents
+// los carga pi-subagents como agentes de usuario y SOLO leen el modelo de
+// su frontmatter, así que deben clasificarse como "user" o el routing de
+// /ein:models se pierde en silencio.
+// Si los builtins de pi-subagents están deshabilitados (settings global o
+// del proyecto), no se descubren: mostrarlos en /ein:models o escribirles
+// overrides sería ruido sobre agentes que nunca van a ejecutarse.
+function builtinsDisabled(cwd: string): boolean {
+	for (const path of [globalSettingsPath(), projectSettingsPath(cwd)]) {
+		if (!existsSync(path)) continue;
+		try {
+			const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+			if (
+				isRecord(parsed) &&
+				isRecord(parsed.subagents) &&
+				parsed.subagents.disableBuiltins === true
+			) {
+				return true;
+			}
+		} catch {
+			// settings ilegible: no decide nada
+		}
+	}
+	return false;
+}
+
 function builtinAgentDirs(cwd: string): string[] {
+	if (builtinsDisabled(cwd)) return [];
 	return [
-		join(AGENT_DIR, "agents"),
 		join(PACKAGE_ROOT, "..", "pi-subagents", "agents"),
+		join(AGENT_DIR, "npm", "node_modules", "pi-subagents", "agents"),
 		join(cwd, ".pi", "npm", "node_modules", "pi-subagents", "agents"),
 		join(homedir(), ".local", "lib", "node_modules", "pi-subagents", "agents"),
 	];
@@ -340,6 +369,7 @@ function builtinAgentDirs(cwd: string): string[] {
 export function listDiscoverableAgents(cwd: string): AgentEntry[] {
 	const agents = [
 		...builtinAgentDirs(cwd).flatMap((dir) => listAgentsFromDir(dir, "builtin")),
+		...listAgentsFromDir(join(AGENT_DIR, "agents"), "user"),
 		...listAgentsFromDir(join(homedir(), ".agents"), "user"),
 		...listAgentsFromDir(join(cwd, ".agents"), "project"),
 		...listAgentsFromDir(join(cwd, ".pi", "agents"), "project"),
@@ -357,6 +387,7 @@ export async function listDiscoverableAgentsAsync(
 		agents.push(...(await listAgentsFromDirAsync(dir, "builtin")));
 	}
 	const otherDirs: Array<[string, AgentSource]> = [
+		[join(AGENT_DIR, "agents"), "user"],
 		[join(homedir(), ".agents"), "user"],
 		[join(cwd, ".agents"), "project"],
 		[join(cwd, ".pi", "agents"), "project"],
