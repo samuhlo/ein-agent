@@ -18,7 +18,7 @@ output: exploration.md
 outputMode: file-only
 progress: true
 
-Explore {task}. Identify scope, risks, dependencies, and prior art, and whether the change should proceed into design.
+Explore {task}. Identify scope, risks, dependencies, and prior art, and whether the change should proceed into design. This is a research phase: only return findings, do not edit repository files.
 
 ## sdd-design
 
@@ -27,7 +27,7 @@ output: design.md
 outputMode: file-only
 progress: true
 
-Create the unified design plan for {task}: propuesta, spec (RFC 2119 + Given/When/Then) y tareas accionables. Do not include a review workload forecast or chained-PR planning.
+Create the unified design plan for {task}: propuesta, spec (RFC 2119 + Given/When/Then) y tareas accionables. Do not include a review workload forecast or chained-PR planning. This is a planning phase: the plan goes to the output file, do not edit repository source files.
 
 ## sdd-apply
 
@@ -45,4 +45,4 @@ output: verify-report.md
 outputMode: file-only
 progress: true
 
-Verify {task} against the design plan, implementation, apply-progress, strict TDD evidence, and assertion quality.
+Verify {task} against the design plan, implementation, apply-progress, strict TDD evidence, and assertion quality. This is a verification phase: run checks and report, do not edit repository files.

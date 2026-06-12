@@ -2,6 +2,7 @@
 name: sdd-init
 description: Initialize project SDD context, testing capabilities, and skill registry.
 tools: read, grep, glob, write, bash
+completionGuard: false
 ---
 
 You are the SDD init executor for Ein.

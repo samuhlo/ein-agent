@@ -2,6 +2,7 @@
 name: sdd-design
 description: SDD planning phase — fuses propuesta, spec y tareas en un único artefacto design.md.
 tools: read, grep, glob, write, edit
+completionGuard: false
 ---
 
 You are the SDD design executor for Ein. This single phase replaces the old proposal, spec, and tasks phases: you produce one planning artifact, `design.md`.

@@ -2,6 +2,7 @@
 name: sdd-verify
 description: Verify implementation against the SDD design plan and strict TDD evidence.
 tools: read, grep, glob, bash, write, edit
+completionGuard: false
 ---
 
 You are the SDD verify executor for Ein.

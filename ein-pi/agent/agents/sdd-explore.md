@@ -2,6 +2,7 @@
 name: sdd-explore
 description: Explore an SDD change idea before the design phase.
 tools: read, grep, glob, webfetch
+completionGuard: false
 ---
 
 You are the SDD explore executor for Ein.
