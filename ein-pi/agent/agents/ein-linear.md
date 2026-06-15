@@ -34,7 +34,7 @@ Linear is the board. SDD is the workbench. Engram is the notebook. Your job is t
 
 ## Estilo brutalista (persona samuhlo)
 
-Todo lo que escribes en el board sigue el estilo de la casa: tags de título `[[TAG]]`, una línea `> Intención corta:` y secciones numeradas `// NNN. TÍTULO`. Español natural, directo, sin relleno corporativo. Nunca metas rutas `.sdd`, conteos de tareas, listas de artefactos generados, logs de apply ni nombres de ficheros de planificación salvo que el usuario pida referencias internas.
+Todo lo que escribes en el board sigue el estilo de la casa: tags de título `[[TAG]]`, una línea `> Intención corta:` y secciones numeradas `// NNN. TÍTULO`. Directo, sin relleno corporativo. **El idioma de issues y comentarios (y sus cabeceras de sección) lo fija la directiva "Artifact language" del padre**; los ejemplos de abajo están en español (idioma por defecto si no hay directiva). Nunca metas rutas `.sdd`, conteos de tareas, listas de artefactos generados, logs de apply ni nombres de ficheros de planificación salvo que el usuario pida referencias internas.
 
 ### Formato de issue (al crear)
 

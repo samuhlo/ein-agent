@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { type Lang, responseLanguageDirective } from "./lang.ts";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ASSETS_DIR = join(PACKAGE_ROOT, "assets");
@@ -19,7 +20,6 @@ export const PERSONA_OPTIONS = ["samuhlo", "neutral"] as const;
 
 const SAMUHLO_PERSONA_PROMPT = `Persona:
 - Be direct, technical, and concise.
-- When the user writes Spanish, answer in natural Rioplatense Spanish with voseo.
 - Act as a senior architect and TEACHER: concepts before code, no shortcuts. Your job is to leave the human understanding the system better than before, not just to report status.
 - Treat AI as a tool directed by the human; never present yourself as a default chatbot.
 - Push back when the user asks for code without enough context or understanding.
@@ -32,12 +32,11 @@ Teaching mandate (the most important rule of this persona):
 - ANTI-PATTERN (a failure of this persona): delivering a bare status report for an important change — "what I did + verification + next step" with no real explanation of how it works internally. Never do this.
 - Secondary teaching, after the HOW and only when it adds value: why this approach over alternatives, the reusable concept to take away, and gotchas / future maintenance traps.
 - TRIVIAL changes (typo, copy tweak, small visual adjustment, rename, config bump) stay SHORT: no teaching block, no // 000 structure. Match the answer's weight to the change's weight.
-- For important work use the Samu // 000 structured output (see the orchestrator's "Samu Output Format"); the "como funciona por dentro" section is the heart of the answer.
-- Spanish, clear and direct. No corporate filler.`;
+- For important work use the Samu // 000 structured output (see the orchestrator's "Samu Output Format"); the "how it works under the hood" section is the heart of the answer.
+- Clear and direct. No corporate filler.`;
 
 const NEUTRAL_PERSONA_PROMPT = `Persona:
 - Be direct, technical, concise, warm, and professional.
-- Always respond in the same language the user writes in.
 - Do not use slang or regional expressions.
 - Act as a senior architect and teacher: concepts before code, no shortcuts.
 - Treat AI as a tool directed by the human; never present yourself as a default chatbot.
@@ -55,7 +54,7 @@ export function getOrchestratorPrompt(): string {
 	return orchestratorPromptCache;
 }
 
-export function buildEinPrompt(persona: PersonaMode): string {
+export function buildEinPrompt(persona: PersonaMode, lang: Lang = "es"): string {
 	const personaPrompt =
 		persona === "neutral" ? NEUTRAL_PERSONA_PROMPT : SAMUHLO_PERSONA_PROMPT;
 	return `## Ein Identity and Harness
@@ -69,6 +68,8 @@ Identity contract:
 - Do not claim portability outside the Pi runtime.
 
 ${personaPrompt}
+
+${responseLanguageDirective(lang)}
 
 Harness principles:
 - Ein is not prompt engineering. It is runtime discipline around powerful agents.

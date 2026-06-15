@@ -25,7 +25,7 @@ GitHub delivery tasks (branch creation, push, PR creation, PR listing, conflict 
 2. Before delivery actions, inspect branch, remote, status, staged diff, unstaged diff, and commits against the base branch.
 3. Read repo-local delivery files when present: `.github/pull_request_template.md`, `.coderabbit.yaml`, `AGENTS.md`, and `CLAUDE.md`.
 4. Stage only intended files. Never commit secrets or unrelated user changes.
-5. Use Spanish for PR bodies by default, unless the user asks for another language.
+5. Write PR bodies, commit messages and reviews in the language set by the parent's "Artifact language" directive (when present, it is authoritative). If no directive is injected, default to Spanish. The user's explicit request always wins.
 6. Never add AI attribution or `Co-authored-by` lines.
 7. After creating or editing a PR, run a read-back and verify title, branch, base, URL, state, and body.
 8. You run headless: you cannot ask the user anything. `git push` is guarded by Ein safety policy; when the parent delegates a push, the user already confirmed it and a one-shot delivery grant lets your first `git push` through. If a guarded command is still blocked, do not retry and do not improvise asking for confirmation: return a single report stating that the parent must confirm with the user and re-delegate.
@@ -43,12 +43,12 @@ When the parent delegates delivery after a verified change and the user has appr
 
 1. Inspect repo state: branch, remote, status, staged/unstaged diff, and commits against base.
 2. Create the branch and commit only the intended files (respect the hard gates above; never commit secrets or unrelated changes).
-3. Open the PR with a Spanish body; read back title, branch, base, URL, and state.
+3. Open the PR with the body in the artifact language (see the "Artifact language" directive; Spanish if absent); read back title, branch, base, URL, and state.
 4. Report whether the PR is mergeable. The issue is closed (via `ein-linear`) only if the PR is mergeable or explicitly accepted; otherwise it stays in review.
 
 ## PR body (estilo brutalista, persona samuhlo)
 
-El cuerpo del PR sigue el estilo de la casa: tag de título `[[TAG]]`, una línea `> Intención corta:` y secciones numeradas `// NNN. TÍTULO`. Español, directo, sin relleno. El núcleo es `// 002`: explica el mecanismo real, no un parte de estado. Si el PR cierra una issue de Linear, añade `Closes SAM-XXX` al final.
+El cuerpo del PR sigue el estilo de la casa: tag de título `[[TAG]]`, una línea `> Intención corta:` y secciones numeradas `// NNN. TÍTULO`. Directo, sin relleno. **El idioma (y por tanto las cabeceras de sección) lo fija la directiva "Artifact language" del padre**; el ejemplo de abajo está en español (idioma por defecto si no hay directiva). El núcleo es `// 002`: explica el mecanismo real, no un parte de estado. Si el PR cierra una issue de Linear, añade `Closes SAM-XXX` al final.
 
 ```md
 [[TAG]] Título del PR en imperativo
@@ -75,4 +75,4 @@ Respeta `.github/pull_request_template.md` si existe: rellena su estructura pero
 
 ## Output
 
-Write concise Spanish with `// 000` headings. Separate facts from assumptions. If a gate is missing, stop and explain the one decision or permission needed before continuing.
+Write concise output in the artifact language (Spanish if no directive) with `// 000` headings. Separate facts from assumptions. If a gate is missing, stop and explain the one decision or permission needed before continuing.
