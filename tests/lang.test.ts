@@ -20,6 +20,8 @@ const {
 	writeArtifactLang,
 	responseLanguageDirective,
 	artifactLanguageDirective,
+	pick,
+	pickFor,
 } = await import("../ein-pi/agent/lib/lang");
 const { buildEinPrompt } = await import("../ein-pi/agent/lib/persona");
 
@@ -90,6 +92,27 @@ describe("eje artefactos (.pi/ein/lang.json)", () => {
 		expect(readArtifactOverride(cwd)).toBeUndefined();
 		setLocale("es");
 		expect(readArtifactLang(cwd)).toBe("es");
+	});
+});
+
+describe("pick / pickFor", () => {
+	const original = (globalThis as Record<symbol, unknown>)[I18N_KEY];
+	afterEach(() => {
+		(globalThis as Record<symbol, unknown>)[I18N_KEY] = original;
+	});
+
+	test("pick sigue el idioma de chat (default es)", () => {
+		setLocale(undefined);
+		expect(pick("hola", "hi")).toBe("hola");
+		setLocale("en");
+		expect(pick("hola", "hi")).toBe("hi");
+	});
+
+	test("pickFor usa el idioma explicito, ignorando el de chat", () => {
+		setLocale("es");
+		expect(pickFor("en", "hola", "hi")).toBe("hi");
+		expect(pickFor("es", "hola", "hi")).toBe("hola");
+		expect(pickFor("gl", "hola", "hi")).toBe("hola");
 	});
 });
 

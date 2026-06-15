@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, loadBrand, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
+import { type Lang, pick, pickFor, readArtifactLang } from "../lib/lang";
 import { LINEAR_KEY_PATH } from "./ein-paths";
 
 const LINEAR_URL = "https://api.linear.app/graphql";
@@ -306,71 +307,91 @@ type BootstrapPreset = "front-design" | "blog-content" | "ai-system" | "qa-harde
 function parseBootstrapArgs(raw: string): { projectName: string; preset: BootstrapPreset } {
   const value = (raw || "").trim();
   if (!value) {
-    throw new Error(`Uso: ${slashCommand("linear:project-bootstrap")} <nombre proyecto> | <front-design|blog-content|ai-system|qa-hardening>`);
+    throw new Error(pick(
+      `Uso: ${slashCommand("linear:project-bootstrap")} <nombre proyecto> | <front-design|blog-content|ai-system|qa-hardening>`,
+      `Usage: ${slashCommand("linear:project-bootstrap")} <project name> | <front-design|blog-content|ai-system|qa-hardening>`,
+    ));
   }
   const [projectNameRaw, presetRaw] = value.split("|").map((part) => part.trim());
   if (!projectNameRaw) {
-    throw new Error(`Falta nombre de proyecto. Ejemplo: ${slashCommand("linear:project-bootstrap")} Portfolio | front-design`);
+    throw new Error(pick(
+      `Falta nombre de proyecto. Ejemplo: ${slashCommand("linear:project-bootstrap")} Portfolio | front-design`,
+      `Missing project name. Example: ${slashCommand("linear:project-bootstrap")} Portfolio | front-design`,
+    ));
   }
   const preset = (presetRaw || "front-design") as BootstrapPreset;
   if (!["front-design", "blog-content", "ai-system", "qa-hardening"].includes(preset)) {
-    throw new Error("Preset invalido. Usa: front-design, blog-content, ai-system, qa-hardening");
+    throw new Error(pick(
+      "Preset invalido. Usa: front-design, blog-content, ai-system, qa-hardening",
+      "Invalid preset. Use: front-design, blog-content, ai-system, qa-hardening",
+    ));
   }
   return { projectName: projectNameRaw, preset };
 }
 
-function buildBootstrapIssues(projectName: string, preset: BootstrapPreset): BatchIssueInput[] {
-  const milestones = buildBootstrapMilestones(preset);
-  const m = (index: number): string => milestones[index] ?? milestones[0] ?? "M00 - Descubrimiento y alcance";
+function buildBootstrapIssues(projectName: string, preset: BootstrapPreset, lang: Lang): BatchIssueInput[] {
+  const milestones = buildBootstrapMilestones(preset, lang);
+  const m = (index: number): string => milestones[index] ?? milestones[0] ?? milestones[0]!;
   const baseByPreset: Record<BootstrapPreset, BatchIssueInput[]> = {
     "front-design": [
-      { title: "[[DESIGN]][[FEAT]] M01-001 Definir direccion visual y tokens base", priority: 2, labels: "Design,Feature", milestone: m(1) },
-      { title: "[[FRONT]][[IMPROVE]] M04-001 Implementar layout responsive base", priority: 3, labels: "Front,Improvement", milestone: m(4) },
-      { title: "[[QA]][[DESIGN]] M07-001 Verificacion visual desktop/mobile", priority: 3, labels: "QA,Design,Improvement", milestone: m(7) },
+      { title: pickFor(lang, "[[DESIGN]][[FEAT]] M01-001 Definir direccion visual y tokens base", "[[DESIGN]][[FEAT]] M01-001 Define visual direction and base tokens"), priority: 2, labels: "Design,Feature", milestone: m(1) },
+      { title: pickFor(lang, "[[FRONT]][[IMPROVE]] M04-001 Implementar layout responsive base", "[[FRONT]][[IMPROVE]] M04-001 Implement base responsive layout"), priority: 3, labels: "Front,Improvement", milestone: m(4) },
+      { title: pickFor(lang, "[[QA]][[DESIGN]] M07-001 Verificacion visual desktop/mobile", "[[QA]][[DESIGN]] M07-001 Visual verification desktop/mobile"), priority: 3, labels: "QA,Design,Improvement", milestone: m(7) },
     ],
     "blog-content": [
-      { title: "[[DESIGN]][[DOCS]] M01-001 Definir direccion de contenido y estilo visual", priority: 3, labels: "Design,Docs,Improvement", milestone: m(1) },
-      { title: "[[FRONT]][[DOCS]][[IMPROVE]] M04-001 Implementar listado y detalle de posts", priority: 3, labels: "Front,Docs,Improvement", milestone: m(4) },
-      { title: "[[QA]][[DOCS]] M07-001 Checklist de publicacion y SEO on-page", priority: 3, labels: "QA,Docs,Improvement", milestone: m(7) },
+      { title: pickFor(lang, "[[DESIGN]][[DOCS]] M01-001 Definir direccion de contenido y estilo visual", "[[DESIGN]][[DOCS]] M01-001 Define content direction and visual style"), priority: 3, labels: "Design,Docs,Improvement", milestone: m(1) },
+      { title: pickFor(lang, "[[FRONT]][[DOCS]][[IMPROVE]] M04-001 Implementar listado y detalle de posts", "[[FRONT]][[DOCS]][[IMPROVE]] M04-001 Implement post list and detail"), priority: 3, labels: "Front,Docs,Improvement", milestone: m(4) },
+      { title: pickFor(lang, "[[QA]][[DOCS]] M07-001 Checklist de publicacion y SEO on-page", "[[QA]][[DOCS]] M07-001 Publishing checklist and on-page SEO"), priority: 3, labels: "QA,Docs,Improvement", milestone: m(7) },
     ],
     "ai-system": [
-      { title: "[[SYS]][[AI]][[FEAT]] M02-001 Definir arquitectura de agentes y guardrails", priority: 2, labels: "System,AI,Feature", milestone: m(2) },
-      { title: "[[BACK]][[AI]][[IMPROVE]] M06-001 Integrar memoria y contratos de herramientas", priority: 2, labels: "Back,AI,Improvement", milestone: m(6) },
-      { title: "[[QA]][[AI]] M07-001 Verificar rutas criticas y degradacion segura", priority: 2, labels: "QA,AI,Improvement", milestone: m(7) },
+      { title: pickFor(lang, "[[SYS]][[AI]][[FEAT]] M02-001 Definir arquitectura de agentes y guardrails", "[[SYS]][[AI]][[FEAT]] M02-001 Define agent architecture and guardrails"), priority: 2, labels: "System,AI,Feature", milestone: m(2) },
+      { title: pickFor(lang, "[[BACK]][[AI]][[IMPROVE]] M06-001 Integrar memoria y contratos de herramientas", "[[BACK]][[AI]][[IMPROVE]] M06-001 Integrate memory and tool contracts"), priority: 2, labels: "Back,AI,Improvement", milestone: m(6) },
+      { title: pickFor(lang, "[[QA]][[AI]] M07-001 Verificar rutas criticas y degradacion segura", "[[QA]][[AI]] M07-001 Verify critical paths and safe degradation"), priority: 2, labels: "QA,AI,Improvement", milestone: m(7) },
     ],
     "qa-hardening": [
-      { title: "[[QA]][[IMPROVE]] M00-001 Definir matriz de checks por flujo", priority: 3, labels: "QA,Improvement", milestone: m(0) },
-      { title: "[[SYS]][[QA]] M06-001 Automatizar smoke tests de comandos criticos", priority: 3, labels: "System,QA,Improvement", milestone: m(6) },
-      { title: "[[BUG]][[QA]] M07-001 Corregir regresiones detectadas en baseline", priority: 2, labels: "Bug,QA", milestone: m(7) },
+      { title: pickFor(lang, "[[QA]][[IMPROVE]] M00-001 Definir matriz de checks por flujo", "[[QA]][[IMPROVE]] M00-001 Define a check matrix per flow"), priority: 3, labels: "QA,Improvement", milestone: m(0) },
+      { title: pickFor(lang, "[[SYS]][[QA]] M06-001 Automatizar smoke tests de comandos criticos", "[[SYS]][[QA]] M06-001 Automate smoke tests for critical commands"), priority: 3, labels: "System,QA,Improvement", milestone: m(6) },
+      { title: pickFor(lang, "[[BUG]][[QA]] M07-001 Corregir regresiones detectadas en baseline", "[[BUG]][[QA]] M07-001 Fix regressions detected in baseline"), priority: 2, labels: "Bug,QA", milestone: m(7) },
     ],
   };
 
   return baseByPreset[preset].map((issue) => ({
     ...issue,
-    description:
+    description: pickFor(
+      lang,
       `Proyecto: ${projectName}\n\n` +
-      "/// 001. CONTEXTO\n" +
-      `Issue semilla creada desde bootstrap ${loadBrand().agentName} para iniciar trabajo con alcance claro.\n\n` +
-      "■ 002. ALCANCE\n" +
-      "- Definir resultado observable\n" +
-      "- Ejecutar implementacion en cambios reviewables\n\n" +
-      "■ 003. CRITERIOS DE ACEPTACION\n" +
-      "- [ ] Resultado verificable\n" +
-      "- [ ] Riesgos documentados\n",
+        "/// 001. CONTEXTO\n" +
+        `Issue semilla creada desde bootstrap ${loadBrand().agentName} para iniciar trabajo con alcance claro.\n\n` +
+        "■ 002. ALCANCE\n" +
+        "- Definir resultado observable\n" +
+        "- Ejecutar implementacion en cambios reviewables\n\n" +
+        "■ 003. CRITERIOS DE ACEPTACION\n" +
+        "- [ ] Resultado verificable\n" +
+        "- [ ] Riesgos documentados\n",
+      `Project: ${projectName}\n\n` +
+        "/// 001. CONTEXT\n" +
+        `Seed issue created from ${loadBrand().agentName} bootstrap to start work with a clear scope.\n\n` +
+        "■ 002. SCOPE\n" +
+        "- Define an observable outcome\n" +
+        "- Implement in reviewable changes\n\n" +
+        "■ 003. ACCEPTANCE CRITERIA\n" +
+        "- [ ] Verifiable result\n" +
+        "- [ ] Risks documented\n",
+    ),
   }));
 }
 
-function buildBootstrapMilestones(preset: BootstrapPreset): string[] {
+function buildBootstrapMilestones(preset: BootstrapPreset, lang: Lang): string[] {
   void preset;
   return [
-    "M00 - Descubrimiento y alcance",
-    "M01 - Diseno visual y experiencia",
-    "M02 - Base tecnica",
-    "M03 - Modelo de datos y backend",
-    "M04 - UI base y navegacion",
-    "M05 - Funcionalidad principal",
-    "M06 - Estadisticas, automatizacion o IA",
-    "M07 - Pulido visual, QA y cierre",
+    pickFor(lang, "M00 - Descubrimiento y alcance", "M00 - Discovery and scope"),
+    pickFor(lang, "M01 - Diseno visual y experiencia", "M01 - Visual design and experience"),
+    pickFor(lang, "M02 - Base tecnica", "M02 - Technical foundation"),
+    pickFor(lang, "M03 - Modelo de datos y backend", "M03 - Data model and backend"),
+    pickFor(lang, "M04 - UI base y navegacion", "M04 - Base UI and navigation"),
+    pickFor(lang, "M05 - Funcionalidad principal", "M05 - Core functionality"),
+    pickFor(lang, "M06 - Estadisticas, automatizacion o IA", "M06 - Analytics, automation or AI"),
+    pickFor(lang, "M07 - Pulido visual, QA y cierre", "M07 - Visual polish, QA and wrap-up"),
   ];
 }
 
@@ -891,9 +912,10 @@ export default function einLinear(pi: ExtensionAPI) {
         return;
       }
       const brand = loadBrand();
+      const artifactLang = readArtifactLang(ctx.cwd);
       const { projectName, preset } = parseBootstrapArgs(args || "");
-      const issues = buildBootstrapIssues(projectName, preset);
-      const milestones = buildBootstrapMilestones(preset).map((name) => ({ name }));
+      const issues = buildBootstrapIssues(projectName, preset, artifactLang);
+      const milestones = buildBootstrapMilestones(preset, artifactLang).map((name) => ({ name }));
       const payload = JSON.stringify(issues);
       const milestonesPayload = JSON.stringify(milestones);
       pi.sendUserMessage(

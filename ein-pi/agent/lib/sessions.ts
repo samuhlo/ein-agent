@@ -9,6 +9,7 @@
 import { closeSync, openSync, readSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { AGENT_DIR } from "../extensions/ein-paths";
+import { pick } from "./lang";
 
 const SESSIONS_DIR = join(AGENT_DIR, "sessions");
 
@@ -22,7 +23,7 @@ export type RecentSession = {
 
 export function humanizeAge(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
-  if (s < 45) return "justo ahora";
+  if (s < 45) return pick("justo ahora", "just now");
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);

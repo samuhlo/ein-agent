@@ -75,6 +75,15 @@ export function pick(es: string, en: string): string {
 }
 
 /**
+ * Selector de string con idioma explicito, para contenido cuyo idioma no es el
+ * de chat sino el de artefactos (p.ej. plantillas de issues de Linear que se
+ * crean en el board). `gl` cae a `es` por ahora.
+ */
+export function pickFor(lang: Lang, es: string, en: string): string {
+	return lang === "en" ? en : es;
+}
+
+/**
  * Persiste y aplica el idioma de chat en el dial compartido de rpiv-i18n.
  * Devuelve `false` si el SDK no esta disponible o si la escritura a disco
  * falla (el caller debe avisar al usuario). Import dinamico para no acoplar el
