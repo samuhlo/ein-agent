@@ -471,7 +471,6 @@ Common intent hints, not hard routing:
 | User intent                | Skill to check                         |
 | -------------------------- | -------------------------------------- |
 | PR review / GitHub PR URL  | project review skill, then `pr-review` |
-| Post-ready review comments | `comment-writer`                       |
 | Create/open/prepare PR     | `branch-pr`                            |
 
 Keep this lightweight: loading a skill should improve the immediate task, not force extra ceremony.
