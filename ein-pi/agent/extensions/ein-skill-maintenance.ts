@@ -24,6 +24,7 @@ import { execFileSync } from "node:child_process";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, slashCommand } from "./ein-brand";
 import { AGENT_DIR, DOWNLOADED_SKILLS_DIR, LOCAL_SKILLS_DIR } from "./ein-paths";
+import { t, tf } from "../lib/i18n/strings";
 
 // --- types -------------------------------------------------------------------
 
@@ -529,10 +530,20 @@ function cleanSkills(profile: StackProfile, force: boolean): string {
 
 export default function einSkillMaintenance(pi: ExtensionAPI): void {
   pi.registerCommand(commandName("skills"), {
-    description: "Gestion de skills: status, update [--local|--downloaded], add, clean",
+    description: t(
+      "cmd.skills.description",
+      "Gestion de skills: status, update [--local|--downloaded], add, clean",
+    ),
     handler: async (args, ctx) => {
       if (!ctx.isIdle()) {
-        ctx.ui.notify(`El agente esta ocupado. Reintenta ${slashCommand("skills")} al terminar.`, "warning");
+        ctx.ui.notify(
+          tf(
+            "busy.retry",
+            `El agente esta ocupado. Reintenta ${slashCommand("skills")} al terminar.`,
+            slashCommand("skills"),
+          ),
+          "warning",
+        );
         return;
       }
       const profile = loadProfile();
@@ -547,7 +558,7 @@ export default function einSkillMaintenance(pi: ExtensionAPI): void {
       if (action === "update") {
         const onlyLocal = tokens.includes("--local");
         const onlyDownloaded = tokens.includes("--downloaded");
-        ctx.ui.notify("/// 000. UPDATING SKILLS\nClonando fuentes, puede tardar...", "info");
+        ctx.ui.notify(t("skills.updating", "/// 000. UPDATING SKILLS\nClonando fuentes, puede tardar..."), "info");
         const out: string[] = ["/// 000. SKILLS UPDATE"];
         if (!onlyDownloaded) out.push(...updateLocalFromRepo((line) => ctx.ui.notify(line, "info")));
         if (!onlyLocal) out.push(...updateDownloaded(profile, (line) => ctx.ui.notify(line, "info")));
@@ -570,7 +581,11 @@ export default function einSkillMaintenance(pi: ExtensionAPI): void {
       ctx.ui.notify(
         [
           "/// 000. SKILLS",
-          `- Uso: ${slashCommand("skills")} [status|update [--local|--downloaded]|add <skill>|clean [--yes]]`,
+          tf(
+            "skills.usage",
+            `- Uso: ${slashCommand("skills")} [status|update [--local|--downloaded]|add <skill>|clean [--yes]]`,
+            slashCommand("skills"),
+          ),
         ].join("\n"),
         "info",
       );

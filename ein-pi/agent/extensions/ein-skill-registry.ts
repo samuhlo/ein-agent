@@ -3,6 +3,7 @@ import { basename, dirname, join, relative } from "node:path";
 import { homedir } from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, slashCommand } from "./ein-brand";
+import { t, tf } from "../lib/i18n/strings";
 import { AGENT_DIR, DOWNLOADED_SKILLS_DIR, LOCAL_SKILLS_DIR } from "./ein-paths";
 
 type SkillScope = "project" | "user";
@@ -726,27 +727,51 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
   const skillsHandler = async (args: string, ctx: any) => {
     const task = args?.trim() || "sin tarea";
     if (!ctx.isIdle()) {
-      ctx.ui.notify(`El agente esta ocupado. Vuelve a lanzar ${slashCommand("skills")} cuando termine.`, "warning");
+      ctx.ui.notify(
+        tf(
+          "busy.retry",
+          `El agente esta ocupado. Vuelve a lanzar ${slashCommand("skills")} cuando termine.`,
+          slashCommand("skills"),
+        ),
+        "warning",
+      );
       return;
     }
     if (task === "sin tarea") {
-      ctx.ui.notify(`Tip: usa ${slashCommand("skills")} <tarea> para obtener resolve+digest utiles para tu caso.`, "info");
+      ctx.ui.notify(
+        tf(
+          "skills.advisor.tip",
+          `Tip: usa ${slashCommand("skills")} <tarea> para obtener resolve+digest utiles para tu caso.`,
+          slashCommand("skills"),
+        ),
+        "info",
+      );
     }
-    pi.sendUserMessage(`Usa \`ein_skill_registry\`, luego \`ein_skill_resolve\` y \`ein_skill_digest\` para esta tarea: ${task}. El digest incluye, para tecnologias sin skill curada, instruccion de Context7 (resolve-library-id + query-docs) que debes ejecutar para traer docs frescas. Devuelve resumen didactico en espanol.`);
+    pi.sendUserMessage(`Usa \`ein_skill_registry\`, luego \`ein_skill_resolve\` y \`ein_skill_digest\` para esta tarea: ${task}. El digest incluye, para tecnologias sin skill curada, instruccion de Context7 (resolve-library-id + query-docs) que debes ejecutar para traer docs frescas. Devuelve un resumen didactico en el idioma de la conversacion.`);
   };
 
   pi.registerCommand(commandName("skills:advisor"), {
-    description: "Muestra inventario y resolucion de skills para una tarea",
+    description: t(
+      "cmd.skills.advisor.description",
+      "Muestra inventario y resolucion de skills para una tarea",
+    ),
     handler: skillsHandler,
   });
 
   pi.registerCommand("skill-registry", {
-    description: `[legacy] Usa ${slashCommand("skills:advisor")}`,
+    description: tf(
+      "cmd.skill-registry.legacy.description",
+      `[legacy] Usa ${slashCommand("skills:advisor")}`,
+      slashCommand("skills:advisor"),
+    ),
     handler: skillsHandler,
   });
 
   pi.registerCommand("skill-registry:refresh", {
-    description: "Fuerza regeneracion de .atl/skill-registry.md desde cero",
+    description: t(
+      "cmd.skill-registry.refresh.description",
+      "Fuerza regeneracion de .atl/skill-registry.md desde cero",
+    ),
     handler: async (_args: string, ctx: any) => {
       const cwd = ctx?.cwd ?? process.cwd();
       try {

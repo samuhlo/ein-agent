@@ -33,7 +33,7 @@ import {
 	readArtifactLang,
 	readChatLang,
 } from "../lib/lang.ts";
-import { t } from "../lib/i18n/strings.ts";
+import { t, tf } from "../lib/i18n/strings.ts";
 import {
 	confirmCommand,
 	confirmDelegatedDelivery,
@@ -126,14 +126,25 @@ export default function einAi(pi: ExtensionAPI): void {
 			const modelResult = await applySavedModelConfig(ctx);
 			if (ctx.hasUI && modelResult.invalidPath) {
 				ctx.ui.notify(
-					`Ein omitio la config de modelos: ${modelResult.invalidPath} no es JSON valido. Corrigelo o eliminalo y vuelve a ejecutar /ein:models.`,
+					tf(
+						"ai.models.invalid",
+						`Ein omitio la config de modelos: ${modelResult.invalidPath} no es JSON valido. Corrigelo o eliminalo y vuelve a ejecutar /ein:models.`,
+						modelResult.invalidPath,
+					),
 					"warning",
 				);
 				return;
 			}
 			if (ctx.hasUI && modelResult.updated > 0) {
 				ctx.ui.notify(
-					`Config de modelos aplicada a ${modelResult.updated} agente(s). Assets SDD listos: ${installResult.agents} agente(s), ${installResult.chains} chain(s), ${installResult.support} soporte.`,
+					tf(
+						"ai.models.applied",
+						`Config de modelos aplicada a ${modelResult.updated} agente(s). Assets SDD listos: ${installResult.agents} agente(s), ${installResult.chains} chain(s), ${installResult.support} soporte.`,
+						modelResult.updated,
+						installResult.agents,
+						installResult.chains,
+						installResult.support,
+					),
 					"info",
 				);
 			}
@@ -142,7 +153,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				const message =
 					error instanceof Error ? error.message : String(error);
 				ctx.ui.notify(
-					`Error al aplicar config de modelos: ${message}`,
+					tf("ai.models.error", `Error al aplicar config de modelos: ${message}`, message),
 					"warning",
 				);
 			}
@@ -204,35 +215,53 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:ai:install-sdd", {
-		description:
+		description: t(
+			"cmd.install-sdd.description",
 			"Reinstalar o refrescar los agentes y chains SDD globales de Ein",
+		),
 		handler: async (args, ctx) => {
 			const force = args.includes("--force");
 			const result = installSddAssets(ctx.cwd, force);
 			ctx.ui.notify(
-				`Assets SDD: ${result.agents} agente(s), ${result.chains} chain(s), ${result.support} soporte disponibles (${result.installed} instalados, ${result.skipped} ya presentes).`,
+				tf(
+					"ai.sdd.installed",
+					`Assets SDD: ${result.agents} agente(s), ${result.chains} chain(s), ${result.support} soporte disponibles (${result.installed} instalados, ${result.skipped} ya presentes).`,
+					result.agents,
+					result.chains,
+					result.support,
+					result.installed,
+					result.skipped,
+				),
 				"info",
 			);
 		},
 	});
 
 	pi.registerCommand("ein:ai:sdd-preflight", {
-		description:
+		description: t(
+			"cmd.sdd-preflight.description",
 			"Ejecutar o reutilizar el preflight SDD para esta sesion de Pi",
+		),
 		handler: async (_args, ctx) => {
 			await runSddPreflight(ctx);
 		},
 	});
 
 	pi.registerCommand("ein:models", {
-		description: "Ver o configurar los modelos activos por agente en Ein",
+		description: t(
+			"cmd.models.description",
+			"Ver o configurar los modelos activos por agente en Ein",
+		),
 		handler: async (_args, ctx) => {
 			await handleModelsCommand(ctx);
 		},
 	});
 
 	pi.registerCommand("ein:models:full", {
-		description: "Preset full: orquestador + sdd-design → gpt-5.5, resto → MiniMax-M2.7",
+		description: t(
+			"cmd.models.full.description",
+			"Preset full: orquestador + sdd-design → gpt-5.5, resto → MiniMax-M2.7",
+		),
 		handler: (_args, ctx) => {
 			const msg = applyPreset(ctx.cwd, "full");
 			ctx.ui.notify(msg, "info");
@@ -240,7 +269,10 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:models:lite", {
-		description: "Preset lite: orquestador + sdd-design → MiniMax-M3, resto → MiniMax-M2.7",
+		description: t(
+			"cmd.models.lite.description",
+			"Preset lite: orquestador + sdd-design → MiniMax-M3, resto → MiniMax-M2.7",
+		),
 		handler: (_args, ctx) => {
 			const msg = applyPreset(ctx.cwd, "lite");
 			ctx.ui.notify(msg, "info");
@@ -248,7 +280,10 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:persona", {
-		description: "Cambiar la persona de Ein entre samuhlo y neutral",
+		description: t(
+			"cmd.persona.description",
+			"Cambiar la persona de Ein entre samuhlo y neutral",
+		),
 		handler: async (_args, ctx) => {
 			await handlePersonaCommand(ctx);
 		},
@@ -265,14 +300,22 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:resume", {
-		description: "Listar sesiones recientes con el comando para recuperarlas",
+		description: t(
+			"cmd.resume.description",
+			"Listar sesiones recientes con el comando para recuperarlas",
+		),
 		handler: async (_args, ctx) => {
 			const sessions = listRecentSessions(8);
-			const lines: string[] = ["/// 000. SESIONES RECIENTES", ""];
+			const lines: string[] = [t("resume.title", "/// 000. SESIONES RECIENTES"), ""];
 			if (!sessions.length) {
-				lines.push("- No hay sesiones guardadas todavia.");
+				lines.push(t("resume.none", "- No hay sesiones guardadas todavia."));
 			} else {
-				lines.push("- Atajos: `pi -c` (continuar ultima) · `pi -r` (elegir sesion)");
+				lines.push(
+					t(
+						"resume.shortcuts",
+						"- Atajos: `pi -c` (continuar ultima) · `pi -r` (elegir sesion)",
+					),
+				);
 				lines.push("");
 				for (const s of sessions) {
 					lines.push(`- ${s.project} (${humanizeAge(s.ageMs)})`);
@@ -284,7 +327,10 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:status", {
-		description: "Ver estado del sistema Ein (agentes, chains, skills, proyecto)",
+		description: t(
+			"cmd.status.description",
+			"Ver estado del sistema Ein (agentes, chains, skills, proyecto)",
+		),
 		handler: async (_args, ctx) => {
 			const agentsDir = join(AGENT_DIR, "agents");
 			const chainsDir = join(AGENT_DIR, "chains");
@@ -378,7 +424,10 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:help", {
-		description: "Ayuda del sistema Ein — usa 'full' para detalle completo",
+		description: t(
+			"cmd.help.description",
+			"Ayuda del sistema Ein — usa 'full' para detalle completo",
+		),
 		handler: async (args, ctx) => {
 			const mode = (Array.isArray(args) ? args.join(" ") : String(args ?? ""))
 				.trim()

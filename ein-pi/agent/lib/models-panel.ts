@@ -23,11 +23,12 @@ import {
 	updateGlobalDefaultModel,
 	writeModelConfig,
 } from "./model-config";
+import { t, tf } from "./i18n/strings";
 
-const KEEP_CURRENT = "Mantener actual";
-const INHERIT_MODEL = "Heredar modelo activo/por defecto";
-const CUSTOM_MODEL = "Id de modelo personalizado";
-const INHERIT_THINKING = "Heredar esfuerzo";
+const KEEP_CURRENT = t("models.keep_current", "Mantener actual");
+const INHERIT_MODEL = t("models.inherit_model", "Heredar modelo activo/por defecto");
+const CUSTOM_MODEL = t("models.custom_model", "Id de modelo personalizado");
+const INHERIT_THINKING = t("models.inherit_thinking", "Heredar esfuerzo");
 const THINKING_OPTIONS: (ThinkingLevel | typeof INHERIT_THINKING)[] = [
 	INHERIT_THINKING,
 	"off",
@@ -64,7 +65,7 @@ type ModelPanelResult =
 	| { type: "preset"; preset: "full" | "lite" }
 	| { type: "cancel" };
 
-const SET_ALL_AGENTS = "Configurar todos los agentes";
+const SET_ALL_AGENTS = t("models.set_all", "Configurar todos los agentes");
 const ORCHESTRATOR_ROW = "__orchestrator__";
 
 // ─── Models panel visual helpers ─────────────────────────────────────────────
@@ -112,8 +113,8 @@ function vaEffortColor(lvl: ThinkingLevel | undefined): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PRESETS: { key: "full" | "lite"; label: string; desc: string }[] = [
-	{ key: "full", label: "Full", desc: "Orquestador + sdd-design → gpt-5.5  |  resto → MiniMax-M2.7" },
-	{ key: "lite", label: "Lite", desc: "Orquestador + sdd-design → MiniMax-M3  |  resto → MiniMax-M2.7" },
+	{ key: "full", label: "Full", desc: t("models.preset.full.desc", "Orquestador + sdd-design → gpt-5.5  |  resto → MiniMax-M2.7") },
+	{ key: "lite", label: "Lite", desc: t("models.preset.lite.desc", "Orquestador + sdd-design → MiniMax-M3  |  resto → MiniMax-M2.7") },
 ];
 
 class SddModelPanel implements OverlayComponent {
@@ -372,7 +373,7 @@ class SddModelPanel implements OverlayComponent {
 
 		lines.push(tr(''));
 		lines.push(tr(
-			` ${AP.d}${AP.gray}${'AGENTE'.padEnd(C1)}  ${'MODELO'.padEnd(C2)}  ESFUERZO${AP.r}`
+			` ${AP.d}${AP.gray}${t("models.col.agent", "AGENTE").padEnd(C1)}  ${t("models.col.model", "MODELO").padEnd(C2)}  ${t("models.col.effort", "ESFUERZO")}${AP.r}`
 		));
 		lines.push(tr(` ${AP.d}${AP.gray}${'─'.repeat(C1 + C2 + 12)}${AP.r}`));
 		lines.push(tr(''));
@@ -386,9 +387,10 @@ class SddModelPanel implements OverlayComponent {
 
 			if (row === ORCHESTRATOR_ROW) {
 				const model = this.draft[ORCHESTRATOR_ROW]?.model;
+				const orchLabel = t("models.row.orchestrator", "Orquestador");
 				const nameStr = focused
-					? `${AP.b}${AP.gold}◈ Orquestador${AP.r}`
-					: `${AP.wht}◈ Orquestador${AP.r}`;
+					? `${AP.b}${AP.gold}◈ ${orchLabel}${AP.r}`
+					: `${AP.wht}◈ ${orchLabel}${AP.r}`;
 				lines.push(tr(
 					`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${AP.d}${AP.gray}─${AP.r}`
 				));
@@ -403,17 +405,18 @@ class SddModelPanel implements OverlayComponent {
 				const uniqE = [...new Set(allEfforts)];
 				const mStr = uniqM.length === 1 ? vaModelColor(uniqM[0]) : `${AP.gold}mixed${AP.r}`;
 				const eStr = uniqE.length === 1 ? vaEffortColor(uniqE[0]) : `${AP.gold}mixed${AP.r}`;
+				const allLabel = t("models.row.all_agents", "Todos los agentes");
 				const label = focused
-					? `${AP.b}${AP.wht}⊞  Todos los agentes${AP.r}`
-					: `${AP.d}⊞  Todos los agentes${AP.r}`;
+					? `${AP.b}${AP.wht}⊞  ${allLabel}${AP.r}`
+					: `${AP.d}⊞  ${allLabel}${AP.r}`;
 				lines.push(tr(`${cur} ${vaPad(label, C1)}  ${vaPad(mStr, C2)}  ${eStr}`));
 				lines.push(tr(''));
 				continue;
 			}
 
 			const group = SDD_AGENT_NAME_SET.has(row) ? 'SDD'
-				: (row === 'ein-linear' || row === 'ein-github') ? 'ENTREGA'
-				: 'OTROS';
+				: (row === 'ein-linear' || row === 'ein-github') ? t("models.group.delivery", "ENTREGA")
+				: t("models.group.other", "OTROS");
 
 			if (group !== prevGroup) {
 				const sep = `─── ${group} `;
@@ -435,17 +438,17 @@ class SddModelPanel implements OverlayComponent {
 		const saveFoc = this.cursor === this.rows.length;
 		const cancelFoc = this.cursor === this.rows.length + 1;
 		lines.push(tr(
-			` ${saveFoc ? `${AP.gold}▸${AP.r}` : ' '} ${AP.grn}✓ Guardar${AP.r}` +
+			` ${saveFoc ? `${AP.gold}▸${AP.r}` : ' '} ${AP.grn}✓ ${t("models.btn.save", "Guardar")}${AP.r}` +
 			`        ` +
-			`${cancelFoc ? `${AP.gold}▸${AP.r}` : ' '} ${AP.d}${AP.gray}✗ Cancelar${AP.r}`
+			`${cancelFoc ? `${AP.gold}▸${AP.r}` : ' '} ${AP.d}${AP.gray}✗ ${t("models.btn.cancel", "Cancelar")}${AP.r}`
 		));
 		lines.push(tr(''));
 		lines.push(tr(
-			` ${AP.d}${AP.gray}↑↓ · Enter modelo · e esfuerzo · i heredar · p preset · Ctrl+S guardar${AP.r}`
+			` ${AP.d}${AP.gray}${t("models.hint.main", "↑↓ · Enter modelo · e esfuerzo · i heredar · p preset · Ctrl+S guardar")}${AP.r}`
 		));
 		lines.push(tr(''));
 
-		const title = `${AP.gold}${AP.b}■ MODELOS DE AGENTES${AP.r}`;
+		const title = `${AP.gold}${AP.b}■ ${t("models.title.agents", "MODELOS DE AGENTES")}${AP.r}`;
 		return SddModelPanel.addBorder(title, lines, width);
 	}
 
@@ -456,18 +459,18 @@ class SddModelPanel implements OverlayComponent {
 		const lines: string[] = [];
 		const isControlOpt = (s: string) => (MODEL_CONTROL_OPTIONS as readonly string[]).includes(s);
 
-		const agentLabel = this.selectedRow === SET_ALL_AGENTS ? 'todos los agentes' : this.selectedRow;
+		const agentLabel = this.selectedRow === SET_ALL_AGENTS ? t("models.row.all_agents", "todos los agentes") : this.selectedRow;
 		lines.push(tr(''));
 
 		const searchText = this.query
 			? `${AP.wht}${this.query}${AP.r}`
-			: `${AP.d}${AP.gray}buscar...${AP.r}`;
+			: `${AP.d}${AP.gray}${t("models.search.placeholder", "buscar...")}${AP.r}`;
 		lines.push(tr(` ${AP.gray}◎${AP.r}  ${searchText}`));
 		lines.push(tr(` ${AP.d}${AP.gray}${'─'.repeat(Math.max(10, inner - 2))}${AP.r}`));
 		lines.push(tr(''));
 
 		if (options.length === 0) {
-			lines.push(tr(` ${AP.d}${AP.gray}sin modelos coincidentes${AP.r}`));
+			lines.push(tr(` ${AP.d}${AP.gray}${t("models.no_matches", "sin modelos coincidentes")}${AP.r}`));
 		} else {
 			const maxVisible = 12;
 			const start = Math.max(
@@ -516,17 +519,17 @@ class SddModelPanel implements OverlayComponent {
 			}
 
 			if (end < options.length) {
-				lines.push(tr(` ${AP.d}${AP.gray}··· ${options.length - end} más${AP.r}`));
+				lines.push(tr(` ${AP.d}${AP.gray}··· ${tf("models.more", "{0} más", options.length - end)}${AP.r}`));
 			}
 		}
 
 		lines.push(tr(''));
 		lines.push(tr(
-			` ${AP.d}${AP.gray}↑↓ navegar · Enter seleccionar · tipo buscar · Esc volver${AP.r}`
+			` ${AP.d}${AP.gray}${t("models.hint.select", "↑↓ navegar · Enter seleccionar · tipo buscar · Esc volver")}${AP.r}`
 		));
 		lines.push(tr(''));
 
-		const title = `${AP.gold}${AP.b}■ MODELO${AP.r}  ${AP.d}${AP.gray}para:${AP.r}  ${AP.wht}${agentLabel}${AP.r}`;
+		const title = `${AP.gold}${AP.b}■ ${t("models.title.model", "MODELO")}${AP.r}  ${AP.d}${AP.gray}${t("models.for", "para:")}${AP.r}  ${AP.wht}${agentLabel}${AP.r}`;
 		return SddModelPanel.addBorder(title, lines, width);
 	}
 
@@ -562,7 +565,7 @@ class SddModelPanel implements OverlayComponent {
 		const tr = (t = '') => truncateToWidth(t, inner, '…', true);
 		const lines: string[] = [];
 
-		const agentLabel = this.selectedRow === SET_ALL_AGENTS ? 'todos los agentes' : this.selectedRow;
+		const agentLabel = this.selectedRow === SET_ALL_AGENTS ? t("models.row.all_agents", "todos los agentes") : this.selectedRow;
 		lines.push(tr(''));
 
 		for (let i = 0; i < THINKING_OPTIONS.length; i++) {
@@ -572,9 +575,10 @@ class SddModelPanel implements OverlayComponent {
 
 			let label: string;
 			if (opt === INHERIT_THINKING) {
+				const inheritLabel = t("models.inherit_default", "Heredar (por defecto)");
 				label = focused
-					? `${AP.b}${AP.wht}─  Heredar (por defecto)${AP.r}`
-					: `${AP.d}${AP.gray}─  Heredar (por defecto)${AP.r}`;
+					? `${AP.b}${AP.wht}─  ${inheritLabel}${AP.r}`
+					: `${AP.d}${AP.gray}─  ${inheritLabel}${AP.r}`;
 			} else {
 				const colored = vaEffortColor(opt as ThinkingLevel);
 				label = focused ? `${AP.b}${colored}` : colored;
@@ -583,10 +587,10 @@ class SddModelPanel implements OverlayComponent {
 		}
 
 		lines.push(tr(''));
-		lines.push(tr(` ${AP.d}${AP.gray}↑↓ navegar · Enter seleccionar · Esc volver${AP.r}`));
+		lines.push(tr(` ${AP.d}${AP.gray}${t("models.hint.nav", "↑↓ navegar · Enter seleccionar · Esc volver")}${AP.r}`));
 		lines.push(tr(''));
 
-		const title = `${AP.gold}${AP.b}■ ESFUERZO${AP.r}  ${AP.d}${AP.gray}para:${AP.r}  ${AP.wht}${agentLabel}${AP.r}`;
+		const title = `${AP.gold}${AP.b}■ ${t("models.title.effort", "ESFUERZO")}${AP.r}  ${AP.d}${AP.gray}${t("models.for", "para:")}${AP.r}  ${AP.wht}${agentLabel}${AP.r}`;
 		return SddModelPanel.addBorder(title, lines, width);
 	}
 
@@ -619,7 +623,7 @@ class SddModelPanel implements OverlayComponent {
 		const lines: string[] = [];
 
 		lines.push(tr(''));
-		lines.push(tr(` ${AP.d}${AP.gray}Aplica una configuración de modelos completa de golpe.${AP.r}`));
+		lines.push(tr(` ${AP.d}${AP.gray}${t("models.preset.intro", "Aplica una configuración de modelos completa de golpe.")}${AP.r}`));
 		lines.push(tr(''));
 
 		for (let i = 0; i < PRESETS.length; i++) {
@@ -634,7 +638,7 @@ class SddModelPanel implements OverlayComponent {
 			lines.push(tr(''));
 		}
 
-		lines.push(tr(` ${AP.d}${AP.gray}↑↓ navegar · Enter aplicar · Esc volver${AP.r}`));
+		lines.push(tr(` ${AP.d}${AP.gray}${t("models.hint.apply", "↑↓ navegar · Enter aplicar · Esc volver")}${AP.r}`));
 		lines.push(tr(''));
 
 		const title = `${AP.gold}${AP.b}■ PRESET${AP.r}`;
@@ -667,7 +671,11 @@ export async function handleModelsCommand(ctx: ExtensionContext): Promise<void> 
 	const savedConfig = await readSavedModelConfigAsync(ctx.cwd);
 	if (savedConfig.status === "invalid") {
 		ctx.ui.notify(
-			`Ein no puede abrir la config de modelos: ${savedConfig.path} no es JSON valido u objeto. Corrigelo o eliminalo y vuelve a ejecutar /ein:models.`,
+			tf(
+				"models.invalid",
+				`Ein no puede abrir la config de modelos: ${savedConfig.path} no es JSON valido u objeto. Corrigelo o eliminalo y vuelve a ejecutar /ein:models.`,
+				savedConfig.path,
+			),
 			"warning",
 		);
 		return;
@@ -687,12 +695,12 @@ export async function handleModelsCommand(ctx: ExtensionContext): Promise<void> 
 				? "inherit"
 				: (config[result.agent]?.model ?? "inherit");
 		const label = result.agent === "all"
-			? "todos los agentes"
-			: isOrch ? "Orquestador (formato: proveedor/modelo)"
+			? t("models.row.all_agents", "todos los agentes")
+			: isOrch ? t("models.row.orch", "Orquestador (formato: proveedor/modelo)")
 			: result.agent;
 		const custom = await ctx.ui.input(
-			`${label} — id de modelo personalizado`,
-			current === "inherit" ? "proveedor/modelo" : current,
+			tf("models.input.custom", `${label} — id de modelo personalizado`, label),
+			current === "inherit" ? t("models.input.placeholder", "proveedor/modelo") : current,
 		);
 		if (custom === undefined) return;
 		const trimmed = custom.trim();
@@ -735,19 +743,19 @@ export async function handleModelsCommand(ctx: ExtensionContext): Promise<void> 
 	writeModelConfig(ctx.cwd, subagentConfig);
 	const applyResult = await applyModelConfigAsync(ctx.cwd, subagentConfig);
 
-	const notifyLines: string[] = ["Config de modelos guardada."];
+	const notifyLines: string[] = [t("models.saved", "Config de modelos guardada.")];
 	if (orchEntry?.model) {
 		const slash = orchEntry.model.indexOf('/');
 		const provider = slash > 0 ? orchEntry.model.slice(0, slash) : "";
 		const model = slash > 0 ? orchEntry.model.slice(slash + 1) : orchEntry.model;
 		if (provider && model) {
 			updateGlobalDefaultModel(provider, model);
-			notifyLines.push(`Orquestador → ${orchEntry.model} (reinicia Pi para aplicar)`);
+			notifyLines.push(tf("models.orch.applied", `Orquestador → ${orchEntry.model} (reinicia Pi para aplicar)`, orchEntry.model));
 		}
 	}
 	notifyLines.push(
-		`Config global: ${modelConfigPath(ctx.cwd)}`,
-		`Agentes actualizados: ${applyResult.updated}`,
+		tf("models.global.config", `Config global: ${modelConfigPath(ctx.cwd)}`, modelConfigPath(ctx.cwd)),
+		tf("models.agents.updated", `Agentes actualizados: ${applyResult.updated}`, applyResult.updated),
 		...describeModelConfig(ctx.cwd, subagentConfig),
 	);
 	ctx.ui.notify(notifyLines.join("\n"), "info");

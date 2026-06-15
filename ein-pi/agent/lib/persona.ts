@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { type Lang, responseLanguageDirective } from "./lang.ts";
+import { type Lang, pick, responseLanguageDirective } from "./lang.ts";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ASSETS_DIR = join(PACKAGE_ROOT, "assets");
@@ -114,16 +114,19 @@ export function writePersonaMode(cwd: string, mode: PersonaMode): void {
 export async function handlePersonaCommand(ctx: ExtensionContext): Promise<void> {
 	const current = readPersonaMode(ctx.cwd);
 	const selected = await ctx.ui.select(
-		`Persona de Ein (actual: ${current})`,
+		pick(`Persona de Ein (actual: ${current})`, `Ein persona (current: ${current})`),
 		[...PERSONA_OPTIONS],
 	);
 	if (selected !== "samuhlo" && selected !== "neutral") return;
 	writePersonaMode(ctx.cwd, selected);
 	ctx.ui.notify(
 		[
-			`Persona actualizada: ${selected}`,
+			pick(`Persona actualizada: ${selected}`, `Persona updated: ${selected}`),
 			`Config: ${personaConfigPath(ctx.cwd)}`,
-			"Reinicia Pi o abre una sesion nueva para que el cambio tome efecto.",
+			pick(
+				"Reinicia Pi o abre una sesion nueva para que el cambio tome efecto.",
+				"Restart Pi or open a new session for the change to take effect.",
+			),
 		].join("\n"),
 		"info",
 	);

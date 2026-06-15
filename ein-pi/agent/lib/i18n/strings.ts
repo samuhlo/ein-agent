@@ -45,6 +45,88 @@ const EN: Record<string, string> = {
 	// ── /ein:lang descripcion ──
 	"cmd.lang.description": "View or change Ein's language (chat/UI and PR/commit/Linear artifacts)",
 
+	// ── compartidas ──
+	"busy.retry": "The agent is busy. Retry {0} when it finishes.",
+
+	// ── descripciones de comandos ──
+	"cmd.install-sdd.description": "Reinstall or refresh Ein's global SDD agents and chains",
+	"cmd.sdd-preflight.description": "Run or reuse the SDD preflight for this Pi session",
+	"cmd.models.description": "View or configure the active models per agent in Ein",
+	"cmd.models.full.description": "Full preset: orchestrator + sdd-design → gpt-5.5, rest → MiniMax-M2.7",
+	"cmd.models.lite.description": "Lite preset: orchestrator + sdd-design → MiniMax-M3, rest → MiniMax-M2.7",
+	"cmd.persona.description": "Switch Ein's persona between samuhlo and neutral",
+	"cmd.resume.description": "List recent sessions with the command to restore them",
+	"cmd.status.description": "View Ein system status (agents, chains, skills, project)",
+	"cmd.help.description": "Ein system help — use 'full' for complete detail",
+	"cmd.doctor.description": "Explanatory diagnosis of the Ein system",
+	"cmd.doctor-output.description": "Technical smoke checks of the Ein system (OK / OK_WITH_WARNINGS / FAIL)",
+	"cmd.skills.description": "Skill management: status, update [--local|--downloaded], add, clean",
+	"cmd.skills.advisor.description": "Show inventory and skill resolution for a task",
+	"cmd.skill-registry.legacy.description": "[legacy] Use {0}",
+	"cmd.skill-registry.refresh.description": "Force regeneration of .atl/skill-registry.md from scratch",
+	"skills.updating": "/// 000. UPDATING SKILLS\nCloning sources, this may take a while...",
+	"skills.usage": "- Usage: {0} [status|update [--local|--downloaded]|add <skill>|clean [--yes]]",
+	"skills.advisor.tip": "Tip: use {0} <task> to get a useful resolve+digest for your case.",
+
+	// ── linear ──
+	"legacy.use": "[legacy] Use {0}",
+	"cmd.linear.new.description": "Create or reuse a Linear project/issue with Ein preflight",
+	"cmd.linear.bootstrap.description": "Create/reuse a project and seed initial issues by preset",
+	"cmd.linear.milestones.description": "List milestones of a Linear project",
+	"cmd.linear.help.description": "Ein Linear workflow help",
+	"linear.help": "/// 000. LINEAR HELP\nagent: {0}\n\n■ 001. COMMANDS\n{1} <request>\n{2} <project> | <preset>\n{3} <project>\n\n■ 002. VISIBLE ROUTES\nein-linear for daily management\nein-linear for startup, status and daily sync\nein-linear-bootstrap only as a legacy/deprecated manual chain\n\n■ 003. PRESETS\nfront-design, blog-content, ai-system, qa-hardening",
+
+	// ── notificaciones ein-ai ──
+	"ai.models.invalid": "Ein skipped the model config: {0} is not valid JSON. Fix it or delete it and run /ein:models again.",
+	"ai.models.applied": "Model config applied to {0} agent(s). SDD assets ready: {1} agent(s), {2} chain(s), {3} support.",
+	"ai.models.error": "Error applying model config: {0}",
+	"ai.sdd.installed": "SDD assets: {0} agent(s), {1} chain(s), {2} support available ({3} installed, {4} already present).",
+
+	// ── /ein:resume ──
+	"resume.title": "/// 000. RECENT SESSIONS",
+	"resume.none": "- No saved sessions yet.",
+	"resume.shortcuts": "- Shortcuts: `pi -c` (continue last) · `pi -r` (pick session)",
+
+	// ── panel de modelos ──
+	"models.invalid": "Ein cannot open the model config: {0} is not valid JSON or object. Fix it or delete it and run /ein:models again.",
+	"models.row.all": "all agents",
+	"models.row.orch": "Orchestrator (format: provider/model)",
+	"models.input.custom": "{0} — custom model id",
+	"models.input.placeholder": "provider/model",
+	"models.saved": "Model config saved.",
+	"models.orch.applied": "Orchestrator → {0} (restart Pi to apply)",
+	"models.global.config": "Global config: {0}",
+	"models.agents.updated": "Agents updated: {0}",
+	"models.keep_current": "Keep current",
+	"models.inherit_model": "Inherit active/default model",
+	"models.custom_model": "Custom model id",
+	"models.inherit_thinking": "Inherit effort",
+	"models.set_all": "Configure all agents",
+	"models.preset.full.desc": "Orchestrator + sdd-design → gpt-5.5  |  rest → MiniMax-M2.7",
+	"models.preset.lite.desc": "Orchestrator + sdd-design → MiniMax-M3  |  rest → MiniMax-M2.7",
+	"models.btn.save": "Save",
+	"models.btn.cancel": "Cancel",
+	"models.hint.main": "↑↓ · Enter model · e effort · i inherit · p preset · Ctrl+S save",
+	"models.hint.select": "↑↓ navigate · Enter select · type to search · Esc back",
+	"models.hint.nav": "↑↓ navigate · Enter select · Esc back",
+	"models.hint.apply": "↑↓ navigate · Enter apply · Esc back",
+	"models.col.agent": "AGENT",
+	"models.col.model": "MODEL",
+	"models.col.effort": "EFFORT",
+	"models.row.orchestrator": "Orchestrator",
+	"models.row.all_agents": "All agents",
+	"models.group.delivery": "DELIVERY",
+	"models.group.other": "OTHER",
+	"models.title.agents": "AGENT MODELS",
+	"models.search.placeholder": "search...",
+	"models.no_matches": "no matching models",
+	"models.more": "{0} more",
+	"models.for": "for:",
+	"models.title.model": "MODEL",
+	"models.inherit_default": "Inherit (default)",
+	"models.title.effort": "EFFORT",
+	"models.preset.intro": "Apply a complete model configuration at once.",
+
 	// ── /ein:help (corto) ──
 	"help.short": [
 		"/// 000. EIN HELP",
@@ -175,6 +257,88 @@ const ES: Record<string, string> = {
 	// ── /ein:lang descripcion ──
 	"cmd.lang.description": "Ver o cambiar el idioma de Ein (conversación/UI y artefactos PR/commit/Linear)",
 
+	// ── compartidas ──
+	"busy.retry": "El agente esta ocupado. Reintenta {0} cuando termine.",
+
+	// ── descripciones de comandos ──
+	"cmd.install-sdd.description": "Reinstalar o refrescar los agentes y chains SDD globales de Ein",
+	"cmd.sdd-preflight.description": "Ejecutar o reutilizar el preflight SDD para esta sesion de Pi",
+	"cmd.models.description": "Ver o configurar los modelos activos por agente en Ein",
+	"cmd.models.full.description": "Preset full: orquestador + sdd-design → gpt-5.5, resto → MiniMax-M2.7",
+	"cmd.models.lite.description": "Preset lite: orquestador + sdd-design → MiniMax-M3, resto → MiniMax-M2.7",
+	"cmd.persona.description": "Cambiar la persona de Ein entre samuhlo y neutral",
+	"cmd.resume.description": "Listar sesiones recientes con el comando para recuperarlas",
+	"cmd.status.description": "Ver estado del sistema Ein (agentes, chains, skills, proyecto)",
+	"cmd.help.description": "Ayuda del sistema Ein — usa 'full' para detalle completo",
+	"cmd.doctor.description": "Diagnostico explicativo del sistema Ein",
+	"cmd.doctor-output.description": "Smoke checks tecnicos del sistema Ein (OK / OK_WITH_WARNINGS / FAIL)",
+	"cmd.skills.description": "Gestion de skills: status, update [--local|--downloaded], add, clean",
+	"cmd.skills.advisor.description": "Muestra inventario y resolucion de skills para una tarea",
+	"cmd.skill-registry.legacy.description": "[legacy] Usa {0}",
+	"cmd.skill-registry.refresh.description": "Fuerza regeneracion de .atl/skill-registry.md desde cero",
+	"skills.updating": "/// 000. UPDATING SKILLS\nClonando fuentes, puede tardar...",
+	"skills.usage": "- Uso: {0} [status|update [--local|--downloaded]|add <skill>|clean [--yes]]",
+	"skills.advisor.tip": "Tip: usa {0} <tarea> para obtener un resolve+digest util para tu caso.",
+
+	// ── linear ──
+	"legacy.use": "[legacy] Usa {0}",
+	"cmd.linear.new.description": "Crea o reutiliza proyecto/issue en Linear con preflight Ein",
+	"cmd.linear.bootstrap.description": "Crea/reusa proyecto y siembra issues iniciales por preset",
+	"cmd.linear.milestones.description": "Lista milestones de un proyecto Linear",
+	"cmd.linear.help.description": "Ayuda de workflow Linear Ein",
+	"linear.help": "/// 000. LINEAR HELP\nagente: {0}\n\n■ 001. COMANDOS\n{1} <request>\n{2} <proyecto> | <preset>\n{3} <proyecto>\n\n■ 002. RUTAS VISIBLES\nein-linear para gestion diaria\nein-linear para arranque, estado y sync diario\nein-linear-bootstrap solo como chain legacy/deprecated manual\n\n■ 003. PRESETS\nfront-design, blog-content, ai-system, qa-hardening",
+
+	// ── notificaciones ein-ai ──
+	"ai.models.invalid": "Ein omitio la config de modelos: {0} no es JSON valido. Corrigelo o eliminalo y vuelve a ejecutar /ein:models.",
+	"ai.models.applied": "Config de modelos aplicada a {0} agente(s). Assets SDD listos: {1} agente(s), {2} chain(s), {3} soporte.",
+	"ai.models.error": "Error al aplicar config de modelos: {0}",
+	"ai.sdd.installed": "Assets SDD: {0} agente(s), {1} chain(s), {2} soporte disponibles ({3} instalados, {4} ya presentes).",
+
+	// ── /ein:resume ──
+	"resume.title": "/// 000. SESIONES RECIENTES",
+	"resume.none": "- No hay sesiones guardadas todavia.",
+	"resume.shortcuts": "- Atajos: `pi -c` (continuar ultima) · `pi -r` (elegir sesion)",
+
+	// ── panel de modelos ──
+	"models.invalid": "Ein no puede abrir la config de modelos: {0} no es JSON valido u objeto. Corrigelo o eliminalo y vuelve a ejecutar /ein:models.",
+	"models.row.all": "todos los agentes",
+	"models.row.orch": "Orquestador (formato: proveedor/modelo)",
+	"models.input.custom": "{0} — id de modelo personalizado",
+	"models.input.placeholder": "proveedor/modelo",
+	"models.saved": "Config de modelos guardada.",
+	"models.orch.applied": "Orquestador → {0} (reinicia Pi para aplicar)",
+	"models.global.config": "Config global: {0}",
+	"models.agents.updated": "Agentes actualizados: {0}",
+	"models.keep_current": "Mantener actual",
+	"models.inherit_model": "Heredar modelo activo/por defecto",
+	"models.custom_model": "Id de modelo personalizado",
+	"models.inherit_thinking": "Heredar esfuerzo",
+	"models.set_all": "Configurar todos los agentes",
+	"models.preset.full.desc": "Orquestador + sdd-design → gpt-5.5  |  resto → MiniMax-M2.7",
+	"models.preset.lite.desc": "Orquestador + sdd-design → MiniMax-M3  |  resto → MiniMax-M2.7",
+	"models.btn.save": "Guardar",
+	"models.btn.cancel": "Cancelar",
+	"models.hint.main": "↑↓ · Enter modelo · e esfuerzo · i heredar · p preset · Ctrl+S guardar",
+	"models.hint.select": "↑↓ navegar · Enter seleccionar · tipo buscar · Esc volver",
+	"models.hint.nav": "↑↓ navegar · Enter seleccionar · Esc volver",
+	"models.hint.apply": "↑↓ navegar · Enter aplicar · Esc volver",
+	"models.col.agent": "AGENTE",
+	"models.col.model": "MODELO",
+	"models.col.effort": "ESFUERZO",
+	"models.row.orchestrator": "Orquestador",
+	"models.row.all_agents": "Todos los agentes",
+	"models.group.delivery": "ENTREGA",
+	"models.group.other": "OTROS",
+	"models.title.agents": "MODELOS DE AGENTES",
+	"models.search.placeholder": "buscar...",
+	"models.no_matches": "sin modelos coincidentes",
+	"models.more": "{0} más",
+	"models.for": "para:",
+	"models.title.model": "MODELO",
+	"models.inherit_default": "Heredar (por defecto)",
+	"models.title.effort": "ESFUERZO",
+	"models.preset.intro": "Aplica una configuración de modelos completa de golpe.",
+
 	// ── /ein:help (corto) ──
 	"help.short": [
 		"/// 000. AYUDA EIN",
@@ -275,3 +439,18 @@ const ES: Record<string, string> = {
 registerStrings(NS, { en: EN, es: ES });
 
 export const t = scope(NS);
+
+/**
+ * Como t(), pero rellena marcadores posicionales {0}, {1}, ... con los
+ * argumentos dados. Para strings de UI con interpolacion.
+ */
+export function tf(
+	key: string,
+	fallback: string,
+	...args: (string | number)[]
+): string {
+	return t(key, fallback).replace(/\{(\d+)\}/g, (match, index) => {
+		const value = args[Number(index)];
+		return value === undefined ? match : String(value);
+	});
+}

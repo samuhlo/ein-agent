@@ -25,6 +25,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { AGENT_DIR } from "../extensions/ein-paths";
+import { pick } from "./lang.ts";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -481,8 +482,14 @@ export function applyPreset(cwd: string, preset: "full" | "lite"): string {
 	writeModelConfig(cwd, config);
 	updateGlobalDefaultModel(orch.provider, orch.model);
 	return preset === "full"
-		? `Modo full activo.\n- Orquestador → gpt-5.5\n- sdd-design → gpt-5.5\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`
-		: `Modo lite activo.\n- Orquestador → MiniMax-M3\n- sdd-design → MiniMax-M3\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`;
+		? pick(
+				`Modo full activo.\n- Orquestador → gpt-5.5\n- sdd-design → gpt-5.5\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`,
+				`Full mode active.\n- Orchestrator → gpt-5.5\n- sdd-design → gpt-5.5\n- Rest → MiniMax-M2.7\nRestart Pi for the orchestrator change to take effect.`,
+			)
+		: pick(
+				`Modo lite activo.\n- Orquestador → MiniMax-M3\n- sdd-design → MiniMax-M3\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`,
+				`Lite mode active.\n- Orchestrator → MiniMax-M3\n- sdd-design → MiniMax-M3\n- Rest → MiniMax-M2.7\nRestart Pi for the orchestrator change to take effect.`,
+			);
 }
 
 function updateBuiltinModelOverride(

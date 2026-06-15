@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, loadBrand, slashCommand } from "./ein-brand";
+import { t, tf } from "../lib/i18n/strings";
 import {
   AGENT_DIR,
   CONTEXT7_KEY_PATH,
@@ -409,12 +410,18 @@ export default function einDoctor(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand(commandName("doctor"), {
-    description:
-      "Diagnostico completo del sistema Ein (agentes, MCP, skills, integraciones)",
+    description: t(
+      "cmd.doctor.description",
+      "Diagnostico explicativo del sistema Ein",
+    ),
     handler: async (_args, ctx) => {
       if (!ctx.isIdle()) {
         ctx.ui.notify(
-          `El agente esta ocupado. Lanza ${slashCommand("doctor")} cuando termine.`,
+          tf(
+            "busy.retry",
+            `El agente esta ocupado. Reintenta ${slashCommand("doctor")} cuando termine.`,
+            slashCommand("doctor"),
+          ),
           "warning",
         );
         return;
@@ -427,11 +434,18 @@ export default function einDoctor(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand(commandName("doctor-output"), {
-    description: "Smoke checks tecnicos del sistema Ein (OK / OK_WITH_WARNINGS / FAIL)",
+    description: t(
+      "cmd.doctor-output.description",
+      "Smoke checks tecnicos del sistema Ein (OK / OK_WITH_WARNINGS / FAIL)",
+    ),
     handler: async (_args, ctx) => {
       if (!ctx.isIdle()) {
         ctx.ui.notify(
-          `El agente esta ocupado. Lanza ${slashCommand("doctor-output")} cuando termine.`,
+          tf(
+            "busy.retry",
+            `El agente esta ocupado. Reintenta ${slashCommand("doctor-output")} cuando termine.`,
+            slashCommand("doctor-output"),
+          ),
           "warning",
         );
         return;

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, loadBrand, slashCommand } from "./ein-brand";
+import { t, tf } from "../lib/i18n/strings";
 import { LINEAR_KEY_PATH } from "./ein-paths";
 
 const LINEAR_URL = "https://api.linear.app/graphql";
@@ -828,7 +829,14 @@ export default function einLinear(pi: ExtensionAPI) {
 
   const linearNewHandler = async (args: string, ctx: any) => {
     if (!ctx.isIdle()) {
-      ctx.ui.notify(`El agente esta ocupado. Vuelve a lanzar ${slashCommand("linear:new")} cuando termine.`, "warning");
+      ctx.ui.notify(
+        tf(
+          "busy.retry",
+          `El agente esta ocupado. Vuelve a lanzar ${slashCommand("linear:new")} cuando termine.`,
+          slashCommand("linear:new"),
+        ),
+        "warning",
+      );
       return;
     }
     const brand = loadBrand();
@@ -849,20 +857,37 @@ export default function einLinear(pi: ExtensionAPI) {
   };
 
   pi.registerCommand(commandName("linear:new"), {
-    description: "Crea o reutiliza proyecto/issue en Linear con preflight Ein",
+    description: t(
+      "cmd.linear.new.description",
+      "Crea o reutiliza proyecto/issue en Linear con preflight Ein",
+    ),
     handler: linearNewHandler,
   });
 
   pi.registerCommand("linear-new", {
-    description: `[legacy] Usa ${slashCommand("linear:new")}`,
+    description: tf(
+      "legacy.use",
+      `[legacy] Usa ${slashCommand("linear:new")}`,
+      slashCommand("linear:new"),
+    ),
     handler: linearNewHandler,
   });
 
   pi.registerCommand(commandName("linear:project-bootstrap"), {
-    description: "Crea/reusa proyecto y siembra issues iniciales por preset",
+    description: t(
+      "cmd.linear.bootstrap.description",
+      "Crea/reusa proyecto y siembra issues iniciales por preset",
+    ),
     handler: async (args, ctx) => {
       if (!ctx.isIdle()) {
-        ctx.ui.notify(`El agente esta ocupado. Vuelve a lanzar ${slashCommand("linear:project-bootstrap")} cuando termine.`, "warning");
+        ctx.ui.notify(
+          tf(
+            "busy.retry",
+            `El agente esta ocupado. Vuelve a lanzar ${slashCommand("linear:project-bootstrap")} cuando termine.`,
+            slashCommand("linear:project-bootstrap"),
+          ),
+          "warning",
+        );
         return;
       }
       const brand = loadBrand();
@@ -890,10 +915,20 @@ export default function einLinear(pi: ExtensionAPI) {
   });
 
   pi.registerCommand(commandName("linear:milestones"), {
-    description: "Lista milestones de un proyecto Linear",
+    description: t(
+      "cmd.linear.milestones.description",
+      "Lista milestones de un proyecto Linear",
+    ),
     handler: async (args, ctx) => {
       if (!ctx.isIdle()) {
-        ctx.ui.notify(`El agente esta ocupado. Vuelve a lanzar ${slashCommand("linear:milestones")} cuando termine.`, "warning");
+        ctx.ui.notify(
+          tf(
+            "busy.retry",
+            `El agente esta ocupado. Vuelve a lanzar ${slashCommand("linear:milestones")} cuando termine.`,
+            slashCommand("linear:milestones"),
+          ),
+          "warning",
+        );
         return;
       }
       pi.sendUserMessage(
@@ -906,10 +941,10 @@ export default function einLinear(pi: ExtensionAPI) {
   });
 
   pi.registerCommand(commandName("linear:help"), {
-    description: "Ayuda de workflow Linear Ein",
+    description: t("cmd.linear.help.description", "Ayuda de workflow Linear Ein"),
     handler: async (_args, ctx) => {
       const brand = loadBrand();
-      const lines = [
+      const fallback = [
         "/// 000. LINEAR HELP",
         `agente: ${brand.agentName}`,
         "",
@@ -925,8 +960,18 @@ export default function einLinear(pi: ExtensionAPI) {
         "",
         "■ 003. PRESETS",
         "front-design, blog-content, ai-system, qa-hardening",
-      ];
-      ctx.ui.notify(lines.join("\n"), "info");
+      ].join("\n");
+      ctx.ui.notify(
+        tf(
+          "linear.help",
+          fallback,
+          brand.agentName,
+          slashCommand("linear:new"),
+          slashCommand("linear:project-bootstrap"),
+          slashCommand("linear:milestones"),
+        ),
+        "info",
+      );
     },
   });
 }

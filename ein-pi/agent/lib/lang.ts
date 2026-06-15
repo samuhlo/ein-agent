@@ -66,6 +66,15 @@ export function readChatLang(): Lang {
 }
 
 /**
+ * Selector de string por idioma de chat, test-safe (sin importar rpiv-i18n).
+ * Para los modulos que cargan los tests (persona, model-config, guardrails)
+ * que no pueden importar lib/i18n/strings.ts. `gl` cae a `es` por ahora.
+ */
+export function pick(es: string, en: string): string {
+	return readChatLang() === "en" ? en : es;
+}
+
+/**
  * Persiste y aplica el idioma de chat en el dial compartido de rpiv-i18n.
  * Devuelve `false` si el SDK no esta disponible o si la escritura a disco
  * falla (el caller debe avisar al usuario). Import dinamico para no acoplar el
