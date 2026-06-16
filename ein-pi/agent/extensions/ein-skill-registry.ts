@@ -610,6 +610,34 @@ function getOrCreateRegistry(cwd: string): SkillEntry[] {
 
 // Deterministic skill injection for subagents.
 // Called by the orchestrator (ein-ai before_agent_start) so phase agents
+// Convenciones de casa que SIEMPRE aplican al escribir/editar codigo, sin
+// depender de la relevancia. Se inyectan aparte (codeConventionSkillBlock),
+// asi que se excluyen de la resolucion por relevancia para no duplicar.
+const CODE_CONVENTION_KEYS = ["comment-style", "logging-style", "file-naming"];
+
+// Bloque always-on: paths de las convenciones de codigo a cargar siempre que
+// se vaya a escribir o editar codigo. Lo inyecta ein-ai tanto en el parent
+// como en los subagentes. Devuelve "" si no hay ninguna instalada.
+export function codeConventionSkillBlock(cwd: string): string {
+  let registry: SkillEntry[] = [];
+  try {
+    registry = getOrCreateRegistry(cwd);
+  } catch {
+    return "";
+  }
+  const byKey = new Map(registry.map((entry) => [entry.key, entry]));
+  const paths = CODE_CONVENTION_KEYS.map((key) => byKey.get(key)?.path).filter(
+    (p): p is string => typeof p === "string",
+  );
+  if (!paths.length) return "";
+  return [
+    "## Code conventions (mandatory house style)",
+    "Before writing or editing ANY code, read and follow these convention skills — not optional:",
+    ...paths.map((p) => `- ${p}`),
+    "Apply comment-style to comments, logging-style to runtime logs, and file-naming (kebab-case) to any new or renamed file.",
+  ].join("\n");
+}
+
 // receive exact SKILL.md paths instead of relying on the parent model to ask.
 export function resolveSkillInjection(cwd: string, task: string, limit = 6): string {
   const cleanTask = (task ?? "").trim();
@@ -620,7 +648,9 @@ export function resolveSkillInjection(cwd: string, task: string, limit = 6): str
   } catch {
     registry = [];
   }
-  const resolved = resolveSkills(registry, cleanTask, undefined, limit);
+  const resolved = resolveSkills(registry, cleanTask, undefined, limit).filter(
+    (skill) => !CODE_CONVENTION_KEYS.includes(skill.key),
+  );
   const c7 = detectContext7(cleanTask);
   if (!resolved.length && !c7.length) return "";
 

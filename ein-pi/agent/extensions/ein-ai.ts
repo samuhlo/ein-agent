@@ -47,7 +47,7 @@ import {
 } from "../lib/model-config.ts";
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
-import { resolveSkillInjection } from "./ein-skill-registry.ts";
+import { codeConventionSkillBlock, resolveSkillInjection } from "./ein-skill-registry.ts";
 import { AGENT_DIR } from "./ein-paths";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
@@ -198,8 +198,13 @@ export default function einAi(pi: ExtensionAPI): void {
 				artifactPrompt = `\n\n${artifactLanguageDirective(readArtifactLang(ctx.cwd))}`;
 			}
 		}
+		// Convenciones de codigo always-on (comment/logging/file-naming): se
+		// inyectan en el parent y en todos los subagentes. El bloque se auto-gatea
+		// ("antes de escribir codigo..."), asi que es inocuo para agentes no-codigo.
+		const conventions = codeConventionSkillBlock(ctx.cwd);
+		const conventionsPrompt = conventions ? `\n\n${conventions}` : "";
 		return {
-			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}`,
+			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}`,
 		};
 	});
 

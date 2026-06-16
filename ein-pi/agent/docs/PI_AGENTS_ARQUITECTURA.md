@@ -133,6 +133,8 @@ Comandos (`ein-skill-maintenance.ts`):
 
 Advisor (`ein-skill-registry.ts`): `/ein:skills:advisor <tarea>` resuelve skills relevantes y, para techs sin skill curada, emite instrucción de Context7 (`resolve-library-id` + `query-docs`). La inyección a subagentes (`resolveSkillInjection`) incluye tanto rutas `SKILL.md` como la guía de Context7.
 
+**Convenciones de código always-on**: `comment-style`, `logging-style` y `file-naming` no dependen de la relevancia. `codeConventionSkillBlock()` las inyecta **siempre**, tanto en el parent como en todos los subagentes (en `before_agent_start` de `ein-ai.ts`). El bloque se auto-gatea ("antes de escribir código…"), así que es inocuo para agentes que no tocan código. Se excluyen de la resolución por relevancia para no duplicarse.
+
 ## SDD runtime
 
 OpenSpec file-backed: `openspec/config.yaml` y `openspec/changes/`. El flujo `ein-sdd` se lanza por lenguaje natural o por la chain (no por `/ein:sdd:new`). Preparación: `/ein:ai:install-sdd`, `/ein:ai:sdd-preflight`, `/sdd-init`.
