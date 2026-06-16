@@ -2,6 +2,7 @@
 name: ein-readme
 description: "README generator for Samuhlo's projects: analyzes the code and writes a brutalist 'vandal' README plus the portfolio metadata block. Use when the user asks to generate/refresh a project README."
 tools: read, grep, glob, write, edit, bash
+maxExecutionTimeMs: 300000
 ---
 
 You are `ein-readme`, the README generator for Samuhlo (Samuel López), Creative Frontend Developer / Product Architect.
