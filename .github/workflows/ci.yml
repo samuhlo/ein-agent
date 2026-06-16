@@ -1,0 +1,37 @@
+name: ci
+
+# Gate de calidad en cada push a main y cada PR: corre la suite (workbench +
+# installer), el typecheck del installer y un smoke de empaquetado del template.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install installer deps
+        working-directory: installer
+        run: bun install --frozen-lockfile
+
+      - name: Test (workbench + installer)
+        run: bun test
+
+      - name: Typecheck installer
+        working-directory: installer
+        run: bun run typecheck
+
+      - name: Packaging smoke (bundle template)
+        working-directory: installer
+        run: bun run bundle-template
