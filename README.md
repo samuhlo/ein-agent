@@ -54,7 +54,16 @@ Ein no ejecuta comandos destructivos sin confirmación. Tiene una lista explíci
 
 ### Persona docente
 
-En modo `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón nuevo, endpoint, decisión de arquitectura, código no trivial, seguridad) Ein no entrega un parte de estado: **te enseña cómo funciona por dentro** — qué hace cada pieza y cómo encajan, el mecanismo paso a paso. Lo trivial sigue siendo breve. El objetivo es que termines entendiendo mejor el sistema, no solo qué se tocó.
+En modo `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón nuevo, endpoint, decisión de arquitectura, código no trivial, seguridad) Ein no entrega un parte de estado: **te enseña cómo funciona por dentro** — qué hace cada pieza y cómo encajan, el mecanismo paso a paso. Lo trivial sigue siendo breve. El objetivo es que termines entendiendo mejor el sistema, no solo qué se tocó. La persona controla el **tono**; el idioma se gestiona aparte (ver abajo).
+
+### Sistema de idioma (es / en)
+
+Ein separa el idioma en **dos ejes independientes**, configurables con `/ein:lang`:
+
+- **Conversación y UI** — cómo te habla Ein y el idioma de la interfaz (ayuda, paneles, notificaciones). Es el locale compartido de [`rpiv-i18n`](https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-i18n) (`~/.config/rpiv-i18n/locale.json`), autodetectado de `LANG` y cambiable también con `pi --locale <code>` o `/languages`.
+- **Artefactos** — el idioma de lo que Ein **escribe de cara afuera**: cuerpos de PR, mensajes de commit, issues y comentarios de Linear. Se guarda por proyecto en `.pi/ein/lang.json`; si no lo fijas, hereda el de conversación.
+
+Esto habilita el caso real: **charlar en castellano y a la vez generar PRs e issues en inglés** para un repo internacional. El idioma entra como directiva autoritativa en el prompt (por encima de la persona). Galego contemplado en la arquitectura, pendiente de traducir su UI.
 
 ### Preguntas estructuradas y MCP eficiente
 
@@ -134,7 +143,8 @@ Una vez instalado, Pi expone estos comandos:
 /ein:models             Ver o cambiar el modelo asignado a cada agente
 /ein:models:full        Preset potencia: orquestador + sdd-design → gpt-5.5
 /ein:models:lite        Preset ahorro: todos → MiniMax-M2.7 (escape de rate-limit)
-/ein:persona            Alternar entre persona "samuhlo" y "neutral"
+/ein:persona            Alternar entre persona "samuhlo" y "neutral" (tono)
+/ein:lang               Idioma de conversación/UI y de artefactos (PR/commit/Linear)
 ```
 
 ### Skills
@@ -156,7 +166,7 @@ Una vez instalado, Pi expone estos comandos:
 
 ### Diagnóstico
 ```
-/ein:doctor             Smoke test completo del entorno (47 checks, 8 grupos)
+/ein:doctor             Smoke test completo del entorno (8 grupos de checks)
 /ein:doctor-output      Versión compacta, sin lanzar pi
 /ein:help               Referencia de todos los comandos /ein:*
 /ein:help full          Guía completa con flujos canónicos
@@ -188,7 +198,8 @@ ein-agent/
 │       ├── agents/         # 7 agentes (5 SDD + ein-linear + ein-github)
 │       ├── chains/         # Cadena ein-sdd
 │       ├── extensions/     # 9 extensiones del runtime de Pi
-│       ├── skills/         # 13 locales + 34 bajadas curadas + mapa Context7
+│       ├── lib/            # Lógica compartida (persona, lang, guardrails, modelos...)
+│       ├── skills/         # 12 locales + 34 bajadas curadas + mapa Context7
 │       ├── prompts/        # Prompts del sistema
 │       ├── brand.json      # Identidad de Ein
 │       ├── models.json     # Modelos disponibles
@@ -215,17 +226,19 @@ Hace backup del estado actual, redespliega el workbench y actualiza `pi`. Tu `au
 ## Publicar una nueva release
 
 ```bash
-git tag installer-v0.6.0
-git push origin installer-v0.6.0
+git tag installer-v0.8.3
+git push origin installer-v0.8.3
 ```
 
-GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.5.0`.
+GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.8.2`.
 
 ---
 
 ## Roadmap
 
-**Fase 2b — Selector multi-perfil (no construido todavía).** Poder tener varios perfiles (`profiles/<persona>.json`), cada uno con su propia persona y su propio stack de skills, para que otra persona pueda instalar Ein con un stack distinto. La base ya existe (`stack-profile.json` es un perfil con nombre y `loadProfile()` lee una ruta resoluble); falta el selector y el acople persona ↔ perfil.
+**Multi-perfil (no construido todavía).** Poder tener varios perfiles (`profiles/<persona>.json`), cada uno con su propia persona y su propio stack de skills, para que otra persona pueda instalar Ein con un stack distinto. La base ya existe (`stack-profile.json` es un perfil con nombre y `loadProfile()` lee una ruta resoluble); falta el selector y el acople persona ↔ perfil.
+
+**Galego en la UI.** El sistema de idioma ya contempla `gl` en el tipo, las directivas y el selector; falta traducir los mapas de UI (`lib/i18n/strings.ts`) y, si se quiere en el picker compartido, contribuirlo a `rpiv-i18n`.
 
 ---
 

@@ -60,7 +60,9 @@ Para preparar SDD en un proyecto: `/ein:ai:install-sdd`. El preflight: `/ein:ai:
 - `/ein:models:full` → reparto de arriba.
 - `/ein:models:lite` → todo a `MiniMax-M2.7` (cuando gpt-5.5 se queda sin cupo).
 
-## Skills (3 capas)
+## Idioma
+
+Dos ejes con `/ein:lang`: **conversación/UI** (locale global de `rpiv-i18n`) y **artefactos** (PR/commits/Linear, por proyecto en `.pi/ein/lang.json`, hereda el de conversación). Hoy `es`/`en`. Permite hablar en castellano y generar PRs/issues en inglés. La persona controla el tono, no el idioma.
 
 1. **Locales** (`skills/local/`): tus reglas propias. Se sincronizan desde tu repo GitHub.
 2. **Bajadas** (`skills/downloaded/`): set curado de fuentes fiables (onmax, antfu, greensock, vercel, yusukebe, midudev).
@@ -112,7 +114,7 @@ Engram corre como MCP (`~/.pi/agent/mcp.json`) sobre la DB `~/.engram-pi`. Conte
 ```text
 /ein:status          → vista compacta
 /ein:doctor          → diagnóstico explicado
-/ein:doctor-output   → smoke test técnico (45 checks)
+/ein:doctor-output   → smoke test técnico (8 grupos de checks)
 ```
 
 ## Instalar / actualizar (terminal)
