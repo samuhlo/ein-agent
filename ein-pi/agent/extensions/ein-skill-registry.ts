@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
+import { pick } from "../lib/lang";
 import { AGENT_DIR, DOWNLOADED_SKILLS_DIR, LOCAL_SKILLS_DIR } from "./ein-paths";
 
 type SkillScope = "project" | "user";
@@ -778,7 +779,12 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
         "info",
       );
     }
-    pi.sendUserMessage(`Usa \`ein_skill_registry\`, luego \`ein_skill_resolve\` y \`ein_skill_digest\` para esta tarea: ${task}. El digest incluye, para tecnologias sin skill curada, instruccion de Context7 (resolve-library-id + query-docs) que debes ejecutar para traer docs frescas. Devuelve un resumen didactico en el idioma de la conversacion.`);
+    pi.sendUserMessage(
+      pick(
+        `Usa \`ein_skill_registry\`, luego \`ein_skill_resolve\` y \`ein_skill_digest\` para esta tarea: ${task}. El digest incluye, para tecnologias sin skill curada, instruccion de Context7 (resolve-library-id + query-docs) que debes ejecutar para traer docs frescas. Devuelve un resumen didactico en español.`,
+        `Use \`ein_skill_registry\`, then \`ein_skill_resolve\` and \`ein_skill_digest\` for this task: ${task}. For technologies without a curated skill, the digest includes a Context7 instruction (resolve-library-id + query-docs) you must run to fetch fresh docs. Return a teaching summary in English.`,
+      ),
+    );
   };
 
   pi.registerCommand(commandName("skills:advisor"), {
