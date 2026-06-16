@@ -33,6 +33,7 @@ Además de la cadena SDD, Ein incluye dos agentes especializados que gestionan e
 
 - **ein-linear** — Crea y actualiza issues, milestones y proyectos en Linear. Mantiene sincronía entre el OpenSpec y el estado real del backlog.
 - **ein-github** — Abre PRs bien documentadas, gestiona branches y conecta cada unidad de trabajo con su issue correspondiente.
+- **ein-readme** — Genera el README de un proyecto (estética brutalista + bloque de metadata para el portfolio), analizando el código directamente.
 
 ### Sistema de skills (3 capas)
 
@@ -195,11 +196,11 @@ Si gpt-5.5 llega al límite de uso, `/ein:models:lite` cambia todo a MiniMax-M2.
 ein-agent/
 ├── ein-pi/                 # Workbench (se despliega en ~/.pi/agent/)
 │   └── agent/
-│       ├── agents/         # 7 agentes (5 SDD + ein-linear + ein-github)
+│       ├── agents/         # 8 agentes (5 SDD + ein-linear + ein-github + ein-readme)
 │       ├── chains/         # Cadena ein-sdd
 │       ├── extensions/     # 9 extensiones del runtime de Pi
 │       ├── lib/            # Lógica compartida (persona, lang, guardrails, modelos...)
-│       ├── skills/         # 12 locales + 34 bajadas curadas + mapa Context7
+│       ├── skills/         # 14 locales + 34 bajadas curadas + mapa Context7
 │       ├── prompts/        # Prompts del sistema
 │       ├── brand.json      # Identidad de Ein
 │       ├── models.json     # Modelos disponibles

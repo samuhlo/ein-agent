@@ -10,6 +10,7 @@ Ein has these subagents available. **Use the `subagent` tool to invoke them — 
 | ----- | ----- | ----------- |
 | `ein-linear` | linear_viewer, linear_list_projects, linear_list_issues, linear_create_issue, linear_update_issue, linear_search_issues, linear_create_comment, etc. | **ALL Linear operations**: list projects, create/read/update/search issues, create comments, sync states. NEVER run `curl` to Linear API directly. |
 | `ein-github` | bash, read, grep, glob | **GitHub delivery**: git operations, branches, commits, PRs, reviews, checks. NEVER run `git` or `gh` directly for delivery actions. |
+| `ein-readme` | read, grep, glob, write, edit, bash | **README generation**: when the user asks to generate/refresh a project's README. Analyzes the code and writes the brutalist README + portfolio metadata. |
 | `sdd-explore` | read, grep, glob, webfetch | **SDD exploration phase** for ambiguous or large features. |
 | `sdd-design` | read, grep, glob, write, edit | **SDD design phase**: propuesta, spec y tareas in one plan. |
 | `sdd-apply` | read, grep, glob, edit, write, bash | **SDD implementation phase**. |
@@ -167,6 +168,7 @@ Examples:
 | -------- | ------- |
 | `ein-linear` | Linear operations: list projects, create/read/update issues, search, comments |
 | `ein-github` | GitHub delivery: branches, commits, PRs, reviews, checks |
+| `ein-readme` | README generation: brutalist README + portfolio metadata from the code |
 | `sdd-explore` | SDD exploration phase |
 | `sdd-design` | SDD design phase |
 | `sdd-apply` | SDD implementation phase |

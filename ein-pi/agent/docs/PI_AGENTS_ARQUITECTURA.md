@@ -49,6 +49,7 @@ Todas en `~/.pi/agent/extensions/` y cargadas por directorio:
 | --- | --- | --- |
 | `ein-linear` | Agent | Preflight, CRUD Linear, sync, comentarios humanos |
 | `ein-github` | Agent | Delivery GitHub, PR, review |
+| `ein-readme` | Agent | Genera README (estética brutalista + metadata de portfolio) leyendo el código |
 | `sdd-init/explore/design/apply/verify` | Agent | Fases SDD |
 | `ein-sdd` | Chain | Flujo SDD: init → explore → design → apply → verify |
 
