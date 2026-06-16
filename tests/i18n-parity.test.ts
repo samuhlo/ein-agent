@@ -35,7 +35,7 @@ function blockBetween(src: string, start: string, end: string): string {
 describe("i18n parity (en/es)", () => {
 	const src = readFileSync(STRINGS_PATH, "utf8");
 	const en = extractKeys(blockBetween(src, "const EN", "const ES"));
-	const es = extractKeys(blockBetween(src, "const ES", "registerStrings(NS"));
+	const es = extractKeys(blockBetween(src, "const ES", "const MAPS"));
 
 	test("ambos mapas tienen claves", () => {
 		expect(en.length).toBeGreaterThan(0);

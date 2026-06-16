@@ -6,13 +6,24 @@
 //   - artefactos (PR/commits/Linear) → config nativa por proyecto en
 //                .pi/ein/lang.json; si falta, hereda el idioma de chat.
 //
-// Este modulo NO importa rpiv-i18n a nivel de valor: el repo no tiene
-// node_modules y romperia los tests con bun. Para leer el locale activo usa el
-// snapshot publico globalThis[Symbol.for("rpiv-i18n")]; solo al escribir hace
-// un import() dinamico (que solo se ejecuta en el runtime real de Pi).
+// Este modulo NUNCA importa @juicesharp/rpiv-i18n: los paquetes declarados de
+// Pi viven en ~/.pi/agent/npm/node_modules y NO estan en la cadena de
+// resolucion de Node desde aqui (un `import` falla en runtime). En su lugar:
+//   - LEE el locale por el snapshot publico globalThis[Symbol.for("rpiv-i18n")]
+//     que rpiv-i18n publica al cargarse como extension; con fallback al fichero
+//     ~/.config/rpiv-i18n/locale.json y a LANG/LC_ALL.
+//   - ESCRIBE el locale en ese mismo fichero (lo que rpiv lee al arrancar).
+// Asi el dial de idioma sigue siendo el compartido, sin acoplarnos al paquete.
 // =============================================================================
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
@@ -51,8 +62,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// ─── Eje chat/UI (locale global de rpiv-i18n) ────────────────────────────────
+// ─── Eje chat/UI (locale compartido de rpiv-i18n, leido sin importar) ─────────
 
+// Snapshot publicado por rpiv-i18n al cargarse como extension.
 function activeLocaleRaw(): string | undefined {
 	const snapshot = (globalThis as Record<symbol, unknown>)[I18N_STATE_KEY];
 	if (isRecord(snapshot) && typeof snapshot.locale === "string") {
@@ -61,8 +73,38 @@ function activeLocaleRaw(): string | undefined {
 	return undefined;
 }
 
+function localeConfigPath(): string {
+	const xdg = process.env.XDG_CONFIG_HOME?.trim();
+	const base = xdg && xdg.length > 0 ? xdg : join(homedir(), ".config");
+	return join(base, "rpiv-i18n", "locale.json");
+}
+
+// Fallback cuando el snapshot aun no esta (rpiv no cargado todavia / ausente).
+function localeFromConfigFile(): string | undefined {
+	try {
+		const parsed: unknown = JSON.parse(readFileSync(localeConfigPath(), "utf8"));
+		if (isRecord(parsed) && typeof parsed.locale === "string") return parsed.locale;
+	} catch {
+		// sin fichero o invalido
+	}
+	return undefined;
+}
+
+function localeFromEnv(): string | undefined {
+	for (const value of [process.env.LANG, process.env.LC_ALL]) {
+		const lang = value?.split("_")[0]?.split(".")[0];
+		if (lang && lang !== "C" && lang !== "POSIX") return lang;
+	}
+	return undefined;
+}
+
 export function readChatLang(): Lang {
-	return normalizeLang(activeLocaleRaw()) ?? DEFAULT_LANG;
+	return (
+		normalizeLang(activeLocaleRaw()) ??
+		normalizeLang(localeFromConfigFile()) ??
+		normalizeLang(localeFromEnv()) ??
+		DEFAULT_LANG
+	);
 }
 
 /**
@@ -84,17 +126,22 @@ export function pickFor(lang: Lang, es: string, en: string): string {
 }
 
 /**
- * Persiste y aplica el idioma de chat en el dial compartido de rpiv-i18n.
- * Devuelve `false` si el SDK no esta disponible o si la escritura a disco
- * falla (el caller debe avisar al usuario). Import dinamico para no acoplar el
- * modulo al paquete en tiempo de test.
+ * Persiste el idioma de chat escribiendo el mismo fichero que rpiv-i18n lee al
+ * arrancar (~/.config/rpiv-i18n/locale.json). No importa el paquete. Toma
+ * efecto al reiniciar Pi (cuando rpiv re-lee el fichero). Devuelve `false` si
+ * la escritura a disco falla (el caller avisa al usuario).
  */
-export async function applyChatLang(lang: Lang): Promise<boolean> {
+export function applyChatLang(lang: Lang): boolean {
 	try {
-		const i18n = await import("@juicesharp/rpiv-i18n");
-		const ok = i18n.saveLocaleConfig(lang);
-		i18n.applyLocale(lang);
-		return ok;
+		const path = localeConfigPath();
+		mkdirSync(dirname(path), { recursive: true });
+		writeFileSync(path, `${JSON.stringify({ locale: lang }, null, 2)}\n`);
+		try {
+			chmodSync(path, 0o600);
+		} catch {
+			// chmod best-effort
+		}
+		return true;
 	} catch {
 		return false;
 	}
@@ -201,7 +248,7 @@ export async function handleLangCommand(ctx: ExtensionContext): Promise<void> {
 	);
 	const chatLang = ACTIVE_LANGS[chatItems.indexOf(chatPick)];
 	if (!chatLang) return;
-	const persisted = await applyChatLang(chatLang);
+	const persisted = applyChatLang(chatLang);
 
 	const currentOverride = readArtifactOverride(ctx.cwd);
 	const artItems = [INHERIT_OPTION, ...ACTIVE_LANGS.map((l) => `${LANG_LABEL[l]} (${l})`)];
