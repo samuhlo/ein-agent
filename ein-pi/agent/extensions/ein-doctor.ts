@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, loadBrand, slashCommand } from "./ein-brand";
+import { t, tf } from "../lib/i18n/strings";
 import {
   AGENT_DIR,
   CONTEXT7_KEY_PATH,
@@ -193,6 +194,9 @@ function doctorSmokeReport(): string {
   );
   const packages = (settings.packages as unknown[] | undefined) ?? [];
   const hasAskUserQuestion = packages.includes("npm:@juicesharp/rpiv-ask-user-question");
+  const hasI18nPkg = packages.includes("npm:@juicesharp/rpiv-i18n");
+  const langLibFile = join(AGENT_DIR, "lib", "lang.ts");
+  const stringsLibFile = join(AGENT_DIR, "lib", "i18n", "strings.ts");
 
   const checksCore: CheckResult[] = [
     check(existsSync(brandFile), "brand.json", "Archivo de marca presente."),
@@ -314,6 +318,20 @@ function doctorSmokeReport(): string {
     ),
   ];
 
+  const checksI18n: CheckResult[] = [
+    warn(
+      hasI18nPkg,
+      "i18n package",
+      "Paquete @juicesharp/rpiv-i18n declarado en settings.packages.",
+    ),
+    check(existsSync(langLibFile), "lib/lang.ts", "Modulo de idioma presente."),
+    check(
+      existsSync(stringsLibFile),
+      "lib/i18n/strings.ts",
+      "Mapas de UI (es/en) presentes.",
+    ),
+  ];
+
   const groups: Array<{ title: string; checks: CheckResult[] }> = [
     { title: "■ 011. CORE", checks: checksCore },
     { title: "■ 012. MCP", checks: checksMcp },
@@ -322,6 +340,7 @@ function doctorSmokeReport(): string {
     { title: "■ 015. SKILLS", checks: checksSkills },
     { title: "■ 016. GUARDRAILS", checks: checksGuardrails },
     { title: "■ 017. INTEGRACIONES", checks: checksIntegrations },
+    { title: "■ 018. I18N", checks: checksI18n },
   ];
 
   const flat = groups.flatMap((g) => g.checks);
@@ -391,12 +410,18 @@ export default function einDoctor(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand(commandName("doctor"), {
-    description:
-      "Diagnostico completo del sistema Ein (agentes, MCP, skills, integraciones)",
+    description: t(
+      "cmd.doctor.description",
+      "Diagnostico explicativo del sistema Ein",
+    ),
     handler: async (_args, ctx) => {
       if (!ctx.isIdle()) {
         ctx.ui.notify(
-          `El agente esta ocupado. Lanza ${slashCommand("doctor")} cuando termine.`,
+          tf(
+            "busy.retry",
+            `El agente esta ocupado. Reintenta ${slashCommand("doctor")} cuando termine.`,
+            slashCommand("doctor"),
+          ),
           "warning",
         );
         return;
@@ -409,11 +434,18 @@ export default function einDoctor(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand(commandName("doctor-output"), {
-    description: "Smoke checks tecnicos del sistema Ein (OK / OK_WITH_WARNINGS / FAIL)",
+    description: t(
+      "cmd.doctor-output.description",
+      "Smoke checks tecnicos del sistema Ein (OK / OK_WITH_WARNINGS / FAIL)",
+    ),
     handler: async (_args, ctx) => {
       if (!ctx.isIdle()) {
         ctx.ui.notify(
-          `El agente esta ocupado. Lanza ${slashCommand("doctor-output")} cuando termine.`,
+          tf(
+            "busy.retry",
+            `El agente esta ocupado. Reintenta ${slashCommand("doctor-output")} cuando termine.`,
+            slashCommand("doctor-output"),
+          ),
           "warning",
         );
         return;

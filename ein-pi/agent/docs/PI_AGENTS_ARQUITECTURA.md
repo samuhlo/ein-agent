@@ -31,7 +31,7 @@ Todas en `~/.pi/agent/extensions/` y cargadas por directorio:
 
 | Extensión | Responsabilidad |
 | --- | --- |
-| `ein-ai.ts` | Ensamblador principal: registra hooks y comandos `/ein:*`; la lógica vive en `lib/` (`persona`, `guardrails`, `model-config`, `models-panel`, `sdd-preflight`) |
+| `ein-ai.ts` | Ensamblador principal: registra hooks y comandos `/ein:*`; la lógica vive en `lib/` (`persona`, `lang`, `i18n/strings`, `guardrails`, `model-config`, `models-panel`, `sdd-preflight`) |
 | `ein-banner.ts` | Banner brutalista al iniciar (paleta plana de brand.json, reveal único, subtítulo SAMUHLO) |
 | `ein-brand.ts` | Identidad de marca (`commandName`, `slashCommand`, persona) |
 | `ein-doctor.ts` | Diagnóstico (`/ein:doctor`, `/ein:doctor-output`) |
@@ -91,7 +91,22 @@ Comandos del adapter: `/mcp` (panel), `/mcp setup`, `/mcp reconnect <server>`. T
 
 ## Paquetes (settings.json)
 
-Ein declara en `settings.json` → `packages`: `pi-subagents` (subagentes), `pi-mcp-adapter` (proxy MCP), `@juicesharp/rpiv-ask-user-question` (tool `ask_user_question`: diálogos estructurados en checkpoints), `@juicesharp/rpiv-i18n` (locale; español en `~/.config/rpiv-i18n/locale.json`). Pi resuelve estos paquetes (su subsistema de extensiones es npm por dentro).
+Ein declara en `settings.json` → `packages`: `pi-subagents` (subagentes), `pi-mcp-adapter` (proxy MCP), `@juicesharp/rpiv-ask-user-question` (tool `ask_user_question`: diálogos estructurados en checkpoints), `@juicesharp/rpiv-i18n` (motor de i18n de la UI: locale compartido + `registerStrings`/`tr`; ver «Idioma»). Pi resuelve estos paquetes (su subsistema de extensiones es npm por dentro).
+
+## Idioma (i18n)
+
+Dos ejes ortogonales, fuente de verdad en `lib/lang.ts`:
+
+- **Conversación / UI** → locale compartido de `@juicesharp/rpiv-i18n` (`~/.config/rpiv-i18n/locale.json`, autodetectado de `LANG`). `lib/lang.ts` lo **lee** por el snapshot `globalThis[Symbol.for("rpiv-i18n")]` (no acopla el módulo: los tests corren sin `node_modules`) y solo hace `import()` dinámico al **escribir** (`applyChatLang`).
+- **Artefactos** (PR/commits/Linear) → config por proyecto `.pi/ein/lang.json`; `readArtifactLang(cwd)` hereda el de conversación si no hay override.
+
+Mecanismo de render:
+
+- `lib/i18n/strings.ts` registra los mapas `es`/`en` en el dial de rpiv-i18n (`registerStrings`) y expone `t(key, fallback)` / `tf(key, fallback, ...args)` (placeholders `{0}`). Lo usan las **extensiones** (que no cargan los tests).
+- `lib/lang.ts` expone `pick(es, en)` (idioma de chat, **test-safe**, sin importar rpiv-i18n) para los libs acoplados a tests (`persona`, `model-config`, `guardrails`, `sessions`), y `pickFor(lang, es, en)` para contenido cuyo idioma es el de **artefactos** (p.ej. plantillas de bootstrap de Linear).
+- Respuesta del modelo: `buildEinPrompt(persona, chatLang)` inyecta una directiva de idioma **autoritativa** (manda sobre la persona). Para los subagentes `ein-github`/`ein-linear`, `ein-ai.ts` añade `artifactLanguageDirective(readArtifactLang(cwd))` con las cabeceras de sección traducidas.
+
+Comando `/ein:lang` (dos `ctx.ui.select`: conversación y artefactos). Default `es`; `gl` contemplado en tipos/directivas, UI pendiente. Paridad `es`/`en` de las claves: invariante (ver reglas de mantenimiento).
 
 ## Skills (3 capas)
 
@@ -123,7 +138,7 @@ OpenSpec file-backed: `openspec/config.yaml` y `openspec/changes/`. El flujo `ei
 
 ## Doctor
 
-`ein-doctor.ts`: `/ein:doctor` (explicado) y `/ein:doctor-output` (smoke estático, ~45 checks: core, MCP, agentes+chain, extensiones (9), skills, guardrails, runtime, integraciones). Devuelve `OK` / `OK_WITH_WARNINGS` / `FAIL`.
+`ein-doctor.ts`: `/ein:doctor` (explicado) y `/ein:doctor-output` (smoke estático, 8 grupos: core, MCP, agentes+chain, extensiones (9), skills, guardrails, integraciones, i18n). Devuelve `OK` / `OK_WITH_WARNINGS` / `FAIL`; el total de checks es dinámico (`total: flat.length`).
 
 ## Instalador
 
@@ -137,6 +152,7 @@ Carpeta `installer/` del repo (Bun + TypeScript, compilado a binarios standalone
 4. Toda mutación Linear usa `linearMutation(...)`.
 5. Si añades un comando público, actualiza `/ein:help full` y `PI_AGENTS_COMANDOS.md`.
 6. Para añadir una skill, edita `catalog` (fuente fiable) o `context7` (mapa) en `stack-profile.json`.
+7. Texto de UI nuevo: clave en `lib/i18n/strings.ts` con **paridad `es`/`en`** y consúmelo con `t`/`tf` (extensiones) o `pick`/`pickFor` (libs acoplados a tests). Nunca hardcodees strings de UI.
 
 ## Troubleshooting
 
@@ -144,6 +160,7 @@ Carpeta `installer/` del repo (Bun + TypeScript, compilado a binarios standalone
 - **Linear falla**: `/ein:doctor-output`.
 - **Algo roto**: `ein restore` (terminal) recupera un backup.
 
-## Futuro (Fase 2b, no construido)
+## Futuro (no construido)
 
-Selector multi-perfil: `profiles/<persona>.json` + persona acoplada a un stack distinto, para que otras personas instalen Ein con su propio set de skills. La base existe (`stack-profile.json` es un perfil con nombre y `loadProfile()` lee una ruta resoluble); falta el selector.
+- **Selector multi-perfil**: `profiles/<persona>.json` + persona acoplada a un stack distinto, para que otras personas instalen Ein con su propio set de skills. La base existe (`stack-profile.json` es un perfil con nombre y `loadProfile()` lee una ruta resoluble); falta el selector.
+- **Galego en la UI**: el sistema de idioma ya contempla `gl`; falta traducir los mapas de `lib/i18n/strings.ts` (y, opcionalmente, contribuir el picker a `rpiv-i18n`).

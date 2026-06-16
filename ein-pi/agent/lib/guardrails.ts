@@ -23,6 +23,7 @@ import type {
 	ExtensionContext,
 	ToolCallEventResult,
 } from "@earendil-works/pi-coding-agent";
+import { pick } from "./lang.ts";
 
 const DENIED_BASH_PATTERNS: RegExp[] = [
 	/\brm\s+-rf\s+(?:\/|~|\$HOME|\.\.?)(?:\s|$)/,
@@ -133,7 +134,10 @@ export async function confirmCommand(
 		};
 	}
 	const preview = truncatePreview(command, 180);
-	const approved = await ctx.ui.confirm("Allow guarded command?", preview);
+	const approved = await ctx.ui.confirm(
+		pick("¿Permitir comando protegido?", "Allow guarded command?"),
+		preview,
+	);
 	if (approved) return undefined;
 	return {
 		block: true,
@@ -179,7 +183,10 @@ export async function confirmDelegatedDelivery(
 	if (!texts.some(taskRequestsGuardedDelivery)) return undefined;
 	const preview = truncatePreview(texts.join(" | "), 180);
 	const approved = await ctx.ui.confirm(
-		"¿Autorizar push delegado al subagente?",
+		pick(
+			"¿Autorizar push delegado al subagente?",
+			"Authorize delegated push to the subagent?",
+		),
 		preview,
 	);
 	if (!approved) {

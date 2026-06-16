@@ -27,6 +27,14 @@ import {
 	readPersonaMode,
 } from "../lib/persona.ts";
 import {
+	LANG_LABEL,
+	artifactLanguageDirective,
+	handleLangCommand,
+	readArtifactLang,
+	readChatLang,
+} from "../lib/lang.ts";
+import { t, tf } from "../lib/i18n/strings.ts";
+import {
 	confirmCommand,
 	confirmDelegatedDelivery,
 } from "../lib/guardrails.ts";
@@ -118,14 +126,25 @@ export default function einAi(pi: ExtensionAPI): void {
 			const modelResult = await applySavedModelConfig(ctx);
 			if (ctx.hasUI && modelResult.invalidPath) {
 				ctx.ui.notify(
-					`Ein omitio la config de modelos: ${modelResult.invalidPath} no es JSON valido. Corrigelo o eliminalo y vuelve a ejecutar /ein:models.`,
+					tf(
+						"ai.models.invalid",
+						`Ein omitio la config de modelos: ${modelResult.invalidPath} no es JSON valido. Corrigelo o eliminalo y vuelve a ejecutar /ein:models.`,
+						modelResult.invalidPath,
+					),
 					"warning",
 				);
 				return;
 			}
 			if (ctx.hasUI && modelResult.updated > 0) {
 				ctx.ui.notify(
-					`Config de modelos aplicada a ${modelResult.updated} agente(s). Assets SDD listos: ${installResult.agents} agente(s), ${installResult.chains} chain(s), ${installResult.support} soporte.`,
+					tf(
+						"ai.models.applied",
+						`Config de modelos aplicada a ${modelResult.updated} agente(s). Assets SDD listos: ${installResult.agents} agente(s), ${installResult.chains} chain(s), ${installResult.support} soporte.`,
+						modelResult.updated,
+						installResult.agents,
+						installResult.chains,
+						installResult.support,
+					),
 					"info",
 				);
 			}
@@ -134,7 +153,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				const message =
 					error instanceof Error ? error.message : String(error);
 				ctx.ui.notify(
-					`Error al aplicar config de modelos: ${message}`,
+					tf("ai.models.error", `Error al aplicar config de modelos: ${message}`, message),
 					"warning",
 				);
 			}
@@ -162,7 +181,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				: "";
 		const einPrompt = isNamedAgent || isSddAgent
 			? ""
-			: `\n\n${buildEinPrompt(readPersonaMode(ctx.cwd))}`;
+			: `\n\n${buildEinPrompt(readPersonaMode(ctx.cwd), readChatLang())}`;
 		// Deterministic skill injection: phase/named subagents receive exact
 		// SKILL.md paths resolved from their task, not the parent model's discretion.
 		let skillsPrompt = "";
@@ -170,8 +189,17 @@ export default function einAi(pi: ExtensionAPI): void {
 			const block = resolveSkillInjection(ctx.cwd, readAgentTask(event));
 			if (block) skillsPrompt = `\n\n${block}`;
 		}
+		// Idioma de artefactos: los agentes de delivery (PR/commits/Linear) reciben
+		// la directiva autoritativa segun .pi/ein/lang.json (o el idioma de chat).
+		let artifactPrompt = "";
+		if (isNamedAgent) {
+			const names = readAgentStartNames(event);
+			if (names.some((n) => n === "ein-github" || n === "ein-linear")) {
+				artifactPrompt = `\n\n${artifactLanguageDirective(readArtifactLang(ctx.cwd))}`;
+			}
+		}
 		return {
-			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${skillsPrompt}`,
+			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}`,
 		};
 	});
 
@@ -187,35 +215,53 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:ai:install-sdd", {
-		description:
+		description: t(
+			"cmd.install-sdd.description",
 			"Reinstalar o refrescar los agentes y chains SDD globales de Ein",
+		),
 		handler: async (args, ctx) => {
 			const force = args.includes("--force");
 			const result = installSddAssets(ctx.cwd, force);
 			ctx.ui.notify(
-				`Assets SDD: ${result.agents} agente(s), ${result.chains} chain(s), ${result.support} soporte disponibles (${result.installed} instalados, ${result.skipped} ya presentes).`,
+				tf(
+					"ai.sdd.installed",
+					`Assets SDD: ${result.agents} agente(s), ${result.chains} chain(s), ${result.support} soporte disponibles (${result.installed} instalados, ${result.skipped} ya presentes).`,
+					result.agents,
+					result.chains,
+					result.support,
+					result.installed,
+					result.skipped,
+				),
 				"info",
 			);
 		},
 	});
 
 	pi.registerCommand("ein:ai:sdd-preflight", {
-		description:
+		description: t(
+			"cmd.sdd-preflight.description",
 			"Ejecutar o reutilizar el preflight SDD para esta sesion de Pi",
+		),
 		handler: async (_args, ctx) => {
 			await runSddPreflight(ctx);
 		},
 	});
 
 	pi.registerCommand("ein:models", {
-		description: "Ver o configurar los modelos activos por agente en Ein",
+		description: t(
+			"cmd.models.description",
+			"Ver o configurar los modelos activos por agente en Ein",
+		),
 		handler: async (_args, ctx) => {
 			await handleModelsCommand(ctx);
 		},
 	});
 
 	pi.registerCommand("ein:models:full", {
-		description: "Preset full: orquestador + sdd-design → gpt-5.5, resto → MiniMax-M2.7",
+		description: t(
+			"cmd.models.full.description",
+			"Preset full: orquestador + sdd-design → gpt-5.5, resto → MiniMax-M2.7",
+		),
 		handler: (_args, ctx) => {
 			const msg = applyPreset(ctx.cwd, "full");
 			ctx.ui.notify(msg, "info");
@@ -223,7 +269,10 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:models:lite", {
-		description: "Preset lite: orquestador + sdd-design → MiniMax-M3, resto → MiniMax-M2.7",
+		description: t(
+			"cmd.models.lite.description",
+			"Preset lite: orquestador + sdd-design → MiniMax-M3, resto → MiniMax-M2.7",
+		),
 		handler: (_args, ctx) => {
 			const msg = applyPreset(ctx.cwd, "lite");
 			ctx.ui.notify(msg, "info");
@@ -231,21 +280,42 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:persona", {
-		description: "Cambiar la persona de Ein entre samuhlo y neutral",
+		description: t(
+			"cmd.persona.description",
+			"Cambiar la persona de Ein entre samuhlo y neutral",
+		),
 		handler: async (_args, ctx) => {
 			await handlePersonaCommand(ctx);
 		},
 	});
 
+	pi.registerCommand("ein:lang", {
+		description: t(
+			"cmd.lang.description",
+			"Ver o cambiar el idioma de Ein (conversación/UI y artefactos PR/commit/Linear)",
+		),
+		handler: async (_args, ctx) => {
+			await handleLangCommand(ctx);
+		},
+	});
+
 	pi.registerCommand("ein:resume", {
-		description: "Listar sesiones recientes con el comando para recuperarlas",
+		description: t(
+			"cmd.resume.description",
+			"Listar sesiones recientes con el comando para recuperarlas",
+		),
 		handler: async (_args, ctx) => {
 			const sessions = listRecentSessions(8);
-			const lines: string[] = ["/// 000. SESIONES RECIENTES", ""];
+			const lines: string[] = [t("resume.title", "/// 000. SESIONES RECIENTES"), ""];
 			if (!sessions.length) {
-				lines.push("- No hay sesiones guardadas todavia.");
+				lines.push(t("resume.none", "- No hay sesiones guardadas todavia."));
 			} else {
-				lines.push("- Atajos: `pi -c` (continuar ultima) · `pi -r` (elegir sesion)");
+				lines.push(
+					t(
+						"resume.shortcuts",
+						"- Atajos: `pi -c` (continuar ultima) · `pi -r` (elegir sesion)",
+					),
+				);
 				lines.push("");
 				for (const s of sessions) {
 					lines.push(`- ${s.project} (${humanizeAge(s.ageMs)})`);
@@ -257,7 +327,10 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:status", {
-		description: "Ver estado del sistema Ein (agentes, chains, skills, proyecto)",
+		description: t(
+			"cmd.status.description",
+			"Ver estado del sistema Ein (agentes, chains, skills, proyecto)",
+		),
 		handler: async (_args, ctx) => {
 			const agentsDir = join(AGENT_DIR, "agents");
 			const chainsDir = join(AGENT_DIR, "chains");
@@ -299,42 +372,51 @@ export default function einAi(pi: ExtensionAPI): void {
 			}
 
 			const lines: string[] = [];
+			const chatLang = readChatLang();
+			const artifactLang = readArtifactLang(ctx.cwd);
 			lines.push("/// 000. EIN STATUS");
-			lines.push(`autor: samuhlo`);
-			lines.push(`persona: ${readPersonaMode(ctx.cwd)}`);
-			lines.push(`estado: ${staleDrift > 0 ? "drift detectado" : "operativo"}`);
+			lines.push(`${t("status.author", "autor")}: samuhlo`);
+			lines.push(`${t("status.persona", "persona")}: ${readPersonaMode(ctx.cwd)}`);
+			lines.push(
+				`${t("status.lang", "idioma")}: ${t("status.lang.chat", "conversación")}=${LANG_LABEL[chatLang]} · ${t("status.lang.artifacts", "artefactos")}=${LANG_LABEL[artifactLang]}`,
+			);
+			lines.push(
+				`${t("status.state", "estado")}: ${staleDrift > 0 ? t("status.state.drift", "drift detectado") : t("status.state.ok", "operativo")}`,
+			);
 			lines.push("");
 
-			lines.push("■ 001. SDD");
-			lines.push(`agentes: ${agents.length}`);
+			lines.push(`■ 001. ${t("status.sdd", "SDD")}`);
+			lines.push(`${t("status.agents", "agentes")}: ${agents.length}`);
 			for (const a of agents) lines.push(`- ${a}`);
-			lines.push(`chains: ${chains.length}`);
+			lines.push(`${t("status.chains", "chains")}: ${chains.length}`);
 			for (const c of chains) lines.push(`- ${c}`);
 			if (staleDrift > 0)
-				lines.push(`drift: ${staleDrift} archivo(s) desincronizado(s) — /ein:ai:install-sdd --force para refrescar`);
+				lines.push(
+					`drift: ${staleDrift} ${t("status.drift.files", "archivo(s) desincronizado(s)")} — /ein:ai:install-sdd --force ${t("status.drift.refresh", "para refrescar")}`,
+				);
 			lines.push("");
 
-			lines.push("■ 002. SKILLS");
-			lines.push(`locales: ${localSkills}`);
-			lines.push(`descargadas: ${downloadedSkills}`);
+			lines.push(`■ 002. ${t("status.skills", "SKILLS")}`);
+			lines.push(`${t("status.skills.local", "locales")}: ${localSkills}`);
+			lines.push(`${t("status.skills.downloaded", "descargadas")}: ${downloadedSkills}`);
 			lines.push("");
 
-			lines.push("■ 003. PROYECTO");
-			lines.push(`openspec: ${openspecConfigured ? "configurado" : "no configurado — /sdd-init para arrancar"}`);
-			lines.push(`modelo: ${existsSync(modelConfigPath(ctx.cwd)) ? "config presente" : "sin config local"}`);
+			lines.push(`■ 003. ${t("status.project", "PROYECTO")}`);
+			lines.push(`openspec: ${openspecConfigured ? t("status.openspec.configured", "configurado") : t("status.openspec.unconfigured", "no configurado — /sdd-init para arrancar")}`);
+			lines.push(`${t("status.model", "modelo")}: ${existsSync(modelConfigPath(ctx.cwd)) ? t("status.model.present", "config presente") : t("status.model.absent", "sin config local")}`);
 			lines.push("");
 
 			lines.push("■ 004. MCP");
 			if (mcpServers.length > 0) {
-				lines.push(`servidores: ${mcpServers.join(", ")}`);
+				lines.push(`${t("status.mcp.servers", "servidores")}: ${mcpServers.join(", ")}`);
 			} else {
-				lines.push("servidores: ninguno configurado");
+				lines.push(`${t("status.mcp.servers", "servidores")}: ${t("status.mcp.none", "ninguno configurado")}`);
 			}
 			lines.push("");
 
-			lines.push("■ 005. DIAGNOSTICO");
-			lines.push(`- ${"/ein:doctor-output"} para smoke checks tecnicos`);
-			lines.push(`- ${"/ein:doctor"} para diagnostico explicativo`);
+			lines.push(`■ 005. ${t("status.diag", "DIAGNOSTICO")}`);
+			lines.push(`- ${"/ein:doctor-output"} ${t("status.diag.output", "para smoke checks tecnicos")}`);
+			lines.push(`- ${"/ein:doctor"} ${t("status.diag.doctor", "para diagnostico explicativo")}`);
 
 			const level = staleDrift > 0 ? "warning" : "info";
 			ctx.ui.notify(lines.join("\n"), level);
@@ -342,112 +424,19 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:help", {
-		description: "Ayuda del sistema Ein — usa 'full' para detalle completo",
+		description: t(
+			"cmd.help.description",
+			"Ayuda del sistema Ein — usa 'full' para detalle completo",
+		),
 		handler: async (args, ctx) => {
 			const mode = (Array.isArray(args) ? args.join(" ") : String(args ?? ""))
 				.trim()
 				.toLowerCase();
-			const lines: string[] = [];
-
-			if (mode === "full") {
-				lines.push("// 000. RESUMEN");
-				lines.push("");
-				lines.push("Ein esta listo. Autor: samuhlo.");
-				lines.push(
-					"Esta guia muestra que comando usar segun objetivo y que limites respeta cada flujo.",
-				);
-				lines.push("");
-				lines.push("// 000b. USO RECOMENDADO: HABLA CON EIN");
-				lines.push("");
-				lines.push("Ein entiende lenguaje natural. No necesitas aprender comandos slash.");
-				lines.push("Flujos canonicos:");
-				lines.push("");
-				lines.push("  Nueva tarea seria  →  'Nueva tarea: ... montala en Linear y prepara SDD'");
-				lines.push("  Continuar SDD      →  'continua con SDD'");
-				lines.push("  Aplicar            →  'aplica el primer batch'");
-				lines.push("  Verificar          →  'verifica'");
-				lines.push("  Sincronizar Linear →  'sincroniza Linear'");
-				lines.push("");
-				lines.push(
-					"Los comandos slash (/ein:*) son controles avanzados de emergencia o uso manual.",
-				);
-				lines.push("");
-				lines.push("// 001. COMANDOS CORE");
-				lines.push("");
-				lines.push("- /ein:status           → estado rapido del workbench.");
-				lines.push("- /ein:persona          → ver/cambiar estilo (samuhlo|neutral).");
-				lines.push("- /ein:models           → ver modelos activos.");
-				lines.push("- /ein:resume           → sesiones recientes + pi --session <id>.");
-				lines.push("- /ein:help [full]      → esta ayuda.");
-				lines.push("");
-				lines.push("// 002. FLUJO SDD");
-				lines.push("");
-				lines.push("- SDD fluye via lenguaje natural o chain ein-sdd.");
-				lines.push("- /sdd-init             → bootstrap openspec/config.yaml en el proyecto.");
-				lines.push("- /ein:ai:sdd-preflight → preflight SDD (modo y store de artefactos).");
-				lines.push("- /ein:ai:install-sdd   → reinstalar/refrescar assets SDD globales.");
-				lines.push("");
-				lines.push("// 003. FLUJO LINEAR");
-				lines.push("");
-				lines.push("- /ein:linear:new <request>       → crea/reusa trabajo con preflight.");
-				lines.push("- /ein:linear:project-bootstrap   → siembra fases + milestones.");
-				lines.push("- /ein:linear:milestones <proj>   → lista milestones.");
-				lines.push("- /ein:linear:help                → ayuda especifica de Linear.");
-				lines.push("");
-				lines.push("// 004. FLUJO GITHUB");
-				lines.push("");
-				lines.push("- GitHub fluye via el agente ein-github (lenguaje natural o /ein:github:*).");
-				lines.push("");
-				lines.push("// 005. SKILLS");
-				lines.push("");
-				lines.push("- /ein:skills                     → status del stack (perfil, drift, fuera de stack).");
-				lines.push("- /ein:skills update              → actualiza locales (repo) + bajadas (catalogo).");
-				lines.push("- /ein:skills update --local      → solo locales desde el repo ein-agent.");
-				lines.push("- /ein:skills update --downloaded → solo bajadas desde el catalogo.");
-				lines.push("- /ein:skills add <skill>         → instala una skill del catalogo.");
-				lines.push("- /ein:skills clean [--yes]       → purga bajadas fuera de stack.");
-				lines.push("- /ein:skills:advisor <tarea>     → advisor de skills para una tarea.");
-				lines.push("");
-				lines.push("// 006. DIAGNOSTICO");
-				lines.push("");
-				lines.push("- /ein:doctor                     → diagnostico explicativo del sistema.");
-				lines.push("- /ein:doctor-output              → smoke checks tecnicos (OK/WARN/FAIL).");
-				lines.push("");
-				lines.push("// 007. GATES Y LIMITES");
-				lines.push("");
-				lines.push("- Delivery no se encadena automaticamente.");
-				lines.push("- Commit != push != PR != merge (cada fase requiere intencion explicita).");
-				lines.push(
-					"- Si la peticion es ambigua, se pide aclaracion antes de acciones irreversibles.",
-				);
-				ctx.ui.notify(lines.join("\n"), "info");
-				return;
-			}
-
-			lines.push("/// 000. AYUDA EIN");
-			lines.push("autor: samuhlo");
-			lines.push("");
-			lines.push("■ 001. CORE");
-			lines.push("- /ein:status | /ein:persona | /ein:models | /ein:resume | /ein:help [full]");
-			lines.push("- /ein:models:full  → preset gpt-5.5 (orquestador + sdd-design)");
-			lines.push("- /ein:models:lite  → preset MiniMax-M3 (orch + design) / M2.7 (resto)");
-			lines.push("- /ein:resume       → sesiones recientes + pi --session <id>");
-			lines.push("");
-			lines.push("■ 002. SDD");
-			lines.push("- /sdd-init → bootstrap openspec en el proyecto actual");
-			lines.push("- SDD fluye via lenguaje natural o chain ein-sdd");
-			lines.push("");
-			lines.push("■ 003. LINEAR");
-			lines.push("- /ein:linear:new | :project-bootstrap | :milestones | :help");
-			lines.push("");
-			lines.push("■ 004. SKILLS");
-			lines.push("- /ein:skills [update [--local|--downloaded]|add|clean] | /ein:skills:advisor <tarea>");
-			lines.push("");
-			lines.push("■ 005. DIAGNOSTICO");
-			lines.push("- /ein:doctor | /ein:doctor-output");
-			lines.push("");
-			lines.push("- detalle: /ein:help full");
-			ctx.ui.notify(lines.join("\n"), "info");
+			const text =
+				mode === "full"
+					? t("help.full", "Ein listo. Autor: samuhlo. (i18n no disponible)")
+					: t("help.short", "/// AYUDA EIN — autor: samuhlo");
+			ctx.ui.notify(text, "info");
 		},
 	});
 }

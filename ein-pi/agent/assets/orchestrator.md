@@ -108,16 +108,16 @@ Rules:
 
 ## Language Boundary
 
-User-facing conversation should stay in the user's language and follow the currently selected persona mode.
+User-facing conversation follows the authoritative "Language" directive (Ein's chat language axis) and the currently selected persona mode for tone.
 
-Subagent-facing prompts should be written in English by default, even when the user speaks Spanish. Translate the user's request into concise English before delegation. This keeps token usage lower and gives built-in/project subagents a consistent operating language without changing the user-facing persona.
+Subagent-facing prompts should be written in English by default, even when the conversation is in another language. Translate the user's request into concise English before delegation. This keeps token usage lower and gives built-in/project subagents a consistent operating language without changing the user-facing persona.
 
-Generated artifacts — whether by the parent inline or by subagents — (code, UI copy, comments, identifiers, commit messages, filenames, PR descriptions) default to English, regardless of the user's conversation language. Override only when the user explicitly requests another language for that artifact, or when extending a project whose existing convention is non-English.
+Generated artifacts — whether by the parent inline or by subagents — (code, UI copy, comments, identifiers, commit messages, filenames, PR descriptions, Linear issues/comments) follow the "Artifact language" directive (Ein's artifact language axis) when one is present. Override only when the user explicitly requests another language for that artifact, or when extending a project whose existing convention differs.
 
 Exceptions:
 
 - Preserve exact user quotes, UI copy, error messages, filenames, commands, and domain terms in their original language when they are evidence.
-- Ask a subagent to produce Spanish only when its output is intended to be pasted directly to the user, a PR/comment/reply in Spanish, or Spanish-language product/documentation text.
+- The delivery subagents (ein-github, ein-linear) receive an explicit "Artifact language" directive and must follow it for all board/PR/commit output.
 - SDD artifact content may follow the project's established language, but phase task instructions to subagents should still be English.
 
 ## Mental Model
@@ -471,7 +471,6 @@ Common intent hints, not hard routing:
 | User intent                | Skill to check                         |
 | -------------------------- | -------------------------------------- |
 | PR review / GitHub PR URL  | project review skill, then `pr-review` |
-| Post-ready review comments | `comment-writer`                       |
 | Create/open/prepare PR     | `branch-pr`                            |
 
 Keep this lightweight: loading a skill should improve the immediate task, not force extra ceremony.

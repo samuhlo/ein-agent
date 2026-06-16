@@ -344,15 +344,6 @@
       "hash": "a4e2dc5fad4ceac8fa813b7c795950f7fc53887cc80ecb5b05f951dc481eb4ca",
       "installedAt": "2026-06-09T17:17:39.824Z"
     },
-    "comment-writer": {
-      "name": "comment-writer",
-      "source": {
-        "repo": "samuhlo/ein-agent",
-        "path": "ein-pi/agent/skills/local/comment-writer"
-      },
-      "hash": "6e8f9b226f1febace890407d395e0ba3a5e644cfc2066b467d6b49d01be003d5",
-      "installedAt": "2026-06-09T17:17:39.824Z"
-    },
     "ein-discipline": {
       "name": "ein-discipline",
       "source": {

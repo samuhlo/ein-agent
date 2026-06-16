@@ -24,6 +24,7 @@ import { execFileSync } from "node:child_process";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, slashCommand } from "./ein-brand";
 import { AGENT_DIR, DOWNLOADED_SKILLS_DIR, LOCAL_SKILLS_DIR } from "./ein-paths";
+import { t, tf } from "../lib/i18n/strings";
 
 // --- types -------------------------------------------------------------------
 
@@ -330,7 +331,7 @@ function updateDownloaded(profile: StackProfile, onProgress?: (line: string) => 
     }
     const source = profile.catalog[skill];
     if (!source) {
-      lines.push(`- ${skill}: WARN sin catalogo (usa Context7)`);
+      lines.push(tf("skills.dl.no_catalog", `- ${skill}: WARN sin catalogo (usa Context7)`, skill));
       noCatalog += 1;
       continue;
     }
@@ -344,9 +345,9 @@ function updateDownloaded(profile: StackProfile, onProgress?: (line: string) => 
   }
 
   return [
-    `- Bajadas revisadas: ${targets.length - skippedLocal}`,
-    `- Instaladas: ${installedCount} | Actualizadas: ${updatedCount} | Sin cambios: ${unchangedCount}`,
-    `- Sin catalogo: ${noCatalog} | Fallos: ${failed}`,
+    tf("skills.dl.reviewed", `- Bajadas revisadas: ${targets.length - skippedLocal}`, targets.length - skippedLocal),
+    tf("skills.dl.counts", `- Instaladas: ${installedCount} | Actualizadas: ${updatedCount} | Sin cambios: ${unchangedCount}`, installedCount, updatedCount, unchangedCount),
+    tf("skills.dl.fails", `- Sin catalogo: ${noCatalog} | Fallos: ${failed}`, noCatalog, failed),
     "",
     ...lines,
   ];
@@ -364,11 +365,11 @@ function updateLocalFromRepo(onProgress?: (line: string) => void): string[] {
   let unchangedCount = 0;
 
   try {
-    onProgress?.("Clonando ein-agent (skills locales)...");
+    onProgress?.(t("skills.local.cloning", "Clonando ein-agent (skills locales)..."));
     shallowClone(LOCAL_REPO, repoDir, LOCAL_REPO_SKILLS_PATH);
     const remoteLocalDir = join(repoDir, LOCAL_REPO_SKILLS_PATH);
     if (!existsSync(remoteLocalDir)) {
-      return [`- Local: FAIL no encuentro ${LOCAL_REPO_SKILLS_PATH} en ${LOCAL_REPO}`];
+      return [tf("skills.local.notfound", `- Local: FAIL no encuentro ${LOCAL_REPO_SKILLS_PATH} en ${LOCAL_REPO}`, LOCAL_REPO_SKILLS_PATH, LOCAL_REPO)];
     }
 
     const lock = loadLock();
@@ -396,7 +397,7 @@ function updateLocalFromRepo(onProgress?: (line: string) => void): string[] {
       };
       if (hadInstall) updatedCount += 1;
       else installedCount += 1;
-      lines.push(`- ${key}: ${hadInstall ? "actualizada" : "instalada"}`);
+      lines.push(`- ${key}: ${hadInstall ? t("skills.item.updated", "actualizada") : t("skills.item.installed", "instalada")}`);
     }
     saveLock(lock);
   } catch (error) {
@@ -407,7 +408,7 @@ function updateLocalFromRepo(onProgress?: (line: string) => void): string[] {
   }
 
   return [
-    `- Locales (desde ${LOCAL_REPO}@main): instaladas ${installedCount} | actualizadas ${updatedCount} | sin cambios ${unchangedCount}`,
+    tf("skills.local.summary", `- Locales (desde ${LOCAL_REPO}@main): instaladas ${installedCount} | actualizadas ${updatedCount} | sin cambios ${unchangedCount}`, LOCAL_REPO, installedCount, updatedCount, unchangedCount),
     ...lines,
   ];
 }
@@ -458,10 +459,10 @@ function statusReport(profile: StackProfile): string {
   for (const [name, meta] of installed) {
     const entry = lock.entries[name];
     if (!entry) {
-      drift.push(`${name}: sin lock`);
+      drift.push(tf("skills.status.nolock", `${name}: sin lock`, name));
       continue;
     }
-    if (folderHash(meta.path) !== entry.hash) drift.push(`${name}: hash cambiado`);
+    if (folderHash(meta.path) !== entry.hash) drift.push(tf("skills.status.hashchanged", `${name}: hash cambiado`, name));
   }
 
   const localCount = [...installed.values()].filter((m) => m.source === "local").length;
@@ -469,30 +470,30 @@ function statusReport(profile: StackProfile): string {
 
   const lines = [
     "/// 000. SKILLS",
-    `- Perfil: ${profile.name} (v${profile.version})`,
-    `- Locales instaladas: ${localCount}`,
-    `- Bajadas instaladas: ${downloadedCount}`,
-    `- Core: ${profile.core.length - coreMissing.length}/${profile.core.length} | Secundarias: ${secondaryInstalled}/${profile.secondary.length}`,
-    `- Fuera de stack (downloaded): ${extras.length}`,
+    tf("skills.status.profile", `- Perfil: ${profile.name} (v${profile.version})`, profile.name, profile.version),
+    tf("skills.status.local_installed", `- Locales instaladas: ${localCount}`, localCount),
+    tf("skills.status.downloaded_installed", `- Bajadas instaladas: ${downloadedCount}`, downloadedCount),
+    tf("skills.status.core", `- Core: ${profile.core.length - coreMissing.length}/${profile.core.length} | Secundarias: ${secondaryInstalled}/${profile.secondary.length}`, profile.core.length - coreMissing.length, profile.core.length, secondaryInstalled, profile.secondary.length),
+    tf("skills.status.offstack_count", `- Fuera de stack (downloaded): ${extras.length}`, extras.length),
     "",
   ];
-  if (coreMissing.length) lines.push(`- Faltan core: ${coreMissing.join(", ")}`);
-  if (extras.length) lines.push(`- Fuera de stack: ${extras.join(", ")}`);
-  if (drift.length) lines.push(`- Drift de hash: ${drift.join(" | ")}`);
+  if (coreMissing.length) lines.push(tf("skills.status.missing_core", `- Faltan core: ${coreMissing.join(", ")}`, coreMissing.join(", ")));
+  if (extras.length) lines.push(tf("skills.status.offstack", `- Fuera de stack: ${extras.join(", ")}`, extras.join(", ")));
+  if (drift.length) lines.push(tf("skills.status.drift", `- Drift de hash: ${drift.join(" | ")}`, drift.join(" | ")));
   if (!coreMissing.length && !extras.length && !drift.length) {
-    lines.push("- Estado OK: stack alineado, lock sin drift.");
+    lines.push(t("skills.status.ok", "- Estado OK: stack alineado, lock sin drift."));
   }
   lines.push("");
   lines.push(
-    `- Comandos: ${slashCommand("skills")} update [--local|--downloaded] | add <skill> | clean [--yes]`,
+    tf("skills.status.commands", `- Comandos: ${slashCommand("skills")} update [--local|--downloaded] | add <skill> | clean [--yes]`, slashCommand("skills")),
   );
-  lines.push("- Lo no listado en el perfil se cubre con Context7 on-demand.");
+  lines.push(t("skills.status.context7", "- Lo no listado en el perfil se cubre con Context7 on-demand."));
   return lines.join("\n");
 }
 
 function addSkill(rawName: string, profile: StackProfile): string {
   const name = normalize(rawName);
-  if (!name) return `Uso: ${slashCommand("skills")} add <skill>`;
+  if (!name) return tf("skills.add.usage", `Uso: ${slashCommand("skills")} add <skill>`, slashCommand("skills"));
   const result = installFromCatalog(name, profile);
   return `/// 000. SKILLS ADD\n- ${result.ok ? "OK" : "FAIL"} ${result.message}`;
 }
@@ -505,13 +506,13 @@ function cleanSkills(profile: StackProfile, force: boolean): string {
     .map(([name, meta]) => ({ name, path: meta.path }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  if (!candidates.length) return "/// 000. SKILLS CLEAN\n- Nada que limpiar en downloaded/.";
+  if (!candidates.length) return t("skills.clean.nothing", "/// 000. SKILLS CLEAN\n- Nada que limpiar en downloaded/.");
   if (!force) {
     return [
       "/// 000. SKILLS CLEAN",
-      `- ${candidates.length} skills fuera de stack en downloaded/.`,
-      `- Ejecuta ${slashCommand("skills")} clean --yes para borrarlas.`,
-      `- Candidatas: ${candidates.map((c) => c.name).join(", ")}`,
+      tf("skills.clean.count", `- ${candidates.length} skills fuera de stack en downloaded/.`, candidates.length),
+      tf("skills.clean.run", `- Ejecuta ${slashCommand("skills")} clean --yes para borrarlas.`, slashCommand("skills")),
+      tf("skills.clean.candidates", `- Candidatas: ${candidates.map((c) => c.name).join(", ")}`, candidates.map((c) => c.name).join(", ")),
     ].join("\n");
   }
   const lock = loadLock();
@@ -522,17 +523,27 @@ function cleanSkills(profile: StackProfile, force: boolean): string {
     removed.push(candidate.name);
   }
   saveLock(lock);
-  return ["/// 000. SKILLS CLEAN", `- Eliminadas: ${removed.length}`, `- Lista: ${removed.join(", ")}`].join("\n");
+  return ["/// 000. SKILLS CLEAN", tf("skills.clean.removed", `- Eliminadas: ${removed.length}`, removed.length), tf("skills.clean.list", `- Lista: ${removed.join(", ")}`, removed.join(", "))].join("\n");
 }
 
 // --- command -----------------------------------------------------------------
 
 export default function einSkillMaintenance(pi: ExtensionAPI): void {
   pi.registerCommand(commandName("skills"), {
-    description: "Gestion de skills: status, update [--local|--downloaded], add, clean",
+    description: t(
+      "cmd.skills.description",
+      "Gestion de skills: status, update [--local|--downloaded], add, clean",
+    ),
     handler: async (args, ctx) => {
       if (!ctx.isIdle()) {
-        ctx.ui.notify(`El agente esta ocupado. Reintenta ${slashCommand("skills")} al terminar.`, "warning");
+        ctx.ui.notify(
+          tf(
+            "busy.retry",
+            `El agente esta ocupado. Reintenta ${slashCommand("skills")} al terminar.`,
+            slashCommand("skills"),
+          ),
+          "warning",
+        );
         return;
       }
       const profile = loadProfile();
@@ -547,7 +558,7 @@ export default function einSkillMaintenance(pi: ExtensionAPI): void {
       if (action === "update") {
         const onlyLocal = tokens.includes("--local");
         const onlyDownloaded = tokens.includes("--downloaded");
-        ctx.ui.notify("/// 000. UPDATING SKILLS\nClonando fuentes, puede tardar...", "info");
+        ctx.ui.notify(t("skills.updating", "/// 000. UPDATING SKILLS\nClonando fuentes, puede tardar..."), "info");
         const out: string[] = ["/// 000. SKILLS UPDATE"];
         if (!onlyDownloaded) out.push(...updateLocalFromRepo((line) => ctx.ui.notify(line, "info")));
         if (!onlyLocal) out.push(...updateDownloaded(profile, (line) => ctx.ui.notify(line, "info")));
@@ -570,7 +581,11 @@ export default function einSkillMaintenance(pi: ExtensionAPI): void {
       ctx.ui.notify(
         [
           "/// 000. SKILLS",
-          `- Uso: ${slashCommand("skills")} [status|update [--local|--downloaded]|add <skill>|clean [--yes]]`,
+          tf(
+            "skills.usage",
+            `- Uso: ${slashCommand("skills")} [status|update [--local|--downloaded]|add <skill>|clean [--yes]]`,
+            slashCommand("skills"),
+          ),
         ].join("\n"),
         "info",
       );

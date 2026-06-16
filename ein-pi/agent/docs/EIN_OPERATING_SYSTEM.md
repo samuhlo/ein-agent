@@ -164,7 +164,7 @@ Al abrir Pi, el banner muestra tus **sesiones recientes** (de todos los proyecto
 /ein:status          → vista rápida del sistema
 /ein:help            → lista de comandos (usa /ein:help full para todo)
 /ein:doctor          → revisión completa y explicada
-/ein:doctor-output   → revisión técnica rápida (45 checks)
+/ein:doctor-output   → revisión técnica rápida (8 grupos de checks)
 ```
 
 Si el doctor dice `FAIL`, hay algo roto: arréglalo antes de entregar nada. Si dice `OK`, todo en orden.
@@ -180,6 +180,25 @@ Si el doctor dice `FAIL`, hay algo roto: arréglalo antes de entregar nada. Si d
 ```
 
 En modo `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón nuevo, endpoint, decisión de arquitectura, código no trivial, seguridad) Ein **te enseña cómo funciona por dentro**: qué hace cada pieza nueva y cómo encajan entre sí, el mecanismo real paso a paso — no un simple parte de "qué hice". Lo trivial (un typo, un ajuste pequeño) sigue siendo breve.
+
+La persona decide el **tono**. El **idioma** se elige aparte (siguiente sección).
+
+---
+
+## Idioma (en qué lengua te habla y escribe)
+
+Ein separa el idioma en **dos cosas distintas**, y las eliges con `/ein:lang`:
+
+1. **Cómo te habla y la interfaz** (la ayuda, los paneles, los avisos). Por defecto en español; se detecta de tu sistema (`LANG`).
+2. **Lo que escribe fuera** (los PR, los commits, las issues de Linear). Por proyecto: por defecto el mismo que usa para hablarte, pero lo puedes poner distinto.
+
+¿Para qué sirve separarlos? Para poder, por ejemplo, **hablar con Ein en castellano pero que los PR y las issues salgan en inglés** (útil en repos internacionales).
+
+```text
+/ein:lang   → elige idioma de conversación/UI y, aparte, de los artefactos
+```
+
+Hoy hay **español** e **inglés**. El cambio se aplica al reiniciar Pi o abrir una sesión nueva.
 
 ---
 

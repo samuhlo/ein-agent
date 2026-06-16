@@ -11,7 +11,7 @@ import { join } from "node:path";
 import {
 	mergeUserSettings,
 	readUserSettings,
-} from "../installer/src/core/deploy";
+} from "../installer/src/core/settings";
 
 const DIR = join(tmpdir(), "ein-agent-tests", "deploy");
 const SETTINGS = join(DIR, "settings.json");

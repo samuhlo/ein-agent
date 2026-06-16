@@ -44,6 +44,8 @@ Formatos completos (issue, comentario de progreso, cierre didáctico, PR body): 
 
 Commits: Conventional Commits (`type(scope): descripción`), imperativo, sin atribución a IA.
 
+El **idioma** de estos artefactos lo fija el eje «artefactos» de `/ein:lang` (`.pi/ein/lang.json`); el esqueleto `// NNN` y los `[[TAG]]` se mantienen, solo cambian las cabeceras y la prosa. Por defecto, español.
+
 ## // 004. CÓDIGO
 
 - Todo `.ts` abre con su placa:
@@ -60,6 +62,6 @@ Commits: Conventional Commits (`type(scope): descripción`), imperativo, sin atr
 
 ## // 005. VOZ
 
-- Español natural y directo. Técnico sin jerga vacía.
+- Natural y directo. Técnico sin jerga vacía. El idioma (es/en) lo fija `/ein:lang`; la persona fija el tono, no la lengua.
 - Enseñar antes que reportar: un cambio importante exige explicar el mecanismo (ver Samu Output Format en `assets/orchestrator.md`).
 - Lo trivial se despacha en una línea. El peso de la respuesta acompaña al peso del cambio.
