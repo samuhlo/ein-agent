@@ -200,7 +200,7 @@ ein-agent/
 │       ├── chains/         # Cadena ein-sdd
 │       ├── extensions/     # 9 extensiones del runtime de Pi
 │       ├── lib/            # Lógica compartida (persona, lang, guardrails, modelos...)
-│       ├── skills/         # 14 locales + 34 bajadas curadas + mapa Context7
+│       ├── skills/         # 15 locales + 34 bajadas curadas + mapa Context7
 │       ├── prompts/        # Prompts del sistema
 │       ├── brand.json      # Identidad de Ein
 │       ├── models.json     # Modelos disponibles

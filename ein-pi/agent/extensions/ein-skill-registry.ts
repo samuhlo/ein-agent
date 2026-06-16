@@ -177,6 +177,7 @@ function inferTriggers(content: string): string[] {
     "postgresql", "nuxt", "vue", "react", "github", "linear",
     "animation", "gsap", "accessibility", "performance", "seo", "obsidian",
     "logging", "comment", "naming", "kebab", "readme", "refactor",
+    "architecture", "design", "pattern",
   ];
   for (const candidate of candidates) {
     if (lower.includes(candidate)) triggers.push(candidate);

@@ -2,6 +2,15 @@
   "version": 1,
   "updatedAt": "2026-06-09T17:22:21.480Z",
   "entries": {
+    "architecture": {
+      "name": "architecture",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/architecture"
+      },
+      "hash": "9b629e873cf64ae7a5c9084014be3e547071a1cfc2ae4dfd14be9977a6ade7f2",
+      "installedAt": "2026-06-16T00:00:00.000Z"
+    },
     "logging-style": {
       "name": "logging-style",
       "source": {
