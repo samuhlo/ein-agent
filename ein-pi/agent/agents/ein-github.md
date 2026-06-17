@@ -2,6 +2,7 @@
 name: ein-github
 description: GitHub delivery agent: branches, commits, PRs, reviews, checks, Linear sync.
 tools: read, grep, glob, write, edit, bash
+completionGuard: false
 maxExecutionTimeMs: 300000
 ---
 

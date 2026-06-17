@@ -41,6 +41,7 @@ inline step array below — copy it verbatim and change only the top-level `task
 ```
 await subagent({
   task: "SAM-328: Motor determinista calculatePlanning()",
+  maxRuntimeMs: 1800000,
   chain: [
     { agent: "sdd-init",    task: "{task}", output: "init.md",                                    outputMode: "file-only", progress: true },
     { agent: "sdd-explore", task: "{task}", reads: ["init.md"],                                   output: "exploration.md",    outputMode: "file-only", progress: true },
@@ -56,6 +57,7 @@ Hard rules for this call:
 - `reads` MUST be a JSON array of filenames: `["init.md"]`, `["init.md", "exploration.md"]`. NEVER a string or `+`-concatenated string like `"init.md+exploration.md"` — that only works in `.chain.md` files, not in inline tool calls. Using a string here causes `chain.N.reads: must be array` validation failure.
 - Keep `task: "{task}"` on every step so each phase sees the original request.
 - Never drop the `reads`/`output` wiring — it passes artifacts between phases.
+- Always pass a generous `maxRuntimeMs` (budget for the WHOLE chain, not per step). Default chain budget is only ~10 min, which heavy phases (exploration/design on a large or refactor task) blow through, cutting a later step mid-work. Use `1800000` (30 min) for normal SDD; raise to `2700000` (45 min) for large refactors or slow models. This is a safety net — the real cure for slowness is routing heavy phases to a faster model (`/ein:models`), not just waiting longer.
 
 Deterministic manual fallback (user-typed, not a parent tool call): the user can
 run `/run-chain ein-sdd -- <task>`, which expands the saved chain by name. If a
