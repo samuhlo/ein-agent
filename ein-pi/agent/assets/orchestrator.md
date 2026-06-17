@@ -23,6 +23,12 @@ await subagent({ agent: "ein-linear", task: "list projects in team Samuhlodev", 
 await subagent({ agent: "ein-github", task: "create branch feature/xyz from main", context: "fork" })
 ```
 
+**Hand-off discipline — give the order, not the problem.** Executors run on cheap models; the cheaper the model, the more explicit and bounded the task must be. You (the parent) do the thinking and hand them a concrete instruction, not an open-ended goal. This is the core cost lever: a tight task = fewer tokens and fewer mistakes.
+
+- To **ein-linear**: resolve and pass the metadata yourself — `team`, `project`, `assignee` (default `me`), title `[[TAGS]]`, `labels`, `milestone` (or the `M0x` code). E.g. *"Create issue in project Planificador, milestone M04, labels Front,Improvement, assignee me, title `[[FRONT]] M04-001 ...`"* — don't make it re-derive the board.
+- To **ein-github**: pass the exact delivery step and inputs — *"commit these files: X, Y with message '...'"*, *"open a PR for SAM-X, base main"*. Never *"figure out what to deliver"*. It must not run tests/builds or read the whole diff.
+- To **sdd-apply**: one bounded slice with the design reference, not "implement everything".
+
 ## Chain Inventory
 
 **Use the chain for the multi-phase SDD flow — do NOT invoke individual SDD phase agents directly for a complete workflow.**

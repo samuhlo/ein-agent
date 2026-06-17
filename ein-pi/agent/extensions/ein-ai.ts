@@ -190,19 +190,19 @@ export default function einAi(pi: ExtensionAPI): void {
 			const block = resolveSkillInjection(ctx.cwd, readAgentTask(event));
 			if (block) skillsPrompt = `\n\n${block}`;
 		}
+		const startNames = readAgentStartNames(event);
 		// Idioma de artefactos: los agentes de delivery (PR/commits/Linear) reciben
 		// la directiva autoritativa segun .pi/ein/lang.json (o el idioma de chat).
 		let artifactPrompt = "";
-		if (isNamedAgent) {
-			const names = readAgentStartNames(event);
-			if (names.some((n) => n === "ein-github" || n === "ein-linear")) {
-				artifactPrompt = `\n\n${artifactLanguageDirective(readArtifactLang(ctx.cwd))}`;
-			}
+		if (isNamedAgent && startNames.some((n) => n === "ein-github" || n === "ein-linear")) {
+			artifactPrompt = `\n\n${artifactLanguageDirective(readArtifactLang(ctx.cwd))}`;
 		}
-		// Convenciones de codigo always-on (comment/logging/file-naming): se
-		// inyectan en el parent y en todos los subagentes. El bloque se auto-gatea
-		// ("antes de escribir codigo..."), asi que es inocuo para agentes no-codigo.
-		const conventions = codeConventionSkillBlock(ctx.cwd);
+		// Convenciones de codigo (comment/logging/file-naming): SOLO donde se
+		// escribe codigo — el parent (trabajo inline) y sdd-apply. Inyectarlas en
+		// delivery/linear/explore solo hacia que el modelo barato leyera 3 SKILL.md
+		// inutiles (gasto de tokens) sin escribir codigo.
+		const writesCode = (!isNamedAgent && !isSddAgent) || startNames.includes("sdd-apply");
+		const conventions = writesCode ? codeConventionSkillBlock(ctx.cwd) : "";
 		const conventionsPrompt = conventions ? `\n\n${conventions}` : "";
 		return {
 			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}`,
