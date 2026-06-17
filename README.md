@@ -227,11 +227,11 @@ Hace backup del estado actual, redespliega el workbench y actualiza `pi`. Tu `au
 ## Publicar una nueva release
 
 ```bash
-git tag installer-v0.9.0
-git push origin installer-v0.9.0
+git tag installer-v0.9.1
+git push origin installer-v0.9.1
 ```
 
-GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.8.2`; la próxima es `installer-v0.9.0` (ver [`CHANGELOG.md`](CHANGELOG.md)).
+GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.9.1` (ver [`CHANGELOG.md`](CHANGELOG.md)).
 
 > Cada push a `main` y cada PR pasan por CI (`.github/workflows/ci.yml`): suite de tests, typecheck del installer y smoke de empaquetado.
 

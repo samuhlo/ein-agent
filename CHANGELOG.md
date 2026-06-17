@@ -5,6 +5,33 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.9.1] - 2026-06-17
+
+### Added
+
+- **Control de TDD estricto** con `/ein:tdd` (`auto`/`strict`/`off`/`ask`),
+  persistente por proyecto en `.pi/ein/tdd.json` y autoritativo sobre
+  `openspec/config.yaml`. En modo `ask`, Ein pregunta **antes de cada apply**
+  si usar el ciclo RED/GREEN — para retoques visuales/triviales se evita el
+  desperdicio de tokens.
+- **Indicador en el banner** del estado de TDD y persona.
+
+### Changed
+
+- **Ejecutores más estrechos (coste/calidad con modelos baratos)**:
+  - `ein-github` es git/gh exclusivo: prohibido correr tests/builds/linters,
+    lecturas mínimas (`git diff --stat`, no el diff completo), sin `grep`/`glob`.
+  - `ein-linear` exige metadata completa (project, assignee, state, tags,
+    labels, milestone) con recipe determinista de IDs y read-back.
+  - Las convenciones de código (comment/logging/file-naming) se inyectan solo
+    en el parent y `sdd-apply`, no en delivery/linear/explore.
+  - `orchestrator`: hand-off explícito ("da la orden, no el problema") — el
+    modelo caro resuelve y pasa tareas pequeñas y concretas a los baratos.
+
+### Fixed
+
+- `/ein:tdd` usa `t()` para su descripción (consistencia de locale es/en).
+
 ## [0.9.0] - 2026-06-16
 
 ### Added
