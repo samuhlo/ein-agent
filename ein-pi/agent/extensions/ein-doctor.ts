@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, loadBrand, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
+import { pick } from "../lib/lang";
 import {
   AGENT_DIR,
   CONTEXT7_KEY_PATH,
@@ -428,7 +429,10 @@ export default function einDoctor(pi: ExtensionAPI): void {
       }
       const brand = loadBrand();
       pi.sendUserMessage(
-        `Llama a \`ein_pi_doctor\` y explica el resultado de ${brand.agentName} en modo didactico.`,
+        pick(
+          `Llama a \`ein_pi_doctor\` y explica el resultado de ${brand.agentName} en modo didactico, en español.`,
+          `Call \`ein_pi_doctor\` and explain ${brand.agentName}'s result in teaching mode, in English.`,
+        ),
       );
     },
   });
@@ -451,7 +455,10 @@ export default function einDoctor(pi: ExtensionAPI): void {
         return;
       }
       pi.sendUserMessage(
-        "Llama a `ein_pi_doctor_output` y muestra el resultado global (OK/OK_WITH_WARNINGS/FAIL) seguido de los FAIL y WARN mas relevantes.",
+        pick(
+          "Llama a `ein_pi_doctor_output` y muestra, en español, el resultado global (OK/OK_WITH_WARNINGS/FAIL) seguido de los FAIL y WARN mas relevantes.",
+          "Call `ein_pi_doctor_output` and show, in English, the global result (OK/OK_WITH_WARNINGS/FAIL) followed by the most relevant FAIL and WARN.",
+        ),
       );
     },
   });

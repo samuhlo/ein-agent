@@ -49,6 +49,7 @@ Todas en `~/.pi/agent/extensions/` y cargadas por directorio:
 | --- | --- | --- |
 | `ein-linear` | Agent | Preflight, CRUD Linear, sync, comentarios humanos |
 | `ein-github` | Agent | Delivery GitHub, PR, review |
+| `ein-readme` | Agent | Genera README (estética brutalista + metadata de portfolio) leyendo el código |
 | `sdd-init/explore/design/apply/verify` | Agent | Fases SDD |
 | `ein-sdd` | Chain | Flujo SDD: init → explore → design → apply → verify |
 
@@ -131,6 +132,8 @@ Comandos (`ein-skill-maintenance.ts`):
 - `/ein:skills clean [--yes]` → **borra** las bajadas fuera de `core+secondary` (no archiva).
 
 Advisor (`ein-skill-registry.ts`): `/ein:skills:advisor <tarea>` resuelve skills relevantes y, para techs sin skill curada, emite instrucción de Context7 (`resolve-library-id` + `query-docs`). La inyección a subagentes (`resolveSkillInjection`) incluye tanto rutas `SKILL.md` como la guía de Context7.
+
+**Convenciones de código always-on**: `comment-style`, `logging-style` y `file-naming` no dependen de la relevancia. `codeConventionSkillBlock()` las inyecta **siempre**, tanto en el parent como en todos los subagentes (en `before_agent_start` de `ein-ai.ts`). El bloque se auto-gatea ("antes de escribir código…"), así que es inocuo para agentes que no tocan código. Se excluyen de la resolución por relevancia para no duplicarse.
 
 ## SDD runtime
 

@@ -2,6 +2,33 @@
   "version": 1,
   "updatedAt": "2026-06-09T17:22:21.480Z",
   "entries": {
+    "architecture": {
+      "name": "architecture",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/architecture"
+      },
+      "hash": "da838980109eb857f7890f6f264b387cb9b88832f10c56dda0e9a292e0490bc8",
+      "installedAt": "2026-06-16T00:00:00.000Z"
+    },
+    "logging-style": {
+      "name": "logging-style",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/logging-style"
+      },
+      "hash": "6835be88602f6cf05c92d9b31f2dd71807c4cfff02657a91d6c09bd0d8a4dbff",
+      "installedAt": "2026-06-16T00:00:00.000Z"
+    },
+    "file-naming": {
+      "name": "file-naming",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/file-naming"
+      },
+      "hash": "224ed814e01d694f857112f7d91d3e0e256d016e4c429d0e44ad8a6abf6470fb",
+      "installedAt": "2026-06-16T00:00:00.000Z"
+    },
     "vite": {
       "name": "vite",
       "source": {

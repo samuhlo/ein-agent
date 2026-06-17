@@ -1,16 +1,13 @@
 // =============================================================================
 // I18N STRINGS
-// Mapas de UI de Ein (es/en) registrados en el dial compartido de
-// @juicesharp/rpiv-i18n. El locale activo lo fija /ein:lang (o /languages) y
-// estas cadenas se sirven via tr() segun ese locale, con fallback a ingles.
-//
-// Este modulo SI importa rpiv-i18n como valor: solo lo cargan las extensiones
-// (ein-ai, ein-doctor) en el runtime real de Pi; nunca los tests con bun.
+// Mapas de UI de Ein (es/en) y los helpers t()/tf() que los sirven segun el
+// idioma de chat activo (readChatLang, leido del locale compartido sin importar
+// rpiv-i18n — ver lib/lang.ts). NO importa @juicesharp/rpiv-i18n: ese paquete
+// no es resoluble por Node desde aqui (vive en ~/.pi/agent/npm/node_modules,
+// fuera de la cadena de resolucion). El fallback de cada clave es ingles.
 // =============================================================================
 
-import { registerStrings, scope } from "@juicesharp/rpiv-i18n";
-
-const NS = "ein";
+import { readChatLang } from "../lang";
 
 const EN: Record<string, string> = {
 	// ── /ein:status ──
@@ -494,9 +491,16 @@ const ES: Record<string, string> = {
 	].join("\n"),
 };
 
-registerStrings(NS, { en: EN, es: ES });
+const MAPS: Record<string, Record<string, string>> = { en: EN, es: ES };
 
-export const t = scope(NS);
+/**
+ * Traduce `key` al idioma de chat activo, con fallback al ingles y luego al
+ * literal `fallback`. `gl` (sin mapa propio aun) cae a ingles.
+ */
+export function t(key: string, fallback: string): string {
+	const lang = readChatLang();
+	return MAPS[lang]?.[key] ?? EN[key] ?? fallback;
+}
 
 /**
  * Como t(), pero rellena marcadores posicionales {0}, {1}, ... con los

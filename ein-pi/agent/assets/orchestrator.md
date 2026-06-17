@@ -10,6 +10,7 @@ Ein has these subagents available. **Use the `subagent` tool to invoke them — 
 | ----- | ----- | ----------- |
 | `ein-linear` | linear_viewer, linear_list_projects, linear_list_issues, linear_create_issue, linear_update_issue, linear_search_issues, linear_create_comment, etc. | **ALL Linear operations**: list projects, create/read/update/search issues, create comments, sync states. NEVER run `curl` to Linear API directly. |
 | `ein-github` | bash, read, grep, glob | **GitHub delivery**: git operations, branches, commits, PRs, reviews, checks. NEVER run `git` or `gh` directly for delivery actions. |
+| `ein-readme` | read, grep, glob, write, edit, bash | **README generation**: when the user asks to generate/refresh a project's README. Analyzes the code and writes the brutalist README + portfolio metadata. |
 | `sdd-explore` | read, grep, glob, webfetch | **SDD exploration phase** for ambiguous or large features. |
 | `sdd-design` | read, grep, glob, write, edit | **SDD design phase**: propuesta, spec y tareas in one plan. |
 | `sdd-apply` | read, grep, glob, edit, write, bash | **SDD implementation phase**. |
@@ -40,6 +41,7 @@ inline step array below — copy it verbatim and change only the top-level `task
 ```
 await subagent({
   task: "SAM-328: Motor determinista calculatePlanning()",
+  maxRuntimeMs: 1800000,
   chain: [
     { agent: "sdd-init",    task: "{task}", output: "init.md",                                    outputMode: "file-only", progress: true },
     { agent: "sdd-explore", task: "{task}", reads: ["init.md"],                                   output: "exploration.md",    outputMode: "file-only", progress: true },
@@ -55,11 +57,14 @@ Hard rules for this call:
 - `reads` MUST be a JSON array of filenames: `["init.md"]`, `["init.md", "exploration.md"]`. NEVER a string or `+`-concatenated string like `"init.md+exploration.md"` — that only works in `.chain.md` files, not in inline tool calls. Using a string here causes `chain.N.reads: must be array` validation failure.
 - Keep `task: "{task}"` on every step so each phase sees the original request.
 - Never drop the `reads`/`output` wiring — it passes artifacts between phases.
+- Always pass a generous `maxRuntimeMs` (budget for the WHOLE chain, not per step). Default chain budget is only ~10 min, which heavy phases (exploration/design on a large or refactor task) blow through, cutting a later step mid-work. Use `1800000` (30 min) for normal SDD; raise to `2700000` (45 min) for large refactors or slow models. This is a safety net — the real cure for slowness is routing heavy phases to a faster model (`/ein:models`), not just waiting longer.
 
 Deterministic manual fallback (user-typed, not a parent tool call): the user can
 run `/run-chain ein-sdd -- <task>`, which expands the saved chain by name. If a
 chain tool call ever fails validation, fall back to building the array above
 exactly; do not retry with a string.
+
+**Scope discipline — decompose broad requests before deep SDD.** When the request is broad or unbounded ("refactor the whole project", "rework the architecture", multi-area), do NOT launch the full chain over everything — that explodes exploration cost and produces one un-reviewable mega-design. First run a lightweight scoping pass (`sdd-init` + `sdd-explore` in roadmap mode, or just ask) to produce a **prioritized list of bounded slices** (one slice = one Linear issue = one future SDD/PR). Then run a **scoped SDD per slice**, starting with the first. A whole-project refactor is a roadmap of slices, not a single task. This is cheaper AND higher quality: small, testable, reviewable changes that protect invariants slice by slice.
 
 **NEVER use `sdd-apply` directly when the user asks for SDD.** The `sdd-apply` agent is only the implementation phase inside the `ein-sdd` chain — not a standalone agent for the full flow. For a quick re-verification of an already-implemented change you may invoke `sdd-verify` directly.
 
@@ -167,6 +172,7 @@ Examples:
 | -------- | ------- |
 | `ein-linear` | Linear operations: list projects, create/read/update issues, search, comments |
 | `ein-github` | GitHub delivery: branches, commits, PRs, reviews, checks |
+| `ein-readme` | README generation: brutalist README + portfolio metadata from the code |
 | `sdd-explore` | SDD exploration phase |
 | `sdd-design` | SDD design phase |
 | `sdd-apply` | SDD implementation phase |

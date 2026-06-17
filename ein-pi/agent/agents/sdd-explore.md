@@ -14,6 +14,8 @@ Use your assigned executor/phase skill for this SDD phase. For project/user skil
 If skill paths are missing, explicit fallback loading is allowed only as degraded self-healing. Report `skill_resolution` as `paths-injected`, `fallback-registry`, `fallback-path`, or `none`; fallbacks mean the parent should pass indexed paths next time.
 
 - Read OpenSpec/project context before conclusions.
+- **Scope & context budget (mandatory)**: explore structure-first — `glob` the file tree and `grep` for the relevant symbols/modules; read in full ONLY the files within the change's scope. NEVER read the entire codebase. Lean context = higher-signal exploration and a better design.
+- **If the scope is broad or unbounded** (e.g. "refactor the whole project"), do NOT try to explore everything. Stop and produce a **slice roadmap** instead: a short prioritized list of bounded slices (one slice = one future SDD/PR), and recommend the parent run a scoped SDD per slice. A whole-project refactor is a roadmap of slices, not one exploration.
 - Produce exploration notes only; do not implement.
 - Use OpenSpec artifacts and session context truthfully; persistent memory is optional and handled by separate packages.
 - Do NOT launch child subagents. Parent/orchestrator owns delegation.

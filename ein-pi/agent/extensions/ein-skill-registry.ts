@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
+import { pick } from "../lib/lang";
 import { AGENT_DIR, DOWNLOADED_SKILLS_DIR, LOCAL_SKILLS_DIR } from "./ein-paths";
 
 type SkillScope = "project" | "user";
@@ -175,6 +176,8 @@ function inferTriggers(content: string): string[] {
   const candidates = [
     "postgresql", "nuxt", "vue", "react", "github", "linear",
     "animation", "gsap", "accessibility", "performance", "seo", "obsidian",
+    "logging", "comment", "naming", "kebab", "readme", "refactor",
+    "architecture", "design", "pattern",
   ];
   for (const candidate of candidates) {
     if (lower.includes(candidate)) triggers.push(candidate);
@@ -609,6 +612,34 @@ function getOrCreateRegistry(cwd: string): SkillEntry[] {
 
 // Deterministic skill injection for subagents.
 // Called by the orchestrator (ein-ai before_agent_start) so phase agents
+// Convenciones de casa que SIEMPRE aplican al escribir/editar codigo, sin
+// depender de la relevancia. Se inyectan aparte (codeConventionSkillBlock),
+// asi que se excluyen de la resolucion por relevancia para no duplicar.
+const CODE_CONVENTION_KEYS = ["comment-style", "logging-style", "file-naming"];
+
+// Bloque always-on: paths de las convenciones de codigo a cargar siempre que
+// se vaya a escribir o editar codigo. Lo inyecta ein-ai tanto en el parent
+// como en los subagentes. Devuelve "" si no hay ninguna instalada.
+export function codeConventionSkillBlock(cwd: string): string {
+  let registry: SkillEntry[] = [];
+  try {
+    registry = getOrCreateRegistry(cwd);
+  } catch {
+    return "";
+  }
+  const byKey = new Map(registry.map((entry) => [entry.key, entry]));
+  const paths = CODE_CONVENTION_KEYS.map((key) => byKey.get(key)?.path).filter(
+    (p): p is string => typeof p === "string",
+  );
+  if (!paths.length) return "";
+  return [
+    "## Code conventions (mandatory house style)",
+    "Before writing or editing ANY code, read and follow these convention skills — not optional:",
+    ...paths.map((p) => `- ${p}`),
+    "Apply comment-style to comments, logging-style to runtime logs, and file-naming (kebab-case) to any new or renamed file.",
+  ].join("\n");
+}
+
 // receive exact SKILL.md paths instead of relying on the parent model to ask.
 export function resolveSkillInjection(cwd: string, task: string, limit = 6): string {
   const cleanTask = (task ?? "").trim();
@@ -619,7 +650,9 @@ export function resolveSkillInjection(cwd: string, task: string, limit = 6): str
   } catch {
     registry = [];
   }
-  const resolved = resolveSkills(registry, cleanTask, undefined, limit);
+  const resolved = resolveSkills(registry, cleanTask, undefined, limit).filter(
+    (skill) => !CODE_CONVENTION_KEYS.includes(skill.key),
+  );
   const c7 = detectContext7(cleanTask);
   if (!resolved.length && !c7.length) return "";
 
@@ -747,7 +780,12 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
         "info",
       );
     }
-    pi.sendUserMessage(`Usa \`ein_skill_registry\`, luego \`ein_skill_resolve\` y \`ein_skill_digest\` para esta tarea: ${task}. El digest incluye, para tecnologias sin skill curada, instruccion de Context7 (resolve-library-id + query-docs) que debes ejecutar para traer docs frescas. Devuelve un resumen didactico en el idioma de la conversacion.`);
+    pi.sendUserMessage(
+      pick(
+        `Usa \`ein_skill_registry\`, luego \`ein_skill_resolve\` y \`ein_skill_digest\` para esta tarea: ${task}. El digest incluye, para tecnologias sin skill curada, instruccion de Context7 (resolve-library-id + query-docs) que debes ejecutar para traer docs frescas. Devuelve un resumen didactico en español.`,
+        `Use \`ein_skill_registry\`, then \`ein_skill_resolve\` and \`ein_skill_digest\` for this task: ${task}. For technologies without a curated skill, the digest includes a Context7 instruction (resolve-library-id + query-docs) you must run to fetch fresh docs. Return a teaching summary in English.`,
+      ),
+    );
   };
 
   pi.registerCommand(commandName("skills:advisor"), {
