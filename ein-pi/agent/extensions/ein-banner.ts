@@ -18,6 +18,8 @@ import { AGENT_DIR } from "./ein-paths";
 import { loadPalette, type RGB } from "./ein-brand";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 import { LANG_LABEL, readArtifactLang, readChatLang } from "../lib/lang";
+import { TDD_LABEL, readTddMode } from "../lib/tdd";
+import { readPersonaMode } from "../lib/persona";
 
 const execAsync = promisify(exec);
 
@@ -203,6 +205,8 @@ export default function (pi: ExtensionAPI) {
     // Idioma activo: chat/UI (locale compartido) y artefactos (config del proyecto).
     const langChat = LANG_LABEL[readChatLang()];
     const langArtifact = LANG_LABEL[readArtifactLang(ctx.cwd)];
+    const tddLabel = TDD_LABEL[readTddMode(ctx.cwd)];
+    const personaLabel = readPersonaMode(ctx.cwd);
 
     const allCommands = pi.getCommands();
     const skillsCount = allCommands.filter((c) => c.source === "skill").length;
@@ -404,6 +408,10 @@ export default function (pi: ExtensionAPI) {
                 [
                   ["LANG", langChat],
                   ["ARTF", langArtifact],
+                ],
+                [
+                  ["TDD", tddLabel],
+                  ["PERSONA", personaLabel],
                 ],
               ];
               for (const [[l1, v1], [l2, v2]] of pairs) {
