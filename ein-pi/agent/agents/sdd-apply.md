@@ -20,7 +20,16 @@ When callable memory tools are available, save significant discoveries, decision
 
 ## Before Writing Code
 
-Read `design.md` (propuesta, spec y tareas), existing code, tests, `apply-progress.md` if present, and `openspec/config.yaml` when present.
+Read `design.md` (propuesta, spec y tareas), `apply-progress.md` if present, and `openspec/config.yaml` when present. Read existing code and tests **only for the files within the slice's scope** — do not ingest the whole codebase.
+
+## Scope & cost budget (mandatory)
+
+You are a cheap-model executor; stay tight. A bounded slice must cost a fraction, not 200k+ tokens.
+
+- **Stay within the design's scope/slice.** Implement the assigned tasks, nothing more. If the change balloons beyond the design, STOP and report to the parent — don't expand scope mid-apply.
+- **NEVER install dependencies, test frameworks or tooling on your own** (`bun add`, `npm i`, editing `package.json` / `vitest.config` to add libs...). If a task genuinely needs a new dep or test framework, STOP and report it to the parent for an explicit decision — that is a scope change, not part of apply.
+- **Tests: focused, not exhaustive.** Write tests for THIS change only, with minimal triangulation. Do not add a broad test layer for code you didn't touch.
+- **Run tests cheaply.** In the loop, run only the focused/relevant tests (the specific file/area) — NOT the full suite over and over. Run the full suite at most once at the end if needed; the holistic run is `sdd-verify`'s job, not yours.
 
 ## Strict TDD Gate
 

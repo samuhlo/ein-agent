@@ -13,6 +13,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
+	askRunTddMode,
 	ensureSddPreflight,
 	getSddPreflightPreferences,
 	installSddAssets,
@@ -166,6 +167,10 @@ export default function einAi(pi: ExtensionAPI): void {
 			return { action: "continue" };
 		}
 		await runSddPreflight(ctx);
+		// TDD por tarea: si el modo global es "ask", preguntar aquí (un disparo
+		// explícito de SDD = una tarea). Determinista, a diferencia de pedírselo
+		// al padre antes de apply (que en un chain nunca dispara).
+		await askRunTddMode(ctx);
 		return { action: "continue" };
 	});
 
