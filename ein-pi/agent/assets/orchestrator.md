@@ -64,6 +64,8 @@ run `/run-chain ein-sdd -- <task>`, which expands the saved chain by name. If a
 chain tool call ever fails validation, fall back to building the array above
 exactly; do not retry with a string.
 
+**Scope discipline — decompose broad requests before deep SDD.** When the request is broad or unbounded ("refactor the whole project", "rework the architecture", multi-area), do NOT launch the full chain over everything — that explodes exploration cost and produces one un-reviewable mega-design. First run a lightweight scoping pass (`sdd-init` + `sdd-explore` in roadmap mode, or just ask) to produce a **prioritized list of bounded slices** (one slice = one Linear issue = one future SDD/PR). Then run a **scoped SDD per slice**, starting with the first. A whole-project refactor is a roadmap of slices, not a single task. This is cheaper AND higher quality: small, testable, reviewable changes that protect invariants slice by slice.
+
 **NEVER use `sdd-apply` directly when the user asks for SDD.** The `sdd-apply` agent is only the implementation phase inside the `ein-sdd` chain — not a standalone agent for the full flow. For a quick re-verification of an already-implemented change you may invoke `sdd-verify` directly.
 
 ## Identity Contract

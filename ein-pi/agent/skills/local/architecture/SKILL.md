@@ -19,6 +19,7 @@ Use it when: refactoring, defining or fixing a project's structure, deciding "wh
 - **YAGNI + rule of three.** Don't abstract until the third real occurrence. Two is a coincidence; three is a pattern.
 - **In TS prefer functions and modules over class hierarchies** unless you genuinely need shared state + polymorphism. A `Strategy` is often just a map of functions; a `Factory` is often just a factory function.
 - **The test of a good abstraction**: naming it makes the code *easier to change*. If it doesn't, delete it. A wrong abstraction is more expensive than duplication.
+- **Refactor incrementally.** A whole-project refactor is **a roadmap of bounded slices**, never one mega-change: one slice = one SDD = one PR, each small, testable and reviewable, protecting invariants slice by slice. If a request is "refactor everything", the first deliverable is the *slice roadmap*, not a giant diff.
 
 ## 1. Screaming Architecture (Samu's default)
 
