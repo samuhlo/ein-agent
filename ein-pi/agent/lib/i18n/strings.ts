@@ -41,6 +41,7 @@ const EN: Record<string, string> = {
 
 	// ── /ein:lang descripcion ──
 	"cmd.lang.description": "View or change Ein's language (chat/UI and PR/commit/Linear artifacts)",
+	"cmd.tdd.description": "View or change strict TDD mode (auto/strict/off/ask)",
 
 	// ── compartidas ──
 	"busy.retry": "The agent is busy. Retry {0} when it finishes.",
@@ -283,6 +284,7 @@ const ES: Record<string, string> = {
 
 	// ── /ein:lang descripcion ──
 	"cmd.lang.description": "Ver o cambiar el idioma de Ein (conversación/UI y artefactos PR/commit/Linear)",
+	"cmd.tdd.description": "Ver o cambiar el modo de TDD estricto (auto/strict/off/ask)",
 
 	// ── compartidas ──
 	"busy.retry": "El agente esta ocupado. Reintenta {0} cuando termine.",

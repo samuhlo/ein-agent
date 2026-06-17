@@ -306,7 +306,10 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:tdd", {
-		description: "Ver o cambiar el modo de TDD estricto (auto/strict/off/ask)",
+		description: t(
+			"cmd.tdd.description",
+			"Ver o cambiar el modo de TDD estricto (auto/strict/off/ask)",
+		),
 		handler: async (_args, ctx) => {
 			await handleTddCommand(ctx);
 		},
