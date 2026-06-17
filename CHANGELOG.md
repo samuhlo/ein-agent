@@ -5,6 +5,23 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.9.2] - 2026-06-17
+
+### Changed
+
+- **`sdd-apply` acotado** (coste/calidad con modelos baratos): se queda en el
+  slice del design; **prohibido instalar dependencias/frameworks** por su
+  cuenta (si hace falta, para y lo decide el padre); tests enfocados, no
+  exhaustivos; en el loop corre solo tests focalizados y la suite completa una
+  vez al final (lo holístico es de `sdd-verify`).
+
+### Fixed
+
+- **El modo `ask` de `/ein:tdd` no preguntaba nunca**: se pedía como
+  instrucción al padre "antes de apply", que dentro de un chain no dispara.
+  Ahora se resuelve de forma determinista en el preflight (`ctx.ui.select`
+  real por tarea, vía el `input` hook), con override por sesión.
+
 ## [0.9.1] - 2026-06-17
 
 ### Added
