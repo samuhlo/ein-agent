@@ -14,12 +14,15 @@ export type SddChainedPrStrategy =
 	| "ask-always"
 	| "single-pr-default"
 	| "force-chained";
+// auto = respetar openspec/config.yaml; strict = forzar TDD; off = sin ciclo TDD.
+export type SddTddMode = "auto" | "strict" | "off";
 
 export interface SddPreflightPreferences {
 	executionMode: SddExecutionMode;
 	artifactStore: SddArtifactStore;
 	chainedPrStrategy: SddChainedPrStrategy;
 	reviewBudgetLines: number;
+	tddMode: SddTddMode;
 	engramAvailable: boolean;
 	prompted: boolean;
 }
@@ -53,6 +56,7 @@ const DEFAULT_SDD_PREFLIGHT: SddPreflightPreferences = {
 	artifactStore: "openspec",
 	chainedPrStrategy: "auto-forecast",
 	reviewBudgetLines: 400,
+	tddMode: "auto",
 	engramAvailable: false,
 	prompted: false,
 };
@@ -239,6 +243,10 @@ async function collectSddPreflightPreferences(
 	const reviewBudgetLines = normalizeSddReviewBudget(
 		(await ctx.ui.input("SDD review budget lines", "400")) ?? "400",
 	);
+	const tddChoice = await ctx.ui.select(
+		"Strict TDD for this work (auto = respect project config; off = skip RED/GREEN, for trivial/visual changes)",
+		["auto", "strict", "off"],
+	);
 	return {
 		executionMode:
 			executionMode === "auto" ? "auto" : DEFAULT_SDD_PREFLIGHT.executionMode,
@@ -253,9 +261,24 @@ async function collectSddPreflightPreferences(
 				? chainedPrStrategy
 				: DEFAULT_SDD_PREFLIGHT.chainedPrStrategy,
 		reviewBudgetLines,
+		tddMode:
+			tddChoice === "strict" || tddChoice === "off"
+				? tddChoice
+				: DEFAULT_SDD_PREFLIGHT.tddMode,
 		engramAvailable,
 		prompted: true,
 	};
+}
+
+function tddPreflightLine(mode: SddTddMode): string {
+	switch (mode) {
+		case "off":
+			return "- Strict TDD: OFF for this work — do NOT run the RED/GREEN/TRIANGULATE/REFACTOR cycle. Implement directly with minimal, focused changes. This OVERRIDES `openspec/config.yaml` `strict_tdd`. (Chosen for trivial/visual/low-risk work; don't waste tokens on a TDD loop.)";
+		case "strict":
+			return "- Strict TDD: ON (forced) — follow RED → GREEN → TRIANGULATE → REFACTOR with evidence in `apply-progress.md`, regardless of project config.";
+		default:
+			return "- Strict TDD: AUTO — follow `openspec/config.yaml` `strict_tdd` (default behavior).";
+	}
 }
 
 export function renderSddPreflightPrompt(prefs: SddPreflightPreferences): string {
@@ -269,6 +292,7 @@ export function renderSddPreflightPrompt(prefs: SddPreflightPreferences): string
 		`- Artifact store: ${prefs.artifactStore}${prefs.engramAvailable ? "" : " (Engram unavailable in this session)"}`,
 		`- Chained PR strategy: ${prefs.chainedPrStrategy}`,
 		`- Review budget: ${prefs.reviewBudgetLines} changed lines`,
+		tddPreflightLine(prefs.tddMode),
 		"- If task/workload forecasts conflict with these preferences, pause before sdd-apply and ask the user for a delivery decision.",
 	].join("\n");
 }
@@ -303,6 +327,7 @@ export async function ensureSddPreflight(
 					`Artifacts: ${prefs.artifactStore}`,
 					`PR chaining: ${prefs.chainedPrStrategy}`,
 					`Review budget: ${prefs.reviewBudgetLines} changed lines`,
+					`Strict TDD: ${prefs.tddMode}`,
 					`Preference source: ${prefs.prompted ? "user prompt" : "defaults (no interactive UI available)"}`,
 					`Global SDD assets ready: ${result.agents} agent(s), ${result.chains} chain(s), ${result.support} support file(s) available (${result.skipped} already present).`,
 					modelRoutingLine,

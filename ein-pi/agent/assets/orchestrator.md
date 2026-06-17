@@ -494,15 +494,19 @@ Linear is the source of truth for work tracking:
 
 ## Strict TDD Forwarding
 
-For `sdd-apply` and `sdd-verify`, read `openspec/config.yaml` when present.
+The SDD preflight decides the TDD policy and **overrides `openspec/config.yaml`**:
 
-If it declares strict TDD and a test command, include a non-negotiable instruction in the phase prompt:
+- **Strict TDD: OFF** → do NOT forward strict TDD. Tell `sdd-apply` to implement in standard mode (no RED/GREEN cycle), minimal focused changes. Use for trivial/visual/low-risk work — don't waste tokens on a TDD loop.
+- **Strict TDD: ON (forced)** → forward strict TDD regardless of config.
+- **Strict TDD: AUTO** (or no preflight) → read `openspec/config.yaml`; if it declares strict TDD and a test command, forward it.
+
+When strict TDD applies (forced or auto), include a non-negotiable instruction in the `sdd-apply`/`sdd-verify` phase prompt:
 
 ```text
 STRICT TDD MODE IS ACTIVE. Test runner: <command>. Follow RED, GREEN, TRIANGULATE, REFACTOR. Record evidence.
 ```
 
-Do not rely on the child agent to discover this independently.
+Do not rely on the child agent to discover this independently. If TDD is OFF, do not inject that line.
 
 ## Safety
 

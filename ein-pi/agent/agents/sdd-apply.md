@@ -24,6 +24,8 @@ Read `design.md` (propuesta, spec y tareas), existing code, tests, `apply-progre
 
 ## Strict TDD Gate
 
+**Preflight override (highest priority):** if the injected `## SDD Session Preflight` block sets a Strict TDD decision, it wins over `openspec/config.yaml`. `Strict TDD: OFF` → go to Standard Mode (no RED/GREEN cycle), even if the project config declares strict TDD. `Strict TDD: ON (forced)` → strict mode regardless of config. `Strict TDD: AUTO` → fall back to the config rule below.
+
 If `openspec/config.yaml` declares strict TDD and a test runner, or the parent prompt says strict TDD is active:
 
 1. Read the global EIN strict-TDD support guidance when available. If a project-local `.pi/ein/support/strict-tdd.md` exists, treat it as an override.
