@@ -504,8 +504,9 @@ The SDD preflight decides the TDD policy and **overrides `openspec/config.yaml`*
 
 - **Strict TDD: OFF** → do NOT forward strict TDD. Tell `sdd-apply` to implement in standard mode (no RED/GREEN cycle), minimal focused changes. Use for trivial/visual/low-risk work — don't waste tokens on a TDD loop.
 - **Strict TDD: ON (forced)** → forward strict TDD regardless of config.
-- **Strict TDD: ASK** → **before launching `sdd-apply`, ask the user** (`ask_user_question`: "¿TDD estricto para este apply?" strict/off), then forward ON or OFF per their answer. Ask each time you reach the apply phase. If you cannot ask (non-interactive), fall back to AUTO.
 - **Strict TDD: AUTO** (or no preflight) → read `openspec/config.yaml`; if it declares strict TDD and a test command, forward it.
+
+(The `ask` mode is resolved to OFF/STRICT deterministically at the preflight, by `/ein:tdd`, before the chain runs — you receive an already-decided line, never `ASK`.)
 
 When strict TDD applies (forced or auto), include a non-negotiable instruction in the `sdd-apply`/`sdd-verify` phase prompt:
 

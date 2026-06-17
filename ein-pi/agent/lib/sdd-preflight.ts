@@ -219,11 +219,43 @@ function normalizeSddReviewBudget(value: string): number {
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : 400;
 }
 
+// Decisión de TDD por TAREA cuando el modo global es "ask". El parent no
+// recupera control entre design y apply dentro de un chain, así que el "ask"
+// se resuelve de forma DETERMINISTA aquí (un ctx.ui.select real), no como
+// instrucción de prompt al padre (que en un chain nunca dispara).
+const tddRunOverride = new Map<string, TddMode>();
+
+// Modo de TDD sin preguntar: override de la tarea si existe; si el global es
+// "ask" pero aún no se preguntó, cae a "auto" (no bloquea ni asume estricto).
+function resolveTddNoAsk(ctx: ExtensionContext): TddMode {
+	const override = tddRunOverride.get(sddPreflightSessionKey(ctx));
+	if (override) return override;
+	const global = readTddMode(ctx.cwd);
+	return global === "ask" ? "auto" : global;
+}
+
+// Pregunta el TDD de la tarea cuando el global es "ask". Lo llama el input hook
+// en cada disparo explícito de SDD → se pregunta por tarea, no una vez por
+// sesión. No-op si no hay UI o el modo no es "ask".
+export async function askRunTddMode(ctx: ExtensionContext): Promise<void> {
+	if (!ctx.hasUI || readTddMode(ctx.cwd) !== "ask") return;
+	const picked = await ctx.ui.select(
+		"TDD estricto para esta tarea SDD (UI/visual/trivial → off)",
+		["off", "strict"],
+	);
+	const mode: TddMode = picked === "strict" ? "strict" : "off";
+	const key = sddPreflightSessionKey(ctx);
+	tddRunOverride.set(key, mode);
+	const cached = sddPreflightBySession.get(key);
+	if (cached) cached.tddMode = mode;
+	ctx.ui.notify(`TDD para esta tarea: ${mode}`, "info");
+}
+
 async function collectSddPreflightPreferences(
 	ctx: ExtensionContext,
 	engramAvailable: boolean,
 ): Promise<SddPreflightPreferences> {
-	if (!ctx.hasUI) return { ...DEFAULT_SDD_PREFLIGHT, tddMode: readTddMode(ctx.cwd), engramAvailable };
+	if (!ctx.hasUI) return { ...DEFAULT_SDD_PREFLIGHT, tddMode: resolveTddNoAsk(ctx), engramAvailable };
 	const executionMode = await ctx.ui.select("SDD execution mode", [
 		"interactive",
 		"auto",
@@ -255,7 +287,7 @@ async function collectSddPreflightPreferences(
 				? chainedPrStrategy
 				: DEFAULT_SDD_PREFLIGHT.chainedPrStrategy,
 		reviewBudgetLines,
-		tddMode: readTddMode(ctx.cwd),
+		tddMode: resolveTddNoAsk(ctx),
 		engramAvailable,
 		prompted: true,
 	};
@@ -268,7 +300,9 @@ function tddPreflightLine(mode: TddMode): string {
 		case "strict":
 			return "- Strict TDD: ON (forced) — follow RED → GREEN → TRIANGULATE → REFACTOR with evidence in `apply-progress.md`, regardless of project config.";
 		case "ask":
-			return "- Strict TDD: ASK — the decision is per apply. **Before launching `sdd-apply`, the parent MUST ask the user** (via `ask_user_question`) whether to use strict TDD for this apply, then forward ON/OFF accordingly. If you cannot ask (headless/non-interactive), fall back to `openspec/config.yaml`.";
+			// No debería llegar: el modo "ask" se resuelve a off/strict por tarea
+			// (askRunTddMode) antes de renderizar. Fallback seguro = config.
+			return "- Strict TDD: AUTO — follow `openspec/config.yaml` `strict_tdd` (default behavior).";
 		default:
 			return "- Strict TDD: AUTO — follow `openspec/config.yaml` `strict_tdd` (default behavior).";
 	}
