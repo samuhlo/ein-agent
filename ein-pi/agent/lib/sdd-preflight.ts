@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { AGENT_DIR } from "../extensions/ein-paths";
+import { type TddMode, readTddMode } from "./tdd";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ASSETS_DIR = join(PACKAGE_ROOT, "assets");
@@ -14,15 +15,12 @@ export type SddChainedPrStrategy =
 	| "ask-always"
 	| "single-pr-default"
 	| "force-chained";
-// auto = respetar openspec/config.yaml; strict = forzar TDD; off = sin ciclo TDD.
-export type SddTddMode = "auto" | "strict" | "off";
-
 export interface SddPreflightPreferences {
 	executionMode: SddExecutionMode;
 	artifactStore: SddArtifactStore;
 	chainedPrStrategy: SddChainedPrStrategy;
 	reviewBudgetLines: number;
-	tddMode: SddTddMode;
+	tddMode: TddMode;
 	engramAvailable: boolean;
 	prompted: boolean;
 }
@@ -225,7 +223,7 @@ async function collectSddPreflightPreferences(
 	ctx: ExtensionContext,
 	engramAvailable: boolean,
 ): Promise<SddPreflightPreferences> {
-	if (!ctx.hasUI) return { ...DEFAULT_SDD_PREFLIGHT, engramAvailable };
+	if (!ctx.hasUI) return { ...DEFAULT_SDD_PREFLIGHT, tddMode: readTddMode(ctx.cwd), engramAvailable };
 	const executionMode = await ctx.ui.select("SDD execution mode", [
 		"interactive",
 		"auto",
@@ -243,10 +241,6 @@ async function collectSddPreflightPreferences(
 	const reviewBudgetLines = normalizeSddReviewBudget(
 		(await ctx.ui.input("SDD review budget lines", "400")) ?? "400",
 	);
-	const tddChoice = await ctx.ui.select(
-		"Strict TDD for this work (auto = respect project config; off = skip RED/GREEN, for trivial/visual changes)",
-		["auto", "strict", "off"],
-	);
 	return {
 		executionMode:
 			executionMode === "auto" ? "auto" : DEFAULT_SDD_PREFLIGHT.executionMode,
@@ -261,21 +255,20 @@ async function collectSddPreflightPreferences(
 				? chainedPrStrategy
 				: DEFAULT_SDD_PREFLIGHT.chainedPrStrategy,
 		reviewBudgetLines,
-		tddMode:
-			tddChoice === "strict" || tddChoice === "off"
-				? tddChoice
-				: DEFAULT_SDD_PREFLIGHT.tddMode,
+		tddMode: readTddMode(ctx.cwd),
 		engramAvailable,
 		prompted: true,
 	};
 }
 
-function tddPreflightLine(mode: SddTddMode): string {
+function tddPreflightLine(mode: TddMode): string {
 	switch (mode) {
 		case "off":
 			return "- Strict TDD: OFF for this work — do NOT run the RED/GREEN/TRIANGULATE/REFACTOR cycle. Implement directly with minimal, focused changes. This OVERRIDES `openspec/config.yaml` `strict_tdd`. (Chosen for trivial/visual/low-risk work; don't waste tokens on a TDD loop.)";
 		case "strict":
 			return "- Strict TDD: ON (forced) — follow RED → GREEN → TRIANGULATE → REFACTOR with evidence in `apply-progress.md`, regardless of project config.";
+		case "ask":
+			return "- Strict TDD: ASK — the decision is per apply. **Before launching `sdd-apply`, the parent MUST ask the user** (via `ask_user_question`) whether to use strict TDD for this apply, then forward ON/OFF accordingly. If you cannot ask (headless/non-interactive), fall back to `openspec/config.yaml`.";
 		default:
 			return "- Strict TDD: AUTO — follow `openspec/config.yaml` `strict_tdd` (default behavior).";
 	}

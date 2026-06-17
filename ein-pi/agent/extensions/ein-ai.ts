@@ -34,6 +34,7 @@ import {
 	readChatLang,
 } from "../lib/lang.ts";
 import { t, tf } from "../lib/i18n/strings.ts";
+import { handleTddCommand } from "../lib/tdd.ts";
 import {
 	confirmCommand,
 	confirmDelegatedDelivery,
@@ -301,6 +302,13 @@ export default function einAi(pi: ExtensionAPI): void {
 		),
 		handler: async (_args, ctx) => {
 			await handleLangCommand(ctx);
+		},
+	});
+
+	pi.registerCommand("ein:tdd", {
+		description: "Ver o cambiar el modo de TDD estricto (auto/strict/off/ask)",
+		handler: async (_args, ctx) => {
+			await handleTddCommand(ctx);
 		},
 	});
 

@@ -24,7 +24,7 @@ Read `design.md` (propuesta, spec y tareas), existing code, tests, `apply-progre
 
 ## Strict TDD Gate
 
-**Preflight override (highest priority):** if the injected `## SDD Session Preflight` block sets a Strict TDD decision, it wins over `openspec/config.yaml`. `Strict TDD: OFF` → go to Standard Mode (no RED/GREEN cycle), even if the project config declares strict TDD. `Strict TDD: ON (forced)` → strict mode regardless of config. `Strict TDD: AUTO` → fall back to the config rule below.
+**Preflight override (highest priority):** if the injected `## SDD Session Preflight` block sets a Strict TDD decision, it wins over `openspec/config.yaml`. `Strict TDD: OFF` → go to Standard Mode (no RED/GREEN cycle), even if the project config declares strict TDD. `Strict TDD: ON (forced)` → strict mode regardless of config. `Strict TDD: ASK` → follow the on/off decision the parent forwarded for this apply (the parent asks the user before launching you); if no explicit decision reached you, fall back to the config rule below. `Strict TDD: AUTO` → fall back to the config rule below.
 
 If `openspec/config.yaml` declares strict TDD and a test runner, or the parent prompt says strict TDD is active:
 
