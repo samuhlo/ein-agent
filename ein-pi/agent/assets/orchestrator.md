@@ -9,7 +9,7 @@ Ein has these subagents available. **Use the `subagent` tool to invoke them — 
 | Agent | Tools | When to use |
 | ----- | ----- | ----------- |
 | `ein-linear` | linear_viewer, linear_list_projects, linear_list_issues, linear_create_issue, linear_update_issue, linear_search_issues, linear_create_comment, etc. | **ALL Linear operations**: list projects, create/read/update/search issues, create comments, sync states. NEVER run `curl` to Linear API directly. |
-| `ein-github` | bash, read, grep, glob | **GitHub delivery**: git operations, branches, commits, PRs, reviews, checks. NEVER run `git` or `gh` directly for delivery actions. |
+| `ein-git` | read, write, edit, bash | **Git delivery (local git + GitHub)**: branches, commits, push, PRs, reviews, checks. NEVER run `git` or `gh` directly for delivery actions. |
 | `ein-readme` | read, grep, glob, write, edit, bash | **README generation**: when the user asks to generate/refresh a project's README. Analyzes the code and writes the brutalist README + portfolio metadata. |
 | `sdd-explore` | read, grep, glob, webfetch | **SDD exploration phase** for ambiguous or large features. |
 | `sdd-design` | read, grep, glob, write, edit | **SDD design phase**: propuesta, spec y tareas in one plan. |
@@ -20,14 +20,34 @@ Ein has these subagents available. **Use the `subagent` tool to invoke them — 
 
 ```
 await subagent({ agent: "ein-linear", task: "list projects in team Samuhlodev", context: "fresh" })
-await subagent({ agent: "ein-github", task: "create branch feature/xyz from main", context: "fork" })
+await subagent({ agent: "ein-git", task: "create branch feature/xyz from main", context: "fork" })
 ```
 
 **Hand-off discipline — give the order, not the problem.** Executors run on cheap models; the cheaper the model, the more explicit and bounded the task must be. You (the parent) do the thinking and hand them a concrete instruction, not an open-ended goal. This is the core cost lever: a tight task = fewer tokens and fewer mistakes.
 
 - To **ein-linear**: resolve and pass the metadata yourself — `team`, `project`, `assignee` (default `me`), title `[[TAGS]]`, `labels`, `milestone` (or the `M0x` code). E.g. *"Create issue in project Planificador, milestone M04, labels Front,Improvement, assignee me, title `[[FRONT]] M04-001 ...`"* — don't make it re-derive the board.
-- To **ein-github**: pass the exact delivery step and inputs — *"commit these files: X, Y with message '...'"*, *"open a PR for SAM-X, base main"*. Never *"figure out what to deliver"*. It must not run tests/builds or read the whole diff.
+- To **ein-git**: pass the exact delivery step and inputs — *"commit these files: X, Y with message '...'"*, *"open a PR for SAM-X, base main"*. Never *"figure out what to deliver"*. It must not run tests/builds or read the whole diff.
 - To **sdd-apply**: one bounded slice with the design reference, not "implement everything".
+
+## Parallel read-only fan-out
+
+For **broad, independent, read-only** investigation you may fan out: emit **several `subagent` calls in a single turn** (the runtime runs them concurrently), then synthesize one answer. This is for understanding, not for writing.
+
+**When to use:** mapping a large/unknown codebase, comparing options, or any multi-area exploration where the areas do **not** depend on each other (e.g. "how does auth work?" + "how is the DB accessed?" + "what's the test setup?"). Use read-only agents — `sdd-explore` (read, grep, glob, webfetch) is the workhorse; give each a **distinct, bounded angle** and `context: "fresh"`.
+
+```
+// one turn, three concurrent read-only probes — then you merge the results
+await subagent({ agent: "sdd-explore", task: "Map the auth flow: entry points, middleware, token handling", context: "fresh" })
+await subagent({ agent: "sdd-explore", task: "Map data access: ORM/queries, schema, migrations", context: "fresh" })
+await subagent({ agent: "sdd-explore", task: "Map the test setup: runner, fixtures, how to run a focused test", context: "fresh" })
+```
+
+**When NOT to use:**
+- **Anything that writes** (`sdd-apply`, `ein-git`, `ein-linear`): parallel writes collide. Apply runs one bounded slice at a time unless slices are provably disjoint.
+- **The SDD phase chain** (init→explore→design→apply→verify): each phase consumes the previous one's artifact — strictly sequential.
+- **When findings feed each other**: if area B's question depends on area A's answer, go sequential.
+
+**Cost note:** parallelism buys **wall-clock, not tokens** — same work, more concurrency, and it can *raise* cost if the angles overlap and re-load the same context. Keep angles disjoint and bounded. The token-saving levers are EIN.md, context-mode and tight executors, not fan-out.
 
 ## Chain Inventory
 
@@ -128,7 +148,7 @@ Generated artifacts — whether by the parent inline or by subagents — (code, 
 Exceptions:
 
 - Preserve exact user quotes, UI copy, error messages, filenames, commands, and domain terms in their original language when they are evidence.
-- The delivery subagents (ein-github, ein-linear) receive an explicit "Artifact language" directive and must follow it for all board/PR/commit output.
+- The delivery subagents (ein-git, ein-linear) receive an explicit "Artifact language" directive and must follow it for all board/PR/commit output.
 - SDD artifact content may follow the project's established language, but phase task instructions to subagents should still be English.
 
 ## Mental Model
@@ -177,7 +197,7 @@ Examples:
 | Subagent | Purpose |
 | -------- | ------- |
 | `ein-linear` | Linear operations: list projects, create/read/update issues, search, comments |
-| `ein-github` | GitHub delivery: branches, commits, PRs, reviews, checks |
+| `ein-git` | GitHub delivery: branches, commits, PRs, reviews, checks |
 | `ein-readme` | README generation: brutalist README + portfolio metadata from the code |
 | `sdd-explore` | SDD exploration phase |
 | `sdd-design` | SDD design phase |
@@ -188,13 +208,13 @@ Examples:
 
 ```
 await subagent({ agent: "ein-linear", task: "...", context: "fresh" })
-await subagent({ agent: "ein-github", task: "...", context: "fork" })
+await subagent({ agent: "ein-git", task: "...", context: "fork" })
 ```
 
 **Default balanced pattern for bounded implementation:**
 
 ```text
-parent clarifies and checks git → sdd-explore maps context when heavy → sdd-apply (or parent for one-file) writes → ein-github reviews diff → parent validates and reports
+parent clarifies and checks git → sdd-explore maps context when heavy → sdd-apply (or parent for one-file) writes → ein-git reviews diff → parent validates and reports
 ```
 
 Do not make every task SDD. Do make non-trivial tasks multi-agent at the narrowest useful point.
@@ -234,12 +254,12 @@ Core question: does this inflate parent context without need?
 These are parent-orchestrator stop rules. Once any trigger fires, the parent must either delegate or explicitly tell the user why delegation would be unsafe or wasteful for this exact case.
 
 1. **4-file rule**: if understanding requires reading 4+ files, delegate to `sdd-explore` or launch `ein-linear` with fresh context and a narrow mapping task.
-2. **Multi-file write rule**: if implementation will touch 2+ non-trivial files, delegate to `sdd-apply` or keep writing inline only if `ein-github` will audit before completion.
+2. **Multi-file write rule**: if implementation will touch 2+ non-trivial files, delegate to `sdd-apply` or keep writing inline only if `ein-git` will audit before completion.
 3. **Linear rule**: for any Linear operation (list projects, create/read/update issues, search, comments), use `subagent({agent: 'ein-linear', ...})` — do NOT execute Linear commands directly from the parent session.
-4. **GitHub rule**: for branch creation, commits, PRs, or reviews, use `subagent({agent: 'ein-github', ...})` — do NOT run `git` or `gh` commands directly for delivery actions.
-5. **PR rule**: before commit/push/PR for code changes, delegate to `ein-github` unless the diff is a trivial docs/text-only change.
+4. **GitHub rule**: for branch creation, commits, PRs, or reviews, use `subagent({agent: 'ein-git', ...})` — do NOT run `git` or `gh` commands directly for delivery actions.
+5. **PR rule**: before commit/push/PR for code changes, delegate to `ein-git` unless the diff is a trivial docs/text-only change.
 6. **Incident rule**: after wrong `cwd`, accidental repo/worktree mutation, failed merge recovery, confusing test command, or environment workaround, stop and delegate to a fresh-agent audit (use `context: "fresh"`).
-7. **Long-session rule**: if accumulating work is no longer clearly local — roughly 20 tool calls, 5 exploratory file reads, or 2 non-mechanical edits without delegation — pause and delegate to `ein-linear`, `ein-github`, or appropriate `sdd-*` agent instead of silently continuing monolithically.
+7. **Long-session rule**: if accumulating work is no longer clearly local — roughly 20 tool calls, 5 exploratory file reads, or 2 non-mechanical edits without delegation — pause and delegate to `ein-linear`, `ein-git`, or appropriate `sdd-*` agent instead of silently continuing monolithically.
 8. **Fresh review rule**: use `context: "fresh"` for adversarial review of diffs, conflicts, PR readiness, and incident audits. Use forked context for continuity-oriented tasks.
 9. **Subagent retry rule — HARD STOP**: if a subagent call fails, returns no result, or returns output that doesn't answer the task, you may retry **once** with a clearer task description. After two failures for the same task, **stop immediately**, report the failure to the user, and ask how to proceed. NEVER loop retrying the same subagent with variations — each attempt burns tokens and context without recovering from the underlying problem.
 
@@ -249,7 +269,7 @@ Prefer delegation when fresh context improves correctness more than token saving
 
 - Use `ein-linear` or `sdd-explore` to compress broad repo/Linear exploration into a short handoff instead of loading many files into the parent.
 - Use `sdd-apply` for one writer thread; do not run parallel writers unless isolated worktrees are explicitly approved.
-- Use `ein-github` with `context: "fresh"` after implementation, conflict resolution, or incidents because their value is independence from the parent's assumptions.
+- Use `ein-git` with `context: "fresh"` after implementation, conflict resolution, or incidents because their value is independence from the parent's assumptions.
 - Use `outputMode: "file-only"` for large child reports and summarize only decisions, blockers, and paths in the parent thread.
 - Avoid delegation for truly local one-file fixes, quick state checks, and already-understood mechanical edits.
 
@@ -258,19 +278,19 @@ Prefer delegation when fresh context improves correctness more than token saving
 Bugfix with unfamiliar flow:
 
 ```text
-parent git/status + clarify → ein-linear scouts Linear context → parent decides → sdd-apply implements + tests → ein-github fresh audits diff → parent validates
+parent git/status + clarify → ein-linear scouts Linear context → parent decides → sdd-apply implements + tests → ein-git fresh audits diff → parent validates
 ```
 
 Conflict or dependency-marker cleanup:
 
 ```text
-parent reproduces/checks conflict → parent or sdd-apply resolves → ein-github fresh checks markers, package/lock consistency, and repo cleanliness → parent reports/pushes
+parent reproduces/checks conflict → parent or sdd-apply resolves → ein-git fresh checks markers, package/lock consistency, and repo cleanliness → parent reports/pushes
 ```
 
 After tooling/worktree incident:
 
 ```text
-stop writes → parent captures git status → ein-github fresh audits affected repos/worktrees with no edits → parent applies only confirmed recovery steps
+stop writes → parent captures git status → ein-git fresh audits affected repos/worktrees with no edits → parent applies only confirmed recovery steps
 ```
 
 ## SDD Workflow

@@ -52,9 +52,9 @@ This is the global operating guide for Pi Coding Agent on this machine.
 - Never claim a check passed unless it ran in the current session.
 - PRs are Spanish by default, direct, rich Markdown, and no AI attribution.
 - When opening PRs or syncing GitHub with Linear, publish human-readable status comments (not robotic dumps) with clear summary, state, checks, and next step.
-- Delivery actions (branch, commit, push, PR) are executed via `ein-github`, even when they look trivial: the subagent owns the hard gates and the brutalist PR template.
+- Delivery actions (branch, commit, push, PR) are executed via `ein-git`, even when they look trivial: the subagent owns the hard gates and the brutalist PR template.
 - Pushes inside a delegation are pre-authorized by the user: when the parent delegates a task that includes a push, the harness asks the user for confirmation at delegation time and issues a one-shot delivery grant that the subagent consumes. Delegate once; do not re-delegate the same push in a loop.
-- If a delegation to `ein-github` is blocked or fails, do not silently fall back to running delivery inline. Report the blocker and ask. If the user explicitly asks for inline delivery, still apply `ein-github`'s hard gates and PR template.
+- If a delegation to `ein-git` is blocked or fails, do not silently fall back to running delivery inline. Report the blocker and ask. If the user explicitly asks for inline delivery, still apply `ein-git`'s hard gates and PR template.
 
 ## Human Approval Gates (Hard Stop)
 
@@ -78,7 +78,7 @@ This is the global operating guide for Pi Coding Agent on this machine.
 - The explicit SDD slash workflow runs the single `ein-sdd` chain (init → explore → design → apply → verify).
 - Simple local edits/questions can be handled directly.
 - Substantial, risky, multi-file, Linear, GitHub, design, review, security, auth, performance, or migration work must be coordinated by the visible parent session first.
-- Preferred visible subagents: `ein-linear`, `ein-github`, and the SDD phase agents `sdd-init`, `sdd-explore`, `sdd-design`, `sdd-apply`, `sdd-verify`. Builtin pi-subagents (scout/worker/reviewer/oracle/context-builder) are disabled.
+- Preferred visible subagents: `ein-linear`, `ein-git`, and the SDD phase agents `sdd-init`, `sdd-explore`, `sdd-design`, `sdd-apply`, `sdd-verify`. Builtin pi-subagents (scout/worker/reviewer/oracle/context-builder) are disabled.
 - Never pass an ad hoc `model` override when delegating to a subagent, and never retry a failed delegation with a different model you picked yourself. Model routing comes exclusively from `/ein:models` (frontmatter of the agent files). If a delegation fails with a provider/API-key error, report it to the user instead of guessing another model.
 - Subagents must detect stack and use relevant skills before editing or verifying.
 - Prefer silent skill path resolution: pass exact `SKILL.md` paths to subagents when available. Use digest/advisor flows only for debug, ambiguity, or when a compact summary is explicitly useful.

@@ -137,7 +137,7 @@ Para cambiar el catálogo de skills, edita `~/.pi/agent/skills/stack-profile.jso
 
 - **Linear** = tu tablero de tareas.
 - **GitHub** = donde entregas el código (ramas, PRs).
-- `ein-linear` es el ayudante para Linear; `ein-github` para GitHub.
+- `ein-linear` es el ayudante para Linear; `ein-git` para GitHub.
 
 Comandos de Linear:
 

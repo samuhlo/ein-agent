@@ -32,7 +32,7 @@ sdd-init → sdd-design → sdd-explore → sdd-apply → sdd-verify
 Además de la cadena SDD, Ein incluye dos agentes especializados que gestionan el flujo hacia los sistemas externos:
 
 - **ein-linear** — Crea y actualiza issues, milestones y proyectos en Linear. Mantiene sincronía entre el OpenSpec y el estado real del backlog.
-- **ein-github** — Abre PRs bien documentadas, gestiona branches y conecta cada unidad de trabajo con su issue correspondiente.
+- **ein-git** — Abre PRs bien documentadas, gestiona branches y conecta cada unidad de trabajo con su issue correspondiente.
 - **ein-readme** — Genera el README de un proyecto (estética brutalista + bloque de metadata para el portfolio), analizando el código directamente.
 
 ### Sistema de skills (3 capas)
@@ -79,6 +79,7 @@ Todo el **estado** de Ein vive consolidado bajo `.pi/ein/` (junto a `.pi/agents`
 
 - **`ask_user_question`** (vía `rpiv-ask-user-question`): en los checkpoints (gates SDD, confirmaciones de delivery, bifurcaciones de scope) Ein te pregunta con diálogos estructurados —single/multi-select, previews, en español— en vez de prosa. Solo cuando la respuesta cambia el siguiente paso.
 - **`pi-mcp-adapter`**: los servidores MCP (engram, context7) van por un proxy de un solo tool (~200 tokens) en vez de cargar todas sus defs (10k+ tokens/server). engram por proxy; context7 con `directTools` para el digest.
+- **`context-mode`**: sandboxea las salidas de tools (un log de 45 KB → ~155 bytes), persiste estado de sesión (ediciones, git, tareas, decisiones) sobre las compactaciones y mantiene una KB con búsqueda. La palanca grande de ahorro de contexto en sesiones largas.
 
 ### Sesiones recientes
 
@@ -194,7 +195,7 @@ Ein está configurado para usar los mejores modelos según la fase:
 | Orquestador | `gpt-5.5` (preset full) / `MiniMax-M2.7` (preset lite) |
 | `sdd-design` | `gpt-5.5` — la fase que más razonamiento requiere |
 | `sdd-init`, `sdd-explore`, `sdd-apply`, `sdd-verify` | `MiniMax-M2.7` |
-| `ein-linear`, `ein-github` | `MiniMax-M2.7` |
+| `ein-linear`, `ein-git` | `MiniMax-M2.7` |
 
 Si gpt-5.5 llega al límite de uso, `/ein:models:lite` cambia todo a MiniMax-M2.7 al instante.
 
@@ -206,7 +207,7 @@ Si gpt-5.5 llega al límite de uso, `/ein:models:lite` cambia todo a MiniMax-M2.
 ein-agent/
 ├── ein-pi/                 # Workbench (se despliega en ~/.pi/agent/)
 │   └── agent/
-│       ├── agents/         # 8 agentes (5 SDD + ein-linear + ein-github + ein-readme)
+│       ├── agents/         # 8 agentes (5 SDD + ein-linear + ein-git + ein-readme)
 │       ├── chains/         # Cadena ein-sdd
 │       ├── extensions/     # 9 extensiones del runtime de Pi
 │       ├── lib/            # Lógica compartida (persona, lang, guardrails, modelos...)

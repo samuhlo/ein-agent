@@ -69,6 +69,27 @@ describe("models.json roundtrip", () => {
 		writeFileSync(modelConfigPath(CWD), "{esto no es json");
 		expect(readModelConfig(CWD)).toEqual({});
 	});
+
+	test("migra la clave legacy ein-github → ein-git al leer", () => {
+		writeFileSync(
+			modelConfigPath(CWD),
+			JSON.stringify({ "ein-github": "minimax/MiniMax-M2.7" }),
+		);
+		const config = readModelConfig(CWD);
+		expect(config["ein-git"]).toEqual({ model: "minimax/MiniMax-M2.7" });
+		expect(config["ein-github"]).toBeUndefined();
+	});
+
+	test("ein-git explícito tiene precedencia sobre el alias", () => {
+		writeFileSync(
+			modelConfigPath(CWD),
+			JSON.stringify({
+				"ein-git": "minimax/MiniMax-M3",
+				"ein-github": "minimax/MiniMax-M2.7",
+			}),
+		);
+		expect(readModelConfig(CWD)["ein-git"]).toEqual({ model: "minimax/MiniMax-M3" });
+	});
 });
 
 describe("modelo del orquestador (settings.json global)", () => {

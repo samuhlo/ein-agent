@@ -48,7 +48,7 @@ Todas en `~/.pi/agent/extensions/` y cargadas por directorio:
 | Nombre | Tipo | Propósito |
 | --- | --- | --- |
 | `ein-linear` | Agent | Preflight, CRUD Linear, sync, comentarios humanos |
-| `ein-github` | Agent | Delivery GitHub, PR, review |
+| `ein-git` | Agent | Delivery GitHub, PR, review |
 | `ein-readme` | Agent | Genera README (estética brutalista + metadata de portfolio) leyendo el código |
 | `sdd-init/explore/design/apply/verify` | Agent | Fases SDD |
 | `ein-sdd` | Chain | Flujo SDD: init → explore → design → apply → verify |
@@ -105,7 +105,7 @@ Mecanismo de render:
 
 - `lib/i18n/strings.ts` registra los mapas `es`/`en` en el dial de rpiv-i18n (`registerStrings`) y expone `t(key, fallback)` / `tf(key, fallback, ...args)` (placeholders `{0}`). Lo usan las **extensiones** (que no cargan los tests).
 - `lib/lang.ts` expone `pick(es, en)` (idioma de chat, **test-safe**, sin importar rpiv-i18n) para los libs acoplados a tests (`persona`, `model-config`, `guardrails`, `sessions`), y `pickFor(lang, es, en)` para contenido cuyo idioma es el de **artefactos** (p.ej. plantillas de bootstrap de Linear).
-- Respuesta del modelo: `buildEinPrompt(persona, chatLang)` inyecta una directiva de idioma **autoritativa** (manda sobre la persona). Para los subagentes `ein-github`/`ein-linear`, `ein-ai.ts` añade `artifactLanguageDirective(readArtifactLang(cwd))` con las cabeceras de sección traducidas.
+- Respuesta del modelo: `buildEinPrompt(persona, chatLang)` inyecta una directiva de idioma **autoritativa** (manda sobre la persona). Para los subagentes `ein-git`/`ein-linear`, `ein-ai.ts` añade `artifactLanguageDirective(readArtifactLang(cwd))` con las cabeceras de sección traducidas.
 
 Comando `/ein:lang` (dos `ctx.ui.select`: conversación y artefactos). Default `es`; `gl` contemplado en tipos/directivas, UI pendiente. Paridad `es`/`en` de las claves: invariante (ver reglas de mantenimiento).
 

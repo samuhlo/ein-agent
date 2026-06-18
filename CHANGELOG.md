@@ -16,9 +16,21 @@ Todos los cambios relevantes de Ein. El formato sigue
   (comandos detectados de `package.json`/lockfiles + estructura, regenerable),
   con sello `rev` (SHA git) + fecha. `/ein:status` avisa de cuántos commits
   atrás quedó el sello para detectar la deriva.
+- **`context-mode`** (`npm:context-mode`) integrado: sandboxea las salidas de
+  tools, persiste estado de sesión sobre las compactaciones y añade una KB con
+  búsqueda. La mayor palanca de ahorro de contexto en sesiones largas. Se
+  autoinstala con los demás paquetes declarados.
+- **Fan-out read-only paralelo**: guía en el orquestador para lanzar varios
+  `sdd-explore` concurrentes (áreas independientes) y sintetizar. Acota cuándo
+  NO usarlo (escrituras, la chain SDD, dependencias entre áreas) y recuerda que
+  ahorra reloj, no tokens.
 
 ### Changed
 
+- **`ein-github` → `ein-git`**: el agente de entrega también hace git local, no
+  solo GitHub. Rename completo (agente, routing de modelos, doctor, verify,
+  orquestador, docs) con **alias de migración** que remapea la clave legacy en
+  `models.json` al leer (no orfana configs previas).
 - **Estado de Ein consolidado bajo `.pi/ein/`**: `.atl/` (registro de skills)
   pasa a `.pi/ein/atl/`, junto a `lang/tdd/persona`. Ein aporta así una sola
   carpeta, en el namespace idiomático de Pi (`.pi/agents`, `.pi/chains`).

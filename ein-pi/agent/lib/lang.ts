@@ -215,7 +215,7 @@ const ARTIFACT_LABELS: Record<Lang, {
 
 /**
  * Directiva de idioma de artefactos: la inyecta el padre en la tarea de los
- * subagentes ein-github / ein-linear. Manda sobre el idioma por defecto que
+ * subagentes ein-git / ein-linear. Manda sobre el idioma por defecto que
  * traen sus especificaciones.
  */
 export function artifactLanguageDirective(lang: Lang): string {

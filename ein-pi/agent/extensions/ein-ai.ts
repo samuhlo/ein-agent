@@ -214,7 +214,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		// Idioma de artefactos: los agentes de delivery (PR/commits/Linear) reciben
 		// la directiva autoritativa segun .pi/ein/lang.json (o el idioma de chat).
 		let artifactPrompt = "";
-		if (isNamedAgent && startNames.some((n) => n === "ein-github" || n === "ein-linear")) {
+		if (isNamedAgent && startNames.some((n) => n === "ein-git" || n === "ein-linear")) {
 			artifactPrompt = `\n\n${artifactLanguageDirective(readArtifactLang(ctx.cwd))}`;
 		}
 		// Convenciones de codigo (comment/logging/file-naming): SOLO donde se
