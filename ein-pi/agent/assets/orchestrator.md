@@ -437,11 +437,15 @@ reemplaza lo que encuentra escrito en el XML. Si el placeholder no está, no hay
 nada que sustituir (de ahí el gap que queda pendiente en la plantilla).
 ```
 
+## Project Context (EIN.md)
+
+If the repo ships an `EIN.md` (it is auto-injected into your prompt), treat it as ground truth for stack, commands, architecture and conventions instead of re-deriving them — and pass the relevant facts (e.g. the exact test/build command) to subagents so cheap executors don't re-discover them. If `EIN.md` conflicts with the actual code, trust the code and flag the drift; suggest `/ein:init` to refresh it when it is clearly stale.
+
 ## Skill Registry Protocol
 
 The parent resolves skills once per session or before first delegation:
 
-1. Read `.atl/skill-registry.md` if present.
+1. Read `.pi/ein/atl/skill-registry.md` if present.
 2. Match task context and target files against the `Trigger / description` column.
 3. Pass only matching `Path` values to subagents under `## Skills to load before work`.
 4. Tell subagents to read those exact `SKILL.md` files before reading, writing, reviewing, testing, or creating artifacts.
@@ -472,7 +476,7 @@ For skill-shaped requests, do not treat injected `<available_skills>` as complet
 
 Discovery order:
 
-1. Read `.atl/skill-registry.md` when present.
+1. Read `.pi/ein/atl/skill-registry.md` when present.
 2. If the registry suggests a specific skill, load the indexed `SKILL.md` path before acting.
 3. If the expected skill is absent from the registry but the request clearly names a known workflow, search common project/user skill dirs such as `./skills`, `.pi/skills`, `.agents/skills`, `~/.claude/skills`, and other configured skill roots.
 4. Prefer the most specific project skill over a global skill with the same intent.

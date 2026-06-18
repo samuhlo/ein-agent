@@ -49,7 +49,18 @@ import {
 } from "../lib/model-config.ts";
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
-import { codeConventionSkillBlock, resolveSkillInjection } from "./ein-skill-registry.ts";
+import {
+	codeConventionSkillBlock,
+	migrateLegacyAtl,
+	resolveSkillInjection,
+} from "./ein-skill-registry.ts";
+import { ensureEinGitignore } from "../lib/gitignore.ts";
+import {
+	einContextDirective,
+	einMdCommitsBehind,
+	handleInitCommand,
+	readEinMd,
+} from "../lib/project-context.ts";
 import { AGENT_DIR } from "./ein-paths";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
@@ -123,6 +134,10 @@ export default function einAi(pi: ExtensionAPI): void {
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
+		// Higiene del proyecto: un único bloque gestionado en .gitignore y
+		// limpieza del antiguo .atl/ (ahora .pi/ein/atl/). Best-effort, no rompe.
+		ensureEinGitignore(ctx.cwd);
+		migrateLegacyAtl(ctx.cwd);
 		try {
 			const installResult = installSddAssets(ctx.cwd, false);
 			const modelResult = await applySavedModelConfig(ctx);
@@ -209,8 +224,13 @@ export default function einAi(pi: ExtensionAPI): void {
 		const writesCode = (!isNamedAgent && !isSddAgent) || startNames.includes("sdd-apply");
 		const conventions = writesCode ? codeConventionSkillBlock(ctx.cwd) : "";
 		const conventionsPrompt = conventions ? `\n\n${conventions}` : "";
+		// Contexto de proyecto (EIN.md): verdad de base para el parent y las fases
+		// SDD; los agentes de delivery (PR/Linear) no lo necesitan.
+		const wantsContext = !isNamedAgent || isSddAgent;
+		const context = wantsContext ? einContextDirective(ctx.cwd) : "";
+		const contextPrompt = context ? `\n\n${context}` : "";
 		return {
-			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}`,
+			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}`,
 		};
 	});
 
@@ -320,6 +340,16 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
+	pi.registerCommand("ein:init", {
+		description: t(
+			"cmd.init.description",
+			"Generar o refrescar EIN.md (contexto de proyecto: comandos, arquitectura, convenciones)",
+		),
+		handler: async (_args, ctx) => {
+			await handleInitCommand(ctx);
+		},
+	});
+
 	pi.registerCommand("ein:resume", {
 		description: t(
 			"cmd.resume.description",
@@ -423,6 +453,19 @@ export default function einAi(pi: ExtensionAPI): void {
 			lines.push("");
 
 			lines.push(`■ 003. ${t("status.project", "PROYECTO")}`);
+			const einMd = readEinMd(ctx.cwd);
+			if (!einMd.exists) {
+				lines.push(`EIN.md: ${t("status.einmd.absent", "ausente — /ein:init para generarlo")}`);
+			} else {
+				const behind = einMdCommitsBehind(ctx.cwd);
+				const fresh =
+					behind === undefined
+						? t("status.einmd.present", "presente")
+						: behind === 0
+							? t("status.einmd.fresh", "al día")
+							: tf("status.einmd.stale", `{0} commits atrás — /ein:init para refrescar`, behind);
+				lines.push(`EIN.md: ${fresh}`);
+			}
 			lines.push(`openspec: ${openspecConfigured ? t("status.openspec.configured", "configurado") : t("status.openspec.unconfigured", "no configurado — /sdd-init para arrancar")}`);
 			lines.push(`${t("status.model", "modelo")}: ${existsSync(modelConfigPath(ctx.cwd)) ? t("status.model.present", "config presente") : t("status.model.absent", "sin config local")}`);
 			lines.push("");

@@ -17,6 +17,7 @@ El prefijo (`ein`) sale de `~/.pi/agent/brand.json`. Si quieres otro prefijo, ca
 | Comando | Qué hace |
 | --- | --- |
 | `/ein:status` | Vista rápida del sistema (agentes, chains, skills, proyecto, MCP) |
+| `/ein:init` | Genera/refresca `EIN.md` (contexto de proyecto: comandos, arquitectura, convenciones). Zona auto regenerable + zona curada que no se pisa |
 | `/ein:help` | Lista compacta de comandos |
 | `/ein:help full` | Guía completa por grupos |
 | `/ein:persona` | Muestra/cambia la persona activa (solo **tono**) |

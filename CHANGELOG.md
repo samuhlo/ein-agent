@@ -5,6 +5,29 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.10.0] - 2026-06-18
+
+### Added
+
+- **`EIN.md` — contexto de proyecto versionado** (`/ein:init`): verdad de base
+  del repo (comandos, arquitectura, convenciones) que se inyecta al orquestador
+  y a las fases SDD para que los modelos baratos no re-descubran lo mismo cada
+  run. Dos zonas: **curada** (la escribe el humano; Ein no la pisa) y **auto**
+  (comandos detectados de `package.json`/lockfiles + estructura, regenerable),
+  con sello `rev` (SHA git) + fecha. `/ein:status` avisa de cuántos commits
+  atrás quedó el sello para detectar la deriva.
+
+### Changed
+
+- **Estado de Ein consolidado bajo `.pi/ein/`**: `.atl/` (registro de skills)
+  pasa a `.pi/ein/atl/`, junto a `lang/tdd/persona`. Ein aporta así una sola
+  carpeta, en el namespace idiomático de Pi (`.pi/agents`, `.pi/chains`).
+- **`.gitignore` con un único bloque gestionado** (`lib/gitignore.ts`): cubre
+  `.pi/ein/` y `.piagents/`, idempotente y escrito en `session_start`. Migra
+  automáticamente el bloque legacy (`# Local Pi runtime state` + `.atl/`) y
+  limpia el `.atl/` huérfano de la raíz (solo ficheros generados; nunca toca
+  `.atl/skills`).
+
 ## [0.9.2] - 2026-06-17
 
 ### Changed
