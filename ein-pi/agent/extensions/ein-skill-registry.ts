@@ -477,6 +477,10 @@ function ensureAtlDir(cwd: string): string {
   const dir = getAtlDir(cwd);
   try {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    // Garantía: en cuanto creamos .pi/ein/atl/, aseguramos el ignore (idempotente).
+    // Cierra el hueco si refreshRegistry corre antes de que el session_start
+    // alcance writeGitignoreEntry, o si éste falla.
+    ensureEinGitignore(cwd);
   } catch {
     // best-effort
   }
