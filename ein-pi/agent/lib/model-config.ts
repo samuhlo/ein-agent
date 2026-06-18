@@ -99,6 +99,15 @@ function isThinkingLevel(value: unknown): value is ThinkingLevel {
 	);
 }
 
+// Alias de migración de nombres de agente en configs guardadas. ein-github pasó
+// a ein-git (también hace git local). Se remapea al leer models.json para no
+// orfanar la config previa del usuario.
+const AGENT_KEY_ALIASES: Record<string, string> = { "ein-github": "ein-git" };
+
+function aliasAgentKey(name: string): string {
+	return AGENT_KEY_ALIASES[name] ?? name;
+}
+
 function normalizeRoutingEntry(value: unknown): AgentRoutingEntry | undefined {
 	if (typeof value === "string") {
 		const model = value.trim();
@@ -122,7 +131,8 @@ function readModelConfigFile(path: string): ModelConfigFileResult {
 		const config: AgentModelConfig = {};
 		for (const [name, value] of Object.entries(parsed)) {
 			const entry = normalizeRoutingEntry(value);
-			if (entry) config[name] = entry;
+			const key = aliasAgentKey(name);
+			if (entry && config[key] === undefined) config[key] = entry;
 		}
 		return { status: "valid", config };
 	} catch {
@@ -140,7 +150,8 @@ async function readModelConfigFileAsync(
 		const config: AgentModelConfig = {};
 		for (const [name, value] of Object.entries(parsed)) {
 			const entry = normalizeRoutingEntry(value);
-			if (entry) config[name] = entry;
+			const key = aliasAgentKey(name);
+			if (entry && config[key] === undefined) config[key] = entry;
 		}
 		return { status: "valid", config };
 	} catch {
@@ -461,7 +472,7 @@ const MODEL_FULL: AgentModelConfig = {
 	"sdd-apply": { model: "minimax/MiniMax-M2.7" },
 	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
 	"ein-linear": { model: "minimax/MiniMax-M2.7" },
-	"ein-github": { model: "minimax/MiniMax-M2.7" },
+	"ein-git": { model: "minimax/MiniMax-M2.7" },
 };
 const MODEL_FULL_ORCH = { provider: "openai-codex", model: "gpt-5.5" } as const;
 
@@ -472,7 +483,7 @@ const MODEL_LITE: AgentModelConfig = {
 	"sdd-apply": { model: "minimax/MiniMax-M2.7" },
 	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
 	"ein-linear": { model: "minimax/MiniMax-M2.7" },
-	"ein-github": { model: "minimax/MiniMax-M2.7" },
+	"ein-git": { model: "minimax/MiniMax-M2.7" },
 };
 const MODEL_LITE_ORCH = { provider: "minimax", model: "MiniMax-M3" } as const;
 

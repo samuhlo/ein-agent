@@ -415,7 +415,7 @@ class SddModelPanel implements OverlayComponent {
 			}
 
 			const group = SDD_AGENT_NAME_SET.has(row) ? 'SDD'
-				: (row === 'ein-linear' || row === 'ein-github') ? t("models.group.delivery", "ENTREGA")
+				: (row === 'ein-linear' || row === 'ein-git') ? t("models.group.delivery", "ENTREGA")
 				: t("models.group.other", "OTROS");
 
 			if (group !== prevGroup) {

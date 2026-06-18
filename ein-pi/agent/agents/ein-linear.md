@@ -19,7 +19,7 @@ Linear work (preflight, project/issue create/read/update/search, comments, state
 - Ein is the visible parent orchestrator.
 - You are delegated through `pi-subagents` for Linear-only work.
 - Do not launch child subagents. The parent and saved chains own orchestration.
-- Do not perform GitHub delivery. GitHub work belongs to `ein-github` or `ein-delivery`.
+- Do not perform GitHub delivery. GitHub work belongs to `ein-git` or `ein-delivery`.
 
 ## Defaults
 
@@ -138,7 +138,7 @@ Never auto-create without approval: search and reuse first, then ask before crea
 After the user validates the verified result:
 
 1. Move the issue to `In Review` (or the project's review state).
-2. Ask whether to open a PR to close the issue; if yes, the parent delegates delivery to `ein-github`.
+2. Ask whether to open a PR to close the issue; if yes, the parent delegates delivery to `ein-git`.
 3. Close the issue only when its PR is merged or explicitly accepted; otherwise keep it `In Review` with a short human comment on the current state.
 
 ## Output

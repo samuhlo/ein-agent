@@ -22,7 +22,7 @@ Verás el banner EIN (concrete + I amarilla) con tu nombre: **SAMUHLO · PI WORK
 Le hablas en lenguaje natural y el prompt padre decide la ruta:
 
 - **Trabajo simple** → lo hace directo.
-- **Trabajo enfocado** → delega a un subagente visible (`ein-linear`, `ein-github`, una fase SDD).
+- **Trabajo enfocado** → delega a un subagente visible (`ein-linear`, `ein-git`, una fase SDD).
 - **Trabajo complejo** → ejecuta la chain `ein-sdd` (init → explore → design → apply → verify).
 
 Tu mensaje original se conserva siempre.
@@ -86,7 +86,7 @@ El perfil vive en `~/.pi/agent/skills/stack-profile.json`.
 | Agente | Para qué |
 | --- | --- |
 | `ein-linear` | Preflight, CRUD Linear, sync |
-| `ein-github` | Delivery GitHub, PR, review |
+| `ein-git` | Delivery GitHub, PR, review |
 | `sdd-init` | Inicializar el cambio SDD |
 | `sdd-explore` | Explorar código y riesgos |
 | `sdd-design` | Propuesta + spec + tareas |

@@ -32,7 +32,7 @@ sdd-init → sdd-design → sdd-explore → sdd-apply → sdd-verify
 Además de la cadena SDD, Ein incluye dos agentes especializados que gestionan el flujo hacia los sistemas externos:
 
 - **ein-linear** — Crea y actualiza issues, milestones y proyectos en Linear. Mantiene sincronía entre el OpenSpec y el estado real del backlog.
-- **ein-github** — Abre PRs bien documentadas, gestiona branches y conecta cada unidad de trabajo con su issue correspondiente.
+- **ein-git** — Abre PRs bien documentadas, gestiona branches y conecta cada unidad de trabajo con su issue correspondiente.
 - **ein-readme** — Genera el README de un proyecto (estética brutalista + bloque de metadata para el portfolio), analizando el código directamente.
 
 ### Sistema de skills (3 capas)
@@ -66,10 +66,20 @@ Ein separa el idioma en **dos ejes independientes**, configurables con `/ein:lan
 
 Esto habilita el caso real: **charlar en castellano y a la vez generar PRs e issues en inglés** para un repo internacional. El idioma entra como directiva autoritativa en el prompt (por encima de la persona). Galego contemplado en la arquitectura, pendiente de traducir su UI.
 
+### Contexto de proyecto (EIN.md)
+
+`/ein:init` genera un **`EIN.md`** versionado en la raíz: la verdad de base del proyecto que se inyecta al orquestador y a las fases SDD para que los modelos baratos **no re-descubran lo mismo cada run** (ahorro de tokens, más control). Dos zonas para no pudrirse:
+
+- **Curada** (Overview, Arquitectura, Convenciones) — la escribes tú; Ein nunca la pisa al refrescar.
+- **Auto** (Comandos build/test/lint, Estructura) — la regenera `/ein:init`, con un sello `rev` (SHA de git) + fecha. `/ein:status` avisa cuántos commits atrás quedó para detectar la deriva.
+
+Todo el **estado** de Ein vive consolidado bajo `.pi/ein/` (junto a `.pi/agents`, `.pi/chains`), y Ein mantiene solo un bloque gestionado en tu `.gitignore` (`.pi/ein/`, `.piagents/`). `EIN.md`, en cambio, **sí se commitea**: es conocimiento del repo.
+
 ### Preguntas estructuradas y MCP eficiente
 
 - **`ask_user_question`** (vía `rpiv-ask-user-question`): en los checkpoints (gates SDD, confirmaciones de delivery, bifurcaciones de scope) Ein te pregunta con diálogos estructurados —single/multi-select, previews, en español— en vez de prosa. Solo cuando la respuesta cambia el siguiente paso.
 - **`pi-mcp-adapter`**: los servidores MCP (engram, context7) van por un proxy de un solo tool (~200 tokens) en vez de cargar todas sus defs (10k+ tokens/server). engram por proxy; context7 con `directTools` para el digest.
+- **`context-mode`**: sandboxea las salidas de tools (un log de 45 KB → ~155 bytes), persiste estado de sesión (ediciones, git, tareas, decisiones) sobre las compactaciones y mantiene una KB con búsqueda. La palanca grande de ahorro de contexto en sesiones largas.
 
 ### Sesiones recientes
 
@@ -141,6 +151,7 @@ Una vez instalado, Pi expone estos comandos:
 ### Control del sistema
 ```
 /ein:status             Estado completo: agentes, cadenas, skills, proyecto, MCP
+/ein:init               Genera/refresca EIN.md (contexto de proyecto versionado)
 /ein:models             Ver o cambiar el modelo asignado a cada agente
 /ein:models:full        Preset potencia: orquestador + sdd-design → gpt-5.5
 /ein:models:lite        Preset ahorro: todos → MiniMax-M2.7 (escape de rate-limit)
@@ -184,7 +195,7 @@ Ein está configurado para usar los mejores modelos según la fase:
 | Orquestador | `gpt-5.5` (preset full) / `MiniMax-M2.7` (preset lite) |
 | `sdd-design` | `gpt-5.5` — la fase que más razonamiento requiere |
 | `sdd-init`, `sdd-explore`, `sdd-apply`, `sdd-verify` | `MiniMax-M2.7` |
-| `ein-linear`, `ein-github` | `MiniMax-M2.7` |
+| `ein-linear`, `ein-git` | `MiniMax-M2.7` |
 
 Si gpt-5.5 llega al límite de uso, `/ein:models:lite` cambia todo a MiniMax-M2.7 al instante.
 
@@ -196,7 +207,7 @@ Si gpt-5.5 llega al límite de uso, `/ein:models:lite` cambia todo a MiniMax-M2.
 ein-agent/
 ├── ein-pi/                 # Workbench (se despliega en ~/.pi/agent/)
 │   └── agent/
-│       ├── agents/         # 8 agentes (5 SDD + ein-linear + ein-github + ein-readme)
+│       ├── agents/         # 8 agentes (5 SDD + ein-linear + ein-git + ein-readme)
 │       ├── chains/         # Cadena ein-sdd
 │       ├── extensions/     # 9 extensiones del runtime de Pi
 │       ├── lib/            # Lógica compartida (persona, lang, guardrails, modelos...)
@@ -227,11 +238,11 @@ Hace backup del estado actual, redespliega el workbench y actualiza `pi`. Tu `au
 ## Publicar una nueva release
 
 ```bash
-git tag installer-v0.9.2
-git push origin installer-v0.9.2
+git tag installer-v0.10.0
+git push origin installer-v0.10.0
 ```
 
-GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.9.2` (ver [`CHANGELOG.md`](CHANGELOG.md)).
+GitHub Actions compila los 4 binarios (darwin/linux × arm64/x64), genera checksums y publica la release automáticamente. La última release publicada es `installer-v0.10.0` (ver [`CHANGELOG.md`](CHANGELOG.md)).
 
 > Cada push a `main` y cada PR pasan por CI (`.github/workflows/ci.yml`): suite de tests, typecheck del installer y smoke de empaquetado.
 

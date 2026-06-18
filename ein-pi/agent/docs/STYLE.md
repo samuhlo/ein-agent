@@ -40,7 +40,7 @@ Donde Ein escribe de cara afuera, el esqueleto es siempre el mismo:
 - **Apertura**: `> Intención corta: ...` — una frase.
 - **Secciones**: `## // NNN. TÍTULO` numeradas.
 
-Formatos completos (issue, comentario de progreso, cierre didáctico, PR body): ver `agents/ein-linear.md` y `agents/ein-github.md`. Regla de oro del cierre de issue y del PR: la sección **CÓMO FUNCIONA** es el corazón — si no enseña el mecanismo, está incompleto.
+Formatos completos (issue, comentario de progreso, cierre didáctico, PR body): ver `agents/ein-linear.md` y `agents/ein-git.md`. Regla de oro del cierre de issue y del PR: la sección **CÓMO FUNCIONA** es el corazón — si no enseña el mecanismo, está incompleto.
 
 Commits: Conventional Commits (`type(scope): descripción`), imperativo, sin atribución a IA.
 

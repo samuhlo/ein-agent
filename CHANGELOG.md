@@ -5,6 +5,41 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.10.0] - 2026-06-18
+
+### Added
+
+- **`EIN.md` — contexto de proyecto versionado** (`/ein:init`): verdad de base
+  del repo (comandos, arquitectura, convenciones) que se inyecta al orquestador
+  y a las fases SDD para que los modelos baratos no re-descubran lo mismo cada
+  run. Dos zonas: **curada** (la escribe el humano; Ein no la pisa) y **auto**
+  (comandos detectados de `package.json`/lockfiles + estructura, regenerable),
+  con sello `rev` (SHA git) + fecha. `/ein:status` avisa de cuántos commits
+  atrás quedó el sello para detectar la deriva.
+- **`context-mode`** (`npm:context-mode`) integrado: sandboxea las salidas de
+  tools, persiste estado de sesión sobre las compactaciones y añade una KB con
+  búsqueda. La mayor palanca de ahorro de contexto en sesiones largas. Se
+  autoinstala con los demás paquetes declarados.
+- **Fan-out read-only paralelo**: guía en el orquestador para lanzar varios
+  `sdd-explore` concurrentes (áreas independientes) y sintetizar. Acota cuándo
+  NO usarlo (escrituras, la chain SDD, dependencias entre áreas) y recuerda que
+  ahorra reloj, no tokens.
+
+### Changed
+
+- **`ein-github` → `ein-git`**: el agente de entrega también hace git local, no
+  solo GitHub. Rename completo (agente, routing de modelos, doctor, verify,
+  orquestador, docs) con **alias de migración** que remapea la clave legacy en
+  `models.json` al leer (no orfana configs previas).
+- **Estado de Ein consolidado bajo `.pi/ein/`**: `.atl/` (registro de skills)
+  pasa a `.pi/ein/atl/`, junto a `lang/tdd/persona`. Ein aporta así una sola
+  carpeta, en el namespace idiomático de Pi (`.pi/agents`, `.pi/chains`).
+- **`.gitignore` con un único bloque gestionado** (`lib/gitignore.ts`): cubre
+  `.pi/ein/` y `.piagents/`, idempotente y escrito en `session_start`. Migra
+  automáticamente el bloque legacy (`# Local Pi runtime state` + `.atl/`) y
+  limpia el `.atl/` huérfano de la raíz (solo ficheros generados; nunca toca
+  `.atl/skills`).
+
 ## [0.9.2] - 2026-06-17
 
 ### Changed

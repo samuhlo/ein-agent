@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { homedir } from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
 import { pick } from "../lib/lang";
+import { ensureEinGitignore } from "../lib/gitignore";
 import { AGENT_DIR, DOWNLOADED_SKILLS_DIR, LOCAL_SKILLS_DIR } from "./ein-paths";
 
 type SkillScope = "project" | "user";
@@ -45,7 +46,10 @@ const registrySchema = {
   },
 } as const;
 
-const ATL_DIR = ".atl";
+// Estado de Ein consolidado bajo .pi/ein/ (junto a lang/tdd/persona). Antes
+// colgaba de .atl/ en la raíz; migrateLegacyAtl() limpia ese resto.
+const ATL_SEGMENTS = [".pi", "ein", "atl"] as const;
+const LEGACY_ATL_DIR = ".atl";
 const REGISTRY_MD = "skill-registry.md";
 const CACHE_JSON = ".skill-registry.cache.json";
 
@@ -445,13 +449,38 @@ function feedbackReport(output: string, expected: string[], registry: SkillEntry
 }
 
 function getAtlDir(cwd: string): string {
-  return join(cwd, ATL_DIR);
+  return join(cwd, ...ATL_SEGMENTS);
+}
+
+// Elimina el resto del antiguo .atl/ en la raíz (solo nuestros ficheros
+// generados; nunca toca .atl/skills u otro contenido del usuario). Best-effort.
+export function migrateLegacyAtl(cwd: string): void {
+  const legacy = join(cwd, LEGACY_ATL_DIR);
+  try {
+    if (!existsSync(legacy)) return;
+    for (const f of [REGISTRY_MD, CACHE_JSON]) {
+      const p = join(legacy, f);
+      if (existsSync(p)) rmSync(p, { force: true });
+    }
+    // Borrar el dir solo si quedó vacío (no arrastrar skills del usuario).
+    try {
+      if (readdirSync(legacy).length === 0) rmSync(legacy, { recursive: true, force: true });
+    } catch {
+      // best-effort
+    }
+  } catch {
+    // best-effort
+  }
 }
 
 function ensureAtlDir(cwd: string): string {
   const dir = getAtlDir(cwd);
   try {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    // Garantía: en cuanto creamos .pi/ein/atl/, aseguramos el ignore (idempotente).
+    // Cierra el hueco si refreshRegistry corre antes de que el session_start
+    // alcance writeGitignoreEntry, o si éste falla.
+    ensureEinGitignore(cwd);
   } catch {
     // best-effort
   }
@@ -459,25 +488,8 @@ function ensureAtlDir(cwd: string): string {
 }
 
 function writeGitignoreEntry(cwd: string): void {
-  const giPath = join(cwd, ".gitignore");
-  const header = "# Local Pi runtime state";
-  const marker = ".atl/";
-  try {
-    const existing = existsSync(giPath) ? readFileSync(giPath, "utf8") : "";
-    const lines = existing.split("\n");
-    const hasHeader = lines.some((l) => l.trim() === header);
-    const hasMarker = lines.some((l) => l.trim() === marker);
-    if (!hasMarker) {
-      const base = existing.trim() ? existing.trimEnd() : "";
-      const parts: string[] = [];
-      if (base) parts.push(base);
-      if (!hasHeader) parts.push(header);
-      parts.push(marker);
-      writeFileSync(giPath, parts.join("\n") + "\n", "utf8");
-    }
-  } catch {
-    // best-effort
-  }
+  // Fuente de verdad única en lib/gitignore.ts (bloque .pi/ein/ + .piagents/).
+  ensureEinGitignore(cwd);
 }
 
 function writeRegistryMd(cwd: string, entries: SkillEntry[]): void {
@@ -808,7 +820,7 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
   pi.registerCommand("skill-registry:refresh", {
     description: t(
       "cmd.skill-registry.refresh.description",
-      "Fuerza regeneracion de .atl/skill-registry.md desde cero",
+      "Fuerza regeneracion de .pi/ein/atl/skill-registry.md desde cero",
     ),
     handler: async (_args: string, ctx: any) => {
       const cwd = ctx?.cwd ?? process.cwd();

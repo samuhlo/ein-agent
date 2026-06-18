@@ -196,6 +196,7 @@ function doctorSmokeReport(): string {
   const packages = (settings.packages as unknown[] | undefined) ?? [];
   const hasAskUserQuestion = packages.includes("npm:@juicesharp/rpiv-ask-user-question");
   const hasI18nPkg = packages.includes("npm:@juicesharp/rpiv-i18n");
+  const hasContextMode = packages.includes("npm:context-mode");
   const langLibFile = join(AGENT_DIR, "lib", "lang.ts");
   const stringsLibFile = join(AGENT_DIR, "lib", "i18n", "strings.ts");
 
@@ -243,7 +244,7 @@ function doctorSmokeReport(): string {
     "sdd-apply.md",
     "sdd-verify.md",
   ];
-  const DELIVERY_AGENTS = ["ein-linear.md", "ein-github.md"];
+  const DELIVERY_AGENTS = ["ein-linear.md", "ein-git.md"];
 
   const checksAgents: CheckResult[] = [
     ...SDD_AGENTS.map((a) =>
@@ -316,6 +317,11 @@ function doctorSmokeReport(): string {
       hasAskUserQuestion,
       "ask-user-question",
       "Paquete ask-user-question declarado en settings.",
+    ),
+    warn(
+      hasContextMode,
+      "context-mode",
+      "Paquete context-mode declarado (sandbox de salidas + continuidad de sesion).",
     ),
   ];
 
