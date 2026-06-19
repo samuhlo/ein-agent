@@ -47,6 +47,26 @@ describe("ein-linear.md — tools contract", () => {
     expect(toolsLine).toBeDefined();
     expect(toolsLine!).toMatch(/^tools:(\s*linear_\w+,?)+$/);
   });
+
+  test("cada tool del frontmatter está REGISTRADO en ein-linear.ts (sin fantasmas)", () => {
+    const ext = readFileSync(
+      join(import.meta.dir, "../ein-pi/agent/extensions/ein-linear.ts"),
+      "utf8",
+    );
+    const registered = new Set(
+      [...ext.matchAll(/name:\s*"(linear_\w+)"/g)].map((m) => m[1]),
+    );
+    expect(registered.size).toBeGreaterThan(0);
+    const frontmatter = linearContent.match(/^---\n([\s\S]*?)\n---/)![1];
+    const toolsLine = frontmatter.split("\n").find((l) => l.startsWith("tools:"))!;
+    const declared = toolsLine
+      .replace(/^tools:/, "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const phantoms = declared.filter((t) => !registered.has(t));
+    expect(phantoms).toEqual([]);
+  });
 });
 
 describe("ein-linear.md — Known Issue IDs Mode contract", () => {
@@ -89,8 +109,11 @@ describe("ein-linear.md — pragmatic state resolution contract", () => {
     expect(linearContent).toMatch(/Pragmatic state resolution|state.*schema|state.*name.*UUID/);
   });
 
-  test("contiene fallback a UUID si schema requiere", () => {
-    expect(linearContent).toMatch(/fallback|requires UUID|if.*fails/);
+  test("pasa el estado por nombre y NO persigue UUIDs (el tool no existe)", () => {
+    expect(linearContent).toMatch(/by \*\*name\*\*|by name/);
+    // No debe quedar instrucción de resolver UUID vía un tool de team-states inexistente.
+    expect(linearContent).not.toContain("linear_get_team_states");
+    expect(linearContent.toLowerCase()).toMatch(/do not try to resolve uuids|stop and report/);
   });
 
   test("contiene stop on failure con error exacto", () => {

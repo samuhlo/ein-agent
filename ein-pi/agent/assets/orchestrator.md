@@ -8,7 +8,7 @@ Ein has these subagents available. **Use the `subagent` tool to invoke them — 
 
 | Agent | Tools | When to use |
 | ----- | ----- | ----------- |
-| `ein-linear` | linear_get_issue, linear_update_issue, linear_search_issues, linear_create_issue, linear_create_comment, linear_list_teams, linear_get_team_states, linear_list_labels, linear_list_milestones, linear_list_members, linear_list_projects, linear_list_issues | **ALL Linear operations**: create/read/update/search issues, create comments, sync states. NEVER run `curl` to Linear API directly. |
+| `ein-linear` | linear_get_issue, linear_update_issue, linear_search_issues, linear_create_issue, linear_create_issues_batch, linear_create_comment, linear_list_teams, linear_list_projects, linear_list_project_issues, linear_list_milestones, linear_create_milestone, linear_ensure_project_milestones, linear_create_project | **ALL Linear operations**: create/read/update/search issues, create comments, sync states. NEVER run `curl` to Linear API directly. |
 | `ein-git` | read, write, edit, bash | **Git delivery (local git + GitHub)**: branches, commits, push, PRs, reviews, checks. NEVER run `git` or `gh` directly for delivery actions. |
 | `ein-readme` | read, grep, glob, write, edit, bash | **README generation**: when the user asks to generate/refresh a project's README. Analyzes the code and writes the brutalist README + portfolio metadata. |
 | `sdd-explore` | read, grep, glob | **SDD exploration phase** for ambiguous or large features. |
