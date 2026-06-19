@@ -385,6 +385,11 @@ function doctorSmokeReport(): string {
       "sdd-verify sin support colgante",
       "sdd-verify no referencia una guia de support global inexistente.",
     ),
+    check(
+      orchestratorRaw.includes("Plan Gate"),
+      "orchestrator plan gate",
+      "El orchestrator exige plan + confirmacion antes de mutaciones ambiguas/bulk.",
+    ),
   ];
 
   const groups: Array<{ title: string; checks: CheckResult[] }> = [

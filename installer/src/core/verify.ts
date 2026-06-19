@@ -210,6 +210,7 @@ export function runDoctor(platform: Platform): DoctorReport {
     check(orchestratorRaw.includes("Review Workload Guard"), "orchestrator coordina guard", "El orchestrator coordina el guard (reenvio de budget + ask)."),
     check(!sddApplyRaw.includes("global EIN strict-TDD support guidance"), "sdd-apply sin support colgante", "sdd-apply no referencia una guia de support global inexistente."),
     check(!sddVerifyRaw.includes("global EIN strict-TDD verification support guidance"), "sdd-verify sin support colgante", "sdd-verify no referencia una guia de support global inexistente."),
+    check(orchestratorRaw.includes("Plan Gate"), "orchestrator plan gate", "El orchestrator exige plan + confirmacion antes de mutaciones ambiguas/bulk."),
   ];
 
   const hasEngramBin = lookPath("engram", extraPath) !== null;

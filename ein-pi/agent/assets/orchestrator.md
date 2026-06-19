@@ -165,6 +165,20 @@ Rules:
 - Questions and options follow the user's language and current persona.
 - This replaces prose checkpoints; it does not add new ones. Same gates as before, better surface.
 
+## Plan Gate (resolve → show → confirm → execute)
+
+**Never delegate a state-mutating action straight from a loose instruction.** A request that BOTH mutates persistent/external state AND is ambiguous or bulk must go through this gate before any executor runs. This is the rule behind "make a plan, then execute" — it is not optional and `auto` mode does NOT bypass it.
+
+A request triggers the gate when it is **mutating** — changes Linear (create/update/cancel/comment), git/GitHub (branch/commit/push/PR/merge), or files (delete, rename, bulk edit) — AND it is **ambiguous or bulk**: it names targets loosely ("esas", "las que sobran", "lo que ya no sirve", "limpia/borra/cancela X"), or it would touch several items/files at once.
+
+Steps:
+1. **Resolve (read-only).** Identify the exact targets cheaply — list the concrete issue IDs+titles, branches, or file paths that the instruction maps to. Use a tight read (one `ein-linear` search by the named IDs/terms, `git status`, a bounded `glob`) — do NOT scan the whole board/repo. If a delivery agent already received IDs in a prior turn, reuse them.
+2. **Show the plan.** Present a short, concrete plan: exactly what will change and how (e.g. "Cancel SAM-367, SAM-368, SAM-369, SAM-370, SAM-342 — 5 issues; leave SAM-343, already canceled").
+3. **Confirm with `ask_user_question`.** Offer: proceed / adjust the list / cancel. Do not delegate execution until the user confirms.
+4. **Execute with the resolved list.** Delegate to the executor with the EXACT targets (IDs/paths), so it acts directly instead of re-discovering scope. This both protects the user from acting on a misread instruction AND keeps the executor cheap.
+
+**Skip the gate** only when the target is already concrete and unambiguous and the action is single/low-risk (e.g. "cancela SAM-342", "commit these 2 files with message X"): act directly, no over-asking. The gate is for vague/bulk mutations, not for every command.
+
 ## Language Boundary
 
 User-facing conversation follows the authoritative "Language" directive (Ein's chat language axis) and the currently selected persona mode for tone.
