@@ -52,6 +52,21 @@ function removeLinearFiles(agentDir: string): void {
   }
 }
 
+// Directories fully owned by the template. Wiped before extraction so files
+// removed upstream (e.g. a renamed agent like ein-github→ein-git) don't linger
+// as orphans — tar only adds/overwrites, it never deletes. Deliberately
+// excludes `skills/`, which holds user-managed state (downloaded skills,
+// symlinks), and the agent root (auth.json, sessions/, backups/, .sdd/, ...).
+export const MANAGED_DIRS = ["agents", "assets", "chains", "docs", "extensions", "lib", "prompts"];
+
+// Clean-replace the template-owned dirs. No-op on a fresh install (dirs absent).
+export function cleanManagedDirs(agentDir: string): void {
+  for (const dir of MANAGED_DIRS) {
+    const full = join(agentDir, dir);
+    if (existsSync(full)) rmSync(full, { recursive: true, force: true });
+  }
+}
+
 // Extract the tarball into a target dir using the system `tar`.
 async function extractTarball(tarPath: string, target: string): Promise<void> {
   await mkdir(target, { recursive: true });
@@ -80,6 +95,9 @@ export async function deployTemplate(platform: Platform, opts: DeployOptions = {
   const stagedTar = join(staging, "template.tar.gz");
   try {
     writeFileSync(stagedTar, new Uint8Array(bytes));
+    // Wipe template-owned dirs first so upstream deletions/renames don't leave
+    // orphans behind. User state (skills/, auth.json, ...) is untouched.
+    cleanManagedDirs(AGENT_DIR);
     await extractTarball(stagedTar, AGENT_DIR);
 
     const engram = resolveEngram(platform);

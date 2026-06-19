@@ -5,7 +5,7 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
-## [0.10.0] - 2026-06-18
+## [0.9.5] - 2026-06-19
 
 ### Added
 
@@ -39,6 +39,17 @@ Todos los cambios relevantes de Ein. El formato sigue
   automáticamente el bloque legacy (`# Local Pi runtime state` + `.atl/`) y
   limpia el `.atl/` huérfano de la raíz (solo ficheros generados; nunca toca
   `.atl/skills`).
+
+### Fixed
+
+- **Ficheros huérfanos al actualizar** (`deploy.ts`): la extracción del tarball
+  solo añade/sobrescribe, nunca borra, así que un rename upstream (p. ej.
+  `ein-github.md` → `ein-git.md`) dejaba el fichero viejo conviviendo con el
+  nuevo. Ahora el deploy hace **reemplazo limpio** de las carpetas 100% del
+  template (`agents`, `assets`, `chains`, `docs`, `extensions`, `lib`,
+  `prompts`) antes de extraer. Se excluye a propósito `skills/` (skills
+  descargadas + symlinks del usuario) y la raíz del agente (`auth.json`,
+  `sessions/`, `backups/`, `.sdd/`), que siguen intactos.
 
 ## [0.9.2] - 2026-06-17
 
