@@ -49,6 +49,6 @@ describe("sdd-explore.md SCOPE PACKET contract", () => {
   });
 
   test("webfetch se activa condicionalmente via SCOPE PACKET", () => {
-    expect(content).toContain("CUANDO webfetch: true");
+    expect(content).toContain("WHEN webfetch: true");
   });
 });

@@ -12,7 +12,7 @@ Ein has these subagents available. **Use the `subagent` tool to invoke them — 
 | `ein-git` | read, write, edit, bash | **Git delivery (local git + GitHub)**: branches, commits, push, PRs, reviews, checks. NEVER run `git` or `gh` directly for delivery actions. |
 | `ein-readme` | read, grep, glob, write, edit, bash | **README generation**: when the user asks to generate/refresh a project's README. Analyzes the code and writes the brutalist README + portfolio metadata. |
 | `sdd-explore` | read, grep, glob | **SDD exploration phase** for ambiguous or large features. |
-| `sdd-design` | read, grep, glob, write, edit | **SDD design phase**: propuesta, spec y tareas in one plan. |
+| `sdd-design` | read, grep, glob, write, edit | **SDD design phase**: proposal, spec, and tasks in one plan. |
 | `sdd-apply` | read, grep, glob, edit, write, bash | **SDD implementation phase**. |
 | `sdd-verify` | read, grep, glob, bash, write, edit | **SDD verification phase** after implementation. |
 
@@ -220,24 +220,7 @@ Examples:
 - run tests/builds and summarize results;
 - fresh-context review.
 
-**Available subagents:**
-
-| Subagent | Purpose |
-| -------- | ------- |
-| `ein-linear` | Linear operations: list projects, create/read/update issues, search, comments |
-| `ein-git` | GitHub delivery: branches, commits, PRs, reviews, checks |
-| `ein-readme` | README generation: brutalist README + portfolio metadata from the code |
-| `sdd-explore` | SDD exploration phase |
-| `sdd-design` | SDD design phase |
-| `sdd-apply` | SDD implementation phase |
-| `sdd-verify` | SDD verification phase |
-
-**Delegation syntax:**
-
-```
-await subagent({ agent: "ein-linear", task: "...", context: "fresh" })
-await subagent({ agent: "ein-git", task: "...", context: "fork" })
-```
+Agents and invocation syntax are in the **Subagent Inventory** at the top of this prompt — that table is the single source of truth; don't re-list it here.
 
 **Default balanced pattern for bounded implementation:**
 
@@ -329,16 +312,9 @@ SDD phases:
 init → explore → design → apply → verify
 ```
 
-`design` is a single planning phase: it produces `design.md` with the propuesta, the spec (RFC 2119 + Given/When/Then), and the actionable task checklist. There is no separate proposal/spec/tasks phase.
+`design` is a single planning phase: it produces `design.md` with the proposal, the spec (RFC 2119 + Given/When/Then), and the actionable task checklist. There is no separate proposal/spec/tasks phase.
 
-**SDD Invocation Rule:**
-When the user asks to use SDD, start SDD, or run SDD for a task:
-- **DO**: Launch the full flow with the inline `chain` step array shown in
-  "SDD Invocation — CRITICAL" above (`chain` is an array of objects, never a string).
-- **NEVER**: Pass `chain: "ein-sdd"` as a string — it fails validation.
-- **NEVER**: Use `sdd-apply` directly as a standalone agent for SDD.
-
-The individual `sdd-*` agents (sdd-apply, sdd-verify, etc.) are **phase agents used internally by the chain** — they are not meant to be invoked directly by the parent session for the full workflow.
+To run the flow, use the inline `chain` step array and hard rules in **Chain Inventory → "SDD Invocation — CRITICAL"** above. The individual `sdd-*` agents are phase agents used internally by the chain; do not invoke them directly for the full workflow.
 
 ## Lazy SDD Preflight
 
@@ -538,17 +514,6 @@ Common intent hints, not hard routing:
 | Create/open/prepare PR     | `branch-pr`                            |
 
 Keep this lightweight: loading a skill should improve the immediate task, not force extra ceremony.
-
-## Linear as Primary Board
-
-Linear is the source of truth for work tracking:
-
-- Issues define scope, state, and assignment
-- GitHub PRs are delivery, not planning
-- Before delivery, verify Linear issue state via `ein-linear`
-- After delivery, sync to Linear via `ein-linear`
-
-**CRITICAL**: Do NOT use `curl`, `wget`, or any raw HTTP calls to interact with Linear API. Use `subagent({agent: 'ein-linear', ...})` for all Linear operations. The parent session must not execute Linear commands directly.
 
 ## Strict TDD Forwarding
 

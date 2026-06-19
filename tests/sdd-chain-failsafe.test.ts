@@ -25,8 +25,8 @@ describe("ein-sdd.chain.md fail-safe", () => {
     expect(content).toContain("scope_missing");
   });
 
-  test("contiene DETENER CHAIN o equivalente", () => {
-    expect(content.toLowerCase()).toContain("detener");
+  test("contiene STOP CHAIN o equivalente", () => {
+    expect(content.toLowerCase()).toContain("stop chain");
   });
 
   test("exploration-error.md como output de error", () => {
