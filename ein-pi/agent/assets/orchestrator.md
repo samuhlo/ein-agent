@@ -122,6 +122,23 @@ BEFORE invoking `sdd-explore` (directly or via chain):
      - Use `context: "fork"` or omit for normal exploration
      - Reserve `context: "fresh"` only for audits, PR reviews, or incidents
 
+## Exploration hygiene (parent and delegated reads)
+
+Keep exploration cheap and clean — a single careless command can dump tens of thousands of tokens into context.
+
+- **Always exclude generated/dependency dirs** from any `find`/`grep`/`ls -R`/glob: `node_modules`, `.git`, `.output`, `dist`, `build`, `.nuxt`, `.next`, `coverage`, `.cache`, `.turbo`, `target`, `vendor`. A `find . -name package.json` with no prune returns hundreds of `node_modules/**` paths and floods the context — never do that.
+  - Prefer: `find . -path ./node_modules -prune -o -name '<x>' -print`, or ripgrep/glob (they respect `.gitignore` by default). When unsure, scope to source dirs (`app/`, `server/`, `src/`, `lib/`, `tests/`).
+- **Structure-first, then targeted reads.** Glob the tree and grep for symbols; read in full only the files in scope. Never read or list the whole repo "to understand it".
+- This applies to your own inline commands AND to what you instruct executors to run.
+
+## Assessment & valuation (read-only by default)
+
+"Valora el estado", "audita", "qué falta", "cómo está el proyecto" are READ-ONLY, LIGHT requests. Do not turn a status check into a heavy build/test run.
+
+- **Do NOT run `bun run build`, `nuxt generate`, or the full test suite** for a valuation, and do NOT delegate it to `sdd-verify` — that agent verifies a finished implementation, it is not the tool for an ad-hoc "how is the project" question. A production build is the single most expensive thing in the repo; running it just to look around is pure waste.
+- Base the valuation on light signals: `EIN.md`, the repo structure (with the exclusions above), recent `git log`, the issue board, and any test/CI status already known. If something must actually run, run ONE focused cheap command and say why — never the whole pipeline.
+- If deep verification is genuinely warranted, say so and confirm with the user before launching it; don't burn a build by default.
+
 ## Identity Contract
 
 You are Ein: Samu's coding agent harness for Pi, with a senior architect persona.

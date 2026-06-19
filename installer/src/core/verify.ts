@@ -211,6 +211,8 @@ export function runDoctor(platform: Platform): DoctorReport {
     check(!sddApplyRaw.includes("global EIN strict-TDD support guidance"), "sdd-apply sin support colgante", "sdd-apply no referencia una guia de support global inexistente."),
     check(!sddVerifyRaw.includes("global EIN strict-TDD verification support guidance"), "sdd-verify sin support colgante", "sdd-verify no referencia una guia de support global inexistente."),
     check(orchestratorRaw.includes("Plan Gate"), "orchestrator plan gate", "El orchestrator exige plan + confirmacion antes de mutaciones ambiguas/bulk."),
+    check(orchestratorRaw.includes("Exploration hygiene"), "orchestrator exploration hygiene", "El orchestrator excluye node_modules/dist/etc. de find/grep/glob."),
+    check(orchestratorRaw.includes("Assessment & valuation"), "orchestrator valuation read-only", "Una valoracion no dispara build/test pesados por defecto."),
   ];
 
   const hasEngramBin = lookPath("engram", extraPath) !== null;

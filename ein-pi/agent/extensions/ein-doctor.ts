@@ -390,6 +390,16 @@ function doctorSmokeReport(): string {
       "orchestrator plan gate",
       "El orchestrator exige plan + confirmacion antes de mutaciones ambiguas/bulk.",
     ),
+    check(
+      orchestratorRaw.includes("Exploration hygiene"),
+      "orchestrator exploration hygiene",
+      "El orchestrator excluye node_modules/dist/etc. de find/grep/glob.",
+    ),
+    check(
+      orchestratorRaw.includes("Assessment & valuation"),
+      "orchestrator valuation read-only",
+      "Una valoracion no dispara build/test pesados por defecto.",
+    ),
   ];
 
   const groups: Array<{ title: string; checks: CheckResult[] }> = [
