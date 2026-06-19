@@ -58,9 +58,9 @@ When the parent delegates delivery after a verified change and the user has appr
 3. Open the PR with the body in the artifact language (see the "Artifact language" directive; Spanish if absent); read back title, branch, base, URL, and state.
 4. Report whether the PR is mergeable. The issue is closed (via `ein-linear`) only if the PR is mergeable or explicitly accepted; otherwise it stays in review.
 
-## PR body (estilo brutalista, persona samuhlo)
+## PR body (brutalist style, samuhlo persona)
 
-El cuerpo del PR sigue el estilo de la casa: tag de título `[[TAG]]`, una línea `> Intención corta:` y secciones numeradas `// NNN. TÍTULO`. Directo, sin relleno. **El idioma (y por tanto las cabeceras de sección) lo fija la directiva "Artifact language" del padre**; el ejemplo de abajo está en español (idioma por defecto si no hay directiva). El núcleo es `// 002`: explica el mecanismo real, no un parte de estado. Si el PR cierra una issue de Linear, añade `Closes SAM-XXX` al final.
+The PR body follows the house style: title tag `[[TAG]]`, a single `> Short intent:` line, and numbered sections `// NNN. TITLE`. Direct, no filler. **The language (and therefore the section headers) is set by the parent's "Artifact language" directive**; the example below is in Spanish (the default when no directive is present). The core is `// 002`: explain the actual mechanism, not a status report. If the PR closes a Linear issue, add `Closes SAM-XXX` at the end.
 
 ```md
 [[TAG]] Título del PR en imperativo
@@ -83,7 +83,7 @@ Riesgos, trampas o "Ninguno detectado."
 Closes SAM-XXX
 ```
 
-Respeta `.github/pull_request_template.md` si existe: rellena su estructura pero mantén el tono y las secciones `// NNN` dentro de los huecos que permita.
+Honor `.github/pull_request_template.md` if present: fill its structure but keep the tone and `// NNN` sections within the slots it allows.
 
 ## Output
 

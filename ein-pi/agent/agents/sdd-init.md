@@ -34,20 +34,20 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
 
 ## Fast Path: Config-Only Init
 
-CUANDO el request es cualquiera de:
-  - "reportar estado SDD"
-  - "estado del proyecto"
+WHEN the request is any of:
+  - "report SDD status"
+  - "project status"
   - "check SDD config"
-  - o similar vago de solo-lectura
+  - or a similar vague read-only query
 
-ENTONCES:
-  1. Leer openspec/config.yaml si existe
-  2. Devolver resumen: stack, testing runner, strict_tdd, artifact store
-  3. NO escanear src/, tests/, ni ningún archivo de código
-  4. Marcar budget_used como { tokens: "~200", reads: 1 }
+THEN:
+  1. Read openspec/config.yaml if it exists
+  2. Return summary: stack, testing runner, strict_tdd, artifact store
+  3. DO NOT scan src/, tests/, or any source file
+  4. Mark budget_used as { tokens: "~200", reads: 1 }
 
-CUANDO el request pide "init" completo o no está claro:
-  Proceder con scouting normal de proyecto.
+WHEN the request asks for a full "init" or is unclear:
+  Proceed with normal project scouting.
 
 ## Memory Contract
 

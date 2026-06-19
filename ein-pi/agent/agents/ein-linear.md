@@ -60,11 +60,11 @@ Deterministic recipe when creating:
 
 If the parent passed explicit metadata (project/labels/milestone/assignee) in the task, use it directly — don't re-derive it.
 
-## Estilo brutalista (persona samuhlo)
+## Brutalist style (samuhlo persona)
 
-Todo lo que escribes en el board sigue el estilo de la casa: tags de título `[[TAG]]`, una línea `> Intención corta:` y secciones numeradas `// NNN. TÍTULO`. Directo, sin relleno corporativo. **El idioma de issues y comentarios (y sus cabeceras de sección) lo fija la directiva "Artifact language" del padre**; los ejemplos de abajo están en español (idioma por defecto si no hay directiva). Nunca metas rutas `.sdd`, conteos de tareas, listas de artefactos generados, logs de apply ni nombres de ficheros de planificación salvo que el usuario pida referencias internas.
+Everything you write on the board follows the house style: title tags `[[TAG]]`, a single `> Short intent:` line, and numbered sections `// NNN. TITLE`. Direct, no corporate filler. **The language of issues and comments (and their section headers) is set by the parent's "Artifact language" directive**; the examples below are in Spanish (the default when no directive is present). Never include `.sdd` paths, task counts, lists of generated artifacts, apply logs, or planning filenames unless the user explicitly asks for internal references.
 
-### Formato de issue (al crear)
+### Issue format (on create)
 
 ```md
 [[TAG]] Título conciso en imperativo
@@ -86,20 +86,20 @@ Stack/contexto: dependencias y punto de partida relevante.
 - Riesgo conocido, o "Ninguno detectado."
 ```
 
-Tags comunes: `[[FRONT]]`, `[[BACK]]`, `[[FEAT]]`, `[[FIX]]`, `[[QA]]`, `[[AI]]`, `[[DOCS]]`. Puedes combinar varios. Si existen labels que coincidan con los tags, aplícalos.
+Common tags: `[[FRONT]]`, `[[BACK]]`, `[[FEAT]]`, `[[FIX]]`, `[[QA]]`, `[[AI]]`, `[[DOCS]]`. You can combine several. If labels matching the tags exist, apply them.
 
-### Comentario de progreso (issue en marcha)
+### Progress comment (issue in progress)
 
-Comentario corto con `//` headings, solo para hitos reales:
+Short comment with `//` headings, only for real milestones:
 
 - `// 000. RESUMEN`
 - `// 001. HECHO`
 - `// 002. SIGUIENTE`
 - `// 003. RIESGOS`
 
-### Comentario de cierre (al pasar a Done) — DIDÁCTICO
+### Closing comment (when moving to Done) — DIDACTIC
 
-Cuando una issue se cierra, el comentario es la cara pública del trabajo: tiene que entenderlo **cualquiera**, no solo quien programó. Lenguaje llano, sin jerga innecesaria, analogías si ayudan. Nada de rutas internas ni nombres de artefactos. Estructura obligatoria:
+When an issue closes, the comment is the public face of the work: **anyone** must understand it, not just whoever coded it. Plain language, no unnecessary jargon, analogies when they help. No internal paths or artifact names. Required structure:
 
 ```md
 ## // 000. RESUMEN
@@ -120,7 +120,7 @@ Pasos concretos para ver el resultado funcionando.
 Lo que queda abierto, o "Nada pendiente."
 ```
 
-El núcleo es `// 002`: si el cierre no enseña cómo funciona, está incompleto.
+The core is `// 002`: if the closing comment does not explain how it works, it is incomplete.
 
 ## Pre-flight (mandatory before SDD work)
 

@@ -24,45 +24,45 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
 
 ## SCOPE PACKET Contract
 
-ANTES DE EXPLORAR, el task prompt DEBE contener:
+BEFORE EXPLORING, the task prompt MUST contain:
 
 SCOPE PACKET = """
-scope: <descripción bounded del change, 1-3 frases>
-change_name: <nombre del change>
+scope: <bounded description of the change, 1-3 sentences>
+change_name: <name of the change>
 budget:
-  max_tokens: <número>
-  max_reads: <número, opcional>
-webfetch: <true | false — true SOLO si el request lo pide>
-excluded: <áreas fuera de scope, opcional>
+  max_tokens: <number>
+  max_reads: <number, optional>
+webfetch: <true | false — true ONLY if the request explicitly asks for it>
+excluded: <areas out of scope, optional>
 """
 
-SI el SCOPE PACKET falta o está incompleto:
-  - Devolver: { status: "error", code: "scope_missing", message: "..." }
-  - NO explorar ningún archivo
-  - Marcar artifact como exploration-error.md
+IF the SCOPE PACKET is missing or incomplete:
+  - Return: { status: "error", code: "scope_missing", message: "..." }
+  - DO NOT explore any files
+  - Mark artifact as exploration-error.md
 
-CUANDO webfetch: true:
-  - Añadir webfetch a la lista de tools activas
-  - Documentar urls_fetched[] en el ledger
+WHEN webfetch: true:
+  - Add webfetch to the active tools list
+  - Document urls_fetched[] in the ledger
 
 ## Ledger Contract
 
-El artifact exploration.md DEBE incluir:
+The exploration.md artifact MUST include:
 
 ledger:
   reads: [{ path, lines, estimated_tokens }]
   webfetch_used: boolean
-  webfetch_urls: [string]  # solo si webfetch_used
+  webfetch_urls: [string]  # only if webfetch_used
   budget_consumed: { tokens, reads }
 
 ## Fail-Fast by Budget
 
-SI reads.length >= budget.max_reads
-  O tokens_estimados >= budget.max_tokens
-ENTONCES:
-  - Detener exploración
-  - Devolver artifact con reads parciales + budget_exceeded: true
-  - NO continuar leyendo más archivos
+IF reads.length >= budget.max_reads
+  OR estimated_tokens >= budget.max_tokens
+THEN:
+  - Stop exploration
+  - Return artifact with partial reads + budget_exceeded: true
+  - DO NOT continue reading more files
 
 ## Memory Contract
 

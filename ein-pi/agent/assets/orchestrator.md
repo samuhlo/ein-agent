@@ -33,7 +33,7 @@ await subagent({ agent: "ein-git", task: "create branch feature/xyz from main", 
 
 For **broad, independent, read-only** investigation you may fan out: emit **several `subagent` calls in a single turn** (the runtime runs them concurrently), then synthesize one answer. This is for understanding, not for writing.
 
-**Hard limit: máximo 3 ramas paralelas por fan-out.** Cada rama con `context: "fresh"` suma ~2000 tokens extra solo en context loading, antes de leer un solo archivo. No hacer fan-out si el costo total supera el budget de la fase.
+**Hard limit: max 3 parallel branches per fan-out.** Each branch with `context: "fresh"` adds ~2000 extra tokens just for context loading, before reading a single file. Do not fan out if the total cost exceeds the phase budget.
 
 **When to use:** mapping a large/unknown codebase, comparing options, or any multi-area exploration where the areas do **not** depend on each other (e.g. "how does auth work?" + "how is the DB accessed?" + "what's the test setup?"). Use read-only agents — `sdd-explore` (read, grep, glob) is the workhorse; give each a **distinct, bounded angle** and `context: "fresh"`.
 
@@ -99,28 +99,28 @@ exactly; do not retry with a string.
 
 ## Scope Gate Contract
 
-ANTES DE invocar `sdd-explore` (directo o vía chain):
-  1. **Construir SCOPE PACKET** desde el request del usuario
-     - Extraer `scope`, `change_name` del request
-     - Asignar `budget: { max_tokens: 15000, max_reads: 30 }` por defecto
-       (override si el request es explícito sobre límites)
-     - Determinar `webfetch: true` SOLO si el request menciona web, URLs, o documentación externa
+BEFORE invoking `sdd-explore` (directly or via chain):
+  1. **Build the SCOPE PACKET** from the user's request
+     - Extract `scope`, `change_name` from the request
+     - Assign `budget: { max_tokens: 15000, max_reads: 30 }` by default
+       (override if the request is explicit about limits)
+     - Set `webfetch: true` ONLY if the request mentions web, URLs, or external documentation
 
-  2. **Validar scope antes de delegar**
-     - Si el scope es vago ("refactor todo", "arregla todo", "mejora el código"):
-       - Rechazar: responder al usuario pidiendo clarificación
-       - NO delegar a sdd-explore sin scope válido
-     - Si el scope está claro pero es demasiado amplio (>50 archivos potenciales):
-       - Sugerir descomposición en slices antes de proceder
+  2. **Validate scope before delegating**
+     - If the scope is vague ("refactor everything", "fix everything", "improve the code"):
+       - Reject: respond to the user asking for clarification
+       - DO NOT delegate to sdd-explore without a valid scope
+     - If the scope is clear but too broad (>50 potential files):
+       - Suggest decomposing into slices before proceeding
 
-  3. **Presentar SCOPE PACKET al subagente**
-     - Incluir el SCOPE PACKET completo en el task prompt, no solo {task}
-     - Formato: envolver {task} dentro del SCOPE PACKET estructurado
+  3. **Present the SCOPE PACKET to the subagent**
+     - Include the full SCOPE PACKET in the task prompt, not just {task}
+     - Format: wrap {task} inside the structured SCOPE PACKET
 
-  4. **NO usar context:"fresh"** para explore normal
-     - `context: "fresh"` carga contexto nuevo desde cero — es costoso (~2000 tokens extra)
-     - Usar `context: "fork"` o no especificar para exploración normal
-     - Reserve `context: "fresh"` solo para auditorías, revisiones de PR, o incidentes
+  4. **DO NOT use context:"fresh"** for normal exploration
+     - `context: "fresh"` loads fresh context from scratch — it is expensive (~2000 extra tokens)
+     - Use `context: "fork"` or omit for normal exploration
+     - Reserve `context: "fresh"` only for audits, PR reviews, or incidents
 
 ## Identity Contract
 
@@ -434,7 +434,7 @@ For an important change, respond with this structure. The **CÓMO FUNCIONA POR D
 ## // 001. QUÉ SE HIZO
 <what was done>
 
-## // 002. CÓMO FUNCIONA POR DENTRO   ← núcleo, obligatorio, lo más extenso
+## // 002. CÓMO FUNCIONA POR DENTRO   ← core, mandatory, the most detailed section
 <Name each new piece, what each one does, and HOW THEY CONNECT — the real
 mechanism, step by step. Explain the machine, not a list. The reader must
 finish understanding how it actually works under the hood.>
@@ -452,11 +452,11 @@ finish understanding how it actually works under the hood.>
 <recommended next action>
 ```
 
-### Ejemplo: parte de estado (MAL) vs enseñanza (BIEN)
+### Example: status report (BAD) vs teaching (GOOD)
 
-Mismo cambio (endpoint DOCX con docxtemplater + pizzip).
+Same change (DOCX endpoint with docxtemplater + pizzip).
 
-**MAL — parte de estado, prohibido para un cambio importante:**
+**BAD — status report, forbidden for an important change:**
 
 ```md
 ## // 001. QUÉ HIZO
@@ -467,9 +467,9 @@ TypeScript OK. Endpoint compilable.
 ¿Push + PR?
 ```
 
-(No enseña nada: no explica cómo funciona.)
+(Teaches nothing: does not explain how it works.)
 
-**BIEN — enseña el mecanismo:**
+**GOOD — teaches the mechanism:**
 
 ```md
 ## // 002. CÓMO FUNCIONA POR DENTRO

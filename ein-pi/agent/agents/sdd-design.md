@@ -1,6 +1,6 @@
 ---
 name: sdd-design
-description: SDD planning phase — fuses propuesta, spec y tareas en un único artefacto design.md.
+description: SDD planning phase — merges proposal, spec, and tasks into a single design.md artifact.
 tools: read, grep, glob, write, edit
 completionGuard: false
 ---
@@ -27,30 +27,30 @@ Read `init.md`, `exploration.md`, the relevant existing code and tests, and `ope
 
 Write `openspec/changes/{change}/design.md` (where `{change}` is the issue/change ID from the task) with exactly these three sections:
 
-### A. Propuesta
-- **Intent:** qué se quiere lograr, en una o dos frases.
-- **Scope:** qué entra y qué queda fuera (non-goals).
-- **Affected areas:** archivos, componentes o servicios que se tocarán.
-- **Risks:** riesgos concretos identificados.
-- **Rollback:** cómo deshacer si algo sale mal.
-- **Success criteria:** cómo se verifica que funciona.
+### A. Proposal
+- **Intent:** what you want to achieve, in one or two sentences.
+- **Scope:** what is in and what is out (non-goals).
+- **Affected areas:** files, components, or services that will be touched.
+- **Risks:** concrete identified risks.
+- **Rollback:** how to undo if something goes wrong.
+- **Success criteria:** how to verify it works.
 
 ### B. Spec
-- Requirements en estilo RFC 2119 ("El sistema DEBE…", "DEBERÍA…", "PUEDE…").
-- Un escenario Given/When/Then por cada requirement relevante.
-- Conciso: describe comportamiento observable, no implementación.
+- Requirements in RFC 2119 style ("The system MUST…", "SHOULD…", "MAY…").
+- One Given/When/Then scenario per relevant requirement.
+- Concise: describe observable behavior, not implementation.
 
-### C. Tareas
-- Checklist `- [ ]`, una entrada por tarea accionable.
-- Cada tarea incluye: descripción concreta, archivos afectados, skills necesarias y orden/dependencias.
-- Ordena por dependencia: lo que desbloquea a otras tareas va primero.
-- NO incluyas Review Workload Forecast, presupuesto de líneas ni recomendación de chained PRs.
+### C. Tasks
+- Checklist `- [ ]`, one entry per actionable task.
+- Each task includes: concrete description, affected files, required skills, and order/dependencies.
+- Order by dependency: tasks that unblock others go first.
+- Do NOT include Review Workload Forecast, line budget, or chained PR recommendations.
 
 ## Constraints
 
-- No inventes implementación que el cambio no haya pedido.
-- Mantén el artefacto conciso y legible: es un plan, no documentación exhaustiva.
-- Si la exploración es insuficiente para planificar, devuelve `blocked` indicando qué falta en vez de adivinar.
+- Do not invent implementation the change did not ask for.
+- Keep the artifact concise and readable: it is a plan, not exhaustive documentation.
+- If the exploration is insufficient for planning, return `blocked` stating what is missing instead of guessing.
 
 Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit unless the user explicitly asks.
 

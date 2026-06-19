@@ -21,21 +21,21 @@ progress: true
 Explore {task}. Identify scope, risks, dependencies, and prior art, and whether the change should proceed into design. This is a research phase: only return findings, do not edit repository files.
 
 FAIL-SAFE:
-  ANTES DE EXPLORAR, verificar que init.md contiene:
-    - scope: <string> (no vacío)
+  BEFORE EXPLORING, verify that init.md contains:
+    - scope: <string> (non-empty)
     - budget: { max_tokens, max_reads? }
 
-  SI falta scope:
+  IF scope is missing:
     - output: exploration-error.md
     - status: scope_missing
     - message: "Scope not found in init.md. Cannot proceed to explore."
-    - DETENER CHAIN — no invocar sdd-design
+    - STOP CHAIN — do not invoke sdd-design
 
-  CUANDO scope existe pero budget max_reads > 50:
-    - Warning en artifact: "Scope too broad; consider decomposition"
-    - Continuar con exploración pero registrar risk
+  WHEN scope exists but budget max_reads > 50:
+    - Warning in artifact: "Scope too broad; consider decomposition"
+    - Continue with exploration but register risk
 
-El artifact exploration.md DEBE incluir:
+The exploration.md artifact MUST include:
   budget_allocated: <from SCOPE PACKET>
   budget_consumed: <from ledger>
   scope_status: <valid | scope_missing | too_broad>
@@ -47,7 +47,7 @@ output: design.md
 outputMode: file-only
 progress: true
 
-Create the unified design plan for {task}: propuesta, spec (RFC 2119 + Given/When/Then) y tareas accionables. Do not include a review workload forecast or chained-PR planning. This is a planning phase: the plan goes to the output file, do not edit repository source files.
+Create the unified design plan for {task}: proposal, spec (RFC 2119 + Given/When/Then), and actionable tasks. Do not include a review workload forecast or chained-PR planning. This is a planning phase: the plan goes to the output file, do not edit repository source files.
 
 ## sdd-apply
 
