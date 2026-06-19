@@ -187,7 +187,9 @@ export function writeArtifactLang(cwd: string, lang: Lang | null): void {
 export function responseLanguageDirective(lang: Lang): string {
 	return `Language (authoritative — overrides any persona language preference):
 - Always respond to the user in ${LANG_PROMPT_NAME[lang]}, regardless of persona, unless the user explicitly requests another language in their current message.
-- Apply it to all prose, headings, and explanations.`;
+- Apply it to all prose, headings, and explanations.
+- This governs the \`// 00N\` structured-output format too: keep the numeric anchors (\`// 000\`…\`// 006\`) fixed, but render the section TITLES in ${LANG_PROMPT_NAME[lang]}. Any Spanish titles shown in the orchestrator, skills, or examples are the reference layout, not a mandate to output Spanish.
+- Code comments also follow ${LANG_PROMPT_NAME[lang]} (see the \`comment-style\` skill), unless a file's existing comments are in another language — then match that file to avoid mixing languages within one file.`;
 }
 
 // Cabeceras de seccion traducidas para los artefactos brutalistas.

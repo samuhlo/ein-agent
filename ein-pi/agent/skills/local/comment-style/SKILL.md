@@ -28,8 +28,8 @@ Comment the WHY, not the WHAT.
 ## Tone
 
 - Style: minimalist + brutalist + controlled vandal.
-- Language: Spanish by default.
-- Use English only if the codebase is clearly English-first.
+- Language: follows the active response-language directive (the selected `lang`).
+- Exception: if a file's existing comments are already in another language, match that file to avoid mixing languages within one file.
 - Comments must be short, concrete, and scannable.
 - Explain complex things simply, like a small note for the next developer.
 - Identity: raw, technical, useful. No corporate filler.

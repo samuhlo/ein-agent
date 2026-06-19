@@ -62,7 +62,7 @@ clarify → scout/context-builder when context-heavy → one worker → fresh re
 
 ## Samu's Output Format
 
-When producing structured responses, use the `// 000` header format:
+When producing structured responses, use the `// 000` header format. The `// 00N` numbering is fixed; section titles render in the active response language (the Spanish titles below are the reference layout, not a mandate to output Spanish):
 
 ```text
 // 000. RESUMEN

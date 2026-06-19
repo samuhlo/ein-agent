@@ -23,7 +23,9 @@ const {
 	pick,
 	pickFor,
 } = await import("../ein-pi/agent/lib/lang");
-const { buildEinPrompt } = await import("../ein-pi/agent/lib/persona");
+const { buildEinPrompt, responseVoiceDirective } = await import(
+	"../ein-pi/agent/lib/persona"
+);
 
 const I18N_KEY = Symbol.for("rpiv-i18n");
 
@@ -147,5 +149,36 @@ describe("buildEinPrompt", () => {
 		expect(prompt).toContain("Spanish (peninsular Spanish, from Spain)");
 		expect(prompt.toLowerCase()).not.toContain("podés");
 		expect(prompt.toLowerCase()).not.toContain("tenés");
+	});
+
+	test("inyecta la directiva de voz/formato autoritativa en ambas personas", () => {
+		// Regresion tras traducir los prompts a ingles: el registro se aplanaba a
+		// informe neutro. La directiva fuerza el formato // 00N y el estilo Samu
+		// independientemente del idioma del prompt, en ambas personas.
+		for (const persona of ["samuhlo", "neutral"] as const) {
+			expect(buildEinPrompt(persona, "es")).toContain(
+				"Output voice and format (authoritative",
+			);
+		}
+	});
+
+	test("la directiva de voz es language-neutral (no hardcodea titulos en espanol)", () => {
+		// El formato // 00N es el contrato fijo; los titulos los localiza la
+		// directiva de idioma, no la de voz. La de voz no debe fijar espanol.
+		const voice = responseVoiceDirective();
+		expect(voice).toContain("HOW IT WORKS UNDER THE HOOD");
+		expect(voice).toContain("comment-style");
+		expect(voice).toContain("bare status report for an important change is forbidden");
+		expect(voice).not.toContain("CÓMO FUNCIONA POR DENTRO");
+		expect(voice).not.toContain("// 002. ");
+	});
+
+	test("la directiva de idioma localiza los titulos del formato // 00N", () => {
+		expect(responseLanguageDirective("en")).toContain(
+			"render the section TITLES in English",
+		);
+		expect(responseLanguageDirective("es")).toContain(
+			"render the section TITLES in Spanish",
+		);
 	});
 });
