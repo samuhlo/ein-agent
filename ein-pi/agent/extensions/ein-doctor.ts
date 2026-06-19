@@ -184,6 +184,13 @@ function doctorSmokeReport(): string {
   }
 
   const guardrailsRaw = readIfExists(guardrailsFile);
+  // Coherencia: ficheros donde viven las referencias que historicamente
+  // quedaban colgando (forecast muerto, support inexistente, straggler marca).
+  const preflightRaw = readIfExists(join(AGENT_DIR, "lib", "sdd-preflight.ts"));
+  const einGitRaw = readIfExists(join(agentsDir, "ein-git.md"));
+  const sddApplyRaw = readIfExists(join(agentsDir, "sdd-apply.md"));
+  const sddVerifyRaw = readIfExists(join(agentsDir, "sdd-verify.md"));
+  const orchestratorRaw = readIfExists(join(AGENT_DIR, "assets", "orchestrator.md"));
   const mcpServers = (mcpCfg.mcpServers as Record<string, unknown>) ?? {};
   const engramServer = mcpServers.engram as Record<string, unknown> | undefined;
   const engramEnv = (engramServer?.environment as Record<string, unknown>) ?? {};
@@ -339,6 +346,47 @@ function doctorSmokeReport(): string {
     ),
   ];
 
+  // Coherencia: detecta referencias colgantes y desajustes que un deploy stale
+  // o un refactor a medias dejan atras (la clase de bug que se repitio varias
+  // veces: prompts/codigo apuntando a artefactos o mecanismos inexistentes).
+  const checksCoherence: CheckResult[] = [
+    check(
+      !preflightRaw.includes("Gentle AI"),
+      "marca sin straggler",
+      "La preflight no contiene el nombre antiguo 'Gentle AI'.",
+    ),
+    check(
+      einGitRaw.includes("Review Workload Gate"),
+      "review workload gate",
+      "ein-git documenta el gate de carga de revision.",
+    ),
+    check(
+      !preflightRaw.includes("task/workload forecasts conflict"),
+      "preflight sin forecast muerto",
+      "La preflight ya no referencia un 'workload forecast' que ninguna fase genera.",
+    ),
+    check(
+      preflightRaw.includes("Review Workload Guard"),
+      "preflight inyecta guard",
+      "La preflight inyecta la regla determinista de Review Workload Guard.",
+    ),
+    check(
+      orchestratorRaw.includes("Review Workload Guard"),
+      "orchestrator coordina guard",
+      "El orchestrator coordina el guard (reenvio de budget + ask).",
+    ),
+    check(
+      !sddApplyRaw.includes("global EIN strict-TDD support guidance"),
+      "sdd-apply sin support colgante",
+      "sdd-apply no referencia una guia de support global inexistente.",
+    ),
+    check(
+      !sddVerifyRaw.includes("global EIN strict-TDD verification support guidance"),
+      "sdd-verify sin support colgante",
+      "sdd-verify no referencia una guia de support global inexistente.",
+    ),
+  ];
+
   const groups: Array<{ title: string; checks: CheckResult[] }> = [
     { title: "■ 011. CORE", checks: checksCore },
     { title: "■ 012. MCP", checks: checksMcp },
@@ -348,6 +396,7 @@ function doctorSmokeReport(): string {
     { title: "■ 016. GUARDRAILS", checks: checksGuardrails },
     { title: "■ 017. INTEGRACIONES", checks: checksIntegrations },
     { title: "■ 018. I18N", checks: checksI18n },
+    { title: "■ 019. COHERENCIA", checks: checksCoherence },
   ];
 
   const flat = groups.flatMap((g) => g.checks);
@@ -371,7 +420,7 @@ function doctorSmokeReport(): string {
     lines.push("");
   }
 
-  lines.push("■ 018. DECISION");
+  lines.push("■ 020. DECISION");
   if (failCount) {
     lines.push("accion: revisar FAIL antes de flujos de entrega o mutacion.");
   } else if (warnCount) {

@@ -316,6 +316,8 @@ init → explore → design → apply → verify
 
 To run the flow, use the inline `chain` step array and hard rules in **Chain Inventory → "SDD Invocation — CRITICAL"** above. The individual `sdd-*` agents are phase agents used internally by the chain; do not invoke them directly for the full workflow.
 
+**Design hygiene gate (deterministic).** In `interactive` mode, or whenever a `design.md` is produced before you launch `apply`, run `/ein:sdd-check` (optionally with a path) on it. It is a pure, deterministic lint — required sections (A/B/C), actionable `- [ ]` tasks, no forbidden delivery planning leaking into the plan, no leftover `<number>`/`{change}` placeholders, and an oversize warning that flags a plan likely too broad to review. Errors mean the design is not ready for `apply`: fix or re-run `sdd-design` before implementing. This is the design-side counterpart to the Scope Gate (input) and the Review Workload Guard (output).
+
 ## Lazy SDD Preflight
 
 Do not ask SDD setup questions on session start. The first time the user initiates an SDD process in a Pi session, run the SDD preflight once and keep those choices for the rest of that session. Runtime trigger detection is intentionally deterministic: slash SDD flows and `/sdd-init` run preflight automatically; for natural-language requests, the parent/orchestrator decides semantically whether SDD is needed and must run/reuse `/ein:ai:sdd-preflight` before continuing.

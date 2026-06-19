@@ -118,6 +118,12 @@ export function runDoctor(platform: Platform): DoctorReport {
 
   // Los patrones de guardrails viven en lib/guardrails.ts desde el refactor P2.
   const guardrailsRaw = readIfExists(guardrailsFile);
+  // Coherencia: ficheros donde vivian las referencias colgantes historicas.
+  const preflightRaw = readIfExists(join(AGENT_DIR, "lib", "sdd-preflight.ts"));
+  const einGitRaw = readIfExists(join(agentsDir, "ein-git.md"));
+  const sddApplyRaw = readIfExists(join(agentsDir, "sdd-apply.md"));
+  const sddVerifyRaw = readIfExists(join(agentsDir, "sdd-verify.md"));
+  const orchestratorRaw = readIfExists(join(AGENT_DIR, "assets", "orchestrator.md"));
   const mcpServers = (mcp.value.mcpServers as Record<string, unknown>) ?? {};
   const engramServer = mcpServers.engram as Record<string, unknown> | undefined;
   const engramEnv = (engramServer?.environment as Record<string, unknown>) ?? {};
@@ -194,6 +200,18 @@ export function runDoctor(platform: Platform): DoctorReport {
     check(guardrailsRaw.includes("CONFIRM_BASH_PATTERNS"), "guardrails bash confirm", "Lista de confirmacion de comandos activa."),
   ];
 
+  // Coherencia: referencias colgantes / desajustes que un deploy stale o un
+  // refactor a medias dejan atras.
+  const checksCoherence: CheckResult[] = [
+    check(!preflightRaw.includes("Gentle AI"), "marca sin straggler", "La preflight no contiene el nombre antiguo 'Gentle AI'."),
+    check(einGitRaw.includes("Review Workload Gate"), "review workload gate", "ein-git documenta el gate de carga de revision."),
+    check(!preflightRaw.includes("task/workload forecasts conflict"), "preflight sin forecast muerto", "La preflight ya no referencia un forecast que ninguna fase genera."),
+    check(preflightRaw.includes("Review Workload Guard"), "preflight inyecta guard", "La preflight inyecta la regla determinista de Review Workload Guard."),
+    check(orchestratorRaw.includes("Review Workload Guard"), "orchestrator coordina guard", "El orchestrator coordina el guard (reenvio de budget + ask)."),
+    check(!sddApplyRaw.includes("global EIN strict-TDD support guidance"), "sdd-apply sin support colgante", "sdd-apply no referencia una guia de support global inexistente."),
+    check(!sddVerifyRaw.includes("global EIN strict-TDD verification support guidance"), "sdd-verify sin support colgante", "sdd-verify no referencia una guia de support global inexistente."),
+  ];
+
   const hasEngramBin = lookPath("engram", extraPath) !== null;
   const hasGh = lookPath("gh", extraPath) !== null;
   const hasBun = lookPath("bun", extraPath) !== null;
@@ -229,6 +247,7 @@ export function runDoctor(platform: Platform): DoctorReport {
     { title: "EXTENSIONES", checks: checksExtensions },
     { title: "SKILLS", checks: checksSkills },
     { title: "GUARDRAILS", checks: checksGuardrails },
+    { title: "COHERENCIA", checks: checksCoherence },
     { title: "RUNTIME", checks: checksRuntime },
     { title: "INTEGRACIONES", checks: checksIntegrations },
   ];

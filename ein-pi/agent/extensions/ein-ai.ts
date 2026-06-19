@@ -6,7 +6,7 @@
 // se cablea.
 // =============================================================================
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type {
 	ExtensionAPI,
@@ -49,6 +49,7 @@ import {
 } from "../lib/model-config.ts";
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
+import { lintDesignArtifact } from "../lib/sdd-guardrails.ts";
 import {
 	codeConventionSkillBlock,
 	migrateLegacyAtl,
@@ -120,6 +121,32 @@ function readAgentTask(event: unknown): string {
 	);
 	if (candidates.length > 0) return candidates.join("\n");
 	return readStringPath(event, ["systemPrompt"]) ?? "";
+}
+
+// Devuelve el design.md mas reciente bajo openspec/changes/<change>/, o null.
+// Lo usa /ein:sdd-check cuando no se pasa una ruta explicita.
+function findLatestDesign(cwd: string): string | null {
+	const changesDir = join(cwd, "openspec", "changes");
+	if (!existsSync(changesDir)) return null;
+	let best: { path: string; mtimeMs: number } | null = null;
+	let entries: string[] = [];
+	try {
+		entries = readdirSync(changesDir);
+	} catch {
+		return null;
+	}
+	for (const entry of entries) {
+		const designPath = join(changesDir, entry, "design.md");
+		try {
+			const st = statSync(designPath);
+			if (st.isFile() && (!best || st.mtimeMs > best.mtimeMs)) {
+				best = { path: designPath, mtimeMs: st.mtimeMs };
+			}
+		} catch {
+			// sin design.md en este change
+		}
+	}
+	return best?.path ?? null;
 }
 
 // ─── Extensión ────────────────────────────────────────────────────────────────
@@ -375,6 +402,54 @@ export default function einAi(pi: ExtensionAPI): void {
 				}
 			}
 			ctx.ui.notify(lines.join("\n"), "info");
+		},
+	});
+
+	pi.registerCommand("ein:sdd-check", {
+		description: t(
+			"cmd.sdd-check.description",
+			"Validar un design.md (secciones, tareas, planificacion prohibida, tamaño)",
+		),
+		handler: async (args, ctx) => {
+			const arg = (typeof args === "string" ? args : "").trim();
+			const designPath = arg
+				? (arg.startsWith("/") ? arg : join(ctx.cwd, arg))
+				: findLatestDesign(ctx.cwd);
+
+			if (!designPath || !existsSync(designPath)) {
+				ctx.ui.notify(
+					arg
+						? `No existe el design.md en: ${arg}`
+						: "No encontre ningun openspec/changes/*/design.md en este proyecto. Pasa una ruta: /ein:sdd-check <ruta>",
+					"warning",
+				);
+				return;
+			}
+
+			const report = lintDesignArtifact(readFileSync(designPath, "utf8"));
+			const rel = designPath.startsWith(ctx.cwd)
+				? designPath.slice(ctx.cwd.length + 1)
+				: designPath;
+			const status = report.errors
+				? "FAIL"
+				: report.warnings
+					? "OK_WITH_WARNINGS"
+					: "OK";
+			const out: string[] = [
+				"/// 000. SDD DESIGN CHECK",
+				"",
+				`design: ${rel}`,
+				`resultado: ${status}  |  errores: ${report.errors}  |  warnings: ${report.warnings}  |  lineas: ${report.lineCount}`,
+			];
+			if (report.issues.length) {
+				out.push("");
+				for (const i of report.issues) {
+					out.push(`- ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
+				}
+			} else {
+				out.push("", "- Design limpio: secciones completas, tareas accionables, sin planificacion prohibida.");
+			}
+			ctx.ui.notify(out.join("\n"), report.errors ? "warning" : "info");
 		},
 	});
 
