@@ -8,7 +8,7 @@ Ein has these subagents available. **Use the `subagent` tool to invoke them — 
 
 | Agent | Tools | When to use |
 | ----- | ----- | ----------- |
-| `ein-linear` | linear_viewer, linear_list_projects, linear_list_issues, linear_create_issue, linear_update_issue, linear_search_issues, linear_create_comment, etc. | **ALL Linear operations**: list projects, create/read/update/search issues, create comments, sync states. NEVER run `curl` to Linear API directly. |
+| `ein-linear` | linear_get_issue, linear_update_issue, linear_search_issues, linear_create_issue, linear_create_comment, linear_list_teams, linear_get_team_states, linear_list_labels, linear_list_milestones, linear_list_members, linear_list_projects, linear_list_issues | **ALL Linear operations**: create/read/update/search issues, create comments, sync states. NEVER run `curl` to Linear API directly. |
 | `ein-git` | read, write, edit, bash | **Git delivery (local git + GitHub)**: branches, commits, push, PRs, reviews, checks. NEVER run `git` or `gh` directly for delivery actions. |
 | `ein-readme` | read, grep, glob, write, edit, bash | **README generation**: when the user asks to generate/refresh a project's README. Analyzes the code and writes the brutalist README + portfolio metadata. |
 | `sdd-explore` | read, grep, glob | **SDD exploration phase** for ambiguous or large features. |
@@ -121,6 +121,42 @@ BEFORE invoking `sdd-explore` (directly or via chain):
      - `context: "fresh"` loads fresh context from scratch — it is expensive (~2000 extra tokens)
      - Use `context: "fork"` or omit for normal exploration
      - Reserve `context: "fresh"` only for audits, PR reviews, or incidents
+
+## LINEAR OPERATION PACKET
+
+When delegating to `ein-linear` for updates with exact IDs, construct the task using this format:
+
+```
+LINEAR OPERATION PACKET
+──────────────────────
+mode: known_ids
+issues: [SAM-367, SAM-368, SAM-369]
+protected: [SAM-343]           # issues NOT to touch
+budget:
+  max_calls_per_issue: 4
+  overhead: 2
+  total_max: issues.length × 4 + 2
+constraints:
+  no_shell: true
+  no_discovery: true           # no listing projects/teams/board
+  no_broad_search: true        # IDs are the scope, not candidates
+operation: <update | cancel | comment>
+desired_state: <state name, e.g. "Canceled">
+──────────────────────
+```
+
+**Usage rules:**
+- `mode: known_ids` activates **Known Issue IDs Mode** in `ein-linear`
+- `issues` is the exact list — no discovery needed
+- `protected` marks IDs that must not be modified (e.g. already canceled)
+- `constraints.no_discovery` prohibits listing projects/teams
+- `constraints.no_shell` prohibits any command/bash/file tool
+- `desired_state` is passed as name, not UUID — `ein-linear` uses the tool schema
+- If the PACKET is missing and the task has exact IDs, `ein-linear` applies Known Issue IDs Mode by automatic detection
+
+**Difference from Scope Gate:**
+- Scope Gate: validates that the user request has scope before invoking `sdd-explore`
+- LINEAR OPERATION PACKET: packages mode metadata for `ein-linear` when exact IDs are already resolved
 
 ## Exploration hygiene (parent and delegated reads)
 
