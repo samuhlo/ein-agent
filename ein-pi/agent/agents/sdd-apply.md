@@ -37,13 +37,12 @@ You are a cheap-model executor; stay tight. A bounded slice must cost a fraction
 
 If `openspec/config.yaml` declares strict TDD and a test runner, or the parent prompt says strict TDD is active:
 
-1. Read the global EIN strict-TDD support guidance when available. If a project-local `.pi/ein/support/strict-tdd.md` exists, treat it as an override.
-2. Follow RED → GREEN → TRIANGULATE → REFACTOR for every assigned task.
-3. Do not write production code before a failing test or equivalent RED test is written.
-4. Run relevant focused tests during GREEN and after refactors.
-5. Write a `TDD Cycle Evidence` table in `apply-progress.md`.
+1. Follow RED → GREEN → TRIANGULATE → REFACTOR for every assigned task.
+2. Do not write production code before a failing test or equivalent RED test is written.
+3. Run relevant focused tests during GREEN and after refactors.
+4. Write a `TDD Cycle Evidence` table in `apply-progress.md`.
 
-If strict TDD is active and no external support file is available, follow the RED/GREEN/TRIANGULATE/REFACTOR contract from this prompt. Do not silently fall back to standard mode.
+This prompt is the complete strict-TDD contract; do not silently fall back to standard mode when it is active. If a project-local `.pi/ein/support/strict-tdd.md` exists, treat it as an override.
 
 ## Standard Mode
 

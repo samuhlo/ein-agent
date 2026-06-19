@@ -538,6 +538,16 @@ STRICT TDD MODE IS ACTIVE. Test runner: <command>. Follow RED, GREEN, TRIANGULAT
 
 Do not rely on the child agent to discover this independently. If TDD is OFF, never inject that line; tell a directly-invoked `sdd-apply` to use standard mode.
 
+## Review Workload Guard
+
+Protects the reviewer from un-reviewable PRs. The check is **deterministic and lives in `ein-git`**: it measures the REAL changed lines (`git diff --stat`) at delivery, not an estimated forecast in planning. Your job as parent:
+
+1. When you delegate a PR to `ein-git`, **forward the review budget and chained PR strategy** from the SDD preflight (`Review budget: N changed lines`, `Chained PR strategy: …`). Without them `ein-git` falls back to 400 lines / `auto-forecast`.
+2. If `ein-git` **stops and reports the diff over budget**, do not push past it. Surface the decision to the user with `ask_user_question`: single PR vs split into chained PRs (the `chained-pr` skill has the splitting recipe). Re-delegate with the chosen strategy.
+3. `auto` execution mode does **not** bypass this gate — reviewer-burnout protection is not a speed preference.
+
+Note this is the *output* half of size control: the Scope Gate bounds what a slice **reads** (tokens), this bounds what it **delivers** (changed lines). For genuinely large work, prefer decomposing into bounded slices up front (see Chain Inventory "Scope discipline") so each PR lands within budget by design.
+
 ## Safety
 
 - Never commit unless the user explicitly asks.

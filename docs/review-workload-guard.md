@@ -3,6 +3,14 @@
 > Doc de trabajo. Origen: comparación del orchestrator de Ein contra `gentle-pi`
 > (`pi-agent-system/npm-packages/gentle-pi/assets/orchestrator.md`).
 > Fecha: 2026-06-19. Estado del repo en ese momento: `main @ a1ed618`.
+>
+> **ESTADO: RESUELTO (2026-06-19) — Opción C implementada.** Gate determinista
+> en `ein-git` (mide `git diff --stat` real contra el budget; STOP+report si
+> excede; `auto` no lo salta). La preflight inyecta la regla determinista en vez
+> del "forecast" muerto, y se arregló el straggler "Gentle AI". Tests:
+> `tests/review-workload-guard.test.ts`. La incoherencia #2 (support files de TDD)
+> se cerró por la vía B (quitar la referencia colgante): `tests/tdd-support-refs.test.ts`.
+> El resto del doc queda como registro del análisis.
 
 ---
 

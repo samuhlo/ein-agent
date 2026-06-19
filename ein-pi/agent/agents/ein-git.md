@@ -55,8 +55,23 @@ When the parent delegates delivery after a verified change and the user has appr
 
 1. Inspect repo state: branch, remote, status, staged/unstaged diff, and commits against base.
 2. Create the branch and commit only the intended files (respect the hard gates above; never commit secrets or unrelated changes).
-3. Open the PR with the body in the artifact language (see the "Artifact language" directive; Spanish if absent); read back title, branch, base, URL, and state.
-4. Report whether the PR is mergeable. The issue is closed (via `ein-linear`) only if the PR is mergeable or explicitly accepted; otherwise it stays in review.
+3. **Run the Review Workload Gate** (below) before opening the PR.
+4. Open the PR with the body in the artifact language (see the "Artifact language" directive; Spanish if absent); read back title, branch, base, URL, and state.
+5. Report whether the PR is mergeable. The issue is closed (via `ein-linear`) only if the PR is mergeable or explicitly accepted; otherwise it stays in review.
+
+## Review Workload Gate
+
+Protects the reviewer from un-reviewable PRs. The numbers are **measured, not estimated** — you already have the diff in front of you, so use it.
+
+Run this once, right before opening (or pushing for) a PR:
+
+1. Measure the REAL changed lines: `git diff --stat <base>..HEAD` and sum `additions + deletions` (the totals line). For an uncommitted change, `git diff --stat` (staged + unstaged) is equivalent. This is a cheap stat read you already do — do NOT expand it into a full diff.
+2. Read the budget and strategy the parent forwarded in the task (from the SDD preflight: `Review budget: N changed lines`, `Chained PR strategy: …`). If the parent didn't forward them, default to **400 lines** and strategy `auto-forecast`.
+3. Decide:
+   - changed lines **≤ budget** → within budget, proceed to open the PR.
+   - strategy is **`single-pr-default`** → the user already opted for one PR regardless of size; proceed, but note the size in your report.
+   - changed lines **> budget** and strategy is not `single-pr-default` → **STOP. Do NOT open the PR.** Return a report to the parent: the measured line count, the budget, and a recommended split into chained PRs (slice boundaries by work-unit; the `chained-pr` skill has the splitting recipe). The parent asks the user for the delivery decision and re-delegates.
+4. `auto` execution mode does **not** bypass this gate — reviewer-burnout protection is not a speed preference. You are headless (hard gate #8): never ask the user yourself; stopping and reporting is how the decision reaches them.
 
 ## PR body (brutalist style, samuhlo persona)
 

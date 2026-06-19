@@ -330,7 +330,7 @@ export function renderSddPreflightPrompt(
 	];
 	if (includeTdd) lines.push(tddPreflightLine(prefs.tddMode));
 	lines.push(
-		"- If task/workload forecasts conflict with these preferences, pause before sdd-apply and ask the user for a delivery decision.",
+		`- Review Workload Guard: before opening a PR, ein-git measures the REAL changed lines (\`git diff --stat\`, additions + deletions) against the ${prefs.reviewBudgetLines}-line review budget. If the diff exceeds the budget and the chained PR strategy is not \`single-pr-default\`, pause and ask the user for a delivery decision (single PR vs split into chained PRs). \`auto\` execution mode does NOT bypass this gate.`,
 	);
 	return lines.join("\n");
 }
@@ -360,7 +360,7 @@ export async function ensureSddPreflight(
 				: `Model-routed agents updated: ${modelResult.updated}`;
 			ctx.ui.notify(
 				[
-					"Gentle AI SDD preflight complete.",
+					"Ein SDD preflight complete.",
 					`Mode: ${prefs.executionMode}`,
 					`Artifacts: ${prefs.artifactStore}`,
 					`PR chaining: ${prefs.chainedPrStrategy}`,
