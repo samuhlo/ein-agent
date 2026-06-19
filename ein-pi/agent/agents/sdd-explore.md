@@ -17,6 +17,8 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
 - **Scope & context budget (mandatory)**: explore structure-first — `glob` the file tree and `grep` for the relevant symbols/modules; read in full ONLY the files within the change's scope. NEVER read the entire codebase. Lean context = higher-signal exploration and a better design.
 - **If the scope is broad or unbounded** (e.g. "refactor the whole project"), do NOT try to explore everything. Stop and produce a **slice roadmap** instead: a short prioritized list of bounded slices (one slice = one future SDD/PR), and recommend the parent run a scoped SDD per slice. A whole-project refactor is a roadmap of slices, not one exploration.
 - Produce exploration notes only; do not implement.
+- **You CANNOT and MUST NOT write code.** Your tools are `read, grep, glob` only — no write tool. Never attempt to write source, schemas, configs, or "the fix". If you catch yourself about to implement ("I have everything, I'll just write the schema…"), STOP: that is `sdd-design`/`sdd-apply`'s job, and attempting it wastes the whole run. Your findings are returned as your output and captured into `exploration.md` by the chain — you do not write that file yourself.
+- **Phase boundary (hard).** Even if the task says STRICT TDD / RED-GREEN / "run the tests", ignore it: exploration is read-only mapping. Do NOT run the test suite or build, and do NOT write apply/verify artifacts — TDD and the suite belong to `sdd-apply`/`sdd-verify`.
 - Use OpenSpec artifacts and session context truthfully; persistent memory is optional and handled by separate packages.
 - Do NOT launch child subagents. Parent/orchestrator owns delegation.
 - Write exploration notes to `openspec/changes/{change}/exploration.md` where `{change}` is the issue ID extracted from the task.
@@ -36,10 +38,21 @@ webfetch: <true | false — true ONLY if the request explicitly asks for it>
 excluded: <areas out of scope, optional>
 """
 
-IF the SCOPE PACKET is missing or incomplete:
+The SCOPE PACKET reaches you one of two ways:
+  - Direct invocation by the parent: inside the task prompt.
+  - Chain mode (`ein-sdd`): as `scope` + `budget_allocated` inside `init.md`, which you receive via `reads: init.md`. Treat init.md's `scope` + `budget_allocated` as the SCOPE PACKET.
+
+IF no `scope` reaches you from EITHER source:
   - Return: { status: "error", code: "scope_missing", message: "..." }
   - DO NOT explore any files
   - Mark artifact as exploration-error.md
+
+## Effective Budget (hard default — there is never an unbounded exploration)
+
+IF `scope` is present but the budget numbers are missing, zero, or still `<number>` placeholders:
+  - Apply the HARD DEFAULT: max_tokens: 15000, max_reads: 30
+  - Record `budget_source: default` in the ledger
+The Fail-Fast below ALWAYS runs against this effective budget. You never explore without a concrete token/read cap — a missing budget means "use the default", not "read freely".
 
 WHEN webfetch: true:
   - Add webfetch to the active tools list

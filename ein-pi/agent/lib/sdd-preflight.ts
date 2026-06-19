@@ -308,20 +308,31 @@ function tddPreflightLine(mode: TddMode): string {
 	}
 }
 
-export function renderSddPreflightPrompt(prefs: SddPreflightPreferences): string {
+// includeTdd: the Strict TDD line only matters where code is actually written
+// (the parent's inline work and sdd-apply). Injecting it into init/explore/
+// design/verify is noise that pushes cheap models toward a RED/GREEN loop in
+// read-only phases. Default true keeps the parent/apply behavior unchanged.
+export function renderSddPreflightPrompt(
+	prefs: SddPreflightPreferences,
+	opts: { includeTdd?: boolean } = {},
+): string {
+	const includeTdd = opts.includeTdd ?? true;
 	const sourceLine = prefs.prompted
 		? "The user already chose these SDD preferences for this Pi session. Reuse them unless the user explicitly changes them."
 		: "No interactive UI was available for SDD preflight, so these default preferences were applied for this Pi session. Ask the user before making delivery decisions that depend on them.";
-	return [
+	const lines = [
 		"## SDD Session Preflight",
 		sourceLine,
 		`- Execution mode: ${prefs.executionMode}`,
 		`- Artifact store: ${prefs.artifactStore}${prefs.engramAvailable ? "" : " (Engram unavailable in this session)"}`,
 		`- Chained PR strategy: ${prefs.chainedPrStrategy}`,
 		`- Review budget: ${prefs.reviewBudgetLines} changed lines`,
-		tddPreflightLine(prefs.tddMode),
+	];
+	if (includeTdd) lines.push(tddPreflightLine(prefs.tddMode));
+	lines.push(
 		"- If task/workload forecasts conflict with these preferences, pause before sdd-apply and ask the user for a delivery decision.",
-	].join("\n");
+	);
+	return lines.join("\n");
 }
 
 export async function ensureSddPreflight(

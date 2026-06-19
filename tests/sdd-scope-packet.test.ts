@@ -51,4 +51,15 @@ describe("sdd-explore.md SCOPE PACKET contract", () => {
   test("webfetch se activa condicionalmente via SCOPE PACKET", () => {
     expect(content).toContain("WHEN webfetch: true");
   });
+
+  test("tiene budget hard-default para no explorar sin tope", () => {
+    // La explosion de tokens venia de explorar sin presupuesto en modo chain.
+    expect(content).toContain("HARD DEFAULT");
+    expect(content).toContain("15000");
+    expect(content).toContain("budget_allocated"); // lee el budget de init.md
+  });
+
+  test("refuerza read-only: no puede escribir codigo", () => {
+    expect(content).toContain("MUST NOT write code");
+  });
 });

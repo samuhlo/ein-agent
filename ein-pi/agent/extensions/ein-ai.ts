@@ -196,9 +196,16 @@ export default function einAi(pi: ExtensionAPI): void {
 			await runSddPreflight(ctx);
 		}
 		const prefs = getSddPreflightPreferences(ctx);
+		const startNames = readAgentStartNames(event);
+		// Convenciones de codigo (comment/logging/file-naming): SOLO donde se
+		// escribe codigo — el parent (trabajo inline) y sdd-apply. Inyectarlas en
+		// delivery/linear/explore solo hacia que el modelo barato leyera 3 SKILL.md
+		// inutiles (gasto de tokens) sin escribir codigo. Tambien gobierna si la
+		// linea de Strict TDD entra en el preflight: solo donde hay RED/GREEN real.
+		const writesCode = (!isNamedAgent && !isSddAgent) || startNames.includes("sdd-apply");
 		const sddPrompt =
 			prefs && (!isNamedAgent || isSddAgent)
-				? `\n\n${renderSddPreflightPrompt(prefs)}`
+				? `\n\n${renderSddPreflightPrompt(prefs, { includeTdd: writesCode })}`
 				: "";
 		const einPrompt = isNamedAgent || isSddAgent
 			? ""
@@ -210,18 +217,12 @@ export default function einAi(pi: ExtensionAPI): void {
 			const block = resolveSkillInjection(ctx.cwd, readAgentTask(event));
 			if (block) skillsPrompt = `\n\n${block}`;
 		}
-		const startNames = readAgentStartNames(event);
 		// Idioma de artefactos: los agentes de delivery (PR/commits/Linear) reciben
 		// la directiva autoritativa segun .pi/ein/lang.json (o el idioma de chat).
 		let artifactPrompt = "";
 		if (isNamedAgent && startNames.some((n) => n === "ein-git" || n === "ein-linear")) {
 			artifactPrompt = `\n\n${artifactLanguageDirective(readArtifactLang(ctx.cwd))}`;
 		}
-		// Convenciones de codigo (comment/logging/file-naming): SOLO donde se
-		// escribe codigo — el parent (trabajo inline) y sdd-apply. Inyectarlas en
-		// delivery/linear/explore solo hacia que el modelo barato leyera 3 SKILL.md
-		// inutiles (gasto de tokens) sin escribir codigo.
-		const writesCode = (!isNamedAgent && !isSddAgent) || startNames.includes("sdd-apply");
 		const conventions = writesCode ? codeConventionSkillBlock(ctx.cwd) : "";
 		const conventionsPrompt = conventions ? `\n\n${conventions}` : "";
 		// Contexto de proyecto (EIN.md): verdad de base para el parent y las fases

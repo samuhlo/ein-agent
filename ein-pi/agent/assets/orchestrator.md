@@ -401,6 +401,8 @@ The parent should synthesize these envelopes, not paste long raw reports unless 
 
 ## Samu Output Format
 
+> Section titles render in the **response language** (see the language directive). The `// 00N` numbering is the fixed, language-neutral contract; the Spanish titles below are the reference layout, not a mandate to output Spanish.
+
 For an important change, respond with this structure. The **CÓMO FUNCIONA POR DENTRO** section is the heart of the answer and must never be left shallow or skipped:
 
 ```md
@@ -525,13 +527,16 @@ The SDD preflight decides the TDD policy and **overrides `openspec/config.yaml`*
 
 (The `ask` mode is resolved to OFF/STRICT deterministically at the preflight, by `/ein:tdd`, before the chain runs — you receive an already-decided line, never `ASK`.)
 
-When strict TDD applies (forced or auto), include a non-negotiable instruction in the `sdd-apply`/`sdd-verify` phase prompt:
+How you forward the TDD decision depends on HOW you launch apply:
+
+- **Via the `ein-sdd` chain (the normal path):** do NOT write the TDD line into the task. A chain has ONE `{task}` that is forwarded verbatim to ALL five phases — putting "STRICT TDD MODE IS ACTIVE / run the tests" there forces the read-only phases (`sdd-init`, `sdd-explore`, `sdd-design`) to run the suite and write apply/verify artifacts, which is wrong and wasteful. The decision already reaches `sdd-apply` automatically through the injected `## SDD Session Preflight` block (delivered only to code-writing phases), and the chain's `sdd-apply`/`sdd-verify` steps enforce it. **Keep the shared chain task phase-neutral: scope, budget, constraints, files — no RED/GREEN, no "run the tests" line.**
+- **Invoking `sdd-apply` directly (no chain):** include the non-negotiable line in that single prompt:
 
 ```text
 STRICT TDD MODE IS ACTIVE. Test runner: <command>. Follow RED, GREEN, TRIANGULATE, REFACTOR. Record evidence.
 ```
 
-Do not rely on the child agent to discover this independently. If TDD is OFF, do not inject that line.
+Do not rely on the child agent to discover this independently. If TDD is OFF, never inject that line; tell a directly-invoked `sdd-apply` to use standard mode.
 
 ## Safety
 

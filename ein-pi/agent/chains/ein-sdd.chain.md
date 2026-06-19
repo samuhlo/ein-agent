@@ -23,13 +23,17 @@ Explore {task}. Identify scope, risks, dependencies, and prior art, and whether 
 FAIL-SAFE:
   BEFORE EXPLORING, verify that init.md contains:
     - scope: <string> (non-empty)
-    - budget: { max_tokens, max_reads? }
+    - budget_allocated: { max_tokens, max_reads? }
 
   IF scope is missing:
     - output: exploration-error.md
     - status: scope_missing
     - message: "Scope not found in init.md. Cannot proceed to explore."
     - STOP CHAIN — do not invoke sdd-design
+
+  IF scope exists but budget_allocated is missing or holds placeholders:
+    - Apply the explore hard-default budget (max_tokens: 15000, max_reads: 30)
+    - Never explore unbounded
 
   WHEN scope exists but budget max_reads > 50:
     - Warning in artifact: "Scope too broad; consider decomposition"

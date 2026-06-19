@@ -37,4 +37,11 @@ describe("sdd-init.md budget contract", () => {
   test("tokens ~200 para config-only fast path", () => {
     expect(content).toContain("~200");
   });
+
+  test("emite scope + max_reads para propagar el SCOPE PACKET a explore", () => {
+    // Sin scope/max_reads concretos en init.md, el explore corre sin tope de
+    // lectura en modo chain (causa de la explosion de tokens).
+    expect(content).toContain("scope:");
+    expect(content).toContain("max_reads");
+  });
 });

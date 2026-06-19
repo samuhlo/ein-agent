@@ -48,6 +48,7 @@ Write `openspec/changes/{change}/design.md` (where `{change}` is the issue/chang
 
 ## Constraints
 
+- **Phase boundary (hard).** You are the planning phase. Even if the task says STRICT TDD / RED-GREEN / "run the tests", do NOT run the test suite or build, do NOT implement source code, and do NOT write `apply-progress*`/`verify-report*` artifacts. Your only output file is `design.md`. TDD execution belongs to `sdd-apply`.
 - Do not invent implementation the change did not ask for.
 - Keep the artifact concise and readable: it is a plan, not exhaustive documentation.
 - If the exploration is insufficient for planning, return `blocked` stating what is missing instead of guessing.
