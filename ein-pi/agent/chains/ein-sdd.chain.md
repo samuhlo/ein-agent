@@ -20,6 +20,26 @@ progress: true
 
 Explore {task}. Identify scope, risks, dependencies, and prior art, and whether the change should proceed into design. This is a research phase: only return findings, do not edit repository files.
 
+FAIL-SAFE:
+  ANTES DE EXPLORAR, verificar que init.md contiene:
+    - scope: <string> (no vacío)
+    - budget: { max_tokens, max_reads? }
+
+  SI falta scope:
+    - output: exploration-error.md
+    - status: scope_missing
+    - message: "Scope not found in init.md. Cannot proceed to explore."
+    - DETENER CHAIN — no invocar sdd-design
+
+  CUANDO scope existe pero budget max_reads > 50:
+    - Warning en artifact: "Scope too broad; consider decomposition"
+    - Continuar con exploración pero registrar risk
+
+El artifact exploration.md DEBE incluir:
+  budget_allocated: <from SCOPE PACKET>
+  budget_consumed: <from ledger>
+  scope_status: <valid | scope_missing | too_broad>
+
 ## sdd-design
 
 reads: init.md+exploration.md

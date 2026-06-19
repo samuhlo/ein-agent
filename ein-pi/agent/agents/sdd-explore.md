@@ -1,7 +1,7 @@
 ---
 name: sdd-explore
 description: Explore an SDD change idea before the design phase.
-tools: read, grep, glob, webfetch
+tools: read, grep, glob
 completionGuard: false
 ---
 
@@ -21,6 +21,48 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
 - Do NOT launch child subagents. Parent/orchestrator owns delegation.
 - Write exploration notes to `openspec/changes/{change}/exploration.md` where `{change}` is the issue ID extracted from the task.
 - Keep output concise; recommend `sdd-design` as the next phase in the result contract.
+
+## SCOPE PACKET Contract
+
+ANTES DE EXPLORAR, el task prompt DEBE contener:
+
+SCOPE PACKET = """
+scope: <descripción bounded del change, 1-3 frases>
+change_name: <nombre del change>
+budget:
+  max_tokens: <número>
+  max_reads: <número, opcional>
+webfetch: <true | false — true SOLO si el request lo pide>
+excluded: <áreas fuera de scope, opcional>
+"""
+
+SI el SCOPE PACKET falta o está incompleto:
+  - Devolver: { status: "error", code: "scope_missing", message: "..." }
+  - NO explorar ningún archivo
+  - Marcar artifact como exploration-error.md
+
+CUANDO webfetch: true:
+  - Añadir webfetch a la lista de tools activas
+  - Documentar urls_fetched[] en el ledger
+
+## Ledger Contract
+
+El artifact exploration.md DEBE incluir:
+
+ledger:
+  reads: [{ path, lines, estimated_tokens }]
+  webfetch_used: boolean
+  webfetch_urls: [string]  # solo si webfetch_used
+  budget_consumed: { tokens, reads }
+
+## Fail-Fast by Budget
+
+SI reads.length >= budget.max_reads
+  O tokens_estimados >= budget.max_tokens
+ENTONCES:
+  - Detener exploración
+  - Devolver artifact con reads parciales + budget_exceeded: true
+  - NO continuar leyendo más archivos
 
 ## Memory Contract
 

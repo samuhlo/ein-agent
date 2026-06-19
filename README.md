@@ -203,10 +203,14 @@ Si gpt-5.5 llega al límite de uso, `/ein:models:lite` cambia todo a MiniMax-M2.
 
 ## Estructura del repo
 
+La fuente canónica del workbench vive en `ein-pi/agent/`. El installer empaqueta esa carpeta y la despliega en `~/.pi/agent`; por tanto, `~/.pi/agent` es el destino instalado, no el lugar donde se desarrolla el workbench.
+
+Las antiguas carpetas legacy de agentes, chains, OpenSpec, personas y settings fuera de `ein-pi/agent/` ya no forman parte del repo. Si necesitas cambiar agentes, chains, skills, prompts o configuración de Pi, hazlo dentro de `ein-pi/agent/`.
+
 ```
 ein-agent/
-├── ein-pi/                 # Workbench (se despliega en ~/.pi/agent/)
-│   └── agent/
+├── ein-pi/
+│   └── agent/              # Fuente canónica del workbench
 │       ├── agents/         # 8 agentes (5 SDD + ein-linear + ein-git + ein-readme)
 │       ├── chains/         # Cadena ein-sdd
 │       ├── extensions/     # 9 extensiones del runtime de Pi
@@ -224,6 +228,13 @@ ein-agent/
     ├── scripts/            # bundle-template + build cross-compile
     └── install.sh          # Bootstrap curl | bash
 ```
+
+Resumen operativo:
+
+- `ein-pi/agent/` es la única fuente versionada del workbench.
+- `installer/scripts/bundle-template.ts` empaqueta `ein-pi/agent/` como template del installer.
+- `~/.pi/agent` es el destino local instalado y no se edita desde este repo.
+- Las carpetas legacy fuera de `ein-pi/agent/` se eliminaron para evitar drift entre copias antiguas y la fuente real.
 
 ---
 

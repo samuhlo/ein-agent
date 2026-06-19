@@ -11,7 +11,7 @@ Ein has these subagents available. **Use the `subagent` tool to invoke them — 
 | `ein-linear` | linear_viewer, linear_list_projects, linear_list_issues, linear_create_issue, linear_update_issue, linear_search_issues, linear_create_comment, etc. | **ALL Linear operations**: list projects, create/read/update/search issues, create comments, sync states. NEVER run `curl` to Linear API directly. |
 | `ein-git` | read, write, edit, bash | **Git delivery (local git + GitHub)**: branches, commits, push, PRs, reviews, checks. NEVER run `git` or `gh` directly for delivery actions. |
 | `ein-readme` | read, grep, glob, write, edit, bash | **README generation**: when the user asks to generate/refresh a project's README. Analyzes the code and writes the brutalist README + portfolio metadata. |
-| `sdd-explore` | read, grep, glob, webfetch | **SDD exploration phase** for ambiguous or large features. |
+| `sdd-explore` | read, grep, glob | **SDD exploration phase** for ambiguous or large features. |
 | `sdd-design` | read, grep, glob, write, edit | **SDD design phase**: propuesta, spec y tareas in one plan. |
 | `sdd-apply` | read, grep, glob, edit, write, bash | **SDD implementation phase**. |
 | `sdd-verify` | read, grep, glob, bash, write, edit | **SDD verification phase** after implementation. |
@@ -33,10 +33,13 @@ await subagent({ agent: "ein-git", task: "create branch feature/xyz from main", 
 
 For **broad, independent, read-only** investigation you may fan out: emit **several `subagent` calls in a single turn** (the runtime runs them concurrently), then synthesize one answer. This is for understanding, not for writing.
 
-**When to use:** mapping a large/unknown codebase, comparing options, or any multi-area exploration where the areas do **not** depend on each other (e.g. "how does auth work?" + "how is the DB accessed?" + "what's the test setup?"). Use read-only agents — `sdd-explore` (read, grep, glob, webfetch) is the workhorse; give each a **distinct, bounded angle** and `context: "fresh"`.
+**Hard limit: máximo 3 ramas paralelas por fan-out.** Cada rama con `context: "fresh"` suma ~2000 tokens extra solo en context loading, antes de leer un solo archivo. No hacer fan-out si el costo total supera el budget de la fase.
+
+**When to use:** mapping a large/unknown codebase, comparing options, or any multi-area exploration where the areas do **not** depend on each other (e.g. "how does auth work?" + "how is the DB accessed?" + "what's the test setup?"). Use read-only agents — `sdd-explore` (read, grep, glob) is the workhorse; give each a **distinct, bounded angle** and `context: "fresh"`.
 
 ```
 // one turn, three concurrent read-only probes — then you merge the results
+// HARD LIMIT: never exceed 3 concurrent branches
 await subagent({ agent: "sdd-explore", task: "Map the auth flow: entry points, middleware, token handling", context: "fresh" })
 await subagent({ agent: "sdd-explore", task: "Map data access: ORM/queries, schema, migrations", context: "fresh" })
 await subagent({ agent: "sdd-explore", task: "Map the test setup: runner, fixtures, how to run a focused test", context: "fresh" })
@@ -93,6 +96,31 @@ exactly; do not retry with a string.
 **Scope discipline — decompose broad requests before deep SDD.** When the request is broad or unbounded ("refactor the whole project", "rework the architecture", multi-area), do NOT launch the full chain over everything — that explodes exploration cost and produces one un-reviewable mega-design. First run a lightweight scoping pass (`sdd-init` + `sdd-explore` in roadmap mode, or just ask) to produce a **prioritized list of bounded slices** (one slice = one Linear issue = one future SDD/PR). Then run a **scoped SDD per slice**, starting with the first. A whole-project refactor is a roadmap of slices, not a single task. This is cheaper AND higher quality: small, testable, reviewable changes that protect invariants slice by slice.
 
 **NEVER use `sdd-apply` directly when the user asks for SDD.** The `sdd-apply` agent is only the implementation phase inside the `ein-sdd` chain — not a standalone agent for the full flow. For a quick re-verification of an already-implemented change you may invoke `sdd-verify` directly.
+
+## Scope Gate Contract
+
+ANTES DE invocar `sdd-explore` (directo o vía chain):
+  1. **Construir SCOPE PACKET** desde el request del usuario
+     - Extraer `scope`, `change_name` del request
+     - Asignar `budget: { max_tokens: 15000, max_reads: 30 }` por defecto
+       (override si el request es explícito sobre límites)
+     - Determinar `webfetch: true` SOLO si el request menciona web, URLs, o documentación externa
+
+  2. **Validar scope antes de delegar**
+     - Si el scope es vago ("refactor todo", "arregla todo", "mejora el código"):
+       - Rechazar: responder al usuario pidiendo clarificación
+       - NO delegar a sdd-explore sin scope válido
+     - Si el scope está claro pero es demasiado amplio (>50 archivos potenciales):
+       - Sugerir descomposición en slices antes de proceder
+
+  3. **Presentar SCOPE PACKET al subagente**
+     - Incluir el SCOPE PACKET completo en el task prompt, no solo {task}
+     - Formato: envolver {task} dentro del SCOPE PACKET estructurado
+
+  4. **NO usar context:"fresh"** para explore normal
+     - `context: "fresh"` carga contexto nuevo desde cero — es costoso (~2000 tokens extra)
+     - Usar `context: "fork"` o no especificar para exploración normal
+     - Reserve `context: "fresh"` solo para auditorías, revisiones de PR, o incidentes
 
 ## Identity Contract
 
