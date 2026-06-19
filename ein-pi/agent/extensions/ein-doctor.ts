@@ -400,6 +400,17 @@ function doctorSmokeReport(): string {
       "orchestrator valuation read-only",
       "Una valoracion no dispara build/test pesados por defecto.",
     ),
+    check(
+      existsSync(join(AGENT_DIR, "lib", "mode.ts")),
+      "work mode module",
+      "lib/mode.ts presente (modo solo/team).",
+    ),
+    check(
+      orchestratorRaw.toLowerCase().includes("work mode") &&
+        orchestratorRaw.includes("solo"),
+      "orchestrator mode-aware",
+      "El orchestrator es consciente del modo (solo/team); Linear es condicional.",
+    ),
   ];
 
   const groups: Array<{ title: string; checks: CheckResult[] }> = [

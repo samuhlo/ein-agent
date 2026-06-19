@@ -41,7 +41,7 @@ Use **SSH + GitHub CLI (`gh`)**.
 
 - SSH = code transport (`clone`, `fetch`, `pull`, `push`).
 - `gh` = GitHub operations (`pr create`, `pr view`, `pr checks`, comments, reviews).
-- Do not use GitHub Issues as the primary task source. Linear is the work board.
+- Do not use GitHub Issues as the primary task source. In Team mode the board is Linear; in Solo mode it is `openspec/changes/` + git + EIN.md.
 
 ## Account Rule
 

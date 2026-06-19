@@ -10,6 +10,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { type Lang, pick, responseLanguageDirective } from "./lang.ts";
+import { type EinMode, modeDirective } from "./mode.ts";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ASSETS_DIR = join(PACKAGE_ROOT, "assets");
@@ -72,7 +73,11 @@ export function getOrchestratorPrompt(): string {
 	return orchestratorPromptCache;
 }
 
-export function buildEinPrompt(persona: PersonaMode, lang: Lang = "es"): string {
+export function buildEinPrompt(
+	persona: PersonaMode,
+	lang: Lang = "es",
+	mode: EinMode = "solo",
+): string {
 	const personaPrompt =
 		persona === "neutral" ? NEUTRAL_PERSONA_PROMPT : SAMUHLO_PERSONA_PROMPT;
 	return `## Ein Identity and Harness
@@ -90,6 +95,8 @@ ${personaPrompt}
 ${responseLanguageDirective(lang)}
 
 ${responseVoiceDirective()}
+
+${modeDirective(mode)}
 
 Harness principles:
 - Ein is not prompt engineering. It is runtime discipline around powerful agents.

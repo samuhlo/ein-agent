@@ -163,9 +163,9 @@ Lo que queda abierto, o "Nada pendiente."
 
 The core is `// 002`: if the closing comment does not explain how it works, it is incomplete.
 
-## Pre-flight (mandatory before SDD work)
+## Pre-flight (Team mode only, before SDD work)
 
-Unless the user said "no linear", before any SDD flow runs:
+This preflight applies **only when the work mode is Team**. In Solo mode (the default) the parent never delegates Linear preflight — skip it entirely. When the parent does delegate it (Team mode, and the user didn't say "no linear"), before any SDD flow runs:
 
 1. Search for the matching project in team `Samuhlodev` (include completed/archived). If none matches, ask the user whether to create it before continuing.
 2. Search existing issues for the work. Reuse an open issue (`Todo`/`In Progress`) when it matches; if the only match is `Done` and the new work is related, ask whether to create a new issue referencing it.

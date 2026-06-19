@@ -73,17 +73,23 @@ export async function runInstall(args: string[]): Promise<number> {
   p.intro(bold(gold("Instalador Ein")));
   p.log.info(`Plataforma: ${describePlatform(platform)}`);
 
-  // Ask about Linear early so all subsequent steps are aware.
-  let skipLinear = flags.noLinear;
-  if (!flags.yes && !flags.noLinear) {
-    const withLinear = await p.confirm({
-      message: "¿Incluir integración con Linear? (gestión de tareas e issues)",
-      initialValue: true,
+  // Work mode is Solo by default (no Linear): OpenSpec + git + EIN.md. Team
+  // (Linear as the board) is opt-in. The choice sets the global default mode;
+  // ein-linear stays installed either way and can be toggled with /ein:mode.
+  let skipLinear = true;
+  if (!flags.noLinear && !flags.yes) {
+    const teamMode = await p.confirm({
+      message: "¿Activar modo Team (Linear como board de issues)? Por defecto: Solo (OpenSpec + git, sin Linear).",
+      initialValue: false,
     });
-    if (p.isCancel(withLinear)) { p.cancel("Instalacion cancelada."); process.exit(1); }
-    skipLinear = !withLinear;
-    if (skipLinear) p.log.info("Linear omitido. Puedes activarlo despues con `ein install`.");
+    if (p.isCancel(teamMode)) { p.cancel("Instalacion cancelada."); process.exit(1); }
+    skipLinear = !teamMode;
   }
+  p.log.info(
+    skipLinear
+      ? "Modo Solo: OpenSpec + git, sin Linear. Actívalo cuando quieras con `/ein:mode team`."
+      : "Modo Team: Linear como board de issues.",
+  );
 
   // 1. Check dependencies.
   let deps = checkDeps(platform);

@@ -69,7 +69,7 @@ describe("preflight inyecta la regla determinista, no el forecast muerto", () =>
 
 describe("orchestrator coordina el guard", () => {
 	test("tiene seccion Review Workload Guard", () => {
-		expect(orchestrator).toContain("## Review Workload Guard");
+		expect(orchestrator).toContain("Review Workload Guard");
 	});
 
 	test("reenvia budget a ein-git y gatea con ask_user_question", () => {

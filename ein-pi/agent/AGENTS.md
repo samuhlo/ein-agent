@@ -28,9 +28,10 @@ This is the global operating guide for Pi Coding Agent on this machine.
 - For JS/TS/Vue/React/Nuxt/PHP/Java/CSS/HTML tasks, load `comment-style` and enforce it on touched blocks.
 - Comments explain why. If a comment repeats the code, remove it.
 
-## Linear
+## Linear (Team mode only)
 
-- Use Linear as the primary work board. Before any SDD flow, run Linear preflight (search/reuse, then propose creation) via `ein-linear`, unless the user says "no linear".
+- Linear applies **only in Team mode** (`/ein:mode team`). In **Solo mode** (default) there is no Linear board — the board is `openspec/changes/` + git + EIN.md; skip this section. `ein-linear` stays available if the user explicitly asks for it.
+- In Team mode, Linear is the primary work board. Before any SDD flow, run Linear preflight (search/reuse, then propose creation) via `ein-linear`, unless the user says "no linear".
 - Team default: `Samuhlodev`; assignee default: `me`.
 - Keep Linear comments human and concise with headings like `// 000. RESUMEN`, `// 001. HECHO`, `// 002. SIGUIENTE`.
 - Do not publish internal `.sdd` paths or generated planning logs unless asked.

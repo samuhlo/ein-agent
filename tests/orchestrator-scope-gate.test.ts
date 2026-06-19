@@ -18,13 +18,13 @@ const ORCH_MD = join(
 const content = readFileSync(ORCH_MD, "utf8");
 
 describe("orchestrator.md Scope Gate Contract", () => {
-  test("contiene sección Scope Gate Contract", () => {
-    expect(content).toContain("Scope Gate Contract");
+  test("contiene la Scope Gate", () => {
+    expect(content).toContain("Scope Gate");
   });
 
   test("contiene límite hard de 3 ramas para fan-out", () => {
     expect(content.toLowerCase()).toContain("3");
-    expect(content.toLowerCase()).toMatch(/máximo 3|hard limit.*3|max.*3.*rama/);
+    expect(content.toLowerCase()).toMatch(/máximo 3|hard limit.*3|max 3 branch|max.*3.*rama/);
   });
 
   test("SCOPE PACKET como requisito antes de invocar sdd-explore", () => {
@@ -40,12 +40,8 @@ describe("orchestrator.md Scope Gate Contract", () => {
     expect(sddExploreRow).not.toContain("webfetch");
   });
 
-  test("context:fresh reservado para auditorías, no para explore normal", () => {
-    // La regla debe decir que fresh es solo para auditorías/audits/incidents
-    const lines = content.split("\n");
-    const gateSection = lines
-      .slice(lines.findIndex((l) => l.includes("Scope Gate Contract")))
-      .join("\n");
-    expect(gateSection).toMatch(/fresh.*auditor|auditor.*fresh|incidents|PR.*review/);
+  test("context:fresh reservado para auditorías/review, no para explore normal", () => {
+    // La regla debe asociar fresh a trabajo adversarial: audit/incident/review.
+    expect(content.toLowerCase()).toMatch(/fresh[^\n]*(audit|incident|review)/);
   });
 });

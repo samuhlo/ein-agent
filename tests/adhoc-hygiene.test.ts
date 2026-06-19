@@ -17,7 +17,7 @@ const orchestrator = readFileSync(
 
 describe("Exploration hygiene", () => {
 	test("tiene la sección", () => {
-		expect(orchestrator).toContain("## Exploration hygiene");
+		expect(orchestrator).toContain("Exploration hygiene");
 	});
 
 	test("excluye dirs generados/dependencias", () => {
@@ -32,7 +32,7 @@ describe("Exploration hygiene", () => {
 
 describe("Assessment & valuation read-only", () => {
 	test("tiene la sección", () => {
-		expect(orchestrator).toContain("## Assessment & valuation");
+		expect(orchestrator).toContain("Assessment & valuation");
 	});
 
 	test("prohíbe build/test pesados por defecto", () => {

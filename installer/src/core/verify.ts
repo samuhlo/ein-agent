@@ -213,6 +213,8 @@ export function runDoctor(platform: Platform): DoctorReport {
     check(orchestratorRaw.includes("Plan Gate"), "orchestrator plan gate", "El orchestrator exige plan + confirmacion antes de mutaciones ambiguas/bulk."),
     check(orchestratorRaw.includes("Exploration hygiene"), "orchestrator exploration hygiene", "El orchestrator excluye node_modules/dist/etc. de find/grep/glob."),
     check(orchestratorRaw.includes("Assessment & valuation"), "orchestrator valuation read-only", "Una valoracion no dispara build/test pesados por defecto."),
+    check(existsSync(join(AGENT_DIR, "lib", "mode.ts")), "work mode module", "lib/mode.ts presente (modo solo/team)."),
+    check(orchestratorRaw.toLowerCase().includes("work mode") && orchestratorRaw.includes("solo"), "orchestrator mode-aware", "El orchestrator es consciente del modo (solo/team); Linear condicional."),
   ];
 
   const hasEngramBin = lookPath("engram", extraPath) !== null;

@@ -36,6 +36,7 @@ import {
 } from "../lib/lang.ts";
 import { t, tf } from "../lib/i18n/strings.ts";
 import { handleTddCommand } from "../lib/tdd.ts";
+import { handleModeCommand, readMode } from "../lib/mode.ts";
 import {
 	confirmCommand,
 	confirmDelegatedDelivery,
@@ -236,7 +237,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				: "";
 		const einPrompt = isNamedAgent || isSddAgent
 			? ""
-			: `\n\n${buildEinPrompt(readPersonaMode(ctx.cwd), readChatLang())}`;
+			: `\n\n${buildEinPrompt(readPersonaMode(ctx.cwd), readChatLang(), readMode(ctx.cwd))}`;
 		// Deterministic skill injection: phase/named subagents receive exact
 		// SKILL.md paths resolved from their task, not the parent model's discretion.
 		let skillsPrompt = "";
@@ -365,6 +366,16 @@ export default function einAi(pi: ExtensionAPI): void {
 		),
 		handler: async (_args, ctx) => {
 			await handleTddCommand(ctx);
+		},
+	});
+
+	pi.registerCommand("ein:mode", {
+		description: t(
+			"cmd.mode.description",
+			"Ver o cambiar el modo de trabajo (solo/team): Linear opcional",
+		),
+		handler: async (_args, ctx) => {
+			await handleModeCommand(ctx);
 		},
 	});
 
@@ -503,6 +514,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			const artifactLang = readArtifactLang(ctx.cwd);
 			lines.push("/// 000. EIN STATUS");
 			lines.push(`${t("status.author", "autor")}: samuhlo`);
+			lines.push(`${t("status.mode", "modo")}: ${readMode(ctx.cwd)}`);
 			lines.push(`${t("status.persona", "persona")}: ${readPersonaMode(ctx.cwd)}`);
 			lines.push(
 				`${t("status.lang", "idioma")}: ${t("status.lang.chat", "conversación")}=${LANG_LABEL[chatLang]} · ${t("status.lang.artifacts", "artefactos")}=${LANG_LABEL[artifactLang]}`,

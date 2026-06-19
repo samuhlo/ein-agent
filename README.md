@@ -3,9 +3,33 @@
 [![Release](https://img.shields.io/github/v/release/samuhlo/ein-agent?label=release&color=FFCA40)](https://github.com/samuhlo/ein-agent/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-737373.svg)](LICENSE)
 
-**Ein** es un workbench de desarrollo de software autónomo construido sobre [Pi Coding Agent](https://github.com/earendil-works/pi-coding-agent). Transforma la forma en que un ingeniero aborda tareas complejas: en lugar de ejecutar el agente paso a paso, Ein planifica, implementa y verifica de forma autónoma siguiendo una metodología estructurada — con memoria persistente, integración nativa con Linear y GitHub, y guardrails que evitan que el agente tome decisiones destructivas sin confirmación.
+> **Ein es un harness docente para [Pi](https://github.com/earendil-works/pi-coding-agent) que convierte trabajo ambiguo en cambios pequeños, verificados y explicados — usando modelos caros donde razonan y modelos baratos donde ejecutan.**
 
-**Diseñado para una persona. Entrenado para saber cuándo actuar y cuándo preguntar.**
+El modelo fuerte hace de arquitecto (piensa, acota, enseña); los modelos baratos ejecutan órdenes cerradas. Eso abarata el coste y reduce errores. Ein deja artefactos (OpenSpec + EIN.md), verifica, y al terminar **te explica cómo funciona** lo que hizo — no solo "hecho".
+
+**Diseñado para una persona. Te propone el nivel de proceso justo: tú dices qué quieres, Ein elige el carril más pequeño que sea seguro.**
+
+---
+
+## Modos de trabajo
+
+Ein arranca en **Solo** y puedes cambiar con `/ein:mode`:
+
+| Modo | Board | Para |
+|---|---|---|
+| **Solo** (por defecto) | OpenSpec local (`openspec/changes/`) + git + EIN.md. Sin Linear. | Freelance, proyectos personales, aprender. |
+| **Team** | Linear (issues, milestones, estados) + GitHub delivery. | Trabajo profesional / cliente. |
+
+Linear nunca es obligatorio: en Solo el board vive en tu repo; `ein-linear` sigue disponible si lo pides.
+
+## Flujo visible
+
+| La tarea es… | Ein hace… |
+|---|---|
+| pequeña | directo, inline |
+| mediana | plan corto → ejecución con subagentes baratos → verifica → explica |
+| grande / ambigua | SDD completo (init → explore → design → apply → verify) |
+| (Team) con board | sincroniza Linear |
 
 ---
 
@@ -13,17 +37,17 @@
 
 ### Flujo SDD — Software Design Driven
 
-Ein organiza todo el trabajo en una cadena de cinco fases. Cada agente tiene responsabilidades acotadas y no puede saltar pasos:
+Para trabajo serio, Ein organiza todo en una cadena de cinco fases. Cada agente tiene responsabilidades acotadas y no puede saltar pasos:
 
 ```
-sdd-init → sdd-design → sdd-explore → sdd-apply → sdd-verify
+sdd-init → sdd-explore → sdd-design → sdd-apply → sdd-verify
 ```
 
 | Fase | Qué hace |
 |---|---|
 | **sdd-init** | Crea el OpenSpec del proyecto: objetivos, constraints, stack, contexto de negocio |
-| **sdd-design** | Diseña la solución técnica con propuesta + spec + lista de tareas priorizadas |
 | **sdd-explore** | Explora el código base antes de tocar nada: mapea dependencias, identifica riesgos |
+| **sdd-design** | Diseña la solución técnica con propuesta + spec + lista de tareas priorizadas |
 | **sdd-apply** | Implementa por batches, con TDD y commits atómicos por unidad de trabajo |
 | **sdd-verify** | Verifica la implementación contra el spec: tests, tipos, integración, regresiones |
 
@@ -31,7 +55,7 @@ sdd-init → sdd-design → sdd-explore → sdd-apply → sdd-verify
 
 Además de la cadena SDD, Ein incluye dos agentes especializados que gestionan el flujo hacia los sistemas externos:
 
-- **ein-linear** — Crea y actualiza issues, milestones y proyectos en Linear. Mantiene sincronía entre el OpenSpec y el estado real del backlog.
+- **ein-linear** *(modo Team)* — Crea y actualiza issues, milestones y proyectos en Linear. Mantiene sincronía entre el OpenSpec y el estado real del backlog. En modo Solo permanece inactivo salvo que lo pidas.
 - **ein-git** — Abre PRs bien documentadas, gestiona branches y conecta cada unidad de trabajo con su issue correspondiente.
 - **ein-readme** — Genera el README de un proyecto (estética brutalista + bloque de metadata para el portfolio), analizando el código directamente.
 

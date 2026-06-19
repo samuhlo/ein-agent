@@ -12,6 +12,7 @@ import { readChatLang } from "../lang";
 const EN: Record<string, string> = {
 	// ── /ein:status ──
 	"status.author": "author",
+	"status.mode": "mode",
 	"status.persona": "persona",
 	"status.lang": "language",
 	"status.lang.chat": "chat",
@@ -46,6 +47,7 @@ const EN: Record<string, string> = {
 	// ── /ein:lang descripcion ──
 	"cmd.lang.description": "View or change Ein's language (chat/UI and PR/commit/Linear artifacts)",
 	"cmd.tdd.description": "View or change strict TDD mode (auto/strict/off/ask)",
+	"cmd.mode.description": "View or change work mode (solo/team): Linear optional",
 
 	// ── compartidas ──
 	"busy.retry": "The agent is busy. Retry {0} when it finishes.",
@@ -165,7 +167,7 @@ const EN: Record<string, string> = {
 		"author: samuhlo",
 		"",
 		"■ 001. CORE",
-		"- /ein:status | /ein:init | /ein:persona | /ein:lang | /ein:tdd | /ein:models | /ein:resume | /ein:help [full]",
+		"- /ein:status | /ein:mode | /ein:init | /ein:persona | /ein:lang | /ein:tdd | /ein:models | /ein:resume | /ein:help [full]",
 		"- /ein:init         → generate/refresh EIN.md (project context)",
 		"- /ein:models:full  → preset gpt-5.5 (orchestrator + sdd-design)",
 		"- /ein:models:lite  → preset MiniMax-M3 (orch + design) / M2.7 (rest)",
@@ -212,6 +214,7 @@ const EN: Record<string, string> = {
 		"",
 		"- /ein:status           → quick workbench status.",
 		"- /ein:init             → generate/refresh EIN.md (commands, architecture, conventions).",
+		"- /ein:mode             → view/change work mode (solo = no Linear, team = Linear board).",
 		"- /ein:persona          → view/change style (samuhlo|neutral).",
 		"- /ein:lang             → view/change language (chat/UI and artifacts).",
 		"- /ein:tdd              → view/change strict TDD mode (auto/strict/off/ask).",
@@ -264,6 +267,7 @@ const EN: Record<string, string> = {
 const ES: Record<string, string> = {
 	// ── /ein:status ──
 	"status.author": "autor",
+	"status.mode": "modo",
 	"status.persona": "persona",
 	"status.lang": "idioma",
 	"status.lang.chat": "conversación",
@@ -298,6 +302,7 @@ const ES: Record<string, string> = {
 	// ── /ein:lang descripcion ──
 	"cmd.lang.description": "Ver o cambiar el idioma de Ein (conversación/UI y artefactos PR/commit/Linear)",
 	"cmd.tdd.description": "Ver o cambiar el modo de TDD estricto (auto/strict/off/ask)",
+	"cmd.mode.description": "Ver o cambiar el modo de trabajo (solo/team): Linear opcional",
 
 	// ── compartidas ──
 	"busy.retry": "El agente esta ocupado. Reintenta {0} cuando termine.",
@@ -417,7 +422,7 @@ const ES: Record<string, string> = {
 		"autor: samuhlo",
 		"",
 		"■ 001. CORE",
-		"- /ein:status | /ein:init | /ein:persona | /ein:lang | /ein:tdd | /ein:models | /ein:resume | /ein:help [full]",
+		"- /ein:status | /ein:mode | /ein:init | /ein:persona | /ein:lang | /ein:tdd | /ein:models | /ein:resume | /ein:help [full]",
 		"- /ein:init         → genera/refresca EIN.md (contexto de proyecto)",
 		"- /ein:models:full  → preset gpt-5.5 (orquestador + sdd-design)",
 		"- /ein:models:lite  → preset MiniMax-M3 (orch + design) / M2.7 (resto)",
@@ -464,6 +469,7 @@ const ES: Record<string, string> = {
 		"",
 		"- /ein:status           → estado rapido del workbench.",
 		"- /ein:init             → genera/refresca EIN.md (comandos, arquitectura, convenciones).",
+		"- /ein:mode             → ver/cambiar modo de trabajo (solo = sin Linear, team = board Linear).",
 		"- /ein:persona          → ver/cambiar estilo (samuhlo|neutral).",
 		"- /ein:lang             → ver/cambiar idioma (conversación/UI y artefactos).",
 		"- /ein:tdd              → ver/cambiar modo de TDD estricto (auto/strict/off/ask).",

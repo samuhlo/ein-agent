@@ -20,6 +20,7 @@ import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sess
 import { LANG_LABEL, readArtifactLang, readChatLang } from "../lib/lang";
 import { TDD_LABEL, readTddMode } from "../lib/tdd";
 import { readPersonaMode } from "../lib/persona";
+import { readMode } from "../lib/mode";
 
 const execAsync = promisify(exec);
 
@@ -207,6 +208,7 @@ export default function (pi: ExtensionAPI) {
     const langArtifact = LANG_LABEL[readArtifactLang(ctx.cwd)];
     const tddLabel = TDD_LABEL[readTddMode(ctx.cwd)];
     const personaLabel = readPersonaMode(ctx.cwd);
+    const modeLabel = readMode(ctx.cwd);
 
     const allCommands = pi.getCommands();
     const skillsCount = allCommands.filter((c) => c.source === "skill").length;
@@ -412,6 +414,9 @@ export default function (pi: ExtensionAPI) {
                 [
                   ["TDD", tddLabel],
                   ["PERSONA", personaLabel],
+                ],
+                [
+                  ["MODE", modeLabel],
                 ],
               ];
               for (const [[l1, v1], [l2, v2]] of pairs) {

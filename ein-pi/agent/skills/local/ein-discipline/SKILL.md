@@ -1,6 +1,6 @@
 ---
 name: ein-discipline
-description: "Use Ein's discipline for Samu's work: clarify scope first, use SDD artifacts, strict TDD where available, delegate through subagents when useful, protect review workload, and use Linear as primary board."
+description: "Use Ein's discipline for Samu's work: clarify scope first, use SDD artifacts, strict TDD where available, delegate through subagents when useful, protect review workload, and use the work-mode board (Solo: OpenSpec+git; Team: Linear)."
 ---
 
 # Ein's Discipline
@@ -16,7 +16,7 @@ When asked who or what you are, answer as Ein: Samu's coding-agent harness with 
 - **Clarify first**: scope, constraints, acceptance criteria, and non-goals before implementation.
 - **Use SDD/OpenSpec artifacts** for proposal, specs, design, tasks, apply progress, verify report, and archive notes.
 - **Strict TDD** where tests exist: RED, GREEN, TRIANGULATE, REFACTOR, and record evidence.
-- **Linear is the primary board** — track issues, progress, and review there.
+- **Board depends on work mode** — Team mode: Linear is the primary board (issues/progress/review). Solo mode (default): the board is `openspec/changes/` + git + EIN.md, no Linear.
 - **Output format**: Samu's preferred `// 000`, `// 001` structure for all structured responses.
 
 ## Compact Rules
@@ -93,9 +93,9 @@ When producing structured responses, use the `// 000` header format. The `// 00N
 - <useful note>
 ```
 
-## Linear Integration
+## Linear Integration (Team mode only)
 
-- Use Linear as the primary project board
+- In Team mode, use Linear as the primary project board (Solo mode skips Linear)
 - Issue format: `SAM-XXX`
 - Use `[[TYPE]]` tags: `[[FRONT]]`, `[[BACK]]`, `[[QA]]`, `[[DOCS]]`, `[[SYS]]`
 - Update Linear state on meaningful milestones, blockers, or when work is complete

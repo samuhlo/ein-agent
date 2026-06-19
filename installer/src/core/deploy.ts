@@ -30,6 +30,10 @@ import {
 export { mergeUserSettings, readUserSettings, type UserSettings };
 
 export type DeployOptions = {
+  // skipLinear opts out of Linear → sets the default work mode to "solo".
+  // We no longer DELETE ein-linear files (that was destructive + incoherent);
+  // the agent stays deployed and the runtime work mode decides whether Linear
+  // is used. Mirrors lib/mode.ts (~/.pi/agent/ein-mode.json, default solo).
   skipLinear?: boolean;
 };
 
@@ -39,17 +43,10 @@ export type DeployResult = {
   engramFound: boolean;
 };
 
-// Files owned by the Linear integration. Removed when user opts out.
-const LINEAR_FILES = [
-  join("agents", "ein-linear.md"),
-  join("extensions", "ein-linear.ts"),
-];
-
-function removeLinearFiles(agentDir: string): void {
-  for (const rel of LINEAR_FILES) {
-    const full = join(agentDir, rel);
-    if (existsSync(full)) rmSync(full);
-  }
+// Writes the global default work mode read by lib/mode.ts when a project has no
+// .pi/ein/mode.json. "solo" (no Linear) when the user opts out; "team" otherwise.
+function writeGlobalMode(agentDir: string, mode: "solo" | "team"): void {
+  writeFileSync(join(agentDir, "ein-mode.json"), `${JSON.stringify({ mode }, null, 2)}\n`);
 }
 
 // Directories fully owned by the template. Wiped before extraction so files
@@ -114,7 +111,9 @@ export async function deployTemplate(platform: Platform, opts: DeployOptions = {
     // Restore user-owned fields (model, theme, etc.) that the tarball reset.
     mergeUserSettings(AGENT_DIR, userSettings);
 
-    if (opts.skipLinear) removeLinearFiles(AGENT_DIR);
+    // Set the default work mode instead of deleting Linear files. Solo (no
+    // Linear) when the user opted out; Team (Linear board) otherwise.
+    writeGlobalMode(AGENT_DIR, opts.skipLinear ? "solo" : "team");
 
     return {
       agentDir: AGENT_DIR,
