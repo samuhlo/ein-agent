@@ -25,13 +25,17 @@ jobs:
         working-directory: installer
         run: bun install --frozen-lockfile
 
+      # Build the embedded template tarball BEFORE tests: it is git-ignored, so
+      # CI must generate it, and deploy.ts statically imports it (required for
+      # `bun build --compile` embedding, so it can't be made lazy). This step
+      # also doubles as the packaging smoke.
+      - name: Bundle template (packaging smoke + test prerequisite)
+        working-directory: installer
+        run: bun run bundle-template
+
       - name: Test (workbench + installer)
         run: bun test
 
       - name: Typecheck installer
         working-directory: installer
         run: bun run typecheck
-
-      - name: Packaging smoke (bundle template)
-        working-directory: installer
-        run: bun run bundle-template
