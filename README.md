@@ -13,14 +13,13 @@ No es un producto para todos: es **mi** workbench. Está **curado para mi stack*
 
 ## // 000. MODOS DE TRABAJO
 
-Ein arranca en **Solo**. Cambias con `/ein:mode`.
+Ein arranca en **Solo** — listo para trabajar sin configurar nada. Subes a **Team** con `/ein:mode team` el día que un proyecto necesite board compartido.
 
-| Modo | Board | Para |
-|---|---|---|
-| **Solo** (defecto) | OpenSpec local (`openspec/changes/`) + git + EIN.md. Sin Linear. | Trabajo en solitario, proyectos personales, aprender. |
-| **Team** | Linear (issues, milestones, estados) + delivery GitHub. | Trabajo profesional / cliente. |
+**Solo** — tú y el repo. El plan, el estado y la trazabilidad viven dentro del propio proyecto: artefactos OpenSpec en `openspec/changes/`, `EIN.md` como memoria versionada, y la entrega por **GitHub** vía `ein-git`. Cero setup externo, cero cuentas que conectar. Es el día a día: trabajo en solitario, proyectos personales, aprender.
 
-Linear nunca es obligatorio. En Solo el board vive en tu repo; `ein-linear` sigue disponible si lo pides. La entrega (commits, PRs) pasa por `ein-git` en **ambos** modos — nunca git a pelo desde el orquestador caro.
+**Team** — todo lo de Solo **+ Linear como board de verdad**: issues, milestones y estados sincronizados con el OpenSpec, y un preflight que reutiliza o crea la issue antes de cada flujo SDD. Para trabajo profesional o de cliente, donde alguien más mira el backlog y hace falta trazabilidad formal. Aquí es donde `ein-linear` entra en juego (en Solo permanece dormido salvo que lo pidas puntualmente).
+
+La entrega —commits y PRs por GitHub— pasa por `ein-git` en **ambos** modos: nunca git a pelo desde el orquestador caro.
 
 ## // 001. FLUJO VISIBLE
 
