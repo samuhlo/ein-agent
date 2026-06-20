@@ -117,6 +117,14 @@ Detecta plataforma, descarga el binario de la última release y abre la TUI. El 
 
 > **Nunca toca** `auth.json`, `sessions/` ni `backups/` — tu estado es siempre tuyo.
 
+**Windows (vía WSL).** Ein corre en Windows a través de WSL2 (que por dentro es Linux):
+
+```powershell
+wsl --install        # PowerShell como admin; reinicia y abre Ubuntu
+```
+
+Dentro de Ubuntu (WSL), el mismo one-liner de arriba. El instalador detecta WSL y despliega la build de Linux. Trabaja con tus proyectos **dentro del FS de WSL** (`~/...`), no en `/mnt/c/...` (mucho más lento y con permisos raros); `bun`, `pi` y `engram` se instalan dentro de WSL, y el estado de Ein vive en `~/.pi` **de WSL**. Windows nativo (sin WSL) llegará más adelante.
+
 | Dependencia | Requerida |
 |---|---|
 | [Bun](https://bun.sh) ≥ 1.3 | Sí (el installer la gestiona) |
@@ -190,3 +198,4 @@ git push origin installer-v0.10.0   # GitHub Actions compila 4 binarios + checks
 
 - **Multi-perfil** — `profiles/<persona>.json`, cada uno con su persona y stack de skills, para que otra persona instale Ein con otro stack. La base existe (`stack-profile.json` + `loadProfile()`); falta el selector.
 - **Galego en la UI** — el sistema de idioma ya contempla `gl`; falta traducir los mapas de `lib/i18n/strings.ts`.
+- **Windows nativo** (sin WSL) — binario `ein-installer-windows-x64.exe` (Bun ya soporta el target) + `install.ps1` (`irm … | iex`) + `platform.ts`/`deps`/`exec` portados (winget/scoop, `where.exe`). Pendiente de validar la TUI ANSI en consola Windows y el templado de rutas. Hoy el camino es WSL (ver Instalación).

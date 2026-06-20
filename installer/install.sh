@@ -52,6 +52,13 @@ detect_platform() {
     *) fatal "Arquitectura no soportada: $uname_arch" ;;
   esac
   ASSET="ein-installer-${OS}-${ARCH}"
+  # WSL is Linux under the hood: the linux build + /dev/tty path work as-is.
+  # Detect it only to tell the Windows user what's happening.
+  if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null || [ -n "${WSL_DISTRO_NAME:-}" ]; then
+    IS_WSL=1
+  else
+    IS_WSL=0
+  fi
 }
 
 # --- prerequisites -----------------------------------------------------------
@@ -79,6 +86,7 @@ main() {
   step "Instalador Ein"
   detect_platform
   info "plataforma: ${OS}/${ARCH}  ·  asset: ${ASSET}"
+  [ "${IS_WSL:-0}" = "1" ] && info "WSL detectado — instalando la build de Linux (${ARCH}). Trabaja dentro del FS de WSL (~), no en /mnt/c."
   need curl
 
   local base url tmp checksum_url
