@@ -469,7 +469,7 @@ const MODEL_FULL: AgentModelConfig = {
 	"sdd-design": { model: "openai-codex/gpt-5.5" },
 	"sdd-init": { model: "minimax/MiniMax-M2.7" },
 	"sdd-explore": { model: "minimax/MiniMax-M2.7" },
-	"sdd-apply": { model: "minimax/MiniMax-M2.7" },
+	"sdd-apply": { model: "minimax/MiniMax-M3" },
 	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
 	"ein-linear": { model: "minimax/MiniMax-M2.7" },
 	"ein-git": { model: "minimax/MiniMax-M2.7" },
@@ -480,7 +480,7 @@ const MODEL_LITE: AgentModelConfig = {
 	"sdd-design": { model: "minimax/MiniMax-M3" },
 	"sdd-init": { model: "minimax/MiniMax-M2.7" },
 	"sdd-explore": { model: "minimax/MiniMax-M2.7" },
-	"sdd-apply": { model: "minimax/MiniMax-M2.7" },
+	"sdd-apply": { model: "minimax/MiniMax-M3" },
 	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
 	"ein-linear": { model: "minimax/MiniMax-M2.7" },
 	"ein-git": { model: "minimax/MiniMax-M2.7" },
@@ -494,12 +494,12 @@ export function applyPreset(cwd: string, preset: "full" | "lite"): string {
 	updateGlobalDefaultModel(orch.provider, orch.model);
 	return preset === "full"
 		? pick(
-				`Modo full activo.\n- Orquestador → gpt-5.5\n- sdd-design → gpt-5.5\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`,
-				`Full mode active.\n- Orchestrator → gpt-5.5\n- sdd-design → gpt-5.5\n- Rest → MiniMax-M2.7\nRestart Pi for the orchestrator change to take effect.`,
+				`Modo full activo.\n- Orquestador → gpt-5.5\n- sdd-design → gpt-5.5\n- sdd-apply → MiniMax-M3\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`,
+				`Full mode active.\n- Orchestrator → gpt-5.5\n- sdd-design → gpt-5.5\n- sdd-apply → MiniMax-M3\n- Rest → MiniMax-M2.7\nRestart Pi for the orchestrator change to take effect.`,
 			)
 		: pick(
-				`Modo lite activo.\n- Orquestador → MiniMax-M3\n- sdd-design → MiniMax-M3\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`,
-				`Lite mode active.\n- Orchestrator → MiniMax-M3\n- sdd-design → MiniMax-M3\n- Rest → MiniMax-M2.7\nRestart Pi for the orchestrator change to take effect.`,
+				`Modo lite activo.\n- Orquestador → MiniMax-M3\n- sdd-design → MiniMax-M3\n- sdd-apply → MiniMax-M3\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`,
+				`Lite mode active.\n- Orchestrator → MiniMax-M3\n- sdd-design → MiniMax-M3\n- sdd-apply → MiniMax-M3\n- Rest → MiniMax-M2.7\nRestart Pi for the orchestrator change to take effect.`,
 			);
 }
 

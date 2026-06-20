@@ -113,8 +113,8 @@ function vaEffortColor(lvl: ThinkingLevel | undefined): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PRESETS: { key: "full" | "lite"; label: string; desc: string }[] = [
-	{ key: "full", label: "Full", desc: t("models.preset.full.desc", "Orquestador + sdd-design → gpt-5.5  |  resto → MiniMax-M2.7") },
-	{ key: "lite", label: "Lite", desc: t("models.preset.lite.desc", "Orquestador + sdd-design → MiniMax-M3  |  resto → MiniMax-M2.7") },
+	{ key: "full", label: "Full", desc: t("models.preset.full.desc", "Orq + sdd-design → gpt-5.5  |  apply → M3  |  resto → M2.7") },
+	{ key: "lite", label: "Lite", desc: t("models.preset.lite.desc", "Orq + sdd-design + apply → MiniMax-M3  |  resto → M2.7") },
 ];
 
 class SddModelPanel implements OverlayComponent {

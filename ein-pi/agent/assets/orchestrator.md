@@ -119,6 +119,8 @@ For broad, independent, read-only investigation you may emit several `subagent` 
 
 **Solo mode (default)** — no Linear board; the board is `openspec/changes/` + git + EIN.md. Never run Linear preflight; `ein-linear` is available only if the user explicitly asks.
 
+**Git delivery uses `ein-git` in BOTH modes.** Branches, commits, push, PRs and reviews always go through `ein-git` (a cheap model), never raw `git`/`gh` from the parent — the parent is the expensive model and shouldn't burn tokens on mechanical delivery. The only mode difference is Linear sync (Team only). The parent may run read-only `git status`/`git diff --stat` inline to decide, but the delivery action itself is delegated.
+
 **LINEAR OPERATION PACKET** (when delegating Linear updates with exact IDs):
 
 ```
