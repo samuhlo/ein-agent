@@ -5,6 +5,32 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.10.0] - 2026-06-20
+
+### Added
+
+- **Modos de trabajo Solo / Team** (`/ein:mode`, `lib/mode.ts`): Solo por
+  defecto (sin Linear; board = `openspec/changes/` + git + EIN.md), Team activa
+  Linear como board + preflight. Indicador `MODE` en el banner y en
+  `/ein:status`. El installer escribe el modo global (`--no-linear` → Solo) en
+  vez de borrar ficheros.
+- **Windows vía WSL**: `install.sh` detecta WSL y despliega la build Linux;
+  sección de instalación y roadmap de Windows nativo en el README.
+
+### Changed
+
+- **Orquestador recortado** 625 → ~190 líneas: fusión de reglas redundantes,
+  gates reubicados al agente que los ejecuta, diferenciadores intactos
+  (teaching, routing caro→barato, EIN.md, SDD-5, Plan/Scope Gate). Test de
+  presupuesto anti-engorde.
+- **Narrativa mode-aware**: fin del "Linear is the primary board" incondicional
+  en prompts, agentes, skills y docs.
+- **Modelos**: `sdd-apply` → MiniMax-M3 en ambos presets (M2.7 se quedaba corto
+  escribiendo código). `ein-git` entra en el flujo Solo (entrega siempre vía
+  subagente, nunca git a pelo desde el orquestador).
+- **README** reescrito en estética propia (harness personal, stack curado,
+  modelos como elección personal personalizable con `/ein:models`).
+
 ## [0.9.5] - 2026-06-19
 
 ### Added
