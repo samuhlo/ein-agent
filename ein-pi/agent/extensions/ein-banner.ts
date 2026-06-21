@@ -412,21 +412,28 @@ export default function (pi: ExtensionAPI) {
                   ["ARTF", langArtifact],
                 ],
                 [
+                  ["MODE", modeLabel],
                   ["TDD", tddLabel],
-                  ["PERSONA", personaLabel],
                 ],
                 [
-                  ["MODE", modeLabel],
+                  ["PERSONA", personaLabel],
+                  ["", ""],
                 ],
               ];
-              for (const [[l1, v1], [l2, v2]] of pairs) {
+              // Defensive: a malformed row must never crash the banner — a crash
+              // here takes down the whole Pi session at startup.
+              for (const row of pairs) {
+                const [p1, p2] = row;
+                if (!p1) continue;
                 b.addRow();
                 b.add("■ ", YELLOW);
-                b.add(l1.padEnd(L), STRUCTURE);
-                b.add(v1.padEnd(V), CONCRETE);
-                b.add("■ ", YELLOW);
-                b.add(l2.padEnd(L), STRUCTURE);
-                b.add(v2.padEnd(RV), CONCRETE);
+                b.add(p1[0].padEnd(L), STRUCTURE);
+                b.add(p1[1].padEnd(V), CONCRETE);
+                if (p2 && p2[0]) {
+                  b.add("■ ", YELLOW);
+                  b.add(p2[0].padEnd(L), STRUCTURE);
+                  b.add(p2[1].padEnd(RV), CONCRETE);
+                }
                 b.center(width);
               }
 
