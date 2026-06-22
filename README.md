@@ -207,3 +207,14 @@ git push origin installer-v0.10.0   # GitHub Actions compila 4 binarios + checks
 - **Multi-perfil** — `profiles/<persona>.json`, cada uno con su persona y stack de skills, para que otra persona instale Ein con otro stack. La base existe (`stack-profile.json` + `loadProfile()`); falta el selector.
 - **Galego en la UI** — el sistema de idioma ya contempla `gl`; falta traducir los mapas de `lib/i18n/strings.ts`.
 - **Windows nativo** (sin WSL) — binario `ein-installer-windows-x64.exe` (Bun ya soporta el target) + `install.ps1` (`irm … | iex`) + `platform.ts`/`deps`/`exec` portados (winget/scoop, `where.exe`). Pendiente de validar la TUI ANSI en consola Windows y el templado de rutas. Hoy el camino es WSL (ver Instalación).
+
+---
+
+<p align="center">
+  <img src="ein_ins.webp" alt="Ein" width="280">
+</p>
+
+<p align="center">
+  <em>Buen perro. Ahora ve a trabajar.</em><br>
+  — samuhlo
+</p>
