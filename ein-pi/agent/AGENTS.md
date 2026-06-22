@@ -73,11 +73,11 @@ This is the global operating guide for Pi Coding Agent on this machine.
 
 - Pi subagent delegation is provided by `pi-subagents`. Use the visible `subagent` tool, not Ein legacy `*_agent` wrapper tools.
 - Natural user messages stay natural. Do not rewrite normal conversation into generated `/run-chain` or `/run` payloads.
-- The parent prompt coordinates first: answer directly for small work, delegate with `subagent` when focus helps, and use the `ein-sdd` flow for serious implementation.
+- The parent prompt coordinates first: answer questions directly, delegate code understanding to `sdd-explore` and ALL code writing to `sdd-apply` (the parent never edits source itself, not even a one-liner), and use the `ein-sdd` flow for serious implementation.
 - Slash commands `/ein:*` are fallback/manual control. They may route to agents/chains because the user invoked a command explicitly; they are not the default UX.
 - Linear start/status planning uses `ein-linear` directly.
 - The explicit SDD slash workflow runs the single `ein-sdd` chain (init → explore → design → apply → verify).
-- Simple local edits/questions can be handled directly.
+- Simple questions and read-only checks are handled directly; any code edit — however small — is delegated to `sdd-apply`. The parent never writes source code inline.
 - Substantial, risky, multi-file, Linear, GitHub, design, review, security, auth, performance, or migration work must be coordinated by the visible parent session first.
 - Preferred visible subagents: `ein-linear`, `ein-git`, and the SDD phase agents `sdd-init`, `sdd-explore`, `sdd-design`, `sdd-apply`, `sdd-verify`. Builtin pi-subagents (scout/worker/reviewer/oracle/context-builder) are disabled.
 - Never pass an ad hoc `model` override when delegating to a subagent, and never retry a failed delegation with a different model you picked yourself. Model routing comes exclusively from `/ein:models` (frontmatter of the agent files). If a delegation fails with a provider/API-key error, report it to the user instead of guessing another model.

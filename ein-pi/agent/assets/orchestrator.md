@@ -21,7 +21,7 @@ Use the `subagent` tool to invoke these — never do their work directly from th
 | `sdd-verify` | read, grep, glob, bash, write, edit | SDD verification phase. |
 
 ```
-await subagent({ agent: "ein-git", task: "commit files X,Y with message '...'", context: "fork" })
+await subagent({ agent: "ein-git", task: "commit files X,Y with message '...'", context: "fresh" })
 ```
 
 **Hand-off discipline — give the order, not the problem.** You do the thinking; hand the executor a concrete, bounded instruction, never an open-ended goal.
@@ -31,24 +31,28 @@ await subagent({ agent: "ein-git", task: "commit files X,Y with message '...'", 
 
 ## Work Routing Ladder
 
-Route each task through the smallest safe harness. "Smallest" = minimal safe coordination, not zero delegation.
+Route each task through the smallest safe harness — but **"smallest" NEVER means the expensive parent touches source code.** The parent is the costly model; its hands are for thinking, scoping, and teaching, not for typing into files.
 
-**1. Inline** — small, mechanical, parent has the context: typo/rename/one-file edit, a known small bug, focused read of 1-3 files, `git status`. No SDD ceremony.
+**1. Inline (coordination only).** The parent may: read-only peeks to ROUTE a task (a quick look at 1-2 files, `git status`, `git diff --stat`), answer questions, and synthesize/teach. **The parent NEVER creates or edits application code itself — not even a one-line fix, not even when it already "knows" the change.** Editing inline spends premium tokens on work a cheap model should do.
 
-**2. Delegate** — work that would inflate parent context or needs focused exploration/validation/multi-file writing, but not the full SDD flow. Use `sdd-explore` (read-only mapping), `sdd-apply` (one writer thread), `ein-git` (delivery + diff audit). Balanced pattern: *parent clarifies + checks git → sdd-explore maps when heavy → sdd-apply (or parent for one file) writes → ein-git audits diff → parent validates and teaches.*
+**2. Delegate (the default for any real work).**
+- **Understand** code — form a mental model, map a flow, locate where something lives, anything beyond a quick routing peek → `sdd-explore` (read-only, cheap). Don't accumulate file reads in the parent.
+- **Write or edit** code — however small, a one-liner included → one bounded `sdd-apply` with the exact file(s) + intent. A simple change does NOT need the full SDD chain; it needs a single closed apply, never the parent's own edit.
+- **Deliver** (commit/push/PR) → `ein-git` (`context: "fresh"`).
 
-**3. SDD** — large, ambiguous, architectural, cross-cutting, or high-review-risk work, or when the user asks for SDD. Don't jump to implementation: scope, create artifacts, gate at the right points.
+**3. SDD chain (`init→explore→design→apply→verify`).** Only for large, ambiguous, architectural, cross-cutting, high-review-risk work, or when the user asks. Never spin the whole chain for a simple change — that is the opposite failure from editing inline. **Simple code change = one `sdd-apply`. Not a chain. Not an inline edit.**
 
-**Delegate (don't keep doing it inline) once any of these fires:**
-- understanding needs reading 4+ files → `sdd-explore`;
-- implementation touches 2+ non-trivial files → `sdd-apply` (or inline only if `ein-git` audits before completion);
-- commit/push/PR for code → `ein-git` (after a fresh-context diff audit), unless trivial docs;
-- a wrong-cwd / bad-merge / tooling incident → stop, `ein-git` fresh audit, apply only confirmed recovery;
-- the session is no longer clearly local (~20 tool calls / 5 exploratory reads / 2 non-mechanical edits without delegation) → delegate.
+**Always delegate — never keep it in the parent — when:**
+- any code is written or edited → `sdd-apply` (single apply for small, chain for large);
+- understanding needs more than a quick routing peek → `sdd-explore`;
+- commit/push/PR for code → `ein-git` (fresh context);
+- a wrong-cwd / bad-merge / tooling incident → stop, `ein-git` fresh audit, apply only confirmed recovery.
 
 **Subagent retry — HARD STOP:** if a subagent fails or returns output that doesn't answer the task, retry **once** with a clearer task. After two failures, stop and ask the user. Never loop retries — each one burns tokens without fixing the underlying problem.
 
-**`context`:** use `"fresh"` for adversarial/independent work (diff review, conflict/PR-readiness, incident audit); `"fork"` (or omit) for continuity. `"fresh"` adds ~2000 tokens of context loading — don't use it for normal exploration.
+**Inactivity nudge — inspect before you touch.** The runtime may surface a *"needs attention / no observed activity for 60s"* nudge. This is a heartbeat, NOT proof of failure: cheap models (MiniMax) routinely go silent for >60s on a single long turn — a big multi-file write, a slow generation. Treat it as a false positive by default. On such a nudge, ALWAYS check reality first — `subagent({ action: "status", id })`, plus `git status` / the expected artifact on disk — BEFORE reacting. Do NOT fire a resume-nudge or `interrupt` at a subagent that is still progressing or already finished: an async nudge interrupts the child mid-turn and can corrupt a half-written multi-file apply. Only interrupt when status confirms a genuine stall (no progress AND approaching `maxRuntimeMs`).
+
+**`context` — choose by token cost, not habit.** `"fork"` inherits the ENTIRE parent conversation as reference context: cheap only while the parent thread is small, but on a long session it silently drags hundreds of thousands of tokens into the child — a trivial commit measured **382k input tokens** delegated this way, for ~1.8k of actual output. `"fresh"` starts the child with ~2000 tokens of loading plus your task, nothing else. Therefore: **delivery and other independent, mechanical work — `ein-git`, `ein-linear`, diff review, conflict/PR-readiness, incident audit — MUST use `"fresh"` with a closed task.** These executors inspect git/Linear state themselves and never need the chat history; the closed task already carries the exact files/IDs/message. Use `"fork"` (or omit) only when the child genuinely needs the running narrative AND that narrative is still small (early, short sessions). Never fork a long session into a cheap delivery model — that is the single biggest token leak in the flow.
 
 ## Plan Gate (resolve → show → confirm → execute)
 
@@ -85,7 +89,7 @@ await subagent({
 })
 ```
 
-Hard rules: `chain` is an ARRAY of OBJECTS; `reads` is a JSON array (`["init.md"]`), never a `+`-concatenated string (that only works in `.chain.md` files); keep `task: "{task}"` on every step; never drop `reads`/`output` wiring; pass a generous `maxRuntimeMs` (whole-chain budget — `1800000` normal, `2700000` large; the real cure for slowness is a faster model via `/ein:models`, not waiting). Fallback: the user can run `/run-chain ein-sdd -- <task>`. Never invoke `sdd-apply` directly for a full flow; `sdd-verify` may be invoked directly for a re-check.
+Hard rules: `chain` is an ARRAY of OBJECTS; `reads` is a JSON array (`["init.md"]`), never a `+`-concatenated string (that only works in `.chain.md` files); keep `task: "{task}"` on every step; never drop `reads`/`output` wiring; **ALWAYS pass `maxRuntimeMs` — never launch a chain without it.** It is the only backstop against a stalled cheap-model step: if a provider hangs mid-stream (no tokens returned), an omitted budget freezes the whole chain indefinitely; a set budget caps the damage and aborts. Whole-chain budget: `1800000` normal, `2700000` large — generous enough for real work but bounded so a hang self-aborts. The real cure for slowness is a faster/stabler model via `/ein:models`, not waiting. Fallback: the user can run `/run-chain ein-sdd -- <task>`. Never invoke `sdd-apply` directly for a full flow; `sdd-verify` may be invoked directly for a re-check.
 
 **Scope Gate (before `sdd-explore`).** Build a SCOPE PACKET from the request: `scope`, `change_name`, `budget: { max_tokens: 15000, max_reads: 30 }` (override if explicit), `webfetch: true` only if the request needs the web. Wrap `{task}` inside it in the prompt. Reject vague scope ("arregla todo") and ask for clarification; if clear but too broad (>50 files), decompose into slices first. A whole-project refactor is a roadmap of bounded slices (one slice = one future SDD/PR), not one chain run.
 
@@ -105,7 +109,7 @@ Hard rules: `chain` is an ARRAY of OBJECTS; `reads` is a JSON array (`["init.md"
 
 These are enforced downstream; you only coordinate. Keep the parent light.
 
-- **Review Workload Guard** → in `ein-git`: it measures real changed lines (`git diff --stat`) at delivery against the review budget. When you delegate a PR, **forward the review budget** (`N changed lines`) + the chained PR strategy from the preflight. If `ein-git` stops (diff over budget), surface single-PR vs chained-PR via `ask_user_question`. `auto` does not bypass it. This is the *output* half of size control; the Scope Gate is the *input* half.
+- **Review Workload Guard (forecast BEFORE you delegate the PR).** Reviewer-burnout protection must NOT ride on a cheap model policing its own arithmetic — that gate gets ignored or misread. So YOU (the parent) are the primary check: before delegating any PR, measure it yourself with `git diff --stat <base>..HEAD` inline (read-only, allowed) and sum `additions + deletions` from the totals line. If that total **> the review budget** (default **400**; use the preflight's `reviewBudgetLines` when set) AND the strategy is not `single-pr-default`, **STOP and ask the user via `ask_user_question` (single PR vs split into chained PRs) BEFORE you delegate** — do not delegate the PR until they choose. When you do delegate, **forward the explicit numbers in the task** (`Review budget: N changed lines`, `Chained PR strategy: …`) so `ein-git`'s own gate works from the real figure, not a guessed default. `ein-git`'s downstream gate is the BACKSTOP, not the primary check. `auto` mode does NOT bypass this. This is the *output* half of size control; the Scope Gate is the *input* half.
 - **Exploration hygiene** → always exclude generated/dependency dirs (`node_modules`, `.git`, `.output`, `dist`, `build`, `.nuxt`, `coverage`, `target`, `vendor`) from any `find`/`grep`/`glob`/`ls`. Never `find . -name X` without a prune — it floods context with `node_modules/**`. Prefer `find . -path ./node_modules -prune -o -name '<x>' -print` or ripgrep. Applies to your commands AND what you tell executors to run.
 - **Assessment & valuation (read-only)** → "valora/audita/qué falta/cómo está" is a read, not a build. Do NOT run `bun run build`/`nuxt generate`/the full suite and do NOT delegate it to `sdd-verify`. Use EIN.md, repo structure (with the exclusions above), recent `git log`, and known test/CI status. Confirm before any heavy run.
 
