@@ -72,9 +72,12 @@ describe("orchestrator coordina el guard", () => {
 		expect(orchestrator).toContain("Review Workload Guard");
 	});
 
-	test("reenvia budget a ein-git y gatea con ask_user_question", () => {
+	test("el parent mide el diff, pregunta antes de delegar, y ein-git es backstop", () => {
 		expect(orchestrator).toContain("ask_user_question");
-		expect(orchestrator.toLowerCase()).toContain("forward the review budget");
+		// El parent es el check primario: mide git diff --stat él mismo…
+		expect(orchestrator).toContain("git diff --stat");
+		// …y ein-git pasa a ser el backstop, no el check principal.
+		expect(orchestrator.toLowerCase()).toContain("backstop");
 	});
 });
 

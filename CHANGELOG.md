@@ -5,6 +5,39 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.10.2] - 2026-06-21
+
+### Changed
+
+- **Disciplina de coste del parent endurecida**: el orquestador NUNCA edita
+  código (ni un one-liner) — entender → `sdd-explore`, escribir → un `sdd-apply`
+  acotado (no la cadena entera), entregar → `ein-git` con `context: "fresh"`
+  (deja de arrastrar el hilo del padre: un commit trivial medía ~382k tokens de
+  input por `fork` → decenas de miles con `fresh`).
+- **Review Workload Guard**: el parent mide el diff (`git diff --stat`) y
+  pregunta single/split **antes** de delegar el PR; `ein-git` pasa a backstop.
+- **`maxRuntimeMs` obligatorio** en chains como backstop ante stalls de
+  proveedor; nudge de inactividad que inspecciona estado antes de interrumpir un
+  subagente sano (evita corromper un apply multi-fichero a medias).
+- **Voz brutalista** como registro-suelo de toda respuesta, no solo de cambios
+  importantes.
+
+### Added
+
+- **Gate determinista de TDD**: se dispara en `tool_call` ante cualquier
+  delegación que escriba código (`sdd-apply` directo o dentro de un chain), no
+  solo en el trigger SDD explícito. Un cambio ad-hoc también resuelve la decisión
+  de TDD (modo `ask`), sin doble pregunta. Nueva `delegationTargetsApply()`.
+
+## [0.10.1] - 2026-06-21
+
+### Fixed
+
+- **Crash del banner al arrancar**: el indicador `MODE` se añadió como fila de un
+  solo par y el render desestructura cada fila como dos → `undefined is not
+  iterable` tumbaba toda la sesión de Pi. MODE emparejado con TDD + loop
+  defensivo (una fila malformada ya nunca crashea el banner).
+
 ## [0.10.0] - 2026-06-20
 
 ### Added
