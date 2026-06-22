@@ -251,6 +251,24 @@ export async function askRunTddMode(ctx: ExtensionContext): Promise<void> {
 	ctx.ui.notify(`TDD para esta tarea: ${mode}`, "info");
 }
 
+// Detecta si una llamada al tool `subagent` acabará escribiendo código vía
+// sdd-apply: modo single (`agent`), parallel (`tasks[]`) o chain (`chain[]` /
+// `steps[]`). Lo usa el gate de TDD en tool_call para preguntar antes de que
+// arranque el apply en CUALQUIER cambio de código, no solo en el trigger SDD
+// explícito.
+export function delegationTargetsApply(input: unknown): boolean {
+	if (!isRecord(input)) return false;
+	if (input.agent === "sdd-apply") return true;
+	for (const key of ["tasks", "steps", "chain"]) {
+		const items = input[key];
+		if (!Array.isArray(items)) continue;
+		for (const item of items) {
+			if (isRecord(item) && item.agent === "sdd-apply") return true;
+		}
+	}
+	return false;
+}
+
 async function collectSddPreflightPreferences(
 	ctx: ExtensionContext,
 	engramAvailable: boolean,

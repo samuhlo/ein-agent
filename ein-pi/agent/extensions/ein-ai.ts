@@ -14,6 +14,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
 	askRunTddMode,
+	delegationTargetsApply,
 	ensureSddPreflight,
 	getSddPreflightPreferences,
 	installSddAssets,
@@ -210,10 +211,10 @@ export default function einAi(pi: ExtensionAPI): void {
 			return { action: "continue" };
 		}
 		await runSddPreflight(ctx);
-		// TDD por tarea: si el modo global es "ask", preguntar aquí (un disparo
-		// explícito de SDD = una tarea). Determinista, a diferencia de pedírselo
-		// al padre antes de apply (que en un chain nunca dispara).
-		await askRunTddMode(ctx);
+		// El gate de TDD ya no vive aquí: se dispara en tool_call ante CUALQUIER
+		// delegación que escriba código (sdd-apply directo o dentro de un chain),
+		// no solo en el trigger SDD explícito. Así un cambio de código ad-hoc
+		// también pregunta, y el flujo SDD explícito no pregunta dos veces.
 		return { action: "continue" };
 	});
 
@@ -266,8 +267,13 @@ export default function einAi(pi: ExtensionAPI): void {
 	pi.on("tool_call", async (event, ctx) => {
 		// Delegaciones con push: el usuario confirma aquí (sesión con UI) y se
 		// emite el grant one-shot que el guard headless del subagente consume.
-		if (event.toolName === "subagent")
+		if (event.toolName === "subagent") {
+			// Gate de TDD determinista: cualquier delegación que escriba código
+			// (sdd-apply directo o dentro de un chain) resuelve la decisión de TDD
+			// antes de que arranque el apply. No-op salvo modo global "ask".
+			if (delegationTargetsApply(event.input)) await askRunTddMode(ctx);
 			return confirmDelegatedDelivery(event.input, ctx);
+		}
 		if (event.toolName !== "bash") return undefined;
 		if (!isRecord(event.input) || typeof event.input.command !== "string")
 			return undefined;
