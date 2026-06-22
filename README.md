@@ -13,9 +13,7 @@ El modelo fuerte hace de arquitecto (piensa, acota, enseña); los baratos ejecut
 
 No es un producto para todos: es **mi** workbench. Está **curado para mi stack** — Nuxt 4 · Vue 3 · TypeScript · Bun · Tailwind v4 · Pinia · Drizzle + Neon · Zod · Nuxt UI · GSAP/Motion · Hono · Vitest — y para mi forma de trabajar. Funcionaría bien con un stack parecido; cualquiera puede clonarlo y reajustar skills, modelos y persona a lo suyo.
 
-### Sobre el nombre
 
-**Ein** es el corgi de *Cowboy Bebop*: un "data dog" modificado, mucho más inteligente de lo que aparenta, que resuelve lo difícil sin hacer ruido ni buscar protagonismo. Justo lo que quiero de esta herramienta: discreta pero profundamente capaz, hace el trabajo inteligente por debajo y te deja a ti al mando.
 
 ---
 
@@ -210,11 +208,11 @@ git push origin installer-v0.10.0   # GitHub Actions compila 4 binarios + checks
 
 ---
 
+
+>**Ein** es el corgi de *Cowboy Bebop*: un "data dog" modificado, mucho más inteligente de lo que aparenta, que resuelve lo difícil sin hacer ruido ni buscar protagonismo. Justo lo que quiero de esta herramienta: discreta pero profundamente capaz, hace el trabajo inteligente por debajo y te deja a ti al mando.
+
 <p align="center">
   <img src="ein_ins.webp" alt="Ein" width="280">
 </p>
 
-<p align="center">
-  <em>Buen perro. Ahora ve a trabajar.</em><br>
-  — samuhlo
-</p>
+
