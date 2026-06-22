@@ -1,13 +1,21 @@
-# Ein
+<p align="center">
+  <img src="ein-logo.png" alt="Ein · Pi Workbench" width="440">
+</p>
 
-[![Release](https://img.shields.io/github/v/release/samuhlo/ein-agent?label=release&color=FFCA40)](https://github.com/samuhlo/ein-agent/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-737373.svg)](LICENSE)
+<p align="center">
+  <a href="https://github.com/samuhlo/ein-agent/releases/latest"><img src="https://img.shields.io/github/v/release/samuhlo/ein-agent?label=release&color=FFCA40" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-737373.svg" alt="License: MIT"></a>
+</p>
 
 > Intención corta: un harness **personal** sobre [Pi](https://github.com/earendil-works/pi-coding-agent) que convierte trabajo ambiguo en cambios pequeños, verificados y explicados — modelos caros donde se razona, baratos donde se ejecuta.
 
 El modelo fuerte hace de arquitecto (piensa, acota, enseña); los baratos ejecutan órdenes cerradas. Baja el coste y reduce errores. Ein deja artefactos (OpenSpec + EIN.md), verifica, y al terminar **te explica cómo funciona** lo que hizo — no solo "hecho".
 
 No es un producto para todos: es **mi** workbench. Está **curado para mi stack** — Nuxt 4 · Vue 3 · TypeScript · Bun · Tailwind v4 · Pinia · Drizzle + Neon · Zod · Nuxt UI · GSAP/Motion · Hono · Vitest — y para mi forma de trabajar. Funcionaría bien con un stack parecido; cualquiera puede clonarlo y reajustar skills, modelos y persona a lo suyo.
+
+### Sobre el nombre
+
+**Ein** es el corgi de [*Cowboy Bebop*](https://cowboybebop.fandom.com/es/wiki/Ein) — un **"data dog"**: un perro modificado, de inteligencia muy por encima de lo que aparenta, callado y sin alardes, que resuelve lo difícil sin hacer ruido mientras el resto de la tripulación se lleva el protagonismo. Me pareció el nombre exacto para esto: una herramienta discreta pero profundamente capaz, que hace el trabajo inteligente por debajo y te deja a ti al mando.
 
 ---
 
