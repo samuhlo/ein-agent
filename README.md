@@ -15,7 +15,7 @@ No es un producto para todos: es **mi** workbench. Está **curado para mi stack*
 
 ### Sobre el nombre
 
-**Ein** es el corgi de [*Cowboy Bebop*](https://cowboybebop.fandom.com/es/wiki/Ein) — un **"data dog"**: un perro modificado, de inteligencia muy por encima de lo que aparenta, callado y sin alardes, que resuelve lo difícil sin hacer ruido mientras el resto de la tripulación se lleva el protagonismo. Me pareció el nombre exacto para esto: una herramienta discreta pero profundamente capaz, que hace el trabajo inteligente por debajo y te deja a ti al mando.
+**Ein** es el corgi de *Cowboy Bebop*: un "data dog" modificado, mucho más inteligente de lo que aparenta, que resuelve lo difícil sin hacer ruido ni buscar protagonismo. Justo lo que quiero de esta herramienta: discreta pero profundamente capaz, hace el trabajo inteligente por debajo y te deja a ti al mando.
 
 ---
 
