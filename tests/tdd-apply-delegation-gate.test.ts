@@ -8,9 +8,8 @@
 
 import { describe, expect, test } from "bun:test";
 
-const { delegationTargetsApply, readDelegationTddHint } = await import(
-	"../ein-pi/agent/lib/sdd-preflight"
-);
+const { delegationTargetsApply, readDelegationTddHint, delegationIsDocsOnly } =
+	await import("../ein-pi/agent/lib/sdd-preflight");
 
 describe("delegationTargetsApply", () => {
 	test("single mode: agent sdd-apply → true", () => {
@@ -140,5 +139,51 @@ describe("readDelegationTddHint", () => {
 		expect(readDelegationTddHint(null)).toBeUndefined();
 		expect(readDelegationTddHint("sdd-apply")).toBeUndefined();
 		expect(readDelegationTddHint({})).toBeUndefined();
+	});
+});
+
+describe("delegationIsDocsOnly — documentación pura nunca pregunta TDD", () => {
+	test("docs puros → true", () => {
+		expect(
+			delegationIsDocsOnly({
+				agent: "sdd-apply",
+				task: "Documenta el estado actual del proyecto en docs/estado-actual.md y añade la futura feature de recomendador IA",
+			}),
+		).toBe(true);
+		expect(
+			delegationIsDocsOnly({ agent: "sdd-apply", task: "actualiza el README con la sección de deploy" }),
+		).toBe(true);
+		expect(
+			delegationIsDocsOnly({ agent: "sdd-apply", task: "redacta el CHANGELOG de la release" }),
+		).toBe(true);
+	});
+
+	test("cualquier señal de código → false (conservador)", () => {
+		// menciona un .ts → no es docs-only aunque hable de documentar
+		expect(
+			delegationIsDocsOnly({ agent: "sdd-apply", task: "documenta el comportamiento de calculatePlanning.ts" }),
+		).toBe(false);
+		// verbo de implementación
+		expect(
+			delegationIsDocsOnly({ agent: "sdd-apply", task: "implementa el endpoint y actualiza el README" }),
+		).toBe(false);
+		expect(
+			delegationIsDocsOnly({ agent: "sdd-apply", task: "refactor del store del wizard" }),
+		).toBe(false);
+	});
+
+	test("sin señal de docs ni inválido → false (cae al comportamiento normal)", () => {
+		expect(delegationIsDocsOnly({ agent: "sdd-apply", task: "arregla el bug del login" })).toBe(false);
+		expect(delegationIsDocsOnly(undefined)).toBe(false);
+		expect(delegationIsDocsOnly({})).toBe(false);
+	});
+
+	test("docs en un paso de chain también cuenta", () => {
+		expect(
+			delegationIsDocsOnly({
+				task: "documentación",
+				chain: [{ agent: "sdd-apply", task: "escribe docs/guia.md" }],
+			}),
+		).toBe(true);
 	});
 });

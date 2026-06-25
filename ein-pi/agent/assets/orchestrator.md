@@ -31,6 +31,7 @@ await subagent({ agent: "ein-git", task: "commit files X,Y with message '...'", 
   - **Investigation needed** (you do NOT yet know the exact change) → give the intent + the exact file(s)/scope + acceptance criteria, and let it find the fix.
   - **Already diagnosed** (you did a read-only scan and KNOW the exact edit) → hand a **CLOSED patch**: the file, the exact `before → after`, and the specific focused tests to run. Tell it **NOT to re-scan or re-diagnose** — just patch and verify. Re-deriving what you already found is wasted cheap-model tokens: a one-line fix you've already pinpointed must not trigger a full re-discovery.
   - **Output (ad-hoc apply):** for a single apply OUTSIDE the SDD chain, do NOT set `output` / `outputMode: file-only`, and **never invent a report path** — the apply returns its report **INLINE** in the phase envelope. In-repo artifacts (`openspec/changes/<change>/…`) are ONLY for real chain runs. Writing a scratch report into the user's repo pollutes their working tree and forces a second apply just to delete it.
+  - **Verification you hand it = type-check + focused tests, never a full production build.** Do NOT put `bun run build` / `nuxt build` / `generate` in an apply's verification list — a production build is slow, can block on the network/DB, and hangs the cheap apply (no TTY, no streaming). Deploy-readiness builds go to `sdd-verify` or you run them yourself with the right env (`DATABASE_URL`…), streaming, and a tight `timeout` — never piped through `tail`/`head`.
 
 ## Work Routing Ladder
 

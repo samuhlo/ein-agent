@@ -235,14 +235,16 @@ function resolveTddNoAsk(ctx: ExtensionContext): TddMode {
 }
 
 // Fija el TDD de la tarea (override determinista) sin preguntar: lo usan tanto
-// el ask interactivo como el hint del orquestador. Notifica para que el usuario
-// vea qué se decidió por él en un cambio mecánico.
+// el ask interactivo como el hint del orquestador y el salto de docs. Solo avisa
+// en `strict`: que TDD quede forzado ON sin preguntar SÍ importa saberlo; "off"
+// es un no-evento (mecánico/docs/trivial) y anunciarlo solo es ruido.
 function setTaskTddMode(ctx: ExtensionContext, mode: TddMode): void {
 	const key = sddPreflightSessionKey(ctx);
 	tddRunOverride.set(key, mode);
 	const cached = sddPreflightBySession.get(key);
 	if (cached) cached.tddMode = mode;
-	if (ctx.hasUI) ctx.ui.notify(`TDD para esta tarea: ${mode}`, "info");
+	if (ctx.hasUI && mode === "strict")
+		ctx.ui.notify(`TDD para esta tarea: ${mode}`, "info");
 }
 
 // Pregunta el TDD de la tarea cuando el global es "ask". No-op si no hay UI o el
@@ -304,17 +306,56 @@ export function readDelegationTddHint(input: unknown): TddMode | undefined {
 	return typeof input.task === "string" ? tddHintFromText(input.task) : undefined;
 }
 
-// Gate de TDD ante una delegación. En modo global "ask": si la delegación
-// escribe código y el orquestador la clasificó (hint off/strict), se fija sin
-// molestar al usuario; si NO la clasificó, se pregunta. Fuera de "ask" o sin UI,
-// no-op. Esto es lo que evita preguntar TDD en mover/renombrar/config: el parent
-// los marca `tdd: "off"`.
+// Señal de que la delegación toca CÓDIGO (extensión de fuente o verbo de
+// implementación): si aparece, no es docs-only por mucho que mencione un .md.
+const CODE_SIGNAL =
+	/\.(?:ts|tsx|js|jsx|mjs|cjs|vue|svelte|py|rb|go|rs|java|kt|c|cc|cpp|h|hpp|cs|php|sql|css|scss|less|json|ya?ml|toml)\b|\b(?:implementa?r?|implement|refactor\w*|funci[oó]n|function|endpoint|component\w*|composable|store|migrat\w*|tests?)\b/i;
+// Señal de documentación: extensión de doc, fichero de doc conocido, o verbo de
+// documentar.
+const DOCS_SIGNAL =
+	/\.(?:md|mdx|markdown|rst|txt)\b|\b(?:docs?|readme|changelog|license)\b|\bdocument\w*|\bdocumenta\w*/i;
+
+function collectDelegationTaskTexts(input: unknown): string[] {
+	if (!isRecord(input)) return [];
+	const texts: string[] = [];
+	if (typeof input.task === "string") texts.push(input.task);
+	for (const key of ["tasks", "steps", "chain"]) {
+		const items = input[key];
+		if (!Array.isArray(items)) continue;
+		for (const item of items) {
+			if (isRecord(item) && typeof item.task === "string") texts.push(item.task);
+		}
+	}
+	return texts;
+}
+
+// ¿La delegación es documentación pura (sin código)? Conservador a propósito:
+// requiere señal de docs Y ausencia de señal de código; ante la duda devuelve
+// false (→ se comporta como antes: pregunta). Evita arrastrar un cambio de docs
+// al gate de TDD —no hay tests que escribir— sin depender de que el parent
+// recuerde el hint.
+export function delegationIsDocsOnly(input: unknown): boolean {
+	const texts = collectDelegationTaskTexts(input);
+	if (texts.length === 0) return false;
+	const blob = texts.join("\n");
+	if (CODE_SIGNAL.test(blob)) return false;
+	return DOCS_SIGNAL.test(blob);
+}
+
+// Gate de TDD ante una delegación. En modo global "ask": documentación pura se
+// salta el gate (off silencioso, no hay tests); si la delegación escribe código
+// y el orquestador la clasificó (hint off/strict), se fija sin molestar; si NO
+// la clasificó, se pregunta. Fuera de "ask" o sin UI, no-op.
 export async function gateTddForDelegation(
 	input: unknown,
 	ctx: ExtensionContext,
 ): Promise<void> {
 	if (!ctx.hasUI || readTddMode(ctx.cwd) !== "ask") return;
 	if (!delegationTargetsApply(input)) return;
+	if (delegationIsDocsOnly(input)) {
+		setTaskTddMode(ctx, "off");
+		return;
+	}
 	const hint = readDelegationTddHint(input);
 	if (hint) {
 		setTaskTddMode(ctx, hint);

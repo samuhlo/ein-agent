@@ -27,6 +27,12 @@ Read `design.md`, `apply-progress.md`, changed code, tests, and `openspec/config
 
 Run required focused and full verification commands when available. Report commands exactly, including failures.
 
+**Command hygiene (you run the heavy ones — a production build legitimately lives here).**
+
+- **Stream, don't buffer.** Never pipe a long-running command through `tail`/`head`/a pager: `cmd 2>&1 | tail -60` withholds all output until the command ends, so the runtime sees no activity and flags you as hung. Let it stream; if you only need the tail, redirect to a temp file and read it after (`<cmd> > "$(mktemp)" 2>&1; tail "$tmp"`).
+- **Always bound with `timeout`.** A build/test run gets `timeout 300 <cmd>` (raise only with reason) so a genuine hang aborts instead of burning the whole budget.
+- **Builds need their env.** A production build of an app that reads a database (e.g. NeonDB) needs `DATABASE_URL` (and any other runtime secret) present, or a prerender/server step can block on the network. If the env is missing, report that the build can't be validated here rather than hanging on it.
+
 ## Strict TDD Verification
 
 If strict TDD is active in `openspec/config.yaml`, parent prompt, or `apply-progress.md`:
