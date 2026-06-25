@@ -48,9 +48,9 @@ This prompt is the complete strict-TDD contract; do not silently fall back to st
 
 If strict TDD is not active, implement assigned tasks against the design plan, update task checkboxes, and record verification evidence.
 
-## Apply Progress
+## Apply Progress (chain runs only)
 
-Update `openspec/changes/{change}/apply-progress.md` cumulatively. If previous progress exists, merge it with new progress; never overwrite completed work.
+When you run as a phase of the SDD chain — a `design.md` and an `openspec/changes/{change}/` directory exist — update `openspec/changes/{change}/apply-progress.md` cumulatively. If previous progress exists, merge it with new progress; never overwrite completed work.
 
 Include:
 
@@ -60,6 +60,10 @@ Include:
 - TDD evidence when strict TDD is active;
 - deviations from design;
 - remaining tasks.
+
+## Ad-hoc apply (no chain / no change dir)
+
+When the parent delegates a single bounded change OUTSIDE the SDD chain — no `design.md`, no `openspec/changes/{change}/` — return your report **INLINE** in the phase envelope. Do **NOT** write any report or progress file into the repository: a scratch `*.md` in the user's working tree pollutes it and forces a second apply just to delete it. The in-repo artifact convention is reserved for real chain runs under `openspec/changes/`. (If the parent already pinpointed the exact edit, just apply that patch and run the requested focused tests — don't re-scan the tree to re-derive what you were handed.)
 
 Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit unless the user explicitly asks.
 

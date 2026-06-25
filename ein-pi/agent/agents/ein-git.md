@@ -65,12 +65,12 @@ Protects the reviewer from un-reviewable PRs. The numbers are **measured, not es
 
 Run this once, right before opening (or pushing for) a PR:
 
-1. Measure the REAL changed lines: `git diff --stat <base>..HEAD` and sum `additions + deletions` (the totals line). For an uncommitted change, `git diff --stat` (staged + unstaged) is equivalent. This is a cheap stat read you already do — do NOT expand it into a full diff.
+1. Measure the **PRODUCTION** changed lines (excluding tests and generated files): `git diff --shortstat <base>..HEAD -- . ':(exclude)*.test.*' ':(exclude)*.spec.*' ':(exclude)**/tests/**' ':(exclude)**/__tests__/**' ':(exclude)**/e2e/**' ':(exclude)*.snap' ':(exclude)*-lock.*' ':(exclude)dist/**' ':(exclude).output/**' ':(exclude).nuxt/**' ':(exclude)coverage/**' ':(exclude)*.min.*'` and sum `insertions + deletions`. Measure test lines separately for the report (`git diff --shortstat <base>..HEAD -- '*.test.*' '*.spec.*' '**/tests/**'`). For an uncommitted change, drop `<base>..HEAD` (staged + unstaged) — the pathspec is the same. This is a cheap stat read — do NOT expand it into a full diff.
 2. Read the budget and strategy the parent forwarded in the task (from the SDD preflight: `Review budget: N changed lines`, `Chained PR strategy: …`). If the parent didn't forward them, default to **400 lines** and strategy `auto-forecast`.
-3. Decide:
-   - changed lines **≤ budget** → within budget, proceed to open the PR.
+3. Decide on the **production** count (test/generated lines never gate):
+   - production lines **≤ budget** → within budget, proceed to open the PR.
    - strategy is **`single-pr-default`** → the user already opted for one PR regardless of size; proceed, but note the size in your report.
-   - changed lines **> budget** and strategy is not `single-pr-default` → **STOP. Do NOT open the PR.** Return a report to the parent: the measured line count, the budget, and a recommended split into chained PRs (slice boundaries by work-unit; the `chained-pr` skill has the splitting recipe). The parent asks the user for the delivery decision and re-delegates.
+   - production lines **> budget** and strategy is not `single-pr-default` → **STOP. Do NOT open the PR.** Return a report to the parent: the production line count, the test line count (reported, not counted), the budget, and a recommended split into chained PRs (slice boundaries by work-unit; the `chained-pr` skill has the splitting recipe). The parent asks the user for the delivery decision and re-delegates.
 4. `auto` execution mode does **not** bypass this gate — reviewer-burnout protection is not a speed preference. You are headless (hard gate #8): never ask the user yourself; stopping and reporting is how the decision reaches them.
 
 ## PR body (brutalist style, samuhlo persona)
