@@ -234,21 +234,93 @@ function resolveTddNoAsk(ctx: ExtensionContext): TddMode {
 	return global === "ask" ? "auto" : global;
 }
 
-// Pregunta el TDD de la tarea cuando el global es "ask". Lo llama el input hook
-// en cada disparo explícito de SDD → se pregunta por tarea, no una vez por
-// sesión. No-op si no hay UI o el modo no es "ask".
+// Fija el TDD de la tarea (override determinista) sin preguntar: lo usan tanto
+// el ask interactivo como el hint del orquestador. Notifica para que el usuario
+// vea qué se decidió por él en un cambio mecánico.
+function setTaskTddMode(ctx: ExtensionContext, mode: TddMode): void {
+	const key = sddPreflightSessionKey(ctx);
+	tddRunOverride.set(key, mode);
+	const cached = sddPreflightBySession.get(key);
+	if (cached) cached.tddMode = mode;
+	if (ctx.hasUI) ctx.ui.notify(`TDD para esta tarea: ${mode}`, "info");
+}
+
+// Pregunta el TDD de la tarea cuando el global es "ask". No-op si no hay UI o el
+// modo no es "ask". Lo invoca el gate de delegación SOLO cuando el orquestador
+// no clasificó el cambio (sin hint) — un cambio de comportamiento de verdad.
 export async function askRunTddMode(ctx: ExtensionContext): Promise<void> {
 	if (!ctx.hasUI || readTddMode(ctx.cwd) !== "ask") return;
 	const picked = await ctx.ui.select(
 		"TDD estricto para esta tarea SDD (UI/visual/trivial → off)",
 		["off", "strict"],
 	);
-	const mode: TddMode = picked === "strict" ? "strict" : "off";
-	const key = sddPreflightSessionKey(ctx);
-	tddRunOverride.set(key, mode);
-	const cached = sddPreflightBySession.get(key);
-	if (cached) cached.tddMode = mode;
-	ctx.ui.notify(`TDD para esta tarea: ${mode}`, "info");
+	setTaskTddMode(ctx, picked === "strict" ? "strict" : "off");
+}
+
+// Normaliza un hint de TDD que el orquestador puede pasar en la delegación.
+// `false`/"off"/"skip"/"none"/"no" → off (cambio mecánico, sin RED/GREEN).
+// `true`/"strict"/"on"/"yes" → strict. "ask"/desconocido → undefined (cae al
+// ask interactivo). Cualquier otra cosa no decide nada.
+function normalizeTddHint(value: unknown): TddMode | undefined {
+	if (value === false) return "off";
+	if (value === true) return "strict";
+	if (typeof value !== "string") return undefined;
+	const s = value.trim().toLowerCase();
+	if (s === "off" || s === "skip" || s === "none" || s === "no") return "off";
+	if (s === "strict" || s === "on" || s === "yes") return "strict";
+	return undefined;
+}
+
+// Marcadores en el TEXTO de la task del apply: canal de respaldo garantizado
+// (la task siempre llega al hook; un campo `tdd` extra podría no sobrevivir al
+// schema del tool). El parent ya escribe "STRICT TDD MODE IS ACTIVE" en applies
+// directos → strict. "NO TDD"/"SIN TDD"/"TDD: off|skip" → off.
+function tddHintFromText(text: string): TddMode | undefined {
+	if (/\bstrict\s+tdd\s+mode\s+is\s+active\b/i.test(text)) return "strict";
+	if (/\bno[-\s]?tdd\b|\bsin\s+tdd\b|\btdd\s*[:=]?\s*(?:off|skip)\b/i.test(text))
+		return "off";
+	return undefined;
+}
+
+// Lee la decisión de TDD que el orquestador adjuntó a la delegación que escribe
+// código. Prioriza el hint más específico (el del paso `sdd-apply` dentro de un
+// chain/parallel) sobre el de nivel superior; campo estructurado `tdd` antes que
+// el marcador de texto. undefined → el orquestador no clasificó → preguntar.
+export function readDelegationTddHint(input: unknown): TddMode | undefined {
+	if (!isRecord(input)) return undefined;
+	for (const key of ["tasks", "steps", "chain"]) {
+		const items = input[key];
+		if (!Array.isArray(items)) continue;
+		for (const item of items) {
+			if (!isRecord(item) || item.agent !== "sdd-apply") continue;
+			const field = normalizeTddHint(item.tdd);
+			if (field) return field;
+			const text = typeof item.task === "string" ? tddHintFromText(item.task) : undefined;
+			if (text) return text;
+		}
+	}
+	const field = normalizeTddHint(input.tdd);
+	if (field) return field;
+	return typeof input.task === "string" ? tddHintFromText(input.task) : undefined;
+}
+
+// Gate de TDD ante una delegación. En modo global "ask": si la delegación
+// escribe código y el orquestador la clasificó (hint off/strict), se fija sin
+// molestar al usuario; si NO la clasificó, se pregunta. Fuera de "ask" o sin UI,
+// no-op. Esto es lo que evita preguntar TDD en mover/renombrar/config: el parent
+// los marca `tdd: "off"`.
+export async function gateTddForDelegation(
+	input: unknown,
+	ctx: ExtensionContext,
+): Promise<void> {
+	if (!ctx.hasUI || readTddMode(ctx.cwd) !== "ask") return;
+	if (!delegationTargetsApply(input)) return;
+	const hint = readDelegationTddHint(input);
+	if (hint) {
+		setTaskTddMode(ctx, hint);
+		return;
+	}
+	await askRunTddMode(ctx);
 }
 
 // Detecta si una llamada al tool `subagent` acabará escribiendo código vía

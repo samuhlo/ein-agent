@@ -23,6 +23,7 @@ import type {
 	ExtensionContext,
 	ToolCallEventResult,
 } from "@earendil-works/pi-coding-agent";
+import type { GitDeliveryMode } from "./git-delivery.ts";
 import { pick } from "./lang.ts";
 
 const DENIED_BASH_PATTERNS: RegExp[] = [
@@ -173,14 +174,34 @@ export function taskRequestsGuardedDelivery(text: string): boolean {
 	return DELEGATED_DELIVERY_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+export interface DeliveryGateOptions {
+	// Modo de confirmación de entrega (.pi/ein/git.json). auto/ask/off.
+	mode: GitDeliveryMode;
+	// ¿El último mensaje del usuario pidió explícitamente la entrega? En modo
+	// `auto` esto salta la confirmación (ya la autorizó al pedirla).
+	userRequested: boolean;
+}
+
 export async function confirmDelegatedDelivery(
 	input: unknown,
 	ctx: ExtensionContext,
+	options: DeliveryGateOptions,
 ): Promise<ToolCallEventResult | undefined> {
 	// Sin UI no podemos confirmar aquí; el guard de bash del subagente decide.
 	if (!ctx.hasUI) return undefined;
 	const texts = collectDelegationTexts(input);
 	if (!texts.some(taskRequestsGuardedDelivery)) return undefined;
+	// Política de confirmación. El grant one-shot se EMITE siempre que dejemos
+	// pasar la entrega (auto-autorizada, off o aprobada): el ein-git headless lo
+	// necesita para su `git push`. Solo cambia si mostramos el ui.confirm o no.
+	// off → nunca preguntar. auto → no preguntar si el usuario la pidió.
+	if (
+		options.mode === "off" ||
+		(options.mode === "auto" && options.userRequested)
+	) {
+		grantDelegatedDelivery(ctx.cwd);
+		return undefined;
+	}
 	const preview = truncatePreview(texts.join(" | "), 180);
 	const approved = await ctx.ui.confirm(
 		pick(

@@ -13,16 +13,21 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
-	askRunTddMode,
-	delegationTargetsApply,
 	ensureSddPreflight,
+	gateTddForDelegation,
 	getSddPreflightPreferences,
 	installSddAssets,
 	isSddPreflightTrigger,
 	renderSddPreflightPrompt,
 	sddGlobalAssetDriftCount,
+	sddPreflightSessionKey,
 	type SddPreflightPreferences,
 } from "../lib/sdd-preflight.ts";
+import {
+	handleGitCommand,
+	messageRequestsDelivery,
+	readGitDeliveryMode,
+} from "../lib/git-delivery.ts";
 import {
 	buildEinPrompt,
 	handlePersonaCommand,
@@ -71,6 +76,13 @@ import { AGENT_DIR } from "./ein-paths";
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+// Intención de entrega del ÚLTIMO mensaje del usuario, por sesión. La fija el
+// hook `input` y la lee el gate de entrega en `tool_call`: en modo git `auto`,
+// si el usuario pidió commit/push/PR, no se le vuelve a preguntar. Se sobreescribe
+// en cada mensaje (vale hasta el siguiente) → una entrega por iniciativa del
+// agente, sin petición previa, sí dispara la confirmación.
+const deliveryIntentBySession = new Map<string, boolean>();
 
 function readStringPath(value: unknown, path: string[]): string | undefined {
 	let current = value;
@@ -207,6 +219,15 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.on("input", async (event, ctx) => {
+		// Intención de entrega del turno: ¿este mensaje pide commit/push/PR? La lee
+		// el gate de entrega en `tool_call` (modo git `auto`). Se actualiza SIEMPRE,
+		// también en mensajes sin SDD, y reemplaza la del turno anterior.
+		if (typeof event.text === "string") {
+			deliveryIntentBySession.set(
+				sddPreflightSessionKey(ctx),
+				messageRequestsDelivery(event.text),
+			);
+		}
 		if (typeof event.text !== "string" || !isSddPreflightTrigger(event.text)) {
 			return { action: "continue" };
 		}
@@ -268,11 +289,16 @@ export default function einAi(pi: ExtensionAPI): void {
 		// Delegaciones con push: el usuario confirma aquí (sesión con UI) y se
 		// emite el grant one-shot que el guard headless del subagente consume.
 		if (event.toolName === "subagent") {
-			// Gate de TDD determinista: cualquier delegación que escriba código
-			// (sdd-apply directo o dentro de un chain) resuelve la decisión de TDD
-			// antes de que arranque el apply. No-op salvo modo global "ask".
-			if (delegationTargetsApply(event.input)) await askRunTddMode(ctx);
-			return confirmDelegatedDelivery(event.input, ctx);
+			// Gate de TDD ante una delegación que escribe código (sdd-apply directo
+			// o dentro de un chain). En modo global "ask": si el orquestador clasificó
+			// el cambio (hint tdd off/strict) se fija sin preguntar; si no, pregunta.
+			// Así un mover/renombrar/config marcado off no interrumpe el flujo.
+			await gateTddForDelegation(event.input, ctx);
+			return confirmDelegatedDelivery(event.input, ctx, {
+				mode: readGitDeliveryMode(ctx.cwd),
+				userRequested:
+					deliveryIntentBySession.get(sddPreflightSessionKey(ctx)) ?? false,
+			});
 		}
 		if (event.toolName !== "bash") return undefined;
 		if (!isRecord(event.input) || typeof event.input.command !== "string")
@@ -372,6 +398,16 @@ export default function einAi(pi: ExtensionAPI): void {
 		),
 		handler: async (_args, ctx) => {
 			await handleTddCommand(ctx);
+		},
+	});
+
+	pi.registerCommand("ein:git", {
+		description: t(
+			"cmd.git.description",
+			"Ver o cambiar la confirmación de entrega git (auto/ask/off)",
+		),
+		handler: async (_args, ctx) => {
+			await handleGitCommand(ctx);
 		},
 	});
 
@@ -522,6 +558,9 @@ export default function einAi(pi: ExtensionAPI): void {
 			lines.push(`${t("status.author", "autor")}: samuhlo`);
 			lines.push(`${t("status.mode", "modo")}: ${readMode(ctx.cwd)}`);
 			lines.push(`${t("status.persona", "persona")}: ${readPersonaMode(ctx.cwd)}`);
+			lines.push(
+				`${t("status.git", "entrega git")}: ${readGitDeliveryMode(ctx.cwd)}`,
+			);
 			lines.push(
 				`${t("status.lang", "idioma")}: ${t("status.lang.chat", "conversación")}=${LANG_LABEL[chatLang]} · ${t("status.lang.artifacts", "artefactos")}=${LANG_LABEL[artifactLang]}`,
 			);

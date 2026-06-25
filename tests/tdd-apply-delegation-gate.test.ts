@@ -8,7 +8,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-const { delegationTargetsApply } = await import(
+const { delegationTargetsApply, readDelegationTddHint } = await import(
 	"../ein-pi/agent/lib/sdd-preflight"
 );
 
@@ -74,5 +74,71 @@ describe("delegationTargetsApply", () => {
 		expect(delegationTargetsApply("sdd-apply")).toBe(false);
 		expect(delegationTargetsApply({ chain: "sdd-apply" })).toBe(false);
 		expect(delegationTargetsApply({})).toBe(false);
+	});
+});
+
+describe("readDelegationTddHint", () => {
+	test("single con tdd:'off' → off (mecánico, no pregunta)", () => {
+		expect(
+			readDelegationTddHint({ agent: "sdd-apply", task: "rename", tdd: "off" }),
+		).toBe("off");
+	});
+
+	test("single con tdd:false → off", () => {
+		expect(
+			readDelegationTddHint({ agent: "sdd-apply", task: "mv", tdd: false }),
+		).toBe("off");
+	});
+
+	test("single con tdd:'strict'/true → strict", () => {
+		expect(
+			readDelegationTddHint({ agent: "sdd-apply", task: "x", tdd: "strict" }),
+		).toBe("strict");
+		expect(
+			readDelegationTddHint({ agent: "sdd-apply", task: "x", tdd: true }),
+		).toBe("strict");
+	});
+
+	test("sin hint → undefined (cae al ask interactivo)", () => {
+		expect(readDelegationTddHint({ agent: "sdd-apply", task: "x" })).toBeUndefined();
+		expect(
+			readDelegationTddHint({ agent: "sdd-apply", task: "x", tdd: "ask" }),
+		).toBeUndefined();
+	});
+
+	test("hint del paso sdd-apply dentro de chain gana", () => {
+		const input = {
+			task: "feature",
+			chain: [
+				{ agent: "sdd-design", task: "{task}" },
+				{ agent: "sdd-apply", task: "{task}", tdd: "off" },
+			],
+		};
+		expect(readDelegationTddHint(input)).toBe("off");
+	});
+
+	test("marcador de texto: 'STRICT TDD MODE IS ACTIVE' → strict", () => {
+		expect(
+			readDelegationTddHint({
+				agent: "sdd-apply",
+				task: "Implementa el motor. STRICT TDD MODE IS ACTIVE. Test runner: bun test.",
+			}),
+		).toBe("strict");
+	});
+
+	test("marcador de texto: 'SIN TDD' / 'TDD: off' → off", () => {
+		expect(
+			readDelegationTddHint({ agent: "sdd-apply", task: "Renombra Foo. SIN TDD." }),
+		).toBe("off");
+		expect(
+			readDelegationTddHint({ agent: "sdd-apply", task: "bump config (tdd: off)" }),
+		).toBe("off");
+	});
+
+	test("entradas inválidas → undefined (no lanza)", () => {
+		expect(readDelegationTddHint(undefined)).toBeUndefined();
+		expect(readDelegationTddHint(null)).toBeUndefined();
+		expect(readDelegationTddHint("sdd-apply")).toBeUndefined();
+		expect(readDelegationTddHint({})).toBeUndefined();
 	});
 });

@@ -127,33 +127,39 @@ describe("confirmDelegatedDelivery (tool subagent)", () => {
 		expect(taskRequestsGuardedDelivery("explora el repo y resume")).toBe(false);
 	});
 
+	// Modo por defecto en las pruebas clásicas: `ask` (siempre confirma).
+	const ASK = { mode: "ask", userRequested: false } as const;
+
 	test("delegación sin push no pregunta ni emite grant", async () => {
 		const { ctx, calls } = ctxStub(true);
 		const result = await confirmDelegatedDelivery(
 			{ agent: "ein-linear", task: "actualiza la issue SAM-366" },
 			ctx,
+			ASK,
 		);
 		expect(result).toBeUndefined();
 		expect(calls.length).toBe(0);
 		expect(existsSync(deliveryGrantPath())).toBe(false);
 	});
 
-	test("delegación con push aprobada emite grant one-shot", async () => {
+	test("modo ask: delegación con push aprobada emite grant one-shot", async () => {
 		const { ctx, calls } = ctxStub(true, true);
 		const result = await confirmDelegatedDelivery(
 			{ agent: "ein-github", task: "haz push de la rama y abre PR" },
 			ctx,
+			ASK,
 		);
 		expect(result).toBeUndefined();
 		expect(calls.length).toBe(1);
 		expect(consumeDelegatedDelivery(CWD)).toBe(true);
 	});
 
-	test("delegación con push rechazada bloquea sin grant", async () => {
+	test("modo ask: delegación con push rechazada bloquea sin grant", async () => {
 		const { ctx } = ctxStub(true, false);
 		const result = await confirmDelegatedDelivery(
 			{ agent: "ein-github", task: "git push y PR" },
 			ctx,
+			ASK,
 		);
 		expect(result?.block).toBe(true);
 		expect(existsSync(deliveryGrantPath())).toBe(false);
@@ -164,6 +170,7 @@ describe("confirmDelegatedDelivery (tool subagent)", () => {
 		await confirmDelegatedDelivery(
 			{ tasks: [{ agent: "ein-github", task: "sube rama y abre PR" }] },
 			ctx,
+			ASK,
 		);
 		expect(calls.length).toBe(1);
 		expect(consumeDelegatedDelivery(CWD)).toBe(true);
@@ -174,8 +181,45 @@ describe("confirmDelegatedDelivery (tool subagent)", () => {
 		const result = await confirmDelegatedDelivery(
 			{ agent: "ein-github", task: "haz push" },
 			ctx,
+			ASK,
 		);
 		expect(result).toBeUndefined();
 		expect(existsSync(deliveryGrantPath())).toBe(false);
+	});
+
+	test("modo auto + el usuario lo pidió: no pregunta, emite grant", async () => {
+		const { ctx, calls } = ctxStub(true);
+		const result = await confirmDelegatedDelivery(
+			{ agent: "ein-github", task: "haz push y abre PR" },
+			ctx,
+			{ mode: "auto", userRequested: true },
+		);
+		expect(result).toBeUndefined();
+		expect(calls.length).toBe(0); // sin confirmación
+		expect(consumeDelegatedDelivery(CWD)).toBe(true);
+	});
+
+	test("modo auto + iniciativa del agente (no lo pidió): confirma", async () => {
+		const { ctx, calls } = ctxStub(true, true);
+		const result = await confirmDelegatedDelivery(
+			{ agent: "ein-github", task: "haz push y abre PR" },
+			ctx,
+			{ mode: "auto", userRequested: false },
+		);
+		expect(result).toBeUndefined();
+		expect(calls.length).toBe(1); // sí pregunta
+		expect(consumeDelegatedDelivery(CWD)).toBe(true);
+	});
+
+	test("modo off: nunca pregunta, emite grant aunque no lo pidiera", async () => {
+		const { ctx, calls } = ctxStub(true);
+		const result = await confirmDelegatedDelivery(
+			{ agent: "ein-github", task: "git push origin main" },
+			ctx,
+			{ mode: "off", userRequested: false },
+		);
+		expect(result).toBeUndefined();
+		expect(calls.length).toBe(0);
+		expect(consumeDelegatedDelivery(CWD)).toBe(true);
 	});
 });

@@ -67,7 +67,9 @@ Route each task through the smallest safe harness — but **"smallest" NEVER mea
 
 ## Structured Questions (`ask_user_question`)
 
-When you need a user decision, prefer `ask_user_question` over free prose — but only when the answer changes the next step. Over-asking is as bad as never asking. Use it at: irreversible/delivery actions (before `git push`, PR, merge), the Plan Gate confirmation, SDD gates (before `apply`/PR), and genuine 2-4 way branches. Keep it to 1-4 questions, 2-4 options, recommended option first, in the user's language.
+When you need a user decision, prefer `ask_user_question` over free prose — but only when the answer changes the next step. Over-asking is as bad as never asking. Use it at: the Plan Gate confirmation, SDD gates (before `apply`), the Review Workload split decision, and genuine 2-4 way branches. Keep it to 1-4 questions, 2-4 options, recommended option first, in the user's language.
+
+**Delivery confirmation is NOT yours to ask.** Do NOT add your own `ask_user_question` / confirmation before a delegated `commit`/`push`/`PR`/`merge`. Ein has a deterministic delivery gate (`.pi/ein/git.json`, mode `auto`/`ask`/`off`) that handles it: in `auto` it skips the prompt precisely because the user already asked for the delivery in their message; in `ask` it confirms; `off` never confirms. A second prompt from you is the double-ask we removed — when the user said "haz commit y push", just delegate to `ein-git` and let the gate decide. (Force-push stays denied outright regardless of mode.)
 
 ## SDD Flow
 
@@ -104,6 +106,13 @@ Hard rules: `chain` is an ARRAY of OBJECTS; `reads` is a JSON array (`["init.md"
 **Phase result envelope:** `status, executive_summary, artifacts, next_recommended, risks, skill_resolution`. Synthesize these — don't paste raw reports.
 
 **Strict TDD forwarding.** The preflight TDD decision overrides `openspec/config.yaml` (OFF → standard mode, no RED/GREEN; ON → strict; AUTO → follow config). Via the `ein-sdd` chain (normal path), keep the shared `{task}` **phase-neutral**: do NOT put the TDD line in it — it would force the read-only phases to run tests; the decision reaches `sdd-apply` through the injected preflight block (code-writing phases only). Only when invoking `sdd-apply` directly, include: `STRICT TDD MODE IS ACTIVE. Test runner: <command>. Follow RED, GREEN, TRIANGULATE, REFACTOR. Record evidence.`
+
+**TDD ask gate — you classify, don't make the user classify.** When the global TDD mode is `ask`, Ein would otherwise prompt the user before EVERY code-writing delegation — noise on non-behavioral work. So when you delegate to `sdd-apply`, pass an explicit `tdd` hint so the gate doesn't interrupt the flow needlessly:
+- `tdd: "off"` for **mechanical / non-behavioral** changes — move/rename/delete a file, config or dependency bump, copy/text tweak, pure-visual/CSS, formatting, comments/docs. No RED/GREEN, no question.
+- `tdd: "strict"` when the change is clearly logic-heavy and you already know it warrants tests — skips the question, forces the cycle.
+- **Omit it** only when it's a genuine behavioral change AND you're unsure — then (and only then) the user is asked.
+
+Consulted ONLY in global `ask` mode (`auto`/`strict`/`off` ignore it). Set it on the `sdd-apply` step (single, `tasks[]`, or `chain[]`): `await subagent({ agent: "sdd-apply", task: "rename Foo → Bar across imports", tdd: "off" })`. No hint still asks, so forgetting it costs one extra prompt — never a silently-skipped TDD on real logic.
 
 ## Deterministic guards (live in the agent that enforces them)
 
