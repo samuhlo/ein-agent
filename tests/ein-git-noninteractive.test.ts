@@ -1,0 +1,54 @@
+// =============================================================================
+// TESTS: ein-git no interactivo (anti-regresión de prompt)
+// El cuelgue #1 de ein-git: `gh pr create` cae en un prompt/editor interactivo
+// en un subagente headless (sin TTY) y arde hasta el timeout. El fix manda la
+// receta no interactiva (body a fichero, flags explícitos, sin --web) + precheck
+// de scope `workflow` + maxRuntimeMs tirante para delivery en el orquestador.
+// Contratos de prompt → se asertan por substring para que no se pierdan.
+// =============================================================================
+
+import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const AGENT = join(import.meta.dir, "../ein-pi/agent");
+const einGit = readFileSync(join(AGENT, "agents/ein-git.md"), "utf8");
+const orchestrator = readFileSync(join(AGENT, "assets/orchestrator.md"), "utf8");
+
+describe("ein-git crea PRs de forma no interactiva (no cuelga)", () => {
+	test("manda body-file + flags explícitos, prohíbe bare y --web", () => {
+		expect(einGit).toContain("--body-file");
+		expect(einGit).toContain("--head");
+		expect(einGit).toContain("never a bare `gh pr create`");
+		expect(einGit).toContain("never `--web`");
+	});
+
+	test("fuerza entorno no interactivo (sin prompt, sin pager)", () => {
+		expect(einGit).toContain("GH_PROMPT_DISABLED=1");
+		expect(einGit).toContain("GH_PAGER=cat");
+	});
+
+	test("read-back por JSON (no paginable)", () => {
+		expect(einGit).toContain("gh pr view");
+		expect(einGit).toContain("--json");
+	});
+
+	test("no reintenta el comando idéntico que se cuelga", () => {
+		expect(einGit.toLowerCase()).toContain("do **not** retry the identical command");
+	});
+});
+
+describe("precheck del scope workflow (fail-fast)", () => {
+	test("comprueba el scope antes de pushear .github/workflows", () => {
+		expect(einGit).toContain(".github/workflows");
+		expect(einGit).toContain("gh auth status");
+		expect(einGit).toContain("gh auth refresh --scopes workflow");
+	});
+});
+
+describe("delivery con maxRuntimeMs tirante", () => {
+	test("el orquestador pasa un presupuesto corto a ein-git, no el de chain", () => {
+		expect(orchestrator).toContain("tight `maxRuntimeMs`");
+		expect(orchestrator).toContain("120000");
+	});
+});

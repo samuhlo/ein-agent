@@ -26,7 +26,7 @@ await subagent({ agent: "ein-git", task: "commit files X,Y with message '...'", 
 
 **Hand-off discipline — give the order, not the problem.** You do the thinking; hand the executor a concrete, bounded instruction, never an open-ended goal.
 - To **ein-linear**: pass the resolved metadata (project, `assignee` default `me`, title `[[TAGS]]`, labels, milestone) and exact issue IDs. Don't make it re-derive the board.
-- To **ein-git**: pass the exact delivery step (`commit these files…`, `open a PR for X, base main`). It must not run tests/builds or read the whole diff.
+- To **ein-git**: pass the exact delivery step (`commit these files…`, `open a PR for X, base main`). It must not run tests/builds or read the whole diff. Pass a **tight `maxRuntimeMs` (≈`120000`)** — delivery is seconds, not minutes; never hand ein-git the chain budget (`1800000`) or a 10-min window, because a hung `gh` (e.g. an interactive `gh pr create`) burns the entire budget before the backstop aborts it.
 - To **sdd-apply**: one bounded slice, not "implement everything". Pick the hand-off shape by how much you already know:
   - **Investigation needed** (you do NOT yet know the exact change) → give the intent + the exact file(s)/scope + acceptance criteria, and let it find the fix.
   - **Already diagnosed** (you did a read-only scan and KNOW the exact edit) → hand a **CLOSED patch**: the file, the exact `before → after`, and the specific focused tests to run. Tell it **NOT to re-scan or re-diagnose** — just patch and verify. Re-deriving what you already found is wasted cheap-model tokens: a one-line fix you've already pinpointed must not trigger a full re-discovery.

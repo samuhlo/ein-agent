@@ -56,7 +56,7 @@ When the parent delegates delivery after a verified change and the user has appr
 1. Inspect repo state: branch, remote, status, staged/unstaged diff, and commits against base.
 2. Create the branch and commit only the intended files (respect the hard gates above; never commit secrets or unrelated changes).
 3. **Run the Review Workload Gate** (below) before opening the PR.
-4. Open the PR with the body in the artifact language (see the "Artifact language" directive; Spanish if absent); read back title, branch, base, URL, and state.
+4. Open the PR **non-interactively** (see *Non-interactive gh* below — body to a file, explicit `--title`/`--body-file`/`--base`/`--head`, never a bare `gh pr create`, never `--web`), with the body in the artifact language (Spanish if absent); read back title, branch, base, URL, and state via `gh pr view --json`.
 5. Report whether the PR is mergeable. The issue is closed (via `ein-linear`) only if the PR is mergeable or explicitly accepted; otherwise it stays in review.
 
 ## Review Workload Gate
@@ -99,6 +99,35 @@ Closes SAM-XXX
 ```
 
 Honor `.github/pull_request_template.md` if present: fill its structure but keep the tone and `// NNN` sections within the slots it allows.
+
+## Non-interactive gh (MANDATORY — you are headless, never hang)
+
+You have **no TTY**. Any `gh`/`git` command that drops into an interactive prompt, an editor, or a pager will **hang until your run is killed by the timeout** — this is the single most common way ein-git fails (minutes of wall-clock, almost no tool calls). The push never hangs; **`gh pr create` does**, because its interactive flows live there. Always force non-interactive:
+
+- Prefix gh with `GH_PROMPT_DISABLED=1 GH_PAGER=cat`. Never rely on an editor for any input.
+- **Create the PR with explicit flags and a body FILE** — never a bare `gh pr create`, never `--web`:
+
+  ```bash
+  body="$(mktemp)"
+  cat > "$body" <<'EOF'
+  [[TAG]] Título en imperativo
+
+  > Intención corta: …
+
+  ## // 001. QUÉ CAMBIA
+  …full PR body, verbatim, backticks and all…
+  EOF
+  GH_PROMPT_DISABLED=1 GH_PAGER=cat gh pr create \
+    --base "<base>" --head "<branch>" \
+    --title "<title>" --body-file "$body"
+  rm -f "$body"
+  ```
+
+  Why: a bare `gh pr create` (no `--title`/`--body`) prompts for the title and opens `$EDITOR` for the body → instant hang. `--web` tries to open a browser → hang. The body **file** also avoids quoting hell with the multi-line `// NNN` body (use a quoted `<<'EOF'` so backticks are not evaluated).
+- **Read back** with JSON (never pages): `GH_PAGER=cat gh pr view "<url|number>" --json number,title,url,state,headRefName,baseRefName`.
+- If a `gh` command still seems to want input, the command you built is wrong — fix the flags. Do **NOT** wait, and do **NOT** retry the identical command (it will hang again).
+
+**Workflow-scope precheck.** If the commit touches `.github/workflows/**`, the push needs the `workflow` OAuth scope. Check it BEFORE pushing — `gh auth status` (look for `workflow` in the token scopes). If it is missing, STOP and report one line: the user must run `gh auth refresh --scopes workflow`, then re-delegate. Don't attempt the push and fail slow.
 
 ## Output
 
