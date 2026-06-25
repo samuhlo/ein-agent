@@ -5,6 +5,29 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.11.2] - 2026-06-25
+
+### Fixed
+
+- **`ein-git` ya no se cuelga al abrir el PR**. El cuelgue #1 de delivery: en un
+  subagente headless (sin TTY), un `gh pr create` pelado cae en su prompt de
+  título / editor de body y **arde hasta el timeout** (minutos de reloj, casi sin
+  tool calls). `agents/ein-git.md` manda ahora la receta **no interactiva
+  obligatoria**: body a fichero (`mktemp` + heredoc `<<'EOF'`), flags explícitos
+  `--title`/`--body-file`/`--base`/`--head`, prefijo `GH_PROMPT_DISABLED=1
+  GH_PAGER=cat`, prohibido el `gh pr create` pelado y el `--web`; read-back por
+  `gh pr view --json`. Regla: si un `gh` sigue pidiendo input, arregla los flags
+  — no esperes ni reintentes el comando idéntico.
+
+### Changed
+
+- **Precheck de scope `workflow`** en `ein-git`: antes de pushear algo que toca
+  `.github/workflows/**`, comprueba `gh auth status`; si falta el scope, STOP +
+  `gh auth refresh --scopes workflow` (falla rápido, no lento).
+- **`maxRuntimeMs` tirante para delivery**: el orquestador pasa ahora ≈`120000` a
+  `ein-git`, nunca el presupuesto de chain (`1800000`) — un cuelgue aborta en
+  ~2 min, no en 10.
+
 ## [0.11.1] - 2026-06-25
 
 ### Changed
