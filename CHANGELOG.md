@@ -5,6 +5,33 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.11.1] - 2026-06-25
+
+### Changed
+
+- **Review Workload Guard: presupuesto solo-producción**. El gate de tamaño de
+  PR mide ahora las líneas de **producción** (`git diff --shortstat` con pathspec
+  de exclusión), no el diff entero. Tests y generados (`*.test.*`, `*.spec.*`,
+  `**/tests/**`, `*.snap`, `*-lock.*`, `dist/`, `.output/`, `.nuxt/`, `coverage/`,
+  `*.min.*`) se **reportan aparte** pero **no cuentan** contra el presupuesto: el
+  review gatea sobre lógica, no sobre volumen de test/fixture. Un refactor con
+  TDD estricto deja de dispararse por las líneas de los tests que añade. Regla
+  reforzada: nunca separar el código de una slice de sus tests en PRs distintos.
+  Sincronizado en los tres puntos (parent forecast, preflight, gate de `ein-git`)
+  con un test anti-drift.
+- **Hand-off cerrado a `sdd-apply`**. Si el parent ya diagnosticó la edición
+  exacta, entrega un *patch cerrado* (archivo + `before → after` + tests) y el
+  apply no re-escanea el árbol para re-derivar lo que ya recibió (menos tokens
+  del modelo barato en fixes triviales).
+
+### Fixed
+
+- **El apply ad-hoc ya no ensucia el repo**. Un `sdd-apply` fuera del chain SDD
+  devuelve su report **inline** en vez de escribir un `*.md` de scratch en la
+  raíz del proyecto (que luego obligaba a un segundo apply solo para borrarlo).
+  Los artefactos in-repo (`openspec/changes/<change>/…`) quedan reservados para
+  chains reales. `agents/sdd-apply.md`: "Apply Progress" pasa a chain-only.
+
 ## [0.11.0] - 2026-06-25
 
 ### Added
