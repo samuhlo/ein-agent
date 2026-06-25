@@ -5,6 +5,32 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.11.3] - 2026-06-25
+
+### Fixed
+
+- **Documentación pura ya no dispara la pregunta de TDD**. En modo global `ask`,
+  un cambio de docs delegado a `sdd-apply` lanzaba el select de TDD si el parent
+  no adjuntaba el hint (o si el campo se perdía). Nuevo `delegationIsDocsOnly`:
+  detección **determinista** de no-código (señal de docs —`.md`/`README`/
+  `CHANGELOG`/"documenta…"— **y** ausencia de señal de código) que se salta el
+  gate, independiente del hint. Conservador: ante la duda, pregunta como antes.
+- **`sdd-apply` ya no cuelga corriendo un build de producción**. Un
+  `bun run build`/`nuxt build` tuberiado por `| tail`/`| head` retiene toda la
+  salida hasta el final → el runtime ve "no activity" y lo marca colgado.
+  `sdd-apply` tiene prohibido correr un build completo como gate (eso es
+  `sdd-verify` o el parent, con env + `timeout`, streaming, nunca por `tail`/
+  `head`); el orquestador deja de pedírselo.
+
+### Changed
+
+- **Aviso de TDD solo en `strict`**. `setTaskTddMode` ya no notifica
+  `TDD para esta tarea: off` — `off` es un no-evento (mecánico/docs/trivial) y
+  anunciarlo era ruido. Solo se avisa cuando TDD queda forzado ON.
+- **Higiene de comandos en `sdd-verify`** (donde el build es legítimo): stream
+  en vez de buffer, `timeout` siempre, y env del build (`DATABASE_URL`…) o
+  reportar que no puede validarse en vez de colgarse.
+
 ## [0.11.2] - 2026-06-25
 
 ### Fixed
