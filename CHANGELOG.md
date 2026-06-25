@@ -5,6 +5,31 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.11.0] - 2026-06-25
+
+### Added
+
+- **Modo de entrega git (`/ein:git`, `auto`/`ask`/`off`)**: controla la
+  confirmación antes de un push/PR delegado, persistido en `.pi/ein/git.json`.
+  En `auto` (default), si tu mensaje pidió la entrega (commit/push/PR) no se
+  vuelve a preguntar — ya la autorizaste; la entrega por iniciativa del agente sí
+  confirma. `ask` confirma siempre; `off` nunca. El `git push --force*` sigue
+  **denegado en seco** en cualquier modo y el grant one-shot se emite igual.
+  Nuevos `readGitDeliveryMode()` y `messageRequestsDelivery()`.
+
+### Changed
+
+- **Fin de la doble pregunta de entrega**: el orquestador ya no añade su propio
+  `ask_user_question` antes de commit/push/PR/merge — la confirmación es ahora
+  responsabilidad única del gate determinista (`confirmDelegatedDelivery` decide
+  por modo + intención del mensaje).
+- **Gate de TDD `ask` refinado**: deja de preguntar en CADA delegación que
+  escribe código. El orquestador clasifica el cambio y adjunta un hint `tdd`
+  (`off` en mecánicos —mover/renombrar/config/copy/CSS/docs—, `strict` en lógica
+  clara); solo cuando no clasifica se pregunta. Default sigue siendo preguntar
+  (degradación segura). Nuevos `readDelegationTddHint()` y
+  `gateTddForDelegation()`.
+
 ## [0.10.2] - 2026-06-21
 
 ### Changed

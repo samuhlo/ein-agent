@@ -54,7 +54,7 @@ sdd-init → sdd-explore → sdd-design → sdd-apply → sdd-verify
 | **sdd-apply** | Implementa por slices, con TDD y commits atómicos por unidad de trabajo |
 | **sdd-verify** | Verifica contra el spec: tests, tipos, integración, regresiones |
 
-Guardarraíles del flujo: **Scope Gate** (acota tokens de entrada), **Plan Gate** (mutaciones ambiguas/bulk → plan + confirmación antes de ejecutar), **Review Workload Guard** (el parent mide el diff real y pregunta single/split **antes** de delegar el PR; `ein-git` como backstop), **Design hygiene** (`/ein:sdd-check`), **gate de TDD** (cualquier delegación que escriba código resuelve la decisión de TDD antes del apply).
+Guardarraíles del flujo: **Scope Gate** (acota tokens de entrada), **Plan Gate** (mutaciones ambiguas/bulk → plan + confirmación antes de ejecutar), **Review Workload Guard** (el parent mide el diff real y pregunta single/split **antes** de delegar el PR; `ein-git` como backstop), **Design hygiene** (`/ein:sdd-check`), **gate de TDD** (en modo `ask` el orquestador clasifica el cambio y solo pregunta si merece la pena — los mecánicos no interrumpen), **gate de entrega** (`/ein:git`: en `auto`, si pides commit/push/PR no se reconfirma; force-push siempre bloqueado).
 
 ## // 003. AGENTES DE DELIVERY
 
@@ -161,6 +161,8 @@ Flags: `--yes`, `--no-engram`, `--no-secrets`, `--no-linear` (arranca en modo So
 /ein:models[:full|:lite] Ver/cambiar el modelo por agente · presets potencia/ahorro
 /ein:persona            Tono y estética: samuhlo | neutral
 /ein:lang               Idioma de conversación/UI y de artefactos
+/ein:tdd                TDD estricto: auto (config) | strict | off | ask
+/ein:git                Confirmación de entrega: auto | ask | off
 
 # SDD
 /ein:ai:install-sdd     Instala el OpenSpec en el proyecto
