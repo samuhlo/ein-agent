@@ -1,12 +1,14 @@
 // =============================================================================
 // SDD GUARDRAILS
-// Chequeo determinista de higiene del artefacto design.md, pensado para correr
-// ENTRE design y apply. Portado en espiritu desde openspec-guardrails de
-// gentle-pi (que validaba deltas de spec); Ein colapso las specs dentro de
-// design.md, asi que el guardrail valida ESE artefacto. Analisis de string puro
-// (sin fs ni paquetes) para que sea trivial de testear y seguro de llamar desde
-// cualquier sitio. El descubrimiento del fichero vive en quien lo invoca.
+// Chequeo determinista de higiene de los artefactos SDD — el gatekeeper que
+// corre ENTRE fases para no construir sobre basura. `lintDesignArtifact` es el
+// check rico de design.md; `lintPhaseArtifact` valida cualquier fase; `lintChange`
+// agrega todas las fases presentes de un cambio. Los lints de string son puros
+// (testeables sin fs); solo `lintChange` toca el filesystem para leer ficheros.
 // =============================================================================
+
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 export type GuardrailLevel = "error" | "warning";
 
@@ -127,4 +129,102 @@ function finalize(issues: GuardrailIssue[], lineCount: number): DesignLintReport
 	const errors = issues.filter((i) => i.level === "error").length;
 	const warnings = issues.filter((i) => i.level === "warning").length;
 	return { ok: errors === 0, issues, errors, warnings, lineCount };
+}
+
+// ─── Gatekeeper por fase ──────────────────────────────────────────────────────
+
+export type SddPhase = "init" | "explore" | "design" | "apply" | "verify" | "archive";
+
+const PHASE_ARTIFACT: Record<SddPhase, string> = {
+	init: "init.md",
+	explore: "exploration.md",
+	design: "design.md",
+	apply: "apply-progress.md",
+	verify: "verify-report.md",
+	archive: "summary.md",
+};
+
+// Señal mínima obligatoria por fase (además de "no vacío"): si falta, es error.
+// El caso clave es `verify`, que DEBE emitir una línea `status: pass|fail` para
+// que el router determinista pueda enrutar.
+const PHASE_REQUIRED: Partial<Record<SddPhase, { code: string; label: string; pattern: RegExp }[]>> = {
+	init: [{ code: "scope", label: "scope/budget", pattern: /\b(scope|budget_allocated|budget)\b/i }],
+	verify: [
+		{
+			code: "status-line",
+			label: "status: pass|fail",
+			pattern: /\b(?:status|result|resultado)\s*[:=]\s*(pass|fail|passed|failed|ok|pasa|falla)\b/i,
+		},
+	],
+};
+
+// Lint genérico de un artefacto de fase. `design` delega en el check rico.
+export function lintPhaseArtifact(
+	phase: SddPhase,
+	content: string,
+	opts: DesignLintOptions = {},
+): DesignLintReport {
+	if (phase === "design") return lintDesignArtifact(content, opts);
+
+	const issues: GuardrailIssue[] = [];
+	const text = content ?? "";
+	const lineCount = text.length ? text.split("\n").length : 0;
+
+	if (!text.trim()) {
+		issues.push({ level: "error", code: "empty", message: `${PHASE_ARTIFACT[phase]} esta vacio o no se pudo leer.` });
+		return finalize(issues, lineCount);
+	}
+
+	for (const req of PHASE_REQUIRED[phase] ?? []) {
+		if (!req.pattern.test(text)) {
+			issues.push({ level: "error", code: `missing-${req.code}`, message: `Falta señal obligatoria de ${phase}: ${req.label}.` });
+		}
+	}
+
+	for (const p of PLACEHOLDER_PATTERNS) {
+		if (p.pattern.test(text)) {
+			issues.push({ level: "warning", code: `placeholder-${p.code}`, message: p.message });
+		}
+	}
+
+	const threshold = opts.oversizeLineThreshold ?? DEFAULT_OVERSIZE;
+	if (lineCount > threshold) {
+		issues.push({ level: "warning", code: "oversize", message: `${PHASE_ARTIFACT[phase]} tiene ${lineCount} lineas (> ${threshold}).` });
+	}
+
+	return finalize(issues, lineCount);
+}
+
+export type ChangeLintReport = {
+	change: string;
+	ok: boolean;
+	errors: number;
+	warnings: number;
+	phases: { phase: SddPhase; present: boolean; report?: DesignLintReport }[];
+};
+
+// Linta todos los artefactos PRESENTES de un cambio en openspec/changes/<change>/.
+export function lintChange(cwd: string, change: string): ChangeLintReport {
+	const base = join(cwd, "openspec", "changes", change);
+	const phases: ChangeLintReport["phases"] = [];
+	let errors = 0;
+	let warnings = 0;
+	for (const phase of Object.keys(PHASE_ARTIFACT) as SddPhase[]) {
+		const path = join(base, PHASE_ARTIFACT[phase]);
+		if (!existsSync(path)) {
+			phases.push({ phase, present: false });
+			continue;
+		}
+		let content = "";
+		try {
+			content = readFileSync(path, "utf8");
+		} catch {
+			content = "";
+		}
+		const report = lintPhaseArtifact(phase, content);
+		errors += report.errors;
+		warnings += report.warnings;
+		phases.push({ phase, present: true, report });
+	}
+	return { change, ok: errors === 0, errors, warnings, phases };
 }

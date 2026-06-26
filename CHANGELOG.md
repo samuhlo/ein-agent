@@ -5,6 +5,37 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.12.0] - 2026-06-25
+
+### Added
+
+- **Capa de estado SDD determinista** (inspirada en el dispatcher de gentle-ai,
+  pero en TS puro expuesto como tools de Pi):
+  - **Router** (`lib/sdd-router.ts` + tool `ein_sdd_status` + `/ein:sdd-status`):
+    calcula en qué fase va un cambio leyendo SOLO los ficheros de
+    `openspec/changes/<x>/` y la línea `status:` de verify-report → `nextRecommended`.
+    El orquestador enruta por esto, no por lo que el modelo crea recordar.
+    Reanudar entre sesiones es gratis: `ein_sdd_status` reubica el cambio sin
+    volcar contexto.
+  - **Gatekeeper** (`lib/sdd-guardrails.ts` → `lintPhaseArtifact`/`lintChange` +
+    tool `ein_sdd_check`): valida cada artefacto de fase (secciones, señales
+    obligatorias como el `status:` de verify, placeholders, tamaño) antes de
+    avanzar. Una fase mala se re-ejecuta una vez y, si falla, para — no se
+    construye sobre basura.
+  - **Fase `archive`** (`agents/sdd-archive.md` + `lib/sdd-archive.ts` +
+    `/ein:sdd-archive`): condensa un cambio verificado en un `summary.md`
+    revisable y mueve los ficheros de trabajo a `openspec/changes/archive/`, así
+    `openspec/changes/` solo contiene cambios vivos.
+
+### Changed
+
+- **Flujo SDD fase a fase** (estilo gentle-ai) en el orquestador: router →
+  delegar una fase (`context: "fresh"`, referencias no contenido) → gatekeeper →
+  repetir. La chain `ein-sdd` de un tiro queda como fallback (`/run-chain`), no
+  como ruta primaria, porque no permite gate intermedio. SDD pasa de 5 a 6 fases
+  (init → explore → design → apply → verify → archive).
+- Doctor COHERENCIA: checks de router/gatekeeper/archive cableados.
+
 ## [0.11.3] - 2026-06-25
 
 ### Fixed

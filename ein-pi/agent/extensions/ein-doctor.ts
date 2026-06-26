@@ -411,6 +411,18 @@ function doctorSmokeReport(): string {
       "orchestrator mode-aware",
       "El orchestrator es consciente del modo (solo/team); Linear es condicional.",
     ),
+    check(
+      existsSync(join(AGENT_DIR, "lib", "sdd-router.ts")) &&
+        readIfExists(join(AGENT_DIR, "extensions", "ein-ai.ts")).includes("ein_sdd_status"),
+      "sdd router cableado",
+      "Router determinista (lib/sdd-router.ts + tool ein_sdd_status) presente.",
+    ),
+    check(
+      existsSync(join(AGENT_DIR, "agents", "sdd-archive.md")) &&
+        orchestratorRaw.includes("ein_sdd_check"),
+      "sdd gatekeeper + archive",
+      "Gatekeeper (ein_sdd_check) y fase archive cableados.",
+    ),
   ];
 
   const groups: Array<{ title: string; checks: CheckResult[] }> = [

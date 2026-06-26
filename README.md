@@ -40,10 +40,10 @@ Tú dices qué quieres; Ein elige el carril más pequeño que sea seguro.
 
 ## // 002. FLUJO SDD
 
-Para trabajo serio, una cadena de cinco fases. Cada agente tiene responsabilidades acotadas y no salta pasos:
+Para trabajo serio, seis fases. Cada agente tiene responsabilidades acotadas y no salta pasos:
 
 ```
-sdd-init → sdd-explore → sdd-design → sdd-apply → sdd-verify
+sdd-init → sdd-explore → sdd-design → sdd-apply → sdd-verify → sdd-archive
 ```
 
 | Fase | Qué hace |
@@ -53,6 +53,9 @@ sdd-init → sdd-explore → sdd-design → sdd-apply → sdd-verify
 | **sdd-design** | Propuesta + spec (RFC 2119 + Given/When/Then) + tareas priorizadas |
 | **sdd-apply** | Implementa por slices, con TDD y commits atómicos por unidad de trabajo |
 | **sdd-verify** | Verifica contra el spec: tests, tipos, integración, regresiones |
+| **sdd-archive** | Condensa el cambio en un `summary.md` revisable y lo mueve a `archive/` |
+
+**Routing determinista (sin que el modelo adivine).** El orquestador no enruta de memoria: dos tools deterministas (`ein_sdd_status`, `ein_sdd_check`) leen los ficheros de `openspec/changes/<cambio>/` y devuelven hechos — en qué fase va y si el artefacto está sano. El flujo es **fase a fase**: el router dice qué toca → se delega esa fase → el gatekeeper la valida → siguiente. Al abrir una sesión nueva, `/ein:sdd-status` reubica el cambio al instante, **sin volcar contexto ni quemar tokens**. Al cerrar, `sdd-archive` deja un `summary.md` legible meses después y `openspec/changes/` con solo cambios vivos.
 
 Guardarraíles del flujo: **Scope Gate** (acota tokens de entrada), **Plan Gate** (mutaciones ambiguas/bulk → plan + confirmación antes de ejecutar), **Review Workload Guard** (el parent mide las líneas de **producción** —tests y generados se reportan pero no cuentan— y pregunta single/split **antes** de delegar el PR; `ein-git` como backstop), **Design hygiene** (`/ein:sdd-check`), **gate de TDD** (en modo `ask` el orquestador clasifica el cambio y solo pregunta si merece la pena — los mecánicos no interrumpen), **gate de entrega** (`/ein:git`: en `auto`, si pides commit/push/PR no se reconfirma; force-push siempre bloqueado).
 

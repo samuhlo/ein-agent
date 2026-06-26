@@ -215,6 +215,8 @@ export function runDoctor(platform: Platform): DoctorReport {
     check(orchestratorRaw.includes("Assessment & valuation"), "orchestrator valuation read-only", "Una valoracion no dispara build/test pesados por defecto."),
     check(existsSync(join(AGENT_DIR, "lib", "mode.ts")), "work mode module", "lib/mode.ts presente (modo solo/team)."),
     check(orchestratorRaw.toLowerCase().includes("work mode") && orchestratorRaw.includes("solo"), "orchestrator mode-aware", "El orchestrator es consciente del modo (solo/team); Linear condicional."),
+    check(existsSync(join(AGENT_DIR, "lib", "sdd-router.ts")) && readIfExists(join(AGENT_DIR, "extensions", "ein-ai.ts")).includes("ein_sdd_status"), "sdd router cableado", "Router determinista (sdd-router + tool ein_sdd_status) presente."),
+    check(existsSync(join(AGENT_DIR, "agents", "sdd-archive.md")) && orchestratorRaw.includes("ein_sdd_check"), "sdd gatekeeper + archive", "Gatekeeper (ein_sdd_check) y fase archive cableados."),
   ];
 
   const hasEngramBin = lookPath("engram", extraPath) !== null;

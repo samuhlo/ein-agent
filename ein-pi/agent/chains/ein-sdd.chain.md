@@ -70,3 +70,12 @@ outputMode: file-only
 progress: true
 
 Verify {task} against the design plan, implementation, apply-progress, strict TDD evidence, and assertion quality. This is a verification phase: run checks and report, do not edit repository files.
+
+## sdd-archive
+
+reads: design.md+apply-progress.md+verify-report.md
+output: summary.md
+outputMode: file-only
+progress: true
+
+Only if verify-report indicates PASS. Condense {task} into a clean, reviewable `summary.md` (// 00N format: what changed, how it works under the hood, decisions, verification). Do NOT move files — the deterministic move to `openspec/changes/archive/` is run by the parent via `/ein:sdd-archive`. If verify failed, return blocked and do not write a summary.

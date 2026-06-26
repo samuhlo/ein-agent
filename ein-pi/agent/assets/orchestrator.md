@@ -19,6 +19,7 @@ Use the `subagent` tool to invoke these — never do their work directly from th
 | `sdd-design` | read, grep, glob, write, edit | SDD design phase (proposal + spec + tasks in one plan). |
 | `sdd-apply` | read, grep, glob, edit, write, bash | SDD implementation phase. |
 | `sdd-verify` | read, grep, glob, bash, write, edit | SDD verification phase. |
+| `sdd-archive` | read, grep, glob, write | SDD close phase: condenses a verified change into `summary.md`. |
 
 ```
 await subagent({ agent: "ein-git", task: "commit files X,Y with message '...'", context: "fresh" })
@@ -77,29 +78,22 @@ When you need a user decision, prefer `ask_user_question` over free prose — bu
 
 ## SDD Flow
 
-Phases: `init → explore → design → apply → verify`. `design` is a single planning phase producing `design.md` (proposal + spec in RFC 2119 + Given/When/Then + actionable task checklist). No separate proposal/spec/tasks phase.
+Phases: `init → explore → design → apply → verify → archive`. `design` is a single planning phase producing `design.md` (proposal + spec in RFC 2119 + Given/When/Then + actionable task checklist) — no separate proposal/spec/tasks phase. `archive` closes a verified change: `sdd-archive` writes a condensed `summary.md`, then you run the deterministic move (`/ein:sdd-archive {change}`) so `openspec/changes/` keeps only live changes.
 
-**Invocation — CRITICAL.** The `subagent` `chain` field is an **array of step objects**, never a string (`chain: "ein-sdd"` fails with `chain.0: must be object`). Launch the flow with this inline array — copy verbatim, change only the top-level `task`:
+**Drive the flow PHASE BY PHASE with the deterministic router — do NOT trust your memory of where you are.** State lives in the files under `openspec/changes/{change}/`, and two deterministic tools read it for you (zero AI, zero guessing). The loop:
 
-```
-await subagent({
-  task: "SAM-328: Motor determinista calculatePlanning()",
-  maxRuntimeMs: 1800000,
-  chain: [
-    { agent: "sdd-init",    task: "{task}", output: "init.md",                                    outputMode: "file-only", progress: true },
-    { agent: "sdd-explore", task: "{task}", reads: ["init.md"],                                   output: "exploration.md",    outputMode: "file-only", progress: true },
-    { agent: "sdd-design",  task: "{task}", reads: ["init.md", "exploration.md"],                 output: "design.md",         outputMode: "file-only", progress: true },
-    { agent: "sdd-apply",   task: "{task}", reads: ["design.md"],                                 output: "apply-progress.md", outputMode: "file-only", progress: true },
-    { agent: "sdd-verify",  task: "{task}", reads: ["design.md", "apply-progress.md"],            output: "verify-report.md",  outputMode: "file-only", progress: true }
-  ]
-})
-```
+1. **Call `ein_sdd_status`** → it returns `nextRecommended` (the phase to run) by reading which artifacts exist + the verify outcome. Route by this, NEVER by inferring from chat.
+2. **Delegate that ONE phase** with `context: "fresh"`, passing the artifact **references** (paths/keys), not their content — the phase reads its own inputs from disk. This is what keeps token cost flat across a long flow and across sessions.
+3. **Call `ein_sdd_check`** on the change → if it reports an `error`, re-run that same phase ONCE with the concrete issues named; if it fails again, STOP and report. Never advance on a bad artifact — a bad phase compounds downstream.
+4. **Repeat** until `nextRecommended: archive` (run `sdd-archive` then `/ein:sdd-archive`) and then `done`.
 
-Hard rules: `chain` is an ARRAY of OBJECTS; `reads` is a JSON array (`["init.md"]`), never a `+`-concatenated string (that only works in `.chain.md` files); keep `task: "{task}"` on every step; never drop `reads`/`output` wiring; **ALWAYS pass `maxRuntimeMs` — never launch a chain without it.** It is the only backstop against a stalled cheap-model step: if a provider hangs mid-stream (no tokens returned), an omitted budget freezes the whole chain indefinitely; a set budget caps the damage and aborts. Whole-chain budget: `1800000` normal, `2700000` large — generous enough for real work but bounded so a hang self-aborts. The real cure for slowness is a faster/stabler model via `/ein:models`, not waiting. Fallback: the user can run `/run-chain ein-sdd -- <task>`. Never invoke `sdd-apply` directly for a full flow; `sdd-verify` may be invoked directly for a re-check.
+**Resuming across sessions is free:** on a new session just call `ein_sdd_status` — it tells you the exact phase to continue from. No context dump, no re-reading the whole change.
+
+**Fallback (one-shot chain).** When you explicitly want the whole flow in a single call (or the user runs `/run-chain ein-sdd -- <task>`), the `ein-sdd` chain still exists. The `subagent` `chain` field is an **array of step objects**, never a string (`chain: "ein-sdd"` fails with `chain.0: must be object`); every element is an OBJECT, `reads` is a JSON array (`["init.md"]`) never a `+`-string, keep `task: "{task}"` on every step, and **ALWAYS pass `maxRuntimeMs`** (`1800000` normal / `2700000` large) as the backstop against a stalled cheap-model step. The phase-by-phase loop above is the primary path because it lets the per-phase gatekeeper run; the chain has no mid-flow gate. Never invoke `sdd-apply` directly for a full flow; `sdd-verify` may be invoked directly for a re-check.
 
 **Scope Gate (before `sdd-explore`).** Build a SCOPE PACKET from the request: `scope`, `change_name`, `budget: { max_tokens: 15000, max_reads: 30 }` (override if explicit), `webfetch: true` only if the request needs the web. Wrap `{task}` inside it in the prompt. Reject vague scope ("arregla todo") and ask for clarification; if clear but too broad (>50 files), decompose into slices first. A whole-project refactor is a roadmap of bounded slices (one slice = one future SDD/PR), not one chain run.
 
-**Design hygiene gate.** When a `design.md` is produced before `apply` (interactive mode especially), run `/ein:sdd-check` — a deterministic lint (sections A/B/C, actionable tasks, no leaked delivery planning, no placeholders, oversize warning). Errors → fix or re-run `sdd-design` before implementing.
+**Gatekeeper (`ein_sdd_check`).** This is step 3 of the loop and covers EVERY phase, design included (sections, required signals like verify's `status:` line, placeholders, size). Run it after each phase; errors block advancing. `/ein:sdd-check` is the manual equivalent for the user.
 
 **Lazy preflight.** Don't ask SDD setup on session start. The first time SDD is initiated, run `/ein:ai:sdd-preflight` once and reuse the injected `## SDD Session Preflight` block for the session. Existing `openspec/config.yaml` / SDD assets are project context, NOT session preflight — don't start phases until preflight exists (injected block or explicit user answers). It captures execution mode (`interactive`/`auto`) and artifact store. Assets self-install non-destructively to `~/.pi/agent/agents/sdd-*.md` and `~/.pi/agent/chains/ein-sdd.chain.md`.
 
@@ -109,7 +103,7 @@ Hard rules: `chain` is an ARRAY of OBJECTS; `reads` is a JSON array (`["init.md"
 
 **Phase result envelope:** `status, executive_summary, artifacts, next_recommended, risks, skill_resolution`. Synthesize these — don't paste raw reports.
 
-**Strict TDD forwarding.** The preflight TDD decision overrides `openspec/config.yaml` (OFF → standard mode, no RED/GREEN; ON → strict; AUTO → follow config). Via the `ein-sdd` chain (normal path), keep the shared `{task}` **phase-neutral**: do NOT put the TDD line in it — it would force the read-only phases to run tests; the decision reaches `sdd-apply` through the injected preflight block (code-writing phases only). Only when invoking `sdd-apply` directly, include: `STRICT TDD MODE IS ACTIVE. Test runner: <command>. Follow RED, GREEN, TRIANGULATE, REFACTOR. Record evidence.`
+**Strict TDD forwarding.** The preflight TDD decision overrides `openspec/config.yaml` (OFF → standard mode, no RED/GREEN; ON → strict; AUTO → follow config). In the phase-by-phase loop you delegate `sdd-apply` on its own, so include the TDD line in that single prompt when strict applies: `STRICT TDD MODE IS ACTIVE. Test runner: <command>. Follow RED, GREEN, TRIANGULATE, REFACTOR. Record evidence.` In the fallback `ein-sdd` chain (one-shot), instead keep the shared `{task}` **phase-neutral** — do NOT put the TDD line in it, or the read-only phases would run tests; there the decision reaches `sdd-apply` through the injected preflight block (code-writing phases only).
 
 **TDD ask gate — you classify, don't make the user classify.** When the global TDD mode is `ask`, Ein would otherwise prompt the user before EVERY code-writing delegation — noise on non-behavioral work. So when you delegate to `sdd-apply`, pass an explicit `tdd` hint so the gate doesn't interrupt the flow needlessly:
 - `tdd: "off"` for **mechanical / non-behavioral** changes — move/rename/delete a file, config or dependency bump, copy/text tweak, pure-visual/CSS, formatting, comments/docs. No RED/GREEN, no question.

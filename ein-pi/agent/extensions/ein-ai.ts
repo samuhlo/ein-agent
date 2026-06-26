@@ -56,7 +56,9 @@ import {
 } from "../lib/model-config.ts";
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
-import { lintDesignArtifact } from "../lib/sdd-guardrails.ts";
+import { lintChange, lintDesignArtifact } from "../lib/sdd-guardrails.ts";
+import { listActiveChanges, resolveSddStatus } from "../lib/sdd-router.ts";
+import { archiveChange } from "../lib/sdd-archive.ts";
 import {
 	codeConventionSkillBlock,
 	migrateLegacyAtl,
@@ -503,6 +505,83 @@ export default function einAi(pi: ExtensionAPI): void {
 				out.push("", "- Design limpio: secciones completas, tareas accionables, sin planificacion prohibida.");
 			}
 			ctx.ui.notify(out.join("\n"), report.errors ? "warning" : "info");
+		},
+	});
+
+	// ── Tool determinista: estado SDD (lo llama el ORQUESTADOR para enrutar) ──
+	pi.registerTool({
+		name: "ein_sdd_status",
+		label: "Ein SDD Status",
+		description:
+			"Deterministic SDD state for the active change (or a named one): which phase artifacts exist, verify outcome, and the nextRecommended phase. Route the SDD flow by THIS, never by guessing. Reads only the filesystem.",
+		parameters: {
+			type: "object",
+			properties: { change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." } },
+		} as const,
+		async execute(_id, params: { change?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const status = resolveSddStatus(ctx.cwd, params?.change);
+			const active = listActiveChanges(ctx.cwd);
+			return { content: [{ type: "text", text: JSON.stringify({ ...status, activeChanges: active }, null, 2) }], details: {} };
+		},
+	});
+
+	// ── Tool determinista: gatekeeper de artefactos de un cambio ──
+	pi.registerTool({
+		name: "ein_sdd_check",
+		label: "Ein SDD Check",
+		description:
+			"Deterministic gatekeeper: lint every present SDD artifact of a change (sections, required signals like verify's status line, placeholders, size). Run it AFTER each phase before advancing. Returns ok + per-phase issues. Reads only the filesystem.",
+		parameters: {
+			type: "object",
+			properties: { change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." } },
+		} as const,
+		async execute(_id, params: { change?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
+			if (!change) {
+				return { content: [{ type: "text", text: JSON.stringify({ ok: false, reason: "no active change" }) }], details: {} };
+			}
+			return { content: [{ type: "text", text: JSON.stringify(lintChange(ctx.cwd, change), null, 2) }], details: {} };
+		},
+	});
+
+	pi.registerCommand("ein:sdd-status", {
+		description: t("cmd.sdd-status.description", "Estado SDD determinista del cambio activo (en qué fase va, qué toca)"),
+		handler: async (_args, ctx) => {
+			const s = resolveSddStatus(ctx.cwd);
+			const active = listActiveChanges(ctx.cwd);
+			const lines = ["/// 000. SDD STATUS", ""];
+			if (!s.change) {
+				lines.push("- No hay cambios SDD activos en openspec/changes/.");
+			} else {
+				const done = (Object.keys(s.present) as (keyof typeof s.present)[])
+					.filter((p) => s.present[p])
+					.join(", ") || "ninguna";
+				lines.push(`change: ${s.change}`);
+				if (active.length > 1) lines.push(`activos: ${active.join(", ")}`);
+				lines.push(`fases hechas: ${done}`);
+				lines.push(`verify: ${s.verify}`);
+				lines.push(`siguiente: ${s.nextRecommended}`);
+				if (s.blocked.length) lines.push("", "■ bloqueos:", ...s.blocked.map((b) => `- ${b}`));
+			}
+			ctx.ui.notify(lines.join("\n"), s.blocked.length ? "warning" : "info");
+		},
+	});
+
+	pi.registerCommand("ein:sdd-archive", {
+		description: t("cmd.sdd-archive.description", "Archivar un cambio cerrado: mueve openspec/changes/<x> a archive/"),
+		handler: async (args, ctx) => {
+			const change = (typeof args === "string" ? args : "").trim() || resolveSddStatus(ctx.cwd).change || "";
+			if (!change) {
+				ctx.ui.notify("Sin cambio que archivar. Uso: /ein:sdd-archive <change>", "warning");
+				return;
+			}
+			const r = archiveChange(ctx.cwd, change);
+			ctx.ui.notify(
+				r.ok
+					? `Cambio '${change}' archivado en openspec/changes/archive/. openspec/changes/ queda limpio.`
+					: `No se archivó '${change}': ${r.reason}`,
+				r.ok ? "info" : "warning",
+			);
 		},
 	});
 
