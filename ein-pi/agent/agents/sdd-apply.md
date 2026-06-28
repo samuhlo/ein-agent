@@ -54,6 +54,20 @@ If strict TDD is not active, implement assigned tasks against the design plan, u
 
 When you run as a phase of the SDD chain — a `design.md` and an `openspec/changes/{change}/` directory exist — update `openspec/changes/{change}/apply-progress.md` cumulatively. If previous progress exists, merge it with new progress; never overwrite completed work.
 
+`apply-progress.md` **must** include one top-level status line:
+
+```
+status: complete   # apply done, all tasks finished → router advances to verify
+status: partial    # apply in progress, some tasks done → router stays on apply
+status: blocked    # apply blocked by an impediment → router stays on apply
+```
+
+- `complete` — all assigned tasks implemented and verified.
+- `partial` — work started but not finished; more apply needed.
+- `blocked` — external impediment (missing deps, waiting on decision, etc.).
+
+The status line is the contract the router reads. Without it, the gatekeeper (`ein_sdd_check`) will error.
+
 Include:
 
 - completed tasks;

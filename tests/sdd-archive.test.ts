@@ -61,6 +61,24 @@ describe("lintPhaseArtifact / lintChange", () => {
 		expect(lintPhaseArtifact("verify", "status: pass\n").ok).toBe(true);
 	});
 
+	test("apply SIN línea status → error (falta signal obligatorio)", () => {
+		const r = lintPhaseArtifact("apply", "completed tasks:\n- [x] foo\n");
+		expect(r.ok).toBe(false);
+		expect(r.issues.some((i) => i.code === "missing-status-line")).toBe(true);
+	});
+
+	test("apply CON status: partial → ok (partial satisface formato)", () => {
+		expect(lintPhaseArtifact("apply", "status: partial\ncompleted tasks:\n- [x] foo\n").ok).toBe(true);
+	});
+
+	test("apply CON status: complete → ok", () => {
+		expect(lintPhaseArtifact("apply", "status: complete\ncompleted tasks:\n- [x] foo\n").ok).toBe(true);
+	});
+
+	test("apply CON status: blocked → ok (blocked satisface formato)", () => {
+		expect(lintPhaseArtifact("apply", "status: blocked\nbloqueado por X\n").ok).toBe(true);
+	});
+
 	test("artefacto vacío → error", () => {
 		expect(lintPhaseArtifact("apply", "   ").ok).toBe(false);
 	});

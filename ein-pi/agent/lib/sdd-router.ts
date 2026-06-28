@@ -18,10 +18,12 @@ import { join } from "node:path";
 export type SddPhase = "init" | "explore" | "design" | "apply" | "verify" | "archive";
 export type SddNext = SddPhase | "done";
 export type VerifyOutcome = "pass" | "fail" | "unknown" | "absent";
+export type ApplyOutcome = "complete" | "partial" | "blocked" | "unknown" | "absent";
 
 export type SddChangeStatus = {
 	change: string | null;
 	present: Record<SddPhase, boolean>;
+	apply: ApplyOutcome;
 	verify: VerifyOutcome;
 	nextRecommended: SddNext;
 	blocked: string[];
@@ -82,6 +84,28 @@ function readVerifyOutcome(changePath: string): VerifyOutcome {
 	return "unknown";
 }
 
+function readApplyOutcome(changePath: string): ApplyOutcome {
+	const path = join(changePath, PHASE_ARTIFACT.apply);
+	if (!existsSync(path)) return "absent";
+	let content = "";
+	try {
+		content = readFileSync(path, "utf8");
+	} catch {
+		return "unknown";
+	}
+	// BLINDAJE -> Solo `status: complete` permite avanzar a verify.
+	// partial y blocked satisfacen el formato pero no son complete.
+	const match = content.match(/\bstatus\s*[:=]\s*(complete|partial|blocked)\b/i);
+	if (match) {
+		const v = match[1].toLowerCase();
+		if (v === "complete") return "complete";
+		if (v === "partial") return "partial";
+		if (v === "blocked") return "blocked";
+	}
+	// Si existe pero no tiene status legible → treated as partial (backward-compat).
+	return "partial";
+}
+
 // Estado determinista de UN cambio. Si no se pasa `change`, usa el único activo
 // (o el primero alfabético si hay varios; el caller decide si desambiguar).
 export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus {
@@ -99,7 +123,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	const blocked: string[] = [];
 
 	if (!target) {
-		return { change: null, present, verify: "absent", nextRecommended: "done", blocked };
+		return { change: null, present, apply: "absent", verify: "absent", nextRecommended: "done", blocked };
 	}
 
 	const changePath = join(changesDir(cwd), target);
@@ -107,16 +131,22 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 		present[phase] = existsSync(join(changePath, PHASE_ARTIFACT[phase]));
 	}
 
+	const apply = readApplyOutcome(changePath);
 	const verify = readVerifyOutcome(changePath);
 
 	// Siguiente fase: la primera no presente en orden, con la verificación como
-	// gate antes de archivar.
+	// gate antes de archivar. apply-progress.md con status != complete retiene apply.
 	let nextRecommended: SddNext;
 	if (!present.init) nextRecommended = "init";
 	else if (!present.explore) nextRecommended = "explore";
 	else if (!present.design) nextRecommended = "design";
 	else if (!present.apply) nextRecommended = "apply";
-	else if (!present.verify) nextRecommended = "verify";
+	else if (apply !== "complete") {
+		// FAIL CLOSED -> apply existe pero sin status:complete → no avanza a verify.
+		nextRecommended = "apply";
+		if (apply === "blocked") blocked.push("apply-progress.md indica bloqueo.");
+		else if (apply !== "absent") blocked.push("apply-progress.md sin `status: complete`: aplicar más trabajo o marcar `status: blocked` si hay impediment.");
+	} else if (!present.verify) nextRecommended = "verify";
 	else if (verify === "fail") {
 		nextRecommended = "verify";
 		blocked.push("verify-report indica fallo: remediar antes de archivar.");
@@ -127,5 +157,5 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 		blocked.push("verify-report sin línea `status: pass|fail` clara.");
 	}
 
-	return { change: target, present, verify, nextRecommended, blocked };
+	return { change: target, present, apply, verify, nextRecommended, blocked };
 }

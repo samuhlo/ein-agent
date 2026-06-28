@@ -74,7 +74,7 @@ function parseJson(path: string): { ok: boolean; value: Record<string, unknown> 
   }
 }
 
-const SDD_AGENTS = ["sdd-init.md", "sdd-explore.md", "sdd-design.md", "sdd-apply.md", "sdd-verify.md"];
+const SDD_AGENTS = ["sdd-init.md", "sdd-explore.md", "sdd-design.md", "sdd-apply.md", "sdd-verify.md", "sdd-archive.md"];
 const DELIVERY_AGENTS = ["ein-linear.md", "ein-git.md"];
 
 // Single source of truth: read from extensions-manifest.json deployed alongside extensions.

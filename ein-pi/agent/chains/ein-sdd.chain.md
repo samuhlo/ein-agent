@@ -1,6 +1,6 @@
 ---
 name: ein-sdd
-description: Ein SDD flow — init, explore, design, apply, verify for a change.
+description: Ein SDD flow — init, explore, design, apply, verify, archive for a change.
 ---
 
 ## sdd-init

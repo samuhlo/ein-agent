@@ -46,9 +46,42 @@ describe("resolveSddStatus", () => {
 		expect(resolveSddStatus(DIR).nextRecommended).toBe("apply");
 	});
 
-	test("verify pass → siguiente archive", () => {
+	test("apply-progress.md sin status → siguiente apply (partial, no advance)", () => {
 		const c = change("feat-x");
 		for (const f of ["init.md", "exploration.md", "design.md", "apply-progress.md"]) put(c, f);
+		const s = resolveSddStatus(DIR);
+		expect(s.apply).toBe("partial");
+		expect(s.nextRecommended).toBe("apply");
+	});
+
+	test("apply-progress.md con status: partial → siguiente apply", () => {
+		const c = change("feat-x");
+		for (const f of ["init.md", "exploration.md", "design.md", "apply-progress.md"]) put(c, f, "status: partial\n");
+		const s = resolveSddStatus(DIR);
+		expect(s.apply).toBe("partial");
+		expect(s.nextRecommended).toBe("apply");
+	});
+
+	test("apply-progress.md con status: blocked → siguiente apply + blocked", () => {
+		const c = change("feat-x");
+		for (const f of ["init.md", "exploration.md", "design.md", "apply-progress.md"]) put(c, f, "status: blocked\n");
+		const s = resolveSddStatus(DIR);
+		expect(s.apply).toBe("blocked");
+		expect(s.nextRecommended).toBe("apply");
+		expect(s.blocked.length).toBeGreaterThan(0);
+	});
+
+	test("apply-progress.md con status: complete → siguiente verify", () => {
+		const c = change("feat-x");
+		for (const f of ["init.md", "exploration.md", "design.md", "apply-progress.md"]) put(c, f, "status: complete\n");
+		const s = resolveSddStatus(DIR);
+		expect(s.apply).toBe("complete");
+		expect(s.nextRecommended).toBe("verify");
+	});
+
+	test("verify pass (con apply completo) → siguiente archive", () => {
+		const c = change("feat-x");
+		for (const f of ["init.md", "exploration.md", "design.md", "apply-progress.md"]) put(c, f, "status: complete\n");
 		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
 		const s = resolveSddStatus(DIR);
 		expect(s.verify).toBe("pass");
@@ -57,7 +90,7 @@ describe("resolveSddStatus", () => {
 
 	test("verify fail → vuelve a verify + blocked", () => {
 		const c = change("feat-x");
-		for (const f of ["init.md", "exploration.md", "design.md", "apply-progress.md"]) put(c, f);
+		for (const f of ["init.md", "exploration.md", "design.md", "apply-progress.md"]) put(c, f, "status: complete\n");
 		put(c, "verify-report.md", "# Verify\nstatus: fail\nCRITICAL: algo roto\n");
 		const s = resolveSddStatus(DIR);
 		expect(s.verify).toBe("fail");

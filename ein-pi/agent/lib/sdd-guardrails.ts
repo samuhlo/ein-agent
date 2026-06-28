@@ -146,9 +146,16 @@ const PHASE_ARTIFACT: Record<SddPhase, string> = {
 
 // Señal mínima obligatoria por fase (además de "no vacío"): si falta, es error.
 // El caso clave es `verify`, que DEBE emitir una línea `status: pass|fail` para
-// que el router determinista pueda enrutar.
+// que el router determinista pueda enrutar. apply requiere `status: complete|partial|blocked`.
 const PHASE_REQUIRED: Partial<Record<SddPhase, { code: string; label: string; pattern: RegExp }[]>> = {
 	init: [{ code: "scope", label: "scope/budget", pattern: /\b(scope|budget_allocated|budget)\b/i }],
+	apply: [
+		{
+			code: "status-line",
+			label: "status: complete|partial|blocked",
+			pattern: /\bstatus\s*[:=]\s*(complete|partial|blocked)\b/i,
+		},
+	],
 	verify: [
 		{
 			code: "status-line",

@@ -250,6 +250,7 @@ function doctorSmokeReport(): string {
     "sdd-design.md",
     "sdd-apply.md",
     "sdd-verify.md",
+    "sdd-archive.md",
   ];
   const DELIVERY_AGENTS = ["ein-linear.md", "ein-git.md"];
 
