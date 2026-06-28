@@ -33,7 +33,7 @@ La entrega —commits y PRs por GitHub— pasa por `ein-git` en **ambos** modos:
 |---|---|
 | pequeña | directo, inline |
 | mediana | plan corto → ejecución con subagentes baratos → verifica → explica |
-| grande / ambigua | SDD completo (init → explore → design → apply → verify) |
+| grande / ambigua | SDD completo (init → explore → design → apply → verify → close) |
 | (Team) con board | sincroniza Linear |
 
 Tú dices qué quieres; Ein elige el carril más pequeño que sea seguro.
@@ -43,7 +43,7 @@ Tú dices qué quieres; Ein elige el carril más pequeño que sea seguro.
 Para trabajo serio, seis fases. Cada agente tiene responsabilidades acotadas y no salta pasos:
 
 ```
-sdd-init → sdd-explore → sdd-design → sdd-apply → sdd-verify → sdd-archive
+sdd-init → sdd-explore → sdd-design → sdd-apply → sdd-verify → sdd-close
 ```
 
 | Fase | Qué hace |
@@ -53,7 +53,7 @@ sdd-init → sdd-explore → sdd-design → sdd-apply → sdd-verify → sdd-arc
 | **sdd-design** | Propuesta + spec (RFC 2119 + Given/When/Then) + tareas priorizadas |
 | **sdd-apply** | Implementa por slices, con TDD y commits atómicos por unidad de trabajo |
 | **sdd-verify** | Verifica contra el spec: tests, tipos, integración, regresiones |
-| **sdd-archive** | Condensa el cambio en un `summary.md` revisable y lo mueve a `archive/` |
+| **sdd-close** | Condensa el cambio en un `summary.md` revisable y lo mueve a `archive/` |
 
 **Routing determinista (sin que el modelo adivine).** El orquestador no enruta de memoria: dos tools deterministas (`ein_sdd_status`, `ein_sdd_check`) leen los ficheros de `openspec/changes/<cambio>/` y devuelven hechos — en qué fase va y si el artefacto está sano. El flujo es **fase a fase**: el router dice qué toca → se delega esa fase → el gatekeeper la valida → siguiente. Al abrir una sesión nueva, `/ein:sdd-status` reubica el cambio al instante, **sin volcar contexto ni quemar tokens**. Al cerrar, `sdd-archive` deja un `summary.md` legible meses después y `openspec/changes/` con solo cambios vivos.
 
@@ -170,7 +170,10 @@ Flags: `--yes`, `--no-engram`, `--no-secrets`, `--no-linear` (arranca en modo So
 # SDD
 /ein:ai:install-sdd     Instala el OpenSpec en el proyecto
 /ein:ai:sdd-preflight   Preflight de la sesión SDD
-/ein:sdd-check [ruta]   Lint determinista de un design.md
+/ein:sdd-audit [ruta]   Valida un cambio (todas las fases) o lint determinista de un design.md
+/ein:sdd-close [cambio] Cierra un cambio verificado: lo mueve a archive/
+/ein:sdd-check [ruta]   [legacy alias de /ein:sdd-audit]
+/ein:sdd-archive [cambio] [legacy alias de /ein:sdd-close]
 
 # Skills · Linear (Team) · Diagnóstico · Sesiones
 /ein:skills [update|add|clean] · /ein:skills:advisor <tarea>

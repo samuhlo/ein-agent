@@ -93,7 +93,7 @@ Phases: `init → explore → design → apply → verify → archive`. `design`
 
 **Scope Gate (before `sdd-explore`).** Build a SCOPE PACKET from the request: `scope`, `change_name`, `budget: { max_tokens: 15000, max_reads: 30 }` (override if explicit), `webfetch: true` only if the request needs the web. Wrap `{task}` inside it in the prompt. Reject vague scope ("arregla todo") and ask for clarification; if clear but too broad (>50 files), decompose into slices first. A whole-project refactor is a roadmap of bounded slices (one slice = one future SDD/PR), not one chain run.
 
-**Gatekeeper (`ein_sdd_check`).** This is step 3 of the loop and covers EVERY phase, design included (sections, required signals like verify's `status:` line, placeholders, size). Run it after each phase; errors block advancing. `/ein:sdd-check` is the manual equivalent for the user.
+**Gatekeeper (`ein_sdd_check`).** This is step 3 of the loop and covers EVERY phase, design included (sections, required signals like verify's `status:` line, placeholders, size). Run it after each phase; errors block advancing. `/ein:sdd-audit` is the canonical manual equivalent; `/ein:sdd-check` is a legacy alias.
 
 **Lazy preflight.** Don't ask SDD setup on session start. The first time SDD is initiated, run `/ein:ai:sdd-preflight` once and reuse the injected `## SDD Session Preflight` block for the session. Existing `openspec/config.yaml` / SDD assets are project context, NOT session preflight — don't start phases until preflight exists (injected block or explicit user answers). It captures execution mode (`interactive`/`auto`) and artifact store. Assets self-install non-destructively to `~/.pi/agent/agents/sdd-*.md` and `~/.pi/agent/chains/ein-sdd.chain.md`.
 

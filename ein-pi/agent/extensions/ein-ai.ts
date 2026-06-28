@@ -503,73 +503,74 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
+	// ── SDD audit (canonical) / sdd-check (legacy alias) ──────────────────────
+	async function handleSddAudit(args: string | string[], ctx: ExtensionContext) {
+		const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
+		const arg = raw.trim();
+
+		if (!arg) {
+			const status = resolveSddStatus(ctx.cwd);
+			if (!status.change) {
+				ctx.ui.notify(
+					"No hay cambio activo. Uso: /ein:sdd-audit <change>  |  /ein:sdd-audit <path-to-design.md>",
+					"warning",
+				);
+				return;
+			}
+			const report = lintChange(ctx.cwd, status.change);
+			ctx.ui.notify(formatChangeLint(report), report.errors ? "warning" : "info");
+			return;
+		}
+
+		const candidatePath = arg.startsWith("/") ? arg : join(ctx.cwd, arg);
+		if (existsSync(candidatePath)) {
+			const report = lintDesignArtifact(readFileSync(candidatePath, "utf8"));
+			const rel = candidatePath.startsWith(ctx.cwd)
+				? candidatePath.slice(ctx.cwd.length + 1)
+				: candidatePath;
+			const status = report.errors
+				? "FAIL"
+				: report.warnings
+					? "OK_WITH_WARNINGS"
+					: "OK";
+			const out: string[] = [
+				"/// 000. SDD DESIGN CHECK",
+				"",
+				`design: ${rel}`,
+				`resultado: ${status}  |  errores: ${report.errors}  |  warnings: ${report.warnings}  |  lineas: ${report.lineCount}`,
+			];
+			if (report.issues.length) {
+				out.push("");
+				for (const i of report.issues) {
+					out.push(`- ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
+				}
+			} else {
+				out.push("", "- Design limpio: secciones completas, tareas accionables, sin planificacion prohibida.");
+			}
+			ctx.ui.notify(out.join("\n"), report.errors ? "warning" : "info");
+			return;
+		}
+
+		if (changeDirExists(ctx.cwd, arg)) {
+			const report = lintChange(ctx.cwd, arg);
+			ctx.ui.notify(formatChangeLint(report), report.errors ? "warning" : "info");
+			return;
+		}
+
+		ctx.ui.notify(
+			`No encontre '${arg}' como path ni como cambio en openspec/changes/. Uso: /ein:sdd-audit <change>  |  /ein:sdd-audit <path-to-design.md>`,
+			"warning",
+		);
+	}
+
+	pi.registerCommand("ein:sdd-audit", {
+		description: t("cmd.sdd-audit.description", "Validate a change (all phases) or lint a design.md path"),
+		handler: async (args, ctx) => handleSddAudit(args, ctx),
+	});
+
 	pi.registerCommand("ein:sdd-check", {
-		description: t(
-			"cmd.sdd-check.description",
-			"Validate a change (all phases) or lint a design.md path",
-		),
-		handler: async (args, ctx) => {
-			const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
-			const arg = raw.trim();
-
-			// Sin argumento: cambio activo
-			if (!arg) {
-				const status = resolveSddStatus(ctx.cwd);
-				if (!status.change) {
-					ctx.ui.notify(
-						"No hay cambio activo. Uso: /ein:sdd-check <change>  |  /ein:sdd-check <path-to-design.md>",
-						"warning",
-					);
-					return;
-				}
-				const report = lintChange(ctx.cwd, status.change);
-				ctx.ui.notify(formatChangeLint(report), report.errors ? "warning" : "info");
-				return;
-			}
-
-			// Si parece un path absoluto o relativo existente, lint de design
-			const candidatePath = arg.startsWith("/") ? arg : join(ctx.cwd, arg);
-			if (existsSync(candidatePath)) {
-				const report = lintDesignArtifact(readFileSync(candidatePath, "utf8"));
-				const rel = candidatePath.startsWith(ctx.cwd)
-					? candidatePath.slice(ctx.cwd.length + 1)
-					: candidatePath;
-				const status = report.errors
-					? "FAIL"
-					: report.warnings
-						? "OK_WITH_WARNINGS"
-						: "OK";
-				const out: string[] = [
-					"/// 000. SDD DESIGN CHECK",
-					"",
-					`design: ${rel}`,
-					`resultado: ${status}  |  errores: ${report.errors}  |  warnings: ${report.warnings}  |  lineas: ${report.lineCount}`,
-				];
-				if (report.issues.length) {
-					out.push("");
-					for (const i of report.issues) {
-						out.push(`- ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
-					}
-				} else {
-					out.push("", "- Design limpio: secciones completas, tareas accionables, sin planificacion prohibida.");
-				}
-				ctx.ui.notify(out.join("\n"), report.errors ? "warning" : "info");
-				return;
-			}
-
-			// Si es un nombre de change valido, lint completo del cambio
-			if (changeDirExists(ctx.cwd, arg)) {
-				const report = lintChange(ctx.cwd, arg);
-				ctx.ui.notify(formatChangeLint(report), report.errors ? "warning" : "info");
-				return;
-			}
-
-			// No existe ni como path ni como change
-			ctx.ui.notify(
-				`No encontre '${arg}' como path ni como cambio en openspec/changes/. Uso: /ein:sdd-check <change>  |  /ein:sdd-check <path-to-design.md>`,
-				"warning",
-			);
-		},
+		description: t("cmd.sdd-check.description", "[legacy] Use /ein:sdd-audit"),
+		handler: async (args, ctx) => handleSddAudit(args, ctx),
 	});
 
 	// ── Tool determinista: estado SDD (lo llama el ORQUESTADOR para enrutar) ──
@@ -636,22 +637,30 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
+	// ── SDD close (canonical) / sdd-archive (legacy alias) ────────────────────
+	async function handleSddClose(args: string | string[], ctx: ExtensionContext) {
+		const change = (typeof args === "string" ? args : "").trim() || resolveSddStatus(ctx.cwd).change || "";
+		if (!change) {
+			ctx.ui.notify("Sin cambio que archivar. Uso: /ein:sdd-close <change>", "warning");
+			return;
+		}
+		const r = archiveChange(ctx.cwd, change);
+		ctx.ui.notify(
+			r.ok
+				? `Cambio '${change}' archivado en openspec/changes/archive/. openspec/changes/ queda limpio.`
+				: `No se archivó '${change}': ${r.reason}`,
+			r.ok ? "info" : "warning",
+		);
+	}
+
+	pi.registerCommand("ein:sdd-close", {
+		description: t("cmd.sdd-close.description", "Close a verified change: move openspec/changes/<x> to archive/"),
+		handler: async (args, ctx) => handleSddClose(args, ctx),
+	});
+
 	pi.registerCommand("ein:sdd-archive", {
-		description: t("cmd.sdd-archive.description", "Archivar un cambio cerrado: mueve openspec/changes/<x> a archive/"),
-		handler: async (args, ctx) => {
-			const change = (typeof args === "string" ? args : "").trim() || resolveSddStatus(ctx.cwd).change || "";
-			if (!change) {
-				ctx.ui.notify("Sin cambio que archivar. Uso: /ein:sdd-archive <change>", "warning");
-				return;
-			}
-			const r = archiveChange(ctx.cwd, change);
-			ctx.ui.notify(
-				r.ok
-					? `Cambio '${change}' archivado en openspec/changes/archive/. openspec/changes/ queda limpio.`
-					: `No se archivó '${change}': ${r.reason}`,
-				r.ok ? "info" : "warning",
-			);
-		},
+		description: t("cmd.sdd-archive.description", "[legacy] Use /ein:sdd-close"),
+		handler: async (args, ctx) => handleSddClose(args, ctx),
 	});
 
 	pi.registerCommand("ein:status", {
