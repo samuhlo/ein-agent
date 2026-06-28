@@ -60,6 +60,54 @@ describe("resolveSddStatus", () => {
 		expect(resolveSddStatus(DIR).nextRecommended).toBe("apply");
 	});
 
+	test("parsea tasks.md de forma tolerante", () => {
+		const c = change("feat-x");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [ ] 1.1 Build router\n- [x] 1.2 Ship tests\n");
+		const s = resolveSddStatus(DIR, "feat-x");
+		expect(s.tasks.present).toBe(true);
+		expect(s.tasks.status).toBe("ready");
+		expect(s.tasks.counts).toEqual({ pending: 1, ready: 1, blocked: 0, done: 1 });
+		expect(s.tasks.items[0]).toEqual({ id: "1.1", title: "Build router", done: false });
+	});
+
+	test("tasks.md bloqueado alimenta contadores y blockers", () => {
+		const c = change("feat-x");
+		put(c, "tasks.md", "status: blocked\nblocked_by: decision missing\n- [ ] 1.1 Build router\n");
+		const s = resolveSddStatus(DIR, "feat-x");
+		expect(s.tasks.counts.blocked).toBe(1);
+		expect(s.blocked).toContain("tasks.md bloqueado por: decision missing");
+	});
+
+	test("sin tasks.md no rompe status", () => {
+		const c = change("feat-x");
+		put(c, "init.md");
+		const s = resolveSddStatus(DIR, "feat-x");
+		expect(s.tasks.present).toBe(false);
+		expect(s.tasks.items).toEqual([]);
+		expect(s.tasks.problems).toContain("tasks.md ausente.");
+	});
+
+	test("parsea budget parcial desde init y exploration", () => {
+		const c = change("feat-x");
+		put(c, "init.md", "scope: x\nbudget_allocated: 12 reads\n");
+		put(c, "exploration.md", "ledger: ok\nbudget_consumed: 5 reads\nscope_status: ok\n");
+		const s = resolveSddStatus(DIR, "feat-x");
+		expect(s.budget.allocated).toBe("12 reads");
+		expect(s.budget.consumed).toBe("5 reads");
+		expect(s.budget.allocatedValue).toBe(12);
+		expect(s.budget.consumedValue).toBe(5);
+	});
+
+	test("devuelve fase actual y artefactos presentes/faltantes", () => {
+		const c = change("feat-x");
+		put(c, "init.md");
+		put(c, "exploration.md");
+		const s = resolveSddStatus(DIR, "feat-x");
+		expect(s.currentPhase).toBe("design");
+		expect(s.artifacts.present.map((artifact) => artifact.phase)).toContain("init");
+		expect(s.artifacts.missing.map((artifact) => artifact.phase)).toContain("tasks");
+	});
+
 	test("apply-progress.md sin status → siguiente apply (partial, no advance)", () => {
 		const c = change("feat-x");
 		for (const f of ["init.md", "exploration.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f);

@@ -3,8 +3,31 @@
 // Design valida contrato de diseño; tasks valida el checklist ejecutable.
 // =============================================================================
 
-import { describe, expect, test } from "bun:test";
-import { lintDesignArtifact, lintTasksArtifact } from "../ein-pi/agent/lib/sdd-guardrails";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { lintChange, lintDesignArtifact, lintPhaseArtifact, lintTasksArtifact } from "../ein-pi/agent/lib/sdd-guardrails";
+
+let DIR: string;
+
+function change(name: string): string {
+	const p = join(DIR, "openspec", "changes", name);
+	mkdirSync(p, { recursive: true });
+	return p;
+}
+
+function put(changePath: string, file: string, body = "x"): void {
+	writeFileSync(join(changePath, file), body);
+}
+
+beforeEach(() => {
+	DIR = mkdtempSync(join(tmpdir(), "sdd-guardrails-"));
+});
+
+afterEach(() => {
+	rmSync(DIR, { recursive: true, force: true });
+});
 
 const GOOD = `# design.md
 
@@ -106,5 +129,43 @@ describe("lintTasksArtifact", () => {
 		const r = lintTasksArtifact(GOOD_TASKS.replace("- [ ]", "-"));
 		expect(r.ok).toBe(false);
 		expect(r.issues.some((i) => i.code === "missing-checkbox")).toBe(true);
+	});
+});
+
+describe("lintPhaseArtifact required signals", () => {
+	test("init requiere scope y budget_allocated", () => {
+		const r = lintPhaseArtifact("init", "scope: solo x\n");
+		expect(r.ok).toBe(false);
+		expect(r.issues.some((i) => i.code === "missing-budget-allocated")).toBe(true);
+	});
+
+	test("explore requiere ledger, budget_consumed y scope_status", () => {
+		const r = lintPhaseArtifact("explore", "ledger: ok\n");
+		expect(r.ok).toBe(false);
+		expect(r.issues.some((i) => i.code === "missing-budget-consumed")).toBe(true);
+		expect(r.issues.some((i) => i.code === "missing-scope-status")).toBe(true);
+	});
+});
+
+describe("lintChange sequence consistency", () => {
+	test("detecta hueco design presente pero tasks ausente", () => {
+		const c = change("feat-x");
+		put(c, "init.md", "scope: x\nbudget_allocated: 10\n");
+		put(c, "exploration.md", "ledger: ok\nbudget_consumed: 2\nscope_status: ok\n");
+		put(c, "design.md", GOOD);
+
+		const r = lintChange(DIR, "feat-x");
+		expect(r.warnings).toBeGreaterThan(0);
+		expect(r.issues.some((i) => i.code === "sequence-design-without-tasks")).toBe(true);
+	});
+
+	test("detecta salto de secuencia si apply existe sin tasks", () => {
+		const c = change("feat-x");
+		put(c, "init.md", "scope: x\nbudget_allocated: 10\n");
+		put(c, "apply-progress.md", "status: complete\n");
+
+		const r = lintChange(DIR, "feat-x");
+		expect(r.ok).toBe(false);
+		expect(r.issues.some((i) => i.code === "sequence-tasks-missing-before-apply")).toBe(true);
 	});
 });

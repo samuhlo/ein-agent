@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listActiveChanges, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
+import { listActiveChanges, resolveSddStatus, type SddChangeStatus } from "../ein-pi/agent/lib/sdd-router";
 import { t, tf } from "../ein-pi/agent/lib/i18n/strings";
 
 let DIR: string;
@@ -38,26 +38,37 @@ afterEach(() => {
 });
 
 // Replica exacta del formatter del handler /ein:sdd-status
-function formatSddStatus(cwd: string): string {
-	const s = resolveSddStatus(cwd);
+function compactBudget(budget: SddChangeStatus["budget"]): string {
+	if (!budget.allocated && !budget.consumed) return "absent";
+	return `allocated=${budget.allocated ?? "unknown"} · consumed=${budget.consumed ?? "unknown"}`;
+}
+
+function formatSddStatus(cwd: string, change?: string): string {
+	const s = resolveSddStatus(cwd, change);
 	const active = listActiveChanges(cwd);
 	const lines: string[] = ["/// 000. SDD STATUS", ""];
 	if (!s.change) {
-		lines.push("- " + t("sdd-status.none", "No hay cambios SDD activos en openspec/changes/."));
+		lines.push("- " + t("sdd-status.none", "No active SDD changes in openspec/changes/."));
 	} else {
-		const done = (Object.keys(s.present) as (keyof typeof s.present)[])
-			.filter((p) => s.present[p])
-			.join(", ") || t("sdd-status.no-active", "ninguno");
+		const present = s.artifacts.present.map((artifact) => `${artifact.phase}(${artifact.file})`).join(", ") || t("sdd-status.no-active", "none");
+		const missing = s.artifacts.missing.map((artifact) => `${artifact.phase}(${artifact.file})`).join(", ") || t("sdd-status.no-active", "none");
 		lines.push(`${t("sdd-status.change", "change")}: ${s.change}`);
 		if (active.length > 1) lines.push(`${t("sdd-status.active", "active")}: ${active.join(", ")}`);
-		lines.push(`${t("sdd-status.phases", "phases done")}: ${done}`);
+		lines.push(`${t("sdd-status.current", "current phase")}: ${s.currentPhase}`);
+		lines.push(`${t("sdd-status.next", "next")}: ${s.nextRecommended}`);
+		lines.push(`${t("sdd-status.artifacts.present", "artifacts present")}: ${present}`);
+		lines.push(`${t("sdd-status.artifacts.missing", "artifacts missing")}: ${missing}`);
 		lines.push(`${t("sdd-status.apply", "apply")}: ${s.apply}`);
 		lines.push(`${t("sdd-status.verify", "verify")}: ${s.verify}`);
-		lines.push(`${t("sdd-status.next", "next")}: ${s.nextRecommended}`);
-		if (s.blocked.length) {
+		lines.push(`${t("sdd-status.tasks", "tasks")}: status=${s.tasks.status ?? "absent"} · ready=${s.tasks.counts.ready} · blocked=${s.tasks.counts.blocked} · pending=${s.tasks.counts.pending} · done=${s.tasks.counts.done}`);
+		if (s.tasks.blockedBy) lines.push(`${t("sdd-status.blocked-by", "blocked_by")}: ${s.tasks.blockedBy}`);
+		lines.push(`${t("sdd-status.budget", "budget")}: ${compactBudget(s.budget)}`);
+		const problems = [...s.tasks.problems, ...s.budget.problems];
+		if (s.blocked.length || problems.length) {
 			lines.push("");
 			lines.push(`■ ${t("sdd-status.blocked", "blockers")}:`);
 			for (const b of s.blocked) lines.push(`- ${b}`);
+			for (const p of problems) lines.push(`- ${p}`);
 		}
 	}
 	return lines.join("\n");
@@ -79,6 +90,8 @@ describe("sdd-status output format", () => {
 
 		const out = formatSddStatus(DIR);
 		expect(out).toContain("change: feat-x");
+		expect(out).toContain("current phase: apply");
+		expect(out).toContain("artifacts present: init(init.md)");
 		expect(out).toContain("apply: partial");
 		expect(out).toContain("verify: absent");
 		expect(out).toContain("next: apply");
@@ -118,6 +131,29 @@ describe("sdd-status output format", () => {
 		expect(out).toContain("■ blockers:");
 		expect(out).toContain("- apply-progress.md indica bloqueo.");
 	});
+
+	test("argumento opcional permite elegir change", () => {
+		const a = change("feat-a");
+		const b = change("feat-b");
+		put(a, "init.md");
+		put(b, "init.md");
+		put(b, "exploration.md");
+
+		const out = formatSddStatus(DIR, "feat-b");
+		expect(out).toContain("change: feat-b");
+		expect(out).toContain("current phase: design");
+	});
+
+	test("muestra tareas y budget sin hacer dump gigante", () => {
+		const c = change("feat-x");
+		put(c, "init.md", "scope: x\nbudget_allocated: 10 reads\n");
+		put(c, "exploration.md", "ledger: ok\nbudget_consumed: 4 reads\nscope_status: ok\n");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [ ] 1.1 Build\n- [x] 1.2 Test\n");
+
+		const out = formatSddStatus(DIR);
+		expect(out).toContain("tasks: status=ready · ready=1 · blocked=0 · pending=1 · done=1");
+		expect(out).toContain("budget: allocated=10 reads · consumed=4 reads");
+	});
 });
 
 describe("strings.ts i18n keys present", () => {
@@ -140,5 +176,11 @@ describe("strings.ts i18n keys present", () => {
 	test("status.sdd.multi con interpolacion", () => {
 		const out = tf("status.sdd.multi", "{0} active", 3);
 		expect(out).toBe("3 active");
+	});
+
+	test("sdd-status current/tasks/budget keys exist", () => {
+		expect(t("sdd-status.current", "")).toBe("current phase");
+		expect(t("sdd-status.tasks", "")).toBe("tasks");
+		expect(t("sdd-status.budget", "")).toBe("budget");
 	});
 });

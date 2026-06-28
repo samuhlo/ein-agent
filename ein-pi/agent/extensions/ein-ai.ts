@@ -57,7 +57,7 @@ import {
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
-import { listActiveChanges, resolveSddStatus } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, listActiveChanges, listActiveChangeSummaries, resolveSddStatus, type SddChangeStatus } from "../lib/sdd-router.ts";
 import { archiveChange } from "../lib/sdd-archive.ts";
 import {
 	codeConventionSkillBlock,
@@ -173,6 +173,13 @@ function formatChangeLint(report: ChangeLintReport): string {
 		`fases: ${presentCount}/${total} presentes  |  errores: ${errors}  |  warnings: ${warnings}`,
 	];
 
+	if (report.issues.length > 0) {
+		lines.push("", "■ consistencia:");
+		for (const i of report.issues) {
+			lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
+		}
+	}
+
 	for (const { phase, present: isPresent, report: pr } of phases) {
 		if (!isPresent) {
 			lines.push(`■ ${phase} — MISSING`);
@@ -189,6 +196,41 @@ function formatChangeLint(report: ChangeLintReport): string {
 		}
 	}
 
+	return lines.join("\n");
+}
+
+function compactBudget(budget: SddChangeStatus["budget"]): string {
+	if (!budget.allocated && !budget.consumed) return "absent";
+	return `allocated=${budget.allocated ?? "unknown"} · consumed=${budget.consumed ?? "unknown"}`;
+}
+
+function formatSddStatus(status: SddChangeStatus, active: string[]): string {
+	const lines = ["/// 000. SDD STATUS", ""];
+	if (!status.change) {
+		lines.push("- " + t("sdd-status.none", "No active SDD changes in openspec/changes/."));
+		return lines.join("\n");
+	}
+
+	const present = status.artifacts.present.map((artifact) => `${artifact.phase}(${artifact.file})`).join(", ") || t("sdd-status.no-active", "none");
+	const missing = status.artifacts.missing.map((artifact) => `${artifact.phase}(${artifact.file})`).join(", ") || t("sdd-status.no-active", "none");
+	lines.push(`${t("sdd-status.change", "change")}: ${status.change}`);
+	if (active.length > 1) lines.push(`${t("sdd-status.active", "active")}: ${active.join(", ")}`);
+	lines.push(`${t("sdd-status.current", "current phase")}: ${status.currentPhase}`);
+	lines.push(`${t("sdd-status.next", "next")}: ${status.nextRecommended}`);
+	lines.push(`${t("sdd-status.artifacts.present", "artifacts present")}: ${present}`);
+	lines.push(`${t("sdd-status.artifacts.missing", "artifacts missing")}: ${missing}`);
+	lines.push(`${t("sdd-status.apply", "apply")}: ${status.apply}`);
+	lines.push(`${t("sdd-status.verify", "verify")}: ${status.verify}`);
+	lines.push(`${t("sdd-status.tasks", "tasks")}: status=${status.tasks.status ?? "absent"} · ready=${status.tasks.counts.ready} · blocked=${status.tasks.counts.blocked} · pending=${status.tasks.counts.pending} · done=${status.tasks.counts.done}`);
+	if (status.tasks.blockedBy) lines.push(`${t("sdd-status.blocked-by", "blocked_by")}: ${status.tasks.blockedBy}`);
+	lines.push(`${t("sdd-status.budget", "budget")}: ${compactBudget(status.budget)}`);
+
+	const problems = [...status.tasks.problems, ...status.budget.problems];
+	if (status.blocked.length || problems.length) {
+		lines.push("", `■ ${t("sdd-status.blocked", "blockers")}:`);
+		for (const b of status.blocked) lines.push(`- ${b}`);
+		for (const p of problems) lines.push(`- ${p}`);
+	}
 	return lines.join("\n");
 }
 
@@ -596,30 +638,13 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:sdd-status", {
-		description: t("cmd.sdd-status.description", "Estado SDD determinista del cambio activo (en qué fase va, qué toca)"),
-		handler: async (_args, ctx) => {
-			const s = resolveSddStatus(ctx.cwd);
+		description: t("cmd.sdd-status.description", "Estado SDD determinista del cambio activo o nombrado (fase, tareas, budget)"),
+		handler: async (args, ctx) => {
+			const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
+			const change = raw.trim() || undefined;
+			const s = resolveSddStatus(ctx.cwd, change);
 			const active = listActiveChanges(ctx.cwd);
-			const lines = ["/// 000. SDD STATUS", ""];
-			if (!s.change) {
-				lines.push("- " + t("sdd-status.none", "No hay cambios SDD activos en openspec/changes/."));
-			} else {
-				const done = (Object.keys(s.present) as (keyof typeof s.present)[])
-					.filter((p) => s.present[p])
-					.join(", ") || t("sdd-status.no-active", "ninguno");
-				lines.push(`${t("sdd-status.change", "change")}: ${s.change}`);
-				if (active.length > 1) lines.push(`${t("sdd-status.active", "active")}: ${active.join(", ")}`);
-				lines.push(`${t("sdd-status.phases", "phases done")}: ${done}`);
-				lines.push(`${t("sdd-status.apply", "apply")}: ${s.apply}`);
-				lines.push(`${t("sdd-status.verify", "verify")}: ${s.verify}`);
-				lines.push(`${t("sdd-status.next", "next")}: ${s.nextRecommended}`);
-				if (s.blocked.length) {
-					lines.push("");
-					lines.push(`■ ${t("sdd-status.blocked", "blockers")}:`);
-					for (const b of s.blocked) lines.push(`- ${b}`);
-				}
-			}
-			ctx.ui.notify(lines.join("\n"), s.blocked.length ? "warning" : "info");
+			ctx.ui.notify(formatSddStatus(s, active), s.blocked.length ? "warning" : "info");
 		},
 	});
 
@@ -718,14 +743,19 @@ export default function einAi(pi: ExtensionAPI): void {
 			lines.push(`${t("status.chains", "chains")}: ${chains.length}`);
 			for (const c of chains) lines.push(`- ${c}`);
 			{
-				const s = resolveSddStatus(ctx.cwd);
-				const active = listActiveChanges(ctx.cwd);
-				if (!s.change) {
+				const summaries = listActiveChangeSummaries(ctx.cwd);
+				const budget = aggregateSddBudget(summaries);
+				if (summaries.length === 0) {
 					lines.push(`${t("status.sdd.active", "active change")}: ${t("status.sdd.none", "none")}`);
-				} else if (active.length === 1) {
-					lines.push(`${t("status.sdd.active", "active change")}: ${s.change} · next: ${s.nextRecommended} · apply: ${s.apply} · verify: ${s.verify}`);
 				} else {
-					lines.push(tf("status.sdd.multi", "{0} active", active.length) + `: ${active.join(", ")} · next: ${s.nextRecommended}`);
+					lines.push(tf("status.sdd.multi", "{0} active", summaries.length));
+					for (const summary of summaries.slice(0, 8)) {
+						lines.push(`- ${summary.change}: phase=${summary.currentPhase} · next=${summary.nextRecommended} · ready=${summary.tasks.ready} · blocked=${summary.tasks.blocked} · budget=${compactBudget(summary.budget)}`);
+					}
+					if (summaries.length > 8) lines.push(`- … ${summaries.length - 8} more`);
+					if (budget.changesWithBudget > 0) {
+						lines.push(`${t("status.sdd.budget-total", "budget total")}: allocated=${budget.allocated ?? "unknown"} · consumed=${budget.consumed ?? "unknown"}`);
+					}
 				}
 			}
 			if (staleDrift > 0)

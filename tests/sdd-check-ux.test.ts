@@ -36,6 +36,13 @@ function formatChangeLint(report: ChangeLintReport): string {
 		`fases: ${presentCount}/${total} presentes  |  errores: ${errors}  |  warnings: ${warnings}`,
 	];
 
+	if (report.issues.length > 0) {
+		lines.push("", "■ consistencia:");
+		for (const i of report.issues) {
+			lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
+		}
+	}
+
 	for (const { phase, present: isPresent, report: pr } of phases) {
 		if (!isPresent) {
 			lines.push(`■ ${phase} — MISSING`);
@@ -84,7 +91,7 @@ function makeReport(
 	errors = 0,
 	warnings = 0,
 ): ChangeLintReport {
-	return { change, ok: errors === 0, errors, warnings, phases };
+	return { change, ok: errors === 0, errors, warnings, issues: [], phases };
 }
 
 function makePhase(
@@ -155,6 +162,20 @@ describe("formatChangeLint", () => {
 		expect(out).toContain("fases: 7/7 presentes  |  errores: 0  |  warnings: 0");
 		expect(out).not.toContain("MISSING");
 		expect(out).not.toContain("ERRORS");
+	});
+
+	test("muestra issues globales de consistencia", () => {
+		const report: ChangeLintReport = {
+			change: "gap-change",
+			ok: false,
+			errors: 1,
+			warnings: 0,
+			issues: [{ level: "error", code: "sequence-tasks-missing-before-apply", message: "Hueco de secuencia." }],
+			phases: [makePhase("init", true), makePhase("apply", true)],
+		};
+		const out = formatChangeLint(report);
+		expect(out).toContain("■ consistencia:");
+		expect(out).toContain("ERROR [sequence-tasks-missing-before-apply]");
 	});
 });
 

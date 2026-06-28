@@ -21,9 +21,66 @@ export type SddNext = SddPhase | "done";
 export type VerifyOutcome = "pass" | "fail" | "unknown" | "absent";
 export type ApplyOutcome = "complete" | "partial" | "blocked" | "unknown" | "absent";
 
+export type SddArtifactStatus = {
+	phase: SddPhase;
+	file: string;
+	present: boolean;
+};
+
+export type SddTaskItem = {
+	id: string;
+	title: string;
+	done: boolean;
+};
+
+export type SddTasksStatus = {
+	present: boolean;
+	status: "ready" | "blocked" | null;
+	blockedBy: string | null;
+	items: SddTaskItem[];
+	counts: {
+		pending: number;
+		ready: number;
+		blocked: number;
+		done: number;
+	};
+	problems: string[];
+};
+
+export type SddBudgetStatus = {
+	allocated: string | null;
+	consumed: string | null;
+	allocatedValue: number | null;
+	consumedValue: number | null;
+	problems: string[];
+};
+
+export type SddChangeSummary = {
+	change: string;
+	currentPhase: SddNext;
+	nextRecommended: SddNext;
+	tasks: SddTasksStatus["counts"];
+	budget: SddBudgetStatus;
+	blocked: string[];
+};
+
+export type SddBudgetAggregate = {
+	allocated: number | null;
+	consumed: number | null;
+	changesWithBudget: number;
+};
+
 export type SddChangeStatus = {
 	change: string | null;
 	present: Record<SddPhase, boolean>;
+	currentPhase: SddNext;
+	artifacts: {
+		present: SddArtifactStatus[];
+		missing: SddArtifactStatus[];
+	};
+	summary: SddChangeSummary | null;
+	tasks: SddTasksStatus;
+	budget: SddBudgetStatus;
 	apply: ApplyOutcome;
 	verify: VerifyOutcome;
 	nextRecommended: SddNext;
@@ -40,6 +97,8 @@ const PHASE_ARTIFACT: Record<SddPhase, string> = {
 	verify: "verify-report.md",
 	archive: "summary.md",
 };
+
+const PHASE_ORDER: SddPhase[] = ["init", "explore", "design", "tasks", "apply", "verify", "archive"];
 
 function changesDir(cwd: string): string {
 	return join(cwd, "openspec", "changes");
@@ -65,6 +124,115 @@ export function listActiveChanges(cwd: string): string[] {
 		}
 	}
 	return out.sort();
+}
+
+function emptyTasksStatus(present = false, problem?: string): SddTasksStatus {
+	return {
+		present,
+		status: null,
+		blockedBy: null,
+		items: [],
+		counts: { pending: 0, ready: 0, blocked: 0, done: 0 },
+		problems: problem ? [problem] : [],
+	};
+}
+
+function emptyBudgetStatus(problem?: string): SddBudgetStatus {
+	return {
+		allocated: null,
+		consumed: null,
+		allocatedValue: null,
+		consumedValue: null,
+		problems: problem ? [problem] : [],
+	};
+}
+
+function readText(path: string): string | null {
+	try {
+		return readFileSync(path, "utf8");
+	} catch {
+		return null;
+	}
+}
+
+function parseNumber(value: string | null): number | null {
+	if (!value) return null;
+	const match = value.match(/-?\d+(?:\.\d+)?/);
+	return match ? Number(match[0]) : null;
+}
+
+function parseBudgetLine(content: string, keys: string[]): string | null {
+	for (const key of keys) {
+		const match = content.match(new RegExp(`^\\s*${key}\\s*[:=]\\s*(.+)$`, "im"));
+		if (match?.[1]?.trim()) return match[1].trim();
+	}
+	return null;
+}
+
+function readTasksStatus(changePath: string): SddTasksStatus {
+	const path = join(changePath, PHASE_ARTIFACT.tasks);
+	if (!existsSync(path)) return emptyTasksStatus(false, "tasks.md ausente.");
+	const content = readText(path);
+	if (content === null) return emptyTasksStatus(true, "tasks.md no se pudo leer.");
+
+	const statusMatch = content.match(/^\s*status\s*[:=]\s*(ready|blocked)\b/im);
+	const blockedByMatch = content.match(/^\s*blocked_by\s*[:=]\s*(.+)$/im);
+	const status = statusMatch ? (statusMatch[1].toLowerCase() as "ready" | "blocked") : null;
+	const rawBlockedBy = blockedByMatch?.[1]?.trim() ?? null;
+	const blockedBy = rawBlockedBy && !/^none$/i.test(rawBlockedBy) ? rawBlockedBy : null;
+	const items: SddTaskItem[] = [];
+
+	for (const line of content.split("\n")) {
+		const match = line.match(/^\s*-\s*\[( |x|X)\]\s+(.+)$/);
+		if (!match) continue;
+		const title = match[2].trim();
+		const idMatch = title.match(/^(\d+(?:\.\d+)*)\s+(.+)$/);
+		items.push({
+			id: idMatch?.[1] ?? String(items.length + 1),
+			title: idMatch?.[2]?.trim() ?? title,
+			done: match[1].toLowerCase() === "x",
+		});
+	}
+
+	const done = items.filter((item) => item.done).length;
+	const pending = items.length - done;
+	const blocked = status === "blocked" ? pending : 0;
+	const ready = status === "ready" ? pending : 0;
+	const problems: string[] = [];
+	if (!status) problems.push("tasks.md sin status ready|blocked.");
+	if (!blockedByMatch) problems.push("tasks.md sin blocked_by.");
+	if (items.length === 0) problems.push("tasks.md sin checkboxes parseables.");
+
+	return { present: true, status, blockedBy, items, counts: { pending, ready, blocked, done }, problems };
+}
+
+function readBudgetStatus(changePath: string): SddBudgetStatus {
+	const out = emptyBudgetStatus();
+	const initPath = join(changePath, PHASE_ARTIFACT.init);
+	const explorePath = join(changePath, PHASE_ARTIFACT.explore);
+
+	if (existsSync(initPath)) {
+		const init = readText(initPath);
+		if (init === null) out.problems.push("init.md no se pudo leer para budget.");
+		else out.allocated = parseBudgetLine(init, ["budget_allocated", "budget"]);
+	}
+	if (existsSync(explorePath)) {
+		const explore = readText(explorePath);
+		if (explore === null) out.problems.push("exploration.md no se pudo leer para budget.");
+		else out.consumed = parseBudgetLine(explore, ["budget_consumed", "budget_used", "consumed"]);
+	}
+
+	out.allocatedValue = parseNumber(out.allocated);
+	out.consumedValue = parseNumber(out.consumed);
+	return out;
+}
+
+function artifactLists(present: Record<SddPhase, boolean>): SddChangeStatus["artifacts"] {
+	const artifacts = PHASE_ORDER.map((phase) => ({ phase, file: PHASE_ARTIFACT[phase], present: present[phase] }));
+	return {
+		present: artifacts.filter((artifact) => artifact.present),
+		missing: artifacts.filter((artifact) => !artifact.present),
+	};
 }
 
 function readVerifyOutcome(changePath: string): VerifyOutcome {
@@ -126,7 +294,21 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	const blocked: string[] = [];
 
 	if (!target) {
-		return { change: null, present, apply: "absent", verify: "absent", nextRecommended: "done", blocked };
+		const tasks = emptyTasksStatus(false);
+		const budget = emptyBudgetStatus();
+		return {
+			change: null,
+			present,
+			currentPhase: "done",
+			artifacts: artifactLists(present),
+			summary: null,
+			tasks,
+			budget,
+			apply: "absent",
+			verify: "absent",
+			nextRecommended: "done",
+			blocked,
+		};
 	}
 
 	const changePath = join(changesDir(cwd), target);
@@ -136,6 +318,8 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 
 	const apply = readApplyOutcome(changePath);
 	const verify = readVerifyOutcome(changePath);
+	const tasks = readTasksStatus(changePath);
+	const budget = readBudgetStatus(changePath);
 
 	// Siguiente fase: la primera no presente en orden, con la verificación como
 	// gate antes de archivar. apply-progress.md con status != complete retiene apply.
@@ -161,5 +345,48 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 		blocked.push("verify-report sin línea `status: pass|fail` clara.");
 	}
 
-	return { change: target, present, apply, verify, nextRecommended, blocked };
+	if (tasks.status === "blocked" && tasks.blockedBy) blocked.push(`tasks.md bloqueado por: ${tasks.blockedBy}`);
+
+	const currentPhase = nextRecommended;
+	const summary: SddChangeSummary = {
+		change: target,
+		currentPhase,
+		nextRecommended,
+		tasks: tasks.counts,
+		budget,
+		blocked,
+	};
+
+	return {
+		change: target,
+		present,
+		currentPhase,
+		artifacts: artifactLists(present),
+		summary,
+		tasks,
+		budget,
+		apply,
+		verify,
+		nextRecommended,
+		blocked,
+	};
+}
+
+export function listActiveChangeSummaries(cwd: string): SddChangeSummary[] {
+	return listActiveChanges(cwd)
+		.map((change) => resolveSddStatus(cwd, change).summary)
+		.filter((summary): summary is SddChangeSummary => summary !== null);
+}
+
+export function aggregateSddBudget(summaries: SddChangeSummary[]): SddBudgetAggregate {
+	let allocated: number | null = null;
+	let consumed: number | null = null;
+	let changesWithBudget = 0;
+	for (const summary of summaries) {
+		const hasBudget = summary.budget.allocatedValue !== null || summary.budget.consumedValue !== null;
+		if (hasBudget) changesWithBudget += 1;
+		if (summary.budget.allocatedValue !== null) allocated = (allocated ?? 0) + summary.budget.allocatedValue;
+		if (summary.budget.consumedValue !== null) consumed = (consumed ?? 0) + summary.budget.consumedValue;
+	}
+	return { allocated, consumed, changesWithBudget };
 }

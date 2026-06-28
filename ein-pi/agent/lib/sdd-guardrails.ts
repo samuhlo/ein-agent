@@ -181,11 +181,21 @@ const PHASE_ARTIFACT: Record<SddPhase, string> = {
 	archive: "summary.md",
 };
 
+const PHASE_ORDER: SddPhase[] = ["init", "explore", "design", "tasks", "apply", "verify", "archive"];
+
 // Señal mínima obligatoria por fase (además de "no vacío"): si falta, es error.
 // El caso clave es `verify`, que DEBE emitir una línea `status: pass|fail` para
 // que el router determinista pueda enrutar. apply requiere `status: complete|partial|blocked`.
 const PHASE_REQUIRED: Partial<Record<SddPhase, { code: string; label: string; pattern: RegExp }[]>> = {
-	init: [{ code: "scope", label: "scope/budget", pattern: /\b(scope|budget_allocated|budget)\b/i }],
+	init: [
+		{ code: "scope", label: "scope", pattern: /\bscope\b/i },
+		{ code: "budget-allocated", label: "budget_allocated", pattern: /\bbudget_allocated\b/i },
+	],
+	explore: [
+		{ code: "ledger", label: "ledger", pattern: /\bledger\b/i },
+		{ code: "budget-consumed", label: "budget_consumed", pattern: /\bbudget_consumed\b/i },
+		{ code: "scope-status", label: "scope_status", pattern: /\bscope_status\b/i },
+	],
 	apply: [
 		{
 			code: "status-line",
@@ -245,8 +255,35 @@ export type ChangeLintReport = {
 	ok: boolean;
 	errors: number;
 	warnings: number;
+	issues: GuardrailIssue[];
 	phases: { phase: SddPhase; present: boolean; report?: DesignLintReport }[];
 };
+
+function sequenceIssues(phases: ChangeLintReport["phases"]): GuardrailIssue[] {
+	const issues: GuardrailIssue[] = [];
+	const presentByPhase = new Map(phases.map((phase) => [phase.phase, phase.present]));
+	for (let index = 0; index < PHASE_ORDER.length; index += 1) {
+		const phase = PHASE_ORDER[index];
+		if (!presentByPhase.get(phase)) continue;
+		const missingBefore = PHASE_ORDER.slice(0, index).filter((candidate) => !presentByPhase.get(candidate));
+		for (const missing of missingBefore) {
+			issues.push({
+				level: "error",
+				code: `sequence-${missing}-missing-before-${phase}`,
+				message: `Hueco de secuencia: ${PHASE_ARTIFACT[phase]} existe, pero falta ${PHASE_ARTIFACT[missing]}.`,
+			});
+		}
+	}
+
+	if (presentByPhase.get("design") && !presentByPhase.get("tasks")) {
+		issues.push({
+			level: "warning",
+			code: "sequence-design-without-tasks",
+			message: "design.md esta presente pero falta tasks.md; la continuidad ejecutable queda incompleta.",
+		});
+	}
+	return issues;
+}
 
 // Linta todos los artefactos PRESENTES de un cambio en openspec/changes/<change>/.
 export function lintChange(cwd: string, change: string): ChangeLintReport {
@@ -271,5 +308,8 @@ export function lintChange(cwd: string, change: string): ChangeLintReport {
 		warnings += report.warnings;
 		phases.push({ phase, present: true, report });
 	}
-	return { change, ok: errors === 0, errors, warnings, phases };
+	const issues = sequenceIssues(phases);
+	errors += issues.filter((issue) => issue.level === "error").length;
+	warnings += issues.filter((issue) => issue.level === "warning").length;
+	return { change, ok: errors === 0, errors, warnings, issues, phases };
 }
