@@ -551,17 +551,22 @@ export default function einAi(pi: ExtensionAPI): void {
 			const active = listActiveChanges(ctx.cwd);
 			const lines = ["/// 000. SDD STATUS", ""];
 			if (!s.change) {
-				lines.push("- No hay cambios SDD activos en openspec/changes/.");
+				lines.push("- " + t("sdd-status.none", "No hay cambios SDD activos en openspec/changes/."));
 			} else {
 				const done = (Object.keys(s.present) as (keyof typeof s.present)[])
 					.filter((p) => s.present[p])
-					.join(", ") || "ninguna";
-				lines.push(`change: ${s.change}`);
-				if (active.length > 1) lines.push(`activos: ${active.join(", ")}`);
-				lines.push(`fases hechas: ${done}`);
-				lines.push(`verify: ${s.verify}`);
-				lines.push(`siguiente: ${s.nextRecommended}`);
-				if (s.blocked.length) lines.push("", "■ bloqueos:", ...s.blocked.map((b) => `- ${b}`));
+					.join(", ") || t("sdd-status.no-active", "ninguno");
+				lines.push(`${t("sdd-status.change", "change")}: ${s.change}`);
+				if (active.length > 1) lines.push(`${t("sdd-status.active", "active")}: ${active.join(", ")}`);
+				lines.push(`${t("sdd-status.phases", "phases done")}: ${done}`);
+				lines.push(`${t("sdd-status.apply", "apply")}: ${s.apply}`);
+				lines.push(`${t("sdd-status.verify", "verify")}: ${s.verify}`);
+				lines.push(`${t("sdd-status.next", "next")}: ${s.nextRecommended}`);
+				if (s.blocked.length) {
+					lines.push("");
+					lines.push(`■ ${t("sdd-status.blocked", "blockers")}:`);
+					for (const b of s.blocked) lines.push(`- ${b}`);
+				}
 			}
 			ctx.ui.notify(lines.join("\n"), s.blocked.length ? "warning" : "info");
 		},
@@ -653,6 +658,17 @@ export default function einAi(pi: ExtensionAPI): void {
 			for (const a of agents) lines.push(`- ${a}`);
 			lines.push(`${t("status.chains", "chains")}: ${chains.length}`);
 			for (const c of chains) lines.push(`- ${c}`);
+			{
+				const s = resolveSddStatus(ctx.cwd);
+				const active = listActiveChanges(ctx.cwd);
+				if (!s.change) {
+					lines.push(`${t("status.sdd.active", "active change")}: ${t("status.sdd.none", "none")}`);
+				} else if (active.length === 1) {
+					lines.push(`${t("status.sdd.active", "active change")}: ${s.change} · next: ${s.nextRecommended} · apply: ${s.apply} · verify: ${s.verify}`);
+				} else {
+					lines.push(tf("status.sdd.multi", "{0} active", active.length) + `: ${active.join(", ")} · next: ${s.nextRecommended}`);
+				}
+			}
 			if (staleDrift > 0)
 				lines.push(
 					`drift: ${staleDrift} ${t("status.drift.files", "archivo(s) desincronizado(s)")} — /ein:ai:install-sdd --force ${t("status.drift.refresh", "para refrescar")}`,

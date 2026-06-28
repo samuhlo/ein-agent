@@ -44,6 +44,23 @@ const EN: Record<string, string> = {
 	"status.diag.output": "for technical smoke checks",
 	"status.diag.doctor": "for an explanatory diagnosis",
 
+	// ── /ein:sdd-status output ──
+	"sdd-status.change": "change",
+	"sdd-status.active": "active",
+	"sdd-status.phases": "phases done",
+	"sdd-status.apply": "apply",
+	"sdd-status.verify": "verify",
+	"sdd-status.next": "next",
+	"sdd-status.blocked": "blockers",
+	"sdd-status.none": "No active SDD changes in openspec/changes/.",
+	"sdd-status.all-active": "{0} active",
+	"sdd-status.no-active": "none",
+
+	// ── /ein:status SDD summary ──
+	"status.sdd.active": "active change",
+	"status.sdd.none": "none",
+	"status.sdd.multi": "{0} active",
+
 	// ── /ein:lang descripcion ──
 	"cmd.lang.description": "View or change Ein's language (chat/UI and PR/commit/Linear artifacts)",
 	"cmd.tdd.description": "View or change strict TDD mode (auto/strict/off/ask)",
@@ -304,6 +321,23 @@ const ES: Record<string, string> = {
 	"status.diag": "DIAGNOSTICO",
 	"status.diag.output": "para smoke checks tecnicos",
 	"status.diag.doctor": "para diagnostico explicativo",
+
+	// ── /ein:sdd-status output ──
+	"sdd-status.change": "cambio",
+	"sdd-status.active": "activos",
+	"sdd-status.phases": "fases hechas",
+	"sdd-status.apply": "apply",
+	"sdd-status.verify": "verify",
+	"sdd-status.next": "next",
+	"sdd-status.blocked": "bloqueos",
+	"sdd-status.none": "No hay cambios SDD activos en openspec/changes/.",
+	"sdd-status.all-active": "{0} activos",
+	"sdd-status.no-active": "ninguno",
+
+	// ── /ein:status SDD summary ──
+	"status.sdd.active": "cambio activo",
+	"status.sdd.none": "ninguno",
+	"status.sdd.multi": "{0} activos",
 
 	// ── /ein:lang descripcion ──
 	"cmd.lang.description": "Ver o cambiar el idioma de Ein (conversación/UI y artefactos PR/commit/Linear)",
