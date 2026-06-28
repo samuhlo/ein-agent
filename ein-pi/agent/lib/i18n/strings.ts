@@ -67,6 +67,7 @@ const EN: Record<string, string> = {
 	"cmd.mode.description": "View or change work mode (solo/team): Linear optional",
 	"cmd.sdd-status.description": "Deterministic SDD status of the active change (which phase, what's next)",
 	"cmd.sdd-archive.description": "Archive a closed change: move openspec/changes/<x> to archive/",
+	"cmd.sdd-check.description": "Validate a change (all phases) or lint a design.md path",
 
 	// ── compartidas ──
 	"busy.retry": "The agent is busy. Retry {0} when it finishes.",
@@ -194,7 +195,7 @@ const EN: Record<string, string> = {
 		"",
 		"■ 002. SDD",
 		"- /sdd-init → bootstrap openspec in the current project",
-		"- /ein:sdd-check [path] → lint a design.md (sections, tasks, size)",
+		"- /ein:sdd-check [change | path] → validate a change (all phases) or lint a design.md path",
 		"- /ein:sdd-status → deterministic SDD state (which phase, what is next)",
 		"- /ein:sdd-archive [change] → close a change: move it to archive/",
 		"- SDD flows via natural language or the ein-sdd chain",
@@ -247,7 +248,7 @@ const EN: Record<string, string> = {
 		"",
 		"- SDD flows via natural language or the ein-sdd chain.",
 		"- /sdd-init             → bootstrap openspec/config.yaml in the project.",
-		"- /ein:sdd-check [path] → deterministic lint of a design.md (sections, tasks, forbidden delivery planning, size).",
+		"- /ein:sdd-check [change | path] → validate a change (all phases) or lint a design.md path.",
 		"- /ein:sdd-status          → deterministic SDD state of the active change (phase, next, blockers).",
 		"- /ein:sdd-archive [change] → close a verified change: move openspec/changes/<x> to archive/.",
 		"- /ein:ai:sdd-preflight → SDD preflight (mode and artifact store).",
@@ -345,6 +346,7 @@ const ES: Record<string, string> = {
 	"cmd.mode.description": "Ver o cambiar el modo de trabajo (solo/team): Linear opcional",
 	"cmd.sdd-status.description": "Estado SDD determinista del cambio activo (en qué fase va, qué toca)",
 	"cmd.sdd-archive.description": "Archivar un cambio cerrado: mueve openspec/changes/<x> a archive/",
+	"cmd.sdd-check.description": "Validar un cambio (todas las fases) o lintar un path de design.md",
 
 	// ── compartidas ──
 	"busy.retry": "El agente esta ocupado. Reintenta {0} cuando termine.",
@@ -472,7 +474,7 @@ const ES: Record<string, string> = {
 		"",
 		"■ 002. SDD",
 		"- /sdd-init → bootstrap openspec en el proyecto actual",
-		"- /ein:sdd-check [ruta] → valida un design.md (secciones, tareas, tamaño)",
+		"- /ein:sdd-check [cambio | ruta] → valida un cambio (todas las fases) o lint de un design.md",
 		"- /ein:sdd-status → estado SDD determinista (en qué fase va, qué toca)",
 		"- /ein:sdd-archive [cambio] → cerrar un cambio: moverlo a archive/",
 		"- SDD fluye via lenguaje natural o chain ein-sdd",
@@ -525,7 +527,7 @@ const ES: Record<string, string> = {
 		"",
 		"- SDD fluye via lenguaje natural o chain ein-sdd.",
 		"- /sdd-init             → bootstrap openspec/config.yaml en el proyecto.",
-		"- /ein:sdd-check [ruta] → lint determinista de un design.md (secciones, tareas, planificacion prohibida, tamaño).",
+		"- /ein:sdd-check [cambio | ruta] → validar un cambio (todas las fases) o lint de un design.md.",
 		"- /ein:sdd-status           → estado SDD determinista del cambio activo (fase, siguiente, bloqueos).",
 		"- /ein:sdd-archive [cambio] → cerrar un cambio verificado: mueve openspec/changes/<x> a archive/.",
 		"- /ein:ai:sdd-preflight → preflight SDD (modo y store de artefactos).",

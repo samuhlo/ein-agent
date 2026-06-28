@@ -56,7 +56,7 @@ import {
 } from "../lib/model-config.ts";
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
-import { lintChange, lintDesignArtifact } from "../lib/sdd-guardrails.ts";
+import { lintChange, lintDesignArtifact, type ChangeLintReport } from "../lib/sdd-guardrails.ts";
 import { listActiveChanges, resolveSddStatus } from "../lib/sdd-router.ts";
 import { archiveChange } from "../lib/sdd-archive.ts";
 import {
@@ -139,6 +139,16 @@ function readAgentTask(event: unknown): string {
 	return readStringPath(event, ["systemPrompt"]) ?? "";
 }
 
+// Devuelve true si `name` es un directorio existente en openspec/changes/.
+function changeDirExists(cwd: string, name: string): boolean {
+	const base = join(cwd, "openspec", "changes", name);
+	try {
+		return statSync(base).isDirectory();
+	} catch {
+		return false;
+	}
+}
+
 // Devuelve el design.md mas reciente bajo openspec/changes/<change>/, o null.
 // Lo usa /ein:sdd-check cuando no se pasa una ruta explicita.
 function findLatestDesign(cwd: string): string | null {
@@ -163,6 +173,39 @@ function findLatestDesign(cwd: string): string | null {
 		}
 	}
 	return best?.path ?? null;
+}
+
+// Formatea un ChangeLintReport como salida legible para el comando /ein:sdd-check.
+// La herramienta ein_sdd_check sigue devolviendo JSON (contrato del orquestador).
+function formatChangeLint(report: ChangeLintReport): string {
+	const { change, errors, warnings, phases } = report;
+	const present = phases.filter((p) => p.present);
+	const total = phases.length;
+	const presentCount = present.length;
+
+	const lines: string[] = [
+		`/// 000. SDD CHECK — ${change}`,
+		"",
+		`fases: ${presentCount}/${total} presentes  |  errores: ${errors}  |  warnings: ${warnings}`,
+	];
+
+	for (const { phase, present: isPresent, report: pr } of phases) {
+		if (!isPresent) {
+			lines.push(`■ ${phase} — MISSING`);
+			continue;
+		}
+		const ok = pr!.errors === 0;
+		const icon = ok ? "OK" : "ERRORS";
+		const detail = pr!.lineCount > 0 ? `, ${pr!.lineCount} lineas` : "";
+		lines.push(`■ ${phase} — ${icon} (presente${detail})`);
+		if (pr!.issues.length > 0) {
+			for (const i of pr!.issues) {
+				lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
+			}
+		}
+	}
+
+	return lines.join("\n");
 }
 
 // ─── Extensión ────────────────────────────────────────────────────────────────
@@ -463,48 +506,69 @@ export default function einAi(pi: ExtensionAPI): void {
 	pi.registerCommand("ein:sdd-check", {
 		description: t(
 			"cmd.sdd-check.description",
-			"Validar un design.md (secciones, tareas, planificacion prohibida, tamaño)",
+			"Validate a change (all phases) or lint a design.md path",
 		),
 		handler: async (args, ctx) => {
-			const arg = (typeof args === "string" ? args : "").trim();
-			const designPath = arg
-				? (arg.startsWith("/") ? arg : join(ctx.cwd, arg))
-				: findLatestDesign(ctx.cwd);
+			const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
+			const arg = raw.trim();
 
-			if (!designPath || !existsSync(designPath)) {
-				ctx.ui.notify(
-					arg
-						? `No existe el design.md en: ${arg}`
-						: "No encontre ningun openspec/changes/*/design.md en este proyecto. Pasa una ruta: /ein:sdd-check <ruta>",
-					"warning",
-				);
+			// Sin argumento: cambio activo
+			if (!arg) {
+				const status = resolveSddStatus(ctx.cwd);
+				if (!status.change) {
+					ctx.ui.notify(
+						"No hay cambio activo. Uso: /ein:sdd-check <change>  |  /ein:sdd-check <path-to-design.md>",
+						"warning",
+					);
+					return;
+				}
+				const report = lintChange(ctx.cwd, status.change);
+				ctx.ui.notify(formatChangeLint(report), report.errors ? "warning" : "info");
 				return;
 			}
 
-			const report = lintDesignArtifact(readFileSync(designPath, "utf8"));
-			const rel = designPath.startsWith(ctx.cwd)
-				? designPath.slice(ctx.cwd.length + 1)
-				: designPath;
-			const status = report.errors
-				? "FAIL"
-				: report.warnings
-					? "OK_WITH_WARNINGS"
-					: "OK";
-			const out: string[] = [
-				"/// 000. SDD DESIGN CHECK",
-				"",
-				`design: ${rel}`,
-				`resultado: ${status}  |  errores: ${report.errors}  |  warnings: ${report.warnings}  |  lineas: ${report.lineCount}`,
-			];
-			if (report.issues.length) {
-				out.push("");
-				for (const i of report.issues) {
-					out.push(`- ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
+			// Si parece un path absoluto o relativo existente, lint de design
+			const candidatePath = arg.startsWith("/") ? arg : join(ctx.cwd, arg);
+			if (existsSync(candidatePath)) {
+				const report = lintDesignArtifact(readFileSync(candidatePath, "utf8"));
+				const rel = candidatePath.startsWith(ctx.cwd)
+					? candidatePath.slice(ctx.cwd.length + 1)
+					: candidatePath;
+				const status = report.errors
+					? "FAIL"
+					: report.warnings
+						? "OK_WITH_WARNINGS"
+						: "OK";
+				const out: string[] = [
+					"/// 000. SDD DESIGN CHECK",
+					"",
+					`design: ${rel}`,
+					`resultado: ${status}  |  errores: ${report.errors}  |  warnings: ${report.warnings}  |  lineas: ${report.lineCount}`,
+				];
+				if (report.issues.length) {
+					out.push("");
+					for (const i of report.issues) {
+						out.push(`- ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
+					}
+				} else {
+					out.push("", "- Design limpio: secciones completas, tareas accionables, sin planificacion prohibida.");
 				}
-			} else {
-				out.push("", "- Design limpio: secciones completas, tareas accionables, sin planificacion prohibida.");
+				ctx.ui.notify(out.join("\n"), report.errors ? "warning" : "info");
+				return;
 			}
-			ctx.ui.notify(out.join("\n"), report.errors ? "warning" : "info");
+
+			// Si es un nombre de change valido, lint completo del cambio
+			if (changeDirExists(ctx.cwd, arg)) {
+				const report = lintChange(ctx.cwd, arg);
+				ctx.ui.notify(formatChangeLint(report), report.errors ? "warning" : "info");
+				return;
+			}
+
+			// No existe ni como path ni como change
+			ctx.ui.notify(
+				`No encontre '${arg}' como path ni como cambio en openspec/changes/. Uso: /ein:sdd-check <change>  |  /ein:sdd-check <path-to-design.md>`,
+				"warning",
+			);
 		},
 	});
 
