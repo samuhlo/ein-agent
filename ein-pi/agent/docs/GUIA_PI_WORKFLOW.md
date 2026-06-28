@@ -23,7 +23,7 @@ Le hablas en lenguaje natural y el prompt padre decide la ruta:
 
 - **Trabajo simple** → lo hace directo.
 - **Trabajo enfocado** → delega a un subagente visible (`ein-linear`, `ein-git`, una fase SDD).
-- **Trabajo complejo** → ejecuta la chain `ein-sdd` (init → explore → design → apply → verify).
+- **Trabajo complejo** → ejecuta la chain `ein-sdd` (init → explore → design → tasks → apply → verify).
 
 Tu mensaje original se conserva siempre.
 
@@ -39,7 +39,7 @@ sincroniza Linear
 
 ## Flujo SDD
 
-Flujo único `ein-sdd`: **init → explore → design → apply → verify**.
+Flujo único `ein-sdd`: **init → explore → design → tasks → apply → verify**.
 
 - `design` reúne propuesta + spec técnica + tareas en un solo `design.md`.
 - `apply` no ocurre solo: necesita un scope aprobado.

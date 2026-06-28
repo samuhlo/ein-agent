@@ -54,7 +54,7 @@ Dos ejes independientes, configurables con `/ein:lang`:
 
 ## SDD (trabajo serio en 5 fases)
 
-El flujo SDD es `init → explore → design → apply → verify`. Se usa **hablando natural** ("continúa con SDD") o lanzando la chain `ein-sdd`. Para prepararlo:
+El flujo SDD es `init → explore → design → tasks → apply → verify`. Se usa **hablando natural** ("continúa con SDD") o lanzando la chain `ein-sdd`. Para prepararlo:
 
 | Comando | Qué hace |
 | --- | --- |

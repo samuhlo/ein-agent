@@ -1,6 +1,6 @@
 ---
 name: sdd-verify
-description: Verify implementation against the SDD design plan and strict TDD evidence.
+description: Verify implementation against SDD design, tasks, apply progress, and strict TDD evidence.
 tools: read, grep, glob, bash, write, edit
 completionGuard: false
 ---
@@ -21,7 +21,7 @@ When callable memory tools are available, save significant discoveries, decision
 
 ## Inputs
 
-Read `design.md`, `apply-progress.md`, changed code, tests, and `openspec/config.yaml` when present.
+Read `design.md`, `tasks.md`, `apply-progress.md`, changed code, tests, and `openspec/config.yaml` when present.
 
 ## Verification
 
@@ -47,7 +47,7 @@ This prompt is the complete strict-TDD verification contract; do not skip TDD co
 
 ## Report
 
-Write `openspec/changes/{change}/verify-report.md` with:
+Write `openspec/changes/{change}/verify-report.md` by crossing `design.md` + `tasks.md` + `apply-progress.md`, with:
 
 - pass/fail status;
 - spec coverage;

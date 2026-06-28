@@ -11,7 +11,7 @@
 El flujo actual:
 
 ```
-init → explore → design → apply → verify → archive
+init → explore → design → tasks → apply → verify → archive
                  ↑
           design.md = proposal + spec + scenarios + task slices
 ```
@@ -92,7 +92,7 @@ blocked_by: <reason if blocked>
 
 ## // 004. CAMBIOS EN EL CHAIN (`ein-sdd.chain.md`) Y ORCHESTRATOR
 
-El chain ya conoce el flujo `init → explore → design → apply → verify → archive`. Se agrega `sdd-tasks` entre `design` y `apply`:
+El chain conoce el flujo `init → explore → design → tasks → apply → verify → archive`. `sdd-tasks` vive entre `design` y `apply`:
 
 ```
 ## sdd-tasks

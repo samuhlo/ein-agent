@@ -33,7 +33,7 @@ La entrega —commits y PRs por GitHub— pasa por `ein-git` en **ambos** modos:
 |---|---|
 | pequeña | directo, inline |
 | mediana | plan corto → ejecución con subagentes baratos → verifica → explica |
-| grande / ambigua | SDD completo (init → explore → design → apply → verify → close) |
+| grande / ambigua | SDD completo (init → explore → design → tasks → apply → verify → close) |
 | (Team) con board | sincroniza Linear |
 
 Tú dices qué quieres; Ein elige el carril más pequeño que sea seguro.
@@ -222,5 +222,4 @@ git push origin installer-v0.10.0   # GitHub Actions compila 4 binarios + checks
 <p align="center">
   <img src="ein_ins.webp" alt="Ein" width="280">
 </p>
-
 

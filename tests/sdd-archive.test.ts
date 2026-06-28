@@ -83,8 +83,13 @@ describe("lintPhaseArtifact / lintChange", () => {
 		expect(lintPhaseArtifact("apply", "   ").ok).toBe(false);
 	});
 
-	test("design delega en el check rico (secciones A/B/C)", () => {
-		const r = lintPhaseArtifact("design", "## A. Proposal\nx\n## B. Spec\nMUST\n## C. Tasks\n- [ ] do\n");
+	test("design delega en el check rico sin exigir checklist", () => {
+		const r = lintPhaseArtifact("design", "## A. Proposal\nx\n## B. Spec\nMUST\n");
+		expect(r.ok).toBe(true);
+	});
+
+	test("tasks delega en lint rico", () => {
+		const r = lintPhaseArtifact("tasks", "status: ready\nblocked_by: none\n- [ ] do\n  - skills: `comment-style`\n  - why: x\n  - learn: y\n  - architecture: z\n  - avoid: n\n  - verify: `bun test`\n");
 		expect(r.ok).toBe(true);
 	});
 

@@ -20,13 +20,15 @@ When callable memory tools are available, save significant discoveries, decision
 
 ## Before Writing Code
 
-Read `design.md` (propuesta, spec y tareas), `apply-progress.md` if present, and `openspec/config.yaml` when present. Read existing code and tests **only for the files within the slice's scope** — do not ingest the whole codebase.
+Read `tasks.md` as the primary executable checklist, `design.md` as context for intent/decisions, `apply-progress.md` if present, and `openspec/config.yaml` when present. Read existing code and tests **only for the files within the slice's scope** — do not ingest the whole codebase.
+
+Legacy fallback: if `tasks.md` is missing, you MAY read the legacy `C. Tasks` section inside `design.md`. If neither `tasks.md` nor an actionable legacy checklist exists, STOP with `status: blocked`; do not invent tasks from the spec.
 
 ## Scope & cost budget (mandatory)
 
 You are a cheap-model executor; stay tight. A bounded slice must cost a fraction, not 200k+ tokens.
 
-- **Stay within the design's scope/slice.** Implement the assigned tasks, nothing more. If the change balloons beyond the design, STOP and report to the parent — don't expand scope mid-apply.
+- **Stay within the tasks checklist and design scope.** Implement the assigned tasks, nothing more. If the change balloons beyond the design, STOP and report to the parent — don't expand scope mid-apply.
 - **NEVER install dependencies, test frameworks or tooling on your own** (`bun add`, `npm i`, editing `package.json` / `vitest.config` to add libs...). If a task genuinely needs a new dep or test framework, STOP and report it to the parent for an explicit decision — that is a scope change, not part of apply.
 - **Tests: focused, not exhaustive.** Write tests for THIS change only, with minimal triangulation. Do not add a broad test layer for code you didn't touch.
 - **Run tests cheaply.** In the loop, run only the focused/relevant tests (the specific file/area) — NOT the full suite over and over. Run the full suite at most once at the end if needed; the holistic run is `sdd-verify`'s job, not yours.
@@ -48,7 +50,7 @@ This prompt is the complete strict-TDD contract; do not silently fall back to st
 
 ## Standard Mode
 
-If strict TDD is not active, implement assigned tasks against the design plan, update task checkboxes, and record verification evidence.
+If strict TDD is not active, implement assigned tasks from `tasks.md`, update task checkboxes, and record verification evidence.
 
 ## Apply Progress (chain runs only)
 

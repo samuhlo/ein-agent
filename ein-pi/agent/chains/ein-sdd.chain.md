@@ -1,6 +1,6 @@
 ---
 name: ein-sdd
-description: Ein SDD flow — init, explore, design, apply, verify, archive for a change.
+description: Ein SDD flow — init, explore, design, tasks, apply, verify, archive for a change.
 ---
 
 ## sdd-init
@@ -51,29 +51,38 @@ output: design.md
 outputMode: file-only
 progress: true
 
-Create the unified design plan for {task}: proposal, spec (RFC 2119 + Given/When/Then), and actionable tasks. Do not include a review workload forecast or chained-PR planning. This is a planning phase: the plan goes to the output file, do not edit repository source files.
+Create the design contract for {task}: proposal, spec (RFC 2119 + Given/When/Then), decisions, and success criteria. Do not include a review workload forecast, chained-PR planning, or actionable task checklist. This is a planning phase: the design goes to the output file, do not edit repository source files.
+
+## sdd-tasks
+
+reads: design.md
+output: tasks.md
+outputMode: file-only
+progress: true
+
+Transform the design contract for {task} into an executable `tasks.md` checklist. Do not re-explore and do not edit repository source files.
 
 ## sdd-apply
 
-reads: design.md
+reads: design.md+tasks.md
 output: apply-progress.md
 outputMode: file-only
 progress: true
 
-Implement the design tasks for {task}; enforce strict TDD when active. Update apply-progress with evidence.
+Implement the tasks.md checklist for {task}; enforce strict TDD when active. Update apply-progress with evidence.
 
 ## sdd-verify
 
-reads: design.md+apply-progress.md
+reads: design.md+tasks.md+apply-progress.md
 output: verify-report.md
 outputMode: file-only
 progress: true
 
-Verify {task} against the design plan, implementation, apply-progress, strict TDD evidence, and assertion quality. This is a verification phase: run checks and report, do not edit repository files.
+Verify {task} against the design contract, tasks checklist, implementation, apply-progress, strict TDD evidence, and assertion quality. This is a verification phase: run checks and report, do not edit repository files.
 
 ## sdd-archive
 
-reads: design.md+apply-progress.md+verify-report.md
+reads: design.md+tasks.md+apply-progress.md+verify-report.md
 output: summary.md
 outputMode: file-only
 progress: true

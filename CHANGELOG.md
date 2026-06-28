@@ -32,8 +32,8 @@ Todos los cambios relevantes de Ein. El formato sigue
 - **Flujo SDD fase a fase** (estilo gentle-ai) en el orquestador: router →
   delegar una fase (`context: "fresh"`, referencias no contenido) → gatekeeper →
   repetir. La chain `ein-sdd` de un tiro queda como fallback (`/run-chain`), no
-  como ruta primaria, porque no permite gate intermedio. SDD pasa de 5 a 6 fases
-  (init → explore → design → apply → verify → archive).
+  como ruta primaria, porque no permite gate intermedio. SDD pasa a 7 fases
+  (init → explore → design → tasks → apply → verify → archive).
 - Doctor COHERENCIA: checks de router/gatekeeper/archive cableados.
 
 ## [0.11.3] - 2026-06-25

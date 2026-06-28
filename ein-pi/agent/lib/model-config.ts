@@ -33,6 +33,7 @@ export const SDD_AGENT_NAMES = [
 	"sdd-init",
 	"sdd-explore",
 	"sdd-design",
+	"sdd-tasks",
 	"sdd-apply",
 	"sdd-verify",
 ] as const;
@@ -469,6 +470,7 @@ const MODEL_FULL: AgentModelConfig = {
 	"sdd-design": { model: "openai-codex/gpt-5.5" },
 	"sdd-init": { model: "minimax/MiniMax-M2.7" },
 	"sdd-explore": { model: "minimax/MiniMax-M2.7" },
+	"sdd-tasks": { model: "minimax/MiniMax-M2.7" },
 	"sdd-apply": { model: "minimax/MiniMax-M3" },
 	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
 	"ein-linear": { model: "minimax/MiniMax-M2.7" },
@@ -480,6 +482,7 @@ const MODEL_LITE: AgentModelConfig = {
 	"sdd-design": { model: "minimax/MiniMax-M3" },
 	"sdd-init": { model: "minimax/MiniMax-M2.7" },
 	"sdd-explore": { model: "minimax/MiniMax-M2.7" },
+	"sdd-tasks": { model: "minimax/MiniMax-M2.7" },
 	"sdd-apply": { model: "minimax/MiniMax-M3" },
 	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
 	"ein-linear": { model: "minimax/MiniMax-M2.7" },

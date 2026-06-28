@@ -12,6 +12,13 @@ import { listActiveChanges, resolveSddStatus } from "../ein-pi/agent/lib/sdd-rou
 import { t, tf } from "../ein-pi/agent/lib/i18n/strings";
 
 let DIR: string;
+const I18N_KEY = Symbol.for("rpiv-i18n");
+const originalLocale = (globalThis as Record<symbol, unknown>)[I18N_KEY];
+
+function setLocale(locale: string): void {
+	(globalThis as Record<symbol, unknown>)[I18N_KEY] = { locale, namespaces: {} };
+}
+
 function change(name: string): string {
 	const p = join(DIR, "openspec", "changes", name);
 	mkdirSync(p, { recursive: true });
@@ -23,9 +30,11 @@ function put(changePath: string, file: string, body = "x"): void {
 
 beforeEach(() => {
 	DIR = mkdtempSync(join(tmpdir(), "sdd-status-"));
+	setLocale("en");
 });
 afterEach(() => {
 	rmSync(DIR, { recursive: true, force: true });
+	(globalThis as Record<symbol, unknown>)[I18N_KEY] = originalLocale;
 });
 
 // Replica exacta del formatter del handler /ein:sdd-status
@@ -65,6 +74,7 @@ describe("sdd-status output format", () => {
 		put(c, "init.md");
 		put(c, "exploration.md");
 		put(c, "design.md");
+		put(c, "tasks.md");
 		put(c, "apply-progress.md", "status: partial\n");
 
 		const out = formatSddStatus(DIR);
@@ -79,6 +89,7 @@ describe("sdd-status output format", () => {
 		put(c, "init.md");
 		put(c, "exploration.md");
 		put(c, "design.md");
+		put(c, "tasks.md");
 		put(c, "apply-progress.md", "status: complete\n");
 		put(c, "verify-report.md", "status: pass\n");
 
@@ -100,6 +111,7 @@ describe("sdd-status output format", () => {
 		put(c, "init.md");
 		put(c, "exploration.md");
 		put(c, "design.md");
+		put(c, "tasks.md");
 		put(c, "apply-progress.md", "status: blocked\n");
 
 		const out = formatSddStatus(DIR);

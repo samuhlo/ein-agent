@@ -4,7 +4,7 @@
 // temporal (EIN_PI_AGENT_HOME se fija antes del import dinámico).
 // =============================================================================
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,7 +18,22 @@ const { humanizeAge, listRecentSessions } = await import(
 	"../ein-pi/agent/lib/sessions"
 );
 
+const I18N_KEY = Symbol.for("rpiv-i18n");
+const originalLocale = (globalThis as Record<symbol, unknown>)[I18N_KEY];
+
+function setLocale(locale: string): void {
+	(globalThis as Record<symbol, unknown>)[I18N_KEY] = { locale, namespaces: {} };
+}
+
 describe("humanizeAge", () => {
+	beforeEach(() => {
+		setLocale("es");
+	});
+
+	afterEach(() => {
+		(globalThis as Record<symbol, unknown>)[I18N_KEY] = originalLocale;
+	});
+
 	test("menos de 45s es 'justo ahora'", () => {
 		expect(humanizeAge(0)).toBe("justo ahora");
 		expect(humanizeAge(44_000)).toBe("justo ahora");

@@ -24,7 +24,7 @@ Este plan identifica los puntos especificos de friccion y los limpia antes de un
 
 **Accion:** buscar en `README.md` y `ein-pi/agent/README.md` (si existe) cualquier referencia a:
 - "flujo SDD" o "SDD flow"
-- `init → explore → design → apply → verify` (sin `archive`)
+- `init → explore → design → tasks → apply → verify` (sin `archive`)
 - Cualquier comando que ya no exista (`/ein:sdd-check`, `/ein:sdd-archive` como comandos principales, no como alias)
 
 ### AGENTS.md

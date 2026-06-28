@@ -23,8 +23,8 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("ein_sdd_check");
 	});
 
-	test("incluye la fase archive en el flujo de 6", () => {
-		expect(orch).toContain("init → explore → design → apply → verify → archive");
+	test("incluye tasks y archive en el flujo de 7", () => {
+		expect(orch).toContain("init → explore → design → tasks → apply → verify → archive");
 	});
 
 	test("conserva la chain como fallback (no como ruta primaria)", () => {
@@ -53,5 +53,18 @@ describe("sdd-archive agent existe y solo escribe summary", () => {
 	});
 	test("no mueve ficheros (eso lo hace el parent determinista)", () => {
 		expect(archive.toLowerCase()).toContain("do not move or delete files");
+	});
+});
+
+describe("sdd-tasks agent existe y produce tasks.md", () => {
+	const tasks = read("agents/sdd-tasks.md");
+	test("nombre y contrato", () => {
+		expect(tasks).toContain("name: sdd-tasks");
+		expect(tasks).toContain("tasks.md");
+		expect(tasks).toContain("status: ready | blocked");
+	});
+	test("no reexplora ni edita source code", () => {
+		expect(tasks.toLowerCase()).toContain("do not re-explore");
+		expect(tasks.toLowerCase()).toContain("do not write or edit source code");
 	});
 });

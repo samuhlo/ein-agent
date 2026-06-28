@@ -56,7 +56,7 @@ import {
 } from "../lib/model-config.ts";
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
-import { lintChange, lintDesignArtifact, type ChangeLintReport } from "../lib/sdd-guardrails.ts";
+import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
 import { listActiveChanges, resolveSddStatus } from "../lib/sdd-router.ts";
 import { archiveChange } from "../lib/sdd-archive.ts";
 import {
@@ -149,31 +149,15 @@ function changeDirExists(cwd: string, name: string): boolean {
 	}
 }
 
-// Devuelve el design.md mas reciente bajo openspec/changes/<change>/, o null.
-// Lo usa /ein:sdd-check cuando no se pasa una ruta explicita.
-function findLatestDesign(cwd: string): string | null {
-	const changesDir = join(cwd, "openspec", "changes");
-	if (!existsSync(changesDir)) return null;
-	let best: { path: string; mtimeMs: number } | null = null;
-	let entries: string[] = [];
-	try {
-		entries = readdirSync(changesDir);
-	} catch {
-		return null;
-	}
-	for (const entry of entries) {
-		const designPath = join(changesDir, entry, "design.md");
-		try {
-			const st = statSync(designPath);
-			if (st.isFile() && (!best || st.mtimeMs > best.mtimeMs)) {
-				best = { path: designPath, mtimeMs: st.mtimeMs };
-			}
-		} catch {
-			// sin design.md en este change
-		}
-	}
-	return best?.path ?? null;
-}
+const PHASE_BY_FILE: Record<string, SddPhase> = {
+	"init.md": "init",
+	"exploration.md": "explore",
+	"design.md": "design",
+	"tasks.md": "tasks",
+	"apply-progress.md": "apply",
+	"verify-report.md": "verify",
+	"summary.md": "archive",
+};
 
 // Formatea un ChangeLintReport como salida legible para el comando /ein:sdd-check.
 // La herramienta ein_sdd_check sigue devolviendo JSON (contrato del orquestador).
@@ -524,7 +508,9 @@ export default function einAi(pi: ExtensionAPI): void {
 
 		const candidatePath = arg.startsWith("/") ? arg : join(ctx.cwd, arg);
 		if (existsSync(candidatePath)) {
-			const report = lintDesignArtifact(readFileSync(candidatePath, "utf8"));
+			const fileName = candidatePath.split("/").pop() ?? "design.md";
+			const phase = PHASE_BY_FILE[fileName] ?? "design";
+			const report = lintPhaseArtifact(phase, readFileSync(candidatePath, "utf8"));
 			const rel = candidatePath.startsWith(ctx.cwd)
 				? candidatePath.slice(ctx.cwd.length + 1)
 				: candidatePath;
@@ -534,9 +520,9 @@ export default function einAi(pi: ExtensionAPI): void {
 					? "OK_WITH_WARNINGS"
 					: "OK";
 			const out: string[] = [
-				"/// 000. SDD DESIGN CHECK",
+				`/// 000. SDD ${phase.toUpperCase()} CHECK`,
 				"",
-				`design: ${rel}`,
+				`${phase}: ${rel}`,
 				`resultado: ${status}  |  errores: ${report.errors}  |  warnings: ${report.warnings}  |  lineas: ${report.lineCount}`,
 			];
 			if (report.issues.length) {
@@ -545,7 +531,7 @@ export default function einAi(pi: ExtensionAPI): void {
 					out.push(`- ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
 				}
 			} else {
-				out.push("", "- Design limpio: secciones completas, tareas accionables, sin planificacion prohibida.");
+				out.push("", `- ${phase} limpio: señales obligatorias presentes, sin placeholders criticos.`);
 			}
 			ctx.ui.notify(out.join("\n"), report.errors ? "warning" : "info");
 			return;

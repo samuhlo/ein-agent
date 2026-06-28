@@ -127,7 +127,7 @@ ${extensions.map((e) => `- \`${e}\``).join("\n") || "- ninguna"}
 ■ 006. LECTURA DIDACTICA
 
 Ein es un workbench estructurado sobre Pi Coding Agent. El flujo principal es lenguaje natural.
-Para trabajo serio usa la chain \`ein-sdd\` (init → explore → design → apply → verify).
+Para trabajo serio usa la chain \`ein-sdd\` (init → explore → design → tasks → apply → verify).
 Los comandos \`/ein:*\` son control manual y fallback, no la ruta principal.
 La memoria persiste en Engram (\`${ENGRAM_DIR}\`), separada del resto de agentes.`;
 }
@@ -248,6 +248,7 @@ function doctorSmokeReport(): string {
     "sdd-init.md",
     "sdd-explore.md",
     "sdd-design.md",
+    "sdd-tasks.md",
     "sdd-apply.md",
     "sdd-verify.md",
     "sdd-archive.md",

@@ -64,7 +64,7 @@ verify  → verify
 close   → archive / sdd-close
 ```
 
-La sintaxis publica usa lenguaje natural. La sintaxis interna del chain sigue siendo `init → explore → design → apply → verify → archive` para no romper la maquinaria existente.
+La sintaxis publica usa lenguaje natural. La sintaxis interna del chain ahora es `init → explore → design → tasks → apply → verify → archive`.
 
 ---
 

@@ -7,7 +7,8 @@
 //
 // Artefactos por fase (ver chains/ein-sdd.chain.md):
 //   init → init.md · explore → exploration.md · design → design.md
-//   apply → apply-progress.md · verify → verify-report.md · archive → summary.md
+//   tasks → tasks.md · apply → apply-progress.md · verify → verify-report.md
+//   archive → summary.md
 // Un cambio terminado se mueve a openspec/changes/archive/<change>/ (ver
 // lib/sdd-archive.ts), así que `openspec/changes/` solo contiene cambios vivos.
 // =============================================================================
@@ -15,7 +16,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-export type SddPhase = "init" | "explore" | "design" | "apply" | "verify" | "archive";
+export type SddPhase = "init" | "explore" | "design" | "tasks" | "apply" | "verify" | "archive";
 export type SddNext = SddPhase | "done";
 export type VerifyOutcome = "pass" | "fail" | "unknown" | "absent";
 export type ApplyOutcome = "complete" | "partial" | "blocked" | "unknown" | "absent";
@@ -34,6 +35,7 @@ const PHASE_ARTIFACT: Record<SddPhase, string> = {
 	init: "init.md",
 	explore: "exploration.md",
 	design: "design.md",
+	tasks: "tasks.md",
 	apply: "apply-progress.md",
 	verify: "verify-report.md",
 	archive: "summary.md",
@@ -116,6 +118,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 		init: false,
 		explore: false,
 		design: false,
+		tasks: false,
 		apply: false,
 		verify: false,
 		archive: false,
@@ -140,6 +143,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	if (!present.init) nextRecommended = "init";
 	else if (!present.explore) nextRecommended = "explore";
 	else if (!present.design) nextRecommended = "design";
+	else if (!present.tasks) nextRecommended = "tasks";
 	else if (!present.apply) nextRecommended = "apply";
 	else if (apply !== "complete") {
 		// FAIL CLOSED -> apply existe pero sin status:complete → no avanza a verify.

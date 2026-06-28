@@ -28,21 +28,44 @@ const { buildEinPrompt, responseVoiceDirective } = await import(
 );
 
 const I18N_KEY = Symbol.for("rpiv-i18n");
+const ORIGINAL_ENV = {
+	LANG: process.env.LANG,
+	LC_ALL: process.env.LC_ALL,
+	XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
+};
 
 function setLocale(locale: string | undefined): void {
 	(globalThis as Record<symbol, unknown>)[I18N_KEY] =
 		locale === undefined ? undefined : { locale, namespaces: {} };
 }
 
+function restoreLocaleEnv(): void {
+	for (const [key, value] of Object.entries(ORIGINAL_ENV)) {
+		if (value === undefined) delete process.env[key];
+		else process.env[key] = value;
+	}
+}
+
+function isolateLocaleFallbacks(): string {
+	const xdg = mkdtempSync(join(tmpdir(), "ein-lang-xdg-"));
+	process.env.XDG_CONFIG_HOME = xdg;
+	delete process.env.LANG;
+	delete process.env.LC_ALL;
+	return xdg;
+}
+
 describe("readChatLang", () => {
 	const original = (globalThis as Record<symbol, unknown>)[I18N_KEY];
 	afterEach(() => {
 		(globalThis as Record<symbol, unknown>)[I18N_KEY] = original;
+		restoreLocaleEnv();
 	});
 
 	test("por defecto es 'es' sin snapshot de rpiv-i18n", () => {
+		const xdg = isolateLocaleFallbacks();
 		setLocale(undefined);
 		expect(readChatLang()).toBe("es");
+		rmSync(xdg, { recursive: true, force: true });
 	});
 
 	test("mapea el locale activo a es/en/gl", () => {
@@ -55,10 +78,12 @@ describe("readChatLang", () => {
 	});
 
 	test("normaliza variantes regionales y cae a 'es' si es desconocido", () => {
+		const xdg = isolateLocaleFallbacks();
 		setLocale("en_US.UTF-8");
 		expect(readChatLang()).toBe("en");
 		setLocale("fr");
 		expect(readChatLang()).toBe("es");
+		rmSync(xdg, { recursive: true, force: true });
 	});
 });
 
@@ -101,13 +126,16 @@ describe("pick / pickFor", () => {
 	const original = (globalThis as Record<symbol, unknown>)[I18N_KEY];
 	afterEach(() => {
 		(globalThis as Record<symbol, unknown>)[I18N_KEY] = original;
+		restoreLocaleEnv();
 	});
 
 	test("pick sigue el idioma de chat (default es)", () => {
+		const xdg = isolateLocaleFallbacks();
 		setLocale(undefined);
 		expect(pick("hola", "hi")).toBe("hola");
 		setLocale("en");
 		expect(pick("hola", "hi")).toBe("hi");
+		rmSync(xdg, { recursive: true, force: true });
 	});
 
 	test("pickFor usa el idioma explicito, ignorando el de chat", () => {

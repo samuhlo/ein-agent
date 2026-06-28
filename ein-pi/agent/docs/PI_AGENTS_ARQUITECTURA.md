@@ -51,7 +51,7 @@ Todas en `~/.pi/agent/extensions/` y cargadas por directorio:
 | `ein-git` | Agent | Delivery GitHub, PR, review |
 | `ein-readme` | Agent | Genera README (estética brutalista + metadata de portfolio) leyendo el código |
 | `sdd-init/explore/design/apply/verify` | Agent | Fases SDD |
-| `ein-sdd` | Chain | Flujo SDD: init → explore → design → apply → verify |
+| `ein-sdd` | Chain | Flujo SDD: init → explore → design → tasks → apply → verify |
 
 **Invocación de la chain (importante):** el tool `subagent` recibe `chain` como **array de objetos** (pasos), nunca como string. `chain: "ein-sdd"` falla validación. El atajo manual fiable es `/run-chain ein-sdd -- <tarea>`, que expande el nombre a pasos internamente. Ver `assets/orchestrator.md`.
 

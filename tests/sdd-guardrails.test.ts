@@ -1,11 +1,10 @@
 // =============================================================================
-// TESTS: lintDesignArtifact (P4 — guardrail determinista de design.md)
-// Higiene del artefacto de planificacion: secciones A/B/C, tareas accionables,
-// sin planificacion de delivery prohibida, sin placeholders, aviso de tamaño.
+// TESTS: guardrails SDD deterministas
+// Design valida contrato de diseño; tasks valida el checklist ejecutable.
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
-import { lintDesignArtifact } from "../ein-pi/agent/lib/sdd-guardrails";
+import { lintDesignArtifact, lintTasksArtifact } from "../ein-pi/agent/lib/sdd-guardrails";
 
 const GOOD = `# design.md
 
@@ -16,9 +15,27 @@ const GOOD = `# design.md
 ## B. Spec
 - The system MUST do Z.
 
-## C. Tasks
-- [ ] Implement Z in foo.ts
-- [ ] Add focused test
+## C. Decisions
+- Keep design separate from execution.
+
+## D. Success Criteria
+- Focused tests pass.
+`;
+
+const GOOD_TASKS = `# Tasks — feat-x
+
+status: ready
+blocked_by: none
+
+## // 001. Implementar
+
+- [ ] 1.1 Implement Z in foo.ts
+  - skills: \`comment-style\`
+  - why: Required by the spec.
+  - learn: Small tasks are easier to verify.
+  - architecture: tasks.md owns execution state.
+  - avoid: Do not duplicate the whole design here.
+  - verify: \`bun test tests/foo.test.ts\`
 `;
 
 describe("lintDesignArtifact", () => {
@@ -42,11 +59,11 @@ describe("lintDesignArtifact", () => {
 		expect(r.issues.some((i) => i.code === "missing-spec")).toBe(true);
 	});
 
-	test("sin tareas accionables => error", () => {
+	test("design sin tareas accionables sigue siendo valido", () => {
 		const noTasks = GOOD.replace(/- \[ \].*\n/g, "");
 		const r = lintDesignArtifact(noTasks);
-		expect(r.ok).toBe(false);
-		expect(r.issues.some((i) => i.code === "no-tasks")).toBe(true);
+		expect(r.ok).toBe(true);
+		expect(r.issues.some((i) => i.code === "no-tasks")).toBe(false);
 	});
 
 	test("planificacion de delivery prohibida => warning (no bloquea)", () => {
@@ -69,5 +86,25 @@ describe("lintDesignArtifact", () => {
 		const r = lintDesignArtifact(big, { oversizeLineThreshold: 20 });
 		expect(r.issues.some((i) => i.code === "oversize")).toBe(true);
 		expect(r.lineCount).toBeGreaterThan(20);
+	});
+});
+
+describe("lintTasksArtifact", () => {
+	test("tasks valido pasa", () => {
+		const r = lintTasksArtifact(GOOD_TASKS);
+		expect(r.ok).toBe(true);
+		expect(r.errors).toBe(0);
+	});
+
+	test("tasks sin status falla", () => {
+		const r = lintTasksArtifact(GOOD_TASKS.replace("status: ready\n", ""));
+		expect(r.ok).toBe(false);
+		expect(r.issues.some((i) => i.code === "missing-status-line")).toBe(true);
+	});
+
+	test("tasks sin checkbox falla", () => {
+		const r = lintTasksArtifact(GOOD_TASKS.replace("- [ ]", "-"));
+		expect(r.ok).toBe(false);
+		expect(r.issues.some((i) => i.code === "missing-checkbox")).toBe(true);
 	});
 });

@@ -40,6 +40,7 @@ describe("models.json roundtrip", () => {
 	test("escribe y lee la config con normalización", () => {
 		writeModelConfig(CWD, {
 			"sdd-design": { model: "minimax/MiniMax-M3", thinking: "high" },
+			"sdd-tasks": { model: "minimax/MiniMax-M2.7" },
 			"sdd-apply": { model: "minimax/MiniMax-M2.7" },
 		});
 		const config = readModelConfig(CWD);
@@ -48,6 +49,7 @@ describe("models.json roundtrip", () => {
 			thinking: "high",
 		});
 		expect(config["sdd-apply"]?.model).toBe("minimax/MiniMax-M2.7");
+		expect(config["sdd-tasks"]?.model).toBe("minimax/MiniMax-M2.7");
 	});
 
 	test("acepta el shorthand string y descarta entradas vacías", () => {

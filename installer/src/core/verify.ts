@@ -2,7 +2,7 @@
 // VERIFY (doctor)
 // Pure filesystem + lookPath port of ein-doctor.ts's smoke checks. Validates a
 // deployed ~/.pi/agent without launching pi. Mirrors the in-pi doctor's
-// canonical expectations: 9 extensions, 7 agents, 1 chain, brand triplet,
+// canonical expectations: 9 extensions, 8 agents, 1 chain, brand triplet,
 // ENGRAM_DATA_DIR containing .engram-pi.
 // =============================================================================
 
@@ -74,7 +74,7 @@ function parseJson(path: string): { ok: boolean; value: Record<string, unknown> 
   }
 }
 
-const SDD_AGENTS = ["sdd-init.md", "sdd-explore.md", "sdd-design.md", "sdd-apply.md", "sdd-verify.md", "sdd-archive.md"];
+const SDD_AGENTS = ["sdd-init.md", "sdd-explore.md", "sdd-design.md", "sdd-tasks.md", "sdd-apply.md", "sdd-verify.md", "sdd-archive.md"];
 const DELIVERY_AGENTS = ["ein-linear.md", "ein-git.md"];
 
 // Single source of truth: read from extensions-manifest.json deployed alongside extensions.

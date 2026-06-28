@@ -88,7 +88,7 @@ function makeReport(
 }
 
 function makePhase(
-	phase: "init" | "explore" | "design" | "apply" | "verify" | "archive",
+	phase: "init" | "explore" | "design" | "tasks" | "apply" | "verify" | "archive",
 	present: boolean,
 	issues: GuardrailIssue[] = [],
 	_errors = 0,
@@ -111,6 +111,7 @@ describe("formatChangeLint", () => {
 			makePhase("init", true, [], 0, 0),
 			makePhase("explore", true, [], 0, 0),
 			makePhase("design", true, [], 0, 0),
+			makePhase("tasks", false),
 			makePhase("apply", false),
 			makePhase("verify", false),
 			makePhase("archive", false),
@@ -118,7 +119,7 @@ describe("formatChangeLint", () => {
 
 		const out = formatChangeLint(report);
 		expect(out).toContain("/// 000. SDD CHECK — feat-x");
-		expect(out).toContain("fases: 3/6 presentes  |  errores: 0  |  warnings: 0");
+		expect(out).toContain("fases: 3/7 presentes  |  errores: 0  |  warnings: 0");
 		expect(out).toContain("■ design — OK (presente, 10 lineas)");
 		expect(out).toContain("■ apply — MISSING");
 	});
@@ -131,6 +132,7 @@ describe("formatChangeLint", () => {
 				{ level: "error", code: "missing-proposal", message: 'Falta la seccion obligatoria "A. Proposal".' },
 				{ level: "warning", code: "placeholder-angle-number", message: "Quedan placeholders `<number>` sin rellenar." },
 			]),
+			makePhase("tasks", false),
 			makePhase("apply", false),
 			makePhase("verify", false),
 			makePhase("archive", false),
@@ -144,13 +146,13 @@ describe("formatChangeLint", () => {
 	});
 
 	test("todas las fases presentes y limpias", () => {
-		const allPresent = (["init", "explore", "design", "apply", "verify", "archive"] as const).map((phase) =>
+		const allPresent = (["init", "explore", "design", "tasks", "apply", "verify", "archive"] as const).map((phase) =>
 			makePhase(phase, true, []),
 		);
 		const report = makeReport("clean-change", allPresent, 0, 0);
 
 		const out = formatChangeLint(report);
-		expect(out).toContain("fases: 6/6 presentes  |  errores: 0  |  warnings: 0");
+		expect(out).toContain("fases: 7/7 presentes  |  errores: 0  |  warnings: 0");
 		expect(out).not.toContain("MISSING");
 		expect(out).not.toContain("ERRORS");
 	});

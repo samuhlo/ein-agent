@@ -63,7 +63,7 @@ cd installer && bun run build:all
 | ---- | --------- |
 | `ein-pi/agent/agents/` | Agentes SDD (sdd-init, sdd-explore, sdd-apply, sdd-verify, sdd-design) |
 | `ein-pi/agent/assets/orchestrator.md` | Orchestrator del agente (delegacion, routing) |
-| `ein-pi/agent/chains/ein-sdd.chain.md` | Cadena ein-sdd: init → explore → design → apply → verify |
+| `ein-pi/agent/chains/ein-sdd.chain.md` | Cadena ein-sdd: init → explore → design → tasks → apply → verify |
 | `installer/package.json` | Deps, scripts, tipo de modulo (type: module) |
 | `tests/*.test.ts` | Tests Bun del proyecto |
 
