@@ -25,6 +25,11 @@ describe("SDD canonical command aliases", () => {
 		expect(src).toMatch(/registerCommand\(\s*"ein:sdd-close"/);
 	});
 
+	test("ein:sdd-next is registered as canonical read-only command", () => {
+		expect(src).toMatch(/registerCommand\(\s*"ein:sdd-next"/);
+		expect(src).not.toMatch(/registerCommand\(\s*"ein:sdd-next-[^"]+"/);
+	});
+
 	test("ein:sdd-archive is registered as legacy alias", () => {
 		expect(src).toMatch(/registerCommand\(\s*"ein:sdd-archive"/);
 	});

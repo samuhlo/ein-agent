@@ -91,6 +91,7 @@ This is the global operating guide for Pi Coding Agent on this machine.
 - Use `/tree`, `/fork`, and `/compact` for session control.
 - Branding is configured in `~/.pi/agent/brand.json` (`agentName`, `commandPrefix`, `author`).
 - Canonical public commands use `/ein:*`. Legacy aliases may exist for compatibility, but documentation and prompts should point to `/ein:*`.
+- `/ein:sdd-next <change> [--auto]` is canonical, safe, and read-only: it explains the next recommended SDD step for a named change. `--auto` is dry-run only in the current version.
 - Use `/ein:status` for a compact operational view and `/ein:doctor-output` for static technical smoke checks.
 
 ## Output Style

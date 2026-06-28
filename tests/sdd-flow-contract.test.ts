@@ -31,6 +31,12 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch.toLowerCase()).toContain("fallback");
 		expect(orch).toContain("ein-sdd` chain");
 	});
+
+	test("documenta sdd-next como ruta manual sin sustituir el router interno", () => {
+		expect(orch).toContain("/ein:sdd-next <change> [--auto]");
+		expect(orch).toContain("read-only slash command for humans");
+		expect(orch).toContain("the orchestrator still routes with `ein_sdd_status`");
+	});
 });
 
 describe("ein-ai: tools deterministas cableados", () => {
@@ -39,8 +45,9 @@ describe("ein-ai: tools deterministas cableados", () => {
 		expect(ai).toContain('name: "ein_sdd_status"');
 		expect(ai).toContain('name: "ein_sdd_check"');
 	});
-	test("registra los comandos sdd-status y sdd-archive", () => {
+	test("registra los comandos sdd-status, sdd-next y sdd-archive", () => {
 		expect(ai).toContain('"ein:sdd-status"');
+		expect(ai).toContain('"ein:sdd-next"');
 		expect(ai).toContain('"ein:sdd-archive"');
 	});
 });

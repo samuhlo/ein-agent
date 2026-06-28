@@ -169,6 +169,12 @@ describe("strings.ts i18n keys present", () => {
 		expect(t("sdd-status.next", "")).toBe("next");
 	});
 
+	test("sdd-next description key exists and help exposes dry-run command", () => {
+		expect(t("cmd.sdd-next.description", "")).toContain("next recommended SDD step");
+		expect(t("help.short", "")).toContain("/ein:sdd-next <change> [--auto]");
+		expect(t("help.full", "")).toContain("--auto is dry-run today");
+	});
+
 	test("status.sdd.active key exists", () => {
 		expect(t("status.sdd.active", "")).toBe("active change");
 	});

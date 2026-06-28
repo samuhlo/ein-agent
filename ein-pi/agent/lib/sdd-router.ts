@@ -20,6 +20,7 @@ export type SddPhase = "init" | "explore" | "design" | "tasks" | "apply" | "veri
 export type SddNext = SddPhase | "done";
 export type VerifyOutcome = "pass" | "fail" | "unknown" | "absent";
 export type ApplyOutcome = "complete" | "partial" | "blocked" | "unknown" | "absent";
+export type SddNextMode = "interactive" | "auto";
 
 export type SddArtifactStatus = {
 	phase: SddPhase;
@@ -87,6 +88,18 @@ export type SddChangeStatus = {
 	blocked: string[];
 };
 
+export type SddNextReport = {
+	change: string | null;
+	exists: boolean;
+	currentPhase: SddNext;
+	nextRecommended: SddNext;
+	reason: string;
+	suggestedAction: string;
+	mode: SddNextMode;
+	autoEnabled: false;
+	blocked: string[];
+};
+
 // Fase → fichero que la marca como hecha.
 const PHASE_ARTIFACT: Record<SddPhase, string> = {
 	init: "init.md",
@@ -99,6 +112,41 @@ const PHASE_ARTIFACT: Record<SddPhase, string> = {
 };
 
 const PHASE_ORDER: SddPhase[] = ["init", "explore", "design", "tasks", "apply", "verify", "archive"];
+
+const SDD_NEXT_COPY: Record<SddNext, { reason: string; suggestedAction: string }> = {
+	init: {
+		reason: "El cambio todavia no tiene punto de arranque SDD.",
+		suggestedAction: "Inicializa el cambio antes de explorar o disenar.",
+	},
+	explore: {
+		reason: "Ya existe el arranque; falta entender alcance, riesgos y archivos probables.",
+		suggestedAction: "Ejecuta la fase de exploracion para convertir la idea en contexto aplicable.",
+	},
+	design: {
+		reason: "La exploracion ya existe; falta decidir la forma tecnica antes de partir trabajo.",
+		suggestedAction: "Ejecuta la fase de diseno y deja criterios de exito claros.",
+	},
+	tasks: {
+		reason: "El diseno ya existe; falta convertirlo en una checklist ejecutable.",
+		suggestedAction: "Ejecuta sdd-tasks para crear tareas pequenas, verificables y listas para apply.",
+	},
+	apply: {
+		reason: "La lista de tareas existe, pero la implementacion aun no esta completa.",
+		suggestedAction: "Ejecuta apply solo sobre el siguiente batch pendiente y conserva evidencia.",
+	},
+	verify: {
+		reason: "La implementacion esta marcada como completa; falta verificar o corregir la verificacion.",
+		suggestedAction: "Ejecuta verify y no cierres el cambio hasta tener resultado pass.",
+	},
+	archive: {
+		reason: "La verificacion paso; el cambio esta listo para cierre controlado.",
+		suggestedAction: "Cierra el cambio verificado con el flujo canonico de cierre.",
+	},
+	done: {
+		reason: "No hay un cambio activo que continuar.",
+		suggestedAction: "Crea o nombra un cambio antes de pedir el siguiente paso.",
+	},
+};
 
 function changesDir(cwd: string): string {
 	return join(cwd, "openspec", "changes");
@@ -369,6 +417,41 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 		verify,
 		nextRecommended,
 		blocked,
+	};
+}
+
+export function resolveSddNext(cwd: string, change?: string, options: { auto?: boolean } = {}): SddNextReport {
+	const active = listActiveChanges(cwd);
+	const exists = typeof change === "string" && active.includes(change);
+	const mode: SddNextMode = options.auto ? "auto" : "interactive";
+
+	if (change && !exists) {
+		return {
+			change,
+			exists: false,
+			currentPhase: "done",
+			nextRecommended: "done",
+			reason: `No encontre el cambio '${change}' entre los cambios activos.`,
+			suggestedAction: "Revisa el nombre del cambio o crea uno nuevo antes de continuar.",
+			mode,
+			autoEnabled: false,
+			blocked: [],
+		};
+	}
+
+	const status = resolveSddStatus(cwd, change);
+	const copy = SDD_NEXT_COPY[status.nextRecommended];
+	const blockers = [...status.blocked, ...status.tasks.problems, ...status.budget.problems];
+	return {
+		change: status.change,
+		exists: status.change !== null,
+		currentPhase: status.currentPhase,
+		nextRecommended: status.nextRecommended,
+		reason: blockers.length > 0 ? `${copy.reason} Hay bloqueos o datos incompletos que revisar.` : copy.reason,
+		suggestedAction: copy.suggestedAction,
+		mode,
+		autoEnabled: false,
+		blocked: blockers,
 	};
 }
 

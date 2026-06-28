@@ -57,7 +57,7 @@ import {
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
-import { aggregateSddBudget, listActiveChanges, listActiveChangeSummaries, resolveSddStatus, type SddChangeStatus } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, listActiveChanges, listActiveChangeSummaries, resolveSddNext, resolveSddStatus, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
 import { archiveChange } from "../lib/sdd-archive.ts";
 import {
 	codeConventionSkillBlock,
@@ -230,6 +230,48 @@ function formatSddStatus(status: SddChangeStatus, active: string[]): string {
 		lines.push("", `■ ${t("sdd-status.blocked", "blockers")}:`);
 		for (const b of status.blocked) lines.push(`- ${b}`);
 		for (const p of problems) lines.push(`- ${p}`);
+	}
+	return lines.join("\n");
+}
+
+function parseSddNextArgs(args: string | string[]): { change: string | null; auto: boolean } {
+	const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
+	const parts = raw.trim().split(/\s+/).filter(Boolean);
+	const auto = parts.includes("--auto");
+	const change = parts.filter((part) => part !== "--auto")[0] ?? null;
+	return { change, auto };
+}
+
+function formatSddNextHelp(): string {
+	return [
+		"/// 000. SDD NEXT",
+		"",
+		"Uso: /ein:sdd-next <change> [--auto]",
+		"",
+		"- Muestra el siguiente paso recomendado para un cambio concreto.",
+		"- No elige un cambio activo implicitamente.",
+		"- --auto es dry-run en esta version: no ejecuta fases.",
+	].join("\n");
+}
+
+function formatSddNext(report: SddNextReport): string {
+	const lines = [
+		"/// 000. SDD NEXT",
+		"",
+		`cambio: ${report.change ?? "ninguno"}`,
+		`modo: ${report.mode}`,
+		`fase actual: ${report.currentPhase}`,
+		`siguiente recomendado: ${report.nextRecommended}`,
+		`razon: ${report.reason}`,
+		`accion sugerida: ${report.suggestedAction}`,
+	];
+
+	if (report.mode === "auto") {
+		lines.push("", "■ dry-run: --auto fue reconocido, pero autoEnabled=false; no ejecute fases ni delegaciones.");
+	}
+	if (report.blocked.length > 0) {
+		lines.push("", "■ revisar antes de avanzar:");
+		for (const item of report.blocked) lines.push(`- ${item}`);
 	}
 	return lines.join("\n");
 }
@@ -645,6 +687,20 @@ export default function einAi(pi: ExtensionAPI): void {
 			const s = resolveSddStatus(ctx.cwd, change);
 			const active = listActiveChanges(ctx.cwd);
 			ctx.ui.notify(formatSddStatus(s, active), s.blocked.length ? "warning" : "info");
+		},
+	});
+
+	pi.registerCommand("ein:sdd-next", {
+		description: t("cmd.sdd-next.description", "Show the next recommended SDD step for a named change without executing it"),
+		handler: async (args, ctx) => {
+			const parsed = parseSddNextArgs(args);
+			if (!parsed.change) {
+				ctx.ui.notify(formatSddNextHelp(), "info");
+				return;
+			}
+
+			const report = resolveSddNext(ctx.cwd, parsed.change, { auto: parsed.auto });
+			ctx.ui.notify(formatSddNext(report), report.exists && report.blocked.length === 0 ? "info" : "warning");
 		},
 	});
 
