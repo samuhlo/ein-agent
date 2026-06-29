@@ -180,19 +180,21 @@ describe("formatChangeLint", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Contract: ein_sdd_check tool sigue devolviendo JSON
-// Verificado via inspeccion del source en sdd-flow-contract.test.ts
+// Contract: ein_sdd_check tool devuelve texto formateado (no muro de JSON)
+// El JSON crudo del report viaja en `details` para quien lo necesite.
 // ---------------------------------------------------------------------------
 
-describe("contract: ein_sdd_check tool es JSON-oriented", () => {
+describe("contract: ein_sdd_check tool devuelve texto formateado", () => {
 	test("ein-ai.ts registra ein_sdd_check como tool (no como command)", () => {
 		const ai = require("fs").readFileSync(
 			join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"),
 			"utf8",
 		);
-		// La tool usa registerTool y devuelve JSON.stringify
+		// La tool usa registerTool y devuelve formatChangeLint, no JSON.stringify
 		expect(ai).toMatch(/name:\s*"ein_sdd_check"/);
-		expect(ai).toMatch(/JSON\.stringify\(lintChange/);
+		expect(ai).not.toMatch(/JSON\.stringify\(lintChange/);
+		// El report crudo se conserva en details para uso programatico
+		expect(ai).toMatch(/details:\s*report/);
 		// El comando usa registerCommand
 		expect(ai).toMatch(/registerCommand\(\s*"ein:sdd-check"/);
 	});

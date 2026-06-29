@@ -10,6 +10,8 @@ The injected **Work mode** directive (solo/team) governs whether Linear is part 
 
 Use the `subagent` tool to invoke these — never do their work directly from the parent.
 
+**This table is the authoritative inventory — NEVER call `subagent({ action: "list" })`.** The agents below never change mid-session; listing them again only burns tokens and floods the conversation with noise. Invoke an agent directly by name from this table; the only management actions you ever need are `status`/`resume`/`interrupt` on a run you already started.
+
 | Agent | Tools | When |
 | ----- | ----- | ---- |
 | `ein-linear` | linear_* (get/update/search/create issue, comments, projects, milestones) | Linear ops (team mode, or when the user explicitly asks). NEVER `curl` the Linear API. |

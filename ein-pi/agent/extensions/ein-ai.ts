@@ -648,7 +648,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		name: "ein_sdd_status",
 		label: "Ein SDD Status",
 		description:
-			"Deterministic SDD state for the active change (or a named one): which phase artifacts exist, verify outcome, and the nextRecommended phase. Route the SDD flow by THIS, never by guessing. Reads only the filesystem.",
+			"Deterministic SDD state for the active change (or a named one): which phase artifacts exist, verify outcome, and the nextRecommended phase. Returns a compact human-readable summary — route the SDD flow by the `next:` line, never by guessing. Reads only the filesystem.",
 		parameters: {
 			type: "object",
 			properties: { change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." } },
@@ -656,7 +656,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const status = resolveSddStatus(ctx.cwd, params?.change);
 			const active = listActiveChanges(ctx.cwd);
-			return { content: [{ type: "text", text: JSON.stringify({ ...status, activeChanges: active }, null, 2) }], details: {} };
+			return { content: [{ type: "text", text: formatSddStatus(status, active) }], details: { status, activeChanges: active } };
 		},
 	});
 
@@ -665,7 +665,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		name: "ein_sdd_check",
 		label: "Ein SDD Check",
 		description:
-			"Deterministic gatekeeper: lint every present SDD artifact of a change (sections, required signals like verify's status line, placeholders, size). Run it AFTER each phase before advancing. Returns ok + per-phase issues. Reads only the filesystem.",
+			"Deterministic gatekeeper: lint every present SDD artifact of a change (sections, required signals like verify's status line, placeholders, size). Run it AFTER each phase before advancing. Returns a compact per-phase summary (OK/ERRORS + issues). Reads only the filesystem.",
 		parameters: {
 			type: "object",
 			properties: { change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." } },
@@ -673,9 +673,10 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
 			if (!change) {
-				return { content: [{ type: "text", text: JSON.stringify({ ok: false, reason: "no active change" }) }], details: {} };
+				return { content: [{ type: "text", text: "/// SDD CHECK — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
 			}
-			return { content: [{ type: "text", text: JSON.stringify(lintChange(ctx.cwd, change), null, 2) }], details: {} };
+			const report = lintChange(ctx.cwd, change);
+			return { content: [{ type: "text", text: formatChangeLint(report) }], details: report };
 		},
 	});
 

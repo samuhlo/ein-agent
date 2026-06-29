@@ -5,6 +5,29 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.13.2] - 2026-06-29
+
+### Changed
+
+- **Las tools SDD deterministas ya no vuelcan JSON crudo en la conversación.**
+  `ein_sdd_status` y `ein_sdd_check` ahora devuelven el mismo texto compacto y
+  legible que los comandos `/ein:sdd-status` y `/ein:sdd-audit` (`formatSddStatus`
+  / `formatChangeLint`), en vez de un muro de `JSON.stringify(..., null, 2)` con
+  el array `tasks.items[]` entero. El report/estado crudo viaja ahora en
+  `details` para uso programático. El orquestador sigue enrutando por la línea
+  `next:`.
+
+### Fixed
+
+- **Falsos positivos del aviso "subagent needs attention".** Nuevo
+  `extensions/subagent/config.json` que sube `control.needsAttentionAfterMs` de
+  60s a 240s, alineado con el umbral de "active long-running" de `pi-subagents`.
+  Los modelos baratos (MiniMax) dejan de disparar el nudge durante applies
+  multi-fichero largos, sin perder la detección de cuelgues reales.
+- **`subagent list` repetido y ruidoso.** `orchestrator.md` declara ahora la
+  tabla "Subagent Inventory" como fuente autoritativa y prohíbe explícitamente
+  llamar a `subagent({ action: "list" })`.
+
 ## [0.13.1] - 2026-06-29
 
 ### Added
