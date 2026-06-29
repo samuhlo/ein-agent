@@ -2,6 +2,15 @@
   "version": 1,
   "updatedAt": "2026-06-09T17:22:21.480Z",
   "entries": {
+    "slidev": {
+      "name": "slidev",
+      "source": {
+        "repo": "samuhlo/ein-agent",
+        "path": "ein-pi/agent/skills/local/slidev"
+      },
+      "hash": "df88cedd70944d43c4ea53235a0ab390daa5fd7e3839109f27a17008b8d1d06a",
+      "installedAt": "2026-06-29T00:00:00.000Z"
+    },
     "architecture": {
       "name": "architecture",
       "source": {

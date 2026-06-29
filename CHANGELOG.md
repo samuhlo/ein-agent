@@ -5,6 +5,16 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.13.1] - 2026-06-29
+
+### Added
+
+- **Skill propia `slidev`**. Construir, editar y exportar presentaciones de
+  desarrollador con Slidev (Markdown + Vue): `SKILL.md` + `references/` (syntax,
+  cli, layouts, components, animations, code, themes-config, export-deploy,
+  presenter). Vive en `skills/local/` y se sincroniza desde `samuhlo/ein-agent`
+  como el resto de propias; registrada en `skills-lock.json`.
+
 ## [0.13.0] - 2026-06-29
 
 > **Major SDD Workflow Release.** Esta release renombra y consolida las fases
