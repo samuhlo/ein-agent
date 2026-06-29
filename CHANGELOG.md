@@ -5,6 +5,63 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.13.0] - 2026-06-29
+
+> **Major SDD Workflow Release.** Esta release renombra y consolida las fases
+> y agentes SDD definitivas. Es un cambio SemVer minor en código, pero una
+> **gran release funcional** para el workflow: las fases, artefactos y comandos
+> principales adoptan nombres canónicos.
+
+### Added
+
+- **Fases SDD definitivas** (`scope → map → design → tasks → apply → verify → close`):
+  agentes `sdd-scope`, `sdd-map`, `sdd-design`, `sdd-tasks`, `sdd-apply`,
+  `sdd-verify`, `sdd-close`; artefactos `scope.md`, `map.md`, `design.md`,
+  `tasks.md`, `apply-progress.md`, `verify-report.md`, `summary.md`; helper
+  de cierre `sdd-close.ts`. Todo queda bajo el namespace `/ein:sdd-*`.
+
+- **SDD mantiene el namespace OpenSpec** en `openspec/changes/<change>/`; los
+  nombres de las fases son definitivos y no se renombrarán.
+
+- **`/ein:sdd-close` como comando canonical** (antes `/ein:sdd-archive`).
+  `/ein:sdd-archive` se elimina como alias visible. El routing determinista
+  actualiza sus checks para reflejar `close`/`summary` en vez de `archive`/
+  `close-report`.
+
+- **Status enriquecido** (`/ein:sdd-status`) con fase actual, siguiente paso,
+  artefactos, tareas, blockers y budget. **`/ein:sdd-audit`** queda como
+  validación completa de un cambio y `/ein:sdd-check` permanece solo como alias
+  legacy de audit.
+
+- **Split `design` / `tasks` formalizado**: `sdd-design` produce el spec
+  (`design.md`); `sdd-tasks` lo convierte en checklist ejecutable
+  (`tasks.md`). Son fases separadas con gate propio.
+
+### Changed
+
+- Los nombres antiguos `sdd-init`, `sdd-explore` y `sdd-archive` desaparecen
+  de la superficie pública del workflow. Solo quedan aliases internos de
+  migración para preservar configuraciones de modelos existentes.
+
+- **`/ein:sdd-next`** muestra el siguiente paso recomendado basándose en el
+  estado determinista del router. En esta versión `--auto` es dry-run: explica,
+  pero no ejecuta fases.
+
+### Migration Note
+
+- **Cambios vivos con `init.md` / `exploration.md`** pueden necesitar
+  migración manual a `scope.md` / `map.md`. Las nuevas sesiones SDD usan los
+  nombres canonicales desde el primer momento.
+
+### Breaking / Installer Note
+
+> **Nueva release de installer requerida.** El script `install.sh` descarga
+> desde `releases/latest`, así que para recibir esta versión es necesario
+> publicar el tag `installer-v0.13.0` después de este bump y reinstalar con el
+> `curl` de instalación. Un binario viejo ejecutando `ein update` redespliega su
+> template embebido viejo; no puede actualizarse a sí mismo hasta que descargues
+> la nueva release.
+
 ## [0.12.0] - 2026-06-25
 
 ### Added
