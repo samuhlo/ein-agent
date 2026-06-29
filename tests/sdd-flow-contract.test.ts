@@ -1,7 +1,7 @@
 // =============================================================================
-// TESTS: contrato del flujo SDD por fases (router + gatekeeper + archive)
+// TESTS: contrato del flujo SDD por fases (router + gatekeeper + close)
 // El orquestador debe enrutar por el router determinista, gatekeepear cada fase,
-// y cerrar con archive. Los tools deterministas deben estar cableados en ein-ai.
+// y cerrar con close. Los tools deterministas deben estar cableados en ein-ai.
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
@@ -23,8 +23,8 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("ein_sdd_check");
 	});
 
-	test("incluye tasks y archive en el flujo de 7", () => {
-		expect(orch).toContain("init → explore → design → tasks → apply → verify → archive");
+	test("incluye tasks y close en el flujo de 7", () => {
+		expect(orch).toContain("scope → map → design → tasks → apply → verify → close");
 	});
 
 	test("conserva la chain como fallback (no como ruta primaria)", () => {
@@ -45,21 +45,22 @@ describe("ein-ai: tools deterministas cableados", () => {
 		expect(ai).toContain('name: "ein_sdd_status"');
 		expect(ai).toContain('name: "ein_sdd_check"');
 	});
-	test("registra los comandos sdd-status, sdd-next y sdd-archive", () => {
+	test("registra los comandos sdd-status, sdd-next y sdd-close", () => {
 		expect(ai).toContain('"ein:sdd-status"');
 		expect(ai).toContain('"ein:sdd-next"');
-		expect(ai).toContain('"ein:sdd-archive"');
+		expect(ai).toContain('"ein:sdd-close"');
+		expect(ai).not.toContain(`"ein:sdd-${"archive"}"`);
 	});
 });
 
-describe("sdd-archive agent existe y solo escribe summary", () => {
-	const archive = read("agents/sdd-archive.md");
+describe("sdd-close agent existe y solo escribe summary", () => {
+	const close = read("agents/sdd-close.md");
 	test("nombre y output", () => {
-		expect(archive).toContain("name: sdd-archive");
-		expect(archive).toContain("summary.md");
+		expect(close).toContain("name: sdd-close");
+		expect(close).toContain("summary.md");
 	});
 	test("no mueve ficheros (eso lo hace el parent determinista)", () => {
-		expect(archive.toLowerCase()).toContain("do not move or delete files");
+		expect(close.toLowerCase()).toContain("do not move or delete files");
 	});
 });
 
@@ -70,8 +71,8 @@ describe("sdd-tasks agent existe y produce tasks.md", () => {
 		expect(tasks).toContain("tasks.md");
 		expect(tasks).toContain("status: ready | blocked");
 	});
-	test("no reexplora ni edita source code", () => {
-		expect(tasks.toLowerCase()).toContain("do not re-explore");
+	test("no remapea ni edita source code", () => {
+		expect(tasks.toLowerCase()).toContain("do not remap");
 		expect(tasks.toLowerCase()).toContain("do not write or edit source code");
 	});
 });

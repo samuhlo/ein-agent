@@ -30,12 +30,13 @@ import { pick } from "./lang.ts";
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 export const SDD_AGENT_NAMES = [
-	"sdd-init",
-	"sdd-explore",
+	"sdd-scope",
+	"sdd-map",
 	"sdd-design",
 	"sdd-tasks",
 	"sdd-apply",
 	"sdd-verify",
+	"sdd-close",
 ] as const;
 export const SDD_AGENT_NAME_SET = new Set<string>(SDD_AGENT_NAMES);
 export type SddAgentName = (typeof SDD_AGENT_NAMES)[number];
@@ -81,6 +82,10 @@ function einConfigHome(): string {
 	return process.env.EIN_PI_CONFIG_HOME ?? join(homedir(), ".pi", "ein");
 }
 
+function agentHome(): string {
+	return process.env.EIN_PI_AGENT_HOME ?? AGENT_DIR;
+}
+
 export function modelConfigPath(_cwd: string): string {
 	return join(einConfigHome(), "models.json");
 }
@@ -103,7 +108,12 @@ function isThinkingLevel(value: unknown): value is ThinkingLevel {
 // Alias de migración de nombres de agente en configs guardadas. ein-github pasó
 // a ein-git (también hace git local). Se remapea al leer models.json para no
 // orfanar la config previa del usuario.
-const AGENT_KEY_ALIASES: Record<string, string> = { "ein-github": "ein-git" };
+const AGENT_KEY_ALIASES: Record<string, string> = {
+	"ein-github": "ein-git",
+	[`sdd-${"init"}`]: "sdd-scope",
+	[`sdd-${"explore"}`]: "sdd-map",
+	[`sdd-${"archive"}`]: "sdd-close",
+};
 
 function aliasAgentKey(name: string): string {
 	return AGENT_KEY_ALIASES[name] ?? name;
@@ -373,7 +383,7 @@ function builtinAgentDirs(cwd: string): string[] {
 	if (builtinsDisabled(cwd)) return [];
 	return [
 		join(PACKAGE_ROOT, "..", "pi-subagents", "agents"),
-		join(AGENT_DIR, "npm", "node_modules", "pi-subagents", "agents"),
+		join(agentHome(), "npm", "node_modules", "pi-subagents", "agents"),
 		join(cwd, ".pi", "npm", "node_modules", "pi-subagents", "agents"),
 		join(homedir(), ".local", "lib", "node_modules", "pi-subagents", "agents"),
 	];
@@ -382,7 +392,7 @@ function builtinAgentDirs(cwd: string): string[] {
 export function listDiscoverableAgents(cwd: string): AgentEntry[] {
 	const agents = [
 		...builtinAgentDirs(cwd).flatMap((dir) => listAgentsFromDir(dir, "builtin")),
-		...listAgentsFromDir(join(AGENT_DIR, "agents"), "user"),
+		...listAgentsFromDir(join(agentHome(), "agents"), "user"),
 		...listAgentsFromDir(join(homedir(), ".agents"), "user"),
 		...listAgentsFromDir(join(cwd, ".agents"), "project"),
 		...listAgentsFromDir(join(cwd, ".pi", "agents"), "project"),
@@ -400,7 +410,7 @@ export async function listDiscoverableAgentsAsync(
 		agents.push(...(await listAgentsFromDirAsync(dir, "builtin")));
 	}
 	const otherDirs: Array<[string, AgentSource]> = [
-		[join(AGENT_DIR, "agents"), "user"],
+		[join(agentHome(), "agents"), "user"],
 		[join(homedir(), ".agents"), "user"],
 		[join(cwd, ".agents"), "project"],
 		[join(cwd, ".pi", "agents"), "project"],
@@ -418,7 +428,7 @@ function projectSettingsPath(cwd: string): string {
 }
 
 function globalSettingsPath(): string {
-	return join(AGENT_DIR, "settings.json");
+	return join(agentHome(), "settings.json");
 }
 
 export function updateGlobalDefaultModel(provider: string, model: string): void {
@@ -468,11 +478,12 @@ export function readOrchestratorModel(): string | undefined {
 // del settings global; los subagentes usan ~/.pi/ein/models.json.
 const MODEL_FULL: AgentModelConfig = {
 	"sdd-design": { model: "openai-codex/gpt-5.5" },
-	"sdd-init": { model: "minimax/MiniMax-M2.7" },
-	"sdd-explore": { model: "minimax/MiniMax-M2.7" },
+	"sdd-scope": { model: "minimax/MiniMax-M2.7" },
+	"sdd-map": { model: "minimax/MiniMax-M2.7" },
 	"sdd-tasks": { model: "minimax/MiniMax-M2.7" },
 	"sdd-apply": { model: "minimax/MiniMax-M3" },
 	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
+	"sdd-close": { model: "minimax/MiniMax-M2.7" },
 	"ein-linear": { model: "minimax/MiniMax-M2.7" },
 	"ein-git": { model: "minimax/MiniMax-M2.7" },
 };
@@ -480,11 +491,12 @@ const MODEL_FULL_ORCH = { provider: "openai-codex", model: "gpt-5.5" } as const;
 
 const MODEL_LITE: AgentModelConfig = {
 	"sdd-design": { model: "minimax/MiniMax-M3" },
-	"sdd-init": { model: "minimax/MiniMax-M2.7" },
-	"sdd-explore": { model: "minimax/MiniMax-M2.7" },
+	"sdd-scope": { model: "minimax/MiniMax-M2.7" },
+	"sdd-map": { model: "minimax/MiniMax-M2.7" },
 	"sdd-tasks": { model: "minimax/MiniMax-M2.7" },
 	"sdd-apply": { model: "minimax/MiniMax-M3" },
 	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
+	"sdd-close": { model: "minimax/MiniMax-M2.7" },
 	"ein-linear": { model: "minimax/MiniMax-M2.7" },
 	"ein-git": { model: "minimax/MiniMax-M2.7" },
 };

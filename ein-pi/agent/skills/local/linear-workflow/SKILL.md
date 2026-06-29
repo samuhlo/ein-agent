@@ -249,7 +249,7 @@ Change folder: `.sdd/changes/<issue-id>-<slug>/`
 
 ## Progress Comment Template
 
-Use this only for a meaningful milestone, blocker, final implementation update, or explicit sync request. Do not use it after every `sdd-explore` or `sdd-apply` batch.
+Use this only for a meaningful milestone, blocker, final implementation update, or explicit sync request. Do not use it after every `sdd-map` or `sdd-apply` batch.
 
 ```md
 ## // 000. RESUMEN
@@ -344,7 +344,7 @@ Do this:
 5. Create issue if needed using tags and labels.
 6. Move issue to `Todo` or `In Progress` depending on whether work starts immediately.
 7. Create SDD change folder name from issue ID and slug.
-8. Delegate exploration to `sdd-explore`.
+8. Delegate mapping to `sdd-map`.
 9. Comment Linear only if there is a useful human milestone, blocker, final result, or explicit sync request. Keep the `//` sections, but summarize product progress instead of SDD artifacts.
 
 ## State Transitions

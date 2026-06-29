@@ -11,7 +11,7 @@
 El flujo actual:
 
 ```
-init → explore → design → tasks → apply → verify → archive
+scope → map → design → tasks → apply → verify → close
                  ↑
           design.md = proposal + spec + scenarios + task slices
 ```
@@ -29,7 +29,7 @@ El problema: cuando la spec es grande, las tareas se pierden. Y el agente que ej
 ## // 002. FLUJO PROPUESTO
 
 ```
-init → explore → design → tasks → apply → verify → close
+scope → map → design → tasks → apply → verify → close
 ```
 
 **Fase `design`:** produce `design.md` = proposal + spec. Sin tareas.
@@ -41,7 +41,7 @@ init → explore → design → tasks → apply → verify → close
 | Fase interna | Lenguaje humano |
 |--------------|-----------------|
 | init | scope |
-| explore | map |
+| map | map |
 | design | design |
 | tasks | tasks |
 | apply | apply |
@@ -92,7 +92,7 @@ blocked_by: <reason if blocked>
 
 ## // 004. CAMBIOS EN EL CHAIN (`ein-sdd.chain.md`) Y ORCHESTRATOR
 
-El chain conoce el flujo `init → explore → design → tasks → apply → verify → archive`. `sdd-tasks` vive entre `design` y `apply`:
+El chain conoce el flujo `scope → map → design → tasks → apply → verify → close`. `sdd-tasks` vive entre `design` y `apply`:
 
 ```
 ## sdd-tasks
@@ -153,7 +153,7 @@ progress: true
 ## // 008. TESTS
 
 ```
-[ ] Crear un change de prueba: init → explore → design
+[ ] Crear un change de prueba: scope → map → design
 [ ] Ejecutar sdd-tasks y verificar que genera tasks.md con el formato esperado
 [ ] Ejecutar sdd-apply con tasks.md y verificar que sigue el formato
 [ ] Verificar que sdd-apply funciona con design.md cuando tasks.md no existe (compatibilidad)

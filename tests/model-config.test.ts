@@ -57,14 +57,14 @@ describe("models.json roundtrip", () => {
 			modelConfigPath(CWD),
 			JSON.stringify({
 				"sdd-verify": "minimax/MiniMax-M2.7",
-				"sdd-explore": "",
-				"sdd-init": { thinking: "nivel-inventado" },
+				"sdd-map": "",
+				"sdd-scope": { thinking: "nivel-inventado" },
 			}),
 		);
 		const config = readModelConfig(CWD);
 		expect(config["sdd-verify"]).toEqual({ model: "minimax/MiniMax-M2.7" });
-		expect(config["sdd-explore"]).toBeUndefined();
-		expect(config["sdd-init"]).toBeUndefined();
+		expect(config["sdd-map"]).toBeUndefined();
+		expect(config["sdd-scope"]).toBeUndefined();
 	});
 
 	test("JSON roto no revienta: devuelve config vacía", () => {
@@ -91,6 +91,21 @@ describe("models.json roundtrip", () => {
 			}),
 		);
 		expect(readModelConfig(CWD)["ein-git"]).toEqual({ model: "minimax/MiniMax-M3" });
+	});
+
+	test("migra claves SDD previas al rename", () => {
+		writeFileSync(
+			modelConfigPath(CWD),
+			JSON.stringify({
+				[`sdd-${"init"}`]: "minimax/MiniMax-M2.7",
+				[`sdd-${"explore"}`]: "minimax/MiniMax-M2.7",
+				[`sdd-${"archive"}`]: "minimax/MiniMax-M2.7",
+			}),
+		);
+		const config = readModelConfig(CWD);
+		expect(config["sdd-scope"]).toEqual({ model: "minimax/MiniMax-M2.7" });
+		expect(config["sdd-map"]).toEqual({ model: "minimax/MiniMax-M2.7" });
+		expect(config["sdd-close"]).toEqual({ model: "minimax/MiniMax-M2.7" });
 	});
 });
 

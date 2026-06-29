@@ -1,9 +1,9 @@
 // =============================================================================
-// SDD ARCHIVE (deterministic move)
+// SDD CLOSE (deterministic move)
 // Cierra un cambio terminado: mueve openspec/changes/<change>/ a
 // openspec/changes/archive/<change>/ para que `openspec/changes/` solo contenga
 // cambios VIVOS y el estado quede revisable y ordenado. El resumen condensado
-// (summary.md) lo escribe el agente sdd-archive ANTES de llamar a esto; aquí
+// (summary.md) lo escribe el agente sdd-close ANTES de llamar a esto; aquí
 // solo se hace el movimiento, que es determinista y debe ser fiable.
 // Módulo puro (builtins de Node).
 // =============================================================================
@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, renameSync, cpSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
-export type ArchiveResult = {
+export type CloseResult = {
 	ok: boolean;
 	from: string;
 	to: string;
@@ -22,16 +22,14 @@ function changesDir(cwd: string): string {
 	return join(cwd, "openspec", "changes");
 }
 
-export function archivedChangePath(cwd: string, change: string): string {
+export function closedChangePath(cwd: string, change: string): string {
 	return join(changesDir(cwd), "archive", change);
 }
 
-// Mueve el directorio del cambio a archive/. Idempotente-ish: si el destino ya
-// existe, no pisa (devuelve ok:false con razón). Usa rename y cae a copy+rm si
-// cruza dispositivos.
-export function archiveChange(cwd: string, change: string): ArchiveResult {
+// Storage interno heredado: `archive/` conserva historial sin migración destructiva.
+export function closeChange(cwd: string, change: string): CloseResult {
 	const from = join(changesDir(cwd), change);
-	const to = archivedChangePath(cwd, change);
+	const to = closedChangePath(cwd, change);
 
 	if (change === "archive" || change.includes("/") || change.includes("..")) {
 		return { ok: false, from, to, reason: "nombre de cambio inválido" };

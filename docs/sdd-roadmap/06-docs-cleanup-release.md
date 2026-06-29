@@ -1,6 +1,6 @@
-# // 000. Plan: Documentation Cleanup and Release
+# // 000. Plan 06: Documentation Cleanup and Release
 
-**Objetivo:** despues de implementar los planes 01-04, limpiar la documentacion del proyecto para que refleje el estado real.
+**Objetivo:** despues de implementar los planes 01-05, limpiar la documentacion del proyecto para que refleje el estado real.
 
 ---
 
@@ -9,7 +9,7 @@
 Despues de implementar cambios en el sistema SDD, la documentacion existente suele quedar desincronizada:
 
 - Comandos que ya no existen siguen mencionados.
-- Flujos que cambiaron siguen documentados con el viejo orden.
+- Flujos que cambiaron siguen documentados con un orden previo.
 - Ejemplos que ya no aplican siguen en los READMEs.
 
 Este plan identifica los puntos especificos de friccion y los limpia antes de un release o publicacion.
@@ -20,12 +20,12 @@ Este plan identifica los puntos especificos de friccion y los limpia antes de un
 
 ### README raiz del proyecto
 
-**Problema conocido:** la tabla o seccion que dice que el flujo SDD termina en `verify` mientras que otra seccion posterior menciona `archive`.
+**Problema conocido:** la tabla o seccion que dice que el flujo SDD termina en `verify` o usa nombres previos.
 
 **Accion:** buscar en `README.md` y `ein-pi/agent/README.md` (si existe) cualquier referencia a:
 - "flujo SDD" o "SDD flow"
-- `init → explore → design → tasks → apply → verify` (sin `archive`)
-- Cualquier comando que ya no exista (`/ein:sdd-check`, `/ein:sdd-archive` como comandos principales, no como alias)
+- `scope → map → design → tasks → apply → verify → close`
+- Cualquier comando que ya no exista como surface publico principal
 
 ### AGENTS.md
 
@@ -35,7 +35,7 @@ Este plan identifica los puntos especificos de friccion y los limpia antes de un
 
 ### Orchestrator.md
 
-**Problema conocido:** la seccion de SDD Flow puede mencionar `archive` pero sin referencia a `/ein:sdd-close` como comando canonico.
+**Problema conocido:** la seccion de SDD Flow puede no mencionar el flujo final `scope → map → design → tasks → apply → verify → close`.
 
 **Accion:** actualizar la referencia del chain para incluir `sdd-tasks` si el plan 02 fue implementado.
 
@@ -45,7 +45,7 @@ Si existe un comando `/ein:help` o documentacion de comandos, verificar que los 
 
 ### CHANGELOG
 
-**Problema conocido:** no existe CHANGELOG o no refleja los cambios de los planes 01-04.
+**Problema conocido:** no existe CHANGELOG o no refleja los cambios de los planes 01-05.
 
 **Accion:** si hay CHANGELOG, agregar entrada. Si no existe, crear con el formato conventional changelog.
 
@@ -59,7 +59,7 @@ Si el release incluye cambios en el installer (`installer/`), verificar que `pac
 
 | Archivo | Problema | Accion |
 |---------|----------|--------|
-| README.md (raiz) | Tabla dice flujo termina en verify, seccion posterior menciona archive | Unificar a `verify → close` con comando canonico `/ein:sdd-close` |
+| README.md (raiz) | Tabla o seccion usa fases previas | Unificar a `scope → map → design → tasks → apply → verify → close` |
 | `ein-pi/agent/README.md` (si existe) | Mismos problemas de desincronizacion | Misma accion |
 | AGENTS.md | Tabla de comandos no incluye `/ein:sdd-audit`, `/ein:sdd-close`, `/ein:sdd-next` | Agregar entradas |
 | `orchestrator.md` | Section SDD Flow no menciona `/ein:sdd-next` | Agregar referencia |
@@ -69,11 +69,11 @@ Si el release incluye cambios en el installer (`installer/`), verificar que `pac
 ## // 004. TESTS / CHECKS
 
 ```
-[ ] Buscar en README.md referencias a "verify" como fase final sin mention de archive/close
+[ ] Buscar en README.md referencias a "verify" como fase final sin `close`
 [ ] Buscar en AGENTS.md si todos los comandos canonicos estan documentados
 [ ] Buscar en orchestrator.md si sdd-tasks aparece (si plan 02 se implemento)
 [ ] Verificar que /ein:help muestra los comandos correctos (si aplica)
-[ ] Si hay CHANGELOG, verificar que los cambios de planes 01-04 estan reflejados
+[ ] Si hay CHANGELOG, verificar que los cambios de planes 01-05 estan reflejados
 [ ] Verificar que el numero de version en package.json aumento si corresponde
 ```
 
@@ -103,7 +103,7 @@ release: bump version and sync documentation after SDD reorganization
 
 ## // 007. ORDEN DE APLICACION
 
-Este plan se aplica al final, despues de que los planes 01-04 esten implementados y verificados. No tiene sentido limpiar documentacion antes de que los cambios esten hechos.
+Este plan se aplica al final, despues de que los planes 01-05 esten implementados y verificados. No tiene sentido limpiar documentacion antes de que los cambios esten hechos.
 
 ---
 

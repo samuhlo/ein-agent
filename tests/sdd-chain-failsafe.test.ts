@@ -29,8 +29,8 @@ describe("ein-sdd.chain.md fail-safe", () => {
     expect(content.toLowerCase()).toContain("stop chain");
   });
 
-  test("exploration-error.md como output de error", () => {
-    expect(content).toContain("exploration-error.md");
+  test("map-error.md como output de error", () => {
+    expect(content).toContain("map-error.md");
   });
 
   test("presencia de budget en artifact propagate", () => {

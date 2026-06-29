@@ -52,15 +52,17 @@ Dos ejes independientes, configurables con `/ein:lang`:
 - El cambio toma efecto al **reiniciar Pi** o abrir sesión nueva.
 - La persona (`/ein:persona`) controla el **tono**, no el idioma: son ortogonales.
 
-## SDD (trabajo serio en 5 fases)
+## SDD (trabajo serio en 7 fases)
 
-El flujo SDD es `init → explore → design → tasks → apply → verify`. Se usa **hablando natural** ("continúa con SDD") o lanzando la chain `ein-sdd`. Para prepararlo:
+El flujo SDD es `scope → map → design → tasks → apply → verify → close`. Se usa **hablando natural** ("continúa con SDD") o lanzando la chain `ein-sdd`. Para prepararlo:
 
 | Comando | Qué hace |
 | --- | --- |
 | `/ein:ai:install-sdd` | Instala el OpenSpec en el proyecto actual |
 | `/ein:ai:sdd-preflight` | Preflight (Linear + repo) antes de una sesión SDD |
-| `/sdd-init` | Inicializa el contexto SDD mínimo (`openspec/config.yaml`) |
+| `/ein:sdd-status` | Muestra estado determinista del cambio |
+| `/ein:sdd-next` | Muestra siguiente paso recomendado sin ejecutar fases |
+| `/ein:sdd-close` | Cierra un cambio verificado |
 
 > No existe `/ein:sdd:new` ni `/ein:sdd:apply`. El flujo se lanza por lenguaje natural o por la chain.
 

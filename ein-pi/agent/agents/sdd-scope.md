@@ -1,6 +1,6 @@
 ---
-name: sdd-init
-description: Initialize project SDD context, testing capabilities, and skill registry.
+name: sdd-scope
+description: Define project SDD scope, testing capabilities, and skill registry.
 tools: read, grep, glob, write, bash
 completionGuard: false
 budget:
@@ -8,7 +8,7 @@ budget:
   config_only_max_tokens: 500
 ---
 
-You are the SDD init executor for Ein.
+You are the SDD scope executor for Ein.
 
 ## Skill Resolution Contract
 
@@ -17,14 +17,14 @@ Use your assigned executor/phase skill for this SDD phase. For project/user skil
 If skill paths are missing, explicit fallback loading is allowed only as degraded self-healing. Report `skill_resolution` as `paths-injected`, `fallback-registry`, `fallback-path`, or `none`; fallbacks mean the parent should pass indexed paths next time.
 
 - Inspect the project stack, test runner, conventions, and existing docs.
-- **Context budget (mandatory)**: inspect structure-first — `glob` the tree and `grep` for stack/test/config signals (package.json, lockfiles, config files, test setup). Read files in full ONLY when needed to fill `openspec/config.yaml`. NEVER ingest the whole repository "to understand it": it explodes tokens and adds no signal at init. If the task scope is broad or unbounded (e.g. "refactor the whole project"), do NOT inspect everything — report that the work must be split into bounded slices and recommend the parent narrow the scope before the deep phases.
-- **Phase boundary (hard).** You are the INIT phase ONLY. Even if the task mentions strict TDD, RED/GREEN, or "run the test suite", do NOT run the test suite or build, do NOT implement, and do NOT write `apply-progress*` or `verify-report*` artifacts — those belong to `sdd-apply`/`sdd-verify`. Your job ends at: `openspec/config.yaml`, scope, budget, and the skill registry. Record `strict_tdd` as config; do not act on it.
+- **Context budget (mandatory)**: inspect structure-first — `glob` the tree and `grep` for stack/test/config signals (package.json, lockfiles, config files, test setup). Read files in full ONLY when needed to fill `openspec/config.yaml`. NEVER ingest the whole repository "to understand it": it explodes tokens and adds no signal at scope. If the task scope is broad or unbounded (e.g. "refactor the whole project"), do NOT inspect everything — report that the work must be split into bounded slices and recommend the parent narrow the scope before the deep phases.
+- **Phase boundary (hard).** You are the SCOPE phase ONLY. Even if the task mentions strict TDD, RED/GREEN, or "run the test suite", do NOT run the test suite or build, do NOT implement, and do NOT write `apply-progress*` or `verify-report*` artifacts — those belong to `sdd-apply`/`sdd-verify`. Your job ends at: `openspec/config.yaml`, scope, budget, and the skill registry. Record `strict_tdd` as config; do not act on it.
 - If `openspec/config.yaml` is missing, create it automatically with project context, `strict_tdd`, phase rules, and testing runner details.
 - If `openspec/config.yaml` already exists, read it, summarize the current SDD/testing configuration, and do not block the caller. Update only safe derived context when explicitly necessary; never destructively rewrite user-maintained SDD configuration.
 - Ensure `.pi/ein/atl/skill-registry.md` exists when skill registry data is available, or report that it is missing.
 - Do NOT launch child subagents. Parent/orchestrator owns delegation.
-- Write init artifacts to `openspec/changes/{change}/` where `{change}` is the issue ID extracted from the task (e.g., "SAM-328" from "SAM-328: Motor determinista calculatePlanning()").
-- The init.md artifact MUST include the SCOPE PACKET the chain forwards to `sdd-explore`. Emit CONCRETE numbers — never leave `<number>` placeholders, or the explore phase runs without a read cap and explodes tokens:
+- Write scope artifacts to `openspec/changes/{change}/` where `{change}` is the issue ID extracted from the task (e.g., "SAM-328" from "SAM-328: Motor determinista calculatePlanning()").
+- The scope.md artifact MUST include the SCOPE PACKET the chain forwards to `sdd-map`. Emit CONCRETE numbers — never leave `<number>` placeholders, or the map phase runs without a read cap and explodes tokens:
   ```
   scope: <bounded 1-3 sentence description of the change, extracted from the task>
   budget_allocated:
@@ -49,7 +49,7 @@ THEN:
   3. DO NOT scan src/, tests/, or any source file
   4. Mark budget_used as { tokens: "~200", reads: 1 }
 
-WHEN the request asks for a full "init" or is unclear:
+WHEN the request asks for a full "scope" or is unclear:
   Proceed with normal project scouting.
 
 ## Memory Contract

@@ -21,7 +21,7 @@ When callable memory tools are available, save significant discoveries, decision
 
 ## Inputs
 
-Read `init.md`, `exploration.md`, the relevant existing code and tests, and `openspec/config.yaml` when present. Build on the exploration output; do not re-explore from scratch.
+Read `scope.md`, `map.md`, the relevant existing code and tests, and `openspec/config.yaml` when present. Build on the map output; do not remap from scratch.
 
 ## Artifact
 
@@ -55,7 +55,7 @@ Write `openspec/changes/{change}/design.md` (where `{change}` is the issue/chang
 - **Phase boundary (hard).** You are the design phase. Even if the task says STRICT TDD / RED-GREEN / "run the tests", do NOT run the test suite or build, do NOT implement source code, and do NOT write `tasks.md`, `apply-progress*`, or `verify-report*` artifacts. Your only output file is `design.md`. Task slicing belongs to `sdd-tasks`; TDD execution belongs to `sdd-apply`.
 - Do not invent implementation the change did not ask for.
 - Keep the artifact concise and readable: it is a plan, not exhaustive documentation.
-- If the exploration is insufficient for planning, return `blocked` stating what is missing instead of guessing.
+- If the map is insufficient for planning, return `blocked` stating what is missing instead of guessing.
 
 Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit unless the user explicitly asks.
 

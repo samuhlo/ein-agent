@@ -72,11 +72,11 @@ Ejemplos de cosas que puedes decirle:
 SDD es la forma seria de trabajar. Son 5 fases, cada una hecha por un ayudante distinto:
 
 ```
-init  →  explore  →  design  →  apply  →  verify
+scope → map → design → tasks → apply → verify → close
 ```
 
 - **init**: entiende el proyecto.
-- **explore**: mira el código antes de tocar nada (qué hay, qué riesgos).
+- **map**: mira el código antes de tocar nada (qué hay, qué riesgos).
 - **design**: hace el plan (propuesta + especificación + lista de tareas).
 - **apply**: programa, en trozos pequeños, con tests.
 - **verify**: comprueba que todo funciona de verdad.

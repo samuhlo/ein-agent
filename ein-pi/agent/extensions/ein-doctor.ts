@@ -127,7 +127,7 @@ ${extensions.map((e) => `- \`${e}\``).join("\n") || "- ninguna"}
 ■ 006. LECTURA DIDACTICA
 
 Ein es un workbench estructurado sobre Pi Coding Agent. El flujo principal es lenguaje natural.
-Para trabajo serio usa la chain \`ein-sdd\` (init → explore → design → tasks → apply → verify).
+Para trabajo serio usa la chain \`ein-sdd\` (scope → map → design → tasks → apply → verify → close).
 Los comandos \`/ein:*\` son control manual y fallback, no la ruta principal.
 La memoria persiste en Engram (\`${ENGRAM_DIR}\`), separada del resto de agentes.`;
 }
@@ -245,13 +245,13 @@ function doctorSmokeReport(): string {
   ];
 
   const SDD_AGENTS = [
-    "sdd-init.md",
-    "sdd-explore.md",
+    "sdd-scope.md",
+    "sdd-map.md",
     "sdd-design.md",
     "sdd-tasks.md",
     "sdd-apply.md",
     "sdd-verify.md",
-    "sdd-archive.md",
+    "sdd-close.md",
   ];
   const DELIVERY_AGENTS = ["ein-linear.md", "ein-git.md"];
 
@@ -420,10 +420,10 @@ function doctorSmokeReport(): string {
       "Router determinista (lib/sdd-router.ts + tool ein_sdd_status) presente.",
     ),
     check(
-      existsSync(join(AGENT_DIR, "agents", "sdd-archive.md")) &&
+      existsSync(join(AGENT_DIR, "agents", "sdd-close.md")) &&
         orchestratorRaw.includes("ein_sdd_check"),
-      "sdd gatekeeper + archive",
-      "Gatekeeper (ein_sdd_check) y fase archive cableados.",
+      "sdd gatekeeper + close",
+      "Gatekeeper (ein_sdd_check) y fase close cableados.",
     ),
   ];
 

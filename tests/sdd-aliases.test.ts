@@ -1,7 +1,7 @@
 // =============================================================================
 // TESTS: SDD canonical command aliases (ein-ai.ts)
-// Verifica que /ein:sdd-audit y /ein:sdd-close son los comandos canonicos,
-// y que /ein:sdd-check y /ein:sdd-archive siguen registrados como aliases legacy.
+// Verifica que /ein:sdd-audit y /ein:sdd-close son los comandos canonicos.
+// /ein:sdd-check sigue como alias no-fase; el comando previo de cierre queda fuera del surface publico.
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
@@ -30,8 +30,9 @@ describe("SDD canonical command aliases", () => {
 		expect(src).not.toMatch(/registerCommand\(\s*"ein:sdd-next-[^"]+"/);
 	});
 
-	test("ein:sdd-archive is registered as legacy alias", () => {
-		expect(src).toMatch(/registerCommand\(\s*"ein:sdd-archive"/);
+	test("old close command is not registered", () => {
+		const oldCloseCommand = `ein:sdd-${"archive"}`;
+		expect(src).not.toContain(`registerCommand("${oldCloseCommand}"`);
 	});
 
 	test("handler for sdd-audit and sdd-check is the same function", () => {
@@ -42,12 +43,10 @@ describe("SDD canonical command aliases", () => {
 		expect(matches).toHaveLength(2);
 	});
 
-	test("handler for sdd-close and sdd-archive is the same function", () => {
-		// Ambos comandos registran la misma funcion handleSddClose
+	test("handler for sdd-close is singular", () => {
 		expect(src).toMatch(/handleSddClose\(args, ctx\)/);
-		// Dos registerCommand referencian handleSddClose
 		const matches = src.match(/handler:\s*async\s*\(\s*args,\s*ctx\s*\)\s*=>\s*handleSddClose/g);
-		expect(matches).toHaveLength(2);
+		expect(matches).toHaveLength(1);
 	});
 
 	test("sdd-check description is marked as legacy", () => {
@@ -55,8 +54,7 @@ describe("SDD canonical command aliases", () => {
 		expect(block).toMatch(/\[legacy\]/);
 	});
 
-	test("sdd-archive description is marked as legacy", () => {
-		const block = src.match(/registerCommand\(\s*"ein:sdd-archive"[\s\S]*?(?=registerCommand|$)/)?.[0];
-		expect(block).toMatch(/\[legacy\]/);
+	test("old close command key is absent", () => {
+		expect(src).not.toContain(`cmd.sdd-${"archive"}`);
 	});
 });

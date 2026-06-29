@@ -440,7 +440,7 @@ function tddPreflightLine(mode: TddMode): string {
 }
 
 // includeTdd: the Strict TDD line only matters where code is actually written
-// (the parent's inline work and sdd-apply). Injecting it into init/explore/
+// (the parent's inline work and sdd-apply). Injecting it into scope/map/
 // design/verify is noise that pushes cheap models toward a RED/GREEN loop in
 // read-only phases. Default true keeps the parent/apply behavior unchanged.
 export function renderSddPreflightPrompt(

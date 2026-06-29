@@ -1,6 +1,6 @@
 // =============================================================================
-// TESTS: sdd-init-budget contract
-// Verifica que sdd-init.md contiene:
+// TESTS: sdd-scope-budget contract
+// Verifica que sdd-scope.md contiene:
 //   - Fast path (sección "Fast Path" o "Config-Only")
 //   - budget en frontmatter
 //   - budget_allocated en output
@@ -10,10 +10,10 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const INIT_MD = join(import.meta.dir, "../ein-pi/agent/agents/sdd-init.md");
-const content = readFileSync(INIT_MD, "utf8");
+const SCOPE_MD = join(import.meta.dir, "../ein-pi/agent/agents/sdd-scope.md");
+const content = readFileSync(SCOPE_MD, "utf8");
 
-describe("sdd-init.md budget contract", () => {
+describe("sdd-scope.md budget contract", () => {
   test("contiene fast path config-only", () => {
     expect(content).toMatch(/Fast Path|Config-Only|config.only|config-only/);
   });
@@ -38,8 +38,8 @@ describe("sdd-init.md budget contract", () => {
     expect(content).toContain("~200");
   });
 
-  test("emite scope + max_reads para propagar el SCOPE PACKET a explore", () => {
-    // Sin scope/max_reads concretos en init.md, el explore corre sin tope de
+  test("emite scope + max_reads para propagar el SCOPE PACKET a map", () => {
+    // Sin scope/max_reads concretos en scope.md, map corre sin tope de
     // lectura en modo chain (causa de la explosion de tokens).
     expect(content).toContain("scope:");
     expect(content).toContain("max_reads");

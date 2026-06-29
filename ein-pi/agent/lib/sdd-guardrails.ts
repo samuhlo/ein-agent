@@ -169,29 +169,29 @@ function finalize(issues: GuardrailIssue[], lineCount: number): DesignLintReport
 
 // ─── Gatekeeper por fase ──────────────────────────────────────────────────────
 
-export type SddPhase = "init" | "explore" | "design" | "tasks" | "apply" | "verify" | "archive";
+export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
 
 const PHASE_ARTIFACT: Record<SddPhase, string> = {
-	init: "init.md",
-	explore: "exploration.md",
+	scope: "scope.md",
+	map: "map.md",
 	design: "design.md",
 	tasks: "tasks.md",
 	apply: "apply-progress.md",
 	verify: "verify-report.md",
-	archive: "summary.md",
+	close: "summary.md",
 };
 
-const PHASE_ORDER: SddPhase[] = ["init", "explore", "design", "tasks", "apply", "verify", "archive"];
+const PHASE_ORDER: SddPhase[] = ["scope", "map", "design", "tasks", "apply", "verify", "close"];
 
 // Señal mínima obligatoria por fase (además de "no vacío"): si falta, es error.
 // El caso clave es `verify`, que DEBE emitir una línea `status: pass|fail` para
 // que el router determinista pueda enrutar. apply requiere `status: complete|partial|blocked`.
 const PHASE_REQUIRED: Partial<Record<SddPhase, { code: string; label: string; pattern: RegExp }[]>> = {
-	init: [
+	scope: [
 		{ code: "scope", label: "scope", pattern: /\bscope\b/i },
 		{ code: "budget-allocated", label: "budget_allocated", pattern: /\bbudget_allocated\b/i },
 	],
-	explore: [
+	map: [
 		{ code: "ledger", label: "ledger", pattern: /\bledger\b/i },
 		{ code: "budget-consumed", label: "budget_consumed", pattern: /\bbudget_consumed\b/i },
 		{ code: "scope-status", label: "scope_status", pattern: /\bscope_status\b/i },

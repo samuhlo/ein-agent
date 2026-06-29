@@ -32,31 +32,31 @@ describe("resolveSddStatus", () => {
 		expect(s.nextRecommended).toBe("done");
 	});
 
-	test("solo init.md → siguiente explore", () => {
+	test("solo scope.md → siguiente map", () => {
 		const c = change("feat-x");
-		put(c, "init.md");
+		put(c, "scope.md");
 		const s = resolveSddStatus(DIR);
 		expect(s.change).toBe("feat-x");
-		expect(s.nextRecommended).toBe("explore");
+		expect(s.nextRecommended).toBe("map");
 	});
 
 	test("hasta design → siguiente tasks", () => {
 		const c = change("feat-x");
-		for (const f of ["init.md", "exploration.md", "design.md"]) put(c, f);
+		for (const f of ["scope.md", "map.md", "design.md"]) put(c, f);
 		expect(resolveSddStatus(DIR).nextRecommended).toBe("tasks");
 	});
 
-	test("design legacy con C. Tasks pero sin tasks.md → recomienda tasks", () => {
+	test("design con C. Tasks pero sin tasks.md → recomienda tasks", () => {
 		const c = change("feat-x");
-		put(c, "init.md");
-		put(c, "exploration.md");
+		put(c, "scope.md");
+		put(c, "map.md");
 		put(c, "design.md", "## A. Proposal\nx\n## B. Spec\ny\n## C. Tasks\n- [ ] legacy\n");
 		expect(resolveSddStatus(DIR).nextRecommended).toBe("tasks");
 	});
 
 	test("hasta tasks → siguiente apply", () => {
 		const c = change("feat-x");
-		for (const f of ["init.md", "exploration.md", "design.md", "tasks.md"]) put(c, f);
+		for (const f of ["scope.md", "map.md", "design.md", "tasks.md"]) put(c, f);
 		expect(resolveSddStatus(DIR).nextRecommended).toBe("apply");
 	});
 
@@ -80,17 +80,17 @@ describe("resolveSddStatus", () => {
 
 	test("sin tasks.md no rompe status", () => {
 		const c = change("feat-x");
-		put(c, "init.md");
+		put(c, "scope.md");
 		const s = resolveSddStatus(DIR, "feat-x");
 		expect(s.tasks.present).toBe(false);
 		expect(s.tasks.items).toEqual([]);
 		expect(s.tasks.problems).toContain("tasks.md ausente.");
 	});
 
-	test("parsea budget parcial desde init y exploration", () => {
+	test("parsea budget parcial desde scope y map", () => {
 		const c = change("feat-x");
-		put(c, "init.md", "scope: x\nbudget_allocated: 12 reads\n");
-		put(c, "exploration.md", "ledger: ok\nbudget_consumed: 5 reads\nscope_status: ok\n");
+		put(c, "scope.md", "scope: x\nbudget_allocated: 12 reads\n");
+		put(c, "map.md", "ledger: ok\nbudget_consumed: 5 reads\nscope_status: ok\n");
 		const s = resolveSddStatus(DIR, "feat-x");
 		expect(s.budget.allocated).toBe("12 reads");
 		expect(s.budget.consumed).toBe("5 reads");
@@ -100,17 +100,17 @@ describe("resolveSddStatus", () => {
 
 	test("devuelve fase actual y artefactos presentes/faltantes", () => {
 		const c = change("feat-x");
-		put(c, "init.md");
-		put(c, "exploration.md");
+		put(c, "scope.md");
+		put(c, "map.md");
 		const s = resolveSddStatus(DIR, "feat-x");
 		expect(s.currentPhase).toBe("design");
-		expect(s.artifacts.present.map((artifact) => artifact.phase)).toContain("init");
+		expect(s.artifacts.present.map((artifact) => artifact.phase)).toContain("scope");
 		expect(s.artifacts.missing.map((artifact) => artifact.phase)).toContain("tasks");
 	});
 
 	test("apply-progress.md sin status → siguiente apply (partial, no advance)", () => {
 		const c = change("feat-x");
-		for (const f of ["init.md", "exploration.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f);
+		for (const f of ["scope.md", "map.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f);
 		const s = resolveSddStatus(DIR);
 		expect(s.apply).toBe("partial");
 		expect(s.nextRecommended).toBe("apply");
@@ -118,7 +118,7 @@ describe("resolveSddStatus", () => {
 
 	test("apply-progress.md con status: partial → siguiente apply", () => {
 		const c = change("feat-x");
-		for (const f of ["init.md", "exploration.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: partial\n");
+		for (const f of ["scope.md", "map.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: partial\n");
 		const s = resolveSddStatus(DIR);
 		expect(s.apply).toBe("partial");
 		expect(s.nextRecommended).toBe("apply");
@@ -126,7 +126,7 @@ describe("resolveSddStatus", () => {
 
 	test("apply-progress.md con status: blocked → siguiente apply + blocked", () => {
 		const c = change("feat-x");
-		for (const f of ["init.md", "exploration.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: blocked\n");
+		for (const f of ["scope.md", "map.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: blocked\n");
 		const s = resolveSddStatus(DIR);
 		expect(s.apply).toBe("blocked");
 		expect(s.nextRecommended).toBe("apply");
@@ -135,24 +135,24 @@ describe("resolveSddStatus", () => {
 
 	test("apply-progress.md con status: complete → siguiente verify", () => {
 		const c = change("feat-x");
-		for (const f of ["init.md", "exploration.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: complete\n");
+		for (const f of ["scope.md", "map.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: complete\n");
 		const s = resolveSddStatus(DIR);
 		expect(s.apply).toBe("complete");
 		expect(s.nextRecommended).toBe("verify");
 	});
 
-	test("verify pass (con apply completo) → siguiente archive", () => {
+	test("verify pass (con apply completo) → siguiente close", () => {
 		const c = change("feat-x");
-		for (const f of ["init.md", "exploration.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: complete\n");
+		for (const f of ["scope.md", "map.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: complete\n");
 		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
 		const s = resolveSddStatus(DIR);
 		expect(s.verify).toBe("pass");
-		expect(s.nextRecommended).toBe("archive");
+		expect(s.nextRecommended).toBe("close");
 	});
 
 	test("verify fail → vuelve a verify + blocked", () => {
 		const c = change("feat-x");
-		for (const f of ["init.md", "exploration.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: complete\n");
+		for (const f of ["scope.md", "map.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: complete\n");
 		put(c, "verify-report.md", "# Verify\nstatus: fail\nCRITICAL: algo roto\n");
 		const s = resolveSddStatus(DIR);
 		expect(s.verify).toBe("fail");

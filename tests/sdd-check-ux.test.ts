@@ -95,7 +95,7 @@ function makeReport(
 }
 
 function makePhase(
-	phase: "init" | "explore" | "design" | "tasks" | "apply" | "verify" | "archive",
+	phase: "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close",
 	present: boolean,
 	issues: GuardrailIssue[] = [],
 	_errors = 0,
@@ -115,13 +115,13 @@ function makePhase(
 describe("formatChangeLint", () => {
 	test("design OK sin issues", () => {
 		const report = makeReport("feat-x", [
-			makePhase("init", true, [], 0, 0),
-			makePhase("explore", true, [], 0, 0),
+			makePhase("scope", true, [], 0, 0),
+			makePhase("map", true, [], 0, 0),
 			makePhase("design", true, [], 0, 0),
 			makePhase("tasks", false),
 			makePhase("apply", false),
 			makePhase("verify", false),
-			makePhase("archive", false),
+			makePhase("close", false),
 		]);
 
 		const out = formatChangeLint(report);
@@ -133,8 +133,8 @@ describe("formatChangeLint", () => {
 
 	test("design con errors y warnings", () => {
 		const report = makeReport("feat-y", [
-			makePhase("init", true, [], 0, 0),
-			makePhase("explore", false),
+			makePhase("scope", true, [], 0, 0),
+			makePhase("map", false),
 			makePhase("design", true, [
 				{ level: "error", code: "missing-proposal", message: 'Falta la seccion obligatoria "A. Proposal".' },
 				{ level: "warning", code: "placeholder-angle-number", message: "Quedan placeholders `<number>` sin rellenar." },
@@ -142,7 +142,7 @@ describe("formatChangeLint", () => {
 			makePhase("tasks", false),
 			makePhase("apply", false),
 			makePhase("verify", false),
-			makePhase("archive", false),
+			makePhase("close", false),
 		], 1, 1);
 
 		const out = formatChangeLint(report);
@@ -153,7 +153,7 @@ describe("formatChangeLint", () => {
 	});
 
 	test("todas las fases presentes y limpias", () => {
-		const allPresent = (["init", "explore", "design", "tasks", "apply", "verify", "archive"] as const).map((phase) =>
+		const allPresent = (["scope", "map", "design", "tasks", "apply", "verify", "close"] as const).map((phase) =>
 			makePhase(phase, true, []),
 		);
 		const report = makeReport("clean-change", allPresent, 0, 0);
@@ -171,7 +171,7 @@ describe("formatChangeLint", () => {
 			errors: 1,
 			warnings: 0,
 			issues: [{ level: "error", code: "sequence-tasks-missing-before-apply", message: "Hueco de secuencia." }],
-			phases: [makePhase("init", true), makePhase("apply", true)],
+			phases: [makePhase("scope", true), makePhase("apply", true)],
 		};
 		const out = formatChangeLint(report);
 		expect(out).toContain("■ consistencia:");

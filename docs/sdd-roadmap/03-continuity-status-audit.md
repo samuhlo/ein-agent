@@ -11,7 +11,7 @@ Cuando un change lleva dias o semanas, la memoria de donde se quedo se pierde. E
 
 - No muestra que tareas especifica estan pendientes.
 - No indica si una tarea tiene bloqueadores.
-- No dice cuanto seavio el budget en explore.
+- No dice cuanto se consumio del budget en map.
 
 Con continuity enriquecido, otra sesion puede llamar `/ein:sdd-status` y saber exactamente que sigue.
 
@@ -26,7 +26,7 @@ Con continuity enriquecido, otra sesion puede llamar `/ein:sdd-status` y saber e
 
 **Fase actual:** design
 **Siguiente:** apply
-**Artefactos presentes:** init.md, exploration.md, design.md
+**Artefactos presentes:** scope.md, map.md, design.md
 **Artefactos faltantes:** tasks.md, apply-progress.md, verify-report.md
 
 **Tareas (3):**
@@ -45,8 +45,8 @@ Con continuity enriquecido, otra sesion puede llamar `/ein:sdd-status` y saber e
 ## // 000. AUDIT — {change}
 
 **Consistencia de artefactos:**
-  init.md          OK
-  exploration.md   OK
+  scope.md         OK
+  map.md           OK
   design.md        OK
   tasks.md         FALTANTE
   apply-progress.md FALTANTE

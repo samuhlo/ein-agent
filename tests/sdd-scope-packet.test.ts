@@ -1,6 +1,6 @@
 // =============================================================================
 // TESTS: sdd-scope-packet contract
-// Verifica que sdd-explore.md contiene:
+// Verifica que sdd-map.md contiene:
 //   - SCOPE PACKET como texto
 //   - scope_missing como código de error
 //   - budget en el contract
@@ -12,13 +12,13 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const EXPLORE_MD = join(
+const MAP_MD = join(
   import.meta.dir,
-  "../ein-pi/agent/agents/sdd-explore.md",
+  "../ein-pi/agent/agents/sdd-map.md",
 );
-const content = readFileSync(EXPLORE_MD, "utf8");
+const content = readFileSync(MAP_MD, "utf8");
 
-describe("sdd-explore.md SCOPE PACKET contract", () => {
+describe("sdd-map.md SCOPE PACKET contract", () => {
   test("contiene SCOPE PACKET como texto", () => {
     expect(content).toContain("SCOPE PACKET");
   });
@@ -52,11 +52,11 @@ describe("sdd-explore.md SCOPE PACKET contract", () => {
     expect(content).toContain("WHEN webfetch: true");
   });
 
-  test("tiene budget hard-default para no explorar sin tope", () => {
-    // La explosion de tokens venia de explorar sin presupuesto en modo chain.
+  test("tiene budget hard-default para no mapear sin tope", () => {
+    // La explosion de tokens venia de mapear sin presupuesto en modo chain.
     expect(content).toContain("HARD DEFAULT");
     expect(content).toContain("15000");
-    expect(content).toContain("budget_allocated"); // lee el budget de init.md
+    expect(content).toContain("budget_allocated"); // lee el budget de scope.md
   });
 
   test("refuerza read-only: no puede escribir codigo", () => {

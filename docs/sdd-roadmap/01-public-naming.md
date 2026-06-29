@@ -3,16 +3,16 @@
 **Comando canonico:** `/ein:sdd-audit`
 **Alias legacy:** `/ein:sdd-check`
 **Comando canonico:** `/ein:sdd-close`
-**Alias legacy:** `/ein:sdd-archive`
+**Alias anterior:** comando de cierre previo al rename humano.
 
 ---
 
 ## // 001. POR QUE
 
-Ein ya tiene comandos `/ein:sdd-check` y `/ein:sdd-archive`. Funcionan, pero la nomenclatura no es consistente con el resto de comandos publicos (`/ein:sdd-status`, `/ein:sdd-next`).
+Ein ya tiene comandos de auditoría y cierre. Funcionan, pero la nomenclatura de cierre debe ser consistente con `/ein:sdd-status` y `/ein:sdd-next`.
 
 - `check` suena a verificacion estatica, no a audit de consistencia de artefactos.
-- `archive` suena a operacion interna, no a cierre de un change.
+- La operación de cierre debe leerse como cierre humano, no como storage interno.
 
 Renombrar a audit/close (aliases mantienen compatibilidad) mejora legibilidad sin cambiar comportamiento.
 
@@ -24,7 +24,7 @@ Renombrar a audit/close (aliases mantienen compatibilidad) mejora legibilidad si
 
 | Archivo | Cambio |
 |---------|--------|
-| `ein-pi/agent/assets/orchestrator.md` | Agregar `/ein:sdd-audit` y `/ein:sdd-close` como aliases de `/ein:sdd-check` y `/ein:sdd-archive` |
+| `ein-pi/agent/assets/orchestrator.md` | Documentar `/ein:sdd-audit` y `/ein:sdd-close` como rutas canónicas |
 | `ein-pi/agent/AGENTS.md` | Actualizar tabla de comandos publicos para reflejar los nuevos canonicos |
 | `docs/sdd-roadmap/README.md` (este repo) | Ya refleja los canonicos |
 
@@ -37,9 +37,9 @@ No se tocan agentes (`sdd-*.md`), no se tocan chains, no se toca el runtime depl
 ```
 [ ] Editar orchestrator.md: agregar seccion "Public command aliases" con:
     /ein:sdd-audit  → alias canonico de /ein:sdd-check
-    /ein:sdd-close  → alias canonico de /ein:sdd-archive
+    /ein:sdd-close  → cierre canónico
 [ ] Actualizar AGENTS.md: tabla de comandos publicos con ambos nombres
-[ ] Verificar que /ein:sdd-check y /ein:sdd-archive siguen funcionando como aliases
+[ ] Verificar que /ein:sdd-check sigue funcionando como alias de audit
 ```
 
 ---

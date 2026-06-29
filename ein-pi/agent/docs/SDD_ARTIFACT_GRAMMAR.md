@@ -16,8 +16,8 @@ Ruta base por cambio:
 
 Archivos esperados (flujo `ein-sdd`):
 
-- `init.md`
-- `exploration.md`
+- `scope.md`
+- `map.md`
 - `design.md`
 - `apply-progress.md`
 - `verify-report.md`
@@ -38,7 +38,7 @@ Campos minimos:
 - `strict_tdd`
 - `rules.design`, `rules.apply`, `rules.verify`
 
-## `exploration.md`
+## `map.md`
 
 Notas de exploracion: scope, riesgos, dependencias y prior art. Sin implementacion.
 
@@ -91,7 +91,7 @@ Regla:
 
 El flujo `ein-sdd` se lanza por lenguaje natural o por la chain (no por comandos `/ein:sdd:*`). Los gates entre fases son:
 
-- La fase `design` requiere `openspec/config.yaml` (creado por `init`/`/sdd-init`).
+- La fase `design` requiere `openspec/config.yaml` y los artefactos `scope.md` + `map.md`.
 - La fase `apply` requiere `openspec/config.yaml` y `design.md` (sección Tareas).
 - La fase `verify` requiere `openspec/config.yaml`, `design.md` y `apply-progress.md` cuando hubo implementación.
 - Si no hay tareas pendientes, `apply` debe parar y derivar a `verify`.

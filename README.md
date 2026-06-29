@@ -33,29 +33,30 @@ La entrega —commits y PRs por GitHub— pasa por `ein-git` en **ambos** modos:
 |---|---|
 | pequeña | directo, inline |
 | mediana | plan corto → ejecución con subagentes baratos → verifica → explica |
-| grande / ambigua | SDD completo (init → explore → design → tasks → apply → verify → close) |
+| grande / ambigua | SDD completo (scope → map → design → tasks → apply → verify → close) |
 | (Team) con board | sincroniza Linear |
 
 Tú dices qué quieres; Ein elige el carril más pequeño que sea seguro.
 
 ## // 002. FLUJO SDD
 
-Para trabajo serio, seis fases. Cada agente tiene responsabilidades acotadas y no salta pasos:
+Para trabajo serio, siete fases. Cada agente tiene responsabilidades acotadas y no salta pasos:
 
 ```
-sdd-init → sdd-explore → sdd-design → sdd-apply → sdd-verify → sdd-close
+sdd-scope → sdd-map → sdd-design → sdd-tasks → sdd-apply → sdd-verify → sdd-close
 ```
 
 | Fase | Qué hace |
 |---|---|
-| **sdd-init** | Crea el OpenSpec del proyecto: objetivos, constraints, stack, contexto |
-| **sdd-explore** | Mapea el código antes de tocar nada: dependencias, riesgos |
-| **sdd-design** | Propuesta + spec (RFC 2119 + Given/When/Then) + tareas priorizadas |
+| **sdd-scope** | Define alcance, constraints, presupuesto y contexto mínimo |
+| **sdd-map** | Mapea el código antes de tocar nada: dependencias, riesgos |
+| **sdd-design** | Propuesta + spec (RFC 2119 + Given/When/Then) + decisiones |
+| **sdd-tasks** | Convierte el diseño en checklist ejecutable `tasks.md` |
 | **sdd-apply** | Implementa por slices, con TDD y commits atómicos por unidad de trabajo |
 | **sdd-verify** | Verifica contra el spec: tests, tipos, integración, regresiones |
-| **sdd-close** | Condensa el cambio en un `summary.md` revisable y lo mueve a `archive/` |
+| **sdd-close** | Condensa el cambio en un `summary.md` revisable y ejecuta el cierre determinista |
 
-**Routing determinista (sin que el modelo adivine).** El orquestador no enruta de memoria: dos tools deterministas (`ein_sdd_status`, `ein_sdd_check`) leen los ficheros de `openspec/changes/<cambio>/` y devuelven hechos — en qué fase va y si el artefacto está sano. El flujo es **fase a fase**: el router dice qué toca → se delega esa fase → el gatekeeper la valida → siguiente. Al abrir una sesión nueva, `/ein:sdd-status` reubica el cambio al instante, **sin volcar contexto ni quemar tokens**. Al cerrar, `sdd-archive` deja un `summary.md` legible meses después y `openspec/changes/` con solo cambios vivos.
+**Routing determinista (sin que el modelo adivine).** El orquestador no enruta de memoria: dos tools deterministas (`ein_sdd_status`, `ein_sdd_check`) leen los ficheros de `openspec/changes/<cambio>/` y devuelven hechos — en qué fase va y si el artefacto está sano. El flujo es **fase a fase**: el router dice qué toca → se delega esa fase → el gatekeeper la valida → siguiente. Al abrir una sesión nueva, `/ein:sdd-status` reubica el cambio al instante, **sin volcar contexto ni quemar tokens**. Al cerrar, `sdd-close` deja un `summary.md` legible meses después y `openspec/changes/` con solo cambios vivos.
 
 Guardarraíles del flujo: **Scope Gate** (acota tokens de entrada), **Plan Gate** (mutaciones ambiguas/bulk → plan + confirmación antes de ejecutar), **Review Workload Guard** (el parent mide las líneas de **producción** —tests y generados se reportan pero no cuentan— y pregunta single/split **antes** de delegar el PR; `ein-git` como backstop), **Design hygiene** (`/ein:sdd-check`), **gate de TDD** (en modo `ask` el orquestador clasifica el cambio y solo pregunta si merece la pena — los mecánicos no interrumpen), **gate de entrega** (`/ein:git`: en `auto`, si pides commit/push/PR no se reconfirma; force-push siempre bloqueado).
 
@@ -74,7 +75,7 @@ Routing por fase. Estos son **mi elección personal** — un setup parecido func
 | Orquestador | `gpt-5.5` | `MiniMax-M3` |
 | `sdd-design` | `gpt-5.5` | `MiniMax-M3` |
 | `sdd-apply` | `MiniMax-M3` | `MiniMax-M3` |
-| `sdd-init`, `sdd-explore`, `sdd-verify`, `ein-linear`, `ein-git` | `MiniMax-M2.7` | `MiniMax-M2.7` |
+| `sdd-scope`, `sdd-map`, `sdd-tasks`, `sdd-verify`, `sdd-close`, `ein-linear`, `ein-git` | `MiniMax-M2.7` | `MiniMax-M2.7` |
 
 `apply` (que escribe código) va a M3 a propósito: M2.7 se quedaba corto. Si gpt-5.5 se queda sin tokens, **el cambio es manual** — `/ein:models:lite` baja las fases pesadas a M3 al instante. Pi no hace fallback automático de modelo a mitad de tarea; ese cambio lo decides tú.
 
@@ -171,9 +172,8 @@ Flags: `--yes`, `--no-engram`, `--no-secrets`, `--no-linear` (arranca en modo So
 /ein:ai:install-sdd     Instala el OpenSpec en el proyecto
 /ein:ai:sdd-preflight   Preflight de la sesión SDD
 /ein:sdd-audit [ruta]   Valida un cambio (todas las fases) o lint determinista de un design.md
-/ein:sdd-close [cambio] Cierra un cambio verificado: lo mueve a archive/
+/ein:sdd-close [cambio] Cierra un cambio verificado
 /ein:sdd-check [ruta]   [legacy alias de /ein:sdd-audit]
-/ein:sdd-archive [cambio] [legacy alias de /ein:sdd-close]
 
 # Skills · Linear (Team) · Diagnóstico · Sesiones
 /ein:skills [update|add|clean] · /ein:skills:advisor <tarea>
@@ -188,7 +188,7 @@ La fuente canónica del workbench vive en `ein-pi/agent/`. El installer la empaq
 ```
 ein-agent/
 ├── ein-pi/agent/          # Fuente canónica del workbench
-│   ├── agents/            # SDD (5) + ein-linear + ein-git + ein-readme
+│   ├── agents/            # SDD (7) + ein-linear + ein-git + ein-readme
 │   ├── chains/            # Cadena ein-sdd
 │   ├── extensions/        # Extensiones del runtime de Pi
 │   ├── lib/               # Lógica compartida (mode, persona, lang, modelos, guardrails…)
@@ -222,4 +222,3 @@ git push origin installer-v0.10.0   # GitHub Actions compila 4 binarios + checks
 <p align="center">
   <img src="ein_ins.webp" alt="Ein" width="280">
 </p>
-

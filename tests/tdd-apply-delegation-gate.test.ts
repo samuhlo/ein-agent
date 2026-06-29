@@ -2,7 +2,7 @@
 // TESTS: delegationTargetsApply — detección de delegaciones que escriben código
 // El gate de TDD en tool_call solo debe dispararse cuando la delegación al tool
 // `subagent` acabará en sdd-apply: modo single (`agent`), parallel (`tasks[]`)
-// o chain (`chain[]` / `steps[]`). En explore/design/linear/git no escribe
+// o chain (`chain[]` / `steps[]`). En map/design/linear/git no escribe
 // código → no debe preguntar TDD.
 // =============================================================================
 
@@ -22,7 +22,7 @@ describe("delegationTargetsApply", () => {
 		expect(delegationTargetsApply({ agent: "ein-git", task: "commit" })).toBe(
 			false,
 		);
-		expect(delegationTargetsApply({ agent: "sdd-explore", task: "map" })).toBe(
+		expect(delegationTargetsApply({ agent: "sdd-map", task: "map" })).toBe(
 			false,
 		);
 	});
@@ -31,8 +31,8 @@ describe("delegationTargetsApply", () => {
 		const input = {
 			task: "feature X",
 			chain: [
-				{ agent: "sdd-init", task: "{task}" },
-				{ agent: "sdd-explore", task: "{task}" },
+				{ agent: "sdd-scope", task: "{task}" },
+				{ agent: "sdd-map", task: "{task}" },
 				{ agent: "sdd-design", task: "{task}" },
 				{ agent: "sdd-apply", task: "{task}" },
 				{ agent: "sdd-verify", task: "{task}" },
@@ -45,8 +45,8 @@ describe("delegationTargetsApply", () => {
 		const input = {
 			task: "entender X",
 			chain: [
-				{ agent: "sdd-init", task: "{task}" },
-				{ agent: "sdd-explore", task: "{task}" },
+				{ agent: "sdd-scope", task: "{task}" },
+				{ agent: "sdd-map", task: "{task}" },
 				{ agent: "sdd-design", task: "{task}" },
 			],
 		};
@@ -62,7 +62,7 @@ describe("delegationTargetsApply", () => {
 	test("tasks[] paralelo con sdd-apply → true", () => {
 		expect(
 			delegationTargetsApply({
-				tasks: [{ agent: "sdd-explore" }, { agent: "sdd-apply" }],
+				tasks: [{ agent: "sdd-map" }, { agent: "sdd-apply" }],
 			}),
 		).toBe(true);
 	});

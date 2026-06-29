@@ -39,7 +39,7 @@ Todas en `~/.pi/agent/extensions/` y cargadas por directorio:
 | `ein-paths.ts` | Rutas canónicas del workbench |
 | `ein-skill-maintenance.ts` | Updater de skills (`/ein:skills`): locales desde repo + bajadas desde catálogo |
 | `ein-skill-registry.ts` | Advisor/registro de skills + digest con Context7 + inyección a subagentes |
-| `sdd-init.ts` | Comando `/sdd-init` |
+| `sdd-init.ts` | Bootstrap OpenSpec interno |
 
 ## Agentes y chain visibles
 
@@ -50,8 +50,8 @@ Todas en `~/.pi/agent/extensions/` y cargadas por directorio:
 | `ein-linear` | Agent | Preflight, CRUD Linear, sync, comentarios humanos |
 | `ein-git` | Agent | Delivery GitHub, PR, review |
 | `ein-readme` | Agent | Genera README (estética brutalista + metadata de portfolio) leyendo el código |
-| `sdd-init/explore/design/apply/verify` | Agent | Fases SDD |
-| `ein-sdd` | Chain | Flujo SDD: init → explore → design → tasks → apply → verify |
+| `sdd-scope/map/design/tasks/apply/verify/close` | Agent | Fases SDD |
+| `ein-sdd` | Chain | Flujo SDD: scope → map → design → tasks → apply → verify → close |
 
 **Invocación de la chain (importante):** el tool `subagent` recibe `chain` como **array de objetos** (pasos), nunca como string. `chain: "ein-sdd"` falla validación. El atajo manual fiable es `/run-chain ein-sdd -- <tarea>`, que expande el nombre a pasos internamente. Ver `assets/orchestrator.md`.
 
@@ -137,7 +137,7 @@ Advisor (`ein-skill-registry.ts`): `/ein:skills:advisor <tarea>` resuelve skills
 
 ## SDD runtime
 
-OpenSpec file-backed: `openspec/config.yaml` y `openspec/changes/`. El flujo `ein-sdd` se lanza por lenguaje natural o por la chain (no por `/ein:sdd:new`). Preparación: `/ein:ai:install-sdd`, `/ein:ai:sdd-preflight`, `/sdd-init`.
+OpenSpec file-backed: `openspec/config.yaml` y `openspec/changes/`. El flujo `ein-sdd` se lanza por lenguaje natural o por la chain (no por `/ein:sdd:new`). Preparación: `/ein:ai:install-sdd`, `/ein:ai:sdd-preflight`.
 
 ## Doctor
 

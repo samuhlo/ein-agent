@@ -50,8 +50,7 @@ En `gentle-pi`, el guard es un sistema de 3 piezas conectadas:
 
 ### B. La fase `sdd-tasks` PRODUCE un "Review Workload Forecast"
 
-En el flujo de 9 fases de gentle-pi (`init → explore → proposal → spec → design
-→ tasks → apply → verify → archive`), la fase **`tasks`** estimaba si la
+En el flujo de referencia de gentle-pi, la fase **`tasks`** estimaba si la
 implementación superaría las 400 líneas y, si el riesgo era alto, recomendaba
 chained PRs y partía las tareas en work-units autónomos.
 

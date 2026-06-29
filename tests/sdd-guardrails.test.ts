@@ -133,14 +133,14 @@ describe("lintTasksArtifact", () => {
 });
 
 describe("lintPhaseArtifact required signals", () => {
-	test("init requiere scope y budget_allocated", () => {
-		const r = lintPhaseArtifact("init", "scope: solo x\n");
+	test("scope requiere scope y budget_allocated", () => {
+		const r = lintPhaseArtifact("scope", "scope: solo x\n");
 		expect(r.ok).toBe(false);
 		expect(r.issues.some((i) => i.code === "missing-budget-allocated")).toBe(true);
 	});
 
-	test("explore requiere ledger, budget_consumed y scope_status", () => {
-		const r = lintPhaseArtifact("explore", "ledger: ok\n");
+	test("map requiere ledger, budget_consumed y scope_status", () => {
+		const r = lintPhaseArtifact("map", "ledger: ok\n");
 		expect(r.ok).toBe(false);
 		expect(r.issues.some((i) => i.code === "missing-budget-consumed")).toBe(true);
 		expect(r.issues.some((i) => i.code === "missing-scope-status")).toBe(true);
@@ -150,8 +150,8 @@ describe("lintPhaseArtifact required signals", () => {
 describe("lintChange sequence consistency", () => {
 	test("detecta hueco design presente pero tasks ausente", () => {
 		const c = change("feat-x");
-		put(c, "init.md", "scope: x\nbudget_allocated: 10\n");
-		put(c, "exploration.md", "ledger: ok\nbudget_consumed: 2\nscope_status: ok\n");
+		put(c, "scope.md", "scope: x\nbudget_allocated: 10\n");
+		put(c, "map.md", "ledger: ok\nbudget_consumed: 2\nscope_status: ok\n");
 		put(c, "design.md", GOOD);
 
 		const r = lintChange(DIR, "feat-x");
@@ -161,7 +161,7 @@ describe("lintChange sequence consistency", () => {
 
 	test("detecta salto de secuencia si apply existe sin tasks", () => {
 		const c = change("feat-x");
-		put(c, "init.md", "scope: x\nbudget_allocated: 10\n");
+		put(c, "scope.md", "scope: x\nbudget_allocated: 10\n");
 		put(c, "apply-progress.md", "status: complete\n");
 
 		const r = lintChange(DIR, "feat-x");

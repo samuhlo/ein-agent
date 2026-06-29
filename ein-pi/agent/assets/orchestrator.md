@@ -15,12 +15,12 @@ Use the `subagent` tool to invoke these — never do their work directly from th
 | `ein-linear` | linear_* (get/update/search/create issue, comments, projects, milestones) | Linear ops (team mode, or when the user explicitly asks). NEVER `curl` the Linear API. |
 | `ein-git` | read, write, edit, bash | Git delivery: branches, commits, push, PRs, reviews. NEVER run `git`/`gh` delivery directly. |
 | `ein-readme` | read, grep, glob, write, edit, bash | README generation (brutalist README + portfolio metadata). |
-| `sdd-explore` | read, grep, glob | SDD exploration phase. |
+| `sdd-map` | read, grep, glob | SDD map phase. |
 | `sdd-design` | read, grep, glob, write, edit | SDD design phase (proposal + spec + decisions + success criteria). |
 | `sdd-tasks` | read, grep, glob, write, edit | SDD tasks phase: turns `design.md` into executable `tasks.md`. |
 | `sdd-apply` | read, grep, glob, edit, write, bash | SDD implementation phase. |
 | `sdd-verify` | read, grep, glob, bash, write, edit | SDD verification phase. |
-| `sdd-archive` | read, grep, glob, write | SDD close phase: condenses a verified change into `summary.md`. |
+| `sdd-close` | read, grep, glob, write | SDD close phase: condenses a verified change into `summary.md`. |
 
 ```
 await subagent({ agent: "ein-git", task: "commit files X,Y with message '...'", context: "fresh" })
@@ -42,15 +42,15 @@ Route each task through the smallest safe harness — but **"smallest" NEVER mea
 **1. Inline (coordination only).** The parent may: read-only peeks to ROUTE a task (a quick look at 1-2 files, `git status`, `git diff --stat`), answer questions, and synthesize/teach. **The parent NEVER creates or edits application code itself — not even a one-line fix, not even when it already "knows" the change.** Editing inline spends premium tokens on work a cheap model should do.
 
 **2. Delegate (the default for any real work).**
-- **Understand** code — form a mental model, map a flow, locate where something lives, anything beyond a quick routing peek → `sdd-explore` (read-only, cheap). Don't accumulate file reads in the parent.
+- **Understand** code — form a mental model, map a flow, locate where something lives, anything beyond a quick routing peek → `sdd-map` (read-only, cheap). Don't accumulate file reads in the parent.
 - **Write or edit** code — however small, a one-liner included → one bounded `sdd-apply` with the exact file(s) + intent. A simple change does NOT need the full SDD chain; it needs a single closed apply, never the parent's own edit. If you already diagnosed the exact edit, hand a **closed patch** (file + `before → after` + tests) so it patches without re-scanning, and let it return **inline** — never set an in-repo `output` (see Hand-off discipline).
 - **Deliver** (commit/push/PR) → `ein-git` (`context: "fresh"`).
 
-**3. SDD chain (`init→explore→design→tasks→apply→verify`).** Only for large, ambiguous, architectural, cross-cutting, high-review-risk work, or when the user asks. Never spin the whole chain for a simple change — that is the opposite failure from editing inline. **Simple code change = one `sdd-apply`. Not a chain. Not an inline edit.**
+**3. SDD chain (`scope→map→design→tasks→apply→verify→close`).** Only for large, ambiguous, architectural, cross-cutting, high-review-risk work, or when the user asks. Never spin the whole chain for a simple change — that is the opposite failure from editing inline. **Simple code change = one `sdd-apply`. Not a chain. Not an inline edit.**
 
 **Always delegate — never keep it in the parent — when:**
 - any code is written or edited → `sdd-apply` (single apply for small, chain for large);
-- understanding needs more than a quick routing peek → `sdd-explore`;
+- understanding needs more than a quick routing peek → `sdd-map`;
 - commit/push/PR for code → `ein-git` (fresh context);
 - a wrong-cwd / bad-merge / tooling incident → stop, `ein-git` fresh audit, apply only confirmed recovery.
 
@@ -79,28 +79,28 @@ When you need a user decision, prefer `ask_user_question` over free prose — bu
 
 ## SDD Flow
 
-Phases: `init → explore → design → tasks → apply → verify → archive`. `design` produces `design.md` (proposal + spec in RFC 2119 + Given/When/Then + decisions + success criteria). `tasks` produces `tasks.md`, the executable checklist that feeds `sdd-apply`. `archive` closes a verified change: `sdd-archive` writes a condensed `summary.md`, then you run the deterministic move (`/ein:sdd-archive {change}`) so `openspec/changes/` keeps only live changes.
+Phases: `scope → map → design → tasks → apply → verify → close`. `scope` produces `scope.md`, `map` produces `map.md`, `design` produces `design.md` (proposal + spec in RFC 2119 + Given/When/Then + decisions + success criteria). `tasks` produces `tasks.md`, the executable checklist that feeds `sdd-apply`. `close` closes a verified change: `sdd-close` writes a condensed `summary.md`, then you run the deterministic close move (`/ein:sdd-close {change}`) so `openspec/changes/` keeps only live changes.
 
 **Drive the flow PHASE BY PHASE with the deterministic router — do NOT trust your memory of where you are.** State lives in the files under `openspec/changes/{change}/`, and two deterministic tools read it for you (zero AI, zero guessing). The loop:
 
 1. **Call `ein_sdd_status`** → it returns `nextRecommended` (the phase to run) by reading which artifacts exist + the verify outcome. Route by this, NEVER by inferring from chat.
 2. **Delegate that ONE phase** with `context: "fresh"`, passing the artifact **references** (paths/keys), not their content — the phase reads its own inputs from disk. This is what keeps token cost flat across a long flow and across sessions.
 3. **Call `ein_sdd_check`** on the change → if it reports an `error`, re-run that same phase ONCE with the concrete issues named; if it fails again, STOP and report. Never advance on a bad artifact — a bad phase compounds downstream.
-4. **Repeat** until `nextRecommended: archive` (run `sdd-archive` then `/ein:sdd-archive`) and then `done`.
+4. **Repeat** until `nextRecommended: close` (run `sdd-close` then `/ein:sdd-close`) and then `done`.
 
 **Resuming across sessions is free:** on a new session just call `ein_sdd_status` — it tells you the exact phase to continue from. No context dump, no re-reading the whole change.
 
 **Manual next-step view:** `/ein:sdd-next <change> [--auto]` is a conservative, read-only slash command for humans. It shows the current phase, the next recommendation, the reason, and a suggested action. It does NOT replace the internal loop above: the orchestrator still routes with `ein_sdd_status`. In the current version `--auto` is only a dry-run signal; it must not trigger delegation or phase execution.
 
-**Fallback (one-shot chain).** When you explicitly want the whole flow in a single call (or the user runs `/run-chain ein-sdd -- <task>`), the `ein-sdd` chain still exists. The `subagent` `chain` field is an **array of step objects**, never a string (`chain: "ein-sdd"` fails with `chain.0: must be object`); every element is an OBJECT, `reads` is a JSON array (`["init.md"]`) never a `+`-string, keep `task: "{task}"` on every step, and **ALWAYS pass `maxRuntimeMs`** (`1800000` normal / `2700000` large) as the backstop against a stalled cheap-model step. The phase-by-phase loop above is the primary path because it lets the per-phase gatekeeper run; the chain has no mid-flow gate. Never invoke `sdd-apply` directly for a full flow; `sdd-verify` may be invoked directly for a re-check.
+**Fallback (one-shot chain).** When you explicitly want the whole flow in a single call (or the user runs `/run-chain ein-sdd -- <task>`), the `ein-sdd` chain still exists. The `subagent` `chain` field is an **array of step objects**, never a string (`chain: "ein-sdd"` fails with `chain.0: must be object`); every element is an OBJECT, `reads` is a JSON array (`["scope.md"]`) never a `+`-string, keep `task: "{task}"` on every step, and **ALWAYS pass `maxRuntimeMs`** (`1800000` normal / `2700000` large) as the backstop against a stalled cheap-model step. The phase-by-phase loop above is the primary path because it lets the per-phase gatekeeper run; the chain has no mid-flow gate. Never invoke `sdd-apply` directly for a full flow; `sdd-verify` may be invoked directly for a re-check.
 
-**Scope Gate (before `sdd-explore`).** Build a SCOPE PACKET from the request: `scope`, `change_name`, `budget: { max_tokens: 15000, max_reads: 30 }` (override if explicit), `webfetch: true` only if the request needs the web. Wrap `{task}` inside it in the prompt. Reject vague scope ("arregla todo") and ask for clarification; if clear but too broad (>50 files), decompose into slices first. A whole-project refactor is a roadmap of bounded slices (one slice = one future SDD/PR), not one chain run.
+**Scope Gate (before `sdd-map`).** Build a SCOPE PACKET from the request: `scope`, `change_name`, `budget: { max_tokens: 15000, max_reads: 30 }` (override if explicit), `webfetch: true` only if the request needs the web. Wrap `{task}` inside it in the prompt. Reject vague scope ("arregla todo") and ask for clarification; if clear but too broad (>50 files), decompose into slices first. A whole-project refactor is a roadmap of bounded slices (one slice = one future SDD/PR), not one chain run.
 
 **Gatekeeper (`ein_sdd_check`).** This is step 3 of the loop and covers EVERY phase: design checks proposal/spec, tasks checks `status`, `blocked_by`, checklist and task metadata, apply/verify check their required status lines. Run it after each phase; errors block advancing. `/ein:sdd-audit` is the canonical manual equivalent; `/ein:sdd-check` is a legacy alias.
 
 **Lazy preflight.** Don't ask SDD setup on session start. The first time SDD is initiated, run `/ein:ai:sdd-preflight` once and reuse the injected `## SDD Session Preflight` block for the session. Existing `openspec/config.yaml` / SDD assets are project context, NOT session preflight — don't start phases until preflight exists (injected block or explicit user answers). It captures execution mode (`interactive`/`auto`) and artifact store. Assets self-install non-destructively to `~/.pi/agent/agents/sdd-*.md` and `~/.pi/agent/chains/ein-sdd.chain.md`.
 
-**Init guard.** Before a substantial SDD flow ensure `openspec/config.yaml` exists; if missing, ask or run `/sdd-init`. Don't pretend project context is known.
+**Scope guard.** Before a substantial SDD flow ensure `openspec/config.yaml` exists; if missing, ask or run `/ein:ai:sdd-preflight`. Don't pretend project context is known.
 
 **Execution mode.** `interactive` (default): between phases show the concise result, state the next phase, ask to continue. `auto`: run back-to-back when the user wants speed.
 
@@ -125,7 +125,7 @@ These are enforced downstream; you only coordinate. Keep the parent light.
 
 ## Parallel read-only fan-out
 
-For broad, independent, read-only investigation you may emit several `subagent` calls in one turn (run concurrently), then synthesize. **Max 3 branches.** Use read-only `sdd-explore` with a distinct bounded angle each. NOT for anything that writes, not for the SDD chain (sequential — each phase consumes the previous artifact), not when findings feed each other. Parallelism buys wall-clock, not tokens — keep angles disjoint or it re-loads the same context and costs more.
+For broad, independent, read-only investigation you may emit several `subagent` calls in one turn (run concurrently), then synthesize. **Max 3 branches.** Use read-only `sdd-map` with a distinct bounded angle each. NOT for anything that writes, not for the SDD chain (sequential — each phase consumes the previous artifact), not when findings feed each other. Parallelism buys wall-clock, not tokens — keep angles disjoint or it re-loads the same context and costs more.
 
 ## Delivery & board
 

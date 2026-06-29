@@ -58,7 +58,7 @@ import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
 import { aggregateSddBudget, listActiveChanges, listActiveChangeSummaries, resolveSddNext, resolveSddStatus, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
-import { archiveChange } from "../lib/sdd-archive.ts";
+import { closeChange } from "../lib/sdd-close.ts";
 import {
 	codeConventionSkillBlock,
 	migrateLegacyAtl,
@@ -150,13 +150,13 @@ function changeDirExists(cwd: string, name: string): boolean {
 }
 
 const PHASE_BY_FILE: Record<string, SddPhase> = {
-	"init.md": "init",
-	"exploration.md": "explore",
+	"scope.md": "scope",
+	"map.md": "map",
 	"design.md": "design",
 	"tasks.md": "tasks",
 	"apply-progress.md": "apply",
 	"verify-report.md": "verify",
-	"summary.md": "archive",
+	"summary.md": "close",
 };
 
 // Formatea un ChangeLintReport como salida legible para el comando /ein:sdd-check.
@@ -362,7 +362,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		const startNames = readAgentStartNames(event);
 		// Convenciones de codigo (comment/logging/file-naming): SOLO donde se
 		// escribe codigo — el parent (trabajo inline) y sdd-apply. Inyectarlas en
-		// delivery/linear/explore solo hacia que el modelo barato leyera 3 SKILL.md
+		// delivery/linear/map solo hacia que el modelo barato leyera 3 SKILL.md
 		// inutiles (gasto de tokens) sin escribir codigo. Tambien gobierna si la
 		// linea de Strict TDD entra en el preflight: solo donde hay RED/GREEN real.
 		const writesCode = (!isNamedAgent && !isSddAgent) || startNames.includes("sdd-apply");
@@ -704,29 +704,24 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
-	// ── SDD close (canonical) / sdd-archive (legacy alias) ────────────────────
+	// ── SDD close (canonical) ──────────────────────────────────────────────────
 	async function handleSddClose(args: string | string[], ctx: ExtensionContext) {
 		const change = (typeof args === "string" ? args : "").trim() || resolveSddStatus(ctx.cwd).change || "";
 		if (!change) {
-			ctx.ui.notify("Sin cambio que archivar. Uso: /ein:sdd-close <change>", "warning");
+			ctx.ui.notify("Sin cambio que cerrar. Uso: /ein:sdd-close <change>", "warning");
 			return;
 		}
-		const r = archiveChange(ctx.cwd, change);
+		const r = closeChange(ctx.cwd, change);
 		ctx.ui.notify(
 			r.ok
-				? `Cambio '${change}' archivado en openspec/changes/archive/. openspec/changes/ queda limpio.`
-				: `No se archivó '${change}': ${r.reason}`,
+				? `Cambio '${change}' cerrado. openspec/changes/ queda limpio.`
+				: `No se cerró '${change}': ${r.reason}`,
 			r.ok ? "info" : "warning",
 		);
 	}
 
 	pi.registerCommand("ein:sdd-close", {
-		description: t("cmd.sdd-close.description", "Close a verified change: move openspec/changes/<x> to archive/"),
-		handler: async (args, ctx) => handleSddClose(args, ctx),
-	});
-
-	pi.registerCommand("ein:sdd-archive", {
-		description: t("cmd.sdd-archive.description", "[legacy] Use /ein:sdd-close"),
+		description: t("cmd.sdd-close.description", "Close a verified change"),
 		handler: async (args, ctx) => handleSddClose(args, ctx),
 	});
 
@@ -839,7 +834,7 @@ export default function einAi(pi: ExtensionAPI): void {
 							: tf("status.einmd.stale", `{0} commits atrás — /ein:init para refrescar`, behind);
 				lines.push(`EIN.md: ${fresh}`);
 			}
-			lines.push(`openspec: ${openspecConfigured ? t("status.openspec.configured", "configurado") : t("status.openspec.unconfigured", "no configurado — /sdd-init para arrancar")}`);
+			lines.push(`openspec: ${openspecConfigured ? t("status.openspec.configured", "configurado") : t("status.openspec.unconfigured", "no configurado — ejecuta el preflight SDD para arrancar")}`);
 			lines.push(`${t("status.model", "modelo")}: ${existsSync(modelConfigPath(ctx.cwd)) ? t("status.model.present", "config presente") : t("status.model.absent", "sin config local")}`);
 			lines.push("");
 

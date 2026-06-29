@@ -1,12 +1,12 @@
 // =============================================================================
-// TESTS: sdd-archive (mover determinista) + lint por fase
+// TESTS: sdd-close (mover determinista) + lint por fase
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { archiveChange } from "../ein-pi/agent/lib/sdd-archive";
+import { closeChange } from "../ein-pi/agent/lib/sdd-close";
 import { lintChange, lintPhaseArtifact } from "../ein-pi/agent/lib/sdd-guardrails";
 
 let DIR: string;
@@ -18,35 +18,35 @@ function mkChange(name: string, files: Record<string, string>): string {
 }
 
 beforeEach(() => {
-	DIR = mkdtempSync(join(tmpdir(), "sdd-archive-"));
+	DIR = mkdtempSync(join(tmpdir(), "sdd-close-"));
 });
 afterEach(() => {
 	rmSync(DIR, { recursive: true, force: true });
 });
 
-describe("archiveChange", () => {
-	test("mueve el cambio a archive/ y conserva summary.md", () => {
+describe("closeChange", () => {
+	test("mueve el cambio a storage interno y conserva summary.md", () => {
 		mkChange("feat-x", { "summary.md": "# Resumen\nqué cambió", "design.md": "x" });
-		const r = archiveChange(DIR, "feat-x");
+		const r = closeChange(DIR, "feat-x");
 		expect(r.ok).toBe(true);
 		expect(existsSync(join(DIR, "openspec", "changes", "feat-x"))).toBe(false);
-		const archived = join(DIR, "openspec", "changes", "archive", "feat-x");
-		expect(existsSync(join(archived, "summary.md"))).toBe(true);
-		expect(readFileSync(join(archived, "summary.md"), "utf8")).toContain("qué cambió");
+		const closed = join(DIR, "openspec", "changes", "archive", "feat-x");
+		expect(existsSync(join(closed, "summary.md"))).toBe(true);
+		expect(readFileSync(join(closed, "summary.md"), "utf8")).toContain("qué cambió");
 	});
 
-	test("no pisa si ya existe en archive/ (idempotente-safe)", () => {
+	test("no pisa si ya existe en storage interno (idempotente-safe)", () => {
 		mkChange("feat-x", { "summary.md": "v1" });
-		expect(archiveChange(DIR, "feat-x").ok).toBe(true);
+		expect(closeChange(DIR, "feat-x").ok).toBe(true);
 		mkChange("feat-x", { "summary.md": "v2" });
-		const r2 = archiveChange(DIR, "feat-x");
+		const r2 = closeChange(DIR, "feat-x");
 		expect(r2.ok).toBe(false);
 		expect(r2.reason).toContain("archive");
 	});
 
 	test("nombre inválido se rechaza", () => {
-		expect(archiveChange(DIR, "../escape").ok).toBe(false);
-		expect(archiveChange(DIR, "archive").ok).toBe(false);
+		expect(closeChange(DIR, "../escape").ok).toBe(false);
+		expect(closeChange(DIR, "archive").ok).toBe(false);
 	});
 });
 
@@ -95,11 +95,11 @@ describe("lintPhaseArtifact / lintChange", () => {
 
 	test("lintChange agrega las fases presentes", () => {
 		mkChange("feat-x", {
-			"init.md": "scope: x\nbudget_allocated: 1",
+			"scope.md": "scope: x\nbudget_allocated: 1",
 			"verify-report.md": "no status here",
 		});
 		const r = lintChange(DIR, "feat-x");
-		expect(r.phases.find((p) => p.phase === "init")?.present).toBe(true);
+		expect(r.phases.find((p) => p.phase === "scope")?.present).toBe(true);
 		expect(r.phases.find((p) => p.phase === "design")?.present).toBe(false);
 		expect(r.ok).toBe(false); // verify sin status line
 	});

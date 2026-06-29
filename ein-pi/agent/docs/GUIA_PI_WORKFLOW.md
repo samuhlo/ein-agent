@@ -23,7 +23,7 @@ Le hablas en lenguaje natural y el prompt padre decide la ruta:
 
 - **Trabajo simple** → lo hace directo.
 - **Trabajo enfocado** → delega a un subagente visible (`ein-linear`, `ein-git`, una fase SDD).
-- **Trabajo complejo** → ejecuta la chain `ein-sdd` (init → explore → design → tasks → apply → verify).
+- **Trabajo complejo** → ejecuta la chain `ein-sdd` (scope → map → design → tasks → apply → verify → close).
 
 Tu mensaje original se conserva siempre.
 
@@ -39,7 +39,7 @@ sincroniza Linear
 
 ## Flujo SDD
 
-Flujo único `ein-sdd`: **init → explore → design → tasks → apply → verify**.
+Flujo único `ein-sdd`: **scope → map → design → tasks → apply → verify → close**.
 
 - `design` reúne propuesta + spec técnica + tareas en un solo `design.md`.
 - `apply` no ocurre solo: necesita un scope aprobado.
@@ -87,8 +87,8 @@ El perfil vive en `~/.pi/agent/skills/stack-profile.json`.
 | --- | --- |
 | `ein-linear` | Preflight, CRUD Linear, sync |
 | `ein-git` | Delivery GitHub, PR, review |
-| `sdd-init` | Inicializar el cambio SDD |
-| `sdd-explore` | Explorar código y riesgos |
+| `sdd-scope` | Definir alcance y presupuesto del cambio SDD |
+| `sdd-map` | Mapear código y riesgos |
 | `sdd-design` | Propuesta + spec + tareas |
 | `sdd-apply` | Implementar con TDD |
 | `sdd-verify` | Verificar evidencia y calidad |

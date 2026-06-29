@@ -71,13 +71,13 @@ function ein_sdd_next(change: string, mode: 'interactive' | 'auto'): NextReport 
   const next = status.nextRecommended
 
   const reasons = {
-    init:       'init.md no existe',
-    explore:    'init.md existe, exploration.md no existe',
-    design:     'exploration.md existe, design.md no existe',
+    scope:      'scope.md no existe',
+    map:        'scope.md existe, map.md no existe',
+    design:     'map.md existe, design.md no existe',
     tasks:      'design.md existe, tasks.md no existe',
     apply:      'tasks.md existe, apply-progress.md no existe o incompleto',
     verify:     'apply-progress.md indica completitud, verify-report.md no existe',
-    archive:    'verify-report.md indica PASS, summary.md no existe',
+    close:      'verify-report.md indica PASS, summary.md no existe',
     done:       'Todos los artefactos presentes y verify PASS'
   }
 

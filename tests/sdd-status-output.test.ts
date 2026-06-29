@@ -82,8 +82,8 @@ describe("sdd-status output format", () => {
 
 	test("un cambio activo → muestra change, apply, verify, next", () => {
 		const c = change("feat-x");
-		put(c, "init.md");
-		put(c, "exploration.md");
+		put(c, "scope.md");
+		put(c, "map.md");
 		put(c, "design.md");
 		put(c, "tasks.md");
 		put(c, "apply-progress.md", "status: partial\n");
@@ -91,7 +91,7 @@ describe("sdd-status output format", () => {
 		const out = formatSddStatus(DIR);
 		expect(out).toContain("change: feat-x");
 		expect(out).toContain("current phase: apply");
-		expect(out).toContain("artifacts present: init(init.md)");
+		expect(out).toContain("artifacts present: scope(scope.md)");
 		expect(out).toContain("apply: partial");
 		expect(out).toContain("verify: absent");
 		expect(out).toContain("next: apply");
@@ -99,8 +99,8 @@ describe("sdd-status output format", () => {
 
 	test("apply completo → verify presente", () => {
 		const c = change("feat-x");
-		put(c, "init.md");
-		put(c, "exploration.md");
+		put(c, "scope.md");
+		put(c, "map.md");
 		put(c, "design.md");
 		put(c, "tasks.md");
 		put(c, "apply-progress.md", "status: complete\n");
@@ -109,7 +109,7 @@ describe("sdd-status output format", () => {
 		const out = formatSddStatus(DIR);
 		expect(out).toContain("apply: complete");
 		expect(out).toContain("verify: pass");
-		expect(out).toContain("next: archive");
+		expect(out).toContain("next: close");
 	});
 
 	test("multiples cambios activos → muestra lista de activos", () => {
@@ -121,8 +121,8 @@ describe("sdd-status output format", () => {
 
 	test("bloqueos → muestra seccion de bloqueos", () => {
 		const c = change("feat-x");
-		put(c, "init.md");
-		put(c, "exploration.md");
+		put(c, "scope.md");
+		put(c, "map.md");
 		put(c, "design.md");
 		put(c, "tasks.md");
 		put(c, "apply-progress.md", "status: blocked\n");
@@ -135,9 +135,9 @@ describe("sdd-status output format", () => {
 	test("argumento opcional permite elegir change", () => {
 		const a = change("feat-a");
 		const b = change("feat-b");
-		put(a, "init.md");
-		put(b, "init.md");
-		put(b, "exploration.md");
+		put(a, "scope.md");
+		put(b, "scope.md");
+		put(b, "map.md");
 
 		const out = formatSddStatus(DIR, "feat-b");
 		expect(out).toContain("change: feat-b");
@@ -146,8 +146,8 @@ describe("sdd-status output format", () => {
 
 	test("muestra tareas y budget sin hacer dump gigante", () => {
 		const c = change("feat-x");
-		put(c, "init.md", "scope: x\nbudget_allocated: 10 reads\n");
-		put(c, "exploration.md", "ledger: ok\nbudget_consumed: 4 reads\nscope_status: ok\n");
+		put(c, "scope.md", "scope: x\nbudget_allocated: 10 reads\n");
+		put(c, "map.md", "ledger: ok\nbudget_consumed: 4 reads\nscope_status: ok\n");
 		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [ ] 1.1 Build\n- [x] 1.2 Test\n");
 
 		const out = formatSddStatus(DIR);

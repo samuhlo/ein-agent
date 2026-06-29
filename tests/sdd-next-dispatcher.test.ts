@@ -53,8 +53,8 @@ afterEach(() => {
 describe("resolveSddNext", () => {
 	test("devuelve recomendacion humana encima del router", () => {
 		const c = change("feat-x");
-		put(c, "init.md");
-		put(c, "exploration.md");
+		put(c, "scope.md");
+		put(c, "map.md");
 		put(c, "design.md");
 
 		const report = resolveSddNext(DIR, "feat-x");
@@ -69,12 +69,12 @@ describe("resolveSddNext", () => {
 
 	test("--auto solo cambia modo y queda fail-closed", () => {
 		const c = change("feat-x");
-		put(c, "init.md");
+		put(c, "scope.md");
 
 		const report = resolveSddNext(DIR, "feat-x", { auto: true });
 		expect(report.mode).toBe("auto");
 		expect(report.autoEnabled).toBe(false);
-		expect(report.nextRecommended).toBe("explore");
+		expect(report.nextRecommended).toBe("map");
 	});
 
 	test("cambio inexistente devuelve error legible sin crear estado", () => {
@@ -87,11 +87,11 @@ describe("resolveSddNext", () => {
 
 	test("salida visible muestra fase, razon, accion y dry-run", () => {
 		const c = change("feat-x");
-		put(c, "init.md");
+		put(c, "scope.md");
 
 		const out = formatSddNext(resolveSddNext(DIR, "feat-x", { auto: true }));
-		expect(out).toContain("fase actual: explore");
-		expect(out).toContain("siguiente recomendado: explore");
+		expect(out).toContain("fase actual: map");
+		expect(out).toContain("siguiente recomendado: map");
 		expect(out).toContain("razon:");
 		expect(out).toContain("accion sugerida:");
 		expect(out).toContain("dry-run");
@@ -113,7 +113,7 @@ describe("ein:sdd-next command wiring", () => {
 		expect(block).toContain("resolveSddNext");
 		expect(block).not.toContain("subagent");
 		expect(block).not.toContain("writeFileSync");
-		expect(block).not.toContain("archiveChange");
+		expect(block).not.toContain("closeChange");
 		expect(block).not.toContain("handleSddClose");
 		expect(block).not.toContain("handleSddAudit");
 	});

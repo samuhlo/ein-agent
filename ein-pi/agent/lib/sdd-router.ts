@@ -6,17 +6,16 @@
 // pero como módulo TS puro expuesto luego como tool de Pi.
 //
 // Artefactos por fase (ver chains/ein-sdd.chain.md):
-//   init → init.md · explore → exploration.md · design → design.md
+//   scope → scope.md · map → map.md · design → design.md
 //   tasks → tasks.md · apply → apply-progress.md · verify → verify-report.md
-//   archive → summary.md
-// Un cambio terminado se mueve a openspec/changes/archive/<change>/ (ver
-// lib/sdd-archive.ts), así que `openspec/changes/` solo contiene cambios vivos.
+//   close → summary.md
+// El cierre usa storage interno archive/ por compatibilidad; la fase publica es close.
 // =============================================================================
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-export type SddPhase = "init" | "explore" | "design" | "tasks" | "apply" | "verify" | "archive";
+export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
 export type SddNext = SddPhase | "done";
 export type VerifyOutcome = "pass" | "fail" | "unknown" | "absent";
 export type ApplyOutcome = "complete" | "partial" | "blocked" | "unknown" | "absent";
@@ -102,25 +101,25 @@ export type SddNextReport = {
 
 // Fase → fichero que la marca como hecha.
 const PHASE_ARTIFACT: Record<SddPhase, string> = {
-	init: "init.md",
-	explore: "exploration.md",
+	scope: "scope.md",
+	map: "map.md",
 	design: "design.md",
 	tasks: "tasks.md",
 	apply: "apply-progress.md",
 	verify: "verify-report.md",
-	archive: "summary.md",
+	close: "summary.md",
 };
 
-const PHASE_ORDER: SddPhase[] = ["init", "explore", "design", "tasks", "apply", "verify", "archive"];
+const PHASE_ORDER: SddPhase[] = ["scope", "map", "design", "tasks", "apply", "verify", "close"];
 
 const SDD_NEXT_COPY: Record<SddNext, { reason: string; suggestedAction: string }> = {
-	init: {
-		reason: "El cambio todavia no tiene punto de arranque SDD.",
-		suggestedAction: "Inicializa el cambio antes de explorar o disenar.",
+	scope: {
+		reason: "El cambio todavia no tiene alcance SDD definido.",
+		suggestedAction: "Define scope antes de mapear o disenar.",
 	},
-	explore: {
-		reason: "Ya existe el arranque; falta entender alcance, riesgos y archivos probables.",
-		suggestedAction: "Ejecuta la fase de exploracion para convertir la idea en contexto aplicable.",
+	map: {
+		reason: "Ya existe scope; falta mapear riesgos, archivos probables y contexto aplicable.",
+		suggestedAction: "Ejecuta la fase map para convertir el alcance en contexto aplicable.",
 	},
 	design: {
 		reason: "La exploracion ya existe; falta decidir la forma tecnica antes de partir trabajo.",
@@ -138,7 +137,7 @@ const SDD_NEXT_COPY: Record<SddNext, { reason: string; suggestedAction: string }
 		reason: "La implementacion esta marcada como completa; falta verificar o corregir la verificacion.",
 		suggestedAction: "Ejecuta verify y no cierres el cambio hasta tener resultado pass.",
 	},
-	archive: {
+	close: {
 		reason: "La verificacion paso; el cambio esta listo para cierre controlado.",
 		suggestedAction: "Cierra el cambio verificado con el flujo canonico de cierre.",
 	},
@@ -256,18 +255,18 @@ function readTasksStatus(changePath: string): SddTasksStatus {
 
 function readBudgetStatus(changePath: string): SddBudgetStatus {
 	const out = emptyBudgetStatus();
-	const initPath = join(changePath, PHASE_ARTIFACT.init);
-	const explorePath = join(changePath, PHASE_ARTIFACT.explore);
+	const scopePath = join(changePath, PHASE_ARTIFACT.scope);
+	const mapPath = join(changePath, PHASE_ARTIFACT.map);
 
-	if (existsSync(initPath)) {
-		const init = readText(initPath);
-		if (init === null) out.problems.push("init.md no se pudo leer para budget.");
-		else out.allocated = parseBudgetLine(init, ["budget_allocated", "budget"]);
+	if (existsSync(scopePath)) {
+		const scope = readText(scopePath);
+		if (scope === null) out.problems.push("scope.md no se pudo leer para budget.");
+		else out.allocated = parseBudgetLine(scope, ["budget_allocated", "budget"]);
 	}
-	if (existsSync(explorePath)) {
-		const explore = readText(explorePath);
-		if (explore === null) out.problems.push("exploration.md no se pudo leer para budget.");
-		else out.consumed = parseBudgetLine(explore, ["budget_consumed", "budget_used", "consumed"]);
+	if (existsSync(mapPath)) {
+		const map = readText(mapPath);
+		if (map === null) out.problems.push("map.md no se pudo leer para budget.");
+		else out.consumed = parseBudgetLine(map, ["budget_consumed", "budget_used", "consumed"]);
 	}
 
 	out.allocatedValue = parseNumber(out.allocated);
@@ -331,13 +330,13 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	const target = change ?? active[0] ?? null;
 
 	const present: Record<SddPhase, boolean> = {
-		init: false,
-		explore: false,
+		scope: false,
+		map: false,
 		design: false,
 		tasks: false,
 		apply: false,
 		verify: false,
-		archive: false,
+		close: false,
 	};
 	const blocked: string[] = [];
 
@@ -370,10 +369,10 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	const budget = readBudgetStatus(changePath);
 
 	// Siguiente fase: la primera no presente en orden, con la verificación como
-	// gate antes de archivar. apply-progress.md con status != complete retiene apply.
+	// gate antes de cerrar. apply-progress.md con status != complete retiene apply.
 	let nextRecommended: SddNext;
-	if (!present.init) nextRecommended = "init";
-	else if (!present.explore) nextRecommended = "explore";
+	if (!present.scope) nextRecommended = "scope";
+	else if (!present.map) nextRecommended = "map";
 	else if (!present.design) nextRecommended = "design";
 	else if (!present.tasks) nextRecommended = "tasks";
 	else if (!present.apply) nextRecommended = "apply";
@@ -385,8 +384,8 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	} else if (!present.verify) nextRecommended = "verify";
 	else if (verify === "fail") {
 		nextRecommended = "verify";
-		blocked.push("verify-report indica fallo: remediar antes de archivar.");
-	} else if (verify === "pass") nextRecommended = "archive";
+		blocked.push("verify-report indica fallo: remediar antes de cerrar.");
+	} else if (verify === "pass") nextRecommended = "close";
 	else {
 		// verify presente pero sin status legible → re-verificar para refrescar evidencia.
 		nextRecommended = "verify";

@@ -1,7 +1,7 @@
 // =============================================================================
 // TESTS: TDD phase boundary
 // Regresion: el padre volcaba "STRICT TDD MODE IS ACTIVE" en el task compartido
-// del chain ein-sdd, que se reenvia a las 5 fases -> init/explore/design corrian
+// del chain ein-sdd, que se reenvia a las fases -> scope/map/design corrian
 // tests y escribian apply/verify. Fix: orchestrator no lo mete en la tarea de
 // chain (solo en apply directo), y las fases read-only lo ignoran (defensa).
 // =============================================================================
@@ -27,7 +27,7 @@ describe("orchestrator: TDD forwarding distingue chain vs directo", () => {
 });
 
 describe("fases read-only: phase boundary que ignora TDD/tests", () => {
-	for (const phase of ["sdd-init", "sdd-explore", "sdd-design"]) {
+	for (const phase of ["sdd-scope", "sdd-map", "sdd-design"]) {
 		test(`${phase} tiene phase boundary`, () => {
 			const md = read(`agents/${phase}.md`);
 			expect(md).toContain("Phase boundary");

@@ -74,7 +74,7 @@ function parseJson(path: string): { ok: boolean; value: Record<string, unknown> 
   }
 }
 
-const SDD_AGENTS = ["sdd-init.md", "sdd-explore.md", "sdd-design.md", "sdd-tasks.md", "sdd-apply.md", "sdd-verify.md", "sdd-archive.md"];
+const SDD_AGENTS = ["sdd-scope.md", "sdd-map.md", "sdd-design.md", "sdd-tasks.md", "sdd-apply.md", "sdd-verify.md", "sdd-close.md"];
 const DELIVERY_AGENTS = ["ein-linear.md", "ein-git.md"];
 
 // Single source of truth: read from extensions-manifest.json deployed alongside extensions.
@@ -216,7 +216,7 @@ export function runDoctor(platform: Platform): DoctorReport {
     check(existsSync(join(AGENT_DIR, "lib", "mode.ts")), "work mode module", "lib/mode.ts presente (modo solo/team)."),
     check(orchestratorRaw.toLowerCase().includes("work mode") && orchestratorRaw.includes("solo"), "orchestrator mode-aware", "El orchestrator es consciente del modo (solo/team); Linear condicional."),
     check(existsSync(join(AGENT_DIR, "lib", "sdd-router.ts")) && readIfExists(join(AGENT_DIR, "extensions", "ein-ai.ts")).includes("ein_sdd_status"), "sdd router cableado", "Router determinista (sdd-router + tool ein_sdd_status) presente."),
-    check(existsSync(join(AGENT_DIR, "agents", "sdd-archive.md")) && orchestratorRaw.includes("ein_sdd_check"), "sdd gatekeeper + archive", "Gatekeeper (ein_sdd_check) y fase archive cableados."),
+    check(existsSync(join(AGENT_DIR, "agents", "sdd-close.md")) && orchestratorRaw.includes("ein_sdd_check"), "sdd gatekeeper + close", "Gatekeeper (ein_sdd_check) y fase close cableados."),
   ];
 
   const hasEngramBin = lookPath("engram", extraPath) !== null;

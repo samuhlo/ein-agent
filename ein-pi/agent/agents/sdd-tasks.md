@@ -21,7 +21,7 @@ When callable memory tools are available, save the completed tasks artifact befo
 
 ## Inputs
 
-Read `openspec/changes/{change}/design.md`, and only use existing exploration/init context if the parent explicitly points you to it. Build tasks from the design contract; do not re-explore the codebase.
+Read `openspec/changes/{change}/design.md`, and only use existing map/scope context if the parent explicitly points you to it. Build tasks from the design contract; do not remap the codebase.
 
 Legacy compatibility: if `design.md` already contains a `C. Tasks` checklist, normalize that checklist into `tasks.md` instead of skipping this phase.
 
