@@ -41,7 +41,7 @@ Nunca toca `auth.json`, `sessions/` ni `backups/`.
 bun install
 bun run dev               # ejecuta sin compilar
 bun run typecheck
-bun run bundle-template   # genera src/assets/template.tar.gz desde ../.pi/agent
+bun run bundle-template   # genera src/assets/template.tar.gz desde ../ein-pi/agent
 bun run build:all         # compila los 4 binarios en dist/
 bun run build:all linux-x64   # un solo target
 ```

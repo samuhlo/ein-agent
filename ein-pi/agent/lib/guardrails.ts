@@ -43,6 +43,14 @@ const CONFIRM_BASH_PATTERNS: RegExp[] = [
 	/\bpi\s+remove\b/,
 ];
 
+// Frases negativas que CANCELAN la intención de entrega ("haz commit pero sin
+// push", "sin commit", "don't push"): el usuario NO autoriza. Se verifica
+// antes de los patrones positivos para que no disparen el guard incorrectamente.
+const DELIVERY_NEGATION_PATTERNS: RegExp[] = [
+	/\b(?:no|don't|do\s+not|never)\b[^.\n]*\b(?:commit|push|pr|pull\s+request|merge)\b/i,
+	/\bsin\s+(?:hacer\s+)?(?:commit|push|pr|merge)\b/i,
+];
+
 // Frases (en la task de delegación, lenguaje natural) que implican que el
 // subagente acabará ejecutando un comando guardado tipo `git push`.
 const DELEGATED_DELIVERY_PATTERNS: RegExp[] = [
@@ -171,6 +179,8 @@ function collectDelegationTexts(input: unknown): string[] {
 }
 
 export function taskRequestsGuardedDelivery(text: string): boolean {
+	// Negación antes que la intención positiva: "haz commit pero sin push" = false.
+	if (DELIVERY_NEGATION_PATTERNS.some((p) => p.test(text))) return false;
 	return DELEGATED_DELIVERY_PATTERNS.some((pattern) => pattern.test(text));
 }
 

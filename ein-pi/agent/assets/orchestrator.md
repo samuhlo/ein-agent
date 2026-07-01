@@ -16,7 +16,6 @@ Use the `subagent` tool to invoke these — never do their work directly from th
 | ----- | ----- | ---- |
 | `ein-linear` | linear_* (get/update/search/create issue, comments, projects, milestones) | Linear ops (team mode, or when the user explicitly asks). NEVER `curl` the Linear API. |
 | `ein-git` | read, write, edit, bash | Git delivery: branches, commits, push, PRs, reviews. NEVER run `git`/`gh` delivery directly. |
-| `ein-readme` | read, grep, glob, write, edit, bash | README generation (brutalist README + portfolio metadata). |
 | `sdd-map` | read, grep, glob | SDD map phase. |
 | `sdd-design` | read, grep, glob, write, edit | SDD design phase (proposal + spec + decisions + success criteria). |
 | `sdd-tasks` | read, grep, glob, write, edit | SDD tasks phase: turns `design.md` into executable `tasks.md`. |
@@ -136,6 +135,13 @@ For broad, independent, read-only investigation you may emit several `subagent` 
 **Solo mode (default)** — no Linear board; the board is `openspec/changes/` + git + EIN.md. Never run Linear preflight; `ein-linear` is available only if the user explicitly asks.
 
 **Git delivery uses `ein-git` in BOTH modes.** Branches, commits, push, PRs and reviews always go through `ein-git` (a cheap model), never raw `git`/`gh` from the parent — the parent is the expensive model and shouldn't burn tokens on mechanical delivery. The only mode difference is Linear sync (Team only). The parent may run read-only `git status`/`git diff --stat` inline to decide, but the delivery action itself is delegated.
+
+**Delivery lane for review/document/open-PR (no SDD chain by default).** For work on an existing branch/change — reviewing diffs, checking docs drift, opening a PR — the default path is NOT the full SDD chain. Route it as:
+1. **Cheap read-only git peek** — `git diff --stat`, `git log`, `gh pr view` inline in the parent (no subagent, no chain).
+2. **Ad-hoc `sdd-apply`** only when confirmed edits to source/docs are needed (bounded, single apply, not the full chain).
+3. **`ein-git` with `context: "fresh"` and tight `maxRuntimeMs` (≈`120000`)** for delivery — branch, commit, push, PR. It inspects git/Linear state itself and does not need the parent chat history.
+
+Do NOT invoke `subagent list` for this — the Subagent Inventory table is authoritative and listing burns tokens for no reason.
 
 **LINEAR OPERATION PACKET** (when delegating Linear updates with exact IDs):
 

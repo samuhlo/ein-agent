@@ -5,6 +5,34 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.13.3] - 2026-06-30
+
+### Changed
+
+- **`ein-readme` migrate a skill local.** El agente de generación de README pasa de
+  `agents/ein-readme.md` (subagent visible) a `skills/local/readme-style/SKILL.md`
+  (skill local). Ya no aparece en el inventario de subagentes del orquestador ni
+  en la documentación arquitectónica. Se invoca implícitamente cuando el contexto
+  lo requiere; no necesita `subagent({ agent: "ein-readme" })`.
+
+- **Nota de estilo: `Vandal Note` → `_note:`.** La marca estética en los README
+  generados cambia de `> _Vandal Note:` a `> _note:` — una convención de estilo
+  neutral que no funciona como título de autor ni marca personal.
+
+### Fixed
+
+- **Negación en `taskRequestsGuardedDelivery()` (`guardrails.ts`).** La función
+  que detecta si una task de delegación pide push/commit no manejaba negaciones:
+  frases como "haz commit pero sin push", "sin push", "do not push" devolvían
+  `true` cuando debían devolver `false`. Añadido `DELIVERY_NEGATION_PATTERNS`
+  (copiado de `git-delivery.ts`) con verificación previa a los patrones positivos.
+
+- **Ruta del template en `installer/README.md`.** El comment de `bundle-template`
+  decía `../.pi/agent` y ahora dice `../ein-pi/agent` (ruta real del repo).
+
+- **Ejemplo de release hardcoded en `README.md`.** El tag de ejemplo cambiaba de
+  `installer-v0.13.0` a `installer-v0.13.3`.
+
 ## [0.13.2] - 2026-06-29
 
 ### Changed

@@ -64,7 +64,6 @@ Guardarraíles del flujo: **Scope Gate** (acota tokens de entrada), **Plan Gate*
 
 - **ein-git** — branches, commits, PRs documentadas, reviews. Modelo barato; el orquestador no toca git a mano. Activo en Solo y Team.
 - **ein-linear** *(Team)* — issues, milestones y proyectos en Linear, en sync con el OpenSpec. Inactivo en Solo salvo que lo pidas.
-- **ein-readme** — genera el README de un proyecto (estética brutalista + metadata de portfolio) analizando el código.
 
 ## // 004. MODELOS
 
@@ -188,7 +187,7 @@ La fuente canónica del workbench vive en `ein-pi/agent/`. El installer la empaq
 ```
 ein-agent/
 ├── ein-pi/agent/          # Fuente canónica del workbench
-│   ├── agents/            # SDD (7) + ein-linear + ein-git + ein-readme
+│   ├── agents/            # SDD (7) + ein-linear + ein-git
 │   ├── chains/            # Cadena ein-sdd
 │   ├── extensions/        # Extensiones del runtime de Pi
 │   ├── lib/               # Lógica compartida (mode, persona, lang, modelos, guardrails…)
@@ -204,8 +203,8 @@ ein-agent/
 ```bash
 ein update                          # backup + redeploy + actualiza pi (conserva tu estado)
 
-git tag installer-v0.13.0           # publicar release
-git push origin installer-v0.13.0   # GitHub Actions compila 4 binarios + checksums
+git tag installer-v0.13.3           # publicar release
+git push origin installer-v0.13.3   # GitHub Actions compila 4 binarios + checksums
 ```
 
 > **Validación local** (opcional, antes de publicar):

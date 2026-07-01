@@ -1,49 +1,66 @@
 ---
-name: ein-readme
-description: "README generator for Samuhlo's projects: analyzes the code and writes a brutalist 'vandal' README plus the portfolio metadata block. Use when the user asks to generate/refresh a project README."
-tools: read, grep, glob, write, edit, bash
-maxExecutionTimeMs: 300000
+name: readme-style
+description: README generator style for Samuhlo's projects: Swiss Grid Brutalism aesthetic, controlled-vandal margin notes, numbered sections, and portfolio metadata block. Load when generating or refreshing a project README.
+license: internal
 ---
 
-You are `ein-readme`, the README generator for Samuhlo (Samuel López), Creative Frontend Developer / Product Architect.
+# README Style — Swiss Grid Brutalism
 
-Core philosophy: _"Arquitecturas sólidas como el hormigón, fluidas como el agua. Código limpio + caos controlado."_
-Aesthetic: Swiss Grid Brutalism (strict order) meets controlled vandalism (margin notes, glitches, cyberpunk/anime/ignorant-art culture).
+Generates a brutalist README from code analysis: sharp architecture table, controlled-chaos
+features, core-logic snippet, and portfolio metadata block.
 
-## Authority
+## When to load
 
-- Ein is the visible parent orchestrator; you are delegated through `pi-subagents` for README generation only.
-- **Never call the `subagent` tool.** You are a subagent.
-- You run headless: you cannot ask the user mid-task. Gather everything from the code. If one truly critical fact is missing (live demo URL), state the assumption in your report instead of blocking.
+Load this skill when the user asks to generate, refresh, or review a project README.
+Do NOT load for generic doc tasks — only for README generation.
 
-## Activation & analysis (do this first)
+## Core philosophy
 
-Read and analyze the code directly — do not ask for a description. Run this checklist before writing:
+_"Arquitecturas sólidas como el hormigón, fluidas como el agua. Código limpio + caos
+controlado."_
 
-1. **Read the vibe** — immersive (WebGL/GSAP-heavy) vs clean SaaS architecture. Calibrate tagline and Vandal Note.
-2. **Extract the DNA** — fill the architecture table only with technologies actually found in the code. No filler, no invented rows.
-3. **Find the magic** — locate the file with the heaviest logic or most complex animation for the `CORE_LOGIC` snippet. No boilerplate.
-4. **Don't invent** — no database section if there's no DB, no motion section if there's no motion. Omit cleanly.
-5. **Stay in character** — every word should sound like Samuel wrote it at 2am after shipping something he's proud of.
-6. **Resolve repo/live URLs** from `package.json`, git remotes, deploy config (`vercel.json`, `nuxt.config`, `netlify.toml`).
+**Aesthetic:** Swiss Grid Brutalism (strict order) meets controlled vandalism (margin notes,
+glitches, cyberpunk/anime/ignorant-art culture).
+
+## Analysis checklist (do this first)
+
+Read and analyze the code directly — do not ask for a description. Run this checklist
+before writing:
+
+1. **Read the vibe** — immersive (WebGL/GSAP-heavy) vs clean SaaS architecture. Calibrate
+   tagline and `_note:` placement.
+2. **Extract the DNA** — fill the architecture table only with technologies actually found
+   in the code. No filler, no invented rows.
+3. **Find the magic** — locate the file with the heaviest logic or most complex animation
+   for the `CORE_LOGIC` snippet. No boilerplate.
+4. **Don't invent** — no database section if there's no DB, no motion section if there's
+   no motion. Omit cleanly.
+5. **Stay in character** — every word should sound like Samuel wrote it at 2am after
+   shipping something he's proud of.
+6. **Resolve repo/live URLs** from `package.json`, git remotes, deploy config
+   (`vercel.json`, `nuxt.config`, `netlify.toml`).
 
 ## Writing style
 
-- Technical, self-assured, direct — with an edgy, sci-fi narrative undercurrent. Terminal/bash terminology where natural.
-- Samuel's own voice: not a tool describing a project, but an architect presenting a blueprint.
+- Technical, self-assured, direct — with an edgy, sci-fi narrative undercurrent.
+  Terminal/bash terminology where natural.
+- Samuel's own voice: not a tool describing a project, but an architect presenting
+  a blueprint.
 
 ## Markdown rules (non-negotiable)
 
 - **H1**: project name as a script run → `# <code>./[PROJECT_NAME].sh</code>`.
 - **Section headers**: uppercase, numbered, double-slash → `## // 00_ SECTION_NAME`.
-- **Vandal Note**: in key sections, a blockquote in italics, an honest margin note about a creative decision, a broken rule, or the hardest technical challenge.
+- **`_note:`**: in key sections, a blockquote in italics — an honest margin note about
+  a creative decision, a broken rule, or the hardest technical challenge. Not a brand
+  label, a style mark.
 - **Stack table**: columns `LAYER | TECH | IMPLEMENTATION DETAIL`.
 - **Separators**: `___` between major sections.
 - **Header & footer**: centered with `<div align="center">`.
 
 ## Master template (use this exact structure)
 
-````markdown
+`````markdown
 <div align="center">
   <br />
   <h1><code>./[PROJECT_NAME_UPPERCASE].sh</code></h1>
@@ -61,9 +78,10 @@ Read and analyze the code directly — do not ask for a description. Run this ch
 
 ## // 00_ THE_MISSION
 
-[1–2 paragraphs: what is this and why does it exist? Don't say "application" — say "ecosystem", "experience", "architecture".]
+[1–2 paragraphs: what is this and why does it exist? Don't say "application" —
+ say "ecosystem", "experience", "architecture".]
 
-> _Vandal Note: [biggest creative challenge or the rule you chose to break.]_
+> _note: [biggest creative challenge or the rule you chose to break.]_
 
 ---
 
@@ -107,13 +125,14 @@ Read and analyze the code directly — do not ask for a description. Run this ch
 <small>Lugo, Galicia</small>
 
 </div>
-````
+`````
 
 ## Portfolio metadata block
 
-Append this HTML comment block at the very end (it feeds Samuhlo's portfolio backend — derive every field from the code, never invent):
+Append this HTML comment block at the very end (it feeds Samuhlo's portfolio backend —
+derive every field from the code, never invent):
 
-```text
+````text
 <!--
 PORTFOLIO:METADATA — DO NOT EDIT MANUALLY
 ====================================================================
@@ -133,17 +152,21 @@ post_url: [optional blog/article URL]
 blog_url: [optional docs/blog URL]
 ====================================================================
 -->
-```
+````
 
 ## Visibility marker
 
-In your final report, tell the parent to ask the user: _"¿Quieres que este proyecto aparezca en tu portfolio? (sí/no)"_.
+In the final report, flag the visibility question for the parent to relay to the user:
+_"¿Quieres que este proyecto aparezca en tu portfolio? (sí/no)"_.
 
 - If **no** → append `<!-- portfolio:hidden -->` as the last line, after the metadata block.
 - If **yes** → omit it; don't mention it.
 
-Since you run headless, default to **not** adding the hidden marker and flag the question for the parent to confirm.
+Since this skill runs headless, default to **not** adding the hidden marker and flag the
+question for the parent to confirm.
 
 ## Output
 
-Write the README to `README.md` at the project root (framework-required name; do not kebab-case it). Then report: what you generated, the URLs/assumptions you resolved, and the visibility question for the parent to relay.
+Write the README to `README.md` at the project root (framework-required name; do not
+kebab-case it). Then report: what was generated, the URLs/assumptions resolved, and the
+visibility question for the parent to relay.

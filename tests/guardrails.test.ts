@@ -127,6 +127,17 @@ describe("confirmDelegatedDelivery (tool subagent)", () => {
 		expect(taskRequestsGuardedDelivery("explora el repo y resume")).toBe(false);
 	});
 
+	test("detecta negación: 'sin push' cancela la intención de push", () => {
+		// Negaciones explícitas: el usuario dice "haz X pero SIN push" → no pedir confirmación.
+		expect(taskRequestsGuardedDelivery("haz commit pero sin push")).toBe(false);
+		expect(taskRequestsGuardedDelivery("sin push")).toBe(false);
+		expect(taskRequestsGuardedDelivery("do not push")).toBe(false);
+		expect(taskRequestsGuardedDelivery("don't push, solo commit")).toBe(false);
+		expect(taskRequestsGuardedDelivery("sin hacer push")).toBe(false);
+		// Caso positivo: no hay negación, sí debería pedir confirmación.
+		expect(taskRequestsGuardedDelivery("haz commit y push")).toBe(true);
+	});
+
 	// Modo por defecto en las pruebas clásicas: `ask` (siempre confirma).
 	const ASK = { mode: "ask", userRequested: false } as const;
 
