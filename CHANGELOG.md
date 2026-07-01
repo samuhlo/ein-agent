@@ -5,6 +5,28 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.13.5] - 2026-07-01
+
+### Fixed
+
+- **Delegación/PR: detección `open-PR` y `delegated`.** Los patrones de entrega en
+  `guardrails.ts` y `git-delivery.ts` ahora reconocen `open-PR` (alias de `open_pr`)
+  y `delegated` como modos de entrega válidos. `taskRequestsGuardedDelivery()` y
+  `requestsCommitLikeAction()` devuelven `false` cuando el intent es explícitamente
+  `delegated` u `open-PR`.
+
+- **Seguridad: negación primero en `taskRequestsGuardedDelivery()`.** Verificación
+  de patrones de negación (`no push`, `sin commit`, `do not tag`) *antes* de evaluar
+  patrones positivos, evitando falsos positivos en frases como "haz commit pero sin push".
+
+- **Loop `ask_user_question` en delivery: cortado.** La recursión infinita entre
+  `ask_user_question` y delivery se corta en raíz — si la task头来 pide entrega
+  pero no puede auto-delegarse, se responde con el tool result directamente sin
+  volver a preguntar.
+
+- **Tests de guardrails actualizados.** Casos para `delegated`, `open-PR` y
+  negaciones añadidos; antiguos casos de negación corregidos.
+
 ## [0.13.3] - 2026-06-30
 
 ### Changed

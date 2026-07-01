@@ -14,6 +14,7 @@ import { join } from "node:path";
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
 const einGit = readFileSync(join(AGENT, "agents/ein-git.md"), "utf8");
 const orchestrator = readFileSync(join(AGENT, "assets/orchestrator.md"), "utf8");
+const agentsGuide = readFileSync(join(AGENT, "AGENTS.md"), "utf8");
 
 describe("ein-git crea PRs de forma no interactiva (no cuelga)", () => {
 	test("manda body-file + flags explícitos, prohíbe bare y --web", () => {
@@ -50,5 +51,21 @@ describe("delivery con maxRuntimeMs tirante", () => {
 	test("el orquestador pasa un presupuesto corto a ein-git, no el de chain", () => {
 		expect(orchestrator).toContain("tight `maxRuntimeMs`");
 		expect(orchestrator).toContain("120000");
+	});
+});
+
+describe("contrato anti double-ask para delivery delegada", () => {
+	test("el orquestador prohíbe preguntar manualmente y exige el gate determinista", () => {
+		expect(orchestrator).toContain("Delivery confirmation is NOT yours to ask");
+		expect(orchestrator).toContain("Do NOT use `ask_user_question`");
+		expect(orchestrator).toContain("deterministic delivery gate");
+		expect(orchestrator).toContain("re-delegate only with explicit delivery wording");
+	});
+
+	test("AGENTS.md replica la regla para sesiones instaladas", () => {
+		expect(agentsGuide).toContain("Delivery confirmation is NOT yours to ask");
+		expect(agentsGuide).toContain("Do NOT use `ask_user_question`");
+		expect(agentsGuide).toContain("deterministic delivery gate");
+		expect(agentsGuide).toContain("re-delegate only with explicit delivery wording");
 	});
 });

@@ -57,6 +57,8 @@ const DELEGATED_DELIVERY_PATTERNS: RegExp[] = [
 	/\bgit\s+push\b/i,
 	/\bpush\b/i,
 	/\bsube\s+(?:la\s+)?rama\b/i,
+	/\babre\s+(?:un\s+|el\s+|la\s+)?(?:pr|pull\s+request)\b/i,
+	/\bopen\s+(?:a\s+|the\s+)?(?:pr|pull\s+request)\b/i,
 ];
 
 // TTL corto a propósito: cubre el arranque del subagente y poco más.

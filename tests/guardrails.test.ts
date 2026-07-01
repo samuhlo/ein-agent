@@ -119,12 +119,37 @@ describe("confirmCommand headless", () => {
 });
 
 describe("confirmDelegatedDelivery (tool subagent)", () => {
-	test("detecta intención de push en la task", () => {
-		expect(taskRequestsGuardedDelivery("haz commit y push, luego abre PR")).toBe(
-			true,
-		);
-		expect(taskRequestsGuardedDelivery("sube la rama y abre el PR")).toBe(true);
-		expect(taskRequestsGuardedDelivery("explora el repo y resume")).toBe(false);
+	test("detecta intención de entrega delegada en español e inglés", () => {
+		const positives = [
+			"haz commit y push",
+			"commit and push",
+			"abre PR",
+			"abre un PR",
+			"open a pull request",
+			"open PR",
+			"sube la rama y abre PR",
+		];
+
+		for (const phrase of positives) {
+			expect(taskRequestsGuardedDelivery(phrase), phrase).toBe(true);
+		}
+	});
+
+	test("no emite entrega para commit local, negaciones o tareas sin delivery", () => {
+		const negatives = [
+			"haz commit pero sin push",
+			"solo commit, no push",
+			"commit only, do not push",
+			"no abras PR",
+			"do not open a pull request",
+			"haz commit",
+			"commit only",
+			"explora el repo y resume",
+		];
+
+		for (const phrase of negatives) {
+			expect(taskRequestsGuardedDelivery(phrase), phrase).toBe(false);
+		}
 	});
 
 	test("detecta negación: 'sin push' cancela la intención de push", () => {
@@ -157,6 +182,18 @@ describe("confirmDelegatedDelivery (tool subagent)", () => {
 		const { ctx, calls } = ctxStub(true, true);
 		const result = await confirmDelegatedDelivery(
 			{ agent: "ein-github", task: "haz push de la rama y abre PR" },
+			ctx,
+			ASK,
+		);
+		expect(result).toBeUndefined();
+		expect(calls.length).toBe(1);
+		expect(consumeDelegatedDelivery(CWD)).toBe(true);
+	});
+
+	test("modo ask: delegación para abrir PR aprobada emite grant one-shot", async () => {
+		const { ctx, calls } = ctxStub(true, true);
+		const result = await confirmDelegatedDelivery(
+			{ agent: "ein-git", task: "open a pull request for this branch" },
 			ctx,
 			ASK,
 		);

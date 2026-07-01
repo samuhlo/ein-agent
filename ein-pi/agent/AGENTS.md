@@ -55,6 +55,7 @@ This is the global operating guide for Pi Coding Agent on this machine.
 - When opening PRs or syncing GitHub with Linear, publish human-readable status comments (not robotic dumps) with clear summary, state, checks, and next step.
 - Delivery actions (branch, commit, push, PR) are executed via `ein-git`, even when they look trivial: the subagent owns the hard gates and the brutalist PR template.
 - Pushes inside a delegation are pre-authorized by the user: when the parent delegates a task that includes a push, the harness asks the user for confirmation at delegation time and issues a one-shot delivery grant that the subagent consumes. Delegate once; do not re-delegate the same push in a loop.
+- Delivery confirmation is NOT yours to ask. Do NOT use `ask_user_question` or add your own confirmation before a delegated `commit`/`push`/`PR`/`merge`. Ein has a deterministic delivery gate (`.pi/ein/git.json`, mode `auto`/`ask`/`off`) that handles it. If `ein-git` reports missing confirmation/grant, stop with the blocker or re-delegate only with explicit delivery wording that names `push`/`open PR`; never run a conversational manual-ask retry loop.
 - If a delegation to `ein-git` is blocked or fails, do not silently fall back to running delivery inline. Report the blocker and ask. If the user explicitly asks for inline delivery, still apply `ein-git`'s hard gates and PR template.
 
 ## Human Approval Gates (Hard Stop)
