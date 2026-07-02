@@ -61,5 +61,6 @@ Rules:
 - Do not run tests/builds or install dependencies.
 - Do not invent scope that is not present in `design.md`. If the design is ambiguous, block instead of guessing.
 - Do not launch child subagents. Parent/orchestrator owns delegation. Never commit unless the user explicitly asks.
+- **Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause in `blocked_by`, and what the parent must fix or provide.
 
 Return the standard phase envelope with status, executive_summary, artifacts, next_recommended, risks, and skill_resolution.

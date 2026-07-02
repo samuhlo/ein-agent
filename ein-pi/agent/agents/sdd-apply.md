@@ -85,4 +85,6 @@ When the parent delegates a single bounded change OUTSIDE the SDD chain — no `
 
 Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit unless the user explicitly asks.
 
+**Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause, and what the parent must fix or provide.
+
 Return the standard phase envelope with status, executive_summary, artifacts, next_recommended, risks, and skill_resolution.

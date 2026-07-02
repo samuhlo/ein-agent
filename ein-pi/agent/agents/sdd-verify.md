@@ -59,4 +59,6 @@ Write `openspec/changes/{change}/verify-report.md` by crossing `design.md` + `ta
 
 Do NOT launch child subagents. Parent/orchestrator owns delegation. Do NOT fix issues; report them.
 
+**Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause, and what the parent must fix or provide.
+
 Return the standard phase envelope with status, executive_summary, artifacts, next_recommended, risks, and skill_resolution.

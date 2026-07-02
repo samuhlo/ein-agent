@@ -23,6 +23,7 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
 - If `openspec/config.yaml` already exists, read it, summarize the current SDD/testing configuration, and do not block the caller. Update only safe derived context when explicitly necessary; never destructively rewrite user-maintained SDD configuration.
 - Ensure `.pi/ein/atl/skill-registry.md` exists when skill registry data is available, or report that it is missing.
 - Do NOT launch child subagents. Parent/orchestrator owns delegation.
+- **Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause, and what the parent must fix or provide.
 - Write scope artifacts to `openspec/changes/{change}/` where `{change}` is the issue ID extracted from the task (e.g., "SAM-328" from "SAM-328: Motor determinista calculatePlanning()").
 - The scope.md artifact MUST include the SCOPE PACKET the chain forwards to `sdd-map`. Emit CONCRETE numbers — never leave `<number>` placeholders, or the map phase runs without a read cap and explodes tokens:
   ```

@@ -48,5 +48,6 @@ The artifact language follows the parent's "Artifact language" directive (Spanis
 - Do NOT implement, verify, or change code. You only read artifacts and write `summary.md`.
 - If `verify-report.md` indicates failure, STOP and report `blocked` — a failed change must not be closed.
 - Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit unless the user explicitly asks.
+- **Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause, and what the parent must fix or provide.
 
 Return the standard phase envelope with status, executive_summary, artifacts, next_recommended (`close` move by the parent), risks, and skill_resolution.
