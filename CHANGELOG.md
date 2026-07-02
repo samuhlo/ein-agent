@@ -5,6 +5,45 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.14.6] - 2026-07-02
+
+### Added
+
+- **Tema pi `ein`** (`themes/ein.json`): la paleta brutalista del banner
+  aplicada a toda la TUI — Concrete `#FAF3F0` como texto, Structure `#737373`
+  para lo secundario, Industrial Yellow `#FFCA40` como único acento y fondos
+  derivados de Carbon `#0C0011`. El indicador de thinking escala del gris al
+  amarillo industrial según el esfuerzo. `settings.json` del template arranca
+  con `theme: ein`; el bundle incluye `themes/` pero el deploy NO lo gestiona
+  como dir manejado (criterio `skills/`: un `ein update` no destruye temas
+  personales).
+- **Coste real por cambio en `ein_sdd_status`.** Nuevo `readSddRealCost()` en
+  `sdd-router.ts`: suma el consumo REAL de inferencia desde los `meta.json`
+  de `.pi-subagents/artifacts/` (atribución determinista por mención del
+  cambio en el task del run) y el status muestra `coste real: N runs · in/out
+  · $ · min` con desglose por agente, junto al budget del ledger (tokens
+  estimados de lectura — otra magnitud). Un cambio real que el status
+  reportaba como `consumed≈9000` costó 910k tokens y $3.71.
+- **Procedencia de artefactos SDD.** Si el parent persiste un artefacto por
+  fallback debe marcarlo con `authored_by: parent-fallback`; `lintChange`
+  emite `WARNING provenance-parent-fallback-<fase>` para que verify/review
+  sepan que no lo escribió el executor de fase. Prohibido fabricar números de
+  ledger que el hijo no reportó.
+
+### Changed
+
+- **El acceptance de `sdd-apply` pasa de atestación a verificación mecánica.**
+  Los applies behavioral se delegan con `acceptance: { level: "verified",
+  verify: [...] }` usando los comandos reales de `openspec/config.yaml`
+  (`testing.runner`/`testing.typecheck`): el runner de `pi-subagents`
+  re-ejecuta los comandos al terminar el hijo y rechaza el run si fallan — un
+  modelo barato ya no puede afirmar tests verdes que nunca corrió. Los applies
+  mecánicos (taxonomía `tdd: "off"`) llevan `level: "none"` con reason porque
+  `verified`/`checked` exigen estructuralmente evidencia `tests-added` que un
+  apply honesto sin tests no puede producir. `sdd-apply.md` gana la sección
+  "Runtime Acceptance Verification": prohibido amañar la verificación —
+  `blocked` honesto antes que verde mentiroso.
+
 ## [0.14.5] - 2026-07-02
 
 ### Fixed
