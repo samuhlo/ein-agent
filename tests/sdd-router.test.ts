@@ -167,3 +167,47 @@ describe("resolveSddStatus", () => {
 		expect(listActiveChanges(DIR).sort()).toEqual(["feat-x", "feat-y"]);
 	});
 });
+
+// Raíz dual + alias legacy: el router debe leer trabajo SDD existente en
+// `.sdd/changes/` (gramática previa: explore.md ≈ scope+map, apply.md ≈ design)
+// sin exigir migración de ficheros.
+describe("resolveSddStatus con raíz .sdd/changes (legacy)", () => {
+	function legacyChange(name: string): string {
+		const p = join(DIR, ".sdd", "changes", name);
+		mkdirSync(p, { recursive: true });
+		return p;
+	}
+
+	test("sin openspec/, lista y enruta cambios de .sdd/changes/", () => {
+		const c = legacyChange("fix-x");
+		put(c, "explore.md", "scope: arreglar x\nbudget_allocated: 15000\n");
+		expect(listActiveChanges(DIR)).toEqual(["fix-x"]);
+		const s = resolveSddStatus(DIR);
+		expect(s.change).toBe("fix-x");
+		// explore.md cubre scope y map (gramática vieja fusionada) → siguiente design.
+		expect(s.present.scope).toBe(true);
+		expect(s.present.map).toBe(true);
+		expect(s.nextRecommended).toBe("design");
+	});
+
+	test("cambio legacy completo y verificado → siguiente close", () => {
+		const c = legacyChange("fix-x");
+		put(c, "explore.md", "scope: arreglar x\n");
+		put(c, "apply.md", "# plan de implementación\n");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [x] 1 hecho\n");
+		put(c, "apply-progress.md", "status: complete\n");
+		put(c, "verify-report.md", "Status: pass\n");
+		const s = resolveSddStatus(DIR);
+		expect(s.apply).toBe("complete");
+		expect(s.verify).toBe("pass");
+		expect(s.nextRecommended).toBe("close");
+	});
+
+	test("openspec/changes/ tiene prioridad sobre .sdd/changes/", () => {
+		const canonical = change("feat-nuevo");
+		put(canonical, "scope.md");
+		const legacy = legacyChange("fix-viejo");
+		put(legacy, "explore.md");
+		expect(listActiveChanges(DIR)).toEqual(["feat-nuevo"]);
+	});
+});

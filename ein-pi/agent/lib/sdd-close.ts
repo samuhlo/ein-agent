@@ -10,6 +10,7 @@
 
 import { existsSync, mkdirSync, renameSync, cpSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { resolveChangesDir } from "./sdd-router.ts";
 
 export type CloseResult = {
 	ok: boolean;
@@ -18,8 +19,9 @@ export type CloseResult = {
 	reason?: string;
 };
 
+// Misma resolución dual que el router: openspec/changes/ o .sdd/changes/.
 function changesDir(cwd: string): string {
-	return join(cwd, "openspec", "changes");
+	return resolveChangesDir(cwd);
 }
 
 export function closedChangePath(cwd: string, change: string): string {
@@ -35,7 +37,7 @@ export function closeChange(cwd: string, change: string): CloseResult {
 		return { ok: false, from, to, reason: "nombre de cambio inválido" };
 	}
 	if (!existsSync(from)) {
-		return { ok: false, from, to, reason: "el cambio no existe en openspec/changes/" };
+		return { ok: false, from, to, reason: "el cambio no existe en el directorio de cambios" };
 	}
 	if (existsSync(to)) {
 		return { ok: false, from, to, reason: "ya existe en archive/; no se pisa" };

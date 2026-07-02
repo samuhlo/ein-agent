@@ -48,6 +48,15 @@ describe("closeChange", () => {
 		expect(closeChange(DIR, "../escape").ok).toBe(false);
 		expect(closeChange(DIR, "archive").ok).toBe(false);
 	});
+
+	test("cierra cambios en la raíz legacy .sdd/changes/", () => {
+		const p = join(DIR, ".sdd", "changes", "fix-legacy");
+		mkdirSync(p, { recursive: true });
+		writeFileSync(join(p, "summary.md"), "# Resumen legacy");
+		const r = closeChange(DIR, "fix-legacy");
+		expect(r.ok).toBe(true);
+		expect(existsSync(join(DIR, ".sdd", "changes", "archive", "fix-legacy", "summary.md"))).toBe(true);
+	});
 });
 
 describe("lintPhaseArtifact / lintChange", () => {

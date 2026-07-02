@@ -57,7 +57,7 @@ import {
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
-import { aggregateSddBudget, listActiveChanges, listActiveChangeSummaries, resolveSddNext, resolveSddStatus, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddStatus, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
 import { closeChange } from "../lib/sdd-close.ts";
 import {
 	codeConventionSkillBlock,
@@ -139,9 +139,10 @@ function readAgentTask(event: unknown): string {
 	return readStringPath(event, ["systemPrompt"]) ?? "";
 }
 
-// Devuelve true si `name` es un directorio existente en openspec/changes/.
+// Devuelve true si `name` es un directorio existente en la raíz de cambios
+// (openspec/changes/ o .sdd/changes/; ver resolveChangesDir en sdd-router).
 function changeDirExists(cwd: string, name: string): boolean {
-	const base = join(cwd, "openspec", "changes", name);
+	const base = join(resolveChangesDir(cwd), name);
 	try {
 		return statSync(base).isDirectory();
 	} catch {

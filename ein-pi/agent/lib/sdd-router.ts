@@ -10,6 +10,12 @@
 //   tasks → tasks.md · apply → apply-progress.md · verify → verify-report.md
 //   close → summary.md
 // El cierre usa storage interno archive/ por compatibilidad; la fase publica es close.
+//
+// Raíz de cambios DUAL: `openspec/changes/` es la canónica; si no existe pero
+// hay `.sdd/changes/` (gramática previa / herramienta externa), se usa esa.
+// Los cambios legacy usan `explore.md` (≈ scope+map fusionados) y `apply.md`
+// (plan de implementación ≈ design): se aceptan como alias de presencia para
+// que status/check/close funcionen sobre trabajo ya existente sin migrarlo.
 // =============================================================================
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
@@ -147,8 +153,35 @@ const SDD_NEXT_COPY: Record<SddNext, { reason: string; suggestedAction: string }
 	},
 };
 
+// Alias legacy por fase: primer fichero existente gana; el canónico es el [0].
+const PHASE_ARTIFACT_ALIASES: Partial<Record<SddPhase, string[]>> = {
+	scope: ["scope.md", "explore.md"],
+	map: ["map.md", "explore.md"],
+	design: ["design.md", "apply.md"],
+};
+
+// Raíz de cambios: canónica `openspec/changes/`; fallback `.sdd/changes/`.
+export function resolveChangesDir(cwd: string): string {
+	const canonical = join(cwd, "openspec", "changes");
+	if (existsSync(canonical)) return canonical;
+	const legacy = join(cwd, ".sdd", "changes");
+	if (existsSync(legacy)) return legacy;
+	return canonical;
+}
+
 function changesDir(cwd: string): string {
-	return join(cwd, "openspec", "changes");
+	return resolveChangesDir(cwd);
+}
+
+// Ruta del artefacto de una fase dentro de un cambio, resolviendo alias legacy:
+// devuelve el primer fichero existente, o el canónico si no existe ninguno.
+function phaseArtifactPath(changePath: string, phase: SddPhase): string {
+	const candidates = PHASE_ARTIFACT_ALIASES[phase] ?? [PHASE_ARTIFACT[phase]];
+	for (const file of candidates) {
+		const path = join(changePath, file);
+		if (existsSync(path)) return path;
+	}
+	return join(changePath, PHASE_ARTIFACT[phase]);
 }
 
 // Cambios activos = subdirectorios de openspec/changes/ excepto `archive/`.
@@ -255,8 +288,8 @@ function readTasksStatus(changePath: string): SddTasksStatus {
 
 function readBudgetStatus(changePath: string): SddBudgetStatus {
 	const out = emptyBudgetStatus();
-	const scopePath = join(changePath, PHASE_ARTIFACT.scope);
-	const mapPath = join(changePath, PHASE_ARTIFACT.map);
+	const scopePath = phaseArtifactPath(changePath, "scope");
+	const mapPath = phaseArtifactPath(changePath, "map");
 
 	if (existsSync(scopePath)) {
 		const scope = readText(scopePath);
@@ -360,7 +393,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 
 	const changePath = join(changesDir(cwd), target);
 	for (const phase of Object.keys(present) as SddPhase[]) {
-		present[phase] = existsSync(join(changePath, PHASE_ARTIFACT[phase]));
+		present[phase] = existsSync(phaseArtifactPath(changePath, phase));
 	}
 
 	const apply = readApplyOutcome(changePath);

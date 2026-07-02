@@ -9,6 +9,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { resolveChangesDir } from "./sdd-router.ts";
 
 export type GuardrailLevel = "error" | "warning";
 
@@ -285,9 +286,11 @@ function sequenceIssues(phases: ChangeLintReport["phases"]): GuardrailIssue[] {
 	return issues;
 }
 
-// Linta todos los artefactos PRESENTES de un cambio en openspec/changes/<change>/.
+// Linta todos los artefactos PRESENTES de un cambio (raíz dual: ver sdd-router).
+// Los alias legacy (explore.md/apply.md) no se lintan: el lint es de la
+// gramática canónica; los artefactos canónicos de un cambio legacy sí entran.
 export function lintChange(cwd: string, change: string): ChangeLintReport {
-	const base = join(cwd, "openspec", "changes", change);
+	const base = join(resolveChangesDir(cwd), change);
 	const phases: ChangeLintReport["phases"] = [];
 	let errors = 0;
 	let warnings = 0;
