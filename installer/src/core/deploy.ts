@@ -52,8 +52,9 @@ function writeGlobalMode(agentDir: string, mode: "solo" | "team"): void {
 // Directories fully owned by the template. Wiped before extraction so files
 // removed upstream (e.g. a renamed agent like ein-github→ein-git) don't linger
 // as orphans — tar only adds/overwrites, it never deletes. Deliberately
-// excludes `skills/`, which holds user-managed state (downloaded skills,
-// symlinks), and the agent root (auth.json, sessions/, backups/, .sdd/, ...).
+// excludes `skills/` and `themes/`, which hold user-managed state (downloaded
+// skills, symlinks, personal pi themes), and the agent root (auth.json,
+// sessions/, backups/, .sdd/, ...).
 export const MANAGED_DIRS = ["agents", "assets", "chains", "docs", "extensions", "lib", "prompts"];
 
 // Clean-replace the template-owned dirs. No-op on a fresh install (dirs absent).

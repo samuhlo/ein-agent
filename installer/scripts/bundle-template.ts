@@ -29,7 +29,7 @@ const OUT = join(INSTALLER_ROOT, "src", "assets", "template.tar.gz");
 // .atl/, .piagents/, .sdd/, bin/, disabled-skill-conflicts/, run-history) is
 // intentionally left out.
 const INCLUDE_FILES = ["AGENTS.md", "brand.json", "extensions-manifest.json", "models.json", "mcp.json", "settings.json"];
-const INCLUDE_DIRS = ["agents", "assets", "chains", "docs", "extensions", "lib", "prompts", "skills"];
+const INCLUDE_DIRS = ["agents", "assets", "chains", "docs", "extensions", "lib", "prompts", "skills", "themes"];
 
 function tokenizeMcp(staging: string): void {
   const path = join(staging, "mcp.json");
