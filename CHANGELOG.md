@@ -5,6 +5,50 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [Unreleased]
+
+### Changed
+
+- **Prompts con un dueño por política (−39% de contexto fijo del padre).**
+  `AGENTS.md` queda reducido a las reglas que comparten TODAS las sesiones
+  (170 → 44 líneas): la política de coordinación vive solo en
+  `assets/orchestrator.md`, los contratos de ejecución en cada `agents/*.md`,
+  y lo que ya es determinista en código (gates, guardrails, router) solo se
+  referencia, no se re-especifica. Se elimina la contradicción entre los
+  "Human Approval Gates" de AGENTS.md y el gate determinista de entrega en
+  modo `auto` (causa raíz del doble-ask), y el contrato docente de 7 puntos
+  obligatorios pasa a ser proporcional al peso del cambio (criterio único:
+  "synthesis weight matches change weight" del orquestador).
+- **`orchestrator.md` comprimido** (~4300 → ~3100 palabras) conservando todas
+  las reglas y frases de contrato testeadas; menos anécdota, misma normativa.
+
+### Added
+
+- **Raíz de cambios SDD dual.** `resolveChangesDir()` en `sdd-router.ts`:
+  `openspec/changes/` sigue siendo canónica; si no existe pero hay
+  `.sdd/changes/` (gramática previa / herramienta externa), el router, el
+  gatekeeper (`lintChange`), el cierre (`closeChange`) y la extensión la usan.
+  Alias de artefactos legacy: `explore.md` cuenta como scope+map y `apply.md`
+  como design, de modo que `ein_sdd_status`/`ein_sdd_check`/`/ein:sdd-close`
+  funcionan sobre trabajo existente sin migrar ficheros.
+
+### Fixed
+
+- **Guardrails: negación de entrega POR VERBO/CLÁUSULA, no por texto.**
+  Antes cualquier negación ("…pero no hagas merge") cancelaba TODO el texto y
+  el push/PR legítimo quedaba sin grant → bloqueo headless y retry-loop.
+  Ahora solo se descarta el verbo negado (negador a ≤16 chars, sin cruzar
+  comas): "abre PR pero no hagas merge" emite el grant del PR. En el mensaje
+  del usuario (`messageRequestsDelivery`) la negación sigue vetando la
+  autorización automática (conservador), pero acotada por cláusula: "no rompas
+  nada, haz push" ya autoriza.
+- **Guardrails: `push` a secas ya no emite grant.** "implementa push
+  notifications" abría una ventana de 10 min en la que cualquier `git push`
+  headless pasaba sin confirmación. Ahora la task debe nombrar la entrega con
+  contexto (`git push`, `haz push`, `push the branch`, `push to origin`,
+  `pushea`, orden completa "push") — mismo criterio que documenta el
+  orquestador para re-delegar.
+
 ## [0.13.5] - 2026-07-01
 
 ### Fixed
