@@ -5,7 +5,7 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
-## [Unreleased]
+## [0.14.0] - 2026-07-02
 
 ### Changed
 

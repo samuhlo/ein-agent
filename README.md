@@ -203,8 +203,8 @@ ein-agent/
 ```bash
 ein update                          # backup + redeploy + actualiza pi (conserva tu estado)
 
-git tag installer-v0.13.5           # publicar release
-git push origin installer-v0.13.5   # GitHub Actions compila 4 binarios + checksums
+git tag installer-v0.14.0           # publicar release
+git push origin installer-v0.14.0   # GitHub Actions compila 4 binarios + checksums
 ```
 
 > **Validación local** (opcional, antes de publicar):
