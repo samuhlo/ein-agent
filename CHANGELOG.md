@@ -5,6 +5,43 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.15.0] - 2026-07-02
+
+### Added
+
+- **Backups v2 del instalador.** Snapshots comprimidos (`.tar.gz`) con sidecar
+  de metadatos, dedup por hash de contenido (si el árbol no cambió, no se crea
+  otro backup), poda automática conservando los 5 más recientes y pins
+  (`ein restore --pin/--unpin <nombre>`) que la poda respeta. Los backups
+  legacy (directorio) siguen listándose y restaurándose. Los backups ya **no
+  incluyen `auth.json`** (ni `bin/` ni `disabled-skill-conflicts/`): restaurar
+  un backup antiguo nunca pisa credenciales actuales — antes sí podía.
+- **Rollback automático.** `ein install` (sobre un árbol existente) y
+  `ein update` snapshotean antes del deploy y, si la extracción falla a
+  medias (el deploy limpia los dirs del template antes de extraer), restauran
+  solos el estado anterior.
+- **`--dry-run`** en `ein install` y `ein update`: muestra el plan completo
+  (deps a instalar, backup, contenido del template, pasos restantes) sin
+  ejecutar nada.
+- **`template-manifest.json`** generado por el bundler dentro del tarball:
+  describe exactamente qué agentes/chains/extensiones lleva el bundle. Lo
+  consumen `ein doctor` (valida lo desplegado contra lo distribuido, sin
+  listas cableadas) y `--dry-run` (lo lee del binario sin desplegar).
+- **E2E real en Docker** (`e2e/docker-test.sh` + workflow manual `e2e`):
+  instala Ein en un Ubuntu limpio (bun + pi desde la red), verifica doctor,
+  reinstalación con backup y dry-runs.
+
+### Changed
+
+- **Reorganización del repo: `ein-pi/core/` (portable) vs `ein-pi/agent/`
+  (runtime Pi).** `agents/`, `skills/`, `prompts/`, `docs/` y `AGENTS.md` viven
+  ahora en `core/`; `extensions/`, `lib/`, `chains/`, `assets/` y los JSON de
+  runtime siguen en `agent/`. El bundler compone ambas raíces y el layout
+  desplegado en `~/.pi/agent` no cambia (Pi lo espera plano). `assets/` se
+  queda en runtime porque `lib/persona.ts` y `lib/sdd-preflight.ts` lo leen
+  relativo al módulo; migrará a `core/` cuando esa lógica se extraiga al CLI.
+  Preparación para adapters no-Pi (OpenCode) sin tocar comportamiento.
+
 ## [0.14.6] - 2026-07-02
 
 ### Added
