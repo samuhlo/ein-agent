@@ -505,3 +505,77 @@ export function aggregateSddBudget(summaries: SddChangeSummary[]): SddBudgetAggr
 	}
 	return { allocated, consumed, changesWithBudget };
 }
+
+export type SddRealCostAgent = {
+	agent: string;
+	runs: number;
+	tokens: number;
+	costUsd: number;
+};
+
+export type SddRealCost = {
+	runs: number;
+	inputTokens: number;
+	outputTokens: number;
+	costUsd: number;
+	durationMs: number;
+	byAgent: SddRealCostAgent[];
+	problems: string[];
+};
+
+// Coste REAL de inferencia de los runs de subagentes de un cambio, leído de los
+// meta.json que pi-subagents escribe en `.pi-subagents/artifacts/`. El "budget"
+// del ledger de fase mide tokens ESTIMADOS de lectura — otra magnitud; sin esto
+// un flujo que quema 400k+ tokens reales se reporta como "consumed≈9000".
+// Atribución determinista: el `task` de cada run menciona el nombre del cambio.
+export function readSddRealCost(cwd: string, change: string): SddRealCost {
+	const out: SddRealCost = { runs: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, durationMs: 0, byAgent: [], problems: [] };
+	const dir = join(cwd, ".pi-subagents", "artifacts");
+	if (!existsSync(dir)) return out;
+
+	let files: string[] = [];
+	try {
+		files = readdirSync(dir).filter((file) => file.endsWith("_meta.json"));
+	} catch {
+		out.problems.push(".pi-subagents/artifacts no se pudo listar; coste real no disponible.");
+		return out;
+	}
+
+	const byAgent = new Map<string, SddRealCostAgent>();
+	for (const file of files) {
+		let meta: {
+			agent?: unknown;
+			task?: unknown;
+			usage?: { input?: unknown; output?: unknown; cost?: unknown };
+			durationMs?: unknown;
+		};
+		try {
+			meta = JSON.parse(readFileSync(join(dir, file), "utf8")) as typeof meta;
+		} catch {
+			out.problems.push(`${file} ilegible; excluido del coste real.`);
+			continue;
+		}
+		if (typeof meta.agent !== "string" || typeof meta.task !== "string") continue;
+		if (!meta.task.includes(change)) continue;
+
+		const input = typeof meta.usage?.input === "number" ? meta.usage.input : 0;
+		const output = typeof meta.usage?.output === "number" ? meta.usage.output : 0;
+		const cost = typeof meta.usage?.cost === "number" ? meta.usage.cost : 0;
+		const duration = typeof meta.durationMs === "number" ? meta.durationMs : 0;
+
+		out.runs += 1;
+		out.inputTokens += input;
+		out.outputTokens += output;
+		out.costUsd += cost;
+		out.durationMs += duration;
+
+		const entry = byAgent.get(meta.agent) ?? { agent: meta.agent, runs: 0, tokens: 0, costUsd: 0 };
+		entry.runs += 1;
+		entry.tokens += input + output;
+		entry.costUsd += cost;
+		byAgent.set(meta.agent, entry);
+	}
+
+	out.byAgent = [...byAgent.values()].sort((a, b) => b.tokens - a.tokens);
+	return out;
+}

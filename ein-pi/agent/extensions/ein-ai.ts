@@ -57,7 +57,7 @@ import {
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
-import { aggregateSddBudget, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddStatus, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddStatus, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
 import { closeChange } from "../lib/sdd-close.ts";
 import {
 	codeConventionSkillBlock,
@@ -205,7 +205,28 @@ function compactBudget(budget: SddChangeStatus["budget"]): string {
 	return `allocated=${budget.allocated ?? "unknown"} · consumed=${budget.consumed ?? "unknown"}`;
 }
 
-function formatSddStatus(status: SddChangeStatus, active: string[]): string {
+function compactTokens(n: number): string {
+	return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+}
+
+// El budget del ledger son tokens ESTIMADOS de lectura; esto es consumo real
+// de inferencia leído de los meta.json de pi-subagents. Se muestran ambos para
+// que "consumed≈9000" no esconda un flujo de 400k tokens reales.
+function compactRealCost(realCost: SddRealCost): string[] {
+	if (realCost.runs === 0) {
+		return [`${t("sdd-status.real-cost", "real cost")}: ${t("sdd-status.real-cost-none", "no run metadata (.pi-subagents/artifacts)")}`];
+	}
+	const minutes = Math.round(realCost.durationMs / 60000);
+	const lines = [
+		`${t("sdd-status.real-cost", "real cost")}: ${realCost.runs} runs · in ${compactTokens(realCost.inputTokens)} · out ${compactTokens(realCost.outputTokens)} · $${realCost.costUsd.toFixed(2)} · ${minutes}min`,
+	];
+	if (realCost.byAgent.length > 0) {
+		lines.push(`${t("sdd-status.real-cost-by-agent", "by agent")}: ${realCost.byAgent.map((entry) => `${entry.agent} ${compactTokens(entry.tokens)}`).join(" · ")}`);
+	}
+	return lines;
+}
+
+function formatSddStatus(status: SddChangeStatus, active: string[], realCost?: SddRealCost): string {
 	const lines = ["/// 000. SDD STATUS", ""];
 	if (!status.change) {
 		lines.push("- " + t("sdd-status.none", "No active SDD changes in openspec/changes/."));
@@ -225,8 +246,9 @@ function formatSddStatus(status: SddChangeStatus, active: string[]): string {
 	lines.push(`${t("sdd-status.tasks", "tasks")}: status=${status.tasks.status ?? "absent"} · ready=${status.tasks.counts.ready} · blocked=${status.tasks.counts.blocked} · pending=${status.tasks.counts.pending} · done=${status.tasks.counts.done}`);
 	if (status.tasks.blockedBy) lines.push(`${t("sdd-status.blocked-by", "blocked_by")}: ${status.tasks.blockedBy}`);
 	lines.push(`${t("sdd-status.budget", "budget")}: ${compactBudget(status.budget)}`);
+	if (realCost) lines.push(...compactRealCost(realCost));
 
-	const problems = [...status.tasks.problems, ...status.budget.problems];
+	const problems = [...status.tasks.problems, ...status.budget.problems, ...(realCost?.problems ?? [])];
 	if (status.blocked.length || problems.length) {
 		lines.push("", `■ ${t("sdd-status.blocked", "blockers")}:`);
 		for (const b of status.blocked) lines.push(`- ${b}`);
@@ -657,7 +679,8 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const status = resolveSddStatus(ctx.cwd, params?.change);
 			const active = listActiveChanges(ctx.cwd);
-			return { content: [{ type: "text", text: formatSddStatus(status, active) }], details: { status, activeChanges: active } };
+			const realCost = status.change ? readSddRealCost(ctx.cwd, status.change) : undefined;
+			return { content: [{ type: "text", text: formatSddStatus(status, active, realCost) }], details: { status, activeChanges: active, realCost } };
 		},
 	});
 
@@ -688,7 +711,8 @@ export default function einAi(pi: ExtensionAPI): void {
 			const change = raw.trim() || undefined;
 			const s = resolveSddStatus(ctx.cwd, change);
 			const active = listActiveChanges(ctx.cwd);
-			ctx.ui.notify(formatSddStatus(s, active), s.blocked.length ? "warning" : "info");
+			const realCost = s.change ? readSddRealCost(ctx.cwd, s.change) : undefined;
+			ctx.ui.notify(formatSddStatus(s, active, realCost), s.blocked.length ? "warning" : "info");
 		},
 	});
 

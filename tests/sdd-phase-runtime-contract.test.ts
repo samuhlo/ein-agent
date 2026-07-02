@@ -81,11 +81,34 @@ describe("P3: veredictos de acceptance de pi-subagents", () => {
     }
   });
 
-  test("apply/verify mantienen acceptance en auto (rejected ahí es señal)", () => {
+  test("sdd-apply se delega con verificación runtime (level verified + verify commands)", () => {
     const acceptanceBlock = orch.slice(orch.indexOf("Acceptance verdicts"));
-    expect(acceptanceBlock).toContain("sdd-apply");
+    expect(acceptanceBlock).toContain('level: "verified"');
+    expect(acceptanceBlock).toMatch(/verify: \[\{ id: "tests"/);
+    // Los comandos salen de la config real del proyecto, no inventados.
+    expect(acceptanceBlock).toContain("testing.runner");
+    // Nunca un build de producción en el acceptance del apply.
+    expect(acceptanceBlock).toMatch(/NEVER a production build/);
+  });
+
+  test("los applies mecánicos llevan acceptance none (verified/checked exigen tests-added)", () => {
+    const acceptanceBlock = orch.slice(orch.indexOf("Acceptance verdicts"));
+    expect(acceptanceBlock).toMatch(/mechanical[^\n]*non-behavioral/i);
+    expect(acceptanceBlock).toContain('reason: "mechanical apply');
+    expect(acceptanceBlock).toContain("tests-added");
+  });
+
+  test("sdd-verify mantiene acceptance en auto (verificar ya es su trabajo)", () => {
+    const acceptanceBlock = orch.slice(orch.indexOf("Acceptance verdicts"));
     expect(acceptanceBlock).toContain("sdd-verify");
     expect(acceptanceBlock.toLowerCase()).toContain("auto");
+  });
+
+  test("sdd-apply conoce el contrato de verificación runtime y prohíbe amañarlo", () => {
+    const apply = read("agents/sdd-apply.md");
+    expect(apply).toContain("Runtime Acceptance Verification");
+    expect(apply).toContain("acceptance-report");
+    expect(apply.toLowerCase()).toMatch(/do not game it/);
   });
 
   test("el loop se rutea por ein_sdd_status/ein_sdd_check, nunca por el veredicto", () => {

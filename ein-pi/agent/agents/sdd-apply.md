@@ -79,6 +79,14 @@ Include:
 - deviations from design;
 - remaining tasks.
 
+## Runtime Acceptance Verification
+
+The parent normally delegates you with `acceptance: { level: "verified", verify: [...] }`: after you return, the RUNNER re-executes those verify commands (test runner, type-check) itself and REJECTS the run if they fail. Consequences:
+
+- Leave the working tree in a state where the verify commands pass — "tests pass" is checked mechanically, not taken from your report.
+- ALWAYS end with the fenced `acceptance-report` block the injected Acceptance Contract describes, with honest evidence (changed files, tests added/updated, commands you actually ran with real results, validation output, residual risks). A missing or embellished report rejects the run.
+- If you genuinely cannot make the verification pass within scope, do not game it (skipping tests, loosening assertions): return `status: blocked` with the failing output — a rejected honest run beats a green lie.
+
 ## Ad-hoc apply (no chain / no change dir)
 
 When the parent delegates a single bounded change OUTSIDE the SDD chain — no `design.md`, no `openspec/changes/{change}/` — return your report **INLINE** in the phase envelope. Do **NOT** write any report or progress file into the repository: a scratch `*.md` in the user's working tree pollutes it and forces a second apply just to delete it. The in-repo artifact convention is reserved for real chain runs under `openspec/changes/`. (If the parent already pinpointed the exact edit, just apply that patch and run the requested focused tests — don't re-scan the tree to re-derive what you were handed.)

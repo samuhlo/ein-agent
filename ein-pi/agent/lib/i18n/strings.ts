@@ -61,6 +61,9 @@ const EN: Record<string, string> = {
 	"sdd-status.none": "No active SDD changes in openspec/changes/.",
 	"sdd-status.all-active": "{0} active",
 	"sdd-status.no-active": "none",
+	"sdd-status.real-cost": "real cost",
+	"sdd-status.real-cost-none": "no run metadata (.pi-subagents/artifacts)",
+	"sdd-status.real-cost-by-agent": "by agent",
 
 	// ── /ein:status SDD summary ──
 	"status.sdd.active": "active change",
@@ -353,6 +356,9 @@ const ES: Record<string, string> = {
 	"sdd-status.none": "No hay cambios SDD activos en openspec/changes/.",
 	"sdd-status.all-active": "{0} activos",
 	"sdd-status.no-active": "ninguno",
+	"sdd-status.real-cost": "coste real",
+	"sdd-status.real-cost-none": "sin metadata de runs (.pi-subagents/artifacts)",
+	"sdd-status.real-cost-by-agent": "por agente",
 
 	// ── /ein:status SDD summary ──
 	"status.sdd.active": "cambio activo",

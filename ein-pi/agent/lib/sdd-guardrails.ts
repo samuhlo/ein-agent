@@ -292,6 +292,7 @@ function sequenceIssues(phases: ChangeLintReport["phases"]): GuardrailIssue[] {
 export function lintChange(cwd: string, change: string): ChangeLintReport {
 	const base = join(resolveChangesDir(cwd), change);
 	const phases: ChangeLintReport["phases"] = [];
+	const provenanceIssues: GuardrailIssue[] = [];
 	let errors = 0;
 	let warnings = 0;
 	for (const phase of Object.keys(PHASE_ARTIFACT) as SddPhase[]) {
@@ -306,12 +307,21 @@ export function lintChange(cwd: string, change: string): ChangeLintReport {
 		} catch {
 			content = "";
 		}
+		// Procedencia: el parent lo persistió por fallback, no el executor de
+		// fase — no invalida el artefacto, pero verify/review deben saberlo.
+		if (/^\s*authored_by\s*[:=]\s*parent-fallback\b/im.test(content)) {
+			provenanceIssues.push({
+				level: "warning",
+				code: `provenance-parent-fallback-${phase}`,
+				message: `${PHASE_ARTIFACT[phase]} fue persistido por el parent (authored_by: parent-fallback), no por el executor de fase; revisar con atencion extra.`,
+			});
+		}
 		const report = lintPhaseArtifact(phase, content);
 		errors += report.errors;
 		warnings += report.warnings;
 		phases.push({ phase, present: true, report });
 	}
-	const issues = sequenceIssues(phases);
+	const issues = [...sequenceIssues(phases), ...provenanceIssues];
 	errors += issues.filter((issue) => issue.level === "error").length;
 	warnings += issues.filter((issue) => issue.level === "warning").length;
 	return { change, ok: errors === 0, errors, warnings, issues, phases };
