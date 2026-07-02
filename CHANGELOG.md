@@ -5,6 +5,53 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.14.5] - 2026-07-02
+
+### Fixed
+
+- **`sdd-map` ya no puede interbloquearse pidiendo permiso para escribir su
+  artefacto.** Su contrato era autocontradictorio: una línea ordenaba
+  "Write map notes to `map.md`" y otra decía que la chain lo captura — con
+  tools `read, grep, glob` (sin write). En un run real el agente escaló al
+  supervisor vía intercom, la reply nunca le llegó (los hijos no interactivos
+  no reciben replies mid-run) y el padre acabó escribiendo `map.md` a mano.
+  Nuevo **Artifact Persistence Contract** en `sdd-map.md`: el RUNNER persiste
+  el artefacto (step de chain con `outputMode: file-only`, o `output` +
+  `outputMode` pasados por el padre en modo fase a fase) y el agente emite
+  SIEMPRE su output final como el contenido completo listo-para-persistir;
+  la falta de write tool es intencional, no un bloqueo.
+- **Falsos `acceptance: rejected` en fases de planificación.** `pi-subagents`
+  infiere el nivel de acceptance del texto de la task y exige un
+  `acceptance-report` con evidencias con forma de código (changed-files,
+  tests-added, commands-run) que un artefacto de planificación no puede
+  satisfacer — scope/design/tasks salían `rejected` con artefactos perfectos.
+  Nueva regla en `orchestrator.md`: fases de planificación (`scope`, `map`,
+  `design`, `tasks`, `close`) se delegan con `acceptance: { level: "none",
+  reason: ... }` porque `ein_sdd_check` es el gate determinista real;
+  `apply`/`verify` mantienen auto (ahí un `rejected` es señal); y el loop SDD
+  NUNCA se rutea por el veredicto de acceptance, siempre por
+  `ein_sdd_status` + `ein_sdd_check`.
+
+### Changed
+
+- **Fail-fast en los 7 agentes de fase SDD.** Todos los `sdd-*.md` prohíben
+  bloquearse en asks de supervisor/intercom (un hijo no interactivo no puede
+  recibir la reply): ante un bloqueo devuelven inmediatamente
+  `status: blocked` con la causa concreta y qué debe arreglar el padre.
+- **`orchestrator.md`: asks de intercom bajo sospecha.** El runtime puede
+  entregar un ask minutos después de que su run terminara. Antes de actuar
+  sobre CUALQUIER ask: `intercom pending` + realidad (`ein_sdd_status` /
+  artefacto en disco); si ya está resuelto se ignora — nunca se rehace una
+  fase por un ask tardío. Y al delegar `sdd-map` directo, pasar siempre
+  `output` + `outputMode: "file-only"`; si aun así falta el artefacto, se
+  persiste desde el envelope/`_output.md`, sin re-runs ni bucles de polling.
+
+### Added
+
+- **`tests/sdd-phase-runtime-contract.test.ts`** (17 casos): pinnea el
+  contrato de persistencia de `sdd-map`, la regla fail-fast en los 7 agentes
+  y las reglas de acceptance del orquestador.
+
 ## [0.14.0] - 2026-07-02
 
 ### Changed
