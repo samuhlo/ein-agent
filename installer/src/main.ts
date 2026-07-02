@@ -21,9 +21,11 @@ function printHelp(): void {
   console.log("  install      instala/actualiza Ein (checks + deploy + secrets)");
   console.log("  update       actualiza Ein y pi a la ultima version");
   console.log("  uninstall    elimina Ein (conserva secrets/auth.json)");
-  console.log("  restore      restaura desde un backup");
+  console.log("  restore      restaura desde un backup (--pin/--unpin <nombre>)");
   console.log("  doctor       diagnostico del despliegue (sin lanzar pi)");
   console.log("  --version    version del instalador");
+  console.log("");
+  console.log("flags: --yes --dry-run --no-engram --no-secrets --no-linear");
 }
 
 async function main(): Promise<number> {

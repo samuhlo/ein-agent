@@ -14,8 +14,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
+const CORE = join(import.meta.dir, "../ein-pi/core");
 const orchestrator = readFileSync(join(AGENT, "assets/orchestrator.md"), "utf8");
-const sddApply = readFileSync(join(AGENT, "agents/sdd-apply.md"), "utf8");
+const sddApply = readFileSync(join(CORE, "agents/sdd-apply.md"), "utf8");
 
 describe("apply ad-hoc no escribe report en el repo", () => {
 	test("el orquestador prohíbe `output`/ruta inventada en apply ad-hoc", () => {

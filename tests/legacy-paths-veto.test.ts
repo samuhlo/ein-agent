@@ -66,17 +66,34 @@ function collectFiles(root: string, extensions: Set<string>): string[] {
 }
 
 describe("estructura canónica de ein-pi", () => {
-	test("el bundler empaqueta ein-pi/agent como SOURCE", () => {
+	test("el bundler compone ein-pi/core + ein-pi/agent como fuentes", () => {
 		const content = readRepoFile("installer/scripts/bundle-template.ts");
 
-		expect(content).toContain('const SOURCE = join(REPO_ROOT, "ein-pi", "agent")');
+		expect(content).toContain('const CORE_SOURCE = join(REPO_ROOT, "ein-pi", "core")');
+		expect(content).toContain('const AGENT_SOURCE = join(REPO_ROOT, "ein-pi", "agent")');
 	});
 
-	test("README declara ein-pi/agent/ como fuente canónica", () => {
+	test("README declara core/ + agent/ como fuente canónica", () => {
 		const content = readRepoFile("README.md");
 
-		expect(content).toContain("La fuente canónica del workbench vive en `ein-pi/agent/`");
-		expect(content).toContain("`ein-pi/agent/` es la única fuente versionada del workbench");
+		expect(content).toContain("`ein-pi/core/` (contenido portable, agnóstico del runtime)");
+		expect(content).toContain(
+			"`ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench",
+		);
+	});
+
+	test("el corte portable/runtime es el declarado", () => {
+		// core/: contenido portable; agent/: runtime Pi. Si un dir cambia de lado,
+		// este test obliga a actualizar bundler, README y la decisión consciente.
+		for (const dir of ["agents", "docs", "prompts", "skills"]) {
+			expect(existsSync(join(REPO_ROOT, "ein-pi", "core", dir))).toBe(true);
+			expect(existsSync(join(REPO_ROOT, "ein-pi", "agent", dir))).toBe(false);
+		}
+		for (const dir of ["assets", "chains", "extensions", "lib"]) {
+			expect(existsSync(join(REPO_ROOT, "ein-pi", "agent", dir))).toBe(true);
+			expect(existsSync(join(REPO_ROOT, "ein-pi", "core", dir))).toBe(false);
+		}
+		expect(existsSync(join(REPO_ROOT, "ein-pi", "core", "AGENTS.md"))).toBe(true);
 	});
 
 	test("las rutas legacy borradas no existen en el repo", () => {
@@ -91,6 +108,7 @@ describe("estructura canónica de ein-pi", () => {
 			...collectFiles("installer", new Set([".ts"])),
 			...collectFiles("tests", new Set([".ts"])),
 			...collectFiles(join("ein-pi", "agent"), new Set([".ts", ".md", ".json"])),
+			...collectFiles(join("ein-pi", "core"), new Set([".ts", ".md", ".json"])),
 		].filter((path) => path !== THIS_FILE);
 
 		const offenders = files.flatMap((path) => {

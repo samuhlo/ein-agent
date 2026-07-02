@@ -1,0 +1,20 @@
+# =============================================================================
+# E2E: Ubuntu limpio para probar el instalador de verdad.
+# La imagen solo lleva las dependencias base de un usuario normal; el binario
+# `ein` se monta en runtime (docker-test.sh) para no reconstruir la imagen en
+# cada build del instalador.
+# =============================================================================
+
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl git unzip tar gzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Usuario normal: el instalador escribe en ~/.pi, ~/.bun y el rc del shell,
+# igual que en una maquina real. Nada de root.
+RUN useradd -m -s /bin/bash dev
+USER dev
+WORKDIR /home/dev
+
+ENTRYPOINT ["/bin/bash"]

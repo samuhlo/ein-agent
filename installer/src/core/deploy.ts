@@ -29,6 +29,34 @@ import {
 // Re-export para consumidores existentes (y tests) sin acoplarlos al asset.
 export { mergeUserSettings, readUserSettings, type UserSettings };
 
+import type { TemplateManifest } from "./verify.ts";
+
+// Read template-manifest.json straight out of the embedded tarball, without
+// deploying anything. Powers `--dry-run` (show the plan) and lets callers know
+// what this binary would ship. Entries were tarred as "./name", so try both
+// member spellings (GNU tar matches literally; bsdtar is lenient).
+export async function readBundledManifest(): Promise<TemplateManifest | null> {
+  const bytes = await Bun.file(templateTarball).arrayBuffer();
+  const staging = mkdtempSync(join(tmpdir(), "ein-manifest-"));
+  try {
+    const stagedTar = join(staging, "template.tar.gz");
+    writeFileSync(stagedTar, new Uint8Array(bytes));
+    for (const member of ["./template-manifest.json", "template-manifest.json"]) {
+      const result = await run("tar", ["-xzOf", stagedTar, member]);
+      if (result.ok && result.stdout) {
+        try {
+          return JSON.parse(result.stdout) as TemplateManifest;
+        } catch {
+          return null;
+        }
+      }
+    }
+    return null;
+  } finally {
+    rmSync(staging, { recursive: true, force: true });
+  }
+}
+
 export type DeployOptions = {
   // skipLinear opts out of Linear → sets the default work mode to "solo".
   // We no longer DELETE ein-linear files (that was destructive + incoherent);

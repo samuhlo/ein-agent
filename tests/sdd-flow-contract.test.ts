@@ -9,7 +9,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
-const read = (p: string) => readFileSync(join(AGENT, p), "utf8");
+const CORE = join(import.meta.dir, "../ein-pi/core");
+// Contenido portable (agents/, AGENTS.md) vive en core/; el runtime Pi
+// (assets/, lib/, extensions/) sigue en agent/.
+const read = (p: string) =>
+	readFileSync(join(p.startsWith("agents/") || p === "AGENTS.md" ? CORE : AGENT, p), "utf8");
 
 describe("orchestrator: flujo por fases determinista", () => {
 	const orch = read("assets/orchestrator.md");

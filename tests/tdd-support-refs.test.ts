@@ -12,8 +12,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
-const apply = readFileSync(join(AGENT, "agents/sdd-apply.md"), "utf8");
-const verify = readFileSync(join(AGENT, "agents/sdd-verify.md"), "utf8");
+const CORE = join(import.meta.dir, "../ein-pi/core");
+const apply = readFileSync(join(CORE, "agents/sdd-apply.md"), "utf8");
+const verify = readFileSync(join(CORE, "agents/sdd-verify.md"), "utf8");
 
 describe("sin referencias colgantes a support guidance global", () => {
 	test("sdd-apply no referencia 'global EIN strict-TDD support guidance'", () => {

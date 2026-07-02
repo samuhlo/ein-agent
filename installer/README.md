@@ -21,7 +21,21 @@ ein uninstall  # elimina Ein (conserva auth.json/secrets/sessions)
 ein restore    # restaura desde un backup
 ```
 
-Flags: `--yes` (no interactivo), `--no-engram`, `--no-secrets`.
+Flags: `--yes` (no interactivo), `--dry-run` (muestra el plan sin ejecutar nada),
+`--no-engram`, `--no-secrets`, `--no-linear`.
+
+## Backups
+
+Cada `install` (sobre un árbol existente), `update`, `uninstall` y `restore` crea
+antes un snapshot comprimido (`.tar.gz`) en `~/.pi/agent/backups/installer/`:
+
+- **Dedup**: si el árbol no cambió desde el último backup, no se crea otro.
+- **Poda**: se conservan los 5 más recientes; `ein restore --pin <nombre>` protege
+  uno de la poda (`--unpin` lo libera).
+- **Rollback automático**: si el deploy falla a medias, `install`/`update` restauran
+  solos el snapshot previo.
+- Los backups excluyen estado regenerable y de usuario (`auth.json`, `sessions/`,
+  `npm/`, `skills/downloaded/`): restaurar nunca pisa tus credenciales.
 
 ## Qué hace `ein install`
 
@@ -41,13 +55,17 @@ Nunca toca `auth.json`, `sessions/` ni `backups/`.
 bun install
 bun run dev               # ejecuta sin compilar
 bun run typecheck
-bun run bundle-template   # genera src/assets/template.tar.gz desde ../ein-pi/agent
+bun run bundle-template   # genera src/assets/template.tar.gz desde ../ein-pi/{core,agent}
 bun run build:all         # compila los 4 binarios en dist/
 bun run build:all linux-x64   # un solo target
+./e2e/docker-test.sh      # e2e real: install → doctor en un Ubuntu limpio (Docker)
 ```
 
-El contenido de Ein se empaqueta desde `../.pi/agent` con una allowlist (sin secrets,
-runtime ni node_modules) y se embebe en el binario vía `bun build --compile`.
+El contenido de Ein se empaqueta componiendo `../ein-pi/core` (assets portables) y
+`../ein-pi/agent` (runtime Pi) con una allowlist (sin secrets, runtime ni
+node_modules), más un `template-manifest.json` generado que describe el contenido
+exacto (lo consumen `ein doctor` y `--dry-run`). Todo se embebe en el binario vía
+`bun build --compile`.
 
 ## Release
 

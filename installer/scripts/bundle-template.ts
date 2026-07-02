@@ -1,6 +1,10 @@
 // =============================================================================
 // BUNDLE TEMPLATE
-// Builds src/assets/template.tar.gz from ../ein-pi/agent.
+// Builds src/assets/template.tar.gz composing two source roots:
+//   ein-pi/core/  — portable assets (agent prompts, skills, docs, prompts)
+//   ein-pi/agent/ — Pi runtime (extensions, lib, chains, assets, configs)
+// The DEPLOYED layout stays flat under ~/.pi/agent (Pi expects it); the split
+// only exists repo-side so a future non-Pi adapter can consume core/ as-is.
 // - allowlist of Ein-owned content (never secrets/runtime/binaries)
 // - JSON-aware tokenization of mcp.json + settings.json into {{TOKENS}}
 // Run: bun run bundle-template
@@ -11,8 +15,10 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -22,14 +28,17 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = dirname(HERE);
 const REPO_ROOT = dirname(INSTALLER_ROOT);
-const SOURCE = join(REPO_ROOT, "ein-pi", "agent");
+const CORE_SOURCE = join(REPO_ROOT, "ein-pi", "core");
+const AGENT_SOURCE = join(REPO_ROOT, "ein-pi", "agent");
 const OUT = join(INSTALLER_ROOT, "src", "assets", "template.tar.gz");
 
-// Ein-owned content. Everything else (auth.json, npm/, sessions/, backups/,
-// .atl/, .piagents/, .sdd/, bin/, disabled-skill-conflicts/, run-history) is
-// intentionally left out.
-const INCLUDE_FILES = ["AGENTS.md", "brand.json", "extensions-manifest.json", "models.json", "mcp.json", "settings.json"];
-const INCLUDE_DIRS = ["agents", "assets", "chains", "docs", "extensions", "lib", "prompts", "skills", "themes"];
+// Ein-owned content per source root. Everything else (auth.json, npm/,
+// sessions/, backups/, .atl/, .piagents/, .sdd/, bin/,
+// disabled-skill-conflicts/, run-history) is intentionally left out.
+const CORE_FILES = ["AGENTS.md"];
+const CORE_DIRS = ["agents", "docs", "prompts", "skills"];
+const AGENT_FILES = ["brand.json", "extensions-manifest.json", "models.json", "mcp.json", "settings.json"];
+const AGENT_DIRS = ["assets", "chains", "extensions", "lib", "themes"];
 
 function tokenizeMcp(staging: string): void {
   const path = join(staging, "mcp.json");
@@ -55,41 +64,93 @@ function tokenizeSettings(staging: string): void {
   writeFileSync(path, `${JSON.stringify(cfg, null, 2)}\n`);
 }
 
+// template-manifest.json: qué contiene exactamente este bundle. Es la fuente
+// que consumen `ein doctor` (validar lo desplegado contra lo que se distribuyó,
+// sin listas cableadas) y `ein install --dry-run` (mostrar el plan). Se genera
+// escaneando el staging: no puede derivar del contenido real.
+function writeManifest(staging: string): void {
+  const pkg = JSON.parse(
+    readFileSync(join(INSTALLER_ROOT, "package.json"), "utf8"),
+  ) as { version?: string };
+
+  const listMd = (dir: string): string[] =>
+    existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".md")).sort() : [];
+
+  const topFiles: string[] = [];
+  const topDirs: string[] = [];
+  for (const entry of readdirSync(staging).sort()) {
+    if (statSync(join(staging, entry)).isDirectory()) topDirs.push(entry);
+    else topFiles.push(entry);
+  }
+
+  let extensions: string[] = [];
+  const extManifest = join(staging, "extensions-manifest.json");
+  if (existsSync(extManifest)) {
+    const parsed = JSON.parse(readFileSync(extManifest, "utf8")) as { core?: unknown };
+    if (Array.isArray(parsed.core)) extensions = (parsed.core as string[]).slice().sort();
+  }
+
+  const manifest = {
+    templateVersion: pkg.version ?? "0.0.0",
+    generatedAt: new Date().toISOString(),
+    agents: listMd(join(staging, "agents")),
+    chains: existsSync(join(staging, "chains"))
+      ? readdirSync(join(staging, "chains")).sort()
+      : [],
+    extensions,
+    topLevelDirs: topDirs,
+    topLevelFiles: [...topFiles, "template-manifest.json"].sort(),
+  };
+  writeFileSync(join(staging, "template-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+function copyInto(sourceRoot: string, staging: string, files: string[], dirs: string[]): void {
+  for (const file of files) {
+    const src = join(sourceRoot, file);
+    if (!existsSync(src)) {
+      console.warn(`[warn] falta archivo esperado: ${file}`);
+      continue;
+    }
+    cpSync(src, join(staging, file));
+  }
+  for (const dir of dirs) {
+    const src = join(sourceRoot, dir);
+    if (!existsSync(src)) {
+      console.warn(`[warn] falta dir esperado: ${dir}`);
+      continue;
+    }
+    cpSync(src, join(staging, dir), { recursive: true });
+  }
+}
+
 async function main(): Promise<void> {
-  if (!existsSync(SOURCE)) {
-    throw new Error(`No existe el source del template: ${SOURCE}`);
+  for (const source of [CORE_SOURCE, AGENT_SOURCE]) {
+    if (!existsSync(source)) {
+      throw new Error(`No existe el source del template: ${source}`);
+    }
   }
 
   const staging = mkdtempSync(join(tmpdir(), "ein-template-"));
   try {
-    for (const file of INCLUDE_FILES) {
-      const src = join(SOURCE, file);
-      if (!existsSync(src)) {
-        console.warn(`[warn] falta archivo esperado: ${file}`);
-        continue;
-      }
-      cpSync(src, join(staging, file));
-    }
-    for (const dir of INCLUDE_DIRS) {
-      const src = join(SOURCE, dir);
-      if (!existsSync(src)) {
-        console.warn(`[warn] falta dir esperado: ${dir}`);
-        continue;
-      }
-      cpSync(src, join(staging, dir), { recursive: true });
-    }
+    copyInto(CORE_SOURCE, staging, CORE_FILES, CORE_DIRS);
+    copyInto(AGENT_SOURCE, staging, AGENT_FILES, AGENT_DIRS);
 
     // assets/agents y assets/chains son la copia "de fábrica" que usa
     // installSddAssets para reparar instalaciones. Se generan aquí desde las
-    // fuentes (agents/, chains/) — única fuente de verdad, drift imposible.
-    for (const dir of ["agents", "chains"]) {
-      const src = join(SOURCE, dir);
+    // fuentes (core/agents, agent/chains) — única fuente de verdad, drift
+    // imposible.
+    for (const [root, dir] of [
+      [CORE_SOURCE, "agents"],
+      [AGENT_SOURCE, "chains"],
+    ] as const) {
+      const src = join(root, dir);
       if (!existsSync(src)) continue;
       cpSync(src, join(staging, "assets", dir), { recursive: true, force: true });
     }
 
     tokenizeMcp(staging);
     tokenizeSettings(staging);
+    writeManifest(staging);
 
     // src/assets/ holds only the generated tarball (gitignored), so the dir is
     // absent on a fresh checkout (CI). Ensure it exists before tar writes to it.
@@ -105,7 +166,7 @@ async function main(): Promise<void> {
 
     const size = Bun.file(OUT).size;
     console.log(`/// template empaquetado`);
-    console.log(`  origen:  ${SOURCE}`);
+    console.log(`  origen:  ${CORE_SOURCE} + ${AGENT_SOURCE}`);
     console.log(`  salida:  ${OUT}`);
     console.log(`  tamano:  ${(size / 1024 / 1024).toFixed(2)} MB`);
   } finally {

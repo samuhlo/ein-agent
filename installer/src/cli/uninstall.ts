@@ -19,6 +19,8 @@ const EIN_OWNED = [
   "models.json",
   "mcp.json",
   "settings.json",
+  "template-manifest.json",
+  "extensions-manifest.json",
   ".ein-install.json",
   "agents",
   "assets",
@@ -54,7 +56,8 @@ export async function runUninstall(args: string[]): Promise<number> {
   // 1. Backup first.
   const sBackup = p.spinner();
   sBackup.start("Creando backup antes de borrar");
-  const backupPath = snapshot("pre-uninstall");
+  const backup = await snapshot("pre-uninstall");
+  const backupPath = backup.path;
   sBackup.stop(backupPath ? `Backup: ${backupPath}` : "Sin backup");
 
   // 2. Remove Ein-owned entries.

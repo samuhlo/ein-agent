@@ -10,7 +10,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const SCOPE_MD = join(import.meta.dir, "../ein-pi/agent/agents/sdd-scope.md");
+const SCOPE_MD = join(import.meta.dir, "../ein-pi/core/agents/sdd-scope.md");
 const content = readFileSync(SCOPE_MD, "utf8");
 
 describe("sdd-scope.md budget contract", () => {

@@ -7,8 +7,8 @@
 import * as p from "@clack/prompts";
 import { existsSync } from "node:fs";
 import { detectPlatform } from "../core/platform.ts";
-import { snapshot } from "../core/backup.ts";
-import { deployTemplate } from "../core/deploy.ts";
+import { restoreBackup, snapshot } from "../core/backup.ts";
+import { deployTemplate, readBundledManifest } from "../core/deploy.ts";
 import { installDeclaredPackages, installPi } from "../core/deps.ts";
 import { runDoctor } from "../core/verify.ts";
 import { readMarker, writeMarker, latestInstallerTag, INSTALLER_VERSION } from "../core/version.ts";
@@ -31,17 +31,61 @@ export async function runUpdate(args: string[]): Promise<number> {
   const marker = readMarker();
   p.log.info(`Instalado: ${marker?.version ?? "desconocido"}  |  binario: ${INSTALLER_VERSION}`);
 
+  // Dry-run: show what would happen and exit without touching anything.
+  if (args.includes("--dry-run")) {
+    const manifest = await readBundledManifest();
+    const lines = [
+      "Plan (dry-run, no se ejecuta nada):",
+      `  1. Backup previo de ${AGENT_DIR} (tar.gz, dedup, conserva 5)`,
+      `  2. Redeploy del template en ${AGENT_DIR} (estado de usuario intacto)`,
+      manifest
+        ? `     template v${manifest.templateVersion}: ${manifest.agents?.length ?? 0} agentes, ${manifest.chains?.length ?? 0} chains, ${manifest.extensions?.length ?? 0} extensiones`
+        : "     (template sin manifest: binario antiguo)",
+      "  3. Actualizacion de pi (con confirmacion)",
+      "  4. Verificacion de paquetes Pi declarados",
+      "  5. Doctor de verificacion",
+    ];
+    p.log.message(lines.join("\n"));
+    p.outro("Dry-run completado. Ejecuta `ein update` para aplicar.");
+    return 0;
+  }
+
   // 1. Backup before touching anything.
   const sBackup = p.spinner();
   sBackup.start("Creando backup");
-  const backupPath = snapshot("pre-update");
-  sBackup.stop(backupPath ? `Backup: ${backupPath}` : "Sin backup (nada que copiar)");
+  const backup = await snapshot("pre-update");
+  sBackup.stop(
+    backup.path
+      ? `Backup: ${backup.path}${backup.deduped ? " (sin cambios, reutilizado)" : ""}${backup.pruned.length ? ` · podados ${backup.pruned.length} antiguos` : ""}`
+      : "Sin backup (nada que copiar)",
+  );
 
   // 2. Redeploy bundled template. User state (auth.json, secrets, sessions) is
-  // not in the tarball, so it survives untouched.
+  // not in the tarball, so it survives untouched. If the deploy dies mid-way
+  // (it wipes template dirs before extracting), roll back to the backup.
   const sDeploy = p.spinner();
   sDeploy.start("Redesplegando template Ein");
-  const deployed = await deployTemplate(platform);
+  let deployed;
+  try {
+    deployed = await deployTemplate(platform);
+  } catch (error) {
+    sDeploy.stop("Fallo el redeploy.");
+    p.log.error(error instanceof Error ? error.message : String(error));
+    if (backup.path) {
+      const sRb = p.spinner();
+      sRb.start("Restaurando el backup previo (rollback automatico)");
+      try {
+        await restoreBackup(backup.path);
+        sRb.stop("Estado anterior restaurado.");
+      } catch (rbError) {
+        sRb.stop("Fallo el rollback.");
+        p.log.error(rbError instanceof Error ? rbError.message : String(rbError));
+        p.log.warn(`Restaura a mano con \`ein restore\` (backup: ${backup.path}).`);
+      }
+    }
+    p.outro("Actualizacion abortada; el estado anterior se ha restaurado.");
+    return 1;
+  }
   sDeploy.stop(`Template actualizado (engram: ${deployed.engramFound ? deployed.engramCommand : "PATH"})`);
 
   // 3. Update pi to latest.

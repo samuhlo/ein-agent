@@ -10,8 +10,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
+const CORE = join(import.meta.dir, "../ein-pi/core");
 const orchestrator = readFileSync(join(AGENT, "assets/orchestrator.md"), "utf8");
-const einLinear = readFileSync(join(AGENT, "agents/ein-linear.md"), "utf8");
+const einLinear = readFileSync(join(CORE, "agents/ein-linear.md"), "utf8");
 
 describe("orchestrator Plan Gate", () => {
 	test("tiene la seccion Plan Gate", () => {

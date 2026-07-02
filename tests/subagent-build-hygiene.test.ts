@@ -12,8 +12,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
-const sddApply = readFileSync(join(AGENT, "agents/sdd-apply.md"), "utf8");
-const sddVerify = readFileSync(join(AGENT, "agents/sdd-verify.md"), "utf8");
+const CORE = join(import.meta.dir, "../ein-pi/core");
+const sddApply = readFileSync(join(CORE, "agents/sdd-apply.md"), "utf8");
+const sddVerify = readFileSync(join(CORE, "agents/sdd-verify.md"), "utf8");
 const orchestrator = readFileSync(join(AGENT, "assets/orchestrator.md"), "utf8");
 
 describe("sdd-apply no corre build de produccion como gate", () => {

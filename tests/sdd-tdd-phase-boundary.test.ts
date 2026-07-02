@@ -11,7 +11,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
-const read = (p: string) => readFileSync(join(AGENT, p), "utf8");
+const CORE = join(import.meta.dir, "../ein-pi/core");
+// Runtime Pi (assets/, lib/, extensions/) vive en agent/; el contenido
+// portable (agents/, AGENTS.md, skills/) vive en core/.
+const read = (p: string) =>
+	readFileSync(join(p.startsWith("agents/") || p === "AGENTS.md" ? CORE : AGENT, p), "utf8");
 
 describe("orchestrator: TDD forwarding distingue chain vs directo", () => {
 	const orch = read("assets/orchestrator.md");

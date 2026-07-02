@@ -14,7 +14,7 @@ import { join } from "node:path";
 
 const MAP_MD = join(
   import.meta.dir,
-  "../ein-pi/agent/agents/sdd-map.md",
+  "../ein-pi/core/agents/sdd-map.md",
 );
 const content = readFileSync(MAP_MD, "utf8");
 

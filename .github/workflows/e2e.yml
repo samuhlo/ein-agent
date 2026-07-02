@@ -1,0 +1,24 @@
+# E2E real del instalador en un Ubuntu limpio (Docker). Manual por diseño:
+# instala bun + pi desde la red dentro del contenedor, así que es más lento y
+# frágil que la CI normal — se lanza antes de publicar una release o cuando se
+# toca el instalador a fondo.
+name: e2e
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: E2E install en Docker (Ubuntu)
+        run: ./e2e/docker-test.sh

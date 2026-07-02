@@ -14,7 +14,10 @@ import {
   installGh,
   installPi,
 } from "../core/deps.ts";
-import { deployTemplate, type DeployOptions } from "../core/deploy.ts";
+import { deployTemplate, readBundledManifest, type DeployOptions } from "../core/deploy.ts";
+import { restoreBackup, snapshot } from "../core/backup.ts";
+import { existsSync } from "node:fs";
+import { AGENT_DIR } from "../core/paths.ts";
 import {
   ensureContext7Export,
   hasSecret,
@@ -32,6 +35,7 @@ export type InstallFlags = {
   noEngram: boolean;
   noSecrets: boolean;
   noLinear: boolean;
+  dryRun: boolean;
 };
 
 export function parseInstallFlags(args: string[]): InstallFlags {
@@ -40,6 +44,7 @@ export function parseInstallFlags(args: string[]): InstallFlags {
     noEngram: args.includes("--no-engram"),
     noSecrets: args.includes("--no-secrets"),
     noLinear: args.includes("--no-linear"),
+    dryRun: args.includes("--dry-run"),
   };
 }
 
@@ -77,7 +82,7 @@ export async function runInstall(args: string[]): Promise<number> {
   // (Linear as the board) is opt-in. The choice sets the global default mode;
   // ein-linear stays installed either way and can be toggled with /ein:mode.
   let skipLinear = true;
-  if (!flags.noLinear && !flags.yes) {
+  if (!flags.noLinear && !flags.yes && !flags.dryRun) {
     const teamMode = await p.confirm({
       message: "¿Activar modo Team (Linear como board de issues)? Por defecto: Solo (OpenSpec + git, sin Linear).",
       initialValue: false,
@@ -97,6 +102,30 @@ export async function runInstall(args: string[]): Promise<number> {
     (d) => `  ${d.present ? "✓" : "✗"} ${d.id.padEnd(8)} ${d.present ? (d.path ?? "") : `(falta) ${d.hint}`}`,
   );
   p.log.message(["Dependencias:", ...depLines].join("\n"));
+
+  // Dry-run: show the full plan (deps to install, deploy target, template
+  // contents, remaining steps) and exit without touching anything.
+  if (flags.dryRun) {
+    const manifest = await readBundledManifest();
+    const missing = deps.filter((d) => !d.present).map((d) => d.id);
+    const lines = [
+      "Plan (dry-run, no se ejecuta nada):",
+      `  1. Dependencias a instalar: ${missing.length ? missing.join(", ") : "ninguna (todo presente)"}`,
+      existsSync(AGENT_DIR)
+        ? `  2. Backup previo de ${AGENT_DIR} (tar.gz, dedup, conserva 5)`
+        : "  2. Sin backup previo (instalacion nueva)",
+      `  3. Deploy del template en ${AGENT_DIR}`,
+      manifest
+        ? `     template v${manifest.templateVersion}: ${manifest.agents?.length ?? 0} agentes, ${manifest.chains?.length ?? 0} chains, ${manifest.extensions?.length ?? 0} extensiones`
+        : "     (template sin manifest: binario antiguo)",
+      "  4. Instalacion de paquetes Pi declarados en settings.json",
+      flags.noSecrets ? "  5. Secrets: omitidos (--no-secrets)" : "  5. Wizard de secrets (opcional)",
+      "  6. Doctor de verificacion",
+    ];
+    p.log.message(lines.join("\n"));
+    p.outro("Dry-run completado. Ejecuta `ein install` para aplicar.");
+    return 0;
+  }
 
   // 2. Install required missing (bun, pi).
   const needBun = !deps.find((d) => d.id === "bun")?.present;
@@ -148,11 +177,46 @@ export async function runInstall(args: string[]): Promise<number> {
     }
   }
 
-  // 5. Deploy template (re-resolve engram after possible install).
+  // 5. Deploy template (re-resolve engram after possible install). On a
+  // repair/reinstall over an existing tree, snapshot first: the deploy wipes
+  // template-owned dirs before extracting, so a failure mid-way would leave
+  // the tree broken without a way back.
+  let rollbackPath: string | null = null;
+  if (existsSync(AGENT_DIR)) {
+    const sSnap = p.spinner();
+    sSnap.start("Backup previo del estado actual");
+    const snap = await snapshot("pre-install");
+    rollbackPath = snap.path;
+    sSnap.stop(
+      snap.path
+        ? `Backup: ${snap.path}${snap.deduped ? " (sin cambios, reutilizado)" : ""}`
+        : "Sin backup (nada que copiar)",
+    );
+  }
+
   const s = p.spinner();
   s.start("Desplegando Ein en ~/.pi/agent");
   const deployOpts: DeployOptions = { skipLinear };
-  const deployed = await deployTemplate(platform, deployOpts);
+  let deployed;
+  try {
+    deployed = await deployTemplate(platform, deployOpts);
+  } catch (error) {
+    s.stop("Fallo el deploy.");
+    p.log.error(error instanceof Error ? error.message : String(error));
+    if (rollbackPath) {
+      const sRb = p.spinner();
+      sRb.start("Restaurando el backup previo (rollback automatico)");
+      try {
+        await restoreBackup(rollbackPath);
+        sRb.stop("Estado anterior restaurado.");
+      } catch (rbError) {
+        sRb.stop("Fallo el rollback.");
+        p.log.error(rbError instanceof Error ? rbError.message : String(rbError));
+        p.log.warn(`Restaura a mano con \`ein restore\` (backup: ${rollbackPath}).`);
+      }
+    }
+    return fail("El deploy fallo; no se ha dejado el arbol a medias.");
+  }
   s.stop(
     `Ein desplegado (engram: ${deployed.engramFound ? deployed.engramCommand : "no resuelto, usando PATH"})`,
   );

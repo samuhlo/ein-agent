@@ -152,7 +152,9 @@ ein uninstall       # Elimina Ein (conserva auth, secrets, sesiones)
 ein restore         # Restaura desde un backup
 ```
 
-Flags: `--yes`, `--no-engram`, `--no-secrets`, `--no-linear` (arranca en modo Solo).
+Flags: `--yes`, `--dry-run` (muestra el plan sin ejecutar nada), `--no-engram`, `--no-secrets`, `--no-linear` (arranca en modo Solo).
+
+**Backups con red de seguridad.** Cada `install`/`update`/`uninstall`/`restore` snapshota antes en `~/.pi/agent/backups/installer/` (tar.gz): dedup si nada cambió, poda automática conservando los 5 más recientes (`ein restore --pin <nombre>` protege uno), y **rollback automático** si un deploy falla a medias. Los backups nunca incluyen `auth.json` ni sesiones — restaurar no pisa tus credenciales.
 
 ## // 012. DENTRO DE PI — `/ein:*`
 
@@ -182,29 +184,35 @@ Flags: `--yes`, `--no-engram`, `--no-secrets`, `--no-linear` (arranca en modo So
 
 ## // 013. ESTRUCTURA DEL REPO
 
-La fuente canónica del workbench vive en `ein-pi/agent/`. El installer la empaqueta y despliega en `~/.pi/agent` (destino instalado, no se edita desde el repo).
+La fuente canónica del workbench vive en `ein-pi/` con dos raíces: `ein-pi/core/` (contenido portable, agnóstico del runtime) y `ein-pi/agent/` (runtime de Pi). El installer las compone y despliega planas en `~/.pi/agent` (destino instalado, no se edita desde el repo) — Pi espera ese layout, así que el desplegado no cambia.
 
 ```
 ein-agent/
-├── ein-pi/agent/          # Fuente canónica del workbench
-│   ├── agents/            # SDD (7) + ein-linear + ein-git
-│   ├── chains/            # Cadena ein-sdd
-│   ├── extensions/        # Extensiones del runtime de Pi
-│   ├── lib/               # Lógica compartida (mode, persona, lang, modelos, guardrails…)
-│   ├── skills/            # Locales + bajadas curadas + mapa Context7
-│   ├── brand.json · mcp.json · settings.json
+├── ein-pi/
+│   ├── core/              # Portable: reutilizable por un futuro adapter no-Pi
+│   │   ├── agents/        # SDD (7) + ein-linear + ein-git (prompts de fase)
+│   │   ├── skills/        # Locales + bajadas curadas + mapa Context7
+│   │   ├── prompts/ · docs/ · AGENTS.md
+│   └── agent/             # Runtime Pi
+│       ├── extensions/    # Extensiones del runtime de Pi
+│       ├── lib/           # Lógica compartida (mode, persona, lang, modelos, guardrails…)
+│       ├── chains/        # Cadena ein-sdd
+│       ├── assets/        # orchestrator.md (leído por lib/ en runtime)
+│       ├── brand.json · mcp.json · settings.json
 └── installer/             # Instalador cross-platform (macOS + Linux)
 ```
 
-`ein-pi/agent/` es la única fuente versionada del workbench; `installer/scripts/bundle-template.ts` la empaqueta como template embebido. Cada push a `main` pasa por CI (tests + typecheck + smoke de empaquetado).
+`ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench; `installer/scripts/bundle-template.ts` las empaqueta como template embebido (con `template-manifest.json` describiendo el contenido exacto). Cada push a `main` pasa por CI (tests + typecheck + smoke de empaquetado).
+
+> `assets/orchestrator.md` es contenido portable en espíritu, pero hoy `lib/persona.ts` y `lib/sdd-preflight.ts` lo leen relativo al módulo, así que vive con el runtime. Se moverá a `core/` cuando esa lógica se extraiga al CLI (fase multi-agente).
 
 ## // 014. ACTUALIZAR / PUBLICAR
 
 ```bash
 ein update                          # backup + redeploy + actualiza pi (conserva tu estado)
 
-git tag installer-v0.14.6           # publicar release
-git push origin installer-v0.14.6   # GitHub Actions compila 4 binarios + checksums
+git tag installer-v0.15.0           # publicar release
+git push origin installer-v0.15.0   # GitHub Actions compila 4 binarios + checksums
 ```
 
 > **Validación local** (opcional, antes de publicar):

@@ -74,8 +74,31 @@ function parseJson(path: string): { ok: boolean; value: Record<string, unknown> 
   }
 }
 
+// Fallback lists when no template-manifest.json is deployed (installs made by
+// older binaries, or a deploy that died before extracting it).
 const SDD_AGENTS = ["sdd-scope.md", "sdd-map.md", "sdd-design.md", "sdd-tasks.md", "sdd-apply.md", "sdd-verify.md", "sdd-close.md"];
 const DELIVERY_AGENTS = ["ein-linear.md", "ein-git.md"];
+const FALLBACK_CHAINS = ["ein-sdd.chain.md"];
+
+export type TemplateManifest = {
+  templateVersion?: string;
+  agents?: string[];
+  chains?: string[];
+  extensions?: string[];
+};
+
+// The bundle ships template-manifest.json describing exactly what it contains;
+// doctor validates the deployment against it instead of hardcoded lists, so a
+// release that adds/renames an agent doesn't require touching this file.
+export function loadTemplateManifest(agentDir: string = AGENT_DIR): TemplateManifest | null {
+  const path = join(agentDir, "template-manifest.json");
+  if (!existsSync(path)) return null;
+  try {
+    return JSON.parse(readFileSync(path, "utf8")) as TemplateManifest;
+  } catch {
+    return null;
+  }
+}
 
 // Single source of truth: read from extensions-manifest.json deployed alongside extensions.
 // Falls back to hardcoded list if the file is absent (e.g. mid-deployment failure).
@@ -177,10 +200,19 @@ export function runDoctor(platform: Platform): DoctorReport {
     ),
   ];
 
+  const manifest = loadTemplateManifest();
+  const expectedAgents = manifest?.agents?.length ? manifest.agents : [...SDD_AGENTS, ...DELIVERY_AGENTS];
+  const expectedChains = manifest?.chains?.length ? manifest.chains : FALLBACK_CHAINS;
+
   const checksAgents: CheckResult[] = [
-    ...SDD_AGENTS.map((a) => check(existsSync(join(agentsDir, a)), `agent ${a}`, "Agente SDD presente.")),
-    ...DELIVERY_AGENTS.map((a) => check(existsSync(join(agentsDir, a)), `agent ${a}`, "Agente de entrega presente.")),
-    check(existsSync(join(chainsDir, "ein-sdd.chain.md")), "chain ein-sdd", "Chain principal presente."),
+    ...expectedAgents.map((a) =>
+      check(
+        existsSync(join(agentsDir, a)),
+        `agent ${a}`,
+        a.startsWith("sdd-") ? "Agente SDD presente." : "Agente de entrega presente.",
+      ),
+    ),
+    ...expectedChains.map((c) => check(existsSync(join(chainsDir, c)), `chain ${c}`, "Chain presente.")),
   ];
 
   const checksExtensions: CheckResult[] = CORE_EXTENSIONS.map((e) =>

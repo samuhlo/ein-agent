@@ -12,9 +12,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
-const einGit = readFileSync(join(AGENT, "agents/ein-git.md"), "utf8");
+const CORE = join(import.meta.dir, "../ein-pi/core");
+const einGit = readFileSync(join(CORE, "agents/ein-git.md"), "utf8");
 const orchestrator = readFileSync(join(AGENT, "assets/orchestrator.md"), "utf8");
-const agentsGuide = readFileSync(join(AGENT, "AGENTS.md"), "utf8");
+const agentsGuide = readFileSync(join(CORE, "AGENTS.md"), "utf8");
 
 describe("ein-git crea PRs de forma no interactiva (no cuelga)", () => {
 	test("manda body-file + flags explícitos, prohíbe bare y --web", () => {
