@@ -24,6 +24,7 @@ import type {
 	ToolCallEventResult,
 } from "@earendil-works/pi-coding-agent";
 import type { GitDeliveryMode } from "./git-delivery.ts";
+import { stripNegatedDelivery } from "./git-delivery.ts";
 import { pick } from "./lang.ts";
 
 const DENIED_BASH_PATTERNS: RegExp[] = [
@@ -43,19 +44,20 @@ const CONFIRM_BASH_PATTERNS: RegExp[] = [
 	/\bpi\s+remove\b/,
 ];
 
-// Frases negativas que CANCELAN la intención de entrega ("haz commit pero sin
-// push", "sin commit", "don't push"): el usuario NO autoriza. Se verifica
-// antes de los patrones positivos para que no disparen el guard incorrectamente.
-const DELIVERY_NEGATION_PATTERNS: RegExp[] = [
-	/\b(?:no|don't|do\s+not|never)\b[^.\n]*\b(?:commit|push|pr|pull\s+request|merge)\b/i,
-	/\bsin\s+(?:hacer\s+)?(?:commit|push|pr|merge)\b/i,
-];
-
 // Frases (en la task de delegación, lenguaje natural) que implican que el
 // subagente acabará ejecutando un comando guardado tipo `git push`.
+// "push" a secas NO basta: emitir un grant one-shot ante "implementa push
+// notifications" abriría una ventana en la que cualquier `git push` headless
+// pasaría sin confirmación. Se exige contexto de entrega (git/rama/remote/PR)
+// o la forma verbal explícita.
 const DELEGATED_DELIVERY_PATTERNS: RegExp[] = [
 	/\bgit\s+push\b/i,
-	/\bpush\b/i,
+	/\bpush(?:ea|éa|ealo|éalo|ear)\b/i,
+	/\bhaz\s+(?:el\s+|un\s+)?push\b/i,
+	/\bpush\s+(?:the\s+|this\s+|los?\s+|las?\s+|mis?\s+)?(?:branch|rama|commits?|changes?|cambios|tags?|it|todo|everything)\b/i,
+	/\bpush\s+(?:to|a|hacia)\s+(?:origin|remote|remoto|github|upstream|main|master)\b/i,
+	/\b(?:branch|rama|commits?|cambios)\b[^.,;\n]{0,30}?\bpush\b/i,
+	/^\s*(?:git\s+)?push\s*[!.]*\s*$/i,
 	/\bsube\s+(?:la\s+)?rama\b/i,
 	/\babre\s+(?:un\s+|el\s+|la\s+)?(?:pr|pull\s+request)\b/i,
 	/\bopen\s+(?:a\s+|the\s+)?(?:pr|pull\s+request)\b/i,
@@ -181,9 +183,13 @@ function collectDelegationTexts(input: unknown): string[] {
 }
 
 export function taskRequestsGuardedDelivery(text: string): boolean {
-	// Negación antes que la intención positiva: "haz commit pero sin push" = false.
-	if (DELIVERY_NEGATION_PATTERNS.some((p) => p.test(text))) return false;
-	return DELEGATED_DELIVERY_PATTERNS.some((pattern) => pattern.test(text));
+	// Negación POR VERBO, no por texto: se eliminan solo los verbos negados y
+	// se evalúa lo que queda afirmado. "haz commit pero sin push" → false, pero
+	// "abre PR pero no hagas merge" → true (el PR sigue pedido). Una negación
+	// suelta ya no cancela una entrega legítima del mismo texto — eso bloqueaba
+	// el push headless y forzaba el retry-loop de re-delegación.
+	const affirmative = stripNegatedDelivery(text);
+	return DELEGATED_DELIVERY_PATTERNS.some((pattern) => pattern.test(affirmative));
 }
 
 export interface DeliveryGateOptions {

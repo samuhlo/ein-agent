@@ -89,4 +89,18 @@ describe("messageRequestsDelivery", () => {
 		expect(messageRequestsDelivery("haz el commit pero sin push")).toBe(false);
 		expect(messageRequestsDelivery("don't push yet")).toBe(false);
 	});
+
+	test("negación por cláusula: un 'no' de otra cosa no veta el push pedido", () => {
+		// El negador negaba "romper", no el push; la coma corta la cláusula.
+		expect(messageRequestsDelivery("no rompas nada, haz push")).toBe(true);
+		expect(messageRequestsDelivery("no toques los tests y haz push de la rama")).toBe(true);
+	});
+
+	test("'push' como sustantivo (feature/API) no es una orden de entrega", () => {
+		expect(messageRequestsDelivery("arregla las push notifications")).toBe(false);
+		expect(messageRequestsDelivery("usa history.pushState en el router")).toBe(false);
+		// La orden mínima sigue valiendo.
+		expect(messageRequestsDelivery("push")).toBe(true);
+		expect(messageRequestsDelivery("git push")).toBe(true);
+	});
 });

@@ -163,6 +163,30 @@ describe("confirmDelegatedDelivery (tool subagent)", () => {
 		expect(taskRequestsGuardedDelivery("haz commit y push")).toBe(true);
 	});
 
+	test("negación POR VERBO: negar merge no cancela el PR/push afirmado", () => {
+		// Antes cualquier negación cancelaba TODO el texto → el push/PR legítimo
+		// quedaba sin grant y el guard headless lo bloqueaba (retry-loop).
+		expect(taskRequestsGuardedDelivery("abre PR pero no hagas merge")).toBe(true);
+		expect(taskRequestsGuardedDelivery("push la rama pero sin merge")).toBe(true);
+		expect(taskRequestsGuardedDelivery("open a pull request, do not merge")).toBe(true);
+		// El negador de OTRA cosa (en otra cláusula o lejos) no cancela el push.
+		expect(taskRequestsGuardedDelivery("no toques los tests y haz push de la rama")).toBe(true);
+		// Negado el único verbo de entrega → sigue siendo false.
+		expect(taskRequestsGuardedDelivery("no abras PR todavía")).toBe(false);
+	});
+
+	test("'push' sin contexto de entrega no emite grant", () => {
+		// Falsos positivos clásicos: features/APIs que contienen la palabra push.
+		expect(taskRequestsGuardedDelivery("implementa push notifications")).toBe(false);
+		expect(taskRequestsGuardedDelivery("arregla el push notification badge")).toBe(false);
+		expect(taskRequestsGuardedDelivery("usa history.pushState en el router")).toBe(false);
+		// Con contexto de entrega sí.
+		expect(taskRequestsGuardedDelivery("push the branch to origin")).toBe(true);
+		expect(taskRequestsGuardedDelivery("haz push de la rama")).toBe(true);
+		expect(taskRequestsGuardedDelivery("pushea los cambios")).toBe(true);
+		expect(taskRequestsGuardedDelivery("push")).toBe(true); // orden completa
+	});
+
 	// Modo por defecto en las pruebas clásicas: `ask` (siempre confirma).
 	const ASK = { mode: "ask", userRequested: false } as const;
 
