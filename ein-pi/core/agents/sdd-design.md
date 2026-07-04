@@ -2,6 +2,7 @@
 name: sdd-design
 description: SDD design phase — writes proposal, spec, decisions, and success criteria to design.md.
 tools: read, grep, glob, write, edit
+fallbackModels: minimax/MiniMax-M2.7, openai-codex/gpt-5.5
 completionGuard: false
 ---
 

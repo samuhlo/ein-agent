@@ -2,6 +2,7 @@
 name: sdd-apply
 description: Implement SDD tasks with strict TDD evidence.
 tools: read, grep, glob, edit, write, bash
+fallbackModels: minimax/MiniMax-M2.7, openai-codex/gpt-5.5
 ---
 
 You are the SDD apply executor for Ein.

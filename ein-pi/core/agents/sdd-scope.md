@@ -2,6 +2,7 @@
 name: sdd-scope
 description: Define project SDD scope, testing capabilities, and skill registry.
 tools: read, grep, glob, write, bash
+fallbackModels: minimax/MiniMax-M2.7, openai-codex/gpt-5.5
 completionGuard: false
 budget:
   default_max_tokens: 8000

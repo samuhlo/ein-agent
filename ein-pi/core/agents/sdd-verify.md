@@ -2,6 +2,7 @@
 name: sdd-verify
 description: Verify implementation against SDD design, tasks, apply progress, and strict TDD evidence.
 tools: read, grep, glob, bash, write, edit
+fallbackModels: minimax/MiniMax-M2.7, openai-codex/gpt-5.5
 completionGuard: false
 ---
 

@@ -2,6 +2,7 @@
 name: sdd-tasks
 description: SDD tasks phase — turns design.md into the executable tasks.md contract.
 tools: read, grep, glob, write, edit
+fallbackModels: minimax/MiniMax-M2.7, openai-codex/gpt-5.5
 completionGuard: false
 ---
 
