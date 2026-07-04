@@ -24,8 +24,22 @@ import { readMode } from "../lib/mode";
 
 const execAsync = promisify(exec);
 
-// EIN block-letter logo. Clean, readable, 3-wide strokes (38 cols, 7 rows).
-const TEXT_LOGO = [
+// EIN block-letter logo, large cut: 4-wide strokes (54 cols, 10 rows).
+const LOGO_LARGE = [
+  "██████████████      ████████████      ████        ████",
+  "██████████████      ████████████      ██████      ████",
+  "████                    ████          ███████     ████",
+  "████                    ████          ████ ███    ████",
+  "██████████              ████          ████  ███   ████",
+  "██████████              ████          ████   ███  ████",
+  "████                    ████          ████    ███ ████",
+  "████                    ████          ████     ███████",
+  "██████████████      ████████████      ████      ██████",
+  "██████████████      ████████████      ████       █████",
+];
+
+// Small cut for narrow terminals: 3-wide strokes (38 cols, 7 rows).
+const LOGO_SMALL = [
   "██████████    █████████    ███     ███",
   "███              ███       ████    ███",
   "███              ███       █████   ███",
@@ -35,9 +49,11 @@ const TEXT_LOGO = [
   "██████████    █████████    ███    ████",
 ];
 
-// Logo column ranges: E = 0..9, I = 14..22, N = 27..37.
-const LOGO_I_START = 12;
-const LOGO_I_END = 25;
+// Column range of the I glyph per logo cut (gap columns are spaces, harmless).
+const I_RANGE = {
+  large: { start: 18, end: 33 },
+  small: { start: 12, end: 25 },
+} as const;
 
 const SUBTITLE = ".SAMUHLO · PI WORKBENCH";
 const RULE_CH = "─";
@@ -61,9 +77,41 @@ function bgSeq(c: RGB): string {
   return `\x1b[48;2;${clampByte(c.r)};${clampByte(c.g)};${clampByte(c.b)}m`;
 }
 
-// Column-based flat logo color: I in industrial yellow, E/N in concrete.
-function logoLetterColor(x: number): RGB {
-  return x >= LOGO_I_START && x <= LOGO_I_END ? YELLOW : CONCRETE;
+// -----------------------------------------------------------------------------
+// Materialize animation: each logo cell appears with a pseudo-random delay
+// (biased left-to-right) and resolves ░ → ▒ → ▓ → █, like concrete setting.
+// The I settles in concrete like the rest and then the yellow stamps in as a
+// single global snap — the brand gesture as the final gesture.
+// -----------------------------------------------------------------------------
+const SWEEP = 0.45; // ticks of delay per logo column
+const JITTER = 7; // max random extra delay per cell, in ticks
+const SETTLE = 6; // ticks from first noise to solid block
+const STAMP_HOLD = 3; // ticks the yellow stamp renders bold
+
+// Deterministic per-cell hash so the shimmer is stable across renders.
+function cellHash(x: number, y: number): number {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = ((h ^ (h >>> 13)) * 1274126177) | 0;
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+function cellDelay(x: number, y: number): number {
+  return Math.floor(x * SWEEP) + (cellHash(x, y) % JITTER);
+}
+
+function maxCellDelay(width: number): number {
+  return Math.floor((width - 1) * SWEEP) + JITTER - 1;
+}
+
+type NoiseCell = { char: string; color: RGB; bold?: boolean; dim?: boolean };
+
+// Cell appearance at a given age (ticks since its delay elapsed).
+function noiseCell(char: string, age: number, finalColor: RGB): NoiseCell | null {
+  if (age < 0) return null;
+  if (age < 2) return { char: "░", color: STRUCTURE, dim: true };
+  if (age < 4) return { char: "▒", color: STRUCTURE };
+  if (age < SETTLE) return { char: "▓", color: CONCRETE, dim: true };
+  return { char, color: finalColor };
 }
 
 function padLines(lines: string[]): { lines: string[]; width: number } {
@@ -106,7 +154,7 @@ class LayoutBuilder {
   }
 }
 
-const FULL_INTRO_MIN_ROWS = 23;
+const FULL_INTRO_MIN_ROWS = 27;
 const FULL_INTRO_MIN_COLS = 80;
 const MINIMAL_INTRO_MIN_ROWS = 14;
 const MINIMAL_INTRO_MIN_COLS = 40;
@@ -170,12 +218,14 @@ export default function (pi: ExtensionAPI) {
 
     process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
 
-    const logoBase = padLines(TEXT_LOGO);
+    const logoLarge = padLines(LOGO_LARGE);
+    const logoSmall = padLines(LOGO_SMALL);
+    const startupLogo = currentIntroMode() === "full" ? logoLarge : logoSmall;
 
-    // Reveal sweeps left-to-right once; everything settles into flat color.
-    const REVEAL_SPEED = 2.0; // logo columns per tick
-    const REVEAL_END_TICK = Math.ceil(logoBase.width / REVEAL_SPEED) + 2;
-    const RULE_START_TICK = REVEAL_END_TICK - 2;
+    // Cadence: materialize → yellow stamp → rule → subtitle.
+    const NOISE_END_TICK = maxCellDelay(startupLogo.width) + SETTLE;
+    const STAMP_TICK = NOISE_END_TICK + 3;
+    const RULE_START_TICK = STAMP_TICK + STAMP_HOLD - 1;
     const RULE_END_TICK = RULE_START_TICK + 6;
     const SUB_START_TICK = RULE_END_TICK - 2;
     const SUB_END_TICK = SUB_START_TICK + Math.ceil(SUBTITLE.length / 2);
@@ -310,39 +360,51 @@ export default function (pi: ExtensionAPI) {
           render(width: number): string[] {
             if (state.mode === "skip") return [];
 
-            const revealHead = tick * REVEAL_SPEED;
+            const logoBase = state.mode === "full" ? logoLarge : logoSmall;
+            const iRange = state.mode === "full" ? I_RANGE.large : I_RANGE.small;
             const b = new LayoutBuilder();
 
-            // Logo: single left-to-right reveal, flat brand colors after.
-            for (const logoLine of logoBase.lines) {
+            // Top margin: the header paints on a cleared screen and the logo
+            // shouldn't hug the terminal edge.
+            b.addRow();
+
+            // Logo: per-cell materialize (░▒▓█), then the I stamps yellow.
+            for (let y = 0; y < logoBase.lines.length; y++) {
+              const logoLine = logoBase.lines[y];
               b.addRow();
               for (let x = 0; x < logoLine.length; x++) {
                 const ch = logoLine[x];
-                if (ch === " " || x > revealHead) {
+                if (ch === " ") {
                   b.add(" ");
                   continue;
                 }
-                const age = revealHead - x;
-                if (age < 2) {
-                  b.add(ch, CONCRETE, { bold: true });
+                const cell = noiseCell(ch, tick - cellDelay(x, y), CONCRETE);
+                if (!cell) {
+                  b.add(" ");
+                  continue;
+                }
+                const settled = cell.char === ch;
+                if (settled && tick >= STAMP_TICK && x >= iRange.start && x <= iRange.end) {
+                  b.add(ch, YELLOW, { bold: tick < STAMP_TICK + STAMP_HOLD });
                 } else {
-                  b.add(ch, logoLetterColor(x));
+                  b.add(cell.char, cell.color, { bold: cell.bold, dim: cell.dim });
                 }
               }
               b.center(width);
             }
 
-            // Structural rule, drawn from the center outward.
+            // Structural rule, drawn from the center outward (nothing before
+            // its phase starts).
             {
               b.addRow();
-              const prog = Math.max(
-                0,
-                Math.min(1, (tick - RULE_START_TICK) / Math.max(1, RULE_END_TICK - RULE_START_TICK)),
-              );
+              const prog =
+                tick < RULE_START_TICK
+                  ? -1
+                  : Math.min(1, (tick - RULE_START_TICK) / Math.max(1, RULE_END_TICK - RULE_START_TICK));
               const half = Math.floor((logoBase.width / 2) * prog);
               const center = Math.floor(logoBase.width / 2);
               for (let x = 0; x < logoBase.width; x++) {
-                if (Math.abs(x - center) <= half) b.add(RULE_CH, STRUCTURE);
+                if (prog >= 0 && Math.abs(x - center) <= half) b.add(RULE_CH, STRUCTURE);
                 else b.add(" ");
               }
               b.center(width);

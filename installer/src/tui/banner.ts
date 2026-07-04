@@ -2,15 +2,32 @@
 // BANNER
 // Logo EIN en bloque con la paleta brutalista plana: E y N en concrete, la I
 // en amarillo industrial (el gesto de marca), regla en structure y subtítulo
-// ".SAMUHLO · PI WORKBENCH" con el punto amarillo. Un solo reveal rápido, sin
-// gradientes ni shine. Fallback estático en non-TTY / NO_COLOR.
+// ".SAMUHLO · PI WORKBENCH" con el punto amarillo. Animación "materialize":
+// cada celda aparece con retardo pseudoaleatorio (sesgo izq→dcha) y resuelve
+// ░ → ▒ → ▓ → █ como hormigón fraguando; la I sella en amarillo al final.
+// Corte grande (54×10) si el terminal da de sí, pequeño (38×7) si no.
+// Fallback estático en non-TTY / NO_COLOR.
 // =============================================================================
 
 import { INSTALLER_VERSION } from "../core/version.ts";
 import { CONCRETE, STRUCTURE, YELLOW, colorEnabled } from "./theme.ts";
 
-// EIN block-letter logo (38 cols, 7 rows, uniform width, 3-wide strokes).
-const TEXT_LOGO = [
+// Logo EIN grande: trazos de 4 (54 cols, 10 filas).
+const LOGO_LARGE = [
+  "██████████████      ████████████      ████        ████",
+  "██████████████      ████████████      ██████      ████",
+  "████                    ████          ███████     ████",
+  "████                    ████          ████ ███    ████",
+  "██████████              ████          ████  ███   ████",
+  "██████████              ████          ████   ███  ████",
+  "████                    ████          ████    ███ ████",
+  "████                    ████          ████     ███████",
+  "██████████████      ████████████      ████      ██████",
+  "██████████████      ████████████      ████       █████",
+];
+
+// Corte pequeño para terminales estrechos: trazos de 3 (38 cols, 7 filas).
+const LOGO_SMALL = [
   "██████████    █████████    ███     ███",
   "███              ███       ████    ███",
   "███              ███       █████   ███",
@@ -20,9 +37,12 @@ const TEXT_LOGO = [
   "██████████    █████████    ███    ████",
 ];
 
-// Columnas de la letra I dentro del logo (se pinta en amarillo de marca).
-const LOGO_I_START = 14;
-const LOGO_I_END = 22;
+// Rango de columnas de la letra I por corte (las columnas de hueco son
+// espacios, pintarlas es inocuo).
+const I_RANGE = {
+  large: { start: 18, end: 33 },
+  small: { start: 12, end: 25 },
+} as const;
 
 const SUBTITLE = `.SAMUHLO · PI WORKBENCH · v${INSTALLER_VERSION}`;
 const RULE_CH = "─";
@@ -37,22 +57,62 @@ function boldRgb(c: RGB, text: string): string {
   return `\x1b[1m${rgbRaw(c, text)}\x1b[22m`;
 }
 
-function logoColor(x: number): RGB {
-  return x >= LOGO_I_START && x <= LOGO_I_END ? YELLOW : CONCRETE;
+function dimRgb(c: RGB, text: string): string {
+  return `\x1b[2m${rgbRaw(c, text)}\x1b[22m`;
 }
+
+type LogoCut = { lines: string[]; width: number; iStart: number; iEnd: number };
 
 function padLines(lines: string[]): { lines: string[]; width: number } {
   const width = Math.max(...lines.map((l) => l.length), 0);
   return { lines: lines.map((l) => l.padEnd(width)), width };
 }
 
+// Corte grande si el terminal da de sí; pequeño si no (o si no hay columnas).
+function pickLogo(): LogoCut {
+  const cols = process.stdout.columns ?? 80;
+  const largeWidth = Math.max(...LOGO_LARGE.map((l) => l.length));
+  const useLarge = cols >= largeWidth + 2;
+  const base = padLines(useLarge ? LOGO_LARGE : LOGO_SMALL);
+  const range = useLarge ? I_RANGE.large : I_RANGE.small;
+  return { ...base, iStart: range.start, iEnd: range.end };
+}
+
+function logoColor(logo: LogoCut, x: number): RGB {
+  return x >= logo.iStart && x <= logo.iEnd ? YELLOW : CONCRETE;
+}
+
 function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
 }
 
+// -----------------------------------------------------------------------------
+// Materialize: retardo pseudoaleatorio por celda (sesgo izq→dcha) y resolución
+// ░ → ▒ → ▓ → █. La I asienta en concrete y el amarillo entra de golpe al
+// final, como un sello.
+// -----------------------------------------------------------------------------
+const SWEEP = 0.45; // ticks de retardo por columna
+const JITTER = 7; // retardo extra aleatorio máximo por celda, en ticks
+const SETTLE = 6; // ticks desde el primer ruido hasta el bloque sólido
+const STAMP_HOLD = 3; // ticks que el sello amarillo se pinta en bold
+
+// Hash determinista por celda: el ruido es estable entre frames.
+function cellHash(x: number, y: number): number {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = ((h ^ (h >>> 13)) * 1274126177) | 0;
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+function cellDelay(x: number, y: number): number {
+  return Math.floor(x * SWEEP) + (cellHash(x, y) % JITTER);
+}
+
+function maxCellDelay(width: number): number {
+  return Math.floor((width - 1) * SWEEP) + JITTER - 1;
+}
+
 type Phase = {
-  revealSpeed: number;
-  revealEnd: number;
+  stamp: number;
   ruleStart: number;
   ruleEnd: number;
   subStart: number;
@@ -60,14 +120,14 @@ type Phase = {
 };
 
 function buildPhase(width: number): Phase {
-  const revealSpeed = 2.0;
-  const revealEnd = Math.ceil(width / revealSpeed) + 2;
-  const ruleStart = revealEnd - 2;
+  const noiseEnd = maxCellDelay(width) + SETTLE;
+  const stamp = noiseEnd + 3;
+  const ruleStart = stamp + STAMP_HOLD - 1;
   const ruleEnd = ruleStart + 6;
   const subStart = ruleEnd - 2;
   const subEnd = subStart + Math.ceil(SUBTITLE.length / 2);
   const finish = subEnd + 4;
-  return { revealSpeed, revealEnd, ruleStart, ruleEnd, subStart, finish };
+  return { stamp, ruleStart, ruleEnd, subStart, finish };
 }
 
 function renderSubtitle(reveal: number, width: number): string {
@@ -86,56 +146,64 @@ function renderSubtitle(reveal: number, width: number): string {
 
 // Render estático: logo plano + regla + subtítulo. Non-TTY / NO_COLOR.
 function renderStatic(): string {
-  const { lines, width } = padLines(TEXT_LOGO);
+  const logo = pickLogo();
   const out: string[] = [];
   if (!colorEnabled()) {
-    out.push(...lines);
-    out.push(RULE_CH.repeat(width));
-    const pad = Math.max(0, Math.floor((width - SUBTITLE.length) / 2));
+    out.push(...logo.lines);
+    out.push(RULE_CH.repeat(logo.width));
+    const pad = Math.max(0, Math.floor((logo.width - SUBTITLE.length) / 2));
     out.push(" ".repeat(pad) + SUBTITLE);
     return out.join("\n");
   }
-  for (const row of lines) {
+  for (const row of logo.lines) {
     let line = "";
     for (let x = 0; x < row.length; x++) {
       const ch = row[x] ?? " ";
-      line += ch === " " ? " " : rgbRaw(logoColor(x), ch);
+      line += ch === " " ? " " : rgbRaw(logoColor(logo, x), ch);
     }
     out.push(line);
   }
-  out.push(rgbRaw(STRUCTURE, RULE_CH.repeat(width)));
-  out.push(renderSubtitle(SUBTITLE.length, width));
+  out.push(rgbRaw(STRUCTURE, RULE_CH.repeat(logo.width)));
+  out.push(renderSubtitle(SUBTITLE.length, logo.width));
   return out.join("\n");
 }
 
+// Una celda del logo en un tick dado: ruido, bloque asentado o sello amarillo.
+function renderCell(logo: LogoCut, x: number, y: number, ch: string, tick: number, ph: Phase): string {
+  const age = tick - cellDelay(x, y);
+  if (age < 0) return " ";
+  if (age < 2) return dimRgb(STRUCTURE, "░");
+  if (age < 4) return rgbRaw(STRUCTURE, "▒");
+  if (age < SETTLE) return dimRgb(CONCRETE, "▓");
+  if (tick >= ph.stamp && x >= logo.iStart && x <= logo.iEnd) {
+    return tick < ph.stamp + STAMP_HOLD ? boldRgb(YELLOW, ch) : rgbRaw(YELLOW, ch);
+  }
+  return rgbRaw(CONCRETE, ch);
+}
+
 // Un frame de animación (logo + regla + subtítulo) como array de líneas.
-function renderFrame(tick: number, ph: Phase): string[] {
-  const { lines, width } = padLines(TEXT_LOGO);
-  const revealHead = tick * ph.revealSpeed;
+function renderFrame(logo: LogoCut, tick: number, ph: Phase): string[] {
   const out: string[] = [];
 
-  // Logo: reveal por columnas, color plano, borde de avance en bold.
-  for (const rowStr of lines) {
+  for (let y = 0; y < logo.lines.length; y++) {
+    const rowStr = logo.lines[y] ?? "";
     let line = "";
     for (let x = 0; x < rowStr.length; x++) {
       const ch = rowStr[x] ?? " ";
-      if (ch === " " || x > revealHead) {
-        line += " ";
-        continue;
-      }
-      const col = logoColor(x);
-      line += revealHead - x < 2 ? boldRgb(col, ch) : rgbRaw(col, ch);
+      line += ch === " " ? " " : renderCell(logo, x, y, ch, tick, ph);
     }
     out.push(line);
   }
 
-  // Regla, del centro hacia afuera.
-  {
+  // Regla, del centro hacia afuera (nada antes de su fase).
+  if (tick < ph.ruleStart) {
+    out.push(" ".repeat(logo.width));
+  } else {
     const prog = clamp01((tick - ph.ruleStart) / Math.max(1, ph.ruleEnd - ph.ruleStart));
-    const half = Math.floor((width / 2) * prog);
-    const center = Math.floor(width / 2);
+    const half = Math.floor((logo.width / 2) * prog);
+    const center = Math.floor(logo.width / 2);
     let rule = "";
-    for (let x = 0; x < width; x++) {
+    for (let x = 0; x < logo.width; x++) {
       rule += Math.abs(x - center) <= half ? rgbRaw(STRUCTURE, RULE_CH) : " ";
     }
     out.push(rule);
@@ -144,7 +212,7 @@ function renderFrame(tick: number, ph: Phase): string[] {
   // Subtítulo, typewriter.
   {
     const reveal = tick < ph.subStart ? -1 : Math.floor((tick - ph.subStart) * 2);
-    out.push(renderSubtitle(reveal, width));
+    out.push(renderSubtitle(reveal, logo.width));
   }
 
   return out;
@@ -157,9 +225,9 @@ export async function playBanner(): Promise<void> {
     return;
   }
 
-  const { width } = padLines(TEXT_LOGO);
-  const ph = buildPhase(width);
-  const rows = TEXT_LOGO.length + 2; // logo + regla + subtítulo
+  const logo = pickLogo();
+  const ph = buildPhase(logo.width);
+  const rows = logo.lines.length + 2; // logo + regla + subtítulo
 
   process.stdout.write("\x1b[?25l"); // hide cursor
   let cleanedUp = false;
@@ -182,7 +250,7 @@ export async function playBanner(): Promise<void> {
     const start = Date.now();
     const timer = setInterval(() => {
       tick++;
-      if (tick > ph.finish || Date.now() - start > 2500) {
+      if (tick > ph.finish || Date.now() - start > 3000) {
         clearInterval(timer);
         process.stdout.write(`\x1b[${rows}A`);
         process.stdout.write(`${renderStatic()}\n`);
@@ -192,7 +260,7 @@ export async function playBanner(): Promise<void> {
         return;
       }
       process.stdout.write(`\x1b[${rows}A`); // cursor up to frame top
-      process.stdout.write(`${renderFrame(tick, ph).join("\n")}\n`);
+      process.stdout.write(`${renderFrame(logo, tick, ph).join("\n")}\n`);
     }, 30);
   });
 }
