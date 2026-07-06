@@ -15,9 +15,9 @@ import { runRestore } from "./restore.ts";
 type Action = "install" | "doctor" | "update" | "uninstall" | "restore" | "quit";
 
 export async function runMenu(): Promise<number> {
-  // Sin stdin interactivo, el menu de clack no recibe teclas y se queda
-  // congelado (p.ej. macOS via curl|bash: kqueue no puede hacer poll de
-  // /dev/tty). Mejor avisar y salir limpio que colgarse.
+  // BLINDAJE -> Sin stdin interactivo, clack no recibe teclas y el menu se
+  // queda congelado (curl|bash en macOS: kqueue no puede poll /dev/tty).
+  // Mejor avisar y salir limpio que colgarse.
   if (!process.stdin.isTTY) {
     console.log("ein: el menu interactivo necesita un terminal.");
     console.log("Ejecuta `ein` directamente, o un subcomando: ein install | doctor | update");

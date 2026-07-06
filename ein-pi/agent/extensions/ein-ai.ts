@@ -79,11 +79,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// Intención de entrega del ÚLTIMO mensaje del usuario, por sesión. La fija el
-// hook `input` y la lee el gate de entrega en `tool_call`: en modo git `auto`,
-// si el usuario pidió commit/push/PR, no se le vuelve a preguntar. Se sobreescribe
-// en cada mensaje (vale hasta el siguiente) → una entrega por iniciativa del
-// agente, sin petición previa, sí dispara la confirmación.
+// Intención de entrega del ÚLTIMO mensaje del usuario, por sesión.
+// La fija el hook `input` y la lee el gate de entrega en `tool_call`.
+// BLINDAJE -> en modo git `auto`, si el usuario pidió commit/push/PR, no se
+// le vuelve a preguntar; vale solo hasta el siguiente mensaje (entrega por
+// iniciativa del agente sin petición previa sí dispara la confirmación).
 const deliveryIntentBySession = new Map<string, boolean>();
 
 function readStringPath(value: unknown, path: string[]): string | undefined {
@@ -396,8 +396,9 @@ export default function einAi(pi: ExtensionAPI): void {
 		const einPrompt = isNamedAgent || isSddAgent
 			? ""
 			: `\n\n${buildEinPrompt(readPersonaMode(ctx.cwd), readChatLang(), readMode(ctx.cwd))}`;
-		// Deterministic skill injection: phase/named subagents receive exact
-		// SKILL.md paths resolved from their task, not the parent model's discretion.
+		// Inyección determinista de skills: subagentes de fase/nombrados reciben
+		// paths exactos de SKILL.md resueltos desde su task, no a criterio del
+		// modelo padre (evita que el padre "invente" qué skills existen).
 		let skillsPrompt = "";
 		if (isNamedAgent || isSddAgent) {
 			const block = resolveSkillInjection(ctx.cwd, readAgentTask(event));
@@ -594,7 +595,8 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
-	// ── SDD audit (canonical) / sdd-check (legacy alias) ──────────────────────
+	// [DEPRECATED] ein:sdd-check queda como alias del canónico ein:sdd-audit.
+	// El handler es compartido para que ambos resuelvan al mismo flujo.
 	async function handleSddAudit(args: string | string[], ctx: ExtensionContext) {
 		const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
 		const arg = raw.trim();

@@ -1,12 +1,13 @@
 // =============================================================================
 // BUNDLE TEMPLATE
-// Builds src/assets/template.tar.gz composing two source roots:
-//   ein-pi/core/  — portable assets (agent prompts, skills, docs, prompts)
-//   ein-pi/agent/ — Pi runtime (extensions, lib, chains, assets, configs)
-// The DEPLOYED layout stays flat under ~/.pi/agent (Pi expects it); the split
-// only exists repo-side so a future non-Pi adapter can consume core/ as-is.
-// - allowlist of Ein-owned content (never secrets/runtime/binaries)
-// - JSON-aware tokenization of mcp.json + settings.json into {{TOKENS}}
+// Empaqueta src/assets/template.tar.gz componiendo dos raices:
+//   ein-pi/core/  — assets portables (agents, skills, docs, prompts)
+//   ein-pi/agent/ — runtime de Pi (extensions, lib, chains, assets, configs)
+// El layout DESPLEGADO va plano bajo ~/.pi/agent (es lo que Pi espera); el
+// split solo existe repo-side para que un futuro adaptador no-Pi pueda
+// consumir core/ tal cual.
+// - allowlist de contenido Ein-owned (nunca secrets/runtime/binarios)
+// - tokenizacion JSON-aware de mcp.json + settings.json en {{TOKENS}}
 // Run: bun run bundle-template
 // =============================================================================
 
@@ -32,9 +33,9 @@ const CORE_SOURCE = join(REPO_ROOT, "ein-pi", "core");
 const AGENT_SOURCE = join(REPO_ROOT, "ein-pi", "agent");
 const OUT = join(INSTALLER_ROOT, "src", "assets", "template.tar.gz");
 
-// Ein-owned content per source root. Everything else (auth.json, npm/,
+// Contenido Ein-owned por raiz de origen. Todo lo demas (auth.json, npm/,
 // sessions/, backups/, .atl/, .piagents/, .sdd/, bin/,
-// disabled-skill-conflicts/, run-history) is intentionally left out.
+// disabled-skill-conflicts/, run-history) queda fuera a proposito.
 const CORE_FILES = ["AGENTS.md"];
 const CORE_DIRS = ["agents", "docs", "prompts", "skills"];
 const AGENT_FILES = ["brand.json", "extensions-manifest.json", "models.json", "mcp.json", "settings.json"];
@@ -64,8 +65,8 @@ function tokenizeSettings(staging: string): void {
   writeFileSync(path, `${JSON.stringify(cfg, null, 2)}\n`);
 }
 
-// template-manifest.json: qué contiene exactamente este bundle. Es la fuente
-// que consumen `ein doctor` (validar lo desplegado contra lo que se distribuyó,
+// template-manifest.json: que contiene exactamente este bundle. Es la fuente
+// que consumen `ein doctor` (validar lo desplegado contra lo que se distribuyo,
 // sin listas cableadas) y `ein install --dry-run` (mostrar el plan). Se genera
 // escaneando el staging: no puede derivar del contenido real.
 function writeManifest(staging: string): void {
@@ -135,9 +136,9 @@ async function main(): Promise<void> {
     copyInto(CORE_SOURCE, staging, CORE_FILES, CORE_DIRS);
     copyInto(AGENT_SOURCE, staging, AGENT_FILES, AGENT_DIRS);
 
-    // assets/agents y assets/chains son la copia "de fábrica" que usa
-    // installSddAssets para reparar instalaciones. Se generan aquí desde las
-    // fuentes (core/agents, agent/chains) — única fuente de verdad, drift
+    // assets/agents y assets/chains son la copia "de fabrica" que usa
+    // installSddAssets para reparar instalaciones. Se generan aqui desde las
+    // fuentes (core/agents, agent/chains) — unica fuente de verdad, drift
     // imposible.
     for (const [root, dir] of [
       [CORE_SOURCE, "agents"],
@@ -152,11 +153,13 @@ async function main(): Promise<void> {
     tokenizeSettings(staging);
     writeManifest(staging);
 
-    // src/assets/ holds only the generated tarball (gitignored), so the dir is
-    // absent on a fresh checkout (CI). Ensure it exists before tar writes to it.
+    // src/assets/ solo guarda el tarball generado (gitignored), asi que el dir
+    // no existe en un checkout limpio (CI). Asegurarlo antes de que tar
+    // escriba ahi.
     mkdirSync(dirname(OUT), { recursive: true });
 
-    // tar from inside staging so paths are relative (./agents, ./extensions...).
+    // tar desde dentro de staging para que las rutas sean relativas
+    // (./agents, ./extensions, ...).
     const proc = Bun.spawn(["tar", "-czf", OUT, "."], { cwd: staging, stderr: "pipe" });
     const stderr = await new Response(proc.stderr).text();
     const code = await proc.exited;

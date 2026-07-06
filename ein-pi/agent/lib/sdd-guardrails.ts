@@ -260,6 +260,11 @@ export type ChangeLintReport = {
 	phases: { phase: SddPhase; present: boolean; report?: DesignLintReport }[];
 };
 
+// BLINDAJE -> Detecta huecos en el orden canónico de fases. Un artefacto
+// tardío sin los previos contamina el ciclo SDD: el agente retomaría una fase
+// ya cerrada (verify sin apply) o saltaría gates previstos (design sin scope).
+// Solo warn si falta tasks.md tras design: aún ejecutable, pero la continuidad
+// ejecutable queda incompleta.
 function sequenceIssues(phases: ChangeLintReport["phases"]): GuardrailIssue[] {
 	const issues: GuardrailIssue[] = [];
 	const presentByPhase = new Map(phases.map((phase) => [phase.phase, phase.present]));

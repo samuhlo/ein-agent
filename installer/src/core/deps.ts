@@ -76,9 +76,9 @@ export async function installEngramDep(platform: Platform): Promise<InstallStep>
   return { ok: result.ok, detail: result.detail };
 }
 
-// Install the Pi extension packages declared in the deployed settings.json
-// (pi-subagents, pi-mcp-adapter, ask-user-question, i18n...). Idempotent:
-// `pi install` reports "up to date" when already present. Best-effort.
+// Install Pi extension packages declared in settings.json (pi-subagents,
+// pi-mcp-adapter, ask-user-question, i18n...). Idempotent: `pi install`
+// reports "up to date". Best-effort.
 export async function installDeclaredPackages(): Promise<InstallStep> {
   const pi = lookPath("pi", EXTRA_PATH);
   if (!pi) return { ok: false, detail: "pi no disponible; salto paquetes" };

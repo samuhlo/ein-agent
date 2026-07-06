@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
 # Ein installer bootstrap
-# Detects platform, downloads the matching prebuilt binary from GitHub Releases,
-# installs it to ~/.local/bin/ein (or /usr/local/bin if writable), then tells
-# you to run `ein`.
+# Detects platform, downloads the matching prebuilt binary from GitHub
+# Releases and installs it to ~/.local/bin/ein (or /usr/local/bin if
+# writable). Tells you to run `ein` afterwards.
 #
 #   curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
 # =============================================================================
@@ -53,7 +53,7 @@ detect_platform() {
   esac
   ASSET="ein-installer-${OS}-${ARCH}"
   # WSL is Linux under the hood: the linux build + /dev/tty path work as-is.
-  # Detect it only to tell the Windows user what's happening.
+  # Detected only to tell the Windows user what's happening.
   if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null || [ -n "${WSL_DISTRO_NAME:-}" ]; then
     IS_WSL=1
   else

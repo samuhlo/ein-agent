@@ -78,9 +78,9 @@ export async function runInstall(args: string[]): Promise<number> {
   p.intro(bold(gold("Instalador Ein")));
   p.log.info(`Plataforma: ${describePlatform(platform)}`);
 
-  // Work mode is Solo by default (no Linear): OpenSpec + git + EIN.md. Team
-  // (Linear as the board) is opt-in. The choice sets the global default mode;
-  // ein-linear stays installed either way and can be toggled with /ein:mode.
+  // Modo Solo por defecto (OpenSpec + git + EIN.md, sin Linear); Team (Linear
+  // como board) es opt-in. La eleccion persiste como default global;
+  // ein-linear queda instalado en ambos casos y se alterna con `/ein:mode`.
   let skipLinear = true;
   if (!flags.noLinear && !flags.yes && !flags.dryRun) {
     const teamMode = await p.confirm({
@@ -96,7 +96,6 @@ export async function runInstall(args: string[]): Promise<number> {
       : "Modo Team: Linear como board de issues.",
   );
 
-  // 1. Check dependencies.
   let deps = checkDeps(platform);
   const depLines = deps.map(
     (d) => `  ${d.present ? "✓" : "✗"} ${d.id.padEnd(8)} ${d.present ? (d.path ?? "") : `(falta) ${d.hint}`}`,
@@ -127,7 +126,6 @@ export async function runInstall(args: string[]): Promise<number> {
     return 0;
   }
 
-  // 2. Install required missing (bun, pi).
   const needBun = !deps.find((d) => d.id === "bun")?.present;
   const needPi = !deps.find((d) => d.id === "pi")?.present;
 
@@ -155,7 +153,6 @@ export async function runInstall(args: string[]): Promise<number> {
     }
   }
 
-  // 3. Optional: engram.
   const needEngram = !deps.find((d) => d.id === "engram")?.present;
   if (needEngram && !flags.noEngram) {
     if (await confirm("Instalar engram (memoria persistente)?", flags)) {
@@ -166,7 +163,6 @@ export async function runInstall(args: string[]): Promise<number> {
     }
   }
 
-  // 4. Optional: gh.
   const needGh = !deps.find((d) => d.id === "gh")?.present;
   if (needGh && !flags.yes) {
     if (await confirm("Instalar gh (GitHub CLI)?", flags, false)) {
@@ -177,10 +173,9 @@ export async function runInstall(args: string[]): Promise<number> {
     }
   }
 
-  // 5. Deploy template (re-resolve engram after possible install). On a
-  // repair/reinstall over an existing tree, snapshot first: the deploy wipes
-  // template-owned dirs before extracting, so a failure mid-way would leave
-  // the tree broken without a way back.
+  // BLINDAJE -> En reparacion/reinstall sobre arbol existente, snapshot
+  // previo: el deploy borra los dirs del template antes de extraer, asi
+  // que un fallo a mitad dejaria el arbol roto sin vuelta atras.
   let rollbackPath: string | null = null;
   if (existsSync(AGENT_DIR)) {
     const sSnap = p.spinner();
@@ -221,13 +216,11 @@ export async function runInstall(args: string[]): Promise<number> {
     `Ein desplegado (engram: ${deployed.engramFound ? deployed.engramCommand : "no resuelto, usando PATH"})`,
   );
 
-  // 5b. Install declared Pi extension packages (subagents, mcp-adapter, ask-user-question, i18n).
   const sPkgs = p.spinner();
   sPkgs.start("Instalando paquetes de Pi declarados");
   const pkgs = await installDeclaredPackages();
   sPkgs.stop(pkgs.detail);
 
-  // 6. Secrets wizard.
   if (!flags.noSecrets && !flags.yes) {
     p.log.step("Configuracion de secrets (todo opcional)");
     await maybeSecret("context7", "Context7 API key", flags);
@@ -235,16 +228,13 @@ export async function runInstall(args: string[]): Promise<number> {
     await maybeSecret("minimax", "MiniMax API key", flags);
   }
 
-  // 7. Context7 shell export.
   if (!flags.noSecrets) {
     const exp = ensureContext7Export(platform);
     if (exp.changed) p.log.success(`Export CONTEXT7_API_KEY anadido a ${exp.rc} (reinicia el shell).`);
   }
 
-  // 8. Marker.
   writeMarker();
 
-  // 9. Doctor.
   deps = checkDeps(platform);
   const report = runDoctor(platform);
   p.log.message(renderReport(report));

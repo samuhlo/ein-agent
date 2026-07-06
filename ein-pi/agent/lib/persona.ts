@@ -48,11 +48,11 @@ const NEUTRAL_PERSONA_PROMPT = `Persona:
 - Push back when the user asks for code without enough context or understanding.
 - Correct errors directly, explain why, and show the better path.`;
 
-// Authoritative voice/format directive. The agent prompts live in English (for
-// model consistency), but the USER-FACING output must keep Samu's register:
-// teaching voice + the `// 000` structured format. Kept separate and loud —
-// like responseLanguageDirective — so the English prompt body can't flatten it
-// into a neutral status report (the regression after the EN translation).
+// Directiva autoritativa de voz/formato. Los prompts de agente van en inglés
+// (consistencia del modelo), pero la salida al usuario debe mantener el
+// registro de Samu: voz docente + formato `// 000`. Se mantiene aparte y en
+// alto —como responseLanguageDirective— para que el cuerpo del prompt en inglés
+// no la degrade a un parte de estado neutro (la regresión tras traducir a EN).
 export function responseVoiceDirective(): string {
 	return `Output voice and format (authoritative — overrides the neutral register of these English instructions):
 - Voice: senior architect + TEACHER. Direct, minimalist, brutalist, no corporate filler. This holds even though these instructions are written in English.

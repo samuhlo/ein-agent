@@ -35,17 +35,16 @@ function candidatePaths(platform: Platform): string[] {
   ];
 }
 
-// Resolve engram for use in mcp.json. Returns an absolute path when found;
-// otherwise the bare "engram" so the JSON stays valid and PATH can resolve it
-// at runtime (doctor will flag it as a WARN).
+// Resolve engram for mcp.json. Absolute path when found; bare "engram" otherwise
+// so the JSON stays valid (doctor flags it as WARN if PATH can't resolve later).
 export function resolveEngram(platform: Platform): EngramResolution {
   const found = resolveFromCandidates("engram", candidatePaths(platform), [
     BUN_BIN_DIR,
     LOCAL_BIN_DIR,
   ]);
   if (found) {
-    // On macOS, avoid pinning a versioned Homebrew Cellar path; if the resolved
-    // path points into Cellar, prefer the stable symlink under bin.
+    // macOS: Cellar paths are versioned and break on brew upgrade. Prefer the
+    // stable symlink under bin.
     if (found.includes("/Cellar/")) {
       const stable = candidatePaths(platform).find((c) => c.endsWith("/bin/engram"));
       return { command: stable ?? found, found: true };

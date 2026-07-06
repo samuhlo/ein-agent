@@ -125,6 +125,4 @@ export function savePersona(persona: AgentPersona): void {
   writeFileSync(personaPath(), JSON.stringify({ active: persona }, null, 2), "utf8");
 }
 
-export default function einBrand(_pi: ExtensionAPI): void {
-  // modulo de branding compartido; no registra hooks
-}
+export default function einBrand(_pi: ExtensionAPI): void {}

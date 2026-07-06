@@ -1,10 +1,12 @@
 // =============================================================================
 // EIN SKILL MAINTENANCE
-// Curated skill updater. Two groups:
-//   - downloaded: pulled from trusted public repos declared in stack-profile.json
-//   - local: Ein's own opinionated skills, synced from the ein-agent GitHub repo
-// Authoritative reconcile against skills-lock.json (content hashes); clean prunes
-// downloaded skills that are not in the profile's core+secondary set.
+// =============================================================================
+// Mantenedor curado de skills. Dos grupos:
+//   - downloaded: traidas desde repos publicos de confianza declarados en
+//     stack-profile.json
+//   - local: skills propias de Ein, sincronizadas desde el repo ein-agent de GitHub
+// Reconcilia contra skills-lock.json (hashes de contenido) y limpia downloaded
+// que no pertenezcan al set core+secondary del perfil.
 // =============================================================================
 
 import { createHash } from "node:crypto";
@@ -26,7 +28,7 @@ import { commandName, slashCommand } from "./ein-brand";
 import { AGENT_DIR, DOWNLOADED_SKILLS_DIR, LOCAL_SKILLS_DIR } from "./ein-paths";
 import { t, tf } from "../lib/i18n/strings";
 
-// --- types -------------------------------------------------------------------
+// --- tipos --------------------------------------------------------------------
 
 type CatalogEntry = { repo: string; skill: string };
 
@@ -38,7 +40,7 @@ type StackProfile = {
   catalog: Record<string, CatalogEntry>;
 };
 
-// Downloaded skills carry { repo, skill }; local skills carry { repo, path }.
+// Discriminador: downloaded lleva { repo, skill }; local lleva { repo, path }.
 type LockSource = { repo: string; skill?: string; path?: string };
 
 type LockEntry = {
@@ -60,18 +62,18 @@ type SyncResult = { ok: boolean; status: SyncStatus; message: string };
 
 type InstalledSkill = { path: string; source: "local" | "downloaded" };
 
-// --- constants ---------------------------------------------------------------
+// --- constantes --------------------------------------------------------------
 
 const SKILLS_DIR = join(AGENT_DIR, "skills");
 const PROFILE_PATH = join(SKILLS_DIR, "stack-profile.json");
 const LOCK_PATH = join(SKILLS_DIR, "skills-lock.json");
 
-// Source of truth for local skills.
+// Fuente de verdad para skills locales.
 const LOCAL_REPO = "samuhlo/ein-agent";
 const LOCAL_REPO_SKILLS_PATH = "ein-pi/agent/skills/local";
 
-// Minimal fallback if stack-profile.json is missing; the on-disk profile is the
-// real source of truth.
+// FAIL CLOSED -> Si stack-profile.json falta o no parsea, devolvemos el minimo
+// vital; el perfil en disco es la fuente de verdad real.
 const FALLBACK_PROFILE: StackProfile = {
   name: "ein-web-motion-stack",
   version: 1,
@@ -80,7 +82,7 @@ const FALLBACK_PROFILE: StackProfile = {
   catalog: {},
 };
 
-// --- helpers -----------------------------------------------------------------
+// --- helpers ------------------------------------------------------------------
 
 function normalize(input: string): string {
   return input.trim().toLowerCase();
@@ -236,12 +238,13 @@ function shallowClone(repo: string, targetDir: string, sparsePath?: string): voi
         timeout: 30_000,
       });
     } catch {
-      // Sparse failed; the blobless clone still has the full tree — proceed.
+      // BLINDAJE -> Si sparse-checkout falla, el clone blobless ya trae todo el
+      // arbol; seguimos adelante.
     }
   }
 }
 
-// --- downloaded skills -------------------------------------------------------
+// --- downloaded: skills de catalogo -----------------------------------------
 
 function installFromCatalog(skillName: string, profile: StackProfile): SyncResult {
   const key = normalize(skillName);
@@ -326,7 +329,7 @@ function updateDownloaded(profile: StackProfile, onProgress?: (line: string) => 
   for (const skill of targets) {
     const meta = installed.get(skill);
     if (meta && meta.source === "local") {
-      skippedLocal += 1; // local skills are handled by updateLocalFromRepo
+      skippedLocal += 1; // CORTE -> las locales las gestiona updateLocalFromRepo
       continue;
     }
     const source = profile.catalog[skill];
@@ -353,7 +356,7 @@ function updateDownloaded(profile: StackProfile, onProgress?: (line: string) => 
   ];
 }
 
-// --- local skills (from the ein-agent repo) ----------------------------------
+// --- local: skills desde ein-agent -------------------------------------------
 
 function updateLocalFromRepo(onProgress?: (line: string) => void): string[] {
   const lines: string[] = [];
@@ -413,11 +416,11 @@ function updateLocalFromRepo(onProgress?: (line: string) => void): string[] {
   ];
 }
 
-// --- reconcile + status ------------------------------------------------------
+// --- reconcile: lock + status ------------------------------------------------
 
-// Re-hash every installed skill and rewrite its lock entry so the lock always
-// matches reality. Downloaded skills keep their catalog source; local skills
-// keep their repo/path source.
+// BLINDAJE -> Re-hashear todo y reescribir el lock garantiza que refleja la
+// realidad en disco. Downloaded conserva su fuente del catalogo; local, su
+// repo/path.
 function reconcileLock(profile: StackProfile): void {
   const installed = listInstalled();
   const lock = loadLock();
@@ -526,7 +529,7 @@ function cleanSkills(profile: StackProfile, force: boolean): string {
   return ["/// 000. SKILLS CLEAN", tf("skills.clean.removed", `- Eliminadas: ${removed.length}`, removed.length), tf("skills.clean.list", `- Lista: ${removed.join(", ")}`, removed.join(", "))].join("\n");
 }
 
-// --- command -----------------------------------------------------------------
+// --- comando ------------------------------------------------------------------
 
 export default function einSkillMaintenance(pi: ExtensionAPI): void {
   pi.registerCommand(commandName("skills"), {

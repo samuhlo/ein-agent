@@ -1,11 +1,11 @@
 // =============================================================================
-// TESTS: Review Workload Guard (P1, opcion C — determinista en delivery)
-// Protege al revisor de PRs irrevisables. El gate vive en ein-git: mide lineas
-// reales (`git diff --stat`) contra el budget, en vez de un forecast estimado.
-//   - ein-git.md documenta el gate (mide, no estima; STOP+report; auto no salta).
-//   - la preflight inyecta la regla determinista, no el viejo "forecast" muerto.
-//   - el orchestrator reenvia budget a ein-git y gatea con ask_user_question.
-//   - no queda el straggler de marca "Gentle AI".
+// TESTS: Review Workload Guard — gate determinista en delivery
+// =============================================================================
+// BLINDAJE -> ein-git mide líneas reales con `git diff --shortstat` (no
+// estima), para y reporta si el budget se pasa. La preflight inyecta la
+// regla, el orchestrator reenvía el budget y gatea con ask_user_question,
+// y los tres sitios comparten el mismo pathspec de exclusión (anti-drift).
+// El straggler de marca "Gentle AI" ya no existe.
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";

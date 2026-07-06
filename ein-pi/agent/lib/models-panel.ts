@@ -191,7 +191,7 @@ class SddModelPanel implements OverlayComponent {
 		}
 		if (data === "e") {
 			const row = this.rows[this.cursor] ?? SET_ALL_AGENTS;
-			if (row === ORCHESTRATOR_ROW) return; // orchestrator has no effort setting
+			if (row === ORCHESTRATOR_ROW) return; // Orquestador no tiene ajuste de esfuerzo.
 			this.selectedRow = row;
 			this.mode = "effort";
 			this.effortCursor = 0;
@@ -290,7 +290,7 @@ class SddModelPanel implements OverlayComponent {
 		const row = this.rows[this.cursor];
 		if (row === SET_ALL_AGENTS) {
 			for (const name of this.agentNames) this.setModel(name, model);
-			// also update orchestrator when "set all"
+			// "Todos" incluye al orquestador.
 			this.setModel(ORCHESTRATOR_ROW, model);
 			return;
 		}
@@ -304,7 +304,7 @@ class SddModelPanel implements OverlayComponent {
 			for (const name of this.agentNames) this.setThinking(name, thinking);
 			return;
 		}
-		if (row === ORCHESTRATOR_ROW) return; // orchestrator has no effort setting
+		if (row === ORCHESTRATOR_ROW) return; // Orquestador no tiene ajuste de esfuerzo.
 		this.setThinking(row, thinking);
 	}
 
@@ -680,7 +680,7 @@ export async function handleModelsCommand(ctx: ExtensionContext): Promise<void> 
 		);
 		return;
 	}
-	// Seed config with current orchestrator model so it appears in the panel
+	// Sembrar el modelo actual del orquestador para que aparezca en el panel.
 	const orchModelStr = readOrchestratorModel();
 	let config: AgentModelConfig = {
 		...(savedConfig.status === "valid" ? savedConfig.config : {}),
@@ -713,7 +713,7 @@ export async function handleModelsCommand(ctx: ExtensionContext): Promise<void> 
 						model: trimmed,
 					};
 				}
-				// Also update orchestrator when setting all
+				// "Todos" incluye al orquestador.
 				next[ORCHESTRATOR_ROW] = { model: trimmed };
 				config = next;
 			} else {
@@ -735,7 +735,7 @@ export async function handleModelsCommand(ctx: ExtensionContext): Promise<void> 
 	}
 	if (result.type !== "save") return;
 
-	// Extract orchestrator entry and persist separately
+	// El orquestador persiste aparte: settings.json global, no models.json.
 	const orchEntry = result.config[ORCHESTRATOR_ROW];
 	const subagentConfig = Object.fromEntries(
 		Object.entries(result.config).filter(([k]) => k !== ORCHESTRATOR_ROW),

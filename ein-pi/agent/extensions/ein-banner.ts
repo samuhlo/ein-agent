@@ -58,7 +58,7 @@ const I_RANGE = {
 const SUBTITLE = ".SAMUHLO · PI WORKBENCH";
 const RULE_CH = "─";
 
-// Brand palette (flat — no gradients). Fuente única: brand.json via ein-brand.
+// Brand palette (flat — no gradients). Single source: brand.json via ein-brand.
 const PALETTE = loadPalette();
 const CARBON: RGB = PALETTE.carbon;
 const CONCRETE: RGB = PALETTE.concrete;
@@ -253,7 +253,7 @@ export default function (pi: ExtensionAPI) {
       recentSessions = [];
     }
 
-    // Idioma activo: chat/UI (locale compartido) y artefactos (config del proyecto).
+    // Active language: chat/UI (shared locale) and artifacts (project config).
     const langChat = LANG_LABEL[readChatLang()];
     const langArtifact = LANG_LABEL[readArtifactLang(ctx.cwd)];
     const tddLabel = TDD_LABEL[readTddMode(ctx.cwd)];

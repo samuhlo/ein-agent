@@ -10,8 +10,20 @@ import { applySavedModelConfig } from "../lib/model-config.ts";
 import { ensureSddPreflight, installSddAssets } from "../lib/sdd-preflight.ts";
 type ExtensionAPI = any;
 
+// =============================================================================
+// SDD INIT
+// Bootstrap del contrato SDD: escanea el repo, detecta stack/comandos y emite
+// openspec/config.yaml (capas de tests, lint, typecheck, format). El handler
+// del comando /sdd-init es el ÚNICO punto que escribe config; el resto son
+// helpers puros y testeables.
+// =============================================================================
+
 const CONFIG_REL_PATH = "openspec/config.yaml";
+// BLINDAJE -> Tope duro del walker para no engullir monorepos gigantes
+// (10k+ archivos de fixture o doc-gen); el resto del repo se ignora en silencio.
 const MAX_SCAN_FILES = 20_000;
+// FAIL CLOSED -> directorios ruidosos/deps: si entras aquí, revientas la
+// detección con miles de lockfiles, .min.js o caches y disparas falsos positivos.
 const IGNORED_DIRS = new Set([
 	".git",
 	".hg",
@@ -622,6 +634,9 @@ function detectMakefile(cwd: string, detection: Detection): void {
 }
 
 function detectProject(cwd: string): Detection {
+	// El walker devuelve paths relativos ordenados, así detectNode/discoverGo
+	// pueden razonar por scope (raíz vs subdir con package.json) sin volver
+	// a tocar el disco.
 	const files = walkProject(cwd);
 	const detection: Detection = {
 		projectName: basename(cwd),
@@ -700,6 +715,9 @@ function pushCommandList(
 }
 
 function renderConfig(detection: Detection): string {
+	// FAIL CLOSED -> strict_tdd solo se enciende si detectamos un test runner
+	// real; sin runner fiable, el orquestador no puede hacer RED/GREEN y sería
+	// mentir al usuario (le promete un gate que no existe).
 	const strictTdd = Boolean(detection.testCommand);
 	const testCommand = detection.testCommand ?? "";
 	const today = new Date().toISOString().slice(0, 10);
@@ -761,6 +779,9 @@ function renderConfig(detection: Detection): string {
 }
 
 function ensureOpenSpecDirs(cwd: string): void {
+	// specs/ y changes/archive/ se crean juntos: archive/ no se usa todavía
+	// pero sdd-close mueve aquí los cambios verificados; tenerlo listo evita
+	// un race y deja el contrato OpenSpec completo desde el primer arranque.
 	mkdirSync(join(cwd, "openspec", "specs"), { recursive: true });
 	mkdirSync(join(cwd, "openspec", "changes", "archive"), { recursive: true });
 }
@@ -776,6 +797,9 @@ export default function (pi: ExtensionAPI) {
 				applyModelConfig: () => applySavedModelConfig(ctx),
 			});
 			const configPath = join(ctx.cwd, CONFIG_REL_PATH);
+			// BLINDAJE -> Nunca pisar un config existente: si el usuario lo
+			// editó a mano o el chain de SDD ya inyectó algo, sobreescribir en
+			// silencio destruye decisiones que no vemos. Que lo borre a propósito.
 			if (existsSync(configPath)) {
 				ctx.ui.notify(
 					`${CONFIG_REL_PATH} already exists. Edit it manually or remove it before re-running /sdd-init.`,
@@ -789,6 +813,9 @@ export default function (pi: ExtensionAPI) {
 			mkdirSync(dirname(configPath), { recursive: true });
 			writeFileSync(configPath, renderConfig(detection));
 
+			// El resumen final SIEMPRE dice si strict TDD quedó on/off; sin esa
+			// línea, el usuario no sabe qué modo va a aplicar el orquestador
+			// en la próxima fase.
 			const testSummary = detection.testCommand
 				? `strict TDD enabled with \`${detection.testCommand}\``
 				: "strict TDD disabled because no test runner was detected";

@@ -46,8 +46,8 @@ const registrySchema = {
   },
 } as const;
 
-// Estado de Ein consolidado bajo .pi/ein/ (junto a lang/tdd/persona). Antes
-// colgaba de .atl/ en la raíz; migrateLegacyAtl() limpia ese resto.
+// Ein state consolidated under .pi/ein/ (alongside lang/tdd/persona). It used
+// to live at .atl/ at the repo root; migrateLegacyAtl() cleans that remnant.
 const ATL_SEGMENTS = [".pi", "ein", "atl"] as const;
 const LEGACY_ATL_DIR = ".atl";
 const REGISTRY_MD = "skill-registry.md";
@@ -230,7 +230,9 @@ function loadRegistry(cwd: string): SkillEntry[] {
 
   const merged = [...projectEntries, ...userEntries];
 
-  // Deduplicate: project wins over user by key
+  // Deduplicate: project wins over user by key.
+  // Reason -> a repo skill is the author's chosen truth for that repo; a
+  // same-named global skill is only a fallback when no project skill exists.
   const seen = new Map<string, SkillEntry>();
   for (const entry of merged) {
     if (!seen.has(entry.key)) {
@@ -326,7 +328,10 @@ function loadContext7Map(): Record<string, string> {
   return {};
 }
 
-// Detect Context7-routed technologies mentioned in the task. Deduped by query.
+// Detect Context7-routed technologies mentioned in the task.
+// BLINDAJE -> dedupe by query (not by tech key) because two synonyms in the
+// stack profile can map to the same library, and we only want one
+// resolve-library-id call per library per task.
 function detectContext7(task: string): Array<{ tech: string; query: string }> {
   const lower = task.toLowerCase();
   const map = loadContext7Map();
@@ -342,7 +347,7 @@ function detectContext7(task: string): Array<{ tech: string; query: string }> {
   return out;
 }
 
-// Full Context7 section for the digest output.
+// Renders the "techs sin skill curada" block; only called from digestSkillGuidelines.
 function context7Section(task: string): string[] {
   const libs = detectContext7(task);
   if (!libs.length) return [];
@@ -622,16 +627,14 @@ function getOrCreateRegistry(cwd: string): SkillEntry[] {
   return refreshRegistry(cwd);
 }
 
-// Deterministic skill injection for subagents.
-// Called by the orchestrator (ein-ai before_agent_start) so phase agents
-// Convenciones de casa que SIEMPRE aplican al escribir/editar codigo, sin
-// depender de la relevancia. Se inyectan aparte (codeConventionSkillBlock),
-// asi que se excluyen de la resolucion por relevancia para no duplicar.
+// House conventions that ALWAYS apply when writing or editing code, regardless
+// of relevance. Injected separately via codeConventionSkillBlock, so they are
+// excluded from relevance resolution to avoid duplication.
 const CODE_CONVENTION_KEYS = ["comment-style", "logging-style", "file-naming"];
 
-// Bloque always-on: paths de las convenciones de codigo a cargar siempre que
-// se vaya a escribir o editar codigo. Lo inyecta ein-ai tanto en el parent
-// como en los subagentes. Devuelve "" si no hay ninguna instalada.
+// Always-on block: paths of the code conventions to load whenever code is
+// about to be written or edited. Injected by ein-ai into both the parent and
+// subagents. Returns "" if none are installed.
 export function codeConventionSkillBlock(cwd: string): string {
   let registry: SkillEntry[] = [];
   try {
@@ -652,7 +655,10 @@ export function codeConventionSkillBlock(cwd: string): string {
   ].join("\n");
 }
 
-// receive exact SKILL.md paths instead of relying on the parent model to ask.
+// Deterministic skill injection for subagents.
+// Called by the orchestrator (ein-ai before_agent_start) so phase/named
+// agents receive exact SKILL.md paths instead of relying on the parent
+// model to ask. Convention skills are filtered out (see CODE_CONVENTION_KEYS).
 export function resolveSkillInjection(cwd: string, task: string, limit = 6): string {
   const cleanTask = (task ?? "").trim();
   if (!cleanTask) return "";

@@ -1,8 +1,9 @@
 // =============================================================================
-// TESTS: lib/model-config
-// Roundtrip de models.json (normalización incluida), tolerancia a JSON roto
-// y persistencia del modelo del orquestador en settings.json global.
-// Usa EIN_PI_CONFIG_HOME y EIN_PI_AGENT_HOME temporales.
+// TESTS: lib/model-config — roundtrip de models.json + modelo global
+// =============================================================================
+// Tolera JSON roto, normaliza claves legacy (ein-github → ein-git, rename de
+// fases SDD) y persiste el modelo del orquestador en settings.json. Usa
+// EIN_PI_CONFIG_HOME y EIN_PI_AGENT_HOME temporales.
 // =============================================================================
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";

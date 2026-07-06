@@ -1,9 +1,9 @@
 // =============================================================================
-// TESTS: delegationTargetsApply — detección de delegaciones que escriben código
-// El gate de TDD en tool_call solo debe dispararse cuando la delegación al tool
-// `subagent` acabará en sdd-apply: modo single (`agent`), parallel (`tasks[]`)
-// o chain (`chain[]` / `steps[]`). En map/design/linear/git no escribe
-// código → no debe preguntar TDD.
+// TESTS: delegationTargetsApply — gate TDD en tool_call
+// =============================================================================
+// BLINDAJE -> El gate solo se dispara cuando la delegación acabará en
+// sdd-apply (single `agent`, parallel `tasks[]` o chain `chain[]`/`steps[]`).
+// Map/design/linear/git no escriben código → no preguntan TDD.
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";

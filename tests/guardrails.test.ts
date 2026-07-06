@@ -1,9 +1,9 @@
 // =============================================================================
-// TESTS: lib/guardrails
-// Patrones denegados/guardados, y el grant one-shot de entrega delegada:
-// el padre confirma el push al delegar y el guard headless del subagente
-// consume el grant (una sola vez, con TTL y scope por cwd).
-// Usa EIN_PI_CONFIG_HOME temporal.
+// TESTS: lib/guardrails — denegación bash + grant one-shot de entrega
+// =============================================================================
+// BLINDAJE -> El padre confirma el push al delegar; el guard headless del
+// subagente consume el grant (una vez, con TTL y scope por cwd). FAIL CLOSED
+// si el contexto es ambiguo. Usa EIN_PI_CONFIG_HOME temporal.
 // =============================================================================
 
 import { afterEach, beforeAll, describe, expect, test } from "bun:test";

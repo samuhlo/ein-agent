@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # E2E: instala Ein en un Ubuntu limpio (Docker) y verifica el ciclo completo:
-# install → doctor → reinstalación (backup + dedup) → dry-runs.
+# install -> doctor -> reinstalacion (backup + dedup) -> dry-runs.
 # Uso: ./e2e/docker-test.sh          (compila el binario linux y lo prueba)
 # Requiere: docker corriendo y bun en el host. Necesita red (bun + pi se
 # instalan dentro del contenedor).

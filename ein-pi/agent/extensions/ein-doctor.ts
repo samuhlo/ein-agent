@@ -80,7 +80,9 @@ async function doctorReport(): Promise<string> {
   let settings: Record<string, unknown> = {};
   try {
     settings = JSON.parse(readFileSync(join(AGENT_DIR, "settings.json"), "utf8")) as Record<string, unknown>;
-  } catch { /* ignore */ }
+  } catch {
+    // silencio intencional: settings opcional; el reporte usa defaults.
+  }
 
   const hasEngram = await cliExists("engram");
   const hasGh = await cliExists("gh");
@@ -184,8 +186,8 @@ function doctorSmokeReport(): string {
   }
 
   const guardrailsRaw = readIfExists(guardrailsFile);
-  // Coherencia: ficheros donde viven las referencias que historicamente
-  // quedaban colgando (forecast muerto, support inexistente, straggler marca).
+  // BLINDAJE -> Ficheros donde historicamente quedaban referencias colgantes
+  // (forecast muerto, support inexistente, straggler de marca).
   const preflightRaw = readIfExists(join(AGENT_DIR, "lib", "sdd-preflight.ts"));
   const einGitRaw = readIfExists(join(agentsDir, "ein-git.md"));
   const sddApplyRaw = readIfExists(join(agentsDir, "sdd-apply.md"));
@@ -348,9 +350,9 @@ function doctorSmokeReport(): string {
     ),
   ];
 
-  // Coherencia: detecta referencias colgantes y desajustes que un deploy stale
-  // o un refactor a medias dejan atras (la clase de bug que se repitio varias
-  // veces: prompts/codigo apuntando a artefactos o mecanismos inexistentes).
+  // FAIL CLOSED -> Detecta referencias colgantes que un deploy stale o un
+  // refactor a medias deja atras: prompts o codigo apuntando a artefactos que
+  // ya no existen.
   const checksCoherence: CheckResult[] = [
     check(
       !preflightRaw.includes("Gentle AI"),
@@ -473,7 +475,7 @@ function doctorSmokeReport(): string {
 }
 
 // =============================================================================
-// EXPORT
+// [EXPORT] Registro en Pi
 // =============================================================================
 
 export default function einDoctor(pi: ExtensionAPI): void {

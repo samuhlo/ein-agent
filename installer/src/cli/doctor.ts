@@ -1,7 +1,6 @@
 // =============================================================================
 // CLI: doctor
-// Renders the verify report. Plain rendering for now; gold theming arrives in
-// the TUI phase. Exit code reflects result (0 ok/warn, 1 fail).
+// Render del reporte de verify. Exit code 0 ok/warn, 1 fail.
 // =============================================================================
 
 import { detectPlatform } from "../core/platform.ts";

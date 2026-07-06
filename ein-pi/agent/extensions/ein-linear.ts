@@ -7,6 +7,11 @@ import { LINEAR_KEY_PATH } from "./ein-paths";
 
 const LINEAR_URL = "https://api.linear.app/graphql";
 
+// BLINDAJE -> Linear rechaza mutations con IDs que no son String puros
+// (UUIDs y claves humanas mezcladas rompen el schema GraphQL). Esta lista
+// declara por mutación qué variables hay que normalizar antes de enviar.
+// Añadir aquí cualquier ID nuevo; NO omitirlo, o el modelo barato
+// probablemente mande un number o un objeto y Linear devuelva 400 críptico.
 const LINEAR_MUTATION_CONTRACTS = {
   issueCreate: {
     idVars: ["teamId", "projectId", "projectMilestoneId", "stateId", "assigneeId", "labelIds"],
@@ -106,6 +111,8 @@ function coerceMutationVariables(
   operation: keyof typeof LINEAR_MUTATION_CONTRACTS,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
+  // FAIL CLOSED -> Solo casteamos lo declarado en el contrato; el resto pasa
+  // tal cual para no romper inputs no-ID (priorities, enums, JSON strings).
   const contract = LINEAR_MUTATION_CONTRACTS[operation];
   const out: Record<string, unknown> = { ...variables };
 
@@ -253,9 +260,14 @@ async function createProjectMilestone(projectId: string, name: string, targetDat
 }
 
 async function resolveMilestoneId(projectId: string, milestoneInput?: string, createIfMissing = false): Promise<string | undefined> {
+  // createIfMissing distingue updateIssue (false: no crear) de createIssue
+  // (true: auto-crear si el usuario escribió M0X y no existe).
   if (!milestoneInput?.trim()) return undefined;
   const wanted = normalize(milestoneInput);
   const milestones = await listProjectMilestones(projectId);
+  // codePrefix: el usuario pide "M01" y el milestone real se llama
+  // "M01 - Diseno visual y experiencia". Matchear el prefijo evita
+  // obligarle a escribir el nombre completo.
   const found = milestones.find((milestone) => {
     const idMatch = normalize(milestone.id) === wanted;
     const name = normalize(milestone.name);
@@ -270,6 +282,9 @@ async function resolveMilestoneId(projectId: string, milestoneInput?: string, cr
 }
 
 function inferMilestoneNameFromTitle(title: string): string | undefined {
+  // El formato M00..M07 es el código corto que usamos en títulos de issues
+  // (ver buildBootstrapMilestones). Si el título lo lleva, lo cruzamos con el
+  // milestone real cuyo nombre empieza por "M0X -".
   const match = title.match(/\b(M\d{2})\b/i);
   if (!match?.[1]) return undefined;
   return match[1].toUpperCase();
@@ -305,6 +320,8 @@ type BatchIssueInput = {
 type BootstrapPreset = "front-design" | "blog-content" | "ai-system" | "qa-hardening";
 
 function parseBootstrapArgs(raw: string): { projectName: string; preset: BootstrapPreset } {
+  // Formato esperado: "<nombre proyecto> | <preset>". La barra es el único
+  // separador válido porque nombres de proyecto pueden llevar espacios.
   const value = (raw || "").trim();
   if (!value) {
     throw new Error(pick(
@@ -396,6 +413,9 @@ function buildBootstrapMilestones(preset: BootstrapPreset, lang: Lang): string[]
 }
 
 function visibleLinearAgentPrompt(task: string): string {
+  // El prompt SIEMPRE reinyecta la regla de visibilidad para que el modelo
+  // padre (que ya pasó por el preflight) no invente wrappers o chains privadas
+  // que rompan el read-back determinista de Linear.
   return `Ruta visible obligatoria: delega a \`ein-linear\` mediante \`subagent({ agent: "ein-linear", task: "..." })\` si la tool esta disponible.
 
 Si \`subagent\` no esta disponible en esta sesion, ejecuta el flujo de forma directa y visible con las tools \`linear_*\`; no uses wrappers opacos ni procesos privados.
@@ -405,6 +425,10 @@ ${task}`;
 }
 
 function visibleLinearBootstrapPrompt(task: string): string {
+  // [DEPRECATED] La chain ein-linear-bootstrap se conserva SOLO como escape
+  // manual. El flujo canónico de bootstrap es /linear:project-bootstrap
+  // (handler abajo) que delega a ein-linear; la chain legacy queda para
+  // quien ya la tenga en pipeline CI o en muscle memory.
   return `[DEPRECATED] La chain \`ein-linear-bootstrap\` queda solo como compatibilidad manual. Para trabajo nuevo, delega a \`ein-linear\` mediante \`subagent({ agent: "ein-linear", task: "..." })\` si la tool esta disponible.
 
 Si \`subagent\` no esta disponible en esta sesion, ejecuta el bootstrap de forma directa y visible con las tools \`linear_*\`; no uses wrappers opacos, procesos privados ni payloads de chain para input natural.
@@ -849,6 +873,8 @@ export default function einLinear(pi: ExtensionAPI) {
   });
 
   const linearNewHandler = async (args: string, ctx: any) => {
+    // CORTE -> Si hay una tarea en vuelo, el nuevo prompt pisaría el contexto
+    // y la read-back fallaría. Mejor avisar y dejar que el usuario relance.
     if (!ctx.isIdle()) {
       ctx.ui.notify(
         tf(
@@ -900,6 +926,8 @@ export default function einLinear(pi: ExtensionAPI) {
       "Crea/reusa proyecto y siembra issues iniciales por preset",
     ),
     handler: async (args, ctx) => {
+      // CORTE -> Mismo guard que linear:new: bootstrap concurrente con otra
+      // tarea de Linear corrompería el orden de creación de milestones/issues.
       if (!ctx.isIdle()) {
         ctx.ui.notify(
           tf(
@@ -942,6 +970,8 @@ export default function einLinear(pi: ExtensionAPI) {
       "Lista milestones de un proyecto Linear",
     ),
     handler: async (args, ctx) => {
+      // CORTE -> listar milestones concurrentemente con un bootstrap en curso
+      // daría un snapshot parcial y el usuario no podría confiar en el orden.
       if (!ctx.isIdle()) {
         ctx.ui.notify(
           tf(

@@ -11,8 +11,8 @@ import { snapshot } from "../core/backup.ts";
 import { AGENT_DIR, ENGRAM_DIR } from "../core/paths.ts";
 import { bold, gold } from "../tui/theme.ts";
 
-// Top-level entries the installer deploys and therefore owns. auth.json,
-// sessions/, backups/, npm/, runtime dirs and secrets are intentionally absent.
+// Top-level entries que el installer despliega y por tanto posee. auth.json,
+// sessions/, backups/, npm/, runtime dirs y secrets quedan fuera a proposito.
 const EIN_OWNED = [
   "AGENTS.md",
   "brand.json",
@@ -53,14 +53,12 @@ export async function runUninstall(args: string[]): Promise<number> {
     }
   }
 
-  // 1. Backup first.
   const sBackup = p.spinner();
   sBackup.start("Creando backup antes de borrar");
   const backup = await snapshot("pre-uninstall");
   const backupPath = backup.path;
   sBackup.stop(backupPath ? `Backup: ${backupPath}` : "Sin backup");
 
-  // 2. Remove Ein-owned entries.
   const sRemove = p.spinner();
   sRemove.start("Eliminando contenido de Ein");
   let removed = 0;
@@ -73,7 +71,6 @@ export async function runUninstall(args: string[]): Promise<number> {
   }
   sRemove.stop(`Eliminadas ${removed} entradas de Ein.`);
 
-  // 3. Optionally remove engram data.
   if (existsSync(ENGRAM_DIR)) {
     const removeEngram = yes
       ? false

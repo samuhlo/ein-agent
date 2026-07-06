@@ -36,7 +36,7 @@ function buildEnv(opts: RunOptions): Record<string, string> {
   return base;
 }
 
-// Run a command capturing output. Never throws on non-zero exit; check .ok.
+// BLINDAJE -> Never throws on non-zero exit; the caller decides via `.ok`.
 export async function run(
   cmd: string,
   args: string[] = [],
@@ -93,15 +93,14 @@ function isExecutableFile(path: string): boolean {
     if (!existsSync(path)) return false;
     const st = statSync(path);
     if (!st.isFile() && !st.isSymbolicLink()) return false;
-    // On unix, check any execute bit.
+    // Any execute bit set counts as executable on unix.
     return (st.mode & 0o111) !== 0;
   } catch {
     return false;
   }
 }
 
-// Resolve a binary from PATH first, then a list of explicit candidate paths.
-// Returns the first hit, or null if none exist.
+// PATH first, then explicit candidate paths. First hit wins; null if none.
 export function resolveFromCandidates(
   bin: string,
   candidates: string[],

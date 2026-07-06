@@ -1,7 +1,7 @@
 // =============================================================================
 // CLI: update
-// Backup → redeploy bundled template (preserves user state) → update pi →
-// re-template → doctor. Notes if a newer installer binary is available.
+// Backup → redeploy del template bundled (estado de usuario intacto) →
+// update pi → re-template → doctor. Avisa si hay un binario mas nuevo.
 // =============================================================================
 
 import * as p from "@clack/prompts";
@@ -50,7 +50,6 @@ export async function runUpdate(args: string[]): Promise<number> {
     return 0;
   }
 
-  // 1. Backup before touching anything.
   const sBackup = p.spinner();
   sBackup.start("Creando backup");
   const backup = await snapshot("pre-update");
@@ -60,9 +59,9 @@ export async function runUpdate(args: string[]): Promise<number> {
       : "Sin backup (nada que copiar)",
   );
 
-  // 2. Redeploy bundled template. User state (auth.json, secrets, sessions) is
-  // not in the tarball, so it survives untouched. If the deploy dies mid-way
-  // (it wipes template dirs before extracting), roll back to the backup.
+  // BLINDAJE -> User state (auth.json, secrets, sessions) no esta en el
+  // tarball y sobrevive intacto. Si el deploy muere a mitad (borra los dirs
+  // del template antes de extraer), rollback automatico al backup.
   const sDeploy = p.spinner();
   sDeploy.start("Redesplegando template Ein");
   let deployed;
@@ -88,7 +87,6 @@ export async function runUpdate(args: string[]): Promise<number> {
   }
   sDeploy.stop(`Template actualizado (engram: ${deployed.engramFound ? deployed.engramCommand : "PATH"})`);
 
-  // 3. Update pi to latest.
   if (yes || (await confirmUpdate())) {
     const sPi = p.spinner();
     sPi.start("Actualizando pi a la ultima version");
@@ -96,20 +94,16 @@ export async function runUpdate(args: string[]): Promise<number> {
     sPi.stop(r.detail);
   }
 
-  // 3b. Ensure declared Pi extension packages are installed.
   const sPkgs = p.spinner();
   sPkgs.start("Verificando paquetes de Pi declarados");
   const pkgs = await installDeclaredPackages();
   sPkgs.stop(pkgs.detail);
 
-  // 4. Refresh marker.
   writeMarker(marker?.channel ?? "stable");
 
-  // 5. Doctor.
   const report = runDoctor(platform);
   p.log.message(renderReport(report));
 
-  // 6. Note newer installer binary if available.
   const latest = await latestInstallerTag();
   if (latest && !latest.includes(INSTALLER_VERSION)) {
     p.log.warn(`Hay un instalador mas nuevo disponible: ${latest}. Reinstala con curl|bash para actualizar el binario.`);

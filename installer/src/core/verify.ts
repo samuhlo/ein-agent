@@ -1,9 +1,8 @@
 // =============================================================================
 // VERIFY (doctor)
-// Pure filesystem + lookPath port of ein-doctor.ts's smoke checks. Validates a
-// deployed ~/.pi/agent without launching pi. Mirrors the in-pi doctor's
-// canonical expectations: 9 extensions, 8 agents, 1 chain, brand triplet,
-// ENGRAM_DATA_DIR containing .engram-pi.
+// Filesystem + lookPath port of ein-doctor.ts smoke checks. Validates a
+// deployed ~/.pi/agent without launching pi. Drives expected counts from
+// template-manifest.json with hardcoded fallbacks for older binaries.
 // =============================================================================
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -87,9 +86,9 @@ export type TemplateManifest = {
   extensions?: string[];
 };
 
-// The bundle ships template-manifest.json describing exactly what it contains;
-// doctor validates the deployment against it instead of hardcoded lists, so a
-// release that adds/renames an agent doesn't require touching this file.
+// Bundle ships template-manifest.json describing exactly what it contains;
+// doctor validates against it (manifest-driven) so a release adding/renaming
+// an agent doesn't require touching this file.
 export function loadTemplateManifest(agentDir: string = AGENT_DIR): TemplateManifest | null {
   const path = join(agentDir, "template-manifest.json");
   if (!existsSync(path)) return null;
@@ -100,8 +99,8 @@ export function loadTemplateManifest(agentDir: string = AGENT_DIR): TemplateMani
   }
 }
 
-// Single source of truth: read from extensions-manifest.json deployed alongside extensions.
-// Falls back to hardcoded list if the file is absent (e.g. mid-deployment failure).
+// Source of truth: extensions-manifest.json. Hardcoded fallback covers older
+// binaries and mid-deployment failures.
 function loadCoreExtensions(): string[] {
   const manifestPath = join(AGENT_DIR, "extensions-manifest.json");
   if (existsSync(manifestPath)) {
@@ -141,7 +140,7 @@ export function runDoctor(platform: Platform): DoctorReport {
 
   // Los patrones de guardrails viven en lib/guardrails.ts desde el refactor P2.
   const guardrailsRaw = readIfExists(guardrailsFile);
-  // Coherencia: ficheros donde vivian las referencias colgantes historicas.
+  // Coherencia: ficheros donde historicamente quedaban referencias colgantes.
   const preflightRaw = readIfExists(join(AGENT_DIR, "lib", "sdd-preflight.ts"));
   const einGitRaw = readIfExists(join(agentsDir, "ein-git.md"));
   const sddApplyRaw = readIfExists(join(agentsDir, "sdd-apply.md"));
@@ -232,8 +231,8 @@ export function runDoctor(platform: Platform): DoctorReport {
     check(guardrailsRaw.includes("CONFIRM_BASH_PATTERNS"), "guardrails bash confirm", "Lista de confirmacion de comandos activa."),
   ];
 
-  // Coherencia: referencias colgantes / desajustes que un deploy stale o un
-  // refactor a medias dejan atras.
+  // Coherencia: referencias colgantes / desajustes que deja un deploy stale
+  // o un refactor a medias.
   const checksCoherence: CheckResult[] = [
     check(!preflightRaw.includes("Gentle AI"), "marca sin straggler", "La preflight no contiene el nombre antiguo 'Gentle AI'."),
     check(einGitRaw.includes("Review Workload Gate"), "review workload gate", "ein-git documenta el gate de carga de revision."),

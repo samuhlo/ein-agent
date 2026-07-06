@@ -1,12 +1,12 @@
 // =============================================================================
 // BANNER
-// Logo EIN en bloque con la paleta brutalista plana: E y N en concrete, la I
-// en amarillo industrial (el gesto de marca), regla en structure y subtítulo
-// ".SAMUHLO · PI WORKBENCH" con el punto amarillo. Animación "materialize":
-// cada celda aparece con retardo pseudoaleatorio (sesgo izq→dcha) y resuelve
-// ░ → ▒ → ▓ → █ como hormigón fraguando; la I sella en amarillo al final.
-// Corte grande (54×10) si el terminal da de sí, pequeño (38×7) si no.
-// Fallback estático en non-TTY / NO_COLOR.
+// Logo EIN con la paleta brutalista plana: E y N en concrete, la I en
+// amarillo industrial (gesto de marca), regla en structure y subtitulo
+// ".SAMUHLO · PI WORKBENCH" con el punto amarillo. Animacion "materialize":
+// cada celda aparece con retardo pseudoaleatorio (sesgo izq->dcha) y resuelve
+// . -> : -> o -> # como hormigon fraguando; la I sella en amarillo al final.
+// Corte grande (54x10) si el terminal da de si, pequeno (38x7) si no.
+// Fallback estatico en non-TTY / NO_COLOR.
 // =============================================================================
 
 import { INSTALLER_VERSION } from "../core/version.ts";
@@ -26,7 +26,7 @@ const LOGO_LARGE = [
   "██████████████      ████████████      ████       █████",
 ];
 
-// Corte pequeño para terminales estrechos: trazos de 3 (38 cols, 7 filas).
+// Corte pequeno para terminales estrechos: trazos de 3 (38 cols, 7 filas).
 const LOGO_SMALL = [
   "██████████    █████████    ███     ███",
   "███              ███       ████    ███",
@@ -68,7 +68,7 @@ function padLines(lines: string[]): { lines: string[]; width: number } {
   return { lines: lines.map((l) => l.padEnd(width)), width };
 }
 
-// Corte grande si el terminal da de sí; pequeño si no (o si no hay columnas).
+// Corte grande si el terminal da de si; pequeno si no (o si no hay columnas).
 function pickLogo(): LogoCut {
   const cols = process.stdout.columns ?? 80;
   const largeWidth = Math.max(...LOGO_LARGE.map((l) => l.length));
@@ -87,8 +87,8 @@ function clamp01(n: number): number {
 }
 
 // -----------------------------------------------------------------------------
-// Materialize: retardo pseudoaleatorio por celda (sesgo izq→dcha) y resolución
-// ░ → ▒ → ▓ → █. La I asienta en concrete y el amarillo entra de golpe al
+// Materialize: retardo pseudoaleatorio por celda (sesgo izq->dcha) y resolucion
+// . -> : -> o -> #. La I asienta en concrete y el amarillo entra de golpe al
 // final, como un sello.
 // -----------------------------------------------------------------------------
 const SWEEP = 0.45; // ticks de retardo por columna
@@ -229,12 +229,13 @@ export async function playBanner(): Promise<void> {
   const ph = buildPhase(logo.width);
   const rows = logo.lines.length + 2; // logo + regla + subtítulo
 
-  process.stdout.write("\x1b[?25l"); // hide cursor
+  // Ocultar cursor durante el repaint in-situ evita parpadeo entre frames.
+  process.stdout.write("\x1b[?25l");
   let cleanedUp = false;
   const cleanup = () => {
     if (cleanedUp) return;
     cleanedUp = true;
-    process.stdout.write("\x1b[?25h"); // restore cursor
+    process.stdout.write("\x1b[?25h");
   };
   const onSigint = () => {
     cleanup();

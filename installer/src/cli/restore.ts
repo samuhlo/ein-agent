@@ -1,8 +1,8 @@
 // =============================================================================
 // CLI: restore
-// Lists installer backups and restores the chosen one over ~/.pi/agent.
-// Also manages pins: `ein restore --pin <nombre>` / `--unpin <nombre>` protege
-// o libera un backup frente a la poda automatica.
+// Lista los backups del installer y restaura el elegido sobre ~/.pi/agent.
+// Tambien gestiona pines: `ein restore --pin <nombre>` / `--unpin <nombre>`
+// protege o libera un backup frente a la poda automatica.
 // =============================================================================
 
 import * as p from "@clack/prompts";

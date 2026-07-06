@@ -50,6 +50,4 @@ export function resolveUvxBin(): string {
   return existsSync(local) ? local : "uvx";
 }
 
-export default function einPaths(_pi: ExtensionAPI): void {
-  // modulo de constantes compartidas; no registra hooks
-}
+export default function einPaths(_pi: ExtensionAPI): void {}

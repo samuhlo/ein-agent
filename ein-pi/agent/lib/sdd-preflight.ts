@@ -1,3 +1,25 @@
+// =============================================================================
+// SDD PREFLIGHT
+// Detección de preferencias SDD/TDD al inicio de la sesión y render del
+// bloque "## SDD Session Preflight" que el motor de preflight inyecta en el
+// prompt del modelo.
+//
+// Tres responsabilidades que se mezclan aquí a propósito:
+//   1. Trigger SDD: detecta `/sdd ...`, "usa sdd", "vamos con el sdd", etc.,
+//      y arranca el preflight solo cuando el usuario lo pide de verdad.
+//   2. TDD por tarea: resuelve strict/off/auto/ask — incluyendo el modo `ask`,
+//      que en un chain el parent no puede preguntar (no recupera control entre
+//      design y apply), así que se resuelve deterministamente aquí.
+//   3. Render del bloque inyectado: incluye el Review Workload Guard con el
+//      budget en líneas de PRODUCCIÓN y un texto por modo de TDD que sobrescribe
+//      `openspec/config.yaml` cuando la tarea lo decide.
+//
+// Fallback sin UI: si la sesión no tiene `ctx.hasUI` (subagente, headless) o
+// el parent no interactivó, se aplican defaults (interactive / openspec /
+// auto-forecast / 400 / auto) y el bloque se inyecta igual — el modelo debe
+// saber qué política sigue aunque nadie haya confirmado nada.
+// =============================================================================
+
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

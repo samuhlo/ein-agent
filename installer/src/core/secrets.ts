@@ -1,7 +1,7 @@
 // =============================================================================
 // SECRETS
-// Manages ~/.config/opencode-secrets/* plaintext keys and the CONTEXT7_API_KEY
-// shell export. Idempotent and sentinel-guarded; never touches auth.json.
+// Manages ~/.config/opencode-secrets/* plaintext keys + CONTEXT7_API_KEY shell
+// export. Idempotent and sentinel-guarded; never touches auth.json.
 // =============================================================================
 
 import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -54,8 +54,8 @@ export async function writeSecret(name: SecretName, value: string): Promise<bool
 const SENTINEL_START = "# >>> ein context7 export >>>";
 const SENTINEL_END = "# <<< ein context7 export <<<";
 
-// Idempotently append a CONTEXT7_API_KEY export to the shell rc, reading the
-// value from the secrets file at shell startup so the key is never inlined.
+// Idempotent: append a CONTEXT7_API_KEY export to the shell rc. The value is
+// read from the secrets file at shell startup so the key is never inlined.
 export function ensureContext7Export(platform: Platform): { changed: boolean; rc: string } {
   const rc = platform.shellRc;
   const existing = existsSync(rc) ? readFileSync(rc, "utf8") : "";

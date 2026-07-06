@@ -1,19 +1,18 @@
 // =============================================================================
 // DEPLOY
-// Extracts the embedded template tarball into ~/.pi/agent and applies path
-// templating to mcp.json + settings.json. Idempotent: never touches user
-// state (auth.json, sessions/, backups/, .sdd/, etc. are simply not in the
-// tarball). User-owned fields in settings.json (defaultProvider, defaultModel,
-// theme, enabledModels, packages) are preserved across updates via a
-// read-before / merge-after pattern around the tarball extraction.
+// Extract the embedded template tarball into ~/.pi/agent and apply path
+// templating to mcp.json + settings.json. Idempotent: user state (auth.json,
+// sessions/, backups/, .sdd/, ...) is simply not in the tarball. User-owned
+// settings.json fields (model, theme, packages, ...) are preserved via
+// read-before / merge-after around extraction.
 // =============================================================================
 
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-// Embedded at compile time via `bun build --compile`. At runtime this import
-// resolves to the bundled asset path.
+// Embedded at compile time via `bun build --compile`; at runtime resolves to
+// the bundled asset path.
 import templateTarball from "../assets/template.tar.gz" with { type: "file" };
 import type { Platform } from "./platform.ts";
 import { resolveEngram } from "./engram.ts";
@@ -31,10 +30,9 @@ export { mergeUserSettings, readUserSettings, type UserSettings };
 
 import type { TemplateManifest } from "./verify.ts";
 
-// Read template-manifest.json straight out of the embedded tarball, without
-// deploying anything. Powers `--dry-run` (show the plan) and lets callers know
-// what this binary would ship. Entries were tarred as "./name", so try both
-// member spellings (GNU tar matches literally; bsdtar is lenient).
+// Read template-manifest.json straight out of the embedded tarball (no deploy).
+// Powers `--dry-run`. Tries both "./name" and "name" spellings: GNU tar matches
+// literally, bsdtar is lenient.
 export async function readBundledManifest(): Promise<TemplateManifest | null> {
   const bytes = await Bun.file(templateTarball).arrayBuffer();
   const staging = mkdtempSync(join(tmpdir(), "ein-manifest-"));
@@ -58,10 +56,9 @@ export async function readBundledManifest(): Promise<TemplateManifest | null> {
 }
 
 export type DeployOptions = {
-  // skipLinear opts out of Linear → sets the default work mode to "solo".
-  // We no longer DELETE ein-linear files (that was destructive + incoherent);
-  // the agent stays deployed and the runtime work mode decides whether Linear
-  // is used. Mirrors lib/mode.ts (~/.pi/agent/ein-mode.json, default solo).
+  // skipLinear writes ein-mode.json=solo instead of deleting ein-linear files.
+  // Deletion was destructive and incoherent; the agent stays deployed and the
+  // runtime mode in lib/mode.ts decides whether Linear is actually used.
   skipLinear?: boolean;
 };
 
@@ -71,18 +68,17 @@ export type DeployResult = {
   engramFound: boolean;
 };
 
-// Writes the global default work mode read by lib/mode.ts when a project has no
-// .pi/ein/mode.json. "solo" (no Linear) when the user opts out; "team" otherwise.
+// Writes the global default work mode (lib/mode.ts fallback when a project has
+// no .pi/ein/mode.json). solo when skipLinear, team otherwise.
 function writeGlobalMode(agentDir: string, mode: "solo" | "team"): void {
   writeFileSync(join(agentDir, "ein-mode.json"), `${JSON.stringify({ mode }, null, 2)}\n`);
 }
 
-// Directories fully owned by the template. Wiped before extraction so files
-// removed upstream (e.g. a renamed agent like ein-github→ein-git) don't linger
-// as orphans — tar only adds/overwrites, it never deletes. Deliberately
-// excludes `skills/` and `themes/`, which hold user-managed state (downloaded
-// skills, symlinks, personal pi themes), and the agent root (auth.json,
-// sessions/, backups/, .sdd/, ...).
+// Template-owned dirs. Wiped before extraction so files removed upstream (e.g.
+// a renamed agent like ein-github -> ein-git) don't linger as orphans: tar
+// only adds/overwrites, never deletes. Deliberately excludes skills/ and
+// themes/ (user-managed) and the agent root (auth.json, sessions/, backups/,
+// .sdd/, ...).
 export const MANAGED_DIRS = ["agents", "assets", "chains", "docs", "extensions", "lib", "prompts"];
 
 // Clean-replace the template-owned dirs. No-op on a fresh install (dirs absent).
@@ -110,19 +106,18 @@ function templateConfig(fileName: string, vars: TemplateVars): void {
 }
 
 export async function deployTemplate(platform: Platform, opts: DeployOptions = {}): Promise<DeployResult> {
-  // Preserve user-owned settings before extraction overwrites the file.
+  // Read user-owned settings before the tarball overwrites settings.json.
   const userSettings = readUserSettings(AGENT_DIR);
 
-  // Bun's compiled binary exposes the embedded file via its import path; in dev
-  // (bun run) it resolves to the real file on disk. Read bytes and stage them
-  // so `tar` has a concrete path to read from.
+  // Stage the embedded asset to a real file: `tar` needs a concrete path,
+  // not a bun:// import.
   const bytes = await Bun.file(templateTarball).arrayBuffer();
   const staging = mkdtempSync(join(tmpdir(), "ein-deploy-"));
   const stagedTar = join(staging, "template.tar.gz");
   try {
     writeFileSync(stagedTar, new Uint8Array(bytes));
-    // Wipe template-owned dirs first so upstream deletions/renames don't leave
-    // orphans behind. User state (skills/, auth.json, ...) is untouched.
+    // Clean first so upstream deletions/renames don't leave orphans; user state
+    // (skills/, auth.json, ...) is not in MANAGED_DIRS so it survives.
     cleanManagedDirs(AGENT_DIR);
     await extractTarball(stagedTar, AGENT_DIR);
 
@@ -137,11 +132,10 @@ export async function deployTemplate(platform: Platform, opts: DeployOptions = {
     templateConfig("mcp.json", vars);
     templateConfig("settings.json", vars);
 
-    // Restore user-owned fields (model, theme, etc.) that the tarball reset.
+    // Re-apply user-owned fields the tarball reset.
     mergeUserSettings(AGENT_DIR, userSettings);
 
-    // Set the default work mode instead of deleting Linear files. Solo (no
-    // Linear) when the user opted out; Team (Linear board) otherwise.
+    // Default work mode (overridden per-project by .pi/ein/mode.json).
     writeGlobalMode(AGENT_DIR, opts.skipLinear ? "solo" : "team");
 
     return {

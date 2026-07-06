@@ -1,11 +1,9 @@
 // =============================================================================
 // BACKUP
 // Snapshot / list / restore of the Ein-owned tree under ~/.pi/agent.
-// v2: compressed tar.gz archives, content-hash dedup (identical trees are not
-// re-backed up), auto-prune (keeps the N most recent, pinned backups survive),
-// legacy directory backups remain listable/restorable. Backups live in
-// ~/.pi/agent/backups/installer and exclude heavy regenerable dirs
-// (skills/downloaded, npm) and the backups dir itself.
+// v2: tar.gz + content-hash dedup + auto-prune (pinned survive); legacy dir
+// backups remain listable. Excludes heavy regenerable dirs (skills/downloaded,
+// npm) and the backups dir itself.
 // =============================================================================
 
 import { createHash } from "node:crypto";
@@ -25,9 +23,9 @@ import { join, relative } from "node:path";
 import { run } from "./exec.ts";
 import { AGENT_DIR, BACKUP_DIR } from "./paths.ts";
 
-// Dirs/files we never copy into a backup (regenerable, recursive, or user
-// state the installer must never overwrite on restore — auth.json included:
-// restoring an old credential file over the current one breaks Pi silently).
+// BLINDAJE -> auth.json and sessions are never copied: restoring an old
+// credential over the current one silently breaks Pi. Rest are regenerable
+// or recursive and would bloat snapshots.
 const BACKUP_EXCLUDE = new Set([
   "backups",
   "npm",
@@ -67,8 +65,8 @@ export type SnapshotResult = {
   pruned: string[];
 };
 
-// Within skills, downloaded/ is large and reinstallable; back up everything
-// except that to keep snapshots small while preserving local skills + locks.
+// NOISE KILL -> Excluding downloaded/ (large, reinstallable) keeps snapshots
+// small without losing local skills or lockfiles.
 function copyEntry(srcRoot: string, destRoot: string, name: string): void {
   const src = join(srcRoot, name);
   const dest = join(destRoot, name);
@@ -97,8 +95,9 @@ function walkFiles(root: string, dir: string, out: string[]): void {
   }
 }
 
-// Deterministic content hash of the backup-relevant tree: same exclusions as
-// the snapshot itself, files sorted by relative path, path + content hashed.
+// Deterministic hash of the backup-relevant tree (same exclusions as snapshot).
+// Sorted by relative path; path + content both hashed so two identical
+// snapshots collide on the same digest.
 export function treeHash(agentDir: string): string | null {
   if (!existsSync(agentDir)) return null;
   const files: string[] = [];
@@ -175,8 +174,7 @@ export function listBackups(paths: BackupPaths = {}): BackupEntry[] {
   return entries.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
 }
 
-// Delete oldest backups beyond `keep`, skipping pinned ones. Returns the
-// deleted backup names.
+// Delete oldest backups beyond `keep`, skipping pinned. Returns deleted names.
 export function pruneBackups(paths: BackupPaths = {}): string[] {
   const keep = paths.keep ?? KEEP_COUNT;
   const entries = listBackups(paths);
@@ -209,7 +207,7 @@ export async function snapshot(reason: string, paths: BackupPaths = {}): Promise
   const backupDir = paths.backupDir ?? BACKUP_DIR;
   if (!existsSync(agentDir)) return { path: null, deduped: false, pruned: [] };
 
-  // Dedup: if the newest archive already captures this exact tree, skip.
+  // NOISE KILL -> If the newest archive already captures this exact tree, skip.
   const hash = treeHash(agentDir);
   const newest = listBackups({ ...paths, backupDir })[0];
   if (hash && newest && newest.kind === "archive" && readMetaHash(newest.path) === hash) {
@@ -244,9 +242,9 @@ export async function snapshot(reason: string, paths: BackupPaths = {}): Promise
   }
 }
 
-// Restore a backup over the live tree. Only overwrites the files present in
-// the backup; user state outside it (auth.json, sessions, etc.) stays
-// untouched. Supports both v2 archives and legacy directory backups.
+// Restore a backup over the live tree. Only overwrites files present in the
+// backup; user state outside it (auth.json, sessions, ...) is untouched.
+// Supports v2 archives and legacy directory backups.
 export async function restoreBackup(backupPath: string, paths: BackupPaths = {}): Promise<void> {
   const agentDir = paths.agentDir ?? AGENT_DIR;
   if (!existsSync(backupPath)) {
