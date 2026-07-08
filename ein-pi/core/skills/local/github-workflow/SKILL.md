@@ -1,6 +1,6 @@
 ---
 name: github-workflow
-description: GitHub delivery workflow using SSH + gh, with Samuhlo-style commits, PR summaries, reviews, and Linear sync.
+description: GitHub delivery workflow using SSH + gh — feature -> dev -> main promotion model, Samuhlo-style commits, PR summaries, reviews, and Linear sync.
 license: internal
 ---
 
@@ -26,6 +26,7 @@ Required gates for PRs:
 - `github-workflow` is loaded before any `git`/`gh` delivery command.
 - Engram context is recovered before acting: `mem_context` plus project-specific search for GitHub, PR style, auth, CodeRabbit, Linear, and delivery notes.
 - Branch, remote, status, staged diff, unstaged diff, and base diff are inspected.
+- Work branches are cut from `dev` and target base `dev`; only hotfixes branch from and target `main`. If `dev` is missing, create it from `main` before branching (see Branch Flow).
 - Repo-local delivery files are read when present: `.github/pull_request_template.md`, `.coderabbit.yaml`, `AGENTS.md`, `CLAUDE.md`.
 - PR body uses repo template and memory first, not generic copy.
 - PR body is Spanish by default and uses rich Markdown unless user explicitly asks otherwise.
@@ -59,8 +60,49 @@ Before any operation that creates/pushes/publishes when repo ownership is unclea
 
 - Linear = board: what work exists and status.
 - SDD = workbench: how the work is planned and implemented.
-- GitHub = delivery: branch, commit, PR, review.
+- GitHub = delivery: branch, commit, PR, review. Code flows `feature -> dev -> main`.
 - Engram = notebook: lessons and decisions.
+
+## Branch Flow (Delivery Model)
+
+Default promotion model for any project managed with ein. Code flows in **one direction only**: `feature -> dev -> main`.
+
+- **`main` = production.** Only receives merges from `dev`. Never direct commits, never a feature branch merged straight in (except hotfixes below). Whatever is on `main` is what is live.
+- **`dev` = integration / staging.** Where finished work lands and coexists before shipping. Conflicts and cross-feature breakage surface here against the real integrated state, not against a partial stack of PRs.
+- **`feat/*`, `fix/*`, `chore/*` branch from `dev`**, and their PR base is `dev`.
+
+Day to day:
+
+1. Cut the work branch from `dev` (not `main`).
+2. Open the PR with base `dev`.
+3. Merge to `dev` after CI/review passes. Finished work accumulates here.
+4. To ship: PR (or merge) `dev -> main`. That single merge is the deploy to prod.
+
+Hotfix (the only exception):
+
+- A production bug must not wait for whatever is cooking in `dev`.
+- Cut `fix/*` from `main`, PR against `main`, ship it.
+- Then merge `main` back into `dev` so `dev` does not fall behind. This is the only time code flows backward.
+
+Bootstrapping a repo:
+
+- If no `dev` branch exists yet, create it from `main` before cutting any work branch:
+
+  ```bash
+  git switch -c dev main && git push -u origin dev
+  ```
+
+- Skip the model only for throwaway sandboxes, and say you are skipping it and why.
+
+Vercel note (when the project deploys on Vercel):
+
+- `main` -> production deploy.
+- `dev` -> connect it as a branch to get a stable, permanent staging URL.
+- other branches -> automatic ephemeral preview URLs. No extra config needed.
+
+Protection (optional hardening):
+
+- Branch protection on `main` (require PR, block direct push) turns "main only receives merges from dev" from discipline into a guarantee.
 
 ## Branch Naming
 
@@ -85,6 +127,7 @@ Rules:
 - no spaces
 - no decorative names
 - include Linear issue ID when available
+- branch from `dev` (hotfixes branch from `main`) — see Branch Flow
 
 ## Commit Style
 

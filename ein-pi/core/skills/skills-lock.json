@@ -395,7 +395,7 @@
         "repo": "samuhlo/ein-agent",
         "path": "ein-pi/agent/skills/local/github-workflow"
       },
-      "hash": "7cddd56d564e224a2b25934f361b2a893cf02f99484cc74410b39039bf79fd58",
+      "hash": "7a11582d0f3ab736294ba81e63f17d737ff5ef342dff67b2c56192d665ac20cf",
       "installedAt": "2026-06-09T17:17:39.825Z"
     },
     "issue-creation": {
