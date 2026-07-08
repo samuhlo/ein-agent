@@ -5,6 +5,26 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.15.2] - 2026-07-08
+
+### Added
+
+- **Cobertura de comportamiento en `verify`.** Un `status: pass` con solo build
+  y typecheck verdes ya no basta: `sdd-verify` declara `behavior_coverage`
+  (`verified | partial | none | n-a`) y `ein_sdd_check` avisa (warning, no
+  bloquea el routing) cuando un PASS no confirmó el comportamiento observable —
+  un build verde no prueba no-regresión.
+
+### Changed
+
+- **Retirado el fallback cross-provider de los 9 agentes.** Se elimina
+  `fallbackModels`: Ein deja de cambiar de modelo automáticamente a media
+  tarea, restaurando la promesa del README. Un corte transitorio del proveedor
+  se absorbe con el retry paciente (`maxRetries: 6`, backoff) en el mismo
+  modelo; agotar cuota de verdad es una decisión manual (`/ein:models:lite`).
+  Evita picos de coste silenciosos (un agente barato escalando al modelo caro)
+  y caídas de calidad a mitad de un trabajo con estado.
+
 ## [0.15.1] - 2026-07-08
 
 ### Added
