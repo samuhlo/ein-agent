@@ -5,6 +5,19 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.15.3] - 2026-07-08
+
+### Added
+
+- **Modelo de ramas `feature -> dev -> main` en `github-workflow`.** La skill de
+  delivery adopta un flujo de promoción explícito: `main` = producción (solo
+  recibe merges desde `dev`), `dev` = integración/staging donde el trabajo
+  terminado convive antes de publicar, y las ramas `feat/*`/`fix/*`/`chore/*`
+  salen de `dev` y apuntan a `dev`. Incluye la excepción de hotfix (rama desde
+  `main`, PR a `main`, y merge `main -> dev` de vuelta), el bootstrap del repo
+  (crear `dev` desde `main` si falta) y la nota de previews de Vercel. Nuevo
+  hard-stop gate que verifica la base de la rama antes de cualquier `git`/`gh`.
+
 ## [0.15.2] - 2026-07-08
 
 ### Added
