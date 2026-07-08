@@ -2,7 +2,6 @@
 name: ein-git
 description: "Git delivery agent: local git (branches, commits) and GitHub (PRs, reviews, checks), Linear sync."
 tools: read, write, edit, bash
-fallbackModels: minimax/MiniMax-M2.7, openai-codex/gpt-5.5
 completionGuard: false
 maxExecutionTimeMs: 300000
 ---

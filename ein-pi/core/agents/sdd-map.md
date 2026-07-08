@@ -2,7 +2,6 @@
 name: sdd-map
 description: Map an SDD change idea before the design phase.
 tools: read, grep, glob
-fallbackModels: minimax/MiniMax-M2.7, openai-codex/gpt-5.5
 completionGuard: false
 ---
 

@@ -2,7 +2,6 @@
 name: sdd-verify
 description: Verify implementation against SDD design, tasks, apply progress, and strict TDD evidence.
 tools: read, grep, glob, bash, write, edit
-fallbackModels: minimax/MiniMax-M2.7, openai-codex/gpt-5.5
 completionGuard: false
 ---
 
@@ -34,6 +33,19 @@ Run required focused and full verification commands when available. Report comma
 - **Always bound with `timeout`.** A build/test run gets `timeout 300 <cmd>` (raise only with reason) so a genuine hang aborts instead of burning the whole budget.
 - **Builds need their env.** A production build of an app that reads a database (e.g. NeonDB) needs `DATABASE_URL` (and any other runtime secret) present, or a prerender/server step can block on the network. If the env is missing, report that the build can't be validated here rather than hanging on it.
 
+## Behavioral coverage (a green build is NOT a pass)
+
+`bun run build` + typecheck passing proves the code COMPILES and TYPES — it does NOT prove the changed behavior still works. A visual/UI change, a refactor meant to preserve behavior, or logic with no test exercising it can be fully "green" and still be broken or reverted. Signing `status: pass` off green-build-only is the failure this section exists to prevent.
+
+For every change, assess whether something actually EXERCISED the changed behavior — a test that hits the new/changed path, or a runtime/observable check (render, smoke, endpoint hit). Then declare, as a mandatory line in the report:
+
+- `behavior_coverage: verified` — a test or observable check exercised the change and passed.
+- `behavior_coverage: partial` — some of the changed behavior is covered, some is not.
+- `behavior_coverage: none` — nothing exercised the behavior; only build/types/lint ran. **Do NOT present this as an unqualified PASS.** You may still emit `status: pass` (build/types are green) but the report MUST state, in plain words, that observable behavior was NOT confirmed and a regression could pass unseen — and recommend the specific check that would close the gap (a focused test, a `preview`/screenshot, an endpoint hit).
+- `behavior_coverage: n-a` — the change is non-behavioral (docs, pure config/dependency bump, comment/formatting) so behavioral coverage does not apply.
+
+When the change is behavioral (UI, logic, data flow) and no coverage exists, prefer recommending the missing check over rubber-stamping green. The gatekeeper warns on `none`/`partial`/undeclared; that warning is a signal for the parent and user, not noise to suppress.
+
 ## Strict TDD Verification
 
 If strict TDD is active in `openspec/config.yaml`, parent prompt, or `apply-progress.md`:
@@ -51,6 +63,7 @@ This prompt is the complete strict-TDD verification contract; do not skip TDD co
 Write `openspec/changes/{change}/verify-report.md` by crossing `design.md` + `tasks.md` + `apply-progress.md`, with:
 
 - pass/fail status;
+- `behavior_coverage: verified | partial | none | n-a` (mandatory — see Behavioral coverage);
 - spec coverage;
 - task completion status;
 - test/validation commands;

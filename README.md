@@ -76,7 +76,7 @@ Routing por fase. Estos son **mi elección personal** — un setup parecido func
 | `sdd-apply` | `MiniMax-M3` | `MiniMax-M3` |
 | `sdd-scope`, `sdd-map`, `sdd-tasks`, `sdd-verify`, `sdd-close`, `ein-linear`, `ein-git` | `MiniMax-M2.7` | `MiniMax-M2.7` |
 
-`apply` (que escribe código) va a M3 a propósito: M2.7 se quedaba corto. Si gpt-5.5 se queda sin tokens, **el cambio es manual** — `/ein:models:lite` baja las fases pesadas a M3 al instante. Pi no hace fallback automático de modelo a mitad de tarea; ese cambio lo decides tú.
+`apply` (que escribe código) va a M3 a propósito: M2.7 se quedaba corto. Si gpt-5.5 se queda sin tokens, **el cambio es manual** — `/ein:models:lite` baja las fases pesadas a M3 al instante. Ein **no hace fallback automático de modelo a mitad de tarea**: un corte transitorio del proveedor se absorbe **reintentando en el mismo modelo** (retry con backoff), nunca cambiando de cerebro a media faena — cambiar de modelo lo decides tú. Así el coste y la calidad no dan sorpresas silenciosas.
 
 ## // 005. ESTÉTICA DEL OUTPUT (persona)
 

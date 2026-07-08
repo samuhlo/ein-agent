@@ -2,7 +2,6 @@
 name: ein-linear
 description: "Linear workflow agent: project preflight, issue bootstrap, sync, comments."
 tools: linear_get_issue, linear_update_issue, linear_search_issues, linear_create_issue, linear_create_issues_batch, linear_create_comment, linear_list_teams, linear_list_projects, linear_list_project_issues, linear_list_milestones, linear_create_milestone, linear_ensure_project_milestones, linear_create_project
-fallbackModels: minimax/MiniMax-M2.7, openai-codex/gpt-5.5
 completionGuard: false
 maxExecutionTimeMs: 300000
 ---

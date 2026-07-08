@@ -2,7 +2,6 @@
 name: sdd-close
 description: Close a verified SDD change — condense it into a clean, reviewable summary.md. The deterministic move is done by the parent via /ein:sdd-close.
 tools: read, grep, glob, write
-fallbackModels: minimax/MiniMax-M2.7, openai-codex/gpt-5.5
 completionGuard: false
 ---
 

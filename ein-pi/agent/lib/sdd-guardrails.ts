@@ -94,6 +94,17 @@ const FABRICATION_PATTERNS: { code: string; message: string; pattern: RegExp }[]
 	},
 ];
 
+// BLINDAJE -> Cobertura de comportamiento en verify. El fallo real: verify
+// firmaba `status: pass` con solo build + typecheck verdes, sin que ningun
+// test/observacion ejerciera el comportamiento cambiado — y un build verde NO
+// prueba no-regresion en una UI/logica sin cobertura. Aqui NO bloqueamos el
+// routing (pass sigue avanzando a close), pero exigimos que verify DECLARE
+// `behavior_coverage` y hacemos ruidoso (warning) cuando un PASS no confirmo el
+// comportamiento observable. El enforcement fuerte vive en sdd-verify.md.
+const VERIFY_PASS = /\b(?:status|result|resultado)\s*[:=]\s*(?:pass|passed|ok|pasa)\b/i;
+const BEHAVIOR_COVERAGE =
+	/\bbehaviou?r(?:al)?[_-]coverage\s*[:=]\s*(verified|partial|none|not[- ]applicable|n\/?-?a|na)\b/i;
+
 export function lintDesignArtifact(
 	content: string,
 	opts: DesignLintOptions = {},
@@ -280,6 +291,34 @@ export function lintPhaseArtifact(
 			const level: GuardrailLevel =
 				req.telemetry && opts.authoredByFallback ? "warning" : "error";
 			issues.push({ level, code: `missing-${req.code}`, message: `Falta señal obligatoria de ${phase}: ${req.label}.` });
+		}
+	}
+
+	// Cobertura de comportamiento: solo relevante cuando verify declara PASS.
+	// Un PASS sin comportamiento confirmado es una luz verde estructural, no una
+	// garantía de no-regresión — se surface como warning, nunca bloquea.
+	if (phase === "verify" && VERIFY_PASS.test(text)) {
+		const cov = text.match(BEHAVIOR_COVERAGE)?.[1]?.toLowerCase();
+		if (!cov) {
+			issues.push({
+				level: "warning",
+				code: "behavior-coverage-undeclared",
+				message:
+					"verify declara PASS pero no `behavior_coverage`: trata el comportamiento observable como NO verificado (build/typecheck verde no prueba no-regresión). Declara `behavior_coverage: verified|partial|none|n-a`.",
+			});
+		} else if (cov === "none") {
+			issues.push({
+				level: "warning",
+				code: "behavior-coverage-none",
+				message:
+					"verify PASS con `behavior_coverage: none` — solo build/tipos; el comportamiento observable del cambio NO se confirmó. Es luz verde estructural, no prueba de no-regresión.",
+			});
+		} else if (cov === "partial") {
+			issues.push({
+				level: "warning",
+				code: "behavior-coverage-partial",
+				message: "verify PASS con `behavior_coverage: partial` — parte del comportamiento observable quedó sin confirmar.",
+			});
 		}
 	}
 
