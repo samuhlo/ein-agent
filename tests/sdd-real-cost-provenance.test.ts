@@ -12,7 +12,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readSddRealCost } from "../ein-pi/agent/lib/sdd-router";
-import { lintChange } from "../ein-pi/agent/lib/sdd-guardrails";
+import { lintChange, lintPhaseArtifact } from "../ein-pi/agent/lib/sdd-guardrails";
 
 let DIR: string;
 
@@ -120,5 +120,63 @@ describe("provenance parent-fallback (P4)", () => {
 		const report = lintChange(DIR, "feat-x");
 		const provenanceErrors = report.issues.filter((i) => i.code.startsWith("provenance-") && i.level === "error");
 		expect(provenanceErrors).toEqual([]);
+	});
+});
+
+// Antifabricación: el parent que se queda sin subagentes NO debe rellenar la
+// telemetría con `unknown` / excusas para pasar el gate. Reproduce el incidente
+// real: `budget_consumed: tokens: unknown` y `ledger: parent-direct; subagent
+// limit reached` pasaban porque el token existía; ahora son error duro.
+describe("antifabricación de coste/ledger (P4)", () => {
+	test("`tokens: unknown` en budget_consumed → error fabricated-cost", () => {
+		const report = lintPhaseArtifact(
+			"map",
+			"scope_status: bounded\nledger: real\nbudget_consumed: reads: 2, tokens: unknown\n",
+		);
+		expect(report.ok).toBe(false);
+		expect(report.issues.some((i) => i.code === "fabricated-cost")).toBe(true);
+	});
+
+	test("ledger con excusa (`parent-direct`, `subagent limit reached`) → error fabricated-ledger", () => {
+		const report = lintPhaseArtifact(
+			"map",
+			"scope_status: bounded\nledger: parent-direct; subagent limit reached, map authored inline\nbudget_consumed: 1\n",
+		);
+		expect(report.ok).toBe(false);
+		expect(report.issues.some((i) => i.code === "fabricated-ledger")).toBe(true);
+	});
+
+	test("parent-fallback + telemetría OMITIDA → warnings, no error (salida honesta)", () => {
+		const report = lintPhaseArtifact("map", "scope_status: bounded\nfindings\n", {
+			authoredByFallback: true,
+		});
+		expect(report.ok).toBe(true);
+		// ledger + budget_consumed ausentes, pero degradados a warning por fallback.
+		expect(report.issues.some((i) => i.code === "missing-ledger" && i.level === "warning")).toBe(true);
+		expect(report.issues.some((i) => i.code === "missing-budget-consumed" && i.level === "warning")).toBe(true);
+		expect(report.issues.every((i) => i.level !== "error")).toBe(true);
+	});
+
+	test("sin fallback, telemetría ausente sigue siendo error (no se relaja gratis)", () => {
+		const report = lintPhaseArtifact("map", "scope_status: bounded\nfindings\n");
+		expect(report.ok).toBe(false);
+		expect(report.issues.some((i) => i.code === "missing-ledger" && i.level === "error")).toBe(true);
+	});
+
+	test("fabricación NO se salva por declarar parent-fallback: inventar cifras es error incluso en fallback", () => {
+		const c = join(DIR, "openspec", "changes", "feat-y");
+		mkdirSync(c, { recursive: true });
+		writeFileSync(join(c, "scope.md"), "scope: x\nbudget_allocated:\n  max_tokens: 15000\n");
+		writeFileSync(
+			join(c, "map.md"),
+			"authored_by: parent-fallback\nscope_status: bounded\nledger: real\nbudget_consumed: tokens: unknown\n",
+		);
+		const report = lintChange(DIR, "feat-y");
+		expect(report.ok).toBe(false);
+		// La incidencia de fabricación vive en el report de la fase (map), no en
+		// el `issues` top-level (que solo agrega secuencia + procedencia); aun así
+		// suma a `errors` y tumba `ok`, y `formatChangeLint` la renderiza por fase.
+		const mapReport = report.phases.find((p) => p.phase === "map")?.report;
+		expect(mapReport?.issues.some((i) => i.code === "fabricated-cost")).toBe(true);
 	});
 });

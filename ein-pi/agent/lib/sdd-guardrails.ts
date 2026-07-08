@@ -31,6 +31,12 @@ export type DesignLintOptions = {
 	// Por encima de estas lineas el design probablemente esta sobre-dimensionado
 	// / es irrevisable. Mismo umbral por defecto que el Review Workload Guard.
 	oversizeLineThreshold?: number;
+	// El artefacto se declara `authored_by: parent-fallback`: el parent lo
+	// persistio porque el executor no pudo (p.ej. sdd-map no tiene write tool).
+	// En ese caso la telemetria de run (ledger/budget_consumed) NO es producible
+	// honestamente por el parent, asi que su ausencia degrada a warning en vez
+	// de forzar una cifra inventada. Lo setea `lintChange`.
+	authoredByFallback?: boolean;
 };
 
 const DEFAULT_OVERSIZE = 400;
@@ -64,6 +70,28 @@ const FORBIDDEN_PATTERNS: { code: string; message: string; pattern: RegExp }[] =
 const PLACEHOLDER_PATTERNS: { code: string; message: string; pattern: RegExp }[] = [
 	{ code: "angle-number", message: "Quedan placeholders `<number>` sin rellenar.", pattern: /<number>/ },
 	{ code: "change-token", message: "Quedan tokens `{change}` sin expandir.", pattern: /\{change\}/ },
+];
+
+// BLINDAJE -> Valores FABRICADOS en campos de coste/ledger: un agente (o el
+// parent, cuando se queda sin subagentes y trabaja inline) rellena la telemetria
+// con `unknown` o una excusa para pasar el gate en vez de reportar el dato real
+// o marcar la procedencia. Es ERROR, no warning: inventar cifras es peor que
+// omitirlas — envenena el coste real por cambio y falsea la auditoria. La salida
+// honesta es `authored_by: parent-fallback` + omitir el dato que el executor no
+// reporto (ver `authoredByFallback` y `lintChange`).
+const FABRICATION_PATTERNS: { code: string; message: string; pattern: RegExp }[] = [
+	{
+		code: "fabricated-cost",
+		message:
+			"Coste fabricado (`tokens: unknown` / `cost: unknown`): omite el campo o marca `authored_by: parent-fallback`; no inventes cifras.",
+		pattern: /\b(?:tokens|cost|input|output|reads|commands)\s*[:=]\s*unknown\b/i,
+	},
+	{
+		code: "fabricated-ledger",
+		message:
+			"Ledger con excusa en vez de dato (`parent-direct`, `subagent limit reached`, `authored inline`): marca `authored_by: parent-fallback` y omite la telemetria que el executor no produjo.",
+		pattern: /\bparent-direct\b|subagent limit reached|authored inline/i,
+	},
 ];
 
 export function lintDesignArtifact(
@@ -187,14 +215,19 @@ const PHASE_ORDER: SddPhase[] = ["scope", "map", "design", "tasks", "apply", "ve
 // Señal mínima obligatoria por fase (además de "no vacío"): si falta, es error.
 // El caso clave es `verify`, que DEBE emitir una línea `status: pass|fail` para
 // que el router determinista pueda enrutar. apply requiere `status: complete|partial|blocked`.
-const PHASE_REQUIRED: Partial<Record<SddPhase, { code: string; label: string; pattern: RegExp }[]>> = {
+// `telemetry: true` marca las señales que miden el RUN del executor (ledger,
+// budget_consumed). El parent no puede producirlas honestamente en un fallback,
+// asi que con `authoredByFallback` su ausencia degrada a warning (nunca a una
+// cifra inventada). budget_allocated NO es telemetria: lo asigna el parent al
+// construir el scope packet, asi que sigue siendo obligatorio.
+const PHASE_REQUIRED: Partial<Record<SddPhase, { code: string; label: string; pattern: RegExp; telemetry?: boolean }[]>> = {
 	scope: [
 		{ code: "scope", label: "scope", pattern: /\bscope\b/i },
 		{ code: "budget-allocated", label: "budget_allocated", pattern: /\bbudget_allocated\b/i },
 	],
 	map: [
-		{ code: "ledger", label: "ledger", pattern: /\bledger\b/i },
-		{ code: "budget-consumed", label: "budget_consumed", pattern: /\bbudget_consumed\b/i },
+		{ code: "ledger", label: "ledger", pattern: /\bledger\b/i, telemetry: true },
+		{ code: "budget-consumed", label: "budget_consumed", pattern: /\bbudget_consumed\b/i, telemetry: true },
 		{ code: "scope-status", label: "scope_status", pattern: /\bscope_status\b/i },
 	],
 	apply: [
@@ -231,9 +264,22 @@ export function lintPhaseArtifact(
 		return finalize(issues, lineCount);
 	}
 
+	// Fabricacion ANTES que "falta señal": inventar `unknown`/excusa hace que el
+	// pattern de presencia SÍ matchee (el token existe), asi que sin este check
+	// la telemetria falsa pasaria el gate. Siempre error, con o sin fallback.
+	for (const f of FABRICATION_PATTERNS) {
+		if (f.pattern.test(text)) {
+			issues.push({ level: "error", code: f.code, message: f.message });
+		}
+	}
+
 	for (const req of PHASE_REQUIRED[phase] ?? []) {
 		if (!req.pattern.test(text)) {
-			issues.push({ level: "error", code: `missing-${req.code}`, message: `Falta señal obligatoria de ${phase}: ${req.label}.` });
+			// Telemetria de run ausente + procedencia parent-fallback declarada →
+			// warning, no error: forzar el campo es lo que empuja a fabricarlo.
+			const level: GuardrailLevel =
+				req.telemetry && opts.authoredByFallback ? "warning" : "error";
+			issues.push({ level, code: `missing-${req.code}`, message: `Falta señal obligatoria de ${phase}: ${req.label}.` });
 		}
 	}
 
@@ -313,15 +359,18 @@ export function lintChange(cwd: string, change: string): ChangeLintReport {
 			content = "";
 		}
 		// Procedencia: el parent lo persistió por fallback, no el executor de
-		// fase — no invalida el artefacto, pero verify/review deben saberlo.
-		if (/^\s*authored_by\s*[:=]\s*parent-fallback\b/im.test(content)) {
+		// fase — no invalida el artefacto, pero verify/review deben saberlo, y
+		// relaja la telemetria de run obligatoria (que el parent no puede
+		// producir) para no incentivar cifras inventadas.
+		const authoredByFallback = /^\s*authored_by\s*[:=]\s*parent-fallback\b/im.test(content);
+		if (authoredByFallback) {
 			provenanceIssues.push({
 				level: "warning",
 				code: `provenance-parent-fallback-${phase}`,
 				message: `${PHASE_ARTIFACT[phase]} fue persistido por el parent (authored_by: parent-fallback), no por el executor de fase; revisar con atencion extra.`,
 			});
 		}
-		const report = lintPhaseArtifact(phase, content);
+		const report = lintPhaseArtifact(phase, content, { authoredByFallback });
 		errors += report.errors;
 		warnings += report.warnings;
 		phases.push({ phase, present: true, report });

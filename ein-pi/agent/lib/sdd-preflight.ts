@@ -25,6 +25,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { AGENT_DIR } from "../extensions/ein-paths";
+import { type GitBaseline, readGitBaseline, renderGitBaselineLine } from "./git-baseline";
 import { type TddMode, readTddMode } from "./tdd";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -45,6 +46,9 @@ export interface SddPreflightPreferences {
 	tddMode: TddMode;
 	engramAvailable: boolean;
 	prompted: boolean;
+	// Snapshot del árbol al arrancar el preflight (una vez por sesión). Opcional:
+	// tests y llamadas legacy pueden omitirlo → no se inyecta la línea baseline.
+	gitBaseline?: GitBaseline;
 }
 
 interface SddPreflightCallbacks {
@@ -482,6 +486,10 @@ export function renderSddPreflightPrompt(
 		`- Review budget: ${prefs.reviewBudgetLines} changed lines`,
 	];
 	if (includeTdd) lines.push(tddPreflightLine(prefs.tddMode));
+	if (prefs.gitBaseline) {
+		const baselineLine = renderGitBaselineLine(prefs.gitBaseline);
+		if (baselineLine) lines.push(baselineLine);
+	}
 	lines.push(
 		`- Review Workload Guard: before opening a PR, ein-git measures the PRODUCTION changed lines — \`git diff --shortstat <base>..HEAD -- . ':(exclude)*.test.*' ':(exclude)*.spec.*' ':(exclude)**/tests/**' ':(exclude)**/__tests__/**' ':(exclude)**/e2e/**' ':(exclude)*.snap' ':(exclude)*-lock.*' ':(exclude)dist/**' ':(exclude).output/**' ':(exclude).nuxt/**' ':(exclude)coverage/**' ':(exclude)*.min.*'\`, summing insertions + deletions — against the ${prefs.reviewBudgetLines}-line review budget. Test and generated lines are measured separately (\`+N en tests\`) and REPORTED, never counted toward the budget. If production lines exceed the budget and the chained PR strategy is not \`single-pr-default\`, pause and ask the user for a delivery decision (single PR vs split into chained PRs). \`auto\` execution mode does NOT bypass this gate.`,
 	);
@@ -500,6 +508,9 @@ export async function ensureSddPreflight(
 	const promise = (async () => {
 		const engramAvailable = hasWritableEngramTool(callbacks.pi);
 		const prefs = await collectSddPreflightPreferences(ctx, engramAvailable);
+		// Snapshot del árbol antes de que el flujo mute nada: detecta un `reset`
+		// reciente / stashes que pudieran significar trabajo huérfano.
+		prefs.gitBaseline = readGitBaseline(ctx.cwd);
 		const result =
 			(await callbacks.installAssets?.(ctx.cwd)) ??
 			installSddAssets(ctx.cwd, false);
