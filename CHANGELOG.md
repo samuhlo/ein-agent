@@ -5,6 +5,30 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.15.1] - 2026-07-08
+
+### Added
+
+- **Baseline de git en el preflight SDD** (`lib/git-baseline.ts`). Al arrancar
+  un flujo SDD, Ein hace un snapshot determinista del árbol (`reflog`, `status`,
+  `stash list`) e inyecta un WARNING en el bloque de preflight si detecta un
+  `reset` reciente o stashes — señal de trabajo posiblemente huérfano. Obliga a
+  reconciliar HEAD con el usuario **antes** de la primera mutación. Cubre el
+  fallo donde el flujo refactorizaba sobre un árbol revertido y `verify` firmaba
+  PASS sobre trabajo perdido.
+
+### Changed
+
+- **Cortafuegos anti-inline en el orquestador.** Si se agotan los subagentes
+  ("spawn limit reached"), el parent PARA en vez de ejecutar todo inline —
+  evita invertir el modelo de coste, saltarse la re-ejecución de acceptance y
+  convertir el gate en autocertificación.
+- **`ein_sdd_check` rechaza telemetría fabricada.** Valores tipo `tokens:
+  unknown` o un `ledger` con excusas (`parent-direct`, `subagent limit
+  reached`) son ahora error duro. La ausencia de telemetría de run se relaja a
+  warning **solo** con `authored_by: parent-fallback` — salida honesta que no
+  obliga a inventar cifras para pasar el gate.
+
 ## [0.15.0] - 2026-07-02
 
 ### Added
