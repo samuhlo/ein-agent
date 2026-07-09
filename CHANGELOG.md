@@ -5,6 +5,17 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.17.1] - 2026-07-09
+
+### Added
+
+- **Índice de EIN.md autoactualizable.** Al cerrar un cambio (`sdd-close`) el
+  `## Índice` se mantiene solo: cobertura **determinista** (los dirs nuevos
+  entran con placeholder, se preservan las descripciones, caen los que ya no
+  existen) + descripciones que el agente `sdd-close` rellena **solo para los
+  dirs que tocó el cambio** (una línea, sin reescribir lo existente ni tocar
+  otras zonas). El mapa del repo no envejece sin trabajo manual.
+
 ## [0.17.0] - 2026-07-09
 
 ### Added
