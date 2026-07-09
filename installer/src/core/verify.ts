@@ -9,6 +9,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Platform } from "./platform.ts";
 import { lookPath } from "./exec.ts";
+import { resolveHypa } from "./deps.ts";
 import {
   AGENT_DIR,
   BUN_BIN_DIR,
@@ -254,6 +255,7 @@ export function runDoctor(platform: Platform): DoctorReport {
   const hasGh = lookPath("gh", extraPath) !== null;
   const hasBun = lookPath("bun", extraPath) !== null;
   const hasPi = lookPath("pi", extraPath) !== null;
+  const hasHypa = resolveHypa() !== null;
   const hasLinearToken = Boolean(
     process.env.LINEAR_API_KEY || process.env.LINEAR_TOKEN || existsSync(LINEAR_KEY_PATH),
   );
@@ -264,6 +266,7 @@ export function runDoctor(platform: Platform): DoctorReport {
     check(hasPi, "pi", "Binario pi disponible (bun install -g @earendil-works/pi-coding-agent)."),
     warn(hasEngramBin, "engram cli", "CLI engram disponible (memoria)."),
     warn(hasGh, "gh cli", "GitHub CLI disponible (entrega)."),
+    warn(hasHypa, "hypa cli", "Compresión de salida disponible; /ein:hypa la activa."),
   ];
 
   const checksIntegrations: CheckResult[] = [

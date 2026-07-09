@@ -9,9 +9,14 @@ import { join } from "node:path";
 import type { Platform } from "./platform.ts";
 import { lookPath, run } from "./exec.ts";
 import { installEngram, resolveEngram } from "./engram.ts";
-import { AGENT_DIR, BUN_BIN_DIR, LOCAL_BIN_DIR } from "./paths.ts";
+import {
+  AGENT_DIR,
+  BUN_BIN_DIR,
+  LOCAL_BIN_DIR,
+  MISE_SHIM_DIR,
+} from "./paths.ts";
 
-export type DepId = "git" | "curl" | "bun" | "pi" | "engram" | "gh";
+export type DepId = "git" | "curl" | "bun" | "pi" | "engram" | "gh" | "hypa";
 
 export type DepStatus = {
   id: DepId;
@@ -23,6 +28,14 @@ export type DepStatus = {
 
 const EXTRA_PATH = [BUN_BIN_DIR, LOCAL_BIN_DIR];
 
+// hypa: el installer oficial lo deja en ~/.local/bin, o mise lo shima cuando el
+// script prefiere npm global. Se busca en ambos además del PATH.
+const HYPA_PATH = [BUN_BIN_DIR, LOCAL_BIN_DIR, MISE_SHIM_DIR];
+
+export function resolveHypa(): string | null {
+  return lookPath("hypa", HYPA_PATH);
+}
+
 export function checkDeps(platform: Platform): DepStatus[] {
   const engram = resolveEngram(platform);
   const defs: Array<Omit<DepStatus, "present" | "path">> = [
@@ -32,11 +45,16 @@ export function checkDeps(platform: Platform): DepStatus[] {
     { id: "pi", required: true, hint: "bun install -g @earendil-works/pi-coding-agent" },
     { id: "engram", required: false, hint: "memoria persistente (opcional)" },
     { id: "gh", required: false, hint: "GitHub CLI para entrega (opcional)" },
+    { id: "hypa", required: false, hint: "compresión de salida de comandos (opcional)" },
   ];
 
   return defs.map((d) => {
     if (d.id === "engram") {
       return { ...d, present: engram.found, path: engram.found ? engram.command : null };
+    }
+    if (d.id === "hypa") {
+      const path = resolveHypa();
+      return { ...d, present: path !== null, path };
     }
     const path = lookPath(d.id, EXTRA_PATH);
     return { ...d, present: path !== null, path };
@@ -125,4 +143,20 @@ export async function installGh(platform: Platform): Promise<InstallStep> {
     default:
       return { ok: false, detail: "instala gh manualmente desde cli.github.com" };
   }
+}
+
+// hypa: best-effort vía el instalador oficial (verifica checksum, cae en
+// ~/.local/bin o npm global). Opcional, nunca bloquea. El script prefiere npm
+// si existe; si no, baja el binario self-contained por plataforma.
+export async function installHypa(): Promise<InstallStep> {
+  if (resolveHypa()) return { ok: true, detail: "hypa ya presente" };
+  const res = await run(
+    "sh",
+    ["-c", "curl -fsSL https://hypabolic.github.io/Hypa/install.sh | sh"],
+    { inherit: true },
+  );
+  if (!res.ok) return { ok: false, detail: "instala hypa manualmente: hypabolic.github.io/Hypa" };
+  return resolveHypa()
+    ? { ok: true, detail: "hypa instalado" }
+    : { ok: false, detail: "hypa instalado pero no resuelto en PATH (reinicia shell)" };
 }

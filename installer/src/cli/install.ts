@@ -12,6 +12,7 @@ import {
   installDeclaredPackages,
   installEngramDep,
   installGh,
+  installHypa,
   installPi,
 } from "../core/deps.ts";
 import { deployTemplate, readBundledManifest, type DeployOptions } from "../core/deploy.ts";
@@ -35,6 +36,7 @@ export type InstallFlags = {
   noEngram: boolean;
   noSecrets: boolean;
   noLinear: boolean;
+  noHypa: boolean;
   dryRun: boolean;
 };
 
@@ -44,6 +46,7 @@ export function parseInstallFlags(args: string[]): InstallFlags {
     noEngram: args.includes("--no-engram"),
     noSecrets: args.includes("--no-secrets"),
     noLinear: args.includes("--no-linear"),
+    noHypa: args.includes("--no-hypa"),
     dryRun: args.includes("--dry-run"),
   };
 }
@@ -169,6 +172,16 @@ export async function runInstall(args: string[]): Promise<number> {
       const s = p.spinner();
       s.start("Instalando gh");
       const r = await installGh(platform);
+      s.stop(r.detail);
+    }
+  }
+
+  const needHypa = !deps.find((d) => d.id === "hypa")?.present;
+  if (needHypa && !flags.noHypa && !flags.yes) {
+    if (await confirm("Instalar hypa (compresión de salida)?", flags, false)) {
+      const s = p.spinner();
+      s.start("Instalando hypa");
+      const r = await installHypa();
       s.stop(r.detail);
     }
   }

@@ -25,7 +25,7 @@ function printHelp(): void {
   console.log("  doctor       diagnostico del despliegue (sin lanzar pi)");
   console.log("  --version    version del instalador");
   console.log("");
-  console.log("flags: --yes --dry-run --no-engram --no-secrets --no-linear");
+  console.log("flags: --yes --dry-run --no-engram --no-secrets --no-linear --no-hypa");
 }
 
 async function main(): Promise<number> {
