@@ -42,6 +42,7 @@ import {
 } from "../lib/lang.ts";
 import { t, tf } from "../lib/i18n/strings.ts";
 import { handleTddCommand } from "../lib/tdd.ts";
+import { handleHypaCommand, maybeWrapBashInput } from "../lib/hypa.ts";
 import { handleModeCommand, readMode } from "../lib/mode.ts";
 import {
 	confirmCommand,
@@ -440,7 +441,13 @@ export default function einAi(pi: ExtensionAPI): void {
 		if (event.toolName !== "bash") return undefined;
 		if (!isRecord(event.input) || typeof event.input.command !== "string")
 			return undefined;
-		return confirmCommand(event.input.command, ctx);
+		// GUARD primero sobre el comando ORIGINAL; solo si pasa se envuelve con
+		// Hypa. Mutar después preserva la política de seguridad sin evaluarla
+		// sobre un comando ya reescrito.
+		const guard = await confirmCommand(event.input.command, ctx);
+		if (guard) return guard;
+		maybeWrapBashInput(event.input as { command: string }, ctx.cwd);
+		return undefined;
 	});
 
 	pi.registerCommand("ein:ai:install-sdd", {
@@ -545,6 +552,16 @@ export default function einAi(pi: ExtensionAPI): void {
 		),
 		handler: async (_args, ctx) => {
 			await handleGitCommand(ctx);
+		},
+	});
+
+	pi.registerCommand("ein:hypa", {
+		description: t(
+			"cmd.hypa.description",
+			"Ver o cambiar la compresión de salida de comandos con Hypa (on/off)",
+		),
+		handler: async (_args, ctx) => {
+			await handleHypaCommand(ctx);
 		},
 	});
 
