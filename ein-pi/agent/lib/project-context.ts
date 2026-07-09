@@ -83,7 +83,48 @@ export function writeEinMd(cwd: string): { created: boolean; path: string } {
 	const withStamp = replaceStamp(existing, stamp);
 	const next = replaceAutoBlock(withStamp, auto);
 	writeFileSync(path, next, "utf8");
+	// Cobertura del índice al día (determinista): dirs nuevos entran con
+	// placeholder, se preservan descripciones, se caen los dirs que ya no están.
+	syncEinMdIndex(cwd);
 	return { created: false, path };
+}
+
+// Capa A del índice vivo: reconcilia el `## Índice` curado con los dirs actuales
+// SIN tocar descripciones existentes. Determinista, sin modelo. No-op si no hay
+// EIN.md o no encuentra la sección. Las descripciones (rellenar `_(describe)_`)
+// son trabajo del modelo en sdd-close, no de aquí.
+export function syncEinMdIndex(cwd: string): void {
+	const path = einMdPath(cwd);
+	if (!existsSync(path)) return;
+	const content = readFileSync(path, "utf8");
+	const heading = pickFor(readChatLang(), "## Índice", "## Index");
+	const idx = content.indexOf(heading);
+	const autoAt = content.indexOf(AUTO_START);
+	// El índice curado vive entre su heading y el arranque de la zona AUTO.
+	if (idx === -1 || autoAt === -1 || autoAt < idx) return;
+
+	const before = content.slice(0, idx);
+	const section = content.slice(idx, autoAt);
+	const after = content.slice(autoAt);
+
+	// Preámbulo = heading + comentario (todo lo no-línea-de-dir); las líneas de
+	// dir se indexan por carpeta para preservar su descripción.
+	const preamble: string[] = [];
+	const dirLines = new Map<string, string>();
+	for (const line of section.split("\n")) {
+		const m = line.match(/^- `([^`]+)\/`/);
+		if (m?.[1]) dirLines.set(m[1], line.trimEnd());
+		else if (line.trim() !== "") preamble.push(line.trimEnd());
+	}
+
+	const dirs = topLevelDirs(cwd);
+	const reconciled = dirs.length
+		? dirs.map((d) => dirLines.get(d) ?? `- \`${d}/\` — _(describe)_`)
+		: [pickFor(readChatLang(), "_(sin subdirectorios)_", "_(no subdirectories)_")];
+
+	const rebuilt = `${[...preamble, ...reconciled].join("\n")}\n\n`;
+	if (rebuilt === section) return;
+	writeFileSync(path, `${before}${rebuilt}${after}`, "utf8");
 }
 
 export async function handleInitCommand(ctx: ExtensionContext): Promise<void> {

@@ -57,14 +57,18 @@ describe("ein-ai: tools deterministas cableados", () => {
 	});
 });
 
-describe("sdd-close agent existe y solo escribe summary", () => {
+describe("sdd-close agent existe (summary + índice EIN.md acotado)", () => {
 	const close = read("agents/sdd-close.md");
-	test("nombre y output", () => {
+	test("nombre y output primario", () => {
 		expect(close).toContain("name: sdd-close");
 		expect(close).toContain("summary.md");
 	});
 	test("no mueve ficheros (eso lo hace el parent determinista)", () => {
 		expect(close.toLowerCase()).toContain("do not move or delete files");
+	});
+	test("edición secundaria acotada al ## Índice de EIN.md", () => {
+		expect(close).toContain("## Índice");
+		expect(close.toLowerCase()).toContain("never rewrite");
 	});
 });
 

@@ -63,7 +63,25 @@ describe("writeEinMd", () => {
 		writeEinMd(cwd);
 		const refreshed = readFileSync(einMdPath(cwd), "utf8");
 		expect(refreshed).toContain("- `src/` — núcleo de la app");
-		expect(refreshed).toContain("- `lib/`");
+		// Capa A: el dir nuevo entra al índice curado con placeholder.
+		expect(refreshed).toContain("- `lib/` — _(describe)_");
+	});
+
+	test("sync del índice: dir eliminado se cae, descripción preservada", () => {
+		mkdirSync(join(cwd, "src"));
+		mkdirSync(join(cwd, "legacy"));
+		writeEinMd(cwd);
+		let content = readFileSync(einMdPath(cwd), "utf8");
+		content = content.replace("- `src/` — _(describe)_", "- `src/` — app");
+		writeFileSync(einMdPath(cwd), content);
+		// legacy/ desaparece; refresco.
+		rmSync(join(cwd, "legacy"), { recursive: true, force: true });
+		writeEinMd(cwd);
+		const refreshed = readFileSync(einMdPath(cwd), "utf8");
+		expect(refreshed).toContain("- `src/` — app"); // preservada
+		// La línea de índice de legacy/ se cae (el heading ## Índice sigue).
+		expect(refreshed).not.toContain("- `legacy/`");
+		expect(refreshed).toContain("## Índice");
 	});
 
 	test("refrescar preserva la zona curada y regenera la AUTO", () => {
