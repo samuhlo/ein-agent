@@ -8,7 +8,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { INSTALL_MARKER } from "./paths.ts";
 import { run } from "./exec.ts";
 
-export const INSTALLER_VERSION = "0.16.0";
+export const INSTALLER_VERSION = "0.17.0";
 
 // GitHub repo that publishes installer releases. Set before Fase 6 release.
 export const INSTALLER_REPO = process.env.EIN_INSTALLER_REPO ?? "samuhlo/ein-agent";

@@ -5,6 +5,31 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.17.0] - 2026-07-09
+
+### Added
+
+- **Onboarding first-run.** La primera vez que Ein entra a un proyecto sin
+  configurar (agnóstico a su edad: mira "¿está configurado?", no "¿es nuevo?"),
+  un wizard único en `session_start` resuelve los esenciales —persona, idioma de
+  artefactos, TDD, Hypa— y genera `EIN.md`. "Usar recomendados" de un toque o
+  personalizar. Pendiente = fichero `.pi/ein/*.json` (o `EIN.md`) ausente; una
+  vez escritos no vuelve a preguntar. No-op sin UI. Comando `/ein:onboard`.
+- **`## Índice` y `## Docs` en EIN.md.** El scaffold siembra un `## Índice`
+  curado con las carpetas del repo (una línea de "qué es cada cosa", preservado
+  al refrescar) y la zona AUTO añade `## Docs` con links a la documentación
+  detectada. `sdd-close` refresca la zona AUTO al cerrar un cambio.
+
+### Changed
+
+- **Hypa: default `auto` con detección de stack.** Nuevo modo `auto` (default,
+  antes `off`): envuelve en toolchains verbosos no-Bun (dotnet/gradle/terraform/
+  k8s → 90-100% menos ruido) y se queda crudo en Bun puro (ya terso). Modos
+  `auto|on|off`; se retira el "ask" (el onboarding ya pregunta).
+- **TDD `ask` pregunta al arrancar el SDD completo.** El gate se dispara al
+  delegar la fase `scope` (no a mitad del apply) y cachea la decisión por run →
+  no re-pregunta en applies sucesivos (slices).
+
 ## [0.16.0] - 2026-07-09
 
 ### Added
