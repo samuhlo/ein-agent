@@ -39,6 +39,33 @@ describe("writeEinMd", () => {
 		expect(content).toContain("`src/`");
 	});
 
+	test("índice sembrado (curado) + docs detectados (AUTO)", () => {
+		mkdirSync(join(cwd, "src"));
+		mkdirSync(join(cwd, "docs"));
+		writeFileSync(join(cwd, "README.md"), "# r");
+		writeFileSync(join(cwd, "docs", "guide.md"), "# g");
+		writeEinMd(cwd);
+		const content = readFileSync(einMdPath(cwd), "utf8");
+		expect(content).toContain("## Índice");
+		expect(content).toContain("- `src/` — _(describe)_");
+		expect(content).toContain("## Docs");
+		expect(content).toContain("[README](README.md)");
+		expect(content).toContain("[docs/guide.md](docs/guide.md)");
+	});
+
+	test("refrescar preserva el Índice curado (descripciones del modelo)", () => {
+		mkdirSync(join(cwd, "src"));
+		writeEinMd(cwd);
+		let content = readFileSync(einMdPath(cwd), "utf8");
+		content = content.replace("- `src/` — _(describe)_", "- `src/` — núcleo de la app");
+		writeFileSync(einMdPath(cwd), content);
+		mkdirSync(join(cwd, "lib"));
+		writeEinMd(cwd);
+		const refreshed = readFileSync(einMdPath(cwd), "utf8");
+		expect(refreshed).toContain("- `src/` — núcleo de la app");
+		expect(refreshed).toContain("- `lib/`");
+	});
+
 	test("refrescar preserva la zona curada y regenera la AUTO", () => {
 		writeFileSync(join(cwd, "package.json"), JSON.stringify({ scripts: { test: "y" } }));
 		writeEinMd(cwd);

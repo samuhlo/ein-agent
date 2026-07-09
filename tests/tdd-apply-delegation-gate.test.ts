@@ -8,8 +8,12 @@
 
 import { describe, expect, test } from "bun:test";
 
-const { delegationTargetsApply, readDelegationTddHint, delegationIsDocsOnly } =
-	await import("../ein-pi/agent/lib/sdd-preflight");
+const {
+	delegationTargetsApply,
+	delegationStartsScope,
+	readDelegationTddHint,
+	delegationIsDocsOnly,
+} = await import("../ein-pi/agent/lib/sdd-preflight");
 
 describe("delegationTargetsApply", () => {
 	test("single mode: agent sdd-apply → true", () => {
@@ -185,5 +189,30 @@ describe("delegationIsDocsOnly — documentación pura nunca pregunta TDD", () =
 				chain: [{ agent: "sdd-apply", task: "escribe docs/guia.md" }],
 			}),
 		).toBe(true);
+	});
+});
+
+describe("delegationStartsScope — pregunta TDD al arrancar el SDD", () => {
+	test("single sdd-scope → true", () => {
+		expect(delegationStartsScope({ agent: "sdd-scope", task: "x" })).toBe(true);
+	});
+
+	test("chain que empieza en scope → true", () => {
+		const input = {
+			task: "feature X",
+			chain: [
+				{ agent: "sdd-scope", task: "{task}" },
+				{ agent: "sdd-apply", task: "{task}" },
+			],
+		};
+		expect(delegationStartsScope(input)).toBe(true);
+	});
+
+	test("apply suelto sin scope → false (lo caza delegationTargetsApply)", () => {
+		expect(delegationStartsScope({ agent: "sdd-apply", task: "x" })).toBe(false);
+	});
+
+	test("fases read-only sin scope → false", () => {
+		expect(delegationStartsScope({ agent: "sdd-map", task: "x" })).toBe(false);
 	});
 });

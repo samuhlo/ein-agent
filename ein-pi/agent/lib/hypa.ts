@@ -16,16 +16,25 @@
 // Módulo puro en su núcleo (build/normalize) para testear sin spawns.
 // =============================================================================
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	readdirSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-export type HypaMode = "on" | "off";
+// auto = detección de stack (on en toolchains verbosos no-Bun, off en Bun puro).
+// on/off fuerzan. No hay "ask": el onboarding es quien pregunta; Hypa es estable
+// por proyecto, un ask por sesión solo sería ruido.
+export type HypaMode = "auto" | "on" | "off";
 
-export const HYPA_OPTIONS: readonly HypaMode[] = ["on", "off"];
+export const HYPA_OPTIONS: readonly HypaMode[] = ["auto", "on", "off"];
 
-const DEFAULT_HYPA: HypaMode = "off";
+const DEFAULT_HYPA: HypaMode = "auto";
 
 // Tools con reducer semántico en Hypa que terminan (no streaming). Cabeza del
 // comando ya normalizado. git se restringe aparte a subcomandos de lectura.
@@ -123,6 +132,45 @@ export function resolveHypaBin(): string | undefined {
 	return candidates.find((path) => existsSync(path));
 }
 
+// ─── Detección de stack (modo auto) ──────────────────────────────────────────
+
+// Toolchains verbosos NO-Bun donde los reducers de Hypa ganan de verdad
+// (90-100% menos ruido). En Bun puro el output ya es terso → no aporta.
+const STACK_FILES = new Set([
+	"pom.xml", "go.mod", "Cargo.toml", "pyproject.toml", "requirements.txt",
+	"Chart.yaml", "Dockerfile",
+]);
+const STACK_EXTS = [".csproj", ".sln", ".tf"];
+
+// FORGE -> escanea el nivel raíz del proyecto buscando marcas de stack verboso.
+// Determinista (solo existencia de ficheros), sin heurística difusa.
+export function detectStackWantsHypa(cwd: string): boolean {
+	let entries: string[];
+	try {
+		entries = readdirSync(cwd);
+	} catch {
+		return false;
+	}
+	for (const name of entries) {
+		if (STACK_FILES.has(name)) return true;
+		if (name.startsWith("build.gradle")) return true;
+		if (STACK_EXTS.some((ext) => name.endsWith(ext))) return true;
+	}
+	return false;
+}
+
+// ¿Debe envolverse en este proyecto? Resuelve el modo a un booleano.
+export function resolveHypaEnabled(cwd: string): boolean {
+	switch (readHypaMode(cwd)) {
+		case "on":
+			return true;
+		case "off":
+			return false;
+		default:
+			return detectStackWantsHypa(cwd);
+	}
+}
+
 // ─── Config por proyecto (.pi/ein/hypa.json) ─────────────────────────────────
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -166,7 +214,7 @@ export function maybeWrapBashInput(
 	input: { command: string },
 	cwd: string,
 ): void {
-	if (readHypaMode(cwd) !== "on") return;
+	if (!resolveHypaEnabled(cwd)) return;
 	const bin = resolveHypaBin();
 	if (!bin) return;
 	const wrapped = buildHypaCommand(input.command, bin);
@@ -175,14 +223,16 @@ export function maybeWrapBashInput(
 
 // ─── Comando /ein:hypa ───────────────────────────────────────────────────────
 
+const HYPA_LABEL: Record<HypaMode, string> = {
+	auto: "auto — detecta stack (on en dotnet/gradle/tf…, off en Bun puro)",
+	on: "on — envuelve siempre tools con reducer (git/vitest/eslint…)",
+	off: "off — bash crudo (context-mode sigue capando la salida)",
+};
+
 export async function handleHypaCommand(ctx: ExtensionContext): Promise<void> {
 	const current = readHypaMode(ctx.cwd);
 	const bin = resolveHypaBin();
-	const items: string[] = HYPA_OPTIONS.map((m) =>
-		m === "on"
-			? "on — envolver comandos con reducer (git/vitest/eslint/dotnet…)"
-			: "off — bash crudo (context-mode sigue capando la salida)",
-	);
+	const items: string[] = HYPA_OPTIONS.map((m) => HYPA_LABEL[m]);
 	const picked = await ctx.ui.select(
 		`Compresión Hypa (actual: ${current})`,
 		items,
@@ -192,13 +242,14 @@ export async function handleHypaCommand(ctx: ExtensionContext): Promise<void> {
 	const mode = HYPA_OPTIONS[items.indexOf(picked)];
 	if (!mode) return;
 	writeHypaMode(ctx.cwd, mode);
+	const enabled = resolveHypaEnabled(ctx.cwd);
 	ctx.ui.notify(
 		[
-			`Hypa: ${mode}`,
+			`Hypa: ${mode}${mode === "auto" ? ` (este proyecto → ${enabled ? "on" : "off"})` : ""}`,
 			bin
 				? `Binario: ${bin}`
 				: "BLINDAJE -> hypa no encontrado en PATH; el wrap queda inerte hasta instalarlo.",
-			mode === "on"
+			enabled
 				? "Se envuelven solo tools con reducer real; streaming/interactivo/genérico quedan crudos."
 				: "Los comandos pasan sin tocar.",
 			`Config: ${hypaConfigPath(ctx.cwd)}`,

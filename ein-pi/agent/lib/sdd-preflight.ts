@@ -377,7 +377,13 @@ export async function gateTddForDelegation(
 	ctx: ExtensionContext,
 ): Promise<void> {
 	if (!ctx.hasUI || readTddMode(ctx.cwd) !== "ask") return;
-	if (!delegationTargetsApply(input)) return;
+	// CORTE -> ya decidido en este run del SDD: no re-preguntar en applies
+	// sucesivos (slices). Una decisión por SDD completo, no por delegación.
+	if (tddRunOverride.has(sddPreflightSessionKey(ctx))) return;
+	// Se pregunta al ARRANCAR el SDD (fase scope) o, si el apply va suelto (tarea
+	// mediana sin scope), justo antes de él. En un chain ambos viven en la misma
+	// delegación → una sola pregunta al inicio.
+	if (!delegationStartsScope(input) && !delegationTargetsApply(input)) return;
 	if (delegationIsDocsOnly(input)) {
 		setTaskTddMode(ctx, "off");
 		return;
@@ -388,6 +394,22 @@ export async function gateTddForDelegation(
 		return;
 	}
 	await askRunTddMode(ctx);
+}
+
+// ¿La delegación ARRANCA un SDD completo? = contiene la primera fase sdd-scope
+// (single, parallel o chain). Permite preguntar el TDD al inicio del SDD, no a
+// mitad, en flujos fase-a-fase donde scope y apply son delegaciones distintas.
+export function delegationStartsScope(input: unknown): boolean {
+	if (!isRecord(input)) return false;
+	if (input.agent === "sdd-scope") return true;
+	for (const key of ["tasks", "steps", "chain"]) {
+		const items = input[key];
+		if (!Array.isArray(items)) continue;
+		for (const item of items) {
+			if (isRecord(item) && item.agent === "sdd-scope") return true;
+		}
+	}
+	return false;
 }
 
 // Detecta si una llamada al tool `subagent` acabará escribiendo código vía

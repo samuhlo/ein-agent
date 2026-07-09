@@ -17,6 +17,8 @@ const {
 	readHypaMode,
 	writeHypaMode,
 	hypaConfigPath,
+	detectStackWantsHypa,
+	resolveHypaEnabled,
 } = await import("../ein-pi/agent/lib/hypa");
 
 const BIN = "/bin/hypa";
@@ -132,20 +134,70 @@ describe("readHypaMode / writeHypaMode", () => {
 		rmSync(cwd, { recursive: true, force: true });
 	});
 
-	test("default 'off' sin fichero", () => {
-		expect(readHypaMode(cwd)).toBe("off");
+	test("default 'auto' sin fichero", () => {
+		expect(readHypaMode(cwd)).toBe("auto");
 	});
 
-	test("round-trip on/off", () => {
+	test("round-trip auto/on/off", () => {
 		writeHypaMode(cwd, "on");
 		expect(readHypaMode(cwd)).toBe("on");
 		writeHypaMode(cwd, "off");
 		expect(readHypaMode(cwd)).toBe("off");
+		writeHypaMode(cwd, "auto");
+		expect(readHypaMode(cwd)).toBe("auto");
 	});
 
-	test("valor inválido → default off", () => {
+	test("valor inválido → default auto", () => {
 		writeHypaMode(cwd, "on");
 		writeFileSync(hypaConfigPath(cwd), '{"mode":"maybe"}\n');
-		expect(readHypaMode(cwd)).toBe("off");
+		expect(readHypaMode(cwd)).toBe("auto");
+	});
+});
+
+describe("detectStackWantsHypa", () => {
+	let cwd: string;
+	beforeEach(() => {
+		cwd = mkdtempSync(join(tmpdir(), "ein-hypa-stack-"));
+	});
+	afterEach(() => {
+		rmSync(cwd, { recursive: true, force: true });
+	});
+
+	test("Bun puro (sin marcas) → false", () => {
+		writeFileSync(join(cwd, "package.json"), "{}\n");
+		writeFileSync(join(cwd, "bunfig.toml"), "\n");
+		expect(detectStackWantsHypa(cwd)).toBe(false);
+	});
+
+	test("marcas de stack verboso → true", () => {
+		for (const f of ["go.mod", "pom.xml", "Cargo.toml", "Dockerfile", "main.tf", "app.csproj", "build.gradle.kts"]) {
+			const d = mkdtempSync(join(tmpdir(), "ein-hypa-mark-"));
+			writeFileSync(join(d, f), "\n");
+			expect(detectStackWantsHypa(d)).toBe(true);
+			rmSync(d, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("resolveHypaEnabled", () => {
+	let cwd: string;
+	beforeEach(() => {
+		cwd = mkdtempSync(join(tmpdir(), "ein-hypa-res-"));
+	});
+	afterEach(() => {
+		rmSync(cwd, { recursive: true, force: true });
+	});
+
+	test("on/off fuerzan; auto delega en la detección", () => {
+		writeHypaMode(cwd, "on");
+		expect(resolveHypaEnabled(cwd)).toBe(true);
+		writeHypaMode(cwd, "off");
+		expect(resolveHypaEnabled(cwd)).toBe(false);
+		// auto sin marcas de stack → off
+		writeHypaMode(cwd, "auto");
+		expect(resolveHypaEnabled(cwd)).toBe(false);
+		// auto con marca → on
+		writeFileSync(join(cwd, "go.mod"), "\n");
+		expect(resolveHypaEnabled(cwd)).toBe(true);
 	});
 });

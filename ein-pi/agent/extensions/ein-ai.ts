@@ -43,6 +43,7 @@ import {
 import { t, tf } from "../lib/i18n/strings.ts";
 import { handleTddCommand } from "../lib/tdd.ts";
 import { handleHypaCommand, maybeWrapBashInput } from "../lib/hypa.ts";
+import { handleOnboardCommand, runOnboarding } from "../lib/onboarding.ts";
 import { handleModeCommand, readMode } from "../lib/mode.ts";
 import {
 	confirmCommand,
@@ -69,8 +70,10 @@ import { ensureEinGitignore } from "../lib/gitignore.ts";
 import {
 	einContextDirective,
 	einMdCommitsBehind,
+	einMdPath,
 	handleInitCommand,
 	readEinMd,
+	writeEinMd,
 } from "../lib/project-context.ts";
 import { AGENT_DIR } from "./ein-paths";
 
@@ -353,6 +356,9 @@ export default function einAi(pi: ExtensionAPI): void {
 				);
 			}
 		}
+		// Onboarding first-run: si faltan esenciales (persona/lang/tdd/hypa/EIN.md)
+		// el wizard los resuelve. No-op sin UI o si ya está todo configurado.
+		await runOnboarding(ctx);
 	});
 
 	pi.on("input", async (event, ctx) => {
@@ -558,10 +564,20 @@ export default function einAi(pi: ExtensionAPI): void {
 	pi.registerCommand("ein:hypa", {
 		description: t(
 			"cmd.hypa.description",
-			"Ver o cambiar la compresión de salida de comandos con Hypa (on/off)",
+			"Ver o cambiar la compresión de salida de comandos con Hypa (auto/on/off)",
 		),
 		handler: async (_args, ctx) => {
 			await handleHypaCommand(ctx);
+		},
+	});
+
+	pi.registerCommand("ein:onboard", {
+		description: t(
+			"cmd.onboard.description",
+			"Reconfigurar los esenciales del proyecto (persona, idioma, TDD, Hypa, EIN.md)",
+		),
+		handler: async (_args, ctx) => {
+			await handleOnboardCommand(ctx);
 		},
 	});
 
@@ -757,6 +773,10 @@ export default function einAi(pi: ExtensionAPI): void {
 			return;
 		}
 		const r = closeChange(ctx.cwd, change);
+		// FORGE -> al cerrar un cambio, refresca la zona AUTO de EIN.md (comandos/
+		// estructura/docs) para que el índice no envejezca. Solo si ya existe: el
+		// cierre no es momento de crearlo (eso es /ein:init o el onboarding).
+		if (r.ok && existsSync(einMdPath(ctx.cwd))) writeEinMd(ctx.cwd);
 		ctx.ui.notify(
 			r.ok
 				? `Cambio '${change}' cerrado. openspec/changes/ queda limpio.`

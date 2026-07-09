@@ -95,7 +95,7 @@ En persona `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón,
 
 ## // 007. CONTEXTO DE PROYECTO (EIN.md)
 
-`/ein:init` genera un **`EIN.md`** versionado en la raíz: la verdad de base del proyecto (stack, comandos, arquitectura, convenciones) que se inyecta al orquestador y a las fases SDD para que los modelos baratos **no re-descubran lo mismo cada run** (ahorro de tokens, más control). Zona **curada** (la escribes tú, Ein no la pisa) + zona **auto** (la regenera `/ein:init` con sello `rev` + fecha; `/ein:status` avisa de la deriva). Se commitea: es conocimiento del repo.
+`/ein:init` (o el onboarding first-run) genera un **`EIN.md`** versionado en la raíz: la verdad de base del proyecto (stack, comandos, arquitectura, convenciones) que se inyecta al orquestador y a las fases SDD para que los modelos baratos **no re-descubran lo mismo cada run** (ahorro de tokens, más control). Zona **curada** (la escribes tú, Ein no la pisa) — incluye un **`## Índice`** sembrado con las carpetas del repo para que tú/el modelo pongáis una línea de "qué es cada cosa" — + zona **auto** (comandos, estructura y **links a docs**, regenerada con sello `rev` + fecha; `sdd-close` la refresca al cerrar un cambio; `/ein:status` avisa de la deriva). Se commitea: es conocimiento del repo.
 
 ## // 008. SKILLS (3 capas)
 
@@ -111,7 +111,8 @@ En persona `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón,
 - **Idioma (2 ejes)** — `/ein:lang` separa conversación/UI de artefactos (PR/commit/Linear). Charlar en castellano y generar PRs en inglés, por ejemplo.
 - **Guardrails** — lista explícita de patrones denegados (`git reset --hard`, `rm -rf`, `DROP TABLE`…) y patrones que exigen confirmación.
 - **MCP eficiente** — `pi-mcp-adapter` (proxy de un tool, ~200 tokens vs 10k+/server) + `context-mode` (sandbox de salidas, persistencia de sesión sobre compactaciones).
-- **Compresión de salida (Hypa)** — `/ein:hypa on` envuelve `bash` con [Hypa](https://github.com/Hypabolic/Hypa): reducción **determinista** de la salida de comandos con reducer real (git de lectura, vitest/eslint, dotnet, cargo, terraform…). Envuelve `bunx vitest` normalizando el prefijo; deja crudo lo genérico (de eso ya se encarga `context-mode`) y **nunca** toca streaming/interactivo (dev, serve, `--watch`, `logs`, `-f`). Opcional y opt-in (default `off`); si falta el binario `hypa`, el wrap queda inerte. Brilla en proyectos no-Bun (dotnet/gradle/k8s): 90-100% menos ruido para los modelos baratos.
+- **Onboarding first-run** — la primera vez que Ein entra a un proyecto **sin configurar** (agnóstico a su edad: mira "¿está configurado?", no "¿es nuevo?"), un wizard único resuelve los esenciales — persona, idioma de artefactos, TDD, Hypa — y genera `EIN.md`. Un toque para "usar recomendados" o personalizar. Los pendientes = ficheros ausentes; una vez escritos, no vuelve a preguntar. Relánzalo con `/ein:onboard`.
+- **Compresión de salida (Hypa)** — envuelve `bash` con [Hypa](https://github.com/Hypabolic/Hypa): reducción **determinista** de la salida de comandos con reducer real (git de lectura, vitest/eslint, dotnet, cargo, terraform…). Envuelve `bunx vitest` normalizando el prefijo; deja crudo lo genérico (de eso ya se encarga `context-mode`) y **nunca** toca streaming/interactivo (dev, serve, `--watch`, `logs`, `-f`). Default **`auto`** (`/ein:hypa`): detecta el stack — **on** en proyectos verbosos no-Bun (dotnet/gradle/k8s → 90-100% menos ruido), **off** en Bun puro (ya terso). Si falta el binario `hypa`, el wrap queda inerte.
 - **Sesiones recientes** — el banner las lista al arrancar; recupéralas con `pi -c`/`pi -r`/`pi --session <id>` o `/ein:resume`.
 - **`ask_user_question`** — en los checkpoints (gates SDD, delivery, scope) Ein pregunta con diálogos estructurados, no prosa, solo cuando la respuesta cambia el siguiente paso.
 
@@ -170,7 +171,8 @@ Flags: `--yes`, `--dry-run` (muestra el plan sin ejecutar nada), `--no-engram`, 
 /ein:lang               Idioma de conversación/UI y de artefactos
 /ein:tdd                TDD estricto: auto (config) | strict | off | ask
 /ein:git                Confirmación de entrega: auto | ask | off
-/ein:hypa               Compresión de salida de comandos (Hypa): on | off
+/ein:hypa               Compresión de salida de comandos (Hypa): auto | on | off
+/ein:onboard            Reconfigurar esenciales del proyecto (persona/lang/tdd/hypa/EIN.md)
 
 # SDD
 /ein:ai:install-sdd     Instala el OpenSpec en el proyecto

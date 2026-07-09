@@ -75,7 +75,7 @@ export function writeEinMd(cwd: string): { created: boolean; path: string } {
 	const stamp = renderStamp(cwd);
 
 	if (!existsSync(path)) {
-		writeFileSync(path, scaffold(lang, stamp, auto), "utf8");
+		writeFileSync(path, scaffold(cwd, lang, stamp, auto), "utf8");
 		return { created: true, path };
 	}
 
@@ -109,7 +109,16 @@ export async function handleInitCommand(ctx: ExtensionContext): Promise<void> {
 
 // ─── Plantilla ───────────────────────────────────────────────────────────────
 
-function scaffold(lang: Lang, stamp: string, auto: string): string {
+// Siembra del índice: una línea por dir de nivel raíz con hueco a describir.
+// Semilla determinista; las descripciones las rellena el modelo/tú (curado).
+function indexSeed(cwd: string, lang: Lang): string[] {
+	const describe = pickFor(lang, "_(describe)_", "_(describe)_");
+	const dirs = topLevelDirs(cwd);
+	if (dirs.length === 0) return [pickFor(lang, "_(sin subdirectorios)_", "_(no subdirectories)_")];
+	return dirs.map((d) => `- \`${d}/\` — ${describe}`);
+}
+
+function scaffold(cwd: string, lang: Lang, stamp: string, auto: string): string {
 	const L = (es: string, en: string) => pickFor(lang, es, en);
 	const pending = L("_(pendiente)_", "_(pending)_");
 	return [
@@ -142,6 +151,13 @@ function scaffold(lang: Lang, stamp: string, auto: string): string {
 		),
 		pending,
 		"",
+		L("## Índice", "## Index"),
+		L(
+			"<!-- SEMI-CURADA — una línea por carpeta/pieza: qué es. Ein la siembra; el modelo/tú la mantenéis al crecer el proyecto. -->",
+			"<!-- SEMI-CURATED — one line per folder/piece: what it is. Ein seeds it; you/the model keep it as the project grows. -->",
+		),
+		...indexSeed(cwd, lang),
+		"",
 		auto,
 		"",
 	].join("\n");
@@ -167,6 +183,15 @@ function renderAutoBlock(cwd: string, lang: Lang): string {
 		for (const d of dirs) lines.push(`- \`${d}/\``);
 	} else {
 		lines.push(L("_Sin subdirectorios relevantes._", "_No relevant subdirectories._"));
+	}
+	lines.push("");
+
+	lines.push(L("## Docs", "## Docs"), "");
+	const docs = detectDocs(cwd);
+	if (docs.length) {
+		for (const [label, path] of docs) lines.push(`- [${label}](${path})`);
+	} else {
+		lines.push(L("_Sin docs detectados._", "_No docs detected._"));
 	}
 
 	lines.push("", AUTO_END);
@@ -244,6 +269,26 @@ function topLevelDirs(cwd: string): string[] {
 	} catch {
 		return [];
 	}
+}
+
+// Docs para enlazar en el índice: canónicos en raíz + ficheros de docs/.
+function detectDocs(cwd: string): Array<[string, string]> {
+	const out: Array<[string, string]> = [];
+	for (const name of ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "ARCHITECTURE.md"]) {
+		if (existsSync(join(cwd, name))) out.push([name.replace(/\.md$/, ""), name]);
+	}
+	const docsDir = join(cwd, "docs");
+	try {
+		if (existsSync(docsDir)) {
+			for (const name of readdirSync(docsDir).sort()) {
+				if (!name.endsWith(".md") || out.length >= 12) continue;
+				out.push([`docs/${name}`, `docs/${name}`]);
+			}
+		}
+	} catch {
+		// docs/ ilegible → se omite
+	}
+	return out;
 }
 
 // ─── Sello de frescura ───────────────────────────────────────────────────────
