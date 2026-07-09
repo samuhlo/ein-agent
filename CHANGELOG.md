@@ -5,6 +5,28 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.16.0] - 2026-07-09
+
+### Added
+
+- **Compresión determinista de salida de comandos (Hypa).** `/ein:hypa on`
+  envuelve el tool `bash` con [Hypa](https://github.com/Hypabolic/Hypa) para
+  reducir el ruido que tragan los modelos baratos en `sdd-apply`/`sdd-verify`.
+  Solo se envuelve un allowlist de tools con reducer real (git de lectura,
+  vitest/jest/eslint/biome/oxlint, dotnet, cargo, terraform…); el genérico se
+  deja a `context-mode` y el streaming/interactivo (`dev`, `serve`, `--watch`,
+  `logs`, `-f`, `-it`) nunca se toca. Opt-in, default `off`, persistente en
+  `.pi/ein/hypa.json`.
+- **Integración EIN-native (sin la extensión `pi-hypa`).** El wrap se hace
+  mutando `event.input.command` en el hook `tool_call`: los guardrails corren
+  sobre el comando ORIGINAL primero y solo entonces se envuelve. Normaliza el
+  prefijo Bun (`bunx vitest` → `vitest`) e inyecta `./node_modules/.bin` en el
+  PATH para resolver el binario sin romper el anchor del reducer.
+- **Hypa como dependencia opcional del installer.** `checkDeps` la detecta
+  (no bloqueante), el wizard ofrece instalarla (`--no-hypa` para omitir), y el
+  doctor la reporta en RUNTIME (`warn`, nunca falla). Si falta el binario, el
+  wrap queda inerte y Ein cae a bash + `context-mode`.
+
 ## [0.15.3] - 2026-07-08
 
 ### Added
