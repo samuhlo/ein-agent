@@ -21,5 +21,8 @@ ein-pi/agent/bin/
 # === Ruido de herramientas ===
 .claude/
 .DS_Store
-# Local Pi runtime state
-.atl/
+
+# === Ein / Pi runtime (auto-gestionado, no editar) ===
+.pi/ein/
+.piagents/
+# === fin Ein / Pi runtime ===
