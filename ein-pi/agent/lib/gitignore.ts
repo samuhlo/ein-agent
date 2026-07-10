@@ -6,9 +6,11 @@
 // aquí. Módulo puro (solo builtins de Node) para no acoplar a paquetes en tests.
 //
 // Lo que ignoramos:
-//   .pi/ein/   → toda la config y estado de Ein (lang/tdd/persona/atl/...).
-//   .piagents/ → scratch de sesión del binario de Pi; no es código nuestro y no
-//                se puede reubicar, así que solo lo ignoramos.
+//   .pi/ein/       → toda la config y estado de Ein (lang/tdd/persona/atl/...).
+//   .piagents/     → scratch de sesión del binario de Pi; no es código nuestro.
+//   .pi-subagents/ → artefactos de runs de subagentes (outputs de fase en
+//                    sandbox antes de promocionarse a openspec/changes/). Scratch.
+// NOTA: openspec/changes/ NO se ignora — es el board SDD y se versiona.
 // =============================================================================
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -18,7 +20,7 @@ const BLOCK_START = "# === Ein / Pi runtime (auto-gestionado, no editar) ===";
 const BLOCK_END = "# === fin Ein / Pi runtime ===";
 
 // Entradas gestionadas, en orden estable.
-const ENTRIES = [".pi/ein/", ".piagents/"];
+const ENTRIES = [".pi/ein/", ".piagents/", ".pi-subagents/"];
 
 // Restos de versiones previas que migramos al bloque nuevo: antes Ein escribía
 // `.atl/` bajo un header propio, y `.atl/` ahora vive dentro de `.pi/ein/`.
