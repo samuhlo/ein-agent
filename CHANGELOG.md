@@ -5,6 +5,24 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.17.2] - 2026-07-10
+
+### Fixed
+
+- **`ein update` reventaba con `ENXIO: no such device or address`.** El backup
+  previo copiaba `intercom/broker.sock` (socket IPC del runtime de Pi) con
+  `cpSync` → `open()` sobre un socket falla con ENXIO y abortaba la actualización.
+  Se excluye `intercom/` del backup y se añade un filtro que salta cualquier
+  socket/FIFO/dispositivo (blindaje ante ficheros especiales sueltos).
+
+### Changed
+
+- **Tabla de inicio (banner de Pi) a 3 columnas** — más legible — y añade
+  **HYPA** con su estado resuelto (`auto·on`/`auto·off`/`on`/`off`), como el TDD.
+- **Animación del installer, una vez por proceso.** Menú → Install la repetía;
+  ahora la segunda vez pinta estático. Añade una frase de la casa atenuada bajo
+  el logo tras materializarlo.
+
 ## [0.17.1] - 2026-07-09
 
 ### Added
