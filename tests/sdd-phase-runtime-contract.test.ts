@@ -123,3 +123,13 @@ describe("P3: veredictos de acceptance de pi-subagents", () => {
     expect(orch).toMatch(/\.chain\.md[^\n]*cannot carry `acceptance`/);
   });
 });
+
+describe("P4: runtime y tamaño del apply estricto", () => {
+  test("guía maxRuntimeMs generoso para apply TDD-estricto (evita timeout mid-cycle)", () => {
+    expect(orch).toMatch(/maxRuntimeMs[^\n]*1800000/);
+    expect(orch).toMatch(/strict-TDD[^\n]*(SLOW|minimum|multi-group)/i);
+  });
+  test("un tasks.md con demasiados grupos es un smell de scoping, no de runtime", () => {
+    expect(orch).toMatch(/scop(ed|ing)[^\n]*(too big|smell)/i);
+  });
+});
