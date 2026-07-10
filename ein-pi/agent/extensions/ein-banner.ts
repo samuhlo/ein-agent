@@ -25,6 +25,43 @@ import { readMode } from "../lib/mode";
 
 const execAsync = promisify(exec);
 
+// Estado de git para "saber antes de tocar": rama vs remoto (una ronda de red
+// con ls-remote) + cambios sin commitear. Determinista, cero tokens de modelo.
+// Best-effort: offline/sin repo/sin remoto degradan a "sync?"/"local"/"".
+async function computeGitSync(cwd: string): Promise<string> {
+  const g = `git -C "${cwd}"`;
+  const run = (cmd: string, timeout = 2500) =>
+    execAsync(`${g} ${cmd}`, { timeout }).then((r) => r.stdout.trim());
+  const ok = (cmd: string) =>
+    execAsync(`${g} ${cmd}`).then(() => true).catch(() => false);
+  try {
+    const branch = await run("branch --show-current");
+    if (!branch) return ""; // detached o no-repo: nada útil
+    const porcelain = await run("status --porcelain").catch(() => "");
+    const dirty = porcelain ? porcelain.split("\n").length : 0;
+    const dirtyTag = dirty ? ` · ○${dirty}` : "";
+
+    let remote = "";
+    try {
+      remote = (await run(`ls-remote origin ${branch}`, 4000)).split(/\s+/)[0] ?? "";
+    } catch {
+      return `sync?${dirtyTag}`; // offline
+    }
+    if (!remote) return `local${dirtyTag}`; // rama no publicada
+    const local = await run("rev-parse HEAD");
+    if (remote === local) return `✓ sync${dirtyTag}`;
+    // ¿tenemos el commit remoto? Si es ancestro de HEAD → local adelante; si no
+    // lo tenemos, el remoto avanzó en otro sitio (otro PC) → toca pull.
+    if ((await ok(`cat-file -e ${remote}`)) && (await ok(`merge-base --is-ancestor ${remote} HEAD`))) {
+      const ahead = await run(`rev-list --count ${remote}..HEAD`).catch(() => "?");
+      return `↑${ahead} sin pushear${dirtyTag}`;
+    }
+    return `⚠ pull (remoto adelante)${dirtyTag}`;
+  } catch {
+    return "";
+  }
+}
+
 // EIN block-letter logo, large cut: 4-wide strokes (54 cols, 10 rows).
 const LOGO_LARGE = [
   "██████████████      ████████████      ████        ████",
@@ -233,6 +270,7 @@ export default function (pi: ExtensionAPI) {
     const FINISH_TICK = SUB_END_TICK + 4;
 
     let gitBranch = "no git";
+    let gitSync = "";
     const [einVersion, extensionsCount, agentsCount] = await Promise.all([
       readEinVersion(),
       countExtensions(),
@@ -279,6 +317,13 @@ export default function (pi: ExtensionAPI) {
         .then(({ stdout }) => {
           const b = stdout.trim();
           gitBranch = b || "detached";
+        })
+        .catch(() => {});
+      // Sync con el remoto (best-effort, ~1s de red): se refleja en los
+      // re-renders del header mientras dura la animación.
+      computeGitSync(ctx.cwd)
+        .then((s) => {
+          gitSync = s;
         })
         .catch(() => {});
     }, 100);
@@ -470,7 +515,6 @@ export default function (pi: ExtensionAPI) {
                 ["TOOLS", `${toolsCount}`],
                 ["SKILLS", `${skillsCount}`],
                 ["MCP", `${mcpServersCount} srv`],
-                ["GIT", fit(gitBranch, V)],
                 ["MODE", fit(modeLabel, V)],
                 ["PERSONA", fit(personaLabel, V)],
                 ["LANG", fit(langChat, V)],
@@ -489,6 +533,17 @@ export default function (pi: ExtensionAPI) {
                   b.add(cell[0].padEnd(L), STRUCTURE);
                   b.add(cell[1].padEnd(V), CONCRETE);
                 }
+                b.center(width);
+              }
+
+              // GIT en su propia fila (prominente: "saber antes de tocar"):
+              // rama + estado de sync con el remoto. El sync entra async (~1s).
+              {
+                const gitVal = gitSync ? `${gitBranch} · ${gitSync}` : gitBranch;
+                b.addRow();
+                b.add("■ ", YELLOW);
+                b.add("GIT".padEnd(L), STRUCTURE);
+                b.add(fit(gitVal, GRID_W - 2 - L).padEnd(GRID_W - 2 - L), CONCRETE);
                 b.center(width);
               }
 
