@@ -17,6 +17,7 @@ import {
 	PERSONA_OPTIONS,
 	type PersonaMode,
 	personaConfigPath,
+	readPersonaMode,
 	writePersonaMode,
 } from "./persona.ts";
 import {
@@ -24,14 +25,28 @@ import {
 	LANG_LABEL,
 	type Lang,
 	langConfigPath,
+	readArtifactLang,
 	readChatLang,
 	writeArtifactLang,
 } from "./lang.ts";
-import { TDD_LABEL, TDD_OPTIONS, tddConfigPath, writeTddMode } from "./tdd.ts";
-import { HYPA_OPTIONS, hypaConfigPath, writeHypaMode } from "./hypa.ts";
+import {
+	TDD_LABEL,
+	TDD_OPTIONS,
+	readTddMode,
+	tddConfigPath,
+	writeTddMode,
+} from "./tdd.ts";
+import {
+	HYPA_OPTIONS,
+	hypaConfigPath,
+	readHypaMode,
+	writeHypaMode,
+} from "./hypa.ts";
 import { einMdPath, writeEinMd } from "./project-context.ts";
 
 export type Essential = "persona" | "lang" | "tdd" | "hypa" | "einmd";
+
+const ALL_ESSENTIALS: Essential[] = ["persona", "lang", "tdd", "hypa", "einmd"];
 
 const HYPA_ONBOARD_LABEL: Record<string, string> = {
 	auto: "auto — detecta el stack (recomendado)",
@@ -76,15 +91,17 @@ export function pendingEssentials(cwd: string): Essential[] {
 	return checks.filter(([, path]) => !existsSync(path)).map(([item]) => item);
 }
 
-// Rama "Personalizar": pregunta cada pendiente reusando las listas de cada
-// feature. Devuelve un resumen de lo aplicado.
+// Rama "Personalizar": repasa los esenciales dados (todos, mostrando el valor
+// actual) reusando las listas de cada feature. Devuelve lo aplicado.
 async function customize(
 	ctx: ExtensionContext,
-	pending: Essential[],
+	items: Essential[],
 ): Promise<string[]> {
 	const applied: string[] = [];
-	for (const item of pending) {
+	for (const item of items) {
 		if (item === "einmd") {
+			// Ya existe → no re-preguntar; refrescarlo es cosa de /ein:init.
+			if (existsSync(einMdPath(ctx.cwd))) continue;
 			const yes = await ctx.ui.confirm(
 				"¿Generar EIN.md (índice del proyecto)?",
 				"Contexto versionado: stack, comandos, estructura, docs.",
@@ -95,11 +112,15 @@ async function customize(
 			}
 			continue;
 		}
-		const [label, options, write] = FEATURE[item];
-		const items = options.map((o) => o.label);
-		const picked = await ctx.ui.select(label, items);
+		const [label, options, write, read] = FEATURE[item];
+		const current = read(ctx.cwd);
+		// Marca el valor activo para que repasar sea informado, no a ciegas.
+		const uiItems = options.map((o) =>
+			o.value === current ? `${o.label}  ← actual` : o.label,
+		);
+		const picked = await ctx.ui.select(label, uiItems);
 		if (picked === undefined) continue;
-		const opt = options[items.indexOf(picked)];
+		const opt = options[uiItems.indexOf(picked)];
 		if (!opt) continue;
 		write(ctx.cwd, opt.value);
 		applied.push(`${item}: ${opt.value}`);
@@ -107,12 +128,13 @@ async function customize(
 	return applied;
 }
 
-// Tabla feature → (pregunta, opciones, writer). Tipada laxa a propósito para
-// mapear cuatro features con enums distintos sin acoplar.
+// Tabla feature → (pregunta, opciones, writer, lector del valor actual). Tipada
+// laxa a propósito para mapear cuatro features con enums distintos sin acoplar.
 type FeatureSpec = [
 	label: string,
 	options: Array<{ label: string; value: string }>,
 	write: (cwd: string, value: string) => void,
+	read: (cwd: string) => string,
 ];
 
 const FEATURE: Record<Exclude<Essential, "einmd">, FeatureSpec> = {
@@ -120,21 +142,25 @@ const FEATURE: Record<Exclude<Essential, "einmd">, FeatureSpec> = {
 		"Persona (tono y estética de las respuestas)",
 		PERSONA_OPTIONS.map((p) => ({ label: p, value: p })),
 		(cwd, v) => writePersonaMode(cwd, v as PersonaMode),
+		(cwd) => readPersonaMode(cwd),
 	],
 	lang: [
 		"Idioma de artefactos (PR/commit/issues)",
 		ACTIVE_LANGS.map((l) => ({ label: `${l} — ${LANG_LABEL[l]}`, value: l })),
 		(cwd, v) => writeArtifactLang(cwd, v as Lang),
+		(cwd) => readArtifactLang(cwd),
 	],
 	tdd: [
 		"TDD estricto en SDD",
 		TDD_OPTIONS.map((t) => ({ label: `${t} — ${TDD_LABEL[t]}`, value: t })),
 		(cwd, v) => writeTddMode(cwd, v as (typeof TDD_OPTIONS)[number]),
+		(cwd) => readTddMode(cwd),
 	],
 	hypa: [
 		"Compresión de salida de comandos (Hypa)",
 		HYPA_OPTIONS.map((h) => ({ label: HYPA_ONBOARD_LABEL[h] ?? h, value: h })),
 		(cwd, v) => writeHypaMode(cwd, v as (typeof HYPA_OPTIONS)[number]),
+		(cwd) => readHypaMode(cwd),
 	],
 };
 
@@ -145,19 +171,18 @@ export async function runOnboarding(
 	opts: { all?: boolean } = {},
 ): Promise<void> {
 	if (!ctx.hasUI) return;
-	const pending = opts.all
-		? (["persona", "lang", "tdd", "hypa", "einmd"] as Essential[])
-		: pendingEssentials(ctx.cwd);
-	if (pending.length === 0) {
-		if (opts.all) ctx.ui.notify("Todo ya configurado.", "info");
-		return;
-	}
+	const pending = pendingEssentials(ctx.cwd);
+	// Se dispara si falta algo (arranque de proyecto) o si se fuerza (/ein:onboard).
+	if (pending.length === 0 && !opts.all) return;
 
+	const ctxLine = pending.length
+		? `faltan: ${pending.join(", ")}`
+		: "todo configurado";
 	const choice = await ctx.ui.select(
-		"Primera vez de Ein en este proyecto. ¿Cómo lo configuro?",
+		`Configurar Ein en este proyecto (${ctxLine}).`,
 		[
-			"Usar recomendados (persona samuhlo, TDD auto, Hypa auto, EIN.md)",
-			"Personalizar",
+			"Usar recomendados (rellena solo lo que falta)",
+			"Personalizar (repasar los 5, con el valor actual)",
 			"Ahora no",
 		],
 	);
@@ -165,13 +190,19 @@ export async function runOnboarding(
 
 	let applied: string[];
 	if (choice.startsWith("Personalizar")) {
-		applied = await customize(ctx, pending);
+		// Repasa SIEMPRE los 5 esenciales, no solo los ausentes: predecible y
+		// completo. Los ya configurados muestran su valor actual.
+		applied = await customize(ctx, ALL_ESSENTIALS);
 	} else {
+		// Recomendados: solo lo pendiente → nunca pisa una elección previa.
 		for (const item of pending) applyDefault(ctx.cwd, item);
 		applied = pending.map((i) => (i === "einmd" ? "EIN.md: generado" : `${i}: default`));
 	}
 
-	if (applied.length === 0) return;
+	if (applied.length === 0) {
+		if (opts.all) ctx.ui.notify("Sin cambios.", "info");
+		return;
+	}
 	ctx.ui.notify(
 		[
 			"Ein configurado en este proyecto:",
