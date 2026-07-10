@@ -69,6 +69,27 @@ describe("backup v2", () => {
     expect(entries).not.toContain("npm/");
   });
 
+  test("un socket unix no revienta el backup (ENXIO) ni entra al archive", async () => {
+    const { createServer } = await import("node:net");
+    // intercom/broker.sock: estado IPC del runtime (excluido por nombre).
+    mkdirSync(join(AGENT, "intercom"), { recursive: true });
+    // Y un socket suelto en un dir NO excluido: lo tapa el filtro isCopyable.
+    const srv1 = createServer();
+    const srv2 = createServer();
+    await new Promise<void>((r) => srv1.listen(join(AGENT, "intercom", "broker.sock"), r));
+    await new Promise<void>((r) => srv2.listen(join(AGENT, "agents", "stray.sock"), r));
+    try {
+      const result = await snapshot("pre-update", PATHS);
+      expect(result.path).not.toBeNull();
+      const entries = Bun.spawnSync(["tar", "-tzf", result.path!]).stdout.toString();
+      expect(entries).not.toContain("intercom");
+      expect(entries).not.toContain("stray.sock");
+    } finally {
+      srv1.close();
+      srv2.close();
+    }
+  });
+
   test("dedup: un árbol idéntico no genera un segundo archive", async () => {
     const first = await snapshot("pre-update", PATHS);
     const second = await snapshot("pre-update", PATHS);

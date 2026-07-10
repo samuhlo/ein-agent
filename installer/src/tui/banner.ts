@@ -218,12 +218,35 @@ function renderFrame(logo: LogoCut, tick: number, ph: Phase): string[] {
   return out;
 }
 
-// Anima el banner una vez y resuelve. Sin animación en non-TTY.
+// NOISE KILL -> La animación se toca UNA vez por proceso. Menú → Install la
+// disparaba dos veces; a partir de la primera, las siguientes pintan estático.
+let bannerAnimated = false;
+
+// Frases de arranque (voz de la casa: Ein es el "data dog" de Cowboy Bebop —
+// discreto y capaz). Una al azar tras materializar el logo, atenuada.
+const MOTTOS = [
+  "el data dog ya husmea el repo.",
+  "modelos caros piensan; baratos ejecutan.",
+  "trabajo difícil, sin ruido.",
+  "discreto, pero profundamente capaz.",
+  "el plan primero; luego el código.",
+  "cambios pequeños, verificados, explicados.",
+];
+
+function renderMotto(width: number): string {
+  const motto = MOTTOS[Math.floor(Math.random() * MOTTOS.length)] ?? MOTTOS[0];
+  const line = `// ${motto}`;
+  const pad = Math.max(0, Math.floor((width - line.length) / 2));
+  return " ".repeat(pad) + dimRgb(STRUCTURE, line);
+}
+
+// Anima el banner una vez y resuelve. Sin animación en non-TTY o repeticiones.
 export async function playBanner(): Promise<void> {
-  if (!colorEnabled()) {
+  if (bannerAnimated || !colorEnabled()) {
     process.stdout.write(`${renderStatic()}\n`);
     return;
   }
+  bannerAnimated = true;
 
   const logo = pickLogo();
   const ph = buildPhase(logo.width);
@@ -264,6 +287,9 @@ export async function playBanner(): Promise<void> {
       process.stdout.write(`${renderFrame(logo, tick, ph).join("\n")}\n`);
     }, 30);
   });
+
+  // Sello final: una frase de la casa, atenuada, bajo el subtítulo.
+  process.stdout.write(`${renderMotto(logo.width)}\n`);
 }
 
 export function bannerStatic(): string {

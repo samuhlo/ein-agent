@@ -19,6 +19,7 @@ import { loadPalette, type RGB } from "./ein-brand";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 import { LANG_LABEL, readArtifactLang, readChatLang } from "../lib/lang";
 import { TDD_LABEL, readTddMode } from "../lib/tdd";
+import { readHypaMode, resolveHypaEnabled } from "../lib/hypa";
 import { readPersonaMode } from "../lib/persona";
 import { readMode } from "../lib/mode";
 
@@ -259,6 +260,12 @@ export default function (pi: ExtensionAPI) {
     const tddLabel = TDD_LABEL[readTddMode(ctx.cwd)];
     const personaLabel = readPersonaMode(ctx.cwd);
     const modeLabel = readMode(ctx.cwd);
+    // Hypa: modo + estado resuelto en auto (como TDD muestra su label).
+    const hypaMode = readHypaMode(ctx.cwd);
+    const hypaLabel =
+      hypaMode === "auto"
+        ? `auto·${resolveHypaEnabled(ctx.cwd) ? "on" : "off"}`
+        : hypaMode;
 
     const allCommands = pi.getCommands();
     const skillsCount = allCommands.filter((c) => c.source === "skill").length;
@@ -449,52 +456,38 @@ export default function (pi: ExtensionAPI) {
               b.addRow();
               b.center(width);
 
-              // Spec grid: two columns, yellow block markers, gray labels,
-              // concrete values. Every row is padded to the same visible
-              // width so independent centering keeps the columns aligned.
+              // Spec grid: three columns, yellow block markers, gray labels,
+              // concrete values. Flat list chunked into rows of 3 so cada celda
+              // tiene el mismo ancho visible y el centrado mantiene la alineación.
               const L = 8; // label width
-              const V = 14; // left value width
-              const RV = 20; // right value width
-              const GRID_W = 2 + L + V + 2 + L + RV;
-              const pairs: Array<[[string, string], [string, string]]> = [
-                [
-                  ["AGENTS", `${agentsCount}`],
-                  ["EXT", `${extensionsCount}`],
-                ],
-                [
-                  ["SKILLS", `${skillsCount}`],
-                  ["MCP", `${mcpServersCount} server(s)`],
-                ],
-                [
-                  ["TOOLS", `${toolsCount}`],
-                  ["GIT", fit(gitBranch, RV)],
-                ],
-                [
-                  ["LANG", langChat],
-                  ["ARTF", langArtifact],
-                ],
-                [
-                  ["MODE", modeLabel],
-                  ["TDD", tddLabel],
-                ],
-                [
-                  ["PERSONA", personaLabel],
-                  ["", ""],
-                ],
+              const V = 13; // value width (cabe "auto (config)" del TDD)
+              const COLS = 3;
+              const CELL = 2 + L + V; // "■ " + label + value
+              const GRID_W = CELL * COLS;
+              const cells: Array<[string, string]> = [
+                ["AGENTS", `${agentsCount}`],
+                ["EXT", `${extensionsCount}`],
+                ["TOOLS", `${toolsCount}`],
+                ["SKILLS", `${skillsCount}`],
+                ["MCP", `${mcpServersCount} srv`],
+                ["GIT", fit(gitBranch, V)],
+                ["MODE", fit(modeLabel, V)],
+                ["PERSONA", fit(personaLabel, V)],
+                ["LANG", fit(langChat, V)],
+                ["ARTF", fit(langArtifact, V)],
+                ["TDD", fit(tddLabel, V)],
+                ["HYPA", fit(hypaLabel, V)],
               ];
-              // Defensive: a malformed row must never crash the banner — a crash
-              // here takes down the whole Pi session at startup.
-              for (const row of pairs) {
-                const [p1, p2] = row;
-                if (!p1) continue;
+              // Defensive: una celda malformada nunca debe tumbar el banner — un
+              // crash aquí se lleva por delante la sesión de Pi al arrancar.
+              for (let i = 0; i < cells.length; i += COLS) {
                 b.addRow();
-                b.add("■ ", YELLOW);
-                b.add(p1[0].padEnd(L), STRUCTURE);
-                b.add(p1[1].padEnd(V), CONCRETE);
-                if (p2 && p2[0]) {
+                for (let c = 0; c < COLS; c++) {
+                  const cell = cells[i + c];
+                  if (!cell) continue;
                   b.add("■ ", YELLOW);
-                  b.add(p2[0].padEnd(L), STRUCTURE);
-                  b.add(p2[1].padEnd(RV), CONCRETE);
+                  b.add(cell[0].padEnd(L), STRUCTURE);
+                  b.add(cell[1].padEnd(V), CONCRETE);
                 }
                 b.center(width);
               }

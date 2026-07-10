@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import {
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -38,6 +39,7 @@ const BACKUP_EXCLUDE = new Set([
   ".piagents",
   ".sdd",
   "run-history.jsonl",
+  "intercom",
 ]);
 
 // Backups beyond this count are pruned oldest-first (pinned ones survive).
@@ -67,6 +69,23 @@ export type SnapshotResult = {
 
 // NOISE KILL -> Excluding downloaded/ (large, reinstallable) keeps snapshots
 // small without losing local skills or lockfiles.
+// GUARD -> cpSync abre cada fichero; un socket/FIFO/dispositivo (p.ej. el
+// intercom/broker.sock del runtime de Pi) revienta con ENXIO. Se saltan del
+// copiado — nunca son estado que restaurar.
+function isCopyable(path: string): boolean {
+  try {
+    const st = lstatSync(path);
+    return !(
+      st.isSocket() ||
+      st.isFIFO() ||
+      st.isCharacterDevice() ||
+      st.isBlockDevice()
+    );
+  } catch {
+    return false;
+  }
+}
+
 function copyEntry(srcRoot: string, destRoot: string, name: string): void {
   const src = join(srcRoot, name);
   const dest = join(destRoot, name);
@@ -74,11 +93,11 @@ function copyEntry(srcRoot: string, destRoot: string, name: string): void {
     mkdirSync(dest, { recursive: true });
     for (const sub of readdirSync(src)) {
       if (sub === "downloaded") continue;
-      cpSync(join(src, sub), join(dest, sub), { recursive: true });
+      cpSync(join(src, sub), join(dest, sub), { recursive: true, filter: isCopyable });
     }
     return;
   }
-  cpSync(src, dest, { recursive: true });
+  cpSync(src, dest, { recursive: true, filter: isCopyable });
 }
 
 function walkFiles(root: string, dir: string, out: string[]): void {
