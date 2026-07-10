@@ -5,6 +5,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
 import { pick } from "../lib/lang";
+import { readMode } from "../lib/mode";
 import { ensureEinGitignore } from "../lib/gitignore";
 import { AGENT_DIR, DOWNLOADED_SKILLS_DIR, LOCAL_SKILLS_DIR } from "./ein-paths";
 
@@ -632,6 +633,16 @@ function getOrCreateRegistry(cwd: string): SkillEntry[] {
 // excluded from relevance resolution to avoid duplication.
 const CODE_CONVENTION_KEYS = ["comment-style", "logging-style", "file-naming"];
 
+// GUARD -> Skills que solo tienen sentido en modo Team (Linear activo). En Solo,
+// linear-workflow puntúa alto por sus tags (nuxt/github) y se colaba en el
+// scope aunque Linear esté dormido. Se excluye salvo en Team.
+const TEAM_ONLY_SKILL_KEYS = ["linear-workflow"];
+
+// ¿Esta skill puede inyectarse en el modo activo? Las de Team solo en Team.
+export function skillAllowedInMode(key: string, mode: "solo" | "team"): boolean {
+  return mode === "team" || !TEAM_ONLY_SKILL_KEYS.includes(key);
+}
+
 // Always-on block: paths of the code conventions to load whenever code is
 // about to be written or edited. Injected by ein-ai into both the parent and
 // subagents. Returns "" if none are installed.
@@ -668,8 +679,11 @@ export function resolveSkillInjection(cwd: string, task: string, limit = 6): str
   } catch {
     registry = [];
   }
+  const mode = readMode(cwd);
   const resolved = resolveSkills(registry, cleanTask, undefined, limit).filter(
-    (skill) => !CODE_CONVENTION_KEYS.includes(skill.key),
+    (skill) =>
+      !CODE_CONVENTION_KEYS.includes(skill.key) &&
+      skillAllowedInMode(skill.key, mode),
   );
   const c7 = detectContext7(cleanTask);
   if (!resolved.length && !c7.length) return "";
