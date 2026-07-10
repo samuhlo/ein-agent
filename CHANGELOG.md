@@ -5,6 +5,17 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.17.3] - 2026-07-10
+
+### Fixed
+
+- **Onboarding: "Personalizar" repasa los 5 esenciales.** Antes solo preguntaba
+  por lo pendiente (fichero de config ausente), así que en un proyecto con
+  persona/lang/tdd ya configurados de antes solo pedía hypa + EIN.md — sensación
+  de flujo incompleto. Ahora "Personalizar" repasa siempre los 5 mostrando el
+  valor actual (`← actual`); "Usar recomendados" sigue rellenando solo lo
+  ausente (nunca pisa una elección previa). La intro indica qué falta.
+
 ## [0.17.2] - 2026-07-10
 
 ### Fixed
