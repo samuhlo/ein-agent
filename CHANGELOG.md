@@ -5,6 +5,25 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.17.4] - 2026-07-10
+
+### Added
+
+- **Estado de sync de git en la tabla de inicio.** GIT pasa a su propia fila con
+  el estado real de la rama, calculado de forma **determinista** (cero tokens de
+  modelo, una ronda de red con `ls-remote`): `✓ sync` · `⚠ pull (remoto adelante)`
+  · `↑N sin pushear` · `○N sin commitear`. Para saber, antes de tocar nada, si
+  otro PC ya adelantó la rama. Best-effort: offline → `sync?`, sin remoto →
+  `local`, sin repo → nada.
+
+### Fixed
+
+- **`linear-workflow` no se inyecta en modo Solo.** La skill puntúa alto por sus
+  tags (`nuxt`/`github`), así que el advisor la metía en `sdd-scope` en cualquier
+  proyecto Nuxt aunque Linear estuviera dormido — ruido y tokens malgastados.
+  Ahora las skills solo-Team se excluyen fuera de Team (filtro en la inyección,
+  no en el registro: un cache viejo ya no la cuela).
+
 ## [0.17.3] - 2026-07-10
 
 ### Fixed
