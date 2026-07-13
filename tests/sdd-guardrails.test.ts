@@ -130,6 +130,16 @@ describe("lintTasksArtifact", () => {
 		expect(r.ok).toBe(false);
 		expect(r.issues.some((i) => i.code === "missing-checkbox")).toBe(true);
 	});
+
+	test("tasks 100% completado (todo `- [x]`) PASA — el apply marca checkboxes", () => {
+		// Regresión real (progreso-anexos-rail): el apply marcó 43/43 como [x]
+		// y el gate reventaba con missing-checkbox, empujando a des-marcar
+		// trabajo terminado. Un artefacto completado es válido.
+		const done = GOOD_TASKS.replaceAll("- [ ]", "- [x]");
+		const r = lintTasksArtifact(done);
+		expect(r.issues.some((i) => i.code === "missing-checkbox")).toBe(false);
+		expect(r.ok).toBe(true);
+	});
 });
 
 describe("lintPhaseArtifact required signals", () => {

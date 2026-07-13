@@ -159,7 +159,10 @@ export function lintDesignArtifact(
 const TASKS_REQUIRED: { code: string; label: string; pattern: RegExp }[] = [
 	{ code: "status-line", label: "status: ready|blocked", pattern: /\bstatus\s*[:=]\s*(ready|blocked)\b/i },
 	{ code: "blocked-by", label: "blocked_by", pattern: /\bblocked_by\s*[:=]\s*.+/i },
-	{ code: "checkbox", label: "checkbox `- [ ]`", pattern: /^\s*-\s*\[ \]/m },
+	// GUARD -> acepta marcadas y sin marcar: un tasks.md 100% completado (todo
+	// `- [x]` tras el apply) es VÁLIDO, no un artefacto roto. Exigir el literal
+	// `- [ ]` hacía fallar el gate justo al terminar el trabajo.
+	{ code: "checkbox", label: "checkbox `- [ ]`/`- [x]`", pattern: /^\s*-\s*\[(?: |x|X)\]/m },
 	{ code: "skills", label: "skills", pattern: /^\s*-\s*skills\s*:/im },
 	{ code: "why", label: "why", pattern: /^\s*-\s*why\s*:/im },
 	{ code: "learn", label: "learn", pattern: /^\s*-\s*learn\s*:/im },
