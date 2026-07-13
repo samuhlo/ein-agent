@@ -4,8 +4,10 @@
 > [colbymchenry/codegraph](https://github.com/colbymchenry/codegraph).
 > Fecha: 2026-07-13. Estado del repo en ese momento: `main @ 3c53a8f` (v0.17.6).
 >
-> **ESTADO: FASE 0 PENDIENTE.** Nada implementado aún. Este doc es el plan
-> completo + protocolo de reanudación. Actualizar la línea ESTADO al avanzar.
+> **ESTADO: FASE 0 EJECUTADA (2026-07-13) — resultados y bloqueo MCP en
+> // 008.** Mediciones hechas; la ruta MCP está bloqueada por un interop con
+> pi-mcp-adapter; emergió una ruta alternativa (CLI-over-bash) que la esquiva.
+> Pendiente: decisión de samuhlo sobre la ruta de Fase 1.
 >
 > Reglas duras de esta casa (aplican a CUALQUIER agente que retome esto):
 > commits con autoría SOLO samuhlo (nunca co-author de IA) · flujo
@@ -162,5 +164,64 @@ Calcar el patrón Hypa, pieza a pieza. Plantillas con ruta exacta:
 - 2026-07-13 — Plan creado. Decisiones fijadas con samuhlo: evaluar con spike
   medido primero (lección de Hypa); integración conmutable tipo Hypa
   (`auto|on|off`); telemetría siempre off; dep opcional, nunca obligatoria.
-- (pendiente) — Resultados Fase 0: tabla de mediciones + resultado del test
-  MCP-en-subagentes + decisión go/no-go.
+- 2026-07-13 — **FASE 0 ejecutada.** CLI 1.4.1 instalado vía npm global
+  (mise), `codegraph telemetry off` confirmado. Index: ein-agent 1917
+  nodos/5534 edges/3.1s/7.1MB · planificador 2892/9019/4.7s/13MB. Sin watcher
+  residente tras init.
+
+- 2026-07-13 — **Mediciones (payload `codegraph explore` vs baseline
+  grep+read de los ficheros implicados, tokens ≈ bytes/4):**
+
+  | Pregunta | explore | baseline | ahorro |
+  |---|---|---|---|
+  | callers de guardarActual (planif.) | 5.9k | 9.6k | -38% |
+  | call path useRecorrido (planif.) | 6.1k | 7.0k | -13% |
+  | blast radius use-cursos.ts (planif.) | 5.4k | 6.7k | -20% |
+  | usos de resolveHypaEnabled (ein-agent) | 3.1k | 17.6k | -82% |
+  | estructura runOnboarding (ein-agent) | 3.0k | 19.7k | -85% |
+
+  Lectura: el ahorro de payload escala con el tamaño de fichero (mediana -38%,
+  pero -82/-85% con ficheros grandes tipo ein-ai.ts). El baseline es GENEROSO
+  con el baseline (asume cero greps fallidos). El multiplicador real no medido
+  aquí: cada tool-call reenvía todo el contexto — pasar de 35-44 tool uses
+  (map real) a 1-3 explores es donde viven los 98k del map. Calidad verificada:
+  callers correctos (resolvió edges de Vue SFC), blast radius con cobertura de
+  tests, código verbatim line-numbered "Read-equivalente".
+  OJO: `codegraph query`/`impact` a secas son pobres (query=búsqueda FTS;
+  impact de un FICHERO devuelve solo el fichero). El tool bueno es `explore`
+  (y `callers`/`callees` para preguntas quirúrgicas).
+
+- 2026-07-13 — **Ruta MCP BLOQUEADA (go/no-go (a) sin responder).** El server
+  MCP de codegraph es correcto (handshake JSON-RPC manual completo OK, lista
+  `codegraph` + `codegraph_explore`; arranca hasta con `env -i`). El comando
+  real del server es `codegraph serve --mcp` (NO `codegraph mcp`; sacado de
+  `codegraph install --print-config claude`). PERO vía
+  `pi --mcp-config <file>` (pi-mcp-adapter):
+  - `lifecycle: eager` → pi se cuelga EN EL ARRANQUE (ni sesión crea).
+  - `lifecycle: lazy` → el tool NO se registra (sin metadata cacheada en
+    mcp-cache.json un server nuevo no expone tools) → el modelo responde
+    TOOL_MISSING… y ADEMÁS pi no termina el proceso (timeout con la respuesta
+    ya escrita en session.jsonl). engram/context7 funcionan porque ya tienen
+    cache. Es un interop pi-mcp-adapter↔codegraph (o del camino --mcp-config);
+    NO se probó inyectarlo en el mcp.json desplegado (bloqueado: mutar el
+    workbench vivo requiere OK explícito de samuhlo — puede probarlo él en la
+    TUI con `/mcp` sin riesgo).
+  - Test MCP-en-subagentes: NO ejecutado (sin parent funcional no tiene
+    sentido). ADEMÁS los agentes SDD llevan whitelist `tools:` en frontmatter
+    (map: `read, grep, glob, write`) — cualquier ruta exige tocar frontmatter.
+
+- 2026-07-13 — **Ruta alternativa descubierta: CLI-over-bash (esquiva MCP
+  entero).** Los agentes llaman `codegraph explore "..."` por bash — mismos
+  payloads medidos, cero adapter, determinista. Encaje: sdd-design/tasks/
+  apply/verify YA tienen bash; sdd-map NO (habría que darle bash acotado por
+  prompt, o registrar un tool nativo de EIN `ein_code_explore` que shellee al
+  CLI y añadirlo a las whitelists). Bonus descubierto: las instructions del
+  server MCP traen la doctrina completa "explore antes que Read" lista para
+  copiar a la directiva de EIN.
+
+- 2026-07-13 — **Veredicto Fase 0:** criterio (b) parcial (mediana -38% en
+  payload; el win real es la reducción de turns, alto pero no medido aquí);
+  criterio (a) bloqueado por interop, PERO irrelevante si Fase 1 va por
+  CLI-over-bash. Recomendación: Fase 1 por ruta CLI (más simple, sin MCP, sin
+  adapter, EIN controla las whitelists), dejando MCP como mejora futura si el
+  interop se resuelve upstream. PENDIENTE: decisión de samuhlo.
