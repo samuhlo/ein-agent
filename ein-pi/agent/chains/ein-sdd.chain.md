@@ -18,7 +18,7 @@ output: map.md
 outputMode: file-only
 progress: true
 
-Map {task}. Identify scope, risks, dependencies, and prior art, and whether the change should proceed into design. This is a research phase: only return findings, do not edit repository files.
+Map {task}. Identify scope, risks, dependencies, and prior art, and whether the change should proceed into design. This is a research phase: do not edit source files. Write your single permitted artifact — the canonical `openspec/changes/<change>/map.md` — yourself, and return the same findings as output for the next step.
 
 FAIL-SAFE:
   BEFORE MAPPING, verify that scope.md contains:

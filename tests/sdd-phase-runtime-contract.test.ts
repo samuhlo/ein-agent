@@ -35,27 +35,31 @@ const PHASE_AGENTS = [
 ];
 
 describe("P1: contrato de persistencia de map.md", () => {
-  test("sdd-map NO contiene la instrucción contradictoria de escribir map.md", () => {
-    expect(sddMap).not.toContain("Write map notes to");
-  });
-
-  test("sdd-map declara el Artifact Persistence Contract", () => {
+  // Contrato v2: map escribe su ÚNICO artefacto él mismo (write tool), como el
+  // resto de fases. El baile output/file-only quedó retirado: un output
+  // relativo en pi-subagents resuelve dentro del sandbox .pi-subagents/, nunca
+  // en el repo, y forzaba el parent-fallback en CADA map.
+  test("sdd-map tiene write tool y contrato de artefacto propio", () => {
+    expect(sddMap).toMatch(/^tools:.*write/m);
     expect(sddMap).toContain("Artifact Persistence Contract");
-    expect(sddMap).toContain("outputMode: file-only");
+    expect(sddMap).toMatch(/write your artifact yourself/i);
   });
 
-  test("sdd-map trata la falta de write tool como intencional, no como bloqueo", () => {
-    expect(sddMap.toLowerCase()).toContain("intentional, not a blocker");
+  test("sdd-map acota el write a su artefacto: nunca código ni sandbox", () => {
+    expect(sddMap).toContain("MUST NOT write code");
+    expect(sddMap).toMatch(/EXACTLY ONE file|ONLY file you are allowed to write/);
+    expect(sddMap.toLowerCase()).toContain("sandbox");
   });
 
-  test("orchestrator ordena pasar output + file-only al delegar sdd-map directo", () => {
-    expect(orch).toContain('outputMode: "file-only"');
-    expect(orch).toMatch(/sdd-map[^\n]*NO write tool/);
+  test("orchestrator prohíbe output/outputMode al delegar fases directo (sandbox trap)", () => {
+    expect(orch).toMatch(/do NOT pass `output`\/`outputMode` when delegating a phase directly/);
+    expect(orch).toMatch(/resolves inside the runner's `\.pi-subagents\/` sandbox/);
   });
 
-  test("orchestrator prohíbe polling/re-run cuando falta el artefacto: se persiste desde el envelope", () => {
+  test("orchestrator conserva el fallback de último recurso (envelope → parent-fallback)", () => {
     expect(orch.toLowerCase()).toMatch(/do not poll the filesystem|not poll the filesystem in a wait loop/);
     expect(orch).toContain("_output.md");
+    expect(orch).toContain("authored_by: parent-fallback");
   });
 });
 
@@ -131,5 +135,22 @@ describe("P4: runtime y tamaño del apply estricto", () => {
   });
   test("un tasks.md con demasiados grupos es un smell de scoping, no de runtime", () => {
     expect(orch).toMatch(/scop(ed|ing)[^\n]*(too big|smell)/i);
+  });
+  test("fases de planificación que leen código llevan runtime ≥600s (revisiones incluidas)", () => {
+    expect(orch).toMatch(/Planning-phase runtime/);
+    expect(orch).toMatch(/600000/);
+  });
+});
+
+describe("P5: fricción de runtime conocida", () => {
+  test("orchestrator advierte del shell compuesto en ctx_batch_execute (bash -c)", () => {
+    expect(orch).toMatch(/ctx_batch_execute/);
+    expect(orch).toMatch(/bash -c/);
+    expect(orch).toMatch(/compound shell breaks|syntax error near unexpected token/i);
+  });
+  test("sdd-apply marca checkboxes de tasks.md en AMBOS modos (strict incluido)", () => {
+    const apply = read("agents/sdd-apply.md");
+    expect(apply).toMatch(/Task Checkboxes \(both modes\)/);
+    expect(apply).toMatch(/strict AND standard/);
   });
 });
