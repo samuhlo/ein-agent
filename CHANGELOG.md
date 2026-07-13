@@ -5,6 +5,18 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.17.6] - 2026-07-13
+
+### Fixed
+
+- **Un `tasks.md` 100% completado ya pasa el gate.** Regresión destapada por
+  0.17.5: al ordenar a `sdd-apply` marcar los checkboxes en ambos modos, un
+  cambio terminado deja todo `- [x]` — y la señal obligatoria del linter solo
+  matcheaba el literal `- [ ]`, así que `ein_sdd_check` reventaba con
+  `missing-checkbox` justo al acabar el trabajo (y empujaba a des-marcar tareas
+  hechas). La señal acepta ahora `- [ ]` y `- [x]`: significa "hay checklist",
+  no "hay trabajo pendiente".
+
 ## [0.17.5] - 2026-07-13
 
 ### Fixed
