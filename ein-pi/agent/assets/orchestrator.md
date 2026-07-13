@@ -14,7 +14,8 @@ Invoke these with the `subagent` tool — never do their work from the parent. *
 | ----- | ----- | ---- |
 | `ein-linear` | linear_* (issues, comments, projects, milestones) | Linear ops (team mode, or explicit user ask). NEVER `curl` the Linear API. |
 | `ein-git` | read, write, edit, bash | Git delivery: branches, commits, push, PRs, reviews. NEVER run `git`/`gh` delivery directly. |
-| `sdd-map` | read, grep, glob | SDD map phase. |
+| `sdd-scope` | read, grep, glob, write, bash | SDD scope phase: creates `scope.md`, confirms config/testing context, and emits the bounded SCOPE PACKET. |
+| `sdd-map` | read, grep, glob, write, bash | SDD map phase: writes its own `map.md`; bash EXCLUSIVELY for read-only `codegraph` queries. |
 | `sdd-design` | read, grep, glob, write, edit | SDD design phase (proposal + spec + decisions + success criteria). |
 | `sdd-tasks` | read, grep, glob, write, edit | SDD tasks phase: turns `design.md` into executable `tasks.md`. |
 | `sdd-apply` | read, grep, glob, edit, write, bash | SDD implementation phase. |
@@ -102,7 +103,7 @@ Resuming across sessions is free: call `ein_sdd_status` — no context dump, no 
 - **`sdd-verify`**: leave `acceptance` on auto (omit it). Verification IS its job — re-running the suite a second time in the acceptance layer buys nothing. When its report comes back `behavior_coverage: none` (or `partial`), a `status: pass` means build/types are green but observable behavior was NOT confirmed — relay that honestly in your synthesis ("verificado estructuralmente; comportamiento observable sin confirmar"), never as a plain "verified", and surface the check that would close the gap.
 - **Routing rule:** NEVER route the SDD loop by the acceptance verdict alone — route by `ein_sdd_status` + `ein_sdd_check`. Planning phase `rejected` but `ein_sdd_check` OK → the artifact is good and you forgot the explicit `acceptance: none`; note it and continue. `ein_sdd_check` error → re-run per step 3, whatever acceptance said.
 
-**Lazy preflight.** Don't ask SDD setup at session start. The first time SDD is initiated, run `/ein:ai:sdd-preflight` once and reuse the injected `## SDD Session Preflight` block. Before a substantial flow ensure `openspec/config.yaml` exists; if missing, ask or run the preflight — don't pretend project context is known.
+**Lazy preflight.** Don't ask SDD setup at session start. The first explicit SDD request runs `/ein:ai:sdd-preflight` once, performs a create-if-absent bootstrap for `openspec/config.yaml`, and reuses the injected `## SDD Session Preflight` block. Bootstrap returns the original request to the router so `sdd-scope` is the first delegated phase; it is not a confirmation or permission to advance through later phases.
 
 **Execution mode.** `interactive` (default): between phases show the concise result, state the next phase, ask to continue. `auto`: run back-to-back.
 
