@@ -5,6 +5,34 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.17.5] - 2026-07-13
+
+### Fixed
+
+- **Fin del `parent-fallback` en cada `sdd-map`.** Causa raíz: pi-subagents
+  resuelve un `output` relativo dentro de su sandbox `.pi-subagents/`, nunca en
+  el repo — el "runner escribe el artefacto" era una premisa falsa y CADA map
+  acababa copiado a mano por el parent con warning de provenance. Ahora
+  `sdd-map` tiene `write` (como todas las demás fases) y escribe él mismo su
+  único artefacto en `openspec/changes/{change}/map.md`; el orquestador ya no
+  pasa `output`/`outputMode` al delegar fases y el fallback queda como último
+  recurso.
+- **Checkboxes de `tasks.md` en strict TDD.** La instrucción de marcarlos solo
+  existía en modo standard: un cambio terminado en strict reportaba `pending=N`
+  para siempre en `ein_sdd_status`. Ahora se marcan en ambos modos.
+- **`.pi-subagents/` en el bloque gestionado del gitignore.** El scratch de runs
+  de subagentes no se ignoraba; `openspec/changes/` (el board) nunca se ignora.
+
+### Changed
+
+- **Guía de runtime por fase en el orquestador.** Apply estricto/multi-grupo
+  ≥30 min (y continuar desde `apply-progress.md` tras un timeout, no reiniciar);
+  fases de planificación que leen código (map/tasks/revisiones) ≥10 min; >6
+  grupos en un `tasks.md` = smell de scoping (trocear en cambios hermanos).
+- **Límite de shell compuesto en `ctx_batch_execute`.** `for`/`if`/heredocs
+  rompen por el prefijo `NODE_OPTIONS` del wrapper; el orquestador ahora los
+  envuelve en `bash -c '…'` en vez de reintentar en bucle.
+
 ## [0.17.4] - 2026-07-10
 
 ### Added
