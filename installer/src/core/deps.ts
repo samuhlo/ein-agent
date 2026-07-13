@@ -16,7 +16,15 @@ import {
   MISE_SHIM_DIR,
 } from "./paths.ts";
 
-export type DepId = "git" | "curl" | "bun" | "pi" | "engram" | "gh" | "hypa";
+export type DepId =
+  | "git"
+  | "curl"
+  | "bun"
+  | "pi"
+  | "engram"
+  | "gh"
+  | "hypa"
+  | "codegraph";
 
 export type DepStatus = {
   id: DepId;
@@ -36,6 +44,11 @@ export function resolveHypa(): string | null {
   return lookPath("hypa", HYPA_PATH);
 }
 
+// codegraph: npm global (mise lo shima) o instaladores en ~/.local/bin.
+export function resolveCodegraph(): string | null {
+  return lookPath("codegraph", HYPA_PATH);
+}
+
 export function checkDeps(platform: Platform): DepStatus[] {
   const engram = resolveEngram(platform);
   const defs: Array<Omit<DepStatus, "present" | "path">> = [
@@ -46,6 +59,7 @@ export function checkDeps(platform: Platform): DepStatus[] {
     { id: "engram", required: false, hint: "memoria persistente (opcional)" },
     { id: "gh", required: false, hint: "GitHub CLI para entrega (opcional)" },
     { id: "hypa", required: false, hint: "compresión de salida de comandos (opcional)" },
+    { id: "codegraph", required: false, hint: "grafo de código para exploración barata (opcional)" },
   ];
 
   return defs.map((d) => {
@@ -54,6 +68,10 @@ export function checkDeps(platform: Platform): DepStatus[] {
     }
     if (d.id === "hypa") {
       const path = resolveHypa();
+      return { ...d, present: path !== null, path };
+    }
+    if (d.id === "codegraph") {
+      const path = resolveCodegraph();
       return { ...d, present: path !== null, path };
     }
     const path = lookPath(d.id, EXTRA_PATH);
@@ -143,6 +161,23 @@ export async function installGh(platform: Platform): Promise<InstallStep> {
     default:
       return { ok: false, detail: "instala gh manualmente desde cli.github.com" };
   }
+}
+
+// codegraph: best-effort vía el instalador oficial. Opcional, nunca bloquea.
+// BLINDAJE -> tras instalar, telemetría OFF siempre (default-on upstream; la
+// política de Ein es no telemetría, igual que enableInstallTelemetry: false).
+export async function installCodegraph(): Promise<InstallStep> {
+  if (resolveCodegraph()) return { ok: true, detail: "codegraph ya presente" };
+  const res = await run(
+    "sh",
+    ["-c", "curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh"],
+    { inherit: true },
+  );
+  if (!res.ok) return { ok: false, detail: "instala codegraph manualmente: npm i -g @colbymchenry/codegraph" };
+  const bin = resolveCodegraph();
+  if (!bin) return { ok: false, detail: "codegraph instalado pero no resuelto en PATH (reinicia shell)" };
+  await run(bin, ["telemetry", "off"]);
+  return { ok: true, detail: "codegraph instalado (telemetría off)" };
 }
 
 // hypa: best-effort vía el instalador oficial (verifica checksum, cae en

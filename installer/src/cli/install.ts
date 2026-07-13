@@ -12,6 +12,7 @@ import {
   installDeclaredPackages,
   installEngramDep,
   installGh,
+  installCodegraph,
   installHypa,
   installPi,
 } from "../core/deps.ts";
@@ -37,6 +38,7 @@ export type InstallFlags = {
   noSecrets: boolean;
   noLinear: boolean;
   noHypa: boolean;
+  noCodegraph: boolean;
   dryRun: boolean;
 };
 
@@ -47,6 +49,7 @@ export function parseInstallFlags(args: string[]): InstallFlags {
     noSecrets: args.includes("--no-secrets"),
     noLinear: args.includes("--no-linear"),
     noHypa: args.includes("--no-hypa"),
+    noCodegraph: args.includes("--no-codegraph"),
     dryRun: args.includes("--dry-run"),
   };
 }
@@ -183,6 +186,17 @@ export async function runInstall(args: string[]): Promise<number> {
       s.start("Instalando hypa");
       const r = await installHypa();
       s.stop(r.detail);
+    }
+  }
+
+  const needCodegraph = !deps.find((d) => d.id === "codegraph")?.present;
+  if (needCodegraph && !flags.noCodegraph && !flags.yes) {
+    if (await confirm("Instalar codegraph (grafo de código, exploración barata)?", flags, false)) {
+      const s = p.spinner();
+      s.start("Instalando codegraph");
+      const r = await installCodegraph();
+      s.stop(r.detail);
+      if (r.ok) p.log.info("Actívalo por proyecto con `codegraph init` en la raíz del repo.");
     }
   }
 

@@ -9,7 +9,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Platform } from "./platform.ts";
 import { lookPath } from "./exec.ts";
-import { resolveHypa } from "./deps.ts";
+import { resolveCodegraph, resolveHypa } from "./deps.ts";
 import {
   AGENT_DIR,
   BUN_BIN_DIR,
@@ -267,6 +267,11 @@ export function runDoctor(platform: Platform): DoctorReport {
     warn(hasEngramBin, "engram cli", "CLI engram disponible (memoria)."),
     warn(hasGh, "gh cli", "GitHub CLI disponible (entrega)."),
     warn(hasHypa, "hypa cli", "Compresión de salida disponible; /ein:hypa la activa."),
+    warn(
+      resolveCodegraph() !== null,
+      "codegraph cli",
+      "Grafo de código disponible; `codegraph init` por proyecto lo activa.",
+    ),
   ];
 
   const checksIntegrations: CheckResult[] = [

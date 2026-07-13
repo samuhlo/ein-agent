@@ -144,6 +144,7 @@ Dentro de Ubuntu (WSL), el mismo one-liner de arriba. El instalador detecta WSL 
 | [Engram](https://github.com/Gentleman-Programming/engram) | No, recomendado |
 | [GitHub CLI](https://cli.github.com) | No, recomendado |
 | [Hypa](https://github.com/Hypabolic/Hypa) | No, opcional (compresión de salida; `/ein:hypa`) |
+| [codegraph](https://github.com/colbymchenry/codegraph) | No, opcional (grafo de código; `codegraph init` + `/ein:codegraph`) |
 
 ## // 011. COMANDOS `ein`
 
@@ -156,7 +157,7 @@ ein uninstall       # Elimina Ein (conserva auth, secrets, sesiones)
 ein restore         # Restaura desde un backup
 ```
 
-Flags: `--yes`, `--dry-run` (muestra el plan sin ejecutar nada), `--no-engram`, `--no-secrets`, `--no-linear` (arranca en modo Solo), `--no-hypa` (omite la compresión de salida).
+Flags: `--yes`, `--dry-run` (muestra el plan sin ejecutar nada), `--no-engram`, `--no-secrets`, `--no-linear` (arranca en modo Solo), `--no-hypa` (omite la compresión de salida), `--no-codegraph` (omite el grafo de código).
 
 **Backups con red de seguridad.** Cada `install`/`update`/`uninstall`/`restore` snapshota antes en `~/.pi/agent/backups/installer/` (tar.gz): dedup si nada cambió, poda automática conservando los 5 más recientes (`ein restore --pin <nombre>` protege uno), y **rollback automático** si un deploy falla a medias. Los backups nunca incluyen `auth.json` ni sesiones — restaurar no pisa tus credenciales.
 

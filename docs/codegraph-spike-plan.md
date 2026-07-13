@@ -4,14 +4,15 @@
 > [colbymchenry/codegraph](https://github.com/colbymchenry/codegraph).
 > Fecha: 2026-07-13. Estado del repo en ese momento: `main @ 3c53a8f` (v0.17.6).
 >
-> **ESTADO: FASE 1 IMPLEMENTADA (2026-07-13, ruta CLI-over-bash, elegida por
-> samuhlo).** En `dev`, desplegada localmente, SIN release aún. Piezas:
-> `lib/codegraph.ts` (auto|off, default auto = binario+índice), directiva
-> inyectada a parent+fases SDD (cero tokens si inactivo), `/ein:codegraph`,
-> bash acotado-a-codegraph en sdd-map, `.codegraph/` en gitignore gestionado,
-> celda CGRAPH en banner, tests +8. **Pendiente: validación en vivo de samuhlo
-> en una sesión SDD real → entonces Fase 2 (installer + release 0.18.0).**
-> Resultados Fase 0 y bloqueo MCP: // 008.
+> **ESTADO: COMPLETO — FASES 1 Y 2 RELEASED EN v0.18.0 (2026-07-13).**
+> Fase 1 (ruta CLI-over-bash): lib/codegraph.ts auto|off, directiva a
+> parent+fases SDD, /ein:codegraph, bash acotado en sdd-map, gitignore, banner.
+> Fase 2: dep opcional en installer (wizard --no-codegraph, doctor warn,
+> telemetría off automática tras instalar). Decisión de samuhlo: shippear sin
+> esperar el datapoint de codegraph-en-SDD-vivo (el apply es el caso débil;
+> la validación fuerte llegará con el próximo map/design/tasks en repo
+> indexado — anotar aquí el resultado cuando ocurra). Resultados Fase 0 y
+> bloqueo MCP: // 008.
 >
 > Reglas duras de esta casa (aplican a CUALQUIER agente que retome esto):
 > commits con autoría SOLO samuhlo (nunca co-author de IA) · flujo
