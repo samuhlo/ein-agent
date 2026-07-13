@@ -5,6 +5,43 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.18.0] - 2026-07-13
+
+### Added
+
+- **Grafo de código (CodeGraph), opt-in y conmutable.** Si el proyecto está
+  indexado con [codegraph](https://github.com/colbymchenry/codegraph)
+  (`codegraph init`; AST determinista → SQLite local), Ein inyecta al
+  orquestador y a las fases SDD la directiva "un `codegraph explore` antes que
+  una docena de grep/read" — código verbatim + call paths + blast radius en una
+  llamada, por CLI (la ruta MCP se descartó: el interop con pi-mcp-adapter
+  cuelga; detalles en `docs/codegraph-spike-plan.md`). `/ein:codegraph`
+  (`auto`|`off`, default `auto` = binario + índice); sin cualquiera de los dos,
+  cero prompt gastado. `sdd-map` gana bash acotado EXCLUSIVAMENTE a queries
+  codegraph read-only. `.codegraph/` entra al gitignore gestionado; celda
+  CGRAPH en el banner. Medido en Fase 0: -38% mediana de payload (hasta -85%
+  en ficheros grandes) frente a grep+read manual.
+- **codegraph como dependencia opcional del installer** (wizard con default no,
+  `--no-codegraph`, doctor `warn`), con `codegraph telemetry off` automático
+  tras instalar — la política de Ein es no-telemetría.
+
+### Changed
+
+- **Bootstrap de `openspec/config.yaml` compartido y automático.** La
+  detección/creación se extrae de `sdd-init` a una lib compartida y corre
+  create-if-absent en el preflight SDD: los subagentes ya no se atascan
+  preguntando por config vía intercom. El router deja de reportar "tasks.md
+  ausente" como bloqueo en fases previas a tasks (era ruido en cada status).
+- **Doctrina de intercom del orquestador renovada** (validada con incidentes
+  reales): el canal supervisor nativo funciona (detach→reply→resume) — ante un
+  ask vivo: verificar realidad → responder con decisión → `wait` inmediato sin
+  cerrar el turno; y ante un hijo detachado "aparentemente muerto" (wait ciego,
+  status congelado, resume rechazado), comprobar el mtime de su session file
+  antes de lanzar una continuación — dos applies concurrentes sobre el mismo
+  árbol se pisan.
+- Tabla-inventario del orquestador sincronizada con los tools reales de
+  `sdd-map` (write + bash acotado; estaba stale desde v0.17.5).
+
 ## [0.17.6] - 2026-07-13
 
 ### Fixed
