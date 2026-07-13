@@ -51,6 +51,13 @@ describe("P1: contrato de persistencia de map.md", () => {
     expect(sddMap.toLowerCase()).toContain("sandbox");
   });
 
+  test("sdd-map: bash solo para queries codegraph read-only (contrato acotado)", () => {
+    expect(sddMap).toMatch(/^tools:.*bash/m);
+    expect(sddMap).toMatch(/Bash exists for EXACTLY ONE purpose/);
+    expect(sddMap).toMatch(/codegraph explore\|callers\|callees/);
+    expect(sddMap).toMatch(/contract violation/);
+  });
+
   test("orchestrator prohíbe output/outputMode al delegar fases directo (sandbox trap)", () => {
     expect(orch).toMatch(/do NOT pass `output`\/`outputMode` when delegating a phase directly/);
     expect(orch).toMatch(/resolves inside the runner's `\.pi-subagents\/` sandbox/);

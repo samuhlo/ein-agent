@@ -20,6 +20,7 @@ import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sess
 import { LANG_LABEL, readArtifactLang, readChatLang } from "../lib/lang";
 import { TDD_LABEL, readTddMode } from "../lib/tdd";
 import { readHypaMode, resolveHypaEnabled } from "../lib/hypa";
+import { readCodegraphMode, resolveCodegraphEnabled } from "../lib/codegraph";
 import { readPersonaMode } from "../lib/persona";
 import { readMode } from "../lib/mode";
 
@@ -304,6 +305,12 @@ export default function (pi: ExtensionAPI) {
       hypaMode === "auto"
         ? `auto·${resolveHypaEnabled(ctx.cwd) ? "on" : "off"}`
         : hypaMode;
+    // Codegraph: mismo formato modo·estado.
+    const cgMode = readCodegraphMode(ctx.cwd);
+    const cgLabel =
+      cgMode === "auto"
+        ? `auto·${resolveCodegraphEnabled(ctx.cwd) ? "on" : "off"}`
+        : cgMode;
 
     const allCommands = pi.getCommands();
     const skillsCount = allCommands.filter((c) => c.source === "skill").length;
@@ -521,6 +528,7 @@ export default function (pi: ExtensionAPI) {
                 ["ARTF", fit(langArtifact, V)],
                 ["TDD", fit(tddLabel, V)],
                 ["HYPA", fit(hypaLabel, V)],
+                ["CGRAPH", fit(cgLabel, V)],
               ];
               // Defensive: una celda malformada nunca debe tumbar el banner — un
               // crash aquí se lleva por delante la sesión de Pi al arrancar.

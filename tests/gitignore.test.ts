@@ -20,6 +20,7 @@ describe("upsertBlock", () => {
 		expect(out).toContain(".pi/ein/");
 		expect(out).toContain(".piagents/");
 		expect(out).toContain(".pi-subagents/");
+		expect(out).toContain(".codegraph/");
 		expect(out).toContain(gitignoreBlock());
 	});
 

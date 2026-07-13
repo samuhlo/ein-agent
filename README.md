@@ -112,6 +112,7 @@ En persona `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón,
 - **Guardrails** — lista explícita de patrones denegados (`git reset --hard`, `rm -rf`, `DROP TABLE`…) y patrones que exigen confirmación.
 - **MCP eficiente** — `pi-mcp-adapter` (proxy de un tool, ~200 tokens vs 10k+/server) + `context-mode` (sandbox de salidas, persistencia de sesión sobre compactaciones).
 - **Onboarding first-run** — la primera vez que Ein entra a un proyecto **sin configurar** (agnóstico a su edad: mira "¿está configurado?", no "¿es nuevo?"), un wizard único resuelve los esenciales — persona, idioma de artefactos, TDD, Hypa — y genera `EIN.md`. Un toque para "usar recomendados" o personalizar. Los pendientes = ficheros ausentes; una vez escritos, no vuelve a preguntar. Relánzalo con `/ein:onboard`.
+- **Grafo de código (CodeGraph)** — si el proyecto está indexado con [codegraph](https://github.com/colbymchenry/codegraph) (`codegraph init`; índice local SQLite, determinista, AST vía tree-sitter), Ein inyecta al orquestador y a las fases SDD la directiva "un `codegraph explore` antes que una docena de grep/read": código verbatim + call paths + blast radius en una llamada, por CLI (sin MCP). `/ein:codegraph` (auto | off, default `auto`); sin binario o sin índice, cero prompt gastado y todo funciona como siempre. Medido: -38% mediana de payload (hasta -85% en ficheros grandes) y una fracción de los tool-calls en las fases que leen código.
 - **Compresión de salida (Hypa)** — envuelve `bash` con [Hypa](https://github.com/Hypabolic/Hypa): reducción **determinista** de la salida de comandos con reducer real (git de lectura, vitest/eslint, dotnet, cargo, terraform…). Envuelve `bunx vitest` normalizando el prefijo; deja crudo lo genérico (de eso ya se encarga `context-mode`) y **nunca** toca streaming/interactivo (dev, serve, `--watch`, `logs`, `-f`). Default **`auto`** (`/ein:hypa`): detecta el stack — **on** en proyectos verbosos no-Bun (dotnet/gradle/k8s → 90-100% menos ruido), **off** en Bun puro (ya terso). Si falta el binario `hypa`, el wrap queda inerte.
 - **Sesiones recientes** — el banner las lista al arrancar; recupéralas con `pi -c`/`pi -r`/`pi --session <id>` o `/ein:resume`.
 - **`ask_user_question`** — en los checkpoints (gates SDD, delivery, scope) Ein pregunta con diálogos estructurados, no prosa, solo cuando la respuesta cambia el siguiente paso.
@@ -172,6 +173,7 @@ Flags: `--yes`, `--dry-run` (muestra el plan sin ejecutar nada), `--no-engram`, 
 /ein:tdd                TDD estricto: auto (config) | strict | off | ask
 /ein:git                Confirmación de entrega: auto | ask | off
 /ein:hypa               Compresión de salida de comandos (Hypa): auto | on | off
+/ein:codegraph          Grafo de código (codegraph) del proyecto: auto | off
 /ein:onboard            Reconfigurar esenciales del proyecto (persona/lang/tdd/hypa/EIN.md)
 
 # SDD

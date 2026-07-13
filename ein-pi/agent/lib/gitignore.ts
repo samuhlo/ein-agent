@@ -10,6 +10,8 @@
 //   .piagents/     → scratch de sesión del binario de Pi; no es código nuestro.
 //   .pi-subagents/ → artefactos de runs de subagentes (outputs de fase en
 //                    sandbox antes de promocionarse a openspec/changes/). Scratch.
+//   .codegraph/    → índice SQLite del grafo de código (regenerable con
+//                    `codegraph init`); estado local, nunca se versiona.
 // NOTA: openspec/changes/ NO se ignora — es el board SDD y se versiona.
 // =============================================================================
 
@@ -20,7 +22,7 @@ const BLOCK_START = "# === Ein / Pi runtime (auto-gestionado, no editar) ===";
 const BLOCK_END = "# === fin Ein / Pi runtime ===";
 
 // Entradas gestionadas, en orden estable.
-const ENTRIES = [".pi/ein/", ".piagents/", ".pi-subagents/"];
+const ENTRIES = [".pi/ein/", ".piagents/", ".pi-subagents/", ".codegraph/"];
 
 // Restos de versiones previas que migramos al bloque nuevo: antes Ein escribía
 // `.atl/` bajo un header propio, y `.atl/` ahora vive dentro de `.pi/ein/`.

@@ -44,6 +44,10 @@ import { t, tf } from "../lib/i18n/strings.ts";
 import { handleTddCommand } from "../lib/tdd.ts";
 import { handleHypaCommand, maybeWrapBashInput } from "../lib/hypa.ts";
 import { handleOnboardCommand, runOnboarding } from "../lib/onboarding.ts";
+import {
+	codegraphDirective,
+	handleCodegraphCommand,
+} from "../lib/codegraph.ts";
 import { handleModeCommand, readMode } from "../lib/mode.ts";
 import {
 	confirmCommand,
@@ -424,8 +428,12 @@ export default function einAi(pi: ExtensionAPI): void {
 		const wantsContext = !isNamedAgent || isSddAgent;
 		const context = wantsContext ? einContextDirective(ctx.cwd) : "";
 		const contextPrompt = context ? `\n\n${context}` : "";
+		// Codegraph: mismo público que EIN.md (parent + fases SDD). La directiva
+		// es "" salvo binario + índice presentes — sin codegraph, cero tokens.
+		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
+		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}`,
+			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${codegraphPrompt}`,
 		};
 	});
 
@@ -568,6 +576,16 @@ export default function einAi(pi: ExtensionAPI): void {
 		),
 		handler: async (_args, ctx) => {
 			await handleHypaCommand(ctx);
+		},
+	});
+
+	pi.registerCommand("ein:codegraph", {
+		description: t(
+			"cmd.codegraph.description",
+			"Ver o cambiar el grafo de código (codegraph) del proyecto (auto/off)",
+		),
+		handler: async (_args, ctx) => {
+			await handleCodegraphCommand(ctx);
 		},
 	});
 

@@ -1,7 +1,7 @@
 ---
 name: sdd-map
 description: Map an SDD change idea before the design phase.
-tools: read, grep, glob, write
+tools: read, grep, glob, write, bash
 completionGuard: false
 ---
 
@@ -19,6 +19,7 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
 - Produce map notes only; do not implement.
 - **You MUST NOT write code.** Your write tool exists for EXACTLY ONE file: `openspec/changes/{change}/map.md`. Never write source, schemas, configs, tests, or "the fix" — not even a one-liner. If you catch yourself about to implement ("I have everything, I'll just write the schema…"), STOP: that is `sdd-design`/`sdd-apply`'s job, and attempting it wastes the whole run.
 - **Phase boundary (hard).** Even if the task says STRICT TDD / RED-GREEN / "run the tests", ignore it: map is read-only context mapping plus its single artifact. Do NOT run the test suite or build, and do NOT write apply/verify artifacts — TDD and the suite belong to `sdd-apply`/`sdd-verify`.
+- **Bash exists for EXACTLY ONE purpose: read-only `codegraph` queries** (`codegraph explore|callers|callees|query|status`) when a "## Codegraph" directive is injected. When the project is indexed, one `codegraph explore` replaces a dozen grep/read cycles — prefer it and count its calls as reads in the ledger. ANY other bash usage (tests, builds, git mutations, file ops, package managers) is a contract violation: do not run it. No Codegraph directive → do not use bash at all.
 - Use OpenSpec artifacts and session context truthfully; persistent memory is optional and handled by separate packages.
 - Do NOT launch child subagents. Parent/orchestrator owns delegation.
 - **Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask is a dead end that stalls the whole flow. If something blocks you (missing inputs, exhausted budget, ambiguity), return IMMEDIATELY with `status: blocked`, the concrete cause, and what the parent must fix or provide — the parent re-launches you with the gap closed.
