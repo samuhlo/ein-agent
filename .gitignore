@@ -25,4 +25,6 @@ ein-pi/agent/bin/
 # === Ein / Pi runtime (auto-gestionado, no editar) ===
 .pi/ein/
 .piagents/
+.pi-subagents/
+.codegraph/
 # === fin Ein / Pi runtime ===

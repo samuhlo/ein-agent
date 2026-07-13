@@ -425,6 +425,9 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 		blocked.push("verify-report sin línea `status: pass|fail` clara.");
 	}
 
+	if (["scope", "map", "design"].includes(nextRecommended) && !tasks.present) {
+		tasks.problems = tasks.problems.filter((problem) => problem !== "tasks.md ausente.");
+	}
 	if (tasks.status === "blocked" && tasks.blockedBy) blocked.push(`tasks.md bloqueado por: ${tasks.blockedBy}`);
 
 	const currentPhase = nextRecommended;

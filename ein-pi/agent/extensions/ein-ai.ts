@@ -23,6 +23,7 @@ import {
 	sddPreflightSessionKey,
 	type SddPreflightPreferences,
 } from "../lib/sdd-preflight.ts";
+import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";
 import {
 	handleGitCommand,
 	messageRequestsDelivery,
@@ -310,12 +311,14 @@ function formatSddNext(report: SddNextReport): string {
 // ─── Extensión ────────────────────────────────────────────────────────────────
 
 export default function einAi(pi: ExtensionAPI): void {
-	function runSddPreflight(ctx: ExtensionContext): Promise<SddPreflightPreferences> {
-		return ensureSddPreflight(ctx, {
+	async function runSddPreflight(ctx: ExtensionContext): Promise<SddPreflightPreferences> {
+		const preferences = await ensureSddPreflight(ctx, {
 			pi,
 			installAssets: (cwd) => installSddAssets(cwd, false),
 			applyModelConfig: async () => applySavedModelConfig(ctx),
 		});
+		bootstrapOpenSpecConfig(ctx.cwd);
+		return preferences;
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
@@ -389,9 +392,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	pi.on("before_agent_start", async (event, ctx) => {
 		const isSddAgent = isSddAgentStartEvent(event);
 		const isNamedAgent = isNamedAgentStartEvent(event);
-		if (isSddAgent && !getSddPreflightPreferences(ctx)) {
-			await runSddPreflight(ctx);
-		}
+		if (isSddAgent) await runSddPreflight(ctx);
 		const prefs = getSddPreflightPreferences(ctx);
 		const startNames = readAgentStartNames(event);
 		// Convenciones de codigo (comment/logging/file-naming): SOLO donde se

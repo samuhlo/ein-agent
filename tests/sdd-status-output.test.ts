@@ -80,6 +80,15 @@ describe("sdd-status output format", () => {
 		expect(out).toContain(t("sdd-status.none", "No hay cambios SDD activos en openspec/changes/."));
 	});
 
+	test("scope no muestra tasks.md ausente como blocker", () => {
+		const c = change("feat-x");
+		put(c, "scope.md");
+
+		const out = formatSddStatus(DIR);
+		expect(out).toContain("next: map");
+		expect(out).not.toContain("tasks.md ausente.");
+	});
+
 	test("un cambio activo → muestra change, apply, verify, next", () => {
 		const c = change("feat-x");
 		put(c, "scope.md");

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listActiveChanges, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
+import { listActiveChanges, resolveSddNext, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
 
 let DIR: string;
 function change(name: string): string {
@@ -78,13 +78,21 @@ describe("resolveSddStatus", () => {
 		expect(s.blocked).toContain("tasks.md bloqueado por: decision missing");
 	});
 
-	test("sin tasks.md no rompe status", () => {
+	test("scope, map y design tratan tasks.md ausente como trabajo futuro", () => {
 		const c = change("feat-x");
-		put(c, "scope.md");
-		const s = resolveSddStatus(DIR, "feat-x");
-		expect(s.tasks.present).toBe(false);
-		expect(s.tasks.items).toEqual([]);
-		expect(s.tasks.problems).toContain("tasks.md ausente.");
+		for (const files of [[], ["scope.md"], ["scope.md", "map.md"]]) {
+			for (const file of files) put(c, file);
+			const status = resolveSddStatus(DIR, "feat-x");
+			expect(status.tasks.problems).not.toContain("tasks.md ausente.");
+		}
+	});
+
+	test("tasks.md ausente sigue siendo accionable al llegar a tasks", () => {
+		const c = change("feat-x");
+		for (const file of ["scope.md", "map.md", "design.md"]) put(c, file);
+		const next = resolveSddNext(DIR, "feat-x");
+		expect(next.nextRecommended).toBe("tasks");
+		expect(next.blocked).toContain("tasks.md ausente.");
 	});
 
 	test("parsea budget parcial desde scope y map", () => {

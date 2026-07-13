@@ -41,6 +41,13 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("read-only slash command for humans");
 		expect(orch).toContain("the orchestrator still routes with `ein_sdd_status`");
 	});
+
+	test("entra en scope tras bootstrap sin debilitar los gates posteriores", () => {
+		expect(orch).toContain("create-if-absent bootstrap");
+		expect(orch).toContain("sdd-scope");
+		expect((orch.match(/\| `sdd-scope` \|/g) ?? []).length).toBe(1);
+		expect(orch).toContain("between phases show the concise result");
+	});
 });
 
 describe("ein-ai: tools deterministas cableados", () => {
@@ -54,6 +61,21 @@ describe("ein-ai: tools deterministas cableados", () => {
 		expect(ai).toContain('"ein:sdd-next"');
 		expect(ai).toContain('"ein:sdd-close"');
 		expect(ai).not.toContain(`"ein:sdd-${"archive"}"`);
+	});
+	test("prepara config antes de continuar el SDD solicitado", () => {
+		expect(ai).toContain('import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";');
+		expect(ai).toContain("bootstrapOpenSpecConfig(ctx.cwd)");
+		expect(ai).toContain('return { action: "continue" };');
+	});
+});
+
+describe("sdd-init conserva el comando manual mediante el bootstrap compartido", () => {
+	const init = read("extensions/sdd-init.ts");
+	test("mantiene registro y distingue creación de preservación", () => {
+		expect(init).toContain('pi.registerCommand("sdd-init"');
+		expect(init).toContain('import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";');
+		expect(init).toContain('result.kind === "preserved"');
+		expect(init).toContain("Wrote openspec/config.yaml");
 	});
 });
 
