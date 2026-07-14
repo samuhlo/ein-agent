@@ -5,6 +5,30 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.0] - 2026-07-14
+
+### Added
+
+- **Actualizador transaccional y verificado.** `ein update` resuelve releases
+  estables, descarga el asset de la plataforma y valida su checksum antes del
+  despliegue; sustituye el ejecutable, el template y el marker de instalación
+  de forma atómica. Un fallo revierte el estado previo y una transacción
+  interrumpida se recupera en la siguiente ejecución.
+- **Ciclo de vida de Engram determinista.** El adapter CLI acota la memoria a
+  operaciones verificables en fuente/desarrollo, guarda los descubrimientos de
+  fase con claves estables y deja OpenSpec como verdad canónica cuando Engram
+  no está disponible o falla sin bloquear el flujo.
+
+### Changed
+
+- **Semántica de Git y banner aclarada.** El estado mostrado distingue de forma
+  determinista sincronía, remoto adelantado, commits sin publicar y cambios sin
+  commit, con fallback explícito para offline, repos sin remoto y no-repos.
+- **Experiencia de README y release más verificable.** La ruta rápida de
+  instalación, el enlace a la instalación detallada y el bloque de última
+  release se alinean con el registro local; la publicación conserva el tag
+  genérico `installer-v<semver>`.
+
 ## [0.18.0] - 2026-07-13
 
 ### Added

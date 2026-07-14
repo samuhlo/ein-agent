@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.18.0 · 2026-07-13](CHANGELOG.md#0180---2026-07-13).
+**Última release publicada según el registro canónico local:** [0.19.0 · 2026-07-14](CHANGELOG.md#0190---2026-07-14).
 
-- **CodeGraph** es opt-in y conmutable; en SDD concentra la lectura acotada antes de explorar código.
-- **CodeGraph** es una dependencia opcional del instalador, con la telemetría desactivada tras instalarse.
-- El bootstrap crea `openspec/config.yaml` con `create-if-absent` y evita el bloqueo prematuro por `tasks.md`.
+- **Actualizador transaccional y verificado:** `ein update` valida assets y checksums, revierte ante fallos y recupera transacciones interrumpidas.
+- **Ciclo de Engram determinista:** la memoria queda acotada a operaciones verificables y OpenSpec sigue siendo la fuente canónica.
+- **Git, banner y experiencia de release aclarados:** el estado de sync es explícito y la ruta de instalación/release del README es verificable.
 
 ---
 
