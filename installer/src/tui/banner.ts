@@ -9,7 +9,10 @@
 // Fallback estatico en non-TTY / NO_COLOR.
 // =============================================================================
 
-import { INSTALLER_VERSION } from "../core/version.ts";
+import { readMarkerV2 } from "../core/marker-v2.ts";
+import { BACKUP_DIR, INSTALL_MARKER } from "../core/paths.ts";
+import type { MarkerV1, MarkerV2 } from "../core/release-types.ts";
+import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
 import { CONCRETE, STRUCTURE, YELLOW, colorEnabled } from "./theme.ts";
 
 // Logo EIN grande: trazos de 4 (54 cols, 10 filas).
@@ -44,8 +47,31 @@ const I_RANGE = {
   small: { start: 12, end: 25 },
 } as const;
 
-const SUBTITLE = `.SAMUHLO · PI WORKBENCH · v${INSTALLER_VERSION}`;
+const BASE_SUBTITLE = ".SAMUHLO · PI WORKBENCH";
 const RULE_CH = "─";
+
+export type BannerState = {
+  marker: MarkerV1 | MarkerV2 | null;
+  recoveryRequired: boolean;
+};
+
+export function bannerVersionLabel(state: BannerState): string {
+  if (state.recoveryRequired) return "recovery required";
+  if (state.marker && "schemaVersion" in state.marker) return `v${state.marker.version}`;
+  if (state.marker) return `legacy v${state.marker.version} (unverified)`;
+  return "unverified";
+}
+
+export function readBannerState(caps: UpdateCaps = defaultUpdateCaps(), markerPath = INSTALL_MARKER, journalPath = `${BACKUP_DIR}/.ein-update-journal.json`): BannerState {
+  return {
+    marker: readMarkerV2(caps, markerPath),
+    recoveryRequired: caps.fs.exists(journalPath),
+  };
+}
+
+export function renderBanner(state: BannerState = readBannerState()): string {
+  return `${BASE_SUBTITLE} · ${bannerVersionLabel(state)}`;
+}
 
 type RGB = { r: number; g: number; b: number };
 
@@ -119,22 +145,22 @@ type Phase = {
   finish: number;
 };
 
-function buildPhase(width: number): Phase {
+function buildPhase(width: number, subtitle: string): Phase {
   const noiseEnd = maxCellDelay(width) + SETTLE;
   const stamp = noiseEnd + 3;
   const ruleStart = stamp + STAMP_HOLD - 1;
   const ruleEnd = ruleStart + 6;
   const subStart = ruleEnd - 2;
-  const subEnd = subStart + Math.ceil(SUBTITLE.length / 2);
+  const subEnd = subStart + Math.ceil(subtitle.length / 2);
   const finish = subEnd + 4;
   return { stamp, ruleStart, ruleEnd, subStart, finish };
 }
 
-function renderSubtitle(reveal: number, width: number): string {
-  const pad = Math.max(0, Math.floor((width - SUBTITLE.length) / 2));
+function renderSubtitle(subtitle: string, reveal: number, width: number): string {
+  const pad = Math.max(0, Math.floor((width - subtitle.length) / 2));
   let sub = " ".repeat(pad);
-  for (let i = 0; i < SUBTITLE.length; i++) {
-    const ch = SUBTITLE[i] ?? " ";
+  for (let i = 0; i < subtitle.length; i++) {
+    const ch = subtitle[i] ?? " ";
     if (i > reveal || ch === " ") {
       sub += " ";
       continue;
@@ -145,14 +171,14 @@ function renderSubtitle(reveal: number, width: number): string {
 }
 
 // Render estático: logo plano + regla + subtítulo. Non-TTY / NO_COLOR.
-function renderStatic(): string {
+function renderStatic(subtitle: string): string {
   const logo = pickLogo();
   const out: string[] = [];
   if (!colorEnabled()) {
     out.push(...logo.lines);
     out.push(RULE_CH.repeat(logo.width));
-    const pad = Math.max(0, Math.floor((logo.width - SUBTITLE.length) / 2));
-    out.push(" ".repeat(pad) + SUBTITLE);
+    const pad = Math.max(0, Math.floor((logo.width - subtitle.length) / 2));
+    out.push(" ".repeat(pad) + subtitle);
     return out.join("\n");
   }
   for (const row of logo.lines) {
@@ -164,7 +190,7 @@ function renderStatic(): string {
     out.push(line);
   }
   out.push(rgbRaw(STRUCTURE, RULE_CH.repeat(logo.width)));
-  out.push(renderSubtitle(SUBTITLE.length, logo.width));
+  out.push(renderSubtitle(subtitle, subtitle.length, logo.width));
   return out.join("\n");
 }
 
@@ -182,7 +208,7 @@ function renderCell(logo: LogoCut, x: number, y: number, ch: string, tick: numbe
 }
 
 // Un frame de animación (logo + regla + subtítulo) como array de líneas.
-function renderFrame(logo: LogoCut, tick: number, ph: Phase): string[] {
+function renderFrame(logo: LogoCut, subtitle: string, tick: number, ph: Phase): string[] {
   const out: string[] = [];
 
   for (let y = 0; y < logo.lines.length; y++) {
@@ -212,7 +238,7 @@ function renderFrame(logo: LogoCut, tick: number, ph: Phase): string[] {
   // Subtítulo, typewriter.
   {
     const reveal = tick < ph.subStart ? -1 : Math.floor((tick - ph.subStart) * 2);
-    out.push(renderSubtitle(reveal, logo.width));
+    out.push(renderSubtitle(subtitle, reveal, logo.width));
   }
 
   return out;
@@ -241,15 +267,16 @@ function renderMotto(width: number): string {
 }
 
 // Anima el banner una vez y resuelve. Sin animación en non-TTY o repeticiones.
-export async function playBanner(): Promise<void> {
+export async function playBanner(state: BannerState = readBannerState()): Promise<void> {
+  const subtitle = renderBanner(state);
   if (bannerAnimated || !colorEnabled()) {
-    process.stdout.write(`${renderStatic()}\n`);
+    process.stdout.write(`${renderStatic(subtitle)}\n`);
     return;
   }
   bannerAnimated = true;
 
   const logo = pickLogo();
-  const ph = buildPhase(logo.width);
+  const ph = buildPhase(logo.width, subtitle);
   const rows = logo.lines.length + 2; // logo + regla + subtítulo
 
   // Ocultar cursor durante el repaint in-situ evita parpadeo entre frames.
@@ -277,14 +304,14 @@ export async function playBanner(): Promise<void> {
       if (tick > ph.finish || Date.now() - start > 3000) {
         clearInterval(timer);
         process.stdout.write(`\x1b[${rows}A`);
-        process.stdout.write(`${renderStatic()}\n`);
+        process.stdout.write(`${renderStatic(subtitle)}\n`);
         cleanup();
         process.off("SIGINT", onSigint);
         resolve();
         return;
       }
       process.stdout.write(`\x1b[${rows}A`); // cursor up to frame top
-      process.stdout.write(`${renderFrame(logo, tick, ph).join("\n")}\n`);
+      process.stdout.write(`${renderFrame(logo, subtitle, tick, ph).join("\n")}\n`);
     }, 30);
   });
 
@@ -292,6 +319,6 @@ export async function playBanner(): Promise<void> {
   process.stdout.write(`${renderMotto(logo.width)}\n`);
 }
 
-export function bannerStatic(): string {
-  return renderStatic();
+export function bannerStatic(state: BannerState = readBannerState()): string {
+  return renderStatic(renderBanner(state));
 }
