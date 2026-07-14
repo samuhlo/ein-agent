@@ -9,7 +9,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { VERSION } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -17,51 +17,44 @@ import { join } from "node:path";
 import { AGENT_DIR } from "./ein-paths";
 import { loadPalette, type RGB } from "./ein-brand";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
-import { LANG_LABEL, readArtifactLang, readChatLang } from "../lib/lang";
+import { LANG_LABEL, readArtifactLang, readChatLang, type Lang } from "../lib/lang";
 import { TDD_LABEL, readTddMode } from "../lib/tdd";
 import { readHypaMode, resolveHypaEnabled } from "../lib/hypa";
 import { readCodegraphMode, resolveCodegraphEnabled } from "../lib/codegraph";
 import { readPersonaMode } from "../lib/persona";
 import { readMode } from "../lib/mode";
+import { GitBannerController, renderGitBannerRows, type ProcessRunner } from "../lib/banner-git";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+const GIT_MAX_BUFFER_BYTES = 1_024 * 1_024;
 
-// Estado de git para "saber antes de tocar": rama vs remoto (una ronda de red
-// con ls-remote) + cambios sin commitear. Determinista, cero tokens de modelo.
-// Best-effort: offline/sin repo/sin remoto degradan a "sync?"/"local"/"".
-async function computeGitSync(cwd: string): Promise<string> {
-  const g = `git -C "${cwd}"`;
-  const run = (cmd: string, timeout = 2500) =>
-    execAsync(`${g} ${cmd}`, { timeout }).then((r) => r.stdout.trim());
-  const ok = (cmd: string) =>
-    execAsync(`${g} ${cmd}`).then(() => true).catch(() => false);
-  try {
-    const branch = await run("branch --show-current");
-    if (!branch) return ""; // detached o no-repo: nada útil
-    const porcelain = await run("status --porcelain").catch(() => "");
-    const dirty = porcelain ? porcelain.split("\n").length : 0;
-    const dirtyTag = dirty ? ` · ○${dirty}` : "";
+type ExecFileFailure = NodeJS.ErrnoException & {
+  stdout?: string | Buffer;
+  stderr?: string | Buffer;
+  killed?: boolean;
+};
 
-    let remote = "";
+const gitProcessRunner: ProcessRunner = {
+  async run({ file, args, cwd, timeout }) {
     try {
-      remote = (await run(`ls-remote origin ${branch}`, 4000)).split(/\s+/)[0] ?? "";
-    } catch {
-      return `sync?${dirtyTag}`; // offline
+      const { stdout, stderr } = await execFileAsync(file, args, {
+        cwd,
+        encoding: "utf8",
+        timeout,
+        maxBuffer: GIT_MAX_BUFFER_BYTES,
+      });
+      return { stdout: String(stdout), stderr: String(stderr), exitCode: 0 };
+    } catch (failure) {
+      const error = failure as ExecFileFailure;
+      return {
+        stdout: String(error.stdout ?? ""),
+        stderr: String(error.stderr ?? error.message ?? ""),
+        exitCode: typeof error.code === "number" ? error.code : 1,
+        cause: error.code === "ETIMEDOUT" || error.killed ? "timeout" : undefined,
+      };
     }
-    if (!remote) return `local${dirtyTag}`; // rama no publicada
-    const local = await run("rev-parse HEAD");
-    if (remote === local) return `✓ sync${dirtyTag}`;
-    // ¿tenemos el commit remoto? Si es ancestro de HEAD → local adelante; si no
-    // lo tenemos, el remoto avanzó en otro sitio (otro PC) → toca pull.
-    if ((await ok(`cat-file -e ${remote}`)) && (await ok(`merge-base --is-ancestor ${remote} HEAD`))) {
-      const ahead = await run(`rev-list --count ${remote}..HEAD`).catch(() => "?");
-      return `↑${ahead} sin pushear${dirtyTag}`;
-    }
-    return `⚠ pull (remoto adelante)${dirtyTag}`;
-  } catch {
-    return "";
-  }
-}
+  },
+};
 
 // EIN block-letter logo, large cut: 4-wide strokes (54 cols, 10 rows).
 const LOGO_LARGE = [
@@ -193,7 +186,7 @@ class LayoutBuilder {
   }
 }
 
-const FULL_INTRO_MIN_ROWS = 27;
+const FULL_INTRO_MIN_ROWS = 29;
 const FULL_INTRO_MIN_COLS = 80;
 const MINIMAL_INTRO_MIN_ROWS = 14;
 const MINIMAL_INTRO_MIN_COLS = 40;
@@ -270,8 +263,6 @@ export default function (pi: ExtensionAPI) {
     const SUB_END_TICK = SUB_START_TICK + Math.ceil(SUBTITLE.length / 2);
     const FINISH_TICK = SUB_END_TICK + 4;
 
-    let gitBranch = "no git";
-    let gitSync = "";
     const [einVersion, extensionsCount, agentsCount] = await Promise.all([
       readEinVersion(),
       countExtensions(),
@@ -294,7 +285,8 @@ export default function (pi: ExtensionAPI) {
     }
 
     // Active language: chat/UI (shared locale) and artifacts (project config).
-    const langChat = LANG_LABEL[readChatLang()];
+    const gitLang: Lang = readChatLang();
+    const langChat = LANG_LABEL[gitLang];
     const langArtifact = LANG_LABEL[readArtifactLang(ctx.cwd)];
     const tddLabel = TDD_LABEL[readTddMode(ctx.cwd)];
     const personaLabel = readPersonaMode(ctx.cwd);
@@ -318,22 +310,6 @@ export default function (pi: ExtensionAPI) {
     const toolsCount = allTools.filter(
       (t) => !["builtin", "sdk"].includes(t.sourceInfo.source),
     ).length;
-
-    setTimeout(() => {
-      execAsync(`git -C "${ctx.cwd}" branch --show-current`)
-        .then(({ stdout }) => {
-          const b = stdout.trim();
-          gitBranch = b || "detached";
-        })
-        .catch(() => {});
-      // Sync con el remoto (best-effort, ~1s de red): se refleja en los
-      // re-renders del header mientras dura la animación.
-      computeGitSync(ctx.cwd)
-        .then((s) => {
-          gitSync = s;
-        })
-        .catch(() => {});
-    }, 100);
 
     setTimeout(() => {
       (async () => {
@@ -370,8 +346,29 @@ export default function (pi: ExtensionAPI) {
       }
     };
 
+    let headerActive = false;
+    let activeTui: { requestRender(): void } | null = null;
+    const gitController = new GitBannerController(gitProcessRunner, {
+      onRefresh: () => {
+        const tui = headerActive ? activeTui : null;
+        if (!tui) return;
+        try {
+          tui.requestRender();
+        } catch {
+          headerActive = false;
+          activeTui = null;
+        }
+      },
+    });
+
+    setTimeout(() => {
+      gitController.refresh(ctx.cwd);
+    }, 100);
+
     setTimeout(() => {
       ctx.ui.setHeader((tui, theme) => {
+        headerActive = true;
+        activeTui = tui;
         if (state.timer) clearInterval(state.timer);
 
         const animStart = Date.now();
@@ -422,6 +419,18 @@ export default function (pi: ExtensionAPI) {
             const logoBase = state.mode === "full" ? logoLarge : logoSmall;
             const iRange = state.mode === "full" ? I_RANGE.large : I_RANGE.small;
             const b = new LayoutBuilder();
+            const addGitBannerRows = () => {
+              const labelWidth = 8;
+              for (const gitRow of renderGitBannerRows(gitController.getSnapshot(), gitLang, width)) {
+                for (const [index, value] of gitRow.value.split(" ↵ ").entries()) {
+                  b.addRow();
+                  b.add(index === 0 ? "■ " : "  ", YELLOW);
+                  b.add(index === 0 ? gitRow.label.padEnd(labelWidth) : " ".repeat(labelWidth), STRUCTURE);
+                  b.add(value, CONCRETE);
+                  b.center(width);
+                }
+              }
+            };
 
             // Top margin: the header paints on a cleared screen and the logo
             // shouldn't hug the terminal edge.
@@ -544,16 +553,7 @@ export default function (pi: ExtensionAPI) {
                 b.center(width);
               }
 
-              // GIT en su propia fila (prominente: "saber antes de tocar"):
-              // rama + estado de sync con el remoto. El sync entra async (~1s).
-              {
-                const gitVal = gitSync ? `${gitBranch} · ${gitSync}` : gitBranch;
-                b.addRow();
-                b.add("■ ", YELLOW);
-                b.add("GIT".padEnd(L), STRUCTURE);
-                b.add(fit(gitVal, GRID_W - 2 - L).padEnd(GRID_W - 2 - L), CONCRETE);
-                b.center(width);
-              }
+              addGitBannerRows();
 
               // Working path on its own row, same total width as the grid.
               {
@@ -591,6 +591,8 @@ export default function (pi: ExtensionAPI) {
               b.center(width);
             }
 
+            if (state.mode === "minimal") addGitBannerRows();
+
             const out: string[] = [];
             for (const row of b.lines) {
               let line = "";
@@ -611,6 +613,11 @@ export default function (pi: ExtensionAPI) {
             return out;
           },
           invalidate() {
+            if (activeTui === tui) {
+              headerActive = false;
+              activeTui = null;
+            }
+            gitController.invalidate();
             cleanup();
           },
         };
