@@ -7,13 +7,13 @@
 
 import { describe, expect, test } from "bun:test";
 
-const { renderSddPreflightPrompt } = await import(
+const { normalizeSddMemoryMode, renderSddPreflightPrompt } = await import(
 	"../ein-pi/agent/lib/sdd-preflight"
 );
 
 const PREFS = {
 	executionMode: "auto",
-	artifactStore: "openspec",
+	memoryMode: "off",
 	chainedPrStrategy: "auto-forecast",
 	reviewBudgetLines: 400,
 	tddMode: "strict",
@@ -22,6 +22,12 @@ const PREFS = {
 } as const;
 
 describe("renderSddPreflightPrompt TDD gate", () => {
+	test("normaliza preferencias legacy sin hacer seleccionable OpenSpec", () => {
+		expect(normalizeSddMemoryMode({ artifactStore: "openspec" })).toBe("off");
+		expect(normalizeSddMemoryMode({ artifactStore: "engram" })).toBe("engram");
+		expect(normalizeSddMemoryMode({ artifactStore: "both" })).toBe("engram");
+	});
+
 	test("por defecto incluye la linea Strict TDD (compat: parent/apply)", () => {
 		const out = renderSddPreflightPrompt(PREFS);
 		expect(out).toContain("Strict TDD");
@@ -37,7 +43,11 @@ describe("renderSddPreflightPrompt TDD gate", () => {
 		const out = renderSddPreflightPrompt(PREFS, { includeTdd: false });
 		expect(out).not.toContain("Strict TDD");
 		expect(out).toContain("## SDD Session Preflight");
-		expect(out).toContain("Artifact store");
+		expect(out).toContain("OpenSpec: canonical full SDD record");
+		expect(out).toContain("Optional project notebook: Engram off");
+		expect(out).not.toContain("Artifact store");
+		expect(out).not.toContain("retrieved");
+		expect(out).not.toContain("saved");
 		expect(out).toContain("Execution mode");
 	});
 });

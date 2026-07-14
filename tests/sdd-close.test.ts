@@ -7,6 +7,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { closeChange } from "../ein-pi/agent/lib/sdd-close";
+import { approveCandidate } from "../ein-pi/agent/lib/memory-contract.ts";
+import {
+	appendMemoryReceipt,
+	buildCloseMemoryCandidate,
+	hasSuccessfulMemoryReceipt,
+} from "../ein-pi/agent/lib/sdd-memory-save.ts";
 import { lintChange, lintPhaseArtifact } from "../ein-pi/agent/lib/sdd-guardrails";
 
 let DIR: string;
@@ -56,6 +62,32 @@ describe("closeChange", () => {
 		const r = closeChange(DIR, "fix-legacy");
 		expect(r.ok).toBe(true);
 		expect(existsSync(join(DIR, ".sdd", "changes", "archive", "fix-legacy", "summary.md"))).toBe(true);
+	});
+
+	test("el receipt de close vive tras el archive y evita otro fallback del mismo digest", () => {
+		mkChange("feat-x", { "summary.md": "# Resumen\ncierre verificado" });
+		const r = closeChange(DIR, "feat-x");
+		expect(r.ok).toBe(true);
+		const approved = approveCandidate(buildCloseMemoryCandidate("feat-x")).approved!;
+		appendMemoryReceipt(r.to, {
+			status: "saved",
+			reason: "acknowledged",
+			key: "sdd:feat-x:close",
+			topic: approved.topic,
+			digest: approved.digest,
+			bytes: 12,
+			durationMs: 1,
+			timestamp: "2026-07-14T00:00:00.000Z",
+		});
+		expect(hasSuccessfulMemoryReceipt(r.to, approved.topic, approved.digest)).toBe(true);
+		appendMemoryReceipt(join(DIR, "missing"), {
+			status: "failed",
+			reason: "timeout",
+			key: "sdd:feat-x:close",
+			durationMs: 1500,
+			timestamp: "2026-07-14T00:00:00.000Z",
+		});
+		expect(existsSync(join(r.to, "summary.md"))).toBe(true);
 	});
 });
 

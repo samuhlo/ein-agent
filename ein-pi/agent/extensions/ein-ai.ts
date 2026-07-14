@@ -13,14 +13,19 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
+	createSddMemoryLifecycle,
 	ensureSddPreflight,
 	gateTddForDelegation,
 	getSddPreflightPreferences,
+	getSddSessionMemory,
 	installSddAssets,
 	isSddPreflightTrigger,
+	prepareSddPhaseMemory,
+	renderMemoryAdvisory,
 	renderSddPreflightPrompt,
 	sddGlobalAssetDriftCount,
 	sddPreflightSessionKey,
+	type MemoryPreparationLifecycle,
 	type SddPreflightPreferences,
 } from "../lib/sdd-preflight.ts";
 import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";
@@ -66,6 +71,15 @@ import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
 import { aggregateSddBudget, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddStatus, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
 import { closeChange } from "../lib/sdd-close.ts";
+import { approveCandidate, type MemoryCandidate, type MemoryReceipt } from "../lib/memory-contract.ts";
+import {
+	appendMemoryReceipt,
+	buildCloseMemoryCandidate,
+	hasSuccessfulMemoryReceipt,
+	safeMemoryReceipt,
+	saveAfterArtifactGate,
+	type SafeMemoryReceipt,
+} from "../lib/sdd-memory-save.ts";
 import {
 	codeConventionSkillBlock,
 	migrateLegacyAtl,
@@ -94,6 +108,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // le vuelve a preguntar; vale solo hasta el siguiente mensaje (entrega por
 // iniciativa del agente sin petición previa sí dispara la confirmación).
 const deliveryIntentBySession = new Map<string, boolean>();
+type MemorySaveLifecycle = {
+	save(candidate: MemoryCandidate): Promise<{ receipt: MemoryReceipt }>;
+};
+const memoryLifecycleBySession = new Map<string, MemoryPreparationLifecycle & MemorySaveLifecycle>();
 
 function readStringPath(value: unknown, path: string[]): string | undefined {
 	let current = value;
@@ -130,6 +148,65 @@ function isSddAgentStartEvent(event: unknown): boolean {
 
 function isNamedAgentStartEvent(event: unknown): boolean {
 	return readAgentStartNames(event).length > 0;
+}
+
+function readMemoryLifecycle(ctx: ExtensionContext): MemoryPreparationLifecycle | undefined {
+	const candidate = (ctx as unknown as { memoryLifecycle?: unknown }).memoryLifecycle;
+	return typeof candidate === "object" && candidate !== null && "prepare" in candidate &&
+		typeof (candidate as { prepare?: unknown }).prepare === "function"
+		? candidate as MemoryPreparationLifecycle
+		: undefined;
+}
+
+function memoryLifecycleForSession(ctx: ExtensionContext): MemoryPreparationLifecycle {
+	const injected = readMemoryLifecycle(ctx);
+	if (injected) return injected;
+	const key = sddPreflightSessionKey(ctx);
+	const existing = memoryLifecycleBySession.get(key);
+	if (existing) return existing;
+	const created = createSddMemoryLifecycle(ctx.cwd) as MemoryPreparationLifecycle & MemorySaveLifecycle;
+	memoryLifecycleBySession.set(key, created);
+	return created;
+}
+
+function readMemorySaveLifecycle(ctx: ExtensionContext): MemorySaveLifecycle | undefined {
+	const candidate = (ctx as unknown as { memoryLifecycle?: unknown }).memoryLifecycle;
+	return typeof candidate === "object" && candidate !== null && "save" in candidate &&
+		typeof (candidate as { save?: unknown }).save === "function"
+		? candidate as MemorySaveLifecycle
+		: undefined;
+}
+
+function memorySaveLifecycleForSession(ctx: ExtensionContext): MemorySaveLifecycle {
+	const injected = readMemorySaveLifecycle(ctx);
+	if (injected) return injected;
+	return memoryLifecycleForSession(ctx) as MemoryPreparationLifecycle & MemorySaveLifecycle;
+}
+
+function memorySaveEnabled(ctx: ExtensionContext): boolean {
+	const prefs = getSddPreflightPreferences(ctx);
+	return Boolean(prefs && prefs.engramAvailable && prefs.memoryMode === "engram");
+}
+
+function skippedMemoryReceipt(reason: MemoryReceipt["reason"]): MemoryReceipt {
+	return {
+		operation: "save",
+		status: "skipped",
+		reason,
+		durationMs: 0,
+		timestamp: new Date().toISOString(),
+	};
+}
+
+function readExplicitSddChange(event: unknown): string | undefined {
+	const direct = [
+		readStringPath(event, ["change"]),
+		readStringPath(event, ["input", "change"]),
+	].find((value) => value !== undefined);
+	if (direct && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(direct)) return direct;
+	const task = readAgentTask(event);
+	const match = /(?:openspec\/changes\/|\bchange\s*[:=]\s*)([a-z0-9]+(?:-[a-z0-9]+)*)\b/i.exec(task);
+	return match?.[1];
 }
 
 function readAgentTask(event: unknown): string {
@@ -235,10 +312,17 @@ function compactRealCost(realCost: SddRealCost): string[] {
 	return lines;
 }
 
-function formatSddStatus(status: SddChangeStatus, active: string[], realCost?: SddRealCost): string {
+function formatSddStatus(
+	status: SddChangeStatus,
+	active: string[],
+	realCost?: SddRealCost,
+	prefs?: SddPreflightPreferences,
+): string {
+	const notebook = `optional project notebook: Engram ${prefs?.memoryMode ?? "off"}${prefs?.engramAvailable ? " (configured; no retrieval or save is implied)" : " (unavailable or not configured)"}; OpenSpec is the canonical full record.`;
 	const lines = ["/// 000. SDD STATUS", ""];
 	if (!status.change) {
 		lines.push("- " + t("sdd-status.none", "No active SDD changes in openspec/changes/."));
+		lines.push(`- ${notebook}`);
 		return lines.join("\n");
 	}
 
@@ -255,6 +339,7 @@ function formatSddStatus(status: SddChangeStatus, active: string[], realCost?: S
 	lines.push(`${t("sdd-status.tasks", "tasks")}: status=${status.tasks.status ?? "absent"} · ready=${status.tasks.counts.ready} · blocked=${status.tasks.counts.blocked} · pending=${status.tasks.counts.pending} · done=${status.tasks.counts.done}`);
 	if (status.tasks.blockedBy) lines.push(`${t("sdd-status.blocked-by", "blocked_by")}: ${status.tasks.blockedBy}`);
 	lines.push(`${t("sdd-status.budget", "budget")}: ${compactBudget(status.budget)}`);
+	lines.push(notebook);
 	if (realCost) lines.push(...compactRealCost(realCost));
 
 	const problems = [...status.tasks.problems, ...status.budget.problems, ...(realCost?.problems ?? [])];
@@ -314,11 +399,63 @@ export default function einAi(pi: ExtensionAPI): void {
 	async function runSddPreflight(ctx: ExtensionContext): Promise<SddPreflightPreferences> {
 		const preferences = await ensureSddPreflight(ctx, {
 			pi,
+			memoryLifecycle: memoryLifecycleForSession(ctx),
 			installAssets: (cwd) => installSddAssets(cwd, false),
 			applyModelConfig: async () => applySavedModelConfig(ctx),
 		});
 		bootstrapOpenSpecConfig(ctx.cwd);
 		return preferences;
+	}
+
+	async function saveCheckedPhaseMemory(
+		ctx: ExtensionContext,
+		change: string,
+		phase: unknown,
+		candidateInput: unknown,
+	): Promise<SafeMemoryReceipt> {
+		return saveAfterArtifactGate({
+			artifactClean: true,
+			change,
+			phase,
+			candidate: candidateInput,
+			enabled: memorySaveEnabled(ctx),
+			save: (candidate) => memorySaveLifecycleForSession(ctx).save(candidate),
+		});
+	}
+
+	async function saveArchivedCloseMemory(
+		ctx: ExtensionContext,
+		change: string,
+		archiveDir: string,
+	): Promise<SafeMemoryReceipt> {
+		let summary = "";
+		try {
+			summary = readFileSync(join(archiveDir, "summary.md"), "utf8");
+		} catch {
+			return safeMemoryReceipt(skippedMemoryReceipt("artifact_gate_failed"), `sdd:${change}:close`);
+		}
+		if (lintPhaseArtifact("close", summary).errors > 0) {
+			return safeMemoryReceipt(skippedMemoryReceipt("artifact_gate_failed"), `sdd:${change}:close`);
+		}
+		const candidate = buildCloseMemoryCandidate(change);
+		const approved = approveCandidate(candidate).approved;
+		if (!approved) return safeMemoryReceipt(skippedMemoryReceipt("invalid_candidate"), `sdd:${change}:close`);
+		if (hasSuccessfulMemoryReceipt(archiveDir, approved.topic, approved.digest)) {
+			return safeMemoryReceipt({
+				...skippedMemoryReceipt("duplicate"),
+				topic: approved.topic,
+				digest: approved.digest,
+			}, `sdd:${change}:close`);
+		}
+		if (!memorySaveEnabled(ctx)) return safeMemoryReceipt(skippedMemoryReceipt("memory_disabled"), `sdd:${change}:close`);
+		try {
+			return safeMemoryReceipt((await memorySaveLifecycleForSession(ctx).save(candidate)).receipt, `sdd:${change}:close`);
+		} catch {
+			return safeMemoryReceipt({
+				...skippedMemoryReceipt("spawn_error"),
+				status: "failed",
+			}, `sdd:${change}:close`);
+		}
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
@@ -395,6 +532,20 @@ export default function einAi(pi: ExtensionAPI): void {
 		if (isSddAgent) await runSddPreflight(ctx);
 		const prefs = getSddPreflightPreferences(ctx);
 		const startNames = readAgentStartNames(event);
+		const mappedAgent = startNames.find((name) =>
+			name === "sdd-map" || name === "sdd-design" || name === "sdd-apply" || name === "sdd-verify",
+		);
+		const memory = await prepareSddPhaseMemory({
+			cwd: ctx.cwd,
+			agentName: mappedAgent,
+			explicitChange: readExplicitSddChange(event),
+			memory: memoryLifecycleForSession(ctx),
+			sessionKey: sddPreflightSessionKey(ctx),
+			enabled: Boolean(prefs && prefs.engramAvailable && prefs.memoryMode === "engram"),
+		});
+		const memoryPrompt = renderMemoryAdvisory(
+			memory ?? (!isNamedAgent && !isSddAgent ? getSddSessionMemory(ctx) : undefined),
+		);
 		// Convenciones de codigo (comment/logging/file-naming): SOLO donde se
 		// escribe codigo — el parent (trabajo inline) y sdd-apply. Inyectarlas en
 		// delivery/linear/map solo hacia que el modelo barato leyera 3 SKILL.md
@@ -434,7 +585,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
 		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${codegraphPrompt}`,
+			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${codegraphPrompt}`,
 		};
 	});
 
@@ -734,7 +885,8 @@ export default function einAi(pi: ExtensionAPI): void {
 			const status = resolveSddStatus(ctx.cwd, params?.change);
 			const active = listActiveChanges(ctx.cwd);
 			const realCost = status.change ? readSddRealCost(ctx.cwd, status.change) : undefined;
-			return { content: [{ type: "text", text: formatSddStatus(status, active, realCost) }], details: { status, activeChanges: active, realCost } };
+			const prefs = getSddPreflightPreferences(ctx);
+			return { content: [{ type: "text", text: formatSddStatus(status, active, realCost, prefs) }], details: { status, activeChanges: active, realCost } };
 		},
 	});
 
@@ -746,14 +898,31 @@ export default function einAi(pi: ExtensionAPI): void {
 			"Deterministic gatekeeper: lint every present SDD artifact of a change (sections, required signals like verify's status line, placeholders, size). Run it AFTER each phase before advancing. Returns a compact per-phase summary (OK/ERRORS + issues). Reads only the filesystem.",
 		parameters: {
 			type: "object",
-			properties: { change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." } },
+			properties: {
+				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
+				phase: { type: "string", enum: ["scope", "map", "design", "tasks", "apply", "verify"] },
+				memoryCandidate: { type: "object", description: "Optional concise structured notebook candidate after a clean artifact gate." },
+			},
 		} as const,
-		async execute(_id, params: { change?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
+		async execute(_id, params: { change?: string; phase?: string; memoryCandidate?: unknown }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
 			if (!change) {
 				return { content: [{ type: "text", text: "/// SDD CHECK — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
 			}
 			const report = lintChange(ctx.cwd, change);
+			const phaseReport = params?.phase
+				? report.phases.find((entry) => entry.phase === params.phase)
+				: undefined;
+			const candidateHasCleanArtifact = Boolean(phaseReport?.present && phaseReport.report?.errors === 0);
+			if (report.errors > 0 || (params?.memoryCandidate !== undefined && !candidateHasCleanArtifact)) {
+				const memory = safeMemoryReceipt(skippedMemoryReceipt("artifact_gate_failed"), `sdd:${change}:gate`);
+				appendMemoryReceipt(join(resolveChangesDir(ctx.cwd), change), memory);
+				Object.assign(report, { memory });
+				return { content: [{ type: "text", text: formatChangeLint(report) }], details: report };
+			}
+			const memory = await saveCheckedPhaseMemory(ctx, change, params?.phase, params?.memoryCandidate);
+			appendMemoryReceipt(join(resolveChangesDir(ctx.cwd), change), memory);
+			Object.assign(report, { memory });
 			return { content: [{ type: "text", text: formatChangeLint(report) }], details: report };
 		},
 	});
@@ -786,19 +955,30 @@ export default function einAi(pi: ExtensionAPI): void {
 
 	// ── SDD close (canonical) ──────────────────────────────────────────────────
 	async function handleSddClose(args: string | string[], ctx: ExtensionContext) {
-		const change = (typeof args === "string" ? args : "").trim() || resolveSddStatus(ctx.cwd).change || "";
+		const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
+		const change = raw.trim() || resolveSddStatus(ctx.cwd).change || "";
 		if (!change) {
 			ctx.ui.notify("Sin cambio que cerrar. Uso: /ein:sdd-close <change>", "warning");
 			return;
 		}
 		const r = closeChange(ctx.cwd, change);
+		let memory: SafeMemoryReceipt | undefined;
+		if (r.ok) {
+			memory = await saveArchivedCloseMemory(ctx, change, r.to);
+			appendMemoryReceipt(r.to, memory);
+		}
 		// FORGE -> al cerrar un cambio, refresca la zona AUTO de EIN.md (comandos/
 		// estructura/docs) para que el índice no envejezca. Solo si ya existe: el
 		// cierre no es momento de crearlo (eso es /ein:init o el onboarding).
 		if (r.ok && existsSync(einMdPath(ctx.cwd))) writeEinMd(ctx.cwd);
+		const memoryMessage = memory
+			? memory.status === "saved" && memory.reason === "acknowledged"
+				? " Memoria: guardada."
+				: ` Memoria: ${memory.status}/${memory.reason}.`
+			: "";
 		ctx.ui.notify(
 			r.ok
-				? `Cambio '${change}' cerrado. openspec/changes/ queda limpio.`
+				? `Cambio '${change}' cerrado. openspec/changes/ queda limpio.${memoryMessage}`
 				: `No se cerró '${change}': ${r.reason}`,
 			r.ok ? "info" : "warning",
 		);
