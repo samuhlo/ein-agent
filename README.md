@@ -13,7 +13,22 @@ El modelo fuerte hace de arquitecto (piensa, acota, enseña); los baratos ejecut
 
 No es un producto para todos: es **mi** workbench. Está **curado para mi stack** — Nuxt 4 · Vue 3 · TypeScript · Bun · Tailwind v4 · Pinia · Drizzle + Neon · Zod · Nuxt UI · GSAP/Motion · Hono · Vitest — y para mi forma de trabajar. Funcionaría bien con un stack parecido; cualquiera puede clonarlo y reajustar skills, modelos y persona a lo suyo.
 
+## // INSTALACIÓN RÁPIDA
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
+```
+
+El bootstrap es el único canal de instalación confirmado para Ein.
+[Ver instalación detallada](#instalacion-detallada): plataforma, dependencias y recuperación.
+
+## // ÚLTIMA RELEASE REGISTRADA
+
+**Última release publicada según el registro canónico local:** [0.18.0 · 2026-07-13](CHANGELOG.md#0180---2026-07-13).
+
+- **CodeGraph** es opt-in y conmutable; en SDD concentra la lectura acotada antes de explorar código.
+- **CodeGraph** es una dependencia opcional del instalador, con la telemetría desactivada tras instalarse.
+- El bootstrap crea `openspec/config.yaml` con `create-if-absent` y evita el bloqueo prematuro por `tasks.md`.
 
 ---
 
@@ -67,16 +82,14 @@ Guardarraíles del flujo: **Scope Gate** (acota tokens de entrada), **Plan Gate*
 
 ## // 004. MODELOS
 
-Routing por fase. Estos son **mi elección personal** — un setup parecido funciona igual de bien; personalízalo por agente con `/ein:models` (o los presets `/ein:models:full` y `/ein:models:lite`).
+Elige por capacidad, riesgo y coste. Personaliza cada agente con `/ein:models` o aplica los presets `/ein:models:full` y `/ein:models:lite`.
 
-| Componente | Full | Lite |
-|---|---|---|
-| Orquestador | `gpt-5.5` | `MiniMax-M3` |
-| `sdd-design` | `gpt-5.5` | `MiniMax-M3` |
-| `sdd-apply` | `MiniMax-M3` | `MiniMax-M3` |
-| `sdd-scope`, `sdd-map`, `sdd-tasks`, `sdd-verify`, `sdd-close`, `ein-linear`, `ein-git` | `MiniMax-M2.7` | `MiniMax-M2.7` |
+| Tipo de trabajo | Criterio de elección |
+|---|---|
+| Arquitectura, ambigüedad, revisión adversarial o alto riesgo | Prioriza razonamiento fuerte: acota mejor las decisiones y detecta fallos costosos. |
+| Trabajo acotado, bien especificado, repetitivo o mecánico | Prioriza ejecución económica: conserva presupuesto cuando el camino ya está definido. |
 
-`apply` (que escribe código) va a M3 a propósito: M2.7 se quedaba corto. Si gpt-5.5 se queda sin tokens, **el cambio es manual** — `/ein:models:lite` baja las fases pesadas a M3 al instante. Ein **no hace fallback automático de modelo a mitad de tarea**: un corte transitorio del proveedor se absorbe **reintentando en el mismo modelo** (retry con backoff), nunca cambiando de cerebro a media faena — cambiar de modelo lo decides tú. Así el coste y la calidad no dan sorpresas silenciosas.
+Ein **no hace fallback automático de modelo** a mitad de tarea. Ante un corte transitorio, reintenta en el mismo modelo; cambiar de modelo lo decides tú. Así coste y calidad no cambian en silencio.
 
 ## // 005. ESTÉTICA DEL OUTPUT (persona)
 
@@ -107,7 +120,7 @@ En persona `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón,
 
 ## // 009. PLATAFORMA
 
-- **Memoria** — Engram mantiene contexto entre sesiones (no reexplica el proyecto cada vez). Opcional.
+- **Memoria (opcional, verificada en fuente/desarrollo)** — Engram se integra mediante un adapter CLI acotado. OpenSpec sigue siendo canónico; los fallos no bloqueantes no interrumpen el flujo.
 - **Idioma (2 ejes)** — `/ein:lang` separa conversación/UI de artefactos (PR/commit/Linear). Charlar en castellano y generar PRs en inglés, por ejemplo.
 - **Guardrails** — lista explícita de patrones denegados (`git reset --hard`, `rm -rf`, `DROP TABLE`…) y patrones que exigen confirmación.
 - **MCP eficiente** — `pi-mcp-adapter` (proxy de un tool, ~200 tokens vs 10k+/server) + `context-mode` (sandbox de salidas, persistencia de sesión sobre compactaciones).
@@ -119,23 +132,21 @@ En persona `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón,
 
 ---
 
+<a id="instalacion-detallada"></a>
+
 ## // 010. INSTALACIÓN
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
-```
-
-Detecta plataforma, descarga el binario de la última release y abre la TUI. El wizard (`ein install`): detecta OS/arch/distro/shell, instala dependencias faltantes (**bun** y **pi** obligatorias; **engram** y **gh** opcionales), pregunta el modo (Solo por defecto, Team opt-in), despliega el workbench en `~/.pi/agent` templando rutas, wizard opcional de secrets, y corre el doctor.
+El bootstrap es el único canal de instalación confirmado para Ein. Detecta plataforma y descarga el binario de la última release. Al ejecutarlo con el bootstrap, Linux reabre la TUI si hay una terminal disponible; en macOS te pedirá ejecutar `ein` para empezar. El wizard (`ein install`): detecta OS/arch/distro/shell, instala dependencias faltantes (**bun** y **pi** obligatorias; **engram** y **gh** opcionales), pregunta el modo (Solo por defecto, Team opt-in), despliega el workbench en `~/.pi/agent` templando rutas, wizard opcional de secrets, y corre el doctor.
 
 > **Nunca toca** `auth.json`, `sessions/` ni `backups/` — tu estado es siempre tuyo.
 
-**Windows (vía WSL).** Ein corre en Windows a través de WSL2 (que por dentro es Linux):
+**Windows (vía WSL como camino Linux).** Ein corre en Windows a través de WSL2 (que por dentro es Linux):
 
 ```powershell
 wsl --install        # PowerShell como admin; reinicia y abre Ubuntu
 ```
 
-Dentro de Ubuntu (WSL), el mismo one-liner de arriba. El instalador detecta WSL y despliega la build de Linux. Trabaja con tus proyectos **dentro del FS de WSL** (`~/...`), no en `/mnt/c/...` (mucho más lento y con permisos raros); `bun`, `pi` y `engram` se instalan dentro de WSL, y el estado de Ein vive en `~/.pi` **de WSL**. Windows nativo (sin WSL) llegará más adelante.
+Dentro de Ubuntu (WSL), usa el bootstrap de la ruta rápida. El instalador detecta WSL y despliega la build de Linux. Trabaja con tus proyectos **dentro del FS de WSL** (`~/...`), no en `/mnt/c/...` (mucho más lento y con permisos raros); `bun`, `pi` y `engram` se instalan dentro de WSL, y el estado de Ein vive en `~/.pi` **de WSL**. Windows nativo (sin WSL) llegará más adelante.
 
 | Dependencia | Requerida |
 |---|---|
@@ -151,7 +162,7 @@ Dentro de Ubuntu (WSL), el mismo one-liner de arriba. El instalador detecta WSL 
 ```bash
 ein                 # Menú interactivo (TUI brutalista)
 ein install         # Instala o repara Ein
-ein update          # Actualiza Ein y pi (backup previo)
+ein update          # Actualiza Ein (backup previo)
 ein doctor          # Diagnóstico sin lanzar pi
 ein uninstall       # Elimina Ein (conserva auth, secrets, sesiones)
 ein restore         # Restaura desde un backup
@@ -217,10 +228,10 @@ ein-agent/
 ## // 014. ACTUALIZAR / PUBLICAR
 
 ```bash
-ein update                          # backup + redeploy + actualiza pi (conserva tu estado)
+ein update                          # backup + redeploy de Ein (conserva tu estado)
 
-git tag installer-v0.15.0           # publicar release
-git push origin installer-v0.15.0   # GitHub Actions compila 4 binarios + checksums
+git tag installer-v<semver>         # publicar release
+git push origin installer-v<semver> # GitHub Actions compila 4 binarios + checksums
 ```
 
 > **Validación local** (opcional, antes de publicar):
