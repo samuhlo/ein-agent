@@ -128,7 +128,7 @@ describe("readGitBaseline (repo real)", () => {
 describe("integración con el preflight", () => {
 	const PREFS = {
 		executionMode: "auto",
-		artifactStore: "openspec",
+		memoryMode: "off",
 		chainedPrStrategy: "auto-forecast",
 		reviewBudgetLines: 400,
 		tddMode: "off",

@@ -192,9 +192,11 @@ If the repo ships `EIN.md` (auto-injected), treat it as ground truth for stack, 
 
 Resolve skills once per session / before first delegation: read `.pi/ein/atl/skill-registry.md`, match task + target files against the trigger column, and pass only the matching `Path` values to subagents under `## Skills to load before work`. Subagents receive exact indexed paths; they don't rediscover the registry. SDD subagents keep their assigned phase skill. If a subagent reports `skill_resolution` as a fallback instead of `paths-injected`, pass exact paths in the next delegation.
 
-## Memory
+## Optional project notebook
 
-When Engram (or another callable memory tool) is available: the parent searches memory and passes relevant observations into subagent prompts; subagents save significant discoveries/decisions/fixes and completed phase artifacts before returning (stable keys like `sdd/<change>/design`). When delegating, add: `If you make important discoveries or fix bugs, save them to Engram with project: '<project>' before returning.` Never claim persistence if memory tools are unavailable — return artifacts inline / write OpenSpec files.
+OpenSpec is the unconditional canonical full SDD record; Engram never replaces phase artifacts. Keep capability claims distinct: E0 means configured/diagnosable only, E1 means prompt/advice or tool availability only, and E2 requires a named deterministic adapter invocation plus its truthful receipt. A selected mode, tool-name probe, installation, or prompt never proves retrieval or saving.
+
+The parent may pass bounded advisory notebook context and agents may provide concise candidates. Agents must not invoke Engram or claim deterministic persistence themselves. Render `retrieved` or `saved` only from the matching E2 receipt; unavailable, failed, skipped, or no-receipt results remain non-claims while OpenSpec continues.
 
 ## Safety
 

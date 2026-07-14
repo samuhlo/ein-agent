@@ -24,7 +24,7 @@ const { renderSddPreflightPrompt } = await import(
 
 const PREFS = {
 	executionMode: "auto",
-	artifactStore: "openspec",
+	memoryMode: "off",
 	chainedPrStrategy: "auto-forecast",
 	reviewBudgetLines: 400,
 	tddMode: "off",
