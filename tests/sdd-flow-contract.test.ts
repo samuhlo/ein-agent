@@ -50,6 +50,45 @@ describe("orchestrator: flujo por fases determinista", () => {
 	});
 });
 
+describe("contrato interno de notebook Engram", () => {
+	const agents = [
+		"agents/sdd-scope.md",
+		"agents/sdd-map.md",
+		"agents/sdd-design.md",
+		"agents/sdd-tasks.md",
+		"agents/sdd-apply.md",
+		"agents/sdd-verify.md",
+		"agents/sdd-close.md",
+	].map(read);
+
+	test("OpenSpec permanece como registro canonico y Engram es un cuaderno opcional", () => {
+		const ai = read("extensions/ein-ai.ts");
+		expect(ai).toContain("optional project notebook: Engram");
+		expect(ai).toContain("OpenSpec is the canonical full record");
+	});
+
+	test("rechaza que E1 de prompt se haga pasar por E2", () => {
+		const orch = read("assets/orchestrator.md");
+		expect(orch).toContain("E0 means configured/diagnosable only");
+		expect(orch).toContain("E1 means prompt/advice or tool availability only");
+		expect(orch).toContain("E2 requires a named deterministic adapter invocation plus its truthful receipt");
+		for (const agent of agents) {
+			expect(agent).toContain("E1 prompt advice do not prove retrieval or persistence");
+			expect(agent).toContain("must not claim deterministic retrieval or saving yourself");
+		}
+	});
+
+	test("preflight, status y doctor no elevan disponibilidad E0 a E2", () => {
+		const preflight = read("lib/sdd-preflight.ts");
+		const ai = read("extensions/ein-ai.ts");
+		const doctor = read("extensions/ein-doctor.ts");
+		expect(preflight).toContain("OpenSpec: canonical full SDD record");
+		expect(ai).toContain("configured; no retrieval or save is implied");
+		expect(doctor).toContain("disponibilidad es solo E0; no prueba recuperación ni persistencia");
+		expect(doctor).not.toContain("La memoria persiste en Engram");
+	});
+});
+
 describe("ein-ai: tools deterministas cableados", () => {
 	const ai = read("extensions/ein-ai.ts");
 	test("registra ein_sdd_status y ein_sdd_check", () => {

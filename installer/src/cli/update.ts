@@ -1,120 +1,82 @@
-// =============================================================================
-// CLI: update
-// Backup → redeploy del template bundled (estado de usuario intacto) →
-// update pi → re-template → doctor. Avisa si hay un binario mas nuevo.
-// =============================================================================
-
 import * as p from "@clack/prompts";
-import { existsSync } from "node:fs";
-import { detectPlatform } from "../core/platform.ts";
-import { restoreBackup, snapshot } from "../core/backup.ts";
-import { deployTemplate, readBundledManifest } from "../core/deploy.ts";
-import { installDeclaredPackages, installPi } from "../core/deps.ts";
-import { runDoctor } from "../core/verify.ts";
-import { readMarker, writeMarker, latestInstallerTag, INSTALLER_VERSION } from "../core/version.ts";
-import { renderReport } from "./doctor.ts";
-import { AGENT_DIR } from "../core/paths.ts";
+import { detectPlatform, type Platform } from "../core/platform.ts";
+import { AGENT_DIR, INSTALL_MARKER } from "../core/paths.ts";
+import { parseSelector } from "../core/release-resolver.ts";
+import type { ReleaseSelector, UpdateOutcome } from "../core/release-types.ts";
+import { recoverPendingTransaction, runUpdateTransaction } from "../core/transaction.ts";
+import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
 import { bold, gold } from "../tui/theme.ts";
+import { renderOutcome } from "./result.ts";
 
-export async function runUpdate(args: string[]): Promise<number> {
-  const yes = args.includes("--yes") || args.includes("-y");
-  const platform = detectPlatform();
+export type UpdateFlags = {
+  selectorArgs: string[];
+  dryRun: boolean;
+  yes: boolean;
+};
 
-  p.intro(bold(gold("Actualizar Ein")));
+export type UpdateRunDependencies = {
+  caps?: UpdateCaps;
+  platform?: Pick<Platform, "os" | "arch">;
+  agentDir?: string;
+  markerPath?: string;
+  journalPath?: string;
+  destinationPath?: string;
+  interactive?: boolean;
+  write?: (line: string) => void;
+};
 
-  if (!existsSync(AGENT_DIR)) {
-    p.log.error(`Ein no esta desplegado (${AGENT_DIR}). Ejecuta \`ein install\`.`);
-    p.outro("Nada que actualizar.");
-    return 1;
+export function parseCliFlags(args: string[]): UpdateFlags {
+  const selectorArgs: string[] = [];
+  let dryRun = false;
+  let yes = false;
+  for (const arg of args) {
+    if (arg === "--dry-run") dryRun = true;
+    else if (arg === "--yes" || arg === "-y") yes = true;
+    else selectorArgs.push(arg);
   }
-
-  const marker = readMarker();
-  p.log.info(`Instalado: ${marker?.version ?? "desconocido"}  |  binario: ${INSTALLER_VERSION}`);
-
-  // Dry-run: show what would happen and exit without touching anything.
-  if (args.includes("--dry-run")) {
-    const manifest = await readBundledManifest();
-    const lines = [
-      "Plan (dry-run, no se ejecuta nada):",
-      `  1. Backup previo de ${AGENT_DIR} (tar.gz, dedup, conserva 5)`,
-      `  2. Redeploy del template en ${AGENT_DIR} (estado de usuario intacto)`,
-      manifest
-        ? `     template v${manifest.templateVersion}: ${manifest.agents?.length ?? 0} agentes, ${manifest.chains?.length ?? 0} chains, ${manifest.extensions?.length ?? 0} extensiones`
-        : "     (template sin manifest: binario antiguo)",
-      "  3. Actualizacion de pi (con confirmacion)",
-      "  4. Verificacion de paquetes Pi declarados",
-      "  5. Doctor de verificacion",
-    ];
-    p.log.message(lines.join("\n"));
-    p.outro("Dry-run completado. Ejecuta `ein update` para aplicar.");
-    return 0;
-  }
-
-  const sBackup = p.spinner();
-  sBackup.start("Creando backup");
-  const backup = await snapshot("pre-update");
-  sBackup.stop(
-    backup.path
-      ? `Backup: ${backup.path}${backup.deduped ? " (sin cambios, reutilizado)" : ""}${backup.pruned.length ? ` · podados ${backup.pruned.length} antiguos` : ""}`
-      : "Sin backup (nada que copiar)",
-  );
-
-  // BLINDAJE -> User state (auth.json, secrets, sessions) no esta en el
-  // tarball y sobrevive intacto. Si el deploy muere a mitad (borra los dirs
-  // del template antes de extraer), rollback automatico al backup.
-  const sDeploy = p.spinner();
-  sDeploy.start("Redesplegando template Ein");
-  let deployed;
-  try {
-    deployed = await deployTemplate(platform);
-  } catch (error) {
-    sDeploy.stop("Fallo el redeploy.");
-    p.log.error(error instanceof Error ? error.message : String(error));
-    if (backup.path) {
-      const sRb = p.spinner();
-      sRb.start("Restaurando el backup previo (rollback automatico)");
-      try {
-        await restoreBackup(backup.path);
-        sRb.stop("Estado anterior restaurado.");
-      } catch (rbError) {
-        sRb.stop("Fallo el rollback.");
-        p.log.error(rbError instanceof Error ? rbError.message : String(rbError));
-        p.log.warn(`Restaura a mano con \`ein restore\` (backup: ${backup.path}).`);
-      }
-    }
-    p.outro("Actualizacion abortada; el estado anterior se ha restaurado.");
-    return 1;
-  }
-  sDeploy.stop(`Template actualizado (engram: ${deployed.engramFound ? deployed.engramCommand : "PATH"})`);
-
-  if (yes || (await confirmUpdate())) {
-    const sPi = p.spinner();
-    sPi.start("Actualizando pi a la ultima version");
-    const r = await installPi();
-    sPi.stop(r.detail);
-  }
-
-  const sPkgs = p.spinner();
-  sPkgs.start("Verificando paquetes de Pi declarados");
-  const pkgs = await installDeclaredPackages();
-  sPkgs.stop(pkgs.detail);
-
-  writeMarker(marker?.channel ?? "stable");
-
-  const report = runDoctor(platform);
-  p.log.message(renderReport(report));
-
-  const latest = await latestInstallerTag();
-  if (latest && !latest.includes(INSTALLER_VERSION)) {
-    p.log.warn(`Hay un instalador mas nuevo disponible: ${latest}. Reinstala con curl|bash para actualizar el binario.`);
-  }
-
-  p.outro(report.result === "FAIL" ? "Actualizacion con errores." : "Ein actualizado.");
-  return report.result === "FAIL" ? 1 : 0;
+  return { selectorArgs, dryRun, yes };
 }
 
-async function confirmUpdate(): Promise<boolean> {
-  const res = await p.confirm({ message: "Actualizar pi (@earendil-works/pi-coding-agent)?" });
-  if (p.isCancel(res)) return false;
-  return res;
+function failed(selector: ReleaseSelector | undefined, stage: Extract<UpdateOutcome, { type: "failed" }>["stage"], message: string): UpdateOutcome {
+  return { type: "failed", stage, message, ...(selector ? { selector } : {}) };
+}
+
+/** Keeps dispatch and menu callers on the existing async numeric exit-code contract. */
+export async function runUpdate(args: string[], dependencies: UpdateRunDependencies = {}): Promise<number> {
+  const caps = dependencies.caps ?? defaultUpdateCaps();
+  const flags = parseCliFlags(args);
+  const write = dependencies.write ?? ((line: string) => p.log.message(line));
+  if (dependencies.interactive !== false) p.intro(bold(gold("Actualizar Ein")));
+
+  const recovery = await recoverPendingTransaction({ caps, journalPath: dependencies.journalPath });
+  const selector = parseSelector(flags.selectorArgs);
+  let outcome: UpdateOutcome;
+  if (!recovery.ok) {
+    outcome = failed(selector.ok ? selector.value : undefined, recovery.error.stage, recovery.error.message);
+  } else if (!selector.ok) {
+    outcome = failed(undefined, selector.error.stage, selector.error.message);
+  } else {
+    outcome = await runUpdateTransaction({
+      caps,
+      selector: selector.value,
+      platform: dependencies.platform ?? detectPlatform(),
+      agentDir: dependencies.agentDir ?? AGENT_DIR,
+      markerPath: dependencies.markerPath ?? INSTALL_MARKER,
+      journalPath: dependencies.journalPath,
+      destinationPath: dependencies.destinationPath ?? process.execPath,
+      dryRun: flags.dryRun,
+    });
+  }
+
+  const rendered = renderOutcome(outcome);
+  for (const line of rendered.lines) write(line);
+  if (dependencies.interactive !== false) {
+    p.outro(rendered.exitCode === 0 ? "Actualizacion finalizada." : "Actualizacion no aplicada.");
+  }
+  return rendered.exitCode;
+}
+
+export async function confirmUpdate(): Promise<boolean> {
+  const response = await p.confirm({ message: "Continuar con la actualizacion verificada?" });
+  return p.isCancel(response) ? false : response;
 }
