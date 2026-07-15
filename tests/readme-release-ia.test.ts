@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0194---2026-07-15");
+    expect(release.anchor).toBe("0195---2026-07-15");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,12 +70,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("Sin ejecutores desacoplados");
-    expect(releaseSummary).toContain("intercom bridge va apagado");
-    expect(releaseSummary).toContain("Preflight Git sin falsas alarmas");
-    expect(releaseSummary).toContain("los stashes son información");
-    expect(releaseSummary).toContain("Baseline solo en el orquestador");
-    expect(releaseSummary).toContain("ya no re-auditan el repo");
+    expect(releaseSummary).toContain("`ein update` arreglado en Linux");
+    expect(releaseSummary).toContain("menor que el propio binario");
+    expect(releaseSummary).toContain("el ejecutable Bun empaqueta el runtime");
+    expect(releaseSummary).toContain("cap de 64 MB");
+    expect(releaseSummary).toContain("cap subido a 256 MB");
+    expect(releaseSummary).toContain("vuelva a quedar corto");
   });
 
   test("guía por capacidad conserva presets y decisión humana sin nombres volátiles", () => {

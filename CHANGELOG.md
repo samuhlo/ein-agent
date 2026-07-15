@@ -5,6 +5,19 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.5] - 2026-07-15
+
+### Fixed
+
+- **`ein update` fallaba en Linux y macOS-x64.** El actualizador transaccional
+  limitaba toda respuesta HTTP a 64 MB, pero el binario del instalador es un
+  ejecutable Bun standalone que empaqueta el runtime y pesa ~66-95 MB (linux-x64:
+  91 MB). La descarga del asset reventaba el límite y el update abortaba en
+  `acquiring-metadata: Response exceeds size limit`. Cap subido a 256 MB, con
+  test de regresión. Para recibir el arreglo hay que reinstalar una vez con el
+  script `curl`: `ein update` desde una versión anterior seguirá fallando porque
+  el límite viejo va compilado en el binario.
+
 ## [0.19.4] - 2026-07-15
 
 ### Fixed

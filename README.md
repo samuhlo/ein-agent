@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.4 · 2026-07-15](CHANGELOG.md#0194---2026-07-15).
+**Última release publicada según el registro canónico local:** [0.19.5 · 2026-07-15](CHANGELOG.md#0195---2026-07-15).
 
-- **Sin ejecutores desacoplados:** el intercom bridge va apagado para los agentes EIN; devuelven `status: blocked` en vez de detenerse y provocar polling.
-- **Preflight Git sin falsas alarmas:** los stashes son información, no bloqueo; solo un `reset` reciente pide reconciliar.
-- **Baseline solo en el orquestador:** los ejecutores confían en su tarea cerrada y ya no re-auditan el repo.
+- **`ein update` arreglado en Linux y macOS-x64:** el límite de descarga era menor que el propio binario.
+- **Causa:** el ejecutable Bun empaqueta el runtime (~90 MB) y superaba el cap de 64 MB.
+- **Fix:** cap subido a 256 MB, con test que impide que vuelva a quedar corto.
 
 ---
 
