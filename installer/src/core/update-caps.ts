@@ -29,7 +29,13 @@ const MAX_REDIRECTS = 5;
 // binaries, so update never worked there). Still bounded to reject a runaway
 // response.
 const MAX_RESPONSE_BYTES = 256 * 1024 * 1024;
-const REQUEST_TIMEOUT_MS = 15_000;
+// Metadata/checksums are tiny JSON/text — a short deadline fails fast on a dead
+// endpoint. The asset is the ~90-95 MB Bun binary: a 15 s total deadline timed
+// out mid-download (a 91 MB fetch takes ~40 s even on a fast link, minutes on a
+// slow one), so it gets a generous per-call timeout. Callers pass the long one
+// for the asset download; everything else uses the short default.
+const REQUEST_TIMEOUT_MS = 30_000;
+const ASSET_TIMEOUT_MS = 300_000;
 const GITHUB_HOSTS = new Set([
   "api.github.com",
   "github.com",
@@ -53,8 +59,10 @@ export type FileEntry = {
 
 export type ChildSpawnOptions = { env?: Record<string, string> };
 
+export type HttpGetOptions = { timeoutMs?: number };
+
 export type UpdateCaps = {
-  http: { get(url: string): Promise<HttpResponse> };
+  http: { get(url: string, options?: HttpGetOptions): Promise<HttpResponse> };
   hashFile(path: string): Promise<string>;
   fs: {
     createTempDir(prefix: string): string;
@@ -97,12 +105,13 @@ function assertSafeUrl(raw: string): URL {
   return new URL(raw);
 }
 
-async function defaultHttpGet(raw: string): Promise<HttpResponse> {
+async function defaultHttpGet(raw: string, options?: HttpGetOptions): Promise<HttpResponse> {
+  const timeoutMs = options?.timeoutMs ?? REQUEST_TIMEOUT_MS;
   let url = assertSafeUrl(raw);
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
     const response = await fetch(url, {
       redirect: "manual",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
       headers: { Accept: "application/vnd.github+json" },
     });
     const headers = Object.fromEntries(response.headers.entries());
@@ -208,4 +217,4 @@ export function stageError(stage: UpdateStageError["stage"], code: string, messa
   return { stage, code, message };
 }
 
-export const updateCapsLimits = { MAX_REDIRECTS, MAX_RESPONSE_BYTES, REQUEST_TIMEOUT_MS };
+export const updateCapsLimits = { MAX_REDIRECTS, MAX_RESPONSE_BYTES, REQUEST_TIMEOUT_MS, ASSET_TIMEOUT_MS };

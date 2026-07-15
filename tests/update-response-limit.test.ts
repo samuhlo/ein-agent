@@ -24,3 +24,17 @@ describe("updateCapsLimits.MAX_RESPONSE_BYTES", () => {
 		expect(updateCapsLimits.MAX_RESPONSE_BYTES).toBeLessThanOrEqual(1024 * MB);
 	});
 });
+
+describe("timeouts del updater", () => {
+	test("el asset (binario grande) tiene un timeout generoso, mayor que el de metadata", () => {
+		// Bajar ~90 MB tarda ~40 s en buena red y minutos en mala: 15 s abortaba la
+		// descarga. El del asset debe superar al de metadata y dar al menos ~2 min.
+		expect(updateCapsLimits.ASSET_TIMEOUT_MS).toBeGreaterThan(updateCapsLimits.REQUEST_TIMEOUT_MS);
+		expect(updateCapsLimits.ASSET_TIMEOUT_MS).toBeGreaterThanOrEqual(120_000);
+	});
+
+	test("metadata falla rápido (deadline corto), pero no tanto como para cortar en redes lentas", () => {
+		expect(updateCapsLimits.REQUEST_TIMEOUT_MS).toBeGreaterThanOrEqual(15_000);
+		expect(updateCapsLimits.REQUEST_TIMEOUT_MS).toBeLessThanOrEqual(60_000);
+	});
+});

@@ -4,7 +4,7 @@ import { parseChecksums, verifyAsset } from "./checksum.ts";
 import { fetchLatestRelease, fetchReleaseByTag } from "./release-record.ts";
 import { resolveRecord } from "./release-resolver.ts";
 import type { AssetDigest, ReleaseSelector, ResolvedRelease, Result, UpdateStageError } from "./release-types.ts";
-import { isTrustedReleaseUrl, type UpdateCaps } from "./update-caps.ts";
+import { isTrustedReleaseUrl, updateCapsLimits, type UpdateCaps } from "./update-caps.ts";
 
 export type AcquiredRelease = {
   stagedPath: string;
@@ -53,7 +53,9 @@ export async function acquireRelease(
   let retained = false;
   try {
     const [assetResponse, checksumResponse] = await Promise.all([
-      caps.http.get(asset.downloadUrl),
+      // The asset is the ~90 MB Bun binary: give it the long timeout so the
+      // download is not aborted mid-transfer. Checksums is tiny → short default.
+      caps.http.get(asset.downloadUrl, { timeoutMs: updateCapsLimits.ASSET_TIMEOUT_MS }),
       caps.http.get(checksums[0]!.downloadUrl),
     ]);
     if (!isTrustedReleaseUrl(assetResponse.url) || !isTrustedReleaseUrl(checksumResponse.url)) {
