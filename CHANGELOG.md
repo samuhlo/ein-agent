@@ -5,6 +5,20 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.7] - 2026-07-15
+
+### Fixed
+
+- **`ein update` completa la transacción (el arreglo definitivo).** La transacción
+  spawnea el binario nuevo con tres entry-points que no existían en `main.ts`, así
+  que fallaba etapa tras etapa (`verifying`, luego el swap, luego el deploy). Toda
+  la transacción solo se había probado contra `child.spawn` mockeado. Ahora el
+  binario implementa: `--version` con línea `template-version` (el probe necesita
+  ambas), `--ein-continuation` (confirma identidad tras el swap) y
+  `--ein-deploy-template` (extrae el template embebido). Se añade un smoke test que
+  ejercita los tres contra el `main.ts` real. Como corren sobre el binario nuevo,
+  `ein update` desde una versión rota los alcanza y completa la actualización.
+
 ## [0.19.6] - 2026-07-15
 
 ### Fixed

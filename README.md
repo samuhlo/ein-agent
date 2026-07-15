@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.6 · 2026-07-15](CHANGELOG.md#0196---2026-07-15).
+**Última release publicada según el registro canónico local:** [0.19.7 · 2026-07-15](CHANGELOG.md#0197---2026-07-15).
 
-- **`ein update` completa la descarga:** el timeout de 15 s cortaba a mitad el binario de ~90 MB.
-- **Timeout por llamada:** metadata falla rápido (30 s); el asset dispone de 300 s.
-- **Cierra el arreglo iniciado en 0.19.5:** cap de tamaño (256 MB) + timeout del asset.
+- **`ein update` completa la transacción:** el binario ya implementa los tres entry-points que la transacción invoca.
+- **Antes fallaba en `verifying` y el swap:** `--version` no daba la versión del template y faltaban `--ein-continuation` y `--ein-deploy-template`.
+- **Smoke test real:** ejercita el `main.ts` de verdad, no mocks — habría cazado los tres huecos.
 
 ---
 

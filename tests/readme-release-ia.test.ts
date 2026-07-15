@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0196---2026-07-15");
+    expect(release.anchor).toBe("0197---2026-07-15");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,12 +70,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("`ein update` completa la descarga");
-    expect(releaseSummary).toContain("cortaba a mitad el binario");
-    expect(releaseSummary).toContain("Timeout por llamada");
-    expect(releaseSummary).toContain("el asset dispone de 300 s");
-    expect(releaseSummary).toContain("Cierra el arreglo iniciado en 0.19.5");
-    expect(releaseSummary).toContain("cap de tamaño (256 MB)");
+    expect(releaseSummary).toContain("`ein update` completa la transacción");
+    expect(releaseSummary).toContain("los tres entry-points que la transacción invoca");
+    expect(releaseSummary).toContain("Antes fallaba en `verifying` y el swap");
+    expect(releaseSummary).toContain("--ein-continuation");
+    expect(releaseSummary).toContain("Smoke test real");
+    expect(releaseSummary).toContain("no mocks");
   });
 
   test("guía por capacidad conserva presets y decisión humana sin nombres volátiles", () => {
