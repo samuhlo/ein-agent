@@ -5,6 +5,19 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.8] - 2026-07-15
+
+### Fixed
+
+- **El SDD ya no puede cerrar sobre evidencia obsoleta.** Si una corrección se
+  aplica DESPUÉS de que verify pasara, `verify-report.md`/`summary.md` seguían
+  afirmando el estado viejo como verificado, y `/ein:sdd-close` (un move puro)
+  archivaba igual. Ahora el router detecta la obsolescencia de forma determinista
+  (por mtime: apply-progress más nuevo que verify → `verifyStale`) y enruta de
+  vuelta a `verify`; `closeChange` rechaza archivar salvo que apply esté completo,
+  verify sea pass y fresco, summary exista y fresco, y no queden tareas pendientes.
+  `--force` es el escape deliberado.
+
 ## [0.19.7] - 2026-07-15
 
 ### Fixed

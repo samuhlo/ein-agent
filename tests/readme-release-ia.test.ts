@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0197---2026-07-15");
+    expect(release.anchor).toBe("0198---2026-07-15");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,12 +70,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("`ein update` completa la transacción");
-    expect(releaseSummary).toContain("los tres entry-points que la transacción invoca");
-    expect(releaseSummary).toContain("Antes fallaba en `verifying` y el swap");
-    expect(releaseSummary).toContain("--ein-continuation");
-    expect(releaseSummary).toContain("Smoke test real");
-    expect(releaseSummary).toContain("no mocks");
+    expect(releaseSummary).toContain("El SDD no cierra sobre evidencia obsoleta");
+    expect(releaseSummary).toContain("verifyStale");
+    expect(releaseSummary).toContain("`/ein:sdd-close` con guard");
+    expect(releaseSummary).toContain("verify pass y fresco");
+    expect(releaseSummary).toContain("Determinista por mtime");
+    expect(releaseSummary).toContain("`--force` es el escape deliberado");
   });
 
   test("guía por capacidad conserva presets y decisión humana sin nombres volátiles", () => {

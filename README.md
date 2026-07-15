@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.7 · 2026-07-15](CHANGELOG.md#0197---2026-07-15).
+**Última release publicada según el registro canónico local:** [0.19.8 · 2026-07-15](CHANGELOG.md#0198---2026-07-15).
 
-- **`ein update` completa la transacción:** el binario ya implementa los tres entry-points que la transacción invoca.
-- **Antes fallaba en `verifying` y el swap:** `--version` no daba la versión del template y faltaban `--ein-continuation` y `--ein-deploy-template`.
-- **Smoke test real:** ejercita el `main.ts` de verdad, no mocks — habría cazado los tres huecos.
+- **El SDD no cierra sobre evidencia obsoleta:** una corrección tras verify marca `verifyStale` y enruta de vuelta a `verify`.
+- **`/ein:sdd-close` con guard:** rechaza archivar salvo apply completo, verify pass y fresco, summary fresco y sin tareas pendientes.
+- **Determinista por mtime:** conservador (empates = fresco); `--force` es el escape deliberado.
 
 ---
 
