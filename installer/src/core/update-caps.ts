@@ -22,7 +22,13 @@ import { basename, dirname, join } from "node:path";
 import type { UpdateStageError } from "./release-types.ts";
 
 const MAX_REDIRECTS = 5;
-const MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
+// The downloaded asset is a Bun-compiled standalone binary that bundles the
+// runtime — the Linux builds are ~90-95 MB and grow over time. This cap must sit
+// well ABOVE the largest platform binary or `ein update` fails at asset download
+// with "Response exceeds size limit" (64 MB was below the Linux/darwin-x64
+// binaries, so update never worked there). Still bounded to reject a runaway
+// response.
+const MAX_RESPONSE_BYTES = 256 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 15_000;
 const GITHUB_HOSTS = new Set([
   "api.github.com",
