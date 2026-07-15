@@ -189,6 +189,21 @@ describe("resolveSddStatus", () => {
 		expect(s.blocked.join(" ")).toContain("obsoleta");
 	});
 
+	test("map.md sin scope.md → blocker de artefacto fuera de orden (fuga de fase-explorador)", () => {
+		const c = change("cohesionar-x");
+		put(c, "map.md", "# Map\nx\n");
+		const s = resolveSddStatus(DIR, "cohesionar-x");
+		expect(s.blocked.join(" ")).toContain("fuera de orden");
+		expect(s.blocked.join(" ")).toContain("scope.md");
+	});
+
+	test("artefactos en orden (scope→map→design) → sin blocker de orden", () => {
+		const c = change("ordenado");
+		for (const f of ["scope.md", "map.md", "design.md"]) put(c, f, "x");
+		const s = resolveSddStatus(DIR, "ordenado");
+		expect(s.blocked.join(" ")).not.toContain("fuera de orden");
+	});
+
 	test("verify fail → vuelve a verify + blocked", () => {
 		const c = change("feat-x");
 		for (const f of ["scope.md", "map.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: complete\n");

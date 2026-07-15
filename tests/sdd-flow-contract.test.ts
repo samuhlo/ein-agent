@@ -27,6 +27,18 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("ein_sdd_check");
 	});
 
+	test("expone ein_sdd_close como tool model-callable (no solo comando) y veta el hack bun -e", () => {
+		const ext = read("extensions/ein-ai.ts");
+		expect(ext).toContain('name: "ein_sdd_close"');
+		expect(orch).toContain("ein_sdd_close");
+		expect(orch).toContain("NEVER shell out to the SDD libraries");
+	});
+
+	test("no usa sdd-map como explorador pre-SDD (fuga de artefacto)", () => {
+		expect(orch).toContain("PHASE: it **writes `map.md`**");
+		expect(orch).toContain("out-of-order artifact");
+	});
+
 	test("incluye tasks y close en el flujo de 7", () => {
 		expect(orch).toContain("scope → map → design → tasks → apply → verify → close");
 	});
