@@ -583,7 +583,53 @@ export function delegationTargetsApply(input: unknown): boolean {
 	return false;
 }
 
-async function collectSddPreflightPreferences(
+// Fases documentales/de planificación: su artefacto es un .md que `ein_sdd_check`
+// valida de forma determinista. NO producen evidencia con forma de código.
+const PLANNING_AGENTS = new Set([
+	"sdd-scope",
+	"sdd-map",
+	"sdd-design",
+	"sdd-tasks",
+	"sdd-close",
+]);
+
+// ¿La delegación va SOLO a fases de planificación? = agente único de
+// planificación, o todos los items de tasks/steps/chain lo son. Un apply/verify
+// mezclado → false (ese sí lleva su acceptance real).
+export function delegationIsPlanningOnly(input: unknown): boolean {
+	if (!isRecord(input)) return false;
+	if (typeof input.agent === "string") return PLANNING_AGENTS.has(input.agent);
+	for (const key of ["tasks", "steps", "chain"]) {
+		const items = input[key];
+		if (!Array.isArray(items) || items.length === 0) continue;
+		return items.every(
+			(item) =>
+				isRecord(item) &&
+				typeof item.agent === "string" &&
+				PLANNING_AGENTS.has(item.agent),
+		);
+	}
+	return false;
+}
+
+// Inyecta `acceptance: { level: "none" }` determinista en una delegación a
+// fases de planificación que no lo trae. Muta el input EN SITIO (igual que el
+// wrap de Hypa en tool_call): sin esto, el runner infiere un nivel con forma de
+// código y RECHAZA en falso un artefacto documental que `ein_sdd_check` ya
+// valida — un ✗ que dependía de que el orquestador recordara pasar el acceptance.
+// Devuelve true si mutó. No pisa un acceptance explícito ni toca applies.
+export function ensurePlanningAcceptance(input: unknown): boolean {
+	if (!isRecord(input)) return false;
+	if (input.acceptance != null) return false;
+	if (!delegationIsPlanningOnly(input)) return false;
+	input.acceptance = {
+		level: "none",
+		reason: "ein_sdd_check gates this phase artifact deterministically",
+	};
+	return true;
+}
+
+export async function collectSddPreflightPreferences(
 	ctx: ExtensionContext,
 	engramAvailable: boolean,
 ): Promise<SddPreflightPreferences> {
@@ -592,6 +638,18 @@ async function collectSddPreflightPreferences(
 		"interactive",
 		"auto",
 	]);
+	// TDD decidido AL INICIO, junto al modo de ejecución: una sola decisión por
+	// sesión SDD. "off"/"strict" fijan el override determinista → el gate de
+	// delegación (askRunTddMode) ya no interrumpe a mitad de flujo. "auto" sigue
+	// `openspec/config.yaml`. Sustituye al viejo camino silencioso (config → off
+	// sin preguntar) que dejaba al usuario sin elegir.
+	const tddChoice = await ctx.ui.select(
+		"Strict TDD for this SDD session (UI/visual/trivial → off; logic-heavy → strict; auto → follow config)",
+		["auto", "off", "strict"],
+	);
+	const tddMode: TddMode =
+		tddChoice === "off" || tddChoice === "strict" ? tddChoice : resolveTddNoAsk(ctx);
+	if (tddChoice === "off" || tddChoice === "strict") setTaskTddMode(ctx, tddChoice);
 	const memoryOptions = engramAvailable ? ["off", "engram"] : ["off"];
 	const memoryMode = await ctx.ui.select("Optional Engram project notebook", memoryOptions);
 	const chainedPrStrategy = await ctx.ui.select("SDD PR chaining", [
@@ -614,7 +672,7 @@ async function collectSddPreflightPreferences(
 				? chainedPrStrategy
 				: DEFAULT_SDD_PREFLIGHT.chainedPrStrategy,
 		reviewBudgetLines,
-		tddMode: resolveTddNoAsk(ctx),
+		tddMode,
 		engramAvailable,
 		prompted: true,
 	};
