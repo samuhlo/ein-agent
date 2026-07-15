@@ -46,7 +46,11 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("create-if-absent bootstrap");
 		expect(orch).toContain("sdd-scope");
 		expect((orch.match(/\| `sdd-scope` \|/g) ?? []).length).toBe(1);
-		expect(orch).toContain("between phases show the concise result");
+		// Modo interactivo redefinido (Fase 3): planificación continua, UNA compuerta
+		// antes de apply, verify/close automáticos si pasan pero STOP ante fallo.
+		expect(orch).toContain("ONE human gate, before apply");
+		expect(orch).toContain("single confirmation before the first `sdd-apply`");
+		expect(orch).toContain("STOPS the flow with the exact cause");
 	});
 });
 

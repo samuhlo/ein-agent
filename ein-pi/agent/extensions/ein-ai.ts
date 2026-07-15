@@ -338,6 +338,8 @@ function formatSddStatus(
 	lines.push(`${t("sdd-status.apply", "apply")}: ${status.apply}`);
 	lines.push(`${t("sdd-status.verify", "verify")}: ${status.verify}`);
 	lines.push(`${t("sdd-status.tasks", "tasks")}: status=${status.tasks.status ?? "absent"} · ready=${status.tasks.counts.ready} · blocked=${status.tasks.counts.blocked} · pending=${status.tasks.counts.pending} · done=${status.tasks.counts.done}`);
+	// Punto de reanudación del apply por grupos: sobrevive a reabrir Pi.
+	if (status.tasks.nextPending) lines.push(`${t("sdd-status.next-pending", "next pending")}: ${status.tasks.nextPending.id} ${status.tasks.nextPending.title}`);
 	if (status.tasks.blockedBy) lines.push(`${t("sdd-status.blocked-by", "blocked_by")}: ${status.tasks.blockedBy}`);
 	lines.push(`${t("sdd-status.budget", "budget")}: ${compactBudget(status.budget)}`);
 	lines.push(notebook);
