@@ -14,6 +14,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
 	createSddMemoryLifecycle,
+	ensurePlanningAcceptance,
 	ensureSddPreflight,
 	gateTddForDelegation,
 	getSddPreflightPreferences,
@@ -593,6 +594,11 @@ export default function einAi(pi: ExtensionAPI): void {
 		// Delegaciones con push: el usuario confirma aquí (sesión con UI) y se
 		// emite el grant one-shot que el guard headless del subagente consume.
 		if (event.toolName === "subagent") {
+			// Fases de planificación (scope/map/design/tasks/close): inyecta
+			// `acceptance: none` determinista si el orquestador no lo pasó. Sin esto
+			// el runner infiere un nivel con forma de código y rechaza en falso un
+			// artefacto documental que `ein_sdd_check` ya valida.
+			ensurePlanningAcceptance(event.input);
 			// Gate de TDD ante una delegación que escribe código (sdd-apply directo
 			// o dentro de un chain). En modo global "ask": si el orquestador clasificó
 			// el cambio (hint tdd off/strict) se fija sin preguntar; si no, pregunta.
