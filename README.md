@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.3 · 2026-07-15](CHANGELOG.md#0193---2026-07-15).
+**Última release publicada según el registro canónico local:** [0.19.4 · 2026-07-15](CHANGELOG.md#0194---2026-07-15).
 
-- **Fases documentales del SDD sin ✗ falsas:** un hook inyecta `acceptance: none` determinista en scope/map/design/tasks/close.
-- **TDD al inicio del SDD:** el preflight pregunta off/strict/auto junto al modo de ejecución, una sola decisión por sesión.
-- **Menos interrupciones:** elegir auto más una postura de TDD deja el flujo corriendo sin parar entre fases.
+- **Sin ejecutores desacoplados:** el intercom bridge va apagado para los agentes EIN; devuelven `status: blocked` en vez de detenerse y provocar polling.
+- **Preflight Git sin falsas alarmas:** los stashes son información, no bloqueo; solo un `reset` reciente pide reconciliar.
+- **Baseline solo en el orquestador:** los ejecutores confían en su tarea cerrada y ya no re-auditan el repo.
 
 ---
 

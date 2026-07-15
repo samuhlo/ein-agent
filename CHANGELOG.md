@@ -5,6 +5,21 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.4] - 2026-07-15
+
+### Fixed
+
+- **Los ejecutores SDD ya no se desacoplan del padre.** El intercom bridge de
+  pi-subagents queda desactivado para los agentes EIN (`intercomBridge.mode:
+  off`): en vez de detenerse a mitad pidiendo una decisión al supervisor —lo que
+  dejaba al orquestador en bucles de `sleep`— devuelven `status: blocked` con la
+  causa concreta.
+- **El preflight Git deja de convertir stashes en una falsa emergencia.** Un
+  stash es trabajo aparcado, no evidencia de un HEAD incorrecto; solo un `reset`
+  reciente dispara la reconciliación. Y esa directiva se inyecta solo al
+  orquestador, no a cada ejecutor: reconciliar el árbol es asunto del padre una
+  vez, y los ejecutores dejan de re-auditar el repo (`git fsck`/`reflog`/`stash`).
+
 ## [0.19.3] - 2026-07-15
 
 ### Fixed
