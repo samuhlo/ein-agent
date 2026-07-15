@@ -552,10 +552,11 @@ export default function einAi(pi: ExtensionAPI): void {
 		// delivery/linear/map solo hacia que el modelo barato leyera 3 SKILL.md
 		// inutiles (gasto de tokens) sin escribir codigo. Tambien gobierna si la
 		// linea de Strict TDD entra en el preflight: solo donde hay RED/GREEN real.
-		const writesCode = (!isNamedAgent && !isSddAgent) || startNames.includes("sdd-apply");
+		const isParent = !isNamedAgent && !isSddAgent;
+		const writesCode = isParent || startNames.includes("sdd-apply");
 		const sddPrompt =
 			prefs && (!isNamedAgent || isSddAgent)
-				? `\n\n${renderSddPreflightPrompt(prefs, { includeTdd: writesCode })}`
+				? `\n\n${renderSddPreflightPrompt(prefs, { includeTdd: writesCode, includeBaseline: isParent })}`
 				: "";
 		const einPrompt = isNamedAgent || isSddAgent
 			? ""

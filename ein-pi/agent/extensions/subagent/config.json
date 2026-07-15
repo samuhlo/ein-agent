@@ -1,5 +1,8 @@
 {
   "control": {
     "needsAttentionAfterMs": 240000
+  },
+  "intercomBridge": {
+    "mode": "off"
   }
 }
