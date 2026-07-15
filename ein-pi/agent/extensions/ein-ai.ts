@@ -963,12 +963,14 @@ export default function einAi(pi: ExtensionAPI): void {
 	// ── SDD close (canonical) ──────────────────────────────────────────────────
 	async function handleSddClose(args: string | string[], ctx: ExtensionContext) {
 		const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
-		const change = raw.trim() || resolveSddStatus(ctx.cwd).change || "";
+		const parts = raw.trim().split(/\s+/).filter(Boolean);
+		const force = parts.includes("--force");
+		const change = parts.find((p) => p !== "--force") || resolveSddStatus(ctx.cwd).change || "";
 		if (!change) {
-			ctx.ui.notify("Sin cambio que cerrar. Uso: /ein:sdd-close <change>", "warning");
+			ctx.ui.notify("Sin cambio que cerrar. Uso: /ein:sdd-close <change> [--force]", "warning");
 			return;
 		}
-		const r = closeChange(ctx.cwd, change);
+		const r = closeChange(ctx.cwd, change, { force });
 		let memory: SafeMemoryReceipt | undefined;
 		if (r.ok) {
 			memory = await saveArchivedCloseMemory(ctx, change, r.to);

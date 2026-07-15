@@ -89,9 +89,16 @@ export type SddChangeStatus = {
 	budget: SddBudgetStatus;
 	apply: ApplyOutcome;
 	verify: VerifyOutcome;
+	// verify-report.md es anterior al último apply → una corrección posterior
+	// invalidó la verificación; no se puede cerrar con evidencia obsoleta.
+	verifyStale: boolean;
+	// summary.md es anterior a apply/verify → el resumen no refleja el estado real.
+	summaryStale: boolean;
 	nextRecommended: SddNext;
 	blocked: string[];
 };
+
+export type CloseReadiness = { ready: boolean; reasons: string[] };
 
 export type SddNextReport = {
 	change: string | null;
@@ -334,6 +341,33 @@ function readVerifyOutcome(changePath: string): VerifyOutcome {
 	return "unknown";
 }
 
+function fileMtimeMs(path: string): number | null {
+	try {
+		return statSync(path).mtimeMs;
+	} catch {
+		return null;
+	}
+}
+
+// Obsolescencia determinista por mtime: una corrección post-verify pasa por
+// apply (que reescribe apply-progress.md), dejando el apply MÁS NUEVO que el
+// verify-report → la evidencia anterior ya no describe el árbol actual. Comparación
+// estricta (`>`): escrituras en el mismo ms (o apply anterior a verify, el orden
+// normal) NO son obsoletas. Fuente de verdad conservadora: ante empate, fresco.
+function computeStaleness(
+	changePath: string,
+	present: Record<SddPhase, boolean>,
+): { verifyStale: boolean; summaryStale: boolean } {
+	const applyM = present.apply ? fileMtimeMs(phaseArtifactPath(changePath, "apply")) : null;
+	const verifyM = present.verify ? fileMtimeMs(phaseArtifactPath(changePath, "verify")) : null;
+	const summaryM = present.close ? fileMtimeMs(phaseArtifactPath(changePath, "close")) : null;
+	const verifyStale = verifyM !== null && applyM !== null && applyM > verifyM;
+	const summaryStale =
+		summaryM !== null &&
+		((applyM !== null && applyM > summaryM) || (verifyM !== null && verifyM > summaryM));
+	return { verifyStale, summaryStale };
+}
+
 function readApplyOutcome(changePath: string): ApplyOutcome {
 	const path = join(changePath, PHASE_ARTIFACT.apply);
 	if (!existsSync(path)) return "absent";
@@ -386,6 +420,8 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 			budget,
 			apply: "absent",
 			verify: "absent",
+			verifyStale: false,
+			summaryStale: false,
 			nextRecommended: "done",
 			blocked,
 		};
@@ -400,6 +436,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	const verify = readVerifyOutcome(changePath);
 	const tasks = readTasksStatus(changePath);
 	const budget = readBudgetStatus(changePath);
+	const { verifyStale, summaryStale } = computeStaleness(changePath, present);
 
 	// Siguiente fase: la primera no presente en orden, con la verificación como
 	// gate antes de cerrar. apply-progress.md con status != complete retiene apply.
@@ -418,6 +455,10 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	else if (verify === "fail") {
 		nextRecommended = "verify";
 		blocked.push("verify-report indica fallo: remediar antes de cerrar.");
+	} else if (verify === "pass" && verifyStale) {
+		// Corrección posterior a verify: la evidencia es obsoleta, re-verificar.
+		nextRecommended = "verify";
+		blocked.push("verify-report es anterior al último apply: re-verifica antes de cerrar (evidencia obsoleta).");
 	} else if (verify === "pass") nextRecommended = "close";
 	else {
 		// verify presente pero sin status legible → re-verificar para refrescar evidencia.
@@ -450,9 +491,30 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 		budget,
 		apply,
 		verify,
+		verifyStale,
+		summaryStale,
 		nextRecommended,
 		blocked,
 	};
+}
+
+// Readiness DETERMINISTA para cerrar un cambio. El cierre mueve el cambio a
+// archive/ y no debe hacerse sobre evidencia incompleta u obsoleta: apply debe
+// estar completo, verify debe ser pass y fresco (no anterior al apply), summary
+// debe existir y ser fresco, y no pueden quedar tareas pendientes. Un cierre
+// forzado (`force`) sortea esto a propósito; lo normal es respetarlo.
+export function assessCloseReadiness(cwd: string, change: string): CloseReadiness {
+	const status = resolveSddStatus(cwd, change);
+	const reasons: string[] = [];
+	if (status.apply !== "complete") reasons.push("apply no está `status: complete`.");
+	if (!status.present.verify) reasons.push("falta verify-report.md.");
+	else if (status.verify === "fail") reasons.push("verify-report indica fallo.");
+	else if (status.verify !== "pass") reasons.push("verify-report sin `status: pass` claro.");
+	if (status.verifyStale) reasons.push("verify-report es anterior al último apply (evidencia obsoleta): re-verifica.");
+	if (!status.present.close) reasons.push("falta summary.md.");
+	else if (status.summaryStale) reasons.push("summary.md es anterior a apply/verify: regenera el resumen.");
+	if (status.tasks.counts.pending > 0) reasons.push(`quedan ${status.tasks.counts.pending} tarea(s) sin completar.`);
+	return { ready: reasons.length === 0, reasons };
 }
 
 export function resolveSddNext(cwd: string, change?: string, options: { auto?: boolean } = {}): SddNextReport {

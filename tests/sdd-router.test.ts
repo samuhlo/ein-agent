@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { listActiveChanges, resolveSddNext, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
@@ -156,6 +156,22 @@ describe("resolveSddStatus", () => {
 		const s = resolveSddStatus(DIR);
 		expect(s.verify).toBe("pass");
 		expect(s.nextRecommended).toBe("close");
+		expect(s.verifyStale).toBe(false);
+	});
+
+	test("verify pass pero apply tocado DESPUÉS → verifyStale, vuelve a verify", () => {
+		const c = change("feat-x");
+		for (const f of ["scope.md", "map.md", "design.md", "tasks.md"]) put(c, f, "status: complete\n");
+		put(c, "apply-progress.md", "status: complete\n");
+		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
+		// Corrección posterior: apply-progress reescrito, ahora más nuevo que verify.
+		utimesSync(join(c, "verify-report.md"), new Date(2_000_000), new Date(2_000_000));
+		utimesSync(join(c, "apply-progress.md"), new Date(3_000_000), new Date(3_000_000));
+		const s = resolveSddStatus(DIR);
+		expect(s.verify).toBe("pass");
+		expect(s.verifyStale).toBe(true);
+		expect(s.nextRecommended).toBe("verify");
+		expect(s.blocked.join(" ")).toContain("obsoleta");
 	});
 
 	test("verify fail → vuelve a verify + blocked", () => {

@@ -10,7 +10,7 @@
 
 import { existsSync, mkdirSync, renameSync, cpSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { resolveChangesDir } from "./sdd-router.ts";
+import { assessCloseReadiness, resolveChangesDir } from "./sdd-router.ts";
 
 export type CloseResult = {
 	ok: boolean;
@@ -18,6 +18,8 @@ export type CloseResult = {
 	to: string;
 	reason?: string;
 };
+
+export type CloseOptions = { force?: boolean };
 
 // Misma resolución dual que el router: openspec/changes/ o .sdd/changes/.
 function changesDir(cwd: string): string {
@@ -29,7 +31,7 @@ export function closedChangePath(cwd: string, change: string): string {
 }
 
 // Storage interno heredado: `archive/` conserva historial sin migración destructiva.
-export function closeChange(cwd: string, change: string): CloseResult {
+export function closeChange(cwd: string, change: string, options: CloseOptions = {}): CloseResult {
 	const from = join(changesDir(cwd), change);
 	const to = closedChangePath(cwd, change);
 
@@ -41,6 +43,15 @@ export function closeChange(cwd: string, change: string): CloseResult {
 	}
 	if (existsSync(to)) {
 		return { ok: false, from, to, reason: "ya existe en archive/; no se pisa" };
+	}
+	// Guard determinista: no archivar sobre evidencia incompleta u obsoleta (una
+	// corrección posterior a verify deja el summary/verify viejos). `--force` lo
+	// sortea a conciencia.
+	if (!options.force) {
+		const readiness = assessCloseReadiness(cwd, change);
+		if (!readiness.ready) {
+			return { ok: false, from, to, reason: `cambio no listo para cierre: ${readiness.reasons.join(" ")} (usa --force para forzar)` };
+		}
 	}
 
 	mkdirSync(join(changesDir(cwd), "archive"), { recursive: true });

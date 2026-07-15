@@ -88,6 +88,8 @@ Phases: `scope → map → design → tasks → apply → verify → close`. Art
 3. **`ein_sdd_check`** → on `error`, re-run that same phase ONCE with the concrete issues named; if it fails again, STOP and report. Never advance on a bad artifact — it compounds downstream.
 4. **Repeat** until `nextRecommended: close` (run `sdd-close`, then `/ein:sdd-close`) and `done`.
 
+**Post-verify edits invalidate verify — deterministically.** If a fix lands (an `sdd-apply`) AFTER `verify-report.md` was written, the router flags `verifyStale` and routes back to `verify` (not `close`), and `/ein:sdd-close` REFUSES to archive on stale/incomplete evidence (`apply` not complete, `verify` absent/fail/stale, `summary` missing/stale, or tasks pending). So a late bug report on an already-verified change means: apply the fix → re-run `sdd-verify` → regenerate `summary.md` → then close. Never reach for `/ein:sdd-close --force` to skip this; `--force` exists only for a genuine tooling escape, not to bypass a real re-verification.
+
 Resuming across sessions is free: call `ein_sdd_status` — no context dump, no re-reading the change.
 
 **Manual next-step view:** `/ein:sdd-next <change> [--auto]` is a conservative, read-only slash command for humans (current phase, next recommendation, reason). It does not replace the loop: the orchestrator still routes with `ein_sdd_status`. `--auto` is dry-run only; it must not trigger delegation.
