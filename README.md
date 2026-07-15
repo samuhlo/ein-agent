@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.9 · 2026-07-15](CHANGELOG.md#0199---2026-07-15).
+**Última release publicada según el registro canónico local:** [0.19.10 · 2026-07-15](CHANGELOG.md#01910---2026-07-15).
 
-- **Una sola compuerta humana:** planificación (scope→map→design→tasks) de corrido; se confirma una vez antes de apply.
-- **verify/close automáticos si pasan:** paran con causa exacta ante fallo, bloqueo o evidencia obsoleta.
-- **Apply por grupos, reanudable:** `ein_sdd_status` muestra `next pending` y el flujo continúa ahí tras reabrir Pi.
+- **`ein_sdd_close` como tool:** el orquestador cierra un cambio verificado él mismo (con guard de readiness), sin rodeos ni pedírselo al usuario.
+- **Guard anti-fuga de fase-explorador:** el router marca un artefacto fuera de orden (p.ej. `map.md` sin `scope.md`) para no dejar dirs stray.
+- **Investigación pre-scope por lectura directa:** codegraph ctx / grep, nunca una fase con nombre de cambio especulativo.
 
 ---
 

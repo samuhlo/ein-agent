@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0199---2026-07-15");
+    expect(release.anchor).toBe("01910---2026-07-15");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,12 +70,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("Una sola compuerta humana");
-    expect(releaseSummary).toContain("se confirma una vez antes de apply");
-    expect(releaseSummary).toContain("verify/close automáticos si pasan");
-    expect(releaseSummary).toContain("causa exacta");
-    expect(releaseSummary).toContain("Apply por grupos, reanudable");
-    expect(releaseSummary).toContain("next pending");
+    expect(releaseSummary).toContain("`ein_sdd_close` como tool");
+    expect(releaseSummary).toContain("con guard de readiness");
+    expect(releaseSummary).toContain("Guard anti-fuga de fase-explorador");
+    expect(releaseSummary).toContain("artefacto fuera de orden");
+    expect(releaseSummary).toContain("Investigación pre-scope por lectura directa");
+    expect(releaseSummary).toContain("codegraph ctx / grep");
   });
 
   test("guía por capacidad conserva presets y decisión humana sin nombres volátiles", () => {

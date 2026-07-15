@@ -5,6 +5,24 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.10] - 2026-07-15
+
+### Added
+
+- **`ein_sdd_close` como herramienta.** El orquestador solo tenía el comando de
+  usuario `/ein:sdd-close` (que no puede invocar por sí mismo), así que cerraba
+  con rodeos (importar la librería a pelo) o pedía al usuario que lo tecleara.
+  Ahora es una tool determinista —gemela de `ein_sdd_status`/`ein_sdd_check`—
+  con el mismo guard de readiness, receipt de memoria y refresco de EIN.md.
+
+### Fixed
+
+- **Fuga de artefacto al usar una fase como explorador.** Delegar `sdd-map`
+  (que es una FASE y escribe `map.md`) para investigar un cambio aún sin scope
+  dejaba un `map.md`/dir stray. El router marca ahora un artefacto **fuera de
+  orden** (una fase presente cuyo predecesor falta) para que `ein_sdd_status` lo
+  surface; la investigación pre-scope debe ir por lectura directa, no por una fase.
+
 ## [0.19.9] - 2026-07-15
 
 ### Changed
