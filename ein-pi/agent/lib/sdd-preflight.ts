@@ -629,6 +629,38 @@ export function ensurePlanningAcceptance(input: unknown): boolean {
 	return true;
 }
 
+// Apply EJECUTA; no debe pelear con la capa de aceptación. `acceptance: verified`
+// obliga a un `acceptance-report` que los modelos baratos rompen y a evidencia
+// `tests-added` que un grupo de verificación no puede dar → rechazos que queman
+// runs caros. Por defecto lo dejamos en `none`: sdd-verify (fase dedicada)
+// re-ejecuta la suite como gate real, y el guard de cierre impide cerrar sin un
+// verify fresco. El orquestador puede seguir pidiendo `verified` explícito.
+// Solo aplica a una delegación de un único `sdd-apply` (la ruta fase-a-fase).
+export function ensureApplyAcceptance(input: unknown): boolean {
+	if (!isRecord(input)) return false;
+	if (input.acceptance != null) return false;
+	if (input.agent !== "sdd-apply") return false;
+	input.acceptance = {
+		level: "none",
+		reason: "apply executes; sdd-verify re-runs the suite as the runtime gate",
+	};
+	return true;
+}
+
+// Backstop de turnos para apply: un run se fue a ⟳47 turnos por un cambio de 1
+// línea (thrashing). Con thinking bajo (E0) los turnos caen; esto solo corta un
+// runaway. Generoso a propósito — un grupo grande que lo toque devuelve `partial`
+// y el orquestador continúa, nunca se pierde trabajo. No pisa un budget explícito.
+const APPLY_TURN_BUDGET = { maxTurns: 40, graceTurns: 3 } as const;
+
+export function ensureApplyTurnBudget(input: unknown): boolean {
+	if (!isRecord(input)) return false;
+	if (input.agent !== "sdd-apply") return false;
+	if (input.turnBudget != null) return false;
+	input.turnBudget = { ...APPLY_TURN_BUDGET };
+	return true;
+}
+
 export async function collectSddPreflightPreferences(
 	ctx: ExtensionContext,
 	engramAvailable: boolean,
