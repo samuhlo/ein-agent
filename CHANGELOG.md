@@ -5,6 +5,19 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.9] - 2026-07-15
+
+### Changed
+
+- **El SDD ya no pregunta entre cada fase.** El modo interactivo se redefine: las
+  fases de planificación (scope→map→design→tasks) corren de corrido sin preguntar;
+  la única compuerta humana normal es UNA confirmación antes del primer apply, que
+  cubre todos los grupos aprobados. verify/close siguen automáticos si pasan, pero
+  paran con la causa exacta ante fallo, bloqueo o evidencia obsoleta.
+- **Apply por grupos, reanudable.** `ein_sdd_status` muestra `next pending: <id>
+  <título>` (la primera tarea sin marcar). Tras reabrir Pi, el flujo continúa desde
+  ese grupo sin rehacer lo ya hecho.
+
 ## [0.19.8] - 2026-07-15
 
 ### Fixed

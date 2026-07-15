@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.8 · 2026-07-15](CHANGELOG.md#0198---2026-07-15).
+**Última release publicada según el registro canónico local:** [0.19.9 · 2026-07-15](CHANGELOG.md#0199---2026-07-15).
 
-- **El SDD no cierra sobre evidencia obsoleta:** una corrección tras verify marca `verifyStale` y enruta de vuelta a `verify`.
-- **`/ein:sdd-close` con guard:** rechaza archivar salvo apply completo, verify pass y fresco, summary fresco y sin tareas pendientes.
-- **Determinista por mtime:** conservador (empates = fresco); `--force` es el escape deliberado.
+- **Una sola compuerta humana:** planificación (scope→map→design→tasks) de corrido; se confirma una vez antes de apply.
+- **verify/close automáticos si pasan:** paran con causa exacta ante fallo, bloqueo o evidencia obsoleta.
+- **Apply por grupos, reanudable:** `ein_sdd_status` muestra `next pending` y el flujo continúa ahí tras reabrir Pi.
 
 ---
 
