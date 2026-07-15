@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.5 · 2026-07-15](CHANGELOG.md#0195---2026-07-15).
+**Última release publicada según el registro canónico local:** [0.19.6 · 2026-07-15](CHANGELOG.md#0196---2026-07-15).
 
-- **`ein update` arreglado en Linux y macOS-x64:** el límite de descarga era menor que el propio binario.
-- **Causa:** el ejecutable Bun empaqueta el runtime (~90 MB) y superaba el cap de 64 MB.
-- **Fix:** cap subido a 256 MB, con test que impide que vuelva a quedar corto.
+- **`ein update` completa la descarga:** el timeout de 15 s cortaba a mitad el binario de ~90 MB.
+- **Timeout por llamada:** metadata falla rápido (30 s); el asset dispone de 300 s.
+- **Cierra el arreglo iniciado en 0.19.5:** cap de tamaño (256 MB) + timeout del asset.
 
 ---
 

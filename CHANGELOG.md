@@ -5,6 +5,18 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.6] - 2026-07-15
+
+### Fixed
+
+- **`ein update` seguía cortándose al descargar (segunda mitad del arreglo).**
+  Tras subir el cap de tamaño (v0.19.5), el deadline HTTP de 15 s —correcto para
+  el JSON de metadata— abortaba a mitad la descarga del binario Bun de ~90 MB
+  (`acquiring-metadata: The operation timed out`). `http.get` acepta ahora un
+  timeout por llamada: metadata/checksums fallan rápido (30 s) y la descarga del
+  asset dispone de 300 s. Igual que con v0.19.5, hay que reinstalar una vez con
+  el script `curl` para estrenar el arreglo.
+
 ## [0.19.5] - 2026-07-15
 
 ### Fixed
