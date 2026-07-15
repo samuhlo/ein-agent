@@ -96,14 +96,15 @@ describe("P3: veredictos de acceptance de pi-subagents", () => {
     }
   });
 
-  test("sdd-apply se delega con verificación runtime (level verified + verify commands)", () => {
+  test("sdd-apply ejecuta: acceptance none por defecto (inyectado), sdd-verify es el gate (E1)", () => {
     const acceptanceBlock = orch.slice(orch.indexOf("Acceptance verdicts"));
+    expect(acceptanceBlock).toContain("EXECUTES the masticated plan");
+    expect(acceptanceBlock).toContain('acceptance: { level: "none" }');
+    expect(acceptanceBlock).toContain("injected deterministically");
+    // sdd-verify (fase dedicada) es el gate runtime, no un informe por-apply.
+    expect(acceptanceBlock).toContain("sdd-verify");
+    // `verified` sigue disponible como override explícito.
     expect(acceptanceBlock).toContain('level: "verified"');
-    expect(acceptanceBlock).toMatch(/verify: \[\{ id: "tests"/);
-    // Los comandos salen de la config real del proyecto, no inventados.
-    expect(acceptanceBlock).toContain("testing.runner");
-    // Nunca un build de producción en el acceptance del apply.
-    expect(acceptanceBlock).toMatch(/NEVER a production build/);
   });
 
   test("los applies mecánicos llevan acceptance none (verified/checked exigen tests-added)", () => {

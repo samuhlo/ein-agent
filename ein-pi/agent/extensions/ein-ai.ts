@@ -14,6 +14,8 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
 	createSddMemoryLifecycle,
+	ensureApplyAcceptance,
+	ensureApplyTurnBudget,
 	ensurePlanningAcceptance,
 	ensureSddPreflight,
 	gateTddForDelegation,
@@ -602,6 +604,11 @@ export default function einAi(pi: ExtensionAPI): void {
 			// el runner infiere un nivel con forma de código y rechaza en falso un
 			// artefacto documental que `ein_sdd_check` ya valida.
 			ensurePlanningAcceptance(event.input);
+			// Apply ejecuta: por defecto `acceptance: none` (sdd-verify es el gate) y
+			// un `turnBudget` backstop contra thrashing. El orquestador puede pasar
+			// `acceptance`/`turnBudget` explícitos y se respetan.
+			ensureApplyAcceptance(event.input);
+			ensureApplyTurnBudget(event.input);
 			// Gate de TDD ante una delegación que escribe código (sdd-apply directo
 			// o dentro de un chain). En modo global "ask": si el orquestador clasificó
 			// el cambio (hint tdd off/strict) se fija sin preguntar; si no, pregunta.

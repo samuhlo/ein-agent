@@ -54,7 +54,7 @@ If strict TDD is not active, implement assigned tasks from `tasks.md` and record
 
 ## Task Checkboxes (both modes)
 
-Tick the `- [ ]` → `- [x]` checkboxes in `tasks.md` for every task/step you complete, in strict AND standard mode. `ein_sdd_status` counts those checkboxes deterministically — leaving them unticked makes a finished change report `pending` forever. Evidence lives in `apply-progress.md`; completion state lives in `tasks.md`. Both, always.
+Tick the `- [ ]` → `- [x]` checkboxes in `tasks.md` for every task/step you complete, in strict AND standard mode. `ein_sdd_status` counts those checkboxes deterministically — leaving them unticked makes a finished change report `pending` forever. Evidence lives in `apply-progress.md`; completion state lives in `tasks.md`. Both, always. **Tick ONLY the checkboxes — NEVER touch the `status:` line of `tasks.md` (it is `ready|blocked`, owned by sdd-tasks). Do not write `status: complete` there: that value is for `apply-progress.md`, and it corrupts the tasks gate.**
 
 ## Apply Progress (chain runs only)
 

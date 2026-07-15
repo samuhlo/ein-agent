@@ -219,6 +219,25 @@ export function cloneModelConfig(config: AgentModelConfig): AgentModelConfig {
 	);
 }
 
+// Thinking por defecto para fases de EJECUCIÓN: no razonan, ejecutan el plan ya
+// masticado por scope/map/design/tasks. Sin fijarlo, heredan el thinking alto
+// del modelo y dan vueltas quemando tokens (sdd-apply llegó a 47 turnos por un
+// cambio de 1 línea). El usuario/preset puede overridear en models.json.
+const DEFAULT_THINKING: Record<string, ThinkingLevel> = {
+	"sdd-apply": "low",
+};
+
+// Aplica el thinking por defecto del agente cuando ni models.json ni el preset
+// lo fijan. Un thinking explícito (usuario/preset) siempre gana.
+export function withDefaultThinking(
+	name: string,
+	entry: AgentRoutingEntry | undefined,
+): AgentRoutingEntry | undefined {
+	const fallback = DEFAULT_THINKING[name];
+	if (!fallback || entry?.thinking) return entry;
+	return { ...(entry ?? {}), thinking: fallback };
+}
+
 function updateFrontmatterRouting(
 	content: string,
 	entry: AgentRoutingEntry | undefined,
@@ -481,7 +500,7 @@ const MODEL_FULL: AgentModelConfig = {
 	"sdd-scope": { model: "minimax/MiniMax-M2.7" },
 	"sdd-map": { model: "minimax/MiniMax-M2.7" },
 	"sdd-tasks": { model: "minimax/MiniMax-M2.7" },
-	"sdd-apply": { model: "minimax/MiniMax-M3" },
+	"sdd-apply": { model: "minimax/MiniMax-M3", thinking: "low" },
 	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
 	"sdd-close": { model: "minimax/MiniMax-M2.7" },
 	"ein-linear": { model: "minimax/MiniMax-M2.7" },
@@ -494,7 +513,7 @@ const MODEL_LITE: AgentModelConfig = {
 	"sdd-scope": { model: "minimax/MiniMax-M2.7" },
 	"sdd-map": { model: "minimax/MiniMax-M2.7" },
 	"sdd-tasks": { model: "minimax/MiniMax-M2.7" },
-	"sdd-apply": { model: "minimax/MiniMax-M3" },
+	"sdd-apply": { model: "minimax/MiniMax-M3", thinking: "low" },
 	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
 	"sdd-close": { model: "minimax/MiniMax-M2.7" },
 	"ein-linear": { model: "minimax/MiniMax-M2.7" },
@@ -605,7 +624,7 @@ export function applyModelConfig(
 	let updated = 0;
 	let skipped = 0;
 	for (const agent of listDiscoverableAgents(cwd)) {
-		const entry = config[agent.name];
+		const entry = withDefaultThinking(agent.name, config[agent.name]);
 		if (agent.source === "builtin") {
 			if (updateBuiltinModelOverride(cwd, agent.name, entry)) updated += 1;
 			else skipped += 1;
@@ -634,7 +653,7 @@ export async function applyModelConfigAsync(
 	let updated = 0;
 	let skipped = 0;
 	for (const agent of await listDiscoverableAgentsAsync(cwd)) {
-		const entry = config[agent.name];
+		const entry = withDefaultThinking(agent.name, config[agent.name]);
 		if (agent.source === "builtin") {
 			if (await updateBuiltinModelOverrideAsync(cwd, agent.name, entry))
 				updated += 1;

@@ -184,7 +184,17 @@ export function lintTasksArtifact(
 		return finalize(issues, lineCount);
 	}
 
+	// Un tasks.md 100% cerrado (todas las casillas `- [x]`, ninguna `- [ ]`) es
+	// un artefacto TERMINADO válido: `status`/`blocked_by` son señales de
+	// planificación que sdd-tasks fija y dejan de aplicar una vez el apply cierra
+	// todo. Exigirlas entonces hacía fallar el gate justo al acabar (apply solía
+	// dejar `status: complete`, valor no válido para tasks.md) → retry inútil.
+	const hasOpenBox = /^\s*-\s*\[ \]/m.test(text);
+	const hasDoneBox = /^\s*-\s*\[[xX]\]/m.test(text);
+	const allDone = hasDoneBox && !hasOpenBox;
+
 	for (const req of TASKS_REQUIRED) {
+		if (allDone && (req.code === "status-line" || req.code === "blocked-by")) continue;
 		if (!req.pattern.test(text)) {
 			issues.push({ level: "error", code: `missing-${req.code}`, message: `Falta señal obligatoria de tasks.md: ${req.label}.` });
 		}
