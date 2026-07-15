@@ -101,7 +101,10 @@ export async function installPi(): Promise<InstallStep> {
     inherit: true,
     extraPath: EXTRA_PATH,
   });
-  if (!res.ok) return { ok: false, detail: "bun install -g pi fallo" };
+  // Always name the scoped package: the bare `pi` on npm is an unrelated math
+  // library whose bin shadows the agent and breaks `pi`. A truncated hint here
+  // is a footgun if a user copies it.
+  if (!res.ok) return { ok: false, detail: "'bun install -g @earendil-works/pi-coding-agent' fallo" };
   return lookPath("pi", EXTRA_PATH)
     ? { ok: true, detail: "pi instalado" }
     : { ok: false, detail: "pi instalado pero no resoluble; reinicia el shell" };
