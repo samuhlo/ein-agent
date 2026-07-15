@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.2 · 2026-07-15](CHANGELOG.md#0192---2026-07-15).
+**Última release publicada según el registro canónico local:** [0.19.3 · 2026-07-15](CHANGELOG.md#0193---2026-07-15).
 
-- **Instalación de pi a prueba de confusiones:** el instalador siempre nombra el paquete con scope, nunca el `pi` pelado.
-- **Por qué importa:** el `pi` sin scope en npm es una librería ajena cuyo bin rompe el agente.
-- **Regresión fijada:** un test impide que cualquier pista sugiera el comando sin scope.
+- **Fases documentales del SDD sin ✗ falsas:** un hook inyecta `acceptance: none` determinista en scope/map/design/tasks/close.
+- **TDD al inicio del SDD:** el preflight pregunta off/strict/auto junto al modo de ejecución, una sola decisión por sesión.
+- **Menos interrupciones:** elegir auto más una postura de TDD deja el flujo corriendo sin parar entre fases.
 
 ---
 

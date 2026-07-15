@@ -5,6 +5,22 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.3] - 2026-07-15
+
+### Fixed
+
+- **Fases documentales del SDD ya no se rechazan en falso.** Un hook determinista
+  inyecta `acceptance: none` en las delegaciones de planificación (scope, map,
+  design, tasks, close); el runner deja de exigir evidencia `tests-added` a un
+  artefacto que `ein_sdd_check` ya valida. La ✗ dependía de que el orquestador
+  recordara pasar el campo, por eso a veces aparecía y a veces no.
+
+### Changed
+
+- **TDD se elige al inicio del SDD.** El preflight pregunta la postura de TDD
+  (off/strict/auto) junto al modo de ejecución; elegir off o strict fija la
+  decisión de la sesión y el flujo no vuelve a interrumpirse a mitad.
+
 ## [0.19.2] - 2026-07-15
 
 ### Fixed
