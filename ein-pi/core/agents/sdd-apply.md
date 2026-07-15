@@ -97,6 +97,6 @@ When the parent delegates a single bounded change OUTSIDE the SDD chain — no `
 
 Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit unless the user explicitly asks.
 
-**Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause, and what the parent must fix or provide.
+**Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. This is now enforced — the intercom bridge is disabled for you (`intercomBridge.mode: "off"`), so `contact_supervisor`/`intercom` are not in your toolset. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause, and what the parent must fix or provide. Trust your closed task and the baseline the parent already resolved: do NOT run `git fsck`/`reflog`/`stash` audits or ask whether the working tree is the right base.
 
 Return the standard phase envelope with status, executive_summary, artifacts, next_recommended, risks, and skill_resolution.

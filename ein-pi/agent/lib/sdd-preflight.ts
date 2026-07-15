@@ -697,11 +697,16 @@ function tddPreflightLine(mode: TddMode): string {
 // (the parent's inline work and sdd-apply). Injecting it into scope/map/
 // design/verify is noise that pushes cheap models toward a RED/GREEN loop in
 // read-only phases. Default true keeps the parent/apply behavior unchanged.
+// includeBaseline: la reconciliación del árbol Git es asunto del PARENT, UNA vez.
+// Inyectar la directiva de baseline en los ejecutores SDD (sdd-apply, etc.) les
+// hacía re-auditar el repo y pedir permiso al supervisor (detach). El parent la
+// resuelve; el ejecutor recibe una tarea cerrada y confía en ella.
 export function renderSddPreflightPrompt(
 	prefs: SddPreflightPreferences,
-	opts: { includeTdd?: boolean } = {},
+	opts: { includeTdd?: boolean; includeBaseline?: boolean } = {},
 ): string {
 	const includeTdd = opts.includeTdd ?? true;
+	const includeBaseline = opts.includeBaseline ?? true;
 	const sourceLine = prefs.prompted
 		? "The user already chose these SDD preferences for this Pi session. Reuse them unless the user explicitly changes them."
 		: "No interactive UI was available for SDD preflight, so these default preferences were applied for this Pi session. Ask the user before making delivery decisions that depend on them.";
@@ -715,7 +720,7 @@ export function renderSddPreflightPrompt(
 		`- Review budget: ${prefs.reviewBudgetLines} changed lines`,
 	];
 	if (includeTdd) lines.push(tddPreflightLine(prefs.tddMode));
-	if (prefs.gitBaseline) {
+	if (includeBaseline && prefs.gitBaseline) {
 		const baselineLine = renderGitBaselineLine(prefs.gitBaseline);
 		if (baselineLine) lines.push(baselineLine);
 	}

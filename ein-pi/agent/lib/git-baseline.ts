@@ -87,25 +87,20 @@ export function readGitBaseline(cwd: string, lookback = 15): GitBaseline {
 
 // Puro: traduce el baseline a la línea inyectada en el bloque de preflight.
 // - No repo → null (no ensuciamos el bloque en un dir sin git).
-// - Limpio → una línea sobria recordando reconciliar el estado.
-// - Reset reciente o stashes → WARNING con directiva de PARAR y reconciliar
-//   antes de mutar.
+// - Solo un `reset` reciente → WARNING con directiva de PARAR y reconciliar: es
+//   la operación que huérfana trabajo (el incidente que motivó el probe).
+// - Los stashes son trabajo APARCADO, no evidencia de que HEAD sea incorrecto:
+//   se MENCIONAN como información, nunca disparan por sí solos la reconciliación
+//   (un repo con stashes históricos convertía cada SDD en una falsa emergencia).
 export function renderGitBaselineLine(b: GitBaseline): string | null {
 	if (!b.isRepo) return null;
-	if (!b.recentReset && b.stashes === 0) {
-		return "- Working-tree baseline: clean start (no recent `reset` in reflog, no stashes). Still confirm HEAD is the state the user expects before the first mutation.";
+	const stashNote =
+		b.stashes > 0
+			? ` (${b.stashes} stash entr${b.stashes === 1 ? "y" : "ies"} present — parked work, informational only, not a blocker)`
+			: "";
+	if (!b.recentReset) {
+		return `- Working-tree baseline: clean start (no recent \`reset\` in reflog)${stashNote}. Still confirm HEAD is the state the user expects before the first mutation.`;
 	}
-	const flags: string[] = [];
-	if (b.recentReset) {
-		const when = b.recentReset.date ? ` (${b.recentReset.date})` : "";
-		flags.push(
-			`a recent \`${b.recentReset.action}\` at ${b.recentReset.selector}${when} — HEAD was moved, which can ORPHAN prior work (this is exactly how a previous agent's commits get lost)`,
-		);
-	}
-	if (b.stashes > 0) {
-		flags.push(
-			`${b.stashes} stash entr${b.stashes === 1 ? "y" : "ies"} — parked work that may be the state the user expects`,
-		);
-	}
-	return `- Working-tree baseline — INSPECT BEFORE MUTATING: ${flags.join("; ")}. Before ANY edit, commit, or SDD apply, run \`git reflog\` / \`git fsck --lost-found\` / \`git stash list\` and RECONCILE with the user that current HEAD is what they expect. If work looks orphaned, recover it FIRST — do not build on top of a possibly-reverted tree (a green build/verify will not catch lost content).`;
+	const when = b.recentReset.date ? ` (${b.recentReset.date})` : "";
+	return `- Working-tree baseline — INSPECT BEFORE MUTATING: a recent \`${b.recentReset.action}\` at ${b.recentReset.selector}${when} — HEAD was moved, which can ORPHAN prior work (this is exactly how a previous agent's commits get lost). Before ANY edit, commit, or SDD apply, run \`git reflog\` / \`git fsck --lost-found\` and RECONCILE with the user that current HEAD is what they expect. If work looks orphaned, recover it FIRST — do not build on top of a possibly-reverted tree (a green build/verify will not catch lost content)${stashNote}.`;
 }

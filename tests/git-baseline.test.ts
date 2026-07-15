@@ -71,10 +71,22 @@ describe("renderGitBaselineLine (puro)", () => {
 		expect(line).toContain("git reflog");
 	});
 
-	test("stashes presentes → WARNING los menciona", () => {
+	test("stashes SIN reset → información, nunca WARNING (fin del falso positivo)", () => {
 		const line = renderGitBaselineLine({ ...base, stashes: 2 });
+		expect(line).not.toContain("INSPECT BEFORE MUTATING");
+		expect(line).toContain("clean start");
+		expect(line).toContain("2 stash entries present");
+		expect(line).toContain("informational only");
+	});
+
+	test("reset + stashes → WARNING (por el reset), con los stashes como nota", () => {
+		const line = renderGitBaselineLine({
+			...base,
+			stashes: 1,
+			recentReset: { selector: "HEAD@{x}", action: "reset: moving to HEAD" },
+		});
 		expect(line).toContain("INSPECT BEFORE MUTATING");
-		expect(line).toContain("2 stash entries");
+		expect(line).toContain("1 stash entry present");
 	});
 });
 
@@ -152,5 +164,22 @@ describe("integración con el preflight", () => {
 		});
 		expect(out).toContain("Working-tree baseline");
 		expect(out).toContain("INSPECT BEFORE MUTATING");
+	});
+
+	test("includeBaseline:false → el baseline NO llega (ejecutores SDD)", () => {
+		const out = renderSddPreflightPrompt(
+			{
+				...PREFS,
+				gitBaseline: {
+					isRepo: true,
+					dirty: false,
+					stashes: 0,
+					recentReset: { selector: "HEAD@{x}", action: "reset: moving to HEAD" },
+				},
+			},
+			{ includeBaseline: false },
+		);
+		expect(out).not.toContain("Working-tree baseline");
+		expect(out).toContain("## SDD Session Preflight");
 	});
 });
