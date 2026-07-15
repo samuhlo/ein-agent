@@ -5,6 +5,16 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.2] - 2026-07-15
+
+### Fixed
+
+- **El instalador siempre nombra el paquete pi con scope.** El `pi` pelado en
+  npm es una librería matemática ajena cuyo bin pisa al agente y rompe `pi`; el
+  mensaje de fallo de `installPi` lo abreviaba a `bun install -g pi`, un footgun
+  si se copiaba. Ahora nombra `@earendil-works/pi-coding-agent`, con un test que
+  impide reintroducir la forma sin scope.
+
 ## [0.19.1] - 2026-07-15
 
 ### Fixed

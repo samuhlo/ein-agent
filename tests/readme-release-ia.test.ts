@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0191---2026-07-15");
+    expect(release.anchor).toBe("0192---2026-07-15");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,13 +70,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("`ein update` vuelve a actualizar pi");
-    expect(releaseSummary).toContain("paquetes Pi declarados");
-    expect(releaseSummary).toContain("Refresco acotado");
-    expect(releaseSummary).toContain("update verificado y no dry-run");
-    expect(releaseSummary).toContain("con confirmación");
-    expect(releaseSummary).toContain("Sin regresiones de seguridad");
-    expect(releaseSummary).toContain("no invalida el update del binario de Ein");
+    expect(releaseSummary).toContain("Instalación de pi a prueba de confusiones");
+    expect(releaseSummary).toContain("siempre nombra el paquete con scope");
+    expect(releaseSummary).toContain("Por qué importa");
+    expect(releaseSummary).toContain("librería ajena cuyo bin rompe el agente");
+    expect(releaseSummary).toContain("Regresión fijada");
+    expect(releaseSummary).toContain("sugiera el comando sin scope");
   });
 
   test("guía por capacidad conserva presets y decisión humana sin nombres volátiles", () => {

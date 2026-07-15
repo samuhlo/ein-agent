@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.1 · 2026-07-15](CHANGELOG.md#0191---2026-07-15).
+**Última release publicada según el registro canónico local:** [0.19.2 · 2026-07-15](CHANGELOG.md#0192---2026-07-15).
 
-- **`ein update` vuelve a actualizar pi:** el actualizador transaccional refresca de nuevo el agente subyacente y los paquetes Pi declarados.
-- **Refresco acotado:** ocurre solo tras un update verificado y no dry-run, con confirmación.
-- **Sin regresiones de seguridad:** un fallo refrescando pi no invalida el update del binario de Ein.
+- **Instalación de pi a prueba de confusiones:** el instalador siempre nombra el paquete con scope, nunca el `pi` pelado.
+- **Por qué importa:** el `pi` sin scope en npm es una librería ajena cuyo bin rompe el agente.
+- **Regresión fijada:** un test impide que cualquier pista sugiera el comando sin scope.
 
 ---
 
