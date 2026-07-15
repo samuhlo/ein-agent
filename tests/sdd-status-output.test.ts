@@ -61,6 +61,7 @@ function formatSddStatus(cwd: string, change?: string): string {
 		lines.push(`${t("sdd-status.apply", "apply")}: ${s.apply}`);
 		lines.push(`${t("sdd-status.verify", "verify")}: ${s.verify}`);
 		lines.push(`${t("sdd-status.tasks", "tasks")}: status=${s.tasks.status ?? "absent"} · ready=${s.tasks.counts.ready} · blocked=${s.tasks.counts.blocked} · pending=${s.tasks.counts.pending} · done=${s.tasks.counts.done}`);
+		if (s.tasks.nextPending) lines.push(`${t("sdd-status.next-pending", "next pending")}: ${s.tasks.nextPending.id} ${s.tasks.nextPending.title}`);
 		if (s.tasks.blockedBy) lines.push(`${t("sdd-status.blocked-by", "blocked_by")}: ${s.tasks.blockedBy}`);
 		lines.push(`${t("sdd-status.budget", "budget")}: ${compactBudget(s.budget)}`);
 		const problems = [...s.tasks.problems, ...s.budget.problems];
@@ -162,6 +163,15 @@ describe("sdd-status output format", () => {
 		const out = formatSddStatus(DIR);
 		expect(out).toContain("tasks: status=ready · ready=1 · blocked=0 · pending=1 · done=1");
 		expect(out).toContain("budget: allocated=10 reads · consumed=4 reads");
+		// Punto de reanudación surface para el apply por grupos.
+		expect(out).toContain("next pending: 1.1 Build");
+	});
+
+	test("sin tareas pendientes no muestra `next pending`", () => {
+		const c = change("feat-done");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [x] 1 hecho\n");
+		const out = formatSddStatus(DIR);
+		expect(out).not.toContain("next pending:");
 	});
 });
 

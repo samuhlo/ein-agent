@@ -68,6 +68,21 @@ describe("resolveSddStatus", () => {
 		expect(s.tasks.status).toBe("ready");
 		expect(s.tasks.counts).toEqual({ pending: 1, ready: 1, blocked: 0, done: 1 });
 		expect(s.tasks.items[0]).toEqual({ id: "1.1", title: "Build router", done: false });
+		expect(s.tasks.nextPending).toEqual({ id: "1.1", title: "Build router", done: false });
+	});
+
+	test("nextPending = primera tarea sin marcar, saltando las hechas (reanudación)", () => {
+		const c = change("feat-x");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [x] 1 hecho\n- [x] 2 hecho\n- [ ] 3 pendiente\n- [ ] 4 pendiente\n");
+		const s = resolveSddStatus(DIR, "feat-x");
+		expect(s.tasks.nextPending).toEqual({ id: "3", title: "pendiente", done: false });
+	});
+
+	test("todas las tareas hechas → nextPending null", () => {
+		const c = change("feat-x");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [x] 1 hecho\n- [x] 2 hecho\n");
+		const s = resolveSddStatus(DIR, "feat-x");
+		expect(s.tasks.nextPending).toBeNull();
 	});
 
 	test("tasks.md bloqueado alimenta contadores y blockers", () => {

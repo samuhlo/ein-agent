@@ -44,6 +44,9 @@ export type SddTasksStatus = {
 	status: "ready" | "blocked" | null;
 	blockedBy: string | null;
 	items: SddTaskItem[];
+	// Primera tarea sin marcar: el punto de reanudación del apply por grupos.
+	// Tras reabrir Pi, el orquestador continúa desde aquí sin rehacer lo hecho.
+	nextPending: SddTaskItem | null;
 	counts: {
 		pending: number;
 		ready: number;
@@ -219,6 +222,7 @@ function emptyTasksStatus(present = false, problem?: string): SddTasksStatus {
 		status: null,
 		blockedBy: null,
 		items: [],
+		nextPending: null,
 		counts: { pending: 0, ready: 0, blocked: 0, done: 0 },
 		problems: problem ? [problem] : [],
 	};
@@ -285,12 +289,13 @@ function readTasksStatus(changePath: string): SddTasksStatus {
 	const pending = items.length - done;
 	const blocked = status === "blocked" ? pending : 0;
 	const ready = status === "ready" ? pending : 0;
+	const nextPending = items.find((item) => !item.done) ?? null;
 	const problems: string[] = [];
 	if (!status) problems.push("tasks.md sin status ready|blocked.");
 	if (!blockedByMatch) problems.push("tasks.md sin blocked_by.");
 	if (items.length === 0) problems.push("tasks.md sin checkboxes parseables.");
 
-	return { present: true, status, blockedBy, items, counts: { pending, ready, blocked, done }, problems };
+	return { present: true, status, blockedBy, items, nextPending, counts: { pending, ready, blocked, done }, problems };
 }
 
 function readBudgetStatus(changePath: string): SddBudgetStatus {
