@@ -1,5 +1,6 @@
 import * as p from "@clack/prompts";
 import { detectPlatform, type Platform } from "../core/platform.ts";
+import { installDeclaredPackages, installPi, type InstallStep } from "../core/deps.ts";
 import { AGENT_DIR, INSTALL_MARKER } from "../core/paths.ts";
 import { parseSelector } from "../core/release-resolver.ts";
 import type { ReleaseSelector, UpdateOutcome } from "../core/release-types.ts";
@@ -23,6 +24,12 @@ export type UpdateRunDependencies = {
   destinationPath?: string;
   interactive?: boolean;
   write?: (line: string) => void;
+  // pi (the underlying agent) is a package-manager-owned artifact outside the
+  // transactional Ein-binary update; these hooks let it refresh alongside and
+  // keep tests off the network. Defaults hit bun/pi for real.
+  updatePi?: () => Promise<InstallStep>;
+  syncPiPackages?: () => Promise<InstallStep>;
+  confirmPiUpdate?: () => Promise<boolean>;
 };
 
 export function parseCliFlags(args: string[]): UpdateFlags {
@@ -70,10 +77,57 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
 
   const rendered = renderOutcome(outcome);
   for (const line of rendered.lines) write(line);
+
+  // The transactional updater above only owns the Ein binary + template +
+  // marker. pi (@earendil-works/pi-coding-agent) is installed via bun and was
+  // refreshed by the pre-transactional `ein update`; keep that promise (menu
+  // and help still say "Ein y pi") by refreshing it after a successful,
+  // non-dry-run update. Best-effort: never turns a good update into a failure.
+  if (rendered.exitCode === 0 && !flags.dryRun) {
+    await refreshPi(flags, dependencies, write);
+  }
+
   if (dependencies.interactive !== false) {
     p.outro(rendered.exitCode === 0 ? "Actualizacion finalizada." : "Actualizacion no aplicada.");
   }
   return rendered.exitCode;
+}
+
+/** Refreshes pi and the declared Pi packages after the Ein binary transaction. */
+async function refreshPi(
+  flags: UpdateFlags,
+  dependencies: UpdateRunDependencies,
+  write: (line: string) => void,
+): Promise<void> {
+  const interactive = dependencies.interactive !== false;
+  const wantPi = flags.yes
+    ? true
+    : dependencies.confirmPiUpdate
+      ? await dependencies.confirmPiUpdate()
+      : interactive
+        ? await confirmPiUpdate()
+        : false;
+  if (!wantPi) return;
+
+  const updatePi = dependencies.updatePi ?? installPi;
+  const syncPackages = dependencies.syncPiPackages ?? installDeclaredPackages;
+
+  const piSpinner = interactive ? p.spinner() : null;
+  piSpinner?.start("Actualizando pi a la ultima version");
+  const pi = await updatePi();
+  piSpinner?.stop(pi.detail);
+  if (!interactive) write(pi.detail);
+
+  const pkgSpinner = interactive ? p.spinner() : null;
+  pkgSpinner?.start("Verificando paquetes de Pi declarados");
+  const pkgs = await syncPackages();
+  pkgSpinner?.stop(pkgs.detail);
+  if (!interactive) write(pkgs.detail);
+}
+
+async function confirmPiUpdate(): Promise<boolean> {
+  const response = await p.confirm({ message: "Actualizar pi (@earendil-works/pi-coding-agent)?" });
+  return p.isCancel(response) ? false : response;
 }
 
 export async function confirmUpdate(): Promise<boolean> {
