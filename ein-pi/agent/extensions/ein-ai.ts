@@ -963,6 +963,23 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	// ── SDD close (canonical) ──────────────────────────────────────────────────
+	// Lógica compartida por el comando /ein:sdd-close y el tool ein_sdd_close: el
+	// move determinista (con guard de readiness) + memoria de cierre + refresco de
+	// EIN.md. Un único punto para que ambas superficies se comporten igual.
+	async function performSddClose(ctx: ExtensionContext, change: string, force: boolean) {
+		const result = closeChange(ctx.cwd, change, { force });
+		let memory: SafeMemoryReceipt | undefined;
+		if (result.ok) {
+			memory = await saveArchivedCloseMemory(ctx, change, result.to);
+			appendMemoryReceipt(result.to, memory);
+			// FORGE -> al cerrar un cambio, refresca la zona AUTO de EIN.md (comandos/
+			// estructura/docs) para que el índice no envejezca. Solo si ya existe: el
+			// cierre no es momento de crearlo (eso es /ein:init o el onboarding).
+			if (existsSync(einMdPath(ctx.cwd))) writeEinMd(ctx.cwd);
+		}
+		return { result, memory };
+	}
+
 	async function handleSddClose(args: string | string[], ctx: ExtensionContext) {
 		const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
 		const parts = raw.trim().split(/\s+/).filter(Boolean);
@@ -972,16 +989,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			ctx.ui.notify("Sin cambio que cerrar. Uso: /ein:sdd-close <change> [--force]", "warning");
 			return;
 		}
-		const r = closeChange(ctx.cwd, change, { force });
-		let memory: SafeMemoryReceipt | undefined;
-		if (r.ok) {
-			memory = await saveArchivedCloseMemory(ctx, change, r.to);
-			appendMemoryReceipt(r.to, memory);
-		}
-		// FORGE -> al cerrar un cambio, refresca la zona AUTO de EIN.md (comandos/
-		// estructura/docs) para que el índice no envejezca. Solo si ya existe: el
-		// cierre no es momento de crearlo (eso es /ein:init o el onboarding).
-		if (r.ok && existsSync(einMdPath(ctx.cwd))) writeEinMd(ctx.cwd);
+		const { result: r, memory } = await performSddClose(ctx, change, force);
 		const memoryMessage = memory
 			? memory.status === "saved" && memory.reason === "acknowledged"
 				? " Memoria: guardada."
@@ -998,6 +1006,34 @@ export default function einAi(pi: ExtensionAPI): void {
 	pi.registerCommand("ein:sdd-close", {
 		description: t("cmd.sdd-close.description", "Close a verified change"),
 		handler: async (args, ctx) => handleSddClose(args, ctx),
+	});
+
+	// Tool determinista de cierre: gemelo model-callable del comando. Antes el
+	// orquestador solo tenía el slash command (que no puede invocar), así que
+	// cerraba con hacks (`bun -e` importando la lib) o delegaba en el usuario.
+	pi.registerTool({
+		name: "ein_sdd_close",
+		label: "Ein SDD Close",
+		description:
+			"Deterministically archive a VERIFIED change: move openspec/changes/<change>/ to archive/ so only live changes remain. REFUSES on incomplete/stale evidence (apply not complete, verify absent/fail/stale, summary missing/stale, tasks pending) unless force:true — run sdd-close (writes summary.md) and re-verify any late fix FIRST. Moves the filesystem; never commits or pushes. This is the close step; do not shell out to the library.",
+		parameters: {
+			type: "object",
+			properties: {
+				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
+				force: { type: "boolean", description: "Bypass the readiness guard. Only for a genuine tooling escape, never to skip a real re-verification." },
+			},
+		} as const,
+		async execute(_id, params: { change?: string; force?: boolean }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
+			if (!change) {
+				return { content: [{ type: "text", text: "/// SDD CLOSE — no active change to close." }], details: { ok: false, reason: "no active change" } };
+			}
+			const { result, memory } = await performSddClose(ctx, change, Boolean(params?.force));
+			const text = result.ok
+				? `/// SDD CLOSE — '${change}' archived to ${result.to.replace(ctx.cwd, ".")}. openspec/changes/ is clean.`
+				: `/// SDD CLOSE — '${change}' NOT closed: ${result.reason}`;
+			return { content: [{ type: "text", text }], details: { ...result, memory } };
+		},
 	});
 
 	pi.registerCommand("ein:status", {

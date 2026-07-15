@@ -443,6 +443,22 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	const budget = readBudgetStatus(changePath);
 	const { verifyStale, summaryStale } = computeStaleness(changePath, present);
 
+	// Fuga de artefacto de fase: una fase presente cuyo predecesor FALTA significa
+	// que una fase-agente (p.ej. sdd-map) se usó como explorador para un cambio que
+	// aún no se había scopeado, dejando un artefacto/dir stray. Determinista: lo
+	// surface en el status en vez de dejarlo pasar. (El flujo normal escribe en
+	// orden, así que sin fuga no hay huecos y no hay falso positivo.)
+	const orderPresent = PHASE_ORDER.map((phase) => present[phase]);
+	const lastPresentIdx = orderPresent.lastIndexOf(true);
+	const gaps = PHASE_ORDER.slice(0, Math.max(0, lastPresentIdx))
+		.filter((_, index) => !orderPresent[index])
+		.map((phase) => PHASE_ARTIFACT[phase]);
+	if (gaps.length > 0) {
+		blocked.push(
+			`artefacto(s) fuera de orden: hay ${PHASE_ARTIFACT[PHASE_ORDER[lastPresentIdx]]} sin ${gaps.join(", ")} — ¿una fase se usó como explorador pre-SDD? limpia el change dir o arranca por scope.`,
+		);
+	}
+
 	// Siguiente fase: la primera no presente en orden, con la verificación como
 	// gate antes de cerrar. apply-progress.md con status != complete retiene apply.
 	let nextRecommended: SddNext;
