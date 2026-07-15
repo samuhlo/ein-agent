@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0190---2026-07-14");
+    expect(release.anchor).toBe("0191---2026-07-15");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,14 +70,13 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("Actualizador transaccional y verificado");
-    expect(releaseSummary).toContain("assets y checksums");
-    expect(releaseSummary).toContain("revierte ante fallos");
-    expect(releaseSummary).toContain("recupera transacciones interrumpidas");
-    expect(releaseSummary).toContain("Ciclo de Engram determinista");
-    expect(releaseSummary).toContain("OpenSpec sigue siendo la fuente canónica");
-    expect(releaseSummary).toContain("Git, banner y experiencia de release aclarados");
-    expect(releaseSummary).toContain("estado de sync es explícito");
+    expect(releaseSummary).toContain("`ein update` vuelve a actualizar pi");
+    expect(releaseSummary).toContain("paquetes Pi declarados");
+    expect(releaseSummary).toContain("Refresco acotado");
+    expect(releaseSummary).toContain("update verificado y no dry-run");
+    expect(releaseSummary).toContain("con confirmación");
+    expect(releaseSummary).toContain("Sin regresiones de seguridad");
+    expect(releaseSummary).toContain("no invalida el update del binario de Ein");
   });
 
   test("guía por capacidad conserva presets y decisión humana sin nombres volátiles", () => {

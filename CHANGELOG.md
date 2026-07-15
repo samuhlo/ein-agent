@@ -5,6 +5,17 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.1] - 2026-07-15
+
+### Fixed
+
+- **`ein update` vuelve a actualizar pi.** La reescritura transaccional del
+  actualizador dejó de refrescar el agente subyacente (`bun install -g pi`) y
+  los paquetes Pi declarados, aunque el menú y la ayuda seguían prometiendo
+  «Ein y pi». Tras un update verificado y no dry-run, pi y sus paquetes se
+  refrescan de nuevo (best-effort, con confirmación); un fallo al refrescar pi
+  no invalida el update del binario de Ein.
+
 ## [0.19.0] - 2026-07-14
 
 ### Added

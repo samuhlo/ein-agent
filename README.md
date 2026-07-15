@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.0 · 2026-07-14](CHANGELOG.md#0190---2026-07-14).
+**Última release publicada según el registro canónico local:** [0.19.1 · 2026-07-15](CHANGELOG.md#0191---2026-07-15).
 
-- **Actualizador transaccional y verificado:** `ein update` valida assets y checksums, revierte ante fallos y recupera transacciones interrumpidas.
-- **Ciclo de Engram determinista:** la memoria queda acotada a operaciones verificables y OpenSpec sigue siendo la fuente canónica.
-- **Git, banner y experiencia de release aclarados:** el estado de sync es explícito y la ruta de instalación/release del README es verificable.
+- **`ein update` vuelve a actualizar pi:** el actualizador transaccional refresca de nuevo el agente subyacente y los paquetes Pi declarados.
+- **Refresco acotado:** ocurre solo tras un update verificado y no dry-run, con confirmación.
+- **Sin regresiones de seguridad:** un fallo refrescando pi no invalida el update del binario de Ein.
 
 ---
 
