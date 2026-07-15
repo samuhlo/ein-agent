@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { closeChange } from "../ein-pi/agent/lib/sdd-close";
@@ -33,7 +33,7 @@ afterEach(() => {
 describe("closeChange", () => {
 	test("mueve el cambio a storage interno y conserva summary.md", () => {
 		mkChange("feat-x", { "summary.md": "# Resumen\nqué cambió", "design.md": "x" });
-		const r = closeChange(DIR, "feat-x");
+		const r = closeChange(DIR, "feat-x", { force: true });
 		expect(r.ok).toBe(true);
 		expect(existsSync(join(DIR, "openspec", "changes", "feat-x"))).toBe(false);
 		const closed = join(DIR, "openspec", "changes", "archive", "feat-x");
@@ -43,9 +43,9 @@ describe("closeChange", () => {
 
 	test("no pisa si ya existe en storage interno (idempotente-safe)", () => {
 		mkChange("feat-x", { "summary.md": "v1" });
-		expect(closeChange(DIR, "feat-x").ok).toBe(true);
+		expect(closeChange(DIR, "feat-x", { force: true }).ok).toBe(true);
 		mkChange("feat-x", { "summary.md": "v2" });
-		const r2 = closeChange(DIR, "feat-x");
+		const r2 = closeChange(DIR, "feat-x", { force: true });
 		expect(r2.ok).toBe(false);
 		expect(r2.reason).toContain("archive");
 	});
@@ -55,18 +55,71 @@ describe("closeChange", () => {
 		expect(closeChange(DIR, "archive").ok).toBe(false);
 	});
 
+	// Fase 2: el cierre no archiva sobre evidencia incompleta u obsoleta.
+	const READY_FILES = {
+		"scope.md": "scope: x\nbudget_allocated: 1",
+		"map.md": "m",
+		"design.md": "d",
+		"tasks.md": "status: ready\nblocked_by: none\n- [x] hecho\n",
+		"apply-progress.md": "status: complete\n",
+		"verify-report.md": "status: pass\nbehavior_coverage: verified\n",
+		"summary.md": "# Resumen\ncierre",
+	};
+
+	function setMtime(change: string, file: string, ms: number): void {
+		const p = join(DIR, "openspec", "changes", change, file);
+		utimesSync(p, new Date(ms), new Date(ms));
+	}
+
+	// apply < verify < summary → todo fresco (orden natural del flujo).
+	function makeFresh(change: string): void {
+		mkChange(change, READY_FILES);
+		setMtime(change, "apply-progress.md", 1_000_000);
+		setMtime(change, "verify-report.md", 2_000_000);
+		setMtime(change, "summary.md", 3_000_000);
+	}
+
+	test("cambio completo, verificado y fresco → cierra SIN force", () => {
+		makeFresh("feat-ready");
+		const r = closeChange(DIR, "feat-ready");
+		expect(r.ok).toBe(true);
+		expect(existsSync(join(DIR, "openspec", "changes", "archive", "feat-ready"))).toBe(true);
+	});
+
+	test("solo summary.md (sin verify/apply) → NO cierra", () => {
+		mkChange("feat-bare", { "summary.md": "x" });
+		const r = closeChange(DIR, "feat-bare");
+		expect(r.ok).toBe(false);
+		expect(r.reason).toContain("verify");
+		expect(existsSync(join(DIR, "openspec", "changes", "feat-bare"))).toBe(true);
+	});
+
+	test("verify obsoleto (apply tocado DESPUÉS de verify) → NO cierra", () => {
+		makeFresh("feat-stale");
+		// Una corrección posterior reescribe apply-progress: ahora es más nuevo.
+		setMtime("feat-stale", "apply-progress.md", 4_000_000);
+		const r = closeChange(DIR, "feat-stale");
+		expect(r.ok).toBe(false);
+		expect(r.reason).toContain("obsoleta");
+	});
+
+	test("--force sortea el guard aunque no esté listo", () => {
+		mkChange("feat-force", { "summary.md": "x" });
+		expect(closeChange(DIR, "feat-force", { force: true }).ok).toBe(true);
+	});
+
 	test("cierra cambios en la raíz legacy .sdd/changes/", () => {
 		const p = join(DIR, ".sdd", "changes", "fix-legacy");
 		mkdirSync(p, { recursive: true });
 		writeFileSync(join(p, "summary.md"), "# Resumen legacy");
-		const r = closeChange(DIR, "fix-legacy");
+		const r = closeChange(DIR, "fix-legacy", { force: true });
 		expect(r.ok).toBe(true);
 		expect(existsSync(join(DIR, ".sdd", "changes", "archive", "fix-legacy", "summary.md"))).toBe(true);
 	});
 
 	test("el receipt de close vive tras el archive y evita otro fallback del mismo digest", () => {
 		mkChange("feat-x", { "summary.md": "# Resumen\ncierre verificado" });
-		const r = closeChange(DIR, "feat-x");
+		const r = closeChange(DIR, "feat-x", { force: true });
 		expect(r.ok).toBe(true);
 		const approved = approveCandidate(buildCloseMemoryCandidate("feat-x")).approved!;
 		appendMemoryReceipt(r.to, {
