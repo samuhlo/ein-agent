@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.10 · 2026-07-15](CHANGELOG.md#01910---2026-07-15).
+**Última release publicada según el registro canónico local:** [0.19.11 · 2026-07-15](CHANGELOG.md#01911---2026-07-15).
 
-- **`ein_sdd_close` como tool:** el orquestador cierra un cambio verificado él mismo (con guard de readiness), sin rodeos ni pedírselo al usuario.
-- **Guard anti-fuga de fase-explorador:** el router marca un artefacto fuera de orden (p.ej. `map.md` sin `scope.md`) para no dejar dirs stray.
-- **Investigación pre-scope por lectura directa:** codegraph ctx / grep, nunca una fase con nombre de cambio especulativo.
+- **Apply ejecuta, no razona:** `sdd-apply` a `thinking: low` — el plan ya viene masticado de las fases previas.
+- **Apply barato de verdad:** `acceptance: none` por defecto (sdd-verify es el gate), sin el peaje del informe que hacía thrashear al modelo barato.
+- **Menos retries:** apply nunca corrompe la línea `status:` de `tasks.md`; el lint acepta un tasks 100% cerrado.
 
 ---
 

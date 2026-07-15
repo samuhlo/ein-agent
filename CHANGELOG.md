@@ -5,6 +5,19 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.11] - 2026-07-15
+
+### Changed
+
+- **La fase apply del SDD ejecuta, ya no razona (bloque E: coste).** Apply era el
+  sumidero de tokens (un cambio de 1 línea llegó a 47 turnos y rechazos varios).
+  Ahora: `sdd-apply` corre a `thinking: low` (E0); se delega con `acceptance: none`
+  por defecto y `sdd-verify` es el gate runtime real (E1), quitando el peaje del
+  acceptance-report que hacía thrashear a los modelos baratos; nunca toca la línea
+  `status:` de `tasks.md` y el lint acepta un tasks 100% cerrado (E2); y lleva un
+  `turnBudget` backstop contra runaways (E4). El orquestador puede pedir
+  `acceptance: verified` explícito cuando quiera re-ejecución por grupo.
+
 ## [0.19.10] - 2026-07-15
 
 ### Added

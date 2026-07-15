@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("01910---2026-07-15");
+    expect(release.anchor).toBe("01911---2026-07-15");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,12 +70,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("`ein_sdd_close` como tool");
-    expect(releaseSummary).toContain("con guard de readiness");
-    expect(releaseSummary).toContain("Guard anti-fuga de fase-explorador");
-    expect(releaseSummary).toContain("artefacto fuera de orden");
-    expect(releaseSummary).toContain("Investigación pre-scope por lectura directa");
-    expect(releaseSummary).toContain("codegraph ctx / grep");
+    expect(releaseSummary).toContain("Apply ejecuta, no razona");
+    expect(releaseSummary).toContain("thinking: low");
+    expect(releaseSummary).toContain("Apply barato de verdad");
+    expect(releaseSummary).toContain("sdd-verify es el gate");
+    expect(releaseSummary).toContain("Menos retries");
+    expect(releaseSummary).toContain("100% cerrado");
   });
 
   test("guía por capacidad conserva presets y decisión humana sin nombres volátiles", () => {
