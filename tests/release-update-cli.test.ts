@@ -223,6 +223,73 @@ describe("release update CLI", () => {
     expect(await Bun.file(markerPath).json()).toMatchObject({ schemaVersion: 2, version: "0.20.0" });
   });
 
+  test("refreshes pi and declared packages after a successful update", async () => {
+    const dir = root();
+    const agentDir = join(dir, "agent");
+    const destinationPath = join(dir, "ein");
+    const markerPath = join(agentDir, ".ein-install.json");
+    const journalPath = join(dir, "journal.json");
+    mkdirSync(agentDir, { recursive: true });
+    writeFileSync(destinationPath, "old-binary");
+    chmodSync(destinationPath, 0o755);
+    writeFileSync(markerPath, marker());
+    const base = defaultUpdateCaps();
+    const caps: UpdateCaps = {
+      ...base,
+      http: updateHttp(),
+      child: {
+        async spawn(_command, args) {
+          if (args.some((arg) => arg.startsWith("--ein-continuation="))) {
+            const txId = args.find((arg) => arg.startsWith("--ein-continuation="))!.split("=")[1]!;
+            return { code: 0, stdout: JSON.stringify({ txId, releaseTag: "installer-v0.20.0", binaryVersion: "0.20.0", templateVersion: "0.20.0", status: "ok" }) };
+          }
+          return { code: 0, stdout: "ein-installer 0.20.0\ntemplate-version 0.20.0\n" };
+        },
+      },
+      template: {
+        async deploy(_binary, target) {
+          writeFileSync(join(target, "template-manifest.json"), JSON.stringify({ templateVersion: "0.20.0" }));
+        },
+        async readManifest(target) {
+          return JSON.parse(await Bun.file(join(target, "template-manifest.json")).text()) as { templateVersion?: string };
+        },
+      },
+    };
+    let piUpdated = 0;
+    let packagesSynced = 0;
+    const output: string[] = [];
+    const code = await runUpdate(["--yes"], {
+      caps, platform: { os: "linux", arch: "x64" }, agentDir, markerPath, journalPath, destinationPath, interactive: false,
+      write: (line) => output.push(line),
+      updatePi: async () => { piUpdated += 1; return { ok: true, detail: "pi actualizado" }; },
+      syncPiPackages: async () => { packagesSynced += 1; return { ok: true, detail: "2 paquetes al dia" }; },
+    });
+    expect(code).toBe(EXIT_UPDATED);
+    expect(piUpdated).toBe(1);
+    expect(packagesSynced).toBe(1);
+    expect(output.join("\n")).toContain("pi actualizado");
+  });
+
+  test("skips pi refresh on dry-run and on failure", async () => {
+    let piTouched = 0;
+    const spy = { updatePi: async () => { piTouched += 1; return { ok: true, detail: "no deberia correr" }; } };
+
+    const dryMarkerPath = "/fake/marker.json";
+    const dryCaps = fakeUpdateCaps({ files: new Map([[dryMarkerPath, marker()]]), http: updateHttp() });
+    expect(await runUpdate(["--dry-run", "--yes", "0.20.0"], {
+      caps: dryCaps, platform: { os: "linux", arch: "x64" }, agentDir: "/fake/agent", markerPath: dryMarkerPath,
+      journalPath: "/fake/journal.json", destinationPath: "/fake/ein", interactive: false, write: () => {}, ...spy,
+    })).toBe(EXIT_DRY_RUN);
+
+    const failCaps = fakeUpdateCaps({ files: new Map([["/fake/marker.json", marker()]]), http: { get: async () => { throw new Error("boom"); } } });
+    expect(await runUpdate(["--yes"], {
+      caps: failCaps, markerPath: "/fake/marker.json", journalPath: "/fake/journal.json", destinationPath: "/fake/ein",
+      interactive: false, write: () => {}, ...spy,
+    })).toBe(EXIT_FAILED);
+
+    expect(piTouched).toBe(0);
+  });
+
   test("renders committed, recovery-required, and unverified banner labels", () => {
     expect(renderBanner({ marker: JSON.parse(new TextDecoder().decode(marker("0.20.0"))), recoveryRequired: false })).toContain("v0.20.0");
     expect(bannerVersionLabel({ marker: null, recoveryRequired: true })).toBe("recovery required");
