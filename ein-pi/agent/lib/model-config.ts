@@ -219,12 +219,32 @@ export function cloneModelConfig(config: AgentModelConfig): AgentModelConfig {
 	);
 }
 
-// Thinking por defecto para fases de EJECUCIÓN: no razonan, ejecutan el plan ya
-// masticado por scope/map/design/tasks. Sin fijarlo, heredan el thinking alto
-// del modelo y dan vueltas quemando tokens (sdd-apply llegó a 47 turnos por un
-// cambio de 1 línea). El usuario/preset puede overridear en models.json.
+// Thinking por defecto por fase. Sin fijarlo, cada agente hereda el thinking
+// alto del modelo y da vueltas quemando tokens (apply llegó a 47 turnos; map a
+// 222k). Solo RAZONAN de verdad orchestrator y sdd-design (compuertas de
+// decisión) → se dejan sin fijar (heredan el default del modelo capaz). Las
+// fases que LEEN/EJECUTAN corren más bajo. El usuario/preset puede overridear.
 const DEFAULT_THINKING: Record<string, ThinkingLevel> = {
-	"sdd-apply": "low",
+	"sdd-apply": "low", // ejecuta el plan masticado (E0)
+	"sdd-map": "medium", // lee y resume impacto vía codegraph, no diseña (G)
+	"sdd-verify": "medium", // corre tests + razona cobertura (G)
+};
+
+// Recomendación por agente para el panel /ein:models: nivel de modelo (barato/
+// capaz) + thinking + por qué. Ayuda a elegir sin memorizar la arquitectura.
+export type AgentTier = "cheap" | "capable";
+export type AgentRecommendation = { tier: AgentTier; thinking: ThinkingLevel; reason: string };
+export const AGENT_RECOMMENDATIONS: Record<string, AgentRecommendation> = {
+	orchestrator: { tier: "capable", thinking: "high", reason: "decide el mapa; el cerebro del flujo" },
+	"sdd-design": { tier: "capable", thinking: "high", reason: "última compuerta de razonamiento antes de ejecutar" },
+	"sdd-scope": { tier: "cheap", thinking: "low", reason: "extracción estructurada del alcance" },
+	"sdd-map": { tier: "cheap", thinking: "medium", reason: "lee y resume impacto (codegraph), no diseña" },
+	"sdd-tasks": { tier: "cheap", thinking: "low", reason: "descompone el diseño en checklist" },
+	"sdd-apply": { tier: "cheap", thinking: "low", reason: "ejecuta el plan masticado, no razona" },
+	"sdd-verify": { tier: "cheap", thinking: "medium", reason: "corre tests + razona cobertura" },
+	"sdd-close": { tier: "cheap", thinking: "low", reason: "condensa el resumen" },
+	"ein-git": { tier: "cheap", thinking: "low", reason: "entrega mecánica (commit/push/PR)" },
+	"ein-linear": { tier: "cheap", thinking: "low", reason: "operaciones de board acotadas" },
 };
 
 // Aplica el thinking por defecto del agente cuando ni models.json ni el preset
