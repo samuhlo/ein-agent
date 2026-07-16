@@ -25,8 +25,8 @@ describe("readTddMode / writeTddMode", () => {
 		rmSync(cwd, { recursive: true, force: true });
 	});
 
-	test("default 'auto' sin fichero", () => {
-		expect(readTddMode(cwd)).toBe("auto");
+	test("default 'off' sin fichero (bloque B: TDD off por defecto)", () => {
+		expect(readTddMode(cwd)).toBe("off");
 	});
 
 	test("round-trip de cada modo", () => {
@@ -41,12 +41,12 @@ describe("readTddMode / writeTddMode", () => {
 		expect(tddConfigPath(cwd)).toBe(join(cwd, ".pi", "ein", "tdd.json"));
 	});
 
-	test("valor inválido o JSON roto → default 'auto'", () => {
+	test("valor inválido o JSON roto → default 'off'", () => {
 		const path = tddConfigPath(cwd);
 		mkdirSync(join(cwd, ".pi", "ein"), { recursive: true });
 		writeFileSync(path, JSON.stringify({ mode: "turbo" }));
-		expect(readTddMode(cwd)).toBe("auto");
+		expect(readTddMode(cwd)).toBe("off");
 		writeFileSync(path, "{roto");
-		expect(readTddMode(cwd)).toBe("auto");
+		expect(readTddMode(cwd)).toBe("off");
 	});
 });

@@ -25,7 +25,9 @@ export const TDD_LABEL: Record<TddMode, string> = {
 	ask: "preguntar",
 };
 
-const DEFAULT_TDD: TddMode = "auto";
+// Default OFF: la mayoría del trabajo (frontend/simple) no necesita el ciclo
+// RED/GREEN y no debe quemar tokens. strict es opt-in (preflight o /ein:tdd).
+const DEFAULT_TDD: TddMode = "off";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);

@@ -10,11 +10,16 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	collectSddPreflightPreferences,
 	delegationIsPlanningOnly,
 	ensurePlanningAcceptance,
+	gateTddForDelegation,
 } from "../ein-pi/agent/lib/sdd-preflight";
+import { writeTddMode } from "../ein-pi/agent/lib/tdd";
 
 describe("delegationIsPlanningOnly", () => {
 	test("agente único de planificación → true", () => {
@@ -115,10 +120,10 @@ describe("collectSddPreflightPreferences — TDD elegido al inicio", () => {
 		expect(prefs.executionMode).toBe("interactive");
 	});
 
-	test("auto elegido → sigue el config (sin config → auto)", async () => {
+	test("cualquier cosa que no sea strict → off (default del bloque B)", async () => {
 		const { ctx } = ctxStub({ execution: "interactive", tdd: "auto" });
 		const prefs = await collectSddPreflightPreferences(ctx, false);
-		expect(prefs.tddMode).toBe("auto");
+		expect(prefs.tddMode).toBe("off");
 	});
 
 	test("sin UI → defaults sin preguntar", async () => {
@@ -126,5 +131,38 @@ describe("collectSddPreflightPreferences — TDD elegido al inicio", () => {
 		const prefs = await collectSddPreflightPreferences(ctx, false);
 		expect(prefs.prompted).toBe(false);
 		expect(prefs.executionMode).toBe("interactive");
+	});
+
+	// Bloque B: el bug del doble-ask. Con el modo global `ask`, el preflight
+	// preguntaba TDD y luego el gate volvía a preguntar. Ahora el preflight fija
+	// SIEMPRE el override → el gate corta y no re-pregunta.
+	test("tras el preflight, el gate de TDD ya no re-pregunta aunque el modo sea `ask`", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "ein-tdd-double-"));
+		try {
+			writeTddMode(cwd, "ask");
+			let tddAsks = 0;
+			const ctx = {
+				hasUI: true,
+				cwd,
+				ui: {
+					select: async (title: string, opts: string[]) => {
+						if (/strict tdd|tdd estricto/i.test(title)) { tddAsks += 1; return "off"; }
+						if (/execution mode/i.test(title)) return "interactive";
+						if (/notebook/i.test(title)) return "off";
+						if (/chaining/i.test(title)) return "auto-forecast";
+						return opts[0];
+					},
+					input: async () => "400",
+					notify: () => {},
+				},
+			} as never;
+			await collectSddPreflightPreferences(ctx, false);
+			expect(tddAsks).toBe(1); // preguntado UNA vez, en el preflight
+			await gateTddForDelegation({ agent: "sdd-scope", task: "x" }, ctx);
+			await gateTddForDelegation({ agent: "sdd-apply", task: "y" }, ctx);
+			expect(tddAsks).toBe(1); // el gate NO vuelve a preguntar
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+		}
 	});
 });
