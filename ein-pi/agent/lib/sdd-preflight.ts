@@ -670,18 +670,19 @@ export async function collectSddPreflightPreferences(
 		"interactive",
 		"auto",
 	]);
-	// TDD decidido AL INICIO, junto al modo de ejecución: una sola decisión por
-	// sesión SDD. "off"/"strict" fijan el override determinista → el gate de
-	// delegación (askRunTddMode) ya no interrumpe a mitad de flujo. "auto" sigue
-	// `openspec/config.yaml`. Sustituye al viejo camino silencioso (config → off
-	// sin preguntar) que dejaba al usuario sin elegir.
+	// TDD decidido AL INICIO, una sola decisión por sesión SDD: off (default) o
+	// strict. **Siempre** fija el override determinista → el gate de delegación
+	// (askRunTddMode) ya NO vuelve a preguntar (fin del doble-ask que salía cuando
+	// el modo global era `ask`). Default off: la mayoría del trabajo (frontend/
+	// simple) no necesita RED/GREEN y no debe quemar tokens; strict es opt-in.
+	// Respeta un `strict` persistente (`/ein:tdd strict`) poniéndolo primero.
+	const tddDefaultStrict = readTddMode(ctx.cwd) === "strict";
 	const tddChoice = await ctx.ui.select(
-		"Strict TDD for this SDD session (UI/visual/trivial → off; logic-heavy → strict; auto → follow config)",
-		["auto", "off", "strict"],
+		"Strict TDD for this SDD change? (default off — UI/visual/simple; strict → logic-heavy, forces RED/GREEN)",
+		tddDefaultStrict ? ["strict", "off"] : ["off", "strict"],
 	);
-	const tddMode: TddMode =
-		tddChoice === "off" || tddChoice === "strict" ? tddChoice : resolveTddNoAsk(ctx);
-	if (tddChoice === "off" || tddChoice === "strict") setTaskTddMode(ctx, tddChoice);
+	const tddMode: TddMode = tddChoice === "strict" ? "strict" : "off";
+	setTaskTddMode(ctx, tddMode);
 	const memoryOptions = engramAvailable ? ["off", "engram"] : ["off"];
 	const memoryMode = await ctx.ui.select("Optional Engram project notebook", memoryOptions);
 	const chainedPrStrategy = await ctx.ui.select("SDD PR chaining", [
