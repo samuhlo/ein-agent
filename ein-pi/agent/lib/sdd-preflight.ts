@@ -647,16 +647,20 @@ export function ensureApplyAcceptance(input: unknown): boolean {
 	return true;
 }
 
-// Backstop de turnos para apply: un run se fue a ⟳47 turnos por un cambio de 1
-// línea (thrashing). Con thinking bajo (E0) los turnos caen; esto solo corta un
-// runaway. Generoso a propósito — un grupo grande que lo toque devuelve `partial`
-// y el orquestador continúa, nunca se pierde trabajo. No pisa un budget explícito.
-const APPLY_TURN_BUDGET = { maxTurns: 40, graceTurns: 3 } as const;
+// Backstop de turnos para apply, SOLO contra runaways de verdad. El cap de 40
+// abortaba trabajo LEGÍTIMO: un apply de TDD estricto corre muchos ciclos
+// RED/GREEN y necesita bastantes turnos (lo gobierna `maxRuntimeMs`, 30 min). Por
+// eso: (1) NUNCA se inyecta en applies de TDD estricto, y (2) el cap normal sube
+// a 60. Un grupo que lo toque devuelve `partial` y el orquestador continúa.
+const APPLY_TURN_BUDGET = { maxTurns: 60, graceTurns: 3 } as const;
 
 export function ensureApplyTurnBudget(input: unknown): boolean {
 	if (!isRecord(input)) return false;
 	if (input.agent !== "sdd-apply") return false;
 	if (input.turnBudget != null) return false;
+	// TDD estricto → sin cap de turnos (lo limita maxRuntimeMs); un cap tight
+	// mataba applies reales a mitad de los ciclos RED/GREEN.
+	if (readDelegationTddHint(input) === "strict") return false;
 	input.turnBudget = { ...APPLY_TURN_BUDGET };
 	return true;
 }

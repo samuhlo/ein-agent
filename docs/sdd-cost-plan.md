@@ -45,8 +45,10 @@ Tras E, el coste se movió de apply a **map (222k)** y **verify (297k)** — fas
 - Default Quick: un `sdd-apply` ad-hoc (reporte inline, sin artefactos) o edit directo para lo trivial; check dirigido; commit. Sin las 7 fases.
 - Gate determinista `gateSddEscalation`: si la delegación arranca `sdd-scope` Y la petición no fue trigger SDD explícito Y no se confirmó → preguntar "rápido vs SDD". Default rápido, bloquea scope si rápido.
 
-## Bloque F — Right-size dentro del SDD
-- `sdd-tasks` dimensiona los grupos al impacto real que encontró design (2 ficheros/1 línea ≠ 4 grupos).
+## Bloque F — Right-size dentro del SDD (hecho)
+- `sdd-tasks` dimensiona los grupos al impacto real: ni demasiados (2 ficheros ≠ 4 grupos) ni **grupos monstruo**. Doctrina en `sdd-tasks.md`: un grupo ≤3-4 ficheros de producción; un tipo fundacional/cross-cutting va en su **propio grupo mínimo**, nunca junto a sus consumidores; bajo TDD estricto, grupos aún más pequeños.
+- Backstop determinista: `ein_sdd_check` avisa `oversized-group` cuando un grupo toca >4 ficheros de producción (`oversizedGroupWarnings`).
+- **Fix de E4 (regresión):** el `turnBudget` de apply (40+3) abortaba trabajo legítimo de TDD estricto. Ahora: NO se inyecta cap en applies de TDD estricto (lo gobierna `maxRuntimeMs`), y el cap normal sube a 60.
 
 ---
 
