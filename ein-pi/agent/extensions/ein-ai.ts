@@ -98,6 +98,7 @@ import {
 	writeEinMd,
 } from "../lib/project-context.ts";
 import { AGENT_DIR } from "./ein-paths";
+import { readInstalledVersion, staleSessionNudge } from "../lib/session-version";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
@@ -111,6 +112,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // le vuelve a preguntar; vale solo hasta el siguiente mensaje (entrega por
 // iniciativa del agente sin petición previa sí dispara la confirmación).
 const deliveryIntentBySession = new Map<string, boolean>();
+// Versión instalada al arrancar cada sesión + sesiones ya avisadas: si `ein
+// update` corre a mitad de sesión, esta sigue con la plantilla vieja → nudge de
+// reinicio (una vez).
+const sessionStartVersion = new Map<string, string | null>();
+const staleSessionNudged = new Set<string>();
 type MemorySaveLifecycle = {
 	save(candidate: MemoryCandidate): Promise<{ receipt: MemoryReceipt }>;
 };
@@ -557,6 +563,30 @@ export default function einAi(pi: ExtensionAPI): void {
 		// inutiles (gasto de tokens) sin escribir codigo. Tambien gobierna si la
 		// linea de Strict TDD entra en el preflight: solo donde hay RED/GREEN real.
 		const isParent = !isNamedAgent && !isSddAgent;
+		// Nudge de sesión obsoleta: solo la sesión padre interactiva. Registra la
+		// versión al primer turno; si cambia después (un `ein update` a mitad de
+		// sesión), avisa una vez de reiniciar — esta sesión no cargará la plantilla
+		// nueva hasta un Pi fresco.
+		if (isParent && ctx.hasUI) {
+			const sessKey = sddPreflightSessionKey(ctx);
+			const current = readInstalledVersion(join(AGENT_DIR, ".ein-install.json"));
+			if (!sessionStartVersion.has(sessKey)) {
+				sessionStartVersion.set(sessKey, current);
+			} else {
+				const decision = staleSessionNudge({
+					startVersion: sessionStartVersion.get(sessKey) ?? null,
+					currentVersion: current,
+					alreadyNudged: staleSessionNudged.has(sessKey),
+				});
+				if (decision.nudge) {
+					staleSessionNudged.add(sessKey);
+					ctx.ui.notify(
+						`Ein se actualizó a v${decision.version} durante esta sesión — sigue con la plantilla anterior. Reinicia Pi (o abre una sesión nueva) para cargar los cambios.`,
+						"warning",
+					);
+				}
+			}
+		}
 		const writesCode = isParent || startNames.includes("sdd-apply");
 		const sddPrompt =
 			prefs && (!isNamedAgent || isSddAgent)
