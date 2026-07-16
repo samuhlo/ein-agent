@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.11 · 2026-07-15](CHANGELOG.md#01911---2026-07-15).
+**Última release publicada según el registro canónico local:** [0.19.12 · 2026-07-16](CHANGELOG.md#01912---2026-07-16).
 
-- **Apply ejecuta, no razona:** `sdd-apply` a `thinking: low` — el plan ya viene masticado de las fases previas.
-- **Apply barato de verdad:** `acceptance: none` por defecto (sdd-verify es el gate), sin el peaje del informe que hacía thrashear al modelo barato.
-- **Menos retries:** apply nunca corrompe la línea `status:` de `tasks.md`; el lint acepta un tasks 100% cerrado.
+- **TDD off por defecto:** la mayoría del trabajo (frontend/simple) no necesita RED/GREEN; strict es opt-in.
+- **Una sola pregunta:** el preflight pregunta off/strict al arrancar (default off) y fija la decisión de sesión.
+- **Sin doble-ask:** el gate de delegación ya no vuelve a preguntar TDD a mitad de flujo.
 
 ---
 

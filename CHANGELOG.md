@@ -5,6 +5,17 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.12] - 2026-07-16
+
+### Changed
+
+- **TDD off por defecto, una sola pregunta, sin doble-ask (bloque B).** El default
+  de TDD pasa a **off** (la mayoría del trabajo frontend/simple no necesita
+  RED/GREEN ni debe quemar tokens); strict es opt-in. El preflight pregunta la
+  postura UNA vez al arrancar (off/strict, default off) y **siempre** fija la
+  decisión de sesión, así el gate de delegación ya no vuelve a preguntar a mitad
+  de flujo — fin del doble-ask que salía cuando el modo global era `ask`.
+
 ## [0.19.11] - 2026-07-15
 
 ### Changed
