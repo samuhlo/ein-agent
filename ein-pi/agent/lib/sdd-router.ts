@@ -538,6 +538,54 @@ export function assessCloseReadiness(cwd: string, change: string): CloseReadines
 	return { ready: reasons.length === 0, reasons };
 }
 
+// Preview DETERMINISTA del plan de apply, leído de tasks.md: por grupo, sus
+// ficheros de PRODUCCIÓN y un comando de verify representativo. Lo consume el
+// brief docente pre-apply para que "qué se toca" sean hechos, no la paráfrasis
+// del modelo. Puro y testeable.
+export type SddPlanGroup = { title: string; files: string[]; verify: string | null };
+export type SddPlanPreview = { change: string; groups: SddPlanGroup[] };
+
+const PLAN_SOURCE_FILE_RE = /[\w./-]+\.(?:ts|tsx|js|jsx|mjs|cjs|vue|svelte|py|rb|go|rs|java|kt|c|cc|cpp|cs|php|sql|css|scss|less)\b/g;
+const PLAN_VERIFY_RE = /\bbunx?\s+(?:vitest\s+run|vitest|test)\b[^`\n]*/i;
+
+function planIsTestPath(path: string): boolean {
+	return /\.(?:test|spec)\.|(?:^|\/)(?:tests?|__tests__|e2e)\//.test(path);
+}
+
+export function resolveSddPlanPreview(cwd: string, change?: string): SddPlanPreview {
+	const target = change ?? listActiveChanges(cwd)[0] ?? null;
+	if (!target) return { change: "", groups: [] };
+	const content = readText(join(changesDir(cwd), target, PHASE_ARTIFACT.tasks));
+	if (content === null) return { change: target, groups: [] };
+	const groups: SddPlanGroup[] = [];
+	// [preámbulo, heading1, body1, heading2, body2, ...]
+	const parts = content.split(/^##\s+(.+)$/m);
+	for (let i = 1; i < parts.length; i += 2) {
+		const title = (parts[i] ?? "").trim();
+		const body = parts[i + 1] ?? "";
+		const files = [
+			...new Set(
+				[...body.matchAll(PLAN_SOURCE_FILE_RE)].map((m) => m[0]).filter((p) => !planIsTestPath(p)),
+			),
+		];
+		const verifyMatch = body.match(PLAN_VERIFY_RE);
+		groups.push({ title, files, verify: verifyMatch ? verifyMatch[0].trim() : null });
+	}
+	return { change: target, groups };
+}
+
+// Bloque compacto para el orquestador: alimenta el "QUÉ SE TOCA" del brief.
+export function formatSddPlanPreview(preview: SddPlanPreview): string {
+	if (preview.groups.length === 0) return "";
+	const lines = [`plan de apply: ${preview.groups.length} grupo(s)`];
+	for (const group of preview.groups) {
+		lines.push(`- ${group.title}`);
+		lines.push(`    toca: ${group.files.length ? group.files.join(", ") : "(sin ficheros de producción)"}`);
+		if (group.verify) lines.push(`    verify: ${group.verify}`);
+	}
+	return lines.join("\n");
+}
+
 export function resolveSddNext(cwd: string, change?: string, options: { auto?: boolean } = {}): SddNextReport {
 	const active = listActiveChanges(cwd);
 	const exists = typeof change === "string" && active.includes(change);
