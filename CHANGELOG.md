@@ -5,6 +5,18 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.20.1] - 2026-07-16
+
+### Added
+
+- **Brief docente antes de la compuerta de apply.** En un SDD interactivo, antes
+  de preguntar "¿aplico?", el orquestador ahora presenta un resumen en tono
+  docente: QUÉ consigue el cambio, CÓMO va a funcionar por dentro (del diseño),
+  QUÉ SE TOCA (grupos + ficheros de producción exactos) y RIESGOS — y luego
+  pregunta. La lista de ficheros es determinista (`resolveSddPlanPreview` sobre
+  `tasks.md`, tests excluidos), no la paráfrasis del modelo; `ein_sdd_status` la
+  adjunta en la ventana de apply. Se acabó decidir a ciegas.
+
 ## [0.20.0] - 2026-07-16
 
 Cierra el arco de coste y fiabilidad del SDD acumulado en la serie 0.19.x

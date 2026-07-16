@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.20.0 · 2026-07-16](CHANGELOG.md#0200---2026-07-16).
+**Última release publicada según el registro canónico local:** [0.20.1 · 2026-07-16](CHANGELOG.md#0201---2026-07-16).
 
-- **apply de TDD estricto sin cap de turnos:** el `turnBudget` ya no aborta ciclos RED/GREEN legítimos (lo gobierna `maxRuntimeMs`).
-- **grupos al tamaño real:** `sdd-tasks` evita grupos monstruo; un tipo fundacional va en su propio grupo mínimo.
-- **cierra el arco de coste 0.19.x:** apply barato, TDD off por defecto, map/verify calibrados y right-sizing de grupos.
+- **Brief docente antes de aplicar:** en un SDD interactivo, el orquestador explica qué se va a hacer y cómo antes de preguntar.
+- **Qué se toca, con hechos:** la lista de grupos y ficheros sale determinista de `tasks.md`, no de la paráfrasis del modelo.
+- **Se acabó decidir a ciegas:** QUÉ · CÓMO FUNCIONA · QUÉ SE TOCA · RIESGOS, y luego la pregunta de aplicar.
 
 ---
 
