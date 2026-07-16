@@ -5,6 +5,29 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.20.0] - 2026-07-16
+
+Cierra el arco de coste y fiabilidad del SDD acumulado en la serie 0.19.x
+(updater transaccional funcionando, apply barato, TDD off por defecto, guards de
+cierre, calibración de map/verify). Esta release recalibra el último cabo suelto
+y termina el right-sizing de grupos.
+
+### Fixed
+
+- **El `turnBudget` de apply ya no aborta trabajo legítimo (regresión de E4).**
+  El cap de 40 turnos cortaba a mitad un apply de TDD estricto —que corre muchos
+  ciclos RED/GREEN legítimos— y llegó a bloquear un SDD entero. Ahora los applies
+  de TDD estricto **no llevan cap de turnos** (los gobierna `maxRuntimeMs`); el
+  cap normal sube a 60, como backstop solo de runaways reales.
+
+### Changed
+
+- **`sdd-tasks` dimensiona los grupos al trabajo real (bloque F).** Ni demasiados
+  ni grupos monstruo: cada grupo ≤3-4 ficheros de producción, un tipo fundacional
+  va en su propio grupo mínimo (nunca junto a sus consumidores), y bajo TDD
+  estricto los grupos son aún más pequeños. `ein_sdd_check` avisa `oversized-group`
+  cuando un grupo toca >4 ficheros de producción, para partirlo antes de aplicar.
+
 ## [0.19.14] - 2026-07-16
 
 ### Changed

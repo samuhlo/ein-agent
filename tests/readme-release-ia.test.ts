@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("01914---2026-07-16");
+    expect(release.anchor).toBe("0200---2026-07-16");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,12 +70,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("map y verify más baratos");
-    expect(releaseSummary).toContain("thinking: medium");
-    expect(releaseSummary).toContain("design se queda capaz");
-    expect(releaseSummary).toContain("falsa economía");
-    expect(releaseSummary).toContain("`/ein:models` recomienda");
-    expect(releaseSummary).toContain("elegir informado");
+    expect(releaseSummary).toContain("apply de TDD estricto sin cap de turnos");
+    expect(releaseSummary).toContain("ciclos RED/GREEN legítimos");
+    expect(releaseSummary).toContain("grupos al tamaño real");
+    expect(releaseSummary).toContain("grupos monstruo");
+    expect(releaseSummary).toContain("cierra el arco de coste 0.19.x");
+    expect(releaseSummary).toContain("right-sizing de grupos");
   });
 
   test("guía por capacidad conserva presets y decisión humana sin nombres volátiles", () => {

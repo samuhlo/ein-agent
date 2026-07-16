@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.14 · 2026-07-16](CHANGELOG.md#01914---2026-07-16).
+**Última release publicada según el registro canónico local:** [0.20.0 · 2026-07-16](CHANGELOG.md#0200---2026-07-16).
 
-- **map y verify más baratos:** corren a `thinking: medium` por defecto — leen y verifican, no diseñan.
-- **design se queda capaz:** es la compuerta de razonamiento; abaratarlo sería falsa economía (es low-token).
-- **`/ein:models` recomienda:** muestra por agente el nivel de modelo y thinking recomendado, para elegir informado.
+- **apply de TDD estricto sin cap de turnos:** el `turnBudget` ya no aborta ciclos RED/GREEN legítimos (lo gobierna `maxRuntimeMs`).
+- **grupos al tamaño real:** `sdd-tasks` evita grupos monstruo; un tipo fundacional va en su propio grupo mínimo.
+- **cierra el arco de coste 0.19.x:** apply barato, TDD off por defecto, map/verify calibrados y right-sizing de grupos.
 
 ---
 
