@@ -5,6 +5,19 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.14] - 2026-07-16
+
+### Changed
+
+- **Calibrado el thinking de map/verify y recomendaciones en `/ein:models` (bloque G).**
+  Tras abaratar apply (bloque E), el coste se movió a `sdd-map` (~222k) y `sdd-verify`
+  (~297k) — fases que leen y verifican, no diseñan. Ahora corren a `thinking: medium`
+  por defecto; solo `orchestrator` y `sdd-design` (que razonan) siguen en modelo
+  capaz/high. El detalle que design necesita vive en `map.md`, no en los tokens de map,
+  así que bajar su thinking no pierde detalle. Además, el panel `/ein:models` muestra la
+  recomendación por agente (barato/capaz + thinking + por qué) para elegir sin memorizar
+  la arquitectura.
+
 ## [0.19.13] - 2026-07-16
 
 ### Added

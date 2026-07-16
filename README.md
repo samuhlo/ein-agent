@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.13 · 2026-07-16](CHANGELOG.md#01913---2026-07-16).
+**Última release publicada según el registro canónico local:** [0.19.14 · 2026-07-16](CHANGELOG.md#01914---2026-07-16).
 
-- **Aviso de sesión obsoleta:** si haces `ein update` a mitad de sesión, Ein te avisa de reiniciar Pi para cargar la plantilla nueva.
-- **Por qué:** la plantilla se carga al arrancar la sesión; un update en disco no surte efecto hasta un Pi fresco.
-- **Sin ruido:** avisa una sola vez y solo en la sesión interactiva; los runs de fuente/dev no molestan.
+- **map y verify más baratos:** corren a `thinking: medium` por defecto — leen y verifican, no diseñan.
+- **design se queda capaz:** es la compuerta de razonamiento; abaratarlo sería falsa economía (es low-token).
+- **`/ein:models` recomienda:** muestra por agente el nivel de modelo y thinking recomendado, para elegir informado.
 
 ---
 
