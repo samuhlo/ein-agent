@@ -39,6 +39,15 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("out-of-order artifact");
 	});
 
+	test("el gate pre-apply presenta un brief docente con qué se toca determinista", () => {
+		expect(orch).toContain("present a short TEACHING brief");
+		expect(orch).toContain("## // PLAN —");
+		expect(orch).toContain("QUÉ SE TOCA");
+		// La lista de ficheros viene del preview determinista, no de la paráfrasis.
+		expect(orch).toContain("plan preview");
+		expect(orch).toContain("MUST come from the deterministic preview");
+	});
+
 	test("incluye tasks y close en el flujo de 7", () => {
 		expect(orch).toContain("scope → map → design → tasks → apply → verify → close");
 	});

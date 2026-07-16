@@ -72,7 +72,7 @@ import {
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
-import { aggregateSddBudget, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddStatus, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, formatSddPlanPreview, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
 import { closeChange } from "../lib/sdd-close.ts";
 import { approveCandidate, type MemoryCandidate, type MemoryReceipt } from "../lib/memory-contract.ts";
 import {
@@ -932,7 +932,18 @@ export default function einAi(pi: ExtensionAPI): void {
 			const active = listActiveChanges(ctx.cwd);
 			const realCost = status.change ? readSddRealCost(ctx.cwd, status.change) : undefined;
 			const prefs = getSddPreflightPreferences(ctx);
-			return { content: [{ type: "text", text: formatSddStatus(status, active, realCost, prefs) }], details: { status, activeChanges: active, realCost } };
+			let text = formatSddStatus(status, active, realCost, prefs);
+			// En la ventana de apply, adjunta el preview determinista del plan
+			// (grupos + ficheros de producción + verify) para el brief docente
+			// pre-apply — "qué se toca" con hechos, no la paráfrasis del modelo.
+			const plan = status.nextRecommended === "apply" && status.change
+				? resolveSddPlanPreview(ctx.cwd, status.change)
+				: undefined;
+			if (plan) {
+				const block = formatSddPlanPreview(plan);
+				if (block) text += `\n\n${block}`;
+			}
+			return { content: [{ type: "text", text }], details: { status, activeChanges: active, realCost, plan } };
 		},
 	});
 
