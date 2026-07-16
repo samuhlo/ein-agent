@@ -171,6 +171,39 @@ const TASKS_REQUIRED: { code: string; label: string; pattern: RegExp }[] = [
 	{ code: "verify", label: "verify", pattern: /^\s*-\s*verify\s*:/im },
 ];
 
+// F: un grupo que toca demasiados ficheros de PRODUCCIÓN no es una unidad de
+// apply acotada — bajo TDD estricto cada fichero son muchos ciclos RED/GREEN y el
+// apply se va de turnos (fue el bloqueo real de un grupo fundacional). Proxy de
+// tamaño: cuenta ficheros de fuente (no tests) por sección de grupo (## ...).
+const GROUP_SOURCE_FILE_RE = /[\w./-]+\.(?:ts|tsx|js|jsx|mjs|cjs|vue|svelte|py|rb|go|rs|java|kt|c|cc|cpp|cs|php|sql|css|scss|less)\b/g;
+const MAX_GROUP_SOURCE_FILES = 4;
+
+function isTestPath(path: string): boolean {
+	return /\.(?:test|spec)\.|(?:^|\/)(?:tests?|__tests__|e2e)\//.test(path);
+}
+
+export function oversizedGroupWarnings(text: string): GuardrailIssue[] {
+	const out: GuardrailIssue[] = [];
+	// [preámbulo, heading1, body1, heading2, body2, ...]
+	const parts = text.split(/^##\s+(.+)$/m);
+	for (let i = 1; i < parts.length; i += 2) {
+		const heading = (parts[i] ?? "").trim();
+		const body = parts[i + 1] ?? "";
+		const files = new Set<string>();
+		for (const match of body.matchAll(GROUP_SOURCE_FILE_RE)) {
+			if (!isTestPath(match[0])) files.add(match[0]);
+		}
+		if (files.size > MAX_GROUP_SOURCE_FILES) {
+			out.push({
+				level: "warning",
+				code: "oversized-group",
+				message: `Grupo "${heading}" toca ${files.size} ficheros de producción (> ${MAX_GROUP_SOURCE_FILES}): pártelo en unidades más pequeñas (bajo TDD estricto cada fichero son muchos ciclos RED/GREEN → el apply se va de turnos).`,
+			});
+		}
+	}
+	return out;
+}
+
 export function lintTasksArtifact(
 	content: string,
 	opts: DesignLintOptions = {},
@@ -210,6 +243,9 @@ export function lintTasksArtifact(
 	if (lineCount > threshold) {
 		issues.push({ level: "warning", code: "oversize", message: `tasks.md tiene ${lineCount} lineas (> ${threshold}).` });
 	}
+
+	// F: grupos sobredimensionados (demasiados ficheros de producción por grupo).
+	issues.push(...oversizedGroupWarnings(text));
 
 	return finalize(issues, lineCount);
 }

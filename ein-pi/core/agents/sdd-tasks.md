@@ -52,6 +52,7 @@ Rules:
 - Use `status: blocked` when the design lacks enough detail to create safe tasks; explain the blocker in `blocked_by`.
 - Every actionable task MUST use `- [ ]` and include `skills`, `why`, `learn`, `architecture`, `avoid`, and `verify`.
 - Tasks must be small enough for one focused apply batch.
+- **Right-size every group — no monster groups (a foundational type is its OWN group).** A group must be completable in ONE bounded apply. Keep each group to **≤3-4 production files**; if a group would touch more, split it. A NEW foundational/cross-cutting artifact (a shared type, a fingerprint/snapshot contract, a schema) gets its **own minimal group** — NEVER bundle it with its consumers (the generate call, the store, the UI) in one group. Under **strict TDD, groups must be EXTRA small**: each production file is many RED/GREEN/TRIANGULATE/REFACTOR cycles, so a 4-file strict-TDD group blows the apply's turn budget. Prefer more small groups over fewer big ones (the flow resumes per group anyway).
 - Order tasks by dependency: contracts before consumers, tests with the code they prove.
 
 ## Constraints

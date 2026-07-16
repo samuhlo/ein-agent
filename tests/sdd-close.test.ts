@@ -13,7 +13,7 @@ import {
 	buildCloseMemoryCandidate,
 	hasSuccessfulMemoryReceipt,
 } from "../ein-pi/agent/lib/sdd-memory-save.ts";
-import { lintChange, lintPhaseArtifact } from "../ein-pi/agent/lib/sdd-guardrails";
+import { lintChange, lintPhaseArtifact, oversizedGroupWarnings } from "../ein-pi/agent/lib/sdd-guardrails";
 
 let DIR: string;
 function mkChange(name: string, files: Record<string, string>): string {
@@ -196,6 +196,43 @@ describe("lintPhaseArtifact / lintChange", () => {
 		expect(r.phases.find((p) => p.phase === "scope")?.present).toBe(true);
 		expect(r.phases.find((p) => p.phase === "design")?.present).toBe(false);
 		expect(r.ok).toBe(false); // verify sin status line
+	});
+});
+
+// F: grupos sobredimensionados en tasks.md (demasiados ficheros de producción
+// por grupo → apply se va de turnos, sobre todo con TDD estricto).
+describe("oversizedGroupWarnings (F)", () => {
+	test("un grupo con >4 ficheros de producción → warning; los tests no cuentan", () => {
+		const tasks = [
+			"## // 001. Grupo gordo",
+			"File boundary: app/a.ts, app/b.ts, app/c.vue, app/d.ts, app/e.ts and tests/a.test.ts.",
+			"- [ ] 1.1 hacer\n  - verify: `bunx vitest run tests/a.test.ts tests/b.test.ts`",
+		].join("\n");
+		const w = oversizedGroupWarnings(tasks);
+		expect(w.length).toBe(1);
+		expect(w[0].code).toBe("oversized-group");
+		expect(w[0].message).toContain("5 ficheros");
+	});
+
+	test("un grupo acotado (≤4 producción) no avisa", () => {
+		const tasks = [
+			"## // 001. Grupo acotado",
+			"File boundary: app/a.ts, app/b.ts and tests/a.test.ts, tests/b.test.ts.",
+			"- [ ] 1.1 hacer\n  - verify: `bunx vitest run tests/a.test.ts`",
+		].join("\n");
+		expect(oversizedGroupWarnings(tasks).length).toBe(0);
+	});
+
+	test("lintTasksArtifact incluye el warning de grupo sobredimensionado", () => {
+		const tasks = [
+			"status: ready",
+			"blocked_by: none",
+			"## // 001. Gordo",
+			"File boundary: app/a.ts, app/b.ts, app/c.ts, app/d.ts, app/e.ts, app/f.ts.",
+			"- [ ] 1.1 x\n  - skills: `x`\n  - why: a\n  - learn: b\n  - architecture: c\n  - avoid: d\n  - verify: `bun test`",
+		].join("\n");
+		const r = lintPhaseArtifact("tasks", tasks);
+		expect(r.issues.some((i) => i.code === "oversized-group")).toBe(true);
 	});
 });
 

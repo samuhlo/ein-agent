@@ -66,6 +66,22 @@ describe("E4 — ensureApplyTurnBudget", () => {
 		expect(ensureApplyTurnBudget(map)).toBe(false);
 		expect(map.turnBudget).toBeUndefined();
 	});
+
+	test("TDD estricto → SIN cap de turnos (lo gobierna maxRuntimeMs)", () => {
+		// Detectado por el marcador que el orquestador mete en la task.
+		const strict: Record<string, unknown> = {
+			agent: "sdd-apply",
+			task: "Apply group 001. STRICT TDD MODE IS ACTIVE. Test runner en tasks.md.",
+		};
+		expect(ensureApplyTurnBudget(strict)).toBe(false);
+		expect(strict.turnBudget).toBeUndefined();
+	});
+
+	test("apply normal → cap generoso (60), no el tight de 40 que abortaba trabajo real", () => {
+		const input: Record<string, unknown> = { agent: "sdd-apply", task: "x" };
+		expect(ensureApplyTurnBudget(input)).toBe(true);
+		expect(input.turnBudget).toEqual({ maxTurns: 60, graceTurns: 3 });
+	});
 });
 
 describe("E2 — lint de tasks.md tolerante con artefacto cerrado", () => {
