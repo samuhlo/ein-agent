@@ -11,6 +11,7 @@ import { loadPalette } from "../extensions/ein-brand";
 import {
 	type AgentModelConfig,
 	type ThinkingLevel,
+	AGENT_RECOMMENDATIONS,
 	SDD_AGENT_NAME_SET,
 	applyModelConfigAsync,
 	applyPreset,
@@ -431,6 +432,19 @@ class SddModelPanel implements OverlayComponent {
 			const nameStr = focused ? `${AP.b}${AP.gold}${row}${AP.r}` : row;
 			lines.push(tr(
 				`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${vaEffortColor(effort)}`
+			));
+		}
+
+		// Recomendación para el agente enfocado: nivel de modelo (barato/capaz) +
+		// thinking + por qué. Ayuda a elegir sin memorizar la arquitectura.
+		const focusedRow = this.rows[this.cursor];
+		const recKey = focusedRow === ORCHESTRATOR_ROW ? "orchestrator" : focusedRow;
+		const rec = recKey ? AGENT_RECOMMENDATIONS[recKey] : undefined;
+		if (rec) {
+			const tier = rec.tier === "cheap" ? t("models.rec.cheap", "barato") : t("models.rec.capable", "capaz");
+			lines.push(tr(''));
+			lines.push(tr(
+				` ${AP.d}${AP.gray}${t("models.rec.label", "Recomendado")}: ${AP.r}${AP.wht}${tier} · ${rec.thinking}${AP.r}${AP.d}${AP.gray} — ${rec.reason}${AP.r}`
 			));
 		}
 

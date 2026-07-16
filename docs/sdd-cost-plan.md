@@ -35,6 +35,12 @@ El dinero se quema en **apply**, no en TDD. Causas:
 - Preflight fija SIEMPRE el override de sesión tras preguntar (incluido el caso `auto`) → `gateTddForDelegation` nunca re-pregunta. Fin del doble-ask.
 - `DEFAULT_TDD` → `off`. Preguntar off/strict al arrancar (default off). Strict solo opt-in.
 
+## Bloque G — Calibrar map/verify + panel de recomendados
+Tras E, el coste se movió de apply a **map (222k)** y **verify (297k)** — fases que LEEN/verifican, no diseñan.
+- **G1 (hecho):** `sdd-map` y `sdd-verify` a `thinking: medium` por defecto (como apply→low en E0). Solo razonan de verdad `orchestrator` y `sdd-design` → se dejan capaces/high. El detalle que design necesita vive en `map.md` (el artefacto), no en los tokens que map gasta → bajar su thinking NO pierde detalle. map ya tiene guía de leer con codegraph.
+- **G2 (hecho):** el panel `/ein:models` muestra la **recomendación por agente** (barato/capaz + thinking + por qué) para el agente enfocado. `AGENT_RECOMMENDATIONS` en model-config.
+- **Decisión clave:** `sdd-design` se queda **capaz** — fue low-token (58k) y es la última compuerta de razonamiento; abaratarlo es falsa economía. El gasto caro está en map/verify (mucho token), no en design.
+
 ## Bloque A — No auto-escalar a SDD; carril Quick + gate de confirmación
 - Default Quick: un `sdd-apply` ad-hoc (reporte inline, sin artefactos) o edit directo para lo trivial; check dirigido; commit. Sin las 7 fases.
 - Gate determinista `gateSddEscalation`: si la delegación arranca `sdd-scope` Y la petición no fue trigger SDD explícito Y no se confirmó → preguntar "rápido vs SDD". Default rápido, bloquea scope si rápido.

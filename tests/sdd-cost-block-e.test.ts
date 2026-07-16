@@ -24,9 +24,9 @@ describe("E0 — withDefaultThinking (apply ejecuta, no razona)", () => {
 		expect(withDefaultThinking("sdd-apply", { model: "x", thinking: "high" })).toEqual({ model: "x", thinking: "high" });
 	});
 
-	test("otros agentes no se tocan", () => {
+	test("las fases que razonan (design/orchestrator) no se fijan", () => {
 		expect(withDefaultThinking("sdd-design", { model: "gpt-5.5" })).toEqual({ model: "gpt-5.5" });
-		expect(withDefaultThinking("sdd-map", undefined)).toBeUndefined();
+		expect(withDefaultThinking("orchestrator", undefined)).toBeUndefined();
 	});
 });
 
