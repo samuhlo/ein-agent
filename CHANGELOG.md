@@ -5,6 +5,17 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.19.13] - 2026-07-16
+
+### Added
+
+- **Aviso de sesión obsoleta tras un `ein update` a mitad de sesión.** La plantilla
+  (agentes, orchestrator.md, preflight/config) se carga al arrancar la sesión y
+  corre una vez; un `ein update` cambia los ficheros en disco pero la sesión viva
+  sigue con lo anterior. Ahora la sesión padre interactiva registra la versión
+  instalada en su primer turno y, si cambia a mitad de sesión, avisa UNA vez de
+  reiniciar Pi para cargar los cambios.
+
 ## [0.19.12] - 2026-07-16
 
 ### Changed

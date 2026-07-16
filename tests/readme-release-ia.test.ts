@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("01912---2026-07-16");
+    expect(release.anchor).toBe("01913---2026-07-16");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,12 +70,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("TDD off por defecto");
-    expect(releaseSummary).toContain("strict es opt-in");
-    expect(releaseSummary).toContain("Una sola pregunta");
-    expect(releaseSummary).toContain("off/strict al arrancar");
-    expect(releaseSummary).toContain("Sin doble-ask");
-    expect(releaseSummary).toContain("a mitad de flujo");
+    expect(releaseSummary).toContain("Aviso de sesión obsoleta");
+    expect(releaseSummary).toContain("reiniciar Pi");
+    expect(releaseSummary).toContain("se carga al arrancar la sesión");
+    expect(releaseSummary).toContain("Sin ruido");
+    expect(releaseSummary).toContain("una sola vez");
+    expect(releaseSummary).toContain("runs de fuente/dev");
   });
 
   test("guía por capacidad conserva presets y decisión humana sin nombres volátiles", () => {

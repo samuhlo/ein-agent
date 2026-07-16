@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.19.12 · 2026-07-16](CHANGELOG.md#01912---2026-07-16).
+**Última release publicada según el registro canónico local:** [0.19.13 · 2026-07-16](CHANGELOG.md#01913---2026-07-16).
 
-- **TDD off por defecto:** la mayoría del trabajo (frontend/simple) no necesita RED/GREEN; strict es opt-in.
-- **Una sola pregunta:** el preflight pregunta off/strict al arrancar (default off) y fija la decisión de sesión.
-- **Sin doble-ask:** el gate de delegación ya no vuelve a preguntar TDD a mitad de flujo.
+- **Aviso de sesión obsoleta:** si haces `ein update` a mitad de sesión, Ein te avisa de reiniciar Pi para cargar la plantilla nueva.
+- **Por qué:** la plantilla se carga al arrancar la sesión; un update en disco no surte efecto hasta un Pi fresco.
+- **Sin ruido:** avisa una sola vez y solo en la sesión interactiva; los runs de fuente/dev no molestan.
 
 ---
 
