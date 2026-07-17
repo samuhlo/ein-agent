@@ -32,10 +32,15 @@ describe("G — recomendaciones del panel de modelos", () => {
 		expect(AGENT_RECOMMENDATIONS.orchestrator).toMatchObject({ tier: "capable", thinking: "high" });
 	});
 
-	test("map/verify recomendados baratos + medium; apply barato + low", () => {
+	test("map/verify recomendados baratos + medium", () => {
 		expect(AGENT_RECOMMENDATIONS["sdd-map"]).toMatchObject({ tier: "cheap", thinking: "medium" });
 		expect(AGENT_RECOMMENDATIONS["sdd-verify"]).toMatchObject({ tier: "cheap", thinking: "medium" });
-		expect(AGENT_RECOMMENDATIONS["sdd-apply"]).toMatchObject({ tier: "cheap", thinking: "low" });
+	});
+
+	// El coste lo controla el thinking (low), no abaratar el modelo: uno barato
+	// no ahorra, da 135 turnos de prueba y error en un TDD estricto.
+	test("apply recomendado CAPAZ + low (el thinking controla el coste, el tier evita el thrashing)", () => {
+		expect(AGENT_RECOMMENDATIONS["sdd-apply"]).toMatchObject({ tier: "capable", thinking: "low" });
 	});
 
 	test("toda recomendación trae un porqué no vacío", () => {

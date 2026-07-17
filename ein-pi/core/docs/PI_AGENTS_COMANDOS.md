@@ -32,9 +32,7 @@ Recuperar una sesión: `pi -c` (continuar la última), `pi -r` (elegir de una li
 
 | Comando | Qué hace |
 | --- | --- |
-| `/ein:models` | Ver o cambiar el modelo de cada agente (menú) |
-| `/ein:models:full` | Orquestador + `sdd-design` → `gpt-5.5`, resto → `MiniMax-M2.7` |
-| `/ein:models:lite` | Todos los agentes → `MiniMax-M2.7` (escape cuando gpt-5.5 se queda sin cupo) |
+| `/ein:models` | Ver o cambiar modelo y esfuerzo por agente. Muestra la recomendación por rol (barato/capaz + esfuerzo) y marca con `!` los que se desvían |
 
 > Cambiar el modelo del orquestador requiere reiniciar Pi. Los subagentes cambian al instante.
 

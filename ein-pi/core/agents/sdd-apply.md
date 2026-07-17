@@ -58,7 +58,7 @@ Tick the `- [ ]` → `- [x]` checkboxes in `tasks.md` for every task/step you co
 
 ## Apply Progress (chain runs only)
 
-When you run as a phase of the SDD chain — a `design.md` and an `openspec/changes/{change}/` directory exist — update `openspec/changes/{change}/apply-progress.md` cumulatively. If previous progress exists, merge it with new progress; never overwrite completed work.
+When you run as a phase of the SDD chain — a `design.md` and an `openspec/changes/{change}/` directory exist — update `openspec/changes/{change}/apply-progress.md` cumulatively. If previous progress exists, merge it with new progress; never overwrite completed work. **Keep it COMPACT: your entry per group is a SUMMARY (~20-40 lines) — status, what changed, the TDD evidence in a few lines, residual risks — never a dump of full file lists, per-test tables, or pasted command output.** The file accumulates across every group, so a verbose entry per group balloons it (one change reached 906 lines and tripped the oversize gate). Summarize your own prior entries only if they are already verbose; never erase them.
 
 `apply-progress.md` **must** include one top-level status line:
 

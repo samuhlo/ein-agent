@@ -87,18 +87,17 @@ Para empezar SDD en un proyecto: `/ein:ai:install-sdd`. Luego trabajas hablando 
 
 ## Modelos (el "cerebro" que usa Ein)
 
-Ein puede usar dos cerebros:
-- **gpt-5.5**: el más listo, para pensar mucho. Pero gasta más y a veces se queda sin cupo.
-- **MiniMax-M2.7**: rápido y barato, para el resto.
+Ein **no fija modelos concretos a propósito**: salen modelos nuevos y cambian de precio cada semana, así que cualquier lista hardcodeada se pudre en silencio. Lo que no caduca es **el rol de cada agente**.
 
-Por defecto, los "pensadores" usan gpt-5.5:
-- El **orquestador** (la sesión principal) → gpt-5.5
-- **sdd-design** (la fase de diseño) → gpt-5.5
-- Todo lo demás → MiniMax-M2.7
+Configúralo a mano con **`/ein:models`**, que te dice la **recomendación por rol** y marca con `!` los agentes cuyo esfuerzo se desvía:
 
-Dos botones para cambiar al instante:
-- `/ein:models:full` → vuelve al reparto de arriba (gpt-5.5 para pensar).
-- `/ein:models:lite` → **todo a MiniMax-M2.7**. Úsalo cuando gpt-5.5 te diga "sin cupo". Así nunca te quedas parado.
+- **Razonan** (modelo capaz, esfuerzo alto): el **orquestador** y **sdd-design** — son las compuertas de decisión.
+- **Leen y verifican** (barato, esfuerzo medio): `sdd-map`, `sdd-verify`.
+- **Ejecutan** (esfuerzo **bajo**): `sdd-apply`, `sdd-scope`, `sdd-tasks`, `sdd-close`, entrega.
+
+Dos ideas clave sobre el coste:
+- **El coste lo controla el esfuerzo (thinking), no abaratar el modelo.** Un esfuerzo bajo gasta poco por turno.
+- **Abaratar el modelo no ahorra: flaquea.** Un modelo barato en `sdd-apply` llegó a dar 135 turnos de prueba y error en un grupo con TDD estricto. Por eso apply se recomienda **capaz + esfuerzo bajo**: pocos turnos en trabajo mecánico y sin atascarse cuando toca razonar.
 
 > Tras cambiar el modelo del orquestador, reinicia Pi para que tome efecto. Los subagentes cambian al instante.
 
