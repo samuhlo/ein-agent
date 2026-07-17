@@ -2,8 +2,12 @@
 // MODEL CONFIG
 // Enrutado de modelos por agente: lee/escribe ~/.pi/ein/models.json, aplica
 // la config al frontmatter de agentes descubiertos (o a agentOverrides para
-// builtins), gestiona el modelo del orquestador en settings.json global y
-// define los presets full/lite.
+// builtins) y gestiona el modelo del orquestador en settings.json global.
+//
+// SIN presets de modelos a propósito: hardcodear nombres (gpt-X, MiniMax-Y) se
+// pudre en semanas —salen modelos y cambian precios— y da falsa confianza. Lo
+// que NO caduca vive aquí: el thinking por agente (un NIVEL, no un nombre) y las
+// recomendaciones por ROL (barato/capaz). El modelo concreto lo eliges tú.
 // =============================================================================
 
 import {
@@ -25,7 +29,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { AGENT_DIR } from "../extensions/ein-paths";
-import { pick } from "./lang.ts";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -240,7 +243,9 @@ export const AGENT_RECOMMENDATIONS: Record<string, AgentRecommendation> = {
 	"sdd-scope": { tier: "cheap", thinking: "low", reason: "extracción estructurada del alcance" },
 	"sdd-map": { tier: "cheap", thinking: "medium", reason: "lee y resume impacto (codegraph), no diseña" },
 	"sdd-tasks": { tier: "cheap", thinking: "low", reason: "descompone el diseño en checklist" },
-	"sdd-apply": { tier: "cheap", thinking: "low", reason: "ejecuta el plan masticado, no razona" },
+	// El coste lo controla el THINKING (low), no abaratar el modelo: un modelo
+	// barato no "ahorra", da 135 turnos de prueba y error en un TDD estricto.
+	"sdd-apply": { tier: "capable", thinking: "low", reason: "ejecuta a thinking bajo; el modelo capaz evita el thrashing (barato = 135 turnos)" },
 	"sdd-verify": { tier: "cheap", thinking: "medium", reason: "corre tests + razona cobertura" },
 	"sdd-close": { tier: "cheap", thinking: "low", reason: "condensa el resumen" },
 	"ein-git": { tier: "cheap", thinking: "low", reason: "entrega mecánica (commit/push/PR)" },
@@ -511,50 +516,6 @@ export function readOrchestratorModel(): string | undefined {
 	} catch {
 		return undefined;
 	}
-}
-
-// Modelo predeterminado por preset. El orquestador usa el defaultProvider/defaultModel
-// del settings global; los subagentes usan ~/.pi/ein/models.json.
-const MODEL_FULL: AgentModelConfig = {
-	"sdd-design": { model: "openai-codex/gpt-5.5" },
-	"sdd-scope": { model: "minimax/MiniMax-M2.7" },
-	"sdd-map": { model: "minimax/MiniMax-M2.7" },
-	"sdd-tasks": { model: "minimax/MiniMax-M2.7" },
-	"sdd-apply": { model: "minimax/MiniMax-M3", thinking: "low" },
-	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
-	"sdd-close": { model: "minimax/MiniMax-M2.7" },
-	"ein-linear": { model: "minimax/MiniMax-M2.7" },
-	"ein-git": { model: "minimax/MiniMax-M2.7" },
-};
-const MODEL_FULL_ORCH = { provider: "openai-codex", model: "gpt-5.5" } as const;
-
-const MODEL_LITE: AgentModelConfig = {
-	"sdd-design": { model: "minimax/MiniMax-M3" },
-	"sdd-scope": { model: "minimax/MiniMax-M2.7" },
-	"sdd-map": { model: "minimax/MiniMax-M2.7" },
-	"sdd-tasks": { model: "minimax/MiniMax-M2.7" },
-	"sdd-apply": { model: "minimax/MiniMax-M3", thinking: "low" },
-	"sdd-verify": { model: "minimax/MiniMax-M2.7" },
-	"sdd-close": { model: "minimax/MiniMax-M2.7" },
-	"ein-linear": { model: "minimax/MiniMax-M2.7" },
-	"ein-git": { model: "minimax/MiniMax-M2.7" },
-};
-const MODEL_LITE_ORCH = { provider: "minimax", model: "MiniMax-M3" } as const;
-
-export function applyPreset(cwd: string, preset: "full" | "lite"): string {
-	const config = preset === "full" ? MODEL_FULL : MODEL_LITE;
-	const orch = preset === "full" ? MODEL_FULL_ORCH : MODEL_LITE_ORCH;
-	writeModelConfig(cwd, config);
-	updateGlobalDefaultModel(orch.provider, orch.model);
-	return preset === "full"
-		? pick(
-				`Modo full activo.\n- Orquestador → gpt-5.5\n- sdd-design → gpt-5.5\n- sdd-apply → MiniMax-M3\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`,
-				`Full mode active.\n- Orchestrator → gpt-5.5\n- sdd-design → gpt-5.5\n- sdd-apply → MiniMax-M3\n- Rest → MiniMax-M2.7\nRestart Pi for the orchestrator change to take effect.`,
-			)
-		: pick(
-				`Modo lite activo.\n- Orquestador → MiniMax-M3\n- sdd-design → MiniMax-M3\n- sdd-apply → MiniMax-M3\n- Resto → MiniMax-M2.7\nReinicia Pi para que el cambio de orquestador tome efecto.`,
-				`Lite mode active.\n- Orchestrator → MiniMax-M3\n- sdd-design → MiniMax-M3\n- sdd-apply → MiniMax-M3\n- Rest → MiniMax-M2.7\nRestart Pi for the orchestrator change to take effect.`,
-			);
 }
 
 function updateBuiltinModelOverride(

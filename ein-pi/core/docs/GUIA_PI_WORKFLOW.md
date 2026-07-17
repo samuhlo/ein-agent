@@ -51,14 +51,16 @@ Para preparar SDD en un proyecto: `/ein:ai:install-sdd`. El preflight: `/ein:ai:
 
 ## Modelos
 
-| Quién | Modelo (preset full) |
-| --- | --- |
-| Orquestador (sesión principal) | `gpt-5.5` |
-| `sdd-design` | `gpt-5.5` |
-| Resto de agentes | `MiniMax-M2.7` |
+Sin presets: los nombres de modelo y sus precios cambian cada semana. Configura a mano con `/ein:models`, que muestra la recomendación **por rol** y marca con `!` lo que se desvía.
 
-- `/ein:models:full` → reparto de arriba.
-- `/ein:models:lite` → todo a `MiniMax-M2.7` (cuando gpt-5.5 se queda sin cupo).
+| Rol | Modelo | Esfuerzo |
+| --- | --- | --- |
+| Orquestador · `sdd-design` (deciden) | capaz | high |
+| `sdd-map` · `sdd-verify` (leen/verifican) | barato | medium |
+| `sdd-apply` (ejecuta) | capaz | **low** |
+| `sdd-scope` · `sdd-tasks` · `sdd-close` · entrega | barato | low |
+
+El coste lo controla el **esfuerzo**, no abaratar el modelo: un modelo barato en apply no ahorra, flaquea (135 turnos en un grupo con TDD estricto).
 
 ## Idioma
 

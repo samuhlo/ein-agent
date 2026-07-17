@@ -82,7 +82,7 @@ Guardarraíles del flujo: **Scope Gate** (acota tokens de entrada), **Plan Gate*
 
 ## // 004. MODELOS
 
-Elige por capacidad, riesgo y coste. Personaliza cada agente con `/ein:models` o aplica los presets `/ein:models:full` y `/ein:models:lite`.
+Elige por capacidad, riesgo y coste. Configura cada agente a mano con `/ein:models`, que muestra la **recomendación por rol** (modelo barato/capaz + esfuerzo) y marca con `!` los agentes cuyo esfuerzo se desvía de ella. No hay presets de modelos a propósito: los nombres de modelo y sus precios cambian cada semana y un preset hardcodeado se pudre en silencio; lo que no caduca es el rol.
 
 | Tipo de trabajo | Criterio de elección |
 |---|---|
@@ -179,7 +179,7 @@ Flags: `--yes`, `--dry-run` (muestra el plan sin ejecutar nada), `--no-engram`, 
 /ein:mode               Modo de trabajo: solo (sin Linear) | team (Linear board)
 /ein:status             Estado: modo, agentes, cadenas, skills, proyecto, MCP
 /ein:init               Genera/refresca EIN.md
-/ein:models[:full|:lite] Ver/cambiar el modelo por agente · presets potencia/ahorro
+/ein:models              Ver/cambiar modelo y esfuerzo por agente · recomendación por rol
 /ein:persona            Tono y estética: samuhlo | neutral
 /ein:lang               Idioma de conversación/UI y de artefactos
 /ein:tdd                TDD estricto: auto (config) | strict | off | ask

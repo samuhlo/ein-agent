@@ -14,7 +14,6 @@ import {
 	AGENT_RECOMMENDATIONS,
 	SDD_AGENT_NAME_SET,
 	applyModelConfigAsync,
-	applyPreset,
 	cloneModelConfig,
 	describeModelConfig,
 	listDiscoverableAgents,
@@ -63,7 +62,6 @@ interface OverlayComponent {
 type ModelPanelResult =
 	| { type: "save"; config: AgentModelConfig }
 	| { type: "custom"; agent: string | "all"; config: AgentModelConfig }
-	| { type: "preset"; preset: "full" | "lite" }
 	| { type: "cancel" };
 
 const SET_ALL_AGENTS = t("models.set_all", "Configurar todos los agentes");
@@ -113,18 +111,12 @@ function vaEffortColor(lvl: ThinkingLevel | undefined): string {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PRESETS: { key: "full" | "lite"; label: string; desc: string }[] = [
-	{ key: "full", label: "Full", desc: t("models.preset.full.desc", "Orq + sdd-design → gpt-5.5  |  apply → M3  |  resto → M2.7") },
-	{ key: "lite", label: "Lite", desc: t("models.preset.lite.desc", "Orq + sdd-design + apply → MiniMax-M3  |  resto → M2.7") },
-];
-
 class SddModelPanel implements OverlayComponent {
 	private cursor = 0;
-	private mode: "agents" | "models" | "effort" | "preset" = "agents";
+	private mode: "agents" | "models" | "effort" = "agents";
 	private selectedRow = SET_ALL_AGENTS;
 	private modelCursor = 0;
 	private effortCursor = 0;
-	private presetCursor = 0;
 	private query = "";
 	private readonly draft: AgentModelConfig;
 	private readonly rows: string[];
@@ -154,17 +146,12 @@ class SddModelPanel implements OverlayComponent {
 			this.handleEffortInput(data);
 			return;
 		}
-		if (this.mode === "preset") {
-			this.handlePresetInput(data);
-			return;
-		}
 		this.handleAgentInput(data);
 	}
 
 	render(width: number): string[] {
 		if (this.mode === "models") return this.renderModelPicker(width);
 		if (this.mode === "effort") return this.renderEffortPicker(width);
-		if (this.mode === "preset") return this.renderPresetPicker(width);
 		return this.renderAgentList(width);
 	}
 
@@ -204,11 +191,6 @@ class SddModelPanel implements OverlayComponent {
 				this.done({ type: "custom", agent: "all", config: this.draft });
 			else if (row)
 				this.done({ type: "custom", agent: row, config: this.draft });
-			return;
-		}
-		if (data === "p") {
-			this.mode = "preset";
-			this.presetCursor = 0;
 			return;
 		}
 		if (!matchesKey(data, "return")) return;
@@ -430,8 +412,14 @@ class SddModelPanel implements OverlayComponent {
 			const model = this.draft[row]?.model;
 			const effort = this.draft[row]?.thinking;
 			const nameStr = focused ? `${AP.b}${AP.gold}${row}${AP.r}` : row;
+			// Marcador de desviación: solo cuando el esfuerzo está FIJADO y no
+			// coincide con el recomendado. El tier del modelo no se puede clasificar
+			// (un nombre no dice si es barato o capaz), así que no se marca.
+			const rowRec = AGENT_RECOMMENDATIONS[row];
+			const deviates = Boolean(rowRec && effort && effort !== rowRec.thinking);
+			const mark = deviates ? `  ${AP.gold}${AP.b}!${AP.r}` : "";
 			lines.push(tr(
-				`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${vaEffortColor(effort)}`
+				`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${vaEffortColor(effort)}${mark}`
 			));
 		}
 
@@ -442,6 +430,14 @@ class SddModelPanel implements OverlayComponent {
 		const rec = recKey ? AGENT_RECOMMENDATIONS[recKey] : undefined;
 		if (rec) {
 			const tier = rec.tier === "cheap" ? t("models.rec.cheap", "barato") : t("models.rec.capable", "capaz");
+			// Si el esfuerzo fijado se desvía, dilo explícito (el `!` de la fila).
+			const focusedEffort = focusedRow && focusedRow !== ORCHESTRATOR_ROW ? this.draft[focusedRow]?.thinking : undefined;
+			if (focusedEffort && focusedEffort !== rec.thinking) {
+				lines.push(tr(''));
+				lines.push(tr(
+					` ${AP.gold}${AP.b}!${AP.r} ${AP.gold}${t("models.rec.deviates", "Fuera de recomendación")}: ${AP.r}${AP.wht}${focusedEffort}${AP.r}${AP.d}${AP.gray} → recomendado ${AP.r}${AP.wht}${rec.thinking}${AP.r}`
+				));
+			}
 			lines.push(tr(''));
 			lines.push(tr(
 				` ${AP.d}${AP.gray}${t("models.rec.label", "Recomendado")}: ${AP.r}${AP.wht}${tier} · ${rec.thinking}${AP.r}${AP.d}${AP.gray} — ${rec.reason}${AP.r}`
@@ -458,7 +454,7 @@ class SddModelPanel implements OverlayComponent {
 		));
 		lines.push(tr(''));
 		lines.push(tr(
-			` ${AP.d}${AP.gray}${t("models.hint.main", "↑↓ · Enter modelo · e esfuerzo · i heredar · p preset · Ctrl+S guardar")}${AP.r}`
+			` ${AP.d}${AP.gray}${t("models.hint.main", "↑↓ · Enter modelo · e esfuerzo · i heredar · Ctrl+S guardar")}${AP.r}`
 		));
 		lines.push(tr(''));
 
@@ -608,56 +604,6 @@ class SddModelPanel implements OverlayComponent {
 		return SddModelPanel.addBorder(title, lines, width);
 	}
 
-	private handlePresetInput(data: string): void {
-		if (matchesKey(data, "ctrl+c")) {
-			this.done({ type: "cancel" });
-			return;
-		}
-		if (matchesKey(data, "escape")) {
-			this.mode = "agents";
-			return;
-		}
-		if (matchesKey(data, "down") || data === "j") {
-			this.presetCursor = Math.min(PRESETS.length - 1, this.presetCursor + 1);
-			return;
-		}
-		if (matchesKey(data, "up") || data === "k") {
-			this.presetCursor = Math.max(0, this.presetCursor - 1);
-			return;
-		}
-		if (!matchesKey(data, "return")) return;
-		const selected = PRESETS[this.presetCursor];
-		if (!selected) return;
-		this.done({ type: "preset", preset: selected.key });
-	}
-
-	private renderPresetPicker(width: number): string[] {
-		const inner = Math.max(4, width - 2);
-		const tr = (t = '') => truncateToWidth(t, inner, '…', true);
-		const lines: string[] = [];
-
-		lines.push(tr(''));
-		lines.push(tr(` ${AP.d}${AP.gray}${t("models.preset.intro", "Aplica una configuración de modelos completa de golpe.")}${AP.r}`));
-		lines.push(tr(''));
-
-		for (let i = 0; i < PRESETS.length; i++) {
-			const p = PRESETS[i]!;
-			const focused = i === this.presetCursor;
-			const cur = focused ? `${AP.gold}▸${AP.r}` : ' ';
-			const labelStr = focused
-				? `${AP.b}${AP.gold}${p.label}${AP.r}`
-				: `${AP.wht}${p.label}${AP.r}`;
-			lines.push(tr(` ${cur} ${labelStr}`));
-			lines.push(tr(`     ${AP.d}${AP.gray}${p.desc}${AP.r}`));
-			lines.push(tr(''));
-		}
-
-		lines.push(tr(` ${AP.d}${AP.gray}${t("models.hint.apply", "↑↓ navegar · Enter aplicar · Esc volver")}${AP.r}`));
-		lines.push(tr(''));
-
-		const title = `${AP.gold}${AP.b}■ PRESET${AP.r}`;
-		return SddModelPanel.addBorder(title, lines, width);
-	}
 }
 
 async function showSddModelPanel(
@@ -741,11 +687,6 @@ export async function handleModelsCommand(ctx: ExtensionContext): Promise<void> 
 			}
 		}
 		result = await showSddModelPanel(ctx, config);
-	}
-	if (result.type === "preset") {
-		const msg = applyPreset(ctx.cwd, result.preset);
-		ctx.ui.notify(msg, "info");
-		return;
 	}
 	if (result.type !== "save") return;
 

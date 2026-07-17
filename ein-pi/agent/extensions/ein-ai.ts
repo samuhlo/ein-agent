@@ -65,7 +65,6 @@ import {
 import {
 	SDD_AGENT_NAMES,
 	SDD_AGENT_NAME_SET,
-	applyPreset,
 	applySavedModelConfig,
 	modelConfigPath,
 } from "../lib/model-config.ts";
@@ -705,27 +704,6 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
-	pi.registerCommand("ein:models:full", {
-		description: t(
-			"cmd.models.full.description",
-			"Preset full: orquestador + sdd-design → gpt-5.5, resto → MiniMax-M2.7",
-		),
-		handler: (_args, ctx) => {
-			const msg = applyPreset(ctx.cwd, "full");
-			ctx.ui.notify(msg, "info");
-		},
-	});
-
-	pi.registerCommand("ein:models:lite", {
-		description: t(
-			"cmd.models.lite.description",
-			"Preset lite: orquestador + sdd-design → MiniMax-M3, resto → MiniMax-M2.7",
-		),
-		handler: (_args, ctx) => {
-			const msg = applyPreset(ctx.cwd, "lite");
-			ctx.ui.notify(msg, "info");
-		},
-	});
 
 	pi.registerCommand("ein:persona", {
 		description: t(

@@ -78,13 +78,15 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain("la pregunta de aplicar");
   });
 
-  test("guía por capacidad conserva presets y decisión humana sin nombres volátiles", () => {
+  test("guía por capacidad: sin presets, con recomendación por rol y decisión humana", () => {
     for (const criterion of ["arquitectura", "ambigüedad", "revisión adversarial", "alto riesgo", "acotado", "bien especificado", "repetitivo", "mecánico"]) {
       expect(modelGuide.toLowerCase()).toContain(criterion);
     }
-    for (const command of ["/ein:models", "/ein:models:full", "/ein:models:lite"]) {
-      expect(modelGuide).toContain(command);
-    }
+    expect(modelGuide).toContain("/ein:models");
+    // Los presets de modelos se eliminaron: hardcodear nombres se pudre.
+    expect(modelGuide).not.toContain("/ein:models:full");
+    expect(modelGuide).not.toContain("/ein:models:lite");
+    expect(modelGuide).toContain("recomendación por rol");
     expect(modelGuide).toContain("decides tú");
     expect(modelGuide).toContain("no hace fallback automático");
     expect(`${modelGuide}\n${releaseSummary}`).not.toMatch(/gpt-5\.5|MiniMax-M3|MiniMax-M2\.7/);

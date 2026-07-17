@@ -69,9 +69,7 @@ Por defecto (preset `full`): orquestador + `sdd-design` → `gpt-5.5`; resto →
 
 | Comando | Efecto |
 | --- | --- |
-| `/ein:models` | Menú por agente |
-| `/ein:models:full` | Orquestador + `sdd-design` → gpt-5.5, resto → MiniMax-M2.7 |
-| `/ein:models:lite` | Todo → MiniMax-M2.7 (escape de rate-limit) |
+| `/ein:models` | Menú por agente: modelo + esfuerzo, con la recomendación por rol y marca `!` si se desvía |
 
 El orquestador se controla con `defaultProvider`/`defaultModel` en `settings.json`; los subagentes con `~/.pi/ein/models.json`. Cambiar el orquestador requiere reiniciar Pi.
 
