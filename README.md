@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.20.1 · 2026-07-16](CHANGELOG.md#0201---2026-07-16).
+**Última release publicada según el registro canónico local:** [0.20.2 · 2026-07-17](CHANGELOG.md#0202---2026-07-17).
 
-- **Brief docente antes de aplicar:** en un SDD interactivo, el orquestador explica qué se va a hacer y cómo antes de preguntar.
-- **Qué se toca, con hechos:** la lista de grupos y ficheros sale determinista de `tasks.md`, no de la paráfrasis del modelo.
-- **Se acabó decidir a ciegas:** QUÉ · CÓMO FUNCIONA · QUÉ SE TOCA · RIESGOS, y luego la pregunta de aplicar.
+- **Sin presets de modelos:** hardcodear nombres se pudre; lo que no caduca es el rol de cada agente.
+- **Recomendaciones visibles:** `/ein:models` marca con `!` los agentes cuyo esfuerzo se desvía del recomendado.
+- **`sdd-apply` con modelo capaz y esfuerzo bajo:** el coste lo controla el esfuerzo; abaratar el modelo no ahorra, flaquea.
 
 ---
 

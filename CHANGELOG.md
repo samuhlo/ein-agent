@@ -5,6 +5,28 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.20.2] - 2026-07-17
+
+### Removed
+
+- **Fuera los presets de modelos `/ein:models:full` y `/ein:models:lite`.** Salen
+  modelos y cambian precios cada semana: un preset que hardcodea nombres se pudre
+  en silencio y da falsa confianza. Se eliminan los comandos, el modo del panel y
+  todos los nombres de modelo de la documentación. Se queda lo que NO caduca: el
+  esfuerzo por agente (un nivel, no un nombre) y la recomendación por rol.
+
+### Changed
+
+- **Las recomendaciones de `/ein:models` ahora se ven.** Marca `!` en cualquier
+  agente cuyo esfuerzo fijado se desvíe del recomendado, más una línea explícita
+  "Fuera de recomendación: X → recomendado Y" para el agente enfocado.
+- **`sdd-apply` se recomienda ahora con modelo CAPAZ y esfuerzo bajo.** El coste
+  lo controla el esfuerzo, no abaratar el modelo: uno barato no ahorra, flaquea
+  (135 turnos y 1.5M tokens en un grupo con TDD estricto, agotando la cuota del
+  proveedor). Sin routing condicional ni preguntas nuevas: mejor recomendación.
+- **`apply-progress.md` se mantiene compacto**: cada grupo aporta un resumen, no
+  un volcado (un cambio llegó a 906 líneas y disparó el aviso de tamaño).
+
 ## [0.20.1] - 2026-07-16
 
 ### Added

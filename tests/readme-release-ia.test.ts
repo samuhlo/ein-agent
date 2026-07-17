@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0201---2026-07-16");
+    expect(release.anchor).toBe("0202---2026-07-17");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,12 +70,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("Brief docente antes de aplicar");
-    expect(releaseSummary).toContain("qué se va a hacer");
-    expect(releaseSummary).toContain("Qué se toca, con hechos");
-    expect(releaseSummary).toContain("determinista de `tasks.md`");
-    expect(releaseSummary).toContain("Se acabó decidir a ciegas");
-    expect(releaseSummary).toContain("la pregunta de aplicar");
+    expect(releaseSummary).toContain("Sin presets de modelos");
+    expect(releaseSummary).toContain("lo que no caduca es el rol");
+    expect(releaseSummary).toContain("Recomendaciones visibles");
+    expect(releaseSummary).toContain("se desvía del recomendado");
+    expect(releaseSummary).toContain("modelo capaz y esfuerzo bajo");
+    expect(releaseSummary).toContain("abaratar el modelo no ahorra");
   });
 
   test("guía por capacidad: sin presets, con recomendación por rol y decisión humana", () => {
