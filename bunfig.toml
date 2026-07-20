@@ -1,0 +1,6 @@
+# Preload que fija EIN_PI_AGENT_HOME/EIN_PI_CONFIG_HOME temporales antes de que
+# cargue cualquier módulo de test. Sin esto, el orden de descubrimiento de
+# ficheros (que difiere entre bun local y el `latest` de CI) decidía si
+# `ein-paths` cacheaba el home temporal o el real → suite flaky (ver el fichero).
+[test]
+preload = ["./tests/preload-env.ts"]
