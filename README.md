@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.20.2 · 2026-07-17](CHANGELOG.md#0202---2026-07-17).
+**Última release publicada según el registro canónico local:** [0.21.0 · 2026-07-21](CHANGELOG.md#0210---2026-07-21).
 
-- **Sin presets de modelos:** hardcodear nombres se pudre; lo que no caduca es el rol de cada agente.
-- **Recomendaciones visibles:** `/ein:models` marca con `!` los agentes cuyo esfuerzo se desvía del recomendado.
-- **`sdd-apply` con modelo capaz y esfuerzo bajo:** el coste lo controla el esfuerzo; abaratar el modelo no ahorra, flaquea.
+- **Adiós a los ✗ falsos:** los agentes declaraban una tool que Pi no tiene; la fase salía fallida con el artefacto ya escrito.
+- **El artefacto manda sobre el runner:** si la fase entregó y el artefacto pasa su lint, cuenta como hecha — no se repite.
+- **La entrega ya no depende de cómo esté redactada:** decide el agente destino, no un adjetivo en la frase.
 
 ---
 
