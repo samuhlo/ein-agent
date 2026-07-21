@@ -65,6 +65,13 @@ import {
 	confirmDelegatedDelivery,
 } from "../lib/guardrails.ts";
 import {
+	formatReconciliation,
+	reconcilePhaseFailure,
+	resolveDelegationPhase,
+	snapshotPhaseArtifacts,
+	type PhaseSnapshot,
+} from "../lib/sdd-reconcile.ts";
+import {
 	SDD_AGENT_NAMES,
 	SDD_AGENT_NAME_SET,
 	applySavedModelConfig,
@@ -116,6 +123,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // que un log pegado a mitad del trabajo revocaba en silencio el "haz push" de
 // dos turnos antes y bloqueaba la delegación siguiente.
 const deliveryIntentBySession = new Map<string, DeliveryIntent>();
+
+// Foto del artefacto de fase justo ANTES de delegar, por toolCallId. La lee el
+// hook `tool_result` para distinguir "la fase no se hizo" de "el runner falló
+// por algo ajeno al trabajo". Sin la foto no se reconcilia nada: un artefacto
+// preexistente no puede rescatar un run que no escribió nada.
+const phaseSnapshotByToolCall = new Map<
+	string,
+	{ phase: SddPhase; before: PhaseSnapshot }
+>();
+
+function rememberPhaseSnapshot(
+	toolCallId: string,
+	input: unknown,
+	cwd: string,
+): void {
+	const phase = resolveDelegationPhase(input);
+	if (!phase) return;
+	phaseSnapshotByToolCall.set(toolCallId, {
+		phase,
+		before: snapshotPhaseArtifacts(cwd, phase),
+	});
+}
 // Versión instalada al arrancar cada sesión + sesiones ya avisadas: si `ein
 // update` corre a mitad de sesión, esta sigue con la plantilla vieja → nudge de
 // reinicio (una vez).
@@ -649,6 +678,9 @@ export default function einAi(pi: ExtensionAPI): void {
 			// el cambio (hint tdd off/strict) se fija sin preguntar; si no, pregunta.
 			// Así un mover/renombrar/config marcado off no interrumpe el flujo.
 			await gateTddForDelegation(event.input, ctx);
+			// Foto del artefacto de fase ANTES de delegar. Si el run acaba en ✗, el
+			// hook `tool_result` compara y decide si la fase se hizo igualmente.
+			rememberPhaseSnapshot(event.toolCallId, event.input, ctx.cwd);
 			return confirmDelegatedDelivery(event.input, ctx, {
 				mode: readGitDeliveryMode(ctx.cwd),
 				userRequested: deliveryIntentActive(
@@ -666,6 +698,30 @@ export default function einAi(pi: ExtensionAPI): void {
 		if (guard) return guard;
 		maybeWrapBashInput(event.input as { command: string }, ctx.cwd);
 		return undefined;
+	});
+
+	// El artefacto manda sobre el veredicto del runner. Un ✗ puede venir de algo
+	// que no dice nada del trabajo (tool ausente en la allowlist, respuesta final
+	// vacía, timeout en la lectura final) con la fase YA entregada. Sin esto el
+	// orquestador repetía una fase completa y pagaba dos veces.
+	pi.on("tool_result", (event, ctx) => {
+		if (event.toolName !== "subagent") return undefined;
+		// Se libera SIEMPRE, falle o no: si solo se borrase en la rama de fallo,
+		// cada delegación exitosa dejaría su foto ahí para toda la sesión.
+		const snapshot = phaseSnapshotByToolCall.get(event.toolCallId);
+		phaseSnapshotByToolCall.delete(event.toolCallId);
+		if (!snapshot || !event.isError) return undefined;
+		const result = reconcilePhaseFailure(ctx.cwd, snapshot.phase, snapshot.before);
+		if (!result.reconciled) return undefined;
+		const originalError = event.content
+			.map((part) => (part.type === "text" ? part.text : ""))
+			.join("\n");
+		return {
+			isError: false,
+			content: [
+				{ type: "text", text: formatReconciliation(result, originalError) },
+			],
+		};
 	});
 
 	pi.registerCommand("ein:ai:install-sdd", {

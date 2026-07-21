@@ -238,7 +238,7 @@ function collectDelegationTexts(input: unknown): string[] {
 
 // Nombres de agente del input del tool `subagent`: modo single (`agent`),
 // parallel (`tasks[].agent`) y chain (`steps[].agent`).
-function collectDelegationAgents(input: unknown): string[] {
+export function collectDelegationAgents(input: unknown): string[] {
 	if (!isRecord(input)) return [];
 	const agents: string[] = [];
 	if (typeof input.agent === "string") agents.push(input.agent);
