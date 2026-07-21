@@ -59,7 +59,17 @@ function parseHeader(
 
 function parseScenario(lines: readonly string[], start: number, heading: string): OpenSpecParseResult<ScenarioParse> {
 	const id = lines[start]?.match(new RegExp(`^${heading}: (${DOMAIN_ID_PATTERN.source.slice(1, -1)})$`))?.[1];
-	if (!id) return failure("invalid-scenario-id", start + 1, "scenario ID must be a kebab-case identifier");
+	if (!id) {
+		// Una línea vacía donde se espera un escenario NO es un identificador mal
+		// formado. Decir "el ID debe ser kebab-case" señalando una línea en blanco
+		// manda a quien lo lea a revisar identificadores que están bien; el fallo
+		// real —un hueco de más— queda invisible y hay que abrir el parser para
+		// verlo. Un mensaje que apunta al sitio equivocado cuesta más que uno feo.
+		if ((lines[start] ?? "").trim() === "") {
+			return failure("unexpected-blank-line", start + 1, `expected a \`${heading}: <id>\` heading, found a blank line`);
+		}
+		return failure("invalid-scenario-id", start + 1, "scenario ID must be a kebab-case identifier");
+	}
 	const values: Record<string, string> = {};
 
 	for (let offset = 0; offset < SCENARIO_FIELDS.length; offset += 1) {
@@ -136,6 +146,15 @@ export function parseOpenSpecDelta(source: string): OpenSpecParseResult<OpenSpec
 		seenSections.add(section);
 		lastSection = sectionIndex;
 		index += 1;
+		// Una línea en blanco tras `## ADDED` es lo que sale al escribir markdown,
+		// y además es OBLIGATORIA entre entradas: prohibirla justo aquí era una
+		// asimetría que solo se descubría estrellándose. Pasó en el primer uso real
+		// del formato — la sincronización falló y hubo que leer este parser para
+		// entender por qué. Se tolera UNA; dos siguen siendo un error, así que el
+		// formato no se afloja. Los deltas se escriben a mano (no hay
+		// serializador), de modo que esta tolerancia no afecta a ningún byte
+		// generado ni al determinismo de los digests.
+		if (lines[index] === "") index += 1;
 		let count = 0;
 		while (index < lines.length && !lines[index]?.startsWith("## ")) {
 			if (section === "REMOVED") {
