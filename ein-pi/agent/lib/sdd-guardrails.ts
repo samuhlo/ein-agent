@@ -7,9 +7,12 @@
 // (testeables sin fs); solo `lintChange` toca el filesystem para leer ficheros.
 // =============================================================================
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { resolveChangesDir } from "./sdd-router.ts";
+import { parseOpenSpecDelta } from "./openspec-spec-parser.ts";
+
+export type SpecDeltaDeclaration = { mode: "none" | "delta" | "invalid"; deltas: { path: string; bytes: Uint8Array }[] };
 
 export type GuardrailLevel = "error" | "warning";
 
@@ -425,6 +428,36 @@ function sequenceIssues(phases: ChangeLintReport["phases"]): GuardrailIssue[] {
 	return issues;
 }
 
+export function readSpecDeltaDeclaration(cwd: string, change: string): SpecDeltaDeclaration {
+	const root = resolveChangesDir(cwd);
+	if (root !== join(cwd, "openspec", "changes")) return { mode: "none", deltas: [] };
+	const base = join(root, change);
+	const deltas: { path: string; bytes: Uint8Array }[] = [];
+	const specs = join(base, "specs");
+	if (existsSync(specs)) {
+		let domains: string[];
+		try { domains = readdirSync(specs); } catch { return { mode: "invalid", deltas: [] }; }
+		for (const domain of domains.sort()) {
+			const path = join(specs, domain, "spec.md");
+			if (!existsSync(path)) continue;
+			try {
+				const bytes = readFileSync(path);
+				const parsed = parseOpenSpecDelta(bytes.toString("utf8"));
+				if (!parsed.ok || parsed.value.domain !== domain) return { mode: "invalid", deltas: [] };
+				deltas.push({ path: `specs/${domain}/spec.md`, bytes });
+			} catch { return { mode: "invalid", deltas: [] }; }
+		}
+	}
+	let scope = "";
+	try { scope = readFileSync(join(base, "scope.md"), "utf8").replaceAll("\r\n", "\n"); } catch { /* missing scope leaves declaration unresolved */ }
+	const blocks = [...scope.matchAll(/^## Spec delta declaration\nspec_delta: none\nspec_delta_reason: ([^\n]*)$/gm)];
+	const reason = blocks[0]?.[1]?.trim() ?? "";
+	const invalidReason = reason.length < 1 || reason.length > 200 || /^(none|n\/a|na|tbd|unknown|-)$/i.test(reason);
+	const hasNoneTokens = /^## Spec delta declaration\n(?:spec_delta:|spec_delta_reason:)/m.test(scope);
+	if (deltas.length > 0) return blocks.length === 0 && !hasNoneTokens ? { mode: "delta", deltas } : { mode: "invalid", deltas: [] };
+	return blocks.length === 1 && !invalidReason ? { mode: "none", deltas: [] } : { mode: "invalid", deltas: [] };
+}
+
 // Linta todos los artefactos PRESENTES de un cambio (raíz dual: ver sdd-router).
 // Los alias legacy (explore.md/apply.md) no se lintan: el lint es de la
 // gramática canónica; los artefactos canónicos de un cambio legacy sí entran.
@@ -462,6 +495,10 @@ export function lintChange(cwd: string, change: string): ChangeLintReport {
 		errors += report.errors;
 		warnings += report.warnings;
 		phases.push({ phase, present: true, report });
+	}
+	const declaration = readSpecDeltaDeclaration(cwd, change);
+	if (declaration.mode === "invalid") {
+		provenanceIssues.push({ level: "error", code: "spec-delta-unresolved", message: "El cambio OpenSpec requiere exactamente un delta válido o una declaración spec_delta: none válida." });
 	}
 	const issues = [...sequenceIssues(phases), ...provenanceIssues];
 	errors += issues.filter((issue) => issue.level === "error").length;

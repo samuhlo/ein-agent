@@ -44,14 +44,30 @@ export function closeChange(cwd: string, change: string, options: CloseOptions =
 	if (existsSync(to)) {
 		return { ok: false, from, to, reason: "ya existe en archive/; no se pisa" };
 	}
-	// Guard determinista: no archivar sobre evidencia incompleta u obsoleta (una
-	// corrección posterior a verify deja el summary/verify viejos). `--force` lo
-	// sortea a conciencia.
-	if (!options.force) {
-		const readiness = assessCloseReadiness(cwd, change);
-		if (!readiness.ready) {
-			return { ok: false, from, to, reason: `cambio no listo para cierre: ${readiness.reasons.join(" ")} (usa --force para forzar)` };
-		}
+	const readiness = assessCloseReadiness(cwd, change);
+	// Solo `conflict` es INMUNE a --force: dos deltas que se contradicen son una
+	// incoherencia real de contenido, y archivar encima la congelaría.
+	//
+	// `unresolved`/`pending` NO son inmunes. Fueron absolutos en su primera
+	// versión y eso dejó el cierre MUERTO: un cambio sin bloque de declaración
+	// —que es todo cambio anterior a esta feature, y todo cambio cuyo ejecutor
+	// de scope no lo escriba— no podía archivarse por ninguna vía. Un gate sin
+	// salida convierte un problema de metadatos en un callejón. `--force` exige
+	// una acción humana explícita y el motivo va en el mensaje: eso es
+	// consentimiento informado, no un bypass silencioso.
+	const specConflict = readiness.reasons.find((reason) =>
+		reason.startsWith("estado de specs OpenSpec: conflict"),
+	);
+	if (specConflict) {
+		return {
+			ok: false,
+			from,
+			to,
+			reason: `cambio no listo para cierre: ${specConflict} Resuelve el conflicto de deltas: --force NO archiva sobre specs contradictorias.`,
+		};
+	}
+	if (!options.force && !readiness.ready) {
+		return { ok: false, from, to, reason: `cambio no listo para cierre: ${readiness.reasons.join(" ")} (usa --force para forzar)` };
 	}
 
 	mkdirSync(join(changesDir(cwd), "archive"), { recursive: true });

@@ -63,6 +63,17 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("the orchestrator still routes with `ein_sdd_status`");
 	});
 
+	test("limita contexto canónico de scope/design a hints explícitos y referencias reutilizables", () => {
+		const scope = read("agents/sdd-scope.md");
+		const design = read("agents/sdd-design.md");
+		expect(orch).toContain("canonical_spec_domains");
+		expect(orch).toContain("3 files and 32 KiB UTF-8");
+		expect(orch).toContain("design reuses those references");
+		expect(scope).toContain("path`, SHA-256, and byte count");
+		expect(design).toContain("Reuse the canonical spec references recorded in `scope.md`");
+		expect(design).toContain("never truncate the selection");
+	});
+
 	test("entra en scope tras bootstrap sin debilitar los gates posteriores", () => {
 		expect(orch).toContain("create-if-absent bootstrap");
 		expect(orch).toContain("sdd-scope");
@@ -130,6 +141,30 @@ describe("ein-ai: tools deterministas cableados", () => {
 		expect(ai).toContain('import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";');
 		expect(ai).toContain("bootstrapOpenSpecConfig(ctx.cwd)");
 		expect(ai).toContain('return { action: "continue" };');
+	});
+	// BLINDAJE -> El motor de sincronización OpenSpec nació como CÓDIGO MUERTO:
+	// existía, tenía tests, y no lo llamaba nadie en producción. El cierre exigía
+	// `sync-report.md` y nada sabía generarlo, así que un cambio con deltas se
+	// quedaba en `pending` para siempre. Un motor sin tool no es una feature.
+	test("cablea el motor de sincronización OpenSpec a un tool invocable", () => {
+		expect(ai).toContain('name: "ein_openspec_sync"');
+		expect(ai).toContain('import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";');
+		expect(ai).toContain("synchronizeOpenSpecFilesystem(ctx.cwd, change)");
+	});
+	test("el orquestador sabe cómo desbloquear cada estado de specs", () => {
+		const orch = read("assets/orchestrator.md");
+		expect(orch).toContain("ein_openspec_sync");
+		// Cada estado necesita una salida documentada; `conflict` es el único sin ella.
+		for (const state of ["synchronized", "pending", "unresolved", "conflict"]) {
+			expect(orch).toContain(state);
+		}
+		expect(orch).toContain("`force` will NOT archive over a conflict");
+	});
+	test("sdd-scope enseña a declarar el spec delta (nadie lo hacía)", () => {
+		const scope = read("agents/sdd-scope.md");
+		expect(scope).toContain("## Spec delta declaration");
+		expect(scope).toContain("spec_delta: none");
+		expect(scope).toContain("spec_delta_reason:");
 	});
 });
 

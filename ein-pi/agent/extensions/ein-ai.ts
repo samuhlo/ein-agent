@@ -107,6 +107,8 @@ import {
 } from "../lib/project-context.ts";
 import { AGENT_DIR } from "./ein-paths";
 import { readInstalledVersion, staleSessionNudge } from "../lib/session-version";
+import { DOMAIN_ID_PATTERN, sha256 } from "../lib/openspec-spec-contract.ts";
+import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
@@ -265,6 +267,80 @@ function readAgentTask(event: unknown): string {
 	);
 	if (candidates.length > 0) return candidates.join("\n");
 	return readStringPath(event, ["systemPrompt"]) ?? "";
+}
+
+const CANONICAL_SPEC_MAX_FILES = 3;
+const CANONICAL_SPEC_MAX_BYTES = 32 * 1024;
+
+type CanonicalSpecReference = {
+	path: string;
+	sha256: string;
+	bytes: number;
+};
+
+type CanonicalSpecContext = {
+	status: "ok" | "blocked";
+	references: CanonicalSpecReference[];
+	message?: string;
+};
+
+function domainHints(text: string): string[] {
+	const hints = [...text.matchAll(/(?:canonical_spec_domains|domain hints?)\s*:\s*([^\n]+)/gi)]
+		.flatMap((match) => match[1].split(","))
+		.map((value) => value.trim())
+		.filter((value) => DOMAIN_ID_PATTERN.test(value));
+	return [...new Set(hints)].sort((left, right) => left.localeCompare(right, "en"));
+}
+
+function scopeSpecReferences(scope: string): CanonicalSpecReference[] {
+	const references = [...scope.matchAll(/- path: (openspec\/specs\/([a-z0-9]+(?:-[a-z0-9]+)*)\/spec\.md); sha256: ([a-f0-9]{64}); bytes: (\d+)/g)]
+		.map((match) => ({ path: match[1], domain: match[2], sha256: match[3], bytes: Number(match[4]) }))
+		.filter((reference) => DOMAIN_ID_PATTERN.test(reference.domain) && Number.isSafeInteger(reference.bytes) && reference.bytes >= 0)
+		.map(({ path, sha256, bytes }) => ({ path, sha256, bytes }));
+	return [...new Map(references.map((reference) => [reference.path, reference])).values()]
+		.sort((left, right) => left.path.localeCompare(right.path, "en"));
+}
+
+export function resolveCanonicalSpecContext(cwd: string, hints: readonly string[]): CanonicalSpecContext {
+	const domains = [...new Set(hints.filter((hint) => DOMAIN_ID_PATTERN.test(hint)))].sort((left, right) => left.localeCompare(right, "en"));
+	if (domains.length > CANONICAL_SPEC_MAX_FILES) {
+		return { status: "blocked", references: [], message: "Canonical spec context exceeds 3 files; request a narrower canonical spec selection." };
+	}
+
+	const references: CanonicalSpecReference[] = [];
+	let totalBytes = 0;
+	for (const domain of domains) {
+		const path = `openspec/specs/${domain}/spec.md`;
+		const absolutePath = join(cwd, path);
+		if (!existsSync(absolutePath)) continue;
+		const bytes = readFileSync(absolutePath);
+		totalBytes += bytes.length;
+		if (totalBytes > CANONICAL_SPEC_MAX_BYTES) {
+			return { status: "blocked", references: [], message: "Canonical spec context exceeds 32 KiB; request a narrower canonical spec selection." };
+		}
+		references.push({ path, sha256: sha256(bytes), bytes: bytes.length });
+	}
+	return { status: "ok", references };
+}
+
+function canonicalSpecPrompt(cwd: string, agent: "sdd-scope" | "sdd-design", task: string, change?: string): string {
+	const changeDir = change ? join(resolveChangesDir(cwd), change) : undefined;
+	const scope = agent === "sdd-design" && changeDir && existsSync(join(changeDir, "scope.md"))
+		? readFileSync(join(changeDir, "scope.md"), "utf8")
+		: "";
+	const reused = scopeSpecReferences(scope);
+	const mappedHints = agent === "sdd-design" && changeDir && existsSync(join(changeDir, "map.md"))
+		? domainHints(readFileSync(join(changeDir, "map.md"), "utf8"))
+		: [];
+	const hints = agent === "sdd-design"
+		? [...reused.map((reference) => reference.path.split("/")[2]), ...mappedHints]
+		: domainHints(task);
+	const context = resolveCanonicalSpecContext(cwd, hints);
+	if (context.status === "blocked") {
+		return `\n\n## Canonical OpenSpec context\nBLOCKED: ${context.message} Do not truncate or glob specs; request explicit narrower domain hints.`;
+	}
+	const referenceLines = context.references.map((reference) => `- path: ${reference.path}; sha256: ${reference.sha256}; bytes: ${reference.bytes}`);
+	return `\n\n## Canonical OpenSpec context\nDomain hints: ${hints.join(", ") || "none"}\nRead only these exact canonical paths when needed; never glob domains or read .sdd specs. Record these references in ${agent === "sdd-scope" ? "scope.md" : "design.md"}:\n${referenceLines.join("\n") || "- none"}\nShared hard limit: ${CANONICAL_SPEC_MAX_FILES} files and ${CANONICAL_SPEC_MAX_BYTES} UTF-8 bytes per phase. If a requested selection exceeds it, block and request narrower explicit domain hints; never truncate.`;
 }
 
 // Devuelve true si `name` es un directorio existente en la raíz de cambios
@@ -650,12 +726,20 @@ export default function einAi(pi: ExtensionAPI): void {
 		const wantsContext = !isNamedAgent || isSddAgent;
 		const context = wantsContext ? einContextDirective(ctx.cwd) : "";
 		const contextPrompt = context ? `\n\n${context}` : "";
+		const canonicalAgent = startNames.includes("sdd-scope")
+			? "sdd-scope"
+			: startNames.includes("sdd-design")
+				? "sdd-design"
+				: undefined;
+		const canonicalSpecContext = canonicalAgent
+			? canonicalSpecPrompt(ctx.cwd, canonicalAgent, readAgentTask(event), readExplicitSddChange(event))
+			: "";
 		// Codegraph: mismo público que EIN.md (parent + fases SDD). La directiva
 		// es "" salvo binario + índice presentes — sin codegraph, cero tokens.
 		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
 		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${codegraphPrompt}`,
+			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}`,
 		};
 	});
 
@@ -1122,6 +1206,46 @@ export default function einAi(pi: ExtensionAPI): void {
 				? `/// SDD CLOSE — '${change}' archived to ${result.to.replace(ctx.cwd, ".")}. openspec/changes/ is clean.`
 				: `/// SDD CLOSE — '${change}' NOT closed: ${result.reason}`;
 			return { content: [{ type: "text", text }], details: { ...result, memory } };
+		},
+	});
+
+	// Sin este tool el motor de sincronización era código muerto: solo lo
+	// llamaban los tests. Un cambio con deltas se quedaba en `pending` para
+	// siempre porque NADA en el producto sabía generar `sync-report.md`, y el
+	// cierre lo exigía. Es la salida determinista de ese estado.
+	pi.registerTool({
+		name: "ein_openspec_sync",
+		label: "Ein OpenSpec Sync",
+		description:
+			"Deterministically synchronize a change's OpenSpec deltas (openspec/changes/<change>/specs/<domain>/spec.md) into the canonical specs (openspec/specs/<domain>/spec.md) and publish sync-report.md. Idempotent: re-running with unchanged bytes reports 'already synchronized'. This is how a change leaves the `pending` spec state before close. Reads and writes only the filesystem; never commits.",
+		parameters: {
+			type: "object",
+			properties: {
+				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
+			},
+		} as const,
+		async execute(_id, params: { change?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
+			if (!change) {
+				return { content: [{ type: "text", text: "/// OPENSPEC SYNC — no active change." }], details: { ok: false, reason: "no active change" } };
+			}
+			try {
+				const { plan, changed } = await synchronizeOpenSpecFilesystem(ctx.cwd, change);
+				const domains = plan.domains.map((d) => d.domain).join(", ") || "(ninguno)";
+				const head = changed
+					? `/// OPENSPEC SYNC — '${change}': ${plan.state}. dominios: ${domains}.`
+					: `/// OPENSPEC SYNC — '${change}': ya sincronizado, sin cambios. dominios: ${domains}.`;
+				const tail = plan.state === "conflict"
+					? "\nCONFLICTO: los deltas se contradicen. Resuélvelo a mano; el cierre NO lo salta ni con force."
+					: "\nsync-report.md publicado. `ein_sdd_status` ya puede dar el cambio por sincronizado.";
+				return { content: [{ type: "text", text: `${head}${tail}` }], details: { ok: true, state: plan.state, changed, domains: plan.domains.map((d) => d.domain) } };
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return {
+					content: [{ type: "text", text: `/// OPENSPEC SYNC — '${change}' FALLÓ: ${message}\nLos specs se restauraron a su estado previo salvo que el mensaje diga lo contrario.` }],
+					details: { ok: false, reason: message },
+				};
+			}
 		},
 	});
 

@@ -33,13 +33,13 @@ Un parser interpreta encabezados de operación y escenarios; cada SDD declara un
 
 ## Criterios de aceptación
 
-- [ ] Las especificaciones vigentes DEBEN vivir en la ruta canónica indicada.
-- [ ] Los deltas de comportamiento DEBEN usar solo operaciones ADDED, MODIFIED o REMOVED.
-- [ ] Cada SDD DEBE incluir un delta o `spec_delta: none` con una razón breve para cambios mecánicos o no SDD.
-- [ ] La sincronización DEBE producir `sync-report.md` determinista.
-- [ ] El cierre DEBE rechazar estado de delta sin resolver, sin sincronizar o conflictivo, pero aceptar una ausencia declarada mediante `spec_delta: none`.
-- [ ] La adopción DEBE ser incremental por dominio y no exigir reescritura masiva del comportamiento histórico.
-- [ ] OpenSpec DEBE seguir siendo canónico sobre memoria opcional.
+- [x] Las especificaciones vigentes DEBEN vivir en la ruta canónica indicada.
+- [x] Los deltas de comportamiento DEBEN usar solo operaciones ADDED, MODIFIED o REMOVED.
+- [x] Cada SDD DEBE incluir un delta o `spec_delta: none` con una razón breve para cambios mecánicos o no SDD.
+- [x] La sincronización DEBE producir `sync-report.md` determinista.
+- [x] El cierre DEBE rechazar estado de delta sin resolver, sin sincronizar o conflictivo, pero aceptar una ausencia declarada mediante `spec_delta: none`.
+- [x] La adopción DEBE ser incremental por dominio y no exigir reescritura masiva del comportamiento histórico.
+- [x] OpenSpec DEBE seguir siendo canónico sobre memoria opcional.
 
 ## Matriz de verificación y pruebas
 
@@ -61,7 +61,7 @@ Revertir parser y guardas juntos; conservar especificaciones ya escritas como ev
 
 ## Checklist de finalización
 
-- [ ] Formato de especificación definido.
-- [ ] Sync report generado.
-- [ ] Cierre protegido.
-- [ ] Entradas de scope/design acotadas.
+- [x] Formato de especificación definido.
+- [x] Sync report generado.
+- [x] Cierre protegido.
+- [x] Entradas de scope/design acotadas.

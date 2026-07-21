@@ -20,6 +20,8 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { readSpecDeltaDeclaration } from "./sdd-guardrails.ts";
+import { evaluateOpenSpecState, type OpenSpecState, type SyncBaseInput } from "./openspec-spec-sync.ts";
 
 export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
 export type SddNext = SddPhase | "done";
@@ -95,6 +97,7 @@ export type SddChangeStatus = {
 	// verify-report.md es anterior al último apply → una corrección posterior
 	// invalidó la verificación; no se puede cerrar con evidencia obsoleta.
 	verifyStale: boolean;
+	specState: OpenSpecState | "legacy";
 	// summary.md es anterior a apply/verify → el resumen no refleja el estado real.
 	summaryStale: boolean;
 	nextRecommended: SddNext;
@@ -373,6 +376,21 @@ function computeStaleness(
 	return { verifyStale, summaryStale };
 }
 
+function readOpenSpecState(cwd: string, change: string): OpenSpecState | "legacy" {
+	if (resolveChangesDir(cwd) !== join(cwd, "openspec", "changes")) return "legacy";
+	const declaration = readSpecDeltaDeclaration(cwd, change);
+	const bases: SyncBaseInput[] = [];
+	for (const delta of declaration.deltas) {
+		const domain = delta.path.split("/")[1]!;
+		const path = join(cwd, "openspec", "specs", domain, "spec.md");
+		if (!existsSync(path)) continue;
+		try { bases.push({ domain, bytes: readFileSync(path) }); } catch { return "unresolved"; }
+	}
+	const reportPath = join(cwd, "openspec", "changes", change, "sync-report.md");
+	const report = readText(reportPath);
+	return evaluateOpenSpecState({ declaration: declaration.mode, change, deltas: declaration.deltas, bases, report });
+}
+
 function readApplyOutcome(changePath: string): ApplyOutcome {
 	const path = join(changePath, PHASE_ARTIFACT.apply);
 	if (!existsSync(path)) return "absent";
@@ -426,6 +444,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 			apply: "absent",
 			verify: "absent",
 			verifyStale: false,
+			specState: "legacy",
 			summaryStale: false,
 			nextRecommended: "done",
 			blocked,
@@ -442,6 +461,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	const tasks = readTasksStatus(changePath);
 	const budget = readBudgetStatus(changePath);
 	const { verifyStale, summaryStale } = computeStaleness(changePath, present);
+	const specState = readOpenSpecState(cwd, target);
 
 	// Fuga de artefacto de fase: una fase presente cuyo predecesor FALTA significa
 	// que una fase-agente (p.ej. sdd-map) se usó como explorador para un cambio que
@@ -513,6 +533,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 		apply,
 		verify,
 		verifyStale,
+		specState,
 		summaryStale,
 		nextRecommended,
 		blocked,
@@ -535,6 +556,7 @@ export function assessCloseReadiness(cwd: string, change: string): CloseReadines
 	if (!status.present.close) reasons.push("falta summary.md.");
 	else if (status.summaryStale) reasons.push("summary.md es anterior a apply/verify: regenera el resumen.");
 	if (status.tasks.counts.pending > 0) reasons.push(`quedan ${status.tasks.counts.pending} tarea(s) sin completar.`);
+	if (status.specState !== "legacy" && status.specState !== "synchronized") reasons.push(`estado de specs OpenSpec: ${status.specState}.`);
 	return { ready: reasons.length === 0, reasons };
 }
 
