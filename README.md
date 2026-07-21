@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.22.0 · 2026-07-21](CHANGELOG.md#0220---2026-07-21).
+**Última release publicada según el registro canónico local:** [0.22.1 · 2026-07-21](CHANGELOG.md#0221---2026-07-21).
 
-- **OpenSpec canónico:** el comportamiento vigente vive en specs sincronizadas por hashes, y el cierre las exige.
-- **Un commit lleva lo que decidiste entregar:** se acabó el staging a granel y el arrastre de ficheros que nadie nombró.
-- **El verify dice QUÉ bytes pasaron:** un árbol candidato ligado al cambio, al worktree y a su propia evidencia.
+- **Contrato con Pi explícito:** lo que Ein necesita de Pi está declarado y se contrasta contra la instalación real.
+- **La deriva se ve antes de doler:** si Ein usa algo sin declararlo falla en CI; si Pi deja de ofrecerlo lo dice `ein doctor`.
+- **Una sola fuente para los builtins:** estaban replicados en tres sitios, que es como se abren los agujeros.
 
 ---
 

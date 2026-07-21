@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0220---2026-07-21");
+    expect(release.anchor).toBe("0221---2026-07-21");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,12 +70,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("OpenSpec canónico");
-    expect(releaseSummary).toContain("specs sincronizadas por hashes");
-    expect(releaseSummary).toContain("lo que decidiste entregar");
-    expect(releaseSummary).toContain("arrastre de ficheros que nadie nombró");
-    expect(releaseSummary).toContain("QUÉ bytes pasaron");
-    expect(releaseSummary).toContain("árbol candidato ligado al cambio");
+    expect(releaseSummary).toContain("Contrato con Pi explícito");
+    expect(releaseSummary).toContain("contrasta contra la instalación real");
+    expect(releaseSummary).toContain("La deriva se ve antes de doler");
+    expect(releaseSummary).toContain("lo dice `ein doctor`");
+    expect(releaseSummary).toContain("Una sola fuente para los builtins");
+    expect(releaseSummary).toContain("replicados en tres sitios");
   });
 
   test("guía por capacidad: sin presets, con recomendación por rol y decisión humana", () => {

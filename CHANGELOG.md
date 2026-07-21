@@ -5,6 +5,27 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.22.1] - 2026-07-21
+
+### Added
+
+- **Contrato con Pi.** Ein codificaba supuestos sobre Pi —nombres de tools
+  builtin en las allowlists de los agentes, hooks de extensión, métodos de
+  `ExtensionAPI`— y ninguno estaba comprobado en ningún sitio: cada `pi update`
+  era una ruleta. Ya salió caro una vez (`glob` no existe en Pi y tres fases SDD
+  salieron ✗ con sus artefactos correctos). Ahora ese contrato es explícito y se
+  valida en dos direcciones: si **Ein** empieza a usar algo sin declararlo, falla
+  en CI; si **Pi** deja de ofrecerlo, `ein doctor` lo dice por su nombre antes de
+  que un run falle de forma incomprensible. La comprobación contra la
+  instalación real se salta declarándose cuando Pi no está, nunca fingiendo un
+  veredicto.
+
+### Changed
+
+- El set de tools builtin de Pi vivía replicado en tres sitios. Ahora hay una
+  sola fuente, contrastada contra la instalación real: tres copias de la misma
+  verdad son la duplicación que ya abrió un agujero en la validación de OpenSpec.
+
 ## [0.22.0] - 2026-07-21
 
 ### Added

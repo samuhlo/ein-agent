@@ -18,6 +18,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { PI_BUILTIN_TOOLS as PI_CONTRACT_BUILTINS } from "../ein-pi/agent/lib/pi-contract";
 
 const CORE_AGENTS = join(import.meta.dir, "../ein-pi/core/agents");
 const EXTENSIONS = join(import.meta.dir, "../ein-pi/agent/extensions");
@@ -26,20 +27,11 @@ const orchestrator = readFileSync(
 	"utf8",
 );
 
-// Builtins de Pi. Fuente: `dist/core/tools/index.js` →
-//   export const allToolNames = new Set(["read","bash","edit","write","grep","find","ls"]);
-// Se replica aquí a propósito en vez de importar de Pi: los tests corren en CI
-// sin Pi instalado (ver no-pi-package-imports.test.ts). Si Pi añade o renombra
-// un builtin, este set se actualiza a mano — y el diff lo deja a la vista.
-const PI_BUILTIN_TOOLS = new Set([
-	"read",
-	"bash",
-	"edit",
-	"write",
-	"grep",
-	"find",
-	"ls",
-]);
+// Builtins de Pi: FUENTE ÚNICA en lib/pi-contract.ts, que además se contrasta
+// contra la instalación real (tests/pi-contract.test.ts y `ein doctor`). Antes
+// este set estaba replicado aquí y en el doctor: tres copias de la misma verdad
+// es la duplicación que ya abrió un agujero en la validación de OpenSpec.
+const PI_BUILTIN_TOOLS = new Set(PI_CONTRACT_BUILTINS);
 
 // Un entry con `/` o extensión .ts/.js no es un nombre de tool: es la ruta del
 // proveedor (pi-args la mueve a `--extension`). Se acepta sin validar el nombre.

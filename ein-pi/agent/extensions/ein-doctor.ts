@@ -6,6 +6,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, loadBrand, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
 import { pick } from "../lib/lang";
+import { PI_BUILTIN_TOOLS, formatDrift, verifyPiContract } from "../lib/pi-contract.ts";
 import {
   AGENT_DIR,
   CONTEXT7_KEY_PATH,
@@ -148,9 +149,9 @@ function warn(pass: boolean, name: string, detail: string): CheckResult {
   return { name, detail, level: pass ? "OK" : "WARN" };
 }
 
-// Builtins de Pi (dist/core/tools/index.js → allToolNames). `glob` NO existe:
-// el equivalente es `find`. Ver tests/agent-tools-contract.test.ts.
-const PI_BUILTIN_TOOLS = new Set(["read", "bash", "edit", "write", "grep", "find", "ls"]);
+// Builtins de Pi: fuente única en lib/pi-contract.ts. Estaba replicado aquí y
+// en el test de allowlists, que es justo la duplicación que abre agujeros.
+const BUILTIN_TOOLS = new Set(PI_BUILTIN_TOOLS);
 
 // Tools declaradas por los agentes DESPLEGADOS que Pi no puede resolver.
 // Ignora rutas de proveedor (van a --extension) y nombres registrados por las
@@ -173,7 +174,7 @@ function unknownDeployedAgentTools(agentsDir: string): string[] {
     if (!tools) continue;
     for (const tool of tools.split(",").map((t) => t.trim()).filter(Boolean)) {
       if (tool.includes("/") || tool.endsWith(".ts") || tool.endsWith(".js")) continue;
-      if (PI_BUILTIN_TOOLS.has(tool) || extensionTools.has(tool)) continue;
+      if (BUILTIN_TOOLS.has(tool) || extensionTools.has(tool)) continue;
       unknown.push(`${file}:${tool}`);
     }
   }
@@ -288,6 +289,7 @@ function doctorSmokeReport(): string {
   ];
   const DELIVERY_AGENTS = ["ein-linear.md", "ein-git.md"];
   const unknownDeployedTools = unknownDeployedAgentTools(agentsDir);
+  const piContract = verifyPiContract();
 
   const checksAgents: CheckResult[] = [
     ...SDD_AGENTS.map((a) =>
@@ -313,6 +315,20 @@ function doctorSmokeReport(): string {
         ? "Toda tool declarada existe en Pi."
         : `Tools inexistentes: ${unknownDeployedTools.join(", ")}. Reinstala el template (ein update).`,
     ),
+    // Contrato con Pi. Ein codifica supuestos sobre Pi (tools, hooks, métodos de
+    // ExtensionAPI) y Pi se mueve rápido: sin esto, un `pi update` que renombre
+    // algo se manifiesta como un run fallando de forma incomprensible. Aquí sale
+    // por su nombre y antes. `unavailable` es WARN, no FAIL: sin Pi resoluble no
+    // hay nada que afirmar, y fingir un veredicto sería peor que no darlo.
+    piContract.status === "unavailable"
+      ? warn(false, "contrato con Pi", `No verificable: ${piContract.reason}.`)
+      : check(
+          piContract.status === "ok",
+          "contrato con Pi",
+          piContract.status === "ok"
+            ? `Pi ${piContract.surface.version ?? "?"}: tools, hooks y ExtensionAPI que Ein usa siguen existiendo.`
+            : `Pi ${piContract.surface.version ?? "?"} ya NO ofrece lo que Ein declara — ${formatDrift(piContract.drift)}. Ein necesita adaptarse a esta versión de Pi.`,
+        ),
   ];
 
   const checksExtensions: CheckResult[] = CORE_EXTENSIONS.map((e) =>
