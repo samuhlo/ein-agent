@@ -12,8 +12,9 @@ import {
 import { evaluateOpenSpecState, planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
 import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, sep } from "node:path";
 
 describe("openspec-spec/v1 contract", () => {
 	test("serializes scenarios by stable ID with LF and one final newline", () => {
@@ -129,6 +130,114 @@ describe("ciclo completo: sincronizar y luego evaluar", () => {
 			// Alguien edita el spec canónico a mano: el recibo ya no lo describe.
 			const tampered = new TextEncoder().encode("# OpenSpec Specification\nformat: openspec-spec/v1\ndomain: sdd-lifecycle\n\n## Scenario: otro\ntitle: Otro\nrequirement: The system MUST otro\nGiven: x\nWhen: y\nThen: z\n");
 			expect(state(cwd, deltas, [{ domain: "sdd-lifecycle", bytes: tampered }], report)).toBe("pending");
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+});
+
+// =============================================================================
+// ROLLBACK MULTIDOMINIO
+// =============================================================================
+// BLINDAJE -> La sincronización sustituye un spec por dominio. Si la SEGUNDA
+// sustitución revienta con la primera ya escrita, el repo queda medio
+// sincronizado: specs nuevas para un dominio, viejas para otro, y un
+// sync-report que no describe ninguno de los dos estados. El rollback existía y
+// se había ejercitado a mano, pero sin test quedaba libre de regresionar.
+//
+// El fallo se inyecta en el mismo punto de llamada en vez de provocar un error
+// de disco real: forzarlo de verdad exige permisos o disco lleno —frágil entre
+// SO, y como root ni siquiera falla—, mientras que la costura ejercita el
+// contrato real ("si una sustitución revienta, las anteriores se restauran")
+// de forma determinista. La restauración que corre es la de producción.
+// =============================================================================
+describe("rollback de sincronización multidominio", () => {
+	const scenarioFor = (id: string) => [`### Scenario: ${id}`, `title: ${id}`, `requirement: The system MUST ${id}`, "Given: una entrada", "When: corre", "Then: funciona"].join("\n");
+	const deltaFor = (domain: string, id: string) => ["# OpenSpec Delta", "format: openspec-delta/v1", `domain: ${domain}`, "", "## ADDED", scenarioFor(id), ""].join("\n");
+	const baseFor = (domain: string, id: string) => ["# OpenSpec Specification", "format: openspec-spec/v1", `domain: ${domain}`, "", scenarioFor(id).replace("###", "##"), ""].join("\n");
+
+	// Dos dominios con base previa. Se procesan alfabéticamente: alpha, luego beta.
+	async function twoDomains(): Promise<{ cwd: string; alphaBase: string; betaBase: string }> {
+		const cwd = await mkdtemp(join(tmpdir(), "openspec-rollback-"));
+		const alphaBase = baseFor("alpha", "viejo-alpha");
+		const betaBase = baseFor("beta", "viejo-beta");
+		for (const [domain, delta, base] of [["alpha", deltaFor("alpha", "nuevo-alpha"), alphaBase], ["beta", deltaFor("beta", "nuevo-beta"), betaBase]] as const) {
+			await mkdir(join(cwd, "openspec", "changes", "c", "specs", domain), { recursive: true });
+			await writeFile(join(cwd, "openspec", "changes", "c", "specs", domain, "spec.md"), delta);
+			await mkdir(join(cwd, "openspec", "specs", domain), { recursive: true });
+			await writeFile(join(cwd, "openspec", "specs", domain, "spec.md"), base);
+		}
+		return { cwd, alphaBase, betaBase };
+	}
+
+	const readSpec = (cwd: string, domain: string) => readFile(join(cwd, "openspec", "specs", domain, "spec.md"), "utf8");
+
+	test("un fallo en la SEGUNDA sustitución restaura la primera", async () => {
+		const { cwd, alphaBase, betaBase } = await twoDomains();
+		try {
+			const seen: string[] = [];
+			const boom = synchronizeOpenSpecFilesystem(cwd, "c", {
+				replace: async (path, bytes) => {
+					seen.push(path);
+					if (path.includes(`${sep}beta${sep}`)) throw new Error("disco lleno simulado");
+					await writeFile(path, bytes);
+				},
+			});
+			await expect(boom).rejects.toThrow("disco lleno simulado");
+
+			// alpha se había reescrito; debe volver EXACTAMENTE a sus bytes previos.
+			expect(await readSpec(cwd, "alpha")).toBe(alphaBase);
+			// beta nunca llegó a cambiar.
+			expect(await readSpec(cwd, "beta")).toBe(betaBase);
+			// Y el informe no se publica: describiría un estado que no ocurrió.
+			expect(existsSync(join(cwd, "openspec", "changes", "c", "sync-report.md"))).toBe(false);
+			// Prueba de que el orden es el asumido y alpha SÍ se tocó antes de fallar.
+			expect(seen.some((p) => p.includes(`${sep}alpha${sep}`))).toBe(true);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	test("un dominio creado durante el run se BORRA al revertir", async () => {
+		// Sin base previa, el snapshot es `null`: revertir significa eliminar el
+		// fichero, no restaurar bytes. Si esto regresiona, un run fallido deja un
+		// spec canónico fantasma que nadie sincronizó.
+		const cwd = await mkdtemp(join(tmpdir(), "openspec-rollback-new-"));
+		try {
+			for (const [domain, id] of [["alpha", "nuevo-alpha"], ["beta", "nuevo-beta"]] as const) {
+				await mkdir(join(cwd, "openspec", "changes", "c", "specs", domain), { recursive: true });
+				await writeFile(join(cwd, "openspec", "changes", "c", "specs", domain, "spec.md"), deltaFor(domain, id));
+			}
+			await expect(
+				synchronizeOpenSpecFilesystem(cwd, "c", {
+					replace: async (path, bytes) => {
+						if (path.includes(`${sep}beta${sep}`)) throw new Error("fallo en beta");
+						await mkdir(dirname(path), { recursive: true });
+						await writeFile(path, bytes);
+					},
+				}),
+			).rejects.toThrow("fallo en beta");
+			expect(existsSync(join(cwd, "openspec", "specs", "alpha", "spec.md"))).toBe(false);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	test("si la restauración TAMBIÉN falla, el error lo dice", async () => {
+		// El peor caso: el repo queda inconsistente. Lo intolerable no es que
+		// pase, es que pase en silencio mientras el error habla de otra cosa.
+		const { cwd } = await twoDomains();
+		try {
+			const failed = synchronizeOpenSpecFilesystem(cwd, "c", {
+				replace: async (path, bytes) => {
+					if (path.includes(`${sep}beta${sep}`)) throw new Error("fallo original");
+					await writeFile(path, bytes);
+				},
+				restore: async () => { throw new Error("la restauración tampoco pudo"); },
+			});
+			await expect(failed).rejects.toThrow("fallo original");
+			await expect(failed).rejects.toThrow("no se pudo restaurar");
+			await expect(failed).rejects.toThrow("sincronizado a medias");
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}

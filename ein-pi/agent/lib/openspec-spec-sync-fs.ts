@@ -46,7 +46,20 @@ async function restore(path: string, bytes: Uint8Array | null): Promise<void> {
 
 export type FilesystemSyncResult = { plan: OpenSpecSyncPlan; changed: boolean };
 
-export async function synchronizeOpenSpecFilesystem(cwd: string, change: string): Promise<FilesystemSyncResult> {
+// Costura de test (producción NUNCA la pasa). El rollback multidominio solo se
+// dispara con un fallo de disco a mitad de la segunda sustitución, y provocarlo
+// de verdad exige permisos o dispositivos llenos: frágil, y en un runner como
+// root ni siquiera falla. Inyectar el fallo en el mismo punto de llamada
+// ejercita el contrato REAL —"si una sustitución revienta, las anteriores se
+// restauran"— sin depender del entorno. Mismo patrón que UpdateRunDependencies.
+export type SyncFsSeam = {
+	replace?: (path: string, bytes: Uint8Array) => Promise<void>;
+	restore?: (path: string, bytes: Uint8Array | null) => Promise<void>;
+};
+
+export async function synchronizeOpenSpecFilesystem(cwd: string, change: string, seam: SyncFsSeam = {}): Promise<FilesystemSyncResult> {
+	const applyReplace = seam.replace ?? replaceWithTemporary;
+	const applyRestore = seam.restore ?? restore;
 	const changePath = join(cwd, "openspec", "changes", change);
 	const deltas = await deltaInputs(changePath);
 	const bases: SyncBaseInput[] = [];
@@ -76,9 +89,9 @@ export async function synchronizeOpenSpecFilesystem(cwd: string, change: string)
 		for (const domain of plan.domains) {
 			const path = join(cwd, "openspec", "specs", domain.domain, "spec.md");
 			snapshots.set(path, await readIfPresent(path));
-			await replaceWithTemporary(path, Buffer.from(serializeOpenSpec(domain.result!)));
+			await applyReplace(path, Buffer.from(serializeOpenSpec(domain.result!)));
 		}
-		await replaceWithTemporary(reportPath, Buffer.from(report));
+		await applyReplace(reportPath, Buffer.from(report));
 	} catch (error) {
 		// Se conserva el fallo ORIGINAL como causa, pero una restauración que
 		// tambien falla NO puede quedarse muda: eso deja specs medio
@@ -87,7 +100,7 @@ export async function synchronizeOpenSpecFilesystem(cwd: string, change: string)
 		// adjuntan al mensaje.
 		const unrestored: string[] = [];
 		for (const [path, snapshot] of snapshots) {
-			try { await restore(path, snapshot); } catch { unrestored.push(path); }
+			try { await applyRestore(path, snapshot); } catch { unrestored.push(path); }
 		}
 		if (unrestored.length > 0 && error instanceof Error) {
 			error.message = `${error.message} [ATENCIÓN: no se pudo restaurar ${unrestored.join(", ")}; esos specs quedaron en estado sincronizado a medias y deben revisarse a mano]`;
