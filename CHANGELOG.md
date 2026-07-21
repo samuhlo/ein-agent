@@ -5,6 +5,54 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.21.0] - 2026-07-21
+
+### Fixed
+
+- **`glob` no existe en Pi: los siete agentes SDD declaraban una tool fantasma.**
+  Los builtins son `read/bash/edit/write/grep/find/ls`; el equivalente se llama
+  `find`. Como `tools:` es una allowlist ESTRICTA, el runner convertía la tool
+  ausente en un error AL CERRAR el run: la fase salía ✗ **aunque el artefacto
+  estuviera escrito** y `ein_sdd_check` lo validara. Encima anteponía al prompt
+  del hijo "reporta este error de configuración", así que reintentaba mientras
+  trabajaba. Coste medido en una sesión real: scope/map/design en ✗ con sus
+  artefactos correctos y ~120k tokens en reintentos.
+- **El gate de entrega fallaba-cerrado por un adjetivo.** Deducía de la prosa de
+  la task si una delegación era una entrega: "push the branch" acuñaba el grant
+  y "push current branch" no, con el mismo significado. Al no acuñarlo, `ein-git`
+  headless quedaba bloqueado **sin salida**. Ahora decide el agente destino
+  (`ein-git` ES entrega, se redacte como se redacte) y la prosa queda como red
+  secundaria. Además: la intención de entrega del usuario es PEGAJOSA con TTL
+  (antes un log pegado a mitad del encargo revocaba en silencio tu "haz push"),
+  el grant admite usos acotados en vez de uno solo (un reintento legítimo se
+  quedaba sin autorización) y el mensaje de bloqueo dice que falta el GRANT —
+  el genérico anterior hacía creer al subagente que faltaba `.pi/ein/git.json`.
+
+### Added
+
+- **El artefacto manda sobre el veredicto del runner.** Una fase SDD entrega UN
+  artefacto: si está escrito y sano, la fase está hecha. El runner marca ✗ por
+  cosas que no dicen nada del trabajo (tool ausente en la allowlist, respuesta
+  final vacía, timeout en la lectura final) y el orquestador repetía una fase
+  completa. Ahora se reconcilia de forma determinista, y **solo** si el artefacto
+  de esa fase apareció o cambió DURANTE el run, es el único candidato y pasa su
+  lint sin errores. El error original viaja siempre dentro del reporte.
+- **`ein doctor` audita las allowlists de tools desplegadas**, no solo el repo:
+  detecta la deriva entre `~/.pi/agent/agents/` y la plantilla.
+- **La puerta de calidad corre en Ubuntu y macOS** con una versión de Bun fijada
+  (matriz compartida, sin workflows duplicados). El E2E con Docker sigue solo en
+  Ubuntu.
+- **Roadmap de calidad** en `docs/quality-roadmap/`.
+
+### Changed
+
+- Suite blindada contra estas dos clases de fallo: contrato de tools de agentes
+  (valida cada nombre declarado contra los builtins reales de Pi y cruza la tabla
+  del orchestrator con el frontmatter) y reconciliación de fases, con la mayoría
+  de casos cubriendo lo que NO debe reconciliarse.
+- Los tests fijan el `AGENT_DIR` temporal en un preload, así que el orden de
+  descubrimiento de ficheros deja de decidir si la suite pasa.
+
 ## [0.20.2] - 2026-07-17
 
 ### Removed

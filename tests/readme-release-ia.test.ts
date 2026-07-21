@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0202---2026-07-17");
+    expect(release.anchor).toBe("0210---2026-07-21");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,12 +70,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("Sin presets de modelos");
-    expect(releaseSummary).toContain("lo que no caduca es el rol");
-    expect(releaseSummary).toContain("Recomendaciones visibles");
-    expect(releaseSummary).toContain("se desvía del recomendado");
-    expect(releaseSummary).toContain("modelo capaz y esfuerzo bajo");
-    expect(releaseSummary).toContain("abaratar el modelo no ahorra");
+    expect(releaseSummary).toContain("Adiós a los ✗ falsos");
+    expect(releaseSummary).toContain("una tool que Pi no tiene");
+    expect(releaseSummary).toContain("El artefacto manda sobre el runner");
+    expect(releaseSummary).toContain("no se repite");
+    expect(releaseSummary).toContain("decide el agente destino");
+    expect(releaseSummary).toContain("no un adjetivo en la frase");
   });
 
   test("guía por capacidad: sin presets, con recomendación por rol y decisión humana", () => {
