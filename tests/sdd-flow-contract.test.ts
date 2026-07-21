@@ -151,6 +151,12 @@ describe("ein-ai: tools deterministas cableados", () => {
 		expect(ai).toContain('import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";');
 		expect(ai).toContain("synchronizeOpenSpecFilesystem(ctx.cwd, change)");
 	});
+	// `ok` describe el RESULTADO, no que el tool corriera. Un conflicto devolvía
+	// `ok: true`: el cierre lo seguía bloqueando, pero un consumidor automático
+	// que solo mire `ok` concluiría que la sincronización terminó bien.
+	test("un conflicto de specs NO se reporta como ok", () => {
+		expect(ai).toContain('ok: plan.state !== "conflict"');
+	});
 	test("el orquestador sabe cómo desbloquear cada estado de specs", () => {
 		const orch = read("assets/orchestrator.md");
 		expect(orch).toContain("ein_openspec_sync");

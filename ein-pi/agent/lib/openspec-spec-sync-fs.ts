@@ -1,5 +1,7 @@
 import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { isSafeChangeName } from "./sdd-router";
 import { parseSyncReport, planOpenSpecSync, serializeSyncReport, type OpenSpecSyncPlan, type SyncBaseInput, type SyncDeltaInput } from "./openspec-spec-sync";
 import { digestManifest, serializeOpenSpec } from "./openspec-spec-contract";
 
@@ -60,7 +62,19 @@ export type SyncFsSeam = {
 export async function synchronizeOpenSpecFilesystem(cwd: string, change: string, seam: SyncFsSeam = {}): Promise<FilesystemSyncResult> {
 	const applyReplace = seam.replace ?? replaceWithTemporary;
 	const applyRestore = seam.restore ?? restore;
+	// El nombre llega desde un tool que expone el LLM: se valida aquí, en el
+	// choke point, no en quien llama. Sin esto `../../x` escribía el informe
+	// FUERA de openspec/changes/ (verificado), y un nombre cualquiera creaba un
+	// cambio fantasma con solo su sync-report.md — un recibo sin trabajo detrás.
+	if (!isSafeChangeName(change)) {
+		throw new Error(`OpenSpec sync: nombre de cambio inválido: ${JSON.stringify(change)}`);
+	}
 	const changePath = join(cwd, "openspec", "changes", change);
+	// Exigir que el cambio EXISTA: sincronizar es una operación sobre trabajo ya
+	// presente, nunca una que lo invente.
+	if (!existsSync(changePath)) {
+		throw new Error(`OpenSpec sync: el cambio '${change}' no existe en openspec/changes/`);
+	}
 	const deltas = await deltaInputs(changePath);
 	const bases: SyncBaseInput[] = [];
 	for (const delta of deltas) {

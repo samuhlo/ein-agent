@@ -1238,7 +1238,11 @@ export default function einAi(pi: ExtensionAPI): void {
 				const tail = plan.state === "conflict"
 					? "\nCONFLICTO: los deltas se contradicen. Resuélvelo a mano; el cierre NO lo salta ni con force."
 					: "\nsync-report.md publicado. `ein_sdd_status` ya puede dar el cambio por sincronizado.";
-				return { content: [{ type: "text", text: `${head}${tail}` }], details: { ok: true, state: plan.state, changed, domains: plan.domains.map((d) => d.domain) } };
+				// `ok` describe el RESULTADO, no que el tool corriera. Un conflicto no
+				// es una sincronización que salió bien: el cierre lo seguirá
+				// bloqueando, y un consumidor automático que solo mire `ok` no debe
+				// concluir lo contrario.
+				return { content: [{ type: "text", text: `${head}${tail}` }], details: { ok: plan.state !== "conflict", state: plan.state, changed, domains: plan.domains.map((d) => d.domain) } };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				return {

@@ -173,6 +173,22 @@ const PHASE_ARTIFACT_ALIASES: Partial<Record<SddPhase, string[]>> = {
 	design: ["design.md", "apply.md"],
 };
 
+// Un nombre de cambio es un SEGMENTO de ruta, nunca una ruta. Sin esto, un
+// `..` escapa de `openspec/changes/` y escribe donde no debe, y un nombre vacío
+// apunta al directorio de cambios ENTERO. `archive` está reservado al storage.
+// Compartido a propósito: sdd-close y la sincronización OpenSpec validaban por
+// separado (o no validaban), y esa divergencia fue justo el agujero.
+export function isSafeChangeName(change: unknown): change is string {
+	return (
+		typeof change === "string" &&
+		change.length > 0 &&
+		change !== "archive" &&
+		!change.includes("/") &&
+		!change.includes("\\") &&
+		!change.includes("..")
+	);
+}
+
 // Raíz de cambios: canónica `openspec/changes/`; fallback `.sdd/changes/`.
 export function resolveChangesDir(cwd: string): string {
 	const canonical = join(cwd, "openspec", "changes");

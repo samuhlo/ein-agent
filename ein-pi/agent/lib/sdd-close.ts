@@ -10,7 +10,7 @@
 
 import { existsSync, mkdirSync, renameSync, cpSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { assessCloseReadiness, resolveChangesDir } from "./sdd-router.ts";
+import { assessCloseReadiness, isSafeChangeName, resolveChangesDir } from "./sdd-router.ts";
 
 export type CloseResult = {
 	ok: boolean;
@@ -35,7 +35,7 @@ export function closeChange(cwd: string, change: string, options: CloseOptions =
 	const from = join(changesDir(cwd), change);
 	const to = closedChangePath(cwd, change);
 
-	if (change === "archive" || change.includes("/") || change.includes("..")) {
+	if (!isSafeChangeName(change)) {
 		return { ok: false, from, to, reason: "nombre de cambio inválido" };
 	}
 	if (!existsSync(from)) {
