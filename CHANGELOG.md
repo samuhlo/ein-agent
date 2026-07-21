@@ -820,8 +820,7 @@ y termina el right-sizing de grupos.
 
 ### Added
 
-- **Capa de estado SDD determinista** (inspirada en el dispatcher de gentle-ai,
-  pero en TS puro expuesto como tools de Pi):
+- **Capa de estado SDD determinista** en TS puro expuesta como tools de Pi:
   - **Router** (`lib/sdd-router.ts` + tool `ein_sdd_status` + `/ein:sdd-status`):
     calcula en qué fase va un cambio leyendo SOLO los ficheros de
     `openspec/changes/<x>/` y la línea `status:` de verify-report → `nextRecommended`.
@@ -840,7 +839,7 @@ y termina el right-sizing de grupos.
 
 ### Changed
 
-- **Flujo SDD fase a fase** (estilo gentle-ai) en el orquestador: router →
+- **Flujo SDD fase a fase** en el orquestador: router →
   delegar una fase (`context: "fresh"`, referencias no contenido) → gatekeeper →
   repetir. La chain `ein-sdd` de un tiro queda como fallback (`/run-chain`), no
   como ruta primaria, porque no permite gate intermedio. SDD pasa a 7 fases

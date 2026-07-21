@@ -11,7 +11,7 @@ El orchestrator ya tiene logica para inferir el siguiente paso (`nextRecommended
 
 - El usuario no tiene un comando directo para pedir "que sigue?".
 - La logica vive en el codigo, no es visible ni auditable.
-- Un dispatcher visible es mas Gentle-like: el usuario pide siguiente paso y ve exactamente que se hara.
+- Un dispatcher visible permite que el usuario pida el siguiente paso y vea exactamente qué se hará.
 
 ---
 
@@ -93,12 +93,12 @@ function ein_sdd_next(change: string, mode: 'interactive' | 'auto'): NextReport 
 
 ---
 
-## // 005. RELACION CON GENTLE-LIKE DISPATCHER
+## // 005. EVOLUCIÓN DEL DISPATCHER DE EIN
 
-Este plan es la base para un dispatcher Gentle-like. La version conservadora establece:
+Este plan establece la base del dispatcher de Ein. La version conservadora establece:
 
 1. Logica de inferencia de siguiente paso.
-2. Presenteacion legible del siguiente paso.
+2. Presentación legible del siguiente paso.
 3. Interaccion pregunta/respuesta en modo interactivo.
 
 Una vez que esta base funciona, la version completa podria:
