@@ -110,6 +110,7 @@ import { readInstalledVersion, staleSessionNudge } from "../lib/session-version"
 import { DOMAIN_ID_PATTERN, sha256 } from "../lib/openspec-spec-contract.ts";
 import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";
 import { evaluateStaging } from "../lib/git-staging.ts";
+import { emitCandidateReceipt, suggestIntendedPaths } from "../lib/candidate-receipt.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
@@ -1257,6 +1258,62 @@ export default function einAi(pi: ExtensionAPI): void {
 					details: { ok: false, reason: message },
 				};
 			}
+		},
+	});
+
+	// Slice 03. Un verify que pasa no dice QUÉ bytes pasaron; esto los fija en un
+	// árbol git content-addressed y lo liga a repo/worktree/cambio/HEAD/rutas/
+	// informe/comandos. NO gatea nada todavía: eso es el slice 04.
+	pi.registerTool({
+		name: "ein_candidate_receipt",
+		label: "Ein Candidate Receipt",
+		description:
+			"Record which exact bytes a PASSING sdd-verify covered. REFUSES unless verify is `pass`, not stale, and apply is complete. Builds a synthetic candidate tree with a temporary git index (the real index and worktree are never touched) and publishes a local receipt under the worktree git admin dir, binding repository, worktree, change, HEAD, the declared paths, the verify report and the verification commands. `paths` is an EXPLICIT manifest of exact files — no directories, no git magic pathspecs; call without it to get the current tracked/untracked lists to choose from. Does NOT gate delivery.",
+		parameters: {
+			type: "object",
+			properties: {
+				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
+				commands: { type: "array", items: { type: "string" }, description: "Verification commands actually run, verbatim." },
+				paths: { type: "array", items: { type: "string" }, description: "EXPLICIT manifest: exact file paths that make up this delivery. Directories and magic pathspecs are rejected. Anything not named is excluded — it may be someone else's work in progress." },
+			},
+		} as const,
+		async execute(_id, params: { change?: string; commands?: string[]; paths?: string[] }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
+			if (!change) {
+				return { content: [{ type: "text", text: "/// CANDIDATE RECEIPT — no active change." }], details: { ok: false, reason: "no active change" } };
+			}
+			// Sin manifiesto no se emite. Pero tampoco es un callejón: se devuelve
+			// la foto del árbol para que el llamante ENUMERE lo que entra.
+			if (!params?.paths || params.paths.length === 0) {
+				const { tracked, untracked } = suggestIntendedPaths(ctx.cwd);
+				const text = [
+					`/// CANDIDATE RECEIPT — '${change}' NO emitido: falta el manifiesto \`paths\`.`,
+					"El candidato se DECLARA, no se infiere: 'todo lo modificado' puede incluir trabajo en curso de otro.",
+					"",
+					`modificados y trackeados (${tracked.length}): ${tracked.join(", ") || "(ninguno)"}`,
+					`sin trackear (${untracked.length}): ${untracked.join(", ") || "(ninguno)"}`,
+					"",
+					"Vuelve a llamar con `paths` enumerando SOLO los ficheros de esta entrega.",
+				].join("\n");
+				return { content: [{ type: "text", text }], details: { ok: false, reason: "missing paths manifest", tracked, untracked } };
+			}
+			const result = emitCandidateReceipt(ctx.cwd, {
+				change,
+				paths: params.paths,
+				commands: params?.commands ?? [],
+			});
+			if (!result.ok) {
+				return { content: [{ type: "text", text: `/// CANDIDATE RECEIPT — '${change}' NO emitido: ${result.reason}` }], details: result };
+			}
+			const { receipt } = result;
+			const text = [
+				`/// CANDIDATE RECEIPT — '${change}'`,
+				`tree: ${receipt.treeSha}`,
+				`head: ${receipt.head} (${receipt.branch})`,
+				`rutas previstas (${receipt.paths.length}): ${receipt.paths.slice(0, 12).join(", ")}${receipt.paths.length > 12 ? " …" : ""}`,
+				"El recibo identifica los bytes verificados. Si el árbol cambia después, deja de coincidir.",
+			].join("\n");
+			return { content: [{ type: "text", text }], details: { ok: true, ...receipt } };
 		},
 	});
 

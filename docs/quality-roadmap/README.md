@@ -39,7 +39,8 @@ Resultado: Ein podrá demostrar de forma trazable qué se verificó, qué bytes 
 |---|---|---|---|
 | 01 | [Paridad CI macOS](./01-macos-ci-parity.md) | complete | — |
 | 02 | [OpenSpec canónico](./02-canonical-openspec.md) | complete | 01 |
-| 03 | [Recibo de candidato verificado](./03-verified-candidate-receipt.md) | planned | 02 |
+| 03a | Pathspec cerrado en la entrega (`lib/git-staging.ts`) | complete | — |
+| 03 | [Recibo de candidato verificado](./03-verified-candidate-receipt.md) | in progress | 02 |
 | 04 | [Puertas de recibo de entrega](./04-delivery-receipt-gates.md) | planned | 03 |
 | 05 | [Pruebas de resiliencia](./05-delivery-resilience-tests.md) | planned | 04 |
 | 06 | [Revisión Ein](./06-ein-review.md) | planned | 05 |
