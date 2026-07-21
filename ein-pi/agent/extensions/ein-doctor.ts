@@ -148,6 +148,38 @@ function warn(pass: boolean, name: string, detail: string): CheckResult {
   return { name, detail, level: pass ? "OK" : "WARN" };
 }
 
+// Builtins de Pi (dist/core/tools/index.js → allToolNames). `glob` NO existe:
+// el equivalente es `find`. Ver tests/agent-tools-contract.test.ts.
+const PI_BUILTIN_TOOLS = new Set(["read", "bash", "edit", "write", "grep", "find", "ls"]);
+
+// Tools declaradas por los agentes DESPLEGADOS que Pi no puede resolver.
+// Ignora rutas de proveedor (van a --extension) y nombres registrados por las
+// extensiones de Ein, que el hijo hereda.
+function unknownDeployedAgentTools(agentsDir: string): string[] {
+  if (!existsSync(agentsDir)) return [];
+  const extensionTools = new Set<string>();
+  const extDir = join(AGENT_DIR, "extensions");
+  if (existsSync(extDir)) {
+    for (const file of readdirSync(extDir).filter((f) => f.endsWith(".ts"))) {
+      const src = readIfExists(join(extDir, file));
+      for (const m of src.matchAll(/registerTool\(\s*\{[\s\S]{0,200}?name:\s*"([a-z0-9_]+)"/g)) {
+        if (m[1]) extensionTools.add(m[1]);
+      }
+    }
+  }
+  const unknown: string[] = [];
+  for (const file of readdirSync(agentsDir).filter((f) => f.endsWith(".md"))) {
+    const tools = readIfExists(join(agentsDir, file)).match(/^tools:\s*(.+)$/m)?.[1];
+    if (!tools) continue;
+    for (const tool of tools.split(",").map((t) => t.trim()).filter(Boolean)) {
+      if (tool.includes("/") || tool.endsWith(".ts") || tool.endsWith(".js")) continue;
+      if (PI_BUILTIN_TOOLS.has(tool) || extensionTools.has(tool)) continue;
+      unknown.push(`${file}:${tool}`);
+    }
+  }
+  return unknown;
+}
+
 function doctorSmokeReport(): string {
   const brandFile = join(AGENT_DIR, "brand.json");
   const settingsFile = join(AGENT_DIR, "settings.json");
@@ -255,6 +287,7 @@ function doctorSmokeReport(): string {
     "sdd-close.md",
   ];
   const DELIVERY_AGENTS = ["ein-linear.md", "ein-git.md"];
+  const unknownDeployedTools = unknownDeployedAgentTools(agentsDir);
 
   const checksAgents: CheckResult[] = [
     ...SDD_AGENTS.map((a) =>
@@ -267,6 +300,18 @@ function doctorSmokeReport(): string {
       existsSync(join(chainsDir, "ein-sdd.chain.md")),
       "chain ein-sdd",
       "Chain principal presente.",
+    ),
+    // `tools:` es una allowlist ESTRICTA: un nombre que Pi no registra hace que
+    // el run salga ✗ AUNQUE el artefacto se escriba, y envenena el prompt del
+    // hijo ("report this configuration error"). El test de repo lo blinda en
+    // CI; esto audita lo DESPLEGADO, que es lo que corre — y que puede derivar
+    // si alguien edita ~/.pi a mano.
+    check(
+      unknownDeployedTools.length === 0,
+      "agent tools allowlist",
+      unknownDeployedTools.length === 0
+        ? "Toda tool declarada existe en Pi."
+        : `Tools inexistentes: ${unknownDeployedTools.join(", ")}. Reinstala el template (ein update).`,
     ),
   ];
 
@@ -396,7 +441,7 @@ function doctorSmokeReport(): string {
     check(
       orchestratorRaw.includes("Exploration hygiene"),
       "orchestrator exploration hygiene",
-      "El orchestrator excluye node_modules/dist/etc. de find/grep/glob.",
+      "El orchestrator excluye node_modules/dist/etc. de find/grep/ls.",
     ),
     check(
       orchestratorRaw.includes("Assessment & valuation"),

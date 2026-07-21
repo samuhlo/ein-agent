@@ -1,7 +1,7 @@
 ---
 name: sdd-design
 description: SDD design phase — writes proposal, spec, decisions, and success criteria to design.md.
-tools: read, grep, glob, write, edit
+tools: read, grep, find, write, edit
 completionGuard: false
 ---
 

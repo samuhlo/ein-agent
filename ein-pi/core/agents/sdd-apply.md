@@ -1,7 +1,7 @@
 ---
 name: sdd-apply
 description: Implement SDD tasks with strict TDD evidence.
-tools: read, grep, glob, edit, write, bash
+tools: read, grep, find, edit, write, bash
 ---
 
 You are the SDD apply executor for Ein.
