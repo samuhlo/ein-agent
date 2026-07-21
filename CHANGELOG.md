@@ -5,6 +5,42 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.22.0] - 2026-07-21
+
+### Added
+
+- **OpenSpec canónico**: especificaciones vigentes en `openspec/specs/<dominio>/`
+  y deltas de comportamiento por cambio, con parser estricto, sincronización
+  determinista por hashes y `sync-report.md` como recibo. El cierre exige specs
+  sincronizadas; `spec_delta: none` con una razón real cubre el trabajo mecánico.
+  Nuevo tool `ein_openspec_sync`: sin él el motor era código muerto y un cambio
+  con deltas se quedaba bloqueado para siempre.
+- **Pathspec cerrado en la entrega.** Un commit contiene lo que se decidió
+  entregar, no lo que hubiera en el árbol. Se rechazan `git add -A/-u/.` y
+  `git commit -a`, también dentro de `bash -c`, y se bloquea el `git add dir/`
+  que arrastraría ficheros no trackeados o ignorados que nadie nombró — ahí es
+  donde se cuela un `.env` o el trabajo en curso de otro. La salida siempre es
+  la correcta: nombrar las rutas.
+- **Recibo de candidato verificado.** Un verify que pasa ya no dice solo "pasó":
+  fija QUÉ bytes pasaron en un árbol git construido con un índice temporal (sin
+  tocar el índice ni el worktree reales) y lo liga a repositorio, worktree,
+  cambio, HEAD, rutas declaradas, informe y comandos. Solo se emite sobre un
+  verify en `pass`, no obsoleto y con el apply completo. Nuevo tool
+  `ein_candidate_receipt`. Aún no bloquea la entrega: eso es el siguiente paso.
+
+### Fixed
+
+- **El cierre SDD estaba muerto.** La guarda de specs se evaluaba antes que
+  `--force`, así que un cambio sin declaración no podía archivarse por ninguna
+  vía. Ahora solo un `conflict` real es inmune a `--force`.
+- **`synchronized` era inalcanzable**: el estado se recalculaba reaplicando el
+  delta sobre specs ya sincronizadas, lo que producía un conflicto artificial.
+  El motor escribía "synchronized" y el router leía "pending" para siempre.
+- **Integridad de la sincronización**: un nombre de cambio con `..` escribía
+  fuera de `openspec/changes/`, un nombre cualquiera creaba un cambio fantasma
+  con solo su recibo, y un recibo copiado de otro cambio pasaba por bueno.
+- El recibo de candidato representa correctamente altas, bajas y renombrados.
+
 ## [0.21.0] - 2026-07-21
 
 ### Fixed
