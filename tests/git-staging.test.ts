@@ -14,7 +14,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -233,5 +233,90 @@ describe("evaluateStaging conserva las DOS capas", () => {
 
 	test("y sigue permitiendo el add explícito en ese mismo repo", () => {
 		expect(evaluateStaging(repoSinUntracked(), "git add a.ts").kind).toBe("ok");
+	});
+});
+
+// =============================================================================
+// PERÍMETRO DE COMANDOS. Los tres huecos que destapó la revisión del PR #42,
+// todos reproducidos antes de arreglarlos.
+// =============================================================================
+describe("envoltorios de shell", () => {
+	// `bash -c` es la forma NORMAL en que un agente ejecuta cosas, no un truco.
+	// El tokenizador metía el comando entero en un token entrecomillado, así que
+	// no parecía git y pasaba limpio: el incidente original podía repetirse tal
+	// cual con una envoltura rutinaria.
+	const bloqueados = [
+		`bash -lc 'git add -A'`,
+		`bash -c 'git add .'`,
+		`sh -c "git commit -am x"`,
+		`zsh -c 'git add -u'`,
+		`/bin/bash -c 'git add -A'`,
+		`/usr/bin/env bash -c 'git add -A'`,
+		// Anidado.
+		`bash -c "bash -c 'git add -A'"`,
+		// El comando peligroso va después de uno inofensivo dentro del wrapper.
+		`bash -lc 'echo hola && git add -A'`,
+	];
+	for (const command of bloqueados) {
+		test(`bloquea: ${command}`, () => {
+			expect(classifyStagingCommand(command).kind).toBe("blocked");
+		});
+	}
+
+	test("un wrapper con un add explícito sigue pasando", () => {
+		expect(classifyStagingCommand(`bash -lc 'git add src/a.ts'`).kind).toBe("ok");
+	});
+
+	test("un mensaje que MENCIONA bash no es un wrapper", () => {
+		expect(classifyStagingCommand(`git commit -m "usa bash -c 'git add -A' nunca"`).kind).toBe("ok");
+	});
+});
+
+describe("ficheros ignorados y fidelidad del dry-run", () => {
+	// Reconstruir el dry-run solo con los pathspecs descartaba `-f`, que es
+	// justo el flag que mete ficheros IGNORADOS. Un `git add -f dist/` podía
+	// publicar un `.env` y el guard decía que todo bien.
+	function repoConIgnorados(): string {
+		const dir = mkdtempSync(join(tmpdir(), "ein-ignorados-"));
+		const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "ignore" });
+		git("init", "-q");
+		git("config", "user.email", "t@t");
+		git("config", "user.name", "t");
+		mkdirSync(join(dir, "dist"), { recursive: true });
+		writeFileSync(join(dir, ".gitignore"), "dist/\n");
+		writeFileSync(join(dir, "dist", "secreto.env"), "API_KEY=xxx\n");
+		git("add", ".gitignore");
+		git("commit", "-qm", "init");
+		return dir;
+	}
+
+	test("`git add -f dist/` con un secreto ignorado dentro se bloquea", () => {
+		const verdict = evaluateStaging(repoConIgnorados(), "git add -f dist/");
+		expect(verdict.kind).toBe("blocked");
+		if (verdict.kind === "blocked") expect(verdict.reason).toContain("dist/secreto.env");
+	});
+
+	test("nombrar el ignorado a propósito SÍ pasa", () => {
+		expect(evaluateStaging(repoConIgnorados(), "git add -f dist/secreto.env").kind).toBe("ok");
+	});
+
+	test("los flags interactivos no se inspeccionan (colgarían el dry-run)", () => {
+		expect(evaluateStaging(repoConIgnorados(), "git add -p").kind).toBe("ok");
+	});
+});
+
+describe("independencia del idioma de git", () => {
+	// `git add --dry-run` imprime `add '<ruta>'`, y ese texto pasa por la capa
+	// de traducción de git. Hoy no se traduce en ningún locale probado, pero una
+	// traducción futura dejaría la lista VACÍA y el guard diría que todo va bien
+	// — un fallo silencioso en el peor sitio. Anclar el locale cuesta una línea.
+	const source = readFileSync(join(import.meta.dir, "../ein-pi/agent/lib/git-staging.ts"), "utf8");
+	test("las llamadas a git fijan el locale", () => {
+		expect(source).toContain('LC_ALL: "C"');
+		expect(source).toContain('LANGUAGE: "C"');
+	});
+	test("el parser solo acepta el formato del locale C", () => {
+		expect(parseDryRunPaths("añadir 'ruta.ts'\n")).toEqual([]);
+		expect(parseDryRunPaths("add 'ruta.ts'\n")).toEqual(["ruta.ts"]);
 	});
 });
