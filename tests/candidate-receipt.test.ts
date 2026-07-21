@@ -13,14 +13,16 @@
 
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 const {
 	buildCandidateTree,
 	candidateTreeMatches,
-	collectIntendedPaths,
+	assessReceiptPrecondition,
+	suggestIntendedPaths,
+	validateIntendedPaths,
 	digestPaths,
 	emitCandidateReceipt,
 	parseReceipt,
@@ -31,7 +33,10 @@ const {
 	validateCandidateReceipt,
 } = await import("../ein-pi/agent/lib/candidate-receipt");
 
-function repo(): string {
+// Repo con un cambio SDD en estado VERIFICADO: es la precondición para emitir.
+// Sin ella un `status: fail` producía un recibo "verificado", que vacía la
+// palabra de significado.
+function repo(change = "mi-cambio", verify = "pass", applyStatus = "complete"): string {
 	const dir = mkdtempSync(join(tmpdir(), "ein-receipt-"));
 	const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "ignore" });
 	git("init", "-q");
@@ -41,19 +46,27 @@ function repo(): string {
 	writeFileSync(join(dir, "b.ts"), "v1\n");
 	git("add", "a.ts", "b.ts");
 	git("commit", "-qm", "init");
+	sddChange(dir, change, verify, applyStatus);
 	return dir;
+}
+
+function sddChange(dir: string, change: string, verify = "pass", applyStatus = "complete"): string {
+	const base = join(dir, "openspec", "changes", change);
+	mkdirSync(base, { recursive: true });
+	writeFileSync(join(base, "scope.md"), "# Scope\n\nscope: x\nbudget_allocated: 1000\n");
+	writeFileSync(join(base, "map.md"), "# Map\n\nledger: x\nbudget_consumed: 1\nscope_status: ok\n");
+	writeFileSync(join(base, "design.md"), "# Design\n");
+	writeFileSync(join(base, "tasks.md"), "# Tasks\n\n- [x] 1.1 hecho\n");
+	writeFileSync(join(base, "apply-progress.md"), `# Apply\n\nstatus: ${applyStatus}\n`);
+	writeFileSync(join(base, "verify-report.md"), `# Verify\n\nstatus: ${verify}\nbehavior_coverage: verified\n`);
+	return base;
 }
 
 const gitOut = (dir: string, ...args: string[]) =>
 	execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
 
-function emitir(dir: string, change = "mi-cambio", untracked: string[] = []) {
-	return emitCandidateReceipt(dir, {
-		change,
-		report: "# Verify\nstatus: pass\n",
-		commands: ["bun test"],
-		includeUntracked: untracked,
-	});
+function emitir(dir: string, change = "mi-cambio", paths: string[] = ["a.ts"]) {
+	return emitCandidateReceipt(dir, { change, paths, commands: ["bun test"] });
 }
 
 describe("aislamiento: no se toca el índice ni el worktree reales", () => {
@@ -122,19 +135,125 @@ describe("el árbol candidato describe exactamente lo previsto", () => {
 	});
 });
 
-describe("collectIntendedPaths", () => {
-	test("recoge lo trackeado modificado y NO lo untracked sin nombrar", () => {
+describe("suggestIntendedPaths — sugiere, no decide", () => {
+	test("separa lo trackeado modificado de lo sin trackear", () => {
 		const dir = repo();
 		writeFileSync(join(dir, "a.ts"), "v2\n");
-		writeFileSync(join(dir, "ajeno.ts"), "de otro\n");
-		expect(collectIntendedPaths(dir)).toEqual(["a.ts"]);
+		writeFileSync(join(dir, "nuevo.ts"), "nuevo\n");
+		const { tracked, untracked } = suggestIntendedPaths(dir);
+		expect(tracked).toContain("a.ts");
+		expect(untracked).toContain("nuevo.ts");
+	});
+});
+
+// =============================================================================
+// El manifiesto se DECLARA. Inferirlo de `git diff --name-only HEAD` metía
+// automáticamente CUALQUIER fichero trackeado que otro trabajo hubiera tocado:
+// se excluía el WIP sin trackear pero no el trackeado, que es igual de ajeno.
+// =============================================================================
+describe("manifiesto explícito de rutas", () => {
+	test("un trackeado modificado por OTRO trabajo no entra solo", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "lo mío\n");
+		writeFileSync(join(dir, "b.ts"), "WIP de otro agente\n");
+		const emitted = emitir(dir, "mi-cambio", ["a.ts"]);
+		expect(emitted.ok).toBe(true);
+		if (!emitted.ok) return;
+		expect(emitted.receipt.paths).toEqual(["a.ts"]);
+		const contenido = gitOut(dir, "ls-tree", "-r", "--name-only", emitted.receipt.treeSha).split("\n");
+		// b.ts entra en el árbol con su contenido de HEAD, NO con el WIP ajeno.
+		expect(gitOut(dir, "show", `${emitted.receipt.treeSha}:b.ts`)).toBe("v1");
+		expect(contenido).toContain("b.ts");
 	});
 
-	test("un untracked NOMBRADO sí entra", () => {
+	test("sin manifiesto no se emite", () => {
 		const dir = repo();
 		writeFileSync(join(dir, "a.ts"), "v2\n");
-		writeFileSync(join(dir, "mio.ts"), "mío\n");
-		expect(collectIntendedPaths(dir, ["mio.ts"])).toEqual(["a.ts", "mio.ts"]);
+		const emitted = emitCandidateReceipt(dir, { change: "mi-cambio", paths: [], commands: [] });
+		expect(emitted.ok).toBe(false);
+	});
+
+	const invalidas: [string, string][] = [
+		["tests/", "directorio"],
+		[":(glob)**/*.ts", "pathspec mágico"],
+		["/etc/passwd", "ruta absoluta"],
+		["../fuera.ts", "escape con .."],
+		["no-existe.ts", "no existe"],
+	];
+	for (const [ruta, motivo] of invalidas) {
+		test(`rechaza ${motivo}: ${ruta}`, () => {
+			const dir = repo();
+			writeFileSync(join(dir, "a.ts"), "v2\n");
+			mkdirSync(join(dir, "tests"), { recursive: true });
+			writeFileSync(join(dir, "tests", "uno.ts"), "1\n");
+			expect(validateIntendedPaths(dir, [ruta]).length).toBeGreaterThan(0);
+			expect(emitir(dir, "mi-cambio", [ruta]).ok).toBe(false);
+		});
+	}
+
+	test("un trackeado SIN cambios no forma parte del candidato", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		expect(validateIntendedPaths(dir, ["b.ts"]).length).toBeGreaterThan(0);
+	});
+
+	test("una ruta duplicada se detecta", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		expect(validateIntendedPaths(dir, ["a.ts", "a.ts"]).length).toBeGreaterThan(0);
+	});
+});
+
+// =============================================================================
+// "Candidato VERIFICADO" tiene que significar algo. Antes solo se comprobaba
+// que el fichero del informe existiera, así que un `status: fail` producía un
+// recibo perfectamente válido.
+// =============================================================================
+describe("precondición: solo se emite sobre un verify válido", () => {
+	test("un verify en FAIL no produce recibo", () => {
+		const dir = repo("mi-cambio", "fail");
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		const emitted = emitir(dir);
+		expect(emitted.ok).toBe(false);
+		if (!emitted.ok) expect(emitted.reason).toContain("pass");
+	});
+
+	test("un apply a medias no produce recibo", () => {
+		const dir = repo("mi-cambio", "pass", "partial");
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		expect(emitir(dir).ok).toBe(false);
+	});
+
+	test("un verify OBSOLETO (apply posterior) no produce recibo", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		// Un apply posterior deja el informe describiendo un árbol viejo.
+		const applyPath = join(dir, "openspec", "changes", "mi-cambio", "apply-progress.md");
+		const futuro = Date.now() / 1000 + 60;
+		writeFileSync(applyPath, "# Apply\n\nstatus: complete\n");
+		utimesSync(applyPath, futuro, futuro);
+		const emitted = emitir(dir);
+		expect(emitted.ok).toBe(false);
+		if (!emitted.ok) expect(emitted.reason).toContain("OBSOLETO");
+	});
+
+	test("un nombre de cambio inseguro se rechaza", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		for (const malo of ["../fuera", "a/b", "", "archive"]) {
+			expect(emitir(dir, malo).ok).toBe(false);
+		}
+	});
+
+	test("un cambio inexistente se rechaza", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		expect(emitir(dir, "no-existe").ok).toBe(false);
+	});
+
+	test("assessReceiptPrecondition no bloquea un estado sano", () => {
+		const dir = repo();
+		expect(assessReceiptPrecondition(dir, "mi-cambio")).toBeNull();
 	});
 });
 
@@ -201,9 +320,10 @@ describe("validación fail-closed", () => {
 	});
 
 	test("un recibo de OTRO cambio no vale", () => {
-		const dir = repo();
+		const dir = repo("cambio-uno");
+		sddChange(dir, "cambio-dos");
 		writeFileSync(join(dir, "a.ts"), "v2\n");
-		emitir(dir, "cambio-uno");
+		expect(emitir(dir, "cambio-uno").ok).toBe(true);
 		const verdict = validateCandidateReceipt(dir, "cambio-dos");
 		expect(verdict.ok).toBe(false);
 		if (!verdict.ok) expect(verdict.reason).toContain("cambio-uno");
@@ -264,5 +384,50 @@ describe("publicación atómica", () => {
 			.filter((entry) => entry.endsWith(".tmp"));
 		expect(temporales).toEqual([]);
 		expect(existsSync(receiptPath(dir)!)).toBe(true);
+	});
+});
+
+// =============================================================================
+// El recibo guarda `reportSha256` y ANTES no lo comparaba nunca: verify A pasa,
+// se emite el recibo, llega un verify B, y el recibo viejo seguía validando. Es
+// el mismo fallo que se corrigió en el recibo OpenSpec —serializar la identidad
+// y no mirarla— repetido aquí, en el módulo que presume de trazabilidad.
+// =============================================================================
+describe("el recibo debe respaldar el informe VIGENTE", () => {
+	test("un verify posterior distinto invalida el recibo", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		expect(emitir(dir).ok).toBe(true);
+		expect(validateCandidateReceipt(dir, "mi-cambio").ok).toBe(true);
+
+		// Verify B: mismo veredicto, informe distinto.
+		writeFileSync(
+			join(dir, "openspec", "changes", "mi-cambio", "verify-report.md"),
+			"# Verify\n\nstatus: pass\nbehavior_coverage: verified\nnota: segunda pasada\n",
+		);
+		const verdict = validateCandidateReceipt(dir, "mi-cambio");
+		expect(verdict.ok).toBe(false);
+		if (!verdict.ok) expect(verdict.reason).toContain("vigente");
+	});
+
+	test("si el informe desaparece, el recibo deja de valer", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		emitir(dir);
+		rmSync(join(dir, "openspec", "changes", "mi-cambio", "verify-report.md"));
+		expect(validateCandidateReceipt(dir, "mi-cambio").ok).toBe(false);
+	});
+
+	test("un apply posterior invalida el recibo aunque el informe no cambie", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		emitir(dir);
+		const applyPath = join(dir, "openspec", "changes", "mi-cambio", "apply-progress.md");
+		const futuro = Date.now() / 1000 + 60;
+		writeFileSync(applyPath, "# Apply\n\nstatus: complete\n");
+		utimesSync(applyPath, futuro, futuro);
+		const verdict = validateCandidateReceipt(dir, "mi-cambio");
+		expect(verdict.ok).toBe(false);
+		if (!verdict.ok) expect(verdict.reason).toContain("ya no está en estado verificado");
 	});
 });

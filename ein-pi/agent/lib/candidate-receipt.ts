@@ -28,8 +28,9 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { isSafeChangeName, resolveChangesDir, resolveSddStatus } from "./sdd-router.ts";
 
 export const RECEIPT_VERSION = 1;
 
@@ -101,21 +102,74 @@ export function resolveWorktreeIdentity(cwd: string): WorktreeIdentity | null {
 	};
 }
 
-// Rutas PREVISTAS = modificaciones sobre ficheros ya trackeados (staged o no)
-// + los untracked que se nombren explícitamente. Misma doctrina que el guard de
-// staging: lo trackeado que has tocado es tuyo por definición; lo no trackeado
-// hay que nombrarlo, porque puede ser trabajo en curso de otro.
-export function collectIntendedPaths(cwd: string, includeUntracked: readonly string[] = []): string[] {
-	const tracked = git(cwd, ["diff", "--name-only", "HEAD"]);
-	const paths = new Set<string>();
-	for (const line of (tracked ?? "").split("\n").map((entry) => entry.trim()).filter(Boolean)) {
-		paths.add(line);
+// SUGERENCIA, no manifiesto. Devuelve lo que el árbol tiene tocado ahora mismo
+// para que quien emita el recibo pueda revisarlo y enumerarlo. NO se usa para
+// emitir: en una sesión con varios agentes, "todo lo trackeado modificado"
+// incluye el trabajo en curso de otro, y meterlo en un candidato "verificado"
+// sería exactamente el accidente que este slice existe para evitar. Las rutas
+// del recibo se DECLARAN.
+export function suggestIntendedPaths(cwd: string): { tracked: string[]; untracked: string[] } {
+	const tracked = (git(cwd, ["diff", "--name-only", "HEAD"]) ?? "")
+		.split("\n")
+		.map((entry) => entry.trim())
+		.filter(Boolean)
+		.sort();
+	const untracked = (git(cwd, ["ls-files", "--others", "--exclude-standard"]) ?? "")
+		.split("\n")
+		.map((entry) => entry.trim())
+		.filter(Boolean)
+		.sort();
+	return { tracked, untracked };
+}
+
+// Una ruta del manifiesto es un FICHERO CONCRETO. Ni directorios ni pathspecs
+// mágicos: `tests/` o `:(glob)**/*.ts` meten en el candidato ficheros que nadie
+// enumeró, que es justo lo contrario de identificar bytes exactos.
+export function validateIntendedPaths(cwd: string, paths: readonly string[]): string[] {
+	const problems: string[] = [];
+	if (paths.length === 0) return ["el manifiesto de rutas está vacío"];
+	const { tracked, untracked } = suggestIntendedPaths(cwd);
+	const known = new Set([...tracked, ...untracked]);
+	const seen = new Set<string>();
+	for (const path of paths) {
+		if (typeof path !== "string" || !path.trim()) {
+			problems.push("hay una ruta vacía");
+			continue;
+		}
+		if (seen.has(path)) {
+			problems.push(`${path}: duplicada`);
+			continue;
+		}
+		seen.add(path);
+		if (path.startsWith(":")) {
+			problems.push(`${path}: los pathspecs mágicos de git no valen; enumera ficheros`);
+			continue;
+		}
+		if (isAbsolute(path) || path.includes("..")) {
+			problems.push(`${path}: debe ser una ruta relativa dentro del worktree, sin '..'`);
+			continue;
+		}
+		if (path.endsWith("/")) {
+			problems.push(`${path}: es un directorio; enumera los ficheros que entran`);
+			continue;
+		}
+		const full = join(cwd, path);
+		if (!existsSync(full)) {
+			problems.push(`${path}: no existe en el worktree`);
+			continue;
+		}
+		if (statSync(full).isDirectory()) {
+			problems.push(`${path}: es un directorio; enumera los ficheros que entran`);
+			continue;
+		}
+		// Debe ser parte real del cambio: o un trackeado que has modificado, o un
+		// untracked. Un trackeado SIN cambios no aporta nada al candidato (ya está
+		// en HEAD) y declararlo suele delatar un manifiesto copiado a ojo.
+		if (!known.has(path)) {
+			problems.push(`${path}: no está modificado ni sin trackear; no forma parte de este cambio`);
+		}
 	}
-	for (const entry of includeUntracked) {
-		const normalized = entry.replace(/^\.\//, "").replace(/\/+$/, "");
-		if (normalized) paths.add(normalized);
-	}
-	return [...paths].sort();
+	return problems;
 }
 
 // Árbol candidato: índice temporal sembrado desde HEAD + solo las rutas
@@ -189,16 +243,42 @@ export function parseReceipt(source: string): CandidateReceipt | null {
 
 export type EmitInput = {
 	change: string;
-	// Bytes del verify-report.md que respalda este candidato.
-	report: string;
+	// Manifiesto EXPLÍCITO de ficheros que forman el candidato. Sin defecto a
+	// propósito: inferirlo de "todo lo modificado" arrastra trabajo ajeno.
+	paths: readonly string[];
 	// Comandos/evidencia de verificación, tal y como se ejecutaron.
 	commands: readonly string[];
-	includeUntracked?: readonly string[];
 };
 
 export type EmitResult =
 	| { ok: true; receipt: CandidateReceipt; path: string }
 	| { ok: false; reason: string };
+
+// Ruta del informe de verify que respalda el candidato.
+function verifyReportPath(cwd: string, change: string): string {
+	return join(resolveChangesDir(cwd), change, "verify-report.md");
+}
+
+// Precondición de EMISIÓN. Un recibo se llama "de candidato VERIFICADO": si se
+// emite sobre un verify que falló, que está obsoleto o sobre un apply a medias,
+// la palabra "verificado" deja de significar nada. Antes solo se comprobaba que
+// el fichero del informe existiera, así que un `status: fail` producía un recibo
+// perfectamente válido.
+//
+// NO se gatean las tareas pendientes: el estado autoritativo de que la
+// implementación terminó lo escribe el ejecutor en `apply-progress.md`, y el
+// recuento de tareas ya lo gobierna la guarda de cierre. Duplicarlo aquí
+// añadiría un bloqueo más ante un `tasks.md` desactualizado sin ganar garantía.
+export function assessReceiptPrecondition(cwd: string, change: string): string | null {
+	if (!isSafeChangeName(change)) return `nombre de cambio inválido: ${JSON.stringify(change)}`;
+	if (!existsSync(join(resolveChangesDir(cwd), change))) return `el cambio '${change}' no existe`;
+	const status = resolveSddStatus(cwd, change);
+	if (status.verify === "absent") return "no hay verify-report.md: no hay verificación que respaldar";
+	if (status.verify !== "pass") return `verify no está en pass (está '${status.verify}'): un candidato no se llama verificado sin una verificación que pase`;
+	if (status.verifyStale) return "el verify es OBSOLETO: hubo un apply posterior, así que el informe no describe el árbol actual";
+	if (status.apply !== "complete") return `apply no está completo (está '${status.apply}'): lo verificado es trabajo a medias`;
+	return null;
+}
 
 // Emite el recibo. Publicación atómica: se escribe un temporal en el MISMO
 // directorio y se renombra, para que una cancelación a mitad no deje un recibo
@@ -207,7 +287,21 @@ export function emitCandidateReceipt(cwd: string, input: EmitInput): EmitResult 
 	const identity = resolveWorktreeIdentity(cwd);
 	if (!identity) return { ok: false, reason: "no es un repositorio git" };
 	if (!identity.head) return { ok: false, reason: "el repositorio no tiene HEAD (sin commits)" };
-	const paths = collectIntendedPaths(cwd, input.includeUntracked ?? []);
+	const blocker = assessReceiptPrecondition(cwd, input.change);
+	if (blocker) return { ok: false, reason: blocker };
+	const problems = validateIntendedPaths(cwd, input.paths);
+	if (problems.length > 0) {
+		return { ok: false, reason: `manifiesto de rutas inválido: ${problems.join("; ")}` };
+	}
+	// El informe se lee del disco, no lo aporta quien llama: el recibo debe
+	// respaldar el verify REAL del cambio, no un texto que le pasen.
+	let report: string;
+	try {
+		report = readFileSync(verifyReportPath(cwd, input.change), "utf8");
+	} catch {
+		return { ok: false, reason: "no se pudo leer verify-report.md" };
+	}
+	const paths = [...input.paths].sort();
 	const treeSha = buildCandidateTree(cwd, paths);
 	if (!treeSha) return { ok: false, reason: "no se pudo construir el árbol candidato" };
 	const receipt: CandidateReceipt = {
@@ -220,7 +314,7 @@ export function emitCandidateReceipt(cwd: string, input: EmitInput): EmitResult 
 		treeSha,
 		paths,
 		pathsSha256: digestPaths(paths),
-		reportSha256: sha256(input.report),
+		reportSha256: sha256(report),
 		commandsSha256: sha256(input.commands.join("\n")),
 		createdAt: new Date().toISOString(),
 	};
@@ -268,6 +362,24 @@ export function validateCandidateReceipt(cwd: string, change: string): ReceiptVe
 	if (receipt.worktreeId !== identity.worktreeId) return { ok: false, reason: "el recibo es de OTRO worktree" };
 	if (receipt.change !== change) return { ok: false, reason: `el recibo pertenece al cambio '${receipt.change}', no a '${change}'` };
 	if (receipt.pathsSha256 !== digestPaths(receipt.paths)) return { ok: false, reason: "el manifiesto de rutas del recibo no cuadra con su digest" };
+	// El informe VIGENTE debe ser el mismo que respaldó el recibo. Guardar
+	// `reportSha256` y no compararlo nunca convertía el campo en decoración: un
+	// verify posterior (o un apply + verify B) dejaba el recibo viejo validando
+	// como si nada. Es exactamente el fallo que se corrigió en el recibo
+	// OpenSpec —serializar la identidad y no mirarla— repetido aquí.
+	let current: string;
+	try {
+		current = readFileSync(verifyReportPath(cwd, change), "utf8");
+	} catch {
+		return { ok: false, reason: "el verify-report.md que respaldaba el recibo ya no existe" };
+	}
+	if (sha256(current) !== receipt.reportSha256) {
+		return { ok: false, reason: "el recibo respalda un verify-report.md que ya NO es el vigente: vuelve a verificar y reemítelo" };
+	}
+	// Y el estado del cambio tiene que seguir siendo verificable: un apply
+	// posterior invalida la evidencia aunque el informe no se haya tocado.
+	const blocker = assessReceiptPrecondition(cwd, change);
+	if (blocker) return { ok: false, reason: `el cambio ya no está en estado verificado: ${blocker}` };
 	return { ok: true, receipt };
 }
 

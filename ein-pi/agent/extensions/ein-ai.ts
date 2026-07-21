@@ -110,7 +110,7 @@ import { readInstalledVersion, staleSessionNudge } from "../lib/session-version"
 import { DOMAIN_ID_PATTERN, sha256 } from "../lib/openspec-spec-contract.ts";
 import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";
 import { evaluateStaging } from "../lib/git-staging.ts";
-import { emitCandidateReceipt } from "../lib/candidate-receipt.ts";
+import { emitCandidateReceipt, suggestIntendedPaths } from "../lib/candidate-receipt.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
@@ -1268,35 +1268,39 @@ export default function einAi(pi: ExtensionAPI): void {
 		name: "ein_candidate_receipt",
 		label: "Ein Candidate Receipt",
 		description:
-			"After a PASSING sdd-verify, record which exact bytes were verified. Builds a synthetic candidate tree with a temporary git index (the real index and worktree are never touched) and publishes a local receipt under the worktree's git admin dir binding repository, worktree, change, HEAD, intended paths, the verify report and the verification commands. Intended paths = tracked modifications + any untracked path you name explicitly. Does NOT gate delivery.",
+			"Record which exact bytes a PASSING sdd-verify covered. REFUSES unless verify is `pass`, not stale, and apply is complete. Builds a synthetic candidate tree with a temporary git index (the real index and worktree are never touched) and publishes a local receipt under the worktree git admin dir, binding repository, worktree, change, HEAD, the declared paths, the verify report and the verification commands. `paths` is an EXPLICIT manifest of exact files — no directories, no git magic pathspecs; call without it to get the current tracked/untracked lists to choose from. Does NOT gate delivery.",
 		parameters: {
 			type: "object",
 			properties: {
 				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
 				commands: { type: "array", items: { type: "string" }, description: "Verification commands actually run, verbatim." },
-				includeUntracked: { type: "array", items: { type: "string" }, description: "Untracked paths that ARE part of this delivery. Anything not named is excluded — it may be someone else's work in progress." },
+				paths: { type: "array", items: { type: "string" }, description: "EXPLICIT manifest: exact file paths that make up this delivery. Directories and magic pathspecs are rejected. Anything not named is excluded — it may be someone else's work in progress." },
 			},
 		} as const,
-		async execute(_id, params: { change?: string; commands?: string[]; includeUntracked?: string[] }, _signal, _onUpdate, ctx: ExtensionContext) {
+		async execute(_id, params: { change?: string; commands?: string[]; paths?: string[] }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
 			if (!change) {
 				return { content: [{ type: "text", text: "/// CANDIDATE RECEIPT — no active change." }], details: { ok: false, reason: "no active change" } };
 			}
-			const reportPath = join(resolveChangesDir(ctx.cwd), change, "verify-report.md");
-			let report = "";
-			try {
-				report = readFileSync(reportPath, "utf8");
-			} catch {
-				return {
-					content: [{ type: "text", text: `/// CANDIDATE RECEIPT — '${change}' sin verify-report.md: no hay verificación que respaldar.` }],
-					details: { ok: false, reason: "missing verify-report" },
-				};
+			// Sin manifiesto no se emite. Pero tampoco es un callejón: se devuelve
+			// la foto del árbol para que el llamante ENUMERE lo que entra.
+			if (!params?.paths || params.paths.length === 0) {
+				const { tracked, untracked } = suggestIntendedPaths(ctx.cwd);
+				const text = [
+					`/// CANDIDATE RECEIPT — '${change}' NO emitido: falta el manifiesto \`paths\`.`,
+					"El candidato se DECLARA, no se infiere: 'todo lo modificado' puede incluir trabajo en curso de otro.",
+					"",
+					`modificados y trackeados (${tracked.length}): ${tracked.join(", ") || "(ninguno)"}`,
+					`sin trackear (${untracked.length}): ${untracked.join(", ") || "(ninguno)"}`,
+					"",
+					"Vuelve a llamar con `paths` enumerando SOLO los ficheros de esta entrega.",
+				].join("\n");
+				return { content: [{ type: "text", text }], details: { ok: false, reason: "missing paths manifest", tracked, untracked } };
 			}
 			const result = emitCandidateReceipt(ctx.cwd, {
 				change,
-				report,
+				paths: params.paths,
 				commands: params?.commands ?? [],
-				includeUntracked: params?.includeUntracked ?? [],
 			});
 			if (!result.ok) {
 				return { content: [{ type: "text", text: `/// CANDIDATE RECEIPT — '${change}' NO emitido: ${result.reason}` }], details: result };
