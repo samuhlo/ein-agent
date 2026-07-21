@@ -44,14 +44,11 @@ export function closeChange(cwd: string, change: string, options: CloseOptions =
 	if (existsSync(to)) {
 		return { ok: false, from, to, reason: "ya existe en archive/; no se pisa" };
 	}
-	// Guard determinista: no archivar sobre evidencia incompleta u obsoleta (una
-	// corrección posterior a verify deja el summary/verify viejos). `--force` lo
-	// sortea a conciencia.
-	if (!options.force) {
-		const readiness = assessCloseReadiness(cwd, change);
-		if (!readiness.ready) {
-			return { ok: false, from, to, reason: `cambio no listo para cierre: ${readiness.reasons.join(" ")} (usa --force para forzar)` };
-		}
+	const readiness = assessCloseReadiness(cwd, change);
+	const canonicalSpecBlocker = readiness.reasons.find((reason) => reason.startsWith("estado de specs OpenSpec:"));
+	if (canonicalSpecBlocker) return { ok: false, from, to, reason: `cambio no listo para cierre: ${canonicalSpecBlocker}` };
+	if (!options.force && !readiness.ready) {
+		return { ok: false, from, to, reason: `cambio no listo para cierre: ${readiness.reasons.join(" ")} (usa --force para forzar)` };
 	}
 
 	mkdirSync(join(changesDir(cwd), "archive"), { recursive: true });

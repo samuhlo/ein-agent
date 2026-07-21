@@ -32,7 +32,7 @@ afterEach(() => {
 
 describe("closeChange", () => {
 	test("mueve el cambio a storage interno y conserva summary.md", () => {
-		mkChange("feat-x", { "summary.md": "# Resumen\nqué cambió", "design.md": "x" });
+		mkChange("feat-x", { "summary.md": "# Resumen\nqué cambió", "scope.md": "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: fixture" });
 		const r = closeChange(DIR, "feat-x", { force: true });
 		expect(r.ok).toBe(true);
 		expect(existsSync(join(DIR, "openspec", "changes", "feat-x"))).toBe(false);
@@ -42,7 +42,7 @@ describe("closeChange", () => {
 	});
 
 	test("no pisa si ya existe en storage interno (idempotente-safe)", () => {
-		mkChange("feat-x", { "summary.md": "v1" });
+		mkChange("feat-x", { "summary.md": "v1", "scope.md": "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: fixture" });
 		expect(closeChange(DIR, "feat-x", { force: true }).ok).toBe(true);
 		mkChange("feat-x", { "summary.md": "v2" });
 		const r2 = closeChange(DIR, "feat-x", { force: true });
@@ -57,7 +57,7 @@ describe("closeChange", () => {
 
 	// Fase 2: el cierre no archiva sobre evidencia incompleta u obsoleta.
 	const READY_FILES = {
-		"scope.md": "scope: x\nbudget_allocated: 1",
+		"scope.md": "scope: x\nbudget_allocated: 1\n## Spec delta declaration\nspec_delta: none\nspec_delta_reason: mechanical close readiness fixture",
 		"map.md": "m",
 		"design.md": "d",
 		"tasks.md": "status: ready\nblocked_by: none\n- [x] hecho\n",
@@ -87,7 +87,7 @@ describe("closeChange", () => {
 	});
 
 	test("solo summary.md (sin verify/apply) → NO cierra", () => {
-		mkChange("feat-bare", { "summary.md": "x" });
+		mkChange("feat-bare", { "summary.md": "x", "scope.md": "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: fixture" });
 		const r = closeChange(DIR, "feat-bare");
 		expect(r.ok).toBe(false);
 		expect(r.reason).toContain("verify");
@@ -103,9 +103,9 @@ describe("closeChange", () => {
 		expect(r.reason).toContain("obsoleta");
 	});
 
-	test("--force sortea el guard aunque no esté listo", () => {
+	test("--force no sortea la guarda OpenSpec sin resolver", () => {
 		mkChange("feat-force", { "summary.md": "x" });
-		expect(closeChange(DIR, "feat-force", { force: true }).ok).toBe(true);
+		expect(closeChange(DIR, "feat-force", { force: true }).ok).toBe(false);
 	});
 
 	test("cierra cambios en la raíz legacy .sdd/changes/", () => {
@@ -118,7 +118,7 @@ describe("closeChange", () => {
 	});
 
 	test("el receipt de close vive tras el archive y evita otro fallback del mismo digest", () => {
-		mkChange("feat-x", { "summary.md": "# Resumen\ncierre verificado" });
+		mkChange("feat-x", { "summary.md": "# Resumen\ncierre verificado", "scope.md": "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: fixture" });
 		const r = closeChange(DIR, "feat-x", { force: true });
 		expect(r.ok).toBe(true);
 		const approved = approveCandidate(buildCloseMemoryCandidate("feat-x")).approved!;

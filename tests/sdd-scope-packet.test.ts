@@ -8,15 +8,27 @@
 //   - webfetch NO en frontmatter tools (retirado por defecto)
 // =============================================================================
 
-import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { describe, expect, mock, test } from "bun:test";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+mock.module("@earendil-works/pi-tui", () => ({
+  matchesKey: () => false,
+  truncateToWidth: (value: string) => value,
+}));
+
+const { resolveCanonicalSpecContext } = await import(
+  "../ein-pi/agent/extensions/ein-ai.ts"
+);
 
 const MAP_MD = join(
   import.meta.dir,
   "../ein-pi/core/agents/sdd-map.md",
 );
+const AI_TS = join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts");
 const content = readFileSync(MAP_MD, "utf8");
+const ai = readFileSync(AI_TS, "utf8");
 
 describe("sdd-map.md SCOPE PACKET contract", () => {
   test("contiene SCOPE PACKET como texto", () => {
@@ -62,5 +74,51 @@ describe("sdd-map.md SCOPE PACKET contract", () => {
 
   test("refuerza read-only: no puede escribir codigo", () => {
     expect(content).toContain("MUST NOT write code");
+  });
+});
+
+describe("canonical OpenSpec context", () => {
+  test("reads only explicit canonical paths and records digest evidence", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "ein-spec-context-"));
+    try {
+      const dir = join(cwd, "openspec/specs/sdd-lifecycle");
+      mkdirSync(dir, { recursive: true });
+      mkdirSync(join(cwd, ".sdd/specs/sdd-lifecycle"), { recursive: true });
+      writeFileSync(join(dir, "spec.md"), "canonical\n");
+      writeFileSync(join(cwd, ".sdd/specs/sdd-lifecycle/spec.md"), "legacy\n");
+
+      expect(resolveCanonicalSpecContext(cwd, ["sdd-lifecycle"])).toEqual({
+        status: "ok",
+        references: [{
+          path: "openspec/specs/sdd-lifecycle/spec.md",
+          sha256: "43045e07e709b38e470076ff8235b68ca6e63400498c0aa847f6e743f230166e",
+          bytes: 10,
+        }],
+      });
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("blocks instead of truncating when the canonical context exceeds its budget", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "ein-spec-context-"));
+    try {
+      for (const domain of ["alpha", "beta", "gamma", "delta"]) {
+        const dir = join(cwd, "openspec/specs", domain);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, "spec.md"), `${domain}\n`);
+      }
+      const result = resolveCanonicalSpecContext(cwd, ["delta", "gamma", "beta", "alpha"]);
+      expect(result.status).toBe("blocked");
+      expect(result.references).toHaveLength(0);
+      expect(result.message).toContain("narrower canonical spec selection");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps the exact-path and no-truncation instructions in the prompt contract", () => {
+    expect(ai).toContain("never glob domains or read .sdd specs");
+    expect(ai).toContain("Do not truncate or glob specs");
   });
 });

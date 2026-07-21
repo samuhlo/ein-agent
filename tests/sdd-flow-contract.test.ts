@@ -63,6 +63,17 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("the orchestrator still routes with `ein_sdd_status`");
 	});
 
+	test("limita contexto canónico de scope/design a hints explícitos y referencias reutilizables", () => {
+		const scope = read("agents/sdd-scope.md");
+		const design = read("agents/sdd-design.md");
+		expect(orch).toContain("canonical_spec_domains");
+		expect(orch).toContain("3 files and 32 KiB UTF-8");
+		expect(orch).toContain("design reuses those references");
+		expect(scope).toContain("path`, SHA-256, and byte count");
+		expect(design).toContain("Reuse the canonical spec references recorded in `scope.md`");
+		expect(design).toContain("never truncate the selection");
+	});
+
 	test("entra en scope tras bootstrap sin debilitar los gates posteriores", () => {
 		expect(orch).toContain("create-if-absent bootstrap");
 		expect(orch).toContain("sdd-scope");

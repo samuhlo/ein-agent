@@ -23,6 +23,10 @@ Use advisory context passed by the parent; do not independently invoke Engram. E
 
 Read `scope.md`, `map.md`, the relevant existing code and tests, and `openspec/config.yaml` when present. Build on the map output; do not remap from scratch.
 
+## Canonical spec context
+
+Reuse the canonical spec references recorded in `scope.md`. You may add only explicit domain hints mapped in `map.md`, and only through exact `openspec/specs/<domain>/spec.md` paths supplied by the injected context. Record `path`, SHA-256, and byte count in `design.md`; never glob domains, read `.sdd` specs, or reconstruct behavior from archived changes. The scope references plus mapped additions share a hard limit of 3 files and 32 KiB UTF-8. If they do not fit, return `status: blocked` and request narrower explicit mapped domain hints; never truncate the selection.
+
 ## Artifact
 
 Write `openspec/changes/{change}/design.md` (where `{change}` is the issue/change ID from the task) with these sections:
