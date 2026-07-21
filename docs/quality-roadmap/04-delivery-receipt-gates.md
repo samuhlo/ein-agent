@@ -9,7 +9,7 @@ La entrega solo avanza cuando conserva la identidad del candidato verificado.
 Un commit, push o PR puede divergir del contenido que superó verificación.
 
 ## En alcance
-- Conservar el grant de intención de usuario de un solo uso existente.
+- Conservar el grant de intención de usuario existente (usos acotados con TTL y scope por cwd; la intención del usuario es pegajosa mientras dura el encargo).
 - Puertas separadas de identidad de contenido antes de commit, tras commit contra `HEAD^{tree}`, antes de push y antes de PR.
 - Ruta de divergencia de vuelta a verify.
 - Comportamiento definido para entrega trivial/mecánica y para desajuste de cabeza de PR.
@@ -29,7 +29,7 @@ Cada punto recalcula o compara la identidad requerida con el recibo. La intenci�
 
 ## Criterios de aceptación
 
-- [ ] La intención de usuario DEBE conservar su grant de un solo uso.
+- [ ] La intención de usuario DEBE conservar su grant existente, con sus usos acotados y su TTL; este slice NO lo redefine.
 - [ ] Las cuatro puertas DEBEN validar identidad de contenido.
 - [ ] Toda discrepancia DEBE regresar a verify y bloquear entrega.
 - [ ] La entrega mecánica DEBE declararse sin verificación cuando corresponda.
