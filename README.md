@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.21.0 · 2026-07-21](CHANGELOG.md#0210---2026-07-21).
+**Última release publicada según el registro canónico local:** [0.22.0 · 2026-07-21](CHANGELOG.md#0220---2026-07-21).
 
-- **Adiós a los ✗ falsos:** los agentes declaraban una tool que Pi no tiene; la fase salía fallida con el artefacto ya escrito.
-- **El artefacto manda sobre el runner:** si la fase entregó y el artefacto pasa su lint, cuenta como hecha — no se repite.
-- **La entrega ya no depende de cómo esté redactada:** decide el agente destino, no un adjetivo en la frase.
+- **OpenSpec canónico:** el comportamiento vigente vive en specs sincronizadas por hashes, y el cierre las exige.
+- **Un commit lleva lo que decidiste entregar:** se acabó el staging a granel y el arrastre de ficheros que nadie nombró.
+- **El verify dice QUÉ bytes pasaron:** un árbol candidato ligado al cambio, al worktree y a su propia evidencia.
 
 ---
 
