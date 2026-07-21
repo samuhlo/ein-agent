@@ -14,6 +14,7 @@ import {
 	hasSuccessfulMemoryReceipt,
 } from "../ein-pi/agent/lib/sdd-memory-save.ts";
 import { lintChange, lintPhaseArtifact, oversizedGroupWarnings } from "../ein-pi/agent/lib/sdd-guardrails";
+import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
 
 let DIR: string;
 function mkChange(name: string, files: Record<string, string>): string {
@@ -103,9 +104,42 @@ describe("closeChange", () => {
 		expect(r.reason).toContain("obsoleta");
 	});
 
-	test("--force no sortea la guarda OpenSpec sin resolver", () => {
-		mkChange("feat-force", { "summary.md": "x" });
-		expect(closeChange(DIR, "feat-force", { force: true }).ok).toBe(false);
+	// `unresolved` SÍ es forzable: es un problema de metadatos, y hacerlo
+	// absoluto dejaba el cierre muerto (ver el describe del final). Lo que NO
+	// se fuerza es `conflict`, que es una incoherencia real de contenido.
+	test("--force NO archiva sobre specs en conflicto", async () => {
+		const p = mkChange("feat-conflict", {
+			"summary.md": "x",
+			"scope.md": "# Scope\n\nscope: algo\nbudget_allocated: 1000\n",
+		});
+		const scenario = [
+			"### Scenario: alpha",
+			"title: Alpha",
+			"requirement: The system MUST retain alpha",
+			"Given: an input",
+			"When: it runs",
+			"Then: it succeeds",
+		].join("\n");
+		// El delta AÑADE un escenario que la spec vigente ya tiene → added-existing.
+		mkdirSync(join(p, "specs", "sdd-lifecycle"), { recursive: true });
+		writeFileSync(
+			join(p, "specs", "sdd-lifecycle", "spec.md"),
+			["# OpenSpec Delta", "format: openspec-delta/v1", "domain: sdd-lifecycle", "", "## ADDED", scenario, ""].join("\n"),
+		);
+		mkdirSync(join(DIR, "openspec", "specs", "sdd-lifecycle"), { recursive: true });
+		writeFileSync(
+			join(DIR, "openspec", "specs", "sdd-lifecycle", "spec.md"),
+			["# OpenSpec Specification", "format: openspec-spec/v1", "domain: sdd-lifecycle", "", scenario.replace("###", "##"), ""].join("\n"),
+		);
+
+		// El motor real detecta el conflicto y publica el informe: es la ruta que
+		// recorre `ein_openspec_sync` en producción.
+		const { plan } = await synchronizeOpenSpecFilesystem(DIR, "feat-conflict");
+		expect(plan.state).toBe("conflict");
+
+		const r = closeChange(DIR, "feat-conflict", { force: true });
+		expect(r.ok).toBe(false);
+		expect(r.reason).toContain("conflict");
 	});
 
 	test("cierra cambios en la raíz legacy .sdd/changes/", () => {
@@ -270,5 +304,64 @@ describe("verify behavior_coverage (#4)", () => {
 	test("FAIL sin cobertura → NO warning de cobertura (solo aplica a PASS)", () => {
 		const r = lintPhaseArtifact("verify", "status: fail\n");
 		expect(r.issues.some((i) => i.code.startsWith("behavior-coverage"))).toBe(false);
+	});
+});
+
+// =============================================================================
+// Semántica de --force frente al estado de specs OpenSpec.
+//
+// BLINDAJE -> En su primera versión el blocker de specs se evaluaba ANTES del
+// check de force, así que era ABSOLUTO. Eso dejó el cierre MUERTO: todo cambio
+// anterior a la feature —y todo cambio cuyo ejecutor de scope no escribiera el
+// bloque— no podía archivarse por ninguna vía. La suite no lo detectó porque
+// los fixtures se editaron para incluir el bloque; estos tests lo comprueban
+// SIN esa muleta, que es como llegan los cambios reales.
+// =============================================================================
+describe("closeChange — estado de specs y --force", () => {
+	// Cambio íntegro tal y como lo produce el flujo: sin bloque de declaración.
+	function completoSinDeclaracion(name: string) {
+		return mkChange(name, {
+			"scope.md": "# Scope\n\nscope: algo\nbudget_allocated: 1000\n",
+			"map.md": "# Map\n\nledger: x\nbudget_consumed: 10\nscope_status: ok\n",
+			"design.md": "# Design\n",
+			"tasks.md": "# Tasks\n\n- [x] 1.1 hecho\n",
+			"apply-progress.md": "# Apply\n\nstatus: complete\n",
+			"verify-report.md": "# Verify\n\nstatus: pass\nbehavior_coverage: verified\n",
+			"summary.md": "# Summary\n",
+		});
+	}
+
+	test("sin declaración NO cierra por defecto, pero dice cómo salir", () => {
+		completoSinDeclaracion("heredado");
+		const r = closeChange(DIR, "heredado");
+		expect(r.ok).toBe(false);
+		expect(r.reason).toContain("unresolved");
+		// El mensaje debe ofrecer una salida: un gate sin salida es un callejón.
+		expect(r.reason).toContain("--force");
+	});
+
+	test("sin declaración SÍ cierra con --force (el cierre no queda muerto)", () => {
+		completoSinDeclaracion("heredado");
+		const r = closeChange(DIR, "heredado", { force: true });
+		expect(r.ok).toBe(true);
+		expect(existsSync(join(DIR, "openspec", "changes", "archive", "heredado"))).toBe(true);
+	});
+
+	test("un cambio con declaración válida cierra sin necesitar force", () => {
+		const p = completoSinDeclaracion("declarado");
+		writeFileSync(
+			join(p, "scope.md"),
+			"# Scope\n\nscope: algo\nbudget_allocated: 1000\n\n## Spec delta declaration\nspec_delta: none\nspec_delta_reason: cambio mecánico sin comportamiento observable nuevo\n",
+		);
+		expect(closeChange(DIR, "declarado").ok).toBe(true);
+	});
+
+	test("una razón de relleno NO vale como declaración", () => {
+		const p = completoSinDeclaracion("relleno");
+		writeFileSync(
+			join(p, "scope.md"),
+			"# Scope\n\nscope: algo\nbudget_allocated: 1000\n\n## Spec delta declaration\nspec_delta: none\nspec_delta_reason: tbd\n",
+		);
+		expect(closeChange(DIR, "relleno").ok).toBe(false);
 	});
 });

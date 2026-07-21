@@ -80,8 +80,17 @@ export async function synchronizeOpenSpecFilesystem(cwd: string, change: string)
 		}
 		await replaceWithTemporary(reportPath, Buffer.from(report));
 	} catch (error) {
+		// Se conserva el fallo ORIGINAL como causa, pero una restauración que
+		// tambien falla NO puede quedarse muda: eso deja specs medio
+		// sincronizadas mientras el error habla de otra cosa, y nadie se entera
+		// de que el repo quedó inconsistente. Las rutas irrecuperables se
+		// adjuntan al mensaje.
+		const unrestored: string[] = [];
 		for (const [path, snapshot] of snapshots) {
-			try { await restore(path, snapshot); } catch { /* preserve the original failure */ }
+			try { await restore(path, snapshot); } catch { unrestored.push(path); }
+		}
+		if (unrestored.length > 0 && error instanceof Error) {
+			error.message = `${error.message} [ATENCIÓN: no se pudo restaurar ${unrestored.join(", ")}; esos specs quedaron en estado sincronizado a medias y deben revisarse a mano]`;
 		}
 		throw error;
 	}

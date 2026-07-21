@@ -150,9 +150,22 @@ export function evaluateOpenSpecState(input: {
 	}
 	const report = input.report === null ? null : parseSyncReport(input.report);
 	if (!report?.ok) return "pending";
-	if (report.value.deltaSha256 !== plan.deltaSha256 || report.value.resultSha256 !== plan.resultSha256) return "pending";
-	if (plan.state === "conflict") return report.value.state === "conflict" ? "conflict" : "pending";
-	return report.value.state === "synchronized" ? "synchronized" : "pending";
+	if (report.value.deltaSha256 !== plan.deltaSha256) return "pending";
+	// El informe describe un resultado YA APLICADO sobre los specs canónicos, así
+	// que la comprobación va contra los BYTES ACTUALES — no contra `plan.resultSha256`.
+	//
+	// Comparar con el plan re-derivado era el fallo de fondo: `bases` son los
+	// specs de AHORA, ya sincronizados, y volver a aplicarles el delta produce un
+	// conflicto artificial (`ADDED` sobre un escenario que el propio sync acaba de
+	// insertar). Resultado: `synchronized` era INALCANZABLE — el sync escribía
+	// "synchronized" y el router leía "pending" para siempre. Esta es la misma
+	// comparación que ya hacía `synchronizeOpenSpecFilesystem` para ser idempotente.
+	const currentSha256 = digestManifest(
+		input.bases.map(({ domain, bytes }) => ({ path: `specs/${domain}/spec.md`, bytes })),
+	);
+	if (report.value.resultSha256 !== currentSha256) return "pending";
+	if (report.value.state === "conflict") return plan.state === "conflict" ? "conflict" : "pending";
+	return "synchronized";
 }
 
 export function parseSyncReport(source: string): { ok: true; value: { state: "synchronized" | "conflict"; deltaSha256: string; resultSha256: string } } | { ok: false } {

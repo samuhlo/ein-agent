@@ -108,6 +108,7 @@ import {
 import { AGENT_DIR } from "./ein-paths";
 import { readInstalledVersion, staleSessionNudge } from "../lib/session-version";
 import { DOMAIN_ID_PATTERN, sha256 } from "../lib/openspec-spec-contract.ts";
+import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
@@ -1205,6 +1206,46 @@ export default function einAi(pi: ExtensionAPI): void {
 				? `/// SDD CLOSE — '${change}' archived to ${result.to.replace(ctx.cwd, ".")}. openspec/changes/ is clean.`
 				: `/// SDD CLOSE — '${change}' NOT closed: ${result.reason}`;
 			return { content: [{ type: "text", text }], details: { ...result, memory } };
+		},
+	});
+
+	// Sin este tool el motor de sincronización era código muerto: solo lo
+	// llamaban los tests. Un cambio con deltas se quedaba en `pending` para
+	// siempre porque NADA en el producto sabía generar `sync-report.md`, y el
+	// cierre lo exigía. Es la salida determinista de ese estado.
+	pi.registerTool({
+		name: "ein_openspec_sync",
+		label: "Ein OpenSpec Sync",
+		description:
+			"Deterministically synchronize a change's OpenSpec deltas (openspec/changes/<change>/specs/<domain>/spec.md) into the canonical specs (openspec/specs/<domain>/spec.md) and publish sync-report.md. Idempotent: re-running with unchanged bytes reports 'already synchronized'. This is how a change leaves the `pending` spec state before close. Reads and writes only the filesystem; never commits.",
+		parameters: {
+			type: "object",
+			properties: {
+				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
+			},
+		} as const,
+		async execute(_id, params: { change?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
+			if (!change) {
+				return { content: [{ type: "text", text: "/// OPENSPEC SYNC — no active change." }], details: { ok: false, reason: "no active change" } };
+			}
+			try {
+				const { plan, changed } = await synchronizeOpenSpecFilesystem(ctx.cwd, change);
+				const domains = plan.domains.map((d) => d.domain).join(", ") || "(ninguno)";
+				const head = changed
+					? `/// OPENSPEC SYNC — '${change}': ${plan.state}. dominios: ${domains}.`
+					: `/// OPENSPEC SYNC — '${change}': ya sincronizado, sin cambios. dominios: ${domains}.`;
+				const tail = plan.state === "conflict"
+					? "\nCONFLICTO: los deltas se contradicen. Resuélvelo a mano; el cierre NO lo salta ni con force."
+					: "\nsync-report.md publicado. `ein_sdd_status` ya puede dar el cambio por sincronizado.";
+				return { content: [{ type: "text", text: `${head}${tail}` }], details: { ok: true, state: plan.state, changed, domains: plan.domains.map((d) => d.domain) } };
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return {
+					content: [{ type: "text", text: `/// OPENSPEC SYNC — '${change}' FALLÓ: ${message}\nLos specs se restauraron a su estado previo salvo que el mensaje diga lo contrario.` }],
+					details: { ok: false, reason: message },
+				};
+			}
 		},
 	});
 

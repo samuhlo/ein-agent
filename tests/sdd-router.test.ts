@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { listActiveChanges, resolveSddNext, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
 import { planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
+import { serializeOpenSpec } from "../ein-pi/agent/lib/openspec-spec-contract";
 
 let DIR: string;
 function change(name: string): string {
@@ -239,6 +240,13 @@ describe("estado OpenSpec", () => {
 		expect(resolveSddStatus(DIR, "pending").specState).toBe("pending");
 		const plan = planOpenSpecSync("pending", [{ path: "specs/sdd-lifecycle/spec.md", bytes: Buffer.from(DELTA) }], []);
 		put(pending, "sync-report.md", serializeSyncReport(plan));
+		// Un informe SOLO no sincroniza nada: mientras el spec canónico no exista
+		// en disco con los bytes que el informe declara, el estado sigue pendiente.
+		// Antes bastaba el informe y `synchronized` se afirmaba sin haber escrito
+		// el spec — un recibo que no describía la realidad.
+		expect(resolveSddStatus(DIR, "pending").specState).toBe("pending");
+		mkdirSync(join(DIR, "openspec", "specs", "sdd-lifecycle"), { recursive: true });
+		writeFileSync(join(DIR, "openspec", "specs", "sdd-lifecycle", "spec.md"), serializeOpenSpec(plan.domains[0]!.result!));
 		expect(resolveSddStatus(DIR, "pending").specState).toBe("synchronized");
 		const conflict = deltaChange("conflict");
 		const base = "# OpenSpec Specification\nformat: openspec-spec/v1\ndomain: sdd-lifecycle\n\n## Scenario: close\ntitle: Existing\nrequirement: The system MUST exist\nGiven: ready\nWhen: close\nThen: archived\n";

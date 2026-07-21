@@ -142,6 +142,30 @@ describe("ein-ai: tools deterministas cableados", () => {
 		expect(ai).toContain("bootstrapOpenSpecConfig(ctx.cwd)");
 		expect(ai).toContain('return { action: "continue" };');
 	});
+	// BLINDAJE -> El motor de sincronización OpenSpec nació como CÓDIGO MUERTO:
+	// existía, tenía tests, y no lo llamaba nadie en producción. El cierre exigía
+	// `sync-report.md` y nada sabía generarlo, así que un cambio con deltas se
+	// quedaba en `pending` para siempre. Un motor sin tool no es una feature.
+	test("cablea el motor de sincronización OpenSpec a un tool invocable", () => {
+		expect(ai).toContain('name: "ein_openspec_sync"');
+		expect(ai).toContain('import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";');
+		expect(ai).toContain("synchronizeOpenSpecFilesystem(ctx.cwd, change)");
+	});
+	test("el orquestador sabe cómo desbloquear cada estado de specs", () => {
+		const orch = read("assets/orchestrator.md");
+		expect(orch).toContain("ein_openspec_sync");
+		// Cada estado necesita una salida documentada; `conflict` es el único sin ella.
+		for (const state of ["synchronized", "pending", "unresolved", "conflict"]) {
+			expect(orch).toContain(state);
+		}
+		expect(orch).toContain("`force` will NOT archive over a conflict");
+	});
+	test("sdd-scope enseña a declarar el spec delta (nadie lo hacía)", () => {
+		const scope = read("agents/sdd-scope.md");
+		expect(scope).toContain("## Spec delta declaration");
+		expect(scope).toContain("spec_delta: none");
+		expect(scope).toContain("spec_delta_reason:");
+	});
 });
 
 describe("sdd-init conserva el comando manual mediante el bootstrap compartido", () => {
