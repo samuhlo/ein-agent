@@ -133,6 +133,39 @@ describe("el árbol candidato describe exactamente lo previsto", () => {
 		writeFileSync(join(dir, "a.ts"), "v3\n");
 		expect(buildCandidateTree(dir, ["a.ts"])).not.toBe(primero);
 	});
+
+	test("representa una eliminación trackeada", () => {
+		const dir = repo();
+		rmSync(join(dir, "a.ts"));
+
+		expect(validateIntendedPaths(dir, ["a.ts"])).toEqual([]);
+		const tree = buildCandidateTree(dir, ["a.ts"])!;
+		expect(gitOut(dir, "ls-tree", "-r", "--name-only", tree).split("\n")).toEqual(["b.ts"]);
+	});
+
+	test("representa un rename con la ruta antigua y la nueva", () => {
+		const dir = repo();
+		execFileSync("git", ["mv", "a.ts", "renombrado.ts"], { cwd: dir, stdio: "ignore" });
+
+		const suggested = suggestIntendedPaths(dir);
+		expect(suggested.tracked).toEqual(["a.ts", "renombrado.ts"]);
+		expect(validateIntendedPaths(dir, suggested.tracked)).toEqual([]);
+		const tree = buildCandidateTree(dir, suggested.tracked)!;
+		const paths = gitOut(dir, "ls-tree", "-r", "--name-only", tree).split("\n").sort();
+		expect(paths).toEqual(["b.ts", "renombrado.ts"]);
+	});
+
+	test("acepta un nombre de fichero legítimo con ..", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "schema..legacy.ts"), "v1\n");
+		execFileSync("git", ["add", "schema..legacy.ts"], { cwd: dir, stdio: "ignore" });
+		execFileSync("git", ["commit", "-qm", "schema"], { cwd: dir, stdio: "ignore" });
+		writeFileSync(join(dir, "schema..legacy.ts"), "v2\n");
+
+		expect(validateIntendedPaths(dir, ["schema..legacy.ts"])).toEqual([]);
+		const tree = buildCandidateTree(dir, ["schema..legacy.ts"])!;
+		expect(gitOut(dir, "show", `${tree}:schema..legacy.ts`)).toBe("v2");
+	});
 });
 
 describe("suggestIntendedPaths — sugiere, no decide", () => {

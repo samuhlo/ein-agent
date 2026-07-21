@@ -108,17 +108,50 @@ export function resolveWorktreeIdentity(cwd: string): WorktreeIdentity | null {
 // incluye el trabajo en curso de otro, y meterlo en un candidato "verificado"
 // sería exactamente el accidente que este slice existe para evitar. Las rutas
 // del recibo se DECLARAN.
+type TrackedChanges = {
+	paths: string[];
+	removed: Set<string>;
+};
+
+function gitNul(cwd: string, args: string[]): string[] | null {
+	try {
+		return execFileSync("git", args, {
+			cwd,
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+			env: { ...process.env, LC_ALL: "C", LANGUAGE: "C" },
+		}).split("\0").filter(Boolean);
+	} catch {
+		return null;
+	}
+}
+
+function trackedChanges(cwd: string): TrackedChanges {
+	const entries = gitNul(cwd, ["diff", "--name-status", "-z", "--find-renames", "HEAD"]) ?? [];
+	const paths: string[] = [];
+	const removed = new Set<string>();
+	for (let index = 0; index < entries.length;) {
+		const status = entries[index++];
+		if (status === undefined) break;
+		if (status.startsWith("R") || status.startsWith("C")) {
+			const oldPath = entries[index++];
+			const newPath = entries[index++];
+			if (oldPath === undefined || newPath === undefined) break;
+			paths.push(oldPath, newPath);
+			if (status.startsWith("R")) removed.add(oldPath);
+			continue;
+		}
+		const path = entries[index++];
+		if (path === undefined) break;
+		paths.push(path);
+		if (status.startsWith("D")) removed.add(path);
+	}
+	return { paths, removed };
+}
+
 export function suggestIntendedPaths(cwd: string): { tracked: string[]; untracked: string[] } {
-	const tracked = (git(cwd, ["diff", "--name-only", "HEAD"]) ?? "")
-		.split("\n")
-		.map((entry) => entry.trim())
-		.filter(Boolean)
-		.sort();
-	const untracked = (git(cwd, ["ls-files", "--others", "--exclude-standard"]) ?? "")
-		.split("\n")
-		.map((entry) => entry.trim())
-		.filter(Boolean)
-		.sort();
+	const tracked = trackedChanges(cwd).paths.sort();
+	const untracked = (gitNul(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]) ?? []).sort();
 	return { tracked, untracked };
 }
 
@@ -128,8 +161,9 @@ export function suggestIntendedPaths(cwd: string): { tracked: string[]; untracke
 export function validateIntendedPaths(cwd: string, paths: readonly string[]): string[] {
 	const problems: string[] = [];
 	if (paths.length === 0) return ["el manifiesto de rutas está vacío"];
-	const { tracked, untracked } = suggestIntendedPaths(cwd);
-	const known = new Set([...tracked, ...untracked]);
+	const changes = trackedChanges(cwd);
+	const { untracked } = suggestIntendedPaths(cwd);
+	const known = new Set([...changes.paths, ...untracked]);
 	const seen = new Set<string>();
 	for (const path of paths) {
 		if (typeof path !== "string" || !path.trim()) {
@@ -145,7 +179,7 @@ export function validateIntendedPaths(cwd: string, paths: readonly string[]): st
 			problems.push(`${path}: los pathspecs mágicos de git no valen; enumera ficheros`);
 			continue;
 		}
-		if (isAbsolute(path) || path.includes("..")) {
+		if (isAbsolute(path) || path.split(/[\\/]+/).includes("..")) {
 			problems.push(`${path}: debe ser una ruta relativa dentro del worktree, sin '..'`);
 			continue;
 		}
@@ -154,11 +188,11 @@ export function validateIntendedPaths(cwd: string, paths: readonly string[]): st
 			continue;
 		}
 		const full = join(cwd, path);
-		if (!existsSync(full)) {
+		if (!existsSync(full) && !changes.removed.has(path)) {
 			problems.push(`${path}: no existe en el worktree`);
 			continue;
 		}
-		if (statSync(full).isDirectory()) {
+		if (existsSync(full) && statSync(full).isDirectory()) {
 			problems.push(`${path}: es un directorio; enumera los ficheros que entran`);
 			continue;
 		}
@@ -183,8 +217,12 @@ export function buildCandidateTree(cwd: string, paths: readonly string[]): strin
 	try {
 		if (git(cwd, ["read-tree", "HEAD"], env) === null) return null;
 		if (paths.length > 0) {
+			const removedPaths = trackedChanges(cwd).removed;
+			const removed = paths.filter((path) => removedPaths.has(path));
+			if (removed.length > 0 && git(cwd, ["update-index", "--remove", "--", ...removed], env) === null) return null;
+			const present = paths.filter((path) => !removedPaths.has(path));
 			// `--` separa rutas de opciones: un fichero llamado `-x` no se lee como flag.
-			if (git(cwd, ["add", "--", ...paths], env) === null) return null;
+			if (present.length > 0 && git(cwd, ["add", "--", ...present], env) === null) return null;
 		}
 		return git(cwd, ["write-tree"], env);
 	} finally {
