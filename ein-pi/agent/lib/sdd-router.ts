@@ -2,8 +2,8 @@
 // SDD ROUTER (deterministic state)
 // Calcula en qué punto está un cambio SDD leyendo SOLO el filesystem — cero IA,
 // cero inferencia de texto. El orquestador enruta por esto en vez de fiarse de
-// lo que el modelo crea recordar. Análogo al dispatcher en Go de gentle-ai,
-// pero como módulo TS puro expuesto luego como tool de Pi.
+// lo que el modelo crea recordar. El estado nace de artefactos verificables y
+// el módulo TS lo expone como tool de Pi.
 //
 // Artefactos por fase (ver chains/ein-sdd.chain.md):
 //   scope → scope.md · map → map.md · design → design.md

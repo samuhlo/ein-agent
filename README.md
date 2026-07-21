@@ -223,6 +223,8 @@ ein-agent/
 
 `ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench; `installer/scripts/bundle-template.ts` las empaqueta como template embebido (con `template-manifest.json` describiendo el contenido exacto). Cada push a `main` pasa por CI (tests + typecheck + smoke de empaquetado).
 
+La puerta principal de calidad, definida en `.github/workflows/ci.yml`, fija Bun en `BUN_VERSION: "1.3.0"` para Ubuntu y macOS. Para actualizarla, cambia solo ese valor en una revisión deliberada y valida las dos entradas de la matriz; esta política no cubre los flujos de publicación ni Docker E2E.
+
 > `assets/orchestrator.md` es contenido portable en espíritu, pero hoy `lib/persona.ts` y `lib/sdd-preflight.ts` lo leen relativo al módulo, así que vive con el runtime. Se moverá a `core/` cuando esa lógica se extraiga al CLI (fase multi-agente).
 
 ## // 014. ACTUALIZAR / PUBLICAR
