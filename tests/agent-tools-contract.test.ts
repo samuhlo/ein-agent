@@ -1,0 +1,146 @@
+// =============================================================================
+// TESTS: contrato de tools de los agentes — la allowlist debe EXISTIR
+// =============================================================================
+// BLINDAJE -> `tools:` en el frontmatter de un agente es una allowlist ESTRICTA
+// que pi-subagents pasa al hijo como `--tools`. Si declara un nombre que Pi no
+// registra, el hijo escribe un diagnóstico y el padre lo convierte en
+// `closeError` AL CERRAR: el run sale ✗ aunque el artefacto esté escrito y
+// `ein_sdd_check` lo dé por bueno. Peor: pi-subagents antepone al system prompt
+// del hijo "Do not claim tool-dependent work succeeded; report this
+// configuration error to the parent", así que el hijo se pelea consigo mismo y
+// reintenta. Un typo en esta línea no falla rápido: falla caro y en silencio.
+//
+// Caso real (jul 2026): los siete agentes SDD declaraban `glob`, que NO es un
+// builtin de Pi — el equivalente se llama `find`. scope/map/design salieron ✗
+// con los artefactos correctos y ~120k tokens quemados en reintentos.
+// =============================================================================
+
+import { describe, expect, test } from "bun:test";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
+const CORE_AGENTS = join(import.meta.dir, "../ein-pi/core/agents");
+const EXTENSIONS = join(import.meta.dir, "../ein-pi/agent/extensions");
+const orchestrator = readFileSync(
+	join(import.meta.dir, "../ein-pi/agent/assets/orchestrator.md"),
+	"utf8",
+);
+
+// Builtins de Pi. Fuente: `dist/core/tools/index.js` →
+//   export const allToolNames = new Set(["read","bash","edit","write","grep","find","ls"]);
+// Se replica aquí a propósito en vez de importar de Pi: los tests corren en CI
+// sin Pi instalado (ver no-pi-package-imports.test.ts). Si Pi añade o renombra
+// un builtin, este set se actualiza a mano — y el diff lo deja a la vista.
+const PI_BUILTIN_TOOLS = new Set([
+	"read",
+	"bash",
+	"edit",
+	"write",
+	"grep",
+	"find",
+	"ls",
+]);
+
+// Un entry con `/` o extensión .ts/.js no es un nombre de tool: es la ruta del
+// proveedor (pi-args la mueve a `--extension`). Se acepta sin validar el nombre.
+function isProviderPath(entry: string): boolean {
+	return entry.includes("/") || entry.endsWith(".ts") || entry.endsWith(".js");
+}
+
+function agentFiles(): string[] {
+	return readdirSync(CORE_AGENTS)
+		.filter((f) => f.endsWith(".md"))
+		.sort();
+}
+
+// Lee la línea `tools:` del frontmatter y la parte en nombres.
+function declaredTools(agentFile: string): string[] {
+	const raw = readFileSync(join(CORE_AGENTS, agentFile), "utf8");
+	const match = raw.match(/^tools:\s*(.+)$/m);
+	if (!match?.[1]) return [];
+	return match[1]
+		.split(",")
+		.map((t) => t.trim())
+		.filter(Boolean);
+}
+
+// Nombres que registran las extensiones de Ein (`pi.registerTool({ name: … })`).
+// El hijo hereda las extensiones globales, así que estos nombres SÍ existen en
+// su runtime aunque no sean builtins.
+function registeredExtensionTools(): Set<string> {
+	const names = new Set<string>();
+	for (const file of readdirSync(EXTENSIONS).filter((f) => f.endsWith(".ts"))) {
+		const src = readFileSync(join(EXTENSIONS, file), "utf8");
+		for (const m of src.matchAll(
+			/registerTool\(\s*\{[\s\S]{0,200}?name:\s*"([a-z0-9_]+)"/g,
+		)) {
+			if (m[1]) names.add(m[1]);
+		}
+	}
+	return names;
+}
+
+describe("contrato de tools de los agentes", () => {
+	test("`glob` no es un builtin de Pi (ancla de regresión)", () => {
+		// El bug original en una línea: si esto se cae, alguien volvió a creer
+		// que Pi tiene `glob`. No lo tiene. Es `find`.
+		expect(PI_BUILTIN_TOOLS.has("glob")).toBe(false);
+		expect(PI_BUILTIN_TOOLS.has("find")).toBe(true);
+	});
+
+	test("hay agentes que auditar", () => {
+		expect(agentFiles().length).toBeGreaterThanOrEqual(7);
+	});
+
+	test("toda tool declarada existe (builtin, extensión o ruta de proveedor)", () => {
+		const extensionTools = registeredExtensionTools();
+		const unknown: string[] = [];
+		for (const file of agentFiles()) {
+			for (const tool of declaredTools(file)) {
+				if (isProviderPath(tool)) continue;
+				if (PI_BUILTIN_TOOLS.has(tool)) continue;
+				if (extensionTools.has(tool)) continue;
+				unknown.push(`${file}: ${tool}`);
+			}
+		}
+		// Mensaje explícito: el fallo tiene que decir QUÉ tool y en qué agente,
+		// porque el síntoma en producción (un ✗ con el artefacto correcto) no lo dice.
+		expect(unknown).toEqual([]);
+	});
+
+	test("ningún agente declara `glob`", () => {
+		const offenders = agentFiles().filter((f) =>
+			declaredTools(f).includes("glob"),
+		);
+		expect(offenders).toEqual([]);
+	});
+
+	test("la tabla del orchestrator coincide con el frontmatter real", () => {
+		// La tabla es lo que el modelo LEE. Si enseña `glob` mientras el agente
+		// declara `find`, el orquestador redacta tasks pidiendo una tool que no
+		// existe. Las dos fuentes se validan la una contra la otra.
+		const mismatches: string[] = [];
+		for (const file of agentFiles()) {
+			const agent = file.replace(/\.md$/, "");
+			const row = orchestrator.match(
+				new RegExp(`^\\|\\s*\`${agent}\`\\s*\\|([^|]+)\\|`, "m"),
+			);
+			if (!row?.[1]) continue; // no todos los agentes salen en la tabla
+			// Una celda con `*` o paréntesis resume a propósito (ein-linear lista
+			// 13 tools como `linear_* (issues, …)`). Se exime del match literal:
+			// lo que importa es que no documente una tool inexistente.
+			if (/[*(]/.test(row[1])) continue;
+			const documented = row[1]
+				.split(",")
+				.map((t) => t.trim())
+				.filter(Boolean);
+			const actual = declaredTools(file);
+			if (documented.join(",") !== actual.join(",")) {
+				mismatches.push(
+					`${agent}: tabla=[${documented.join(", ")}] frontmatter=[${actual.join(", ")}]`,
+				);
+			}
+		}
+		expect(mismatches).toEqual([]);
+	});
+});

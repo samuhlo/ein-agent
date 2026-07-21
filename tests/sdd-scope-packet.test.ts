@@ -39,8 +39,9 @@ describe("sdd-map.md SCOPE PACKET contract", () => {
     const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
     expect(frontmatterMatch).not.toBeNull();
     const frontmatter = frontmatterMatch![1];
-    // tools: read, grep, glob  (sin webfetch)
-    expect(frontmatter).toContain("tools: read, grep, glob");
+    // tools: read, grep, find  (sin webfetch). `find` es el builtin de Pi que
+    // lista ficheros; `glob` NO existe — ver tests/agent-tools-contract.test.ts.
+    expect(frontmatter).toContain("tools: read, grep, find");
     expect(frontmatter).not.toContain("webfetch");
   });
 

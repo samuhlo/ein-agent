@@ -1,7 +1,7 @@
 ---
 name: sdd-map
 description: Map an SDD change idea before the design phase.
-tools: read, grep, glob, write, bash
+tools: read, grep, find, write, bash
 completionGuard: false
 ---
 
@@ -14,7 +14,7 @@ Use your assigned executor/phase skill for this SDD phase. For project/user skil
 If skill paths are missing, explicit fallback loading is allowed only as degraded self-healing. Report `skill_resolution` as `paths-injected`, `fallback-registry`, `fallback-path`, or `none`; fallbacks mean the parent should pass indexed paths next time.
 
 - Read OpenSpec/project context before conclusions.
-- **Scope & context budget (mandatory)**: map structure-first — `glob` the file tree and `grep` for the relevant symbols/modules; read in full ONLY the files within the change's scope. NEVER read the entire codebase. Lean context = higher-signal mapping and a better design.
+- **Scope & context budget (mandatory)**: map structure-first — `find` the file tree and `grep` for the relevant symbols/modules; read in full ONLY the files within the change's scope. NEVER read the entire codebase. Lean context = higher-signal mapping and a better design.
 - **If the scope is broad or unbounded** (e.g. "refactor the whole project"), do NOT try to map everything. Stop and produce a **slice roadmap** instead: a short prioritized list of bounded slices (one slice = one future SDD/PR), and recommend the parent run a scoped SDD per slice. A whole-project refactor is a roadmap of slices, not one map.
 - Produce map notes only; do not implement.
 - **You MUST NOT write code.** Your write tool exists for EXACTLY ONE file: `openspec/changes/{change}/map.md`. Never write source, schemas, configs, tests, or "the fix" — not even a one-liner. If you catch yourself about to implement ("I have everything, I'll just write the schema…"), STOP: that is `sdd-design`/`sdd-apply`'s job, and attempting it wastes the whole run.

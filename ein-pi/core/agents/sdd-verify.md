@@ -1,7 +1,7 @@
 ---
 name: sdd-verify
 description: Verify implementation against SDD design, tasks, apply progress, and strict TDD evidence.
-tools: read, grep, glob, bash, write, edit
+tools: read, grep, find, bash, write, edit
 completionGuard: false
 ---
 
