@@ -109,6 +109,7 @@ import { AGENT_DIR } from "./ein-paths";
 import { readInstalledVersion, staleSessionNudge } from "../lib/session-version";
 import { DOMAIN_ID_PATTERN, sha256 } from "../lib/openspec-spec-contract.ts";
 import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";
+import { evaluateStaging } from "../lib/git-staging.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
@@ -780,6 +781,12 @@ export default function einAi(pi: ExtensionAPI): void {
 		// sobre un comando ya reescrito.
 		const guard = await confirmCommand(event.input.command, ctx);
 		if (guard) return guard;
+		// Pathspec cerrado: un commit contiene lo que se decidió entregar, no lo
+		// que hubiera en el árbol. Bloquea el staging a granel y el arrastre de
+		// untracked ajenos. Determinista y sin confirmación: la salida es nombrar
+		// las rutas, que es exactamente lo que debería hacerse.
+		const staging = evaluateStaging(ctx.cwd, event.input.command);
+		if (staging.kind === "blocked") return { block: true, reason: staging.reason };
 		maybeWrapBashInput(event.input as { command: string }, ctx.cwd);
 		return undefined;
 	});
