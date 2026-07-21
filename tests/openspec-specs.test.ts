@@ -9,7 +9,7 @@ import {
 	parseOpenSpec,
 	parseOpenSpecDelta,
 } from "../ein-pi/agent/lib/openspec-spec-parser";
-import { evaluateOpenSpecState, planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
+import { evaluateOpenSpecState, parseSyncReport, planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
 import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -241,5 +241,85 @@ describe("rollback de sincronización multidominio", () => {
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}
+	});
+});
+
+// =============================================================================
+// INTEGRIDAD: de dónde viene el cambio y a quién pertenece el recibo
+// =============================================================================
+// BLINDAJE -> El nombre del cambio llega desde un tool que expone el LLM. Sin
+// validarlo se comprobó que:
+//   - `../../fuera` escribía sync-report.md FUERA de openspec/changes/;
+//   - un nombre cualquiera creaba un cambio fantasma con solo su recibo dentro,
+//     es decir un recibo sin trabajo detrás;
+//   - un recibo copiado de otro cambio con deltas equivalentes lo daba por
+//     sincronizado, que es coincidencia de hashes, no trazabilidad.
+// =============================================================================
+describe("integridad de la sincronización OpenSpec", () => {
+	const scen = ["### Scenario: x", "title: X", "requirement: The system MUST x", "Given: a", "When: b", "Then: c"].join("\n");
+	const delta = ["# OpenSpec Delta", "format: openspec-delta/v1", "domain: alpha", "", "## ADDED", scen, ""].join("\n");
+
+	async function conCambio(nombres: readonly string[]): Promise<string> {
+		const cwd = await mkdtemp(join(tmpdir(), "openspec-integridad-"));
+		for (const n of nombres) {
+			await mkdir(join(cwd, "openspec", "changes", n, "specs", "alpha"), { recursive: true });
+			await writeFile(join(cwd, "openspec", "changes", n, "specs", "alpha", "spec.md"), delta);
+		}
+		return cwd;
+	}
+
+	test("un nombre con `..` no escapa de openspec/changes/", async () => {
+		const cwd = await conCambio([]);
+		try {
+			await expect(synchronizeOpenSpecFilesystem(cwd, "../../fuera")).rejects.toThrow("nombre de cambio inválido");
+			expect(existsSync(join(cwd, "fuera", "sync-report.md"))).toBe(false);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	test("nombres estructuralmente inválidos se rechazan", async () => {
+		const cwd = await conCambio([]);
+		try {
+			for (const malo of ["", "archive", "a/b", "..", "a\\b"]) {
+				await expect(synchronizeOpenSpecFilesystem(cwd, malo)).rejects.toThrow("nombre de cambio inválido");
+			}
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	test("un cambio inexistente NO se inventa (nada de fantasmas)", async () => {
+		const cwd = await conCambio([]);
+		try {
+			await expect(synchronizeOpenSpecFilesystem(cwd, "fantasma")).rejects.toThrow("no existe");
+			// Lo importante: no se crea el directorio ni un recibo sin trabajo detrás.
+			expect(existsSync(join(cwd, "openspec", "changes", "fantasma"))).toBe(false);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	test("un recibo de OTRO cambio no sincroniza este", async () => {
+		const cwd = await conCambio(["uno", "dos"]);
+		try {
+			await synchronizeOpenSpecFilesystem(cwd, "uno");
+			const recibo = await readFile(join(cwd, "openspec", "changes", "uno", "sync-report.md"), "utf8");
+			expect(recibo).toContain("change: uno");
+			// Copiado tal cual a 'dos': mismos deltas, mismos hashes, otro dueño.
+			await writeFile(join(cwd, "openspec", "changes", "dos", "sync-report.md"), recibo);
+			const deltas = [{ path: "specs/alpha/spec.md", bytes: await readFile(join(cwd, "openspec", "changes", "dos", "specs", "alpha", "spec.md")) }];
+			const bases = [{ domain: "alpha", bytes: await readFile(join(cwd, "openspec", "specs", "alpha", "spec.md")) }];
+			expect(evaluateOpenSpecState({ declaration: "delta", change: "dos", deltas, bases, report: recibo })).toBe("pending");
+			// Y el legítimo dueño sigue sincronizado.
+			expect(evaluateOpenSpecState({ declaration: "delta", change: "uno", deltas, bases, report: recibo })).toBe("synchronized");
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	test("un recibo sin campo `change` es inválido", () => {
+		const sinChange = ["# OpenSpec Sync Report", "sync_report_version: 1", "state: synchronized", `delta_sha256: ${"a".repeat(64)}`, `result_sha256: ${"b".repeat(64)}`, ""].join("\n");
+		expect(parseSyncReport(sinChange).ok).toBe(false);
 	});
 });

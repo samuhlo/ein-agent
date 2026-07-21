@@ -150,6 +150,8 @@ export function evaluateOpenSpecState(input: {
 	}
 	const report = input.report === null ? null : parseSyncReport(input.report);
 	if (!report?.ok) return "pending";
+	// El recibo debe pertenecer a ESTE cambio: si no, es prestado.
+	if (report.value.change !== input.change) return "pending";
 	if (report.value.deltaSha256 !== plan.deltaSha256) return "pending";
 	// El informe describe un resultado YA APLICADO sobre los specs canónicos, así
 	// que la comprobación va contra los BYTES ACTUALES — no contra `plan.resultSha256`.
@@ -168,12 +170,23 @@ export function evaluateOpenSpecState(input: {
 	return "synchronized";
 }
 
-export function parseSyncReport(source: string): { ok: true; value: { state: "synchronized" | "conflict"; deltaSha256: string; resultSha256: string } } | { ok: false } {
+// `change` se conserva a propósito: el informe ya lo serializaba, pero nadie lo
+// leía, así que un recibo copiado de OTRO cambio con deltas equivalentes lo daba
+// por sincronizado (verificado). Un recibo que no dice a qué trabajo pertenece
+// no es trazabilidad, es coincidencia de hashes.
+export function parseSyncReport(source: string): { ok: true; value: { change: string; state: "synchronized" | "conflict"; deltaSha256: string; resultSha256: string } } | { ok: false } {
 	const values: Record<string, string> = {};
 	for (const line of source.split("\n")) {
 		const match = line.match(/^([a-z0-9_]+): (.+)$/);
 		if (match?.[1] && match[2]) values[match[1]] = match[2];
 	}
-	if (!source.startsWith("# OpenSpec Sync Report\nsync_report_version: 1\n") || !/^[a-f0-9]{64}$/.test(values.delta_sha256 ?? "") || !/^[a-f0-9]{64}$/.test(values.result_sha256 ?? "") || !["synchronized", "conflict"].includes(values.state ?? "")) return { ok: false };
-	return { ok: true, value: { state: values.state as "synchronized" | "conflict", deltaSha256: values.delta_sha256!, resultSha256: values.result_sha256! } };
+	if (
+		!source.startsWith("# OpenSpec Sync Report\nsync_report_version: 1\n") ||
+		!/^[a-f0-9]{64}$/.test(values.delta_sha256 ?? "") ||
+		!/^[a-f0-9]{64}$/.test(values.result_sha256 ?? "") ||
+		!["synchronized", "conflict"].includes(values.state ?? "") ||
+		!(values.change ?? "").trim()
+	)
+		return { ok: false };
+	return { ok: true, value: { change: values.change!.trim(), state: values.state as "synchronized" | "conflict", deltaSha256: values.delta_sha256!, resultSha256: values.result_sha256! } };
 }

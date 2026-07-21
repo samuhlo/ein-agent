@@ -365,3 +365,23 @@ describe("closeChange — estado de specs y --force", () => {
 		expect(closeChange(DIR, "relleno").ok).toBe(false);
 	});
 });
+
+// El nombre de un cambio es un SEGMENTO, nunca una ruta. La validación es
+// COMPARTIDA con la sincronización OpenSpec (isSafeChangeName): estaban
+// duplicadas —y una de las dos ni existía—, y esa divergencia fue el agujero.
+describe("closeChange — nombres de cambio inseguros", () => {
+	test("rechaza rutas, `..`, vacío y el storage reservado", () => {
+		for (const malo of ["", "..", "a/b", "a\\b", "archive", "../../fuera"]) {
+			const r = closeChange(DIR, malo, { force: true });
+			expect(r.ok, `debería rechazar ${JSON.stringify(malo)}`).toBe(false);
+			expect(r.reason).toContain("inválido");
+		}
+	});
+
+	test("el vacío no apunta al directorio de cambios entero", () => {
+		mkChange("vivo", { "summary.md": "x" });
+		expect(closeChange(DIR, "", { force: true }).ok).toBe(false);
+		// El cambio real sigue donde estaba: nada se movió en bloque.
+		expect(existsSync(join(DIR, "openspec", "changes", "vivo"))).toBe(true);
+	});
+});
