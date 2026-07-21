@@ -33,8 +33,10 @@ import {
 } from "../lib/sdd-preflight.ts";
 import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";
 import {
+	type DeliveryIntent,
+	deliveryIntentActive,
 	handleGitCommand,
-	messageRequestsDelivery,
+	nextDeliveryIntent,
 	readGitDeliveryMode,
 } from "../lib/git-delivery.ts";
 import {
@@ -105,12 +107,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// Intención de entrega del ÚLTIMO mensaje del usuario, por sesión.
-// La fija el hook `input` y la lee el gate de entrega en `tool_call`.
-// BLINDAJE -> en modo git `auto`, si el usuario pidió commit/push/PR, no se
-// le vuelve a preguntar; vale solo hasta el siguiente mensaje (entrega por
-// iniciativa del agente sin petición previa sí dispara la confirmación).
-const deliveryIntentBySession = new Map<string, boolean>();
+// Intención de entrega del usuario, por sesión. La fija el hook `input` y la
+// lee el gate de entrega en `tool_call`.
+// BLINDAJE -> en modo git `auto`, si el usuario pidió commit/push/PR, no se le
+// vuelve a preguntar. Es PEGAJOSA con TTL: sobrevive a los mensajes neutros del
+// mismo encargo (pegar un log de CI, "sigue") y solo cae con una negación
+// explícita o al expirar. Antes se recalculaba en cada mensaje y se pisaba, así
+// que un log pegado a mitad del trabajo revocaba en silencio el "haz push" de
+// dos turnos antes y bloqueaba la delegación siguiente.
+const deliveryIntentBySession = new Map<string, DeliveryIntent>();
 // Versión instalada al arrancar cada sesión + sesiones ya avisadas: si `ein
 // update` corre a mitad de sesión, esta sigue con la plantilla vieja → nudge de
 // reinicio (una vez).
@@ -516,13 +521,14 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.on("input", async (event, ctx) => {
-		// Intención de entrega del turno: ¿este mensaje pide commit/push/PR? La lee
-		// el gate de entrega en `tool_call` (modo git `auto`). Se actualiza SIEMPRE,
-		// también en mensajes sin SDD, y reemplaza la del turno anterior.
+		// Intención de entrega: ¿este mensaje pide commit/push/PR? La lee el gate de
+		// entrega en `tool_call` (modo git `auto`). Se evalúa SIEMPRE, también en
+		// mensajes sin SDD; un mensaje neutro la conserva en vez de pisarla.
 		if (typeof event.text === "string") {
+			const key = sddPreflightSessionKey(ctx);
 			deliveryIntentBySession.set(
-				sddPreflightSessionKey(ctx),
-				messageRequestsDelivery(event.text),
+				key,
+				nextDeliveryIntent(deliveryIntentBySession.get(key), event.text),
 			);
 		}
 		if (typeof event.text !== "string" || !isSddPreflightTrigger(event.text)) {
@@ -645,8 +651,9 @@ export default function einAi(pi: ExtensionAPI): void {
 			await gateTddForDelegation(event.input, ctx);
 			return confirmDelegatedDelivery(event.input, ctx, {
 				mode: readGitDeliveryMode(ctx.cwd),
-				userRequested:
-					deliveryIntentBySession.get(sddPreflightSessionKey(ctx)) ?? false,
+				userRequested: deliveryIntentActive(
+					deliveryIntentBySession.get(sddPreflightSessionKey(ctx)),
+				),
 			});
 		}
 		if (event.toolName !== "bash") return undefined;

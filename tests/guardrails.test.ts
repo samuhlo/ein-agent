@@ -1,9 +1,11 @@
 // =============================================================================
-// TESTS: lib/guardrails — denegación bash + grant one-shot de entrega
+// TESTS: lib/guardrails — denegación bash + grant de entrega
 // =============================================================================
 // BLINDAJE -> El padre confirma el push al delegar; el guard headless del
-// subagente consume el grant (una vez, con TTL y scope por cwd). FAIL CLOSED
-// si el contexto es ambiguo. Usa EIN_PI_CONFIG_HOME temporal.
+// subagente consume el grant (usos acotados, con TTL y scope por cwd). FAIL
+// CLOSED si el contexto es ambiguo — pero delegar a un agente de entrega NO es
+// ambiguo: se decide por el agente, no por cómo esté redactada la task.
+// Usa EIN_PI_CONFIG_HOME temporal.
 // =============================================================================
 
 import { afterEach, beforeAll, describe, expect, test } from "bun:test";
@@ -19,6 +21,7 @@ const {
 	confirmCommand,
 	confirmDelegatedDelivery,
 	consumeDelegatedDelivery,
+	delegationIsDelivery,
 	deliveryGrantPath,
 	evaluateDeniedCommand,
 	grantDelegatedDelivery,
@@ -70,8 +73,26 @@ describe("patrones bash", () => {
 });
 
 describe("grant de entrega delegada", () => {
-	test("se consume una sola vez", () => {
+	// Usos ACOTADOS, no uno solo: una entrega real puede ejecutar más de un
+	// comando guardado en el mismo run (push de rama + push de tags) o reintentar
+	// tras un fallo transitorio. Con un único uso, el segundo comando legítimo
+	// moría bloqueado y el subagente no tenía forma de recuperarse.
+	test("se agota tras un número acotado de usos", () => {
 		grantDelegatedDelivery(CWD);
+		expect(consumeDelegatedDelivery(CWD)).toBe(true);
+		expect(consumeDelegatedDelivery(CWD)).toBe(true);
+		expect(consumeDelegatedDelivery(CWD)).toBe(true);
+		expect(consumeDelegatedDelivery(CWD)).toBe(false);
+		expect(existsSync(deliveryGrantPath())).toBe(false);
+	});
+
+	// Un grant escrito por una versión anterior (sin `remainingUses`) sigue
+	// valiendo exactamente un uso: nunca se convierte en ilimitado.
+	test("grant de formato anterior vale un solo uso", () => {
+		writeFileSync(
+			deliveryGrantPath(),
+			JSON.stringify({ cwd: CWD, expiresAt: Date.now() + 60_000 }),
+		);
 		expect(consumeDelegatedDelivery(CWD)).toBe(true);
 		expect(consumeDelegatedDelivery(CWD)).toBe(false);
 	});
@@ -104,17 +125,71 @@ describe("confirmCommand headless", () => {
 		expect(result?.block).toBe(true);
 	});
 
-	test("permite push con grant válido, una sola vez", async () => {
+	test("permite push con grant válido y acaba bloqueando al agotarlo", async () => {
 		const { ctx } = ctxStub(false);
 		grantDelegatedDelivery(CWD);
+		// Reintento legítimo dentro del mismo encargo: sigue pasando.
 		expect(await confirmCommand("git push origin main", ctx)).toBeUndefined();
-		const second = await confirmCommand("git push origin main", ctx);
-		expect(second?.block).toBe(true);
+		expect(await confirmCommand("git push origin main", ctx)).toBeUndefined();
+		expect(await confirmCommand("git push origin main", ctx)).toBeUndefined();
+		// Agotado: el grant no es una ventana abierta.
+		const blocked = await confirmCommand("git push origin main", ctx);
+		expect(blocked?.block).toBe(true);
 	});
 
 	test("los comandos no guardados pasan sin grant", async () => {
 		const { ctx } = ctxStub(false);
 		expect(await confirmCommand("git status", ctx)).toBeUndefined();
+	});
+});
+
+// =============================================================================
+// El agente destino MANDA sobre la prosa. Antes el gate solo miraba el texto
+// de la task y fallaba-cerrado por un adjetivo: "push the branch" acuñaba el
+// grant y "push current branch" no, con el mismo significado. ein-git se
+// quedaba bloqueado sin salida y el padre no tenía forma de arreglarlo salvo
+// adivinar otra redacción.
+// =============================================================================
+describe("delegationIsDelivery — determinista por agente", () => {
+	// Textos REALES de una sesión que se quedó atascada (jul 2026). Los dos
+	// últimos NO casaban con ningún patrón de prosa.
+	const REAL_TASKS = [
+		"Deliver the approved Ein quality-roadmap + macOS CI slice now: create branch `feature/macos-ci-parity` from current `main`, make exactly two commits with the file sets below, push the branch, and open one PR against `main`.",
+		"Update existing PR #36 with the confirmed CI fix. On current branch `feature/macos-ci-parity`, stage ONLY `tests/project-context.test.ts`, commit, and push the branch.",
+		"Update existing PR #36 with the final hosted-CI evidence. Stage ONLY two docs, commit, and push current branch `feature/macos-ci-parity`.",
+		"Push the already-created local commit `932265d` from current branch `feature/macos-ci-parity` to its existing remote branch and update existing PR #36.",
+	];
+
+	test("delegar a ein-git ES entrega, se redacte como se redacte", () => {
+		for (const task of REAL_TASKS) {
+			expect(delegationIsDelivery({ agent: "ein-git", task }), task.slice(0, 50)).toBe(true);
+		}
+		// Incluso con una task que no menciona la entrega en absoluto.
+		expect(delegationIsDelivery({ agent: "ein-git", task: "haz lo acordado" })).toBe(true);
+	});
+
+	test("los adjetivos ya no rompen el matcher de prosa (red secundaria)", () => {
+		// Mismo significado, redacciones distintas: antes solo pasaba la primera.
+		expect(taskRequestsGuardedDelivery("push the branch")).toBe(true);
+		expect(taskRequestsGuardedDelivery("push current branch `feature/x`")).toBe(true);
+		expect(taskRequestsGuardedDelivery("push the already-created local commit `932265d`")).toBe(true);
+	});
+
+	test("un agente que no es de entrega sigue decidiéndose por la prosa", () => {
+		expect(delegationIsDelivery({ agent: "sdd-apply", task: "implementa push notifications" })).toBe(false);
+		expect(delegationIsDelivery({ agent: "sdd-apply", task: "arregla el bug y haz push de la rama" })).toBe(true);
+	});
+
+	test("cubre los modos parallel (tasks[]) y chain (steps[])", () => {
+		expect(delegationIsDelivery({ tasks: [{ agent: "sdd-map", task: "mapea" }, { agent: "ein-git", task: "entrega" }] })).toBe(true);
+		expect(delegationIsDelivery({ steps: [{ agent: "ein-git", task: "entrega" }] })).toBe(true);
+		expect(delegationIsDelivery({ steps: [{ agent: "sdd-map", task: "mapea el módulo" }] })).toBe(false);
+	});
+
+	test("input basura no revienta ni autoriza", () => {
+		expect(delegationIsDelivery(undefined)).toBe(false);
+		expect(delegationIsDelivery({ tasks: "no es un array" })).toBe(false);
+		expect(delegationIsDelivery({ agent: 42 })).toBe(false);
 	});
 });
 
