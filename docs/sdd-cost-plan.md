@@ -59,3 +59,5 @@ Tras E, el coste se movió de apply a **map (222k)** y **verify (297k)** — fas
 
 ## Lo que ya funciona (no regresionar)
 Reanudación por `next pending` (v0.19.9), recuperación de rechazos vía `ein_sdd_check` (v0.19.3), guard de cierre obsoleto (v0.19.8), `ein_sdd_close` tool (v0.19.10), una sola pregunta al inicio, visibilidad de coste.
+
+- **Slice 03 — adopción de especificación: completada.** El contrato canónico sincronizado adopta el recibo ya fusionado; la lane mecánica/no-SDD sigue fuera de alcance y el consumo de entrega queda para slice 04.

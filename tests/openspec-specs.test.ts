@@ -323,3 +323,62 @@ describe("integridad de la sincronización OpenSpec", () => {
 		expect(parseSyncReport(sinChange).ok).toBe(false);
 	});
 });
+
+// =============================================================================
+// USABILIDAD DEL FORMATO DE DELTA. Descubierto en el PRIMER uso real del slice
+// 02 sobre trabajo de verdad: la sincronización falló con
+// `invalid-scenario-id` porque había una línea en blanco entre `## ADDED` y el
+// primer escenario. Dos problemas a la vez:
+//   1. esa línea es OBLIGATORIA entre entradas y estaba PROHIBIDA tras el
+//      encabezado de operación — una asimetría que solo se descubre chocando;
+//   2. el error hablaba de identificadores kebab-case señalando una línea
+//      vacía, así que mandaba a revisar IDs que estaban perfectos.
+// Los deltas se escriben a mano (no hay serializador), así que tolerar la línea
+// no toca ningún byte generado ni el determinismo de los digests.
+// =============================================================================
+describe("delta: líneas en blanco tras el encabezado de operación", () => {
+	const scenario = [
+		"### Scenario: alpha",
+		"title: Alpha",
+		"requirement: The system MUST retain alpha",
+		"Given: an input",
+		"When: it runs",
+		"Then: it succeeds",
+	].join("\n");
+	const head = ["# OpenSpec Delta", "format: openspec-delta/v1", "domain: sdd-lifecycle", ""];
+
+	test("acepta UNA línea en blanco tras `## ADDED` (el caso que falló)", () => {
+		const source = [...head, "## ADDED", "", scenario, ""].join("\n");
+		expect(parseOpenSpecDelta(source).ok).toBe(true);
+	});
+
+	test("sigue aceptando el delta SIN esa línea", () => {
+		expect(parseOpenSpecDelta([...head, "## ADDED", scenario, ""].join("\n")).ok).toBe(true);
+	});
+
+	test("los dos estilos producen EL MISMO delta", () => {
+		const conLinea = parseOpenSpecDelta([...head, "## ADDED", "", scenario, ""].join("\n"));
+		const sinLinea = parseOpenSpecDelta([...head, "## ADDED", scenario, ""].join("\n"));
+		expect(conLinea.ok && sinLinea.ok).toBe(true);
+		if (conLinea.ok && sinLinea.ok) expect(conLinea.value).toEqual(sinLinea.value);
+	});
+
+	test("DOS líneas en blanco siguen siendo un error: el formato no se afloja", () => {
+		const result = parseOpenSpecDelta([...head, "## ADDED", "", "", scenario, ""].join("\n"));
+		expect(result.ok).toBe(false);
+	});
+
+	test("el error de una línea vacía dice lo que pasa, no habla de kebab-case", () => {
+		const result = parseOpenSpecDelta([...head, "## ADDED", "", "", scenario, ""].join("\n"));
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.errors[0]?.code).toBe("unexpected-blank-line");
+			expect(result.errors[0]?.message).toContain("blank line");
+			expect(result.errors[0]?.message).not.toContain("kebab-case");
+		}
+	});
+
+	test("una sección vacía sigue detectándose", () => {
+		expect(parseOpenSpecDelta([...head, "## ADDED", "", "## REMOVED", ""].join("\n")).ok).toBe(false);
+	});
+});
