@@ -288,7 +288,7 @@ export function installSddAssets(
 	);
 	const support = copyDirectoryFiles(
 		join(ASSETS_DIR, "support"),
-		join(AGENT_DIR, "gentle-ai", "support"),
+		join(AGENT_DIR, "ein", "support"),
 		force,
 	);
 	return {

@@ -9,7 +9,7 @@
 // =============================================================================
 
 import { afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -78,7 +78,13 @@ describe("grant de entrega delegada", () => {
 	// tras un fallo transitorio. Con un único uso, el segundo comando legítimo
 	// moría bloqueado y el subagente no tenía forma de recuperarse.
 	test("se agota tras un número acotado de usos", () => {
+		const beforeGrant = Date.now();
 		grantDelegatedDelivery(CWD);
+		const grant = JSON.parse(readFileSync(deliveryGrantPath(), "utf8"));
+		expect(grant.cwd).toBe(CWD);
+		expect(grant.expiresAt).toBeGreaterThanOrEqual(beforeGrant + 10 * 60 * 1000);
+		expect(grant.expiresAt).toBeLessThanOrEqual(Date.now() + 10 * 60 * 1000);
+		expect(grant.remainingUses).toBe(3);
 		expect(consumeDelegatedDelivery(CWD)).toBe(true);
 		expect(consumeDelegatedDelivery(CWD)).toBe(true);
 		expect(consumeDelegatedDelivery(CWD)).toBe(true);
