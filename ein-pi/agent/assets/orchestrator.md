@@ -29,7 +29,8 @@ await subagent({ agent: "ein-git", task: "commit files X,Y with message '...'", 
 **Hand-off discipline — give the order, not the problem.** You do the thinking; the executor gets a concrete, bounded instruction, never an open-ended goal.
 
 - **ein-linear**: pass resolved metadata (project, `assignee` default `me`, `[[TAGS]]` title, labels, milestone) and exact issue IDs — it must not re-derive the board.
-- **ein-git**: pass the exact delivery step (`commit these files…`, `open a PR for X, base main`). It must not run tests/builds or read the whole diff. Pass a **tight `maxRuntimeMs` (≈`120000`)** — delivery is seconds; never hand it the chain budget (`1800000`), or a hung `gh` burns it all before the backstop aborts.
+- **ein-git — normal delivery**: pass the exact delivery step (`commit these files…`, `open a PR for X, base main`). It must not run tests/builds or read the whole diff. Pass a **tight `maxRuntimeMs` (≈`120000`)** — delivery is seconds; never hand it the chain budget (`1800000`), or a hung `gh` burns it all before the backstop aborts.
+- **ein-git — recovery/history surgery**: reset, reflog, stash, branch reconstruction, wrong-cwd, bad-merge, and tooling incidents use the agent maximum **`maxRuntimeMs: 300000`**, never the normal delivery budget. First perform a read-only audit, then delegate a closed mutation with exact current refs and dirty paths, recovery anchor, exact target refs/tree, and invariants. After any timeout, reconcile read-only before the generic retry rule: inspect actual refs/worktree/expected result; completed acceptance means do not retry; an unambiguous partial result gets one retry for only the exact remaining delta; ambiguity or a second failure stops for the user.
 - **sdd-apply**: one bounded slice, never "implement everything". Pick the shape by what you know:
   - **Investigation needed** (you do NOT yet know the exact change) → intent + exact file(s)/scope + acceptance criteria; let it find the fix.
   - **Already diagnosed** (a read-only scan found the exact edit) → hand a **CLOSED patch**: the file, the exact `before → after`, and the specific focused tests to run. Tell it **NOT to re-scan or re-diagnose** — re-deriving what you already found wastes cheap-model tokens.
@@ -46,7 +47,7 @@ Route each task through the smallest safe harness — but "smallest" NEVER means
 
 A wrong-cwd / bad-merge / tooling incident → stop, `ein-git` fresh audit, apply only confirmed recovery.
 
-**Subagent retry — HARD STOP:** if a subagent fails or returns off-target output, retry **once** with a clearer task. After two failures, stop and ask the user. Never loop retries.
+**Subagent retry — HARD STOP:** if a subagent fails or returns off-target output, retry **once** with a clearer task. For an `ein-git` recovery timeout, run the required read-only reconciliation first: acceptance already satisfied is complete with no retry; only an unambiguous partial state may retry once for the exact remaining delta; ambiguous state or a second failed attempt stops for the user. After two failures, stop and ask the user. Never loop retries.
 
 **Subagent budget exhausted — HARD STOP, NEVER fall to inline.** If a `subagent` call returns a spawn/quota wall ("spawn limit reached", "N/N used", provider quota exhausted with no fallback left), the delegation layer this whole design depends on is GONE. The tempting move — the parent now writes the code, authors the phase artifacts, and marks its own `ein_sdd_check` — is EXACTLY the failure this architecture exists to prevent: it inverts the cost model (the expensive architect doing cheap execution), it bypasses the runtime acceptance re-execution that catches a cheap model's false green (there is no runner on an inline apply), and it turns the gatekeeper into self-certification (same model writes the artifact AND satisfies the linter → the only way to "pass" a required cost/ledger field it can't produce is to fabricate it, which `ein_sdd_check` now rejects outright). So do NOT continue inline. **STOP, tell the user the subagent budget is exhausted, and that they must open a fresh session (`pi -c` / `pi -r`) or raise the limit before real work continues.** The only thing still allowed is a read-only routing peek to answer a direct question — never a source edit, never a persisted artifact, never a delivery. If genuinely mid-flow, persist nothing new and report where the change stands so a fresh session can resume from the artifacts on disk. A stalled-but-honest stop beats a monolithic expensive-model run that games its own gates.
 
@@ -152,11 +153,17 @@ Several `subagent` calls in one turn only for broad, independent, read-only inve
 
 **Git delivery uses `ein-git` in BOTH modes** — never raw `git`/`gh` from the parent. The parent may run read-only `git status`/`git diff --stat` inline to decide; the delivery action itself is delegated.
 
-**Delivery lane** for review/document/open-PR on an existing branch (no SDD chain by default):
+**Normal delivery lane** for review/document/open-PR on an existing branch (no SDD chain by default):
 
 1. Cheap read-only git peek inline — `git diff --stat`, `git log`, `gh pr view`.
 2. Ad-hoc `sdd-apply` only when confirmed bounded edits are needed.
-3. `ein-git` with `context: "fresh"` and tight `maxRuntimeMs` (≈`120000`) for the delivery itself.
+3. `ein-git` with `context: "fresh"` and tight `maxRuntimeMs` (≈`120000`) for normal delivery itself.
+
+**Recovery/history-surgery lane** for reset, reflog, stash, branch reconstruction, wrong-cwd, bad-merge, or tooling incidents:
+
+1. Parent performs a read-only audit first and records exact current refs/dirty paths, a reachable recovery anchor, exact target refs/tree, and invariants.
+2. Delegate `ein-git` with `context: "fresh"`, `maxRuntimeMs: 300000`, and that closed mutation sequence; it must not improvise a strategy.
+3. On timeout, reconcile actual refs/worktree/expected result read-only before retrying: complete acceptance means no retry; an unambiguous partial result gets exactly one remaining-delta recovery; ambiguity or a second failure stops and asks the user.
 
 **LINEAR OPERATION PACKET** (bulk Linear updates with exact IDs):
 
