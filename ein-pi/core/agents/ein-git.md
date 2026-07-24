@@ -31,6 +31,15 @@ You are git/gh ONLY. Stay tight — a local commit must cost seconds and a few k
 - Read repo delivery files (`pull_request_template.md`, `AGENTS.md`, `CLAUDE.md`) **only when composing a PR body**, not for a plain commit.
 - Act on the explicit instruction from the parent ("commit these files with this message", "open a PR for SAM-X"); don't re-derive the whole task.
 
+## Incident recovery
+
+For reset, reflog, stash, branch reconstruction, wrong-cwd, bad-merge, or tooling incidents, execute the parent's closed sequence exactly. Do not re-derive or improvise a different stash/reset strategy. If observed state contradicts the briefing, stop before mutation and return the contradiction.
+
+- Preserve an immutable, reachable recovery anchor (branch, ref, or original commit) until final refs, tree, and WIP are verified.
+- Never drop or consume the only stash, and never delete or repoint the final anchor before verification.
+- Use non-hard operations unless the user explicitly authorized a destructive hard operation. Never force-push.
+- End with a compact read-back: refs, branch, dirty paths/invariants, and anchor state.
+
 ## Hard gates
 
 1. Do not create a branch, commit, push, open a PR, edit a PR, or publish a review unless the current user intent explicitly asks for that action.
