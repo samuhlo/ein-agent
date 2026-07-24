@@ -110,6 +110,7 @@ import { readInstalledVersion, staleSessionNudge } from "../lib/session-version"
 import { DOMAIN_ID_PATTERN, sha256 } from "../lib/openspec-spec-contract.ts";
 import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";
 import { evaluateStaging } from "../lib/git-staging.ts";
+import { evaluateDeliveryGate, evaluatePostCommit, deliveryBoundaryFor, type DeliveryAttemptState } from "../lib/delivery-gate.ts";
 import { emitCandidateReceipt, suggestIntendedPaths } from "../lib/candidate-receipt.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
@@ -136,6 +137,14 @@ const phaseSnapshotByToolCall = new Map<
 	string,
 	{ phase: SddPhase; before: PhaseSnapshot }
 >();
+
+// Intento de entrega verificada en curso, por sesión: el fingerprint del recibo
+// que validó el pre-commit y, tras el post-commit, el head de entrega validado.
+// Las cuatro fronteras del slice 04 son UNA secuencia — sin este estado, el
+// pre-push no puede saber si la rama se movió desde que se validó el commit.
+const deliveryAttemptBySession = new Map<string, DeliveryAttemptState>();
+// Commits gateados a la espera de su comprobación post-commit (por toolCallId).
+const pendingPostCommit = new Map<string, string>();
 
 function rememberPhaseSnapshot(
 	toolCallId: string,
@@ -788,6 +797,18 @@ export default function einAi(pi: ExtensionAPI): void {
 		// las rutas, que es exactamente lo que debería hacerse.
 		const staging = evaluateStaging(ctx.cwd, event.input.command);
 		if (staging.kind === "blocked") return { block: true, reason: staging.reason };
+		// Puerta de entrega (slice 04): si hay un recibo y este comando toca sus
+		// ficheros, lo entregado debe ser EXACTAMENTE lo verificado. Determinista
+		// aquí, no una frase en el prompt de ein-git que se pueda olvidar.
+		const sessionKey = sddPreflightSessionKey(ctx);
+		const gate = evaluateDeliveryGate(ctx.cwd, event.input.command, deliveryAttemptBySession.get(sessionKey));
+		deliveryAttemptBySession.set(sessionKey, gate.attempt);
+		if (gate.verdict.kind === "blocked") return { block: true, reason: gate.verdict.reason };
+		// Un commit que pasó el pre-commit debe revalidarse DESPUÉS: los hooks de
+		// git pueden reescribir el árbol entre la validación y el objeto final.
+		if (deliveryBoundaryFor(event.input.command) === "pre-commit" && gate.attempt?.receiptFingerprint) {
+			pendingPostCommit.set(event.toolCallId, sessionKey);
+		}
 		maybeWrapBashInput(event.input as { command: string }, ctx.cwd);
 		return undefined;
 	});
@@ -797,6 +818,23 @@ export default function einAi(pi: ExtensionAPI): void {
 	// vacía, timeout en la lectura final) con la fase YA entregada. Sin esto el
 	// orquestador repetía una fase completa y pagaba dos veces.
 	pi.on("tool_result", (event, ctx) => {
+		// Frontera POST-COMMIT: el commit ya corrió y sus hooks también.
+		const postCommitSession = pendingPostCommit.get(event.toolCallId);
+		if (postCommitSession) {
+			pendingPostCommit.delete(event.toolCallId);
+			// Un commit que FALLÓ no produjo árbol que comprobar. Validar aquí
+			// sustituiría el error real de git por uno de identidad —tapando la
+			// causa— y actualizaría el intento a partir de algo que no ocurrió.
+			if (event.isError) {
+				deliveryAttemptBySession.set(postCommitSession, undefined);
+				return undefined;
+			}
+			const outcome = evaluatePostCommit(ctx.cwd, deliveryAttemptBySession.get(postCommitSession));
+			deliveryAttemptBySession.set(postCommitSession, outcome.attempt);
+			if (outcome.verdict.kind === "blocked") {
+				return { isError: true, content: [{ type: "text", text: outcome.verdict.reason }] };
+			}
+		}
 		if (event.toolName !== "subagent") return undefined;
 		// Se libera SIEMPRE, falle o no: si solo se borrase en la rama de fallo,
 		// cada delegación exitosa dejaría su foto ahí para toda la sesión.

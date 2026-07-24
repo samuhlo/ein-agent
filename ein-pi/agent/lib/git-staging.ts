@@ -168,6 +168,39 @@ function gitSubcommand(segment: Token[], sub: string): Token[] | null {
 	return segment.slice(index + 1);
 }
 
+// Expuesto para que otros guards (la puerta de entrega) reutilicen ESTE
+// tokenizador en vez de escribir el suyo: un segundo parser volvería a dejar el
+// agujero de los wrappers `bash -c` que aquí ya está cerrado.
+export function invokesBinarySubcommand(command: string, binary: string, sub: string): boolean {
+	for (const segment of expandCommands(command)) {
+		const at = segment.findIndex((token) => !token.quoted && (token.value === binary || token.value.endsWith(`/${binary}`)));
+		if (at === -1) continue;
+		for (let index = at + 1; index < segment.length; index += 1) {
+			const token = segment[index]!;
+			if (isFlag(token)) continue;
+			if (!token.quoted && token.value === sub) return true;
+			break;
+		}
+	}
+	return false;
+}
+
+export function invokesGitSubcommand(command: string, sub: string): boolean {
+	return expandCommands(command).some((segment) => gitSubcommand(segment, sub) !== null);
+}
+
+// Argumentos crudos de `git <sub>` en el primer segmento que lo invoca. Lo usa
+// la puerta de entrega para ver los pathspecs de `git commit`, que no pasan por
+// el índice y por tanto son invisibles a `git diff --cached`.
+export function gitSubcommandArgs(command: string, sub: string): string[] | null {
+	for (const segment of expandCommands(command)) {
+		const args = gitSubcommand(segment, sub);
+		if (args) return args.map((token) => token.value);
+	}
+	return null;
+}
+
+
 const BULK_ADD_FLAGS = new Set(["-A", "--all", "-u", "--update", "--no-ignore-removal"]);
 // Pathspecs que significan "todo": el punto y la raíz mágica de git.
 const BULK_PATHSPECS = new Set([".", "./", ":/", ":/*", "*"]);

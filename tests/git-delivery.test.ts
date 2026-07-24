@@ -130,7 +130,7 @@ describe("nextDeliveryIntent — intención pegajosa con TTL", () => {
 			"Test (workbench + installer)\nProcess completed with exit code 1.\ntests/project-context.test.ts#L84",
 			T0 + 60_000,
 		);
-		expect(afterLog.requested).toBe(true);
+		expect(afterLog).toBe(asked);
 		expect(deliveryIntentActive(afterLog, T0 + 60_000)).toBe(true);
 	});
 

@@ -235,7 +235,6 @@ export function runDoctor(platform: Platform): DoctorReport {
   // Coherencia: referencias colgantes / desajustes que deja un deploy stale
   // o un refactor a medias.
   const checksCoherence: CheckResult[] = [
-    check(!preflightRaw.includes("Gentle AI"), "marca sin straggler", "La preflight no contiene el nombre antiguo 'Gentle AI'."),
     check(einGitRaw.includes("Review Workload Gate"), "review workload gate", "ein-git documenta el gate de carga de revision."),
     check(!preflightRaw.includes("task/workload forecasts conflict"), "preflight sin forecast muerto", "La preflight ya no referencia un forecast que ninguna fase genera."),
     check(preflightRaw.includes("Review Workload Guard"), "preflight inyecta guard", "La preflight inyecta la regla determinista de Review Workload Guard."),

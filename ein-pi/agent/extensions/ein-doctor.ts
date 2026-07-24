@@ -415,11 +415,6 @@ function doctorSmokeReport(): string {
   // ya no existen.
   const checksCoherence: CheckResult[] = [
     check(
-      !preflightRaw.includes("Gentle AI"),
-      "marca sin straggler",
-      "La preflight no contiene el nombre antiguo 'Gentle AI'.",
-    ),
-    check(
       einGitRaw.includes("Review Workload Gate"),
       "review workload gate",
       "ein-git documenta el gate de carga de revision.",

@@ -53,6 +53,10 @@ export type ReceiptVerdict =
 	| { ok: true; receipt: CandidateReceipt }
 	| { ok: false; reason: string };
 
+export type FreshReceiptVerdict =
+	| { ok: true; receipt: CandidateReceipt; fingerprint: string }
+	| { ok: false; reason: string };
+
 function sha256(value: string): string {
 	return createHash("sha256").update(value).digest("hex");
 }
@@ -292,9 +296,34 @@ export type EmitResult =
 	| { ok: true; receipt: CandidateReceipt; path: string }
 	| { ok: false; reason: string };
 
-// Ruta del informe de verify que respalda el candidato.
-function verifyReportPath(cwd: string, change: string): string {
-	return join(resolveChangesDir(cwd), change, "verify-report.md");
+type ReceiptChangeLocation = {
+	path: string;
+	archived: boolean;
+};
+
+// La entrega ocurre después de close, cuando el cambio ya vive bajo archive/.
+// FAIL CLOSED -> dos copias no permiten elegir evidencia arbitrariamente.
+function resolveReceiptChangeLocation(cwd: string, change: string): ReceiptChangeLocation | null | "ambiguous" {
+	const changes = resolveChangesDir(cwd);
+	const locations = [
+		{ path: join(changes, change), archived: false },
+		{ path: join(changes, "archive", change), archived: true },
+	].filter((location) => existsSync(location.path));
+	if (locations.length === 0) return null;
+	if (locations.length !== 1) return "ambiguous";
+	return locations[0]!;
+}
+
+function receiptChangeBlocker(cwd: string, change: string): { location: ReceiptChangeLocation } | { reason: string } {
+	if (!isSafeChangeName(change)) return { reason: `nombre de cambio inválido: ${JSON.stringify(change)}` };
+	const location = resolveReceiptChangeLocation(cwd, change);
+	if (location === null) return { reason: `el cambio '${change}' no existe` };
+	if (location === "ambiguous") return { reason: `el cambio '${change}' existe tanto activo como archivado; la evidencia es ambigua` };
+	return { location };
+}
+
+function verifyReportPath(location: ReceiptChangeLocation): string {
+	return join(location.path, "verify-report.md");
 }
 
 // Precondición de EMISIÓN. Un recibo se llama "de candidato VERIFICADO": si se
@@ -308,13 +337,34 @@ function verifyReportPath(cwd: string, change: string): string {
 // recuento de tareas ya lo gobierna la guarda de cierre. Duplicarlo aquí
 // añadiría un bloqueo más ante un `tasks.md` desactualizado sin ganar garantía.
 export function assessReceiptPrecondition(cwd: string, change: string): string | null {
-	if (!isSafeChangeName(change)) return `nombre de cambio inválido: ${JSON.stringify(change)}`;
-	if (!existsSync(join(resolveChangesDir(cwd), change))) return `el cambio '${change}' no existe`;
-	const status = resolveSddStatus(cwd, change);
-	if (status.verify === "absent") return "no hay verify-report.md: no hay verificación que respaldar";
-	if (status.verify !== "pass") return `verify no está en pass (está '${status.verify}'): un candidato no se llama verificado sin una verificación que pase`;
-	if (status.verifyStale) return "el verify es OBSOLETO: hubo un apply posterior, así que el informe no describe el árbol actual";
-	if (status.apply !== "complete") return `apply no está completo (está '${status.apply}'): lo verificado es trabajo a medias`;
+	const resolved = receiptChangeBlocker(cwd, change);
+	if ("reason" in resolved) return resolved.reason;
+	const { location } = resolved;
+	if (!location.archived) {
+		const status = resolveSddStatus(cwd, change);
+		if (status.verify === "absent") return "no hay verify-report.md: no hay verificación que respaldar";
+		if (status.verify !== "pass") return `verify no está en pass (está '${status.verify}'): un candidato no se llama verificado sin una verificación que pase`;
+		if (status.verifyStale) return "el verify es OBSOLETO: hubo un apply posterior, así que el informe no describe el árbol actual";
+		if (status.apply !== "complete") return `apply no está completo (está '${status.apply}'): lo verificado es trabajo a medias`;
+		return null;
+	}
+
+	let apply: string;
+	let verify: string;
+	try {
+		apply = readFileSync(join(location.path, "apply-progress.md"), "utf8");
+		verify = readFileSync(verifyReportPath(location), "utf8");
+		readFileSync(join(location.path, "summary.md"), "utf8");
+	} catch {
+		return "un cambio archivado requiere apply-progress.md, verify-report.md y summary.md actuales";
+	}
+	if (!/\bstatus\s*[:=]\s*complete\b/i.test(apply)) return "apply no está completo: lo verificado es trabajo a medias";
+	if (!/\b(?:status|result|resultado)\s*[:=]\s*(pass|passed|ok|pasa)\b/i.test(verify)) return "verify no está en pass: un candidato no se llama verificado sin una verificación que pase";
+	const applyMtime = statSync(join(location.path, "apply-progress.md")).mtimeMs;
+	const verifyMtime = statSync(verifyReportPath(location)).mtimeMs;
+	const summaryMtime = statSync(join(location.path, "summary.md")).mtimeMs;
+	if (applyMtime > verifyMtime) return "el verify es OBSOLETO: hubo un apply posterior, así que el informe no describe el árbol actual";
+	if (applyMtime > summaryMtime || verifyMtime > summaryMtime) return "el summary archivado es OBSOLETO: no describe la evidencia actual";
 	return null;
 }
 
@@ -335,7 +385,9 @@ export function emitCandidateReceipt(cwd: string, input: EmitInput): EmitResult 
 	// respaldar el verify REAL del cambio, no un texto que le pasen.
 	let report: string;
 	try {
-		report = readFileSync(verifyReportPath(cwd, input.change), "utf8");
+		const resolved = receiptChangeBlocker(cwd, input.change);
+		if ("reason" in resolved) return { ok: false, reason: resolved.reason };
+		report = readFileSync(verifyReportPath(resolved.location), "utf8");
 	} catch {
 		return { ok: false, reason: "no se pudo leer verify-report.md" };
 	}
@@ -384,6 +436,26 @@ export function readCandidateReceipt(cwd: string): CandidateReceipt | null {
 // Validación FAIL-CLOSED. Cada motivo de rechazo se nombra: un "no válido" a
 // secas obliga a adivinar, y adivinar sobre evidencia es justo lo que este
 // recibo existe para evitar.
+export function receiptFingerprint(receipt: CandidateReceipt): string {
+	return sha256(serializeReceipt(receipt));
+}
+
+// Relee y valida la evidencia en cada límite. Un fingerprint previo liga todas
+// las comprobaciones de un intento a un único recibo, sin volver a publicarlo.
+export function validateFreshCandidateReceipt(
+	cwd: string,
+	change: string,
+	expectedFingerprint?: string,
+): FreshReceiptVerdict {
+	const verdict = validateCandidateReceipt(cwd, change);
+	if (!verdict.ok) return verdict;
+	const fingerprint = receiptFingerprint(verdict.receipt);
+	if (expectedFingerprint && fingerprint !== expectedFingerprint) {
+		return { ok: false, reason: "el recibo fue reemplazado durante este intento de entrega" };
+	}
+	return { ok: true, receipt: verdict.receipt, fingerprint };
+}
+
 export function validateCandidateReceipt(cwd: string, change: string): ReceiptVerdict {
 	const identity = resolveWorktreeIdentity(cwd);
 	if (!identity) return { ok: false, reason: "no es un repositorio git" };
@@ -405,9 +477,11 @@ export function validateCandidateReceipt(cwd: string, change: string): ReceiptVe
 	// verify posterior (o un apply + verify B) dejaba el recibo viejo validando
 	// como si nada. Es exactamente el fallo que se corrigió en el recibo
 	// OpenSpec —serializar la identidad y no mirarla— repetido aquí.
+	const resolved = receiptChangeBlocker(cwd, change);
+	if ("reason" in resolved) return { ok: false, reason: resolved.reason };
 	let current: string;
 	try {
-		current = readFileSync(verifyReportPath(cwd, change), "utf8");
+		current = readFileSync(verifyReportPath(resolved.location), "utf8");
 	} catch {
 		return { ok: false, reason: "el verify-report.md que respaldaba el recibo ya no existe" };
 	}

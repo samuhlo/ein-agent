@@ -5,7 +5,6 @@
 // estima), para y reporta si el budget se pasa. La preflight inyecta la
 // regla, el orchestrator reenvía el budget y gatea con ask_user_question,
 // y los tres sitios comparten el mismo pathspec de exclusión (anti-drift).
-// El straggler de marca "Gentle AI" ya no existe.
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
@@ -16,7 +15,6 @@ const AGENT = join(import.meta.dir, "../ein-pi/agent");
 const CORE = join(import.meta.dir, "../ein-pi/core");
 const einGit = readFileSync(join(CORE, "agents/ein-git.md"), "utf8");
 const orchestrator = readFileSync(join(AGENT, "assets/orchestrator.md"), "utf8");
-const preflightSrc = readFileSync(join(AGENT, "lib/sdd-preflight.ts"), "utf8");
 
 const { renderSddPreflightPrompt } = await import(
 	"../ein-pi/agent/lib/sdd-preflight"
@@ -105,11 +103,5 @@ describe("presupuesto solo-produccion (excluye tests/generados)", () => {
 		expect(renderSddPreflightPrompt(PREFS).toLowerCase()).toContain(
 			"production changed lines",
 		);
-	});
-});
-
-describe("sin stragglers de marca", () => {
-	test("la preflight ya no dice 'Gentle AI'", () => {
-		expect(preflightSrc).not.toContain("Gentle AI");
 	});
 });

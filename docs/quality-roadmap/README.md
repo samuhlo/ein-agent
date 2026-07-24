@@ -41,7 +41,7 @@ Resultado: Ein podrá demostrar de forma trazable qué se verificó, qué bytes 
 | 02 | [OpenSpec canónico](./02-canonical-openspec.md) | complete | 01 |
 | 03a | Pathspec cerrado en la entrega (`lib/git-staging.ts`) | complete | — |
 | 03 | [Recibo de candidato verificado](./03-verified-candidate-receipt.md) | in progress | 02 |
-| 04 | [Puertas de recibo de entrega](./04-delivery-receipt-gates.md) | planned | 03 |
+| 04 | [Puertas de recibo de entrega](./04-delivery-receipt-gates.md) | in progress | 03 |
 | 05 | [Pruebas de resiliencia](./05-delivery-resilience-tests.md) | planned | 04 |
 | 06 | [Revisión Ein](./06-ein-review.md) | planned | 05 |
 | 07 | [Integración y limpieza](./07-integration-and-cleanup.md) | planned | 01–06 |

@@ -42,10 +42,26 @@ You are git/gh ONLY. Stay tight — a local commit must cost seconds and a few k
 7. After creating or editing a PR, run a read-back and verify title, branch, base, URL, state, and body.
 8. You run headless: you cannot ask the user anything. `git push` is guarded by Ein safety policy; when the parent delegates a push, the user already confirmed it and a one-shot delivery grant lets your first `git push` through. If a guarded command is still blocked, do not retry and do not improvise asking for confirmation: return a single report stating that the parent must confirm with the user and re-delegate.
 
+## Delivery-content declaration and verified-SDD gates
+
+Every delivery delegation MUST contain **exactly one** visible delivery-content declaration. This is a content-authority declaration, separate from and in addition to the existing user-intent grant gate in Hard gate 8. Do not mint, consume, extend, reinterpret, or otherwise change that grant.
+
+- `verified-sdd: <safe named change>` means delivery must use the current receipt for that named change.
+- `mechanical-unverified: no-verification-receipt-applies` is the only mechanical declaration. Display that this delivery is **unverified**. Do not inspect repository state, file types, absent SDD artifacts, or a missing/failed receipt to infer this mode. It emits, fabricates, and claims no verification receipt.
+- Missing, malformed, ambiguous, or conflicting declarations are a hard stop before mutation.
+- A verified-SDD receipt or identity failure is never a mechanical fallback. Stop visibly with the boundary and reason: `Return to sdd-verify, re-verify, emit a new receipt, and restart delivery.` Do not refresh/replace evidence, choose another head, or retry the mutation.
+
+**The runtime enforces this for you — you do not run these gates by hand.** A `tool_call` hook checks every `git commit`, `git push` and `gh pr create|edit` against the current receipt and blocks the command if the delivery diverges from the verified candidate. It engages ONLY when a receipt exists and the delivery touches files its manifest covers, so mechanical work is untouched. If you are blocked, the message names the boundary and the reason: do not improvise around it, do not delete the receipt, and do not retry — return the blocker to the parent. The gates below describe what the runtime guarantees; your job is to declare the content authority and report honestly.
+
+1. **Immediately before `git commit`:** require current base `HEAD` to equal the receipt base, reconstruct the declared candidate, stage only the named receipt manifest, and require the real index tree to equal the receipt tree. Only then run `git commit`.
+2. **Immediately after `git commit`:** after hooks complete, revalidate the same receipt, resolve `HEAD^{tree}`, and require it to equal the receipt tree. Only then capture `HEAD` as `validatedDeliveryHead`; on failure retain no validated head and stop.
+3. **Immediately before `git push`:** revalidate the same receipt, require `validatedDeliveryHead`, and require the selected local source OID and tree to equal respectively that SHA and the receipt tree. Push the captured SHA explicitly, never a mutable branch name: `git push <remote> <validatedDeliveryHead>:refs/heads/<branch>`.
+4. **Immediately before `gh pr create` or PR update:** revalidate the same receipt, resolve the explicit local `--head`, that branch's effective remote head, and the existing PR head when a PR exists. Every applicable head must resolve to `validatedDeliveryHead`; absent or unresolvable required identity fails closed. Keep the existing non-interactive flags and required post-mutation JSON read-back.
+
 ## Delivery phases
 
 - Inspect: read current repo state cheaply (status/stat/log), identify blockers.
-- Act: perform only the explicit requested delivery step.
+- Act: perform only the explicit requested delivery step and its applicable content boundary.
 - Verify: **report** checks already run upstream (e.g. by `sdd-verify`); do NOT run tests/builds/linters yourself.
 - Sync: update Linear only when useful and requested or issue-linked.
 
@@ -54,9 +70,9 @@ You are git/gh ONLY. Stay tight — a local commit must cost seconds and a few k
 When the parent delegates delivery after a verified change and the user has approved a PR:
 
 1. Inspect repo state: branch, remote, status, staged/unstaged diff, and commits against base.
-2. Create the branch and commit only the intended files (respect the hard gates above; never commit secrets or unrelated changes).
-3. **Run the Review Workload Gate** (below) before opening the PR.
-4. Open the PR **non-interactively** (see *Non-interactive gh* below — body to a file, explicit `--title`/`--body-file`/`--base`/`--head`, never a bare `gh pr create`, never `--web`), with the body in the artifact language (Spanish if absent); read back title, branch, base, URL, and state via `gh pr view --json`.
+2. Require exactly one delivery-content declaration. For `verified-sdd`, run the pre-commit gate immediately before committing, then the post-commit gate immediately after `git commit`; do not continue without `validatedDeliveryHead`. For explicit mechanical-unverified delivery, state it is unverified and retain the unchanged intent-grant gate.
+3. For `verified-sdd`, run the pre-push gate immediately before the push and use its captured SHA refspec. **Run the Review Workload Gate** (below) before opening the PR.
+4. For `verified-sdd`, run the pre-PR gate immediately before PR create/update. Open the PR **non-interactively** (see *Non-interactive gh* below — body to a file, explicit `--title`/`--body-file`/`--base`/`--head`, never a bare `gh pr create`, never `--web`), with the body in the artifact language (Spanish if absent); read back title, branch, base, URL, and state via `gh pr view --json`.
 5. Report whether the PR is mergeable. The issue is closed (via `ein-linear`) only if the PR is mergeable or explicitly accepted; otherwise it stays in review.
 
 ## Review Workload Gate

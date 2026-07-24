@@ -31,7 +31,15 @@ const {
 	resolveWorktreeIdentity,
 	serializeReceipt,
 	validateCandidateReceipt,
+	validateFreshCandidateReceipt,
 } = await import("../ein-pi/agent/lib/candidate-receipt");
+
+const {
+	validatePreCommitReceiptGate,
+	validatePostCommitReceiptGate,
+	validatePrePushReceiptGate,
+	validatePrePrReceiptGate,
+} = await import("../ein-pi/agent/lib/delivery-receipt");
 
 // Repo con un cambio SDD en estado VERIFICADO: es la precondición para emitir.
 // Sin ella un `status: fail` producía un recibo "verificado", que vacía la
@@ -50,8 +58,10 @@ function repo(change = "mi-cambio", verify = "pass", applyStatus = "complete"): 
 	return dir;
 }
 
-function sddChange(dir: string, change: string, verify = "pass", applyStatus = "complete"): string {
-	const base = join(dir, "openspec", "changes", change);
+function sddChange(dir: string, change: string, verify = "pass", applyStatus = "complete", archived = false): string {
+	const base = archived
+		? join(dir, "openspec", "changes", "archive", change)
+		: join(dir, "openspec", "changes", change);
 	mkdirSync(base, { recursive: true });
 	writeFileSync(join(base, "scope.md"), "# Scope\n\nscope: x\nbudget_allocated: 1000\n");
 	writeFileSync(join(base, "map.md"), "# Map\n\nledger: x\nbudget_consumed: 1\nscope_status: ok\n");
@@ -59,6 +69,7 @@ function sddChange(dir: string, change: string, verify = "pass", applyStatus = "
 	writeFileSync(join(base, "tasks.md"), "# Tasks\n\n- [x] 1.1 hecho\n");
 	writeFileSync(join(base, "apply-progress.md"), `# Apply\n\nstatus: ${applyStatus}\n`);
 	writeFileSync(join(base, "verify-report.md"), `# Verify\n\nstatus: ${verify}\nbehavior_coverage: verified\n`);
+	if (archived) writeFileSync(join(base, "summary.md"), "# Summary\n");
 	return base;
 }
 
@@ -290,6 +301,54 @@ describe("precondición: solo se emite sobre un verify válido", () => {
 	});
 });
 
+describe("evidencia de cambios archivados", () => {
+	test("un cambio archivado único, completo y cerrado emite y valida el manifiesto", () => {
+		const dir = repo();
+		rmSync(join(dir, "openspec", "changes", "mi-cambio"), { recursive: true });
+		sddChange(dir, "mi-cambio", "pass", "complete", true);
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		const emitted = emitir(dir);
+		expect(emitted.ok).toBe(true);
+		if (!emitted.ok) return;
+		expect(candidateTreeMatches(dir, emitted.receipt)).toBe(true);
+		expect(validateCandidateReceipt(dir, "mi-cambio").ok).toBe(true);
+	});
+
+	test("un cambio activo único conserva la emisión y validación", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		expect(emitir(dir).ok).toBe(true);
+		expect(validateCandidateReceipt(dir, "mi-cambio").ok).toBe(true);
+	});
+
+	test("sin ubicación viva ni archivada rechaza el cambio inexistente", () => {
+		const dir = repo();
+		rmSync(join(dir, "openspec", "changes", "mi-cambio"), { recursive: true });
+		expect(assessReceiptPrecondition(dir, "mi-cambio")).toContain("no existe");
+	});
+
+	test("dos ubicaciones del mismo cambio fallan cerradas por ambigüedad", () => {
+		const dir = repo();
+		sddChange(dir, "mi-cambio", "pass", "complete", true);
+		expect(assessReceiptPrecondition(dir, "mi-cambio")).toContain("ambigua");
+	});
+
+	test("la evidencia archivada con verify fallido u obsoleto se rechaza", () => {
+		const failed = repo();
+		rmSync(join(failed, "openspec", "changes", "mi-cambio"), { recursive: true });
+		sddChange(failed, "mi-cambio", "fail", "complete", true);
+		expect(assessReceiptPrecondition(failed, "mi-cambio")).toContain("verify no está en pass");
+
+		const stale = repo();
+		rmSync(join(stale, "openspec", "changes", "mi-cambio"), { recursive: true });
+		const archived = sddChange(stale, "mi-cambio", "pass", "complete", true);
+		const applyPath = join(archived, "apply-progress.md");
+		const future = Date.now() / 1000 + 60;
+		utimesSync(applyPath, future, future);
+		expect(assessReceiptPrecondition(stale, "mi-cambio")).toContain("OBSOLETO");
+	});
+});
+
 describe("digestPaths", () => {
 	test("no depende del orden de entrada", () => {
 		expect(digestPaths(["b", "a"])).toBe(digestPaths(["a", "b"]));
@@ -426,6 +485,164 @@ describe("publicación atómica", () => {
 // el mismo fallo que se corrigió en el recibo OpenSpec —serializar la identidad
 // y no mirarla— repetido aquí, en el módulo que presume de trazabilidad.
 // =============================================================================
+describe("adaptadores de identidad para entrega", () => {
+	test("pre-commit compara de nuevo candidato, base e índice", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		const emitted = emitir(dir);
+		if (!emitted.ok) throw new Error("no emitió");
+		const matching = () => validatePreCommitReceiptGate(dir, "mi-cambio", {
+			baseHead: () => gitOut(dir, "rev-parse", "HEAD"),
+			candidateTree: () => buildCandidateTree(dir, emitted.receipt.paths),
+			indexTree: () => gitOut(dir, "write-tree"),
+		});
+
+		// El índice real empieza en HEAD, así que no autoriza el commit todavía.
+		expect(matching().decision.ok).toBe(false);
+		execFileSync("git", ["add", "--", "a.ts"], { cwd: dir, stdio: "ignore" });
+		const passed = matching();
+		expect(passed.decision.ok).toBe(true);
+		if (!passed.decision.ok) return;
+
+		expect(validatePreCommitReceiptGate(dir, "mi-cambio", {
+			baseHead: () => "different-base",
+			candidateTree: () => emitted.receipt.treeSha,
+			indexTree: () => emitted.receipt.treeSha,
+		}, passed.attempt.receiptFingerprint).decision.ok).toBe(false);
+		expect(validatePreCommitReceiptGate(dir, "mi-cambio", {
+			baseHead: () => emitted.receipt.head,
+			candidateTree: () => "different-candidate-tree",
+			indexTree: () => emitted.receipt.treeSha,
+		}, passed.attempt.receiptFingerprint).decision.ok).toBe(false);
+		expect(validatePreCommitReceiptGate(dir, "mi-cambio", {
+			baseHead: () => emitted.receipt.head,
+			candidateTree: () => emitted.receipt.treeSha,
+			indexTree: () => "different-index-tree",
+		}, passed.attempt.receiptFingerprint).decision.ok).toBe(false);
+	});
+
+	test("post-commit lee HEAD^{tree} después de una mutación tipo hook", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		const emitted = emitir(dir);
+		if (!emitted.ok) throw new Error("no emitió");
+		execFileSync("git", ["add", "a.ts"], { cwd: dir, stdio: "ignore" });
+		const preCommit = validatePreCommitReceiptGate(dir, "mi-cambio", {
+			baseHead: () => gitOut(dir, "rev-parse", "HEAD"),
+			candidateTree: () => buildCandidateTree(dir, emitted.receipt.paths),
+			indexTree: () => gitOut(dir, "write-tree"),
+		});
+		if (!preCommit.decision.ok) throw new Error("pre-commit no pasó");
+		execFileSync("git", ["commit", "-qm", "candidate"], { cwd: dir, stdio: "ignore" });
+		const committed = validatePostCommitReceiptGate(dir, "mi-cambio", preCommit.attempt, {
+			head: () => gitOut(dir, "rev-parse", "HEAD"),
+			headTree: () => gitOut(dir, "rev-parse", "HEAD^{tree}"),
+		});
+		expect(committed.decision.ok).toBe(true);
+
+		writeFileSync(join(dir, "a.ts"), "hook mutation\n");
+		execFileSync("git", ["add", "a.ts"], { cwd: dir, stdio: "ignore" });
+		execFileSync("git", ["commit", "--amend", "--no-edit"], { cwd: dir, stdio: "ignore" });
+		const mutated = validatePostCommitReceiptGate(dir, "mi-cambio", preCommit.attempt, {
+			head: () => gitOut(dir, "rev-parse", "HEAD"),
+			headTree: () => gitOut(dir, "rev-parse", "HEAD^{tree}"),
+		});
+		expect(mutated.decision.ok).toBe(false);
+		if (!mutated.decision.ok) expect(mutated.decision.reason).toContain("HEAD^{tree}");
+	});
+
+	test("pre-push vuelve a comparar el SHA fuente y su árbol", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		const emitted = emitir(dir);
+		if (!emitted.ok) throw new Error("no emitió");
+		execFileSync("git", ["add", "a.ts"], { cwd: dir, stdio: "ignore" });
+		const preCommit = validatePreCommitReceiptGate(dir, "mi-cambio", {
+			baseHead: () => gitOut(dir, "rev-parse", "HEAD"),
+			candidateTree: () => buildCandidateTree(dir, emitted.receipt.paths),
+			indexTree: () => gitOut(dir, "write-tree"),
+		});
+		if (!preCommit.decision.ok) throw new Error("pre-commit no pasó");
+		execFileSync("git", ["commit", "-qm", "candidate"], { cwd: dir, stdio: "ignore" });
+		const postCommit = validatePostCommitReceiptGate(dir, "mi-cambio", preCommit.attempt, {
+			head: () => gitOut(dir, "rev-parse", "HEAD"),
+			headTree: () => gitOut(dir, "rev-parse", "HEAD^{tree}"),
+		});
+		if (!postCommit.decision.ok) throw new Error("post-commit no pasó");
+		const matching = () => validatePrePushReceiptGate(dir, "mi-cambio", postCommit.attempt, {
+			selectedPushHead: () => gitOut(dir, "rev-parse", "HEAD"),
+			selectedPushTree: () => gitOut(dir, "rev-parse", "HEAD^{tree}"),
+		});
+		expect(matching().decision.ok).toBe(true);
+		expect(validatePrePushReceiptGate(dir, "mi-cambio", postCommit.attempt, {
+			selectedPushHead: () => "changed-source",
+			selectedPushTree: () => emitted.receipt.treeSha,
+		}).decision.ok).toBe(false);
+		expect(validatePrePushReceiptGate(dir, "mi-cambio", postCommit.attempt, {
+			selectedPushHead: () => postCommit.attempt.validatedDeliveryHead!,
+			selectedPushTree: () => "changed-tree",
+		}).decision.ok).toBe(false);
+	});
+
+	test("pre-PR resuelve cada cabeza efectiva y falla cerrada", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		const emitted = emitir(dir);
+		if (!emitted.ok) throw new Error("no emitió");
+		execFileSync("git", ["add", "a.ts"], { cwd: dir, stdio: "ignore" });
+		const preCommit = validatePreCommitReceiptGate(dir, "mi-cambio", {
+			baseHead: () => gitOut(dir, "rev-parse", "HEAD"),
+			candidateTree: () => buildCandidateTree(dir, emitted.receipt.paths),
+			indexTree: () => gitOut(dir, "write-tree"),
+		});
+		if (!preCommit.decision.ok) throw new Error("pre-commit no pasó");
+		execFileSync("git", ["commit", "-qm", "candidate"], { cwd: dir, stdio: "ignore" });
+		const postCommit = validatePostCommitReceiptGate(dir, "mi-cambio", preCommit.attempt, {
+			head: () => gitOut(dir, "rev-parse", "HEAD"),
+			headTree: () => gitOut(dir, "rev-parse", "HEAD^{tree}"),
+		});
+		if (!postCommit.decision.ok) throw new Error("post-commit no pasó");
+		const head = postCommit.attempt.validatedDeliveryHead!;
+		const matching = () => validatePrePrReceiptGate(dir, "mi-cambio", postCommit.attempt, {
+			localHead: () => head,
+			effectiveRemoteHead: () => head,
+			existingPrHead: () => undefined,
+		});
+		expect(matching().decision.ok).toBe(true);
+		for (const observations of [
+			{ localHead: () => null, effectiveRemoteHead: () => head, existingPrHead: () => undefined },
+			{ localHead: () => "different-local", effectiveRemoteHead: () => head, existingPrHead: () => undefined },
+			{ localHead: () => head, effectiveRemoteHead: () => null, existingPrHead: () => undefined },
+			{ localHead: () => head, effectiveRemoteHead: () => "different-remote", existingPrHead: () => undefined },
+			{ localHead: () => head, effectiveRemoteHead: () => head, existingPrHead: () => null },
+			{ localHead: () => head, effectiveRemoteHead: () => head, existingPrHead: () => "different-pr" },
+		]) {
+			expect(validatePrePrReceiptGate(dir, "mi-cambio", postCommit.attempt, observations).decision.ok).toBe(false);
+		}
+	});
+
+	test("la validación fresca rechaza recibos ausentes, malformados, obsoletos o reemplazados", () => {
+		const dir = repo();
+		expect(validateFreshCandidateReceipt(dir, "mi-cambio").ok).toBe(false);
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		const emitted = emitir(dir);
+		if (!emitted.ok) throw new Error("no emitió");
+		const fresh = validateFreshCandidateReceipt(dir, "mi-cambio");
+		if (!fresh.ok) throw new Error("no validó");
+		writeFileSync(receiptPath(dir)!, "{");
+		expect(validateFreshCandidateReceipt(dir, "mi-cambio", fresh.fingerprint).ok).toBe(false);
+		writeFileSync(receiptPath(dir)!, serializeReceipt(emitted.receipt));
+		writeFileSync(join(dir, "openspec", "changes", "mi-cambio", "verify-report.md"), "# Verify\n\nstatus: pass\nbehavior_coverage: verified\nnew\n");
+		expect(validateFreshCandidateReceipt(dir, "mi-cambio", fresh.fingerprint).ok).toBe(false);
+		writeFileSync(join(dir, "openspec", "changes", "mi-cambio", "verify-report.md"), "# Verify\n\nstatus: pass\nbehavior_coverage: verified\n");
+		const replacement = { ...emitted.receipt, createdAt: "2099-01-01T00:00:00.000Z" };
+		writeFileSync(receiptPath(dir)!, serializeReceipt(replacement));
+		const replaced = validateFreshCandidateReceipt(dir, "mi-cambio", fresh.fingerprint);
+		expect(replaced.ok).toBe(false);
+		if (!replaced.ok) expect(replaced.reason).toContain("reemplazado");
+	});
+});
+
 describe("el recibo debe respaldar el informe VIGENTE", () => {
 	test("un verify posterior distinto invalida el recibo", () => {
 		const dir = repo();
