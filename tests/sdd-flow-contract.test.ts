@@ -84,6 +84,21 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("single confirmation before the first `sdd-apply`");
 		expect(orch).toContain("STOPS the flow with the exact cause");
 	});
+
+	test("enseña primero en lenguaje humano y conserva la profundidad técnica", () => {
+		const agents = read("AGENTS.md");
+		expect(agents).toContain("everyday human language");
+		expect(agents).toContain("without software knowledge");
+		expect(agents).toContain("never stack unexplained jargon or acronyms");
+		expect(agents).toContain("Never infantilize the reader or lose technical correctness");
+		expect(orch).toContain("**Human-first teaching.** Every answer, especially an important change");
+		expect(orch).toContain("reconcile/supersede OpenSpec artifacts");
+		expect(orch).toContain("guardar el trabajo terminado y apartar el plan antiguo");
+		const human = orch.indexOf("EN LENGUAJE HUMANO:");
+		const inside = orch.indexOf("POR DENTRO:");
+		expect(human).toBeGreaterThan(-1);
+		expect(inside).toBeGreaterThan(human);
+	});
 });
 
 describe("contrato interno de notebook Engram", () => {
@@ -136,6 +151,15 @@ describe("ein-ai: tools deterministas cableados", () => {
 		expect(ai).toContain('"ein:sdd-next"');
 		expect(ai).toContain('"ein:sdd-close"');
 		expect(ai).not.toContain(`"ein:sdd-${"archive"}"`);
+	});
+	test("cablea el escape legacy con motivo auditado sin anunciar force como bypass", () => {
+		expect(ai).toContain("legacyReason: reason");
+		expect(ai).toContain('reason: { type: "string"');
+		expect(ai).toContain('--force --reason "<audit reason>"');
+		expect(ai).toContain("It never bypasses tasks, apply, verify, summary, pending spec synchronization, or conflicts, and close never synchronizes specs.");
+		expect(ai).toContain("Closed through legacy escape (spec state remained unresolved):");
+		expect(ai).toContain("Verified change '${change}' closed.");
+		expect(ai).not.toContain("Bypass the readiness guard");
 	});
 	test("prepara config antes de continuar el SDD solicitado", () => {
 		expect(ai).toContain('import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";');

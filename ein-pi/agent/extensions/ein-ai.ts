@@ -1203,8 +1203,8 @@ export default function einAi(pi: ExtensionAPI): void {
 	// Lógica compartida por el comando /ein:sdd-close y el tool ein_sdd_close: el
 	// move determinista (con guard de readiness) + memoria de cierre + refresco de
 	// EIN.md. Un único punto para que ambas superficies se comporten igual.
-	async function performSddClose(ctx: ExtensionContext, change: string, force: boolean) {
-		const result = closeChange(ctx.cwd, change, { force });
+	async function performSddClose(ctx: ExtensionContext, change: string, force: boolean, reason?: string) {
+		const result = closeChange(ctx.cwd, change, { force, legacyReason: reason });
 		let memory: SafeMemoryReceipt | undefined;
 		if (result.ok) {
 			memory = await saveArchivedCloseMemory(ctx, change, result.to);
@@ -1219,23 +1219,27 @@ export default function einAi(pi: ExtensionAPI): void {
 
 	async function handleSddClose(args: string | string[], ctx: ExtensionContext) {
 		const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
-		const parts = raw.trim().split(/\s+/).filter(Boolean);
-		const force = parts.includes("--force");
-		const change = parts.find((p) => p !== "--force") || resolveSddStatus(ctx.cwd).change || "";
+		const force = /(?:^|\s)--force(?:\s|$)/.test(raw);
+		const reason = /(?:^|\s)--reason\s+(?:"([^"]*)"|'([^']*)'|(\S+))/.exec(raw)?.slice(1).find((value) => value !== undefined);
+		const change = raw
+			.replace(/(?:^|\s)--force(?=\s|$)/g, " ")
+			.replace(/(?:^|\s)--reason(?:\s+(?:"[^"]*"|'[^']*'|\S+))?/g, " ")
+			.trim() || resolveSddStatus(ctx.cwd).change || "";
 		if (!change) {
-			ctx.ui.notify("Sin cambio que cerrar. Uso: /ein:sdd-close <change> [--force]", "warning");
+			ctx.ui.notify('Sin cambio que cerrar. Uso: /ein:sdd-close <change> [--force --reason "<audit reason>"]', "warning");
 			return;
 		}
-		const { result: r, memory } = await performSddClose(ctx, change, force);
+		const { result: r, memory } = await performSddClose(ctx, change, force, reason);
 		const memoryMessage = memory
 			? memory.status === "saved" && memory.reason === "acknowledged"
 				? " Memoria: guardada."
 				: ` Memoria: ${memory.status}/${memory.reason}.`
 			: "";
+		const success = r.legacyEscape
+			? `Closed through legacy escape (spec state remained unresolved): ${r.legacyEscape.reason}${memoryMessage}`
+			: `Verified change '${change}' closed. openspec/changes/ is clean.${memoryMessage}`;
 		ctx.ui.notify(
-			r.ok
-				? `Cambio '${change}' cerrado. openspec/changes/ queda limpio.${memoryMessage}`
-				: `No se cerró '${change}': ${r.reason}`,
+			r.ok ? success : `No se cerró '${change}': ${r.reason}`,
 			r.ok ? "info" : "warning",
 		);
 	}
@@ -1252,22 +1256,25 @@ export default function einAi(pi: ExtensionAPI): void {
 		name: "ein_sdd_close",
 		label: "Ein SDD Close",
 		description:
-			"Deterministically archive a VERIFIED change: move openspec/changes/<change>/ to archive/ so only live changes remain. REFUSES on incomplete/stale evidence (apply not complete, verify absent/fail/stale, summary missing/stale, tasks pending) unless force:true — run sdd-close (writes summary.md) and re-verify any late fix FIRST. Moves the filesystem; never commits or pushes. This is the close step; do not shell out to the library.",
+			"Deterministically archive a VERIFIED change: move openspec/changes/<change>/ to archive/ so only live changes remain. `--force --reason \"<audit reason>\"` is only for an otherwise complete, freshly verified declarationless legacy record. It never bypasses tasks, apply, verify, summary, pending spec synchronization, or conflicts, and close never synchronizes specs. Moves the filesystem; never commits or pushes. This is the close step; do not shell out to the library.",
 		parameters: {
 			type: "object",
 			properties: {
 				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
-				force: { type: "boolean", description: "Bypass the readiness guard. Only for a genuine tooling escape, never to skip a real re-verification." },
+				force: { type: "boolean", description: "Use only with reason for the narrow declarationless legacy escape; eligibility remains enforced by the close library." },
+				reason: { type: "string", description: "Audit reason required with force for an otherwise complete, freshly verified declarationless legacy record." },
 			},
 		} as const,
-		async execute(_id, params: { change?: string; force?: boolean }, _signal, _onUpdate, ctx: ExtensionContext) {
+		async execute(_id, params: { change?: string; force?: boolean; reason?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
 			if (!change) {
 				return { content: [{ type: "text", text: "/// SDD CLOSE — no active change to close." }], details: { ok: false, reason: "no active change" } };
 			}
-			const { result, memory } = await performSddClose(ctx, change, Boolean(params?.force));
+			const { result, memory } = await performSddClose(ctx, change, Boolean(params?.force), params?.reason);
 			const text = result.ok
-				? `/// SDD CLOSE — '${change}' archived to ${result.to.replace(ctx.cwd, ".")}. openspec/changes/ is clean.`
+				? result.legacyEscape
+					? `/// SDD CLOSE — Closed through legacy escape (spec state remained unresolved): ${result.legacyEscape.reason}`
+					: `/// SDD CLOSE — Verified change '${change}' closed; archived to ${result.to.replace(ctx.cwd, ".")}.`
 				: `/// SDD CLOSE — '${change}' NOT closed: ${result.reason}`;
 			return { content: [{ type: "text", text }], details: { ...result, memory } };
 		},

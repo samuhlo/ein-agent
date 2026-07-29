@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listActiveChanges, resolveSddNext, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
+import { assessCloseReadiness, listActiveChanges, resolveSddNext, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
 import { planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
 import { serializeOpenSpec } from "../ein-pi/agent/lib/openspec-spec-contract";
 
@@ -221,6 +221,54 @@ describe("resolveSddStatus", () => {
 		change("feat-y");
 		mkdirSync(join(DIR, "openspec", "changes", "archive", "viejo"), { recursive: true });
 		expect(listActiveChanges(DIR).sort()).toEqual(["feat-x", "feat-y"]);
+	});
+});
+
+describe("assessCloseReadiness", () => {
+	function closeReadyChange(name: string): string {
+		const c = change(name);
+		put(c, "scope.md", "# Scope\nDeclarationless legacy record.\n");
+		put(c, "map.md");
+		put(c, "design.md");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [x] 1 done\n");
+		put(c, "apply-progress.md", "status: complete\n");
+		put(c, "verify-report.md", "status: pass\n");
+		put(c, "summary.md", "# Summary\n");
+		return c;
+	}
+
+	test("expone códigos estables sin alterar los mensajes de lifecycle", () => {
+		const c = change("blocked");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [ ] 1 pending\n");
+		const readiness = assessCloseReadiness(DIR, "blocked");
+		expect(readiness.ready).toBe(false);
+		expect(readiness.blockers).toEqual([
+			{ code: "apply-not-complete", message: "apply no está `status: complete`." },
+			{ code: "verify-missing", message: "falta verify-report.md." },
+			{ code: "summary-missing", message: "falta summary.md." },
+			{ code: "tasks-pending", message: "quedan 1 tarea(s) sin completar." },
+			{ code: "spec-unresolved", message: "estado de specs OpenSpec: unresolved." },
+		]);
+		expect(readiness.reasons).toEqual(readiness.blockers.map((blocker) => blocker.message));
+	});
+
+	test("reconoce solamente el registro canónico declarationless completo", () => {
+		const c = closeReadyChange("eligible");
+		const readiness = assessCloseReadiness(DIR, "eligible");
+		expect(readiness.ready).toBe(false);
+		expect(readiness.blockers.map((blocker) => blocker.code)).toEqual(["spec-unresolved"]);
+		expect(readiness.legacyEligibility).toBe("declarationless-record");
+
+		for (const [name, mutate] of [
+			["declared", (path: string) => put(path, "scope.md", "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: legacy\n")],
+			["delta", (path: string) => { mkdirSync(join(path, "specs", "domain"), { recursive: true }); put(path, "specs/domain/spec.md", "bad delta"); }],
+			["sync", (path: string) => put(path, "sync-report.md", "unreadable report")],
+			["incomplete", (path: string) => put(path, "apply-progress.md", "status: partial\n")],
+		] as const) {
+			const candidate = closeReadyChange(name);
+			mutate(candidate);
+			expect(assessCloseReadiness(DIR, name).legacyEligibility).toBeNull();
+		}
 	});
 });
 
