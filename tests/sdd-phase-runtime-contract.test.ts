@@ -120,11 +120,21 @@ describe("P3: veredictos de acceptance de pi-subagents", () => {
     expect(acceptanceBlock.toLowerCase()).toContain("auto");
   });
 
-  test("sdd-apply conoce el contrato de verificación runtime y prohíbe amañarlo", () => {
+  test("sdd-apply distingue none normal de verified explícito y conserva sdd-verify", () => {
     const apply = read("agents/sdd-apply.md");
-    expect(apply).toContain("Runtime Acceptance Verification");
-    expect(apply).toContain("acceptance-report");
-    expect(apply.toLowerCase()).toMatch(/do not game it/);
+    const acceptance = apply.slice(
+      apply.indexOf("## Runtime Acceptance Verification"),
+      apply.indexOf("## Ad-hoc apply"),
+    );
+
+    expect(acceptance).toContain("runtime injects `acceptance: none`");
+    expect(acceptance).toMatch(/Do \*\*not\*\* create or claim an `acceptance-report`/);
+    expect(acceptance).toMatch(/do not claim the run was verified/i);
+    expect(acceptance).toContain("Only an explicit `acceptance: { level: \"verified\", verify: [...] }`");
+    expect(acceptance).toMatch(/RUNNER freshly re-executes the declared verification commands/);
+    expect(acceptance).toMatch(/End with the fenced `acceptance-report` block/);
+    expect(acceptance).toMatch(/Return `status: blocked`/);
+    expect(acceptance).toMatch(/independent `sdd-verify`.*final freshness authority/);
   });
 
   test("el loop se rutea por ein_sdd_status/ein_sdd_check, nunca por el veredicto", () => {

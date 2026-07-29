@@ -104,7 +104,26 @@ export type SddChangeStatus = {
 	blocked: string[];
 };
 
-export type CloseReadiness = { ready: boolean; reasons: string[] };
+export type CloseReadinessBlockerCode =
+	| "apply-not-complete"
+	| "verify-missing"
+	| "verify-failed"
+	| "verify-unclear"
+	| "verify-stale"
+	| "summary-missing"
+	| "summary-stale"
+	| "tasks-pending"
+	| "spec-pending"
+	| "spec-conflict"
+	| "spec-unresolved";
+
+export type CloseReadinessBlocker = { code: CloseReadinessBlockerCode; message: string };
+export type CloseReadiness = {
+	ready: boolean;
+	reasons: string[];
+	blockers: CloseReadinessBlocker[];
+	legacyEligibility: "declarationless-record" | null;
+};
 
 export type SddNextReport = {
 	change: string | null;
@@ -559,21 +578,49 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 // Readiness DETERMINISTA para cerrar un cambio. El cierre mueve el cambio a
 // archive/ y no debe hacerse sobre evidencia incompleta u obsoleta: apply debe
 // estar completo, verify debe ser pass y fresco (no anterior al apply), summary
-// debe existir y ser fresco, y no pueden quedar tareas pendientes. Un cierre
-// forzado (`force`) sortea esto a propósito; lo normal es respetarlo.
+// debe existir y ser fresco, y no pueden quedar tareas pendientes.
+function declarationlessLegacyEligible(cwd: string, change: string, status: SddChangeStatus): boolean {
+	if (resolveChangesDir(cwd) !== join(cwd, "openspec", "changes") || status.specState !== "unresolved") return false;
+	const changePath = join(cwd, "openspec", "changes", change);
+	const scope = readText(join(changePath, "scope.md"));
+	if (scope === null || /## Spec delta declaration|spec_delta:|spec_delta_reason:/.test(scope)) return false;
+	if (existsSync(join(changePath, "sync-report.md"))) return false;
+
+	const specs = join(changePath, "specs");
+	if (existsSync(specs)) {
+		let domains: string[];
+		try { domains = readdirSync(specs); } catch { return false; }
+		if (domains.some((domain) => existsSync(join(specs, domain, "spec.md")))) return false;
+	}
+
+	return status.apply === "complete" &&
+		status.present.verify && status.verify === "pass" && !status.verifyStale &&
+		status.present.close && !status.summaryStale &&
+		status.tasks.counts.pending === 0;
+}
+
 export function assessCloseReadiness(cwd: string, change: string): CloseReadiness {
 	const status = resolveSddStatus(cwd, change);
-	const reasons: string[] = [];
-	if (status.apply !== "complete") reasons.push("apply no está `status: complete`.");
-	if (!status.present.verify) reasons.push("falta verify-report.md.");
-	else if (status.verify === "fail") reasons.push("verify-report indica fallo.");
-	else if (status.verify !== "pass") reasons.push("verify-report sin `status: pass` claro.");
-	if (status.verifyStale) reasons.push("verify-report es anterior al último apply (evidencia obsoleta): re-verifica.");
-	if (!status.present.close) reasons.push("falta summary.md.");
-	else if (status.summaryStale) reasons.push("summary.md es anterior a apply/verify: regenera el resumen.");
-	if (status.tasks.counts.pending > 0) reasons.push(`quedan ${status.tasks.counts.pending} tarea(s) sin completar.`);
-	if (status.specState !== "legacy" && status.specState !== "synchronized") reasons.push(`estado de specs OpenSpec: ${status.specState}.`);
-	return { ready: reasons.length === 0, reasons };
+	const blockers: CloseReadinessBlocker[] = [];
+	const add = (code: CloseReadinessBlockerCode, message: string) => blockers.push({ code, message });
+	if (status.apply !== "complete") add("apply-not-complete", "apply no está `status: complete`.");
+	if (!status.present.verify) add("verify-missing", "falta verify-report.md.");
+	else if (status.verify === "fail") add("verify-failed", "verify-report indica fallo.");
+	else if (status.verify !== "pass") add("verify-unclear", "verify-report sin `status: pass` claro.");
+	if (status.verifyStale) add("verify-stale", "verify-report es anterior al último apply (evidencia obsoleta): re-verifica.");
+	if (!status.present.close) add("summary-missing", "falta summary.md.");
+	else if (status.summaryStale) add("summary-stale", "summary.md es anterior a apply/verify: regenera el resumen.");
+	if (status.tasks.counts.pending > 0) add("tasks-pending", `quedan ${status.tasks.counts.pending} tarea(s) sin completar.`);
+	if (status.specState === "pending") add("spec-pending", "estado de specs OpenSpec: pending.");
+	else if (status.specState === "conflict") add("spec-conflict", "estado de specs OpenSpec: conflict.");
+	else if (status.specState === "unresolved") add("spec-unresolved", "estado de specs OpenSpec: unresolved.");
+
+	return {
+		ready: blockers.length === 0,
+		reasons: blockers.map((blocker) => blocker.message),
+		blockers,
+		legacyEligibility: declarationlessLegacyEligible(cwd, change, status) ? "declarationless-record" : null,
+	};
 }
 
 // Preview DETERMINISTA del plan de apply, leído de tasks.md: por grupo, sus
