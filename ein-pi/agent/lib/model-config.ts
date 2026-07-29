@@ -250,6 +250,7 @@ export const AGENT_RECOMMENDATIONS: Record<string, AgentRecommendation> = {
 	"sdd-close": { tier: "cheap", thinking: "low", reason: "condensa el resumen" },
 	"ein-git": { tier: "cheap", thinking: "low", reason: "entrega mecánica (commit/push/PR)" },
 	"ein-linear": { tier: "cheap", thinking: "low", reason: "operaciones de board acotadas" },
+	"ein-scout": { tier: "cheap", thinking: "low", reason: "investigación read-only acotada y citada" },
 };
 
 // Aplica el thinking por defecto del agente cuando ni models.json ni el preset

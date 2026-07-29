@@ -107,6 +107,25 @@ describe("contrato de tools de los agentes", () => {
 		expect(offenders).toEqual([]);
 	});
 
+	test("ein-scout es una allowlist portátil de investigación sin capacidades de mutación", () => {
+		const scout = readFileSync(join(CORE_AGENTS, "ein-scout.md"), "utf8");
+		expect(declaredTools("ein-scout.md")).toEqual(["read", "grep", "find"]);
+		expect(scout).toMatch(/^extensions:\s*\[\]/m);
+		expect(scout).not.toMatch(/^tools:.*(?:MCP|provider)/m);
+		expect(scout).toMatch(/^defaultContext:\s*fresh$/m);
+		expect(scout).toMatch(/^inheritProjectContext:\s*false$/m);
+		expect(scout).toMatch(/^inheritSkills:\s*false$/m);
+		expect(scout).toMatch(/^timeoutMs:\s*120000$/m);
+		expect(scout).toMatch(/^turnBudget:\s*\{ maxTurns: 12, graceTurns: 2 \}$/m);
+		expect(scout).toMatch(/^toolBudget:\s*\{ hard: 30, soft: 24, block: "\*" \}$/m);
+		for (const forbidden of ["bash", "write", "edit", "subagent", "delivery", "MCP", "provider"]) {
+			expect(declaredTools("ein-scout.md")).not.toContain(forbidden);
+		}
+		expect(scout).toMatch(/no authority to design architecture, choose a solution, implement work/i);
+		expect(scout).toMatch(/references/i);
+		expect(scout).toMatch(/uncertainties/i);
+	});
+
 	test("la tabla del orchestrator coincide con el frontmatter real", () => {
 		// La tabla es lo que el modelo LEE. Si enseña `glob` mientras el agente
 		// declara `find`, el orquestador redacta tasks pidiendo una tool que no

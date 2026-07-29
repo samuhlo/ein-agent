@@ -23,6 +23,7 @@ const read = (p: string) =>
 
 const orch = read("assets/orchestrator.md");
 const sddMap = read("agents/sdd-map.md");
+const scout = read("agents/ein-scout.md");
 const einAi = readFileSync(join(AGENT_DIR, "extensions/ein-ai.ts"), "utf8");
 
 const PHASE_AGENTS = [
@@ -169,6 +170,21 @@ describe("P5: direct delegation provenance hook", () => {
       einAi.indexOf("reconcilePhaseFailure(ctx.cwd, snapshot.phase, snapshot.before)"),
     );
     expect(einAi).not.toMatch(/(?:event\.input|input)\.(?:output|outputMode|flowId|runId|changeId)\s*=/);
+  });
+});
+
+describe("P5.5: scout queda fuera del runtime de fases", () => {
+  test("las siete fases conservan su orden exacto", () => {
+    expect(PHASE_AGENTS).toEqual([
+      "sdd-scope.md", "sdd-map.md", "sdd-design.md", "sdd-tasks.md", "sdd-apply.md", "sdd-verify.md", "sdd-close.md",
+    ]);
+  });
+
+  test("su contrato no recibe herramientas ni responsabilidades de fase", () => {
+    expect(scout).toMatch(/^tools: read, grep, find$/m);
+    expect(scout).not.toMatch(/^tools:.*(?:write|edit|bash|subagent)/m);
+    expect(PHASE_AGENTS).not.toContain("ein-scout.md");
+    expect(einAi).not.toMatch(/phaseForAgent\([^)]*ein-scout|ein-scout[^\n]{0,120}(?:reconcile|PHASE_ORDER)/i);
   });
 });
 
