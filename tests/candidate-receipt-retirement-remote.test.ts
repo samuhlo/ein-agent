@@ -17,6 +17,47 @@ describe("adaptador remoto de retiro", () => {
 		expect(await resolveExplicitPushRemoteRepository("/repo", "origin", many)).toBeNull();
 	});
 
+	test("normaliza un PR merged del mismo repositorio mediante el runner inyectado", async () => {
+		const controller = new AbortController();
+		const runner: RemoteCommandRunner = async (file, args, options) => {
+			expect(file).toBe("gh");
+			expect(args).toEqual([
+				"pr",
+				"view",
+				"42",
+				"--repo",
+				"owner/repo",
+				"--json",
+				"number,url,state,mergedAt,mergeCommit,headRepository,headRefName,headRefOid,baseRefName",
+			]);
+			expect(options.timeoutMs).toBe(GITHUB_PR_VIEW_TIMEOUT_MS);
+			expect(options.signal).toBe(controller.signal);
+			return JSON.stringify({
+				number: 42,
+				url: "https://github.com/Owner/Repo/pull/42",
+				state: "MERGED",
+				mergedAt: "2026-07-30T12:00:00Z",
+				mergeCommit: { oid: "abcdef0123456789abcdef0123456789abcdef01" },
+				headRepository: { nameWithOwner: "Owner/Repo" },
+				headRefName: "feature/receipt-retirement",
+				headRefOid: "0123456789abcdef0123456789abcdef01234567",
+				baseRefName: "main",
+			});
+		};
+
+		expect(await observeMergedPullRequest("/repo", "owner/repo", 42, controller.signal, runner)).toEqual({
+			repository: "owner/repo",
+			prNumber: 42,
+			url: "https://github.com/Owner/Repo/pull/42",
+			state: "MERGED",
+			headRepository: "owner/repo",
+			headRef: "feature/receipt-retirement",
+			headRefOid: "0123456789abcdef0123456789abcdef01234567",
+			baseRef: "main",
+			mergeCommitOid: "abcdef0123456789abcdef0123456789abcdef01",
+		});
+	});
+
 	test("el view usa timeout, propaga AbortSignal y falla cerrado", async () => {
 		const controller = new AbortController();
 		let seenTimeout = 0;

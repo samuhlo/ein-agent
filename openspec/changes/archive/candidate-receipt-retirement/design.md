@@ -14,7 +14,7 @@ In scope:
 - merged, same-repository GitHub pull requests as the only supported terminal boundary;
 - exact receipt/attempt/repository/worktree/remote/base/head/PR binding;
 - collision-safe byte archive plus separate immutable retirement metadata;
-- durable attempt evidence, owner-matched lifecycle serialization, two fresh revalidations, idempotency, and attempt rotation;
+- lifecycle serialization, revalidation, idempotency, and attempt rotation;
 - focused Bun coverage of decision, persistence, overlap, failure, and race behavior.
 
 Out of scope:
@@ -29,9 +29,9 @@ Out of scope:
 
 | Path | SHA-256 | UTF-8 bytes |
 | --- | --- | ---: |
-| `openspec/specs/sdd-lifecycle/spec.md` | `caf858c757e77e0f31f1b05f66a8e80d09ca6eff4c8fa6ec19f8c54a55951afa` | 20575 |
+| `openspec/specs/sdd-lifecycle/spec.md` | `37fc78cb36febb4ded7cee8e94a56868d0607f632a00775248defbdb55c34c08` | 9987 |
 
-Selection: 1 file, 20575 bytes; within the 3-file/32768-byte limit declared in `scope.md`. The archived delta records the post-review scenarios that are already present in this canonical context; it is historical evidence, not a live synchronization gate.
+Selection: 1 file, 9987 bytes; within the 3-file/32768-byte limit declared in `scope.md`. No mapped additions are needed.
 
 ### Affected areas and exact symbol impact
 
@@ -84,15 +84,14 @@ The complete Given/When/Then scenarios are canonical in `specs/sdd-lifecycle/spe
 1. The explicit tool requires `change`, `receiptFingerprint`, `remote`, `baseRef`, `headRef`, and `prNumber`; there are no inferred defaults for delivery identity.
 2. Acquire an exclusive receipt-lifecycle lock under the current worktree git admin directory. Receipt emission uses the same lock. A busy or untrusted leftover lock blocks; it is never ignored or age-reaped automatically.
 3. Read the active slot once as raw bytes. Hash those bytes, parse/validate the receipt against current SDD evidence, and require equality with both the explicit fingerprint and the session attempt fingerprint. Require a non-empty `validatedDeliveryHead`.
-4. Persist the post-commit validated delivery head under the worktree git directory with repository/worktree IDs and receipt fingerprint. Recovery after restart requires every stored value and the active raw fingerprint to match; replacement emission and successful matching retirement clear this record.
-5. Resolve the explicit remote through `git remote get-url --push --all`. Normalize exactly one GitHub push URL to `owner/repository`; reject zero or multiple URLs, non-GitHub URLs, and fork PRs in this slice.
-6. Invoke `gh pr view` inside the operation, addressed by the explicit repository and PR number, through a testable adapter with a finite timeout and AbortSignal. Normalize only bound fields: repository, PR number/URL, state/merged marker, head repository/ref/OID, base ref, and merge-result OID. Caller-provided JSON and prior pre-PR observations are not accepted.
+4. Resolve current repository/worktree identity and the explicit remote URL. Normalize that GitHub URL to one base `owner/repository`; reject ambiguity, non-GitHub remotes, and fork PRs in this slice.
+5. Invoke `gh pr view` inside the operation, addressed by the explicit repository and PR number. Normalize only bound fields: repository, PR number/URL, state/merged marker, head repository/ref/OID, base ref, and merge-result OID. Caller-provided JSON and prior pre-PR observations are not accepted.
 6. The pure decision requires a same-repository `MERGED` PR, exact remote/base/head/PR identity, non-empty merge result, and `headRefOid === validatedDeliveryHead`.
-7. Derive `<gitDir>/ein/retired-candidate-receipts/<receiptFingerprint>/candidate-receipt.json`. Publish a flushed temporary file with immutable no-overwrite semantics, fsync its directory on Linux/macOS, and read it back byte-for-byte. If the final file already exists, accept it only when bytes are identical; never overwrite it.
-8. Re-read and compare the active bytes, durable attempt, repository/worktree, and explicit identities. Perform a second mandatory fresh `gh` observation immediately before deactivation and require the same bound normalized values and retirement verdict.
+7. Derive `<gitDir>/ein/retired-candidate-receipts/<receiptFingerprint>/candidate-receipt.json`. Publish a temporary file in that directory, flush it, atomically rename it, and read it back byte-for-byte. If the final file already exists, accept it only when bytes are identical; never overwrite it.
+8. Re-read and compare the active bytes, attempt, repository/worktree, and explicit identities. Perform a second fresh `gh` observation and require the same bound normalized values and retirement verdict.
 9. Publish separate immutable `retirement.json`, containing the receipt fingerprint, validated delivery head, repository/worktree IDs, normalized remote repository, base/head refs, PR number/URL, merged state, PR head OID, and merge-result OID. Existing metadata must match field-for-field; conflicts block.
-10. Re-read the active bytes and attempt once more, then unlink only that still-matching active slot and fsync its parent directory on supported platforms. No fallible work follows deactivation. If unlink fails, active plus archive remains and retry resumes safely.
-11. Only after unlink succeeds, clear the session and durable attempt and return `retired`. Release only a lifecycle lock whose PID/token still belongs to this operation; a lock with a proven dead owner is atomically quarantined before recovery.
+10. Re-read the active bytes and attempt once more, then unlink only that still-matching active slot. No fallible work follows deactivation. If unlink fails, active plus archive remains and retry resumes safely.
+11. Only after unlink succeeds, clear the session attempt and return `retired`. Release the owner-matched lifecycle lock in `finally`.
 12. If the active slot is absent, the idempotent path requires the explicit fingerprint and verifies archived payload bytes, parsed repository/worktree/change identity, and retirement metadata. It returns `already-retired` without network mutation or a fresh completion claim. Missing or conflicting local proof fails closed.
 
 ### Terminal boundary decision
@@ -112,13 +111,9 @@ Use the explicit `ein_candidate_receipt_retire` tool. Automatic pre-delivery ret
 
 ### Network-truth decision
 
-Fresh network truth is required twice for first-time retirement and for resuming an interrupted transition while the active slot remains. Both observations occur inside the tool through timeout- and AbortSignal-aware `gh`; no supplied/cached observation is accepted. Authentication failure, timeout, cancellation, non-zero exit, malformed/missing fields, unresolved or ambiguous push remote, wrong repository, unmerged/closed state, deleted or mismatched head identity, fork head, or differing revalidation observations blocks removal.
+Fresh network truth is required twice for first-time retirement and for resuming an interrupted transition while the active slot remains. Both observations occur inside the tool through `gh`; no supplied/cached observation is accepted. Authentication failure, timeout, non-zero exit, malformed/missing fields, unresolved remote, wrong repository, unmerged/closed state, deleted or mismatched head identity, fork head, or differing revalidation observations blocks removal.
 
 The already-retired idempotent path uses the immutable local archive and retirement metadata produced by a prior successful fresh observation. It does not need the network because it performs no transition and makes no new claim; its result explicitly means “the matching retirement is already recorded.”
-
-### Historical OpenSpec evidence
-
-The archived delta is completed with the three post-review scenarios for durable attempts across processes, one explicit push URL with bounded `gh` observation, and PID/token owner-matched locking with directory durability. Recomputing its sync receipt against the current canonical spec correctly produces `state: conflict`: each archived `ADDED` scenario is already canonical and is reported as `added-existing`. This receipt documents historical consistency only; it is not an active close or synchronization gate and must not be described as a clean completed sync.
 
 ### Atomicity and concurrency decision
 
@@ -150,7 +145,7 @@ Filesystem publication is conservatively ordered rather than presented as a mult
 - **Infer PR from branch/current repository:** rejected because names are mutable and ambiguous; all remote/base/head/PR identities are explicit.
 - **Move active directly with one rename:** rejected because the active slot disappears at the same instant as first archive publication, violating archive-before-deactivate ordering and complicating interrupted verification metadata.
 - **Delete then write archive or summarize the receipt:** rejected because evidence can be lost or altered.
-- **Persist attempts in a database or service:** rejected; a small worktree-local immutable identity record is enough to recover safely after restart without adding a dependency or widening the trust boundary.
+- **Persist all attempts or add a database/dependency:** rejected as unnecessary; existing JSON evidence plus fingerprint-addressed archive and in-memory attempt binding is sufficient for this bounded slice.
 - **Support forks/direct pushes now:** rejected to keep the proof narrow and deterministic under the production-line budget.
 
 ## D. Success Criteria

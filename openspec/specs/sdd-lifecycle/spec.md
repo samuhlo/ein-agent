@@ -16,13 +16,6 @@ Given: an attempt was created for an earlier receipt and a later receipt or cand
 When: the stale attempt is presented to a delivery or retirement decision.
 Then: fingerprint mismatch blocks its use, and no validated delivery head from the earlier candidate authorizes the later receipt.
 
-## Scenario: candidate-receipt-durable-attempt
-title: Validated delivery attempt survives restart only for its exact receipt
-requirement: The system MUST persist a validated delivery attempt under the worktree git directory with repository ID, worktree ID, receipt fingerprint, and validated delivery HEAD; it MUST recover that attempt after restart only when every stored identity and the current active receipt match, and MUST fail closed for missing, corrupt, stale, or mismatched state.
-Given: a post-commit boundary validates one delivery head for an active receipt.
-When: retirement runs in the same or a later process.
-Then: it may use only the matching durable attempt; emitting a replacement or completing matching retirement clears both durable and in-memory attempt state.
-
 ## Scenario: candidate-receipt-bound-retirement-evidence
 title: Retirement evidence binds the current candidate and delivery identity
 requirement: The system MUST bind first-time retirement to the SHA-256 of the current active receipt bytes, the matching attempt fingerprint and validated delivery head, current repository and worktree identities, and the exact remote repository, base ref, head ref, pull-request number and URL observed for completion.
@@ -36,6 +29,20 @@ requirement: The system MUST keep user-intent authorization separate from candid
 Given: a delivery action is requested with an existing user-intent grant.
 When: the system determines whether commit, push, or pull-request delivery may proceed.
 Then: the unchanged intent grant authorizes only the action, a matching candidate receipt authorizes only verified content, and an explicitly declared trivial or mechanical delivery neither emits nor claims verification evidence.
+
+## Scenario: candidate-receipt-durable-archive-ancestry
+title: New archive ancestors are durable before terminal deactivation
+requirement: The system MUST create each previously absent archive directory explicitly and fsync that directory and its parent before unlinking the active receipt on supported Linux and macOS platforms; unsupported directory synchronization or any directory synchronization error MUST block the transition.
+Given: retirement needs a fingerprint archive directory that does not yet exist.
+When: it publishes the receipt and retirement metadata before deactivation.
+Then: every new ancestor and its parent are synchronized before the active slot is unlinked, and the active slot parent is synchronized after unlink; no success is reported on an unsupported platform or a failed directory fsync.
+
+## Scenario: candidate-receipt-durable-attempt
+title: Validated delivery attempt survives restart only for its exact receipt
+requirement: The system MUST persist a validated delivery attempt under the worktree git directory with repository ID, worktree ID, receipt fingerprint, and validated delivery HEAD; it MUST recover that attempt after restart only when every stored identity and the current active receipt match, and MUST fail closed for missing, corrupt, stale, or mismatched state.
+Given: a post-commit boundary validates one delivery head for an active receipt.
+When: retirement runs in the same or a later process.
+Then: it may use only the matching durable attempt; emitting a replacement or completing matching retirement clears both durable and in-memory attempt state.
 
 ## Scenario: candidate-receipt-emission-preconditions
 title: Receipt evidence resolves one live or archived change
@@ -72,13 +79,6 @@ Given: an active receipt whose caller supplies a pull-request identity.
 When: the retirement operation observes the remote completion state.
 Then: it accepts only a freshly resolved same-repository merged pull request with a non-empty merge result and a recorded head OID equal to the validated delivery head; otherwise the active receipt remains.
 
-## Scenario: candidate-receipt-push-remote-and-bounded-observation
-title: Retirement observes one explicit push destination within a bounded request
-requirement: The system MUST resolve the explicit remote through `git remote get-url --push`, reject zero, multiple, malformed, or non-GitHub push URLs, and observe `gh pr view` through a timeout and AbortSignal-aware adapter that fails closed.
-Given: a caller names a local remote and pull request.
-When: retirement resolves the remote or queries GitHub.
-Then: ambiguity, timeout, cancellation, command failure, or malformed output leaves the active receipt effective.
-
 ## Scenario: candidate-receipt-idempotent-retirement
 title: Already-retired calls verify immutable local evidence
 requirement: The system MUST treat repeated retirement of the same fingerprint as an idempotent already-retired result only after verifying exact archived payload bytes and all stored retirement identities, and MUST NOT overwrite conflicting archive evidence or claim a new remote observation.
@@ -92,6 +92,13 @@ requirement: The system MUST atomically publish a local versioned receipt bound 
 Given: emission preconditions and the candidate tree are valid.
 When: the system creates the receipt.
 Then: it binds repository and worktree identities, change, HEAD, branch, tree SHA, ordered paths and their digest, current verify-report digest, declared commands and their digest, and date; it publishes by atomic replacement under the git-dir rather than as versioned content.
+
+## Scenario: candidate-receipt-immutable-retirement-metadata
+title: Retirement metadata publication never overwrites a concurrent writer
+requirement: The system MUST publish `retirement.json` with the same immutable no-replace protocol as the archived receipt: a flushed temporary file, exclusive link or equivalent no-replace primitive, directory synchronization, and byte comparison on EEXIST.
+Given: archive receipt bytes are complete and retirement metadata is about to be published.
+When: another writer creates matching or conflicting metadata between local inspection and publication.
+Then: matching bytes may be reused, conflicting or unreadable bytes block retirement, and the active slot remains effective without overwriting evidence.
 
 ## Scenario: candidate-receipt-invalid-attempt-or-receipt
 title: Missing or invalid active evidence cannot retire
@@ -114,13 +121,6 @@ Given: a later mechanical delivery touches a path in an old active receipt manif
 When: the delivery is evaluated before and after an attempted retirement.
 Then: it remains blocked before retirement and after any failed retirement; only after successful retirement does the old receipt cease to apply, without itself authorizing the action or representing it as verified.
 
-## Scenario: candidate-receipt-retirement-concurrent-revalidation
-title: Concurrent mutation aborts deactivation
-requirement: The system MUST serialize cooperating receipt emission and retirement and MUST immediately revalidate active bytes, attempt state, repository/worktree identity and fresh remote completion evidence before deactivation.
-Given: retirement has archived an initially matching receipt while the active slot still exists.
-When: the receipt, attempt, local identity, or normalized remote observation changes before active-slot removal, or the lifecycle lock cannot be safely acquired.
-Then: deactivation is aborted, the active gate remains effective, the conservative archive may be retained for exact retry, and no fallback retirement occurs.
-
 ## Scenario: candidate-receipt-owner-matched-lock-and-durability
 title: Lifecycle mutation has one owner and durable directory transitions
 requirement: The system MUST serialize emission and retirement with a PID-and-token owner-matched lock, recover only an identified dead-owner lock through atomic quarantine, and fsync affected directories after rename or unlink on supported Linux and macOS platforms; unsupported directory fsync MUST block the transition explicitly.
@@ -128,26 +128,19 @@ Given: a receipt lifecycle operation needs to publish, replace, or remove eviden
 When: the lock is busy, orphaned, replaced, or the filesystem transition completes.
 Then: a live or untrusted lock blocks, a proven orphan is recovered by at most one writer, a prior owner cannot release another owner's lock, and success is not reported before supported directory durability is requested.
 
-## Scenario: candidate-receipt-durable-archive-ancestry
-title: New archive ancestors are durable before terminal deactivation
-requirement: The system MUST create each previously absent archive directory explicitly and fsync that directory and its parent before unlinking the active receipt on supported Linux and macOS platforms; unsupported directory synchronization or any directory synchronization error MUST block the transition.
-Given: retirement needs a fingerprint archive directory that does not yet exist.
-When: it publishes the receipt and retirement metadata before deactivation.
-Then: every new ancestor and its parent are synchronized before the active slot is unlinked, and the active slot parent is synchronized after unlink; no success is reported on an unsupported platform or a failed directory fsync.
+## Scenario: candidate-receipt-push-remote-and-bounded-observation
+title: Retirement observes one explicit push destination within a bounded request
+requirement: The system MUST resolve the explicit remote through `git remote get-url --push`, reject zero, multiple, malformed, or non-GitHub push URLs, and observe `gh pr view` through a timeout and AbortSignal-aware adapter that fails closed.
+Given: a caller names a local remote and pull request.
+When: retirement resolves the remote or queries GitHub.
+Then: ambiguity, timeout, cancellation, command failure, or malformed output leaves the active receipt effective.
 
-## Scenario: candidate-receipt-immutable-retirement-metadata
-title: Retirement metadata publication never overwrites a concurrent writer
-requirement: The system MUST publish `retirement.json` with the same immutable no-replace protocol as the archived receipt: a flushed temporary file, exclusive link or equivalent no-replace primitive, directory synchronization, and byte comparison on EEXIST.
-Given: archive receipt bytes are complete and retirement metadata is about to be published.
-When: another writer creates matching or conflicting metadata between local inspection and publication.
-Then: matching bytes may be reused, conflicting or unreadable bytes block retirement, and the active slot remains effective without overwriting evidence.
-
-## Scenario: candidate-receipt-terminal-cleanup-pending
-title: Terminal unlink reports durable-attempt cleanup pending
-requirement: The system MUST attempt to clear the matching durable delivery attempt after successful active-slot unlink and report `cleanupPending` with a retry instruction when that cleanup fails; a repeated already-retired call MUST retry cleanup, and no stale attempt may authorize a replacement receipt.
-Given: archive publication and active-slot unlink have succeeded for a matching receipt.
-When: durable attempt cleanup fails.
-Then: the result truthfully records retirement with pending cleanup rather than a clean success or impossible rollback, session state is discarded, and replacement emission refuses to proceed while the stale durable attempt cannot be cleared.
+## Scenario: candidate-receipt-retirement-concurrent-revalidation
+title: Concurrent mutation aborts deactivation
+requirement: The system MUST serialize cooperating receipt emission and retirement and MUST immediately revalidate active bytes, attempt state, repository/worktree identity and fresh remote completion evidence before deactivation.
+Given: retirement has archived an initially matching receipt while the active slot still exists.
+When: the receipt, attempt, local identity, or normalized remote observation changes before active-slot removal, or the lifecycle lock cannot be safely acquired.
+Then: deactivation is aborted, the active gate remains effective, the conservative archive may be retained for exact retry, and no fallback retirement occurs.
 
 ## Scenario: candidate-receipt-successful-retirement
 title: Proven merged delivery retires its exact active receipt
@@ -162,6 +155,13 @@ requirement: The system MUST keep an active candidate receipt effective after a 
 Given: an active candidate receipt and a delivery attempt with a validated delivery head.
 When: only commit, push, or pull-request creation/update has succeeded, or the identified pull request is not merged.
 Then: retirement is blocked and the active receipt remains effective; only a freshly observed merged pull request whose recorded head OID equals the validated delivery head satisfies the supported terminal boundary.
+
+## Scenario: candidate-receipt-terminal-cleanup-pending
+title: Terminal unlink reports durable-attempt cleanup pending
+requirement: The system MUST attempt to clear the matching durable delivery attempt after successful active-slot unlink and report `cleanupPending` with a retry instruction when that cleanup fails; a repeated already-retired call MUST retry cleanup, and no stale attempt may authorize a replacement receipt.
+Given: archive publication and active-slot unlink have succeeded for a matching receipt.
+When: durable attempt cleanup fails.
+Then: the result truthfully records retirement with pending cleanup rather than a clean success or impossible rollback, session state is discarded, and replacement emission refuses to proceed while the stale durable attempt cannot be cleared.
 
 ## Scenario: candidate-receipt-tool-manifest-guidance
 title: Candidate receipt tool manifest guidance
