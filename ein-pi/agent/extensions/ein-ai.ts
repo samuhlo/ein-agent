@@ -72,6 +72,11 @@ import {
 	type PhaseSnapshot,
 } from "../lib/sdd-reconcile.ts";
 import {
+	beginDelegationObservation,
+	observeDelegationResult,
+	type DelegationObservation,
+} from "../lib/sdd-cost-provenance.ts";
+import {
 	SDD_AGENT_NAMES,
 	SDD_AGENT_NAME_SET,
 	applySavedModelConfig,
@@ -137,7 +142,7 @@ const deliveryIntentBySession = new Map<string, DeliveryIntent>();
 // preexistente no puede rescatar un run que no escribió nada.
 const phaseSnapshotByToolCall = new Map<
 	string,
-	{ phase: SddPhase; before: PhaseSnapshot }
+	{ phase: SddPhase; before: PhaseSnapshot; provenance: DelegationObservation }
 >();
 
 // Intento de entrega verificada en curso, por sesión: el fingerprint del recibo
@@ -167,6 +172,7 @@ function rememberPhaseSnapshot(
 	phaseSnapshotByToolCall.set(toolCallId, {
 		phase,
 		before: snapshotPhaseArtifacts(cwd, phase),
+		provenance: beginDelegationObservation(cwd, phase),
 	});
 }
 // Versión instalada al arrancar cada sesión + sesiones ya avisadas: si `ein
@@ -431,24 +437,22 @@ function compactBudget(budget: SddChangeStatus["budget"]): string {
 	return `allocated=${budget.allocated ?? "unknown"} · consumed=${budget.consumed ?? "unknown"}`;
 }
 
-function compactTokens(n: number): string {
+function compactTokens(n: number | null): string {
+	if (n === null) return "n/a";
 	return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
 }
 
-// El budget del ledger son tokens ESTIMADOS de lectura; esto es consumo real
-// de inferencia leído de los meta.json de pi-subagents. Se muestran ambos para
-// que "consumed≈9000" no esconda un flujo de 400k tokens reales.
-function compactRealCost(realCost: SddRealCost): string[] {
-	if (realCost.runs === 0) {
-		return [`${t("sdd-status.real-cost", "real cost")}: ${t("sdd-status.real-cost-none", "no run metadata (.pi-subagents/artifacts)")}`];
-	}
-	const minutes = Math.round(realCost.durationMs / 60000);
+function compactMetric(metric: SddRealCost["changeAggregate"]["metrics"]["inputTokens"]): string {
+	return metric.value === null ? "n/a" : `${compactTokens(metric.value)} (${metric.provenance})`;
+}
+
+function compactRealCost(ledger: SddRealCost): string[] {
+	if (ledger.runs === 0) return ["ledger: no attributable local receipts"];
+	const metrics = ledger.changeAggregate!.metrics;
 	const lines = [
-		`${t("sdd-status.real-cost", "real cost")}: ${realCost.runs} runs · in ${compactTokens(realCost.inputTokens)} · out ${compactTokens(realCost.outputTokens)} · $${realCost.costUsd.toFixed(2)} · ${minutes}min`,
+		`ledger: ${ledger.runs} receipts · input ${compactMetric(metrics.inputTokens)} · output ${compactMetric(metrics.outputTokens)} · provider cost ${compactMetric(metrics.providerCostUsd)} · estimate ${compactMetric(metrics.estimatedCostUsd)} · duration ${compactMetric(metrics.durationMs)}`,
 	];
-	if (realCost.byAgent.length > 0) {
-		lines.push(`${t("sdd-status.real-cost-by-agent", "by agent")}: ${realCost.byAgent.map((entry) => `${entry.agent} ${compactTokens(entry.tokens)}`).join(" · ")}`);
-	}
+	if (ledger.problems.length > 0) lines.push(`ledger provenance: ${ledger.problems.map((problem) => problem.message).join(" · ")}`);
 	return lines;
 }
 
@@ -484,7 +488,7 @@ function formatSddStatus(
 	lines.push(notebook);
 	if (realCost) lines.push(...compactRealCost(realCost));
 
-	const problems = [...status.tasks.problems, ...status.budget.problems, ...(realCost?.problems ?? [])];
+	const problems = [...status.tasks.problems, ...status.budget.problems, ...(realCost?.problems.map((problem) => problem.message) ?? [])];
 	if (status.blocked.length || problems.length) {
 		lines.push("", `■ ${t("sdd-status.blocked", "blockers")}:`);
 		for (const b of status.blocked) lines.push(`- ${b}`);
@@ -858,7 +862,11 @@ export default function einAi(pi: ExtensionAPI): void {
 		// cada delegación exitosa dejaría su foto ahí para toda la sesión.
 		const snapshot = phaseSnapshotByToolCall.get(event.toolCallId);
 		phaseSnapshotByToolCall.delete(event.toolCallId);
-		if (!snapshot || !event.isError) return undefined;
+		if (!snapshot) return undefined;
+		// BLINDAJE -> La observación es local e independiente del veredicto del runner.
+		// Reconciliación conserva después su orden y decide sola si hubo error.
+		observeDelegationResult(ctx.cwd, snapshot.provenance);
+		if (!event.isError) return undefined;
 		const result = reconcilePhaseFailure(ctx.cwd, snapshot.phase, snapshot.before);
 		if (!result.reconciled) return undefined;
 		const originalError = event.content
@@ -1132,7 +1140,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				const block = formatSddPlanPreview(plan);
 				if (block) text += `\n\n${block}`;
 			}
-			return { content: [{ type: "text", text }], details: { status, activeChanges: active, realCost, plan } };
+			return { content: [{ type: "text", text }], details: { status, activeChanges: active, realCost, costLedger: realCost, plan } };
 		},
 	});
 
