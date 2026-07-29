@@ -1,16 +1,14 @@
 ---
 name: release
-description: "Publish an Ein release via GitHub and npm. Trigger: release, publish, npm publish, GitHub release, version bump."
+description: "Publish an Ein installer release through GitHub Actions. Trigger: release, publish, GitHub release, version bump."
 triggers:
   - release
   - publish
-  - npm publish
   - GitHub release
   - version bump
 stack:
   - git
   - gh
-  - npm
   - bun
 cost: high
 type: workflow
@@ -18,63 +16,49 @@ type: workflow
 
 # Release Skill
 
-Use this skill when preparing, publishing, or verifying an Ein release.
+Use this skill when preparing, publishing, or verifying an Ein installer release.
 
 ## Rules
 
-- Always run tests before tagging.
-- Do not publish to npm from a local machine — use the CI workflow.
-- Tag format: `v<semver>` (e.g. `v1.2.0`).
-- Changelog must be updated before tagging.
+- Keep `installer/package.json`, `installer/src/core/version.ts` and `CHANGELOG.md` on the same SemVer version.
+- Run the release checks before tagging.
+- Tag format: `installer-v<semver>` (for example, `installer-v0.23.0`).
+- The changelog is updated before the tag.
 - Never force-push a tag.
+- Never publish to npm or publish a release from the local machine.
 
-## Steps
+## Canonical sequence
 
-### 1. Pre-release checks
+### 1. Prepare the version
+
+Update the installer version pointers and changelog, then commit the explicit paths.
 
 ```bash
-bun test
-bun run build
+git add installer/package.json installer/src/core/version.ts CHANGELOG.md
+git commit -m "chore(release): prepara installer v<version>"
 ```
 
-### 2. Bump version
+### 2. Run release checks
 
-Update `package.json` version. Commit:
+Run the focused tests and installer typecheck required by the release change. Do not use a local production build as the publication path.
+
+### 3. Tag and push
 
 ```bash
-git add package.json
-git commit -m "chore(release): bump version to v<version>"
+git tag -a installer-v<semver> -m "installer-v<semver>"
+git push origin installer-v<semver>
 ```
 
-### 3. Tag
+### 4. Verify GitHub assets
+
+`.github/workflows/installer-release.yml` builds the four installer binaries, generates `checksums.txt`, and publishes them with `install.sh` as GitHub Release assets. Verify that workflow and its assets after it completes.
 
 ```bash
-git tag -a v<version> -m "v<version>"
-git push origin v<version>
-```
-
-### 4. GitHub Release
-
-```bash
-gh release create v<version> \
-  --title "v<version>" \
-  --generate-notes
-```
-
-### 5. Verify CI
-
-```bash
-gh run list --workflow publish.yml --limit 3
+gh run list --workflow installer-release.yml --limit 3
 gh run watch <run-id> --exit-status
-```
-
-### 6. Verify npm publish
-
-```bash
-npm view ein@<version> version --registry=https://registry.npmjs.org/
 ```
 
 ## Troubleshooting
 
-- If CI fails, check `gh run view <run-id> --log`.
-- If npm verify is stale immediately after publish, wait 30s and retry.
+- If the workflow fails, inspect it with `gh run view <run-id> --log`.
+- Do not substitute npm or a local publish for the GitHub asset workflow.

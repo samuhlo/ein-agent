@@ -69,6 +69,13 @@ exacto (lo consumen `ein doctor` y `--dry-run`). Todo se embebe en el binario v�
 
 ## Release
 
-Push de un tag `installer-v*` dispara `.github/workflows/installer-release.yml`, que
-empaqueta, compila los 4 targets, genera `checksums.txt` y publica la release con los
-binarios + `install.sh`.
+La publicación canónica vive en GitHub Actions; no hay publicación local ni en npm.
+
+1. Actualiza `installer/package.json`, `src/core/version.ts` y `CHANGELOG.md` con la
+   misma versión SemVer.
+2. Ejecuta los checks definidos para la release.
+3. Crea y sube el tag `installer-v<semver>`.
+4. `.github/workflows/installer-release.yml` compila los cuatro targets, genera
+   `checksums.txt` y publica la GitHub Release con los binarios e `install.sh`.
+
+El bootstrap y `ein update` consumen esos assets de GitHub Release.
