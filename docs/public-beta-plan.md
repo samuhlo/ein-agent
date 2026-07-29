@@ -509,7 +509,7 @@ Aceptación:
 Estos mecanismos permanecen registrados, pero no bloquean la primera beta salvo que el gate de medición aporte evidencia nueva:
 
 - `sdd-context-reference-contract`: reducir bytes releídos mediante referencias y digests sin sustituir el contenido que una fase necesita comprender.
-- `sdd-archive-integrity`: publicar un manifest de hashes para artefactos canónicos y separar receipts o sidecars que deban seguir creciendo.
+- `sdd-closed-record-integrity`: publicar un manifest de hashes para artefactos canónicos y separar receipts o sidecars que deban seguir creciendo.
 - Límites de artefactos: combinar líneas y bytes, avisar pronto y fallar solo ante tamaños extremos que impidan revisión o contexto seguro.
 - Regresiones de seguridad: mantenerlas como requisito transversal de cada slice, no como un SDD independiente.
 - Reconciliación de timeout: extender la existente únicamente si el manifiesto de verify permite demostrar que todos los comandos requeridos terminaron.
