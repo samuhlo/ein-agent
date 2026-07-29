@@ -28,8 +28,9 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import type { CandidateReceiptRetirementDecision, CandidateReceiptRetirementIdentity, VerifiedDeliveryAttempt } from "./delivery-receipt.ts";
 import { isSafeChangeName, resolveChangesDir, resolveSddStatus } from "./sdd-router.ts";
 
 export const RECEIPT_VERSION = 1;
@@ -57,8 +58,22 @@ export type FreshReceiptVerdict =
 	| { ok: true; receipt: CandidateReceipt; fingerprint: string }
 	| { ok: false; reason: string };
 
-function sha256(value: string): string {
+export type ActiveCandidateReceiptEvidence = {
+	receipt: CandidateReceipt;
+	bytes: Buffer;
+	fingerprint: string;
+};
+
+function sha256(value: string | Uint8Array): string {
 	return createHash("sha256").update(value).digest("hex");
+}
+
+export function receiptBytesFingerprint(bytes: Uint8Array): string {
+	return sha256(bytes);
+}
+
+function isReceiptFingerprint(value: string): boolean {
+	return /^[a-f0-9]{64}$/.test(value);
 }
 
 // `LC_ALL=C` por la misma razón que en git-staging: la salida de git pasa por
@@ -246,6 +261,15 @@ export function receiptPath(cwd: string): string | null {
 	return join(identity.gitDir, "ein", "candidate-receipt.json");
 }
 
+// El archivo se direcciona por el hash de los bytes activos, no por datos que
+// puedan reinterpretarse al parsear el JSON.
+export function retiredCandidateReceiptPath(cwd: string, fingerprint: string): string | null {
+	if (!isReceiptFingerprint(fingerprint)) return null;
+	const identity = resolveWorktreeIdentity(cwd);
+	if (!identity) return null;
+	return join(identity.gitDir, "ein", "retired-candidate-receipts", fingerprint, "candidate-receipt.json");
+}
+
 export function serializeReceipt(receipt: CandidateReceipt): string {
 	return `${JSON.stringify(receipt, null, 2)}\n`;
 }
@@ -371,7 +395,7 @@ export function assessReceiptPrecondition(cwd: string, change: string): string |
 // Emite el recibo. Publicación atómica: se escribe un temporal en el MISMO
 // directorio y se renombra, para que una cancelación a mitad no deje un recibo
 // parcial que luego se lea como evidencia.
-export function emitCandidateReceipt(cwd: string, input: EmitInput): EmitResult {
+function emitCandidateReceiptUnlocked(cwd: string, input: EmitInput): EmitResult {
 	const identity = resolveWorktreeIdentity(cwd);
 	if (!identity) return { ok: false, reason: "no es un repositorio git" };
 	if (!identity.head) return { ok: false, reason: "el repositorio no tiene HEAD (sin commits)" };
@@ -423,11 +447,45 @@ export function emitCandidateReceipt(cwd: string, input: EmitInput): EmitResult 
 	return { ok: true, receipt, path: target };
 }
 
+// Emisión y retiro comparten este cerrojo: un recibo nuevo no puede aparecer
+// entre la comprobación del retiro y el unlink del slot activo.
+function withReceiptLifecycleLock<T>(cwd: string, operation: () => T): T | { ok: false; reason: string } {
+	const identity = resolveWorktreeIdentity(cwd);
+	if (!identity) return { ok: false, reason: "no es un repositorio git" };
+	const lock = join(identity.gitDir, "ein", "candidate-receipt.lifecycle.lock");
+	try {
+		mkdirSync(dirname(lock), { recursive: true });
+		mkdirSync(lock);
+	} catch {
+		return { ok: false, reason: "el ciclo de vida del recibo está bloqueado" };
+	}
+	try {
+		return operation();
+	} finally {
+		// Solo borramos el directorio que acabamos de crear; un bloqueo ajeno o
+		// persistente queda como hard stop en el siguiente proceso.
+		try { rmSync(lock, { recursive: true }); } catch { /* ignore release failure */ }
+	}
+}
+
+export function emitCandidateReceipt(cwd: string, input: EmitInput): EmitResult {
+	return withReceiptLifecycleLock(cwd, () => emitCandidateReceiptUnlocked(cwd, input)) as EmitResult;
+}
+
 export function readCandidateReceipt(cwd: string): CandidateReceipt | null {
+	return readActiveCandidateReceiptEvidence(cwd)?.receipt ?? null;
+}
+
+// Conserva los bytes originales para que una transición futura archive la
+// evidencia exacta, sin volver a serializar un objeto equivalente.
+export function readActiveCandidateReceiptEvidence(cwd: string): ActiveCandidateReceiptEvidence | null {
 	const path = receiptPath(cwd);
 	if (!path || !existsSync(path)) return null;
 	try {
-		return parseReceipt(readFileSync(path, "utf8"));
+		const bytes = readFileSync(path);
+		const receipt = parseReceipt(bytes.toString("utf8"));
+		if (!receipt) return null;
+		return { receipt, bytes, fingerprint: receiptBytesFingerprint(bytes) };
 	} catch {
 		return null;
 	}
@@ -437,7 +495,7 @@ export function readCandidateReceipt(cwd: string): CandidateReceipt | null {
 // secas obliga a adivinar, y adivinar sobre evidencia es justo lo que este
 // recibo existe para evitar.
 export function receiptFingerprint(receipt: CandidateReceipt): string {
-	return sha256(serializeReceipt(receipt));
+	return receiptBytesFingerprint(Buffer.from(serializeReceipt(receipt)));
 }
 
 // Relee y valida la evidencia en cada límite. Un fingerprint previo liga todas
@@ -449,11 +507,12 @@ export function validateFreshCandidateReceipt(
 ): FreshReceiptVerdict {
 	const verdict = validateCandidateReceipt(cwd, change);
 	if (!verdict.ok) return verdict;
-	const fingerprint = receiptFingerprint(verdict.receipt);
-	if (expectedFingerprint && fingerprint !== expectedFingerprint) {
+	const evidence = readActiveCandidateReceiptEvidence(cwd);
+	if (!evidence) return { ok: false, reason: "el recibo no se pudo releer" };
+	if (expectedFingerprint && evidence.fingerprint !== expectedFingerprint) {
 		return { ok: false, reason: "el recibo fue reemplazado durante este intento de entrega" };
 	}
-	return { ok: true, receipt: verdict.receipt, fingerprint };
+	return { ok: true, receipt: evidence.receipt, fingerprint: evidence.fingerprint };
 }
 
 export function validateCandidateReceipt(cwd: string, change: string): ReceiptVerdict {
@@ -501,4 +560,163 @@ export function validateCandidateReceipt(cwd: string, change: string): ReceiptVe
 export function candidateTreeMatches(cwd: string, receipt: CandidateReceipt): boolean {
 	const current = buildCandidateTree(cwd, receipt.paths);
 	return current !== null && current === receipt.treeSha;
+}
+
+export type RetirementMetadata = {
+	receiptFingerprint: string;
+	validatedDeliveryHead: string;
+	repositoryId: string;
+	worktreeId: string;
+	remoteRepository: string;
+	baseRef: string;
+	headRef: string;
+	prNumber: number;
+	prUrl: string;
+	mergedState: "MERGED";
+	prHeadOid: string;
+	mergeCommitOid: string;
+};
+
+export type RetireCandidateReceiptInput = {
+	change: string;
+	receiptFingerprint: string;
+	attempt?: VerifiedDeliveryAttempt;
+	identity: CandidateReceiptRetirementIdentity;
+	decision?: CandidateReceiptRetirementDecision;
+	// The adapter supplies a second fresh decision immediately before unlink.
+	revalidate?: () => CandidateReceiptRetirementDecision;
+};
+
+export type RetireCandidateReceiptResult =
+	| { ok: true; result: "retired" | "already-retired" }
+	| { ok: false; reason: string };
+
+function retirementMetadataPath(archivePath: string): string {
+	return join(dirname(archivePath), "retirement.json");
+}
+
+function writeAtomicBytes(path: string, bytes: Uint8Array): void {
+	mkdirSync(dirname(path), { recursive: true });
+	const temporary = `${path}.${process.pid}.${Math.random().toString(16).slice(2)}.tmp`;
+	try {
+		const fd = openSync(temporary, "w");
+		try {
+			writeFileSync(fd, bytes);
+			fsyncSync(fd);
+		} finally {
+			closeSync(fd);
+		}
+		renameSync(temporary, path);
+	} finally {
+		rmSync(temporary, { force: true });
+	}
+}
+
+function publishImmutable(path: string, bytes: Uint8Array): string | null {
+	if (existsSync(path)) {
+		try {
+			return Buffer.compare(readFileSync(path), Buffer.from(bytes)) === 0 ? null : "la evidencia archivada entra en conflicto";
+		} catch {
+			return "no se pudo releer la evidencia archivada";
+		}
+	}
+	try {
+		writeAtomicBytes(path, bytes);
+		return Buffer.compare(readFileSync(path), Buffer.from(bytes)) === 0 ? null : "la evidencia archivada no conserva los bytes publicados";
+	} catch {
+		return "no se pudo publicar la evidencia archivada";
+	}
+}
+
+function parseRetirementMetadata(path: string): RetirementMetadata | null {
+	try {
+		const value: unknown = JSON.parse(readFileSync(path, "utf8"));
+		if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+		const data = value as Record<string, unknown>;
+		const strings = ["receiptFingerprint", "validatedDeliveryHead", "repositoryId", "worktreeId", "remoteRepository", "baseRef", "headRef", "prUrl", "mergedState", "prHeadOid", "mergeCommitOid"];
+		if (strings.some((key) => typeof data[key] !== "string" || !data[key])) return null;
+		if (!Number.isSafeInteger(data.prNumber) || (data.prNumber as number) < 1 || data.mergedState !== "MERGED") return null;
+		return data as RetirementMetadata;
+	} catch {
+		return null;
+	}
+}
+
+function matchingMetadata(a: RetirementMetadata, b: RetirementMetadata): boolean {
+	return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function metadataFromDecision(receipt: CandidateReceipt, fingerprint: string, identity: CandidateReceiptRetirementIdentity, decision: CandidateReceiptRetirementDecision): RetirementMetadata | null {
+	if (!decision.ok) return null;
+	const observation = decision.observation;
+	return {
+		receiptFingerprint: fingerprint,
+		validatedDeliveryHead: receipt.head === "" ? "" : observation.headRefOid,
+		repositoryId: receipt.repositoryId,
+		worktreeId: receipt.worktreeId,
+		remoteRepository: identity.remoteRepository,
+		baseRef: identity.baseRef,
+		headRef: identity.headRef,
+		prNumber: identity.prNumber,
+		prUrl: observation.url,
+		mergedState: "MERGED",
+		prHeadOid: observation.headRefOid,
+		mergeCommitOid: observation.mergeCommitOid,
+	};
+}
+
+function archivedReceiptMatches(cwd: string, input: RetireCandidateReceiptInput): boolean {
+	const archive = retiredCandidateReceiptPath(cwd, input.receiptFingerprint);
+	if (!archive || !existsSync(archive)) return false;
+	const evidence = (() => { try { const bytes = readFileSync(archive); return { bytes, receipt: parseReceipt(bytes.toString("utf8")) }; } catch { return null; } })();
+	if (!evidence?.receipt || receiptBytesFingerprint(evidence.bytes) !== input.receiptFingerprint) return false;
+	const metadata = parseRetirementMetadata(retirementMetadataPath(archive));
+	return Boolean(metadata && metadata.receiptFingerprint === input.receiptFingerprint && metadata.repositoryId === evidence.receipt.repositoryId && metadata.worktreeId === evidence.receipt.worktreeId && metadata.validatedDeliveryHead === metadata.prHeadOid && metadata.remoteRepository === input.identity.remoteRepository && metadata.baseRef === input.identity.baseRef && metadata.headRef === input.identity.headRef && metadata.prNumber === input.identity.prNumber && evidence.receipt.change === input.change);
+}
+
+export function retireCandidateReceipt(cwd: string, input: RetireCandidateReceiptInput): RetireCandidateReceiptResult {
+	return withReceiptLifecycleLock(cwd, () => {
+		const activePath = receiptPath(cwd);
+		if (!activePath || !existsSync(activePath)) {
+			return archivedReceiptMatches(cwd, input)
+				? { ok: true, result: "already-retired" }
+				: { ok: false, reason: "no hay recibo activo ni retiro archivado coincidente" };
+		}
+		const fresh = validateFreshCandidateReceipt(cwd, input.change, input.receiptFingerprint);
+		if (!fresh.ok) return { ok: false, reason: fresh.reason };
+		if (!input.decision?.ok) return { ok: false, reason: input.decision?.reason ?? "no hay una decisión de retiro aprobada" };
+		const metadata = metadataFromDecision(fresh.receipt, fresh.fingerprint, input.identity, input.decision);
+		if (!metadata || !input.attempt?.validatedDeliveryHead || metadata.validatedDeliveryHead !== input.attempt.validatedDeliveryHead) return { ok: false, reason: "la decisión de retiro no liga el HEAD validado" };
+		const archive = retiredCandidateReceiptPath(cwd, fresh.fingerprint);
+		if (!archive) return { ok: false, reason: "no se pudo derivar el archivo de retiro" };
+		const active = readActiveCandidateReceiptEvidence(cwd);
+		if (!active || active.fingerprint !== fresh.fingerprint) return { ok: false, reason: "el recibo fue reemplazado durante el retiro" };
+		const archiveFailure = publishImmutable(archive, active.bytes);
+		if (archiveFailure) return { ok: false, reason: archiveFailure };
+		const second = validateFreshCandidateReceipt(cwd, input.change, fresh.fingerprint);
+		if (!second.ok) return { ok: false, reason: second.reason };
+		const revalidated = input.revalidate?.() ?? input.decision;
+		if (!revalidated.ok || JSON.stringify(revalidated.observation) !== JSON.stringify(input.decision.observation)) return { ok: false, reason: revalidated.ok ? "la observación remota cambió durante el retiro" : revalidated.reason };
+		const metadataPath = retirementMetadataPath(archive);
+		const existingMetadata = existsSync(metadataPath) ? parseRetirementMetadata(metadataPath) : null;
+		if (existsSync(metadataPath) && (!existingMetadata || !matchingMetadata(existingMetadata, metadata))) {
+			return { ok: false, reason: "los metadatos de retiro entran en conflicto" };
+		}
+		if (!existingMetadata) {
+			try {
+				writeAtomicBytes(metadataPath, Buffer.from(`${JSON.stringify(metadata, null, 2)}\n`));
+				if (!matchingMetadata(parseRetirementMetadata(metadataPath) ?? {} as RetirementMetadata, metadata)) throw new Error();
+			} catch {
+				return { ok: false, reason: "no se pudieron publicar los metadatos de retiro" };
+			}
+		}
+		const final = validateFreshCandidateReceipt(cwd, input.change, fresh.fingerprint);
+		if (!final.ok || !input.attempt || input.attempt.receiptFingerprint !== fresh.fingerprint) return { ok: false, reason: final.ok ? "el intento cambió durante el retiro" : final.reason };
+		try {
+			unlinkSync(activePath);
+			return { ok: true, result: "retired" };
+		} catch {
+			return { ok: false, reason: "no se pudo desactivar el recibo activo" };
+		}
+	}) as RetireCandidateReceiptResult;
 }
