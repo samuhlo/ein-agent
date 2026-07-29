@@ -17,7 +17,7 @@
 // recibo reemplazado.
 // =============================================================================
 
-import { validateFreshCandidateReceipt } from "./candidate-receipt.ts";
+import { validateFreshCandidateReceipt, type CandidateReceipt } from "./candidate-receipt.ts";
 import { isSafeChangeName } from "./sdd-router.ts";
 
 export const NO_VERIFICATION_RECEIPT_APPLIES = "no-verification-receipt-applies" as const;
@@ -99,6 +99,76 @@ export type VerifiedDeliveryAttempt = {
 	receiptFingerprint: string;
 	validatedDeliveryHead?: string;
 };
+
+export type CandidateReceiptRetirementIdentity = {
+	remoteRepository: string;
+	baseRef: string;
+	headRef: string;
+	prNumber: number;
+};
+
+// Solo contiene campos que el adaptador remoto debe leer del PR identificado.
+// No acepta un resumen de éxito ni nombres locales como prueba de integración.
+export type NormalizedMergedPullRequestObservation = {
+	repository: string;
+	prNumber: number;
+	url: string;
+	state: "MERGED" | "OPEN" | "CLOSED" | string;
+	headRepository: string;
+	headRef: string;
+	headRefOid: string;
+	baseRef: string;
+	mergeCommitOid: string;
+};
+
+export type CandidateReceiptRetirementInput = {
+	activeReceiptFingerprint: string;
+	receipt: CandidateReceipt;
+	attempt: VerifiedDeliveryAttempt | undefined;
+	repositoryId: string;
+	worktreeId: string;
+	identity: CandidateReceiptRetirementIdentity;
+	observation: NormalizedMergedPullRequestObservation | undefined;
+};
+
+export type CandidateReceiptRetirementDecision =
+	| { ok: true; result: "retire"; observation: NormalizedMergedPullRequestObservation }
+	| { ok: false; reason: string };
+
+function hasText(value: string): boolean {
+	return value.trim().length > 0;
+}
+
+// Política pura: el adaptador debe aportar una observación fresca, pero esta
+// función solo acepta identidades ya normalizadas y las ata al recibo activo.
+export function evaluateCandidateReceiptRetirement(input: CandidateReceiptRetirementInput): CandidateReceiptRetirementDecision {
+	const { receipt, attempt, identity, observation } = input;
+	if (!/^[a-f0-9]{64}$/.test(input.activeReceiptFingerprint)) return { ok: false, reason: "el fingerprint activo no es válido" };
+	if (!attempt?.receiptFingerprint || attempt.receiptFingerprint !== input.activeReceiptFingerprint) {
+		return { ok: false, reason: "el intento no corresponde a los bytes activos del recibo" };
+	}
+	if (!attempt.validatedDeliveryHead) return { ok: false, reason: "el intento no tiene un HEAD de entrega validado" };
+	if (receipt.repositoryId !== input.repositoryId || receipt.worktreeId !== input.worktreeId) {
+		return { ok: false, reason: "el recibo no corresponde al repositorio o worktree actual" };
+	}
+	if (![identity.remoteRepository, identity.baseRef, identity.headRef].every(hasText) || !Number.isSafeInteger(identity.prNumber) || identity.prNumber < 1) {
+		return { ok: false, reason: "la identidad explícita de entrega no es válida" };
+	}
+	if (!observation) return { ok: false, reason: "no hay una observación remota de PR" };
+	if (observation.state !== "MERGED" || !hasText(observation.mergeCommitOid)) {
+		return { ok: false, reason: "el PR identificado no está merged con resultado de merge" };
+	}
+	if (observation.repository !== identity.remoteRepository || observation.headRepository !== identity.remoteRepository) {
+		return { ok: false, reason: "el PR no pertenece al repositorio remoto identificado" };
+	}
+	if (observation.prNumber !== identity.prNumber || observation.baseRef !== identity.baseRef || observation.headRef !== identity.headRef) {
+		return { ok: false, reason: "el PR observado no coincide con la identidad explícita de entrega" };
+	}
+	if (!hasText(observation.url) || observation.headRefOid !== attempt.validatedDeliveryHead) {
+		return { ok: false, reason: "la cabeza observada del PR no coincide con el HEAD de entrega validado" };
+	}
+	return { ok: true, result: "retire", observation };
+}
 
 export type ReceiptGateResult =
 	| { decision: DeliveryGateDecision & { ok: true }; attempt: VerifiedDeliveryAttempt }

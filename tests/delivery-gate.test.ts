@@ -33,7 +33,17 @@ const {
 	invokesGhPrMutation,
 	receiptCoversStaged,
 } = await import("../ein-pi/agent/lib/delivery-gate");
-const { emitCandidateReceipt, readCandidateReceipt } = await import("../ein-pi/agent/lib/candidate-receipt");
+const {
+	emitCandidateReceipt,
+	readActiveCandidateReceiptEvidence,
+	readCandidateReceipt,
+	receiptPath,
+	retiredCandidateReceiptPath,
+	retireCandidateReceipt,
+	persistVerifiedDeliveryAttempt,
+} = await import("../ein-pi/agent/lib/candidate-receipt");
+const { evaluateCandidateReceiptRetirement } = await import("../ein-pi/agent/lib/delivery-receipt");
+const { messageRequestsDelivery } = await import("../ein-pi/agent/lib/git-delivery");
 
 const git = (dir: string, ...args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "ignore" });
 const gitOut = (dir: string, ...args: string[]) => execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
@@ -399,6 +409,108 @@ describe("bypasses equivalentes cerrados", () => {
 // comprueba que HEAD (el objetivo vivo) siga siendo lo verificado. Esto colapsa
 // la clase entera de bugs de refspec (--all/--mirror/comodines/push.default).
 // =============================================================================
+describe("decisión de retiro: solo el merge ligado es terminal", () => {
+	const receipt = {
+		receiptVersion: 1,
+		repositoryId: "repo-id",
+		worktreeId: "worktree-id",
+		change: "mi-cambio",
+		head: "base",
+		branch: "main",
+		treeSha: "tree",
+		paths: ["a.ts"],
+		pathsSha256: "paths",
+		reportSha256: "report",
+		commandsSha256: "commands",
+		createdAt: "2026-01-01T00:00:00.000Z",
+	};
+	const input = (overrides: Record<string, unknown> = {}) => ({
+		activeReceiptFingerprint: "a".repeat(64),
+		receipt,
+		attempt: { receiptFingerprint: "a".repeat(64), validatedDeliveryHead: "validated-head" },
+		repositoryId: "repo-id",
+		worktreeId: "worktree-id",
+		identity: { remoteRepository: "owner/repo", baseRef: "main", headRef: "feature", prNumber: 7 },
+		observation: {
+			repository: "owner/repo", prNumber: 7, url: "https://github.com/owner/repo/pull/7", state: "MERGED",
+			headRepository: "owner/repo", headRef: "feature", headRefOid: "validated-head", baseRef: "main", mergeCommitOid: "merge-result",
+		},
+		...overrides,
+	});
+
+	test("acepta solo un PR merged del mismo repositorio ligado a la cabeza validada", () => {
+		expect(evaluateCandidateReceiptRetirement(input()).ok).toBe(true);
+		for (const observation of [
+			{ ...input().observation, state: "OPEN" },
+			{ ...input().observation, headRepository: "fork/repo" },
+			{ ...input().observation, headRefOid: "other-head" },
+		]) {
+			expect(evaluateCandidateReceiptRetirement(input({ observation })).ok).toBe(false);
+		}
+	});
+
+	test("un intento ausente o obsoleto no autoriza el recibo activo", () => {
+		expect(evaluateCandidateReceiptRetirement(input({ attempt: undefined })).ok).toBe(false);
+		expect(evaluateCandidateReceiptRetirement(input({ attempt: { receiptFingerprint: "b".repeat(64), validatedDeliveryHead: "validated-head" } })).ok).toBe(false);
+	});
+});
+
+describe("solape mecánico tras retirar un recibo", () => {
+	test("el retiro solo elimina el gate viejo y no autoriza una entrega posterior", async () => {
+		const dir = repoConRecibo();
+		const active = readActiveCandidateReceiptEvidence(dir)!;
+		const attempt = {
+			receiptFingerprint: active.fingerprint,
+			validatedDeliveryHead: active.receipt.head,
+		};
+		const identity = { remoteRepository: "owner/repo", baseRef: "main", headRef: "feature", prNumber: 7 };
+		const observation = {
+			repository: "owner/repo", prNumber: 7, url: "https://github.com/owner/repo/pull/7", state: "MERGED",
+			headRepository: "owner/repo", headRef: "feature", headRefOid: active.receipt.head, baseRef: "main", mergeCommitOid: "merge-oid",
+		};
+		const retirement = {
+			change: "mi-cambio",
+			receiptFingerprint: active.fingerprint,
+			attempt,
+			identity,
+			decision: { ok: true as const, result: "retire" as const, observation },
+			revalidate: async () => ({ ok: true as const, result: "retire" as const, observation }),
+		};
+		expect(persistVerifiedDeliveryAttempt(dir, attempt).ok).toBe(true);
+
+		writeFileSync(join(dir, "a.ts"), "contenido posterior divergente\n");
+		git(dir, "add", "a.ts");
+		git(dir, "commit", "-qm", "contenido posterior");
+		expect(evaluatePublish(dir, "pre-push", undefined).verdict.kind).toBe("blocked");
+
+		const archive = retiredCandidateReceiptPath(dir, active.fingerprint)!;
+		mkdirSync(join(archive, ".."), { recursive: true });
+		writeFileSync(archive, "conflicto");
+		expect((await retireCandidateReceipt(dir, retirement)).ok).toBe(false);
+		expect(evaluatePublish(dir, "pre-push", undefined).verdict.kind).toBe("blocked");
+
+		writeFileSync(archive, active.bytes);
+		expect(await retireCandidateReceipt(dir, retirement)).toEqual({ ok: true, result: "retired" });
+		expect(receiptPath(dir)).not.toBeNull();
+		expect(readCandidateReceipt(dir)).toBeNull();
+		expect(evaluatePublish(dir, "pre-push", undefined).verdict.kind).toBe("pass");
+		expect(deliveryBoundariesFor("git push origin main")).toEqual(["pre-push"]);
+		expect(messageRequestsDelivery("continúa")).toBe(false);
+		expect(messageRequestsDelivery("haz push")).toBe(true);
+
+		writeFileSync(join(dir, "a.ts"), "candidato nuevo\n");
+		expect(emitCandidateReceipt(dir, { change: "mi-cambio", paths: ["a.ts"], commands: ["bun test"] }).ok).toBe(true);
+		const replacement = readActiveCandidateReceiptEvidence(dir)!;
+		expect(replacement.fingerprint).not.toBe(active.fingerprint);
+		expect((await retireCandidateReceipt(dir, {
+			...retirement,
+			receiptFingerprint: replacement.fingerprint,
+			decision: { ok: true, result: "retire", observation },
+		})).ok).toBe(false);
+		expect(readCandidateReceipt(dir)?.change).toBe("mi-cambio");
+	});
+});
+
 describe("publicación: revalidación contra HEAD", () => {
 	test("con intento en curso, si la rama se mueve tras validar, se bloquea", () => {
 		const dir = repoConRecibo();
