@@ -52,6 +52,13 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("scope → map → design → tasks → apply → verify → close");
 	});
 
+	test("ein-scout no pertenece al router ni a la chain de siete fases", () => {
+		const chain = readFileSync(join(AGENT, "chains/ein-sdd.chain.md"), "utf8");
+		expect(orch).not.toMatch(/ein-scout/);
+		expect(chain).not.toMatch(/ein-scout/);
+		expect(chain.match(/^## sdd-/gm)).toHaveLength(7);
+	});
+
 	test("conserva la chain como fallback (no como ruta primaria)", () => {
 		expect(orch.toLowerCase()).toContain("fallback");
 		expect(orch).toContain("ein-sdd` chain");

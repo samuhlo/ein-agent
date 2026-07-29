@@ -62,6 +62,7 @@ describe("phaseForAgent", () => {
 
 	test("cualquier otro agente NO es una fase (nunca se reconcilia)", () => {
 		expect(phaseForAgent("ein-git")).toBeNull();
+		expect(phaseForAgent("ein-scout")).toBeNull();
 		expect(phaseForAgent("sdd-inventado")).toBeNull();
 		expect(phaseForAgent("")).toBeNull();
 		expect(phaseForAgent(undefined)).toBeNull();
@@ -229,6 +230,7 @@ describe("resolveDelegationPhase", () => {
 
 	test("agentes que no son de fase → null", () => {
 		expect(resolveDelegationPhase({ agent: "ein-git", task: "entrega" })).toBeNull();
+		expect(resolveDelegationPhase({ agent: "ein-scout", task: "investiga" })).toBeNull();
 		expect(resolveDelegationPhase({})).toBeNull();
 		expect(resolveDelegationPhase(undefined)).toBeNull();
 	});

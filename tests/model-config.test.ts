@@ -24,6 +24,7 @@ const {
 	readOrchestratorModel,
 	updateGlobalDefaultModel,
 	modelConfigPath,
+	AGENT_RECOMMENDATIONS,
 } = await import("../ein-pi/agent/lib/model-config");
 
 const CWD = "/tmp/proyecto-irrelevante";
@@ -181,6 +182,16 @@ describe("routing de agentes de ~/.pi/agent/agents (fuente user)", () => {
 			join(AGENTS_DIR, "sdd-apply.md"),
 			"---\nname: sdd-apply\ndescription: test agent\ntools: read\n---\n\nbody\n",
 		);
+		writeFileSync(
+			join(AGENTS_DIR, "ein-scout.md"),
+			"---\nname: ein-scout\ndescription: test scout\ntools: read, grep, find\nextensions: []\n---\n\nbody\n",
+		);
+	});
+
+	test("descubre ein-scout como agente user y lo recomienda barato", () => {
+		const scout = listDiscoverableAgents(CWD).find((agent) => agent.name === "ein-scout");
+		expect(scout).toMatchObject({ source: "user" });
+		expect(AGENT_RECOMMENDATIONS["ein-scout"]).toMatchObject({ tier: "cheap", thinking: "low" });
 	});
 
 	test("applyModelConfigAsync escribe model: en el frontmatter, no en settings", async () => {

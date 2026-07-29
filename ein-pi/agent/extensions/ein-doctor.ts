@@ -181,6 +181,21 @@ function unknownDeployedAgentTools(agentsDir: string): string[] {
   return unknown;
 }
 
+function scoutStaticContract(agentsDir: string): { tools: boolean; extensions: boolean; compatibility: boolean } {
+  const scout = readIfExists(join(agentsDir, "ein-scout.md"));
+  const runtime = readIfExists(
+    join(AGENT_DIR, "npm", "node_modules", "pi-subagents", "src", "runs", "shared", "pi-args.ts"),
+  );
+  return {
+    tools: /^tools:\s*read, grep, find$/m.test(scout),
+    extensions: /^extensions:\s*\[\]$/m.test(scout),
+    // Static compatibility only: this is not evidence about an individual run.
+    compatibility:
+      runtime.includes("input.extensions !== undefined") &&
+      runtime.includes('args.push("--no-extensions")'),
+  };
+}
+
 function doctorSmokeReport(): string {
   const brandFile = join(AGENT_DIR, "brand.json");
   const settingsFile = join(AGENT_DIR, "settings.json");
@@ -287,7 +302,8 @@ function doctorSmokeReport(): string {
     "sdd-verify.md",
     "sdd-close.md",
   ];
-  const DELIVERY_AGENTS = ["ein-linear.md", "ein-git.md"];
+  const NON_SDD_AGENTS = ["ein-linear.md", "ein-git.md", "ein-scout.md"];
+  const scoutContract = scoutStaticContract(agentsDir);
   const unknownDeployedTools = unknownDeployedAgentTools(agentsDir);
   const piContract = verifyPiContract();
 
@@ -295,8 +311,19 @@ function doctorSmokeReport(): string {
     ...SDD_AGENTS.map((a) =>
       check(existsSync(join(agentsDir, a)), `agent ${a}`, "Agente SDD presente."),
     ),
-    ...DELIVERY_AGENTS.map((a) =>
-      check(existsSync(join(agentsDir, a)), `agent ${a}`, "Agente de entrega presente."),
+    ...NON_SDD_AGENTS.map((a) =>
+      check(
+        existsSync(join(agentsDir, a)),
+        `agent ${a}`,
+        a === "ein-scout.md" ? "Agente de investigación read-only presente." : "Agente no-SDD presente.",
+      ),
+    ),
+    check(scoutContract.tools, "ein-scout tools", "Scout declara exactamente read, grep, find."),
+    check(scoutContract.extensions, "ein-scout extensions", "Scout declara extensions: [] explícito."),
+    warn(
+      scoutContract.compatibility,
+      "ein-scout static extension contract",
+      "Compatibilidad estática actual con --no-extensions; no es una sonda ni recibo por ejecución.",
     ),
     check(
       existsSync(join(chainsDir, "ein-sdd.chain.md")),

@@ -119,6 +119,7 @@ import { evaluateDeliveryGate, evaluatePostCommit, deliveryBoundaryFor, type Del
 import { evaluateCandidateReceiptRetirement, type CandidateReceiptRetirementIdentity, type NormalizedMergedPullRequestObservation } from "../lib/delivery-receipt.ts";
 import { clearVerifiedDeliveryAttempt, emitCandidateReceipt, persistVerifiedDeliveryAttempt, readActiveCandidateReceiptEvidence, readVerifiedDeliveryAttempt, reportRetirementCleanup, resolveWorktreeIdentity, retireCandidateReceipt, suggestIntendedPaths } from "../lib/candidate-receipt.ts";
 import { observeMergedPullRequest, resolveExplicitPushRemoteRepository } from "../lib/candidate-receipt-retirement-remote.ts";
+import { acceptTrackedScoutResult, normalizeScoutLaunch, type ScoutTracking } from "../lib/scout-contract.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
@@ -152,6 +153,15 @@ const phaseSnapshotByToolCall = new Map<
 const deliveryAttemptBySession = new Map<string, DeliveryAttemptState>();
 // Commits gateados a la espera de su comprobación post-commit (por toolCallId).
 const pendingPostCommit = new Map<string, string>();
+const scoutTracking: ScoutTracking = new Map();
+
+function structuredScoutPayloads(content: readonly unknown[]): unknown[] {
+	return content.flatMap((part) => {
+		if (!isRecord(part)) return [];
+		if (part.type === "structured_output") return [part.output ?? part.value ?? part.content];
+		return [];
+	});
+}
 
 type RetirementToolParams = {
 	change: string;
@@ -773,6 +783,12 @@ export default function einAi(pi: ExtensionAPI): void {
 		// Delegaciones con push: el usuario confirma aquí (sesión con UI) y se
 		// emite el grant one-shot que el guard headless del subagente consume.
 		if (event.toolName === "subagent") {
+			// Scout is deliberately handled before any SDD/delivery behavior.
+			const scoutLaunch = normalizeScoutLaunch(event.input, event.toolCallId, scoutTracking);
+			if (scoutLaunch) {
+				Object.assign(event.input as Record<string, unknown>, scoutLaunch);
+				return undefined;
+			}
 			// Fases de planificación (scope/map/design/tasks/close): inyecta
 			// `acceptance: none` determinista si el orquestador no lo pasó. Sin esto
 			// el runner infiere un nivel con forma de código y rechaza en falso un
@@ -858,6 +874,12 @@ export default function einAi(pi: ExtensionAPI): void {
 			}
 		}
 		if (event.toolName !== "subagent") return undefined;
+		try {
+			const report = acceptTrackedScoutResult(scoutTracking, event.toolCallId, structuredScoutPayloads(event.content), ctx.cwd);
+			if (report) return { isError: false, content: [{ type: "text", text: JSON.stringify(report) }] };
+		} catch (error) {
+			return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "ein-scout contract: validation failed" }] };
+		}
 		// Se libera SIEMPRE, falle o no: si solo se borrase en la rama de fallo,
 		// cada delegación exitosa dejaría su foto ahí para toda la sesión.
 		const snapshot = phaseSnapshotByToolCall.get(event.toolCallId);
