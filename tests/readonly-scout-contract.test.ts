@@ -1,10 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { normalizeScoutLaunch, SCOUT_REPORT_MAX_BYTES, SCOUT_REPORT_SCHEMA, validateScoutReport } from "../ein-pi/agent/lib/scout-contract.ts";
-
-const PI_SUBAGENTS = join(homedir(), ".pi/agent/npm/node_modules/pi-subagents/src");
 const SCOUT_FRONTMATTER = join(import.meta.dir, "../ein-pi/core/agents/ein-scout.md");
 
 function fixture() {
@@ -37,17 +35,12 @@ describe("readonly scout launch contract", () => {
 		expect(normalizeScoutLaunch({ agent: "other" }, "call", new Map())).toBeUndefined();
 	});
 
-	test("uses canonical empty frontmatter and no parent extension override path", () => {
+	test("uses canonical empty frontmatter and rejects caller extension overrides", () => {
 		const scout = readFileSync(SCOUT_FRONTMATTER, "utf8");
 		expect(scout).toMatch(/^extensions:\s*\[\]\s*$/m);
 
-		const schema = readFileSync(join(PI_SUBAGENTS, "extension/schemas.ts"), "utf8");
-		const params = schema.slice(schema.indexOf("const SubagentParamsSchema"), schema.indexOf("export const SubagentParams"));
-		expect(params).not.toMatch(/^\s*extensions\s*:/m);
-
-		const launchPlan = readFileSync(join(PI_SUBAGENTS, "runs/shared/pi-args.ts"), "utf8");
-		expect(launchPlan).toContain("input.extensions !== undefined");
-		expect(launchPlan).toContain('args.push("--no-extensions")');
+		const launch = normalizeScoutLaunch({ agent: "ein-scout", task: "inspect", extensions: ["leak"] }, "call-extensions", new Map())!;
+		expect(launch).not.toHaveProperty("extensions");
 	});
 });
 

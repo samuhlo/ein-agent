@@ -54,3 +54,10 @@ Remaining: groups 004–005 pending.
 - Workload measurement: production/config/agent `+206/-6 = 212` changed lines, tests `+200/-0 = 200`, docs/OpenSpec recorded separately, generated `0`; production is below the 400-line gate.
 - Residual risk: `pi-subagents` remains intentionally unpinned. Static/doctor checks diagnose observable drift, but cannot attest extension isolation for an individual future run.
 - Remaining tasks: none.
+
+## // 006. Late CI portability fix
+
+- Kept `status: complete` and updated only `tests/readonly-scout-contract.test.ts` to remove developer-machine `pi-subagents` source reads.
+- The portable contract reads only canonical `ein-scout.md`, verifies `extensions: []`, and verifies `normalizeScoutLaunch` omits caller-supplied `extensions`.
+- Verification: `bun test tests/readonly-scout-contract.test.ts` — 7 pass, 0 fail, 27 expectations.
+- Remaining tasks: none.

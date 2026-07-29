@@ -1,5 +1,5 @@
 ## // 000. RESUMEN
-Ein gana `ein-scout`: un bibliotecario que puede inspeccionar y citar evidencia, pero carece demutación, delegación, autoridad arquitectónica o pertenencia al ciclo SDD de siete fases. El contrato de extensión se valida estáticamente — no existe un recibo por ejecución individual.
+Ein gana `ein-scout`: un bibliotecario que puede inspeccionar y citar evidencia, pero carece de mutación, delegación, autoridad arquitectónica o pertenencia al ciclo SDD de siete fases. El contrato de extensión se valida estáticamente — no existe un recibo por ejecución individual.
 
 ## // 001. QUÉ CAMBIÓ
 - `ein-pi/core/agents/ein-scout.md` — contrato canónico del agente de solo lectura con frontmatter portátil (`tools: read, grep, find`, `extensions: []`, budgets).
@@ -28,17 +28,19 @@ Inventario: `core/agents/ein-scout.md` es la fuente autoritativa. `bundle-templa
 - **Validador local como frontera de confianza:** JSON Schema valida forma; el adaptador valida tamaño en bytes, existencia de archivos citados y rangos de línea; no valida verdad semántica.
 
 ## // 004. VERIFICACIÓN
-- `bun test …` — **103 pass / 0 fail / 322 expectations** (293 ms).
+- `bun test …` — **103 pass / 0 fail / 320 expectations** (279 ms).
 - `cd installer && bun run typecheck` — pass (tsc --noEmit exits 0).
 - `cd installer && bun run bundle-template` — pass; `template.tar.gz` byte-identical al pre-apply.
 - `git diff --check` — clean sobre el slice del contrato.
-- Production churn: **226 líneas** (220 ins / 6 del), bajo el gate de 400.
+- Production churn: **≤226 líneas**, bajo el gate de 400; **sin cambios en producción** tras el fix de portabilidad CI.
 - Spec sincronizado: SHA `32d43166…1d4ba` coincide con sync-report.
 - Scout ausente de router (`PHASE_ORDER` = 7 fases exactas), reconcile y chains.
 - Cobertura de comportamiento verificada: normalización de llamada, bloqueo de formas alternativas, validación de informe (malformado, sobredimensionado, escape symlink, ausencia de incertidumbre), cadena de inventario (source → staged → assets → manifest → install/doctor/model).
 
+**Nota sobre portabilidad CI:** el test ya no lee `~/.pi` del desarrollador — afirma el frontmatter canónico `extensions: []` de `ein-pi/core/agents/ein-scout.md` y demuestra que `normalizeScoutLaunch` elimina cualquier campo `extensions` del llamador (`expect(launch).not.toHaveProperty("extensions")`). La superficie de producción (`scout-contract.ts`) es idéntica a la del HEAD previo; el fix toca solo el test.
+
 ## // 005. PENDIENTE / RIESGOS
-- **Dependencia sin pin (riesgo aceptado):** doctor y tests estáticos diagnostican drift observable en el paquete instalado; no pueden atestiguar aislamiento de extensión en una ejecución particular. Documentado como advertencia en doctor y en el diseño.
+- **Dependencia sin pin (riesgo aceptado):** doctor y tests estáticos diagnostican drift observable en el paquete instalado; no pueden atestiguar aislamiento de extensión en una ejecución particular. Documentado como advertencia en doctor y en el diseño. El riesgo persiste tras el fix de portabilidad — se considera aceptable.
 - **Tool budget no es contador de lecturas:** `read`, `grep` y `find` comparten un único contador de llamadas. No se alega "30 lecturas" en ningún archivo del slice.
 - **Cap 16 KiB puede ser estrecho** para investigación amplia multi-área; los llamadores deben pedir investigación acotada, no relajar el límite.
 - **El validador prueba existencia y rangos, no verdad:** una referencia válida y un rango de líneas existente no garantizan que el claim sea verdadero o que la cita lo respalde semánticamente. El informe es siempre evidencia consultiva.
