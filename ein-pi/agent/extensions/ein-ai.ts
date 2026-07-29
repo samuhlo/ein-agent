@@ -6,7 +6,6 @@
 // se cablea.
 // =============================================================================
 
-import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type {
@@ -113,7 +112,8 @@ import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";
 import { evaluateStaging } from "../lib/git-staging.ts";
 import { evaluateDeliveryGate, evaluatePostCommit, deliveryBoundaryFor, type DeliveryAttemptState } from "../lib/delivery-gate.ts";
 import { evaluateCandidateReceiptRetirement, type CandidateReceiptRetirementIdentity, type NormalizedMergedPullRequestObservation } from "../lib/delivery-receipt.ts";
-import { emitCandidateReceipt, readActiveCandidateReceiptEvidence, resolveWorktreeIdentity, retireCandidateReceipt, suggestIntendedPaths } from "../lib/candidate-receipt.ts";
+import { clearVerifiedDeliveryAttempt, emitCandidateReceipt, persistVerifiedDeliveryAttempt, readActiveCandidateReceiptEvidence, readVerifiedDeliveryAttempt, reportRetirementCleanup, resolveWorktreeIdentity, retireCandidateReceipt, suggestIntendedPaths } from "../lib/candidate-receipt.ts";
+import { observeMergedPullRequest, resolveExplicitPushRemoteRepository } from "../lib/candidate-receipt-retirement-remote.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
@@ -156,53 +156,6 @@ type RetirementToolParams = {
 	headRef: string;
 	prNumber: number;
 };
-
-function normalizeGitHubRepository(remoteUrl: string): string | null {
-	const value = remoteUrl.trim().replace(/\.git\/?$/, "");
-	const match = /^(?:https?:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([^/\s]+)\/([^/\s]+)$/i.exec(value);
-	if (!match?.[1] || !match[2] || !/^[A-Za-z0-9_.-]+$/.test(match[1]) || !/^[A-Za-z0-9_.-]+$/.test(match[2])) return null;
-	return `${match[1]}/${match[2]}`.toLowerCase();
-}
-
-function explicitRemoteRepository(cwd: string, remote: string): string | null {
-	if (!/^[A-Za-z0-9_.-]+$/.test(remote)) return null;
-	try {
-		return normalizeGitHubRepository(execFileSync("git", ["remote", "get-url", remote], {
-			cwd,
-			encoding: "utf8",
-			stdio: ["ignore", "pipe", "ignore"],
-		}).trim());
-	} catch {
-		return null;
-	}
-}
-
-function observeMergedPullRequest(cwd: string, repository: string, prNumber: number): NormalizedMergedPullRequestObservation | null {
-	try {
-		const raw: unknown = JSON.parse(execFileSync("gh", ["pr", "view", String(prNumber), "--repo", repository, "--json", "number,url,state,mergedAt,mergeCommit,headRepository,headRefName,headRefOid,baseRefName"], {
-			cwd,
-			encoding: "utf8",
-			stdio: ["ignore", "pipe", "ignore"],
-		}));
-		if (!isRecord(raw) || raw.state !== "MERGED" || typeof raw.mergedAt !== "string" || !isRecord(raw.mergeCommit) || !isRecord(raw.headRepository)) return null;
-		const mergeCommitOid = raw.mergeCommit.oid;
-		const headRepository = raw.headRepository.nameWithOwner;
-		if (typeof raw.number !== "number" || typeof raw.url !== "string" || typeof raw.headRefName !== "string" || typeof raw.headRefOid !== "string" || typeof raw.baseRefName !== "string" || typeof mergeCommitOid !== "string" || typeof headRepository !== "string") return null;
-		return {
-			repository,
-			prNumber: raw.number,
-			url: raw.url,
-			state: "MERGED",
-			headRepository: headRepository.toLowerCase(),
-			headRef: raw.headRefName,
-			headRefOid: raw.headRefOid,
-			baseRef: raw.baseRefName,
-			mergeCommitOid,
-		};
-	} catch {
-		return null;
-	}
-}
 
 function rememberPhaseSnapshot(
 	toolCallId: string,
@@ -889,6 +842,13 @@ export default function einAi(pi: ExtensionAPI): void {
 			}
 			const outcome = evaluatePostCommit(ctx.cwd, deliveryAttemptBySession.get(postCommitSession));
 			deliveryAttemptBySession.set(postCommitSession, outcome.attempt);
+			if (outcome.attempt?.validatedDeliveryHead) {
+				const persisted = persistVerifiedDeliveryAttempt(ctx.cwd, outcome.attempt);
+				if (!persisted.ok) {
+					deliveryAttemptBySession.delete(postCommitSession);
+					return { isError: true, content: [{ type: "text", text: persisted.reason }] };
+				}
+			}
 			if (outcome.verdict.kind === "blocked") {
 				return { isError: true, content: [{ type: "text", text: outcome.verdict.reason }] };
 			}
@@ -1393,6 +1353,8 @@ export default function einAi(pi: ExtensionAPI): void {
 				].join("\n");
 				return { content: [{ type: "text", text }], details: { ok: false, reason: "missing paths manifest", tracked, untracked } };
 			}
+			// FAIL CLOSED -> La memoria no puede sobrevivir a un recibo que se reemplaza.
+			deliveryAttemptBySession.delete(sddPreflightSessionKey(ctx));
 			const result = emitCandidateReceipt(ctx.cwd, {
 				change,
 				paths: params.paths,
@@ -1417,7 +1379,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		name: "ein_candidate_receipt_retire",
 		label: "Ein Candidate Receipt Retire",
 		description:
-			"Explicitly retire one active candidate receipt after two fresh GitHub observations prove the named same-repository PR merged the exact validated delivery HEAD. Requires change, receiptFingerprint, remote, baseRef, headRef, and prNumber. Refuses auth/network failures, malformed or fork PRs, identity mismatches, and changed revalidation. Never infers a PR, changes grants, or claims verification.",
+			"Explicitly retire one active candidate receipt after two fresh GitHub observations prove the named same-repository PR merged the exact validated delivery HEAD. Requires change, receiptFingerprint, remote, baseRef, headRef, and prNumber. Refuses auth/network failures, malformed or fork PRs, identity mismatches, and changed revalidation. If durable attempt cleanup fails after terminal unlink, reports cleanupPending and retries cleanup through already-retired; it never claims a clean rollback. Never infers a PR, changes grants, or claims verification.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -1431,24 +1393,29 @@ export default function einAi(pi: ExtensionAPI): void {
 				prNumber: { type: "integer", minimum: 1, description: "Explicit GitHub pull request number." },
 			},
 		} as const,
-		async execute(_id, params: RetirementToolParams, _signal, _onUpdate, ctx: ExtensionContext) {
+		async execute(_id, params: RetirementToolParams, signal, _onUpdate, ctx: ExtensionContext) {
+			const remoteRepository = await resolveExplicitPushRemoteRepository(ctx.cwd, params.remote);
 			const identity: CandidateReceiptRetirementIdentity = {
-				remoteRepository: explicitRemoteRepository(ctx.cwd, params.remote) ?? "",
+				remoteRepository: remoteRepository ?? "",
 				baseRef: params.baseRef,
 				headRef: params.headRef,
 				prNumber: params.prNumber,
 			};
 			const active = readActiveCandidateReceiptEvidence(ctx.cwd);
 			if (!active) {
-				const result = retireCandidateReceipt(ctx.cwd, { change: params.change, receiptFingerprint: params.receiptFingerprint, identity });
+				let result = await retireCandidateReceipt(ctx.cwd, { change: params.change, receiptFingerprint: params.receiptFingerprint, identity });
+				if (result.ok && result.result === "already-retired") {
+					deliveryAttemptBySession.delete(sddPreflightSessionKey(ctx));
+					result = reportRetirementCleanup(result, clearVerifiedDeliveryAttempt(ctx.cwd, params.receiptFingerprint));
+				}
 				const text = result.ok
-					? `/// CANDIDATE RECEIPT RETIRE — '${params.change}' already retired; local archive evidence matches.`
+					? `/// CANDIDATE RECEIPT RETIRE — '${params.change}' already retired; local archive evidence matches.${result.cleanupPending ? ` WARNING: ${result.warning}` : ""}`
 					: `/// CANDIDATE RECEIPT RETIRE — '${params.change}' NOT retired: ${result.reason}`;
 				return { content: [{ type: "text", text }], details: result };
 			}
 			const local = resolveWorktreeIdentity(ctx.cwd);
 			const sessionKey = sddPreflightSessionKey(ctx);
-			const attempt = deliveryAttemptBySession.get(sessionKey);
+			const attempt = readVerifiedDeliveryAttempt(ctx.cwd, active.fingerprint);
 			const decide = (observation: NormalizedMergedPullRequestObservation | null) => !local
 				? { ok: false as const, reason: "no se pudo resolver la identidad local del repositorio" }
 				: evaluateCandidateReceiptRetirement({
@@ -1460,23 +1427,24 @@ export default function einAi(pi: ExtensionAPI): void {
 					identity,
 					observation: observation ?? undefined,
 				});
-			const first = decide(observeMergedPullRequest(ctx.cwd, identity.remoteRepository, params.prNumber));
+			const first = decide(await observeMergedPullRequest(ctx.cwd, identity.remoteRepository, params.prNumber, signal));
 			if (!first.ok) {
 				return { content: [{ type: "text", text: `/// CANDIDATE RECEIPT RETIRE — '${params.change}' NOT retired: ${first.reason}` }], details: first };
 			}
-			const result = retireCandidateReceipt(ctx.cwd, {
+			let result = await retireCandidateReceipt(ctx.cwd, {
 				change: params.change,
 				receiptFingerprint: params.receiptFingerprint,
 				attempt,
 				identity,
 				decision: first,
-				revalidate: () => decide(observeMergedPullRequest(ctx.cwd, identity.remoteRepository, params.prNumber)),
+				revalidate: async () => decide(await observeMergedPullRequest(ctx.cwd, identity.remoteRepository, params.prNumber, signal)),
 			});
-			if (result.ok && result.result === "retired" && deliveryAttemptBySession.get(sessionKey)?.receiptFingerprint === params.receiptFingerprint) {
-				deliveryAttemptBySession.delete(sessionKey);
+			if (result.ok && (result.result === "retired" || result.result === "already-retired")) {
+				if (deliveryAttemptBySession.get(sessionKey)?.receiptFingerprint === params.receiptFingerprint) deliveryAttemptBySession.delete(sessionKey);
+				result = reportRetirementCleanup(result, clearVerifiedDeliveryAttempt(ctx.cwd, params.receiptFingerprint));
 			}
 			const text = result.ok
-				? `/// CANDIDATE RECEIPT RETIRE — '${params.change}' ${result.result}.`
+				? `/// CANDIDATE RECEIPT RETIRE — '${params.change}' ${result.result}.${result.cleanupPending ? ` WARNING: ${result.warning}` : ""}`
 				: `/// CANDIDATE RECEIPT RETIRE — '${params.change}' NOT retired: ${result.reason}`;
 			return { content: [{ type: "text", text }], details: result };
 		},

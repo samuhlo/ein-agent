@@ -32,6 +32,10 @@ const {
 	receiptPath,
 	retiredCandidateReceiptPath,
 	retireCandidateReceipt,
+	persistVerifiedDeliveryAttempt,
+	readVerifiedDeliveryAttempt,
+	reportRetirementCleanup,
+	verifiedDeliveryAttemptPath,
 	resolveWorktreeIdentity,
 	serializeReceipt,
 	validateCandidateReceipt,
@@ -506,6 +510,7 @@ describe("retiro con archivo antes de desactivar", () => {
 		const active = readActiveCandidateReceiptEvidence(dir)!;
 		const identity = resolveWorktreeIdentity(dir)!;
 		const attempt = { receiptFingerprint: active.fingerprint, validatedDeliveryHead: active.receipt.head };
+		if (!persistVerifiedDeliveryAttempt(dir, attempt).ok) throw new Error("no persistió el intento");
 		const observation = {
 			repository: "owner/repo", prNumber: 7, url: "https://github.com/owner/repo/pull/7", state: "MERGED",
 			headRepository: "owner/repo", headRef: "feature", headRefOid: active.receipt.head, baseRef: "main", mergeCommitOid: "merge-oid",
@@ -514,24 +519,25 @@ describe("retiro con archivo antes de desactivar", () => {
 			change: "mi-cambio", receiptFingerprint: active.fingerprint, attempt,
 			identity: { remoteRepository: "owner/repo", baseRef: "main", headRef: "feature", prNumber: 7 },
 			decision: { ok: true as const, result: "retire" as const, observation },
+			revalidate: async () => ({ ok: true as const, result: "retire" as const, observation }),
 		};
 	}
 
-	test("archiva los bytes exactos y desactiva solo después de metadatos", () => {
+	test("archiva los bytes exactos y desactiva solo después de metadatos", async () => {
 		const dir = repo();
 		writeFileSync(join(dir, "a.ts"), "v2\n");
 		expect(emitir(dir).ok).toBe(true);
 		const input = retirementInput(dir);
 		const before = readFileSync(receiptPath(dir)!);
-		expect(retireCandidateReceipt(dir, input)).toEqual({ ok: true, result: "retired" });
+		expect(await retireCandidateReceipt(dir, input)).toEqual({ ok: true, result: "retired" });
 		const archive = retiredCandidateReceiptPath(dir, input.receiptFingerprint)!;
 		expect(readFileSync(archive)).toEqual(before);
 		expect(existsSync(join(dirname(archive), "retirement.json"))).toBe(true);
 		expect(existsSync(receiptPath(dir)!)).toBe(false);
-		expect(retireCandidateReceipt(dir, input)).toEqual({ ok: true, result: "already-retired" });
+		expect(await retireCandidateReceipt(dir, input)).toEqual({ ok: true, result: "already-retired" });
 	});
 
-	test("un archivo conflictivo conserva el slot activo", () => {
+	test("un archivo conflictivo conserva el slot activo", async () => {
 		const dir = repo();
 		writeFileSync(join(dir, "a.ts"), "v2\n");
 		expect(emitir(dir).ok).toBe(true);
@@ -539,28 +545,69 @@ describe("retiro con archivo antes de desactivar", () => {
 		const archive = retiredCandidateReceiptPath(dir, input.receiptFingerprint)!;
 		mkdirSync(dirname(archive), { recursive: true });
 		writeFileSync(archive, "conflicto");
-		expect(retireCandidateReceipt(dir, input).ok).toBe(false);
+		expect((await retireCandidateReceipt(dir, input)).ok).toBe(false);
 		expect(existsSync(receiptPath(dir)!)).toBe(true);
 	});
 
-	test("un bloqueo de ciclo de vida conserva el recibo activo", () => {
+	test("una carrera al publicar retirement.json no sobreescribe metadatos y conserva el slot activo", async () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		expect(emitir(dir).ok).toBe(true);
+		const input = retirementInput(dir);
+		const result = await retireCandidateReceipt(dir, {
+			...input,
+			persistenceSeam: {
+				beforeImmutableLink: (path) => {
+					if (path.endsWith("retirement.json")) writeFileSync(path, "{\"receiptFingerprint\":\"conflicto\"}\n");
+				},
+			},
+		});
+		expect(result).toEqual({ ok: false, reason: "los metadatos de retiro entran en conflicto" });
+		expect(existsSync(receiptPath(dir)!)).toBe(true);
+	});
+
+	test("sincroniza cada directorio nuevo y su padre antes del unlink terminal", async () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		expect(emitir(dir).ok).toBe(true);
+		const input = retirementInput(dir);
+		const events: string[] = [];
+		const result = await retireCandidateReceipt(dir, {
+			...input,
+			persistenceSeam: {
+				onDirectoryCreated: (path) => events.push(`created:${path}`),
+				onDirectoryFlushed: (path) => events.push(`flushed:${path}`),
+				beforeActiveUnlink: () => events.push("unlink"),
+			},
+		});
+		expect(result).toEqual({ ok: true, result: "retired" });
+		const unlinkAt = events.indexOf("unlink");
+		expect(unlinkAt).toBeGreaterThan(0);
+		for (const event of events.filter((value) => value.startsWith("created:"))) {
+			const directory = event.slice("created:".length);
+			expect(events.indexOf(`flushed:${directory}`)).toBeLessThan(unlinkAt);
+			expect(events.indexOf(`flushed:${dirname(directory)}`)).toBeLessThan(unlinkAt);
+		}
+	});
+
+	test("un bloqueo de ciclo de vida conserva el recibo activo", async () => {
 		const dir = repo();
 		writeFileSync(join(dir, "a.ts"), "v2\n");
 		expect(emitir(dir).ok).toBe(true);
 		const input = retirementInput(dir);
 		mkdirSync(join(resolveWorktreeIdentity(dir)!.gitDir, "ein", "candidate-receipt.lifecycle.lock"), { recursive: true });
-		expect(retireCandidateReceipt(dir, input).ok).toBe(false);
+		expect((await retireCandidateReceipt(dir, input)).ok).toBe(false);
 		expect(existsSync(receiptPath(dir)!)).toBe(true);
 	});
 
-	test("una segunda observación distinta conserva el slot activo", () => {
+	test("una segunda observación distinta conserva el slot activo", async () => {
 		const dir = repo();
 		writeFileSync(join(dir, "a.ts"), "v2\n");
 		expect(emitir(dir).ok).toBe(true);
 		const input = retirementInput(dir);
-		const result = retireCandidateReceipt(dir, {
+		const result = await retireCandidateReceipt(dir, {
 			...input,
-			revalidate: () => ({
+			revalidate: async () => ({
 				ok: true,
 				result: "retire",
 				observation: { ...input.decision.observation, mergeCommitOid: "different-merge" },
@@ -568,6 +615,83 @@ describe("retiro con archivo antes de desactivar", () => {
 		});
 		expect(result.ok).toBe(false);
 		expect(existsSync(receiptPath(dir)!)).toBe(true);
+	});
+
+	test("la segunda decisión es obligatoria", async () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		expect(emitir(dir).ok).toBe(true);
+		const { revalidate: _revalidate, ...input } = retirementInput(dir);
+		const result = await retireCandidateReceipt(dir, input);
+		expect(result.ok).toBe(false);
+		expect(existsSync(receiptPath(dir)!)).toBe(true);
+	});
+});
+
+describe("intento durable de entrega", () => {
+	test("un unlink terminal con limpieza fallida se declara pendiente y el retry puede limpiarlo", () => {
+		const retired = { ok: true as const, result: "retired" as const };
+		expect(reportRetirementCleanup(retired, false)).toMatchObject({
+			ok: true,
+			result: "retired",
+			cleanupPending: true,
+			warning: expect.stringContaining("reintenta"),
+		});
+		expect(reportRetirementCleanup(retired, true)).toEqual(retired);
+	});
+
+	test("se recupera tras reinicio solo para el mismo recibo, repositorio y worktree", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		expect(emitir(dir).ok).toBe(true);
+		const active = readActiveCandidateReceiptEvidence(dir)!;
+		const attempt = { receiptFingerprint: active.fingerprint, validatedDeliveryHead: active.receipt.head };
+		expect(persistVerifiedDeliveryAttempt(dir, attempt).ok).toBe(true);
+		expect(readVerifiedDeliveryAttempt(dir, active.fingerprint)).toEqual(attempt);
+		const replacement = { ...active.receipt, createdAt: "2099-01-01T00:00:00.000Z" };
+		writeFileSync(receiptPath(dir)!, serializeReceipt(replacement));
+		expect(readVerifiedDeliveryAttempt(dir, active.fingerprint)).toBeUndefined();
+	});
+
+	test("un intento corrupto o stale no se recupera", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		expect(emitir(dir).ok).toBe(true);
+		const active = readActiveCandidateReceiptEvidence(dir)!;
+		writeFileSync(verifiedDeliveryAttemptPath(dir)!, "{");
+		expect(readVerifiedDeliveryAttempt(dir, active.fingerprint)).toBeUndefined();
+		writeFileSync(verifiedDeliveryAttemptPath(dir)!, JSON.stringify({ repositoryId: "stale", worktreeId: "stale", receiptFingerprint: active.fingerprint, validatedDeliveryHead: active.receipt.head }));
+		expect(readVerifiedDeliveryAttempt(dir, active.fingerprint)).toBeUndefined();
+	});
+
+	test("emitir un reemplazo borra el intento durable anterior", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "a.ts"), "v2\n");
+		expect(emitir(dir).ok).toBe(true);
+		const active = readActiveCandidateReceiptEvidence(dir)!;
+		expect(persistVerifiedDeliveryAttempt(dir, { receiptFingerprint: active.fingerprint, validatedDeliveryHead: active.receipt.head }).ok).toBe(true);
+		writeFileSync(join(dir, "a.ts"), "v3\n");
+		expect(emitir(dir).ok).toBe(true);
+		expect(existsSync(verifiedDeliveryAttemptPath(dir)!)).toBe(false);
+	});
+});
+
+describe("lock de ciclo de vida", () => {
+	test("recupera un lock huérfano identificado y conserva uno de otro owner vivo", () => {
+		const orphaned = repo();
+		writeFileSync(join(orphaned, "a.ts"), "v2\n");
+		const orphanLock = join(resolveWorktreeIdentity(orphaned)!.gitDir, "ein", "candidate-receipt.lifecycle.lock");
+		mkdirSync(orphanLock, { recursive: true });
+		writeFileSync(join(orphanLock, "owner.json"), JSON.stringify({ pid: -1, token: "orphaned-owner-token" }));
+		expect(emitir(orphaned).ok).toBe(true);
+
+		const occupied = repo();
+		writeFileSync(join(occupied, "a.ts"), "v2\n");
+		const occupiedLock = join(resolveWorktreeIdentity(occupied)!.gitDir, "ein", "candidate-receipt.lifecycle.lock");
+		mkdirSync(occupiedLock, { recursive: true });
+		writeFileSync(join(occupiedLock, "owner.json"), JSON.stringify({ pid: process.pid, token: "another-live-owner" }));
+		expect(emitir(occupied).ok).toBe(false);
+		expect(readFileSync(join(occupiedLock, "owner.json"), "utf8")).toContain("another-live-owner");
 	});
 });
 

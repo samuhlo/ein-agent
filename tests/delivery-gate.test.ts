@@ -40,6 +40,7 @@ const {
 	receiptPath,
 	retiredCandidateReceiptPath,
 	retireCandidateReceipt,
+	persistVerifiedDeliveryAttempt,
 } = await import("../ein-pi/agent/lib/candidate-receipt");
 const { evaluateCandidateReceiptRetirement } = await import("../ein-pi/agent/lib/delivery-receipt");
 const { messageRequestsDelivery } = await import("../ein-pi/agent/lib/git-delivery");
@@ -455,7 +456,7 @@ describe("decisión de retiro: solo el merge ligado es terminal", () => {
 });
 
 describe("solape mecánico tras retirar un recibo", () => {
-	test("el retiro solo elimina el gate viejo y no autoriza una entrega posterior", () => {
+	test("el retiro solo elimina el gate viejo y no autoriza una entrega posterior", async () => {
 		const dir = repoConRecibo();
 		const active = readActiveCandidateReceiptEvidence(dir)!;
 		const attempt = {
@@ -473,7 +474,9 @@ describe("solape mecánico tras retirar un recibo", () => {
 			attempt,
 			identity,
 			decision: { ok: true as const, result: "retire" as const, observation },
+			revalidate: async () => ({ ok: true as const, result: "retire" as const, observation }),
 		};
+		expect(persistVerifiedDeliveryAttempt(dir, attempt).ok).toBe(true);
 
 		writeFileSync(join(dir, "a.ts"), "contenido posterior divergente\n");
 		git(dir, "add", "a.ts");
@@ -483,11 +486,11 @@ describe("solape mecánico tras retirar un recibo", () => {
 		const archive = retiredCandidateReceiptPath(dir, active.fingerprint)!;
 		mkdirSync(join(archive, ".."), { recursive: true });
 		writeFileSync(archive, "conflicto");
-		expect(retireCandidateReceipt(dir, retirement).ok).toBe(false);
+		expect((await retireCandidateReceipt(dir, retirement)).ok).toBe(false);
 		expect(evaluatePublish(dir, "pre-push", undefined).verdict.kind).toBe("blocked");
 
 		writeFileSync(archive, active.bytes);
-		expect(retireCandidateReceipt(dir, retirement)).toEqual({ ok: true, result: "retired" });
+		expect(await retireCandidateReceipt(dir, retirement)).toEqual({ ok: true, result: "retired" });
 		expect(receiptPath(dir)).not.toBeNull();
 		expect(readCandidateReceipt(dir)).toBeNull();
 		expect(evaluatePublish(dir, "pre-push", undefined).verdict.kind).toBe("pass");
@@ -499,11 +502,11 @@ describe("solape mecánico tras retirar un recibo", () => {
 		expect(emitCandidateReceipt(dir, { change: "mi-cambio", paths: ["a.ts"], commands: ["bun test"] }).ok).toBe(true);
 		const replacement = readActiveCandidateReceiptEvidence(dir)!;
 		expect(replacement.fingerprint).not.toBe(active.fingerprint);
-		expect(retireCandidateReceipt(dir, {
+		expect((await retireCandidateReceipt(dir, {
 			...retirement,
 			receiptFingerprint: replacement.fingerprint,
 			decision: { ok: true, result: "retire", observation },
-		}).ok).toBe(false);
+		})).ok).toBe(false);
 		expect(readCandidateReceipt(dir)?.change).toBe("mi-cambio");
 	});
 });
