@@ -8,23 +8,25 @@
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readSddRealCost } from "../ein-pi/agent/lib/sdd-router";
+import {
+	beginDelegationObservation,
+	changedCandidates,
+	createReceipt,
+	getOrCreateFlow,
+	mintRunIdentity,
+	normalizeMetrics,
+	observeDelegationResult,
+	persistReceipt,
+	readSddCostLedger,
+	readStableSource,
+	snapshotMetadataCandidates,
+} from "../ein-pi/agent/lib/sdd-cost-provenance";
 import { lintChange, lintPhaseArtifact } from "../ein-pi/agent/lib/sdd-guardrails";
 
 let DIR: string;
-
-function meta(name: string, body: Record<string, unknown>): void {
-	const dir = join(DIR, ".pi-subagents", "artifacts");
-	mkdirSync(dir, { recursive: true });
-	writeFileSync(join(dir, name), JSON.stringify(body));
-}
-
-function runMeta(agent: string, task: string, input: number, output: number, cost: number, durationMs = 60000): Record<string, unknown> {
-	return { agent, task, usage: { input, output, cost, turns: 5 }, durationMs };
-}
 
 beforeEach(() => {
 	DIR = mkdtempSync(join(tmpdir(), "sdd-real-cost-"));
@@ -33,57 +35,132 @@ afterEach(() => {
 	rmSync(DIR, { recursive: true, force: true });
 });
 
-describe("readSddRealCost (P5)", () => {
-	test("sin .pi-subagents/artifacts → 0 runs, sin problems", () => {
-		const c = readSddRealCost(DIR, "feat-x");
-		expect(c.runs).toBe(0);
-		expect(c.problems).toEqual([]);
+function phase(change: string, name = "map"): string {
+	const directory = join(DIR, "openspec", "changes", change);
+	mkdirSync(directory, { recursive: true });
+	const path = join(directory, `${name}.md`);
+	writeFileSync(path, `${name}: canonical\n`);
+	return path;
+}
+
+function receipt(change = "foo") {
+	const phasePath = phase(change);
+	const flow = getOrCreateFlow(DIR, change, join(DIR, "openspec", "changes", change), new Date("2026-01-01T00:00:00.000Z"));
+	const producerPath = join(DIR, "producer_meta.json");
+	writeFileSync(producerPath, JSON.stringify({ usage: { input: 0, output: 2, cost: 0.25 }, durationMs: 4 }));
+	const producer = readStableSource(DIR, producerPath)!;
+	const phaseArtifact = readStableSource(DIR, phasePath)!;
+	return createReceipt({
+		identity: mintRunIdentity(DIR, flow, "map"),
+		timestamps: { startedAt: "2026-01-01T00:00:00.000Z", endedAt: "2026-01-01T00:00:01.000Z", observedAt: "2026-01-01T00:00:02.000Z" },
+		producerArtifact: { ...producer, agent: "sdd-map" },
+		phaseArtifact,
+		metrics: normalizeMetrics(JSON.parse(readFileSync(producerPath, "utf8")), producer.sha256),
+		problems: [],
+	});
+}
+
+describe("local SDD cost provenance", () => {
+	test("candidate snapshots bind changed bytes, never exact-name collisions or later prose", () => {
+		phase("foo");
+		phase("foo-bar");
+		const artifacts = join(DIR, ".pi-subagents", "artifacts");
+		mkdirSync(artifacts, { recursive: true });
+		writeFileSync(join(artifacts, "one_meta.json"), JSON.stringify({ task: "foo" }));
+		const before = snapshotMetadataCandidates(DIR);
+		writeFileSync(join(artifacts, "one_meta.json"), JSON.stringify({ task: "foo-bar mentions foo later" }));
+		const candidates = changedCandidates(before, snapshotMetadataCandidates(DIR));
+		expect(candidates).toHaveLength(1);
+		expect(candidates[0]?.relativePath).toContain("one_meta.json");
+		expect(getOrCreateFlow(DIR, "foo", join(DIR, "openspec", "changes", "foo"))).not.toEqual(
+			getOrCreateFlow(DIR, "foo-bar", join(DIR, "openspec", "changes", "foo-bar")),
+		);
 	});
 
-	test("suma input/output/cost/duración de los runs del cambio", () => {
-		meta("a_sdd-map_0_meta.json", runMeta("sdd-map", "Map feat-x change", 100000, 15000, 0.2));
-		meta("b_sdd-apply_0_meta.json", runMeta("sdd-apply", "Apply slice 1 of feat-x", 107000, 33000, 0.33, 1137625));
-		const c = readSddRealCost(DIR, "feat-x");
-		expect(c.runs).toBe(2);
-		expect(c.inputTokens).toBe(207000);
-		expect(c.outputTokens).toBe(48000);
-		expect(c.costUsd).toBeCloseTo(0.53, 5);
-		expect(c.durationMs).toBe(1197625);
+	test("persists immutable receipt bytes with flow/run/attempt and timestamps", () => {
+		const first = receipt();
+		persistReceipt(DIR, first);
+		expect(mintRunIdentity(DIR, getOrCreateFlow(DIR, "foo", join(DIR, "openspec", "changes", "foo")), "map")).toMatchObject({ attempt: 2, retryOrdinal: 1 });
+		expect(() => persistReceipt(DIR, { ...first, problems: ["mutated"] })).toThrow("immutable receipt collision");
 	});
 
-	test("excluye runs de OTROS cambios (atribución por task)", () => {
-		meta("a_sdd-map_0_meta.json", runMeta("sdd-map", "Map feat-x change", 1000, 100, 0.01));
-		meta("b_sdd-map_0_meta.json", runMeta("sdd-map", "Map another-change", 9999, 999, 0.99));
-		const c = readSddRealCost(DIR, "feat-x");
-		expect(c.runs).toBe(1);
-		expect(c.inputTokens).toBe(1000);
+	test("normalizes each metric independently and preserves explicit zero", () => {
+		const metrics = normalizeMetrics({ usage: { input: 0, output: -1, cost: 0.25 }, durationMs: Number.NaN }, "digest");
+		expect(metrics.inputTokens).toEqual({ value: 0, provenance: "reported", source: { artifactSha256: "digest", jsonPointer: "/usage/input" } });
+		expect(metrics.outputTokens.provenance).toBe("unavailable");
+		expect(metrics.cacheReadTokens.provenance).toBe("unavailable");
+		expect(metrics.cacheWriteTokens.provenance).toBe("unavailable");
+		expect(metrics.providerCostUsd.provenance).toBe("unavailable");
+		expect(metrics.estimatedCostUsd.provenance).toBe("unavailable");
+		expect(metrics.durationMs.provenance).toBe("unavailable");
 	});
 
-	test("agrupa por agente ordenado por tokens desc", () => {
-		meta("a_sdd-map_0_meta.json", runMeta("sdd-map", "feat-x", 100, 10, 0));
-		meta("b_sdd-apply_0_meta.json", runMeta("sdd-apply", "feat-x", 5000, 500, 0));
-		meta("c_sdd-apply_1_meta.json", runMeta("sdd-apply", "feat-x retry", 2000, 200, 0));
-		const c = readSddRealCost(DIR, "feat-x");
-		expect(c.byAgent[0]).toMatchObject({ agent: "sdd-apply", runs: 2, tokens: 7700 });
-		expect(c.byAgent[1]).toMatchObject({ agent: "sdd-map", runs: 1, tokens: 110 });
+	test("unqualified usage.cost is neither provider billing nor an estimate", () => {
+		const metrics = normalizeMetrics({ usage: { cost: 0.25 } }, "digest");
+		expect(metrics.providerCostUsd.value).toBeNull();
+		expect(metrics.estimatedCostUsd.value).toBeNull();
 	});
 
-	test("meta ilegible → problem, no explota ni contamina la suma", () => {
-		meta("a_sdd-map_0_meta.json", runMeta("sdd-map", "feat-x", 1000, 100, 0.01));
-		const dir = join(DIR, ".pi-subagents", "artifacts");
-		writeFileSync(join(dir, "broken_meta.json"), "{not json");
-		const c = readSddRealCost(DIR, "feat-x");
-		expect(c.runs).toBe(1);
-		expect(c.problems.length).toBe(1);
-		expect(c.problems[0]).toContain("broken_meta.json");
+	test("fails closed with bounded evidence when either direct-delegation candidate is ambiguous", () => {
+		phase("foo", "map");
+		const observation = beginDelegationObservation(DIR, "map");
+		writeFileSync(join(DIR, "openspec", "changes", "foo", "map.md"), "map: rewritten\n");
+		phase("bar", "map");
+		const artifacts = join(DIR, ".pi-subagents", "artifacts");
+		mkdirSync(artifacts, { recursive: true });
+		writeFileSync(join(artifacts, "one_meta.json"), "{}");
+		writeFileSync(join(artifacts, "two_meta.json"), "{}");
+		const result = observeDelegationResult(DIR, observation);
+		expect(result.receipt).toBeNull();
+		expect(result.problem).toBe("change-ambiguous");
+		expect(JSON.parse(readFileSync(join(DIR, ".pi/ein/sdd-cost-ledger/v1/problems.json"), "utf8"))).toEqual(["change-ambiguous"]);
 	});
 
-	test("ignora ficheros que no son *_meta.json", () => {
-		meta("a_sdd-map_0_meta.json", runMeta("sdd-map", "feat-x", 1000, 100, 0));
-		const dir = join(DIR, ".pi-subagents", "artifacts");
-		writeFileSync(join(dir, "a_sdd-map_0_output.md"), "feat-x whatever");
-		const c = readSddRealCost(DIR, "feat-x");
-		expect(c.runs).toBe(1);
+	test("reads validated sidecars once with exact sorted aggregate membership and unavailable incomplete totals", () => {
+		const first = receipt();
+		persistReceipt(DIR, first);
+		const second = createReceipt({
+			...receipt(),
+			identity: { ...mintRunIdentity(DIR, getOrCreateFlow(DIR, "foo", join(DIR, "openspec", "changes", "foo")), "map"), runId: "aaa" },
+			metrics: { ...first.metrics, cacheReadTokens: { value: 3, provenance: "reported", source: { artifactSha256: "digest", jsonPointer: "/cache" } } },
+		});
+		persistReceipt(DIR, second);
+		const runs = join(DIR, ".pi", "ein", "sdd-cost-ledger", "v1", "runs", first.identity.flowId);
+		writeFileSync(join(runs, "duplicate.json"), JSON.stringify(first));
+		const artifacts = join(DIR, ".pi-subagents", "artifacts");
+		mkdirSync(artifacts, { recursive: true });
+		writeFileSync(join(artifacts, "legacy_meta.json"), JSON.stringify({ task: "foo mentions foo-bar", usage: { cost: 9 } }));
+
+		const ledger = readSddCostLedger(DIR, "foo");
+		expect(ledger.runs).toBe(2);
+		expect(ledger.memberRunIds).toEqual(["aaa", first.identity.runId].sort());
+		expect(ledger.changeAggregate?.memberRunIds).toEqual(ledger.memberRunIds);
+		expect(ledger.byPhase[0]?.memberRunIds).toEqual(ledger.memberRunIds);
+		expect(ledger.byAttempt.map((entry) => entry.memberRunIds)).toEqual([[first.identity.runId], ["aaa"]]);
+		expect(ledger.changeAggregate?.metrics.cacheReadTokens).toMatchObject({ value: null, provenance: "unavailable" });
+		expect(ledger.changeAggregate?.metrics.providerCostUsd).toMatchObject({ value: null, provenance: "unavailable" });
+		expect(ledger.costUsd).toBeNull();
+		expect(ledger.problems.some((problem) => problem.code === "legacy-metadata-excluded")).toBe(true);
+	});
+
+	test("binds one exact changed pair immutably and assigns retries distinct attempts", () => {
+		const artifacts = join(DIR, ".pi-subagents", "artifacts");
+		mkdirSync(artifacts, { recursive: true });
+		let ordinal = 0;
+		const run = () => {
+			const observation = beginDelegationObservation(DIR, "map");
+			ordinal += 1;
+			const path = phase("foo", "map");
+			writeFileSync(path, `map: canonical ${ordinal}\n`);
+			writeFileSync(join(artifacts, "one_meta.json"), JSON.stringify({ usage: { input: ordinal }, durationMs: ordinal + 1 }));
+			return observeDelegationResult(DIR, observation).receipt!;
+		};
+		const first = run();
+		const second = run();
+		expect(first.identity).toMatchObject({ changeId: "foo", phase: "map", attempt: 1, retryOrdinal: 0 });
+		expect(second.identity).toMatchObject({ changeId: "foo", phase: "map", attempt: 2, retryOrdinal: 1 });
+		expect(first.identity.runId).not.toBe(second.identity.runId);
+		expect(first.phaseArtifact.sha256).not.toBe(second.phaseArtifact.sha256);
 	});
 });
 

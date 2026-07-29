@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listActiveChanges, resolveSddStatus, type SddChangeStatus } from "../ein-pi/agent/lib/sdd-router";
+import { listActiveChanges, readSddRealCost, resolveSddStatus, type SddChangeStatus } from "../ein-pi/agent/lib/sdd-router";
 import { t, tf } from "../ein-pi/agent/lib/i18n/strings";
 
 let DIR: string;
@@ -76,6 +76,16 @@ function formatSddStatus(cwd: string, change?: string): string {
 }
 
 describe("sdd-status output format", () => {
+	test("compatibility reader exposes only the local ledger and nullable provider cost", () => {
+		const artifacts = join(DIR, ".pi-subagents", "artifacts");
+		mkdirSync(artifacts, { recursive: true });
+		writeFileSync(join(artifacts, "legacy_meta.json"), JSON.stringify({ task: "feat-x", usage: { input: 99, cost: 5 } }));
+		const ledger = readSddRealCost(DIR, "feat-x");
+		expect(ledger.runs).toBe(0);
+		expect(ledger.costUsd).toBeNull();
+		expect(ledger.problems.some((problem) => problem.code === "legacy-metadata-excluded")).toBe(true);
+	});
+
 	test("sin cambios → mensaje de ninguno", () => {
 		const out = formatSddStatus(DIR);
 		expect(out).toContain(t("sdd-status.none", "No hay cambios SDD activos en openspec/changes/."));

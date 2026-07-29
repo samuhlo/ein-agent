@@ -23,6 +23,7 @@ const read = (p: string) =>
 
 const orch = read("assets/orchestrator.md");
 const sddMap = read("agents/sdd-map.md");
+const einAi = readFileSync(join(AGENT_DIR, "extensions/ein-ai.ts"), "utf8");
 
 const PHASE_AGENTS = [
   "sdd-scope.md",
@@ -160,7 +161,18 @@ describe("P4: runtime y tamaño del apply estricto", () => {
   });
 });
 
-describe("P5: fricción de runtime conocida", () => {
+describe("P5: direct delegation provenance hook", () => {
+  test("observa localmente sin ampliar el input de subagent y antes de reconciliar", () => {
+    expect(einAi).toContain("beginDelegationObservation(cwd, phase)");
+    expect(einAi).toContain("observeDelegationResult(ctx.cwd, snapshot.provenance)");
+    expect(einAi.indexOf("observeDelegationResult(ctx.cwd, snapshot.provenance)")).toBeLessThan(
+      einAi.indexOf("reconcilePhaseFailure(ctx.cwd, snapshot.phase, snapshot.before)"),
+    );
+    expect(einAi).not.toMatch(/(?:event\.input|input)\.(?:output|outputMode|flowId|runId|changeId)\s*=/);
+  });
+});
+
+describe("P6: fricción de runtime conocida", () => {
   test("orchestrator advierte del shell compuesto en ctx_batch_execute (bash -c)", () => {
     expect(orch).toMatch(/ctx_batch_execute/);
     expect(orch).toMatch(/bash -c/);
