@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.22.1 · 2026-07-21](CHANGELOG.md#0221---2026-07-21).
+**Última release publicada según el registro canónico local:** [0.23.0 · 2026-07-29](CHANGELOG.md#0230---2026-07-29).
 
-- **Contrato con Pi explícito:** lo que Ein necesita de Pi está declarado y se contrasta contra la instalación real.
-- **La deriva se ve antes de doler:** si Ein usa algo sin declararlo falla en CI; si Pi deja de ofrecerlo lo dice `ein doctor`.
-- **Una sola fuente para los builtins:** estaban replicados en tres sitios, que es como se abren los agujeros.
+- **Candidato ligado a la entrega:** los bytes y el árbol exactos quedan fijados y se comprueban al entregar el commit.
+- **Reintento tras timeout sin adivinar:** la recuperación reconcilia el estado real del repositorio antes de un único reintento con el delta restante exacto.
+- **Retiro de receipts con evidencia:** es explícito y solo ocurre tras un PR fusionado en el mismo repositorio; la evidencia se conserva.
 
 ---
 

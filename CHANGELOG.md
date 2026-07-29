@@ -5,6 +5,29 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.23.0] - 2026-07-29
+
+### Added
+
+- **Entrega ligada al candidato verificado** (`57c78cb`). Los bytes y el árbol
+  exactos que verificó el candidato quedan ligados al repositorio, worktree,
+  HEAD y rutas declaradas, y se comprueban antes de entregar el commit.
+
+### Fixed
+
+- **Recuperación de timeout exacta** (`81a1ddd`). Antes de reintentar, la
+  entrega reconcilia el estado real del repositorio y ejecuta una sola vez el
+  delta restante exacto.
+- **Retiro de receipts tras merge** (`1f89b0f`). El retiro pasa a ser explícito
+  y solo sucede después de confirmar un PR fusionado en el mismo repositorio,
+  sin borrar su evidencia.
+- **Retiro durable de receipts** (`961aefa`). La revalidación, observación del
+  remoto, locks y persistencia endurecen ese ciclo de vida sin aceptar estados
+  dudosos.
+- **Evidencia OpenSpec separada** (`874cab4`). El hardening conserva su
+  evidencia en su propio cambio para que la trazabilidad del retiro siga siendo
+  revisable.
+
 ## [0.22.1] - 2026-07-21
 
 ### Added
