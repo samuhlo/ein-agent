@@ -393,22 +393,42 @@ function fileMtimeMs(path: string): number | null {
 	}
 }
 
-// Obsolescencia determinista por mtime: una corrección post-verify pasa por
-// apply (que reescribe apply-progress.md), dejando el apply MÁS NUEVO que el
-// verify-report → la evidencia anterior ya no describe el árbol actual. Comparación
-// estricta (`>`): escrituras en el mismo ms (o apply anterior a verify, el orden
-// normal) NO son obsoletas. Fuente de verdad conservadora: ante empate, fresco.
+// mtime más nuevo entre los ficheros ENTREGADOS (producción + tests) que
+// tasks.md declara. `null` si no se pueden enumerar (sin tasks.md, o rutas
+// ilustrativas sin fichero real): el llamador cae al proxy conservador.
+function newestDeliveredMtime(cwd: string, changePath: string): number | null {
+	const tasks = readText(phaseArtifactPath(changePath, "tasks"));
+	if (tasks === null) return null;
+	let newest: number | null = null;
+	for (const rel of extractDeliveredFiles(tasks)) {
+		const m = fileMtimeMs(join(cwd, rel));
+		if (m !== null && (newest === null || m > newest)) newest = m;
+	}
+	return newest;
+}
+
+// Obsolescencia determinista por mtime. P2-F: la evidencia de verify se invalida
+// por cambios en la SUPERFICIE ENTREGADA (producción + tests), no por que el
+// apply reescribiera apply-progress.md. Una normalización post-verify (cabecera
+// de un spec canónico bajo openspec/, docs) bombea apply-progress.md pero no toca
+// código ni tests → no debe forzar un re-verify caro. Fuente fina: el mtime de
+// los ficheros que tasks.md declara. Si no se pueden enumerar, se cae al proxy
+// conservador por apply-progress.md (comportamiento previo). Comparación estricta
+// (`>`): ante empate, fresco.
 function computeStaleness(
+	cwd: string,
 	changePath: string,
 	present: Record<SddPhase, boolean>,
 ): { verifyStale: boolean; summaryStale: boolean } {
 	const applyM = present.apply ? fileMtimeMs(phaseArtifactPath(changePath, "apply")) : null;
 	const verifyM = present.verify ? fileMtimeMs(phaseArtifactPath(changePath, "verify")) : null;
 	const summaryM = present.close ? fileMtimeMs(phaseArtifactPath(changePath, "close")) : null;
-	const verifyStale = verifyM !== null && applyM !== null && applyM > verifyM;
+	const deliveredM = newestDeliveredMtime(cwd, changePath);
+	const newerThan = (ref: number): boolean =>
+		deliveredM !== null ? deliveredM > ref : applyM !== null && applyM > ref;
+	const verifyStale = verifyM !== null && newerThan(verifyM);
 	const summaryStale =
-		summaryM !== null &&
-		((applyM !== null && applyM > summaryM) || (verifyM !== null && verifyM > summaryM));
+		summaryM !== null && (newerThan(summaryM) || (verifyM !== null && verifyM > summaryM));
 	return { verifyStale, summaryStale };
 }
 
@@ -496,7 +516,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	const verify = readVerifyOutcome(changePath);
 	const tasks = readTasksStatus(changePath);
 	const budget = readBudgetStatus(changePath);
-	const { verifyStale, summaryStale } = computeStaleness(changePath, present);
+	const { verifyStale, summaryStale } = computeStaleness(cwd, changePath, present);
 	const specState = readOpenSpecState(cwd, target);
 
 	// Fuga de artefacto de fase: una fase presente cuyo predecesor FALTA significa
@@ -646,15 +666,25 @@ export function isTestPath(path: string): boolean {
 	return /\.(?:test|spec)\.|(?:^|\/)(?:tests?|__tests__|e2e)\//.test(path);
 }
 
+// Proceso SDD y árbol openspec/.sdd (spec-sync / tool de deltas): ni código ni
+// tests entregados. El apply no los edita a mano.
+function isProcessOrSpecPath(path: string): boolean {
+	if (/(?:^|\/)(?:openspec|\.sdd)\//.test(path)) return true;
+	return SDD_ARTIFACT_BASENAMES.has(path.split("/").pop() ?? path);
+}
+
 export function isProductionFile(path: string): boolean {
-	if (isTestPath(path)) return false;
-	// openspec/ y .sdd/ no se editan a mano en el apply (sync + tool de deltas).
-	if (/(?:^|\/)(?:openspec|\.sdd)\//.test(path)) return false;
-	return !SDD_ARTIFACT_BASENAMES.has(path.split("/").pop() ?? path);
+	return !isTestPath(path) && !isProcessOrSpecPath(path);
 }
 
 export function extractProductionFiles(body: string): string[] {
 	return [...new Set([...body.matchAll(SOURCE_FILE_RE)].map((match) => match[0]).filter(isProductionFile))];
+}
+
+// Superficie ENTREGADA: producción + tests (lo que verify cubre). A diferencia
+// de extractProductionFiles, conserva los tests; excluye proceso SDD y openspec/.
+export function extractDeliveredFiles(body: string): string[] {
+	return [...new Set([...body.matchAll(SOURCE_FILE_RE)].map((match) => match[0]).filter((path) => !isProcessOrSpecPath(path)))];
 }
 
 // Los problemas de PROCEDENCIA del ledger (attribution de recibos:
