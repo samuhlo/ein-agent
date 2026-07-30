@@ -5,6 +5,20 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.24.2] - 2026-07-30
+
+### Fixed
+
+- **Arranque de `ein-scout` sin extensiones** (`47712f8`, PR #58). El frontmatter
+  declaraba `extensions: []`; pi-subagents parsea ese campo con
+  `parseFrontmatterList` (no JSON), que trata `[]` como token literal y lo
+  convierte en `--extension []` → el launcher intentaba cargar una extensión en
+  `<cwd>/[]` y tumbaba el arranque de cualquier subagente. Ahora el campo va
+  definido pero vacío (`extensions:`), que dispara `--no-extensions` sin token
+  basura. Un test reproduce los dos parsers de frontmatter de pi-subagents sobre
+  los agentes reales, y el orquestador acota sus lecturas inline y trata un scout
+  caído como incidente en vez de tragar la investigación.
+
 ## [0.24.1] - 2026-07-30
 
 ### Fixed
