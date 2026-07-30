@@ -8,8 +8,9 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listActiveChanges, readSddRealCost, resolveSddStatus, type SddChangeStatus } from "../ein-pi/agent/lib/sdd-router";
+import { listActiveChanges, readSddRealCost, resolveSddStatus, sddStatusBlockers, type SddChangeStatus } from "../ein-pi/agent/lib/sdd-router";
 import { t, tf } from "../ein-pi/agent/lib/i18n/strings";
+import { readFileSync } from "node:fs";
 
 let DIR: string;
 const I18N_KEY = Symbol.for("rpiv-i18n");
@@ -64,12 +65,11 @@ function formatSddStatus(cwd: string, change?: string): string {
 		if (s.tasks.nextPending) lines.push(`${t("sdd-status.next-pending", "next pending")}: ${s.tasks.nextPending.id} ${s.tasks.nextPending.title}`);
 		if (s.tasks.blockedBy) lines.push(`${t("sdd-status.blocked-by", "blocked_by")}: ${s.tasks.blockedBy}`);
 		lines.push(`${t("sdd-status.budget", "budget")}: ${compactBudget(s.budget)}`);
-		const problems = [...s.tasks.problems, ...s.budget.problems];
-		if (s.blocked.length || problems.length) {
+		const blockers = sddStatusBlockers({ blocked: s.blocked, taskProblems: s.tasks.problems, budgetProblems: s.budget.problems });
+		if (blockers.length) {
 			lines.push("");
 			lines.push(`■ ${t("sdd-status.blocked", "blockers")}:`);
-			for (const b of s.blocked) lines.push(`- ${b}`);
-			for (const p of problems) lines.push(`- ${p}`);
+			for (const b of blockers) lines.push(`- ${b}`);
 		}
 	}
 	return lines.join("\n");
@@ -182,6 +182,26 @@ describe("sdd-status output format", () => {
 		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [x] 1 hecho\n");
 		const out = formatSddStatus(DIR);
 		expect(out).not.toContain("next pending:");
+	});
+});
+
+describe("sddStatusBlockers separa bloqueos de procedencia (P1-D)", () => {
+	test("solo incluye bloqueos reales; la procedencia del ledger no entra por diseño", () => {
+		const out = sddStatusBlockers({
+			blocked: ["verify-report indica fallo: remediar antes de cerrar."],
+			taskProblems: ["1.2 bloqueada"],
+			budgetProblems: [],
+		});
+		expect(out).toEqual(["verify-report indica fallo: remediar antes de cerrar.", "1.2 bloqueada"]);
+		// change-unresolved / legacy-metadata-excluded no son parámetros: no pueden colarse aquí.
+	});
+
+	test("el formatter real no vuelca la procedencia del ledger en los bloqueos", () => {
+		const einAi = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
+		// Usa la fuente única de bloqueos...
+		expect(einAi).toContain("sddStatusBlockers(");
+		// ...y ya NO mezcla realCost.problems en la sección de bloqueos.
+		expect(einAi).not.toContain("...(realCost?.problems.map");
 	});
 });
 

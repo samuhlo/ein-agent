@@ -85,7 +85,7 @@ import {
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
-import { aggregateSddBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
 import { closeChange } from "../lib/sdd-close.ts";
 import { approveCandidate, type MemoryCandidate, type MemoryReceipt } from "../lib/memory-contract.ts";
 import {
@@ -491,11 +491,13 @@ function formatSddStatus(
 	lines.push(notebook);
 	if (realCost) lines.push(...compactRealCost(realCost));
 
-	const problems = [...status.tasks.problems, ...status.budget.problems, ...(realCost?.problems.map((problem) => problem.message) ?? [])];
-	if (status.blocked.length || problems.length) {
+	// Los problemas de procedencia del ledger (realCost.problems) NO son bloqueos:
+	// ya salen en la línea `ledger provenance:` (compactRealCost). Aquí solo van
+	// bloqueos reales, vía la fuente única sddStatusBlockers.
+	const blockers = sddStatusBlockers({ blocked: status.blocked, taskProblems: status.tasks.problems, budgetProblems: status.budget.problems });
+	if (blockers.length) {
 		lines.push("", `■ ${t("sdd-status.blocked", "blockers")}:`);
-		for (const b of status.blocked) lines.push(`- ${b}`);
-		for (const p of problems) lines.push(`- ${p}`);
+		for (const b of blockers) lines.push(`- ${b}`);
 	}
 	return lines.join("\n");
 }
