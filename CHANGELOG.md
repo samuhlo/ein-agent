@@ -5,6 +5,17 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.24.1] - 2026-07-30
+
+### Fixed
+
+- **Arranque de subagentes con `ein-scout` instalado** (`c2f9775`, PR #55). El
+  frontmatter de `ein-scout` declaraba `turnBudget`/`toolBudget` como objeto con
+  claves sin comillas; pi-subagents los pasa por `JSON.parse` y el error tumbaba
+  el arranque de cualquier subagente (p.ej. `sdd-scope`), porque al lanzar uno se
+  enumera el registro entero de agentes. Ahora son JSON válido; un nuevo test
+  valida el frontmatter inline real de todos los agentes.
+
 ## [0.24.0] - 2026-07-30
 
 ### Added

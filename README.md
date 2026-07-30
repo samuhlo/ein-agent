@@ -24,7 +24,7 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.24.0 · 2026-07-30](CHANGELOG.md#0240---2026-07-30).
+**Última release publicada según el registro canónico local:** [0.24.1 · 2026-07-30](CHANGELOG.md#0241---2026-07-30).
 
 - **Explora antes de cambiar:** `ein-scout` investiga el repositorio en modo lectura, sin escribir ni entrar en SDD.
 - **Menos contexto para coordinar:** siete fases con envelopes compactos y routing por scout; el detalle canónico sigue en disco.
