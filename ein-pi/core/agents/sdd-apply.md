@@ -107,4 +107,15 @@ Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit
 
 **Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. This is now enforced — the intercom bridge is disabled for you (`intercomBridge.mode: "off"`), so `contact_supervisor`/`intercom` are not in your toolset. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause, and what the parent must fix or provide. Trust your closed task and the baseline the parent already resolved: do NOT run `git fsck`/`reflog`/`stash` audits or ask whether the working tree is the right base.
 
-Return the standard phase envelope with status, executive_summary, artifacts, next_recommended, risks, and skill_resolution.
+## Return contract (compact envelope)
+
+Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every group/phase is exactly what fills it. Keep it SMALL. Return ONLY:
+
+- `status` (+ `blocked_by` when blocked);
+- `executive_summary`: **≤ 3 lines / ≤ 60 words** — what you implemented and whether the gate (type-check + focused tests) is green, NOT the evidence;
+- `artifacts`: the path(s) you wrote;
+- `next_recommended`;
+- `risks`: **≤ 3 short bullets**;
+- `skill_resolution`.
+
+For a **chain apply** the detail already lives in `apply-progress.md` on disk — the parent reads it from there and never recovers it from your envelope; NEVER paste the artifact content, full file lists, per-test tables, or command output into the envelope. For an **ad-hoc apply** (no change dir) the report IS the inline envelope, so keep IT concise the same way: summary + what changed + the tests you ran with their result, never pasted command output. When an explicit `acceptance: verified` requires the fenced `acceptance-report` block, keep its evidence concise (commands + one-line real results); the runner re-executes the commands mechanically, so pasted output adds nothing. A verbose envelope is a defect, not thoroughness.

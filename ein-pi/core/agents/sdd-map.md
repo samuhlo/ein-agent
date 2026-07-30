@@ -31,7 +31,7 @@ You write your artifact YOURSELF, directly at the canonical repo path: `openspec
 
 - Write it with the `write` tool at that exact relative path — never under any artifacts/outputs/sandbox directory, and never a path handed to you by a runtime note; the canonical repo path above always wins.
 - Include at the top the required signals: `status`, `scope_status`, `change`, `phase`, plus the Ledger Contract fields.
-- ALSO return the same content (or a faithful summary) as your output, so the parent's envelope stays informative.
+- Do NOT return the artifact content as your output — write it to disk and keep the envelope compact (see **Return contract** below). The parent reads `map.md` from disk, not from your envelope.
 - If the write fails, return `status: blocked` with the error — do not silently fall back to output-only.
 
 ## SCOPE PACKET Contract
@@ -86,6 +86,19 @@ THEN:
   - Stop exploration
   - Return artifact with partial reads + budget_exceeded: true
   - DO NOT continue reading more files
+
+## Return contract (compact envelope)
+
+Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every phase is exactly what fills it. Keep it SMALL. The full detail already lives in your on-disk artifact (`map.md`); the parent reads that from disk when it needs detail and never recovers it from your envelope. Return ONLY:
+
+- `status` (+ `blocked_by` when blocked);
+- `executive_summary`: **≤ 3 lines / ≤ 60 words** — the outcome and the one fact the parent routes on, NOT the evidence;
+- `artifacts`: the path(s) you wrote;
+- `next_recommended`: recommend `sdd-design`;
+- `risks`: **≤ 3 short bullets**;
+- `skill_resolution`.
+
+NEVER paste into the envelope the artifact's content, full file lists, per-test tables, command output, or long prose evidence — that payload lives in `map.md` on disk. A verbose envelope is a defect, not thoroughness.
 
 ## Notebook Contract
 

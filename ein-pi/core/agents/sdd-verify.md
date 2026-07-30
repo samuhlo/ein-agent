@@ -75,4 +75,15 @@ Do NOT launch child subagents. Parent/orchestrator owns delegation. Do NOT fix i
 
 **Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause, and what the parent must fix or provide.
 
-Return the standard phase envelope with status, executive_summary, artifacts, next_recommended, risks, and skill_resolution.
+## Return contract (compact envelope)
+
+Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every phase is exactly what fills it. Keep it SMALL. The full detail already lives in your on-disk artifact (`verify-report.md`); the parent reads that from disk when it needs detail and never recovers it from your envelope. Return ONLY:
+
+- `status` (+ `blocked_by` when blocked);
+- `executive_summary`: **≤ 3 lines / ≤ 60 words** — the pass/fail outcome and `behavior_coverage`, NOT the evidence;
+- `artifacts`: the path(s) you wrote;
+- `next_recommended`;
+- `risks`: **≤ 3 short bullets**;
+- `skill_resolution`.
+
+NEVER paste into the envelope the artifact's content, full file lists, per-test tables, command output, or long prose evidence — that payload lives in `verify-report.md` on disk. A verbose envelope is a defect, not thoroughness.

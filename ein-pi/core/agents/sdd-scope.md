@@ -47,7 +47,18 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
     max_runtime_ms: <number>
   ```
   This is the budget the chain propagates between phases. For a broad/unbounded scope do NOT inflate the budget — recommend decomposition into bounded slices instead.
-- Return the standard phase envelope with status, executive_summary, artifacts, next_recommended, risks, and skill_resolution.
+- ## Return contract (compact envelope)
+
+Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every phase is exactly what fills it. Keep it SMALL. The full detail already lives in your on-disk artifact (`scope.md`); the parent reads that from disk when it needs detail and never recovers it from your envelope. Return ONLY:
+
+- `status` (+ `blocked_by` when blocked);
+- `executive_summary`: **≤ 3 lines / ≤ 60 words** — the outcome and the one fact the parent routes on, NOT the evidence;
+- `artifacts`: the path(s) you wrote;
+- `next_recommended`;
+- `risks`: **≤ 3 short bullets**;
+- `skill_resolution`.
+
+NEVER paste into the envelope the artifact's content, full file lists, per-test tables, command output, or long prose evidence — that payload lives in `scope.md` on disk. A verbose envelope is a defect, not thoroughness.
 
 ## Fast Path: Config-Only Init
 
