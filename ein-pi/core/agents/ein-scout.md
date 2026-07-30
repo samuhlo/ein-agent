@@ -7,8 +7,8 @@ defaultContext: fresh
 inheritProjectContext: false
 inheritSkills: false
 timeoutMs: 120000
-turnBudget: { maxTurns: 12, graceTurns: 2 }
-toolBudget: { hard: 30, soft: 24, block: "*" }
+turnBudget: { "maxTurns": 12, "graceTurns": 2 }
+toolBudget: { "hard": 30, "soft": 24, "block": "*" }
 completionGuard: false
 ---
 

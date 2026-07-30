@@ -116,8 +116,13 @@ describe("contrato de tools de los agentes", () => {
 		expect(scout).toMatch(/^inheritProjectContext:\s*false$/m);
 		expect(scout).toMatch(/^inheritSkills:\s*false$/m);
 		expect(scout).toMatch(/^timeoutMs:\s*120000$/m);
-		expect(scout).toMatch(/^turnBudget:\s*\{ maxTurns: 12, graceTurns: 2 \}$/m);
-		expect(scout).toMatch(/^toolBudget:\s*\{ hard: 30, soft: 24, block: "\*" \}$/m);
+		// pi-subagents hace JSON.parse de estos campos (agents.ts:1378/1401), así
+		// que DEBEN ser JSON válido: claves con comillas. El formato con claves sin
+		// comillas tumbaba el arranque de todo subagente (regresión v0.24.0).
+		expect(scout).toMatch(/^turnBudget:\s*\{ "maxTurns": 12, "graceTurns": 2 \}$/m);
+		expect(scout).toMatch(/^toolBudget:\s*\{ "hard": 30, "soft": 24, "block": "\*" \}$/m);
+		expect(() => JSON.parse(scout.match(/^turnBudget:\s*(.+)$/m)![1])).not.toThrow();
+		expect(() => JSON.parse(scout.match(/^toolBudget:\s*(.+)$/m)![1])).not.toThrow();
 		for (const forbidden of ["bash", "write", "edit", "subagent", "delivery", "MCP", "provider"]) {
 			expect(declaredTools("ein-scout.md")).not.toContain(forbidden);
 		}
