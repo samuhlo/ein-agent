@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listActiveChanges, readSddRealCost, resolveSddStatus, sddStatusBlockers, type SddChangeStatus } from "../ein-pi/agent/lib/sdd-router";
+import { formatBudget, listActiveChanges, readSddRealCost, resolveSddStatus, sddStatusBlockers, type SddBudgetStatus, type SddChangeStatus } from "../ein-pi/agent/lib/sdd-router";
 import { t, tf } from "../ein-pi/agent/lib/i18n/strings";
 import { readFileSync } from "node:fs";
 
@@ -38,11 +38,8 @@ afterEach(() => {
 	(globalThis as Record<symbol, unknown>)[I18N_KEY] = originalLocale;
 });
 
-// Replica exacta del formatter del handler /ein:sdd-status
-function compactBudget(budget: SddChangeStatus["budget"]): string {
-	if (!budget.allocated && !budget.consumed) return "absent";
-	return `allocated=${budget.allocated ?? "unknown"} · consumed=${budget.consumed ?? "unknown"}`;
-}
+// Replica del handler /ein:sdd-status; el budget usa la fuente única formatBudget.
+const compactBudget = formatBudget;
 
 function formatSddStatus(cwd: string, change?: string): string {
 	const s = resolveSddStatus(cwd, change);
@@ -182,6 +179,34 @@ describe("sdd-status output format", () => {
 		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [x] 1 hecho\n");
 		const out = formatSddStatus(DIR);
 		expect(out).not.toContain("next pending:");
+	});
+});
+
+describe("formatBudget avisa al superar lo asignado (P2-G)", () => {
+	const budget = (over: Partial<SddBudgetStatus>): SddBudgetStatus => ({
+		allocated: null, consumed: null, allocatedValue: null, consumedValue: null, problems: [], ...over,
+	});
+
+	test("consumido > asignado → marca advisory con porcentaje", () => {
+		const out = formatBudget(budget({ allocated: "max_tokens: 15000", consumed: "{ tokens: 30690 }", allocatedValue: 15000, consumedValue: 30690 }));
+		expect(out).toContain("allocated=max_tokens: 15000");
+		expect(out).toContain("consumed={ tokens: 30690 }");
+		expect(out).toContain("⚠");
+		expect(out).toContain("205%");
+	});
+
+	test("consumido ≤ asignado → sin aviso", () => {
+		const out = formatBudget(budget({ allocated: "15000", consumed: "5000", allocatedValue: 15000, consumedValue: 5000 }));
+		expect(out).not.toContain("⚠");
+	});
+
+	test("sin datos → absent", () => {
+		expect(formatBudget(budget({}))).toBe("absent");
+	});
+
+	test("el aviso NO es un bloqueo (no alimenta sddStatusBlockers)", () => {
+		// Superar el presupuesto es advisory, no impide cerrar; los bloqueos salen de otra fuente.
+		expect(sddStatusBlockers({ blocked: [], taskProblems: [], budgetProblems: [] })).toEqual([]);
 	});
 });
 

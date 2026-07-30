@@ -85,7 +85,7 @@ import {
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
-import { aggregateSddBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
 import { closeChange } from "../lib/sdd-close.ts";
 import { approveCandidate, type MemoryCandidate, type MemoryReceipt } from "../lib/memory-contract.ts";
 import {
@@ -435,10 +435,9 @@ function formatChangeLint(report: ChangeLintReport): string {
 	return lines.join("\n");
 }
 
-function compactBudget(budget: SddChangeStatus["budget"]): string {
-	if (!budget.allocated && !budget.consumed) return "absent";
-	return `allocated=${budget.allocated ?? "unknown"} · consumed=${budget.consumed ?? "unknown"}`;
-}
+// P2-G: fuente única en sdd-router (formatBudget), que además marca cuando lo
+// consumido supera lo asignado. Alias local para no tocar los puntos de llamada.
+const compactBudget = formatBudget;
 
 function compactTokens(n: number | null): string {
 	if (n === null) return "n/a";

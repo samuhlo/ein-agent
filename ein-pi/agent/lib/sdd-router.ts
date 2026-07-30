@@ -687,6 +687,23 @@ export function extractDeliveredFiles(body: string): string[] {
 	return [...new Set([...body.matchAll(SOURCE_FILE_RE)].map((match) => match[0]).filter((path) => !isProcessOrSpecPath(path)))];
 }
 
+// Línea de budget para el status. P2-G: el "asignado" era decoración muda —
+// consumir el doble no producía señal alguna (el trace mostró allocated=15000
+// junto a consumed=30690 sin más). Cuando lo consumido supera lo asignado, se
+// dice, y el número pasa a significar algo. Es ADVISORY: no bloquea (no alimenta
+// sddStatusBlockers), solo hace honesto el dato. Fuente única para el render real
+// y el test (mata la deriva de la réplica del formatter).
+export function formatBudget(budget: SddBudgetStatus): string {
+	if (!budget.allocated && !budget.consumed) return "absent";
+	const base = `allocated=${budget.allocated ?? "unknown"} · consumed=${budget.consumed ?? "unknown"}`;
+	const { allocatedValue: allocated, consumedValue: consumed } = budget;
+	if (allocated !== null && consumed !== null && consumed > allocated) {
+		const pct = allocated > 0 ? ` (${Math.round((consumed / allocated) * 100)}%)` : "";
+		return `${base} · ⚠ sobre lo asignado${pct}`;
+	}
+	return base;
+}
+
 // Los problemas de PROCEDENCIA del ledger (attribution de recibos:
 // change-unresolved, legacy-metadata-excluded, ...) NO son bloqueos del cambio:
 // nunca impidieron nada y ya se muestran en la línea `ledger provenance:`.
