@@ -91,6 +91,17 @@ describe("orchestrator — doctrina de dieta de contexto", () => {
 		expect(fanOut).toContain("no OpenSpec artifacts");
 	});
 
+	test("acota las lecturas inline del propio padre (no full diff / wide -C / logs)", () => {
+		expect(raw).toContain("Parent read discipline");
+		expect(raw).toMatch(/never a full `git diff`|NEVER a full `git diff`/i);
+	});
+
+	test("scout caído no es licencia para tragar la investigación inline", () => {
+		expect(raw).toMatch(/When `ein-scout` is unavailable/);
+		expect(raw).toMatch(/infrastructure incident/i);
+		expect(raw).toMatch(/degrade to \*\*bounded\*\* reads|bounded.*reads only/i);
+	});
+
 	test("el fallback de recuperación apunta al transcript, no al envelope", () => {
 		// Con el envelope compacto, el contenido completo ya no está en él:
 		// la recuperación de última instancia usa el transcript.jsonl.

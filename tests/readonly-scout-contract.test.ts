@@ -37,7 +37,7 @@ describe("readonly scout launch contract", () => {
 
 	test("uses canonical empty frontmatter and rejects caller extension overrides", () => {
 		const scout = readFileSync(SCOUT_FRONTMATTER, "utf8");
-		expect(scout).toMatch(/^extensions:\s*\[\]\s*$/m);
+		expect(scout).toMatch(/^extensions:\s*$/m);
 
 		const launch = normalizeScoutLaunch({ agent: "ein-scout", task: "inspect", extensions: ["leak"] }, "call-extensions", new Map())!;
 		expect(launch).not.toHaveProperty("extensions");
