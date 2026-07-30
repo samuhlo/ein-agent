@@ -5,6 +5,20 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.24.3] - 2026-07-30
+
+### Fixed
+
+- **Scout de solo lectura sin skills y orientación acotada del orquestador**
+  (`f0c786d`, PR #60). `ein-scout` recibía inyección de skills como cualquier
+  agente nombrado, pese a estar aislado al repo con `inheritSkills: false`: los
+  paths absolutos de `SKILL.md` caían fuera de su sandbox → `Skills not found` y
+  ejecución degradada. Ahora se excluye al scout de la inyección de skills.
+  Además el orquestador acota su orientación de arranque (`ein_sdd_status` +
+  `git status --short`), reconoce que limpiar un cambio sin trackear es `rm -rf`
+  en vez de una auditoría, y usa las herramientas `ctx_*` en modo indexar-y-buscar
+  en vez de volcar output — evitando que se coma el contexto nada más empezar.
+
 ## [0.24.2] - 2026-07-30
 
 ### Fixed
