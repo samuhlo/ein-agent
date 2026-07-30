@@ -49,9 +49,14 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0243---2026-07-30");
+    expect(release.anchor).toBe("0244---2026-07-30");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
+  });
+
+  test("describe la release como registrada y no como publicada", () => {
+    expect(releaseSummary).toContain("Última release registrada según el registro canónico local");
+    expect(releaseSummary).not.toContain("Última release publicada");
   });
 
   test("mantiene una entrada progresiva con un único bootstrap y destino semántico", () => {
