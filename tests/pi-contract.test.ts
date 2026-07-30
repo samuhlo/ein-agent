@@ -55,6 +55,10 @@ describe("el contrato cubre lo que Ein realmente usa", () => {
 		expect(undeclared).toEqual([]);
 	});
 
+	test("declara el hook terminal que libera el estado de scout", () => {
+		expect(PI_HOOKS).toContain("session_shutdown");
+	});
+
 	test("todo método `pi.<x>(...)` está declarado", () => {
 		const used = [...sources.matchAll(/\bpi\.([a-zA-Z][a-zA-Z0-9]*)\s*\(/g)].map((match) => match[1] as string);
 		expect(used.length).toBeGreaterThan(0);

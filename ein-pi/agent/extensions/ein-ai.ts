@@ -155,14 +155,6 @@ const deliveryAttemptBySession = new Map<string, DeliveryAttemptState>();
 const pendingPostCommit = new Map<string, string>();
 const scoutTracking: ScoutTracking = new Map();
 
-function structuredScoutPayloads(content: readonly unknown[]): unknown[] {
-	return content.flatMap((part) => {
-		if (!isRecord(part)) return [];
-		if (part.type === "structured_output") return [part.output ?? part.value ?? part.content];
-		return [];
-	});
-}
-
 type RetirementToolParams = {
 	change: string;
 	receiptFingerprint: string;
@@ -661,6 +653,10 @@ export default function einAi(pi: ExtensionAPI): void {
 		await runOnboarding(ctx);
 	});
 
+	pi.on("session_shutdown", () => {
+		scoutTracking.clear();
+	});
+
 	pi.on("input", async (event, ctx) => {
 		// Intención de entrega: ¿este mensaje pide commit/push/PR? La lee el gate de
 		// entrega en `tool_call` (modo git `auto`). Se evalúa SIEMPRE, también en
@@ -880,7 +876,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		}
 		if (event.toolName !== "subagent") return undefined;
 		try {
-			const report = acceptTrackedScoutResult(scoutTracking, event.toolCallId, structuredScoutPayloads(event.content), ctx.cwd);
+			const report = acceptTrackedScoutResult(scoutTracking, event.toolCallId, event.details, event.isError, ctx.cwd);
 			if (report) return { isError: false, content: [{ type: "text", text: JSON.stringify(report) }] };
 		} catch (error) {
 			return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "ein-scout contract: validation failed" }] };

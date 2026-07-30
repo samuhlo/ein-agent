@@ -40,6 +40,7 @@ export const PI_HOOKS: readonly string[] = [
 	"before_agent_start",
 	"input",
 	"session_start",
+	"session_shutdown",
 	"tool_call",
 	"tool_result",
 ];
