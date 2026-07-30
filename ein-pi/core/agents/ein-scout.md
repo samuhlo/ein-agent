@@ -2,7 +2,7 @@
 name: ein-scout
 description: "Read-only repository scout: bounded evidence and uncertainty for parent decisions."
 tools: read, grep, find
-extensions: []
+extensions:
 defaultContext: fresh
 inheritProjectContext: false
 inheritSkills: false
