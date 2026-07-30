@@ -23,6 +23,8 @@ const read = (p: string) =>
 
 const orch = read("assets/orchestrator.md");
 const sddMap = read("agents/sdd-map.md");
+const scout = read("agents/ein-scout.md");
+const einAi = readFileSync(join(AGENT_DIR, "extensions/ein-ai.ts"), "utf8");
 
 const PHASE_AGENTS = [
   "sdd-scope.md",
@@ -63,9 +65,12 @@ describe("P1: contrato de persistencia de map.md", () => {
     expect(orch).toMatch(/resolves inside the runner's `\.pi-subagents\/` sandbox/);
   });
 
-  test("orchestrator conserva el fallback de último recurso (envelope → parent-fallback)", () => {
+  test("orchestrator conserva el fallback de último recurso (transcript → parent-fallback)", () => {
     expect(orch.toLowerCase()).toMatch(/do not poll the filesystem|not poll the filesystem in a wait loop/);
-    expect(orch).toContain("_output.md");
+    // Con el envelope de retorno ahora compacto, el contenido completo ya no
+    // vive en `_output.md` (= envelope): la recuperación de última instancia
+    // usa el transcript completo del hijo.
+    expect(orch).toContain("_transcript.jsonl");
     expect(orch).toContain("authored_by: parent-fallback");
   });
 });
@@ -120,11 +125,21 @@ describe("P3: veredictos de acceptance de pi-subagents", () => {
     expect(acceptanceBlock.toLowerCase()).toContain("auto");
   });
 
-  test("sdd-apply conoce el contrato de verificación runtime y prohíbe amañarlo", () => {
+  test("sdd-apply distingue none normal de verified explícito y conserva sdd-verify", () => {
     const apply = read("agents/sdd-apply.md");
-    expect(apply).toContain("Runtime Acceptance Verification");
-    expect(apply).toContain("acceptance-report");
-    expect(apply.toLowerCase()).toMatch(/do not game it/);
+    const acceptance = apply.slice(
+      apply.indexOf("## Runtime Acceptance Verification"),
+      apply.indexOf("## Ad-hoc apply"),
+    );
+
+    expect(acceptance).toContain("runtime injects `acceptance: none`");
+    expect(acceptance).toMatch(/Do \*\*not\*\* create or claim an `acceptance-report`/);
+    expect(acceptance).toMatch(/do not claim the run was verified/i);
+    expect(acceptance).toContain("Only an explicit `acceptance: { level: \"verified\", verify: [...] }`");
+    expect(acceptance).toMatch(/RUNNER freshly re-executes the declared verification commands/);
+    expect(acceptance).toMatch(/End with the fenced `acceptance-report` block/);
+    expect(acceptance).toMatch(/Return `status: blocked`/);
+    expect(acceptance).toMatch(/independent `sdd-verify`.*final freshness authority/);
   });
 
   test("el loop se rutea por ein_sdd_status/ein_sdd_check, nunca por el veredicto", () => {
@@ -150,7 +165,33 @@ describe("P4: runtime y tamaño del apply estricto", () => {
   });
 });
 
-describe("P5: fricción de runtime conocida", () => {
+describe("P5: direct delegation provenance hook", () => {
+  test("observa localmente sin ampliar el input de subagent y antes de reconciliar", () => {
+    expect(einAi).toContain("beginDelegationObservation(cwd, phase)");
+    expect(einAi).toContain("observeDelegationResult(ctx.cwd, snapshot.provenance)");
+    expect(einAi.indexOf("observeDelegationResult(ctx.cwd, snapshot.provenance)")).toBeLessThan(
+      einAi.indexOf("reconcilePhaseFailure(ctx.cwd, snapshot.phase, snapshot.before)"),
+    );
+    expect(einAi).not.toMatch(/(?:event\.input|input)\.(?:output|outputMode|flowId|runId|changeId)\s*=/);
+  });
+});
+
+describe("P5.5: scout queda fuera del runtime de fases", () => {
+  test("las siete fases conservan su orden exacto", () => {
+    expect(PHASE_AGENTS).toEqual([
+      "sdd-scope.md", "sdd-map.md", "sdd-design.md", "sdd-tasks.md", "sdd-apply.md", "sdd-verify.md", "sdd-close.md",
+    ]);
+  });
+
+  test("su contrato no recibe herramientas ni responsabilidades de fase", () => {
+    expect(scout).toMatch(/^tools: read, grep, find$/m);
+    expect(scout).not.toMatch(/^tools:.*(?:write|edit|bash|subagent)/m);
+    expect(PHASE_AGENTS).not.toContain("ein-scout.md");
+    expect(einAi).not.toMatch(/phaseForAgent\([^)]*ein-scout|ein-scout[^\n]{0,120}(?:reconcile|PHASE_ORDER)/i);
+  });
+});
+
+describe("P6: fricción de runtime conocida", () => {
   test("orchestrator advierte del shell compuesto en ctx_batch_execute (bash -c)", () => {
     expect(orch).toMatch(/ctx_batch_execute/);
     expect(orch).toMatch(/bash -c/);

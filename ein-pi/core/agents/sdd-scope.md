@@ -1,7 +1,7 @@
 ---
 name: sdd-scope
 description: Define project SDD scope, testing capabilities, and skill registry.
-tools: read, grep, glob, write, bash
+tools: read, grep, find, write, bash
 completionGuard: false
 budget:
   default_max_tokens: 8000
@@ -17,7 +17,20 @@ Use your assigned executor/phase skill for this SDD phase. For project/user skil
 If skill paths are missing, explicit fallback loading is allowed only as degraded self-healing. Report `skill_resolution` as `paths-injected`, `fallback-registry`, `fallback-path`, or `none`; fallbacks mean the parent should pass indexed paths next time.
 
 - Inspect the project stack, test runner, conventions, and existing docs.
-- **Context budget (mandatory)**: inspect structure-first — `glob` the tree and `grep` for stack/test/config signals (package.json, lockfiles, config files, test setup). Read files in full ONLY when needed to fill `openspec/config.yaml`. NEVER ingest the whole repository "to understand it": it explodes tokens and adds no signal at scope. If the task scope is broad or unbounded (e.g. "refactor the whole project"), do NOT inspect everything — report that the work must be split into bounded slices and recommend the parent narrow the scope before the deep phases.
+- **Canonical spec context.** When the injected prompt provides `## Canonical OpenSpec context`, treat its domain hints and references as authoritative. Read only the exact listed `openspec/specs/<domain>/spec.md` paths; never glob domains or read `.sdd` specs. Preserve each `path`, SHA-256, and byte count in `scope.md`. The shared hard limit is 3 files and 32 KiB UTF-8 per phase. If selection exceeds it, return `status: blocked` with an actionable request for narrower explicit domain hints; never truncate.
+- **Spec delta declaration (MANDATORY — the change cannot close without it).** Every `scope.md` MUST end up with exactly ONE of the two, and there is no third option:
+  1. the change carries behaviour deltas under `openspec/changes/<change>/specs/<domain>/spec.md` — then write NO declaration block at all; the delta files ARE the declaration; or
+  2. the change has no behaviour delta (mechanical, config, docs, refactor with identical behaviour) — then append this EXACT block to `scope.md`, verbatim, three consecutive lines:
+
+     ```
+     ## Spec delta declaration
+     spec_delta: none
+     spec_delta_reason: <one line, 1-200 chars, why this change alters no observable behaviour>
+     ```
+
+     The reason MUST be a real sentence. `none`, `n/a`, `na`, `tbd`, `unknown` and `-` are REJECTED. Never write both the block and delta files: that combination is invalid.
+  Default for most changes is option 2 — if you cannot name a behaviour that changes, it is `none` with an honest reason.
+- **Context budget (mandatory)**: inspect structure-first — `find` the tree and `grep` for stack/test/config signals (package.json, lockfiles, config files, test setup). Read files in full ONLY when needed to fill `openspec/config.yaml`. NEVER ingest the whole repository "to understand it": it explodes tokens and adds no signal at scope. If the task scope is broad or unbounded (e.g. "refactor the whole project"), do NOT inspect everything — report that the work must be split into bounded slices and recommend the parent narrow the scope before the deep phases.
 - **Phase boundary (hard).** You are the SCOPE phase ONLY. Even if the task mentions strict TDD, RED/GREEN, or "run the test suite", do NOT run the test suite or build, do NOT implement, and do NOT write `apply-progress*` or `verify-report*` artifacts — those belong to `sdd-apply`/`sdd-verify`. Your job ends at: `openspec/config.yaml`, scope, budget, and the skill registry. Record `strict_tdd` as config; do not act on it.
 - If `openspec/config.yaml` is missing, create it automatically with project context, `strict_tdd`, phase rules, and testing runner details.
 - If `openspec/config.yaml` already exists, read it, summarize the current SDD/testing configuration, and do not block the caller. Update only safe derived context when explicitly necessary; never destructively rewrite user-maintained SDD configuration.
@@ -34,7 +47,18 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
     max_runtime_ms: <number>
   ```
   This is the budget the chain propagates between phases. For a broad/unbounded scope do NOT inflate the budget — recommend decomposition into bounded slices instead.
-- Return the standard phase envelope with status, executive_summary, artifacts, next_recommended, risks, and skill_resolution.
+## Return contract (compact envelope)
+
+Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every phase is exactly what fills it. Keep it SMALL. The full detail already lives in your on-disk artifact (`scope.md`); the parent reads that from disk when it needs detail and never recovers it from your envelope. Return ONLY:
+
+- `status` (+ `blocked_by` when blocked);
+- `executive_summary`: **≤ 3 lines / ≤ 60 words** — the outcome and the one fact the parent routes on, NOT the evidence;
+- `artifacts`: the path(s) you wrote;
+- `next_recommended`;
+- `risks`: **≤ 3 short bullets**;
+- `skill_resolution`.
+
+NEVER paste into the envelope the artifact's content, full file lists, per-test tables, command output, or long prose evidence — that payload lives in `scope.md` on disk. A verbose envelope is a defect, not thoroughness.
 
 ## Fast Path: Config-Only Init
 

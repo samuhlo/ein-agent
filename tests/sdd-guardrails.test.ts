@@ -157,6 +157,24 @@ describe("lintPhaseArtifact required signals", () => {
 	});
 });
 
+describe("OpenSpec spec delta declaration", () => {
+	test("exige exactamente una declaración none válida o deltas válidos", () => {
+		const c = change("feat-spec");
+		put(c, "scope.md", "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: mechanical formatting only\n");
+		expect(lintChange(DIR, "feat-spec").issues.some((i) => i.code === "spec-delta-unresolved")).toBe(false);
+		mkdirSync(join(c, "specs", "sdd-lifecycle"), { recursive: true });
+		put(c, "specs/sdd-lifecycle/spec.md", "# OpenSpec Delta\nformat: openspec-delta/v1\ndomain: sdd-lifecycle\n\n## ADDED\n### Scenario: close\ntitle: Close\nrequirement: The system MUST close\nGiven: ready\nWhen: close\nThen: archived\n");
+		expect(lintChange(DIR, "feat-spec").issues.some((i) => i.code === "spec-delta-unresolved")).toBe(true);
+	});
+
+	test("preserva .sdd sin declaración OpenSpec", () => {
+		const c = join(DIR, ".sdd", "changes", "legacy");
+		mkdirSync(c, { recursive: true });
+		put(c, "scope.md", "scope: x\nbudget_allocated: 1\n");
+		expect(lintChange(DIR, "legacy").issues.some((i) => i.code === "spec-delta-unresolved")).toBe(false);
+	});
+});
+
 describe("lintChange sequence consistency", () => {
 	test("detecta hueco design presente pero tasks ausente", () => {
 		const c = change("feat-x");

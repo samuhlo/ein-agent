@@ -6,7 +6,9 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listActiveChanges, resolveSddNext, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
+import { assessCloseReadiness, listActiveChanges, resolveSddNext, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
+import { planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
+import { serializeOpenSpec } from "../ein-pi/agent/lib/openspec-spec-contract";
 
 let DIR: string;
 function change(name: string): string {
@@ -219,6 +221,96 @@ describe("resolveSddStatus", () => {
 		change("feat-y");
 		mkdirSync(join(DIR, "openspec", "changes", "archive", "viejo"), { recursive: true });
 		expect(listActiveChanges(DIR).sort()).toEqual(["feat-x", "feat-y"]);
+	});
+});
+
+describe("assessCloseReadiness", () => {
+	function closeReadyChange(name: string): string {
+		const c = change(name);
+		put(c, "scope.md", "# Scope\nDeclarationless legacy record.\n");
+		put(c, "map.md");
+		put(c, "design.md");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [x] 1 done\n");
+		put(c, "apply-progress.md", "status: complete\n");
+		put(c, "verify-report.md", "status: pass\n");
+		put(c, "summary.md", "# Summary\n");
+		return c;
+	}
+
+	test("expone códigos estables sin alterar los mensajes de lifecycle", () => {
+		const c = change("blocked");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [ ] 1 pending\n");
+		const readiness = assessCloseReadiness(DIR, "blocked");
+		expect(readiness.ready).toBe(false);
+		expect(readiness.blockers).toEqual([
+			{ code: "apply-not-complete", message: "apply no está `status: complete`." },
+			{ code: "verify-missing", message: "falta verify-report.md." },
+			{ code: "summary-missing", message: "falta summary.md." },
+			{ code: "tasks-pending", message: "quedan 1 tarea(s) sin completar." },
+			{ code: "spec-unresolved", message: "estado de specs OpenSpec: unresolved." },
+		]);
+		expect(readiness.reasons).toEqual(readiness.blockers.map((blocker) => blocker.message));
+	});
+
+	test("reconoce solamente el registro canónico declarationless completo", () => {
+		const c = closeReadyChange("eligible");
+		const readiness = assessCloseReadiness(DIR, "eligible");
+		expect(readiness.ready).toBe(false);
+		expect(readiness.blockers.map((blocker) => blocker.code)).toEqual(["spec-unresolved"]);
+		expect(readiness.legacyEligibility).toBe("declarationless-record");
+
+		for (const [name, mutate] of [
+			["declared", (path: string) => put(path, "scope.md", "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: legacy\n")],
+			["delta", (path: string) => { mkdirSync(join(path, "specs", "domain"), { recursive: true }); put(path, "specs/domain/spec.md", "bad delta"); }],
+			["sync", (path: string) => put(path, "sync-report.md", "unreadable report")],
+			["incomplete", (path: string) => put(path, "apply-progress.md", "status: partial\n")],
+		] as const) {
+			const candidate = closeReadyChange(name);
+			mutate(candidate);
+			expect(assessCloseReadiness(DIR, name).legacyEligibility).toBeNull();
+		}
+	});
+});
+
+describe("estado OpenSpec", () => {
+	const DELTA = "# OpenSpec Delta\nformat: openspec-delta/v1\ndomain: sdd-lifecycle\n\n## ADDED\n### Scenario: close\ntitle: Close\nrequirement: The system MUST close\nGiven: ready\nWhen: close\nThen: archived\n";
+	function deltaChange(name: string): string {
+		const c = change(name);
+		mkdirSync(join(c, "specs", "sdd-lifecycle"), { recursive: true });
+		put(c, "specs/sdd-lifecycle/spec.md", DELTA);
+		return c;
+	}
+	test("surface unresolved, pending, conflict y synchronized en orden", () => {
+		const unresolved = change("unresolved");
+		put(unresolved, "scope.md", "scope: x\n");
+		expect(resolveSddStatus(DIR, "unresolved").specState).toBe("unresolved");
+		const pending = deltaChange("pending");
+		expect(resolveSddStatus(DIR, "pending").specState).toBe("pending");
+		const plan = planOpenSpecSync("pending", [{ path: "specs/sdd-lifecycle/spec.md", bytes: Buffer.from(DELTA) }], []);
+		put(pending, "sync-report.md", serializeSyncReport(plan));
+		// Un informe SOLO no sincroniza nada: mientras el spec canónico no exista
+		// en disco con los bytes que el informe declara, el estado sigue pendiente.
+		// Antes bastaba el informe y `synchronized` se afirmaba sin haber escrito
+		// el spec — un recibo que no describía la realidad.
+		expect(resolveSddStatus(DIR, "pending").specState).toBe("pending");
+		mkdirSync(join(DIR, "openspec", "specs", "sdd-lifecycle"), { recursive: true });
+		writeFileSync(join(DIR, "openspec", "specs", "sdd-lifecycle", "spec.md"), serializeOpenSpec(plan.domains[0]!.result!));
+		expect(resolveSddStatus(DIR, "pending").specState).toBe("synchronized");
+		const conflict = deltaChange("conflict");
+		const base = "# OpenSpec Specification\nformat: openspec-spec/v1\ndomain: sdd-lifecycle\n\n## Scenario: close\ntitle: Existing\nrequirement: The system MUST exist\nGiven: ready\nWhen: close\nThen: archived\n";
+		mkdirSync(join(DIR, "openspec", "specs", "sdd-lifecycle"), { recursive: true });
+		writeFileSync(join(DIR, "openspec", "specs", "sdd-lifecycle", "spec.md"), base);
+		const conflictPlan = planOpenSpecSync("conflict", [{ path: "specs/sdd-lifecycle/spec.md", bytes: Buffer.from(DELTA) }], [{ domain: "sdd-lifecycle", bytes: Buffer.from(base) }]);
+		put(conflict, "sync-report.md", serializeSyncReport(conflictPlan));
+		expect(resolveSddStatus(DIR, "conflict").specState).toBe("conflict");
+		const malformed = deltaChange("malformed");
+		put(malformed, "sync-report.md", "not a sync report\n");
+		expect(resolveSddStatus(DIR, "malformed").specState).toBe("pending");
+		const stale = deltaChange("stale");
+		const stalePlan = planOpenSpecSync("stale", [{ path: "specs/sdd-lifecycle/spec.md", bytes: Buffer.from(DELTA) }], [{ domain: "sdd-lifecycle", bytes: Buffer.from(base) }]);
+		put(stale, "sync-report.md", serializeSyncReport(stalePlan));
+		put(stale, "specs/sdd-lifecycle/spec.md", DELTA.replace("title: Close", "title: Changed"));
+		expect(resolveSddStatus(DIR, "stale").specState).toBe("pending");
 	});
 });
 

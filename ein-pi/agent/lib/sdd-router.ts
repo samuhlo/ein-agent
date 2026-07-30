@@ -2,8 +2,8 @@
 // SDD ROUTER (deterministic state)
 // Calcula en qué punto está un cambio SDD leyendo SOLO el filesystem — cero IA,
 // cero inferencia de texto. El orquestador enruta por esto en vez de fiarse de
-// lo que el modelo crea recordar. Análogo al dispatcher en Go de gentle-ai,
-// pero como módulo TS puro expuesto luego como tool de Pi.
+// lo que el modelo crea recordar. El estado nace de artefactos verificables y
+// el módulo TS lo expone como tool de Pi.
 //
 // Artefactos por fase (ver chains/ein-sdd.chain.md):
 //   scope → scope.md · map → map.md · design → design.md
@@ -20,6 +20,9 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { readSpecDeltaDeclaration } from "./sdd-guardrails.ts";
+import { evaluateOpenSpecState, type OpenSpecState, type SyncBaseInput } from "./openspec-spec-sync.ts";
+import { readSddCostLedger, type SddCostLedgerV1 } from "./sdd-cost-provenance.ts";
 
 export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
 export type SddNext = SddPhase | "done";
@@ -95,13 +98,33 @@ export type SddChangeStatus = {
 	// verify-report.md es anterior al último apply → una corrección posterior
 	// invalidó la verificación; no se puede cerrar con evidencia obsoleta.
 	verifyStale: boolean;
+	specState: OpenSpecState | "legacy";
 	// summary.md es anterior a apply/verify → el resumen no refleja el estado real.
 	summaryStale: boolean;
 	nextRecommended: SddNext;
 	blocked: string[];
 };
 
-export type CloseReadiness = { ready: boolean; reasons: string[] };
+export type CloseReadinessBlockerCode =
+	| "apply-not-complete"
+	| "verify-missing"
+	| "verify-failed"
+	| "verify-unclear"
+	| "verify-stale"
+	| "summary-missing"
+	| "summary-stale"
+	| "tasks-pending"
+	| "spec-pending"
+	| "spec-conflict"
+	| "spec-unresolved";
+
+export type CloseReadinessBlocker = { code: CloseReadinessBlockerCode; message: string };
+export type CloseReadiness = {
+	ready: boolean;
+	reasons: string[];
+	blockers: CloseReadinessBlocker[];
+	legacyEligibility: "declarationless-record" | null;
+};
 
 export type SddNextReport = {
 	change: string | null;
@@ -169,6 +192,22 @@ const PHASE_ARTIFACT_ALIASES: Partial<Record<SddPhase, string[]>> = {
 	map: ["map.md", "explore.md"],
 	design: ["design.md", "apply.md"],
 };
+
+// Un nombre de cambio es un SEGMENTO de ruta, nunca una ruta. Sin esto, un
+// `..` escapa de `openspec/changes/` y escribe donde no debe, y un nombre vacío
+// apunta al directorio de cambios ENTERO. `archive` está reservado al storage.
+// Compartido a propósito: sdd-close y la sincronización OpenSpec validaban por
+// separado (o no validaban), y esa divergencia fue justo el agujero.
+export function isSafeChangeName(change: unknown): change is string {
+	return (
+		typeof change === "string" &&
+		change.length > 0 &&
+		change !== "archive" &&
+		!change.includes("/") &&
+		!change.includes("\\") &&
+		!change.includes("..")
+	);
+}
 
 // Raíz de cambios: canónica `openspec/changes/`; fallback `.sdd/changes/`.
 export function resolveChangesDir(cwd: string): string {
@@ -373,6 +412,21 @@ function computeStaleness(
 	return { verifyStale, summaryStale };
 }
 
+function readOpenSpecState(cwd: string, change: string): OpenSpecState | "legacy" {
+	if (resolveChangesDir(cwd) !== join(cwd, "openspec", "changes")) return "legacy";
+	const declaration = readSpecDeltaDeclaration(cwd, change);
+	const bases: SyncBaseInput[] = [];
+	for (const delta of declaration.deltas) {
+		const domain = delta.path.split("/")[1]!;
+		const path = join(cwd, "openspec", "specs", domain, "spec.md");
+		if (!existsSync(path)) continue;
+		try { bases.push({ domain, bytes: readFileSync(path) }); } catch { return "unresolved"; }
+	}
+	const reportPath = join(cwd, "openspec", "changes", change, "sync-report.md");
+	const report = readText(reportPath);
+	return evaluateOpenSpecState({ declaration: declaration.mode, change, deltas: declaration.deltas, bases, report });
+}
+
 function readApplyOutcome(changePath: string): ApplyOutcome {
 	const path = join(changePath, PHASE_ARTIFACT.apply);
 	if (!existsSync(path)) return "absent";
@@ -426,6 +480,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 			apply: "absent",
 			verify: "absent",
 			verifyStale: false,
+			specState: "legacy",
 			summaryStale: false,
 			nextRecommended: "done",
 			blocked,
@@ -442,6 +497,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	const tasks = readTasksStatus(changePath);
 	const budget = readBudgetStatus(changePath);
 	const { verifyStale, summaryStale } = computeStaleness(changePath, present);
+	const specState = readOpenSpecState(cwd, target);
 
 	// Fuga de artefacto de fase: una fase presente cuyo predecesor FALTA significa
 	// que una fase-agente (p.ej. sdd-map) se usó como explorador para un cambio que
@@ -513,6 +569,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 		apply,
 		verify,
 		verifyStale,
+		specState,
 		summaryStale,
 		nextRecommended,
 		blocked,
@@ -522,20 +579,49 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 // Readiness DETERMINISTA para cerrar un cambio. El cierre mueve el cambio a
 // archive/ y no debe hacerse sobre evidencia incompleta u obsoleta: apply debe
 // estar completo, verify debe ser pass y fresco (no anterior al apply), summary
-// debe existir y ser fresco, y no pueden quedar tareas pendientes. Un cierre
-// forzado (`force`) sortea esto a propósito; lo normal es respetarlo.
+// debe existir y ser fresco, y no pueden quedar tareas pendientes.
+function declarationlessLegacyEligible(cwd: string, change: string, status: SddChangeStatus): boolean {
+	if (resolveChangesDir(cwd) !== join(cwd, "openspec", "changes") || status.specState !== "unresolved") return false;
+	const changePath = join(cwd, "openspec", "changes", change);
+	const scope = readText(join(changePath, "scope.md"));
+	if (scope === null || /## Spec delta declaration|spec_delta:|spec_delta_reason:/.test(scope)) return false;
+	if (existsSync(join(changePath, "sync-report.md"))) return false;
+
+	const specs = join(changePath, "specs");
+	if (existsSync(specs)) {
+		let domains: string[];
+		try { domains = readdirSync(specs); } catch { return false; }
+		if (domains.some((domain) => existsSync(join(specs, domain, "spec.md")))) return false;
+	}
+
+	return status.apply === "complete" &&
+		status.present.verify && status.verify === "pass" && !status.verifyStale &&
+		status.present.close && !status.summaryStale &&
+		status.tasks.counts.pending === 0;
+}
+
 export function assessCloseReadiness(cwd: string, change: string): CloseReadiness {
 	const status = resolveSddStatus(cwd, change);
-	const reasons: string[] = [];
-	if (status.apply !== "complete") reasons.push("apply no está `status: complete`.");
-	if (!status.present.verify) reasons.push("falta verify-report.md.");
-	else if (status.verify === "fail") reasons.push("verify-report indica fallo.");
-	else if (status.verify !== "pass") reasons.push("verify-report sin `status: pass` claro.");
-	if (status.verifyStale) reasons.push("verify-report es anterior al último apply (evidencia obsoleta): re-verifica.");
-	if (!status.present.close) reasons.push("falta summary.md.");
-	else if (status.summaryStale) reasons.push("summary.md es anterior a apply/verify: regenera el resumen.");
-	if (status.tasks.counts.pending > 0) reasons.push(`quedan ${status.tasks.counts.pending} tarea(s) sin completar.`);
-	return { ready: reasons.length === 0, reasons };
+	const blockers: CloseReadinessBlocker[] = [];
+	const add = (code: CloseReadinessBlockerCode, message: string) => blockers.push({ code, message });
+	if (status.apply !== "complete") add("apply-not-complete", "apply no está `status: complete`.");
+	if (!status.present.verify) add("verify-missing", "falta verify-report.md.");
+	else if (status.verify === "fail") add("verify-failed", "verify-report indica fallo.");
+	else if (status.verify !== "pass") add("verify-unclear", "verify-report sin `status: pass` claro.");
+	if (status.verifyStale) add("verify-stale", "verify-report es anterior al último apply (evidencia obsoleta): re-verifica.");
+	if (!status.present.close) add("summary-missing", "falta summary.md.");
+	else if (status.summaryStale) add("summary-stale", "summary.md es anterior a apply/verify: regenera el resumen.");
+	if (status.tasks.counts.pending > 0) add("tasks-pending", `quedan ${status.tasks.counts.pending} tarea(s) sin completar.`);
+	if (status.specState === "pending") add("spec-pending", "estado de specs OpenSpec: pending.");
+	else if (status.specState === "conflict") add("spec-conflict", "estado de specs OpenSpec: conflict.");
+	else if (status.specState === "unresolved") add("spec-unresolved", "estado de specs OpenSpec: unresolved.");
+
+	return {
+		ready: blockers.length === 0,
+		reasons: blockers.map((blocker) => blocker.message),
+		blockers,
+		legacyEligibility: declarationlessLegacyEligible(cwd, change, status) ? "declarationless-record" : null,
+	};
 }
 
 // Preview DETERMINISTA del plan de apply, leído de tasks.md: por grupo, sus
@@ -640,76 +726,12 @@ export function aggregateSddBudget(summaries: SddChangeSummary[]): SddBudgetAggr
 	return { allocated, consumed, changesWithBudget };
 }
 
-export type SddRealCostAgent = {
-	agent: string;
-	runs: number;
-	tokens: number;
-	costUsd: number;
-};
+/** @deprecated Compatibility facade. Read the versioned local provenance ledger instead. */
+export type SddRealCost = SddCostLedgerV1;
 
-export type SddRealCost = {
-	runs: number;
-	inputTokens: number;
-	outputTokens: number;
-	costUsd: number;
-	durationMs: number;
-	byAgent: SddRealCostAgent[];
-	problems: string[];
-};
-
-// Coste REAL de inferencia de los runs de subagentes de un cambio, leído de los
-// meta.json que pi-subagents escribe en `.pi-subagents/artifacts/`. El "budget"
-// del ledger de fase mide tokens ESTIMADOS de lectura — otra magnitud; sin esto
-// un flujo que quema 400k+ tokens reales se reporta como "consumed≈9000".
-// Atribución determinista: el `task` de cada run menciona el nombre del cambio.
+/** @deprecated Compatibility facade. Never reads producer metadata directly. */
 export function readSddRealCost(cwd: string, change: string): SddRealCost {
-	const out: SddRealCost = { runs: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, durationMs: 0, byAgent: [], problems: [] };
-	const dir = join(cwd, ".pi-subagents", "artifacts");
-	if (!existsSync(dir)) return out;
-
-	let files: string[] = [];
-	try {
-		files = readdirSync(dir).filter((file) => file.endsWith("_meta.json"));
-	} catch {
-		out.problems.push(".pi-subagents/artifacts no se pudo listar; coste real no disponible.");
-		return out;
-	}
-
-	const byAgent = new Map<string, SddRealCostAgent>();
-	for (const file of files) {
-		let meta: {
-			agent?: unknown;
-			task?: unknown;
-			usage?: { input?: unknown; output?: unknown; cost?: unknown };
-			durationMs?: unknown;
-		};
-		try {
-			meta = JSON.parse(readFileSync(join(dir, file), "utf8")) as typeof meta;
-		} catch {
-			out.problems.push(`${file} ilegible; excluido del coste real.`);
-			continue;
-		}
-		if (typeof meta.agent !== "string" || typeof meta.task !== "string") continue;
-		if (!meta.task.includes(change)) continue;
-
-		const input = typeof meta.usage?.input === "number" ? meta.usage.input : 0;
-		const output = typeof meta.usage?.output === "number" ? meta.usage.output : 0;
-		const cost = typeof meta.usage?.cost === "number" ? meta.usage.cost : 0;
-		const duration = typeof meta.durationMs === "number" ? meta.durationMs : 0;
-
-		out.runs += 1;
-		out.inputTokens += input;
-		out.outputTokens += output;
-		out.costUsd += cost;
-		out.durationMs += duration;
-
-		const entry = byAgent.get(meta.agent) ?? { agent: meta.agent, runs: 0, tokens: 0, costUsd: 0 };
-		entry.runs += 1;
-		entry.tokens += input + output;
-		entry.costUsd += cost;
-		byAgent.set(meta.agent, entry);
-	}
-
-	out.byAgent = [...byAgent.values()].sort((a, b) => b.tokens - a.tokens);
-	return out;
+	return readSddCostLedger(cwd, change);
 }
+
+export { readSddCostLedger, type SddCostLedgerV1 } from "./sdd-cost-provenance.ts";

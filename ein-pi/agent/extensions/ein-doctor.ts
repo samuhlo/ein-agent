@@ -6,6 +6,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, loadBrand, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
 import { pick } from "../lib/lang";
+import { PI_BUILTIN_TOOLS, formatDrift, verifyPiContract } from "../lib/pi-contract.ts";
 import {
   AGENT_DIR,
   CONTEXT7_KEY_PATH,
@@ -148,6 +149,53 @@ function warn(pass: boolean, name: string, detail: string): CheckResult {
   return { name, detail, level: pass ? "OK" : "WARN" };
 }
 
+// Builtins de Pi: fuente única en lib/pi-contract.ts. Estaba replicado aquí y
+// en el test de allowlists, que es justo la duplicación que abre agujeros.
+const BUILTIN_TOOLS = new Set(PI_BUILTIN_TOOLS);
+
+// Tools declaradas por los agentes DESPLEGADOS que Pi no puede resolver.
+// Ignora rutas de proveedor (van a --extension) y nombres registrados por las
+// extensiones de Ein, que el hijo hereda.
+function unknownDeployedAgentTools(agentsDir: string): string[] {
+  if (!existsSync(agentsDir)) return [];
+  const extensionTools = new Set<string>();
+  const extDir = join(AGENT_DIR, "extensions");
+  if (existsSync(extDir)) {
+    for (const file of readdirSync(extDir).filter((f) => f.endsWith(".ts"))) {
+      const src = readIfExists(join(extDir, file));
+      for (const m of src.matchAll(/registerTool\(\s*\{[\s\S]{0,200}?name:\s*"([a-z0-9_]+)"/g)) {
+        if (m[1]) extensionTools.add(m[1]);
+      }
+    }
+  }
+  const unknown: string[] = [];
+  for (const file of readdirSync(agentsDir).filter((f) => f.endsWith(".md"))) {
+    const tools = readIfExists(join(agentsDir, file)).match(/^tools:\s*(.+)$/m)?.[1];
+    if (!tools) continue;
+    for (const tool of tools.split(",").map((t) => t.trim()).filter(Boolean)) {
+      if (tool.includes("/") || tool.endsWith(".ts") || tool.endsWith(".js")) continue;
+      if (BUILTIN_TOOLS.has(tool) || extensionTools.has(tool)) continue;
+      unknown.push(`${file}:${tool}`);
+    }
+  }
+  return unknown;
+}
+
+export function scoutStaticContract(
+  agentsDir: string,
+  launcherSource: string,
+): { tools: boolean; extensions: boolean; compatibility: boolean } {
+  const scout = readIfExists(join(agentsDir, "ein-scout.md"));
+  return {
+    tools: /^tools:\s*read, grep, find$/m.test(scout),
+    extensions: /^extensions:\s*$/m.test(scout),
+    // Static compatibility only: this is not evidence about an individual run.
+    compatibility:
+      launcherSource.includes("input.extensions !== undefined") &&
+      launcherSource.includes('args.push("--no-extensions")'),
+  };
+}
+
 function doctorSmokeReport(): string {
   const brandFile = join(AGENT_DIR, "brand.json");
   const settingsFile = join(AGENT_DIR, "settings.json");
@@ -254,20 +302,65 @@ function doctorSmokeReport(): string {
     "sdd-verify.md",
     "sdd-close.md",
   ];
-  const DELIVERY_AGENTS = ["ein-linear.md", "ein-git.md"];
+  const NON_SDD_AGENTS = ["ein-linear.md", "ein-git.md", "ein-scout.md"];
+  const scoutContract = scoutStaticContract(
+    agentsDir,
+    readIfExists(
+      join(AGENT_DIR, "npm", "node_modules", "pi-subagents", "src", "runs", "shared", "pi-args.ts"),
+    ),
+  );
+  const unknownDeployedTools = unknownDeployedAgentTools(agentsDir);
+  const piContract = verifyPiContract();
 
   const checksAgents: CheckResult[] = [
     ...SDD_AGENTS.map((a) =>
       check(existsSync(join(agentsDir, a)), `agent ${a}`, "Agente SDD presente."),
     ),
-    ...DELIVERY_AGENTS.map((a) =>
-      check(existsSync(join(agentsDir, a)), `agent ${a}`, "Agente de entrega presente."),
+    ...NON_SDD_AGENTS.map((a) =>
+      check(
+        existsSync(join(agentsDir, a)),
+        `agent ${a}`,
+        a === "ein-scout.md" ? "Agente de investigación read-only presente." : "Agente no-SDD presente.",
+      ),
+    ),
+    check(scoutContract.tools, "ein-scout tools", "Scout declara exactamente read, grep, find."),
+    check(scoutContract.extensions, "ein-scout extensions", "Scout declara campo `extensions:` definido y vacío."),
+    warn(
+      scoutContract.compatibility,
+      "ein-scout static extension contract",
+      "Compatibilidad estática actual con --no-extensions; no es una sonda ni recibo por ejecución.",
     ),
     check(
       existsSync(join(chainsDir, "ein-sdd.chain.md")),
       "chain ein-sdd",
       "Chain principal presente.",
     ),
+    // `tools:` es una allowlist ESTRICTA: un nombre que Pi no registra hace que
+    // el run salga ✗ AUNQUE el artefacto se escriba, y envenena el prompt del
+    // hijo ("report this configuration error"). El test de repo lo blinda en
+    // CI; esto audita lo DESPLEGADO, que es lo que corre — y que puede derivar
+    // si alguien edita ~/.pi a mano.
+    check(
+      unknownDeployedTools.length === 0,
+      "agent tools allowlist",
+      unknownDeployedTools.length === 0
+        ? "Toda tool declarada existe en Pi."
+        : `Tools inexistentes: ${unknownDeployedTools.join(", ")}. Reinstala el template (ein update).`,
+    ),
+    // Contrato con Pi. Ein codifica supuestos sobre Pi (tools, hooks, métodos de
+    // ExtensionAPI) y Pi se mueve rápido: sin esto, un `pi update` que renombre
+    // algo se manifiesta como un run fallando de forma incomprensible. Aquí sale
+    // por su nombre y antes. `unavailable` es WARN, no FAIL: sin Pi resoluble no
+    // hay nada que afirmar, y fingir un veredicto sería peor que no darlo.
+    piContract.status === "unavailable"
+      ? warn(false, "contrato con Pi", `No verificable: ${piContract.reason}.`)
+      : check(
+          piContract.status === "ok",
+          "contrato con Pi",
+          piContract.status === "ok"
+            ? `Pi ${piContract.surface.version ?? "?"}: tools, hooks y ExtensionAPI que Ein usa siguen existiendo.`
+            : `Pi ${piContract.surface.version ?? "?"} ya NO ofrece lo que Ein declara — ${formatDrift(piContract.drift)}. Ein necesita adaptarse a esta versión de Pi.`,
+        ),
   ];
 
   const checksExtensions: CheckResult[] = CORE_EXTENSIONS.map((e) =>
@@ -354,11 +447,6 @@ function doctorSmokeReport(): string {
   // ya no existen.
   const checksCoherence: CheckResult[] = [
     check(
-      !preflightRaw.includes("Gentle AI"),
-      "marca sin straggler",
-      "La preflight no contiene el nombre antiguo 'Gentle AI'.",
-    ),
-    check(
       einGitRaw.includes("Review Workload Gate"),
       "review workload gate",
       "ein-git documenta el gate de carga de revision.",
@@ -396,7 +484,7 @@ function doctorSmokeReport(): string {
     check(
       orchestratorRaw.includes("Exploration hygiene"),
       "orchestrator exploration hygiene",
-      "El orchestrator excluye node_modules/dist/etc. de find/grep/glob.",
+      "El orchestrator excluye node_modules/dist/etc. de find/grep/ls.",
     ),
     check(
       orchestratorRaw.includes("Assessment & valuation"),

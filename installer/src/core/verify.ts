@@ -77,7 +77,7 @@ function parseJson(path: string): { ok: boolean; value: Record<string, unknown> 
 // Fallback lists when no template-manifest.json is deployed (installs made by
 // older binaries, or a deploy that died before extracting it).
 const SDD_AGENTS = ["sdd-scope.md", "sdd-map.md", "sdd-design.md", "sdd-tasks.md", "sdd-apply.md", "sdd-verify.md", "sdd-close.md"];
-const DELIVERY_AGENTS = ["ein-linear.md", "ein-git.md"];
+const NON_SDD_AGENTS = ["ein-linear.md", "ein-git.md", "ein-scout.md"];
 const FALLBACK_CHAINS = ["ein-sdd.chain.md"];
 
 export type TemplateManifest = {
@@ -201,7 +201,7 @@ export function runDoctor(platform: Platform): DoctorReport {
   ];
 
   const manifest = loadTemplateManifest();
-  const expectedAgents = manifest?.agents?.length ? manifest.agents : [...SDD_AGENTS, ...DELIVERY_AGENTS];
+  const expectedAgents = manifest?.agents?.length ? manifest.agents : [...SDD_AGENTS, ...NON_SDD_AGENTS];
   const expectedChains = manifest?.chains?.length ? manifest.chains : FALLBACK_CHAINS;
 
   const checksAgents: CheckResult[] = [
@@ -209,7 +209,11 @@ export function runDoctor(platform: Platform): DoctorReport {
       check(
         existsSync(join(agentsDir, a)),
         `agent ${a}`,
-        a.startsWith("sdd-") ? "Agente SDD presente." : "Agente de entrega presente.",
+        a.startsWith("sdd-")
+          ? "Agente SDD presente."
+          : a === "ein-scout.md"
+            ? "Agente de investigación read-only presente."
+            : "Agente no-SDD presente.",
       ),
     ),
     ...expectedChains.map((c) => check(existsSync(join(chainsDir, c)), `chain ${c}`, "Chain presente.")),
@@ -235,7 +239,6 @@ export function runDoctor(platform: Platform): DoctorReport {
   // Coherencia: referencias colgantes / desajustes que deja un deploy stale
   // o un refactor a medias.
   const checksCoherence: CheckResult[] = [
-    check(!preflightRaw.includes("Gentle AI"), "marca sin straggler", "La preflight no contiene el nombre antiguo 'Gentle AI'."),
     check(einGitRaw.includes("Review Workload Gate"), "review workload gate", "ein-git documenta el gate de carga de revision."),
     check(!preflightRaw.includes("task/workload forecasts conflict"), "preflight sin forecast muerto", "La preflight ya no referencia un forecast que ninguna fase genera."),
     check(preflightRaw.includes("Review Workload Guard"), "preflight inyecta guard", "La preflight inyecta la regla determinista de Review Workload Guard."),

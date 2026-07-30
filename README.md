@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.20.2 · 2026-07-17](CHANGELOG.md#0202---2026-07-17).
+**Última release registrada según el registro canónico local:** [0.24.4 · 2026-07-30](CHANGELOG.md#0244---2026-07-30).
 
-- **Sin presets de modelos:** hardcodear nombres se pudre; lo que no caduca es el rol de cada agente.
-- **Recomendaciones visibles:** `/ein:models` marca con `!` los agentes cuyo esfuerzo se desvía del recomendado.
-- **`sdd-apply` con modelo capaz y esfuerzo bajo:** el coste lo controla el esfuerzo; abaratar el modelo no ahorra, flaquea.
+- **Explora antes de cambiar:** `ein-scout` investiga el repositorio en modo lectura, sin escribir ni entrar en SDD.
+- **Menos contexto para coordinar:** siete fases con envelopes compactos y routing por scout; el detalle canónico sigue en disco.
+- **Costes que se pueden creer:** el ledger usa procedencia de receipts estructurados y muestra `n/a` cuando faltan datos.
 
 ---
 
@@ -222,6 +222,8 @@ ein-agent/
 ```
 
 `ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench; `installer/scripts/bundle-template.ts` las empaqueta como template embebido (con `template-manifest.json` describiendo el contenido exacto). Cada push a `main` pasa por CI (tests + typecheck + smoke de empaquetado).
+
+La puerta principal de calidad, definida en `.github/workflows/ci.yml`, fija Bun en `BUN_VERSION: "1.3.0"` para Ubuntu y macOS. Para actualizarla, cambia solo ese valor en una revisión deliberada y valida las dos entradas de la matriz; esta política no cubre los flujos de publicación ni Docker E2E.
 
 > `assets/orchestrator.md` es contenido portable en espíritu, pero hoy `lib/persona.ts` y `lib/sdd-preflight.ts` lo leen relativo al módulo, así que vive con el runtime. Se moverá a `core/` cuando esa lógica se extraiga al CLI (fase multi-agente).
 

@@ -14,6 +14,82 @@ defaults sensatos, un gate** — no volver a sobre-ingeniar.
   - `sdd-apply` corrompió `tasks.md` (`status: complete` inválido) → retry extra.
   - Sobre-descomposición: 4 grupos para 2 ediciones.
 
+## Caso de estudio — 2026-07-29: `candidate-receipt-retirement-hardening` (PR #48)
+
+> **Hecho medido — solo ledger de remediación.** No representa el coste completo de la feature.
+
+| Métrica | Medición |
+|---|---:|
+| Ejecuciones de subagentes | 15 |
+| Tokens de entrada | 1.114.000 |
+| Tokens de salida | 81.000 |
+| Tokens totales | 1.195.000 |
+| Coste reportado | $3,31 |
+| Duración | 39 min |
+
+| Fase | Tokens medidos |
+|---|---:|
+| verify | 529k |
+| close | 216k |
+| apply | 172k |
+| map | 100k |
+| design | 70k |
+| tasks | 57k |
+| scope | 51k |
+
+**Estimación no contable:** el coste de la feature completa pudo rondar **2–4M tokens / $6–12**. Es una aproximación gruesa, no una cifra de facturación ni un hecho medido; el coste reportado tampoco pretende precisión de factura del proveedor.
+
+### Lectura del caso
+
+| Trabajo útil | Desperdicio o sobrecoste evitable |
+|---|---|
+| Complejidad legítima de seguridad: retiro de recibos y comportamiento adversarial *fail-closed*. | Carga repetida de contexto y reportes/artefactos sobredimensionados. |
+| Verificación conductual de gates deterministas. | `verify` agotó tiempo después de escribir su informe; hubo verificación duplicada. |
+|  | `close` investigó y tocó `EIN.md`; la mutación de archive forzó un SDD hermano. |
+|  | Overhead de prompts y skills por fase. |
+
+**Conclusión:** el coste de construcción fue alto, pero los gates de recibos en runtime y el retiro son deterministas y deben consumir aproximadamente **0 tokens de modelo** durante la operación.
+
+## Semilla de OpenSpec futura — NO INICIADA (después de PR #48)
+
+**Propuesto:** `sdd-token-efficiency-hardening`.
+
+**Gate de decisión:** no abrir este OpenSpec hasta que PR #48 esté fusionada y el runtime esté desplegado/reiniciado; así las mediciones base usan el sistema final.
+
+### Alcance y límites
+
+| Área | Decisión |
+|---|---|
+| Alcance | Reducir redescubrimiento y artefactos repetidos en fases SDD, sin debilitar gates deterministas ni verificación conductual. |
+| No objetivos | No sustituir el modelo por uno más barato como optimización principal; no degradar calidad silenciosamente; no convertir operaciones runtime en LLM. |
+| Restricción | Conservar *fail-closed*, TDD estricto, frescura de verify y gates de retiro/recibos. |
+
+### Criterios de aceptación — objetivos provisionales, sujetos a medición
+
+| Presupuesto por cambio acotado | Límite |
+|---|---:|
+| scope + map + design + tasks | <150k tokens |
+| apply | <200k tokens |
+| verify | <100k tokens |
+| close | <20k tokens |
+| Total | <450k tokens |
+| Escape por seguridad/incidente | hasta 800k, con razón explícita registrada |
+
+Además de cumplir los presupuestos, debe existir un ledger veraz por fase que distinga prompt/entrada/salida/cache cuando estén disponibles; no se debe inferir precisión de billing que el proveedor no entregue.
+
+### Mecanismos a investigar y slices candidatos
+
+1. **Verify acotado:** ejecutar un manifiesto cerrado de comandos y escribir un reporte limitado; sin redescubrimiento amplio.
+2. **Close determinista:** generar/cerrar desde artefactos existentes mediante plantilla, sin investigación adicional.
+3. **Artefactos compactos:** presupuestos de líneas/bytes y tablas de evidencia concisas.
+4. **Contexto por referencias:** digests/referencias de entrada por fase en vez de recargar contexto completo.
+5. **Reconciliación de timeout:** aceptar un run agotado si ya existe un artefacto fresco y aprobatorio verificable.
+6. **Archive inmutable:** artefactos OpenSpec archivados inmutables o guard determinista de mutación.
+7. **Ledger de tokens:** registrar por fase prompt, entrada, salida y caché cuando sea posible.
+8. **Regresiones de seguridad:** pruebas de gates, TDD estricto, frescura de verify y comportamiento *fail-closed*.
+
+**Definición de éxito:** menos tokens y tiempo de ciclo, conservando los gates deterministas y la verificación conductual actuales; las operaciones de runtime siguen siendo no-LLM.
+
 ## Diagnóstico raíz
 El dinero se quema en **apply**, no en TDD. Causas:
 1. **Apply razona** (`thinking high` heredado del default del modelo; el routing nunca lo fija bajo).
@@ -59,3 +135,5 @@ Tras E, el coste se movió de apply a **map (222k)** y **verify (297k)** — fas
 
 ## Lo que ya funciona (no regresionar)
 Reanudación por `next pending` (v0.19.9), recuperación de rechazos vía `ein_sdd_check` (v0.19.3), guard de cierre obsoleto (v0.19.8), `ein_sdd_close` tool (v0.19.10), una sola pregunta al inicio, visibilidad de coste.
+
+- **Slice 03 — adopción de especificación: completada.** El contrato canónico sincronizado adopta el recibo ya fusionado; la lane mecánica/no-SDD sigue fuera de alcance y el consumo de entrega queda para slice 04.

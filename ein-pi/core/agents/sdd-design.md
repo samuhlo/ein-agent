@@ -1,7 +1,7 @@
 ---
 name: sdd-design
 description: SDD design phase — writes proposal, spec, decisions, and success criteria to design.md.
-tools: read, grep, glob, write, edit
+tools: read, grep, find, write, edit
 completionGuard: false
 ---
 
@@ -22,6 +22,10 @@ Use advisory context passed by the parent; do not independently invoke Engram. E
 ## Inputs
 
 Read `scope.md`, `map.md`, the relevant existing code and tests, and `openspec/config.yaml` when present. Build on the map output; do not remap from scratch.
+
+## Canonical spec context
+
+Reuse the canonical spec references recorded in `scope.md`. You may add only explicit domain hints mapped in `map.md`, and only through exact `openspec/specs/<domain>/spec.md` paths supplied by the injected context. Record `path`, SHA-256, and byte count in `design.md`; never glob domains, read `.sdd` specs, or reconstruct behavior from archived changes. The scope references plus mapped additions share a hard limit of 3 files and 32 KiB UTF-8. If they do not fit, return `status: blocked` and request narrower explicit mapped domain hints; never truncate the selection.
 
 ## Artifact
 
@@ -61,4 +65,15 @@ Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit
 
 **Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause, and what the parent must fix or provide.
 
-Return the standard phase envelope with status, executive_summary, artifacts, next_recommended, risks, and skill_resolution.
+## Return contract (compact envelope)
+
+Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every phase is exactly what fills it. Keep it SMALL. The full detail already lives in your on-disk artifact (`design.md`); the parent reads that from disk when it needs detail and never recovers it from your envelope. Return ONLY:
+
+- `status` (+ `blocked_by` when blocked);
+- `executive_summary`: **≤ 3 lines / ≤ 60 words** — the outcome and the one fact the parent routes on, NOT the evidence;
+- `artifacts`: the path(s) you wrote;
+- `next_recommended`;
+- `risks`: **≤ 3 short bullets**;
+- `skill_resolution`.
+
+NEVER paste into the envelope the artifact's content, full file lists, per-test tables, command output, or long prose evidence — that payload lives in `design.md` on disk. A verbose envelope is a defect, not thoroughness.

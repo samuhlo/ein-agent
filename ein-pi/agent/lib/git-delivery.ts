@@ -128,6 +128,43 @@ export function messageRequestsDelivery(text: string): boolean {
 	return DELIVERY_INTENT_PATTERNS.some((p) => p.test(trimmed));
 }
 
+// ─── Intención de entrega PEGAJOSA ───────────────────────────────────────────
+// Antes la intención se recalculaba en CADA mensaje y se pisaba: pedías "haz
+// commit, push y PR", pegabas un log de CI a mitad del trabajo y esa autorización
+// se evaporaba — las delegaciones siguientes del MISMO encargo se bloqueaban.
+// Ahora sobrevive a mensajes neutros (logs, datos, "sigue") y solo cae con una
+// negación explícita o al expirar. Con TTL para que un "haz push" de hace una
+// hora no autorice una entrega por iniciativa del agente.
+export const DELIVERY_INTENT_TTL_MS = 30 * 60 * 1000;
+
+export type DeliveryIntent = { requested: boolean; at: number };
+
+// Estado siguiente de la intención ante un mensaje del usuario. Puro: el
+// almacén (Map por sesión) vive en la extensión.
+export function nextDeliveryIntent(
+	previous: DeliveryIntent | undefined,
+	text: string,
+	now: number = Date.now(),
+): DeliveryIntent {
+	// Pedirla explícitamente la renueva (y refresca el TTL).
+	if (messageRequestsDelivery(text)) return { requested: true, at: now };
+	// Negarla explícitamente la cancela: "no hagas push" manda sobre lo anterior.
+	if (typeof text === "string" && textNegatesDelivery(text))
+		return { requested: false, at: now };
+	// Mensaje neutro: se conserva mientras siga viva.
+	if (previous?.requested && now - previous.at <= DELIVERY_INTENT_TTL_MS)
+		return previous;
+	return { requested: false, at: now };
+}
+
+export function deliveryIntentActive(
+	intent: DeliveryIntent | undefined,
+	now: number = Date.now(),
+): boolean {
+	if (!intent?.requested) return false;
+	return now - intent.at <= DELIVERY_INTENT_TTL_MS;
+}
+
 export async function handleGitCommand(ctx: ExtensionContext): Promise<void> {
 	const current = readGitDeliveryMode(ctx.cwd);
 	const items = GIT_DELIVERY_OPTIONS.map((m) => `${m} — ${GIT_DELIVERY_LABEL[m]}`);

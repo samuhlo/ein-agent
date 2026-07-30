@@ -12,13 +12,21 @@ import { join } from "node:path";
 const { writeEinMd, readEinMd, einContextDirective, einMdPath, einMdCommitsBehind } =
 	await import("../ein-pi/agent/lib/project-context");
 
+const i18nStateKey = Symbol.for("rpiv-i18n");
+const i18nState = globalThis as Record<symbol, unknown>;
+const hadOriginalI18nSnapshot = Object.hasOwn(i18nState, i18nStateKey);
+const originalI18nSnapshot = i18nState[i18nStateKey];
+
 describe("writeEinMd", () => {
 	let cwd: string;
 	beforeEach(() => {
+		i18nState[i18nStateKey] = { locale: "es" };
 		cwd = mkdtempSync(join(tmpdir(), "ein-ctx-"));
 	});
 	afterEach(() => {
 		rmSync(cwd, { recursive: true, force: true });
+		if (hadOriginalI18nSnapshot) i18nState[i18nStateKey] = originalI18nSnapshot;
+		else delete i18nState[i18nStateKey];
 	});
 
 	test("crea EIN.md con sello, zona AUTO y comandos del package.json", () => {
@@ -51,6 +59,14 @@ describe("writeEinMd", () => {
 		expect(content).toContain("## Docs");
 		expect(content).toContain("[README](README.md)");
 		expect(content).toContain("[docs/guide.md](docs/guide.md)");
+	});
+
+	test("un snapshot inglés genera el índice en inglés", () => {
+		i18nState[i18nStateKey] = { locale: "en" };
+		writeEinMd(cwd);
+		const content = readFileSync(einMdPath(cwd), "utf8");
+		expect(content).toContain("## Index");
+		expect(content).not.toContain("## Índice");
 	});
 
 	test("refrescar preserva el Índice curado (descripciones del modelo)", () => {

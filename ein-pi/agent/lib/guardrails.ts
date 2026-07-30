@@ -6,8 +6,12 @@
 //
 // Los subagentes corren headless (sin UI), así que la confirmación de un
 // push delegado ocurre en la sesión padre al llamar al tool `subagent`:
-// el usuario aprueba ahí y se emite un grant one-shot con TTL corto que el
-// guard headless consume cuando el subagente ejecuta el push real.
+// el usuario aprueba ahí y se emite un grant (TTL corto, scope por cwd, usos
+// acotados) que el guard headless consume al ejecutar el push real.
+//
+// Que la delegación SEA una entrega se decide por el agente destino, no por la
+// redacción de la task: ein-git existe para entregar. La prosa quedó como red
+// secundaria para un push escondido en otro agente.
 // =============================================================================
 
 import {
@@ -44,23 +48,42 @@ const CONFIRM_BASH_PATTERNS: RegExp[] = [
 	/\bpi\s+remove\b/,
 ];
 
+// Agentes cuya RAZÓN DE SER es la entrega. Delegarles algo ES una entrega: no
+// hay que deducirlo de la prosa. Antes el gate solo miraba el texto de la task
+// y fallaba-cerrado por un adjetivo — "push the branch" acuñaba el grant y
+// "push current branch" no, con el mismo significado. El resultado era un
+// callejón sin salida: ein-git headless bloqueado y el padre sin forma de
+// arreglarlo salvo adivinar otra redacción.
+const DELIVERY_AGENTS = new Set(["ein-git"]);
+
+// Sustantivo de entrega, opcionalmente precedido de determinante y adjetivos
+// ("the branch", "current branch", "the already-created local commit"). El
+// límite de 3 palabras evita cruzar media frase.
+const DELIVERY_OBJECT =
+	"(?:[\\w'-]+\\s+){0,3}(?:branch|rama|commits?|changes?|cambios|tags?|it|todo|everything)";
+
 // Frases (en la task de delegación, lenguaje natural) que implican que el
-// subagente acabará ejecutando un comando guardado tipo `git push`.
-// "push" a secas NO basta: emitir un grant one-shot ante "implementa push
+// subagente acabará ejecutando un comando guardado tipo `git push`. Es la RED
+// SECUNDARIA: cubre un push escondido en un agente que no sea de entrega (p. ej.
+// `sdd-apply` con bash). Para los agentes de entrega decide DELIVERY_AGENTS.
+// "push" a secas sigue sin bastar: emitir un grant ante "implementa push
 // notifications" abriría una ventana en la que cualquier `git push` headless
-// pasaría sin confirmación. Se exige contexto de entrega (git/rama/remote/PR)
-// o la forma verbal explícita.
+// pasaría sin confirmación.
 const DELEGATED_DELIVERY_PATTERNS: RegExp[] = [
 	/\bgit\s+push\b/i,
 	/\bpush(?:ea|éa|ealo|éalo|ear)\b/i,
 	/\bhaz\s+(?:el\s+|un\s+)?push\b/i,
-	/\bpush\s+(?:the\s+|this\s+|los?\s+|las?\s+|mis?\s+)?(?:branch|rama|commits?|changes?|cambios|tags?|it|todo|everything)\b/i,
+	new RegExp(`\\bpush\\s+${DELIVERY_OBJECT}\\b`, "i"),
 	/\bpush\s+(?:to|a|hacia)\s+(?:origin|remote|remoto|github|upstream|main|master)\b/i,
 	/\b(?:branch|rama|commits?|cambios)\b[^.,;\n]{0,30}?\bpush\b/i,
 	/^\s*(?:git\s+)?push\s*[!.]*\s*$/i,
 	/\bsube\s+(?:la\s+)?rama\b/i,
+	// "publica" a secas NO: en una task puede ser "publica la documentación", y
+	// el grant también abre `npm publish`. Se exige objeto de entrega.
+	new RegExp(`\\bpublica(?:lo|los)?\\s+${DELIVERY_OBJECT}\\b`, "i"),
 	/\babre\s+(?:un\s+|el\s+|la\s+)?(?:pr|pull\s+request)\b/i,
 	/\bopen\s+(?:a\s+|the\s+)?(?:pr|pull\s+request)\b/i,
+	/\b(?:update|actualiza)\s+(?:existing\s+|el\s+)?(?:pr|pull\s+request)\b/i,
 ];
 
 // TTL corto a propósito: cubre el arranque del subagente y poco más.
@@ -74,17 +97,29 @@ export function deliveryGrantPath(): string {
 	return join(einConfigHome(), "delivery-grant.json");
 }
 
+// Usos por grant. Una entrega real puede ejecutar más de un comando guardado en
+// el MISMO run (push de rama + push de tags en una release), y el subagente
+// puede reintentar tras un fallo transitorio. Con un único uso, el segundo
+// comando legítimo moría bloqueado. Acotado y con TTL: no es una ventana
+// abierta, son los intentos de un encargo ya autorizado.
+const DELIVERY_GRANT_MAX_USES = 3;
+
 export function grantDelegatedDelivery(cwd: string): void {
 	const path = deliveryGrantPath();
 	mkdirSync(dirname(path), { recursive: true });
 	writeFileSync(
 		path,
-		`${JSON.stringify({ cwd, expiresAt: Date.now() + DELIVERY_GRANT_TTL_MS })}\n`,
+		`${JSON.stringify({
+			cwd,
+			expiresAt: Date.now() + DELIVERY_GRANT_TTL_MS,
+			remainingUses: DELIVERY_GRANT_MAX_USES,
+		})}\n`,
 	);
 }
 
-// One-shot: leerlo lo consume siempre, sea válido o no, para que un grant
-// corrupto o caducado no sobreviva a varios intentos.
+// Consume un uso. El grant se BORRA al agotarse, caducar o venir corrupto —
+// nunca sobrevive inválido. Mientras le queden usos dentro del TTL, se
+// reescribe con uno menos.
 export function consumeDelegatedDelivery(cwd: string): boolean {
 	const path = deliveryGrantPath();
 	if (!existsSync(path)) return false;
@@ -94,17 +129,31 @@ export function consumeDelegatedDelivery(cwd: string): boolean {
 	} catch {
 		grant = undefined;
 	}
-	rmSync(path, { force: true });
-	if (typeof grant !== "object" || grant === null) return false;
-	const { cwd: grantCwd, expiresAt } = grant as {
+	if (typeof grant !== "object" || grant === null) {
+		rmSync(path, { force: true });
+		return false;
+	}
+	const { cwd: grantCwd, expiresAt, remainingUses } = grant as {
 		cwd?: unknown;
 		expiresAt?: unknown;
+		remainingUses?: unknown;
 	};
-	return (
+	const valid =
 		grantCwd === cwd &&
 		typeof expiresAt === "number" &&
-		Date.now() <= expiresAt
-	);
+		Date.now() <= expiresAt;
+	if (!valid) {
+		rmSync(path, { force: true });
+		return false;
+	}
+	// `remainingUses` ausente = grant de un formato anterior: vale por un uso.
+	const left = typeof remainingUses === "number" ? remainingUses - 1 : 0;
+	if (left <= 0) {
+		rmSync(path, { force: true });
+	} else {
+		writeFileSync(path, `${JSON.stringify({ cwd: grantCwd, expiresAt, remainingUses: left })}\n`);
+	}
+	return true;
 }
 
 function truncatePreview(text: string, max: number): string {
@@ -140,10 +189,15 @@ export async function confirmCommand(
 	if (!commandRequiresConfirmation(command)) return undefined;
 	if (!ctx.hasUI) {
 		if (consumeDelegatedDelivery(ctx.cwd)) return undefined;
+		// Precisión deliberada: el bloqueo es POR FALTA DE GRANT, no por
+		// configuración ausente. Con el mensaje genérico anterior el subagente
+		// concluía "no existe .pi/ein/git.json" — un fichero que sí existía y
+		// estaba en `auto` — y el padre acababa recomendando abrir sesión nueva,
+		// que no arregla nada.
 		return {
 			block: true,
 			reason:
-				"Ein safety policy requires interactive confirmation before this command. Do not retry: return a single report to the parent session so it can confirm with the user and re-delegate with an approved delivery grant.",
+				"Ein delivery gate: no active delivery grant for this working directory (the guarded command needs one; this is NOT a missing or misconfigured .pi/ein/git.json). The grant is minted by the parent session when it delegates the delivery. Do not retry and do not inspect the git config: return a single report to the parent so it can confirm with the user and re-delegate.",
 		};
 	}
 	const preview = truncatePreview(command, 180);
@@ -182,6 +236,31 @@ function collectDelegationTexts(input: unknown): string[] {
 	return texts;
 }
 
+// Nombres de agente del input del tool `subagent`: modo single (`agent`),
+// parallel (`tasks[].agent`) y chain (`steps[].agent`).
+export function collectDelegationAgents(input: unknown): string[] {
+	if (!isRecord(input)) return [];
+	const agents: string[] = [];
+	if (typeof input.agent === "string") agents.push(input.agent);
+	for (const key of ["tasks", "steps"]) {
+		const items = input[key];
+		if (!Array.isArray(items)) continue;
+		for (const item of items) {
+			if (isRecord(item) && typeof item.agent === "string")
+				agents.push(item.agent);
+		}
+	}
+	return agents;
+}
+
+// ¿Esta delegación es una entrega? Determinista primero (el agente destino),
+// prosa después. El orden importa: el agente es un hecho, el texto una pista.
+export function delegationIsDelivery(input: unknown): boolean {
+	if (collectDelegationAgents(input).some((a) => DELIVERY_AGENTS.has(a)))
+		return true;
+	return collectDelegationTexts(input).some(taskRequestsGuardedDelivery);
+}
+
 export function taskRequestsGuardedDelivery(text: string): boolean {
 	// Negación POR VERBO, no por texto: se eliminan solo los verbos negados y
 	// se evalúa lo que queda afirmado. "haz commit pero sin push" → false, pero
@@ -207,9 +286,9 @@ export async function confirmDelegatedDelivery(
 ): Promise<ToolCallEventResult | undefined> {
 	// Sin UI no podemos confirmar aquí; el guard de bash del subagente decide.
 	if (!ctx.hasUI) return undefined;
+	if (!delegationIsDelivery(input)) return undefined;
 	const texts = collectDelegationTexts(input);
-	if (!texts.some(taskRequestsGuardedDelivery)) return undefined;
-	// Política de confirmación. El grant one-shot se EMITE siempre que dejemos
+	// Política de confirmación. El grant se EMITE siempre que dejemos
 	// pasar la entrega (auto-autorizada, off o aprobada): el ein-git headless lo
 	// necesita para su `git push`. Solo cambia si mostramos el ui.confirm o no.
 	// off → nunca preguntar. auto → no preguntar si el usuario la pidió.

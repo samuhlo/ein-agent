@@ -11,9 +11,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const {
+	DELIVERY_INTENT_TTL_MS,
 	GIT_DELIVERY_OPTIONS,
+	deliveryIntentActive,
 	gitDeliveryConfigPath,
 	messageRequestsDelivery,
+	nextDeliveryIntent,
 	readGitDeliveryMode,
 	writeGitDeliveryMode,
 } = await import("../ein-pi/agent/lib/git-delivery");
@@ -102,5 +105,58 @@ describe("messageRequestsDelivery", () => {
 		// La orden mínima sigue valiendo.
 		expect(messageRequestsDelivery("push")).toBe(true);
 		expect(messageRequestsDelivery("git push")).toBe(true);
+	});
+});
+
+// =============================================================================
+// Intención PEGAJOSA. Antes se recalculaba en cada mensaje y se pisaba: en una
+// sesión real el usuario pidió "haz commit, push y PR", pegó un log de CI a
+// mitad del trabajo (mensaje neutro → intención a false) y la delegación
+// siguiente del MISMO encargo se quedó sin autorización y bloqueada.
+// =============================================================================
+describe("nextDeliveryIntent — intención pegajosa con TTL", () => {
+	const T0 = 1_000_000;
+
+	test("pedir la entrega la activa", () => {
+		const intent = nextDeliveryIntent(undefined, "haz commit, push y PR", T0);
+		expect(intent.requested).toBe(true);
+		expect(deliveryIntentActive(intent, T0)).toBe(true);
+	});
+
+	test("un mensaje neutro la CONSERVA (el caso que rompía)", () => {
+		const asked = nextDeliveryIntent(undefined, "haz commit, push y PR", T0);
+		const afterLog = nextDeliveryIntent(
+			asked,
+			"Test (workbench + installer)\nProcess completed with exit code 1.\ntests/project-context.test.ts#L84",
+			T0 + 60_000,
+		);
+		expect(afterLog).toBe(asked);
+		expect(deliveryIntentActive(afterLog, T0 + 60_000)).toBe(true);
+	});
+
+	test("una negación explícita la cancela", () => {
+		const asked = nextDeliveryIntent(undefined, "haz push", T0);
+		const denied = nextDeliveryIntent(asked, "no hagas push todavía", T0 + 1000);
+		expect(denied.requested).toBe(false);
+	});
+
+	test("caduca: un 'haz push' viejo no autoriza una entrega por iniciativa", () => {
+		const asked = nextDeliveryIntent(undefined, "haz push", T0);
+		const late = T0 + DELIVERY_INTENT_TTL_MS + 1;
+		expect(deliveryIntentActive(asked, late)).toBe(false);
+		// Y un mensaje neutro pasada la ventana no la resucita.
+		expect(nextDeliveryIntent(asked, "sigue con eso", late).requested).toBe(false);
+	});
+
+	test("pedirla de nuevo refresca la ventana", () => {
+		const asked = nextDeliveryIntent(undefined, "haz push", T0);
+		const later = T0 + DELIVERY_INTENT_TTL_MS - 1;
+		const renewed = nextDeliveryIntent(asked, "haz push otra vez", later);
+		expect(renewed.at).toBe(later);
+		expect(deliveryIntentActive(renewed, later + DELIVERY_INTENT_TTL_MS - 1)).toBe(true);
+	});
+
+	test("sin intención previa, un mensaje neutro no autoriza nada", () => {
+		expect(nextDeliveryIntent(undefined, "mira este error", T0).requested).toBe(false);
 	});
 });

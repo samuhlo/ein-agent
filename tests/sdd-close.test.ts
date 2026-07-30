@@ -14,6 +14,7 @@ import {
 	hasSuccessfulMemoryReceipt,
 } from "../ein-pi/agent/lib/sdd-memory-save.ts";
 import { lintChange, lintPhaseArtifact, oversizedGroupWarnings } from "../ein-pi/agent/lib/sdd-guardrails";
+import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
 
 let DIR: string;
 function mkChange(name: string, files: Record<string, string>): string {
@@ -32,17 +33,17 @@ afterEach(() => {
 
 describe("closeChange", () => {
 	test("mueve el cambio a storage interno y conserva summary.md", () => {
-		mkChange("feat-x", { "summary.md": "# Resumen\nqué cambió", "design.md": "x" });
+		makeFresh("feat-x");
 		const r = closeChange(DIR, "feat-x", { force: true });
 		expect(r.ok).toBe(true);
 		expect(existsSync(join(DIR, "openspec", "changes", "feat-x"))).toBe(false);
 		const closed = join(DIR, "openspec", "changes", "archive", "feat-x");
 		expect(existsSync(join(closed, "summary.md"))).toBe(true);
-		expect(readFileSync(join(closed, "summary.md"), "utf8")).toContain("qué cambió");
+		expect(readFileSync(join(closed, "summary.md"), "utf8")).toContain("cierre");
 	});
 
 	test("no pisa si ya existe en storage interno (idempotente-safe)", () => {
-		mkChange("feat-x", { "summary.md": "v1" });
+		makeFresh("feat-x");
 		expect(closeChange(DIR, "feat-x", { force: true }).ok).toBe(true);
 		mkChange("feat-x", { "summary.md": "v2" });
 		const r2 = closeChange(DIR, "feat-x", { force: true });
@@ -57,7 +58,7 @@ describe("closeChange", () => {
 
 	// Fase 2: el cierre no archiva sobre evidencia incompleta u obsoleta.
 	const READY_FILES = {
-		"scope.md": "scope: x\nbudget_allocated: 1",
+		"scope.md": "scope: x\nbudget_allocated: 1\n## Spec delta declaration\nspec_delta: none\nspec_delta_reason: mechanical close readiness fixture",
 		"map.md": "m",
 		"design.md": "d",
 		"tasks.md": "status: ready\nblocked_by: none\n- [x] hecho\n",
@@ -87,7 +88,7 @@ describe("closeChange", () => {
 	});
 
 	test("solo summary.md (sin verify/apply) → NO cierra", () => {
-		mkChange("feat-bare", { "summary.md": "x" });
+		mkChange("feat-bare", { "summary.md": "x", "scope.md": "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: fixture" });
 		const r = closeChange(DIR, "feat-bare");
 		expect(r.ok).toBe(false);
 		expect(r.reason).toContain("verify");
@@ -103,22 +104,61 @@ describe("closeChange", () => {
 		expect(r.reason).toContain("obsoleta");
 	});
 
-	test("--force sortea el guard aunque no esté listo", () => {
-		mkChange("feat-force", { "summary.md": "x" });
-		expect(closeChange(DIR, "feat-force", { force: true }).ok).toBe(true);
+	// `unresolved` SÍ es forzable: es un problema de metadatos, y hacerlo
+	// absoluto dejaba el cierre muerto (ver el describe del final). Lo que NO
+	// se fuerza es `conflict`, que es una incoherencia real de contenido.
+	test("--force NO archiva sobre specs en conflicto", async () => {
+		const p = mkChange("feat-conflict", {
+			"summary.md": "x",
+			"scope.md": "# Scope\n\nscope: algo\nbudget_allocated: 1000\n",
+		});
+		const scenario = [
+			"### Scenario: alpha",
+			"title: Alpha",
+			"requirement: The system MUST retain alpha",
+			"Given: an input",
+			"When: it runs",
+			"Then: it succeeds",
+		].join("\n");
+		// El delta AÑADE un escenario que la spec vigente ya tiene → added-existing.
+		mkdirSync(join(p, "specs", "sdd-lifecycle"), { recursive: true });
+		writeFileSync(
+			join(p, "specs", "sdd-lifecycle", "spec.md"),
+			["# OpenSpec Delta", "format: openspec-delta/v1", "domain: sdd-lifecycle", "", "## ADDED", scenario, ""].join("\n"),
+		);
+		mkdirSync(join(DIR, "openspec", "specs", "sdd-lifecycle"), { recursive: true });
+		writeFileSync(
+			join(DIR, "openspec", "specs", "sdd-lifecycle", "spec.md"),
+			["# OpenSpec Specification", "format: openspec-spec/v1", "domain: sdd-lifecycle", "", scenario.replace("###", "##"), ""].join("\n"),
+		);
+
+		// El motor real detecta el conflicto y publica el informe: es la ruta que
+		// recorre `ein_openspec_sync` en producción.
+		const { plan } = await synchronizeOpenSpecFilesystem(DIR, "feat-conflict");
+		expect(plan.state).toBe("conflict");
+
+		const r = closeChange(DIR, "feat-conflict", { force: true });
+		expect(r.ok).toBe(false);
+		expect(r.reason).toContain("conflict");
 	});
 
-	test("cierra cambios en la raíz legacy .sdd/changes/", () => {
+	test("cierra cambios completos en la raíz legacy .sdd/changes/", () => {
 		const p = join(DIR, ".sdd", "changes", "fix-legacy");
 		mkdirSync(p, { recursive: true });
-		writeFileSync(join(p, "summary.md"), "# Resumen legacy");
+		for (const [file, body] of Object.entries({
+			"explore.md": "scope: legacy\n",
+			"apply.md": "# Design\n",
+			"tasks.md": "status: ready\n- [x] done\n",
+			"apply-progress.md": "status: complete\n",
+			"verify-report.md": "status: pass\n",
+			"summary.md": "# Resumen legacy\n",
+		})) writeFileSync(join(p, file), body);
 		const r = closeChange(DIR, "fix-legacy", { force: true });
-		expect(r.ok).toBe(true);
-		expect(existsSync(join(DIR, ".sdd", "changes", "archive", "fix-legacy", "summary.md"))).toBe(true);
+		expect(r).toEqual({ ok: true, from: join(DIR, ".sdd", "changes", "fix-legacy"), to: join(DIR, ".sdd", "changes", "archive", "fix-legacy") });
 	});
 
 	test("el receipt de close vive tras el archive y evita otro fallback del mismo digest", () => {
-		mkChange("feat-x", { "summary.md": "# Resumen\ncierre verificado" });
+		makeFresh("feat-x");
 		const r = closeChange(DIR, "feat-x", { force: true });
 		expect(r.ok).toBe(true);
 		const approved = approveCandidate(buildCloseMemoryCandidate("feat-x")).approved!;
@@ -270,5 +310,99 @@ describe("verify behavior_coverage (#4)", () => {
 	test("FAIL sin cobertura → NO warning de cobertura (solo aplica a PASS)", () => {
 		const r = lintPhaseArtifact("verify", "status: fail\n");
 		expect(r.issues.some((i) => i.code.startsWith("behavior-coverage"))).toBe(false);
+	});
+});
+
+describe("closeChange — force fail-closed matrix", () => {
+	const READY = {
+		"scope.md": "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: fixture\n",
+		"map.md": "# Map\n",
+		"design.md": "# Design\n",
+		"tasks.md": "status: ready\n- [x] done\n",
+		"apply-progress.md": "status: complete\n",
+		"verify-report.md": "status: pass\n",
+		"summary.md": "# Summary\n",
+	};
+	function ready(name: string): string { return mkChange(name, READY); }
+	function declarationless(name: string): string {
+		const path = ready(name);
+		writeFileSync(join(path, "scope.md"), "# Scope legacy\n");
+		return path;
+	}
+
+	test.each([
+		["pending tasks", (p: string) => writeFileSync(join(p, "tasks.md"), "status: ready\n- [ ] pending\n"), "tasks-pending"],
+		["blocked tasks", (p: string) => writeFileSync(join(p, "tasks.md"), "status: blocked\n- [ ] pending\n"), "tasks-pending"],
+		["partial apply", (p: string) => writeFileSync(join(p, "apply-progress.md"), "status: partial\n"), "apply-not-complete"],
+		["blocked apply", (p: string) => writeFileSync(join(p, "apply-progress.md"), "status: blocked\n"), "apply-not-complete"],
+		["unknown apply", (p: string) => writeFileSync(join(p, "apply-progress.md"), "status: unknown\n"), "apply-not-complete"],
+		["missing verify", (p: string) => rmSync(join(p, "verify-report.md")), "verify-missing"],
+		["failed verify", (p: string) => writeFileSync(join(p, "verify-report.md"), "status: fail\n"), "verify-failed"],
+		["unknown verify", (p: string) => writeFileSync(join(p, "verify-report.md"), "status: unknown\n"), "verify-unclear"],
+		["missing summary", (p: string) => rmSync(join(p, "summary.md")), "summary-missing"],
+		["pending spec", (p: string) => { writeFileSync(join(p, "scope.md"), "# Scope\n"); mkdirSync(join(p, "specs", "domain"), { recursive: true }); writeFileSync(join(p, "specs", "domain", "spec.md"), "# OpenSpec Delta\nformat: openspec-delta/v1\ndomain: domain\n\n## ADDED\n### Scenario: pending\ntitle: Pending\nrequirement: The system MUST wait\nGiven: ready\nWhen: close\nThen: blocked\n"); }, "spec-pending"],
+		["malformed unresolved spec", (p: string) => writeFileSync(join(p, "scope.md"), "spec_delta: broken\n"), "spec-unresolved"],
+	] as const)("force cannot bypass %s", (_name, mutate, expectedCode) => {
+		const path = ready(`blocked-${_name.replaceAll(" ", "-")}`);
+		mutate(path);
+		const change = path.split("/").at(-1)!;
+		expect(closeChange(DIR, change).ok).toBe(false);
+		const result = closeChange(DIR, change, { force: true, legacyReason: "not relevant" });
+		expect(result.ok).toBe(false);
+		expect(result.blockers?.some((blocker) => blocker.code === expectedCode)).toBe(true);
+		expect(existsSync(path)).toBe(true);
+		expect(existsSync(join(DIR, "openspec", "changes", "archive", path.split("/").at(-1)!))).toBe(false);
+	});
+
+	test("eligible declarationless record requires force and a valid normalized reason", () => {
+		declarationless("legacy");
+		for (const legacyReason of [undefined, " ", "none", "N/A", "x".repeat(201)]) {
+			const result = closeChange(DIR, "legacy", { force: true, legacyReason });
+			expect(result.ok).toBe(false);
+			expect(result.blockers?.some((blocker) => blocker.code === "legacy-reason-invalid")).toBe(true);
+			expect(existsSync(join(DIR, "openspec", "changes", "legacy"))).toBe(true);
+		}
+		expect(closeChange(DIR, "legacy").ok).toBe(false);
+		const result = closeChange(DIR, "legacy", { force: true, legacyReason: "  historic declaration missing  " });
+		expect(result.legacyEscape).toEqual({ used: true, priorSpecState: "unresolved", eligibility: "declarationless-record", reason: "historic declaration missing" });
+	});
+
+	test("normal close and unused force retain the normal result shape", () => {
+		ready("normal");
+		expect(closeChange(DIR, "normal", { force: true, legacyReason: "ignored" })).toEqual({
+			ok: true,
+			from: join(DIR, "openspec", "changes", "normal"),
+			to: join(DIR, "openspec", "changes", "archive", "normal"),
+		});
+	});
+
+	test("multiple blockers are reported together and cannot be erased by legacy eligibility", () => {
+		const path = declarationless("multiple");
+		writeFileSync(join(path, "tasks.md"), "status: ready\n- [ ] pending\n");
+		writeFileSync(join(path, "apply-progress.md"), "status: partial\n");
+		const result = closeChange(DIR, "multiple", { force: true, legacyReason: "legacy" });
+		expect(result.blockers?.map((blocker) => blocker.code)).toContain("tasks-pending");
+		expect(result.blockers?.map((blocker) => blocker.code)).toContain("apply-not-complete");
+		expect(existsSync(path)).toBe(true);
+	});
+});
+
+// El nombre de un cambio es un SEGMENTO, nunca una ruta. La validación es
+// COMPARTIDA con la sincronización OpenSpec (isSafeChangeName): estaban
+// duplicadas —y una de las dos ni existía—, y esa divergencia fue el agujero.
+describe("closeChange — nombres de cambio inseguros", () => {
+	test("rechaza rutas, `..`, vacío y el storage reservado", () => {
+		for (const malo of ["", "..", "a/b", "a\\b", "archive", "../../fuera"]) {
+			const r = closeChange(DIR, malo, { force: true });
+			expect(r.ok, `debería rechazar ${JSON.stringify(malo)}`).toBe(false);
+			expect(r.reason).toContain("inválido");
+		}
+	});
+
+	test("el vacío no apunta al directorio de cambios entero", () => {
+		mkChange("vivo", { "summary.md": "x" });
+		expect(closeChange(DIR, "", { force: true }).ok).toBe(false);
+		// El cambio real sigue donde estaba: nada se movió en bloque.
+		expect(existsSync(join(DIR, "openspec", "changes", "vivo"))).toBe(true);
 	});
 });

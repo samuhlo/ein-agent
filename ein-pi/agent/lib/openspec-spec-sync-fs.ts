@@ -1,0 +1,125 @@
+import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { isSafeChangeName } from "./sdd-router";
+import { parseSyncReport, planOpenSpecSync, serializeSyncReport, type OpenSpecSyncPlan, type SyncBaseInput, type SyncDeltaInput } from "./openspec-spec-sync";
+import { digestManifest, serializeOpenSpec } from "./openspec-spec-contract";
+
+const TEMP_PREFIX = ".openspec-sync-";
+
+async function readIfPresent(path: string): Promise<Uint8Array | null> {
+	try { return await readFile(path); } catch (error: unknown) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+		throw error;
+	}
+}
+
+async function deltaInputs(changePath: string): Promise<SyncDeltaInput[]> {
+	const root = join(changePath, "specs");
+	let domains: string[];
+	try { domains = await readdir(root); } catch (error: unknown) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+		throw error;
+	}
+	const inputs: SyncDeltaInput[] = [];
+	for (const domain of domains.sort()) {
+		const path = join(root, domain, "spec.md");
+		const bytes = await readIfPresent(path);
+		if (bytes) inputs.push({ path: `specs/${domain}/spec.md`, bytes });
+	}
+	return inputs;
+}
+
+async function replaceWithTemporary(path: string, bytes: Uint8Array): Promise<void> {
+	await mkdir(dirname(path), { recursive: true });
+	const temporary = join(dirname(path), `${TEMP_PREFIX}${process.pid}-${Math.random().toString(16).slice(2)}`);
+	try {
+		await writeFile(temporary, bytes);
+		await rename(temporary, path);
+	} finally {
+		await rm(temporary, { force: true });
+	}
+}
+
+async function restore(path: string, bytes: Uint8Array | null): Promise<void> {
+	if (bytes === null) await rm(path, { force: true });
+	else await replaceWithTemporary(path, bytes);
+}
+
+export type FilesystemSyncResult = { plan: OpenSpecSyncPlan; changed: boolean };
+
+// Costura de test (producción NUNCA la pasa). El rollback multidominio solo se
+// dispara con un fallo de disco a mitad de la segunda sustitución, y provocarlo
+// de verdad exige permisos o dispositivos llenos: frágil, y en un runner como
+// root ni siquiera falla. Inyectar el fallo en el mismo punto de llamada
+// ejercita el contrato REAL —"si una sustitución revienta, las anteriores se
+// restauran"— sin depender del entorno. Mismo patrón que UpdateRunDependencies.
+export type SyncFsSeam = {
+	replace?: (path: string, bytes: Uint8Array) => Promise<void>;
+	restore?: (path: string, bytes: Uint8Array | null) => Promise<void>;
+};
+
+export async function synchronizeOpenSpecFilesystem(cwd: string, change: string, seam: SyncFsSeam = {}): Promise<FilesystemSyncResult> {
+	const applyReplace = seam.replace ?? replaceWithTemporary;
+	const applyRestore = seam.restore ?? restore;
+	// El nombre llega desde un tool que expone el LLM: se valida aquí, en el
+	// choke point, no en quien llama. Sin esto `../../x` escribía el informe
+	// FUERA de openspec/changes/ (verificado), y un nombre cualquiera creaba un
+	// cambio fantasma con solo su sync-report.md — un recibo sin trabajo detrás.
+	if (!isSafeChangeName(change)) {
+		throw new Error(`OpenSpec sync: nombre de cambio inválido: ${JSON.stringify(change)}`);
+	}
+	const changePath = join(cwd, "openspec", "changes", change);
+	// Exigir que el cambio EXISTA: sincronizar es una operación sobre trabajo ya
+	// presente, nunca una que lo invente.
+	if (!existsSync(changePath)) {
+		throw new Error(`OpenSpec sync: el cambio '${change}' no existe en openspec/changes/`);
+	}
+	const deltas = await deltaInputs(changePath);
+	const bases: SyncBaseInput[] = [];
+	for (const delta of deltas) {
+		const domain = delta.path.split("/")[1]!;
+		const bytes = await readIfPresent(join(cwd, "openspec", "specs", domain, "spec.md"));
+		if (bytes) bases.push({ domain, bytes });
+	}
+	const reportPath = join(changePath, "sync-report.md");
+	const existingReport = await readIfPresent(reportPath);
+	const deltaSha256 = digestManifest(deltas);
+	if (existingReport) {
+		const parsed = parseSyncReport(Buffer.from(existingReport).toString("utf8"));
+		const resultSha256 = digestManifest(bases.map(({ domain, bytes }) => ({ path: `specs/${domain}/spec.md`, bytes })));
+		if (parsed.ok && parsed.value.state === "synchronized" && parsed.value.deltaSha256 === deltaSha256 && parsed.value.resultSha256 === resultSha256) {
+			return { plan: planOpenSpecSync(change, deltas, bases), changed: false };
+		}
+	}
+	const plan = planOpenSpecSync(change, deltas, bases);
+	const report = serializeSyncReport(plan);
+	if (plan.state === "conflict") {
+		await replaceWithTemporary(reportPath, Buffer.from(report));
+		return { plan, changed: true };
+	}
+	const snapshots = new Map<string, Uint8Array | null>();
+	try {
+		for (const domain of plan.domains) {
+			const path = join(cwd, "openspec", "specs", domain.domain, "spec.md");
+			snapshots.set(path, await readIfPresent(path));
+			await applyReplace(path, Buffer.from(serializeOpenSpec(domain.result!)));
+		}
+		await applyReplace(reportPath, Buffer.from(report));
+	} catch (error) {
+		// Se conserva el fallo ORIGINAL como causa, pero una restauración que
+		// tambien falla NO puede quedarse muda: eso deja specs medio
+		// sincronizadas mientras el error habla de otra cosa, y nadie se entera
+		// de que el repo quedó inconsistente. Las rutas irrecuperables se
+		// adjuntan al mensaje.
+		const unrestored: string[] = [];
+		for (const [path, snapshot] of snapshots) {
+			try { await applyRestore(path, snapshot); } catch { unrestored.push(path); }
+		}
+		if (unrestored.length > 0 && error instanceof Error) {
+			error.message = `${error.message} [ATENCIÓN: no se pudo restaurar ${unrestored.join(", ")}; esos specs quedaron en estado sincronizado a medias y deben revisarse a mano]`;
+		}
+		throw error;
+	}
+	return { plan, changed: true };
+}

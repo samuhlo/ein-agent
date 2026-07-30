@@ -49,9 +49,14 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0202---2026-07-17");
+    expect(release.anchor).toBe("0244---2026-07-30");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
+  });
+
+  test("describe la release como registrada y no como publicada", () => {
+    expect(releaseSummary).toContain("Última release registrada según el registro canónico local");
+    expect(releaseSummary).not.toContain("Última release publicada");
   });
 
   test("mantiene una entrada progresiva con un único bootstrap y destino semántico", () => {
@@ -70,12 +75,13 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("Sin presets de modelos");
-    expect(releaseSummary).toContain("lo que no caduca es el rol");
-    expect(releaseSummary).toContain("Recomendaciones visibles");
-    expect(releaseSummary).toContain("se desvía del recomendado");
-    expect(releaseSummary).toContain("modelo capaz y esfuerzo bajo");
-    expect(releaseSummary).toContain("abaratar el modelo no ahorra");
+    expect(releaseSummary).toContain("ein-scout");
+    expect(releaseSummary).toContain("modo lectura");
+    expect(releaseSummary).toContain("sin escribir ni entrar en SDD");
+    expect(releaseSummary).toContain("siete fases con envelopes compactos");
+    expect(releaseSummary).toContain("detalle canónico sigue en disco");
+    expect(releaseSummary).toContain("procedencia de receipts estructurados");
+    expect(releaseSummary).toContain("`n/a` cuando faltan datos");
   });
 
   test("guía por capacidad: sin presets, con recomendación por rol y decisión humana", () => {

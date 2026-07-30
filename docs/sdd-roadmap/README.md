@@ -1,6 +1,6 @@
-# // 000. SDD Roadmap — Ein Gentle-like Reorganization
+# // 000. SDD Roadmap — evolución nativa de Ein
 
-Este roadmap documenta seis cambios incrementales que hacen el SDD de Ein mas legible, personal, determinista y compatible con el estilo Gentle.
+Este roadmap documenta seis cambios incrementales que hacen el SDD de Ein mas legible, personal, determinista y coherente con los principios de Ein.
 
 **Intencion general:** sin romper la maquinaria de estado actual, mejorar la superficie publica del sistema para que sea mas facil de seguir para un humano, otro agente, o una sesion nueva.
 

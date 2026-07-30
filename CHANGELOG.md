@@ -5,6 +5,212 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.24.4] - 2026-07-30
+
+### Fixed
+
+- **Structured handoff y lifecycle del scout** (`03272bb`, PR #62). El resultado
+  estructurado se obtiene desde `details.results[0].structuredOutput`, se
+  conservan los diagnósticos de error del runner y se limpia el tracking al
+  terminar la sesión.
+- **Contrato de extensiones vacías y cobertura aislada del scout** (`730509b`,
+  PR #63). Se alinea el contrato entre especificación, doctor y pruebas, se
+  corrige el falso negativo del doctor y se añaden cobertura determinista y un
+  smoke aislado opt-in. El smoke respaldado por proveedor permanece
+  **Unavailable** sin modelo y credencial explícitos.
+
+## [0.24.3] - 2026-07-30
+
+### Fixed
+
+- **Scout de solo lectura sin skills y orientación acotada del orquestador**
+  (`f0c786d`, PR #60). `ein-scout` recibía inyección de skills como cualquier
+  agente nombrado, pese a estar aislado al repo con `inheritSkills: false`: los
+  paths absolutos de `SKILL.md` caían fuera de su sandbox → `Skills not found` y
+  ejecución degradada. Ahora se excluye al scout de la inyección de skills.
+  Además el orquestador acota su orientación de arranque (`ein_sdd_status` +
+  `git status --short`), reconoce que limpiar un cambio sin trackear es `rm -rf`
+  en vez de una auditoría, y usa las herramientas `ctx_*` en modo indexar-y-buscar
+  en vez de volcar output — evitando que se coma el contexto nada más empezar.
+
+## [0.24.2] - 2026-07-30
+
+### Fixed
+
+- **Arranque de `ein-scout` sin extensiones** (`47712f8`, PR #58). El frontmatter
+  declaraba `extensions: []`; pi-subagents parsea ese campo con
+  `parseFrontmatterList` (no JSON), que trata `[]` como token literal y lo
+  convierte en `--extension []` → el launcher intentaba cargar una extensión en
+  `<cwd>/[]` y tumbaba el arranque de cualquier subagente. Ahora el campo va
+  definido pero vacío (`extensions:`), que dispara `--no-extensions` sin token
+  basura. Un test reproduce los dos parsers de frontmatter de pi-subagents sobre
+  los agentes reales, y el orquestador acota sus lecturas inline y trata un scout
+  caído como incidente en vez de tragar la investigación.
+
+## [0.24.1] - 2026-07-30
+
+### Fixed
+
+- **Arranque de subagentes con `ein-scout` instalado** (`c2f9775`, PR #55). El
+  frontmatter de `ein-scout` declaraba `turnBudget`/`toolBudget` como objeto con
+  claves sin comillas; pi-subagents los pasa por `JSON.parse` y el error tumbaba
+  el arranque de cualquier subagente (p.ej. `sdd-scope`), porque al lanzar uno se
+  enumera el registro entero de agentes. Ahora son JSON válido; un nuevo test
+  valida el frontmatter inline real de todos los agentes.
+
+## [0.24.0] - 2026-07-30
+
+### Added
+
+- **`ein-scout` de solo lectura** (`ffe2034`, PR #52). Permite una exploración
+  acotada con `read`, `grep` y `find`, lanzada de forma directa y fresca; sus
+  informes citados fallan cerrados cuando falta evidencia.
+- **Proveniencia fiable para el coste SDD** (`f823cae`, PR #51). El ledger usa
+  recibos locales estructurados, no infiere datos por nombres de tarea y muestra
+  `n/a` cuando no hay información suficiente.
+
+### Changed
+
+- **Retornos SDD más compactos** (`619c87a`, `9cc1c48`, PR #53). Las siete
+  fases devuelven el resumen necesario y derivan la investigación amplia previa
+  al alcance a scout; el detalle canónico permanece en disco.
+- **Contrato de enseñanza más claro** (`b84cbd6`, PR #50). Las explicaciones
+  de Ein y del orquestador priorizan a la persona que las usa.
+
+### Fixed
+
+- **Aceptación y cierre SDD sin ambigüedad** (`dbd6187`, PR #50). La aceptación
+  normal queda en `none` y el modo verificado exige declararse; los cierres y
+  forzados rechazan estados no permitidos en vez de avanzar por error.
+
+## [0.23.0] - 2026-07-29
+
+### Added
+
+- **Entrega ligada al candidato verificado** (`57c78cb`). Los bytes y el árbol
+  exactos que verificó el candidato quedan ligados al repositorio, worktree,
+  HEAD y rutas declaradas, y se comprueban antes de entregar el commit.
+
+### Fixed
+
+- **Recuperación de timeout exacta** (`81a1ddd`). Antes de reintentar, la
+  entrega reconcilia el estado real del repositorio y ejecuta una sola vez el
+  delta restante exacto.
+- **Retiro de receipts tras merge** (`1f89b0f`). El retiro pasa a ser explícito
+  y solo sucede después de confirmar un PR fusionado en el mismo repositorio,
+  sin borrar su evidencia.
+- **Retiro durable de receipts** (`961aefa`). La revalidación, observación del
+  remoto, locks y persistencia endurecen ese ciclo de vida sin aceptar estados
+  dudosos.
+- **Evidencia OpenSpec separada** (`874cab4`). El hardening conserva su
+  evidencia en su propio cambio para que la trazabilidad del retiro siga siendo
+  revisable.
+
+## [0.22.1] - 2026-07-21
+
+### Added
+
+- **Contrato con Pi.** Ein codificaba supuestos sobre Pi —nombres de tools
+  builtin en las allowlists de los agentes, hooks de extensión, métodos de
+  `ExtensionAPI`— y ninguno estaba comprobado en ningún sitio: cada `pi update`
+  era una ruleta. Ya salió caro una vez (`glob` no existe en Pi y tres fases SDD
+  salieron ✗ con sus artefactos correctos). Ahora ese contrato es explícito y se
+  valida en dos direcciones: si **Ein** empieza a usar algo sin declararlo, falla
+  en CI; si **Pi** deja de ofrecerlo, `ein doctor` lo dice por su nombre antes de
+  que un run falle de forma incomprensible. La comprobación contra la
+  instalación real se salta declarándose cuando Pi no está, nunca fingiendo un
+  veredicto.
+
+### Changed
+
+- El set de tools builtin de Pi vivía replicado en tres sitios. Ahora hay una
+  sola fuente, contrastada contra la instalación real: tres copias de la misma
+  verdad son la duplicación que ya abrió un agujero en la validación de OpenSpec.
+
+## [0.22.0] - 2026-07-21
+
+### Added
+
+- **OpenSpec canónico**: especificaciones vigentes en `openspec/specs/<dominio>/`
+  y deltas de comportamiento por cambio, con parser estricto, sincronización
+  determinista por hashes y `sync-report.md` como recibo. El cierre exige specs
+  sincronizadas; `spec_delta: none` con una razón real cubre el trabajo mecánico.
+  Nuevo tool `ein_openspec_sync`: sin él el motor era código muerto y un cambio
+  con deltas se quedaba bloqueado para siempre.
+- **Pathspec cerrado en la entrega.** Un commit contiene lo que se decidió
+  entregar, no lo que hubiera en el árbol. Se rechazan `git add -A/-u/.` y
+  `git commit -a`, también dentro de `bash -c`, y se bloquea el `git add dir/`
+  que arrastraría ficheros no trackeados o ignorados que nadie nombró — ahí es
+  donde se cuela un `.env` o el trabajo en curso de otro. La salida siempre es
+  la correcta: nombrar las rutas.
+- **Recibo de candidato verificado.** Un verify que pasa ya no dice solo "pasó":
+  fija QUÉ bytes pasaron en un árbol git construido con un índice temporal (sin
+  tocar el índice ni el worktree reales) y lo liga a repositorio, worktree,
+  cambio, HEAD, rutas declaradas, informe y comandos. Solo se emite sobre un
+  verify en `pass`, no obsoleto y con el apply completo. Nuevo tool
+  `ein_candidate_receipt`. Aún no bloquea la entrega: eso es el siguiente paso.
+
+### Fixed
+
+- **El cierre SDD estaba muerto.** La guarda de specs se evaluaba antes que
+  `--force`, así que un cambio sin declaración no podía archivarse por ninguna
+  vía. Ahora solo un `conflict` real es inmune a `--force`.
+- **`synchronized` era inalcanzable**: el estado se recalculaba reaplicando el
+  delta sobre specs ya sincronizadas, lo que producía un conflicto artificial.
+  El motor escribía "synchronized" y el router leía "pending" para siempre.
+- **Integridad de la sincronización**: un nombre de cambio con `..` escribía
+  fuera de `openspec/changes/`, un nombre cualquiera creaba un cambio fantasma
+  con solo su recibo, y un recibo copiado de otro cambio pasaba por bueno.
+- El recibo de candidato representa correctamente altas, bajas y renombrados.
+
+## [0.21.0] - 2026-07-21
+
+### Fixed
+
+- **`glob` no existe en Pi: los siete agentes SDD declaraban una tool fantasma.**
+  Los builtins son `read/bash/edit/write/grep/find/ls`; el equivalente se llama
+  `find`. Como `tools:` es una allowlist ESTRICTA, el runner convertía la tool
+  ausente en un error AL CERRAR el run: la fase salía ✗ **aunque el artefacto
+  estuviera escrito** y `ein_sdd_check` lo validara. Encima anteponía al prompt
+  del hijo "reporta este error de configuración", así que reintentaba mientras
+  trabajaba. Coste medido en una sesión real: scope/map/design en ✗ con sus
+  artefactos correctos y ~120k tokens en reintentos.
+- **El gate de entrega fallaba-cerrado por un adjetivo.** Deducía de la prosa de
+  la task si una delegación era una entrega: "push the branch" acuñaba el grant
+  y "push current branch" no, con el mismo significado. Al no acuñarlo, `ein-git`
+  headless quedaba bloqueado **sin salida**. Ahora decide el agente destino
+  (`ein-git` ES entrega, se redacte como se redacte) y la prosa queda como red
+  secundaria. Además: la intención de entrega del usuario es PEGAJOSA con TTL
+  (antes un log pegado a mitad del encargo revocaba en silencio tu "haz push"),
+  el grant admite usos acotados en vez de uno solo (un reintento legítimo se
+  quedaba sin autorización) y el mensaje de bloqueo dice que falta el GRANT —
+  el genérico anterior hacía creer al subagente que faltaba `.pi/ein/git.json`.
+
+### Added
+
+- **El artefacto manda sobre el veredicto del runner.** Una fase SDD entrega UN
+  artefacto: si está escrito y sano, la fase está hecha. El runner marca ✗ por
+  cosas que no dicen nada del trabajo (tool ausente en la allowlist, respuesta
+  final vacía, timeout en la lectura final) y el orquestador repetía una fase
+  completa. Ahora se reconcilia de forma determinista, y **solo** si el artefacto
+  de esa fase apareció o cambió DURANTE el run, es el único candidato y pasa su
+  lint sin errores. El error original viaja siempre dentro del reporte.
+- **`ein doctor` audita las allowlists de tools desplegadas**, no solo el repo:
+  detecta la deriva entre `~/.pi/agent/agents/` y la plantilla.
+- **La puerta de calidad corre en Ubuntu y macOS** con una versión de Bun fijada
+  (matriz compartida, sin workflows duplicados). El E2E con Docker sigue solo en
+  Ubuntu.
+- **Roadmap de calidad** en `docs/quality-roadmap/`.
+
+### Changed
+
+- Suite blindada contra estas dos clases de fallo: contrato de tools de agentes
+  (valida cada nombre declarado contra los builtins reales de Pi y cruza la tabla
+  del orchestrator con el frontmatter) y reconciliación de fases, con la mayoría
+  de casos cubriendo lo que NO debe reconciliarse.
+- Los tests fijan el `AGENT_DIR` temporal en un preload, así que el orden de
+  descubrimiento de ficheros deja de decidir si la suite pasa.
+
 ## [0.20.2] - 2026-07-17
 
 ### Removed
@@ -820,8 +1026,7 @@ y termina el right-sizing de grupos.
 
 ### Added
 
-- **Capa de estado SDD determinista** (inspirada en el dispatcher de gentle-ai,
-  pero en TS puro expuesto como tools de Pi):
+- **Capa de estado SDD determinista** en TS puro expuesta como tools de Pi:
   - **Router** (`lib/sdd-router.ts` + tool `ein_sdd_status` + `/ein:sdd-status`):
     calcula en qué fase va un cambio leyendo SOLO los ficheros de
     `openspec/changes/<x>/` y la línea `status:` de verify-report → `nextRecommended`.
@@ -840,7 +1045,7 @@ y termina el right-sizing de grupos.
 
 ### Changed
 
-- **Flujo SDD fase a fase** (estilo gentle-ai) en el orquestador: router →
+- **Flujo SDD fase a fase** en el orquestador: router →
   delegar una fase (`context: "fresh"`, referencias no contenido) → gatekeeper →
   repetir. La chain `ein-sdd` de un tiro queda como fallback (`/run-chain`), no
   como ruta primaria, porque no permite gate intermedio. SDD pasa a 7 fases

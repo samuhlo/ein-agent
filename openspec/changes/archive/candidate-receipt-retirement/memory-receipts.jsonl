@@ -1,0 +1,13 @@
+{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:candidate-receipt-retirement:gate","durationMs":0,"timestamp":"2026-07-29T07:41:06.815Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:candidate-receipt-retirement:scope","durationMs":0,"timestamp":"2026-07-29T07:44:01.922Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:candidate-receipt-retirement:map","durationMs":0,"timestamp":"2026-07-29T07:46:35.087Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:candidate-receipt-retirement:map","durationMs":0,"timestamp":"2026-07-29T07:49:16.609Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:candidate-receipt-retirement:design","durationMs":0,"timestamp":"2026-07-29T07:58:06.655Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:candidate-receipt-retirement:tasks","durationMs":0,"timestamp":"2026-07-29T07:59:26.430Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:candidate-receipt-retirement:apply","durationMs":0,"timestamp":"2026-07-29T08:03:48.205Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:candidate-receipt-retirement:apply","durationMs":0,"timestamp":"2026-07-29T08:07:18.674Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:candidate-receipt-retirement:apply","durationMs":0,"timestamp":"2026-07-29T08:10:43.685Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:candidate-receipt-retirement:apply","durationMs":0,"timestamp":"2026-07-29T08:13:13.709Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:candidate-receipt-retirement:verify","durationMs":0,"timestamp":"2026-07-29T08:21:26.509Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:candidate-receipt-retirement:invalid","durationMs":0,"timestamp":"2026-07-29T08:23:22.867Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:candidate-receipt-retirement:close","durationMs":0,"timestamp":"2026-07-29T08:23:31.504Z"}

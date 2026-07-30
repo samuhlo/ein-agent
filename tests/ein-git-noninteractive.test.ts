@@ -40,6 +40,31 @@ describe("ein-git crea PRs de forma no interactiva (no cuelga)", () => {
 	});
 });
 
+describe("gates de contenido de entrega visibles", () => {
+	test("declara exactamente un modo y etiqueta el mecánico como no verificado", () => {
+		expect(einGit).toContain("exactly one");
+		expect(einGit).toContain("mechanical-unverified: no-verification-receipt-applies");
+		expect(einGit).toContain("delivery is **unverified**");
+	});
+
+	test("coloca los cuatro límites justo alrededor de sus mutaciones", () => {
+		const preCommit = einGit.indexOf("Immediately before `git commit`");
+		const postCommit = einGit.indexOf("Immediately after `git commit`");
+		const prePush = einGit.indexOf("Immediately before `git push`");
+		const prePr = einGit.indexOf("Immediately before `gh pr create` or PR update");
+		expect(preCommit).toBeGreaterThan(-1);
+		expect(postCommit).toBeGreaterThan(preCommit);
+		expect(prePush).toBeGreaterThan(postCommit);
+		expect(prePr).toBeGreaterThan(prePush);
+	});
+
+	test("falla hacia verify y nombra el mismatch de cabezas antes del PR", () => {
+		expect(einGit).toContain("Return to sdd-verify, re-verify, emit a new receipt, and restart delivery.");
+		expect(einGit).toContain("Every applicable head must resolve to `validatedDeliveryHead`");
+		expect(einGit).toContain("absent or unresolvable required identity fails closed");
+	});
+});
+
 describe("precheck del scope workflow (fail-fast)", () => {
 	test("comprueba el scope antes de pushear .github/workflows", () => {
 		expect(einGit).toContain(".github/workflows");

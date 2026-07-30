@@ -52,6 +52,21 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("scope → map → design → tasks → apply → verify → close");
 	});
 
+	test("ein-scout es agente de apoyo, nunca una fase del router ni de la chain de 7", () => {
+		const chain = readFileSync(join(AGENT, "chains/ein-sdd.chain.md"), "utf8");
+		// scout SÍ puede aparecer en el orquestador como agente de investigación
+		// de solo lectura (dieta de contexto: la exploración pesada se delega a
+		// scout en vez de tragarla el padre). Lo que NUNCA debe pasar es que se
+		// cuele como una de las siete fases SDD. El invariante fuerte (router no
+		// lo conoce) lo blindan sdd-reconcile.test.ts (phaseForAgent → null) y
+		// sdd-phase-runtime-contract.test.ts; aquí protegemos la secuencia y la chain.
+		const sevenPhase = "scope → map → design → tasks → apply → verify → close";
+		expect(orch).toContain(sevenPhase);
+		expect(sevenPhase).not.toContain("scout");
+		expect(chain).not.toMatch(/ein-scout/);
+		expect(chain.match(/^## sdd-/gm)).toHaveLength(7);
+	});
+
 	test("conserva la chain como fallback (no como ruta primaria)", () => {
 		expect(orch.toLowerCase()).toContain("fallback");
 		expect(orch).toContain("ein-sdd` chain");
@@ -63,6 +78,17 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("the orchestrator still routes with `ein_sdd_status`");
 	});
 
+	test("limita contexto canónico de scope/design a hints explícitos y referencias reutilizables", () => {
+		const scope = read("agents/sdd-scope.md");
+		const design = read("agents/sdd-design.md");
+		expect(orch).toContain("canonical_spec_domains");
+		expect(orch).toContain("3 files and 32 KiB UTF-8");
+		expect(orch).toContain("design reuses those references");
+		expect(scope).toContain("path`, SHA-256, and byte count");
+		expect(design).toContain("Reuse the canonical spec references recorded in `scope.md`");
+		expect(design).toContain("never truncate the selection");
+	});
+
 	test("entra en scope tras bootstrap sin debilitar los gates posteriores", () => {
 		expect(orch).toContain("create-if-absent bootstrap");
 		expect(orch).toContain("sdd-scope");
@@ -72,6 +98,21 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("ONE human gate, before apply");
 		expect(orch).toContain("single confirmation before the first `sdd-apply`");
 		expect(orch).toContain("STOPS the flow with the exact cause");
+	});
+
+	test("enseña primero en lenguaje humano y conserva la profundidad técnica", () => {
+		const agents = read("AGENTS.md");
+		expect(agents).toContain("everyday human language");
+		expect(agents).toContain("without software knowledge");
+		expect(agents).toContain("never stack unexplained jargon or acronyms");
+		expect(agents).toContain("Never infantilize the reader or lose technical correctness");
+		expect(orch).toContain("**Human-first teaching.** Every answer, especially an important change");
+		expect(orch).toContain("reconcile/supersede OpenSpec artifacts");
+		expect(orch).toContain("guardar el trabajo terminado y apartar el plan antiguo");
+		const human = orch.indexOf("EN LENGUAJE HUMANO:");
+		const inside = orch.indexOf("POR DENTRO:");
+		expect(human).toBeGreaterThan(-1);
+		expect(inside).toBeGreaterThan(human);
 	});
 });
 
@@ -126,10 +167,49 @@ describe("ein-ai: tools deterministas cableados", () => {
 		expect(ai).toContain('"ein:sdd-close"');
 		expect(ai).not.toContain(`"ein:sdd-${"archive"}"`);
 	});
+	test("cablea el escape legacy con motivo auditado sin anunciar force como bypass", () => {
+		expect(ai).toContain("legacyReason: reason");
+		expect(ai).toContain('reason: { type: "string"');
+		expect(ai).toContain('--force --reason "<audit reason>"');
+		expect(ai).toContain("It never bypasses tasks, apply, verify, summary, pending spec synchronization, or conflicts, and close never synchronizes specs.");
+		expect(ai).toContain("Closed through legacy escape (spec state remained unresolved):");
+		expect(ai).toContain("Verified change '${change}' closed.");
+		expect(ai).not.toContain("Bypass the readiness guard");
+	});
 	test("prepara config antes de continuar el SDD solicitado", () => {
 		expect(ai).toContain('import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";');
 		expect(ai).toContain("bootstrapOpenSpecConfig(ctx.cwd)");
 		expect(ai).toContain('return { action: "continue" };');
+	});
+	// BLINDAJE -> El motor de sincronización OpenSpec nació como CÓDIGO MUERTO:
+	// existía, tenía tests, y no lo llamaba nadie en producción. El cierre exigía
+	// `sync-report.md` y nada sabía generarlo, así que un cambio con deltas se
+	// quedaba en `pending` para siempre. Un motor sin tool no es una feature.
+	test("cablea el motor de sincronización OpenSpec a un tool invocable", () => {
+		expect(ai).toContain('name: "ein_openspec_sync"');
+		expect(ai).toContain('import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";');
+		expect(ai).toContain("synchronizeOpenSpecFilesystem(ctx.cwd, change)");
+	});
+	// `ok` describe el RESULTADO, no que el tool corriera. Un conflicto devolvía
+	// `ok: true`: el cierre lo seguía bloqueando, pero un consumidor automático
+	// que solo mire `ok` concluiría que la sincronización terminó bien.
+	test("un conflicto de specs NO se reporta como ok", () => {
+		expect(ai).toContain('ok: plan.state !== "conflict"');
+	});
+	test("el orquestador sabe cómo desbloquear cada estado de specs", () => {
+		const orch = read("assets/orchestrator.md");
+		expect(orch).toContain("ein_openspec_sync");
+		// Cada estado necesita una salida documentada; `conflict` es el único sin ella.
+		for (const state of ["synchronized", "pending", "unresolved", "conflict"]) {
+			expect(orch).toContain(state);
+		}
+		expect(orch).toContain("`force` will NOT archive over a conflict");
+	});
+	test("sdd-scope enseña a declarar el spec delta (nadie lo hacía)", () => {
+		const scope = read("agents/sdd-scope.md");
+		expect(scope).toContain("## Spec delta declaration");
+		expect(scope).toContain("spec_delta: none");
+		expect(scope).toContain("spec_delta_reason:");
 	});
 });
 
