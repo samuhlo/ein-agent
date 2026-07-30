@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { acceptTrackedScoutResult, normalizeScoutLaunch, SCOUT_REPORT_MAX_BYTES, SCOUT_REPORT_SCHEMA, validateScoutReport } from "../ein-pi/agent/lib/scout-contract.ts";
+import { acceptTrackedScoutResult, normalizeScoutLaunch, SCOUT_REPORT_MAX_BYTES, validateScoutReport } from "../ein-pi/agent/lib/scout-contract.ts";
 import { scoutStaticContract } from "../ein-pi/agent/extensions/ein-doctor.ts";
 const SCOUT_FRONTMATTER = join(import.meta.dir, "../ein-pi/core/agents/ein-scout.md");
 const SCOUT_SPEC = join(import.meta.dir, "../openspec/specs/scout-routing/spec.md");
@@ -25,7 +25,7 @@ describe("readonly scout launch contract", () => {
 		expect(launch.maxRuntimeMs).toBe(120000);
 		expect(launch.turnBudget).toEqual({ maxTurns: 12, graceTurns: 2 });
 		expect(launch.toolBudget).toEqual({ hard: 30, soft: 24, block: "*" });
-		expect(launch.outputSchema).toEqual(SCOUT_REPORT_SCHEMA);
+		expect(launch).not.toHaveProperty("outputSchema");
 		expect(launch.acceptance).toEqual({ level: "none", reason: "Ein validates the scout report through its deterministic local adapter" });
 		expect(tracked.has("call-1")).toBe(true);
 	});
@@ -109,27 +109,27 @@ describe("readonly scout result handoff", () => {
 	function tracked(): Map<string, string> {
 		return new Map([["scout-call", "pending"]]);
 	}
-
-	function directResult(structuredOutput: unknown = report()): unknown {
-		return { mode: "single", results: [{ structuredOutput }] };
+	// El scout entrega su reporte como su SALIDA FINAL (finalOutput), igual que
+	// cualquier subagente — ya no por el canal structuredOutput. El modelo lo
+	// emite como texto (lo hizo 3 de 4 veces en el run real); antes se descartaba.
+	function result(finalOutput: unknown = JSON.stringify(report())): unknown {
+		return { mode: "single", results: [{ agent: "ein-scout", finalOutput }] };
 	}
 
-	test("passes the direct structured result through local validation", () => {
+	test("valida el reporte entregado en finalOutput como texto (el bug real de hoy)", () => {
 		const tracking = tracked();
-		expect(acceptTrackedScoutResult(tracking, "scout-call", directResult(), false, fixture())).toEqual(report());
+		expect(acceptTrackedScoutResult(tracking, "scout-call", result(), false, fixture())).toEqual(report());
 		expect(tracking.has("scout-call")).toBe(false);
 	});
 
-	test("fails closed for malformed successful result details", () => {
-		const cases = [
+	test("error accionable si no hay reporte in-turn (async devuelve results vacío)", () => {
+		const cases: unknown[] = [
 			undefined,
-			{ mode: "parallel", results: [{ structuredOutput: report() }] },
-			{ mode: "single", results: [] },
-			{ mode: "single", results: [{ structuredOutput: report() }, { structuredOutput: report() }] },
-			{ mode: "single", results: [{ structuredOutput: report(), structuredOutputFailed: true }] },
-			{ mode: "single", results: [{}] },
+			{ mode: "single", results: [] },                                        // launch async: reporte llega luego
+			{ mode: "single", results: [{ agent: "ein-scout" }] },                  // sin finalOutput
+			{ mode: "single", results: [{ agent: "ein-scout", finalOutput: "" }] }, // vacío
+			{ mode: "single", results: [{ agent: "ein-scout", finalOutput: report() }, { agent: "ein-scout", finalOutput: report() }] }, // parallel: 2 resultados
 		];
-
 		for (const details of cases) {
 			const tracking = tracked();
 			expect(() => acceptTrackedScoutResult(tracking, "scout-call", details, false, fixture())).toThrow("ein-scout contract");
@@ -137,10 +137,12 @@ describe("readonly scout result handoff", () => {
 		}
 	});
 
-	test("consumes invalid and runner-error results without a replay", () => {
-		const invalidTracking = tracked();
-		expect(() => acceptTrackedScoutResult(invalidTracking, "scout-call", directResult(report({ summary: "" })), false, fixture())).toThrow("invalid report schema");
-		expect(acceptTrackedScoutResult(invalidTracking, "scout-call", directResult(), false, fixture())).toBeUndefined();
+	test("sigue fail-closed sobre citas/schema inválidos, malformed, y sin replay en error del runner", () => {
+		const invalid = tracked();
+		expect(() => acceptTrackedScoutResult(invalid, "scout-call", result(JSON.stringify(report({ summary: "" }))), false, fixture())).toThrow("invalid report schema");
+
+		const malformed = tracked();
+		expect(() => acceptTrackedScoutResult(malformed, "scout-call", result("not json at all"), false, fixture())).toThrow("malformed");
 
 		const errorTracking = tracked();
 		expect(acceptTrackedScoutResult(errorTracking, "scout-call", undefined, true, fixture())).toBeUndefined();
