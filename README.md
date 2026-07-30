@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release publicada según el registro canónico local:** [0.23.0 · 2026-07-29](CHANGELOG.md#0230---2026-07-29).
+**Última release publicada según el registro canónico local:** [0.24.0 · 2026-07-30](CHANGELOG.md#0240---2026-07-30).
 
-- **Candidato ligado a la entrega:** los bytes y el árbol exactos quedan fijados y se comprueban al entregar el commit.
-- **Reintento tras timeout sin adivinar:** la recuperación reconcilia el estado real del repositorio antes de un único reintento con el delta restante exacto.
-- **Retiro de receipts con evidencia:** es explícito y solo ocurre tras un PR fusionado en el mismo repositorio; la evidencia se conserva.
+- **Explora antes de cambiar:** `ein-scout` investiga el repositorio en modo lectura, sin escribir ni entrar en SDD.
+- **Menos contexto para coordinar:** siete fases con envelopes compactos y routing por scout; el detalle canónico sigue en disco.
+- **Costes que se pueden creer:** el ledger usa procedencia de receipts estructurados y muestra `n/a` cuando faltan datos.
 
 ---
 

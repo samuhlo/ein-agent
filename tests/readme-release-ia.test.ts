@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0230---2026-07-29");
+    expect(release.anchor).toBe("0240---2026-07-30");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -70,15 +70,13 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("Candidato ligado a la entrega");
-    expect(releaseSummary).toContain("bytes y el árbol exactos");
-    expect(releaseSummary).toContain("comprueban al entregar el commit");
-    expect(releaseSummary).toContain("Reintento tras timeout sin adivinar");
-    expect(releaseSummary).toContain("estado real del repositorio");
-    expect(releaseSummary).toContain("un único reintento con el delta restante exacto");
-    expect(releaseSummary).toContain("Retiro de receipts con evidencia");
-    expect(releaseSummary).toContain("PR fusionado en el mismo repositorio");
-    expect(releaseSummary).toContain("evidencia se conserva");
+    expect(releaseSummary).toContain("ein-scout");
+    expect(releaseSummary).toContain("modo lectura");
+    expect(releaseSummary).toContain("sin escribir ni entrar en SDD");
+    expect(releaseSummary).toContain("siete fases con envelopes compactos");
+    expect(releaseSummary).toContain("detalle canónico sigue en disco");
+    expect(releaseSummary).toContain("procedencia de receipts estructurados");
+    expect(releaseSummary).toContain("`n/a` cuando faltan datos");
   });
 
   test("guía por capacidad: sin presets, con recomendación por rol y decisión humana", () => {
