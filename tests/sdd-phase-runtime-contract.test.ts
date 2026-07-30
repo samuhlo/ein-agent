@@ -65,9 +65,12 @@ describe("P1: contrato de persistencia de map.md", () => {
     expect(orch).toMatch(/resolves inside the runner's `\.pi-subagents\/` sandbox/);
   });
 
-  test("orchestrator conserva el fallback de último recurso (envelope → parent-fallback)", () => {
+  test("orchestrator conserva el fallback de último recurso (transcript → parent-fallback)", () => {
     expect(orch.toLowerCase()).toMatch(/do not poll the filesystem|not poll the filesystem in a wait loop/);
-    expect(orch).toContain("_output.md");
+    // Con el envelope de retorno ahora compacto, el contenido completo ya no
+    // vive en `_output.md` (= envelope): la recuperación de última instancia
+    // usa el transcript completo del hijo.
+    expect(orch).toContain("_transcript.jsonl");
     expect(orch).toContain("authored_by: parent-fallback");
   });
 });

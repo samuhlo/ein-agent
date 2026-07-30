@@ -52,9 +52,17 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("scope → map → design → tasks → apply → verify → close");
 	});
 
-	test("ein-scout no pertenece al router ni a la chain de siete fases", () => {
+	test("ein-scout es agente de apoyo, nunca una fase del router ni de la chain de 7", () => {
 		const chain = readFileSync(join(AGENT, "chains/ein-sdd.chain.md"), "utf8");
-		expect(orch).not.toMatch(/ein-scout/);
+		// scout SÍ puede aparecer en el orquestador como agente de investigación
+		// de solo lectura (dieta de contexto: la exploración pesada se delega a
+		// scout en vez de tragarla el padre). Lo que NUNCA debe pasar es que se
+		// cuele como una de las siete fases SDD. El invariante fuerte (router no
+		// lo conoce) lo blindan sdd-reconcile.test.ts (phaseForAgent → null) y
+		// sdd-phase-runtime-contract.test.ts; aquí protegemos la secuencia y la chain.
+		const sevenPhase = "scope → map → design → tasks → apply → verify → close";
+		expect(orch).toContain(sevenPhase);
+		expect(sevenPhase).not.toContain("scout");
 		expect(chain).not.toMatch(/ein-scout/);
 		expect(chain.match(/^## sdd-/gm)).toHaveLength(7);
 	});
