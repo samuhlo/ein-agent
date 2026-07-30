@@ -631,11 +631,45 @@ export function assessCloseReadiness(cwd: string, change: string): CloseReadines
 export type SddPlanGroup = { title: string; files: string[]; verify: string | null };
 export type SddPlanPreview = { change: string; groups: SddPlanGroup[] };
 
-const PLAN_SOURCE_FILE_RE = /[\w./-]+\.(?:ts|tsx|js|jsx|mjs|cjs|vue|svelte|py|rb|go|rs|java|kt|c|cc|cpp|cs|php|sql|css|scss|less)\b/g;
+// Ficheros que el apply EDITA y que cuestan ciclos: código y CONTRATOS markdown
+// (prompts de agentes en ein-pi/core/agents, orchestrator, docs). Antes `.md`
+// quedaba fuera del patrón y el preview mentía con "sin ficheros de producción"
+// en cambios que SOLO tocaban contratos (el caso real del slice 05). Pero no
+// todo `.md` es producción: los artefactos de proceso SDD y el árbol openspec/
+// (specs y deltas los gestiona el sync / la tool de deltas, no el apply a mano)
+// contarían como ruido en el sentido opuesto — se excluyen explícitamente.
+const SOURCE_FILE_RE = /[\w./-]+\.(?:ts|tsx|js|jsx|mjs|cjs|vue|svelte|py|rb|go|rs|java|kt|c|cc|cpp|cs|php|sql|css|scss|less|md)\b/g;
 const PLAN_VERIFY_RE = /\bbunx?\s+(?:vitest\s+run|vitest|test)\b[^`\n]*/i;
+const SDD_ARTIFACT_BASENAMES = new Set(["scope.md", "map.md", "design.md", "tasks.md", "apply-progress.md", "verify-report.md", "summary.md", "sync-report.md"]);
 
-function planIsTestPath(path: string): boolean {
+export function isTestPath(path: string): boolean {
 	return /\.(?:test|spec)\.|(?:^|\/)(?:tests?|__tests__|e2e)\//.test(path);
+}
+
+export function isProductionFile(path: string): boolean {
+	if (isTestPath(path)) return false;
+	// openspec/ y .sdd/ no se editan a mano en el apply (sync + tool de deltas).
+	if (/(?:^|\/)(?:openspec|\.sdd)\//.test(path)) return false;
+	return !SDD_ARTIFACT_BASENAMES.has(path.split("/").pop() ?? path);
+}
+
+export function extractProductionFiles(body: string): string[] {
+	return [...new Set([...body.matchAll(SOURCE_FILE_RE)].map((match) => match[0]).filter(isProductionFile))];
+}
+
+// Los problemas de PROCEDENCIA del ledger (attribution de recibos:
+// change-unresolved, legacy-metadata-excluded, ...) NO son bloqueos del cambio:
+// nunca impidieron nada y ya se muestran en la línea `ledger provenance:`.
+// Mezclarlos con los bloqueos reales (verify en fallo, apply incompleto)
+// ahogaba la señal. Esta función es la fuente ÚNICA de la sección de bloqueos,
+// para el render real y para el test — la procedencia del ledger ni siquiera es
+// un parámetro, así que no puede colarse.
+export function sddStatusBlockers(input: {
+	blocked: readonly string[];
+	taskProblems: readonly string[];
+	budgetProblems: readonly string[];
+}): string[] {
+	return [...input.blocked, ...input.taskProblems, ...input.budgetProblems];
 }
 
 export function resolveSddPlanPreview(cwd: string, change?: string): SddPlanPreview {
@@ -649,11 +683,7 @@ export function resolveSddPlanPreview(cwd: string, change?: string): SddPlanPrev
 	for (let i = 1; i < parts.length; i += 2) {
 		const title = (parts[i] ?? "").trim();
 		const body = parts[i + 1] ?? "";
-		const files = [
-			...new Set(
-				[...body.matchAll(PLAN_SOURCE_FILE_RE)].map((m) => m[0]).filter((p) => !planIsTestPath(p)),
-			),
-		];
+		const files = extractProductionFiles(body);
 		const verifyMatch = body.match(PLAN_VERIFY_RE);
 		groups.push({ title, files, verify: verifyMatch ? verifyMatch[0].trim() : null });
 	}

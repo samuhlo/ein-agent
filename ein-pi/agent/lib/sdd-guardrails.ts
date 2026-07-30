@@ -9,7 +9,7 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { resolveChangesDir } from "./sdd-router.ts";
+import { extractProductionFiles, resolveChangesDir } from "./sdd-router.ts";
 import { parseOpenSpec, parseOpenSpecDelta } from "./openspec-spec-parser.ts";
 
 export type SpecDeltaDeclaration = { mode: "none" | "delta" | "invalid"; deltas: { path: string; bytes: Uint8Array }[] };
@@ -178,12 +178,7 @@ const TASKS_REQUIRED: { code: string; label: string; pattern: RegExp }[] = [
 // apply acotada — bajo TDD estricto cada fichero son muchos ciclos RED/GREEN y el
 // apply se va de turnos (fue el bloqueo real de un grupo fundacional). Proxy de
 // tamaño: cuenta ficheros de fuente (no tests) por sección de grupo (## ...).
-const GROUP_SOURCE_FILE_RE = /[\w./-]+\.(?:ts|tsx|js|jsx|mjs|cjs|vue|svelte|py|rb|go|rs|java|kt|c|cc|cpp|cs|php|sql|css|scss|less)\b/g;
 const MAX_GROUP_SOURCE_FILES = 4;
-
-function isTestPath(path: string): boolean {
-	return /\.(?:test|spec)\.|(?:^|\/)(?:tests?|__tests__|e2e)\//.test(path);
-}
 
 export function oversizedGroupWarnings(text: string): GuardrailIssue[] {
 	const out: GuardrailIssue[] = [];
@@ -192,15 +187,14 @@ export function oversizedGroupWarnings(text: string): GuardrailIssue[] {
 	for (let i = 1; i < parts.length; i += 2) {
 		const heading = (parts[i] ?? "").trim();
 		const body = parts[i + 1] ?? "";
-		const files = new Set<string>();
-		for (const match of body.matchAll(GROUP_SOURCE_FILE_RE)) {
-			if (!isTestPath(match[0])) files.add(match[0]);
-		}
-		if (files.size > MAX_GROUP_SOURCE_FILES) {
+		// Mismo predicado de producción que el preview (sdd-router): dos regex
+		// que derivaban por separado eran justo la clase de mentira que P1-C cierra.
+		const files = extractProductionFiles(body);
+		if (files.length > MAX_GROUP_SOURCE_FILES) {
 			out.push({
 				level: "warning",
 				code: "oversized-group",
-				message: `Grupo "${heading}" toca ${files.size} ficheros de producción (> ${MAX_GROUP_SOURCE_FILES}): pártelo en unidades más pequeñas (bajo TDD estricto cada fichero son muchos ciclos RED/GREEN → el apply se va de turnos).`,
+				message: `Grupo "${heading}" toca ${files.length} ficheros de producción (> ${MAX_GROUP_SOURCE_FILES}): pártelo en unidades más pequeñas (bajo TDD estricto cada fichero son muchos ciclos RED/GREEN → el apply se va de turnos).`,
 			});
 		}
 	}
