@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release registrada según el registro canónico local:** [0.25.0 · 2026-07-30](CHANGELOG.md#0250---2026-07-30).
+**Última release registrada según el registro canónico local:** [0.30.0 · 2026-07-30](CHANGELOG.md#0300---2026-07-30).
 
-- **Explora antes de cambiar:** `ein-scout` investiga el repositorio en modo lectura, sin escribir ni entrar en SDD.
-- **Menos contexto para coordinar:** siete fases con envelopes compactos y routing por scout; el detalle canónico sigue en disco.
-- **Costes que se pueden creer:** el ledger usa procedencia de receipts estructurados y muestra `n/a` cuando faltan datos.
+- **Menos maquinaria, mismo valor:** se retira el recibo de candidato y sus cuatro gates de entrega; la entrega la protege la capa determinista que sí ahorra tokens (staging cerrado + guardrails + grant de un solo uso).
+- **La spec adelgaza:** el ciclo de vida SDD pasa de 283 a 73 líneas al soltar los escenarios de recibo; menos superficie que razonar en cada fase.
+- **Docs solo con estado actual:** se limpian planes y roadmaps de futuro; queda lo vivo, y la historia sigue en git y en `openspec/changes/archive`.
 
 ---
 

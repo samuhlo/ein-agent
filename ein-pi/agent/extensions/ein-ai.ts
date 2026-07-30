@@ -116,10 +116,6 @@ import { DOMAIN_ID_PATTERN, sha256 } from "../lib/openspec-spec-contract.ts";
 import { buildOpenSpecDelta } from "../lib/openspec-spec-parser.ts";
 import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";
 import { evaluateStaging } from "../lib/git-staging.ts";
-import { evaluateDeliveryGate, evaluatePostCommit, deliveryBoundaryFor, type DeliveryAttemptState } from "../lib/delivery-gate.ts";
-import { evaluateCandidateReceiptRetirement, type CandidateReceiptRetirementIdentity, type NormalizedMergedPullRequestObservation } from "../lib/delivery-receipt.ts";
-import { clearVerifiedDeliveryAttempt, emitCandidateReceipt, persistVerifiedDeliveryAttempt, readActiveCandidateReceiptEvidence, readVerifiedDeliveryAttempt, reportRetirementCleanup, resolveWorktreeIdentity, retireCandidateReceipt, suggestIntendedPaths } from "../lib/candidate-receipt.ts";
-import { observeMergedPullRequest, resolveExplicitPushRemoteRepository } from "../lib/candidate-receipt-retirement-remote.ts";
 import { acceptTrackedScoutResult, normalizeScoutLaunch, type ScoutTracking } from "../lib/scout-contract.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
@@ -147,23 +143,7 @@ const phaseSnapshotByToolCall = new Map<
 	{ phase: SddPhase; before: PhaseSnapshot; provenance: DelegationObservation }
 >();
 
-// Intento de entrega verificada en curso, por sesión: el fingerprint del recibo
-// que validó el pre-commit y, tras el post-commit, el head de entrega validado.
-// Las cuatro fronteras del slice 04 son UNA secuencia — sin este estado, el
-// pre-push no puede saber si la rama se movió desde que se validó el commit.
-const deliveryAttemptBySession = new Map<string, DeliveryAttemptState>();
-// Commits gateados a la espera de su comprobación post-commit (por toolCallId).
-const pendingPostCommit = new Map<string, string>();
 const scoutTracking: ScoutTracking = new Map();
-
-type RetirementToolParams = {
-	change: string;
-	receiptFingerprint: string;
-	remote: string;
-	baseRef: string;
-	headRef: string;
-	prNumber: number;
-};
 
 function rememberPhaseSnapshot(
 	toolCallId: string,
@@ -831,18 +811,6 @@ export default function einAi(pi: ExtensionAPI): void {
 		// las rutas, que es exactamente lo que debería hacerse.
 		const staging = evaluateStaging(ctx.cwd, event.input.command);
 		if (staging.kind === "blocked") return { block: true, reason: staging.reason };
-		// Puerta de entrega (slice 04): si hay un recibo y este comando toca sus
-		// ficheros, lo entregado debe ser EXACTAMENTE lo verificado. Determinista
-		// aquí, no una frase en el prompt de ein-git que se pueda olvidar.
-		const sessionKey = sddPreflightSessionKey(ctx);
-		const gate = evaluateDeliveryGate(ctx.cwd, event.input.command, deliveryAttemptBySession.get(sessionKey));
-		deliveryAttemptBySession.set(sessionKey, gate.attempt);
-		if (gate.verdict.kind === "blocked") return { block: true, reason: gate.verdict.reason };
-		// Un commit que pasó el pre-commit debe revalidarse DESPUÉS: los hooks de
-		// git pueden reescribir el árbol entre la validación y el objeto final.
-		if (deliveryBoundaryFor(event.input.command) === "pre-commit" && gate.attempt?.receiptFingerprint) {
-			pendingPostCommit.set(event.toolCallId, sessionKey);
-		}
 		maybeWrapBashInput(event.input as { command: string }, ctx.cwd);
 		return undefined;
 	});
@@ -852,30 +820,6 @@ export default function einAi(pi: ExtensionAPI): void {
 	// vacía, timeout en la lectura final) con la fase YA entregada. Sin esto el
 	// orquestador repetía una fase completa y pagaba dos veces.
 	pi.on("tool_result", (event, ctx) => {
-		// Frontera POST-COMMIT: el commit ya corrió y sus hooks también.
-		const postCommitSession = pendingPostCommit.get(event.toolCallId);
-		if (postCommitSession) {
-			pendingPostCommit.delete(event.toolCallId);
-			// Un commit que FALLÓ no produjo árbol que comprobar. Validar aquí
-			// sustituiría el error real de git por uno de identidad —tapando la
-			// causa— y actualizaría el intento a partir de algo que no ocurrió.
-			if (event.isError) {
-				deliveryAttemptBySession.set(postCommitSession, undefined);
-				return undefined;
-			}
-			const outcome = evaluatePostCommit(ctx.cwd, deliveryAttemptBySession.get(postCommitSession));
-			deliveryAttemptBySession.set(postCommitSession, outcome.attempt);
-			if (outcome.attempt?.validatedDeliveryHead) {
-				const persisted = persistVerifiedDeliveryAttempt(ctx.cwd, outcome.attempt);
-				if (!persisted.ok) {
-					deliveryAttemptBySession.delete(postCommitSession);
-					return { isError: true, content: [{ type: "text", text: persisted.reason }] };
-				}
-			}
-			if (outcome.verdict.kind === "blocked") {
-				return { isError: true, content: [{ type: "text", text: outcome.verdict.reason }] };
-			}
-		}
 		if (event.toolName !== "subagent") return undefined;
 		try {
 			const report = acceptTrackedScoutResult(scoutTracking, event.toolCallId, event.details, event.isError, ctx.cwd);
@@ -1427,139 +1371,6 @@ export default function einAi(pi: ExtensionAPI): void {
 				return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${change}' FALLÓ al escribir ${path}: ${message}.` }], details: { ok: false, reason: message } };
 			}
 			return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${change}': escrito openspec/changes/${change}/specs/${domain}/spec.md (${operations.length} operación(es), validado). No escribas la declaración spec_delta: none: el delta ES la declaración.` }], details: { ok: true, change, domain, path, operations: operations.length } };
-		},
-	});
-
-	// Slice 03. Un verify que pasa no dice QUÉ bytes pasaron; esto los fija en un
-	// árbol git content-addressed y lo liga a repo/worktree/cambio/HEAD/rutas/
-	// informe/comandos. NO gatea nada todavía: eso es el slice 04.
-	pi.registerTool({
-		name: "ein_candidate_receipt",
-		label: "Ein Candidate Receipt",
-		description:
-			"Record which exact bytes a PASSING sdd-verify covered. REFUSES unless verify is `pass`, not stale, and apply is complete. Builds a synthetic candidate tree with a temporary git index (the real index and worktree are never touched) and publishes a local receipt under the worktree git admin dir, binding repository, worktree, change, HEAD, the declared paths, the verify report and the verification commands. `paths` is an EXPLICIT manifest of exact files — no directories, no git magic pathspecs; call without it to get the current tracked/untracked lists to choose from. Does NOT gate delivery.",
-		parameters: {
-			type: "object",
-			properties: {
-				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
-				commands: { type: "array", items: { type: "string" }, description: "Verification commands actually run, verbatim." },
-				paths: { type: "array", items: { type: "string" }, description: "EXPLICIT manifest: exact file paths that make up this delivery. Directories and magic pathspecs are rejected. Anything not named is excluded — it may be someone else's work in progress." },
-			},
-		} as const,
-		async execute(_id, params: { change?: string; commands?: string[]; paths?: string[] }, _signal, _onUpdate, ctx: ExtensionContext) {
-			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
-			if (!change) {
-				return { content: [{ type: "text", text: "/// CANDIDATE RECEIPT — no active change." }], details: { ok: false, reason: "no active change" } };
-			}
-			// Sin manifiesto no se emite. Pero tampoco es un callejón: se devuelve
-			// la foto del árbol para que el llamante ENUMERE lo que entra.
-			if (!params?.paths || params.paths.length === 0) {
-				const { tracked, untracked } = suggestIntendedPaths(ctx.cwd);
-				const text = [
-					`/// CANDIDATE RECEIPT — '${change}' NO emitido: falta el manifiesto \`paths\`.`,
-					"El candidato se DECLARA, no se infiere: 'todo lo modificado' puede incluir trabajo en curso de otro.",
-					"",
-					`modificados y trackeados (${tracked.length}): ${tracked.join(", ") || "(ninguno)"}`,
-					`sin trackear (${untracked.length}): ${untracked.join(", ") || "(ninguno)"}`,
-					"",
-					"Vuelve a llamar con `paths` enumerando SOLO los ficheros de esta entrega.",
-				].join("\n");
-				return { content: [{ type: "text", text }], details: { ok: false, reason: "missing paths manifest", tracked, untracked } };
-			}
-			// FAIL CLOSED -> La memoria no puede sobrevivir a un recibo que se reemplaza.
-			deliveryAttemptBySession.delete(sddPreflightSessionKey(ctx));
-			const result = emitCandidateReceipt(ctx.cwd, {
-				change,
-				paths: params.paths,
-				commands: params?.commands ?? [],
-			});
-			if (!result.ok) {
-				return { content: [{ type: "text", text: `/// CANDIDATE RECEIPT — '${change}' NO emitido: ${result.reason}` }], details: result };
-			}
-			const { receipt } = result;
-			const text = [
-				`/// CANDIDATE RECEIPT — '${change}'`,
-				`tree: ${receipt.treeSha}`,
-				`head: ${receipt.head} (${receipt.branch})`,
-				`rutas previstas (${receipt.paths.length}): ${receipt.paths.slice(0, 12).join(", ")}${receipt.paths.length > 12 ? " …" : ""}`,
-				"El recibo identifica los bytes verificados. Si el árbol cambia después, deja de coincidir.",
-			].join("\n");
-			return { content: [{ type: "text", text }], details: { ok: true, ...receipt } };
-		},
-	});
-
-	pi.registerTool({
-		name: "ein_candidate_receipt_retire",
-		label: "Ein Candidate Receipt Retire",
-		description:
-			"Explicitly retire one active candidate receipt after two fresh GitHub observations prove the named same-repository PR merged the exact validated delivery HEAD. Requires change, receiptFingerprint, remote, baseRef, headRef, and prNumber. Refuses auth/network failures, malformed or fork PRs, identity mismatches, and changed revalidation. If durable attempt cleanup fails after terminal unlink, reports cleanupPending and retries cleanup through already-retired; it never claims a clean rollback. Never infers a PR, changes grants, or claims verification.",
-		parameters: {
-			type: "object",
-			additionalProperties: false,
-			required: ["change", "receiptFingerprint", "remote", "baseRef", "headRef", "prNumber"],
-			properties: {
-				change: { type: "string", description: "Explicit SDD change bound to the active receipt." },
-				receiptFingerprint: { type: "string", description: "SHA-256 fingerprint of the exact active receipt bytes." },
-				remote: { type: "string", description: "Explicit local Git remote name; it must resolve to GitHub." },
-				baseRef: { type: "string", description: "Explicit PR base ref." },
-				headRef: { type: "string", description: "Explicit PR head ref." },
-				prNumber: { type: "integer", minimum: 1, description: "Explicit GitHub pull request number." },
-			},
-		} as const,
-		async execute(_id, params: RetirementToolParams, signal, _onUpdate, ctx: ExtensionContext) {
-			const remoteRepository = await resolveExplicitPushRemoteRepository(ctx.cwd, params.remote);
-			const identity: CandidateReceiptRetirementIdentity = {
-				remoteRepository: remoteRepository ?? "",
-				baseRef: params.baseRef,
-				headRef: params.headRef,
-				prNumber: params.prNumber,
-			};
-			const active = readActiveCandidateReceiptEvidence(ctx.cwd);
-			if (!active) {
-				let result = await retireCandidateReceipt(ctx.cwd, { change: params.change, receiptFingerprint: params.receiptFingerprint, identity });
-				if (result.ok && result.result === "already-retired") {
-					deliveryAttemptBySession.delete(sddPreflightSessionKey(ctx));
-					result = reportRetirementCleanup(result, clearVerifiedDeliveryAttempt(ctx.cwd, params.receiptFingerprint));
-				}
-				const text = result.ok
-					? `/// CANDIDATE RECEIPT RETIRE — '${params.change}' already retired; local archive evidence matches.${result.cleanupPending ? ` WARNING: ${result.warning}` : ""}`
-					: `/// CANDIDATE RECEIPT RETIRE — '${params.change}' NOT retired: ${result.reason}`;
-				return { content: [{ type: "text", text }], details: result };
-			}
-			const local = resolveWorktreeIdentity(ctx.cwd);
-			const sessionKey = sddPreflightSessionKey(ctx);
-			const attempt = readVerifiedDeliveryAttempt(ctx.cwd, active.fingerprint);
-			const decide = (observation: NormalizedMergedPullRequestObservation | null) => !local
-				? { ok: false as const, reason: "no se pudo resolver la identidad local del repositorio" }
-				: evaluateCandidateReceiptRetirement({
-					activeReceiptFingerprint: active.fingerprint,
-					receipt: active.receipt,
-					attempt,
-					repositoryId: local.repositoryId,
-					worktreeId: local.worktreeId,
-					identity,
-					observation: observation ?? undefined,
-				});
-			const first = decide(await observeMergedPullRequest(ctx.cwd, identity.remoteRepository, params.prNumber, signal));
-			if (!first.ok) {
-				return { content: [{ type: "text", text: `/// CANDIDATE RECEIPT RETIRE — '${params.change}' NOT retired: ${first.reason}` }], details: first };
-			}
-			let result = await retireCandidateReceipt(ctx.cwd, {
-				change: params.change,
-				receiptFingerprint: params.receiptFingerprint,
-				attempt,
-				identity,
-				decision: first,
-				revalidate: async () => decide(await observeMergedPullRequest(ctx.cwd, identity.remoteRepository, params.prNumber, signal)),
-			});
-			if (result.ok && (result.result === "retired" || result.result === "already-retired")) {
-				if (deliveryAttemptBySession.get(sessionKey)?.receiptFingerprint === params.receiptFingerprint) deliveryAttemptBySession.delete(sessionKey);
-				result = reportRetirementCleanup(result, clearVerifiedDeliveryAttempt(ctx.cwd, params.receiptFingerprint));
-			}
-			const text = result.ok
-				? `/// CANDIDATE RECEIPT RETIRE — '${params.change}' ${result.result}.${result.cleanupPending ? ` WARNING: ${result.warning}` : ""}`
-				: `/// CANDIDATE RECEIPT RETIRE — '${params.change}' NOT retired: ${result.reason}`;
-			return { content: [{ type: "text", text }], details: result };
 		},
 	});
 
