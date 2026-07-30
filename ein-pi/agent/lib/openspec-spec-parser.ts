@@ -124,6 +124,63 @@ export function parseOpenSpec(source: string): OpenSpecParseResult<OpenSpecDocum
 	return { ok: true, value: { domain: header.value.domain, scenarios } };
 }
 
+// Inverso determinista de parseOpenSpecDelta. Los deltas se escribían a mano y
+// fallaban el parser estricto una y otra vez (churn de scope): posiciones,
+// líneas en blanco entre entradas/secciones, orden ADDED→MODIFIED→REMOVED. Con
+// esto los subagentes emiten {domain, operations[]} y aquí se produce el
+// markdown canónico. Ordena por ID dentro de cada sección (como serializeOpenSpec)
+// para que el mismo contenido dé siempre los mismos bytes → digests estables.
+export function serializeOpenSpecDelta(delta: OpenSpecDeltaDocument): string {
+	const lines = [
+		"# OpenSpec Delta",
+		`format: ${OPEN_SPEC_DELTA_FORMAT}`,
+		`domain: ${delta.domain}`,
+	];
+	for (const kind of DELTA_OPERATIONS) {
+		const ops = delta.operations.filter((op) => op.kind === kind);
+		if (ops.length === 0) continue;
+		lines.push("", `## ${kind}`);
+		if (kind === "REMOVED") {
+			const removals = ops as Extract<OpenSpecDeltaOperation, { kind: "REMOVED" }>[];
+			[...removals]
+				.sort((left, right) => left.scenarioId.localeCompare(right.scenarioId, "en"))
+				.forEach((op, index) => {
+					if (index > 0) lines.push("");
+					lines.push(`### Scenario: ${op.scenarioId}`, `reason: ${op.reason}`);
+				});
+		} else {
+			const scenarios = ops as Extract<OpenSpecDeltaOperation, { kind: "ADDED" | "MODIFIED" }>[];
+			[...scenarios]
+				.sort((left, right) => left.scenario.id.localeCompare(right.scenario.id, "en"))
+				.forEach((op, index) => {
+					if (index > 0) lines.push("");
+					const s = op.scenario;
+					lines.push(
+						`### Scenario: ${s.id}`,
+						`title: ${s.title}`,
+						`requirement: ${s.requirement}`,
+						`Given: ${s.given}`,
+						`When: ${s.when}`,
+						`Then: ${s.then}`,
+					);
+				});
+		}
+	}
+	return `${lines.join("\n")}\n`;
+}
+
+// Construye el delta desde datos estructurados y lo valida re-parseándolo con
+// el MISMO parser estricto que usa el sync. Nunca devuelve un delta que el
+// cierre rechazaría: ese era justo el fallo (datos mal formados —requirement
+// sin "The system MUST", campos vacíos, IDs duplicados— se escribían igual y
+// reventaban tarde). Con esto la validación es a la entrada, no en close.
+export function buildOpenSpecDelta(delta: OpenSpecDeltaDocument): OpenSpecParseResult<{ contents: string }> {
+	const contents = serializeOpenSpecDelta(delta);
+	const parsed = parseOpenSpecDelta(contents);
+	if (!parsed.ok) return parsed;
+	return { ok: true, value: { contents } };
+}
+
 export function parseOpenSpecDelta(source: string): OpenSpecParseResult<OpenSpecDeltaDocument> {
 	const lines = linesOf(source);
 	const header = parseHeader(lines, "# OpenSpec Delta", OPEN_SPEC_DELTA_FORMAT);

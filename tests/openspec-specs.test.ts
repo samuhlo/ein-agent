@@ -6,8 +6,10 @@ import {
 	serializeOpenSpec,
 } from "../ein-pi/agent/lib/openspec-spec-contract";
 import {
+	buildOpenSpecDelta,
 	parseOpenSpec,
 	parseOpenSpecDelta,
+	serializeOpenSpecDelta,
 } from "../ein-pi/agent/lib/openspec-spec-parser";
 import { evaluateOpenSpecState, parseSyncReport, planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
 import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs";
@@ -32,6 +34,64 @@ describe("strict OpenSpec parsers", () => {
 	test("parses a canonical spec with CRLF input", () => expect(parseOpenSpec(["# OpenSpec Specification", `format: ${OPEN_SPEC_FORMAT}`, "domain: sdd-lifecycle", "", scenario.replace("###", "##")].join("\r\n")).ok).toBe(true));
 	test("parses allowed delta operations", () => expect(parseOpenSpecDelta(["# OpenSpec Delta", "format: openspec-delta/v1", "domain: sdd-lifecycle", "", "## ADDED", scenario].join("\n")).ok).toBe(true));
 	test("rejects malformed input", () => expect(parseOpenSpec("# OpenSpec Specification\nformat: openspec-spec/v2\ndomain: sdd-lifecycle\n").ok).toBe(false));
+});
+
+describe("openspec-delta/v1 serializer (P0-A)", () => {
+	// Los deltas se escribían a mano y fallaban el parser estricto una y otra vez
+	// (churn de scope). El serializador es el inverso determinista de
+	// parseOpenSpecDelta: los subagentes emiten {domain, operations[]} y esto
+	// escribe el markdown que el parser acepta.
+	const doc = {
+		domain: "scout-routing",
+		operations: [
+			{ kind: "REMOVED", scenarioId: "old-route", reason: "superseded by bounded packet" },
+			{ kind: "ADDED", scenario: { id: "zeta-route", title: "Zeta", requirement: "The system MUST route zeta", given: "a zeta packet", when: "it is routed", then: "it is bounded" } },
+			{ kind: "ADDED", scenario: { id: "alpha-route", title: "Alpha", requirement: "The system MUST route alpha", given: "an alpha packet", when: "it is routed", then: "it is bounded" } },
+			{ kind: "MODIFIED", scenario: { id: "mid-route", title: "Mid", requirement: "The system SHOULD adjust mid", given: "a mid packet", when: "it is routed", then: "it is adjusted" } },
+		],
+	} as const;
+
+	test("produce markdown que el parser estricto acepta", () => {
+		expect(parseOpenSpecDelta(serializeOpenSpecDelta(doc)).ok).toBe(true);
+	});
+
+	test("emite secciones en orden ADDED, MODIFIED, REMOVED con IDs ordenados, LF y newline final", () => {
+		const md = serializeOpenSpecDelta(doc);
+		expect(md.indexOf("## ADDED")).toBeLessThan(md.indexOf("## MODIFIED"));
+		expect(md.indexOf("## MODIFIED")).toBeLessThan(md.indexOf("## REMOVED"));
+		expect(md.indexOf("### Scenario: alpha-route")).toBeLessThan(md.indexOf("### Scenario: zeta-route"));
+		expect(md.endsWith("\n")).toBe(true);
+		expect(md).not.toContain("\r");
+	});
+
+	test("round-trip: parse(serialize(x)) recupera dominio y operaciones", () => {
+		const parsed = parseOpenSpecDelta(serializeOpenSpecDelta(doc));
+		expect(parsed.ok).toBe(true);
+		if (!parsed.ok) return;
+		expect(parsed.value.domain).toBe("scout-routing");
+		expect(parsed.value.operations.map((o) => o.kind)).toEqual(["ADDED", "ADDED", "MODIFIED", "REMOVED"]);
+	});
+
+	test("es determinista sea cual sea el orden de entrada (digest estable)", () => {
+		const shuffled = { domain: doc.domain, operations: [doc.operations[1], doc.operations[3], doc.operations[0], doc.operations[2]] };
+		expect(serializeOpenSpecDelta(shuffled)).toBe(serializeOpenSpecDelta(doc));
+	});
+
+	test("buildOpenSpecDelta valida re-parseando: nunca emite un delta que el sync rechazaría", () => {
+		const built = buildOpenSpecDelta(doc);
+		expect(built.ok).toBe(true);
+		if (!built.ok) return;
+		expect(parseOpenSpecDelta(built.value.contents).ok).toBe(true);
+	});
+
+	test("buildOpenSpecDelta rechaza requirement mal formado (sin The system MUST/SHOULD/MAY)", () => {
+		const bad = { domain: "scout-routing", operations: [{ kind: "ADDED", scenario: { id: "x-route", title: "X", requirement: "should route x", given: "a packet", when: "routed", then: "bounded" } }] };
+		expect(buildOpenSpecDelta(bad).ok).toBe(false);
+	});
+
+	test("buildOpenSpecDelta rechaza delta sin operaciones", () => {
+		expect(buildOpenSpecDelta({ domain: "scout-routing", operations: [] }).ok).toBe(false);
+	});
 });
 
 describe("deterministic OpenSpec synchronization", () => {
