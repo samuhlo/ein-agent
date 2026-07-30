@@ -10,7 +10,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { resolveChangesDir } from "./sdd-router.ts";
-import { parseOpenSpecDelta } from "./openspec-spec-parser.ts";
+import { parseOpenSpec, parseOpenSpecDelta } from "./openspec-spec-parser.ts";
 
 export type SpecDeltaDeclaration = { mode: "none" | "delta" | "invalid"; deltas: { path: string; bytes: Uint8Array }[] };
 
@@ -458,6 +458,42 @@ export function readSpecDeltaDeclaration(cwd: string, change: string): SpecDelta
 	return blocks.length === 1 && !invalidReason ? { mode: "none", deltas: [] } : { mode: "invalid", deltas: [] };
 }
 
+// P0-B: el sync de close mergea cada delta DENTRO de su spec canónico base y
+// llama parseOpenSpec sobre ese base; un base heredado sin cabeceras reventaba
+// con `invalid-format` en la ÚLTIMA fase, tras todo el trabajo ya hecho. Este
+// guard adelanta esa precondición: valida los bases que el cambio va a tocar
+// desde lintChange, de modo que ein_sdd_check lo saca ya en scope. Solo mira
+// dominios con delta real; un dominio nuevo sin base se ignora (el sync lo
+// crea desde cero, no hay base que mergear). Puro y testeable.
+export function lintCanonicalBases(cwd: string, change: string): GuardrailIssue[] {
+	const root = resolveChangesDir(cwd);
+	// Los cambios .sdd legacy no tienen specs OpenSpec: nada que validar.
+	if (root !== join(cwd, "openspec", "changes")) return [];
+	const specsDir = join(root, change, "specs");
+	let domains: string[];
+	try { domains = readdirSync(specsDir); } catch { return []; }
+	const issues: GuardrailIssue[] = [];
+	for (const domain of domains.sort()) {
+		if (!existsSync(join(specsDir, domain, "spec.md"))) continue;
+		const basePath = join(cwd, "openspec", "specs", domain, "spec.md");
+		if (!existsSync(basePath)) continue; // dominio nuevo: sync lo crea, no hay base
+		let content: string;
+		try {
+			content = readFileSync(basePath, "utf8");
+		} catch {
+			issues.push({ level: "error", code: "canonical-base-unreadable", message: `El spec canónico openspec/specs/${domain}/spec.md no se pudo leer; el sync de cierre fallará. Revísalo antes de continuar.` });
+			continue;
+		}
+		const parsed = parseOpenSpec(content);
+		if (!parsed.ok) {
+			const first = parsed.errors[0];
+			const detail = first ? `${first.code} en línea ${first.line}: ${first.message}` : "formato inválido";
+			issues.push({ level: "error", code: "canonical-base-invalid", message: `El spec canónico openspec/specs/${domain}/spec.md no parsea (${detail}); el sync de cierre fallará con invalid-format. Normalízalo ahora, no en close.` });
+		}
+	}
+	return issues;
+}
+
 // Linta todos los artefactos PRESENTES de un cambio (raíz dual: ver sdd-router).
 // Los alias legacy (explore.md/apply.md) no se lintan: el lint es de la
 // gramática canónica; los artefactos canónicos de un cambio legacy sí entran.
@@ -500,6 +536,7 @@ export function lintChange(cwd: string, change: string): ChangeLintReport {
 	if (declaration.mode === "invalid") {
 		provenanceIssues.push({ level: "error", code: "spec-delta-unresolved", message: "El cambio OpenSpec requiere exactamente un delta válido o una declaración spec_delta: none válida." });
 	}
+	provenanceIssues.push(...lintCanonicalBases(cwd, change));
 	const issues = [...sequenceIssues(phases), ...provenanceIssues];
 	errors += issues.filter((issue) => issue.level === "error").length;
 	warnings += issues.filter((issue) => issue.level === "warning").length;
