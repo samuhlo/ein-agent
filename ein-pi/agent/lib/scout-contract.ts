@@ -107,8 +107,20 @@ export function validateScoutReport(payloads: readonly unknown[], root: string):
 	return report;
 }
 
-export function acceptTrackedScoutResult(tracking: ScoutTracking, toolCallId: string, payloads: readonly unknown[], root: string): Report | undefined {
+function directStructuredOutput(details: unknown): unknown {
+	if (!isRecord(details) || details.mode !== "single" || !Array.isArray(details.results) || details.results.length !== 1) {
+		fail("missing structured report");
+	}
+	const result = details.results[0];
+	if (!isRecord(result) || result.structuredOutputFailed === true || !("structuredOutput" in result) || result.structuredOutput === undefined) {
+		fail("missing structured report");
+	}
+	return result.structuredOutput;
+}
+
+export function acceptTrackedScoutResult(tracking: ScoutTracking, toolCallId: string, details: unknown, isError: boolean, root: string): Report | undefined {
 	if (!tracking.has(toolCallId)) return undefined;
 	tracking.delete(toolCallId);
-	return validateScoutReport(payloads, root);
+	if (isError) return undefined;
+	return validateScoutReport([directStructuredOutput(details)], root);
 }
