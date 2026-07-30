@@ -5,6 +5,46 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.25.0] - 2026-07-30
+
+### Added
+
+- **Preflight de specs canónicos** (`fae19d4`, PR #68). El sync de close mergea
+  cada delta dentro de su spec canónico base; un base heredado sin cabeceras
+  reventaba con `invalid-format` en la última fase, tras todo el trabajo ya
+  hecho. `lintCanonicalBases` valida esos bases desde `lintChange`, así
+  `ein_sdd_check` lo saca ya en scope.
+- **Serializador y tool de deltas OpenSpec desde datos estructurados**
+  (`54410bc`, PR #68). Los deltas se escribían a mano y fallaban el parser
+  estricto una y otra vez. `serializeOpenSpecDelta` + `buildOpenSpecDelta`
+  generan y validan el delta re-parseando con la gramática del sync; la tool
+  `ein_openspec_delta_write` lo escribe o lo rechaza sin dejar rastro.
+  `sdd-scope` la usa y nunca teclea el markdown.
+
+### Changed
+
+- **Investigación pre-scope acotada del parent** (`1fa5e37`, PR #68). El parent
+  delega la investigación amplia al `ein-scout` de solo lectura con un packet
+  acotado y reutiliza la evidencia citada en vez de redescubrirla.
+
+### Fixed
+
+- **El preview cuenta contratos `.md` como producción** (`70b1ef9`, PR #68). El
+  clasificador excluía `.md`, así que un cambio que solo tocaba contratos
+  mostraba «sin ficheros de producción». Predicado compartido que incluye `.md`
+  pero excluye artefactos de proceso SDD y el árbol `openspec/`.
+- **La procedencia del ledger deja de figurar como bloqueo** (`08c55fe`, PR #68).
+  `change-unresolved` y `legacy-metadata-excluded` (attribution de recibos)
+  aparecían bajo «bloqueos» en cada status, ahogando los reales. Ahora salen solo
+  en la línea `ledger provenance:`.
+- **Staleness de verify por superficie entregada** (`02209a8`, PR #68). Una
+  normalización post-verify (cabecera de spec, docs) reescribía `apply-progress.md`
+  y forzaba un re-verify completo aunque no cambiara código ni tests. Se compara
+  contra el mtime de los ficheros que `tasks.md` declara.
+- **El budget avisa al superar lo asignado** (`0eaa440`, PR #68). El «asignado»
+  era decoración muda; ahora `formatBudget` marca `⚠ sobre lo asignado (N%)` al
+  cruzarlo (advisory, no bloquea el cierre).
+
 ## [0.24.4] - 2026-07-30
 
 ### Fixed
