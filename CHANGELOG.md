@@ -5,6 +5,50 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.30.0] - 2026-07-30
+
+Cambio de rumbo. EIN se había alejado de su objetivo —simplicidad y ahorro de
+tokens con un núcleo pequeño— acumulando maquinaria sobre-ingenierizada. Esta
+release quita el aparato más caro y deja el proyecto y sus docs en su estado
+real. El salto de 0.25 a 0.30 marca el nuevo capítulo (hacia un gentle-pi propio
+más ligero), sin prometer estabilidad todavía.
+
+### Removed
+
+- **Subsistema de recibo de candidato** (`3ea8e1d`, PR #70). Ligaba los bytes
+  que pasó `sdd-verify` a un árbol de git y lo revalidaba en cuatro fronteras
+  (pre-commit, post-commit, pre-push, pre-PR) más una retirada contra el PR
+  mergeado en GitHub. Copiaba el `candidate_tree`/receipt de gentle-pi, pero allí
+  el recibo es salida de un review NATIVO real; EIN no lo tiene, así que sellaba
+  un `sdd-verify` auto-reportado: garantía aparente sobre la palabra de un agente,
+  a cambio de bucles de corrección y fases de más. Fuera 4 libs (~1.686 líneas),
+  2 tools (`ein_candidate_receipt`, `ein_candidate_receipt_retire`), el gate del
+  hook de entrega y 4 suites de test.
+- **Docs de planificación, roadmaps y spikes** (`1f81a7b`, PR #70). `docs/` pasó
+  de 21 ficheros a 2. Doctrina nueva: `docs/` guarda solo estado actual; la
+  historia de lo planteado vive en git y en `openspec/changes/archive`. Se
+  conserva `review-workload-guard.md` (feature viva) y `ein-multiagente-plan.md`
+  (semilla del replanteamiento, ahora trackeado).
+
+### Changed
+
+- **Flujo de entrega de `ein-git`** (`3ea8e1d`, PR #70). Eliminada la declaración
+  de contenido y las cuatro gates del recibo; la entrega queda protegida por la
+  capa determinista barata que sí ahorra tokens: staging cerrado
+  (`git-staging.ts`), guardrails y el grant de intención de un solo uso.
+- **Spec `sdd-lifecycle`** (`3ea8e1d`, PR #70). De 283 a 73 líneas al retirar 30
+  escenarios de recibo; menos superficie que razonar en cada fase.
+
+### Fixed
+
+- **El reporte de scout se valida desde `finalOutput`** (`f4c3be7`). El contrato
+  exigía el reporte por el canal `structuredOutput` del runtime, que el modelo
+  trata como opcional: 3 de 4 scouts lo emitían como mensaje final (texto) y se
+  descartaban con `missing structured report`. Ahora se lee `finalOutput` como
+  cualquier subagente y corre la misma validación de citas/schema/paths; un
+  launch async devuelve un error accionable en vez del opaco. Se borra el
+  `outputSchema` inyectado (código muerto: `parseReport` ya validaba a mano).
+
 ## [0.25.0] - 2026-07-30
 
 ### Added
