@@ -709,6 +709,11 @@ export default function einAi(pi: ExtensionAPI): void {
 		// inutiles (gasto de tokens) sin escribir codigo. Tambien gobierna si la
 		// linea de Strict TDD entra en el preflight: solo donde hay RED/GREEN real.
 		const isParent = !isNamedAgent && !isSddAgent;
+		// `ein-scout` es un investigador de solo lectura, aislado al repo y con
+		// `inheritSkills: false`: declara explícitamente que NO usa skills. Inyectarle
+		// paths de SKILL.md (absolutos, fuera del repo) sólo produce "Skills not found"
+		// y una ejecución degradada. Se excluye de toda inyección de skills.
+		const isScout = startNames.includes("ein-scout");
 		// Nudge de sesión obsoleta: solo la sesión padre interactiva. Registra la
 		// versión al primer turno; si cambia después (un `ein update` a mitad de
 		// sesión), avisa una vez de reiniciar — esta sesión no cargará la plantilla
@@ -745,7 +750,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		// paths exactos de SKILL.md resueltos desde su task, no a criterio del
 		// modelo padre (evita que el padre "invente" qué skills existen).
 		let skillsPrompt = "";
-		if (isNamedAgent || isSddAgent) {
+		if ((isNamedAgent || isSddAgent) && !isScout) {
 			const block = resolveSkillInjection(ctx.cwd, readAgentTask(event));
 			if (block) skillsPrompt = `\n\n${block}`;
 		}
