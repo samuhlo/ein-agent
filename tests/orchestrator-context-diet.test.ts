@@ -9,8 +9,8 @@
 // un flujo SDD de ~19 subagentes. El contrato de cada fase debe capar ese
 // retorno: el detalle vive en el artefacto en disco, no en el envelope.
 //
-// Este test BLINDA el contrato en prosa (no hay definición central: cada agente
-// .md lo declara). Si alguien reintroduce el envelope verboso, salta aquí.
+// Este test solo blinda un contrato estático en prosa, porque no puede probar
+// la compactación del runtime ni el comportamiento de un modelo.
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
@@ -37,12 +37,10 @@ function agent(name: string): string {
 
 describe("compact return envelope — cada fase SDD", () => {
 	for (const name of PHASE_AGENTS) {
-		test(`${name} declara el contrato de envelope compacto`, () => {
+		test(`${name} declara el contrato de envelope compacto como heading real`, () => {
 			const raw = agent(name);
-			expect(raw).toContain("## Return contract (compact envelope)");
-			// Cap explícito del resumen que drena al padre.
+			expect(raw).toMatch(/^## Return contract \(compact envelope\)$/m);
 			expect(raw).toContain("≤ 3 lines");
-			// Prohibición de pegar el payload gordo en el retorno.
 			expect(raw).toMatch(/NEVER paste/i);
 		});
 
@@ -60,6 +58,14 @@ describe("compact return envelope — cada fase SDD", () => {
 		const raw = agent("sdd-map");
 		expect(raw).not.toContain("ALSO return the same content");
 	});
+
+	test("sdd-verify acota el acceptance-report al contrato inyectado", () => {
+		const raw = agent("sdd-verify");
+		expect(raw).toMatch(/injected Acceptance Contract explicitly requires/i);
+		expect(raw).toMatch(/concise fenced `acceptance-report`/i);
+		expect(raw).toMatch(/pi-subagents.*strips.*before displaying output to the parent/i);
+		expect(raw).toContain("not generic acceptance `fileOutput` for direct phase calls");
+	});
 });
 
 describe("orchestrator — doctrina de dieta de contexto", () => {
@@ -74,9 +80,15 @@ describe("orchestrator — doctrina de dieta de contexto", () => {
 	});
 
 	test("la investigación pesada se enruta a ein-scout, no al padre", () => {
-		// El padre solo hace un peek de 1-2 ficheros inline; lo demás va a scout.
 		expect(raw).toMatch(/ein-scout/);
 		expect(raw).toContain("1-2 file peek");
+	});
+
+	test("el fan-out paralelo usa scouts y nunca ramas sdd-map", () => {
+		const fanOut = raw.slice(raw.indexOf("## Parallel read-only fan-out"));
+		expect(fanOut).toMatch(/independent `ein-scout` call/);
+		expect(fanOut).not.toMatch(/read-only `sdd-map`/);
+		expect(fanOut).toContain("no OpenSpec artifacts");
 	});
 
 	test("el fallback de recuperación apunta al transcript, no al envelope", () => {

@@ -86,4 +86,4 @@ Your FINAL message is copied VERBATIM into the parent orchestrator's context, an
 - `risks`: **≤ 3 short bullets**;
 - `skill_resolution`.
 
-NEVER paste into the envelope the artifact's content, full file lists, per-test tables, command output, or long prose evidence — that payload lives in `verify-report.md` on disk. A verbose envelope is a defect, not thoroughness.
+NEVER paste into the envelope the artifact's content, full file lists, per-test tables, command output, or long prose evidence — that payload lives in `verify-report.md` on disk. When the injected Acceptance Contract explicitly requires it, append only a concise fenced `acceptance-report` with the required evidence; `pi-subagents` strips that correctly fenced block before displaying output to the parent. `verify-report.md` remains this phase's canonical artifact, not generic acceptance `fileOutput` for direct phase calls. A verbose envelope is a defect, not thoroughness.

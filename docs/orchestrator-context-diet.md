@@ -1,7 +1,7 @@
 # Fuga de contexto del orquestador EIN — diagnóstico y plan
 
 > **Para:** agente que vaya a revisar/continuar la solución.
-> **Estado de implementación:** esta rama implementa **Fix A** (envelope de retorno compacto en los 7 `sdd-*`) y **Fix B** (cablear `ein-scout` en el orquestador + evitar lecturas pesadas en el padre). **Fix C** (backstop `maxOutput`, requiere upstream `pi-subagents`) y **Fix D** (verificar compactación viva) quedan **diferidos** — ver §004.
+> **Estado de implementación:** esta rama implementa **Fix A** (envelope de retorno compacto en los 7 `sdd-*`) y **Fix B** (cablear `ein-scout` en el orquestador + evitar lecturas pesadas en el padre). Compactar `ein-git.md` queda explícitamente fuera de alcance. **Fix C** (backstop `maxOutput`, requiere upstream `pi-subagents`), `ein-linear`, y **Fix D** (verificar compactación viva) quedan **diferidos** — ver §004. La verificación de `bundle-template` de la PR pasó.
 > **Repo:** `ein-agent`. **Runtime de subagentes:** paquete externo `pi-subagents` (instalado en `~/.pi/agent/npm/node_modules/pi-subagents/`).
 
 ---
@@ -91,18 +91,18 @@ crecimiento_padre  =  Σ(envelope de retorno de cada fase)     ← causa #1 (dom
 ## 004. Plan de solución (ordenado por impacto)
 
 ### A. Adelgazar el envelope de retorno de cada `sdd-*` — DOMINANTE (~70% de la fuga)
-**Qué:** el último mensaje del hijo es lo que drena. Cambiar el contrato de retorno para que ese mensaje final sea **compacto**:
+**Qué:** el último mensaje del hijo es lo que drena. Cambiar el contrato de retorno de las siete fases SDD para que ese mensaje final sea **compacto**:
 
-- `acceptance` / `status`
-- `next_recommended`
-- resumen humano de ≤5 líneas
-- ruta del artefacto en disco
+- `status`;
+- `next_recommended`;
+- resumen humano de ≤5 líneas;
+- ruta del artefacto canónico en disco.
 
-**Todo el detalle verboso** (`executive_summary`, `commands_run`, evidencia por criterio, `risks`) debe vivir **solo en el artefacto en disco** (`verify-report.md`, `apply-progress.md`, etc.), **no** en el mensaje de retorno.
+**Todo el detalle verboso** (`executive_summary`, `commands_run`, evidencia por criterio, `risks`) debe vivir **solo en el artefacto en disco** (`verify-report.md`, `apply-progress.md`, etc.), **no** en el mensaje de retorno. Si el contrato de aceptación inyectado exige un `acceptance-report`, se permite solo el bloque fenced conciso requerido; `pi-subagents` lo elimina antes de mostrar la salida al padre.
 
-**Dónde:** las secciones de "output / return contract" de cada agente en `ein-pi/core/agents/sdd-*.md` (y `ein-git.md`). Nota: `ein-pi/core/agents/` es el core canónico bundleado por el instalador; probablemente haya que re-generar el template (`installer/scripts/bundle-template.ts`) tras editarlos.
+**Dónde:** las secciones de "output / return contract" de los siete agentes en `ein-pi/core/agents/sdd-*.md`. `ein-git.md` queda explícitamente diferido y fuera de alcance de Fix A. El core canónico se bundlea por el instalador; la verificación de `bundle-template` de esta PR ya pasó.
 
-**Por qué es seguro:** el runner **re-evalúa la aceptación desde el artefacto en disco**, no desde la prosa del envelope (ver `subagent-runner.ts:1414-1426`, `evaluateAcceptance` con `fileOutput`). Así que reducir el `acceptance_report` a `id`+`status` no rompe el gate. El orquestador enruta por `ein_sdd_check`/`ein_sdd_status` (disco), así que tampoco depende del envelope.
+**Por qué es seguro:** en una delegación directa de fase no hay `outputPath`; la aceptación genérica se evalúa desde la salida, incluido el `acceptance-report` cuando corresponda, no desde un `fileOutput` inventado. `verify-report.md` es el artefacto propio de verify. El orquestador enruta con `ein_sdd_check`/`ein_sdd_status`, que validan el artefacto canónico en disco.
 
 **Riesgo a vigilar:** no recortar señales que el padre sí consume del retorno (p.ej. `authored_by: parent-fallback`, o el `status: blocked` con causa). Mantenerlas en la versión compacta.
 
@@ -126,12 +126,12 @@ crecimiento_padre  =  Σ(envelope de retorno de cada fase)     ← causa #1 (dom
 
 ## 005. Recomendación de arranque
 
-1. **A primero** (envelopes compactos en los 7 `sdd-*.md` + `ein-git.md` + re-bundle del template). Es el grueso y está 100% bajo control de EIN.
+1. **A primero** (envelopes compactos en los siete `sdd-*.md`). Es el grueso y está 100% bajo control de EIN.
 2. **Luego B** (rutar exploración a `ein-scout` + prohibir lecturas completas de artefacto en el padre).
 3. Con A+B, el contexto del orquestador debería crecer de forma casi plana, como se esperaba.
-4. C y D solo si hace falta apretar más.
+4. `ein-git.md`, `ein-linear`, el backstop `maxOutput` y la comprobación de compactación viva quedan como trabajo diferido.
 
-Sugerencia de empaquetado: un cambio SDD tipo `orchestrator-context-diet`. Antes de tocar los 8 agentes, conviene redactar el **envelope compacto de UNA fase (p.ej. verify)** como referencia y validarlo, luego replicar el patrón al resto.
+Sugerencia de empaquetado: un cambio SDD tipo `orchestrator-context-diet`. Antes de tocar las siete fases, conviene redactar el **envelope compacto de UNA fase (p.ej. verify)** como referencia y validarlo, luego replicar el patrón al resto.
 
 ---
 
@@ -187,11 +187,11 @@ Desacoplar esta decisión del trabajo de dieta de contexto. Hacer primero A + B 
 
 - `pi-subagents/src/runs/background/subagent-runner.ts:791` — `getFinalOutput(messages)` (el envelope = último mensaje del hijo).
 - `.../subagent-runner.ts:1378` — `rawOutput = finalResult.finalOutput`.
-- `.../subagent-runner.ts:1414-1426` — `evaluateAcceptance` re-evalúa desde `fileOutput` (artefacto en disco), no desde el envelope.
+- `.../subagent-runner.ts:1414-1426` — `evaluateAcceptance` evalúa la salida de aceptación; en delegación directa no hay `fileOutput` genérico y el artefacto canónico se valida aparte con `ein_sdd_check`/`ein_sdd_status`.
 - `pi-subagents/src/runs/shared/single-output.ts:211-234` — `finalizeSingleOutput`; `file-only`→puntero, resto→`fullOutput` inline.
 - `pi-subagents/src/shared/types.ts:1510` — `DEFAULT_MAX_OUTPUT = { bytes: 200*1024, lines: 5000 }`.
 - `ein-pi/agent/assets/orchestrator.md:88` — regla de "no pasar `output`/`outputMode`" en delegación directa (origen del modo inline).
 - `ein-pi/agent/assets/orchestrator.md:94` — doctrina "resuming is free / no re-reading" (que en la práctica se incumple → causa #2).
 - `ein-pi/agent/chains/ein-sdd.chain.md:8-87` — el **chain** SÍ usa `outputMode: file-only` por paso (contraste: ahí el retorno es un puntero; el problema solo aparece en la delegación **directa** por fase).
-- `ein-pi/core/agents/sdd-*.md`, `ein-pi/core/agents/ein-git.md` — contratos de output a adelgazar (fix A).
+- `ein-pi/core/agents/sdd-*.md` — contratos de output compactados por Fix A; `ein-git.md` y `ein-linear` quedan diferidos.
 - `.pi-subagents/artifacts/*_output.md` — evidencia de tamaños de envelope reales.

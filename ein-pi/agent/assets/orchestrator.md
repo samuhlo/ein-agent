@@ -146,7 +146,7 @@ Enforced downstream; you coordinate and keep the parent light.
 
 ## Parallel read-only fan-out
 
-Several `subagent` calls in one turn only for broad, independent, read-only investigation, then synthesize. **Max 3 branches**, each a read-only `sdd-map` with a distinct bounded angle. NOT for writes, not for the SDD chain (sequential), not when findings feed each other. Parallelism buys wall-clock, not tokens — keep angles disjoint.
+Several `subagent` calls in one turn only for broad, independent, read-only investigation, then synthesize. **Max 3 branches**, each an independent `ein-scout` call with `context: "fresh"` and a distinct bounded angle. Scouts create no OpenSpec artifacts. NOT for writes, not for the sequential SDD phases, and not when findings feed each other. Parallelism buys wall-clock, not tokens — keep angles disjoint.
 
 ## Delivery & board
 
