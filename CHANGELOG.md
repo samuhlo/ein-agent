@@ -5,6 +5,31 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.24.0] - 2026-07-30
+
+### Added
+
+- **`ein-scout` de solo lectura** (`ffe2034`, PR #52). Permite una exploración
+  acotada con `read`, `grep` y `find`, lanzada de forma directa y fresca; sus
+  informes citados fallan cerrados cuando falta evidencia.
+- **Proveniencia fiable para el coste SDD** (`f823cae`, PR #51). El ledger usa
+  recibos locales estructurados, no infiere datos por nombres de tarea y muestra
+  `n/a` cuando no hay información suficiente.
+
+### Changed
+
+- **Retornos SDD más compactos** (`619c87a`, `9cc1c48`, PR #53). Las siete
+  fases devuelven el resumen necesario y derivan la investigación amplia previa
+  al alcance a scout; el detalle canónico permanece en disco.
+- **Contrato de enseñanza más claro** (`b84cbd6`, PR #50). Las explicaciones
+  de Ein y del orquestador priorizan a la persona que las usa.
+
+### Fixed
+
+- **Aceptación y cierre SDD sin ambigüedad** (`dbd6187`, PR #50). La aceptación
+  normal queda en `none` y el modo verificado exige declararse; los cierres y
+  forzados rechazan estados no permitidos en vez de avanzar por error.
+
 ## [0.23.0] - 2026-07-29
 
 ### Added
