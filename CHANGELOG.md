@@ -5,6 +5,20 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.24.4] - 2026-07-30
+
+### Fixed
+
+- **Structured handoff y lifecycle del scout** (`03272bb`, PR #62). El resultado
+  estructurado se obtiene desde `details.results[0].structuredOutput`, se
+  conservan los diagnósticos de error del runner y se limpia el tracking al
+  terminar la sesión.
+- **Contrato de extensiones vacías y cobertura aislada del scout** (`730509b`,
+  PR #63). Se alinea el contrato entre especificación, doctor y pruebas, se
+  corrige el falso negativo del doctor y se añaden cobertura determinista y un
+  smoke aislado opt-in. El smoke respaldado por proveedor permanece
+  **Unavailable** sin modelo y credencial explícitos.
+
 ## [0.24.3] - 2026-07-30
 
 ### Fixed
