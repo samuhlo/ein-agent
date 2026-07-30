@@ -16,6 +16,12 @@ const ORCH_MD = join(
   "../ein-pi/agent/assets/orchestrator.md",
 );
 const content = readFileSync(ORCH_MD, "utf8");
+const SCOUT_MD = join(import.meta.dir, "../ein-pi/core/agents/ein-scout.md");
+const scout = readFileSync(SCOUT_MD, "utf8");
+
+function expectAll(text: string, terms: string[]) {
+  for (const term of terms) expect(text).toContain(term);
+}
 
 describe("orchestrator.md Scope Gate Contract", () => {
   test("contiene la Scope Gate", () => {
@@ -43,5 +49,38 @@ describe("orchestrator.md Scope Gate Contract", () => {
   test("context:fresh reservado para auditorías/review, no para map normal", () => {
     // La regla debe asociar fresh a trabajo adversarial: audit/incident/review.
     expect(content.toLowerCase()).toMatch(/fresh[^\n]*(audit|incident|review)/);
+  });
+
+  test("define el RESEARCH PACKET con entradas acotadas y ceilings exactos", () => {
+    expectAll(content, [
+      "RESEARCH PACKET",
+      "concrete question",
+      "allowed repository roots",
+      "optional specific memory query",
+      "optional bounded documentation topics",
+      "max_reads: 20",
+      "max_output_bytes: 12288",
+      "max_runtime_ms: 300000",
+    ]);
+  });
+
+  test("reserva la síntesis de decisiones para el parent", () => {
+    expectAll(content, [
+      "Parent synthesis intent",
+      "severity classification",
+      "bounded alternatives",
+      "optional candidate slices",
+    ]);
+  });
+
+  test("mantiene la intención de síntesis fuera del reporte cerrado del scout", () => {
+    expect(scout).toContain("not top-level scout report fields");
+    expect(scout).toContain("exactly the existing `ein-scout-report/v1` fields");
+    expect(scout).toContain("`severity`, `alternatives`, or `candidate_slices`");
+  });
+
+  test("el routing pre-scope no selecciona sdd-map", () => {
+    expect(content).toContain("Pre-scope routing must not select `sdd-map`");
+    expect(content).toContain("`sdd-map` remains behind the bounded scope gate");
   });
 });
