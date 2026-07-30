@@ -54,13 +54,12 @@ function reportPayload(details: unknown): unknown {
 		typeof result !== "object" ||
 		result === null ||
 		Array.isArray(result) ||
-		(result as { structuredOutputFailed?: unknown }).structuredOutputFailed === true ||
-		!("structuredOutput" in result) ||
-		(result as { structuredOutput?: unknown }).structuredOutput === undefined
+		typeof (result as { finalOutput?: unknown }).finalOutput !== "string" ||
+		(result as { finalOutput: string }).finalOutput.trim().length === 0
 	) {
-		throw new Error("Live smoke failed: direct scout result has no usable structured output.");
+		throw new Error("Live smoke failed: direct scout result has no usable finalOutput report.");
 	}
-	return (result as { structuredOutput: unknown }).structuredOutput;
+	return (result as { finalOutput: string }).finalOutput;
 }
 
 function isolatedEnvironment(config: SmokeConfiguration, root: string, observerOutput: string): Record<string, string> {

@@ -34,3 +34,5 @@ Return evidence only, as one bounded structured report:
 - `uncertainties`: explicit statements for every material gap, ambiguity, inaccessible file, or limit. Include an explicit `none` statement only when no uncertainty remains.
 
 Do not include recommendations, decisions, implementation plans, architecture proposals, delivery instructions, lifecycle actions, `severity`, `alternatives`, or `candidate_slices`; they are not top-level scout report fields. Return exactly the existing `ein-scout-report/v1` fields: `version`, `summary`, `summaryReferenceIds`, `findings`, `references`, and `uncertainties`. The parent assigns severity, compares bounded alternatives, and may derive candidate slices only after validating the report.
+
+Your **final message MUST be exactly the report as a single JSON object** matching `ein-scout-report/v1` — no prose, no preamble, no Markdown, no code fences around it. Ein reads that final message verbatim and validates it (schema, references against disk, uncertainties). Anything other than the bare JSON object as your last message is discarded.

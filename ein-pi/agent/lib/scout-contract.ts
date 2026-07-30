@@ -3,28 +3,10 @@ import { isAbsolute, relative, resolve } from "node:path";
 
 export const SCOUT_REPORT_MAX_BYTES = 16_384;
 
-export const SCOUT_REPORT_SCHEMA = {
-	type: "object",
-	additionalProperties: false,
-	required: ["version", "summary", "summaryReferenceIds", "findings", "references", "uncertainties"],
-	properties: {
-		version: { const: "ein-scout-report/v1" },
-		summary: { type: "string", minLength: 1, maxLength: 2000 },
-		summaryReferenceIds: { type: "array", minItems: 1, maxItems: 8, items: { type: "string" }, uniqueItems: true },
-		findings: {
-			type: "array", minItems: 1, maxItems: 12,
-			items: { type: "object", additionalProperties: false, required: ["claim", "referenceIds"], properties: { claim: { type: "string", minLength: 1, maxLength: 1000 }, referenceIds: { type: "array", minItems: 1, maxItems: 8, uniqueItems: true, items: { type: "string" } } } },
-		},
-		references: {
-			type: "array", minItems: 1, maxItems: 24,
-			items: { type: "object", additionalProperties: false, required: ["id", "path", "startLine", "endLine", "supports"], properties: { id: { type: "string", pattern: "^R[1-9][0-9]*$" }, path: { type: "string", minLength: 1, maxLength: 512 }, startLine: { type: "integer", minimum: 1 }, endLine: { type: "integer", minimum: 1 }, supports: { type: "string", minLength: 1, maxLength: 500 } } },
-		},
-		uncertainties: {
-			type: "array", minItems: 1, maxItems: 8,
-			items: { type: "object", additionalProperties: false, required: ["level", "statement"], properties: { level: { enum: ["none", "low", "material"] }, statement: { type: "string", minLength: 1, maxLength: 500 } } },
-		},
-	},
-} as const;
+// El schema del reporte se valida a mano en `parseReport` (abajo). Ya NO se
+// inyecta como `outputSchema` al lanzar el scout: forzar el canal estructurado
+// del runtime era la fuente de fragilidad — el modelo emite el reporte como su
+// mensaje final (texto), y desde ahí se valida, como cualquier otro subagente.
 
 export type ScoutLaunch = Record<string, unknown>;
 export type ScoutTracking = Map<string, string>;
@@ -60,7 +42,6 @@ export function normalizeScoutLaunch(input: unknown, toolCallId: string, trackin
 		maxRuntimeMs: 120_000,
 		turnBudget: { maxTurns: 12, graceTurns: 2 },
 		toolBudget: { hard: 30, soft: 24, block: "*" },
-		outputSchema: SCOUT_REPORT_SCHEMA,
 		acceptance: { level: "none", reason: "Ein validates the scout report through its deterministic local adapter" },
 	};
 }
@@ -107,20 +88,24 @@ export function validateScoutReport(payloads: readonly unknown[], root: string):
 	return report;
 }
 
-function directStructuredOutput(details: unknown): unknown {
-	if (!isRecord(details) || details.mode !== "single" || !Array.isArray(details.results) || details.results.length !== 1) {
-		fail("missing structured report");
+// Lee el reporte de la SALIDA FINAL del scout (finalOutput), como cualquier
+// subagente. `results` vacío es lo que devuelve un launch async en este punto
+// (el reporte llega luego por otro evento) → error accionable, no opaco. Exige
+// exactamente un resultado: el scout corre foreground y único.
+function scoutReportText(details: unknown): string {
+	if (!isRecord(details) || !Array.isArray(details.results) || details.results.length !== 1) {
+		fail("no in-turn report (launched async or in parallel? launch the scout foreground)");
 	}
-	const result = details.results[0];
-	if (!isRecord(result) || result.structuredOutputFailed === true || !("structuredOutput" in result) || result.structuredOutput === undefined) {
-		fail("missing structured report");
+	const result = (details.results as unknown[])[0];
+	if (!isRecord(result) || typeof result.finalOutput !== "string" || result.finalOutput.trim().length === 0) {
+		fail("scout returned no usable report");
 	}
-	return result.structuredOutput;
+	return result.finalOutput;
 }
 
 export function acceptTrackedScoutResult(tracking: ScoutTracking, toolCallId: string, details: unknown, isError: boolean, root: string): Report | undefined {
 	if (!tracking.has(toolCallId)) return undefined;
 	tracking.delete(toolCallId);
 	if (isError) return undefined;
-	return validateScoutReport([directStructuredOutput(details)], root);
+	return validateScoutReport([scoutReportText(details)], root);
 }

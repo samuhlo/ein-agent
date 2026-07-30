@@ -6,8 +6,8 @@
 // se cablea.
 // =============================================================================
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -85,7 +85,7 @@ import {
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
-import { aggregateSddBudget, formatSddPlanPreview, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
 import { closeChange } from "../lib/sdd-close.ts";
 import { approveCandidate, type MemoryCandidate, type MemoryReceipt } from "../lib/memory-contract.ts";
 import {
@@ -113,12 +113,9 @@ import {
 import { AGENT_DIR } from "./ein-paths";
 import { readInstalledVersion, staleSessionNudge } from "../lib/session-version";
 import { DOMAIN_ID_PATTERN, sha256 } from "../lib/openspec-spec-contract.ts";
+import { buildOpenSpecDelta } from "../lib/openspec-spec-parser.ts";
 import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";
 import { evaluateStaging } from "../lib/git-staging.ts";
-import { evaluateDeliveryGate, evaluatePostCommit, deliveryBoundaryFor, type DeliveryAttemptState } from "../lib/delivery-gate.ts";
-import { evaluateCandidateReceiptRetirement, type CandidateReceiptRetirementIdentity, type NormalizedMergedPullRequestObservation } from "../lib/delivery-receipt.ts";
-import { clearVerifiedDeliveryAttempt, emitCandidateReceipt, persistVerifiedDeliveryAttempt, readActiveCandidateReceiptEvidence, readVerifiedDeliveryAttempt, reportRetirementCleanup, resolveWorktreeIdentity, retireCandidateReceipt, suggestIntendedPaths } from "../lib/candidate-receipt.ts";
-import { observeMergedPullRequest, resolveExplicitPushRemoteRepository } from "../lib/candidate-receipt-retirement-remote.ts";
 import { acceptTrackedScoutResult, normalizeScoutLaunch, type ScoutTracking } from "../lib/scout-contract.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
@@ -146,23 +143,7 @@ const phaseSnapshotByToolCall = new Map<
 	{ phase: SddPhase; before: PhaseSnapshot; provenance: DelegationObservation }
 >();
 
-// Intento de entrega verificada en curso, por sesión: el fingerprint del recibo
-// que validó el pre-commit y, tras el post-commit, el head de entrega validado.
-// Las cuatro fronteras del slice 04 son UNA secuencia — sin este estado, el
-// pre-push no puede saber si la rama se movió desde que se validó el commit.
-const deliveryAttemptBySession = new Map<string, DeliveryAttemptState>();
-// Commits gateados a la espera de su comprobación post-commit (por toolCallId).
-const pendingPostCommit = new Map<string, string>();
 const scoutTracking: ScoutTracking = new Map();
-
-type RetirementToolParams = {
-	change: string;
-	receiptFingerprint: string;
-	remote: string;
-	baseRef: string;
-	headRef: string;
-	prNumber: number;
-};
 
 function rememberPhaseSnapshot(
 	toolCallId: string,
@@ -434,10 +415,9 @@ function formatChangeLint(report: ChangeLintReport): string {
 	return lines.join("\n");
 }
 
-function compactBudget(budget: SddChangeStatus["budget"]): string {
-	if (!budget.allocated && !budget.consumed) return "absent";
-	return `allocated=${budget.allocated ?? "unknown"} · consumed=${budget.consumed ?? "unknown"}`;
-}
+// P2-G: fuente única en sdd-router (formatBudget), que además marca cuando lo
+// consumido supera lo asignado. Alias local para no tocar los puntos de llamada.
+const compactBudget = formatBudget;
 
 function compactTokens(n: number | null): string {
 	if (n === null) return "n/a";
@@ -490,11 +470,13 @@ function formatSddStatus(
 	lines.push(notebook);
 	if (realCost) lines.push(...compactRealCost(realCost));
 
-	const problems = [...status.tasks.problems, ...status.budget.problems, ...(realCost?.problems.map((problem) => problem.message) ?? [])];
-	if (status.blocked.length || problems.length) {
+	// Los problemas de procedencia del ledger (realCost.problems) NO son bloqueos:
+	// ya salen en la línea `ledger provenance:` (compactRealCost). Aquí solo van
+	// bloqueos reales, vía la fuente única sddStatusBlockers.
+	const blockers = sddStatusBlockers({ blocked: status.blocked, taskProblems: status.tasks.problems, budgetProblems: status.budget.problems });
+	if (blockers.length) {
 		lines.push("", `■ ${t("sdd-status.blocked", "blockers")}:`);
-		for (const b of status.blocked) lines.push(`- ${b}`);
-		for (const p of problems) lines.push(`- ${p}`);
+		for (const b of blockers) lines.push(`- ${b}`);
 	}
 	return lines.join("\n");
 }
@@ -829,18 +811,6 @@ export default function einAi(pi: ExtensionAPI): void {
 		// las rutas, que es exactamente lo que debería hacerse.
 		const staging = evaluateStaging(ctx.cwd, event.input.command);
 		if (staging.kind === "blocked") return { block: true, reason: staging.reason };
-		// Puerta de entrega (slice 04): si hay un recibo y este comando toca sus
-		// ficheros, lo entregado debe ser EXACTAMENTE lo verificado. Determinista
-		// aquí, no una frase en el prompt de ein-git que se pueda olvidar.
-		const sessionKey = sddPreflightSessionKey(ctx);
-		const gate = evaluateDeliveryGate(ctx.cwd, event.input.command, deliveryAttemptBySession.get(sessionKey));
-		deliveryAttemptBySession.set(sessionKey, gate.attempt);
-		if (gate.verdict.kind === "blocked") return { block: true, reason: gate.verdict.reason };
-		// Un commit que pasó el pre-commit debe revalidarse DESPUÉS: los hooks de
-		// git pueden reescribir el árbol entre la validación y el objeto final.
-		if (deliveryBoundaryFor(event.input.command) === "pre-commit" && gate.attempt?.receiptFingerprint) {
-			pendingPostCommit.set(event.toolCallId, sessionKey);
-		}
 		maybeWrapBashInput(event.input as { command: string }, ctx.cwd);
 		return undefined;
 	});
@@ -850,30 +820,6 @@ export default function einAi(pi: ExtensionAPI): void {
 	// vacía, timeout en la lectura final) con la fase YA entregada. Sin esto el
 	// orquestador repetía una fase completa y pagaba dos veces.
 	pi.on("tool_result", (event, ctx) => {
-		// Frontera POST-COMMIT: el commit ya corrió y sus hooks también.
-		const postCommitSession = pendingPostCommit.get(event.toolCallId);
-		if (postCommitSession) {
-			pendingPostCommit.delete(event.toolCallId);
-			// Un commit que FALLÓ no produjo árbol que comprobar. Validar aquí
-			// sustituiría el error real de git por uno de identidad —tapando la
-			// causa— y actualizaría el intento a partir de algo que no ocurrió.
-			if (event.isError) {
-				deliveryAttemptBySession.set(postCommitSession, undefined);
-				return undefined;
-			}
-			const outcome = evaluatePostCommit(ctx.cwd, deliveryAttemptBySession.get(postCommitSession));
-			deliveryAttemptBySession.set(postCommitSession, outcome.attempt);
-			if (outcome.attempt?.validatedDeliveryHead) {
-				const persisted = persistVerifiedDeliveryAttempt(ctx.cwd, outcome.attempt);
-				if (!persisted.ok) {
-					deliveryAttemptBySession.delete(postCommitSession);
-					return { isError: true, content: [{ type: "text", text: persisted.reason }] };
-				}
-			}
-			if (outcome.verdict.kind === "blocked") {
-				return { isError: true, content: [{ type: "text", text: outcome.verdict.reason }] };
-			}
-		}
 		if (event.toolName !== "subagent") return undefined;
 		try {
 			const report = acceptTrackedScoutResult(scoutTracking, event.toolCallId, event.details, event.isError, ctx.cwd);
@@ -1355,136 +1301,76 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
-	// Slice 03. Un verify que pasa no dice QUÉ bytes pasaron; esto los fija en un
-	// árbol git content-addressed y lo liga a repo/worktree/cambio/HEAD/rutas/
-	// informe/comandos. NO gatea nada todavía: eso es el slice 04.
+	// P0-A. Los deltas se escribían a mano y fallaban el parser estricto una y otra
+	// vez (churn de scope: el trace real gastó 3 corridas de sdd-scope solo en dar
+	// con el formato). Esto los genera desde datos estructurados y los valida
+	// re-parseando ANTES de escribir: nunca deja en disco un delta que el sync
+	// rechazaría en close.
 	pi.registerTool({
-		name: "ein_candidate_receipt",
-		label: "Ein Candidate Receipt",
+		name: "ein_openspec_delta_write",
+		label: "Ein OpenSpec Delta Write",
 		description:
-			"Record which exact bytes a PASSING sdd-verify covered. REFUSES unless verify is `pass`, not stale, and apply is complete. Builds a synthetic candidate tree with a temporary git index (the real index and worktree are never touched) and publishes a local receipt under the worktree git admin dir, binding repository, worktree, change, HEAD, the declared paths, the verify report and the verification commands. `paths` is an EXPLICIT manifest of exact files — no directories, no git magic pathspecs; call without it to get the current tracked/untracked lists to choose from. Does NOT gate delivery.",
+			"Write a change's OpenSpec behaviour delta (openspec/changes/<change>/specs/<domain>/spec.md) from STRUCTURED operations — never hand-write the delta markdown. Serializes deterministically and re-parses with the strict grammar before writing; refuses (writes nothing) if the operations are malformed (e.g. requirement not starting with 'The system MUST/SHOULD/MAY', empty fields, duplicate scenario IDs, no operations). Operation order is irrelevant; output is sorted by scenario ID. Reads and writes only the filesystem; never commits.",
 		parameters: {
 			type: "object",
 			properties: {
 				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
-				commands: { type: "array", items: { type: "string" }, description: "Verification commands actually run, verbatim." },
-				paths: { type: "array", items: { type: "string" }, description: "EXPLICIT manifest: exact file paths that make up this delivery. Directories and magic pathspecs are rejected. Anything not named is excluded — it may be someone else's work in progress." },
+				domain: { type: "string", description: "Canonical domain, kebab-case (e.g. scout-routing)." },
+				operations: {
+					type: "array",
+					description: "Behaviour deltas. Each: kind ADDED|MODIFIED|REMOVED. ADDED/MODIFIED need `scenario` {id,title,requirement,given,when,then}; REMOVED needs `scenarioId` and `reason`.",
+					items: {
+						type: "object",
+						properties: {
+							kind: { type: "string", enum: ["ADDED", "MODIFIED", "REMOVED"] },
+							scenario: {
+								type: "object",
+								properties: {
+									id: { type: "string" },
+									title: { type: "string" },
+									requirement: { type: "string", description: "MUST begin with 'The system MUST', 'The system SHOULD', or 'The system MAY'." },
+									given: { type: "string" },
+									when: { type: "string" },
+									then: { type: "string" },
+								},
+							},
+							scenarioId: { type: "string" },
+							reason: { type: "string" },
+						},
+						required: ["kind"],
+					},
+				},
 			},
+			required: ["domain", "operations"],
 		} as const,
-		async execute(_id, params: { change?: string; commands?: string[]; paths?: string[] }, _signal, _onUpdate, ctx: ExtensionContext) {
+		async execute(_id, params: { change?: string; domain?: string; operations?: unknown[] }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
-			if (!change) {
-				return { content: [{ type: "text", text: "/// CANDIDATE RECEIPT — no active change." }], details: { ok: false, reason: "no active change" } };
-			}
-			// Sin manifiesto no se emite. Pero tampoco es un callejón: se devuelve
-			// la foto del árbol para que el llamante ENUMERE lo que entra.
-			if (!params?.paths || params.paths.length === 0) {
-				const { tracked, untracked } = suggestIntendedPaths(ctx.cwd);
-				const text = [
-					`/// CANDIDATE RECEIPT — '${change}' NO emitido: falta el manifiesto \`paths\`.`,
-					"El candidato se DECLARA, no se infiere: 'todo lo modificado' puede incluir trabajo en curso de otro.",
-					"",
-					`modificados y trackeados (${tracked.length}): ${tracked.join(", ") || "(ninguno)"}`,
-					`sin trackear (${untracked.length}): ${untracked.join(", ") || "(ninguno)"}`,
-					"",
-					"Vuelve a llamar con `paths` enumerando SOLO los ficheros de esta entrega.",
-				].join("\n");
-				return { content: [{ type: "text", text }], details: { ok: false, reason: "missing paths manifest", tracked, untracked } };
-			}
-			// FAIL CLOSED -> La memoria no puede sobrevivir a un recibo que se reemplaza.
-			deliveryAttemptBySession.delete(sddPreflightSessionKey(ctx));
-			const result = emitCandidateReceipt(ctx.cwd, {
-				change,
-				paths: params.paths,
-				commands: params?.commands ?? [],
+			if (!change) return { content: [{ type: "text", text: "/// OPENSPEC DELTA — no active change." }], details: { ok: false, reason: "no active change" } };
+			if (!isSafeChangeName(change)) return { content: [{ type: "text", text: `/// OPENSPEC DELTA — nombre de cambio inválido: ${JSON.stringify(change)}.` }], details: { ok: false, reason: "invalid change name" } };
+			const domain = params?.domain ?? "";
+			if (!DOMAIN_ID_PATTERN.test(domain)) return { content: [{ type: "text", text: `/// OPENSPEC DELTA — dominio inválido (debe ser kebab-case): ${JSON.stringify(domain)}.` }], details: { ok: false, reason: "invalid domain" } };
+			const rawOps = Array.isArray(params?.operations) ? params.operations : [];
+			const operations = rawOps.map((raw) => {
+				const op = (raw ?? {}) as Record<string, unknown>;
+				if (op.kind === "REMOVED") return { kind: "REMOVED", scenarioId: String(op.scenarioId ?? ""), reason: String(op.reason ?? "") };
+				const s = (op.scenario ?? {}) as Record<string, unknown>;
+				return { kind: op.kind, scenario: { id: String(s.id ?? ""), title: String(s.title ?? ""), requirement: String(s.requirement ?? ""), given: String(s.given ?? ""), when: String(s.when ?? ""), then: String(s.then ?? "") } };
 			});
-			if (!result.ok) {
-				return { content: [{ type: "text", text: `/// CANDIDATE RECEIPT — '${change}' NO emitido: ${result.reason}` }], details: result };
+			const built = buildOpenSpecDelta({ domain, operations } as Parameters<typeof buildOpenSpecDelta>[0]);
+			if (!built.ok) {
+				const first = built.errors[0];
+				const detail = first ? `${first.code} (línea ${first.line}): ${first.message}` : "formato inválido";
+				return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${change}' RECHAZADO, no se escribió nada: ${detail}. Corrige las operaciones y reintenta; el delta se valida con la MISMA gramática que el sync.` }], details: { ok: false, reason: detail } };
 			}
-			const { receipt } = result;
-			const text = [
-				`/// CANDIDATE RECEIPT — '${change}'`,
-				`tree: ${receipt.treeSha}`,
-				`head: ${receipt.head} (${receipt.branch})`,
-				`rutas previstas (${receipt.paths.length}): ${receipt.paths.slice(0, 12).join(", ")}${receipt.paths.length > 12 ? " …" : ""}`,
-				"El recibo identifica los bytes verificados. Si el árbol cambia después, deja de coincidir.",
-			].join("\n");
-			return { content: [{ type: "text", text }], details: { ok: true, ...receipt } };
-		},
-	});
-
-	pi.registerTool({
-		name: "ein_candidate_receipt_retire",
-		label: "Ein Candidate Receipt Retire",
-		description:
-			"Explicitly retire one active candidate receipt after two fresh GitHub observations prove the named same-repository PR merged the exact validated delivery HEAD. Requires change, receiptFingerprint, remote, baseRef, headRef, and prNumber. Refuses auth/network failures, malformed or fork PRs, identity mismatches, and changed revalidation. If durable attempt cleanup fails after terminal unlink, reports cleanupPending and retries cleanup through already-retired; it never claims a clean rollback. Never infers a PR, changes grants, or claims verification.",
-		parameters: {
-			type: "object",
-			additionalProperties: false,
-			required: ["change", "receiptFingerprint", "remote", "baseRef", "headRef", "prNumber"],
-			properties: {
-				change: { type: "string", description: "Explicit SDD change bound to the active receipt." },
-				receiptFingerprint: { type: "string", description: "SHA-256 fingerprint of the exact active receipt bytes." },
-				remote: { type: "string", description: "Explicit local Git remote name; it must resolve to GitHub." },
-				baseRef: { type: "string", description: "Explicit PR base ref." },
-				headRef: { type: "string", description: "Explicit PR head ref." },
-				prNumber: { type: "integer", minimum: 1, description: "Explicit GitHub pull request number." },
-			},
-		} as const,
-		async execute(_id, params: RetirementToolParams, signal, _onUpdate, ctx: ExtensionContext) {
-			const remoteRepository = await resolveExplicitPushRemoteRepository(ctx.cwd, params.remote);
-			const identity: CandidateReceiptRetirementIdentity = {
-				remoteRepository: remoteRepository ?? "",
-				baseRef: params.baseRef,
-				headRef: params.headRef,
-				prNumber: params.prNumber,
-			};
-			const active = readActiveCandidateReceiptEvidence(ctx.cwd);
-			if (!active) {
-				let result = await retireCandidateReceipt(ctx.cwd, { change: params.change, receiptFingerprint: params.receiptFingerprint, identity });
-				if (result.ok && result.result === "already-retired") {
-					deliveryAttemptBySession.delete(sddPreflightSessionKey(ctx));
-					result = reportRetirementCleanup(result, clearVerifiedDeliveryAttempt(ctx.cwd, params.receiptFingerprint));
-				}
-				const text = result.ok
-					? `/// CANDIDATE RECEIPT RETIRE — '${params.change}' already retired; local archive evidence matches.${result.cleanupPending ? ` WARNING: ${result.warning}` : ""}`
-					: `/// CANDIDATE RECEIPT RETIRE — '${params.change}' NOT retired: ${result.reason}`;
-				return { content: [{ type: "text", text }], details: result };
+			const path = join(ctx.cwd, "openspec", "changes", change, "specs", domain, "spec.md");
+			try {
+				mkdirSync(dirname(path), { recursive: true });
+				writeFileSync(path, built.value.contents);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${change}' FALLÓ al escribir ${path}: ${message}.` }], details: { ok: false, reason: message } };
 			}
-			const local = resolveWorktreeIdentity(ctx.cwd);
-			const sessionKey = sddPreflightSessionKey(ctx);
-			const attempt = readVerifiedDeliveryAttempt(ctx.cwd, active.fingerprint);
-			const decide = (observation: NormalizedMergedPullRequestObservation | null) => !local
-				? { ok: false as const, reason: "no se pudo resolver la identidad local del repositorio" }
-				: evaluateCandidateReceiptRetirement({
-					activeReceiptFingerprint: active.fingerprint,
-					receipt: active.receipt,
-					attempt,
-					repositoryId: local.repositoryId,
-					worktreeId: local.worktreeId,
-					identity,
-					observation: observation ?? undefined,
-				});
-			const first = decide(await observeMergedPullRequest(ctx.cwd, identity.remoteRepository, params.prNumber, signal));
-			if (!first.ok) {
-				return { content: [{ type: "text", text: `/// CANDIDATE RECEIPT RETIRE — '${params.change}' NOT retired: ${first.reason}` }], details: first };
-			}
-			let result = await retireCandidateReceipt(ctx.cwd, {
-				change: params.change,
-				receiptFingerprint: params.receiptFingerprint,
-				attempt,
-				identity,
-				decision: first,
-				revalidate: async () => decide(await observeMergedPullRequest(ctx.cwd, identity.remoteRepository, params.prNumber, signal)),
-			});
-			if (result.ok && (result.result === "retired" || result.result === "already-retired")) {
-				if (deliveryAttemptBySession.get(sessionKey)?.receiptFingerprint === params.receiptFingerprint) deliveryAttemptBySession.delete(sessionKey);
-				result = reportRetirementCleanup(result, clearVerifiedDeliveryAttempt(ctx.cwd, params.receiptFingerprint));
-			}
-			const text = result.ok
-				? `/// CANDIDATE RECEIPT RETIRE — '${params.change}' ${result.result}.${result.cleanupPending ? ` WARNING: ${result.warning}` : ""}`
-				: `/// CANDIDATE RECEIPT RETIRE — '${params.change}' NOT retired: ${result.reason}`;
-			return { content: [{ type: "text", text }], details: result };
+			return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${change}': escrito openspec/changes/${change}/specs/${domain}/spec.md (${operations.length} operación(es), validado). No escribas la declaración spec_delta: none: el delta ES la declaración.` }], details: { ok: true, change, domain, path, operations: operations.length } };
 		},
 	});
 

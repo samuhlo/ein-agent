@@ -3,9 +3,8 @@
 // Grafo de código determinista (colbymchenry/codegraph) por la ruta CLI-over-
 // bash: los agentes llaman `codegraph explore` en vez de reconstruir call
 // paths con docenas de grep/read. Sin MCP a propósito — el interop con
-// pi-mcp-adapter cuelga (ver docs/codegraph-spike-plan.md // 008); el CLI da
-// los mismos payloads medidos (-38% mediana, -85% en ficheros grandes) sin
-// adapter ni daemon.
+// pi-mcp-adapter cuelga; el CLI da los mismos payloads medidos (-38% mediana,
+// -85% en ficheros grandes) sin adapter ni daemon.
 //
 // FAIL CLOSED -> la directiva solo se inyecta si hay binario Y el proyecto
 // está indexado (.codegraph/). Sin cualquiera de los dos: cero líneas de
