@@ -102,6 +102,15 @@ describe("orchestrator — doctrina de dieta de contexto", () => {
 		expect(raw).toMatch(/degrade to \*\*bounded\*\* reads|bounded.*reads only/i);
 	});
 
+	test("orientación acotada: nada de ritual de investigación al arrancar", () => {
+		expect(raw).toContain("Orientation is cheap by contract");
+		// Reconoce la limpieza trivial de un cambio sin trackear (rm -rf, no auditoría).
+		expect(raw).toMatch(/fully UNTRACKED/);
+		expect(raw).toContain("rm -rf");
+		// Disciplina de las herramientas ctx: indexar y buscar, no volcar.
+		expect(raw).toMatch(/INDEX-and-SEARCH, never echo/);
+	});
+
 	test("el fallback de recuperación apunta al transcript, no al envelope", () => {
 		// Con el envelope compacto, el contenido completo ya no está en él:
 		// la recuperación de última instancia usa el transcript.jsonl.
