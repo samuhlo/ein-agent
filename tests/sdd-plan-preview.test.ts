@@ -52,6 +52,29 @@ describe("resolveSddPlanPreview", () => {
 		mkdirSync(join(DIR, "openspec", "changes", "vacio"), { recursive: true });
 		expect(resolveSddPlanPreview(DIR, "vacio").groups).toEqual([]);
 	});
+
+	// P1-C: los CONTRATOS markdown (prompts de agentes, orchestrator) SON
+	// producción — un cambio que solo los toca ya no debe mentir con "sin
+	// ficheros de producción". Pero los artefactos de proceso SDD y los deltas
+	// de openspec/ NO cuentan (los gestiona el sync / la tool de deltas).
+	test("cuenta contratos .md como producción, no los artefactos SDD ni deltas openspec/", () => {
+		const body = [
+			"status: ready",
+			"blocked_by: none",
+			"## // 001. Contrato del scout",
+			"Edita ein-pi/core/agents/ein-scout.md y ein-pi/agent/assets/orchestrator.md.",
+			"Declara el delta en openspec/changes/feat-md/specs/scout-routing/spec.md y actualiza design.md y tasks.md.",
+			"- [ ] 1.1 hacer\n  - verify: `bunx vitest run tests/orchestrator-scope-gate.test.ts`",
+		].join("\n");
+		mkTasks("feat-md", body);
+		const files = resolveSddPlanPreview(DIR, "feat-md").groups[0].files;
+		expect(files).toContain("ein-pi/core/agents/ein-scout.md");
+		expect(files).toContain("ein-pi/agent/assets/orchestrator.md");
+		expect(files).not.toContain("design.md");
+		expect(files).not.toContain("tasks.md");
+		expect(files).not.toContain("openspec/changes/feat-md/specs/scout-routing/spec.md");
+		expect(files.some((f) => f.endsWith(".test.ts"))).toBe(false);
+	});
 });
 
 describe("formatSddPlanPreview", () => {

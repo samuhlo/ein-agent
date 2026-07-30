@@ -191,6 +191,46 @@ describe("resolveSddStatus", () => {
 		expect(s.blocked.join(" ")).toContain("obsoleta");
 	});
 
+	// P2-F: la staleness se basa en la SUPERFICIE ENTREGADA (producción + tests
+	// de tasks.md), no en que el apply reescribiera apply-progress.md. Una
+	// normalización post-verify (cabecera de spec bajo openspec/, docs) reescribe
+	// apply-progress.md pero no toca código ni tests → no debe forzar re-verify.
+	test("normalización post-verify (apply nuevo, fichero entregado intacto) → NO verifyStale", () => {
+		const c = change("feat-x");
+		for (const f of ["scope.md", "map.md", "design.md"]) put(c, f, "x\n");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n## // 001. G\nEdita app/foo.ts.\n- [ ] 1.1 hacer\n");
+		put(c, "apply-progress.md", "status: complete\n");
+		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
+		mkdirSync(join(DIR, "app"), { recursive: true });
+		writeFileSync(join(DIR, "app", "foo.ts"), "export const x = 1;\n");
+		// El fichero entregado es ANTERIOR a verify; apply-progress se reescribió DESPUÉS
+		// (normalización), pero sin tocar app/foo.ts.
+		utimesSync(join(DIR, "app", "foo.ts"), new Date(2_000_000), new Date(2_000_000));
+		utimesSync(join(c, "verify-report.md"), new Date(3_000_000), new Date(3_000_000));
+		utimesSync(join(c, "apply-progress.md"), new Date(4_000_000), new Date(4_000_000));
+		const s = resolveSddStatus(DIR);
+		expect(s.verify).toBe("pass");
+		expect(s.verifyStale).toBe(false);
+		expect(s.nextRecommended).toBe("close");
+	});
+
+	test("cambio real post-verify (fichero entregado tocado DESPUÉS) → verifyStale", () => {
+		const c = change("feat-x");
+		for (const f of ["scope.md", "map.md", "design.md"]) put(c, f, "x\n");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n## // 001. G\nEdita app/foo.ts.\n- [ ] 1.1 hacer\n");
+		put(c, "apply-progress.md", "status: complete\n");
+		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
+		mkdirSync(join(DIR, "app"), { recursive: true });
+		writeFileSync(join(DIR, "app", "foo.ts"), "export const x = 2;\n");
+		utimesSync(join(c, "verify-report.md"), new Date(3_000_000), new Date(3_000_000));
+		utimesSync(join(c, "apply-progress.md"), new Date(3_000_000), new Date(3_000_000));
+		// El fichero entregado se editó DESPUÉS de verify → evidencia obsoleta.
+		utimesSync(join(DIR, "app", "foo.ts"), new Date(5_000_000), new Date(5_000_000));
+		const s = resolveSddStatus(DIR);
+		expect(s.verifyStale).toBe(true);
+		expect(s.nextRecommended).toBe("verify");
+	});
+
 	test("map.md sin scope.md → blocker de artefacto fuera de orden (fuga de fase-explorador)", () => {
 		const c = change("cohesionar-x");
 		put(c, "map.md", "# Map\nx\n");

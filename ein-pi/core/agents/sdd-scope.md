@@ -19,7 +19,7 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
 - Inspect the project stack, test runner, conventions, and existing docs.
 - **Canonical spec context.** When the injected prompt provides `## Canonical OpenSpec context`, treat its domain hints and references as authoritative. Read only the exact listed `openspec/specs/<domain>/spec.md` paths; never glob domains or read `.sdd` specs. Preserve each `path`, SHA-256, and byte count in `scope.md`. The shared hard limit is 3 files and 32 KiB UTF-8 per phase. If selection exceeds it, return `status: blocked` with an actionable request for narrower explicit domain hints; never truncate.
 - **Spec delta declaration (MANDATORY — the change cannot close without it).** Every `scope.md` MUST end up with exactly ONE of the two, and there is no third option:
-  1. the change carries behaviour deltas under `openspec/changes/<change>/specs/<domain>/spec.md` — then write NO declaration block at all; the delta files ARE the declaration; or
+  1. the change carries behaviour deltas under `openspec/changes/<change>/specs/<domain>/spec.md` — then write NO declaration block at all; the delta files ARE the declaration. Create each delta with the `ein_openspec_delta_write` tool (pass `domain` and structured `operations`); NEVER hand-write the delta markdown. The tool serializes deterministically and re-parses with the strict grammar before writing, so a malformed operation is rejected up front instead of failing the sync at close; or
   2. the change has no behaviour delta (mechanical, config, docs, refactor with identical behaviour) — then append this EXACT block to `scope.md`, verbatim, three consecutive lines:
 
      ```

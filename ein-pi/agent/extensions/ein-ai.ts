@@ -6,8 +6,8 @@
 // se cablea.
 // =============================================================================
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -85,7 +85,7 @@ import {
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
-import { aggregateSddBudget, formatSddPlanPreview, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
 import { closeChange } from "../lib/sdd-close.ts";
 import { approveCandidate, type MemoryCandidate, type MemoryReceipt } from "../lib/memory-contract.ts";
 import {
@@ -113,6 +113,7 @@ import {
 import { AGENT_DIR } from "./ein-paths";
 import { readInstalledVersion, staleSessionNudge } from "../lib/session-version";
 import { DOMAIN_ID_PATTERN, sha256 } from "../lib/openspec-spec-contract.ts";
+import { buildOpenSpecDelta } from "../lib/openspec-spec-parser.ts";
 import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";
 import { evaluateStaging } from "../lib/git-staging.ts";
 import { evaluateDeliveryGate, evaluatePostCommit, deliveryBoundaryFor, type DeliveryAttemptState } from "../lib/delivery-gate.ts";
@@ -434,10 +435,9 @@ function formatChangeLint(report: ChangeLintReport): string {
 	return lines.join("\n");
 }
 
-function compactBudget(budget: SddChangeStatus["budget"]): string {
-	if (!budget.allocated && !budget.consumed) return "absent";
-	return `allocated=${budget.allocated ?? "unknown"} · consumed=${budget.consumed ?? "unknown"}`;
-}
+// P2-G: fuente única en sdd-router (formatBudget), que además marca cuando lo
+// consumido supera lo asignado. Alias local para no tocar los puntos de llamada.
+const compactBudget = formatBudget;
 
 function compactTokens(n: number | null): string {
 	if (n === null) return "n/a";
@@ -490,11 +490,13 @@ function formatSddStatus(
 	lines.push(notebook);
 	if (realCost) lines.push(...compactRealCost(realCost));
 
-	const problems = [...status.tasks.problems, ...status.budget.problems, ...(realCost?.problems.map((problem) => problem.message) ?? [])];
-	if (status.blocked.length || problems.length) {
+	// Los problemas de procedencia del ledger (realCost.problems) NO son bloqueos:
+	// ya salen en la línea `ledger provenance:` (compactRealCost). Aquí solo van
+	// bloqueos reales, vía la fuente única sddStatusBlockers.
+	const blockers = sddStatusBlockers({ blocked: status.blocked, taskProblems: status.tasks.problems, budgetProblems: status.budget.problems });
+	if (blockers.length) {
 		lines.push("", `■ ${t("sdd-status.blocked", "blockers")}:`);
-		for (const b of status.blocked) lines.push(`- ${b}`);
-		for (const p of problems) lines.push(`- ${p}`);
+		for (const b of blockers) lines.push(`- ${b}`);
 	}
 	return lines.join("\n");
 }
@@ -1352,6 +1354,79 @@ export default function einAi(pi: ExtensionAPI): void {
 					details: { ok: false, reason: message },
 				};
 			}
+		},
+	});
+
+	// P0-A. Los deltas se escribían a mano y fallaban el parser estricto una y otra
+	// vez (churn de scope: el trace real gastó 3 corridas de sdd-scope solo en dar
+	// con el formato). Esto los genera desde datos estructurados y los valida
+	// re-parseando ANTES de escribir: nunca deja en disco un delta que el sync
+	// rechazaría en close.
+	pi.registerTool({
+		name: "ein_openspec_delta_write",
+		label: "Ein OpenSpec Delta Write",
+		description:
+			"Write a change's OpenSpec behaviour delta (openspec/changes/<change>/specs/<domain>/spec.md) from STRUCTURED operations — never hand-write the delta markdown. Serializes deterministically and re-parses with the strict grammar before writing; refuses (writes nothing) if the operations are malformed (e.g. requirement not starting with 'The system MUST/SHOULD/MAY', empty fields, duplicate scenario IDs, no operations). Operation order is irrelevant; output is sorted by scenario ID. Reads and writes only the filesystem; never commits.",
+		parameters: {
+			type: "object",
+			properties: {
+				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
+				domain: { type: "string", description: "Canonical domain, kebab-case (e.g. scout-routing)." },
+				operations: {
+					type: "array",
+					description: "Behaviour deltas. Each: kind ADDED|MODIFIED|REMOVED. ADDED/MODIFIED need `scenario` {id,title,requirement,given,when,then}; REMOVED needs `scenarioId` and `reason`.",
+					items: {
+						type: "object",
+						properties: {
+							kind: { type: "string", enum: ["ADDED", "MODIFIED", "REMOVED"] },
+							scenario: {
+								type: "object",
+								properties: {
+									id: { type: "string" },
+									title: { type: "string" },
+									requirement: { type: "string", description: "MUST begin with 'The system MUST', 'The system SHOULD', or 'The system MAY'." },
+									given: { type: "string" },
+									when: { type: "string" },
+									then: { type: "string" },
+								},
+							},
+							scenarioId: { type: "string" },
+							reason: { type: "string" },
+						},
+						required: ["kind"],
+					},
+				},
+			},
+			required: ["domain", "operations"],
+		} as const,
+		async execute(_id, params: { change?: string; domain?: string; operations?: unknown[] }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
+			if (!change) return { content: [{ type: "text", text: "/// OPENSPEC DELTA — no active change." }], details: { ok: false, reason: "no active change" } };
+			if (!isSafeChangeName(change)) return { content: [{ type: "text", text: `/// OPENSPEC DELTA — nombre de cambio inválido: ${JSON.stringify(change)}.` }], details: { ok: false, reason: "invalid change name" } };
+			const domain = params?.domain ?? "";
+			if (!DOMAIN_ID_PATTERN.test(domain)) return { content: [{ type: "text", text: `/// OPENSPEC DELTA — dominio inválido (debe ser kebab-case): ${JSON.stringify(domain)}.` }], details: { ok: false, reason: "invalid domain" } };
+			const rawOps = Array.isArray(params?.operations) ? params.operations : [];
+			const operations = rawOps.map((raw) => {
+				const op = (raw ?? {}) as Record<string, unknown>;
+				if (op.kind === "REMOVED") return { kind: "REMOVED", scenarioId: String(op.scenarioId ?? ""), reason: String(op.reason ?? "") };
+				const s = (op.scenario ?? {}) as Record<string, unknown>;
+				return { kind: op.kind, scenario: { id: String(s.id ?? ""), title: String(s.title ?? ""), requirement: String(s.requirement ?? ""), given: String(s.given ?? ""), when: String(s.when ?? ""), then: String(s.then ?? "") } };
+			});
+			const built = buildOpenSpecDelta({ domain, operations } as Parameters<typeof buildOpenSpecDelta>[0]);
+			if (!built.ok) {
+				const first = built.errors[0];
+				const detail = first ? `${first.code} (línea ${first.line}): ${first.message}` : "formato inválido";
+				return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${change}' RECHAZADO, no se escribió nada: ${detail}. Corrige las operaciones y reintenta; el delta se valida con la MISMA gramática que el sync.` }], details: { ok: false, reason: detail } };
+			}
+			const path = join(ctx.cwd, "openspec", "changes", change, "specs", domain, "spec.md");
+			try {
+				mkdirSync(dirname(path), { recursive: true });
+				writeFileSync(path, built.value.contents);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${change}' FALLÓ al escribir ${path}: ${message}.` }], details: { ok: false, reason: message } };
+			}
+			return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${change}': escrito openspec/changes/${change}/specs/${domain}/spec.md (${operations.length} operación(es), validado). No escribas la declaración spec_delta: none: el delta ES la declaración.` }], details: { ok: true, change, domain, path, operations: operations.length } };
 		},
 	});
 

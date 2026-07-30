@@ -393,22 +393,42 @@ function fileMtimeMs(path: string): number | null {
 	}
 }
 
-// Obsolescencia determinista por mtime: una corrección post-verify pasa por
-// apply (que reescribe apply-progress.md), dejando el apply MÁS NUEVO que el
-// verify-report → la evidencia anterior ya no describe el árbol actual. Comparación
-// estricta (`>`): escrituras en el mismo ms (o apply anterior a verify, el orden
-// normal) NO son obsoletas. Fuente de verdad conservadora: ante empate, fresco.
+// mtime más nuevo entre los ficheros ENTREGADOS (producción + tests) que
+// tasks.md declara. `null` si no se pueden enumerar (sin tasks.md, o rutas
+// ilustrativas sin fichero real): el llamador cae al proxy conservador.
+function newestDeliveredMtime(cwd: string, changePath: string): number | null {
+	const tasks = readText(phaseArtifactPath(changePath, "tasks"));
+	if (tasks === null) return null;
+	let newest: number | null = null;
+	for (const rel of extractDeliveredFiles(tasks)) {
+		const m = fileMtimeMs(join(cwd, rel));
+		if (m !== null && (newest === null || m > newest)) newest = m;
+	}
+	return newest;
+}
+
+// Obsolescencia determinista por mtime. P2-F: la evidencia de verify se invalida
+// por cambios en la SUPERFICIE ENTREGADA (producción + tests), no por que el
+// apply reescribiera apply-progress.md. Una normalización post-verify (cabecera
+// de un spec canónico bajo openspec/, docs) bombea apply-progress.md pero no toca
+// código ni tests → no debe forzar un re-verify caro. Fuente fina: el mtime de
+// los ficheros que tasks.md declara. Si no se pueden enumerar, se cae al proxy
+// conservador por apply-progress.md (comportamiento previo). Comparación estricta
+// (`>`): ante empate, fresco.
 function computeStaleness(
+	cwd: string,
 	changePath: string,
 	present: Record<SddPhase, boolean>,
 ): { verifyStale: boolean; summaryStale: boolean } {
 	const applyM = present.apply ? fileMtimeMs(phaseArtifactPath(changePath, "apply")) : null;
 	const verifyM = present.verify ? fileMtimeMs(phaseArtifactPath(changePath, "verify")) : null;
 	const summaryM = present.close ? fileMtimeMs(phaseArtifactPath(changePath, "close")) : null;
-	const verifyStale = verifyM !== null && applyM !== null && applyM > verifyM;
+	const deliveredM = newestDeliveredMtime(cwd, changePath);
+	const newerThan = (ref: number): boolean =>
+		deliveredM !== null ? deliveredM > ref : applyM !== null && applyM > ref;
+	const verifyStale = verifyM !== null && newerThan(verifyM);
 	const summaryStale =
-		summaryM !== null &&
-		((applyM !== null && applyM > summaryM) || (verifyM !== null && verifyM > summaryM));
+		summaryM !== null && (newerThan(summaryM) || (verifyM !== null && verifyM > summaryM));
 	return { verifyStale, summaryStale };
 }
 
@@ -496,7 +516,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	const verify = readVerifyOutcome(changePath);
 	const tasks = readTasksStatus(changePath);
 	const budget = readBudgetStatus(changePath);
-	const { verifyStale, summaryStale } = computeStaleness(changePath, present);
+	const { verifyStale, summaryStale } = computeStaleness(cwd, changePath, present);
 	const specState = readOpenSpecState(cwd, target);
 
 	// Fuga de artefacto de fase: una fase presente cuyo predecesor FALTA significa
@@ -631,11 +651,72 @@ export function assessCloseReadiness(cwd: string, change: string): CloseReadines
 export type SddPlanGroup = { title: string; files: string[]; verify: string | null };
 export type SddPlanPreview = { change: string; groups: SddPlanGroup[] };
 
-const PLAN_SOURCE_FILE_RE = /[\w./-]+\.(?:ts|tsx|js|jsx|mjs|cjs|vue|svelte|py|rb|go|rs|java|kt|c|cc|cpp|cs|php|sql|css|scss|less)\b/g;
+// Ficheros que el apply EDITA y que cuestan ciclos: código y CONTRATOS markdown
+// (prompts de agentes en ein-pi/core/agents, orchestrator, docs). Antes `.md`
+// quedaba fuera del patrón y el preview mentía con "sin ficheros de producción"
+// en cambios que SOLO tocaban contratos (el caso real del slice 05). Pero no
+// todo `.md` es producción: los artefactos de proceso SDD y el árbol openspec/
+// (specs y deltas los gestiona el sync / la tool de deltas, no el apply a mano)
+// contarían como ruido en el sentido opuesto — se excluyen explícitamente.
+const SOURCE_FILE_RE = /[\w./-]+\.(?:ts|tsx|js|jsx|mjs|cjs|vue|svelte|py|rb|go|rs|java|kt|c|cc|cpp|cs|php|sql|css|scss|less|md)\b/g;
 const PLAN_VERIFY_RE = /\bbunx?\s+(?:vitest\s+run|vitest|test)\b[^`\n]*/i;
+const SDD_ARTIFACT_BASENAMES = new Set(["scope.md", "map.md", "design.md", "tasks.md", "apply-progress.md", "verify-report.md", "summary.md", "sync-report.md"]);
 
-function planIsTestPath(path: string): boolean {
+export function isTestPath(path: string): boolean {
 	return /\.(?:test|spec)\.|(?:^|\/)(?:tests?|__tests__|e2e)\//.test(path);
+}
+
+// Proceso SDD y árbol openspec/.sdd (spec-sync / tool de deltas): ni código ni
+// tests entregados. El apply no los edita a mano.
+function isProcessOrSpecPath(path: string): boolean {
+	if (/(?:^|\/)(?:openspec|\.sdd)\//.test(path)) return true;
+	return SDD_ARTIFACT_BASENAMES.has(path.split("/").pop() ?? path);
+}
+
+export function isProductionFile(path: string): boolean {
+	return !isTestPath(path) && !isProcessOrSpecPath(path);
+}
+
+export function extractProductionFiles(body: string): string[] {
+	return [...new Set([...body.matchAll(SOURCE_FILE_RE)].map((match) => match[0]).filter(isProductionFile))];
+}
+
+// Superficie ENTREGADA: producción + tests (lo que verify cubre). A diferencia
+// de extractProductionFiles, conserva los tests; excluye proceso SDD y openspec/.
+export function extractDeliveredFiles(body: string): string[] {
+	return [...new Set([...body.matchAll(SOURCE_FILE_RE)].map((match) => match[0]).filter((path) => !isProcessOrSpecPath(path)))];
+}
+
+// Línea de budget para el status. P2-G: el "asignado" era decoración muda —
+// consumir el doble no producía señal alguna (el trace mostró allocated=15000
+// junto a consumed=30690 sin más). Cuando lo consumido supera lo asignado, se
+// dice, y el número pasa a significar algo. Es ADVISORY: no bloquea (no alimenta
+// sddStatusBlockers), solo hace honesto el dato. Fuente única para el render real
+// y el test (mata la deriva de la réplica del formatter).
+export function formatBudget(budget: SddBudgetStatus): string {
+	if (!budget.allocated && !budget.consumed) return "absent";
+	const base = `allocated=${budget.allocated ?? "unknown"} · consumed=${budget.consumed ?? "unknown"}`;
+	const { allocatedValue: allocated, consumedValue: consumed } = budget;
+	if (allocated !== null && consumed !== null && consumed > allocated) {
+		const pct = allocated > 0 ? ` (${Math.round((consumed / allocated) * 100)}%)` : "";
+		return `${base} · ⚠ sobre lo asignado${pct}`;
+	}
+	return base;
+}
+
+// Los problemas de PROCEDENCIA del ledger (attribution de recibos:
+// change-unresolved, legacy-metadata-excluded, ...) NO son bloqueos del cambio:
+// nunca impidieron nada y ya se muestran en la línea `ledger provenance:`.
+// Mezclarlos con los bloqueos reales (verify en fallo, apply incompleto)
+// ahogaba la señal. Esta función es la fuente ÚNICA de la sección de bloqueos,
+// para el render real y para el test — la procedencia del ledger ni siquiera es
+// un parámetro, así que no puede colarse.
+export function sddStatusBlockers(input: {
+	blocked: readonly string[];
+	taskProblems: readonly string[];
+	budgetProblems: readonly string[];
+}): string[] {
+	return [...input.blocked, ...input.taskProblems, ...input.budgetProblems];
 }
 
 export function resolveSddPlanPreview(cwd: string, change?: string): SddPlanPreview {
@@ -649,11 +730,7 @@ export function resolveSddPlanPreview(cwd: string, change?: string): SddPlanPrev
 	for (let i = 1; i < parts.length; i += 2) {
 		const title = (parts[i] ?? "").trim();
 		const body = parts[i + 1] ?? "";
-		const files = [
-			...new Set(
-				[...body.matchAll(PLAN_SOURCE_FILE_RE)].map((m) => m[0]).filter((p) => !planIsTestPath(p)),
-			),
-		];
+		const files = extractProductionFiles(body);
 		const verifyMatch = body.match(PLAN_VERIFY_RE);
 		groups.push({ title, files, verify: verifyMatch ? verifyMatch[0].trim() : null });
 	}

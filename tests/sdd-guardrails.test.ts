@@ -175,6 +175,51 @@ describe("OpenSpec spec delta declaration", () => {
 	});
 });
 
+describe("canonical base spec preflight (P0-B)", () => {
+	// El sync de close mergea el delta DENTRO del spec canónico base y lo parsea;
+	// un base heredado sin cabeceras reventaba con invalid-format en la última
+	// fase. El guard lo adelanta a lintChange (visible ya en scope).
+	const VALID_BASE =
+		"# OpenSpec Specification\nformat: openspec-spec/v1\ndomain: scout-routing\n\n## Scenario: route\ntitle: Route\nrequirement: The system MUST route\nGiven: a request\nWhen: routed\nThen: handled\n";
+	const DELTA =
+		"# OpenSpec Delta\nformat: openspec-delta/v1\ndomain: scout-routing\n\n## ADDED\n### Scenario: bound\ntitle: Bound\nrequirement: The system MUST bound\nGiven: a packet\nWhen: routed\nThen: bounded\n";
+
+	function putBase(domain: string, body: string): void {
+		const dir = join(DIR, "openspec", "specs", domain);
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(join(dir, "spec.md"), body);
+	}
+
+	function withDelta(name: string, domain: string): string {
+		const c = change(name);
+		put(c, "scope.md", "scope: x\nbudget_allocated: 10\n");
+		mkdirSync(join(c, "specs", domain), { recursive: true });
+		put(c, `specs/${domain}/spec.md`, DELTA);
+		return c;
+	}
+
+	test("marca base canónico heredado que no parsea antes de close", () => {
+		withDelta("feat-route", "scout-routing");
+		// Base sin la línea `format:` — el bug real que salió en sync.
+		putBase("scout-routing", "# OpenSpec Specification\ndomain: scout-routing\n\n## Scenario: route\ntitle: Route\nrequirement: The system MUST route\nGiven: a request\nWhen: routed\nThen: handled\n");
+		const r = lintChange(DIR, "feat-route");
+		expect(r.ok).toBe(false);
+		expect(r.issues.some((i) => i.code === "canonical-base-invalid")).toBe(true);
+	});
+
+	test("no marca cuando el base canónico parsea", () => {
+		withDelta("feat-route", "scout-routing");
+		putBase("scout-routing", VALID_BASE);
+		expect(lintChange(DIR, "feat-route").issues.some((i) => i.code === "canonical-base-invalid")).toBe(false);
+	});
+
+	test("no marca dominio nuevo sin base (sync lo crea)", () => {
+		withDelta("feat-route", "scout-routing");
+		// Sin putBase: no existe openspec/specs/scout-routing/spec.md todavía.
+		expect(lintChange(DIR, "feat-route").issues.some((i) => i.code === "canonical-base-invalid")).toBe(false);
+	});
+});
+
 describe("lintChange sequence consistency", () => {
 	test("detecta hueco design presente pero tasks ausente", () => {
 		const c = change("feat-x");
