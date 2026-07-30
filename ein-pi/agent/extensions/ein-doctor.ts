@@ -181,18 +181,18 @@ function unknownDeployedAgentTools(agentsDir: string): string[] {
   return unknown;
 }
 
-function scoutStaticContract(agentsDir: string): { tools: boolean; extensions: boolean; compatibility: boolean } {
+export function scoutStaticContract(
+  agentsDir: string,
+  launcherSource: string,
+): { tools: boolean; extensions: boolean; compatibility: boolean } {
   const scout = readIfExists(join(agentsDir, "ein-scout.md"));
-  const runtime = readIfExists(
-    join(AGENT_DIR, "npm", "node_modules", "pi-subagents", "src", "runs", "shared", "pi-args.ts"),
-  );
   return {
     tools: /^tools:\s*read, grep, find$/m.test(scout),
-    extensions: /^extensions:\s*\[\]$/m.test(scout),
+    extensions: /^extensions:\s*$/m.test(scout),
     // Static compatibility only: this is not evidence about an individual run.
     compatibility:
-      runtime.includes("input.extensions !== undefined") &&
-      runtime.includes('args.push("--no-extensions")'),
+      launcherSource.includes("input.extensions !== undefined") &&
+      launcherSource.includes('args.push("--no-extensions")'),
   };
 }
 
@@ -303,7 +303,12 @@ function doctorSmokeReport(): string {
     "sdd-close.md",
   ];
   const NON_SDD_AGENTS = ["ein-linear.md", "ein-git.md", "ein-scout.md"];
-  const scoutContract = scoutStaticContract(agentsDir);
+  const scoutContract = scoutStaticContract(
+    agentsDir,
+    readIfExists(
+      join(AGENT_DIR, "npm", "node_modules", "pi-subagents", "src", "runs", "shared", "pi-args.ts"),
+    ),
+  );
   const unknownDeployedTools = unknownDeployedAgentTools(agentsDir);
   const piContract = verifyPiContract();
 
@@ -319,7 +324,7 @@ function doctorSmokeReport(): string {
       ),
     ),
     check(scoutContract.tools, "ein-scout tools", "Scout declara exactamente read, grep, find."),
-    check(scoutContract.extensions, "ein-scout extensions", "Scout declara extensions: [] explícito."),
+    check(scoutContract.extensions, "ein-scout extensions", "Scout declara campo `extensions:` definido y vacío."),
     warn(
       scoutContract.compatibility,
       "ein-scout static extension contract",

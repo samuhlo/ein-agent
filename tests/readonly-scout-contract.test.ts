@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { acceptTrackedScoutResult, normalizeScoutLaunch, SCOUT_REPORT_MAX_BYTES, SCOUT_REPORT_SCHEMA, validateScoutReport } from "../ein-pi/agent/lib/scout-contract.ts";
+import { scoutStaticContract } from "../ein-pi/agent/extensions/ein-doctor.ts";
 const SCOUT_FRONTMATTER = join(import.meta.dir, "../ein-pi/core/agents/ein-scout.md");
+const SCOUT_SPEC = join(import.meta.dir, "../openspec/specs/scout-routing/spec.md");
 
 function fixture() {
 	const root = mkdtempSync(join(tmpdir(), "ein-scout-"));
@@ -41,6 +43,25 @@ describe("readonly scout launch contract", () => {
 
 		const launch = normalizeScoutLaunch({ agent: "ein-scout", task: "inspect", extensions: ["leak"] }, "call-extensions", new Map())!;
 		expect(launch).not.toHaveProperty("extensions");
+	});
+
+	test("keeps the defined blank extensions declaration canonical and doctor-readable", () => {
+		const root = mkdtempSync(join(tmpdir(), "ein-scout-doctor-"));
+		try {
+			const agentsDir = join(root, "agents");
+			const source = readFileSync(SCOUT_FRONTMATTER, "utf8");
+			const launcherSource = 'input.extensions !== undefined\nargs.push("--no-extensions")\n';
+			mkdirSync(agentsDir);
+			writeFileSync(join(agentsDir, "ein-scout.md"), source);
+
+			expect(readFileSync(SCOUT_SPEC, "utf8")).toContain("defined but blank `extensions:`");
+			expect(scoutStaticContract(agentsDir, launcherSource).extensions).toBe(true);
+
+			writeFileSync(join(agentsDir, "ein-scout.md"), source.replace(/^extensions:\s*$/m, "extensions: []"));
+			expect(scoutStaticContract(agentsDir, launcherSource).extensions).toBe(false);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 
 	test("el scout queda excluido de la inyección de skills (aislado, inheritSkills:false)", () => {

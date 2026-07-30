@@ -238,6 +238,12 @@ Aceptación:
 - Un informe excedido o sin referencias se rechaza.
 - El flujo SDD existente no cambia.
 
+#### Verificación actual del contrato scout
+
+- La cobertura determinista de CI comprueba el frontmatter canónico, el diagnóstico estático y la validación local del informe sin Pi, proveedor ni credenciales.
+- El smoke real es opt-in: requiere `EIN_SCOUT_SMOKE_MODEL`, `EIN_SCOUT_SMOKE_CREDENTIAL_ENV` y la credencial del proveedor nombrada; se ejecuta con `bun tests/scout-live-smoke.ts`.
+- Ese smoke crea y elimina un entorno Pi/Ein temporal aislado y valida el handoff directo observado. No es determinista para CI ni prueba compatibilidad con futuras versiones de dependencias.
+
 ### Slice 05 — `thin-parent-research-routing`
 
 **Depende de:** `readonly-scout-contract`.
