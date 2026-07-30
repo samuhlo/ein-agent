@@ -84,11 +84,43 @@ describe("orchestrator — doctrina de dieta de contexto", () => {
 		expect(raw).toContain("1-2 file peek");
 	});
 
-	test("el fan-out paralelo usa scouts y nunca ramas sdd-map", () => {
+	test("el fan-out paralelo usa de uno a tres scouts frescos y nunca ramas sdd-map", () => {
 		const fanOut = raw.slice(raw.indexOf("## Parallel read-only fan-out"));
+		expect(fanOut).toContain("one to three distinct fresh scouts");
 		expect(fanOut).toMatch(/independent `ein-scout` call/);
 		expect(fanOut).not.toMatch(/read-only `sdd-map`/);
 		expect(fanOut).toContain("no OpenSpec artifacts");
+	});
+
+	describe("routing determinista de investigación pre-scope", () => {
+		test("delega desde cuatro archivos o dos clases de fuente", () => {
+			expect(raw).toContain("four or more distinct files");
+			expect(raw).toContain("at least two source classes");
+		});
+
+		test("limita lecturas de routing y spot-checks materiales", () => {
+			expect(raw).toContain("at most two routing reads");
+			expect(raw).toContain("at most two material spot-checks");
+		});
+
+		test("reenvía evidencia aceptada sin redescubrimiento automático", () => {
+			expect(raw).toContain("accepted findings, references, and explicit uncertainties");
+			expect(raw).toContain("MUST NOT automatically rediscover");
+		});
+
+		test("mantiene evaluación read-only sin estado SDD/OpenSpec", () => {
+			expect(raw).toContain("read-only assessment creates no OpenSpec, SDD, or lifecycle state");
+		});
+
+		test("distingue los límites de activación de sus casos inferiores", () => {
+			expect(raw).toContain("Three files alone do not meet the four-file threshold");
+			expect(raw).toContain("one source class alone does not meet the two-class threshold");
+		});
+
+		test("prohíbe comprobaciones no materiales y redescubrimiento amplio", () => {
+			expect(raw).toContain("Non-material checks and broad rediscovery are prohibited");
+			expect(raw).toMatch(/at most two material spot-checks/);
+		});
 	});
 
 	test("acota las lecturas inline del propio padre (no full diff / wide -C / logs)", () => {

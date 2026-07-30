@@ -1,0 +1,17 @@
+{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:thin-parent-research-routing:gate","durationMs":0,"timestamp":"2026-07-30T16:38:05.368Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:scope","durationMs":0,"timestamp":"2026-07-30T16:50:38.749Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:map","durationMs":0,"timestamp":"2026-07-30T16:53:16.907Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:design","durationMs":0,"timestamp":"2026-07-30T16:56:32.933Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:design","durationMs":0,"timestamp":"2026-07-30T16:57:19.959Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:tasks","durationMs":0,"timestamp":"2026-07-30T16:58:46.943Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:tasks","durationMs":0,"timestamp":"2026-07-30T16:59:55.315Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:apply","durationMs":0,"timestamp":"2026-07-30T17:04:06.874Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:apply","durationMs":0,"timestamp":"2026-07-30T17:06:58.693Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:apply","durationMs":0,"timestamp":"2026-07-30T17:08:13.206Z"}
+{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:thin-parent-research-routing:gate","durationMs":0,"timestamp":"2026-07-30T17:11:40.113Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:verify","durationMs":0,"timestamp":"2026-07-30T17:12:57.930Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:invalid","durationMs":0,"timestamp":"2026-07-30T17:13:56.622Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:apply","durationMs":0,"timestamp":"2026-07-30T17:15:56.901Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:verify","durationMs":0,"timestamp":"2026-07-30T17:17:59.688Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:thin-parent-research-routing:invalid","durationMs":0,"timestamp":"2026-07-30T17:18:41.167Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:thin-parent-research-routing:close","durationMs":0,"timestamp":"2026-07-30T17:18:48.105Z"}
