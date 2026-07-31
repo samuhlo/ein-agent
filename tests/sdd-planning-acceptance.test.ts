@@ -82,7 +82,7 @@ describe("ensurePlanningAcceptance", () => {
 // prompt (robusto al orden de las preguntas). cwd único por test: el override
 // de TDD se guarda en un map keyed por cwd → reusar cwd contamina el siguiente.
 let cwdSeq = 0;
-function ctxStub(answers: { execution: string; tdd: string; memory?: string; chaining?: string; budget?: string }) {
+function ctxStub(answers: { execution: string; tdd: string; memory?: string }) {
 	const notes: string[] = [];
 	return {
 		ctx: {
@@ -93,7 +93,6 @@ function ctxStub(answers: { execution: string; tdd: string; memory?: string; cha
 					if (/execution mode/i.test(title)) return answers.execution;
 					if (/strict tdd/i.test(title)) return answers.tdd;
 					if (/notebook/i.test(title)) return answers.memory ?? "off";
-					if (/chaining/i.test(title)) return answers.chaining ?? "auto-forecast";
 					return _opts[0];
 				},
 				input: async () => answers.budget ?? "400",
@@ -149,7 +148,6 @@ describe("collectSddPreflightPreferences — TDD elegido al inicio", () => {
 						if (/strict tdd|tdd estricto/i.test(title)) { tddAsks += 1; return "off"; }
 						if (/execution mode/i.test(title)) return "interactive";
 						if (/notebook/i.test(title)) return "off";
-						if (/chaining/i.test(title)) return "auto-forecast";
 						return opts[0];
 					},
 					input: async () => "400",

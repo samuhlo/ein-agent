@@ -14,7 +14,6 @@ const { normalizeSddMemoryMode, renderSddPreflightPrompt } = await import(
 const PREFS = {
 	executionMode: "auto",
 	memoryMode: "off",
-	chainedPrStrategy: "auto-forecast",
 	reviewBudgetLines: 400,
 	tddMode: "strict",
 	engramAvailable: false,

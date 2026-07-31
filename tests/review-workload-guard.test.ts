@@ -23,7 +23,6 @@ const { renderSddPreflightPrompt } = await import(
 const PREFS = {
 	executionMode: "auto",
 	memoryMode: "off",
-	chainedPrStrategy: "auto-forecast",
 	reviewBudgetLines: 400,
 	tddMode: "off",
 	engramAvailable: false,
@@ -42,7 +41,8 @@ describe("ein-git Review Workload Gate", () => {
 
 	test("para y reporta cuando supera el budget (es headless)", () => {
 		expect(einGit).toContain("STOP");
-		expect(einGit).toContain("single-pr-default");
+		expect(einGit).toContain("production lines **> budget**");
+		expect(einGit).toContain("split into smaller PRs");
 	});
 
 	test("auto no salta el gate", () => {
