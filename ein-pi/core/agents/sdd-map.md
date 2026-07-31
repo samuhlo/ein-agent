@@ -99,9 +99,3 @@ Your FINAL message is copied VERBATIM into the parent orchestrator's context, an
 - `skill_resolution`.
 
 NEVER paste into the envelope the artifact's content, full file lists, per-test tables, command output, or long prose evidence — that payload lives in `map.md` on disk. A verbose envelope is a defect, not thoroughness.
-
-## Notebook Contract
-
-OpenSpec is the canonical full SDD record in every mode. Engram is only an optional project notebook.
-
-Use advisory context passed by the parent; do not independently invoke Engram. E0 configuration/tool availability and E1 prompt advice do not prove retrieval or persistence. You may provide a concise candidate or report a receipt supplied by deterministic code, but must not claim deterministic retrieval or saving yourself; only an E2 adapter invocation with its truthful receipt establishes that fact.

@@ -13,12 +13,6 @@ Use your assigned executor/phase skill for this SDD phase. For project/user skil
 
 If skill paths are missing, explicit fallback loading is allowed only as degraded self-healing. Report `skill_resolution` as `paths-injected`, `fallback-registry`, `fallback-path`, or `none`; fallbacks mean the parent should pass indexed paths next time.
 
-## Notebook Contract
-
-OpenSpec is the canonical full SDD record in every mode. Engram is only an optional project notebook.
-
-Use advisory context passed by the parent; do not independently invoke Engram. E0 configuration/tool availability and E1 prompt advice do not prove retrieval or persistence. You may provide a concise candidate or report a receipt supplied by deterministic code, but must not claim deterministic retrieval or saving yourself; only an E2 adapter invocation with its truthful receipt establishes that fact.
-
 ## Inputs
 
 Read `scope.md`, `map.md`, the relevant existing code and tests, and `openspec/config.yaml` when present. Build on the map output; do not remap from scratch.

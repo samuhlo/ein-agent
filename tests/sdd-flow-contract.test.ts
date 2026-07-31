@@ -127,31 +127,29 @@ describe("contrato interno de notebook Engram", () => {
 		"agents/sdd-close.md",
 	].map(read);
 
-	test("OpenSpec permanece como registro canonico y Engram es un cuaderno opcional", () => {
-		const ai = read("extensions/ein-ai.ts");
-		expect(ai).toContain("optional project notebook: Engram");
-		expect(ai).toContain("OpenSpec is the canonical full record");
+	test("la regla de notebook vive UNA vez en AGENTS.md: opcional, parent-driven, y solo se afirma desde el adaptador", () => {
+		const agentsMd = read("AGENTS.md");
+		expect(agentsMd).toContain("optional, parent-driven notebook");
+		expect(agentsMd).toContain("Subagents never invoke Engram");
+		expect(agentsMd).toMatch(/claim `retrieved`\/`saved` ONLY from the deterministic adapter/);
+		expect(agentsMd).toContain("OpenSpec stays the canonical full record");
 	});
 
-	test("rechaza que E1 de prompt se haga pasar por E2", () => {
-		const orch = read("assets/orchestrator.md");
-		expect(orch).toContain("E0 means configured/diagnosable only");
-		expect(orch).toContain("E1 means prompt/advice or tool availability only");
-		expect(orch).toContain("E2 requires a named deterministic adapter invocation plus its truthful receipt");
+	test("los agentes de fase ya no repiten la taxonomía E0/E1/E2", () => {
 		for (const agent of agents) {
-			expect(agent).toContain("E1 prompt advice do not prove retrieval or persistence");
-			expect(agent).toContain("must not claim deterministic retrieval or saving yourself");
+			expect(agent).not.toContain("## Notebook Contract");
+			expect(agent).not.toContain("E2 adapter");
+			expect(agent).not.toContain("E1 prompt advice do not prove retrieval");
 		}
 	});
 
-	test("preflight, status y doctor no elevan disponibilidad E0 a E2", () => {
-		const preflight = read("lib/sdd-preflight.ts");
+	test("status y doctor son factuales, sin jerga E0/E2", () => {
 		const ai = read("extensions/ein-ai.ts");
 		const doctor = read("extensions/ein-doctor.ts");
-		expect(preflight).toContain("OpenSpec: canonical full SDD record");
-		expect(ai).toContain("configured; no retrieval or save is implied");
-		expect(doctor).toContain("disponibilidad es solo E0; no prueba recuperación ni persistencia");
-		expect(doctor).not.toContain("La memoria persiste en Engram");
+		expect(ai).toContain("optional project notebook: Engram");
+		expect(ai).toContain("OpenSpec is the canonical full record");
+		expect(doctor).not.toContain("E0");
+		expect(doctor).toContain("configurado no prueba");
 	});
 });
 
