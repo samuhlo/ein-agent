@@ -5,6 +5,47 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.32.0] - 2026-07-31
+
+Batch de simplificación siguiendo el norte (menos ceremonia, más núcleo; navaja
+de Ockham). Cinco cambios que hacen EIN más simple, más claro y más útil sin
+tocar lo que da valor.
+
+### Changed
+
+- **Bootstrap de `config.yaml` adelgazado 799 → ~180 líneas** (`a2b…`, PR #77).
+  Era un detector heurístico multi-lenguaje (walker de 20k ficheros, tablas de
+  hints, inspectores Node/Go/Rust/Python/Makefile) que adivinaba stack/comandos
+  peor que el modelo y dejaba `test_command` vacío en repos con tests. Ahora lee
+  la fuente autoritativa —los `scripts` de package.json— más fallbacks
+  implícitos (bunfig→`bun test`, tsconfig→`tsc --noEmit`); lo que no sabe lo deja
+  vacío para que el `sdd-scope` lo rellene. `context` apunta a EIN.md.
+- **models-panel pulido** (PR #78). Fuera el coloreado de modelo por familia
+  (regex que se pudría y contradecía la doctrina del panel) → un color de marca;
+  paleta honesta (3 colores reales, no 5 alias que mentían); esfuerzo inline
+  (`e` cicla en la fila) en vez de un picker de pantalla. Intacto lo que vale:
+  tabla agrupada, barras, recomendación por rol, búsqueda.
+- **sdd-preflight partido + menos fricción** (PR #79). El cajón de sastre (835
+  líneas, 4 trabajos) se parte: `sdd-session-memory.ts` y `sdd-assets.ts` salen a
+  sus ficheros. El cuestionario de arranque baja de 5 a 3 preguntas: fuera el
+  `chained-PR strategy` (4 modos redundantes con el Review Workload Guard) y la
+  pregunta del budget (fijo 400).
+- **Lección de acceptance colapsada** (`76618ea`, PR #80). El "acceptance verdict"
+  de pi-subagents rechaza en falso las fases de planning; un hook determinista ya
+  inyecta `acceptance: none` y lo neutraliza, así que los 5 bullets de prompt que
+  lo explicaban se colapsan a un párrafo. El hook (el mecanismo) se conserva;
+  solo se resta la prosa que subsume. Conservadas las lecciones de thinking/
+  runtime/scoping.
+
+### Added
+
+- **Tool determinista `ein_review_forecast`** (`7fe32af`, PR #81). El Review
+  Workload Guard medía el tamaño del PR con un `git diff --shortstat` + 15 globs
+  codificado como string de prompt en 3 sitios, ejecutado inline por el parent
+  caro, con un test anti-drift. Ahora una tool es dueña única del pathspec: el
+  parent la llama (deja de ejecutar git), ein-git confía en el número reenviado,
+  y el anti-drift desaparece (no hay 3 copias que desincronizar).
+
 ## [0.31.0] - 2026-07-31
 
 Sigue la línea del cambio de rumbo: menos ceremonia, más núcleo. Se retira el
