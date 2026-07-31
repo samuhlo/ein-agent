@@ -31,7 +31,6 @@ import { type TddMode, readTddMode } from "./tdd";
 import { MemoryLifecycle, type PreparedMemory } from "./memory-lifecycle.ts";
 import { createEngramTransport } from "./engram-cli.ts";
 import { ENGRAM_TIMEOUT_MS, limitBytes, resolveProjectIdentity, type EngramTransport } from "./memory-contract.ts";
-import { listActiveChanges } from "./sdd-router.ts";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ASSETS_DIR = join(PACKAGE_ROOT, "assets");
@@ -183,36 +182,6 @@ export async function prepareSddSessionMemory(
 		return await memory.prepare({
 			lifecycleKey: `session:${sessionKey}`,
 			query: "SDD session context",
-		});
-	} catch {
-		return undefined;
-	}
-}
-
-export async function prepareSddPhaseMemory(input: {
-	cwd: string;
-	agentName: string | undefined;
-	explicitChange?: string;
-	memory: MemoryPreparationLifecycle | undefined;
-	sessionKey: string;
-	enabled: boolean;
-}): Promise<PreparedMemory | undefined> {
-	const phase = ({
-		"sdd-map": "map",
-		"sdd-design": "design",
-		"sdd-apply": "apply",
-		"sdd-verify": "verify",
-	} as const)[input.agentName ?? ""];
-	if (!input.enabled || !phase || !input.memory) return undefined;
-	const change = input.explicitChange ?? (() => {
-		const active = listActiveChanges(input.cwd);
-		return active.length === 1 ? active[0] : undefined;
-	})();
-	if (!change || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(change)) return undefined;
-	try {
-		return await input.memory.prepare({
-			lifecycleKey: `phase:${input.sessionKey}:${change}:${phase}`,
-			query: `SDD ${phase} preparation for ${change}`,
 		});
 	} catch {
 		return undefined;
