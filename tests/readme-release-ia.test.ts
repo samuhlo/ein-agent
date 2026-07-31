@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0301---2026-07-30");
+    expect(release.anchor).toBe("0310---2026-07-31");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -75,12 +75,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("scout vuelve a arrancar");
-    expect(releaseSummary).toContain("forma natural");
-    expect(releaseSummary).toContain("fichero:línea real");
-    expect(releaseSummary).toContain("nunca la evidencia");
-    expect(releaseSummary).toContain("esqueleto");
-    expect(releaseSummary).toContain("schema de runtime");
+    expect(releaseSummary).toContain("ledger de coste");
+    expect(releaseSummary).toContain("desenvuelve Engram");
+    expect(releaseSummary).toContain("E0/E1/E2");
+    expect(releaseSummary).toContain("nivel de sesión");
+    expect(releaseSummary).toContain("no por fase");
+    expect(releaseSummary).toContain("ein update");
   });
 
   test("guía por capacidad: sin presets, con recomendación por rol y decisión humana", () => {

@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release registrada según el registro canónico local:** [0.30.1 · 2026-07-30](CHANGELOG.md#0301---2026-07-30).
+**Última release registrada según el registro canónico local:** [0.31.0 · 2026-07-31](CHANGELOG.md#0310---2026-07-31).
 
-- **El scout vuelve a arrancar:** un modelo barato emitía el reporte en su forma natural (uncertainties como strings, references con `lines`) y se descartaba; ahora el contrato la normaliza y valida igual.
-- **El oro sigue estricto:** cada cita se verifica contra un fichero:línea real en disco; se relaja el formato, nunca la evidencia.
-- **Prompt explícito:** el contrato del scout especifica las formas exactas con un esqueleto, para no depender de un schema de runtime.
+- **Menos ceremonia, mismo valor:** se retira el ledger de coste (el segundo sistema-recibo) y se desenvuelve Engram — fuera la taxonomía E0/E1/E2, intactos la herramienta y los guardas de secretos.
+- **Memoria a nivel de sesión:** Engram recupera al arrancar y guarda al cerrar, no por fase; menos coste y menos superficie de fallo para los modelos baratos.
+- **Herramientas siempre frescas:** `ein update` ahora actualiza engram/hypa/codegraph presentes, sin instalar lo que no tienes.
 
 ---
 
