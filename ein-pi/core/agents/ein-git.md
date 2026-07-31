@@ -70,15 +70,13 @@ When the parent delegates delivery after a verified change and the user has appr
 
 ## Review Workload Gate
 
-Protects the reviewer from un-reviewable PRs. The numbers are **measured, not estimated** — you already have the diff in front of you, so use it.
+Protects the reviewer from un-reviewable PRs. The parent already measured the change with the deterministic `ein_review_forecast` tool and forwarded the result — you **TRUST the forwarded number, you do NOT re-measure** (no `git diff` counting here).
 
-Run this once, right before opening (or pushing for) a PR:
+Right before opening (or pushing for) a PR:
 
-1. Measure the **PRODUCTION** changed lines (excluding tests and generated files): `git diff --shortstat <base>..HEAD -- . ':(exclude)*.test.*' ':(exclude)*.spec.*' ':(exclude)**/tests/**' ':(exclude)**/__tests__/**' ':(exclude)**/e2e/**' ':(exclude)*.snap' ':(exclude)*-lock.*' ':(exclude)dist/**' ':(exclude).output/**' ':(exclude).nuxt/**' ':(exclude)coverage/**' ':(exclude)*.min.*'` and sum `insertions + deletions`. Measure test lines separately for the report (`git diff --shortstat <base>..HEAD -- '*.test.*' '*.spec.*' '**/tests/**'`). For an uncommitted change, drop `<base>..HEAD` (staged + unstaged) — the pathspec is the same. This is a cheap stat read — do NOT expand it into a full diff.
-2. Read the budget the parent forwarded in the task (from the SDD preflight: `Review budget: N changed lines`). If the parent didn't forward it, default to **400 lines**.
-3. Decide on the **production** count (test/generated lines never gate):
-   - production lines **≤ budget** → within budget, proceed to open the PR.
-   - production lines **> budget** → **STOP. Do NOT open the PR.** Return a report to the parent: the production line count, the test line count (reported, not counted), the budget, and a recommended split into smaller PRs (slice boundaries by work-unit; the `chained-pr` skill has the splitting recipe). The parent asks the user for the delivery decision (single PR vs split) and re-delegates.
+1. Read what the parent forwarded in the task: `Production lines: N` and `Review budget: N changed lines` (default **400** if not forwarded). Test/generated lines never gate.
+2. Production **≤ budget** → within budget, proceed to open the PR.
+3. Production **> budget** with no split decision forwarded → **STOP. Do NOT open the PR.** Return a report to the parent: the forwarded production count, the budget, and a recommended split into smaller PRs (slice boundaries by work-unit; the `chained-pr` skill has the recipe). The parent asks the user (single PR vs split) and re-delegates.
 4. `auto` execution mode does **not** bypass this gate — reviewer-burnout protection is not a speed preference. You are headless (hard gate #8): never ask the user yourself; stopping and reporting is how the decision reaches them.
 
 ## PR body (brutalist style, samuhlo persona)

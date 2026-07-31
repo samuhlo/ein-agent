@@ -1,24 +1,24 @@
 // =============================================================================
-// TESTS: Review Workload Guard — gate determinista en delivery
+// TESTS: Review Workload — forecast determinista vía tool
 // =============================================================================
-// BLINDAJE -> ein-git mide líneas reales con `git diff --shortstat` (no
-// estima), para y reporta si el budget se pasa. La preflight inyecta la
-// regla, el orchestrator reenvía el budget y gatea con ask_user_question,
-// y los tres sitios comparten el mismo pathspec de exclusión (anti-drift).
+// El pathspec de exclusión vive en UN sitio (review-forecast.ts), ya no
+// triplicado en prompts. El parent llama a `ein_review_forecast` en vez de
+// ejecutar git inline; ein-git CONFÍA en el número reenviado y no re-mide.
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { reviewForecast } from "../ein-pi/agent/lib/review-forecast";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
 const CORE = join(import.meta.dir, "../ein-pi/core");
 const einGit = readFileSync(join(CORE, "agents/ein-git.md"), "utf8");
 const orchestrator = readFileSync(join(AGENT, "assets/orchestrator.md"), "utf8");
-
-const { renderSddPreflightPrompt } = await import(
-	"../ein-pi/agent/lib/sdd-preflight"
-);
+const einAi = readFileSync(join(AGENT, "extensions/ein-ai.ts"), "utf8");
+const { renderSddPreflightPrompt } = await import("../ein-pi/agent/lib/sdd-preflight");
 
 const PREFS = {
 	executionMode: "auto",
@@ -29,79 +29,82 @@ const PREFS = {
 	prompted: true,
 } as const;
 
-describe("ein-git Review Workload Gate", () => {
-	test("ein-git.md documenta el gate", () => {
-		expect(einGit).toContain("Review Workload Gate");
+function git(cwd: string, ...args: string[]): void {
+	execFileSync("git", args, { cwd, stdio: "ignore" });
+}
+
+describe("reviewForecast — medición determinista", () => {
+	test("cuenta producción y separa tests (el pathspec excluye *.test.*)", () => {
+		const dir = mkdtempSync(join(tmpdir(), "review-forecast-"));
+		try {
+			git(dir, "init", "-q");
+			git(dir, "config", "user.email", "t@t.t");
+			git(dir, "config", "user.name", "t");
+			writeFileSync(join(dir, "base.txt"), "base\n");
+			git(dir, "add", "-A");
+			git(dir, "commit", "-qm", "base");
+			const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: dir, encoding: "utf8" }).trim();
+			// 3 líneas de producción + 5 de test: las de test NO cuentan en producción.
+			writeFileSync(join(dir, "feature.ts"), "a\nb\nc\n");
+			writeFileSync(join(dir, "feature.test.ts"), "t1\nt2\nt3\nt4\nt5\n");
+			git(dir, "add", "-A");
+			git(dir, "commit", "-qm", "work");
+			const f = reviewForecast(dir, base);
+			expect(f.ok).toBe(true);
+			expect(f.production).toBe(3);
+			expect(f.tests).toBe(5);
+			expect(f.range).toBe(`${base}..HEAD`);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
-	test("mide lineas reales con git diff --shortstat (no estima)", () => {
-		expect(einGit).toContain("git diff --shortstat");
-		expect(einGit.toLowerCase()).toContain("measured, not estimated");
-	});
-
-	test("para y reporta cuando supera el budget (es headless)", () => {
-		expect(einGit).toContain("STOP");
-		expect(einGit).toContain("production lines **> budget**");
-		expect(einGit).toContain("split into smaller PRs");
-	});
-
-	test("auto no salta el gate", () => {
-		expect(einGit.toLowerCase()).toContain(
-			"`auto` execution mode does **not** bypass this gate",
-		);
+	test("fuera de un repo git → ok:false, no revienta", () => {
+		const dir = mkdtempSync(join(tmpdir(), "review-forecast-nogit-"));
+		try {
+			expect(reviewForecast(dir, "main").ok).toBe(false);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 });
 
-describe("preflight inyecta la regla determinista, no el forecast muerto", () => {
-	test("no menciona el viejo 'task/workload forecasts conflict'", () => {
-		const out = renderSddPreflightPrompt(PREFS);
-		expect(out).not.toContain("task/workload forecasts conflict");
+describe("el pathspec vive en UN sitio (anti-drift eliminado)", () => {
+	test("los prompts ya NO llevan el pathspec ni el git diff inline", () => {
+		const preflight = renderSddPreflightPrompt(PREFS);
+		for (const text of [orchestrator, einGit, preflight]) {
+			expect(text).not.toContain(":(exclude)*.test.*");
+			expect(text).not.toContain("git diff --shortstat");
+		}
 	});
 
-	test("inyecta el Review Workload Guard con git diff --shortstat y el budget", () => {
-		const out = renderSddPreflightPrompt(PREFS);
-		expect(out).toContain("Review Workload Guard");
-		expect(out).toContain("git diff --shortstat");
-		expect(out).toContain("400-line review budget");
+	test("el pathspec vive en review-forecast.ts", () => {
+		expect(readFileSync(join(AGENT, "lib/review-forecast.ts"), "utf8")).toContain(":(exclude)*.test.*");
 	});
 });
 
-describe("orchestrator coordina el guard", () => {
-	test("tiene seccion Review Workload Guard", () => {
-		expect(orchestrator).toContain("Review Workload Guard");
+describe("el parent llama la tool; ein-git confía en el número", () => {
+	test("la tool ein_review_forecast está registrada", () => {
+		expect(einAi).toContain('name: "ein_review_forecast"');
 	});
 
-	test("el parent mide el diff, pregunta antes de delegar, y ein-git es backstop", () => {
+	test("el orchestrator llama la tool (no ejecuta git) y pregunta antes de delegar", () => {
+		expect(orchestrator).toContain("ein_review_forecast");
+		expect(orchestrator).toContain("do NOT run `git diff` yourself");
 		expect(orchestrator).toContain("ask_user_question");
-		// El parent es el check primario: mide git diff --shortstat él mismo…
-		expect(orchestrator).toContain("git diff --shortstat");
-		// …y ein-git pasa a ser el backstop, no el check principal.
-		expect(orchestrator.toLowerCase()).toContain("backstop");
-	});
-});
-
-describe("presupuesto solo-produccion (excluye tests/generados)", () => {
-	// Token canonico del pathspec de exclusion: si los tres sitios no lo
-	// comparten, el presupuesto se desincroniza en silencio. Anti-drift.
-	const EXCLUDE_TOKEN = ":(exclude)*.test.*";
-
-	test("el token de exclusion esta en los tres sitios (anti-drift)", () => {
-		expect(orchestrator).toContain(EXCLUDE_TOKEN);
-		expect(einGit).toContain(EXCLUDE_TOKEN);
-		expect(renderSddPreflightPrompt(PREFS)).toContain(EXCLUDE_TOKEN);
+		expect(orchestrator.toLowerCase()).toContain("production");
 	});
 
-	test("los tres usan --shortstat, no el viejo --stat por-archivo", () => {
-		expect(orchestrator).toContain("git diff --shortstat");
-		expect(einGit).toContain("git diff --shortstat");
-		expect(renderSddPreflightPrompt(PREFS)).toContain("git diff --shortstat");
+	test("ein-git confía en el número reenviado, no re-mide", () => {
+		expect(einGit).toContain("Review Workload Gate");
+		expect(einGit).toContain("TRUST the forwarded number");
+		expect(einGit).toContain("do NOT re-measure");
+		expect(einGit).toContain("`auto` execution mode does **not** bypass this gate");
 	});
 
-	test("documentan que tests/generados se reportan pero no gatean", () => {
-		expect(einGit.toLowerCase()).toContain("production");
-		expect(orchestrator.toLowerCase()).toContain("production lines");
-		expect(renderSddPreflightPrompt(PREFS).toLowerCase()).toContain(
-			"production changed lines",
-		);
+	test("el preflight apunta a la tool con el budget", () => {
+		const out = renderSddPreflightPrompt(PREFS);
+		expect(out).toContain("ein_review_forecast");
+		expect(out).toContain("400-line review budget");
 	});
 });
