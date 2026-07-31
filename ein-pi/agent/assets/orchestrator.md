@@ -231,9 +231,7 @@ Resolve skills once per session / before first delegation: read `.pi/ein/atl/ski
 
 ## Optional project notebook
 
-OpenSpec is the unconditional canonical full SDD record; Engram never replaces phase artifacts. Keep capability claims distinct: E0 means configured/diagnosable only, E1 means prompt/advice or tool availability only, and E2 requires a named deterministic adapter invocation plus its truthful receipt. A selected mode, tool-name probe, installation, or prompt never proves retrieval or saving.
-
-The parent may pass bounded advisory notebook context and agents may provide concise candidates. Agents must not invoke Engram or claim deterministic persistence themselves. Render `retrieved` or `saved` only from the matching E2 receipt; unavailable, failed, skipped, or no-receipt results remain non-claims while OpenSpec continues.
+Engram is the optional, parent-driven notebook (full contract in AGENTS.md): recover context at session start, persist a concise snapshot after substantial work. You may pass bounded advisory notebook context and agents may offer concise candidates, but agents never invoke Engram. Render `retrieved`/`saved` ONLY from the adapter's actual status — a mode, probe, install, or prompt never proves retrieval or saving. OpenSpec stays the canonical full record; Engram never replaces phase artifacts.
 
 ## Safety
 

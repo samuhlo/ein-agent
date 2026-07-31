@@ -119,7 +119,7 @@ ${extensions.map((e) => `- \`${e}\``).join("\n") || "- ninguna"}
 
 ■ 005. INTEGRACIONES
 
-- **Engram CLI:** ${hasEngram ? "OK → `engram` disponible (disponibilidad es solo E0; no prueba recuperación ni persistencia)" : "FALTA → `engram` no disponible (E0; no prueba recuperación ni persistencia)"}
+- **Engram CLI:** ${hasEngram ? "OK → `engram` disponible (estar configurado no prueba que se recupere ni se guarde)" : "FALTA → `engram` no disponible (configurado no prueba recuperación ni persistencia)"}
 - **MCP config:** ${hasMcp ? "OK → \`mcp.json\` presente" : "FALTA → crea \`mcp.json\`"}
 - **GitHub CLI:** ${hasGh ? "OK → \`gh\` disponible" : "FALTA → instala \`gh\` via brew"}
 - **Linear API:** ${hasLinearToken ? "OK → token detectable en entorno o archivo" : "PENDIENTE → define \`LINEAR_API_KEY\` o \`LINEAR_TOKEN\`"}
@@ -131,7 +131,7 @@ ${extensions.map((e) => `- \`${e}\``).join("\n") || "- ninguna"}
 Ein es un workbench estructurado sobre Pi Coding Agent. El flujo principal es lenguaje natural.
 Para trabajo serio usa la chain \`ein-sdd\` (scope → map → design → tasks → apply → verify → close).
 Los comandos \`/ein:*\` son control manual y fallback, no la ruta principal.
-Engram es un cuaderno opcional por proyecto; su disponibilidad/configuración es E0 y no prueba recuperación ni persistencia.`;
+Engram es un cuaderno opcional por proyecto; estar configurado no prueba recuperación ni persistencia.`;
 }
 
 // =============================================================================

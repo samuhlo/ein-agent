@@ -76,9 +76,3 @@ THEN:
 
 WHEN the request asks for a full "scope" or is unclear:
   Proceed with normal project scouting.
-
-## Notebook Contract
-
-OpenSpec is the canonical full SDD record in every mode. Engram is only an optional project notebook.
-
-Use advisory context passed by the parent; do not independently invoke Engram. E0 configuration/tool availability and E1 prompt advice do not prove retrieval or persistence. You may provide a concise candidate or report a receipt supplied by deterministic code, but must not claim deterministic retrieval or saving yourself; only an E2 adapter invocation with its truthful receipt establishes that fact.

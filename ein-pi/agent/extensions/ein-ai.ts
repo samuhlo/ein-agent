@@ -23,7 +23,6 @@ import {
 	getSddSessionMemory,
 	installSddAssets,
 	isSddPreflightTrigger,
-	prepareSddPhaseMemory,
 	renderMemoryAdvisory,
 	renderSddPreflightPrompt,
 	sddGlobalAssetDriftCount,
@@ -638,19 +637,13 @@ export default function einAi(pi: ExtensionAPI): void {
 		if (isSddAgent) await runSddPreflight(ctx);
 		const prefs = getSddPreflightPreferences(ctx);
 		const startNames = readAgentStartNames(event);
-		const mappedAgent = startNames.find((name) =>
-			name === "sdd-map" || name === "sdd-design" || name === "sdd-apply" || name === "sdd-verify",
-		);
-		const memory = await prepareSddPhaseMemory({
-			cwd: ctx.cwd,
-			agentName: mappedAgent,
-			explicitChange: readExplicitSddChange(event),
-			memory: memoryLifecycleForSession(ctx),
-			sessionKey: sddPreflightSessionKey(ctx),
-			enabled: Boolean(prefs && prefs.engramAvailable && prefs.memoryMode === "engram"),
-		});
+		// Memoria a granularidad de SESIÓN, no de fase: solo el parent recibe el
+		// snapshot de sesión (recuperado en el preflight). Los agentes de fase leen
+		// sus inputs del disco; el parent les pasa el contexto que necesiten. Antes
+		// se hacía una búsqueda Engram + inyección POR FASE — coste por fase y
+		// superficie de fallo para un modelo barato, sin más valor que la sesión.
 		const memoryPrompt = renderMemoryAdvisory(
-			memory ?? (!isNamedAgent && !isSddAgent ? getSddSessionMemory(ctx) : undefined),
+			!isNamedAgent && !isSddAgent ? getSddSessionMemory(ctx) : undefined,
 		);
 		// Convenciones de codigo (comment/logging/file-naming): SOLO donde se
 		// escribe codigo — el parent (trabajo inline) y sdd-apply. Inyectarlas en
