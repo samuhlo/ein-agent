@@ -22,7 +22,6 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readSpecDeltaDeclaration } from "./sdd-guardrails.ts";
 import { evaluateOpenSpecState, type OpenSpecState, type SyncBaseInput } from "./openspec-spec-sync.ts";
-import { readSddCostLedger, type SddCostLedgerV1 } from "./sdd-cost-provenance.ts";
 
 export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
 export type SddNext = SddPhase | "done";
@@ -802,13 +801,3 @@ export function aggregateSddBudget(summaries: SddChangeSummary[]): SddBudgetAggr
 	}
 	return { allocated, consumed, changesWithBudget };
 }
-
-/** @deprecated Compatibility facade. Read the versioned local provenance ledger instead. */
-export type SddRealCost = SddCostLedgerV1;
-
-/** @deprecated Compatibility facade. Never reads producer metadata directly. */
-export function readSddRealCost(cwd: string, change: string): SddRealCost {
-	return readSddCostLedger(cwd, change);
-}
-
-export { readSddCostLedger, type SddCostLedgerV1 } from "./sdd-cost-provenance.ts";
