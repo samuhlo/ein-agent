@@ -80,6 +80,7 @@ import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
 import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
+import { reviewForecast, formatReviewForecast } from "../lib/review-forecast.ts";
 import { closeChange } from "../lib/sdd-close.ts";
 import { approveCandidate, type MemoryCandidate, type MemoryReceipt } from "../lib/memory-contract.ts";
 import {
@@ -1070,6 +1071,28 @@ export default function einAi(pi: ExtensionAPI): void {
 				if (block) text += `\n\n${block}`;
 			}
 			return { content: [{ type: "text", text }], details: { status, activeChanges: active, plan } };
+		},
+	});
+
+	// ── Tool determinista: forecast de tamaño de PR (Review Workload Guard) ──
+	// El parent la llama ANTES de delegar un PR en vez de ejecutar git inline.
+	// Dueña única del pathspec de exclusión (antes triplicado en prompts).
+	pi.registerTool({
+		name: "ein_review_forecast",
+		label: "Ein Review Forecast",
+		description:
+			"Deterministic PR-size forecast for the Review Workload Guard. Runs `git diff --shortstat` with a fixed exclusion pathspec and returns PRODUCTION changed lines (insertions+deletions, the number that gates the review budget) and TEST changed lines (reported, never gate). With `base` it measures `base..HEAD` (committed work toward a PR); without it, the working tree (staged + unstaged). Call this BEFORE delegating a PR instead of running git yourself; if production exceeds the review budget, ask the user single-PR vs split. Reads git only.",
+		parameters: {
+			type: "object",
+			properties: { base: { type: "string", description: "PR base ref (e.g. `main`, `dev`). Omit to measure the working tree (staged + unstaged)." } },
+		} as const,
+		async execute(_id, params: { base?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const budget = getSddPreflightPreferences(ctx)?.reviewBudgetLines ?? 400;
+			const forecast = reviewForecast(ctx.cwd, params?.base);
+			return {
+				content: [{ type: "text", text: formatReviewForecast(forecast, budget) }],
+				details: { ...forecast, budget, overBudget: forecast.ok && forecast.production > budget },
+			};
 		},
 	});
 

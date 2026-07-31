@@ -495,7 +495,7 @@ export function renderSddPreflightPrompt(
 		if (baselineLine) lines.push(baselineLine);
 	}
 	lines.push(
-		`- Review Workload Guard: before opening a PR, ein-git measures the PRODUCTION changed lines — \`git diff --shortstat <base>..HEAD -- . ':(exclude)*.test.*' ':(exclude)*.spec.*' ':(exclude)**/tests/**' ':(exclude)**/__tests__/**' ':(exclude)**/e2e/**' ':(exclude)*.snap' ':(exclude)*-lock.*' ':(exclude)dist/**' ':(exclude).output/**' ':(exclude).nuxt/**' ':(exclude)coverage/**' ':(exclude)*.min.*'\`, summing insertions + deletions — against the ${prefs.reviewBudgetLines}-line review budget. Test and generated lines are measured separately (\`+N en tests\`) and REPORTED, never counted toward the budget. If production lines exceed the budget, pause and ask the user for a delivery decision (single PR vs split into smaller PRs). \`auto\` execution mode does NOT bypass this gate.`,
+		`- Review Workload Guard: before delegating a PR, the parent calls \`ein_review_forecast\` (a deterministic tool — pass \`base\` = the PR base) to get PRODUCTION changed lines vs the ${prefs.reviewBudgetLines}-line review budget. Test/generated lines are reported, never counted. If production exceeds the budget, pause and ask the user (single PR vs split into smaller PRs); forward \`Production lines: N\` so ein-git gates without re-measuring. \`auto\` execution mode does NOT bypass this gate.`,
 	);
 	return lines.join("\n");
 }
