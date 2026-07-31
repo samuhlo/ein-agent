@@ -5,6 +5,45 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.31.0] - 2026-07-31
+
+Sigue la línea del cambio de rumbo: menos ceremonia, más núcleo. Se retira el
+segundo "sistema-recibo", se desenvuelve Engram conservando lo que vale, y se
+cierra el hueco de que las herramientas externas envejecían en silencio.
+
+### Removed
+
+- **Ledger de coste / procedencia** (`3ea8e1d`, PR #73). RunReceiptV1 con sha256
+  source bindings, `fileIdentity` (dev/ino/mtime), métricas
+  reported/estimated/unavailable y aggregates con dedup — todo para atribuir
+  tokens/coste por fase. Mismo patrón sobre-ingenierizado que el recibo de
+  candidato, y no funcionaba: pedirle a un modelo barato procedencia honesta de
+  coste daba `n/a` y problemas de atribución que ensuciaban el status. −783
+  líneas netas. Se conserva el budget (self-report barato) y la reconciliación de
+  fase.
+
+### Changed
+
+- **Engram desenvuelto: la taxonomía E0/E1/E2 colapsa a una regla** (`c2b9b34`,
+  PR #74). El bloque "## Notebook Contract" se repetía en los 7 agentes SDD +
+  orchestrator + doctor (~22 líneas de prompt por flujo). La regla que importa
+  vive ahora una vez en `AGENTS.md`. La herramienta Engram y todos los guardas
+  (secret-scrub, dedup, noise-reject, budgets) quedan intactos.
+- **Memoria de Engram a granularidad de sesión, no de fase** (`23e99c4`, PR #74).
+  Se hacía una búsqueda Engram + inyección de advisory por fase (map/design/
+  apply/verify): coste por fase y superficie de fallo para un modelo barato. Ahora
+  solo el parent recibe el snapshot de sesión; recuperar al arrancar, guardar al
+  cerrar.
+
+### Added
+
+- **`ein update` auto-actualiza las deps externas presentes** (`70689ef`,
+  PR #75). engram, hypa y codegraph son binarios fuera de la transacción de Ein y
+  envejecían en silencio. `ein update` los refresca (re-ejecuta el instalador
+  oficial = última versión) bajo la misma confirmación que pi, **solo si ya están
+  presentes** — respeta el opt-out `--no-hypa`/`--no-codegraph`/`--no-engram`.
+  Best-effort: un fallo de red conserva la versión actual.
+
 ## [0.30.1] - 2026-07-30
 
 Hotfix de 0.30.0: el `ein-scout` no arrancaba con un modelo barato.
