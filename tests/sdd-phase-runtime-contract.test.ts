@@ -165,13 +165,14 @@ describe("P4: runtime y tamaño del apply estricto", () => {
   });
 });
 
-describe("P5: direct delegation provenance hook", () => {
-  test("observa localmente sin ampliar el input de subagent y antes de reconciliar", () => {
-    expect(einAi).toContain("beginDelegationObservation(cwd, phase)");
-    expect(einAi).toContain("observeDelegationResult(ctx.cwd, snapshot.provenance)");
-    expect(einAi.indexOf("observeDelegationResult(ctx.cwd, snapshot.provenance)")).toBeLessThan(
-      einAi.indexOf("reconcilePhaseFailure(ctx.cwd, snapshot.phase, snapshot.before)"),
-    );
+describe("P5: foto de fase para reconciliar, sin ampliar el input del subagent", () => {
+  test("recuerda la foto antes de delegar y reconcilia después", () => {
+    expect(einAi).toContain("before: snapshotPhaseArtifacts(cwd, phase)");
+    expect(einAi).toContain("reconcilePhaseFailure(ctx.cwd, snapshot.phase, snapshot.before)");
+    // El ledger de procedencia se retiró: la delegación no mints receipts ni observa coste.
+    expect(einAi).not.toContain("beginDelegationObservation");
+    expect(einAi).not.toContain("observeDelegationResult");
+    // El hook nunca amplía el input del subagent con campos de flujo/coste.
     expect(einAi).not.toMatch(/(?:event\.input|input)\.(?:output|outputMode|flowId|runId|changeId)\s*=/);
   });
 });

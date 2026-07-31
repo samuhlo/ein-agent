@@ -72,11 +72,6 @@ import {
 	type PhaseSnapshot,
 } from "../lib/sdd-reconcile.ts";
 import {
-	beginDelegationObservation,
-	observeDelegationResult,
-	type DelegationObservation,
-} from "../lib/sdd-cost-provenance.ts";
-import {
 	SDD_AGENT_NAMES,
 	SDD_AGENT_NAME_SET,
 	applySavedModelConfig,
@@ -85,7 +80,7 @@ import {
 import { handleModelsCommand } from "../lib/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
-import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, readSddRealCost, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport, type SddRealCost } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
 import { closeChange } from "../lib/sdd-close.ts";
 import { approveCandidate, type MemoryCandidate, type MemoryReceipt } from "../lib/memory-contract.ts";
 import {
@@ -140,7 +135,7 @@ const deliveryIntentBySession = new Map<string, DeliveryIntent>();
 // preexistente no puede rescatar un run que no escribió nada.
 const phaseSnapshotByToolCall = new Map<
 	string,
-	{ phase: SddPhase; before: PhaseSnapshot; provenance: DelegationObservation }
+	{ phase: SddPhase; before: PhaseSnapshot }
 >();
 
 const scoutTracking: ScoutTracking = new Map();
@@ -155,7 +150,6 @@ function rememberPhaseSnapshot(
 	phaseSnapshotByToolCall.set(toolCallId, {
 		phase,
 		before: snapshotPhaseArtifacts(cwd, phase),
-		provenance: beginDelegationObservation(cwd, phase),
 	});
 }
 // Versión instalada al arrancar cada sesión + sesiones ya avisadas: si `ein
@@ -419,29 +413,9 @@ function formatChangeLint(report: ChangeLintReport): string {
 // consumido supera lo asignado. Alias local para no tocar los puntos de llamada.
 const compactBudget = formatBudget;
 
-function compactTokens(n: number | null): string {
-	if (n === null) return "n/a";
-	return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
-}
-
-function compactMetric(metric: SddRealCost["changeAggregate"]["metrics"]["inputTokens"]): string {
-	return metric.value === null ? "n/a" : `${compactTokens(metric.value)} (${metric.provenance})`;
-}
-
-function compactRealCost(ledger: SddRealCost): string[] {
-	if (ledger.runs === 0) return ["ledger: no attributable local receipts"];
-	const metrics = ledger.changeAggregate!.metrics;
-	const lines = [
-		`ledger: ${ledger.runs} receipts · input ${compactMetric(metrics.inputTokens)} · output ${compactMetric(metrics.outputTokens)} · provider cost ${compactMetric(metrics.providerCostUsd)} · estimate ${compactMetric(metrics.estimatedCostUsd)} · duration ${compactMetric(metrics.durationMs)}`,
-	];
-	if (ledger.problems.length > 0) lines.push(`ledger provenance: ${ledger.problems.map((problem) => problem.message).join(" · ")}`);
-	return lines;
-}
-
 function formatSddStatus(
 	status: SddChangeStatus,
 	active: string[],
-	realCost?: SddRealCost,
 	prefs?: SddPreflightPreferences,
 ): string {
 	const notebook = `optional project notebook: Engram ${prefs?.memoryMode ?? "off"}${prefs?.engramAvailable ? " (configured; no retrieval or save is implied)" : " (unavailable or not configured)"}; OpenSpec is the canonical full record.`;
@@ -468,11 +442,8 @@ function formatSddStatus(
 	if (status.tasks.blockedBy) lines.push(`${t("sdd-status.blocked-by", "blocked_by")}: ${status.tasks.blockedBy}`);
 	lines.push(`${t("sdd-status.budget", "budget")}: ${compactBudget(status.budget)}`);
 	lines.push(notebook);
-	if (realCost) lines.push(...compactRealCost(realCost));
 
-	// Los problemas de procedencia del ledger (realCost.problems) NO son bloqueos:
-	// ya salen en la línea `ledger provenance:` (compactRealCost). Aquí solo van
-	// bloqueos reales, vía la fuente única sddStatusBlockers.
+	// Solo bloqueos reales, vía la fuente única sddStatusBlockers.
 	const blockers = sddStatusBlockers({ blocked: status.blocked, taskProblems: status.tasks.problems, budgetProblems: status.budget.problems });
 	if (blockers.length) {
 		lines.push("", `■ ${t("sdd-status.blocked", "blockers")}:`);
@@ -832,9 +803,6 @@ export default function einAi(pi: ExtensionAPI): void {
 		const snapshot = phaseSnapshotByToolCall.get(event.toolCallId);
 		phaseSnapshotByToolCall.delete(event.toolCallId);
 		if (!snapshot) return undefined;
-		// BLINDAJE -> La observación es local e independiente del veredicto del runner.
-		// Reconciliación conserva después su orden y decide sola si hubo error.
-		observeDelegationResult(ctx.cwd, snapshot.provenance);
 		if (!event.isError) return undefined;
 		const result = reconcilePhaseFailure(ctx.cwd, snapshot.phase, snapshot.before);
 		if (!result.reconciled) return undefined;
@@ -1096,9 +1064,8 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const status = resolveSddStatus(ctx.cwd, params?.change);
 			const active = listActiveChanges(ctx.cwd);
-			const realCost = status.change ? readSddRealCost(ctx.cwd, status.change) : undefined;
 			const prefs = getSddPreflightPreferences(ctx);
-			let text = formatSddStatus(status, active, realCost, prefs);
+			let text = formatSddStatus(status, active, prefs);
 			// En la ventana de apply, adjunta el preview determinista del plan
 			// (grupos + ficheros de producción + verify) para el brief docente
 			// pre-apply — "qué se toca" con hechos, no la paráfrasis del modelo.
@@ -1109,7 +1076,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				const block = formatSddPlanPreview(plan);
 				if (block) text += `\n\n${block}`;
 			}
-			return { content: [{ type: "text", text }], details: { status, activeChanges: active, realCost, costLedger: realCost, plan } };
+			return { content: [{ type: "text", text }], details: { status, activeChanges: active, plan } };
 		},
 	});
 
@@ -1157,8 +1124,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			const change = raw.trim() || undefined;
 			const s = resolveSddStatus(ctx.cwd, change);
 			const active = listActiveChanges(ctx.cwd);
-			const realCost = s.change ? readSddRealCost(ctx.cwd, s.change) : undefined;
-			ctx.ui.notify(formatSddStatus(s, active, realCost), s.blocked.length ? "warning" : "info");
+			ctx.ui.notify(formatSddStatus(s, active), s.blocked.length ? "warning" : "info");
 		},
 	});
 
