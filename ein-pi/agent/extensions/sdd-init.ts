@@ -25,10 +25,9 @@ export default function (pi: ExtensionAPI) {
 			const { detection } = result;
 			const testSummary = detection.testCommand
 				? `strict TDD enabled with \`${detection.testCommand}\``
-				: "strict TDD disabled because no test runner was detected";
-			const layerSummary = `unit: ${detection.commands.unit.length}, integration: ${detection.commands.integration.length}, e2e: ${detection.commands.e2e.length}`;
+				: "strict TDD disabled — no test runner detected (sdd-scope will fill it)";
 			ctx.ui.notify(
-				`Wrote openspec/config.yaml: detected ${detection.stack.join(", ") || "project"}; ${testSummary}; tests found: ${layerSummary}.`,
+				`Wrote openspec/config.yaml: package manager ${detection.packageManager || "unknown"}; ${testSummary}; commands from ${detection.source}.`,
 				"info",
 			);
 		},

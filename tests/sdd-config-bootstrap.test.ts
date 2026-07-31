@@ -48,4 +48,38 @@ describe("bootstrapOpenSpecConfig", () => {
 		expect(second.kind).toBe("preserved");
 		expect(readFileSync(configPath)).toEqual(content);
 	});
+
+	// Prefill lean: los comandos salen de la fuente autoritativa (scripts), no de
+	// heurística que adivina. strict_tdd solo se enciende con un runner real.
+	test("rellena test_command desde package.json scripts y enciende strict_tdd", () => {
+		writeFileSync(join(DIR, "package.json"), '{"name":"fixture","scripts":{"test":"vitest run","typecheck":"tsc --noEmit"}}\n');
+		const result = bootstrapOpenSpecConfig(DIR);
+		expect(result.kind).toBe("created");
+		if (result.kind === "created") expect(result.detection.testCommand).toBe("npm run test");
+		const yaml = readFileSync(join(DIR, "openspec", "config.yaml"), "utf8");
+		expect(yaml).toContain("strict_tdd: true");
+		expect(yaml).toContain('test_command: "npm run test"');
+		expect(yaml).toContain("ver EIN.md");
+	});
+
+	// Fallback implícito: un proyecto Bun corre `bun test` sin declarar script —
+	// el bug real que la detección heurística dejaba vacío.
+	test("infiere `bun test` por bunfig.toml cuando no hay script de test", () => {
+		writeFileSync(join(DIR, "package.json"), '{"name":"fixture"}\n');
+		writeFileSync(join(DIR, "bunfig.toml"), "[test]\n");
+		const result = bootstrapOpenSpecConfig(DIR);
+		expect(result.kind).toBe("created");
+		if (result.kind === "created") expect(result.detection.testCommand).toBe("bun test");
+		expect(readFileSync(join(DIR, "openspec", "config.yaml"), "utf8")).toContain('command: "bun test"');
+	});
+
+	// Sin runner detectable → vacío con marcador; strict_tdd off (no mentir).
+	test("deja el test_command vacío con marcador cuando no hay runner", () => {
+		const yaml = (() => {
+			bootstrapOpenSpecConfig(DIR); // package.json sin scripts (del beforeEach)
+			return readFileSync(join(DIR, "openspec", "config.yaml"), "utf8");
+		})();
+		expect(yaml).toContain("strict_tdd: false");
+		expect(yaml).toContain("el sdd-scope lo rellena");
+	});
 });
