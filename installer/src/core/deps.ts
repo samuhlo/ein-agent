@@ -198,3 +198,60 @@ export async function installHypa(): Promise<InstallStep> {
     ? { ok: true, detail: "hypa instalado" }
     : { ok: false, detail: "hypa instalado pero no resuelto en PATH (reinicia shell)" };
 }
+
+// ── Refresh de deps externas (auto-update) ──────────────────────────────────
+// Los instaladores de arriba hacen skip-si-presente para que `install` sea
+// rápido. Estas variantes RE-EJECUTAN el instalador oficial (que baja la última
+// versión) SOLO para las herramientas ya presentes, de modo que `ein update` las
+// mantenga al día. Si el tool no está, no se instala: respeta el opt-out
+// (--no-hypa/--no-codegraph/--no-engram). Best-effort: nunca bloquean el update,
+// y un fallo de red conserva la versión actual.
+
+export async function refreshCodegraph(): Promise<InstallStep> {
+  if (!resolveCodegraph()) return { ok: true, detail: "codegraph no instalado; nada que actualizar" };
+  const res = await run(
+    "sh",
+    ["-c", "curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh"],
+    { inherit: true },
+  );
+  if (!res.ok) return { ok: false, detail: "codegraph: fallo al actualizar (se conserva la versión actual)" };
+  const bin = resolveCodegraph();
+  if (bin) await run(bin, ["telemetry", "off"]);
+  return { ok: true, detail: "codegraph actualizado (telemetría off)" };
+}
+
+export async function refreshHypa(): Promise<InstallStep> {
+  if (!resolveHypa()) return { ok: true, detail: "hypa no instalado; nada que actualizar" };
+  const res = await run(
+    "sh",
+    ["-c", "curl -fsSL https://hypabolic.github.io/Hypa/install.sh | sh"],
+    { inherit: true },
+  );
+  return res.ok
+    ? { ok: true, detail: "hypa actualizado" }
+    : { ok: false, detail: "hypa: fallo al actualizar (se conserva la versión actual)" };
+}
+
+export async function refreshEngram(platform: Platform): Promise<InstallStep> {
+  if (!resolveEngram(platform).found) return { ok: true, detail: "engram no instalado; nada que actualizar" };
+  if (platform.os === "darwin" && platform.packageManager === "brew") {
+    // brew upgrade es idempotente: si ya está al día, no hace nada. Best-effort.
+    await run("brew", ["upgrade", "engram"], { inherit: true });
+    return { ok: true, detail: "engram: brew upgrade aplicado (o ya al día)" };
+  }
+  // Linux: installEngram siempre baja la última release y sobrescribe el binario.
+  const result = await installEngram(platform);
+  return result.ok
+    ? { ok: true, detail: "engram actualizado a la última release" }
+    : { ok: false, detail: `engram: fallo al actualizar (${result.detail})` };
+}
+
+// Refresca las tres deps externas presentes. El orden no importa; cada una es
+// independiente y best-effort.
+export async function refreshExternalTools(platform: Platform): Promise<InstallStep[]> {
+  return [
+    await refreshEngram(platform),
+    await refreshHypa(),
+    await refreshCodegraph(),
+  ];
+}
