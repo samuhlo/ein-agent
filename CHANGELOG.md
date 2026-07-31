@@ -5,6 +5,23 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.30.1] - 2026-07-30
+
+Hotfix de 0.30.0: el `ein-scout` no arrancaba con un modelo barato.
+
+### Fixed
+
+- **El reporte del scout tolera la forma natural de un modelo barato**
+  (`4e47482`). La 0.30.0 quitó el `outputSchema` inyectado al lanzar el scout,
+  que era lo único que forzaba la forma del JSON. Sin él, un modelo `thinking
+  low` emite `uncertainties` como strings (no `{level, statement}`) y
+  `references` con un campo `lines` "N-M" (no `startLine`/`endLine`), y el
+  validador estricto descartaba el reporte con `missing or invalid uncertainty`
+  — el scout parecía no arrancar aunque hacía el trabajo con citas correctas.
+  `parseReport` normaliza ahora ambas formas a la canónica; la validación de
+  citas contra disco (fichero:línea real y en rango) sigue estricta. El prompt
+  del scout especifica las formas exactas con un esqueleto JSON.
+
 ## [0.30.0] - 2026-07-30
 
 Cambio de rumbo. EIN se había alejado de su objetivo —simplicidad y ahorro de

@@ -7,6 +7,12 @@ export const SCOUT_REPORT_MAX_BYTES = 16_384;
 // inyecta como `outputSchema` al lanzar el scout: forzar el canal estructurado
 // del runtime era la fuente de fragilidad — el modelo emite el reporte como su
 // mensaje final (texto), y desde ahí se valida, como cualquier otro subagente.
+//
+// Sin ese schema, un modelo barato emite el JSON en su forma natural más simple
+// (uncertainties como strings, references con un `lines` "N-M" en vez de
+// startLine/endLine). `parseReport` NORMALIZA esas formas a la canónica en vez
+// de rechazarlas: el prompt guía, el parser tolera, y la única validación que se
+// mantiene estricta es el oro — que cada cita apunte a un fichero:línea real.
 
 export type ScoutLaunch = Record<string, unknown>;
 export type ScoutTracking = Map<string, string>;
@@ -53,6 +59,39 @@ function uniqueStrings(value: unknown, min: number, max: number): value is strin
 function boundedString(value: unknown, max: number): value is string { return typeof value === "string" && value.length > 0 && value.length <= max; }
 function closed(value: Record<string, unknown>, keys: string[]): boolean { return Object.keys(value).every((key) => keys.includes(key)) && keys.every((key) => key in value); }
 
+// Un modelo barato (thinking low) emite la incertidumbre como un simple
+// `statement` (string), no como `{ level, statement }` — es lo que el prompt le
+// pide en lenguaje natural. Se acepta y se marca `material`: el nivel es
+// informativo, lo que el parent lee es el texto. La forma objeto sigue valiendo.
+function normalizeUncertainty(value: unknown): { level: string; statement: string } | null {
+	if (boundedString(value, 500)) return { level: "material", statement: value };
+	if (isRecord(value) && closed(value, ["level", "statement"]) && ["none", "low", "material"].includes(String(value.level)) && boundedString(value.statement, 500)) {
+		return { level: String(value.level), statement: value.statement as string };
+	}
+	return null;
+}
+
+// El mismo modelo emite la referencia con un único campo `lines` ("N" o "N-M")
+// en vez de `startLine`/`endLine` enteros. Se acepta y se normaliza a la forma
+// canónica; los tipos de id/path/supports los revalida `validateReference`
+// (regex, cotas, existencia en disco) — el oro no se relaja.
+function normalizeReference(value: unknown): { id: unknown; path: unknown; startLine: number; endLine: number; supports: unknown } | null {
+	if (!isRecord(value)) return null;
+	if ("startLine" in value || "endLine" in value) {
+		return closed(value, ["id", "path", "startLine", "endLine", "supports"])
+			? { id: value.id, path: value.path, startLine: value.startLine as number, endLine: value.endLine as number, supports: value.supports }
+			: null;
+	}
+	if (closed(value, ["id", "path", "lines", "supports"]) && typeof value.lines === "string") {
+		const match = /^(\d+)\s*(?:-\s*(\d+))?$/.exec(value.lines.trim());
+		if (!match) return null;
+		const startLine = Number(match[1]);
+		const endLine = match[2] ? Number(match[2]) : startLine;
+		return { id: value.id, path: value.path, startLine, endLine, supports: value.supports };
+	}
+	return null;
+}
+
 function parseReport(payload: unknown): Report {
 	const raw = typeof payload === "string" ? payload : JSON.stringify(payload);
 	if (Buffer.byteLength(raw, "utf8") > SCOUT_REPORT_MAX_BYTES) fail("report exceeds 16384 UTF-8 bytes");
@@ -61,8 +100,11 @@ function parseReport(payload: unknown): Report {
 	if (!isRecord(report) || !closed(report, ["version", "summary", "summaryReferenceIds", "findings", "references", "uncertainties"])) fail("invalid report schema");
 	if (report.version !== "ein-scout-report/v1" || !boundedString(report.summary, 2000) || !uniqueStrings(report.summaryReferenceIds, 1, 8) || !Array.isArray(report.findings) || report.findings.length < 1 || report.findings.length > 12 || !Array.isArray(report.references) || report.references.length < 1 || report.references.length > 24 || !Array.isArray(report.uncertainties) || report.uncertainties.length < 1 || report.uncertainties.length > 8) fail("invalid report schema");
 	for (const finding of report.findings) if (!isRecord(finding) || !closed(finding, ["claim", "referenceIds"]) || !boundedString(finding.claim, 1000) || !uniqueStrings(finding.referenceIds, 1, 8)) fail("invalid finding");
-	for (const uncertainty of report.uncertainties) if (!isRecord(uncertainty) || !closed(uncertainty, ["level", "statement"]) || !["none", "low", "material"].includes(String(uncertainty.level)) || !boundedString(uncertainty.statement, 500)) fail("missing or invalid uncertainty");
-	return report as Report;
+	const references = report.references.map(normalizeReference);
+	if (references.some((reference) => reference === null)) fail("invalid reference");
+	const uncertainties = report.uncertainties.map(normalizeUncertainty);
+	if (uncertainties.some((uncertainty) => uncertainty === null)) fail("missing or invalid uncertainty");
+	return { ...report, references, uncertainties } as Report;
 }
 
 function validateReference(root: string, reference: Report["references"][number]): void {

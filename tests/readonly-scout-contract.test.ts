@@ -79,6 +79,29 @@ describe("readonly scout report validation", () => {
 		expect(validateScoutReport([report()], fixture())).toEqual(report());
 	});
 
+	// Regresión real de 0.30.0: al quitar el outputSchema, un modelo barato emite
+	// `uncertainties` como strings y `references` con un `lines` "N-M" en vez de
+	// startLine/endLine. El scout hacía el trabajo bien pero el reporte se
+	// descartaba. Se aceptan ambas formas normalizándolas a la canónica.
+	test("acepta uncertainties como strings y references con `lines` (regresión 0.30.0)", () => {
+		const root = fixture();
+		const validated = validateScoutReport([report({
+			references: [{ id: "R1", path: "evidence.ts", lines: "1-3", supports: "lines 1 through 3" }],
+			uncertainties: ["No tests were run in this read-only pass."],
+		})], root);
+		expect(validated.references[0]).toEqual({ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, supports: "lines 1 through 3" });
+		expect(validated.uncertainties).toEqual([{ level: "material", statement: "No tests were run in this read-only pass." }]);
+	});
+
+	test("acepta `lines` de una sola línea pero no relaja la validación de citas", () => {
+		const root = fixture();
+		expect(validateScoutReport([report({ references: [{ id: "R1", path: "evidence.ts", lines: "2", supports: "line two" }] })], root).references[0])
+			.toEqual({ id: "R1", path: "evidence.ts", startLine: 2, endLine: 2, supports: "line two" });
+		// El oro sigue estricto: un rango fuera del fichero o un `lines` no numérico fallan.
+		expect(() => validateScoutReport([report({ references: [{ id: "R1", path: "evidence.ts", lines: "1-99", supports: "x" }] })], root)).toThrow("line range");
+		expect(() => validateScoutReport([report({ references: [{ id: "R1", path: "evidence.ts", lines: "abc", supports: "x" }] })], root)).toThrow("invalid reference");
+	});
+
 	test("fails closed for missing, multiple, malformed, oversized, and uncertain reports", () => {
 		const root = fixture();
 		expect(() => validateScoutReport([], root)).toThrow("missing");

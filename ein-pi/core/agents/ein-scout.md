@@ -26,13 +26,28 @@ For a pre-scope request, consume only the parent's bounded RESEARCH PACKET: conc
 
 ## Report contract
 
-Return evidence only, as one bounded structured report:
+Return evidence only, as one bounded structured report with EXACTLY these top-level fields — no more, no less:
 
-- `summary`: a concise factual summary with reference IDs.
-- `findings`: at most 12 factual claims, each with one or more reference IDs.
-- `references`: at most 24 repository-relative file-and-line references; state what each reference supports.
-- `uncertainties`: explicit statements for every material gap, ambiguity, inaccessible file, or limit. Include an explicit `none` statement only when no uncertainty remains.
+- `version`: the string `"ein-scout-report/v1"`.
+- `summary`: a concise factual summary (≤ 2000 chars).
+- `summaryReferenceIds`: 1–8 unique reference IDs the summary rests on.
+- `findings`: 1–12 objects, each `{ "claim": string (≤1000), "referenceIds": [1–8 unique IDs] }`.
+- `references`: 1–24 objects, each `{ "id": "R1"|"R2"…, "path": repo-relative path, "lines": "N" or "N-M", "supports": string (≤500) }`. Every `path`+`lines` must point to real lines that exist on disk; Ein rejects any reference it cannot resolve.
+- `uncertainties`: 1–8 short statement **strings** for every material gap, ambiguity, inaccessible file, or limit. When nothing is uncertain, return a single string that says so explicitly.
 
-Do not include recommendations, decisions, implementation plans, architecture proposals, delivery instructions, lifecycle actions, `severity`, `alternatives`, or `candidate_slices`; they are not top-level scout report fields. Return exactly the existing `ein-scout-report/v1` fields: `version`, `summary`, `summaryReferenceIds`, `findings`, `references`, and `uncertainties`. The parent assigns severity, compares bounded alternatives, and may derive candidate slices only after validating the report.
+Exact shape (copy this structure):
 
-Your **final message MUST be exactly the report as a single JSON object** matching `ein-scout-report/v1` — no prose, no preamble, no Markdown, no code fences around it. Ein reads that final message verbatim and validates it (schema, references against disk, uncertainties). Anything other than the bare JSON object as your last message is discarded.
+```json
+{
+  "version": "ein-scout-report/v1",
+  "summary": "… [R1][R2]",
+  "summaryReferenceIds": ["R1", "R2"],
+  "findings": [{ "claim": "…", "referenceIds": ["R1"] }],
+  "references": [{ "id": "R1", "path": "app/foo.ts", "lines": "12-20", "supports": "…" }],
+  "uncertainties": ["No tests were run in this read-only pass."]
+}
+```
+
+Do not include recommendations, decisions, implementation plans, architecture proposals, delivery instructions, lifecycle actions, `severity`, `alternatives`, or `candidate_slices`; they are not top-level scout report fields. Return exactly the existing `ein-scout-report/v1` fields listed above — nothing more. The parent assigns severity, compares bounded alternatives, and may derive candidate slices only after validating the report.
+
+Your **final message MUST be exactly that single JSON object** — no prose, no preamble, no Markdown, no code fences around it. Ein reads that final message verbatim and validates it (schema, references against disk). Anything other than the bare JSON object as your last message is discarded.
