@@ -1,6 +1,6 @@
 import * as p from "@clack/prompts";
 import { detectPlatform, type Platform } from "../core/platform.ts";
-import { installDeclaredPackages, installPi, type InstallStep } from "../core/deps.ts";
+import { installDeclaredPackages, installPi, refreshExternalTools, type InstallStep } from "../core/deps.ts";
 import { AGENT_DIR, INSTALL_MARKER } from "../core/paths.ts";
 import { parseSelector } from "../core/release-resolver.ts";
 import type { ReleaseSelector, UpdateOutcome } from "../core/release-types.ts";
@@ -30,6 +30,10 @@ export type UpdateRunDependencies = {
   updatePi?: () => Promise<InstallStep>;
   syncPiPackages?: () => Promise<InstallStep>;
   confirmPiUpdate?: () => Promise<boolean>;
+  // Deps externas opcionales (engram/hypa/codegraph): binarios fuera de la
+  // transacción de Ein que envejecen en silencio. Este hook las refresca tras un
+  // update exitoso; el default refresca las presentes de verdad.
+  refreshExternalTools?: () => Promise<InstallStep[]>;
 };
 
 export function parseCliFlags(args: string[]): UpdateFlags {
@@ -123,10 +127,46 @@ async function refreshPi(
   const pkgs = await syncPackages();
   pkgSpinner?.stop(pkgs.detail);
   if (!interactive) write(pkgs.detail);
+
+  // Bajo la misma confirmación que pi: las deps externas presentes forman parte
+  // de "actualizar el toolchain". Gatearlo aquí (no fuera) mantiene los tests de
+  // update sin red — un update que no confirma no toca binarios reales.
+  await refreshExternalDeps(dependencies, write);
+}
+
+/**
+ * Refresca las deps externas presentes (engram/hypa/codegraph) tras un update
+ * exitoso. Best-effort y sin confirmación aparte: son herramientas que el
+ * usuario ya tiene y que envejecen en silencio porque la transacción de Ein no
+ * las gestiona. Un fallo de red conserva la versión actual y nunca tumba el
+ * update.
+ */
+async function refreshExternalDeps(
+  dependencies: UpdateRunDependencies,
+  write: (line: string) => void,
+): Promise<void> {
+  const interactive = dependencies.interactive !== false;
+  const refresh = dependencies.refreshExternalTools
+    ?? (() => refreshExternalTools(detectPlatform()));
+  const spinner = interactive ? p.spinner() : null;
+  spinner?.start("Actualizando herramientas externas (engram, hypa, codegraph)");
+  let steps: InstallStep[];
+  try {
+    steps = await refresh();
+  } catch {
+    spinner?.stop("Herramientas externas: no se pudieron revisar");
+    if (!interactive) write("herramientas externas: no se pudieron revisar");
+    return;
+  }
+  spinner?.stop("Herramientas externas revisadas");
+  for (const step of steps) {
+    if (interactive) p.log.message(step.detail);
+    else write(step.detail);
+  }
 }
 
 async function confirmPiUpdate(): Promise<boolean> {
-  const response = await p.confirm({ message: "Actualizar pi (@earendil-works/pi-coding-agent)?" });
+  const response = await p.confirm({ message: "Actualizar pi y las herramientas externas presentes (engram/hypa/codegraph)?" });
   return p.isCancel(response) ? false : response;
 }
 

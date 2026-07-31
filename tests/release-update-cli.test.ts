@@ -257,22 +257,31 @@ describe("release update CLI", () => {
     };
     let piUpdated = 0;
     let packagesSynced = 0;
+    let externalRefreshed = 0;
     const output: string[] = [];
     const code = await runUpdate(["--yes"], {
       caps, platform: { os: "linux", arch: "x64" }, agentDir, markerPath, journalPath, destinationPath, interactive: false,
       write: (line) => output.push(line),
       updatePi: async () => { piUpdated += 1; return { ok: true, detail: "pi actualizado" }; },
       syncPiPackages: async () => { packagesSynced += 1; return { ok: true, detail: "2 paquetes al dia" }; },
+      refreshExternalTools: async () => { externalRefreshed += 1; return [{ ok: true, detail: "engram actualizado a la última release" }]; },
     });
     expect(code).toBe(EXIT_UPDATED);
     expect(piUpdated).toBe(1);
     expect(packagesSynced).toBe(1);
+    // Las deps externas (engram/hypa/codegraph) se refrescan tras un update ok.
+    expect(externalRefreshed).toBe(1);
     expect(output.join("\n")).toContain("pi actualizado");
+    expect(output.join("\n")).toContain("engram actualizado a la última release");
   });
 
-  test("skips pi refresh on dry-run and on failure", async () => {
+  test("skips pi and external-tool refresh on dry-run and on failure", async () => {
     let piTouched = 0;
-    const spy = { updatePi: async () => { piTouched += 1; return { ok: true, detail: "no deberia correr" }; } };
+    let externalTouched = 0;
+    const spy = {
+      updatePi: async () => { piTouched += 1; return { ok: true, detail: "no deberia correr" }; },
+      refreshExternalTools: async () => { externalTouched += 1; return []; },
+    };
 
     const dryMarkerPath = "/fake/marker.json";
     const dryCaps = fakeUpdateCaps({ files: new Map([[dryMarkerPath, marker()]]), http: updateHttp() });
@@ -288,6 +297,7 @@ describe("release update CLI", () => {
     })).toBe(EXIT_FAILED);
 
     expect(piTouched).toBe(0);
+    expect(externalTouched).toBe(0);
   });
 
   test("renders committed, recovery-required, and unverified banner labels", () => {
