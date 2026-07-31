@@ -28,15 +28,11 @@ import { t, tf } from "./i18n/strings";
 const KEEP_CURRENT = t("models.keep_current", "Mantener actual");
 const INHERIT_MODEL = t("models.inherit_model", "Heredar modelo activo/por defecto");
 const CUSTOM_MODEL = t("models.custom_model", "Id de modelo personalizado");
-const INHERIT_THINKING = t("models.inherit_thinking", "Heredar esfuerzo");
-const THINKING_OPTIONS: (ThinkingLevel | typeof INHERIT_THINKING)[] = [
-	INHERIT_THINKING,
-	"off",
-	"minimal",
-	"low",
-	"medium",
-	"high",
-	"xhigh",
+// Ciclo de esfuerzo inline: `e` avanza al siguiente en la propia fila
+// (undefined = heredar). Antes era un picker de pantalla propia; inline es más
+// rápido y las barras del nivel elegido ya se ven en la tabla.
+const EFFORT_CYCLE: (ThinkingLevel | undefined)[] = [
+	undefined, "off", "minimal", "low", "medium", "high", "xhigh",
 ];
 
 const MODEL_CONTROL_OPTIONS = [
@@ -74,10 +70,12 @@ const BRAND = loadPalette();
 function fg(c: { r: number; g: number; b: number }): string {
 	return `\x1b[38;2;${c.r};${c.g};${c.b}m`;
 }
+// Paleta HONESTA: la marca solo aporta 3 colores (amarillo, concrete, gris).
+// Antes había 5 alias, pero `grn`/`gold` eran ambos amarillo y `cyan`/`wht`
+// ambos concrete — nombres que mentían sobre lo que pintaban.
 const AP = {
 	r: '\x1b[0m', b: '\x1b[1m', d: '\x1b[2m',
-	gold: fg(BRAND.yellow), cyan: fg(BRAND.concrete), grn: fg(BRAND.yellow),
-	gray: fg(BRAND.structure), wht: fg(BRAND.concrete),
+	yellow: fg(BRAND.yellow), concrete: fg(BRAND.concrete), gray: fg(BRAND.structure),
 } as const;
 
 function vaStrip(s: string): string {
@@ -89,12 +87,14 @@ function vaPad(s: string, w: number): string {
 	return vis < w ? s + ' '.repeat(w - vis) : s;
 }
 
+// Un solo color de marca para todos los modelos. Antes se coloreaba por familia
+// con regex de nombre (gpt/claude/minimax…) — eso se pudre en cuanto salen o
+// mueren modelos, justo lo que `model-config.ts` evita al no hardcodear nombres.
+// La jerarquía (activo vs heredado) la da bold/dim, no más colores.
 function vaModelColor(id: string | undefined): string {
 	if (!id) return `${AP.d}${AP.gray}inherit${AP.r}`;
 	const short = id.includes('/') ? id.split('/').pop()! : id;
-	if (/^gpt-5|^o1|^o3/i.test(short)) return `${AP.gold}${short}${AP.r}`;
-	if (/minimax|claude|gemini|llama/i.test(short)) return `${AP.cyan}${short}${AP.r}`;
-	return `${AP.wht}${short}${AP.r}`;
+	return `${AP.concrete}${short}${AP.r}`;
 }
 
 function vaEffortColor(lvl: ThinkingLevel | undefined): string {
@@ -102,10 +102,10 @@ function vaEffortColor(lvl: ThinkingLevel | undefined): string {
 	const MAP: Record<ThinkingLevel, string> = {
 		off:     `${AP.gray}○  off${AP.r}`,
 		minimal: `${AP.d}▪  minimal${AP.r}`,
-		low:     `${AP.wht}▪▪  low${AP.r}`,
-		medium:  `${AP.cyan}▪▪▪  medium${AP.r}`,
-		high:    `${AP.gold}▪▪▪▪  high${AP.r}`,
-		xhigh:   `${AP.b}${AP.gold}▪▪▪▪▪  xhigh${AP.r}`,
+		low:     `${AP.concrete}▪▪  low${AP.r}`,
+		medium:  `${AP.concrete}▪▪▪  medium${AP.r}`,
+		high:    `${AP.yellow}▪▪▪▪  high${AP.r}`,
+		xhigh:   `${AP.b}${AP.yellow}▪▪▪▪▪  xhigh${AP.r}`,
 	};
 	return MAP[lvl];
 }
@@ -113,10 +113,9 @@ function vaEffortColor(lvl: ThinkingLevel | undefined): string {
 
 class SddModelPanel implements OverlayComponent {
 	private cursor = 0;
-	private mode: "agents" | "models" | "effort" = "agents";
+	private mode: "agents" | "models" = "agents";
 	private selectedRow = SET_ALL_AGENTS;
 	private modelCursor = 0;
-	private effortCursor = 0;
 	private query = "";
 	private readonly draft: AgentModelConfig;
 	private readonly rows: string[];
@@ -142,16 +141,11 @@ class SddModelPanel implements OverlayComponent {
 			this.handleModelInput(data);
 			return;
 		}
-		if (this.mode === "effort") {
-			this.handleEffortInput(data);
-			return;
-		}
 		this.handleAgentInput(data);
 	}
 
 	render(width: number): string[] {
 		if (this.mode === "models") return this.renderModelPicker(width);
-		if (this.mode === "effort") return this.renderEffortPicker(width);
 		return this.renderAgentList(width);
 	}
 
@@ -178,11 +172,7 @@ class SddModelPanel implements OverlayComponent {
 			return;
 		}
 		if (data === "e") {
-			const row = this.rows[this.cursor] ?? SET_ALL_AGENTS;
-			if (row === ORCHESTRATOR_ROW) return; // Orquestador no tiene ajuste de esfuerzo.
-			this.selectedRow = row;
-			this.mode = "effort";
-			this.effortCursor = 0;
+			this.cycleEffort();
 			return;
 		}
 		if (data === "c") {
@@ -291,6 +281,23 @@ class SddModelPanel implements OverlayComponent {
 		this.setThinking(row, thinking);
 	}
 
+	// Esfuerzo del set "Todos": el común si coincide, undefined si es mixto.
+	private commonEffort(): ThinkingLevel | undefined {
+		const efforts = [...new Set(this.agentNames.map((name) => this.draft[name]?.thinking))];
+		return efforts.length === 1 ? efforts[0] : undefined;
+	}
+
+	// `e` avanza el esfuerzo de la fila enfocada al siguiente del ciclo, in situ.
+	private cycleEffort(): void {
+		const row = this.rows[this.cursor] ?? SET_ALL_AGENTS;
+		if (row === ORCHESTRATOR_ROW) return; // Orquestador no tiene ajuste de esfuerzo.
+		const current = row === SET_ALL_AGENTS ? this.commonEffort() : this.draft[row]?.thinking;
+		const idx = EFFORT_CYCLE.findIndex((level) => level === current);
+		const next = EFFORT_CYCLE[(idx + 1) % EFFORT_CYCLE.length];
+		this.selectedRow = row;
+		this.applyThinkingSelection(next);
+	}
+
 	private applyInherit(): void {
 		const row = this.rows[this.cursor];
 		if (row === SET_ALL_AGENTS) {
@@ -366,14 +373,14 @@ class SddModelPanel implements OverlayComponent {
 		for (let i = 0; i < this.rows.length; i++) {
 			const row = this.rows[i] ?? SET_ALL_AGENTS;
 			const focused = i === this.cursor;
-			const cur = focused ? `${AP.gold}▸${AP.r}` : ' ';
+			const cur = focused ? `${AP.yellow}▸${AP.r}` : ' ';
 
 			if (row === ORCHESTRATOR_ROW) {
 				const model = this.draft[ORCHESTRATOR_ROW]?.model;
 				const orchLabel = t("models.row.orchestrator", "Orquestador");
 				const nameStr = focused
-					? `${AP.b}${AP.gold}◈ ${orchLabel}${AP.r}`
-					: `${AP.wht}◈ ${orchLabel}${AP.r}`;
+					? `${AP.b}${AP.yellow}◈ ${orchLabel}${AP.r}`
+					: `${AP.concrete}◈ ${orchLabel}${AP.r}`;
 				lines.push(tr(
 					`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${AP.d}${AP.gray}─${AP.r}`
 				));
@@ -386,11 +393,11 @@ class SddModelPanel implements OverlayComponent {
 				const allEfforts = this.agentNames.map(n => this.draft[n]?.thinking);
 				const uniqM = [...new Set(allModels)];
 				const uniqE = [...new Set(allEfforts)];
-				const mStr = uniqM.length === 1 ? vaModelColor(uniqM[0]) : `${AP.gold}mixed${AP.r}`;
-				const eStr = uniqE.length === 1 ? vaEffortColor(uniqE[0]) : `${AP.gold}mixed${AP.r}`;
+				const mStr = uniqM.length === 1 ? vaModelColor(uniqM[0]) : `${AP.yellow}mixed${AP.r}`;
+				const eStr = uniqE.length === 1 ? vaEffortColor(uniqE[0]) : `${AP.yellow}mixed${AP.r}`;
 				const allLabel = t("models.row.all_agents", "Todos los agentes");
 				const label = focused
-					? `${AP.b}${AP.wht}⊞  ${allLabel}${AP.r}`
+					? `${AP.b}${AP.concrete}⊞  ${allLabel}${AP.r}`
 					: `${AP.d}⊞  ${allLabel}${AP.r}`;
 				lines.push(tr(`${cur} ${vaPad(label, C1)}  ${vaPad(mStr, C2)}  ${eStr}`));
 				lines.push(tr(''));
@@ -411,13 +418,13 @@ class SddModelPanel implements OverlayComponent {
 
 			const model = this.draft[row]?.model;
 			const effort = this.draft[row]?.thinking;
-			const nameStr = focused ? `${AP.b}${AP.gold}${row}${AP.r}` : row;
+			const nameStr = focused ? `${AP.b}${AP.yellow}${row}${AP.r}` : row;
 			// Marcador de desviación: solo cuando el esfuerzo está FIJADO y no
 			// coincide con el recomendado. El tier del modelo no se puede clasificar
 			// (un nombre no dice si es barato o capaz), así que no se marca.
 			const rowRec = AGENT_RECOMMENDATIONS[row];
 			const deviates = Boolean(rowRec && effort && effort !== rowRec.thinking);
-			const mark = deviates ? `  ${AP.gold}${AP.b}!${AP.r}` : "";
+			const mark = deviates ? `  ${AP.yellow}${AP.b}!${AP.r}` : "";
 			lines.push(tr(
 				`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${vaEffortColor(effort)}${mark}`
 			));
@@ -435,12 +442,12 @@ class SddModelPanel implements OverlayComponent {
 			if (focusedEffort && focusedEffort !== rec.thinking) {
 				lines.push(tr(''));
 				lines.push(tr(
-					` ${AP.gold}${AP.b}!${AP.r} ${AP.gold}${t("models.rec.deviates", "Fuera de recomendación")}: ${AP.r}${AP.wht}${focusedEffort}${AP.r}${AP.d}${AP.gray} → recomendado ${AP.r}${AP.wht}${rec.thinking}${AP.r}`
+					` ${AP.yellow}${AP.b}!${AP.r} ${AP.yellow}${t("models.rec.deviates", "Fuera de recomendación")}: ${AP.r}${AP.concrete}${focusedEffort}${AP.r}${AP.d}${AP.gray} → recomendado ${AP.r}${AP.concrete}${rec.thinking}${AP.r}`
 				));
 			}
 			lines.push(tr(''));
 			lines.push(tr(
-				` ${AP.d}${AP.gray}${t("models.rec.label", "Recomendado")}: ${AP.r}${AP.wht}${tier} · ${rec.thinking}${AP.r}${AP.d}${AP.gray} — ${rec.reason}${AP.r}`
+				` ${AP.d}${AP.gray}${t("models.rec.label", "Recomendado")}: ${AP.r}${AP.concrete}${tier} · ${rec.thinking}${AP.r}${AP.d}${AP.gray} — ${rec.reason}${AP.r}`
 			));
 		}
 
@@ -448,17 +455,17 @@ class SddModelPanel implements OverlayComponent {
 		const saveFoc = this.cursor === this.rows.length;
 		const cancelFoc = this.cursor === this.rows.length + 1;
 		lines.push(tr(
-			` ${saveFoc ? `${AP.gold}▸${AP.r}` : ' '} ${AP.grn}✓ ${t("models.btn.save", "Guardar")}${AP.r}` +
+			` ${saveFoc ? `${AP.yellow}▸${AP.r}` : ' '} ${AP.yellow}✓ ${t("models.btn.save", "Guardar")}${AP.r}` +
 			`        ` +
-			`${cancelFoc ? `${AP.gold}▸${AP.r}` : ' '} ${AP.d}${AP.gray}✗ ${t("models.btn.cancel", "Cancelar")}${AP.r}`
+			`${cancelFoc ? `${AP.yellow}▸${AP.r}` : ' '} ${AP.d}${AP.gray}✗ ${t("models.btn.cancel", "Cancelar")}${AP.r}`
 		));
 		lines.push(tr(''));
 		lines.push(tr(
-			` ${AP.d}${AP.gray}${t("models.hint.main", "↑↓ · Enter modelo · e esfuerzo · i heredar · Ctrl+S guardar")}${AP.r}`
+			` ${AP.d}${AP.gray}${t("models.hint.main", "↑↓ · Enter modelo · e esfuerzo (cicla) · i heredar · Ctrl+S guardar")}${AP.r}`
 		));
 		lines.push(tr(''));
 
-		const title = `${AP.gold}${AP.b}■ ${t("models.title.agents", "MODELOS DE AGENTES")}${AP.r}`;
+		const title = `${AP.yellow}${AP.b}■ ${t("models.title.agents", "MODELOS DE AGENTES")}${AP.r}`;
 		return SddModelPanel.addBorder(title, lines, width);
 	}
 
@@ -473,7 +480,7 @@ class SddModelPanel implements OverlayComponent {
 		lines.push(tr(''));
 
 		const searchText = this.query
-			? `${AP.wht}${this.query}${AP.r}`
+			? `${AP.concrete}${this.query}${AP.r}`
 			: `${AP.d}${AP.gray}${t("models.search.placeholder", "buscar...")}${AP.r}`;
 		lines.push(tr(` ${AP.gray}◎${AP.r}  ${searchText}`));
 		lines.push(tr(` ${AP.d}${AP.gray}${'─'.repeat(Math.max(10, inner - 2))}${AP.r}`));
@@ -496,7 +503,7 @@ class SddModelPanel implements OverlayComponent {
 			for (let i = start; i < end; i++) {
 				const opt = options[i] ?? '';
 				const focused = i === this.modelCursor;
-				const cur = focused ? `${AP.gold}▸${AP.r}` : ' ';
+				const cur = focused ? `${AP.yellow}▸${AP.r}` : ' ';
 
 				if (!addedSep && !isControlOpt(opt)) {
 					addedSep = true;
@@ -505,12 +512,12 @@ class SddModelPanel implements OverlayComponent {
 
 				let label: string;
 				if (opt === KEEP_CURRENT) {
-					label = focused ? `${AP.b}${AP.wht}${opt}${AP.r}` : `${AP.d}${opt}${AP.r}`;
+					label = focused ? `${AP.b}${AP.concrete}${opt}${AP.r}` : `${AP.d}${opt}${AP.r}`;
 				} else if (opt === INHERIT_MODEL) {
-					label = focused ? `${AP.b}${AP.wht}${opt}${AP.r}` : `${AP.d}${opt}${AP.r}`;
+					label = focused ? `${AP.b}${AP.concrete}${opt}${AP.r}` : `${AP.d}${opt}${AP.r}`;
 				} else if (opt === CUSTOM_MODEL) {
 					label = focused
-						? `${AP.b}${AP.cyan}${opt}…${AP.r}`
+						? `${AP.b}${AP.concrete}${opt}…${AP.r}`
 						: `${AP.d}${AP.gray}${opt}…${AP.r}`;
 				} else {
 					const parts = opt.split('/');
@@ -539,68 +546,7 @@ class SddModelPanel implements OverlayComponent {
 		));
 		lines.push(tr(''));
 
-		const title = `${AP.gold}${AP.b}■ ${t("models.title.model", "MODELO")}${AP.r}  ${AP.d}${AP.gray}${t("models.for", "para:")}${AP.r}  ${AP.wht}${agentLabel}${AP.r}`;
-		return SddModelPanel.addBorder(title, lines, width);
-	}
-
-	private handleEffortInput(data: string): void {
-		if (matchesKey(data, "ctrl+c")) {
-			this.done({ type: "cancel" });
-			return;
-		}
-		if (matchesKey(data, "escape")) {
-			this.mode = "agents";
-			return;
-		}
-		if (matchesKey(data, "down") || data === "j") {
-			this.effortCursor = Math.min(
-				Math.max(0, THINKING_OPTIONS.length - 1),
-				this.effortCursor + 1,
-			);
-			return;
-		}
-		if (matchesKey(data, "up") || data === "k") {
-			this.effortCursor = Math.max(0, this.effortCursor - 1);
-			return;
-		}
-		if (!matchesKey(data, "return")) return;
-		const selected = THINKING_OPTIONS[this.effortCursor];
-		if (selected === INHERIT_THINKING) this.applyThinkingSelection(undefined);
-		else this.applyThinkingSelection(selected);
-		this.mode = "agents";
-	}
-
-	private renderEffortPicker(width: number): string[] {
-		const inner = Math.max(4, width - 2);
-		const tr = (t = '') => truncateToWidth(t, inner, '…', true);
-		const lines: string[] = [];
-
-		const agentLabel = this.selectedRow === SET_ALL_AGENTS ? t("models.row.all_agents", "todos los agentes") : this.selectedRow;
-		lines.push(tr(''));
-
-		for (let i = 0; i < THINKING_OPTIONS.length; i++) {
-			const opt = THINKING_OPTIONS[i];
-			const focused = i === this.effortCursor;
-			const cur = focused ? `${AP.gold}▸${AP.r}` : ' ';
-
-			let label: string;
-			if (opt === INHERIT_THINKING) {
-				const inheritLabel = t("models.inherit_default", "Heredar (por defecto)");
-				label = focused
-					? `${AP.b}${AP.wht}─  ${inheritLabel}${AP.r}`
-					: `${AP.d}${AP.gray}─  ${inheritLabel}${AP.r}`;
-			} else {
-				const colored = vaEffortColor(opt as ThinkingLevel);
-				label = focused ? `${AP.b}${colored}` : colored;
-			}
-			lines.push(tr(` ${cur} ${label}`));
-		}
-
-		lines.push(tr(''));
-		lines.push(tr(` ${AP.d}${AP.gray}${t("models.hint.nav", "↑↓ navegar · Enter seleccionar · Esc volver")}${AP.r}`));
-		lines.push(tr(''));
-
-		const title = `${AP.gold}${AP.b}■ ${t("models.title.effort", "ESFUERZO")}${AP.r}  ${AP.d}${AP.gray}${t("models.for", "para:")}${AP.r}  ${AP.wht}${agentLabel}${AP.r}`;
+		const title = `${AP.yellow}${AP.b}■ ${t("models.title.model", "MODELO")}${AP.r}  ${AP.d}${AP.gray}${t("models.for", "para:")}${AP.r}  ${AP.concrete}${agentLabel}${AP.r}`;
 		return SddModelPanel.addBorder(title, lines, width);
 	}
 
