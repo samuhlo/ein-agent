@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release registrada según el registro canónico local:** [0.31.0 · 2026-07-31](CHANGELOG.md#0310---2026-07-31).
+**Última release registrada según el registro canónico local:** [0.32.0 · 2026-07-31](CHANGELOG.md#0320---2026-07-31).
 
-- **Menos ceremonia, mismo valor:** se retira el ledger de coste (el segundo sistema-recibo) y se desenvuelve Engram — fuera la taxonomía E0/E1/E2, intactos la herramienta y los guardas de secretos.
-- **Memoria a nivel de sesión:** Engram recupera al arrancar y guarda al cerrar, no por fase; menos coste y menos superficie de fallo para los modelos baratos.
-- **Herramientas siempre frescas:** `ein update` ahora actualiza engram/hypa/codegraph presentes, sin instalar lo que no tienes.
+- **Menos código que adivina:** el bootstrap de `config.yaml` pasa de 799 a ~180 líneas (lee los scripts de package.json en vez de heurística multi-lenguaje que dejaba el test vacío).
+- **Menos peaje de prompt:** la lección de acceptance colapsa a un párrafo (el hook ya la subsume) y el forecast de tamaño de PR pasa a una tool determinista — el parent deja de ejecutar git inline.
+- **Menos fricción, más orden:** el preflight se parte en piezas con un trabajo cada una y baja de 5 a 3 preguntas al arrancar; el models-panel se pule (color honesto, esfuerzo inline).
 
 ---
 
