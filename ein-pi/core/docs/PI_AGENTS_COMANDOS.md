@@ -79,7 +79,7 @@ El flujo SDD es `scope → map → design → tasks → apply → verify → clo
 
 El advisor, para tecnologías sin skill curada (drizzle, zod, tailwind...), indica traer la doc fresca con Context7 (`resolve-library-id` + `query-docs`).
 
-Comandos legacy del registro (compatibilidad, no la ruta principal): `/skill-registry`, `/skill-registry:refresh`.
+Comando legacy del registro (compatibilidad, no la ruta principal): `/skill-registry` (alias de `/skills:advisor`).
 
 ## Linear
 

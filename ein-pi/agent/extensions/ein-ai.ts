@@ -93,7 +93,6 @@ import {
 } from "../lib/sdd-memory-save.ts";
 import {
 	codeConventionSkillBlock,
-	migrateLegacyAtl,
 	resolveSkillInjection,
 } from "./ein-skill-registry.ts";
 import { ensureEinGitignore } from "../lib/gitignore.ts";
@@ -560,10 +559,9 @@ export default function einAi(pi: ExtensionAPI): void {
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
-		// Higiene del proyecto: un único bloque gestionado en .gitignore y
-		// limpieza del antiguo .atl/ (ahora .pi/ein/atl/). Best-effort, no rompe.
+		// Higiene del proyecto: un único bloque gestionado en .gitignore.
+		// Best-effort, no rompe.
 		ensureEinGitignore(ctx.cwd);
-		migrateLegacyAtl(ctx.cwd);
 		try {
 			const installResult = installSddAssets(ctx.cwd, false);
 			const modelResult = await applySavedModelConfig(ctx);
