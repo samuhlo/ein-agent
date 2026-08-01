@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release registrada según el registro canónico local:** [0.32.0 · 2026-07-31](CHANGELOG.md#0320---2026-07-31).
+**Última release registrada según el registro canónico local:** [0.33.0 · 2026-08-01](CHANGELOG.md#0330---2026-08-01).
 
-- **Menos código que adivina:** el bootstrap de `config.yaml` pasa de 799 a ~180 líneas (lee los scripts de package.json en vez de heurística multi-lenguaje que dejaba el test vacío).
-- **Menos peaje de prompt:** la lección de acceptance colapsa a un párrafo (el hook ya la subsume) y el forecast de tamaño de PR pasa a una tool determinista — el parent deja de ejecutar git inline.
-- **Menos fricción, más orden:** el preflight se parte en piezas con un trabajo cada una y baja de 5 a 3 preguntas al arrancar; el models-panel se pule (color honesto, esfuerzo inline).
+- **Menos ceremonia:** el sistema de skills pasa de 1467 a 847 líneas — fuera el package-manager (lock, hash, reconcile) y la caché del registro; queda un `git clone` + copiar.
+- **Selección que acierta:** el selector puntúa por el trigger declarado de cada skill en vez de escanear el fichero entero (antes `architecture` se etiquetaba `nuxt, vue, react`), y ahora con tests que no existían.
+- **Context7 que cubre el long tail:** fuera el mapa de 11 keywords que solo conocía tecnologías comunes; una regla always-on en el core lleva a Context7 cualquier librería sin skill (topic-scoped, nunca el manual entero).
 
 ---
 

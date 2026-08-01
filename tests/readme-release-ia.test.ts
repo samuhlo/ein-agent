@@ -49,7 +49,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(releaseSummary).toContain(release.version);
     expect(releaseSummary).toContain(release.date);
     expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0320---2026-07-31");
+    expect(release.anchor).toBe("0330---2026-08-01");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
@@ -75,12 +75,12 @@ describe("contrato offline del README para release e instalación", () => {
     const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
 
     expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("799 a ~180 líneas");
-    expect(releaseSummary).toContain("lección de acceptance");
-    expect(releaseSummary).toContain("tool determinista");
-    expect(releaseSummary).toContain("git inline");
-    expect(releaseSummary).toContain("5 a 3 preguntas");
-    expect(releaseSummary).toContain("models-panel");
+    expect(releaseSummary).toContain("1467 a 847");
+    expect(releaseSummary).toContain("package-manager");
+    expect(releaseSummary).toContain("trigger declarado");
+    expect(releaseSummary).toContain("architecture");
+    expect(releaseSummary).toContain("long tail");
+    expect(releaseSummary).toContain("always-on");
   });
 
   test("guía por capacidad: sin presets, con recomendación por rol y decisión humana", () => {

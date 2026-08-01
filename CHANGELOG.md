@@ -5,6 +5,37 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.33.0] - 2026-08-01
+
+Batch de simplificación del sistema de skills + Context7 (norte de Ockham:
+menos ceremonia, más núcleo). El valor real —el selector que inyecta los
+`SKILL.md` relevantes en cada subagente— iba envuelto en maquinaria patrón-recibo.
+
+### Changed
+
+- **Sistema de skills 1467 → 847 líneas** (PR #83). En `ein-skill-maintenance`
+  (597 → 269) fuera el package-manager (lock, hash, reconcile, `skills-lock.json`):
+  queda `git clone --sparse` + copiar (clonar trae lo último, copiar sobrescribe).
+  En `ein-skill-registry` (870 → 578) fuera la caché del registro, el árbol
+  `.pi/ein/atl` + `skill-registry.md`, el tool `ein_skill_feedback` y el comando
+  `skill-registry:refresh`. La resolución de skills es automática (el parent ya no
+  lee ni casa un registro a mano).
+- **Selector arreglado: puntúa por el trigger declarado, no por escanear el
+  fichero** (PR #83). `inferTriggers` escaneaba todo el `SKILL.md` contra una lista
+  fija de keywords, así que `architecture` acababa etiquetada `nuxt, vue, react` (su
+  trigger real es refactor/architecture/design) y las skills verbosas ganaban en
+  cualquier tarea. Ahora `extractTriggers` lee la cláusula declarada (`Trigger:` /
+  `Use when`) de la descripción y el match es por palabra completa. Cobertura nueva
+  (`tests/skill-resolution.test.ts`): el selector no tenía ningún test.
+- **Context7 cubre el long tail con una regla always-on** (PR #83). El enrutado
+  era un mapa hardcodeado de 11 keywords (drizzle, zod, postgres…) que solo conocía
+  tecnologías comunes que el modelo ya domina, y quedaba mudo justo para la librería
+  rara o el atasco. Fuera el mapa + la detección por-tarea (~55 líneas); dentro una
+  regla always-on en `core/AGENTS.md`: cualquier librería sin skill curada —sobre
+  todo si no la dominas o te atascas— va a Context7 por el topic concreto
+  (`resolve-library-id` → `query-docs`), nunca el manual entero. Se conserva el
+  servidor MCP context7 (docs frescas topic-scoped ya las hace `query-docs` nativo).
+
 ## [0.32.0] - 2026-07-31
 
 Batch de simplificación siguiendo el norte (menos ceremonia, más núcleo; navaja
