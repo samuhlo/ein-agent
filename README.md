@@ -24,11 +24,11 @@ El bootstrap es el único canal de instalación confirmado para Ein.
 
 ## // ÚLTIMA RELEASE REGISTRADA
 
-**Última release registrada según el registro canónico local:** [0.33.0 · 2026-08-01](CHANGELOG.md#0330---2026-08-01).
+**Última release registrada según el registro canónico local:** [0.33.1 · 2026-08-01](CHANGELOG.md#0331---2026-08-01).
 
-- **Menos ceremonia:** el sistema de skills pasa de 1467 a 847 líneas — fuera el package-manager (lock, hash, reconcile) y la caché del registro; queda un `git clone` + copiar.
-- **Selección que acierta:** el selector puntúa por el trigger declarado de cada skill en vez de escanear el fichero entero (antes `architecture` se etiquetaba `nuxt, vue, react`), y ahora con tests que no existían.
-- **Context7 que cubre el long tail:** fuera el mapa de 11 keywords que solo conocía tecnologías comunes; una regla always-on en el core lleva a Context7 cualquier librería sin skill (topic-scoped, nunca el manual entero).
+- **Menos peso muerto:** se retira del orchestrator el protocolo legacy de intercom — 3 párrafos que gobernaban un estado imposible (el bridge va apagado por config).
+- **Sin perder guards:** se conservan las reglas vivas (status blocked, no wait-poll, no rehacer una fase por un ask tardío); solo desaparece el protocolo de interacción muerto.
+- **Más ligero por sesión:** ~487 tokens menos en cada sesión del parent (el orchestrator se carga siempre), con cero pérdida de calidad de entrega.
 
 ---
 

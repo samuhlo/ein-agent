@@ -5,6 +5,31 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.33.1] - 2026-08-01
+
+Mini fix: primera pieza del aligerado del orchestrator (norte de Ockham).
+
+### Changed
+
+- **Retirado el protocolo legacy de intercom del orchestrator** (PR #85). El
+  bridge de intercom va OFF por config (`extensions/subagent/config.json` →
+  `intercomBridge.mode: "off"`, fijado por test), así que los ~3 párrafos de
+  protocolo (*Intercom asks* reply+`wait`; *Detached-child liveness* stat del
+  `session.jsonl` mtime) gobernaban un estado imposible: con el bridge apagado,
+  ningún ejecutor se desacopla mid-run pidiendo al supervisor. Colapsados a un
+  párrafo que conserva los guards vivos (bridge off → `status: blocked`, un
+  detach es anomalía a reportar, no `wait`/`sleep`-poll, nunca rehacer una fase
+  por un ask tardío). ~1950 chars / ~487 tokens menos por sesión del parent (el
+  orchestrator se carga siempre), con cero pérdida de calidad de entrega. Test
+  P2 de `sdd-phase-runtime-contract` actualizado en lockstep.
+
+### Note
+
+- La investigación a fondo del aligerado del orchestrator concluyó que **el
+  resto no es grasa**: ~15 tests anti-drift fijan su contenido como invariantes
+  ganadas por incidentes. El intercom (muerto por config) era el único peso
+  muerto real; cortar más sería borrar guards de calidad.
+
 ## [0.33.0] - 2026-08-01
 
 Batch de simplificación del sistema de skills + Context7 (norte de Ockham:
