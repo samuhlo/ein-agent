@@ -84,8 +84,12 @@ describe("P2: fail-fast en vez de asks de supervisor", () => {
     });
   }
 
-  test("orchestrator desconfía de asks tardíos y verifica realidad antes de actuar", () => {
-    expect(orch).toContain("Intercom asks");
+  test("orchestrator trata el intercom como anomalía (bridge off) y no rehace por asks tardíos", () => {
+    // El protocolo legacy de intercom (reply+wait, stat del session file) se
+    // retiró: el bridge va OFF por config, así que un detach es una anomalía a
+    // reportar, no flujo normal. Se conservan los guards vivos.
+    expect(orch).toContain("intercom bridge OFF");
+    expect(orch).toContain("infrastructure anomaly to report");
     expect(orch.toLowerCase()).toMatch(/stale/);
     expect(orch).toMatch(/NEVER redo a phase[^\n]*stale ask/);
   });
