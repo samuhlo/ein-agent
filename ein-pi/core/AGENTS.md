@@ -11,6 +11,7 @@ Global operating guide for Pi Coding Agent on this machine — only the rules **
 - Preserve existing project conventions unless a change is clearly safer or simpler.
 - Smallest correct change wins. Explicit behavior over hidden magic. Remove unused imports, variables, and dead code in touched code.
 - For JS/TS/Vue/React/Nuxt/PHP/Java/CSS/HTML work, load `comment-style` and enforce it on touched blocks. Comments explain why; if a comment repeats the code, remove it.
+- For a library or framework with no curated skill — especially one you don't know well, or when you get stuck — fetch topic-scoped docs via Context7 (`resolve-library-id` → `query-docs` for the task's specific topic) instead of guessing or loading a whole manual. Apply only what the task needs.
 
 ## Linear (Team mode only)
 

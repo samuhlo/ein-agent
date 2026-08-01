@@ -83,7 +83,7 @@ En `ein-ai.ts`: bloquea comandos destructivos, escrituras en secretos y cambios 
 
 El cableado MCP usa **`pi-mcp-adapter`** (declarado en `settings.json` packages): un proxy de un solo tool `mcp()` (~200 tokens) en vez de cargar todas las defs (10k+ tokens/server). Estrategia híbrida:
 - **engram** → proxy (`directTools: false`). Sus 15 tools no inflan el contexto; el modelo los descubre on-demand vía `mcp()`. Ahí está el ahorro.
-- **context7** → `directTools: true`. Sus 2 tools (`resolve-library-id`, `query-docs`) se exponen como first-class para que el digest de Context7 (`ein-skill-registry.ts`) funcione sin cambios.
+- **context7** → `directTools: true`. Sus 2 tools (`resolve-library-id`, `query-docs`) se exponen como first-class para que el modelo traiga docs del topic on-demand (regla en `AGENTS.md`) sin fricción.
 
 Comandos del adapter: `/mcp` (panel), `/mcp setup`, `/mcp reconnect <server>`. Tras tocar `directTools`, `/mcp reconnect context7` fuerza el registro de tools.
 
@@ -113,22 +113,21 @@ Archivos:
 ```text
 ~/.pi/agent/skills/local/            # opinadas propias (sync desde el repo GitHub)
 ~/.pi/agent/skills/downloaded/       # set curado de fuentes fiables
-~/.pi/agent/skills/stack-profile.json # core, secondary, catalog, context7
-~/.pi/agent/skills/skills-lock.json   # instaladas + hash
+~/.pi/agent/skills/stack-profile.json # core, secondary, catalog
 ```
 
 Capas:
 1. **local**: insustituibles, sincronizadas desde `samuhlo/ein-agent` (sparse clone).
 2. **downloaded**: curado de onmax/antfu/greensock/vercel-labs/yusukebe/midudev.
-3. **context7**: lo no listado en `catalog` (mapa `context7` del perfil) se trae on-demand.
+3. **context7**: cualquier librería sin skill curada se cubre on-demand vía Context7. No hay lista fija: es una regla always-on en `AGENTS.md` (el modelo la aplica cuando no domina una tech o se atasca).
 
 Comandos (`ein-skill-maintenance.ts`):
-- `/ein:skills` → estado (perfil, drift de hash, fuera de stack).
-- `/ein:skills update [--local|--downloaded]` → clona fuentes, hashea, copia si cambió, reconcilia el lock de forma autoritativa.
+- `/ein:skills` → estado (perfil, fuera de stack).
+- `/ein:skills update [--local|--downloaded]` → clona las fuentes y copia (sin hash ni lock; clonar trae lo último, copiar sobrescribe).
 - `/ein:skills add <skill>` → instala una del catálogo.
 - `/ein:skills clean [--yes]` → **borra** las bajadas fuera de `core+secondary` (no archiva).
 
-Advisor (`ein-skill-registry.ts`): `/ein:skills:advisor <tarea>` resuelve skills relevantes y, para techs sin skill curada, emite instrucción de Context7 (`resolve-library-id` + `query-docs`). La inyección a subagentes (`resolveSkillInjection`) incluye tanto rutas `SKILL.md` como la guía de Context7.
+Advisor (`ein-skill-registry.ts`): `/ein:skills:advisor <tarea>` resuelve skills relevantes. La inyección a subagentes (`resolveSkillInjection`) pasa las rutas `SKILL.md` exactas; la doctrina de Context7 para techs sin skill vive como regla always-on en `AGENTS.md`, no como detección por-tarea.
 
 **Convenciones de código always-on**: `comment-style`, `logging-style` y `file-naming` no dependen de la relevancia. `codeConventionSkillBlock()` las inyecta **siempre**, tanto en el parent como en todos los subagentes (en `before_agent_start` de `ein-ai.ts`). El bloque se auto-gatea ("antes de escribir código…"), así que es inocuo para agentes que no tocan código. Se excluyen de la resolución por relevancia para no duplicarse.
 
@@ -151,7 +150,7 @@ Carpeta `installer/` del repo (Bun + TypeScript, compilado a binarios standalone
 3. Si añades una extensión, actualiza `CORE_EXTENSIONS` en `ein-doctor.ts` y `installer/src/core/verify.ts`.
 4. Toda mutación Linear usa `linearMutation(...)`.
 5. Si añades un comando público, actualiza `/ein:help full` y `PI_AGENTS_COMANDOS.md`.
-6. Para añadir una skill, edita `catalog` (fuente fiable) o `context7` (mapa) en `stack-profile.json`.
+6. Para añadir una skill, edita `catalog` (fuente fiable) en `stack-profile.json`. Para una tech sin skill, no hay que tocar nada: la regla de Context7 en `AGENTS.md` ya la cubre.
 7. Texto de UI nuevo: clave en `lib/i18n/strings.ts` con **paridad `es`/`en`** y consúmelo con `t`/`tf` (extensiones) o `pick`/`pickFor` (libs acoplados a tests). Nunca hardcodees strings de UI.
 
 ## Troubleshooting

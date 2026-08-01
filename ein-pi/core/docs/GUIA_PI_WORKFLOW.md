@@ -79,7 +79,7 @@ Mantenimiento:
 /ein:skills:advisor <tarea>     → qué skills usar + digest con Context7
 ```
 
-La inyección de skills es automática: antes de cada delegación a un subagente, Ein resuelve las skills relevantes e inyecta sus rutas `SKILL.md` (y la guía de Context7 para techs sin skill) en el system prompt del subagente.
+La inyección de skills es automática: antes de cada delegación a un subagente, Ein resuelve las skills relevantes e inyecta sus rutas `SKILL.md` en el system prompt del subagente. Para librerías sin skill, la regla de Context7 (topic-scoped) vive always-on en `AGENTS.md`, que todo agente comparte.
 
 El perfil vive en `~/.pi/agent/skills/stack-profile.json`.
 

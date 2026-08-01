@@ -296,74 +296,19 @@ export function resolveSkills(registry: SkillEntry[], task: string, explicitStac
   return [...unique.values()];
 }
 
-const STACK_PROFILE_PATH = join(AGENT_DIR, "skills", "stack-profile.json");
-
-// Map of detection-keyword -> Context7 library query, read from the stack
-// profile. These are technologies deliberately NOT given a curated skill; the
-// model pulls fresh docs from Context7 on demand instead.
-function loadContext7Map(): Record<string, string> {
-  try {
-    const raw = JSON.parse(readFileSync(STACK_PROFILE_PATH, "utf8")) as { context7?: unknown };
-    const map = raw.context7;
-    if (map && typeof map === "object" && !Array.isArray(map)) {
-      const out: Record<string, string> = {};
-      for (const [key, value] of Object.entries(map as Record<string, unknown>)) {
-        if (typeof value === "string") out[key.toLowerCase()] = value;
-      }
-      return out;
-    }
-  } catch {
-    // no profile / parse error -> no Context7 routing
-  }
-  return {};
-}
-
-// Detect Context7-routed technologies mentioned in the task.
-// BLINDAJE -> dedupe by query (not by tech key) because two synonyms in the
-// stack profile can map to the same library, and we only want one
-// resolve-library-id call per library per task.
-function detectContext7(task: string): Array<{ tech: string; query: string }> {
-  const lower = task.toLowerCase();
-  const map = loadContext7Map();
-  const seen = new Set<string>();
-  const out: Array<{ tech: string; query: string }> = [];
-  for (const [tech, query] of Object.entries(map)) {
-    const escaped = tech.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    if (new RegExp(`\\b${escaped}\\b`, "i").test(lower) && !seen.has(query)) {
-      seen.add(query);
-      out.push({ tech, query });
-    }
-  }
-  return out;
-}
-
-// Renders the "techs sin skill curada" block; only called from digestSkillGuidelines.
-function context7Section(task: string): string[] {
-  const libs = detectContext7(task);
-  if (!libs.length) return [];
-  return [
-    "",
-    "■ 003. CONTEXT7 (techs sin skill curada)",
-    "Estas tecnologias no tienen skill en el stack. Trae docs frescas on-demand:",
-    ...libs.map((l) => `  - ${l.tech} -> resolve-library-id "${l.query}" -> query-docs (solo el topic de la tarea)`),
-    "- No vuelques toda la doc: pide el topic concreto y aplica solo lo relevante.",
-  ];
-}
+// Context7 routing is NOT a hardcoded keyword map anymore: a standing rule in
+// the core AGENTS.md tells the model to fetch topic-scoped docs via Context7
+// (resolve-library-id -> query-docs) for ANY library without a curated skill —
+// especially the unfamiliar long tail, which a fixed list could never cover.
 
 function digestSkillGuidelines(skills: SkillEntry[], task: string, stack: string): string {
-  const c7 = context7Section(task);
-
   if (!skills.length) {
-    const base = [
+    return [
       "/// 000. SKILL DIGEST",
       `- **Task:** ${task || "(no task provided)"}`,
       `- **Stack:** ${stack}`,
-    ];
-    if (!c7.length) {
-      base.push("- No se encontraron skills con buena senal. Usa skill manual o refina la tarea.");
-      return base.join("\n");
-    }
-    return [...base, ...c7].join("\n");
+      "- No se encontraron skills con buena senal. Para una libreria sin skill curada, trae docs del topic via Context7. Si no, usa skill manual o refina la tarea.",
+    ].join("\n");
   }
 
   const header = [
@@ -385,9 +330,10 @@ function digestSkillGuidelines(skills: SkillEntry[], task: string, stack: string
     "- Para cada skill cargada, lee SKILL.md y aplica sus reglas.",
     "- Si una skill no tiene sentido para la tarea, documenta por que la descartas.",
     "- Cuando edites codigo, explica en la salida que reglas seguiste y que riesgo evitaste.",
+    "- Para una libreria sin skill curada (o que no domines), trae docs del topic concreto via Context7, nunca el manual entero.",
   ];
 
-  return [...header, ...protocol, ...c7].join("\n");
+  return [...header, ...protocol].join("\n");
 }
 
 function formatRegistry(entries: SkillEntry[], source: string, totalFiltered: number): string {
@@ -466,29 +412,16 @@ export function resolveSkillInjection(cwd: string, task: string, limit = 6): str
       !CODE_CONVENTION_KEYS.includes(skill.key) &&
       skillAllowedInMode(skill.key, mode),
   );
-  const c7 = detectContext7(cleanTask);
-  if (!resolved.length && !c7.length) return "";
+  if (!resolved.length) return "";
 
-  const parts: string[] = [];
-  if (resolved.length) {
-    parts.push(
-      "## Skills to load before work",
-      "",
-      "Read these exact SKILL.md files before reading, writing, reviewing, testing, or creating artifacts:",
-      ...resolved.map((skill) => `- ${skill.path}`),
-      "",
-      "For each skill, apply its rules; if one does not fit the task, note why you skip it.",
-    );
-  }
-  if (c7.length) {
-    if (parts.length) parts.push("");
-    parts.push(
-      "## Context7 (no curated skill)",
-      "These technologies have no curated skill. Fetch fresh docs via Context7 (resolve-library-id then query-docs) for the task topic before using them:",
-      ...c7.map((l) => `- ${l.tech} -> ${l.query}`),
-    );
-  }
-  return parts.join("\n");
+  return [
+    "## Skills to load before work",
+    "",
+    "Read these exact SKILL.md files before reading, writing, reviewing, testing, or creating artifacts:",
+    ...resolved.map((skill) => `- ${skill.path}`),
+    "",
+    "For each skill, apply its rules; if one does not fit the task, note why you skip it.",
+  ].join("\n");
 }
 
 export default function einSkillRegistry(pi: ExtensionAPI) {

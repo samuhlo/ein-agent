@@ -126,9 +126,9 @@ Comandos de skills (dentro de Pi):
 /ein:skills:advisor <tarea>    → te dice qué skills usar para una tarea concreta
 ```
 
-**El advisor con Context7:** cuando le pides ayuda para una tarea, Ein mira qué tecnologías hay. Si tiene skill curada, la usa. Si no (por ejemplo "drizzle" o "zod"), te dice que traiga la doc fresca de Context7. Así nunca trabaja a ciegas.
+**El advisor con Context7:** cuando le pides ayuda para una tarea, Ein usa la skill curada si la hay. Si no hay skill para una librería —sobre todo si no la domina o se atasca—, trae la doc fresca del topic concreto vía Context7. No hay lista fija de tecnologías: es una regla que aplica el propio modelo cuando reconoce que le falta contexto. Así nunca trabaja a ciegas.
 
-Para cambiar el catálogo de skills, edita `~/.pi/agent/skills/stack-profile.json`: ahí están las listas `core`/`secondary`, el `catalog` (de dónde sale cada skill) y el mapa `context7` (qué tecnologías van por Context7).
+Para cambiar el catálogo de skills, edita `~/.pi/agent/skills/stack-profile.json`: ahí están las listas `core`/`secondary` y el `catalog` (de dónde sale cada skill).
 
 ---
 
