@@ -224,7 +224,7 @@ If the repo ships `EIN.md` (auto-injected), treat it as ground truth for stack, 
 
 ## Skills
 
-Resolve skills once per session / before first delegation: read `.pi/ein/atl/skill-registry.md`, match task + target files against the trigger column, and pass only the matching `Path` values to subagents under `## Skills to load before work`. Subagents receive exact indexed paths; they don't rediscover the registry. SDD subagents keep their assigned phase skill. If a subagent reports `skill_resolution` as a fallback instead of `paths-injected`, pass exact paths in the next delegation.
+Relevant skills are resolved and injected automatically into each subagent prompt under `## Skills to load before work` — you don't read or match a registry by hand. Subagents load the exact `SKILL.md` paths they receive; they don't rediscover them. SDD subagents keep their assigned phase skill. To inspect or resolve skills for a task yourself, use `/skills:advisor <task>` or the `ein_skill_*` tools.
 
 ## Optional project notebook
 

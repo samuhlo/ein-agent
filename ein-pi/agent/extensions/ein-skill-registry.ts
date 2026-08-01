@@ -1,19 +1,18 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { homedir } from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
 import { pick } from "../lib/lang";
 import { readMode } from "../lib/mode";
-import { ensureEinGitignore } from "../lib/gitignore";
 import { AGENT_DIR, DOWNLOADED_SKILLS_DIR, LOCAL_SKILLS_DIR } from "./ein-paths";
 
 type SkillScope = "project" | "user";
 
 type SkillSource = "local" | "downloaded" | "project";
 
-type SkillEntry = {
+export type SkillEntry = {
   key: string;
   name: string;
   source: SkillSource;
@@ -30,8 +29,6 @@ type RegistryParams = {
   task?: string;
   stack?: "node" | "frontend" | "fullstack" | "unknown";
   limit?: number;
-  output?: string;
-  expectedSkills?: string;
 };
 
 const registrySchema = {
@@ -42,17 +39,8 @@ const registrySchema = {
     task: { type: "string", description: "Concrete task text used for skill resolution/digestion." },
     stack: { type: "string", description: "node | frontend | fullstack | unknown" },
     limit: { type: "number", description: "Max number of results." },
-    output: { type: "string", description: "Agent output text to audit against expected skills." },
-    expectedSkills: { type: "string", description: "Comma-separated expected skill keys or names." },
   },
 } as const;
-
-// Ein state consolidated under .pi/ein/ (alongside lang/tdd/persona). It used
-// to live at .atl/ at the repo root; migrateLegacyAtl() cleans that remnant.
-const ATL_SEGMENTS = [".pi", "ein", "atl"] as const;
-const LEGACY_ATL_DIR = ".atl";
-const REGISTRY_MD = "skill-registry.md";
-const CACHE_JSON = ".skill-registry.cache.json";
 
 const PROJECT_SKILL_DIRS = [
   "skills",
@@ -76,14 +64,6 @@ const USER_SKILL_DIRS = [
   join(homedir(), ".cache/cline/skills"),
   join(homedir(), ".cache/coze/skills"),
 ];
-
-interface CacheData {
-  version: number;
-  entries: SkillEntry[];
-  scannedDirs: string[];
-  generatedAt: number;
-  youngestMtime: number;
-}
 
 function firstSentence(text: string): string {
   const clean = text.replace(/\s+/g, " ").trim();
@@ -147,24 +127,6 @@ function collectSkillFiles(root: string): string[] {
   return files;
 }
 
-function newestMtime(dir: string): number {
-  let newest = 0;
-  try {
-    const files = collectSkillFiles(dir);
-    for (const f of files) {
-      try {
-        const mtime = statSync(f).mtimeMs;
-        if (mtime > newest) newest = mtime;
-      } catch {
-        // skip
-      }
-    }
-  } catch {
-    // skip
-  }
-  return newest;
-}
-
 function inferStackTags(content: string): string[] {
   const lower = content.toLowerCase();
   const tags: string[] = [];
@@ -175,19 +137,40 @@ function inferStackTags(content: string): string[] {
   return [...new Set(tags)];
 }
 
-function inferTriggers(content: string): string[] {
-  const lower = content.toLowerCase();
-  const triggers: string[] = [];
-  const candidates = [
-    "postgresql", "nuxt", "vue", "react", "github", "linear",
-    "animation", "gsap", "accessibility", "performance", "seo", "obsidian",
-    "logging", "comment", "naming", "kebab", "readme", "refactor",
-    "architecture", "design", "pattern",
-  ];
-  for (const candidate of candidates) {
-    if (lower.includes(candidate)) triggers.push(candidate);
-  }
-  return triggers;
+// Generic words that carry no routing signal. Kept deliberately small: only
+// articles/prepositions/auxiliaries + a few doc-boilerplate words. Domain terms
+// (auth, api, test, seo…) are NOT here — those ARE the signal.
+const STOPWORDS = new Set([
+  "the", "a", "an", "and", "or", "for", "to", "of", "in", "on", "with", "when",
+  "this", "that", "these", "those", "your", "you", "it", "its", "is", "are",
+  "be", "as", "at", "by", "from", "into", "via", "use", "using", "used", "not",
+  "skill", "skills", "trigger", "triggers", "provide", "provides", "following",
+  "guide", "guidelines", "help", "helps", "make", "makes", "based", "user",
+  "users", "work", "works", "project", "projects", "file", "files", "code",
+  "app", "apps", "web", "build", "building", "create", "creating", "add",
+  "adding", "task", "tasks", "modern", "best", "practices",
+]);
+
+function tokenize(text: string): string[] {
+  return [...new Set(
+    text.toLowerCase()
+      .split(/[^a-z0-9+]+/)
+      .filter((word) => word.length >= 3 && !STOPWORDS.has(word)),
+  )];
+}
+
+// Triggers = the author's DECLARED intent, not a scan of the whole file. Prefer
+// an explicit "Trigger:" / "Use when …" clause in the description; fall back to
+// the description body when a skill declares none. Capped so a long description
+// can't dominate the ranking.
+export function extractTriggers(description: string): string[] {
+  const lower = description.toLowerCase();
+  const clause =
+    lower.match(/triggers?\s*[:—-]\s*([^.]*)/)?.[1] ??
+    lower.match(/\buse (?:when|it when|this skill (?:when|for)|for)\s+([^.]*)/)?.[1] ??
+    "";
+  const declared = tokenize(clause);
+  return (declared.length ? declared : tokenize(description)).slice(0, 12);
 }
 
 function parseSkill(skillPath: string, source: SkillSource, scope: SkillScope): SkillEntry {
@@ -205,8 +188,10 @@ function parseSkill(skillPath: string, source: SkillSource, scope: SkillScope): 
     scope,
     path: skillPath,
     description,
-    stackTags: inferStackTags(content),
-    triggers: inferTriggers(content),
+    // Infer from the (short, focused) description, not the whole file — the body
+    // of a SKILL.md mentions half the ecosystem in its examples.
+    stackTags: inferStackTags(description),
+    triggers: extractTriggers(description),
   };
 }
 
@@ -278,24 +263,28 @@ function detectStackFromTask(task: string): "node" | "frontend" | "fullstack" | 
   return "unknown";
 }
 
-function scoreSkill(entry: SkillEntry, task: string, stack: "node" | "frontend" | "fullstack" | "unknown"): number {
+function scoreSkill(entry: SkillEntry, task: string, taskTokens: Set<string>, stack: "node" | "frontend" | "fullstack" | "unknown"): number {
   const lowerTask = task.toLowerCase();
   let score = 0;
-  if (stack !== "unknown" && entry.stackTags.includes(stack)) score += 5;
-  if (entry.stackTags.includes("workflow")) score += 1;
-  for (const trigger of entry.triggers) {
-    if (lowerTask.includes(trigger)) score += 3;
-  }
-  const nameLower = entry.name.toLowerCase();
-  if (lowerTask.includes(nameLower)) score += 6;
+  // Name/key are the most precise signal: an exact mention of the skill.
+  if (lowerTask.includes(entry.name.toLowerCase())) score += 6;
   if (lowerTask.includes(entry.key)) score += 4;
+  // Declared triggers, matched as whole words (not substrings, so "api" doesn't
+  // hit "rapid"). This is the author's intent, now clean of file noise.
+  for (const trigger of entry.triggers) {
+    if (taskTokens.has(trigger)) score += 2;
+  }
+  // Stack is a coarse tie-breaker, not a driver — hence low weight.
+  if (stack !== "unknown" && entry.stackTags.includes(stack)) score += 2;
+  if (entry.stackTags.includes("workflow")) score += 1;
   return score;
 }
 
-function resolveSkills(registry: SkillEntry[], task: string, explicitStack?: "node" | "frontend" | "fullstack" | "unknown", limit = 8): SkillEntry[] {
+export function resolveSkills(registry: SkillEntry[], task: string, explicitStack?: "node" | "frontend" | "fullstack" | "unknown", limit = 8): SkillEntry[] {
   const stack = explicitStack && explicitStack !== "unknown" ? explicitStack : detectStackFromTask(task);
+  const taskTokens = new Set(tokenize(task));
   const scored = registry
-    .map((entry) => ({ entry, score: scoreSkill(entry, task, stack) }))
+    .map((entry) => ({ entry, score: scoreSkill(entry, task, taskTokens, stack) }))
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
 
@@ -419,214 +408,6 @@ function formatRegistry(entries: SkillEntry[], source: string, totalFiltered: nu
   return lines.join("\n");
 }
 
-function normalizeTokens(text: string): string[] {
-  return text.split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
-}
-
-function feedbackReport(output: string, expected: string[], registry: SkillEntry[]): string {
-  const lowerOutput = output.toLowerCase();
-  const lines = [
-    "/// 000. SKILL FEEDBACK",
-    `- **Skills esperadas:** ${expected.length}`,
-    "",
-  ];
-
-  if (!expected.length) {
-    lines.push("- No se definieron skills esperadas. Pasa `expectedSkills` para auditar aplicacion.");
-    return lines.join("\n");
-  }
-
-  for (const token of expected) {
-    const entry = registry.find((item) => item.key === token || item.name.toLowerCase() === token);
-    const candidates = [token];
-    if (entry) {
-      candidates.push(entry.key.toLowerCase(), entry.name.toLowerCase());
-      for (const trigger of entry.triggers) candidates.push(trigger.toLowerCase());
-    }
-    const found = candidates.some((candidate) => lowerOutput.includes(candidate));
-    lines.push(`- **${token}** -> ${found ? "Applied (signal found)" : "Missing signal"}`);
-  }
-
-  lines.push("");
-  lines.push("■ 001. RECOMENDACION");
-  lines.push("- Si hay `Missing signal`, exige que el subagente explique explicitamente que regla de la skill aplico y que riesgo evito.");
-  lines.push("- Para tareas criticas, combinar este feedback con verify real (tests/build/lint/typecheck).");
-  return lines.join("\n");
-}
-
-function getAtlDir(cwd: string): string {
-  return join(cwd, ...ATL_SEGMENTS);
-}
-
-// Elimina el resto del antiguo .atl/ en la raíz (solo nuestros ficheros
-// generados; nunca toca .atl/skills u otro contenido del usuario). Best-effort.
-export function migrateLegacyAtl(cwd: string): void {
-  const legacy = join(cwd, LEGACY_ATL_DIR);
-  try {
-    if (!existsSync(legacy)) return;
-    for (const f of [REGISTRY_MD, CACHE_JSON]) {
-      const p = join(legacy, f);
-      if (existsSync(p)) rmSync(p, { force: true });
-    }
-    // Borrar el dir solo si quedó vacío (no arrastrar skills del usuario).
-    try {
-      if (readdirSync(legacy).length === 0) rmSync(legacy, { recursive: true, force: true });
-    } catch {
-      // best-effort
-    }
-  } catch {
-    // best-effort
-  }
-}
-
-function ensureAtlDir(cwd: string): string {
-  const dir = getAtlDir(cwd);
-  try {
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    // Garantía: en cuanto creamos .pi/ein/atl/, aseguramos el ignore (idempotente).
-    // Cierra el hueco si refreshRegistry corre antes de que el session_start
-    // alcance writeGitignoreEntry, o si éste falla.
-    ensureEinGitignore(cwd);
-  } catch {
-    // best-effort
-  }
-  return dir;
-}
-
-function writeGitignoreEntry(cwd: string): void {
-  // Fuente de verdad única en lib/gitignore.ts (bloque .pi/ein/ + .piagents/).
-  ensureEinGitignore(cwd);
-}
-
-function writeRegistryMd(cwd: string, entries: SkillEntry[]): void {
-  const atlDir = ensureAtlDir(cwd);
-  const mdPath = join(atlDir, REGISTRY_MD);
-
-  const allDirs = [
-    ...PROJECT_SKILL_DIRS.map((d) => join(cwd, d)),
-    ...USER_SKILL_DIRS.map((d) => d),
-  ].filter((d) => {
-    try { return statSync(d).isDirectory(); } catch { return false; }
-  });
-
-  const sourcesScanned = allDirs.map((d) => relative(cwd, d));
-
-  const tableRows = entries.map((e) => {
-    const trigger = e.triggers.slice(0, 3).join(", ");
-    return `| ${e.name} | ${trigger || "—"} | ${e.description.slice(0, 60)} | ${e.scope} | \`${e.path}\` |`;
-  }).join("\n");
-
-  const md = [
-    "# Skill Registry",
-    "",
-    "## Sources Scanned",
-    allDirs.length ? sourcesScanned.map((d) => `- \`${d}\``).join("\n") : "_None found._",
-    "",
-    "## Contract",
-    "**`SKILL.md` is the source of truth.** Every skill directory must contain a `SKILL.md` file that defines name, description, and rules. All other files are secondary.",
-    "",
-    "## Index",
-    "",
-    "| Skill | Trigger | Description | Scope | Path |",
-    "| --- | --- | --- | --- | --- |",
-    tableRows || "| — | — | — | — | — |",
-  ].join("\n");
-
-  try {
-    writeFileSync(mdPath, md, "utf8");
-  } catch {
-    // best-effort
-  }
-}
-
-function readCache(cwd: string): CacheData | null {
-  const cachePath = join(getAtlDir(cwd), CACHE_JSON);
-  try {
-    const raw = readFileSync(cachePath, "utf8");
-    return JSON.parse(raw) as CacheData;
-  } catch {
-    return null;
-  }
-}
-
-function writeCache(cwd: string, entries: SkillEntry[], scannedDirs: string[]): void {
-  const atlDir = ensureAtlDir(cwd);
-  const cachePath = join(atlDir, CACHE_JSON);
-
-  let youngestMtime = 0;
-  for (const entry of entries) {
-    try {
-      const m = statSync(entry.path).mtimeMs;
-      if (m > youngestMtime) youngestMtime = m;
-    } catch {
-      // skip
-    }
-  }
-
-  const data: CacheData = {
-    version: 1,
-    entries,
-    scannedDirs,
-    generatedAt: Date.now(),
-    youngestMtime,
-  };
-
-  try {
-    writeFileSync(cachePath, JSON.stringify(data, null, 2), "utf8");
-  } catch {
-    // best-effort
-  }
-}
-
-function buildScopedRegistry(cwd: string): SkillEntry[] {
-  return loadRegistry(cwd);
-}
-
-function needsRegeneration(cwd: string, cache: CacheData): boolean {
-  if (!cache || cache.version !== 1) return true;
-
-  const allDirs = [
-    ...PROJECT_SKILL_DIRS.map((d) => join(cwd, d)),
-    ...USER_SKILL_DIRS,
-  ];
-
-  for (const dir of allDirs) {
-    const mtime = newestMtime(dir);
-    if (mtime > cache.youngestMtime) return true;
-  }
-
-  return false;
-}
-
-function refreshRegistry(cwd: string): SkillEntry[] {
-  const atlDir = ensureAtlDir(cwd);
-  const mdPath = join(atlDir, REGISTRY_MD);
-
-  const allDirs = [
-    ...PROJECT_SKILL_DIRS.map((d) => join(cwd, d)),
-    ...USER_SKILL_DIRS,
-  ];
-
-  const entries = loadRegistry(cwd);
-  writeRegistryMd(cwd, entries);
-
-  const scannedDirs = allDirs
-    .map((d) => relative(cwd, d))
-    .filter((d) => {
-      try { return statSync(join(cwd, d)).isDirectory(); } catch { return false; }
-    });
-
-  writeCache(cwd, entries, scannedDirs);
-  return entries;
-}
-
-function getOrCreateRegistry(cwd: string): SkillEntry[] {
-  const cached = readCache(cwd);
-  if (cached && !needsRegeneration(cwd, cached)) {
-    return cached.entries;
-  }
-  return refreshRegistry(cwd);
-}
 
 // House conventions that ALWAYS apply when writing or editing code, regardless
 // of relevance. Injected separately via codeConventionSkillBlock, so they are
@@ -649,7 +430,7 @@ export function skillAllowedInMode(key: string, mode: "solo" | "team"): boolean 
 export function codeConventionSkillBlock(cwd: string): string {
   let registry: SkillEntry[] = [];
   try {
-    registry = getOrCreateRegistry(cwd);
+    registry = loadRegistry(cwd);
   } catch {
     return "";
   }
@@ -675,7 +456,7 @@ export function resolveSkillInjection(cwd: string, task: string, limit = 6): str
   if (!cleanTask) return "";
   let registry: SkillEntry[] = [];
   try {
-    registry = getOrCreateRegistry(cwd);
+    registry = loadRegistry(cwd);
   } catch {
     registry = [];
   }
@@ -719,26 +500,11 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
     parameters: registrySchema,
     async execute(_id, params: RegistryParams, ctx: any) {
       const cwd = ctx?.cwd ?? process.cwd();
-      const registry = getOrCreateRegistry(cwd);
+      const registry = loadRegistry(cwd);
       const filtered = filteredRegistry(registry, params);
       const limit = Math.max(1, Math.min(params.limit ?? filtered.length, 100));
       const output = formatRegistry(filtered.slice(0, limit), params.source ?? "all", filtered.length);
       return { content: [{ type: "text", text: output }], details: { total: filtered.length } };
-    },
-  });
-
-  pi.registerTool({
-    name: "ein_skill_feedback",
-    label: "Ein Skill Feedback",
-    description: "Audit whether expected skill signals are present in an agent output.",
-    parameters: registrySchema,
-    async execute(_id, params: RegistryParams, ctx: any) {
-      const output = (params.output ?? "").trim();
-      if (!output) throw new Error("output is required");
-      const expected = normalizeTokens(params.expectedSkills ?? "");
-      const cwd = ctx?.cwd ?? process.cwd();
-      const report = feedbackReport(output, expected, getOrCreateRegistry(cwd));
-      return { content: [{ type: "text", text: report }], details: { expected: expected.length } };
     },
   });
 
@@ -751,7 +517,7 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
       const task = (params.task ?? params.query ?? "").trim();
       if (!task) throw new Error("task or query is required");
       const cwd = ctx?.cwd ?? process.cwd();
-      const registry = getOrCreateRegistry(cwd);
+      const registry = loadRegistry(cwd);
       const resolved = resolveSkills(registry, task, params.stack ?? "unknown", Math.max(1, Math.min(params.limit ?? 8, 20)));
       const stack = params.stack && params.stack !== "unknown" ? params.stack : detectStackFromTask(task);
 
@@ -782,7 +548,7 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
       if (!task) throw new Error("task or query is required");
       const stack = params.stack && params.stack !== "unknown" ? params.stack : detectStackFromTask(task);
       const cwd = ctx?.cwd ?? process.cwd();
-      const registry = getOrCreateRegistry(cwd);
+      const registry = loadRegistry(cwd);
       const resolved = resolveSkills(registry, task, stack, Math.max(1, Math.min(params.limit ?? 6, 12)));
       const digest = digestSkillGuidelines(resolved, task, stack);
       return { content: [{ type: "text", text: digest }], details: { stack, count: resolved.length } };
@@ -837,35 +603,4 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
     handler: skillsHandler,
   });
 
-  pi.registerCommand("skill-registry:refresh", {
-    description: t(
-      "cmd.skill-registry.refresh.description",
-      "Fuerza regeneracion de .pi/ein/atl/skill-registry.md desde cero",
-    ),
-    handler: async (_args: string, ctx: any) => {
-      const cwd = ctx?.cwd ?? process.cwd();
-      try {
-        const entries = refreshRegistry(cwd);
-        writeGitignoreEntry(cwd);
-        const count = entries.length;
-        ctx.ui?.notify?.(`Registry refreshed: ${count} skills indexed.`, "info");
-      } catch (e: any) {
-        ctx.ui?.notify?.(`Refresh failed: ${e?.message ?? "unknown error"}`, "error");
-      }
-    },
-  });
-
-  pi.on("session_start", async (_event, ctx) => {
-    const cwd = ctx?.cwd ?? process.cwd();
-    try {
-      refreshRegistry(cwd);
-      writeGitignoreEntry(cwd);
-    } catch (e: any) {
-      try {
-        ctx.ui?.notify?.(`Warning: could not write skill registry: ${e?.message ?? "unknown"}`, "warning");
-      } catch {
-        // best-effort
-      }
-    }
-  });
 }
