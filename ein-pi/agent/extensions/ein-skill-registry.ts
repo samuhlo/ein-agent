@@ -12,7 +12,7 @@ type SkillScope = "project" | "user";
 
 type SkillSource = "local" | "downloaded" | "project";
 
-type SkillEntry = {
+export type SkillEntry = {
   key: string;
   name: string;
   source: SkillSource;
@@ -137,19 +137,40 @@ function inferStackTags(content: string): string[] {
   return [...new Set(tags)];
 }
 
-function inferTriggers(content: string): string[] {
-  const lower = content.toLowerCase();
-  const triggers: string[] = [];
-  const candidates = [
-    "postgresql", "nuxt", "vue", "react", "github", "linear",
-    "animation", "gsap", "accessibility", "performance", "seo", "obsidian",
-    "logging", "comment", "naming", "kebab", "readme", "refactor",
-    "architecture", "design", "pattern",
-  ];
-  for (const candidate of candidates) {
-    if (lower.includes(candidate)) triggers.push(candidate);
-  }
-  return triggers;
+// Generic words that carry no routing signal. Kept deliberately small: only
+// articles/prepositions/auxiliaries + a few doc-boilerplate words. Domain terms
+// (auth, api, test, seo…) are NOT here — those ARE the signal.
+const STOPWORDS = new Set([
+  "the", "a", "an", "and", "or", "for", "to", "of", "in", "on", "with", "when",
+  "this", "that", "these", "those", "your", "you", "it", "its", "is", "are",
+  "be", "as", "at", "by", "from", "into", "via", "use", "using", "used", "not",
+  "skill", "skills", "trigger", "triggers", "provide", "provides", "following",
+  "guide", "guidelines", "help", "helps", "make", "makes", "based", "user",
+  "users", "work", "works", "project", "projects", "file", "files", "code",
+  "app", "apps", "web", "build", "building", "create", "creating", "add",
+  "adding", "task", "tasks", "modern", "best", "practices",
+]);
+
+function tokenize(text: string): string[] {
+  return [...new Set(
+    text.toLowerCase()
+      .split(/[^a-z0-9+]+/)
+      .filter((word) => word.length >= 3 && !STOPWORDS.has(word)),
+  )];
+}
+
+// Triggers = the author's DECLARED intent, not a scan of the whole file. Prefer
+// an explicit "Trigger:" / "Use when …" clause in the description; fall back to
+// the description body when a skill declares none. Capped so a long description
+// can't dominate the ranking.
+export function extractTriggers(description: string): string[] {
+  const lower = description.toLowerCase();
+  const clause =
+    lower.match(/triggers?\s*[:—-]\s*([^.]*)/)?.[1] ??
+    lower.match(/\buse (?:when|it when|this skill (?:when|for)|for)\s+([^.]*)/)?.[1] ??
+    "";
+  const declared = tokenize(clause);
+  return (declared.length ? declared : tokenize(description)).slice(0, 12);
 }
 
 function parseSkill(skillPath: string, source: SkillSource, scope: SkillScope): SkillEntry {
@@ -167,8 +188,10 @@ function parseSkill(skillPath: string, source: SkillSource, scope: SkillScope): 
     scope,
     path: skillPath,
     description,
-    stackTags: inferStackTags(content),
-    triggers: inferTriggers(content),
+    // Infer from the (short, focused) description, not the whole file — the body
+    // of a SKILL.md mentions half the ecosystem in its examples.
+    stackTags: inferStackTags(description),
+    triggers: extractTriggers(description),
   };
 }
 
@@ -240,24 +263,28 @@ function detectStackFromTask(task: string): "node" | "frontend" | "fullstack" | 
   return "unknown";
 }
 
-function scoreSkill(entry: SkillEntry, task: string, stack: "node" | "frontend" | "fullstack" | "unknown"): number {
+function scoreSkill(entry: SkillEntry, task: string, taskTokens: Set<string>, stack: "node" | "frontend" | "fullstack" | "unknown"): number {
   const lowerTask = task.toLowerCase();
   let score = 0;
-  if (stack !== "unknown" && entry.stackTags.includes(stack)) score += 5;
-  if (entry.stackTags.includes("workflow")) score += 1;
-  for (const trigger of entry.triggers) {
-    if (lowerTask.includes(trigger)) score += 3;
-  }
-  const nameLower = entry.name.toLowerCase();
-  if (lowerTask.includes(nameLower)) score += 6;
+  // Name/key are the most precise signal: an exact mention of the skill.
+  if (lowerTask.includes(entry.name.toLowerCase())) score += 6;
   if (lowerTask.includes(entry.key)) score += 4;
+  // Declared triggers, matched as whole words (not substrings, so "api" doesn't
+  // hit "rapid"). This is the author's intent, now clean of file noise.
+  for (const trigger of entry.triggers) {
+    if (taskTokens.has(trigger)) score += 2;
+  }
+  // Stack is a coarse tie-breaker, not a driver — hence low weight.
+  if (stack !== "unknown" && entry.stackTags.includes(stack)) score += 2;
+  if (entry.stackTags.includes("workflow")) score += 1;
   return score;
 }
 
-function resolveSkills(registry: SkillEntry[], task: string, explicitStack?: "node" | "frontend" | "fullstack" | "unknown", limit = 8): SkillEntry[] {
+export function resolveSkills(registry: SkillEntry[], task: string, explicitStack?: "node" | "frontend" | "fullstack" | "unknown", limit = 8): SkillEntry[] {
   const stack = explicitStack && explicitStack !== "unknown" ? explicitStack : detectStackFromTask(task);
+  const taskTokens = new Set(tokenize(task));
   const scored = registry
-    .map((entry) => ({ entry, score: scoreSkill(entry, task, stack) }))
+    .map((entry) => ({ entry, score: scoreSkill(entry, task, taskTokens, stack) }))
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
 
