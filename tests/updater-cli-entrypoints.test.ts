@@ -59,11 +59,16 @@ describe("updater CLI entry points (main.ts real)", () => {
 		expect(["ok", "failed"]).toContain(msg.status);
 	});
 
-	test("--ein-deploy-template extrae el template embebido en el agent dir (HOME sandbox)", () => {
+	test("--ein-deploy-template extrae el template en el agent dir AISLADO por defecto (HOME sandbox)", () => {
 		const home = mkdtempSync(join(tmpdir(), "ein-deploy-"));
 		roots.push(home);
-		const agentDir = join(home, ".pi", "agent");
-		const { code, stderr } = runMain([`--ein-deploy-template=${agentDir}`], { HOME: home });
+		// Fase 2: sin marker previo, AGENT_DIR resuelve al dir aislado
+		// (~/.pi-ein/agent) — las instalaciones nuevas van aisladas por defecto.
+		// deployTemplate usa AGENT_DIR (el valor del flag es informativo).
+		const agentDir = join(home, ".pi-ein", "agent");
+		// TMPDIR bajo el propio HOME sandbox: el staging del deploy y el target
+		// quedan en el mismo árbol (hermético, sin tocar /tmp real).
+		const { code, stderr } = runMain([`--ein-deploy-template=${agentDir}`], { HOME: home, TMPDIR: home });
 		expect(stderr).not.toContain("comando desconocido");
 		expect(code).toBe(0);
 		// Se desplegaron artefactos del template (agents/, AGENTS.md, ...).
