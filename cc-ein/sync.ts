@@ -41,9 +41,30 @@ function translateTools(piTools: string): string {
 	return [...new Set(out)].join(", ");
 }
 
-// Traduce un agente Pi -> agente Claude Code: conserva name/description/body,
-// traduce `tools`, y DESCARTA el frontmatter específico de Pi (budget, turnBudget,
-// completionGuard, extensions, defaultContext, inheritSkills, timeoutMs, toolBudget).
+// Nota de adaptador prepended a cada cuerpo: recontextualiza los conceptos de
+// runtime de Pi que quedan en la prosa (y que en CC son inertes), sin reescribir
+// frases frágiles. La regla "si te bloqueas, status: blocked" SÍ sigue válida.
+const CC_NOTE = [
+	"> **cc-ein (Claude Code):** corres en Claude Code, no en Pi. El flujo SDD se conduce con `cc-ein-sdd status|check|close` (por Bash). Los conceptos de runtime de Pi que puedan aparecer abajo (`intercom`/asks al supervisor, `acceptance-report`, `pi-subagents`, `.pi/ein/*`, `completionGuard`/`turnBudget`) NO aplican aquí — ignóralos. Sigue vigente: si te bloqueas, devuelve `status: blocked` con la causa concreta. Escribe tu artefacto de fase en `openspec/changes/<change>/`.",
+	"",
+].join("\n");
+
+// Sustituciones deterministas de tokens DISTINGUIBLES en el cuerpo (no toca
+// prosa ambigua). ein_sdd_* -> el CLI real de cc-ein; ein_review_forecast ->
+// frase genérica (no hay tool equivalente en CC).
+function translateBody(body: string): string {
+	return body
+		.replaceAll("ein_sdd_status", "cc-ein-sdd status")
+		.replaceAll("ein_sdd_check", "cc-ein-sdd check")
+		.replaceAll("ein_sdd_close", "cc-ein-sdd close")
+		.replaceAll("`ein_review_forecast` tool", "review-size forecast")
+		.replaceAll("ein_review_forecast", "the review-size forecast");
+}
+
+// Traduce un agente Pi -> agente Claude Code: conserva name/description, traduce
+// `tools`, DESCARTA el frontmatter específico de Pi (budget, turnBudget,
+// completionGuard, extensions, defaultContext, inheritSkills, timeoutMs,
+// toolBudget), prepende la nota de adaptador y traduce los tokens del cuerpo.
 function translateAgent(src: string): string {
 	const m = src.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
 	if (!m) return src; // sin frontmatter: se deja
@@ -55,7 +76,7 @@ function translateAgent(src: string): string {
 	const lines = ["---", `name: ${name}`, `description: ${description}`];
 	if (tools) lines.push(`tools: ${translateTools(tools)}`);
 	lines.push("---");
-	return `${lines.join("\n")}\n${body}`;
+	return `${lines.join("\n")}\n${CC_NOTE}${translateBody(body)}`;
 }
 
 function ensureDir(p: string) {
