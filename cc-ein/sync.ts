@@ -61,10 +61,30 @@ function translateBody(body: string): string {
 		.replaceAll("ein_review_forecast", "the review-size forecast");
 }
 
+// Routing de modelo/effort por agente = el modelo de coste de ein-pi, ahora SÍ
+// en Claude Code (frontmatter `model`/`effort`; el subagente corre en su propio
+// contexto → el padre queda limpio, y `model: haiku` abarata las fases
+// mecánicas). Mirror de las recomendaciones de ein-pi: barato para leer/verificar/
+// mecánico; capaz para diseñar/aplicar. El orquestador (parent) es el modelo que
+// el usuario tenga fijado en la sesión (no se toca aquí).
+const AGENT_MODELS: Record<string, { model: string; effort?: string }> = {
+	"sdd-scope": { model: "haiku", effort: "low" },
+	"sdd-map": { model: "haiku", effort: "medium" },
+	"sdd-design": { model: "opus", effort: "high" },
+	"sdd-tasks": { model: "haiku", effort: "low" },
+	"sdd-apply": { model: "sonnet", effort: "low" },
+	"sdd-verify": { model: "haiku", effort: "medium" },
+	"sdd-close": { model: "haiku", effort: "low" },
+	"ein-scout": { model: "haiku" },
+	"ein-git": { model: "haiku" },
+	"ein-linear": { model: "haiku" },
+};
+
 // Traduce un agente Pi -> agente Claude Code: conserva name/description, traduce
-// `tools`, DESCARTA el frontmatter específico de Pi (budget, turnBudget,
-// completionGuard, extensions, defaultContext, inheritSkills, timeoutMs,
-// toolBudget), prepende la nota de adaptador y traduce los tokens del cuerpo.
+// `tools`, AÑADE model/effort (routing de coste), DESCARTA el frontmatter
+// específico de Pi (budget, turnBudget, completionGuard, extensions,
+// defaultContext, inheritSkills, timeoutMs, toolBudget), prepende la nota de
+// adaptador y traduce los tokens del cuerpo.
 function translateAgent(src: string): string {
 	const m = src.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
 	if (!m) return src; // sin frontmatter: se deja
@@ -75,6 +95,11 @@ function translateAgent(src: string): string {
 	const tools = get("tools");
 	const lines = ["---", `name: ${name}`, `description: ${description}`];
 	if (tools) lines.push(`tools: ${translateTools(tools)}`);
+	const routing = AGENT_MODELS[name];
+	if (routing) {
+		lines.push(`model: ${routing.model}`);
+		if (routing.effort) lines.push(`effort: ${routing.effort}`);
+	}
 	lines.push("---");
 	return `${lines.join("\n")}\n${CC_NOTE}${translateBody(body)}`;
 }
