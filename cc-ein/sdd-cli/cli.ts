@@ -23,6 +23,7 @@ import {
 } from "../../ein-pi/agent/lib/sdd-router.ts";
 import { lintChange, type ChangeLintReport } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
 import { closeChange } from "../../ein-pi/agent/lib/sdd-close.ts";
+import { evaluateDeniedCommand, commandRequiresConfirmation } from "../../ein-pi/agent/lib/guardrails.ts";
 
 const cwd = process.cwd();
 
@@ -89,6 +90,33 @@ function formatCheck(report: ChangeLintReport): string {
 	return lines.join("\n");
 }
 
+// ── Guard (hook PreToolUse) ──────────────────────────────────────────────────
+// Lee el JSON del hook por stdin y emite la decisión de permiso de Claude Code.
+// Reusa los MISMOS patrones que el guardrail de Pi (evaluateDeniedCommand /
+// commandRequiresConfirmation): destructivos → deny; git push/rebase/branch -D/
+// publish → ask (confirmación nativa de CC, sin la maquinaria de grants de Pi).
+function emitDecision(decision: "deny" | "ask" | "allow", reason: string): void {
+	process.stdout.write(JSON.stringify({
+		hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: decision, permissionDecisionReason: reason },
+	}));
+}
+
+async function guardCmd(): Promise<void> {
+	let command = "";
+	try {
+		const input = JSON.parse(await Bun.stdin.text()) as { tool_input?: { command?: string } };
+		command = input?.tool_input?.command ?? "";
+	} catch { /* sin comando parseable → deja pasar (flujo normal) */ }
+	if (command) {
+		const denied = evaluateDeniedCommand(command);
+		if (denied) return emitDecision("deny", denied.reason ?? "Ein safety policy blocked a destructive command.");
+		if (commandRequiresConfirmation(command)) {
+			return emitDecision("ask", "Ein: comando protegido (git push / rebase / branch -D / npm publish). Confirma antes de ejecutar.");
+		}
+	}
+	// sin match → sin salida → Claude Code sigue su flujo de permisos normal.
+}
+
 // ── Dispatch ────────────────────────────────────────────────────────────────
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -139,7 +167,8 @@ switch (cmd) {
 	case "status": statusCmd(); break;
 	case "check": checkCmd(); break;
 	case "close": closeCmd(); break;
+	case "guard": await guardCmd(); break;
 	default:
-		console.log("cc-ein-sdd <status|check|close> [change] [--force]");
+		console.log("cc-ein-sdd <status|check|close> [change] [--force]  |  guard (hook)");
 		process.exit(1);
 }

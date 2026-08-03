@@ -90,10 +90,21 @@ const brain = readFileSync(join(CC, "CLAUDE.md"), "utf8");
 write(join(DEST, "CLAUDE.md"), brain);
 log(`CLAUDE.md desplegado (${brain.split("\n").length} líneas)`);
 
-// ── 3. settings.json (permissions/hooks/statusline) ──────────────────────────
-const settings = readFileSync(join(CC, "settings.json"), "utf8");
-write(join(DEST, "settings.json"), settings);
-log(`settings.json desplegado`);
+// ── 3. settings.json + hook PreToolUse (guard) con ruta ABSOLUTA ─────────────
+// Inyectamos el hook aquí (no en el fichero estático) para bakear la ruta real
+// del binario: así resuelve aunque el hook no herede el PATH del launcher.
+const settingsObj = JSON.parse(readFileSync(join(CC, "settings.json"), "utf8")) as Record<string, unknown>;
+const guardBin = join(DEST, "bin", "cc-ein-sdd");
+settingsObj.hooks = {
+	PreToolUse: [
+		{
+			matcher: "Bash",
+			hooks: [{ type: "command", command: `"${guardBin}" guard`, timeout: 10 }],
+		},
+	],
+};
+write(join(DEST, "settings.json"), `${JSON.stringify(settingsObj, null, 2)}\n`);
+log(`settings.json desplegado (+ hook PreToolUse Bash → cc-ein-sdd guard)`);
 
 // ── 4. Agentes: traducidos desde el core canónico ───────────────────────────
 let nAgents = 0;
