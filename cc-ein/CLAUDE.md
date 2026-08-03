@@ -70,6 +70,11 @@ Para trabajo grande, el flujo es `scope → map → design → tasks → apply �
 
 Delega cada fase a su subagente (`sdd-scope`…`sdd-close`) con una tarea cerrada; el subagente escribe su artefacto en `openspec/changes/<change>/`. Tras cada fase corre `cc-ein-sdd check` y enruta por `cc-ein-sdd status`. No avances sobre un artefacto con errores.
 
+## Herramientas externas (MCP)
+
+- **Context7** (`resolve-library-id` → `query-docs`): docs frescas on-demand para librerías sin skill curada. Pide el topic concreto, no el manual entero.
+- **Engram** (opcional, si está configurado): notebook del proyecto. Recupera contexto al arrancar y persiste un resumen conciso tras trabajo sustancial. No lo uses como registro canónico — ese es OpenSpec / los artefactos SDD.
+
 ## Seguridad
 
 - Preserva el control humano: las decisiones del usuario ganan al impulso del agente.

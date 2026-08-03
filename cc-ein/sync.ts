@@ -148,4 +148,34 @@ if (!DRY) {
 	}
 } else log(`CLI SDD se compilaría → bin/cc-ein-sdd`);
 
+// ── 7. MCP: Context7 (docs on-demand) + Engram (memoria, si está) ───────────
+// Se configuran a scope USER en el .claude.json aislado (global a cc-ein, no por
+// proyecto). Idempotente: remove + add. La key de Context7 NO se bakea aquí —
+// va por env (el launcher la exporta), así el config queda sin secretos.
+function mcpUser(name: string, argv: string[], env: Record<string, string> = {}): void {
+	if (DRY) { log(`MCP se configuraría (scope user): ${name}`); return; }
+	const base = { ...process.env, CLAUDE_CONFIG_DIR: DEST };
+	try { execFileSync("claude", ["mcp", "remove", "-s", "user", name], { env: base, stdio: "ignore" }); } catch { /* no existía */ }
+	const envFlags = Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]);
+	try {
+		execFileSync("claude", ["mcp", "add", "-s", "user", name, ...envFlags, "--", ...argv], { env: base, stdio: "ignore" });
+		log(`MCP configurado (scope user): ${name}`);
+	} catch (e) {
+		log(`⚠ MCP ${name} no configurado (¿falta claude en PATH?): ${e instanceof Error ? e.message : e}`);
+	}
+}
+
+mcpUser("context7", ["bunx", "--bun", "@upstash/context7-mcp"]);
+
+// Engram es opcional: solo si el binario está en el sistema. Data dir propio
+// (~/.engram-cc-ein) para no cruzarse con la memoria de Pi. Cámbialo a
+// ~/.engram-pi si prefieres compartir memoria entre ediciones de Ein.
+let engramBin = "";
+try { engramBin = execFileSync("which", ["engram"], { encoding: "utf8" }).trim(); } catch { /* no está */ }
+if (engramBin) {
+	mcpUser("engram", [engramBin, "mcp", "--tools=agent"], { ENGRAM_DATA_DIR: join(homedir(), ".engram-cc-ein") });
+} else {
+	log(`engram no encontrado en PATH: memoria opcional omitida`);
+}
+
 console.log(`\n✓ cc-ein ${DRY ? "(dry) " : ""}listo. Lanza con:  cc-ein\n`);

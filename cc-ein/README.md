@@ -27,9 +27,11 @@ El launcher (`cc-ein.fish`) se instala en `~/.config/fish/functions/`. Setea `CL
 - **✅ Incremento 1 — fundación:** aislamiento vía `CLAUDE_CONFIG_DIR`, launcher, cerebro (`CLAUDE.md`), 10 agentes traducidos (7 SDD + scout/git/linear), ~50 skills, primer gate (deny de force-push vía `permissions`). Verificado: responde como Ein, aislado, sin tocar `~/.claude`.
 - **✅ Incremento 2 — paridad SDD:** CLI determinista `cc-ein-sdd status|check|close` (`sdd-cli/cli.ts`). Reusa el MISMO core que Pi (`ein-pi/agent/lib` — `sdd-router`/`sdd-guardrails`/`sdd-close`, TS puro), compilado a binario **standalone** en `~/.claude-ein/bin/` (no depende del repo en runtime). El launcher lo pone en el PATH; los agentes lo llaman por Bash. Verificado end-to-end: cc-ein en un proyecto real leyó el estado SDD y enrutó por `next:`.
 - **✅ Incremento 3 — gate fuerte:** hook `PreToolUse` sobre Bash (`cc-ein-sdd guard`) que reusa los MISMOS patrones que el guardrail de Pi (`evaluateDeniedCommand`/`commandRequiresConfirmation`): destructivos (`rm -rf ~`/`/`, `git reset --hard`, `push --force`, `chmod -R 777`…) → `deny`; `git push`/`rebase`/`branch -D`/`npm publish` → `ask` (confirmación nativa de CC). El sync inyecta el hook con ruta absoluta. Verificado end-to-end: cc-ein intentó `git reset --hard` y el hook lo bloqueó. La maquinaria de grants de Pi no hace falta: el `ask` de CC la cubre.
-- **⏳ Incremento 4 — MCP:** Context7 (+ Engram) vía `claude mcp add` sobre el config aislado.
+- **✅ Incremento 4 — MCP:** el sync configura **Context7** (docs on-demand) y **Engram** (memoria, si el binario está) a scope **user** en el `.claude.json` aislado, idempotente. La key de Context7 va por env (el launcher la exporta desde `~/.config/opencode-secrets/context7-api-key`) → sin secretos en el config. Engram usa data dir propio (`~/.engram-cc-ein`). Verificado: rebuild limpio desde cero con un solo `sync`, ambos MCP `✔ Connected`, y cc-ein trajo docs de Hono vía Context7.
 
 > El binario `cc-ein-sdd` pesa ~90 MB (Bun compila el runtime dentro → cero deps en uso). Vive en `~/.claude-ein/bin/`, fuera del repo; se regenera en cada `sync`.
+>
+> **Nota de aislamiento:** al compartir login, cc-ein hereda los conectores MCP remotos de tu cuenta claude.ai (Drive/Gmail/Linear). Es inherente a compartir credenciales; no afecta a los MCP locales de cc-ein. Todo lo demás (history, projects, sessions, settings, agents, skills) sigue aislado.
 
 ## Huecos honestos (vs Pi)
 
