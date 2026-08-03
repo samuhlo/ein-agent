@@ -24,10 +24,12 @@ El launcher (`cc-ein.fish`) se instala en `~/.config/fish/functions/`. Setea `CL
 
 ## Estado (por incrementos)
 
-- **✅ Incremento 1 — fundación (funciona):** aislamiento vía `CLAUDE_CONFIG_DIR`, launcher, cerebro (`CLAUDE.md`), 10 agentes traducidos (7 SDD + scout/git/linear), ~50 skills, primer gate de seguridad (deny de force-push vía `permissions`). Verificado: responde como Ein, aislado, sin tocar `~/.claude`.
-- **⏳ Incremento 2 — paridad SDD:** portar el core determinista (`sdd-router.ts`, `sdd-guardrails.ts` — TS puro, sin API de Pi) a un CLI `cc-ein-sdd status|check|close` que los agentes llaman por Bash. Es lo que da la máquina de estados SDD real.
+- **✅ Incremento 1 — fundación:** aislamiento vía `CLAUDE_CONFIG_DIR`, launcher, cerebro (`CLAUDE.md`), 10 agentes traducidos (7 SDD + scout/git/linear), ~50 skills, primer gate (deny de force-push vía `permissions`). Verificado: responde como Ein, aislado, sin tocar `~/.claude`.
+- **✅ Incremento 2 — paridad SDD:** CLI determinista `cc-ein-sdd status|check|close` (`sdd-cli/cli.ts`). Reusa el MISMO core que Pi (`ein-pi/agent/lib` — `sdd-router`/`sdd-guardrails`/`sdd-close`, TS puro), compilado a binario **standalone** en `~/.claude-ein/bin/` (no depende del repo en runtime). El launcher lo pone en el PATH; los agentes lo llaman por Bash. Verificado end-to-end: cc-ein en un proyecto real leyó el estado SDD y enrutó por `next:`.
 - **⏳ Incremento 3 — gates fuertes:** el bloqueador de comandos destructivos y el delivery gate como hooks `PreToolUse` (script + `settings.json`).
 - **⏳ Incremento 4 — MCP:** Context7 (+ Engram) vía `claude mcp add` sobre el config aislado.
+
+> El binario `cc-ein-sdd` pesa ~90 MB (Bun compila el runtime dentro → cero deps en uso). Vive en `~/.claude-ein/bin/`, fuera del repo; se regenera en cada `sync`.
 
 ## Huecos honestos (vs Pi)
 

@@ -62,7 +62,13 @@ Un reporte de estado sin mecanismo, para un cambio importante, es un fallo.
 
 ## SDD (flujo determinista)
 
-Para trabajo grande, el flujo es `scope → map → design → tasks → apply → verify → close`, con artefactos en `openspec/changes/<change>/`. Los gates deterministas (lint de artefactos, estado del flujo) los da el CLI `cc-ein-sdd` (status/check/close) — **cuando esté disponible en esta edición**; hasta entonces conduce el flujo por los artefactos en disco y no avances sobre uno incompleto.
+Para trabajo grande, el flujo es `scope → map → design → tasks → apply → verify → close`, con artefactos en `openspec/changes/<change>/`. **Condúcelo con el CLI determinista `cc-ein-sdd`** (mismo core que Pi; cero IA, solo lee el filesystem), vía Bash:
+
+- `cc-ein-sdd status [change]` → fase actual + `next:` (rutea el flujo por esa línea, **nunca** por tu memoria) + tareas + budget.
+- `cc-ein-sdd check [change]` → gatekeeper: linta cada artefacto presente. Córrelo **después de cada fase**; si hay `errors`, no avances (sale con código 1).
+- `cc-ein-sdd close <change> [--force]` → archiva un cambio verificado; si no está listo, lista los blockers.
+
+Delega cada fase a su subagente (`sdd-scope`…`sdd-close`) con una tarea cerrada; el subagente escribe su artefacto en `openspec/changes/<change>/`. Tras cada fase corre `cc-ein-sdd check` y enruta por `cc-ein-sdd status`. No avances sobre un artefacto con errores.
 
 ## Seguridad
 

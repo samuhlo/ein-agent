@@ -14,6 +14,7 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync, lstatSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 
 const REPO = join(import.meta.dir, "..");
 const CORE = join(REPO, "ein-pi", "core");
@@ -120,5 +121,20 @@ if (existsSync(skillsSrc)) {
 	}, 0);
 	log(`skills copiadas: ~${n} (local + downloaded, aplanadas en skills/)`);
 }
+
+// ── 6. CLI SDD determinista → binario standalone en bin/ ────────────────────
+// Reusa el core TS puro (sdd-router/guardrails/close). El binario NO depende del
+// repo ein-agent en runtime: los agentes lo llaman por Bash (bin/ va en el PATH
+// que fija el launcher). Requiere `bun` para compilar (solo en sync, no en uso).
+const binDir = join(DEST, "bin");
+ensureDir(binDir);
+if (!DRY) {
+	try {
+		execFileSync("bun", ["build", "--compile", join(CC, "sdd-cli", "cli.ts"), "--outfile", join(binDir, "cc-ein-sdd")], { stdio: "ignore" });
+		log(`CLI SDD compilado → bin/cc-ein-sdd (standalone; status|check|close)`);
+	} catch (e) {
+		log(`⚠ no se pudo compilar cc-ein-sdd (¿falta bun?): ${e instanceof Error ? e.message : e}`);
+	}
+} else log(`CLI SDD se compilaría → bin/cc-ein-sdd`);
 
 console.log(`\n✓ cc-ein ${DRY ? "(dry) " : ""}listo. Lanza con:  cc-ein\n`);
