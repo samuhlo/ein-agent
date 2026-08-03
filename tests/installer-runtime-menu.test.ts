@@ -3,15 +3,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  CC_EIN_PAYLOAD_FILES,
-  CC_EIN_PAYLOAD_REQUIRED_PATHS,
-  CC_EIN_PAYLOAD_ROOTS,
-  CC_EIN_PAYLOAD_SDD_ENTRY,
-  resolveCcEinPayloadArchive,
-  stageCcEinPayload,
-} from "../installer/src/core/cc-payload.ts";
 import { restoreBackup, snapshot } from "../installer/src/core/backup.ts";
+import { installFishLauncher } from "../installer/src/core/launcher.ts";
 import { migrateLegacyPi } from "../installer/src/core/pi-migration.ts";
 import {
   derivePiInstallPaths,
@@ -22,15 +15,19 @@ import { readMarkerAt, writeMarker } from "../installer/src/core/version.ts";
 import {
   getInstallTargets,
   orchestrateInstall,
+  runClaudeInstall,
   type RuntimeInstallResult,
 } from "../installer/src/cli/install.ts";
-// The generated template archive is not part of slice B; keep menu imports
-// isolated from the later production asset while exercising the menu seams.
-mock.module("../installer/src/assets/template.tar.gz", () => ({ default: "" }));
-
-async function menuApi() {
-  return await import("../installer/src/cli/menu.ts");
-}
+import { runMenu, selectInstallTarget } from "../installer/src/cli/menu.ts";
+import {
+  CC_EIN_PAYLOAD_FILES,
+  CC_EIN_PAYLOAD_REQUIRED_PATHS,
+  CC_EIN_PAYLOAD_ROOTS,
+  CC_EIN_PAYLOAD_SDD_ENTRY,
+  resolveCcEinPayloadArchive,
+  stageCcEinPayload,
+  type CcEinPayloadStage,
+} from "../installer/src/core/cc-payload.ts";
 
 const roots: string[] = [];
 
@@ -46,6 +43,47 @@ function validMarker(): string {
 
 afterEach(() => {
   while (roots.length) rmSync(roots.pop()!, { recursive: true, force: true });
+});
+
+describe("EIN Fish launcher", () => {
+  test("creates the functions directory, owns only the named launcher, and is idempotent", () => {
+    const home = tempHome();
+    const destination = join(home, ".config", "fish", "functions");
+    const unrelatedPath = join(destination, "unrelated.fish");
+    const unrelatedContent = "function unrelated\nend\n";
+    const launchers = [
+      ["pi-ein.fish", readFileSync(join(import.meta.dir, "../pi-ein/pi-ein.fish"), "utf8")],
+      ["cc-ein.fish", readFileSync(join(import.meta.dir, "../cc-ein/cc-ein.fish"), "utf8")],
+    ] as const;
+
+    const first = installFishLauncher({
+      home,
+      destination,
+      name: launchers[0][0],
+      content: launchers[0][1],
+    });
+    mkdirSync(destination, { recursive: true });
+    writeFileSync(unrelatedPath, unrelatedContent);
+    const second = installFishLauncher({
+      home,
+      destination,
+      name: launchers[0][0],
+      content: launchers[0][1],
+    });
+    installFishLauncher({
+      home,
+      destination,
+      name: launchers[1][0],
+      content: launchers[1][1],
+    });
+
+    expect(first.path).toBe(join(destination, "pi-ein.fish"));
+    expect(first.changed).toBe(true);
+    expect(second.changed).toBe(false);
+    expect(readFileSync(first.path, "utf8")).toBe(launchers[0][1]);
+    expect(readFileSync(join(destination, "cc-ein.fish"), "utf8")).toBe(launchers[1][1]);
+    expect(readFileSync(unrelatedPath, "utf8")).toBe(unrelatedContent);
+  });
 });
 
 describe("Claude runtime payload", () => {
@@ -87,9 +125,108 @@ describe("Claude runtime payload", () => {
   });
 });
 
+describe("Claude runtime runner", () => {
+  function fakeStage(home: string, onCleanup: () => void): CcEinPayloadStage {
+    return {
+      archivePath: join(home, "payload.tar.gz"),
+      root: join(home, "staged-payload"),
+      syncPath: join(home, "staged-payload", "cc-ein", "sync.ts"),
+      sddCliPath: join(home, "staged-payload", "cc-ein", "sdd-cli", "cli.ts"),
+      manifestPath: join(home, "staged-payload", "ein-cc-payload-manifest.json"),
+      cleanup: onCleanup,
+    };
+  }
+
+  test("runs Bun from the staged context before installing cc-ein.fish", async () => {
+    const home = tempHome();
+    const calls: Array<{ command: string; args: string[]; cwd?: string; env?: Record<string, string> }> = [];
+    let cleaned = false;
+    let launcherInstalled = false;
+    const stage = fakeStage(home, () => { cleaned = true; });
+
+    const result = await runClaudeInstall({
+      home,
+      bunPath: "/custom/bun",
+      stagePayload: async () => stage,
+      execute: async (command, args, options) => {
+        calls.push({ command, args, cwd: options.cwd, env: options.env });
+        expect(launcherInstalled).toBe(false);
+        return { ok: true, code: 0, stdout: "sync ok", stderr: "" };
+      },
+      installLauncher: () => {
+        launcherInstalled = true;
+        return { path: join(home, ".config", "fish", "functions", "cc-ein.fish"), changed: true };
+      },
+    });
+
+    expect(result).toEqual({ target: "claude", ok: true, detail: "Claude Code listo. Ejecuta `cc-ein` para empezar." });
+    expect(calls).toEqual([{
+      command: "/custom/bun",
+      args: ["cc-ein/sync.ts"],
+      cwd: stage.root,
+      env: { HOME: home, CC_EIN_HOME: join(home, ".claude-ein") },
+    }]);
+    expect(launcherInstalled).toBe(true);
+    expect(cleaned).toBe(true);
+  });
+
+  test("required sync failure skips the launcher and cleans staging", async () => {
+    const home = tempHome();
+    let cleaned = false;
+    let launcherCalls = 0;
+    const stage = fakeStage(home, () => { cleaned = true; });
+
+    const result = await runClaudeInstall({
+      home,
+      stagePayload: async () => stage,
+      execute: async () => ({ ok: false, code: 9, stdout: "", stderr: "required sync failed" }),
+      installLauncher: () => {
+        launcherCalls += 1;
+        return { path: "unused", changed: true };
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.detail).toContain("required sync failed");
+    expect(launcherCalls).toBe(0);
+    expect(cleaned).toBe(true);
+  });
+
+  test("launcher failure reports Claude failure and cleans staging", async () => {
+    const home = tempHome();
+    let cleaned = false;
+    const stage = fakeStage(home, () => { cleaned = true; });
+
+    const result = await runClaudeInstall({
+      home,
+      stagePayload: async () => stage,
+      execute: async () => ({ ok: true, code: 0, stdout: "", stderr: "" }),
+      installLauncher: () => { throw new Error("launcher write failed"); },
+    });
+
+    expect(result).toEqual({ target: "claude", ok: false, detail: "launcher write failed" });
+    expect(cleaned).toBe(true);
+  });
+
+  test("optional sync warnings do not block the launcher after a successful process", async () => {
+    const home = tempHome();
+    let cleaned = false;
+    const stage = fakeStage(home, () => { cleaned = true; });
+
+    const result = await runClaudeInstall({
+      home,
+      stagePayload: async () => stage,
+      execute: async () => ({ ok: true, code: 0, stdout: "MCP warning: optional integration unavailable", stderr: "" }),
+      installLauncher: () => ({ path: join(home, "cc-ein.fish"), changed: true }),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(cleaned).toBe(true);
+  });
+});
+
 describe("Interactive runtime menu", () => {
   test("offers Pi, Claude Code, and Both and forwards one selection", async () => {
-    const { selectInstallTarget } = await menuApi();
     let promptCalls = 0;
     let promptedOptions: Array<{ value: string; label: string; hint: string }> = [];
     const selected = await selectInstallTarget(
@@ -112,7 +249,6 @@ describe("Interactive runtime menu", () => {
   });
 
   test("cancelling runtime selection returns cleanly without a target", async () => {
-    const { selectInstallTarget } = await menuApi();
     const cancellation = Symbol("cancel");
     const selected = await selectInstallTarget(
       async () => cancellation,
@@ -123,7 +259,6 @@ describe("Interactive runtime menu", () => {
   });
 
   test("real Install branch forwards the selected target exactly once", async () => {
-    const { runMenu } = await menuApi();
     const descriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
     Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: true });
     const installCalls: Array<{ args: string[]; target: string }> = [];
@@ -149,7 +284,6 @@ describe("Interactive runtime menu", () => {
   });
 
   test("non-TTY menu exits before prompting", async () => {
-    const { runMenu } = await menuApi();
     const descriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
     Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: false });
     try {
