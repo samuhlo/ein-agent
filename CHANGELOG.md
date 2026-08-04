@@ -5,6 +5,32 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.40.0] - 2026-08-04
+
+Release unificada y sustancial para los dos runtimes soportados: Pi + Claude.
+
+### Added
+
+- **Superficie multi-runtime Pi + Claude**: el instalador prepara el runtime
+  elegido, mantiene aislados sus hogares vanilla y despliega sus launchers y
+  migraciones sin mezclar artefactos.
+- **Payload Claude determinista**: el contenido de `cc-ein` se materializa y
+  valida con rutas requeridas antes de sincronizarlo.
+
+### Fixed
+
+- **Hotfix de materialización BunFS**: los binarios compilados ya copian el
+  payload Claude embebido a un fichero real antes de entregarlo a `tar`, por lo
+  que `cc-ein` vuelve a instalarse correctamente fuera del directorio del repo.
+
+### Changed
+
+- **Compiled smoke del payload**: la release ejecuta un smoke compilado de BunFS
+  antes de generar checksums o publicar assets.
+- **Versionado unificado**: Pi, Claude, el instalador, el workflow y la
+  documentación comparten `0.40.0`; la release se publica como
+  `installer-v0.40.0`.
+
 ## [0.34.0] - 2026-08-04
 
 Release pública `installer-v0.34.0`, con el título de GitHub **EIN v0.4**.
@@ -22,6 +48,12 @@ Release pública `installer-v0.34.0`, con el título de GitHub **EIN v0.4**.
 
 - **Aviso de actualización corregido**: la notificación de `ein update` refleja
   el destino y el estado reales de la actualización.
+
+### Note
+
+- **Superseded for Claude installs**: la entrada y la release `0.34.0` se
+  conservan para historial, pero no debe usarse para instalar Claude: su
+  payload necesita el hotfix de materialización BunFS incluido en `0.40.0`.
 
 ## [0.33.1] - 2026-08-01
 

@@ -97,6 +97,26 @@ function assertPayloadLayout(root: string): void {
 }
 
 /**
+ * Copy the archive through Bun's filesystem so external tools receive a real
+ * filesystem path even when the source lives in BunFS after `--compile`.
+ */
+async function materializeCcEinPayloadArchive(sourcePath: string, root: string): Promise<string> {
+  const archivePath = join(root, "cc-ein-runtime.tar.gz");
+  try {
+    const bytes = await Bun.file(sourcePath).arrayBuffer();
+    const written = await Bun.write(archivePath, bytes);
+    if (written !== bytes.byteLength) {
+      throw new Error(`se escribieron ${written} de ${bytes.byteLength} bytes`);
+    }
+    return archivePath;
+  } catch (error) {
+    throw new Error(
+      `No se pudo materializar el payload cc-ein desde ${sourcePath}: ${errorMessage(error)}`,
+    );
+  }
+}
+
+/**
  * Extract the embedded archive and return its deterministic repository root.
  * Cleanup is idempotent and is also performed when extraction or validation
  * fails, so a failed Claude attempt cannot leak staging directories.
@@ -104,7 +124,7 @@ function assertPayloadLayout(root: string): void {
 export async function stageCcEinPayload(
   options: StageCcEinPayloadOptions = {},
 ): Promise<CcEinPayloadStage> {
-  const archivePath = await (options.archivePath === undefined
+  const sourceArchivePath = await (options.archivePath === undefined
     ? resolveCcEinPayloadArchive()
     : resolveCcEinPayloadArchive(options.archivePath));
   const parent = options.tempDirectory ?? tmpdir();
@@ -118,6 +138,7 @@ export async function stageCcEinPayload(
   };
 
   try {
+    const archivePath = await materializeCcEinPayloadArchive(sourceArchivePath, root);
     const extracted = await run("tar", ["-xzf", archivePath, "-C", root]);
     if (!extracted.ok) {
       throw new Error(`No se pudo extraer el payload cc-ein: ${extracted.stderr || extracted.code}`);
