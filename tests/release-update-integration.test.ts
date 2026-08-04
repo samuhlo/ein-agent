@@ -20,6 +20,7 @@ import {
   EXIT_UPDATED,
 } from "../installer/src/cli/result.ts";
 import { bannerStatic, bannerVersionLabel, readBannerState } from "../installer/src/tui/banner.ts";
+import { INSTALLER_VERSION } from "../installer/src/core/version.ts";
 import { defaultUpdateCaps, type HttpResponse, type UpdateCaps } from "../installer/src/core/update-caps.ts";
 import { recoverPendingTransaction, runUpdateTransaction } from "../installer/src/core/transaction.ts";
 
@@ -135,9 +136,10 @@ function verifyAgreement(options: {
   expect(manifest.templateVersion).toBe(TARGET_VERSION);
   const installed = readFileSync(options.destinationPath);
   expect(createHash("sha256").update(installed).digest("hex")).toBe(assetDigest);
+  // El banner identifica el binario que corre (INSTALLER_VERSION), no el marker.
   const banner = readBannerState(options.caps, options.markerPath, options.journalPath);
-  expect(bannerVersionLabel(banner)).toBe(`v${TARGET_VERSION}`);
-  expect(bannerStatic(banner)).toContain(`v${TARGET_VERSION}`);
+  expect(bannerVersionLabel(banner)).toBe(`v${INSTALLER_VERSION}`);
+  expect(bannerStatic(banner)).toContain(`v${INSTALLER_VERSION}`);
 }
 
 afterEach(() => {

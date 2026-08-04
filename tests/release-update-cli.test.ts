@@ -16,6 +16,7 @@ import type { ResolvedRelease, UpdateOutcome } from "../installer/src/core/relea
 import { defaultUpdateCaps, type HttpResponse, type UpdateCaps } from "../installer/src/core/update-caps.ts";
 import { fakeUpdateCaps } from "./helpers/fake-update-caps.ts";
 import { bannerStatic, bannerVersionLabel, readBannerState, renderBanner } from "../installer/src/tui/banner.ts";
+import { INSTALLER_VERSION } from "../installer/src/core/version.ts";
 
 const roots: string[] = [];
 const encoder = new TextEncoder();
@@ -300,10 +301,11 @@ describe("release update CLI", () => {
     expect(externalTouched).toBe(0);
   });
 
-  test("renders committed, recovery-required, and unverified banner labels", () => {
-    expect(renderBanner({ marker: JSON.parse(new TextDecoder().decode(marker("0.20.0"))), recoveryRequired: false })).toContain("v0.20.0");
+  test("renders running-binary version and recovery-required banner labels", () => {
+    // El banner refleja el binario que corre (INSTALLER_VERSION), no el marker.
+    expect(renderBanner({ marker: JSON.parse(new TextDecoder().decode(marker("0.20.0"))), recoveryRequired: false })).toContain(`v${INSTALLER_VERSION}`);
     expect(bannerVersionLabel({ marker: null, recoveryRequired: true })).toBe("recovery required");
-    expect(bannerStatic({ marker: null, recoveryRequired: false })).toContain("unverified");
+    expect(bannerStatic({ marker: null, recoveryRequired: false })).toContain(`v${INSTALLER_VERSION}`);
     const markerPath = "/fake/marker.json";
     const state = readBannerState(fakeUpdateCaps({ files: new Map([[markerPath, marker()], ["/fake/journal.json", encoder.encode("pending")]]) }), markerPath, "/fake/journal.json");
     expect(state.recoveryRequired).toBe(true);
