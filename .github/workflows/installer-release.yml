@@ -6,6 +6,11 @@ on:
     tags:
       - "installer-v*"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing installer tag to publish"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -17,7 +22,27 @@ jobs:
       run:
         working-directory: installer
     steps:
+      - name: Resolve release tag
+        id: resolve_release_tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          PUSH_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ ! "$INPUT_RELEASE_TAG" =~ ^installer-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "workflow_dispatch requires an installer-v<full-semver> tag" >&2
+              exit 1
+            fi
+            release_tag="$INPUT_RELEASE_TAG"
+          else
+            release_tag="$PUSH_TAG"
+          fi
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.resolve_release_tag.outputs.release_tag }}
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -41,6 +66,7 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.resolve_release_tag.outputs.release_tag }}
         run: |
           cat > /tmp/release-notes.md << 'EOF'
           Instalador de Ein. Instala con:
@@ -49,8 +75,9 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/installer/install.sh | bash
           ```
           EOF
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "Ein installer ${GITHUB_REF_NAME}" \
+          display_version="$(jq -er '.einDisplayVersion | strings' package.json)"
+          gh release create "$RELEASE_TAG" \
+            --title "EIN v${display_version}" \
             --notes-file /tmp/release-notes.md \
             dist/ein-installer-darwin-arm64 \
             dist/ein-installer-darwin-x64 \
