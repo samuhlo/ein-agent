@@ -118,13 +118,13 @@ Flags disponibles en el instalador: `--yes`, `--dry-run`, `--no-engram`, `--no-s
 
 ## // 06_ RELEASE
 
-La release pública actual es **[EIN v0.4](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.34.0)**. Su identificador técnico de instalador es **`installer-v0.34.0`**: `0.4` es la versión visible del producto y `0.34.0` es el SemVer del instalador. Son dos nombres de la misma publicación, no dos releases distintas.
+La última release de Ein es **[EIN v0.40.0](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.40.0)**. Ein usa un único SemVer: `0.40.0`; el tag de publicación es `installer-v0.40.0`.
 
 Para preparar una publicación:
 
 1. Mantén el mismo SemVer en `installer/package.json`, `installer/src/core/version.ts` y `CHANGELOG.md`.
 2. Ejecuta `cd installer && bun run typecheck` y los tests focalizados.
-3. Crea y sube el tag técnico `installer-v<semver>`:
+3. Crea y sube el tag de publicación `installer-v<semver>`:
 
    ```bash
    git tag -a installer-v<semver> -m "installer-v<semver>"
@@ -139,7 +139,7 @@ La publicación canónica ocurre en GitHub Actions. No hay publicación local ni
 
 - Instalación pública: [bootstrap `install.sh`](https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh).
 - Código y cambios: [samuhlo/ein-agent](https://github.com/samuhlo/ein-agent).
-- Release técnica actual: [`installer-v0.34.0`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.34.0).
+- Última release: [`EIN v0.40.0`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.40.0).
 
 <div align="center">
 

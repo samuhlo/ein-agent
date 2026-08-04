@@ -33,7 +33,7 @@ describe("contrato offline del README para release e instalación", () => {
   const changelog = readFileSync(CHANGELOG_PATH, "utf8");
   const installerPackage = JSON.parse(readFileSync(INSTALLER_PACKAGE_PATH, "utf8")) as {
     version: string;
-    einDisplayVersion: string;
+    [key: string]: unknown;
   };
   const installerVersion = readFileSync(INSTALLER_VERSION_PATH, "utf8");
   const workflow = readFileSync(RELEASE_WORKFLOW_PATH, "utf8");
@@ -45,19 +45,26 @@ describe("contrato offline del README para release e instalación", () => {
   const blueprint = section(readme, "## // 04_ BLUEPRINT", "## // 05_ COMMAND_DECK");
   const releaseGuide = section(readme, "## // 06_ RELEASE", "## // 07_ SOURCE_OF_TRUTH");
 
-  test("alinea la release pública y el SemVer técnico con las fuentes locales", () => {
+  test("alinea la release unificada y el SemVer único con las fuentes locales", () => {
     const versionMarker = installerVersion.match(/INSTALLER_VERSION\s*=\s*"([^"]+)"/);
     const releaseTag = `installer-v${release.version}`;
 
+    expect(release.version).toBe("0.40.0");
     expect(release.version).toBe(installerPackage.version);
     expect(versionMarker?.[1]).toBe(release.version);
-    expect(installerPackage.einDisplayVersion).toBe("0.4");
-    expect(readme).toContain(`EIN v${installerPackage.einDisplayVersion}`);
+    expect(installerPackage).not.toHaveProperty("einDisplayVersion");
+    expect(readme).not.toContain("einDisplayVersion");
+    expect(readme).not.toMatch(/versi[oó]n (?:pública|visible|técnica|del instalador)/i);
+    expect(readme).not.toContain("dos nombres de la misma publicación");
+    expect(readme).toContain(`EIN v${release.version}`);
     expect(readme).toContain(releaseTag);
     expect(readme).toContain(`${REPOSITORY_URL}/releases/tag/${releaseTag}`);
+    expect(readme).not.toContain("0.34.0");
     expect(readme).not.toContain("0.33.1");
-    expect(release.anchor).toBe("0340---2026-08-04");
+    expect(release.anchor).toBe("0400---2026-08-04");
     expect(changelog).toContain("`installer-v*`");
+    expect(changelog).toContain("Superseded for Claude installs");
+    expect(changelog).toContain("materialización BunFS");
     expect(workflow).toContain('"installer-v*"');
   });
 
@@ -68,6 +75,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(quickStart).toContain("```bash");
     expect(quickStart).toContain(INSTALL_COMMAND);
     expect(commandMatches).toHaveLength(1);
+    expect(readme).not.toContain("https://raw.githubusercontent.com/samuhlo/ein-agent/main/install.sh");
     for (const choice of ["Pi", "Claude Code", "Both"]) expect(quickStart).toContain(choice);
     expect(readme.indexOf("## // 00_ QUICK_START")).toBeLessThan(readme.indexOf("## // 04_ BLUEPRINT"));
   });
@@ -136,7 +144,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(urls).toEqual(expect.arrayContaining([
       INSTALL_COMMAND.split(" ")[2],
       REPOSITORY_URL,
-      `${REPOSITORY_URL}/releases/tag/installer-v0.34.0`,
+      `${REPOSITORY_URL}/releases/tag/installer-v0.40.0`,
     ]));
     expect(urls.every((url) => url.startsWith("https://github.com/samuhlo") || url.startsWith("https://raw.githubusercontent.com/samuhlo/"))).toBe(true);
   });

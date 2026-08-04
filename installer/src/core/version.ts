@@ -14,7 +14,7 @@ import {
 } from "./paths.ts";
 import { run } from "./exec.ts";
 
-export const INSTALLER_VERSION = "0.34.0";
+export const INSTALLER_VERSION = "0.40.0";
 
 // Repository used for release lookups; override it for a controlled test or fork.
 export const INSTALLER_REPO = process.env.EIN_INSTALLER_REPO ?? "samuhlo/ein-agent";
