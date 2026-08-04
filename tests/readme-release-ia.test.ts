@@ -7,9 +7,9 @@ const README_PATH = join(REPO_ROOT, "README.md");
 const CHANGELOG_PATH = join(REPO_ROOT, "CHANGELOG.md");
 const INSTALLER_PACKAGE_PATH = join(REPO_ROOT, "installer", "package.json");
 const INSTALLER_VERSION_PATH = join(REPO_ROOT, "installer", "src", "core", "version.ts");
-const INSTALLER_SCRIPT_PATH = join(REPO_ROOT, "installer", "install.sh");
 const RELEASE_WORKFLOW_PATH = join(REPO_ROOT, ".github", "workflows", "installer-release.yml");
 const INSTALL_COMMAND = "curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash";
+const REPOSITORY_URL = "https://github.com/samuhlo/ein-agent";
 
 function firstRelease(changelog: string): { version: string; date: string; anchor: string } {
   const match = changelog.match(/^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})$/m);
@@ -31,85 +31,113 @@ function section(readme: string, heading: string, nextHeading: string): string {
 describe("contrato offline del README para release e instalación", () => {
   const readme = readFileSync(README_PATH, "utf8");
   const changelog = readFileSync(CHANGELOG_PATH, "utf8");
-  const installerPackage = JSON.parse(readFileSync(INSTALLER_PACKAGE_PATH, "utf8")) as { version: string };
+  const installerPackage = JSON.parse(readFileSync(INSTALLER_PACKAGE_PATH, "utf8")) as {
+    version: string;
+    einDisplayVersion: string;
+  };
   const installerVersion = readFileSync(INSTALLER_VERSION_PATH, "utf8");
-  const installerScript = readFileSync(INSTALLER_SCRIPT_PATH, "utf8");
   const workflow = readFileSync(RELEASE_WORKFLOW_PATH, "utf8");
   const release = firstRelease(changelog);
-  const quickInstall = section(readme, "## // INSTALACIÓN RÁPIDA", "## // 000. MODOS DE TRABAJO");
-  const releaseSummary = section(readme, "## // ÚLTIMA RELEASE REGISTRADA", "## // 000. MODOS DE TRABAJO");
-  const modelGuide = section(readme, "## // 004. MODELOS", "## // 005. ESTÉTICA DEL OUTPUT");
-  const detailedInstallation = section(readme, "## // 010. INSTALACIÓN", "## // 011. COMANDOS `ein`");
+  const quickStart = section(readme, "## // 00_ QUICK_START", "## // 01_ RUNTIME_SURFACE");
+  const runtimeSurface = section(readme, "## // 01_ RUNTIME_SURFACE", "## // 02_ UPDATE_DECK");
+  const updateDeck = section(readme, "## // 02_ UPDATE_DECK", "## // 03_ SDD_ENGINE");
+  const sddEngine = section(readme, "## // 03_ SDD_ENGINE", "## // 04_ BLUEPRINT");
+  const blueprint = section(readme, "## // 04_ BLUEPRINT", "## // 05_ COMMAND_DECK");
+  const releaseGuide = section(readme, "## // 06_ RELEASE", "## // 07_ SOURCE_OF_TRUTH");
 
-  test("alinea versión, fecha y anchor con las fuentes locales canónicas", () => {
+  test("alinea la release pública y el SemVer técnico con las fuentes locales", () => {
     const versionMarker = installerVersion.match(/INSTALLER_VERSION\s*=\s*"([^"]+)"/);
+    const releaseTag = `installer-v${release.version}`;
 
     expect(release.version).toBe(installerPackage.version);
     expect(versionMarker?.[1]).toBe(release.version);
-    expect(releaseSummary).toContain(release.version);
-    expect(releaseSummary).toContain(release.date);
-    expect(releaseSummary).toContain(`CHANGELOG.md#${release.anchor}`);
-    expect(release.anchor).toBe("0331---2026-08-01");
+    expect(installerPackage.einDisplayVersion).toBe("0.4");
+    expect(readme).toContain(`EIN v${installerPackage.einDisplayVersion}`);
+    expect(readme).toContain(releaseTag);
+    expect(readme).toContain(`${REPOSITORY_URL}/releases/tag/${releaseTag}`);
+    expect(readme).not.toContain("0.33.1");
+    expect(release.anchor).toBe("0340---2026-08-04");
     expect(changelog).toContain("`installer-v*`");
     expect(workflow).toContain('"installer-v*"');
   });
 
-  test("describe la release como registrada y no como publicada", () => {
-    expect(releaseSummary).toContain("Última release registrada según el registro canónico local");
-    expect(releaseSummary).not.toContain("Última release publicada");
-  });
-
-  test("mantiene una entrada progresiva con un único bootstrap y destino semántico", () => {
-    const beforeConcepts = readme.slice(0, readme.indexOf("## // 000. MODOS DE TRABAJO"));
+  test("pone el bootstrap y el selector de runtime antes de la arquitectura", () => {
     const commandMatches = readme.match(new RegExp(INSTALL_COMMAND.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) ?? [];
 
-    expect(beforeConcepts).toContain("Ein");
-    expect(quickInstall).toContain("```bash");
-    expect(quickInstall).toContain(INSTALL_COMMAND);
+    expect(readme).toMatch(/<h1><code>\.\/EIN\.sh<\/code><\/h1>/);
+    expect(quickStart).toContain("```bash");
+    expect(quickStart).toContain(INSTALL_COMMAND);
     expect(commandMatches).toHaveLength(1);
-    expect(quickInstall).toContain("[Ver instalación detallada](#instalacion-detallada)");
-    expect(readme).toContain('<a id="instalacion-detallada"></a>');
+    for (const choice of ["Pi", "Claude Code", "Both"]) expect(quickStart).toContain(choice);
+    expect(readme.indexOf("## // 00_ QUICK_START")).toBeLessThan(readme.indexOf("## // 04_ BLUEPRINT"));
   });
 
-  test("resume exactamente tres hechos de la primera release", () => {
-    const bullets = releaseSummary.match(/^[-*] /gm) ?? [];
-
-    expect(bullets).toHaveLength(3);
-    expect(releaseSummary).toContain("protocolo legacy de intercom");
-    expect(releaseSummary).toContain("estado imposible");
-    expect(releaseSummary).toContain("guards");
-    expect(releaseSummary).toContain("ask tardío");
-    expect(releaseSummary).toContain("487 tokens");
-    expect(releaseSummary).toContain("calidad de entrega");
-  });
-
-  test("guía por capacidad: sin presets, con recomendación por rol y decisión humana", () => {
-    for (const criterion of ["arquitectura", "ambigüedad", "revisión adversarial", "alto riesgo", "acotado", "bien especificado", "repetitivo", "mecánico"]) {
-      expect(modelGuide.toLowerCase()).toContain(criterion);
+  test("describe los tres destinos y mantiene aislados los runtimes vanilla", () => {
+    for (const value of [
+      "pi-ein",
+      "cc-ein",
+      "~/.pi-ein/agent",
+      "~/.claude-ein",
+      "~/.pi/agent",
+      "~/.claude",
+      "PI_CODING_AGENT_DIR",
+      "EIN_PI_AGENT_HOME",
+      "CLAUDE_CONFIG_DIR",
+      "~/.config/fish/functions/",
+      "bun pi-ein/migrate.ts --dry",
+      "backup `.tar.gz`",
+    ]) {
+      expect(runtimeSurface).toContain(value);
     }
-    expect(modelGuide).toContain("/ein:models");
-    // Los presets de modelos se eliminaron: hardcodear nombres se pudre.
-    expect(modelGuide).not.toContain("/ein:models:full");
-    expect(modelGuide).not.toContain("/ein:models:lite");
-    expect(modelGuide).toContain("recomendación por rol");
-    expect(modelGuide).toContain("decides tú");
-    expect(modelGuide).toContain("no hace fallback automático");
-    expect(`${modelGuide}\n${releaseSummary}`).not.toMatch(/gpt-5\.5|MiniMax-M3|MiniMax-M2\.7/);
   });
 
-  test("describe el inicio de la TUI condicionado por plataforma", () => {
-    expect(installerScript).toContain('elif [ "$OS" = "linux" ] && [ -e /dev/tty ]; then');
-    expect(installerScript).toContain('ok "Listo. Ejecuta ${BOLD}${GOLD}ein${RESET} para empezar."');
-    expect(detailedInstallation).toContain("Linux reabre la TUI si hay una terminal disponible; en macOS te pedirá ejecutar `ein` para empezar.");
-    expect(detailedInstallation).not.toContain("descarga el binario de la última release y abre la TUI");
+  test("mantiene separados los comandos de actualización verificados", () => {
+    expect(updateDeck).toContain("pi-ein update --all");
+    expect(updateDeck).toContain("ein update");
+    expect(updateDeck).toContain("bun cc-ein/sync.ts");
+    expect(updateDeck).toContain("backup y rollback");
   });
 
-  test("no promueve Homebrew y conserva el tag de publicación genérico", () => {
+  test("explica SDD, OpenSpec, subagentes y las fuentes arquitectónicas actuales", () => {
+    for (const value of [
+      "openspec/changes/<cambio>/",
+      "sdd-scope",
+      "sdd-map",
+      "sdd-design",
+      "sdd-tasks",
+      "sdd-apply",
+      "sdd-verify",
+      "sdd-close",
+      "subagentes",
+      "OpenSpec es el registro completo y canónico",
+    ]) {
+      expect(sddEngine).toContain(value);
+    }
+    expect(blueprint).toContain("LAYER | TECH | IMPLEMENTATION DETAIL");
+    expect(blueprint).toContain("`ein-pi/core/` (contenido portable, agnóstico del runtime)");
+    expect(blueprint).toContain("`ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench");
+  });
+
+  test("conserva la firma visual y la ruta de publicación por GitHub Actions", () => {
+    expect(readme).toMatch(/^## \/\/ \d{2}_ /m);
+    expect(readme).toContain("> _note:");
+    expect(readme).toContain("| LAYER | TECH | IMPLEMENTATION DETAIL |");
+    expect(readme).toContain("DESIGNED & CODED BY");
+    expect(readme).toContain("Lugo, Galicia");
+    expect(releaseGuide).toContain("installer-v<semver>");
+    expect(releaseGuide).toContain(".github/workflows/installer-release.yml");
+    expect(releaseGuide).toContain("GitHub Actions");
+    expect(readme).not.toMatch(/img\.shields\.io|LIVE_DEMO/i);
     expect(readme).not.toMatch(/brew\s+install\s+ein\b/i);
-    expect(readme).not.toMatch(/Homebrew.{0,120}\bEin\b|\bEin\b.{0,120}Homebrew/i);
-    expect(readme).toContain("installer-v<semver>");
-    expect(readme).not.toContain("actualiza Pi");
-    expect(readme).toContain("OpenSpec sigue siendo canónico");
-    expect(readme).toContain("fallos no bloqueantes");
+  });
+
+  test("solo usa URLs resueltas del repositorio, bootstrap y release", () => {
+    const urls = readme.match(/https?:\/\/[^)\s"<]+/g) ?? [];
+    expect(urls).toEqual(expect.arrayContaining([
+      INSTALL_COMMAND.split(" ")[2],
+      REPOSITORY_URL,
+      `${REPOSITORY_URL}/releases/tag/installer-v0.34.0`,
+    ]));
+    expect(urls.every((url) => url.startsWith("https://github.com/samuhlo") || url.startsWith("https://raw.githubusercontent.com/samuhlo/"))).toBe(true);
   });
 });

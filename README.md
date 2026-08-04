@@ -1,256 +1,150 @@
-<p align="center">
-  <img src="ein-logo.png" alt="Ein · Pi Workbench" width="440">
-</p>
+<div align="center">
+  <img src="ein-logo.png" alt="Ein · coding-agent harness" width="440">
+  <h1><code>./EIN.sh</code></h1>
 
-<p align="center">
-  <a href="https://github.com/samuhlo/ein-agent/releases/latest"><img src="https://img.shields.io/github/v/release/samuhlo/ein-agent?label=release&color=FFCA40" alt="Release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-737373.svg" alt="License: MIT"></a>
-</p>
+**Un harness de coding-agent específico de Pi: dos runtimes aislados, una disciplina de entrega.**
 
-> Intención corta: un harness **personal** sobre [Pi](https://github.com/earendil-works/pi-coding-agent) que convierte trabajo ambiguo en cambios pequeños, verificados y explicados — modelos caros donde se razona, baratos donde se ejecuta.
+</div>
 
-El modelo fuerte hace de arquitecto (piensa, acota, enseña); los baratos ejecutan órdenes cerradas. Baja el coste y reduce errores. Ein deja artefactos (OpenSpec + EIN.md), verifica, y al terminar **te explica cómo funciona** lo que hizo — no solo "hecho".
+---
 
-No es un producto para todos: es **mi** workbench. Está **curado para mi stack** — Nuxt 4 · Vue 3 · TypeScript · Bun · Tailwind v4 · Pinia · Drizzle + Neon · Zod · Nuxt UI · GSAP/Motion · Hono · Vitest — y para mi forma de trabajar. Funcionaría bien con un stack parecido; cualquiera puede clonarlo y reajustar skills, modelos y persona a lo suyo.
+Ein convierte trabajo ambiguo en cambios pequeños, verificados y explicados. Nace como un harness específico de **Pi Coding Agent** y ahora se despliega con dos adaptadores soportados: `pi-ein` para Pi y `cc-ein` para Claude Code.
 
-## // INSTALACIÓN RÁPIDA
+OpenSpec, el flujo SDD y los subagentes son el centro del sistema. El core compartido no convierte a Ein en una herramienta portable para cualquier runtime: hoy la superficie soportada es Pi Coding Agent y Claude Code, cada uno con su propia casa.
+
+> _note: aislamiento primero. `pi` y `claude` siguen siendo tus runtimes vanilla; Ein entra por launchers explícitos, no por contaminación silenciosa._
+
+## // 00_ QUICK_START
+
+El camino corto es instalar, abrir el menú y elegir el runtime. La instalación pública confirmada es el bootstrap de GitHub Releases:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
+ein
 ```
 
-El bootstrap es el único canal de instalación confirmado para Ein.
-[Ver instalación detallada](#instalacion-detallada): plataforma, dependencias y recuperación.
+En el menú, selecciona **Pi**, **Claude Code** o **Both**. El instalador prepara únicamente los runtimes elegidos, instala sus launchers aislados y ejecuta el doctor al terminar.
 
-## // ÚLTIMA RELEASE REGISTRADA
+Si quieres la instalación directa de Pi sin abrir el selector, ejecuta `ein install`. Para ver el resto del CLI, usa `ein --help`.
 
-**Última release registrada según el registro canónico local:** [0.33.1 · 2026-08-01](CHANGELOG.md#0331---2026-08-01).
+## // 01_ RUNTIME_SURFACE
 
-- **Menos peso muerto:** se retira del orchestrator el protocolo legacy de intercom — 3 párrafos que gobernaban un estado imposible (el bridge va apagado por config).
-- **Sin perder guards:** se conservan las reglas vivas (status blocked, no wait-poll, no rehacer una fase por un ask tardío); solo desaparece el protocolo de interacción muerto.
-- **Más ligero por sesión:** ~487 tokens menos en cada sesión del parent (el orchestrator se carga siempre), con cero pérdida de calidad de entrega.
+Cada opción conserva intacto el runtime vanilla y coloca Ein en un hogar separado:
 
----
+| ELECCIÓN | LAUNCHER | HOGAR DE EIN | RUNTIME VANILLA |
+| :--- | :--- | :--- | :--- |
+| **Pi** | `pi-ein` | `~/.pi-ein/agent` | `pi` → `~/.pi/agent` |
+| **Claude Code** | `cc-ein` | `~/.claude-ein` | `claude` → `~/.claude` |
+| **Both** | `pi-ein` + `cc-ein` | ambos hogares | ambos runtimes intactos |
 
-## // 000. MODOS DE TRABAJO
+`pi-ein.fish` exporta `PI_CODING_AGENT_DIR` y `EIN_PI_AGENT_HOME` solo para esa invocación. `cc-ein.fish` exporta `CLAUDE_CONFIG_DIR` y antepone `~/.claude-ein/bin` al `PATH`; los launchers viven como funciones Fish en `~/.config/fish/functions/` y no contaminan tu shell.
 
-Ein arranca en **Solo** — listo para trabajar sin configurar nada. Subes a **Team** con `/ein:mode team` el día que un proyecto necesite board compartido.
+### Migración de una instalación Pi legacy
 
-**Solo** — tú y el repo. El plan, el estado y la trazabilidad viven dentro del propio proyecto: artefactos OpenSpec en `openspec/changes/`, `EIN.md` como memoria versionada, y la entrega por **GitHub** vía `ein-git`. Cero setup externo, cero cuentas que conectar. Es el día a día: trabajo en solitario, proyectos personales, aprender.
+Si `~/.pi/agent` contiene una instalación Ein antigua, el instalador solo la mueve cuando encuentra un marcador Ein válido. Crea un backup `.tar.gz`, mueve el árbol a `~/.pi-ein/agent` y reescribe las rutas absolutas del template. Un directorio vanilla de Pi no se toca.
 
-**Team** — todo lo de Solo **+ Linear como board de verdad**: issues, milestones y estados sincronizados con el OpenSpec, y un preflight que reutiliza o crea la issue antes de cada flujo SDD. Para trabajo profesional o de cliente, donde alguien más mira el backlog y hace falta trazabilidad formal. Aquí es donde `ein-linear` entra en juego (en Solo permanece dormido salvo que lo pidas puntualmente).
+Desde un checkout del repositorio puedes inspeccionar o ejecutar la migración explícita:
 
-La entrega —commits y PRs por GitHub— pasa por `ein-git` en **ambos** modos: nunca git a pelo desde el orquestador caro.
-
-## // 001. FLUJO VISIBLE
-
-| La tarea es… | Ein hace… |
-|---|---|
-| pequeña | directo, inline |
-| mediana | plan corto → ejecución con subagentes baratos → verifica → explica |
-| grande / ambigua | SDD completo (scope → map → design → tasks → apply → verify → close) |
-| (Team) con board | sincroniza Linear |
-
-Tú dices qué quieres; Ein elige el carril más pequeño que sea seguro.
-
-## // 002. FLUJO SDD
-
-Para trabajo serio, siete fases. Cada agente tiene responsabilidades acotadas y no salta pasos:
-
+```bash
+bun pi-ein/migrate.ts --dry
+bun pi-ein/migrate.ts
 ```
+
+La migración conserva login, sesiones e historial. La reversión es mover `~/.pi-ein/agent` de vuelta a `~/.pi/agent` o restaurar el backup.
+
+## // 02_ UPDATE_DECK
+
+En una sesión de `pi-ein`, el aviso separa deliberadamente las dos actualizaciones:
+
+```bash
+pi-ein update --all    # Pi: binario, extensiones y paquetes
+ein update             # Ein: instalador y template de la release publicada
+```
+
+`ein update` usa la release estable de GitHub, verifica el payload y actualiza la instalación gestionada por Ein con backup y rollback. Tras una actualización correcta puede refrescar Pi y las herramientas declaradas; `pi-ein update --all` es el comando directo para el bloque Pi.
+
+`cc-ein` se sincroniza con el adaptador desde este repositorio mediante `bun cc-ein/sync.ts`; `ein update` no debe presentarse como un updater genérico de cualquier runtime.
+
+> _note: el aviso de Pi no mezcla estados: `pi-ein update --all` mantiene Pi; `ein update` mantiene Ein._
+
+## // 03_ SDD_ENGINE
+
+Ein organiza el trabajo serio como una cadena SDD visible:
+
+```text
 sdd-scope → sdd-map → sdd-design → sdd-tasks → sdd-apply → sdd-verify → sdd-close
 ```
 
-| Fase | Qué hace |
-|---|---|
-| **sdd-scope** | Define alcance, constraints, presupuesto y contexto mínimo |
-| **sdd-map** | Mapea el código antes de tocar nada: dependencias, riesgos |
-| **sdd-design** | Propuesta + spec (RFC 2119 + Given/When/Then) + decisiones |
-| **sdd-tasks** | Convierte el diseño en checklist ejecutable `tasks.md` |
-| **sdd-apply** | Implementa por slices, con TDD y commits atómicos por unidad de trabajo |
-| **sdd-verify** | Verifica contra el spec: tests, tipos, integración, regresiones |
-| **sdd-close** | Condensa el cambio en un `summary.md` revisable y ejecuta el cierre determinista |
+Los artefactos viven en `openspec/changes/<cambio>/`: alcance, mapa, diseño, checklist, progreso de apply, verificación y resumen de cierre. Los subagentes de cada fase trabajan con responsabilidades acotadas; el parent decide, enruta y explica.
 
-**Routing determinista (sin que el modelo adivine).** El orquestador no enruta de memoria: dos tools deterministas (`ein_sdd_status`, `ein_sdd_check`) leen los ficheros de `openspec/changes/<cambio>/` y devuelven hechos — en qué fase va y si el artefacto está sano. El flujo es **fase a fase**: el router dice qué toca → se delega esa fase → el gatekeeper la valida → siguiente. Al abrir una sesión nueva, `/ein:sdd-status` reubica el cambio al instante, **sin volcar contexto ni quemar tokens**. Al cerrar, `sdd-close` deja un `summary.md` legible meses después y `openspec/changes/` con solo cambios vivos.
+OpenSpec es el registro completo y canónico del cambio. `EIN.md` aporta el contexto curado del proyecto cuando está presente; no sustituye los artefactos SDD.
 
-Guardarraíles del flujo: **Scope Gate** (acota tokens de entrada), **Plan Gate** (mutaciones ambiguas/bulk → plan + confirmación antes de ejecutar), **Review Workload Guard** (el parent mide las líneas de **producción** —tests y generados se reportan pero no cuentan— y pregunta single/split **antes** de delegar el PR; `ein-git` como backstop), **Design hygiene** (`/ein:sdd-check`), **gate de TDD** (en modo `ask` el orquestador clasifica el cambio y solo pregunta si merece la pena — los mecánicos no interrumpen), **gate de entrega** (`/ein:git`: en `auto`, si pides commit/push/PR no se reconfirma; force-push siempre bloqueado).
+## // 04_ BLUEPRINT
 
-## // 003. AGENTES DE DELIVERY
+| LAYER | TECH | IMPLEMENTATION DETAIL |
+| :--- | :--- | :--- |
+| **Pi runtime** | Pi Coding Agent | `pi-ein` carga el agente desde `~/.pi-ein/agent` mediante `PI_CODING_AGENT_DIR`. |
+| **Claude runtime** | Claude Code | `cc-ein` traduce el core a `~/.claude-ein` mediante `CLAUDE_CONFIG_DIR`. |
+| **Core** | TypeScript + Bun | `installer/` compila el instalador standalone y compone el payload del workbench. |
+| **Workflow** | OpenSpec + SDD | `ein-pi/core/agents/` contiene los agentes de fase y `ein-pi/core/skills/` sus skills. |
+| **Delivery** | GitHub Actions | `.github/workflows/installer-release.yml` publica los binarios del instalador. |
 
-- **ein-git** — branches, commits, PRs documentadas, reviews. Modelo barato; el orquestador no toca git a mano. Activo en Solo y Team.
-- **ein-linear** *(Team)* — issues, milestones y proyectos en Linear, en sync con el OpenSpec. Inactivo en Solo salvo que lo pidas.
+La arquitectura versionada grita sus límites:
 
-## // 004. MODELOS
-
-Elige por capacidad, riesgo y coste. Configura cada agente a mano con `/ein:models`, que muestra la **recomendación por rol** (modelo barato/capaz + esfuerzo) y marca con `!` los agentes cuyo esfuerzo se desvía de ella. No hay presets de modelos a propósito: los nombres de modelo y sus precios cambian cada semana y un preset hardcodeado se pudre en silencio; lo que no caduca es el rol.
-
-| Tipo de trabajo | Criterio de elección |
-|---|---|
-| Arquitectura, ambigüedad, revisión adversarial o alto riesgo | Prioriza razonamiento fuerte: acota mejor las decisiones y detecta fallos costosos. |
-| Trabajo acotado, bien especificado, repetitivo o mecánico | Prioriza ejecución económica: conserva presupuesto cuando el camino ya está definido. |
-
-Ein **no hace fallback automático de modelo** a mitad de tarea. Ante un corte transitorio, reintenta en el mismo modelo; cambiar de modelo lo decides tú. Así coste y calidad no cambian en silencio.
-
-## // 005. ESTÉTICA DEL OUTPUT (persona)
-
-Ein tiene una estética propia, parte de la persona `samuhlo`:
-
-- **Respuestas**: formato `// 00N` (resumen → qué se hizo → **cómo funciona por dentro** → decisión → verificación → riesgos → siguiente). Lo importante se enseña, no se reporta.
-- **Comentarios de código**: minimalistas, brutalistas; placa `// ===` por fichero; explican el *por qué*, no el *qué* (skill `comment-style`).
-- **Logging**: estilo brutalista de runtime (skill `logging-style`).
-- **Markdown publicado** (PRs, issues, commits): tags `[[TAG]]`, `> Intención corta:`, secciones `// NNN`.
-
-Todo esto se **apaga con `/ein:persona neutral`**: mismo motor, tono neutro/profesional sin las convenciones de marca. La persona controla el **tono y la estética**; el idioma se gestiona aparte con `/ein:lang`.
-
-## // 006. PERSONA DOCENTE
-
-En persona `samuhlo`, ante un **cambio importante** (nueva dependencia, patrón, endpoint, decisión de arquitectura, código no trivial, seguridad) Ein no entrega un parte de estado: **te enseña el mecanismo paso a paso** — qué hace cada pieza y cómo encajan. Lo trivial sigue en una línea. El objetivo es que termines entendiendo mejor el sistema, no solo qué se tocó.
-
-## // 007. CONTEXTO DE PROYECTO (EIN.md)
-
-`/ein:init` (o el onboarding first-run) genera un **`EIN.md`** versionado en la raíz: la verdad de base del proyecto (stack, comandos, arquitectura, convenciones) que se inyecta al orquestador y a las fases SDD para que los modelos baratos **no re-descubran lo mismo cada run** (ahorro de tokens, más control). Zona **curada** (la escribes tú, Ein no la pisa) — incluye un **`## Índice`** sembrado con las carpetas del repo para que tú/el modelo pongáis una línea de "qué es cada cosa" — + zona **auto** (comandos, estructura y **links a docs**, regenerada con sello `rev` + fecha; `sdd-close` la refresca al cerrar un cambio; `/ein:status` avisa de la deriva). Se commitea: es conocimiento del repo.
-
-## // 008. SKILLS (3 capas)
-
-1. **Locales** (`skills/local/`) — skills opinadas propias (workflow, disciplina, convenciones). Se sincronizan desde este repo.
-2. **Bajadas** (`skills/downloaded/`) — set **curado** de fuentes fiables: [onmax/nuxt-skills](https://github.com/onmax/nuxt-skills), [antfu/skills](https://github.com/antfu/skills), greensock (GSAP), vercel-labs (React/Next), yusukebe (Hono), midudev (Bun).
-3. **Context7** — todo lo demás (Drizzle, Zod, Tailwind, Postgres…) on-demand, con docs frescas, sin guardar nada que envejezca.
-
-`/ein:skills` mantiene 1 y 2 al día; el advisor decide por tarea entre skill curada o Context7. Configuración en `skills/stack-profile.json`.
-
-## // 009. PLATAFORMA
-
-- **Memoria (opcional, verificada en fuente/desarrollo)** — Engram se integra mediante un adapter CLI acotado. OpenSpec sigue siendo canónico; los fallos no bloqueantes no interrumpen el flujo.
-- **Idioma (2 ejes)** — `/ein:lang` separa conversación/UI de artefactos (PR/commit/Linear). Charlar en castellano y generar PRs en inglés, por ejemplo.
-- **Guardrails** — lista explícita de patrones denegados (`git reset --hard`, `rm -rf`, `DROP TABLE`…) y patrones que exigen confirmación.
-- **MCP eficiente** — `pi-mcp-adapter` (proxy de un tool, ~200 tokens vs 10k+/server) + `context-mode` (sandbox de salidas, persistencia de sesión sobre compactaciones).
-- **Onboarding first-run** — la primera vez que Ein entra a un proyecto **sin configurar** (agnóstico a su edad: mira "¿está configurado?", no "¿es nuevo?"), un wizard único resuelve los esenciales — persona, idioma de artefactos, TDD, Hypa — y genera `EIN.md`. Un toque para "usar recomendados" o personalizar. Los pendientes = ficheros ausentes; una vez escritos, no vuelve a preguntar. Relánzalo con `/ein:onboard`.
-- **Grafo de código (CodeGraph)** — si el proyecto está indexado con [codegraph](https://github.com/colbymchenry/codegraph) (`codegraph init`; índice local SQLite, determinista, AST vía tree-sitter), Ein inyecta al orquestador y a las fases SDD la directiva "un `codegraph explore` antes que una docena de grep/read": código verbatim + call paths + blast radius en una llamada, por CLI (sin MCP). `/ein:codegraph` (auto | off, default `auto`); sin binario o sin índice, cero prompt gastado y todo funciona como siempre. Medido: -38% mediana de payload (hasta -85% en ficheros grandes) y una fracción de los tool-calls en las fases que leen código.
-- **Compresión de salida (Hypa)** — envuelve `bash` con [Hypa](https://github.com/Hypabolic/Hypa): reducción **determinista** de la salida de comandos con reducer real (git de lectura, vitest/eslint, dotnet, cargo, terraform…). Envuelve `bunx vitest` normalizando el prefijo; deja crudo lo genérico (de eso ya se encarga `context-mode`) y **nunca** toca streaming/interactivo (dev, serve, `--watch`, `logs`, `-f`). Default **`auto`** (`/ein:hypa`): detecta el stack — **on** en proyectos verbosos no-Bun (dotnet/gradle/k8s → 90-100% menos ruido), **off** en Bun puro (ya terso). Si falta el binario `hypa`, el wrap queda inerte.
-- **Sesiones recientes** — el banner las lista al arrancar; recupéralas con `pi -c`/`pi -r`/`pi --session <id>` o `/ein:resume`.
-- **`ask_user_question`** — en los checkpoints (gates SDD, delivery, scope) Ein pregunta con diálogos estructurados, no prosa, solo cuando la respuesta cambia el siguiente paso.
-
----
-
-<a id="instalacion-detallada"></a>
-
-## // 010. INSTALACIÓN
-
-El bootstrap es el único canal de instalación confirmado para Ein. Detecta plataforma y descarga el binario de la última release. Al ejecutarlo con el bootstrap, Linux reabre la TUI si hay una terminal disponible; en macOS te pedirá ejecutar `ein` para empezar. El wizard (`ein install`): detecta OS/arch/distro/shell, instala dependencias faltantes (**bun** y **pi** obligatorias; **engram** y **gh** opcionales), pregunta el modo (Solo por defecto, Team opt-in), despliega el workbench en `~/.pi/agent` templando rutas, wizard opcional de secrets, y corre el doctor.
-
-> **Nunca toca** `auth.json`, `sessions/` ni `backups/` — tu estado es siempre tuyo.
-
-**Windows (vía WSL como camino Linux).** Ein corre en Windows a través de WSL2 (que por dentro es Linux):
-
-```powershell
-wsl --install        # PowerShell como admin; reinicia y abre Ubuntu
-```
-
-Dentro de Ubuntu (WSL), usa el bootstrap de la ruta rápida. El instalador detecta WSL y despliega la build de Linux. Trabaja con tus proyectos **dentro del FS de WSL** (`~/...`), no en `/mnt/c/...` (mucho más lento y con permisos raros); `bun`, `pi` y `engram` se instalan dentro de WSL, y el estado de Ein vive en `~/.pi` **de WSL**. Windows nativo (sin WSL) llegará más adelante.
-
-| Dependencia | Requerida |
-|---|---|
-| [Bun](https://bun.sh) ≥ 1.3 | Sí (el installer la gestiona) |
-| [Pi Coding Agent](https://github.com/earendil-works/pi-coding-agent) | Sí (el installer la gestiona) |
-| [Engram](https://github.com/Gentleman-Programming/engram) | No, recomendado |
-| [GitHub CLI](https://cli.github.com) | No, recomendado |
-| [Hypa](https://github.com/Hypabolic/Hypa) | No, opcional (compresión de salida; `/ein:hypa`) |
-| [codegraph](https://github.com/colbymchenry/codegraph) | No, opcional (grafo de código; `codegraph init` + `/ein:codegraph`) |
-
-## // 011. COMANDOS `ein`
-
-```bash
-ein                 # Menú interactivo (TUI brutalista)
-ein install         # Instala o repara Ein
-ein update          # Actualiza Ein (backup previo)
-ein doctor          # Diagnóstico sin lanzar pi
-ein uninstall       # Elimina Ein (conserva auth, secrets, sesiones)
-ein restore         # Restaura desde un backup
-```
-
-Flags: `--yes`, `--dry-run` (muestra el plan sin ejecutar nada), `--no-engram`, `--no-secrets`, `--no-linear` (arranca en modo Solo), `--no-hypa` (omite la compresión de salida), `--no-codegraph` (omite el grafo de código).
-
-**Backups con red de seguridad.** Cada `install`/`update`/`uninstall`/`restore` snapshota antes en `~/.pi/agent/backups/installer/` (tar.gz): dedup si nada cambió, poda automática conservando los 5 más recientes (`ein restore --pin <nombre>` protege uno), y **rollback automático** si un deploy falla a medias. Los backups nunca incluyen `auth.json` ni sesiones — restaurar no pisa tus credenciales.
-
-## // 012. DENTRO DE PI — `/ein:*`
-
-```
-# Control
-/ein:mode               Modo de trabajo: solo (sin Linear) | team (Linear board)
-/ein:status             Estado: modo, agentes, cadenas, skills, proyecto, MCP
-/ein:init               Genera/refresca EIN.md
-/ein:models              Ver/cambiar modelo y esfuerzo por agente · recomendación por rol
-/ein:persona            Tono y estética: samuhlo | neutral
-/ein:lang               Idioma de conversación/UI y de artefactos
-/ein:tdd                TDD estricto: auto (config) | strict | off | ask
-/ein:git                Confirmación de entrega: auto | ask | off
-/ein:hypa               Compresión de salida de comandos (Hypa): auto | on | off
-/ein:codegraph          Grafo de código (codegraph) del proyecto: auto | off
-/ein:onboard            Reconfigurar esenciales del proyecto (persona/lang/tdd/hypa/EIN.md)
-
-# SDD
-/ein:ai:install-sdd     Instala el OpenSpec en el proyecto
-/ein:ai:sdd-preflight   Preflight de la sesión SDD
-/ein:sdd-audit [ruta]   Valida un cambio (todas las fases) o lint determinista de un design.md
-/ein:sdd-close [cambio] Cierra un cambio verificado
-/ein:sdd-check [ruta]   [legacy alias de /ein:sdd-audit]
-
-# Skills · Linear (Team) · Diagnóstico · Sesiones
-/ein:skills [update|add|clean] · /ein:skills:advisor <tarea>
-/ein:linear:new · :project-bootstrap · :milestones · :help
-/ein:doctor · /ein:doctor-output · /ein:resume · /ein:help [full]
-```
-
-## // 013. ESTRUCTURA DEL REPO
-
-La fuente canónica del workbench vive en `ein-pi/` con dos raíces: `ein-pi/core/` (contenido portable, agnóstico del runtime) y `ein-pi/agent/` (runtime de Pi). El installer las compone y despliega planas en `~/.pi/agent` (destino instalado, no se edita desde el repo) — Pi espera ese layout, así que el desplegado no cambia.
-
-```
+```text
 ein-agent/
 ├── ein-pi/
-│   ├── core/              # Portable: reutilizable por un futuro adapter no-Pi
-│   │   ├── agents/        # SDD (7) + ein-linear + ein-git (prompts de fase)
-│   │   ├── skills/        # Locales + bajadas curadas + mapa Context7
-│   │   ├── prompts/ · docs/ · AGENTS.md
-│   └── agent/             # Runtime Pi
-│       ├── extensions/    # Extensiones del runtime de Pi
-│       ├── lib/           # Lógica compartida (mode, persona, lang, modelos, guardrails…)
-│       ├── chains/        # Cadena ein-sdd
-│       ├── assets/        # orchestrator.md (leído por lib/ en runtime)
-│       ├── brand.json · mcp.json · settings.json
-└── installer/             # Instalador cross-platform (macOS + Linux)
+│   ├── core/       # agentes, skills, docs y prompts compartidos
+│   └── agent/      # extensiones, chains y runtime específico de Pi
+├── pi-ein/         # launcher + migración del adaptador Pi
+├── cc-ein/         # CLAUDE.md, hooks, sync y CLI SDD del adaptador Claude
+└── installer/      # CLI, TUI, paths, deploy, backups y releases
 ```
 
-`ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench; `installer/scripts/bundle-template.ts` las empaqueta como template embebido (con `template-manifest.json` describiendo el contenido exacto). Cada push a `main` pasa por CI (tests + typecheck + smoke de empaquetado).
+`ein-pi/core/` (contenido portable, agnóstico del runtime) se comparte únicamente entre los dos adaptadores soportados. `ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench; `installer/scripts/bundle-template.ts` los compone para el despliegue.
 
-La puerta principal de calidad, definida en `.github/workflows/ci.yml`, fija Bun en `BUN_VERSION: "1.3.0"` para Ubuntu y macOS. Para actualizarla, cambia solo ese valor en una revisión deliberada y valida las dos entradas de la matriz; esta política no cubre los flujos de publicación ni Docker E2E.
-
-> `assets/orchestrator.md` es contenido portable en espíritu, pero hoy `lib/persona.ts` y `lib/sdd-preflight.ts` lo leen relativo al módulo, así que vive con el runtime. Se moverá a `core/` cuando esa lógica se extraiga al CLI (fase multi-agente).
-
-## // 014. ACTUALIZAR / PUBLICAR
+## // 05_ COMMAND_DECK
 
 ```bash
-ein update                          # backup + redeploy de Ein (conserva tu estado)
-
-git tag installer-v<semver>         # publicar release
-git push origin installer-v<semver> # GitHub Actions compila 4 binarios + checksums
+ein                 # menú interactivo
+ein install         # instala o repara Ein; Pi es el destino directo
+ein update          # actualiza Ein y su template con backup
+ein doctor          # diagnostica el despliegue sin lanzar Pi
+ein uninstall       # elimina Ein y conserva auth, secrets y sesiones
+ein restore         # restaura desde un backup
 ```
 
-> **Validación local** (opcional, antes de publicar):
-> `cd installer && bun run build:all` compila localmente sin publicar.
-> La publicación real ocurre al pushear el tag `installer-v*`.
+Flags disponibles en el instalador: `--yes`, `--dry-run`, `--no-engram`, `--no-secrets`, `--no-linear`, `--no-hypa` y `--no-codegraph`.
 
-## // 015. ROADMAP
+## // 06_ RELEASE
 
-- **Multi-perfil** — `profiles/<persona>.json`, cada uno con su persona y stack de skills, para que otra persona instale Ein con otro stack. La base existe (`stack-profile.json` + `loadProfile()`); falta el selector.
-- **Galego en la UI** — el sistema de idioma ya contempla `gl`; falta traducir los mapas de `lib/i18n/strings.ts`.
-- **Windows nativo** (sin WSL) — binario `ein-installer-windows-x64.exe` (Bun ya soporta el target) + `install.ps1` (`irm … | iex`) + `platform.ts`/`deps`/`exec` portados (winget/scoop, `where.exe`). Pendiente de validar la TUI ANSI en consola Windows y el templado de rutas. Hoy el camino es WSL (ver Instalación).
+La release pública actual es **[EIN v0.4](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.34.0)**. Su identificador técnico de instalador es **`installer-v0.34.0`**: `0.4` es la versión visible del producto y `0.34.0` es el SemVer del instalador. Son dos nombres de la misma publicación, no dos releases distintas.
 
----
+Para preparar una publicación:
 
+1. Mantén el mismo SemVer en `installer/package.json`, `installer/src/core/version.ts` y `CHANGELOG.md`.
+2. Ejecuta `cd installer && bun run typecheck` y los tests focalizados.
+3. Crea y sube el tag técnico `installer-v<semver>`:
 
->**Ein** es el corgi de *Cowboy Bebop*: un "data dog" modificado, mucho más inteligente de lo que aparenta, que resuelve lo difícil sin hacer ruido ni buscar protagonismo. Justo lo que quiero de esta herramienta: discreta pero profundamente capaz, hace el trabajo inteligente por debajo y te deja a ti al mando.
+   ```bash
+   git tag -a installer-v<semver> -m "installer-v<semver>"
+   git push origin installer-v<semver>
+   ```
 
-<p align="center">
-  <img src="ein_ins.webp" alt="Ein" width="280">
-</p>
+4. `.github/workflows/installer-release.yml` se activa con `installer-v*`, compila los cuatro binarios soportados, genera `checksums.txt` y publica la GitHub Release con `install.sh` y los assets.
+
+La publicación canónica ocurre en GitHub Actions. No hay publicación local ni publicación en npm.
+
+## // 07_ SOURCE_OF_TRUTH
+
+- Instalación pública: [bootstrap `install.sh`](https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh).
+- Código y cambios: [samuhlo/ein-agent](https://github.com/samuhlo/ein-agent).
+- Release técnica actual: [`installer-v0.34.0`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.34.0).
+
+<div align="center">
+
+<code>DESIGNED & CODED BY <a href="https://github.com/samuhlo">samuhlo</a></code>
+
+<small>Lugo, Galicia</small>
+
+</div>
