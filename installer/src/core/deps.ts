@@ -10,8 +10,9 @@ import type { Platform } from "./platform.ts";
 import { lookPath, run } from "./exec.ts";
 import { installEngram, resolveEngram } from "./engram.ts";
 import {
-  AGENT_DIR,
   BUN_BIN_DIR,
+  defaultPiInstallContext,
+  type PiInstallContext,
   LOCAL_BIN_DIR,
   MISE_SHIM_DIR,
 } from "./paths.ts";
@@ -40,13 +41,13 @@ const EXTRA_PATH = [BUN_BIN_DIR, LOCAL_BIN_DIR];
 // script prefiere npm global. Se busca en ambos además del PATH.
 const HYPA_PATH = [BUN_BIN_DIR, LOCAL_BIN_DIR, MISE_SHIM_DIR];
 
-export function resolveHypa(): string | null {
-  return lookPath("hypa", HYPA_PATH);
+export function resolveHypa(searchPath: string[] = HYPA_PATH): string | null {
+  return lookPath("hypa", searchPath);
 }
 
 // codegraph: npm global (mise lo shima) o instaladores en ~/.local/bin.
-export function resolveCodegraph(): string | null {
-  return lookPath("codegraph", HYPA_PATH);
+export function resolveCodegraph(searchPath: string[] = HYPA_PATH): string | null {
+  return lookPath("codegraph", searchPath);
 }
 
 export function checkDeps(platform: Platform): DepStatus[] {
@@ -118,10 +119,13 @@ export async function installEngramDep(platform: Platform): Promise<InstallStep>
 // Install Pi extension packages declared in settings.json (pi-subagents,
 // pi-mcp-adapter, ask-user-question, i18n...). Idempotent: `pi install`
 // reports "up to date". Best-effort.
-export async function installDeclaredPackages(): Promise<InstallStep> {
-  const pi = lookPath("pi", EXTRA_PATH);
+export async function installDeclaredPackages(
+  context: PiInstallContext = defaultPiInstallContext(),
+): Promise<InstallStep> {
+  const extraPath = [context.bunBinDir, context.localBinDir];
+  const pi = lookPath("pi", extraPath);
   if (!pi) return { ok: false, detail: "pi no disponible; salto paquetes" };
-  const settingsPath = join(AGENT_DIR, "settings.json");
+  const settingsPath = join(context.agentDir, "settings.json");
   if (!existsSync(settingsPath)) return { ok: true, detail: "sin settings.json" };
 
   let packages: string[] = [];
@@ -138,7 +142,7 @@ export async function installDeclaredPackages(): Promise<InstallStep> {
   let ok = 0;
   const failed: string[] = [];
   for (const pkg of packages) {
-    const res = await run(pi, ["install", pkg], { extraPath: EXTRA_PATH });
+    const res = await run(pi, ["install", pkg], { extraPath });
     if (res.ok) ok += 1;
     else failed.push(pkg);
   }

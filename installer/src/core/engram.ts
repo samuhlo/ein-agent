@@ -18,35 +18,46 @@ export type EngramResolution = {
   found: boolean;
 };
 
+export type EngramSearchPaths = {
+  bunBinDir: string;
+  localBinDir: string;
+};
+
 // Candidate locations engram may live in, by platform.
-function candidatePaths(platform: Platform): string[] {
+function candidatePaths(
+  platform: Platform,
+  searchPaths: EngramSearchPaths = { bunBinDir: BUN_BIN_DIR, localBinDir: LOCAL_BIN_DIR },
+): string[] {
   if (platform.os === "darwin") {
     return [
       "/opt/homebrew/bin/engram", // Apple Silicon brew
       "/usr/local/bin/engram", // Intel brew
-      join(LOCAL_BIN_DIR, "engram"),
+      join(searchPaths.localBinDir, "engram"),
     ];
   }
   // linux
   return [
     "/usr/local/bin/engram",
-    join(LOCAL_BIN_DIR, "engram"),
-    join(BUN_BIN_DIR, "engram"),
+    join(searchPaths.localBinDir, "engram"),
+    join(searchPaths.bunBinDir, "engram"),
   ];
 }
 
 // Resolve engram for mcp.json. Absolute path when found; bare "engram" otherwise
 // so the JSON stays valid (doctor flags it as WARN if PATH can't resolve later).
-export function resolveEngram(platform: Platform): EngramResolution {
-  const found = resolveFromCandidates("engram", candidatePaths(platform), [
-    BUN_BIN_DIR,
-    LOCAL_BIN_DIR,
+export function resolveEngram(
+  platform: Platform,
+  searchPaths: EngramSearchPaths = { bunBinDir: BUN_BIN_DIR, localBinDir: LOCAL_BIN_DIR },
+): EngramResolution {
+  const found = resolveFromCandidates("engram", candidatePaths(platform, searchPaths), [
+    searchPaths.bunBinDir,
+    searchPaths.localBinDir,
   ]);
   if (found) {
     // macOS: Cellar paths are versioned and break on brew upgrade. Prefer the
     // stable symlink under bin.
     if (found.includes("/Cellar/")) {
-      const stable = candidatePaths(platform).find((c) => c.endsWith("/bin/engram"));
+      const stable = candidatePaths(platform, searchPaths).find((c) => c.endsWith("/bin/engram"));
       return { command: stable ?? found, found: true };
     }
     return { command: found, found: true };

@@ -1,5 +1,6 @@
 node_modules/
 dist/
 src/assets/template.tar.gz
+src/assets/cc-ein-runtime.tar.gz
 *.log
 *.bun-build

@@ -18,7 +18,7 @@ import type { Platform } from "./platform.ts";
 import { resolveEngram } from "./engram.ts";
 import { renderTemplate, type TemplateVars } from "./template.ts";
 import { run } from "./exec.ts";
-import { AGENT_DIR, ENGRAM_DIR, HOME } from "./paths.ts";
+import { defaultPiInstallContext, type PiInstallContext } from "./paths.ts";
 import {
   mergeUserSettings,
   readUserSettings,
@@ -98,16 +98,21 @@ async function extractTarball(tarPath: string, target: string): Promise<void> {
   }
 }
 
-function templateConfig(fileName: string, vars: TemplateVars): void {
-  const path = join(AGENT_DIR, fileName);
+function templateConfig(fileName: string, vars: TemplateVars, agentDir: string): void {
+  const path = join(agentDir, fileName);
   const raw = readFileSync(path, "utf8");
   const rendered = renderTemplate(raw, vars);
   writeFileSync(path, rendered);
 }
 
-export async function deployTemplate(platform: Platform, opts: DeployOptions = {}): Promise<DeployResult> {
+export async function deployTemplate(
+  platform: Platform,
+  opts: DeployOptions = {},
+  context: PiInstallContext = defaultPiInstallContext(),
+): Promise<DeployResult> {
   // Read user-owned settings before the tarball overwrites settings.json.
-  const userSettings = readUserSettings(AGENT_DIR);
+  const { agentDir } = context;
+  const userSettings = readUserSettings(agentDir);
 
   // Stage the embedded asset to a real file: `tar` needs a concrete path,
   // not a bun:// import.
@@ -118,28 +123,31 @@ export async function deployTemplate(platform: Platform, opts: DeployOptions = {
     writeFileSync(stagedTar, new Uint8Array(bytes));
     // Clean first so upstream deletions/renames don't leave orphans; user state
     // (skills/, auth.json, ...) is not in MANAGED_DIRS so it survives.
-    cleanManagedDirs(AGENT_DIR);
-    await extractTarball(stagedTar, AGENT_DIR);
+    cleanManagedDirs(agentDir);
+    await extractTarball(stagedTar, agentDir);
 
-    const engram = resolveEngram(platform);
+    const engram = resolveEngram(platform, {
+      bunBinDir: context.bunBinDir,
+      localBinDir: context.localBinDir,
+    });
     const vars: TemplateVars = {
-      HOME,
-      AGENT_DIR,
+      HOME: context.home,
+      AGENT_DIR: agentDir,
       ENGRAM_BIN: engram.command,
-      ENGRAM_DATA_DIR: ENGRAM_DIR,
+      ENGRAM_DATA_DIR: context.engramDir,
     };
 
-    templateConfig("mcp.json", vars);
-    templateConfig("settings.json", vars);
+    templateConfig("mcp.json", vars, agentDir);
+    templateConfig("settings.json", vars, agentDir);
 
     // Re-apply user-owned fields the tarball reset.
-    mergeUserSettings(AGENT_DIR, userSettings);
+    mergeUserSettings(agentDir, userSettings);
 
     // Default work mode (overridden per-project by .pi/ein/mode.json).
-    writeGlobalMode(AGENT_DIR, opts.skipLinear ? "solo" : "team");
+    writeGlobalMode(agentDir, opts.skipLinear ? "solo" : "team");
 
     return {
-      agentDir: AGENT_DIR,
+      agentDir,
       engramCommand: engram.command,
       engramFound: engram.found,
     };

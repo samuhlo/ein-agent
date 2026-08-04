@@ -11,13 +11,8 @@ import type { Platform } from "./platform.ts";
 import { lookPath } from "./exec.ts";
 import { resolveCodegraph, resolveHypa } from "./deps.ts";
 import {
-  AGENT_DIR,
-  BUN_BIN_DIR,
-  CONTEXT7_KEY_PATH,
-  DOWNLOADED_SKILLS_DIR,
-  LINEAR_KEY_PATH,
-  LOCAL_BIN_DIR,
-  LOCAL_SKILLS_DIR,
+  defaultPiInstallContext,
+  type PiInstallContext,
 } from "./paths.ts";
 
 export type CheckLevel = "OK" | "WARN" | "FAIL";
@@ -90,7 +85,9 @@ export type TemplateManifest = {
 // Bundle ships template-manifest.json describing exactly what it contains;
 // doctor validates against it (manifest-driven) so a release adding/renaming
 // an agent doesn't require touching this file.
-export function loadTemplateManifest(agentDir: string = AGENT_DIR): TemplateManifest | null {
+const DEFAULT_AGENT_DIR = defaultPiInstallContext().agentDir;
+
+export function loadTemplateManifest(agentDir: string = DEFAULT_AGENT_DIR): TemplateManifest | null {
   const path = join(agentDir, "template-manifest.json");
   if (!existsSync(path)) return null;
   try {
@@ -102,8 +99,8 @@ export function loadTemplateManifest(agentDir: string = AGENT_DIR): TemplateMani
 
 // Source of truth: extensions-manifest.json. Hardcoded fallback covers older
 // binaries and mid-deployment failures.
-function loadCoreExtensions(): string[] {
-  const manifestPath = join(AGENT_DIR, "extensions-manifest.json");
+function loadCoreExtensions(agentDir = DEFAULT_AGENT_DIR): string[] {
+  const manifestPath = join(agentDir, "extensions-manifest.json");
   if (existsSync(manifestPath)) {
     try {
       const parsed = JSON.parse(readFileSync(manifestPath, "utf8")) as { core?: unknown };
@@ -125,15 +122,17 @@ function loadCoreExtensions(): string[] {
   ];
 }
 
-const CORE_EXTENSIONS = loadCoreExtensions();
-
-export function runDoctor(platform: Platform): DoctorReport {
-  const brandFile = join(AGENT_DIR, "brand.json");
-  const settingsFile = join(AGENT_DIR, "settings.json");
-  const mcpFile = join(AGENT_DIR, "mcp.json");
-  const guardrailsFile = join(AGENT_DIR, "lib", "guardrails.ts");
-  const agentsDir = join(AGENT_DIR, "agents");
-  const chainsDir = join(AGENT_DIR, "chains");
+export function runDoctor(
+  platform: Platform,
+  context: PiInstallContext = defaultPiInstallContext(),
+): DoctorReport {
+  const { agentDir } = context;
+  const brandFile = join(agentDir, "brand.json");
+  const settingsFile = join(agentDir, "settings.json");
+  const mcpFile = join(agentDir, "mcp.json");
+  const guardrailsFile = join(agentDir, "lib", "guardrails.ts");
+  const agentsDir = join(agentDir, "agents");
+  const chainsDir = join(agentDir, "chains");
 
   const brand = parseJson(brandFile);
   const settings = parseJson(settingsFile);
@@ -142,19 +141,19 @@ export function runDoctor(platform: Platform): DoctorReport {
   // Los patrones de guardrails viven en lib/guardrails.ts desde el refactor P2.
   const guardrailsRaw = readIfExists(guardrailsFile);
   // Coherencia: ficheros donde historicamente quedaban referencias colgantes.
-  const preflightRaw = readIfExists(join(AGENT_DIR, "lib", "sdd-preflight.ts"));
+  const preflightRaw = readIfExists(join(agentDir, "lib", "sdd-preflight.ts"));
   const einGitRaw = readIfExists(join(agentsDir, "ein-git.md"));
   const sddApplyRaw = readIfExists(join(agentsDir, "sdd-apply.md"));
   const sddVerifyRaw = readIfExists(join(agentsDir, "sdd-verify.md"));
-  const orchestratorRaw = readIfExists(join(AGENT_DIR, "assets", "orchestrator.md"));
+  const orchestratorRaw = readIfExists(join(agentDir, "assets", "orchestrator.md"));
   const mcpServers = (mcp.value.mcpServers as Record<string, unknown>) ?? {};
   const engramServer = mcpServers.engram as Record<string, unknown> | undefined;
   const engramEnv = (engramServer?.environment as Record<string, unknown>) ?? {};
   const settingsPackages = (settings.value.packages as unknown[] | undefined) ?? [];
 
-  const localSkills = countSkillFiles(LOCAL_SKILLS_DIR);
-  const downloadedSkills = countSkillFiles(DOWNLOADED_SKILLS_DIR);
-  const extraPath = [BUN_BIN_DIR, LOCAL_BIN_DIR];
+  const localSkills = countSkillFiles(context.localSkillsDir);
+  const downloadedSkills = countSkillFiles(context.downloadedSkillsDir);
+  const extraPath = [context.bunBinDir, context.localBinDir];
 
   const checksCore: CheckResult[] = [
     check(existsSync(brandFile), "brand.json", "Archivo de marca presente."),
@@ -171,7 +170,7 @@ export function runDoctor(platform: Platform): DoctorReport {
     ),
     check(settings.value.enableSkillCommands === true, "enableSkillCommands", "Comandos /skill:* activos."),
     check(
-      existsSync(join(AGENT_DIR, "extensions-manifest.json")),
+      existsSync(join(agentDir, "extensions-manifest.json")),
       "extensions-manifest.json",
       "Manifiesto de extensiones presente.",
     ),
@@ -200,7 +199,7 @@ export function runDoctor(platform: Platform): DoctorReport {
     ),
   ];
 
-  const manifest = loadTemplateManifest();
+  const manifest = loadTemplateManifest(agentDir);
   const expectedAgents = manifest?.agents?.length ? manifest.agents : [...SDD_AGENTS, ...NON_SDD_AGENTS];
   const expectedChains = manifest?.chains?.length ? manifest.chains : FALLBACK_CHAINS;
 
@@ -219,8 +218,8 @@ export function runDoctor(platform: Platform): DoctorReport {
     ...expectedChains.map((c) => check(existsSync(join(chainsDir, c)), `chain ${c}`, "Chain presente.")),
   ];
 
-  const checksExtensions: CheckResult[] = CORE_EXTENSIONS.map((e) =>
-    check(existsSync(join(AGENT_DIR, "extensions", e)), `ext ${e}`, "Extension presente."),
+  const checksExtensions: CheckResult[] = loadCoreExtensions(agentDir).map((e) =>
+    check(existsSync(join(agentDir, "extensions", e)), `ext ${e}`, "Extension presente."),
   );
 
   const checksSkills: CheckResult[] = [
@@ -248,21 +247,24 @@ export function runDoctor(platform: Platform): DoctorReport {
     check(orchestratorRaw.includes("Plan Gate"), "orchestrator plan gate", "El orchestrator exige plan + confirmacion antes de mutaciones ambiguas/bulk."),
     check(orchestratorRaw.includes("Exploration hygiene"), "orchestrator exploration hygiene", "El orchestrator excluye node_modules/dist/etc. de find/grep/glob."),
     check(orchestratorRaw.includes("Assessment & valuation"), "orchestrator valuation read-only", "Una valoracion no dispara build/test pesados por defecto."),
-    check(existsSync(join(AGENT_DIR, "lib", "mode.ts")), "work mode module", "lib/mode.ts presente (modo solo/team)."),
+    check(existsSync(join(agentDir, "lib", "mode.ts")), "work mode module", "lib/mode.ts presente (modo solo/team)."),
     check(orchestratorRaw.toLowerCase().includes("work mode") && orchestratorRaw.includes("solo"), "orchestrator mode-aware", "El orchestrator es consciente del modo (solo/team); Linear condicional."),
-    check(existsSync(join(AGENT_DIR, "lib", "sdd-router.ts")) && readIfExists(join(AGENT_DIR, "extensions", "ein-ai.ts")).includes("ein_sdd_status"), "sdd router cableado", "Router determinista (sdd-router + tool ein_sdd_status) presente."),
-    check(existsSync(join(AGENT_DIR, "agents", "sdd-close.md")) && orchestratorRaw.includes("ein_sdd_check"), "sdd gatekeeper + close", "Gatekeeper (ein_sdd_check) y fase close cableados."),
+    check(existsSync(join(agentDir, "lib", "sdd-router.ts")) && readIfExists(join(agentDir, "extensions", "ein-ai.ts")).includes("ein_sdd_status"), "sdd router cableado", "Router determinista (sdd-router + tool ein_sdd_status) presente."),
+    check(existsSync(join(agentDir, "agents", "sdd-close.md")) && orchestratorRaw.includes("ein_sdd_check"), "sdd gatekeeper + close", "Gatekeeper (ein_sdd_check) y fase close cableados."),
   ];
 
   const hasEngramBin = lookPath("engram", extraPath) !== null;
   const hasGh = lookPath("gh", extraPath) !== null;
   const hasBun = lookPath("bun", extraPath) !== null;
   const hasPi = lookPath("pi", extraPath) !== null;
-  const hasHypa = resolveHypa() !== null;
+  const optionalPath = [...extraPath, context.miseShimDir];
+  const hasHypa = resolveHypa(optionalPath) !== null;
   const hasLinearToken = Boolean(
-    process.env.LINEAR_API_KEY || process.env.LINEAR_TOKEN || existsSync(LINEAR_KEY_PATH),
+    process.env.LINEAR_API_KEY || process.env.LINEAR_TOKEN ||
+      existsSync(join(context.secretsDir, "linear-api-key")),
   );
-  const hasContext7 = existsSync(CONTEXT7_KEY_PATH) || Boolean(process.env.CONTEXT7_API_KEY);
+  const hasContext7 =
+    existsSync(join(context.secretsDir, "context7-api-key")) || Boolean(process.env.CONTEXT7_API_KEY);
 
   const checksRuntime: CheckResult[] = [
     check(hasBun, "bun", "Runtime bun disponible en PATH."),
@@ -271,7 +273,7 @@ export function runDoctor(platform: Platform): DoctorReport {
     warn(hasGh, "gh cli", "GitHub CLI disponible (entrega)."),
     warn(hasHypa, "hypa cli", "Compresión de salida disponible; /ein:hypa la activa."),
     warn(
-      resolveCodegraph() !== null,
+      resolveCodegraph(optionalPath) !== null,
       "codegraph cli",
       "Grafo de código disponible; `codegraph init` por proyecto lo activa.",
     ),
