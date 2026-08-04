@@ -9,6 +9,13 @@ Given: the Claude Code runtime path is selected
 When: installation runs
 Then: cc-ein/sync.ts is invoked with Bun, cc-ein.fish is installed, and the installer reports a failed Claude Code path when either operation fails
 
+## Scenario: installer-bootstrap-mandatory-checksum
+title: Bootstrap installation requires a verified checksum
+requirement: The system MUST install the selected bootstrap release asset only after downloading checksums.txt and verifying exactly one valid checksum entry matches the asset.
+Given: the bootstrap has selected and downloaded a platform release asset and requested checksums.txt
+When: checksums.txt is unavailable, malformed, missing exactly one entry for the selected asset, or contains a digest that differs from the downloaded asset
+Then: the installer exits nonzero before publishing or executing the asset; when checksums.txt is valid and the digest matches, the installer verifies first and then uses the existing successful installation path
+
 ## Scenario: pi-runtime-isolated-installation
 title: Pi target installs the isolated EIN runtime
 requirement: The system MUST deploy Pi EIN through the existing isolated-agent resolution, install pi-ein.fish, and migrate legacy EIN from ~/.pi/agent only when legacy EIN is detected.
