@@ -58,6 +58,7 @@ type Fixture = {
   commandDir: string;
   home: string;
   tempDir: string;
+  downloadDir: string;
   logPath: string;
   binarySource: string;
   checksumSource: string;
@@ -296,10 +297,18 @@ function expectSandboxedDownloads(fixture: Fixture, result: RunResult): void {
     .map((event) => event.slice(event.lastIndexOf(":") + 1));
   expect(downloadPaths).toHaveLength(2);
   expect(downloadPaths.every((path) => path.startsWith(`${fixture.root}/`))).toBe(true);
+  expect(downloadPaths.every((path) => path.startsWith(`${fixture.downloadDir}/`))).toBe(true);
   expect(downloadPaths.every((path) => !existsSync(path))).toBe(true);
+
+  const mktempIndex = result.events.indexOf("mktemp:download");
+  const firstCurlIndex = result.events.findIndex((event) => event.startsWith("curl:"));
+  expect(mktempIndex).toBeGreaterThan(-1);
+  expect(firstCurlIndex).toBeGreaterThan(mktempIndex);
 }
 
 function expectTemporaryDirectoryCleaned(fixture: Fixture): void {
+  expect(fixture.downloadDir.startsWith(`${fixture.root}/`)).toBe(true);
+  expect(existsSync(fixture.downloadDir)).toBe(false);
   expect(existsSync(fixture.tempDir)).toBe(false);
 }
 
@@ -312,6 +321,7 @@ function createFixture(options: FixtureOptions = {}): Fixture {
   const commandDir = join(root, "commands");
   const home = join(root, "home");
   const tempDir = join(root, "tmp");
+  const downloadDir = join(tempDir, "install-sh-checksum-download");
   const sourceDir = join(root, "source");
   const publicationDir = join(root, "published");
   const logPath = join(root, "events.log");
@@ -355,6 +365,39 @@ function createFixture(options: FixtureOptions = {}): Fixture {
   writeFileSync(logPath, "");
   writeFileSync(binarySource, BINARY_BYTES);
   writeFileSync(checksumSource, checksumContent);
+
+  writeCommand(
+    join(commandDir, "mktemp"),
+    `#!/bin/sh
+set -eu
+[ "$#" -eq 1 ] && [ "$1" = -d ] || {
+  printf '%s\\n' 'guard:mktemp-args' >> "$EIN_FIXTURE_LOG"
+  exit 91
+}
+case "\${TMPDIR:-}" in
+  "$EIN_FIXTURE_ROOT"/*) ;;
+  *)
+    printf '%s\\n' 'guard:mktemp-tmpdir' >> "$EIN_FIXTURE_LOG"
+    exit 91
+    ;;
+esac
+download_dir="$TMPDIR/install-sh-checksum-download"
+case "$download_dir" in
+  "$EIN_FIXTURE_ROOT"/*) ;;
+  *)
+    printf '%s\\n' 'guard:mktemp-path' >> "$EIN_FIXTURE_LOG"
+    exit 91
+    ;;
+esac
+[ ! -e "$download_dir" ] || {
+  printf '%s\\n' 'guard:mktemp-existing' >> "$EIN_FIXTURE_LOG"
+  exit 91
+}
+mkdir "$download_dir"
+printf '%s\\n' 'mktemp:download' >> "$EIN_FIXTURE_LOG"
+printf '%s\\n' "$download_dir"
+`,
+  );
 
   writeCommand(
     join(commandDir, "curl"),
@@ -503,6 +546,7 @@ printf '%s\\n' "mv:$2:$EIN_PUBLICATION_ROOT/ein" >> "$EIN_FIXTURE_LOG"
     commandDir,
     home,
     tempDir,
+    downloadDir,
     logPath,
     binarySource,
     checksumSource,
