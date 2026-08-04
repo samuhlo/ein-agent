@@ -101,21 +101,52 @@ main() {
     fatal "no se pudo descargar ${url} (¿existe una release con ese asset?)"
   fi
 
-  # Optional checksum verification if checksums.txt is published.
-  if curl -fsSL -o "${tmp}/checksums.txt" "$checksum_url" 2>/dev/null; then
-    step "Verificando checksum"
-    local expected actual
-    expected="$(grep " ${ASSET}\$" "${tmp}/checksums.txt" | awk '{print $1}' || true)"
-    if [ -n "$expected" ]; then
-      if command -v sha256sum >/dev/null 2>&1; then
-        actual="$(sha256sum "${tmp}/${BINARY_NAME}" | awk '{print $1}')"
-      else
-        actual="$(shasum -a 256 "${tmp}/${BINARY_NAME}" | awk '{print $1}')"
-      fi
-      [ "$expected" = "$actual" ] || fatal "checksum no coincide"
-      ok "checksum verificado"
-    fi
+  # Mandatory checksum verification: validate the complete manifest before hashing.
+  if ! curl -fsSL -o "${tmp}/checksums.txt" "$checksum_url" 2>/dev/null; then
+    fatal "no se pudo descargar ${checksum_url}"
   fi
+
+  step "Verificando checksum"
+  local expected actual manifest_line asset_name manifest_pattern
+  local asset_count=0
+  manifest_pattern='^[0-9a-f]{64}  [^[:space:]]+$'
+  [ -s "${tmp}/checksums.txt" ] || fatal "checksums.txt esta vacio"
+  while IFS= read -r manifest_line || [ -n "$manifest_line" ]; do
+    [ -z "$manifest_line" ] && continue
+    [[ "$manifest_line" =~ $manifest_pattern ]] || fatal "checksums.txt tiene formato invalido"
+    asset_name="${manifest_line#*  }"
+    if [ "$asset_name" = "$ASSET" ]; then
+      asset_count=$((asset_count + 1))
+      expected="${manifest_line%%  *}"
+    fi
+  done < "${tmp}/checksums.txt"
+  [ "$asset_count" -eq 1 ] || fatal "checksums.txt no contiene exactamente una entrada para ${ASSET}"
+
+  local checksum_output checksum_tool
+  if command -v sha256sum >/dev/null 2>&1; then
+    checksum_tool="sha256sum"
+  elif command -v shasum >/dev/null 2>&1; then
+    checksum_tool="shasum"
+  else
+    fatal "no hay una utilidad SHA-256 disponible"
+  fi
+
+  if [ "$checksum_tool" = "sha256sum" ]; then
+    if ! checksum_output="$(sha256sum "${tmp}/${BINARY_NAME}" 2>/dev/null)"; then
+      fatal "sha256sum fallo"
+    fi
+  elif ! checksum_output="$(shasum -a 256 "${tmp}/${BINARY_NAME}" 2>/dev/null)"; then
+    fatal "shasum fallo"
+  fi
+  case "$checksum_output" in
+    *$'\n'*|*$'\r'*) fatal "salida de checksum invalida" ;;
+  esac
+  if [[ ! "$checksum_output" =~ ^([0-9a-f]{64})[[:space:]][[:space:]].+$ ]]; then
+    fatal "salida de checksum invalida"
+  fi
+  actual="${BASH_REMATCH[1]}"
+  [ "$expected" = "$actual" ] || fatal "checksum no coincide"
+  ok "checksum verificado"
 
   pick_install_dir
   chmod 755 "${tmp}/${BINARY_NAME}"

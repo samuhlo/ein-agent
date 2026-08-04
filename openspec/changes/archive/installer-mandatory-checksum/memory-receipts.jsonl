@@ -1,0 +1,15 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:scope","durationMs":0,"timestamp":"2026-08-04T15:40:54.213Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:map","durationMs":0,"timestamp":"2026-08-04T15:48:44.611Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:design","durationMs":0,"timestamp":"2026-08-04T15:57:12.347Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:tasks","durationMs":0,"timestamp":"2026-08-04T15:58:07.349Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:tasks","durationMs":0,"timestamp":"2026-08-04T15:59:20.510Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:apply","durationMs":0,"timestamp":"2026-08-04T16:06:50.586Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:apply","durationMs":0,"timestamp":"2026-08-04T16:13:31.888Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:apply","durationMs":0,"timestamp":"2026-08-04T16:16:19.887Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:apply","durationMs":0,"timestamp":"2026-08-04T16:23:57.299Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:apply","durationMs":0,"timestamp":"2026-08-04T16:26:13.288Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:apply","durationMs":0,"timestamp":"2026-08-04T16:33:02.104Z"}
+{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:installer-mandatory-checksum:gate","durationMs":0,"timestamp":"2026-08-04T16:37:18.582Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:verify","durationMs":0,"timestamp":"2026-08-04T16:39:37.524Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-mandatory-checksum:apply","durationMs":0,"timestamp":"2026-08-04T16:40:33.611Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:installer-mandatory-checksum:close","durationMs":0,"timestamp":"2026-08-04T16:41:26.310Z"}
