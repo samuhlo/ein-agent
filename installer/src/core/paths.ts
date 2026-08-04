@@ -4,6 +4,7 @@
 // where Ein lives on the user's machine. Derived from os.homedir().
 // =============================================================================
 
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -12,7 +13,29 @@ import { join } from "node:path";
 const HOME = process.env.HOME ?? homedir();
 
 export const PI_HOME = join(HOME, ".pi");
-export const AGENT_DIR = join(PI_HOME, "agent");
+
+// Desde la Fase 2, EIN vive AISLADO en ~/.pi-ein/agent (simétrico con cc-ein):
+// `pi` queda vanilla, `pi-ein` (PI_CODING_AGENT_DIR) es la edición EIN. El
+// installer/updater/deploy/marker/backup targetean AGENT_DIR, así que se
+// resuelve el perfil correcto por AUTO-DETECCIÓN (marker), sin que el usuario
+// pase env (`ein update` funciona en un shell normal):
+//   1. Marker en el dir aislado → EIN vive ahí (instalación migrada o nueva).
+//   2. Marker en el dir legacy ~/.pi/agent → instalación antigua sin migrar.
+//   3. Ninguno → dir aislado (las instalaciones NUEVAS van aisladas por defecto).
+// NOTA: a propósito NO se lee EIN_PI_AGENT_HOME/PI_CODING_AGENT_DIR aquí — esas
+// son del RUNTIME (ein-paths del agente desplegado, que la suite setea global);
+// el installer se guía por el marker en disco, no por el entorno de ejecución.
+const LEGACY_AGENT = join(PI_HOME, "agent");
+const ISOLATED_AGENT = join(HOME, ".pi-ein", "agent");
+const MARKER_NAME = ".ein-install.json";
+
+function resolveAgentDir(): string {
+  if (existsSync(join(ISOLATED_AGENT, MARKER_NAME))) return ISOLATED_AGENT;
+  if (existsSync(join(LEGACY_AGENT, MARKER_NAME))) return LEGACY_AGENT;
+  return ISOLATED_AGENT;
+}
+
+export const AGENT_DIR = resolveAgentDir();
 export const SECRETS_DIR = join(HOME, ".config", "opencode-secrets");
 export const ENGRAM_DIR = join(HOME, ".engram-pi");
 export const LOCAL_SKILLS_DIR = join(AGENT_DIR, "skills", "local");
