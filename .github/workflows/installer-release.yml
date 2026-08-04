@@ -24,6 +24,7 @@ jobs:
     steps:
       - name: Resolve release tag
         id: resolve_release_tag
+        working-directory: .
         env:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
