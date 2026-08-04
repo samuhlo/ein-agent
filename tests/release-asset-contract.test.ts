@@ -129,6 +129,7 @@ describe("release asset contract", () => {
 
     expect(input).toMatch(/required:\s*true/);
     expect(input).toMatch(/type:\s*string/);
+    expect(resolver).toContain("\n        working-directory: .\n");
     expect(resolver).toContain('if [[ "$EVENT_NAME" == "workflow_dispatch" ]]');
     expect(resolver).toContain('INPUT_RELEASE_TAG: ${{ inputs.release_tag }}');
     expect(resolver).toContain('PUSH_TAG: ${{ github.ref_name }}');
