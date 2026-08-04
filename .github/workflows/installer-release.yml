@@ -58,6 +58,14 @@ jobs:
       - name: Build all targets (bundles template + cross-compiles)
         run: bun run build:all
 
+      - name: Compiled BunFS payload smoke (Linux x64)
+        run: |
+          bun build scripts/cc-payload-smoke.ts \
+            --compile \
+            --target=bun-linux-x64 \
+            --outfile /tmp/ein-cc-payload-smoke
+          (cd /tmp && /tmp/ein-cc-payload-smoke)
+
       - name: Checksums
         run: |
           cd dist
@@ -76,9 +84,9 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/installer/install.sh | bash
           ```
           EOF
-          display_version="$(jq -er '.einDisplayVersion | strings' package.json)"
+          release_version="$(jq -er '.version | strings' package.json)"
           gh release create "$RELEASE_TAG" \
-            --title "EIN v${display_version}" \
+            --title "EIN v${release_version}" \
             --notes-file /tmp/release-notes.md \
             dist/ein-installer-darwin-arm64 \
             dist/ein-installer-darwin-x64 \

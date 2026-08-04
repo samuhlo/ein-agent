@@ -119,6 +119,29 @@ describe("release asset contract", () => {
     expect(buildScript).toMatch(/bunTarget:\s*"bun-(darwin|linux)-(arm64|x64)"/);
   });
 
+  test("compiled BunFS payload smoke is required before checksums and publishing", () => {
+    const workflow = readFileSync(WORKFLOW_PATH, "utf8");
+    const smoke = readFileSync(join(REPO_ROOT, "installer", "scripts", "cc-payload-smoke.ts"), "utf8");
+    const smokeStep = workflowStep(workflow, "- name: Compiled BunFS payload smoke (Linux x64)");
+    const buildStart = workflow.indexOf("- name: Build all targets (bundles template + cross-compiles)");
+    const smokeStart = workflow.indexOf("- name: Compiled BunFS payload smoke (Linux x64)");
+    const checksumsStart = workflow.indexOf("- name: Checksums");
+
+    expect(buildStart).toBeGreaterThanOrEqual(0);
+    expect(smokeStart).toBeGreaterThan(buildStart);
+    expect(checksumsStart).toBeGreaterThan(smokeStart);
+    expect(smokeStep).toContain("bun build scripts/cc-payload-smoke.ts");
+    expect(smokeStep).toContain("--compile");
+    expect(smokeStep).toContain("--target=bun-linux-x64");
+    expect(smokeStep).toContain("--outfile /tmp/ein-cc-payload-smoke");
+    expect(smokeStep).toContain("(cd /tmp && /tmp/ein-cc-payload-smoke)");
+    expect(smoke).toContain("stageCcEinPayload");
+    expect(smoke).toContain("CC_EIN_PAYLOAD_REQUIRED_PATHS");
+    expect(smoke).toContain("process.chdir(unrelatedCwd)");
+    expect(smoke).toContain("staged?.cleanup()");
+    expect(publishedAssetArguments(workflow).filter((asset) => asset.includes("smoke"))).toEqual([]);
+  });
+
   test("manual dispatch requires a validated release tag for checkout and publishing", () => {
     const workflow = readFileSync(WORKFLOW_PATH, "utf8");
     const input = workflowDispatchInput(workflow, "release_tag");
@@ -141,8 +164,9 @@ describe("release asset contract", () => {
     expect(publish).toContain(`RELEASE_TAG: ${RELEASE_TAG_OUTPUT}`);
     expect(publish).toContain('gh release create "$RELEASE_TAG"');
     expect(publish).not.toContain('gh release create "${GITHUB_REF_NAME}"');
-    expect(publish).toContain(`display_version="$(jq -er '.einDisplayVersion | strings' package.json)"`);
-    expect(publish).toContain('--title "EIN v${display_version}"');
+    expect(publish).toContain("release_version=\"$(jq -er '.version | strings' package.json)\"");
+    expect(publish).toContain('--title "EIN v${release_version}"');
+    expect(publish).not.toContain("einDisplayVersion");
   });
 
   test("selectAsset accepts only the documented platform names", () => {

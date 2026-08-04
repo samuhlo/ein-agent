@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { restoreBackup, snapshot } from "../installer/src/core/backup.ts";
@@ -113,15 +113,47 @@ describe("Claude runtime payload", () => {
       }
     }
     execFileSync("tar", ["-czf", archive, "-C", source, "."]);
+    const sourceBytes = readFileSync(archive);
 
     const staged = await stageCcEinPayload({ archivePath: archive, tempDirectory: home });
     expect(readFileSync(staged.syncPath, "utf8")).toContain("cc-ein/sync.ts");
     expect(staged.sddCliPath).toBe(join(staged.root, "cc-ein", "sdd-cli", "cli.ts"));
+    expect(staged.archivePath).not.toBe(archive);
+    expect(staged.archivePath).toBe(join(staged.root, "cc-ein-runtime.tar.gz"));
+    expect(existsSync(staged.archivePath)).toBe(true);
+    expect(readFileSync(staged.archivePath)).toEqual(sourceBytes);
     const stagedRoot = staged.root;
     staged.cleanup();
     staged.cleanup();
+    expect(existsSync(staged.archivePath)).toBe(false);
     expect(existsSync(stagedRoot)).toBe(false);
     expect(() => resolveCcEinPayloadArchive(join(home, "missing.tar.gz"))).toThrow(/payload cc-ein/);
+  });
+
+  test("fails clearly for an unreadable source and removes the staging root", async () => {
+    const home = tempHome();
+    const stagingParent = join(home, "staging");
+    const unreadableSource = join(home, "unreadable-source");
+    mkdirSync(stagingParent);
+    mkdirSync(unreadableSource);
+
+    await expect(
+      stageCcEinPayload({ archivePath: unreadableSource, tempDirectory: stagingParent }),
+    ).rejects.toThrow(/No se pudo materializar el payload cc-ein/);
+    expect(readdirSync(stagingParent)).toEqual([]);
+  });
+
+  test("removes the materialized archive and staging root after tar fails", async () => {
+    const home = tempHome();
+    const stagingParent = join(home, "staging");
+    const invalidArchive = join(home, "invalid.tar.gz");
+    mkdirSync(stagingParent);
+    writeFileSync(invalidArchive, "not a tar archive");
+
+    await expect(
+      stageCcEinPayload({ archivePath: invalidArchive, tempDirectory: stagingParent }),
+    ).rejects.toThrow(/No se pudo extraer el payload cc-ein/);
+    expect(readdirSync(stagingParent)).toEqual([]);
   });
 });
 
