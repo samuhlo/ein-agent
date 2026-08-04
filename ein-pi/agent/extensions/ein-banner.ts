@@ -7,7 +7,11 @@
 // =============================================================================
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { VERSION } from "@earendil-works/pi-coding-agent";
+import {
+  DefaultPackageManager,
+  SettingsManager,
+  VERSION,
+} from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -24,6 +28,12 @@ import { readCodegraphMode, resolveCodegraphEnabled } from "../lib/codegraph";
 import { readPersonaMode } from "../lib/persona";
 import { readMode } from "../lib/mode";
 import { GitBannerController, renderGitBannerRows, type ProcessRunner } from "../lib/banner-git";
+import {
+  collectPiEinUpdates,
+  isPiEinRuntime,
+  startPiEinUpdateNotice,
+  UPDATE_CHECK_TIMEOUT_MS,
+} from "../lib/ein-update-notice";
 
 const execFileAsync = promisify(execFile);
 const GIT_MAX_BUFFER_BYTES = 1_024 * 1_024;
@@ -207,6 +217,80 @@ function currentIntroMode(): IntroMode {
   return pickIntroMode(rows, cols);
 }
 
+function parseVersion(value: string): [number, number, number] | undefined {
+  const match = /(?:^|v|installer-v)(\d+)\.(\d+)\.(\d+)/.exec(value.trim());
+  if (!match) return undefined;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function isNewerVersion(candidate: string, current: string): boolean {
+  const next = parseVersion(candidate);
+  const installed = parseVersion(current);
+  if (!next || !installed) return false;
+  for (let i = 0; i < next.length; i++) {
+    if (next[i] !== installed[i]) return next[i] > installed[i];
+  }
+  return false;
+}
+
+async function checkPiBinaryUpdate(): Promise<boolean> {
+  if (process.env.PI_OFFLINE || process.env.PI_SKIP_VERSION_CHECK) return false;
+  try {
+    const response = await fetch("https://pi.dev/api/latest-version", {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
+    });
+    if (!response.ok) return false;
+    const payload = (await response.json()) as { version?: unknown };
+    return typeof payload.version === "string" && isNewerVersion(payload.version, VERSION);
+  } catch {
+    return false;
+  }
+}
+
+async function checkPiPackageUpdates(cwd: string): Promise<boolean> {
+  if (process.env.PI_OFFLINE) return false;
+  try {
+    const settingsManager = SettingsManager.create(cwd, AGENT_DIR);
+    const packageManager = new DefaultPackageManager({
+      cwd,
+      agentDir: AGENT_DIR,
+      settingsManager,
+    });
+    return (await packageManager.checkForAvailableUpdates()).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function checkEinTemplateUpdate(): Promise<boolean> {
+  if (process.env.PI_OFFLINE) return false;
+  const installed = await readEinVersion();
+  if (installed === "dev") return false;
+
+  try {
+    const repository = process.env.EIN_INSTALLER_REPO ?? "samuhlo/ein-agent";
+    const response = await fetch(`https://api.github.com/repos/${repository}/releases/latest`, {
+      headers: { accept: "application/vnd.github+json" },
+      signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
+    });
+    if (!response.ok) return false;
+    const payload = (await response.json()) as { tag_name?: unknown };
+    return typeof payload.tag_name === "string" && isNewerVersion(payload.tag_name, installed);
+  } catch {
+    return false;
+  }
+}
+
+async function detectPiEinUpdates(cwd: string) {
+  if (!isPiEinRuntime()) return { pi: false, ein: false };
+  return collectPiEinUpdates({
+    binary: checkPiBinaryUpdate,
+    packages: () => checkPiPackageUpdates(cwd),
+    ein: checkEinTemplateUpdate,
+  });
+}
+
 async function countMdFiles(dir: string): Promise<number> {
   try {
     const files = await readdir(dir);
@@ -245,6 +329,8 @@ export default function (pi: ExtensionAPI) {
       process.argv.length > 2 &&
       !process.argv.every((arg) => arg.startsWith("-") || arg.endsWith(".ts"));
     if (isCLICommand) return;
+
+    startPiEinUpdateNotice(ctx, detectPiEinUpdates);
 
     if (currentIntroMode() === "skip") return;
 
