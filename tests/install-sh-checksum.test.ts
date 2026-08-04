@@ -15,6 +15,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -27,6 +28,7 @@ const ASSET = "ein-installer-darwin-x64";
 const REPO = "fixture-owner/fixture-repo";
 const BASE_URL = `https://github.com/${REPO}/releases/latest/download`;
 const roots: string[] = [];
+const CANONICAL_TMPDIR = realpathSync(tmpdir());
 
 const BINARY_BYTES = Buffer.from("deterministic installer fixture\n", "utf8");
 
@@ -77,6 +79,13 @@ afterEach(() => {
 });
 
 describe("install.sh deterministic shell fixture", () => {
+  test("fixture roots use one canonical temporary-directory prefix", () => {
+    const fixture = createFixture();
+
+    expect(fixture.root.startsWith(`${CANONICAL_TMPDIR}/`)).toBe(true);
+    expect(fixture.root).toBe(realpathSync(fixture.root));
+  });
+
   test("sandbox fixture executes the real installer with guarded commands", () => {
     const fixture = createFixture();
     const result = runFixture(fixture);
@@ -297,7 +306,7 @@ function expectTemporaryDirectoryCleaned(fixture: Fixture): void {
 function createFixture(options: FixtureOptions = {}): Fixture {
   const checksumMode = options.checksumMode ?? "valid";
   const checksumUtility = options.checksumUtility ?? "host";
-  const root = mkdtempSync(join(tmpdir(), "install-sh-checksum-fixture-"));
+  const root = mkdtempSync(join(CANONICAL_TMPDIR, "install-sh-checksum-fixture-"));
   roots.push(root);
 
   const commandDir = join(root, "commands");
