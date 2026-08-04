@@ -13,6 +13,7 @@ import { readMarkerV2 } from "../core/marker-v2.ts";
 import { BACKUP_DIR, INSTALL_MARKER } from "../core/paths.ts";
 import type { MarkerV1, MarkerV2 } from "../core/release-types.ts";
 import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
+import { INSTALLER_VERSION } from "../core/version.ts";
 import { CONCRETE, STRUCTURE, YELLOW, colorEnabled } from "./theme.ts";
 
 // Logo EIN grande: trazos de 4 (54 cols, 10 filas).
@@ -55,11 +56,12 @@ export type BannerState = {
   recoveryRequired: boolean;
 };
 
+// La versión del banner es la del binario que corre (INSTALLER_VERSION), no la
+// del marker: el marker refleja lo instalado antes de arrancar, no lo que se
+// ejecuta ahora. El marker queda para recuperación y estado instalado.
 export function bannerVersionLabel(state: BannerState): string {
   if (state.recoveryRequired) return "recovery required";
-  if (state.marker && "schemaVersion" in state.marker) return `v${state.marker.version}`;
-  if (state.marker) return `legacy v${state.marker.version} (unverified)`;
-  return "unverified";
+  return `v${INSTALLER_VERSION}`;
 }
 
 export function readBannerState(caps: UpdateCaps = defaultUpdateCaps(), markerPath = INSTALL_MARKER, journalPath = `${BACKUP_DIR}/.ein-update-journal.json`): BannerState {
