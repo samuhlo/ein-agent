@@ -5,7 +5,9 @@
 // =============================================================================
 
 import * as p from "@clack/prompts";
+import piEinFish from "../../../pi-ein/pi-ein.fish" with { type: "text" };
 import { describePlatform, detectPlatform, type Platform } from "../core/platform.ts";
+import { run } from "../core/exec.ts";
 import {
   checkDeps,
   installBun,
@@ -18,10 +20,13 @@ import {
   type DepStatus,
   type InstallStep,
 } from "../core/deps.ts";
-import type { DeployOptions } from "../core/deploy.ts";
+import { deployTemplate, readBundledManifest, type DeployOptions } from "../core/deploy.ts";
+import { installFishLauncher } from "../core/launcher.ts";
 import { restoreBackup, snapshot } from "../core/backup.ts";
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 import {
+  activeHome,
   derivePiInstallPaths,
   isValidInstallMarker,
   resolvePiInstallContext,
@@ -35,8 +40,12 @@ import {
   type SecretName,
 } from "../core/secrets.ts";
 import { writeMarker } from "../core/version.ts";
+import { runDoctor } from "../core/verify.ts";
+import { stageCcEinPayload, type CcEinPayloadStage } from "../core/cc-payload.ts";
+import { renderReport } from "./doctor.ts";
 import { playBanner } from "../tui/banner.ts";
 import { bold, gold } from "../tui/theme.ts";
+import ccEinFish from "../../../cc-ein/cc-ein.fish" with { type: "text" };
 
 export type InstallFlags = {
   yes: boolean;
@@ -284,7 +293,6 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
   const deployOpts: DeployOptions = { skipLinear };
   let deployed;
   try {
-    const { deployTemplate } = await import("../core/deploy.ts");
     deployed = await deployTemplate(platform, deployOpts, piContext);
   } catch (error) {
     spinner.stop("Fallo el deploy.");
@@ -331,10 +339,6 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
 
   writeMarker("stable", piContext);
   checkDeps(platform);
-  const [{ runDoctor }, { renderReport }] = await Promise.all([
-    import("../core/verify.ts"),
-    import("./doctor.ts"),
-  ]);
   const report = runDoctor(platform, piContext);
   p.log.message(renderReport(report));
 
@@ -342,19 +346,66 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
     return failure("Instalacion con errores. Revisa los FAIL del doctor.");
   }
 
+  try {
+    const launcher = installFishLauncher({
+      home: piContext.home,
+      name: "pi-ein.fish",
+      content: piEinFish,
+    });
+    p.log.success(`${launcher.changed ? "Launcher" : "Launcher ya actualizado"}: ${launcher.path}`);
+  } catch (error) {
+    return failure(
+      `No se pudo instalar el launcher pi-ein: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
   return { target: "pi", ok: true, detail: "Ein listo. Ejecuta `pi` para empezar (reinicia el shell si pi no esta en PATH)." };
 }
 
+export type ClaudeInstallOptions = {
+  /** Active home used by the sync child and the EIN-owned launcher. */
+  home?: string;
+  /** Resolved Bun executable; the normal PATH name remains the fallback. */
+  bunPath?: string;
+  /** Injectable seams keep the runner deterministic in focused tests. */
+  stagePayload?: () => Promise<CcEinPayloadStage>;
+  execute?: typeof run;
+  installLauncher?: typeof installFishLauncher;
+};
+
 /**
- * Claude payload/sync support is supplied by the later runtime slice. Keep B's
- * target contract callable without importing that future implementation.
+ * Run the staged Claude sync and install its launcher only after the child
+ * reports success. The staged root is never used as a source fallback: the
+ * child is invoked with that root as cwd and the stage is removed in finally.
  */
-export async function runClaudeInstall(): Promise<RuntimeInstallResult> {
-  return {
-    target: "claude",
-    ok: false,
-    detail: "Claude Code no disponible: el payload y la sincronizacion se habilitan en una slice posterior.",
-  };
+export async function runClaudeInstall(options: ClaudeInstallOptions = {}): Promise<RuntimeInstallResult> {
+  const failure = (detail: string): RuntimeInstallResult => ({ target: "claude", ok: false, detail });
+  const home = options.home ?? activeHome();
+  const stagePayload = options.stagePayload ?? (() => stageCcEinPayload());
+  const execute = options.execute ?? run;
+  const installLauncher = options.installLauncher ?? installFishLauncher;
+  let staged: CcEinPayloadStage | undefined;
+
+  try {
+    staged = await stagePayload();
+    const sync = await execute(options.bunPath ?? "bun", ["cc-ein/sync.ts"], {
+      cwd: staged.root,
+      env: { HOME: home, CC_EIN_HOME: join(home, ".claude-ein") },
+      extraPath: [join(home, ".bun", "bin")],
+    });
+    if (!sync.ok) {
+      const reason = sync.stderr || sync.stdout || `codigo ${sync.code}`;
+      return failure(`La sincronizacion de Claude fallo: ${reason}`);
+    }
+
+    const launcher = installLauncher({ home, name: "cc-ein.fish", content: ccEinFish });
+    p.log.success(`${launcher.changed ? "Launcher" : "Launcher ya actualizado"}: ${launcher.path}`);
+    return { target: "claude", ok: true, detail: "Claude Code listo. Ejecuta `cc-ein` para empezar." };
+  } catch (error) {
+    return failure(error instanceof Error ? error.message : String(error));
+  } finally {
+    staged?.cleanup();
+  }
 }
 
 function runtimeLabel(target: RuntimeInstallTarget): string {
@@ -398,7 +449,6 @@ export async function runInstall(args: string[], target: InstallTarget = "pi"): 
   // Dry-run: show the full plan (deps to install, deploy target, template
   // contents, remaining steps) and exit without touching anything.
   if (flags.dryRun) {
-    const { readBundledManifest } = await import("../core/deploy.ts");
     const manifest = await readBundledManifest();
     const dryRunContext = resolvePiInstallContext();
     const missing = deps.filter((d) => !d.present).map((d) => d.id);
@@ -425,7 +475,10 @@ export async function runInstall(args: string[], target: InstallTarget = "pi"): 
     prepareBun: () => prepareSharedBun(deps, flags),
     runners: {
       pi: () => runPiInstall({ platform, flags, skipLinear, deps }),
-      claude: () => runClaudeInstall(),
+      claude: () => runClaudeInstall({
+        home: activeHome(),
+        bunPath: deps.find((dependency) => dependency.id === "bun")?.path ?? undefined,
+      }),
     },
   });
 
