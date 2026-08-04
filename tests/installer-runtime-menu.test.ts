@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  CC_EIN_PAYLOAD_FILES,
+  CC_EIN_PAYLOAD_REQUIRED_PATHS,
+  CC_EIN_PAYLOAD_ROOTS,
+  CC_EIN_PAYLOAD_SDD_ENTRY,
+  resolveCcEinPayloadArchive,
+  stageCcEinPayload,
+} from "../installer/src/core/cc-payload.ts";
 import { restoreBackup, snapshot } from "../installer/src/core/backup.ts";
 import { migrateLegacyPi } from "../installer/src/core/pi-migration.ts";
 import {
@@ -37,6 +46,45 @@ function validMarker(): string {
 
 afterEach(() => {
   while (roots.length) rmSync(roots.pop()!, { recursive: true, force: true });
+});
+
+describe("Claude runtime payload", () => {
+  test("inventory names the cc-ein roots, Pi assets, and SDD entry", () => {
+    expect(CC_EIN_PAYLOAD_ROOTS).toEqual(["cc-ein", "ein-pi/core"]);
+    expect(CC_EIN_PAYLOAD_FILES).toEqual(["pi-ein/pi-ein.fish", "pi-ein/migrate.ts"]);
+    expect(CC_EIN_PAYLOAD_SDD_ENTRY).toBe("cc-ein/sdd-cli/cli.ts");
+    expect(CC_EIN_PAYLOAD_REQUIRED_PATHS).toContain("cc-ein/sync.ts");
+  });
+
+  test("stages an explicit archive and rejects missing assets without cwd fallback", async () => {
+    const home = tempHome();
+    const source = join(home, "payload-source");
+    const archive = join(home, "payload.tar.gz");
+    for (const path of [
+      "cc-ein/sync.ts",
+      "cc-ein/sdd-cli/cli.ts",
+      "ein-pi/core",
+      "pi-ein/pi-ein.fish",
+    ]) {
+      const fullPath = join(source, path);
+      if (path.endsWith(".ts") || path.endsWith(".fish")) {
+        mkdirSync(join(fullPath, ".."), { recursive: true });
+        writeFileSync(fullPath, `// ${path}\\n`);
+      } else {
+        mkdirSync(fullPath, { recursive: true });
+      }
+    }
+    execFileSync("tar", ["-czf", archive, "-C", source, "."]);
+
+    const staged = await stageCcEinPayload({ archivePath: archive, tempDirectory: home });
+    expect(readFileSync(staged.syncPath, "utf8")).toContain("cc-ein/sync.ts");
+    expect(staged.sddCliPath).toBe(join(staged.root, "cc-ein", "sdd-cli", "cli.ts"));
+    const stagedRoot = staged.root;
+    staged.cleanup();
+    staged.cleanup();
+    expect(existsSync(stagedRoot)).toBe(false);
+    expect(() => resolveCcEinPayloadArchive(join(home, "missing.tar.gz"))).toThrow(/payload cc-ein/);
+  });
 });
 
 describe("Interactive runtime menu", () => {
