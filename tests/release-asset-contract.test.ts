@@ -34,21 +34,114 @@ const DOCUMENTED_PLATFORMS: AssetPlatform[] = [
   { os: "linux", arch: "x64" },
 ];
 
+const EXPECTED_PUBLISHED_ASSETS = [
+  "dist/ein-installer-darwin-arm64",
+  "dist/ein-installer-darwin-x64",
+  "dist/ein-installer-linux-arm64",
+  "dist/ein-installer-linux-x64",
+  "dist/checksums.txt",
+  "install.sh",
+] as const;
+
+const RELEASE_TAG_OUTPUT = "${{ steps.resolve_release_tag.outputs.release_tag }}";
+
+function workflowStep(workflow: string, marker: string): string {
+  const start = workflow.indexOf(marker);
+  if (start === -1) throw new Error(`Workflow step not found: ${marker}`);
+  const end = workflow.indexOf("\n      - ", start + marker.length);
+  return workflow.slice(start, end === -1 ? workflow.length : end);
+}
+
+function workflowDispatchInput(workflow: string, name: string): string {
+  const dispatchStart = workflow.indexOf("  workflow_dispatch:");
+  const dispatchEnd = workflow.indexOf("\n\npermissions:", dispatchStart);
+  if (dispatchStart === -1 || dispatchEnd === -1) throw new Error("workflow_dispatch block not found");
+
+  const dispatch = workflow.slice(dispatchStart, dispatchEnd);
+  const inputStart = dispatch.indexOf(`      ${name}:`);
+  if (inputStart === -1) throw new Error(`workflow_dispatch input not found: ${name}`);
+  const inputBody = dispatch.slice(inputStart);
+  const nextInput = inputBody.search(/\n      [A-Za-z0-9_-]+:/);
+  return inputBody.slice(0, nextInput === -1 ? inputBody.length : nextInput);
+}
+
+function shellTokens(command: string): string[] {
+  return (command.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map((token) => token.replace(/^["']|["']$/g, ""));
+}
+
+function publishedAssetArguments(workflow: string): string[] {
+  const commandStart = workflow.indexOf("gh release create");
+  if (commandStart === -1) throw new Error("gh release create command not found");
+
+  const commandLines: string[] = [];
+  for (const line of workflow.slice(commandStart).split("\n")) {
+    const trimmed = line.trim();
+    commandLines.push(trimmed.replace(/\\$/, ""));
+    if (!trimmed.endsWith("\\")) break;
+  }
+
+  const tokens = shellTokens(commandLines.join(" "));
+  if (tokens.slice(0, 3).join(" ") !== "gh release create") throw new Error("Unexpected release command shape");
+
+  const assets: string[] = [];
+  const valueOptions = new Set(["--title", "--notes-file"]);
+  let releaseTagSeen = false;
+  for (let index = 3; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!releaseTagSeen) {
+      releaseTagSeen = true;
+      continue;
+    }
+    if (token.startsWith("--")) {
+      if (valueOptions.has(token)) index += 1;
+      continue;
+    }
+    assets.push(token);
+  }
+  return assets;
+}
+
 function sha256(hexChars: string): string {
   return hexChars.repeat(64).slice(0, 64);
 }
 
 describe("release asset contract", () => {
-  test("workflow + build script still reference exactly the four documented assets", () => {
+  test("workflow publishes exactly the documented asset argument set", () => {
     const workflow = readFileSync(WORKFLOW_PATH, "utf8");
     const buildScript = readFileSync(BUILD_SCRIPT_PATH, "utf8");
-    for (const asset of DOCUMENTED_ASSETS) {
-      expect(workflow).toContain(asset);
-      expect(buildScript).toContain(asset);
-    }
-    expect(workflow).toContain("checksums.txt");
+    const publishedAssets = publishedAssetArguments(workflow);
+
+    expect(workflow.match(/^[ \t]*gh release create\b/gm) ?? []).toHaveLength(1);
+    expect(publishedAssets).toHaveLength(EXPECTED_PUBLISHED_ASSETS.length);
+    expect(publishedAssets).toEqual(EXPECTED_PUBLISHED_ASSETS);
+    for (const asset of DOCUMENTED_ASSETS) expect(buildScript).toContain(asset);
     expect(workflow).toMatch(/sha256sum ein-installer-\*/);
     expect(buildScript).toMatch(/bunTarget:\s*"bun-(darwin|linux)-(arm64|x64)"/);
+  });
+
+  test("manual dispatch requires a validated release tag for checkout and publishing", () => {
+    const workflow = readFileSync(WORKFLOW_PATH, "utf8");
+    const input = workflowDispatchInput(workflow, "release_tag");
+    const resolver = workflowStep(workflow, "- name: Resolve release tag");
+    const checkout = workflowStep(workflow, "- uses: actions/checkout@v5");
+    const publish = workflowStep(workflow, "- name: Publish release");
+    const validation = resolver.match(/=~\s+(\S+)/)?.[1];
+
+    expect(input).toMatch(/required:\s*true/);
+    expect(input).toMatch(/type:\s*string/);
+    expect(resolver).toContain('if [[ "$EVENT_NAME" == "workflow_dispatch" ]]');
+    expect(resolver).toContain('INPUT_RELEASE_TAG: ${{ inputs.release_tag }}');
+    expect(resolver).toContain('PUSH_TAG: ${{ github.ref_name }}');
+    expect(validation).toBe("^installer-v[0-9]+\\.[0-9]+\\.[0-9]+$");
+    expect(resolver).toContain('release_tag="$INPUT_RELEASE_TAG"');
+    expect(resolver).toContain('release_tag="$PUSH_TAG"');
+    expect(resolver).toContain('echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"');
+    expect(checkout).toContain(`ref: ${RELEASE_TAG_OUTPUT}`);
+    expect(publish).toContain(`RELEASE_TAG: ${RELEASE_TAG_OUTPUT}`);
+    expect(publish).toContain('gh release create "$RELEASE_TAG"');
+    expect(publish).not.toContain('gh release create "${GITHUB_REF_NAME}"');
+    expect(publish).toContain(`display_version="$(jq -er '.einDisplayVersion | strings' package.json)"`);
+    expect(publish).toContain('--title "EIN v${display_version}"');
   });
 
   test("selectAsset accepts only the documented platform names", () => {

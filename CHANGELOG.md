@@ -5,6 +5,24 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.34.0] - 2026-08-04
+
+Release pública `installer-v0.34.0`, con el título de GitHub **EIN v0.4**.
+
+### Added
+
+- **Selección multi-runtime de Pi/Claude**: el instalador detecta y prepara el
+  runtime elegido sin mezclar sus rutas ni sus artefactos.
+- **Migración y launchers aislados**: las rutas de cada runtime quedan separadas
+  y sus migraciones y lanzadores se ejecutan sobre ese contexto.
+- **Payload y sync deterministas de Claude**: el contenido empaquetado y su
+  sincronización se validan con una forma estable antes de instalar.
+
+### Changed
+
+- **Aviso de actualización corregido**: la notificación de `ein update` refleja
+  el destino y el estado reales de la actualización.
+
 ## [0.33.1] - 2026-08-01
 
 Mini fix: primera pieza del aligerado del orchestrator (norte de Ockham).

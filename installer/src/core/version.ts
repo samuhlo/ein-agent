@@ -1,7 +1,8 @@
 // =============================================================================
 // VERSION MARKER
-// Tracks what the installer deployed, at ~/.pi/agent/.ein-install.json.
-// GitHub latest-release lookup for `update` is added in the update phase.
+// Tracks what the installer deployed in the active isolated Pi install context
+// (`~/.pi-ein/agent/.ein-install.json` by default); paths.ts selects a legacy
+// marker only when an existing valid legacy install needs to remain active.
 // =============================================================================
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -13,9 +14,9 @@ import {
 } from "./paths.ts";
 import { run } from "./exec.ts";
 
-export const INSTALLER_VERSION = "0.33.1";
+export const INSTALLER_VERSION = "0.34.0";
 
-// GitHub repo that publishes installer releases. Set before Fase 6 release.
+// Repository used for release lookups; override it for a controlled test or fork.
 export const INSTALLER_REPO = process.env.EIN_INSTALLER_REPO ?? "samuhlo/ein-agent";
 
 export type InstallMarker = {
