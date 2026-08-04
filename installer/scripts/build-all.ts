@@ -24,14 +24,22 @@ const TARGETS: Target[] = [
   { bunTarget: "bun-linux-x64", assetName: "ein-installer-linux-x64" },
 ];
 
-async function bundleTemplate(): Promise<void> {
-  const proc = Bun.spawn(["bun", "run", join(HERE, "bundle-template.ts")], {
+async function bundleAssetScript(script: string, label: string): Promise<void> {
+  const proc = Bun.spawn(["bun", "run", join(HERE, script)], {
     cwd: ROOT,
     stdout: "inherit",
     stderr: "inherit",
   });
   const code = await proc.exited;
-  if (code !== 0) throw new Error("bundle-template fallo");
+  if (code !== 0) throw new Error(`${label} fallo`);
+}
+
+async function bundleTemplate(): Promise<void> {
+  await bundleAssetScript("bundle-template.ts", "bundle-template");
+}
+
+async function bundleCcEinPayload(): Promise<void> {
+  await bundleAssetScript("bundle-cc-ein.ts", "bundle-cc-ein");
 }
 
 async function compile(target: Target): Promise<void> {
@@ -57,8 +65,9 @@ async function main(): Promise<void> {
   if (!existsSync(ENTRY)) throw new Error(`No existe entry: ${ENTRY}`);
   await mkdir(DIST, { recursive: true });
 
-  console.log("/// empaquetando template");
+  console.log("/// empaquetando assets");
   await bundleTemplate();
+  await bundleCcEinPayload();
 
   // Allow building a single target: bun run build:all -- linux-x64
   const only = process.argv.slice(2)[0];
