@@ -1,4 +1,4 @@
-<!-- ein:init rev=c086985 generado=2026-08-05 · refresca con /ein:init -->
+<!-- ein:init rev=7fa93ce generado=2026-08-05 · refresca con /ein:init -->
 ## Overview
 <!-- CURADA — 2-3 líneas: qué es el proyecto y para quién. -->
 _(pendiente)_
@@ -46,6 +46,7 @@ _No detectados automáticamente._
 - [docs/ein-multiagente-plan.md](docs/ein-multiagente-plan.md)
 - [docs/review-workload-guard.md](docs/review-workload-guard.md)
 - [docs/roadmap-beta.md](docs/roadmap-beta.md)
+- [docs/roadmap-codegraph-tdd-launcher.md](docs/roadmap-codegraph-tdd-launcher.md)
 
 <!-- ein:auto:end -->
 
