@@ -28,6 +28,7 @@ const PRODUCTION_EXCLUDES = [
 	":(exclude).nuxt/**",
 	":(exclude)coverage/**",
 	":(exclude)*.min.*",
+	":(exclude)openspec/**",
 ] as const;
 
 // Solo tests: se reportan aparte (`+N en tests`), nunca cuentan para el budget.

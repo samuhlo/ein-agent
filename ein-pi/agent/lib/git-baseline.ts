@@ -104,3 +104,19 @@ export function renderGitBaselineLine(b: GitBaseline): string | null {
 	const when = b.recentReset.date ? ` (${b.recentReset.date})` : "";
 	return `- Working-tree baseline — INSPECT BEFORE MUTATING: a recent \`${b.recentReset.action}\` at ${b.recentReset.selector}${when} — HEAD was moved, which can ORPHAN prior work (this is exactly how a previous agent's commits get lost). Before ANY edit, commit, or SDD apply, run \`git reflog\` / \`git fsck --lost-found\` and RECONCILE with the user that current HEAD is what they expect. If work looks orphaned, recover it FIRST — do not build on top of a possibly-reverted tree (a green build/verify will not catch lost content)${stashNote}.`;
 }
+
+// Puro: única fuente del texto de working-tree para `cc-ein-sdd status`. CANAL
+// ÚNICO por diseño — ni el envelope de permission-decision (guardrails) ni el
+// deploy de `sync.ts` (que escribe en ~/.claude-ein y nunca ve el árbol del
+// proyecto) repiten esta señal. Si hace falta mostrarla en otro sitio, se
+// llama a esta función, nunca se duplica el texto.
+// Clasificación (isRepo/dirty) viene ya resuelta de readGitBaseline; esta
+// función solo formatea, no vuelve a tocar git ni el filesystem.
+export function renderWorkingTreeLine(b: GitBaseline): string | null {
+	if (!b.isRepo) return null;
+	if (!b.dirty) return "- Working tree: clean (no uncommitted changes).";
+	return [
+		"- Working tree: UNCOMMITTED changes present.",
+		"  Stash (`git stash`) or commit before continuing, so SDD state and the tree stay in sync.",
+	].join("\n");
+}

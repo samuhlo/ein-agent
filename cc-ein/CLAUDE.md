@@ -80,6 +80,26 @@ Si un subagente no arranca, degrada: puedes conducir esa fase tú mismo escribie
 - **Context7** (`resolve-library-id` → `query-docs`): docs frescas on-demand para librerías sin skill curada. Pide el topic concreto, no el manual entero.
 - **Engram** (opcional, si está configurado): notebook del proyecto. Recupera contexto al arrancar y persiste un resumen conciso tras trabajo sustancial. No lo uses como registro canónico — ese es OpenSpec / los artefactos SDD.
 
+<!-- ein:harness-discipline:start -->
+## Allowlist de git (hook + settings.json)
+
+Un hook `PreToolUse` con matcher `Bash` intercepta cada llamada a shell y decide
+`deny` / `confirm` / `allow` sobre subcomandos de git (precedencia fija en ese
+orden). Esto gatea comandos de shell — no fuerza delegación en subagentes ni
+intercepta `Edit`/`Write`.
+
+- **Auto-permitido sin confirmación**: `status`, `diff`, `log` (cualquier flag,
+  vía `settings.json`); `add`, `commit`, `branch` solo si no llevan flags
+  peligrosos (el hook inspecciona flags, `settings.json` no puede excluirlos).
+- **Requiere confirmación**: `push`, `rebase`, `branch -D`, `npm publish`,
+  `pi remove`.
+- **Denegado siempre**: `push --force`/`--force-with-lease`, `reset --hard`,
+  `clean -fd`, `rm -rf /`, `rm -rf ~`, `chmod -R 777`, `chown -R`.
+
+Esto es lo que el mecanismo permite hoy; no sustituye el juicio del coordinador
+sobre cuándo pedir confirmación explícita al usuario.
+<!-- ein:harness-discipline:end -->
+
 ## Seguridad
 
 - Preserva el control humano: las decisiones del usuario ganan al impulso del agente.

@@ -180,6 +180,129 @@ export function commandRequiresConfirmation(command: string): boolean {
 	return CONFIRM_BASH_PATTERNS.some((pattern) => pattern.test(command));
 }
 
+// ─── Allowlist explícita para el guard de cc-ein (grupo 001) ────────────────
+// Optimización de permisos de Claude Code, NO una capa de seguridad: esta
+// función solo responde "¿está explícitamente permitido?" para un comando ya
+// evaluado por deny/confirm (la precedencia deny→confirm→allow vive en el
+// guard, grupo 003). Pura, sin I/O, sin estado — Pi runtime no la consume.
+
+// Metacaracteres que delegan la ejecución a otro proceso o redirigen su
+// salida: si aparecen en cualquier parte del comando, el comando entero queda
+// fuera del alcance de esta allowlist (no podemos verificar qué corre).
+const UNSAFE_METACHAR_PATTERN = /[`<>]|\$\(/;
+
+// Separadores de segmento de shell. Cada segmento se evalúa de forma
+// independiente: un segmento seguro (p. ej. `git add .`) NO abona seguridad a
+// los segmentos vecinos (p. ej. `git push`), así que no basta con que UNO
+// case con el patrón — todos deben hacerlo.
+const COMMAND_SEGMENT_SPLIT_PATTERN = /&&|\|\||[|;\n]/;
+
+// Letras de flags cortos bloqueadas por subcomando. Un bundle como `-rd` se
+// escanea letra a letra, no como literal: `-r -d` y `-rd` deben rechazarse
+// igual, y una regex de lookahead no distingue "contiene la letra d" de
+// "contiene la subcadena -d" dentro de un bundle mayor.
+const BLOCKED_SHORT_FLAG_LETTERS: Record<string, Set<string>> = {
+	branch: new Set(["d", "D", "m", "M", "f"]),
+	commit: new Set(["e", "i"]),
+	add: new Set(["p", "i", "e"]),
+};
+
+// Flags largos bloqueados por subcomando (además del escaneo de letras
+// cortas). `branch`: borran o mueven la rama. `commit`: reescriben historia o
+// abren edición interactiva. `add`: entran en modo interactivo/parcial.
+const BLOCKED_LONG_FLAGS: Record<string, Set<string>> = {
+	branch: new Set(["--delete", "--move", "--force", "--edit-description"]),
+	commit: new Set(["--amend", "--no-verify", "--edit", "--interactive"]),
+	add: new Set(["--patch", "--interactive", "--edit"]),
+};
+
+// Subcomandos que no mutan nada: cualquier flag es seguro.
+const READ_ONLY_SUBCOMMANDS = new Set(["status", "diff", "log"]);
+
+// `git commit` sin fuente de mensaje abre un editor interactivo y cuelga una
+// llamada headless. Se exige uno de estos flags de mensaje no interactivo.
+const COMMIT_MESSAGE_FLAG_PATTERN = /^(-m|--message(=.*)?|-F|--file(=.*)?|-C|--reuse-message(=.*)?)$/;
+
+// ¿Este token de flag corto (p. ej. `-rd`) contiene alguna letra bloqueada
+// para el subcomando dado? Escaneo letra a letra, sin lookahead.
+function shortFlagBundleHasBlockedLetter(token: string, subcommand: string): boolean {
+	const blocked = BLOCKED_SHORT_FLAG_LETTERS[subcommand];
+	if (!blocked) return false;
+	if (!/^-[A-Za-z]+$/.test(token)) return false;
+	for (const letter of token.slice(1)) {
+		if (blocked.has(letter)) return true;
+	}
+	return false;
+}
+
+function longFlagIsBlocked(token: string, subcommand: string): boolean {
+	const blocked = BLOCKED_LONG_FLAGS[subcommand];
+	if (!blocked) return false;
+	// Acepta `--amend` y `--message=x` (compara solo la parte antes del `=`).
+	const bare = token.split("=")[0];
+	return blocked.has(bare) || blocked.has(token);
+}
+
+// ¿Este único segmento (ya recortado, sin operadores) es un comando git
+// explícitamente seguro? Evalúa el subcomando y luego cada token de flag.
+function segmentIsExplicitlyAllowed(segment: string): boolean {
+	const tokens = segment.split(/\s+/).filter(Boolean);
+	if (tokens.length < 2 || tokens[0] !== "git") return false;
+
+	const subcommand = tokens[1];
+	const rest = tokens.slice(2);
+
+	if (READ_ONLY_SUBCOMMANDS.has(subcommand)) return true;
+
+	if (subcommand === "branch") {
+		for (const token of rest) {
+			if (!token.startsWith("-")) continue;
+			if (longFlagIsBlocked(token, "branch")) return false;
+			if (shortFlagBundleHasBlockedLetter(token, "branch")) return false;
+		}
+		return true;
+	}
+
+	if (subcommand === "commit") {
+		let hasMessageSource = false;
+		for (const token of rest) {
+			if (!token.startsWith("-")) continue;
+			if (longFlagIsBlocked(token, "commit")) return false;
+			if (shortFlagBundleHasBlockedLetter(token, "commit")) return false;
+			if (COMMIT_MESSAGE_FLAG_PATTERN.test(token)) hasMessageSource = true;
+		}
+		// Sin fuente de mensaje: `git commit` a secas abriría el editor.
+		return hasMessageSource;
+	}
+
+	if (subcommand === "add") {
+		for (const token of rest) {
+			if (!token.startsWith("-")) continue;
+			if (longFlagIsBlocked(token, "add")) return false;
+			if (shortFlagBundleHasBlockedLetter(token, "add")) return false;
+		}
+		return true;
+	}
+
+	return false;
+}
+
+// ¿Se puede promover el comando entero a `allow` sin pasar por confirmación?
+// Requiere: sin metacaracteres de sustitución/redirección, y que TODOS los
+// segmentos operator-separated sean, cada uno, explícitamente seguros.
+export function commandIsExplicitlyAllowed(command: string): boolean {
+	if (UNSAFE_METACHAR_PATTERN.test(command)) return false;
+
+	const segments = command
+		.split(COMMAND_SEGMENT_SPLIT_PATTERN)
+		.map((segment) => segment.trim())
+		.filter(Boolean);
+
+	if (segments.length === 0) return false;
+
+	return segments.every(segmentIsExplicitlyAllowed);
+}
+
 export async function confirmCommand(
 	command: string,
 	ctx: ExtensionContext,

@@ -17,6 +17,7 @@ const TEST_CONFIG_HOME = join(tmpdir(), "ein-agent-tests", "guardrails");
 process.env.EIN_PI_CONFIG_HOME = TEST_CONFIG_HOME;
 
 const {
+	commandIsExplicitlyAllowed,
 	commandRequiresConfirmation,
 	confirmCommand,
 	confirmDelegatedDelivery,
@@ -374,5 +375,106 @@ describe("confirmDelegatedDelivery (tool subagent)", () => {
 		expect(result).toBeUndefined();
 		expect(calls.length).toBe(0);
 		expect(consumeDelegatedDelivery(CWD)).toBe(true);
+	});
+});
+
+// =============================================================================
+// commandIsExplicitlyAllowed — allowlist de solo-lectura/local para el guard de
+// cc-ein. Pura: sin I/O, sin estado. NO decide precedencia (eso vive en el
+// grupo 003 de harness-discipline); solo responde "¿está explícitamente
+// permitido?" para un comando ya evaluado por deny/confirm.
+// =============================================================================
+describe("commandIsExplicitlyAllowed", () => {
+	test("subcomandos de solo lectura: cualquier flag es seguro", () => {
+		expect(commandIsExplicitlyAllowed("git status")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git status -s")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git diff")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git diff --stat")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git log")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git log --oneline -20")).toBe(true);
+	});
+
+	test("git branch sin flags de borrado: permitido", () => {
+		expect(commandIsExplicitlyAllowed("git branch")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git branch -a")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git branch -v")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git branch --show-current")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git branch feature/x")).toBe(true);
+	});
+
+	test("git branch con flags de borrado: NO permitido, en cualquier forma", () => {
+		expect(commandIsExplicitlyAllowed("git branch -D")).toBe(false);
+		expect(commandIsExplicitlyAllowed("git branch -d x")).toBe(false);
+		expect(commandIsExplicitlyAllowed("git branch --delete x")).toBe(false);
+		// Flags intercalados: el flag destructivo no tiene que ser el primero.
+		expect(commandIsExplicitlyAllowed("git branch --color -D nombre")).toBe(false);
+		// Cortos agrupados: -rd contiene 'd' letra a letra, no solo el literal "-d".
+		expect(commandIsExplicitlyAllowed("git branch -rd origin/x")).toBe(false);
+		expect(commandIsExplicitlyAllowed("git branch -r -d origin/x")).toBe(false);
+	});
+
+	test("git commit: exige fuente de mensaje no interactiva", () => {
+		expect(commandIsExplicitlyAllowed('git commit -m "msg"')).toBe(true);
+		expect(commandIsExplicitlyAllowed("git commit --message=msg")).toBe(true);
+		// Sin fuente de mensaje: abriría un editor interactivo y colgaría el tool call.
+		expect(commandIsExplicitlyAllowed("git commit")).toBe(false);
+		expect(commandIsExplicitlyAllowed('git commit --amend -m "msg"')).toBe(false);
+		expect(commandIsExplicitlyAllowed('git commit --no-verify -m "msg"')).toBe(false);
+		expect(commandIsExplicitlyAllowed("git commit -i")).toBe(false);
+	});
+
+	test("git add: bloquea flags interactivos, permite el resto", () => {
+		expect(commandIsExplicitlyAllowed("git add .")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git add -A")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git add -p")).toBe(false);
+		expect(commandIsExplicitlyAllowed("git add --interactive")).toBe(false);
+	});
+
+	test("segmentos: git add . && git push NO auto-aprueba el push por el add", () => {
+		// Cada segmento se evalúa por separado; add no "contagia" seguridad al push.
+		expect(commandIsExplicitlyAllowed("git add . && git push")).toBe(false);
+	});
+
+	test("multi-segmento: todos los segmentos deben ser seguros", () => {
+		expect(commandIsExplicitlyAllowed("git status && git diff")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git status && git log")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git status; git branch -D x")).toBe(false);
+		expect(commandIsExplicitlyAllowed("git status || git reset --hard")).toBe(false);
+		expect(commandIsExplicitlyAllowed("git status | cat")).toBe(false);
+		expect(commandIsExplicitlyAllowed("git status\ngit push")).toBe(false);
+	});
+
+	test("sustitución de comandos y redirección descalifican el comando entero", () => {
+		expect(commandIsExplicitlyAllowed('git commit -m "$(id)"')).toBe(false);
+		expect(commandIsExplicitlyAllowed("git commit -m `id`")).toBe(false);
+		expect(commandIsExplicitlyAllowed("git diff > /tmp/out")).toBe(false);
+		expect(commandIsExplicitlyAllowed("git log >> /tmp/out")).toBe(false);
+		expect(commandIsExplicitlyAllowed("git status < /tmp/in")).toBe(false);
+	});
+
+	test("subcomandos no listados nunca se promueven", () => {
+		expect(commandIsExplicitlyAllowed("git push")).toBe(false);
+		expect(commandIsExplicitlyAllowed("git rebase main")).toBe(false);
+		expect(commandIsExplicitlyAllowed("rm -rf node_modules")).toBe(false);
+		expect(commandIsExplicitlyAllowed("git status && rm -rf node_modules")).toBe(false);
+	});
+
+	test("casos límite de parseo", () => {
+		expect(commandIsExplicitlyAllowed("")).toBe(false);
+		expect(commandIsExplicitlyAllowed("   ")).toBe(false);
+	});
+
+	// TRIANGULATE (1.3): matriz adicional para forzar la generalización del
+	// agrupamiento de flags y el split de segmentos, sin tocar las tablas.
+	test("mensajes de commit con valores citados y con espacios", () => {
+		expect(commandIsExplicitlyAllowed('git commit -m "mensaje con espacios"')).toBe(true);
+		expect(commandIsExplicitlyAllowed("git commit --message=mensaje")).toBe(true);
+	});
+
+	test("todos los segmentos seguros: se promueve; uno solo inseguro: no", () => {
+		expect(commandIsExplicitlyAllowed("git status && git status")).toBe(true);
+		expect(commandIsExplicitlyAllowed("git status && git diff && git log")).toBe(true);
+		// El primer segmento es seguro, el segundo no: la mezcla se rechaza entera.
+		expect(commandIsExplicitlyAllowed("git diff && git branch -D x")).toBe(false);
 	});
 });
