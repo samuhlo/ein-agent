@@ -83,7 +83,8 @@ describe("sdd-status output format", () => {
 		put(c, "scope.md");
 
 		const out = formatSddStatus(DIR);
-		expect(out).toContain("next: map");
+		expect(out).toContain("next: scope");
+		expect(out).toContain("- estado de specs OpenSpec: unresolved; map bloqueado hasta resolver la procedencia desde scope.");
 		expect(out).not.toContain("tasks.md ausente.");
 	});
 

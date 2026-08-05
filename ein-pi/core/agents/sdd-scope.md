@@ -18,6 +18,15 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
 
 - Inspect the project stack, test runner, conventions, and existing docs.
 - **Canonical spec context.** When the injected prompt provides `## Canonical OpenSpec context`, treat its domain hints and references as authoritative. Read only the exact listed `openspec/specs/<domain>/spec.md` paths; never glob domains or read `.sdd` specs. Preserve each `path`, SHA-256, and byte count in `scope.md`. The shared hard limit is 3 files and 32 KiB UTF-8 per phase. If selection exceeds it, return `status: blocked` with an actionable request for narrower explicit domain hints; never truncate.
+
+## Persisted-delta preflight
+
+Before any retry or re-evaluation of the active canonical change, validate the active canonical change's persisted delta set with the existing declaration/parser rules. Inspect the complete persisted delta set, not just one file.
+
+When the persisted delta validation succeeds, treat the complete persisted delta set and its exact bytes as authoritative and preserve every validated delta byte-for-byte. MUST NOT declare `spec_delta: none`, MUST NOT invoke `ein_openspec_delta_write`, MUST NOT replace a persisted delta, and MUST NOT regenerate delta content; perform this preflight before any of those operations.
+
+Missing or invalid persisted-delta provenance MUST continue through the existing validation and declaration path. MUST NOT define partial-delta preservation, repair, reconciliation, staging, or rollback behavior for that fallback.
+
 - **Spec delta declaration (MANDATORY — the change cannot close without it).** Every `scope.md` MUST end up with exactly ONE of the two, and there is no third option:
   1. the change carries behaviour deltas under `openspec/changes/<change>/specs/<domain>/spec.md` — then write NO declaration block at all; the delta files ARE the declaration. Create each delta with the `ein_openspec_delta_write` tool (pass `domain` and structured `operations`); NEVER hand-write the delta markdown. The tool serializes deterministically and re-parses with the strict grammar before writing, so a malformed operation is rejected up front instead of failing the sync at close; or
   2. the change has no behaviour delta (mechanical, config, docs, refactor with identical behaviour) — then append this EXACT block to `scope.md`, verbatim, three consecutive lines:

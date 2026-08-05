@@ -20,6 +20,23 @@ function put(changePath: string, file: string, body = "x"): void {
 	writeFileSync(join(changePath, file), body);
 }
 
+type BlockedProvenanceState = "unresolved" | "conflict";
+function mapProvenanceBlocker(state: BlockedProvenanceState): string {
+	return `estado de specs OpenSpec: ${state}; map bloqueado hasta resolver la procedencia desde scope.`;
+}
+function expectMapProvenanceBlock(status: ReturnType<typeof resolveSddStatus>, state: BlockedProvenanceState): void {
+	expect(status.specState).toBe(state);
+	expect(status.nextRecommended).toBe("scope");
+	expect(status.blocked).toContain(mapProvenanceBlocker(state));
+}
+function expectProvenanceNext(report: ReturnType<typeof resolveSddNext>, state: BlockedProvenanceState): void {
+	expect(report.nextRecommended).toBe("scope");
+	expect(report.reason).toBe(mapProvenanceBlocker(state));
+	expect(report.suggestedAction).toContain("scope");
+	expect(report.suggestedAction).toContain(state);
+	expect(report.suggestedAction).toContain("OpenSpec");
+}
+
 beforeEach(() => {
 	DIR = mkdtempSync(join(tmpdir(), "sdd-router-"));
 });
@@ -34,12 +51,12 @@ describe("resolveSddStatus", () => {
 		expect(s.nextRecommended).toBe("done");
 	});
 
-	test("solo scope.md → siguiente map", () => {
+	test("solo scope.md con procedencia no resuelta → siguiente scope", () => {
 		const c = change("feat-x");
 		put(c, "scope.md");
 		const s = resolveSddStatus(DIR);
 		expect(s.change).toBe("feat-x");
-		expect(s.nextRecommended).toBe("map");
+		expectMapProvenanceBlock(s, "unresolved");
 	});
 
 	test("hasta design → siguiente tasks", () => {
@@ -351,6 +368,64 @@ describe("estado OpenSpec", () => {
 		put(stale, "sync-report.md", serializeSyncReport(stalePlan));
 		put(stale, "specs/sdd-lifecycle/spec.md", DELTA.replace("title: Close", "title: Changed"));
 		expect(resolveSddStatus(DIR, "stale").specState).toBe("pending");
+	});
+
+	test("canonical scope→map gate blocks unresolved and conflict but preserves pending and synchronized", () => {
+		const unresolved = change("map-unresolved");
+		put(unresolved, "scope.md", "scope: x\n");
+		const unresolvedStatus = resolveSddStatus(DIR, "map-unresolved");
+		expectMapProvenanceBlock(unresolvedStatus, "unresolved");
+
+		const pending = deltaChange("map-pending");
+		put(pending, "scope.md", "scope: x\n");
+		const pendingStatus = resolveSddStatus(DIR, "map-pending");
+		expect(pendingStatus.specState).toBe("pending");
+		expect(pendingStatus.nextRecommended).toBe("map");
+		expect(pendingStatus.blocked.join(" ")).not.toContain("map bloqueado");
+
+		const synchronized = deltaChange("map-synchronized");
+		put(synchronized, "scope.md", "scope: x\n");
+		const syncPlan = planOpenSpecSync("map-synchronized", [{ path: "specs/sdd-lifecycle/spec.md", bytes: Buffer.from(DELTA) }], []);
+		put(synchronized, "sync-report.md", serializeSyncReport(syncPlan));
+		mkdirSync(join(DIR, "openspec", "specs", "sdd-lifecycle"), { recursive: true });
+		writeFileSync(join(DIR, "openspec", "specs", "sdd-lifecycle", "spec.md"), serializeOpenSpec(syncPlan.domains[0]!.result!));
+		const synchronizedStatus = resolveSddStatus(DIR, "map-synchronized");
+		expect(synchronizedStatus.specState).toBe("synchronized");
+		expect(synchronizedStatus.nextRecommended).toBe("map");
+		expect(synchronizedStatus.blocked.join(" ")).not.toContain("map bloqueado");
+
+		const conflict = deltaChange("map-conflict");
+		put(conflict, "scope.md", "scope: x\n");
+		const base = "# OpenSpec Specification\nformat: openspec-spec/v1\ndomain: sdd-lifecycle\n\n## Scenario: close\ntitle: Existing\nrequirement: The system MUST exist\nGiven: ready\nWhen: close\nThen: archived\n";
+		writeFileSync(join(DIR, "openspec", "specs", "sdd-lifecycle", "spec.md"), base);
+		const conflictPlan = planOpenSpecSync("map-conflict", [{ path: "specs/sdd-lifecycle/spec.md", bytes: Buffer.from(DELTA) }], [{ domain: "sdd-lifecycle", bytes: Buffer.from(base) }]);
+		put(conflict, "sync-report.md", serializeSyncReport(conflictPlan));
+		const conflictStatus = resolveSddStatus(DIR, "map-conflict");
+		expectMapProvenanceBlock(conflictStatus, "conflict");
+
+		expectProvenanceNext(resolveSddNext(DIR, "map-unresolved"), "unresolved");
+		expectProvenanceNext(resolveSddNext(DIR, "map-conflict"), "conflict");
+	});
+
+	test("provenance gate stays out of missing-scope, existing-map, and later routes", () => {
+		const missingScope = change("map-without-scope");
+		put(missingScope, "map.md");
+		const missingScopeStatus = resolveSddStatus(DIR, "map-without-scope");
+		expect(missingScopeStatus.nextRecommended).toBe("scope");
+		expect(missingScopeStatus.blocked.join(" ")).not.toContain("map bloqueado");
+
+		const existingMap = change("already-mapped");
+		put(existingMap, "scope.md");
+		put(existingMap, "map.md");
+		const existingMapStatus = resolveSddStatus(DIR, "already-mapped");
+		expect(existingMapStatus.nextRecommended).toBe("design");
+		expect(existingMapStatus.blocked.join(" ")).not.toContain("map bloqueado");
+
+		const laterPhase = change("later-phase");
+		for (const file of ["scope.md", "map.md", "design.md"]) put(laterPhase, file);
+		const laterPhaseStatus = resolveSddStatus(DIR, "later-phase");
+		expect(laterPhaseStatus.nextRecommended).toBe("tasks");
+		expect(laterPhaseStatus.blocked.join(" ")).not.toContain("map bloqueado");
 	});
 });
 

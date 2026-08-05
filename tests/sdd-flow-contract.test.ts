@@ -116,6 +116,52 @@ describe("orchestrator: flujo por fases determinista", () => {
 	});
 });
 
+describe("sdd-scope: persisted-delta retry preflight", () => {
+	const scope = read("agents/sdd-scope.md");
+
+	test("valid persisted deltas are validated before every destructive retry path", () => {
+		const preflight = scope.indexOf("## Persisted-delta preflight");
+		expect(preflight).toBeGreaterThan(-1);
+
+		const validation = scope.indexOf("validate the active canonical change's persisted delta", preflight);
+		const preflightText = scope.slice(preflight);
+		expect(validation).toBeGreaterThan(preflight);
+		expect(preflightText).toContain("exact bytes");
+		expect(preflightText).toContain("byte-for-byte");
+
+		const destructiveOperationAnchors = [
+			"spec_delta: none",
+			"invoke `ein_openspec_delta_write`",
+			"replace a persisted delta",
+			"regenerate delta content",
+		];
+		for (const operation of destructiveOperationAnchors) {
+			expect(scope.indexOf(operation)).toBeGreaterThan(validation);
+		}
+	});
+
+	test("missing or invalid provenance keeps the existing fallback without repair instructions", () => {
+		const fallback = scope.indexOf("Missing or invalid persisted-delta provenance");
+		expect(fallback).toBeGreaterThan(-1);
+		const fallbackText = scope.slice(fallback);
+		expect(fallbackText).toMatch(/missing.*invalid/i);
+		expect(fallbackText).toContain("existing validation and declaration path");
+		expect(fallbackText).toContain(
+			"MUST NOT define partial-delta preservation, repair, reconciliation, staging, or rollback behavior",
+		);
+	});
+
+	test("the valid branch explicitly excludes none, replacement, and regeneration", () => {
+		const preflight = scope.indexOf("## Persisted-delta preflight");
+		const fallback = scope.indexOf("Missing or invalid persisted-delta provenance", preflight);
+		const validBranch = scope.slice(preflight, fallback);
+
+		expect(validBranch).toContain("MUST NOT declare `spec_delta: none`");
+		expect(validBranch).toContain("MUST NOT replace a persisted delta");
+		expect(validBranch).toContain("MUST NOT regenerate delta content");
+	});
+});
+
 describe("contrato interno de notebook Engram", () => {
 	const agents = [
 		"agents/sdd-scope.md",
