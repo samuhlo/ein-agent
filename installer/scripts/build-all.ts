@@ -15,9 +15,9 @@ const ROOT = dirname(HERE);
 const DIST = join(ROOT, "dist");
 const ENTRY = join(ROOT, "src", "main.ts");
 
-type Target = { bunTarget: string; assetName: string };
+export type BuildTarget = { bunTarget: string; assetName: string };
 
-const TARGETS: Target[] = [
+export const BUILD_TARGETS: BuildTarget[] = [
   { bunTarget: "bun-darwin-arm64", assetName: "ein-installer-darwin-arm64" },
   { bunTarget: "bun-darwin-x64", assetName: "ein-installer-darwin-x64" },
   { bunTarget: "bun-linux-arm64", assetName: "ein-installer-linux-arm64" },
@@ -42,21 +42,28 @@ async function bundleCcEinPayload(): Promise<void> {
   await bundleAssetScript("bundle-cc-ein.ts", "bundle-cc-ein");
 }
 
-async function compile(target: Target): Promise<void> {
+// Pure command construction keeps target injection testable without executing a
+// platform-specific binary (the produced Darwin artifact remains unchanged).
+export function compileCommand(target: BuildTarget, outfile: string): string[] {
+  return [
+    "bun",
+    "build",
+    ENTRY,
+    "--compile",
+    `--target=${target.bunTarget}`,
+    "--outfile",
+    outfile,
+  ];
+}
+
+async function compile(target: BuildTarget): Promise<void> {
   const outfile = join(DIST, target.assetName);
   console.log(`\n→ compilando ${target.assetName} (${target.bunTarget})`);
-  const proc = Bun.spawn(
-    [
-      "bun",
-      "build",
-      ENTRY,
-      "--compile",
-      `--target=${target.bunTarget}`,
-      "--outfile",
-      outfile,
-    ],
-    { cwd: ROOT, stdout: "inherit", stderr: "inherit" },
-  );
+  const proc = Bun.spawn(compileCommand(target, outfile), {
+    cwd: ROOT,
+    stdout: "inherit",
+    stderr: "inherit",
+  });
   const code = await proc.exited;
   if (code !== 0) throw new Error(`compile fallo para ${target.bunTarget}`);
 }
@@ -71,7 +78,7 @@ async function main(): Promise<void> {
 
   // Allow building a single target: bun run build:all -- linux-x64
   const only = process.argv.slice(2)[0];
-  const targets = only ? TARGETS.filter((t) => t.assetName.includes(only)) : TARGETS;
+  const targets = only ? BUILD_TARGETS.filter((t) => t.assetName.includes(only)) : BUILD_TARGETS;
   if (targets.length === 0) throw new Error(`Sin targets que coincidan con "${only}"`);
 
   for (const target of targets) {
@@ -85,7 +92,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error(`[error] ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((error) => {
+    console.error(`[error] ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  });
+}

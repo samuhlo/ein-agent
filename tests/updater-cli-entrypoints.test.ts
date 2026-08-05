@@ -14,7 +14,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { INSTALLER_VERSION } from "../installer/src/core/version.ts";
+import { INSTALLER_VERSION, versionOutputLines } from "../installer/src/core/version.ts";
+import { BUILD_TARGETS, compileCommand } from "../installer/scripts/build-all.ts";
 
 const MAIN = join(import.meta.dir, "..", "installer", "src", "main.ts");
 const SEMVER = "[0-9]+\\.[0-9]+\\.[0-9]+";
@@ -42,9 +43,25 @@ describe("updater CLI entry points (main.ts real)", () => {
 		const { code, stdout } = runMain(["--version"]);
 		expect(code).toBe(0);
 		// Mismos regex que binary-probe.ts: dos líneas etiquetadas con semver.
+		const lines = stdout.trimEnd().split("\n");
+		expect(lines.filter((line) => line.startsWith("ein-installer "))).toHaveLength(1);
+		expect(lines.filter((line) => line.startsWith("template-version "))).toHaveLength(1);
 		expect(stdout).toMatch(new RegExp(`(?:^|\\n)ein-installer\\s+${SEMVER}\\s*$`, "m"));
 		expect(stdout).toMatch(new RegExp(`(?:^|\\n)template-version\\s+${SEMVER}\\s*$`, "m"));
 		expect(stdout).toContain(`ein-installer ${INSTALLER_VERSION}`);
+	});
+
+	test("Linux y Darwin comparten las dos líneas de identidad y el entrypoint de build", () => {
+		for (const platform of ["linux", "darwin"] as const) {
+			const output = versionOutputLines(INSTALLER_VERSION).join("\n");
+			expect(output.match(/^ein-installer .*$/m)?.[0]).toBe(`ein-installer ${INSTALLER_VERSION}`);
+			expect(output.match(/^template-version .*$/m)?.[0]).toMatch(new RegExp(`^template-version ${SEMVER}$`));
+			const target = BUILD_TARGETS.find((candidate) => candidate.assetName === `ein-installer-${platform}-x64`)!;
+			const command = compileCommand(target, `/tmp/ein-installer-${platform}-x64`);
+			expect(command).toContain("--compile");
+			expect(command).toContain(`--target=bun-${platform}-x64`);
+			expect(command[2]).toBe(join(import.meta.dir, "..", "installer", "src", "main.ts"));
+		}
 	});
 
 	test("--ein-continuation se enruta y emite un ContinuationMessage JSON (no 'comando desconocido')", () => {

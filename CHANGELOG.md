@@ -5,7 +5,36 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
-## [0.40.0] - 2026-08-04
+## [0.41.0] - 2026-08-05
+
+Preparación de metadata para el selector de runtimes y la compatibilidad de
+versionado del instalador en Linux y macOS.
+
+### Added
+
+- **Selector no interactivo de runtime**: `ein install --yes --runtime
+  pi|claude|both`, con Pi como valor predeterminado, rechazo fail-closed de
+  formas inválidas y menú interactivo conservado como autoridad.
+- **E2E real en contenedores aislados**: escenarios independientes para rechazo,
+  Pi, Claude y Both; los casos válidos se repiten y Both verifica el orden Pi
+  antes de Claude y la convergencia de artefactos.
+
+### Fixed
+
+- **Identidad del banner y del binario**: `--version` conserva una línea de
+  identidad del instalador y una línea independiente `template-version`, y el
+  banner usa la versión del binario sin alterar la etiqueta de recuperación.
+- **Verificación de checksums**: los assets no avanzan cuando el checksum es
+  ausente, duplicado, malformado o corresponde a otro destino.
+- **Escrituras seguras de secretos**: las escrituras atómicas rechazan destinos
+  simbólicos o no regulares y limpian los temporales ante errores.
+
+### Changed
+
+- **Versión en macOS**: los binarios Darwin preparados comparten la fuente de
+  versión del instalador y el contrato de salida de Linux, manteniendo la
+  comprobación independiente de `template-version`.
+
 
 Release unificada y sustancial para los dos runtimes soportados: Pi + Claude.
 

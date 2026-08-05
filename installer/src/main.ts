@@ -10,7 +10,7 @@ import { runMenu } from "./cli/menu.ts";
 import { runUpdate } from "./cli/update.ts";
 import { runUninstall } from "./cli/uninstall.ts";
 import { runRestore } from "./cli/restore.ts";
-import { INSTALLER_VERSION } from "./core/version.ts";
+import { INSTALLER_VERSION, versionOutputLines } from "./core/version.ts";
 import { deployTemplate, readBundledManifest } from "./core/deploy.ts";
 import { detectPlatform } from "./core/platform.ts";
 import { runUpdateContinuation } from "./core/child-continuation.ts";
@@ -30,8 +30,7 @@ async function bundledTemplateVersion(): Promise<string> {
 // `<binary> --version` — the update transaction probes this and needs BOTH the
 // installer and template versions (binary-probe.ts parses two labeled lines).
 async function printVersion(): Promise<number> {
-  console.log(`ein-installer ${INSTALLER_VERSION}`);
-  console.log(`template-version ${await bundledTemplateVersion()}`);
+  console.log(versionOutputLines(await bundledTemplateVersion()).join("\n"));
   return 0;
 }
 
