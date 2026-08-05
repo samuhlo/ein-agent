@@ -1,7 +1,7 @@
 ---
 name: sdd-scope
 description: Define project SDD scope, testing capabilities, and skill registry.
-tools: read, grep, find, write, bash
+tools: read, grep, find, write, bash, ein_openspec_delta_write
 completionGuard: false
 budget:
   default_max_tokens: 8000
