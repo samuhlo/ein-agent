@@ -1,0 +1,15 @@
+{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:optimize-tdd-verify:gate","durationMs":0,"timestamp":"2026-08-05T16:13:02.196Z"}
+{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:optimize-tdd-verify:gate","durationMs":0,"timestamp":"2026-08-05T16:17:33.065Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:optimize-tdd-verify:scope","durationMs":0,"timestamp":"2026-08-05T17:51:58.101Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:optimize-tdd-verify:map","durationMs":0,"timestamp":"2026-08-05T17:55:23.093Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:optimize-tdd-verify:design","durationMs":0,"timestamp":"2026-08-05T17:59:16.899Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:optimize-tdd-verify:tasks","durationMs":0,"timestamp":"2026-08-05T18:00:10.248Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:optimize-tdd-verify:apply","durationMs":0,"timestamp":"2026-08-05T18:08:23.096Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:optimize-tdd-verify:apply","durationMs":0,"timestamp":"2026-08-05T18:10:45.810Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:optimize-tdd-verify:apply","durationMs":0,"timestamp":"2026-08-05T18:14:17.219Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:optimize-tdd-verify:apply","durationMs":0,"timestamp":"2026-08-05T18:17:35.642Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:optimize-tdd-verify:verify","durationMs":0,"timestamp":"2026-08-05T18:20:49.383Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:optimize-tdd-verify:apply","durationMs":0,"timestamp":"2026-08-05T18:27:42.681Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:optimize-tdd-verify:verify","durationMs":0,"timestamp":"2026-08-05T18:32:03.586Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:optimize-tdd-verify:invalid","durationMs":0,"timestamp":"2026-08-05T18:32:53.142Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:optimize-tdd-verify:close","durationMs":0,"timestamp":"2026-08-05T18:32:59.736Z"}

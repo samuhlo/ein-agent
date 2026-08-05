@@ -21,6 +21,27 @@ Read `design.md`, `tasks.md`, `apply-progress.md`, changed code, tests, and `ope
 
 Run required focused and full verification commands when available. Report commands exactly, including failures.
 
+## Independent verify planning and evidence
+
+For every verify run, build a **new command plan** from the completed apply evidence, the current `openspec/config.yaml`, and the current `design.md` and `tasks.md` verification requirements. Apply evidence and any previous verify report are audit inputs only; they never provide final result evidence.
+
+### Focused behavior-seam inventory
+
+- Treat each concise observable behavior label from apply evidence as a behavior seam. Verify must retain **exactly one final focused command per behavior seam**; each seam has exactly one focused association. Missing, multiple, or ambiguous associations are evidence gaps: do not silently choose, broaden, or invent a command. Missing seam evidence, or a multiple or ambiguous association, prevents an unqualified passing report.
+- Normalize each executable command string by removing only **surrounding whitespace**. Do so to preserve all internal characters and ordering, including quoting, flags, environment prefixes, and working-directory setup. Empty commands after this normalization are omitted and never scheduled.
+- Merge only exact matches of the normalized command, in **first-seen order**. Union seam, source, and role metadata (`unioning seam, source, and role metadata`) without losing any association. One command may cover many seams and roles, but verify must **execute each unique command once** and must not report one execution as several.
+
+### Global-check disposition
+
+- Inventory global-check candidates from the current OpenSpec configuration and explicit design/task verification requirements. Classify every candidate as `scheduled` or `not relevant`, and record a concrete changed-area reason for every candidate not relevant. Schedule every relevant global check; every explicit required check is scheduled, and an explicit required check cannot be downgraded by a relevance judgment. An explicit required check that is omitted or unscheduled prevents an unqualified passing report.
+- Merge a relevant global check with a focused command when their normalized command strings are exact matches, retaining both roles and executing the resulting unique command once. Verify schedules and executes each relevant global check once. Global checks remain verify-owned; apply MUST NOT absorb global checks. Blank configured command lists do not justify inventing a full suite or build.
+
+### Fresh execution and result evidence
+
+- Construct a **new command plan for every verify run** and invoke every unique scheduled command once in the current working tree. Verify **MUST NOT use apply results**, earlier verify results, timestamps, file hashes, or workflow-level cached outcomes as a substitute for invocation. Tool-internal caching may remain enabled only when the invoked command itself permits it; it must never cause verify to skip invoking the command. Any stale or substituted evidence is invalid and cannot support an unqualified passing report.
+- Record one current result row per unique execution in `verify-report.md`, including the normalized command, first-seen order, covered seams/roles, source associations, and the current exit/result outcome. A shared result supplies evidence for each retained seam and role, but remains one execution.
+- A failed, omitted, or otherwise unavailable required command prevents an unqualified passing report. The existing strict-TDD audit and close-gate authority remain mandatory: close still requires the current lifecycle's passing verify report; command-plan metadata cannot bypass them.
+
 **Command hygiene (you run the heavy ones — a production build legitimately lives here).**
 
 - **Stream, don't buffer.** Never pipe a long-running command through `tail`/`head`/a pager: `cmd 2>&1 | tail -60` withholds all output until the command ends, so the runtime sees no activity and flags you as hung. Let it stream; if you only need the tail, redirect to a temp file and read it after (`<cmd> > "$(mktemp)" 2>&1; tail "$tmp"`).
@@ -49,6 +70,9 @@ If strict TDD is active in `openspec/config.yaml`, parent prompt, or `apply-prog
 3. Run the relevant tests and confirm GREEN is still true.
 4. Audit assertion quality in changed/created tests: no tautologies, ghost loops, type-only assertions alone, smoke-only tests, or implementation-detail CSS assertions.
 5. Flag missing or incomplete TDD evidence as CRITICAL.
+6. Audit RED, GREEN, TRIANGULATE, and REFACTOR evidence for every assigned seam.
+
+Incomplete RED, GREEN, TRIANGULATE, or REFACTOR evidence prevents an unqualified passing report.
 
 This prompt is the complete strict-TDD verification contract; do not skip TDD compliance when it is active. If a project-local `.pi/ein/support/strict-tdd-verify.md` exists, treat it as an override.
 

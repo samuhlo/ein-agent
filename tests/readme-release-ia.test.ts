@@ -55,7 +55,7 @@ describe("contrato offline del README para release e instalación", () => {
   test("alinea la release unificada y el SemVer único con las fuentes locales", () => {
     const versionMarker = installerVersion.match(/INSTALLER_VERSION\s*=\s*"([^"]+)"/);
 
-    expect(release.version).toBe("0.41.0");
+    expect(release.version).toBe("0.42.0");
     expect(release.version).toBe(installerPackage.version);
     expect(versionMarker?.[1]).toBe(release.version);
     expect(installerPackage).not.toHaveProperty("einDisplayVersion");
@@ -67,7 +67,7 @@ describe("contrato offline del README para release e instalación", () => {
     expect(readme).toContain(`${REPOSITORY_URL}/releases/tag/installer-v${readmeVersion}`);
     expect(readme).not.toContain("0.34.0");
     expect(readme).not.toContain("0.33.1");
-    expect(release.anchor).toBe("0410---2026-08-05");
+    expect(release.anchor).toBe("0420---2026-08-05");
     expect(changelog).toContain("`installer-v*`");
     expect(changelog).toContain("Superseded for Claude installs");
     expect(changelog).toContain("materialización BunFS");
