@@ -10,6 +10,7 @@
 //   cc-ein-sdd status [change]     estado + nextRecommended (rutea por `next:`)
 //   cc-ein-sdd check  [change]     gatekeeper: linta cada artefacto presente
 //   cc-ein-sdd close  <change> [--force]   archiva un cambio verificado
+//   cc-ein-sdd sync   <change>              sincroniza el delta OpenSpec explícito
 // =============================================================================
 
 import {
@@ -19,10 +20,12 @@ import {
 	sddStatusBlockers,
 	formatBudget,
 	listActiveChanges,
+	isSafeChangeName,
 	type SddChangeStatus,
 } from "../../ein-pi/agent/lib/sdd-router.ts";
 import { lintChange, type ChangeLintReport } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
 import { closeChange } from "../../ein-pi/agent/lib/sdd-close.ts";
+import { synchronizeOpenSpecFilesystem } from "../../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
 import {
 	evaluateDeniedCommand,
 	commandRequiresConfirmation,
@@ -258,6 +261,181 @@ function closeCmd() {
 	process.exit(1);
 }
 
+// ── Explicit OpenSpec synchronization ───────────────────────────────────────
+// The filesystem synchronizer remains the only implementation of planning,
+// writes, conflict handling, idempotence, and rollback. This adapter only maps
+// its result/error to Claude's stable JSON + exit contract.
+type SyncCliOutcome = "synchronized" | "conflict" | "malformed" | "operational_failure" | "usage";
+type SyncCliResponse = {
+	command: "sync";
+	change: string | null;
+	ok: boolean;
+	outcome: SyncCliOutcome;
+	canonicalChanged: boolean;
+	domains: string[];
+	report: string | null;
+	code: string | null;
+	message: string | null;
+};
+
+function syncResponse(
+	response: Omit<SyncCliResponse, "command">,
+): SyncCliResponse {
+	return { command: "sync", ...response };
+}
+
+function emitSyncResponse(response: SyncCliResponse, exitCode: number): void {
+	process.stdout.write(`${JSON.stringify(response)}\n`);
+	process.exitCode = exitCode;
+}
+
+function normalizedSyncDiagnostic(error: unknown): string {
+	const raw = error instanceof Error ? error.message : String(error);
+	const root = cwd.replaceAll("\\", "/");
+	const repositoryRoot = root.endsWith("/") ? root.slice(0, -1) : root;
+	return raw
+		.replaceAll("\\", "/")
+		.replaceAll(repositoryRoot, ".")
+		.replace(/\s+/g, " ")
+		.trim() || "OpenSpec synchronization failed";
+}
+
+const OPEN_SPEC_PARSE_CODES = [
+	"invalid-header",
+	"invalid-format",
+	"invalid-domain",
+	"unexpected-blank-line",
+	"invalid-scenario-id",
+	"invalid-scenario-field",
+	"duplicate-scenario-id",
+	"invalid-operation",
+	"invalid-operation-order",
+	"invalid-removal-reason",
+	"unexpected-content",
+	"empty-operation",
+	"invalid-requirement",
+];
+
+function isMalformedSyncDiagnostic(diagnostic: string): boolean {
+	return OPEN_SPEC_PARSE_CODES.some((code) => diagnostic.includes(code)) ||
+		/invalid delta path|duplicate (?:delta|base) domain|domain does not match canonical path/.test(diagnostic);
+}
+
+function syncErrorResponse(changeName: string, error: unknown): { response: SyncCliResponse; exitCode: number } {
+	if (!isSafeChangeName(changeName)) {
+		return {
+			response: syncResponse({
+				change: changeName,
+				ok: false,
+				outcome: "malformed",
+				canonicalChanged: false,
+				domains: [],
+				report: null,
+				code: "UNSAFE_CHANGE_NAME",
+				message: "change name must be a safe repository-relative segment",
+			}),
+			exitCode: 3,
+		};
+	}
+	if (!existsSync(join(cwd, "openspec", "changes", changeName))) {
+		return {
+			response: syncResponse({
+				change: changeName,
+				ok: false,
+				outcome: "malformed",
+				canonicalChanged: false,
+				domains: [],
+				report: null,
+				code: "CHANGE_NOT_FOUND",
+				message: `change '${changeName}' was not found in openspec/changes`,
+			}),
+			exitCode: 3,
+		};
+	}
+
+	const diagnostic = normalizedSyncDiagnostic(error);
+	if (isMalformedSyncDiagnostic(diagnostic)) {
+		return {
+			response: syncResponse({
+				change: changeName,
+				ok: false,
+				outcome: "malformed",
+				canonicalChanged: false,
+				domains: [],
+				report: null,
+				code: "MALFORMED_OPENSPEC",
+				message: `malformed OpenSpec input: ${diagnostic}`,
+			}),
+			exitCode: 3,
+		};
+	}
+	return {
+		response: syncResponse({
+			change: changeName,
+			ok: false,
+			outcome: "operational_failure",
+			canonicalChanged: false,
+			domains: [],
+			report: null,
+			code: "OPERATIONAL_ERROR",
+			message: diagnostic,
+		}),
+		exitCode: 4,
+	};
+}
+
+async function syncCmd(args: string[]): Promise<void> {
+	if (args.length !== 1) {
+		emitSyncResponse(syncResponse({
+			change: null,
+			ok: false,
+			outcome: "usage",
+			canonicalChanged: false,
+			domains: [],
+			report: null,
+			code: "USAGE",
+			message: "usage: cc-ein-sdd sync <change>",
+		}), 64);
+		return;
+	}
+	const changeName = args[0]!;
+	try {
+		const result = await synchronizeOpenSpecFilesystem(cwd, changeName);
+		const domains = result.plan.domains
+			.map((domain) => domain.domain)
+			.sort((left, right) => left.localeCompare(right, "en"));
+		const synchronized = !result.changed || result.plan.state === "synchronized";
+		const canonicalChanged = result.changed && result.plan.state === "synchronized" &&
+			result.plan.domains.some((domain) => domain.before !== domain.after);
+		if (!synchronized) {
+			emitSyncResponse(syncResponse({
+				change: changeName,
+				ok: false,
+				outcome: "conflict",
+				canonicalChanged: false,
+				domains,
+				report: `openspec/changes/${changeName}/sync-report.md`,
+				code: "OPENSPEC_CONFLICT",
+				message: "canonical OpenSpec bytes were not changed",
+			}), 2);
+			return;
+		}
+		emitSyncResponse(syncResponse({
+			change: changeName,
+			ok: true,
+			outcome: "synchronized",
+			canonicalChanged,
+			domains,
+			report: `openspec/changes/${changeName}/sync-report.md`,
+			code: null,
+			message: null,
+		}), 0);
+	} catch (error) {
+		const failure = syncErrorResponse(changeName, error);
+		emitSyncResponse(failure.response, failure.exitCode);
+	}
+}
+
 // Guardado tras `import.meta.main`: los tests importan este módulo para
 // llamar a `resolveGuardDecision()` directamente (sin subproceso), y sin este
 // guard el dispatch correría con el argv del test runner y mataría el proceso.
@@ -267,8 +445,9 @@ if (import.meta.main) {
 		case "check": checkCmd(); break;
 		case "close": closeCmd(); break;
 		case "guard": await guardCmd(); break;
+		case "sync": await syncCmd(rest); break;
 		default:
-			console.log("cc-ein-sdd <status|check|close> [change] [--force]  |  guard (hook)");
+			console.log("cc-ein-sdd <status|check|close|sync> [change] [--force]  |  guard (hook)");
 			process.exit(1);
 	}
 }
