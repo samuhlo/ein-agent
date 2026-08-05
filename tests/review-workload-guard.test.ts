@@ -8,7 +8,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { reviewForecast } from "../ein-pi/agent/lib/review-forecast";
@@ -63,6 +63,31 @@ describe("reviewForecast — medición determinista", () => {
 		const dir = mkdtempSync(join(tmpdir(), "review-forecast-nogit-"));
 		try {
 			expect(reviewForecast(dir, "main").ok).toBe(false);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("los ficheros bajo openspec/ NO cuentan como producción (ni como tests)", () => {
+		const dir = mkdtempSync(join(tmpdir(), "review-forecast-openspec-"));
+		try {
+			git(dir, "init", "-q");
+			git(dir, "config", "user.email", "t@t.t");
+			git(dir, "config", "user.name", "t");
+			writeFileSync(join(dir, "base.txt"), "base\n");
+			git(dir, "add", "-A");
+			git(dir, "commit", "-qm", "base");
+			const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: dir, encoding: "utf8" }).trim();
+			// 3 líneas de producción; el resto vive bajo openspec/ (config raíz + design anidado).
+			writeFileSync(join(dir, "feature.ts"), "a\nb\nc\n");
+			mkdirSync(join(dir, "openspec/changes/x"), { recursive: true });
+			writeFileSync(join(dir, "openspec/config.yaml"), "mode: solo\n");
+			writeFileSync(join(dir, "openspec/changes/x/design.md"), "# design\nlinea 2\nlinea 3\n");
+			git(dir, "add", "-A");
+			git(dir, "commit", "-qm", "work");
+			const f = reviewForecast(dir, base);
+			expect(f.ok).toBe(true);
+			expect(f.production).toBe(3);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
