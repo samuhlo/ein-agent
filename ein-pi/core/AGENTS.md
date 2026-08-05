@@ -4,6 +4,8 @@ Author: samuhlo
 
 Global operating guide for Pi Coding Agent on this machine — only the rules **every** session (parent and subagents) shares. Single owner per policy: parent coordination (routing, delegation, SDD loop, gates) lives in `assets/orchestrator.md`; each executor's contract lives in its `agents/*.md`; anything enforced deterministically in code (guardrails, delivery gate, SDD router) is only *referenced* here, never re-specified.
 
+This file is the shared coordinator policy source. Claude-specific runtime behavior belongs in `cc-ein/CLAUDE.adapter.md`; `cc-ein/CLAUDE.md` is generated from both inputs and is never an authoritative hand-maintained source.
+
 ## Core Rules
 
 - Work stack-aware by default: detect language/framework (`package.json`, `bun.lockb`, `nuxt.config.*`, `tsconfig.json`…) before planning or coding. If signals are ambiguous or absent, ask one short clarification question.

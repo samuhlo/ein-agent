@@ -107,6 +107,19 @@ describe("contrato de tools de los agentes", () => {
 		expect(offenders).toEqual([]);
 	});
 
+	test("sdd-scope permite el escritor determinista de deltas registrado", () => {
+		const scopeTools = declaredTools("sdd-scope.md");
+		expect(registeredExtensionTools().has("ein_openspec_delta_write")).toBe(true);
+		expect(scopeTools).toEqual([
+			"read",
+			"grep",
+			"find",
+			"write",
+			"bash",
+			"ein_openspec_delta_write",
+		]);
+	});
+
 	test("ein-scout es una allowlist portátil de investigación sin capacidades de mutación", () => {
 		const scout = readFileSync(join(CORE_AGENTS, "ein-scout.md"), "utf8");
 		expect(declaredTools("ein-scout.md")).toEqual(["read", "grep", "find"]);
