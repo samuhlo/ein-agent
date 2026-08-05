@@ -15,6 +15,8 @@ import { readMarkerAt, writeMarker } from "../installer/src/core/version.ts";
 import {
   getInstallTargets,
   orchestrateInstall,
+  parseInstallFlags,
+  resolveInstallTarget,
   runClaudeInstall,
   type RuntimeInstallResult,
 } from "../installer/src/cli/install.ts";
@@ -30,6 +32,7 @@ import {
 } from "../installer/src/core/cc-payload.ts";
 
 const roots: string[] = [];
+const MAIN = join(import.meta.dir, "../installer/src/main.ts");
 
 function tempHome(): string {
   const home = mkdtempSync(join(tmpdir(), "ein-runtime-menu-"));
@@ -327,7 +330,63 @@ describe("Interactive runtime menu", () => {
   });
 });
 
+describe("Runtime flag parser", () => {
+  test("accepts only separated runtime values and defaults to Pi", () => {
+    expect(parseInstallFlags(["--yes"]).runtime).toBe("pi");
+    expect(parseInstallFlags(["--yes", "--runtime", "pi"]).runtime).toBe("pi");
+    expect(parseInstallFlags(["--runtime", "claude", "--yes"]).runtime).toBe("claude");
+    expect(parseInstallFlags(["--yes", "--runtime", "both", "--no-secrets"]).runtime).toBe("both");
+  });
+
+  test("rejects missing, flag-like, unsupported, repeated, inline, and short runtime forms", () => {
+    const invalid = [
+      ["--runtime"],
+      ["--runtime", "--yes"],
+      ["--runtime", "unknown"],
+      ["--runtime", "pi", "--runtime", "claude"],
+      ["--runtime=pi"],
+      ["-r", "pi"],
+    ];
+
+    for (const args of invalid) {
+      let runtimeWork = 0;
+      expect(() => {
+        parseInstallFlags(args);
+        runtimeWork += 1;
+      }).toThrow(/--runtime (pi|claude|both)/);
+      expect(runtimeWork).toBe(0);
+    }
+  });
+
+  test("real main rejects malformed runtime before banner or filesystem work", () => {
+    const home = tempHome();
+    const proc = Bun.spawnSync(["bun", MAIN, "install", "--yes", "--runtime"], {
+      env: { ...process.env, HOME: home, TMPDIR: home },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = new TextDecoder().decode(proc.stdout);
+    const stderr = new TextDecoder().decode(proc.stderr);
+
+    expect(proc.exitCode).toBe(1);
+    expect(stderr).toMatch(/Error de opcion runtime/);
+    expect(stderr).toContain("--runtime pi|claude|both");
+    expect(stdout).toBe("");
+    expect(readdirSync(home)).toEqual([]);
+  });
+});
+
 describe("Runtime target orchestration", () => {
+  test("direct runtime selection resolves default Pi, Claude-only, and Both", () => {
+    expect(resolveInstallTarget(undefined, parseInstallFlags(["--yes"]).runtime)).toBe("pi");
+    expect(resolveInstallTarget(undefined, parseInstallFlags(["--runtime", "claude"]).runtime)).toBe("claude");
+    expect(resolveInstallTarget(undefined, parseInstallFlags(["--runtime", "both"]).runtime)).toBe("both");
+  });
+
+  test("explicit menu target takes precedence over direct runtime selection", () => {
+    expect(resolveInstallTarget("claude", parseInstallFlags(["--runtime", "both"]).runtime)).toBe("claude");
+  });
+
   test("target contract keeps Pi and Claude distinct and orders both Pi then Claude", () => {
     expect(getInstallTargets("pi")).toEqual(["pi"]);
     expect(getInstallTargets("claude")).toEqual(["claude"]);
