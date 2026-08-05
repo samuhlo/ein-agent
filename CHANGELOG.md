@@ -5,6 +5,15 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.42.0] - 2026-08-05
+
+### Fixed
+
+- **Proveniencia de reintentos de scope** (`ad6190f`): los reintentos conservan
+  los deltas persistidos válidos y evitan que una proveniencia OpenSpec no
+  resuelta o conflictiva avance a `map`, disponible tanto para Pi como para
+  `cc-ein` a través del core compartido.
+
 ## [0.41.0] - 2026-08-05
 
 Preparación de metadata para el selector de runtimes y la compatibilidad de
