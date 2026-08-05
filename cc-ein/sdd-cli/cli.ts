@@ -23,7 +23,15 @@ import {
 } from "../../ein-pi/agent/lib/sdd-router.ts";
 import { lintChange, type ChangeLintReport } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
 import { closeChange } from "../../ein-pi/agent/lib/sdd-close.ts";
-import { evaluateDeniedCommand, commandRequiresConfirmation } from "../../ein-pi/agent/lib/guardrails.ts";
+import {
+	evaluateDeniedCommand,
+	commandRequiresConfirmation,
+	commandIsExplicitlyAllowed,
+} from "../../ein-pi/agent/lib/guardrails.ts";
+import { readGitBaseline, renderWorkingTreeLine } from "../../ein-pi/agent/lib/git-baseline.ts";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 const cwd = process.cwd();
 
@@ -95,26 +103,74 @@ function formatCheck(report: ChangeLintReport): string {
 // Reusa los MISMOS patrones que el guardrail de Pi (evaluateDeniedCommand /
 // commandRequiresConfirmation): destructivos → deny; git push/rebase/branch -D/
 // publish → ask (confirmación nativa de CC, sin la maquinaria de grants de Pi).
-function emitDecision(decision: "deny" | "ask" | "allow", reason: string): void {
+export type GuardDecision = "deny" | "ask" | "allow";
+
+function emitDecision(decision: GuardDecision, reason: string): void {
 	process.stdout.write(JSON.stringify({
 		hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: decision, permissionDecisionReason: reason },
 	}));
 }
 
-async function guardCmd(): Promise<void> {
+// El estado SDD es advisory: se lee DESPUÉS de decidir y solo enriquece el
+// texto de la razón. No crea una cuarta decisión ni bloquea nada por "sin
+// cambio activo" — ese gate fue descartado explícitamente en el design
+// (decisión 1A). Cualquier fallo al leer el estado degrada a texto vacío, no
+// a excepción: la razón sigue siendo válida sin el matiz de SDD.
+function sddAdvisoryNote(cwd: string): string {
+	try {
+		const status = resolveSddStatus(cwd);
+		if (!status.change) return " [sdd: sin cambio activo]";
+		return ` [sdd: ${status.change} · fase ${status.currentPhase}]`;
+	} catch {
+		return "";
+	}
+}
+
+// Precedencia FIJA deny → confirm → allow → none. Deny y confirm ganan sobre
+// allow siempre: "git add . && git push" no puede auto-aprobarse porque el
+// segmento `add` matchea el allowlist — el `push` de al lado debe seguir
+// pidiendo confirmación nativa. No consumimos delivery-grant aquí (decisión
+// 1D): ese mecanismo es de Pi, cc-ein nunca lo lee ni lo escribe, así que un
+// grant dejado por otro harness no puede colar un `allow`.
+export function resolveGuardDecision(
+	rawInput: string,
+	cwd: string,
+): { decision: GuardDecision; reason: string } | null {
 	let command = "";
 	try {
-		const input = JSON.parse(await Bun.stdin.text()) as { tool_input?: { command?: string } };
+		const input = JSON.parse(rawInput) as { tool_input?: { command?: string } };
 		command = input?.tool_input?.command ?? "";
-	} catch { /* sin comando parseable → deja pasar (flujo normal) */ }
-	if (command) {
-		const denied = evaluateDeniedCommand(command);
-		if (denied) return emitDecision("deny", denied.reason ?? "Ein safety policy blocked a destructive command.");
-		if (commandRequiresConfirmation(command)) {
-			return emitDecision("ask", "Ein: comando protegido (git push / rebase / branch -D / npm publish). Confirma antes de ejecutar.");
-		}
+	} catch {
+		return null; // JSON malformado → degrada abierto, sin decisión ni log.
 	}
-	// sin match → sin salida → Claude Code sigue su flujo de permisos normal.
+	if (!command) return null;
+
+	const denied = evaluateDeniedCommand(command);
+	if (denied) {
+		return {
+			decision: "deny",
+			reason: `${denied.reason ?? "Ein safety policy blocked a destructive command."}${sddAdvisoryNote(cwd)}`,
+		};
+	}
+	if (commandRequiresConfirmation(command)) {
+		return {
+			decision: "ask",
+			reason: `Ein: comando protegido (git push / rebase / branch -D / npm publish). Confirma antes de ejecutar.${sddAdvisoryNote(cwd)}`,
+		};
+	}
+	if (commandIsExplicitlyAllowed(command)) {
+		return {
+			decision: "allow",
+			reason: `Ein: comando en la allowlist explícita (solo lectura o mutación local segura).${sddAdvisoryNote(cwd)}`,
+		};
+	}
+	return null; // sin match → Claude Code sigue su flujo de permisos normal.
+}
+
+async function guardCmd(): Promise<void> {
+	const raw = await Bun.stdin.text();
+	const result = resolveGuardDecision(raw, cwd);
+	if (result) emitDecision(result.decision, result.reason);
 }
 
 // ── Dispatch ────────────────────────────────────────────────────────────────
@@ -123,7 +179,31 @@ const [cmd, ...rest] = process.argv.slice(2);
 const force = rest.includes("--force");
 const change = rest.find((a) => !a.startsWith("--"));
 
-function statusCmd() {
+// Best-effort git init: solo cuando el directorio ya tiene artefactos SDD
+// (`openspec/changes/`) — no queremos inicializar git en cualquier carpeta
+// donde alguien corra `status` por curiosidad. `CC_EIN_NO_GIT_INIT`/`CI`
+// permiten opt-out explícito (entornos de CI que no quieren un repo git
+// espontáneo). Un fallo de `git init` (binario ausente, destino no
+// escribible) se reporta como texto, nunca como excepción propagada: el
+// bootstrap es una ayuda, no un requisito para que `status` funcione.
+function bootstrapRepoIfNeeded(cwd: string): string | null {
+	if (readGitBaseline(cwd).isRepo) return null;
+	if (!existsSync(join(cwd, "openspec", "changes"))) return null;
+	if (process.env.CC_EIN_NO_GIT_INIT || process.env.CI) return null;
+	try {
+		execFileSync("git", ["init"], { cwd, stdio: "ignore", timeout: 5_000 });
+		return null;
+	} catch (err) {
+		return err instanceof Error ? err.message : String(err);
+	}
+}
+
+// Separada de `statusCmd` (que solo hace I/O) para poder testear el texto
+// sin depender de `process.argv`/`console.log` — mismo patrón que
+// `resolveGuardDecision` en el guard.
+export function buildStatusOutput(cwd: string, change?: string): string {
+	const initFailure = bootstrapRepoIfNeeded(cwd);
+
 	const status = resolveSddStatus(cwd, change);
 	const active = listActiveChanges(cwd);
 	let text = formatStatus(status, active);
@@ -131,7 +211,22 @@ function statusCmd() {
 		const block = formatSddPlanPreview(resolveSddPlanPreview(cwd, status.change));
 		if (block) text += `\n\n${block}`;
 	}
-	console.log(text);
+
+	// Único canal del aviso de working tree en todo el harness (ver
+	// git-baseline.ts): ni el guard ni sync.ts repiten este texto.
+	const baseline = readGitBaseline(cwd);
+	const workingTreeLine = renderWorkingTreeLine(baseline);
+	if (workingTreeLine) {
+		text += `\n\n${workingTreeLine}`;
+	} else if (initFailure) {
+		text += `\n\n- repo: none (git init failed — ${initFailure})`;
+	}
+
+	return text;
+}
+
+function statusCmd() {
+	console.log(buildStatusOutput(cwd, change));
 }
 
 function checkCmd() {
@@ -163,12 +258,17 @@ function closeCmd() {
 	process.exit(1);
 }
 
-switch (cmd) {
-	case "status": statusCmd(); break;
-	case "check": checkCmd(); break;
-	case "close": closeCmd(); break;
-	case "guard": await guardCmd(); break;
-	default:
-		console.log("cc-ein-sdd <status|check|close> [change] [--force]  |  guard (hook)");
-		process.exit(1);
+// Guardado tras `import.meta.main`: los tests importan este módulo para
+// llamar a `resolveGuardDecision()` directamente (sin subproceso), y sin este
+// guard el dispatch correría con el argv del test runner y mataría el proceso.
+if (import.meta.main) {
+	switch (cmd) {
+		case "status": statusCmd(); break;
+		case "check": checkCmd(); break;
+		case "close": closeCmd(); break;
+		case "guard": await guardCmd(); break;
+		default:
+			console.log("cc-ein-sdd <status|check|close> [change] [--force]  |  guard (hook)");
+			process.exit(1);
+	}
 }
