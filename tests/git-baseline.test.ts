@@ -17,6 +17,7 @@ import {
 	parseRecentReset,
 	readGitBaseline,
 	renderGitBaselineLine,
+	renderWorkingTreeLine,
 } from "../ein-pi/agent/lib/git-baseline";
 import { renderSddPreflightPrompt } from "../ein-pi/agent/lib/sdd-preflight";
 
@@ -87,6 +88,41 @@ describe("renderGitBaselineLine (puro)", () => {
 		});
 		expect(line).toContain("INSPECT BEFORE MUTATING");
 		expect(line).toContain("1 stash entry present");
+	});
+});
+
+describe("renderWorkingTreeLine (puro, canal único de `cc-ein-sdd status`)", () => {
+	const base: GitBaseline = { isRepo: true, dirty: false, stashes: 0, recentReset: null };
+
+	test("no-repo → null (no reporta un árbol que no existe)", () => {
+		expect(renderWorkingTreeLine({ ...base, isRepo: false })).toBeNull();
+	});
+
+	test("repo limpio → línea sobria, sin warning", () => {
+		const line = renderWorkingTreeLine(base);
+		expect(line).not.toBeNull();
+		expect(line).toContain("clean");
+		expect(line).not.toContain("UNCOMMITTED");
+	});
+
+	test("repo sucio → warning VISIBLE con remedio (stash o commit)", () => {
+		const line = renderWorkingTreeLine({ ...base, dirty: true });
+		expect(line).not.toBeNull();
+		expect(line).toContain("UNCOMMITTED");
+		expect(line).toContain("stash");
+		expect(line).toContain("commit");
+	});
+
+	test("el warning sucio es inequívoco: distinto texto del estado limpio", () => {
+		const clean = renderWorkingTreeLine(base);
+		const dirty = renderWorkingTreeLine({ ...base, dirty: true });
+		expect(dirty).not.toBe(clean);
+	});
+
+	test("multilínea con `\\n` puro (sin CRLF), consumible en cualquier plataforma", () => {
+		const line = renderWorkingTreeLine({ ...base, dirty: true });
+		expect(line).not.toContain("\r");
+		expect(line?.split("\n").length).toBeGreaterThan(1);
 	});
 });
 
