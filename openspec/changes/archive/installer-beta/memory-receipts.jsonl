@@ -1,0 +1,14 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-beta:scope","durationMs":0,"timestamp":"2026-08-05T14:17:48.237Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-beta:map","durationMs":0,"timestamp":"2026-08-05T14:23:26.297Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-beta:design","durationMs":0,"timestamp":"2026-08-05T14:29:14.524Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-beta:tasks","durationMs":0,"timestamp":"2026-08-05T14:30:44.982Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-beta:apply","durationMs":0,"timestamp":"2026-08-05T14:37:44.367Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-beta:apply","durationMs":0,"timestamp":"2026-08-05T14:40:41.753Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-beta:apply","durationMs":0,"timestamp":"2026-08-05T14:53:44.857Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-beta:apply","durationMs":0,"timestamp":"2026-08-05T15:02:31.756Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-beta:apply","durationMs":0,"timestamp":"2026-08-05T15:07:11.623Z"}
+{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:installer-beta:gate","durationMs":0,"timestamp":"2026-08-05T15:13:32.829Z"}
+{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:installer-beta:gate","durationMs":0,"timestamp":"2026-08-05T15:17:26.579Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-beta:verify","durationMs":0,"timestamp":"2026-08-05T15:23:47.778Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:installer-beta:invalid","durationMs":0,"timestamp":"2026-08-05T15:25:21.575Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:installer-beta:close","durationMs":0,"timestamp":"2026-08-05T15:25:24.650Z"}

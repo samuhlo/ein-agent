@@ -303,7 +303,10 @@ describe("release update CLI", () => {
 
   test("renders running-binary version and recovery-required banner labels", () => {
     // El banner refleja el binario que corre (INSTALLER_VERSION), no el marker.
-    expect(renderBanner({ marker: JSON.parse(new TextDecoder().decode(marker("0.20.0"))), recoveryRequired: false })).toContain(`v${INSTALLER_VERSION}`);
+    const running = { marker: JSON.parse(new TextDecoder().decode(marker("0.20.0"))), recoveryRequired: false };
+    expect(bannerVersionLabel(running)).toBe(`v${INSTALLER_VERSION}`);
+    expect(renderBanner(running)).toContain(`v${INSTALLER_VERSION}`);
+    expect(renderBanner(running)).not.toContain("v0.20.0");
     expect(bannerVersionLabel({ marker: null, recoveryRequired: true })).toBe("recovery required");
     expect(bannerStatic({ marker: null, recoveryRequired: false })).toContain(`v${INSTALLER_VERSION}`);
     const markerPath = "/fake/marker.json";

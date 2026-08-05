@@ -14,7 +14,16 @@ import {
 } from "./paths.ts";
 import { run } from "./exec.ts";
 
-export const INSTALLER_VERSION = "0.40.0";
+export const INSTALLER_VERSION = "0.41.0";
+
+// Keep the two machine-readable labels together so every supported binary
+// exposes the same running-installer identity and independent template probe.
+export function versionOutputLines(templateVersion: string): [string, string] {
+  return [
+    `ein-installer ${INSTALLER_VERSION}`,
+    `template-version ${templateVersion}`,
+  ];
+}
 
 // Repository used for release lookups; override it for a controlled test or fork.
 export const INSTALLER_REPO = process.env.EIN_INSTALLER_REPO ?? "samuhlo/ein-agent";

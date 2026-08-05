@@ -47,6 +47,10 @@ import { playBanner } from "../tui/banner.ts";
 import { bold, gold } from "../tui/theme.ts";
 import ccEinFish from "../../../cc-ein/cc-ein.fish" with { type: "text" };
 
+/** The one target selected by the menu or the direct installer default. */
+export type InstallTarget = "pi" | "claude" | "both";
+export type RuntimeInstallTarget = Exclude<InstallTarget, "both">;
+
 export type InstallFlags = {
   yes: boolean;
   noEngram: boolean;
@@ -55,11 +59,17 @@ export type InstallFlags = {
   noHypa: boolean;
   noCodegraph: boolean;
   dryRun: boolean;
+  runtime: InstallTarget;
 };
 
-/** The one target selected by the menu or the direct installer default. */
-export type InstallTarget = "pi" | "claude" | "both";
-export type RuntimeInstallTarget = Exclude<InstallTarget, "both">;
+export class InstallArgumentError extends Error {
+  readonly code = "invalid-runtime";
+
+  constructor(detail: string) {
+    super(`Error de opcion runtime: ${detail}. Usa --runtime pi|claude|both.`);
+    this.name = "InstallArgumentError";
+  }
+}
 
 export type RuntimeInstallResult = {
   target: RuntimeInstallTarget;
@@ -84,7 +94,37 @@ export type InstallOrchestratorOptions = {
   runners: Readonly<Record<RuntimeInstallTarget, InstallTargetRunner>>;
 };
 
+function isInstallTarget(value: string): value is InstallTarget {
+  return value === "pi" || value === "claude" || value === "both";
+}
+
 export function parseInstallFlags(args: string[]): InstallFlags {
+  let runtime: InstallTarget = "pi";
+  let runtimeSeen = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg) continue;
+    if (arg === "--runtime") {
+      if (runtimeSeen) throw new InstallArgumentError("--runtime no puede repetirse");
+      runtimeSeen = true;
+      const value = args[index + 1];
+      if (!value || value.startsWith("-")) {
+        throw new InstallArgumentError("--runtime necesita un valor separado");
+      }
+      if (!isInstallTarget(value)) {
+        throw new InstallArgumentError(`valor no soportado: ${value}`);
+      }
+      runtime = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "-r" || arg.startsWith("--runtime=")) {
+      throw new InstallArgumentError("usa --runtime seguido de un valor separado");
+    }
+  }
+
   return {
     yes: args.includes("--yes") || args.includes("-y"),
     noEngram: args.includes("--no-engram"),
@@ -93,6 +133,7 @@ export function parseInstallFlags(args: string[]): InstallFlags {
     noHypa: args.includes("--no-hypa"),
     noCodegraph: args.includes("--no-codegraph"),
     dryRun: args.includes("--dry-run"),
+    runtime,
   };
 }
 
@@ -116,6 +157,14 @@ async function maybeSecret(name: SecretName, label: string, flags: InstallFlags)
   if (p.isCancel(value) || !value) return;
   const written = await writeSecret(name, value);
   if (written) p.log.success(`${label} guardado.`);
+}
+
+/** Resolve menu intent first, then direct CLI selection, then the Pi default. */
+export function resolveInstallTarget(
+  explicitMenuTarget: InstallTarget | undefined,
+  parsedRuntime?: InstallTarget,
+): InstallTarget {
+  return explicitMenuTarget ?? parsedRuntime ?? "pi";
 }
 
 /** Return selected runtime paths in their required execution order. */
@@ -412,8 +461,16 @@ function runtimeLabel(target: RuntimeInstallTarget): string {
   return target === "pi" ? "Pi" : "Claude Code";
 }
 
-export async function runInstall(args: string[], target: InstallTarget = "pi"): Promise<number> {
-  const flags = parseInstallFlags(args);
+export async function runInstall(args: string[], explicitMenuTarget?: InstallTarget): Promise<number> {
+  let flags: InstallFlags;
+  try {
+    flags = parseInstallFlags(args);
+  } catch (error) {
+    console.error(error instanceof InstallArgumentError ? error.message : String(error));
+    return 1;
+  }
+  const target = resolveInstallTarget(explicitMenuTarget, flags.runtime);
+
   const platform: Platform = detectPlatform();
 
   await playBanner();

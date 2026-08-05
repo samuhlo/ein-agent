@@ -17,6 +17,9 @@ import { parseChecksums } from "../installer/src/core/checksum.ts";
 const REPO_ROOT = join(import.meta.dir, "..");
 const WORKFLOW_PATH = join(REPO_ROOT, ".github", "workflows", "installer-release.yml");
 const BUILD_SCRIPT_PATH = join(REPO_ROOT, "installer", "scripts", "build-all.ts");
+const INSTALLER_PACKAGE_PATH = join(REPO_ROOT, "installer", "package.json");
+const INSTALLER_VERSION_SOURCE_PATH = join(REPO_ROOT, "installer", "src", "core", "version.ts");
+const CHANGELOG_PATH = join(REPO_ROOT, "CHANGELOG.md");
 
 // [CONTRACT] Cuatro assets publicados y la línea "checksums.txt" deben
 // casar exactamente con `assetNameFor` y `assetNameFor`'s strict shape.
@@ -106,6 +109,20 @@ function sha256(hexChars: string): string {
 }
 
 describe("release asset contract", () => {
+  test("release preparation aligns the three authorized 0.41.0 version pointers", () => {
+    const packageJson = JSON.parse(readFileSync(INSTALLER_PACKAGE_PATH, "utf8")) as { version?: unknown };
+    const versionSource = readFileSync(INSTALLER_VERSION_SOURCE_PATH, "utf8");
+    const changelog = readFileSync(CHANGELOG_PATH, "utf8");
+    const installerVersion = versionSource.match(/export const INSTALLER_VERSION = [\"']([^\"']+)[\"']/)?.[1];
+    const newestChangelogVersion = changelog.match(/^## \[([^\]]+)\]/m)?.[1];
+
+    expect([packageJson.version, installerVersion, newestChangelogVersion]).toEqual([
+      "0.41.0",
+      "0.41.0",
+      "0.41.0",
+    ]);
+  });
+
   test("workflow publishes exactly the documented asset argument set", () => {
     const workflow = readFileSync(WORKFLOW_PATH, "utf8");
     const buildScript = readFileSync(BUILD_SCRIPT_PATH, "utf8");
