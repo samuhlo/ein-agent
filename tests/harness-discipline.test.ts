@@ -169,11 +169,29 @@ function withOpenspecChanges(cwd: string): void {
 	mkdirSync(join(cwd, "openspec", "changes"), { recursive: true });
 }
 
+// El bootstrap se suprime si `CI` o `CC_EIN_NO_GIT_INIT` están definidas. Los
+// casos que EJERCITAN el init tienen que borrarlas del entorno heredado: en
+// GitHub Actions `CI=true` viene puesta, y sin esto el init nunca se intenta y
+// el test pasa en local pero falla en CI.
+function withoutInitSuppressors<T>(fn: () => T): T {
+	const previous = { ci: process.env.CI, disabled: process.env.CC_EIN_NO_GIT_INIT };
+	delete process.env.CI;
+	delete process.env.CC_EIN_NO_GIT_INIT;
+	try {
+		return fn();
+	} finally {
+		if (previous.ci === undefined) delete process.env.CI;
+		else process.env.CI = previous.ci;
+		if (previous.disabled === undefined) delete process.env.CC_EIN_NO_GIT_INIT;
+		else process.env.CC_EIN_NO_GIT_INIT = previous.disabled;
+	}
+}
+
 describe("buildStatusOutput — repository bootstrap", () => {
 	test("outside a repo, with openspec/changes present, initializes git", () => {
 		const cwd = freshCwd();
 		withOpenspecChanges(cwd);
-		buildStatusOutput(cwd);
+		withoutInitSuppressors(() => buildStatusOutput(cwd));
 		expect(existsSync(join(cwd, ".git"))).toBe(true);
 	});
 
@@ -226,7 +244,7 @@ describe("buildStatusOutput — repository bootstrap", () => {
 		let output = "";
 		try {
 			expect(() => {
-				output = buildStatusOutput(cwd);
+				output = withoutInitSuppressors(() => buildStatusOutput(cwd));
 			}).not.toThrow();
 		} finally {
 			chmodSync(cwd, 0o700); // restore so afterEach's rmSync can clean up
