@@ -1,0 +1,12 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:harden-scope-retries:scope","durationMs":0,"timestamp":"2026-08-05T16:32:58.798Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:harden-scope-retries:map","durationMs":0,"timestamp":"2026-08-05T16:36:47.748Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:harden-scope-retries:design","durationMs":0,"timestamp":"2026-08-05T16:39:24.883Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:harden-scope-retries:tasks","durationMs":0,"timestamp":"2026-08-05T16:40:28.751Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:harden-scope-retries:apply","durationMs":0,"timestamp":"2026-08-05T16:45:41.541Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:harden-scope-retries:apply","durationMs":0,"timestamp":"2026-08-05T16:53:28.543Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:harden-scope-retries:apply","durationMs":0,"timestamp":"2026-08-05T16:59:45.502Z"}
+{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:harden-scope-retries:gate","durationMs":0,"timestamp":"2026-08-05T17:03:22.179Z"}
+{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:harden-scope-retries:gate","durationMs":0,"timestamp":"2026-08-05T17:05:39.167Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:harden-scope-retries:verify","durationMs":0,"timestamp":"2026-08-05T17:08:56.579Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:harden-scope-retries:verify","durationMs":0,"timestamp":"2026-08-05T17:09:42.392Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:harden-scope-retries:close","durationMs":0,"timestamp":"2026-08-05T17:09:48.566Z"}

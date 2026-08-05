@@ -150,6 +150,27 @@ const PHASE_ARTIFACT: Record<SddPhase, string> = {
 
 const PHASE_ORDER: SddPhase[] = ["scope", "map", "design", "tasks", "apply", "verify", "close"];
 
+const SPEC_MAP_PROVENANCE_STATES = ["unresolved", "conflict"] as const;
+type SpecMapProvenanceState = (typeof SPEC_MAP_PROVENANCE_STATES)[number];
+
+function isSpecMapProvenanceState(state: OpenSpecState | "legacy"): state is SpecMapProvenanceState {
+	return state === "unresolved" || state === "conflict";
+}
+
+function specMapProvenanceBlocker(state: SpecMapProvenanceState): string {
+	return `estado de specs OpenSpec: ${state}; map bloqueado hasta resolver la procedencia desde scope.`;
+}
+
+function specMapProvenanceAction(state: SpecMapProvenanceState): string {
+	return state === "unresolved"
+		? "Mantén el cambio en scope y ejecuta el flujo OpenSpec existente de validación para resolver la procedencia unresolved antes de mapear."
+		: "Mantén el cambio en scope y ejecuta el flujo OpenSpec existente de validación/sincronización para resolver la procedencia conflict antes de mapear.";
+}
+
+function findSpecMapProvenanceState(blocked: readonly string[]): SpecMapProvenanceState | null {
+	return SPEC_MAP_PROVENANCE_STATES.find((state) => blocked.includes(specMapProvenanceBlocker(state))) ?? null;
+}
+
 const SDD_NEXT_COPY: Record<SddNext, { reason: string; suggestedAction: string }> = {
 	scope: {
 		reason: "El cambio todavia no tiene alcance SDD definido.",
@@ -562,6 +583,12 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 		blocked.push("verify-report sin línea `status: pass|fail` clara.");
 	}
 
+	const canonicalChanges = resolveChangesDir(cwd) === join(cwd, "openspec", "changes");
+	if (canonicalChanges && nextRecommended === "map" && isSpecMapProvenanceState(specState)) {
+		blocked.push(specMapProvenanceBlocker(specState));
+		nextRecommended = "scope";
+	}
+
 	if (["scope", "map", "design"].includes(nextRecommended) && !tasks.present) {
 		tasks.problems = tasks.problems.filter((problem) => problem !== "tasks.md ausente.");
 	}
@@ -770,13 +797,20 @@ export function resolveSddNext(cwd: string, change?: string, options: { auto?: b
 	const status = resolveSddStatus(cwd, change);
 	const copy = SDD_NEXT_COPY[status.nextRecommended];
 	const blockers = [...status.blocked, ...status.tasks.problems, ...status.budget.problems];
+	const provenanceState = findSpecMapProvenanceState(status.blocked);
+	const reason = provenanceState
+		? specMapProvenanceBlocker(provenanceState)
+		: blockers.length > 0
+			? `${copy.reason} Hay bloqueos o datos incompletos que revisar.`
+			: copy.reason;
+	const suggestedAction = provenanceState ? specMapProvenanceAction(provenanceState) : copy.suggestedAction;
 	return {
 		change: status.change,
 		exists: status.change !== null,
 		currentPhase: status.currentPhase,
 		nextRecommended: status.nextRecommended,
-		reason: blockers.length > 0 ? `${copy.reason} Hay bloqueos o datos incompletos que revisar.` : copy.reason,
-		suggestedAction: copy.suggestedAction,
+		reason,
+		suggestedAction,
 		mode,
 		autoEnabled: false,
 		blocked: blockers,
