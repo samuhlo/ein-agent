@@ -1,7 +1,21 @@
 # Ein installer
 
-Instalador cross-platform (macOS + Linux) del workbench **Ein** sobre Pi Coding Agent.
+Instalador cross-platform (macOS + Linux) del workbench **Ein**, con superficies aisladas para Pi Coding Agent y Claude.
 Bun + TypeScript, compilado a binarios standalone, con TUI brutalista (paleta plana de marca: Carbon, Concrete, Structure, Yellow `#FFCA40`).
+
+## Selección de runtime
+
+El instalador permite seleccionar qué superficie desplegar, sin mezclar los runtimes:
+
+```bash
+ein install --runtime pi
+ein install --runtime claude
+ein install --runtime both
+```
+
+El selector contractual acepta `pi`, `claude` o `both`: `pi` y `claude` seleccionan un runtime aislado; `both` despliega ambos. Esta selección,
+igual que el estado del despliegue, pertenece al instalador y no implica que el launcher
+beta esté implementado.
 
 ## Instalación
 
@@ -15,14 +29,15 @@ y lo deja en `~/.local/bin/ein` (o `/usr/local/bin` si es escribible). Luego:
 ```bash
 ein            # menú interactivo
 ein install    # instala/repara Ein (deps + deploy + secrets + doctor)
-ein update     # actualiza Ein y pi (con backup previo)
-ein doctor     # diagnóstico del despliegue (sin lanzar pi)
+ein update     # actualiza Ein y los runtimes instalados (con backup previo)
+ein doctor     # diagnóstico del despliegue (sin lanzar runtimes)
 ein uninstall  # elimina Ein (conserva auth.json/secrets/sessions)
 ein restore    # restaura desde un backup
 ```
 
 Flags: `--yes` (no interactivo), `--dry-run` (muestra el plan sin ejecutar nada),
-`--no-engram`, `--no-secrets`, `--no-linear`.
+`--runtime <pi|claude|both>` (selecciona la superficie del instalador), `--no-engram`,
+`--no-secrets`, `--no-linear`.
 
 ## Backups
 
@@ -40,9 +55,11 @@ antes un snapshot comprimido (`.tar.gz`) en `~/.pi/agent/backups/installer/`:
 ## Qué hace `ein install`
 
 1. Detecta OS/arch/distro/shell.
-2. Comprueba e instala dependencias: `bun`, `pi` (obligatorias), `engram`, `gh` (opcionales).
-3. Despliega el template de Ein (embebido en el binario) en `~/.pi/agent`, **templando
-   las rutas** (`mcp.json`, `settings.json`) según tu `$HOME` y la ubicación real de `engram`.
+2. Comprueba e instala las dependencias de las superficies seleccionadas, incluyendo los
+   runtimes Pi/Claude; `engram` y `gh` son opcionales.
+3. Despliega las superficies seleccionadas desde el template de Ein (embebido en el
+   binario), manteniéndolas aisladas y **templando las rutas** (`mcp.json`, `settings.json`)
+   según tu `$HOME` y la ubicación real de `engram`.
 4. Wizard de secrets opcional (`context7`, `linear`, `minimax`) en `~/.config/opencode-secrets/`.
 5. Añade el export de `CONTEXT7_API_KEY` a tu shell rc (idempotente).
 6. Corre el doctor y reporta el estado.
@@ -58,14 +75,24 @@ bun run typecheck
 bun run bundle-template   # genera src/assets/template.tar.gz desde ../ein-pi/{core,agent}
 bun run build:all         # compila los 4 binarios en dist/
 bun run build:all linux-x64   # un solo target
-./e2e/docker-test.sh      # e2e real: install → doctor en un Ubuntu limpio (Docker)
+./e2e/docker-test.sh      # installer E2E: install → doctor en un Ubuntu limpio (Docker)
 ```
+
+`./e2e/docker-test.sh` es evidencia de despliegue del **installer E2E** únicamente.
+No prueba el launcher beta: la futura E2E del launcher deberá cubrir flujo de proyecto,
+sesiones y frescura del estado.
 
 El contenido de Ein se empaqueta componiendo `../ein-pi/core` (assets portables) y
 `../ein-pi/agent` (runtime Pi) con una allowlist (sin secrets, runtime ni
 node_modules), más un `template-manifest.json` generado que describe el contenido
 exacto (lo consumen `ein doctor` y `--dry-run`). Todo se embebe en el binario vía
 `bun build --compile`.
+
+## Propiedad del instalador
+
+La instalación, actualización, release y `doctor` del despliegue siguen siendo
+responsabilidad del instalador. El launcher beta futuro no absorbe estas tareas ni
+convierte la E2E del instalador en evidencia de launcher.
 
 ## Release
 

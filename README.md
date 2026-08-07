@@ -12,7 +12,7 @@ Ein convierte trabajo ambiguo en cambios pequeños, verificados y explicados. Na
 
 OpenSpec, el flujo SDD y los subagentes son el centro del sistema. El core compartido no convierte a Ein en una herramienta portable para cualquier runtime: hoy la superficie soportada es Pi Coding Agent y Claude Code, cada uno con su propia casa.
 
-> _note: aislamiento primero. `pi` y `claude` siguen siendo tus runtimes vanilla; Ein entra por launchers explícitos, no por contaminación silenciosa._
+> _note: aislamiento primero. `pi` y `claude` siguen siendo tus runtimes vanilla; Ein entra por superficies explícitas, no por contaminación silenciosa._
 
 ## // 00_ QUICK_START
 
@@ -23,7 +23,7 @@ curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/in
 ein
 ```
 
-En el menú, selecciona **Pi**, **Claude Code** o **Both**. El instalador prepara únicamente los runtimes elegidos, instala sus launchers aislados y ejecuta el doctor al terminar.
+En el menú, selecciona **Pi**, **Claude Code** o **Both**. El instalador prepara únicamente los runtimes elegidos, instala sus superficies aisladas y ejecuta el doctor al terminar. La selección no interactiva también es una capacidad del instalador: `--runtime pi|claude|both`.
 
 Si quieres la instalación directa de Pi sin abrir el selector, ejecuta `ein install`. Para ver el resto del CLI, usa `ein --help`.
 
@@ -31,13 +31,13 @@ Si quieres la instalación directa de Pi sin abrir el selector, ejecuta `ein ins
 
 Cada opción conserva intacto el runtime vanilla y coloca Ein en un hogar separado:
 
-| ELECCIÓN | LAUNCHER | HOGAR DE EIN | RUNTIME VANILLA |
+| ELECCIÓN | SUPERFICIE AISLADA | HOGAR DE EIN | RUNTIME VANILLA |
 | :--- | :--- | :--- | :--- |
 | **Pi** | `pi-ein` | `~/.pi-ein/agent` | `pi` → `~/.pi/agent` |
 | **Claude Code** | `cc-ein` | `~/.claude-ein` | `claude` → `~/.claude` |
 | **Both** | `pi-ein` + `cc-ein` | ambos hogares | ambos runtimes intactos |
 
-`pi-ein.fish` exporta `PI_CODING_AGENT_DIR` y `EIN_PI_AGENT_HOME` solo para esa invocación. `cc-ein.fish` exporta `CLAUDE_CONFIG_DIR` y antepone `~/.claude-ein/bin` al `PATH`; los launchers viven como funciones Fish en `~/.config/fish/functions/` y no contaminan tu shell.
+`pi-ein.fish` exporta `PI_CODING_AGENT_DIR` y `EIN_PI_AGENT_HOME` solo para esa invocación. `cc-ein.fish` exporta `CLAUDE_CONFIG_DIR` y antepone `~/.claude-ein/bin` al `PATH`; las superficies viven como funciones Fish en `~/.config/fish/functions/` y no contaminan tu shell.
 
 ### Migración de una instalación Pi legacy
 
@@ -96,12 +96,12 @@ ein-agent/
 ├── ein-pi/
 │   ├── core/       # agentes, skills, docs y prompts compartidos
 │   └── agent/      # extensiones, chains y runtime específico de Pi
-├── pi-ein/         # launcher + migración del adaptador Pi
+├── pi-ein/         # adaptador + migración Pi
 ├── cc-ein/         # CLAUDE.md, hooks, sync y CLI SDD del adaptador Claude
 └── installer/      # CLI, TUI, paths, deploy, backups y releases
 ```
 
-`ein-pi/core/` (contenido portable, agnóstico del runtime) se comparte únicamente entre los dos adaptadores soportados. `ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench; `installer/scripts/bundle-template.ts` los compone para el despliegue.
+`ein-pi/core/` (contenido portable, agnóstico del runtime) se comparte únicamente entre los dos adaptadores soportados. `ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench; `installer/scripts/bundle-template.ts` los compone para el despliegue. Estas superficies actuales no equivalen al camino beta A–E.
 
 ## // 05_ COMMAND_DECK
 
@@ -114,11 +114,11 @@ ein uninstall       # elimina Ein y conserva auth, secrets y sesiones
 ein restore         # restaura desde un backup
 ```
 
-Flags disponibles en el instalador: `--yes`, `--dry-run`, `--no-engram`, `--no-secrets`, `--no-linear`, `--no-hypa` y `--no-codegraph`.
+Flags disponibles en el instalador: `--runtime pi|claude|both`, `--yes`, `--dry-run`, `--no-engram`, `--no-secrets`, `--no-linear`, `--no-hypa` y `--no-codegraph`.
 
 ## // 06_ RELEASE
 
-La última release de Ein es **[EIN v0.40.0](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.40.0)**. Ein usa un único SemVer: `0.40.0`; el tag de publicación es `installer-v0.40.0`.
+El baseline del instalador registrado en este repositorio/local es **EIN v0.42.0**. Las referencias locales son el mismo SemVer `0.42.0` en `installer/package.json`, `installer/src/core/version.ts` y `CHANGELOG.md`, junto con `installer-v0.42.0`; esto no verifica una publicación remota, una GitHub Release ni sus assets. Este baseline identifica el estado del instalador, no la finalización del camino beta.
 
 Para preparar una publicación:
 
@@ -139,7 +139,8 @@ La publicación canónica ocurre en GitHub Actions. No hay publicación local ni
 
 - Instalación pública: [bootstrap `install.sh`](https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh).
 - Código y cambios: [samuhlo/ein-agent](https://github.com/samuhlo/ein-agent).
-- Última release: [`EIN v0.40.0`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.40.0).
+- Baseline local del instalador: `EIN v0.42.0` (`installer-v0.42.0`); no se afirma aquí la publicación remota ni la verificación independiente de sus assets.
+- Estado beta mantenido y criterios de salida: [`docs/roadmap-beta.md`](docs/roadmap-beta.md).
 
 <div align="center">
 
