@@ -106,4 +106,22 @@ describe("listRecentSessions", () => {
 		const excluded = listRecentSessions(5, { excludePath: all[0]?.path });
 		expect(excluded.find((s) => s.id === "id-new")).toBeUndefined();
 	});
+
+	test("mantiene dedupe por project y los campos legacy", () => {
+		const duplicatePath = writeSession(
+			"proj-d",
+			"duplicate.jsonl",
+			{ id: "id-duplicate", cwd: "/home/u/proyectos/alpha" },
+			new Date(),
+		);
+		const deduped = listRecentSessions(10, { dedupeByProject: true });
+		const alpha = deduped.filter((session) => session.project === "alpha");
+		expect(alpha).toHaveLength(1);
+		expect(alpha[0]).toMatchObject({
+			id: "id-duplicate",
+			cwd: "/home/u/proyectos/alpha",
+			path: duplicatePath,
+		});
+		rmSync(join(sessionsDir, "proj-d"), { recursive: true, force: true });
+	});
 });
