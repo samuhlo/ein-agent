@@ -3,35 +3,35 @@ context: |
   ein-installer is a Node.js/TypeScript ESM project.
   Detected markers: installer/package.json, installer/tsconfig.json, installer/bun package manager, GitHub Actions.
   Package managers: bun.
-  Additional evidence: Test-like files detected (51); examples: e2e/docker-test.sh, tests/adhoc-apply-handoff.test.ts, tests/adhoc-hygiene.test.ts, tests/codegraph.test.ts, tests/deploy-clean-managed.test.ts.
-  No reliable test runner was detected; verify testing manually before enabling strict TDD.
-  Unit tests: none.
-  Integration tests: none.
-  E2E tests: none.
+  Additional evidence: 94 test files detected in tests/; examples: tests/agent-frontmatter-json.test.ts (22 passing), tests/core-parity-coordinator.test.ts, tests/agent-tools-contract.test.ts.
+  Test runner: bun test (v1.3.14) — 22/22 tests pass in smoke run on agent-frontmatter-json.test.ts.
+  Unit tests: multiple (see tests/).
+  Integration tests: multiple (see tests/).
+  E2E tests: multiple (see tests/).
 rules:
   design:
     require_problem_statement: true
     require_acceptance_criteria: true
   apply:
-    test_command: ""
+    test_command: "bun test"
   verify:
-    test_command: ""
+    test_command: "bun test"
 testing:
-  detected: "2026-07-13"
+  detected: "2026-08-07"
   runner:
-    command: ""
-    framework: ""
+    command: "bun test"
+    framework: "bun test"
   layers:
-    unit: ""
-    integration: ""
-    e2e: ""
+    unit: "tests/"
+    integration: "tests/"
+    e2e: "tests/"
   commands:
     unit:
-      []
+      - "bun test tests/"
     integration:
-      []
+      - "bun test tests/"
     e2e:
-      []
+      - "bun test tests/"
   coverage:
     command: ""
     commands:
