@@ -2,6 +2,65 @@ status: partial
 
 # Apply — docs-sync-contract
 
+## Continuación (cierre del hueco de CI: entry point ejecutable)
+
+El paso "Drift de fuentes (informativo)" de CI ejecutaba solo los tests del detector (sobre un repo temporal sintético), sin invocar `detectDrift` contra las 21 páginas reales — el detector no tenía punto de entrada ejecutable. Cerrado:
+
+- **`ein-pi/agent/lib/docs-site-drift-detector.ts`**: añadidas `collectDriftPageInputs(repoRoot, docsDir?)` (recorre `docs-site/src/content/docs/`, parsea cada página con `parsePage` de `docs-site-contract.ts` y extrae `path`/`verifiedRev`/`sources`), `formatDriftReport(report)` (informe legible, agrupa `unknown` primero — nunca los presenta como "sin drift" — luego `drifted` con las fuentes cambiadas y sus líneas), `driftExitCode(report)` y bloque `if (import.meta.main)` que ejecuta todo sobre `process.cwd()` y hace `console.log` + `process.exitCode`.
+- **Código de salida, decisión explícita** (se descarta la propuesta de "siempre 0"): `0` = todo clean; `1` = error de ejecución real (`not-a-repo`/`git-error` — el detector no pudo correr, es un bug de la herramienta); `2` = hay algo que revisar (`drifted` o `unknown/rev-not-found` — informativo, dato del árbol, no fallo del script). El paso de CI sigue con `continue-on-error: true`, así que el código no bloquea el pipeline, pero sí distingue localmente "no hay nada que ver" de "revisa esto" de "el script está roto".
+- **`rev-not-found` visible**: `formatDriftReport` lista los `unknown` en una sección separada con su `reason` y `detail` explícitos; nunca se cuentan como `clean`. Cubierto por test dedicado.
+- **`.github/workflows/ci.yml`**: el paso informativo pasó de `bun test tests/docs-site-drift-detector.test.ts` a dos pasos: `bun test tests/docs-site-drift-detector.test.ts tests/docs-site-drift-report.test.ts` (bloqueante, valida el módulo) + `bun ein-pi/agent/lib/docs-site-drift-detector.ts` (informativo, `continue-on-error: true`, ejecuta el detector real sobre las 21 páginas). `fetch-depth: 0` se mantiene; el comentario que lo justifica ("si no, todo sale `unknown`/`rev-not-found`") ahora es cierto porque el detector se invoca de verdad.
+- **Tests nuevos** (`tests/docs-site-drift-report.test.ts`, 6 tests): `collectDriftPageInputs` sobre las 21 páginas reales (path/verifiedRev/sources bien formados), `formatDriftReport` marca `rev-not-found` visible y no lo cuenta como clean, lista `drifted` con sus fuentes, y las 3 ramas de `driftExitCode`.
+
+### Ciclo RED/GREEN real
+
+RED (`bun test tests/docs-site-drift-report.test.ts`, módulo sin las funciones nuevas):
+```
+SyntaxError: Export named 'collectDriftPageInputs' not found in module '.../docs-site-drift-detector.ts'.
+0 pass / 1 fail / 1 error
+```
+GREEN tras implementar `collectDriftPageInputs`, `formatDriftReport`, `driftExitCode`:
+```
+bun test tests/docs-site-drift-report.test.ts → 6 pass, 0 fail, 72 expect() calls
+```
+Regresión (detector + contrato, sin cambios de lógica en ellos):
+```
+bun test tests/docs-site-contract.test.ts tests/docs-site-drift-detector.test.ts tests/docs-site-drift-report.test.ts
+→ 49 pass, 0 fail, 153 expect() calls
+```
+
+### Detector ejecutado sobre las 21 páginas reales (`bun ein-pi/agent/lib/docs-site-drift-detector.ts`)
+
+```
+Drift de fuentes de docs-site: 12 clean, 9 drifted, 0 unknown (de 21 páginas).
+
+DRIFTED (fuentes cambiaron desde verified_rev):
+  - docs-site/src/content/docs/00-start/first-run.md (verified_rev=0ae709d):
+      added docs/EIN_DOCUMENTATION_BRIEF.md (+1003/-0)
+  - docs-site/src/content/docs/00-start/getting-started.md (verified_rev=0ae709d):
+      added docs/EIN_DOCUMENTATION_BRIEF.md (+1003/-0)
+  - docs-site/src/content/docs/00-start/overview.md (verified_rev=0ae709d):
+      added docs/EIN_DOCUMENTATION_BRIEF.md (+1003/-0)
+  - docs-site/src/content/docs/01-concepts/context.md (verified_rev=0ae709d):
+      added docs/EIN_DOCUMENTATION_BRIEF.md (+1003/-0)
+  - docs-site/src/content/docs/01-concepts/deterministic-boundaries.md (verified_rev=0ae709d):
+      added docs/EIN_DOCUMENTATION_BRIEF.md (+1003/-0)
+  - docs-site/src/content/docs/01-concepts/orchestrator.md (verified_rev=0ae709d):
+      added docs/EIN_DOCUMENTATION_BRIEF.md (+1003/-0)
+  - docs-site/src/content/docs/01-concepts/sdd-openspec.md (verified_rev=0ae709d):
+      added docs/EIN_DOCUMENTATION_BRIEF.md (+1003/-0)
+  - docs-site/src/content/docs/02-workflow/artifacts.md (verified_rev=0ae709d):
+      added docs/EIN_DOCUMENTATION_BRIEF.md (+1003/-0)
+  - docs-site/src/content/docs/02-workflow/workflow-overview.md (verified_rev=0ae709d):
+      added docs/EIN_DOCUMENTATION_BRIEF.md (+1003/-0)
+exit=2
+```
+Real, no fabricado: 9 páginas con `verified_rev: 0ae709d` reportan `docs/EIN_DOCUMENTATION_BRIEF.md` como fuente añadida desde ese rev — un hallazgo genuino sobre el estado actual del árbol respecto a ese commit histórico, no un artefacto del detector. `git status --porcelain docs-site/ openspec/changes/archive/` vacío tras esta corrida (ninguna página tocada).
+
+### Tareas y restricciones
+
+No se modificó ninguna página de `docs-site/`, ni `openspec/config.yaml`, ni `openspec/changes/archive/`. Tarea 10.3 sigue sin marcar (requiere run remoto de CI). No hay tarea numerada específica para "entry point ejecutable" en `tasks.md`; este trabajo cierra la brecha señalada por el usuario dentro del alcance ya cubierto por 9.6/10.2, sin añadir checkboxes nuevos.
+
 ## Continuación (lote 9)
 
 El hallazgo CT-4 de `cli.md:46` fue corregido por el parent fuera de esta sesión (fuente añadida a `sources` del frontmatter y a `## Fuentes`, orden CT-5 respetado). No se ha tocado esa página desde este executor. `lintDocsTree` pasa ahora sobre las 21 páginas.

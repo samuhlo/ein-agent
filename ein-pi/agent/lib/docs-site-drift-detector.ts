@@ -7,6 +7,9 @@
 // =============================================================================
 
 import { execFileSync } from "node:child_process";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+import { parsePage } from "./docs-site-contract.ts";
 
 export type GitRunResult = { ok: boolean; code: number; stdout: string; stderr: string };
 export type GitRunner = (args: string[]) => GitRunResult;
@@ -137,4 +140,100 @@ export function detectDrift(pages: DriftPageInput[], repoRoot: string, gitRunner
 	for (const r of reports) counts[r.status]++;
 
 	return { pages: reports, counts };
+}
+
+// -----------------------------------------------------------------------------
+// Punto de entrada ejecutable — recorre las páginas reales de
+// `docs-site/src/content/docs/`, extrae `sources`/`verified_rev` de cada
+// frontmatter (vía `parsePage`, sin fs propia más allá de leer el fichero) y
+// produce un informe legible. Separado de `detectDrift` para que ese siga
+// siendo puro/inyectable en tests.
+// -----------------------------------------------------------------------------
+
+function listMarkdownFilesRec(dir: string): string[] {
+	const result: string[] = [];
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		const full = join(dir, entry.name);
+		if (entry.isDirectory()) result.push(...listMarkdownFilesRec(full));
+		else if (entry.isFile() && entry.name.endsWith(".md")) result.push(full);
+	}
+	return result;
+}
+
+export function collectDriftPageInputs(
+	repoRoot: string,
+	docsDir = "docs-site/src/content/docs",
+): DriftPageInput[] {
+	const absoluteDocsDir = join(repoRoot, docsDir);
+	const files = listMarkdownFilesRec(absoluteDocsDir);
+
+	return files
+		.map((absPath) => {
+			const relToRepo = relative(repoRoot, absPath).split(sep).join("/");
+			const content = readFileSync(absPath, "utf8");
+			const parsed = parsePage(relToRepo, content);
+			return {
+				path: relToRepo,
+				verifiedRev: parsed.frontmatter?.verifiedRev ?? "",
+				sources: parsed.frontmatter?.sources ?? [],
+			};
+		})
+		.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+// Informe legible para consola: agrupa por estado, siempre marca los `unknown`
+// (y su razón) de forma explícita — un rev que no se encuentra es ausencia de
+// información, nunca se presenta como "sin drift".
+export function formatDriftReport(report: DriftReport): string {
+	const lines: string[] = [];
+	lines.push(
+		`Drift de fuentes de docs-site: ${report.counts.clean} clean, ${report.counts.drifted} drifted, ${report.counts.unknown} unknown (de ${report.pages.length} páginas).`,
+	);
+
+	const unknown = report.pages.filter((p) => p.status === "unknown");
+	const drifted = report.pages.filter((p) => p.status === "drifted");
+
+	if (unknown.length > 0) {
+		lines.push("");
+		lines.push("UNKNOWN (no se pudo verificar — no es 'sin drift'):");
+		for (const p of unknown) {
+			lines.push(`  - ${p.path} (verified_rev=${p.verifiedRev}) — ${p.reason}${p.detail ? `: ${p.detail}` : ""}`);
+		}
+	}
+
+	if (drifted.length > 0) {
+		lines.push("");
+		lines.push("DRIFTED (fuentes cambiaron desde verified_rev):");
+		for (const p of drifted) {
+			lines.push(`  - ${p.path} (verified_rev=${p.verifiedRev}):`);
+			for (const src of p.sourcesChanged) {
+				lines.push(`      ${src.status} ${src.path} (+${src.linesAdded}/-${src.linesRemoved})`);
+			}
+		}
+	}
+
+	if (unknown.length === 0 && drifted.length === 0) {
+		lines.push("Todas las páginas están clean respecto a su verified_rev.");
+	}
+
+	return lines.join("\n");
+}
+
+// Código de salida: distingue "hay algo que revisar" (drift o rev-not-found,
+// informativo, el paso de CI sigue con continue-on-error) de "el detector no
+// pudo ejecutarse" (not-a-repo/git-error, un fallo real de la herramienta).
+// 0 = todo clean. 1 = error de ejecución real. 2 = drift o rev stale a revisar.
+export function driftExitCode(report: DriftReport): number {
+	const hasExecutionError = report.pages.some((p) => p.reason === "not-a-repo" || p.reason === "git-error");
+	if (hasExecutionError) return 1;
+	if (report.counts.drifted > 0 || report.counts.unknown > 0) return 2;
+	return 0;
+}
+
+if (import.meta.main) {
+	const repoRoot = process.cwd();
+	const pages = collectDriftPageInputs(repoRoot);
+	const report = detectDrift(pages, repoRoot);
+	console.log(formatDriftReport(report));
+	process.exitCode = driftExitCode(report);
 }

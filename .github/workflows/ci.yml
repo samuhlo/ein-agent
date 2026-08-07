@@ -64,6 +64,9 @@ jobs:
       - name: Contrato de páginas (bloqueante)
         run: bun test tests/docs-site-contract.test.ts
 
-      - name: Drift de fuentes (informativo)
+      - name: Tests del detector de drift
+        run: bun test tests/docs-site-drift-detector.test.ts tests/docs-site-drift-report.test.ts
+
+      - name: Drift de fuentes sobre las 21 páginas reales (informativo)
         continue-on-error: true
-        run: bun test tests/docs-site-drift-detector.test.ts
+        run: bun ein-pi/agent/lib/docs-site-drift-detector.ts
