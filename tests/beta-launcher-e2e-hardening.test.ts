@@ -277,7 +277,6 @@ class PtySession {
 
   sendEOF(): void {
     this.terminal.write("\u0004");
-    this.terminal.close();
   }
 
   sendSIGINT(): void {
