@@ -6,6 +6,7 @@ import {
 	readdirSync,
 	readFileSync,
 	readlinkSync,
+	realpathSync,
 } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import {
@@ -1039,20 +1040,26 @@ function projectVerificationState(
 }
 
 export function projectProjectState({ cwd, selectedChange, runtime }: ProjectStateRequest): ProjectStateV1 {
-	const git = readGitState(cwd);
-	const openspec = projectOpenSpecState(cwd, selectedChange);
+	let physicalCwd: string;
+	try {
+		physicalCwd = realpathSync(cwd);
+	} catch {
+		physicalCwd = resolve(cwd);
+	}
+	const git = readGitState(physicalCwd);
+	const openspec = projectOpenSpecState(physicalCwd, selectedChange);
 	return {
 		schemaVersion: PROJECT_STATE_SCHEMA_VERSION,
 		identity: {
-			cwd,
+			cwd: physicalCwd,
 			quality: git.quality,
 			reason: git.reason,
 			...(git.root ? { repositoryRoot: git.root } : {}),
 		},
 		openspec,
-		ein: projectEinState(cwd),
+		ein: projectEinState(physicalCwd),
 		git,
-		verification: projectVerificationState(cwd, openspec, git),
+		verification: projectVerificationState(physicalCwd, openspec, git),
 		runtimes: {
 			pi: projectRuntime("pi", runtime?.pi),
 			claude: projectRuntime("claude", runtime?.claude),
