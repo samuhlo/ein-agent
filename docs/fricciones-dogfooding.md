@@ -94,6 +94,48 @@ La conclusión práctica es que este check no se arregla con prompt. Se arregla
 en el parser: tolerar espacios en blanco, o aceptar la declaración en cualquier
 sección y no solo bajo un encabezado exacto.
 
+### Tercera reincidencia: el problema real es el mensaje
+
+En el tercer cambio (`docs-sync-contract`) volvió a fallar, con el aviso puesto
+otra vez y contemplando ya los dos modos anteriores. Esta vez el bloque estaba
+literal, consecutivo y en su sitio. La causa era otra:
+
+```javascript
+const invalidReason = reason.length < 1 || reason.length > 200 ||
+  /^(none|n\/a|na|tbd|unknown|-)$/i.test(reason);
+```
+
+La razón escrita medía 237 caracteres. El límite son 200.
+
+Con esto van **tres modos de fallo distintos** del mismo check:
+
+| # | Cambio | Causa real |
+| --- | --- | --- |
+| 1 | `docs-content-inventory` | línea en blanco entre el encabezado y la primera clave |
+| 2 | `docs-content-reference` | el bloque parafraseado en prosa, sin forma literal |
+| 3 | `docs-sync-contract` | bloque correcto, razón de 237 caracteres sobre un límite de 200 |
+
+Y los tres devuelven **exactamente el mismo mensaje**:
+
+```
+ERROR [spec-delta-unresolved]: El cambio OpenSpec requiere exactamente un
+delta válido o una declaración spec_delta: none válida.
+```
+
+Ese mensaje no menciona el espaciado, ni la forma literal, ni el límite de
+longitud. Dice que falta una declaración válida cuando en los tres casos la
+declaración existía y era semánticamente correcta.
+
+Aquí está la conclusión que sirve para el artículo, y es distinta de la que
+parecía al principio. El problema no es que el parser sea estricto: un parser
+estricto es defendible. El problema es que **tiene al menos tres condiciones de
+rechazo y una sola forma de decirlo**. Cada fallo obliga a leer el código fuente
+del guardrail para averiguar cuál de las tres se incumplió — tres veces en tres
+cambios, y cada vez desde cero.
+
+Un check determinista que no sabe explicar qué condición se incumplió traslada
+al lector el trabajo que él mismo acaba de hacer.
+
 ---
 
 ## F2 — `strict_tdd: true` sobre un cambio que no tiene nada que testear
