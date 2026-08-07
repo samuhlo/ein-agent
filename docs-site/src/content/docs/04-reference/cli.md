@@ -1,7 +1,7 @@
 ---
 title: "CLI · EIN"
 description: "Referencia de comandos y flags del instalador de EIN"
-sources: ["README.md", "installer/src/cli/install.ts", "installer/src/cli/menu.ts", "installer/src/cli/update.ts", "installer/src/cli/doctor.ts", "installer/src/cli/restore.ts", "installer/src/cli/uninstall.ts"]
+sources: ["README.md", "installer/src/cli/install.ts", "installer/src/cli/menu.ts", "installer/src/cli/update.ts", "installer/src/cli/doctor.ts", "installer/src/cli/restore.ts", "installer/src/cli/uninstall.ts", "openspec/specs/installer-runtime/spec.md"]
 verified_rev: "2f67c73"
 ---
 
@@ -78,3 +78,4 @@ lineas: n/a
 - `installer/src/cli/doctor.ts` — comando `doctor`
 - `installer/src/cli/restore.ts` — comando `restore`
 - `installer/src/cli/uninstall.ts` — comando `uninstall`
+- `openspec/specs/installer-runtime/spec.md` — contrato de selección de runtime en `install`
