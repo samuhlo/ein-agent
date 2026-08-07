@@ -1,4 +1,11 @@
-status: partial
+status: complete
+
+<!-- Cerrado por el parent: la tarea 10.3 era la única pendiente y exigía un run
+     remoto de GitHub Actions, imposible para un ejecutor de fase. Se resolvió con
+     workflow_dispatch sobre la rama (run 31190266200 sobre 1c32f05, los tres jobs
+     en verde; el paso de drift devolvió 12 clean, 9 drifted, 0 unknown, idéntico a
+     local). Evidencia completa en tasks.md §10.3. -->
+
 
 # Apply — docs-sync-contract
 

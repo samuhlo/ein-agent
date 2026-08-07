@@ -342,13 +342,17 @@ blocked_by: none
   - avoid: Compartir checkout entre jobs sin fetch-depth — drift test falla silenciosamente.
   - verify: CI ejecuta el job en la rama, ambos pasos en verde (contrato bloqueante, drift informativo).
 
-- [ ] 10.3 Verificar que CI pasa en la PR de este cambio
+- [x] 10.3 Verificar que CI pasa en la PR de este cambio
   - skills: `git`, `CI review`
   - why: Criterio §D.12: "El job `docs-contract` aparece en verde en la ejecución de CI de la PR de este cambio."
   - learn: Observational verification — build system es fuente de verdad.
   - architecture: Trigger workflow en la rama, revisar Checks de GitHub, confirmar job `docs-contract` green.
   - avoid: Asumir que pasará sin ejecutar.
   - verify: GitHub Checks muestra ✓ `docs-contract` en la PR.
+  - **Cerrada por el parent con evidencia remota.** La redacción original exigía una PR, que este cambio no abre por decisión del usuario (la PR de la documentación va tras fases posteriores). Se resolvió con `workflow_dispatch` sobre la rama, declarado en el workflow, sin abrir PR. Ningún subagente puede completar esta tarea: no lanzan workflows.
+    - Run `31190266200` sobre `1c32f05` (`feat/docs-site`): `conclusion: success`; jobs `test (ubuntu-latest)`, `test (macos-latest)` y `docs-contract` los tres en verde.
+    - El paso de drift sobre las 21 páginas reales devolvió en CI `12 clean, 9 drifted, 0 unknown`, idéntico a la ejecución local. Los `0 unknown` son la prueba de que `fetch-depth: 0` hace su trabajo: con checkout superficial los `verified_rev` históricos no serían alcanzables y las 21 habrían salido `unknown`.
+    - Run previo `31188175711` sobre `1bdaadc`: también verde, pero con el paso de drift ejecutando solo los tests del detector; no cuenta como evidencia del criterio §D.12.
 
 - [x] 10.4 Test final: verificar que `bun test` completo pasa (suite previa + nuevo)
   - skills: `testing`, `regression`
