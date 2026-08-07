@@ -8,6 +8,7 @@ import {
 	readFileSync,
 	readdirSync,
 	rmSync,
+	symlinkSync,
 	utimesSync,
 	writeFileSync,
 } from "node:fs";
@@ -901,6 +902,28 @@ describe("Git bounded exact identity", () => {
 					worktreeStatus: "M",
 				},
 			]);
+		});
+	});
+
+	test("physical repository identity is stable through a symlinked working directory", () => {
+		withRepository((cwd) => {
+			commitFile(cwd, "tracked.txt", "tracked\n");
+			const aliasParent = mkdtempSync(join(tmpdir(), "ein-project-state-alias-"));
+			const alias = join(aliasParent, "repository");
+			try {
+				symlinkSync(cwd, alias, "dir");
+				writeFileSync(join(cwd, "tracked.txt"), "tracked dirty\n");
+
+				const direct = projectProjectState({ cwd });
+				const throughAlias = projectProjectState({ cwd: alias });
+				expect(throughAlias.identity.cwd).toBe(cwd);
+				expect(throughAlias.identity.repositoryRoot).toBe(cwd);
+				expect(throughAlias.git.root).toBe(cwd);
+				expect(throughAlias.git.changes).toEqual(direct.git.changes);
+				expect(throughAlias.git.stateRef).toBe(direct.git.stateRef);
+			} finally {
+				rmSync(aliasParent, { recursive: true, force: true });
+			}
 		});
 	});
 
