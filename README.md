@@ -120,6 +120,8 @@ Flags disponibles en el instalador: `--runtime pi|claude|both`, `--yes`, `--dry-
 
 El baseline del instalador registrado en este repositorio/local es **EIN v0.42.0**. Las referencias locales son el mismo SemVer `0.42.0` en `installer/package.json`, `installer/src/core/version.ts` y `CHANGELOG.md`, junto con `installer-v0.42.0`; esto no verifica una publicación remota, una GitHub Release ni sus assets. Este baseline identifica el estado del instalador, no la finalización del camino beta.
 
+Se conserva [EIN v0.40.0](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.40.0) como enlace de compatibilidad y referencia de la última publicación remota, no como baseline actual del repositorio, que permanece en `0.42.0`.
+
 Para preparar una publicación:
 
 1. Mantén el mismo SemVer en `installer/package.json`, `installer/src/core/version.ts` y `CHANGELOG.md`.
