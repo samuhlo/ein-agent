@@ -1,0 +1,13 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-project-state-contract:scope","durationMs":0,"timestamp":"2026-08-06T17:52:36.934Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-project-state-contract:map","durationMs":0,"timestamp":"2026-08-06T17:58:35.534Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-project-state-contract:design","durationMs":0,"timestamp":"2026-08-06T18:03:53.683Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-project-state-contract:design","durationMs":0,"timestamp":"2026-08-06T18:07:49.193Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-project-state-contract:tasks","durationMs":0,"timestamp":"2026-08-06T18:09:00.363Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-project-state-contract:apply","durationMs":0,"timestamp":"2026-08-06T18:14:41.293Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-project-state-contract:apply","durationMs":0,"timestamp":"2026-08-06T18:38:35.055Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-project-state-contract:apply","durationMs":0,"timestamp":"2026-08-06T18:53:47.362Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-project-state-contract:verify","durationMs":0,"timestamp":"2026-08-06T18:58:49.941Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-project-state-contract:apply","durationMs":0,"timestamp":"2026-08-06T19:16:48.656Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-project-state-contract:verify","durationMs":0,"timestamp":"2026-08-06T19:20:50.075Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-project-state-contract:verify","durationMs":0,"timestamp":"2026-08-06T19:21:32.048Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:shared-project-state-contract:close","durationMs":0,"timestamp":"2026-08-06T19:21:47.054Z"}
