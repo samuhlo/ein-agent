@@ -61,6 +61,39 @@ regla en el prompt no basta cuando choca con un hábito de formato más fuerte.
 **Coste real.** Una fase bloqueada, una inspección del parser y una edición de
 un carácter.
 
+### Reincidencia, y la parte incómoda
+
+Al arrancar el segundo cambio (`docs-content-reference`) se avisó explícitamente
+en la delegación, en mayúsculas y con la causa nombrada:
+
+> El parser exige las tres líneas EXACTAMENTE consecutivas, sin línea en blanco
+> entre `## Spec delta declaration` y `spec_delta: none`: en SLICE 1 eso bloqueó
+> una fase entera.
+
+El agente **volvió a fallar el mismo check**, pero de otra forma: en lugar de
+escribir el bloque con un salto de línea de más, no escribió el bloque en
+absoluto. Lo parafraseó en prosa dentro de otra sección:
+
+```markdown
+## Canonical spec context
+
+`spec_delta: none` — ningún cambio de comportamiento. Las páginas son
+esqueletos declarativos sin prosa.
+```
+
+Semánticamente correcto. Sintácticamente invisible para el parser.
+
+Esto es lo que hace la fricción interesante para el artículo: el aviso no
+eliminó el fallo, **cambió su forma**. Advertir sobre el espaciado hizo que el
+agente evitara el espaciado evitando el bloque. Cuando un contrato depende de
+una forma literal exacta y el modelo entiende la intención pero no la trata
+como literal, más instrucciones producen más variantes del mismo error, no
+menos errores.
+
+La conclusión práctica es que este check no se arregla con prompt. Se arregla
+en el parser: tolerar espacios en blanco, o aceptar la declaración en cualquier
+sección y no solo bajo un encabezado exacto.
+
 ---
 
 ## F2 — `strict_tdd: true` sobre un cambio que no tiene nada que testear
@@ -145,6 +178,30 @@ apariciones, ni se leyó su implementación. La conclusión de que cuenta
 menciones y no escrituras es una inferencia sólida a partir de la diferencia
 entre lo declarado y lo reportado, no una lectura del código.
 
+### Confirmación en el segundo cambio
+
+En SLICE 2 se instruyó explícitamente al ejecutor de tareas para que usara **una
+sola forma canónica de ruta por fichero**, precisamente para no duplicar el
+conteo. Los avisos bajaron de siete a cinco, pero no desaparecieron. Y uno de
+ellos cierra el diagnóstico:
+
+```
+WARNING [oversized-group]: Grupo "Notas de arquitectura" toca 11 ficheros de
+producción (> 4)
+```
+
+«Notas de arquitectura» **no es un grupo de tareas**: es una sección de prosa al
+final del fichero que menciona las once páginas para explicar cómo encajan.
+
+Así que el guard no solo confunde fuentes citadas con ficheros escritos: no
+distingue entre una unidad ejecutable y un párrafo. Cuenta rutas en cualquier
+sección del artefacto y las atribuye a un «grupo» que en algunos casos no
+existe como tal.
+
+Esto lo mueve de categoría. No es una heurística mal calibrada a la que le
+sobra un umbral: es un contador que no entiende la estructura del documento
+sobre el que opina.
+
 ---
 
 ## F4 — Un agente dedujo que fases ya ejecutadas no existían
@@ -213,6 +270,51 @@ sabe de la otra.
 Para el artículo es el ejemplo más limpio de un problema que no es de modelos:
 es de composición de reglas. Cuantas más capas de política tiene un harness,
 más probable es que dos correctas produzcan una imposible.
+
+---
+
+## F6 — Un presupuesto ambiguo que habría estrangulado toda la cadena
+
+**Qué pasó.** El paquete de scope del segundo cambio declaró el presupuesto de
+**su propia fase** en lugar del presupuesto del cambio completo, y dejó el total
+real en comentarios.
+
+**Evidencia.** Lo que escribió:
+
+```
+budget_allocated:
+  max_tokens: 12000       # esta fase (scope)
+  max_reads: 20           # lectura de fuentes y specs
+  max_runtime_ms: 300000  # 5 minutos
+
+# Presupuesto total estimado para las 7 fases del cambio:
+# ~95000 tokens distribuidos (scope 12k, map 15k, design 18k, tasks 10k, ...)
+```
+
+El paquete de scope es el presupuesto que **la cadena propaga entre fases**: el
+contrato del ejecutor lo dice literalmente. Con 12000 ahí dentro, la fase de
+mapeo habría arrancado con una octava parte de lo que necesitaba, y las
+siguientes peor. El número correcto estaba escrito en el fichero, pero en un
+comentario, donde nadie lo lee.
+
+**El segundo defecto, más pequeño.** El router mostró el valor así:
+
+```
+budget: allocated=max_tokens: 12000       # esta fase (scope)
+```
+
+El comentario en línea viajó dentro del valor. El parser no los recorta, así
+que un `12000 # esta fase` se propaga como si fuera el número.
+
+**Por qué importa.** La ambigüedad es real y es de diseño: `budget_allocated`
+no dice en su nombre si es de fase o de cambio, y las dos lecturas son
+razonables para alguien que acaba de terminar una fase. En SLICE 1 el mismo
+campo se rellenó con el presupuesto del cambio y la cadena funcionó; en SLICE 2
+se rellenó con el de la fase. Mismo contrato, dos interpretaciones opuestas, y
+ninguna validación que distinga cuál es.
+
+Un campo que puede interpretarse de dos formas incompatibles, sin validación
+que las separe, acaba interpretado de las dos formas. Es cuestión de tiempo.
 
 ---
 
