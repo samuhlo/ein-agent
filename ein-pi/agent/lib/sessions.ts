@@ -7,7 +7,7 @@
 // =============================================================================
 
 import { closeSync, openSync, readSync, readdirSync, statSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, isAbsolute, join, normalize, sep } from "node:path";
 import { AGENT_DIR } from "../extensions/ein-paths";
 import { pick } from "./lang";
 
@@ -99,6 +99,66 @@ function readSessionMeta(path: string): { id: string; cwd: string } | null {
   } catch {
     return null;
   }
+}
+
+const PROJECT_SCAN_LIMIT = 4_096;
+
+export type ProjectSessionScope = {
+  cwd: string;
+  repositoryRoot?: string;
+};
+
+/** Internal metadata kept transiently between the Pi reader and its adapter. */
+type ProjectSessionRecord = {
+  id: string;
+  cwd: string;
+  path: string;
+  mtimeMs: number;
+};
+
+export type ProjectSessionScan = {
+  matches: readonly ProjectSessionRecord[];
+  scanLimitExceeded: boolean;
+};
+
+function isWithin(root: string, candidate: string): boolean {
+  const boundary = root.endsWith(sep) ? root : `${root}${sep}`;
+  return candidate === root || candidate.startsWith(boundary);
+}
+
+function matchesProjectScope(meta: { cwd: string }, scope: ProjectSessionScope): boolean {
+  const cwd = normalize(meta.cwd);
+  const selectedCwd = normalize(scope.cwd);
+  if (!isAbsolute(cwd) || !isAbsolute(selectedCwd)) return false;
+  if (!scope.repositoryRoot) return cwd === selectedCwd;
+  const root = normalize(scope.repositoryRoot);
+  return isAbsolute(root) && isWithin(root, selectedCwd) && isWithin(root, cwd);
+}
+
+/**
+ * Bounded project-scoped Pi metadata scan. Private ids, paths, and cwds do not
+ * cross this reader/adapter seam and no transcript line is read.
+ */
+export function scanProjectSessions(
+  scope: ProjectSessionScope,
+  limit = 10,
+): ProjectSessionScan {
+  const boundedLimit = Math.min(20, Math.max(1, Math.trunc(limit)));
+  const candidates = collectCandidates().sort(
+    (a, b) => b.mtimeMs - a.mtimeMs || a.path.localeCompare(b.path),
+  );
+  const matches: ProjectSessionRecord[] = [];
+  for (const candidate of candidates.slice(0, PROJECT_SCAN_LIMIT)) {
+    if (matches.length >= boundedLimit) break;
+    const meta = readSessionMeta(candidate.path);
+    if (!meta?.cwd || !matchesProjectScope(meta, scope)) continue;
+    matches.push({ ...meta, path: candidate.path, mtimeMs: candidate.mtimeMs });
+  }
+  return {
+    matches,
+    scanLimitExceeded:
+      matches.length < boundedLimit && candidates.length > PROJECT_SCAN_LIMIT,
+  };
 }
 
 export type RecentOptions = {

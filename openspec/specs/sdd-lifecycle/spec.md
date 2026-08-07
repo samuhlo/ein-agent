@@ -198,6 +198,48 @@ Given: A canonical change has scope.md, lacks map.md, and its existing specState
 When: lifecycle status or sdd-next is resolved.
 Then: Routing reports a spec provenance blocker and does not recommend map; pending and synchronized spec states remain eligible to recommend map when no earlier phase gate blocks.
 
+## Scenario: runtime-adapter-normalized-surface
+title: Runtime adapters expose one project-scoped session surface
+requirement: The system MUST expose Pi and Claude adapters through one normalized read/launch surface for listing recent project-scoped sessions, creating a new runtime-session request, resuming an existing same-runtime session, and launching the selected runtime, with each result identifying its provider, operation capability, and the ProjectStateV1 identity used.
+Given: A caller supplies a selected project and its verified ProjectStateV1 boundary to a supported runtime adapter.
+When: The caller requests a session read, create, resume, or launch operation.
+Then: The adapter returns the common operation shape with provider-scoped normalized data or an explicit unavailable/error result, and does not compute or persist a competing project-state representation.
+
+## Scenario: runtime-adapter-pi-project-scope
+title: Pi listing reads bounded JSONL metadata for the selected project
+requirement: The system MUST list Pi sessions for the selected project by reading only bounded first-line session metadata from the existing isolated Pi session JSONL layout, matching the selected project identity, and MUST NOT read transcript content or expose private session paths.
+Given: The isolated Pi session directory contains recent JSONL files whose first line may identify a session id and working directory.
+When: The Pi adapter lists recent sessions for a ProjectStateV1-selected project.
+Then: Only valid metadata for that project is normalized into opaque resume references ordered by recency; malformed, unreadable, missing-scope, or out-of-project entries are omitted or reported as an explicit unavailable condition without guessing another project.
+
+## Scenario: runtime-adapter-private-history
+title: Runtime-private histories remain private across adapters
+requirement: The system MUST keep Pi and Claude conversation histories private to their originating runtime and MUST NOT export, migrate, merge, or persist transcripts or messages in the normalized adapter surface.
+Given: A session is created, listed, resumed, or handed off between runtime adapters with normalized project state available.
+When: The adapter emits session metadata or a runtime handoff result.
+Then: Only provider-scoped opaque references, capabilities, errors, and normalized ProjectStateV1 identity are exposed; no transcript, prompt, message, private path, shared session store, or false cross-runtime continuity appears.
+
+## Scenario: runtime-adapter-safe-isolated-launch
+title: Runtime launch reuses isolated mechanisms without shell injection
+requirement: The system MUST launch Pi or Claude through fixed executable arguments, selected working-directory, and the runtime's existing isolated environment contract, MUST NOT interpolate caller input into a shell command, and MUST NOT install, update, or rewrite runtime-owned launcher state.
+Given: A normalized create or resume request has passed provider, project, and capability validation.
+When: The adapter prepares or executes the runtime launch.
+Then: Pi uses the existing isolated Pi environment and Claude uses the existing isolated Claude configuration environment, with no shell-evaluated command string, installer ownership change, shared persistence write, or parallel writer.
+
+## Scenario: runtime-adapter-same-runtime-resume
+title: Resume is bound to the same runtime and project state
+requirement: The system MUST allow a resume request only for an opaque session reference issued by the same runtime adapter and matching the selected project identity, and MUST carry the ProjectStateV1 state identity used for the request without migrating or refreshing private history.
+Given: A caller asks to resume a session reference while selecting a runtime and project state.
+When: The adapter validates and prepares the resume operation.
+Then: A same-runtime, project-scoped reference yields a bounded resume request carrying the selected state identity; a cross-runtime reference, mismatched project, ambiguous or unavailable project state, or unverifiable session reference fails closed with a normalized reason.
+
+## Scenario: runtime-adapter-unsupported-fails-closed
+title: Unsupported runtime operations remain explicit
+requirement: The system MUST report an operation as unavailable or unsupported when Pi or Claude cannot provide an equivalent safe capability, and MUST NOT fabricate session metadata, resume semantics, launch flags, or cross-runtime equivalence.
+Given: A provider lacks a verified implementation for one of list, create, resume, or launch, or its isolated runtime mechanism is unavailable.
+When: The normalized adapter surface receives that operation request.
+Then: The result is an explicit provider-scoped unsupported or unavailable error with deterministic diagnostics, no partial session mutation, and no success result that hides the capability difference.
+
 ## Scenario: scope-retry-preserves-valid-delta
 title: Scope retries preserve valid persisted deltas
 requirement: The system MUST preserve a valid persisted OpenSpec delta as the authoritative declaration when sdd-scope is retried, instead of writing a contradictory declaration or delta.
@@ -233,9 +275,45 @@ Given: A change has strict-TDD focused-test evidence and the verification plan i
 When: The SDD lifecycle executes apply and then independent sdd-verify.
 Then: Apply runs only its bounded focused checks, while verify schedules and executes each relevant global check once without weakening any required close check.
 
+## Scenario: workbench-launcher-capability-aware-sessions
+title: Workbench offers only provider-supported session actions
+requirement: The system MUST list recent sessions through the selected provider adapter, request a new session, or offer resume only when that adapter advertises and validates resume support, while presenting unsupported or unavailable operations explicitly and never fabricating session metadata or cross-runtime continuity.
+Given: A confirmed ProjectStateV1 and provider adapter expose an evidence-based capability matrix, including provider-specific unsupported operations from the runtime adapter contract.
+When: The user chooses session management for Pi or Claude.
+Then: The workbench shows bounded provider-supported recent-session metadata, can request a new session, offers only a validated supported resume reference, and renders deterministic unsupported or unavailable diagnostics without exposing private transcript content or paths.
+
+## Scenario: workbench-launcher-compact-doctor
+title: Workbench exposes read-only compact doctor access
+requirement: The system MUST expose a compact doctor action that delegates to the existing read-only doctor surface and MUST NOT move installation, update, repair, or release logic into the separate workbench.
+Given: The user is in the minimal workbench with a selected project or runtime context.
+When: The user requests doctor access.
+Then: The workbench presents the existing doctor result or a bounded actionable unavailable diagnostic, returns to the workbench flow, and does not mutate installer-owned state.
+
+## Scenario: workbench-launcher-project-runtime-flow
+title: Workbench confirms a project and supported runtime before orchestration
+requirement: The system MUST provide one separate workbench entrypoint that requires selecting and confirming a project, selecting Pi or Claude, and consuming the confirmed ProjectStateV1 for all displayed and requested operations without becoming a second project-state owner.
+Given: A user starts the minimal workbench in a directory with zero or more discoverable project candidates and the existing ProjectStateV1 projector is available.
+When: The user selects and confirms a project and a supported runtime.
+Then: The workbench binds the flow to that project and runtime, presents the selected identity, and does not enter session actions until the confirmation is complete.
+
+## Scenario: workbench-launcher-safe-runtime-launch
+title: Workbench launches only through the safe adapter boundary
+requirement: The system MUST launch the selected runtime only through the runtime adapter's validated state-bound launch plan and non-shell executor, and MUST NOT accept caller-controlled command strings, migrate private history, write shared session state, or assume installer or updater ownership.
+Given: The user has selected a confirmed project, provider, and either a new-session request or a supported resume request.
+When: The user confirms launch.
+Then: The workbench delegates the request to the adapter with the selected ProjectStateV1 identity, reports the normalized outcome, and leaves installer files, update state, shared project state, and private runtime histories unchanged.
+
+## Scenario: workbench-launcher-state-freshness
+title: Workbench presents OpenSpec progress and verification freshness honestly
+requirement: The system MUST show the selected project's active OpenSpec phase and next step together with source quality and verification freshness, and MUST visibly distinguish incomplete, ambiguous, unavailable, stale, invalid, and current values without promoting stale evidence to current.
+Given: The selected ProjectStateV1 contains active or absent OpenSpec work and may contain incomplete sources or verification evidence that is stale, invalid, unavailable, or current.
+When: The workbench renders the project summary before session orchestration.
+Then: The rendered summary preserves the projector's state and reason values, shows the active phase and next step when known, and labels unknown or stale evidence instead of guessing or inheriting freshness from a runtime switch or resume.
+
 ## Scenario: working-tree-signal-single-channel
 title: Repository and working-tree state is reported through one channel
 requirement: The system MUST report repository presence and working-tree cleanliness through the SDD status output as the single channel and MUST NOT duplicate that report in the permission-decision envelope or in the harness deployment step.
 Given: the working directory has uncommitted changes while the coordinator resolves SDD status between phases.
 When: SDD status output is produced.
 Then: it carries exactly one working-tree block naming the uncommitted state and its stash or commit remedy, no other harness surface repeats that signal, and phase routing and the exit code are unaffected.
+
