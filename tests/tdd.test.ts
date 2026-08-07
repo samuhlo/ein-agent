@@ -9,9 +9,6 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const TEST_AGENT_HOME = join(tmpdir(), "ein-agent-tests", "agent");
-process.env.EIN_PI_AGENT_HOME = TEST_AGENT_HOME;
-
 const { readTddMode, writeTddMode, tddConfigPath, TDD_OPTIONS } = await import(
 	"../ein-pi/agent/lib/tdd"
 );

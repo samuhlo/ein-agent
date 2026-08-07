@@ -1,8 +1,9 @@
-import { describe, expect, afterAll, beforeEach, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdirSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { getRuntimeTestOwner, type SessionLease } from "./fixtures/runtime-test-fixture";
 import type {
 	AdapterErrorCode,
 	AdapterResult,
@@ -15,8 +16,7 @@ import type {
 	ProjectStateV1,
 } from "../ein-pi/agent/lib/project-state";
 
-const TEST_AGENT_HOME = join(tmpdir(), "ein-agent-tests", "agent");
-process.env.EIN_PI_AGENT_HOME = TEST_AGENT_HOME;
+const owner = getRuntimeTestOwner();
 const {
 	RUNTIME_CAPABILITY_MATRIX,
 	buildLaunchPlan,
@@ -34,18 +34,21 @@ const {
 	validateOpaqueReference,
 } = await import("../ein-pi/agent/lib/runtime-session-adapters");
 
-const TEST_SESSIONS_DIR = join(TEST_AGENT_HOME, "sessions");
-const RUNTIME_FIXTURE_PREFIX = "runtime-adapter-";
+const TEST_SESSIONS_DIR = owner.sessionsDir;
+
+function sessionTest(name: string, callback: (lease: SessionLease) => void | Promise<void>): void {
+	test(name, async () => owner.withSessionLease(callback));
+}
 
 function writeSession(
+	lease: SessionLease,
 	projectDir: string,
 	file: string,
 	meta: Record<string, unknown>,
 	mtimeMs: number,
 	trailing = "private transcript\n",
 ): string {
-	const dir = join(TEST_SESSIONS_DIR, projectDir);
-	mkdirSync(dir, { recursive: true });
+	const dir = lease.ensureProjectDir(projectDir);
 	const path = join(dir, file);
 	writeFileSync(path, `${JSON.stringify({ type: "session", ...meta })}\n${trailing}`);
 	utimesSync(path, new Date(mtimeMs), new Date(mtimeMs));
@@ -55,21 +58,6 @@ function writeSession(
 function opaque(id: string): string {
 	return `pi:v1:sha256:${createHash("sha256").update(id).digest("hex")}`;
 }
-
-function resetRuntimeFixtures(): void {
-	for (const entry of readdirSync(TEST_SESSIONS_DIR, { withFileTypes: true })) {
-		if (entry.name.startsWith(RUNTIME_FIXTURE_PREFIX)) {
-			rmSync(join(TEST_SESSIONS_DIR, entry.name), { recursive: true, force: true });
-		}
-	}
-}
-
-beforeEach(() => {
-	mkdirSync(TEST_SESSIONS_DIR, { recursive: true });
-	resetRuntimeFixtures();
-});
-
-afterAll(resetRuntimeFixtures);
 
 const repositoryProject: ProjectBinding = {
 	schemaVersion: 1,
@@ -307,31 +295,31 @@ describe("runtime session adapter contract", () => {
 		);
 	});
 
-	test("filters repository scope before limiting and emits opaque recency metadata", () => {
+	sessionTest("filters repository scope before limiting and emits opaque recency metadata", async (lease) => {
 		const root = "/tmp/ein-runtime-adapter/repo";
 		const now = Date.now();
-		writeSession("runtime-adapter-scope", "root.jsonl", {
+		writeSession(lease, "runtime-adapter-scope", "root.jsonl", {
 			id: "repo-root-id",
 			cwd: root,
 		}, now - 3_000);
-		writeSession("runtime-adapter-scope", "nested.jsonl", {
+		writeSession(lease, "runtime-adapter-scope", "nested.jsonl", {
 			id: "repo-nested-id",
 			cwd: `${root}/packages/lib`,
 		}, now - 2_000, "prompt text and transcript body\n");
-		writeSession("runtime-adapter-scope-neighbor", "neighbor.jsonl", {
+		writeSession(lease, "runtime-adapter-scope-neighbor", "neighbor.jsonl", {
 			id: "neighbor-id",
 			cwd: `${root}-copy`,
 		}, now - 1_000);
-		writeSession("runtime-adapter-scope", "missing-id.jsonl", {
+		writeSession(lease, "runtime-adapter-scope", "missing-id.jsonl", {
 			cwd: root,
 		}, now - 500);
-		writeSession("runtime-adapter-scope", "missing-cwd.jsonl", {
+		writeSession(lease, "runtime-adapter-scope", "missing-cwd.jsonl", {
 			id: "missing-cwd-id",
 		}, now - 400);
-		writeFileSync(join(TEST_SESSIONS_DIR, "runtime-adapter-scope", "malformed.jsonl"), "not json\n");
+		writeFileSync(join(lease.ensureProjectDir("runtime-adapter-scope"), "malformed.jsonl"), "not json\n");
 		symlinkSync(
-			join(TEST_SESSIONS_DIR, "runtime-adapter-scope", "missing-target.jsonl"),
-			join(TEST_SESSIONS_DIR, "runtime-adapter-scope", "unreadable.jsonl"),
+			join(lease.ensureProjectDir("runtime-adapter-scope"), "missing-target.jsonl"),
+			join(lease.ensureProjectDir("runtime-adapter-scope"), "unreadable.jsonl"),
 		);
 
 		const project: ProjectBinding = {
@@ -362,14 +350,14 @@ describe("runtime session adapter contract", () => {
 		expect(serialized).toContain("pi:v1:sha256:");
 	});
 
-	test("requires exact cwd equality for non-repository sessions", () => {
+	sessionTest("requires exact cwd equality for non-repository sessions", async (lease) => {
 		const cwd = "/tmp/ein-runtime-adapter/standalone";
 		const now = Date.now();
-		writeSession("runtime-adapter-nonrepo", "exact.jsonl", {
+		writeSession(lease, "runtime-adapter-nonrepo", "exact.jsonl", {
 			id: "exact-cwd-id",
 			cwd,
 		}, now);
-		writeSession("runtime-adapter-nonrepo", "child.jsonl", {
+		writeSession(lease, "runtime-adapter-nonrepo", "child.jsonl", {
 			id: "child-cwd-id",
 			cwd: `${cwd}/child`,
 		}, now - 1_000);
@@ -381,14 +369,14 @@ describe("runtime session adapter contract", () => {
 		]);
 	});
 
-	test("rejects duplicate matching opaque references", () => {
+	sessionTest("rejects duplicate matching opaque references", async (lease) => {
 		const root = "/tmp/ein-runtime-adapter/duplicate";
 		const now = Date.now();
-		writeSession("runtime-adapter-duplicate-a", "one.jsonl", {
+		writeSession(lease, "runtime-adapter-duplicate-a", "one.jsonl", {
 			id: "duplicate-id",
 			cwd: root,
 		}, now);
-		writeSession("runtime-adapter-duplicate-b", "two.jsonl", {
+		writeSession(lease, "runtime-adapter-duplicate-b", "two.jsonl", {
 			id: "duplicate-id",
 			cwd: `${root}/nested`,
 		}, now - 1_000);
@@ -405,16 +393,16 @@ describe("runtime session adapter contract", () => {
 		expect(result.error?.code).toBe("reference-ambiguous");
 	});
 
-	test("fails closed when more than 4,096 candidates remain outside the scan window", () => {
+	sessionTest("fails closed when more than 4,096 candidates remain outside the scan window", async (lease) => {
 		const root = "/tmp/ein-runtime-adapter/overflow";
 		const now = Date.now();
 		for (let i = 0; i < 4_096; i++) {
-			writeSession("runtime-adapter-overflow-noise", `${String(i).padStart(4, "0")}.jsonl`, {
+			writeSession(lease, "runtime-adapter-overflow-noise", `${String(i).padStart(4, "0")}.jsonl`, {
 				id: `noise-${i}`,
 				cwd: `${root}-neighbor`,
 			}, now);
 		}
-		writeSession("runtime-adapter-overflow-selected", "old.jsonl", {
+		writeSession(lease, "runtime-adapter-overflow-selected", "old.jsonl", {
 			id: "selected-too-old",
 			cwd: root,
 		}, now - 60_000);
@@ -427,14 +415,14 @@ describe("runtime session adapter contract", () => {
 		expect(result.error?.code).toBe("scan-limit-exceeded");
 	});
 
-	test("normalizes exact project boundaries and rejects invalid result limits", () => {
+	sessionTest("normalizes exact project boundaries and rejects invalid result limits", async (lease) => {
 		const root = "/tmp/ein-runtime-adapter/boundary";
 		const now = Date.now();
-		writeSession("runtime-adapter-boundary", "selected.jsonl", {
+		writeSession(lease, "runtime-adapter-boundary", "selected.jsonl", {
 			id: "normalized-id",
 			cwd: `${root}/packages/app`,
 		}, now);
-		writeSession("runtime-adapter-boundary", "prefix.jsonl", {
+		writeSession(lease, "runtime-adapter-boundary", "prefix.jsonl", {
 			id: "prefix-id",
 			cwd: `${root}/packages/application`,
 		}, now - 1_000);
@@ -460,14 +448,14 @@ describe("runtime session adapter contract", () => {
 		expect(invalid.error?.code).toBe("invalid-request");
 	});
 
-	test("uses a deterministic path tie-breaker without reading beyond the first line", () => {
+	sessionTest("uses a deterministic path tie-breaker without reading beyond the first line", async (lease) => {
 		const cwd = "/tmp/ein-runtime-adapter/ties";
 		const now = Date.now();
-		writeSession("runtime-adapter-tie-b", "session.jsonl", { id: "tie-b", cwd }, now);
-		writeSession("runtime-adapter-tie-a", "session.jsonl", { id: "tie-a", cwd }, now);
-		mkdirSync(join(TEST_SESSIONS_DIR, "runtime-adapter-tie-long"), { recursive: true });
+		writeSession(lease, "runtime-adapter-tie-b", "session.jsonl", { id: "tie-b", cwd }, now);
+		writeSession(lease, "runtime-adapter-tie-a", "session.jsonl", { id: "tie-a", cwd }, now);
+		mkdirSync(lease.ensureProjectDir("runtime-adapter-tie-long"), { recursive: true });
 		writeFileSync(
-			join(TEST_SESSIONS_DIR, "runtime-adapter-tie-long", "session.jsonl"),
+			join(lease.ensureProjectDir("runtime-adapter-tie-long"), "session.jsonl"),
 			`${JSON.stringify({ type: "session", id: "too-late-id", padding: "x".repeat(2_000), cwd })}\nprivate\n`,
 		);
 		const result = listPiProjectSessions({ schemaVersion: 1, cwd }, { limit: 20 });
@@ -529,10 +517,10 @@ describe("runtime session adapter lifecycle requests", () => {
 		expect(nonRepository.outcome).toBe("success");
 	});
 
-	test("keeps listing deterministic and reports Claude list as unsupported", () => {
+sessionTest("keeps listing deterministic and reports Claude list as unsupported", async (lease) => {
 		const state = stateFor();
 		const root = "/work/example";
-		writeSession("runtime-adapter-group-003", "one.jsonl", { id: "group-003-one", cwd: root }, 2_000);
+		writeSession(lease, "runtime-adapter-group-003", "one.jsonl", { id: "group-003-one", cwd: root }, 2_000);
 		const pi = listSessionRequest("pi", state, { limit: 1 });
 		expect(pi.outcome).toBe("success");
 		if (pi.outcome !== "success") throw new Error("expected Pi list success");
