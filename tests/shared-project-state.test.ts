@@ -7,6 +7,7 @@ import {
 	mkdtempSync,
 	readFileSync,
 	readdirSync,
+	realpathSync,
 	rmSync,
 	symlinkSync,
 	utimesSync,
@@ -443,7 +444,7 @@ describe("EIN context projection", () => {
 			expect(state.ein).toMatchObject({
 				quality: "absent",
 				reason: "not-found",
-				path: join(cwd, "EIN.md"),
+				path: join(realpathSync(cwd), "EIN.md"),
 				curated: { present: false, complete: false },
 				auto: { present: false },
 			});
@@ -776,7 +777,7 @@ describe("Git bounded exact identity", () => {
 			const unborn = unbornState.git;
 			expect(unborn.repository).toBe(true);
 			expect(unbornState.identity.quality).toBe("current");
-			expect(unbornState.identity.repositoryRoot).toBe(cwd);
+			expect(unbornState.identity.repositoryRoot).toBe(realpathSync(cwd));
 			expect(unborn.head).toBe("unborn");
 			expect(unborn.branch).toBeTruthy();
 			expect(unborn.complete).toBe(true);
@@ -893,7 +894,8 @@ describe("Git bounded exact identity", () => {
 			writeFileSync(join(cwd, "tracked.txt"), "tracked dirty\n");
 
 			const state = projectProjectState({ cwd: nested });
-			expect(state.git.root).toBe(cwd);
+			expect(state.identity.cwd).toBe(realpathSync(nested));
+			expect(state.git.root).toBe(realpathSync(cwd));
 			expect(state.git.changes).toEqual([
 				{
 					path: "tracked.txt",
@@ -916,9 +918,9 @@ describe("Git bounded exact identity", () => {
 
 				const direct = projectProjectState({ cwd });
 				const throughAlias = projectProjectState({ cwd: alias });
-				expect(throughAlias.identity.cwd).toBe(cwd);
-				expect(throughAlias.identity.repositoryRoot).toBe(cwd);
-				expect(throughAlias.git.root).toBe(cwd);
+				expect(throughAlias.identity.cwd).toBe(realpathSync(cwd));
+				expect(throughAlias.identity.repositoryRoot).toBe(realpathSync(cwd));
+				expect(throughAlias.git.root).toBe(realpathSync(cwd));
 				expect(throughAlias.git.changes).toEqual(direct.git.changes);
 				expect(throughAlias.git.stateRef).toBe(direct.git.stateRef);
 			} finally {
