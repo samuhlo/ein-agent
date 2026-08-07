@@ -23,7 +23,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
 **Archivos:** 3 — `01-concepts/orchestrator.md`, `01-concepts/sdd-openspec.md`, `01-concepts/context.md`
 **Gate:** D1 (existe × 10), D2 (frontmatter + 7 secciones), D3 párrafos 1–7
 
-- [ ] 2.1 Crear `docs-site/src/content/docs/01-concepts/orchestrator.md` en esqueleto
+- [x] 2.1 Crear `docs-site/src/content/docs/01-concepts/orchestrator.md` en esqueleto
   - skills: `cognitive-doc-design`, `file-naming`, SDD artifact contract
   - why: Define el rol del orquestador, autoridad, delegación; es referencia transversal obligatoria para las demás páginas. Propone responsabilidades conservadas vs delegadas.
   - learn: El orquestador no es un ejecutor: es un coordinador de decisiones. No debe hacerlo todo (costo, tokens). Boundaries explícitos: modelo vs herramienta vs garantía.
@@ -31,7 +31,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: Copiar bloques de code (orchestrator.md es un documento interno). En esqueleto, nombrar conceptos, no redactar ejemplos ni narrativas.
   - verify: `grep -c "^## " docs-site/src/content/docs/01-concepts/orchestrator.md | grep -q "^7$"` (7 secciones exactas); `grep "verified_rev: \"0ae709d\"" docs-site/src/content/docs/01-concepts/orchestrator.md`.
 
-- [ ] 2.2 Crear `docs-site/src/content/docs/01-concepts/sdd-openspec.md` en esqueleto
+- [x] 2.2 Crear `docs-site/src/content/docs/01-concepts/sdd-openspec.md` en esqueleto
   - skills: `cognitive-doc-design`, SDD artifact contract
   - why: Explica por qué trabajo por fases, qué es OpenSpec, artefactos principales. Sin esto, las siguientes páginas (workflow, artifacts) no tienen contexto.
   - learn: SDD es ciclo de vida: siete fases, estado en disco (no en conversación), determinismo. OpenSpec es donde vive el estado (openspec/changes/).
@@ -39,7 +39,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: Confundir OpenSpec (el árbol de directorios) con SDD (el ciclo de siete fases). Ambos en la misma página pero distintos.
   - verify: `grep "^## " docs-site/src/content/docs/01-concepts/sdd-openspec.md | wc -l | grep -q "^7$"`; `test -f docs-site/src/content/docs/01-concepts/sdd-openspec.md && echo "existe"`.
 
-- [ ] 2.3 Crear `docs-site/src/content/docs/01-concepts/context.md` en esqueleto
+- [x] 2.3 Crear `docs-site/src/content/docs/01-concepts/context.md` en esqueleto
   - skills: `cognitive-doc-design`, SDD artifact contract, C2 (terminología)
   - why: Contexto es el recurso más limitado en EIN. Define presupuestos (max_tokens, max_reads), ventanas (fork vs fresh), horizonte. Crítico para entender por qué el orquestador no lee todo.
   - learn: Ventana de contexto no es solo tokens; incluye lecturas discretas (`max_reads`). Fork hereda toda la conversación (~382k tokens). Fresh empieza limpio (~2000). Presupuesto es la brújula de decisiones.
@@ -47,7 +47,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: Confundir ventana de contexto (token limit) con horizonte de decisión (tiempo de vida de una decisión). Son conceptos distintos pero relacionados.
   - verify: `grep -q "fork" docs-site/src/content/docs/01-concepts/context.md && grep -q "fresh" docs-site/src/content/docs/01-concepts/context.md && grep -q "max_tokens" docs-site/src/content/docs/01-concepts/context.md && echo "términos OK"`; `grep "^## " docs-site/src/content/docs/01-concepts/context.md | wc -l | grep -q "^7$"`.
 
-- [ ] 2.4 Gate D1–D2–D3 tras Lote 1
+- [x] 2.4 Gate D1–D2–D3 tras Lote 1
   - skills: shell script ad hoc, verificación determinística
   - why: Validar que los 3 archivos existen, tienen frontmatter válido, 7 secciones exactas, fuentes resuelven.
   - learn: El gate es mecánico: `find`, `grep`, `test` sin interpretación. Pasa o falla sin ambigüedad.
@@ -63,7 +63,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
 **Archivos:** 2 — `02-workflow/workflow-overview.md`, `02-workflow/artifacts.md`
 **Gate:** D1, D2, D3 (pureza, rutas de fuentes)
 
-- [ ] 3.1 Crear `docs-site/src/content/docs/02-workflow/workflow-overview.md` en esqueleto
+- [x] 3.1 Crear `docs-site/src/content/docs/02-workflow/workflow-overview.md` en esqueleto
   - skills: `cognitive-doc-design`, SDD artifact contract, C2 (resolución de conflictos 5 vs 7 fases)
   - why: Flujo SDD end-to-end: 7 fases, qué recibe/produce cada una, roles. Punto de unión entre conceptos (orchestrator, sdd-openspec) y detalle (artifacts). Requisito para real-workflow-example.
   - learn: Las 7 fases son: scope → map → design → tasks → apply → verify → close. Cada una recibe estado del disco, produce artefactos, no puede reinventar (scope gate).
@@ -71,7 +71,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: Usar EIN_OPERATING_SYSTEM.md como fuente de conteo de fases (la lista 5, no 7). Citar orchestrator.md.
   - verify: `grep "7.*fases" docs-site/src/content/docs/02-workflow/workflow-overview.md` debe encontrar mención de 7 fases (en bloque PENDIENTE-D es OK). `grep -q "ein-pi/core/docs/EIN_OPERATING_SYSTEM.md" docs-site/src/content/docs/02-workflow/workflow-overview.md` puede ser verdadero (puede estar en sources), pero si menciona "5 fases" debe estar en bloque PENDIENTE-D, NO afirmación libre.
 
-- [ ] 3.2 Crear `docs-site/src/content/docs/02-workflow/artifacts.md` en esqueleto
+- [x] 3.2 Crear `docs-site/src/content/docs/02-workflow/artifacts.md` en esqueleto
   - skills: `cognitive-doc-design`, SDD artifact contract, C1 (tabla canónica de artefactos)
   - why: Define qué es cada artefacto (scope, map, design, tasks, apply-progress, verify-report, summary), qué problema resuelve, relación. Sin esto, el lector no entiende qué verá en real-workflow-example.
   - learn: Cada artefacto es un contrato: scope fija alcance y presupuesto, map explora, design propone, tasks es checklist ejecutable, apply-progress registra TDD, verify-report valida, summary cierra. Son todos necesarios; no hay "saltos de fase".
@@ -79,7 +79,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: Inventar nuevos artefactos o saltarse fases. La estructura es fija.
   - verify: `grep "scope.md" docs-site/src/content/docs/02-workflow/artifacts.md && grep "close" docs-site/src/content/docs/02-workflow/artifacts.md && echo "artefactos OK"`; `grep "^## " docs-site/src/content/docs/02-workflow/artifacts.md | wc -l | grep -q "^7$"`.
 
-- [ ] 3.3 Gate D1–D2–D3 tras Lote 2
+- [x] 3.3 Gate D1–D2–D3 tras Lote 2
   - skills: shell script ad hoc
   - why: Validar que workflow-overview no usa EIN_OPERATING_SYSTEM.md como fuente de fases; artifacts tiene estructura completa; ambos heredan fuentes válidas de sus antecesoras.
   - learn: Gates acumulativos: si Lote 1 pasó, Lote 2 hereda esa validez y suma nuevos checks.
@@ -95,7 +95,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
 **Archivos:** 1 — `01-concepts/deterministic-boundaries.md`
 **Gate:** D1, D2, D3, criterio 14 (tabla única modelo/herramienta/garantía)
 
-- [ ] 4.1 Crear `docs-site/src/content/docs/01-concepts/deterministic-boundaries.md` en esqueleto
+- [x] 4.1 Crear `docs-site/src/content/docs/01-concepts/deterministic-boundaries.md` en esqueleto
   - skills: `cognitive-doc-design`, SDD artifact contract, C2 (tabla modelo vs herramienta)
   - why: Integra conceptos de orchestrator (decisión, garantía), workflow (determinismo), context (límites). Responde: ¿qué puede un modelo decidir? ¿Qué puede verificar una herramienta? ¿Qué garantiza EIN? ¿Qué solo se observa?. Crítico para gestionar promesas falsas.
   - learn: Decisión de modelo: requiere AI, probabilística. Verificación de herramienta: comando, determinística (ein_sdd_status). Garantía EIN: contrato explícito (p.ej. "siete fases", "cierre idempotente"). Observable: lo que pasó, sin garantía futura.
@@ -111,7 +111,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
 **Archivos:** 2 — `00-start/overview.md`, `00-start/getting-started.md`
 **Gate:** D1, D2, D3, criterios 11–12 (ambos runtimes en overview; sin EIN_OPERATING_SYSTEM en getting-started)
 
-- [ ] 5.1 Crear `docs-site/src/content/docs/00-start/overview.md` en esqueleto
+- [x] 5.1 Crear `docs-site/src/content/docs/00-start/overview.md` en esqueleto
   - skills: `cognitive-doc-design`, SDD artifact contract, C2 (criterio de runtimes: README.md es autoridad)
   - why: Punto de entrada. Responde: ¿Qué es EIN? ¿Para quién? ¿En qué estado? ¿Qué capacidades?. Must-have para lector nuevo. Criterio 11: nombra AMBOS runtimes (pi-ein y cc-ein) en `## En una frase`.
   - learn: EIN es harness multi-runtime, no solo Pi. Dos adaptadores soportados. Estado: beta (roadmap-beta.md es autoridad). Capacidades: fase B–E sin evidencia (roadmap-beta.md).
@@ -119,7 +119,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: Decir que EIN es solo Para Pi (es error D2 en map: EIN_OPERATING_SYSTEM.md es desactualizado). README.md línea 11 es autoridad (dos adaptadores).
   - verify: **Criterio 11:** `grep -A2 "^## En una frase" docs-site/src/content/docs/00-start/overview.md | grep -E "(pi-ein|cc-ein)" | head -1` debe encontrar ambos en la línea `falta:` del bloque PENDIENTE-D. Comando concreto: `grep -A3 "^## En una frase" docs-site/src/content/docs/00-start/overview.md | grep "pi-ein" && grep -A3 "^## En una frase" docs-site/src/content/docs/00-start/overview.md | grep "cc-ein" && echo "ambos runtimes OK"`.
 
-- [ ] 5.2 Crear `docs-site/src/content/docs/00-start/getting-started.md` en esqueleto
+- [x] 5.2 Crear `docs-site/src/content/docs/00-start/getting-started.md` en esqueleto
   - skills: `cognitive-doc-design`, SDD artifact contract, C1–C2 (instalación: README es técnica, EIN_OPERATING_SYSTEM es UX)
   - why: Práctico: instalación, requisitos, verificación (doctor), primer arranque. No debería depender de EIN_OPERATING_SYSTEM.md como fuente (aplica solo UX en overview). Criterio 12: `sources` NO incluye `ein-pi/core/docs/EIN_OPERATING_SYSTEM.md`.
   - learn: Instalación es bootstrap shell (README.md es autoridad técnica). Requisitos: Bun, detectar SO (EIN_DOCUMENTATION_BRIEF). Doctor verifica despliegue (installer/README.md). Experiencia de usuario (menú) va en overview.md, no aquí.
@@ -127,7 +127,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: Copiar experiencia de usuario (menú bonito) de EIN_OPERATING_SYSTEM.md. Eso es overview. Getting-started es técnico.
   - verify: **Criterio 12:** `grep "sources:" docs-site/src/content/docs/00-start/getting-started.md | grep -q "EIN_OPERATING_SYSTEM" && echo "ERROR: EIN_OPERATING_SYSTEM en sources" || echo "OK: sin EIN_OPERATING_SYSTEM"`.
 
-- [ ] 5.3 Gate D1–D2–D3 + criterios 11–12 tras Lote 4
+- [x] 5.3 Gate D1–D2–D3 + criterios 11–12 tras Lote 4
   - skills: shell script ad hoc, grep para criterios
   - why: Validar criterios específicos de autoridad y pureza antes de pasar a ejemplos.
   - learn: Criterios comprobables por patrón (grep).
@@ -143,7 +143,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
 **Archivos:** 2 — `02-workflow/real-workflow-example.md`, `00-start/first-run.md`
 **Gate:** D1, D2, D3, D4, criterios 13–14 (fases: siete, únicas en autoridades; no solapamientos de términos)
 
-- [ ] 6.1 Crear `docs-site/src/content/docs/02-workflow/real-workflow-example.md` en esqueleto
+- [x] 6.1 Crear `docs-site/src/content/docs/02-workflow/real-workflow-example.md` en esqueleto
   - skills: `cognitive-doc-design`, SDD artifact contract, C1 (referencia a installer-beta artefactos)
   - why: Walkthrough real: instalador-beta desde scope hasta close. Muestra qué ve el usuario en cada fase, qué artefactos se producen, cómo TDD cicla en apply, cómo verify valida. Enseña por ejemplo vivo, no teoría.
   - learn: Un cambio real es: petición → scope (decisión) → map (investigación) → design (propuesta) → tasks (checklist) → apply (TDD: RED/GREEN) → verify (validación) → close (resumen). Artefactos concretos hacen esto visible.
@@ -151,7 +151,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: Inventar cambio ficticio. Usar installer-beta real (existente, verificado, con artefactos completos).
   - verify: **Criterio 13 (fases):** `grep -l "scope.*map.*design.*tasks.*apply.*verify.*close" docs-site/src/content/docs/02-workflow/real-workflow-example.md && echo "7 fases mencionadas"`. `for file in docs-site/src/content/docs/02-workflow/real-workflow-example.md docs-site/src/content/docs/02-workflow/workflow-overview.md docs-site/src/content/docs/02-workflow/artifacts.md docs-site/src/content/docs/00-start/first-run.md; do grep -q "EIN_OPERATING_SYSTEM" "$file" && echo "EIN_OS en $(basename $file) — revisar si es solo sources, no sección de fases"; done`.
 
-- [ ] 6.2 Crear `docs-site/src/content/docs/00-start/first-run.md` en esqueleto
+- [x] 6.2 Crear `docs-site/src/content/docs/00-start/first-run.md` en esqueleto
   - skills: `cognitive-doc-design`, SDD artifact contract, new-content (no existe en repo; es creación didáctica)
   - why: Didáctico: ejemplo mínimo de cambio pequeño completo. Escenario, artefactos de installer-beta, qué aprende el usuario. Eslabón final en cadena CT-7: después de overview + getting-started, antes de conceptos profundos.
   - learn: Un "first run" no es solo "lanzar Ein" (eso es getting-started). Es hacer un cambio pequeño: cómo scope, cómo se ve en apply (TDD), cómo verify valida, cómo close archiva. Narrativa real + artefactos.
@@ -159,7 +159,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: Ser demasiado abstracto. Usar artefactos reales de installer-beta (scope.md, design.md, verify-report.md) como ejemplos concretos que el usuario puede ver en el repo.
   - verify: `test -f docs-site/src/content/docs/00-start/first-run.md && grep "installer-beta" docs-site/src/content/docs/00-start/first-run.md && echo "first-run con referencias a installer-beta"`. **Criterio 14 (no-solapamiento):** Verificar que términos de context.md (fork, fresh, max_tokens, max_reads) no aparecen aquí (OK si están en PENDIENTE-D o en enlace a context.md, pero NO como redacción independiente).
 
-- [ ] 6.3 Gate D1–D2–D3–D4 + criterios 13–14 tras Lote 5
+- [x] 6.3 Gate D1–D2–D3–D4 + criterios 13–14 tras Lote 5
   - skills: shell script ad hoc, grep multiarquivo
   - why: Último gate antes de gap-inventory. Validar que cadena CT-7 resuelve todos los enlaces `.md`, que fases/términos no están duplicados, que autoridades son consistentes.
   - learn: Gates D1–D4 son cada vez más específicos (estructura → pureza → autoridades → solapamientos).
@@ -175,7 +175,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
 **Archivos:** 1 — `openspec/changes/docs-content-inventory/gap-inventory.md`
 **Gate:** D4 (GI-2 a GI-6)
 
-- [ ] 7.1 Crear `openspec/changes/docs-content-inventory/gap-inventory.md` con decisiones GI-2 a GI-4
+- [x] 7.1 Crear `openspec/changes/docs-content-inventory/gap-inventory.md` con decisiones GI-2 a GI-4
   - skills: SDD artifact contract (GI-1…GI-4), decision inventory
   - why: Consolidar las cinco decisiones de hueco en un solo lugar legible: First Run, Deterministic Boundaries, Runtime Matrix, Real Workflow Example, Known Limitations. Cada decisión fija: área, cambio propietario, decisión, fuentes, estado. Conocimiento explícito sobre qué está frenado (Known Limitations) y por qué (merge pendiente de rama).
   - learn: Los huecos de contenido son conocidos y documentados. No son sorpresas de fase D; están anticipados aquí. Known Limitations es un hueco frenado: su fuente es una rama no mergeada, así que no puede haber contenido definitivo hasta ese merge.
@@ -183,7 +183,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: Listar huecos no explícitos. Si no está en los 5 de GI-2, no va en este archivo.
   - verify: `test -f openspec/changes/docs-content-inventory/gap-inventory.md && grep "^### " openspec/changes/docs-content-inventory/gap-inventory.md | wc -l | grep -q "^5$"` (exactamente 5 huecos).
 
-- [ ] 7.2 Crear `openspec/changes/docs-content-inventory/gap-inventory.md` con tabla GI-5/GI-6 (defectos D1/D2/D3)
+- [x] 7.2 Crear `openspec/changes/docs-content-inventory/gap-inventory.md` con tabla GI-5/GI-6 (defectos D1/D2/D3)
   - skills: SDD artifact contract (GI-5/GI-6), defect tracking
   - why: Anotar tres defectos de fuente hallados en map: D1 (README versión desactualizada), D2 (EIN_OPERATING_SYSTEM.md solo Pi), D3 (mismo fichero contradictorio: 5 vs 7 fases). Cada defecto es "fuera de alcance" de este cambio (vive en ficheros fuente, no en nuestras páginas). Decisión: se anotan, no se corrigen aquí.
   - learn: Honestidad sobre defectos externos. No limpiar la casa ajena. Los defectos están en manos de mantenimiento posterior.
@@ -191,7 +191,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: "Corregir" D1/D2/D3 en README.md o EIN_OPERATING_SYSTEM.md (violaría restricciones de alcance). Solo anotar.
   - verify: `grep -E "D[123]" openspec/changes/docs-content-inventory/gap-inventory.md | wc -l | grep -q "^3$"` (exactamente 3 defectos); `grep "no se corrigen" openspec/changes/docs-content-inventory/gap-inventory.md && echo "declaración GI-6 presente"`.
 
-- [ ] 7.3 Clave `desbloqueante:` para Known Limitations (GI-4)
+- [x] 7.3 Clave `desbloqueante:` para Known Limitations (GI-4)
   - skills: SDD artifact contract (GI-4), dependency tracking
   - why: Known Limitations es hueco frenado. Su fuente canónica (matriz beta de `feat/shared-project-state-contract`) está en rama no mergeada. Decisión explícita: no leer esa rama, no adelantar contenido, esperar merge en main. La clave `desbloqueante:` nombra la condición concreta.
   - learn: Algunas decisiones dependen de eventos externos (merges). Explicitarlas previene sorpresas.
@@ -199,7 +199,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: Leer o citar `feat/shared-project-state-contract` en ninguna parte del artefacto o las páginas.
   - verify: `grep -A1 "Known Limitations" openspec/changes/docs-content-inventory/gap-inventory.md | grep "desbloqueante:" && echo "GI-4 presente"`.
 
-- [ ] 7.4 Gate D4 (GI-1…GI-6) tras Lote 6
+- [x] 7.4 Gate D4 (GI-1…GI-6) tras Lote 6
   - skills: shell script ad hoc, verificación de GI contrato
   - why: Último gate. Validar que gap-inventory.md existe en ruta correcta (no bajo docs-site/), tiene estructura completa, 5 huecos + 3 defectos, Known Limitations tiene `desbloqueante:`.
   - learn: El gate D4 cierra el cambio de apply. Pasa ← todos los checks D1–D4 pasan, todas las 10 páginas + gap-inventory son esqueletos válidos.
@@ -215,7 +215,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
 **Archivos:** 0 (validación solo, no escritura)
 **Gate:** D3, criterio 10 (enlaces resuelven); CT-6/CT-7 (orden de lectura es correcto)
 
-- [ ] 8.1 Validar cadena CT-7 de "Siguiente paso"
+- [x] 8.1 Validar cadena CT-7 de "Siguiente paso"
   - skills: shell script ad hoc, path resolution
   - why: CT-7 fija orden de lectura (overview → getting-started → first-run → orchestrator → sdd-openspec → context → deterministic-boundaries → workflow-overview → artifacts → real-workflow-example). Cada "Siguiente paso" enlaza `.md` a la siguiente página (si existe en este cambio) o nombra en texto plano si pertenece al cambio hermano o a fase futura. CT-6: todo enlace relativo `.md` MUST resolver a un fichero existente dentro de las 10 páginas.
   - learn: La cadena de lectura es un contrato. El lector novato sigue "Siguiente paso" y debe llegar a cada página sin errores 404.
@@ -223,7 +223,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
   - avoid: Enlaces rotos o circulares. Links a páginas que no existen en este cambio sin texto plano previo.
   - verify: `for file in docs-site/src/content/docs/{00-start,01-concepts,02-workflow}/*.md; do grep "^## Siguiente paso" "$file" -A1 | grep -E "^\[.*\]\(" | grep -oE "\./[^)]*\.md" | while read link; do if ! test -f "$(dirname "$file")/$link"; then echo "ROTO: $file → $link"; fi; done; done` → debe retornar vacío (sin links rotos).
 
-- [ ] 8.2 Validar que cambios hermano / fase futura están nombrados en texto plano (no enlaces)
+- [x] 8.2 Validar que cambios hermano / fase futura están nombrados en texto plano (no enlaces)
   - skills: shell script ad hoc
   - why: Contenido que pertenece al cambio hermano (03-runtimes, 04-reference, 05-debug) o a fase futura (generated blocks, Starlight components) debe estar nombrado pero no enlazado en A.
   - learn: Frontera A↔D es explícita. A no promete contenido que D no pueda redactar. Texto plano es honesto (no implica que existe).
@@ -238,7 +238,7 @@ Este artefacto corrige una inconsistencia interna del design: §B (SK-2/SK-3) ex
 **Dependencias:** Todos los lotes completados.
 **Gate:** D1–D4 completos (19 criterios de design.md §D, con reformulación de §D3 aplicada)
 
-- [ ] 9.1 Resumen de checks D1–D4 y criterios 1–19 (con reformulación 11–14)
+- [x] 9.1 Resumen de checks D1–D4 y criterios 1–19 (con reformulación 11–14)
   - skills: verification report synthesis
   - why: Consolidar evidencia de que el cambio cumple contrato. Design exige 19 criterios (D1: 4, D2: 4, D3: 4, D4: 5). Los checks se ejecutan tras cada lote; este es el resumen final.
   - learn: Verification no es juicio editorial. Es determinístico: el contrato se cumple o no.
