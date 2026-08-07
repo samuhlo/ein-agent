@@ -1,0 +1,11 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-truth-and-exit-criteria:scope","durationMs":0,"timestamp":"2026-08-06T16:55:35.218Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-truth-and-exit-criteria:map","durationMs":0,"timestamp":"2026-08-06T17:01:14.621Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-truth-and-exit-criteria:design","durationMs":0,"timestamp":"2026-08-06T17:03:47.214Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-truth-and-exit-criteria:tasks","durationMs":0,"timestamp":"2026-08-06T17:04:56.464Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-truth-and-exit-criteria:apply","durationMs":0,"timestamp":"2026-08-06T17:12:40.013Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-truth-and-exit-criteria:apply","durationMs":0,"timestamp":"2026-08-06T17:21:09.283Z"}
+{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:beta-truth-and-exit-criteria:gate","durationMs":0,"timestamp":"2026-08-06T17:26:26.501Z"}
+{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:beta-truth-and-exit-criteria:gate","durationMs":0,"timestamp":"2026-08-06T17:39:06.292Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-truth-and-exit-criteria:verify","durationMs":0,"timestamp":"2026-08-06T17:43:01.329Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-truth-and-exit-criteria:verify","durationMs":0,"timestamp":"2026-08-06T17:43:40.472Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:beta-truth-and-exit-criteria:close","durationMs":0,"timestamp":"2026-08-06T17:43:45.857Z"}
