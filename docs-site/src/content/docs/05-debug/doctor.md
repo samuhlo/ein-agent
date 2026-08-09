@@ -1,75 +1,101 @@
 ---
-title: "Doctor · EIN"
-description: "Referencia de la herramienta doctor: grupos, checks y niveles OK, WARN y FAIL"
+title: "Doctor"
+description: "Qué comprueba `ein doctor`, cómo leer su salida y qué hacer con cada nivel."
 sources: ["installer/src/cli/doctor.ts", "installer/src/core/verify.ts"]
-verified_rev: "2f67c73"
+verified_rev: "29861f5"
 ---
 
-# Doctor
+```bash
+ein doctor
+```
 
-## En una frase
+Diagnostica el despliegue **sin lanzar ningún runtime**. Es el primer comando al
+que volver cuando algo va raro, y el que conviene pegar si pides ayuda.
 
-:::caution[PENDIENTE-D]
-falta: una frase que fije doctor como la herramienta de diagnóstico que renderiza grupos de checks con tres niveles
-fuentes: installer/src/cli/doctor.ts
-lineas: 22-44
-:::
+## Cómo se lee la salida
 
-## Para quién y qué aprenderás
+```text
+/// DOCTOR EIN
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página (usuario interpretando el resultado de `ein doctor`) y qué se lleva (semántica de los tres niveles)
-fuentes: installer/src/cli/doctor.ts
-lineas: 12-20
-:::
+resultado: WARN
+fail: 0  |  warn: 2  |  total: 47
 
-## Ruta rápida
+■ CORE
+  ✓ OK   agent dir: ~/.pi-ein/agent
+  ✓ OK   marcador: .ein-install.json válido
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado para ejecutar doctor y leer la decisión final
-fuentes: installer/src/cli/doctor.ts
-lineas: 36-42
-:::
+■ INTEGRACIONES
+  ! WARN context7: sin clave configurada
 
-## Detalles
+■ DECISION
+  usable; resolver WARN para endurecer baseline.
+```
 
-### Qué comprueba
+Tres niveles, y la diferencia importa:
 
-:::caution[PENDIENTE-D]
-falta: enumeración de grupos y checks de `DoctorReport` (`renderReport`)
-fuentes: installer/src/cli/doctor.ts, installer/src/core/verify.ts
-lineas: 22-44
-:::
+| | Significa | Qué hacer |
+| :--- | :--- | :--- |
+| `✓ OK` | comprobado y correcto | nada |
+| `! WARN` | funciona, pero algo falta o está degradado | se puede usar; resolver cuando puedas |
+| `✗ FAIL` | roto, revísalo antes de seguir | arreglar antes de trabajar |
 
-### Niveles OK, WARN y FAIL
+El comando sale con código **0** si el resultado es OK o WARN, y **1** si hay
+algún FAIL. Sirve para encadenarlo en scripts.
 
-:::caution[PENDIENTE-D]
-falta: semántica de los tres niveles y su mapeo de glifo y color
-fuentes: installer/src/cli/doctor.ts
-lineas: 12-20
-:::
+## Qué comprueba
 
-### Cómo interpretar la decisión final
+Nueve grupos:
 
-:::caution[PENDIENTE-D]
-falta: texto de decisión (FAIL bloqueante, WARN recomendado revisar, OK listo)
-fuentes: installer/src/cli/doctor.ts
-lineas: 36-42
-:::
+| Grupo | Qué mira |
+| :--- | :--- |
+| **CORE** | rutas, marcador de instalación, estructura del despliegue |
+| **MCP** | servidores MCP configurados |
+| **AGENTES + CHAIN** | que los ejecutores de fase están y la cadena es coherente |
+| **EXTENSIONES** | extensiones del runtime desplegadas |
+| **SKILLS** | skills locales y descargadas |
+| **GUARDRAILS** | los controles deterministas |
+| **COHERENCIA** | que las piezas encajan entre sí |
+| **RUNTIME** | el runtime y su versión |
+| **INTEGRACIONES** | las opcionales: Context7, Engram, Linear, Codegraph |
 
-## Checklist
+## Qué hacer según lo que salga
 
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (tres niveles exactos, sin reenumerar síntomas de troubleshooting)
-fuentes: installer/src/cli/doctor.ts
-lineas: n/a
-:::
+**Todo OK.** Baseline estable, nada que hacer.
 
-## Siguiente paso
+**Hay WARN.** Se puede trabajar. Los más frecuentes son integraciones opcionales
+sin configurar, y son WARN precisamente porque no bloquean nada.
 
-[Troubleshooting](./troubleshooting.md)
+**Hay FAIL.** Antes de investigar a mano, prueba:
 
-## Fuentes
+```bash
+ein install
+```
 
-- `installer/src/cli/doctor.ts` — `renderReport`, glifos, niveles, decisión final
-- `installer/src/core/verify.ts` — `DoctorReport`, grupos de comprobaciones
+Repara sobre la instalación existente y crea backup antes. Resuelve la mayoría
+de los FAIL, que suelen ser ficheros que faltan o una sincronización a medias.
+
+Si persiste, [Troubleshooting](/ein-agent/05-debug/troubleshooting/) cubre los
+casos concretos.
+
+## Si EIN no está instalado
+
+```text
+Ein no esta desplegado: no existe ~/.pi-ein/agent.
+Ejecuta `ein install` primero.
+```
+
+Sale con código 1. No es un error del doctor: es que no hay nada que
+diagnosticar.
+
+## Su límite
+
+El doctor comprueba **el despliegue**, no tu trabajo. Que salga todo en verde
+significa que EIN está bien instalado, no que tu proyecto esté bien ni que un
+cambio esté correcto.
+
+Para eso están `cc-ein-sdd check` y los artefactos del cambio.
+
+## Siguiente
+
+[Known Limitations](/ein-agent/05-debug/known-limitations/) — qué está probado y
+qué no.

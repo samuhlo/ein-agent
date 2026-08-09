@@ -1,103 +1,114 @@
 ---
-title: "Workflow Overview · EIN"
-description: "Flujo SDD completo: scope, map, design, tasks, apply, verify, close. Qué recibe y produce cada fase"
-sources: ["ein-pi/agent/assets/orchestrator.md", "openspec/specs/sdd-lifecycle/spec.md", "ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md", "ein-pi/core/docs/GUIA_PI_WORKFLOW.md", "README.md", "docs/EIN_DOCUMENTATION_BRIEF.md"]
-verified_rev: "0ae709d"
+title: "Las siete fases"
+description: "Qué hace cada fase, qué recibe, qué produce y qué tiene prohibido hacer."
+sources: ["openspec/specs/sdd-lifecycle/spec.md", "ein-pi/core/docs/GUIA_PI_WORKFLOW.md"]
+verified_rev: "29861f5"
 ---
 
-# Workflow Overview
+```text
+scope → map → design → tasks → apply → verify → close
+```
 
-## En una frase
+Cada fase la ejecuta un subagente distinto. Lo que define a cada una no es solo
+lo que hace: es **lo que tiene prohibido hacer**. Sin esa prohibición, la
+primera fase con contexto suficiente se lleva por delante a las demás.
 
-:::caution[PENDIENTE-D]
-falta: una frase que resuma el flujo de siete fases (scope, map, design, tasks, apply, verify, close); autoridad orchestrator.md, no ein-pi/core/docs/EIN_OPERATING_SYSTEM.md
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 88
-:::
+## scope
 
-## Para quién y qué aprenderás
+Acota. Qué entra, qué no, y con qué presupuesto se trabaja.
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página y qué se lleva el lector (objetivo, entrada, salida de cada fase)
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 480-504
-:::
+Es también donde se detectan las capacidades del proyecto: qué runner de tests
+hay, qué comandos de calidad existen. Y donde se declara si el cambio altera
+comportamiento observable o no.
 
-## Ruta rápida
+**Prohibido:** explorar el repositorio entero "para entenderlo", implementar
+nada, tocar tests.
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado con las siete fases en orden
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 88
-:::
+Si el alcance viene sin acotar —"refactoriza el proyecto"— no lo acepta:
+recomienda partirlo en trozos.
 
-## Detalles
+## map
 
-### Siete fases en orden
+Localiza. Dónde vive el código que hay que tocar, qué lo llama, qué se rompe si
+cambia.
 
-:::caution[PENDIENTE-D]
-falta: enumeración scope, map, design, tasks, apply, verify, close; autoridad orchestrator.md/sdd-lifecycle/spec.md
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 88
-:::
+Aquí es donde salen los conflictos entre fuentes: dos ficheros que dicen cosas
+distintas sobre lo mismo, documentación que ya no coincide con el código. Se
+declara cuál manda y por qué.
 
-### Para cada fase: objetivo
+**Prohibido:** escribir código, aunque sea una línea. Su única salida es
+`map.md`.
 
-:::caution[PENDIENTE-D]
-falta: redacción del objetivo de cada una de las siete fases
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 86-115
-:::
+## design
 
-### Para cada fase: qué recibe
+Decide. Qué se va a hacer, qué alternativas se descartaron y **con qué criterios
+se sabrá si salió bien**.
 
-:::caution[PENDIENTE-D]
-falta: redacción de qué estado de disco recibe cada fase
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 90-102
-:::
+Esa última parte es la que hace útil la fase. Un diseño sin criterios de
+aceptación deja a `verify` sin nada contra qué verificar.
 
-### Para cada fase: qué produce
+**Prohibido:** implementar. Y cambiar el alcance por su cuenta: si el diseño
+revela que el trabajo es el doble, se dice, no se asume.
 
-:::caution[PENDIENTE-D]
-falta: redacción del artefacto que produce cada fase
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md
-lineas: 17-24
-:::
+## tasks
 
-### Para cada fase: qué NO debe hacer
+Convierte el diseño en un checklist ejecutable, agrupado en lotes con
+dependencias explícitas.
 
-:::caution[PENDIENTE-D]
-falta: redacción de los límites de cada fase (scope gate, disciplina de lectura, no redescubrir)
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 34-39, 45-66
-:::
+Cada tarea lleva su comando de verificación. Si `apply` tiene que adivinar cómo
+comprobar algo, no lo comprueba.
 
-### Roles en cada fase
+**Prohibido:** rediseñar. Si un criterio del diseño no es comprobable tal como
+está escrito, se reformula aquí **dejando constancia** de que sustituye al
+original.
 
-:::caution[PENDIENTE-D]
-falta: redacción de quién decide, quién lee, quién ejecuta en cada fase
-fuentes: ein-pi/core/docs/GUIA_PI_WORKFLOW.md
-lineas: 52-61
-:::
+## apply
 
-## Checklist
+Implementa, lote a lote.
 
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (siete fases nombradas, artefacto por fase)
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md
-lineas: n/a
-:::
+Con runner de tests, en ciclos: escribir el test, verlo fallar por la razón
+correcta, implementar, verlo pasar. La salida real de cada ejecución queda
+registrada — no un "todos en verde", la salida.
 
-## Siguiente paso
+**Prohibido:** fabricar salidas de tests que no se ejecutaron, relajar una regla
+del contrato para que el código encaje, y salirse de la superficie de escritura
+declarada.
 
-[Artifacts](../02-workflow/artifacts.md)
+Si se queda sin presupuesto, para y devuelve dónde llegó. No acelera saltándose
+comprobaciones.
 
-## Fuentes
+## verify
 
-- `ein-pi/agent/assets/orchestrator.md` — las siete fases, objetivo, entrada y límites de cada una
-- `openspec/specs/sdd-lifecycle/spec.md` — autoridad formal de la secuencia de fases
-- `ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md` — qué produce cada fase
-- `ein-pi/core/docs/GUIA_PI_WORKFLOW.md` — roles por fase
-- `README.md` — mención de OpenSpec y flujo SDD
-- `docs/EIN_DOCUMENTATION_BRIEF.md` — brief de qué debe explicar esta página
+Comprueba la implementación contra el **diseño**, no contra la intención.
+
+Ejecuta los comandos por su cuenta en lugar de fiarse de lo que `apply` diga
+haber ejecutado. Y cuando un criterio no es comprobable por comando, lo dice en
+vez de darlo por bueno.
+
+**Prohibido:** arreglar lo que encuentra. Lo reporta con evidencia y criterio
+incumplido; arreglarlo es otra pasada.
+
+## close
+
+Condensa el cambio en un `summary.md` revisable: qué se hizo, qué se decidió,
+qué quedó abierto.
+
+**Prohibido:** afirmar que algo está desplegado, publicado o terminado si no lo
+está. Un resumen que envejece mal es peor que no tenerlo.
+
+## El estado no se recuerda, se consulta
+
+En cualquier momento:
+
+```bash
+cc-ein-sdd status     # en qué fase va y qué falta
+cc-ein-sdd check      # valida los artefactos presentes
+```
+
+Lo calculan leyendo el disco. El agente no puede afirmar que va por `apply` si
+`design.md` no existe.
+
+## Siguiente
+
+[Artefactos](/ein-agent/02-workflow/artifacts/) — qué problema resuelve cada
+fichero.

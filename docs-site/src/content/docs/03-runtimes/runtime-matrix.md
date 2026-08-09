@@ -1,102 +1,73 @@
 ---
-title: "Runtime Matrix · EIN"
-description: "Comparación defendible entre los runtimes Pi y Claude Code, solo capacidades con evidencia de código o spec"
-sources: ["openspec/specs/installer-runtime/spec.md", "pi-ein/README.md", "cc-ein/README.md", "installer/src/core/paths.ts", "openspec/changes/archive/core-parity/verify-report.md"]
-verified_rev: "2f67c73"
+title: "Matriz de runtimes"
+description: "Comparación Pi vs Claude Code con las capacidades que se pueden comprobar."
+sources: ["README.md", "cc-ein/README.md", "openspec/specs/installer-runtime/spec.md", "openspec/changes/archive/core-parity/verify-report.md"]
+verified_rev: "29861f5"
 ---
 
-# Runtime Matrix
+Esta tabla solo incluye filas **comprobables contra código o especificación**.
+Lo que no tiene evidencia no aparece como paridad: aparece más abajo, en lo que
+no se puede afirmar.
 
-## En una frase
+## Lo comprobable
 
-:::caution[PENDIENTE-D]
-falta: una frase que fije la matriz como comparación de seis capacidades con evidencia de código o spec, no de marketing. Excluidas de esta matriz por falta de evidencia reproducible: paridad MCP externo (Context7, Engram, Linear, Codegraph, Hypa), rendimiento e inyección proactiva de skills [BETA-EXCLUDED]
-fuentes: openspec/changes/archive/core-parity/verify-report.md
-lineas: 163
+| Capacidad | Pi Coding Agent | Claude Code |
+| :--- | :--- | :--- |
+| Instalación interactiva (menú) | sí | sí |
+| Instalación no interactiva (`--runtime`) | sí | sí |
+| Superficie aislada del runtime vanilla | `~/.pi-ein/agent` | `~/.claude-ein` |
+| Despliegue del núcleo compartido | sí | sí, traducido por `sync.ts` |
+| Ciclo SDD determinista | comandos `/ein:*` | binario `cc-ein-sdd` |
+| Migración de instalación legacy | sí, con backup | no aplica |
+
+Los dos runtimes se instalan, se aíslan y ejecutan el mismo ciclo SDD. Esa es la
+parte sólida.
+
+## Lo que NO se puede afirmar
+
+:::caution[SIN EVIDENCIA REPRODUCIBLE]
+Estas capacidades **no** están verificadas contra servicios reales, así que no
+figuran como paridad. Que existan no significa que estén demostradas.
 :::
 
-## Para quién y qué aprenderás
+**Paridad de MCP externo.** Las integraciones opcionales (Context7, Engram,
+Linear, Codegraph, Hypa) se configuran en ambos, pero la evidencia archivada de
+la paridad entre runtimes registra que el MCP externo de Claude **no se ejercitó
+contra servicios en vivo**. Está soportado, no comprobado.
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página (usuario decidiendo entre runtimes) y qué se lleva (seis filas defendibles, ninguna paridad implícita)
-fuentes: openspec/specs/installer-runtime/spec.md
-lineas: n/a
-:::
+**Rendimiento.** No hay medición comparada. Cualquier afirmación sobre cuál va
+más rápido sería inventada.
 
-## Ruta rápida
+**Inyección proactiva de skills.** El mecanismo difiere entre runtimes y la
+traducción es aproximada por diseño. No hay equivalencia 1:1 que demostrar.
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado para leer la tabla sin asumir paridad no verificada
-fuentes: openspec/changes/archive/core-parity/verify-report.md
-lineas: 163
-:::
+## Diferencias que no son huecos
 
-## Detalles
+Algunas cosas son distintas sin que ninguna sea peor:
 
-### Instalación interactiva
+| | Pi | Claude Code |
+| :--- | :--- | :--- |
+| Cómo se consulta el estado SDD | comandos del runtime | binario compilado |
+| Cómo se actualiza | `ein update` + `pi-ein update --all` | `ein update` + `bun cc-ein/sync.ts` |
+| Gate de comandos | política del coordinador | hook sobre shell |
 
-:::caution[PENDIENTE-D]
-falta: comparación de instalación interactiva vía menú entre Pi y Claude Code
-fuentes: openspec/specs/installer-runtime/spec.md
-lineas: n/a
-:::
+## Cómo elegir
 
-### Instalación no interactiva
+Si ya usas uno de los dos, usa ese. La diferencia de capacidades no justifica
+cambiar de agente.
 
-:::caution[PENDIENTE-D]
-falta: comparación de instalación no interactiva vía flag `--runtime`
-fuentes: openspec/specs/installer-runtime/spec.md
-lineas: n/a
-:::
+Si usas los dos, instala `both`: cada uno mantiene su casa y puedes abrir el
+mismo proyecto con cualquiera. El estado del cambio está en `openspec/`, así que
+viaja; los historiales de conversación no.
 
-### Launcher y aislamiento de configuración
+## Por qué esta página es tan corta
 
-:::caution[PENDIENTE-D]
-falta: comparación de launchers (`pi-ein`, `cc-ein`) y variables de aislamiento (PI_CODING_AGENT_DIR, CLAUDE_CONFIG_DIR)
-fuentes: pi-ein/README.md, cc-ein/README.md, installer/src/core/paths.ts
-lineas: n/a
-:::
+Porque una matriz de runtimes larga sería, en su mayoría, marketing.
 
-### Despliegue del cerebro
+Las filas que se podrían añadir —integraciones, extensiones, comportamiento del
+modelo— no tienen medición detrás. Ponerlas con un ✓ en ambas columnas daría una
+impresión de equivalencia que nadie ha comprobado.
 
-:::caution[PENDIENTE-D]
-falta: comparación de despliegue del harness (agent/assets) en ambos runtimes
-fuentes: openspec/specs/installer-runtime/spec.md, cc-ein/README.md
-lineas: n/a
-:::
+## Siguiente
 
-### Ciclo SDD determinista
-
-:::caution[PENDIENTE-D]
-falta: comparación del ciclo SDD (fases, gates) disponible en ambos runtimes
-fuentes: cc-ein/README.md
-lineas: n/a
-:::
-
-### Migración de instalación legacy
-
-:::caution[PENDIENTE-D]
-falta: comparación de soporte de migración legacy (existente en Pi, evidencia de spec)
-fuentes: openspec/specs/installer-runtime/spec.md, pi-ein/README.md
-lineas: n/a
-:::
-
-## Checklist
-
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables limitada a las seis filas del roster cerrado
-fuentes: openspec/changes/archive/core-parity/verify-report.md
-lineas: 163
-:::
-
-## Siguiente paso
-
-[CLI](../04-reference/cli.md)
-
-## Fuentes
-
-- `openspec/specs/installer-runtime/spec.md` — escenarios de instalación interactiva, no interactiva, aislada y de migración
-- `pi-ein/README.md` — launcher y aislamiento de Pi
-- `cc-ein/README.md` — launcher, aislamiento y ciclo SDD de Claude Code
-- `installer/src/core/paths.ts` — mecanismo de resolución de rutas aisladas
-- `openspec/changes/archive/core-parity/verify-report.md` — razón de exclusión de la línea `falta:` de `## En una frase` (línea 163)
+[CLI](/ein-agent/04-reference/cli/) — la referencia de comandos.

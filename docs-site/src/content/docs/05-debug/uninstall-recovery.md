@@ -1,77 +1,121 @@
 ---
-title: "Uninstall & Recovery · EIN"
-description: "Desinstalación, backup, restauración y reversión de migración de Pi"
-sources: ["installer/src/cli/uninstall.ts", "installer/src/cli/restore.ts", "installer/src/core/backup.ts", "pi-ein/README.md"]
-verified_rev: "2f67c73"
+title: "Desinstalar y recuperar"
+description: "Cómo volver atrás: backups, rollback y salir del todo sin perder nada."
+sources: ["installer/src/core/backup.ts", "installer/src/cli/uninstall.ts", "installer/src/cli/restore.ts", "installer/src/core/pi-migration.ts"]
+verified_rev: "29861f5"
 ---
 
-# Uninstall & Recovery
+Poder salir es parte de poder entrar. Si desinstalar EIN fuera complicado,
+probarlo sería una decisión más grande de lo que debería.
 
-## En una frase
+## Volver al runtime vanilla, ya
 
-:::caution[PENDIENTE-D]
-falta: una frase que fije el flujo reversible de desinstalación, backup y restauración
-fuentes: installer/src/core/backup.ts
-lineas: 1-6
+No hace falta desinstalar nada:
+
+```bash
+pi        # tu Pi de siempre
+claude    # tu Claude Code de siempre
+```
+
+Nunca dejaron de funcionar. EIN vive en `~/.pi-ein/agent` y `~/.claude-ein`; tus
+runtimes originales están en `~/.pi/agent` y `~/.claude`, intactos.
+
+## Desinstalar
+
+```bash
+ein uninstall
+```
+
+Crea un backup antes, elimina la casa de EIN y **conserva**:
+
+- `auth.json` — tu autenticación
+- `~/.config/opencode-secrets/` — las claves de las integraciones
+- tus sesiones e historial
+
+Es deliberado: reinstalar no te obliga a reconfigurar ni a volver a
+autenticarte.
+
+Para una limpieza total, borra además el directorio de secrets a mano. Perderás
+las claves.
+
+## Los backups
+
+Van a `backups/installer/` dentro de la casa de EIN, como `.tar.gz`:
+
+```bash
+ls ~/.pi-ein/agent/backups/installer/
+```
+
+Se crea uno **automáticamente** antes de cada operación destructiva: `install`
+sobre un árbol existente, `update`, `uninstall` y `restore`. No hay que
+acordarse de nada.
+
+## Restaurar
+
+```bash
+ein restore
+```
+
+Te deja elegir un backup y lo aplica. Es la salida de una actualización que dejó
+algo raro.
+
+## Una actualización falló
+
+```bash
+ein doctor      # ver qué está mal
+ein restore     # volver al estado anterior
+```
+
+`ein update` verifica el payload antes de aplicarlo y crea backup, así que un
+fallo a mitad no debería dejarte a medias. Si te deja, `restore` lo resuelve.
+
+## Revertir la migración de Pi
+
+Si el instalador movió una instalación legacy de `~/.pi/agent` a
+`~/.pi-ein/agent` y quieres deshacerlo, hay dos formas:
+
+```bash
+# mover de vuelta
+mv ~/.pi-ein/agent ~/.pi/agent
+
+# o restaurar el backup que la migración creó
+ls ~/.pi-ein/agent/backups/installer/
+```
+
+La migración conserva login, sesiones e historial, así que revertirla no pierde
+nada.
+
+:::note
+La migración solo mueve un árbol si encuentra un marcador válido de EIN
+(`.ein-install.json`). Un directorio vanilla de Pi nunca se toca, ni en la
+instalación ni en la reversión.
 :::
 
-## Para quién y qué aprenderás
+## Y en tus proyectos
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página (usuario desinstalando o recuperando) y qué se lleva (qué se elimina, qué se conserva, cómo restaurar)
-fuentes: installer/src/cli/uninstall.ts
-lineas: n/a
-:::
+`ein uninstall` no toca el código de tus proyectos. El directorio `openspec/` de
+cada uno sigue donde estaba, con sus cambios y su archivo.
 
-## Ruta rápida
+Si además quieres quitar EIN de un proyecto concreto, borra su `openspec/` y su
+`EIN.md`. Ojo: eso borra el histórico de decisiones de los cambios archivados,
+que suele ser lo más valioso que deja EIN.
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado para ejecutar `ein uninstall` y, si hace falta, `ein restore`
-fuentes: installer/src/cli/uninstall.ts, installer/src/cli/restore.ts
-lineas: n/a
-:::
+## Checklist de salida limpia
 
-## Detalles
+```bash
+ein uninstall                          # quita EIN, conserva credenciales
+rm -rf ~/.config/opencode-secrets      # opcional: borra las claves
+rm ~/.local/bin/ein                    # opcional: quita el binario
+```
 
-### Desinstalación
+Y comprueba que todo sigue en su sitio:
 
-:::caution[PENDIENTE-D]
-falta: qué elimina `ein uninstall` y qué conserva (auth, secrets, sesiones)
-fuentes: installer/src/cli/uninstall.ts
-lineas: n/a
-:::
+```bash
+pi --version
+claude --version
+```
 
-### Backup y restauración
+## Siguiente
 
-:::caution[PENDIENTE-D]
-falta: snapshot, `BACKUP_EXCLUDE`, `KEEP_COUNT = 5` y `restoreBackup()`
-fuentes: installer/src/core/backup.ts, installer/src/cli/restore.ts
-lineas: 29-46
-:::
-
-### Reversión de la migración de Pi
-
-:::caution[PENDIENTE-D]
-falta: reversión de migración (mv de vuelta o restauración desde `.tar.gz`)
-fuentes: pi-ein/README.md, installer/src/core/backup.ts
-lineas: 28-29
-:::
-
-## Checklist
-
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (qué se conserva, valor de KEEP_COUNT, comando de reversión)
-fuentes: installer/src/core/backup.ts
-lineas: n/a
-:::
-
-## Siguiente paso
-
-Esta es la última página de la cadena de lectura de referencia y debug; no enlaza a una página siguiente.
-
-## Fuentes
-
-- `installer/src/cli/uninstall.ts` — qué elimina la desinstalación
-- `installer/src/cli/restore.ts` — restauración de backup
-- `installer/src/core/backup.ts` — snapshot, exclusiones, KEEP_COUNT
-- `pi-ein/README.md` — reversión de migración legacy
+Vuelve al [Overview](/ein-agent/00-start/overview/), o pasa por
+[GitHub](https://github.com/samuhlo/ein-agent) si algo no encaja.

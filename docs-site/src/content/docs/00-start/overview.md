@@ -1,101 +1,93 @@
 ---
-title: "Overview · EIN"
-description: "Qué es EIN: harness de coding-agent multi-runtime, estado beta, para quién está pensado"
-sources: ["README.md", "ein-pi/core/docs/EIN_OPERATING_SYSTEM.md", "docs/EIN_DOCUMENTATION_BRIEF.md", "docs/roadmap-beta.md"]
-verified_rev: "0ae709d"
+title: "Overview"
+description: "Qué es EIN, qué problema resuelve y para quién está pensado."
+sources: ["README.md", "docs/roadmap-beta.md", "ein-pi/core/docs/EIN_OPERATING_SYSTEM.md"]
+verified_rev: "29861f5"
 ---
 
-# Overview
+EIN es un **harness de coding-agent**: una capa de disciplina que se instala
+encima de un agente de programación y le impone una forma de trabajar.
 
-## En una frase
+No es un agente. No es un modelo. Es lo que rodea al agente para que el trabajo
+salga en piezas pequeñas, verificadas y explicadas, en lugar de en un volcado de
+código que nadie revisa.
 
-:::caution[PENDIENTE-D]
-falta: una frase que nombre EIN como harness de coding-agent que se despliega con dos adaptadores/runtimes, `pi-ein` y `cc-ein`; ninguna afirmación de exclusividad a Pi
-fuentes: README.md
-lineas: 11
+Hoy se despliega sobre dos runtimes: **Pi Coding Agent** y **Claude Code**.
+
+## El problema
+
+Pides a un agente "arregla el login". Entiende algo, toca ocho ficheros y
+devuelve un diff de 400 líneas con un resumen optimista. Puede que funcione.
+Revisarlo cuesta más que haberlo escrito.
+
+Y cuando cierras la conversación, el razonamiento se va con ella: por qué se
+eligió ese enfoque, qué se descartó, qué quedó a medias. Mañana, o en otro
+runtime, empiezas de cero.
+
+EIN ataca las dos cosas:
+
+- **El tamaño del cambio.** El trabajo se parte en fases con un contrato cada
+  una. Ninguna fase hace el trabajo de la siguiente.
+- **La memoria.** El estado del cambio vive en disco, no en la conversación.
+  Otra sesión, otra máquina u otro runtime lo retoman leyendo los artefactos.
+
+## Cómo lo hace
+
+Una cadena de siete fases, cada una ejecutada por un subagente con
+responsabilidades acotadas:
+
+```text
+scope → map → design → tasks → apply → verify → close
+```
+
+Cada fase deja un artefacto en `openspec/changes/<cambio>/`. El coordinador
+decide, enruta y explica; no escribe el código él mismo.
+
+La parte incómoda, y deliberada: **hay comprobaciones que no dependen del
+modelo**. Un guardrail determinista valida los artefactos, un gate controla qué
+llega a git, y el estado de las fases lo calcula una herramienta, no una
+opinión. Un modelo puede equivocarse al decir que algo está hecho; un comando
+no.
+
+## Aislamiento primero
+
+EIN no toca tu instalación normal. Cada runtime tiene su casa separada:
+
+| Runtime | Superficie EIN | Casa de EIN | Tu runtime vanilla |
+| :--- | :--- | :--- | :--- |
+| Pi Coding Agent | `pi-ein` | `~/.pi-ein/agent` | `pi` → `~/.pi/agent` |
+| Claude Code | `cc-ein` | `~/.claude-ein` | `claude` → `~/.claude` |
+
+Sigues teniendo `pi` y `claude` intactos. EIN entra por comandos explícitos, no
+contaminando tu configuración.
+
+## Para quién es
+
+Para quien ya usa un agente de programación a diario y ha llegado al punto de no
+fiarse del todo de lo que le devuelve. Si tu problema es que el agente escribe
+poco código, EIN no ayuda: hace lo contrario, mete fricción a propósito.
+
+Es útil cuando el cuello de botella es **revisar**, no producir.
+
+## Qué no intenta resolver
+
+- No sustituye la revisión humana. Reduce lo que hay que revisar de golpe.
+- No garantiza que el código sea correcto. Garantiza que sabes qué se comprobó y
+  qué no.
+- No es portable a cualquier agente. Hoy son Pi y Claude Code, cada uno con su
+  adaptador y con capacidades que **no son idénticas**.
+
+## Estado
+
+:::caution[BETA]
+EIN está en beta. El registro honesto de qué está probado, qué no y qué puede
+cambiar vive en [`docs/roadmap-beta.md`](https://github.com/samuhlo/ein-agent/blob/main/docs/roadmap-beta.md).
 :::
 
-## Para quién y qué aprenderás
+La release vigente se publica en
+[GitHub Releases](https://github.com/samuhlo/ein-agent/releases/latest).
 
-:::caution[PENDIENTE-D]
-falta: para quién está pensado EIN y qué se lleva el lector (runtimes soportados, en qué estado)
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 371-383
-:::
+## Siguiente
 
-## Ruta rápida
-
-:::caution[PENDIENTE-D]
-falta: happy path numerado desde "qué es EIN" hasta "siguiente paso: instalar"
-fuentes: README.md
-lineas: 5-15
-:::
-
-## Detalles
-
-### ¿Qué es EIN?
-
-:::caution[PENDIENTE-D]
-falta: redacción de qué es EIN (harness de coding-agent, aislamiento, dos runtimes)
-fuentes: README.md
-lineas: 5-15
-:::
-
-### ¿Para quién?
-
-:::caution[PENDIENTE-D]
-falta: redacción de para quién está pensado EIN
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 371-383
-:::
-
-### Qué problema intenta resolver
-
-:::caution[PENDIENTE-D]
-falta: redacción de qué problema resuelve EIN como ayudante de programación con decisión de cómo hacerlo
-fuentes: ein-pi/core/docs/EIN_OPERATING_SYSTEM.md
-lineas: 1-12
-:::
-
-### Runtimes soportados
-
-:::caution[PENDIENTE-D]
-falta: redacción de los dos runtimes soportados (pi-ein para Pi, cc-ein para Claude Code); autoridad README.md, no EIN_OPERATING_SYSTEM.md como fuente exclusiva
-fuentes: README.md
-lineas: 30-38
-:::
-
-### Estado: BETA
-
-:::caution[PENDIENTE-D]
-falta: redacción del estado beta citando roadmap-beta.md, sin literal de versión (enlazar a releases/latest)
-fuentes: docs/roadmap-beta.md
-lineas: n/a
-:::
-
-### Qué NO intenta resolver
-
-:::caution[PENDIENTE-D]
-falta: redacción de exclusiones de alcance de EIN
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 369-927
-:::
-
-## Checklist
-
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (ambos runtimes nombrados, estado beta, para quién)
-fuentes: README.md
-lineas: n/a
-:::
-
-## Siguiente paso
-
-[Getting Started](../00-start/getting-started.md)
-
-## Fuentes
-
-- `README.md` — qué es EIN, ambos runtimes, punto de entrada técnico
-- `ein-pi/core/docs/EIN_OPERATING_SYSTEM.md` — qué problema resuelve EIN (contexto histórico, no fuente de runtimes)
-- `docs/EIN_DOCUMENTATION_BRIEF.md` — brief de para quién y qué excluye
-- `docs/roadmap-beta.md` — estado beta y capacidades sin evidencia
+[Getting Started](/ein-agent/00-start/getting-started/) — instalar y comprobar
+que funciona.

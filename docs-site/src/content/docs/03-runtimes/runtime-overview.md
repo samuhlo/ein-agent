@@ -1,85 +1,76 @@
 ---
-title: "Runtime Overview · EIN"
-description: "Introducción comparativa a los dos adaptadores de runtime de EIN: Pi y Claude Code"
-sources: ["README.md", "pi-ein/README.md", "cc-ein/README.md", "openspec/specs/installer-runtime/spec.md"]
-verified_rev: "2f67c73"
+title: "Runtimes"
+description: "EIN tiene un núcleo compartido y dos adaptadores que no son idénticos."
+sources: ["README.md", "cc-ein/README.md", "pi-ein/README.md", "openspec/specs/installer-runtime/spec.md"]
+verified_rev: "29861f5"
 ---
 
-# Runtime Overview
+EIN se despliega sobre dos runtimes: **Pi Coding Agent** y **Claude Code**.
 
-## En una frase
+Comparten el núcleo —los agentes de fase, las skills, el flujo SDD, los
+artefactos— pero cada uno tiene su adaptador, y **no ofrecen exactamente las
+mismas capacidades**.
 
-:::caution[PENDIENTE-D]
-falta: una frase que fije EIN como harness con dos adaptadores de runtime (Pi, Claude Code) y remita a README.md:11 como autoridad del término
-fuentes: README.md
-lineas: 11
-:::
+## Qué se comparte
 
-## Para quién y qué aprenderás
+`ein-pi/core/` es contenido portable, agnóstico del runtime:
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página (usuario eligiendo runtime) y qué se lleva (criterio de selección, no exhaustividad técnica)
-fuentes: README.md
-lineas: 21-26
-:::
+```text
+ein-pi/core/
+├── agents/     los ejecutores de fase (sdd-scope, sdd-map, …)
+├── skills/     las skills locales y descargadas
+├── docs/       la documentación interna del sistema
+└── prompts/    los prompts compartidos
+```
 
-## Ruta rápida
+De ahí sale lo mismo para los dos. Un cambio en un agente de fase llega a Pi y a
+Claude Code.
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado para decidir entre Pi, Claude Code o ambos
-fuentes: README.md
-lineas: 21-26
-:::
+## Qué es distinto
 
-## Detalles
+Cada adaptador traduce ese núcleo a lo que su runtime entiende:
 
-### Qué es cada runtime
+| | Pi Coding Agent | Claude Code |
+| :--- | :--- | :--- |
+| Superficie | `pi-ein` | `cc-ein` |
+| Casa de EIN | `~/.pi-ein/agent` | `~/.claude-ein` |
+| Runtime vanilla | `pi` → `~/.pi/agent` | `claude` → `~/.claude` |
+| Variable de entorno | `PI_CODING_AGENT_DIR` | `CLAUDE_CONFIG_DIR` |
 
-:::caution[PENDIENTE-D]
-falta: definición de pi-ein (config aislado) y cc-ein (config aislado) como adaptadores del mismo harness
-fuentes: pi-ein/README.md, cc-ein/README.md
-lineas: 1-4
-:::
+Los dos se instalan como funciones de shell que exportan su variable **solo para
+esa invocación**. No contaminan tu sesión ni tu configuración normal.
 
-### Instalación y selección de runtime
+## El núcleo compartido no lo hace portable
 
-:::caution[PENDIENTE-D]
-falta: descripción del menú de selección (Pi, Claude, Both) y de la selección no interactiva
-fuentes: README.md, openspec/specs/installer-runtime/spec.md
-lineas: 21-26
-:::
+Conviene decirlo claro porque es fácil deducir lo contrario: que exista un
+`core/` agnóstico no significa que EIN funcione sobre cualquier agente.
 
-### Mecanismos de aislamiento
+Hoy la superficie soportada son estos dos. Cada uno necesitó su adaptador, y
+añadir un tercero sería trabajo, no configuración.
 
-:::caution[PENDIENTE-D]
-falta: mención de PI_CODING_AGENT_DIR y CLAUDE_CONFIG_DIR como mecanismos de aislamiento por variable de entorno
-fuentes: pi-ein/README.md, cc-ein/README.md
-lineas: 14-19
-:::
+## Instalar uno, otro o los dos
 
-### Estado de los runtimes
+```bash
+ein install --runtime pi
+ein install --runtime claude
+ein install --runtime both
+```
 
-:::caution[PENDIENTE-D]
-falta: estado beta de ambos runtimes según los escenarios verificables del spec
-fuentes: openspec/specs/installer-runtime/spec.md
-lineas: n/a
-:::
+`both` despliega ambos sin mezclar sus rutas ni sus artefactos. Cada uno mantiene
+su casa y su runtime vanilla intacto.
 
-## Checklist
+## Continuidad entre ellos
 
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (dos runtimes, aislamiento por variable, selección interactiva y no interactiva)
-fuentes: README.md
-lineas: n/a
-:::
+Lo que se transfiere de un runtime a otro es **el estado del proyecto**: el
+cambio activo, la fase, los artefactos en `openspec/`. Eso vive en el
+repositorio, así que abrir el mismo proyecto con el otro runtime funciona.
 
-## Siguiente paso
+Lo que **no** se transfiere son los historiales de conversación. Las sesiones de
+Pi y las de Claude Code son privadas de cada runtime y siguen siéndolo.
 
-[Pi Coding Agent](./pi-coding-agent.md)
+## Siguiente
 
-## Fuentes
-
-- `README.md` — definición de EIN como harness con dos adaptadores, menú de selección
-- `pi-ein/README.md` — qué es pi-ein, aislamiento por PI_CODING_AGENT_DIR
-- `cc-ein/README.md` — qué es cc-ein, aislamiento por CLAUDE_CONFIG_DIR
-- `openspec/specs/installer-runtime/spec.md` — escenarios verificables de instalación de runtime
+- [Pi Coding Agent](/ein-agent/03-runtimes/pi-coding-agent/)
+- [Claude Code](/ein-agent/03-runtimes/claude-code/)
+- [Matriz de runtimes](/ein-agent/03-runtimes/runtime-matrix/) — la comparación,
+  solo con lo comprobable.

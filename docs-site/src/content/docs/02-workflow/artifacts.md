@@ -1,118 +1,113 @@
 ---
-title: "Artifacts · EIN"
-description: "Artefactos generados en un cambio SDD: qué es cada uno, qué problema resuelve, relación entre ellos"
-sources: ["ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md", "ein-pi/agent/assets/orchestrator.md", "openspec/specs/sdd-lifecycle/spec.md", "README.md", "docs/EIN_DOCUMENTATION_BRIEF.md"]
-verified_rev: "0ae709d"
+title: "Artefactos"
+description: "Qué problema resuelve cada fichero de un cambio y cuál deberías leer tú."
+sources: ["ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md", "openspec/specs/sdd-lifecycle/spec.md"]
+verified_rev: "29861f5"
 ---
 
-# Artifacts
+Un cambio es un directorio en `openspec/changes/<nombre>/`. Cada fase deja
+dentro un fichero, y cada fichero existe para resolver un problema concreto.
 
-## En una frase
+```text
+scope.md            ──►  ¿qué entra y qué no?
+map.md              ──►  ¿dónde vive y qué se rompe?
+design.md           ──►  ¿qué se hace y cómo sabremos si salió bien?
+tasks.md            ──►  ¿en qué orden y con qué comprobación?
+apply-progress.md   ──►  ¿qué se hizo y qué devolvieron los tests?
+verify-report.md    ──►  ¿qué se comprobó y qué NO?
+summary.md          ──►  ¿qué le cuento a quien lo lea en seis meses?
+```
 
-:::caution[PENDIENTE-D]
-falta: una frase que resuma que cada fase SDD produce un artefacto en `openspec/changes/<cambio>/`, sin saltos de fase
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md
-lineas: 11-24
-:::
+## scope.md
 
-## Para quién y qué aprenderás
+Fija los límites. Sin él, cada fase decide por su cuenta qué es "el cambio" y el
+alcance crece sin que nadie lo note.
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página y qué se lleva el lector (qué es cada artefacto, qué problema resuelve)
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 506-527
-:::
+Lleva también el presupuesto que la cadena propaga entre fases, y la declaración
+de si el cambio altera comportamiento observable.
 
-## Ruta rápida
+## map.md
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado del diagrama scope → map → design → tasks → apply → verify → summary
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 506-527
-:::
+Evita que `design` decida a ciegas. Localiza el código, los símbolos que lo
+tocan y lo que se rompe si cambia.
 
-## Detalles
+Es donde se resuelven los conflictos entre fuentes: si dos ficheros describen lo
+mismo de forma distinta, aquí se declara cuál manda.
 
-### scope.md
+## design.md
 
-:::caution[PENDIENTE-D]
-falta: qué fija scope.md (alcance, presupuesto) y dónde vive
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md, ein-pi/agent/assets/orchestrator.md, README.md
-lineas: 19
-:::
+**El más importante para ti.** Contiene la decisión: qué se va a hacer, qué se
+descartó y por qué.
 
-### map.md
+Y los criterios de aceptación, que son el contrato con `verify`. Escritos como
+comandos siempre que se pueda:
 
-:::caution[PENDIENTE-D]
-falta: qué contiene map.md (notas de exploración, riesgos, dependencias, prior art, sin implementación)
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md
-lineas: 41-43
-:::
+```text
+1. Existen 10 ficheros bajo docs-site/src/content/docs/ y ninguno más.
+2. Cada uno tiene las cuatro claves de frontmatter en orden.
+3. Cada ruta declarada en `sources` existe en el repositorio.
+```
 
-### design.md
+Un criterio que dependa de juicio editorial no sirve: `verify` no puede
+responderlo sin opinar.
 
-:::caution[PENDIENTE-D]
-falta: qué contiene design.md (propuesta, spec en RFC 2119, tareas)
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md
-lineas: 45-59
-:::
+## tasks.md
 
-### tasks.md
+El checklist ejecutable, en lotes con dependencias. Cada tarea lleva su comando
+de comprobación.
 
-:::caution[PENDIENTE-D]
-falta: qué contiene tasks.md (checklist ejecutable que alimenta apply)
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md
-lineas: 57-58
-:::
+El estado de las casillas se lee del fichero, no se recuerda. Por eso
+`cc-ein-sdd status` puede decirte cuántas quedan sin preguntarle a nadie.
 
-### apply-progress.md
+## apply-progress.md
 
-:::caution[PENDIENTE-D]
-falta: qué contiene apply-progress.md (secciones por lote, ciclos TDD, decisiones técnicas)
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md
-lineas: 61-72
-:::
+La crónica de la implementación, con **la salida real** de cada ejecución de
+tests. No "los tests pasan": la salida.
 
-### verify-report.md
+```text
+✗ rechaza direcciones sin dominio    (fail)
+ 36 pass, 1 fail
+→ implementación
+ 37 pass, 0 fail
+```
 
-:::caution[PENDIENTE-D]
-falta: qué contiene verify-report.md (estado global, checks individuales, criterios revisados)
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md
-lineas: 74-80
-:::
+Si el proyecto no tiene runner, se declara aquí explícitamente en lugar de
+fingir un ciclo que no existe.
 
-### summary.md
+## verify-report.md
 
-:::caution[PENDIENTE-D]
-falta: qué contiene summary.md y quién lo escribe (sdd-close)
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 88
-:::
+Responde los criterios del diseño uno a uno. Y tiene una sección que suele ser
+la más informativa: **lo que quedó fuera de cobertura**.
 
-### Canonical openspec config
+Un criterio que no se puede comprobar por comando se declara como tal en vez de
+darlo por bueno. Eso es lo que separa una verificación de un visto bueno.
 
-:::caution[PENDIENTE-D]
-falta: qué es openspec/config.yaml (stack, runtime, comandos)
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md
-lineas: 29-39
-:::
+## summary.md
 
-## Checklist
+El resumen de cierre. Qué se hizo, cómo funciona por dentro, qué se decidió y
+qué queda abierto.
 
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (un artefacto por fase, sin saltos de fase)
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md
-lineas: n/a
-:::
+Es lo que alguien leerá dentro de seis meses. Lo escribe un modelo, así que es
+un buen resumen y **no es evidencia**: la evidencia son los otros artefactos.
 
-## Siguiente paso
+## Al archivar
 
-[Real Workflow Example](../02-workflow/real-workflow-example.md)
+El cambio entero se mueve a `openspec/changes/archive/<nombre>/`.
 
-## Fuentes
+A partir de ahí es inmutable. No se reescribe para que encaje con lo que se
+supo después, ni para que la historia quede más limpia. Un registro que se
+retoca deja de ser un registro.
 
-- `ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md` — definición de cada artefacto
-- `ein-pi/agent/assets/orchestrator.md` — quién escribe summary.md y cuándo
-- `openspec/specs/sdd-lifecycle/spec.md` — autoridad formal de artefactos por fase
-- `README.md` — ubicación de artefactos en `openspec/changes/<cambio>/`
-- `docs/EIN_DOCUMENTATION_BRIEF.md` — brief del diagrama de relación entre artefactos
+## Qué leer tú, y en qué orden
+
+1. **`design.md`** — la decisión. Si el enfoque está mal, el resto da igual.
+2. **El diff.**
+3. **`verify-report.md`**, y en concreto lo que dice que no comprobó.
+
+`map.md` y `apply-progress.md` son para cuando algo no cuadra y hay que
+reconstruir por qué.
+
+## Siguiente
+
+[Ejemplo real](/ein-agent/02-workflow/real-workflow-example/) — un cambio de
+verdad, con sus artefactos.

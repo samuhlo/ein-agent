@@ -1,107 +1,109 @@
 ---
-title: "First Run · EIN"
-description: "Ejemplo didáctico: cambio pequeño desde scope hasta close, con artefactos y verificación real"
-sources: ["docs/EIN_DOCUMENTATION_BRIEF.md", "ein-pi/core/docs/GUIA_PI_WORKFLOW.md", "ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md", "openspec/changes/archive/installer-beta/scope.md", "openspec/changes/archive/installer-beta/map.md", "openspec/changes/archive/installer-beta/design.md", "openspec/changes/archive/installer-beta/tasks.md", "openspec/changes/archive/installer-beta/apply-progress.md", "openspec/changes/archive/installer-beta/verify-report.md", "openspec/changes/archive/installer-beta/summary.md"]
-verified_rev: "0ae709d"
+title: "First Run"
+description: "Un cambio pequeño de principio a fin: qué pides, qué hace EIN y qué te deja para revisar."
+sources: ["ein-pi/core/docs/GUIA_PI_WORKFLOW.md", "ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md", "openspec/specs/sdd-lifecycle/spec.md"]
+verified_rev: "29861f5"
 ---
 
-# First Run
+Ya tienes EIN instalado. Esto es cómo se siente usarlo en un cambio real y
+pequeño, sin demo de escaparate.
 
-## En una frase
+## La petición
 
-:::caution[PENDIENTE-D]
-falta: una frase que resuma qué es un "first run" (un cambio pequeño completo, no solo lanzar EIN)
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 406-424
-:::
+Abres tu runtime (`pi-ein` o `cc-ein`) y pides algo en lenguaje normal:
 
-## Para quién y qué aprenderás
+```text
+El validador de emails acepta direcciones sin dominio. Arréglalo.
+```
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página y qué se lleva el lector (narrativa real con artefactos concretos de installer-beta)
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 406-424
-:::
+## Lo primero que pasa: no empieza a escribir código
 
-## Ruta rápida
+EIN no salta a editar ficheros. Arranca la cadena SDD y la primera fase acota el
+problema: qué entra, qué no, y con qué presupuesto de lectura se trabaja.
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado (arrancar EIN, pedir un cambio pequeño, ver artefactos aparecer)
-fuentes: ein-pi/core/docs/GUIA_PI_WORKFLOW.md
-lineas: 5-15
-:::
+En cuanto hay un cambio activo, puedes preguntar dónde está en cualquier momento:
 
-## Detalles
+```bash
+cc-ein-sdd status
+```
 
-### Escenario: cambio pequeño real
+```text
+change: fix-email-validation
+current phase: map
+next: map
+artifacts present: scope(scope.md)
+artifacts missing: map(map.md), design(design.md), tasks(tasks.md), ...
+```
 
-:::caution[PENDIENTE-D]
-falta: redacción del escenario didáctico (petición, qué hace EIN, qué aparece, resultado, artefactos)
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 406-424
-:::
+Ese estado **no lo dice el modelo**: lo calcula una herramienta leyendo el disco.
+Si el agente afirmara que va por `apply` y los artefactos dijeran otra cosa,
+gana el disco.
 
-### Cómo arrancar Ein
+## Lo que se va acumulando
 
-:::caution[PENDIENTE-D]
-falta: redacción de cómo se arranca EIN en terminal (banner, nombre de usuario)
-fuentes: ein-pi/core/docs/GUIA_PI_WORKFLOW.md
-lineas: 5-15
-:::
+Cada fase deja su artefacto en `openspec/changes/fix-email-validation/`:
 
-### Flujos típicos (lenguaje natural)
+```text
+scope.md            qué entra y qué no
+map.md              dónde vive el código y qué lo toca
+design.md           la decisión, sus alternativas y los criterios de éxito
+tasks.md            el checklist ejecutable
+apply-progress.md   lo que se hizo, con la salida real de los tests
+verify-report.md    qué se comprobó y qué no
+summary.md          el resumen del cierre
+```
 
-:::caution[PENDIENTE-D]
-falta: redacción de ejemplos de tareas pequeñas y complejas en lenguaje natural
-fuentes: ein-pi/core/docs/GUIA_PI_WORKFLOW.md
-lineas: 30-38
-:::
+No son notas: son el contrato entre fases. `design.md` fija los criterios de
+aceptación, y `verify-report.md` los responde uno a uno.
 
-### Walkthrough acotado
+## En apply, los tests van primero
 
-:::caution[PENDIENTE-D]
-falta: redacción del walkthrough acotado de installer-beta (qué, quién, por qué, orden de trabajo)
-fuentes: openspec/changes/archive/installer-beta/scope.md
-lineas: 1-60
-:::
+Si el proyecto tiene runner de tests configurado, la fase de implementación
+trabaja en ciclos: escribe el test, comprueba que **falla por la razón concreta
+que debe fallar**, implementa, y comprueba que pasa. La salida real de cada
+ejecución queda registrada.
 
-### Qué aparece en cada fase
+```text
+✗ rechaza direcciones sin dominio     (fail)
+  → implementación
+✓ rechaza direcciones sin dominio     (pass)
+```
 
-:::caution[PENDIENTE-D]
-falta: redacción de qué ve el usuario en cada fase (estructura y decisiones hito de map, design, tasks, apply-progress, verify-report)
-fuentes: openspec/changes/archive/installer-beta/map.md, openspec/changes/archive/installer-beta/design.md, openspec/changes/archive/installer-beta/tasks.md, openspec/changes/archive/installer-beta/apply-progress.md, openspec/changes/archive/installer-beta/verify-report.md
-lineas: n/a
-:::
+Cuando no hay runner —por ejemplo en un cambio que solo toca documentación— el
+flujo lo declara y usa comprobaciones mecánicas en su lugar, en vez de fingir un
+ciclo que no existe.
 
-### Artefactos producidos
+## Qué tienes que revisar tú
 
-:::caution[PENDIENTE-D]
-falta: redacción de la lista de artefactos producidos (scope, map, design, tasks, apply-progress, verify-report, summary)
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md
-lineas: 11-80
-:::
+Tres cosas, y en este orden:
 
-## Checklist
+1. **`design.md`** — la decisión. Es donde se elige el enfoque; si el enfoque
+   está mal, el resto del trabajo está mal aunque los tests pasen.
+2. **El diff** — más pequeño que el habitual porque el alcance se acotó antes.
+3. **`verify-report.md`** — y sobre todo lo que dice que **no** comprobó. Esa
+   sección vale más que la lista de lo que sí.
 
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (arrancó EIN, vio artefactos aparecer, entendió el ciclo)
-fuentes: ein-pi/core/docs/GUIA_PI_WORKFLOW.md
-lineas: n/a
-:::
+## Cuando algo se bloquea
 
-## Siguiente paso
+Pasa, y es el comportamiento correcto. Una fase que no puede continuar devuelve
+`status: blocked` con la causa concreta en lugar de improvisar:
 
-[Orchestrator](../01-concepts/orchestrator.md)
+```text
+■ blockers:
+- estado de specs OpenSpec: unresolved; map bloqueado hasta resolver
+  la procedencia desde scope.
+```
 
-## Fuentes
+Prefiere pararse a inventarse el camino. Cuando veas un bloqueo, la causa está
+en el mensaje y la decisión es tuya.
 
-- `docs/EIN_DOCUMENTATION_BRIEF.md` — brief del escenario didáctico
-- `ein-pi/core/docs/GUIA_PI_WORKFLOW.md` — cómo arrancar EIN y flujos típicos
-- `ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md` — artefactos producidos
-- `openspec/changes/archive/installer-beta/scope.md` — walkthrough acotado
-- `openspec/changes/archive/installer-beta/map.md` — investigación del ejemplo
-- `openspec/changes/archive/installer-beta/design.md` — diseño del ejemplo
-- `openspec/changes/archive/installer-beta/tasks.md` — tareas del ejemplo
-- `openspec/changes/archive/installer-beta/apply-progress.md` — ejecución del ejemplo
-- `openspec/changes/archive/installer-beta/verify-report.md` — verificación del ejemplo
-- `openspec/changes/archive/installer-beta/summary.md` — cierre del ejemplo
+## Al cerrar
+
+El cambio se archiva en `openspec/changes/archive/` con todos sus artefactos.
+Dentro de seis meses, `summary.md` responde qué se hizo y por qué; los demás
+artefactos responden cómo se decidió.
+
+## Siguiente
+
+[Orchestrator](/ein-agent/01-concepts/orchestrator/) — quién decide qué en todo
+esto.

@@ -1,100 +1,82 @@
 ---
-title: "Context · EIN"
-description: "Contexto como recurso limitado, budgets, tokens, lecturas, horizonte de decisión"
-sources: ["ein-pi/agent/assets/orchestrator.md", "openspec/specs/sdd-lifecycle/spec.md", "docs/EIN_DOCUMENTATION_BRIEF.md"]
-verified_rev: "0ae709d"
+title: "Contexto"
+description: "Por qué el contexto es el recurso que escasea y cómo lo administra EIN."
+sources: ["ein-pi/agent/assets/orchestrator.md", "openspec/specs/scout-routing/spec.md"]
+verified_rev: "29861f5"
 ---
 
-# Context
+El contexto es lo que el agente tiene delante cuando piensa: tu petición, lo que
+ha leído, lo que lleva hecho. Es finito, y se gasta.
 
-## En una frase
+Y no se gasta solo en tokens. Se gasta en **atención**: cuanto más ruido hay
+dentro, peor razona el modelo sobre lo que sí importa.
 
-:::caution[PENDIENTE-D]
-falta: una frase que fije el contexto como el recurso más limitado de EIN, incluyendo `fork`, `fresh`, `max_tokens`, `max_reads` como términos definidos únicamente aquí
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 67
+## El vocabulario mínimo
+
+| Término | Qué es |
+| :--- | :--- |
+| **Ventana de contexto** | el total que cabe |
+| `max_tokens` | el presupuesto que una fase tiene asignado |
+| `max_reads` | cuántos ficheros puede leer antes de parar |
+| **fresh** | arrancar a un subagente limpio, solo con su encargo |
+| **fork** | arrancarlo heredando toda la conversación del padre |
+
+## fresh o fork: la decisión que más cuesta
+
+Cuando el orquestador delega, elige una de las dos. Y la intuición engaña.
+
+**`fork` hereda la conversación entera.** En una sesión larga, eso arrastra
+cientos de miles de tokens al hijo. Un commit trivial delegado con `fork` llegó
+a medir 382k tokens de entrada por esa vía.
+
+**`fresh` arranca en unos 2000 tokens** más el encargo.
+
+La regla práctica: si el subagente puede averiguar lo que necesita por su cuenta
+—mirando git, leyendo ficheros, consultando el estado— va `fresh`. Entrega,
+revisión de diffs, auditorías: todas `fresh`. Solo se usa `fork` cuando el hijo
+necesita de verdad el hilo de la conversación, y aun así solo si la sesión es
+corta.
+
+:::caution[CONTRAINTUITIVO]
+Delegar en un modelo más barato **no abarata la ejecución** si lo arrancas con
+`fork`. El coste dominante es el contexto que le metes, no el precio por token.
+Un modelo barato con 382k tokens de entrada sale más caro que uno bueno con
+2000.
 :::
 
-## Para quién y qué aprenderás
+## Por qué hay presupuestos por fase
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página y qué se lleva el lector (presupuesto como brújula de decisiones)
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 455-464
-:::
+Cada fase recibe `max_tokens` y `max_reads`. No es burocracia: es lo que impide
+que una fase de exploración se lea el repositorio entero "para entenderlo".
 
-## Ruta rápida
+Leerlo entero suena a diligencia y no lo es. Produce un contexto lleno de
+ficheros que no vienen al caso, y un mapa peor que si se hubiera buscado con
+criterio. La instrucción es explorar por estructura primero —listar, buscar
+símbolos— y leer completo solo lo que está dentro del alcance.
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado para entender fork vs fresh y los presupuestos
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 67
-:::
+Cuando una fase se queda sin presupuesto, **para y lo dice**. No acelera
+saltándose comprobaciones para llegar al final.
 
-## Detalles
+## Alcance sin acotar
 
-### Por qué contexto es limitado
+Si le pides a EIN "refactoriza el proyecto entero", la fase de exploración no lo
+intenta. Devuelve una recomendación de partirlo en trozos acotados, uno por
+cambio.
 
-:::caution[PENDIENTE-D]
-falta: redacción de por qué EIN trata el contexto como recurso limitado
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 455-464
-:::
+No es pereza: un mapa de todo el repositorio no cabe en ninguna ventana útil, y
+el resultado sería un resumen inútil de todo en vez de un mapa preciso de algo.
 
-### Ventana de contexto del agente
+## Cómo se nota esto usándolo
 
-:::caution[PENDIENTE-D]
-falta: definición de ventana de contexto y su relación con `context: "fork"`
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 67
-:::
+En que las fases devuelven sobres cortos. Un subagente que ha hecho un trabajo
+de 300 líneas de artefacto vuelve con cinco líneas: qué hizo, dónde lo dejó, qué
+riesgos ve.
 
-### Fresh vs fork
+El detalle está en el fichero. Si el orquestador lo necesita, lo lee del disco;
+si no, no lo carga. Un sobre gordo por fase llena la conversación del
+coordinador en tres delegaciones, y a partir de ahí coordina peor.
 
-:::caution[PENDIENTE-D]
-falta: definición de `fresh` (contexto limpio, ~2000 tokens) vs `fork` (hereda conversación completa)
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 67
-:::
+## Siguiente
 
-### Presupuestos de lectura
-
-:::caution[PENDIENTE-D]
-falta: definición de `max_reads` y `max_tokens` como presupuestos explícitos
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 45-46
-:::
-
-### Budget en fases
-
-:::caution[PENDIENTE-D]
-falta: cómo cada fase recibe un RESEARCH PACKET con límites de lecturas y bytes de salida
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 45-46
-:::
-
-### Horizonte de decisión
-
-:::caution[PENDIENTE-D]
-falta: definición de horizonte de decisión como sinónimo de presupuesto de contexto
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 455-464
-:::
-
-## Checklist
-
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (distinción fork/fresh, qué es max_tokens, qué es max_reads)
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: n/a
-:::
-
-## Siguiente paso
-
-[Deterministic Boundaries](../01-concepts/deterministic-boundaries.md)
-
-## Fuentes
-
-- `ein-pi/agent/assets/orchestrator.md` — fork/fresh, presupuestos de lectura y tokens
-- `openspec/specs/sdd-lifecycle/spec.md` — límites explícitos en escenarios de fase
-- `docs/EIN_DOCUMENTATION_BRIEF.md` — brief de por qué el contexto es limitado
+[Límites deterministas](/ein-agent/01-concepts/deterministic-boundaries/) — qué
+decide un modelo y qué comprueba una herramienta.

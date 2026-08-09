@@ -1,84 +1,92 @@
 ---
-title: "Claude Code · EIN"
-description: "Uso, configuración aislada y compilación del adaptador de runtime Claude Code"
-sources: ["cc-ein/README.md", "README.md", "openspec/specs/installer-runtime/spec.md"]
-verified_rev: "2f67c73"
+title: "Claude Code"
+description: "Cómo usar EIN con Claude Code, y qué no se traslada exactamente desde Pi."
+sources: ["README.md", "cc-ein/README.md", "openspec/changes/archive/core-parity/verify-report.md"]
+verified_rev: "29861f5"
 ---
 
-# Claude Code
+El adaptador `cc-ein` traduce el núcleo de EIN a lo que Claude Code entiende.
 
-## En una frase
+## Instalar y abrir
 
-:::caution[PENDIENTE-D]
-falta: una frase que fije cc-ein como el adaptador aislado de runtime Claude Code, lanzado con el comando `cc-ein`
-fuentes: cc-ein/README.md
-lineas: 8-12
+```bash
+ein install --runtime claude
+cc-ein
+```
+
+`cc-ein` exporta `CLAUDE_CONFIG_DIR` apuntando a `~/.claude-ein` y antepone
+`~/.claude-ein/bin` al `PATH`, **solo para esa invocación**. Tu `claude` normal
+sigue usando `~/.claude`.
+
+## El flujo SDD se conduce por CLI
+
+Es la diferencia más visible respecto a Pi. Aquí las comprobaciones
+deterministas van por un binario:
+
+```bash
+cc-ein-sdd status [cambio]     # en qué fase va y qué falta
+cc-ein-sdd check  [cambio]     # valida los artefactos presentes
+cc-ein-sdd close  <cambio>     # archiva un cambio verificado
+```
+
+Ese binario se compila durante la sincronización del adaptador y vive en
+`~/.claude-ein/bin`.
+
+:::caution[OJO CON EL BINARIO]
+Está **compilado**, no interpretado. Si cambias el código de los guardrails en
+el repositorio, el binario instalado sigue con la versión anterior hasta que
+vuelvas a sincronizar con `bun cc-ein/sync.ts`.
 :::
 
-## Para quién y qué aprenderás
+## Sincronizar el adaptador
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página (usuario del runtime Claude Code) y qué se lleva (lanzamiento, aislamiento, sync, gaps honestos)
-fuentes: cc-ein/README.md
-lineas: 1-2
-:::
+```bash
+bun cc-ein/sync.ts          # sincroniza
+bun cc-ein/sync.ts --dry    # enseña qué haría
+```
 
-## Ruta rápida
+Genera el `CLAUDE.md` del adaptador a partir de dos fuentes —la política
+compartida y la adaptación específica de Claude—, traduce los agentes, copia las
+skills y compila el CLI.
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado para lanzar Ein en Claude Code de forma aislada
-fuentes: cc-ein/README.md
-lineas: 8-12
-:::
+Por eso `cc-ein/CLAUDE.md` es **salida generada**: editarlo a mano se pierde en
+la siguiente sincronización. Se edita la adaptación o la fuente compartida.
 
-## Detalles
+## El gate de shell
 
-### Lanzar Ein en Claude Code
+Un hook intercepta cada llamada a shell y decide sobre los subcomandos de git,
+con precedencia fija `deny → confirm → allow`:
 
-:::caution[PENDIENTE-D]
-falta: comandos `cc-ein` y `cc-ein -c`, instalación con la opción Both del menú
-fuentes: cc-ein/README.md, README.md
-lineas: 8-12
-:::
+| | |
+| :--- | :--- |
+| **Permitido** | `status`, `diff`, `log`; `add`, `commit`, `branch` sin flags peligrosos |
+| **Pide confirmación** | `push`, `rebase`, `branch -D`, `npm publish` |
+| **Denegado siempre** | `push --force`, `reset --hard`, `clean -fd`, `rm -rf /` |
 
-### Configuración aislada
+Su límite conocido, y conviene saberlo: el hook intercepta **comandos de
+shell**. No fuerza que la escritura de ficheros pase por los subagentes, ni
+intercepta las ediciones directas.
 
-:::caution[PENDIENTE-D]
-falta: CLAUDE_CONFIG_DIR=~/.claude-ein, traductor de herramientas y symlink de credenciales
-fuentes: cc-ein/README.md
-lineas: 14-24
-:::
+## Huecos honestos frente a Pi
 
-### Compilación y sync
+No son equivalentes, y estos son los que se conocen:
 
-:::caution[PENDIENTE-D]
-falta: sync.ts como mini-compilador que traduce Pi a Claude Code y symlinkea el login
-fuentes: cc-ein/README.md
-lineas: 17-24
-:::
+**La inyección de skills no es 1:1.** El mecanismo de skills de Pi y el de
+Claude Code son distintos, así que la traducción es aproximada por diseño.
 
-### Huecos honestos frente a Pi
+**La traducción de herramientas es best-effort.** El sincronizador sustituye un
+conjunto acotado de referencias; una herramienta específica de Pi que no conozca
+llega tal cual a Claude Code, donde no existe, y no falla ruidosamente.
 
-:::caution[PENDIENTE-D]
-falta: inyección proactiva de skills sin equivalente 1:1 y re-ejecución de acceptance no existente, cubierta por verify + hooks
-fuentes: cc-ein/README.md
-lineas: 36-40
-:::
+**El enrutado de modelos está declarado a mano.** Coincide con los agentes
+actuales; un agente nuevo no obtiene enrutado automáticamente ni avisa.
 
-## Checklist
+**El MCP externo no está verificado en vivo.** La evidencia archivada de la
+paridad entre runtimes registra explícitamente que la configuración MCP opcional
+de Claude no se ejercitó contra servicios reales. Está soportada, no
+demostrada.
 
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (comando de lanzamiento, variable de aislamiento, gaps declarados)
-fuentes: cc-ein/README.md
-lineas: n/a
-:::
+## Siguiente
 
-## Siguiente paso
-
-[Runtime Matrix](./runtime-matrix.md)
-
-## Fuentes
-
-- `cc-ein/README.md` — comandos de lanzamiento, aislamiento, sync, gaps honestos
-- `README.md` — instalación con menú de selección
-- `openspec/specs/installer-runtime/spec.md` — escenario de instalación de runtime Claude Code
+[Matriz de runtimes](/ein-agent/03-runtimes/runtime-matrix/) — la comparación,
+solo con lo que se puede defender.

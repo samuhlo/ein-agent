@@ -1,92 +1,101 @@
 ---
-title: "Getting Started · EIN"
-description: "Instalación, requisitos, verificación de que todo está bien, primer arranque"
-sources: ["README.md", "installer/README.md", "docs/EIN_DOCUMENTATION_BRIEF.md"]
-verified_rev: "0ae709d"
+title: "Getting Started"
+description: "Instalar EIN, elegir runtime y comprobar que el despliegue está sano."
+sources: ["README.md", "installer/README.md"]
+verified_rev: "29861f5"
 ---
 
-# Getting Started
+De cero a EIN funcionando. Al terminar tendrás el binario `ein`, al menos un
+runtime desplegado en su casa aislada, y el diagnóstico en verde.
 
-## En una frase
+## Requisitos
 
-:::caution[PENDIENTE-D]
-falta: una frase que resuma instalación, requisitos y verificación del despliegue
-fuentes: README.md
-lineas: 17-29
+- **macOS o Linux.** No hay soporte de Windows.
+- **Pi Coding Agent, Claude Code, o ambos.** EIN se instala encima; si no tienes
+  ninguno, instálalo antes.
+- Un shell con `curl`.
+
+El instalador comprueba y prepara sus propias dependencias durante `install`.
+
+## 1. Instalar el binario
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
+```
+
+El bootstrap detecta tu plataforma, descarga el binario de la última release y lo
+deja en `~/.local/bin/ein`, o en `/usr/local/bin` si es escribible.
+
+:::note
+Si `ein` no aparece tras instalarlo, `~/.local/bin` no está en tu `PATH`. Añádelo
+y reabre la terminal.
 :::
 
-## Para quién y qué aprenderás
+## 2. Elegir runtime
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página y qué se lleva el lector (instalar, verificar, elegir runtime)
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 388-400
-:::
+```bash
+ein
+```
 
-## Ruta rápida
+Se abre el menú y pregunta qué desplegar: **Pi**, **Claude Code** o **Both**.
+Prepara solo lo que elijas, instala sus superficies aisladas y ejecuta el doctor
+al terminar.
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado (requisitos, comando de instalación, selección de runtime, doctor)
-fuentes: README.md, installer/README.md
-lineas: 17-29
-:::
+Si prefieres no pasar por el menú:
 
-## Detalles
+```bash
+ein install --runtime pi        # solo Pi
+ein install --runtime claude    # solo Claude Code
+ein install --runtime both      # los dos
+```
 
-### Requisitos
+Con `--yes` no pregunta nada, y con `--dry-run` enseña el plan sin tocar nada —
+útil la primera vez, para ver qué va a hacer antes de dejarle hacerlo.
 
-:::caution[PENDIENTE-D]
-falta: redacción de requisitos (stack existente, Bun, detección de plataforma)
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 388-400
-:::
+## 3. Comprobar
 
-### Instalación (comando)
+```bash
+ein doctor
+```
 
-:::caution[PENDIENTE-D]
-falta: redacción del comando de bootstrap por shell y qué hace
-fuentes: README.md, installer/README.md
-lineas: 17-29
-:::
+Diagnostica el despliegue sin lanzar ningún runtime: rutas, dependencias,
+superficies instaladas y configuración. Es el comando al que volver siempre que
+algo se comporte raro.
 
-### Selección de runtime
+Si algo sale en rojo, [Troubleshooting](/ein-agent/05-debug/troubleshooting/)
+cubre los fallos más frecuentes.
 
-:::caution[PENDIENTE-D]
-falta: redacción de la tabla de selección Pi/Claude/Both
-fuentes: README.md, installer/README.md
-lineas: 30-38
-:::
+## 4. Abrir EIN
 
-### Verificación (doctor)
+Según lo que hayas instalado:
 
-:::caution[PENDIENTE-D]
-falta: redacción de `ein doctor` como diagnóstico del despliegue sin lanzar Pi
-fuentes: installer/README.md
-lineas: 18-20
-:::
+```bash
+pi-ein      # Pi con EIN
+cc-ein      # Claude Code con EIN
+```
 
-### Siguiente paso
+Son comandos distintos de `pi` y `claude` a propósito. Tus runtimes originales
+siguen intactos y sin tocar; EIN vive en `~/.pi-ein/agent` y `~/.claude-ein`.
 
-:::caution[PENDIENTE-D]
-falta: redacción de orientación hacia el primer arranque práctico
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 388-400
-:::
+## Qué acabas de instalar
 
-## Checklist
+| Comando | Qué hace |
+| :--- | :--- |
+| `ein` | menú interactivo |
+| `ein install` | instala o repara |
+| `ein update` | actualiza EIN y su plantilla, con backup previo |
+| `ein doctor` | diagnostica sin lanzar runtimes |
+| `ein uninstall` | elimina EIN y conserva auth, secrets y sesiones |
+| `ein restore` | restaura desde un backup |
 
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (comando ejecutado, runtime elegido, doctor sin errores)
-fuentes: installer/README.md
-lineas: n/a
-:::
+Cada `install` sobre un árbol existente, cada `update`, `uninstall` y `restore`
+crea antes un snapshot comprimido. La reversibilidad no es un extra: está en
+[Uninstall & Recovery](/ein-agent/05-debug/uninstall-recovery/).
 
-## Siguiente paso
+La referencia completa de comandos y flags está en
+[CLI](/ein-agent/04-reference/cli/).
 
-[First Run](../00-start/first-run.md)
+## Siguiente
 
-## Fuentes
-
-- `README.md` — comando de instalación y tabla de selección de runtime
-- `installer/README.md` — bootstrap y `ein doctor`
-- `docs/EIN_DOCUMENTATION_BRIEF.md` — brief de requisitos y orientación
+[First Run](/ein-agent/00-start/first-run/) — un cambio real de principio a fin,
+para ver cómo se siente usar EIN.

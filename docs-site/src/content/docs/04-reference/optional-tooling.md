@@ -1,95 +1,96 @@
 ---
-title: "Optional Tooling · EIN"
-description: "Integraciones opcionales del instalador: Engram, Linear, Context7, Codegraph y Hypa"
-sources: ["installer/src/core/deps.ts", "installer/src/core/engram.ts", "installer/src/core/secrets.ts", "installer/src/core/launcher.ts", "ein-pi/agent/mcp.json", "cc-ein/README.md"]
-verified_rev: "2f67c73"
+title: "Tooling opcional"
+description: "Las integraciones que EIN puede usar, y qué pasa cuando no están."
+sources: ["installer/src/core/engram.ts", "installer/src/core/secrets.ts", "installer/src/core/deps.ts", "ein-pi/agent/mcp.json"]
+verified_rev: "29861f5"
 ---
 
-# Optional Tooling
+EIN funciona sin ninguna de estas. Todas se pueden omitir en la instalación con
+su flag, y todas degradan sin romper nada.
 
-## En una frase
-
-:::caution[PENDIENTE-D]
-falta: una frase que fije las cinco integraciones opcionales (Engram, Linear, Context7, Codegraph, Hypa) y su naturaleza desactivable
-fuentes: installer/src/core/deps.ts
-lineas: n/a
+:::note
+Ninguna es obligatoria. Si una no está disponible, EIN sigue funcionando y lo
+que se pierde es la capacidad concreta, no el flujo.
 :::
 
-## Para quién y qué aprenderás
+## Context7
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página (usuario decidiendo qué integraciones activar) y qué se lleva (qué es cada una, dónde vive su clave, qué pasa si falta)
-fuentes: installer/src/core/secrets.ts
-lineas: n/a
-:::
+**Qué aporta.** Documentación actualizada de librerías y frameworks, buscada por
+tema en lugar de por memoria del modelo.
 
-## Ruta rápida
+**Cuándo se usa.** Cuando el trabajo toca una librería que el agente no conoce
+bien, o cuya API ha cambiado. En vez de improvisar, consulta.
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado para revisar qué integraciones están activas, remitiendo a cli.md para el flag de exclusión
-fuentes: installer/src/core/deps.ts
-lineas: n/a
-:::
+**Sin ella.** El agente tira de lo que sabe, con el riesgo de usar una API que ya
+no existe. Es la integración que más previene errores silenciosos.
 
-## Detalles
+**Flag:** se configura durante `install`; la clave va a
+`~/.config/opencode-secrets/context7-api-key`.
 
-### Cómo se activan y se desactivan
+## Engram
 
-:::caution[PENDIENTE-D]
-falta: mecanismo general de activación/desactivación de integraciones opcionales, con remisión a [CLI](../04-reference/cli.md) para la sintaxis de flags
-fuentes: installer/src/core/deps.ts
-lineas: n/a
-:::
+**Qué aporta.** Memoria persistente entre sesiones: decisiones, convenciones y
+hallazgos que sobreviven al cierre de la conversación.
 
-### Engram
+**Cuándo se usa.** Es un cuaderno del coordinador, no del flujo. Los subagentes
+no la invocan.
 
-:::caution[PENDIENTE-D]
-falta: qué es Engram, dónde vive su directorio, qué pasa si falta
-fuentes: installer/src/core/engram.ts
-lineas: n/a
-:::
+**Sin ella.** El contexto del proyecto sale de `EIN.md` y de los artefactos
+OpenSpec, que son el registro canónico de todas formas. Engram no los sustituye.
 
-### Linear
+**Flag:** `--no-engram`. Vive en `~/.engram-pi`.
 
-:::caution[PENDIENTE-D]
-falta: qué es Linear, dónde vive su clave, qué pasa si falta
-fuentes: installer/src/core/secrets.ts
-lineas: n/a
-:::
+## Linear
 
-### Context7
+**Qué aporta.** Sincronización con un tablero: issues, estados, comentarios.
 
-:::caution[PENDIENTE-D]
-falta: qué es Context7, dónde vive su clave, exportación en el launcher
-fuentes: installer/src/core/secrets.ts, installer/src/core/launcher.ts
-lineas: n/a
-:::
+**Cuándo se usa.** Solo en modo equipo. En modo individual —el de por defecto—
+el tablero es `openspec/changes/` más git, y la integración queda dormida.
 
-### Codegraph y Hypa
+**Sin ella.** No cambia nada salvo que trabajes con un tablero de equipo.
 
-:::caution[PENDIENTE-D]
-falta: qué son Codegraph y Hypa, cómo se instalan de forma opcional
-fuentes: installer/src/core/deps.ts
-lineas: n/a
-:::
+**Flag:** `--no-linear`. Clave en
+`~/.config/opencode-secrets/linear-api-key`.
 
-## Checklist
+## Codegraph
 
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (cinco integraciones, ninguna con literal de flag)
-fuentes: installer/src/core/deps.ts
-lineas: n/a
-:::
+**Qué aporta.** Un grafo del código preindexado: quién llama a qué, dónde se
+define un símbolo, qué se rompe si cambia.
 
-## Siguiente paso
+**Cuándo se usa.** En la fase de exploración. Una consulta al grafo sustituye
+una decena de búsquedas y lecturas, lo que ahorra contexto además de tiempo.
 
-[Doctor](../05-debug/doctor.md)
+**Sin ella.** La exploración se hace con búsqueda y lectura de ficheros.
+Funciona, gasta más presupuesto.
 
-## Fuentes
+**Flag:** `--no-codegraph`.
 
-- `installer/src/core/deps.ts` — instalación opcional de Codegraph y Hypa
-- `installer/src/core/engram.ts` — integración Engram
-- `installer/src/core/secrets.ts` — claves de Linear y Context7
-- `installer/src/core/launcher.ts` — exportación de variables para Context7
-- `ein-pi/agent/mcp.json` — configuración MCP local
-- `cc-ein/README.md` — Context7 y Engram en `.claude.json` a scope user
+## Hypa
+
+**Qué aporta.** Capacidades adicionales de análisis.
+
+**Cuándo se usa.** Puntualmente, y no forma parte del flujo SDD.
+
+**Sin ella.** Nada del flujo depende de esto.
+
+**Flag:** `--no-hypa`.
+
+## Instalar sin ninguna
+
+```bash
+ein install --runtime pi --no-engram --no-linear --no-codegraph --no-hypa --no-secrets
+```
+
+Instalación mínima: el núcleo, los agentes de fase y el flujo SDD. Es una
+configuración perfectamente válida, y la más fácil de diagnosticar cuando algo
+falla.
+
+## Añadirlas después
+
+Vuelve a ejecutar `ein install` sin el flag correspondiente. El instalador
+detecta lo que ya está y añade lo que falte, con backup previo.
+
+## Siguiente
+
+[Troubleshooting](/ein-agent/05-debug/troubleshooting/) — cuando algo no
+funciona.

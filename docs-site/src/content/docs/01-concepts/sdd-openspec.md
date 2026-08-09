@@ -1,103 +1,104 @@
 ---
-title: "SDD & OpenSpec · EIN"
-description: "Por qué trabajo por fases, por qué estado persistente, artefactos, relación SDD↔OpenSpec"
-sources: ["openspec/specs/sdd-lifecycle/spec.md", "ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md", "ein-pi/agent/assets/orchestrator.md", "ein-pi/core/docs/GUIA_PI_WORKFLOW.md", "README.md", "docs/EIN_DOCUMENTATION_BRIEF.md"]
-verified_rev: "0ae709d"
+title: "SDD y OpenSpec"
+description: "Por qué EIN trabaja por fases y por qué el estado del cambio vive en disco."
+sources: ["openspec/specs/sdd-lifecycle/spec.md", "ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md", "ein-pi/core/docs/GUIA_PI_WORKFLOW.md"]
+verified_rev: "29861f5"
 ---
 
-# SDD & OpenSpec
+Dos cosas distintas que se usan juntas:
 
-## En una frase
+- **SDD** es el ciclo: siete fases, cada una con un contrato.
+- **OpenSpec** es dónde vive el estado: un directorio por cambio, con un
+  artefacto por fase.
 
-:::caution[PENDIENTE-D]
-falta: una frase que resuma por qué EIN trabaja en fases persistidas en disco (SDD) sobre un árbol de estado (OpenSpec)
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 86-99
-:::
+## Por qué fases
 
-## Para quién y qué aprenderás
+Porque "arregla el login" y "arregla el login" pueden ser dos trabajos
+completamente distintos, y no lo sabes hasta que alguien mira.
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página y qué se lleva el lector (distinción SDD vs OpenSpec)
-fuentes: docs/EIN_DOCUMENTATION_BRIEF.md
-lineas: 444-453
-:::
+Las fases obligan a mirar antes de tocar:
 
-## Ruta rápida
+```text
+scope    qué entra y qué no
+map      dónde vive eso en el código
+design   qué se va a hacer y con qué criterios se sabrá si salió bien
+tasks    el checklist ejecutable
+apply    hacerlo
+verify   comprobarlo contra el diseño, no contra la intención
+close    condensarlo en algo revisable
+```
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado de las siete fases en orden
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 88
-:::
+Cada fase recibe lo de la anterior y no puede hacer su trabajo. `map` no
+diseña. `design` no implementa. `verify` no arregla lo que encuentra: lo
+reporta.
 
-## Detalles
+Suena rígido y esa es la idea. La alternativa es un agente que decide sobre la
+marcha que ya ha entendido bastante y empieza a escribir.
 
-### Por qué fases
+## Por qué en disco y no en la conversación
 
-:::caution[PENDIENTE-D]
-falta: redacción de por qué el flujo se conduce fase a fase, con estado en artefactos
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 86-99
-:::
+Una conversación se cierra, se compacta o se pierde. Un directorio no.
 
-### Las 7 fases SDD
+```text
+openspec/changes/fix-email-validation/
+├── scope.md
+├── map.md
+├── design.md
+├── tasks.md
+├── apply-progress.md
+├── verify-report.md
+└── summary.md
+```
 
-:::caution[PENDIENTE-D]
-falta: enumeración de las siete fases (scope, map, design, tasks, apply, verify, close); autoridad orchestrator.md/sdd-lifecycle/spec.md, no EIN_OPERATING_SYSTEM.md
-fuentes: ein-pi/agent/assets/orchestrator.md, openspec/specs/sdd-lifecycle/spec.md
-lineas: 88
-:::
+Eso permite tres cosas que la conversación no:
 
-### Qué es OpenSpec
+**Retomar.** Abres el proyecto mañana, en otra máquina o en el otro runtime, y
+el estado está ahí. No hay que reconstruir nada.
 
-:::caution[PENDIENTE-D]
-falta: definición de OpenSpec como árbol de directorios de estado, distinto del ciclo SDD
-fuentes: README.md
-lineas: 70-80
-:::
+**Comprobar de forma determinista.** El estado de la fase lo calcula una
+herramienta leyendo ficheros:
 
-### Artefactos principales
+```bash
+cc-ein-sdd status
+```
 
-:::caution[PENDIENTE-D]
-falta: lista de artefactos principales (scope.md, map.md, design.md, apply-progress.md, verify-report.md, summary.md)
-fuentes: ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md
-lineas: 11-24
-:::
+Si el agente cree que va por `apply` y el disco dice que falta `design.md`, gana
+el disco. No es una opinión que se pueda negociar.
 
-### Por qué estado fuera de la conversación
+**Revisar la decisión, no solo el diff.** Dentro de seis meses, `design.md`
+explica por qué se eligió ese enfoque y qué se descartó. El diff solo enseña el
+resultado.
 
-:::caution[PENDIENTE-D]
-falta: razón de que el estado viva en ficheros y no en la conversación
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 89-95
-:::
+## Los artefactos no son notas
 
-### Cómo permite retomar una tarea
+Son el contrato entre fases, y por eso tienen forma:
 
-:::caution[PENDIENTE-D]
-falta: cómo ein_sdd_status permite reanudar entre sesiones sin costo
-fuentes: ein-pi/agent/assets/orchestrator.md
-lineas: 99
-:::
+- `design.md` fija los **criterios de aceptación**.
+- `verify-report.md` los responde uno a uno.
+- `tasks.md` marca qué está hecho, y ese estado se lee, no se recuerda.
 
-## Checklist
+Si `design.md` no dice cómo se sabrá que el cambio salió bien, `verify` no tiene
+contra qué verificar y el ciclo se convierte en teatro.
 
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (distinción SDD/OpenSpec, siete fases, dónde vive el estado)
-fuentes: ein-pi/core/docs/GUIA_PI_WORKFLOW.md
-lineas: n/a
-:::
+## Cuando el cambio no altera comportamiento
 
-## Siguiente paso
+No todo cambio toca la especificación. Un refactor sin cambio observable, una
+corrección de documentación o un ajuste de configuración no la tocan, y el
+sistema exige decirlo explícitamente en vez de dejarlo ambiguo.
 
-[Context](../01-concepts/context.md)
+Es una declaración de una línea, y el guardrail no deja cerrar el cambio sin
+ella.
 
-## Fuentes
+## Qué pasa al cerrar
 
-- `openspec/specs/sdd-lifecycle/spec.md` — autoridad de las siete fases
-- `ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md` — artefactos principales
-- `ein-pi/agent/assets/orchestrator.md` — por qué fases y por qué estado en disco
-- `ein-pi/core/docs/GUIA_PI_WORKFLOW.md` — flujo práctico de trabajo
-- `README.md` — qué es OpenSpec como directorio
-- `docs/EIN_DOCUMENTATION_BRIEF.md` — brief de qué debe explicar esta página
+El cambio se mueve a `openspec/changes/archive/` con todo dentro. A partir de
+ahí es **evidencia inmutable**: no se reescribe para que encaje con lo que se
+sabe después.
+
+Eso importa más de lo que parece. Un registro que se retoca cuando la historia
+resulta incómoda deja de servir como registro.
+
+## Siguiente
+
+[Contexto](/ein-agent/01-concepts/context/) — por qué el contexto es el recurso
+que de verdad escasea.

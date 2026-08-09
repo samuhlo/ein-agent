@@ -1,86 +1,80 @@
 ---
-title: "Pi Coding Agent · EIN"
-description: "Uso, configuración aislada y migración del adaptador de runtime Pi"
-sources: ["pi-ein/README.md", "README.md", "installer/src/core/paths.ts", "installer/src/core/pi-migration.ts", "openspec/specs/installer-runtime/spec.md"]
-verified_rev: "2f67c73"
+title: "Pi Coding Agent"
+description: "Cómo usar EIN con Pi: superficie, migración y particularidades."
+sources: ["README.md", "pi-ein/README.md"]
+verified_rev: "29861f5"
 ---
 
-# Pi Coding Agent
+Pi es el runtime para el que nació EIN, y donde la superficie está más completa.
 
-## En una frase
+## Instalar y abrir
 
-:::caution[PENDIENTE-D]
-falta: una frase que fije pi-ein como el adaptador aislado de runtime Pi, lanzado con el comando `pi-ein`
-fuentes: pi-ein/README.md
-lineas: 8-9
-:::
+```bash
+ein install --runtime pi
+pi-ein
+```
 
-## Para quién y qué aprenderás
+`pi-ein` es una función de shell que exporta `PI_CODING_AGENT_DIR` y
+`EIN_PI_AGENT_HOME` **solo para esa invocación**, y arranca Pi apuntando a
+`~/.pi-ein/agent`.
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página (usuario del runtime Pi) y qué se lleva (lanzamiento, aislamiento, migración)
-fuentes: pi-ein/README.md
-lineas: 1-4
-:::
+Tu `pi` de siempre sigue usando `~/.pi/agent` y no se entera de nada.
 
-## Ruta rápida
+## Dónde vive
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado para lanzar Ein en Pi de forma aislada
-fuentes: pi-ein/README.md
-lineas: 8-9
-:::
+```text
+~/.pi-ein/agent/          la casa de EIN para Pi
+├── agents/               ejecutores de fase
+├── skills/               local/ y downloaded/
+├── extensions/           extensiones del runtime
+├── backups/installer/    snapshots del instalador
+└── auth.json             tu autenticación
+```
 
-## Detalles
+## Migrar desde una instalación antigua
 
-### Lanzar Ein en Pi
+Si tienes una instalación previa de EIN dentro de `~/.pi/agent`, el instalador
+la mueve a la casa aislada. Pero solo si encuentra un marcador válido de EIN:
+**un directorio vanilla de Pi no se toca**.
 
-:::caution[PENDIENTE-D]
-falta: comando `pi-ein` y su instalación directa vía `cp pi-ein/pi-ein.fish`
-fuentes: pi-ein/README.md
-lineas: 8-9
-:::
+La migración crea un backup `.tar.gz`, mueve el árbol y reescribe las rutas
+absolutas de la plantilla. Conserva login, sesiones e historial.
 
-### Configuración aislada
+Desde un checkout del repositorio puedes inspeccionarla antes:
 
-:::caution[PENDIENTE-D]
-falta: PI_CODING_AGENT_DIR, EIN_PI_AGENT_HOME y la resolución de rutas aislado-vs-legacy
-fuentes: pi-ein/README.md, installer/src/core/paths.ts
-lineas: 16-19
-:::
+```bash
+bun pi-ein/migrate.ts --dry     # enseña qué haría
+bun pi-ein/migrate.ts           # la ejecuta
+```
 
-### Migración desde una instalación legacy
+Revertir es mover `~/.pi-ein/agent` de vuelta a `~/.pi/agent`, o restaurar el
+backup.
 
-:::caution[PENDIENTE-D]
-falta: flujo de migración (backup, reescritura de rutas) desde instalación legacy a aislada
-fuentes: pi-ein/README.md, installer/src/core/pi-migration.ts
-lineas: 21-29
-:::
+## Dos actualizaciones que no se mezclan
 
-### Simetría con el adaptador de Claude
+Esto confunde al principio, y la separación es deliberada:
 
-:::caution[PENDIENTE-D]
-falta: tabla comando|config|qué es comparando pi-ein y cc-ein, con enlace a claude-code.md
-fuentes: pi-ein/README.md
-lineas: 5-12
-:::
+```bash
+pi-ein update --all    # actualiza Pi: binario, extensiones, paquetes
+ein update             # actualiza EIN: instalador y plantilla
+```
 
-## Checklist
+`ein update` usa la release estable de GitHub, verifica el payload y actualiza
+con backup y rollback. No es un actualizador de Pi.
 
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (comando de lanzamiento, variable de aislamiento, comando de migración)
-fuentes: pi-ein/README.md
-lineas: n/a
-:::
+## Particularidades
 
-## Siguiente paso
+**Los subagentes van por la herramienta visible de delegación.** Los subagentes
+integrados del runtime están desactivados a propósito: toda la delegación pasa
+por la superficie de EIN, que es la que aplica los contratos de fase.
 
-[Claude Code](./claude-code.md)
+**El enrutado de modelos viene de la configuración de EIN**, no de decisiones
+sobre la marcha. Cada agente tiene su modelo declarado.
 
-## Fuentes
+**Comandos del flujo:** `/ein:status`, `/ein:sdd-next`, `/ein:doctor-output`,
+`/ein:init`. Los `/skill:*` nativos siguen disponibles como escape.
 
-- `pi-ein/README.md` — comando de lanzamiento, aislamiento, migración legacy
-- `README.md` — instalación con menú de selección
-- `installer/src/core/paths.ts` — resolución de rutas aislado vs legacy
-- `installer/src/core/pi-migration.ts` — implementación de migración
-- `openspec/specs/installer-runtime/spec.md` — escenario de instalación aislada de Pi
+## Siguiente
+
+[Claude Code](/ein-agent/03-runtimes/claude-code/) — el otro adaptador y en qué
+cambia.

@@ -1,81 +1,100 @@
 ---
-title: "CLI · EIN"
-description: "Referencia de comandos y flags del instalador de EIN"
-sources: ["README.md", "installer/src/cli/install.ts", "installer/src/cli/menu.ts", "installer/src/cli/update.ts", "installer/src/cli/doctor.ts", "installer/src/cli/restore.ts", "installer/src/cli/uninstall.ts", "openspec/specs/installer-runtime/spec.md"]
-verified_rev: "2f67c73"
+title: "CLI"
+description: "Los comandos del instalador y los flags disponibles."
+sources: ["README.md", "installer/README.md", "installer/src/cli/install.ts", "installer/src/cli/menu.ts", "installer/src/cli/doctor.ts", "installer/src/cli/update.ts", "installer/src/cli/restore.ts", "installer/src/cli/uninstall.ts"]
+verified_rev: "29861f5"
 ---
 
-# CLI
+El binario `ein` gestiona la instalación, la actualización y el diagnóstico. No
+lanza los runtimes: eso lo hacen `pi-ein` y `cc-ein`.
 
-## En una frase
+## Comandos
 
-:::caution[PENDIENTE-D]
-falta: una frase que fije el conjunto de comandos del instalador (`ein`, `install`, `update`, `doctor`, `restore`, `uninstall`)
-fuentes: README.md
-lineas: 106-118
+### `ein`
+
+Abre el menú interactivo. Es el punto de entrada si no tienes claro qué quieres
+hacer.
+
+### `ein install`
+
+Instala o repara EIN: comprueba dependencias, instala las que falten, despliega
+las superficies, configura secrets y ejecuta el doctor al terminar.
+
+Sobre un árbol existente crea un backup antes de tocar nada.
+
+```bash
+ein install --runtime pi|claude|both
+```
+
+### `ein update`
+
+Actualiza EIN y su plantilla desde la release estable de GitHub. Verifica el
+payload antes de aplicar, y crea backup con posibilidad de rollback.
+
+**No actualiza el runtime.** Para Pi, eso es `pi-ein update --all`. Para Claude
+Code, `bun cc-ein/sync.ts` desde un checkout del repositorio.
+
+### `ein doctor`
+
+Diagnostica el despliegue sin lanzar ningún runtime. Es el primer comando al que
+volver cuando algo va raro.
+
+Sale con código 0 si el resultado es OK o WARN, y 1 si hay algún FAIL.
+
+### `ein uninstall`
+
+Elimina EIN **conservando** `auth.json`, secrets y sesiones. Crea backup antes.
+
+### `ein restore`
+
+Restaura desde un backup previo.
+
+## Flags
+
+| Flag | Qué hace |
+| :--- | :--- |
+| `--runtime pi\|claude\|both` | qué superficie desplegar |
+| `--yes` | no interactivo, acepta los valores por defecto |
+| `--dry-run` | enseña el plan sin ejecutar nada |
+| `--no-engram` | omite la memoria persistente |
+| `--no-secrets` | omite la configuración de secrets |
+| `--no-linear` | omite la integración con Linear |
+| `--no-hypa` | omite Hypa |
+| `--no-codegraph` | omite el grafo de código |
+
+:::tip[LA PRIMERA VEZ]
+`ein install --dry-run` enseña exactamente qué va a hacer sin tocar nada. Vale
+la pena antes de la primera instalación.
 :::
 
-## Para quién y qué aprenderás
+## Comandos del flujo SDD
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página (usuario ejecutando el instalador) y qué se lleva (verbos y flags exactos)
-fuentes: installer/src/cli/install.ts
-lineas: 54-63
-:::
+Estos no vienen del instalador: pertenecen al runtime.
 
-## Ruta rápida
+**En Claude Code**, un binario:
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado para ejecutar `ein install` con flags comunes
-fuentes: installer/src/cli/install.ts
-lineas: 1-10
-:::
+```bash
+cc-ein-sdd status [cambio]     # fase actual y qué falta
+cc-ein-sdd check  [cambio]     # valida los artefactos
+cc-ein-sdd close  <cambio>     # archiva un cambio verificado
+```
 
-## Detalles
+**En Pi**, comandos del agente: `/ein:status`, `/ein:sdd-next <cambio>`,
+`/ein:doctor-output`, `/ein:init`.
 
-### Comandos y flags
+## Riesgos que conviene conocer
 
-:::caution[PENDIENTE-D]
-falta: enumeración de comandos (`ein`, `ein install`, `ein update`, `ein doctor`, `ein uninstall`, `ein restore`) y de `InstallFlags` (`--yes`, `--dry-run`, `--runtime`, `--no-*`)
-fuentes: README.md, installer/src/cli/install.ts
-lineas: 54-63
-:::
+**`ein update` puede cambiar la plantilla.** Crea backup y permite rollback,
+pero si tienes modificaciones a mano en la casa de EIN, revísalas antes.
 
-### `install` paso a paso
+**`ein uninstall` no borra tus credenciales** a propósito. Si quieres una
+limpieza total, hay que borrarlas aparte.
 
-:::caution[PENDIENTE-D]
-falta: flujo de `ein install` (detectar, comprobar dependencias, instalar faltantes, desplegar, secrets, context7, marker, doctor) y menú de tres opciones
-fuentes: installer/src/cli/install.ts, installer/src/cli/menu.ts, openspec/specs/installer-runtime/spec.md
-lineas: 1-10
-:::
+**Ningún comando toca tus runtimes vanilla.** `~/.pi/agent` y `~/.claude` no
+están en el alcance de este binario, salvo la migración explícita de una
+instalación legacy de EIN.
 
-### `update`, `doctor`, `restore` y `uninstall`
+## Siguiente
 
-:::caution[PENDIENTE-D]
-falta: descripción de `ein update` (updaters separados Pi/Ein), `ein doctor`, `ein restore` y `ein uninstall`
-fuentes: README.md, installer/src/cli/update.ts, installer/src/cli/doctor.ts, installer/src/cli/restore.ts, installer/src/cli/uninstall.ts
-lineas: 56-68
-:::
-
-## Checklist
-
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (comandos existentes, flags exactos, sin constantes de directorio)
-fuentes: installer/src/cli/install.ts
-lineas: n/a
-:::
-
-## Siguiente paso
-
-[Filesystem](./filesystem.md)
-
-## Fuentes
-
-- `README.md` — listado de comandos del instalador
-- `installer/src/cli/install.ts` — `InstallFlags`, flujo de `install`
-- `installer/src/cli/menu.ts` — menú interactivo de tres opciones
-- `installer/src/cli/update.ts` — comando `update`
-- `installer/src/cli/doctor.ts` — comando `doctor`
-- `installer/src/cli/restore.ts` — comando `restore`
-- `installer/src/cli/uninstall.ts` — comando `uninstall`
-- `openspec/specs/installer-runtime/spec.md` — contrato de selección de runtime en `install`
+[Filesystem](/ein-agent/04-reference/filesystem/) — qué directorios usa y cuáles
+no.

@@ -1,76 +1,103 @@
 ---
-title: "Filesystem · EIN"
-description: "Estructura de directorios y constantes de ruta del instalador de EIN"
-sources: ["installer/src/core/paths.ts", "README.md", "pi-ein/README.md"]
-verified_rev: "2f67c73"
+title: "Filesystem"
+description: "Qué directorios toca EIN, cuáles no, y dónde están tus backups."
+sources: ["installer/src/core/paths.ts", "README.md", "installer/README.md"]
+verified_rev: "29861f5"
 ---
 
-# Filesystem
+Dónde vive EIN y, más importante, **qué no toca**.
 
-## En una frase
+## El mapa
 
-:::caution[PENDIENTE-D]
-falta: una frase que fije las constantes de ruta exportadas por `paths.ts` como la autoridad de dónde vive cada cosa
-fuentes: installer/src/core/paths.ts
-lineas: 113-136
-:::
+```text
+~/
+├── .pi/agent/              tu Pi vanilla          ← EIN NO toca
+├── .claude/                tu Claude vanilla      ← EIN NO toca
+│
+├── .pi-ein/agent/          casa de EIN para Pi
+├── .claude-ein/            casa de EIN para Claude
+│   └── bin/cc-ein-sdd      el CLI del flujo SDD
+│
+├── .local/bin/ein          el binario del instalador
+├── .config/opencode-secrets/   claves de API
+└── .engram-pi/             memoria persistente (opcional)
+```
 
-## Para quién y qué aprenderás
+Y en cada proyecto donde uses EIN:
 
-:::caution[PENDIENTE-D]
-falta: para quién es esta página (usuario o agente localizando ficheros) y qué se lleva (nombre y propósito de cada constante)
-fuentes: installer/src/core/paths.ts
-lineas: 14-56
-:::
+```text
+<proyecto>/
+├── openspec/
+│   ├── changes/            cambios activos
+│   │   └── archive/        cambios cerrados
+│   ├── specs/              especificaciones canónicas
+│   └── config.yaml         configuración SDD del proyecto
+└── EIN.md                  contexto curado del proyecto (opcional)
+```
 
-## Ruta rápida
+## Qué pertenece a quién
 
-:::caution[PENDIENTE-D]
-falta: happy path numerado para localizar AGENT_DIR según instalación aislada o legacy
-fuentes: installer/src/core/paths.ts
-lineas: 44-56
-:::
+| Ruta | Dueño | Se puede borrar |
+| :--- | :--- | :--- |
+| `~/.pi/agent`, `~/.claude` | tu runtime vanilla | no lo toques |
+| `~/.pi-ein/agent`, `~/.claude-ein` | EIN | sí, con `ein uninstall` |
+| `~/.local/bin/ein` | el instalador | sí, a mano |
+| `~/.config/opencode-secrets` | tú | sí, pierdes las claves |
+| `openspec/` | el proyecto | va a git, no lo borres |
 
-## Detalles
+## Dentro de la casa de EIN
 
-### Estructura de directorios
+```text
+~/.pi-ein/agent/
+├── agents/                  los ejecutores de fase
+├── skills/
+│   ├── local/               skills propias del workbench
+│   └── downloaded/          skills de terceros
+├── extensions/              extensiones del runtime
+├── backups/installer/       ← aquí están tus backups
+├── auth.json                autenticación (se conserva al desinstalar)
+└── .ein-install.json        marcador de instalación
+```
 
-:::caution[PENDIENTE-D]
-falta: mapa general de directorios que gestiona el instalador
-fuentes: installer/src/core/paths.ts
-lineas: 14-56
-:::
+Ese marcador es lo que distingue una instalación de EIN de un directorio vanilla.
+La migración solo mueve un árbol si lo encuentra: sin marcador, no toca nada.
 
-### Constantes de ruta y su destino
+## Backups
 
-:::caution[PENDIENTE-D]
-falta: tabla de AGENT_DIR, SECRETS_DIR, ENGRAM_DIR, LOCAL_SKILLS_DIR, DOWNLOADED_SKILLS_DIR, BACKUP_DIR, BUN_BIN_DIR, LOCAL_BIN_DIR, MISE_SHIM_DIR con su destino
-fuentes: installer/src/core/paths.ts
-lineas: 113-136
-:::
+Van a `backups/installer/` dentro de la casa de EIN, como `.tar.gz`.
 
-### Aislamiento de Pi: aislado frente a legacy
+Se crea uno automáticamente antes de cada `install` sobre un árbol existente,
+cada `update`, cada `uninstall` y cada `restore`. No hay que acordarse.
 
-:::caution[PENDIENTE-D]
-falta: comparación de resolución de rutas aislada (PI_CODING_AGENT_DIR) frente a legacy, con reescritura de rutas en migración
-fuentes: installer/src/core/paths.ts, pi-ein/README.md
-lineas: 44-56
-:::
+```bash
+ls ~/.pi-ein/agent/backups/installer/
+ein restore
+```
 
-## Checklist
+## Secrets
 
-:::caution[PENDIENTE-D]
-falta: lista de afirmaciones confirmables (nombre exacto de cada constante, sin literales de flag)
-fuentes: installer/src/core/paths.ts
-lineas: n/a
-:::
+`~/.config/opencode-secrets/` guarda las claves de las integraciones opcionales,
+un fichero por clave:
 
-## Siguiente paso
+```text
+linear-api-key
+context7-api-key
+minimax-api-key
+```
 
-[Optional Tooling](./optional-tooling.md)
+Están fuera de la casa de EIN a propósito: `ein uninstall` no las borra, así que
+reinstalar no te obliga a reconfigurarlas.
 
-## Fuentes
+## Lo que EIN nunca toca
 
-- `installer/src/core/paths.ts` — tipos, funciones de resolución, constantes exportadas
-- `README.md` — tabla de elección, launcher, hogar, runtime
-- `pi-ein/README.md` — PI_CODING_AGENT_DIR y rutas reescritas en migración
+- Tus runtimes vanilla, salvo la migración explícita de una instalación legacy
+  de EIN con marcador válido.
+- Tu configuración de shell más allá de instalar las funciones `pi-ein` y
+  `cc-ein`.
+- El código de tus proyectos, fuera de los cambios que pidas y del directorio
+  `openspec/`.
+
+## Siguiente
+
+[Tooling opcional](/ein-agent/04-reference/optional-tooling/) — las
+integraciones y qué pasa si no están.
