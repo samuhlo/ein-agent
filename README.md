@@ -2,94 +2,65 @@
   <img src="ein-logo.png" alt="Ein · coding-agent harness" width="440">
   <h1><code>./EIN.sh</code></h1>
 
-**Un harness de coding-agent específico de Pi: dos runtimes aislados, una disciplina de entrega.**
+**Un harness de coding-agent para Pi Coding Agent y Claude Code: dos runtimes aislados, una disciplina de entrega.**
+
+[Documentación](https://samuhlo.github.io/ein-agent/) ·
+[Releases](https://github.com/samuhlo/ein-agent/releases/latest) ·
+[Changelog](CHANGELOG.md) ·
+[Issues](https://github.com/samuhlo/ein-agent/issues)
+
+`BETA`
 
 </div>
 
 ---
 
-Ein convierte trabajo ambiguo en cambios pequeños, verificados y explicados. Nace como un harness específico de **Pi Coding Agent** y ahora se despliega con dos adaptadores soportados: `pi-ein` para Pi y `cc-ein` para Claude Code.
+Ein convierte trabajo ambiguo en cambios **pequeños, verificados y explicados**.
 
-OpenSpec, el flujo SDD y los subagentes son el centro del sistema. El core compartido no convierte a Ein en una herramienta portable para cualquier runtime: hoy la superficie soportada es Pi Coding Agent y Claude Code, cada uno con su propia casa.
+No es un agente ni un modelo: es la capa que rodea al agente para que el trabajo salga en piezas revisables, con el estado del cambio en disco y no en la conversación.
 
 > _note: aislamiento primero. `pi` y `claude` siguen siendo tus runtimes vanilla; Ein entra por superficies explícitas, no por contaminación silenciosa._
 
 ## // 00_ QUICK_START
-
-El camino corto es instalar, abrir el menú y elegir el runtime. La instalación pública confirmada es el bootstrap de GitHub Releases:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
 ein
 ```
 
-En el menú, selecciona **Pi**, **Claude Code** o **Both**. El instalador prepara únicamente los runtimes elegidos, instala sus superficies aisladas y ejecuta el doctor al terminar. La selección no interactiva también es una capacidad del instalador: `--runtime pi|claude|both`.
+El menú pregunta el runtime: **Pi**, **Claude Code** o **Both**. Sin menú: `ein install --runtime pi|claude|both`.
 
-Si quieres la instalación directa de Pi sin abrir el selector, ejecuta `ein install`. Para ver el resto del CLI, usa `ein --help`.
+Guía completa en [Getting Started](https://samuhlo.github.io/ein-agent/00-start/getting-started/).
 
-## // 01_ RUNTIME_SURFACE
+## // 01_ EL_PROBLEMA
 
-Cada opción conserva intacto el runtime vanilla y coloca Ein en un hogar separado:
+Pides "arregla el login". El agente toca ocho ficheros y devuelve 400 líneas con un resumen optimista. Revisarlo cuesta más que haberlo escrito. Y al cerrar la conversación, el razonamiento se va con ella.
 
-| ELECCIÓN | SUPERFICIE AISLADA | HOGAR DE EIN | RUNTIME VANILLA |
+Ein ataca las dos cosas: parte el trabajo en fases con contrato, y deja el estado en `openspec/` para que otra sesión, otra máquina u otro runtime lo retomen.
+
+## // 02_ RUNTIME_SURFACE
+
+| ELECCIÓN | SUPERFICIE | HOGAR DE EIN | RUNTIME VANILLA |
 | :--- | :--- | :--- | :--- |
 | **Pi** | `pi-ein` | `~/.pi-ein/agent` | `pi` → `~/.pi/agent` |
 | **Claude Code** | `cc-ein` | `~/.claude-ein` | `claude` → `~/.claude` |
-| **Both** | `pi-ein` + `cc-ein` | ambos hogares | ambos runtimes intactos |
+| **Both** | ambas | ambos hogares | ambos intactos |
 
-`pi-ein.fish` exporta `PI_CODING_AGENT_DIR` y `EIN_PI_AGENT_HOME` solo para esa invocación. `cc-ein.fish` exporta `CLAUDE_CONFIG_DIR` y antepone `~/.claude-ein/bin` al `PATH`; las superficies viven como funciones Fish en `~/.config/fish/functions/` y no contaminan tu shell.
-
-### Migración de una instalación Pi legacy
-
-Si `~/.pi/agent` contiene una instalación Ein antigua, el instalador solo la mueve cuando encuentra un marcador Ein válido. Crea un backup `.tar.gz`, mueve el árbol a `~/.pi-ein/agent` y reescribe las rutas absolutas del template. Un directorio vanilla de Pi no se toca.
-
-Desde un checkout del repositorio puedes inspeccionar o ejecutar la migración explícita:
-
-```bash
-bun pi-ein/migrate.ts --dry
-bun pi-ein/migrate.ts
-```
-
-La migración conserva login, sesiones e historial. La reversión es mover `~/.pi-ein/agent` de vuelta a `~/.pi/agent` o restaurar el backup.
-
-## // 02_ UPDATE_DECK
-
-En una sesión de `pi-ein`, el aviso separa deliberadamente las dos actualizaciones:
-
-```bash
-pi-ein update --all    # Pi: binario, extensiones y paquetes
-ein update             # Ein: instalador y template de la release publicada
-```
-
-`ein update` usa la release estable de GitHub, verifica el payload y actualiza la instalación gestionada por Ein con backup y rollback. Tras una actualización correcta puede refrescar Pi y las herramientas declaradas; `pi-ein update --all` es el comando directo para el bloque Pi.
-
-`cc-ein` se sincroniza con el adaptador desde este repositorio mediante `bun cc-ein/sync.ts`; `ein update` no debe presentarse como un updater genérico de cualquier runtime.
-
-> _note: el aviso de Pi no mezcla estados: `pi-ein update --all` mantiene Pi; `ein update` mantiene Ein._
+Comparten el núcleo, **no las capacidades**. Las diferencias, sin maquillar, en la [matriz de runtimes](https://samuhlo.github.io/ein-agent/03-runtimes/runtime-matrix/).
 
 ## // 03_ SDD_ENGINE
 
-Ein organiza el trabajo serio como una cadena SDD visible:
-
 ```text
-sdd-scope → sdd-map → sdd-design → sdd-tasks → sdd-apply → sdd-verify → sdd-close
+scope → map → design → tasks → apply → verify → close
 ```
 
-Los artefactos viven en `openspec/changes/<cambio>/`: alcance, mapa, diseño, checklist, progreso de apply, verificación y resumen de cierre. Los subagentes de cada fase trabajan con responsabilidades acotadas; el parent decide, enruta y explica.
+Cada fase la ejecuta un subagente acotado y deja un artefacto en `openspec/changes/<cambio>/`. El parent decide, enruta y explica; no escribe el código.
 
-OpenSpec es el registro completo y canónico del cambio. `EIN.md` aporta el contexto curado del proyecto cuando está presente; no sustituye los artefactos SDD.
+Y hay comprobaciones que no dependen del modelo: el estado de las fases lo calcula una herramienta, no una opinión.
+
+> _note: qué garantiza Ein y qué solo observa está escrito sin rebajas en [límites deterministas](https://samuhlo.github.io/ein-agent/01-concepts/deterministic-boundaries/)._
 
 ## // 04_ BLUEPRINT
-
-| LAYER | TECH | IMPLEMENTATION DETAIL |
-| :--- | :--- | :--- |
-| **Pi runtime** | Pi Coding Agent | `pi-ein` carga el agente desde `~/.pi-ein/agent` mediante `PI_CODING_AGENT_DIR`. |
-| **Claude runtime** | Claude Code | `cc-ein` traduce el core a `~/.claude-ein` mediante `CLAUDE_CONFIG_DIR`. |
-| **Core** | TypeScript + Bun | `installer/` compila el instalador standalone y compone el payload del workbench. |
-| **Workflow** | OpenSpec + SDD | `ein-pi/core/agents/` contiene los agentes de fase y `ein-pi/core/skills/` sus skills. |
-| **Delivery** | GitHub Actions | `.github/workflows/installer-release.yml` publica los binarios del instalador. |
-
-La arquitectura versionada grita sus límites:
 
 ```text
 ein-agent/
@@ -98,51 +69,53 @@ ein-agent/
 │   └── agent/      # extensiones, chains y runtime específico de Pi
 ├── pi-ein/         # adaptador + migración Pi
 ├── cc-ein/         # CLAUDE.md, hooks, sync y CLI SDD del adaptador Claude
+├── docs-site/      # documentación pública (Astro + Starlight)
 └── installer/      # CLI, TUI, paths, deploy, backups y releases
 ```
 
-`ein-pi/core/` (contenido portable, agnóstico del runtime) se comparte únicamente entre los dos adaptadores soportados. `ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench; `installer/scripts/bundle-template.ts` los compone para el despliegue. Estas superficies actuales no equivalen al camino beta A–E.
+`ein-pi/core/` (contenido portable, agnóstico del runtime) se comparte entre los dos adaptadores soportados. `ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench; `installer/scripts/bundle-template.ts` los compone para el despliegue.
+
+| LAYER | TECH |
+| :--- | :--- |
+| **Runtimes** | Pi Coding Agent · Claude Code |
+| **Core** | TypeScript + Bun |
+| **Workflow** | OpenSpec + SDD |
+| **Docs** | Astro + Starlight |
+| **Delivery** | GitHub Actions |
 
 ## // 05_ COMMAND_DECK
 
 ```bash
 ein                 # menú interactivo
-ein install         # instala o repara Ein; Pi es el destino directo
+ein install         # instala o repara
 ein update          # actualiza Ein y su template con backup
-ein doctor          # diagnostica el despliegue sin lanzar Pi
+ein doctor          # diagnostica el despliegue
 ein uninstall       # elimina Ein y conserva auth, secrets y sesiones
 ein restore         # restaura desde un backup
 ```
 
-Flags disponibles en el instalador: `--runtime pi|claude|both`, `--yes`, `--dry-run`, `--no-engram`, `--no-secrets`, `--no-linear`, `--no-hypa` y `--no-codegraph`.
+Referencia completa en [CLI](https://samuhlo.github.io/ein-agent/04-reference/cli/).
 
-## // 06_ RELEASE
+## // 06_ DOCS
 
-El baseline del instalador registrado en este repositorio/local es **EIN v0.42.0**. Las referencias locales son el mismo SemVer `0.42.0` en `installer/package.json`, `installer/src/core/version.ts` y `CHANGELOG.md`, junto con `installer-v0.42.0`; esto no verifica una publicación remota, una GitHub Release ni sus assets. Este baseline identifica el estado del instalador, no la finalización del camino beta.
+| | |
+| :--- | :--- |
+| [Overview](https://samuhlo.github.io/ein-agent/00-start/overview/) | qué es y para quién |
+| [Getting Started](https://samuhlo.github.io/ein-agent/00-start/getting-started/) | instalar y comprobar |
+| [First Run](https://samuhlo.github.io/ein-agent/00-start/first-run/) | un cambio real de principio a fin |
+| [Workflow](https://samuhlo.github.io/ein-agent/02-workflow/workflow-overview/) | las siete fases |
+| [Runtimes](https://samuhlo.github.io/ein-agent/03-runtimes/runtime-overview/) | Pi, Claude Code y sus diferencias |
+| [Limitaciones](https://samuhlo.github.io/ein-agent/05-debug/known-limitations/) | qué está probado y qué no |
 
-Se conserva [EIN v0.40.0](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.40.0) como enlace de compatibilidad y referencia de la última publicación remota, no como baseline actual del repositorio, que permanece en `0.42.0`.
+## // 07_ ESTADO
 
-Para preparar una publicación:
+Beta. El registro mantenido de qué está probado, con qué evidencia y qué puede cambiar es [`docs/roadmap-beta.md`](docs/roadmap-beta.md).
 
-1. Mantén el mismo SemVer en `installer/package.json`, `installer/src/core/version.ts` y `CHANGELOG.md`.
-2. Ejecuta `cd installer && bun run typecheck` y los tests focalizados.
-3. Crea y sube el tag de publicación `installer-v<semver>`:
+Los cambios con impacto van al [CHANGELOG](CHANGELOG.md). Las releases se publican como tags `installer-v*` desde GitHub Actions.
 
-   ```bash
-   git tag -a installer-v<semver> -m "installer-v<semver>"
-   git push origin installer-v<semver>
-   ```
+## // 08_ LICENCIA
 
-4. `.github/workflows/installer-release.yml` se activa con `installer-v*`, compila los cuatro binarios soportados, genera `checksums.txt` y publica la GitHub Release con `install.sh` y los assets.
-
-La publicación canónica ocurre en GitHub Actions. No hay publicación local ni publicación en npm.
-
-## // 07_ SOURCE_OF_TRUTH
-
-- Instalación pública: [bootstrap `install.sh`](https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh).
-- Código y cambios: [samuhlo/ein-agent](https://github.com/samuhlo/ein-agent).
-- Baseline local del instalador: `EIN v0.42.0` (`installer-v0.42.0`); no se afirma aquí la publicación remota ni la verificación independiente de sus assets.
-- Estado beta mantenido y criterios de salida: [`docs/roadmap-beta.md`](docs/roadmap-beta.md).
+[MIT](LICENSE).
 
 <div align="center">
 

@@ -1,0 +1,53 @@
+---
+const base = import.meta.env.BASE_URL;
+---
+
+<a href={base} class="ein-title">
+	<span class="mark">EIN</span>
+	<span class="sep">//</span>
+	<span class="tag">MULTI-AGENT CODING HARNESS</span>
+	<span class="beta">BETA</span>
+</a>
+
+<style>
+	.ein-title {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		text-decoration: none;
+		font-family: var(--sl-font-system-mono);
+		line-height: 1;
+		white-space: nowrap;
+		overflow: hidden;
+	}
+
+	.mark {
+		font-size: 1.05rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		color: var(--sl-color-white);
+	}
+
+	.sep {
+		color: var(--ein-yellow);
+		font-size: 0.9rem;
+	}
+
+	.tag {
+		font-size: 0.65rem;
+		letter-spacing: 0.14em;
+		color: var(--ein-dim);
+	}
+
+	.beta {
+		font-size: 0.6rem;
+		letter-spacing: 0.12em;
+		color: var(--ein-black);
+		background: var(--ein-yellow);
+		padding: 0.15rem 0.35rem;
+	}
+
+	@media (max-width: 72rem) {
+		.tag { display: none; }
+	}
+</style>

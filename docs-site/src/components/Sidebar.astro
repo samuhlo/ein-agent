@@ -1,0 +1,51 @@
+---
+// Envuelve el sidebar por defecto y le añade una barra de estado inferior con
+// los accesos rápidos del brief. La navegación normal sigue intacta.
+import Default from "@astrojs/starlight/components/Sidebar.astro";
+import Shortcuts from "./Shortcuts.astro";
+---
+
+<Default><slot /></Default>
+
+<Shortcuts />
+
+<div class="ein-statusbar">
+	<span class="hint">
+		<span class="k">[0]</span>–<span class="k">[5]</span> salta de área ·
+		<span class="k">[B]</span> busca
+	</span>
+</div>
+
+<style>
+	.ein-statusbar {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		margin-top: 1.5rem;
+		padding-top: 0.9rem;
+		border-top: 1px solid var(--sl-color-hairline);
+		font-family: var(--sl-font-system-mono);
+		font-size: 0.7rem;
+	}
+
+	.ein-statusbar a {
+		color: var(--ein-dim);
+		text-decoration: none;
+	}
+
+	.ein-statusbar a:hover {
+		color: var(--sl-color-white);
+	}
+
+	.hint {
+		color: var(--sl-color-gray-4);
+		flex-basis: 100%;
+		line-height: 1.5;
+	}
+
+	.k {
+		font-family: var(--ein-pixel);
+		font-size: 0.65rem;
+		color: var(--ein-yellow);
+	}
+</style>

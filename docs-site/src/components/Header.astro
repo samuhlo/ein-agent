@@ -1,0 +1,175 @@
+---
+// Cabecera propia: barra de navegación siempre visible, estilo herramienta.
+// El buscador deja de ocupar el centro y pasa a ser una entrada más del menú,
+// con atajo [B]. Starlight sigue renderizando su modal por debajo.
+import SiteTitle from "./SiteTitle.astro";
+import Search from "@astrojs/starlight/components/Search.astro";
+import ThemeSelect from "@astrojs/starlight/components/ThemeSelect.astro";
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const path = Astro.url.pathname;
+
+const nav = [
+	{ key: "H", label: "Portada", href: `${base}/`, match: "exact" as const },
+	{ key: "I", label: "Instalar", href: `${base}/00-start/getting-started/`, match: "exact" as const },
+	{ key: "D", label: "Documentación", href: `${base}/00-start/overview/`, match: "section" as const },
+	{ key: "G", label: "GitHub", href: "https://github.com/samuhlo/ein-agent", external: true },
+	{ key: "R", label: "Releases", href: "https://github.com/samuhlo/ein-agent/releases/latest", external: true },
+];
+
+// Gana la coincidencia más específica: `exact` antes que `section`. Sin esta
+// precedencia, Getting Started encendía "Instalar" y "Documentación" a la vez,
+// porque también es una página de documentación.
+const norm = (p: string) => (p.endsWith("/") ? p : `${p}/`);
+const here = norm(path);
+
+const activeKey =
+	nav.find((i) => i.match === "exact" && norm(i.href) === here)?.key ??
+	nav.find((i) => i.match === "section" && /\/0\d-/.test(here))?.key ??
+	null;
+---
+
+<div class="ein-header">
+	<div class="brand">
+		<SiteTitle />
+	</div>
+
+	<nav class="nav" aria-label="Principal">
+		{
+			nav.map((item) => (
+				<a
+					href={item.href}
+					class:list={["nav-item", { active: item.key === activeKey }]}
+					aria-current={item.key === activeKey ? "page" : undefined}
+					target={item.external ? "_blank" : undefined}
+					rel={item.external ? "noopener" : undefined}
+				>
+					<span class="k">[{item.key}]</span>
+					<span class="t">{item.label}</span>
+				</a>
+			))
+		}
+		<button class="nav-item search-trigger" type="button" data-ein-search>
+			<span class="k">[B]</span>
+			<span class="t">Buscar</span>
+		</button>
+	</nav>
+
+	<div class="right">
+		<ThemeSelect />
+	</div>
+</div>
+
+{/* El buscador de Starlight: oculto visualmente, su modal sigue operativo. */}
+<div class="sl-search-host"><Search /></div>
+
+<script is:inline>
+	(() => {
+		if (window.__einSearchBind) return;
+		window.__einSearchBind = true;
+
+		function openSearch() {
+			const btn = document.querySelector(".sl-search-host button[data-open-modal]");
+			if (btn instanceof HTMLElement) btn.click();
+		}
+
+		document.addEventListener("click", (e) => {
+			const trigger = e.target instanceof Element ? e.target.closest("[data-ein-search]") : null;
+			if (trigger) {
+				e.preventDefault();
+				openSearch();
+			}
+		});
+
+		document.addEventListener("keydown", (e) => {
+			if (e.metaKey || e.ctrlKey || e.altKey) return;
+			if (e.key.toLowerCase() !== "b") return;
+			const el = document.activeElement;
+			if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+			if (document.querySelector("dialog[open]")) return;
+			e.preventDefault();
+			openSearch();
+		});
+	})();
+</script>
+
+<style>
+	.ein-header {
+		display: flex;
+		align-items: center;
+		gap: 1.5rem;
+		height: 100%;
+		padding-inline: var(--sl-nav-pad-x);
+	}
+
+	.brand {
+		flex-shrink: 0;
+	}
+
+	.nav {
+		display: flex;
+		align-items: center;
+		gap: 0.15rem;
+		margin-inline-start: auto;
+	}
+
+	.nav-item {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.4rem 0.6rem;
+		font-family: var(--sl-font-system-mono);
+		font-size: 0.8rem;
+		color: var(--sl-color-gray-2);
+		text-decoration: none;
+		background: none;
+		border: 1px solid transparent;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.nav-item:hover {
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-hairline);
+	}
+
+	.nav-item.active {
+		color: var(--sl-color-white);
+		border-bottom-color: var(--ein-yellow);
+	}
+
+	.nav-item .k {
+		font-family: var(--ein-pixel);
+		font-size: 0.6rem;
+		color: var(--ein-yellow);
+	}
+
+	.search-trigger .t {
+		color: inherit;
+	}
+
+	.right {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+	}
+
+	/* El buscador nativo queda accesible para lectores de pantalla y para el
+	   modal, pero fuera del flujo visual: su entrada es [B] o el menú. */
+	.sl-search-host {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	/* Móvil: el menú se compacta a teclas, sin etiquetas. */
+	@media (max-width: 60rem) {
+		.ein-header { gap: 0.75rem; }
+		.nav-item .t { display: none; }
+		.nav-item { padding: 0.4rem 0.45rem; }
+		.nav-item .k { font-size: 0.7rem; }
+	}
+</style>

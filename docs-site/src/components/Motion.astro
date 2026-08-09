@@ -1,0 +1,104 @@
+---
+// Animaciones de entrada con GSAP. Deliberadamente contenidas: el brief prohíbe
+// animaciones constantes y elaboradas, así que aquí solo hay entradas rápidas,
+// una vez por página. Nada en bucle, nada que secuestre el scroll.
+---
+
+{/* Síncrono y antes de pintar: marca el documento como animable solo si el
+    usuario acepta movimiento. El CSS oculta el estado inicial a partir de esta
+    clase, evitando el parpadeo de contenido visible → oculto → animado. */}
+<script is:inline>
+	if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+		document.documentElement.classList.add("ein-motion");
+	}
+</script>
+
+<script>
+	import gsap from "gsap";
+
+	const REVEAL = [
+		".hero h1",
+		".hero .badge",
+		".hero .tagline",
+		".hero .btn",
+		".hero .kbd-hint",
+		".landing .panel",
+		".landing .entry",
+		".landing .chain li",
+	].join(", ");
+
+	function reduced(): boolean {
+		return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+	}
+
+	// Red de seguridad: si algo falla en la animación, el contenido no puede
+	// quedarse invisible por culpa del CSS que lo ocultó.
+	function revealAll() {
+		gsap.set(REVEAL, { visibility: "visible", clearProps: "opacity,transform" });
+	}
+
+	function animate() {
+		if (reduced()) {
+			revealAll();
+			return;
+		}
+
+		try {
+			gsap.defaults({ ease: "power2.out" });
+
+			// --- Portada ---
+			if (document.querySelector(".hero")) {
+				// autoAlpha gestiona visibility además de opacity, así que estas
+				// entradas quitan el `visibility: hidden` que puso el CSS.
+				const tl = gsap.timeline();
+				tl.from(".hero h1", { y: 24, autoAlpha: 0, duration: 0.5 })
+					.from(".hero .badge", { autoAlpha: 0, scale: 0.85, duration: 0.35 }, "-=0.25")
+					.from(".hero .tagline", { y: 12, autoAlpha: 0, duration: 0.4 }, "-=0.2")
+					.from(".hero .btn", { y: 10, autoAlpha: 0, duration: 0.35, stagger: 0.06 }, "-=0.2")
+					.from(".hero .kbd-hint", { autoAlpha: 0, duration: 0.3 }, "-=0.1");
+
+				gsap.from(".landing .panel", {
+					y: 16,
+					autoAlpha: 0,
+					duration: 0.45,
+					stagger: 0.08,
+					delay: 0.3,
+				});
+
+				gsap.from(".landing .chain li", {
+					x: -8,
+					autoAlpha: 0,
+					duration: 0.3,
+					stagger: 0.04,
+					delay: 0.45,
+				});
+
+				gsap.from(".landing .entry", {
+					y: 12,
+					autoAlpha: 0,
+					duration: 0.4,
+					stagger: 0.05,
+					delay: 0.5,
+				});
+			}
+
+			// --- Páginas de documentación ---
+			// Sin ocultar en CSS: la transición de vista ya cubre el cambio, y
+			// esconder el texto de una página de lectura es peor que no animarlo.
+			const content = document.querySelector(".sl-markdown-content");
+			if (content) {
+				gsap.from(content, { y: 8, autoAlpha: 0, duration: 0.35 });
+			}
+		} catch {
+			revealAll();
+		}
+	}
+
+	document.addEventListener("astro:page-load", animate);
+
+	// Antes de cambiar de página: matar lo vivo para que no se arrastre al DOM
+	// nuevo, y dejar el contenido visible por si el destino no lo anima.
+	document.addEventListener("astro:before-swap", () => {
+		gsap.globalTimeline.clear();
+	});
+</script>
