@@ -1,0 +1,80 @@
+---
+// Anterior/siguiente con lenguaje de buffers en lugar de flechas de blog.
+const { dir, pagination } = Astro.locals.starlightRoute;
+const { prev, next } = pagination;
+const isRtl = dir === "rtl";
+---
+
+<div class="ein-pager">
+	{
+		prev ? (
+			<a href={prev.href} rel="prev" class="slot">
+				<span class="k">{isRtl ? "[→]" : "[←]"} PREV</span>
+				<span class="label">{prev.label}</span>
+			</a>
+		) : (
+			<div class="slot empty" />
+		)
+	}
+	{
+		next ? (
+			<a href={next.href} rel="next" class="slot next">
+				<span class="k">NEXT {isRtl ? "[←]" : "[→]"}</span>
+				<span class="label">{next.label}</span>
+			</a>
+		) : (
+			<div class="slot empty" />
+		)
+	}
+</div>
+
+<style>
+	.ein-pager {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 1px;
+		background: var(--sl-color-hairline);
+		border: 1px solid var(--sl-color-hairline);
+		margin-top: 1rem;
+	}
+
+	.slot {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		padding: 0.9rem 1rem;
+		background: var(--sl-color-bg);
+		text-decoration: none;
+		min-height: 4rem;
+	}
+
+	.slot.next {
+		align-items: flex-end;
+		text-align: right;
+	}
+
+	.slot.empty {
+		background: var(--sl-color-bg);
+	}
+
+	a.slot:hover {
+		background: var(--sl-color-gray-6);
+	}
+
+	.k {
+		font-family: var(--ein-pixel);
+		font-size: 0.6rem;
+		letter-spacing: 0.04em;
+		color: var(--ein-yellow);
+	}
+
+	.label {
+		font-size: 0.9rem;
+		color: var(--sl-color-white);
+	}
+
+	@media (max-width: 40rem) {
+		.ein-pager { grid-template-columns: 1fr; }
+		.slot.empty { display: none; }
+	}
+</style>

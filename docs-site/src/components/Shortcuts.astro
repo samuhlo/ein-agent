@@ -1,0 +1,62 @@
+---
+// Atajos de teclado reales. Si la interfaz pinta [0] o [G], esa tecla tiene que
+// hacer algo: un rótulo que no funciona es decoración disfrazada de función.
+// La navegación normal sigue intacta; esto es un acelerador, no la única vía.
+---
+
+<script>
+	import { navigate } from "astro:transitions/client";
+
+	// Con transiciones de vista este script se reejecuta en cada navegación:
+	// sin guarda, cada página añadiría otro listener al mismo `document`.
+	if (!(window as any).__einShortcuts) {
+		(window as any).__einShortcuts = true;
+
+		const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+		const routes: Record<string, string> = {
+			"0": `${base}/00-start/overview/`,
+			"1": `${base}/01-concepts/orchestrator/`,
+			"2": `${base}/02-workflow/workflow-overview/`,
+			"3": `${base}/03-runtimes/runtime-overview/`,
+			"4": `${base}/04-reference/cli/`,
+			"5": `${base}/05-debug/troubleshooting/`,
+			i: `${base}/00-start/getting-started/`,
+			d: `${base}/00-start/overview/`,
+			h: `${base}/`,
+			g: "https://github.com/samuhlo/ein-agent",
+			r: "https://github.com/samuhlo/ein-agent/releases/latest",
+		};
+
+		function isTyping(el: Element | null): boolean {
+			if (!el) return false;
+			const tag = el.tagName;
+			return (
+				tag === "INPUT" ||
+				tag === "TEXTAREA" ||
+				tag === "SELECT" ||
+				(el as HTMLElement).isContentEditable
+			);
+		}
+
+		document.addEventListener("keydown", (e) => {
+			if (e.metaKey || e.ctrlKey || e.altKey) return;
+			if (isTyping(e.target as Element)) return;
+			if (document.querySelector("dialog[open]")) return;
+
+			const dest = routes[e.key.toLowerCase()];
+			if (!dest) return;
+
+			e.preventDefault();
+
+			if (dest.startsWith("http")) {
+				window.open(dest, "_blank", "noopener");
+				return;
+			}
+
+			// navigate() dispara la transición de vista. Con location.href sería una
+			// recarga completa: pantalla en blanco y salto.
+			navigate(dest);
+		});
+	}
+</script>

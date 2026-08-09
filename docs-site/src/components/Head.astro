@@ -1,0 +1,13 @@
+---
+// Override envolvente: reutiliza el Head por defecto y le añade el router de
+// transiciones de vista de Astro. Es el patrón recomendado para Starlight —
+// sustituir Head entero se llevaría por delante title, charset y meta.
+import Default from "@astrojs/starlight/components/Head.astro";
+import { ClientRouter } from "astro:transitions";
+import Motion from "./Motion.astro";
+---
+
+<Default><slot /></Default>
+
+<ClientRouter />
+<Motion />

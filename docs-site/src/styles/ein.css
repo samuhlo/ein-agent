@@ -1,0 +1,267 @@
+/* EIN — brutalismo de terminal. Estructura y tipografía cargan la identidad;
+   el amarillo es acento, no decoración.
+
+   --ein-pixel se usa SOLO en teclas de atajo ([0], [G], números de fase) y en
+   los rótulos PREV/NEXT. Nada más: en títulos y símbolos como `//` queda sucio,
+   y a tamaño de párrafo es ilegible. */
+
+@import "@fontsource/silkscreen/400.css";
+@import "@fontsource/silkscreen/700.css";
+
+:root {
+	--ein-pixel: "Silkscreen", "Courier New", monospace;
+	--ein-yellow: #f5c518;
+	--ein-black: #0b0b0c;
+	--ein-panel: #131316;
+	--ein-line: #2a2a30;
+	--ein-text: #e6e6e8;
+	--ein-dim: #8b8b94;
+
+	--sl-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+	--sl-font-system-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
+
+	--sl-content-width: 48rem;
+	--sl-nav-height: 3.5rem;
+	--sl-text-h1: 2.25rem;
+	--sl-text-h2: 1.4rem;
+	--sl-text-h3: 1.1rem;
+}
+
+:root[data-theme="dark"] {
+	--sl-color-accent: var(--ein-yellow);
+	--sl-color-accent-high: var(--ein-yellow);
+	--sl-color-accent-low: #3a2f05;
+	--sl-color-white: #ffffff;
+	--sl-color-gray-1: var(--ein-text);
+	--sl-color-gray-2: #c4c4ca;
+	--sl-color-gray-3: var(--ein-dim);
+	--sl-color-gray-4: #5a5a64;
+	--sl-color-gray-5: var(--ein-line);
+	--sl-color-gray-6: var(--ein-panel);
+	--sl-color-black: var(--ein-black);
+	--sl-color-bg: var(--ein-black);
+	--sl-color-bg-nav: var(--ein-black);
+	--sl-color-bg-sidebar: var(--ein-black);
+	--sl-color-hairline: var(--ein-line);
+	--sl-color-hairline-shade: var(--ein-line);
+	--sl-color-text-accent: var(--ein-yellow);
+}
+
+:root[data-theme="light"] {
+	--sl-color-accent: #8a6d00;
+	--sl-color-accent-high: #4a3a00;
+	--sl-color-bg: #fbfbf9;
+	--sl-color-hairline: #d8d8d2;
+	--sl-color-hairline-shade: #d8d8d2;
+}
+
+/* ---- Estado inicial de las animaciones ----
+   El script de GSAP va diferido: corre después del primer pintado. Si el estado
+   inicial lo pusiera GSAP, el contenido se vería, desaparecería y entraría —
+   el parpadeo clásico. Se oculta aquí, en CSS, que sí bloquea el pintado.
+
+   La clase `ein-motion` la pone un script síncrono en el head, y solo si el
+   usuario no ha pedido movimiento reducido. Sin JS, sin GSAP o con movimiento
+   reducido, la clase no está y todo se ve normal: nunca queda contenido
+   invisible por un fallo de script. */
+
+.ein-motion .hero h1,
+.ein-motion .hero .badge,
+.ein-motion .hero .tagline,
+.ein-motion .hero .btn,
+.ein-motion .hero .kbd-hint,
+.ein-motion .landing .panel,
+.ein-motion .landing .entry,
+.ein-motion .landing .chain li {
+	visibility: hidden;
+}
+
+/* ---- Transiciones de vista ----
+   Corta y con desplazamiento mínimo: una transición larga entre páginas de
+   documentación estorba a quien está buscando algo. Se desactiva entera si el
+   usuario pide movimiento reducido. */
+
+@media (prefers-reduced-motion: no-preference) {
+	::view-transition-old(root) {
+		animation: ein-out 0.18s cubic-bezier(0.4, 0, 1, 1) both;
+	}
+
+	::view-transition-new(root) {
+		animation: ein-in 0.26s cubic-bezier(0, 0, 0.2, 1) both;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	::view-transition-old(root),
+	::view-transition-new(root) {
+		animation: none;
+	}
+}
+
+@keyframes ein-out {
+	to { opacity: 0; transform: translateY(-4px); }
+}
+
+@keyframes ein-in {
+	from { opacity: 0; transform: translateY(6px); }
+}
+
+/* ---- Cabecera: barra de estado, no cabecera de SaaS ---- */
+
+.header {
+	border-bottom: 1px solid var(--sl-color-hairline);
+	background: var(--sl-color-bg-nav);
+	box-shadow: none;
+}
+
+/* ---- Sidebar: ventanas numeradas ---- */
+
+#starlight__sidebar {
+	border-right: 1px solid var(--sl-color-hairline);
+}
+
+.sidebar-content summary,
+.sidebar-content .large {
+	font-family: var(--sl-font-system-mono);
+	font-size: 0.7rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--ein-dim);
+}
+
+.sidebar-content a {
+	font-size: 0.875rem;
+	border-radius: 0;
+	border-left: 2px solid transparent;
+	padding-left: 0.65rem;
+}
+
+.sidebar-content a[aria-current="page"] {
+	background: transparent;
+	color: var(--ein-yellow);
+	border-left-color: var(--ein-yellow);
+	font-weight: 500;
+}
+
+.sidebar-content a:hover {
+	border-left-color: var(--sl-color-gray-4);
+}
+
+/* ---- Contenido ---- */
+
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3 {
+	font-family: var(--sl-font-system-mono);
+	letter-spacing: -0.01em;
+}
+
+.sl-markdown-content h2 {
+	border-top: 1px solid var(--sl-color-hairline);
+	padding-top: 1.75rem;
+	margin-top: 3rem !important;
+}
+
+.sl-markdown-content h2::before {
+	content: "// ";
+	color: var(--ein-yellow);
+}
+
+.sl-markdown-content a {
+	text-underline-offset: 3px;
+	text-decoration-color: var(--sl-color-gray-4);
+}
+
+.sl-markdown-content code:not(pre code) {
+	background: var(--sl-color-gray-6);
+	border: 1px solid var(--sl-color-hairline);
+	border-radius: 2px;
+	padding: 0.1em 0.35em;
+	font-size: 0.875em;
+	color: var(--ein-text);
+}
+
+/* ---- Bloques de terminal: alto contraste, sin decoración ---- */
+
+.expressive-code .frame {
+	border-radius: 2px !important;
+	border: 1px solid var(--sl-color-hairline);
+	box-shadow: none !important;
+}
+
+/* ---- Tablas: densas y con líneas visibles ---- */
+
+.sl-markdown-content table {
+	font-size: 0.875rem;
+	border-collapse: collapse;
+	width: 100%;
+}
+
+.sl-markdown-content th {
+	font-family: var(--sl-font-system-mono);
+	font-size: 0.7rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--ein-dim);
+	text-align: left;
+	border-bottom: 1px solid var(--sl-color-hairline);
+	padding: 0.5rem 0.75rem;
+}
+
+.sl-markdown-content td {
+	border-bottom: 1px solid var(--sl-color-hairline);
+	padding: 0.5rem 0.75rem;
+	vertical-align: top;
+}
+
+/* ---- Callouts de sistema: [INFO] [WARN] [BETA] ---- */
+
+.starlight-aside {
+	border-radius: 0;
+	border: 1px solid var(--sl-color-hairline);
+	border-left-width: 3px;
+	background: var(--sl-color-gray-6);
+	padding: 0.9rem 1.1rem;
+}
+
+.starlight-aside__title {
+	font-family: var(--sl-font-system-mono);
+	font-size: 0.7rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.starlight-aside--note { border-left-color: var(--sl-color-gray-4); }
+.starlight-aside--tip { border-left-color: var(--ein-yellow); }
+.starlight-aside--caution { border-left-color: #d98a00; }
+.starlight-aside--danger { border-left-color: #d94f2b; }
+
+/* ---- Buscador: prompt, no botón de SaaS ---- */
+
+site-search button[data-open-modal] {
+	border-radius: 2px;
+	border: 1px solid var(--sl-color-hairline);
+	background: var(--sl-color-gray-6);
+	font-family: var(--sl-font-system-mono);
+	font-size: 0.8rem;
+}
+
+/* ---- Tabla de contenidos ---- */
+
+starlight-toc nav > h2 {
+	font-family: var(--sl-font-system-mono);
+	font-size: 0.65rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--ein-dim);
+}
+
+starlight-toc a {
+	border-radius: 0;
+	font-size: 0.8rem;
+}
+
+starlight-toc a[aria-current="true"] {
+	color: var(--ein-yellow);
+	font-weight: 500;
+}

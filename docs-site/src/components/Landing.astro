@@ -1,0 +1,335 @@
+---
+import Shortcuts from "./Shortcuts.astro";
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+const phases = ["scope", "map", "design", "tasks", "apply", "verify", "close"];
+
+const runtimes = [
+	{ name: "Pi Coding Agent", surface: "pi-ein", home: "~/.pi-ein/agent", state: "SOPORTADO" },
+	{ name: "Claude Code", surface: "cc-ein", home: "~/.claude-ein", state: "SOPORTADO" },
+];
+
+const entries = [
+	{ key: "0", label: "START", href: `${base}/00-start/overview/`, desc: "Qué es, cómo se instala, primera ejecución" },
+	{ key: "1", label: "CONCEPTS", href: `${base}/01-concepts/orchestrator/`, desc: "Orquestador, SDD, contexto, límites" },
+	{ key: "2", label: "WORKFLOW", href: `${base}/02-workflow/workflow-overview/`, desc: "Las siete fases y sus artefactos" },
+	{ key: "3", label: "RUNTIMES", href: `${base}/03-runtimes/runtime-overview/`, desc: "Pi, Claude Code y sus diferencias" },
+	{ key: "4", label: "REFERENCE", href: `${base}/04-reference/cli/`, desc: "CLI, filesystem, integraciones" },
+	{ key: "5", label: "DEBUG", href: `${base}/05-debug/troubleshooting/`, desc: "Fallos, doctor, límites, desinstalar" },
+];
+---
+
+<Shortcuts />
+
+<div class="landing">
+	<section class="hero">
+		<div class="hero-head">
+			<h1>EIN <span class="slash">//</span></h1>
+			<span class="badge">BETA</span>
+		</div>
+		<p class="tagline">
+			Un harness de coding-agent que convierte trabajo ambiguo en cambios
+			<strong>pequeños, explicados y verificados</strong>.
+		</p>
+		<div class="actions">
+			<a class="btn primary" href={`${base}/00-start/getting-started/`}>
+				<span class="k">[I]</span> Instalar
+			</a>
+			<a class="btn" href={`${base}/00-start/overview/`}>
+				<span class="k">[D]</span> Documentación
+			</a>
+			<a class="btn" href="https://github.com/samuhlo/ein-agent">
+				<span class="k">[G]</span> GitHub
+			</a>
+		</div>
+		<p class="kbd-hint">
+			Las teclas entre corchetes funcionan desde cualquier página:
+			<kbd>0</kbd>–<kbd>5</kbd> salta de área, <kbd>B</kbd> abre el buscador.
+		</p>
+	</section>
+
+	<section class="panel install">
+		<div class="panel-title">INSTALACIÓN</div>
+		<pre><code>curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
+ein</code></pre>
+		<p class="note">
+			El menú pregunta el runtime. Tus <code>pi</code> y <code>claude</code> vanilla
+			quedan intactos: EIN entra por superficies aisladas.
+		</p>
+	</section>
+
+	<div class="two-col">
+		<section class="panel">
+			<div class="panel-title">CICLO SDD</div>
+			<ol class="chain">
+				{phases.map((p, i) => (
+					<li>
+						<span class="n">{String(i).padStart(2, "0")}</span>
+						<span class="p">{p}</span>
+					</li>
+				))}
+			</ol>
+			<p class="note">
+				Cada fase deja un artefacto en disco. El estado del cambio vive fuera de
+				la conversación, así que se puede retomar en otra sesión o en otro runtime.
+			</p>
+		</section>
+
+		<section class="panel">
+			<div class="panel-title">RUNTIMES</div>
+			<table class="rt">
+				<tbody>
+					{runtimes.map((r) => (
+						<tr>
+							<td class="rt-name">{r.name}</td>
+							<td><code>{r.surface}</code></td>
+							<td class="rt-home">{r.home}</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+			<p class="note">
+				Los dos están soportados, pero <strong>no ofrecen exactamente las mismas
+				capacidades</strong>. La matriz de runtimes documenta las diferencias sin
+				maquillarlas.
+			</p>
+		</section>
+	</div>
+
+	<section class="index">
+		<div class="panel-title">ÍNDICE</div>
+		<div class="grid">
+			{entries.map((e) => (
+				<a class="entry" href={e.href}>
+					<span class="key">[{e.key}]</span>
+					<span class="label">{e.label}</span>
+					<span class="desc">{e.desc}</span>
+				</a>
+			))}
+		</div>
+	</section>
+</div>
+
+<style>
+	.landing {
+		max-width: 62rem;
+		margin: 0 auto;
+		padding: 0 1.5rem 5rem;
+		text-align: left;
+	}
+
+	/* ---- hero ---- */
+
+	.hero {
+		padding: 3.5rem 0 3rem;
+		border-bottom: 1px solid var(--sl-color-hairline);
+	}
+
+	.hero-head {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.hero h1 {
+		font-family: var(--sl-font-system-mono);
+		font-size: clamp(3rem, 12vw, 5.5rem);
+		font-weight: 700;
+		letter-spacing: -0.03em;
+		line-height: 1;
+		margin: 0;
+		color: var(--sl-color-white);
+	}
+
+	.slash { color: var(--ein-yellow); }
+
+	.badge {
+		font-family: var(--sl-font-system-mono);
+		font-size: 0.7rem;
+		letter-spacing: 0.14em;
+		background: var(--ein-yellow);
+		color: #0b0b0c;
+		padding: 0.3rem 0.5rem;
+		align-self: flex-start;
+		margin-top: 0.6rem;
+	}
+
+	.tagline {
+		font-size: 1.15rem;
+		line-height: 1.6;
+		color: var(--sl-color-gray-2);
+		max-width: 38rem;
+		margin: 1.5rem 0 0;
+	}
+
+	.tagline strong { color: var(--sl-color-white); font-weight: 600; }
+
+	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6rem;
+		margin-top: 2rem;
+	}
+
+	.btn {
+		font-family: var(--sl-font-system-mono);
+		font-size: 0.85rem;
+		padding: 0.6rem 1rem;
+		border: 1px solid var(--sl-color-hairline);
+		color: var(--sl-color-white);
+		text-decoration: none;
+		transition: background 0.12s ease;
+	}
+
+	.btn:hover { background: var(--sl-color-gray-6); }
+
+	.btn.primary {
+		background: var(--ein-yellow);
+		border-color: var(--ein-yellow);
+		color: #0b0b0c;
+		font-weight: 600;
+	}
+
+	.btn.primary:hover { background: #ffd83d; }
+
+	.kbd-hint {
+		font-size: 0.8rem;
+		color: var(--sl-color-gray-4);
+		margin: 1.1rem 0 0;
+	}
+
+	.kbd-hint kbd {
+		font-family: var(--ein-pixel);
+		font-size: 0.7rem;
+		background: var(--sl-color-gray-6);
+		border: 1px solid var(--sl-color-hairline);
+		padding: 0.1rem 0.35rem;
+		color: var(--ein-yellow);
+	}
+	.btn.primary .k { color: #0b0b0c; opacity: 0.55; }
+	.k { color: var(--ein-yellow); }
+
+	/* ---- paneles ---- */
+
+	.panel-title {
+		font-family: var(--sl-font-system-mono);
+		font-size: 0.65rem;
+		letter-spacing: 0.16em;
+		color: var(--ein-dim);
+		margin-bottom: 0.9rem;
+	}
+
+	.panel {
+		padding: 1.5rem 0;
+		border-bottom: 1px solid var(--sl-color-hairline);
+	}
+
+	.install pre {
+		background: var(--sl-color-gray-6);
+		border: 1px solid var(--sl-color-hairline);
+		padding: 0.9rem 1rem;
+		overflow-x: auto;
+		margin: 0;
+	}
+
+	.install code {
+		font-family: var(--sl-font-system-mono);
+		font-size: 0.85rem;
+		color: var(--sl-color-white);
+		white-space: pre;
+	}
+
+	.note {
+		font-size: 0.875rem;
+		line-height: 1.6;
+		color: var(--sl-color-gray-3);
+		margin: 0.9rem 0 0;
+	}
+
+	.note code { font-size: 0.85em; }
+
+	.two-col {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 2.5rem;
+	}
+
+	/* ---- cadena SDD ---- */
+
+	.chain {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0;
+	}
+
+	.chain li {
+		display: flex;
+		align-items: baseline;
+		gap: 0.75rem;
+		font-family: var(--sl-font-system-mono);
+		font-size: 0.9rem;
+		padding: 0.3rem 0;
+		border-bottom: 1px dashed var(--sl-color-hairline);
+	}
+
+	.chain .n { font-family: var(--ein-pixel); color: var(--ein-yellow); font-size: 0.7rem; }
+	.chain .p { color: var(--sl-color-white); }
+
+	/* ---- runtimes ---- */
+
+	.rt { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+	.rt td { padding: 0.45rem 0; border-bottom: 1px dashed var(--sl-color-hairline); }
+	.rt-name { color: var(--sl-color-white); }
+	.rt-home { font-family: var(--sl-font-system-mono); font-size: 0.75rem; color: var(--ein-dim); text-align: right; }
+
+	/* ---- índice ---- */
+
+	.index { padding-top: 2rem; }
+
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+		gap: 1px;
+		background: var(--sl-color-hairline);
+		border: 1px solid var(--sl-color-hairline);
+	}
+
+	.entry {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		padding: 1.1rem 1.2rem;
+		background: var(--sl-color-bg);
+		text-decoration: none;
+		transition: background 0.12s ease;
+	}
+
+	.entry:hover { background: var(--sl-color-gray-6); }
+
+	.entry .key {
+		font-family: var(--ein-pixel);
+		font-size: 0.7rem;
+		color: var(--ein-yellow);
+	}
+
+	.entry .label {
+		font-family: var(--sl-font-system-mono);
+		font-size: 0.95rem;
+		letter-spacing: 0.06em;
+		color: var(--sl-color-white);
+	}
+
+	.entry .desc {
+		font-size: 0.8rem;
+		line-height: 1.5;
+		color: var(--sl-color-gray-3);
+	}
+
+	@media (max-width: 50rem) {
+		.two-col { grid-template-columns: 1fr; gap: 0; }
+	}
+</style>
