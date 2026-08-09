@@ -407,8 +407,6 @@ export async function confirmDelegatedDelivery(
 	ctx: ExtensionContext,
 	options: DeliveryGateOptions,
 ): Promise<ToolCallEventResult | undefined> {
-	// Sin UI no podemos confirmar aquí; el guard de bash del subagente decide.
-	if (!ctx.hasUI) return undefined;
 	if (!delegationIsDelivery(input)) return undefined;
 	const texts = collectDelegationTexts(input);
 	// Política de confirmación. El grant se EMITE siempre que dejemos
@@ -422,6 +420,8 @@ export async function confirmDelegatedDelivery(
 		grantDelegatedDelivery(ctx.cwd);
 		return undefined;
 	}
+	// Sin UI no podemos confirmar aquí; el guard de bash del subagente decide.
+	if (!ctx.hasUI) return undefined;
 	const preview = truncatePreview(texts.join(" | "), 180);
 	const approved = await ctx.ui.confirm(
 		pick(
