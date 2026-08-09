@@ -22,6 +22,7 @@ const {
 	applyModelConfigAsync,
 	listDiscoverableAgents,
 	readModelConfig,
+	inspectModelConfig,
 	writeModelConfig,
 	readOrchestratorModel,
 	updateGlobalDefaultModel,
@@ -75,6 +76,12 @@ describe("models.json roundtrip", () => {
 
 	test("JSON roto no revienta: devuelve config vacía", () => {
 		writeFileSync(modelConfigPath(CWD), "{esto no es json");
+		expect(readModelConfig(CWD)).toEqual({});
+	});
+
+	test("inspectModelConfig preserves malformed explicit values without changing the legacy reader", () => {
+		writeFileSync(modelConfigPath(CWD), JSON.stringify({ "sdd-apply": { thinking: "invented" } }));
+		expect(inspectModelConfig(CWD)).toMatchObject({ status: "invalid", source: "global", reason: "invalid-evidence" });
 		expect(readModelConfig(CWD)).toEqual({});
 	});
 

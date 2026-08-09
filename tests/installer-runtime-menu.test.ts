@@ -21,6 +21,8 @@ import {
   type RuntimeInstallResult,
 } from "../installer/src/cli/install.ts";
 import { runMenu, selectInstallTarget } from "../installer/src/cli/menu.ts";
+import { renderDoctorAdvisor, renderInstallerAdvisorHandoff, runDoctorCommand } from "../installer/src/cli/doctor.ts";
+import { evaluateSharedConfigUpdateAdvisor } from "../ein-pi/agent/lib/shared-config-update-advisor.ts";
 import {
   CC_EIN_PAYLOAD_FILES,
   CC_EIN_PAYLOAD_REQUIRED_PATHS,
@@ -257,6 +259,60 @@ describe("Claude runtime runner", () => {
 
     expect(result.ok).toBe(true);
     expect(cleaned).toBe(true);
+  });
+});
+
+describe("Installer-owned advisor handoff", () => {
+  test("real doctor command reads advisor evidence and appends shared semantics without changing exit ownership", async () => {
+    const logs: string[] = [];
+    let readCalls = 0;
+    const code = await runDoctorCommand({
+      exists: () => true,
+      detectPlatform: () => ({ os: "darwin", arch: "arm64" } as any),
+      runDoctor: () => ({ groups: [], fail: 0, warn: 0, total: 0, result: "OK" }),
+      readAdvisor: async () => {
+        readCalls += 1;
+        return {
+          installed: { status: "valid", source: "installer-marker", freshness: "current", reason: "read-success", version: "0.42.0", owner: "installer" },
+          release: { status: "valid", source: "release-provider", freshness: "current", reason: "read-success", version: "0.43.0" },
+          owner: { status: "valid", source: "installer-marker", freshness: "current", reason: "read-success", version: "0.42.0", owner: "installer", action: "update", actionId: "installer.update" },
+          capability: { status: "valid", source: "installer-capability", freshness: "current", reason: "read-success", supported: true },
+        };
+      },
+      log: (line: string) => logs.push(line),
+    });
+    expect(code).toBe(0);
+    expect(readCalls).toBe(1);
+    expect(logs.join("\\n")).toContain("Update: status=update-available");
+    expect(logs.join("\\n")).toContain("performed: false");
+  });
+
+  test("doctor renders the same normalized statuses and inert ownership metadata", () => {
+    const result = evaluateSharedConfigUpdateAdvisor({
+      configuration: {
+        mode: { status: "valid", source: "project\u001b[2J", value: "solo", freshness: "current" },
+        model: { status: "valid", source: "user", value: "configured", reason: "private\r", freshness: "current" },
+      },
+      update: {
+        installed: { status: "valid", source: "installer-marker", version: "0.42.0", freshness: "current" },
+        release: { status: "valid", source: "release-provider", version: "0.43.0", freshness: "current" },
+        owner: { status: "valid", source: "installer-marker", owner: "installer", action: "update", actionId: "installer.update", freshness: "current" },
+        capability: { status: "valid", source: "installer-capability", supported: true, freshness: "current" },
+      },
+    });
+    const rendered = renderDoctorAdvisor(result);
+    expect(rendered).toContain("Configuration: status=current");
+    expect(rendered).toContain("Update: status=update-available");
+    expect(rendered).toContain("performed: false");
+    expect(rendered).not.toMatch(/\x1b|\r|spawn|runUpdate/);
+  });
+
+  test("renders inert metadata and never dispatches an installer action", () => {
+    const rendered = renderInstallerAdvisorHandoff({ owner: "installer", action: "update", actionId: "installer.update", performed: false });
+    expect(rendered).toContain("installer.update");
+    expect(rendered).toContain("performed: false");
+    expect(rendered).not.toContain("spawn");
+    expect(renderInstallerAdvisorHandoff({ owner: "installer", action: "update", actionId: "bad", performed: false })).toContain("installer.unknown");
   });
 });
 

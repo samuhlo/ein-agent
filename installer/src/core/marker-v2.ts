@@ -56,7 +56,7 @@ function isV2(value: unknown): value is MarkerV2 {
     typeof marker.asset.assetName === "string" && typeof marker.asset.sha256 === "string";
 }
 
-export function readMarkerV2(caps: UpdateCaps, markerPath = INSTALL_MARKER): MarkerV1 | MarkerV2 | null {
+export function readMarkerV2(caps: Pick<UpdateCaps, "fs">, markerPath = INSTALL_MARKER): MarkerV1 | MarkerV2 | null {
   if (!caps.fs.exists(markerPath)) return null;
   try {
     const raw = new TextDecoder().decode(caps.fs.readFile(markerPath));

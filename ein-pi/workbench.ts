@@ -11,13 +11,20 @@ import {
 } from "./agent/lib/runtime-session-adapters.ts";
 import {
   classifyWorkbenchExit,
+  createWorkbenchAdvisor,
+  renderWorkbenchAdvisor,
   runWorkbench,
   type WorkbenchDependencies,
   type WorkbenchResult,
 } from "./agent/lib/workbench.ts";
+import type { SharedConfigUpdateAdvisorResult } from "./agent/lib/shared-config-update-advisor.ts";
 
 const HELP = "Usage: bun ein-pi/workbench.ts [--project <root>]... [--help]";
 const NON_TTY = "Workbench requires TTY stdin and stdout. Re-run interactively, optionally with --project <root>.";
+
+export function renderLauncherAdvisor(result: SharedConfigUpdateAdvisorResult): string {
+  return renderWorkbenchAdvisor(result);
+}
 
 export type ParsedWorkbenchArgs =
   | { kind: "help" }
@@ -91,6 +98,7 @@ function productionDependencies(candidates: readonly string[]): WorkbenchDepende
     output: { write: (text) => { stdout.write(`${text}\n`); } },
     adapter: createRuntimeSessionAdapter,
     launch: { build: buildLaunchPlan, execute: executeLaunchPlan, executor },
+    advisor: state => createWorkbenchAdvisor(state),
     doctor: async () => ({ outcome: "unavailable", overall: "unavailable", checks: [] }),
     signal: abort.signal,
     dispose: () => { process.removeListener("SIGINT", onSigint); lines.close(); },

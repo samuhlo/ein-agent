@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { modeDirective, readMode, writeMode } from "../ein-pi/agent/lib/mode";
+import { inspectMode, modeDirective, readMode, writeMode } from "../ein-pi/agent/lib/mode";
 
 let DIR: string;
 
@@ -42,6 +42,17 @@ describe("readMode / writeMode", () => {
 		mkdirSync(join(DIR, ".pi", "ein"), { recursive: true });
 		require("node:fs").writeFileSync(join(DIR, ".pi", "ein", "mode.json"), "{ broken");
 		expect(["solo", "team"]).toContain(readMode(DIR));
+	});
+
+	test("inspectMode preserves explicit invalid evidence without changing readMode", () => {
+		mkdirSync(join(DIR, ".pi", "ein"), { recursive: true });
+		require("node:fs").writeFileSync(join(DIR, ".pi", "ein", "mode.json"), JSON.stringify({ mode: "sideways" }));
+		expect(inspectMode(DIR)).toMatchObject({ status: "invalid", source: "project", reason: "invalid-evidence" });
+		expect(["solo", "team"]).toContain(readMode(DIR));
+	});
+
+	test("inspectMode records a known default when both authorities are missing", () => {
+		expect(inspectMode(DIR)).toMatchObject({ status: "valid", source: "default", value: "solo", reason: "defaulted" });
 	});
 });
 

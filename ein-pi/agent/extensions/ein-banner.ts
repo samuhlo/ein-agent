@@ -29,10 +29,11 @@ import { readPersonaMode } from "../lib/persona";
 import { readMode } from "../lib/mode";
 import { GitBannerController, renderGitBannerRows, type ProcessRunner } from "../lib/banner-git";
 import {
-  collectPiEinUpdates,
+  detectPiEinUpdates as detectCanonicalPiEinUpdates,
   isPiEinRuntime,
   startPiEinUpdateNotice,
   UPDATE_CHECK_TIMEOUT_MS,
+  type PiEinUpdateObservation,
 } from "../lib/ein-update-notice";
 
 const execFileAsync = promisify(execFile);
@@ -233,23 +234,33 @@ function isNewerVersion(candidate: string, current: string): boolean {
   return false;
 }
 
-async function checkPiBinaryUpdate(): Promise<boolean> {
-  if (process.env.PI_OFFLINE || process.env.PI_SKIP_VERSION_CHECK) return false;
+function updateObservation(
+  source: PiEinUpdateObservation["source"],
+  status: PiEinUpdateObservation["status"],
+  reason: string,
+  freshness: PiEinUpdateObservation["freshness"] = "current",
+): PiEinUpdateObservation {
+  return { source, status, reason, freshness };
+}
+
+async function checkPiBinaryUpdate(): Promise<PiEinUpdateObservation> {
+  if (process.env.PI_OFFLINE || process.env.PI_SKIP_VERSION_CHECK) return updateObservation("binary", "skipped", "offline-check");
   try {
     const response = await fetch("https://pi.dev/api/latest-version", {
       headers: { accept: "application/json" },
       signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
     });
-    if (!response.ok) return false;
+    if (!response.ok) return updateObservation("binary", "unavailable", "provider-unavailable", "unknown");
     const payload = (await response.json()) as { version?: unknown };
-    return typeof payload.version === "string" && isNewerVersion(payload.version, VERSION);
+    if (typeof payload.version !== "string") return updateObservation("binary", "error", "malformed-response", "unknown");
+    return updateObservation("binary", isNewerVersion(payload.version, VERSION) ? "update-available" : "current", "read-success");
   } catch {
-    return false;
+    return updateObservation("binary", "error", "probe-failed", "unknown");
   }
 }
 
-async function checkPiPackageUpdates(cwd: string): Promise<boolean> {
-  if (process.env.PI_OFFLINE) return false;
+async function checkPiPackageUpdates(cwd: string): Promise<PiEinUpdateObservation> {
+  if (process.env.PI_OFFLINE) return updateObservation("packages", "skipped", "offline-check");
   try {
     const settingsManager = SettingsManager.create(cwd, AGENT_DIR);
     const packageManager = new DefaultPackageManager({
@@ -257,16 +268,17 @@ async function checkPiPackageUpdates(cwd: string): Promise<boolean> {
       agentDir: AGENT_DIR,
       settingsManager,
     });
-    return (await packageManager.checkForAvailableUpdates()).length > 0;
+    const available = (await packageManager.checkForAvailableUpdates()).length > 0;
+    return updateObservation("packages", available ? "update-available" : "current", "read-success");
   } catch {
-    return false;
+    return updateObservation("packages", "error", "probe-failed", "unknown");
   }
 }
 
-async function checkEinTemplateUpdate(): Promise<boolean> {
-  if (process.env.PI_OFFLINE) return false;
+async function checkEinTemplateUpdate(): Promise<PiEinUpdateObservation> {
+  if (process.env.PI_OFFLINE) return updateObservation("ein", "skipped", "offline-check");
   const installed = await readEinVersion();
-  if (installed === "dev") return false;
+  if (installed === "dev") return updateObservation("ein", "skipped", "development-install");
 
   try {
     const repository = process.env.EIN_INSTALLER_REPO ?? "samuhlo/ein-agent";
@@ -274,20 +286,23 @@ async function checkEinTemplateUpdate(): Promise<boolean> {
       headers: { accept: "application/vnd.github+json" },
       signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
     });
-    if (!response.ok) return false;
+    if (!response.ok) return updateObservation("ein", "unavailable", "provider-unavailable", "unknown");
     const payload = (await response.json()) as { tag_name?: unknown };
-    return typeof payload.tag_name === "string" && isNewerVersion(payload.tag_name, installed);
+    if (typeof payload.tag_name !== "string") return updateObservation("ein", "error", "malformed-response", "unknown");
+    return updateObservation("ein", isNewerVersion(payload.tag_name, installed) ? "update-available" : "current", "read-success");
   } catch {
-    return false;
+    return updateObservation("ein", "error", "probe-failed", "unknown");
   }
 }
 
-async function detectPiEinUpdates(cwd: string) {
-  if (!isPiEinRuntime()) return { pi: false, ein: false };
-  return collectPiEinUpdates({
-    binary: checkPiBinaryUpdate,
-    packages: () => checkPiPackageUpdates(cwd),
-    ein: checkEinTemplateUpdate,
+export async function detectPiEinUpdates(cwd: string) {
+  return detectCanonicalPiEinUpdates(cwd, {
+    runtime: () => isPiEinRuntime(),
+    sources: {
+      binary: checkPiBinaryUpdate,
+      packages: () => checkPiPackageUpdates(cwd),
+      ein: checkEinTemplateUpdate,
+    },
   });
 }
 

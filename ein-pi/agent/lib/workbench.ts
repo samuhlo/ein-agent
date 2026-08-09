@@ -6,6 +6,14 @@ import type {
   ProjectStateV1,
 } from "./project-state.ts";
 import {
+  evaluateSharedConfigUpdateAdvisor,
+  renderAdvisorSemantics,
+  type AdvisorEvidence,
+  type SharedConfigUpdateAdvisorResult,
+} from "./shared-config-update-advisor.ts";
+import { inspectMode, type ModeInspection } from "./mode.ts";
+import { inspectModelConfig, type ModelConfigInspection } from "./model-config.ts";
+import {
   getRuntimeCapabilities,
   projectBindingFromState,
   type AdapterResult,
@@ -70,6 +78,59 @@ export function renderProjectState(state: ProjectStateV1): string {
     `Git: status=${gitStatus} quality=${state.git.quality} reason=${state.git.reason}`,
     `Verification: outcome=${state.verification.effectiveOutcome} freshness=${state.verification.freshness} quality=${state.verification.quality} reason=${state.verification.reason}`,
   ].join("\n");
+}
+
+export function renderWorkbenchAdvisor(result: SharedConfigUpdateAdvisorResult): string {
+  return renderAdvisorSemantics(result);
+}
+
+export type WorkbenchAdvisorReaders = Readonly<{
+  inspectMode: (cwd: string) => ModeInspection;
+  inspectModelConfig: (cwd: string) => ModelConfigInspection;
+}>;
+
+function configEvidence(
+  source: string,
+  evidence: ModeInspection | ModelConfigInspection,
+  value: unknown,
+): AdvisorEvidence & { value?: unknown } {
+  return {
+    status: evidence.status,
+    source: `workbench-${source}-${evidence.source}`,
+    freshness: "current",
+    reason: evidence.reason,
+    ...(value === undefined ? {} : { value }),
+  };
+}
+
+function projectEvidence(state: ProjectStateV1): AdvisorEvidence {
+  const freshness = state.verification.freshness === "stale"
+    ? "stale"
+    : state.verification.freshness === "current"
+      ? "current"
+      : "unknown";
+  return {
+    status: state.identity.quality === "current" ? "valid" : "unavailable",
+    source: "project-state",
+    freshness,
+    reason: state.identity.reason,
+  };
+}
+
+/** Read-only factory used by the launcher; readers remain replaceable in tests. */
+export function createWorkbenchAdvisor(
+  state: ProjectStateV1,
+  readers: WorkbenchAdvisorReaders = { inspectMode, inspectModelConfig },
+): SharedConfigUpdateAdvisorResult {
+  const mode = readers.inspectMode(state.identity.cwd);
+  const model = readers.inspectModelConfig(state.identity.cwd);
+  return evaluateSharedConfigUpdateAdvisor({
+    configuration: {
+      mode: configEvidence("mode", mode, mode.value),
+      model: configEvidence("model", model, model.config),
+      project: projectEvidence(state),
+    },
+  });
 }
 
 const CAPABILITY_ORDER = ["list", "create", "resume", "launch"] as const;
@@ -175,6 +236,7 @@ export async function runWorkbench(dependencies: WorkbenchDependencies): Promise
   });
   await write(dependencies.output, `Confirmed project: ${confirmed.summary.ordinal}. ${confirmed.summary.label}`);
   await write(dependencies.output, renderProjectState(confirmed.state));
+  if (dependencies.advisor) await write(dependencies.output, renderWorkbenchAdvisor(dependencies.advisor(confirmed.state)));
 
   const runtimeRaw = await dependencies.input.read("Select runtime: 1. Pi 2. Claude: ");
   if (runtimeRaw === null) return workbenchCancellation("eof");
@@ -285,6 +347,7 @@ export type WorkbenchDependencies = {
     readonly executor: LaunchExecutor;
   };
   readonly doctor: () => WorkbenchDoctorResult | Promise<WorkbenchDoctorResult>;
+  readonly advisor?: (state: ProjectStateV1) => SharedConfigUpdateAdvisorResult;
   readonly signal: AbortSignal;
 };
 
