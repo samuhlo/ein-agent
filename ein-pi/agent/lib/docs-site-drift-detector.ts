@@ -7,9 +7,25 @@
 // =============================================================================
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { parsePage } from "./docs-site-contract.ts";
+
+// Parser mínimo del frontmatter que nos interesa. Solo `sources` y
+// `verified_rev`: es lo que sostiene la procedencia de una página.
+export function readProvenance(content: string): { verifiedRev: string; sources: string[] } {
+	const fm = /^---\n([\s\S]*?)\n---/.exec(content.replaceAll("\r\n", "\n"));
+	if (!fm) return { verifiedRev: "", sources: [] };
+
+	const rev = /^verified_rev:\s*"?([^"\n]+)"?\s*$/m.exec(fm[1]);
+	const src = /^sources:\s*\[([^\]]*)\]/m.exec(fm[1]);
+
+	return {
+		verifiedRev: rev?.[1]?.trim() ?? "",
+		sources: src
+			? [...src[1].matchAll(/"([^"]+)"/g)].map((m) => m[1])
+			: [],
+	};
+}
 
 export type GitRunResult = { ok: boolean; code: number; stdout: string; stderr: string };
 export type GitRunner = (args: string[]) => GitRunResult;
@@ -170,13 +186,8 @@ export function collectDriftPageInputs(
 	return files
 		.map((absPath) => {
 			const relToRepo = relative(repoRoot, absPath).split(sep).join("/");
-			const content = readFileSync(absPath, "utf8");
-			const parsed = parsePage(relToRepo, content);
-			return {
-				path: relToRepo,
-				verifiedRev: parsed.frontmatter?.verifiedRev ?? "",
-				sources: parsed.frontmatter?.sources ?? [],
-			};
+			const { verifiedRev, sources } = readProvenance(readFileSync(absPath, "utf8"));
+			return { path: relToRepo, verifiedRev, sources };
 		})
 		.sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -230,10 +241,33 @@ export function driftExitCode(report: DriftReport): number {
 	return 0;
 }
 
+// Una fuente declarada que no existe no produce drift (git no ve cambios en algo
+// que no está), así que sin esta comprobación una ruta mal escrita pasaría
+// desapercibida y la página parecería trazable sin serlo.
+export function findMissingSources(
+	pages: DriftPageInput[],
+	repoRoot: string,
+): { path: string; missing: string[] }[] {
+	return pages
+		.map((p) => ({
+			path: p.path,
+			missing: p.sources.filter((s) => !existsSync(join(repoRoot, s))),
+		}))
+		.filter((r) => r.missing.length > 0);
+}
+
 if (import.meta.main) {
 	const repoRoot = process.cwd();
 	const pages = collectDriftPageInputs(repoRoot);
 	const report = detectDrift(pages, repoRoot);
 	console.log(formatDriftReport(report));
-	process.exitCode = driftExitCode(report);
+
+	const broken = findMissingSources(pages, repoRoot);
+	if (broken.length > 0) {
+		console.log("");
+		console.log("FUENTES DECLARADAS QUE NO EXISTEN:");
+		for (const b of broken) console.log(`  - ${b.path}: ${b.missing.join(", ")}`);
+	}
+
+	process.exitCode = broken.length > 0 ? 2 : driftExitCode(report);
 }
