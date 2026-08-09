@@ -73,6 +73,8 @@ ein-agent/
 └── installer/      # CLI, TUI, paths, deploy, backups y releases
 ```
 
+`ein-pi/core/` (contenido portable, agnóstico del runtime) se comparte entre los dos adaptadores soportados. `ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench; `installer/scripts/bundle-template.ts` los compone para el despliegue.
+
 | LAYER | TECH |
 | :--- | :--- |
 | **Runtimes** | Pi Coding Agent · Claude Code |
