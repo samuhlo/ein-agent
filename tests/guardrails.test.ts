@@ -330,7 +330,7 @@ describe("confirmDelegatedDelivery (tool subagent)", () => {
 		expect(consumeDelegatedDelivery(CWD)).toBe(true);
 	});
 
-	test("sin UI no decide: lo deja al guard de bash", async () => {
+	test("modo ask sin UI: queda bloqueado por el guard y no emite grant", async () => {
 		const { ctx } = ctxStub(false);
 		const result = await confirmDelegatedDelivery(
 			{ agent: "ein-github", task: "haz push" },
@@ -339,6 +339,43 @@ describe("confirmDelegatedDelivery (tool subagent)", () => {
 		);
 		expect(result).toBeUndefined();
 		expect(existsSync(deliveryGrantPath())).toBe(false);
+		expect((await confirmCommand("git push origin main", ctx))?.block).toBe(true);
+	});
+
+	test("modo auto sin UI + autorización explícita: no pregunta, emite grant", async () => {
+		const { ctx, calls } = ctxStub(false);
+		const result = await confirmDelegatedDelivery(
+			{ agent: "ein-github", task: "haz push y abre PR" },
+			ctx,
+			{ mode: "auto", userRequested: true },
+		);
+		expect(result).toBeUndefined();
+		expect(calls.length).toBe(0);
+		expect(consumeDelegatedDelivery(CWD)).toBe(true);
+	});
+
+	test("modo auto sin UI + sin autorización: no emite grant y queda bloqueado", async () => {
+		const { ctx } = ctxStub(false);
+		const result = await confirmDelegatedDelivery(
+			{ agent: "ein-github", task: "haz push y abre PR" },
+			ctx,
+			{ mode: "auto", userRequested: false },
+		);
+		expect(result).toBeUndefined();
+		expect(existsSync(deliveryGrantPath())).toBe(false);
+		expect((await confirmCommand("git push origin main", ctx))?.block).toBe(true);
+	});
+
+	test("modo off sin UI: no pregunta, emite grant aunque no lo pidiera", async () => {
+		const { ctx, calls } = ctxStub(false);
+		const result = await confirmDelegatedDelivery(
+			{ agent: "ein-github", task: "git push origin main" },
+			ctx,
+			{ mode: "off", userRequested: false },
+		);
+		expect(result).toBeUndefined();
+		expect(calls.length).toBe(0);
+		expect(consumeDelegatedDelivery(CWD)).toBe(true);
 	});
 
 	test("modo auto + el usuario lo pidió: no pregunta, emite grant", async () => {

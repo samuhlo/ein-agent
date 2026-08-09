@@ -37,6 +37,13 @@ Given: an existing OpenSpec change has a structured delta for one or more canoni
 When: Claude invokes cc-ein-sdd sync for that change
 Then: the shared synchronizer updates canonical specs and its report on success, reports a conflict without overwriting conflicting canonical bytes, or returns a failure status for malformed or operational errors
 
+## Scenario: cleaner-read-only-audit
+title: Cleaner audit reports findings without mutation
+requirement: The system MUST audit cleaner opportunities in read-only mode using projected project state and applicable reviewed-area ledger records, and MUST produce traceable findings without mutating source, Git, ledger, or cleaner state.
+Given: Projected state and applicable ledger evidence are available, incomplete, stale, invalid, unavailable, or ambiguous.
+When: A cleaner audit is requested.
+Then: The audit reports classified findings with source and evidence references plus explicit uncertainty, does not present suggestions as applied changes, and leaves all inspected project, Git, and ledger state unchanged.
+
 ## Scenario: core-coordinator-source-generates-claude-brain
 title: Claude coordinator brain is generated from canonical core
 requirement: The system MUST generate the Claude coordinator brain from a canonical coordinator source plus an explicit Claude adaptation block during synchronization, and MUST NOT treat a separately hand-maintained full cc-ein/CLAUDE.md as authoritative.
