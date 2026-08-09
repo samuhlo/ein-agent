@@ -46,11 +46,11 @@ jobs:
         working-directory: installer
         run: bun run typecheck
 
-  docs-contract:
-    # Contrato de páginas de docs-site (bloqueante) + drift de fuentes
-    # (informativo). fetch-depth: 0 es obligatorio: con checkout superficial
-    # los `verified_rev` históricos no existen en el árbol y todo el informe de
-    # drift sale `unknown`/`rev-not-found`, que es un verde que no comprueba nada.
+  docs-site:
+    # Build del sitio (bloqueante) + procedencia de las páginas (informativo).
+    # fetch-depth: 0 es obligatorio: con checkout superficial los `verified_rev`
+    # históricos no existen en el árbol y todo el informe de drift saldría
+    # `unknown`, que es un verde que no comprueba nada.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -61,12 +61,17 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Contrato de páginas (bloqueante)
-        run: bun test tests/docs-site-contract.test.ts
+      - name: Instalar dependencias del sitio
+        working-directory: docs-site
+        run: bun install --frozen-lockfile
+
+      - name: Build del sitio (bloqueante)
+        working-directory: docs-site
+        run: bun run build
 
       - name: Tests del detector de drift
         run: bun test tests/docs-site-drift-detector.test.ts tests/docs-site-drift-report.test.ts
 
-      - name: Drift de fuentes sobre las 21 páginas reales (informativo)
+      - name: Procedencia de las páginas (informativo)
         continue-on-error: true
         run: bun ein-pi/agent/lib/docs-site-drift-detector.ts
