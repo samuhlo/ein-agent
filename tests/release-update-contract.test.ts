@@ -3,6 +3,7 @@ import { classifyOwnership, type MarkerV1, type MarkerV2 } from "../installer/sr
 import { isEligibleRelease, normalizeTag, parseSelector, resolveRecord } from "../installer/src/core/release-resolver.ts";
 import { defaultUpdateCaps } from "../installer/src/core/update-caps.ts";
 import { fakeUpdateCaps } from "./helpers/fake-update-caps.ts";
+import { readInstallerUpdateEvidence } from "../installer/src/core/update-advisor-read.ts";
 
 const release = {
   tag: "installer-v0.19.0" as const,
@@ -66,5 +67,39 @@ describe("release update contract", () => {
   test("constructs production and fake capabilities without test-only branches", () => {
     expect(defaultUpdateCaps().http.get).toBeFunction();
     expect(fakeUpdateCaps().child.spawn).toBeFunction();
+  });
+
+  test("reads bounded marker, release, ownership, capability, and freshness evidence without mutation", async () => {
+    const markerPath = "/fake/.ein-install.json";
+    const files = new Map([[markerPath, new TextEncoder().encode(JSON.stringify({
+      schemaVersion: 2, version: "0.18.0", releaseTag: "installer-v0.18.0", binaryVersion: "0.18.0", templateVersion: "0.18.0",
+      installedAt: "2026-01-01T00:00:00.000Z", channel: "stable", owner: { type: "standalone" }, asset: { assetName: "installer", sha256: "a".repeat(64) },
+    }))]]);
+    const baseCaps = fakeUpdateCaps({ files });
+    let reads = 0;
+    let writes = 0;
+    let spawns = 0;
+    const before = new Uint8Array(files.get(markerPath)!);
+    const caps = {
+      ...baseCaps,
+      fs: {
+        ...baseCaps.fs,
+        readFile: (path: string) => { reads += 1; return baseCaps.fs.readFile(path); },
+        writeFile: () => { writes += 1; },
+      },
+      child: { spawn: async () => { spawns += 1; return { code: 0, stdout: "" }; } },
+    };
+    const evidence = await readInstallerUpdateEvidence({ caps, markerPath, readRelease: async () => ({ ok: true, value: { ...release, tag: "installer-v0.19.0" } }) });
+    expect(evidence).toMatchObject({
+      installed: { status: "valid", owner: "installer", freshness: "current", version: "0.18.0" },
+      release: { status: "valid", freshness: "current", version: "0.19.0" },
+      owner: { owner: "installer", action: "update", actionId: "installer.update" },
+      capability: { status: "valid", supported: true },
+    });
+    expect([...files.keys()]).toEqual([markerPath]);
+    expect([...files.get(markerPath)!]).toEqual([...before]);
+    expect(reads).toBeGreaterThan(0);
+    expect(writes).toBe(0);
+    expect(spawns).toBe(0);
   });
 });

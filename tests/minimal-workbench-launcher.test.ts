@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { parseWorkbenchArgs, runWorkbenchEntrypoint } from "../ein-pi/workbench.ts";
+import { parseWorkbenchArgs, renderLauncherAdvisor, runWorkbenchEntrypoint } from "../ein-pi/workbench.ts";
+import { evaluateSharedConfigUpdateAdvisor } from "../ein-pi/agent/lib/shared-config-update-advisor.ts";
 import { getRuntimeCapabilities } from "../ein-pi/agent/lib/runtime-session-adapters.ts";
 import {
   classifyWorkbenchExit,
@@ -13,6 +14,7 @@ import {
   renderAdapterOutcome,
   renderPiSessionList,
   renderDoctorResult,
+  createWorkbenchAdvisor,
   type WorkbenchDependencies,
   type WorkbenchResult,
 } from "../ein-pi/agent/lib/workbench.ts";
@@ -37,6 +39,33 @@ describe("separate workbench entrypoint argv TTY help and exit", () => {
     let received: readonly string[] = [];
     const exit = await runWorkbenchEntrypoint({ argv: ["--project", ".", "--project", "."], cwd: "/repo", stdinTTY: true, stdoutTTY: true, write: () => {}, createDependencies: candidates => (received = candidates, {} as WorkbenchDependencies), run: async () => ({ outcome: "cancelled", reason: "sigint" }) });
     expect(received).toEqual(["/repo"]); expect(exit).toBe(130);
+  });
+
+  test("production-style dependencies inject a real read-only advisor and render its result", async () => {
+    const state = {
+      schemaVersion: 1,
+      identity: { cwd: "/repo/project", repositoryRoot: "/repo/project", quality: "current", reason: "read-success" },
+      openspec: { selection: "none", quality: "current", reason: "read-success" },
+      git: { dirty: false, quality: "current", reason: "read-success" },
+      verification: { effectiveOutcome: "absent", freshness: "current", quality: "current", reason: "read-success" },
+    } as any;
+    const advisor = createWorkbenchAdvisor(state, {
+      inspectMode: () => ({ status: "valid", source: "default", value: "solo", reason: "defaulted", provenance: { source: "default", reason: "defaulted" }, observed: [] }),
+      inspectModelConfig: () => ({ status: "valid", source: "global", config: { orchestrator: { model: "configured" } }, reason: "read-success", provenance: { source: "global", reason: "read-success" }, observed: [] }),
+    });
+    const output: string[] = [];
+    const reads = ["1", "yes", "1", "4"];
+    const dependencies = {
+      candidates: [state.identity.cwd], project: () => state,
+      input: { read: async () => reads.shift() ?? null }, output: { write: (text: string) => output.push(text) },
+      advisor: () => advisor,
+      adapter: () => ({ provider: "pi", capabilities: getRuntimeCapabilities("pi"), list: () => ({}), create: () => ({}), resume: () => ({}) }),
+      launch: {} as any, doctor: async () => ({} as any), signal: new AbortController().signal,
+    } as unknown as WorkbenchDependencies;
+    const exit = await runWorkbenchEntrypoint({ argv: [], cwd: "/repo", stdinTTY: true, stdoutTTY: true, write: () => {}, createDependencies: () => dependencies });
+    expect(exit).toBe(0);
+    expect(output.join("\\n")).toContain("Configuration: status=current");
+    expect(output.join("\\n")).toContain("Update: status=unavailable");
   });
 });
 
@@ -75,6 +104,28 @@ describe("workbench foundational contracts", () => {
     expect(workbenchCancellation("sigint")).toEqual({ outcome: "cancelled", reason: "sigint" });
     expect(classifyWorkbenchExit(workbenchCancellation("aborted"))).toBe(130);
     expect(classifyWorkbenchExit(workbenchCancellation("adapter-cancelled"))).toBe(130);
+  });
+});
+
+describe("shared advisor semantic rendering", () => {
+  test("launcher and workbench render one normalized fixture without adding action behavior", () => {
+    const result = evaluateSharedConfigUpdateAdvisor({
+      configuration: {
+        mode: { status: "valid", source: "project", value: "solo", freshness: "current" },
+        model: { status: "valid", source: "user", value: "configured", freshness: "current" },
+      },
+      update: {
+        installed: { status: "valid", source: "installer-marker", version: "0.42.0", freshness: "current" },
+        release: { status: "valid", source: "release-provider", version: "0.43.0", freshness: "current" },
+        owner: { status: "valid", source: "installer-marker", owner: "installer", action: "update", actionId: "installer.update", freshness: "current" },
+        capability: { status: "valid", source: "installer-capability", supported: true, freshness: "current" },
+      },
+    });
+    const rendered = renderLauncherAdvisor(result);
+    expect(rendered).toContain("Configuration: status=current freshness=current reason=read-success");
+    expect(rendered).toContain("Update: status=update-available freshness=current reason=newer-release");
+    expect(rendered).toContain("performed=false");
+    expect(rendered).not.toMatch(/\x1b|\r|spawn|runUpdate/);
   });
 });
 

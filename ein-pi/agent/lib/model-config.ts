@@ -62,6 +62,17 @@ export type ModelConfigFileResult =
 	| { status: "valid"; config: AgentModelConfig };
 export type AgentSource = "project" | "user" | "builtin";
 
+export type ModelConfigEvidenceStatus = "missing" | "valid" | "invalid" | "unreadable";
+export type ModelConfigEvidenceSource = "global" | "legacy-project";
+export type ModelConfigInspection = Readonly<{
+	status: ModelConfigEvidenceStatus;
+	source: ModelConfigEvidenceSource;
+	config?: AgentModelConfig;
+	reason: "missing" | "read-success" | "invalid-evidence" | "unreadable";
+	provenance: Readonly<{ source: ModelConfigEvidenceSource; reason: ModelConfigInspection["reason"] }>;
+	observed: readonly Readonly<{ source: ModelConfigEvidenceSource; status: ModelConfigEvidenceStatus; reason: ModelConfigInspection["reason"] }>[];
+}>;
+
 export interface AgentEntry {
 	name: string;
 	source: AgentSource;
@@ -154,6 +165,27 @@ function readModelConfigFile(path: string): ModelConfigFileResult {
 	}
 }
 
+function inspectModelConfigFile(
+	path: string,
+	source: ModelConfigEvidenceSource,
+): ModelConfigInspection {
+	if (!existsSync(path)) return { status: "missing", source, reason: "missing", provenance: { source, reason: "missing" }, observed: [{ source, status: "missing", reason: "missing" }] };
+	try {
+		const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+		if (!isRecord(parsed)) return { status: "invalid", source, reason: "invalid-evidence", provenance: { source, reason: "invalid-evidence" }, observed: [{ source, status: "invalid", reason: "invalid-evidence" }] };
+		const config: AgentModelConfig = {};
+		for (const [name, value] of Object.entries(parsed)) {
+			const entry = normalizeRoutingEntry(value);
+			if (!entry) return { status: "invalid", source, reason: "invalid-evidence", provenance: { source, reason: "invalid-evidence" }, observed: [{ source, status: "invalid", reason: "invalid-evidence" }] };
+			const key = aliasAgentKey(name);
+			if (config[key] === undefined) config[key] = entry;
+		}
+		return { status: "valid", source, config, reason: "read-success", provenance: { source, reason: "read-success" }, observed: [{ source, status: "valid", reason: "read-success" }] };
+	} catch {
+		return { status: "unreadable", source, reason: "unreadable", provenance: { source, reason: "unreadable" }, observed: [{ source, status: "unreadable", reason: "unreadable" }] };
+	}
+}
+
 async function readModelConfigFileAsync(
 	path: string,
 ): Promise<ModelConfigFileResult> {
@@ -192,6 +224,18 @@ export async function readSavedModelConfigAsync(
 	if (legacyResult.status === "invalid") return { status: "valid", config: {} };
 	return legacyResult;
 }
+
+/** Lector aditivo de modelos; los lectores legacy conservan su semántica compatible. */
+export function inspectModelConfig(cwd: string): ModelConfigInspection {
+	const global = inspectModelConfigFile(modelConfigPath(cwd), "global");
+	if (global.status !== "missing") return global;
+	const legacy = inspectModelConfigFile(legacyProjectModelConfigPath(cwd), "legacy-project");
+	if (legacy.status !== "missing") return { ...legacy, observed: [...global.observed, ...legacy.observed] };
+	return { ...global, observed: [...global.observed, ...legacy.observed] };
+}
+
+export const readModelConfigDetailed = inspectModelConfig;
+export const readModelConfigEvidence = inspectModelConfig;
 
 export function readModelConfig(cwd: string): AgentModelConfig {
 	const result = readSavedModelConfig(cwd);

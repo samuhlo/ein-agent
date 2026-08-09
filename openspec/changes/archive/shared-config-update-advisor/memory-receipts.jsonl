@@ -1,0 +1,11 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-config-update-advisor:scope","durationMs":0,"timestamp":"2026-08-07T16:45:19.843Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-config-update-advisor:map","durationMs":0,"timestamp":"2026-08-07T16:48:50.641Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-config-update-advisor:design","durationMs":0,"timestamp":"2026-08-07T16:53:48.104Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-config-update-advisor:design","durationMs":0,"timestamp":"2026-08-07T16:55:04.541Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-config-update-advisor:tasks","durationMs":0,"timestamp":"2026-08-07T16:56:28.236Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-config-update-advisor:apply","durationMs":0,"timestamp":"2026-08-07T17:40:35.296Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-config-update-advisor:verify","durationMs":0,"timestamp":"2026-08-07T17:48:35.262Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-config-update-advisor:apply","durationMs":0,"timestamp":"2026-08-07T18:04:45.968Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-config-update-advisor:apply","durationMs":0,"timestamp":"2026-08-07T19:25:39.863Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:shared-config-update-advisor:verify","durationMs":0,"timestamp":"2026-08-07T19:34:32.814Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:shared-config-update-advisor:close","durationMs":0,"timestamp":"2026-08-07T19:35:38.392Z"}

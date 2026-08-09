@@ -1,4 +1,4 @@
-<!-- ein:init rev=1439edc generado=2026-08-07 · refresca con /ein:init -->
+<!-- ein:init rev=736955c generado=2026-08-07 · refresca con /ein:init -->
 ## Overview
 <!-- CURADA — 2-3 líneas: qué es el proyecto y para quién. -->
 _(pendiente)_

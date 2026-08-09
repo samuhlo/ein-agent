@@ -21,6 +21,17 @@ export const MODE_OPTIONS = ["solo", "team"] as const;
 
 const DEFAULT_MODE: EinMode = "solo";
 
+export type ModeEvidenceStatus = "missing" | "valid" | "invalid" | "unreadable";
+export type ModeEvidenceSource = "project" | "global" | "default";
+export type ModeInspection = Readonly<{
+	status: ModeEvidenceStatus;
+	source: ModeEvidenceSource;
+	value?: EinMode;
+	reason: "missing" | "read-success" | "invalid-evidence" | "unreadable" | "defaulted";
+	provenance: Readonly<{ source: ModeEvidenceSource; reason: ModeInspection["reason"] }>;
+	observed: readonly Readonly<{ source: Exclude<ModeEvidenceSource, "default">; status: ModeEvidenceStatus; reason: ModeInspection["reason"] }>[];
+}>;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -48,6 +59,39 @@ function readModeFile(path: string): EinMode | undefined {
 	}
 	return undefined;
 }
+
+function inspectModeFile(path: string, source: Exclude<ModeEvidenceSource, "default">): ModeInspection {
+	if (!existsSync(path)) {
+		return { status: "missing", source, reason: "missing", provenance: { source, reason: "missing" }, observed: [{ source, status: "missing", reason: "missing" }] };
+	}
+	try {
+		const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+		const value = isRecord(parsed) ? normalizeMode(parsed.mode) : undefined;
+		if (value) return { status: "valid", source, value, reason: "read-success", provenance: { source, reason: "read-success" }, observed: [{ source, status: "valid", reason: "read-success" }] };
+		return { status: "invalid", source, reason: "invalid-evidence", provenance: { source, reason: "invalid-evidence" }, observed: [{ source, status: "invalid", reason: "invalid-evidence" }] };
+	} catch {
+		return { status: "unreadable", source, reason: "unreadable", provenance: { source, reason: "unreadable" }, observed: [{ source, status: "unreadable", reason: "unreadable" }] };
+	}
+}
+
+/** Lector aditivo con estado; readMode conserva su contrato compatible y los datos perdidos. */
+export function inspectMode(cwd: string): ModeInspection {
+	const project = inspectModeFile(modeConfigPath(cwd), "project");
+	if (project.status !== "missing") return project;
+	const global = inspectModeFile(globalModeConfigPath(), "global");
+	if (global.status !== "missing") return { ...global, observed: [...project.observed, ...global.observed] };
+	return {
+		status: "valid",
+		source: "default",
+		value: DEFAULT_MODE,
+		reason: "defaulted",
+		provenance: { source: "default", reason: "defaulted" },
+		observed: [...project.observed, ...global.observed],
+	};
+}
+
+export const readModeDetailed = inspectMode;
+export const readModeEvidence = inspectMode;
 
 // Resolución: override del proyecto → default global → "solo".
 export function readMode(cwd: string): EinMode {

@@ -3,8 +3,13 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
+import { evaluateSharedConfigUpdateAdvisor } from "../ein-pi/agent/lib/shared-config-update-advisor.ts";
 import {
   collectPiEinUpdates,
+  collectPiEinUpdateEvidence,
+  detectPiEinUpdates,
+  legacyAvailabilityFromEvidence,
+  renderPiEinAdvisorNotice,
   isPiEinRuntime,
   renderPiEinUpdateNotice,
   startPiEinUpdateNotice,
@@ -133,6 +138,70 @@ describe("pi-ein update notice", () => {
     expect(await availabilityPromise).toEqual({ pi: false, ein: true });
   });
 
+  test("preserves timeout, rejection, malformed and skipped evidence without treating false as current", async () => {
+    const { timers, scheduler } = createManualScheduler();
+    const pending = new Promise<boolean>(() => {});
+    const observationsPromise = collectPiEinUpdateEvidence({
+      binary: () => Promise.reject(new Error("private-token")),
+      packages: () => pending,
+      ein: () => Promise.resolve({ status: "skipped", reason: "offline", freshness: "current" }),
+    }, { scheduler });
+    await flushChecks();
+    for (const timer of timers) if (!timer.cancelled) timer.callback();
+    const observations = await observationsPromise;
+    expect(observations).toEqual([
+      { source: "binary", status: "error", reason: "probe-failed", freshness: "unknown" },
+      { source: "packages", status: "unavailable", reason: "timeout", freshness: "unknown" },
+      { source: "ein", status: "skipped", reason: "offline", freshness: "current" },
+    ]);
+    expect(JSON.stringify(observations)).not.toContain("private-token");
+  });
+
+  test("renders the shared advisor semantics without turning stale evidence into a handoff", () => {
+    const result = evaluateSharedConfigUpdateAdvisor({
+      configuration: {
+        mode: { status: "valid", source: "project\u001b[2J", value: "solo", freshness: "current" },
+        model: { status: "valid", source: "user", value: "configured", reason: "private\r", freshness: "current" },
+      },
+      update: {
+        installed: { status: "valid", source: "installer-marker", version: "0.42.0", freshness: "current" },
+        release: { status: "valid", source: "release-provider", version: "0.43.0", freshness: "stale" },
+        owner: { status: "valid", source: "installer-marker", owner: "installer", action: "update", actionId: "installer.update", freshness: "current" },
+        capability: { status: "valid", source: "installer-capability", supported: true, freshness: "current" },
+      },
+    });
+    const rendered = renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME });
+    expect(rendered).toContain("Update: status=unavailable freshness=stale reason=stale-evidence");
+    expect(rendered).not.toContain("performed=false");
+    expect(rendered).not.toMatch(/\x1b|\r|runUpdate/);
+  });
+
+  test("production detector preserves canonical observation status, provenance, and freshness until rendering", async () => {
+    const result = await detectPiEinUpdates("/tmp/project", {
+      runtime: () => true,
+      sources: {
+        binary: async () => ({ source: "binary", status: "update-available", reason: "newer-release", freshness: "current" }),
+        packages: async () => ({ source: "packages", status: "current", reason: "read-success", freshness: "current" }),
+        ein: async () => ({ source: "ein", status: "unavailable", reason: "offline", freshness: "unknown" }),
+      },
+    });
+    expect(result.update.status).toBe("unavailable");
+    expect(result.update.freshness).toBe("unknown");
+    expect(result.update.provenance).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "binary", quality: "update-available" }),
+      expect.objectContaining({ source: "ein", freshness: "unknown" }),
+    ]));
+    expect(result.handoff).toBeUndefined();
+  });
+
+  test("keeps legacy booleans at the edge without mapping uncertainty to current", () => {
+    expect(legacyAvailabilityFromEvidence([
+      { source: "binary", status: "error", reason: "probe-failed", freshness: "unknown" },
+      { source: "packages", status: "current", reason: "read-success", freshness: "current" },
+      { source: "ein", status: "update-available", reason: "newer-release", freshness: "current" },
+    ])).toEqual({ pi: false, ein: true });
+  });
+
   test("swallows detector failure without breaking session start", async () => {
     const notifications: string[] = [];
     const context = {
@@ -149,6 +218,26 @@ describe("pi-ein update notice", () => {
     ).not.toThrow();
     await flushChecks();
     expect(notifications).toEqual([]);
+  });
+
+  test("accepts the canonical advisor result at the notice boundary", async () => {
+    const notifications: string[] = [];
+    const result = evaluateSharedConfigUpdateAdvisor({
+      configuration: {
+        mode: { status: "valid", source: "project", value: "solo", freshness: "current" },
+        model: { status: "valid", source: "user", value: "configured", freshness: "current" },
+      },
+      update: {
+        installed: { status: "valid", source: "installer-marker", version: "0.42.0", freshness: "current" },
+        release: { status: "valid", source: "release-provider", version: "0.43.0", freshness: "current" },
+        owner: { status: "valid", source: "installer-marker", owner: "installer", action: "update", actionId: "installer.update", freshness: "current" },
+        capability: { status: "valid", source: "installer-capability", supported: true, freshness: "current" },
+      },
+    });
+    startPiEinUpdateNotice({ cwd: "/tmp/project", ui: { notify: message => notifications.push(message) } }, async () => result, () => true, { env: PI_EIN_ENV, home: HOME });
+    await flushChecks();
+    expect(notifications[0]).toContain("Update: status=update-available");
+    expect(notifications[0]).toContain("performed=false");
   });
 
   test("notifies exactly once with exact commands in isolated pi-ein", async () => {
