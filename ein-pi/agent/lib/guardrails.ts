@@ -27,6 +27,10 @@ import type {
 	ExtensionContext,
 	ToolCallEventResult,
 } from "@earendil-works/pi-coding-agent";
+import {
+	collectDelegationAgentNames,
+	collectDelegationTaskTexts,
+} from "./delegation-shape.ts";
 import type { GitDeliveryMode } from "./git-delivery.ts";
 import { stripNegatedDelivery } from "./git-delivery.ts";
 import { pick } from "./lang.ts";
@@ -338,42 +342,15 @@ export async function confirmCommand(
 
 // ─── Confirmación de entrega delegada (tool `subagent`) ──────────────────────
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-// Extrae los textos de task del input del tool `subagent`: modo single
-// (`task`), parallel (`tasks[].task`) y chain (`steps[].task`).
+// Textos de task y nombres de agente del input del tool `subagent`. La forma la
+// resuelve `delegation-shape.ts` (workflowScript + formas legacy); aquí solo se
+// decide qué significan.
 function collectDelegationTexts(input: unknown): string[] {
-	if (!isRecord(input)) return [];
-	const texts: string[] = [];
-	if (typeof input.task === "string") texts.push(input.task);
-	for (const key of ["tasks", "steps"]) {
-		const items = input[key];
-		if (!Array.isArray(items)) continue;
-		for (const item of items) {
-			if (isRecord(item) && typeof item.task === "string")
-				texts.push(item.task);
-		}
-	}
-	return texts;
+	return collectDelegationTaskTexts(input);
 }
 
-// Nombres de agente del input del tool `subagent`: modo single (`agent`),
-// parallel (`tasks[].agent`) y chain (`steps[].agent`).
 export function collectDelegationAgents(input: unknown): string[] {
-	if (!isRecord(input)) return [];
-	const agents: string[] = [];
-	if (typeof input.agent === "string") agents.push(input.agent);
-	for (const key of ["tasks", "steps"]) {
-		const items = input[key];
-		if (!Array.isArray(items)) continue;
-		for (const item of items) {
-			if (isRecord(item) && typeof item.agent === "string")
-				agents.push(item.agent);
-		}
-	}
-	return agents;
+	return collectDelegationAgentNames(input);
 }
 
 // ¿Esta delegación es una entrega? Determinista primero (el agente destino),

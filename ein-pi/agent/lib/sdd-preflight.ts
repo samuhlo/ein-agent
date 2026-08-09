@@ -22,6 +22,13 @@
 // =============================================================================
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+	collectDelegationAgentNames,
+	collectDelegationItems,
+	collectDelegationTaskTexts,
+	delegationIncludes,
+	delegationTargetsOnly,
+} from "./delegation-shape.ts";
 import { type GitBaseline, readGitBaseline, renderGitBaselineLine } from "./git-baseline";
 import { type TddMode, readTddMode } from "./tdd";
 import { type PreparedMemory } from "./memory-lifecycle.ts";
@@ -218,20 +225,21 @@ function tddHintFromText(text: string): TddMode | undefined {
 // el marcador de texto. undefined → el orquestador no clasificó → preguntar.
 export function readDelegationTddHint(input: unknown): TddMode | undefined {
 	if (!isRecord(input)) return undefined;
-	for (const key of ["tasks", "steps", "chain"]) {
-		const items = input[key];
-		if (!Array.isArray(items)) continue;
-		for (const item of items) {
-			if (!isRecord(item) || item.agent !== "sdd-apply") continue;
-			const field = normalizeTddHint(item.tdd);
-			if (field) return field;
-			const text = typeof item.task === "string" ? tddHintFromText(item.task) : undefined;
-			if (text) return text;
-		}
+	// El hint del child de apply manda: es el que va a escribir código.
+	for (const item of collectDelegationItems(input)) {
+		if (item.agent !== "sdd-apply") continue;
+		const field = normalizeTddHint(item.tdd);
+		if (field) return field;
+		const text = item.task ? tddHintFromText(item.task) : undefined;
+		if (text) return text;
 	}
+	// Hint a nivel de workflow (fuera del script) y, como último recurso, la
+	// prosa de una delegación de UN solo child: con varios no se sabe a cuál
+	// pertenece el hint, y adivinarlo fijaría el modo TDD del run entero.
 	const field = normalizeTddHint(input.tdd);
 	if (field) return field;
-	return typeof input.task === "string" ? tddHintFromText(input.task) : undefined;
+	const texts = collectDelegationTaskTexts(input);
+	return texts.length === 1 ? tddHintFromText(texts[0] as string) : undefined;
 }
 
 // Señal de que la delegación toca CÓDIGO (extensión de fuente o verbo de
@@ -242,20 +250,6 @@ const CODE_SIGNAL =
 // documentar.
 const DOCS_SIGNAL =
 	/\.(?:md|mdx|markdown|rst|txt)\b|\b(?:docs?|readme|changelog|license)\b|\bdocument\w*|\bdocumenta\w*/i;
-
-function collectDelegationTaskTexts(input: unknown): string[] {
-	if (!isRecord(input)) return [];
-	const texts: string[] = [];
-	if (typeof input.task === "string") texts.push(input.task);
-	for (const key of ["tasks", "steps", "chain"]) {
-		const items = input[key];
-		if (!Array.isArray(items)) continue;
-		for (const item of items) {
-			if (isRecord(item) && typeof item.task === "string") texts.push(item.task);
-		}
-	}
-	return texts;
-}
 
 // ¿La delegación es documentación pura (sin código)? Conservador a propósito:
 // requiere señal de docs Y ausencia de señal de código; ante la duda devuelve
@@ -298,38 +292,18 @@ export async function gateTddForDelegation(
 	await askRunTddMode(ctx);
 }
 
-// ¿La delegación ARRANCA un SDD completo? = contiene la primera fase sdd-scope
-// (single, parallel o chain). Permite preguntar el TDD al inicio del SDD, no a
-// mitad, en flujos fase-a-fase donde scope y apply son delegaciones distintas.
+// ¿La delegación ARRANCA un SDD completo? = lanza la primera fase sdd-scope.
+// Permite preguntar el TDD al inicio del SDD, no a mitad, en flujos fase-a-fase
+// donde scope y apply son delegaciones distintas.
 export function delegationStartsScope(input: unknown): boolean {
-	if (!isRecord(input)) return false;
-	if (input.agent === "sdd-scope") return true;
-	for (const key of ["tasks", "steps", "chain"]) {
-		const items = input[key];
-		if (!Array.isArray(items)) continue;
-		for (const item of items) {
-			if (isRecord(item) && item.agent === "sdd-scope") return true;
-		}
-	}
-	return false;
+	return delegationIncludes(input, "sdd-scope");
 }
 
-// Detecta si una llamada al tool `subagent` acabará escribiendo código vía
-// sdd-apply: modo single (`agent`), parallel (`tasks[]`) o chain (`chain[]` /
-// `steps[]`). Lo usa el gate de TDD en tool_call para preguntar antes de que
-// arranque el apply en CUALQUIER cambio de código, no solo en el trigger SDD
-// explícito.
+// ¿Esta llamada al tool `subagent` acabará escribiendo código vía sdd-apply? Lo
+// usa el gate de TDD en tool_call para preguntar antes de que arranque el apply
+// en CUALQUIER cambio de código, no solo en el trigger SDD explícito.
 export function delegationTargetsApply(input: unknown): boolean {
-	if (!isRecord(input)) return false;
-	if (input.agent === "sdd-apply") return true;
-	for (const key of ["tasks", "steps", "chain"]) {
-		const items = input[key];
-		if (!Array.isArray(items)) continue;
-		for (const item of items) {
-			if (isRecord(item) && item.agent === "sdd-apply") return true;
-		}
-	}
-	return false;
+	return delegationIncludes(input, "sdd-apply");
 }
 
 // Fases documentales/de planificación: su artefacto es un .md que `ein_sdd_check`
@@ -342,23 +316,12 @@ const PLANNING_AGENTS = new Set([
 	"sdd-close",
 ]);
 
-// ¿La delegación va SOLO a fases de planificación? = agente único de
-// planificación, o todos los items de tasks/steps/chain lo son. Un apply/verify
-// mezclado → false (ese sí lleva su acceptance real).
+// ¿La delegación va SOLO a fases de planificación? Todos sus children deben
+// serlo: un apply/verify mezclado → false (ese sí lleva su acceptance real), y
+// el `acceptance` inyectado baja a TODOS los children del workflow.
 export function delegationIsPlanningOnly(input: unknown): boolean {
-	if (!isRecord(input)) return false;
-	if (typeof input.agent === "string") return PLANNING_AGENTS.has(input.agent);
-	for (const key of ["tasks", "steps", "chain"]) {
-		const items = input[key];
-		if (!Array.isArray(items) || items.length === 0) continue;
-		return items.every(
-			(item) =>
-				isRecord(item) &&
-				typeof item.agent === "string" &&
-				PLANNING_AGENTS.has(item.agent),
-		);
-	}
-	return false;
+	const agents = collectDelegationAgentNames(input);
+	return agents.length > 0 && agents.every((agent) => PLANNING_AGENTS.has(agent));
 }
 
 // Inyecta `acceptance: { level: "none" }` determinista en una delegación a
@@ -388,7 +351,7 @@ export function ensurePlanningAcceptance(input: unknown): boolean {
 export function ensureApplyAcceptance(input: unknown): boolean {
 	if (!isRecord(input)) return false;
 	if (input.acceptance != null) return false;
-	if (input.agent !== "sdd-apply") return false;
+	if (!delegationTargetsOnly(input, "sdd-apply")) return false;
 	input.acceptance = {
 		level: "none",
 		reason: "apply executes; sdd-verify re-runs the suite as the runtime gate",
@@ -405,7 +368,7 @@ const APPLY_TURN_BUDGET = { maxTurns: 60, graceTurns: 3 } as const;
 
 export function ensureApplyTurnBudget(input: unknown): boolean {
 	if (!isRecord(input)) return false;
-	if (input.agent !== "sdd-apply") return false;
+	if (!delegationTargetsOnly(input, "sdd-apply")) return false;
 	if (input.turnBudget != null) return false;
 	// TDD estricto → sin cap de turnos (lo limita maxRuntimeMs); un cap tight
 	// mataba applies reales a mitad de los ciclos RED/GREEN.
