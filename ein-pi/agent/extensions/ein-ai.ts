@@ -31,6 +31,7 @@ import {
 	type SddPreflightPreferences,
 } from "../lib/sdd-preflight.ts";
 import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";
+import { delegationShapeIsUnrecognized } from "../lib/delegation-shape.ts";
 import {
 	type DeliveryIntent,
 	deliveryIntentActive,
@@ -138,6 +139,11 @@ const phaseSnapshotByToolCall = new Map<
 >();
 
 const scoutTracking: ScoutTracking = new Map();
+
+// Sesiones ya avisadas del drift de forma. Un aviso por sesión: el problema es
+// del runtime instalado, no de la delegación concreta, y repetirlo en cada
+// llamada solo taparía el resto.
+const shapeDriftWarned = new Set<string>();
 
 function rememberPhaseSnapshot(
 	toolCallId: string,
@@ -734,6 +740,23 @@ export default function einAi(pi: ExtensionAPI): void {
 			if (scoutLaunch) {
 				Object.assign(event.input as Record<string, unknown>, scoutLaunch);
 				return undefined;
+			}
+			// Canario de drift: si Ein no reconoce ni un child, TODOS los gates de
+			// abajo son no-ops silenciosos (es lo que pasó al mover la ejecución a
+			// `workflowScript`). Se avisa una vez y se sigue: no se bloquea trabajo
+			// por una forma que puede ser legítima (agente/task construidos en runtime).
+			if (ctx.hasUI && delegationShapeIsUnrecognized(event.input)) {
+				const driftKey = sddPreflightSessionKey(ctx);
+				if (!shapeDriftWarned.has(driftKey)) {
+					shapeDriftWarned.add(driftKey);
+					ctx.ui.notify(
+						t(
+							"ai.delegation.shape-drift",
+							"Ein no reconoce la forma de esta delegación: los gates de entrega y TDD no se aplican. Si el runtime de subagentes se acaba de actualizar, actualiza Ein (`ein update`).",
+						),
+						"warning",
+					);
+				}
 			}
 			// Fases de planificación (scope/map/design/tasks/close): inyecta
 			// `acceptance: none` determinista si el orquestador no lo pasó. Sin esto

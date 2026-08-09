@@ -1,5 +1,10 @@
 import { lstatSync, realpathSync, readFileSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
+import {
+	delegationIncludes,
+	delegationWorkflowScript,
+	workflowScriptFansOut,
+} from "./delegation-shape.ts";
 
 export const SCOUT_REPORT_MAX_BYTES = 16_384;
 
@@ -22,12 +27,19 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const fail = (message: string): never => { throw new Error(`ein-scout contract: ${message}`); };
 
 function scoutName(input: unknown): boolean {
-	return isRecord(input) && (input.agent === "ein-scout" || (isRecord(input.agent) && input.agent.name === "ein-scout"));
+	if (!isRecord(input)) return false;
+	if (input.agent === "ein-scout" || (isRecord(input.agent) && input.agent.name === "ein-scout")) return true;
+	// pi-subagents >= 0.44: the launch lives inside `workflowScript`.
+	return delegationIncludes(input, "ein-scout");
 }
 
 function unsupportedForm(input: Record<string, unknown>): boolean {
-	return ["chain", "steps", "tasks", "parallel", "background", "resume", "continuation", "parentToolCallId"].some((key) => input[key] !== undefined)
-		|| input.foreground === false;
+	if (["chain", "steps", "tasks", "parallel", "background", "resume", "continuation", "parentToolCallId"].some((key) => input[key] !== undefined)) return true;
+	if (input.foreground === false) return true;
+	// A fan-out workflow yields several children; the contract binds ONE report to
+	// one tool call, so it cannot say which child it belongs to.
+	const script = delegationWorkflowScript(input);
+	return script !== undefined && workflowScriptFansOut(script);
 }
 
 /** Normalizes the only scout form the beta can associate with one result. */
@@ -41,15 +53,23 @@ export function normalizeScoutLaunch(input: unknown, toolCallId: string, trackin
 	// explicit empty frontmatter declaration is the only extension policy.
 	const { extensions: _extensions, ...launch } = input;
 	void _extensions;
-	return {
-		...launch,
-		agent: "ein-scout",
+	const contract = {
 		context: "fresh",
 		maxRuntimeMs: 120_000,
 		turnBudget: { maxTurns: 12, graceTurns: 2 },
 		toolBudget: { hard: 30, soft: 24, block: "*" },
 		acceptance: { level: "none", reason: "Ein validates the scout report through its deterministic local adapter" },
 	};
+	// Script form: the agent is named inside the script, and top-level `agent` is
+	// the runtime's MANAGEMENT target — writing it there would not launch
+	// anything. The contract fields still apply as workflow-level defaults.
+	// `async: false` is part of the contract, not a preference: workflow scripts
+	// start in the background by default, and a backgrounded scout cannot return
+	// its report through this tool call.
+	if (delegationWorkflowScript(input) !== undefined) {
+		return { ...launch, ...contract, async: false };
+	}
+	return { ...launch, ...contract, agent: "ein-scout" };
 }
 
 
