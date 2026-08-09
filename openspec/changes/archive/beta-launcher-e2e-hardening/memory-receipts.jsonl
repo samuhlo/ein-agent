@@ -1,0 +1,10 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-launcher-e2e-hardening:map","durationMs":0,"timestamp":"2026-08-07T12:55:41.632Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-launcher-e2e-hardening:map","durationMs":0,"timestamp":"2026-08-07T13:16:49.471Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-launcher-e2e-hardening:design","durationMs":0,"timestamp":"2026-08-07T13:21:09.535Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-launcher-e2e-hardening:tasks","durationMs":0,"timestamp":"2026-08-07T13:22:30.161Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-launcher-e2e-hardening:apply","durationMs":0,"timestamp":"2026-08-07T13:39:42.711Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-launcher-e2e-hardening:apply","durationMs":0,"timestamp":"2026-08-07T15:02:22.855Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-launcher-e2e-hardening:verify","durationMs":0,"timestamp":"2026-08-07T15:10:26.703Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-launcher-e2e-hardening:apply","durationMs":0,"timestamp":"2026-08-07T15:37:09.324Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:beta-launcher-e2e-hardening:verify","durationMs":0,"timestamp":"2026-08-07T15:42:49.991Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:beta-launcher-e2e-hardening:close","durationMs":0,"timestamp":"2026-08-07T15:43:37.420Z"}

@@ -7,13 +7,15 @@
 // =============================================================================
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { getRuntimeTestOwner } from "./fixtures/runtime-test-fixture";
 
-const TEST_AGENT_HOME = join(tmpdir(), "ein-agent-tests", "agent");
-const TEST_CONFIG_HOME = join(tmpdir(), "ein-agent-tests", "ein");
-process.env.EIN_PI_AGENT_HOME = TEST_AGENT_HOME;
+const owner = getRuntimeTestOwner();
+const TEST_AGENT_HOME = owner.agentHome;
+const TEST_CONFIG_HOME = mkdtempSync(join(tmpdir(), "ein-model-config-"));
+const ORIGINAL_CONFIG_HOME = process.env.EIN_PI_CONFIG_HOME;
 process.env.EIN_PI_CONFIG_HOME = TEST_CONFIG_HOME;
 
 const {
@@ -37,6 +39,8 @@ describe("models.json roundtrip", () => {
 
 	afterAll(() => {
 		rmSync(TEST_CONFIG_HOME, { recursive: true, force: true });
+		if (ORIGINAL_CONFIG_HOME === undefined) delete process.env.EIN_PI_CONFIG_HOME;
+		else process.env.EIN_PI_CONFIG_HOME = ORIGINAL_CONFIG_HOME;
 	});
 
 	test("escribe y lee la config con normalización", () => {

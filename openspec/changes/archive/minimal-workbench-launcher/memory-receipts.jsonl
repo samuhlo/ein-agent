@@ -1,0 +1,15 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:scope","durationMs":0,"timestamp":"2026-08-07T05:06:17.672Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:scope","durationMs":0,"timestamp":"2026-08-07T05:10:20.293Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:map","durationMs":0,"timestamp":"2026-08-07T05:14:22.205Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:design","durationMs":0,"timestamp":"2026-08-07T05:20:12.525Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:tasks","durationMs":0,"timestamp":"2026-08-07T05:21:35.327Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:apply","durationMs":0,"timestamp":"2026-08-07T05:23:42.886Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:apply","durationMs":0,"timestamp":"2026-08-07T05:56:35.203Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:apply","durationMs":0,"timestamp":"2026-08-07T06:27:04.871Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:tasks","durationMs":0,"timestamp":"2026-08-07T06:33:32.059Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:apply","durationMs":0,"timestamp":"2026-08-07T06:47:47.327Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:verify","durationMs":0,"timestamp":"2026-08-07T06:55:26.350Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:apply","durationMs":0,"timestamp":"2026-08-07T07:30:32.081Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:verify","durationMs":0,"timestamp":"2026-08-07T07:35:36.966Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:minimal-workbench-launcher:verify","durationMs":0,"timestamp":"2026-08-07T07:36:23.105Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:minimal-workbench-launcher:close","durationMs":0,"timestamp":"2026-08-07T07:36:30.718Z"}
