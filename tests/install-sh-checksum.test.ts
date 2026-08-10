@@ -141,6 +141,15 @@ describe("install.sh deterministic shell fixture", () => {
     expectTemporaryDirectoryCleaned(fixture);
   });
 
+  test("EXIT cleanup captures the mktemp path beyond main's local scope", () => {
+    const fixture = createFixture({ checksumUtility: "success" });
+    const result = runFixture(fixture);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).not.toContain("tmp: unbound variable");
+    expectTemporaryDirectoryCleaned(fixture);
+  });
+
   test("checksum download failure rejects before publication", () => {
     const fixture = createFixture({ checksumMode: "download-failure" });
     const result = runFixture(fixture);
@@ -309,7 +318,7 @@ function expectSandboxedDownloads(fixture: Fixture, result: RunResult): void {
 function expectTemporaryDirectoryCleaned(fixture: Fixture): void {
   expect(fixture.downloadDir.startsWith(`${fixture.root}/`)).toBe(true);
   expect(existsSync(fixture.downloadDir)).toBe(false);
-  expect(existsSync(fixture.tempDir)).toBe(false);
+  expect(existsSync(fixture.tempDir)).toBe(true);
 }
 
 function createFixture(options: FixtureOptions = {}): Fixture {
@@ -576,10 +585,7 @@ function runFixture(fixture: Fixture): RunResult {
       PATH: `${fixture.commandDir}:${runtimePath}`,
       HOME: fixture.home,
       TMPDIR: fixture.tempDir,
-      // Bash restores the environment's global `tmp` after main's local
-      // variable goes out of scope; the EXIT trap then removes this fixture
-      // TMPDIR and all real mktemp output below it.
-      tmp: fixture.tempDir,
+      tmp: undefined,
       WSL_DISTRO_NAME: "",
       EIN_INSTALLER_REPO: REPO,
       EIN_FIXTURE_ROOT: fixture.root,

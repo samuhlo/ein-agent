@@ -89,12 +89,13 @@ main() {
   [ "${IS_WSL:-0}" = "1" ] && info "WSL detectado — instalando la build de Linux (${ARCH}). Trabaja dentro del FS de WSL (~), no en /mnt/c."
   need curl
 
-  local base url tmp checksum_url
+  local base url tmp checksum_url cleanup_command
   base="https://github.com/${REPO}/releases/latest/download"
   url="${base}/${ASSET}"
   checksum_url="${base}/checksums.txt"
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
+  printf -v cleanup_command 'rm -rf -- %q' "$tmp"
+  trap "$cleanup_command" EXIT
 
   step "Descargando binario"
   if ! curl -fsSL -o "${tmp}/${BINARY_NAME}" "$url"; then

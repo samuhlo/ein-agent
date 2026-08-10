@@ -207,16 +207,18 @@ describe("Claude runtime runner", () => {
     expect(cleaned).toBe(true);
   });
 
-  test("required sync failure skips the launcher and cleans staging", async () => {
+  test("required sync failure reports detailed stdout before the stderr summary", async () => {
     const home = tempHome();
     let cleaned = false;
     let launcherCalls = 0;
     const stage = fakeStage(home, () => { cleaned = true; });
+    const detailedFailure = "required path missing: ein-pi/core/skills";
+    const summary = "required sync failed";
 
     const result = await runClaudeInstall({
       home,
       stagePayload: async () => stage,
-      execute: async () => ({ ok: false, code: 9, stdout: "", stderr: "required sync failed" }),
+      execute: async () => ({ ok: false, code: 9, stdout: detailedFailure, stderr: summary }),
       installLauncher: () => {
         launcherCalls += 1;
         return { path: "unused", changed: true };
@@ -224,8 +226,27 @@ describe("Claude runtime runner", () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(result.detail).toContain("required sync failed");
+    expect(result.detail).toContain(detailedFailure);
+    expect(result.detail).toContain(summary);
+    expect(result.detail.indexOf(detailedFailure)).toBeLessThan(result.detail.indexOf(summary));
+    expect(result.detail).not.toContain("codigo 9");
     expect(launcherCalls).toBe(0);
+    expect(cleaned).toBe(true);
+  });
+
+  test("required sync failure falls back to the exit code only without child output", async () => {
+    const home = tempHome();
+    let cleaned = false;
+    const stage = fakeStage(home, () => { cleaned = true; });
+
+    const result = await runClaudeInstall({
+      home,
+      stagePayload: async () => stage,
+      execute: async () => ({ ok: false, code: 9, stdout: "", stderr: "" }),
+      installLauncher: () => ({ path: "unused", changed: true }),
+    });
+
+    expect(result.detail).toContain("codigo 9");
     expect(cleaned).toBe(true);
   });
 
