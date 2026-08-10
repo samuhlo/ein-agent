@@ -16,6 +16,7 @@ ein-pi/openspec/changes/
 # === Dependencias y binarios (reproducibles) ===
 node_modules/
 ein-pi/**/node_modules/
+*.bun-build
 ein-pi/agent/npm/
 ein-pi/agent/bin/
 

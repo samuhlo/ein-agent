@@ -43,6 +43,8 @@ const HARNESS_END = "<!-- ein:harness-discipline:end -->";
 
 export const SURFACE_RUNNER_SOURCE = join(REPO, "ein-pi", "agent", "surfaces", "surface-runner.ts");
 export const CLAUDE_SURFACE_RUNNER_NAME = "ein-surface-runner";
+export const TERMINAL_APP_SOURCE = join(REPO, "ein-pi", "agent", "app.ts");
+export const CLAUDE_TERMINAL_APP_NAME = "ein-app";
 
 const log = (s: string) => console.log(DRY ? `  [dry] ${s}` : `  ${s}`);
 
@@ -642,6 +644,23 @@ export function runSync(): SyncResult {
         log(`✗ ${detail}`);
       }
     } else log(`surface runner se compilaría → bin/${CLAUDE_SURFACE_RUNNER_NAME}`);
+
+    // ── 8. App de terminal → binario standalone requerido ────────────────────
+    // Misma forma que el runner: se compila desde la fuente canónica para que
+    // Claude ejecute el mismo núcleo que Pi, no una copia adaptada.
+    if (!DRY) {
+      try {
+        compileClaudeSurfaceRunnerPayload({
+          source: TERMINAL_APP_SOURCE,
+          destination: join(binDir, CLAUDE_TERMINAL_APP_NAME),
+        });
+        log(`app de terminal compilada → bin/${CLAUDE_TERMINAL_APP_NAME}`);
+      } catch (error) {
+        const detail = `no se pudo desplegar la app de terminal: ${failureMessage(error)}`;
+        requiredFailures.push(detail);
+        log(`✗ ${detail}`);
+      }
+    } else log(`app de terminal se compilaría → bin/${CLAUDE_TERMINAL_APP_NAME}`);
   } catch (error) {
     requiredFailures.push(failureMessage(error));
     console.error(`✗ fallo de sincronización requerida: ${failureMessage(error)}`);
