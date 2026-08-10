@@ -5,6 +5,7 @@
 // =============================================================================
 
 import * as p from "@clack/prompts";
+import { INSTALLER_COMMAND, promoteCommandNames } from "../core/command-names.ts";
 import piEinFish from "../../../pi-ein/pi-ein.fish" with { type: "text" };
 import { describePlatform, detectPlatform, type Platform } from "../core/platform.ts";
 import { run } from "../core/exec.ts";
@@ -24,7 +25,7 @@ import { deployTemplate, readBundledManifest, type DeployOptions } from "../core
 import { installFishLauncher } from "../core/launcher.ts";
 import { restoreBackup, snapshot } from "../core/backup.ts";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   activeHome,
   derivePiInstallPaths,
@@ -408,7 +409,23 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
     );
   }
 
-  return { target: "pi", ok: true, detail: "Ein listo. Ejecuta `pi` para empezar (reinicia el shell si pi no esta en PATH)." };
+  // Both user-facing names, so a fresh install lands in the same layout an
+  // update migrates to: `ein` is the app, `ein-install` is this binary.
+  let appHint = "usa `pi-ein app`";
+  try {
+    const selfPath = process.execPath;
+    const promoted = promoteCommandNames({
+      binDir: dirname(selfPath),
+      selfPath,
+      appSource: join(piContext.agentDir, "app.ts"),
+    });
+    if (promoted.app.written) appHint = "ejecuta `ein`";
+    p.log.success(`Comandos: \`${INSTALLER_COMMAND}\` (instalador), \`ein\` (app${promoted.app.written ? "" : ", no desplegada"})`);
+  } catch (error) {
+    p.log.warn(`No se pudieron promover los comandos: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  return { target: "pi", ok: true, detail: `Ein listo. Para la aplicación, ${appHint}; para el agente, \`pi\`.` };
 }
 
 export type ClaudeInstallOptions = {

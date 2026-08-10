@@ -1,4 +1,6 @@
 import * as p from "@clack/prompts";
+import { dirname, join } from "node:path";
+import { INSTALLER_COMMAND, promoteCommandNames } from "../core/command-names.ts";
 import { detectPlatform, type Platform } from "../core/platform.ts";
 import { installDeclaredPackages, installPi, refreshExternalTools, type InstallStep } from "../core/deps.ts";
 import { AGENT_DIR, INSTALL_MARKER } from "../core/paths.ts";
@@ -89,12 +91,37 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
   // non-dry-run update. Best-effort: never turns a good update into a failure.
   if (rendered.exitCode === 0 && !flags.dryRun) {
     await refreshPi(flags, dependencies, write);
+    // `ein` is the terminal app and `ein-install` is this binary. Promoting on
+    // every successful update is what migrates a machine still on the old
+    // layout, where `ein` was the installer, in a single step.
+    promoteCommands(dependencies, write);
   }
 
   if (dependencies.interactive !== false) {
     p.outro(rendered.exitCode === 0 ? "Actualización finalizada." : "Actualización no aplicada.");
   }
   return rendered.exitCode;
+}
+
+/** Best-effort: a naming problem must never turn a good update into a failure. */
+function promoteCommands(
+  dependencies: { agentDir?: string; destinationPath?: string },
+  write: (line: string) => void,
+): void {
+  try {
+    const selfPath = dependencies.destinationPath ?? process.execPath;
+    const result = promoteCommandNames({
+      binDir: dirname(selfPath),
+      selfPath,
+      appSource: join(dependencies.agentDir ?? AGENT_DIR, "app.ts"),
+    });
+    if (result.installer.written) write(`Instalador disponible como \`${INSTALLER_COMMAND}\`.`);
+    write(result.app.written
+      ? "App de terminal disponible como `ein`."
+      : `App de terminal no desplegada (${result.app.reason ?? "desconocido"}); usa \`pi-ein app\`.`);
+  } catch (error) {
+    write(`No se pudieron promover los comandos: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /** Refreshes pi and the declared Pi packages after the Ein binary transaction. */
