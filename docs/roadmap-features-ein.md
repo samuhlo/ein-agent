@@ -135,10 +135,38 @@ conflicto.
 
 ## 5. Secuencia de cambios SDD
 
-Cada bloque A–O es un cambio SDD futuro independiente, con su propio diseño,
-tareas, aplicación y verificación. La secuencia es recomendada y sus dependencias
-son parte del contrato de planificación; no se deben fusionar varios bloques en un
+Cada bloque A–O es un cambio SDD independiente, con su propio diseño, tareas,
+aplicación y verificación. La secuencia es recomendada y sus dependencias son
+parte del contrato de planificación; no se deben fusionar varios bloques en un
 mega-cambio.
+
+### Estado de entrega
+
+La descripción de cada bloque más abajo está redactada en futuro porque es su
+contrato original; esta tabla es la que dice qué está hecho. La autoridad última
+es `openspec/changes/archive/`.
+
+| Bloque | Estado | Entregado como |
+| :--- | :--- | :--- |
+| A `beta-truth-and-exit-criteria` | entregado | `beta-truth-and-exit-criteria` |
+| B `shared-project-state-contract` | entregado | `shared-project-state-contract` |
+| C `runtime-session-adapters` | entregado | `runtime-session-adapters` |
+| D `minimal-workbench-launcher` | entregado | `minimal-workbench-launcher` |
+| E `beta-launcher-e2e-hardening` | entregado | `beta-launcher-e2e-hardening` |
+| F `shared-config-update-advisor` | entregado | `shared-config-update-advisor` |
+| G `reviewed-area-ledger` | entregado | `reviewed-area-ledger` |
+| H `cleaner-read-only-audit` | entregado | `cleaner-read-only-audit` |
+| I `cleaner-bounded-mutations` | entregado | `cleaner-bounded-mutations` |
+| M `surface-wiring` | entregado | `surface-wiring` |
+| N `launcher-update-surface` | entregado | `launcher-update-surface` (N.1) + slices N.2 y N.3 |
+| O `ein-terminal-app` | **en curso** | O.1 navegación y estado; O.2 y O.3 pendientes |
+| J `architect-read-only-audit` | pendiente | — |
+| K `architect-structural-mutations` | pendiente | — |
+| L `safe-agent-parallelism` | pendiente | — |
+
+Fuera de esta secuencia, entregado por el camino: `fix-update-notice-masking`
+(defecto de producción encontrado al preparar N), la declaración del SDK de Pi
+como dependencia del repo, y la puerta de tipos de `ein-pi`, `cc-ein` y `tests`.
 
 ### A — `beta-truth-and-exit-criteria`
 
