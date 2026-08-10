@@ -9,8 +9,10 @@ import {
   evaluateSharedConfigUpdateAdvisor,
   renderAdvisorSemantics,
   type AdvisorEvidence,
+  type AdvisorProvenance,
   type SharedConfigUpdateAdvisorResult,
 } from "./shared-config-update-advisor.ts";
+import type { PiEinUpdateObservation } from "./ein-update-notice.ts";
 import { inspectMode, type ModeInspection } from "./mode.ts";
 import { inspectModelConfig, type ModelConfigInspection } from "./model-config.ts";
 import {
@@ -80,13 +82,54 @@ export function renderProjectState(state: ProjectStateV1): string {
   ].join("\n");
 }
 
+const UPDATE_COMPONENT_ORDER = ["ein", "binary", "packages"] as const;
+const UPDATE_COMPONENT_LABEL: Readonly<Record<(typeof UPDATE_COMPONENT_ORDER)[number], string>> = {
+  ein: "Ein",
+  binary: "Pi binary",
+  packages: "Pi packages",
+};
+const UPDATE_COMPONENT_COMMAND: Readonly<Record<(typeof UPDATE_COMPONENT_ORDER)[number], string>> = {
+  ein: "ein update",
+  binary: "pi-ein update --all",
+  packages: "pi-ein update --all",
+};
+
+/** One line per known component, or `null` for `current` (silence is declared absence). */
+function renderUpdateComponentLine(provenance: AdvisorProvenance): string | null {
+  const component = provenance.source as (typeof UPDATE_COMPONENT_ORDER)[number];
+  const label = UPDATE_COMPONENT_LABEL[component];
+  if (!label) return null;
+  if (provenance.quality === "current") return null;
+  if (provenance.quality === "update-available" && provenance.freshness === "current") {
+    return `- ${label}: update-available — run \`${UPDATE_COMPONENT_COMMAND[component]}\``;
+  }
+  if (provenance.quality === "update-available") {
+    return `- ${label}: not verified (stale-evidence) — no action`;
+  }
+  return `- ${label}: not verified (${provenance.reason}) — no action`;
+}
+
+/** Component detail (R5 rules) below the collapsed advisor verdict. */
+function renderUpdateComponents(result: SharedConfigUpdateAdvisorResult): string {
+  const bySource = new Map(result.update.provenance.map((item) => [item.source, item]));
+  const lines = UPDATE_COMPONENT_ORDER
+    .map((component) => bySource.get(component))
+    .filter((item): item is AdvisorProvenance => item !== undefined)
+    .map(renderUpdateComponentLine)
+    .filter((line): line is string => line !== null);
+  return lines.length ? ["Updates:", ...lines].join("\n") : "";
+}
+
 export function renderWorkbenchAdvisor(result: SharedConfigUpdateAdvisorResult): string {
-  return renderAdvisorSemantics(result);
+  const semantics = renderAdvisorSemantics(result);
+  const components = renderUpdateComponents(result);
+  return components ? `${semantics}\n${components}` : semantics;
 }
 
 export type WorkbenchAdvisorReaders = Readonly<{
   inspectMode: (cwd: string) => ModeInspection;
   inspectModelConfig: (cwd: string) => ModelConfigInspection;
+  readUpdateObservations?: () => readonly PiEinUpdateObservation[] | undefined;
 }>;
 
 function configEvidence(
@@ -124,12 +167,14 @@ export function createWorkbenchAdvisor(
 ): SharedConfigUpdateAdvisorResult {
   const mode = readers.inspectMode(state.identity.cwd);
   const model = readers.inspectModelConfig(state.identity.cwd);
+  const observations = readers.readUpdateObservations?.();
   return evaluateSharedConfigUpdateAdvisor({
     configuration: {
       mode: configEvidence("mode", mode, mode.value),
       model: configEvidence("model", model, model.config),
       project: projectEvidence(state),
     },
+    ...(observations ? { update: { observations } } : {}),
   });
 }
 
