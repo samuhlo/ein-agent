@@ -25,6 +25,8 @@ import {
   checkPiBinaryUpdate,
   readEinVersion,
   checkClaudeCodeUpdate,
+  defaultPiManifestPaths,
+  readPiBinaryVersion,
   startUpdateEvidenceSnapshot,
   type VersionProbeRunner,
 } from "../lib/update-probes.ts";
@@ -112,11 +114,12 @@ function createProductionDependencies(candidates: readonly string[]): WorkbenchD
   // selection and confirmation; never awaited before render (R6).
   const agentDir = resolveAgentDir();
   const snapshot = startUpdateEvidenceSnapshot({
-    // The launcher is a standalone process: it has no SDK-provided installed
-    // binary version to compare against, so it declares itself non-verifiable.
-    binary: () => checkPiBinaryUpdate(undefined),
-    // The packages probe requires the SDK's package manager; not injected in N.1.
-    packages: async () => ({ source: "packages", status: "skipped", reason: "probe-unavailable", freshness: "unknown" }),
+    // Read from the package manifest on disk rather than the SDK's VERSION,
+    // which only extensions can import.
+    binary: async () => checkPiBinaryUpdate(await readPiBinaryVersion(defaultPiManifestPaths(homedir()))),
+    // Genuinely SDK-bound: resolving package updates means DefaultPackageManager,
+    // and reimplementing it here would duplicate Pi's source of truth.
+    packages: async () => ({ source: "packages", status: "skipped", reason: "requires-pi-runtime", freshness: "unknown" }),
     ein: async () => checkEinTemplateUpdate(await readEinVersion(agentDir)),
     claude: () => checkClaudeCodeUpdate(spawnVersionProbe),
   });

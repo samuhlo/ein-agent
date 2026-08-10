@@ -98,6 +98,34 @@ export async function checkEinTemplateUpdate(
   }
 }
 
+/**
+ * Installed Pi version without importing the SDK. `ein-banner.ts` reads it from
+ * the SDK's `VERSION`, which only extensions can import; the launcher is a
+ * standalone process, so it reads the same fact from the package manifest on
+ * disk. Candidate paths are injected to keep this testable and to allow layouts
+ * other than a Bun global install.
+ */
+export function defaultPiManifestPaths(home: string): readonly string[] {
+  return [
+    join(home, ".bun", "install", "global", "node_modules", "@earendil-works", "pi-coding-agent", "package.json"),
+  ];
+}
+
+export async function readPiBinaryVersion(
+  candidates: readonly string[],
+): Promise<string | undefined> {
+  for (const path of candidates) {
+    try {
+      const parsed = JSON.parse(await readFile(path, "utf8")) as { version?: unknown };
+      if (typeof parsed.version === "string" && parsed.version) return parsed.version;
+    } catch {
+      // Try the next layout; a missing or unreadable manifest is not an error
+      // here — exhausting every candidate is what makes the source unverifiable.
+    }
+  }
+  return undefined;
+}
+
 /** Bounded process boundary, injected so tests never spawn anything real. */
 export type VersionProbeRunner = (
   input: Readonly<{ file: string; args: readonly string[]; timeoutMs: number; maxBuffer: number }>,
