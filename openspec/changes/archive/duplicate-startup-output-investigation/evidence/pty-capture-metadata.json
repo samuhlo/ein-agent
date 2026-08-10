@@ -1,0 +1,102 @@
+{
+  "actualConfiguration": {
+    "installedUserAgentHomeModified": false,
+    "settings": {
+      "enableInstallTelemetry": false,
+      "extensions": [
+        "/Users/samu/Documents/01_Proyectos/ein-agent/ein-pi/agent/extensions/ein-banner.ts"
+      ],
+      "packages": [],
+      "prompts": [],
+      "quietStartup": false,
+      "skills": []
+    },
+    "temporaryIsolatedHomeRemovedAfterExit": true,
+    "trustedCwdForCapture": "/Users/samu/Documents/01_Proyectos/ein-agent"
+  },
+  "captureFiles": {
+    "actions": "/Users/samu/Documents/01_Proyectos/ein-agent/openspec/changes/duplicate-startup-output-investigation/evidence/pty-actions.jsonl",
+    "presentations": "/Users/samu/Documents/01_Proyectos/ein-agent/openspec/changes/duplicate-startup-output-investigation/evidence/pty-presentations.jsonl",
+    "processSnapshots": "/Users/samu/Documents/01_Proyectos/ein-agent/openspec/changes/duplicate-startup-output-investigation/evidence/pty-processes.jsonl",
+    "rawPty": {
+      "path": "/Users/samu/Documents/01_Proyectos/ein-agent/openspec/changes/duplicate-startup-output-investigation/evidence/pty-startup.raw",
+      "sha256": "8f0e8edccfaa42efe804d3beae92dc70697df6d4f25e87817aba3432ba23d0e7"
+    },
+    "sideChannel": {
+      "path": "/Users/samu/Documents/01_Proyectos/ein-agent/openspec/changes/duplicate-startup-output-investigation/evidence/startup-provenance.jsonl",
+      "sha256": "d16c6dc8496be8b05594cf9665a73ea178e8f2976af6f716155f8f829e03ab22"
+    },
+    "timedChunks": "/Users/samu/Documents/01_Proyectos/ein-agent/openspec/changes/duplicate-startup-output-investigation/evidence/pty-chunks.jsonl"
+  },
+  "captureWindow": {
+    "durationMilliseconds": 9200.984,
+    "finishedAt": "2026-08-10T15:40:00.873967Z",
+    "startedAt": "2026-08-10T15:39:51.672087Z"
+  },
+  "diagnosticRunId": "b7dc0533-758b-4511-8ae0-a91718520fb8",
+  "effectiveEnvironment": {
+    "AGENT_DIR": "/tmp/ein-pi-pty.WV3YOz/.pi-ein/agent",
+    "EIN_PI_AGENT_HOME": "/tmp/ein-pi-pty.WV3YOz/.pi-ein/agent",
+    "EIN_STARTUP_PROVENANCE": "1",
+    "EIN_STARTUP_PROVENANCE_EXTENSION_SOURCE": "file:///Users/samu/Documents/01_Proyectos/ein-agent/ein-pi/agent/extensions/ein-banner.ts",
+    "EIN_STARTUP_PROVENANCE_OUTPUT": "/Users/samu/Documents/01_Proyectos/ein-agent/openspec/changes/duplicate-startup-output-investigation/evidence/startup-provenance.jsonl",
+    "EIN_STARTUP_PROVENANCE_RUN_ID": "b7dc0533-758b-4511-8ae0-a91718520fb8",
+    "HOME": "/tmp/ein-pi-pty.WV3YOz",
+    "PI_CODING_AGENT_DIR": "/tmp/ein-pi-pty.WV3YOz/.pi-ein/agent",
+    "PI_OFFLINE": "1"
+  },
+  "extensionDiscoveryResult": {
+    "automaticDiscoveryBasis": "temporary isolated settings named exactly one source; Pi startup [Extensions] listed ein-banner.ts; side channel recorded one load",
+    "configuredSources": [
+      "/Users/samu/Documents/01_Proyectos/ein-agent/ein-pi/agent/extensions/ein-banner.ts"
+    ],
+    "installedManifestUsedAsActiveEvidence": false,
+    "observedLoadEventIds": [
+      "884616d9-463b-4385-b143-351f2b8bc342"
+    ],
+    "observedRegistrationEventIds": [
+      "728615f4-8f22-476d-ad1e-1311e259311d"
+    ],
+    "resolvedSourceDeviceAndInode": "16777230:200188774",
+    "resolvedSourceIdentity": "file:///Users/samu/Documents/01_Proyectos/ein-agent/ein-pi/agent/extensions/ein-banner.ts",
+    "resolvedSourcePath": "/Users/samu/Documents/01_Proyectos/ein-agent/ein-pi/agent/extensions/ein-banner.ts",
+    "resolvedSourceSha256": "2a58c92a67354139b897d0b8b31e137df1f770ecc8140be2d6c1c6474f1a0d0f",
+    "startupResourceList": [
+      "ein-banner.ts"
+    ],
+    "state": "observed"
+  },
+  "process": {
+    "pi": {
+      "pid": 39689,
+      "ppid": 39687
+    },
+    "processSnapshotObservedParentLink": true,
+    "ptyLauncher": {
+      "pid": 39687
+    }
+  },
+  "startup": {
+    "cwd": "/Users/samu/Documents/01_Proyectos/ein-agent",
+    "exitCode": 0,
+    "launcherCommand": "source '/Users/samu/Documents/01_Proyectos/ein-agent/pi-ein/pi-ein.fish'; pi-ein",
+    "piArguments": [],
+    "piBinary": "/Users/samu/.bun/bin/pi",
+    "piVersion": "0.84.1",
+    "terminal": {
+      "columns": 120,
+      "rows": 40,
+      "term": "xterm-256color"
+    },
+    "terminatedAtDeadline": false
+  },
+  "structuredIdentity": {
+    "diagnosticRunId": "b7dc0533-758b-4511-8ae0-a91718520fb8",
+    "loadEventId": "884616d9-463b-4385-b143-351f2b8bc342",
+    "registrationEventId": "728615f4-8f22-476d-ad1e-1311e259311d",
+    "runtimeSessionIdentity": {
+      "state": "unknown"
+    },
+    "sessionStartEventId": "36b51c1f-708c-4ed7-9e6e-1241238577ef"
+  }
+}

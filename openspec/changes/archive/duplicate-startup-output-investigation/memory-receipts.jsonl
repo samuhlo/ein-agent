@@ -1,0 +1,14 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:scope","durationMs":0,"timestamp":"2026-08-10T10:24:09.096Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:map","durationMs":0,"timestamp":"2026-08-10T14:31:54.694Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:design","durationMs":0,"timestamp":"2026-08-10T14:37:20.903Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:design","durationMs":0,"timestamp":"2026-08-10T14:40:16.648Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:tasks","durationMs":0,"timestamp":"2026-08-10T14:45:53.692Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:apply","durationMs":0,"timestamp":"2026-08-10T15:07:11.470Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:apply","durationMs":0,"timestamp":"2026-08-10T15:15:28.367Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:apply","durationMs":0,"timestamp":"2026-08-10T15:23:55.267Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:apply","durationMs":0,"timestamp":"2026-08-10T15:30:57.260Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:apply","durationMs":0,"timestamp":"2026-08-10T15:46:38.723Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:apply","durationMs":0,"timestamp":"2026-08-10T16:13:44.206Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:verify","durationMs":0,"timestamp":"2026-08-10T16:19:41.681Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:duplicate-startup-output-investigation:invalid","durationMs":0,"timestamp":"2026-08-10T16:20:50.283Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:duplicate-startup-output-investigation:close","durationMs":0,"timestamp":"2026-08-10T16:21:02.328Z"}

@@ -1,0 +1,28 @@
+{
+  "automaticExtensionDiscovery": "enabled-from-temporary-isolated-settings",
+  "cwd": "/Users/samu/Documents/01_Proyectos/ein-agent",
+  "diagnosticRunId": "b7dc0533-758b-4511-8ae0-a91718520fb8",
+  "durationMilliseconds": 9200.984,
+  "effectiveAgentDir": "/tmp/ein-pi-pty.WV3YOz/.pi-ein/agent",
+  "einPiAgentHome": "/tmp/ein-pi-pty.WV3YOz/.pi-ein/agent",
+  "exitCode": 0,
+  "extensionConfiguration": [
+    "/Users/samu/Documents/01_Proyectos/ein-agent/ein-pi/agent/extensions/ein-banner.ts"
+  ],
+  "extensionSourceIdentity": "file:///Users/samu/Documents/01_Proyectos/ein-agent/ein-pi/agent/extensions/ein-banner.ts",
+  "extensionSourcePath": "/Users/samu/Documents/01_Proyectos/ein-agent/ein-pi/agent/extensions/ein-banner.ts",
+  "finishedAt": "2026-08-10T15:40:00.873967Z",
+  "fishCommand": "source '/Users/samu/Documents/01_Proyectos/ein-agent/pi-ein/pi-ein.fish'; pi-ein",
+  "offline": true,
+  "piArguments": [],
+  "piCodingAgentDir": "/tmp/ein-pi-pty.WV3YOz/.pi-ein/agent",
+  "ptyChildPid": 39687,
+  "startedAt": "2026-08-10T15:39:51.672087Z",
+  "terminal": {
+    "columns": 120,
+    "rows": 40,
+    "term": "xterm-256color"
+  },
+  "terminatedAtDeadline": false,
+  "waitStatus": 0
+}

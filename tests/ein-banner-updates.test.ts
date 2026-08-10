@@ -2,8 +2,27 @@
 // TESTS: aviso de updates propio de Ein en el runtime pi-ein
 // =============================================================================
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { evaluateSharedConfigUpdateAdvisor } from "../ein-pi/agent/lib/shared-config-update-advisor.ts";
+import {
+  createStartupProvenanceRecorder,
+  type StartupProvenanceEvent,
+} from "../ein-pi/agent/lib/startup-provenance.ts";
+
+mock.module("@earendil-works/pi-coding-agent", () => ({
+  DefaultPackageManager: class {},
+  SettingsManager: { create: () => ({}) },
+  VERSION: "0.0.0",
+}));
+mock.module("@earendil-works/pi-tui", () => ({
+  matchesKey: () => false,
+  truncateToWidth: (value: string) => value,
+}));
+
 import {
   collectPiEinUpdates,
   collectPiEinUpdateEvidence,
@@ -48,6 +67,268 @@ function createManualScheduler() {
 async function flushChecks(): Promise<void> {
   for (let i = 0; i < 8; i++) await Promise.resolve();
 }
+
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+};
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+function capturingProvenance(events: StartupProvenanceEvent[]) {
+  let eventIndex = 0;
+  return createStartupProvenanceRecorder({
+    enabled: true,
+    diagnosticRunId: "run-notice-correlation",
+    nextEventId: () => `notice-event-${++eventIndex}`,
+    wallClock: () => "2026-08-10T12:00:00.000Z",
+    monotonicClock: () => eventIndex,
+    processIdentity: { state: "observed", value: { pid: 101, ppid: 100 } },
+    extensionSourceIdentity: { state: "observed", value: "file:///canonical/ein-banner.ts" },
+    sink: (event) => events.push(event),
+  });
+}
+
+function digestNotice(message: string): string {
+  const normalized = message.normalize("NFC").replace(/\r\n?/g, "\n");
+  return `sha256:${createHash("sha256").update(normalized).digest("hex")}`;
+}
+
+const PROVENANCE_ENV_KEYS = [
+  "EIN_STARTUP_PROVENANCE",
+  "EIN_STARTUP_PROVENANCE_RUN_ID",
+  "EIN_STARTUP_PROVENANCE_OUTPUT",
+  "EIN_STARTUP_PROVENANCE_EXTENSION_SOURCE",
+] as const;
+
+let bannerModuleNonce = 0;
+
+type SessionStartHandler = (
+  event: unknown,
+  context: { hasUI: boolean },
+) => Promise<void>;
+
+type BannerExtension = (pi: {
+  on: (event: "session_start", handler: SessionStartHandler) => void;
+}) => void;
+
+async function importBannerModule(label: string): Promise<BannerExtension> {
+  const module = await import(
+    `../ein-pi/agent/extensions/ein-banner.ts?startup-provenance-test=${label}-${++bannerModuleNonce}`
+  );
+  return module.default as BannerExtension;
+}
+
+function registrationProbe() {
+  const registrations: Array<{
+    event: "session_start";
+    handler: SessionStartHandler;
+  }> = [];
+  return {
+    registrations,
+    pi: {
+      on(event: "session_start", handler: SessionStartHandler) {
+        registrations.push({ event, handler });
+      },
+    },
+  };
+}
+
+function readProvenanceEvents(path: string): StartupProvenanceEvent[] {
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8")
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as StartupProvenanceEvent);
+}
+
+async function withProvenanceEnvironment(
+  values: Partial<Record<(typeof PROVENANCE_ENV_KEYS)[number], string>>,
+  run: () => Promise<void>,
+): Promise<void> {
+  const previous = Object.fromEntries(
+    PROVENANCE_ENV_KEYS.map((key) => [key, process.env[key]]),
+  ) as Record<(typeof PROVENANCE_ENV_KEYS)[number], string | undefined>;
+  try {
+    for (const key of PROVENANCE_ENV_KEYS) delete process.env[key];
+    Object.assign(process.env, values);
+    await run();
+  } finally {
+    for (const key of PROVENANCE_ENV_KEYS) {
+      const value = previous[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+describe("ein-banner extension provenance", () => {
+  test("records distinct module loads and parent-linked registrations", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "ein-banner-provenance-"));
+    const output = join(directory, "events.jsonl");
+    try {
+      await withProvenanceEnvironment({
+        EIN_STARTUP_PROVENANCE: "1",
+        EIN_STARTUP_PROVENANCE_RUN_ID: "run-extension-boundaries",
+        EIN_STARTUP_PROVENANCE_OUTPUT: output,
+        EIN_STARTUP_PROVENANCE_EXTENSION_SOURCE: "file:///canonical/ein-banner.ts",
+      }, async () => {
+        const firstModule = await importBannerModule("first");
+        const firstProbe = registrationProbe();
+        firstModule(firstProbe.pi);
+        firstModule(firstProbe.pi);
+
+        const secondModule = await importBannerModule("second");
+        const secondProbe = registrationProbe();
+        secondModule(secondProbe.pi);
+
+        expect(firstProbe.registrations).toHaveLength(2);
+        expect(secondProbe.registrations).toHaveLength(1);
+      });
+
+      const events = readProvenanceEvents(output);
+      const loads = events.filter((event) => event.eventType === "load");
+      const registrations = events.filter(
+        (event) => event.eventType === "registration",
+      );
+
+      expect(loads).toHaveLength(2);
+      expect(registrations).toHaveLength(3);
+      expect(new Set(events.map((event) => event.eventId)).size).toBe(5);
+      expect(loads.map((event) => event.parentEventId)).toEqual([null, null]);
+      expect(registrations.map((event) => event.parentEventId)).toEqual([
+        loads[0]?.eventId,
+        loads[0]?.eventId,
+        loads[1]?.eventId,
+      ]);
+      expect(events.every(
+        (event) =>
+          event.diagnosticRunId === "run-extension-boundaries" &&
+          event.runtimeSessionIdentity.state === "unknown" &&
+          event.extensionSourceIdentity.state === "observed" &&
+          event.processIdentity.state === "observed" &&
+          event.processIdentity.value.pid === process.pid &&
+          event.processIdentity.value.ppid === process.ppid,
+      )).toBe(true);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("records every session entry with filter observations and its registration parent", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "ein-banner-invocations-"));
+    const output = join(directory, "events.jsonl");
+    const originalArgv = [...process.argv];
+    try {
+      await withProvenanceEnvironment({
+        EIN_STARTUP_PROVENANCE: "1",
+        EIN_STARTUP_PROVENANCE_RUN_ID: "run-session-entries",
+        EIN_STARTUP_PROVENANCE_OUTPUT: output,
+      }, async () => {
+        const extension = await importBannerModule("session-entries");
+        const probe = registrationProbe();
+        extension(probe.pi);
+        const handler = probe.registrations[0]!.handler;
+
+        process.argv.splice(0, process.argv.length, "/usr/bin/bun", "ein-banner.ts");
+        await expect(handler({}, { hasUI: false })).resolves.toBeUndefined();
+
+        process.argv.push("update");
+        await expect(handler({}, { hasUI: true })).resolves.toBeUndefined();
+      });
+
+      const events = readProvenanceEvents(output);
+      const registration = events.find((event) => event.eventType === "registration");
+      const invocations = events.filter((event) => event.eventType === "session_start");
+
+      expect(registration).toBeDefined();
+      expect(invocations).toHaveLength(2);
+      expect(new Set(invocations.map((event) => event.eventId)).size).toBe(2);
+      expect(invocations.map((event) => event.parentEventId)).toEqual([
+        registration!.eventId,
+        registration!.eventId,
+      ]);
+      expect(invocations).toEqual([
+        expect.objectContaining({
+          hasUI: { state: "observed", value: false },
+          cliFiltered: { state: "observed", value: false },
+          runtimeSessionIdentity: { state: "unknown" },
+        }),
+        expect.objectContaining({
+          hasUI: { state: "observed", value: true },
+          cliFiltered: { state: "observed", value: true },
+          runtimeSessionIdentity: { state: "unknown" },
+        }),
+      ]);
+    } finally {
+      process.argv.splice(0, process.argv.length, ...originalArgv);
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps registration and the no-UI startup path unchanged when disabled", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "ein-banner-disabled-"));
+    const output = join(directory, "events.jsonl");
+    try {
+      await withProvenanceEnvironment({
+        EIN_STARTUP_PROVENANCE_OUTPUT: output,
+      }, async () => {
+        const extension = await importBannerModule("disabled");
+        const probe = registrationProbe();
+
+        extension(probe.pi);
+
+        expect(probe.registrations.map(({ event }) => event)).toEqual([
+          "session_start",
+        ]);
+        await expect(
+          probe.registrations[0]!.handler({}, { hasUI: false }),
+        ).resolves.toBeUndefined();
+      });
+      expect(existsSync(output)).toBe(false);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps source evidence unknown and startup registration alive when the sink fails", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "ein-banner-failed-sink-"));
+    const output = join(directory, "events.jsonl");
+    try {
+      await withProvenanceEnvironment({
+        EIN_STARTUP_PROVENANCE: "1",
+        EIN_STARTUP_PROVENANCE_RUN_ID: "run-failed-sink",
+        EIN_STARTUP_PROVENANCE_OUTPUT: output,
+      }, async () => {
+        const extension = await importBannerModule("failed-sink");
+        const loadEvents = readProvenanceEvents(output);
+        expect(loadEvents).toHaveLength(1);
+        expect(loadEvents[0]).toMatchObject({
+          eventType: "load",
+          extensionSourceIdentity: { state: "unknown" },
+        });
+
+        const retainedEvidence = join(directory, "retained-events.jsonl");
+        renameSync(output, retainedEvidence);
+        mkdirSync(output);
+        const probe = registrationProbe();
+
+        expect(() => extension(probe.pi)).not.toThrow();
+        expect(probe.registrations).toHaveLength(1);
+        expect(readProvenanceEvents(retainedEvidence)).toEqual(loadEvents);
+      });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("pi-ein update notice", () => {
   test("detects the isolated launcher runtime, not vanilla Pi", () => {
@@ -229,11 +510,83 @@ describe("pi-ein update notice", () => {
     ])).toEqual({ pi: false, ein: true });
   });
 
-  test("swallows detector failure without breaking session start", async () => {
+  test("keeps overlapping notice work linked and records each emission before notify", async () => {
+    const events: StartupProvenanceEvent[] = [];
+    const recorder = capturingProvenance(events);
+    const first = deferred<{ pi: boolean; ein: boolean }>();
+    const second = deferred<{ pi: boolean; ein: boolean }>();
+    const notifications: Array<{
+      message: string;
+      precedingEvent: StartupProvenanceEvent | undefined;
+    }> = [];
+    const context = {
+      cwd: "/tmp/project",
+      ui: {
+        notify(message: string) {
+          notifications.push({ message, precedingEvent: events.at(-1) });
+        },
+      },
+    };
+
+    startPiEinUpdateNotice(
+      context,
+      () => first.promise,
+      () => true,
+      { env: PI_EIN_ENV, home: HOME },
+      {
+        recorder,
+        invocationEventId: "invocation-first",
+        runtimeSessionIdentity: { state: "unknown" },
+      },
+    );
+    startPiEinUpdateNotice(
+      context,
+      () => second.promise,
+      () => true,
+      { env: PI_EIN_ENV, home: HOME },
+      {
+        recorder,
+        invocationEventId: "invocation-second",
+        runtimeSessionIdentity: { state: "unknown" },
+      },
+    );
+
+    second.resolve({ pi: false, ein: true });
+    await flushChecks();
+    first.resolve({ pi: true, ein: false });
+    await flushChecks();
+
+    const emissions = events.filter((event) => event.eventType === "notification-emission");
+    expect(emissions).toHaveLength(2);
+    expect(new Set(emissions.map((event) => event.eventId)).size).toBe(2);
+    expect(emissions.map((event) => event.parentEventId)).toEqual([
+      "invocation-second",
+      "invocation-first",
+    ]);
+    expect(emissions.map((event) => event.runtimeSessionIdentity)).toEqual([
+      { state: "unknown" },
+      { state: "unknown" },
+    ]);
+    expect(emissions.map((event) => event.normalizedMessageDigest)).toEqual(
+      notifications.map(({ message }) => digestNotice(message)),
+    );
+    expect(notifications.map(({ precedingEvent }) => precedingEvent?.eventId)).toEqual(
+      emissions.map((event) => event.eventId),
+    );
+  });
+
+  test("does not synthesize emissions for detector failure or timeout", async () => {
+    const events: StartupProvenanceEvent[] = [];
+    const recorder = capturingProvenance(events);
     const notifications: string[] = [];
     const context = {
       cwd: "/tmp/project",
       ui: { notify: (message: string) => notifications.push(message) },
+    };
+    const provenance = {
+      recorder,
+      invocationEventId: "invocation-unavailable",
+      runtimeSessionIdentity: { state: "unknown" } as const,
     };
 
     expect(() =>
@@ -241,10 +594,77 @@ describe("pi-ein update notice", () => {
         context,
         () => Promise.reject(new Error("update service unavailable")),
         () => true,
+        { env: PI_EIN_ENV, home: HOME },
+        provenance,
       ),
     ).not.toThrow();
     await flushChecks();
+
+    const { timers, scheduler } = createManualScheduler();
+    startPiEinUpdateNotice(
+      context,
+      () => collectPiEinUpdates({
+        binary: () => new Promise<boolean>(() => {}),
+        packages: () => Promise.resolve(false),
+        ein: () => Promise.resolve(false),
+      }, { scheduler }),
+      () => true,
+      { env: PI_EIN_ENV, home: HOME },
+      provenance,
+    );
+    await flushChecks();
+    for (const timer of timers) if (!timer.cancelled) timer.callback();
+    await flushChecks();
+
     expect(notifications).toEqual([]);
+    expect(events).toEqual([]);
+  });
+
+  test("keeps the real notification when provenance recording is unavailable", async () => {
+    const unavailableOutcomes: unknown[] = [];
+    const failingRecorder = createStartupProvenanceRecorder({
+      enabled: true,
+      diagnosticRunId: "run-failed-emission-sink",
+      nextEventId: () => "unretained-emission",
+      wallClock: () => "2026-08-10T12:00:00.000Z",
+      monotonicClock: () => 1,
+      processIdentity: { state: "observed", value: { pid: 101, ppid: 100 } },
+      extensionSourceIdentity: { state: "unknown" },
+      sink: () => {
+        throw new Error("diagnostic sink unavailable");
+      },
+    });
+    const recorder = {
+      record: (...args: Parameters<typeof failingRecorder.record>) => {
+        const outcome = failingRecorder.record(...args);
+        unavailableOutcomes.push(outcome);
+        return outcome;
+      },
+    };
+    const notifications: string[] = [];
+
+    startPiEinUpdateNotice(
+      {
+        cwd: "/tmp/project",
+        ui: { notify: (message: string) => notifications.push(message) },
+      },
+      async () => ({ pi: false, ein: true }),
+      () => true,
+      { env: PI_EIN_ENV, home: HOME },
+      {
+        recorder,
+        invocationEventId: "invocation-failed-sink",
+        runtimeSessionIdentity: { state: "unknown" },
+      },
+    );
+    await flushChecks();
+
+    expect(notifications).toEqual([
+      ["/// 000. EIN UPDATES", "", "- Ein template: `ein update`"].join("\n"),
+    ]);
+    expect(unavailableOutcomes).toEqual([
+      { state: "unavailable", reason: "sink-failure" },
+    ]);
   });
 
   test("accepts the canonical advisor result at the notice boundary", async () => {
