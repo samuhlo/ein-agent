@@ -371,8 +371,12 @@ function recommendation(
   if (configuration.status === "unsupported" || update.status === "unsupported") {
     return Object.freeze({ kind: "unsupported-action", reason: "unsupported" });
   }
+  // A detected update with no handoff means ownership evidence never arrived:
+  // it is a read gap, never a healthy "nothing to do".
+  if (update.status === "update-available") return Object.freeze({ kind: "retry-read", reason: "missing-handoff" });
   if (configuration.status === "error") return Object.freeze({ kind: "inspect-configuration", reason: configuration.reason });
   if (configuration.status === "incomplete") return Object.freeze({ kind: "inspect-configuration", reason: configuration.reason });
+  if (configuration.status === "unavailable") return Object.freeze({ kind: "inspect-configuration", reason: configuration.reason });
   if (update.status === "error" || update.status === "unavailable") return Object.freeze({ kind: "retry-read", reason: update.reason });
   return Object.freeze({ kind: "none", reason: "read-success" });
 }

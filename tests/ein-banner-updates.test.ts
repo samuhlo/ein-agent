@@ -157,7 +157,7 @@ describe("pi-ein update notice", () => {
     expect(JSON.stringify(observations)).not.toContain("private-token");
   });
 
-  test("renders the shared advisor semantics without turning stale evidence into a handoff", () => {
+  test("stays silent when stale evidence never became an actionable update", () => {
     const result = evaluateSharedConfigUpdateAdvisor({
       configuration: {
         mode: { status: "valid", source: "project\u001b[2J", value: "solo", freshness: "current" },
@@ -170,10 +170,37 @@ describe("pi-ein update notice", () => {
         capability: { status: "valid", source: "installer-capability", supported: true, freshness: "current" },
       },
     });
+    expect(result.update.status).toBe("unavailable");
+    expect(renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME })).toBeNull();
+  });
+
+  test("startup notice renders actionable commands and never claims unread configuration", () => {
+    const result = evaluateSharedConfigUpdateAdvisor({
+      update: {
+        observations: [
+          { status: "current", source: "binary", reason: "read-success", freshness: "current" },
+          { status: "current", source: "packages", reason: "read-success", freshness: "current" },
+          { status: "update-available", source: "ein", reason: "newer-release", freshness: "current" },
+        ],
+      },
+    });
     const rendered = renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME });
-    expect(rendered).toContain("Update: status=unavailable freshness=stale reason=stale-evidence");
-    expect(rendered).not.toContain("performed=false");
-    expect(rendered).not.toMatch(/\x1b|\r|runUpdate/);
+    expect(rendered).toBe(["/// 000. EIN UPDATES", "", "- Ein template: `ein update`"].join("\n"));
+    expect(rendered).not.toContain("Configuration:");
+    expect(rendered).not.toContain("pi-ein update --all");
+  });
+
+  test("an update with no ownership handoff is a read gap, not a healthy no-op", () => {
+    const result = evaluateSharedConfigUpdateAdvisor({
+      update: {
+        observations: [
+          { status: "update-available", source: "ein", reason: "newer-release", freshness: "current" },
+        ],
+      },
+    });
+    expect(result.handoff).toBeUndefined();
+    expect(result.recommendation.kind).toBe("retry-read");
+    expect(result.recommendation.reason).toBe("missing-handoff");
   });
 
   test("production detector preserves canonical observation status, provenance, and freshness until rendering", async () => {
@@ -236,8 +263,7 @@ describe("pi-ein update notice", () => {
     });
     startPiEinUpdateNotice({ cwd: "/tmp/project", ui: { notify: message => notifications.push(message) } }, async () => result, () => true, { env: PI_EIN_ENV, home: HOME });
     await flushChecks();
-    expect(notifications[0]).toContain("Update: status=update-available");
-    expect(notifications[0]).toContain("performed=false");
+    expect(notifications[0]).toBe(["/// 000. EIN UPDATES", "", "- Ein template: `ein update`"].join("\n"));
   });
 
   test("notifies exactly once with exact commands in isolated pi-ein", async () => {

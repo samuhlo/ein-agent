@@ -4,7 +4,7 @@
 
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { evaluateSharedConfigUpdateAdvisor, renderAdvisorSemantics, type SharedConfigUpdateAdvisorResult } from "./shared-config-update-advisor.ts";
+import { evaluateSharedConfigUpdateAdvisor, type InstallerAction, type SharedConfigUpdateAdvisorResult } from "./shared-config-update-advisor.ts";
 
 export type EinUpdateAvailability = {
   pi: boolean;
@@ -256,14 +256,47 @@ export function startPiEinUpdateNotice(
   }
 }
 
-/** Render only Ein's own notice; Pi's native update message remains untouched. */
+const UPDATE_COMMANDS: Readonly<Record<string, string>> = {
+  binary: "- Pi binary, extensions and packages: `pi-ein update --all`",
+  packages: "- Pi binary, extensions and packages: `pi-ein update --all`",
+  ein: "- Ein template: `ein update`",
+};
+
+// Only install/update exist as installer commands; the other actions are diagnosed.
+const HANDOFF_COMMANDS: Readonly<Record<InstallerAction, string>> = {
+  install: "- Ein template: `ein install`",
+  update: "- Ein template: `ein update`",
+  repair: "- Ein template: `ein doctor`",
+  configure: "- Ein template: `ein doctor`",
+};
+
+/**
+ * Startup only observes update probes, so it renders update evidence only: claiming
+ * a configuration facet it never read produced a permanent false alarm. Full advisor
+ * semantics stay on the workbench surface, which does supply configuration evidence.
+ * Everything except a fresh, actionable update stays silent — the probe is best-effort.
+ */
 export function renderPiEinAdvisorNotice(
   result: SharedConfigUpdateAdvisorResult,
   runtime: { env?: RuntimeEnvironment; home?: string } = {},
 ): string | null {
   if (!isPiEinRuntime(runtime.env, runtime.home)) return null;
-  if (result.update.status === "current") return null;
-  return ["/// 000. EIN ADVISOR", "", renderAdvisorSemantics(result)].join("\n");
+  if (result.update.status !== "update-available") return null;
+
+  // Version-comparison evidence names the installer action; probe observations name the component.
+  const handoff = result.handoff;
+  if (handoff?.owner === "installer" && handoff.performed === false) {
+    return ["/// 000. EIN UPDATES", "", HANDOFF_COMMANDS[handoff.action] ?? HANDOFF_COMMANDS.configure].join("\n");
+  }
+
+  const commands = [...new Set(
+    result.update.provenance
+      .filter((item) => item.quality === "update-available" && item.freshness === "current")
+      .map((item) => UPDATE_COMMANDS[item.source])
+      .filter((command): command is string => command !== undefined),
+  )];
+  if (!commands.length) return null;
+  return ["/// 000. EIN UPDATES", "", ...commands].join("\n");
 }
 
 export const renderPiEinUpdateAdvice = renderPiEinAdvisorNotice;
