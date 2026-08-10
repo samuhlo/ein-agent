@@ -4,6 +4,8 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { closeChange } from "../ein-pi/agent/lib/sdd-close";
@@ -181,6 +183,168 @@ describe("closeChange", () => {
 			timestamp: "2026-07-14T00:00:00.000Z",
 		});
 		expect(existsSync(join(r.to, "summary.md"))).toBe(true);
+	});
+});
+
+describe("closeChange — scope-only out-of-flow reconciliation", () => {
+	const profile = "scope-only-out-of-flow";
+	const reason = "Delivery predated the SDD lifecycle rollout.";
+
+	function git(...args: string[]): string {
+		return execFileSync("git", ["-C", DIR, ...args], { encoding: "utf8" }).trim();
+	}
+
+	function reconciliationFixture(change = "legacy-delivery", declaredNone = false): { source: string; evidencePath: string; identity: { head: string; tree: string; capturedAt: string } } {
+		const summary = [
+			"# Out-of-flow reconciliation",
+			"Delivery occurred outside SDD.",
+			"Excluded lifecycle artifacts: map.md, design.md, tasks.md, apply-progress.md, verify-report.md.",
+			"## Repository verification",
+			"- core-tests",
+			"## Successor changes",
+			"None.",
+			"",
+		].join("\n");
+		const source = mkChange(change, {
+			"scope.md": declaredNone
+				? "# Historical scope\n\n## Spec delta declaration\nspec_delta: none\nspec_delta_reason: Delivery changed no canonical specification\n"
+				: "# Historical scope\n",
+			"summary.md": summary,
+		});
+		git("init", "-q");
+		git("config", "user.email", "tests@example.invalid");
+		git("config", "user.name", "Ein tests");
+		git("add", ".");
+		git("commit", "-qm", "fixture");
+		const identity = {
+			head: git("rev-parse", "HEAD"),
+			tree: git("rev-parse", "HEAD^{tree}"),
+			capturedAt: "2026-01-01T00:00:00.000Z",
+		};
+		const bytes = Buffer.byteLength(summary, "utf8");
+		const evidence = {
+			format: "ein-out-of-flow-reconciliation/v1",
+			profile,
+			change,
+			auditReason: reason,
+			createdAt: "2026-01-01T00:10:00.000Z",
+			summary: { path: "summary.md", sha256: createHash("sha256").update(summary).digest("hex"), bytes },
+			repositoryState: identity,
+			repositoryChecks: [{
+				id: "core-tests",
+				performed: "bun test tests/sdd-close.test.ts",
+				outcome: "pass",
+				completedAt: "2026-01-01T00:05:00.000Z",
+				evidenceRef: "ci://run/close#core-tests",
+				repositoryState: identity,
+			}],
+		};
+		writeFileSync(join(source, "out-of-flow-reconciliation.json"), JSON.stringify(evidence));
+		return { source, evidencePath: `openspec/changes/${change}/out-of-flow-reconciliation.json`, identity };
+	}
+
+	test("archives an eligible record and returns a reconciliation receipt distinct from legacyEscape", () => {
+		const fixture = reconciliationFixture();
+		const result = closeChange(DIR, "legacy-delivery", {
+			reconciliationProfile: profile,
+			reconciliationEvidencePath: fixture.evidencePath,
+			legacyReason: reason,
+		});
+		expect(result.ok).toBe(true);
+		expect(result.reconciliation).toMatchObject({ profile, change: "legacy-delivery", reason, checkIds: ["core-tests"], repositoryState: fixture.identity });
+		expect(result).not.toHaveProperty("legacyEscape");
+		expect(existsSync(fixture.source)).toBe(false);
+		expect(existsSync(join(DIR, "openspec", "changes", "archive", "legacy-delivery", "summary.md"))).toBe(true);
+	});
+
+	test("also archives the exact spec_delta:none scope-only shape", () => {
+		const fixture = reconciliationFixture("declared-none", true);
+		const result = closeChange(DIR, "declared-none", {
+			reconciliationProfile: profile,
+			reconciliationEvidencePath: fixture.evidencePath,
+			legacyReason: reason,
+		});
+		expect(result.ok).toBe(true);
+		expect(result.reconciliation?.change).toBe("declared-none");
+		expect(result).not.toHaveProperty("legacyEscape");
+	});
+
+	test("accepts only an explicit profile and the canonical evidence path", () => {
+		for (const options of [
+			{ reconciliationEvidencePath: "openspec/changes/legacy-delivery/out-of-flow-reconciliation.json", legacyReason: reason },
+			{ reconciliationProfile: profile, reconciliationEvidencePath: "out-of-flow-reconciliation.json", legacyReason: reason },
+			{ reconciliationProfile: profile, reconciliationEvidencePath: "../copied.json", legacyReason: reason },
+		]) {
+			const fixture = reconciliationFixture();
+			const result = closeChange(DIR, "legacy-delivery", options);
+			expect(result.ok).toBe(false);
+			expect(existsSync(fixture.source)).toBe(true);
+		}
+	});
+
+	test("aggregates mixed-mode, malformed evidence, identity, and archive blockers before mutation", () => {
+		const fixture = reconciliationFixture();
+		const evidenceFile = join(fixture.source, "out-of-flow-reconciliation.json");
+		const evidence = JSON.parse(readFileSync(evidenceFile, "utf8"));
+		evidence.repositoryState.tree = "f".repeat(40);
+		evidence.format = "unknown-version";
+		delete evidence.summary.sha256;
+		writeFileSync(evidenceFile, JSON.stringify(evidence));
+		mkdirSync(join(DIR, "openspec", "changes", "archive", "legacy-delivery"), { recursive: true });
+		const result = closeChange(DIR, "legacy-delivery", {
+			force: true,
+			reconciliationProfile: profile,
+			reconciliationEvidencePath: fixture.evidencePath,
+			legacyReason: reason,
+		});
+		const codes = result.blockers?.map((blocker) => blocker.code) ?? [];
+		expect(codes).toContain("reconciliation-mixed-mode");
+		expect(codes).toContain("archive-collision");
+		expect(codes).toContain("reconciliation-evidence-malformed");
+		expect(codes).toContain("reconciliation-repository-state-mismatch");
+		expect(existsSync(fixture.source)).toBe(true);
+		expect(existsSync(join(fixture.source, "summary.md"))).toBe(true);
+	});
+
+	test("denies mixed lifecycle shape before archive mutation", () => {
+		const fixture = reconciliationFixture();
+		writeFileSync(join(fixture.source, "map.md"), "retrospective map");
+		const result = closeChange(DIR, "legacy-delivery", {
+			reconciliationProfile: profile,
+			reconciliationEvidencePath: fixture.evidencePath,
+			legacyReason: reason,
+		});
+		expect(result.blockers?.map((blocker) => blocker.code)).toContain("reconciliation-record-ineligible");
+		expect(existsSync(fixture.source)).toBe(true);
+	});
+
+	test("independently rejects evidence after the repository HEAD changes", () => {
+		const fixture = reconciliationFixture();
+		writeFileSync(join(DIR, "delivered-code.ts"), "export const changed = true;\n");
+		git("add", ".");
+		git("commit", "-qm", "repository changed");
+		const result = closeChange(DIR, "legacy-delivery", {
+			reconciliationProfile: profile,
+			reconciliationEvidencePath: fixture.evidencePath,
+			legacyReason: reason,
+		});
+		expect(result.blockers?.map((blocker) => blocker.code)).toContain("reconciliation-repository-state-mismatch");
+		expect(existsSync(fixture.source)).toBe(true);
+	});
+
+	test("denies stale or mismatched summary and reason without reading alternate files or mutating", () => {
+		const fixture = reconciliationFixture();
+		writeFileSync(join(fixture.source, "summary.md"), "tampered");
+		writeFileSync(join(DIR, "copied.json"), JSON.stringify({ format: "ein-out-of-flow-reconciliation/v1" }));
+		const result = closeChange(DIR, "legacy-delivery", {
+			reconciliationProfile: profile,
+			reconciliationEvidencePath: fixture.evidencePath,
+			legacyReason: "different reason",
+		});
+		const codes = result.blockers?.map((blocker) => blocker.code) ?? [];
+		expect(codes).toContain("reconciliation-audit-reason-mismatch");
+		expect(codes).toContain("reconciliation-summary-invalid");
+		expect(existsSync(fixture.source)).toBe(true);
 	});
 });
 

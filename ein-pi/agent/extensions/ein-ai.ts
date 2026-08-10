@@ -82,7 +82,8 @@ import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
 import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
 import { reviewForecast, formatReviewForecast } from "../lib/review-forecast.ts";
-import { closeChange } from "../lib/sdd-close.ts";
+import { closeChange, type CloseOptions } from "../lib/sdd-close.ts";
+import { parseSddCloseArgs } from "../lib/sdd-close-args.ts";
 import { approveCandidate, type MemoryCandidate, type MemoryReceipt } from "../lib/memory-contract.ts";
 import {
 	appendMemoryReceipt,
@@ -1183,8 +1184,8 @@ export default function einAi(pi: ExtensionAPI): void {
 	// Lógica compartida por el comando /ein:sdd-close y el tool ein_sdd_close: el
 	// move determinista (con guard de readiness) + memoria de cierre + refresco de
 	// EIN.md. Un único punto para que ambas superficies se comporten igual.
-	async function performSddClose(ctx: ExtensionContext, change: string, force: boolean, reason?: string) {
-		const result = closeChange(ctx.cwd, change, { force, legacyReason: reason });
+	async function performSddClose(ctx: ExtensionContext, change: string, options: CloseOptions) {
+		const result = closeChange(ctx.cwd, change, options);
 		let memory: SafeMemoryReceipt | undefined;
 		if (result.ok) {
 			memory = await saveArchivedCloseMemory(ctx, change, result.to);
@@ -1198,18 +1199,18 @@ export default function einAi(pi: ExtensionAPI): void {
 	}
 
 	async function handleSddClose(args: string | string[], ctx: ExtensionContext) {
-		const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
-		const force = /(?:^|\s)--force(?:\s|$)/.test(raw);
-		const reason = /(?:^|\s)--reason\s+(?:"([^"]*)"|'([^']*)'|(\S+))/.exec(raw)?.slice(1).find((value) => value !== undefined);
-		const change = raw
-			.replace(/(?:^|\s)--force(?=\s|$)/g, " ")
-			.replace(/(?:^|\s)--reason(?:\s+(?:"[^"]*"|'[^']*'|\S+))?/g, " ")
-			.trim() || resolveSddStatus(ctx.cwd).change || "";
+		const parsed = parseSddCloseArgs(args);
+		const change = parsed.change ?? resolveSddStatus(ctx.cwd).change ?? "";
 		if (!change) {
-			ctx.ui.notify('Sin cambio que cerrar. Uso: /ein:sdd-close <change> [--force --reason "<audit reason>"]', "warning");
+			ctx.ui.notify('Sin cambio que cerrar. Uso: /ein:sdd-close <change> [--reconciliation-profile scope-only-out-of-flow --reconciliation-evidence <canonical-path>] --reason "<audit reason>". Legacy: --force --reason "<audit reason>"', "warning");
 			return;
 		}
-		const { result: r, memory } = await performSddClose(ctx, change, force, reason);
+		const { result: r, memory } = await performSddClose(ctx, change, {
+			force: parsed.force,
+			legacyReason: parsed.reason,
+			reconciliationProfile: parsed.reconciliationProfile,
+			reconciliationEvidencePath: parsed.reconciliationEvidencePath,
+		});
 		const memoryMessage = memory
 			? memory.status === "saved" && memory.reason === "acknowledged"
 				? " Memoria: guardada."
@@ -1217,7 +1218,9 @@ export default function einAi(pi: ExtensionAPI): void {
 			: "";
 		const success = r.legacyEscape
 			? `Closed through legacy escape (spec state remained unresolved): ${r.legacyEscape.reason}${memoryMessage}`
-			: `Verified change '${change}' closed. openspec/changes/ is clean.${memoryMessage}`;
+			: r.reconciliation
+				? `Reconciled out-of-flow change '${change}' closed with profile ${r.reconciliation.profile}.${memoryMessage}`
+				: `Verified change '${change}' closed. openspec/changes/ is clean.${memoryMessage}`;
 		ctx.ui.notify(
 			r.ok ? success : `No se cerró '${change}': ${r.reason}`,
 			r.ok ? "info" : "warning",
@@ -1236,25 +1239,35 @@ export default function einAi(pi: ExtensionAPI): void {
 		name: "ein_sdd_close",
 		label: "Ein SDD Close",
 		description:
-			"Deterministically archive a VERIFIED change: move openspec/changes/<change>/ to archive/ so only live changes remain. `--force --reason \"<audit reason>\"` is only for an otherwise complete, freshly verified declarationless legacy record. It never bypasses tasks, apply, verify, summary, pending spec synchronization, or conflicts, and close never synchronizes specs. Moves the filesystem; never commits or pushes. This is the close step; do not shell out to the library.",
+			"Deterministically archive a VERIFIED change. For audited scope-only delivery outside SDD, explicitly provide reconciliationProfile `scope-only-out-of-flow`, the canonical reconciliationEvidencePath, and reason. `--force --reason \"<audit reason>\"` is only for an otherwise complete, freshly verified declarationless legacy record. It never bypasses tasks, apply, verify, summary, pending spec synchronization, or conflicts, and close never synchronizes specs. Moves the filesystem; never commits or pushes.",
 		parameters: {
 			type: "object",
 			properties: {
 				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
 				force: { type: "boolean", description: "Use only with reason for the narrow declarationless legacy escape; eligibility remains enforced by the close library." },
-				reason: { type: "string", description: "Audit reason required with force for an otherwise complete, freshly verified declarationless legacy record." },
+				reason: { type: "string", description: "Audit reason required with force or reconciliation; validated by the shared close library." },
+				reconciliationProfile: { type: "string", enum: ["scope-only-out-of-flow"], description: "Explicit audited reconciliation profile; never inferred from evidence." },
+				reconciliationEvidencePath: { type: "string", description: "Canonical openspec/changes/<change>/out-of-flow-reconciliation.json path." },
 			},
 		} as const,
-		async execute(_id, params: { change?: string; force?: boolean; reason?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
+		async execute(_id, params: { change?: string; force?: boolean; reason?: string; reconciliationProfile?: string; reconciliationEvidencePath?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
 			if (!change) {
 				return { content: [{ type: "text", text: "/// SDD CLOSE — no active change to close." }], details: { ok: false, reason: "no active change" } };
 			}
-			const { result, memory } = await performSddClose(ctx, change, Boolean(params?.force), params?.reason);
+			const reason = params?.reason;
+			const { result, memory } = await performSddClose(ctx, change, {
+				force: Boolean(params?.force),
+				legacyReason: reason,
+				reconciliationProfile: params?.reconciliationProfile,
+				reconciliationEvidencePath: params?.reconciliationEvidencePath,
+			});
 			const text = result.ok
 				? result.legacyEscape
 					? `/// SDD CLOSE — Closed through legacy escape (spec state remained unresolved): ${result.legacyEscape.reason}`
-					: `/// SDD CLOSE — Verified change '${change}' closed; archived to ${result.to.replace(ctx.cwd, ".")}.`
+					: result.reconciliation
+						? `/// SDD CLOSE — Reconciled '${change}' with profile ${result.reconciliation.profile}; archived to ${result.to.replace(ctx.cwd, ".")}.`
+						: `/// SDD CLOSE — Verified change '${change}' closed; archived to ${result.to.replace(ctx.cwd, ".")}.`
 				: `/// SDD CLOSE — '${change}' NOT closed: ${result.reason}`;
 			return { content: [{ type: "text", text }], details: { ...result, memory } };
 		},

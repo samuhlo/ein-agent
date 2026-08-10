@@ -9,7 +9,7 @@
 //
 //   cc-ein-sdd status [change]     estado + nextRecommended (rutea por `next:`)
 //   cc-ein-sdd check  [change]     gatekeeper: linta cada artefacto presente
-//   cc-ein-sdd close  <change> [--force]   archiva un cambio verificado
+//   cc-ein-sdd close  <change> [--force] [reconciliation flags]   archiva un cambio verificado
 //   cc-ein-sdd sync   <change>              sincroniza el delta OpenSpec explícito
 // =============================================================================
 
@@ -180,7 +180,15 @@ async function guardCmd(): Promise<void> {
 
 const [cmd, ...rest] = process.argv.slice(2);
 const force = rest.includes("--force");
-const change = rest.find((a) => !a.startsWith("--"));
+// Every documented command takes the optional change as its first positional
+// argument. Flag values must never be reinterpreted as a change name.
+const change = rest[0] && !rest[0].startsWith("--") ? rest[0] : undefined;
+
+function flagValue(args: readonly string[], flag: string): string | undefined {
+	const index = args.indexOf(flag);
+	const value = index >= 0 ? args[index + 1] : undefined;
+	return value && !value.startsWith("--") ? value : undefined;
+}
 
 // Best-effort git init: solo cuando el directorio ya tiene artefactos SDD
 // (`openspec/changes/`) — no queremos inicializar git en cualquier carpeta
@@ -249,7 +257,12 @@ function closeCmd() {
 		console.log("/// SDD CLOSE — no active change to close.");
 		process.exit(1);
 	}
-	const result = closeChange(cwd, target, { force });
+	const result = closeChange(cwd, target, {
+		force,
+		reconciliationProfile: flagValue(rest, "--reconciliation-profile"),
+		reconciliationEvidencePath: flagValue(rest, "--reconciliation-evidence"),
+		legacyReason: flagValue(rest, "--reason"),
+	});
 	if (result.ok) {
 		console.log(`/// SDD CLOSE — ${target} archived → ${result.to}`);
 		return;
@@ -447,7 +460,7 @@ if (import.meta.main) {
 		case "guard": await guardCmd(); break;
 		case "sync": await syncCmd(rest); break;
 		default:
-			console.log("cc-ein-sdd <status|check|close|sync> [change] [--force]  |  guard (hook)");
+			console.log("cc-ein-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)");
 			process.exit(1);
 	}
 }

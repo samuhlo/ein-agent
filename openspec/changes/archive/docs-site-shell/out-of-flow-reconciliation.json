@@ -1,0 +1,55 @@
+{
+  "format": "ein-out-of-flow-reconciliation/v1",
+  "profile": "scope-only-out-of-flow",
+  "change": "docs-site-shell",
+  "auditReason": "Trabajo entregado en main fuera del flujo SDD; cierre reconciliado con evidencia actual y huecos separados.",
+  "createdAt": "2026-08-10T10:19:26Z",
+  "summary": {
+    "path": "summary.md",
+    "sha256": "9958e472b012af731412ae544f74eb479ad75defb2fc54805112b6db222543d1",
+    "bytes": 1899
+  },
+  "repositoryState": {
+    "head": "099311af8550803871af4f92533052769af9d0f0",
+    "tree": "193ae3ff7a442aaea05645b6831f610315418cd2",
+    "capturedAt": "2026-08-10T10:16:07Z"
+  },
+  "repositoryChecks": [
+    {
+      "id": "docs-site-build",
+      "performed": "cd docs-site && bun install --frozen-lockfile && bun run build",
+      "outcome": "pass",
+      "completedAt": "2026-08-10T10:16:19Z",
+      "evidenceRef": "docs-site/package.json:5-13",
+      "repositoryState": {
+        "head": "099311af8550803871af4f92533052769af9d0f0",
+        "tree": "193ae3ff7a442aaea05645b6831f610315418cd2",
+        "capturedAt": "2026-08-10T10:16:07Z"
+      }
+    },
+    {
+      "id": "docs-site-drift-tests",
+      "performed": "bun test tests/docs-site-drift-detector.test.ts tests/docs-site-drift-report.test.ts",
+      "outcome": "pass",
+      "completedAt": "2026-08-10T10:16:25Z",
+      "evidenceRef": "tests/docs-site-drift-detector.test.ts; tests/docs-site-drift-report.test.ts",
+      "repositoryState": {
+        "head": "099311af8550803871af4f92533052769af9d0f0",
+        "tree": "193ae3ff7a442aaea05645b6831f610315418cd2",
+        "capturedAt": "2026-08-10T10:16:07Z"
+      }
+    },
+    {
+      "id": "docs-site-delivery-inventory",
+      "performed": "Deterministic filesystem/config assertions confirmed 21 .md plus index.mdx = 22 routes, Astro/Starlight Head/Header/Sidebar/Pagination overrides with composed SiteTitle/Search/Shortcuts, and docs-deploy.yml",
+      "outcome": "pass",
+      "completedAt": "2026-08-10T10:18:00Z",
+      "evidenceRef": "docs-site/astro.config.mjs:1-31; docs-site/src/content/docs/index.mdx:1-11; .github/workflows/docs-deploy.yml:1-56",
+      "repositoryState": {
+        "head": "099311af8550803871af4f92533052769af9d0f0",
+        "tree": "193ae3ff7a442aaea05645b6831f610315418cd2",
+        "capturedAt": "2026-08-10T10:16:07Z"
+      }
+    }
+  ]
+}

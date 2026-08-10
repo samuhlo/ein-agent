@@ -4,7 +4,8 @@
 
 import { describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -95,6 +96,136 @@ function parseCliJson(run: CliRun): Record<string, unknown> {
   ]);
   return parsed;
 }
+
+const RECONCILIATION_PROFILE = "scope-only-out-of-flow";
+const RECONCILIATION_REASON = "Delivery predated the SDD lifecycle rollout.";
+
+function makeReconciliationFixture(change: string): { cwd: string; source: string; evidencePath: string } {
+  const cwd = mkdtempSync(join(tmpdir(), "core-parity-close-"));
+  const source = join(cwd, "openspec", "changes", change);
+  mkdirSync(source, { recursive: true });
+  const summary = [
+    "# Out-of-flow reconciliation",
+    "Delivery occurred outside SDD.",
+    "Excluded lifecycle artifacts: map.md, design.md, tasks.md, apply-progress.md, verify-report.md.",
+    "## Repository verification",
+    "- claude-cli",
+    "## Successor changes",
+    "None.",
+    "",
+  ].join("\n");
+  writeFileSync(join(source, "scope.md"), "# Historical scope\n");
+  writeFileSync(join(source, "summary.md"), summary);
+  execFileSync("git", ["init", "-q"], { cwd });
+  execFileSync("git", ["config", "user.email", "tests@example.invalid"], { cwd });
+  execFileSync("git", ["config", "user.name", "Ein tests"], { cwd });
+  execFileSync("git", ["add", "."], { cwd });
+  execFileSync("git", ["commit", "-qm", "fixture"], { cwd });
+  const git = (...args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+  const identity = {
+    head: git("rev-parse", "HEAD"),
+    tree: git("rev-parse", "HEAD^{tree}"),
+    capturedAt: "2026-01-01T00:00:00.000Z",
+  };
+  const evidence = {
+    format: "ein-out-of-flow-reconciliation/v1",
+    profile: RECONCILIATION_PROFILE,
+    change,
+    auditReason: RECONCILIATION_REASON,
+    createdAt: "2026-01-01T00:10:00.000Z",
+    summary: {
+      path: "summary.md",
+      sha256: createHash("sha256").update(summary).digest("hex"),
+      bytes: Buffer.byteLength(summary, "utf8"),
+    },
+    repositoryState: identity,
+    repositoryChecks: [{
+      id: "claude-cli",
+      performed: "bun test tests/core-parity-openspec.test.ts",
+      outcome: "pass",
+      completedAt: "2026-01-01T00:05:00.000Z",
+      evidenceRef: "ci://run/claude#close",
+      repositoryState: identity,
+    }],
+  };
+  writeFileSync(join(source, "out-of-flow-reconciliation.json"), JSON.stringify(evidence));
+  return { cwd, source, evidencePath: `openspec/changes/${change}/out-of-flow-reconciliation.json` };
+}
+
+describe("cc-ein-sdd close reconciliation flags", () => {
+  test("translates explicit profile, canonical evidence, and reason into shared close success", () => {
+    const fixture = makeReconciliationFixture("claude-close-success");
+    try {
+      const run = runSddCli(fixture.cwd, [
+        "close",
+        "claude-close-success",
+        "--reconciliation-profile", RECONCILIATION_PROFILE,
+        "--reconciliation-evidence", fixture.evidencePath,
+        "--reason", RECONCILIATION_REASON,
+      ]);
+      expect(run.status).toBe(0);
+      expect(run.stderr).toBe("");
+      expect(run.stdout).toContain("claude-close-success archived");
+      expect(existsSync(fixture.source)).toBe(false);
+      expect(existsSync(join(fixture.cwd, "openspec", "changes", "archive", "claude-close-success"))).toBe(true);
+    } finally {
+      rmSync(fixture.cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("preserves shared blocker reporting and failure exit for reason mismatch and mixed mode", () => {
+    for (const [change, extraArgs, blocker] of [
+      ["claude-close-reason", ["--reason", "Different audit reason"], "reconciliation-audit-reason-mismatch"],
+      ["claude-close-mixed", ["--reason", RECONCILIATION_REASON, "--force"], "reconciliation-mixed-mode"],
+    ] as const) {
+      const fixture = makeReconciliationFixture(change);
+      try {
+        const run = runSddCli(fixture.cwd, [
+          "close", change,
+          "--reconciliation-profile", RECONCILIATION_PROFILE,
+          "--reconciliation-evidence", fixture.evidencePath,
+          ...extraArgs,
+        ]);
+        expect(run.status).toBe(1);
+        expect(run.stdout).toContain(`[${blocker}]`);
+        expect(existsSync(fixture.source)).toBe(true);
+      } finally {
+        rmSync(fixture.cwd, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test("rejects a non-canonical evidence request through the shared blocker contract", () => {
+    const fixture = makeReconciliationFixture("claude-close-path");
+    try {
+      const run = runSddCli(fixture.cwd, [
+        "close", "claude-close-path",
+        "--reconciliation-profile", RECONCILIATION_PROFILE,
+        "--reconciliation-evidence", "copied-evidence.json",
+        "--reason", RECONCILIATION_REASON,
+      ]);
+      expect(run.status).toBe(1);
+      expect(run.stdout).toContain("[reconciliation-evidence-path-invalid]");
+      expect(existsSync(fixture.source)).toBe(true);
+    } finally {
+      rmSync(fixture.cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("check remains non-archival and keeps its existing report/exit behavior", () => {
+    const fixture = makeReconciliationFixture("claude-check-only");
+    try {
+      const run = runSddCli(fixture.cwd, ["check", "claude-check-only"]);
+      expect(run.status).toBe(1);
+      expect(run.stdout).toContain("SDD CHECK — claude-check-only");
+      expect(run.stdout).toContain("errors:");
+      expect(existsSync(fixture.source)).toBe(true);
+      expect(existsSync(join(fixture.cwd, "openspec", "changes", "archive", "claude-check-only"))).toBe(false);
+    } finally {
+      rmSync(fixture.cwd, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("cc-ein-sdd sync <change>", () => {
   test("synchronizes with stable JSON, sorted domains, and idempotence", () => {

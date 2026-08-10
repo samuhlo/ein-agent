@@ -26,6 +26,7 @@ const orchestrator = readFileSync(
 	join(import.meta.dir, "../ein-pi/agent/assets/orchestrator.md"),
 	"utf8",
 );
+const einAi = readFileSync(join(EXTENSIONS, "ein-ai.ts"), "utf8");
 
 // Builtins de Pi: FUENTE ÚNICA en lib/pi-contract.ts, que además se contrasta
 // contra la instalación real (tests/pi-contract.test.ts y `ein doctor`). Antes
@@ -105,6 +106,24 @@ describe("contrato de tools de los agentes", () => {
 			declaredTools(f).includes("glob"),
 		);
 		expect(offenders).toEqual([]);
+	});
+
+	test("ein_sdd_close expone reconciliación explícita y conserva force/reason", () => {
+		const closeTool = einAi.match(/name: "ein_sdd_close"[\s\S]*?(?=\n\t\/\/ Sin este tool)/)?.[0] ?? "";
+		expect(closeTool).toContain('reconciliationProfile: { type: "string", enum: ["scope-only-out-of-flow"]');
+		expect(closeTool).toContain('reconciliationEvidencePath: { type: "string"');
+		expect(closeTool).toContain('reason: { type: "string"');
+		expect(closeTool).toContain('force: { type: "boolean"');
+		expect(closeTool).toContain("reconciliationProfile: params?.reconciliationProfile");
+		expect(closeTool).toContain("reconciliationEvidencePath: params?.reconciliationEvidencePath");
+	});
+
+	test("check/audit siguen siendo lectura y no reciben opciones de reconciliación", () => {
+		const checkTool = einAi.match(/name: "ein_sdd_check"[\s\S]*?(?=\n\tpi\.registerCommand\("ein:sdd-status")/)?.[0] ?? "";
+		const auditFlow = einAi.match(/async function handleSddAudit[\s\S]*?(?=\n\tpi\.registerCommand\("ein:sdd-audit")/)?.[0] ?? "";
+		expect(checkTool).not.toContain("reconciliationProfile");
+		expect(checkTool).not.toContain("reconciliationEvidencePath");
+		expect(auditFlow).not.toContain("closeChange(");
 	});
 
 	test("sdd-scope permite el escritor determinista de deltas registrado", () => {

@@ -282,6 +282,7 @@ describe("resolveSddStatus", () => {
 });
 
 describe("assessCloseReadiness", () => {
+	const PROFILE = "scope-only-out-of-flow";
 	function closeReadyChange(name: string): string {
 		const c = change(name);
 		put(c, "scope.md", "# Scope\nDeclarationless legacy record.\n");
@@ -326,6 +327,73 @@ describe("assessCloseReadiness", () => {
 			mutate(candidate);
 			expect(assessCloseReadiness(DIR, name).legacyEligibility).toBeNull();
 		}
+	});
+
+	function reconciliationRecord(name: string, scope = "# Scope\nDeclarationless historical record.\n"): string {
+		const c = change(name);
+		put(c, "scope.md", scope);
+		put(c, "summary.md", "Delivery occurred outside SDD.\n");
+		put(c, "out-of-flow-reconciliation.json", "{}\n");
+		return c;
+	}
+
+	test("clasifica de forma genérica las dos formas scope-only elegibles", () => {
+		reconciliationRecord("not-allowlisted");
+		const declarationless = assessCloseReadiness(DIR, "not-allowlisted", { reconciliationProfile: PROFILE });
+		expect(declarationless.reconciliationEligibility).toBe(PROFILE);
+		expect(declarationless.reconciliationBlockers).toEqual([]);
+
+		reconciliationRecord("also-generic", "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: Delivered through the prior release workflow.\n");
+		const declaredNone = assessCloseReadiness(DIR, "also-generic", { reconciliationProfile: PROFILE });
+		expect(declaredNone.reconciliationEligibility).toBe(PROFILE);
+		expect(declaredNone.reconciliationBlockers).toEqual([]);
+	});
+
+	test("requiere selección explícita sin alterar readiness ordinario", () => {
+		reconciliationRecord("profile-absent");
+		const ordinary = assessCloseReadiness(DIR, "profile-absent");
+		expect(ordinary.reconciliationEligibility).toBeNull();
+		expect(ordinary.reconciliationBlockers).toEqual([]);
+		expect(ordinary.blockers.map((blocker) => blocker.code)).toEqual([
+			"apply-not-complete", "verify-missing", "spec-unresolved",
+		]);
+
+		const unsupported = assessCloseReadiness(DIR, "profile-absent", { reconciliationProfile: "other" });
+		expect(unsupported.reconciliationEligibility).toBeNull();
+		expect(unsupported.reconciliationBlockers.map((blocker) => blocker.code)).toEqual(["reconciliation-profile-unsupported"]);
+	});
+
+	test("rechaza deltas, sync reports, artefactos mixtos y declaraciones malformadas", () => {
+		const cases: Array<[string, (path: string) => void]> = [
+			["local-delta", (path) => { mkdirSync(join(path, "specs", "domain"), { recursive: true }); put(path, "specs/domain/spec.md", "malformed delta\n"); }],
+			["sync-report", (path) => put(path, "sync-report.md", "stale or ambiguous\n")],
+			["mixed-lifecycle", (path) => put(path, "map.md", "retrospective\n")],
+			["malformed-none", (path) => put(path, "scope.md", "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: TBD\n")],
+			["duplicate-none", (path) => put(path, "scope.md", "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: valid reason\n\n## Spec delta declaration\nspec_delta: none\nspec_delta_reason: another reason\n")],
+			["ambiguous-none", (path) => put(path, "scope.md", "spec_delta: none\n\n## Spec delta declaration\nspec_delta: none\nspec_delta_reason: valid reason\n")],
+		];
+		for (const [name, mutate] of cases) {
+			const path = reconciliationRecord(name);
+			mutate(path);
+			const readiness = assessCloseReadiness(DIR, name, { reconciliationProfile: PROFILE });
+			expect(readiness.reconciliationEligibility, name).toBeNull();
+			expect(readiness.reconciliationBlockers.map((blocker) => blocker.code), name).toContain("reconciliation-record-ineligible");
+		}
+	});
+
+	test("preserva conflictos, pendientes, sincronización y el escape force declarationless", () => {
+		const ordinary = closeReadyChange("ordinary-regression");
+		expect(assessCloseReadiness(DIR, "ordinary-regression").legacyEligibility).toBe("declarationless-record");
+		put(ordinary, "scope.md", "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: valid declaration reason\n");
+		expect(assessCloseReadiness(DIR, "ordinary-regression").legacyEligibility).toBeNull();
+
+		const pending = reconciliationRecord("pending-regression");
+		mkdirSync(join(pending, "specs", "domain"), { recursive: true });
+		put(pending, "specs/domain/spec.md", "malformed delta\n");
+		const classified = assessCloseReadiness(DIR, "pending-regression", { reconciliationProfile: PROFILE });
+		expect(classified.ready).toBe(false);
+		expect(classified.reconciliationEligibility).toBeNull();
+		expect(classified.reconciliationBlockers.map((blocker) => blocker.code)).toContain("reconciliation-record-ineligible");
 	});
 });
 
