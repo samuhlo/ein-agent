@@ -7,14 +7,18 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  CLAUDE_VERSION_TIMEOUT_MS,
+  checkClaudeCodeUpdate,
   checkEinTemplateUpdate,
   checkPiBinaryUpdate,
   isNewerVersion,
   parseVersion,
   readEinVersion,
   startUpdateEvidenceSnapshot,
+  type VersionProbeRunner,
   type FetchLike,
 } from "../ein-pi/agent/lib/update-probes.ts";
+import { UPDATE_CHECK_TIMEOUT_MS } from "../ein-pi/agent/lib/ein-update-notice.ts";
 import type { UpdateTimeoutScheduler } from "../ein-pi/agent/lib/ein-update-notice.ts";
 
 function jsonResponse(body: unknown, ok = true): Response {
@@ -197,5 +201,105 @@ describe("startUpdateEvidenceSnapshot — non-blocking read()", () => {
     const packages = observations?.find((item) => item.source === "packages");
     expect(packages?.status).not.toBe("current");
     expect(packages).toMatchObject({ status: "skipped", reason: "probe-unavailable" });
+  });
+});
+
+describe("claude code version probe", () => {
+  const ok = (stdout: string): VersionProbeRunner => async () => ({ stdout, exitCode: 0 });
+  const fails = (code: string): VersionProbeRunner => async () => {
+    const error: NodeJS.ErrnoException = new Error(code);
+    error.code = code;
+    throw error;
+  };
+
+  test("a parseable version yields a known install with unverifiable availability", async () => {
+    const observation = await checkClaudeCodeUpdate(ok("2.1.226 (Claude Code)\n"));
+    expect(observation).toEqual({
+      source: "claude",
+      status: "unavailable",
+      reason: "availability-not-verifiable",
+      freshness: "unknown",
+    });
+  });
+
+  test("availability is never asserted as current or update-available", async () => {
+    const observation = await checkClaudeCodeUpdate(ok("2.1.226 (Claude Code)"));
+    expect(observation.status).not.toBe("current");
+    expect(observation.status).not.toBe("update-available");
+  });
+
+  test("a missing executable is declared, not thrown", async () => {
+    expect(await checkClaudeCodeUpdate(fails("ENOENT"))).toMatchObject({
+      source: "claude", status: "skipped", reason: "executable-not-found",
+    });
+  });
+
+  test("a timeout is declared with its own reason", async () => {
+    expect(await checkClaudeCodeUpdate(fails("ETIMEDOUT"))).toMatchObject({
+      status: "unavailable", reason: "probe-timeout",
+    });
+  });
+
+  test("a non-zero exit is declared as a failed probe", async () => {
+    expect(await checkClaudeCodeUpdate(async () => ({ stdout: "", exitCode: 1 }))).toMatchObject({
+      status: "error", reason: "probe-failed",
+    });
+  });
+
+  test("unparseable output is declared malformed, not guessed", async () => {
+    expect(await checkClaudeCodeUpdate(ok("Claude Code (unknown build)"))).toMatchObject({
+      status: "error", reason: "malformed-response",
+    });
+  });
+
+  test("only the version query is ever spawned", async () => {
+    const invocations: string[][] = [];
+    const recording: VersionProbeRunner = async ({ file, args }) => {
+      invocations.push([file, ...args]);
+      return { stdout: "2.1.226 (Claude Code)", exitCode: 0 };
+    };
+    await checkClaudeCodeUpdate(recording);
+    expect(invocations).toEqual([["claude", "--version"]]);
+    expect(invocations.flat()).not.toContain("update");
+    expect(invocations.flat()).not.toContain("upgrade");
+  });
+
+  test("the probe bounds the child below the collector budget", async () => {
+    let timeoutMs = 0;
+    await checkClaudeCodeUpdate(async (input) => {
+      timeoutMs = input.timeoutMs;
+      return { stdout: "2.1.226", exitCode: 0 };
+    });
+    expect(timeoutMs).toBe(CLAUDE_VERSION_TIMEOUT_MS);
+    expect(timeoutMs).toBeLessThan(UPDATE_CHECK_TIMEOUT_MS);
+  });
+
+  test("an absent claude source produces no observation at all", async () => {
+    const { scheduler } = createManualScheduler();
+    const snapshot = startUpdateEvidenceSnapshot(
+      {
+        binary: async () => ({ source: "binary", status: "current", reason: "read-success", freshness: "current" }),
+        packages: async () => ({ source: "packages", status: "current", reason: "read-success", freshness: "current" }),
+        ein: async () => ({ source: "ein", status: "current", reason: "read-success", freshness: "current" }),
+      },
+      { scheduler },
+    );
+    await flush();
+    expect(snapshot.read()?.map((item) => item.source)).not.toContain("claude");
+  });
+
+  test("an injected claude source joins the other three", async () => {
+    const { scheduler } = createManualScheduler();
+    const snapshot = startUpdateEvidenceSnapshot(
+      {
+        binary: async () => ({ source: "binary", status: "current", reason: "read-success", freshness: "current" }),
+        packages: async () => ({ source: "packages", status: "current", reason: "read-success", freshness: "current" }),
+        ein: async () => ({ source: "ein", status: "current", reason: "read-success", freshness: "current" }),
+        claude: () => checkClaudeCodeUpdate(ok("2.1.226 (Claude Code)")),
+      },
+      { scheduler },
+    );
+    await flush();
+    expect(snapshot.read()?.map((item) => item.source).sort()).toEqual(["binary", "claude", "ein", "packages"]);
   });
 });

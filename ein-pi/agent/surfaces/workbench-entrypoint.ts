@@ -24,7 +24,9 @@ import {
   checkEinTemplateUpdate,
   checkPiBinaryUpdate,
   readEinVersion,
+  checkClaudeCodeUpdate,
   startUpdateEvidenceSnapshot,
+  type VersionProbeRunner,
 } from "../lib/update-probes.ts";
 
 const HELP = "Usage: bun ein-pi/workbench.ts [--project <root>]... [--help]";
@@ -81,6 +83,21 @@ export async function runWorkbenchEntrypoint(options: WorkbenchEntrypointOptions
 
 // Same agent dir the Pi extensions resolve, without importing the SDK: the
 // launcher runs as a standalone process under both Pi and Claude Code.
+/**
+ * Bounded spawn for version queries only. The collector bounds the wait, not
+ * the child, so the process carries its own timeout to avoid outliving it.
+ */
+const spawnVersionProbe: VersionProbeRunner = async ({ file, args, timeoutMs, maxBuffer }) => {
+  const child = Bun.spawn([file, ...args], { stdout: "pipe", stderr: "ignore" });
+  const timer = setTimeout(() => child.kill(), timeoutMs);
+  try {
+    const stdout = (await new Response(child.stdout).text()).slice(0, maxBuffer);
+    return { stdout, exitCode: await child.exited };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 function resolveAgentDir(): string {
   return process.env.EIN_PI_AGENT_HOME ?? join(homedir(), ".pi", "agent");
 }
@@ -101,6 +118,7 @@ function createProductionDependencies(candidates: readonly string[]): WorkbenchD
     // The packages probe requires the SDK's package manager; not injected in N.1.
     packages: async () => ({ source: "packages", status: "skipped", reason: "probe-unavailable", freshness: "unknown" }),
     ein: async () => checkEinTemplateUpdate(await readEinVersion(agentDir)),
+    claude: () => checkClaudeCodeUpdate(spawnVersionProbe),
   });
 
   const executor: LaunchExecutor = async (input) => {

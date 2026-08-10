@@ -528,4 +528,50 @@ describe("launcher update surface — component detail (N.1)", () => {
     expect(rendered).toContain("Update: status=unavailable");
     expect(rendered).not.toContain("Updates:");
   });
+
+  describe("claude code as a fourth update component", () => {
+    const withClaude = (claude: PiEinUpdateObservation) => createWorkbenchAdvisor(workbenchState, {
+      ...baseReaders,
+      readUpdateObservations: () => [
+        { source: "ein", status: "current", reason: "read-success", freshness: "current" },
+        { source: "binary", status: "current", reason: "read-success", freshness: "current" },
+        { source: "packages", status: "current", reason: "read-success", freshness: "current" },
+        claude,
+      ],
+    });
+
+    test("a known install with unverifiable availability names the command and its consequence", async () => {
+      const rendered = await runWithAdvisor(withClaude(
+        { source: "claude", status: "unavailable", reason: "availability-not-verifiable", freshness: "unknown" },
+      ));
+      const line = rendered.split("\n").find((item) => item.startsWith("- Claude Code:"));
+      expect(line).toBe("- Claude Code: availability not verifiable — run `claude update` (checks and installs)");
+    });
+
+    test("a missing install offers no command", async () => {
+      const rendered = await runWithAdvisor(withClaude(
+        { source: "claude", status: "skipped", reason: "executable-not-found", freshness: "unknown" },
+      ));
+      const line = rendered.split("\n").find((item) => item.startsWith("- Claude Code:"));
+      expect(line).toBe("- Claude Code: not verified (unknown-evidence) — no action");
+      expect(line).not.toMatch(/`/);
+    });
+
+    test("claude code never carries an installer handoff (F-007)", async () => {
+      const advisor = withClaude(
+        { source: "claude", status: "unavailable", reason: "availability-not-verifiable", freshness: "unknown" },
+      );
+      expect(advisor.handoff).toBeUndefined();
+      expect(advisor.update.status).not.toBe("update-available");
+    });
+
+    test("the other three components render unaffected by claude", async () => {
+      const rendered = await runWithAdvisor(withClaude(
+        { source: "claude", status: "error", reason: "probe-failed", freshness: "unknown" },
+      ));
+      expect(rendered).toContain("Updates:");
+      expect(rendered).toContain("- Claude Code:");
+      expect(rendered).not.toContain("- Ein:");
+    });
+  });
 });
