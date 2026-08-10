@@ -443,7 +443,10 @@ export async function runClaudeInstall(options: ClaudeInstallOptions = {}): Prom
       extraPath: [join(home, ".bun", "bin")],
     });
     if (!sync.ok) {
-      const reason = sync.stderr || sync.stdout || `codigo ${sync.code}`;
+      const reason = [sync.stdout, sync.stderr]
+        .map((stream) => stream.trim())
+        .filter(Boolean)
+        .join("\n") || `codigo ${sync.code}`;
       return failure(`La sincronizacion de Claude fallo: ${reason}`);
     }
 
