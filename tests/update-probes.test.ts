@@ -13,7 +13,9 @@ import {
   checkPiBinaryUpdate,
   isNewerVersion,
   parseVersion,
+  defaultPiManifestPaths,
   readEinVersion,
+  readPiBinaryVersion,
   startUpdateEvidenceSnapshot,
   type VersionProbeRunner,
   type FetchLike,
@@ -302,4 +304,52 @@ describe("claude code version probe", () => {
     await flush();
     expect(snapshot.read()?.map((item) => item.source).sort()).toEqual(["binary", "claude", "ein", "packages"]);
   });
+});
+
+describe("installed pi version from disk", () => {
+  test("reads the version from the first readable manifest", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ein-pi-manifest-"));
+    try {
+      const manifest = join(dir, "package.json");
+      writeFileSync(manifest, JSON.stringify({ version: "0.84.1" }));
+      expect(await readPiBinaryVersion([join(dir, "missing.json"), manifest])).toBe("0.84.1");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("exhausting every candidate yields undefined, not a guess", async () => {
+    expect(await readPiBinaryVersion([join(tmpdir(), "ein-absent", "package.json")])).toBeUndefined();
+  });
+
+  test("a manifest without a usable version is skipped", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ein-pi-manifest-"));
+    try {
+      const bad = join(dir, "bad.json");
+      const good = join(dir, "good.json");
+      writeFileSync(bad, JSON.stringify({ version: 84 }));
+      writeFileSync(good, JSON.stringify({ version: "0.84.1" }));
+      expect(await readPiBinaryVersion([bad, good])).toBe("0.84.1");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("malformed json does not throw", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ein-pi-manifest-"));
+    try {
+      const broken = join(dir, "package.json");
+      writeFileSync(broken, "{ not json");
+      expect(await readPiBinaryVersion([broken])).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the default candidate list points at the bun global install", () => {
+    expect(defaultPiManifestPaths("/home/tester")).toEqual([
+      "/home/tester/.bun/install/global/node_modules/@earendil-works/pi-coding-agent/package.json",
+    ]);
+  });
+
 });
