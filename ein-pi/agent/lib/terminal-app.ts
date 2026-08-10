@@ -8,7 +8,7 @@
 import type { ProjectStateV1 } from "./project-state.ts";
 
 /** Where a row's content came from. Shown so the app never looks authoritative. */
-export type RowSource = "openspec" | "git" | "ein.md" | "config" | "session" | "system" | "app";
+export type RowSource = "openspec" | "git" | "ein.md" | "config" | "session" | "system" | "runtime" | "app";
 
 export type Row = Readonly<{
   label: string;
@@ -31,7 +31,7 @@ export type Setting = Readonly<{
   value: string | undefined;
 }>;
 
-export type ScreenKind = "home" | "config" | "sessions" | "system";
+export type ScreenKind = "home" | "config" | "sessions" | "system" | "runtime";
 
 export type Screen = Readonly<{
   kind: ScreenKind;
@@ -43,6 +43,8 @@ export type Screen = Readonly<{
   cursor: number;
   /** Present on the config view only; the home view has nothing to cycle. */
   settings?: readonly Setting[];
+  /** Present on the runtime view only. */
+  runtime?: Readonly<{ provider: RuntimeProviderId; sessions: readonly RuntimeSessionRow[] }>;
 }>;
 
 export const UNKNOWN_VALUE = "unknown";
@@ -209,6 +211,62 @@ export function buildSystemScreen(rows: readonly SystemRow[]): Screen {
   });
 }
 
+export type RuntimeProviderId = "pi" | "claude";
+
+export type RuntimeSessionRow = Readonly<{
+  /** Adapter reference used to resume; absent means "start a new session". */
+  reference?: string;
+  label: string;
+  detail: string | undefined;
+}>;
+
+export const RUNTIME_LABEL: Readonly<Record<RuntimeProviderId, string>> = { pi: "Pi", claude: "Claude Code" };
+export const RUNTIME_CYCLE: readonly RuntimeProviderId[] = ["pi", "claude"];
+const RUNTIME_ROW_LABEL = "Runtime";
+const NEW_SESSION_LABEL = "New session";
+
+/**
+ * Runtime view: pick a provider, then resume one of its sessions or start a
+ * new one. Sessions come from the adapters, which stay the owners of each
+ * runtime's lifecycle; this view only presents and hands over.
+ */
+export function buildRuntimeScreen(
+  provider: RuntimeProviderId,
+  sessions: readonly RuntimeSessionRow[],
+  capabilities?: string,
+): Screen {
+  const selection: Row[] = [
+    { label: RUNTIME_ROW_LABEL, value: RUNTIME_LABEL[provider], source: "runtime", actionable: true },
+    { label: "Capabilities", value: capabilities, source: "runtime" },
+  ];
+  const sessionRows: Row[] = [
+    ...sessions.map((session) => ({
+      label: session.label,
+      value: session.detail,
+      source: "runtime" as const,
+      actionable: true,
+    })),
+    { label: NEW_SESSION_LABEL, value: `start ${RUNTIME_LABEL[provider]}`, source: "runtime", actionable: true },
+  ];
+  return Object.freeze({
+    kind: "runtime",
+    title: "Ein — runtime",
+    query: "",
+    searching: false,
+    cursor: 0,
+    runtime: Object.freeze({ provider, sessions: Object.freeze([...sessions]) }),
+    sections: Object.freeze([
+      Object.freeze({ title: "Selected runtime", rows: Object.freeze(selection) }),
+      Object.freeze({ title: sessions.length ? "Sessions" : "Sessions (none found)", rows: Object.freeze(sessionRows) }),
+    ]),
+  });
+}
+
+export function nextRuntime(provider: RuntimeProviderId): RuntimeProviderId {
+  const index = RUNTIME_CYCLE.indexOf(provider);
+  return RUNTIME_CYCLE[(index + 1) % RUNTIME_CYCLE.length] ?? "pi";
+}
+
 // ─── Filtering and cursor ────────────────────────────────────────────────────
 
 /** Flattened rows the cursor can land on, after the active filter. */
@@ -233,6 +291,9 @@ function clampCursor(screen: Screen, cursor: number): number {
 
 export type AppEffect =
   | { kind: "none" }
+  | { kind: "cycle-runtime" }
+  /** Hands the terminal over to the runtime; the driver leaves raw mode first. */
+  | { kind: "launch"; provider: RuntimeProviderId; reference?: string }
   | { kind: "quit" }
   | { kind: "switch-view" }
   /** The driver persists it: writing is I/O and stays at the edge. */
@@ -295,6 +356,17 @@ export function handleKey(screen: Screen, key: string): KeyOutcome {
   if (key === ENTER || key === " ") {
     const selected = visibleRows(screen)[screen.cursor];
     if (!selected) return { screen, effect: { kind: "status", message: "Nothing selected" } };
+    if (screen.kind === "runtime" && screen.runtime) {
+      if (selected.row.label === "Runtime") return { screen, effect: { kind: "cycle-runtime" } };
+      if (selected.row.label === "New session") {
+        return { screen, effect: { kind: "launch", provider: screen.runtime.provider } };
+      }
+      const session = screen.runtime.sessions.find((item) => item.label === selected.row.label);
+      if (!session?.reference) {
+        return { screen, effect: { kind: "status", message: `${selected.row.label} — not resumable` } };
+      }
+      return { screen, effect: { kind: "launch", provider: screen.runtime.provider, reference: session.reference } };
+    }
     if (screen.kind === "config") {
       const setting = screen.settings?.find((item) => item.label === selected.row.label);
       const value = setting ? nextSettingValue(setting) : undefined;
@@ -317,12 +389,14 @@ export function handleKey(screen: Screen, key: string): KeyOutcome {
 export const KEY_HINTS = "j/k or ↑/↓ move · f search · enter inspect · tab config · q quit";
 export const CONFIG_KEY_HINTS = "j/k or ↑/↓ move · f search · enter/space cycle · tab sessions · q quit";
 export const SESSIONS_KEY_HINTS = "j/k or ↑/↓ move · f search · tab system · q quit";
-export const SYSTEM_KEY_HINTS = "j/k or ↑/↓ move · f search · tab state · q quit";
+export const SYSTEM_KEY_HINTS = "j/k or ↑/↓ move · f search · tab runtime · q quit";
+export const RUNTIME_KEY_HINTS = "j/k or ↑/↓ move · enter select/launch · tab state · q quit";
 
 function hintsFor(kind: ScreenKind): string {
   if (kind === "config") return CONFIG_KEY_HINTS;
   if (kind === "sessions") return SESSIONS_KEY_HINTS;
-  return kind === "system" ? SYSTEM_KEY_HINTS : KEY_HINTS;
+  if (kind === "system") return SYSTEM_KEY_HINTS;
+  return kind === "runtime" ? RUNTIME_KEY_HINTS : KEY_HINTS;
 }
 
 function renderValue(row: Row): string {
