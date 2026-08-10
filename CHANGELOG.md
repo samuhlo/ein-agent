@@ -5,6 +5,20 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.45.1] - 2026-08-10
+
+### Fixed
+
+- **La limpieza `EXIT` del bootstrap ya no pierde la ruta temporal**
+  (`9be2952`, PR #126): el trap captura la ruta concreta creada por `mktemp`
+  antes de que la variable local salga de alcance, elimina ese directorio al
+  terminar y deja de emitir `tmp: unbound variable`.
+- **Los fallos de sincronización de Claude conservan el diagnóstico completo**
+  (`9be2952`, PR #126): el instalador mantiene el `stdout` detallado y añade
+  después el resumen de `stderr`; solo recurre al código de salida cuando el
+  proceso hijo no produjo ninguna salida. La cobertura de regresión reproduce
+  ambos fallos y fija el orden del diagnóstico.
+
 ## [0.45.0] - 2026-08-10
 
 ### Added
