@@ -10,8 +10,10 @@ const repositoryState = {
 	capturedAt: "2026-08-09T10:00:00.000Z",
 };
 
-function validInput(): OutOfFlowReconciliationInput {
-	const summaryText = [
+// Hoisted: `OutOfFlowReconciliationInput.evidence` is `unknown` by design (it is
+// the untrusted payload the function validates), so tests cannot read the summary
+// back through it.
+const SUMMARY_TEXT = [
 		"Delivery occurred outside SDD.",
 		"Excluded lifecycle artifacts: map.md, design.md, tasks.md, apply-progress.md, verify-report.md.",
 		"## Repository verification",
@@ -19,6 +21,8 @@ function validInput(): OutOfFlowReconciliationInput {
 		"## Successor changes",
 		"None.",
 	].join("\n");
+
+function validInput(): OutOfFlowReconciliationInput {
 	return {
 		profile: "scope-only-out-of-flow",
 		change: "equally-eligible-change",
@@ -34,8 +38,8 @@ function validInput(): OutOfFlowReconciliationInput {
 		summary: {
 			path: "summary.md",
 			sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-			bytes: new TextEncoder().encode(summaryText).byteLength,
-			text: summaryText,
+			bytes: new TextEncoder().encode(SUMMARY_TEXT).byteLength,
+			text: SUMMARY_TEXT,
 			fresh: true,
 		},
 		currentRepositoryState: repositoryState,
@@ -48,7 +52,7 @@ function validInput(): OutOfFlowReconciliationInput {
 			summary: {
 				path: "summary.md",
 				sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-				bytes: new TextEncoder().encode(summaryText).byteLength,
+				bytes: new TextEncoder().encode(SUMMARY_TEXT).byteLength,
 			},
 			repositoryState,
 			repositoryChecks: [{
@@ -74,7 +78,11 @@ describe("scope-only out-of-flow reconciliation", () => {
 				change: "equally-eligible-change",
 				reason: "Delivery predated the SDD lifecycle rollout.",
 				evidencePath: "out-of-flow-reconciliation.json",
-				summary: validInput().evidence.summary,
+				summary: {
+					path: "summary.md",
+					sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					bytes: new TextEncoder().encode(SUMMARY_TEXT).byteLength,
+				},
 				repositoryState,
 				checkIds: ["unit-tests"],
 			},

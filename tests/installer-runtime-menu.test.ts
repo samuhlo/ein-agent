@@ -186,7 +186,7 @@ describe("Claude runtime runner", () => {
       bunPath: "/custom/bun",
       stagePayload: async () => stage,
       execute: async (command, args, options) => {
-        calls.push({ command, args, cwd: options.cwd, env: options.env });
+        calls.push({ command, args: args ?? [], cwd: options?.cwd, env: options?.env });
         expect(launcherInstalled).toBe(false);
         return { ok: true, code: 0, stdout: "sync ok", stderr: "" };
       },

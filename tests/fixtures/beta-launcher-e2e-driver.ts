@@ -2,6 +2,10 @@
 import { appendFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";
+// Types only: erased at compile time, so the deferred dynamic imports below
+// still control when these modules actually load.
+import type { LaunchExecutor } from "../../ein-pi/agent/lib/runtime-session-adapters.ts";
+import type { WorkbenchDependencies, WorkbenchDoctorResult } from "../../ein-pi/agent/lib/workbench.ts";
 
 type Provider = "pi" | "claude";
 type ExecutorResult =
@@ -88,7 +92,7 @@ async function main(): Promise<void> {
     });
     return state;
   };
-  const executor: runtime.LaunchExecutor = async (input) => {
+  const executor: LaunchExecutor = async (input) => {
     record(scenario.evidence, {
       kind: "executor",
       executor: "recording",
@@ -104,7 +108,7 @@ async function main(): Promise<void> {
     return scenario.executor;
   };
   const createDependencies = (candidates: readonly string[]) => {
-    const dependencies: workbench.WorkbenchDependencies & { dispose: () => void } = {
+    const dependencies: WorkbenchDependencies & { dispose: () => void } = {
       candidates,
       project,
       input: {
@@ -119,7 +123,7 @@ async function main(): Promise<void> {
           });
         },
       },
-      output: { write: (text) => stdout.write(`${text}\n`) },
+      output: { write: (text) => { stdout.write(`${text}\n`); } },
       adapter: runtime.createRuntimeSessionAdapter,
       launch: {
         build: (state, intent) => runtime.buildLaunchPlan(state, intent, {
@@ -130,12 +134,15 @@ async function main(): Promise<void> {
         execute: runtime.executeLaunchPlan,
         executor,
       },
-      doctor: async () => {
+      doctor: async (): Promise<WorkbenchDoctorResult> => {
         const doctor = scenario.doctor ?? { outcome: "unavailable" as const };
         if (doctor.outcome === "throw") throw new Error("PRIVATE_DOCTOR_FAILURE");
-        if (doctor.outcome === "cancelled") return { outcome: "cancelled", overall: "warn", checks: [] };
-        if (doctor.outcome === "unavailable") return { outcome: "unavailable", overall: "unavailable", checks: [] };
-        return doctor;
+        // Positive check: the remaining member carries a two-literal outcome, which
+        // eliminating one literal at a time does not narrow away.
+        if (doctor.outcome === "success") return doctor;
+        return doctor.outcome === "cancelled"
+          ? { outcome: "cancelled", overall: "warn", checks: [] }
+          : { outcome: "unavailable", overall: "unavailable", checks: [] };
       },
       signal: abort.signal,
       dispose: cleanup,

@@ -13,6 +13,7 @@ import {
 	serializeLedger,
 	type Area,
 	type EvidenceResolution,
+	type GitChange,
 	type GitTransition,
 	type LedgerSnapshot,
 } from "../ein-pi/agent/lib/reviewed-area-ledger";
@@ -46,6 +47,13 @@ function reviewed(a: Area, stateRef = REF_A): LedgerSnapshot {
 
 function verified(a: Area, stateRef = REF_A): EvidenceResolution {
 	return { status: "verified", ...EVIDENCE, areaId: a.id, stateRef };
+}
+
+// Deliberately out-of-contract input: `GitChange.kind` has no "unknown" member,
+// but git output is untrusted and an unrecognized kind must not count as a hit.
+// The test asserts runtime robustness the type system alone cannot express.
+function outOfContractChange(kind: string, path: string): GitChange {
+	return { kind, path } as unknown as GitChange;
 }
 
 function transition(changes: GitTransition["changes"], fromStateRef = REF_A, toStateRef = REF_B): GitTransition {
@@ -137,7 +145,7 @@ describe("reviewed-area-ledger domain", () => {
 		expect(intersects(src, transition([{ kind: "renamed", path: "docs/a.ts", previousPath: "src/a.ts" }]))).toBe(true);
 		expect(intersects(exact, transition([{ kind: "copied", path: "docs/README.md", previousPath: "README.md" }]))).toBe(true);
 		expect(intersects(src, transition([{ kind: "modified", path: "docs/a.ts" }]))).toBe(false);
-		expect(intersects(src, transition([{ kind: "unknown", path: "src/a.ts" }]))).toBe(false);
+		expect(intersects(src, transition([outOfContractChange("unknown", "src/a.ts")]))).toBe(false);
 	});
 
 	test("evaluates exact current, stale, unknown, unreviewed and fail-closed evidence", () => {

@@ -115,8 +115,11 @@ function markerBytes(version: string, owner: object, assetSha = "old"): Uint8Arr
   }));
 }
 
-function priorBytes(version: string): Uint8Array {
-  return encoder.encode(`prior-${version}`);
+// Buffer<ArrayBuffer> (not the ArrayBufferLike default): readFileSync returns
+// that exact shape, and these bytes are compared against it.
+function priorBytes(version: string): Buffer<ArrayBuffer> {
+  const bytes = encoder.encode(`prior-${version}`);
+  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
 function verifyAgreement(options: {

@@ -4,7 +4,9 @@ import {
   type AdvisorInput,
 } from "../ein-pi/agent/lib/shared-config-update-advisor.ts";
 
-const currentInput: AdvisorInput = {
+// `satisfies` and not an annotation: `AdvisorInput.update` is optional, so
+// annotating erases the literal's known shape and every spread below breaks.
+const currentInput = {
   configuration: {
     mode: { status: "valid", source: "project", value: "solo", freshness: "current" },
     model: { status: "valid", source: "user", value: "configured", freshness: "current" },
@@ -15,7 +17,7 @@ const currentInput: AdvisorInput = {
     owner: { status: "valid", source: "installer-marker", owner: "installer", action: "update", actionId: "installer.update", freshness: "current" },
     capability: { status: "valid", source: "installer-capability", supported: true, freshness: "current" },
   },
-};
+} satisfies AdvisorInput;
 
 describe("shared config update advisor contract", () => {
   test("normalizes current configuration and a fresh update handoff without executing it", () => {
