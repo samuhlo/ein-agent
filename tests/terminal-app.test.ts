@@ -9,8 +9,10 @@ import {
   EMPTY_VALUE,
   KEY_HINTS,
   UNKNOWN_VALUE,
+  buildConfigScreen,
   buildHomeScreen,
   handleKey,
+  nextSettingValue,
   renderScreen,
   visibleRows,
   type Screen,
@@ -19,6 +21,7 @@ import {
   parseTerminalAppArgs,
   runTerminalApp,
 } from "../ein-pi/agent/surfaces/terminal-app-entrypoint.ts";
+import { applySetting, readSettings } from "../ein-pi/agent/lib/project-settings.ts";
 import type { ProjectStateV1 } from "../ein-pi/agent/lib/project-state.ts";
 
 const ARROW_DOWN = "\u001b[B";
@@ -268,5 +271,164 @@ describe("terminal driver", () => {
     expect(harness.written.join("")).toContain("read-only");
     harness.press("q");
     expect(await run).toBe(0);
+  });
+});
+
+describe("configuration view", () => {
+  const settings = [
+    { id: "mode", label: "Work mode", options: ["solo", "team"] as const, value: "solo" },
+    { id: "tdd", label: "Strict TDD", options: ["auto", "strict", "ask", "off"] as const, value: "auto" },
+    { id: "broken", label: "Unreadable", options: ["a", "b"] as const, value: undefined },
+  ];
+  const config = () => buildConfigScreen(settings);
+
+  test("every setting declares the config source and its current value", () => {
+    const lines = renderScreen(config()).join("\n");
+    expect(lines).toContain("Work mode");
+    expect(lines).toContain("[config]");
+    expect(lines).toMatch(/Unreadable\s+unknown/);
+  });
+
+  test("enter cycles to the next option and asks the driver to persist it", () => {
+    const outcome = handleKey(config(), "\r");
+    expect(outcome.effect).toEqual({ kind: "apply", settingId: "mode", value: "team" });
+  });
+
+  test("space cycles too", () => {
+    expect(handleKey(config(), " ").effect).toEqual({ kind: "apply", settingId: "mode", value: "team" });
+  });
+
+  test("cycling wraps around the end of the list", () => {
+    expect(nextSettingValue({ id: "tdd", label: "T", options: ["auto", "strict"], value: "strict" })).toBe("auto");
+  });
+
+  test("an unreadable setting starts at the first option instead of guessing", () => {
+    expect(nextSettingValue({ id: "x", label: "X", options: ["a", "b"], value: undefined })).toBe("a");
+  });
+
+  test("a setting with no options is never applied", () => {
+    const screen = buildConfigScreen([{ id: "empty", label: "Empty", options: [], value: undefined }]);
+    expect(handleKey(screen, "\r").effect).toMatchObject({ kind: "status" });
+  });
+
+  test("the config view never mutates the screen itself", () => {
+    const before = config();
+    expect(handleKey(before, "\r").screen).toEqual(before);
+  });
+
+  test("tab and c both ask to switch view", () => {
+    expect(handleKey(config(), "\t").effect).toEqual({ kind: "switch-view" });
+    expect(handleKey(buildHomeScreen(state()), "c").effect).toEqual({ kind: "switch-view" });
+  });
+
+  test("the hints tell you which view you are in", () => {
+    expect(renderScreen(config()).join("\n")).toContain("tab state");
+    expect(renderScreen(buildHomeScreen(state())).join("\n")).toContain("tab config");
+  });
+});
+
+describe("settings catalogue", () => {
+  test("an unreadable setting is reported unknown, not defaulted", () => {
+    const settings = readSettings("/repo", [
+      { id: "boom", label: "Boom", options: ["a"], read: () => { throw new Error("nope"); }, write: () => {} },
+    ]);
+    expect(settings[0]?.value).toBeUndefined();
+  });
+
+  test("applying refuses an unknown id", () => {
+    let written = false;
+    const definitions = [
+      { id: "mode", label: "M", options: ["solo"], read: () => "solo", write: () => { written = true; } },
+    ];
+    expect(applySetting("/repo", "nope", "solo", definitions)).toBe(false);
+    expect(written).toBe(false);
+  });
+
+  test("applying refuses a value outside the declared options", () => {
+    let written = false;
+    const definitions = [
+      { id: "mode", label: "M", options: ["solo", "team"], read: () => "solo", write: () => { written = true; } },
+    ];
+    expect(applySetting("/repo", "mode", "chaos", definitions)).toBe(false);
+    expect(written).toBe(false);
+  });
+
+  test("a declared value reaches its owner", () => {
+    const calls: Array<[string, string]> = [];
+    const definitions = [
+      { id: "mode", label: "M", options: ["solo", "team"], read: () => "solo", write: (cwd: string, value: string) => { calls.push([cwd, value]); } },
+    ];
+    expect(applySetting("/repo", "mode", "team", definitions)).toBe(true);
+    expect(calls).toEqual([["/repo", "team"]]);
+  });
+});
+
+describe("driver configuration flow", () => {
+  function harnessIO() {
+    const written: string[] = [];
+    let press: ((key: string) => void) | undefined;
+    return {
+      io: {
+        write: (text: string) => { written.push(text); },
+        isTTY: true,
+        clear: () => {},
+        setRawMode: () => {},
+        onKey: (handler: (key: string) => void) => { press = handler; return () => { press = undefined; }; },
+      },
+      written,
+      press: (key: string) => press?.(key),
+    };
+  }
+
+  test("tab reaches the config view and enter persists through the injected owner", async () => {
+    const applied: Array<[string, string]> = [];
+    let stored = "solo";
+    const harness = harnessIO();
+    const run = runTerminalApp({
+      argv: [],
+      cwd: "/repo",
+      io: harness.io,
+      project: () => buildHomeScreen(state()),
+      settings: {
+        read: () => [{ id: "mode", label: "Work mode", options: ["solo", "team"], value: stored }],
+        apply: (_cwd, id, value) => { applied.push([id, value]); stored = value; return true; },
+      },
+    });
+    harness.press("\t");
+    expect(harness.written.join("")).toContain("Work mode");
+    harness.press("\r");
+    expect(applied).toEqual([["mode", "team"]]);
+    // Re-read after writing: the view shows disk, not the intent.
+    expect(harness.written.join("")).toContain("team");
+    harness.press("q");
+    expect(await run).toBe(0);
+  });
+
+  test("a refused write is reported and leaves the value alone", async () => {
+    const harness = harnessIO();
+    const run = runTerminalApp({
+      argv: [],
+      cwd: "/repo",
+      io: harness.io,
+      project: () => buildHomeScreen(state()),
+      settings: {
+        read: () => [{ id: "mode", label: "Work mode", options: ["solo", "team"], value: "solo" }],
+        apply: () => false,
+      },
+    });
+    harness.press("\t");
+    harness.press("\r");
+    expect(harness.written.join("")).toContain("refused");
+    harness.press("q");
+    expect(await run).toBe(0);
+  });
+});
+
+describe("settings write failures", () => {
+  test("a write that throws is refused, not propagated", () => {
+    const definitions = [
+      { id: "mode", label: "M", options: ["solo", "team"], read: () => "solo", write: () => { throw new Error("EROFS"); } },
+    ];
+    expect(applySetting("/repo", "mode", "team", definitions)).toBe(false);
   });
 });
