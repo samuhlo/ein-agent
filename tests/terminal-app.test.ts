@@ -11,6 +11,7 @@ import {
   UNKNOWN_VALUE,
   buildConfigScreen,
   buildHomeScreen,
+  buildSessionsScreen,
   handleKey,
   nextSettingValue,
   renderScreen,
@@ -22,6 +23,12 @@ import {
   runTerminalApp,
 } from "../ein-pi/agent/surfaces/terminal-app-entrypoint.ts";
 import { applySetting, readSettings } from "../ein-pi/agent/lib/project-settings.ts";
+import {
+  lastActionFromSession,
+  lastActionFromSessionText,
+  sanitizeLabel,
+  summarizeSessions,
+} from "../ein-pi/agent/lib/session-summary.ts";
 import type { ProjectStateV1 } from "../ein-pi/agent/lib/project-state.ts";
 
 const ARROW_DOWN = "\u001b[B";
@@ -321,9 +328,10 @@ describe("configuration view", () => {
     expect(handleKey(buildHomeScreen(state()), "c").effect).toEqual({ kind: "switch-view" });
   });
 
-  test("the hints tell you which view you are in", () => {
-    expect(renderScreen(config()).join("\n")).toContain("tab state");
+  test("the hints name the next view in the cycle", () => {
+    expect(renderScreen(config()).join("\n")).toContain("tab sessions");
     expect(renderScreen(buildHomeScreen(state())).join("\n")).toContain("tab config");
+    expect(renderScreen(buildSessionsScreen([])).join("\n")).toContain("tab state");
   });
 });
 
@@ -430,5 +438,117 @@ describe("settings write failures", () => {
       { id: "mode", label: "M", options: ["solo", "team"], read: () => "solo", write: () => { throw new Error("EROFS"); } },
     ];
     expect(applySetting("/repo", "mode", "team", definitions)).toBe(false);
+  });
+});
+
+describe("session summaries", () => {
+  const line = (role: string, text: string) =>
+    JSON.stringify({ type: "message", message: { role, content: [{ type: "text", text }] } });
+
+  test("the last user message becomes the label", () => {
+    const text = [line("user", "primera"), line("assistant", "respuesta"), line("user", "segunda")].join("\n");
+    expect(lastActionFromSessionText(text)).toBe("segunda");
+  });
+
+  test("assistant turns and tool output never become the label", () => {
+    const text = [line("user", "lo mio"), line("assistant", "lo suyo"), line("toolResult", "salida")].join("\n");
+    expect(lastActionFromSessionText(text)).toBe("lo mio");
+  });
+
+  test("a transcript with no user message yields unknown", () => {
+    expect(lastActionFromSessionText(line("assistant", "solo yo"))).toBeUndefined();
+  });
+
+  test("a chunk that starts mid-record ignores its truncated first line", () => {
+    const truncated = `role":"user","content":[{"type":"text","text":"basura"}]}}\n${line("user", "buena")}`;
+    expect(lastActionFromSessionText(truncated, true)).toBe("buena");
+  });
+
+  test("control characters and newlines collapse into one line", () => {
+    expect(sanitizeLabel("uno dos\ntres\t cuatro")).toBe("uno dos tres cuatro");
+  });
+
+  test("a long label is truncated with an ellipsis", () => {
+    const label = sanitizeLabel("x".repeat(200));
+    expect(label.length).toBeLessThanOrEqual(72);
+    expect(label.endsWith("…")).toBe(true);
+  });
+
+  test("the scan walks backwards and stops at the first match", () => {
+    const reads: Array<[number, number]> = [];
+    const tail = line("user", "reciente");
+    const filler = "z".repeat(300);
+    const body = `${line("user", "vieja")}\n${filler}\n${tail}`;
+    const reader = {
+      size: () => body.length,
+      chunk: (_path: string, start: number, length: number) => {
+        reads.push([start, length]);
+        return body.slice(start, start + length);
+      },
+    };
+    expect(lastActionFromSession("/s.jsonl", reader, { chunkBytes: 100, maxScanBytes: 1000 })).toBe("reciente");
+    expect(reads).toHaveLength(1);
+  });
+
+  test("the scan gives up at the cap instead of reading the whole file", () => {
+    const body = `${line("user", "muy vieja")}\n${"z".repeat(5000)}`;
+    const reads: number[] = [];
+    const reader = {
+      size: () => body.length,
+      chunk: (_path: string, start: number, length: number) => { reads.push(length); return body.slice(start, start + length); },
+    };
+    expect(lastActionFromSession("/s.jsonl", reader, { chunkBytes: 100, maxScanBytes: 300 })).toBeUndefined();
+    expect(reads.reduce((total, value) => total + value, 0)).toBe(300);
+  });
+
+  test("an unreadable session is listed with an unknown action, not dropped", () => {
+    const summaries = summarizeSessions(
+      [{ project: "p", id: "abc", ageMs: 1000, cwd: "/repo", path: "/missing.jsonl" }],
+      { size: () => undefined, chunk: () => undefined },
+    );
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]?.lastAction).toBeUndefined();
+  });
+
+  test("the sessions view renders the phrase and declares the source", () => {
+    const screen = buildSessionsScreen([
+      { id: "a", project: "p", age: "5h", lastAction: "hice algo" },
+      { id: "b", project: "p", age: "7h", lastAction: undefined },
+    ]);
+    const lines = renderScreen(screen).join("\n");
+    expect(lines).toContain("hice algo");
+    expect(lines).toContain("[session]");
+    expect(lines).toMatch(/7h\s+unknown/);
+  });
+
+  test("no sessions says so instead of showing an empty list", () => {
+    expect(renderScreen(buildSessionsScreen([])).join("\n")).toContain("none found");
+  });
+
+  test("tab from sessions returns to state", async () => {
+    const written: string[] = [];
+    let press: ((key: string) => void) | undefined;
+    const io = {
+      write: (text: string) => { written.push(text); },
+      isTTY: true,
+      clear: () => {},
+      setRawMode: () => {},
+      onKey: (handler: (key: string) => void) => { press = handler; return () => { press = undefined; }; },
+    };
+    const run = runTerminalApp({
+      argv: [],
+      cwd: "/repo",
+      io,
+      project: () => buildHomeScreen(state()),
+      settings: { read: () => [], apply: () => true },
+      sessions: () => [{ id: "a", project: "p", age: "5h", lastAction: "algo" }],
+    });
+    press?.("\t");
+    press?.("\t");
+    expect(written.join("")).toContain("recent sessions");
+    press?.("\t");
+    expect(written.join("")).toContain("Ein — state");
+    press?.("q");
+    expect(await run).toBe(0);
   });
 });
