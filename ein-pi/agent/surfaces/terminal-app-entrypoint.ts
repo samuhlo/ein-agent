@@ -52,12 +52,25 @@ export const INTRO_COLUMN_STEP = 2;
 export type TerminalAppArgs =
   | { kind: "run"; cwd: string; once: boolean; intro: boolean }
   | { kind: "help" }
+  | { kind: "moved"; verb: string }
   | { kind: "usage"; reason: string };
+
+/**
+ * `ein` used to be the installer. Its verbs are recognized and redirected for
+ * as long as muscle memory lasts, instead of opening the app and swallowing an
+ * argument the user clearly meant as a command.
+ */
+export const INSTALLER_VERBS: readonly string[] = [
+  "install", "update", "uninstall", "restore", "doctor",
+];
+export const INSTALLER_COMMAND = "ein-install";
 
 export function parseTerminalAppArgs(argv: readonly string[], cwd: string): TerminalAppArgs {
   let root = cwd;
   let once = false;
   let intro = true;
+  const first = argv[0];
+  if (first && INSTALLER_VERBS.includes(first)) return { kind: "moved", verb: first };
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index];
     if (argument === "--help" || argument === "-h") return { kind: "help" };
@@ -144,6 +157,13 @@ async function playIntro(io: TerminalAppIO): Promise<void> {
 export async function runTerminalApp(options: TerminalAppOptions): Promise<number> {
   const parsed = parseTerminalAppArgs(options.argv, options.cwd);
   if (parsed.kind === "help") { options.io.write(`${HELP}\n`); return 0; }
+  if (parsed.kind === "moved") {
+    options.io.write(
+      `\`ein ${parsed.verb}\` ahora es \`${INSTALLER_COMMAND} ${parsed.verb}\`.\n` +
+      `\`ein\` sin argumentos abre la aplicación.\n`,
+    );
+    return 2;
+  }
   if (parsed.kind === "usage") { options.io.write(`${HELP}\n`); return 2; }
 
   const build = options.project ?? ((cwd: string) => buildHomeScreen(projectProjectState({ cwd })));

@@ -110,7 +110,7 @@ describe("install.sh deterministic shell fixture", () => {
 
     // fake mv remaps publication into the fixture; it never writes the real
     // /usr/local/bin or HOME/.local/bin destination requested by install.sh.
-    expect(readFileSync(join(fixture.publicationDir, "ein"))).toEqual(BINARY_BYTES);
+    expect(readFileSync(join(fixture.publicationDir, "ein-install"))).toEqual(BINARY_BYTES);
     expectSandboxedDownloads(fixture, result);
     expectTemporaryDirectoryCleaned(fixture);
 
@@ -135,7 +135,7 @@ describe("install.sh deterministic shell fixture", () => {
     expect(verificationIndex).toBeGreaterThan(-1);
     expect(chmodIndex).toBeGreaterThan(verificationIndex);
     expect(mvIndex).toBeGreaterThan(chmodIndex);
-    expect(readFileSync(join(fixture.publicationDir, "ein"))).toEqual(BINARY_BYTES);
+    expect(readFileSync(join(fixture.publicationDir, "ein-install"))).toEqual(BINARY_BYTES);
 
     expectSandboxedDownloads(fixture, result);
     expectTemporaryDirectoryCleaned(fixture);
@@ -221,7 +221,7 @@ describe("install.sh deterministic shell fixture", () => {
     expect(chmodIndex).toBeGreaterThan(verificationIndex);
     expect(mvIndex).toBeGreaterThan(chmodIndex);
     expect(result.stdout).toContain("Listo. Ejecuta");
-    expect(readFileSync(join(fixture.publicationDir, "ein"))).toEqual(BINARY_BYTES);
+    expect(readFileSync(join(fixture.publicationDir, "ein-install"))).toEqual(BINARY_BYTES);
 
     expectSandboxedDownloads(fixture, result);
     expectTemporaryDirectoryCleaned(fixture);
@@ -274,7 +274,7 @@ describe("install.sh deterministic shell fixture", () => {
     expect(mvIndex).toBeGreaterThan(chmodIndex);
     expect(result.stdout).toContain("instalado en ");
     expect(result.stdout).toContain("Listo. Ejecuta");
-    expect(readFileSync(join(fixture.publicationDir, "ein"))).toEqual(BINARY_BYTES);
+    expect(readFileSync(join(fixture.publicationDir, "ein-install"))).toEqual(BINARY_BYTES);
 
     expectSandboxedDownloads(fixture, result);
     expectTemporaryDirectoryCleaned(fixture);
@@ -296,7 +296,7 @@ function expectRejectedBeforePublication(fixture: Fixture, result: RunResult): v
   expect(result.events.some((event) => event.startsWith("guard:"))).toBe(false);
   expect(result.events.some((event) => event.startsWith("chmod:"))).toBe(false);
   expect(result.events.some((event) => event.startsWith("mv:"))).toBe(false);
-  expect(existsSync(join(fixture.publicationDir, "ein"))).toBe(false);
+  expect(existsSync(join(fixture.publicationDir, "ein-install"))).toBe(false);
   expectSandboxedDownloads(fixture, result);
 }
 
@@ -334,7 +334,7 @@ function createFixture(options: FixtureOptions = {}): Fixture {
   const sourceDir = join(root, "source");
   const publicationDir = join(root, "published");
   const logPath = join(root, "events.log");
-  const binarySource = join(sourceDir, "ein");
+  const binarySource = join(sourceDir, "ein-install");
   const checksumSource = join(sourceDir, "checksums.txt");
   const digest = createHash("sha256").update(BINARY_BYTES).digest("hex");
 
@@ -542,11 +542,11 @@ case "$1" in
   *) printf '%s\\n' "guard:mv-source:$1" >> "$EIN_FIXTURE_LOG"; exit 91 ;;
 esac
 case "$2" in
-  /usr/local/bin/ein|"$HOME"/.local/bin/ein) ;;
+  /usr/local/bin/ein-install|"$HOME"/.local/bin/ein-install) ;;
   *) printf '%s\\n' "guard:mv-destination:$2" >> "$EIN_FIXTURE_LOG"; exit 91 ;;
 esac
-cp "$1" "$EIN_PUBLICATION_ROOT/ein"
-printf '%s\\n' "mv:$2:$EIN_PUBLICATION_ROOT/ein" >> "$EIN_FIXTURE_LOG"
+cp "$1" "$EIN_PUBLICATION_ROOT/ein-install"
+printf '%s\\n' "mv:$2:$EIN_PUBLICATION_ROOT/ein-install" >> "$EIN_FIXTURE_LOG"
 `,
   );
 

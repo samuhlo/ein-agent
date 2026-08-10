@@ -25,6 +25,8 @@ import {
   parseTerminalAppArgs,
   runTerminalApp,
   systemRowsFrom,
+  INSTALLER_VERBS,
+  INSTALLER_COMMAND,
 } from "../ein-pi/agent/surfaces/terminal-app-entrypoint.ts";
 import { LOGO, LOGO_NARROW, TAGLINE, bannerFinal, bannerFrame, frameCount } from "../ein-pi/agent/lib/banner.ts";
 import { resolveEinAgentHome } from "../ein-pi/agent/lib/agent-home.ts";
@@ -848,5 +850,33 @@ describe("resume capability honesty", () => {
     const effect = handleKey(cursored, "\r").effect;
     expect(effect.kind).toBe("status");
     if (effect.kind === "status") expect(effect.message).toContain("not resumable");
+  });
+});
+
+describe("old installer verbs", () => {
+  const io = () => {
+    const written: string[] = [];
+    return { written, io: { write: (t: string) => { written.push(t); }, isTTY: false } };
+  };
+
+  test("every installer verb is redirected instead of opening the app", async () => {
+    for (const verb of INSTALLER_VERBS) {
+      const h = io();
+      const code = await runTerminalApp({ argv: [verb], cwd: "/repo", io: h.io, project: () => buildHomeScreen(state()) });
+      expect(code).toBe(2);
+      expect(h.written.join("")).toContain(`${INSTALLER_COMMAND} ${verb}`);
+      expect(h.written.join("")).not.toContain("Project");
+    }
+  });
+
+  test("the redirect also says what bare ein does now", async () => {
+    const h = io();
+    await runTerminalApp({ argv: ["update"], cwd: "/repo", io: h.io, project: () => buildHomeScreen(state()) });
+    expect(h.written.join("")).toContain("sin argumentos abre la aplicación");
+  });
+
+  test("a verb-looking flag is not mistaken for an installer verb", () => {
+    expect(parseTerminalAppArgs(["--once"], "/repo")).toMatchObject({ kind: "run" });
+    expect(parseTerminalAppArgs(["doctor"], "/repo")).toMatchObject({ kind: "moved", verb: "doctor" });
   });
 });

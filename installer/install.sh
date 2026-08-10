@@ -2,7 +2,7 @@
 # =============================================================================
 # Ein installer bootstrap
 # Detects platform, downloads the matching prebuilt binary from GitHub
-# Releases and installs it to ~/.local/bin/ein (or /usr/local/bin if
+# Releases and installs it to ~/.local/bin/ein-install (or /usr/local/bin if
 # writable). Tells you to run `ein` afterwards.
 #
 #   curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
@@ -10,7 +10,8 @@
 set -euo pipefail
 
 REPO="${EIN_INSTALLER_REPO:-samuhlo/ein-agent}"
-BINARY_NAME="ein"
+# `ein` es la app de terminal; el instalador vive bajo su propio nombre.
+BINARY_NAME="ein-install"
 
 # --- pretty output (gold #FFCA40 when the terminal supports truecolor) -------
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
