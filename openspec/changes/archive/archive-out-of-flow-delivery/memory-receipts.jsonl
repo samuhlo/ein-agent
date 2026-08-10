@@ -1,0 +1,16 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:scope","durationMs":0,"timestamp":"2026-08-10T08:58:24.428Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:map","durationMs":0,"timestamp":"2026-08-10T09:01:18.385Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:design","durationMs":0,"timestamp":"2026-08-10T09:14:46.944Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:design","durationMs":0,"timestamp":"2026-08-10T09:19:30.677Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:tasks","durationMs":0,"timestamp":"2026-08-10T09:20:49.707Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:apply","durationMs":0,"timestamp":"2026-08-10T09:33:27.673Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:apply","durationMs":0,"timestamp":"2026-08-10T09:38:14.798Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:apply","durationMs":0,"timestamp":"2026-08-10T09:44:00.727Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:apply","durationMs":0,"timestamp":"2026-08-10T09:48:44.739Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:apply","durationMs":0,"timestamp":"2026-08-10T09:52:52.747Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:apply","durationMs":0,"timestamp":"2026-08-10T09:54:50.772Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:verify","durationMs":0,"timestamp":"2026-08-10T10:01:56.578Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:apply","durationMs":0,"timestamp":"2026-08-10T10:03:39.242Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:verify","durationMs":0,"timestamp":"2026-08-10T10:11:26.235Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:archive-out-of-flow-delivery:invalid","durationMs":0,"timestamp":"2026-08-10T10:12:36.224Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:archive-out-of-flow-delivery:close","durationMs":0,"timestamp":"2026-08-10T10:12:59.297Z"}
