@@ -2,7 +2,7 @@
 title: "Pi Coding Agent"
 description: "Cómo usar EIN con Pi: superficie, migración y particularidades."
 sources: ["README.md", "pi-ein/README.md"]
-verified_rev: "29861f5"
+verified_rev: "eeceb7c"
 ---
 
 Pi es el runtime para el que nació EIN, y donde la superficie está más completa.
@@ -10,7 +10,7 @@ Pi es el runtime para el que nació EIN, y donde la superficie está más comple
 ## Instalar y abrir
 
 ```bash
-ein install --runtime pi
+ein-install install --runtime pi
 pi-ein
 ```
 
@@ -56,10 +56,10 @@ Esto confunde al principio, y la separación es deliberada:
 
 ```bash
 pi-ein update --all    # actualiza Pi: binario, extensiones, paquetes
-ein update             # actualiza EIN: instalador y plantilla
+ein-install update             # actualiza EIN: instalador y plantilla
 ```
 
-`ein update` usa la release estable de GitHub, verifica el payload y actualiza
+`ein-install update` usa la release estable de GitHub, verifica el payload y actualiza
 con backup y rollback. No es un actualizador de Pi.
 
 ## Particularidades

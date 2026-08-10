@@ -2,7 +2,7 @@
 title: "Claude Code"
 description: "Cómo usar EIN con Claude Code, y qué no se traslada exactamente desde Pi."
 sources: ["README.md", "cc-ein/README.md", "openspec/changes/archive/core-parity/verify-report.md"]
-verified_rev: "29861f5"
+verified_rev: "eeceb7c"
 ---
 
 El adaptador `cc-ein` traduce el núcleo de EIN a lo que Claude Code entiende.
@@ -10,7 +10,7 @@ El adaptador `cc-ein` traduce el núcleo de EIN a lo que Claude Code entiende.
 ## Instalar y abrir
 
 ```bash
-ein install --runtime claude
+ein-install install --runtime claude
 cc-ein
 ```
 

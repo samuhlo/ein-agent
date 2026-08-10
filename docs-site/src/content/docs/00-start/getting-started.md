@@ -2,7 +2,7 @@
 title: "Getting Started"
 description: "Instalar EIN, elegir runtime y comprobar que el despliegue está sano."
 sources: ["README.md", "installer/README.md"]
-verified_rev: "29861f5"
+verified_rev: "eeceb7c"
 ---
 
 De cero a EIN funcionando. Al terminar tendrás el binario `ein`, al menos un
@@ -44,9 +44,9 @@ al terminar.
 Si prefieres no pasar por el menú:
 
 ```bash
-ein install --runtime pi        # solo Pi
-ein install --runtime claude    # solo Claude Code
-ein install --runtime both      # los dos
+ein-install install --runtime pi        # solo Pi
+ein-install install --runtime claude    # solo Claude Code
+ein-install install --runtime both      # los dos
 ```
 
 Con `--yes` no pregunta nada, y con `--dry-run` enseña el plan sin tocar nada —
@@ -55,7 +55,7 @@ Con `--yes` no pregunta nada, y con `--dry-run` enseña el plan sin tocar nada �
 ## 3. Comprobar
 
 ```bash
-ein doctor
+ein-install doctor
 ```
 
 Diagnostica el despliegue sin lanzar ningún runtime: rutas, dependencias,
@@ -67,7 +67,17 @@ cubre los fallos más frecuentes.
 
 ## 4. Abrir EIN
 
-Según lo que hayas instalado:
+Empieza por la aplicación:
+
+```bash
+ein
+```
+
+Abre la aplicación de terminal: estado del proyecto, configuración, sesiones
+recientes, actualizaciones pendientes, y desde ahí eliges Pi o Claude Code y
+lanzas. `tab` rota entre las vistas, `q` sale.
+
+También puedes ir directo al runtime:
 
 ```bash
 pi-ein      # Pi con EIN
@@ -81,12 +91,13 @@ siguen intactos y sin tocar; EIN vive en `~/.pi-ein/agent` y `~/.claude-ein`.
 
 | Comando | Qué hace |
 | :--- | :--- |
-| `ein` | menú interactivo |
-| `ein install` | instala o repara |
-| `ein update` | actualiza EIN y su plantilla, con backup previo |
-| `ein doctor` | diagnostica sin lanzar runtimes |
-| `ein uninstall` | elimina EIN y conserva auth, secrets y sesiones |
-| `ein restore` | restaura desde un backup |
+| `ein` | abre la aplicación de terminal |
+| `ein-install` | menú interactivo del instalador |
+| `ein-install install` | instala o repara |
+| `ein-install update` | actualiza EIN y su plantilla, con backup previo |
+| `ein-install doctor` | diagnostica sin lanzar runtimes |
+| `ein-install uninstall` | elimina EIN y conserva auth, secrets y sesiones |
+| `ein-install restore` | restaura desde un backup |
 
 Cada `install` sobre un árbol existente, cada `update`, `uninstall` y `restore`
 crea antes un snapshot comprimido. La reversibilidad no es un extra: está en

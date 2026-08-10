@@ -2,7 +2,7 @@
 title: "Filesystem"
 description: "Qué directorios toca EIN, cuáles no, y dónde están tus backups."
 sources: ["installer/src/core/paths.ts", "README.md", "installer/README.md"]
-verified_rev: "29861f5"
+verified_rev: "eeceb7c"
 ---
 
 Dónde vive EIN y, más importante, **qué no toca**.
@@ -40,7 +40,7 @@ Y en cada proyecto donde uses EIN:
 | Ruta | Dueño | Se puede borrar |
 | :--- | :--- | :--- |
 | `~/.pi/agent`, `~/.claude` | tu runtime vanilla | no lo toques |
-| `~/.pi-ein/agent`, `~/.claude-ein` | EIN | sí, con `ein uninstall` |
+| `~/.pi-ein/agent`, `~/.claude-ein` | EIN | sí, con `ein-install uninstall` |
 | `~/.local/bin/ein` | el instalador | sí, a mano |
 | `~/.config/opencode-secrets` | tú | sí, pierdes las claves |
 | `openspec/` | el proyecto | va a git, no lo borres |
@@ -71,7 +71,7 @@ cada `update`, cada `uninstall` y cada `restore`. No hay que acordarse.
 
 ```bash
 ls ~/.pi-ein/agent/backups/installer/
-ein restore
+ein-install restore
 ```
 
 ## Secrets
@@ -85,7 +85,7 @@ context7-api-key
 minimax-api-key
 ```
 
-Están fuera de la casa de EIN a propósito: `ein uninstall` no las borra, así que
+Están fuera de la casa de EIN a propósito: `ein-install uninstall` no las borra, así que
 reinstalar no te obliga a reconfigurarlas.
 
 ## Lo que EIN nunca toca
