@@ -82,7 +82,7 @@ describe("ensurePlanningAcceptance", () => {
 // prompt (robusto al orden de las preguntas). cwd único por test: el override
 // de TDD se guarda en un map keyed por cwd → reusar cwd contamina el siguiente.
 let cwdSeq = 0;
-function ctxStub(answers: { execution: string; tdd: string; memory?: string }) {
+function ctxStub(answers: { execution: string; tdd: string; memory?: string; budget?: string }) {
 	const notes: string[] = [];
 	return {
 		ctx: {

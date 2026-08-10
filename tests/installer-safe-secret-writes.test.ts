@@ -82,7 +82,7 @@ function runHasSecret(home: string, name = "linear"): HasSecretRun {
     status: result.status,
     stdout: result.stdout,
     stderr: result.stderr,
-    timedOut: result.error?.code === "ETIMEDOUT",
+    timedOut: (result.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT",
   };
 }
 
@@ -807,12 +807,12 @@ test("ensureContext7Export preserves the RC and cleans its temp after injected p
     let failed = false;
     const injected = new Error(`injected ${operation} failure`);
     const base = ops[operation];
-    ops[operation] = ((...args: never[]) => {
+    ops[operation] = ((...args: unknown[]) => {
       if (!failed) {
         failed = true;
         throw injected;
       }
-      return base(...args);
+      return (base as (...rest: unknown[]) => unknown)(...args);
     }) as never;
 
     expect(() => ensureContext7ExportForTesting(rcPlatform("zsh", rc), ops, () => temporary)).toThrow(

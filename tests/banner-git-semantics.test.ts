@@ -37,7 +37,7 @@ describe("parsePorcelainV1Z", () => {
 		["rename", "R  new.ts\0old.ts\0", { kind: "changes", entries: 1, staged: 1, unstaged: 0, untracked: 0 }],
 		["copy", "C  new.ts\0old.ts\0", { kind: "changes", entries: 1, staged: 1, unstaged: 0, untracked: 0 }],
 		["renamed then modified", "RM new.ts\0old.ts\0", { kind: "changes", entries: 1, staged: 1, unstaged: 1, untracked: 0 }],
-	])("classifies %s logical record", (_name, input, expected) => {
+	] as const)("classifies %s logical record", (_name, input, expected) => {
 		expect(parsePorcelainV1Z(input)).toEqual(expected);
 	});
 
@@ -60,7 +60,7 @@ describe("parseLeftRightCount", () => {
 		["2 0", { kind: "ahead", ahead: 2, behind: 0 }],
 		["0 3", { kind: "behind", ahead: 0, behind: 3 }],
 		["2 3", { kind: "diverged", ahead: 2, behind: 3 }],
-	])("maps %s", (input, expected) => {
+	] as const)("maps %s", (input, expected) => {
 		expect(parseLeftRightCount(input)).toEqual(expected);
 	});
 

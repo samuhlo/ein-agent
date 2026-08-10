@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Essential } from "../ein-pi/agent/lib/onboarding.ts";
 
 const { pendingEssentials, applyDefault } = await import(
 	"../ein-pi/agent/lib/onboarding"
@@ -25,7 +26,7 @@ describe("pendingEssentials", () => {
 
 	test("proyecto sin configurar → los 5 esenciales pendientes", () => {
 		expect(pendingEssentials(cwd).sort()).toEqual(
-			["einmd", "hypa", "lang", "persona", "tdd"].sort(),
+			(["einmd", "hypa", "lang", "persona", "tdd"] satisfies Essential[]).sort(),
 		);
 	});
 

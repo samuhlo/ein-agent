@@ -915,6 +915,8 @@ function initializeMutationProject(project: string) {
   const state = projectProjectState({ cwd: project, selectedChange: "surface-wiring" });
   const stateRef = state.git.stateRef;
   expect(stateRef).toMatch(/^git-v1:sha256:[0-9a-f]{64}$/);
+  // toMatch proves it at runtime but does not narrow the optional away.
+  if (!stateRef) throw new Error("expected a git state ref");
   const area = canonicalArea([{ kind: "file", path: "src/entry.ts" }]);
   const evidence = {
     status: "verified",

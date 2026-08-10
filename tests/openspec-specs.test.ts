@@ -85,7 +85,7 @@ describe("openspec-delta/v1 serializer (P0-A)", () => {
 	});
 
 	test("buildOpenSpecDelta rechaza requirement mal formado (sin The system MUST/SHOULD/MAY)", () => {
-		const bad = { domain: "scout-routing", operations: [{ kind: "ADDED", scenario: { id: "x-route", title: "X", requirement: "should route x", given: "a packet", when: "routed", then: "bounded" } }] };
+		const bad = { domain: "scout-routing", operations: [{ kind: "ADDED", scenario: { id: "x-route", title: "X", requirement: "should route x", given: "a packet", when: "routed", then: "bounded" } }] } as const;
 		expect(buildOpenSpecDelta(bad).ok).toBe(false);
 	});
 

@@ -676,7 +676,7 @@ describe("real adapter, plan, and recording executor boundaries", () => {
     const fixture = makeFixture();
     try {
       const { plan } = fixturePlan(fixture, "pi");
-      const cases: Array<[unknown, string]> = [
+      const cases: Array<[unknown, AdapterResult<unknown>["outcome"]]> = [
         [{ kind: "exit", code: 0 }, "success"],
         [{ kind: "exit", code: 7 }, "error"],
         [{ kind: "signal", signal: "SIGTERM" }, "error"],

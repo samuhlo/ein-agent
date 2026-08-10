@@ -31,7 +31,10 @@ if (mode === "signal") {
 	process.exit(1);
 }
 
-const owner = ownerName!;
+// Same shape as the signal-probe guard above: fail loudly instead of joining
+// paths with undefined.
+if (!ownerName || !namespace || !barrier) throw new Error("isolation probe configuration is incomplete");
+const owner = ownerName;
 const { getRuntimeTestOwner } = await import("./runtime-test-fixture");
 const runtimeOwner = getRuntimeTestOwner();
 const { AGENT_DIR } = await import("../../ein-pi/agent/extensions/ein-paths");

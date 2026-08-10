@@ -1,8 +1,7 @@
 {
   "compilerOptions": {
     "lib": [
-      "ESNext",
-      "DOM"
+      "ESNext"
     ],
     "target": "ESNext",
     "module": "ESNext",
@@ -20,7 +19,8 @@
   },
   "include": [
     "ein-pi/**/*.ts",
-    "cc-ein/**/*.ts"
+    "cc-ein/**/*.ts",
+    "tests/**/*.ts"
   ],
   "exclude": [
     "node_modules",
@@ -28,5 +28,8 @@
     "ein-pi/**/node_modules/**",
     "installer/**",
     "docs-site/**"
+  ],
+  "files": [
+    "installer/src/assets.d.ts"
   ]
 }

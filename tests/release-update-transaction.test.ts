@@ -32,7 +32,7 @@ describe("release update transaction", () => {
     expect(tx.prepare({ binary: join(dir, "ein.backup"), template: join(dir, "template") }).ok).toBe(true);
     const order: string[] = [];
     for (const state of ["binary-replaced", "child-reexecuted", "template-deployed"] as const) {
-      expect((await tx.transition(state, () => order.push(state), () => order.push(`undo:${state}`))).ok).toBe(true);
+      expect((await tx.transition(state, () => { order.push(state); }, () => { order.push(`undo:${state}`); })).ok).toBe(true);
     }
     expect(JSON.parse(readFileSync(journalPath, "utf8"))).toMatchObject({ state: "template-deployed" });
     expect((await tx.rollback()).ok).toBe(true);
@@ -72,7 +72,7 @@ describe("release update transaction", () => {
     const tx = createTransaction({ caps, target: "installer-v0.20.0", owner: { type: "standalone" }, journalPath: join(root(), "journal.json") });
     tx.prepare({});
     const calls: string[] = [];
-    await tx.transition("binary-replaced", () => undefined, () => calls.push("restored"));
+    await tx.transition("binary-replaced", () => undefined, () => { calls.push("restored"); });
     const remove = installSignalHandlers(tx, caps);
     callbacks[0]!();
     await Bun.sleep(0);

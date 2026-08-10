@@ -30,12 +30,14 @@ const DOCUMENTED_ASSETS = [
   "ein-installer-linux-x64",
 ] as const;
 
-const DOCUMENTED_PLATFORMS: AssetPlatform[] = [
+// `satisfies` and not an annotation: AssetPlatform widens os/arch to string,
+// and assetNameFor takes the narrower literals.
+const DOCUMENTED_PLATFORMS = [
   { os: "darwin", arch: "arm64" },
   { os: "darwin", arch: "x64" },
   { os: "linux", arch: "arm64" },
   { os: "linux", arch: "x64" },
-];
+] as const satisfies readonly AssetPlatform[];
 
 const EXPECTED_PUBLISHED_ASSETS = [
   "dist/ein-installer-darwin-arm64",
@@ -130,7 +132,7 @@ describe("release asset contract", () => {
 
     expect(workflow.match(/^[ \t]*gh release create\b/gm) ?? []).toHaveLength(1);
     expect(publishedAssets).toHaveLength(EXPECTED_PUBLISHED_ASSETS.length);
-    expect(publishedAssets).toEqual(EXPECTED_PUBLISHED_ASSETS);
+    expect(publishedAssets).toEqual([...EXPECTED_PUBLISHED_ASSETS]);
     for (const asset of DOCUMENTED_ASSETS) expect(buildScript).toContain(asset);
     expect(workflow).toMatch(/sha256sum ein-installer-\*/);
     expect(buildScript).toMatch(/bunTarget:\s*"bun-(darwin|linux)-(arm64|x64)"/);

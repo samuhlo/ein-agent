@@ -9,7 +9,10 @@
 import { createHash } from "node:crypto";
 import type { UpdateCaps } from "../../installer/src/core/update-caps.ts";
 
-export type FakeCapsOptions = Partial<UpdateCaps> & {
+// `fs` is partial one level deeper: callers routinely override two or three
+// operations, and requiring the whole surface forces unrelated boilerplate.
+export type FakeCapsOptions = Omit<Partial<UpdateCaps>, "fs"> & {
+  fs?: Partial<UpdateCaps["fs"]>;
   files?: Map<string, Uint8Array>;
   removedDirs?: string[];
 };
@@ -63,7 +66,7 @@ export function fakeUpdateCaps(options: FakeCapsOptions = {}): UpdateCaps {
     ...fallback,
     ...options,
     http: options.http ?? fallback.http,
-    fs: options.fs ?? fallback.fs,
+    fs: { ...fallback.fs, ...options.fs },
     child: options.child ?? fallback.child,
     template: options.template ?? fallback.template,
     clock: options.clock ?? fallback.clock,
