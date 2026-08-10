@@ -5,6 +5,38 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.44.1] - 2026-08-10
+
+### Fixed
+
+- **`ein update` daba por aplicado un `brew upgrade` que Homebrew había
+  rechazado** (`0f13186`): `refreshEngram` descartaba el exit code de brew y
+  devolvía éxito fijo, asumiendo que un fallo solo podía significar "ya al
+  día". El tap de engram publica un cask y una fórmula con el mismo nombre, así
+  que `brew upgrade engram` resolvía al cask —que Homebrew se niega a cargar
+  desde un tap no confiado— y salía con error mientras el updater informaba
+  "brew upgrade aplicado" con el binario congelado en la versión anterior.
+  Ahora el resultado se comprueba siempre y se usa la fórmula cualificada
+  (`--formula gentleman-programming/tap/engram`), que apunta a lo que está
+  instalado y no dispara el gate de casks. Ante cualquier otro rechazo se
+  reporta el comando exacto de `brew trust`: Ein no confía taps por su cuenta,
+  porque saltarse ese gate en silencio es justo lo que Homebrew lo añadió para
+  impedir. `installEngramMac` recibe el mismo trato; ese camino estaba igual de
+  roto para instalaciones nuevas en macOS. Las herramientas que no se
+  actualizan se listan como aviso, no como línea normal.
+- **La terminal se partía durante el update** (`0f13186`): brew, npm y curl
+  heredaban stdio mientras un spinner de clack repintaba la misma línea, y su
+  salida se entrelazaba con ella. Ningún proceso hereda ya stdio bajo spinner:
+  se captura la salida, se rescata la última línea para el mensaje de error y
+  un timeout de 5 minutos cubre al proceso que, ya sin voz, podría atascarse
+  sin avisar.
+
+### Changed
+
+- **Mensajes del instalador acentuados** (`4bbb6dc`): los textos del wizard, el
+  updater y el doctor mezclaban "Actualizacion" con "última release". Pasada de
+  tildes sobre los literales visibles al usuario.
+
 ## [0.44.0] - 2026-08-10
 
 ### Added
