@@ -248,6 +248,9 @@ export async function handleLangCommand(ctx: ExtensionContext): Promise<void> {
 		`Idioma de conversación y UI (actual: ${LANG_LABEL[currentChat]})`,
 		chatItems,
 	);
+	// A cancelled picker returns undefined; treating it as a miss relied on
+	// indexOf(-1) instead of saying so.
+	if (chatPick === undefined) return;
 	const chatLang = ACTIVE_LANGS[chatItems.indexOf(chatPick)];
 	if (!chatLang) return;
 	const persisted = applyChatLang(chatLang);
@@ -265,6 +268,9 @@ export async function handleLangCommand(ctx: ExtensionContext): Promise<void> {
 	let artifactChoice: Lang | null | undefined;
 	if (artPick === INHERIT_OPTION) {
 		artifactChoice = null;
+	} else if (artPick === undefined) {
+		// Cancelled: leave the stored override untouched.
+		artifactChoice = undefined;
 	} else {
 		const idx = artItems.indexOf(artPick) - 1;
 		artifactChoice = idx >= 0 ? ACTIVE_LANGS[idx] : undefined;

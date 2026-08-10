@@ -352,7 +352,11 @@ function validEvidenceMatch(record: LedgerRecord, areaId: string, stateRef: stri
 	if (resolution.status === "unavailable") return freeze({ outcome: "unavailable", freshness: "unavailable", reason: "evidence-unavailable" });
 	if (resolution.status === "invalid") return freeze({ outcome: "invalid", freshness: "invalid", reason: "invalid-evidence" });
 	if (resolution.status === "mismatch") return freeze({ outcome: "unknown", freshness: "unknown", reason: "evidence-mismatch" });
-	if (!isRecord(resolution) || !exactKeys(resolution, ["status", "reference", "digest", "reviewerRef", "areaId", "stateRef", "kind"]) || (resolution.kind !== undefined && resolution.kind !== "human-review") || resolution.reference !== record.evidence?.reference || resolution.digest !== record.evidence?.digest || resolution.reviewerRef !== record.evidence?.reviewerRef || resolution.areaId !== areaId || resolution.stateRef !== stateRef) return freeze({ outcome: "unknown", freshness: "unknown", reason: "evidence-mismatch" });
+	// Viewed as a plain record on purpose: the remaining checks defend against
+	// untrusted JSON, including keys the declared type says cannot be there
+	// (`kind`), so they must be readable without the union narrowing them away.
+	const fields: Readonly<Record<string, unknown>> = resolution;
+	if (!isRecord(fields) || !exactKeys(fields, ["status", "reference", "digest", "reviewerRef", "areaId", "stateRef", "kind"]) || (fields.kind !== undefined && fields.kind !== "human-review") || fields.reference !== record.evidence?.reference || fields.digest !== record.evidence?.digest || fields.reviewerRef !== record.evidence?.reviewerRef || fields.areaId !== areaId || fields.stateRef !== stateRef) return freeze({ outcome: "unknown", freshness: "unknown", reason: "evidence-mismatch" });
 	return undefined;
 }
 
@@ -363,7 +367,10 @@ export function evaluateReviewedArea(
 	transition?: GitTransition,
 	evidence?: EvidenceResolution,
 ): LedgerEvaluation {
-	const ledger = isRecord(input) && Array.isArray(input.records) ? normalizeLedger(input) : normalizeLedger({ schemaVersion: 1, records: [input] });
+	// A snapshot is distinguished from a bare record by its `records` array;
+	// read through a plain-record view so the union does not hide the probe.
+	const candidate: Readonly<Record<string, unknown>> = input;
+	const ledger = Array.isArray(candidate.records) ? normalizeLedger(input) : normalizeLedger({ schemaVersion: 1, records: [input as LedgerRecord] });
 	if (!ledger) return freeze({ outcome: "invalid", freshness: "invalid", reason: "malformed-ledger" });
 	if (!AREA_ID.test(areaId)) return freeze({ outcome: "invalid", freshness: "invalid", reason: "invalid-area" });
 	const record = ledger.records.find((candidate) => candidate.area.id === areaId);

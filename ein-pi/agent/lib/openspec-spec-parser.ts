@@ -192,11 +192,13 @@ export function parseOpenSpecDelta(source: string): OpenSpecParseResult<OpenSpec
 	let lastSection = -1;
 	let index = header.value.next;
 	while (index < lines.length && !(index === lines.length - 1 && lines[index] === "")) {
-		const section = lines[index]?.match(/^## ([A-Z]+)$/)?.[1];
-		if (!section || !DELTA_OPERATIONS.includes(section as (typeof DELTA_OPERATIONS)[number])) {
+		// `find` narrows to the tuple's element type, which `includes` + `as` did not.
+		const heading = lines[index]?.match(/^## ([A-Z]+)$/)?.[1];
+		const section = DELTA_OPERATIONS.find((operation) => operation === heading);
+		if (!section) {
 			return failure("invalid-operation", index + 1, "operation must be ADDED, MODIFIED, or REMOVED");
 		}
-		const sectionIndex = DELTA_OPERATIONS.indexOf(section as (typeof DELTA_OPERATIONS)[number]);
+		const sectionIndex = DELTA_OPERATIONS.indexOf(section);
 		if (seenSections.has(section) || sectionIndex <= lastSection) {
 			return failure("invalid-operation-order", index + 1, "operations must appear once in ADDED, MODIFIED, REMOVED order");
 		}

@@ -19,6 +19,7 @@
 // =============================================================================
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import type { Dirent } from "node:fs";
 import { join } from "node:path";
 import { readSpecDeltaDeclaration } from "./sdd-guardrails.ts";
 import { evaluateOpenSpecState, type OpenSpecState, type SyncBaseInput } from "./openspec-spec-sync.ts";
@@ -656,7 +657,9 @@ function scopeOnlyOutOfFlowEligible(cwd: string, change: string, status: SddChan
 	const scope = readText(join(changePath, "scope.md"));
 	if (scope === null) return false;
 
-	let entries: ReturnType<typeof readdirSync>;
+	// Annotated rather than inferred: ReturnType picks readdirSync's Buffer
+	// overload, which makes every entry.name a Buffer instead of a string.
+	let entries: Dirent[];
 	try { entries = readdirSync(changePath, { withFileTypes: true }); } catch { return false; }
 	const allowed = new Set(["scope.md", "summary.md", "out-of-flow-reconciliation.json"]);
 	if (!entries.some((entry) => entry.isFile() && entry.name === "scope.md")

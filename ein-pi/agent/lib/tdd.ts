@@ -70,6 +70,9 @@ export async function handleTddCommand(ctx: ExtensionContext): Promise<void> {
 		`Modo de TDD estricto (actual: ${current})`,
 		items,
 	);
+	// A cancelled picker returns undefined; treating it as a miss relied on
+	// indexOf(-1) instead of saying so.
+	if (picked === undefined) return;
 	const mode = TDD_OPTIONS[items.indexOf(picked)];
 	if (!mode) return;
 	writeTddMode(ctx.cwd, mode);

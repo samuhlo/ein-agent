@@ -121,8 +121,10 @@ function existingLedgerBytes(path: string): Buffer | null {
 	return bytes;
 }
 
-function mapParse(result: LedgerParseResult, digest?: string): WorkspaceLedgerRead {
-	if (result.status === "valid") return { status: "valid", ledger: result.ledger, ...(digest ? { digest } : {}) };
+// `digest` is required: a valid WorkspaceLedgerRead carries one by contract, and
+// the only caller always computes it from the bytes it just read.
+function mapParse(result: LedgerParseResult, digest: string): WorkspaceLedgerRead {
+	if (result.status === "valid") return { status: "valid", ledger: result.ledger, digest };
 	return result.status === "invalid"
 		? { status: "invalid", reason: result.reason }
 		: { status: "unavailable", reason: result.reason };
