@@ -49,6 +49,11 @@ No forman parte de la promesa de beta:
 - mutaciones del cleaner;
 - mutaciones del architect.
 
+> Esta sección describe el alcance **de la beta**, ya cerrada. Dos de estas
+> exclusiones se han aceptado después como trabajo post-beta —el aviso de
+> actualización en el launcher (N) y la aplicación de terminal (O)—; ver §7.1.
+> Siguen fuera de la promesa de beta; ya no están fuera del roadmap.
+
 ## 3. Arquitectura interna y continuidad
 
 Las fuentes tienen responsabilidades distintas:
@@ -115,6 +120,12 @@ Comparte configuración y asesoría de actualización, registra las áreas revis
 audita el cleaner en modo lectura y, solo después, habilita mutaciones acotadas del
 cleaner mediante slices SDD.
 
+### Alcanzable: M–O
+
+Hace invocable lo ya construido, pone el aviso de actualización donde el usuario lo
+ve, y convierte el launcher en la aplicación de terminal desde la que se controla
+Ein. Es el tramo que transforma capacidad entregada en capacidad utilizable.
+
 ### Madurez: J–L
 
 Audita el architect en modo lectura, habilita mutaciones estructurales únicamente
@@ -124,7 +135,7 @@ conflicto.
 
 ## 5. Secuencia de cambios SDD
 
-Cada bloque A–L es un cambio SDD futuro independiente, con su propio diseño,
+Cada bloque A–O es un cambio SDD futuro independiente, con su propio diseño,
 tareas, aplicación y verificación. La secuencia es recomendada y sus dependencias
 son parte del contrato de planificación; no se deben fusionar varios bloques en un
 mega-cambio.
@@ -269,6 +280,66 @@ mega-cambio.
 - **Riesgo:** que una transformación aparentemente mecánica cruce límites de
   comportamiento o de ownership.
 
+### M — `surface-wiring`
+
+- **Objetivo:** hacer invocable lo que ya está construido. Cerrar el hueco entre los
+  módulos entregados en D e I y una superficie que una persona pueda usar.
+- **Alcance:** exponer el cleaner (`cleaner-read-only-audit`, `cleaner-bounded-mutations`)
+  y el launcher (`ein-pi/workbench.ts`) como entradas reales del harness —comando,
+  agente o skill, según lo que cada runtime permita— con activación explícita y
+  comportamiento idéntico en Pi y Claude o diferencia declarada.
+- **No incluye:** capacidades nuevas del cleaner ni del launcher, rediseño de sus
+  contratos, ni ampliar el alcance de las mutaciones ya acotadas por I.
+- **Dependencias:** D e I. Es el prerequisito de N, O y J: ninguno de ellos debe
+  construirse encima de un motor sin llave de contacto.
+- **Aceptación / salida:** desde una sesión limpia se puede invocar el cleaner y el
+  launcher sin conocer rutas internas; existe cobertura de la costura entre el
+  módulo y su superficie, no solo del núcleo puro.
+- **Riesgo:** volver a entregar lógica correcta y no alcanzable, o cablear una
+  superficie sin probar lo que el usuario ve realmente.
+
+### N — `launcher-update-surface`
+
+- **Objetivo:** que el launcher avise de actualizaciones disponibles y ofrezca
+  aplicarlas, como hace cualquier programa que se respeta.
+- **Alcance:** consumir el advisor de F desde el launcher; mostrar qué componente
+  tiene actualización (Ein, binario de Pi, extensiones y paquetes, Claude Code) y
+  ofrecer ejecutar la acción correspondiente delegando en el installer. Aviso
+  accionable y silencio cuando no hay nada que hacer o la evidencia no es fresca.
+- **No incluye:** que el launcher implemente la lógica de instalación o
+  actualización. La ejecución sigue siendo del installer; el launcher pide y
+  entrega el control. Tampoco incluye un updater universal de terceros.
+- **Dependencias:** F y M.
+- **Aceptación / salida:** el aviso nombra el componente y el comando exacto; una
+  evidencia obsoleta, expirada o incompleta nunca se presenta como accionable; la
+  ejecución cruza al installer por una frontera explícita y auditable.
+- **Riesgo:** que la conveniencia de "actualizar desde aquí" arrastre poco a poco la
+  lógica del installer dentro del launcher y duplique la fuente de verdad.
+
+### O — `ein-terminal-app`
+
+- **Objetivo:** convertir el launcher en la aplicación de terminal desde la que se
+  controla Ein, con navegación propia y estética cuidada.
+- **Alcance:** aplicación de terminal ejecutable desde cualquier shell, con banner,
+  atajos de teclado al estilo LazyVim (`f` buscar, `q` salir) y navegación con
+  flechas como alternativa; configuración del proyecto (modo solo/team, idiomas,
+  Hypa, CodeGraph, Engram) leída y escrita sobre `EIN.md`; resumen de sesiones
+  anteriores con una frase que identifique la última acción; estado del proyecto
+  leído de OpenSpec; y un apartado de sistema que agrupe doctor y las acciones de N.
+- **No incluye:** poseer la instalación (sigue en el installer), escritores
+  paralelos, ni sustituir a OpenSpec como autoridad del trabajo activo. La TUI
+  presenta estado, no lo inventa.
+- **Dependencias:** M y N. Se ejecuta en slices SDD independientes, no como un
+  único mega-cambio: navegación y estado primero, configuración después, resumen de
+  sesiones al final.
+- **Aceptación / salida:** cada pantalla se alimenta de una fuente declarada
+  (OpenSpec, `EIN.md`, Git, adaptadores de sesión) y distingue lo desconocido de lo
+  vacío; los atajos y las flechas llevan al mismo sitio; la app sigue siendo usable
+  en terminales sin capacidades avanzadas o degrada de forma declarada.
+- **Riesgo:** que la TUI acumule responsabilidades hasta convertirse en la segunda
+  fuente de verdad del proyecto, o que el coste de la interfaz desplace al trabajo
+  que de verdad escribe código.
+
 ### J — `architect-read-only-audit`
 
 - **Objetivo:** entender y auditar el architect sin permitirle mutaciones.
@@ -325,7 +396,7 @@ La secuencia principal recomendada es:
 A ──▶ B ──▶ C ──▶ D ──▶ E
                          │
                          ▼
-F ──▶ G ──▶ H ──▶ I ──▶ J ──▶ K ──▶ L
+F ──▶ G ──▶ H ──▶ I ──▶ M ──▶ N ──▶ O ──▶ J ──▶ K ──▶ L
 ```
 
 Lectura del diagrama:
@@ -335,6 +406,12 @@ Lectura del diagrama:
 - C y D construyen el camino de runtime; E lo endurece con E2E antes de abrir el
   trabajo post-beta.
 - F–I introducen asesoría, evidencia y mutaciones acotadas del cleaner.
+- M es la puerta del tramo siguiente: sin superficie invocable, N, O y J construyen
+  encima de motores que nadie puede arrancar.
+- N lleva el advisor de F hasta donde el usuario lo ve, sin mover la ejecución fuera
+  del installer.
+- O crece sobre M y N en slices; la interfaz llega después de que exista algo real
+  que presentar.
 - J–K separan la comprensión arquitectónica de la mutación protegida.
 - L espera a que existan límites de estado, análisis, verificación y aislamiento
   suficientes para paralelizar sin convertir el repositorio en una carrera.
@@ -361,6 +438,49 @@ Estas decisiones se consideran cerradas para este roadmap:
 
 Cambiar una decisión bloqueada requiere una nueva decisión explícita y una revisión
  de esta secuencia; no debe introducirse como detalle incidental de una slice.
+
+## 7.1. Revisiones de decisiones bloqueadas
+
+Registro de decisiones que modifican §7. Cada entrada indica qué se sustituye y qué
+bloques la implementan, para que el cambio no viaje escondido dentro de una slice.
+
+### 2026-08-10 — Ein tendrá aplicación de terminal propia
+
+**Sustituye a:** "quedan fuera de beta el dashboard completo o la TUI de navegación
+general", en lo relativo al horizonte post-beta.
+
+**Decisión:** Ein pasa de launcher a aplicación de terminal, ejecutable desde
+cualquier shell, con navegación propia al estilo LazyVim y estética cuidada. Es
+desde donde se controla Ein: estado del proyecto, configuración, sesiones y
+sistema.
+
+**Sigue en pie:** no forma parte de la promesa de beta, y la TUI no se convierte en
+autoridad de nada. OpenSpec sigue siendo la autoridad del trabajo activo, `EIN.md`
+el contexto estable y Git el estado exacto del código; la aplicación los presenta.
+
+**Implementa:** bloque O, en slices SDD independientes.
+
+### 2026-08-10 — El launcher avisa de actualizaciones y ofrece aplicarlas
+
+**Sustituye a:** "el launcher orquesta, pero no posee la lógica de instalación o
+actualización", que se matiza en lugar de retirarse.
+
+**Decisión:** el launcher muestra el aviso cuando hay una actualización disponible
+de Ein o de los agentes, y ofrece ejecutarla. Un programa que necesita actualizarse
+debe decirlo donde el usuario está mirando.
+
+**Sigue en pie:** la ejecución de la actualización sigue siendo del installer. El
+launcher detecta, presenta y entrega el control por una frontera explícita; no
+duplica la lógica ni se convierte en una segunda fuente de verdad. El updater
+universal o avanzado de terceros sigue fuera.
+
+**Implementa:** bloque N, sobre el advisor ya entregado en F.
+
+### Sin revisar (siguen cerradas)
+
+- Escritores paralelos: sigue siendo el bloque L, al final de la secuencia.
+- Integración del cleaner: decidida y entregada en H e I; su exposición al usuario
+  es el bloque M, no una reapertura del diseño.
 
 ## 8. Preguntas abiertas
 
@@ -393,3 +513,24 @@ alcance, no-alcance, dependencias y criterios de salida explícitos.
 No se asignan estimaciones en este documento. La planificación posterior debe
 aportar evidencia de verificación sin convertir una intención del roadmap en una
 afirmación de implementación.
+
+## 10. Índice de documentos de `docs/`
+
+Solo este documento es vigente para priorizar y secuenciar. El resto tiene un papel
+declarado; ninguno debe leerse como la dirección actual del proyecto.
+
+| Documento | Estado | Papel |
+| :--- | :--- | :--- |
+| `roadmap-features-ein.md` | **vigente** | Hoja de ruta canónica. Bloques A–O, decisiones y revisiones. |
+| `borrador_nuevas_feats_EIN.md` | material de propuesta | Volcado original en crudo. Fuente de `ein_futuras_features.md`. |
+| `ein_futuras_features.md` | catálogo de ideas | Desarrollo del borrador. **No es secuencia de ejecución**: sus §2 y §3 describen trabajo ya entregado en D–F y H–I. |
+| `roadmap-beta.md` | superado | Verdad de beta y criterios de salida (bloque A, archivado). Histórico. |
+| `roadmap-codegraph-tdd-launcher.md` | superado | Plan semanal previo al roadmap canónico. |
+| `ein-multiagente-plan.md` | superado | Plan Pi → Claude, ya ejecutado; `cc-ein` existe. |
+| `EIN_DOCUMENTATION_BRIEF.md` | superado | Brief de la documentación pública, entregada en `docs-site/`. |
+| `fricciones-dogfooding.md` | material en crudo | Registro de fricciones para el artículo de lanzamiento. No es plan. |
+| `review-workload-guard.md` | vigente (acotado) | Decisión sobre el guard de carga de revisión. Alcance propio, no roadmap. |
+
+Antes de tratar cualquier otro documento como dirección del proyecto, comprobar
+aquí su estado. Un documento superado puede seguir siendo correcto sobre el pasado
+y equivocado sobre el presente.
