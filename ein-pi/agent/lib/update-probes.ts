@@ -36,10 +36,13 @@ export function isNewerVersion(candidate: string, current: string): boolean {
   const next = parseVersion(candidate);
   const installed = parseVersion(current);
   if (!next || !installed) return false;
-  for (let i = 0; i < next.length; i++) {
-    if (next[i] !== installed[i]) return next[i] > installed[i];
-  }
-  return false;
+  // Destructured rather than index-looped: a variable index widens the tuple
+  // element to `| undefined` under noUncheckedIndexedAccess.
+  const [nextMajor, nextMinor, nextPatch] = next;
+  const [major, minor, patch] = installed;
+  if (nextMajor !== major) return nextMajor > major;
+  if (nextMinor !== minor) return nextMinor > minor;
+  return nextPatch > patch;
 }
 
 /** Fail-closed: without an injected version there is nothing to compare against. */
@@ -93,6 +96,48 @@ export async function checkEinTemplateUpdate(
   } catch {
     return updateObservation("ein", "error", "probe-failed", "unknown");
   }
+}
+
+/** Bounded process boundary, injected so tests never spawn anything real. */
+export type VersionProbeRunner = (
+  input: Readonly<{ file: string; args: readonly string[]; timeoutMs: number; maxBuffer: number }>,
+) => Promise<Readonly<{ stdout: string; exitCode: number }>>;
+
+/** Strictly below the collector budget: the collector bounds the wait, not the process. */
+export const CLAUDE_VERSION_TIMEOUT_MS = 1_500;
+const CLAUDE_VERSION_MAX_BUFFER = 64 * 1_024;
+
+export const CLAUDE_UPDATE_COMMAND = "claude update";
+
+/**
+ * Claude Code publishes no version file, so the installed version costs a
+ * bounded spawn. Availability is deliberately never asserted: the only
+ * documented check (`claude update`) installs as part of checking, so the
+ * launcher would have to mutate the machine to find out. Declaring ignorance
+ * beats inventing a release endpoint.
+ */
+export async function checkClaudeCodeUpdate(
+  run: VersionProbeRunner,
+  executable = "claude",
+): Promise<PiEinUpdateObservation> {
+  let result: Awaited<ReturnType<VersionProbeRunner>>;
+  try {
+    result = await run({
+      file: executable,
+      args: ["--version"],
+      timeoutMs: CLAUDE_VERSION_TIMEOUT_MS,
+      maxBuffer: CLAUDE_VERSION_MAX_BUFFER,
+    });
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    if (code === "ENOENT") return updateObservation("claude", "skipped", "executable-not-found", "unknown");
+    if (code === "ETIMEDOUT") return updateObservation("claude", "unavailable", "probe-timeout", "unknown");
+    return updateObservation("claude", "error", "probe-failed", "unknown");
+  }
+  if (result.exitCode !== 0) return updateObservation("claude", "error", "probe-failed", "unknown");
+  if (!parseVersion(result.stdout)) return updateObservation("claude", "error", "malformed-response", "unknown");
+  // Installed version is known; availability is not, and must never be guessed.
+  return updateObservation("claude", "unavailable", "availability-not-verifiable", "unknown");
 }
 
 export type UpdateEvidenceSnapshot = Readonly<{

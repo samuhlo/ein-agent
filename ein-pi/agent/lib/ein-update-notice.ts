@@ -20,7 +20,7 @@ export type RuntimeEnvironment = Readonly<Record<string, string | undefined>>;
 export type UpdateCheckSource = () => Promise<boolean>;
 export type PiEinUpdateStatus = "current" | "update-available" | "unavailable" | "unsupported" | "ambiguous" | "error" | "skipped";
 export type PiEinUpdateObservation = Readonly<{
-  source: "binary" | "packages" | "ein";
+  source: "binary" | "packages" | "ein" | "claude";
   status: PiEinUpdateStatus;
   reason: string;
   freshness: "current" | "stale" | "unknown";
@@ -36,6 +36,12 @@ export type UpdateEvidenceSources = Readonly<{
   binary: UpdateEvidenceSource;
   packages: UpdateEvidenceSource;
   ein: UpdateEvidenceSource;
+  /**
+   * Optional so surfaces that have no business checking a third-party tool —
+   * the Pi startup banner — keep working untouched. An absent probe yields no
+   * observation at all, never an optimistic one.
+   */
+  claude?: UpdateEvidenceSource;
 }>;
 
 export type UpdateTimeoutScheduler = Readonly<{
@@ -134,10 +140,12 @@ export async function collectPiEinUpdateEvidence(
 ): Promise<readonly PiEinUpdateObservation[]> {
   const timeoutMs = options.timeoutMs ?? UPDATE_CHECK_TIMEOUT_MS;
   const scheduler = options.scheduler ?? DEFAULT_TIMEOUT_SCHEDULER;
+  const { claude } = sources;
   return Promise.all([
     failOpenEvidenceWithin(sources.binary, "binary", timeoutMs, scheduler),
     failOpenEvidenceWithin(sources.packages, "packages", timeoutMs, scheduler),
     failOpenEvidenceWithin(sources.ein, "ein", timeoutMs, scheduler),
+    ...(claude ? [failOpenEvidenceWithin(claude, "claude", timeoutMs, scheduler)] : []),
   ]);
 }
 

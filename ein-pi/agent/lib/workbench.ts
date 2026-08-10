@@ -13,6 +13,7 @@ import {
   type SharedConfigUpdateAdvisorResult,
 } from "./shared-config-update-advisor.ts";
 import type { PiEinUpdateObservation } from "./ein-update-notice.ts";
+import { CLAUDE_UPDATE_COMMAND } from "./update-probes.ts";
 import { inspectMode, type ModeInspection } from "./mode.ts";
 import { inspectModelConfig, type ModelConfigInspection } from "./model-config.ts";
 import {
@@ -82,29 +83,44 @@ export function renderProjectState(state: ProjectStateV1): string {
   ].join("\n");
 }
 
-const UPDATE_COMPONENT_ORDER = ["ein", "binary", "packages"] as const;
-const UPDATE_COMPONENT_LABEL: Readonly<Record<(typeof UPDATE_COMPONENT_ORDER)[number], string>> = {
+type UpdateComponent = "ein" | "binary" | "packages" | "claude";
+
+const UPDATE_COMPONENT_ORDER: readonly UpdateComponent[] = ["ein", "binary", "packages", "claude"];
+const UPDATE_COMPONENT_LABEL: Readonly<Record<UpdateComponent, string>> = {
   ein: "Ein",
   binary: "Pi binary",
   packages: "Pi packages",
+  claude: "Claude Code",
 };
-const UPDATE_COMPONENT_COMMAND: Readonly<Record<(typeof UPDATE_COMPONENT_ORDER)[number], string>> = {
+const UPDATE_COMPONENT_COMMAND: Readonly<Record<UpdateComponent, string>> = {
   ein: "ein update",
   binary: "pi-ein update --all",
   packages: "pi-ein update --all",
+  claude: CLAUDE_UPDATE_COMMAND,
+};
+// Claude Code is not owned by the Ein installer (F-007), and its only check
+// also installs — so its command is offered with that consequence spelled out.
+const UPDATE_COMPONENT_NOTE: Partial<Readonly<Record<UpdateComponent, string>>> = {
+  claude: " (checks and installs)",
 };
 
 /** One line per known component, or `null` for `current` (silence is declared absence). */
-function renderUpdateComponentLine(provenance: AdvisorProvenance): string | null {
-  const component = provenance.source as (typeof UPDATE_COMPONENT_ORDER)[number];
+function renderUpdateComponentLine(component: UpdateComponent, provenance: AdvisorProvenance): string | null {
   const label = UPDATE_COMPONENT_LABEL[component];
-  if (!label) return null;
+  const note = UPDATE_COMPONENT_NOTE[component] ?? "";
   if (provenance.quality === "current") return null;
   if (provenance.quality === "update-available" && provenance.freshness === "current") {
-    return `- ${label}: update-available — run \`${UPDATE_COMPONENT_COMMAND[component]}\``;
+    return `- ${label}: update-available — run \`${UPDATE_COMPONENT_COMMAND[component]}\`${note}`;
   }
   if (provenance.quality === "update-available") {
     return `- ${label}: not verified (stale-evidence) — no action`;
+  }
+  // Claude Code's only check also installs, so availability is unknowable from
+  // here by design. `quality` keeps the raw probe status (F normalizes `reason`
+  // but not this), which is what separates "installed, can't tell" from
+  // "not installed" and "probe broke".
+  if (component === "claude" && provenance.quality === "unavailable") {
+    return `- ${label}: availability not verifiable — run \`${UPDATE_COMPONENT_COMMAND[component]}\`${note}`;
   }
   return `- ${label}: not verified (${provenance.reason}) — no action`;
 }
@@ -113,9 +129,10 @@ function renderUpdateComponentLine(provenance: AdvisorProvenance): string | null
 function renderUpdateComponents(result: SharedConfigUpdateAdvisorResult): string {
   const bySource = new Map(result.update.provenance.map((item) => [item.source, item]));
   const lines = UPDATE_COMPONENT_ORDER
-    .map((component) => bySource.get(component))
-    .filter((item): item is AdvisorProvenance => item !== undefined)
-    .map(renderUpdateComponentLine)
+    .flatMap((component) => {
+      const provenance = bySource.get(component);
+      return provenance ? [renderUpdateComponentLine(component, provenance)] : [];
+    })
     .filter((line): line is string => line !== null);
   return lines.length ? ["Updates:", ...lines].join("\n") : "";
 }
