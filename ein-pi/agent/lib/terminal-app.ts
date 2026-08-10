@@ -8,7 +8,7 @@
 import type { ProjectStateV1 } from "./project-state.ts";
 
 /** Where a row's content came from. Shown so the app never looks authoritative. */
-export type RowSource = "openspec" | "git" | "ein.md" | "app";
+export type RowSource = "openspec" | "git" | "ein.md" | "config" | "app";
 
 export type Row = Readonly<{
   label: string;
@@ -21,13 +21,28 @@ export type Row = Readonly<{
 
 export type Section = Readonly<{ title: string; rows: readonly Row[] }>;
 
+/** One project setting the config view can cycle through. */
+export type Setting = Readonly<{
+  id: string;
+  label: string;
+  /** Allowed values, in cycling order. */
+  options: readonly string[];
+  /** `undefined` when the setting could not be read; never guessed. */
+  value: string | undefined;
+}>;
+
+export type ScreenKind = "home" | "config";
+
 export type Screen = Readonly<{
+  kind: ScreenKind;
   title: string;
   sections: readonly Section[];
   /** Active filter, empty when not searching. */
   query: string;
   searching: boolean;
   cursor: number;
+  /** Present on the config view only; the home view has nothing to cycle. */
+  settings?: readonly Setting[];
 }>;
 
 export const UNKNOWN_VALUE = "unknown";
@@ -79,7 +94,8 @@ export function buildHomeScreen(state: ProjectStateV1): Screen {
   ];
 
   return Object.freeze({
-    title: "Ein",
+    kind: "home",
+    title: "Ein — state",
     query: "",
     searching: false,
     cursor: 0,
@@ -90,6 +106,40 @@ export function buildHomeScreen(state: ProjectStateV1): Screen {
       Object.freeze({ title: "Git", rows: Object.freeze(git) }),
     ]),
   });
+}
+
+/**
+ * Config view. Values come from the settings the driver read; the screen never
+ * touches disk, so cycling is a pure transition the driver then persists.
+ */
+export function buildConfigScreen(settings: readonly Setting[]): Screen {
+  return Object.freeze({
+    kind: "config",
+    title: "Ein — configuration",
+    query: "",
+    searching: false,
+    cursor: 0,
+    settings: Object.freeze([...settings]),
+    sections: Object.freeze([
+      Object.freeze({
+        title: "Project settings",
+        rows: Object.freeze(settings.map((setting) => ({
+          label: setting.label,
+          value: setting.value,
+          source: "config" as const,
+          actionable: true,
+        }))),
+      }),
+    ]),
+  });
+}
+
+/** Next value in the cycle; stays put when the current one is unknown. */
+export function nextSettingValue(setting: Setting): string | undefined {
+  if (setting.options.length === 0) return undefined;
+  if (setting.value === undefined) return setting.options[0];
+  const index = setting.options.indexOf(setting.value);
+  return index === -1 ? setting.options[0] : setting.options[(index + 1) % setting.options.length];
 }
 
 // ─── Filtering and cursor ────────────────────────────────────────────────────
@@ -117,6 +167,9 @@ function clampCursor(screen: Screen, cursor: number): number {
 export type AppEffect =
   | { kind: "none" }
   | { kind: "quit" }
+  | { kind: "switch-view" }
+  /** The driver persists it: writing is I/O and stays at the edge. */
+  | { kind: "apply"; settingId: string; value: string }
   | { kind: "status"; message: string };
 
 export type KeyOutcome = Readonly<{ screen: Screen; effect: AppEffect }>;
@@ -127,6 +180,7 @@ const ENTER = "\r";
 const ESCAPE = "\u001b";
 const BACKSPACE = "\u007f";
 const CTRL_C = "\u0003";
+const TAB = "\t";
 
 function withCursor(screen: Screen, cursor: number): Screen {
   return Object.freeze({ ...screen, cursor: clampCursor(screen, cursor) });
@@ -160,6 +214,7 @@ export function handleKey(screen: Screen, key: string): KeyOutcome {
   }
 
   if (key === "q" || key === CTRL_C) return { screen, effect: { kind: "quit" } };
+  if (key === TAB || key === "c") return { screen, effect: { kind: "switch-view" } };
   if (key === "f" || key === "/") {
     return { screen: Object.freeze({ ...screen, searching: true, query: "" }), effect: none };
   }
@@ -170,9 +225,17 @@ export function handleKey(screen: Screen, key: string): KeyOutcome {
   if (key === ESCAPE && screen.query) {
     return { screen: withCursor(Object.freeze({ ...screen, query: "" }), screen.cursor), effect: none };
   }
-  if (key === ENTER) {
+  if (key === ENTER || key === " ") {
     const selected = visibleRows(screen)[screen.cursor];
     if (!selected) return { screen, effect: { kind: "status", message: "Nothing selected" } };
+    if (screen.kind === "config") {
+      const setting = screen.settings?.find((item) => item.label === selected.row.label);
+      const value = setting ? nextSettingValue(setting) : undefined;
+      if (!setting || value === undefined) {
+        return { screen, effect: { kind: "status", message: `${selected.row.label} — no values to cycle` } };
+      }
+      return { screen, effect: { kind: "apply", settingId: setting.id, value } };
+    }
     // Read-only in this slice: selecting states what the row is, never mutates.
     return {
       screen,
@@ -184,7 +247,8 @@ export function handleKey(screen: Screen, key: string): KeyOutcome {
 
 // ─── Rendering ───────────────────────────────────────────────────────────────
 
-export const KEY_HINTS = "j/k or ↑/↓ move · f search · enter inspect · q quit";
+export const KEY_HINTS = "j/k or ↑/↓ move · f search · enter inspect · tab config · q quit";
+export const CONFIG_KEY_HINTS = "j/k or ↑/↓ move · f search · enter/space cycle · tab state · q quit";
 
 function renderValue(row: Row): string {
   if (row.value === undefined) return UNKNOWN_VALUE;
@@ -204,7 +268,7 @@ export function renderScreen(screen: Screen): readonly string[] {
   }
 
   if (rows.length === 0) {
-    lines.push("No rows match the search.", "", KEY_HINTS);
+    lines.push("No rows match the search.", "", screen.kind === "config" ? CONFIG_KEY_HINTS : KEY_HINTS);
     return Object.freeze(lines);
   }
 
@@ -220,6 +284,6 @@ export function renderScreen(screen: Screen): readonly string[] {
     lines.push(`${marker} ${row.label.padEnd(width)}  ${renderValue(row)}  [${row.source}]`);
   });
 
-  lines.push("", KEY_HINTS);
+  lines.push("", screen.kind === "config" ? CONFIG_KEY_HINTS : KEY_HINTS);
   return Object.freeze(lines);
 }

@@ -6,8 +6,10 @@
 
 import { stdin, stdout } from "node:process";
 import { projectProjectState } from "../lib/project-state.ts";
+import { applySetting, readSettings } from "../lib/project-settings.ts";
 import {
   KEY_HINTS,
+  buildConfigScreen,
   buildHomeScreen,
   handleKey,
   renderScreen,
@@ -54,6 +56,11 @@ export type TerminalAppOptions = Readonly<{
   cwd: string;
   io: TerminalAppIO;
   project?: (cwd: string) => Screen;
+  /** Injected so tests exercise the config view without touching disk. */
+  settings?: Readonly<{
+    read: (cwd: string) => ReturnType<typeof readSettings>;
+    apply: (cwd: string, settingId: string, value: string) => boolean;
+  }>;
 }>;
 
 // `clear` only when redrawing an interactive screen: emitting it into a pipe
@@ -75,6 +82,8 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
   if (parsed.kind === "usage") { options.io.write(`${HELP}\n`); return 2; }
 
   const build = options.project ?? ((cwd: string) => buildHomeScreen(projectProjectState({ cwd })));
+  const settings = options.settings ?? { read: readSettings, apply: applySetting };
+  const buildConfig = (cwd: string): Screen => buildConfigScreen(settings.read(cwd));
   let screen = build(parsed.cwd);
 
   const interactive = options.io.isTTY && options.io.onKey !== undefined && !parsed.once;
@@ -89,14 +98,27 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
     const stop = options.io.onKey!((key) => {
       const outcome = handleKey(screen, key);
       screen = outcome.screen;
-      if (outcome.effect.kind === "quit") {
+      const effect = outcome.effect;
+      if (effect.kind === "quit") {
         stop();
         options.io.setRawMode?.(false);
         options.io.write("\n");
         resolve(0);
         return;
       }
-      paint(options.io, screen, outcome.effect.kind === "status" ? outcome.effect.message : "", true);
+      let status = effect.kind === "status" ? effect.message : "";
+      if (effect.kind === "switch-view") {
+        screen = screen.kind === "config" ? build(parsed.cwd) : buildConfig(parsed.cwd);
+      }
+      if (effect.kind === "apply") {
+        // Persist through the setting's owner, then re-read: the screen shows
+        // what disk says afterwards, not what the keystroke intended.
+        const cursor = screen.cursor;
+        const applied = settings.apply(parsed.cwd, effect.settingId, effect.value);
+        screen = { ...buildConfig(parsed.cwd), cursor };
+        status = applied ? `${effect.settingId} = ${effect.value}` : `${effect.settingId} — refused`;
+      }
+      paint(options.io, screen, status, true);
     });
   });
 }
