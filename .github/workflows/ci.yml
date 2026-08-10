@@ -33,6 +33,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes fish
 
+      - name: Instalar Fish en macOS
+        if: runner.os == 'macOS'
+        run: brew install fish
+
       - name: Install installer deps
         working-directory: installer
         run: bun install --frozen-lockfile
