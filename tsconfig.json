@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+    "types": [
+      "bun"
+    ]
+  },
+  "include": [
+    "ein-pi/**/*.ts",
+    "cc-ein/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "ein-pi/core/skills/downloaded/**",
+    "ein-pi/**/node_modules/**",
+    "installer/**",
+    "docs-site/**"
+  ]
+}

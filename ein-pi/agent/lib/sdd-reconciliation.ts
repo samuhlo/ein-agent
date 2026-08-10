@@ -12,7 +12,9 @@ export type ScopeOnlyRecordFacts = {
 	readable: boolean;
 	artifacts: string[];
 	localDelta: boolean;
-	specState: "declarationless" | "none" | "pending" | "conflicting" | "synchronized" | "unresolved";
+	// `legacy` included because resolveSddStatus can produce it; consumers below
+	// only compare for equality, so widening the union hides nothing.
+	specState: "declarationless" | "none" | "pending" | "conflicting" | "synchronized" | "unresolved" | "legacy";
 	declaration:
 		| { kind: "absent" }
 		| { kind: "none"; reason: string; count: number }

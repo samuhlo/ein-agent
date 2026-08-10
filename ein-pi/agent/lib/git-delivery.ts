@@ -172,6 +172,9 @@ export async function handleGitCommand(ctx: ExtensionContext): Promise<void> {
 		`Confirmación de entrega git (actual: ${current})`,
 		items,
 	);
+	// A cancelled picker returns undefined; treating it as a miss relied on
+	// indexOf(-1) instead of saying so.
+	if (picked === undefined) return;
 	const mode = GIT_DELIVERY_OPTIONS[items.indexOf(picked)];
 	if (!mode) return;
 	writeGitDeliveryMode(ctx.cwd, mode);

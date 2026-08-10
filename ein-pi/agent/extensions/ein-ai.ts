@@ -458,8 +458,14 @@ function formatSddStatus(
 	return lines.join("\n");
 }
 
+/** Command args arrive as a string or as argv, depending on the caller. */
+function commandArgsText(args: unknown): string {
+	if (typeof args === "string") return args;
+	return Array.isArray(args) ? args.join(" ") : "";
+}
+
 function parseSddNextArgs(args: string | string[]): { change: string | null; auto: boolean } {
-	const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
+	const raw = commandArgsText(args);
 	const parts = raw.trim().split(/\s+/).filter(Boolean);
 	const auto = parts.includes("--auto");
 	const change = parts.filter((part) => part !== "--auto")[0] ?? null;
@@ -997,7 +1003,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	// [DEPRECATED] ein:sdd-check queda como alias del canónico ein:sdd-audit.
 	// El handler es compartido para que ambos resuelvan al mismo flujo.
 	async function handleSddAudit(args: string | string[], ctx: ExtensionContext) {
-		const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
+		const raw = commandArgsText(args);
 		const arg = raw.trim();
 
 		if (!arg) {
@@ -1158,7 +1164,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	pi.registerCommand("ein:sdd-status", {
 		description: t("cmd.sdd-status.description", "Estado SDD determinista del cambio activo o nombrado (fase, tareas, budget)"),
 		handler: async (args, ctx) => {
-			const raw = typeof args === "string" ? args : Array.isArray(args) ? args.join(" ") : "";
+			const raw = commandArgsText(args);
 			const change = raw.trim() || undefined;
 			const s = resolveSddStatus(ctx.cwd, change);
 			const active = listActiveChanges(ctx.cwd);

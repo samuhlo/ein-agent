@@ -24,7 +24,9 @@ export type ScoutTracking = Map<string, string>;
 type Report = { version: string; summary: string; summaryReferenceIds: string[]; findings: { claim: string; referenceIds: string[] }[]; references: { id: string; path: string; startLine: number; endLine: number; supports: string }[]; uncertainties: { level: string; statement: string }[] };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
-const fail = (message: string): never => { throw new Error(`ein-scout contract: ${message}`); };
+// Declared (not an unannotated arrow const) so TypeScript applies never-returning
+// control-flow analysis: `if (!guard(x)) fail(...)` then narrows x below.
+function fail(message: string): never { throw new Error(`ein-scout contract: ${message}`); }
 
 function scoutName(input: unknown): boolean {
 	if (!isRecord(input)) return false;

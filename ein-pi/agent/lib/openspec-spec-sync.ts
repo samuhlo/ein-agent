@@ -92,8 +92,10 @@ export function planOpenSpecSync(change: string, deltas: readonly SyncDeltaInput
 		if (domainConflicts.length === 0) {
 			const next = new Map(byId);
 			for (const operation of delta.document.operations) {
-				if (operation.kind === "ADDED" || operation.kind === "MODIFIED") next.set(operation.scenario.id, operation.scenario);
-				else next.delete(operation.scenarioId);
+				// Discriminated on the single-literal member: the two-literal side
+				// does not narrow the `else` branch.
+				if (operation.kind === "REMOVED") next.delete(operation.scenarioId);
+				else next.set(operation.scenario.id, operation.scenario);
 			}
 			result = { domain: delta.document.domain, scenarios: [...next.values()] };
 		}

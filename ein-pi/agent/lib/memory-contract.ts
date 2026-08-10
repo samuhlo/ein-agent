@@ -163,7 +163,8 @@ export function filterRetrievalEntries(entries: MemoryEntry[], projectId: string
 		const timestamp = item.timestamp ? Date.parse(item.timestamp) : Number.NaN;
 		const days = Number.isFinite(timestamp) && timestamp <= now.getTime() ? (now.getTime() - timestamp) / 86_400_000 : Number.NaN;
 		if (Number.isFinite(days) && days > 180) return [];
-		return [{ content: safe.value, topic: item.topic, freshness: Number.isFinite(days) ? (days <= 30 ? "fresh" : "stale") : "unverified", timestamp: Number.isFinite(timestamp) ? timestamp : -1 }];
+		const freshness: Freshness = Number.isFinite(days) ? (days <= 30 ? "fresh" : "stale") : "unverified";
+		return [{ content: safe.value, topic: item.topic, freshness, timestamp: Number.isFinite(timestamp) ? timestamp : -1 }];
 	}).sort((a, b) => b.timestamp - a.timestamp);
 	const topics = new Set<string>(); let stale = 0; let bytes = 0; const result: PreparedEntry[] = [];
 	for (const entry of parsed) {

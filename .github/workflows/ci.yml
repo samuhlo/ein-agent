@@ -1,7 +1,7 @@
 name: ci
 
 # Gate de calidad en cada push a main y cada PR: corre la suite (workbench +
-# installer), el typecheck del installer y un smoke de empaquetado del template.
+# installer), el typecheck de ein-pi/cc-ein y del installer, y un smoke de empaquetado.
 on:
   push:
     branches: [main]
@@ -37,6 +37,9 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install fish
 
+      - name: Install root deps
+        run: bun install --frozen-lockfile
+
       - name: Install installer deps
         working-directory: installer
         run: bun install --frozen-lockfile
@@ -51,6 +54,9 @@ jobs:
 
       - name: Test (workbench + installer)
         run: bun test
+
+      - name: Typecheck ein-pi + cc-ein
+        run: bun run typecheck
 
       - name: Typecheck installer
         working-directory: installer
