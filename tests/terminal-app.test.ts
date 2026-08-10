@@ -12,6 +12,7 @@ import {
   buildConfigScreen,
   buildHomeScreen,
   buildSessionsScreen,
+  buildSystemScreen,
   handleKey,
   nextSettingValue,
   renderScreen,
@@ -21,7 +22,10 @@ import {
 import {
   parseTerminalAppArgs,
   runTerminalApp,
+  systemRowsFrom,
 } from "../ein-pi/agent/surfaces/terminal-app-entrypoint.ts";
+import { LOGO, LOGO_NARROW, TAGLINE, bannerFinal, bannerFrame, frameCount } from "../ein-pi/agent/lib/banner.ts";
+import { resolveEinAgentHome } from "../ein-pi/agent/lib/agent-home.ts";
 import { applySetting, readSettings } from "../ein-pi/agent/lib/project-settings.ts";
 import {
   lastActionFromSession,
@@ -228,7 +232,7 @@ describe("terminal driver", () => {
   test("--help explains usage and exits 0", async () => {
     const harness = fakeIO(false);
     expect(await runTerminalApp({ argv: ["--help"], cwd: "/repo", io: harness.io, project: homeFor })).toBe(0);
-    expect(harness.written.join("")).toContain("Usage: ein app");
+    expect(harness.written.join("")).toContain("Usage: ein");
   });
 
   test("an unknown argument is a usage error, not a crash", async () => {
@@ -243,7 +247,7 @@ describe("terminal driver", () => {
 
   test("without a TTY it paints once, declares itself static and never clears", async () => {
     const harness = fakeIO(false);
-    expect(await runTerminalApp({ argv: [], cwd: "/repo", io: harness.io, project: homeFor })).toBe(0);
+    expect(await runTerminalApp({ argv: ["--no-intro"], cwd: "/repo", io: harness.io, project: homeFor })).toBe(0);
     const output = harness.written.join("");
     expect(output).toContain("Non-interactive: static view");
     expect(output).toContain("Phase");
@@ -260,7 +264,7 @@ describe("terminal driver", () => {
 
   test("interactive mode enters raw, redraws on keys and restores on quit", async () => {
     const harness = fakeIO(true);
-    const run = runTerminalApp({ argv: [], cwd: "/repo", io: harness.io, project: homeFor });
+    const run = runTerminalApp({ argv: ["--no-intro"], cwd: "/repo", io: harness.io, project: homeFor });
     expect(harness.raw).toBe(true);
     const paintsAfterStart = harness.cleared;
     harness.press("j");
@@ -273,7 +277,7 @@ describe("terminal driver", () => {
 
   test("enter surfaces the row status without leaving the app", async () => {
     const harness = fakeIO(true);
-    const run = runTerminalApp({ argv: [], cwd: "/repo", io: harness.io, project: homeFor });
+    const run = runTerminalApp({ argv: ["--no-intro"], cwd: "/repo", io: harness.io, project: homeFor });
     harness.press("\r");
     expect(harness.written.join("")).toContain("read-only");
     harness.press("q");
@@ -331,7 +335,7 @@ describe("configuration view", () => {
   test("the hints name the next view in the cycle", () => {
     expect(renderScreen(config()).join("\n")).toContain("tab sessions");
     expect(renderScreen(buildHomeScreen(state())).join("\n")).toContain("tab config");
-    expect(renderScreen(buildSessionsScreen([])).join("\n")).toContain("tab state");
+    expect(renderScreen(buildSessionsScreen([])).join("\n")).toContain("tab system");
   });
 });
 
@@ -393,7 +397,7 @@ describe("driver configuration flow", () => {
     let stored = "solo";
     const harness = harnessIO();
     const run = runTerminalApp({
-      argv: [],
+      argv: ["--no-intro"],
       cwd: "/repo",
       io: harness.io,
       project: () => buildHomeScreen(state()),
@@ -415,7 +419,7 @@ describe("driver configuration flow", () => {
   test("a refused write is reported and leaves the value alone", async () => {
     const harness = harnessIO();
     const run = runTerminalApp({
-      argv: [],
+      argv: ["--no-intro"],
       cwd: "/repo",
       io: harness.io,
       project: () => buildHomeScreen(state()),
@@ -536,19 +540,155 @@ describe("session summaries", () => {
       onKey: (handler: (key: string) => void) => { press = handler; return () => { press = undefined; }; },
     };
     const run = runTerminalApp({
-      argv: [],
+      argv: ["--no-intro"],
       cwd: "/repo",
       io,
       project: () => buildHomeScreen(state()),
       settings: { read: () => [], apply: () => true },
       sessions: () => [{ id: "a", project: "p", age: "5h", lastAction: "algo" }],
+      system: () => [{ label: "Ein", status: "current" }],
     });
     press?.("\t");
     press?.("\t");
     expect(written.join("")).toContain("recent sessions");
     press?.("\t");
+    expect(written.join("")).toContain("Ein — system");
+    press?.("\t");
     expect(written.join("")).toContain("Ein — state");
     press?.("q");
     expect(await run).toBe(0);
+  });
+});
+
+describe("banner", () => {
+  test("the sweep starts empty and ends solid", () => {
+    const first = bannerFrame(0, 100).join("");
+    expect(first.trim()).toBe("");
+    const last = bannerFrame(frameCount(100), 100);
+    expect(last.join("\n")).toBe(LOGO.map((line) => line.trimEnd()).join("\n"));
+  });
+
+  test("the dither edge advances with the frame index", () => {
+    const early = bannerFrame(6, 100).join("").length;
+    const later = bannerFrame(20, 100).join("").length;
+    expect(later).toBeGreaterThan(early);
+  });
+
+  test("a narrow terminal gets the narrow logo", () => {
+    expect(bannerFrame(frameCount(40), 40).length).toBe(LOGO_NARROW.length);
+    expect(bannerFrame(frameCount(100), 100).length).toBe(LOGO.length);
+  });
+
+  test("the settled banner carries the tagline", () => {
+    expect(bannerFinal(100).join("\n")).toContain(TAGLINE);
+  });
+
+  test("frames never emit escape sequences: the look comes from block density", () => {
+    expect(bannerFrame(12, 100).join("\n")).not.toMatch(//);
+  });
+
+  test("--no-intro skips the animation entirely", async () => {
+    const frames: string[] = [];
+    let press: ((key: string) => void) | undefined;
+    const io = {
+      write: (text: string) => { frames.push(text); },
+      isTTY: true,
+      clear: () => {},
+      setRawMode: () => {},
+      sleep: async () => {},
+      onKey: (handler: (key: string) => void) => { press = handler; return () => { press = undefined; }; },
+    };
+    const run = runTerminalApp({
+      argv: ["--no-intro"], cwd: "/repo", io,
+      project: () => buildHomeScreen(state()),
+      settings: { read: () => [], apply: () => true },
+      sessions: () => [],
+      system: () => [],
+    });
+    expect(frames.join("")).not.toContain(TAGLINE);
+    press?.("q");
+    expect(await run).toBe(0);
+  });
+
+  test("the intro plays before the first screen and is bounded", async () => {
+    const sleeps: number[] = [];
+    let press: ((key: string) => void) | undefined;
+    const written: string[] = [];
+    const io = {
+      write: (text: string) => { written.push(text); },
+      isTTY: true,
+      columns: 100,
+      clear: () => {},
+      setRawMode: () => {},
+      sleep: async (ms: number) => { sleeps.push(ms); },
+      onKey: (handler: (key: string) => void) => { press = handler; return () => { press = undefined; }; },
+    };
+    const run = runTerminalApp({
+      argv: [], cwd: "/repo", io,
+      project: () => buildHomeScreen(state()),
+      settings: { read: () => [], apply: () => true },
+      sessions: () => [],
+      system: () => [],
+    });
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(written.join("")).toContain(TAGLINE);
+    // Bounded: one sleep per drawn frame plus the settle pause.
+    expect(sleeps.length).toBeLessThanOrEqual(frameCount(100));
+    press?.("q");
+    expect(await run).toBe(0);
+  });
+});
+
+describe("isolated agent home", () => {
+  const probe = (env: Record<string, string | undefined>, existing: string[]) => ({
+    env,
+    home: "/home/tester",
+    exists: (path: string) => existing.includes(path),
+  });
+
+  test("an explicit environment wins over discovery", () => {
+    expect(resolveEinAgentHome(probe({ EIN_PI_AGENT_HOME: "/declared" }, ["/home/tester/.pi-ein/agent"])))
+      .toBe("/declared");
+  });
+
+  test("the isolated home is found when no launcher declared one", () => {
+    expect(resolveEinAgentHome(probe({}, ["/home/tester/.pi-ein/agent"])))
+      .toBe("/home/tester/.pi-ein/agent");
+  });
+
+  test("vanilla ~/.pi/agent is never assumed: those sessions are not Ein's", () => {
+    expect(resolveEinAgentHome(probe({}, ["/home/tester/.pi/agent"]))).toBeUndefined();
+  });
+});
+
+describe("system view", () => {
+  test("an available update names the component and its exact command", () => {
+    const rows = systemRowsFrom([
+      { source: "ein", status: "update-available", reason: "newer-release", freshness: "current" },
+    ]);
+    const ein = rows.find((row) => row.label === "Ein");
+    expect(ein?.status).toBe("update available");
+    expect(ein?.command).toBe("ein-install update");
+  });
+
+  test("a component with no evidence is unknown, not healthy", () => {
+    const rows = systemRowsFrom([]);
+    expect(rows.find((row) => row.label === "Ein")?.status).toBeUndefined();
+  });
+
+  test("diagnostics are offered as a command, never run by the app", () => {
+    const diagnostics = systemRowsFrom([]).find((row) => row.label === "Diagnostics");
+    expect(diagnostics?.command).toBe("ein-install doctor");
+  });
+
+  test("the view renders the command inline and declares its source", () => {
+    const lines = renderScreen(buildSystemScreen([
+      { label: "Ein", status: "update available", command: "ein-install update" },
+      { label: "Pi binary", status: undefined },
+    ])).join("\n");
+    expect(lines).toContain("run `ein-install update`");
+    expect(lines).toContain("[system]");
+    expect(lines).toMatch(/Pi binary\s+unknown/);
   });
 });

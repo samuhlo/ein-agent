@@ -8,7 +8,7 @@
 import type { ProjectStateV1 } from "./project-state.ts";
 
 /** Where a row's content came from. Shown so the app never looks authoritative. */
-export type RowSource = "openspec" | "git" | "ein.md" | "config" | "session" | "app";
+export type RowSource = "openspec" | "git" | "ein.md" | "config" | "session" | "system" | "app";
 
 export type Row = Readonly<{
   label: string;
@@ -31,7 +31,7 @@ export type Setting = Readonly<{
   value: string | undefined;
 }>;
 
-export type ScreenKind = "home" | "config" | "sessions";
+export type ScreenKind = "home" | "config" | "sessions" | "system";
 
 export type Screen = Readonly<{
   kind: ScreenKind;
@@ -174,6 +174,41 @@ export function buildSessionsScreen(sessions: readonly SessionRow[]): Screen {
   });
 }
 
+export type SystemRow = Readonly<{
+  label: string;
+  /** `undefined` when the check could not be made; never assumed healthy. */
+  status: string | undefined;
+  /** Exact command the user may run. The app prints it and never runs it. */
+  command?: string;
+}>;
+
+/**
+ * System view. Groups update status and diagnostics, and stops at printing the
+ * command: installing and diagnosing stay with the installer, which is the
+ * boundary block N fixed and this view must not erode.
+ */
+export function buildSystemScreen(rows: readonly SystemRow[]): Screen {
+  return Object.freeze({
+    kind: "system",
+    title: "Ein — system",
+    query: "",
+    searching: false,
+    cursor: 0,
+    sections: Object.freeze([
+      Object.freeze({
+        title: rows.length ? "System" : "System (nothing to report)",
+        rows: Object.freeze(rows.map((row) => ({
+          label: row.label,
+          value: row.status === undefined
+            ? undefined
+            : row.command ? `${row.status} — run \`${row.command}\`` : row.status,
+          source: "system" as const,
+        }))),
+      }),
+    ]),
+  });
+}
+
 // ─── Filtering and cursor ────────────────────────────────────────────────────
 
 /** Flattened rows the cursor can land on, after the active filter. */
@@ -281,11 +316,13 @@ export function handleKey(screen: Screen, key: string): KeyOutcome {
 
 export const KEY_HINTS = "j/k or ↑/↓ move · f search · enter inspect · tab config · q quit";
 export const CONFIG_KEY_HINTS = "j/k or ↑/↓ move · f search · enter/space cycle · tab sessions · q quit";
-export const SESSIONS_KEY_HINTS = "j/k or ↑/↓ move · f search · tab state · q quit";
+export const SESSIONS_KEY_HINTS = "j/k or ↑/↓ move · f search · tab system · q quit";
+export const SYSTEM_KEY_HINTS = "j/k or ↑/↓ move · f search · tab state · q quit";
 
 function hintsFor(kind: ScreenKind): string {
   if (kind === "config") return CONFIG_KEY_HINTS;
-  return kind === "sessions" ? SESSIONS_KEY_HINTS : KEY_HINTS;
+  if (kind === "sessions") return SESSIONS_KEY_HINTS;
+  return kind === "system" ? SYSTEM_KEY_HINTS : KEY_HINTS;
 }
 
 function renderValue(row: Row): string {

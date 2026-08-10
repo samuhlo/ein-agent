@@ -5,34 +5,54 @@
 // =============================================================================
 
 import { stdin, stdout } from "node:process";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { bannerFinal, bannerFrame, frameCount } from "../lib/banner.ts";
 import { projectProjectState } from "../lib/project-state.ts";
 import { applySetting, readSettings } from "../lib/project-settings.ts";
 import { summarizeSessions } from "../lib/session-summary.ts";
+import {
+  checkClaudeCodeUpdate,
+  checkEinTemplateUpdate,
+  checkPiBinaryUpdate,
+  defaultPiManifestPaths,
+  readEinVersion,
+  readPiBinaryVersion,
+  startUpdateEvidenceSnapshot,
+  type VersionProbeRunner,
+} from "../lib/update-probes.ts";
 import { listRecentSessions } from "../lib/sessions.ts";
 import {
   KEY_HINTS,
   buildConfigScreen,
   buildHomeScreen,
   buildSessionsScreen,
+  buildSystemScreen,
   handleKey,
   renderScreen,
   type Screen,
 } from "../lib/terminal-app.ts";
 
-const HELP = "Usage: ein app [--project <root>] [--once] [--help]";
+const HELP = "Usage: ein [--project <root>] [--once] [--no-intro] [--help]";
+
+/** Short enough to read as a flourish, not a wait. Any key skips it. */
+export const INTRO_FRAME_MS = 22;
+export const INTRO_COLUMN_STEP = 2;
 
 export type TerminalAppArgs =
-  | { kind: "run"; cwd: string; once: boolean }
+  | { kind: "run"; cwd: string; once: boolean; intro: boolean }
   | { kind: "help" }
   | { kind: "usage"; reason: string };
 
 export function parseTerminalAppArgs(argv: readonly string[], cwd: string): TerminalAppArgs {
   let root = cwd;
   let once = false;
+  let intro = true;
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index];
     if (argument === "--help" || argument === "-h") return { kind: "help" };
     if (argument === "--once") { once = true; continue; }
+    if (argument === "--no-intro") { intro = false; continue; }
     if (argument === "--project") {
       const value = argv[index + 1];
       if (!value) return { kind: "usage", reason: "missing-project-value" };
@@ -42,11 +62,15 @@ export function parseTerminalAppArgs(argv: readonly string[], cwd: string): Term
     }
     return { kind: "usage", reason: "unknown-argument" };
   }
-  return { kind: "run", cwd: root, once };
+  return { kind: "run", cwd: root, once, intro };
 }
 
 export type TerminalAppIO = Readonly<{
   write: (text: string) => void;
+  /** Terminal width; drives the narrow logo cut. */
+  columns?: number;
+  /** Injected so the intro is deterministic in tests instead of wall-clock. */
+  sleep?: (ms: number) => Promise<void>;
   isTTY: boolean;
   /** Absent when the terminal cannot deliver keystrokes; the app degrades. */
   onKey?: (handler: (key: string) => void) => () => void;
@@ -66,6 +90,8 @@ export type TerminalAppOptions = Readonly<{
   }>;
   /** Injected so tests exercise the sessions view without reading transcripts. */
   sessions?: () => Parameters<typeof buildSessionsScreen>[0];
+  /** Injected so tests exercise the system view without probing anything. */
+  system?: () => Parameters<typeof buildSystemScreen>[0];
 }>;
 
 // `clear` only when redrawing an interactive screen: emitting it into a pipe
@@ -75,6 +101,24 @@ function paint(io: TerminalAppIO, screen: Screen, status: string, clear: boolean
   io.write(renderScreen(screen).join("\n"));
   if (status) io.write(`\n${status}`);
   io.write("\n");
+}
+
+/**
+ * 8-bit wipe-in: a dither edge sweeps the logo left to right. Skipped whenever
+ * the terminal cannot animate, and abandoned as soon as the sleep seam says so.
+ */
+async function playIntro(io: TerminalAppIO): Promise<void> {
+  const sleep = io.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const columns = io.columns ?? 100;
+  const total = frameCount(columns);
+  for (let frame = 0; frame <= total; frame += INTRO_COLUMN_STEP) {
+    io.clear?.();
+    io.write(`${bannerFrame(frame, columns).join("\n")}\n`);
+    await sleep(INTRO_FRAME_MS);
+  }
+  io.clear?.();
+  io.write(`${bannerFinal(columns).join("\n")}\n`);
+  await sleep(INTRO_FRAME_MS * 6);
 }
 
 /**
@@ -90,11 +134,22 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
   const settings = options.settings ?? { read: readSettings, apply: applySetting };
   const buildConfig = (cwd: string): Screen => buildConfigScreen(settings.read(cwd));
   const readSessions = options.sessions ?? (() => summarizeSessions(listRecentSessions(5)));
+  // Started at the edge, like the workbench does: probes run while the intro
+  // plays and the first screens are read, so nothing waits on the network.
+  const snapshot = options.system ? undefined : startUpdateEvidenceSnapshot({
+    binary: async () => checkPiBinaryUpdate(await readPiBinaryVersion(defaultPiManifestPaths(homedir()))),
+    packages: async () => ({ source: "packages", status: "skipped", reason: "requires-pi-runtime", freshness: "unknown" }),
+    ein: async () => checkEinTemplateUpdate(await readEinVersion(resolveAgentDir())),
+    claude: () => checkClaudeCodeUpdate(spawnVersionProbe),
+  });
+  const readSystem = options.system ?? (() => systemRowsFrom(snapshot?.read()));
   const buildSessions = (): Screen => buildSessionsScreen(readSessions());
+  const buildSystem = (): Screen => buildSystemScreen(readSystem());
   // One key cycles the three views, so there is nothing to remember beyond tab.
   const nextView = (current: Screen): Screen => {
     if (current.kind === "home") return buildConfig(parsed.cwd);
-    return current.kind === "config" ? buildSessions() : build(parsed.cwd);
+    if (current.kind === "config") return buildSessions();
+    return current.kind === "sessions" ? buildSystem() : build(parsed.cwd);
   };
   let screen = build(parsed.cwd);
 
@@ -105,6 +160,7 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
   }
 
   options.io.setRawMode?.(true);
+  if (parsed.intro) await playIntro(options.io);
   paint(options.io, screen, "", true);
   return await new Promise<number>((resolve) => {
     const stop = options.io.onKey!((key) => {
@@ -133,11 +189,62 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
   });
 }
 
+function resolveAgentDir(): string {
+  return process.env.EIN_PI_AGENT_HOME ?? join(homedir(), ".pi", "agent");
+}
+
+/** Bounded spawn for version queries only; mirrors the workbench probe. */
+const spawnVersionProbe: VersionProbeRunner = async ({ file, args, timeoutMs, maxBuffer }) => {
+  const child = Bun.spawn([file, ...args], { stdout: "pipe", stderr: "ignore" });
+  const timer = setTimeout(() => child.kill(), timeoutMs);
+  try {
+    const stdout = (await new Response(child.stdout).text()).slice(0, maxBuffer);
+    return { stdout, exitCode: await child.exited };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const UPDATE_COMMANDS: Readonly<Record<string, string>> = {
+  ein: "ein-install update",
+  binary: "ein-install update",
+  packages: "pi-ein update --all",
+  claude: "claude update",
+};
+
+const UPDATE_LABELS: Readonly<Record<string, string>> = {
+  ein: "Ein", binary: "Pi binary", packages: "Pi packages", claude: "Claude Code",
+};
+
+/**
+ * System rows from the update evidence plus the diagnostics entry point. The
+ * app prints commands; running them stays with the installer (block N).
+ */
+export function systemRowsFrom(
+  observations: ReturnType<typeof startUpdateEvidenceSnapshot>["read"] extends () => infer T ? T : never,
+): Parameters<typeof buildSystemScreen>[0] {
+  const rows = Object.keys(UPDATE_LABELS).map((source) => {
+    const observation = observations?.find((item) => item.source === source);
+    const status = observation
+      ? (observation.status === "update-available" ? "update available" : observation.status)
+      : undefined;
+    return {
+      label: UPDATE_LABELS[source] ?? source,
+      status,
+      command: observation?.status === "update-available" || observation?.status === "unavailable"
+        ? UPDATE_COMMANDS[source]
+        : undefined,
+    };
+  });
+  return [...rows, { label: "Diagnostics", status: "run on demand", command: "ein-install doctor" }];
+}
+
 /** Wires the real terminal. Keystrokes arrive raw, one chunk per key. */
 export function productionTerminalIO(): TerminalAppIO {
   return {
     write: (text) => { stdout.write(text); },
     isTTY: Boolean(stdin.isTTY && stdout.isTTY),
+    columns: stdout.columns,
     setRawMode: (raw) => { stdin.setRawMode?.(raw); },
     clear: () => { stdout.write("\u001b[2J\u001b[3J\u001b[H"); },
     onKey: (handler) => {
