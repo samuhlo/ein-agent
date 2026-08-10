@@ -39,10 +39,14 @@ import {
   detectPiEinUpdates as detectCanonicalPiEinUpdates,
   isPiEinRuntime,
   startPiEinUpdateNotice,
-  UPDATE_CHECK_TIMEOUT_MS,
   type PiEinUpdateObservation,
   type UpdateNoticeProvenance,
 } from "../lib/ein-update-notice";
+import {
+  checkEinTemplateUpdate as checkEinTemplateUpdateProbe,
+  checkPiBinaryUpdate as checkPiBinaryUpdateProbe,
+  readEinVersion,
+} from "../lib/update-probes";
 
 type BannerModuleProvenance = Readonly<{
   recorder: StartupProvenanceRecorder;
@@ -306,22 +310,6 @@ function currentIntroMode(): IntroMode {
   return pickIntroMode(rows, cols);
 }
 
-function parseVersion(value: string): [number, number, number] | undefined {
-  const match = /(?:^|v|installer-v)(\d+)\.(\d+)\.(\d+)/.exec(value.trim());
-  if (!match) return undefined;
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
-}
-
-function isNewerVersion(candidate: string, current: string): boolean {
-  const next = parseVersion(candidate);
-  const installed = parseVersion(current);
-  if (!next || !installed) return false;
-  for (let i = 0; i < next.length; i++) {
-    if (next[i] !== installed[i]) return next[i] > installed[i];
-  }
-  return false;
-}
-
 function updateObservation(
   source: PiEinUpdateObservation["source"],
   status: PiEinUpdateObservation["status"],
@@ -331,20 +319,12 @@ function updateObservation(
   return { source, status, reason, freshness };
 }
 
+// Gated wrappers: PI_OFFLINE/PI_SKIP_VERSION_CHECK short-circuit before the
+// portable probe runs, and the SDK-provided version is injected here — the
+// only place in this file allowed to know about `VERSION` and `AGENT_DIR`.
 async function checkPiBinaryUpdate(): Promise<PiEinUpdateObservation> {
   if (process.env.PI_OFFLINE || process.env.PI_SKIP_VERSION_CHECK) return updateObservation("binary", "skipped", "offline-check");
-  try {
-    const response = await fetch("https://pi.dev/api/latest-version", {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
-    });
-    if (!response.ok) return updateObservation("binary", "unavailable", "provider-unavailable", "unknown");
-    const payload = (await response.json()) as { version?: unknown };
-    if (typeof payload.version !== "string") return updateObservation("binary", "error", "malformed-response", "unknown");
-    return updateObservation("binary", isNewerVersion(payload.version, VERSION) ? "update-available" : "current", "read-success");
-  } catch {
-    return updateObservation("binary", "error", "probe-failed", "unknown");
-  }
+  return checkPiBinaryUpdateProbe(VERSION);
 }
 
 async function checkPiPackageUpdates(cwd: string): Promise<PiEinUpdateObservation> {
@@ -365,22 +345,8 @@ async function checkPiPackageUpdates(cwd: string): Promise<PiEinUpdateObservatio
 
 async function checkEinTemplateUpdate(): Promise<PiEinUpdateObservation> {
   if (process.env.PI_OFFLINE) return updateObservation("ein", "skipped", "offline-check");
-  const installed = await readEinVersion();
-  if (installed === "dev") return updateObservation("ein", "skipped", "development-install");
-
-  try {
-    const repository = process.env.EIN_INSTALLER_REPO ?? "samuhlo/ein-agent";
-    const response = await fetch(`https://api.github.com/repos/${repository}/releases/latest`, {
-      headers: { accept: "application/vnd.github+json" },
-      signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
-    });
-    if (!response.ok) return updateObservation("ein", "unavailable", "provider-unavailable", "unknown");
-    const payload = (await response.json()) as { tag_name?: unknown };
-    if (typeof payload.tag_name !== "string") return updateObservation("ein", "error", "malformed-response", "unknown");
-    return updateObservation("ein", isNewerVersion(payload.tag_name, installed) ? "update-available" : "current", "read-success");
-  } catch {
-    return updateObservation("ein", "error", "probe-failed", "unknown");
-  }
+  const installed = await readEinVersion(AGENT_DIR);
+  return checkEinTemplateUpdateProbe(installed);
 }
 
 export async function detectPiEinUpdates(cwd: string) {
@@ -409,17 +375,6 @@ async function countExtensions(): Promise<number> {
     return files.filter((f) => f.endsWith(".ts")).length;
   } catch {
     return 0;
-  }
-}
-
-// Ein version from the installer marker; "dev" when deployed by hand.
-async function readEinVersion(): Promise<string> {
-  try {
-    const raw = await readFile(join(AGENT_DIR, ".ein-install.json"), "utf8");
-    const parsed = JSON.parse(raw) as { version?: unknown };
-    return typeof parsed.version === "string" && parsed.version ? `v${parsed.version}` : "dev";
-  } catch {
-    return "dev";
   }
 }
 
@@ -465,7 +420,7 @@ export default function (pi: ExtensionAPI) {
     const FINISH_TICK = SUB_END_TICK + 4;
 
     const [einVersion, extensionsCount, agentsCount] = await Promise.all([
-      readEinVersion(),
+      readEinVersion(AGENT_DIR),
       countExtensions(),
       countMdFiles(join(AGENT_DIR, "agents")),
     ]);

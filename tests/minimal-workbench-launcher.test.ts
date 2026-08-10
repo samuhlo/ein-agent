@@ -419,3 +419,113 @@ describe("confirmed project runtime selection and capability menu", () => {
     expect(result.outcome).toBe("normal"); expect(projections).toBe(2);
   });
 });
+
+// Reuses the "production-style dependencies" fixture (:56-81): same real state
+// and full-flow harness, only adding readUpdateObservations to the readers.
+describe("launcher update surface — component detail (N.1)", () => {
+  const workbenchState = {
+    schemaVersion: 1,
+    identity: { cwd: "/repo/project", repositoryRoot: "/repo/project", quality: "current", reason: "read-success" },
+    openspec: { selection: "none", quality: "current", reason: "read-success" },
+    git: { dirty: false, quality: "current", reason: "read-success" },
+    verification: { effectiveOutcome: "absent", freshness: "current", quality: "current", reason: "read-success" },
+  } as any;
+
+  const baseReaders = {
+    inspectMode: () => ({ status: "valid", source: "default", value: "solo", reason: "defaulted", provenance: { source: "default", reason: "defaulted" }, observed: [] }),
+    inspectModelConfig: () => ({ status: "valid", source: "global", config: { orchestrator: { model: "configured" } }, reason: "read-success", provenance: { source: "global", reason: "read-success" }, observed: [] }),
+  };
+
+  async function runWithAdvisor(advisor: ReturnType<typeof createWorkbenchAdvisor>): Promise<string> {
+    const output: string[] = [];
+    const reads = ["1", "yes", "1", "4"];
+    const dependencies = {
+      candidates: [workbenchState.identity.cwd], project: () => workbenchState,
+      input: { read: async () => reads.shift() ?? null }, output: { write: (text: string) => output.push(text) },
+      advisor: () => advisor,
+      adapter: () => ({ provider: "pi", capabilities: getRuntimeCapabilities("pi"), list: () => ({}), create: () => ({}), resume: () => ({}) }),
+      launch: {} as any, doctor: async () => ({} as any), signal: new AbortController().signal,
+    } as unknown as WorkbenchDependencies;
+    await runWorkbenchEntrypoint({ argv: [], cwd: "/repo", stdinTTY: true, stdoutTTY: true, write: () => {}, createDependencies: () => dependencies });
+    return output.join("\n");
+  }
+
+  test("component detail survives the collapsed global verdict (R1)", async () => {
+    const advisor = createWorkbenchAdvisor(workbenchState, {
+      ...baseReaders,
+      readUpdateObservations: () => [
+        { source: "ein", status: "update-available", reason: "newer-release", freshness: "current" },
+        { source: "binary", status: "skipped", reason: "installed-version-unavailable", freshness: "unknown" },
+        { source: "packages", status: "skipped", reason: "probe-unavailable", freshness: "unknown" },
+      ],
+    });
+    const rendered = await runWithAdvisor(advisor);
+    expect(rendered).toContain("Update: status=unavailable");
+    expect(rendered).toContain("- Ein: update-available — run `ein update`");
+  });
+
+  test("Ein with fresh evidence prints the exact accionable line (R2)", async () => {
+    const advisor = createWorkbenchAdvisor(workbenchState, {
+      ...baseReaders,
+      readUpdateObservations: () => [
+        { source: "ein", status: "update-available", reason: "newer-release", freshness: "current" },
+        { source: "binary", status: "current", reason: "read-success", freshness: "current" },
+        { source: "packages", status: "current", reason: "read-success", freshness: "current" },
+      ],
+    });
+    const rendered = await runWithAdvisor(advisor);
+    expect(rendered).toContain("- Ein: update-available — run `ein update`");
+  });
+
+  test("non-verifiable packages declare the reason without a command (R4)", async () => {
+    const advisor = createWorkbenchAdvisor(workbenchState, {
+      ...baseReaders,
+      readUpdateObservations: () => [
+        { source: "ein", status: "current", reason: "read-success", freshness: "current" },
+        { source: "binary", status: "current", reason: "read-success", freshness: "current" },
+        { source: "packages", status: "skipped", reason: "probe-unavailable", freshness: "unknown" },
+      ],
+    });
+    const rendered = await runWithAdvisor(advisor);
+    // F (shared-config-update-advisor.ts, untouched — invariant 2) normalizes the
+    // per-item reason: an unknown-freshness observation always reports
+    // "unknown-evidence" regardless of the raw probe reason (R4: "motivo normalizado").
+    const packagesLine = rendered.split("\n").find((line) => line.startsWith("- Pi packages:"));
+    expect(packagesLine).toBe("- Pi packages: not verified (unknown-evidence) — no action");
+    expect(packagesLine).not.toMatch(/`/);
+  });
+
+  test("nothing to say means no Updates: block (R5)", async () => {
+    const advisor = createWorkbenchAdvisor(workbenchState, {
+      ...baseReaders,
+      readUpdateObservations: () => [
+        { source: "ein", status: "current", reason: "read-success", freshness: "current" },
+        { source: "binary", status: "current", reason: "read-success", freshness: "current" },
+        { source: "packages", status: "current", reason: "read-success", freshness: "current" },
+      ],
+    });
+    const rendered = await runWithAdvisor(advisor);
+    expect(rendered).not.toContain("Updates:");
+  });
+
+  test("handoff stays inert and the render never leaks control sequences or process calls (R6)", async () => {
+    const advisor = createWorkbenchAdvisor(workbenchState, {
+      ...baseReaders,
+      readUpdateObservations: () => [
+        { source: "ein", status: "update-available", reason: "newer-release", freshness: "current" },
+        { source: "binary", status: "skipped", reason: "installed-version-unavailable", freshness: "unknown" },
+        { source: "packages", status: "skipped", reason: "probe-unavailable", freshness: "unknown" },
+      ],
+    });
+    const rendered = await runWithAdvisor(advisor);
+    expect(rendered).not.toMatch(/\x1b|\r|spawn|runUpdate/);
+    expect(rendered).not.toContain("Handoff:");
+  });
+
+  test("without a reader the render is identical to today's collapsed-only output (R7 backward compat)", async () => {
+    const advisor = createWorkbenchAdvisor(workbenchState, baseReaders);
+    const rendered = await runWithAdvisor(advisor);
+    expect(rendered).toContain("Update: status=unavailable");
+    expect(rendered).not.toContain("Updates:");
+  });
+});

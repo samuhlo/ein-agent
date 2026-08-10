@@ -1,7 +1,10 @@
-import { resolve } from "node:path";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { projectProjectState } from "../lib/project-state.ts";
+import { inspectMode } from "../lib/mode.ts";
+import { inspectModelConfig } from "../lib/model-config.ts";
 import {
   buildLaunchPlan,
   createRuntimeSessionAdapter,
@@ -17,6 +20,12 @@ import {
   type WorkbenchResult,
 } from "../lib/workbench.ts";
 import type { SharedConfigUpdateAdvisorResult } from "../lib/shared-config-update-advisor.ts";
+import {
+  checkEinTemplateUpdate,
+  checkPiBinaryUpdate,
+  readEinVersion,
+  startUpdateEvidenceSnapshot,
+} from "../lib/update-probes.ts";
 
 const HELP = "Usage: bun ein-pi/workbench.ts [--project <root>]... [--help]";
 const NON_TTY = "Workbench requires TTY stdin and stdout. Re-run interactively, optionally with --project <root>.";
@@ -70,11 +79,29 @@ export async function runWorkbenchEntrypoint(options: WorkbenchEntrypointOptions
   }
 }
 
+// Same agent dir the Pi extensions resolve, without importing the SDK: the
+// launcher runs as a standalone process under both Pi and Claude Code.
+function resolveAgentDir(): string {
+  return process.env.EIN_PI_AGENT_HOME ?? join(homedir(), ".pi", "agent");
+}
+
 function createProductionDependencies(candidates: readonly string[]): WorkbenchDependencies & { dispose: () => void } {
   const abort = new AbortController();
   const lines = createInterface({ input: stdin, output: stdout, terminal: true });
   const onSigint = () => abort.abort();
   process.once("SIGINT", onSigint);
+
+  // Starts at construction time (the edge), in parallel with candidate
+  // selection and confirmation; never awaited before render (R6).
+  const agentDir = resolveAgentDir();
+  const snapshot = startUpdateEvidenceSnapshot({
+    // The launcher is a standalone process: it has no SDK-provided installed
+    // binary version to compare against, so it declares itself non-verifiable.
+    binary: () => checkPiBinaryUpdate(undefined),
+    // The packages probe requires the SDK's package manager; not injected in N.1.
+    packages: async () => ({ source: "packages", status: "skipped", reason: "probe-unavailable", freshness: "unknown" }),
+    ein: async () => checkEinTemplateUpdate(await readEinVersion(agentDir)),
+  });
 
   const executor: LaunchExecutor = async (input) => {
     const child = Bun.spawn([input.executable, ...input.argv], {
@@ -97,7 +124,11 @@ function createProductionDependencies(candidates: readonly string[]): WorkbenchD
     output: { write: (text) => { stdout.write(`${text}\n`); } },
     adapter: createRuntimeSessionAdapter,
     launch: { build: buildLaunchPlan, execute: executeLaunchPlan, executor },
-    advisor: state => createWorkbenchAdvisor(state),
+    advisor: state => createWorkbenchAdvisor(state, {
+      inspectMode,
+      inspectModelConfig,
+      readUpdateObservations: () => snapshot.read(),
+    }),
     doctor: async () => ({ outcome: "unavailable", overall: "unavailable", checks: [] }),
     signal: abort.signal,
     dispose: () => { process.removeListener("SIGINT", onSigint); lines.close(); },
