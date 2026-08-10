@@ -11,5 +11,17 @@ function cc-ein --description "Claude Code con el cerebro de Ein (aislado en ~/.
         set -l keyfile "$HOME/.config/opencode-secrets/context7-api-key"
         test -r "$keyfile"; and set -x CONTEXT7_API_KEY (string trim < "$keyfile")
     end
+
+    switch "$argv[1]"
+        case cleaner workbench
+            set -l surface_runner "$CLAUDE_CONFIG_DIR/bin/ein-surface-runner"
+            if not test -x "$surface_runner"
+                echo "cc-ein: surface runner unavailable" >&2
+                return 69
+            end
+            command "$surface_runner" $argv
+            return $status
+    end
+
     command claude $argv
 end
