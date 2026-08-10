@@ -10,6 +10,12 @@ import { join } from "node:path";
 import { bannerFinal, bannerFrame, frameCount } from "../lib/banner.ts";
 import { projectProjectState } from "../lib/project-state.ts";
 import { applySetting, readSettings } from "../lib/project-settings.ts";
+import {
+  buildLaunchPlan,
+  createRuntimeSessionAdapter,
+  executeLaunchPlan,
+  getRuntimeCapabilities,
+} from "../lib/runtime-session-adapters.ts";
 import { summarizeSessions } from "../lib/session-summary.ts";
 import {
   checkClaudeCodeUpdate,
@@ -21,13 +27,17 @@ import {
   startUpdateEvidenceSnapshot,
   type VersionProbeRunner,
 } from "../lib/update-probes.ts";
-import { listRecentSessions } from "../lib/sessions.ts";
+import { humanizeAge, listRecentSessions } from "../lib/sessions.ts";
 import {
   KEY_HINTS,
   buildConfigScreen,
   buildHomeScreen,
   buildSessionsScreen,
   buildSystemScreen,
+  buildRuntimeScreen,
+  nextRuntime,
+  type RuntimeProviderId,
+  type RuntimeSessionRow,
   handleKey,
   renderScreen,
   type Screen,
@@ -92,6 +102,12 @@ export type TerminalAppOptions = Readonly<{
   sessions?: () => Parameters<typeof buildSessionsScreen>[0];
   /** Injected so tests exercise the system view without probing anything. */
   system?: () => Parameters<typeof buildSystemScreen>[0];
+  /** Injected so tests exercise the runtime view without spawning anything. */
+  runtime?: Readonly<{
+    sessions: (provider: RuntimeProviderId) => readonly RuntimeSessionRow[];
+    launch: (provider: RuntimeProviderId, reference?: string) => Promise<number>;
+    capabilities?: (provider: RuntimeProviderId) => string | undefined;
+  }>;
 }>;
 
 // `clear` only when redrawing an interactive screen: emitting it into a pipe
@@ -143,13 +159,18 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
     claude: () => checkClaudeCodeUpdate(spawnVersionProbe),
   });
   const readSystem = options.system ?? (() => systemRowsFrom(snapshot?.read()));
+  const runtimeSeam = options.runtime ?? productionRuntimeSeam(() => projectProjectState({ cwd: parsed.cwd }));
+  let provider: RuntimeProviderId = "pi";
   const buildSessions = (): Screen => buildSessionsScreen(readSessions());
   const buildSystem = (): Screen => buildSystemScreen(readSystem());
+  const buildRuntime = (): Screen =>
+    buildRuntimeScreen(provider, runtimeSeam.sessions(provider), runtimeSeam.capabilities?.(provider));
   // One key cycles the three views, so there is nothing to remember beyond tab.
   const nextView = (current: Screen): Screen => {
     if (current.kind === "home") return buildConfig(parsed.cwd);
     if (current.kind === "config") return buildSessions();
-    return current.kind === "sessions" ? buildSystem() : build(parsed.cwd);
+    if (current.kind === "sessions") return buildSystem();
+    return current.kind === "system" ? buildRuntime() : build(parsed.cwd);
   };
   let screen = build(parsed.cwd);
 
@@ -176,6 +197,20 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
       }
       let status = effect.kind === "status" ? effect.message : "";
       if (effect.kind === "switch-view") screen = nextView(screen);
+      if (effect.kind === "cycle-runtime") {
+        provider = nextRuntime(provider);
+        screen = buildRuntime();
+        status = `Runtime: ${provider}`;
+      }
+      if (effect.kind === "launch") {
+        // Hand the terminal over: leave raw mode, let the runtime own the tty,
+        // and end the app with whatever the runtime exited with.
+        stop();
+        options.io.setRawMode?.(false);
+        options.io.write("\n");
+        void runtimeSeam.launch(effect.provider, effect.reference).then(resolve, () => resolve(1));
+        return;
+      }
       if (effect.kind === "apply") {
         // Persist through the setting's owner, then re-read: the screen shows
         // what disk says afterwards, not what the keystroke intended.
@@ -237,6 +272,45 @@ export function systemRowsFrom(
     };
   });
   return [...rows, { label: "Diagnostics", status: "run on demand", command: "ein-install doctor" }];
+}
+
+/**
+ * Production runtime seam. Sessions come from the adapters and launching goes
+ * through the same plan/execute pair the workbench uses, so the app inherits
+ * every guard those already enforce instead of re-implementing them.
+ */
+export function productionRuntimeSeam(project: () => unknown) {
+  return {
+    capabilities: (provider: RuntimeProviderId) =>
+      getRuntimeCapabilities(provider).map((item) => `${item.operation}=${item.support}`).join(" "),
+    sessions: (provider: RuntimeProviderId): readonly RuntimeSessionRow[] => {
+      const result = createRuntimeSessionAdapter(provider).list(project());
+      if (result.outcome !== "success") return [];
+      // A provider whose resume capability is unsupported must not present its
+      // sessions as launchable: pressing enter would fail after the fact.
+      const resumable = getRuntimeCapabilities(provider)
+        .some((item) => item.operation === "resume" && item.support === "supported");
+      const now = Date.now();
+      return result.data.map((session) => ({
+        reference: resumable ? session.reference : undefined,
+        // Relative age reads at a glance; the exact stamp is the detail.
+        label: humanizeAge(Math.max(0, now - session.modifiedAtMs)),
+        detail: resumable
+          ? new Date(session.modifiedAtMs).toISOString()
+          : `${new Date(session.modifiedAtMs).toISOString()} · resume unsupported`,
+      }));
+    },
+    launch: async (provider: RuntimeProviderId, reference?: string): Promise<number> => {
+      const state = project();
+      const adapter = createRuntimeSessionAdapter(provider);
+      const intent = reference ? adapter.resume(state, reference) : adapter.create(state);
+      if (intent.outcome !== "success") return 1;
+      const plan = buildLaunchPlan(state, intent.data);
+      if (plan.outcome !== "success") return 1;
+      const executed = await executeLaunchPlan(plan.data);
+      return executed.outcome === "success" ? 0 : 1;
+    },
+  };
 }
 
 /** Wires the real terminal. Keystrokes arrive raw, one chunk per key. */

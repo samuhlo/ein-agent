@@ -13,6 +13,8 @@ import {
   buildHomeScreen,
   buildSessionsScreen,
   buildSystemScreen,
+  buildRuntimeScreen,
+  nextRuntime,
   handleKey,
   nextSettingValue,
   renderScreen,
@@ -690,5 +692,161 @@ describe("system view", () => {
     expect(lines).toContain("run `ein-install update`");
     expect(lines).toContain("[system]");
     expect(lines).toMatch(/Pi binary\s+unknown/);
+  });
+});
+
+describe("runtime view", () => {
+  const sessions = [
+    { reference: "s-1", label: "2026-08-11T09:00:00.000Z", detail: undefined },
+    { reference: undefined, label: "2026-08-10T09:00:00.000Z", detail: "no reference" },
+  ];
+  const runtime = (provider: "pi" | "claude" = "pi") => buildRuntimeScreen(provider, sessions, "list=supported");
+
+  test("the selected runtime and its capabilities are shown", () => {
+    const lines = renderScreen(runtime()).join("\n");
+    expect(lines).toMatch(/Runtime\s+Pi/);
+    expect(lines).toContain("list=supported");
+    expect(lines).toContain("[runtime]");
+  });
+
+  test("enter on the runtime row asks to cycle the provider", () => {
+    expect(handleKey(runtime(), "\r").effect).toEqual({ kind: "cycle-runtime" });
+  });
+
+  test("the provider cycle wraps", () => {
+    expect(nextRuntime("pi")).toBe("claude");
+    expect(nextRuntime("claude")).toBe("pi");
+  });
+
+  test("enter on a session asks to launch it by reference", () => {
+    let screen = runtime();
+    for (let index = 0; index < 2; index++) screen = handleKey(screen, "j").screen;
+    expect(handleKey(screen, "\r").effect).toEqual({ kind: "launch", provider: "pi", reference: "s-1" });
+  });
+
+  test("a session without a reference is reported, never launched blindly", () => {
+    let screen = runtime();
+    for (let index = 0; index < 3; index++) screen = handleKey(screen, "j").screen;
+    const effect = handleKey(screen, "\r").effect;
+    expect(effect.kind).toBe("status");
+    if (effect.kind === "status") expect(effect.message).toContain("not resumable");
+  });
+
+  test("the last row starts a new session on the selected runtime", () => {
+    let screen = runtime("claude");
+    for (let index = 0; index < 4; index++) screen = handleKey(screen, "j").screen;
+    expect(handleKey(screen, "\r").effect).toEqual({ kind: "launch", provider: "claude" });
+  });
+
+  test("no sessions still offers to start one", () => {
+    const lines = renderScreen(buildRuntimeScreen("pi", [], undefined)).join("\n");
+    expect(lines).toContain("none found");
+    expect(lines).toContain("New session");
+  });
+});
+
+describe("runtime handoff", () => {
+  function harness() {
+    const written: string[] = [];
+    let raw: boolean | undefined;
+    let press: ((key: string) => void) | undefined;
+    let listening = false;
+    return {
+      io: {
+        write: (text: string) => { written.push(text); },
+        isTTY: true,
+        clear: () => {},
+        setRawMode: (value: boolean) => { raw = value; },
+        onKey: (handler: (key: string) => void) => {
+          press = handler; listening = true;
+          return () => { press = undefined; listening = false; };
+        },
+      },
+      written,
+      get raw() { return raw; },
+      get listening() { return listening; },
+      press: (key: string) => press?.(key),
+    };
+  }
+
+  const base = (h: ReturnType<typeof harness>, runtime: Record<string, unknown>) => runTerminalApp({
+    argv: ["--no-intro"],
+    cwd: "/repo",
+    io: h.io,
+    project: () => buildHomeScreen(state()),
+    settings: { read: () => [], apply: () => true },
+    sessions: () => [],
+    system: () => [],
+    runtime: runtime as never,
+  });
+
+  test("tab reaches the runtime view after system", async () => {
+    const h = harness();
+    const run = base(h, {
+      sessions: () => [{ reference: "s-1", label: "sesion", detail: undefined }],
+      launch: async () => 0,
+      capabilities: () => "list=supported",
+    });
+    h.press("\t"); h.press("\t"); h.press("\t"); h.press("\t");
+    expect(h.written.join("")).toContain("Ein — runtime");
+    h.press("q");
+    expect(await run).toBe(0);
+  });
+
+  test("cycling the runtime relists that provider's sessions", async () => {
+    const asked: string[] = [];
+    const h = harness();
+    const run = base(h, {
+      sessions: (provider: string) => { asked.push(provider); return []; },
+      launch: async () => 0,
+    });
+    for (let index = 0; index < 4; index++) h.press("\t");
+    h.press("\r");
+    expect(asked).toContain("claude");
+    h.press("q");
+    expect(await run).toBe(0);
+  });
+
+  test("launching leaves raw mode, stops listening and exits with the runtime's code", async () => {
+    const h = harness();
+    const launched: Array<[string, string | undefined]> = [];
+    const run = base(h, {
+      sessions: () => [{ reference: "s-1", label: "sesion", detail: undefined }],
+      launch: async (provider: string, reference?: string) => { launched.push([provider, reference]); return 7; },
+    });
+    for (let index = 0; index < 4; index++) h.press("\t");
+    h.press("j"); h.press("j");
+    h.press("\r");
+    expect(await run).toBe(7);
+    expect(launched).toEqual([["pi", "s-1"]]);
+    expect(h.raw).toBe(false);
+    expect(h.listening).toBe(false);
+  });
+
+  test("a launch that throws ends the app instead of hanging it", async () => {
+    const h = harness();
+    const run = base(h, {
+      sessions: () => [],
+      launch: async () => { throw new Error("spawn failed"); },
+    });
+    for (let index = 0; index < 4; index++) h.press("\t");
+    h.press("j"); h.press("j");
+    h.press("\r");
+    expect(await run).toBe(1);
+  });
+});
+
+describe("resume capability honesty", () => {
+  test("a provider without resume support lists sessions as non-resumable", () => {
+    const screen = buildRuntimeScreen("pi", [
+      { reference: undefined, label: "6h", detail: "2026-08-10T16:39:11.899Z · resume unsupported" },
+    ], "resume=unsupported");
+    const lines = renderScreen(screen).join("\n");
+    expect(lines).toContain("resume unsupported");
+    let cursored = screen;
+    for (let index = 0; index < 2; index++) cursored = handleKey(cursored, "j").screen;
+    const effect = handleKey(cursored, "\r").effect;
+    expect(effect.kind).toBe("status");
+    if (effect.kind === "status") expect(effect.message).toContain("not resumable");
   });
 });
