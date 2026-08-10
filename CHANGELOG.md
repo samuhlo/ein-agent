@@ -5,6 +5,25 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.43.1] - 2026-08-10
+
+### Fixed
+
+- **El aviso de arranque afirmaba una configuración que nunca había leído**
+  (`5c06891`): el arranque evalúa el asesor solo con evidencia de
+  actualización, sin clave `configuration`, así que la faceta caía en la rama
+  de evidencia ausente y publicaba `Configuration: status=unavailable` en cada
+  sesión aislada. Además `recommendation()` no cubría ni `update-available` sin
+  handoff —la rama de observaciones nunca lo produce— ni una configuración no
+  disponible, y caía al `none/read-success` final: declaraba que todo estaba
+  correcto con una actualización pendiente. El aviso pasa a renderizar solo
+  evidencia de actualización y vuelve a nombrar el comando (`ein update`,
+  `pi-ein update --all`), derivándolo del handoff o de la procedencia de las
+  observaciones. Calla salvo que haya una actualización fresca y aplicable: el
+  sondeo es best-effort y fallar abierto no debe generar un aviso. Las
+  semánticas completas siguen disponibles en la superficie del workbench, que
+  sí aporta evidencia de configuración.
+
 ## [0.43.0] - 2026-08-09
 
 ### Fixed
