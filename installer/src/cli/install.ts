@@ -66,7 +66,7 @@ export class InstallArgumentError extends Error {
   readonly code = "invalid-runtime";
 
   constructor(detail: string) {
-    super(`Error de opcion runtime: ${detail}. Usa --runtime pi|claude|both.`);
+    super(`Error de opción runtime: ${detail}. Usa --runtime pi|claude|both.`);
     this.name = "InstallArgumentError";
   }
 }
@@ -141,7 +141,7 @@ async function confirm(message: string, flags: InstallFlags, fallback = true): P
   if (flags.yes) return fallback;
   const res = await p.confirm({ message });
   if (p.isCancel(res)) {
-    p.cancel("Instalacion cancelada.");
+    p.cancel("Instalación cancelada.");
     process.exit(1);
   }
   return res;
@@ -314,7 +314,7 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
     piContext = resolvePiInstallContext(piPaths);
   } catch (error) {
     return failure(
-      `La migracion de Pi fallo; no se desplegara Ein: ${error instanceof Error ? error.message : String(error)}`,
+      `La migración de Pi falló; no se desplegará Ein: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 
@@ -348,7 +348,7 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
     p.log.error(error instanceof Error ? error.message : String(error));
     if (rollbackPath) {
       const rollbackSpinner = p.spinner();
-      rollbackSpinner.start("Restaurando el backup previo (rollback automatico)");
+      rollbackSpinner.start("Restaurando el backup previo (rollback automático)");
       try {
         await restoreBackup(rollbackPath, {
           agentDir: piContext.agentDir,
@@ -361,7 +361,7 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
         p.log.warn(`Restaura a mano con \`ein restore\` (backup: ${rollbackPath}).`);
       }
     }
-    return failure("El deploy fallo; no se ha dejado el arbol a medias.");
+    return failure("El deploy falló; no se ha dejado el árbol a medias.");
   }
   spinner.stop(
     `Ein desplegado (engram: ${deployed.engramFound ? deployed.engramCommand : "no resuelto, usando PATH"})`,
@@ -373,7 +373,7 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
   packagesSpinner.stop(packages.detail);
 
   if (!flags.noSecrets && !flags.yes) {
-    p.log.step("Configuracion de secrets (todo opcional)");
+    p.log.step("Configuración de secrets (todo opcional)");
     await maybeSecret("context7", "Context7 API key", flags);
     if (!skipLinear) await maybeSecret("linear", "Linear API key", flags);
     await maybeSecret("minimax", "MiniMax API key", flags);
@@ -392,7 +392,7 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
   p.log.message(renderReport(report));
 
   if (report.result === "FAIL") {
-    return failure("Instalacion con errores. Revisa los FAIL del doctor.");
+    return failure("Instalación con errores. Revisa los FAIL del doctor.");
   }
 
   try {
@@ -487,7 +487,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
         message: "¿Activar modo Team (Linear como board de issues)? Por defecto: Solo (OpenSpec + git, sin Linear).",
         initialValue: false,
       });
-      if (p.isCancel(teamMode)) { p.cancel("Instalacion cancelada."); process.exit(1); }
+      if (p.isCancel(teamMode)) { p.cancel("Instalación cancelada."); process.exit(1); }
       skipLinear = !teamMode;
     }
     p.log.info(
@@ -514,14 +514,14 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
       `  1. Dependencias a instalar: ${missing.length ? missing.join(", ") : "ninguna (todo presente)"}`,
       existsSync(dryRunContext.agentDir)
         ? `  2. Backup previo de ${dryRunContext.agentDir} (tar.gz, dedup, conserva 5)`
-        : "  2. Sin backup previo (instalacion nueva)",
+        : "  2. Sin backup previo (instalación nueva)",
       `  3. Deploy del template en ${dryRunContext.agentDir}`,
       manifest
         ? `     template v${manifest.templateVersion}: ${manifest.agents?.length ?? 0} agentes, ${manifest.chains?.length ?? 0} chains, ${manifest.extensions?.length ?? 0} extensiones`
         : "     (template sin manifest: binario antiguo)",
-      "  4. Instalacion de paquetes Pi declarados en settings.json",
+      "  4. Instalación de paquetes Pi declarados en settings.json",
       flags.noSecrets ? "  5. Secrets: omitidos (--no-secrets)" : "  5. Wizard de secrets (opcional)",
-      "  6. Doctor de verificacion",
+      "  6. Doctor de verificación",
     ];
     p.log.message(lines.join("\n"));
     p.outro("Dry-run completado. Ejecuta `ein install` para aplicar.");
@@ -548,7 +548,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
   }
 
   if (!result.ok) {
-    p.outro("Instalacion incompleta.");
+    p.outro("Instalación incompleta.");
     return 1;
   }
 

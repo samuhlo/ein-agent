@@ -85,7 +85,7 @@ describe("release update CLI", () => {
     const resolved = release();
     const cases: Array<[UpdateOutcome, number, string]> = [
       [{ type: "updated", release: resolved }, EXIT_UPDATED, "Instalado verificado: v0.20.0"],
-      [{ type: "already-current", release: resolved }, EXIT_ALREADY_CURRENT, "Ya esta actualizado."],
+      [{ type: "already-current", release: resolved }, EXIT_ALREADY_CURRENT, "Ya está actualizado."],
       [{ type: "dry-run", release: resolved, owner: { type: "standalone" } }, EXIT_DRY_RUN, "no se modifico ningun archivo"],
       [{ type: "blocked-external-owner", owner: { type: "package-manager", manager: "homebrew" }, release: resolved }, EXIT_BLOCKED_EXTERNAL_OWNER, "homebrew"],
       [{ type: "failed", stage: "verifying", message: "checksum mismatch", selector: resolved.selector, release: resolved }, EXIT_FAILED, "verifying"],
@@ -148,7 +148,7 @@ describe("release update CLI", () => {
     const caps = fakeUpdateCaps({ files: new Map([[markerPath, marker()], [journalPath, encoder.encode("not-a-journal")]]) });
     const interrupted: string[] = [];
     expect(await runUpdate([], { caps, markerPath, journalPath, interactive: false, write: (line) => interrupted.push(line) })).toBe(EXIT_FAILED);
-    expect(interrupted.join("\n")).toContain("recuperacion");
+    expect(interrupted.join("\n")).toContain("recuperación");
   });
 
   test("reports already-current only after marker, binary, template, and digest agree", async () => {
@@ -173,7 +173,7 @@ describe("release update CLI", () => {
     const output: string[] = [];
     const code = await runUpdate([], { caps, platform: { os: "linux", arch: "x64" }, agentDir, markerPath, journalPath: join(dir, "journal.json"), destinationPath, interactive: false, write: (line) => output.push(line) });
     expect(code).toBe(EXIT_ALREADY_CURRENT);
-    expect(output.join("\n")).toContain("Ya esta actualizado.");
+    expect(output.join("\n")).toContain("Ya está actualizado.");
   });
 
   test("returns a staged acquisition failure without mutation", async () => {

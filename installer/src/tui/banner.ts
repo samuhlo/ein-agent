@@ -2,7 +2,7 @@
 // BANNER
 // Logo EIN con la paleta brutalista plana: E y N en concrete, la I en
 // amarillo industrial (gesto de marca), regla en structure y subtitulo
-// ".SAMUHLO · PI WORKBENCH" con el punto amarillo. Animacion "materialize":
+// ".SAMUHLO · PI WORKBENCH" con el punto amarillo. Animación "materialize":
 // cada celda aparece con retardo pseudoaleatorio (sesgo izq->dcha) y resuelve
 // . -> : -> o -> # como hormigon fraguando; la I sella en amarillo al final.
 // Corte grande (54x10) si el terminal da de si, pequeno (38x7) si no.

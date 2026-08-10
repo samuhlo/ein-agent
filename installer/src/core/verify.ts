@@ -232,21 +232,21 @@ export function runDoctor(
   const checksGuardrails: CheckResult[] = [
     check(guardrailsRaw.includes("git\\s+reset\\s+--hard"), "guardrails git reset", "Bloqueo de git reset --hard activo."),
     check(guardrailsRaw.includes("DENIED_BASH_PATTERNS"), "guardrails bash deny", "Lista de comandos bash denegados activa."),
-    check(guardrailsRaw.includes("CONFIRM_BASH_PATTERNS"), "guardrails bash confirm", "Lista de confirmacion de comandos activa."),
+    check(guardrailsRaw.includes("CONFIRM_BASH_PATTERNS"), "guardrails bash confirm", "Lista de confirmación de comandos activa."),
   ];
 
   // Coherencia: referencias colgantes / desajustes que deja un deploy stale
   // o un refactor a medias.
   const checksCoherence: CheckResult[] = [
-    check(einGitRaw.includes("Review Workload Gate"), "review workload gate", "ein-git documenta el gate de carga de revision."),
+    check(einGitRaw.includes("Review Workload Gate"), "review workload gate", "ein-git documenta el gate de carga de revisión."),
     check(!preflightRaw.includes("task/workload forecasts conflict"), "preflight sin forecast muerto", "La preflight ya no referencia un forecast que ninguna fase genera."),
     check(preflightRaw.includes("Review Workload Guard"), "preflight inyecta guard", "La preflight inyecta la regla determinista de Review Workload Guard."),
     check(orchestratorRaw.includes("Review Workload Guard"), "orchestrator coordina guard", "El orchestrator coordina el guard (reenvio de budget + ask)."),
     check(!sddApplyRaw.includes("global EIN strict-TDD support guidance"), "sdd-apply sin support colgante", "sdd-apply no referencia una guia de support global inexistente."),
     check(!sddVerifyRaw.includes("global EIN strict-TDD verification support guidance"), "sdd-verify sin support colgante", "sdd-verify no referencia una guia de support global inexistente."),
-    check(orchestratorRaw.includes("Plan Gate"), "orchestrator plan gate", "El orchestrator exige plan + confirmacion antes de mutaciones ambiguas/bulk."),
+    check(orchestratorRaw.includes("Plan Gate"), "orchestrator plan gate", "El orchestrator exige plan + confirmación antes de mutaciones ambiguas/bulk."),
     check(orchestratorRaw.includes("Exploration hygiene"), "orchestrator exploration hygiene", "El orchestrator excluye node_modules/dist/etc. de find/grep/glob."),
-    check(orchestratorRaw.includes("Assessment & valuation"), "orchestrator valuation read-only", "Una valoracion no dispara build/test pesados por defecto."),
+    check(orchestratorRaw.includes("Assessment & valuation"), "orchestrator valuation read-only", "Una valoración no dispara build/test pesados por defecto."),
     check(existsSync(join(agentDir, "lib", "mode.ts")), "work mode module", "lib/mode.ts presente (modo solo/team)."),
     check(orchestratorRaw.toLowerCase().includes("work mode") && orchestratorRaw.includes("solo"), "orchestrator mode-aware", "El orchestrator es consciente del modo (solo/team); Linear condicional."),
     check(existsSync(join(agentDir, "lib", "sdd-router.ts")) && readIfExists(join(agentDir, "extensions", "ein-ai.ts")).includes("ein_sdd_status"), "sdd router cableado", "Router determinista (sdd-router + tool ein_sdd_status) presente."),

@@ -86,6 +86,6 @@ export async function runRestore(args: string[]): Promise<number> {
     return 1;
   }
 
-  p.outro("Restauracion completada. Ejecuta `ein doctor` para verificar.");
+  p.outro("Restauración completada. Ejecuta `ein doctor` para verificar.");
   return 0;
 }

@@ -101,7 +101,7 @@ export async function runDoctorCommand(options: DoctorCommandDependencies = {}):
   const exists = options.exists ?? (() => existsSync(AGENT_DIR));
   const log = options.log ?? ((line: string) => console.log(line));
   if (!exists()) {
-    log(`Ein no esta desplegado: no existe ${AGENT_DIR}.`);
+    log(`Ein no está desplegado: no existe ${AGENT_DIR}.`);
     log("Ejecuta `ein install` primero.");
     return 1;
   }

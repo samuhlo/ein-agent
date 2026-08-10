@@ -294,7 +294,7 @@ describe("release update integration", () => {
       write: (line) => output.push(line),
     });
     expect(code).toBe(EXIT_ALREADY_CURRENT);
-    expect(output.join("\n")).toContain("Ya esta actualizado.");
+    expect(output.join("\n")).toContain("Ya está actualizado.");
     expect(createHash("sha256").update(readFileSync(destinationPath)).digest("hex")).toBe(assetDigest);
     expect(JSON.parse(readFileSync(join(agentDir, "template-manifest.json"), "utf8"))).toMatchObject({ templateVersion: TARGET_VERSION });
     expect(JSON.parse(readFileSync(markerPath, "utf8"))).toMatchObject({ version: TARGET_VERSION, asset: { sha256: assetDigest } });
@@ -545,7 +545,7 @@ describe("release update integration", () => {
       write: (line) => output.push(line),
     });
     expect(code).toBe(EXIT_FAILED);
-    expect(output.join("\n")).toContain("recuperacion");
+    expect(output.join("\n")).toContain("recuperación");
   });
 
   test("acquisition failure with missing checksums preserves prior identity", async () => {

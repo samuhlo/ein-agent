@@ -28,12 +28,12 @@ export function renderOutcome(outcome: UpdateOutcome): RenderedOutcome {
   switch (outcome.type) {
     case "updated":
       return {
-        lines: [...releaseLines(outcome.release), `Instalado verificado: v${releaseVersion(outcome.release.release.tag)}`, "Actualizacion completada."],
+        lines: [...releaseLines(outcome.release), `Instalado verificado: v${releaseVersion(outcome.release.release.tag)}`, "Actualización completada."],
         exitCode: EXIT_UPDATED,
       };
     case "already-current":
       return {
-        lines: [...releaseLines(outcome.release), `Instalado verificado: v${releaseVersion(outcome.release.release.tag)}`, "Ya esta actualizado."],
+        lines: [...releaseLines(outcome.release), `Instalado verificado: v${releaseVersion(outcome.release.release.tag)}`, "Ya está actualizado."],
         exitCode: EXIT_ALREADY_CURRENT,
       };
     case "dry-run":
@@ -62,7 +62,7 @@ export function renderOutcome(outcome: UpdateOutcome): RenderedOutcome {
           `Solicitud: ${outcome.selector?.raw ?? "desconocida"}`,
           ...(outcome.release ? [`Release resuelto: ${outcome.release.release.tag}`] : []),
           `Actualizacion fallida en ${outcome.stage}: ${safeMessage(outcome.message)}`, 
-          outcome.stage === "recovering" ? "Se requiere recuperacion antes de iniciar otra actualizacion." : "No se confirmo una nueva instalacion.",
+          outcome.stage === "recovering" ? "Se requiere recuperación antes de iniciar otra actualización." : "No se confirmó una nueva instalación.",
         ],
         exitCode: EXIT_FAILED,
       };

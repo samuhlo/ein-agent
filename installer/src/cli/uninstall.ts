@@ -46,7 +46,7 @@ export async function runUninstall(args: string[]): Promise<number> {
   p.log.warn("Se eliminara el contenido de Ein. Se conservan auth.json, sessions/, backups/ y tus secrets.");
 
   if (!yes) {
-    const ok = await p.confirm({ message: "Continuar con la desinstalacion?" });
+    const ok = await p.confirm({ message: "Continuar con la desinstalación?" });
     if (p.isCancel(ok) || !ok) {
       p.outro("Cancelado.");
       return 0;
@@ -75,7 +75,7 @@ export async function runUninstall(args: string[]): Promise<number> {
     const removeEngram = yes
       ? false
       : await p.confirm({
-          message: `Eliminar tambien la base de datos de memoria (${ENGRAM_DIR})?`,
+          message: `Eliminar también la base de datos de memoria (${ENGRAM_DIR})?`,
           initialValue: false,
         });
     if (!p.isCancel(removeEngram) && removeEngram) {

@@ -425,7 +425,7 @@ describe("Runtime flag parser", () => {
     const stderr = new TextDecoder().decode(proc.stderr);
 
     expect(proc.exitCode).toBe(1);
-    expect(stderr).toMatch(/Error de opcion runtime/);
+    expect(stderr).toMatch(/Error de opción runtime/);
     expect(stderr).toContain("--runtime pi|claude|both");
     expect(stdout).toBe("");
     expect(readdirSync(home)).toEqual([]);
