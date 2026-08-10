@@ -27,6 +27,12 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
+      - name: Instalar Fish en Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes fish
+
       - name: Install installer deps
         working-directory: installer
         run: bun install --frozen-lockfile
