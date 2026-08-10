@@ -2,7 +2,7 @@
 title: "Matriz de runtimes"
 description: "Comparación Pi vs Claude Code con las capacidades que se pueden comprobar."
 sources: ["README.md", "cc-ein/README.md", "openspec/specs/installer-runtime/spec.md", "openspec/changes/archive/core-parity/verify-report.md"]
-verified_rev: "29861f5"
+verified_rev: "eeceb7c"
 ---
 
 Esta tabla solo incluye filas **comprobables contra código o especificación**.
@@ -48,7 +48,7 @@ Algunas cosas son distintas sin que ninguna sea peor:
 | | Pi | Claude Code |
 | :--- | :--- | :--- |
 | Cómo se consulta el estado SDD | comandos del runtime | binario compilado |
-| Cómo se actualiza | `ein update` + `pi-ein update --all` | `ein update` + `bun cc-ein/sync.ts` |
+| Cómo se actualiza | `ein-install update` + `pi-ein update --all` | `ein-install update` + `bun cc-ein/sync.ts` |
 | Gate de comandos | política del coordinador | hook sobre shell |
 
 ## Cómo elegir

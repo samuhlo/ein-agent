@@ -2,7 +2,7 @@
 title: "Runtimes"
 description: "EIN tiene un núcleo compartido y dos adaptadores que no son idénticos."
 sources: ["README.md", "cc-ein/README.md", "pi-ein/README.md", "openspec/specs/installer-runtime/spec.md"]
-verified_rev: "29861f5"
+verified_rev: "eeceb7c"
 ---
 
 EIN se despliega sobre dos runtimes: **Pi Coding Agent** y **Claude Code**.
@@ -51,9 +51,9 @@ añadir un tercero sería trabajo, no configuración.
 ## Instalar uno, otro o los dos
 
 ```bash
-ein install --runtime pi
-ein install --runtime claude
-ein install --runtime both
+ein-install install --runtime pi
+ein-install install --runtime claude
+ein-install install --runtime both
 ```
 
 `both` despliega ambos sin mezclar sus rutas ni sus artefactos. Cada uno mantiene

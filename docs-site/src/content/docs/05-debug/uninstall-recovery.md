@@ -2,7 +2,7 @@
 title: "Desinstalar y recuperar"
 description: "Cómo volver atrás: backups, rollback y salir del todo sin perder nada."
 sources: ["installer/src/core/backup.ts", "installer/src/cli/uninstall.ts", "installer/src/cli/restore.ts", "installer/src/core/pi-migration.ts"]
-verified_rev: "29861f5"
+verified_rev: "eeceb7c"
 ---
 
 Poder salir es parte de poder entrar. Si desinstalar EIN fuera complicado,
@@ -23,7 +23,7 @@ runtimes originales están en `~/.pi/agent` y `~/.claude`, intactos.
 ## Desinstalar
 
 ```bash
-ein uninstall
+ein-install uninstall
 ```
 
 Crea un backup antes, elimina la casa de EIN y **conserva**:
@@ -53,7 +53,7 @@ acordarse de nada.
 ## Restaurar
 
 ```bash
-ein restore
+ein-install restore
 ```
 
 Te deja elegir un backup y lo aplica. Es la salida de una actualización que dejó
@@ -62,11 +62,11 @@ algo raro.
 ## Una actualización falló
 
 ```bash
-ein doctor      # ver qué está mal
-ein restore     # volver al estado anterior
+ein-install doctor      # ver qué está mal
+ein-install restore     # volver al estado anterior
 ```
 
-`ein update` verifica el payload antes de aplicarlo y crea backup, así que un
+`ein-install update` verifica el payload antes de aplicarlo y crea backup, así que un
 fallo a mitad no debería dejarte a medias. Si te deja, `restore` lo resuelve.
 
 ## Revertir la migración de Pi
@@ -93,7 +93,7 @@ instalación ni en la reversión.
 
 ## Y en tus proyectos
 
-`ein uninstall` no toca el código de tus proyectos. El directorio `openspec/` de
+`ein-install uninstall` no toca el código de tus proyectos. El directorio `openspec/` de
 cada uno sigue donde estaba, con sus cambios y su archivo.
 
 Si además quieres quitar EIN de un proyecto concreto, borra su `openspec/` y su
@@ -103,7 +103,7 @@ que suele ser lo más valioso que deja EIN.
 ## Checklist de salida limpia
 
 ```bash
-ein uninstall                          # quita EIN, conserva credenciales
+ein-install uninstall                          # quita EIN, conserva credenciales
 rm -rf ~/.config/opencode-secrets      # opcional: borra las claves
 rm ~/.local/bin/ein                    # opcional: quita el binario
 ```

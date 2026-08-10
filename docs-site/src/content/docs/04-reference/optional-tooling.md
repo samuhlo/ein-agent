@@ -2,7 +2,7 @@
 title: "Tooling opcional"
 description: "Las integraciones que EIN puede usar, y qué pasa cuando no están."
 sources: ["installer/src/core/engram.ts", "installer/src/core/secrets.ts", "installer/src/core/deps.ts", "ein-pi/agent/mcp.json"]
-verified_rev: "29861f5"
+verified_rev: "eeceb7c"
 ---
 
 EIN funciona sin ninguna de estas. Todas se pueden omitir en la instalación con
@@ -78,7 +78,7 @@ Funciona, gasta más presupuesto.
 ## Instalar sin ninguna
 
 ```bash
-ein install --runtime pi --no-engram --no-linear --no-codegraph --no-hypa --no-secrets
+ein-install install --runtime pi --no-engram --no-linear --no-codegraph --no-hypa --no-secrets
 ```
 
 Instalación mínima: el núcleo, los agentes de fase y el flujo SDD. Es una
@@ -87,7 +87,7 @@ falla.
 
 ## Añadirlas después
 
-Vuelve a ejecutar `ein install` sin el flag correspondiente. El instalador
+Vuelve a ejecutar `ein-install install` sin el flag correspondiente. El instalador
 detecta lo que ya está y añade lo que falte, con backup previo.
 
 ## Siguiente

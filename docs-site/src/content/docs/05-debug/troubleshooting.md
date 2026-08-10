@@ -2,13 +2,13 @@
 title: "Troubleshooting"
 description: "Los fallos más frecuentes y cómo salir de ellos."
 sources: ["installer/src/cli/doctor.ts", "installer/src/core/deps.ts", "installer/src/core/backup.ts", "README.md"]
-verified_rev: "29861f5"
+verified_rev: "eeceb7c"
 ---
 
 Empieza siempre por aquí:
 
 ```bash
-ein doctor
+ein-install doctor
 ```
 
 Casi todo lo de esta página se detecta ahí. Lo que sigue son los casos concretos
@@ -26,18 +26,18 @@ Si falta, añádelo a la configuración de tu shell y abre una terminal nueva.
 
 ## `pi-ein` o `cc-ein` no existen
 
-Son funciones de shell que instala `ein install`. Si el comando no aparece:
+Son funciones de shell que instala `ein-install install`. Si el comando no aparece:
 
-1. Comprueba que instalaste ese runtime: `ein doctor` te lo dice.
+1. Comprueba que instalaste ese runtime: `ein-install doctor` te lo dice.
 2. Abre una terminal nueva — las funciones se cargan al arrancar el shell.
-3. Si sigue sin estar: `ein install --runtime pi` (o `claude`).
+3. Si sigue sin estar: `ein-install install --runtime pi` (o `claude`).
 
 ## El doctor da FAIL
 
 Antes de investigar:
 
 ```bash
-ein install
+ein-install install
 ```
 
 Repara sobre lo existente y crea backup antes. Resuelve la mayoría de los FAIL,
@@ -65,10 +65,10 @@ Edita `cc-ein/CLAUDE.adapter.md` o la fuente compartida, y vuelve a sincronizar.
 
 ```bash
 ls ~/.pi-ein/agent/backups/installer/
-ein restore
+ein-install restore
 ```
 
-`ein update` crea un backup antes de tocar nada. `restore` te devuelve al estado
+`ein-install update` crea un backup antes de tocar nada. `restore` te devuelve al estado
 anterior.
 
 ## Una fase SDD se queda bloqueada
@@ -109,8 +109,8 @@ Lista qué páginas declaran fuentes que han cambiado desde que se verificaron.
 ## Quiero empezar de cero
 
 ```bash
-ein uninstall     # conserva auth, secrets y sesiones
-ein install
+ein-install uninstall     # conserva auth, secrets y sesiones
+ein-install install
 ```
 
 Si quieres una limpieza total, borra además
@@ -118,7 +118,7 @@ Si quieres una limpieza total, borra además
 
 ## Nada de esto funciona
 
-Abre un issue con la salida completa de `ein doctor`, tu sistema operativo y qué
+Abre un issue con la salida completa de `ein-install doctor`, tu sistema operativo y qué
 runtime usas:
 
 [github.com/samuhlo/ein-agent/issues](https://github.com/samuhlo/ein-agent/issues)

@@ -1,12 +1,12 @@
 ---
 title: "Doctor"
-description: "Qué comprueba `ein doctor`, cómo leer su salida y qué hacer con cada nivel."
+description: "Qué comprueba `ein-install doctor`, cómo leer su salida y qué hacer con cada nivel."
 sources: ["installer/src/cli/doctor.ts", "installer/src/core/verify.ts"]
-verified_rev: "29861f5"
+verified_rev: "eeceb7c"
 ---
 
 ```bash
-ein doctor
+ein-install doctor
 ```
 
 Diagnostica el despliegue **sin lanzar ningún runtime**. Es el primer comando al
@@ -68,7 +68,7 @@ sin configurar, y son WARN precisamente porque no bloquean nada.
 **Hay FAIL.** Antes de investigar a mano, prueba:
 
 ```bash
-ein install
+ein-install install
 ```
 
 Repara sobre la instalación existente y crea backup antes. Resuelve la mayoría
@@ -81,7 +81,7 @@ casos concretos.
 
 ```text
 Ein no esta desplegado: no existe ~/.pi-ein/agent.
-Ejecuta `ein install` primero.
+Ejecuta `ein-install install` primero.
 ```
 
 Sale con código 1. No es un error del doctor: es que no hay nada que

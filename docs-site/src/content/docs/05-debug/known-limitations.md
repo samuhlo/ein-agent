@@ -2,7 +2,7 @@
 title: "Limitaciones conocidas"
 description: "Qué está probado de verdad, qué no, y qué puede cambiar."
 sources: ["docs/roadmap-beta.md", "docs/roadmap-features-ein.md"]
-verified_rev: "29861f5"
+verified_rev: "eeceb7c"
 ---
 
 Página obligatoria de la beta. Sin suavizar.
@@ -67,7 +67,7 @@ sigue la secuencia declarada en el roadmap y no está terminado. El registro
 mantenido de qué está hecho y con qué evidencia vive en
 [`docs/roadmap-beta.md`](https://github.com/samuhlo/ein-agent/blob/main/docs/roadmap-beta.md).
 
-**El updater universal.** `ein update` actualiza EIN. No es un actualizador
+**El updater universal.** `ein-install update` actualiza EIN. No es un actualizador
 genérico de cualquier runtime y no debe presentarse como tal.
 
 **Paralelismo con worktrees.** No hay garantías sobre escritores paralelos ni
