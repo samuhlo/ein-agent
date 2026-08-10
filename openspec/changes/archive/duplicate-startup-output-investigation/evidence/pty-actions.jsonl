@@ -1,0 +1,2 @@
+{"action": "spawn", "fishCommand": "source '/Users/samu/Documents/01_Proyectos/ein-agent/pi-ein/pi-ein.fish'; pi-ein", "monotonicMilliseconds": 0, "piArguments": [], "ptyChildPid": 39687, "terminal": {"columns": 120, "rows": 40, "term": "xterm-256color"}, "wallClockTimestamp": "2026-08-10T15:39:51.672087Z"}
+{"action": "send-ctrl-d", "attempt": 1, "monotonicMilliseconds": 9085.519, "wallClockTimestamp": "2026-08-10T15:40:00.812936Z"}

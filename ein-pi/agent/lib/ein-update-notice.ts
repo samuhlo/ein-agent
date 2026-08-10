@@ -2,9 +2,11 @@
 // EIN UPDATE NOTICE — runtime gate + deterministic rendering
 // =============================================================================
 
+import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { evaluateSharedConfigUpdateAdvisor, type InstallerAction, type SharedConfigUpdateAdvisorResult } from "./shared-config-update-advisor.ts";
+import type { Evidence, StartupProvenanceRecorder } from "./startup-provenance.ts";
 
 export type EinUpdateAvailability = {
   pi: boolean;
@@ -213,6 +215,12 @@ export type UpdateNoticeContext = Readonly<{
 
 export type UpdateAvailabilityDetector = (cwd: string) => Promise<EinUpdateAvailability | SharedConfigUpdateAdvisorResult>;
 
+export type UpdateNoticeProvenance = Readonly<{
+  recorder: StartupProvenanceRecorder;
+  invocationEventId: string;
+  runtimeSessionIdentity: Evidence<string>;
+}>;
+
 export type RuntimeOptions = {
   env?: RuntimeEnvironment;
   home?: string;
@@ -232,12 +240,31 @@ export function isPiEinRuntime(
   return resolve(piAgentDir) === isolatedAgentDir && resolve(einAgentDir) === isolatedAgentDir;
 }
 
+function recordNotificationEmission(
+  message: string,
+  provenance: UpdateNoticeProvenance | undefined,
+): void {
+  if (!provenance) return;
+  try {
+    const normalized = message.normalize("NFC").replace(/\r\n?/g, "\n");
+    provenance.recorder.record({
+      eventType: "notification-emission",
+      parentEventId: provenance.invocationEventId,
+      runtimeSessionIdentity: provenance.runtimeSessionIdentity,
+      normalizedMessageDigest: `sha256:${createHash("sha256").update(normalized).digest("hex")}`,
+    });
+  } catch {
+    // Diagnostics are optional and must never suppress the real notification.
+  }
+}
+
 /** Start the notice without making session_start wait for update checks. */
 export function startPiEinUpdateNotice(
   ctx: UpdateNoticeContext,
   detectUpdates: UpdateAvailabilityDetector,
   runtime: () => boolean = () => isPiEinRuntime(),
   renderRuntime: RuntimeOptions = {},
+  provenance?: UpdateNoticeProvenance,
 ): void {
   try {
     if (!runtime()) return;
@@ -246,7 +273,10 @@ export function startPiEinUpdateNotice(
         const notice = "configuration" in availability
           ? renderPiEinAdvisorNotice(availability, renderRuntime)
           : renderPiEinUpdateNotice(availability, renderRuntime);
-        if (notice) ctx.ui.notify(notice, "warning");
+        if (notice) {
+          recordNotificationEmission(notice, provenance);
+          ctx.ui.notify(notice, "warning");
+        }
       })
       .catch(() => {
         // Update checks are optional and must never break session startup.

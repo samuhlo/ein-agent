@@ -14,6 +14,8 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { appendFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -29,12 +31,98 @@ import { readPersonaMode } from "../lib/persona";
 import { readMode } from "../lib/mode";
 import { GitBannerController, renderGitBannerRows, type ProcessRunner } from "../lib/banner-git";
 import {
+  createStartupProvenanceRecorder,
+  type Evidence,
+  type StartupProvenanceRecorder,
+} from "../lib/startup-provenance";
+import {
   detectPiEinUpdates as detectCanonicalPiEinUpdates,
   isPiEinRuntime,
   startPiEinUpdateNotice,
   UPDATE_CHECK_TIMEOUT_MS,
   type PiEinUpdateObservation,
+  type UpdateNoticeProvenance,
 } from "../lib/ein-update-notice";
+
+type BannerModuleProvenance = Readonly<{
+  recorder: StartupProvenanceRecorder;
+  loadEventId: string | null;
+}>;
+
+function extensionSourceEvidence(): Evidence<string> {
+  const source = process.env.EIN_STARTUP_PROVENANCE_EXTENSION_SOURCE?.trim();
+  return source
+    ? { state: "observed", value: source }
+    : { state: "unknown" };
+}
+
+function createBannerModuleProvenance(): BannerModuleProvenance | null {
+  if (process.env.EIN_STARTUP_PROVENANCE !== "1") return null;
+
+  const diagnosticRunId = process.env.EIN_STARTUP_PROVENANCE_RUN_ID?.trim();
+  const outputPath = process.env.EIN_STARTUP_PROVENANCE_OUTPUT?.trim();
+  if (!diagnosticRunId || !outputPath) return null;
+
+  const recorder = createStartupProvenanceRecorder({
+    enabled: true,
+    diagnosticRunId,
+    nextEventId: randomUUID,
+    wallClock: () => new Date().toISOString(),
+    monotonicClock: () => performance.now(),
+    processIdentity: {
+      state: "observed",
+      value: { pid: process.pid, ppid: process.ppid },
+    },
+    extensionSourceIdentity: extensionSourceEvidence(),
+    sink: (event) => {
+      appendFileSync(outputPath, `${JSON.stringify(event)}\n`, "utf8");
+    },
+  });
+  const load = recorder.record({
+    eventType: "load",
+    parentEventId: null,
+    runtimeSessionIdentity: { state: "unknown" },
+  });
+
+  return {
+    recorder,
+    loadEventId: load.state === "observed" ? load.event.eventId : null,
+  };
+}
+
+const bannerModuleProvenance = createBannerModuleProvenance();
+
+function recordBannerRegistration(): string | null {
+  if (!bannerModuleProvenance?.loadEventId) return null;
+  const registration = bannerModuleProvenance.recorder.record({
+    eventType: "registration",
+    parentEventId: bannerModuleProvenance.loadEventId,
+    runtimeSessionIdentity: { state: "unknown" },
+  });
+  return registration.state === "observed" ? registration.event.eventId : null;
+}
+
+function recordSessionStart(
+  registrationEventId: string | null,
+  hasUI: boolean,
+  cliFiltered: boolean,
+): UpdateNoticeProvenance | undefined {
+  if (!bannerModuleProvenance || !registrationEventId) return undefined;
+  const runtimeSessionIdentity = { state: "unknown" } as const;
+  const invocation = bannerModuleProvenance.recorder.record({
+    eventType: "session_start",
+    parentEventId: registrationEventId,
+    runtimeSessionIdentity,
+    hasUI: { state: "observed", value: hasUI },
+    cliFiltered: { state: "observed", value: cliFiltered },
+  });
+  if (invocation.state !== "observed") return undefined;
+  return {
+    recorder: bannerModuleProvenance.recorder,
+    invocationEventId: invocation.event.eventId,
+    runtimeSessionIdentity,
+  };
+}
 
 const execFileAsync = promisify(execFile);
 const GIT_MAX_BUFFER_BYTES = 1_024 * 1_024;
@@ -336,16 +424,28 @@ async function readEinVersion(): Promise<string> {
 }
 
 export default function (pi: ExtensionAPI) {
+  let registrationEventId: string | null = null;
   pi.on("session_start", async (_event, ctx) => {
-    if (!ctx.hasUI) return;
-
     // No animated intro while running a CLI command (pi update, pi install, ...).
     const isCLICommand =
       process.argv.length > 2 &&
       !process.argv.every((arg) => arg.startsWith("-") || arg.endsWith(".ts"));
+    const noticeProvenance = recordSessionStart(
+      registrationEventId,
+      ctx.hasUI,
+      isCLICommand,
+    );
+
+    if (!ctx.hasUI) return;
     if (isCLICommand) return;
 
-    startPiEinUpdateNotice(ctx, detectPiEinUpdates);
+    startPiEinUpdateNotice(
+      ctx,
+      detectPiEinUpdates,
+      undefined,
+      undefined,
+      noticeProvenance,
+    );
 
     if (currentIntroMode() === "skip") return;
 
@@ -725,4 +825,5 @@ export default function (pi: ExtensionAPI) {
       });
     }, 50);
   });
+  registrationEventId = recordBannerRegistration();
 }
