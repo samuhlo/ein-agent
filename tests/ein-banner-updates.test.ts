@@ -471,6 +471,50 @@ describe("pi-ein update notice", () => {
     expect(rendered).not.toContain("pi-ein update --all");
   });
 
+  test("renders an actionable component even when the aggregate facet is unavailable", () => {
+    const result = evaluateSharedConfigUpdateAdvisor({
+      update: {
+        observations: [
+          { status: "update-available", source: "ein", reason: "newer-release", freshness: "current" },
+          { status: "current", source: "binary", reason: "read-success", freshness: "current" },
+          { status: "skipped", source: "packages", reason: "offline", freshness: "current" },
+        ],
+      },
+    });
+    expect(result.update.status).toBe("unavailable");
+    const rendered = renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME });
+    expect(rendered).toBe(["/// 000. EIN UPDATES", "", "- Ein template: `ein update`"].join("\n"));
+  });
+
+  for (const [status, reason] of [
+    ["ambiguous", "ambiguous-evidence"],
+    ["error", "invalid-evidence"],
+    ["unsupported", "unsupported"],
+  ] as const) {
+    test(`stays silent when the aggregate facet is ${status}, even with an actionable component`, () => {
+      const observations = [
+        { status: "update-available", source: "ein", reason: "newer-release", freshness: "current" },
+        { status, source: "binary", reason, freshness: "current" },
+      ] as const;
+      const result = evaluateSharedConfigUpdateAdvisor({ update: { observations } });
+      expect(result.update.status).toBe(status);
+      expect(renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME })).toBeNull();
+    });
+  }
+
+  test("stays silent when the aggregate facet is current, by construction and by intent", () => {
+    const result = evaluateSharedConfigUpdateAdvisor({
+      update: {
+        observations: [
+          { status: "current", source: "binary", reason: "read-success", freshness: "current" },
+          { status: "current", source: "packages", reason: "read-success", freshness: "current" },
+        ],
+      },
+    });
+    expect(result.update.status).toBe("current");
+    expect(renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME })).toBeNull();
+  });
+
   test("an update with no ownership handoff is a read gap, not a healthy no-op", () => {
     const result = evaluateSharedConfigUpdateAdvisor({
       update: {

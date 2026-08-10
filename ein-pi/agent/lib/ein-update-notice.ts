@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { evaluateSharedConfigUpdateAdvisor, type InstallerAction, type SharedConfigUpdateAdvisorResult } from "./shared-config-update-advisor.ts";
+import { evaluateSharedConfigUpdateAdvisor, type AdvisorUpdateStatus, type InstallerAction, type SharedConfigUpdateAdvisorResult } from "./shared-config-update-advisor.ts";
 import type { Evidence, StartupProvenanceRecorder } from "./startup-provenance.ts";
 
 export type EinUpdateAvailability = {
@@ -301,6 +301,14 @@ const HANDOFF_COMMANDS: Readonly<Record<InstallerAction, string>> = {
 };
 
 /**
+ * Facet statuses whose evidence can still contain actionable components.
+ * - `update-available`: complete evidence, all components checked.
+ * - `unavailable`: incomplete evidence (one or more sources skipped), but other sources may have actionable updates.
+ * - Excludes `current`, `ambiguous`, `error`, `unsupported`: either no updates available or evidence is contradictory/unrecoverable.
+ */
+const RENDERABLE_UPDATE_STATUSES: ReadonlySet<AdvisorUpdateStatus> = new Set(["update-available", "unavailable"]);
+
+/**
  * Startup only observes update probes, so it renders update evidence only: claiming
  * a configuration facet it never read produced a permanent false alarm. Full advisor
  * semantics stay on the workbench surface, which does supply configuration evidence.
@@ -311,7 +319,7 @@ export function renderPiEinAdvisorNotice(
   runtime: { env?: RuntimeEnvironment; home?: string } = {},
 ): string | null {
   if (!isPiEinRuntime(runtime.env, runtime.home)) return null;
-  if (result.update.status !== "update-available") return null;
+  if (!RENDERABLE_UPDATE_STATUSES.has(result.update.status)) return null;
 
   // Version-comparison evidence names the installer action; probe observations name the component.
   const handoff = result.handoff;
