@@ -17,13 +17,15 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
   lstatSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { execFileSync } from "node:child_process";
 
 const REPO = join(import.meta.dir, "..");
@@ -38,6 +40,9 @@ const ADAPTATION_START = "<!-- ein:claude-adaptation:start -->";
 const ADAPTATION_END = "<!-- ein:claude-adaptation:end -->";
 const HARNESS_START = "<!-- ein:harness-discipline:start -->";
 const HARNESS_END = "<!-- ein:harness-discipline:end -->";
+
+export const SURFACE_RUNNER_SOURCE = join(REPO, "ein-pi", "agent", "surfaces", "surface-runner.ts");
+export const CLAUDE_SURFACE_RUNNER_NAME = "ein-surface-runner";
 
 const log = (s: string) => console.log(DRY ? `  [dry] ${s}` : `  ${s}`);
 
@@ -492,6 +497,47 @@ function failureMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+type SurfaceRunnerCompiler = (source: string, output: string) => void;
+
+export type ClaudeSurfaceRunnerPayloadOptions = {
+  destination: string;
+  source?: string;
+  compile?: SurfaceRunnerCompiler;
+  install?: (staging: string, destination: string) => void;
+};
+
+/** Compile and atomically promote the shared runner closure; stale payloads never survive failure. */
+export function compileClaudeSurfaceRunnerPayload(options: ClaudeSurfaceRunnerPayloadOptions): void {
+  const source = options.source ?? SURFACE_RUNNER_SOURCE;
+  const staging = `${options.destination}.staging-${process.pid}`;
+  const compile = options.compile ?? ((entrypoint, output) => {
+    execFileSync("bun", ["build", "--compile", entrypoint, "--outfile", output], { stdio: "ignore" });
+  });
+
+  mkdirSync(dirname(options.destination), { recursive: true });
+  rmSync(staging, { force: true });
+  rmSync(options.destination, { force: true });
+  try {
+    compile(source, staging);
+  } catch (error) {
+    rmSync(staging, { force: true });
+    throw new Error(`SURFACE_RUNNER_COMPILE_FAILED: ${failureMessage(error)}`);
+  }
+
+  try {
+    if (!existsSync(staging) || !statSync(staging).isFile() || statSync(staging).size === 0) {
+      throw new Error("SURFACE_RUNNER_PAYLOAD_MISSING: compiler produced no runner payload");
+    }
+    (options.install ?? renameSync)(staging, options.destination);
+  } catch (error) {
+    rmSync(staging, { force: true });
+    rmSync(options.destination, { force: true });
+    const detail = failureMessage(error);
+    if (detail.startsWith("SURFACE_RUNNER_PAYLOAD_MISSING:")) throw error;
+    throw new Error(`SURFACE_RUNNER_PAYLOAD_INSTALL_FAILED: ${detail}`);
+  }
+}
+
 /**
  * Run the sync as an explicit operation so the installer can trust its status.
  * Parity compilation is the first operation and only a complete valid surface
@@ -580,6 +626,22 @@ export function runSync(): SyncResult {
         log(`✗ ${detail}`);
       }
     } else log("CLI SDD se compilaría → bin/cc-ein-sdd");
+
+    // ── 7. Runner compartido → binario standalone requerido ──────────────────
+    // Bun follows the import closure from the canonical source, so Claude ships
+    // the exact protocol and engines used by Pi rather than an adapter copy.
+    if (!DRY) {
+      try {
+        compileClaudeSurfaceRunnerPayload({
+          destination: join(binDir, CLAUDE_SURFACE_RUNNER_NAME),
+        });
+        log(`surface runner compilado → bin/${CLAUDE_SURFACE_RUNNER_NAME}`);
+      } catch (error) {
+        const detail = `no se pudo desplegar el surface runner: ${failureMessage(error)}`;
+        requiredFailures.push(detail);
+        log(`✗ ${detail}`);
+      }
+    } else log(`surface runner se compilaría → bin/${CLAUDE_SURFACE_RUNNER_NAME}`);
   } catch (error) {
     requiredFailures.push(failureMessage(error));
     console.error(`✗ fallo de sincronización requerida: ${failureMessage(error)}`);
@@ -590,7 +652,7 @@ export function runSync(): SyncResult {
     return { ok: false, requiredFailures, optionalWarnings };
   }
 
-  // ── 7. MCP: Context7 (docs on-demand) + Engram (memoria, si está) ──────────
+  // ── 8. MCP: Context7 (docs on-demand) + Engram (memoria, si está) ──────────
   // Son integraciones opcionales: su disponibilidad nunca oculta un sync core
   // correcto ni convierte una instalación utilizable en un fallo.
   function mcpUser(name: string, argv: string[], env: Record<string, string> = {}): void {

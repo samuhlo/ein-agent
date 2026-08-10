@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { parseWorkbenchArgs, renderLauncherAdvisor, runWorkbenchEntrypoint } from "../ein-pi/workbench.ts";
+import {
+  invokeProductionWorkbench,
+  parseWorkbenchArgs as parseSurfaceWorkbenchArgs,
+  runWorkbenchEntrypoint as runSurfaceWorkbenchEntrypoint,
+} from "../ein-pi/agent/surfaces/workbench-entrypoint.ts";
+import { createProductionWorkbenchInvocationAdapter } from "../ein-pi/agent/surfaces/surface-runner.ts";
 import { evaluateSharedConfigUpdateAdvisor } from "../ein-pi/agent/lib/shared-config-update-advisor.ts";
 import { getRuntimeCapabilities } from "../ein-pi/agent/lib/runtime-session-adapters.ts";
 import {
@@ -20,6 +26,12 @@ import {
 } from "../ein-pi/agent/lib/workbench.ts";
 
 describe("separate workbench entrypoint argv TTY help and exit", () => {
+  test("the public launcher and deployable surface share one entrypoint implementation", () => {
+    expect(runWorkbenchEntrypoint).toBe(runSurfaceWorkbenchEntrypoint);
+    expect(parseWorkbenchArgs).toBe(parseSurfaceWorkbenchArgs);
+    expect(createProductionWorkbenchInvocationAdapter().invoke).toBe(invokeProductionWorkbench);
+  });
+
   test("parses ordered normalized deduplicated project argv and enforces max 20", () => {
     expect(parseWorkbenchArgs(["--project", "./alpha", "--project", "./alpha", "--project", "./beta"], "/repo")).toEqual({ kind: "run", candidates: ["/repo/alpha", "/repo/beta"] });
     expect(parseWorkbenchArgs(["--help"], "/repo")).toEqual({ kind: "help" });
