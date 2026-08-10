@@ -13,6 +13,13 @@ function pi-ein --description "Pi Coding Agent con el cerebro de Ein (aislado en
     end
 
     switch $namespace
+        case app
+            set -l terminal_app "$EIN_PI_AGENT_HOME/app.ts"
+            if not test -f "$terminal_app"
+                printf "pi-ein: terminal app unavailable\n" >&2
+                return 69
+            end
+            command bun "$terminal_app" $argv[2..-1]
         case cleaner workbench
             set -l surface_runner "$EIN_PI_AGENT_HOME/surfaces/surface-runner.ts"
             if not test -f "$surface_runner"

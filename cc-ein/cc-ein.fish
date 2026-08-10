@@ -13,6 +13,14 @@ function cc-ein --description "Claude Code con el cerebro de Ein (aislado en ~/.
     end
 
     switch "$argv[1]"
+        case app
+            set -l terminal_app "$CLAUDE_CONFIG_DIR/bin/ein-app"
+            if not test -x "$terminal_app"
+                echo "cc-ein: terminal app unavailable" >&2
+                return 69
+            end
+            command "$terminal_app" $argv[2..-1]
+            return $status
         case cleaner workbench
             set -l surface_runner "$CLAUDE_CONFIG_DIR/bin/ein-surface-runner"
             if not test -x "$surface_runner"
