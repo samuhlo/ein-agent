@@ -109,7 +109,7 @@ function sha256(hexChars: string): string {
 }
 
 describe("release asset contract", () => {
-  test("release preparation aligns the three authorized 0.42.0 version pointers", () => {
+  test("release preparation aligns the three authorized 0.43.0 version pointers", () => {
     const packageJson = JSON.parse(readFileSync(INSTALLER_PACKAGE_PATH, "utf8")) as { version?: unknown };
     const versionSource = readFileSync(INSTALLER_VERSION_SOURCE_PATH, "utf8");
     const changelog = readFileSync(CHANGELOG_PATH, "utf8");
@@ -117,9 +117,9 @@ describe("release asset contract", () => {
     const newestChangelogVersion = changelog.match(/^## \[([^\]]+)\]/m)?.[1];
 
     expect([packageJson.version, installerVersion, newestChangelogVersion]).toEqual([
-      "0.42.0",
-      "0.42.0",
-      "0.42.0",
+      "0.43.0",
+      "0.43.0",
+      "0.43.0",
     ]);
   });
 

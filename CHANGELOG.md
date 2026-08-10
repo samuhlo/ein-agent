@@ -5,6 +5,41 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.43.0] - 2026-08-09
+
+### Fixed
+
+- **Forma de la delegación bajo `pi-subagents` ≥ 0.44** (`45c8c4e`): el runtime
+  movió la ejecución a `workflowScript` y los seis inspectores de delegación de
+  Ein quedaron ciegos a la vez — el gate de entrega dejó de emitir el grant
+  (todo `git push` delegado bloqueado y ninguna confirmación previa), el gate de
+  TDD dejó de preguntar, las fases de planificación perdieron su
+  `acceptance: none`, el backstop de turnos del apply desapareció, la
+  reconciliación de fase dejó de rescatar artefactos entregados y el scout perdió
+  su contrato acotado. La forma se centraliza en `lib/delegation-shape.ts`, que
+  lee el script y las formas legacy, y un canario avisa una vez por sesión
+  cuando una delegación no produce ni un child en vez de dejar los gates en
+  no-op silencioso.
+- **Grants de entrega sin interfaz** (`439257c`): la política (`off`, o `auto`
+  con petición explícita del usuario) se evalúa antes de ceder al guard de bash,
+  así que una sesión sin UI vuelve a emitir el grant que el subagente headless
+  necesita.
+
+### Added
+
+- **Cleaner: auditoría de solo lectura** (`9efa2a1`): hallazgos deterministas y
+  trazables sobre el estado proyectado, con informe congelado (`mode:
+  read-only`, `appliedChanges: 0`) y sin capacidad de mutación.
+- **Cleaner: mutaciones acotadas** (`0d0de9f`): convierte un único hallazgo ya
+  revisado en una sustitución exacta de un solo fichero — una escritura, sin
+  reintentos ni rollback, con verificación fresca ligada al estado resultante.
+  Detectar una oportunidad sigue sin conceder permiso para escribir.
+- **Ledger de áreas revisadas** (`09af955`): evidencia normalizada de qué áreas
+  se revisaron, con outcome y frescura preservados.
+- **Asesor compartido de configuración y actualizaciones** (`327ab9a`): lectura
+  común para Pi y `cc-ein`.
+- **Sitio de documentación** (`fd69b0a`).
+
 ## [0.42.0] - 2026-08-05
 
 ### Fixed
