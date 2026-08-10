@@ -5,6 +5,85 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.50.0] - 2026-08-11
+
+Ein deja de ser solo un harness invocado desde el runtime y pasa a tener
+aplicación propia. `ein` abre una aplicación de terminal desde la que se ve y se
+controla el proyecto; el instalador se muda a `ein-install`.
+
+### Added
+
+- **Aplicación de terminal (`ein`)** (PRs #136, #137, #138, #139, #140): cinco
+  vistas que rotan con `tab` — estado del proyecto leído de OpenSpec,
+  configuración editable, sesiones recientes, sistema, y selección de runtime.
+  Atajos estilo LazyVim (`j`/`k`, `g`/`G`, `f`, `q`) con flechas como
+  alternativa, y banner animado 8-bit al arrancar.
+
+  Cada fila declara su fuente entre corchetes, y un dato desconocido se
+  distingue de uno vacío: `unknown` no es `—`. La aplicación presenta estado; no
+  lo inventa. Sin terminal interactiva pinta una vez, lo declara y sale con 0.
+
+- **Vista de configuración** (PR #137): modo de trabajo, TDD estricto, Hypa,
+  CodeGraph y persona, editables con `enter`. Escribe a través del dueño de cada
+  ajuste; `EIN.md` sigue siendo contexto de proyecto, no configuración.
+
+- **Resumen de sesiones** (PR #138): cada sesión reciente se identifica por lo
+  último que pidió el usuario. Solo se lee texto del usuario — la salida de
+  herramientas y el razonamiento del modelo nunca se muestran. La lectura barre
+  hacia atrás por trozos con tope, en vez de leer transcripts de megabytes.
+
+- **Vista de sistema** (PR #139): estado de actualización de Ein, binario de Pi,
+  paquetes y Claude Code, más el diagnóstico. Imprime el comando exacto; no lo
+  ejecuta.
+
+- **Vista de runtime** (PR #140): elegir Pi o Claude Code, ver sus sesiones y
+  lanzar. Absorbe lo que hacía `pi-ein workbench`, reutilizando los adaptadores
+  y el plan de lanzamiento existentes. Un proveedor sin soporte de reanudación
+  lo declara en vez de fallar al pulsar.
+
+- **Aviso de actualizaciones por componente en el launcher** (PRs #129, #130,
+  #131, bloque N): Ein, binario de Pi, paquetes y Claude Code, cada uno con su
+  comando exacto. Las comprobaciones corren en paralelo con la selección de
+  proyecto: nada espera por red. La ejecución sigue siendo del instalador.
+
+- **Puerta de tipos para `ein-pi`, `cc-ein` y `tests`** (PRs #133, #135):
+  `tsconfig.json` en la raíz, script `typecheck` y paso en CI. 127 errores de
+  tipo arreglados sin añadir un solo `any`.
+
+### Changed
+
+- **`ein` abre la aplicación; el instalador es `ein-install`** (PR #141). Un
+  solo `ein update` migra: el instalador se preserva bajo su nombre nuevo antes
+  de que la aplicación tome `ein`. Los verbos viejos siguen reconocidos y
+  redirigen con código de salida 2, para que un script que dependiera de ellos
+  falle ruidosamente en vez de aparentar éxito.
+
+- **El SDK de Pi se declara como dependencia del repo** (PR #132). Antes
+  resolvía desde la caché global de Bun: funcionaba por suerte, no por diseño.
+
+### Fixed
+
+- **El aviso de actualización del arranque ya no se calla del todo** (PR #128):
+  una sola comprobación que no podía completarse tumbaba el veredicto de las
+  demás y silenciaba actualizaciones reales. Se disparaba con
+  `PI_SKIP_VERSION_CHECK` y en toda instalación de Ein en desarrollo. El
+  fail-closed del asesor era correcto; el consumidor sobre-confiaba en él.
+
+- **La aplicación resuelve el home aislado por su cuenta** (PR #139): ejecutada
+  sin launcher delante no tenía `EIN_PI_AGENT_HOME` y habría leído
+  `~/.pi/agent`, que es Pi vanilla. Nunca lo asume: no leer nada es mejor que
+  leer las sesiones de otro.
+
+- **Un fallo de escritura de configuración ya no tumba la aplicación** (PR
+  #137): un checkout de solo lectura se reporta como rechazo en vez de propagar
+  la excepción.
+
+### Internal
+
+- `models-panel` sale de `lib/` al borde (PR #134): eran 663 líneas de TUI
+  interactivo en el módulo determinista, y el único import de valor del SDK que
+  quedaba en `lib/`.
+
 ## [0.45.1] - 2026-08-10
 
 ### Fixed
