@@ -5,6 +5,24 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.44.0] - 2026-08-10
+
+### Added
+
+- **Perfil explícito `scope-only-out-of-flow`** (`a5f8b26`, PR #123): añade
+  evidencia JSON canónica con hash y bytes del resumen, ligada al `HEAD` y al
+  árbol de Git, y conserva el motivo de auditoría. La elegibilidad es
+  estructural y exclusiva de scope; las entradas incompletas o incoherentes se
+  deniegan fail-closed. No equivale al cierre normal ni al `force` legacy, y
+  ofrece superficies de cierre equivalentes en Pi y Claude.
+
+### Changed
+
+- **Reconciliación de `docs-site-shell`** (`f710c23`, PR #123): se ajustó al
+  estado real sin fabricar fases retrospectivas, se separaron sus brechas
+  efectivas y se abrió el bloque M solo como scope; `surface-wiring` no se
+  declara implementado.
+
 ## [0.43.1] - 2026-08-10
 
 ### Fixed
