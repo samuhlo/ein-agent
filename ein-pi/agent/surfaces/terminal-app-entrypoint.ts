@@ -7,10 +7,13 @@
 import { stdin, stdout } from "node:process";
 import { projectProjectState } from "../lib/project-state.ts";
 import { applySetting, readSettings } from "../lib/project-settings.ts";
+import { summarizeSessions } from "../lib/session-summary.ts";
+import { listRecentSessions } from "../lib/sessions.ts";
 import {
   KEY_HINTS,
   buildConfigScreen,
   buildHomeScreen,
+  buildSessionsScreen,
   handleKey,
   renderScreen,
   type Screen,
@@ -61,6 +64,8 @@ export type TerminalAppOptions = Readonly<{
     read: (cwd: string) => ReturnType<typeof readSettings>;
     apply: (cwd: string, settingId: string, value: string) => boolean;
   }>;
+  /** Injected so tests exercise the sessions view without reading transcripts. */
+  sessions?: () => Parameters<typeof buildSessionsScreen>[0];
 }>;
 
 // `clear` only when redrawing an interactive screen: emitting it into a pipe
@@ -84,6 +89,13 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
   const build = options.project ?? ((cwd: string) => buildHomeScreen(projectProjectState({ cwd })));
   const settings = options.settings ?? { read: readSettings, apply: applySetting };
   const buildConfig = (cwd: string): Screen => buildConfigScreen(settings.read(cwd));
+  const readSessions = options.sessions ?? (() => summarizeSessions(listRecentSessions(5)));
+  const buildSessions = (): Screen => buildSessionsScreen(readSessions());
+  // One key cycles the three views, so there is nothing to remember beyond tab.
+  const nextView = (current: Screen): Screen => {
+    if (current.kind === "home") return buildConfig(parsed.cwd);
+    return current.kind === "config" ? buildSessions() : build(parsed.cwd);
+  };
   let screen = build(parsed.cwd);
 
   const interactive = options.io.isTTY && options.io.onKey !== undefined && !parsed.once;
@@ -107,9 +119,7 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
         return;
       }
       let status = effect.kind === "status" ? effect.message : "";
-      if (effect.kind === "switch-view") {
-        screen = screen.kind === "config" ? build(parsed.cwd) : buildConfig(parsed.cwd);
-      }
+      if (effect.kind === "switch-view") screen = nextView(screen);
       if (effect.kind === "apply") {
         // Persist through the setting's owner, then re-read: the screen shows
         // what disk says afterwards, not what the keystroke intended.

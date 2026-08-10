@@ -8,7 +8,7 @@
 import type { ProjectStateV1 } from "./project-state.ts";
 
 /** Where a row's content came from. Shown so the app never looks authoritative. */
-export type RowSource = "openspec" | "git" | "ein.md" | "config" | "app";
+export type RowSource = "openspec" | "git" | "ein.md" | "config" | "session" | "app";
 
 export type Row = Readonly<{
   label: string;
@@ -31,7 +31,7 @@ export type Setting = Readonly<{
   value: string | undefined;
 }>;
 
-export type ScreenKind = "home" | "config";
+export type ScreenKind = "home" | "config" | "sessions";
 
 export type Screen = Readonly<{
   kind: ScreenKind;
@@ -142,6 +142,38 @@ export function nextSettingValue(setting: Setting): string | undefined {
   return index === -1 ? setting.options[0] : setting.options[(index + 1) % setting.options.length];
 }
 
+export type SessionRow = Readonly<{
+  id: string;
+  project: string;
+  age: string;
+  lastAction: string | undefined;
+}>;
+
+/**
+ * Sessions view. Shows what the human last asked in each session, which is what
+ * makes one recognizable; transcripts stay private and are never rendered.
+ */
+export function buildSessionsScreen(sessions: readonly SessionRow[]): Screen {
+  const rows: Row[] = sessions.map((session) => ({
+    label: session.age,
+    value: session.lastAction,
+    source: "session" as const,
+  }));
+  return Object.freeze({
+    kind: "sessions",
+    title: "Ein — recent sessions",
+    query: "",
+    searching: false,
+    cursor: 0,
+    sections: Object.freeze([
+      Object.freeze({
+        title: rows.length ? "Recent sessions" : "Recent sessions (none found)",
+        rows: Object.freeze(rows),
+      }),
+    ]),
+  });
+}
+
 // ─── Filtering and cursor ────────────────────────────────────────────────────
 
 /** Flattened rows the cursor can land on, after the active filter. */
@@ -248,7 +280,13 @@ export function handleKey(screen: Screen, key: string): KeyOutcome {
 // ─── Rendering ───────────────────────────────────────────────────────────────
 
 export const KEY_HINTS = "j/k or ↑/↓ move · f search · enter inspect · tab config · q quit";
-export const CONFIG_KEY_HINTS = "j/k or ↑/↓ move · f search · enter/space cycle · tab state · q quit";
+export const CONFIG_KEY_HINTS = "j/k or ↑/↓ move · f search · enter/space cycle · tab sessions · q quit";
+export const SESSIONS_KEY_HINTS = "j/k or ↑/↓ move · f search · tab state · q quit";
+
+function hintsFor(kind: ScreenKind): string {
+  if (kind === "config") return CONFIG_KEY_HINTS;
+  return kind === "sessions" ? SESSIONS_KEY_HINTS : KEY_HINTS;
+}
 
 function renderValue(row: Row): string {
   if (row.value === undefined) return UNKNOWN_VALUE;
@@ -268,7 +306,13 @@ export function renderScreen(screen: Screen): readonly string[] {
   }
 
   if (rows.length === 0) {
-    lines.push("No rows match the search.", "", screen.kind === "config" ? CONFIG_KEY_HINTS : KEY_HINTS);
+    // An active filter that matches nothing is a different fact from a view
+    // that has nothing to show; saying "no match" when nothing was searched
+    // sends the reader looking for a filter that is not there.
+    const empty = screen.query.trim()
+      ? "No rows match the search."
+      : screen.sections.map((section) => section.title).join(" · ") || "Nothing to show.";
+    lines.push(empty, "", hintsFor(screen.kind));
     return Object.freeze(lines);
   }
 
@@ -284,6 +328,6 @@ export function renderScreen(screen: Screen): readonly string[] {
     lines.push(`${marker} ${row.label.padEnd(width)}  ${renderValue(row)}  [${row.source}]`);
   });
 
-  lines.push("", screen.kind === "config" ? CONFIG_KEY_HINTS : KEY_HINTS);
+  lines.push("", hintsFor(screen.kind));
   return Object.freeze(lines);
 }
