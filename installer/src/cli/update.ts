@@ -92,7 +92,7 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
   }
 
   if (dependencies.interactive !== false) {
-    p.outro(rendered.exitCode === 0 ? "Actualizacion finalizada." : "Actualizacion no aplicada.");
+    p.outro(rendered.exitCode === 0 ? "Actualización finalizada." : "Actualización no aplicada.");
   }
   return rendered.exitCode;
 }
@@ -117,7 +117,7 @@ async function refreshPi(
   const syncPackages = dependencies.syncPiPackages ?? installDeclaredPackages;
 
   const piSpinner = interactive ? p.spinner() : null;
-  piSpinner?.start("Actualizando pi a la ultima version");
+  piSpinner?.start("Actualizando pi a la última versión");
   const pi = await updatePi();
   piSpinner?.stop(pi.detail);
   if (!interactive) write(pi.detail);
@@ -158,10 +158,18 @@ async function refreshExternalDeps(
     if (!interactive) write("herramientas externas: no se pudieron revisar");
     return;
   }
-  spinner?.stop("Herramientas externas revisadas");
+  // Un fallo aquí no tumba el update, pero tampoco se disfraza de línea normal:
+  // una herramienta que no se actualizó tiene que leerse como tal.
+  const failures = steps.filter((step) => !step.ok);
+  spinner?.stop(
+    failures.length === 0
+      ? "Herramientas externas revisadas"
+      : `Herramientas externas: ${failures.length} sin actualizar`,
+  );
   for (const step of steps) {
-    if (interactive) p.log.message(step.detail);
-    else write(step.detail);
+    if (!interactive) write(step.detail);
+    else if (step.ok) p.log.message(step.detail);
+    else p.log.warn(step.detail);
   }
 }
 
@@ -171,6 +179,6 @@ async function confirmPiUpdate(): Promise<boolean> {
 }
 
 export async function confirmUpdate(): Promise<boolean> {
-  const response = await p.confirm({ message: "Continuar con la actualizacion verificada?" });
+  const response = await p.confirm({ message: "Continuar con la actualización verificada?" });
   return p.isCancel(response) ? false : response;
 }

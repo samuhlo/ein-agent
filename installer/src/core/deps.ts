@@ -7,8 +7,20 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Platform } from "./platform.ts";
-import { lookPath, run } from "./exec.ts";
-import { installEngram, resolveEngram } from "./engram.ts";
+import {
+  EXTERNAL_TOOL_TIMEOUT_MS,
+  lastLine,
+  lookPath,
+  run,
+  type RunOptions,
+  type RunResult,
+} from "./exec.ts";
+import {
+  brewFailureDetail,
+  ENGRAM_FORMULA,
+  installEngram,
+  resolveEngram,
+} from "./engram.ts";
 import {
   BUN_BIN_DIR,
   defaultPiInstallContext,
@@ -82,13 +94,20 @@ export function checkDeps(platform: Platform): DepStatus[] {
 
 export type InstallStep = { ok: boolean; detail: string };
 
+// Los instaladores externos corren bajo un spinner de clack, que repinta una
+// línea sola. Heredar stdio deja que brew/npm/curl escriban encima y parta la
+// terminal, así que su salida se captura y solo se rescata la línea de error.
+const CAPTURED: RunOptions = { timeoutMs: EXTERNAL_TOOL_TIMEOUT_MS };
+
+function why(res: RunResult): string {
+  return lastLine(res.stderr) || lastLine(res.stdout) || `exit ${res.code}`;
+}
+
 // bun via the official installer script. Lands in ~/.bun/bin.
 export async function installBun(): Promise<InstallStep> {
   if (lookPath("bun", EXTRA_PATH)) return { ok: true, detail: "bun ya presente" };
-  const res = await run("sh", ["-c", "curl -fsSL https://bun.sh/install | bash"], {
-    inherit: true,
-  });
-  if (!res.ok) return { ok: false, detail: "instalacion de bun fallo" };
+  const res = await run("sh", ["-c", "curl -fsSL https://bun.sh/install | bash"], CAPTURED);
+  if (!res.ok) return { ok: false, detail: `instalación de bun falló (${why(res)})` };
   return lookPath("bun", EXTRA_PATH)
     ? { ok: true, detail: "bun instalado" }
     : { ok: false, detail: "bun instalado pero no resoluble; reinicia el shell" };
@@ -99,13 +118,15 @@ export async function installPi(): Promise<InstallStep> {
   const bun = lookPath("bun", EXTRA_PATH);
   if (!bun) return { ok: false, detail: "bun no disponible; instala bun primero" };
   const res = await run(bun, ["install", "-g", "@earendil-works/pi-coding-agent"], {
-    inherit: true,
+    ...CAPTURED,
     extraPath: EXTRA_PATH,
   });
   // Always name the scoped package: the bare `pi` on npm is an unrelated math
   // library whose bin shadows the agent and breaks `pi`. A truncated hint here
   // is a footgun if a user copies it.
-  if (!res.ok) return { ok: false, detail: "'bun install -g @earendil-works/pi-coding-agent' fallo" };
+  if (!res.ok) {
+    return { ok: false, detail: `'bun install -g @earendil-works/pi-coding-agent' falló (${why(res)})` };
+  }
   return lookPath("pi", EXTRA_PATH)
     ? { ok: true, detail: "pi instalado" }
     : { ok: false, detail: "pi instalado pero no resoluble; reinicia el shell" };
@@ -155,10 +176,12 @@ export async function installDeclaredPackages(
 export async function installGh(platform: Platform): Promise<InstallStep> {
   if (lookPath("gh", EXTRA_PATH)) return { ok: true, detail: "gh ya presente" };
   switch (platform.packageManager) {
-    case "brew":
-      return (await run("brew", ["install", "gh"], { inherit: true })).ok
+    case "brew": {
+      const res = await run("brew", ["install", "gh"], CAPTURED);
+      return res.ok
         ? { ok: true, detail: "gh instalado via brew" }
-        : { ok: false, detail: "brew install gh fallo" };
+        : { ok: false, detail: `brew install gh falló (${why(res)})` };
+    }
     case "apt":
       return { ok: false, detail: "instala gh manualmente: sudo apt install gh" };
     case "dnf":
@@ -178,7 +201,7 @@ export async function installCodegraph(): Promise<InstallStep> {
   const res = await run(
     "sh",
     ["-c", "curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh"],
-    { inherit: true },
+    CAPTURED,
   );
   if (!res.ok) return { ok: false, detail: "instala codegraph manualmente: npm i -g @colbymchenry/codegraph" };
   const bin = resolveCodegraph();
@@ -195,7 +218,7 @@ export async function installHypa(): Promise<InstallStep> {
   const res = await run(
     "sh",
     ["-c", "curl -fsSL https://hypabolic.github.io/Hypa/install.sh | sh"],
-    { inherit: true },
+    CAPTURED,
   );
   if (!res.ok) return { ok: false, detail: "instala hypa manualmente: hypabolic.github.io/Hypa" };
   return resolveHypa()
@@ -216,9 +239,11 @@ export async function refreshCodegraph(): Promise<InstallStep> {
   const res = await run(
     "sh",
     ["-c", "curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh"],
-    { inherit: true },
+    CAPTURED,
   );
-  if (!res.ok) return { ok: false, detail: "codegraph: fallo al actualizar (se conserva la versión actual)" };
+  if (!res.ok) {
+    return { ok: false, detail: `codegraph: falló al actualizar, se conserva la versión actual (${why(res)})` };
+  }
   const bin = resolveCodegraph();
   if (bin) await run(bin, ["telemetry", "off"]);
   return { ok: true, detail: "codegraph actualizado (telemetría off)" };
@@ -229,25 +254,48 @@ export async function refreshHypa(): Promise<InstallStep> {
   const res = await run(
     "sh",
     ["-c", "curl -fsSL https://hypabolic.github.io/Hypa/install.sh | sh"],
-    { inherit: true },
+    CAPTURED,
   );
   return res.ok
     ? { ok: true, detail: "hypa actualizado" }
-    : { ok: false, detail: "hypa: fallo al actualizar (se conserva la versión actual)" };
+    : { ok: false, detail: `hypa: falló al actualizar, se conserva la versión actual (${why(res)})` };
 }
 
-export async function refreshEngram(platform: Platform): Promise<InstallStep> {
-  if (!resolveEngram(platform).found) return { ok: true, detail: "engram no instalado; nada que actualizar" };
+// Inyectables para poder fijar el contrato de honestidad sin tocar la red ni
+// depender del brew de la máquina que corre los tests.
+export type EngramRefreshDeps = {
+  run?: typeof run;
+  installEngram?: typeof installEngram;
+  resolveEngram?: typeof resolveEngram;
+};
+
+/**
+ * BLINDAJE -> El resultado de brew se comprueba SIEMPRE. La versión anterior
+ * descartaba el exit code y reportaba éxito fijo asumiendo que un fallo solo
+ * podía significar "ya al día"; con el gate de taps no confiados de Homebrew eso
+ * pasó a tapar un fallo real y dejar engram congelado sin decirlo.
+ */
+export async function refreshEngram(
+  platform: Platform,
+  deps: EngramRefreshDeps = {},
+): Promise<InstallStep> {
+  const exec = deps.run ?? run;
+  const resolve = deps.resolveEngram ?? resolveEngram;
+  const install = deps.installEngram ?? installEngram;
+
+  if (!resolve(platform).found) return { ok: true, detail: "engram no instalado; nada que actualizar" };
   if (platform.os === "darwin" && platform.packageManager === "brew") {
-    // brew upgrade es idempotente: si ya está al día, no hace nada. Best-effort.
-    await run("brew", ["upgrade", "engram"], { inherit: true });
-    return { ok: true, detail: "engram: brew upgrade aplicado (o ya al día)" };
+    // brew upgrade es idempotente: con la última ya instalada sale 0 sin hacer nada.
+    const res = await exec("brew", ["upgrade", "--formula", ENGRAM_FORMULA], CAPTURED);
+    return res.ok
+      ? { ok: true, detail: "engram: brew upgrade aplicado (o ya al día)" }
+      : { ok: false, detail: brewFailureDetail("upgrade", res) };
   }
   // Linux: installEngram siempre baja la última release y sobrescribe el binario.
-  const result = await installEngram(platform);
+  const result = await install(platform);
   return result.ok
     ? { ok: true, detail: "engram actualizado a la última release" }
-    : { ok: false, detail: `engram: fallo al actualizar (${result.detail})` };
+    : { ok: false, detail: `engram: falló al actualizar (${result.detail})` };
 }
 
 // Refresca las tres deps externas presentes. El orden no importa; cada una es

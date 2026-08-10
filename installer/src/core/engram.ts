@@ -9,7 +9,13 @@ import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Platform } from "./platform.ts";
-import { resolveFromCandidates, run } from "./exec.ts";
+import {
+  EXTERNAL_TOOL_TIMEOUT_MS,
+  lastLine,
+  resolveFromCandidates,
+  run,
+  type RunResult,
+} from "./exec.ts";
 import { BUN_BIN_DIR, LOCAL_BIN_DIR } from "./paths.ts";
 
 export type EngramResolution = {
@@ -69,14 +75,39 @@ export function resolveEngram(
 
 const ENGRAM_REPO = "Gentleman-Programming/engram";
 
+export const ENGRAM_TAP = "gentleman-programming/tap";
+// Cualificada y con --formula: el tap publica formula y cask con el mismo
+// nombre, y `brew install engram` a secas deja que brew adivine.
+export const ENGRAM_FORMULA = `${ENGRAM_TAP}/engram`;
+
 export type EngramInstall = { ok: boolean; path?: string; detail: string };
+
+/**
+ * Traduce un `brew` fallido a un detalle accionable.
+ *
+ * BLINDAJE -> Homebrew moderno se niega a cargar formulas de taps de terceros
+ * hasta que el usuario los confía explícitamente. Ein NO ejecuta `brew trust`
+ * por su cuenta: saltarse esa barrera en silencio es justo lo que Homebrew
+ * añadió el gate para impedir. Se reporta el fallo con el comando exacto.
+ */
+export function brewFailureDetail(action: "install" | "upgrade", res: RunResult): string {
+  if (/untrusted tap/i.test(`${res.stderr}\n${res.stdout}`)) {
+    return `engram: brew no confía en el tap; ejecuta \`brew trust ${ENGRAM_TAP}\` y repite`;
+  }
+  const reason = lastLine(res.stderr) || lastLine(res.stdout) || `exit ${res.code}`;
+  return `engram: brew ${action} falló (${reason})`;
+}
 
 // macOS: brew tap + install. Returns once engram resolves on PATH.
 async function installEngramMac(): Promise<EngramInstall> {
-  const tap = await run("brew", ["tap", "Gentleman-Programming/homebrew-tap"], { inherit: true });
-  if (!tap.ok) return { ok: false, detail: "brew tap fallo" };
-  const inst = await run("brew", ["install", "engram"], { inherit: true });
-  if (!inst.ok) return { ok: false, detail: "brew install engram fallo" };
+  const tap = await run("brew", ["tap", "Gentleman-Programming/homebrew-tap"], {
+    timeoutMs: EXTERNAL_TOOL_TIMEOUT_MS,
+  });
+  if (!tap.ok) return { ok: false, detail: `brew tap falló (${lastLine(tap.stderr) || `exit ${tap.code}`})` };
+  const inst = await run("brew", ["install", "--formula", ENGRAM_FORMULA], {
+    timeoutMs: EXTERNAL_TOOL_TIMEOUT_MS,
+  });
+  if (!inst.ok) return { ok: false, detail: brewFailureDetail("install", inst) };
   return { ok: true, detail: "engram instalado via brew" };
 }
 
@@ -118,20 +149,20 @@ function engramInstallDir(): string {
 // engram binary, place it in ~/.local/bin, chmod 755.
 async function installEngramLinux(platform: Platform): Promise<EngramInstall> {
   const url = await resolveEngramAssetUrl(platform);
-  if (!url) return { ok: false, detail: "no se encontro asset de engram para esta plataforma" };
+  if (!url) return { ok: false, detail: "no se encontró asset de engram para esta plataforma" };
 
   const staging = mkdtempSync(join(tmpdir(), "ein-engram-"));
   const tarPath = join(staging, "engram.tar.gz");
   try {
     const dl = await run("curl", ["-fsSL", "-o", tarPath, url]);
-    if (!dl.ok) return { ok: false, detail: `descarga fallo: ${dl.stderr}` };
+    if (!dl.ok) return { ok: false, detail: `descarga falló: ${dl.stderr}` };
 
     const extract = await run("tar", ["-xzf", tarPath, "-C", staging]);
-    if (!extract.ok) return { ok: false, detail: `extraccion fallo: ${extract.stderr}` };
+    if (!extract.ok) return { ok: false, detail: `extracción falló: ${extract.stderr}` };
 
     const extractedBin = join(staging, "engram");
     if (!existsSync(extractedBin)) {
-      return { ok: false, detail: "el tarball no contiene un binario 'engram' en la raiz" };
+      return { ok: false, detail: "el tarball no contiene un binario 'engram' en la raíz" };
     }
 
     const destDir = engramInstallDir();

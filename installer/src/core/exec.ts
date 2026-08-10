@@ -77,6 +77,20 @@ export async function run(
   }
 }
 
+// Techo para instaladores externos (brew, curl|sh, npm). Sin stdio heredado un
+// proceso atascado no da señal, así que se corta en vez de dejar el spinner
+// girando para siempre.
+export const EXTERNAL_TOOL_TIMEOUT_MS = 5 * 60_000;
+
+// Los procesos que corren bajo un spinner no pueden heredar stdio (pisarían la
+// línea que el spinner repinta), así que su salida se captura. Esto rescata la
+// última línea útil para el mensaje de error, que es lo que antes se veía suelto
+// en la terminal.
+export function lastLine(text: string): string {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  return lines[lines.length - 1] ?? "";
+}
+
 // Locate an executable on PATH without invoking a shell.
 export function lookPath(bin: string, extraPath: string[] = []): string | null {
   const pathDirs = (process.env.PATH ?? "").split(delimiter);
