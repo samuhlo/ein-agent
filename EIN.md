@@ -1,4 +1,4 @@
-<!-- ein:init rev=45c8c4e generado=2026-08-09 · refresca con /ein:init -->
+<!-- ein:init rev=0abd936 generado=2026-08-10 · refresca con /ein:init -->
 ## Overview
 <!-- CURADA — 2-3 líneas: qué es el proyecto y para quién. -->
 Harness de coding-agent sobre Pi Coding Agent y Claude Code: dos runtimes aislados con una sola disciplina de entrega. Convierte trabajo ambiguo en cambios pequeños, verificados y explicados, con el estado del cambio en disco (`openspec/`) y no en la conversación.
@@ -28,6 +28,7 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 <!-- SEMI-CURADA — una línea por carpeta/pieza: qué es. Ein la siembra; el modelo/tú la mantenéis al crecer el proyecto. -->
 - `cc-ein/` — Adaptador Claude y sincronización de superficies.
 - `docs/` — Documentación y roadmap del proyecto.
+- `docs-site/` — Sitio de documentación pública de Ein.
 - `e2e/` — Escenarios E2E del instalador en contenedores limpios.
 - `ein-pi/` — Core Ein, agentes y sincronización OpenSpec.
 - `installer/` — CLI, binarios y runtime del instalador.
@@ -45,6 +46,7 @@ _No detectados automáticamente._
 
 - `cc-ein/`
 - `docs/`
+- `docs-site/`
 - `e2e/`
 - `ein-pi/`
 - `installer/`
@@ -56,7 +58,11 @@ _No detectados automáticamente._
 
 - [README](README.md)
 - [CHANGELOG](CHANGELOG.md)
+- [docs/EIN_DOCUMENTATION_BRIEF.md](docs/EIN_DOCUMENTATION_BRIEF.md)
+- [docs/borrador_nuevas_feats_EIN.md](docs/borrador_nuevas_feats_EIN.md)
 - [docs/ein-multiagente-plan.md](docs/ein-multiagente-plan.md)
+- [docs/ein_futuras_features.md](docs/ein_futuras_features.md)
+- [docs/fricciones-dogfooding.md](docs/fricciones-dogfooding.md)
 - [docs/review-workload-guard.md](docs/review-workload-guard.md)
 - [docs/roadmap-beta.md](docs/roadmap-beta.md)
 - [docs/roadmap-codegraph-tdd-launcher.md](docs/roadmap-codegraph-tdd-launcher.md)
