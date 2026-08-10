@@ -5,6 +5,21 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.45.0] - 2026-08-10
+
+### Added
+
+- **Superficies invocables de cleaner y workbench en Pi y Claude** (`e45a13e`,
+  PR #124): los dos runtimes exponen entradas equivalentes sobre un runner
+  compartido que falla cerrado, y la cobertura verifica también el seam tal
+  como queda instalado.
+
+### Changed
+
+- **CI prepara Fish explícitamente** (`9588abb`, `0b444d3`, PR #124): los jobs
+  de Ubuntu y macOS instalan sus prerrequisitos antes de ejecutar las
+  comprobaciones que dependen de Fish.
+
 ## [0.44.1] - 2026-08-10
 
 ### Fixed
