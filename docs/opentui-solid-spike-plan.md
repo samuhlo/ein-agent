@@ -2,13 +2,13 @@
 
 ## Decision Summary
 
-Run a packaging-first, independently reversible spike. Use OpenTUI and SolidJS only for the interactive TTY path, preserve the current plain renderer for non-TTY output and `--once`, and make no migration decision until packaged Pi and Claude artifacts pass on all four supported targets.
+**STOP and retain the legacy renderer.** The final [decision report](../spikes/opentui-solid-packaging/decision-report.md) authorizes no production migration or candidate release.
 
-This is a spike, not a rewrite. EIN already has the product boundaries that must remain authoritative: project state, settings, sessions, runtime adapters, update probes, and model/effect behavior. OpenTUI is being evaluated only as a replacement for interactive presentation, input, layout, repainting, and terminal ownership.
+The spike proved its architecture, packaging correctness, and terminal lifecycle across packaged Pi and Claude artifacts on all four targets. It stopped because all eight cells breached mandatory startup and size thresholds, not because the implementation or functional behavior failed.
 
 The first question is distribution, not UI quality. Current Pi and Claude payloads stage repository-relative TypeScript source closures and compile `ein` on the consumer machine without external packages or `node_modules`. OpenTUI adds native and package-resolution requirements that this model does not currently satisfy. The primary packaging hypothesis is therefore a precompiled, target-specific terminal application binary; shipping or installing dependencies is only a comparison hypothesis.
 
-No production migration is authorized by this plan.
+WP1's renderer/controller seam, legacy behavior, and isolated spike evidence remain valuable and retained.
 
 ## Spike Baseline
 
@@ -96,7 +96,7 @@ Complete packages in order. Each package has its own evidence and rollback bound
 
 **Goal:** prove a controlled OpenTUI/Solid artifact can be built, selected, shipped, and started on every supported target through both Pi and Claude surfaces.
 
-**Progress:** implementation and evidence are available at [`spikes/opentui-solid-packaging/`](../spikes/opentui-solid-packaging/). Status is **pass**: workflow run `31509930916`, attempt 2, produced verified native artifacts for all eight Pi/Claude-by-target runtime cells. The linux-arm64 job conclusion field remains stale despite terminal run success and complete successful steps; its PASS is based on the validated uploaded native artifact, not that stale field. Baseline startup and size deltas remain Work Package 3 follow-up.
+**Progress:** complete. The packaging proof passed all eight Pi/Claude-by-target functional cells. Final measurements are recorded in the [decision report](../spikes/opentui-solid-packaging/decision-report.md); startup and size costs trigger the approved stop condition.
 
 **Implementation outline**
 
@@ -122,7 +122,7 @@ Complete packages in order. Each package has its own evidence and rollback bound
 
 **Goal:** separate controller state and effect execution from painting while preserving all existing output and behavior.
 
-**Progress:** implementation and evidence are available at [`spikes/opentui-solid-packaging/evidence-wp1/`](../spikes/opentui-solid-packaging/evidence-wp1/). The renderer-neutral controller now backs both legacy static and interactive paths; OpenTUI/Solid remain isolated to WP0, and Work Package 2 has not started.
+**Progress:** complete and retained. The renderer-neutral controller preserves legacy behavior and remains useful independently of OpenTUI/Solid.
 
 **Implementation outline**
 
@@ -145,7 +145,7 @@ Complete packages in order. Each package has its own evidence and rollback bound
 
 **Goal:** render one representative dashboard with Solid/OpenTUI on eligible TTYs while all other execution modes remain on the legacy path.
 
-**Progress:** the first work unit exists as an independently runnable, spike-local candidate at [`spikes/opentui-solid-packaging/`](../spikes/opentui-solid-packaging/) with evidence in [`evidence-wp2/`](../spikes/opentui-solid-packaging/evidence-wp2/). It reuses the production controller assembly and proves presentation, key, resize, lifecycle, cleanup, and Pi/Claude handoff behavior. Production TTY routing and packaged Pi/Claude binary selection are **not implemented**. Work Package 2 remains incomplete until the next packaging-selection work unit supplies those boundaries.
+**Progress:** complete for evaluation. The candidate passed presentation, key, resize, lifecycle, cleanup, and Pi/Claude handoff checks. Production selection and package wiring now belong to the rollback boundary because the final decision is STOP.
 
 **Implementation outline**
 
@@ -169,6 +169,8 @@ Complete packages in order. Each package has its own evidence and rollback bound
 ### 3. Packaged Acceptance And Decision Report
 
 **Goal:** test the real packaged application, compare it with the released baseline, and make an evidence-backed migration decision.
+
+**Progress:** complete. [Workflow run 31546992107](https://github.com/samuhlo/ein-agent/actions/runs/31546992107) passed every functional check and failed every cell's mandatory startup and size gate. The [decision report](../spikes/opentui-solid-packaging/decision-report.md) records **STOP and retain the legacy renderer**.
 
 **Implementation outline**
 
@@ -259,16 +261,16 @@ Recommend another bounded migration slice only when all mandatory thresholds pas
 
 ## Deliverables
 
-- [ ] Work Package 0 packaging proof with package/native inventories, checksums, commands, and the eight-cell result grid.
-- [ ] Primary versus comparison packaging analysis with a selected strategy or stop decision.
-- [ ] Renderer/controller contract and unchanged legacy behavior evidence.
-- [ ] One TTY-only Solid/OpenTUI dashboard slice with fixed-dimension tests. The spike-local candidate exists; production routing and packaged selection remain outstanding.
-- [ ] Packaged Pi and Claude acceptance results for all four targets.
-- [ ] Baseline/candidate startup and size measurements with raw samples or machine-readable summaries.
-- [ ] Cleanup and runtime/command handoff stress evidence.
-- [ ] Final decision report: retain, continue by bounded slice, or propose migration.
-- [ ] Exact rollback instructions for every changed package/build/UI seam.
+- [x] Work Package 0 packaging proof with package/native inventories, checksums, commands, and the eight-cell result grid.
+- [x] Primary versus comparison packaging analysis with a stop decision.
+- [x] Renderer/controller contract and unchanged legacy behavior evidence.
+- [x] One TTY-only Solid/OpenTUI dashboard slice with fixed-dimension tests.
+- [x] Packaged Pi and Claude acceptance results for all four targets.
+- [x] Baseline/candidate startup and size measurements with raw samples and machine-readable summaries.
+- [x] Cleanup and runtime/command handoff evidence.
+- [x] Final decision report: stop and retain the legacy renderer.
+- [x] Exact rollback instructions for every changed package/build/UI seam.
 
 ## Next Recommended Action
 
-Implement the next Work Package 2 packaging-selection work unit: preserve the legacy static predicate, select the already-proven target-specific candidate only for eligible production TTYs, and verify installed Pi/Claude payloads. Do not mark Work Package 2 complete until that selection passes.
+Execute the documented rollback: remove production selector, Pi/Claude ingress and lifecycle integration, and release-candidate wiring. Keep source-compiled legacy `ein` and `ein-app` as the only shipped path, publish no candidate release, and convert native acceptance into historical/manual evidence.
