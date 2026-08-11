@@ -22,22 +22,17 @@ import { collectRuntimeSessions, type RuntimeSessionList } from "../lib/runtime-
 import { pick } from "../lib/lang.ts";
 import { createPalette, shouldUseColor } from "../lib/theme.ts";
 import {
-  buildConfigView,
-  buildDashboard,
-  buildSessionsView,
-  buildStateView,
-  buildSystemView,
-  handleKey,
-  initialModel,
+  createTerminalAppController,
+  type LaunchOutcome,
+  type TerminalAppController,
+  type TerminalAppControllerPorts,
+} from "../lib/terminal-app-controller.ts";
+import {
   renderApp,
   splitKeys,
-  RUNTIME_LABEL,
-  type AppModel,
   type ProjectSummary,
   type Setting,
   type SystemComponent,
-  type View,
-  type ViewKind,
 } from "../lib/terminal-app.ts";
 import {
   checkClaudeCodeUpdate,
@@ -118,10 +113,7 @@ export type TerminalAppIO = Readonly<{
   onResize?: (handler: () => void) => () => void;
 }>;
 
-/** What happened when the terminal was handed to a runtime. */
-export type LaunchOutcome =
-  | { kind: "exited"; code: number }
-  | { kind: "unavailable"; reason: string };
+export type { LaunchOutcome } from "../lib/terminal-app-controller.ts";
 
 export type TerminalAppOptions = Readonly<{
   argv: readonly string[];
@@ -275,41 +267,41 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
   const launch = options.runtime?.launch ?? ((provider, reference) => productionLaunch(cwd, provider, reference));
   const runCommand = options.run ?? productionRun;
 
-  let focusedChange: string | undefined;
-  let sessionList = readSessions(cwd);
   const readSummary = options.summary
     ?? ((root: string, change?: string) =>
-      summaryFromState(projectProjectState({ cwd: root, ...(change ? { selectedChange: change } : {}) }), sessionList.entries.length));
-  let summary = readSummary(cwd, focusedChange);
-
-  const viewFor = (kind: ViewKind): View => {
-    switch (kind) {
-      case "config": return buildConfigView(settings.read(cwd));
-      case "sessions": {
-        sessionList = readSessions(cwd);
-        return buildSessionsView(sessionList.entries, sessionList.unavailable);
-      }
-      case "state": return buildStateView(summary);
-      case "system": return buildSystemView(readSystem());
-      default: return buildDashboard(summary);
-    }
-  };
-
-  let model: AppModel = initialModel(summary, buildDashboard(summary));
+      summaryFromState(projectProjectState({ cwd: root, ...(change ? { selectedChange: change } : {}) })));
   const chrome = () => chromeFor(io);
   const palette = createPalette(
     !parsed.once && shouldUseColor({ isTTY: io.isTTY, env: io.env ?? process.env }),
   );
 
-  const paint = (clear: boolean): void => {
+  const controllerPorts = (lifecycle: TerminalAppControllerPorts["lifecycle"]): TerminalAppControllerPorts => ({
+    readSummary: (focusedChange, sessions) => {
+      const next = readSummary(cwd, focusedChange);
+      return next.sessions === undefined ? Object.freeze({ ...next, sessions }) : next;
+    },
+    settings: {
+      read: () => settings.read(cwd),
+      apply: (settingId, value) => settings.apply(cwd, settingId, value),
+    },
+    readSessions: () => readSessions(cwd),
+    readSystem,
+    launch,
+    run: runCommand,
+    lifecycle,
+  });
+
+  const paint = (controller: TerminalAppController, clear: boolean): void => {
     if (clear) io.clear?.();
+    const model = controller.snapshot();
     const { columns, banner, tagline } = chrome();
-    io.write(`${renderApp(model, { columns, palette, banner, tagline, footer: footerFor(summary) }).join("\n")}\n`);
+    io.write(`${renderApp(model, { columns, palette, banner, tagline, footer: footerFor(model.summary) }).join("\n")}\n`);
   };
 
   const interactive = io.isTTY && io.onKey !== undefined && !parsed.once;
   if (!interactive) {
-    paint(false);
+    const controller = createTerminalAppController(controllerPorts({ release: () => {}, resume: () => {}, exit: () => {} }));
+    paint(controller, false);
     return 0;
   }
 
@@ -334,120 +326,62 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
   return await new Promise<number>((resolve) => {
     let stop: (() => void) | undefined;
     let stopResize: (() => void) | undefined;
+    let unsubscribe: (() => void) | undefined;
+    let finished = false;
+    let released = false;
+    let controller: TerminalAppController;
 
     const restore = (): void => {
       stop?.();
       stop = undefined;
       stopResize?.();
       stopResize = undefined;
+      unsubscribe?.();
+      unsubscribe = undefined;
       own(false);
     };
 
-    const finish = (code: number): void => {
+    const finish = (code: number, newline = true): void => {
+      if (finished) return;
+      finished = true;
       restore();
-      io.write("\n");
+      if (newline) io.write("\n");
       resolve(code);
     };
 
-    const status = (message: string): void => {
-      model = { ...model, status: message };
-      paint(true);
+    const repaint = (): void => {
+      if (finished) return;
+      try { paint(controller, true); } catch { finish(1); }
     };
 
-    // Handing the terminal over and taking it back is one mechanism, shared by
-    // launching a runtime and running a system command.
-    const handOver = async <T>(work: () => Promise<T>): Promise<T> => {
+    const release = (): void => {
+      released = true;
       stop?.();
       stop = undefined;
       own(false);
       io.write("\n");
-      return await work();
     };
 
     const resume = (): void => {
+      released = false;
       own(true);
       stop = io.onKey!(onKey);
-      paint(true);
+      repaint();
     };
 
     function onKey(key: string): void {
-      const outcome = handleKey(model, key);
-      model = outcome.model;
-      const effect = outcome.effect;
-
-      switch (effect.kind) {
-        case "quit":
-          finish(0);
-          return;
-        case "open":
-          model = { ...model, view: viewFor(effect.view), cursor: 0, query: "", searching: false, status: "" };
-          break;
-        case "refresh": {
-          // Evidence arrives after the first paint — update probes finish, a
-          // session ends, a file changes — so the view is rebuilt in place,
-          // keeping the cursor where the user left it.
-          const cursor = model.cursor;
-          summary = readSummary(cwd, focusedChange);
-          model = { ...model, summary, view: viewFor(model.view.kind), cursor };
-          break;
-        }
-        case "apply-setting": {
-          const cursor = model.cursor;
-          const applied = settings.apply(cwd, effect.settingId, effect.value);
-          // Re-read: the screen shows what disk says afterwards, never what the
-          // keystroke intended.
-          model = {
-            ...model,
-            view: buildConfigView(settings.read(cwd)),
-            cursor,
-            status: applied
-              ? ""
-              : pick(`No se pudo escribir ${effect.settingId}`, `Could not write ${effect.settingId}`),
-          };
-          break;
-        }
-        case "focus-change":
-          focusedChange = effect.change;
-          summary = readSummary(cwd, focusedChange);
-          model = { ...model, summary, view: buildStateView(summary) };
-          break;
-        case "launch":
-          void handOver(() => launch(effect.provider, effect.reference)).then(
-            (result) => {
-              if (result.kind === "exited") {
-                restore();
-                resolve(result.code);
-                return;
-              }
-              // A runtime that is not there is a fact to show, not a reason to
-              // end the session the user is in the middle of.
-              resume();
-              status(pick(
-                `${RUNTIME_LABEL[effect.provider]} no está disponible (${result.reason})`,
-                `${RUNTIME_LABEL[effect.provider]} is not available (${result.reason})`,
-              ));
-            },
-            () => { restore(); resolve(1); },
-          );
-          return;
-        case "run":
-          // The updater can replace the files this process is running from, so
-          // the app ends with the command instead of returning to a stale self.
-          void handOver(() => runCommand(effect.command)).then(
-            (code) => { restore(); resolve(code); },
-            () => { restore(); resolve(1); },
-          );
-          return;
-        case "status":
-        case "none":
-          break;
-      }
-      paint(true);
+      controller.dispatch({ kind: "key", key });
     }
 
+    controller = createTerminalAppController(controllerPorts({
+      release,
+      resume,
+      exit: (code) => finish(code, !released),
+    }));
+    unsubscribe = controller.subscribe(repaint);
     stop = io.onKey!(onKey);
-    stopResize = io.onResize?.(() => paint(true));
-    paint(true);
+    stopResize = io.onResize?.(repaint);
+    repaint();
   });
 }
 

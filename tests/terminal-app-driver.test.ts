@@ -140,6 +140,19 @@ describe("arguments", () => {
 });
 
 describe("without an interactive terminal", () => {
+  test("non-TTY, --once, and no-key routing are byte-identical at representative widths", async () => {
+    for (const columns of [40, 100]) {
+      const pipe = harness({ isTTY: false, columns });
+      const once = harness({ columns });
+      const noKeys = harness({ columns, keys: false });
+      await runTerminalApp(seams({ io: pipe.io }));
+      await runTerminalApp(seams({ argv: ["--once"], io: once.io }));
+      await runTerminalApp(seams({ io: noKeys.io }));
+      expect(once.written.join("")).toBe(pipe.written.join(""));
+      expect(noKeys.written.join("")).toBe(pipe.written.join(""));
+    }
+  });
+
   test("it paints once, says it is static and never clears", async () => {
     const h = harness({ isTTY: false });
     expect(await runTerminalApp(seams({ io: h.io }))).toBe(0);
@@ -194,6 +207,7 @@ describe("the interactive loop", () => {
     expect(await run).toBe(0);
     expect(h.altScreen).toEqual([true, false]);
     expect(h.raw).toEqual([true, false]);
+    expect(h.written.filter((text) => text === "\n")).toHaveLength(1);
     expect(h.listening()).toBe(false);
   });
 
@@ -299,6 +313,7 @@ describe("handing the terminal to a runtime", () => {
     // already in leaks escape sequences into whatever runs next.
     expect(h.altScreen).toEqual([true, false]);
     expect(h.raw).toEqual([true, false]);
+    expect(h.written.filter((text) => text === "\n")).toHaveLength(1);
   });
 
   test("resuming passes the reference of the chosen session", async () => {
@@ -389,6 +404,26 @@ describe("running a system command", () => {
     expect(ran).toHaveLength(0);
     h.send("q");
     expect(await run).toBe(0);
+  });
+
+  test("a command failure releases the terminal and exits safely", async () => {
+    const h = harness();
+    const run = runTerminalApp(seams({
+      io: h.io,
+      system: () => [
+        { id: "doctor", label: "Doctor", status: "available", command: ["ein-install", "doctor"] },
+      ],
+      run: async () => { throw new Error("boom"); },
+    }));
+    h.send(DASHBOARD_KEYS.system);
+    h.send(ENTER);
+    h.send(ENTER);
+
+    expect(await run).toBe(1);
+    expect(h.altScreen).toEqual([true, false]);
+    expect(h.raw).toEqual([true, false]);
+    expect(h.listening()).toBe(false);
+    expect(h.written.filter((text) => text === "\n")).toHaveLength(1);
   });
 });
 
