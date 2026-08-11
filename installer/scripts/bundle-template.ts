@@ -38,8 +38,12 @@ const OUT = join(INSTALLER_ROOT, "src", "assets", "template.tar.gz");
 // disabled-skill-conflicts/, run-history) queda fuera a proposito.
 const CORE_FILES = ["AGENTS.md"];
 const CORE_DIRS = ["agents", "docs", "prompts", "skills"];
-const AGENT_FILES = ["brand.json", "extensions-manifest.json", "models.json", "mcp.json", "settings.json"];
-const AGENT_DIRS = ["assets", "chains", "extensions", "lib", "themes"];
+// Allowlist del template. `app.ts` y `surfaces/` son ejecutables que el
+// instalador compila y que los launchers invocan por ruta: si no se despliegan,
+// fallan en la máquina del usuario y no al empaquetar. Ver
+// tests/template-agent-inventory.test.ts, que deriva lo requerido del código.
+const AGENT_FILES = ["app.ts", "brand.json", "extensions-manifest.json", "models.json", "mcp.json", "settings.json"];
+const AGENT_DIRS = ["assets", "chains", "extensions", "lib", "surfaces", "themes"];
 
 function tokenizeMcp(staging: string): void {
   const path = join(staging, "mcp.json");

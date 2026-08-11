@@ -420,7 +420,13 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
       appSource: join(piContext.agentDir, "app.ts"),
     });
     if (promoted.app.written) appHint = "ejecuta `ein`";
-    p.log.success(`Comandos: \`${INSTALLER_COMMAND}\` (instalador), \`ein\` (app${promoted.app.written ? "" : ", no desplegada"})`);
+    // La razón viaja al mensaje: descartarla fue lo que hizo indiagnosticable
+    // un `app-source-missing` en la primera instalación real.
+    p.log.success(
+      promoted.app.written
+        ? `Comandos: \`${INSTALLER_COMMAND}\` (instalador), \`ein\` (app)`
+        : `Comandos: \`${INSTALLER_COMMAND}\` (instalador); app no desplegada: ${promoted.app.reason ?? "desconocido"}`,
+    );
   } catch (error) {
     p.log.warn(`No se pudieron promover los comandos: ${error instanceof Error ? error.message : String(error)}`);
   }
