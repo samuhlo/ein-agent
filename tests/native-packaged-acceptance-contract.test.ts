@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { acceptancePasses, validateAcceptanceEvidence, type AcceptanceEvidence } from "../installer/scripts/native-packaged-acceptance.ts";
+import { acceptancePasses, ptyReady, validateAcceptanceEvidence, type AcceptanceEvidence } from "../installer/scripts/native-packaged-acceptance.ts";
 
 const workflow = readFileSync(join(import.meta.dir, "../.github/workflows/opentui-solid-packaging-spike.yml"), "utf8");
 const checksum = "a".repeat(64);
-const cell = { pass: true, packageSha256: checksum, candidateSha256: checksum, legacySha256: checksum, staticParity: true, tty: true, fallback: true, noDoubleLaunch: true, updateRollbackUninstall: true, offlineRuntime: true };
+const cell = { pass: true, failureCode: "" as const, failureDetail: "", packageSha256: checksum, candidateSha256: checksum, legacySha256: checksum, staticParity: true, tty: true, fallback: true, noDoubleLaunch: true, updateRollbackUninstall: true, offlineRuntime: true };
 const evidence: AcceptanceEvidence = { schema: "ein-native-packaged-acceptance/v1", revision: "b".repeat(40), target: "linux-x64", runner: { os: "linux", arch: "x64" }, pi: cell, claude: cell, overallPass: true };
 
 describe("native packaged acceptance contract", () => {
@@ -14,8 +14,14 @@ describe("native packaged acceptance contract", () => {
     const serialized = JSON.stringify(evidence);
     for (const forbidden of ["/Users/", "/home/", "username", "hostname", "HTTP_PROXY", "secret"]) expect(serialized).not.toContain(forbidden);
     expect(validateAcceptanceEvidence({ ...evidence, revision: "/Users/private" })).toBe(false);
-    const failed = { ...cell, pass: false, packageSha256: "", candidateSha256: "", legacySha256: "", staticParity: false, tty: false, fallback: false, noDoubleLaunch: false, updateRollbackUninstall: false, offlineRuntime: false };
+    const failed = { ...cell, pass: false, failureCode: "inspect" as const, failureDetail: "exception", packageSha256: "", candidateSha256: "", legacySha256: "", staticParity: false, tty: false, fallback: false, noDoubleLaunch: false, updateRollbackUninstall: false, offlineRuntime: false };
     expect(validateAcceptanceEvidence({ ...evidence, pi: failed, overallPass: false })).toBe(true);
+    expect(validateAcceptanceEvidence({ ...evidence, pi: { ...failed, failureDetail: "/Users/private" }, overallPass: false })).toBe(false);
+  });
+
+  test("waits for rendered input readiness rather than terminal setup output", () => {
+    expect(ptyReady("\x1b[?1049h")).toBe(false);
+    expect(ptyReady("j/k move  enter select  q quit")).toBe(true);
   });
 
   test("fails closed unless both surface cells pass", () => {

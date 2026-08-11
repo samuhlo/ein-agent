@@ -12,13 +12,15 @@ import { selectDashboardBinary } from "../../ein-pi/agent/launcher/dashboard-sel
 import { validateDashboardRelease } from "../../ein-pi/agent/lib/dashboard-package.ts";
 import { targetById } from "../../spikes/opentui-solid-packaging/src/targets.ts";
 
-type Check = Readonly<{ pass: boolean; packageSha256: string; candidateSha256: string; legacySha256: string; staticParity: boolean; tty: boolean; fallback: boolean; noDoubleLaunch: boolean; updateRollbackUninstall: boolean; offlineRuntime: boolean }>;
+type FailureCode = "" | "not-run" | "bundle" | "package" | "sync" | "inspect" | "lifecycle" | "checks";
+type Check = Readonly<{ pass: boolean; failureCode: FailureCode; failureDetail: string; packageSha256: string; candidateSha256: string; legacySha256: string; staticParity: boolean; tty: boolean; fallback: boolean; noDoubleLaunch: boolean; updateRollbackUninstall: boolean; offlineRuntime: boolean }>;
 export type AcceptanceEvidence = Readonly<{ schema: "ein-native-packaged-acceptance/v1"; revision: string; target: string; runner: { os: string; arch: string }; pi: Check; claude: Check; overallPass: boolean }>;
 
 const digest = (path: string): string => createHash("sha256").update(readFileSync(path)).digest("hex");
 function requireTrue(value: unknown): asserts value { if (!value) throw new Error("acceptance assertion failed"); }
-const emptyCheck = (): Check => ({ pass: false, packageSha256: "", candidateSha256: "", legacySha256: "", staticParity: false, tty: false, fallback: false, noDoubleLaunch: false, updateRollbackUninstall: false, offlineRuntime: false });
+const failedCheck = (failureCode: Exclude<FailureCode, "">, failureDetail = ""): Check => ({ pass: false, failureCode, failureDetail, packageSha256: "", candidateSha256: "", legacySha256: "", staticParity: false, tty: false, fallback: false, noDoubleLaunch: false, updateRollbackUninstall: false, offlineRuntime: false });
 export const acceptancePasses = (pi: Pick<Check, "pass">, claude: Pick<Check, "pass">): boolean => pi.pass && claude.pass;
+export const ptyReady = (output: string): boolean => output.includes("q quit");
 
 export function validateAcceptanceEvidence(value: unknown): value is AcceptanceEvidence {
   if (!value || typeof value !== "object") return false;
@@ -27,7 +29,10 @@ export function validateAcceptanceEvidence(value: unknown): value is AcceptanceE
     if (!item) return false;
     const outcomes = [item.staticParity, item.tty, item.fallback, item.noDoubleLaunch, item.updateRollbackUninstall, item.offlineRuntime];
     const checksum = (entry: string): boolean => /^[a-f0-9]{64}$/.test(entry) || (!item.pass && entry === "");
+    const detail = /^(?:|exception|(?:staticParity|tty|fallback|noDoubleLaunch|updateRollbackUninstall|offlineRuntime)(?:,(?:staticParity|tty|fallback|noDoubleLaunch|updateRollbackUninstall|offlineRuntime))*)$/.test(item.failureDetail);
     return typeof item.pass === "boolean" && [item.packageSha256, item.candidateSha256, item.legacySha256].every(checksum)
+      && ["", "not-run", "bundle", "package", "sync", "inspect", "lifecycle", "checks"].includes(item.failureCode) && detail
+      && (item.pass ? item.failureCode === "" && item.failureDetail === "" : item.failureCode !== "")
       && outcomes.every((entry) => typeof entry === "boolean") && item.pass === outcomes.every(Boolean);
   };
   return evidence.schema === "ein-native-packaged-acceptance/v1" && /^[a-f0-9]{40}$/.test(evidence.revision ?? "")
@@ -72,8 +77,8 @@ async function pty(app: string, home: string): Promise<boolean> {
   const terminal = new Bun.Terminal({ cols: 80, rows: 24, data: (_terminal, bytes) => { output += new TextDecoder().decode(bytes); } });
   const child = Bun.spawn([app], { cwd: home, env: offlineEnv(home), terminal, timeout: 8_000 });
   try {
-    for (let attempt = 0; attempt < 30 && output.length === 0; attempt += 1) await Bun.sleep(100);
-    requireTrue(output.length > 0);
+    for (let attempt = 0; attempt < 50 && !ptyReady(output); attempt += 1) await Bun.sleep(100);
+    requireTrue(ptyReady(output));
     terminal.write("q");
     const code = await child.exited;
     return code === 0 && output.includes("\x1b[?1049h") && output.includes("\x1b[?1049l");
@@ -136,7 +141,9 @@ async function inspectInstalled(app: string, packageRoot: string, candidate: Can
 }
 
 async function piCell(root: string, archive: string, candidate: CandidateInput): Promise<Check> {
-  const packageRoot = join(root, "package"); extract(archive, packageRoot); verifyPackage(packageRoot, "template-manifest.json", candidate);
+  let stage: FailureCode = "package";
+  try {
+  const packageRoot = join(root, "package"); extract(archive, packageRoot); verifyPackage(packageRoot, "template-manifest.json", candidate); stage = "inspect";
   const bin = join(root, "home/bin");
   const first = await promotePiAppPackage({ binDir: bin, agentDir: packageRoot, platform: candidate.target.os, arch: candidate.target.arch, releaseId: "fixture-r1" }); first.commit();
   const app = join(bin, "ein"); const dashboard = join(bin, ".ein-dashboard");
@@ -144,41 +151,48 @@ async function piCell(root: string, archive: string, candidate: CandidateInput):
   const appBytes = readFileSync(app); const pointer = readFileSync(join(dashboard, "current.json"));
   const second = await promotePiAppPackage({ binDir: bin, agentDir: packageRoot, platform: candidate.target.os, arch: candidate.target.arch, releaseId: "fixture-r2" }); second.rollback();
   requireTrue(readFileSync(app).equals(appBytes) && readFileSync(join(dashboard, "current.json")).equals(pointer) && !existsSync(join(dashboard, "releases/fixture-r2")));
-  writeFileSync(join(bin, "unrelated"), "keep"); removeAppPackage({ root: bin, commands: ["ein"] });
+  stage = "lifecycle"; writeFileSync(join(bin, "unrelated"), "keep"); removeAppPackage({ root: bin, commands: ["ein"] });
   const lifecycle = !existsSync(app) && !existsSync(join(dashboard, "current.json")) && existsSync(join(bin, "unrelated"));
-  return { pass: Object.values(inspected).every(Boolean) && lifecycle, packageSha256: digest(archive), ...inspected, updateRollbackUninstall: lifecycle };
+  const failures = Object.entries({ ...inspected, updateRollbackUninstall: lifecycle }).filter(([, pass]) => !pass).map(([name]) => name).join(",");
+  return { pass: failures === "", failureCode: failures ? "checks" : "", failureDetail: failures, packageSha256: digest(archive), ...inspected, updateRollbackUninstall: lifecycle };
+  } catch { return failedCheck(stage as Exclude<FailureCode, "">, "exception"); }
 }
 
 async function claudeCell(root: string, archive: string, candidate: CandidateInput): Promise<Check> {
-  const payload = join(root, "payload"); extract(archive, payload); verifyPackage(payload, "ein-cc-payload-manifest.json", candidate);
+  let stage: FailureCode = "package";
+  try {
+  const payload = join(root, "payload"); extract(archive, payload); verifyPackage(payload, "ein-cc-payload-manifest.json", candidate); stage = "sync";
   const home = join(root, "home"); const destination = join(home, ".claude-ein"); mkdirSync(home, { recursive: true });
   process.env.HOME = home; process.env.CC_EIN_HOME = destination;
   const sync = await import(`${pathToFileURL(join(payload, "cc-ein/sync.ts")).href}?acceptance=${Date.now()}`) as {
     runSync: () => Promise<{ ok: boolean }>;
     promoteClaudeTerminalApp: (options: { repo: string; destination: string; platform: string; arch: string; releaseId: string }) => Promise<{ rollback: () => void }>;
   };
-  const result = await sync.runSync(); requireTrue(result.ok);
+  const result = await sync.runSync(); requireTrue(result.ok); stage = "inspect";
   const bin = join(destination, "bin"); const app = join(bin, "ein-app"); const dashboard = join(bin, ".ein-dashboard");
   const inspected = await inspectInstalled(app, dashboard, candidate, home);
   const appBytes = readFileSync(app); const pointer = readFileSync(join(dashboard, "current.json"));
   const second = await sync.promoteClaudeTerminalApp({ repo: payload, destination: bin, platform: candidate.target.os, arch: candidate.target.arch, releaseId: "fixture-r2" }); second.rollback();
   requireTrue(readFileSync(app).equals(appBytes) && readFileSync(join(dashboard, "current.json")).equals(pointer));
-  writeFileSync(join(bin, "unrelated"), "keep"); removeAppPackage({ root: bin, commands: ["ein-app"] });
+  stage = "lifecycle"; writeFileSync(join(bin, "unrelated"), "keep"); removeAppPackage({ root: bin, commands: ["ein-app"] });
   const lifecycle = !existsSync(app) && !existsSync(join(dashboard, "current.json")) && existsSync(join(bin, "unrelated"));
-  return { pass: Object.values(inspected).every(Boolean) && lifecycle, packageSha256: digest(archive), ...inspected, updateRollbackUninstall: lifecycle };
+  const failures = Object.entries({ ...inspected, updateRollbackUninstall: lifecycle }).filter(([, pass]) => !pass).map(([name]) => name).join(",");
+  return { pass: failures === "", failureCode: failures ? "checks" : "", failureDetail: failures, packageSha256: digest(archive), ...inspected, updateRollbackUninstall: lifecycle };
+  } catch { return failedCheck(stage as Exclude<FailureCode, "">, "exception"); }
 }
 
 export async function runAcceptance(targetId: string, revision: string, evidencePath: string): Promise<AcceptanceEvidence> {
   const target = targetById(targetId); requireTrue(target.os === process.platform && target.arch === process.arch);
   const root = mkdtempSync(join(tmpdir(), "ein-native-acceptance-"));
   const candidate: CandidateInput = { target, sourceRevision: revision, candidateBinary: join(process.cwd(), `dist/ein-opentui-dashboard-${target.id}`), candidateInventory: join(process.cwd(), `dist/ein-opentui-dashboard-${target.id}.json`) };
-  let pi = emptyCheck(); let claude = emptyCheck();
+  let pi = failedCheck("not-run"); let claude = failedCheck("not-run");
   try {
     verifyCandidateInput(candidate);
     const piArchive = join(root, "template.tar.gz"); const claudeArchive = join(root, "cc-ein-runtime.tar.gz");
-    try { await bundleTemplate({ candidate, out: piArchive }); pi = await piCell(join(root, "pi"), piArchive, candidate); } catch { pi = emptyCheck(); }
-    try { await bundleCcEin({ candidate, out: claudeArchive }); claude = await claudeCell(join(root, "claude"), claudeArchive, candidate); } catch { claude = emptyCheck(); }
+    try { await bundleTemplate({ candidate, out: piArchive }); pi = await piCell(join(root, "pi"), piArchive, candidate); } catch { pi = failedCheck("bundle", "exception"); }
+    try { await bundleCcEin({ candidate, out: claudeArchive }); claude = await claudeCell(join(root, "claude"), claudeArchive, candidate); } catch { claude = failedCheck("bundle", "exception"); }
   } finally {
+    for (const [surface, check] of [["pi", pi], ["claude", claude]] as const) if (!check.pass) console.error(`native packaged acceptance ${surface} failed: ${check.failureCode}${check.failureDetail ? `/${check.failureDetail}` : ""}`);
     const evidence: AcceptanceEvidence = { schema: "ein-native-packaged-acceptance/v1", revision, target: target.id, runner: { os: process.platform, arch: process.arch }, pi, claude, overallPass: acceptancePasses(pi, claude) };
     mkdirSync(dirname(evidencePath), { recursive: true }); writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
     rmSync(root, { recursive: true, force: true });
