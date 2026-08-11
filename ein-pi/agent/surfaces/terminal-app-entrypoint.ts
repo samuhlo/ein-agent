@@ -134,6 +134,47 @@ export type TerminalAppOptions = Readonly<{
   run?: (command: readonly string[]) => Promise<number>;
 }>;
 
+export type TerminalAppControllerFactory = (
+  lifecycle: TerminalAppControllerPorts["lifecycle"],
+) => TerminalAppController;
+
+export function createTerminalAppControllerFactoryForCwd(
+  options: TerminalAppOptions,
+  cwd: string,
+): TerminalAppControllerFactory {
+  const settings = options.settings ?? { read: readSettings, apply: applySetting };
+  const readSessions = options.sessions ?? ((root: string) => productionSessions(root));
+  const updateSnapshot = options.system ? undefined : startUpdateEvidenceSnapshot({
+    binary: async () => checkPiBinaryUpdate(await readPiBinaryVersion(defaultPiManifestPaths(homedir()))),
+    packages: async () => ({ source: "packages", status: "skipped", reason: "requires-pi-runtime", freshness: "unknown" }),
+    ein: async () => checkEinTemplateUpdate(await readEinVersion(resolveAgentDir())),
+    claude: () => checkClaudeCodeUpdate(spawnVersionProbe),
+  });
+  const readSystem = options.system
+    ?? (() => systemComponentsFrom(updateSnapshot?.read(), { engramInstalled: existsSync(engramHome()) }));
+  const launch = options.runtime?.launch ?? ((provider, reference) => productionLaunch(cwd, provider, reference));
+  const runCommand = options.run ?? productionRun;
+  const readSummary = options.summary
+    ?? ((root: string, change?: string) =>
+      summaryFromState(projectProjectState({ cwd: root, ...(change ? { selectedChange: change } : {}) })));
+
+  return (lifecycle) => createTerminalAppController({
+    readSummary: (focusedChange, sessions) => {
+      const next = readSummary(cwd, focusedChange);
+      return next.sessions === undefined ? Object.freeze({ ...next, sessions }) : next;
+    },
+    settings: {
+      read: () => settings.read(cwd),
+      apply: (settingId, value) => settings.apply(cwd, settingId, value),
+    },
+    readSessions: () => readSessions(cwd),
+    readSystem,
+    launch,
+    run: runCommand,
+    lifecycle,
+  });
+}
+
 // ─── project summary ─────────────────────────────────────────────────────────
 
 function dirtyCount(state: ProjectStateV1): number | undefined {
@@ -252,44 +293,13 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
   if (parsed.kind === "usage") { io.write(`${HELP}\n`); return 2; }
 
   const cwd = parsed.cwd;
-  const settings = options.settings ?? { read: readSettings, apply: applySetting };
-  const readSessions = options.sessions ?? ((root: string) => productionSessions(root));
-  // Probes start at the edge so they run while the intro plays and the first
-  // screen is read; nothing in the loop ever waits on the network.
-  const snapshot = options.system ? undefined : startUpdateEvidenceSnapshot({
-    binary: async () => checkPiBinaryUpdate(await readPiBinaryVersion(defaultPiManifestPaths(homedir()))),
-    packages: async () => ({ source: "packages", status: "skipped", reason: "requires-pi-runtime", freshness: "unknown" }),
-    ein: async () => checkEinTemplateUpdate(await readEinVersion(resolveAgentDir())),
-    claude: () => checkClaudeCodeUpdate(spawnVersionProbe),
-  });
-  const readSystem = options.system
-    ?? (() => systemComponentsFrom(snapshot?.read(), { engramInstalled: existsSync(engramHome()) }));
-  const launch = options.runtime?.launch ?? ((provider, reference) => productionLaunch(cwd, provider, reference));
-  const runCommand = options.run ?? productionRun;
-
-  const readSummary = options.summary
-    ?? ((root: string, change?: string) =>
-      summaryFromState(projectProjectState({ cwd: root, ...(change ? { selectedChange: change } : {}) })));
+  // Edge probes begin before intro/render work, while lifecycle ownership is
+  // supplied only when the selected renderer constructs its controller.
+  const createController = createTerminalAppControllerFactoryForCwd(options, cwd);
   const chrome = () => chromeFor(io);
   const palette = createPalette(
     !parsed.once && shouldUseColor({ isTTY: io.isTTY, env: io.env ?? process.env }),
   );
-
-  const controllerPorts = (lifecycle: TerminalAppControllerPorts["lifecycle"]): TerminalAppControllerPorts => ({
-    readSummary: (focusedChange, sessions) => {
-      const next = readSummary(cwd, focusedChange);
-      return next.sessions === undefined ? Object.freeze({ ...next, sessions }) : next;
-    },
-    settings: {
-      read: () => settings.read(cwd),
-      apply: (settingId, value) => settings.apply(cwd, settingId, value),
-    },
-    readSessions: () => readSessions(cwd),
-    readSystem,
-    launch,
-    run: runCommand,
-    lifecycle,
-  });
 
   const paint = (controller: TerminalAppController, clear: boolean): void => {
     if (clear) io.clear?.();
@@ -300,7 +310,7 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
 
   const interactive = io.isTTY && io.onKey !== undefined && !parsed.once;
   if (!interactive) {
-    const controller = createTerminalAppController(controllerPorts({ release: () => {}, resume: () => {}, exit: () => {} }));
+    const controller = createController({ release: () => {}, resume: () => {}, exit: () => {} });
     paint(controller, false);
     return 0;
   }
@@ -373,11 +383,11 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
       controller.dispatch({ kind: "key", key });
     }
 
-    controller = createTerminalAppController(controllerPorts({
+    controller = createController({
       release,
       resume,
       exit: (code) => finish(code, !released),
-    }));
+    });
     unsubscribe = controller.subscribe(repaint);
     stop = io.onKey!(onKey);
     stopResize = io.onResize?.(repaint);
