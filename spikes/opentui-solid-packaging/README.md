@@ -2,6 +2,8 @@
 
 This removable Bun package proves dependency resolution, native embedding, standalone compilation, and spike-only Pi/Claude package layouts. Its WP0 lifecycle probe imports no EIN product code and changes no production installer or release asset.
 
+The final [decision report](./decision-report.md) records **STOP and retain the legacy renderer**. The spike authorizes no production migration or candidate release.
+
 It now also contains the first Work Package 2 work unit: a controller-backed dashboard candidate with deterministic rendering, key translation, resize reactivity, renderer-generation lifecycle, and Pi/Claude handoff tests. The candidate imports EIN controller assembly only from its isolated entrypoint; production routing and packaged Pi/Claude selection remain unchanged.
 
 ## Reproduce
