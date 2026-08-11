@@ -14,6 +14,7 @@ describe("OpenTUI spike test isolation", () => {
     expect(files).toEqual([
       "dashboard-key.case.ts",
       "dashboard-reactivity.case.tsx",
+      "dashboard-static-boundary.case.ts",
       "dashboard-view.case.tsx",
       "package-layout.case.ts",
       "probe-view.case.tsx",

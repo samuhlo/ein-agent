@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "bun run scripts/build.ts",
+    "build:candidate": "bun run scripts/build-candidate.ts",
     "check": "bun run typecheck && bun run test",
     "inventory": "bun run scripts/stage.ts",
     "test": "bun test --preload @opentui/solid/preload ./tests/*.case.ts ./tests/*.case.tsx",
