@@ -1,0 +1,38 @@
+{
+  "format": "ein-opentui-solid-package-cell/v1",
+  "surface": "pi",
+  "target": "linux-arm64",
+  "bunTarget": "bun-linux-arm64",
+  "libc": "glibc",
+  "nativePackage": "@opentui/core-linux-arm64",
+  "packageVersions": {
+    "@opentui/core": "0.5.1",
+    "@opentui/solid": "0.5.1",
+    "solid-js": "1.9.12",
+    "native": "0.5.1"
+  },
+  "artifact": {
+    "path": "template/bin/ein-opentui-solid-probe",
+    "sha256": "a8a867eb5ae511c53d5cc408a3a8aa0a2608bcc2ebcbabebb379d397759c9a29",
+    "bytes": 117942416,
+    "mode": "0755",
+    "binaryFormat": "elf",
+    "nativePackageMarkers": [
+      "@opentui/core-linux-arm64"
+    ]
+  },
+  "ownership": {
+    "owner": "spike-only",
+    "replacement": "sibling-staging-then-rename",
+    "rollback": "surface cell directory is independently removable",
+    "productionAssetsChanged": false
+  },
+  "provenance": {
+    "repository": "ein-agent",
+    "commit": "e922b805443b2792cf39e98e764ab2bcf2fa880e",
+    "worktree": "dirty",
+    "lockSha256": "b96649b081f23eb5a9fe3eb0a9f8db59202423325e00f3bc917328b404ee78c7",
+    "entrySha256": "f848ef755a08a8c0b456e7537a2c9f7d06cf2fde91896d3b2bb01e83279c0985",
+    "buildRuntime": "bun-1.3.14"
+  }
+}
