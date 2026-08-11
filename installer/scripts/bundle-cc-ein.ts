@@ -23,7 +23,7 @@ import {
   CC_EIN_PAYLOAD_FILES,
   CC_EIN_PAYLOAD_MANIFEST,
   CC_EIN_PAYLOAD_ROOTS,
-  CC_EIN_PAYLOAD_SDD_ENTRY,
+  CC_EIN_PAYLOAD_SOURCE_ENTRIES,
   type CcEinPayloadManifest,
   type CcEinPayloadManifestEntry,
 } from "../src/core/cc-payload-inventory.ts";
@@ -69,8 +69,8 @@ function resolveImportedFile(from: string, specifier: string): string | null {
   throw new Error(`Import relativo del payload no encontrado: ${specifier} desde ${from}`);
 }
 
-function collectSddClosure(entry: string): string[] {
-  const pending = [sourcePath(entry)];
+function collectSourceClosure(entries: readonly string[]): string[] {
+  const pending = entries.map(sourcePath);
   const found = new Set<string>();
   while (pending.length > 0) {
     const current = pending.pop()!;
@@ -109,7 +109,7 @@ async function main(): Promise<void> {
     const files = new Set<string>();
     for (const root of CC_EIN_PAYLOAD_ROOTS) addSourcePath(root, staging, files);
     for (const file of CC_EIN_PAYLOAD_FILES) addSourcePath(file, staging, files);
-    for (const source of collectSddClosure(CC_EIN_PAYLOAD_SDD_ENTRY)) addFile(source, staging, files);
+    for (const source of collectSourceClosure(CC_EIN_PAYLOAD_SOURCE_ENTRIES)) addFile(source, staging, files);
 
     const manifest: CcEinPayloadManifest = {
       format: "ein-cc-payload/v1",

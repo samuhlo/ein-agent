@@ -5,6 +5,30 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.50.1] - 2026-08-11
+
+### Fixed
+
+- **El payload de Claude ya incluye los binarios que compila** (PR pendiente):
+  `cc-ein/sync.ts` compila el surface runner y la app de terminal desde
+  `ein-pi/agent/`, pero el inventario del payload solo empaquetaba `cc-ein/` y
+  `ein-pi/core/`. En una instalación empaquetada esos ficheros no existían y la
+  compilación fallaba en la máquina del usuario.
+
+  El surface runner arrastraba este fallo **desde que se publicó el bloque M**:
+  `cc-ein workbench` y `cc-ein cleaner` nunca funcionaron desde una instalación
+  empaquetada, solo desde un checkout del repositorio. La app de terminal era un
+  segundo caso del mismo fallo, no uno nuevo.
+
+  Ahora el payload incluye el cierre de imports de cada punto de entrada que
+  `sync.ts` compila, y esas rutas están entre las requeridas: un paquete
+  incompleto falla al empaquetar, no en tu máquina.
+
+- **Las compilaciones dejan de tragarse el error** (PR pendiente): corrían con
+  `stdio: "ignore"`, así que un simple "fichero no encontrado" llegaba como
+  `Command failed` sin causa. Las tres compilaciones de `sync.ts` comparten
+  ahora una sola forma que conserva `stdout` y `stderr` del proceso hijo.
+
 ## [0.50.0] - 2026-08-11
 
 Ein deja de ser solo un harness invocado desde el runtime y pasa a tener

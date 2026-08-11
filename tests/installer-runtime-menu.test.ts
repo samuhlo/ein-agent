@@ -106,6 +106,8 @@ describe("Claude runtime payload", () => {
     for (const path of [
       "cc-ein/sync.ts",
       "cc-ein/sdd-cli/cli.ts",
+      "ein-pi/agent/surfaces/surface-runner.ts",
+      "ein-pi/agent/app.ts",
       "ein-pi/core",
       "pi-ein/pi-ein.fish",
     ]) {
