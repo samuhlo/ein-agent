@@ -5,8 +5,7 @@
 // =============================================================================
 
 import * as p from "@clack/prompts";
-import { promotePiAppPackage } from "../core/app-package-promotion.ts";
-import { INSTALLER_COMMAND } from "../core/command-names.ts";
+import { INSTALLER_COMMAND, promoteCommandNames } from "../core/command-names.ts";
 import piEinFish from "../../../pi-ein/pi-ein.fish" with { type: "text" };
 import { describePlatform, detectPlatform, type Platform } from "../core/platform.ts";
 import { run } from "../core/exec.ts";
@@ -415,18 +414,21 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
   let appHint = "usa `pi-ein app`";
   try {
     const selfPath = process.execPath;
-    const promoted = await promotePiAppPackage({
+    const promoted = promoteCommandNames({
       binDir: dirname(selfPath),
       selfPath,
-      agentDir: piContext.agentDir,
-      platform: platform.os,
-      arch: platform.arch,
+      appSource: join(piContext.agentDir, "app.ts"),
     });
-    promoted.commit();
-    appHint = "ejecuta `ein`";
-    p.log.success(`Comandos: \`${INSTALLER_COMMAND}\` (instalador), \`ein\` (app)`);
+    if (promoted.app.written) appHint = "ejecuta `ein`";
+    // La razón viaja al mensaje: descartarla fue lo que hizo indiagnosticable
+    // un `app-source-missing` en la primera instalación real.
+    p.log.success(
+      promoted.app.written
+        ? `Comandos: \`${INSTALLER_COMMAND}\` (instalador), \`ein\` (app)`
+        : `Comandos: \`${INSTALLER_COMMAND}\` (instalador); app no desplegada: ${promoted.app.reason ?? "desconocido"}`,
+    );
   } catch (error) {
-    return failure(`No se pudieron promover los comandos: ${error instanceof Error ? error.message : String(error)}`);
+    p.log.warn(`No se pudieron promover los comandos: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   return { target: "pi", ok: true, detail: `Ein listo. Para la aplicación, ${appHint}; para el agente, \`pi\`.` };

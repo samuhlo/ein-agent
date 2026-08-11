@@ -90,7 +90,7 @@ describe("installed dashboard package", () => {
 describe("dashboard selector", () => {
   const ports = (overrides: Partial<DashboardLauncherPorts> = {}): DashboardLauncherPorts => ({
     platform: "darwin", arch: "arm64", stdinTTY: true, stdoutTTY: true,
-    validate: async () => ({ legacy: "/package/legacy", candidate: "/package/candidate" }), spawn: async () => ({ started: true, code: 0 }), ...overrides,
+    validate: async () => "/package/candidate", spawn: async () => ({ started: true, code: 0 }), ...overrides,
   });
   const options = (injected: DashboardLauncherPorts, argv: string[] = []) => ({
     argv, cwd: "/work", packageRoot: "/package", legacyBinary: "/package/legacy", ports: injected,
