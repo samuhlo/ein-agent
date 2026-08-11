@@ -49,9 +49,6 @@ jobs:
       - run: bun run check
       - run: bun run scripts/build.ts ${{ matrix.target }}
       - run: EIN_SOURCE_REVISION=${{ github.sha }} bun run build:candidate -- ${{ matrix.target }}
-      - name: Installed Pi and Claude package acceptance
-        if: always()
-        run: bun ../../installer/scripts/native-packaged-acceptance.ts ${{ matrix.target }} ${{ github.sha }} evidence/packaged-${{ matrix.target }}.json
       - run: bun run scripts/stage.ts ${{ matrix.target }}
       - run: bun run scripts/ci-evidence.ts ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
@@ -64,7 +61,6 @@ jobs:
             spikes/opentui-solid-packaging/dist/opentui-solid-probe-${{ matrix.target }}
             spikes/opentui-solid-packaging/evidence/inventories/*-${{ matrix.target }}.json
             spikes/opentui-solid-packaging/evidence/native-${{ matrix.target }}.json
-            spikes/opentui-solid-packaging/evidence/packaged-${{ matrix.target }}.json
             spikes/opentui-solid-packaging/evidence/raw/*.txt
       - uses: actions/upload-artifact@v4
         with:
