@@ -25,8 +25,6 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createHash } from "node:crypto";
-import { candidateInputFromArgs, stageDashboardSeed, verifyCandidateInput, type CandidateInput } from "./dashboard-candidate-input.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = dirname(HERE);
@@ -75,7 +73,7 @@ function tokenizeSettings(staging: string): void {
 // que consumen `ein doctor` (validar lo desplegado contra lo que se distribuyo,
 // sin listas cableadas) y `ein install --dry-run` (mostrar el plan). Se genera
 // escaneando el staging: no puede derivar del contenido real.
-function writeManifest(staging: string, candidate?: CandidateInput): void {
+function writeManifest(staging: string): void {
   const pkg = JSON.parse(
     readFileSync(join(INSTALLER_ROOT, "package.json"), "utf8"),
   ) as { version?: string };
@@ -97,7 +95,7 @@ function writeManifest(staging: string, candidate?: CandidateInput): void {
     if (Array.isArray(parsed.core)) extensions = (parsed.core as string[]).slice().sort();
   }
 
-	const manifest: Record<string, unknown> = {
+  const manifest = {
     templateVersion: pkg.version ?? "0.0.0",
     generatedAt: new Date().toISOString(),
     agents: listMd(join(staging, "agents")),
@@ -106,18 +104,9 @@ function writeManifest(staging: string, candidate?: CandidateInput): void {
       : [],
     extensions,
     topLevelDirs: topDirs,
-		topLevelFiles: [...topFiles, "template-manifest.json"].sort(),
-	};
-	if (candidate) {
-		const files = filesUnder(staging).map((path) => path.slice(staging.length + 1)).sort();
-		manifest.dashboardSeed = { format: "ein-dashboard-seed/v1", target: candidate.target.id };
-		manifest.files = files.map((path) => ({ path, sha256: createHash("sha256").update(readFileSync(join(staging, path))).digest("hex") }));
-	}
-	writeFileSync(join(staging, "template-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-}
-
-function filesUnder(path: string): string[] {
-	return statSync(path).isFile() ? [path] : readdirSync(path).sort().flatMap((entry) => filesUnder(join(path, entry)));
+    topLevelFiles: [...topFiles, "template-manifest.json"].sort(),
+  };
+  writeFileSync(join(staging, "template-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 function copyInto(sourceRoot: string, staging: string, files: string[], dirs: string[]): void {
@@ -139,8 +128,7 @@ function copyInto(sourceRoot: string, staging: string, files: string[], dirs: st
   }
 }
 
-export async function bundleTemplate(options: { candidate?: CandidateInput; out?: string } = {}): Promise<void> {
-	const verified = options.candidate ? verifyCandidateInput(options.candidate) : undefined;
+async function main(): Promise<void> {
   for (const source of [CORE_SOURCE, AGENT_SOURCE]) {
     if (!existsSync(source)) {
       throw new Error(`No existe el source del template: ${source}`);
@@ -150,8 +138,7 @@ export async function bundleTemplate(options: { candidate?: CandidateInput; out?
   const staging = mkdtempSync(join(tmpdir(), "ein-template-"));
   try {
     copyInto(CORE_SOURCE, staging, CORE_FILES, CORE_DIRS);
-		copyInto(AGENT_SOURCE, staging, AGENT_FILES, AGENT_DIRS);
-		if (verified) stageDashboardSeed(verified, staging, REPO_ROOT);
+    copyInto(AGENT_SOURCE, staging, AGENT_FILES, AGENT_DIRS);
 
     // assets/agents y assets/chains son la copia "de fabrica" que usa
     // installSddAssets para reparar instalaciones. Se generan aqui desde las
@@ -168,34 +155,33 @@ export async function bundleTemplate(options: { candidate?: CandidateInput; out?
 
     tokenizeMcp(staging);
     tokenizeSettings(staging);
-		writeManifest(staging, options.candidate);
+    writeManifest(staging);
 
     // src/assets/ solo guarda el tarball generado (gitignored), asi que el dir
     // no existe en un checkout limpio (CI). Asegurarlo antes de que tar
     // escriba ahi.
-		const out = options.out ?? OUT;
-		mkdirSync(dirname(out), { recursive: true });
+    mkdirSync(dirname(OUT), { recursive: true });
 
     // tar desde dentro de staging para que las rutas sean relativas
     // (./agents, ./extensions, ...).
-		const proc = Bun.spawn(["tar", "-czf", out, "."], { cwd: staging, stderr: "pipe" });
+    const proc = Bun.spawn(["tar", "-czf", OUT, "."], { cwd: staging, stderr: "pipe" });
     const stderr = await new Response(proc.stderr).text();
     const code = await proc.exited;
     if (code !== 0) {
       throw new Error(`tar fallo (code ${code}): ${stderr}`);
     }
 
-		const size = Bun.file(out).size;
+    const size = Bun.file(OUT).size;
     console.log(`/// template empaquetado`);
     console.log(`  origen:  ${CORE_SOURCE} + ${AGENT_SOURCE}`);
-		console.log(`  salida:  ${out}`);
+    console.log(`  salida:  ${OUT}`);
     console.log(`  tamano:  ${(size / 1024 / 1024).toFixed(2)} MB`);
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
 }
 
-if (import.meta.main) bundleTemplate({ candidate: candidateInputFromArgs(process.argv.slice(2)) }).catch((error) => {
-	console.error(`[error] ${error instanceof Error ? error.message : String(error)}`);
-	process.exit(1);
+main().catch((error) => {
+  console.error(`[error] ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
 });

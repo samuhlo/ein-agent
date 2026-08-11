@@ -45,5 +45,4 @@ export type CcEinPayloadManifestEntry = {
 export type CcEinPayloadManifest = {
   format: "ein-cc-payload/v1";
   files: CcEinPayloadManifestEntry[];
-  dashboardSeed?: { format: "ein-dashboard-seed/v1"; target: string };
 };
