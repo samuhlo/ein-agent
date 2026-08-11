@@ -1,0 +1,285 @@
+{
+  "format": "ein-opentui-solid-wp0/v1",
+  "status": "partial",
+  "statusDefinitions": {
+    "pass": "Executed and met the stated check",
+    "partial": "Some required native cells remain unexecuted",
+    "blocked": "Execution was attempted but could not establish the requirement",
+    "not-run": "No native execution was attempted for this cell"
+  },
+  "executiveSummary": "All four glibc/macOS standalone targets cross-built and all eight spike-only package cells passed inventory checks. Only the two current-host surface cells ran natively; remaining runtime cells are not-run pending the isolated native workflow.",
+  "packageResolution": {
+    "direct": {
+      "@opentui/core": "0.5.1",
+      "@opentui/solid": "0.5.1",
+      "solid-js": "1.9.12"
+    },
+    "install": "bun install --frozen-lockfile --os=\"*\" --cpu=\"*\"",
+    "linuxLibc": "glibc explicitly compiled via process.env.OPENTUI_LIBC definition",
+    "musl": "not in EIN's approved four-target matrix",
+    "runtimeDownloadObservedCurrentHost": false,
+    "runtimeZigRequiredCurrentHost": false
+  },
+  "buildMatrix": [
+    {
+      "target": "darwin-arm64",
+      "bunTarget": "bun-darwin-arm64",
+      "nativePackage": "@opentui/core-darwin-arm64@0.5.1",
+      "libc": null,
+      "status": "pass"
+    },
+    {
+      "target": "darwin-x64",
+      "bunTarget": "bun-darwin-x64",
+      "nativePackage": "@opentui/core-darwin-x64@0.5.1",
+      "libc": null,
+      "status": "pass"
+    },
+    {
+      "target": "linux-arm64",
+      "bunTarget": "bun-linux-arm64",
+      "nativePackage": "@opentui/core-linux-arm64@0.5.1",
+      "libc": "glibc",
+      "status": "pass"
+    },
+    {
+      "target": "linux-x64",
+      "bunTarget": "bun-linux-x64",
+      "nativePackage": "@opentui/core-linux-x64@0.5.1",
+      "libc": "glibc",
+      "status": "pass"
+    }
+  ],
+  "surfaceMatrix": [
+    {
+      "surface": "pi",
+      "target": "darwin-arm64",
+      "build": "pass",
+      "inventory": "pass",
+      "runtime": "pass",
+      "note": "Executed natively from the staged surface in a real PTY"
+    },
+    {
+      "surface": "pi",
+      "target": "darwin-x64",
+      "build": "pass",
+      "inventory": "pass",
+      "runtime": "not-run",
+      "note": "Cross-built and inspected; native workflow execution required"
+    },
+    {
+      "surface": "pi",
+      "target": "linux-arm64",
+      "build": "pass",
+      "inventory": "pass",
+      "runtime": "not-run",
+      "note": "Cross-built and inspected; native workflow execution required"
+    },
+    {
+      "surface": "pi",
+      "target": "linux-x64",
+      "build": "pass",
+      "inventory": "pass",
+      "runtime": "not-run",
+      "note": "Cross-built and inspected; native workflow execution required"
+    },
+    {
+      "surface": "claude",
+      "target": "darwin-arm64",
+      "build": "pass",
+      "inventory": "pass",
+      "runtime": "pass",
+      "note": "Executed natively from the staged surface in a real PTY"
+    },
+    {
+      "surface": "claude",
+      "target": "darwin-x64",
+      "build": "pass",
+      "inventory": "pass",
+      "runtime": "not-run",
+      "note": "Cross-built and inspected; native workflow execution required"
+    },
+    {
+      "surface": "claude",
+      "target": "linux-arm64",
+      "build": "pass",
+      "inventory": "pass",
+      "runtime": "not-run",
+      "note": "Cross-built and inspected; native workflow execution required"
+    },
+    {
+      "surface": "claude",
+      "target": "linux-x64",
+      "build": "pass",
+      "inventory": "pass",
+      "runtime": "not-run",
+      "note": "Cross-built and inspected; native workflow execution required"
+    }
+  ],
+  "runtimeEvidence": [
+    {
+      "surface": "pi",
+      "target": "darwin-arm64",
+      "status": "pass",
+      "exitCode": 0,
+      "elapsedMs": 1195.367,
+      "markerObserved": true,
+      "resizeObserved": true,
+      "destroyed": true,
+      "pty": true,
+      "isolatedRuntime": true,
+      "rawEvidencePath": "evidence/raw/smoke-pi-darwin-arm64.txt"
+    },
+    {
+      "surface": "claude",
+      "target": "darwin-arm64",
+      "status": "pass",
+      "exitCode": 0,
+      "elapsedMs": 985.624,
+      "markerObserved": true,
+      "resizeObserved": true,
+      "destroyed": true,
+      "pty": true,
+      "isolatedRuntime": true,
+      "rawEvidencePath": "evidence/raw/smoke-claude-darwin-arm64.txt"
+    }
+  ],
+  "metrics": {
+    "scope": "current-host-only",
+    "target": "darwin-arm64",
+    "primaryStandalone": {
+      "installedBytes": 73634018,
+      "compressedBytes": 26904726
+    },
+    "comparisonPackageClosure": {
+      "packages": [
+        "@ampproject/remapping",
+        "@babel/code-frame",
+        "@babel/compat-data",
+        "@babel/core",
+        "@babel/generator",
+        "@babel/helper-annotate-as-pure",
+        "@babel/helper-compilation-targets",
+        "@babel/helper-create-class-features-plugin",
+        "@babel/helper-globals",
+        "@babel/helper-member-expression-to-functions",
+        "@babel/helper-module-imports",
+        "@babel/helper-module-transforms",
+        "@babel/helper-optimise-call-expression",
+        "@babel/helper-plugin-utils",
+        "@babel/helper-replace-supers",
+        "@babel/helper-skip-transparent-expression-wrappers",
+        "@babel/helper-string-parser",
+        "@babel/helper-validator-identifier",
+        "@babel/helper-validator-option",
+        "@babel/helpers",
+        "@babel/parser",
+        "@babel/plugin-syntax-jsx",
+        "@babel/plugin-syntax-typescript",
+        "@babel/plugin-transform-modules-commonjs",
+        "@babel/plugin-transform-typescript",
+        "@babel/preset-typescript",
+        "@babel/template",
+        "@babel/traverse",
+        "@babel/types",
+        "@jridgewell/gen-mapping",
+        "@jridgewell/resolve-uri",
+        "@jridgewell/sourcemap-codec",
+        "@jridgewell/trace-mapping",
+        "@opentui/core",
+        "@opentui/core-darwin-arm64",
+        "@opentui/solid",
+        "ansi-regex",
+        "babel-plugin-jsx-dom-expressions",
+        "babel-plugin-module-resolver",
+        "babel-preset-solid",
+        "balanced-match",
+        "baseline-browser-mapping",
+        "brace-expansion",
+        "browserslist",
+        "bun-ffi-structs",
+        "caniuse-lite",
+        "convert-source-map",
+        "csstype",
+        "debug",
+        "diff",
+        "electron-to-chromium",
+        "emoji-regex",
+        "entities",
+        "es-errors",
+        "escalade",
+        "find-babel-config",
+        "find-up",
+        "fs.realpath",
+        "function-bind",
+        "gensync",
+        "get-east-asian-width",
+        "glob",
+        "hasown",
+        "html-entities",
+        "is-core-module",
+        "js-tokens",
+        "jsesc",
+        "json5",
+        "locate-path",
+        "lru-cache",
+        "marked",
+        "minimatch",
+        "minipass",
+        "ms",
+        "node-releases",
+        "p-limit",
+        "p-locate",
+        "p-try",
+        "parse5",
+        "path-exists",
+        "path-parse",
+        "path-scurry",
+        "picocolors",
+        "pkg-up",
+        "reselect",
+        "resolve",
+        "s-js",
+        "semver",
+        "seroval",
+        "seroval-plugins",
+        "solid-js",
+        "string-width",
+        "strip-ansi",
+        "supports-preserve-symlinks-flag",
+        "typescript",
+        "update-browserslist-db",
+        "web-tree-sitter",
+        "yallist"
+      ],
+      "installedBytes": 67936508,
+      "compressedBytes": 13628652,
+      "runtimeRequirement": "external Bun runtime plus staged package resolution",
+      "acceptance": "partial"
+    },
+    "startup": {
+      "harness": "real PTY, isolated HOME/PATH, blocked proxy, bounded --smoke",
+      "warmups": 1,
+      "samplesMs": [
+        434.148,
+        434.428,
+        444.549,
+        428.14,
+        428.325
+      ],
+      "medianMs": 434.148,
+      "p95Ms": 444.549
+    }
+  },
+  "verification": {
+    "focusedCheck": "pass",
+    "fourTargetBuild": "pass",
+    "eightCellInventory": "pass",
+    "currentHostPty": "pass",
+    "productionAssetsChanged": false
+  },
+  "blockers": [
+    "Six non-host surface/target runtime cells require native GitHub-hosted runner execution; cross-build inspection is not runtime acceptance."
+  ],
+  "nextRecommended": "Run the isolated opentui-solid-packaging-spike workflow and merge its four native evidence fragments before evaluating the 8/8 WP0 gate."
+}

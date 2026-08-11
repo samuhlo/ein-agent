@@ -96,6 +96,8 @@ Complete packages in order. Each package has its own evidence and rollback bound
 
 **Goal:** prove a controlled OpenTUI/Solid artifact can be built, selected, shipped, and started on every supported target through both Pi and Claude surfaces.
 
+**Progress:** implementation and local evidence are available at [`spikes/opentui-solid-packaging/`](../spikes/opentui-solid-packaging/). Status is **partial**: all four artifacts build and all eight inventories verify, but only the current-host Pi/Claude cells have native runtime evidence; the remaining cells stay `not-run` until the isolated workflow executes.
+
 **Implementation outline**
 
 - Reconfirm package versions and Bun compatibility, then pin the three direct packages for the spike. Record all transitive and target-native packages.
