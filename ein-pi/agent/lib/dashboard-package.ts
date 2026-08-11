@@ -12,6 +12,7 @@ type Manifest = Readonly<{
   legacy: Artifact;
   candidate: Artifact;
 }>;
+export type DashboardRelease = Readonly<{ legacy: string; candidate: string }>;
 
 const exact = (value: unknown, keys: readonly string[]): value is Record<string, unknown> => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
@@ -43,8 +44,8 @@ async function verifyArtifact(path: string, expected: Artifact): Promise<void> {
   if (digest !== expected.sha256) throw new Error("artifact checksum mismatch");
 }
 
-/** Returns the validated candidate, or undefined for every untrusted package state. */
-export async function validateDashboardPackage(root: string, target: DashboardTarget): Promise<string | undefined> {
+/** Returns both bound artifacts, or undefined for every untrusted package state. */
+export async function validateDashboardRelease(root: string, target: DashboardTarget): Promise<DashboardRelease | undefined> {
   try {
     const current = await jsonFile(join(root, "current.json"));
     if (!exact(current, ["format", "release"]) || current.format !== "ein-dashboard-current/v1" || !safeName(current.release)) return undefined;
@@ -56,11 +57,16 @@ export async function validateDashboardPackage(root: string, target: DashboardTa
     if (value.format !== "ein-dashboard-release/v1" || value.release !== current.release || value.target !== target
       || !artifact(value.legacy) || !artifact(value.candidate) || value.legacy.filename === value.candidate.filename) return undefined;
     const manifest = value as Manifest;
-    await verifyArtifact(join(releaseRoot, manifest.legacy.filename), manifest.legacy);
+    const legacyPath = join(releaseRoot, manifest.legacy.filename);
+    await verifyArtifact(legacyPath, manifest.legacy);
     const candidatePath = join(releaseRoot, manifest.candidate.filename);
     await verifyArtifact(candidatePath, manifest.candidate);
-    return candidatePath;
+    return { legacy: legacyPath, candidate: candidatePath };
   } catch {
     return undefined;
   }
+}
+
+export async function validateDashboardPackage(root: string, target: DashboardTarget): Promise<string | undefined> {
+  return (await validateDashboardRelease(root, target))?.candidate;
 }

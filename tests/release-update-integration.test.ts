@@ -181,6 +181,7 @@ describe("release update integration", () => {
       template: scriptedTemplate(TARGET_VERSION),
     };
     const output: string[] = [];
+    let appCommitted = false;
     const code = await runUpdate([], {
       caps,
       platform: { os: "linux", arch: "x64" },
@@ -190,8 +191,10 @@ describe("release update integration", () => {
       destinationPath,
       interactive: false,
       write: (line) => output.push(line),
+      promoteApp: async () => ({ packaged: true, installerWritten: false, appPath: join(dir, "ein-app"), rollback: () => undefined, commit: () => { appCommitted = true; } }),
     });
     expect(code).toBe(EXIT_UPDATED);
+    expect(appCommitted).toBe(true);
     expect(output.join("\n")).toContain("Instalado verificado: v0.20.0");
     verifyAgreement({
       selectorRaw: "latest",

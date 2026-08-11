@@ -1,5 +1,5 @@
 import { spawn as nodeSpawn } from "node:child_process";
-import { dashboardTarget, validateDashboardPackage, type DashboardTarget } from "../lib/dashboard-package.ts";
+import { dashboardTarget, validateDashboardRelease, type DashboardRelease, type DashboardTarget } from "../lib/dashboard-package.ts";
 import { parseTerminalAppArgs } from "../lib/terminal-app-args.ts";
 
 export type SpawnResult = Readonly<{ started: boolean; code: number }>;
@@ -8,7 +8,7 @@ export type DashboardLauncherPorts = Readonly<{
   arch: string;
   stdinTTY: boolean;
   stdoutTTY: boolean;
-  validate?: (root: string, target: DashboardTarget) => Promise<string | undefined>;
+  validate?: (root: string, target: DashboardTarget) => Promise<DashboardRelease | undefined>;
   spawn: (binary: string, argv: readonly string[]) => Promise<SpawnResult>;
 }>;
 
@@ -21,8 +21,12 @@ export async function selectDashboardBinary(options: {
 }): Promise<string> {
   const parsed = parseTerminalAppArgs(options.argv, options.cwd);
   const target = dashboardTarget(options.ports.platform, options.ports.arch);
-  if (parsed.kind !== "run" || parsed.once || !options.ports.stdinTTY || !options.ports.stdoutTTY || !target) return options.legacyBinary;
-  return await (options.ports.validate ?? validateDashboardPackage)(options.packageRoot, target) ?? options.legacyBinary;
+  if (!target) return options.legacyBinary;
+  const release = await (options.ports.validate ?? validateDashboardRelease)(options.packageRoot, target);
+  if (!release) return options.legacyBinary;
+  return parsed.kind === "run" && !parsed.once && options.ports.stdinTTY && options.ports.stdoutTTY
+    ? release.candidate
+    : release.legacy;
 }
 
 export async function launchDashboard(options: {

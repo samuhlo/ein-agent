@@ -44,8 +44,8 @@ describe("Pi template agent inventory", () => {
   });
 
   test("the terminal app the installer compiles is shipped", () => {
-    // install.ts compiles `join(piContext.agentDir, "app.ts")`.
-    expect(INSTALL_CLI).toContain('"app.ts"');
+    // install.ts delegates compilation to the package promotion boundary.
+    expect(INSTALL_CLI + readFileSync(join(REPO, "installer", "src", "core", "app-package-promotion.ts"), "utf8")).toContain('"app.ts"');
     expect(AGENT_FILES).toContain("app.ts");
   });
 
