@@ -1,882 +1,516 @@
 // =============================================================================
-// TESTS: Ein terminal app core (mirror per EIN.md:19)
-// Navigation is exercised without a TTY: the core is a function of state and
-// keystrokes, so every assertion here is deterministic.
+// EIN TERMINAL APP — pure core
+// The app is a function of state and keystrokes, so every one of these presses a
+// key and reads what came back without opening a terminal. What they pin is not
+// that the code does what the code says, but that the app can be worked from:
+// every row leads somewhere, and nothing answers "read-only".
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
 import {
-  EMPTY_VALUE,
-  KEY_HINTS,
-  UNKNOWN_VALUE,
-  buildConfigScreen,
-  buildHomeScreen,
-  buildSessionsScreen,
-  buildSystemScreen,
-  buildRuntimeScreen,
-  nextRuntime,
+  DASHBOARD_KEYS,
+  RESERVED_KEYS,
+  buildConfigView,
+  buildDashboard,
+  buildSessionsView,
+  buildStateView,
+  buildSystemView,
   handleKey,
+  initialModel,
   nextSettingValue,
-  renderScreen,
+  previousSettingValue,
+  renderApp,
+  selectedRow,
+  splitKeys,
   visibleRows,
-  type Screen,
+  type AppModel,
+  type ProjectSummary,
+  type Setting,
+  type SystemComponent,
+  type View,
 } from "../ein-pi/agent/lib/terminal-app.ts";
-import {
-  parseTerminalAppArgs,
-  runTerminalApp,
-  systemRowsFrom,
-  INSTALLER_VERBS,
-  INSTALLER_COMMAND,
-} from "../ein-pi/agent/surfaces/terminal-app-entrypoint.ts";
-import { LOGO, LOGO_NARROW, TAGLINE, bannerFinal, bannerFrame, frameCount } from "../ein-pi/agent/lib/banner.ts";
-import { resolveEinAgentHome } from "../ein-pi/agent/lib/agent-home.ts";
-import { applySetting, readSettings } from "../ein-pi/agent/lib/project-settings.ts";
-import {
-  lastActionFromSession,
-  lastActionFromSessionText,
-  sanitizeLabel,
-  summarizeSessions,
-} from "../ein-pi/agent/lib/session-summary.ts";
-import type { ProjectStateV1 } from "../ein-pi/agent/lib/project-state.ts";
+import { createPalette, stripAnsi } from "../ein-pi/agent/lib/theme.ts";
+
+const SUMMARY: ProjectSummary = {
+  name: "ein-agent",
+  root: "/work/ein-agent",
+  branch: "main",
+  dirty: 3,
+  change: "terminal-app-rework",
+  phase: "apply",
+  next: "verify",
+  activeChanges: ["terminal-app-rework"],
+  blockers: [],
+  sessions: 4,
+};
+
+const SETTINGS: readonly Setting[] = [
+  { id: "mode", label: "Modo de trabajo", options: ["solo", "team"], value: "solo" },
+  { id: "tdd", label: "TDD estricto", options: ["auto", "strict"], value: undefined },
+  { id: "empty", label: "Sin valores", options: [], value: undefined },
+];
+
+const SESSIONS = [
+  { provider: "pi" as const, reference: "pi:v1:sha256:a", age: "2h", lastAction: "arregla el instalador" },
+  { provider: "claude" as const, reference: "claude:v1:sha256:b", age: "1d", lastAction: undefined },
+];
+
+const COMPONENTS: readonly SystemComponent[] = [
+  { id: "ein", label: "Ein", status: "update-available", detail: "v0.50.2", command: ["ein-install", "update"] },
+  { id: "claude", label: "Claude Code", status: "unknown", detail: undefined },
+];
+
+function model(view: View): AppModel {
+  return { ...initialModel(SUMMARY, view), cursor: 0 };
+}
+
+function press(start: AppModel, ...keys: string[]): { model: AppModel; effects: unknown[] } {
+  let current = start;
+  const effects: unknown[] = [];
+  for (const key of keys) {
+    const outcome = handleKey(current, key);
+    current = outcome.model;
+    effects.push(outcome.effect);
+  }
+  return { model: current, effects };
+}
 
 const ARROW_DOWN = "\u001b[B";
 const ARROW_UP = "\u001b[A";
+const ARROW_RIGHT = "\u001b[C";
+const ARROW_LEFT = "\u001b[D";
+const ENTER = "\r";
 const ESCAPE = "\u001b";
-const BACKSPACE = "\u007f";
 
-function state(overrides: Partial<ProjectStateV1> = {}): ProjectStateV1 {
-  return {
-    schemaVersion: 1,
-    identity: { cwd: "/repo", repositoryRoot: "/repo", quality: "current", reason: "read-success" },
-    openspec: {
-      activeChanges: ["alpha"],
-      selection: "selected",
-      selectedChange: "alpha",
-      phase: "design",
-      next: "tasks",
-      artifacts: [],
-      blockers: [],
-      provenance: {},
-      verify: "absent",
-      verifyStale: false,
-      quality: "current",
-      reason: "read-success",
-    },
-    ein: { path: "EIN.md", revision: "abc1234", curated: {}, auto: { present: true }, quality: "current", reason: "read-success" },
-    git: { dirty: false, stateRef: "git-v1:sha256:aa", quality: "current", reason: "read-success" },
-    verification: { effectiveOutcome: "absent", freshness: "current", quality: "current", reason: "read-success" },
-    runtimes: {},
-    ...overrides,
-  } as unknown as ProjectStateV1;
-}
+const dashboard = () => model(buildDashboard(SUMMARY));
+const sessions = () => model(buildSessionsView(SESSIONS, []));
+const config = () => model(buildConfigView(SETTINGS));
+const state = () => model(buildStateView(SUMMARY));
+const system = () => model(buildSystemView(COMPONENTS));
 
-describe("home screen construction", () => {
-  test("every row declares the source it came from", () => {
-    const rows = visibleRows(buildHomeScreen(state()));
-    expect(rows.length).toBeGreaterThan(0);
-    for (const { row } of rows) {
-      expect(["openspec", "git", "ein.md", "app"]).toContain(row.source);
+const ALL_VIEWS = () => [dashboard(), sessions(), config(), state(), system()];
+
+// ─── the promise the whole change exists to keep ─────────────────────────────
+
+describe("every row leads somewhere", () => {
+  test("no view answers a keypress with read-only", () => {
+    for (const start of ALL_VIEWS()) {
+      const total = visibleRows(start.view, start.query).length;
+      for (let index = 0; index < total; index++) {
+        const at = { ...start, cursor: index };
+        const outcome = handleKey(at, ENTER);
+        const message = outcome.effect.kind === "status" ? outcome.effect.message : "";
+        expect(message.toLowerCase()).not.toContain("read-only");
+        expect(message.toLowerCase()).not.toContain("solo lectura");
+      }
     }
   });
 
-  test("an unknown fact renders differently from an empty one", () => {
-    const screen = buildHomeScreen(state({
-      openspec: { ...state().openspec, phase: undefined, blockers: [] },
-    } as Partial<ProjectStateV1>));
-    const lines = renderScreen(screen).join("\n");
-    expect(lines).toContain(`Phase`);
-    expect(lines).toMatch(new RegExp(`Phase\\s+${UNKNOWN_VALUE}`));
-    expect(lines).toMatch(new RegExp(`Blockers\\s+${EMPTY_VALUE}`));
+  test("every row declares an action", () => {
+    for (const start of ALL_VIEWS()) {
+      for (const { row } of visibleRows(start.view, "")) {
+        expect(row.action).toBeDefined();
+      }
+    }
   });
 
-  test("the app never invents a value it was not given", () => {
-    const screen = buildHomeScreen(state({
-      git: { dirty: undefined, quality: "unavailable", reason: "not-inspected" },
-    } as unknown as Partial<ProjectStateV1>));
-    const worktree = visibleRows(screen).find(({ row }) => row.label === "Worktree");
-    expect(worktree?.row.value).toBeUndefined();
+  test("enter on a fact shows the whole value, which is what a cut row hides", () => {
+    const long = "/work/ein-agent/a/very/long/path/that/will/not/fit/on/one/line";
+    const view = buildStateView({ ...SUMMARY, root: long });
+    const at = { ...model(view), cursor: visibleRows(view, "").findIndex(({ row }) => row.value === long) };
+    const outcome = handleKey(at, ENTER);
+    expect(outcome.effect).toMatchObject({ kind: "status" });
+    if (outcome.effect.kind === "status") expect(outcome.effect.message).toContain(long);
   });
 });
 
-describe("navigation", () => {
-  const home = buildHomeScreen(state());
+// ─── dashboard ───────────────────────────────────────────────────────────────
 
+describe("the dashboard", () => {
+  test("it offers the four things the launcher exists for", () => {
+    const rows = visibleRows(buildDashboard(SUMMARY), "").map(({ row }) => row.action.kind);
+    expect(rows).toContain("open-view");
+    expect(rows).toContain("launch");
+    expect(rows).toContain("quit");
+  });
+
+  test("every entry has a distinct hotkey", () => {
+    const keys = visibleRows(buildDashboard(SUMMARY), "").map(({ row }) => row.key);
+    expect(keys.every(Boolean)).toBe(true);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  test("no hotkey collides with a global motion", () => {
+    for (const key of Object.values(DASHBOARD_KEYS)) {
+      expect(RESERVED_KEYS).not.toContain(key);
+    }
+  });
+
+  test("every hotkey reaches its own row", () => {
+    const rows = visibleRows(buildDashboard(SUMMARY), "");
+    for (const { row } of rows) {
+      const outcome = handleKey(dashboard(), row.key!);
+      expect(outcome.effect.kind).not.toBe("none");
+    }
+  });
+
+  test("a hotkey acts without moving the cursor there first", () => {
+    const { effects } = press(dashboard(), DASHBOARD_KEYS.config);
+    expect(effects[0]).toMatchObject({ kind: "open", view: "config" });
+  });
+
+  test("p and c start each runtime", () => {
+    expect(press(dashboard(), DASHBOARD_KEYS.pi).effects[0]).toMatchObject({ kind: "launch", provider: "pi" });
+    expect(press(dashboard(), DASHBOARD_KEYS.claude).effects[0]).toMatchObject({ kind: "launch", provider: "claude" });
+  });
+
+  test("q quits from anywhere", () => {
+    for (const start of ALL_VIEWS()) {
+      expect(press(start, "q").effects[0]).toMatchObject({ kind: "quit" });
+      expect(press(start, "\u0003").effects[0]).toMatchObject({ kind: "quit" });
+    }
+  });
+});
+
+// ─── navigation ──────────────────────────────────────────────────────────────
+
+describe("navigation", () => {
   test("letters and arrows land on the same row", () => {
-    const byLetter = handleKey(handleKey(home, "j").screen, "j").screen;
-    const byArrow = handleKey(handleKey(home, ARROW_DOWN).screen, ARROW_DOWN).screen;
-    expect(byLetter.cursor).toBe(byArrow.cursor);
-    expect(byLetter.cursor).toBe(2);
+    expect(press(sessions(), "j").model.cursor).toBe(press(sessions(), ARROW_DOWN).model.cursor);
+    expect(press(sessions(), "j", "k").model.cursor).toBe(press(sessions(), ARROW_DOWN, ARROW_UP).model.cursor);
   });
 
   test("the cursor never leaves the list", () => {
-    let screen: Screen = home;
-    for (let index = 0; index < 50; index++) screen = handleKey(screen, "j").screen;
-    expect(screen.cursor).toBe(visibleRows(home).length - 1);
-    for (let index = 0; index < 50; index++) screen = handleKey(screen, "k").screen;
-    expect(screen.cursor).toBe(0);
+    expect(press(sessions(), "k", "k", "k").model.cursor).toBe(0);
+    const last = visibleRows(sessions().view, "").length - 1;
+    expect(press(sessions(), ...Array(20).fill("j")).model.cursor).toBe(last);
   });
 
   test("g and G jump to the ends", () => {
-    const bottom = handleKey(home, "G").screen;
-    expect(bottom.cursor).toBe(visibleRows(home).length - 1);
-    expect(handleKey(bottom, "g").screen.cursor).toBe(0);
+    expect(press(sessions(), "G").model.cursor).toBe(visibleRows(sessions().view, "").length - 1);
+    expect(press(sessions(), "G", "g").model.cursor).toBe(0);
   });
 
-  test("q and ctrl+c both quit", () => {
-    expect(handleKey(home, "q").effect).toEqual({ kind: "quit" });
-    expect(handleKey(home, "\u0003").effect).toEqual({ kind: "quit" });
-  });
-
-  test("enter reports the row and its source without mutating anything", () => {
-    const outcome = handleKey(home, "\r");
-    expect(outcome.screen).toEqual(home);
-    expect(outcome.effect).toMatchObject({ kind: "status" });
-    if (outcome.effect.kind === "status") expect(outcome.effect.message).toContain("read-only");
-  });
-});
-
-describe("search", () => {
-  const home = buildHomeScreen(state());
-
-  test("f opens search and typing filters the rows", () => {
-    let screen = handleKey(home, "f").screen;
-    expect(screen.searching).toBe(true);
-    for (const key of "phase") screen = handleKey(screen, key).screen;
-    const rows = visibleRows(screen);
-    expect(rows.length).toBeGreaterThan(0);
-    expect(rows.every(({ section, row }) => `${section} ${row.label}`.toLowerCase().includes("phase"))).toBe(true);
-  });
-
-  test("/ opens search too", () => {
-    expect(handleKey(home, "/").screen.searching).toBe(true);
-  });
-
-  test("backspace removes one character", () => {
-    let screen = handleKey(home, "f").screen;
-    for (const key of "git") screen = handleKey(screen, key).screen;
-    expect(screen.query).toBe("git");
-    expect(handleKey(screen, BACKSPACE).screen.query).toBe("gi");
-  });
-
-  test("escape leaves search and clears the filter", () => {
-    let screen = handleKey(home, "f").screen;
-    for (const key of "git") screen = handleKey(screen, key).screen;
-    screen = handleKey(screen, ESCAPE).screen;
-    expect(screen.searching).toBe(false);
-    expect(screen.query).toBe("");
-    expect(visibleRows(screen).length).toBe(visibleRows(home).length);
-  });
-
-  test("enter keeps the filter but leaves typing mode", () => {
-    let screen = handleKey(home, "f").screen;
-    for (const key of "git") screen = handleKey(screen, key).screen;
-    screen = handleKey(screen, "\r").screen;
-    expect(screen.searching).toBe(false);
-    expect(screen.query).toBe("git");
-  });
-
-  test("a filter with no matches says so instead of rendering an empty list", () => {
-    let screen = handleKey(home, "f").screen;
-    for (const key of "zzzz") screen = handleKey(screen, key).screen;
-    expect(visibleRows(screen)).toHaveLength(0);
-    expect(renderScreen(screen).join("\n")).toContain("No rows match");
-  });
-
-  test("the cursor is clamped when the filter shrinks the list", () => {
-    let screen = handleKey(home, "G").screen;
-    screen = handleKey(screen, "f").screen;
-    for (const key of "phase") screen = handleKey(screen, key).screen;
-    expect(screen.cursor).toBeLessThan(visibleRows(screen).length);
-  });
-});
-
-describe("rendering", () => {
-  test("the key hints are always present", () => {
-    expect(renderScreen(buildHomeScreen(state())).join("\n")).toContain(KEY_HINTS);
-  });
-
-  test("the cursor marks exactly one row", () => {
-    const lines = renderScreen(buildHomeScreen(state()));
-    expect(lines.filter((line) => line.startsWith("> "))).toHaveLength(1);
-  });
-
-  test("output is plain text: no escape sequences", () => {
-    const lines = renderScreen(handleKey(buildHomeScreen(state()), "f").screen);
-    expect(lines.join("\n")).not.toMatch(/\u001b\[/);
-  });
-});
-
-describe("terminal driver", () => {
-  const homeFor = () => buildHomeScreen(state());
-
-  function fakeIO(isTTY: boolean) {
-    const written: string[] = [];
-    let cleared = 0;
-    let raw: boolean | undefined;
-    let press: ((key: string) => void) | undefined;
-    const io = {
-      write: (text: string) => { written.push(text); },
-      isTTY,
-      clear: () => { cleared += 1; },
-      setRawMode: (value: boolean) => { raw = value; },
-      onKey: isTTY
-        ? (handler: (key: string) => void) => { press = handler; return () => { press = undefined; }; }
-        : undefined,
-    };
-    return {
-      io,
-      written,
-      get cleared() { return cleared; },
-      get raw() { return raw; },
-      get listening() { return press !== undefined; },
-      press: (key: string) => press?.(key),
-    };
-  }
-
-  test("--help explains usage and exits 0", async () => {
-    const harness = fakeIO(false);
-    expect(await runTerminalApp({ argv: ["--help"], cwd: "/repo", io: harness.io, project: homeFor })).toBe(0);
-    expect(harness.written.join("")).toContain("Usage: ein");
-  });
-
-  test("an unknown argument is a usage error, not a crash", async () => {
-    const harness = fakeIO(false);
-    expect(await runTerminalApp({ argv: ["--nope"], cwd: "/repo", io: harness.io, project: homeFor })).toBe(2);
-  });
-
-  test("--project without a value is a usage error", async () => {
-    expect(parseTerminalAppArgs(["--project"], "/repo")).toMatchObject({ kind: "usage" });
-    expect(parseTerminalAppArgs(["--project", "/other"], "/repo")).toMatchObject({ kind: "run", cwd: "/other" });
-  });
-
-  test("without a TTY it paints once, declares itself static and never clears", async () => {
-    const harness = fakeIO(false);
-    expect(await runTerminalApp({ argv: ["--no-intro"], cwd: "/repo", io: harness.io, project: homeFor })).toBe(0);
-    const output = harness.written.join("");
-    expect(output).toContain("Non-interactive: static view");
-    expect(output).toContain("Phase");
-    expect(harness.cleared).toBe(0);
-    expect(harness.raw).toBeUndefined();
-  });
-
-  test("--once stays static even on a TTY", async () => {
-    const harness = fakeIO(true);
-    expect(await runTerminalApp({ argv: ["--once"], cwd: "/repo", io: harness.io, project: homeFor })).toBe(0);
-    expect(harness.listening).toBe(false);
-    expect(harness.cleared).toBe(0);
-  });
-
-  test("interactive mode enters raw, redraws on keys and restores on quit", async () => {
-    const harness = fakeIO(true);
-    const run = runTerminalApp({ argv: ["--no-intro"], cwd: "/repo", io: harness.io, project: homeFor });
-    expect(harness.raw).toBe(true);
-    const paintsAfterStart = harness.cleared;
-    harness.press("j");
-    expect(harness.cleared).toBe(paintsAfterStart + 1);
-    harness.press("q");
-    expect(await run).toBe(0);
-    expect(harness.raw).toBe(false);
-    expect(harness.listening).toBe(false);
-  });
-
-  test("enter surfaces the row status without leaving the app", async () => {
-    const harness = fakeIO(true);
-    const run = runTerminalApp({ argv: ["--no-intro"], cwd: "/repo", io: harness.io, project: homeFor });
-    harness.press("\r");
-    expect(harness.written.join("")).toContain("read-only");
-    harness.press("q");
-    expect(await run).toBe(0);
-  });
-});
-
-describe("configuration view", () => {
-  const settings = [
-    { id: "mode", label: "Work mode", options: ["solo", "team"] as const, value: "solo" },
-    { id: "tdd", label: "Strict TDD", options: ["auto", "strict", "ask", "off"] as const, value: "auto" },
-    { id: "broken", label: "Unreadable", options: ["a", "b"] as const, value: undefined },
-  ];
-  const config = () => buildConfigScreen(settings);
-
-  test("every setting declares the config source and its current value", () => {
-    const lines = renderScreen(config()).join("\n");
-    expect(lines).toContain("Work mode");
-    expect(lines).toContain("[config]");
-    expect(lines).toMatch(/Unreadable\s+unknown/);
-  });
-
-  test("enter cycles to the next option and asks the driver to persist it", () => {
-    const outcome = handleKey(config(), "\r");
-    expect(outcome.effect).toEqual({ kind: "apply", settingId: "mode", value: "team" });
-  });
-
-  test("space cycles too", () => {
-    expect(handleKey(config(), " ").effect).toEqual({ kind: "apply", settingId: "mode", value: "team" });
-  });
-
-  test("cycling wraps around the end of the list", () => {
-    expect(nextSettingValue({ id: "tdd", label: "T", options: ["auto", "strict"], value: "strict" })).toBe("auto");
-  });
-
-  test("an unreadable setting starts at the first option instead of guessing", () => {
-    expect(nextSettingValue({ id: "x", label: "X", options: ["a", "b"], value: undefined })).toBe("a");
-  });
-
-  test("a setting with no options is never applied", () => {
-    const screen = buildConfigScreen([{ id: "empty", label: "Empty", options: [], value: undefined }]);
-    expect(handleKey(screen, "\r").effect).toMatchObject({ kind: "status" });
-  });
-
-  test("the config view never mutates the screen itself", () => {
-    const before = config();
-    expect(handleKey(before, "\r").screen).toEqual(before);
-  });
-
-  test("tab and c both ask to switch view", () => {
-    expect(handleKey(config(), "\t").effect).toEqual({ kind: "switch-view" });
-    expect(handleKey(buildHomeScreen(state()), "c").effect).toEqual({ kind: "switch-view" });
-  });
-
-  test("the hints name the next view in the cycle", () => {
-    expect(renderScreen(config()).join("\n")).toContain("tab sessions");
-    expect(renderScreen(buildHomeScreen(state())).join("\n")).toContain("tab config");
-    expect(renderScreen(buildSessionsScreen([])).join("\n")).toContain("tab system");
-  });
-});
-
-describe("settings catalogue", () => {
-  test("an unreadable setting is reported unknown, not defaulted", () => {
-    const settings = readSettings("/repo", [
-      { id: "boom", label: "Boom", options: ["a"], read: () => { throw new Error("nope"); }, write: () => {} },
-    ]);
-    expect(settings[0]?.value).toBeUndefined();
-  });
-
-  test("applying refuses an unknown id", () => {
-    let written = false;
-    const definitions = [
-      { id: "mode", label: "M", options: ["solo"], read: () => "solo", write: () => { written = true; } },
-    ];
-    expect(applySetting("/repo", "nope", "solo", definitions)).toBe(false);
-    expect(written).toBe(false);
-  });
-
-  test("applying refuses a value outside the declared options", () => {
-    let written = false;
-    const definitions = [
-      { id: "mode", label: "M", options: ["solo", "team"], read: () => "solo", write: () => { written = true; } },
-    ];
-    expect(applySetting("/repo", "mode", "chaos", definitions)).toBe(false);
-    expect(written).toBe(false);
-  });
-
-  test("a declared value reaches its owner", () => {
-    const calls: Array<[string, string]> = [];
-    const definitions = [
-      { id: "mode", label: "M", options: ["solo", "team"], read: () => "solo", write: (cwd: string, value: string) => { calls.push([cwd, value]); } },
-    ];
-    expect(applySetting("/repo", "mode", "team", definitions)).toBe(true);
-    expect(calls).toEqual([["/repo", "team"]]);
-  });
-});
-
-describe("driver configuration flow", () => {
-  function harnessIO() {
-    const written: string[] = [];
-    let press: ((key: string) => void) | undefined;
-    return {
-      io: {
-        write: (text: string) => { written.push(text); },
-        isTTY: true,
-        clear: () => {},
-        setRawMode: () => {},
-        onKey: (handler: (key: string) => void) => { press = handler; return () => { press = undefined; }; },
-      },
-      written,
-      press: (key: string) => press?.(key),
-    };
-  }
-
-  test("tab reaches the config view and enter persists through the injected owner", async () => {
-    const applied: Array<[string, string]> = [];
-    let stored = "solo";
-    const harness = harnessIO();
-    const run = runTerminalApp({
-      argv: ["--no-intro"],
-      cwd: "/repo",
-      io: harness.io,
-      project: () => buildHomeScreen(state()),
-      settings: {
-        read: () => [{ id: "mode", label: "Work mode", options: ["solo", "team"], value: stored }],
-        apply: (_cwd, id, value) => { applied.push([id, value]); stored = value; return true; },
-      },
-    });
-    harness.press("\t");
-    expect(harness.written.join("")).toContain("Work mode");
-    harness.press("\r");
-    expect(applied).toEqual([["mode", "team"]]);
-    // Re-read after writing: the view shows disk, not the intent.
-    expect(harness.written.join("")).toContain("team");
-    harness.press("q");
-    expect(await run).toBe(0);
-  });
-
-  test("a refused write is reported and leaves the value alone", async () => {
-    const harness = harnessIO();
-    const run = runTerminalApp({
-      argv: ["--no-intro"],
-      cwd: "/repo",
-      io: harness.io,
-      project: () => buildHomeScreen(state()),
-      settings: {
-        read: () => [{ id: "mode", label: "Work mode", options: ["solo", "team"], value: "solo" }],
-        apply: () => false,
-      },
-    });
-    harness.press("\t");
-    harness.press("\r");
-    expect(harness.written.join("")).toContain("refused");
-    harness.press("q");
-    expect(await run).toBe(0);
-  });
-});
-
-describe("settings write failures", () => {
-  test("a write that throws is refused, not propagated", () => {
-    const definitions = [
-      { id: "mode", label: "M", options: ["solo", "team"], read: () => "solo", write: () => { throw new Error("EROFS"); } },
-    ];
-    expect(applySetting("/repo", "mode", "team", definitions)).toBe(false);
-  });
-});
-
-describe("session summaries", () => {
-  const line = (role: string, text: string) =>
-    JSON.stringify({ type: "message", message: { role, content: [{ type: "text", text }] } });
-
-  test("the last user message becomes the label", () => {
-    const text = [line("user", "primera"), line("assistant", "respuesta"), line("user", "segunda")].join("\n");
-    expect(lastActionFromSessionText(text)).toBe("segunda");
-  });
-
-  test("assistant turns and tool output never become the label", () => {
-    const text = [line("user", "lo mio"), line("assistant", "lo suyo"), line("toolResult", "salida")].join("\n");
-    expect(lastActionFromSessionText(text)).toBe("lo mio");
-  });
-
-  test("a transcript with no user message yields unknown", () => {
-    expect(lastActionFromSessionText(line("assistant", "solo yo"))).toBeUndefined();
-  });
-
-  test("a chunk that starts mid-record ignores its truncated first line", () => {
-    const truncated = `role":"user","content":[{"type":"text","text":"basura"}]}}\n${line("user", "buena")}`;
-    expect(lastActionFromSessionText(truncated, true)).toBe("buena");
-  });
-
-  test("control characters and newlines collapse into one line", () => {
-    expect(sanitizeLabel("uno dos\ntres\t cuatro")).toBe("uno dos tres cuatro");
-  });
-
-  test("a long label is truncated with an ellipsis", () => {
-    const label = sanitizeLabel("x".repeat(200));
-    expect(label.length).toBeLessThanOrEqual(72);
-    expect(label.endsWith("…")).toBe(true);
-  });
-
-  test("the scan walks backwards and stops at the first match", () => {
-    const reads: Array<[number, number]> = [];
-    const tail = line("user", "reciente");
-    const filler = "z".repeat(300);
-    const body = `${line("user", "vieja")}\n${filler}\n${tail}`;
-    const reader = {
-      size: () => body.length,
-      chunk: (_path: string, start: number, length: number) => {
-        reads.push([start, length]);
-        return body.slice(start, start + length);
-      },
-    };
-    expect(lastActionFromSession("/s.jsonl", reader, { chunkBytes: 100, maxScanBytes: 1000 })).toBe("reciente");
-    expect(reads).toHaveLength(1);
-  });
-
-  test("the scan gives up at the cap instead of reading the whole file", () => {
-    const body = `${line("user", "muy vieja")}\n${"z".repeat(5000)}`;
-    const reads: number[] = [];
-    const reader = {
-      size: () => body.length,
-      chunk: (_path: string, start: number, length: number) => { reads.push(length); return body.slice(start, start + length); },
-    };
-    expect(lastActionFromSession("/s.jsonl", reader, { chunkBytes: 100, maxScanBytes: 300 })).toBeUndefined();
-    expect(reads.reduce((total, value) => total + value, 0)).toBe(300);
-  });
-
-  test("an unreadable session is listed with an unknown action, not dropped", () => {
-    const summaries = summarizeSessions(
-      [{ project: "p", id: "abc", ageMs: 1000, cwd: "/repo", path: "/missing.jsonl" }],
-      { size: () => undefined, chunk: () => undefined },
-    );
-    expect(summaries).toHaveLength(1);
-    expect(summaries[0]?.lastAction).toBeUndefined();
-  });
-
-  test("the sessions view renders the phrase and declares the source", () => {
-    const screen = buildSessionsScreen([
-      { id: "a", project: "p", age: "5h", lastAction: "hice algo" },
-      { id: "b", project: "p", age: "7h", lastAction: undefined },
-    ]);
-    const lines = renderScreen(screen).join("\n");
-    expect(lines).toContain("hice algo");
-    expect(lines).toContain("[session]");
-    expect(lines).toMatch(/7h\s+unknown/);
-  });
-
-  test("no sessions says so instead of showing an empty list", () => {
-    expect(renderScreen(buildSessionsScreen([])).join("\n")).toContain("none found");
-  });
-
-  test("tab from sessions returns to state", async () => {
-    const written: string[] = [];
-    let press: ((key: string) => void) | undefined;
-    const io = {
-      write: (text: string) => { written.push(text); },
-      isTTY: true,
-      clear: () => {},
-      setRawMode: () => {},
-      onKey: (handler: (key: string) => void) => { press = handler; return () => { press = undefined; }; },
-    };
-    const run = runTerminalApp({
-      argv: ["--no-intro"],
-      cwd: "/repo",
-      io,
-      project: () => buildHomeScreen(state()),
-      settings: { read: () => [], apply: () => true },
-      sessions: () => [{ id: "a", project: "p", age: "5h", lastAction: "algo" }],
-      system: () => [{ label: "Ein", status: "current" }],
-    });
-    press?.("\t");
-    press?.("\t");
-    expect(written.join("")).toContain("recent sessions");
-    press?.("\t");
-    expect(written.join("")).toContain("Ein — system");
-    press?.("\t");
-    expect(written.join("")).toContain("Ein — state");
-    press?.("q");
-    expect(await run).toBe(0);
-  });
-});
-
-describe("banner", () => {
-  test("the sweep starts empty and ends solid", () => {
-    const first = bannerFrame(0, 100).join("");
-    expect(first.trim()).toBe("");
-    const last = bannerFrame(frameCount(100), 100);
-    expect(last.join("\n")).toBe(LOGO.map((line) => line.trimEnd()).join("\n"));
-  });
-
-  test("the dither edge advances with the frame index", () => {
-    const early = bannerFrame(6, 100).join("").length;
-    const later = bannerFrame(20, 100).join("").length;
-    expect(later).toBeGreaterThan(early);
-  });
-
-  test("a narrow terminal gets the narrow logo", () => {
-    expect(bannerFrame(frameCount(40), 40).length).toBe(LOGO_NARROW.length);
-    expect(bannerFrame(frameCount(100), 100).length).toBe(LOGO.length);
-  });
-
-  test("the settled banner carries the tagline", () => {
-    expect(bannerFinal(100).join("\n")).toContain(TAGLINE);
-  });
-
-  test("frames never emit escape sequences: the look comes from block density", () => {
-    expect(bannerFrame(12, 100).join("\n")).not.toMatch(//);
-  });
-
-  test("--no-intro skips the animation entirely", async () => {
-    const frames: string[] = [];
-    let press: ((key: string) => void) | undefined;
-    const io = {
-      write: (text: string) => { frames.push(text); },
-      isTTY: true,
-      clear: () => {},
-      setRawMode: () => {},
-      sleep: async () => {},
-      onKey: (handler: (key: string) => void) => { press = handler; return () => { press = undefined; }; },
-    };
-    const run = runTerminalApp({
-      argv: ["--no-intro"], cwd: "/repo", io,
-      project: () => buildHomeScreen(state()),
-      settings: { read: () => [], apply: () => true },
-      sessions: () => [],
-      system: () => [],
-    });
-    expect(frames.join("")).not.toContain(TAGLINE);
-    press?.("q");
-    expect(await run).toBe(0);
-  });
-
-  test("the intro plays before the first screen and is bounded", async () => {
-    const sleeps: number[] = [];
-    let press: ((key: string) => void) | undefined;
-    const written: string[] = [];
-    const io = {
-      write: (text: string) => { written.push(text); },
-      isTTY: true,
-      columns: 100,
-      clear: () => {},
-      setRawMode: () => {},
-      sleep: async (ms: number) => { sleeps.push(ms); },
-      onKey: (handler: (key: string) => void) => { press = handler; return () => { press = undefined; }; },
-    };
-    const run = runTerminalApp({
-      argv: [], cwd: "/repo", io,
-      project: () => buildHomeScreen(state()),
-      settings: { read: () => [], apply: () => true },
-      sessions: () => [],
-      system: () => [],
-    });
-    await Promise.resolve();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(written.join("")).toContain(TAGLINE);
-    // Bounded: one sleep per drawn frame plus the settle pause.
-    expect(sleeps.length).toBeLessThanOrEqual(frameCount(100));
-    press?.("q");
-    expect(await run).toBe(0);
-  });
-});
-
-describe("isolated agent home", () => {
-  const probe = (env: Record<string, string | undefined>, existing: string[]) => ({
-    env,
-    home: "/home/tester",
-    exists: (path: string) => existing.includes(path),
-  });
-
-  test("an explicit environment wins over discovery", () => {
-    expect(resolveEinAgentHome(probe({ EIN_PI_AGENT_HOME: "/declared" }, ["/home/tester/.pi-ein/agent"])))
-      .toBe("/declared");
-  });
-
-  test("the isolated home is found when no launcher declared one", () => {
-    expect(resolveEinAgentHome(probe({}, ["/home/tester/.pi-ein/agent"])))
-      .toBe("/home/tester/.pi-ein/agent");
-  });
-
-  test("vanilla ~/.pi/agent is never assumed: those sessions are not Ein's", () => {
-    expect(resolveEinAgentHome(probe({}, ["/home/tester/.pi/agent"]))).toBeUndefined();
-  });
-});
-
-describe("system view", () => {
-  test("an available update names the component and its exact command", () => {
-    const rows = systemRowsFrom([
-      { source: "ein", status: "update-available", reason: "newer-release", freshness: "current" },
-    ]);
-    const ein = rows.find((row) => row.label === "Ein");
-    expect(ein?.status).toBe("update available");
-    expect(ein?.command).toBe("ein-install update");
-  });
-
-  test("a component with no evidence is unknown, not healthy", () => {
-    const rows = systemRowsFrom([]);
-    expect(rows.find((row) => row.label === "Ein")?.status).toBeUndefined();
-  });
-
-  test("diagnostics are offered as a command, never run by the app", () => {
-    const diagnostics = systemRowsFrom([]).find((row) => row.label === "Diagnostics");
-    expect(diagnostics?.command).toBe("ein-install doctor");
-  });
-
-  test("the view renders the command inline and declares its source", () => {
-    const lines = renderScreen(buildSystemScreen([
-      { label: "Ein", status: "update available", command: "ein-install update" },
-      { label: "Pi binary", status: undefined },
-    ])).join("\n");
-    expect(lines).toContain("run `ein-install update`");
-    expect(lines).toContain("[system]");
-    expect(lines).toMatch(/Pi binary\s+unknown/);
-  });
-});
-
-describe("runtime view", () => {
-  const sessions = [
-    { reference: "s-1", label: "2026-08-11T09:00:00.000Z", detail: undefined },
-    { reference: undefined, label: "2026-08-10T09:00:00.000Z", detail: "no reference" },
-  ];
-  const runtime = (provider: "pi" | "claude" = "pi") => buildRuntimeScreen(provider, sessions, "list=supported");
-
-  test("the selected runtime and its capabilities are shown", () => {
-    const lines = renderScreen(runtime()).join("\n");
-    expect(lines).toMatch(/Runtime\s+Pi/);
-    expect(lines).toContain("list=supported");
-    expect(lines).toContain("[runtime]");
-  });
-
-  test("enter on the runtime row asks to cycle the provider", () => {
-    expect(handleKey(runtime(), "\r").effect).toEqual({ kind: "cycle-runtime" });
-  });
-
-  test("the provider cycle wraps", () => {
-    expect(nextRuntime("pi")).toBe("claude");
-    expect(nextRuntime("claude")).toBe("pi");
-  });
-
-  test("enter on a session asks to launch it by reference", () => {
-    let screen = runtime();
-    for (let index = 0; index < 2; index++) screen = handleKey(screen, "j").screen;
-    expect(handleKey(screen, "\r").effect).toEqual({ kind: "launch", provider: "pi", reference: "s-1" });
-  });
-
-  test("a session without a reference is reported, never launched blindly", () => {
-    let screen = runtime();
-    for (let index = 0; index < 3; index++) screen = handleKey(screen, "j").screen;
-    const effect = handleKey(screen, "\r").effect;
-    expect(effect.kind).toBe("status");
-    if (effect.kind === "status") expect(effect.message).toContain("not resumable");
-  });
-
-  test("the last row starts a new session on the selected runtime", () => {
-    let screen = runtime("claude");
-    for (let index = 0; index < 4; index++) screen = handleKey(screen, "j").screen;
-    expect(handleKey(screen, "\r").effect).toEqual({ kind: "launch", provider: "claude" });
-  });
-
-  test("no sessions still offers to start one", () => {
-    const lines = renderScreen(buildRuntimeScreen("pi", [], undefined)).join("\n");
-    expect(lines).toContain("none found");
-    expect(lines).toContain("New session");
-  });
-});
-
-describe("runtime handoff", () => {
-  function harness() {
-    const written: string[] = [];
-    let raw: boolean | undefined;
-    let press: ((key: string) => void) | undefined;
-    let listening = false;
-    return {
-      io: {
-        write: (text: string) => { written.push(text); },
-        isTTY: true,
-        clear: () => {},
-        setRawMode: (value: boolean) => { raw = value; },
-        onKey: (handler: (key: string) => void) => {
-          press = handler; listening = true;
-          return () => { press = undefined; listening = false; };
-        },
-      },
-      written,
-      get raw() { return raw; },
-      get listening() { return listening; },
-      press: (key: string) => press?.(key),
-    };
-  }
-
-  const base = (h: ReturnType<typeof harness>, runtime: Record<string, unknown>) => runTerminalApp({
-    argv: ["--no-intro"],
-    cwd: "/repo",
-    io: h.io,
-    project: () => buildHomeScreen(state()),
-    settings: { read: () => [], apply: () => true },
-    sessions: () => [],
-    system: () => [],
-    runtime: runtime as never,
-  });
-
-  test("tab reaches the runtime view after system", async () => {
-    const h = harness();
-    const run = base(h, {
-      sessions: () => [{ reference: "s-1", label: "sesion", detail: undefined }],
-      launch: async () => 0,
-      capabilities: () => "list=supported",
-    });
-    h.press("\t"); h.press("\t"); h.press("\t"); h.press("\t");
-    expect(h.written.join("")).toContain("Ein — runtime");
-    h.press("q");
-    expect(await run).toBe(0);
-  });
-
-  test("cycling the runtime relists that provider's sessions", async () => {
-    const asked: string[] = [];
-    const h = harness();
-    const run = base(h, {
-      sessions: (provider: string) => { asked.push(provider); return []; },
-      launch: async () => 0,
-    });
-    for (let index = 0; index < 4; index++) h.press("\t");
-    h.press("\r");
-    expect(asked).toContain("claude");
-    h.press("q");
-    expect(await run).toBe(0);
-  });
-
-  test("launching leaves raw mode, stops listening and exits with the runtime's code", async () => {
-    const h = harness();
-    const launched: Array<[string, string | undefined]> = [];
-    const run = base(h, {
-      sessions: () => [{ reference: "s-1", label: "sesion", detail: undefined }],
-      launch: async (provider: string, reference?: string) => { launched.push([provider, reference]); return 7; },
-    });
-    for (let index = 0; index < 4; index++) h.press("\t");
-    h.press("j"); h.press("j");
-    h.press("\r");
-    expect(await run).toBe(7);
-    expect(launched).toEqual([["pi", "s-1"]]);
-    expect(h.raw).toBe(false);
-    expect(h.listening).toBe(false);
-  });
-
-  test("a launch that throws ends the app instead of hanging it", async () => {
-    const h = harness();
-    const run = base(h, {
-      sessions: () => [],
-      launch: async () => { throw new Error("spawn failed"); },
-    });
-    for (let index = 0; index < 4; index++) h.press("\t");
-    h.press("j"); h.press("j");
-    h.press("\r");
-    expect(await run).toBe(1);
-  });
-});
-
-describe("resume capability honesty", () => {
-  test("a provider without resume support lists sessions as non-resumable", () => {
-    const screen = buildRuntimeScreen("pi", [
-      { reference: undefined, label: "6h", detail: "2026-08-10T16:39:11.899Z · resume unsupported" },
-    ], "resume=unsupported");
-    const lines = renderScreen(screen).join("\n");
-    expect(lines).toContain("resume unsupported");
-    let cursored = screen;
-    for (let index = 0; index < 2; index++) cursored = handleKey(cursored, "j").screen;
-    const effect = handleKey(cursored, "\r").effect;
-    expect(effect.kind).toBe("status");
-    if (effect.kind === "status") expect(effect.message).toContain("not resumable");
-  });
-});
-
-describe("old installer verbs", () => {
-  const io = () => {
-    const written: string[] = [];
-    return { written, io: { write: (t: string) => { written.push(t); }, isTTY: false } };
-  };
-
-  test("every installer verb is redirected instead of opening the app", async () => {
-    for (const verb of INSTALLER_VERBS) {
-      const h = io();
-      const code = await runTerminalApp({ argv: [verb], cwd: "/repo", io: h.io, project: () => buildHomeScreen(state()) });
-      expect(code).toBe(2);
-      expect(h.written.join("")).toContain(`${INSTALLER_COMMAND} ${verb}`);
-      expect(h.written.join("")).not.toContain("Project");
+  test("esc returns to the dashboard from any view", () => {
+    for (const start of [sessions(), config(), state(), system()]) {
+      expect(press(start, ESCAPE).effects[0]).toMatchObject({ kind: "open", view: "dashboard" });
     }
   });
 
-  test("the redirect also says what bare ein does now", async () => {
-    const h = io();
-    await runTerminalApp({ argv: ["update"], cwd: "/repo", io: h.io, project: () => buildHomeScreen(state()) });
-    expect(h.written.join("")).toContain("sin argumentos abre la aplicación");
+  test("esc on the dashboard does not quit by accident", () => {
+    expect(press(dashboard(), ESCAPE).effects[0]).toMatchObject({ kind: "none" });
   });
 
-  test("a verb-looking flag is not mistaken for an installer verb", () => {
-    expect(parseTerminalAppArgs(["--once"], "/repo")).toMatchObject({ kind: "run" });
-    expect(parseTerminalAppArgs(["doctor"], "/repo")).toMatchObject({ kind: "moved", verb: "doctor" });
+  test("tab still cycles the views for fingers that learned it", () => {
+    expect(press(dashboard(), "\t").effects[0]).toMatchObject({ kind: "open" });
+  });
+});
+
+// ─── search ──────────────────────────────────────────────────────────────────
+
+describe("search", () => {
+  test("f filters the rows and / does the same", () => {
+    const filtered = press(config(), "f", "m", "o", "d").model;
+    expect(visibleRows(filtered.view, filtered.query)).toHaveLength(1);
+    expect(press(config(), "/", "m").model.searching).toBe(true);
+  });
+
+  test("backspace removes one character", () => {
+    expect(press(config(), "f", "m", "o", "\u007f").model.query).toBe("m");
+  });
+
+  test("escape leaves search and clears the filter", () => {
+    const cleared = press(config(), "f", "m", ESCAPE).model;
+    expect(cleared.searching).toBe(false);
+    expect(cleared.query).toBe("");
+  });
+
+  test("enter keeps the filter but leaves typing mode", () => {
+    const kept = press(config(), "f", "m", ENTER).model;
+    expect(kept.searching).toBe(false);
+    expect(kept.query).toBe("m");
+  });
+
+  test("the cursor is clamped when the filter shrinks the list", () => {
+    const filtered = press(config(), "G", "f", "m", "o", "d").model;
+    expect(filtered.cursor).toBe(0);
+  });
+
+  test("a filter that matches nothing says so instead of an empty list", () => {
+    const empty = press(config(), "f", "z", "z", "z").model;
+    const painted = stripAnsi(renderApp(empty, { columns: 80, palette: createPalette(false) }).join("\n"));
+    expect(painted).toContain("Ningún resultado");
+  });
+});
+
+// ─── configuration ───────────────────────────────────────────────────────────
+
+describe("configuration", () => {
+  const cycleValue = (keys: string[]) => {
+    const outcome = press(config(), ...keys);
+    return outcome.effects.at(-1);
+  };
+
+  test("enter cycles to the next value and asks the driver to persist it", () => {
+    expect(cycleValue([ENTER])).toMatchObject({ kind: "apply-setting", settingId: "mode", value: "team" });
+  });
+
+  test("space and the right arrow cycle forward too", () => {
+    expect(cycleValue([" "])).toMatchObject({ value: "team" });
+    expect(cycleValue([ARROW_RIGHT])).toMatchObject({ value: "team" });
+    expect(cycleValue(["l"])).toMatchObject({ value: "team" });
+  });
+
+  test("the left arrow cycles backwards, which a long option list needs", () => {
+    expect(cycleValue([ARROW_LEFT])).toMatchObject({ value: "team" });
+    expect(previousSettingValue(SETTINGS[0]!)).toBe("team");
+    expect(previousSettingValue({ id: "x", label: "x", options: ["a", "b", "c"], value: "c" })).toBe("b");
+  });
+
+  test("an unreadable setting starts at the first option instead of guessing", () => {
+    expect(nextSettingValue(SETTINGS[1]!)).toBe("auto");
+  });
+
+  test("a setting with nothing to cycle says so and changes nothing", () => {
+    const at = { ...config(), cursor: 2 };
+    const outcome = handleKey(at, ENTER);
+    expect(outcome.effect.kind).toBe("status");
+  });
+
+  test("cycling wraps around the end of the list", () => {
+    expect(nextSettingValue({ id: "x", label: "x", options: ["a", "b"], value: "b" })).toBe("a");
+  });
+
+  test("the view never mutates a value itself: writing is the driver's", () => {
+    const before = config();
+    const after = handleKey(before, ENTER).model;
+    expect(after.view.sections).toEqual(before.view.sections);
+  });
+});
+
+// ─── sessions ────────────────────────────────────────────────────────────────
+
+describe("sessions", () => {
+  test("both runtimes appear in one list", () => {
+    const rows = visibleRows(buildSessionsView(SESSIONS, []), "");
+    expect(rows.map(({ row }) => row.action.kind).filter((kind) => kind === "session")).toHaveLength(2);
+  });
+
+  test("enter resumes that session on its own runtime", () => {
+    const outcome = handleKey(sessions(), ENTER);
+    expect(outcome.effect).toMatchObject({ kind: "launch", provider: "pi", reference: "pi:v1:sha256:a" });
+  });
+
+  test("a session whose phrase could not be read is still listed", () => {
+    const rendered = stripAnsi(renderApp(sessions(), { columns: 90, palette: createPalette(false) }).join("\n"));
+    expect(rendered).toContain("1d");
+  });
+
+  test("a runtime with no store is declared, never shown as empty", () => {
+    const view = buildSessionsView([], [{ provider: "claude", reason: "no-store" }]);
+    const rendered = stripAnsi(renderApp(model(view), { columns: 90, palette: createPalette(false) }).join("\n"));
+    expect(rendered).toContain("Claude Code");
+    expect(rendered.toLowerCase()).toContain("sin store");
+  });
+
+  test("with nothing to resume it still offers to start something", () => {
+    const rows = visibleRows(buildSessionsView([], []), "");
+    expect(rows.map(({ row }) => row.action.kind)).toContain("launch");
+  });
+});
+
+// ─── project state ───────────────────────────────────────────────────────────
+
+describe("project state", () => {
+  test("it names branch, uncommitted work, change, phase and next step", () => {
+    const rendered = stripAnsi(renderApp(state(), { columns: 100, palette: createPalette(false) }).join("\n"));
+    for (const fact of ["main", "terminal-app-rework", "apply", "verify"]) {
+      expect(rendered).toContain(fact);
+    }
+  });
+
+  test("enter on an open change focuses it", () => {
+    const view = buildStateView({ ...SUMMARY, activeChanges: ["a-change", "b-change"] });
+    const index = visibleRows(view, "").findIndex(({ row }) => row.action.kind === "focus-change");
+    const outcome = handleKey({ ...model(view), cursor: index }, ENTER);
+    expect(outcome.effect).toMatchObject({ kind: "focus-change" });
+  });
+
+  test("an unknown fact is rendered as unknown, never as empty", () => {
+    const unknown = buildStateView({ ...SUMMARY, branch: undefined, dirty: undefined });
+    const rendered = stripAnsi(renderApp(model(unknown), { columns: 100, palette: createPalette(false) }).join("\n"));
+    expect(rendered).toContain("desconocido");
+  });
+
+  test("a clean worktree reads as clean, not as zero", () => {
+    const clean = buildStateView({ ...SUMMARY, dirty: 0 });
+    const rendered = stripAnsi(renderApp(model(clean), { columns: 100, palette: createPalette(false) }).join("\n"));
+    expect(rendered).toContain("limpio");
+  });
+});
+
+// ─── system ──────────────────────────────────────────────────────────────────
+
+describe("system", () => {
+  test("one press asks for confirmation and runs nothing", () => {
+    const outcome = handleKey(system(), ENTER);
+    expect(outcome.effect.kind).toBe("status");
+    expect(outcome.model.pending?.command).toEqual(["ein-install", "update"]);
+    const shown = stripAnsi(renderApp(outcome.model, { columns: 100, palette: createPalette(false) }).join("\n"));
+    expect(shown).toContain("ein-install update");
+  });
+
+  test("a second press runs exactly the declared command", () => {
+    const { effects } = press(system(), ENTER, ENTER);
+    expect(effects[1]).toMatchObject({ kind: "run", command: ["ein-install", "update"] });
+  });
+
+  test("any other key cancels the confirmation", () => {
+    const { model: after, effects } = press(system(), ENTER, "j");
+    expect(after.pending).toBeUndefined();
+    expect(effects[1]).not.toMatchObject({ kind: "run" });
+  });
+
+  test("a component with no command is not offered as runnable", () => {
+    const at = { ...system(), cursor: 1 };
+    const outcome = handleKey(at, ENTER);
+    expect(outcome.effect.kind).toBe("status");
+    expect(outcome.model.pending).toBeUndefined();
+  });
+
+  test("moving away clears a pending confirmation", () => {
+    expect(press(system(), ENTER, ARROW_DOWN).model.pending).toBeUndefined();
+  });
+});
+
+// ─── rendering ───────────────────────────────────────────────────────────────
+
+describe("rendering", () => {
+  const plain = (m: AppModel, columns = 100) =>
+    renderApp(m, { columns, palette: createPalette(false) }).join("\n");
+  const painted = (m: AppModel, columns = 100) =>
+    renderApp(m, { columns, palette: createPalette(true) }).join("\n");
+
+  test("without colour there is not a single escape sequence", () => {
+    for (const start of ALL_VIEWS()) {
+      expect(plain(start)).not.toContain("\u001b");
+    }
+  });
+
+  test("with colour the brand yellow is actually used", () => {
+    expect(painted(dashboard())).toContain("\u001b[38;2;255;202;64m");
+  });
+
+  test("no line overflows the terminal width", () => {
+    for (const columns of [40, 60, 80, 120]) {
+      for (const start of ALL_VIEWS()) {
+        for (const line of renderApp(start, { columns, palette: createPalette(true) })) {
+          expect(stripAnsi(line).length).toBeLessThanOrEqual(columns);
+        }
+      }
+    }
+  });
+
+  test("the source of a screen is stated once, not tagged onto every row", () => {
+    const rendered = plain(state());
+    expect(rendered).not.toContain("[openspec]");
+    expect(rendered).not.toContain("[git]");
+    expect(rendered.match(/openspec/gi)?.length ?? 0).toBeLessThanOrEqual(2);
+  });
+
+  test("exactly one row is marked as selected", () => {
+    for (const start of ALL_VIEWS()) {
+      const lines = renderApp(start, { columns: 90, palette: createPalette(false) });
+      expect(lines.filter((line) => line.includes("▌")).length).toBe(1);
+    }
+  });
+
+  test("every view says where you are and how to get back", () => {
+    for (const start of [sessions(), config(), state(), system()]) {
+      const rendered = plain(start);
+      expect(rendered).toContain("esc");
+    }
+  });
+
+  test("the hints belong to the view, not to a single fixed string", () => {
+    expect(plain(config())).toContain("cambiar");
+    expect(plain(sessions())).toContain("reanudar");
+  });
+
+  test("the status message is shown when there is one", () => {
+    const outcome = handleKey(system(), ENTER);
+    expect(plain(outcome.model)).toContain("ein-install update");
+  });
+
+  test("a terminal that reports no width still paints something", () => {
+    // `script` and some CI pty wrappers report 0 columns; a width of 0 cut
+    // every line to nothing and the screen went blank, which reads as a crash.
+    for (const columns of [0, -5, Number.NaN]) {
+      for (const start of ALL_VIEWS()) {
+        const lines = renderApp(start, { columns, palette: createPalette(false) });
+        expect(lines.join("").trim().length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  test("a very narrow terminal still renders something readable", () => {
+    const lines = renderApp(dashboard(), { columns: 30, palette: createPalette(false) });
+    expect(lines.length).toBeGreaterThan(3);
+    expect(lines.join("\n")).toContain("Ein");
+  });
+});
+
+// ─── keys arriving in blocks ─────────────────────────────────────────────────
+
+describe("splitting a terminal read into keys", () => {
+  test("a single key is one key", () => {
+    expect(splitKeys("j")).toEqual(["j"]);
+  });
+
+  test("a block of keys is not one giant key", () => {
+    expect(splitKeys("sjjq")).toEqual(["s", "j", "j", "q"]);
+  });
+
+  test("an escape sequence survives the split whole", () => {
+    expect(splitKeys(`${ARROW_DOWN}${ARROW_UP}j`)).toEqual([ARROW_DOWN, ARROW_UP, "j"]);
+  });
+
+  test("a bare escape is its own key", () => {
+    expect(splitKeys(`${ESCAPE}o`)).toEqual([ESCAPE, "o"]);
+    expect(splitKeys(ESCAPE)).toEqual([ESCAPE]);
+  });
+
+  test("function keys and tilde sequences stay together", () => {
+    expect(splitKeys("OP[3~")).toEqual(["OP", "[3~"]);
+  });
+
+  test("an accented character is one key, not two broken halves", () => {
+    expect(splitKeys("configuración")).toContain("ó");
+    expect(splitKeys("ñ")).toEqual(["ñ"]);
+  });
+
+  test("a block of keys drives the app the same as pressing them one by one", () => {
+    const block = press(dashboard(), ...splitKeys(`${DASHBOARD_KEYS.config}jj`));
+    const single = press(dashboard(), DASHBOARD_KEYS.config, "j", "j");
+    expect(block.model.cursor).toBe(single.model.cursor);
+  });
+});
+
+// ─── the selection helper the driver relies on ───────────────────────────────
+
+describe("selection", () => {
+  test("selectedRow follows the cursor through a filter", () => {
+    const filtered = press(config(), "f", "t", "d", "d").model;
+    expect(selectedRow(filtered)?.label).toContain("TDD");
+  });
+
+  test("selectedRow is undefined when nothing matches", () => {
+    const empty = press(config(), "f", "z", "z").model;
+    expect(selectedRow(empty)).toBeUndefined();
+  });
+
+  test("enter with nothing selected says so instead of throwing", () => {
+    const empty = press(config(), "f", "z", "z", ENTER).model;
+    expect(handleKey(empty, ENTER).effect.kind).toBe("status");
   });
 });

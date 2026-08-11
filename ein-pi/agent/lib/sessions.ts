@@ -11,7 +11,11 @@ import { basename, isAbsolute, join, normalize, sep } from "node:path";
 import { AGENT_DIR } from "../extensions/ein-paths";
 import { pick } from "./lang";
 
-const SESSIONS_DIR = join(AGENT_DIR, "sessions");
+// Resolved per call, not at module load: the terminal app adopts the isolated
+// home after this module is already in memory, and tests move it between cases.
+function sessionsDir(): string {
+  return join(process.env.EIN_PI_AGENT_HOME ?? AGENT_DIR, "sessions");
+}
 
 export type RecentSession = {
   project: string;
@@ -31,19 +35,25 @@ export function humanizeAge(ms: number): string {
   return `${Math.floor(h / 24)}d`;
 }
 
-type Candidate = { path: string; mtimeMs: number };
+export type Candidate = { path: string; mtimeMs: number };
+
+/** `store: "absent"` means the directory could not be listed at all. */
+export type CandidateScan = { candidates: Candidate[]; store: SessionStorePresence };
 
 // Cheap pass: collect top-level .jsonl files across project dirs with mtime.
-function collectCandidates(): Candidate[] {
+function collectCandidateScan(): CandidateScan {
   const out: Candidate[] = [];
+  const root = sessionsDir();
   let projectDirs: string[] = [];
   try {
-    projectDirs = readdirSync(SESSIONS_DIR);
+    projectDirs = readdirSync(root);
   } catch {
-    return out;
+    // No store is a different fact from an empty store; callers must be able to
+    // say "this runtime has nothing here" without claiming "no sessions".
+    return { candidates: out, store: "absent" };
   }
   for (const proj of projectDirs) {
-    const projDir = join(SESSIONS_DIR, proj);
+    const projDir = join(root, proj);
     let entries: string[] = [];
     try {
       if (!statSync(projDir).isDirectory()) continue;
@@ -62,7 +72,11 @@ function collectCandidates(): Candidate[] {
       }
     }
   }
-  return out;
+  return { candidates: out, store: "present" };
+}
+
+function collectCandidates(): Candidate[] {
+  return collectCandidateScan().candidates;
 }
 
 // Read only the first line of a (potentially large) session file.
@@ -101,32 +115,42 @@ function readSessionMeta(path: string): { id: string; cwd: string } | null {
   }
 }
 
-const PROJECT_SCAN_LIMIT = 4_096;
+export const PROJECT_SCAN_LIMIT = 4_096;
+export const MAX_PROJECT_SESSIONS = 20;
 
 export type ProjectSessionScope = {
   cwd: string;
   repositoryRoot?: string;
 };
 
-/** Internal metadata kept transiently between the Pi reader and its adapter. */
-type ProjectSessionRecord = {
+/** Metadata kept transiently between a runtime's reader and its adapter. */
+export type ProjectSessionRecord = {
   id: string;
   cwd: string;
   path: string;
   mtimeMs: number;
 };
 
+/** `absent` means the store itself could not be listed, not that it was empty. */
+export type SessionStorePresence = "present" | "absent";
+
 export type ProjectSessionScan = {
   matches: readonly ProjectSessionRecord[];
   scanLimitExceeded: boolean;
+  store: SessionStorePresence;
 };
 
-function isWithin(root: string, candidate: string): boolean {
+export function isWithin(root: string, candidate: string): boolean {
   const boundary = root.endsWith(sep) ? root : `${root}${sep}`;
   return candidate === root || candidate.startsWith(boundary);
 }
 
-function matchesProjectScope(meta: { cwd: string }, scope: ProjectSessionScope): boolean {
+/**
+ * Project membership is decided by the transcript's own `cwd`, never by the
+ * directory name a runtime encodes it into — those encodings are lossy and two
+ * different projects can collide on one folder.
+ */
+export function matchesProjectScope(meta: { cwd: string }, scope: ProjectSessionScope): boolean {
   const cwd = normalize(meta.cwd);
   const selectedCwd = normalize(scope.cwd);
   if (!isAbsolute(cwd) || !isAbsolute(selectedCwd)) return false;
@@ -143,8 +167,9 @@ export function scanProjectSessions(
   scope: ProjectSessionScope,
   limit = 10,
 ): ProjectSessionScan {
-  const boundedLimit = Math.min(20, Math.max(1, Math.trunc(limit)));
-  const candidates = collectCandidates().sort(
+  const boundedLimit = Math.min(MAX_PROJECT_SESSIONS, Math.max(1, Math.trunc(limit)));
+  const scan = collectCandidateScan();
+  const candidates = scan.candidates.sort(
     (a, b) => b.mtimeMs - a.mtimeMs || a.path.localeCompare(b.path),
   );
   const matches: ProjectSessionRecord[] = [];
@@ -158,6 +183,7 @@ export function scanProjectSessions(
     matches,
     scanLimitExceeded:
       matches.length < boundedLimit && candidates.length > PROJECT_SCAN_LIMIT,
+    store: scan.store,
   };
 }
 

@@ -56,6 +56,8 @@ export class RuntimeTestOwner {
 	readonly agentHome: string;
 	readonly configHome: string;
 	readonly sessionsDir: string;
+	/** Owned Claude store, so a scan never reaches the developer's own sessions. */
+	readonly claudeHome: string;
 
 	private readonly envSnapshots = new Map<string, Snapshot<string | undefined>>();
 	private cwdSnapshot?: string;
@@ -80,6 +82,7 @@ export class RuntimeTestOwner {
 		this.runtimeHome = this.agentHome;
 		this.configHome = join(this.root, "ein");
 		this.sessionsDir = join(this.agentHome, "sessions");
+		this.claudeHome = join(this.root, "claude");
 		mkdirSync(this.sessionsDir, { recursive: true });
 		mkdirSync(this.configHome, { recursive: true });
 		this.exitHandler = () => this.syncDispose();
@@ -91,6 +94,7 @@ export class RuntimeTestOwner {
 		if (this.activated) return this;
 		this.setEnv("EIN_PI_AGENT_HOME", this.agentHome);
 		this.setEnv("EIN_PI_CONFIG_HOME", this.configHome);
+		this.setEnv("CLAUDE_CONFIG_DIR", this.claudeHome);
 		this.activated = true;
 		for (const signal of ACTIVE_SIGNAL_NAMES) {
 			const handler = () => {

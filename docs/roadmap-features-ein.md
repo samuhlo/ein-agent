@@ -368,6 +368,38 @@ como dependencia del repo, y la puerta de tipos de `ein-pi`, `cc-ein` y `tests`.
   fuente de verdad del proyecto, o que el coste de la interfaz desplace al trabajo
   que de verdad escribe código.
 
+#### Evolución técnica de la TUI: evaluación de OpenTUI + SolidJS
+
+Una vez estabilizado, verificado y publicado `terminal-app-rework`, se evaluará una
+migración de la capa de presentación a **OpenTUI + `@opentui/solid`**, manteniendo
+TypeScript, TSX y Bun como stack principal. OpenTUI aporta un renderer nativo en Zig
+y bindings declarativos para SolidJS; encaja con la preferencia tecnológica de EIN
+y puede reducir el coste de mantener manualmente layout, foco, entrada, repintado y
+composición visual.
+
+La evaluación será un cambio separado, no una reescritura incluida en la
+recuperación del candidato actual:
+
+1. Construir un spike con una sola vista representativa y navegación por teclado.
+2. Probar ciclo de terminal, resize, degradación sin TTY, `NO_COLOR` y cesión de la
+   terminal a Pi, Claude Code y comandos del sistema.
+3. Verificar build y distribución en los payloads empaquetados de Pi y Claude, no
+   únicamente desde el repositorio.
+4. Comparar arranque, tamaño de paquete, compatibilidad de plataformas, calidad de
+   tests y complejidad mantenida frente al renderer actual.
+5. Decidir explícitamente entre conservar el renderer propio o migrar por slices
+   verticales; el spike no autoriza por sí solo la migración completa.
+
+La frontera de migración será estricta: se reutilizan el contrato de estado,
+adaptadores de runtime, sesiones, configuración, updater y acciones del modelo. La
+evaluación sustituye únicamente presentación, input y propiedad de terminal. No
+debe reimplementar reglas de producto dentro de componentes SolidJS ni hacer que la
+UI se convierta en autoridad del estado.
+
+**Criterio de salida:** existe evidencia empaquetada y comparable que demuestra si
+OpenTUI mejora personalización y mantenibilidad sin perder compatibilidad,
+degradación honesta ni seguridad en la cesión de terminal.
+
 ### J — `architect-read-only-audit`
 
 - **Objetivo:** entender y auditar el architect sin permitirle mutaciones.

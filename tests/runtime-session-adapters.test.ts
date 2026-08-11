@@ -146,14 +146,14 @@ describe("runtime session adapter contract", () => {
 			support: "supported",
 			requestOnly: true,
 		});
-		expect(RUNTIME_CAPABILITY_MATRIX.pi.resume.support).toBe("unsupported");
+		expect(RUNTIME_CAPABILITY_MATRIX.pi.resume.support).toBe("supported");
 		expect(RUNTIME_CAPABILITY_MATRIX.pi.launch.support).toBe("supported");
-		expect(RUNTIME_CAPABILITY_MATRIX.claude.list.support).toBe("unsupported");
+		expect(RUNTIME_CAPABILITY_MATRIX.claude.list.support).toBe("supported");
 		expect(RUNTIME_CAPABILITY_MATRIX.claude.create).toMatchObject({
 			support: "supported",
 			requestOnly: true,
 		});
-		expect(RUNTIME_CAPABILITY_MATRIX.claude.resume.support).toBe("unsupported");
+		expect(RUNTIME_CAPABILITY_MATRIX.claude.resume.support).toBe("supported");
 		expect(RUNTIME_CAPABILITY_MATRIX.claude.launch.support).toBe("supported");
 
 		for (const provider of ["pi", "claude"] as const) {
@@ -517,7 +517,7 @@ describe("runtime session adapter lifecycle requests", () => {
 		expect(nonRepository.outcome).toBe("success");
 	});
 
-sessionTest("keeps listing deterministic and reports Claude list as unsupported", async (lease) => {
+sessionTest("keeps listing deterministic across both runtimes", async (lease) => {
 		const state = stateFor();
 		const root = "/work/example";
 		writeSession(lease, "runtime-adapter-group-003", "one.jsonl", { id: "group-003-one", cwd: root }, 2_000);
@@ -526,24 +526,27 @@ sessionTest("keeps listing deterministic and reports Claude list as unsupported"
 		if (pi.outcome !== "success") throw new Error("expected Pi list success");
 		expect(pi.data).toEqual([{ reference: opaque("group-003-one"), modifiedAtMs: 2_000 }]);
 
+		// Claude's store is readable now; with no isolated home on this machine
+		// the honest answer is "no source", never "no sessions".
 		const claude = listSessionRequest("claude", state);
-		expect(claude.outcome).toBe("unsupported");
-		expect(claude.error?.code).toBe("operation-not-supported");
+		expect(claude.outcome).toBe("unavailable");
+		expect(claude.error?.code).toBe("session-source-unavailable");
 	});
 
-	test("validates opaque provider references before fail-closed resume", () => {
+	test("validates opaque provider references before resolving a resume", () => {
 		const state = stateFor();
 		const piReference = opaque("resume-id");
 		expect(validateOpaqueReference("pi", piReference)).toBe(true);
 		expect(validateOpaqueReference("claude", piReference)).toBe(false);
 		expect(validateOpaqueReference("pi", "pi:v1:sha256:bad")).toBe(false);
 
+		// Well-formed but not backed by any live session of this project: the
+		// reference resolves against the store, so it is not-found, not refused.
 		const piResume = resumeSessionRequest("pi", state, piReference);
-		expect(piResume.outcome).toBe("unsupported");
-		expect(piResume.error?.code).toBe("operation-not-supported");
+		expect(piResume.outcome).toBe("error");
+		expect(piResume.error?.code).toBe("reference-not-found");
 		const claudeResume = resumeSessionRequest("claude", state, "claude:v1:sha256:" + "b".repeat(64));
-		expect(claudeResume.outcome).toBe("unsupported");
-		expect(claudeResume.error?.code).toBe("operation-not-supported");
+		expect(claudeResume.error?.code).toBe("reference-not-found");
 
 		const crossRuntime = resumeSessionRequest("claude", state, piReference);
 		expect(crossRuntime.outcome).toBe("error");
@@ -560,8 +563,8 @@ sessionTest("keeps listing deterministic and reports Claude list as unsupported"
 		expect(claude.provider).toBe("claude");
 		expect(pi.capabilities).toEqual(getRuntimeCapabilities("pi"));
 		expect(claude.capabilities).toEqual(getRuntimeCapabilities("claude"));
-		expect(pi.capabilities.filter((capability) => capability.support === "supported").map((capability) => capability.operation)).toEqual(["list", "create", "launch"]);
-		expect(claude.capabilities.filter((capability) => capability.support === "supported").map((capability) => capability.operation)).toEqual(["create", "launch"]);
+		expect(pi.capabilities.filter((capability) => capability.support === "supported").map((capability) => capability.operation)).toEqual(["list", "create", "resume", "launch"]);
+		expect(claude.capabilities.filter((capability) => capability.support === "supported").map((capability) => capability.operation)).toEqual(["list", "create", "resume", "launch"]);
 	});
 
 	test("accepts request envelopes as the factory-neutral call form", () => {
@@ -575,7 +578,8 @@ sessionTest("keeps listing deterministic and reports Claude list as unsupported"
 			state,
 			reference: opaque("envelope-reference"),
 		});
-		expect(resumed.outcome).toBe("unsupported");
+		// The envelope form reaches resolution like the positional one does.
+		expect(resumed.error?.code).toBe("reference-not-found");
 	});
 
 	test("rejects stale or wrong-project bindings before unsupported resume", () => {

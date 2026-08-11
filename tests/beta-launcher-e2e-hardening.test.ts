@@ -443,7 +443,9 @@ describe("beta launcher E2E PTY contract", () => {
         await pty.waitForPrompt("Select runtime: 1. Pi 2. Claude: ");
         pty.writeLine("2");
         await pty.waitForPrompt("Select action: ");
-        pty.writeLine("1");
+        // Claude lists its sessions now, so "Create session" is the second
+        // entry for both runtimes instead of the first one for Claude only.
+        pty.writeLine("2");
         await pty.waitForPrompt("Confirm launch?");
         pty.writeLine("yes");
         await pty.waitForPrompt("Launch handoff: confirmed snapshot freshness=current");
@@ -653,21 +655,34 @@ describe("real adapter, plan, and recording executor boundaries", () => {
     }
   });
 
-  test("preserves capability asymmetry, request-only creation, unsupported list/resume, and privacy", () => {
+  test("lists both runtimes, refuses a reference no session backs, and keeps ids private", () => {
     const fixture = makeFixture();
+    const previousClaudeHome = process.env.CLAUDE_CONFIG_DIR;
+    // Point Claude at the fixture's own (empty) store so the answer depends on
+    // the fixture, not on whatever this machine happens to have installed.
+    process.env.CLAUDE_CONFIG_DIR = join(fixture.home, ".claude-ein");
     try {
       const state = projectProjectState({ cwd: fixture.project });
       const opaque = `pi:v1:sha256:${"a".repeat(64)}`;
       expect(listSessionRequest("pi", state)).toMatchObject({ outcome: "success", operation: "list" });
-      expect(listSessionRequest("claude", state)).toMatchObject({ outcome: "unsupported", error: { code: "operation-not-supported" } });
-      expect(resumeSessionRequest("pi", state, opaque)).toMatchObject({ outcome: "unsupported" });
-      expect(resumeSessionRequest("claude", state, `claude:v1:sha256:${"b".repeat(64)}`)).toMatchObject({ outcome: "unsupported" });
+      // The store exists but holds no projects directory: unavailable is the
+      // honest answer, and it is no longer "this runtime cannot be listed".
+      expect(listSessionRequest("claude", state)).toMatchObject({
+        outcome: "unavailable",
+        error: { code: "session-source-unavailable" },
+      });
+      // Well-formed references that no live session hashes to.
+      expect(resumeSessionRequest("pi", state, opaque)).toMatchObject({ error: { code: "reference-not-found" } });
+      expect(resumeSessionRequest("claude", state, `claude:v1:sha256:${"b".repeat(64)}`))
+        .toMatchObject({ error: { code: "reference-not-found" } });
       for (const provider of ["pi", "claude"] as const) {
         const adapter = createRuntimeSessionAdapter(provider);
         expect(adapter.capabilities.find((capability) => capability.operation === "create")).toMatchObject({ requestOnly: true });
       }
       expect(JSON.stringify(listSessionRequest("pi", state))).not.toContain("transcript");
     } finally {
+      if (previousClaudeHome === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = previousClaudeHome;
       fixture.dispose();
     }
   });

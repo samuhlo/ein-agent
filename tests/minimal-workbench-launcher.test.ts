@@ -221,8 +221,10 @@ describe("Pi listing and request-only create adapter outcomes", () => {
   });
 
   test("request-only create works for Pi and Claude without launch or persistence", async () => {
-    for (const [runtime, provider, exit] of [["1", "pi", "4"], ["2", "claude", "3"]] as const) {
-      const reads = ["1", "yes", runtime, provider === "pi" ? "2" : "1", "no", exit];
+    // Both runtimes list now, so the action menu has the same shape for both:
+    // 1 list · 2 create · 3 doctor · 4 exit.
+    for (const [runtime, provider] of [["1", "pi"], ["2", "claude"]] as const) {
+      const reads = ["1", "yes", runtime, "2", "no", "4"];
       const calls: any[] = []; const output: string[] = []; let launched = false;
       const state = { schemaVersion: 1, identity: { cwd: "/private/project", repositoryRoot: "/private/project", quality: "current", reason: "read-success" }, openspec: { quality: "absent", reason: "not-found", selection: "none" }, git: { quality: "current", reason: "read-success", repository: true, root: "/private/project", complete: true, dirty: false, stateRef: project.gitStateRef }, verification: { effectiveOutcome: "absent", freshness: "unbound", quality: "absent", reason: "not-found" } } as any;
       const result = await runWorkbench({ candidates: ["/private/project"], project: () => state, input: { read: async () => reads.shift() ?? null }, output: { write: text => { output.push(text); } }, adapter: (selected) => ({ provider: selected, capabilities: getRuntimeCapabilities(selected), list: () => { throw new Error("not listed"); }, create: (received, request) => (calls.push([selected, received, request]), { provider: selected, operation: "create", outcome: "success", project, data: { provider: selected, mode: "create", project } } as any), resume: () => { throw new Error("no resume"); } }), launch: { build: (() => { launched = true; }) as any, execute: (() => { launched = true; }) as any, executor: async () => ({ kind: "exit", code: 0 }) }, doctor: async () => ({} as any), signal: new AbortController().signal });
@@ -355,7 +357,8 @@ describe("confirmed project runtime selection and capability menu", () => {
   }) as any;
 
   test("requires ordered candidate selection and explicit confirmation before runtime selection", async () => {
-    const reads = ["2", "yes", "2", "3"], projected: string[] = [], adapterCalls: string[] = [], output: string[] = [];
+    // Exit is the fourth action for Claude too, now that it lists sessions.
+    const reads = ["2", "yes", "2", "4"], projected: string[] = [], adapterCalls: string[] = [], output: string[] = [];
     const result = await runWorkbench({ candidates: ["/private/alpha", "/private/beta"], project: ({ cwd }) => (projected.push(cwd), state(cwd)), input: { read: async () => reads.shift() ?? null }, output: { write: (text) => { output.push(text); } }, adapter: (provider) => ({ provider, capabilities: getRuntimeCapabilities(provider), list: () => (adapterCalls.push("list"), {} as any), create: () => (adapterCalls.push("create"), {} as any), resume: () => ({} as any) }), launch: {} as any, doctor: async () => ({} as any), signal: new AbortController().signal });
     expect(result).toEqual({ outcome: "normal", reason: "exit" });
     expect(projected).toEqual(["/private/alpha", "/private/beta"]); expect(adapterCalls).toEqual([]);
@@ -409,10 +412,11 @@ describe("confirmed project runtime selection and capability menu", () => {
   });
 
   test("renders provider capabilities in stable order and gates menu actions", () => {
-    expect(renderRuntimeCapabilities("pi")).toBe("Capabilities: list=supported create=supported(request-only) resume=unsupported launch=supported");
-    expect(renderRuntimeCapabilities("claude")).toContain("list=unsupported create=supported(request-only) resume=unsupported launch=supported");
+    expect(renderRuntimeCapabilities("pi")).toBe("Capabilities: list=supported create=supported(request-only) resume=supported launch=supported");
+    expect(renderRuntimeCapabilities("claude")).toContain("list=supported create=supported(request-only) resume=supported launch=supported");
+    // The asymmetry is gone: both stores are readable and both runtimes resume.
     expect(renderActionMenu("pi")).toEqual(["1. List sessions", "2. Create session", "3. Doctor", "4. Exit"]);
-    expect(renderActionMenu("claude")).toEqual(["1. Create session", "2. Doctor", "3. Exit"]);
+    expect(renderActionMenu("claude")).toEqual(["1. List sessions", "2. Create session", "3. Doctor", "4. Exit"]);
   });
 
   test("skips unavailable candidates and does not re-project the confirmed snapshot", async () => {
