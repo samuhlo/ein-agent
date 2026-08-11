@@ -5,6 +5,32 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.50.2] - 2026-08-11
+
+### Fixed
+
+- **El template de Pi ya despliega `app.ts` y `surfaces/`**: la lista blanca del
+  empaquetador no los incluía, así que `~/.pi-ein/agent/surfaces` y
+  `~/.pi-ein/agent/app.ts` nunca llegaban a la máquina. Consecuencias:
+  el instalador no podía compilar la app —informaba «no desplegada»— y
+  **`pi-ein workbench` y `pi-ein cleaner` nunca funcionaron desde una
+  instalación empaquetada**, solo desde un checkout del repositorio.
+
+  Es el mismo fallo que 0.50.1 corrigió en el payload de Claude, en el otro
+  empaquetado. Ambos vienen del bloque M, que añadió las superficies sin
+  añadirlas a ningún manifiesto.
+
+- **El motivo del fallo llega al mensaje del instalador**: `promoteCommandNames`
+  devolvía `app-source-missing` y el mensaje lo descartaba, dejando solo «no
+  desplegada». Diagnosticar la primera instalación real costó una vuelta entera
+  por eso.
+
+### Internal
+
+- `tests/template-agent-inventory.test.ts`: deriva del propio código —el
+  launcher de Pi y el instalador— qué rutas deben viajar en el template, y falla
+  si la lista blanca no las cubre. Verificado que detecta el fallo original.
+
 ## [0.50.1] - 2026-08-11
 
 ### Fixed
