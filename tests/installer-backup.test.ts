@@ -143,6 +143,27 @@ describe("backup v2", () => {
     expect(readFileSync(join(AGENT, "auth.json"), "utf8")).toBe("secreto-nuevo");
   });
 
+  test("restore recupera selector y pointer del mismo paquete", async () => {
+    const bin = join(ROOT, "bin");
+    const appPackage = { root: bin, commands: ["ein"] } as const;
+    mkdirSync(join(bin, ".ein-dashboard", "releases", "r1"), { recursive: true });
+    writeFileSync(join(bin, "ein"), "selector-r1");
+    writeFileSync(join(bin, ".ein-dashboard", "current.json"), "r1");
+    writeFileSync(join(bin, ".ein-dashboard", "releases", "r1", "candidate"), "r1");
+    const snap = await snapshot("package-r1", { ...PATHS, appPackage });
+
+    writeFileSync(join(AGENT, "settings.json"), "changed");
+    writeFileSync(join(bin, "ein"), "selector-r2");
+    writeFileSync(join(bin, ".ein-dashboard", "current.json"), "r2");
+    mkdirSync(join(bin, ".ein-dashboard", "releases", "r2"), { recursive: true });
+    writeFileSync(join(bin, ".ein-dashboard", "releases", "r2", "candidate"), "r2");
+    await restoreBackup(snap.path!, { ...PATHS, appPackage });
+
+    expect(readFileSync(join(bin, "ein"), "utf8")).toBe("selector-r1");
+    expect(readFileSync(join(bin, ".ein-dashboard", "current.json"), "utf8")).toBe("r1");
+    expect(existsSync(join(bin, ".ein-dashboard", "releases", "r2"))).toBe(false);
+  });
+
   test("backups legacy (directorio) se listan y restauran", async () => {
     const legacy = join(BACKUPS, "2026-01-01T00-00-00-000Z_legacy");
     mkdirSync(join(legacy, "agents"), { recursive: true });

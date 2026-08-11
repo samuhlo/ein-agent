@@ -6,9 +6,12 @@
 
 import * as p from "@clack/prompts";
 import { existsSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { removeAppPackage, type AppPackagePaths } from "../core/app-package-lifecycle.ts";
 import { snapshot } from "../core/backup.ts";
-import { AGENT_DIR, ENGRAM_DIR } from "../core/paths.ts";
+import { APP_COMMAND } from "../core/command-names.ts";
+import { parseInstallFlags, type InstallTarget, type RuntimeInstallTarget } from "./install.ts";
+import { activeHome, AGENT_DIR, ENGRAM_DIR } from "../core/paths.ts";
 import { bold, gold } from "../tui/theme.ts";
 
 // Top-level entries que el installer despliega y por tanto posee. auth.json,
@@ -32,18 +35,50 @@ const EIN_OWNED = [
   "skills",
 ];
 
+export type RuntimeUninstallResult = Readonly<{ target: RuntimeInstallTarget; ok: boolean; detail: string }>;
+
+export function uninstallAppPackages(
+  target: InstallTarget,
+  options: Readonly<{
+    home?: string;
+    binDir?: string;
+    remove?: (paths: AppPackagePaths) => number;
+  }> = {},
+): RuntimeUninstallResult[] {
+  const home = options.home ?? activeHome();
+  const remove = options.remove ?? removeAppPackage;
+  const targets: RuntimeInstallTarget[] = target === "both" ? ["pi", "claude"] : [target];
+  return targets.map((runtime) => {
+    try {
+      let removed = 0;
+      if (runtime === "pi") {
+        removed += remove({ root: options.binDir ?? dirname(process.execPath), commands: [APP_COMMAND] });
+      } else {
+        removed += remove({ root: join(home, ".claude-ein", "bin"), commands: ["ein-app"] });
+        removed += remove({ root: join(home, ".config", "fish", "functions"), commands: ["cc-ein.fish"], package: false });
+      }
+      return { target: runtime, ok: true, detail: `${removed} entradas de app eliminadas` };
+    } catch (error) {
+      return { target: runtime, ok: false, detail: error instanceof Error ? error.message : String(error) };
+    }
+  });
+}
+
 export async function runUninstall(args: string[]): Promise<number> {
   const yes = args.includes("--yes") || args.includes("-y");
+  let target: InstallTarget;
+  try {
+    target = parseInstallFlags(args).runtime;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
+  const includesPi = target !== "claude";
+  const appPackage = { root: dirname(process.execPath), commands: [APP_COMMAND] } as const;
 
   p.intro(bold(gold("Desinstalar Ein")));
 
-  if (!existsSync(AGENT_DIR)) {
-    p.log.info(`No hay nada que desinstalar (${AGENT_DIR} no existe).`);
-    p.outro("Listo.");
-    return 0;
-  }
-
-  p.log.warn("Se eliminara el contenido de Ein. Se conservan auth.json, sessions/, backups/ y tus secrets.");
+  p.log.warn("Se eliminara solo contenido propiedad de Ein; se conservan sesiones y datos runtime ajenos.");
 
   if (!yes) {
     const ok = await p.confirm({ message: "Continuar con la desinstalación?" });
@@ -53,25 +88,30 @@ export async function runUninstall(args: string[]): Promise<number> {
     }
   }
 
-  const sBackup = p.spinner();
-  sBackup.start("Creando backup antes de borrar");
-  const backup = await snapshot("pre-uninstall");
-  const backupPath = backup.path;
-  sBackup.stop(backupPath ? `Backup: ${backupPath}` : "Sin backup");
+  let backupPath: string | null = null;
+  if (includesPi && existsSync(AGENT_DIR)) {
+    const sBackup = p.spinner();
+    sBackup.start("Creando backup antes de borrar");
+    const backup = await snapshot("pre-uninstall", { appPackage });
+    backupPath = backup.path;
+    sBackup.stop(backupPath ? `Backup: ${backupPath}` : "Sin backup");
+  }
 
-  const sRemove = p.spinner();
-  sRemove.start("Eliminando contenido de Ein");
   let removed = 0;
-  for (const name of EIN_OWNED) {
-    const path = join(AGENT_DIR, name);
-    if (existsSync(path)) {
-      rmSync(path, { recursive: true, force: true });
-      removed++;
+  if (includesPi) {
+    for (const name of EIN_OWNED) {
+      const path = join(AGENT_DIR, name);
+      if (existsSync(path)) {
+        rmSync(path, { recursive: true, force: true });
+        removed++;
+      }
     }
   }
-  sRemove.stop(`Eliminadas ${removed} entradas de Ein.`);
+  const results = uninstallAppPackages(target);
+  for (const result of results) p.log[result.ok ? "success" : "error"](`${result.target}: ${result.detail}`);
+  if (includesPi) p.log.info(`Eliminadas ${removed} entradas del agente Pi.`);
 
-  if (existsSync(ENGRAM_DIR)) {
+  if (includesPi && existsSync(ENGRAM_DIR)) {
     const removeEngram = yes
       ? false
       : await p.confirm({
@@ -84,6 +124,7 @@ export async function runUninstall(args: string[]): Promise<number> {
     }
   }
 
-  p.outro(`Ein desinstalado. Backup en ${backupPath ?? "(ninguno)"}.`);
-  return 0;
+  const ok = results.every((result) => result.ok);
+  p.outro(ok ? `Ein desinstalado. Backup en ${backupPath ?? "(ninguno)"}.` : "Desinstalación incompleta.");
+  return ok ? 0 : 1;
 }
