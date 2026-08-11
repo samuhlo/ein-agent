@@ -45,6 +45,10 @@ describe("cc-ein payload entry points", () => {
     const required: readonly string[] = CC_EIN_PAYLOAD_REQUIRED_PATHS;
     expect(required).toContain("ein-pi/agent/surfaces/surface-runner.ts");
     expect(required).toContain("ein-pi/agent/app.ts");
+    expect(required).toContain("installer/src/core/app-package-promotion.ts");
+    expect(required).toContain("installer/scripts/dashboard-candidate-input.ts");
+    expect(required).toContain("ein-pi/agent/launcher/dashboard-selector.ts");
+    expect(required).toContain("ein-pi/agent/lib/dashboard-package.ts");
   });
 
   test("the compile seam reports the child's output instead of discarding it", () => {
