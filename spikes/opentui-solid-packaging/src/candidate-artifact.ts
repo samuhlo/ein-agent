@@ -23,15 +23,26 @@ export type CandidateInventory = {
 };
 
 function record(value: unknown, name: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`Malformed ${name}`);
-  return value as Record<string, unknown>;
+	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`Malformed ${name}`);
+	return value as Record<string, unknown>;
+}
+
+function exact(value: Record<string, unknown>, keys: readonly string[], name: string): void {
+	const actual = Object.keys(value).sort();
+	if (actual.length !== keys.length || !keys.toSorted().every((key, index) => actual[index] === key)) {
+		throw new Error(`Malformed ${name}`);
+	}
 }
 
 export function validateCandidateInventory(value: unknown, target: Target): CandidateInventory {
-  const inventory = record(value, "candidate inventory");
-  const artifact = record(inventory.artifact, "candidate artifact");
-  const verification = record(inventory.verification, "candidate verification");
-  const versions = record(inventory.packageVersions, "candidate package versions");
+	const inventory = record(value, "candidate inventory");
+	const artifact = record(inventory.artifact, "candidate artifact");
+	const verification = record(inventory.verification, "candidate verification");
+	const versions = record(inventory.packageVersions, "candidate package versions");
+	exact(inventory, ["artifact", "bunTarget", "format", "nativePackage", "packageVersions", "target", "verification"], "candidate inventory");
+	exact(artifact, ["bytes", "filename", "mode", "sha256"], "candidate artifact");
+	exact(versions, ["@opentui/core", "@opentui/solid", "solid-js"], "candidate package versions");
+	exact(verification, ["binaryFormat", "nativePackageMarker", "result"], "candidate verification");
   const expectedFormat = target.os === "darwin" ? "mach-o" : "elf";
   if (inventory.format !== "ein-opentui-dashboard-candidate/v1") throw new Error("Unsupported candidate inventory format");
   if (inventory.target !== target.id || inventory.bunTarget !== target.bunTarget || inventory.nativePackage !== target.nativePackage) {

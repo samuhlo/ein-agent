@@ -27,6 +27,7 @@ import {
   type CcEinPayloadManifest,
   type CcEinPayloadManifestEntry,
 } from "../src/core/cc-payload-inventory.ts";
+import { candidateInputFromArgs, stageDashboardSeed, verifyCandidateInput, type CandidateInput } from "./dashboard-candidate-input.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = dirname(HERE);
@@ -103,37 +104,41 @@ function addSourcePath(repoRelativePath: string, staging: string, files: Set<str
   for (const source of filesUnder(sourcePath(repoRelativePath))) addFile(source, staging, files);
 }
 
-async function main(): Promise<void> {
-  const staging = mkdtempSync(join(tmpdir(), "ein-cc-payload-"));
+export async function bundleCcEin(options: { candidate?: CandidateInput; out?: string } = {}): Promise<void> {
+	const verified = options.candidate ? verifyCandidateInput(options.candidate) : undefined;
+	const staging = mkdtempSync(join(tmpdir(), "ein-cc-payload-"));
   try {
     const files = new Set<string>();
     for (const root of CC_EIN_PAYLOAD_ROOTS) addSourcePath(root, staging, files);
     for (const file of CC_EIN_PAYLOAD_FILES) addSourcePath(file, staging, files);
-    for (const source of collectSourceClosure(CC_EIN_PAYLOAD_SOURCE_ENTRIES)) addFile(source, staging, files);
+		for (const source of collectSourceClosure(CC_EIN_PAYLOAD_SOURCE_ENTRIES)) addFile(source, staging, files);
+		if (verified) for (const path of stageDashboardSeed(verified, staging, REPO_ROOT)) files.add(path);
 
     const manifest: CcEinPayloadManifest = {
       format: "ein-cc-payload/v1",
       files: [...files]
         .sort()
-        .map((path): CcEinPayloadManifestEntry => ({ path, sha256: hash(sourcePath(path)) })),
-    };
+			.map((path): CcEinPayloadManifestEntry => ({ path, sha256: hash(join(staging, path)) })),
+		};
+		if (options.candidate) manifest.dashboardSeed = { format: "ein-dashboard-seed/v1", target: options.candidate.target.id };
     writeFileSync(join(staging, CC_EIN_PAYLOAD_MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
 
-    mkdirSync(dirname(OUT), { recursive: true });
-    const proc = Bun.spawn(["tar", "-czf", OUT, "."], { cwd: staging, stderr: "pipe" });
+		const out = options.out ?? OUT;
+		mkdirSync(dirname(out), { recursive: true });
+		const proc = Bun.spawn(["tar", "-czf", out, "."], { cwd: staging, stderr: "pipe" });
     const stderr = await new Response(proc.stderr).text();
     const code = await proc.exited;
     if (code !== 0) throw new Error(`tar fallo (code ${code}): ${stderr}`);
 
     console.log("/// cc-ein payload empaquetado");
     console.log(`  archivos: ${manifest.files.length}`);
-    console.log(`  salida:   ${OUT}`);
+		console.log(`  salida:   ${out}`);
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
 }
 
-main().catch((error) => {
+if (import.meta.main) bundleCcEin({ candidate: candidateInputFromArgs(process.argv.slice(2)) }).catch((error) => {
   console.error(`[error] ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });

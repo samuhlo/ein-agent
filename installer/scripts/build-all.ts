@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { candidateInputArgs, type CandidateInput } from "./dashboard-candidate-input.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = dirname(HERE);
@@ -24,8 +25,8 @@ export const BUILD_TARGETS: BuildTarget[] = [
   { bunTarget: "bun-linux-x64", assetName: "ein-installer-linux-x64" },
 ];
 
-async function bundleAssetScript(script: string, label: string): Promise<void> {
-  const proc = Bun.spawn(["bun", "run", join(HERE, script)], {
+async function bundleAssetScript(script: string, label: string, candidate?: CandidateInput): Promise<void> {
+	const proc = Bun.spawn(["bun", "run", join(HERE, script), ...(candidate ? candidateInputArgs(candidate) : [])], {
     cwd: ROOT,
     stdout: "inherit",
     stderr: "inherit",
@@ -34,12 +35,12 @@ async function bundleAssetScript(script: string, label: string): Promise<void> {
   if (code !== 0) throw new Error(`${label} fallo`);
 }
 
-async function bundleTemplate(): Promise<void> {
-  await bundleAssetScript("bundle-template.ts", "bundle-template");
+async function bundleTemplate(candidate?: CandidateInput): Promise<void> {
+	await bundleAssetScript("bundle-template.ts", "bundle-template", candidate);
 }
 
-async function bundleCcEinPayload(): Promise<void> {
-  await bundleAssetScript("bundle-cc-ein.ts", "bundle-cc-ein");
+async function bundleCcEinPayload(candidate?: CandidateInput): Promise<void> {
+	await bundleAssetScript("bundle-cc-ein.ts", "bundle-cc-ein", candidate);
 }
 
 // Pure command construction keeps target injection testable without executing a
@@ -68,17 +69,18 @@ async function compile(target: BuildTarget): Promise<void> {
   if (code !== 0) throw new Error(`compile fallo para ${target.bunTarget}`);
 }
 
-async function main(): Promise<void> {
+export async function buildAll(options: { candidate?: CandidateInput } = {}): Promise<void> {
   if (!existsSync(ENTRY)) throw new Error(`No existe entry: ${ENTRY}`);
   await mkdir(DIST, { recursive: true });
 
   console.log("/// empaquetando assets");
-  await bundleTemplate();
-  await bundleCcEinPayload();
+	await bundleTemplate(options.candidate);
+	await bundleCcEinPayload(options.candidate);
 
   // Allow building a single target: bun run build:all -- linux-x64
   const only = process.argv.slice(2)[0];
-  const targets = only ? BUILD_TARGETS.filter((t) => t.assetName.includes(only)) : BUILD_TARGETS;
+	const requested = options.candidate?.target.id ?? only;
+	const targets = requested ? BUILD_TARGETS.filter((t) => t.assetName.includes(requested)) : BUILD_TARGETS;
   if (targets.length === 0) throw new Error(`Sin targets que coincidan con "${only}"`);
 
   for (const target of targets) {
@@ -93,7 +95,7 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  main().catch((error) => {
+	buildAll().catch((error) => {
     console.error(`[error] ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   });
