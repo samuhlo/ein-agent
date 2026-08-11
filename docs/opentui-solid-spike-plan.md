@@ -206,6 +206,12 @@ Run functional checks on packaged Pi and Claude installations. Run target checks
 | Startup latency | Baseline and candidate static start plus interactive first usable frame | On each target: 5 warmups and 30 measured runs; report median and p95 with identical fixtures and network probes controlled. |
 | Size delta | Compressed Pi/Claude artifact and installed terminal application | Report absolute and percentage deltas per target, separated into JS/package/native/binary contributions where inspectable. |
 
+### Measurement methodology
+
+Native packaged acceptance builds baseline and candidate archives from the same revision, then measures both from one isolated installed fixture on each target runner. Each startup comparison alternates the baseline and candidate for 5 warmup pairs followed by 30 measured pairs, uses `performance.now()` as the monotonic clock, and fixes the offline environment, 80x24 terminal, home, working directory, and command. Static startup measures direct legacy `--once` against selector `--once`; interactive startup uses `--no-intro` and timestamps the first rendered `q quit` readiness marker for both direct legacy and selector-selected OpenTUI.
+
+Evidence retains raw samples and reports the middle-average median and nearest-rank p95 (`sorted[ceil(0.95 * n) - 1]`). Compressed size compares candidate Pi and Claude archives with their candidate-free baselines. Installed size compares the direct legacy binary with the complete installed app package and attributes bytes to legacy, selector, candidate, and release/pointer manifests. Native jobs upload this privacy-bounded evidence before enforcing the unchanged thresholds; target verdicts remain authoritative only after those jobs run.
+
 ### Surface/target package grid
 
 | Surface | macOS ARM64 | macOS x64 | Linux ARM64 | Linux x64 |
