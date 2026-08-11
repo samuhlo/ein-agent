@@ -12,6 +12,7 @@ describe("OpenTUI spike test isolation", () => {
   test("root discovery excludes every spike-owned case", () => {
     const files = readdirSync(TESTS).filter((file) => /\.[cm]?[jt]sx?$/.test(file)).sort();
     expect(files).toEqual([
+      "candidate-artifact.case.ts",
       "dashboard-key.case.ts",
       "dashboard-lifecycle.case.ts",
       "dashboard-reactivity.case.tsx",

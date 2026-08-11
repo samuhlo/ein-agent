@@ -55,6 +55,26 @@ export function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+export function inspectArtifact(bytes: Uint8Array, target: Target): {
+  binaryFormat: "mach-o" | "elf";
+  nativePackageMarker: Target["nativePackage"];
+} {
+  const binaryFormat = target.os === "darwin" ? "mach-o" : "elf";
+  const expectedMagic = binaryFormat === "mach-o" ? [0xcf, 0xfa, 0xed, 0xfe] : [0x7f, 0x45, 0x4c, 0x46];
+  if (!expectedMagic.every((byte, index) => bytes[index] === byte)) {
+    throw new Error(`Binary format mismatch for ${target.id}`);
+  }
+  const nativePackageMarkers = [
+    ...TARGETS.map(({ nativePackage }) => nativePackage),
+    "@opentui/core-linux-arm64-musl",
+    "@opentui/core-linux-x64-musl",
+  ].filter((packageName) => Buffer.from(bytes).includes(Buffer.from(packageName)));
+  if (nativePackageMarkers.length !== 1 || nativePackageMarkers[0] !== target.nativePackage) {
+    throw new Error(`Native package selection mismatch for ${target.id}: ${nativePackageMarkers.join(", ")}`);
+  }
+  return { binaryFormat, nativePackageMarker: target.nativePackage };
+}
+
 export function relativeArtifactPath(surface: Surface): string {
   return surface === "pi" ? "template/bin/ein-opentui-solid-probe" : "payload/bin/ein-opentui-solid-probe";
 }
@@ -79,19 +99,7 @@ export async function stageCell(options: {
   const stagedBytes = await readFile(staging);
   const digest = sha256(sourceBytes);
   if (sha256(stagedBytes) !== digest) throw new Error(`Staged checksum mismatch for ${options.surface}/${options.target.id}`);
-  const binaryFormat = options.target.os === "darwin" ? "mach-o" : "elf";
-  const expectedMagic = binaryFormat === "mach-o" ? [0xcf, 0xfa, 0xed, 0xfe] : [0x7f, 0x45, 0x4c, 0x46];
-  if (!expectedMagic.every((byte, index) => stagedBytes[index] === byte)) {
-    throw new Error(`Binary format mismatch for ${options.surface}/${options.target.id}`);
-  }
-  const nativePackageMarkers = [
-    ...TARGETS.map(({ nativePackage }) => nativePackage),
-    "@opentui/core-linux-arm64-musl",
-    "@opentui/core-linux-x64-musl",
-  ].filter((packageName) => stagedBytes.includes(Buffer.from(packageName)));
-  if (nativePackageMarkers.length !== 1 || nativePackageMarkers[0] !== options.target.nativePackage) {
-    throw new Error(`Native package selection mismatch for ${options.surface}/${options.target.id}: ${nativePackageMarkers.join(", ")}`);
-  }
+  const { binaryFormat } = inspectArtifact(stagedBytes, options.target);
 
   await rename(staging, destination);
   const metadata = await stat(destination);

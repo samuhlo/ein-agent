@@ -3,11 +3,20 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SourceProvenance } from "../src/package-layout";
+import type { Target } from "../src/targets";
 
 export const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 export async function fileSha256(path: string): Promise<string> {
   return createHash("sha256").update(await readFile(path)).digest("hex");
+}
+
+export async function assertNativePackage(target: Target): Promise<void> {
+  const packageJsonPath = join(ROOT, "node_modules", ...target.nativePackage.split("/"), "package.json");
+  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as { name?: string; version?: string };
+  if (packageJson.name !== target.nativePackage || packageJson.version !== "0.5.1") {
+    throw new Error(`Expected ${target.nativePackage}@0.5.1; run bun install --frozen-lockfile --os="*" --cpu="*"`);
+  }
 }
 
 function git(...args: string[]): string {

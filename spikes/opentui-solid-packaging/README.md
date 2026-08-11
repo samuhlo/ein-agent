@@ -10,14 +10,14 @@ It now also contains the first Work Package 2 work unit: a controller-backed das
 bun install --frozen-lockfile --os="*" --cpu="*"
 bun run check
 bun run build
-bun run build:candidate
+bun run build:candidate -- darwin-arm64
 bun run inventory
 bun run verify
 ```
 
 The wildcard Bun install materializes every optional native package already pinned in `bun.lock`; it does not change the approved runtime matrix. Builds use `@opentui/solid/bun-plugin` and `Bun.build({ compile: { target, outfile } })`.
 
-`build` remains the WP0 four-target lifecycle probe. `build:candidate` independently compiles the current-host dashboard candidate to `dist/ein-opentui-dashboard-candidate`; no production manifest, installer, or packaged command selects it.
+`build` remains the WP0 four-target lifecycle probe. `build:candidate -- <target>` accepts exactly `darwin-arm64`, `darwin-x64`, `linux-arm64`, or `linux-x64`, then writes `dist/ein-opentui-dashboard-<target>` and its versioned `.json` inventory. No production manifest, installer, or packaged command selects it; Pi/Claude package ingress remains pending.
 
 ## Target Contract
 
