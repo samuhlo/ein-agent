@@ -307,10 +307,14 @@ describe("sessions", () => {
   });
 
   test("a runtime with no store is declared, never shown as empty", () => {
-    const view = buildSessionsView([], [{ provider: "claude", reason: "no-store" }]);
+    const view = buildSessionsView([], [
+      { provider: "pi", reason: "no-store" },
+      { provider: "claude", reason: "no-store" },
+    ]);
     const rendered = stripAnsi(renderApp(model(view), { columns: 90, palette: createPalette(false) }).join("\n"));
     expect(rendered).toContain("Claude Code");
     expect(rendered.toLowerCase()).toContain("sin store");
+    expect(rendered).not.toContain("Ninguna sesión previa");
   });
 
   test("with nothing to resume it still offers to start something", () => {

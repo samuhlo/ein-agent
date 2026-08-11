@@ -32,10 +32,31 @@ Then: Then: If the evidence is stale, the output declares the age or incompleten
 
 ## Scenario: launcher-no-ejecuta-accion
 title: Launcher prints the command; does not execute it
-requirement: The system MUST print the exact handoff command without launching the installer, executing a subprocess, or automatically applying the update; the user explicitly chooses to run the command if they wish.
+requirement: The launcher surface MUST print the exact handoff command without launching the installer, executing a subprocess, or automatically applying the update; the user explicitly chooses to run the command if they wish. This non-execution rule applies to the launcher surface and does not prohibit the terminal application's separate, explicitly confirmed allowlisted handoff.
 Given: Given: A valid installer handoff exists (performed=false, owner=installer, actionId coherent).
 When: When: The launcher prints the command to the user.
 Then: Then: The handoff remains inerte with performed=false. No subprocess is spawned, no process is invoked, no callback is executed. The boundary between launcher and installer is explicit and auditable.
+
+## Scenario: terminal-app-update-requires-confirmation
+title: Terminal app executes confirmed allowlisted updates
+requirement: The terminal application MAY execute an update command only when the update probe identifies a supported component, the evidence is actionable, the command belongs to the application's closed allowlist, and the user explicitly confirms it. Unsupported, uncertain, stale, or incomplete update evidence MUST remain informational and non-actionable. The existing launcher surface MUST continue to print handoff commands without executing them.
+Given: Given: A supported component has fresh actionable update evidence.
+When: When: The user activates its update row once.
+Then: Then: The app names the exact allowlisted command and launches nothing until explicit confirmation.
+
+## Scenario: terminal-app-confirmed-update-handoff
+title: Confirmed terminal update is handed off
+requirement: The terminal application MAY execute an update command only when the update probe identifies a supported component, the evidence is actionable, the command belongs to the application's closed allowlist, and the user explicitly confirms it.
+Given: Given: The app is awaiting confirmation for a supported allowlisted command.
+When: When: The user confirms.
+Then: Then: The terminal is handed to that exact command and no other command is executed.
+
+## Scenario: terminal-app-uncertain-update-informational
+title: Uncertain terminal updates cannot be executed
+requirement: Unsupported, uncertain, stale, or incomplete update evidence MUST remain informational and non-actionable.
+Given: Given: Update evidence is stale, incomplete, unavailable, or for an unsupported component.
+When: When: The system view renders or the row is activated.
+Then: Then: It reports the state as informational and provides no executable action.
 
 ## Scenario: paridad-pi-claude-o-diferencia-declarada
 title: Pi and Claude produce equivalent output or declare explicit differences

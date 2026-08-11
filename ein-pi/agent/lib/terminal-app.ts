@@ -350,7 +350,9 @@ export function buildSessionsView(
     notes: Object.freeze(
       rows.length
         ? notes
-        : [...notes, pick("Ninguna sesión previa en este proyecto.", "No previous session in this project.")],
+        : gaps.length
+          ? notes
+          : [pick("Ninguna sesión previa en este proyecto.", "No previous session in this project.")],
     ),
     sections: Object.freeze(sections),
   });

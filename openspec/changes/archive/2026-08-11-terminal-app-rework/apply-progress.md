@@ -152,3 +152,57 @@ habla una vez y siguen megabytes de resultados de herramienta. Medido aquí: 2,3
 MB entre el turno del humano y el final. El barrido sigue parando en la primera
 coincidencia, así que el caso común lee un trozo; once sesiones reales de hasta
 5,8 MB tardan 11 ms en total.
+
+## Bounded runtime remediation — review generation 1, fix batch 1
+
+This section extends the cumulative progress above; no prior task or evidence was
+removed. The remediation ran in **Standard mode** because the native preflight did
+not provide a `strict_tdd: true` capability. It does not reconstruct or claim
+historical strict-TDD evidence.
+
+```json
+{"schema":"gentle-ai.remediation-result/v1","status":"success","mode":"runtime","lineage_id":"review-9a451a671457ccb5","generation":1,"fix_batch":1,"failed_evidence_revision":"sha256:3901a157444d135a238721057d4d35a412d412fe2d6f6f102bdc54f0db11bc4f"}
+```
+```json
+{"schema":"gentle-ai.remediation-evidence/v1","status":"success","mode":"runtime","lineage_id":"review-9a451a671457ccb5","generation":1,"fix_batch":1,"failed_evidence_revision":"sha256:3901a157444d135a238721057d4d35a412d412fe2d6f6f102bdc54f0db11bc4f","focused_tests":{"command":"bun test tests/terminal-app.test.ts tests/terminal-app-driver.test.ts","result":"exit 0; 92 pass, 0 fail, 551 expectations"},"runtime_harness":{"command":"script -q /dev/null env TERM=xterm-256color bun ein-pi/agent/app.ts --once | ruby ANSI/dashboard assertion","result":"exit 0; ansi=0, bytes=2158, dashboard=true"}}
+```
+
+### Remediated behavior
+
+- `--once` now disables the palette before rendering, including on a
+  color-capable TTY.
+- An all-unavailable session scan reports each unavailable runtime without also
+  asserting that the project has no previous sessions. A genuinely readable,
+  empty scan still shows the empty-state message.
+- Production terminal dimensions are now getter-backed, so resize repaint reads
+  current `stdout.columns` and `stdout.rows` values rather than startup snapshots.
+
+### Behavior-first regression evidence
+
+The focused tests were added before production changes. The initial focused run
+failed exactly three regressions: ANSI output under TTY `--once`, contradictory
+all-unavailable session copy, and stale production terminal dimensions (`89 pass,
+3 fail, 551 expectations`). After the bounded implementation, the same command
+passed (`92 pass, 0 fail, 551 expectations`).
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|---|---|
+| Focused test command and exact result | `bun test tests/terminal-app.test.ts tests/terminal-app-driver.test.ts` → exit 0; 92 pass, 0 fail, 551 expectations. |
+| Runtime harness command/scenario and exact result | Color-capable PTY source run with `--once`: `script -q /dev/null env TERM=xterm-256color bun ein-pi/agent/app.ts --once` piped to an ANSI/dashboard assertion → exit 0; `ansi=0 bytes=2158 dashboard=true`. |
+| Rollback boundary | Revert only the remediation hunks in `terminal-app.ts`, `terminal-app-entrypoint.ts`, `terminal-app.test.ts`, and `terminal-app-driver.test.ts`; prior terminal-app-rework behavior remains intact. |
+
+### Validation
+
+- `bun run typecheck && bun run --cwd installer typecheck` → exit 0 for both
+  TypeScript checks.
+- `bun test` → exit 0; 1706 pass, 0 fail, 6365 expectations across 121 files.
+- `git diff --check` → exit 0.
+
+### Review boundary
+
+This autonomous `auto-chain` remediation has 41 production/regression changed lines;
+including this merged progress artifact, the slice totals 95 changed lines (89
+additions, 6 deletions), safely below budget. No dependency, proposal, spec, design,
+task, Git state, or `.atl/` content was changed.

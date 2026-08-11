@@ -297,7 +297,9 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
 
   let model: AppModel = initialModel(summary, buildDashboard(summary));
   const chrome = () => chromeFor(io);
-  const palette = createPalette(shouldUseColor({ isTTY: io.isTTY, env: io.env ?? process.env }));
+  const palette = createPalette(
+    !parsed.once && shouldUseColor({ isTTY: io.isTTY, env: io.env ?? process.env }),
+  );
 
   const paint = (clear: boolean): void => {
     if (clear) io.clear?.();
@@ -551,8 +553,8 @@ export function productionTerminalIO(): TerminalAppIO {
   return {
     write: (text) => { stdout.write(text); },
     isTTY: Boolean(stdin.isTTY && stdout.isTTY),
-    columns: stdout.columns,
-    rows: stdout.rows,
+    get columns() { return stdout.columns; },
+    get rows() { return stdout.rows; },
     env: process.env,
     setRawMode: (raw) => { stdin.setRawMode?.(raw); },
     clear: () => { stdout.write("\u001b[2J\u001b[3J\u001b[H"); },

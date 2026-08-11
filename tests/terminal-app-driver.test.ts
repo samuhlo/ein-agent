@@ -10,6 +10,7 @@ import {
   INSTALLER_COMMAND,
   INSTALLER_VERBS,
   parseTerminalAppArgs,
+  productionTerminalIO,
   runTerminalApp,
   systemComponentsFrom,
   type TerminalAppIO,
@@ -155,8 +156,10 @@ describe("without an interactive terminal", () => {
 
   test("--once stays static even on a terminal", async () => {
     const h = harness();
-    expect(await runTerminalApp(seams({ argv: ["--once"], io: h.io }))).toBe(0);
+    const io = { ...h.io, env: { TERM: "xterm-256color" } };
+    expect(await runTerminalApp(seams({ argv: ["--once"], io }))).toBe(0);
     expect(h.raw).toHaveLength(0);
+    expect(h.written.join("")).not.toContain("\u001b");
   });
 
   test("a terminal that cannot deliver keys degrades instead of hanging", async () => {
@@ -166,6 +169,24 @@ describe("without an interactive terminal", () => {
 });
 
 describe("the interactive loop", () => {
+  test("production terminal dimensions remain live after creation", () => {
+    const originalColumns = Object.getOwnPropertyDescriptor(process.stdout, "columns");
+    const originalRows = Object.getOwnPropertyDescriptor(process.stdout, "rows");
+    try {
+      Object.defineProperty(process.stdout, "columns", { configurable: true, value: 100 });
+      Object.defineProperty(process.stdout, "rows", { configurable: true, value: 40 });
+      const io = productionTerminalIO();
+      Object.defineProperty(process.stdout, "columns", { configurable: true, value: 50 });
+      Object.defineProperty(process.stdout, "rows", { configurable: true, value: 20 });
+      expect({ columns: io.columns, rows: io.rows }).toEqual({ columns: 50, rows: 20 });
+    } finally {
+      if (originalColumns) Object.defineProperty(process.stdout, "columns", originalColumns);
+      else delete (process.stdout as { columns?: number }).columns;
+      if (originalRows) Object.defineProperty(process.stdout, "rows", originalRows);
+      else delete (process.stdout as { rows?: number }).rows;
+    }
+  });
+
   test("it takes the alternate screen and gives it back on quit", async () => {
     const h = harness();
     const run = runTerminalApp(seams({ io: h.io }));
