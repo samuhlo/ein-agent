@@ -122,6 +122,8 @@ Complete packages in order. Each package has its own evidence and rollback bound
 
 **Goal:** separate controller state and effect execution from painting while preserving all existing output and behavior.
 
+**Progress:** implementation and evidence are available at [`spikes/opentui-solid-packaging/evidence-wp1/`](../spikes/opentui-solid-packaging/evidence-wp1/). The renderer-neutral controller now backs both legacy static and interactive paths; OpenTUI/Solid remain isolated to WP0, and Work Package 2 has not started.
+
 **Implementation outline**
 
 - Move model ownership, view refresh, setting application, launch/run effects, and status outcomes behind a controller contract that accepts normalized keys/actions and publishes immutable model snapshots.
