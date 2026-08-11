@@ -239,7 +239,7 @@ describe("search", () => {
   test("a filter that matches nothing says so instead of an empty list", () => {
     const empty = press(config(), "f", "z", "z", "z").model;
     const painted = stripAnsi(renderApp(empty, { columns: 80, palette: createPalette(false) }).join("\n"));
-    expect(painted).toContain("Ningún resultado");
+    expect(painted).toMatch(/Ningún resultado para ese filtro\.|No match for that filter\./);
   });
 });
 
@@ -313,8 +313,8 @@ describe("sessions", () => {
     ]);
     const rendered = stripAnsi(renderApp(model(view), { columns: 90, palette: createPalette(false) }).join("\n"));
     expect(rendered).toContain("Claude Code");
-    expect(rendered.toLowerCase()).toContain("sin store");
-    expect(rendered).not.toContain("Ninguna sesión previa");
+    expect(rendered.toLowerCase()).toMatch(/sin store legible en esta máquina|no readable store on this machine/);
+    expect(rendered).not.toMatch(/Ninguna sesión previa en este proyecto|No previous session in this project/);
   });
 
   test("with nothing to resume it still offers to start something", () => {
@@ -343,13 +343,13 @@ describe("project state", () => {
   test("an unknown fact is rendered as unknown, never as empty", () => {
     const unknown = buildStateView({ ...SUMMARY, branch: undefined, dirty: undefined });
     const rendered = stripAnsi(renderApp(model(unknown), { columns: 100, palette: createPalette(false) }).join("\n"));
-    expect(rendered).toContain("desconocido");
+    expect(rendered).toMatch(/desconocido|unknown/);
   });
 
   test("a clean worktree reads as clean, not as zero", () => {
     const clean = buildStateView({ ...SUMMARY, dirty: 0 });
     const rendered = stripAnsi(renderApp(model(clean), { columns: 100, palette: createPalette(false) }).join("\n"));
-    expect(rendered).toContain("limpio");
+    expect(rendered).toMatch(/limpio|clean/);
   });
 });
 
@@ -437,8 +437,8 @@ describe("rendering", () => {
   });
 
   test("the hints belong to the view, not to a single fixed string", () => {
-    expect(plain(config())).toContain("cambiar");
-    expect(plain(sessions())).toContain("reanudar");
+    expect(plain(config())).toMatch(/enter\/→ (?:cambiar|change)/);
+    expect(plain(sessions())).toMatch(/enter (?:reanudar|resume)/);
   });
 
   test("the status message is shown when there is one", () => {

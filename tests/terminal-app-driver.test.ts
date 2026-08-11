@@ -223,8 +223,8 @@ describe("the interactive loop", () => {
     h.send("j");
     status = "update-available";
     h.send("r");
-    const frames = output(h.written).split("EIN · Sistema");
-    expect(frames.at(-1)).toContain("actualización disponible");
+    const frames = output(h.written).split(/EIN · (?:Sistema|System)/);
+    expect(frames.at(-1)).toMatch(/actualización disponible|update available/);
     // The cursor stayed on the row the user had selected, not back at the top.
     expect(frames.at(-1)).toContain("▌ Pi");
     h.send("q");
@@ -273,7 +273,7 @@ describe("configuration writes through its owner", () => {
     }));
     h.send(DASHBOARD_KEYS.config);
     h.send(ENTER);
-    expect(output(h.written).toLowerCase()).toContain("no se pudo");
+    expect(output(h.written).toLowerCase()).toMatch(/no se pudo|could not write/);
     h.send("q");
     await run;
   });
@@ -334,7 +334,7 @@ describe("handing the terminal to a runtime", () => {
     // loop, not inside the keypress.
     await tick();
     const shown = output(h.written).toLowerCase();
-    expect(shown).toContain("pi no está disponible");
+    expect(shown).toMatch(/pi no está disponible|pi is not available/);
     expect(shown).toContain("executable-unavailable");
     expect(h.listening()).toBe(true);
     // Given back for the runtime, taken again when it turned out not to exist.
@@ -425,7 +425,7 @@ describe("the system component list", () => {
 
   test("Engram is reported as the component it is, not as a project switch", () => {
     expect(systemComponentsFrom([], { engramInstalled: false }).find((c) => c.id === "engram")?.status)
-      .toBe("no instalado");
+      .toMatch(/^(?:no instalado|not installed)$/);
     expect(systemComponentsFrom([], { engramInstalled: true }).find((c) => c.id === "engram")?.command)
       .toBeUndefined();
   });
