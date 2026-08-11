@@ -5,6 +5,28 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.51.0] - 2026-08-11
+
+### Changed
+
+- **La aplicación de terminal pasa de visor a panel accionable**: el dashboard
+  abre cada vista, inicia Pi o Claude Code y mantiene atajos directos además de
+  la navegación por teclado.
+- **Las sesiones de Pi y Claude Code comparten una sola vista**: se pueden
+  iniciar o reanudar desde la misma lista, sin perder la identidad del runtime.
+- **La configuración refleja el estado persistido en disco**: cada cambio pasa
+  por el dueño del ajuste y la vista relee el valor escrito en vez de asumirlo.
+- **El traspaso al runtime es seguro**: antes de lanzar o reanudar una sesión la
+  app restaura el terminal, retira listeners y propaga el código de salida.
+- **El render cubre terminales reales y automatización**: el modo estático no
+  toma control del TTY, `NO_COLOR` elimina las secuencias ANSI y el layout se
+  repinta al cambiar el tamaño de la terminal.
+
+### Internal
+
+- Las pruebas de la aplicación validan de forma determinista la copia exacta
+  en español o inglés sin depender del locale de la máquina.
+
 ## [0.50.2] - 2026-08-11
 
 ### Fixed
