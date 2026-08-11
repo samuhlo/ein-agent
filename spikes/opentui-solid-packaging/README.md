@@ -1,6 +1,8 @@
-# OpenTUI + Solid Packaging Spike: Work Package 0
+# OpenTUI + Solid Packaging Spike
 
-This removable Bun package proves dependency resolution, native embedding, standalone compilation, and spike-only Pi/Claude package layouts. It imports no EIN product code and changes no production installer or release asset.
+This removable Bun package proves dependency resolution, native embedding, standalone compilation, and spike-only Pi/Claude package layouts. Its WP0 lifecycle probe imports no EIN product code and changes no production installer or release asset.
+
+It now also contains the first Work Package 2 work unit: a controller-backed dashboard candidate with deterministic rendering, key translation, resize reactivity, renderer-generation lifecycle, and Pi/Claude handoff tests. The candidate imports EIN controller assembly only from its isolated entrypoint; production routing and packaged Pi/Claude selection remain unchanged.
 
 ## Reproduce
 
@@ -8,11 +10,14 @@ This removable Bun package proves dependency resolution, native embedding, stand
 bun install --frozen-lockfile --os="*" --cpu="*"
 bun run check
 bun run build
+bun run build:candidate
 bun run inventory
 bun run verify
 ```
 
 The wildcard Bun install materializes every optional native package already pinned in `bun.lock`; it does not change the approved runtime matrix. Builds use `@opentui/solid/bun-plugin` and `Bun.build({ compile: { target, outfile } })`.
+
+`build` remains the WP0 four-target lifecycle probe. `build:candidate` independently compiles the current-host dashboard candidate to `dist/ein-opentui-dashboard-candidate`; no production manifest, installer, or packaged command selects it.
 
 ## Target Contract
 
@@ -52,3 +57,5 @@ Local cross-builds are inspection evidence only. Native acceptance comes only fr
 - `evidence/README.md`: concise local evidence boundary.
 - `evidence/inventories/*.json`: eight deterministic surface/target inventories.
 - `evidence/native-*.json`: native CI fragments, generated only on matching runners.
+- `evidence-wp1/README.md`: renderer/controller extraction evidence.
+- `evidence-wp2/README.md`: first dashboard-candidate work-unit evidence and remaining packaging boundary.

@@ -13,6 +13,7 @@ describe("OpenTUI spike test isolation", () => {
     const files = readdirSync(TESTS).filter((file) => /\.[cm]?[jt]sx?$/.test(file)).sort();
     expect(files).toEqual([
       "dashboard-key.case.ts",
+      "dashboard-lifecycle.case.ts",
       "dashboard-reactivity.case.tsx",
       "dashboard-static-boundary.case.ts",
       "dashboard-view.case.tsx",
