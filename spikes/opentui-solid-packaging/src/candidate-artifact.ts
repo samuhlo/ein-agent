@@ -5,6 +5,7 @@ import { candidateArtifactName, type Target } from "./targets";
 
 export type CandidateInventory = {
   format: "ein-opentui-dashboard-candidate/v1";
+  sourceRevision: string;
   target: Target["id"];
   bunTarget: Target["bunTarget"];
   nativePackage: Target["nativePackage"];
@@ -39,12 +40,13 @@ export function validateCandidateInventory(value: unknown, target: Target): Cand
 	const artifact = record(inventory.artifact, "candidate artifact");
 	const verification = record(inventory.verification, "candidate verification");
 	const versions = record(inventory.packageVersions, "candidate package versions");
-	exact(inventory, ["artifact", "bunTarget", "format", "nativePackage", "packageVersions", "target", "verification"], "candidate inventory");
+	exact(inventory, ["artifact", "bunTarget", "format", "nativePackage", "packageVersions", "sourceRevision", "target", "verification"], "candidate inventory");
 	exact(artifact, ["bytes", "filename", "mode", "sha256"], "candidate artifact");
 	exact(versions, ["@opentui/core", "@opentui/solid", "solid-js"], "candidate package versions");
 	exact(verification, ["binaryFormat", "nativePackageMarker", "result"], "candidate verification");
   const expectedFormat = target.os === "darwin" ? "mach-o" : "elf";
-  if (inventory.format !== "ein-opentui-dashboard-candidate/v1") throw new Error("Unsupported candidate inventory format");
+	if (inventory.format !== "ein-opentui-dashboard-candidate/v1") throw new Error("Unsupported candidate inventory format");
+	if (typeof inventory.sourceRevision !== "string" || !/^[a-f0-9]{40}$/.test(inventory.sourceRevision)) throw new Error("Malformed candidate source revision");
   if (inventory.target !== target.id || inventory.bunTarget !== target.bunTarget || inventory.nativePackage !== target.nativePackage) {
     throw new Error(`Candidate inventory target mismatch for ${target.id}`);
   }
@@ -61,15 +63,16 @@ export function validateCandidateInventory(value: unknown, target: Target): Cand
   return value as CandidateInventory;
 }
 
-export async function writeCandidateInventory(root: string, target: Target): Promise<CandidateInventory> {
+export async function writeCandidateInventory(root: string, target: Target, sourceRevision: string): Promise<CandidateInventory> {
   const filename = candidateArtifactName(target);
   const artifactPath = join(root, "dist", filename);
   await chmod(artifactPath, 0o755);
   const bytes = await readFile(artifactPath);
   const metadata = await stat(artifactPath);
   const inspection = inspectArtifact(bytes, target);
-  const inventory: CandidateInventory = {
-    format: "ein-opentui-dashboard-candidate/v1",
+	const inventory: CandidateInventory = {
+		format: "ein-opentui-dashboard-candidate/v1",
+		sourceRevision,
     target: target.id,
     bunTarget: target.bunTarget,
     nativePackage: target.nativePackage,

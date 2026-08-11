@@ -49,6 +49,7 @@ const EXPECTED_PUBLISHED_ASSETS = [
 ] as const;
 
 const RELEASE_TAG_OUTPUT = "${{ steps.resolve_release_tag.outputs.release_tag }}";
+const RESOLVED_TAG_OUTPUT = "${{ needs.resolve.outputs.release_tag }}";
 
 function workflowStep(workflow: string, marker: string): string {
   const start = workflow.indexOf(marker);
@@ -138,28 +139,48 @@ describe("release asset contract", () => {
     expect(buildScript).toMatch(/bunTarget:\s*"bun-(darwin|linux)-(arm64|x64)"/);
   });
 
-  test("compiled BunFS payload smoke is required before checksums and publishing", () => {
-    const workflow = readFileSync(WORKFLOW_PATH, "utf8");
-    const smoke = readFileSync(join(REPO_ROOT, "installer", "scripts", "cc-payload-smoke.ts"), "utf8");
-    const smokeStep = workflowStep(workflow, "- name: Compiled BunFS payload smoke (Linux x64)");
-    const buildStart = workflow.indexOf("- name: Build all targets (bundles template + cross-compiles)");
-    const smokeStart = workflow.indexOf("- name: Compiled BunFS payload smoke (Linux x64)");
-    const checksumsStart = workflow.indexOf("- name: Checksums");
+	test("target packaging consumes one bound candidate and smokes before checksums", () => {
+		const workflow = readFileSync(WORKFLOW_PATH, "utf8");
+		const smoke = readFileSync(join(REPO_ROOT, "installer", "scripts", "cc-payload-smoke.ts"), "utf8");
+		const buildStart = workflow.indexOf("- name: Build target-specific bundles then installer");
+		const payloadSmoke = workflow.indexOf("- name: Compiled BunFS payload smoke");
+		const selectorSmoke = workflow.indexOf("- name: Packaged selector static and interactive smoke");
+		const checksumsStart = workflow.indexOf("- name: Checksums");
 
-    expect(buildStart).toBeGreaterThanOrEqual(0);
-    expect(smokeStart).toBeGreaterThan(buildStart);
-    expect(checksumsStart).toBeGreaterThan(smokeStart);
-    expect(smokeStep).toContain("bun build scripts/cc-payload-smoke.ts");
-    expect(smokeStep).toContain("--compile");
-    expect(smokeStep).toContain("--target=bun-linux-x64");
-    expect(smokeStep).toContain("--outfile /tmp/ein-cc-payload-smoke");
-    expect(smokeStep).toContain("(cd /tmp && /tmp/ein-cc-payload-smoke)");
-    expect(smoke).toContain("stageCcEinPayload");
-    expect(smoke).toContain("CC_EIN_PAYLOAD_REQUIRED_PATHS");
-    expect(smoke).toContain("process.chdir(unrelatedCwd)");
-    expect(smoke).toContain("staged?.cleanup()");
-    expect(publishedAssetArguments(workflow).filter((asset) => asset.includes("smoke"))).toEqual([]);
-  });
+		expect(buildStart).toBeGreaterThanOrEqual(0);
+		expect(payloadSmoke).toBeGreaterThan(buildStart);
+		expect(selectorSmoke).toBeGreaterThan(payloadSmoke);
+		expect(checksumsStart).toBeGreaterThan(selectorSmoke);
+		expect(workflow.slice(payloadSmoke, selectorSmoke)).toContain("bun build scripts/cc-payload-smoke.ts");
+		expect(smoke).toContain("stageCcEinPayload");
+		expect(smoke).toContain("CC_EIN_PAYLOAD_REQUIRED_PATHS");
+		expect(smoke).toContain("process.chdir(unrelatedCwd)");
+		expect(smoke).toContain("staged?.cleanup()");
+		expect(publishedAssetArguments(workflow).filter((asset) => asset.includes("smoke"))).toEqual([]);
+	});
+
+	test("release topology binds revision, runners, artifacts, and bundle-before-compile order", () => {
+		const workflow = readFileSync(WORKFLOW_PATH, "utf8");
+		const spike = readFileSync(join(REPO_ROOT, ".github/workflows/opentui-solid-packaging-spike.yml"), "utf8");
+		expect(workflow).toContain("native-candidates:\n    needs: resolve");
+		expect(workflow).toContain("build-installers:\n    needs: [resolve, native-candidates]");
+		expect(workflow).toContain("release:\n    needs: [resolve, build-installers]");
+		for (const target of DOCUMENTED_ASSETS.map((name) => name.replace("ein-installer-", ""))) {
+			expect(workflow).toContain(`target: ${target}`);
+			expect(spike).toContain(`opentui-dashboard-${"${{ matrix.target }}"}-${"${{ github.sha }}"}`);
+		}
+		for (const cell of ["darwin-arm64, runner: macos-15", "darwin-x64, runner: macos-15-intel", "linux-arm64, runner: ubuntu-24.04-arm", "linux-x64, runner: ubuntu-24.04"]) expect(workflow).toContain(cell);
+		expect(workflow).toContain("name: opentui-dashboard-${{ matrix.target }}-${{ needs.resolve.outputs.source_revision }}");
+		expect(workflow).not.toContain("pattern: opentui-dashboard-");
+		expect(workflow).toContain("--source-revision ${{ needs.resolve.outputs.source_revision }}");
+		expect(workflow).toContain("Reject partial or duplicate candidate payloads");
+		expect(workflow).toContain("Reject partial or duplicate installer payloads");
+		expect(workflow).toContain("matrix:\n        target: [darwin-arm64, darwin-x64, linux-arm64, linux-x64]");
+		const build = workflowStep(workflow, "- name: Build target-specific bundles then installer");
+		expect(build.indexOf("--candidate-inventory")).toBeLessThan(build.indexOf("--source-revision"));
+		const buildScript = readFileSync(BUILD_SCRIPT_PATH, "utf8");
+		expect(buildScript.indexOf("await bundleTemplate(candidate)")).toBeLessThan(buildScript.indexOf("options.compileTarget ?? compile"));
+	});
 
   test("manual dispatch requires a validated release tag for checkout and publishing", () => {
     const workflow = readFileSync(WORKFLOW_PATH, "utf8");
@@ -171,16 +192,15 @@ describe("release asset contract", () => {
 
     expect(input).toMatch(/required:\s*true/);
     expect(input).toMatch(/type:\s*string/);
-    expect(resolver).toContain("\n        working-directory: .\n");
-    expect(resolver).toContain('if [[ "$EVENT_NAME" == "workflow_dispatch" ]]');
+		expect(resolver).toContain('if [[ "$EVENT_NAME" == "workflow_dispatch" ]]');
     expect(resolver).toContain('INPUT_RELEASE_TAG: ${{ inputs.release_tag }}');
     expect(resolver).toContain('PUSH_TAG: ${{ github.ref_name }}');
     expect(validation).toBe("^installer-v[0-9]+\\.[0-9]+\\.[0-9]+$");
     expect(resolver).toContain('release_tag="$INPUT_RELEASE_TAG"');
     expect(resolver).toContain('release_tag="$PUSH_TAG"');
     expect(resolver).toContain('echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"');
-    expect(checkout).toContain(`ref: ${RELEASE_TAG_OUTPUT}`);
-    expect(publish).toContain(`RELEASE_TAG: ${RELEASE_TAG_OUTPUT}`);
+		expect(checkout).toContain(`ref: ${RELEASE_TAG_OUTPUT}`);
+		expect(publish).toContain(`RELEASE_TAG: ${RESOLVED_TAG_OUTPUT}`);
     expect(publish).toContain('gh release create "$RELEASE_TAG"');
     expect(publish).not.toContain('gh release create "${GITHUB_REF_NAME}"');
     expect(publish).toContain("release_version=\"$(jq -er '.version | strings' package.json)\"");
