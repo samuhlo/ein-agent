@@ -30,7 +30,7 @@ function fixture(seed = true) {
     const bytes = Buffer.concat([Buffer.from([0xcf, 0xfa, 0xed, 0xfe]), Buffer.from("fixture:@opentui/core-darwin-arm64")]);
     writeFileSync(join(packageDir, candidateName), bytes, { mode: 0o755 });
     writeFileSync(join(packageDir, "candidate-inventory.json"), `${JSON.stringify({
-		format: "ein-opentui-dashboard-candidate/v1", sourceRevision: "a".repeat(40), target, bunTarget: "bun-darwin-arm64",
+      format: "ein-opentui-dashboard-candidate/v1", target, bunTarget: "bun-darwin-arm64",
       nativePackage: "@opentui/core-darwin-arm64",
       packageVersions: { "@opentui/core": "0.5.1", "@opentui/solid": "0.5.1", "solid-js": "1.9.12" },
       artifact: { filename: candidateName, sha256: createHash("sha256").update(bytes).digest("hex"), bytes: bytes.length, mode: "0755" },
