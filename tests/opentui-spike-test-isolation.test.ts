@@ -12,6 +12,9 @@ describe("OpenTUI spike test isolation", () => {
   test("root discovery excludes every spike-owned case", () => {
     const files = readdirSync(TESTS).filter((file) => /\.[cm]?[jt]sx?$/.test(file)).sort();
     expect(files).toEqual([
+      "dashboard-key.case.ts",
+      "dashboard-reactivity.case.tsx",
+      "dashboard-view.case.tsx",
       "package-layout.case.ts",
       "probe-view.case.tsx",
       "targets.case.ts",
@@ -20,7 +23,7 @@ describe("OpenTUI spike test isolation", () => {
   });
 
   test("the isolated check explicitly executes both case conventions", () => {
-    expect(packageJson.scripts?.test).toBe("bun test ./tests/*.case.ts ./tests/*.case.tsx");
+    expect(packageJson.scripts?.test).toBe("bun test --preload @opentui/solid/preload ./tests/*.case.ts ./tests/*.case.tsx");
     expect(packageJson.scripts?.check).toBe("bun run typecheck && bun run test");
   });
 });
