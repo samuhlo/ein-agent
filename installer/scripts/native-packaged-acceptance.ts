@@ -17,11 +17,18 @@ type FailureCode = "" | "not-run" | "bundle" | "package" | "sync" | "inspect" | 
 type Check = Readonly<{ pass: boolean; failureCode: FailureCode; failureDetail: string; thresholdFailures: readonly ThresholdFailure[]; packageSha256: string; candidateSha256: string; legacySha256: string; staticParity: boolean; tty: boolean; fallback: boolean; noDoubleLaunch: boolean; updateRollbackUninstall: boolean; offlineRuntime: boolean; metrics: AcceptanceMetrics | null }>;
 export type AcceptanceEvidence = Readonly<{ schema: "ein-native-packaged-acceptance/v2"; revision: string; target: string; runner: { os: string; arch: string }; pi: Check; claude: Check; overallPass: boolean }>;
 
+const INSPECTION_FAILURE_DETAILS = ["release", "fallback", "nonzero", "parity", "pty", "static-baseline", "static-candidate", "interactive-baseline-empty", "interactive-baseline-not-ready", "interactive-baseline-exit", "interactive-candidate-empty", "interactive-candidate-not-ready", "interactive-candidate-exit", "sizes"] as const;
+type InspectionFailureDetail = typeof INSPECTION_FAILURE_DETAILS[number];
+
 const digest = (path: string): string => createHash("sha256").update(readFileSync(path)).digest("hex");
 function requireTrue(value: unknown): asserts value { if (!value) throw new Error("acceptance assertion failed"); }
 const failedCheck = (failureCode: Exclude<FailureCode, "">, failureDetail = ""): Check => ({ pass: false, failureCode, failureDetail, thresholdFailures: [], packageSha256: "", candidateSha256: "", legacySha256: "", staticParity: false, tty: false, fallback: false, noDoubleLaunch: false, updateRollbackUninstall: false, offlineRuntime: false, metrics: null });
 export const acceptancePasses = (pi: Pick<Check, "pass">, claude: Pick<Check, "pass">): boolean => pi.pass && claude.pass;
-export const ptyReady = (output: string): boolean => output.includes("q quit");
+export const ptyReady = (output: string): boolean => /q (?:quit|salir)/.test(output);
+export const boundedFailureDetail = (error: unknown): string => error instanceof Error && INSPECTION_FAILURE_DETAILS.includes(error.message as InspectionFailureDetail) ? error.message : "exception";
+async function inspectStep<T>(detail: InspectionFailureDetail, operation: () => T | Promise<T>): Promise<T> {
+  try { return await operation(); } catch { throw new Error(detail); }
+}
 
 export function validateAcceptanceEvidence(value: unknown): value is AcceptanceEvidence {
   if (!value || typeof value !== "object") return false;
@@ -30,7 +37,7 @@ export function validateAcceptanceEvidence(value: unknown): value is AcceptanceE
     if (!item) return false;
     const outcomes = [item.staticParity, item.tty, item.fallback, item.noDoubleLaunch, item.updateRollbackUninstall, item.offlineRuntime];
     const checksum = (entry: string): boolean => /^[a-f0-9]{64}$/.test(entry) || (!item.pass && entry === "");
-    const detail = /^(?:|exception|(?:staticParity|tty|fallback|noDoubleLaunch|updateRollbackUninstall|offlineRuntime)(?:,(?:staticParity|tty|fallback|noDoubleLaunch|updateRollbackUninstall|offlineRuntime))*)$/.test(item.failureDetail);
+    const detail = INSPECTION_FAILURE_DETAILS.includes(item.failureDetail as InspectionFailureDetail) || /^(?:|exception|(?:staticParity|tty|fallback|noDoubleLaunch|updateRollbackUninstall|offlineRuntime)(?:,(?:staticParity|tty|fallback|noDoubleLaunch|updateRollbackUninstall|offlineRuntime))*)$/.test(item.failureDetail);
     const metricFailures = Array.isArray(item.thresholdFailures) && item.thresholdFailures.every((entry) => ["static-startup-p95", "interactive-startup-delta-p95", "interactive-startup-absolute-p95", "installed-size-delta", "compressed-size-delta", "compressed-size-percent"].includes(entry));
     return typeof item.pass === "boolean" && [item.packageSha256, item.candidateSha256, item.legacySha256].every(checksum)
       && ["", "not-run", "bundle", "package", "sync", "inspect", "lifecycle", "checks", "thresholds"].includes(item.failureCode) && detail && metricFailures
@@ -83,14 +90,19 @@ function staticSample(binary: string, home: string): number {
   return performance.now() - started;
 }
 
-async function interactiveSample(binary: string, home: string): Promise<number> {
+async function interactiveSample(binary: string, home: string, sample: "interactive-baseline" | "interactive-candidate"): Promise<number> {
   let output = ""; let readyMs: number | undefined; const started = performance.now();
   const terminal = new Bun.Terminal({ cols: METRIC_CONTROLS.terminal.columns, rows: METRIC_CONTROLS.terminal.rows, data: (_terminal, bytes) => {
     output += new TextDecoder().decode(bytes);
     if (readyMs === undefined && ptyReady(output)) { readyMs = performance.now() - started; terminal.write("q"); }
   } });
   const child = Bun.spawn([binary, METRIC_CONTROLS.interactiveCommand], { cwd: home, env: offlineEnv(home), terminal, timeout: 8_000 });
-  try { requireTrue(await child.exited === 0 && readyMs !== undefined); return readyMs; }
+  try {
+    const code = await child.exited;
+    if (readyMs === undefined) throw new Error(`${sample}-${output.length === 0 ? "empty" : "not-ready"}`);
+    if (code !== 0) throw new Error(`${sample}-exit`);
+    return readyMs;
+  }
   finally { terminal.close(); }
 }
 
@@ -153,18 +165,27 @@ async function nonzeroDoesNotLaunchLegacy(app: string, packageRoot: string, home
 }
 
 async function inspectInstalled(app: string, packageRoot: string, candidate: CandidateInput, home: string, baselineArchive: string, candidateArchive: string): Promise<Pick<Check, "candidateSha256" | "legacySha256" | "staticParity" | "tty" | "fallback" | "noDoubleLaunch" | "offlineRuntime" | "metrics">> {
-  const release = await validateDashboardRelease(packageRoot, candidate.target.id);
-  requireTrue(release && digest(release.candidate) === digest(candidate.candidateBinary) && (lstatSync(app).mode & 0o777) === 0o755);
-  const fallback = await fallbackBeforeStart(packageRoot, release.legacy, candidate.target.os, candidate.target.arch);
-  const noDoubleLaunch = await nonzeroDoesNotLaunchLegacy(app, packageRoot, home);
-  const parity = staticParity(app, release.legacy, home);
-  const tty = await pty(app, home);
-  const staticStartup = startupComparison(await measurePair(() => staticSample(release.legacy, home), () => staticSample(app, home)));
-  const interactiveStartup = startupComparison(await measurePair(() => interactiveSample(release.legacy, home), () => interactiveSample(app, home)));
+  const release = await inspectStep("release", async () => {
+    const value = await validateDashboardRelease(packageRoot, candidate.target.id);
+    requireTrue(value && digest(value.candidate) === digest(candidate.candidateBinary) && (lstatSync(app).mode & 0o777) === 0o755);
+    return value;
+  });
+  const fallback = await inspectStep("fallback", () => fallbackBeforeStart(packageRoot, release.legacy, candidate.target.os, candidate.target.arch));
+  const noDoubleLaunch = await inspectStep("nonzero", () => nonzeroDoesNotLaunchLegacy(app, packageRoot, home));
+  const parity = await inspectStep("parity", () => staticParity(app, release.legacy, home));
+  const tty = await inspectStep("pty", () => pty(app, home));
+  const staticStartup = startupComparison(await measurePair(
+    () => inspectStep("static-baseline", () => staticSample(release.legacy, home)),
+    () => inspectStep("static-candidate", () => staticSample(app, home)),
+  ));
+  const interactiveStartup = startupComparison(await measurePair(
+    () => interactiveSample(release.legacy, home, "interactive-baseline"),
+    () => interactiveSample(app, home, "interactive-candidate"),
+  ));
   const manifest = join(dirname(release.candidate), "manifest.json");
-  const metrics: AcceptanceMetrics = { controls: METRIC_CONTROLS, staticStartup, interactiveStartup,
+  const metrics = await inspectStep("sizes", (): AcceptanceMetrics => ({ controls: METRIC_CONTROLS, staticStartup, interactiveStartup,
     compressedPackage: sizeComparison(lstatSync(baselineArchive).size, lstatSync(candidateArchive).size),
-    installedPackage: installedSize({ legacy: lstatSync(release.legacy).size, selector: lstatSync(app).size, candidate: lstatSync(release.candidate).size, manifest: lstatSync(manifest).size + lstatSync(join(packageRoot, "current.json")).size }) };
+    installedPackage: installedSize({ legacy: lstatSync(release.legacy).size, selector: lstatSync(app).size, candidate: lstatSync(release.candidate).size, manifest: lstatSync(manifest).size + lstatSync(join(packageRoot, "current.json")).size }) }));
   return { candidateSha256: digest(release.candidate), legacySha256: digest(release.legacy), staticParity: parity, tty, fallback, noDoubleLaunch, offlineRuntime: parity && tty, metrics };
 }
 
@@ -184,7 +205,7 @@ async function piCell(root: string, archive: string, baselineArchive: string, ca
   const failures = Object.entries({ staticParity: inspected.staticParity, tty: inspected.tty, fallback: inspected.fallback, noDoubleLaunch: inspected.noDoubleLaunch, offlineRuntime: inspected.offlineRuntime, updateRollbackUninstall: lifecycle }).filter(([, pass]) => !pass).map(([name]) => name).join(",");
   const thresholds = thresholdFailures(inspected.metrics!); const pass = failures === "" && thresholds.length === 0;
   return { pass, failureCode: failures ? "checks" : thresholds.length ? "thresholds" : "", failureDetail: failures, thresholdFailures: thresholds, packageSha256: digest(archive), ...inspected, updateRollbackUninstall: lifecycle };
-  } catch { return failedCheck(stage as Exclude<FailureCode, "">, "exception"); }
+  } catch (error) { return failedCheck(stage as Exclude<FailureCode, "">, stage === "inspect" ? boundedFailureDetail(error) : "exception"); }
 }
 
 async function claudeCell(root: string, archive: string, baselineArchive: string, candidate: CandidateInput): Promise<Check> {
@@ -208,7 +229,7 @@ async function claudeCell(root: string, archive: string, baselineArchive: string
   const failures = Object.entries({ staticParity: inspected.staticParity, tty: inspected.tty, fallback: inspected.fallback, noDoubleLaunch: inspected.noDoubleLaunch, offlineRuntime: inspected.offlineRuntime, updateRollbackUninstall: lifecycle }).filter(([, pass]) => !pass).map(([name]) => name).join(",");
   const thresholds = thresholdFailures(inspected.metrics!); const pass = failures === "" && thresholds.length === 0;
   return { pass, failureCode: failures ? "checks" : thresholds.length ? "thresholds" : "", failureDetail: failures, thresholdFailures: thresholds, packageSha256: digest(archive), ...inspected, updateRollbackUninstall: lifecycle };
-  } catch { return failedCheck(stage as Exclude<FailureCode, "">, "exception"); }
+  } catch (error) { return failedCheck(stage as Exclude<FailureCode, "">, stage === "inspect" ? boundedFailureDetail(error) : "exception"); }
 }
 
 export async function runAcceptance(targetId: string, revision: string, evidencePath: string): Promise<AcceptanceEvidence> {

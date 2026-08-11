@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { acceptancePasses, ptyReady, validateAcceptanceEvidence, type AcceptanceEvidence } from "../installer/scripts/native-packaged-acceptance.ts";
+import { acceptancePasses, boundedFailureDetail, ptyReady, validateAcceptanceEvidence, type AcceptanceEvidence } from "../installer/scripts/native-packaged-acceptance.ts";
 import { METRIC_CONTROLS, METRIC_THRESHOLDS, installedSize, measurePair, sizeComparison, summarizeSamples, thresholdFailures, type AcceptanceMetrics, type StartupComparison, type ThresholdFailure } from "../installer/scripts/native-acceptance-metrics.ts";
 
 const workflow = readFileSync(join(import.meta.dir, "../.github/workflows/opentui-solid-packaging-spike.yml"), "utf8");
@@ -20,7 +20,10 @@ describe("native packaged acceptance contract", () => {
     expect(validateAcceptanceEvidence({ ...evidence, revision: "/Users/private" })).toBe(false);
     const failed = { ...cell, pass: false, failureCode: "inspect" as const, failureDetail: "exception", packageSha256: "", candidateSha256: "", legacySha256: "", staticParity: false, tty: false, fallback: false, noDoubleLaunch: false, updateRollbackUninstall: false, offlineRuntime: false, metrics: null };
     expect(validateAcceptanceEvidence({ ...evidence, pi: failed, overallPass: false })).toBe(true);
+    expect(validateAcceptanceEvidence({ ...evidence, pi: { ...failed, failureDetail: "interactive-baseline-not-ready" }, overallPass: false })).toBe(true);
     expect(validateAcceptanceEvidence({ ...evidence, pi: { ...failed, failureDetail: "/Users/private" }, overallPass: false })).toBe(false);
+    expect(boundedFailureDetail(new Error("interactive-baseline-not-ready"))).toBe("interactive-baseline-not-ready");
+    expect(boundedFailureDetail(new Error("/home/private"))).toBe("exception");
   });
 
   test("uses deterministic median, nearest-rank p95, and paired sample counts", async () => {
@@ -51,6 +54,7 @@ describe("native packaged acceptance contract", () => {
   test("waits for rendered input readiness rather than terminal setup output", () => {
     expect(ptyReady("\x1b[?1049h")).toBe(false);
     expect(ptyReady("j/k move  enter select  q quit")).toBe(true);
+    expect(ptyReady("q salir")).toBe(true);
   });
 
   test("fails closed unless both surface cells pass", () => {
