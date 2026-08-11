@@ -370,6 +370,9 @@ como dependencia del repo, y la puerta de tipos de `ein-pi`, `cc-ein` y `tests`.
 
 #### Evolución técnica de la TUI: evaluación de OpenTUI + SolidJS
 
+**Status (2026-08-11):** Planning complete; implementation has not started. See the
+[packaging-first OpenTUI + SolidJS spike plan](opentui-solid-spike-plan.md).
+
 Una vez estabilizado, verificado y publicado `terminal-app-rework`, se evaluará una
 migración de la capa de presentación a **OpenTUI + `@opentui/solid`**, manteniendo
 TypeScript, TSX y Bun como stack principal. OpenTUI aporta un renderer nativo en Zig
