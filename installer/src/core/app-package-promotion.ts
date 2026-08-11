@@ -9,7 +9,7 @@ import { targetById } from "../../../spikes/opentui-solid-packaging/src/targets.
 import { APP_COMMAND, INSTALLER_COMMAND } from "./command-names.ts";
 export const DASHBOARD_PACKAGE_DIR = ".ein-dashboard";
 export const LEGACY_APP_NAME = "ein-app-legacy";
-type PromotionPorts = Readonly<{
+export type PromotionPorts = Readonly<{
   compile: (entrypoint: string, output: string) => void;
   copy: (from: string, to: string) => void;
   write: (path: string, data: string, mode: number) => void;
@@ -26,10 +26,13 @@ export type AppPromotion = Readonly<{
 }>;
 export type AppPromotionOptions = Readonly<{
   binDir: string;
-  selfPath: string;
+  selfPath?: string;
   agentDir: string;
   platform: string;
   arch: string;
+  appName?: string;
+  appSource?: string;
+  seedRoot?: string;
   releaseId?: string;
   ports?: Partial<PromotionPorts>;
 }>;
@@ -50,21 +53,22 @@ export async function promotePiAppPackage(options: AppPromotionOptions): Promise
   };
   mkdirSync(options.binDir, { recursive: true });
   const installerPath = join(options.binDir, INSTALLER_COMMAND);
-  const installerWritten = options.selfPath !== installerPath;
-  if (installerWritten) {
+  const installerWritten = options.selfPath !== undefined && options.selfPath !== installerPath;
+  if (options.selfPath !== undefined && options.selfPath !== installerPath) {
     ports.copy(options.selfPath, installerPath);
     chmodSync(installerPath, 0o755);
   }
 
-  const appPath = join(options.binDir, APP_COMMAND);
-  const appSource = join(options.agentDir, "app.ts");
+  const appName = options.appName ?? APP_COMMAND;
+  const appPath = join(options.binDir, appName);
+  const appSource = options.appSource ?? join(options.agentDir, "app.ts");
   if (!existsSync(appSource)) throw new Error("app-source-missing");
   const packageRoot = join(options.binDir, DASHBOARD_PACKAGE_DIR);
-  const seedRoot = join(options.agentDir, "ein", "runtime-seed", "dashboard", "v1");
+  const seedRoot = options.seedRoot ?? join(options.agentDir, "ein", "runtime-seed", "dashboard", "v1");
   const id = options.releaseId ?? `r-${Date.now()}-${randomUUID()}`;
   const stagingRoot = join(packageRoot, `.staging-${id}`);
-  const appStaging = join(options.binDir, `.${APP_COMMAND}.staging-${id}`);
-  const appBackup = existsSync(appPath) ? join(options.binDir, `.${APP_COMMAND}.backup-${id}`) : undefined;
+  const appStaging = join(options.binDir, `.${appName}.staging-${id}`);
+  const appBackup = existsSync(appPath) ? join(options.binDir, `.${appName}.backup-${id}`) : undefined;
   let releasePath: string | undefined;
   let pointerBackup: string | undefined;
   let appSwitched = false;

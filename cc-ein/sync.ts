@@ -27,6 +27,7 @@ import {
 import { homedir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { execFileSync } from "node:child_process";
+import { promotePiAppPackage, type AppPromotion, type AppPromotionOptions } from "../installer/src/core/app-package-promotion.ts";
 
 const REPO = join(import.meta.dir, "..");
 const CORE = join(REPO, "ein-pi", "core");
@@ -45,6 +46,29 @@ export const SURFACE_RUNNER_SOURCE = join(REPO, "ein-pi", "agent", "surfaces", "
 export const CLAUDE_SURFACE_RUNNER_NAME = "ein-surface-runner";
 export const TERMINAL_APP_SOURCE = join(REPO, "ein-pi", "agent", "app.ts");
 export const CLAUDE_TERMINAL_APP_NAME = "ein-app";
+
+export type ClaudeAppPromotionOptions = Readonly<{
+  destination?: string;
+  repo?: string;
+  platform?: string;
+  arch?: string;
+  releaseId?: string;
+  ports?: AppPromotionOptions["ports"];
+}>;
+
+export async function promoteClaudeTerminalApp(options: ClaudeAppPromotionOptions = {}): Promise<AppPromotion> {
+  const repo = options.repo ?? REPO;
+  return promotePiAppPackage({
+    binDir: options.destination ?? join(DEST, "bin"),
+    agentDir: join(repo, "ein-pi", "agent"),
+    appName: CLAUDE_TERMINAL_APP_NAME,
+    seedRoot: join(repo, "ein", "runtime-seed", "dashboard", "v1"),
+    platform: options.platform ?? process.platform,
+    arch: options.arch ?? process.arch,
+    releaseId: options.releaseId,
+    ports: { compile: compileStandalone, ...options.ports },
+  });
+}
 
 const log = (s: string) => console.log(DRY ? `  [dry] ${s}` : `  ${s}`);
 
@@ -561,7 +585,7 @@ export function compileClaudeSurfaceRunnerPayload(options: ClaudeSurfaceRunnerPa
  * Parity compilation is the first operation and only a complete valid surface
  * is promoted to the deployment tree. MCP setup remains best-effort.
  */
-export function runSync(): SyncResult {
+export async function runSync(): Promise<SyncResult> {
   const requiredFailures: string[] = [];
   const optionalWarnings: string[] = [];
 
@@ -666,10 +690,8 @@ export function runSync(): SyncResult {
     // Claude ejecute el mismo núcleo que Pi, no una copia adaptada.
     if (!DRY) {
       try {
-        compileClaudeSurfaceRunnerPayload({
-          source: TERMINAL_APP_SOURCE,
-          destination: join(binDir, CLAUDE_TERMINAL_APP_NAME),
-        });
+        const promotion = await promoteClaudeTerminalApp();
+        promotion.commit();
         log(`app de terminal compilada → bin/${CLAUDE_TERMINAL_APP_NAME}`);
       } catch (error) {
         const detail = `no se pudo desplegar la app de terminal: ${failureMessage(error)}`;
@@ -721,6 +743,6 @@ export function runSync(): SyncResult {
 }
 
 if (import.meta.main) {
-  const result = runSync();
+  const result = await runSync();
   if (!result.ok) process.exitCode = 1;
 }

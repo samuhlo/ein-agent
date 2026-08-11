@@ -14,12 +14,12 @@ export const CC_EIN_PAYLOAD_FILES = ["pi-ein/pi-ein.fish", "pi-ein/migrate.ts"] 
 export const CC_EIN_PAYLOAD_SDD_ENTRY = "cc-ein/sdd-cli/cli.ts" as const;
 
 /**
- * Every entry point `cc-ein/sync.ts` compiles at install time. Each one's
- * relative-import closure is staged, because a packaged sync has no checkout to
- * fall back on: a missing entry here becomes a compile failure on the user's
- * machine, not at packaging time.
+ * Sync and every entry point it compiles need their relative-import closures in
+ * the archive. A packaged sync has no checkout to fall back on: a missing entry
+ * here becomes a compile failure on the user's machine, not at packaging time.
  */
 export const CC_EIN_PAYLOAD_SOURCE_ENTRIES = [
+  "cc-ein/sync.ts",
   CC_EIN_PAYLOAD_SDD_ENTRY,
   "ein-pi/agent/surfaces/surface-runner.ts",
   "ein-pi/agent/app.ts",
@@ -28,6 +28,14 @@ export const CC_EIN_PAYLOAD_SOURCE_ENTRIES = [
 /** Paths required before a staged sync can be considered usable. */
 export const CC_EIN_PAYLOAD_REQUIRED_PATHS = [
   "cc-ein/sync.ts",
+  "installer/src/core/app-package-promotion.ts",
+  "installer/scripts/dashboard-candidate-input.ts",
+  "spikes/opentui-solid-packaging/src/candidate-artifact.ts",
+  "spikes/opentui-solid-packaging/src/package-layout.ts",
+  "spikes/opentui-solid-packaging/src/targets.ts",
+  "ein-pi/agent/launcher/dashboard-selector.ts",
+  "ein-pi/agent/lib/dashboard-package.ts",
+  "ein-pi/agent/lib/terminal-app-args.ts",
   CC_EIN_PAYLOAD_SDD_ENTRY,
   "ein-pi/agent/surfaces/surface-runner.ts",
   "ein-pi/agent/app.ts",
