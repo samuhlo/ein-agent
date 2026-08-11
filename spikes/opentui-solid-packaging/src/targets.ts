@@ -53,3 +53,7 @@ export function currentTarget(): Target {
 export function artifactName(target: Target): string {
   return `opentui-solid-probe-${target.id}`;
 }
+
+export function candidateArtifactName(target: Target): string {
+  return `ein-opentui-dashboard-${target.id}`;
+}

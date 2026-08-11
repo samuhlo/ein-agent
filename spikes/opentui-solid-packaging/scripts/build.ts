@@ -1,16 +1,8 @@
 import solidPlugin from "@opentui/solid/bun-plugin";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { artifactName, TARGETS, targetById, type Target } from "../src/targets";
-import { ROOT } from "./shared";
-
-async function assertNativePackage(target: Target): Promise<void> {
-  const packageJsonPath = join(ROOT, "node_modules", ...target.nativePackage.split("/"), "package.json");
-  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as { name?: string; version?: string };
-  if (packageJson.name !== target.nativePackage || packageJson.version !== "0.5.1") {
-    throw new Error(`Expected ${target.nativePackage}@0.5.1; run bun install --frozen-lockfile --os=\"*\" --cpu=\"*\"`);
-  }
-}
+import { assertNativePackage, ROOT } from "./shared";
 
 async function buildTarget(target: Target): Promise<void> {
   await assertNativePackage(target);
