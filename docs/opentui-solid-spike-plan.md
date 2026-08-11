@@ -145,6 +145,8 @@ Complete packages in order. Each package has its own evidence and rollback bound
 
 **Goal:** render one representative dashboard with Solid/OpenTUI on eligible TTYs while all other execution modes remain on the legacy path.
 
+**Progress:** the first work unit exists as an independently runnable, spike-local candidate at [`spikes/opentui-solid-packaging/`](../spikes/opentui-solid-packaging/) with evidence in [`evidence-wp2/`](../spikes/opentui-solid-packaging/evidence-wp2/). It reuses the production controller assembly and proves presentation, key, resize, lifecycle, cleanup, and Pi/Claude handoff behavior. Production TTY routing and packaged Pi/Claude binary selection are **not implemented**. Work Package 2 remains incomplete until the next packaging-selection work unit supplies those boundaries.
+
 **Implementation outline**
 
 - Add a Solid entrypoint with scoped TSX settings: `jsx: "preserve"` and `jsxImportSource: "@opentui/solid"`.
@@ -260,7 +262,7 @@ Recommend another bounded migration slice only when all mandatory thresholds pas
 - [ ] Work Package 0 packaging proof with package/native inventories, checksums, commands, and the eight-cell result grid.
 - [ ] Primary versus comparison packaging analysis with a selected strategy or stop decision.
 - [ ] Renderer/controller contract and unchanged legacy behavior evidence.
-- [ ] One TTY-only Solid/OpenTUI dashboard slice with fixed-dimension tests.
+- [ ] One TTY-only Solid/OpenTUI dashboard slice with fixed-dimension tests. The spike-local candidate exists; production routing and packaged selection remain outstanding.
 - [ ] Packaged Pi and Claude acceptance results for all four targets.
 - [ ] Baseline/candidate startup and size measurements with raw samples or machine-readable summaries.
 - [ ] Cleanup and runtime/command handoff stress evidence.
@@ -269,4 +271,4 @@ Recommend another bounded migration slice only when all mandatory thresholds pas
 
 ## Next Recommended Action
 
-Review and approve this plan's Work Package 0 package grid and reviewable thresholds. After approval, begin only the isolated dependency/native packaging proof; do not extract the controller or build the dashboard until all eight packaging cells have a credible offline path.
+Implement the next Work Package 2 packaging-selection work unit: preserve the legacy static predicate, select the already-proven target-specific candidate only for eligible production TTYs, and verify installed Pi/Claude payloads. Do not mark Work Package 2 complete until that selection passes.
