@@ -508,13 +508,29 @@ export type ClaudeSurfaceRunnerPayloadOptions = {
   install?: (staging: string, destination: string) => void;
 };
 
+/**
+ * Single way to compile a standalone binary. stdout/stderr are captured rather
+ * than discarded: swallowing them is what turned a plain "file not found" into
+ * an undiagnosable failure on a user's machine.
+ */
+export function compileStandalone(entrypoint: string, output: string): void {
+  try {
+    execFileSync("bun", ["build", "--compile", entrypoint, "--outfile", output], {
+      stdio: ["ignore", "pipe", "pipe"],
+      encoding: "utf8",
+    });
+  } catch (error) {
+    const detail = error as { stderr?: string; stdout?: string };
+    const captured = [detail.stderr, detail.stdout].filter(Boolean).join("\n").trim();
+    throw new Error(captured || failureMessage(error));
+  }
+}
+
 /** Compile and atomically promote the shared runner closure; stale payloads never survive failure. */
 export function compileClaudeSurfaceRunnerPayload(options: ClaudeSurfaceRunnerPayloadOptions): void {
   const source = options.source ?? SURFACE_RUNNER_SOURCE;
   const staging = `${options.destination}.staging-${process.pid}`;
-  const compile = options.compile ?? ((entrypoint, output) => {
-    execFileSync("bun", ["build", "--compile", entrypoint, "--outfile", output], { stdio: "ignore" });
-  });
+  const compile = options.compile ?? compileStandalone;
 
   mkdirSync(dirname(options.destination), { recursive: true });
   rmSync(staging, { force: true });
@@ -620,7 +636,7 @@ export function runSync(): SyncResult {
     ensureDir(binDir);
     if (!DRY) {
       try {
-        execFileSync("bun", ["build", "--compile", join(CC, "sdd-cli", "cli.ts"), "--outfile", join(binDir, "cc-ein-sdd")], { stdio: "ignore" });
+        compileStandalone(join(CC, "sdd-cli", "cli.ts"), join(binDir, "cc-ein-sdd"));
         log("CLI SDD compilado → bin/cc-ein-sdd (standalone; status|check|close)");
       } catch (error) {
         const detail = `no se pudo compilar cc-ein-sdd: ${failureMessage(error)}`;
