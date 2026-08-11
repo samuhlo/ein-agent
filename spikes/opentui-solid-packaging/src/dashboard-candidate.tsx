@@ -1,8 +1,8 @@
 import {
   createTerminalAppControllerFactoryForCwd,
-  parseTerminalAppArgs,
   type TerminalAppOptions,
 } from "../../../ein-pi/agent/surfaces/terminal-app-entrypoint.ts";
+import { parseTerminalAppArgs } from "../../../ein-pi/agent/lib/terminal-app-args.ts";
 import { runDashboardCandidate } from "./dashboard-runner";
 
 const argv = process.argv.slice(2);
