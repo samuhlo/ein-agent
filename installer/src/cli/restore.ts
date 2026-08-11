@@ -6,7 +6,9 @@
 // =============================================================================
 
 import * as p from "@clack/prompts";
+import { dirname } from "node:path";
 import { listBackups, restoreBackup, setPinned, snapshot } from "../core/backup.ts";
+import { APP_COMMAND } from "../core/command-names.ts";
 import { bold, gold } from "../tui/theme.ts";
 
 function findByName(name: string) {
@@ -15,6 +17,7 @@ function findByName(name: string) {
 
 export async function runRestore(args: string[]): Promise<number> {
   const yes = args.includes("--yes") || args.includes("-y");
+  const appPackage = { root: dirname(process.execPath), commands: [APP_COMMAND] } as const;
 
   // Pin management short-circuit: no restore flow involved.
   const pinIdx = args.indexOf("--pin");
@@ -70,7 +73,7 @@ export async function runRestore(args: string[]): Promise<number> {
   // Snapshot current state before overwriting, so restore is itself reversible.
   const sBackup = p.spinner();
   sBackup.start("Backup del estado actual");
-  const pre = await snapshot("pre-restore");
+  const pre = await snapshot("pre-restore", { appPackage });
   sBackup.stop(
     pre.path ? `Backup: ${pre.path}${pre.deduped ? " (sin cambios, reutilizado)" : ""}` : "Sin backup",
   );
@@ -78,7 +81,7 @@ export async function runRestore(args: string[]): Promise<number> {
   const sRestore = p.spinner();
   sRestore.start("Restaurando");
   try {
-    await restoreBackup(choice as string);
+    await restoreBackup(choice as string, { appPackage });
     sRestore.stop("Restaurado.");
   } catch (error) {
     sRestore.stop("Fallo al restaurar.");

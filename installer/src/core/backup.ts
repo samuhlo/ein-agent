@@ -23,6 +23,9 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { run } from "./exec.ts";
 import { AGENT_DIR, BACKUP_DIR } from "./paths.ts";
+import { appPackageHash, copyAppPackage, restoreAppPackage, type AppPackagePaths } from "./app-package-lifecycle.ts";
+
+const APP_PACKAGE_BACKUP = ".ein-app-package";
 
 // BLINDAJE -> auth.json and sessions are never copied: restoring an old
 // credential over the current one silently breaks Pi. Rest are regenerable
@@ -49,6 +52,7 @@ export type BackupPaths = {
   agentDir?: string;
   backupDir?: string;
   keep?: number;
+  appPackage?: AppPackagePaths;
 };
 
 export type BackupEntry = {
@@ -227,7 +231,10 @@ export async function snapshot(reason: string, paths: BackupPaths = {}): Promise
   if (!existsSync(agentDir)) return { path: null, deduped: false, pruned: [] };
 
   // NOISE KILL -> If the newest archive already captures this exact tree, skip.
-  const hash = treeHash(agentDir);
+  const tree = treeHash(agentDir);
+  const hash = paths.appPackage
+    ? createHash("sha256").update(tree ?? "").update(appPackageHash(paths.appPackage)).digest("hex")
+    : tree;
   const newest = listBackups({ ...paths, backupDir })[0];
   if (hash && newest && newest.kind === "archive" && readMetaHash(newest.path) === hash) {
     return { path: newest.path, deduped: true, pruned: [] };
@@ -243,6 +250,7 @@ export async function snapshot(reason: string, paths: BackupPaths = {}): Promise
       if (BACKUP_EXCLUDE.has(name)) continue;
       copyEntry(agentDir, staging, name);
     }
+    if (paths.appPackage) copyAppPackage(paths.appPackage, join(staging, APP_PACKAGE_BACKUP));
 
     const dest = join(backupDir, `${stamp}_${safeReason}.tar.gz`);
     const result = await run("tar", ["-czf", dest, "-C", staging, "."]);
@@ -275,9 +283,16 @@ export async function restoreBackup(backupPath: string, paths: BackupPaths = {})
     }
     return;
   }
-  mkdirSync(agentDir, { recursive: true });
-  const result = await run("tar", ["-xzf", backupPath, "-C", agentDir]);
-  if (!result.ok) {
-    throw new Error(`No se pudo restaurar el backup (tar): ${result.stderr}`);
+  const staging = mkdtempSync(join(tmpdir(), "ein-restore-"));
+  try {
+    const result = await run("tar", ["-xzf", backupPath, "-C", staging]);
+    if (!result.ok) throw new Error(`No se pudo restaurar el backup (tar): ${result.stderr}`);
+    const packaged = join(staging, APP_PACKAGE_BACKUP);
+    if (paths.appPackage && existsSync(packaged)) restoreAppPackage(packaged, paths.appPackage);
+    rmSync(packaged, { recursive: true, force: true });
+    mkdirSync(agentDir, { recursive: true });
+    for (const name of readdirSync(staging)) cpSync(join(staging, name), join(agentDir, name), { recursive: true });
+  } finally {
+    rmSync(staging, { recursive: true, force: true });
   }
 }

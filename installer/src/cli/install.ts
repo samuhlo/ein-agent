@@ -6,7 +6,7 @@
 
 import * as p from "@clack/prompts";
 import { promotePiAppPackage } from "../core/app-package-promotion.ts";
-import { INSTALLER_COMMAND } from "../core/command-names.ts";
+import { APP_COMMAND, INSTALLER_COMMAND } from "../core/command-names.ts";
 import piEinFish from "../../../pi-ein/pi-ein.fish" with { type: "text" };
 import { describePlatform, detectPlatform, type Platform } from "../core/platform.ts";
 import { run } from "../core/exec.ts";
@@ -330,6 +330,7 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
     const snap = await snapshot("pre-install", {
       agentDir: piContext.agentDir,
       backupDir: piContext.backupDir,
+      appPackage: { root: dirname(process.execPath), commands: [APP_COMMAND] },
     });
     rollbackPath = snap.path;
     spinner.stop(
@@ -355,6 +356,7 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
         await restoreBackup(rollbackPath, {
           agentDir: piContext.agentDir,
           backupDir: piContext.backupDir,
+          appPackage: { root: dirname(process.execPath), commands: [APP_COMMAND] },
         });
         rollbackSpinner.stop("Estado anterior restaurado.");
       } catch (rollbackError) {

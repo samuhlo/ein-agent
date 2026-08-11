@@ -75,12 +75,12 @@ function printHelp(): void {
   console.log("comandos:");
   console.log("  install      instala/actualiza Ein (checks + deploy + secrets)");
   console.log("  update       actualiza Ein y pi a la última versión");
-  console.log("  uninstall    elimina Ein (conserva secrets/auth.json)");
+  console.log("  uninstall    elimina Ein (conserva secrets/auth.json; --runtime pi|claude|both)");
   console.log("  restore      restaura desde un backup (--pin/--unpin <nombre>)");
   console.log("  doctor       diagnostico del despliegue (sin lanzar pi)");
   console.log("  --version    versión del instalador");
   console.log("");
-  console.log("flags: --yes --dry-run --no-engram --no-secrets --no-linear --no-hypa --no-codegraph");
+  console.log("flags: --yes --runtime pi|claude|both --dry-run --no-engram --no-secrets --no-linear --no-hypa --no-codegraph");
 }
 
 async function main(): Promise<number> {
