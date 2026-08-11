@@ -1,22 +1,44 @@
 // =============================================================================
 // EIN TERMINAL APP — terminal driver (the edge)
-// Owns raw mode, redraws and process wiring. All navigation logic lives in
-// `lib/terminal-app.ts`, which is pure and tested without a TTY.
+// Owns raw mode, the alternate screen, redraws and every side effect. All
+// navigation lives in `lib/terminal-app.ts`, which is pure and tested without a
+// TTY; this file is the only place that reads disk, spawns, or paints.
 // =============================================================================
 
 import { stdin, stdout } from "node:process";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
-import { bannerFinal, bannerFrame, frameCount } from "../lib/banner.ts";
-import { projectProjectState } from "../lib/project-state.ts";
+import { basename, join } from "node:path";
+import { bannerFinal, bannerFrame, frameCount, logoFor, TAGLINE } from "../lib/banner.ts";
+import { projectProjectState, type ProjectStateV1 } from "../lib/project-state.ts";
 import { applySetting, readSettings } from "../lib/project-settings.ts";
 import {
   buildLaunchPlan,
   createRuntimeSessionAdapter,
   executeLaunchPlan,
-  getRuntimeCapabilities,
+  type RuntimeProvider,
 } from "../lib/runtime-session-adapters.ts";
-import { summarizeSessions } from "../lib/session-summary.ts";
+import { collectRuntimeSessions, type RuntimeSessionList } from "../lib/runtime-sessions.ts";
+import { pick } from "../lib/lang.ts";
+import { createPalette, shouldUseColor } from "../lib/theme.ts";
+import {
+  buildConfigView,
+  buildDashboard,
+  buildSessionsView,
+  buildStateView,
+  buildSystemView,
+  handleKey,
+  initialModel,
+  renderApp,
+  splitKeys,
+  RUNTIME_LABEL,
+  type AppModel,
+  type ProjectSummary,
+  type Setting,
+  type SystemComponent,
+  type View,
+  type ViewKind,
+} from "../lib/terminal-app.ts";
 import {
   checkClaudeCodeUpdate,
   checkEinTemplateUpdate,
@@ -27,27 +49,16 @@ import {
   startUpdateEvidenceSnapshot,
   type VersionProbeRunner,
 } from "../lib/update-probes.ts";
-import { humanizeAge, listRecentSessions } from "../lib/sessions.ts";
-import {
-  KEY_HINTS,
-  buildConfigScreen,
-  buildHomeScreen,
-  buildSessionsScreen,
-  buildSystemScreen,
-  buildRuntimeScreen,
-  nextRuntime,
-  type RuntimeProviderId,
-  type RuntimeSessionRow,
-  handleKey,
-  renderScreen,
-  type Screen,
-} from "../lib/terminal-app.ts";
 
 const HELP = "Usage: ein [--project <root>] [--once] [--no-intro] [--help]";
 
 /** Short enough to read as a flourish, not a wait. Any key skips it. */
 export const INTRO_FRAME_MS = 22;
 export const INTRO_COLUMN_STEP = 2;
+/** Below this the logo is noise; the dashboard falls back to the name. */
+export const MIN_BANNER_COLUMNS = 42;
+export const MIN_BANNER_ROWS = 22;
+const SESSION_LIST_LIMIT = 8;
 
 export type TerminalAppArgs =
   | { kind: "run"; cwd: string; once: boolean; intro: boolean }
@@ -90,162 +101,439 @@ export function parseTerminalAppArgs(argv: readonly string[], cwd: string): Term
 
 export type TerminalAppIO = Readonly<{
   write: (text: string) => void;
-  /** Terminal width; drives the narrow logo cut. */
+  isTTY: boolean;
+  /** Terminal size; drives the narrow logo cut and the banner decision. */
   columns?: number;
+  rows?: number;
+  /** Read for the colour decision; injected so tests are not machine-dependent. */
+  env?: Readonly<Record<string, string | undefined>>;
   /** Injected so the intro is deterministic in tests instead of wall-clock. */
   sleep?: (ms: number) => Promise<void>;
-  isTTY: boolean;
   /** Absent when the terminal cannot deliver keystrokes; the app degrades. */
   onKey?: (handler: (key: string) => void) => () => void;
   setRawMode?: (raw: boolean) => void;
   clear?: () => void;
+  /** The alternate screen is what makes this feel like a program, not output. */
+  setAltScreen?: (active: boolean) => void;
+  onResize?: (handler: () => void) => () => void;
 }>;
+
+/** What happened when the terminal was handed to a runtime. */
+export type LaunchOutcome =
+  | { kind: "exited"; code: number }
+  | { kind: "unavailable"; reason: string };
 
 export type TerminalAppOptions = Readonly<{
   argv: readonly string[];
   cwd: string;
   io: TerminalAppIO;
-  project?: (cwd: string) => Screen;
-  /** Injected so tests exercise the config view without touching disk. */
+  /** Injected so tests describe a project without a repository on disk. */
+  summary?: (cwd: string, change?: string) => ProjectSummary;
   settings?: Readonly<{
-    read: (cwd: string) => ReturnType<typeof readSettings>;
+    read: (cwd: string) => readonly Setting[];
     apply: (cwd: string, settingId: string, value: string) => boolean;
   }>;
-  /** Injected so tests exercise the sessions view without reading transcripts. */
-  sessions?: () => Parameters<typeof buildSessionsScreen>[0];
-  /** Injected so tests exercise the system view without probing anything. */
-  system?: () => Parameters<typeof buildSystemScreen>[0];
-  /** Injected so tests exercise the runtime view without spawning anything. */
+  sessions?: (cwd: string) => RuntimeSessionList;
+  system?: () => readonly SystemComponent[];
   runtime?: Readonly<{
-    sessions: (provider: RuntimeProviderId) => readonly RuntimeSessionRow[];
-    launch: (provider: RuntimeProviderId, reference?: string) => Promise<number>;
-    capabilities?: (provider: RuntimeProviderId) => string | undefined;
+    launch: (provider: RuntimeProvider, reference?: string) => Promise<LaunchOutcome>;
   }>;
+  /** Runs a system command with the terminal handed over; returns its code. */
+  run?: (command: readonly string[]) => Promise<number>;
 }>;
 
-// `clear` only when redrawing an interactive screen: emitting it into a pipe
-// puts escape sequences in output nobody asked to be a terminal.
-function paint(io: TerminalAppIO, screen: Screen, status: string, clear: boolean): void {
-  if (clear) io.clear?.();
-  io.write(renderScreen(screen).join("\n"));
-  if (status) io.write(`\n${status}`);
-  io.write("\n");
+// ─── project summary ─────────────────────────────────────────────────────────
+
+function dirtyCount(state: ProjectStateV1): number | undefined {
+  if (state.git.repository !== true || !state.git.complete) return undefined;
+  return state.git.changes.length;
 }
 
-/**
- * 8-bit wipe-in: a dither edge sweeps the logo left to right. Skipped whenever
- * the terminal cannot animate, and abandoned as soon as the sleep seam says so.
- */
-async function playIntro(io: TerminalAppIO): Promise<void> {
-  const sleep = io.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-  const columns = io.columns ?? 100;
-  const total = frameCount(columns);
-  for (let frame = 0; frame <= total; frame += INTRO_COLUMN_STEP) {
-    io.clear?.();
-    io.write(`${bannerFrame(frame, columns).join("\n")}\n`);
-    await sleep(INTRO_FRAME_MS);
-  }
-  io.clear?.();
-  io.write(`${bannerFinal(columns).join("\n")}\n`);
-  await sleep(INTRO_FRAME_MS * 6);
+export function summaryFromState(state: ProjectStateV1, sessions?: number): ProjectSummary {
+  const root = state.identity.repositoryRoot ?? state.identity.cwd;
+  return Object.freeze({
+    name: basename(root) || root,
+    root,
+    branch: state.git.branch,
+    dirty: dirtyCount(state),
+    change: state.openspec.selectedChange,
+    phase: state.openspec.phase,
+    next: state.openspec.next,
+    activeChanges: state.openspec.activeChanges,
+    blockers: state.openspec.blockers,
+    sessions,
+  });
 }
+
+// ─── system components ───────────────────────────────────────────────────────
+
+const UPDATE_COMMANDS: Readonly<Record<string, readonly string[]>> = {
+  ein: ["ein-install", "update"],
+  binary: ["ein-install", "update"],
+  packages: ["pi-ein", "update", "--all"],
+  claude: ["claude", "update"],
+};
+
+const UPDATE_LABELS: Readonly<Record<string, string>> = {
+  ein: "Ein", binary: "Pi", packages: pick("Paquetes de Pi", "Pi packages"), claude: "Claude Code",
+};
+
+type UpdateObservation = Readonly<{ source?: unknown; status?: unknown }>;
+
+/**
+ * The system view's rows. Every command is a literal argv declared here — the
+ * app never assembles one from evidence it read, which is what keeps "run the
+ * update" from becoming "run whatever a probe said".
+ */
+export function systemComponentsFrom(
+  observations: readonly UpdateObservation[] | undefined,
+  facts: Readonly<{ engramInstalled: boolean }>,
+): readonly SystemComponent[] {
+  const components: SystemComponent[] = Object.keys(UPDATE_LABELS).map((source) => {
+    const observation = observations?.find((item) => item.source === source);
+    const status = typeof observation?.status === "string" ? observation.status : undefined;
+    // Only a component that says it is behind gets something to run: an
+    // unknown or skipped probe is not evidence that an update exists.
+    const command = status === "update-available" ? UPDATE_COMMANDS[source] : undefined;
+    return {
+      id: source,
+      label: UPDATE_LABELS[source] ?? source,
+      status,
+      ...(command ? { command } : {}),
+    };
+  });
+
+  components.push({
+    id: "engram",
+    label: "Engram",
+    // A component of the installation, not a project setting: there is no
+    // persisted on/off, so a switch here would switch nothing.
+    status: facts.engramInstalled ? pick("instalado", "installed") : pick("no instalado", "not installed"),
+  });
+  components.push({
+    id: "doctor",
+    label: pick("Diagnóstico", "Diagnostics"),
+    status: pick("bajo demanda", "on demand"),
+    command: ["ein-install", "doctor"],
+  });
+  return Object.freeze(components);
+}
+
+// ─── painting ────────────────────────────────────────────────────────────────
+
+type Chrome = Readonly<{ columns: number; rows: number; banner?: readonly string[]; tagline?: string }>;
+
+/** A terminal that reports nothing useful gets a sane default, not a zero. */
+function size(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+
+function chromeFor(io: TerminalAppIO): Chrome {
+  const columns = size(io.columns, 100);
+  const rows = size(io.rows, 40);
+  const logo = logoFor(columns);
+  const fits = columns >= MIN_BANNER_COLUMNS && rows >= MIN_BANNER_ROWS && columns >= logo[0]!.length;
+  return {
+    columns,
+    rows,
+    ...(fits ? { banner: bannerFrame(frameCount(columns), columns), tagline: TAGLINE } : {}),
+  };
+}
+
+// ─── the app ─────────────────────────────────────────────────────────────────
 
 /**
  * Runs the app. Without raw keystrokes — a pipe, a dumb terminal, `--once` — it
  * paints the screen once and exits 0 instead of pretending to be interactive.
  */
 export async function runTerminalApp(options: TerminalAppOptions): Promise<number> {
+  const io = options.io;
   const parsed = parseTerminalAppArgs(options.argv, options.cwd);
-  if (parsed.kind === "help") { options.io.write(`${HELP}\n`); return 0; }
+  if (parsed.kind === "help") { io.write(`${HELP}\n`); return 0; }
   if (parsed.kind === "moved") {
-    options.io.write(
+    io.write(
       `\`ein ${parsed.verb}\` ahora es \`${INSTALLER_COMMAND} ${parsed.verb}\`.\n` +
       `\`ein\` sin argumentos abre la aplicación.\n`,
     );
     return 2;
   }
-  if (parsed.kind === "usage") { options.io.write(`${HELP}\n`); return 2; }
+  if (parsed.kind === "usage") { io.write(`${HELP}\n`); return 2; }
 
-  const build = options.project ?? ((cwd: string) => buildHomeScreen(projectProjectState({ cwd })));
+  const cwd = parsed.cwd;
   const settings = options.settings ?? { read: readSettings, apply: applySetting };
-  const buildConfig = (cwd: string): Screen => buildConfigScreen(settings.read(cwd));
-  const readSessions = options.sessions ?? (() => summarizeSessions(listRecentSessions(5)));
-  // Started at the edge, like the workbench does: probes run while the intro
-  // plays and the first screens are read, so nothing waits on the network.
+  const readSessions = options.sessions ?? ((root: string) => productionSessions(root));
+  // Probes start at the edge so they run while the intro plays and the first
+  // screen is read; nothing in the loop ever waits on the network.
   const snapshot = options.system ? undefined : startUpdateEvidenceSnapshot({
     binary: async () => checkPiBinaryUpdate(await readPiBinaryVersion(defaultPiManifestPaths(homedir()))),
     packages: async () => ({ source: "packages", status: "skipped", reason: "requires-pi-runtime", freshness: "unknown" }),
     ein: async () => checkEinTemplateUpdate(await readEinVersion(resolveAgentDir())),
     claude: () => checkClaudeCodeUpdate(spawnVersionProbe),
   });
-  const readSystem = options.system ?? (() => systemRowsFrom(snapshot?.read()));
-  const runtimeSeam = options.runtime ?? productionRuntimeSeam(() => projectProjectState({ cwd: parsed.cwd }));
-  let provider: RuntimeProviderId = "pi";
-  const buildSessions = (): Screen => buildSessionsScreen(readSessions());
-  const buildSystem = (): Screen => buildSystemScreen(readSystem());
-  const buildRuntime = (): Screen =>
-    buildRuntimeScreen(provider, runtimeSeam.sessions(provider), runtimeSeam.capabilities?.(provider));
-  // One key cycles the three views, so there is nothing to remember beyond tab.
-  const nextView = (current: Screen): Screen => {
-    if (current.kind === "home") return buildConfig(parsed.cwd);
-    if (current.kind === "config") return buildSessions();
-    if (current.kind === "sessions") return buildSystem();
-    return current.kind === "system" ? buildRuntime() : build(parsed.cwd);
-  };
-  let screen = build(parsed.cwd);
+  const readSystem = options.system
+    ?? (() => systemComponentsFrom(snapshot?.read(), { engramInstalled: existsSync(engramHome()) }));
+  const launch = options.runtime?.launch ?? ((provider, reference) => productionLaunch(cwd, provider, reference));
+  const runCommand = options.run ?? productionRun;
 
-  const interactive = options.io.isTTY && options.io.onKey !== undefined && !parsed.once;
+  let focusedChange: string | undefined;
+  let sessionList = readSessions(cwd);
+  const readSummary = options.summary
+    ?? ((root: string, change?: string) =>
+      summaryFromState(projectProjectState({ cwd: root, ...(change ? { selectedChange: change } : {}) }), sessionList.entries.length));
+  let summary = readSummary(cwd, focusedChange);
+
+  const viewFor = (kind: ViewKind): View => {
+    switch (kind) {
+      case "config": return buildConfigView(settings.read(cwd));
+      case "sessions": {
+        sessionList = readSessions(cwd);
+        return buildSessionsView(sessionList.entries, sessionList.unavailable);
+      }
+      case "state": return buildStateView(summary);
+      case "system": return buildSystemView(readSystem());
+      default: return buildDashboard(summary);
+    }
+  };
+
+  let model: AppModel = initialModel(summary, buildDashboard(summary));
+  const chrome = () => chromeFor(io);
+  const palette = createPalette(
+    !parsed.once && shouldUseColor({ isTTY: io.isTTY, env: io.env ?? process.env }),
+  );
+
+  const paint = (clear: boolean): void => {
+    if (clear) io.clear?.();
+    const { columns, banner, tagline } = chrome();
+    io.write(`${renderApp(model, { columns, palette, banner, tagline, footer: footerFor(summary) }).join("\n")}\n`);
+  };
+
+  const interactive = io.isTTY && io.onKey !== undefined && !parsed.once;
   if (!interactive) {
-    paint(options.io, screen, `Non-interactive: static view. ${KEY_HINTS}`, false);
+    paint(false);
     return 0;
   }
 
-  options.io.setRawMode?.(true);
-  if (parsed.intro) await playIntro(options.io);
-  paint(options.io, screen, "", true);
+  // The terminal is a shared resource with two toggles, and asking twice for a
+  // state it is already in leaks escape sequences into whatever runs next.
+  let owned = false;
+  const own = (take: boolean): void => {
+    if (owned === take) return;
+    owned = take;
+    if (take) {
+      io.setAltScreen?.(true);
+      io.setRawMode?.(true);
+      return;
+    }
+    io.setRawMode?.(false);
+    io.setAltScreen?.(false);
+  };
+
+  own(true);
+  if (parsed.intro) await playIntro(io, palette.enabled);
+
   return await new Promise<number>((resolve) => {
-    const stop = options.io.onKey!((key) => {
-      const outcome = handleKey(screen, key);
-      screen = outcome.screen;
+    let stop: (() => void) | undefined;
+    let stopResize: (() => void) | undefined;
+
+    const restore = (): void => {
+      stop?.();
+      stop = undefined;
+      stopResize?.();
+      stopResize = undefined;
+      own(false);
+    };
+
+    const finish = (code: number): void => {
+      restore();
+      io.write("\n");
+      resolve(code);
+    };
+
+    const status = (message: string): void => {
+      model = { ...model, status: message };
+      paint(true);
+    };
+
+    // Handing the terminal over and taking it back is one mechanism, shared by
+    // launching a runtime and running a system command.
+    const handOver = async <T>(work: () => Promise<T>): Promise<T> => {
+      stop?.();
+      stop = undefined;
+      own(false);
+      io.write("\n");
+      return await work();
+    };
+
+    const resume = (): void => {
+      own(true);
+      stop = io.onKey!(onKey);
+      paint(true);
+    };
+
+    function onKey(key: string): void {
+      const outcome = handleKey(model, key);
+      model = outcome.model;
       const effect = outcome.effect;
-      if (effect.kind === "quit") {
-        stop();
-        options.io.setRawMode?.(false);
-        options.io.write("\n");
-        resolve(0);
-        return;
+
+      switch (effect.kind) {
+        case "quit":
+          finish(0);
+          return;
+        case "open":
+          model = { ...model, view: viewFor(effect.view), cursor: 0, query: "", searching: false, status: "" };
+          break;
+        case "refresh": {
+          // Evidence arrives after the first paint — update probes finish, a
+          // session ends, a file changes — so the view is rebuilt in place,
+          // keeping the cursor where the user left it.
+          const cursor = model.cursor;
+          summary = readSummary(cwd, focusedChange);
+          model = { ...model, summary, view: viewFor(model.view.kind), cursor };
+          break;
+        }
+        case "apply-setting": {
+          const cursor = model.cursor;
+          const applied = settings.apply(cwd, effect.settingId, effect.value);
+          // Re-read: the screen shows what disk says afterwards, never what the
+          // keystroke intended.
+          model = {
+            ...model,
+            view: buildConfigView(settings.read(cwd)),
+            cursor,
+            status: applied
+              ? ""
+              : pick(`No se pudo escribir ${effect.settingId}`, `Could not write ${effect.settingId}`),
+          };
+          break;
+        }
+        case "focus-change":
+          focusedChange = effect.change;
+          summary = readSummary(cwd, focusedChange);
+          model = { ...model, summary, view: buildStateView(summary) };
+          break;
+        case "launch":
+          void handOver(() => launch(effect.provider, effect.reference)).then(
+            (result) => {
+              if (result.kind === "exited") {
+                restore();
+                resolve(result.code);
+                return;
+              }
+              // A runtime that is not there is a fact to show, not a reason to
+              // end the session the user is in the middle of.
+              resume();
+              status(pick(
+                `${RUNTIME_LABEL[effect.provider]} no está disponible (${result.reason})`,
+                `${RUNTIME_LABEL[effect.provider]} is not available (${result.reason})`,
+              ));
+            },
+            () => { restore(); resolve(1); },
+          );
+          return;
+        case "run":
+          // The updater can replace the files this process is running from, so
+          // the app ends with the command instead of returning to a stale self.
+          void handOver(() => runCommand(effect.command)).then(
+            (code) => { restore(); resolve(code); },
+            () => { restore(); resolve(1); },
+          );
+          return;
+        case "status":
+        case "none":
+          break;
       }
-      let status = effect.kind === "status" ? effect.message : "";
-      if (effect.kind === "switch-view") screen = nextView(screen);
-      if (effect.kind === "cycle-runtime") {
-        provider = nextRuntime(provider);
-        screen = buildRuntime();
-        status = `Runtime: ${provider}`;
-      }
-      if (effect.kind === "launch") {
-        // Hand the terminal over: leave raw mode, let the runtime own the tty,
-        // and end the app with whatever the runtime exited with.
-        stop();
-        options.io.setRawMode?.(false);
-        options.io.write("\n");
-        void runtimeSeam.launch(effect.provider, effect.reference).then(resolve, () => resolve(1));
-        return;
-      }
-      if (effect.kind === "apply") {
-        // Persist through the setting's owner, then re-read: the screen shows
-        // what disk says afterwards, not what the keystroke intended.
-        const cursor = screen.cursor;
-        const applied = settings.apply(parsed.cwd, effect.settingId, effect.value);
-        screen = { ...buildConfig(parsed.cwd), cursor };
-        status = applied ? `${effect.settingId} = ${effect.value}` : `${effect.settingId} — refused`;
-      }
-      paint(options.io, screen, status, true);
-    });
+      paint(true);
+    }
+
+    stop = io.onKey!(onKey);
+    stopResize = io.onResize?.(() => paint(true));
+    paint(true);
   });
 }
 
+function footerFor(summary: ProjectSummary): string | undefined {
+  if (summary.sessions === undefined) return undefined;
+  return summary.sessions === 1
+    ? pick("1 sesión previa", "1 previous session")
+    : pick(`${summary.sessions} sesiones previas`, `${summary.sessions} previous sessions`);
+}
+
+/**
+ * 8-bit wipe-in: a dither edge sweeps the logo left to right. Skipped whenever
+ * the terminal cannot animate, and abandoned as soon as the sleep seam says so.
+ */
+async function playIntro(io: TerminalAppIO, colour: boolean): Promise<void> {
+  const sleep = io.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const columns = size(io.columns, 100);
+  const paint = createPalette(colour).accent;
+  const total = frameCount(columns);
+  for (let frame = 0; frame <= total; frame += INTRO_COLUMN_STEP) {
+    io.clear?.();
+    io.write(`${bannerFrame(frame, columns).map(paint).join("\n")}\n`);
+    await sleep(INTRO_FRAME_MS);
+  }
+  io.clear?.();
+  io.write(`${bannerFinal(columns).map(paint).join("\n")}\n`);
+  await sleep(INTRO_FRAME_MS * 6);
+}
+
+// ─── production seams ────────────────────────────────────────────────────────
+
 function resolveAgentDir(): string {
   return process.env.EIN_PI_AGENT_HOME ?? join(homedir(), ".pi", "agent");
+}
+
+function engramHome(): string {
+  return join(homedir(), ".engram-pi");
+}
+
+function productionSessions(cwd: string): RuntimeSessionList {
+  const state = projectProjectState({ cwd });
+  return collectRuntimeSessions(
+    { cwd: state.identity.cwd, ...(state.identity.repositoryRoot ? { repositoryRoot: state.identity.repositoryRoot } : {}) },
+    { limit: SESSION_LIST_LIMIT },
+  );
+}
+
+/**
+ * Launching goes through the same plan/execute pair the adapters own, so the
+ * app inherits every guard those already enforce instead of re-implementing
+ * them. Its only addition is telling apart "the runtime ran" from "the runtime
+ * is not installed", which the app needs in order to stay alive.
+ */
+async function productionLaunch(
+  cwd: string,
+  provider: RuntimeProvider,
+  reference?: string,
+): Promise<LaunchOutcome> {
+  const state = projectProjectState({ cwd });
+  const adapter = createRuntimeSessionAdapter(provider);
+  const intent = reference ? adapter.resume(state, reference) : adapter.create(state);
+  if (intent.outcome !== "success") {
+    return { kind: "unavailable", reason: intent.error?.code ?? intent.outcome };
+  }
+  const plan = buildLaunchPlan(state, intent.data);
+  if (plan.outcome !== "success") {
+    return { kind: "unavailable", reason: plan.error?.code ?? plan.outcome };
+  }
+  const executed = await executeLaunchPlan(plan.data);
+  if (executed.outcome === "success") return { kind: "exited", code: 0 };
+  if (executed.outcome === "unavailable") {
+    return { kind: "unavailable", reason: executed.error?.code ?? "unavailable" };
+  }
+  return { kind: "exited", code: executed.error?.exitCode ?? 1 };
+}
+
+/** Runs one of the app's own declared commands, inheriting the terminal. */
+async function productionRun(command: readonly string[]): Promise<number> {
+  const [file, ...args] = command;
+  if (!file) return 1;
+  try {
+    const child = Bun.spawn([file, ...args], { stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+    return await child.exited;
+  } catch {
+    return 1;
+  }
 }
 
 /** Bounded spawn for version queries only; mirrors the workbench probe. */
@@ -253,96 +541,38 @@ const spawnVersionProbe: VersionProbeRunner = async ({ file, args, timeoutMs, ma
   const child = Bun.spawn([file, ...args], { stdout: "pipe", stderr: "ignore" });
   const timer = setTimeout(() => child.kill(), timeoutMs);
   try {
-    const stdout = (await new Response(child.stdout).text()).slice(0, maxBuffer);
-    return { stdout, exitCode: await child.exited };
+    const output = (await new Response(child.stdout).text()).slice(0, maxBuffer);
+    return { stdout: output, exitCode: await child.exited };
   } finally {
     clearTimeout(timer);
   }
 };
-
-const UPDATE_COMMANDS: Readonly<Record<string, string>> = {
-  ein: "ein-install update",
-  binary: "ein-install update",
-  packages: "pi-ein update --all",
-  claude: "claude update",
-};
-
-const UPDATE_LABELS: Readonly<Record<string, string>> = {
-  ein: "Ein", binary: "Pi binary", packages: "Pi packages", claude: "Claude Code",
-};
-
-/**
- * System rows from the update evidence plus the diagnostics entry point. The
- * app prints commands; running them stays with the installer (block N).
- */
-export function systemRowsFrom(
-  observations: ReturnType<typeof startUpdateEvidenceSnapshot>["read"] extends () => infer T ? T : never,
-): Parameters<typeof buildSystemScreen>[0] {
-  const rows = Object.keys(UPDATE_LABELS).map((source) => {
-    const observation = observations?.find((item) => item.source === source);
-    const status = observation
-      ? (observation.status === "update-available" ? "update available" : observation.status)
-      : undefined;
-    return {
-      label: UPDATE_LABELS[source] ?? source,
-      status,
-      command: observation?.status === "update-available" || observation?.status === "unavailable"
-        ? UPDATE_COMMANDS[source]
-        : undefined,
-    };
-  });
-  return [...rows, { label: "Diagnostics", status: "run on demand", command: "ein-install doctor" }];
-}
-
-/**
- * Production runtime seam. Sessions come from the adapters and launching goes
- * through the same plan/execute pair the workbench uses, so the app inherits
- * every guard those already enforce instead of re-implementing them.
- */
-export function productionRuntimeSeam(project: () => unknown) {
-  return {
-    capabilities: (provider: RuntimeProviderId) =>
-      getRuntimeCapabilities(provider).map((item) => `${item.operation}=${item.support}`).join(" "),
-    sessions: (provider: RuntimeProviderId): readonly RuntimeSessionRow[] => {
-      const result = createRuntimeSessionAdapter(provider).list(project());
-      if (result.outcome !== "success") return [];
-      // A provider whose resume capability is unsupported must not present its
-      // sessions as launchable: pressing enter would fail after the fact.
-      const resumable = getRuntimeCapabilities(provider)
-        .some((item) => item.operation === "resume" && item.support === "supported");
-      const now = Date.now();
-      return result.data.map((session) => ({
-        reference: resumable ? session.reference : undefined,
-        // Relative age reads at a glance; the exact stamp is the detail.
-        label: humanizeAge(Math.max(0, now - session.modifiedAtMs)),
-        detail: resumable
-          ? new Date(session.modifiedAtMs).toISOString()
-          : `${new Date(session.modifiedAtMs).toISOString()} · resume unsupported`,
-      }));
-    },
-    launch: async (provider: RuntimeProviderId, reference?: string): Promise<number> => {
-      const state = project();
-      const adapter = createRuntimeSessionAdapter(provider);
-      const intent = reference ? adapter.resume(state, reference) : adapter.create(state);
-      if (intent.outcome !== "success") return 1;
-      const plan = buildLaunchPlan(state, intent.data);
-      if (plan.outcome !== "success") return 1;
-      const executed = await executeLaunchPlan(plan.data);
-      return executed.outcome === "success" ? 0 : 1;
-    },
-  };
-}
 
 /** Wires the real terminal. Keystrokes arrive raw, one chunk per key. */
 export function productionTerminalIO(): TerminalAppIO {
   return {
     write: (text) => { stdout.write(text); },
     isTTY: Boolean(stdin.isTTY && stdout.isTTY),
-    columns: stdout.columns,
+    get columns() { return stdout.columns; },
+    get rows() { return stdout.rows; },
+    env: process.env,
     setRawMode: (raw) => { stdin.setRawMode?.(raw); },
     clear: () => { stdout.write("\u001b[2J\u001b[3J\u001b[H"); },
+    setAltScreen: (active) => {
+      // Cursor hidden with the screen: a block cursor parked on a painted row
+      // reads as a second selection.
+      stdout.write(active ? "\u001b[?1049h\u001b[?25l" : "\u001b[?25h\u001b[?1049l");
+    },
+    onResize: (handler) => {
+      stdout.on("resize", handler);
+      return () => { stdout.off("resize", handler); };
+    },
     onKey: (handler) => {
-      const listener = (chunk: Buffer | string): void => { handler(chunk.toString()); };
+      // One read can carry several keys — a paste, a fast typist, a pipe — and
+      // handing the block over as one key makes the app look frozen.
+      const listener = (chunk: Buffer | string): void => {
+        for (const key of splitKeys(chunk.toString())) handler(key);
+      };
       stdin.resume();
       stdin.on("data", listener);
       return () => { stdin.off("data", listener); stdin.pause(); };

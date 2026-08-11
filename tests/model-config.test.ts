@@ -190,8 +190,8 @@ describe("routing de agentes de ~/.pi/agent/agents (fuente user)", () => {
 	beforeAll(() => {
 		mkdirSync(AGENTS_DIR, { recursive: true });
 		writeFileSync(
-			join(AGENTS_DIR, "sdd-apply.md"),
-			"---\nname: sdd-apply\ndescription: test agent\ntools: read\n---\n\nbody\n",
+			join(AGENTS_DIR, "ein-model-config-fixture.md"),
+			"---\nname: ein-model-config-fixture\ndescription: test agent\ntools: read\n---\n\nbody\n",
 		);
 		writeFileSync(
 			join(AGENTS_DIR, "ein-scout.md"),
@@ -207,14 +207,14 @@ describe("routing de agentes de ~/.pi/agent/agents (fuente user)", () => {
 
 	test("applyModelConfigAsync escribe model: en el frontmatter, no en settings", async () => {
 		writeModelConfig(CWD, {
-			"sdd-apply": { model: "minimax/MiniMax-M2.7" },
+			"ein-model-config-fixture": { model: "minimax/MiniMax-M2.7" },
 		});
 		const result = await applyModelConfigAsync(
 			CWD,
 			readModelConfig(CWD),
 		);
 		expect(result.updated).toBeGreaterThanOrEqual(1);
-		const content = readFileSync(join(AGENTS_DIR, "sdd-apply.md"), "utf8");
+		const content = readFileSync(join(AGENTS_DIR, "ein-model-config-fixture.md"), "utf8");
 		expect(content).toContain("model: minimax/MiniMax-M2.7");
 	});
 
@@ -242,6 +242,6 @@ describe("routing de agentes de ~/.pi/agent/agents (fuente user)", () => {
 		);
 		names = listDiscoverableAgents(CWD).map((agent) => agent.name);
 		expect(names).not.toContain("scout");
-		expect(names).toContain("sdd-apply");
+		expect(names).toContain("ein-model-config-fixture");
 	});
 });

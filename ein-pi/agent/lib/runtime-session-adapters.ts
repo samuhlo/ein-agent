@@ -6,7 +6,8 @@ import type {
 	ProjectStateReasonCode,
 	ProjectStateV1,
 } from "./project-state.ts";
-import { scanProjectSessions } from "./sessions.ts";
+import { MAX_PROJECT_SESSIONS, scanProjectSessions } from "./sessions.ts";
+import { scanClaudeProjectSessions } from "./claude-sessions.ts";
 
 /** The runtimes exposed by the common adapter boundary. */
 export type RuntimeProvider = "pi" | "claude";
@@ -139,7 +140,7 @@ export const RUNTIME_CAPABILITY_MATRIX = {
 		resume: {
 			provider: "pi",
 			operation: "resume",
-			support: "unsupported",
+			support: "supported",
 		},
 		launch: {
 			provider: "pi",
@@ -151,7 +152,7 @@ export const RUNTIME_CAPABILITY_MATRIX = {
 		list: {
 			provider: "claude",
 			operation: "list",
-			support: "unsupported",
+			support: "supported",
 		},
 		create: {
 			provider: "claude",
@@ -162,7 +163,7 @@ export const RUNTIME_CAPABILITY_MATRIX = {
 		resume: {
 			provider: "claude",
 			operation: "resume",
-			support: "unsupported",
+			support: "supported",
 		},
 		launch: {
 			provider: "claude",
@@ -192,17 +193,63 @@ export type RuntimeResumeRequest = RuntimeSessionRequest & {
 	reference: string | LaunchIntent;
 };
 
-/** The only process plan the adapter can create: a fresh, argument-free runtime. */
+/**
+ * The process plans the adapter can build. `argv` is not free text: it is one of
+ * four exact shapes (see LAUNCH_ARGV_SHAPES), whose only variable slot is a
+ * session id validated against SESSION_ID_PATTERN. Nothing a caller supplies
+ * ever becomes an argument, and `shell` stays false.
+ */
 export type LaunchPlan = {
 	provider: RuntimeProvider;
-	mode: "create";
+	mode: "create" | "resume";
 	project: ProjectBinding;
 	executable: string;
-	argv: readonly [];
+	argv: readonly string[];
 	cwd: string;
 	env: Readonly<Record<string, string>>;
 	shell: false;
 };
+
+/** Both runtimes name sessions with a canonical uuid; anything else fails closed. */
+export const SESSION_ID_PATTERN =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The flag each runtime uses to resume one specific session, non-interactively. */
+export const RESUME_FLAG: Readonly<Record<RuntimeProvider, string>> = {
+	pi: "--session",
+	claude: "--resume",
+};
+
+/**
+ * The closed table the validator compares against. Asking "is this plan one of
+ * the four we know how to build?" is decidable; asking "is this argument safe?"
+ * is judgement, and judgement is what gets argument injection wrong.
+ */
+export function launchArgvFor(
+	provider: RuntimeProvider,
+	mode: LaunchPlan["mode"],
+	sessionId?: string,
+): readonly string[] | null {
+	if (mode === "create") return [];
+	if (typeof sessionId !== "string" || !SESSION_ID_PATTERN.test(sessionId)) return null;
+	return [RESUME_FLAG[provider], sessionId];
+}
+
+/** True only for an argv this adapter could have produced for that provider and mode. */
+export function isDeclaredLaunchArgv(
+	provider: RuntimeProvider,
+	mode: unknown,
+	argv: unknown,
+): boolean {
+	if (!Array.isArray(argv) || argv.some((item) => typeof item !== "string")) return false;
+	if (mode === "create") return argv.length === 0;
+	if (mode !== "resume") return false;
+	return (
+		argv.length === 2 &&
+		argv[0] === RESUME_FLAG[provider] &&
+		SESSION_ID_PATTERN.test(argv[1] as string)
+	);
+}
 
 export type LaunchPlanOptions = {
 	/** Test/runtime boundary override; callers never provide an executable name. */
@@ -218,7 +265,7 @@ export type LaunchPlanOptions = {
 
 export type LaunchExecutorInput = {
 	executable: string;
-	argv: readonly [];
+	argv: readonly string[];
 	cwd: string;
 	env: Readonly<Record<string, string>>;
 	shell: false;
@@ -494,19 +541,59 @@ function stateFailure<T>(
 	);
 }
 
-function opaquePiReference(id: string): string {
-	return `pi:v1:sha256:${createHash("sha256").update(id).digest("hex")}`;
+/**
+ * The one place the public reference format is spelled. Exported so a reader
+ * that lists sessions for display derives the same reference the adapter will
+ * later resolve, instead of a second, drifting implementation of the format.
+ */
+export function sessionReferenceFor(provider: RuntimeProvider, id: string): string {
+	return `${provider}:v1:sha256:${createHash("sha256").update(id).digest("hex")}`;
 }
 
-/** Compose the bounded private Pi reader into the normalized adapter boundary. */
-export function listPiProjectSessions(
+const opaqueReference = sessionReferenceFor;
+
+function opaquePiReference(id: string): string {
+	return opaqueReference("pi", id);
+}
+
+function scanFor(provider: RuntimeProvider, project: ProjectBinding, limit: number) {
+	const scope = { cwd: project.cwd, repositoryRoot: project.repositoryRoot };
+	return provider === "claude"
+		? scanClaudeProjectSessions(scope, limit)
+		: scanProjectSessions(scope, limit);
+}
+
+/**
+ * Turn a public reference back into the private session id.
+ *
+ * The reference is `sha256(id)` and stays irreversible: this does not invert the
+ * hash, it re-scans the project's store and asks which live session hashes to
+ * it. That keeps the id out of every public envelope while making resume
+ * possible, and costs one bounded scan per resume instead of a persisted
+ * reference→id map, which would just be the hash reversed and written to disk.
+ */
+export function resolveSessionReference(
+	provider: RuntimeProvider,
+	project: ProjectBinding,
+	reference: string,
+): string | undefined {
+	if (!validateOpaqueReference(provider, reference)) return undefined;
+	for (const session of scanFor(provider, project, MAX_PROJECT_SESSIONS).matches) {
+		if (opaqueReference(provider, session.id) === reference) return session.id;
+	}
+	return undefined;
+}
+
+/** Compose a bounded private runtime reader into the normalized adapter boundary. */
+function listProjectSessions(
+	provider: RuntimeProvider,
 	project: ProjectBinding,
 	options: PiSessionListOptions = {},
 ): AdapterResult<readonly SessionMetadata[]> {
 	const limit = options.limit ?? 10;
-	if (!Number.isInteger(limit) || limit < 1 || limit > 20) {
+	if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PROJECT_SESSIONS) {
 		return {
-			provider: "pi",
+			provider,
 			operation: "list",
 			outcome: "error",
 			project,
@@ -514,13 +601,22 @@ export function listPiProjectSessions(
 		};
 	}
 
-	const scan = scanProjectSessions(
-		{ cwd: project.cwd, repositoryRoot: project.repositoryRoot },
-		limit,
-	);
+	const scan = scanFor(provider, project, limit);
+	// A store that cannot be listed is not a store with no sessions. Collapsing
+	// the two would let the app tell the user "no sessions here" about a runtime
+	// it never managed to look at.
+	if (scan.store === "absent") {
+		return {
+			provider,
+			operation: "list",
+			outcome: "unavailable",
+			project,
+			error: { code: "session-source-unavailable" },
+		};
+	}
 	if (scan.scanLimitExceeded) {
 		return {
-			provider: "pi",
+			provider,
 			operation: "list",
 			outcome: "unavailable",
 			project,
@@ -531,10 +627,10 @@ export function listPiProjectSessions(
 	const references = new Set<string>();
 	const data: SessionMetadata[] = [];
 	for (const session of scan.matches) {
-		const reference = opaquePiReference(session.id);
+		const reference = opaqueReference(provider, session.id);
 		if (references.has(reference)) {
 			return {
-				provider: "pi",
+				provider,
 				operation: "list",
 				outcome: "error",
 				project,
@@ -545,13 +641,21 @@ export function listPiProjectSessions(
 		data.push({ reference, modifiedAtMs: session.mtimeMs });
 	}
 
-	return {
-		provider: "pi",
-		operation: "list",
-		outcome: "success",
-		project,
-		data,
-	};
+	return { provider, operation: "list", outcome: "success", project, data };
+}
+
+export function listPiProjectSessions(
+	project: ProjectBinding,
+	options: PiSessionListOptions = {},
+): AdapterResult<readonly SessionMetadata[]> {
+	return listProjectSessions("pi", project, options);
+}
+
+export function listClaudeProjectSessions(
+	project: ProjectBinding,
+	options: PiSessionListOptions = {},
+): AdapterResult<readonly SessionMetadata[]> {
+	return listProjectSessions("claude", project, options);
 }
 
 function requestProject(request: unknown): ProjectBinding | undefined {
@@ -732,19 +836,19 @@ export function listSessionRequest(
 	if (!validation.ok) {
 		return stateFailure(parts.provider, "list", parts.state, validation, parts.expectedProject);
 	}
-	if (parts.provider === "claude") {
-		return failure(parts.provider, "list", parts.state, "operation-not-supported", undefined, "unsupported");
-	}
 	const limit = actualOptions.limit ?? 10;
-	if (!Number.isInteger(limit) || limit < 1 || limit > 20) {
+	if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PROJECT_SESSIONS) {
 		return failure(parts.provider, "list", parts.state, "invalid-request");
 	}
-	return listPiProjectSessions(validation.project, actualOptions);
+	return listProjectSessions(parts.provider, validation.project, actualOptions);
 }
 
 /**
- * Validate a same-provider opaque envelope, then fail closed: neither runtime
- * has a proven resume invocation in this slice.
+ * Validate a same-provider opaque envelope and prove it still names a live
+ * session of this project, then hand back a resume intent. The intent carries
+ * the public reference, not the private id: resolution happens again inside
+ * buildLaunchPlan, which is the only place that needs the id — to spell the
+ * runtime's own resume flag.
  */
 export function resumeSessionRequest(
 	providerOrRequest: RuntimeProvider | RuntimeResumeRequest,
@@ -786,7 +890,15 @@ export function resumeSessionRequest(
 	if (!validateOpaqueReference(parts.provider, reference)) {
 		return failure(parts.provider, "resume", parts.state, "reference-invalid", expectedProject);
 	}
-	return failure(parts.provider, "resume", parts.state, "operation-not-supported", expectedProject, "unsupported");
+	if (!resolveSessionReference(parts.provider, validation.project, reference)) {
+		return failure(parts.provider, "resume", parts.state, "reference-not-found", expectedProject);
+	}
+	return success(parts.provider, "resume", validation.project, {
+		provider: parts.provider,
+		mode: "resume",
+		project: validation.project,
+		reference,
+	});
 }
 
 /** Stable translation of the provider matrix for factory consumers. */
@@ -965,6 +1077,7 @@ export function buildLaunchPlan(
 	}
 	const project = projectValidation.project;
 
+	let argv: readonly string[] | null = [];
 	if (intent.mode === "resume") {
 		const reference = intent.reference;
 		const issuedBy = typeof reference === "string" ? referenceProvider(reference) : undefined;
@@ -974,9 +1087,15 @@ export function buildLaunchPlan(
 		if (!validateOpaqueReference(provider, reference)) {
 			return failure(provider, "launch", state, "reference-invalid", project);
 		}
-		return failure(provider, "launch", state, "operation-not-supported", project, "unsupported");
-	}
-	if ("reference" in intent && intent.reference !== undefined) {
+		const sessionId = resolveSessionReference(provider, project, reference);
+		if (!sessionId) {
+			return failure(provider, "launch", state, "reference-not-found", project);
+		}
+		argv = launchArgvFor(provider, "resume", sessionId);
+		// A store that names a session with something other than a canonical uuid
+		// cannot be resumed safely, so it is refused rather than passed through.
+		if (!argv) return failure(provider, "launch", state, "reference-invalid", project);
+	} else if ("reference" in intent && intent.reference !== undefined) {
 		return failure(provider, "launch", state, "invalid-request", project);
 	}
 
@@ -1006,10 +1125,10 @@ export function buildLaunchPlan(
 			};
 	const plan: LaunchPlan = {
 		provider,
-		mode: "create",
+		mode: intent.mode,
 		project,
 		executable,
-		argv: [],
+		argv,
 		cwd: project.cwd,
 		env,
 		shell: false,
@@ -1019,11 +1138,12 @@ export function buildLaunchPlan(
 }
 
 function validLaunchPlan(value: unknown): value is LaunchPlan {
-	if (!isRecord(value) || !knownProvider(value.provider) || value.mode !== "create") return false;
+	if (!isRecord(value) || !knownProvider(value.provider)) return false;
+	if (value.mode !== "create" && value.mode !== "resume") return false;
 	if (!validProjectBinding(value.project) || typeof value.cwd !== "string" || !isAbsolute(value.cwd)) return false;
 	if (normalize(value.cwd) !== normalize(value.project.cwd)) return false;
 	if (!isTrustedExecutable(value.provider, value.executable) || value.shell !== false) return false;
-	if (!Array.isArray(value.argv) || value.argv.length !== 0) return false;
+	if (!isDeclaredLaunchArgv(value.provider, value.mode, value.argv)) return false;
 	const environment = value.env;
 	if (!isRecord(environment)) return false;
 	const expectedKeys = value.provider === "pi"
@@ -1196,7 +1316,7 @@ export async function executeLaunchPlan(
 	try {
 		const execution = normalizeLaunchExecution(await executor({
 			executable: plan.executable,
-			argv: [],
+			argv: plan.argv,
 			cwd: plan.cwd,
 			env: plan.env,
 			shell: false,
