@@ -96,7 +96,7 @@ Complete packages in order. Each package has its own evidence and rollback bound
 
 **Goal:** prove a controlled OpenTUI/Solid artifact can be built, selected, shipped, and started on every supported target through both Pi and Claude surfaces.
 
-**Progress:** implementation and local evidence are available at [`spikes/opentui-solid-packaging/`](../spikes/opentui-solid-packaging/). Status is **partial**: all four artifacts build and all eight inventories verify, but only the current-host Pi/Claude cells have native runtime evidence; the remaining cells stay `not-run` until the isolated workflow executes.
+**Progress:** implementation and evidence are available at [`spikes/opentui-solid-packaging/`](../spikes/opentui-solid-packaging/). Status is **pass**: workflow run `31509930916`, attempt 2, produced verified native artifacts for all eight Pi/Claude-by-target runtime cells. The linux-arm64 job conclusion field remains stale despite terminal run success and complete successful steps; its PASS is based on the validated uploaded native artifact, not that stale field. Baseline startup and size deltas remain Work Package 3 follow-up.
 
 **Implementation outline**
 
