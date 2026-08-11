@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "bun run scripts/build.ts",
-    "check": "bun run typecheck && bun test",
+    "check": "bun run typecheck && bun run test",
     "inventory": "bun run scripts/stage.ts",
+    "test": "bun test ./tests/*.case.ts ./tests/*.case.tsx",
     "typecheck": "bunx tsc --noEmit",
     "verify": "bun run scripts/verify.ts"
   },
