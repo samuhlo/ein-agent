@@ -103,7 +103,14 @@ describe("Claude runtime payload", () => {
     const home = tempHome();
     const source = join(home, "payload-source");
     const archive = join(home, "payload.tar.gz");
-    for (const path of CC_EIN_PAYLOAD_REQUIRED_PATHS) {
+    for (const path of [
+      "cc-ein/sync.ts",
+      "cc-ein/sdd-cli/cli.ts",
+      "ein-pi/agent/surfaces/surface-runner.ts",
+      "ein-pi/agent/app.ts",
+      "ein-pi/core",
+      "pi-ein/pi-ein.fish",
+    ]) {
       const fullPath = join(source, path);
       if (path.endsWith(".ts") || path.endsWith(".fish")) {
         mkdirSync(join(fullPath, ".."), { recursive: true });
