@@ -22,11 +22,6 @@ import { collectRuntimeSessions, type RuntimeSessionList } from "../lib/runtime-
 import { pick } from "../lib/lang.ts";
 import { createPalette, shouldUseColor } from "../lib/theme.ts";
 import {
-  INSTALLER_COMMAND,
-  TERMINAL_APP_HELP,
-  parseTerminalAppArgs,
-} from "../lib/terminal-app-args.ts";
-import {
   createTerminalAppController,
   type LaunchOutcome,
   type TerminalAppController,
@@ -50,6 +45,8 @@ import {
   type VersionProbeRunner,
 } from "../lib/update-probes.ts";
 
+const HELP = "Usage: ein [--project <root>] [--once] [--no-intro] [--help]";
+
 /** Short enough to read as a flourish, not a wait. Any key skips it. */
 export const INTRO_FRAME_MS = 22;
 export const INTRO_COLUMN_STEP = 2;
@@ -58,8 +55,44 @@ export const MIN_BANNER_COLUMNS = 42;
 export const MIN_BANNER_ROWS = 22;
 const SESSION_LIST_LIMIT = 8;
 
-export { INSTALLER_COMMAND, INSTALLER_VERBS, parseTerminalAppArgs } from "../lib/terminal-app-args.ts";
-export type { TerminalAppArgs } from "../lib/terminal-app-args.ts";
+export type TerminalAppArgs =
+  | { kind: "run"; cwd: string; once: boolean; intro: boolean }
+  | { kind: "help" }
+  | { kind: "moved"; verb: string }
+  | { kind: "usage"; reason: string };
+
+/**
+ * `ein` used to be the installer. Its verbs are recognized and redirected for
+ * as long as muscle memory lasts, instead of opening the app and swallowing an
+ * argument the user clearly meant as a command.
+ */
+export const INSTALLER_VERBS: readonly string[] = [
+  "install", "update", "uninstall", "restore", "doctor",
+];
+export const INSTALLER_COMMAND = "ein-install";
+
+export function parseTerminalAppArgs(argv: readonly string[], cwd: string): TerminalAppArgs {
+  let root = cwd;
+  let once = false;
+  let intro = true;
+  const first = argv[0];
+  if (first && INSTALLER_VERBS.includes(first)) return { kind: "moved", verb: first };
+  for (let index = 0; index < argv.length; index++) {
+    const argument = argv[index];
+    if (argument === "--help" || argument === "-h") return { kind: "help" };
+    if (argument === "--once") { once = true; continue; }
+    if (argument === "--no-intro") { intro = false; continue; }
+    if (argument === "--project") {
+      const value = argv[index + 1];
+      if (!value) return { kind: "usage", reason: "missing-project-value" };
+      root = value;
+      index += 1;
+      continue;
+    }
+    return { kind: "usage", reason: "unknown-argument" };
+  }
+  return { kind: "run", cwd: root, once, intro };
+}
 
 export type TerminalAppIO = Readonly<{
   write: (text: string) => void;
@@ -249,7 +282,7 @@ function chromeFor(io: TerminalAppIO): Chrome {
 export async function runTerminalApp(options: TerminalAppOptions): Promise<number> {
   const io = options.io;
   const parsed = parseTerminalAppArgs(options.argv, options.cwd);
-  if (parsed.kind === "help") { io.write(`${TERMINAL_APP_HELP}\n`); return 0; }
+  if (parsed.kind === "help") { io.write(`${HELP}\n`); return 0; }
   if (parsed.kind === "moved") {
     io.write(
       `\`ein ${parsed.verb}\` ahora es \`${INSTALLER_COMMAND} ${parsed.verb}\`.\n` +
@@ -257,7 +290,7 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
     );
     return 2;
   }
-  if (parsed.kind === "usage") { io.write(`${TERMINAL_APP_HELP}\n`); return 2; }
+  if (parsed.kind === "usage") { io.write(`${HELP}\n`); return 2; }
 
   const cwd = parsed.cwd;
   // Edge probes begin before intro/render work, while lifecycle ownership is
