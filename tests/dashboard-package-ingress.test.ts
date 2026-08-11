@@ -7,31 +7,36 @@ import { bundleCcEin } from "../installer/scripts/bundle-cc-ein.ts";
 import { bundleTemplate } from "../installer/scripts/bundle-template.ts";
 import { DASHBOARD_SEED_ROOT, type CandidateInput } from "../installer/scripts/dashboard-candidate-input.ts";
 import { PACKAGE_VERSIONS } from "../spikes/opentui-solid-packaging/src/package-layout.ts";
-import { targetById } from "../spikes/opentui-solid-packaging/src/targets.ts";
+import { TARGETS, targetById, type Target } from "../spikes/opentui-solid-packaging/src/targets.ts";
+import { buildAll } from "../installer/scripts/build-all.ts";
+import { smokePackagedDashboard } from "../installer/scripts/packaged-dashboard-smoke.ts";
 
 const target = targetById("darwin-arm64");
+const REVISION = "a".repeat(40);
 const hash = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
 
-function fixture(root: string): CandidateInput {
-	const filename = `ein-opentui-dashboard-${target.id}`;
+function fixture(root: string, targetValue: Target = target): CandidateInput {
+	mkdirSync(root, { recursive: true });
+	const filename = `ein-opentui-dashboard-${targetValue.id}`;
 	const candidateBinary = join(root, filename);
 	const candidateInventory = `${candidateBinary}.json`;
-	const bytes = Buffer.concat([Buffer.from([0xcf, 0xfa, 0xed, 0xfe]), Buffer.from(`fixture:${target.nativePackage}`)]);
+	const bytes = Buffer.concat([Buffer.from(targetValue.os === "darwin" ? [0xcf, 0xfa, 0xed, 0xfe] : [0x7f, 0x45, 0x4c, 0x46]), Buffer.from(`fixture:${targetValue.nativePackage}`)]);
 	writeFileSync(candidateBinary, bytes, { mode: 0o755 });
 	writeFileSync(candidateInventory, `${JSON.stringify({
 		format: "ein-opentui-dashboard-candidate/v1",
-		target: target.id,
-		bunTarget: target.bunTarget,
-		nativePackage: target.nativePackage,
+		sourceRevision: REVISION,
+		target: targetValue.id,
+		bunTarget: targetValue.bunTarget,
+		nativePackage: targetValue.nativePackage,
 		packageVersions: {
 			"@opentui/core": PACKAGE_VERSIONS["@opentui/core"],
 			"@opentui/solid": PACKAGE_VERSIONS["@opentui/solid"],
 			"solid-js": PACKAGE_VERSIONS["solid-js"],
 		},
 		artifact: { filename, sha256: hash(bytes), bytes: bytes.byteLength, mode: "0755" },
-		verification: { binaryFormat: "mach-o", nativePackageMarker: target.nativePackage, result: "pass" },
+		verification: { binaryFormat: targetValue.os === "darwin" ? "mach-o" : "elf", nativePackageMarker: targetValue.nativePackage, result: "pass" },
 	}, null, 2)}\n`);
-	return { target, candidateBinary, candidateInventory };
+	return { target: targetValue, candidateBinary, candidateInventory, sourceRevision: REVISION };
 }
 
 function filesUnder(root: string, current = root): string[] {
@@ -93,6 +98,7 @@ describe("target-specific dashboard package ingress", () => {
 			(input: CandidateInput) => writeFileSync(input.candidateInventory, "{"),
 			(input: CandidateInput) => writeFileSync(input.candidateBinary, "corrupt"),
 			(input: CandidateInput) => chmodSync(input.candidateBinary, 0o700),
+			(input: CandidateInput) => ({ ...input, sourceRevision: "b".repeat(40) }),
 			(input: CandidateInput) => {
 				const value = JSON.parse(readFileSync(input.candidateInventory, "utf8")) as Record<string, unknown>;
 				value.target = "linux-arm64"; writeFileSync(input.candidateInventory, JSON.stringify(value));
@@ -123,4 +129,22 @@ describe("target-specific dashboard package ingress", () => {
 			}
 		} finally { rmSync(root, { recursive: true, force: true }); }
 	});
+
+	test("target-aware build-all packages and inspects all four installer bundle pairs without native execution", async () => {
+		const root = mkdtempSync(join(tmpdir(), "ein-release-fixture-"));
+		try {
+			const candidates = TARGETS.map((value) => fixture(join(root, value.id), value));
+			await expect(buildAll({ candidates: [candidates[0]!, candidates[0]!] })).rejects.toThrow("Duplicate candidate target");
+			await expect(buildAll({ candidates: candidates.slice(0, 3) })).rejects.toThrow("Missing candidate target");
+			const snapshots = join(root, "installer-assets");
+			await buildAll({ candidates, compileTarget: async ({ assetName }) => {
+				const targetId = assetName.replace("ein-installer-", "");
+				const destination = join(snapshots, targetId);
+				mkdirSync(destination, { recursive: true });
+				for (const asset of ["template.tar.gz", "cc-ein-runtime.tar.gz"]) writeFileSync(join(destination, asset), readFileSync(join(import.meta.dir, "../installer/src/assets", asset)));
+				await smokePackagedDashboard(targetId, REVISION, destination);
+			} });
+			expect(readdirSync(snapshots).sort()).toEqual(TARGETS.map(({ id }) => id).sort());
+		} finally { rmSync(root, { recursive: true, force: true }); }
+	}, 30_000);
 });

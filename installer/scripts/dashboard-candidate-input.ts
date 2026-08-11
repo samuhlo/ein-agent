@@ -12,19 +12,19 @@ const SELECTOR_SOURCES = [
 	"ein-pi/agent/lib/terminal-app-args.ts",
 ] as const;
 
-export type CandidateInput = Readonly<{ target: Target; candidateBinary: string; candidateInventory: string }>;
+export type CandidateInput = Readonly<{ target: Target; candidateBinary: string; candidateInventory: string; sourceRevision: string }>;
 type VerifiedCandidate = Readonly<{ input: CandidateInput; inventory: CandidateInventory; bytes: Buffer }>;
 
 export function candidateInputFromArgs(args: readonly string[]): CandidateInput | undefined {
 	if (args.length === 0) return undefined;
-	if (args.length !== 6 || args[0] !== "--target" || args[2] !== "--candidate-binary" || args[4] !== "--candidate-inventory") {
-		throw new Error("Target-aware bundling requires --target, --candidate-binary, and --candidate-inventory");
+	if (args.length !== 8 || args[0] !== "--target" || args[2] !== "--candidate-binary" || args[4] !== "--candidate-inventory" || args[6] !== "--source-revision") {
+		throw new Error("Target-aware bundling requires target, candidate files, and source revision");
 	}
-	return { target: targetById(args[1]!), candidateBinary: args[3]!, candidateInventory: args[5]! };
+	return { target: targetById(args[1]!), candidateBinary: args[3]!, candidateInventory: args[5]!, sourceRevision: args[7]! };
 }
 
 export function candidateInputArgs(input: CandidateInput): string[] {
-	return ["--target", input.target.id, "--candidate-binary", input.candidateBinary, "--candidate-inventory", input.candidateInventory];
+	return ["--target", input.target.id, "--candidate-binary", input.candidateBinary, "--candidate-inventory", input.candidateInventory, "--source-revision", input.sourceRevision];
 }
 
 export function verifyCandidateInput(input: CandidateInput): VerifiedCandidate {
@@ -35,6 +35,7 @@ export function verifyCandidateInput(input: CandidateInput): VerifiedCandidate {
 	}
 	const bytes = readFileSync(input.candidateBinary);
 	const inventory = validateCandidateInventory(JSON.parse(readFileSync(input.candidateInventory, "utf8")) as unknown, input.target);
+	if (!/^[a-f0-9]{40}$/.test(input.sourceRevision) || inventory.sourceRevision !== input.sourceRevision) throw new Error("Candidate source revision mismatch");
 	if (basename(input.candidateBinary) !== inventory.artifact.filename) throw new Error("Candidate binary filename mismatch");
 	inspectArtifact(bytes, input.target);
 	const digest = createHash("sha256").update(bytes).digest("hex");

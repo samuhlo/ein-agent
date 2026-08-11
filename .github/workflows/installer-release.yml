@@ -3,8 +3,7 @@ name: installer-release
 # Publishes the Ein installer binaries on tag push `installer-v*`.
 on:
   push:
-    tags:
-      - "installer-v*"
+    tags: ["installer-v*"]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -16,15 +15,14 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  resolve:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: installer
+    outputs:
+      release_tag: ${{ steps.resolve_release_tag.outputs.release_tag }}
+      source_revision: ${{ steps.source.outputs.revision }}
     steps:
       - name: Resolve release tag
         id: resolve_release_tag
-        working-directory: .
         env:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
@@ -40,42 +38,122 @@ jobs:
             release_tag="$PUSH_TAG"
           fi
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
-
       - uses: actions/checkout@v5
         with:
           ref: ${{ steps.resolve_release_tag.outputs.release_tag }}
+      - name: Bind source revision
+        id: source
+        run: echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+  native-candidates:
+    needs: resolve
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: darwin-arm64, runner: macos-15 }
+          - { target: darwin-x64, runner: macos-15-intel }
+          - { target: linux-arm64, runner: ubuntu-24.04-arm }
+          - { target: linux-x64, runner: ubuntu-24.04 }
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: spikes/opentui-solid-packaging
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.resolve.outputs.release_tag }}
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.3.14
+      - run: test "$(git rev-parse HEAD)" = "${{ needs.resolve.outputs.source_revision }}"
+        working-directory: .
+      - run: bun install --frozen-lockfile
+        working-directory: ${{ github.workspace }}
+      - run: bun install --frozen-lockfile
+      - run: bun -e 'import { currentTarget } from "./src/targets.ts"; if (currentTarget().id !== "${{ matrix.target }}") throw new Error("native runner mismatch")'
+      - run: EIN_SOURCE_REVISION=${{ needs.resolve.outputs.source_revision }} bun run build:candidate -- ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opentui-dashboard-${{ matrix.target }}-${{ needs.resolve.outputs.source_revision }}
+          if-no-files-found: error
+          path: |
+            spikes/opentui-solid-packaging/dist/ein-opentui-dashboard-${{ matrix.target }}
+            spikes/opentui-solid-packaging/dist/ein-opentui-dashboard-${{ matrix.target }}.json
 
+  build-installers:
+    needs: [resolve, native-candidates]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [darwin-arm64, darwin-x64, linux-arm64, linux-x64]
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.resolve.outputs.release_tag }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: test "$(git rev-parse HEAD)" = "${{ needs.resolve.outputs.source_revision }}"
+        working-directory: .
+      - uses: actions/download-artifact@v4
+        with:
+          name: opentui-dashboard-${{ matrix.target }}-${{ needs.resolve.outputs.source_revision }}
+          path: candidate
+      - name: Reject partial or duplicate candidate payloads
+        run: test "$(find ../candidate -type f | wc -l | tr -d ' ')" = 2
       - name: Install deps
         run: bun install --frozen-lockfile
-
       - name: Typecheck
         run: bun run typecheck
-
-      - name: Build all targets (bundles template + cross-compiles)
-        run: bun run build:all
-
-      - name: Compiled BunFS payload smoke (Linux x64)
+      - name: Build target-specific bundles then installer
+        run: >-
+          bun run build:all -- --target ${{ matrix.target }}
+          --candidate-binary ../candidate/ein-opentui-dashboard-${{ matrix.target }}
+          --candidate-inventory ../candidate/ein-opentui-dashboard-${{ matrix.target }}.json
+          --source-revision ${{ needs.resolve.outputs.source_revision }}
+      - name: Compiled BunFS payload smoke
         run: |
-          bun build scripts/cc-payload-smoke.ts \
-            --compile \
-            --target=bun-linux-x64 \
-            --outfile /tmp/ein-cc-payload-smoke
+          bun build scripts/cc-payload-smoke.ts --compile --target=bun-linux-x64 --outfile /tmp/ein-cc-payload-smoke
           (cd /tmp && /tmp/ein-cc-payload-smoke)
+      - name: Packaged selector static and interactive smoke
+        run: bun run scripts/packaged-dashboard-smoke.ts ${{ matrix.target }} ${{ needs.resolve.outputs.source_revision }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ein-installer-${{ matrix.target }}-${{ needs.resolve.outputs.source_revision }}
+          if-no-files-found: error
+          path: installer/dist/ein-installer-${{ matrix.target }}
 
+  release:
+    needs: [resolve, build-installers]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.resolve.outputs.release_tag }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ein-installer-*-${{ needs.resolve.outputs.source_revision }}
+          path: installer/dist
+          merge-multiple: true
+      - name: Reject partial or duplicate installer payloads
+        run: test "$(find dist -type f | wc -l | tr -d ' ')" = 4
       - name: Checksums
         run: |
           cd dist
           sha256sum ein-installer-* > checksums.txt
           cat checksums.txt
-
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ steps.resolve_release_tag.outputs.release_tag }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
         run: |
           cat > /tmp/release-notes.md << 'EOF'
           Instalador de Ein. Instala con:
