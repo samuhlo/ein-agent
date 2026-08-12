@@ -243,7 +243,6 @@ export type UpdateTransactionOptions = {
   markerPath?: string;
   journalPath?: string;
   dryRun?: boolean;
-  promoteApp?: () => Promise<{ rollback: () => void; commit: () => void }>;
 };
 
 function failure(error: UpdateStageError, selector: ReleaseSelector, release?: ResolvedRelease): UpdateOutcome {
@@ -338,7 +337,6 @@ export async function runUpdateTransaction(options: UpdateTransactionOptions): P
     const prepared = tx.prepare({ binary: candidate.value.backupPath, template: snapshot.value.path, ...(markerBackup ? { marker: markerBackup } : {}) });
     if (!prepared.ok) return failure(prepared.error, options.selector, release);
     const removeSignals = installSignalHandlers(tx, options.caps);
-    let appPromotion: Awaited<ReturnType<NonNullable<UpdateTransactionOptions["promoteApp"]>>> | undefined;
     try {
       const replaced = await tx.transition("binary-replaced", () => {
         const result = commitExecutableCandidate(candidate.value, options.caps);
@@ -380,15 +378,10 @@ export async function runUpdateTransaction(options: UpdateTransactionOptions): P
         if (!committedMarker || !("schemaVersion" in committedMarker) || !await currentIsCoherent(options, committedMarker, release, acquired.value.digest.sha256)) {
           throw new Error("Installed release could not be validated");
         }
-        appPromotion = await options.promoteApp?.();
-      }, () => appPromotion?.rollback());
+      }, () => undefined);
       if (!validated.ok) return failure(validated.error, options.selector, release);
       const complete = tx.complete();
-      if (!complete.ok) {
-        const restored = await tx.rollback();
-        return failure(restored.ok ? complete.error : restored.error, options.selector, release);
-      }
-      appPromotion?.commit();
+      if (!complete.ok) return failure(complete.error, options.selector, release);
       cleanup([candidate.value.backupPath, snapshot.value.path, ...(markerBackup ? [markerBackup] : [])], options.caps);
       return { type: "updated", release };
     } finally {
