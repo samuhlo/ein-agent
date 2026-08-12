@@ -100,9 +100,9 @@ export async function promotePiAppPackage(options: AppPromotionOptions): Promise
     const target = targetById(`${options.platform}-${options.arch}`);
     const seedPackage = join(seedRoot, "packages", target.id);
     const inventoryPath = join(seedPackage, "candidate-inventory.json");
-		const inventoryValue = JSON.parse(readFileSync(inventoryPath, "utf8")) as { sourceRevision?: string; artifact?: { filename?: string } };
-		const candidatePath = join(seedPackage, inventoryValue.artifact?.filename ?? "invalid");
-		const verified = verifyCandidateInput({ target, candidateBinary: candidatePath, candidateInventory: inventoryPath, sourceRevision: inventoryValue.sourceRevision ?? "invalid" });
+    const inventoryValue = JSON.parse(readFileSync(inventoryPath, "utf8")) as { artifact?: { filename?: string } };
+    const candidatePath = join(seedPackage, inventoryValue.artifact?.filename ?? "invalid");
+    const verified = verifyCandidateInput({ target, candidateBinary: candidatePath, candidateInventory: inventoryPath });
     const stagedRelease = join(stagingRoot, "releases", id);
     mkdirSync(stagedRelease, { recursive: true });
     const legacyPath = join(stagedRelease, LEGACY_APP_NAME);

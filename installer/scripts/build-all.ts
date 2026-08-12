@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { candidateInputArgs, candidateInputFromArgs, type CandidateInput } from "./dashboard-candidate-input.ts";
+import { candidateInputArgs, type CandidateInput } from "./dashboard-candidate-input.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = dirname(HERE);
@@ -69,27 +69,23 @@ async function compile(target: BuildTarget): Promise<void> {
   if (code !== 0) throw new Error(`compile fallo para ${target.bunTarget}`);
 }
 
-export async function buildAll(options: { candidates?: readonly CandidateInput[]; compileTarget?: (target: BuildTarget) => Promise<void> } = {}): Promise<void> {
+export async function buildAll(options: { candidate?: CandidateInput } = {}): Promise<void> {
   if (!existsSync(ENTRY)) throw new Error(`No existe entry: ${ENTRY}`);
   await mkdir(DIST, { recursive: true });
 
-	// Allow building a single target: bun run build:all -- linux-x64
-	const only = process.argv.slice(2)[0];
-	const candidates = options.candidates ?? [];
-	if (new Set(candidates.map(({ target }) => target.id)).size !== candidates.length) throw new Error("Duplicate candidate target");
-	const requested = candidates.length === 1 ? candidates[0]!.target.id : candidates.length > 1 ? undefined : only;
-	const targets = requested ? BUILD_TARGETS.filter((t) => t.assetName.includes(requested)) : BUILD_TARGETS;
-	if (targets.length === 0) throw new Error(`Sin targets que coincidan con "${only}"`);
-	if (candidates.length > 0 && targets.length !== candidates.length) throw new Error("Missing candidate target");
+  console.log("/// empaquetando assets");
+	await bundleTemplate(options.candidate);
+	await bundleCcEinPayload(options.candidate);
 
-	for (const target of targets) {
-		const candidate = candidates.find(({ target: value }) => target.assetName.endsWith(value.id));
-		if (candidates.length > 0 && !candidate) throw new Error(`Missing candidate for ${target.assetName}`);
-		console.log(`/// empaquetando assets para ${target.assetName}`);
-		await bundleTemplate(candidate);
-		await bundleCcEinPayload(candidate);
-		await (options.compileTarget ?? compile)(target);
-	}
+  // Allow building a single target: bun run build:all -- linux-x64
+  const only = process.argv.slice(2)[0];
+	const requested = options.candidate?.target.id ?? only;
+	const targets = requested ? BUILD_TARGETS.filter((t) => t.assetName.includes(requested)) : BUILD_TARGETS;
+  if (targets.length === 0) throw new Error(`Sin targets que coincidan con "${only}"`);
+
+  for (const target of targets) {
+    await compile(target);
+  }
 
   console.log("\n/// binarios listos en dist/");
   for (const t of targets) {
@@ -99,9 +95,7 @@ export async function buildAll(options: { candidates?: readonly CandidateInput[]
 }
 
 if (import.meta.main) {
-	const args = process.argv.slice(2);
-	const candidate = args[0]?.startsWith("--") ? candidateInputFromArgs(args) : undefined;
-	buildAll(candidate ? { candidates: [candidate] } : {}).catch((error) => {
+	buildAll().catch((error) => {
     console.error(`[error] ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   });
