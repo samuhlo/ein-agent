@@ -50,7 +50,7 @@ jobs:
       # also doubles as the packaging smoke.
       - name: Bundle template (packaging smoke + test prerequisite)
         working-directory: installer
-        run: bun run bundle-template
+        run: bun run bundle-template:host
 
       - name: Test (workbench + installer)
         run: bun test
