@@ -22,7 +22,7 @@ export const CC_EIN_PAYLOAD_SDD_ENTRY = "cc-ein/sdd-cli/cli.ts" as const;
 export const CC_EIN_PAYLOAD_SOURCE_ENTRIES = [
   CC_EIN_PAYLOAD_SDD_ENTRY,
   "ein-pi/agent/surfaces/surface-runner.ts",
-  "ein-pi/agent/app.ts",
+  "cc-ein/continuity-runner.ts",
 ] as const;
 
 /** Paths required before a staged sync can be considered usable. */
@@ -30,7 +30,8 @@ export const CC_EIN_PAYLOAD_REQUIRED_PATHS = [
   "cc-ein/sync.ts",
   CC_EIN_PAYLOAD_SDD_ENTRY,
   "ein-pi/agent/surfaces/surface-runner.ts",
-  "ein-pi/agent/app.ts",
+  "cc-ein/continuity-runner.ts",
+  "cc-ein/commands/ein/handoff.md",
   "ein-pi/core",
   "pi-ein/pi-ein.fish",
 ] as const;

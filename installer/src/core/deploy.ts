@@ -79,7 +79,7 @@ function writeGlobalMode(agentDir: string, mode: "solo" | "team"): void {
 // only adds/overwrites, never deletes. Deliberately excludes skills/ and
 // themes/ (user-managed) and the agent root (auth.json, sessions/, backups/,
 // .sdd/, ...).
-export const MANAGED_DIRS = ["agents", "assets", "chains", "docs", "extensions", "lib", "prompts"];
+export const MANAGED_DIRS = ["agents", "assets", "bin", "chains", "docs", "extensions", "lib", "prompts"];
 
 // Clean-replace the template-owned dirs. No-op on a fresh install (dirs absent).
 export function cleanManagedDirs(agentDir: string): void {

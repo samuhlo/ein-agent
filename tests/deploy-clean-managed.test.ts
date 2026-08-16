@@ -30,7 +30,8 @@ describe("cleanManagedDirs", () => {
 		rmSync(DIR, { recursive: true, force: true });
 	});
 
-	test("borra las carpetas del template (incluido un huérfano)", () => {
+  test("borra las carpetas del template (incluido un huérfano)", () => {
+    expect(MANAGED_DIRS).toContain("bin");
 		for (const d of MANAGED_DIRS) touch(join(d, "file.md"));
 		touch(join("agents", "ein-github.md")); // huérfano de un rename
 

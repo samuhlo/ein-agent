@@ -23,6 +23,7 @@ export type RunMenuOptions = {
   actionPrompt?: () => Promise<unknown>;
   runtimePrompt?: RuntimePrompt;
   runInstall?: (args: string[], target: InstallTarget) => Promise<number>;
+  runUninstall?: (args: string[], target: InstallTarget) => Promise<number>;
   playBanner?: () => Promise<void>;
   isCancel?: (value: unknown) => boolean;
 };
@@ -36,10 +37,11 @@ const RUNTIME_PROMPT_OPTIONS: RuntimePromptOption[] = [
 export async function selectInstallTarget(
   prompt?: RuntimePrompt,
   isCancel: (value: unknown) => boolean = p.isCancel,
+  message = "Que runtime quieres instalar?",
 ): Promise<InstallTarget | null> {
   const target = prompt
-    ? await prompt({ message: "Que runtime quieres instalar?", options: RUNTIME_PROMPT_OPTIONS })
-    : await p.select({ message: "Que runtime quieres instalar?", options: RUNTIME_PROMPT_OPTIONS });
+    ? await prompt({ message, options: RUNTIME_PROMPT_OPTIONS })
+    : await p.select({ message, options: RUNTIME_PROMPT_OPTIONS });
   return isCancel(target) ? null : (target as InstallTarget);
 }
 
@@ -91,7 +93,7 @@ export async function runMenu(options: RunMenuOptions = {}): Promise<number> {
     case "update":
       return runUpdate([]);
     case "uninstall":
-      return runUninstall([]);
+      { const target = await selectInstallTarget(options.runtimePrompt, isCancel, "Que runtime quieres desinstalar?"); if (target === null) return 0; return (options.runUninstall ?? runUninstall)([], target); }
     case "restore":
       return runRestore([]);
     default:

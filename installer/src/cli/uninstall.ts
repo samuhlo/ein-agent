@@ -1,49 +1,30 @@
 // =============================================================================
 // CLI: uninstall
-// Backup → remove Ein-owned content from ~/.pi/agent. Preserves auth.json,
-// sessions/, backups/ and the secrets dir. Optionally removes engram data.
+// Move known Ein-owned assets to private recovery. Runtime state stays in place.
 // =============================================================================
 
 import * as p from "@clack/prompts";
-import { existsSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { snapshot } from "../core/backup.ts";
-import { AGENT_DIR, ENGRAM_DIR } from "../core/paths.ts";
+import { dirname, relative } from "node:path";
+import { activeHome } from "../core/paths.ts";
+import { createUninstallPlan, renderUninstallPlan } from "../core/uninstall-plan.ts";
+import { executeUninstallPlan, inspectUninstallRecovery } from "../core/uninstall-recovery.ts";
+import { parseInstallFlags, type InstallTarget } from "./install.ts";
 import { bold, gold } from "../tui/theme.ts";
 
-// Top-level entries que el installer despliega y por tanto posee. auth.json,
-// sessions/, backups/, npm/, runtime dirs y secrets quedan fuera a proposito.
-const EIN_OWNED = [
-  "AGENTS.md",
-  "brand.json",
-  "models.json",
-  "mcp.json",
-  "settings.json",
-  "template-manifest.json",
-  "extensions-manifest.json",
-  ".ein-install.json",
-  "agents",
-  "assets",
-  "chains",
-  "docs",
-  "extensions",
-  "lib",
-  "prompts",
-  "skills",
-];
-
-export async function runUninstall(args: string[]): Promise<number> {
+export async function runUninstall(args: string[], explicitTarget?: InstallTarget): Promise<number> {
   const yes = args.includes("--yes") || args.includes("-y");
+  let target: InstallTarget; try { target = explicitTarget ?? parseInstallFlags(args).runtime; } catch (error) { console.error(error instanceof Error ? error.message : String(error)); return 1; }
+  const home = activeHome(), binDir = dirname(process.execPath), dryRun = args.includes("--dry-run");
 
   p.intro(bold(gold("Desinstalar Ein")));
-
-  if (!existsSync(AGENT_DIR)) {
-    p.log.info(`No hay nada que desinstalar (${AGENT_DIR} no existe).`);
-    p.outro("Listo.");
-    return 0;
+  const pending = inspectUninstallRecovery(home);
+  if (pending.status === "blocked") {
+    p.outro(`Uninstall blocked: inspect or move ~/${relative(home, pending.recoveryDirectory)} before retrying.`);
+    return 1;
   }
-
-  p.log.warn("Se eliminara el contenido de Ein. Se conservan auth.json, sessions/, backups/ y tus secrets.");
+  const plan = createUninstallPlan({ home, target, binDir });
+  if (dryRun || plan.status === "blocked") { p.log.message(renderUninstallPlan(plan)); p.outro(plan.status === "blocked" ? "Uninstall blocked: the selected runtime marker is missing or invalid." : "Dry-run completed with zero writes."); return plan.status === "blocked" ? 1 : 0; }
+  p.log.warn(`Se moverá solo contenido de Ein para ${target}; auth, sesiones, historial, secrets, memoria y backups se conservan.`);
 
   if (!yes) {
     const ok = await p.confirm({ message: "Continuar con la desinstalación?" });
@@ -53,37 +34,17 @@ export async function runUninstall(args: string[]): Promise<number> {
     }
   }
 
-  const sBackup = p.spinner();
-  sBackup.start("Creando backup antes de borrar");
-  const backup = await snapshot("pre-uninstall");
-  const backupPath = backup.path;
-  sBackup.stop(backupPath ? `Backup: ${backupPath}` : "Sin backup");
-
   const sRemove = p.spinner();
-  sRemove.start("Eliminando contenido de Ein");
-  let removed = 0;
-  for (const name of EIN_OWNED) {
-    const path = join(AGENT_DIR, name);
-    if (existsSync(path)) {
-      rmSync(path, { recursive: true, force: true });
-      removed++;
-    }
+  sRemove.start("Moving Ein files to private recovery");
+  try {
+    const result = executeUninstallPlan(plan, { home, target, binDir });
+    sRemove.stop(`${result.moved.length} moved; ${result.absent.length} absent.`);
+    const recovery = result.recoveryDirectory ? `~/${relative(home, result.recoveryDirectory)}` : "none";
+    p.outro(result.status === "complete" ? `Ein uninstalled. Recovery: ${recovery}` : result.status === "rolled-back" ? `Uninstall failed; all moves were rolled back. Recovery: ${recovery}` : `Uninstall incomplete. Recover files from ${recovery} before retrying.`);
+    return result.status === "complete" ? 0 : 1;
+  } catch (error) {
+    sRemove.stop("Uninstall failed before files could be moved safely.");
+    p.outro(error instanceof Error ? error.message : String(error));
+    return 1;
   }
-  sRemove.stop(`Eliminadas ${removed} entradas de Ein.`);
-
-  if (existsSync(ENGRAM_DIR)) {
-    const removeEngram = yes
-      ? false
-      : await p.confirm({
-          message: `Eliminar también la base de datos de memoria (${ENGRAM_DIR})?`,
-          initialValue: false,
-        });
-    if (!p.isCancel(removeEngram) && removeEngram) {
-      rmSync(ENGRAM_DIR, { recursive: true, force: true });
-      p.log.success("Datos de engram eliminados.");
-    }
-  }
-
-  p.outro(`Ein desinstalado. Backup en ${backupPath ?? "(ninguno)"}.`);
-  return 0;
 }

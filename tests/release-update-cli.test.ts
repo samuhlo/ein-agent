@@ -171,9 +171,11 @@ describe("release update CLI", () => {
       child: { spawn: async () => ({ code: 0, stdout: "ein-installer 0.20.0\ntemplate-version 0.20.0\n" }) },
     };
     const output: string[] = [];
-    const code = await runUpdate([], { caps, platform: { os: "linux", arch: "x64" }, agentDir, markerPath, journalPath: join(dir, "journal.json"), destinationPath, interactive: false, write: (line) => output.push(line) });
+    let promoted = "";
+    const code = await runUpdate([], { caps, platform: { os: "linux", arch: "x64" }, agentDir, markerPath, journalPath: join(dir, "journal.json"), destinationPath, interactive: false, write: (line) => output.push(line), promote: (options) => { promoted = options.appArtifact; return { installer: { path: join(dir, "ein-install"), written: true }, app: { path: destinationPath, written: true } }; } });
     expect(code).toBe(EXIT_ALREADY_CURRENT);
     expect(output.join("\n")).toContain("Ya está actualizado.");
+    expect(promoted).toBe(join(agentDir, "bin", "ein"));
   });
 
   test("returns a staged acquisition failure without mutation", async () => {

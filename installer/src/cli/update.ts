@@ -36,6 +36,7 @@ export type UpdateRunDependencies = {
   // transacción de Ein que envejecen en silencio. Este hook las refresca tras un
   // update exitoso; el default refresca las presentes de verdad.
   refreshExternalTools?: () => Promise<InstallStep[]>;
+  promote?: typeof promoteCommandNames;
 };
 
 export function parseCliFlags(args: string[]): UpdateFlags {
@@ -105,22 +106,24 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
 
 /** Best-effort: a naming problem must never turn a good update into a failure. */
 function promoteCommands(
-  dependencies: { agentDir?: string; destinationPath?: string },
+  dependencies: { agentDir?: string; destinationPath?: string; promote?: typeof promoteCommandNames },
   write: (line: string) => void,
-): void {
+): boolean {
   try {
     const selfPath = dependencies.destinationPath ?? process.execPath;
-    const result = promoteCommandNames({
+    const result = (dependencies.promote ?? promoteCommandNames)({
       binDir: dirname(selfPath),
       selfPath,
-      appSource: join(dependencies.agentDir ?? AGENT_DIR, "app.ts"),
+      appArtifact: join(dependencies.agentDir ?? AGENT_DIR, "bin", "ein"),
     });
     if (result.installer.written) write(`Instalador disponible como \`${INSTALLER_COMMAND}\`.`);
     write(result.app.written
       ? "App de terminal disponible como `ein`."
       : `App de terminal no desplegada (${result.app.reason ?? "desconocido"}); usa \`pi-ein app\`.`);
+    return result.app.written;
   } catch (error) {
     write(`No se pudieron promover los comandos: ${error instanceof Error ? error.message : String(error)}`);
+    return false;
   }
 }
 

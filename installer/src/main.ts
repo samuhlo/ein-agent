@@ -75,7 +75,7 @@ function printHelp(): void {
   console.log("comandos:");
   console.log("  install      instala/actualiza Ein (checks + deploy + secrets)");
   console.log("  update       actualiza Ein y pi a la última versión");
-  console.log("  uninstall    elimina Ein (conserva secrets/auth.json)");
+  console.log("  uninstall    mueve Ein a recuperación (--runtime pi|claude|both; conserva estado privado)");
   console.log("  restore      restaura desde un backup (--pin/--unpin <nombre>)");
   console.log("  doctor       diagnostico del despliegue (sin lanzar pi)");
   console.log("  --version    versión del instalador");

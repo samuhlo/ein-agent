@@ -31,7 +31,7 @@ describe("cc-ein payload entry points", () => {
   test("sync.ts declares at least the runner and the terminal app", () => {
     const entrypoints = compiledEntrypoints(SYNC_SOURCE);
     expect(entrypoints).toContain("ein-pi/agent/surfaces/surface-runner.ts");
-    expect(entrypoints).toContain("ein-pi/agent/app.ts");
+    expect(entrypoints).toContain("cc-ein/continuity-runner.ts");
   });
 
   test("every entry point sync.ts compiles is staged in the payload", () => {
@@ -44,7 +44,8 @@ describe("cc-ein payload entry points", () => {
   test("those entry points are required, so a bad package fails at packaging time", () => {
     const required: readonly string[] = CC_EIN_PAYLOAD_REQUIRED_PATHS;
     expect(required).toContain("ein-pi/agent/surfaces/surface-runner.ts");
-    expect(required).toContain("ein-pi/agent/app.ts");
+    expect(required).toContain("cc-ein/continuity-runner.ts");
+    expect(required).toContain("cc-ein/commands/ein/handoff.md");
   });
 
   test("the compile seam reports the child's output instead of discarding it", () => {

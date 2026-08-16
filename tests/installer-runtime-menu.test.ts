@@ -107,12 +107,13 @@ describe("Claude runtime payload", () => {
       "cc-ein/sync.ts",
       "cc-ein/sdd-cli/cli.ts",
       "ein-pi/agent/surfaces/surface-runner.ts",
-      "ein-pi/agent/app.ts",
+      "cc-ein/continuity-runner.ts",
+      "cc-ein/commands/ein/handoff.md",
       "ein-pi/core",
       "pi-ein/pi-ein.fish",
     ]) {
       const fullPath = join(source, path);
-      if (path.endsWith(".ts") || path.endsWith(".fish")) {
+      if (path.endsWith(".ts") || path.endsWith(".fish") || path.endsWith(".md")) {
         mkdirSync(join(fullPath, ".."), { recursive: true });
         writeFileSync(fullPath, `// ${path}\\n`);
       } else {
@@ -396,6 +397,8 @@ describe("Interactive runtime menu", () => {
       else delete (process.stdin as unknown as { isTTY?: boolean }).isTTY;
     }
   });
+
+  test("real Uninstall branch requires and forwards one explicit target", async () => { const descriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY"); Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: true }); const calls: string[] = []; try { const result = await runMenu({ actionPrompt: async () => "uninstall", runtimePrompt: async (options) => { expect(options.message).toContain("desinstalar"); return "claude"; }, runUninstall: async (_args, target) => { calls.push(target); return 17; }, playBanner: async () => {}, isCancel: () => false }); expect(result).toBe(17); expect(calls).toEqual(["claude"]); } finally { if (descriptor) Object.defineProperty(process.stdin, "isTTY", descriptor); else delete (process.stdin as unknown as { isTTY?: boolean }).isTTY; } });
 
   test("non-TTY menu exits before prompting", async () => {
     const descriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");

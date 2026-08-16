@@ -72,7 +72,7 @@ function parseJson(path: string): { ok: boolean; value: Record<string, unknown> 
 // Fallback lists when no template-manifest.json is deployed (installs made by
 // older binaries, or a deploy that died before extracting it).
 const SDD_AGENTS = ["sdd-scope.md", "sdd-map.md", "sdd-design.md", "sdd-tasks.md", "sdd-apply.md", "sdd-verify.md", "sdd-close.md"];
-const NON_SDD_AGENTS = ["ein-linear.md", "ein-git.md", "ein-scout.md"];
+const NON_SDD_AGENTS = ["ein-linear.md", "ein-git.md", "ein-scout.md", "ein-cleaner.md", "ein-architect.md"];
 const FALLBACK_CHAINS = ["ein-sdd.chain.md"];
 
 export type TemplateManifest = {
@@ -80,6 +80,7 @@ export type TemplateManifest = {
   agents?: string[];
   chains?: string[];
   extensions?: string[];
+  terminalApp?: { path: string; target: string; mode: string; sha256: string };
 };
 
 // Bundle ships template-manifest.json describing exactly what it contains;
@@ -238,6 +239,7 @@ export function runDoctor(
   // Coherencia: referencias colgantes / desajustes que deja un deploy stale
   // o un refactor a medias.
   const checksCoherence: CheckResult[] = [
+    check(existsSync(join(agentDir, "bin", "ein")) && (statSync(join(agentDir, "bin", "ein")).mode & 0o111) !== 0, "terminal app", "bin/ein precompilado y ejecutable."),
     check(einGitRaw.includes("Review Workload Gate"), "review workload gate", "ein-git documenta el gate de carga de revisión."),
     check(!preflightRaw.includes("task/workload forecasts conflict"), "preflight sin forecast muerto", "La preflight ya no referencia un forecast que ninguna fase genera."),
     check(preflightRaw.includes("Review Workload Guard"), "preflight inyecta guard", "La preflight inyecta la regla determinista de Review Workload Guard."),

@@ -5,7 +5,6 @@
 // is still the old installer — lands in the new layout in a single step.
 // =============================================================================
 
-import { execFileSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -17,9 +16,8 @@ export type CommandPromotionOptions = {
   binDir: string;
   /** Path of the running installer; it is copied to the installer name. */
   selfPath: string;
-  /** Source of the terminal app, compiled into the app name. */
-  appSource: string;
-  compile?: (entrypoint: string, output: string) => void;
+  /** Target-native terminal app embedded in the deployed template. */
+  appArtifact: string;
   copy?: (from: string, to: string) => void;
   exists?: (path: string) => boolean;
 };
@@ -36,13 +34,7 @@ export type CommandPromotionResult = {
  */
 export function promoteCommandNames(options: CommandPromotionOptions): CommandPromotionResult {
   const exists = options.exists ?? existsSync;
-  const copy = options.copy ?? ((from: string, to: string) => {
-    copyFileSync(from, to);
-    chmodSync(to, 0o755);
-  });
-  const compile = options.compile ?? ((entrypoint: string, output: string) => {
-    execFileSync("bun", ["build", "--compile", entrypoint, "--outfile", output], { stdio: "ignore" });
-  });
+  const copy = options.copy ?? copyFileSync;
 
   mkdirSync(options.binDir, { recursive: true });
 
@@ -50,25 +42,26 @@ export function promoteCommandNames(options: CommandPromotionOptions): CommandPr
   let installerWritten = false;
   if (options.selfPath !== installerPath) {
     copy(options.selfPath, installerPath);
+    chmodSync(installerPath, 0o755);
     installerWritten = true;
   }
 
   const appPath = join(options.binDir, APP_COMMAND);
-  if (!exists(options.appSource)) {
+  if (!exists(options.appArtifact)) {
     return {
       installer: { path: installerPath, written: installerWritten },
-      app: { path: appPath, written: false, reason: "app-source-missing" },
+      app: { path: appPath, written: false, reason: "app-artifact-missing" },
     };
   }
 
-  // Staged then renamed: a compile that fails must not leave `ein` half written
+  // Staged then renamed: a copy that fails must not leave `ein` half written
   // or, worse, delete the installer the user just migrated from.
   const staging = `${appPath}.staging-${process.pid}`;
   try {
-    compile(options.appSource, staging);
     mkdirSync(dirname(appPath), { recursive: true });
+    copy(options.appArtifact, staging);
+    chmodSync(staging, 0o755);
     renameSync(staging, appPath);
-    chmodSync(appPath, 0o755);
   } catch (error) {
     rmSync(staging, { force: true });
     return {

@@ -15,7 +15,8 @@ import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { INSTALLER_VERSION, versionOutputLines } from "../installer/src/core/version.ts";
-import { BUILD_TARGETS, compileCommand } from "../installer/scripts/build-all.ts";
+import { BUILD_TARGETS, buildInstallerTarget, compileCommand } from "../installer/scripts/build-all.ts";
+import { terminalAppBuildOptions } from "../installer/scripts/build-terminal-app.ts";
 
 const MAIN = join(import.meta.dir, "..", "installer", "src", "main.ts");
 const SEMVER = "[0-9]+\\.[0-9]+\\.[0-9]+";
@@ -51,7 +52,7 @@ describe("updater CLI entry points (main.ts real)", () => {
 		expect(stdout).toContain(`ein-installer ${INSTALLER_VERSION}`);
 	});
 
-	test("Linux y Darwin comparten las dos líneas de identidad y el entrypoint de build", () => {
+ test("Linux y Darwin comparten las dos líneas de identidad y el entrypoint de build", () => {
 		for (const platform of ["linux", "darwin"] as const) {
 			const output = versionOutputLines(INSTALLER_VERSION).join("\n");
 			expect(output.match(/^ein-installer .*$/m)?.[0]).toBe(`ein-installer ${INSTALLER_VERSION}`);
@@ -62,7 +63,26 @@ describe("updater CLI entry points (main.ts real)", () => {
 			expect(command).toContain(`--target=bun-${platform}-x64`);
 			expect(command[2]).toBe(join(import.meta.dir, "..", "installer", "src", "main.ts"));
 		}
-	});
+  });
+
+  test("cada target construye su app Solid antes de empaquetar template e installer", async () => {
+    for (const target of BUILD_TARGETS) {
+      const config = terminalAppBuildOptions(target, `/tmp/ein-app-${target.id}`);
+      expect(config.plugins).toHaveLength(1);
+      expect(config.compile).toMatchObject({ target: target.bunTarget, outfile: `/tmp/ein-app-${target.id}` });
+      expect(config.define).toEqual(target.libc ? { "process.env.OPENTUI_LIBC": JSON.stringify(target.libc) } : undefined);
+      const order: string[] = [];
+      await buildInstallerTarget(target, {
+        buildApp: async (item, app) => { order.push(`app:${item.id}:${app}`); },
+        bundleTemplate: async (item, app) => { order.push(`template:${item.id}:${app}`); },
+        compileInstaller: async (item) => { order.push(`installer:${item.id}`); },
+      });
+      expect(order).toHaveLength(3);
+      expect(order[0]).toContain(`app:${target.id}:`);
+      expect(order[1]).toBe(order[0]!.replace("app:", "template:"));
+      expect(order[2]).toBe(`installer:${target.id}`);
+    }
+  });
 
 	test("--ein-continuation se enruta y emite un ContinuationMessage JSON (no 'comando desconocido')", () => {
 		const { stdout, stderr } = runMain([

@@ -21,11 +21,11 @@ import {
   type DepStatus,
   type InstallStep,
 } from "../core/deps.ts";
-import { deployTemplate, readBundledManifest, type DeployOptions } from "../core/deploy.ts";
+import { deployTemplate, type DeployOptions } from "../core/deploy.ts";
 import { installFishLauncher } from "../core/launcher.ts";
 import { restoreBackup, snapshot } from "../core/backup.ts";
-import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   activeHome,
   derivePiInstallPaths,
@@ -40,17 +40,33 @@ import {
   writeSecret,
   type SecretName,
 } from "../core/secrets.ts";
-import { writeMarker } from "../core/version.ts";
+import { INSTALLER_VERSION, writeMarker } from "../core/version.ts";
 import { runDoctor } from "../core/verify.ts";
 import { stageCcEinPayload, type CcEinPayloadStage } from "../core/cc-payload.ts";
 import { renderReport } from "./doctor.ts";
 import { playBanner } from "../tui/banner.ts";
 import { bold, gold } from "../tui/theme.ts";
 import ccEinFish from "../../../cc-ein/cc-ein.fish" with { type: "text" };
+import {
+  createInstallPlan,
+  renderInstallPlan,
+  type InstallDependencyId,
+  type InstallPlanEntryId,
+  type InstallPlanInput,
+  type InstallPlanV1,
+  type InstallTarget,
+  type PiOwnershipEvidence,
+  type RuntimeInstallTarget,
+} from "../core/install-plan.ts";
+import {
+  runtimeFailure,
+  type InstallPlanExecutionHandler,
+  type InstallPlanExecutionHandlers,
+} from "../core/install-executor.ts";
+import { executeInstallPlanJournaled, inspectInstallJournal, installJournalMatchesPlan, InstallJournalError, type InstallExecutionJournalV1 } from "../core/install-journal.ts";
 
 /** The one target selected by the menu or the direct installer default. */
-export type InstallTarget = "pi" | "claude" | "both";
-export type RuntimeInstallTarget = Exclude<InstallTarget, "both">;
+export type { InstallTarget, RuntimeInstallTarget } from "../core/install-plan.ts";
 
 export type InstallFlags = {
   yes: boolean;
@@ -93,6 +109,13 @@ export type InstallTargetRunner = () => Promise<RuntimeInstallResult>;
 export type InstallOrchestratorOptions = {
   prepareBun: () => Promise<InstallStep>;
   runners: Readonly<Record<RuntimeInstallTarget, InstallTargetRunner>>;
+};
+
+export type InstallCommandOptions = {
+  observations?: Omit<InstallPlanInput, "target" | "flags" | "platform"> & { platform: Platform };
+  playBanner?: () => Promise<void>;
+  writePlan?: (plan: InstallPlanV1) => void;
+  handlers?: InstallPlanExecutionHandlers;
 };
 
 function isInstallTarget(value: string): value is InstallTarget {
@@ -177,7 +200,7 @@ export function getInstallTargets(target: InstallTarget): RuntimeInstallTarget[]
  * Resolve/install Bun once for an installation, before any selected runner.
  * Pi and Claude both consume this prerequisite; target runners never repeat it.
  */
-export async function prepareSharedBun(deps: readonly DepStatus[], flags: InstallFlags): Promise<InstallStep> {
+async function prepareSharedBun(deps: readonly DepStatus[], flags: InstallFlags): Promise<InstallStep> {
   if (deps.find((d) => d.id === "bun")?.present) {
     return { ok: true, detail: "bun ya presente" };
   }
@@ -193,10 +216,6 @@ export async function prepareSharedBun(deps: readonly DepStatus[], flags: Instal
   return result;
 }
 
-/**
- * Run selected targets exactly once and retain each result independently.
- * A failed target is not a transaction-wide abort: later targets still run.
- */
 export async function orchestrateInstall(
   target: InstallTarget,
   options: InstallOrchestratorOptions,
@@ -241,15 +260,46 @@ export async function orchestrateInstall(
   return { target, ok: results.every((result) => result.ok), results };
 }
 
-type PiInstallOptions = {
+export type PiInstallEffects = {
+  resolveContext: () => PiInstallContext;
+  migrateContext: () => PiInstallContext;
+  exists: typeof existsSync;
+  backup: typeof snapshot;
+  spinner: typeof p.spinner;
+  deploy: typeof deployTemplate;
+  packages: typeof installDeclaredPackages;
+  marker: typeof writeMarker;
+  check: typeof checkDeps;
+  doctor: typeof runDoctor;
+  launcher: typeof installFishLauncher;
+  promote: typeof promoteCommandNames;
+};
+
+export type PiInstallOptions = {
   platform: Platform;
   flags: InstallFlags;
   skipLinear: boolean;
   deps: readonly DepStatus[];
+  agentDir: string;
+  effects?: Partial<PiInstallEffects>;
 };
 
-async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOptions): Promise<RuntimeInstallResult> {
-  const failure = (detail: string): RuntimeInstallResult => ({ target: "pi", ok: false, detail });
+type PiEntryId = Extract<InstallPlanEntryId, `pi.${string}`>;
+
+export function createPiInstallHandlers({ platform, flags, skipLinear, deps, agentDir, effects: overrides = {} }: PiInstallOptions): { handlers: Record<PiEntryId, InstallPlanExecutionHandler>; detail: () => string } {
+  const paths = derivePiInstallPaths();
+  const effects: PiInstallEffects = { resolveContext: () => resolvePiInstallContext(paths), migrateContext: () => { if (isValidInstallMarker(paths.legacyMarker)) migrateLegacyPi(paths); return resolvePiInstallContext(paths); }, exists: existsSync, backup: snapshot, spinner: p.spinner, deploy: deployTemplate, packages: installDeclaredPackages, marker: writeMarker, check: checkDeps, doctor: runDoctor, launcher: installFishLauncher, promote: promoteCommandNames, ...overrides };
+  const success = (): InstallStep => ({ ok: true, detail: "ok" });
+  let piContext: PiInstallContext | undefined;
+  let rollbackPath: string | null = null;
+  let appHint = "usa `pi-ein app`";
+  const context = (migrate = false): PiInstallContext => {
+    piContext ??= migrate ? effects.migrateContext() : effects.resolveContext();
+    if (piContext.agentDir !== agentDir) throw new Error("Pi install path changed after planning");
+    return piContext;
+  };
+  const handlers: Record<PiEntryId, InstallPlanExecutionHandler> = {
+  "pi.dependency.pi": async () => {
   const needPi = !deps.find((d) => d.id === "pi")?.present;
 
   if (needPi) {
@@ -258,13 +308,16 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
       spinner.start("Instalando pi");
       const result = await installPi();
       spinner.stop(result.detail);
-      if (!result.ok) return failure("pi es obligatorio.");
+      if (!result.ok) return { ok: false, detail: "pi es obligatorio." };
     } else {
-      return failure("pi es obligatorio.");
+      return { ok: false, detail: "pi es obligatorio." };
     }
   }
-
+  return success();
+  },
+  "pi.dependency.engram": async () => {
   const needEngram = !deps.find((d) => d.id === "engram")?.present;
+
   if (needEngram && !flags.noEngram) {
     if (await confirm("Instalar engram (memoria persistente)?", flags)) {
       const spinner = p.spinner();
@@ -273,8 +326,11 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
       spinner.stop(result.detail);
     }
   }
-
+  return success();
+  },
+  "pi.dependency.gh": async () => {
   const needGh = !deps.find((d) => d.id === "gh")?.present;
+
   if (needGh && !flags.yes) {
     if (await confirm("Instalar gh (GitHub CLI)?", flags, false)) {
       const spinner = p.spinner();
@@ -283,8 +339,11 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
       spinner.stop(result.detail);
     }
   }
-
+  return success();
+  },
+  "pi.dependency.hypa": async () => {
   const needHypa = !deps.find((d) => d.id === "hypa")?.present;
+
   if (needHypa && !flags.noHypa && !flags.yes) {
     if (await confirm("Instalar hypa (compresión de salida)?", flags, false)) {
       const spinner = p.spinner();
@@ -293,8 +352,11 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
       spinner.stop(result.detail);
     }
   }
-
+  return success();
+  },
+  "pi.dependency.codegraph": async () => {
   const needCodegraph = !deps.find((d) => d.id === "codegraph")?.present;
+
   if (needCodegraph && !flags.noCodegraph && !flags.yes) {
     if (await confirm("Instalar codegraph (grafo de código, exploración barata)?", flags, false)) {
       const spinner = p.spinner();
@@ -304,46 +366,44 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
       if (result.ok) p.log.info("Actívalo por proyecto con `codegraph init` en la raíz del repo.");
     }
   }
-
-  // Migration gating must happen before final target resolution. In particular,
-  // do not let a module-import AGENT_DIR point deployment back at legacy after a
-  // successful move.
-  let piContext: PiInstallContext;
+  return success();
+  },
+  "pi.migrate-legacy": () => {
   try {
-    const piPaths = derivePiInstallPaths();
-    if (isValidInstallMarker(piPaths.legacyMarker)) migrateLegacyPi(piPaths);
-    piContext = resolvePiInstallContext(piPaths);
+    context(true);
+    return success();
   } catch (error) {
-    return failure(
-      `La migración de Pi falló; no se desplegará Ein: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return { ok: false, detail: `La migración de Pi falló; no se desplegará Ein: ${error instanceof Error ? error.message : String(error)}` };
   }
-
+  },
+  "pi.backup-current": async () => {
+  const piContext = context();
   // BLINDAJE -> En reparacion/reinstall sobre arbol existente, snapshot
   // previo: el deploy borra los dirs del template antes de extraer, asi
   // que un fallo a mitad dejaria el arbol roto sin vuelta atras.
-  let rollbackPath: string | null = null;
-  if (existsSync(piContext.agentDir)) {
-    const spinner = p.spinner();
-    spinner.start("Backup previo del estado actual");
-    const snap = await snapshot("pre-install", {
-      agentDir: piContext.agentDir,
-      backupDir: piContext.backupDir,
-    });
-    rollbackPath = snap.path;
-    spinner.stop(
-      snap.path
-        ? `Backup: ${snap.path}${snap.deduped ? " (sin cambios, reutilizado)" : ""}`
-        : "Sin backup (nada que copiar)",
-    );
+  if (effects.exists(piContext.agentDir)) {
+    p.log.step("Backup previo del estado actual");
+    let terminal = "Fallo el backup previo";
+    try {
+      const snap = await effects.backup("pre-install", { agentDir: piContext.agentDir, backupDir: piContext.backupDir });
+      if ("ok" in snap && snap.ok === false) { p.log.error(terminal); return { ok: false }; }
+      rollbackPath = snap.path;
+      terminal = snap.path ? `Backup: ${snap.path}${snap.deduped ? " (sin cambios, reutilizado)" : ""}` : "Sin backup (nada que copiar)";
+      p.log.info(terminal);
+    } catch { p.log.error(terminal); return { ok: false }; }
   }
-
+  return success();
+  },
+  "pi.deploy-template": async () => {
+  const piContext = context();
   const spinner = p.spinner();
   spinner.start("Desplegando Ein en ~/.pi/agent");
   const deployOpts: DeployOptions = { skipLinear };
-  let deployed;
   try {
-    deployed = await deployTemplate(platform, deployOpts, piContext);
+    const deployed = await effects.deploy(platform, deployOpts, piContext);
+    spinner.stop(
+      `Ein desplegado (engram: ${deployed.engramFound ? deployed.engramCommand : "no resuelto, usando PATH"})`,
+    );
   } catch (error) {
     spinner.stop("Fallo el deploy.");
     p.log.error(error instanceof Error ? error.message : String(error));
@@ -362,76 +422,88 @@ async function runPiInstall({ platform, flags, skipLinear, deps }: PiInstallOpti
         p.log.warn(`Restaura a mano con \`ein restore\` (backup: ${rollbackPath}).`);
       }
     }
-    return failure("El deploy falló; no se ha dejado el árbol a medias.");
+    return { ok: false, detail: "El deploy falló; no se ha dejado el árbol a medias." };
   }
-  spinner.stop(
-    `Ein desplegado (engram: ${deployed.engramFound ? deployed.engramCommand : "no resuelto, usando PATH"})`,
-  );
-
+  return success();
+  },
+  "pi.configure-packages": async () => {
   const packagesSpinner = p.spinner();
   packagesSpinner.start("Instalando paquetes de Pi declarados");
-  const packages = await installDeclaredPackages(piContext);
+  const packages = await effects.packages(context());
   packagesSpinner.stop(packages.detail);
-
+  return success();
+  },
+  "pi.configure-secrets": async () => {
   if (!flags.noSecrets && !flags.yes) {
     p.log.step("Configuración de secrets (todo opcional)");
     await maybeSecret("context7", "Context7 API key", flags);
     if (!skipLinear) await maybeSecret("linear", "Linear API key", flags);
     await maybeSecret("minimax", "MiniMax API key", flags);
   }
-
+  return success();
+  },
+  "pi.configure-context7-export": () => {
   if (!flags.noSecrets) {
     const exportResult = ensureContext7Export(platform);
     if (exportResult.changed) {
       p.log.success(`Export CONTEXT7_API_KEY anadido a ${exportResult.rc} (reinicia el shell).`);
     }
   }
-
-  writeMarker("stable", piContext);
-  checkDeps(platform);
-  const report = runDoctor(platform, piContext);
+  return success();
+  },
+  "pi.write-install-marker": () => {
+  effects.marker("stable", context());
+  return success();
+  },
+  "pi.verify-doctor": () => {
+  const piContext = context();
+  effects.check(platform);
+  const report = effects.doctor(platform, piContext);
   p.log.message(renderReport(report));
 
-  if (report.result === "FAIL") {
-    return failure("Instalación con errores. Revisa los FAIL del doctor.");
-  }
-
+  return report.result === "FAIL" ? { ok: false, detail: "Instalación con errores. Revisa los FAIL del doctor." } : success();
+  },
+  "pi.deploy-launcher": () => {
   try {
-    const launcher = installFishLauncher({
-      home: piContext.home,
+    const launcher = effects.launcher({
+      home: context().home,
       name: "pi-ein.fish",
       content: piEinFish,
     });
     p.log.success(`${launcher.changed ? "Launcher" : "Launcher ya actualizado"}: ${launcher.path}`);
+    return success();
   } catch (error) {
-    return failure(
-      `No se pudo instalar el launcher pi-ein: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return { ok: false, detail: `No se pudo instalar el launcher pi-ein: ${error instanceof Error ? error.message : String(error)}` };
   }
-
+  },
+  "pi.promote-commands": () => {
   // Both user-facing names, so a fresh install lands in the same layout an
   // update migrates to: `ein` is the app, `ein-install` is this binary.
-  let appHint = "usa `pi-ein app`";
   try {
     const selfPath = process.execPath;
-    const promoted = promoteCommandNames({
-      binDir: dirname(selfPath),
+    const promoted = effects.promote({
+      binDir: context().localBinDir,
       selfPath,
-      appSource: join(piContext.agentDir, "app.ts"),
+      appArtifact: join(context().agentDir, "bin", "ein"),
     });
     if (promoted.app.written) appHint = "ejecuta `ein`";
     // La razón viaja al mensaje: descartarla fue lo que hizo indiagnosticable
-    // un `app-source-missing` en la primera instalación real.
+    // un `app-artifact-missing` en la primera instalación real.
     p.log.success(
       promoted.app.written
         ? `Comandos: \`${INSTALLER_COMMAND}\` (instalador), \`ein\` (app)`
         : `Comandos: \`${INSTALLER_COMMAND}\` (instalador); app no desplegada: ${promoted.app.reason ?? "desconocido"}`,
     );
+    if (!promoted.app.written) return { ok: false, detail: promoted.app.reason ?? "app artifact promotion failed" };
   } catch (error) {
-    p.log.warn(`No se pudieron promover los comandos: ${error instanceof Error ? error.message : String(error)}`);
+    const detail = error instanceof Error ? error.message : String(error);
+    p.log.warn(`No se pudieron promover los comandos: ${detail}`);
+    return { ok: false, detail };
   }
-
-  return { target: "pi", ok: true, detail: `Ein listo. Para la aplicación, ${appHint}; para el agente, \`pi\`.` };
+  return success();
+  },
+  };
+  return { handlers, detail: () => `Ein listo. Para la aplicación, ${appHint}; para el agente, \`pi\`.` };
 }
 
 export type ClaudeInstallOptions = {
@@ -450,44 +522,60 @@ export type ClaudeInstallOptions = {
  * reports success. The staged root is never used as a source fallback: the
  * child is invoked with that root as cwd and the stage is removed in finally.
  */
-export async function runClaudeInstall(options: ClaudeInstallOptions = {}): Promise<RuntimeInstallResult> {
-  const failure = (detail: string): RuntimeInstallResult => ({ target: "claude", ok: false, detail });
+type ClaudeEntryId = Extract<InstallPlanEntryId, `claude.${string}`>;
+
+function createClaudeInstallHandlers(options: ClaudeInstallOptions = {}): { handlers: Record<ClaudeEntryId, InstallPlanExecutionHandler> } {
   const home = options.home ?? activeHome();
   const stagePayload = options.stagePayload ?? (() => stageCcEinPayload());
   const execute = options.execute ?? run;
   const installLauncher = options.installLauncher ?? installFishLauncher;
   let staged: CcEinPayloadStage | undefined;
+  const cleanup = (): void => { staged?.cleanup(); staged = undefined; };
+  const handlers: Record<ClaudeEntryId, InstallPlanExecutionHandler> = {
+    "claude.deploy-runtime": async () => { try { staged = await stagePayload(); const sync = await execute(options.bunPath ?? "bun", ["cc-ein/sync.ts"], { cwd: staged.root, env: { HOME: home, CC_EIN_HOME: join(home, ".claude-ein") }, extraPath: [join(home, ".bun", "bin")] }); if (!sync.ok) { const reason = [sync.stdout, sync.stderr].map((stream) => stream.trim()).filter(Boolean).join("\n") || `codigo ${sync.code}`; cleanup(); return { ok: false, detail: `La sincronizacion de Claude fallo: ${reason}` }; } const root = join(home, ".claude-ein"); mkdirSync(root, { recursive: true }); writeFileSync(join(root, ".ein-install.json"), `${JSON.stringify({ version: INSTALLER_VERSION, installedAt: new Date().toISOString(), channel: "stable" }, null, 2)}\n`); return { ok: true }; } catch (error) { cleanup(); return { ok: false, detail: error instanceof Error ? error.message : String(error) }; } },
+    "claude.deploy-launcher": () => { try { const launcher = installLauncher({ home, name: "cc-ein.fish", content: ccEinFish }); p.log.success(`${launcher.changed ? "Launcher" : "Launcher ya actualizado"}: ${launcher.path}`); return { ok: true }; } catch (error) { return { ok: false, detail: error instanceof Error ? error.message : String(error) }; } finally { cleanup(); } },
+  }; return { handlers };
+}
 
-  try {
-    staged = await stagePayload();
-    const sync = await execute(options.bunPath ?? "bun", ["cc-ein/sync.ts"], {
-      cwd: staged.root,
-      env: { HOME: home, CC_EIN_HOME: join(home, ".claude-ein") },
-      extraPath: [join(home, ".bun", "bin")],
-    });
-    if (!sync.ok) {
-      const reason = [sync.stdout, sync.stderr]
-        .map((stream) => stream.trim())
-        .filter(Boolean)
-        .join("\n") || `codigo ${sync.code}`;
-      return failure(`La sincronizacion de Claude fallo: ${reason}`);
-    }
-
-    const launcher = installLauncher({ home, name: "cc-ein.fish", content: ccEinFish });
-    p.log.success(`${launcher.changed ? "Launcher" : "Launcher ya actualizado"}: ${launcher.path}`);
-    return { target: "claude", ok: true, detail: "Claude Code listo. Ejecuta `cc-ein` para empezar." };
-  } catch (error) {
-    return failure(error instanceof Error ? error.message : String(error));
-  } finally {
-    staged?.cleanup();
+export async function runClaudeInstall(options: ClaudeInstallOptions = {}): Promise<RuntimeInstallResult> {
+  const handlers = createClaudeInstallHandlers(options);
+  for (const id of ["claude.deploy-runtime", "claude.deploy-launcher"] as const) {
+    const result = await handlers.handlers[id]();
+    if (!result.ok) return { target: "claude", ok: false, detail: result.detail ?? "Claude installation failed" };
   }
+  return { target: "claude", ok: true, detail: "Claude Code listo. Ejecuta `cc-ein` para empezar." };
 }
 
 function runtimeLabel(target: RuntimeInstallTarget): string {
   return target === "pi" ? "Pi" : "Claude Code";
 }
 
-export async function runInstall(args: string[], explicitMenuTarget?: InstallTarget): Promise<number> {
+function observePlan(platform: Platform, deps: readonly DepStatus[]): Omit<InstallPlanInput, "target" | "flags" | "platform"> & { platform: Platform } {
+  const home = activeHome();
+  const paths = derivePiInstallPaths(home);
+  const isolated = isValidInstallMarker(paths.isolatedMarker);
+  const legacy = isValidInstallMarker(paths.legacyMarker);
+  const isolatedExists = existsSync(paths.isolatedAgentDir);
+  let piOwnership: PiOwnershipEvidence = { status: "absent" };
+  if (legacy && isolatedExists) piOwnership = { status: "ambiguous", reason: "legacy-destination-conflict" };
+  else if (isolated) piOwnership = { status: "managed", layout: "isolated" };
+  else if (legacy) piOwnership = { status: "managed", layout: "legacy" };
+  else if (isolatedExists) piOwnership = { status: "ambiguous", reason: "unmarked-existing-target" };
+  const context = resolvePiInstallContext(paths);
+  const piAgentDir = legacy ? paths.isolatedAgentDir : context.agentDir;
+  const present = (id: string): boolean => deps.find((dependency) => dependency.id === id)?.present ?? false;
+  return {
+    home,
+    piAgentDir,
+    piAgentDirExists: legacy ? existsSync(paths.legacyAgentDir) || isolatedExists : existsSync(piAgentDir),
+    piOwnership,
+    claudeConfigHome: join(home, ".claude-ein"),
+    platform,
+    dependencies: { bun: present("bun"), pi: present("pi"), engram: present("engram"), gh: present("gh"), hypa: present("hypa"), codegraph: present("codegraph") },
+  };
+}
+
+export async function runInstall(args: string[], explicitMenuTarget?: InstallTarget, options: InstallCommandOptions = {}): Promise<number> {
   let flags: InstallFlags;
   try {
     flags = parseInstallFlags(args);
@@ -497,73 +585,67 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
   }
   const target = resolveInstallTarget(explicitMenuTarget, flags.runtime);
 
-  const platform: Platform = detectPlatform();
+  const platform: Platform = options.observations?.platform ?? detectPlatform();
+  let completedJournal: InstallExecutionJournalV1 | undefined;
+  if (!flags.dryRun) {
+    const home = options.observations?.home ?? activeHome(), status = inspectInstallJournal(home);
+    if (status.status === "invalid" || status.status === "valid" && (status.journal.state !== "complete" || status.journal.target !== target || status.journal.platform.os !== platform.os || status.journal.platform.arch !== platform.arch)) { console.error("Install recovery status: recovery-required"); return 1; }
+    if (status.status === "valid") completedJournal = status.journal;
+  }
 
-  await playBanner();
-  p.intro(bold(gold("Instalador Ein")));
-  p.log.info(`Plataforma: ${describePlatform(platform)}`);
-
-  // Modo Solo por defecto (OpenSpec + git + EIN.md, sin Linear); Team (Linear
-  // como board) es opt-in. La eleccion persiste como default global;
-  // ein-linear queda instalado en ambos casos y se alterna con `/ein:mode`.
+  const deps: DepStatus[] = options.observations
+    ? (Object.keys(options.observations.dependencies) as InstallDependencyId[]).map((id) => ({ id, present: options.observations!.dependencies[id], path: null, required: id === "bun" || id === "pi", hint: "injected observation" }))
+    : checkDeps(platform);
+  const observations = options.observations ?? observePlan(platform, deps);
+  const buildPlan = (skipLinear: boolean): InstallPlanV1 => createInstallPlan({ ...observations, platform: { os: observations.platform.os, arch: observations.platform.arch }, target, flags: { yes: flags.yes, noEngram: flags.noEngram, noSecrets: flags.noSecrets, noHypa: flags.noHypa, noCodegraph: flags.noCodegraph, skipLinear } });
   let skipLinear = true;
-  if (target !== "claude") {
-    if (!flags.noLinear && !flags.yes && !flags.dryRun) {
-      const teamMode = await p.confirm({
-        message: "¿Activar modo Team (Linear como board de issues)? Por defecto: Solo (OpenSpec + git, sin Linear).",
-        initialValue: false,
-      });
+  let plan: InstallPlanV1;
+  // Ownership admission precedes the only interactive input needed to finish a ready plan.
+  if (completedJournal) {
+    const candidates = [buildPlan(true), ...(target === "claude" ? [] : [buildPlan(false)])], match = candidates.find((candidate) => installJournalMatchesPlan(completedJournal!, candidate));
+    if (!match) { console.error("Install recovery status: recovery-required"); return 1; }
+    const receipt: InstallResult = { target, ok: true, results: [...new Set(match.inventory.map((entry) => entry.runtime).filter((runtime): runtime is RuntimeInstallTarget => runtime !== "shared"))].map((runtime) => ({ target: runtime, ok: true, detail: `${runtimeLabel(runtime)} installation already complete.` })) }; return receipt.ok ? 0 : 1;
+  } else if (target !== "claude" && observations.piOwnership.status === "ambiguous") {
+    plan = buildPlan(skipLinear);
+  } else {
+    if (target !== "claude" && !flags.noLinear && !flags.yes && !flags.dryRun) {
+      const teamMode = await p.confirm({ message: "¿Activar modo Team (Linear como board de issues)? Por defecto: Solo (OpenSpec + git, sin Linear).", initialValue: false });
       if (p.isCancel(teamMode)) { p.cancel("Instalación cancelada."); process.exit(1); }
       skipLinear = !teamMode;
     }
-    p.log.info(
-      skipLinear
-        ? "Modo Solo: OpenSpec + git, sin Linear. Actívalo cuando quieras con `/ein:mode team`."
-        : "Modo Team: Linear como board de issues.",
-    );
+    plan = buildPlan(skipLinear);
   }
+  await (options.playBanner ?? playBanner)(); p.intro(bold(gold("Instalador Ein"))); p.log.info(`Plataforma: ${describePlatform(platform)}`); const depLines = deps.map((d) => `  ${d.present ? "✓" : "✗"} ${d.id.padEnd(8)} ${d.present ? "presente" : "falta"}`); p.log.message(["Dependencias:", ...depLines].join("\n"));
+  if (plan.status === "blocked") {
+    (options.writePlan ?? ((value) => p.log.message(renderInstallPlan(value))))(plan);
+    p.outro(flags.dryRun ? "Dry-run blocked. Resolve the reported blocker before installation." : "Instalación bloqueada. Resuelve el conflicto de ownership antes de continuar.");
+    return 1;
+  }
+  if (target !== "claude") p.log.info(skipLinear ? "Modo Solo: OpenSpec + git, sin Linear. Actívalo cuando quieras con `/ein:mode team`." : "Modo Team: Linear como board de issues.");
 
-  const deps = checkDeps(platform);
-  const depLines = deps.map(
-    (d) => `  ${d.present ? "✓" : "✗"} ${d.id.padEnd(8)} ${d.present ? (d.path ?? "") : `(falta) ${d.hint}`}`,
-  );
-  p.log.message(["Dependencias:", ...depLines].join("\n"));
-
-  // Dry-run: show the full plan (deps to install, deploy target, template
-  // contents, remaining steps) and exit without touching anything.
   if (flags.dryRun) {
-    const manifest = await readBundledManifest();
-    const dryRunContext = resolvePiInstallContext();
-    const missing = deps.filter((d) => !d.present).map((d) => d.id);
-    const lines = [
-      "Plan (dry-run, no se ejecuta nada):",
-      `  1. Dependencias a instalar: ${missing.length ? missing.join(", ") : "ninguna (todo presente)"}`,
-      existsSync(dryRunContext.agentDir)
-        ? `  2. Backup previo de ${dryRunContext.agentDir} (tar.gz, dedup, conserva 5)`
-        : "  2. Sin backup previo (instalación nueva)",
-      `  3. Deploy del template en ${dryRunContext.agentDir}`,
-      manifest
-        ? `     template v${manifest.templateVersion}: ${manifest.agents?.length ?? 0} agentes, ${manifest.chains?.length ?? 0} chains, ${manifest.extensions?.length ?? 0} extensiones`
-        : "     (template sin manifest: binario antiguo)",
-      "  4. Instalación de paquetes Pi declarados en settings.json",
-      flags.noSecrets ? "  5. Secrets: omitidos (--no-secrets)" : "  5. Wizard de secrets (opcional)",
-      "  6. Doctor de verificación",
-    ];
-    p.log.message(lines.join("\n"));
+    (options.writePlan ?? ((value) => p.log.message(renderInstallPlan(value))))(plan);
     p.outro("Dry-run completado. Ejecuta `ein install` para aplicar.");
     return 0;
   }
 
-  const result = await orchestrateInstall(target, {
-    prepareBun: () => prepareSharedBun(deps, flags),
-    runners: {
-      pi: () => runPiInstall({ platform, flags, skipLinear, deps }),
-      claude: () => runClaudeInstall({
-        home: activeHome(),
-        bunPath: deps.find((dependency) => dependency.id === "bun")?.path ?? undefined,
-      }),
-    },
+  const pi = createPiInstallHandlers({ platform, flags, skipLinear, deps, agentDir: observations.piAgentDir });
+  const claude = createClaudeInstallHandlers({ home: observations.home, bunPath: deps.find((dependency) => dependency.id === "bun")?.path ?? undefined });
+  const available: InstallPlanExecutionHandlers = {
+    "shared.dependency.bun": async () => { const result = await prepareSharedBun(deps, flags); return result.ok ? result : { ok: false, detail: `Bun no disponible: ${result.detail}` }; },
+    ...pi.handlers,
+    ...claude.handlers,
+  };
+  const handlers = options.handlers ?? Object.fromEntries(plan.inventory.map((entry) => [entry.id, available[entry.id]])) as InstallPlanExecutionHandlers;
+  let execution;
+  try { execution = await executeInstallPlanJournaled(plan, handlers); }
+  catch (error) { console.error(error instanceof InstallJournalError ? error.message : "Install recovery status: journal-write-failed"); return 1; }
+  const runtimes = [...new Set(plan.inventory.map((entry) => entry.runtime).filter((runtime): runtime is RuntimeInstallTarget => runtime !== "shared"))];
+  const results: RuntimeInstallResult[] = runtimes.map((runtime) => {
+    const failure = runtimeFailure(execution, runtime);
+    return { target: runtime, ok: failure === undefined, detail: failure ?? (runtime === "pi" ? pi.detail() : "Claude Code listo. Ejecuta `cc-ein` para empezar.") };
   });
+  const result: InstallResult = { target, ok: execution.ok, results };
 
   if (target === "both") {
     for (const runtimeResult of result.results) {

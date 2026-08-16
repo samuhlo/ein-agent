@@ -42,15 +42,19 @@ Flags: `--yes` (no interactivo), `--dry-run` (muestra el plan sin ejecutar nada)
 ## Backups
 
 Cada `install` (sobre un árbol existente), `update`, `uninstall` y `restore` crea
-antes un snapshot comprimido (`.tar.gz`) en `~/.pi/agent/backups/installer/`:
+antes un directorio snapshot `.snapshot` con manifest, metadata y contenido en
+`~/.pi/agent/backups/installer/`:
 
 - **Dedup**: si el árbol no cambió desde el último backup, no se crea otro.
 - **Poda**: se conservan los 5 más recientes; `ein restore --pin <nombre>` protege
   uno de la poda (`--unpin` lo libera).
-- **Rollback automático**: si el deploy falla a medias, `install`/`update` restauran
-  solos el snapshot previo.
+- **Restore exacto**: valida hashes, tamaños, modos y contenido antes de reemplazar
+  el árbol gestionado. El original queda como `.recovery-*` privado y pineado.
 - Los backups excluyen estado regenerable y de usuario (`auth.json`, `sessions/`,
   `npm/`, `skills/downloaded/`): restaurar nunca pisa tus credenciales.
+- Los `.tar.gz` legacy se detectan, pero este instalador no los extrae: usa una
+  versión antigua compatible o recuperación manual. WU4B/repair definirá la
+  limpieza explícita de `.recovery-*`; no se podan automáticamente.
 
 ## Qué hace `ein install`
 
