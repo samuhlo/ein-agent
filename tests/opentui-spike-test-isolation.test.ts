@@ -26,7 +26,9 @@ describe("OpenTUI spike test isolation", () => {
   });
 
   test("the isolated check explicitly executes both case conventions", () => {
-    expect(packageJson.scripts?.test).toBe("bun test --preload @opentui/solid/preload ./tests/*.case.ts ./tests/*.case.tsx");
+    // The spike no longer declares OpenTUI: it resolves the preload from the
+    // root node_modules, which owns the dependency since the repackaging.
+    expect(packageJson.scripts?.test).toBe("bun test --preload ../../node_modules/@opentui/solid/scripts/preload.js ./tests/*.case.ts ./tests/*.case.tsx");
     expect(packageJson.scripts?.check).toBe("bun run typecheck && bun run test");
   });
 });

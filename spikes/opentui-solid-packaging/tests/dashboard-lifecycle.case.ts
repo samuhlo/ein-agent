@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { EventEmitter } from "node:events";
-import { KeyEvent, KeyHandler } from "@opentui/core";
+// @ts-expect-error The Bun entrypoint shares the package's index.d.ts declarations.
+import { KeyEvent, KeyHandler } from "../../../node_modules/@opentui/core/index.bun.js";
 import {
   createTerminalAppController,
   type LaunchOutcome,
@@ -8,7 +9,7 @@ import {
   type TerminalAppControllerPorts,
 } from "../../../ein-pi/agent/lib/terminal-app-controller.ts";
 import type { ProjectSummary, SystemComponent } from "../../../ein-pi/agent/lib/terminal-app.ts";
-import { runDashboardCandidate, type DashboardRenderer, type DashboardRunnerAdapters } from "../src/dashboard-runner";
+import { runTerminalDashboard as runDashboardCandidate, type TerminalDashboardRenderer as DashboardRenderer, type TerminalDashboardAdapters as DashboardRunnerAdapters } from "../../../ein-pi/agent/surfaces/terminal-dashboard-runner.tsx";
 
 const summary: ProjectSummary = Object.freeze({
   name: "atlas", root: "/work/atlas", branch: "main", dirty: 0,
@@ -201,7 +202,7 @@ describe("dashboard renderer lifecycle", () => {
     }
   });
 
-  test("Pi and Claude create/resume exited handoff destroys before launch and never resumes", async () => {
+  test("Pi and Claude create/resume exited handoff returns with one fresh listener generation", async () => {
     const cases = [
       { provider: "pi" as const, key: "p", reference: undefined },
       { provider: "claude" as const, key: "c", reference: undefined },
@@ -224,10 +225,14 @@ describe("dashboard renderer lifecycle", () => {
       await tick();
       if (item.reference) owned.renderers[0]!.keyInput.emit("keypress", event("s"));
       owned.renderers[0]!.keyInput.emit("keypress", event(item.key, item.key === "enter" ? "\r" : item.key));
-      expect(await result).toBe(7);
+      for (let index = 0; index < 4 && owned.renderers.length < 2; index += 1) await tick();
       expect(events.indexOf("destroy")).toBeLessThan(events.findIndex((value) => value.startsWith("launch:")));
-      expect(events).not.toContain("resume");
-      expect(owned.renderers).toHaveLength(1);
+      expect(events).toContain("resume");
+      expect(owned.renderers).toHaveLength(2);
+      expect(owned.renderers[0]!.keyInput.listenerCount("keypress")).toBe(0);
+      expect(owned.renderers[1]!.keyInput.listenerCount("keypress")).toBe(1);
+      owned.renderers[1]!.keyInput.emit("keypress", event("q"));
+      expect(await result).toBe(0);
     }
   });
 });

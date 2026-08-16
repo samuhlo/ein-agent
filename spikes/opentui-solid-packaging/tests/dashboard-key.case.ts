@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { OpenTuiKey } from "../src/dashboard-key";
-import { translateOpenTuiKey } from "../src/dashboard-key";
+import type { OpenTuiKey } from "../../../ein-pi/agent/surfaces/terminal-dashboard-key.ts";
+import { translateOpenTuiKey } from "../../../ein-pi/agent/surfaces/terminal-dashboard-key.ts";
 
 function key(name: string, sequence = name, patch: Partial<OpenTuiKey> = {}): OpenTuiKey {
   return {

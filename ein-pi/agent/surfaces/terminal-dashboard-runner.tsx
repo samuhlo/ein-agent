@@ -1,13 +1,10 @@
 import { createCliRenderer, type CliRenderer, type KeyEvent } from "@opentui/core";
 import { render } from "@opentui/solid";
-import type {
-  TerminalAppController,
-  TerminalAppControllerPorts,
-} from "../../../ein-pi/agent/lib/terminal-app-controller.ts";
-import { translateOpenTuiKey } from "./dashboard-key";
-import { DashboardRoot } from "./dashboard-root";
+import type { TerminalAppController, TerminalAppControllerPorts } from "../lib/terminal-app-controller.ts";
+import { translateOpenTuiKey } from "./terminal-dashboard-key.ts";
+import { TerminalDashboardRoot } from "./terminal-dashboard-root.tsx";
 
-export type DashboardRenderer = Readonly<{
+export type TerminalDashboardRenderer = Readonly<{
   destroy: () => void;
   keyInput: Readonly<{
     on: (event: "keypress", listener: (key: KeyEvent) => void) => unknown;
@@ -15,40 +12,28 @@ export type DashboardRenderer = Readonly<{
   }>;
 }>;
 
-export type DashboardRunnerAdapters = Readonly<{
-  createRenderer: () => Promise<DashboardRenderer>;
-  mount: (controller: TerminalAppController, renderer: DashboardRenderer) => Promise<void>;
+export type TerminalDashboardAdapters = Readonly<{
+  createRenderer: () => Promise<TerminalDashboardRenderer>;
+  mount: (controller: TerminalAppController, renderer: TerminalDashboardRenderer) => Promise<void>;
 }>;
 
-type Generation = Readonly<{
-  id: number;
-  renderer: DashboardRenderer;
-  onKey: (key: KeyEvent) => void;
-}>;
-
-export function productionDashboardAdapters(): DashboardRunnerAdapters {
+export function productionTerminalDashboardAdapters(): TerminalDashboardAdapters {
   return {
     createRenderer: () => createCliRenderer({
-      screenMode: "alternate-screen",
-      clearOnShutdown: true,
-      exitOnCtrlC: false,
-      useKittyKeyboard: null,
-      consoleMode: "disabled",
+      screenMode: "alternate-screen", clearOnShutdown: true, exitOnCtrlC: false,
+      useKittyKeyboard: null, consoleMode: "disabled",
     }),
     mount: async (controller, renderer) => {
-      await render(
-        () => <DashboardRoot controller={controller} />,
-        renderer as CliRenderer,
-      );
+      await render(() => <TerminalDashboardRoot controller={controller} />, renderer as CliRenderer);
     },
   };
 }
 
-export async function runDashboardCandidate(
+export async function runTerminalDashboard(
   createController: (lifecycle: TerminalAppControllerPorts["lifecycle"]) => TerminalAppController,
-  adapters: DashboardRunnerAdapters = productionDashboardAdapters(),
+  adapters: TerminalDashboardAdapters = productionTerminalDashboardAdapters(),
 ): Promise<number> {
-  let active: Generation | undefined;
+  let active: Readonly<{ id: number; renderer: TerminalDashboardRenderer; onKey: (key: KeyEvent) => void }> | undefined;
   let generation = 0;
   let finished = false;
   let settle: (code: number) => void = () => undefined;
@@ -61,7 +46,6 @@ export async function runDashboardCandidate(
     owned.renderer.keyInput.off("keypress", owned.onKey);
     owned.renderer.destroy();
   };
-
   const finish = (code: number): void => {
     if (finished) return;
     finished = true;
@@ -75,10 +59,7 @@ export async function runDashboardCandidate(
     const id = ++generation;
     destroy();
     const renderer = await adapters.createRenderer();
-    if (finished || id !== generation) {
-      renderer.destroy();
-      return;
-    }
+    if (finished || id !== generation) { renderer.destroy(); return; }
     const onKey = (event: KeyEvent): void => {
       const key = translateOpenTuiKey(event);
       if (key === undefined) return;
@@ -88,12 +69,8 @@ export async function runDashboardCandidate(
     };
     active = { id, renderer, onKey };
     renderer.keyInput.on("keypress", onKey);
-    try {
-      await adapters.mount(controller, renderer);
-    } catch (error) {
-      if (active?.id === id) destroy();
-      throw error;
-    }
+    try { await adapters.mount(controller, renderer); }
+    catch (error) { if (active?.id === id) destroy(); throw error; }
   };
 
   try {
@@ -103,8 +80,6 @@ export async function runDashboardCandidate(
       exit: finish,
     });
     await start();
-  } catch {
-    finish(1);
-  }
+  } catch { finish(1); }
   return result;
 }

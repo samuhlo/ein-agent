@@ -93,6 +93,7 @@ function seams(overrides: Partial<TerminalAppOptions> = {}): TerminalAppOptions 
     system: () => [],
     runtime: { launch: async () => ({ kind: "exited", code: 0 }) },
     run: async () => 0,
+    renderer: "text",
     ...overrides,
   };
 }
@@ -140,6 +141,17 @@ describe("arguments", () => {
 });
 
 describe("without an interactive terminal", () => {
+  test("interactive selects OpenTUI while --once keeps deterministic text", async () => {
+    const interactive = harness();
+    const once = harness();
+    let selected = 0;
+    const dashboard = async (): Promise<number> => { selected += 1; return 23; };
+    expect(await runTerminalApp(seams({ io: interactive.io, renderer: undefined, dashboard }))).toBe(23);
+    expect(await runTerminalApp(seams({ argv: ["--once"], io: once.io, renderer: undefined, dashboard }))).toBe(0);
+    expect(selected).toBe(1);
+    expect(output(once.written)).toContain("ein-agent");
+  });
+
   test("non-TTY, --once, and no-key routing are byte-identical at representative widths", async () => {
     for (const columns of [40, 100]) {
       const pipe = harness({ isTTY: false, columns });
@@ -294,7 +306,7 @@ describe("configuration writes through its owner", () => {
 });
 
 describe("handing the terminal to a runtime", () => {
-  test("launching leaves raw mode, stops listening and exits with the runtime's code", async () => {
+  test("launching leaves raw mode and returns to the dashboard with the runtime's code", async () => {
     const h = harness();
     const launched: unknown[] = [];
     const run = runTerminalApp(seams({
@@ -307,13 +319,14 @@ describe("handing the terminal to a runtime", () => {
       },
     }));
     h.send(DASHBOARD_KEYS.pi);
-    expect(await run).toBe(7);
+    await tick();
     expect(launched).toEqual([{ provider: "pi", reference: undefined }]);
-    // Taken once and given back once: asking a terminal for a state it is
-    // already in leaks escape sequences into whatever runs next.
-    expect(h.altScreen).toEqual([true, false]);
-    expect(h.raw).toEqual([true, false]);
-    expect(h.written.filter((text) => text === "\n")).toHaveLength(1);
+    expect(output(h.written)).toMatch(/código 7|code 7/);
+    expect(h.altScreen).toEqual([true, false, true]);
+    expect(h.raw).toEqual([true, false, true]);
+    h.send("q");
+    expect(await run).toBe(0);
+    expect(h.written.filter((text) => text === "\n")).toHaveLength(2);
   });
 
   test("resuming passes the reference of the chosen session", async () => {
@@ -334,8 +347,10 @@ describe("handing the terminal to a runtime", () => {
     }));
     h.send(DASHBOARD_KEYS.sessions);
     h.send(ENTER);
-    expect(await run).toBe(0);
+    await tick();
     expect(launched).toEqual([{ provider: "claude", reference: "claude:v1:sha256:x" }]);
+    h.send("q");
+    expect(await run).toBe(0);
   });
 
   test("a runtime that is not installed is named, and the app stays alive", async () => {

@@ -11,8 +11,10 @@
 // Run: bun run bundle-template
 // =============================================================================
 
+import { createHash } from "node:crypto";
 import {
 	cpSync,
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
@@ -23,7 +25,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -31,16 +33,16 @@ const INSTALLER_ROOT = dirname(HERE);
 const REPO_ROOT = dirname(INSTALLER_ROOT);
 const CORE_SOURCE = join(REPO_ROOT, "ein-pi", "core");
 const AGENT_SOURCE = join(REPO_ROOT, "ein-pi", "agent");
-const OUT = join(INSTALLER_ROOT, "src", "assets", "template.tar.gz");
+const OUT = process.env.EIN_TEMPLATE_OUT ? resolve(process.env.EIN_TEMPLATE_OUT) : join(INSTALLER_ROOT, "src", "assets", "template.tar.gz");
+const TYPESCRIPT_VERSION = "5.9.3";
 
 // Contenido Ein-owned por raiz de origen. Todo lo demas (auth.json, npm/,
-// sessions/, backups/, .atl/, .piagents/, .sdd/, bin/,
+// sessions/, backups/, .atl/, .piagents/, .sdd/,
 // disabled-skill-conflicts/, run-history) queda fuera a proposito.
 const CORE_FILES = ["AGENTS.md"];
 const CORE_DIRS = ["agents", "docs", "prompts", "skills"];
-// Allowlist del template. `app.ts` y `surfaces/` son ejecutables que el
-// instalador compila y que los launchers invocan por ruta: si no se despliegan,
-// fallan en la máquina del usuario y no al empaquetar. Ver
+// Allowlist del template. `app.ts` remains available to provider launchers;
+// the user-facing app is precompiled and staged separately as bin/ein. Ver
 // tests/template-agent-inventory.test.ts, que deriva lo requerido del código.
 const AGENT_FILES = ["app.ts", "brand.json", "extensions-manifest.json", "models.json", "mcp.json", "settings.json"];
 const AGENT_DIRS = ["assets", "chains", "extensions", "lib", "surfaces", "themes"];
@@ -73,7 +75,7 @@ function tokenizeSettings(staging: string): void {
 // que consumen `ein doctor` (validar lo desplegado contra lo que se distribuyo,
 // sin listas cableadas) y `ein install --dry-run` (mostrar el plan). Se genera
 // escaneando el staging: no puede derivar del contenido real.
-function writeManifest(staging: string): void {
+function writeManifest(staging: string, runtimeDependencies: readonly Record<string, string>[], terminalApp: Record<string, string>): void {
   const pkg = JSON.parse(
     readFileSync(join(INSTALLER_ROOT, "package.json"), "utf8"),
   ) as { version?: string };
@@ -103,10 +105,42 @@ function writeManifest(staging: string): void {
       ? readdirSync(join(staging, "chains")).sort()
       : [],
     extensions,
+    terminalApp,
+    runtimeDependencies,
     topLevelDirs: topDirs,
     topLevelFiles: [...topFiles, "template-manifest.json"].sort(),
   };
   writeFileSync(join(staging, "template-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+function vendorTypescriptRuntime(staging: string): readonly Record<string, string>[] {
+  const source = join(INSTALLER_ROOT, "node_modules", "typescript");
+  const pkg = JSON.parse(readFileSync(join(source, "package.json"), "utf8")) as { version?: string };
+  if (pkg.version !== TYPESCRIPT_VERSION) throw new Error(`typescript runtime must be ${TYPESCRIPT_VERSION}, found ${pkg.version ?? "missing"}`);
+  const destination = join(staging, "lib", "vendor", "typescript");
+  mkdirSync(destination, { recursive: true });
+  for (const file of ["LICENSE.txt", "ThirdPartyNoticeText.txt"]) cpSync(join(source, file), join(destination, file));
+  const compiler = readFileSync(join(source, "lib", "typescript.js"));
+  writeFileSync(join(destination, "typescript.js"), compiler);
+  for (const file of ["cleaner-complexity-evidence.ts", "cleaner-duplication-evidence.ts", "cleaner-script-regions.ts"]) {
+    const path = join(staging, "lib", file);
+    const sourceText = readFileSync(path, "utf8");
+    const rewritten = sourceText.replace('from "typescript"', 'from "./vendor/typescript/typescript.js"');
+    if (rewritten === sourceText || rewritten.includes('from "typescript"')) throw new Error(`failed to close TypeScript runtime import in ${file}`);
+    writeFileSync(path, rewritten);
+  }
+  return [{ name: "typescript", version: TYPESCRIPT_VERSION, path: "lib/vendor/typescript/typescript.js", sha256: createHash("sha256").update(compiler).digest("hex") }];
+}
+
+function stageTerminalApp(staging: string): Record<string, string> {
+  const source = process.env.EIN_APP_BINARY;
+  const target = process.env.EIN_APP_TARGET;
+  if (!source || !target || !existsSync(source)) throw new Error("EIN_APP_BINARY and EIN_APP_TARGET must name a built terminal app");
+  const destination = join(staging, "bin", "ein");
+  mkdirSync(dirname(destination), { recursive: true });
+  cpSync(source, destination);
+  chmodSync(destination, 0o755);
+  return { path: "bin/ein", target, mode: "0755", sha256: createHash("sha256").update(readFileSync(destination)).digest("hex") };
 }
 
 function copyInto(sourceRoot: string, staging: string, files: string[], dirs: string[]): void {
@@ -155,7 +189,9 @@ async function main(): Promise<void> {
 
     tokenizeMcp(staging);
     tokenizeSettings(staging);
-    writeManifest(staging);
+    const terminalApp = stageTerminalApp(staging);
+    const runtimeDependencies = vendorTypescriptRuntime(staging);
+    writeManifest(staging, runtimeDependencies, terminalApp);
 
     // src/assets/ solo guarda el tarball generado (gitignored), asi que el dir
     // no existe en un checkout limpio (CI). Asegurarlo antes de que tar

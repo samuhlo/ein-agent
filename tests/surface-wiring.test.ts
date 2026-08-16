@@ -25,6 +25,7 @@ import {
   type SurfaceRunnerAdapters,
 } from "../ein-pi/agent/surfaces/surface-runner.ts";
 import {
+  CLAUDE_CONTINUITY_RUNNER_NAME,
   CLAUDE_SURFACE_RUNNER_NAME,
   SURFACE_RUNNER_SOURCE,
   compileClaudeSurfaceRunnerPayload,
@@ -720,8 +721,9 @@ describe("Claude runner sync payload", () => {
 type ClaudeLauncherFixture = Readonly<{
   home: string;
   runnerPath: string;
-  invoke: (args: readonly string[], stubExitCode?: number) => Readonly<{ exitCode: number; stdout: string; stderr: string; call: string[] }>;
+  invoke: (args: readonly string[], stubExitCode?: number, piAgentHome?: string) => Readonly<{ exitCode: number; stdout: string; stderr: string; call: string[] }>;
   removeRunner: () => void;
+  removeContinuity: () => void;
   cleanup: () => void;
 }>;
 
@@ -730,6 +732,8 @@ function claudeLauncherFixture(): ClaudeLauncherFixture {
   const binDir = join(home, "bin");
   const functionDir = join(home, ".config", "fish", "functions");
   const runnerPath = join(home, ".claude-ein", "bin", CLAUDE_SURFACE_RUNNER_NAME);
+  const appPath = join(binDir, "ein");
+  const continuityPath = join(home, ".claude-ein", "bin", CLAUDE_CONTINUITY_RUNNER_NAME);
   const launcherPath = join(functionDir, "cc-ein.fish");
   const callLog = join(home, "call.log");
   mkdirSync(binDir, { recursive: true });
@@ -737,11 +741,12 @@ function claudeLauncherFixture(): ClaudeLauncherFixture {
   mkdirSync(join(runnerPath, ".."), { recursive: true });
   copyFileSync(CLAUDE_LAUNCHER_SOURCE, launcherPath);
 
-  for (const command of ["claude", runnerPath] as const) {
+  for (const command of ["claude", runnerPath, appPath, continuityPath] as const) {
     writeFileSync(command === "claude" ? join(binDir, command) : command, [
       "#!/bin/sh",
-      `printf '%s\\n' '${command === "claude" ? "claude" : "runner"}' > \"$EIN_CALL_LOG\"`,
+      `printf '%s\\n' '${command === "claude" ? "claude" : command === appPath ? "app" : command === continuityPath ? "continuity" : "runner"}' > \"$EIN_CALL_LOG\"`,
       "printf '%s\\n' \"$CLAUDE_CONFIG_DIR\" >> \"$EIN_CALL_LOG\"",
+      "printf 'pi-home:<%s>\\n' \"${EIN_PI_AGENT_HOME-unset}\" >> \"$EIN_CALL_LOG\"",
       "for arg in \"$@\"; do printf '%s\\n' \"$arg\" >> \"$EIN_CALL_LOG\"; done",
       "exit \"${EIN_STUB_EXIT:-0}\"",
       "",
@@ -751,7 +756,7 @@ function claudeLauncherFixture(): ClaudeLauncherFixture {
   return {
     home,
     runnerPath,
-    invoke(args, stubExitCode = 0) {
+    invoke(args, stubExitCode = 0, piAgentHome) {
       rmSync(callLog, { force: true });
       const result = spawnSync("fish", ["-c", 'source "$EIN_LAUNCHER"; cc-ein $argv', "--", ...args], {
         encoding: "utf8",
@@ -762,6 +767,7 @@ function claudeLauncherFixture(): ClaudeLauncherFixture {
           EIN_CALL_LOG: callLog,
           EIN_LAUNCHER: launcherPath,
           EIN_STUB_EXIT: String(stubExitCode),
+          EIN_PI_AGENT_HOME: piAgentHome,
         },
       });
       return {
@@ -772,6 +778,7 @@ function claudeLauncherFixture(): ClaudeLauncherFixture {
       };
     },
     removeRunner: () => rmSync(runnerPath, { force: true }),
+    removeContinuity: () => rmSync(continuityPath, { force: true }),
     cleanup: () => rmSync(home, { recursive: true, force: true }),
   };
 }
@@ -783,7 +790,7 @@ describe("Claude cc-ein launcher adapter", () => {
       for (const args of [["cleaner", "audit"], ["cleaner", "mutate"], ["cleaner", "complete"], ["workbench", "--project", "/tmp/example"]]) {
         const result = fixture.invoke(args);
         expect(result.exitCode).toBe(0);
-        expect(result.call).toEqual(["runner", join(fixture.home, ".claude-ein"), ...args]);
+        expect(result.call).toEqual(["runner", join(fixture.home, ".claude-ein"), "pi-home:<unset>", ...args]);
         expect(`${result.stdout}${result.stderr}`).not.toContain(CLAUDE_LAUNCHER_SOURCE);
       }
     } finally {
@@ -794,11 +801,15 @@ describe("Claude cc-ein launcher adapter", () => {
   test("Claude preserves unrelated passthrough arguments and isolated config", () => {
     const fixture = claudeLauncherFixture();
     try {
-      for (const args of [[], ["--help"], ["cleaner-extra", "audit"], ["workbench-extra"], ["chat", "hello"]]) {
+      for (const args of [[], ["--help"], ["-c"], ["--resume", "opaque"], ["cleaner-extra", "audit"], ["workbench-extra"], ["chat", "hello"]]) {
         const result = fixture.invoke(args);
         expect(result.exitCode).toBe(0);
-        expect(result.call).toEqual(["claude", join(fixture.home, ".claude-ein"), ...args]);
+        expect(result.call).toEqual(["continuity", join(fixture.home, ".claude-ein"), "pi-home:<unset>", "supervise", ...args]);
       }
+      fixture.removeContinuity();
+      const missing = fixture.invoke(["--resume", "opaque"]);
+      expect(missing.exitCode).toBe(69);
+      expect(missing.stderr.trim()).toBe("cc-ein: continuity runner unavailable");
     } finally {
       fixture.cleanup();
     }
@@ -818,6 +829,38 @@ describe("Claude cc-ein launcher adapter", () => {
       expect(missing.stdout).toBe("");
       expect(missing.stderr.trim()).toBe("cc-ein: surface runner unavailable");
       expect(missing.stderr).not.toContain(fixture.home);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("Claude app launch defaults only an absent or empty Pi home and preserves a declared home", () => {
+    const fixture = claudeLauncherFixture();
+    try {
+      for (const declared of [undefined, ""] as const) {
+        const result = fixture.invoke(["app", "--once"], 0, declared);
+        expect(result.exitCode).toBe(0);
+        expect(result.call).toEqual([
+          "app",
+          join(fixture.home, ".claude-ein"),
+          `pi-home:<${join(fixture.home, ".pi-ein", "agent")}>`,
+          "--once",
+        ]);
+      }
+
+      const declared = join(fixture.home, "custom-pi-agent");
+      expect(fixture.invoke(["app"], 0, declared).call).toEqual([
+        "app",
+        join(fixture.home, ".claude-ein"),
+        `pi-home:<${declared}>`,
+      ]);
+      expect(fixture.invoke(["chat"], 0).call).toEqual([
+        "continuity",
+        join(fixture.home, ".claude-ein"),
+        "pi-home:<unset>",
+        "supervise",
+        "chat",
+      ]);
     } finally {
       fixture.cleanup();
     }
@@ -855,6 +898,7 @@ function installedSurfaceFixture(runtime: InstalledRuntime) {
   if (runtime === "claude") {
     mkdirSync(join(runnerPath, ".."), { recursive: true });
     writeFileSync(runnerPath, '#!/bin/sh\nexec bun "$CLAUDE_CONFIG_DIR/agent/surfaces/surface-runner.ts" "$@"\n', { mode: 0o755 });
+    writeFileSync(join(isolatedRoot, "bin", CLAUDE_CONTINUITY_RUNNER_NAME), '#!/bin/sh\nshift\nexec claude "$@"\n', { mode: 0o755 });
   }
   const vanillaExecutable = runtime === "pi" ? "pi" : "claude";
   writeFileSync(join(binDir, vanillaExecutable), "#!/bin/sh\nprintf 'vanilla:%s\\n' \"$*\"\n", { mode: 0o755 });

@@ -1,7 +1,7 @@
 // =============================================================================
 // BUILD ALL
-// Bundles the template, then cross-compiles standalone binaries for the four
-// supported targets via `bun build --compile`. Host-independent.
+// For each target: compile its native app, bundle that app into its template,
+// then compile the installer that embeds the matching template.
 // Run: bun run build:all
 // =============================================================================
 
@@ -9,33 +9,35 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildTerminalApp } from "./build-terminal-app.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = dirname(HERE);
 const DIST = join(ROOT, "dist");
 const ENTRY = join(ROOT, "src", "main.ts");
 
-export type BuildTarget = { bunTarget: string; assetName: string };
+export type BuildTarget = { id: string; bunTarget: string; assetName: string; libc: "glibc" | null };
 
 export const BUILD_TARGETS: BuildTarget[] = [
-  { bunTarget: "bun-darwin-arm64", assetName: "ein-installer-darwin-arm64" },
-  { bunTarget: "bun-darwin-x64", assetName: "ein-installer-darwin-x64" },
-  { bunTarget: "bun-linux-arm64", assetName: "ein-installer-linux-arm64" },
-  { bunTarget: "bun-linux-x64", assetName: "ein-installer-linux-x64" },
+  { id: "darwin-arm64", bunTarget: "bun-darwin-arm64", assetName: "ein-installer-darwin-arm64", libc: null },
+  { id: "darwin-x64", bunTarget: "bun-darwin-x64", assetName: "ein-installer-darwin-x64", libc: null },
+  { id: "linux-arm64", bunTarget: "bun-linux-arm64", assetName: "ein-installer-linux-arm64", libc: "glibc" },
+  { id: "linux-x64", bunTarget: "bun-linux-x64", assetName: "ein-installer-linux-x64", libc: "glibc" },
 ];
 
-async function bundleAssetScript(script: string, label: string): Promise<void> {
+async function bundleAssetScript(script: string, label: string, env: Record<string, string> = {}): Promise<void> {
   const proc = Bun.spawn(["bun", "run", join(HERE, script)], {
     cwd: ROOT,
     stdout: "inherit",
     stderr: "inherit",
+    env: { ...process.env, ...env },
   });
   const code = await proc.exited;
   if (code !== 0) throw new Error(`${label} fallo`);
 }
 
-async function bundleTemplate(): Promise<void> {
-  await bundleAssetScript("bundle-template.ts", "bundle-template");
+async function bundleTemplate(target: BuildTarget, appArtifact: string): Promise<void> {
+  await bundleAssetScript("bundle-template.ts", "bundle-template", { EIN_APP_BINARY: appArtifact, EIN_APP_TARGET: target.id });
 }
 
 async function bundleCcEinPayload(): Promise<void> {
@@ -68,12 +70,28 @@ async function compile(target: BuildTarget): Promise<void> {
   if (code !== 0) throw new Error(`compile fallo para ${target.bunTarget}`);
 }
 
+export type TargetBuildEffects = Readonly<{
+  buildApp: (target: BuildTarget, outfile: string) => Promise<void>;
+  bundleTemplate: (target: BuildTarget, appArtifact: string) => Promise<void>;
+  compileInstaller: (target: BuildTarget) => Promise<void>;
+}>;
+
+export async function buildInstallerTarget(target: BuildTarget, effects: TargetBuildEffects = {
+  buildApp: buildTerminalApp,
+  bundleTemplate,
+  compileInstaller: compile,
+}): Promise<void> {
+  const appArtifact = join(DIST, `ein-app-${target.id}`);
+  await effects.buildApp(target, appArtifact);
+  await effects.bundleTemplate(target, appArtifact);
+  await effects.compileInstaller(target);
+}
+
 async function main(): Promise<void> {
   if (!existsSync(ENTRY)) throw new Error(`No existe entry: ${ENTRY}`);
   await mkdir(DIST, { recursive: true });
 
   console.log("/// empaquetando assets");
-  await bundleTemplate();
   await bundleCcEinPayload();
 
   // Allow building a single target: bun run build:all -- linux-x64
@@ -82,7 +100,7 @@ async function main(): Promise<void> {
   if (targets.length === 0) throw new Error(`Sin targets que coincidan con "${only}"`);
 
   for (const target of targets) {
-    await compile(target);
+    await buildInstallerTarget(target);
   }
 
   console.log("\n/// binarios listos en dist/");

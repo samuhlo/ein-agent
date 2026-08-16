@@ -3,6 +3,11 @@
   "private": true,
   "type": "module",
   "description": "Harness de coding-agent sobre Pi Coding Agent y Claude Code.",
+  "dependencies": {
+    "@opentui/core": "0.5.1",
+    "@opentui/solid": "0.5.1",
+    "solid-js": "1.9.12"
+  },
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit"
@@ -11,6 +16,6 @@
     "@earendil-works/pi-coding-agent": "0.84.1",
     "@earendil-works/pi-tui": "0.84.1",
     "@types/bun": "latest",
-    "typescript": "^5"
+    "typescript": "5.9.3"
   }
 }

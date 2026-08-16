@@ -30,6 +30,7 @@ export type ViewKind = "dashboard" | "state" | "config" | "sessions" | "system";
 export type RowAction =
   | { kind: "open-view"; view: ViewKind }
   | { kind: "launch"; provider: RuntimeProvider; reference?: string }
+  | { kind: "continue"; provider: RuntimeProvider }
   | { kind: "session"; provider: RuntimeProvider; reference: string }
   | { kind: "setting"; settingId: string }
   | { kind: "focus-change"; change: string }
@@ -156,6 +157,8 @@ export const DASHBOARD_KEYS = {
   sessions: "s",
   pi: "p",
   claude: "c",
+  continuePi: "P",
+  continueClaude: "C",
   state: "e",
   config: "o",
   system: "u",
@@ -186,6 +189,18 @@ export function buildDashboard(summary: ProjectSummary): View {
       icon: ICON.claude,
       key: DASHBOARD_KEYS.claude,
       action: { kind: "launch", provider: "claude" },
+    },
+    {
+      label: pick("Continuar en Pi", "Continue in Pi"),
+      icon: ICON.pi,
+      key: DASHBOARD_KEYS.continuePi,
+      action: { kind: "continue", provider: "pi" },
+    },
+    {
+      label: pick("Continuar en Claude", "Continue in Claude"),
+      icon: ICON.claude,
+      key: DASHBOARD_KEYS.continueClaude,
+      action: { kind: "continue", provider: "claude" },
     },
     {
       label: pick("Estado del proyecto", "Project state"),
@@ -453,6 +468,7 @@ export type AppEffect =
   | { kind: "open"; view: ViewKind }
   /** Hands the terminal over; the driver leaves raw mode first. */
   | { kind: "launch"; provider: RuntimeProvider; reference?: string }
+  | { kind: "continue"; provider: RuntimeProvider }
   /** The driver persists it: writing is I/O and stays at the edge. */
   | { kind: "apply-setting"; settingId: string; value: string }
   | { kind: "focus-change"; change: string }
@@ -551,6 +567,8 @@ function activate(model: AppModel, row: Row): KeyOutcome {
       return { model, effect: { kind: "open", view: row.action.view } };
     case "launch":
       return { model, effect: { kind: "launch", provider: row.action.provider } };
+    case "continue":
+      return { model, effect: { kind: "continue", provider: row.action.provider } };
     case "session":
       return {
         model,

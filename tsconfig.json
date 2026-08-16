@@ -9,6 +9,8 @@
     "moduleDetection": "force",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
+    "jsx": "preserve",
+    "jsxImportSource": "@opentui/solid",
     "noEmit": true,
     "strict": true,
     "skipLibCheck": true,
@@ -19,6 +21,7 @@
   },
   "include": [
     "ein-pi/**/*.ts",
+    "ein-pi/**/*.tsx",
     "cc-ein/**/*.ts",
     "tests/**/*.ts"
   ],

@@ -1,6 +1,8 @@
 import { pick } from "./lang.ts";
 import type { RuntimeProvider } from "./runtime-session-adapters.ts";
 import type { RuntimeSessionList } from "./runtime-sessions.ts";
+import type { ContinuityPrepareResult } from "./continuity-handoff-lifecycle.ts";
+import { isContinueBriefTransportSafe } from "./terminal-continue-transport.ts";
 import {
   RUNTIME_LABEL,
   buildConfigView,
@@ -36,6 +38,8 @@ export type TerminalAppControllerPorts = Readonly<{
   readSessions: () => RuntimeSessionList;
   readSystem: () => readonly SystemComponent[];
   launch: (provider: RuntimeProvider, reference?: string) => Promise<LaunchOutcome>;
+  prepareContinue?: (provider: RuntimeProvider) => Promise<ContinuityPrepareResult>;
+  continueLaunch?: (provider: RuntimeProvider, brief: string) => Promise<LaunchOutcome>;
   run: (command: readonly string[]) => Promise<number>;
   lifecycle: Readonly<{
     release: () => void;
@@ -60,6 +64,7 @@ export function createTerminalAppController(ports: TerminalAppControllerPorts): 
   let summary = ports.readSummary(focusedChange, sessionList.entries.length);
   let model = initialModel(summary, buildDashboard(summary));
   const listeners = new Set<(snapshot: AppModel) => void>();
+  let operationGeneration = 0, continueOwner: number | undefined;
 
   const publish = (next: AppModel): void => {
     model = immutableModel(next);
@@ -84,6 +89,10 @@ export function createTerminalAppController(ports: TerminalAppControllerPorts): 
   };
 
   const executeExternal = (effect: Extract<AppEffect, { kind: "launch" | "run" }>): void => {
+    if (effect.kind === "launch" && continueOwner !== undefined) {
+      publish({ ...model, status: pick("Continuación en curso", "Continue already in progress") });
+      return;
+    }
     ports.lifecycle.release();
     if (effect.kind === "run") {
       void ports.run(effect.command).then(
@@ -97,7 +106,13 @@ export function createTerminalAppController(ports: TerminalAppControllerPorts): 
       (result) => {
         try {
           if (result.kind === "exited") {
-            exitSafely(result.code);
+            ports.lifecycle.resume();
+            publish({
+              ...model,
+              status: result.code === 0
+                ? pick(`${RUNTIME_LABEL[effect.provider]} finalizó`, `${RUNTIME_LABEL[effect.provider]} finished`)
+                : pick(`${RUNTIME_LABEL[effect.provider]} finalizó con código ${result.code}`, `${RUNTIME_LABEL[effect.provider]} exited with code ${result.code}`),
+            });
             return;
           }
           ports.lifecycle.resume();
@@ -116,9 +131,68 @@ export function createTerminalAppController(ports: TerminalAppControllerPorts): 
     );
   };
 
+  const executeContinue = (provider: RuntimeProvider): void => {
+    if (continueOwner !== undefined) {
+      publish({ ...model, status: pick("Continuación en curso", "Continue already in progress") });
+      return;
+    }
+    if (!ports.prepareContinue || !ports.continueLaunch) {
+      publish({ ...model, status: pick("Continuación no disponible", "Continue is not available") });
+      return;
+    }
+    const owner = ++operationGeneration;
+    continueOwner = owner;
+    const ownsOperation = (): boolean => continueOwner === owner;
+    const prepareContinue = ports.prepareContinue;
+    const continueLaunch = ports.continueLaunch;
+    void (async () => {
+      let prepared: ContinuityPrepareResult;
+      try {
+        prepared = await prepareContinue(provider);
+      } catch {
+        if (!ownsOperation()) return;
+        continueOwner = undefined;
+        publish({ ...model, status: pick("Continuación bloqueada (refresh-failed)", "Continue blocked (refresh-failed)") });
+        return;
+      }
+      if (!ownsOperation()) return;
+      if (!prepared.ok) {
+        continueOwner = undefined;
+        publish({ ...model, status: pick(`Continuación bloqueada (${prepared.reason})`, `Continue blocked (${prepared.reason})`) });
+        return;
+      }
+      if (!isContinueBriefTransportSafe(prepared.brief.content)) {
+        continueOwner = undefined;
+        publish({ ...model, status: pick("Continuación bloqueada (unsafe-brief)", "Continue blocked (unsafe-brief)") });
+        return;
+      }
+      ports.lifecycle.release();
+      let result: LaunchOutcome;
+      try { result = await continueLaunch(provider, prepared.brief.content); }
+      catch { if (ownsOperation()) exitSafely(1); return; }
+      if (!ownsOperation()) return;
+      if (result.kind === "exited") {
+        continueOwner = undefined;
+        ports.lifecycle.resume();
+        publish({
+          ...model,
+          status: result.code === 0
+            ? pick(`${RUNTIME_LABEL[provider]} finalizó`, `${RUNTIME_LABEL[provider]} finished`)
+            : pick(`${RUNTIME_LABEL[provider]} finalizó con código ${result.code}`, `${RUNTIME_LABEL[provider]} exited with code ${result.code}`),
+        });
+        return;
+      }
+      continueOwner = undefined;
+      ports.lifecycle.resume();
+      publish({ ...model, status: pick(`${RUNTIME_LABEL[provider]} no está disponible`, `${RUNTIME_LABEL[provider]} is not available`) });
+    })().catch(() => { if (ownsOperation()) exitSafely(1); });
+  };
+
   const execute = (effect: AppEffect): void => {
     switch (effect.kind) {
       case "quit":
+        operationGeneration += 1;
+        continueOwner = undefined;
         ports.lifecycle.exit(0);
         return;
       case "open":
@@ -151,6 +225,9 @@ export function createTerminalAppController(ports: TerminalAppControllerPorts): 
       case "launch":
       case "run":
         executeExternal(effect);
+        return;
+      case "continue":
+        executeContinue(effect.provider);
         return;
       case "status":
       case "none":

@@ -8,14 +8,9 @@
     "build:candidate": "bun run scripts/build-candidate.ts",
     "check": "bun run typecheck && bun run test",
     "inventory": "bun run scripts/stage.ts",
-    "test": "bun test --preload @opentui/solid/preload ./tests/*.case.ts ./tests/*.case.tsx",
+    "test": "bun test --preload ../../node_modules/@opentui/solid/scripts/preload.js ./tests/*.case.ts ./tests/*.case.tsx",
     "typecheck": "bunx tsc --noEmit",
     "verify": "bun run scripts/verify.ts"
-  },
-  "dependencies": {
-    "@opentui/core": "0.5.1",
-    "@opentui/solid": "0.5.1",
-    "solid-js": "1.9.12"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",

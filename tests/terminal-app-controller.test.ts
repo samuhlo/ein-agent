@@ -7,6 +7,7 @@ import {
   type TerminalAppControllerPorts,
 } from "../ein-pi/agent/lib/terminal-app-controller.ts";
 import { DASHBOARD_KEYS, visibleRows, type ProjectSummary, type Setting } from "../ein-pi/agent/lib/terminal-app.ts";
+import type { ContinuityPrepareResult } from "../ein-pi/agent/lib/continuity-handoff-lifecycle.ts";
 
 const ENTER = "\r";
 const SUMMARY: ProjectSummary = {
@@ -60,6 +61,13 @@ function harness(overrides: Partial<TerminalAppControllerPorts> = {}) {
       { id: "beta", label: "Beta", status: "current", command: ["ein-install", "doctor"] },
     ],
     launch: async () => ({ kind: "exited", code: 0 }),
+    prepareContinue: async (provider) => ({ ok: true, brief: {
+      ok: true, version: 1, format: "continuity-resume-brief/v1", content: "PRIVATE-BRIEF-CANARY",
+      byteLength: 20, payloadByteLength: 1, payloadSha256: `sha256:${"a".repeat(64)}`, target: provider,
+      checkpointRevision: `sha256:${"b".repeat(64)}`, truncated: false,
+      omissions: { changedPaths: 0, completed: 0, unresolvedDecisions: 0 }, warnings: [],
+    } }),
+    continueLaunch: async () => ({ kind: "exited", code: 0 }),
     run: async () => 0,
     lifecycle: {
       release: () => { lifecycle.push("release"); },
@@ -149,7 +157,8 @@ describe("terminal app controller effects", () => {
     await tick();
 
     expect(launched).toEqual([{ provider: "claude", reference: "claude:v1:sha256:opaque" }]);
-    expect(lifecycle).toEqual(["release", "exit:7"]);
+    expect(lifecycle).toEqual(["release", "resume"]);
+    expect(controller.snapshot().status).toMatch(/código 7|code 7/);
   });
 
   test("an unavailable runtime resumes the same app and publishes status", async () => {
@@ -161,6 +170,86 @@ describe("terminal app controller effects", () => {
     expect(lifecycle).toEqual(["release", "resume"]);
     expect(controller.snapshot().view.kind).toBe("dashboard");
     expect(controller.snapshot().status).toContain("executable-unavailable");
+  });
+
+  test("Continue prepares before release, suppresses duplicates, and resumes once when unavailable", async () => {
+    const order: string[] = [];
+    let resolvePrepare!: (value: ContinuityPrepareResult) => void;
+    const prepared = new Promise<ContinuityPrepareResult>((resolve) => { resolvePrepare = resolve; });
+    const { controller, lifecycle } = harness({
+      prepareContinue: async (provider) => { order.push(`prepare:${provider}`); return prepared; },
+      continueLaunch: async (provider, brief) => { order.push(`launch:${provider}:${brief === "PRIVATE-BRIEF-CANARY"}`); return { kind: "unavailable", reason: "executable-unavailable" }; },
+    });
+    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continueClaude });
+    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continueClaude });
+    expect(order).toEqual(["prepare:claude"]);
+    expect(lifecycle).toEqual([]);
+    resolvePrepare({ ok: true, brief: {
+      ok: true, version: 1, format: "continuity-resume-brief/v1", content: "PRIVATE-BRIEF-CANARY", byteLength: 20,
+      payloadByteLength: 1, payloadSha256: `sha256:${"a".repeat(64)}`, target: "claude", checkpointRevision: `sha256:${"b".repeat(64)}`,
+      truncated: false, omissions: { changedPaths: 0, completed: 0, unresolvedDecisions: 0 }, warnings: [],
+    } });
+    await tick(); await tick();
+    expect(order).toEqual(["prepare:claude", "launch:claude:true"]);
+    expect(lifecycle).toEqual(["release", "resume"]);
+  });
+
+  test("quit invalidates pending Continue before its preparation completes", async () => {
+    let resolvePrepare!: (value: ContinuityPrepareResult) => void;
+    const prepared = new Promise<ContinuityPrepareResult>((resolve) => { resolvePrepare = resolve; });
+    const trace: string[] = [], published: string[] = [];
+    const { controller } = harness({
+      prepareContinue: async () => prepared,
+      continueLaunch: async () => { trace.push("launch"); return { kind: "exited", code: 0 }; },
+      lifecycle: { release: () => trace.push("release"), resume: () => trace.push("resume"), exit: (code) => trace.push(`exit:${code}`) },
+    });
+    controller.subscribe((snapshot) => { published.push(snapshot.status); });
+    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi }); controller.dispatch({ kind: "key", key: "q" });
+    resolvePrepare({ ok: true, brief: { content: "PRIVATE-BRIEF-CANARY" } } as ContinuityPrepareResult);
+    await tick(); expect(trace).toEqual(["exit:0"]); expect(published).toEqual([]);
+  });
+
+  test("Start and Resume cannot compete with pending Continue", async () => {
+    const prepared = new Promise<ContinuityPrepareResult>(() => {});
+    const { controller, lifecycle } = harness({
+      prepareContinue: async () => prepared,
+    });
+    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi }); controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.pi });
+    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.sessions }); controller.dispatch({ kind: "key", key: ENTER });
+    expect(lifecycle).toEqual([]);
+    expect(controller.snapshot().status).toMatch(/Continuación en curso|Continue already in progress/);
+  });
+
+  test("unsafe Continue briefs fail before terminal release", async () => {
+    const launched: string[] = [];
+    const { controller, lifecycle } = harness({
+      prepareContinue: async () => ({ ok: true, brief: { content: "safe\n\u001b[201~injected" } } as ContinuityPrepareResult),
+      continueLaunch: async () => { launched.push("launch"); return { kind: "exited", code: 0 }; },
+    });
+    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
+    await tick();
+    expect(lifecycle).toEqual([]); expect(launched).toEqual([]);
+    expect(controller.snapshot().status).toContain("unsafe-brief");
+  });
+
+  test("blocked Continue stays owned and launch rejection exits fail-safe", async () => {
+    const blocked = harness({ prepareContinue: async () => ({ ok: false, reason: "mutation-uncertain", blockers: ["PRIVATE"] }) });
+    blocked.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
+    await tick();
+    expect(blocked.lifecycle).toEqual([]);
+    expect(blocked.controller.snapshot().status).toContain("mutation-uncertain");
+    expect(blocked.controller.snapshot().status).not.toContain("PRIVATE");
+
+    const failed = harness({ prepareContinue: async () => { throw new Error("PRIVATE"); } });
+    failed.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
+    await tick();
+    expect(failed.lifecycle).toEqual([]);
+    expect(failed.controller.snapshot().status).toContain("refresh-failed");
+
+    const rejected = harness({ continueLaunch: async () => { throw new Error("PRIVATE"); } });
+    rejected.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
+    await tick(); await tick();
+    expect(rejected.lifecycle).toEqual(["release", "exit:1"]);
   });
 
   test("launch and command failures release ownership and exit safely", async () => {

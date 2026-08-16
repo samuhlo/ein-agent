@@ -164,6 +164,11 @@ describe("the dashboard", () => {
     expect(press(dashboard(), DASHBOARD_KEYS.claude).effects[0]).toMatchObject({ kind: "launch", provider: "claude" });
   });
 
+  test("P and C continue in fresh provider sessions", () => {
+    expect(press(dashboard(), DASHBOARD_KEYS.continuePi).effects[0]).toEqual({ kind: "continue", provider: "pi" });
+    expect(press(dashboard(), DASHBOARD_KEYS.continueClaude).effects[0]).toEqual({ kind: "continue", provider: "claude" });
+  });
+
   test("q quits from anywhere", () => {
     for (const start of ALL_VIEWS()) {
       expect(press(start, "q").effects[0]).toMatchObject({ kind: "quit" });

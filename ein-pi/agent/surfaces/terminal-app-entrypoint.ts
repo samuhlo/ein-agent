@@ -19,6 +19,8 @@ import {
   type RuntimeProvider,
 } from "../lib/runtime-session-adapters.ts";
 import { collectRuntimeSessions, type RuntimeSessionList } from "../lib/runtime-sessions.ts";
+import { createContinuityHandoffLifecycle, localExecutableAvailable, type ContinuityPrepareResult } from "../lib/continuity-handoff-lifecycle.ts";
+import { runContinueInPty } from "../lib/terminal-continue-transport.ts";
 import { pick } from "../lib/lang.ts";
 import { createPalette, shouldUseColor } from "../lib/theme.ts";
 import {
@@ -129,9 +131,14 @@ export type TerminalAppOptions = Readonly<{
   system?: () => readonly SystemComponent[];
   runtime?: Readonly<{
     launch: (provider: RuntimeProvider, reference?: string) => Promise<LaunchOutcome>;
+    continue?: (provider: RuntimeProvider, brief: string) => Promise<LaunchOutcome>;
   }>;
+  continuity?: Readonly<{ prepare: (target: unknown) => Promise<ContinuityPrepareResult> }>;
   /** Runs a system command with the terminal handed over; returns its code. */
   run?: (command: readonly string[]) => Promise<number>;
+  /** Test seams only; production interactive runs always use OpenTUI. */
+  renderer?: "text";
+  dashboard?: (createController: TerminalAppControllerFactory) => Promise<number>;
 }>;
 
 export type TerminalAppControllerFactory = (
@@ -153,6 +160,12 @@ export function createTerminalAppControllerFactoryForCwd(
   const readSystem = options.system
     ?? (() => systemComponentsFrom(updateSnapshot?.read(), { engramInstalled: existsSync(engramHome()) }));
   const launch = options.runtime?.launch ?? ((provider, reference) => productionLaunch(cwd, provider, reference));
+  const handoff = options.continuity ?? createContinuityHandoffLifecycle(cwd, {
+    now: () => new Date().toISOString(),
+    runtimeAvailable: (provider) => localExecutableAvailable(provider),
+  });
+  const continueLaunch = options.runtime?.continue
+    ?? ((provider: RuntimeProvider, brief: string) => runContinueInPty({ cwd, provider, brief }));
   const runCommand = options.run ?? productionRun;
   const readSummary = options.summary
     ?? ((root: string, change?: string) =>
@@ -170,6 +183,8 @@ export function createTerminalAppControllerFactoryForCwd(
     readSessions: () => readSessions(cwd),
     readSystem,
     launch,
+    prepareContinue: (provider) => handoff.prepare(provider),
+    continueLaunch,
     run: runCommand,
     lifecycle,
   });
@@ -315,6 +330,16 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
     return 0;
   }
 
+  if (options.renderer !== "text") {
+    // FRICTION CUT -> OpenTUI and Solid load only when interactive mode is
+    // actually entered. A static import makes `--help` and `--once`, which draw
+    // nothing, pay the renderer's full startup (+220 ms measured).
+    const dashboard = options.dashboard
+      ?? (await import("./terminal-dashboard-runner.tsx")).runTerminalDashboard;
+    return await dashboard(createController);
+  }
+
+  // Deterministic legacy driver retained only as an injected controller test seam.
   // The terminal is a shared resource with two toggles, and asking twice for a
   // state it is already in leaks escape sequences into whatever runs next.
   let owned = false;
@@ -368,6 +393,8 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
       released = true;
       stop?.();
       stop = undefined;
+      stopResize?.();
+      stopResize = undefined;
       own(false);
       io.write("\n");
     };
@@ -376,6 +403,7 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
       released = false;
       own(true);
       stop = io.onKey!(onKey);
+      stopResize = io.onResize?.(repaint);
       repaint();
     };
 

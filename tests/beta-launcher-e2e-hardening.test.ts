@@ -461,6 +461,7 @@ describe("beta launcher E2E PTY contract", () => {
         cwd: fixture.project,
         env: {
           CLAUDE_CONFIG_DIR: join(fixture.home, ".claude-ein"),
+          ENGRAM_DATA_DIR: join(fixture.home, ".engram-cc-ein"),
           PATH: `${join(fixture.home, ".claude-ein", "bin")}:${join(fixture.home, "bin")}`,
         },
         shell: false,
@@ -647,8 +648,8 @@ describe("real adapter, plan, and recording executor boundaries", () => {
         expect(calls[0]).toMatchObject({ executable: join(fixture.home, "bin", provider), argv: [], shell: false });
         expect(realpathSync(calls[0]?.cwd ?? "")).toBe(fixture.project);
         expect(calls[0]?.env).toEqual(provider === "pi"
-          ? { PI_CODING_AGENT_DIR: fixture.runtimeHome, EIN_PI_AGENT_HOME: fixture.runtimeHome }
-          : { CLAUDE_CONFIG_DIR: join(fixture.home, ".claude-ein"), PATH: `${join(fixture.home, ".claude-ein", "bin")}:${join(fixture.home, "bin")}` });
+          ? { PI_CODING_AGENT_DIR: fixture.runtimeHome, EIN_PI_AGENT_HOME: fixture.runtimeHome, ENGRAM_DATA_DIR: join(fixture.home, ".engram-pi") }
+          : { CLAUDE_CONFIG_DIR: join(fixture.home, ".claude-ein"), ENGRAM_DATA_DIR: join(fixture.home, ".engram-cc-ein"), PATH: `${join(fixture.home, ".claude-ein", "bin")}:${join(fixture.home, "bin")}` });
       }
     } finally {
       fixture.dispose();

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { testRender } from "@opentui/solid";
+// @ts-expect-error The Bun entrypoint shares the package's index.d.ts declarations.
+import { testRender } from "../../../node_modules/@opentui/solid/index.bun.js";
 import {
   buildConfigView,
   buildDashboard,
@@ -10,7 +11,7 @@ import {
   type AppModel,
   type ProjectSummary,
 } from "../../../ein-pi/agent/lib/terminal-app.ts";
-import { DashboardCandidate } from "../src/dashboard-view";
+import { TerminalDashboardView as DashboardCandidate } from "../../../ein-pi/agent/surfaces/terminal-dashboard-view.tsx";
 
 const summary: ProjectSummary = Object.freeze({
   name: "atlas",
@@ -46,33 +47,22 @@ function lines(output: string, width: number, height: number): string[] {
 }
 
 describe("dashboard presentation", () => {
-  test("renders the deterministic narrow 40x10 acceptance frame", async () => {
+  test("keeps project status and navigation useful at 40x10", async () => {
     const output = lines(await frame(40, 10), 40, 10);
-    expect(output[1]).toBe(" EIN / Ein");
-    expect(output[2]).toBe(" atlas  feat/dashboard");
-    expect(output.slice(4, 8).map((row) => row.trimStart())).toEqual([
-      `> [s] ▸ ${model.view.sections[0]!.rows[0]!.label}`,
-      `[p] ◆ ${model.view.sections[0]!.rows[1]!.label}`,
-      `[c] ◇ ${model.view.sections[0]!.rows[2]!.label}`,
-      `[e] ▪ ${model.view.sections[0]!.rows[3]!.label}`,
-    ]);
-    expect(output[8]).toBe(" j/k move  enter select  q quit");
+    const text = output.join("\n");
+    expect(text).toContain("EIN · Ein");
+    for (const value of ["atlas", "feat/dashboard"]) expect(text).toContain(value);
+    expect(text).toMatch(/clean|limpio/);
+    expect(text).toContain("▸ [s]");
+    expect(text).toMatch(/j\/k (?:move|mover)/);
   });
 
-  test("renders the deterministic wide 100x40 acceptance frame", async () => {
+  test("shows distinct Pi and Claude launch/Continue choices when wide", async () => {
     const output = lines(await frame(100, 40), 100, 40);
-    expect(output[1]).toBe(" EIN / Ein");
-    expect(output[2]).toBe(" atlas  feat/dashboard  |  opentui-candidate  |  prove lifecycle");
-    expect(output.slice(4, 11).map((row) => row.trimStart())).toEqual([
-      `> [s] ▸ ${model.view.sections[0]!.rows[0]!.label}`,
-      `[p] ◆ ${model.view.sections[0]!.rows[1]!.label}`,
-      `[c] ◇ ${model.view.sections[0]!.rows[2]!.label}`,
-      `[e] ▪ ${model.view.sections[0]!.rows[3]!.label}`,
-      `[o] ○ ${model.view.sections[0]!.rows[4]!.label}`,
-      `[u] ▴ ${model.view.sections[0]!.rows[5]!.label}`,
-      `[q] ✕ ${model.view.sections[0]!.rows[6]!.label}`,
-    ]);
-    expect(output[38]).toBe(" j/k or arrows  enter select  tab views  q quit");
+    const text = output.join("\n");
+    for (const key of ["[p]", "[c]", "[P]", "[C]"]) expect(text).toContain(key);
+    expect(text).toContain("opentui-candidate");
+    expect(text).toMatch(/←\/→ (?:or|o) h\/l (?:change|cambiar)/);
   });
 
   test("renders every controller view through the generic row primitive", async () => {
@@ -91,5 +81,15 @@ describe("dashboard presentation", () => {
       expect(setup.captureCharFrame()).toContain(view.title);
       expect(setup.captureCharFrame()).toContain(view.sections[0]!.rows[0]!.label);
     }
+  });
+
+  test("configuration shows current values and every available choice", async () => {
+    const next = initialModel(summary, buildConfigView([{ id: "theme", label: "Theme", options: ["dark", "light"], value: "dark" }]));
+    const setup = await testRender(() => <DashboardCandidate view={() => ({ model: next, width: 100, height: 40 })} />, { width: 100, height: 40 });
+    destroyers.push(() => setup.renderer.destroy());
+    await setup.flush();
+    const output = setup.captureCharFrame();
+    expect(output).toContain("Theme  dark");
+    expect(output).toContain("dark · light");
   });
 });

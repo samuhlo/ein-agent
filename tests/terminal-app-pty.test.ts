@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { isContinueBriefTransportSafe, runContinueInPty } from "../ein-pi/agent/lib/terminal-continue-transport.ts";
+import { readFileSync } from "node:fs";
 
 const DRIVER = join(import.meta.dir, "fixtures", "terminal-app-pty-driver.ts");
 const ALT_ENTER = "\u001b[?1049h";
@@ -13,7 +15,7 @@ type PtyRun = {
   close: () => Promise<void>;
 };
 
-function start(scenario: "quit" | "unavailable" | "handoff"): PtyRun {
+function start(scenario: "quit" | "unavailable" | "handoff" | "continue-pi" | "continue-claude"): PtyRun {
   let output = "";
   const listeners = new Set<() => void>();
   const terminal = new Bun.Terminal({
@@ -28,6 +30,7 @@ function start(scenario: "quit" | "unavailable" | "handoff"): PtyRun {
       ...process.env,
       LANG: "en_US.UTF-8",
       LC_ALL: "en_US.UTF-8",
+      XDG_CONFIG_HOME: join(import.meta.dir, "fixtures", "empty-config"),
       NO_COLOR: "1",
       TERM: "xterm-256color",
     },
@@ -79,6 +82,17 @@ function occurrences(value: string, needle: string): number {
 }
 
 describe("terminal app real PTY lifecycle", () => {
+  test("Continue brief validation preserves multiline Unicode and rejects paste termination", () => {
+    expect(isContinueBriefTransportSafe("first line\nsegunda línea 漢字")).toBe(true);
+    expect(isContinueBriefTransportSafe("safe\n\u001b[201~injected")).toBe(false);
+  });
+
+  test("destination spawn accepts provider-specific environment without a brief variable", () => {
+    const source = readFileSync(join(import.meta.dir, "..", "ein-pi", "agent", "lib", "terminal-continue-transport.ts"), "utf8");
+    expect(source).toContain("env: options.env");
+    expect(String(runContinueInPty)).not.toMatch(/env[^\n]*brief|brief[^\n]*env/);
+  });
+
   test("quit restores the main screen and exits zero", async () => {
     const run = start("quit");
     try {
@@ -107,19 +121,41 @@ describe("terminal app real PTY lifecycle", () => {
     }
   });
 
-  test("runtime execution begins after release and its exit code propagates", async () => {
+  test("runtime execution begins after release and returns to a quittable dashboard", async () => {
     const run = start("handoff");
     try {
       await run.waitFor("ein-agent");
       run.write("p");
-      expect(await exitWithin(run)).toBe(7);
+      await run.waitFor("code 7");
       const output = run.output();
       expect(output).toContain("HANDOFF:pi:new");
       expect(output.indexOf(ALT_LEAVE)).toBeLessThan(output.indexOf("HANDOFF:pi:new"));
-      expect(occurrences(output, ALT_ENTER)).toBe(1);
-      expect(occurrences(output, ALT_LEAVE)).toBe(1);
+      run.write("q");
+      expect(await exitWithin(run)).toBe(0);
+      expect(occurrences(run.output(), ALT_ENTER)).toBe(2);
+      expect(occurrences(run.output(), ALT_LEAVE)).toBe(2);
     } finally {
       await run.close();
+    }
+  });
+
+  test("queues the first live message until the provider attaches input and leaves the child interactive", async () => {
+    for (const [provider, key, code] of [["pi", "P", 6], ["claude", "C", 8]] as const) {
+      const run = start(`continue-${provider}`);
+      try {
+        await run.waitFor("ein-agent");
+        run.write(key);
+        await run.waitFor(`DELIVERED:${provider}`);
+        expect(run.output()).not.toContain("PRIVATE-BRIEF-CANARY");
+        run.write("x");
+        await run.waitFor(`code ${code}`);
+        run.write("q");
+        expect(await exitWithin(run)).toBe(0);
+        expect(occurrences(run.output(), ALT_ENTER)).toBe(2);
+        expect(occurrences(run.output(), ALT_LEAVE)).toBe(2);
+      } finally {
+        await run.close();
+      }
     }
   });
 });

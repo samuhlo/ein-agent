@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { testRender } from "@opentui/solid";
+// @ts-expect-error The Bun entrypoint shares the package's index.d.ts declarations.
+import { testRender } from "../../../node_modules/@opentui/solid/index.bun.js";
 import { createTerminalAppController, type TerminalAppController, type TerminalAppControllerPorts } from "../../../ein-pi/agent/lib/terminal-app-controller.ts";
 import type { ProjectSummary } from "../../../ein-pi/agent/lib/terminal-app.ts";
-import { DashboardRoot } from "../src/dashboard-root";
+import { TerminalDashboardRoot as DashboardRoot } from "../../../ein-pi/agent/surfaces/terminal-dashboard-root.tsx";
 
 const destroyers: Array<() => void> = [];
 afterEach(() => {
@@ -39,10 +40,10 @@ describe("dashboard Solid reactivity", () => {
     const setup = await testRender(() => <DashboardRoot controller={observed} />, { width: 40, height: 10 });
     destroyers.push(() => setup.renderer.destroy());
     await setup.flush();
-    expect(setup.captureCharFrame()).toContain("> [s]");
+    expect(setup.captureCharFrame()).toContain("▸ [s]");
     source.dispatch({ kind: "key", key: "j" });
     await setup.flush();
-    expect(setup.captureCharFrame()).toContain("> [p]");
+    expect(setup.captureCharFrame()).toContain("▸ [p]");
     expect(publications).toBe(1);
     setup.renderer.destroy();
     source.dispatch({ kind: "key", key: "k" });
@@ -57,7 +58,7 @@ describe("dashboard Solid reactivity", () => {
     setup.resize(100, 40);
     source.dispatch({ kind: "key", key: "\u001b[B" });
     await setup.flush();
-    expect(setup.captureCharFrame()).toContain("No active change");
-    expect(setup.captureCharFrame()).toContain("> [p]");
+    expect(setup.captureCharFrame()).toMatch(/No active change|Sin cambio activo/);
+    expect(setup.captureCharFrame()).toContain("▸ [p]");
   });
 });
