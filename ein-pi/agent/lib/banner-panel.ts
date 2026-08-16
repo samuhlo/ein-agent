@@ -195,3 +195,53 @@ export function renderPanel(data: PanelData, tick: number): readonly PanelLine[]
 	}
 	return lines;
 }
+
+// -----------------------------------------------------------------------------
+// COMPOSICION EN COLUMNAS
+// El banner era una torre: logo (13 filas) + panel (28) = 41, y el modo completo
+// solo exige 30 filas de terminal, asi que se salia por abajo. En paralelo la
+// altura es el maximo de las dos, no la suma, y ademas aprovecha el ancho.
+// -----------------------------------------------------------------------------
+
+// Generico sobre la celda: la columna izquierda la construye el banner con sus
+// propios colores (el ruido del logo no cabe en los tonos del panel), asi que
+// aqui solo se exige que la celda tenga texto.
+export type WidthCell = Readonly<{ text: string }>;
+
+export function lineWidth(line: readonly WidthCell[]): number {
+	let total = 0;
+	for (const cell of line) total += [...cell.text].length;
+	return total;
+}
+
+/**
+ * Pega dos bloques lado a lado. La columna izquierda se rellena hasta
+ * `leftWidth` para que la derecha arranque siempre en la misma columna, aunque
+ * la izquierda aun se este dibujando (la animacion produce lineas cortas).
+ */
+export function composeColumns<L extends WidthCell, R extends WidthCell>(
+	left: readonly (readonly L[])[],
+	leftWidth: number,
+	right: readonly (readonly R[])[],
+	pad: (width: number) => L | R,
+	gutter = 3,
+): readonly (readonly (L | R)[])[] {
+	const height = Math.max(left.length, right.length);
+	// La columna corta se centra en vertical. Con el logo arriba del todo, el
+	// panel dejaba trece filas muertas debajo y la composicion quedaba coja.
+	const offset = Math.max(0, Math.floor((height - left.length) / 2));
+	const out: (L | R)[][] = [];
+	for (let index = 0; index < height; index++) {
+		const leftLine = left[index - offset] ?? [];
+		const rightLine = right[index] ?? [];
+		const gap = Math.max(0, leftWidth - lineWidth(leftLine)) + gutter;
+		const cells: (L | R)[] = [...leftLine, pad(gap)];
+		out.push(rightLine.length ? [...cells, ...rightLine] : cells);
+	}
+	return out;
+}
+
+/** Ancho total que ocuparia el banner en dos columnas. */
+export function composedWidth(leftWidth: number, gutter = 3): number {
+	return leftWidth + gutter + PANEL_W;
+}

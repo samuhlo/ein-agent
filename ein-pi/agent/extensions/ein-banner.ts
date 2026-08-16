@@ -27,7 +27,7 @@ import { join } from "node:path";
 import { AGENT_DIR } from "./ein-paths";
 import { loadPalette, type RGB } from "./ein-brand";
 import { I_RANGE, LOGO_LARGE, LOGO_SMALL, RULE_CH } from "../lib/ein-logo";
-import { PANEL_FRAME_TICKS, PANEL_LEADER_TICKS, PANEL_ROW_TICKS, renderPanel } from "../lib/banner-panel";
+import { PANEL_FRAME_TICKS, PANEL_LEADER_TICKS, PANEL_ROW_TICKS, composeColumns, composedWidth, renderPanel, type PanelTone } from "../lib/banner-panel";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 import { LANG_LABEL, readArtifactLang, readChatLang, type Lang } from "../lib/lang";
 import { TDD_LABEL, readTddMode } from "../lib/tdd";
@@ -267,8 +267,13 @@ class LayoutBuilder {
   }
 }
 
+// El modo completo pinta logo + panel EN DOS COLUMNAS, asi que su minimo es el
+// ancho compuesto real (54 del logo + 3 de calle + 62 del panel = 119), no un
+// 80 heredado de cuando el banner era una torre. Con 80 columnas caia al
+// apilado, que mide 41 filas y se salia por abajo del terminal: ese era el
+// "no llega hasta el fondo".
 const FULL_INTRO_MIN_ROWS = 30;
-const FULL_INTRO_MIN_COLS = 80;
+const FULL_INTRO_MIN_COLS = composedWidth(Math.max(...LOGO_LARGE.map((line) => line.length)));
 const MINIMAL_INTRO_MIN_ROWS = 14;
 const MINIMAL_INTRO_MIN_COLS = 40;
 const RESIZE_DEBOUNCE_MS = 150;
@@ -585,94 +590,82 @@ export default function (pi: ExtensionAPI) {
               }
             };
 
-            // Top margin: the header paints on a cleared screen and the logo
-            // shouldn't hug the terminal edge.
-            b.addRow();
+            // DISPOSICION EN DOS COLUMNAS
+            // Apilado, el banner medía 13 filas de logo + 28 de panel = 41, y el
+            // modo completo solo exige 30 filas de terminal: se salía por abajo.
+            // Lado a lado la altura es el MAXIMO de las dos columnas, no la suma,
+            // y de paso aprovecha el ancho en vez de crecer hacia abajo.
+            type Cell = { text: string; color?: RGB; bg?: RGB; bold?: boolean; dim?: boolean };
+            const left: Cell[][] = [];
 
-            // Logo: per-cell materialize (░▒▓█), then the I stamps yellow.
+            // Logo: materialize por celda; la I sella en amarillo al final.
             for (let y = 0; y < logoBase.lines.length; y++) {
               const logoLine = logoBase.lines[y];
-              b.addRow();
+              const row: Cell[] = [];
               for (let x = 0; x < logoLine.length; x++) {
                 const ch = logoLine[x];
-                if (ch === " ") {
-                  b.add(" ");
-                  continue;
-                }
+                if (ch === " ") { row.push({ text: " " }); continue; }
                 const cell = noiseCell(ch, tick - cellDelay(x, y), CONCRETE);
-                if (!cell) {
-                  b.add(" ");
-                  continue;
-                }
+                if (!cell) { row.push({ text: " " }); continue; }
                 const settled = cell.char === ch;
                 if (settled && tick >= STAMP_TICK && x >= iRange.start && x <= iRange.end) {
-                  b.add(ch, YELLOW, { bold: tick < STAMP_TICK + STAMP_HOLD });
+                  row.push({ text: ch, color: YELLOW, bold: tick < STAMP_TICK + STAMP_HOLD });
                 } else {
-                  b.add(cell.char, cell.color, { bold: cell.bold, dim: cell.dim });
+                  row.push({ text: cell.char, color: cell.color, bold: cell.bold, dim: cell.dim });
                 }
               }
-              b.center(width);
+              left.push(row);
             }
 
-            // Structural rule, drawn from the center outward (nothing before
-            // its phase starts).
+            // Regla estructural, abriéndose desde el centro.
             {
-              b.addRow();
-              const prog =
-                tick < RULE_START_TICK
-                  ? -1
-                  : Math.min(1, (tick - RULE_START_TICK) / Math.max(1, RULE_END_TICK - RULE_START_TICK));
+              const prog = tick < RULE_START_TICK
+                ? -1
+                : Math.min(1, (tick - RULE_START_TICK) / Math.max(1, RULE_END_TICK - RULE_START_TICK));
               const half = Math.floor((logoBase.width / 2) * prog);
               const center = Math.floor(logoBase.width / 2);
+              const row: Cell[] = [];
               for (let x = 0; x < logoBase.width; x++) {
-                if (prog >= 0 && Math.abs(x - center) <= half) b.add(RULE_CH, STRUCTURE);
-                else b.add(" ");
+                row.push(prog >= 0 && Math.abs(x - center) <= half
+                  ? { text: RULE_CH, color: STRUCTURE }
+                  : { text: " " });
               }
-              b.center(width);
+              left.push(row);
             }
 
-            // Subtitle: typewriter; the leading dot is yellow like the wordmark.
+            // Subtítulo a máquina de escribir; el punto inicial en amarillo.
             {
-              b.addRow();
               const pad = Math.max(0, Math.floor((logoBase.width - SUBTITLE.length) / 2));
               const reveal = Math.floor((tick - SUB_START_TICK) * 2);
+              const row: Cell[] = [];
               for (let x = 0; x < logoBase.width; x++) {
                 const i = x - pad;
                 const ch = i >= 0 && i < SUBTITLE.length ? SUBTITLE[i] : " ";
                 if (i < 0 || i >= SUBTITLE.length || ch === " " || tick < SUB_START_TICK || i > reveal) {
-                  b.add(" ");
+                  row.push({ text: " " });
                   continue;
                 }
-                b.add(ch, i === 0 ? YELLOW : STRUCTURE, { bold: i === 0 });
+                row.push({ text: ch!, color: i === 0 ? YELLOW : STRUCTURE, bold: i === 0 });
               }
-              b.center(width);
+              left.push(row);
             }
 
             if (state.mode === "full") {
               const fit = (v: unknown, w: number) =>
-                String(v ?? "")
-                  .replace(/\s+/g, " ")
-                  .trim()
-                  .slice(0, w);
+                String(v ?? "").replace(/\s+/g, " ").trim().slice(0, w);
 
-              b.addRow();
-              b.center(width);
+              // La placa de versión viaja con el logo, a la izquierda: es
+              // identidad, no un dato mas del panel.
+              const plate = ` EIN ${einVersion} `;
+              const platePad = Math.max(0, Math.floor((logoBase.width - plate.length - 12) / 2));
+              left.push([]);
+              left.push([
+                { text: " ".repeat(platePad) },
+                { text: plate, color: CARBON, bg: YELLOW, bold: true },
+                { text: "  " },
+                { text: `PI v${VERSION}`, color: STRUCTURE },
+              ]);
 
-              // Version plate: yellow block tag (carbon text) + pi version.
-              {
-                b.addRow();
-                b.add(` EIN ${einVersion} `, CARBON, { bg: YELLOW, bold: true });
-                b.add("  ");
-                b.add(`PI v${VERSION}`, STRUCTURE);
-                b.center(width);
-              }
-
-              b.addRow();
-              b.center(width);
-
-              // PANEL DE ESTADO — la geometria y la animacion viven en
-              // `lib/banner-panel.ts` (modulo puro). Aqui solo se traduce cada
-              // celda a los colores de marca y se centra.
               const isOn = (label: string) => Boolean(label) && !/^(off|no|desactivad)/i.test(label);
               const gitFields = renderGitBannerRows(gitController.getSnapshot(), gitLang, width)
                 .flatMap((gitRow) =>
@@ -683,78 +676,80 @@ export default function (pi: ExtensionAPI) {
                 );
 
               const panelData = {
-                plate: ` EIN ${einVersion} `,
-                right: `PI v${VERSION}`,
+                plate: " ESTADO ",
+                right: shortenHome(ctx.cwd),
                 sections: [
-                  {
-                    kind: "fields" as const,
-                    title: "SISTEMA",
-                    fields: [
-                      { label: "AGENTES", value: `${agentsCount}` },
-                      { label: "EXTENSIONES", value: `${extensionsCount}` },
-                      { label: "TOOLS", value: `${toolsCount}` },
-                      { label: "SKILLS", value: `${skillsCount}` },
-                      { label: "MCP", value: `${mcpServersCount} srv` },
-                    ],
-                  },
-                  {
-                    kind: "fields" as const,
-                    title: "SESION",
-                    fields: [
-                      { label: "MODO", value: fit(modeLabel, 24) },
-                      { label: "PERSONA", value: fit(personaLabel, 24) },
-                      { label: "IDIOMA", value: langChat === langArtifact ? langChat : `${langChat} / ${langArtifact}` },
-                      { label: "TDD", value: fit(tddLabel, 24) },
-                    ],
-                  },
-                  {
-                    kind: "chips" as const,
-                    label: "ACTIVO",
-                    chips: [
-                      { text: "hypa", on: isOn(hypaLabel) },
-                      { text: "codegraph", on: isOn(cgLabel) },
-                      { text: "cleaner", on: isOn(cleanerLabel) },
-                      { text: "architect", on: isOn(architectLabel) },
-                    ],
-                  },
-                  {
-                    kind: "fields" as const,
-                    title: "REPO",
-                    fields: [{ label: "PROYECTO", value: shortenHome(ctx.cwd) }, ...gitFields],
-                  },
+                  { kind: "fields" as const, title: "SISTEMA", fields: [
+                    { label: "AGENTES", value: `${agentsCount}` },
+                    { label: "EXTENSIONES", value: `${extensionsCount}` },
+                    { label: "TOOLS", value: `${toolsCount}` },
+                    { label: "SKILLS", value: `${skillsCount}` },
+                    { label: "MCP", value: `${mcpServersCount} srv` } ] },
+                  { kind: "fields" as const, title: "SESION", fields: [
+                    { label: "MODO", value: fit(modeLabel, 24) },
+                    { label: "PERSONA", value: fit(personaLabel, 24) },
+                    { label: "IDIOMA", value: langChat === langArtifact ? langChat : `${langChat} / ${langArtifact}` },
+                    { label: "TDD", value: fit(tddLabel, 24) } ] },
+                  { kind: "chips" as const, label: "ACTIVO", chips: [
+                    { text: "hypa", on: isOn(hypaLabel) },
+                    { text: "codegraph", on: isOn(cgLabel) },
+                    { text: "cleaner", on: isOn(cleanerLabel) },
+                    { text: "architect", on: isOn(architectLabel) } ] },
+                  { kind: "fields" as const, title: "REPO", fields: gitFields },
                   ...(recentSessions.length
-                    ? [
-                        {
-                          kind: "loose" as const,
-                          fields: [
-                            ...recentSessions.map((session, index) => ({
-                              label: index === 0 ? "RECIENTES" : "",
-                              value: session.project,
-                              trail: humanizeAge(session.ageMs),
-                            })),
-                            { label: "", value: "pi -c continuar / pi -r elegir / /ein:resume", note: true },
-                          ],
-                        },
-                      ]
+                    ? [{ kind: "loose" as const, fields: [
+                        ...recentSessions.map((session, index) => ({
+                          label: index === 0 ? "RECIENTES" : "",
+                          value: session.project,
+                          trail: humanizeAge(session.ageMs),
+                        })),
+                        { label: "", value: "pi -c continuar / pi -r elegir / /ein:resume", note: true },
+                      ] }]
                     : []),
                 ],
               };
 
-              const TONE = { frame: YELLOW, label: STRUCTURE, value: CONCRETE, plate: CARBON, dim: STRUCTURE, accent: YELLOW };
-              for (const line of renderPanel(panelData, tick - PANEL_START_TICK)) {
+              const TONE: Record<PanelTone, RGB> = {
+                frame: YELLOW, label: STRUCTURE, value: CONCRETE, plate: CARBON, dim: STRUCTURE, accent: YELLOW,
+              };
+              const panel: Cell[][] = renderPanel(panelData, tick - PANEL_START_TICK).map((line) =>
+                line.map((cell) => ({
+                  text: cell.text,
+                  color: TONE[cell.tone],
+                  ...(cell.tone === "plate" ? { bg: YELLOW } : {}),
+                  ...(cell.bold ? { bold: true } : {}),
+                  ...(cell.tone === "dim" ? { dim: true } : {}),
+                })),
+              );
+
+              // Lado a lado solo si el terminal da de sí; si no, apilado, que es
+              // lo que cabe en un terminal estrecho.
+              const rows = width >= composedWidth(logoBase.width)
+                ? composeColumns<Cell, Cell>(left, logoBase.width, panel, (gap) => ({ text: " ".repeat(gap) }))
+                : [...left, [], ...panel];
+
+              for (const row of rows) {
                 b.addRow();
-                for (const cell of line) {
-                  b.add(cell.text, TONE[cell.tone], {
-                    ...(cell.tone === "plate" ? { bg: YELLOW } : {}),
+                for (const cell of row) {
+                  b.add(cell.text, cell.color, {
+                    ...(cell.bg ? { bg: cell.bg } : {}),
                     ...(cell.bold ? { bold: true } : {}),
-                    ...(cell.tone === "dim" ? { dim: true } : {}),
+                    ...(cell.dim ? { dim: true } : {}),
                   });
                 }
                 b.center(width);
               }
-
-              b.addRow();
-              b.center(width);
+            } else {
+              for (const row of left) {
+                b.addRow();
+                for (const cell of row) {
+                  b.add(cell.text, cell.color, {
+                    ...(cell.bold ? { bold: true } : {}),
+                    ...(cell.dim ? { dim: true } : {}),
+                  });
+                }
+                b.center(width);
+              }
             }
 
             if (state.mode === "minimal") addGitBannerRows();

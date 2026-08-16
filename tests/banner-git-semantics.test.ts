@@ -346,7 +346,13 @@ describe("ein-banner Git adapter", () => {
 		expect(bannerSource).toContain("const tui = headerActive ? activeTui : null;");
 		expect(bannerSource).toContain("gitController.invalidate();");
 		expect(bannerSource).toContain("const FULL_INTRO_MIN_ROWS = 30;");
-		expect(bannerSource).toContain('{ label: "PROYECTO", value: shortenHome(ctx.cwd) }');
+		// La ruta del proyecto vive en la cabecera del panel, a la derecha de la
+		// pestana ESTADO: es contexto, no un dato mas de la lista.
+		expect(bannerSource).toContain("right: shortenHome(ctx.cwd)");
+		// Dos columnas: logo a la izquierda, panel a la derecha. Apilado medía 41
+		// filas y se salia por abajo de un terminal de 30.
+		expect(bannerSource).toContain("width >= composedWidth(logoBase.width)");
+		expect(bannerSource).toContain("composeColumns<Cell, Cell>(left, logoBase.width, panel");
 		expect(bannerSource).toContain('label: index === 0 ? "RECIENTES" : ""');
 	});
 
