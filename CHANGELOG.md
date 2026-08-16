@@ -5,6 +5,23 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.62.1] - 2026-08-17
+
+### Fixed
+
+- **El recuadro del banner ya cierra por abajo**: la animación duraba más que su
+  propio tope de tiempo, así que el corte llegaba antes de dibujar el borde
+  inferior. El panel arranca ahora solapado con el final del logo y el margen de
+  seguridad pasa de dos décimas a dos segundos y medio.
+- **El logo deja de saltar de sitio**: se dibujaba centrado en pantalla mientras
+  el panel no existía y se recolocaba al aparecer la caja. Ahora nace
+  directamente en su posición final, sin recolocación intermedia.
+- **El banner respira**: una fila de aire arriba y otra abajo en lugar de quedar
+  pegado al borde.
+- **El diagnóstico del instalador ya no se sale del recuadro**: el marco era fijo
+  y las rutas y motivos largos se recortaban a mitad de palabra. Ahora se adapta
+  al ancho del terminal.
+
 ## [0.62.0] - 2026-08-17
 
 ### Changed
