@@ -77,7 +77,7 @@ import {
 	applySavedModelConfig,
 	modelConfigPath,
 } from "../lib/model-config.ts";
-import { handleModelsCommand } from "./models-panel.ts";
+import { handleModelsCommand } from "./internal/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
 import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";

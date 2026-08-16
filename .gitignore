@@ -23,12 +23,14 @@ ein-pi/agent/bin/
 # === Ruido de herramientas ===
 .claude/
 .DS_Store
+# Fuera del bloque autogestionado: el runtime lo reescribe entero y se lleva
+# por delante cualquier entrada que se añada dentro.
+/.atl/
+/.ein/
 
 # === Ein / Pi runtime (auto-gestionado, no editar) ===
 .pi/ein/
 .piagents/
 .pi-subagents/
 .codegraph/
-/.atl/
-/.ein/continuity.json
 # === fin Ein / Pi runtime ===

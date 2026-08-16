@@ -7,7 +7,7 @@
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
-import { loadPalette } from "./ein-brand";
+import { loadPalette } from "../ein-brand";
 import {
 	type AgentModelConfig,
 	type ThinkingLevel,
@@ -22,8 +22,8 @@ import {
 	readSavedModelConfigAsync,
 	updateGlobalDefaultModel,
 	writeModelConfig,
-} from "../lib/model-config";
-import { t, tf } from "../lib/i18n/strings";
+} from "../../lib/model-config";
+import { t, tf } from "../../lib/i18n/strings";
 
 const KEEP_CURRENT = t("models.keep_current", "Mantener actual");
 const INHERIT_MODEL = t("models.inherit_model", "Heredar modelo activo/por defecto");
