@@ -1,11 +1,13 @@
 // =============================================================================
-// EIN BANNER — brutalist industrial intro
-// Brand: Carbon #0C0011 · Concrete White #FAF3F0 · Structure Gray #737373 ·
-// Industrial Yellow #FFCA40. Flat color, no metallic gradients: the logo is
-// concrete with the I in yellow (like the brand wordmark's yellow glyph),
-// a structural rule, and a spec plate grouped by KIND (cargado / sesion /
-// activo / proyecto) con etiqueta gris y valor concreto. El amarillo es acento:
-// vive en la I del logo y en la placa de version, no en cada fila.
+// EIN BANNER — intro de arranque, estetica de 16 bits
+// Paleta: Carbon #0C0011 · Concrete #FAF3F0 · Structure #737373 · Yellow
+// #FFCA40. Blanco y amarillo mandan. El logo materializa en concreto y la I
+// sella en amarillo; despues abre una VENTANA DE ESTADO estilo menu de SNES:
+// marco doble, pestanas de seccion invertidas y lineas de puntos que llevan
+// cada etiqueta hasta su valor.
+//
+// La geometria y la animacion del panel viven en `lib/banner-panel.ts` (modulo
+// puro y testeable). Aqui solo se traducen sus celdas a color y se centran.
 // =============================================================================
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -25,6 +27,7 @@ import { join } from "node:path";
 import { AGENT_DIR } from "./ein-paths";
 import { loadPalette, type RGB } from "./ein-brand";
 import { I_RANGE, LOGO_LARGE, LOGO_SMALL, RULE_CH } from "../lib/ein-logo";
+import { PANEL_FRAME_TICKS, PANEL_LEADER_TICKS, PANEL_ROW_TICKS, renderPanel } from "../lib/banner-panel";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 import { LANG_LABEL, readArtifactLang, readChatLang, type Lang } from "../lib/lang";
 import { TDD_LABEL, readTddMode } from "../lib/tdd";
@@ -392,7 +395,22 @@ export default function (pi: ExtensionAPI) {
     const RULE_END_TICK = RULE_START_TICK + 6;
     const SUB_START_TICK = RULE_END_TICK - 2;
     const SUB_END_TICK = SUB_START_TICK + Math.ceil(SUBTITLE.length / 2);
-    const FINISH_TICK = SUB_END_TICK + 4;
+    // ── Fases del panel de estado (estilo ventana de RPG de 16 bits) ──────────
+    // El marco se dibuja solo: el borde superior barre de izquierda a derecha,
+    // los laterales bajan, y el inferior cierra. Luego cada sección "abre" y sus
+    // filas se rellenan con la línea de puntos que lleva la etiqueta al valor.
+    const PANEL_START_TICK = SUB_END_TICK + 2;
+    const PANEL_FRAME_TICKS = 8; // barrido del marco
+    const PANEL_ROW_TICKS = 2; // retardo entre filas al abrirse
+    const PANEL_LEADER_TICKS = 5; // relleno de la línea de puntos por fila
+    // El panel abre despues del subtitulo y tarda: marco + una fila cada
+    // PANEL_ROW_TICKS + el relleno de la ultima linea de puntos. Sin contarlo,
+    // FINISH_TICK cortaba la animacion a mitad y el panel salia incompleto.
+    // Cota superior de filas del panel (secciones + campos + huecos).
+    const PANEL_MAX_ROWS = 26;
+    const PANEL_END_TICK =
+      PANEL_START_TICK + PANEL_FRAME_TICKS + PANEL_MAX_ROWS * PANEL_ROW_TICKS + PANEL_LEADER_TICKS;
+    const FINISH_TICK = Math.max(SUB_END_TICK + 4, PANEL_END_TICK);
 
     const [einVersion, extensionsCount, agentsCount] = await Promise.all([
       readEinVersion(AGENT_DIR),
@@ -652,83 +670,86 @@ export default function (pi: ExtensionAPI) {
               b.addRow();
               b.center(width);
 
-              // PLACA DE SPECS — agrupada, no una rejilla de 14 celdas iguales.
-              //
-              // Antes: 14 celdas en 3 columnas, cada una con su `■` amarillo. Dos
-              // problemas. (1) El amarillo es el ACENTO de la marca; repetido 14
-              // veces deja de acentuar nada y el ojo no encuentra dónde mirar.
-              // (2) Mezclaba tres clases de información — qué se cargó, cómo está
-              // configurada la sesión y qué integraciones están vivas — con el
-              // mismo peso visual y abreviaturas crípticas (ARTF, CGRAPH, ARCH).
-              //
-              // Ahora: una etiqueta de grupo por línea en gris estructura y los
-              // valores en concreto, separados por `·`. Cuatro puntos de entrada
-              // en vez de catorce. El amarillo queda para la placa de versión y
-              // para lo que pide atención.
-              const L = 10; // ancho de la etiqueta de grupo
-              const GRID_W = 58; // ancho útil de la placa
-              const VALUE_W = GRID_W - L;
+              // PANEL DE ESTADO — la geometria y la animacion viven en
+              // `lib/banner-panel.ts` (modulo puro). Aqui solo se traduce cada
+              // celda a los colores de marca y se centra.
+              const isOn = (label: string) => Boolean(label) && !/^(off|no|desactivad)/i.test(label);
+              const gitFields = renderGitBannerRows(gitController.getSnapshot(), gitLang, width)
+                .flatMap((gitRow) =>
+                  gitRow.value.split(" \u21b5 ").map((value, index) => ({
+                    label: index === 0 ? gitRow.label.toUpperCase() : "",
+                    value,
+                  })),
+                );
 
-              // Una fila de grupo: etiqueta gris + valor concreto, recortado al
-              // ancho de la placa para que el centrado no se descuadre nunca.
-              const groupRow = (label: string, value: string, tone = CONCRETE): void => {
-                if (!value) return;
-                b.addRow();
-                b.add(label.padEnd(L), STRUCTURE);
-                b.add(fit(value, VALUE_W).padEnd(VALUE_W), tone);
-                b.center(width);
+              const panelData = {
+                plate: ` EIN ${einVersion} `,
+                right: `PI v${VERSION}`,
+                sections: [
+                  {
+                    kind: "fields" as const,
+                    title: "SISTEMA",
+                    fields: [
+                      { label: "AGENTES", value: `${agentsCount}` },
+                      { label: "EXTENSIONES", value: `${extensionsCount}` },
+                      { label: "TOOLS", value: `${toolsCount}` },
+                      { label: "SKILLS", value: `${skillsCount}` },
+                      { label: "MCP", value: `${mcpServersCount} srv` },
+                    ],
+                  },
+                  {
+                    kind: "fields" as const,
+                    title: "SESION",
+                    fields: [
+                      { label: "MODO", value: fit(modeLabel, 24) },
+                      { label: "PERSONA", value: fit(personaLabel, 24) },
+                      { label: "IDIOMA", value: langChat === langArtifact ? langChat : `${langChat} / ${langArtifact}` },
+                      { label: "TDD", value: fit(tddLabel, 24) },
+                    ],
+                  },
+                  {
+                    kind: "chips" as const,
+                    label: "ACTIVO",
+                    chips: [
+                      { text: "hypa", on: isOn(hypaLabel) },
+                      { text: "codegraph", on: isOn(cgLabel) },
+                      { text: "cleaner", on: isOn(cleanerLabel) },
+                      { text: "architect", on: isOn(architectLabel) },
+                    ],
+                  },
+                  {
+                    kind: "fields" as const,
+                    title: "REPO",
+                    fields: [{ label: "PROYECTO", value: shortenHome(ctx.cwd) }, ...gitFields],
+                  },
+                  ...(recentSessions.length
+                    ? [
+                        {
+                          kind: "loose" as const,
+                          fields: [
+                            ...recentSessions.map((session, index) => ({
+                              label: index === 0 ? "RECIENTES" : "",
+                              value: session.project,
+                              trail: humanizeAge(session.ageMs),
+                            })),
+                            { label: "", value: "pi -c continuar / pi -r elegir / /ein:resume", note: true },
+                          ],
+                        },
+                      ]
+                    : []),
+                ],
               };
 
-              // Lo que está vivo se NOMBRA; lo apagado no ocupa sitio. Una lista
-              // de cuatro "off" no es información, es ruido.
-              const activo = [
-                hypaLabel && !/^(off|no|desactivad)/i.test(hypaLabel) ? "hypa" : "",
-                cgLabel && !/^(off|no|desactivad)/i.test(cgLabel) ? "codegraph" : "",
-                cleanerLabel && !/^(off|no|desactivad)/i.test(cleanerLabel) ? "cleaner" : "",
-                architectLabel && !/^(off|no|desactivad)/i.test(architectLabel) ? "architect" : "",
-              ].filter(Boolean).join(" · ");
-
-              groupRow("CARGADO", [
-                `${agentsCount} agentes`,
-                `${extensionsCount} extensiones`,
-                `${toolsCount} tools`,
-                `${skillsCount} skills`,
-                `${mcpServersCount} mcp`,
-              ].join(" · "));
-
-              groupRow("SESIÓN", [
-                fit(modeLabel, 14),
-                `persona ${fit(personaLabel, 12)}`,
-                langChat === langArtifact ? `idioma ${fit(langChat, 10)}` : `${fit(langChat, 8)}/${fit(langArtifact, 8)}`,
-                `tdd ${fit(tddLabel, 12)}`,
-              ].filter(Boolean).join(" · "));
-
-              groupRow("ACTIVO", activo || "nada extra", activo ? CONCRETE : STRUCTURE);
-
-              groupRow("PROYECTO", shortenHome(ctx.cwd));
-
-              addGitBannerRows();
-
-              // Recent sessions (distinct projects) + resume hint. Rows are
-              // padded to GRID_W so they left-align with the spec grid.
-              if (recentSessions.length) {
+              const TONE = { frame: YELLOW, label: STRUCTURE, value: CONCRETE, plate: CARBON, dim: STRUCTURE, accent: YELLOW };
+              for (const line of renderPanel(panelData, tick - PANEL_START_TICK)) {
                 b.addRow();
-                b.center(width);
-                // Misma columna que los grupos: la etiqueta a la izquierda y los
-                // proyectos alineados con los valores de arriba, no un bloque
-                // aparte con su propio marcador.
-                for (const [index, s] of recentSessions.entries()) {
-                  b.addRow();
-                  b.add((index === 0 ? "RECIENTES" : "").padEnd(L), STRUCTURE);
-                  const age = humanizeAge(s.ageMs);
-                  const label = fit(s.project, VALUE_W - age.length - 2);
-                  b.add(label, CONCRETE);
-                  b.add(age.padStart(VALUE_W - label.length), STRUCTURE);
-                  b.center(width);
+                for (const cell of line) {
+                  b.add(cell.text, TONE[cell.tone], {
+                    ...(cell.tone === "plate" ? { bg: YELLOW } : {}),
+                    ...(cell.bold ? { bold: true } : {}),
+                    ...(cell.tone === "dim" ? { dim: true } : {}),
+                  });
                 }
-                b.addRow();
-                b.add("".padEnd(L));
-                b.add("pi -c continuar · pi -r elegir · /ein:resume".padEnd(VALUE_W), STRUCTURE, { dim: true });
                 b.center(width);
               }
 

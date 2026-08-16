@@ -324,13 +324,19 @@ describe("ein-banner Git adapter", () => {
 		const fullBranch = renderBody.slice(renderBody.indexOf('if (state.mode === "full")'), renderBody.indexOf('if (state.mode === "minimal")'));
 		const minimalBranch = renderBody.slice(renderBody.indexOf('if (state.mode === "minimal")'));
 
-		for (const [cols, branch] of [[80, fullBranch], [60, minimalBranch], [40, minimalBranch]] as const) {
-			expect(branch).toContain("addGitBannerRows()");
+		// En modo completo las filas de git entran DENTRO del panel, en su misma
+		// rejilla — ese era el arreglo: antes se pintaban aparte y no alineaban.
+		// En modo minimo no hay panel, asi que siguen saliendo sueltas.
+		expect(fullBranch).toContain("renderGitBannerRows(gitController.getSnapshot(), gitLang, width)");
+		expect(fullBranch).toContain("renderPanel(panelData");
+		expect(fullBranch).not.toContain("addGitBannerRows()");
+		expect(minimalBranch).toContain("addGitBannerRows()");
+		for (const cols of [80, 60, 40]) {
 			expect(renderGitBannerRows(snapshot(), "en", cols).map((row) => row.label)).toEqual(["HEAD", "LOCAL", "UPSTREAM"]);
 		}
 		expect(bannerSource).toContain("const MINIMAL_INTRO_MIN_COLS = 40;");
 		expect(bannerSource).toContain('if (state.mode === "skip") return [];');
-		expect(renderBody.match(/addGitBannerRows\(\)/g)).toHaveLength(2);
+		expect(renderBody.match(/addGitBannerRows\(\)/g)).toHaveLength(1);
 		expect(renderBody).not.toMatch(/gitController\.refresh|gitProcessRunner\.run/);
 	});
 
@@ -340,32 +346,27 @@ describe("ein-banner Git adapter", () => {
 		expect(bannerSource).toContain("const tui = headerActive ? activeTui : null;");
 		expect(bannerSource).toContain("gitController.invalidate();");
 		expect(bannerSource).toContain("const FULL_INTRO_MIN_ROWS = 30;");
-		expect(bannerSource).toContain('groupRow("PROYECTO", shortenHome(ctx.cwd));');
-		expect(bannerSource).toContain('b.add((index === 0 ? "RECIENTES" : "").padEnd(L), STRUCTURE);');
+		expect(bannerSource).toContain('{ label: "PROYECTO", value: shortenHome(ctx.cwd) }');
+		expect(bannerSource).toContain('label: index === 0 ? "RECIENTES" : ""');
 	});
 
 	test("renders project automatic Cleaner and Architect state in a centered partial row", () => {
 		expect(bannerSource).toContain('readProjectAgentControlStatus(ctx.cwd, "cleaner")');
 		expect(bannerSource).toContain('readProjectAgentControlStatus(ctx.cwd, "architect")');
-		// Cleaner y Architect ya no son dos celdas de una rejilla de 14: se
-		// nombran en la fila ACTIVO solo cuando están encendidos.
-		expect(bannerSource).toContain('groupRow("ACTIVO", activo || "nada extra"');
-		expect(bannerSource).toContain('cleanerLabel && !/^(off|no|desactivad)/i.test(cleanerLabel) ? "cleaner" : ""');
-		expect(bannerSource).toContain('architectLabel && !/^(off|no|desactivad)/i.test(architectLabel) ? "architect" : ""');
+		// Cleaner y Architect son dos fichas de la seccion ACTIVO: encendidas en
+		// amarillo, apagadas en hueco. Se muestran siempre — saber que existen y
+		// estan off es informacion; una rejilla de catorce celdas iguales no.
+		expect(bannerSource).toContain('{ text: "cleaner", on: isOn(cleanerLabel) }');
+		expect(bannerSource).toContain('{ text: "architect", on: isOn(architectLabel) }');
+		expect(bannerSource).toContain('const isOn = (label: string) =>');
 		expect(bannerSource).toContain("const cleanerLabel = agentAutomaticParticipationLabel(");
 
-		// REDISEÑO -> la placa era una rejilla de 14 celdas, todas con el mismo
-		// `■` amarillo: el acento de marca repetido 14 veces deja de acentuar, y
-		// mezclaba tres clases de dato con el mismo peso. Ahora son cuatro grupos
-		// (qué se cargó, cómo está la sesión, qué está activo, dónde), con la
-		// etiqueta en gris y el valor en concreto.
-		const plate = bannerSource.slice(bannerSource.indexOf("const groupRow ="), bannerSource.indexOf("addGitBannerRows();"));
-		expect(plate.match(/groupRow\("[A-ZÓ]+"/g)).toHaveLength(4);
+		// La placa tiene cuatro secciones nombradas y ya no reparte un marcador
+		// amarillo por fila: el acento vive en el marco y en las pestanas.
+		const plate = bannerSource.slice(bannerSource.indexOf("const panelData ="), bannerSource.indexOf("const TONE ="));
+		for (const title of ["SISTEMA", "SESION", "REPO"]) expect(plate).toContain(`title: "${title}"`);
+		expect(plate).toContain('label: "ACTIVO"');
 		expect(plate).not.toContain('b.add("■ ", YELLOW)');
-		// Defensivo: un valor vacío nunca debe pintar una fila muda ni tumbar el
-		// banner — un crash aquí se lleva por delante el arranque de Pi.
-		expect(plate).toContain("if (!value) return;");
-		expect(plate).toContain("b.center(width);");
 	});
 });
 
