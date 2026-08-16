@@ -16,6 +16,7 @@ import {
   buildLaunchPlan,
   createRuntimeSessionAdapter,
   executeLaunchPlan,
+  type LaunchPlan,
   type RuntimeProvider,
 } from "../lib/runtime-session-adapters.ts";
 import { collectRuntimeSessions, type RuntimeSessionList } from "../lib/runtime-sessions.ts";
@@ -165,7 +166,7 @@ export function createTerminalAppControllerFactoryForCwd(
     runtimeAvailable: (provider) => localExecutableAvailable(provider),
   });
   const continueLaunch = options.runtime?.continue
-    ?? ((provider: RuntimeProvider, brief: string) => runContinueInPty({ cwd, provider, brief }));
+    ?? ((provider: RuntimeProvider, brief: string) => productionContinue(cwd, provider, brief));
   const runCommand = options.run ?? productionRun;
   const readSummary = options.summary
     ?? ((root: string, change?: string) =>
@@ -473,22 +474,54 @@ function productionSessions(cwd: string): RuntimeSessionList {
  * them. Its only addition is telling apart "the runtime ran" from "the runtime
  * is not installed", which the app needs in order to stay alive.
  */
+/**
+ * The adapter owns executable trust and the isolated runtime environment, so
+ * every spawn path resolves through it. Continue used to spawn a bare `pi` with
+ * the app's own environment, which lacks `PI_CODING_AGENT_DIR` and therefore
+ * started vanilla Pi instead of Ein.
+ */
+function productionLaunchPlan(
+  cwd: string,
+  provider: RuntimeProvider,
+  reference?: string,
+): { ok: true; plan: LaunchPlan } | { ok: false; outcome: LaunchOutcome } {
+  const state = projectProjectState({ cwd });
+  const adapter = createRuntimeSessionAdapter(provider);
+  const intent = reference ? adapter.resume(state, reference) : adapter.create(state);
+  if (intent.outcome !== "success") {
+    return { ok: false, outcome: { kind: "unavailable", reason: intent.error?.code ?? intent.outcome } };
+  }
+  const plan = buildLaunchPlan(state, intent.data);
+  if (plan.outcome !== "success") {
+    return { ok: false, outcome: { kind: "unavailable", reason: plan.error?.code ?? plan.outcome } };
+  }
+  return { ok: true, plan: plan.data };
+}
+
+async function productionContinue(
+  cwd: string,
+  provider: RuntimeProvider,
+  brief: string,
+): Promise<LaunchOutcome> {
+  const resolved = productionLaunchPlan(cwd, provider);
+  if (!resolved.ok) return resolved.outcome;
+  return runContinueInPty({
+    cwd,
+    provider,
+    brief,
+    command: [resolved.plan.executable, ...resolved.plan.argv],
+    env: resolved.plan.env,
+  });
+}
+
 async function productionLaunch(
   cwd: string,
   provider: RuntimeProvider,
   reference?: string,
 ): Promise<LaunchOutcome> {
-  const state = projectProjectState({ cwd });
-  const adapter = createRuntimeSessionAdapter(provider);
-  const intent = reference ? adapter.resume(state, reference) : adapter.create(state);
-  if (intent.outcome !== "success") {
-    return { kind: "unavailable", reason: intent.error?.code ?? intent.outcome };
-  }
-  const plan = buildLaunchPlan(state, intent.data);
-  if (plan.outcome !== "success") {
-    return { kind: "unavailable", reason: plan.error?.code ?? plan.outcome };
-  }
-  const executed = await executeLaunchPlan(plan.data);
+  const resolved = productionLaunchPlan(cwd, provider, reference);
+  if (!resolved.ok) return resolved.outcome;
+  const executed = await executeLaunchPlan(resolved.plan);
   if (executed.outcome === "success") return { kind: "exited", code: 0 };
   if (executed.outcome === "unavailable") {
     return { kind: "unavailable", reason: executed.error?.code ?? "unavailable" };

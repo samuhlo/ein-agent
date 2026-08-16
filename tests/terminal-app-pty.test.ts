@@ -89,7 +89,11 @@ describe("terminal app real PTY lifecycle", () => {
 
   test("destination spawn accepts provider-specific environment without a brief variable", () => {
     const source = readFileSync(join(import.meta.dir, "..", "ein-pi", "agent", "lib", "terminal-continue-transport.ts"), "utf8");
-    expect(source).toContain("env: options.env");
+    expect(source).toContain("env: spawnEnvironment(options)");
+    // El destino hereda el entorno pero nunca la configuración del OTRO runtime:
+    // spawnear `pi` sin PI_CODING_AGENT_DIR arrancaba Pi vanilla en vez de Ein.
+    expect(source).toContain("delete environment.CLAUDE_CONFIG_DIR");
+    expect(source).toContain("delete environment.PI_CODING_AGENT_DIR");
     expect(String(runContinueInPty)).not.toMatch(/env[^\n]*brief|brief[^\n]*env/);
   });
 

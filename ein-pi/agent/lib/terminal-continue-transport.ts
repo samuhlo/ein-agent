@@ -21,6 +21,19 @@ export type ContinuePtyOptions = Readonly<{
 }>;
 
 /**
+ * Los overrides se aplican sobre el entorno heredado — pasarlos crudos borraría
+ * PATH y HOME — y el destino nunca hereda la configuración del OTRO runtime,
+ * misma regla de aislamiento que aplica el relevo de Claude.
+ */
+function spawnEnvironment(options: ContinuePtyOptions): NodeJS.ProcessEnv | undefined {
+	if (!options.env) return undefined;
+	const environment: NodeJS.ProcessEnv = { ...process.env };
+	if (options.provider === "pi") delete environment.CLAUDE_CONFIG_DIR;
+	else { delete environment.PI_CODING_AGENT_DIR; delete environment.EIN_PI_AGENT_HOME; }
+	return Object.assign(environment, options.env);
+}
+
+/**
  * DECSET 2004 queues delivery until the provider installs and runs its input handler.
  */
 export async function runContinueInPty(options: ContinuePtyOptions): Promise<LaunchOutcome> {
@@ -58,7 +71,7 @@ export async function runContinueInPty(options: ContinuePtyOptions): Promise<Lau
   try {
     let child: ReturnType<typeof Bun.spawn>;
     try {
-      child = Bun.spawn([...(options.command ?? [options.provider])], { cwd: options.cwd, env: options.env, terminal });
+      child = Bun.spawn([...(options.command ?? [options.provider])], { cwd: options.cwd, env: spawnEnvironment(options), terminal });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         return { kind: "unavailable", reason: "executable-unavailable" };
