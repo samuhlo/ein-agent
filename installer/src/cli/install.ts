@@ -46,6 +46,7 @@ import { stageCcEinPayload, type CcEinPayloadStage } from "../core/cc-payload.ts
 import { renderReport } from "./doctor.ts";
 import { playBanner } from "../tui/banner.ts";
 import { bold, gold, levelMark } from "../tui/theme.ts";
+import { frameBlank, frameBlock, frameField, frameTab } from "../tui/frame.ts";
 import ccEinFish from "../../../cc-ein/cc-ein.fish" with { type: "text" };
 import {
   createInstallPlan,
@@ -613,7 +614,14 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
     }
     plan = buildPlan(skipLinear);
   }
-  await (options.playBanner ?? playBanner)(); p.intro(bold(gold("Instalador Ein"))); p.log.info(`Plataforma: ${describePlatform(platform)}`); const depLines = deps.map((d) => `  ${levelMark(d.present ? "OK" : "FAIL")} ${d.id.padEnd(8)} ${d.present ? "presente" : "falta"}`); p.log.message(["Dependencias:", ...depLines].join("\n"));
+  await (options.playBanner ?? playBanner)(); p.intro(bold(gold("Instalador Ein")));
+  // Misma ventana que el doctor, el banner y la app: una sola gramatica.
+  p.log.message(frameBlock("instalar ein", describePlatform(platform), [
+    frameBlank(),
+    frameTab("dependencias"),
+    ...deps.map((d) => frameField(d.id, d.present ? "presente" : "falta", levelMark(d.present ? "OK" : "FAIL"))),
+    frameBlank(),
+  ]));
   if (plan.status === "blocked") {
     (options.writePlan ?? ((value) => p.log.message(renderInstallPlan(value))))(plan);
     p.outro(flags.dryRun ? "Dry-run blocked. Resolve the reported blocker before installation." : "Instalación bloqueada. Resuelve el conflicto de ownership antes de continuar.");

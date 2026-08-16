@@ -190,3 +190,38 @@ describe("installer y app de terminal, misma marca", () => {
 		expect(doctor).not.toContain("rgb(230, 110, 110");
 	});
 });
+
+// =============================================================================
+// Las TRES superficies —banner de arranque, app de terminal e instalador— usan
+// la misma ventana de 16 bits. El instalador la duplica a proposito (corre
+// antes de que exista el template), asi que lo unico que puede protegerla es un
+// test que compare las copias.
+// =============================================================================
+describe("una sola gramatica de ventana", () => {
+	const sources = {
+		banner: readFileSync(join(ROOT, "ein-pi/agent/lib/banner-panel.ts"), "utf8"),
+		app: readFileSync(join(ROOT, "ein-pi/agent/surfaces/terminal-chrome.ts"), "utf8"),
+		installer: readFileSync(join(ROOT, "installer/src/tui/frame.ts"), "utf8"),
+	};
+
+	test("mismo marco doble en las tres", () => {
+		for (const source of Object.values(sources)) {
+			for (const glyph of ["╔", "╗", "╚", "╝", "═", "║", "╟", "╢"]) {
+				expect(source).toContain(glyph);
+			}
+		}
+	});
+
+	test("misma linea de puntos y misma pestana invertida", () => {
+		for (const [name, source] of Object.entries(sources)) {
+			expect(source, name).toContain('"·"');
+			expect(source.toLowerCase(), name).toMatch(/plate|tab/);
+		}
+	});
+
+	test("las tres recortan en vez de desbordar el marco", () => {
+		for (const [name, source] of Object.entries(sources)) {
+			expect(source, name).toContain(".slice(");
+		}
+	});
+});

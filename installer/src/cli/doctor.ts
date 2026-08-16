@@ -9,7 +9,9 @@ import { AGENT_DIR } from "../core/paths.ts";
 import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
 import { readInstallerUpdateEvidence, type InstallerUpdateReadEvidence } from "../core/update-advisor-read.ts";
 import { existsSync } from "node:fs";
-import { bold, gold, levelMark, structure } from "../tui/theme.ts";
+import { concrete, danger, gold, levelMark } from "../tui/theme.ts";
+import { frameBlank, frameBottom, frameDivider, frameField, frameHeader, frameTab, frameText, frameTop } from "../tui/frame.ts";
+import { INSTALLER_VERSION } from "../core/version.ts";
 import { evaluateSharedConfigUpdateAdvisor, renderAdvisorSemantics, type AdvisorInput, type SharedConfigUpdateAdvisorResult } from "../../../ein-pi/agent/lib/shared-config-update-advisor.ts";
 
 
@@ -50,28 +52,33 @@ export function renderDoctorAdvisor(result: SharedConfigUpdateAdvisorResult): st
 }
 
 export function renderReport(report: DoctorReport): string {
-  const lines: string[] = [];
-  lines.push(bold(gold("/// DOCTOR EIN")));
-  lines.push("");
-  lines.push(`resultado: ${bold(gold(report.result))}`);
-  lines.push(`fail: ${report.fail}  |  warn: ${report.warn}  |  total: ${report.total}`);
-  lines.push("");
+  // Misma ventana que el banner de arranque y que la app: marco doble, pestanas
+  // de seccion y lineas de puntos. El instalador es la primera cara que ve un
+  // usuario nuevo; que hable el mismo idioma no es decoracion.
+  const body: string[] = [];
+  const verdict = report.fail
+    ? "revisar FAIL antes de usar Ein."
+    : report.warn
+      ? "usable; resolver WARN para endurecer baseline."
+      : "baseline estable.";
+
+  body.push(frameBlank());
+  body.push(frameField("RESULTADO", report.result, levelMark(report.result)));
+  body.push(frameField("CHEQUEOS", `${report.total} total · ${report.warn} warn · ${report.fail} fail`));
+
   for (const group of report.groups) {
-    lines.push(structure(`■ ${group.title}`));
-    for (const c of group.checks) {
-      lines.push(`  ${glyph(c.level)} ${c.level.padEnd(4)} ${c.name}: ${c.detail}`);
+    body.push(frameBlank());
+    body.push(frameTab(group.title));
+    for (const check of group.checks) {
+      body.push(frameField(check.name, check.detail, levelMark(check.level)));
     }
-    lines.push("");
   }
-  lines.push(structure("■ DECISION"));
-  if (report.fail) {
-    lines.push("  revisar FAIL antes de usar Ein.");
-  } else if (report.warn) {
-    lines.push("  usable; resolver WARN para endurecer baseline.");
-  } else {
-    lines.push("  baseline estable.");
-  }
-  return lines.join("\n");
+
+  body.push(frameBlank());
+  body.push(frameDivider());
+  body.push(frameText(verdict, report.fail ? danger : report.warn ? gold : concrete));
+
+  return [frameTop(), frameHeader("doctor ein", `v${INSTALLER_VERSION}`), frameDivider(), ...body, frameBottom()].join("\n");
 }
 
 export type DoctorCommandDependencies = Readonly<{
