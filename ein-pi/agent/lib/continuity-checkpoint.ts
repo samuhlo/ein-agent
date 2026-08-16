@@ -82,6 +82,15 @@ const WARNING_ORDER: readonly ContinuityWarning[] = [
 	"verification-stale", "verification-failed", "verification-unknown", "openspec-ambiguous",
 	"provider-runtime-unavailable",
 ];
+/**
+ * Un solo item indebido tumbaría el paquete entero y lo degradaría a los valores
+ * genéricos, así que quien construye hechos filtra con el MISMO contrato que
+ * después los valida, en vez de duplicar los patrones de privacidad.
+ */
+export function isSafeCheckpointText(value: unknown, max: number): value is string {
+	return textReason(value, max) === null;
+}
+
 function textReason(value: unknown, max: number): ContinuityCheckpointReason | null {
 	if (typeof value !== "string" || value.length === 0) return "invalid-checkpoint";
 	if (utf8Bytes(value) > max) return "limit-exceeded";

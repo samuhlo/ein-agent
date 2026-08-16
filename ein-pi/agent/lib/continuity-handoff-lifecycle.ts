@@ -8,6 +8,8 @@ import {
 	withSddParticipants,
 	type ContinuityCheckpointFacts,
 } from "./continuity-checkpoint.ts";
+import { continuitySddFacts } from "./continuity-sdd-facts.ts";
+import { resolveSddStatus, type SddChangeStatus } from "./sdd-router.ts";
 import {
 	clearContinuityCheckpoint,
 	readContinuityCheckpoint,
@@ -44,6 +46,7 @@ type Ports = Readonly<{
 	read?: typeof readContinuityCheckpoint;
 	write?: typeof writeContinuityCheckpoint;
 	clear?: typeof clearContinuityCheckpoint;
+	sddStatus?: (cwd: string, change: string) => SddChangeStatus;
 	operationGate?: () => Promise<void>;
 }>;
 export type ContinuityHandoffLifecycle = Readonly<{
@@ -109,6 +112,19 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 	const runtimes = (): ProjectStateV1["runtimes"] => ({ pi: runtimeMetadata("pi", ports.runtimeAvailable("pi")), claude: runtimeMetadata("claude", ports.runtimeAvailable("claude")) });
 	const state = (): ProjectStateV1 => ports.projectState?.(cwd, runtimes()) ?? projectProjectState({ cwd, runtime: runtimes() });
 	const processObservation = (): ContinuityProcessObservation => ports.processObservation?.() ?? "unknown";
+	/**
+	 * En un cambio SDD activo el progreso ya está en disco: `tasks.md` dice qué se
+	 * completó y cuál es el siguiente pendiente. Sin cambio resuelto o si la
+	 * lectura falla se devuelve nada, y los genéricos siguen siendo la verdad.
+	 */
+	const sddFacts = (observed: ProjectStateV1): Partial<ContinuityCheckpointFacts> => {
+		const location = locationFor(observed, { ...facts, capturedAt: ports.now() });
+		if (location?.mode !== "sdd") return {};
+		try {
+			const derived = continuitySddFacts((ports.sddStatus ?? resolveSddStatus)(cwd, location.change), GENERIC.nextAction);
+			return derived ?? {};
+		} catch { return {}; }
+	};
 	const start = <T>(operation: () => T): Promise<T> => {
 		const running = Promise.resolve().then(async () => { await ports.operationGate?.(); return operation(); }); active = running;
 		const release = (): void => { if (active === running) active = null; };
@@ -133,7 +149,7 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 		const refreshOnce = (): ContinuityRefreshCode => {
 		for (let attempt = 0; attempt < 2; attempt += 1) {
 			const observed = state();
-			let candidate = { ...facts, ...(capturedInput === null ? {} : { objective: capturedInput }), capturedAt: ports.now() };
+			let candidate = { ...facts, ...sddFacts(observed), ...(capturedInput === null ? {} : { objective: capturedInput }), capturedAt: ports.now() };
 			let derived = deriveContinuityCheckpoint(observed, candidate);
 			if (!derived.ok) { candidate = { ...GENERIC, capturedAt: ports.now() }; derived = deriveContinuityCheckpoint(observed, candidate); }
 			if (!derived.ok) return "refresh-failed";
