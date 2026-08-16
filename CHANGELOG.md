@@ -5,6 +5,41 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.60.1] - 2026-08-16
+
+### Changed
+
+- **El banner de arranque de Pi se lee de un vistazo**: la placa de
+  características pasa de una rejilla de catorce celdas —todas con el mismo
+  marcador amarillo y con abreviaturas crípticas— a cuatro grupos por tipo
+  (qué se cargó, cómo está la sesión, qué está activo, dónde). Lo desactivado
+  deja de ocupar sitio y el amarillo vuelve a ser acento en vez de fondo. Las
+  filas de Git y las sesiones recientes comparten ese lenguaje y se alinean en
+  la misma columna.
+
+### Fixed
+
+- **El panel de terminal conserva sus iconos por tipo de fila**: el cambio de
+  marca de 0.60.0 los había sustituido por un marcador uniforme y con eso se
+  perdía la distinción entre Pi, Claude, estado, configuración y sistema.
+- **Auditar con el Cleaner dentro de CI vuelve a ser posible**: el lector de
+  resultados JUnit rechazaba el bloque `<properties>` que Bun emite cuando
+  detecta GitHub Actions, así que cualquier ejecución dentro de un runner
+  moría con «Unsupported XML element».
+- **La suite deja de heredar el supervisor de continuidad de la sesión que la
+  lanza**: `EIN_CONTINUITY_ENDPOINT` y su token bajaban a los procesos hijo de
+  las pruebas, y un proceso «destino» que veía un socket ajeno se comportaba
+  como «origen». Aislado en el fixture; el runtime ya limpiaba esas variables.
+
+### Internal
+
+- La publicación de releases instala las dependencias de la raíz y todas las
+  variantes nativas por plataforma: el binario de la aplicación de terminal se
+  compila desde las fuentes de la raíz y los cuatro objetivos se generan desde
+  una sola máquina.
+- La integración continua empaqueta el template compilando antes la aplicación
+  para la plataforma anfitriona.
+
 ## [0.60.0] - 2026-08-16
 
 ### Added
