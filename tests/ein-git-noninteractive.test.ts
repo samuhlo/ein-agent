@@ -63,10 +63,18 @@ describe("precheck del scope workflow (fail-fast)", () => {
 	});
 });
 
-describe("delivery con maxRuntimeMs tirante", () => {
-	test("el orquestador pasa un presupuesto corto a ein-git, no el de chain", () => {
-		expect(orchestrator).toContain("tight `maxRuntimeMs`");
-		expect(orchestrator).toContain("120000");
+// El cap de 2 minutos mataba entregas reales: 7 de 63 runs de ein-git murieron
+// a 6-9 turnos. Una entrega cortada entre `push` y `gh pr create` deja el repo
+// a medias y cuesta más reconciliarla que esperar a un `gh` lento.
+describe("presupuesto de entrega de ein-git", () => {
+	test("el orquestador le da 300000, ni el cap corto ni el de chain", () => {
+		expect(orchestrator).toContain("`maxRuntimeMs: 300000`");
+		expect(orchestrator).not.toContain("tight `maxRuntimeMs`");
+		// El cap corto no puede quedar en ninguna de las dos reglas de entrega
+		// (la del hand-off y la del carril de delivery), que llevaban el mismo
+		// valor duplicado.
+		expect(orchestrator).not.toContain("≈`120000`");
+		expect(orchestrator).not.toContain("(≈`120000`)");
 	});
 });
 

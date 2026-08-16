@@ -96,35 +96,30 @@ describe("P2: fail-fast en vez de asks de supervisor", () => {
 });
 
 describe("P3: veredictos de acceptance de pi-subagents", () => {
-  // El workaround de acceptance se colapsó a un párrafo: el hook inyecta
-  // acceptance:none para planning + apply no-conductual, así que el parent no
-  // pasa nada. El prompt ya no explica la lección (el hook la subsume).
-  const acceptanceBlock = orch.slice(orch.indexOf("Acceptance & turn-budget"));
+  // El contrato de aceptación pasó de "inferido salvo en planning" a EXPLÍCITO
+  // O NINGUNO: el runner deducía el nivel de la redacción de la tarea y
+  // rechazaba trabajo terminado por no emitir el `acceptance-report` con esa
+  // forma (46 de 48 checks fallidos eran papeleo, 2 hablaban del trabajo).
+  const acceptanceBlock = orch.slice(orch.indexOf("Acceptance is EXPLICIT or NONE"));
 
-  test("el lead documenta la auto-inyección de acceptance:none para planning", () => {
+  test("el lead documenta la inyección universal de acceptance:none", () => {
     expect(acceptanceBlock).toContain('acceptance: { level: "none" }');
     expect(acceptanceBlock).toContain("hook now injects");
-    expect(acceptanceBlock).toContain("pass NEITHER");
-    for (const phase of ["sdd-scope", "sdd-map", "sdd-design", "sdd-tasks", "sdd-close"]) {
-      expect(acceptanceBlock).toContain(phase);
-    }
+    expect(acceptanceBlock).toContain("Pass neither");
+    // Universal: cubre TODA delegación, no una lista de fases.
+    expect(acceptanceBlock).toContain("every** delegation");
+    expect(acceptanceBlock).toContain("never inferred");
   });
 
-  test("sdd-apply ejecuta; sdd-verify es el gate; verified sigue como override", () => {
-    expect(acceptanceBlock).toContain("EXECUTES the masticated plan");
-    expect(acceptanceBlock).toContain("sdd-verify");
+  test("las puertas reales quedan nombradas y siguen mirando el trabajo", () => {
+    expect(acceptanceBlock).toContain("sdd-verify` re-runs the suite");
+    expect(acceptanceBlock).toContain("ein_sdd_check");
+    expect(acceptanceBlock).toContain("close guard");
     expect(acceptanceBlock).toContain('level: "verified"');
   });
 
-  test("el hook cubre el apply no-conductual — sin bullet mecánico ni tests-added en el prompt", () => {
-    expect(acceptanceBlock).toContain("non-behavioral `sdd-apply`");
-    // La lección del 'reason' mecánico y tests-added la subsume el hook.
-    expect(acceptanceBlock).not.toContain("tests-added");
-    expect(acceptanceBlock).not.toContain('reason: "mechanical apply');
-  });
-
-  test("deja sdd-verify en auto (verificar ya es su trabajo)", () => {
-    expect(acceptanceBlock).toContain("leave `sdd-verify` on auto");
+  test("el routing NO se decide por el veredicto de acceptance", () => {
+    expect(acceptanceBlock).toContain("NEVER route the SDD loop by the acceptance verdict");
   });
 
   test("sdd-apply distingue none normal de verified explícito y conserva sdd-verify", () => {

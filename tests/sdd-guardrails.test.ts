@@ -75,11 +75,14 @@ describe("lintDesignArtifact", () => {
 		expect(r.issues.some((i) => i.code === "empty")).toBe(true);
 	});
 
-	test("falta una seccion obligatoria => error", () => {
+	// Una seccion ausente se REPORTA pero no bloquea: bloquear por la forma de un
+	// documento mandaba el arreglo al ciclo tasks -> apply -> verify.
+	test("falta una seccion => warning, no bloquea", () => {
 		const noSpec = GOOD.replace("## B. Spec", "## B. Otra cosa");
 		const r = lintDesignArtifact(noSpec);
-		expect(r.ok).toBe(false);
-		expect(r.issues.some((i) => i.code === "missing-spec")).toBe(true);
+		expect(r.ok).toBe(true);
+		const issue = r.issues.find((i) => i.code === "missing-spec");
+		expect(issue?.level).toBe("warning");
 	});
 
 	test("design sin tareas accionables sigue siendo valido", () => {
@@ -89,12 +92,13 @@ describe("lintDesignArtifact", () => {
 		expect(r.issues.some((i) => i.code === "no-tasks")).toBe(false);
 	});
 
-	test("planificacion de delivery prohibida => warning (no bloquea)", () => {
+	// RETIRADO: el lint ya no vigila QUE dice el design. Mencionar delivery o
+	// chained PRs es asunto del revisor, no del gatekeeper determinista.
+	test("mencionar delivery en el design ya no genera issue", () => {
 		const withForecast = `${GOOD}\n## Review Workload Forecast\nchained PRs recommended.\n`;
 		const r = lintDesignArtifact(withForecast);
-		expect(r.ok).toBe(true); // warnings no rompen el ok
-		expect(r.issues.some((i) => i.code === "forbidden-forecast")).toBe(true);
-		expect(r.issues.some((i) => i.code === "forbidden-chained-pr")).toBe(true);
+		expect(r.ok).toBe(true);
+		expect(r.issues.some((i) => i.code.startsWith("forbidden-"))).toBe(false);
 	});
 
 	test("placeholders sin rellenar => warning", () => {
@@ -119,10 +123,31 @@ describe("lintTasksArtifact", () => {
 		expect(r.errors).toBe(0);
 	});
 
-	test("tasks sin status falla", () => {
+	// `status`/`blocked_by` son señales de planificacion: ninguna herramienta las
+	// consume. Se reportan como warning y no bloquean la fase.
+	test("tasks sin status => warning, no bloquea", () => {
 		const r = lintTasksArtifact(GOOD_TASKS.replace("status: ready\n", ""));
+		expect(r.ok).toBe(true);
+		expect(r.issues.find((i) => i.code === "missing-status-line")?.level).toBe("warning");
+	});
+
+	// Las secciones de prosa (skills/why/learn/architecture/avoid) dejaron de ser
+	// obligatorias: nadie las lee aguas abajo y su ausencia bloqueaba la fase.
+	test("tasks sin secciones de prosa sigue siendo valido", () => {
+		let t = GOOD_TASKS;
+		for (const k of ["skills", "why", "learn", "architecture", "avoid"]) {
+			t = t.replace(new RegExp(`^\\s*-\\s*${k}\\s*:.*$`, "im"), "");
+		}
+		const r = lintTasksArtifact(t);
+		expect(r.ok).toBe(true);
+		expect(r.issues.some((i) => i.code.startsWith("missing-skills"))).toBe(false);
+	});
+
+	// Lo que SI sigue siendo obligatorio: `verify` (el comando que se ejecuta).
+	test("tasks sin verify falla — es el comando que corre la fase de verify", () => {
+		const r = lintTasksArtifact(GOOD_TASKS.replace(/^\s*-\s*verify\s*:.*$/im, ""));
 		expect(r.ok).toBe(false);
-		expect(r.issues.some((i) => i.code === "missing-status-line")).toBe(true);
+		expect(r.issues.some((i) => i.code === "missing-verify")).toBe(true);
 	});
 
 	test("tasks sin checkbox falla", () => {
@@ -143,17 +168,34 @@ describe("lintTasksArtifact", () => {
 });
 
 describe("lintPhaseArtifact required signals", () => {
-	test("scope requiere scope y budget_allocated", () => {
+	// La telemetria del ledger de coste (`budget_allocated`, `ledger`,
+	// `budget_consumed`) dejo de ser obligatoria: el ledger se borro en 3a2ec6b y
+	// exigir sus campos bloqueaba fases por no declarar cifras que nadie consume.
+	test("scope ya no exige budget_allocated", () => {
 		const r = lintPhaseArtifact("scope", "scope: solo x\n");
-		expect(r.ok).toBe(false);
-		expect(r.issues.some((i) => i.code === "missing-budget-allocated")).toBe(true);
+		expect(r.ok).toBe(true);
+		expect(r.issues.some((i) => i.code === "missing-budget-allocated")).toBe(false);
 	});
 
-	test("map requiere ledger, budget_consumed y scope_status", () => {
+	test("map solo exige scope_status", () => {
 		const r = lintPhaseArtifact("map", "ledger: ok\n");
 		expect(r.ok).toBe(false);
-		expect(r.issues.some((i) => i.code === "missing-budget-consumed")).toBe(true);
+		expect(r.issues.some((i) => i.code === "missing-budget-consumed")).toBe(false);
 		expect(r.issues.some((i) => i.code === "missing-scope-status")).toBe(true);
+	});
+
+	// Lo que SI sigue bloqueando: las lineas de estado que lee el router
+	// determinista para decidir la siguiente fase.
+	test("verify sin `status: pass|fail` sigue siendo error — lo lee el router", () => {
+		const r = lintPhaseArtifact("verify", "todo bien, la suite pasa\n");
+		expect(r.ok).toBe(false);
+		expect(r.issues.some((i) => i.code === "missing-status-line")).toBe(true);
+	});
+
+	test("apply sin `status: complete|partial|blocked` sigue siendo error", () => {
+		const r = lintPhaseArtifact("apply", "hecho\n");
+		expect(r.ok).toBe(false);
+		expect(r.issues.some((i) => i.code === "missing-status-line")).toBe(true);
 	});
 });
 

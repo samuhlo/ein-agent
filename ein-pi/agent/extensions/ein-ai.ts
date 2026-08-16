@@ -16,6 +16,7 @@ import {
 	createSddMemoryLifecycle,
 	ensureApplyAcceptance,
 	ensureApplyTurnBudget,
+	ensureDelegationAcceptance,
 	ensurePlanningAcceptance,
 	ensureSddPreflight,
 	gateTddForDelegation,
@@ -827,6 +828,12 @@ export default function einAi(pi: ExtensionAPI): void {
 			// `acceptance`/`turnBudget` explícitos y se respetan.
 			ensureApplyAcceptance(event.input);
 			ensureApplyTurnBudget(event.input);
+			// Backstop universal: cualquier otra delegación (ein-git, ein-scout,
+			// ein-linear, sdd-verify, workflows mixtos) también sale con
+			// `acceptance: none` si el orquestador no pasó uno explícito. Sin esto
+			// el runner INFIERE el contrato de la redacción de la tarea y rechaza
+			// trabajo terminado por no emitir un `acceptance-report` con su forma.
+			ensureDelegationAcceptance(event.input);
 			// Gate de TDD ante una delegación que escribe código (sdd-apply directo
 			// o dentro de un chain). En modo global "ask": si el orquestador clasificó
 			// el cambio (hint tdd off/strict) se fija sin preguntar; si no, pregunta.

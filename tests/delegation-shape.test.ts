@@ -42,6 +42,7 @@ const {
 	delegationTargetsApply,
 	ensureApplyAcceptance,
 	ensureApplyTurnBudget,
+	ensureDelegationAcceptance,
 	ensurePlanningAcceptance,
 	readDelegationTddHint,
 } = await import("../ein-pi/agent/lib/sdd-preflight");
@@ -226,6 +227,30 @@ describe("shaping SDD sobre workflowScript", () => {
 		const mixed = { workflowScript: `runs.all([{ agent: "sdd-apply", task: "a" }, { agent: "sdd-verify", task: "v" }])` };
 		expect(ensureApplyAcceptance(mixed)).toBe(false);
 		expect(ensureApplyTurnBudget(mixed)).toBe(false);
+	});
+
+	// Contrato de aceptación EXPLÍCITO o ninguno. El runner infería el nivel de la
+	// REDACCIÓN de la tarea y rechazaba trabajo terminado por no emitir un
+	// `acceptance-report` con esa forma: 27 de 63 entregas de ein-git bloqueadas
+	// o devueltas, con "commit, PUSH and OPEN PR" clasificado como "read-only".
+	test("cualquier delegación sin acceptance explícito sale con level: none", () => {
+		for (const agent of ["ein-git", "ein-scout", "ein-linear", "sdd-verify"]) {
+			const input = script(agent);
+			expect(ensureDelegationAcceptance(input)).toBe(true);
+			expect((input as Record<string, unknown>).acceptance).toMatchObject({ level: "none" });
+		}
+	});
+
+	test("un acceptance explícito del orquestador se respeta", () => {
+		const input = { ...(script("ein-git") as Record<string, unknown>), acceptance: { level: "verified" } };
+		expect(ensureDelegationAcceptance(input)).toBe(false);
+		expect(input.acceptance).toMatchObject({ level: "verified" });
+	});
+
+	test("forma no reconocida => no se toca (no mutar a ciegas)", () => {
+		const input = { algo: "raro" };
+		expect(ensureDelegationAcceptance(input)).toBe(false);
+		expect((input as Record<string, unknown>).acceptance).toBeUndefined();
 	});
 
 	test("el hint de TDD del child de apply gana; strict no recibe cap de turnos", () => {

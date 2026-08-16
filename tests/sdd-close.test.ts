@@ -440,40 +440,22 @@ describe("oversizedGroupWarnings (F)", () => {
 	});
 });
 
-// #4: verify no puede firmar PASS "limpio" solo con build/tipos verdes. Un PASS
-// sin comportamiento confirmado se surface como warning (nunca bloquea el
-// routing), y verify debe declarar `behavior_coverage`.
-describe("verify behavior_coverage (#4)", () => {
-	test("PASS sin behavior_coverage → warning undeclared, pero ok (no bloquea)", () => {
+// RETIRADO (#4): el check de `behavior_coverage` exigia que verify DECLARASE una
+// palabra en su informe; no comprobaba nada del codigo, y su ausencia generaba
+// runs de "revisar verify-report.md para satisfacer el guardarrail". Lo que si
+// protege calidad — que verify EJECUTE la suite — vive en sdd-verify.md, y la
+// unica señal que el router necesita (`status: pass|fail`) sigue siendo error.
+describe("verify — solo la señal que lee el router", () => {
+	test("PASS sin behavior_coverage ya no genera issue de cobertura", () => {
 		const r = lintPhaseArtifact("verify", "status: pass\n");
 		expect(r.ok).toBe(true);
-		expect(r.issues.some((i) => i.code === "behavior-coverage-undeclared")).toBe(true);
-	});
-
-	test("PASS + behavior_coverage: none → warning none (luz verde estructural)", () => {
-		const r = lintPhaseArtifact("verify", "status: pass\nbehavior_coverage: none\n");
-		expect(r.ok).toBe(true);
-		expect(r.issues.some((i) => i.code === "behavior-coverage-none")).toBe(true);
-	});
-
-	test("PASS + behavior_coverage: verified → sin warning de cobertura", () => {
-		const r = lintPhaseArtifact("verify", "status: pass\nbehavior_coverage: verified\n");
 		expect(r.issues.some((i) => i.code.startsWith("behavior-coverage"))).toBe(false);
 	});
 
-	test("PASS + behavior_coverage: n-a → sin warning (cambio no conductual)", () => {
-		const r = lintPhaseArtifact("verify", "status: pass\nbehavior_coverage: n-a\n");
-		expect(r.issues.some((i) => i.code.startsWith("behavior-coverage"))).toBe(false);
-	});
-
-	test("PASS + behavior_coverage: partial → warning partial", () => {
-		const r = lintPhaseArtifact("verify", "status: pass\nbehavior_coverage: partial\n");
-		expect(r.issues.some((i) => i.code === "behavior-coverage-partial")).toBe(true);
-	});
-
-	test("FAIL sin cobertura → NO warning de cobertura (solo aplica a PASS)", () => {
-		const r = lintPhaseArtifact("verify", "status: fail\n");
-		expect(r.issues.some((i) => i.code.startsWith("behavior-coverage"))).toBe(false);
+	test("verify sin linea de status sigue bloqueando", () => {
+		const r = lintPhaseArtifact("verify", "la suite pasa entera\n");
+		expect(r.ok).toBe(false);
+		expect(r.issues.some((i) => i.code === "missing-status-line")).toBe(true);
 	});
 });
 

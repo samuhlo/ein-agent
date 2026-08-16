@@ -107,8 +107,10 @@ describe("reconcilePhaseFailure — reconcilia cuando el trabajo SÍ está", () 
 	test("los warnings del artefacto se propagan, no se ocultan", () => {
 		const cwd = project();
 		const before = snapshotPhaseArtifacts(cwd, "verify");
-		// verify PASS sin behavior_coverage → warning, no error.
-		writeArtifact(changeDir(cwd, "c"), "verify-report.md", 2000, "# Verify\n\nstatus: pass\n");
+		// Artefacto válido (status presente → sin error) pero con un placeholder
+		// sin rellenar → warning. El invariante bajo prueba es que un warning
+		// viaja hasta el resultado, no cuál warning concreto lo produce.
+		writeArtifact(changeDir(cwd, "c"), "verify-report.md", 2000, "# Verify\n\nstatus: pass\nnotas: {change}\n");
 
 		const result = reconcilePhaseFailure(cwd, "verify", before);
 		expect(result.reconciled).toBe(true);

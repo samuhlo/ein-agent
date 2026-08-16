@@ -93,10 +93,13 @@ describe("E2 — lint de tasks.md tolerante con artefacto cerrado", () => {
 		expect(r.ok).toBe(true);
 	});
 
-	test("con casillas abiertas y sin status → sigue siendo error", () => {
+	// `status` bajó a warning: es una señal de planificación que ninguna
+	// herramienta consume, y bloquear por ella mandaba el arreglo al ciclo de
+	// fases para reescribir una línea de prosa.
+	test("con casillas abiertas y sin status → warning, no bloquea", () => {
 		const r = lintPhaseArtifact("tasks", `- [ ] 1 pendiente\n${FIELDS}`);
-		expect(r.ok).toBe(false);
-		expect(r.issues.some((i) => i.code === "missing-status-line")).toBe(true);
+		expect(r.ok).toBe(true);
+		expect(r.issues.find((i) => i.code === "missing-status-line")?.level).toBe("warning");
 	});
 
 	test("un status: complete (inválido) pero todo cerrado ya no rompe el gate", () => {

@@ -359,6 +359,32 @@ export function ensureApplyAcceptance(input: unknown): boolean {
 	return true;
 }
 
+// Ningún contrato de aceptación INFERIDO. El runner deduce un nivel a partir de
+// la REDACCIÓN de la tarea ("read-only task wording" salía 63 veces en la ventana
+// medida) y luego rechaza al agente por no emitir el `acceptance-report` con esa
+// forma. Medido sobre 230 runs: de 48 checks fallidos, 46 eran papeleo (19 "no
+// encontré el informe estructurado", 24 "el agente dijo `not applicable`") y 2
+// decían algo del trabajo. El caso absurdo: a `ein-git` con la tarea "commit,
+// PUSH and OPEN PR" se le infirió "read-only" y se le exigieron `review-findings`
+// → 27 de 63 entregas bloqueadas o devueltas.
+//
+// Regla nueva: contrato EXPLÍCITO del orquestador, o ninguno. Esto NO baja el
+// listón real — las puertas que sí miran el trabajo siguen enteras: `sdd-verify`
+// re-ejecuta la suite, `ein_sdd_check` valida el artefacto y el guard de cierre
+// impide cerrar sin un verify fresco.
+export function ensureDelegationAcceptance(input: unknown): boolean {
+	if (!isRecord(input)) return false;
+	if (input.acceptance != null) return false;
+	// Forma no reconocida → no tocar: mutar a ciegas una delegación que Ein no
+	// entiende es peor que dejar que el runner decida.
+	if (collectDelegationAgentNames(input).length === 0) return false;
+	input.acceptance = {
+		level: "none",
+		reason: "explicit acceptance only; sdd-verify and ein_sdd_check are the real gates",
+	};
+	return true;
+}
+
 // Backstop de turnos para apply, SOLO contra runaways de verdad. El cap de 40
 // abortaba trabajo LEGÍTIMO: un apply de TDD estricto corre muchos ciclos
 // RED/GREEN y necesita bastantes turnos (lo gobierna `maxRuntimeMs`, 30 min). Por
