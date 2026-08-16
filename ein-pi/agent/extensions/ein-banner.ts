@@ -22,6 +22,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { AGENT_DIR } from "./ein-paths";
 import { loadPalette, type RGB } from "./ein-brand";
+import { I_RANGE, LOGO_LARGE, LOGO_SMALL, RULE_CH } from "../lib/ein-logo";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 import { LANG_LABEL, readArtifactLang, readChatLang, type Lang } from "../lib/lang";
 import { TDD_LABEL, readTddMode } from "../lib/tdd";
@@ -160,39 +161,10 @@ const gitProcessRunner: ProcessRunner = {
   },
 };
 
-// EIN block-letter logo, large cut: 4-wide strokes (54 cols, 10 rows).
-const LOGO_LARGE = [
-  "██████████████      ████████████      ████        ████",
-  "██████████████      ████████████      ██████      ████",
-  "████                    ████          ███████     ████",
-  "████                    ████          ████ ███    ████",
-  "██████████              ████          ████  ███   ████",
-  "██████████              ████          ████   ███  ████",
-  "████                    ████          ████    ███ ████",
-  "████                    ████          ████     ███████",
-  "██████████████      ████████████      ████      ██████",
-  "██████████████      ████████████      ████       █████",
-];
-
-// Small cut for narrow terminals: 3-wide strokes (38 cols, 7 rows).
-const LOGO_SMALL = [
-  "██████████    █████████    ███     ███",
-  "███              ███       ████    ███",
-  "███              ███       █████   ███",
-  "███████          ███       ███ ██  ███",
-  "███              ███       ███  ██ ███",
-  "███              ███       ███   █████",
-  "██████████    █████████    ███    ████",
-];
-
-// Column range of the I glyph per logo cut (gap columns are spaces, harmless).
-const I_RANGE = {
-  large: { start: 18, end: 33 },
-  small: { start: 12, end: 25 },
-} as const;
+// Geometria del logo: fuente unica en `lib/ein-logo.ts`, compartida con el
+// splash de la app de terminal. Aqui solo se PINTA (buffer de la extension).
 
 const SUBTITLE = ".SAMUHLO · PI WORKBENCH";
-const RULE_CH = "─";
 
 // Brand palette (flat — no gradients). Single source: brand.json via ein-brand.
 const PALETTE = loadPalette();
@@ -250,7 +222,7 @@ function noiseCell(char: string, age: number, finalColor: RGB): NoiseCell | null
   return { char, color: finalColor };
 }
 
-function padLines(lines: string[]): { lines: string[]; width: number } {
+function padLines(lines: readonly string[]): { lines: string[]; width: number } {
   const width = Math.max(...lines.map((l) => l.length), 0);
   return { lines: lines.map((l) => l.padEnd(width)), width };
 }

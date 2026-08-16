@@ -335,6 +335,16 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
     // FRICTION CUT -> OpenTUI and Solid load only when interactive mode is
     // actually entered. A static import makes `--help` and `--once`, which draw
     // nothing, pay the renderer's full startup (+220 ms measured).
+    // Splash de marca ANTES de que OpenTUI tome la pantalla alterna: se pinta
+    // en la pantalla normal y la app monta encima. Respeta `--no-intro` y no
+    // suena en non-TTY / NO_COLOR (ahí sale estático o nada).
+    if (parsed.intro) {
+      const [{ playSplash, productionSplashIO }, { readEinVersion }] = await Promise.all([
+        import("./terminal-splash.ts"),
+        import("../lib/update-probes.ts"),
+      ]);
+      await playSplash(productionSplashIO(), await readEinVersion(resolveAgentDir()));
+    }
     const dashboard = options.dashboard
       ?? (await import("./terminal-dashboard-runner.tsx")).runTerminalDashboard;
     return await dashboard(createController);

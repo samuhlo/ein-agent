@@ -46,3 +46,32 @@ export function bold(text: string): string {
   if (!colorEnabled()) return text;
   return `\x1b[1m${text}\x1b[22m`;
 }
+
+// -----------------------------------------------------------------------------
+// Vocabulario de estado, común con la app de terminal
+// (`ein-pi/agent/surfaces/terminal-theme.ts`). Antes el doctor pintaba con
+// verdes y rojos inventados (rgb(120,200,120)…) que no salían de brand.json:
+// la misma deriva que tenía la TUI con su tema azul. El semáforo es la ÚNICA
+// concesión fuera de los cuatro colores, y solo porque comunica estado.
+// -----------------------------------------------------------------------------
+export const MARK = {
+  ok: "■",
+  idle: "□",
+  warn: "▲",
+  fail: "✕",
+} as const;
+
+const DANGER = { r: 229, g: 72, b: 77 } as const; // #E5484D
+
+/** Rojo de fallo: fuera de marca a propósito, dentro del semáforo. */
+export function danger(text: string): string {
+  return rgb(DANGER.r, DANGER.g, DANGER.b, text);
+}
+
+/** Marcador + color por nivel. `OK` en concreto, `WARN` en amarillo, `FAIL` en rojo. */
+export function levelMark(level: "OK" | "WARN" | "FAIL" | string): string {
+  if (level === "OK") return concrete(MARK.ok);
+  if (level === "WARN") return gold(MARK.warn);
+  if (level === "FAIL") return danger(MARK.fail);
+  return structure(MARK.idle);
+}

@@ -9,10 +9,9 @@ import { AGENT_DIR } from "../core/paths.ts";
 import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
 import { readInstallerUpdateEvidence, type InstallerUpdateReadEvidence } from "../core/update-advisor-read.ts";
 import { existsSync } from "node:fs";
-import { bold, gold, structure, rgb } from "../tui/theme.ts";
+import { bold, gold, levelMark, structure } from "../tui/theme.ts";
 import { evaluateSharedConfigUpdateAdvisor, renderAdvisorSemantics, type AdvisorInput, type SharedConfigUpdateAdvisorResult } from "../../../ein-pi/agent/lib/shared-config-update-advisor.ts";
 
-const GLYPH: Record<string, string> = { OK: "✓", WARN: "!", FAIL: "✗" };
 
 type InstallerAdvisorAction = "install" | "update" | "repair" | "configure";
 export type InstallerAdvisorHandoff = Readonly<{
@@ -38,12 +37,10 @@ export function renderInstallerAdvisorHandoff(handoff: InstallerAdvisorHandoff |
   return `Siguiente paso: ${safeAction(handoff.action)} mediante installer (${safeActionId(handoff.actionId)}); performed: false.`;
 }
 
+// Marcador y color salen del tema compartido: mismo vocabulario que la app de
+// terminal (■ ok · ▲ aviso · ✕ fallo), no verdes y rojos sueltos.
 function glyph(level: string): string {
-  const g = GLYPH[level] ?? "?";
-  if (level === "OK") return rgb(120, 200, 120, g);
-  if (level === "WARN") return rgb(230, 200, 90, g);
-  if (level === "FAIL") return rgb(230, 110, 110, g);
-  return g;
+  return levelMark(level);
 }
 
 export function renderDoctorAdvisor(result: SharedConfigUpdateAdvisorResult): string {

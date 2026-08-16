@@ -4,29 +4,12 @@
 // is testable without a terminal and the driver only owns the clock.
 // =============================================================================
 
-/** Brand logo, reused from the Pi banner so both surfaces show the same mark. */
-export const LOGO = [
-  "██████████████      ████████████      ████        ████",
-  "██████████████      ████████████      ██████      ████",
-  "████                    ████          ███████     ████",
-  "████                    ████          ████ ███    ████",
-  "██████████              ████          ████  ███   ████",
-  "██████████              ████          ████   ███  ████",
-  "████                    ████          ████    ███ ████",
-  "████                    ████          ████     ███████",
-  "██████████████      ████████████      ████      ██████",
-  "██████████████      ████████████      ████       █████",
-] as const;
-
-export const LOGO_NARROW = [
-  "██████████    █████████    ███     ███",
-  "███              ███       ████    ███",
-  "███              ███       █████   ███",
-  "███████          ███       ███ ██  ███",
-  "███              ███       ███  ██ ███",
-  "███              ███       ███   █████",
-  "██████████    █████████    ███    ████",
-] as const;
+// La geometría vive en `ein-logo.ts` — fuente única del árbol ein-pi. Estaba
+// copiada aquí, en `extensions/ein-banner.ts` y en el splash de la app: cuatro
+// copias del mismo dibujo, garantía de que acabaran divergiendo. Se re-exporta
+// con los nombres de siempre para no tocar a los consumidores.
+export { LOGO_LARGE as LOGO, LOGO_SMALL as LOGO_NARROW } from "./ein-logo.ts";
+import { LOGO_LARGE, LOGO_SMALL } from "./ein-logo.ts";
 
 /** Dither ramp: the 8-bit look comes from block density, not from colour. */
 const RAMP = ["░", "▒", "▓", "█"] as const;
@@ -36,7 +19,7 @@ export const NARROW_COLUMNS = 60;
 export const TAGLINE = "coding agent workbench";
 
 export function logoFor(columns: number): readonly string[] {
-  return columns < NARROW_COLUMNS ? LOGO_NARROW : LOGO;
+  return columns < NARROW_COLUMNS ? LOGO_SMALL : LOGO_LARGE;
 }
 
 /** Total frames of the intro, including the settled one. */
