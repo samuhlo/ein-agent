@@ -5,6 +5,67 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.60.0] - 2026-08-16
+
+### Added
+
+- **Cleaner y Architect participan de forma independiente**: colectores
+  deterministas de duplicación, complejidad, cobertura y entorno, más una
+  auditoría de arquitectura de solo lectura, cada uno con su propia entrada al
+  flujo sin secuestrar la cadena SDD.
+- **Traspaso de trabajo entre Pi y Claude**: el checkpoint de continuidad
+  transporta el progreso SDD real —tareas cerradas en `tasks.md`, la primera
+  pendiente como siguiente acción y los bloqueos del router como decisiones sin
+  resolver— en vez de literales genéricos.
+- **Plano de control de instalación y desinstalación** en el instalador, con
+  menú de runtime y ciclo de vida propio.
+- **Aplicación de terminal sobre OpenTUI**, empaquetada por plataforma.
+- **Splash de marca al arrancar la aplicación de terminal**: el mismo logo y la
+  misma animación del instalador, con la versión instalada en el subtítulo.
+  Respeta `--no-intro`, suena una sola vez por proceso y cae a estático en
+  terminales sin color.
+
+### Changed
+
+- **La aplicación de terminal y el instalador comparten marca**: la app pasa de
+  un tema azul propio a la paleta de `brand.json` (carbón, concreto,
+  estructura, amarillo industrial), con placa `EIN`, reglas estructurales y
+  valores alineados. Pi y Claude Code dejan de distinguirse por color y pasan a
+  marcador (`■` accionable, `□` inerte), que además funciona en terminales sin
+  color. El `doctor` del instalador adopta el mismo vocabulario en lugar de sus
+  verdes y rojos propios.
+- **El arnés SDD deja de bloquear por el formato de sus documentos**: los
+  códigos que detienen una fase pasan de 18 a 5, y solo sobreviven los que
+  alimentan a otra pieza (casillas de `tasks.md`, comando de verificación y las
+  líneas de estado que lee el router). Un defecto de artefacto se corrige
+  editando el artefacto, nunca abriendo una tarea y delegando una fase.
+- **El contrato de aceptación es explícito o no existe**: se retira la
+  inferencia a partir de la redacción de la tarea, que rechazaba trabajo
+  terminado por no emitir un informe con la forma esperada. Las puertas que
+  examinan el trabajo —ejecución real de la suite en `sdd-verify`, validación
+  de artefacto y guarda de cierre— quedan intactas.
+- **La entrega dispone de cinco minutos en vez de dos**: el presupuesto corto
+  interrumpía entregas a mitad, entre el `push` y la apertura del PR.
+
+### Fixed
+
+- **«Continuar en Pi» arrancaba Pi sin Ein**: la aplicación de terminal lanzaba
+  el runtime vanilla en lugar del workbench.
+- **Un diario de actualización completado bloqueaba el instalador para
+  siempre**, e impedía además la siguiente instalación.
+- **`models-panel` salía del directorio que Pi autocarga**, donde tumbaba el
+  arranque.
+
+### Internal
+
+- Una sola geometría del logo en el árbol `ein-pi`, antes duplicada en tres
+  ficheros; el instalador conserva la suya a propósito, porque se ejecuta antes
+  de que exista el template desplegado. Tests fijan que no vuelva a separarse y
+  que ambas paletas se deriven de `brand.json`.
+- Se retira la degradación por telemetría de los guardarraíles, muerta desde
+  que se borró el ledger de coste.
+- Roadmap, guías y política de memoria actualizados.
+
 ## [0.51.0] - 2026-08-11
 
 ### Changed
