@@ -49,7 +49,14 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install deps
+      # La app de terminal se compila desde las fuentes de la RAÍZ
+      # (`ein-pi/agent/app.ts`), que importan `@opentui/core` y `solid-js`. Sin
+      # las dependencias de la raíz instaladas, `build:all` no las resuelve.
+      - name: Install root deps
+        working-directory: .
+        run: bun install --frozen-lockfile
+
+      - name: Install installer deps
         run: bun install --frozen-lockfile
 
       - name: Typecheck
