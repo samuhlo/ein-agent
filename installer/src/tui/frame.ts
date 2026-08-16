@@ -17,7 +17,18 @@ const TOP_L = "╔", TOP_R = "╗", BOT_L = "╚", BOT_R = "╝";
 const H = "═", V = "║", SEP_L = "╟", SEP_R = "╢", SEP = "─";
 const DOT = "·";
 
-export const FRAME_W = 62;
+// El marco se adapta al terminal. Fijo en 62 se salían los detalles largos del
+// doctor (rutas, versiones, motivos de fallo): el valor se recortaba a mitad de
+// palabra y la caja parecía rota. Se acota por arriba para que en pantallas muy
+// anchas no quede una caja desmesurada.
+const FRAME_MIN = 62;
+const FRAME_MAX = 110;
+
+export function frameWidth(columns = process.stdout.columns ?? 80): number {
+	return Math.max(FRAME_MIN, Math.min(FRAME_MAX, columns - 2));
+}
+
+export const FRAME_W = frameWidth();
 const INNER = FRAME_W - 4;
 const LABEL_W = 13;
 

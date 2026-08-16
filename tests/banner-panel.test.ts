@@ -9,6 +9,9 @@
 import { describe, expect, test } from "bun:test";
 import {
 	PANEL_W,
+	composeColumns,
+	composedWidth,
+	lineWidth,
 	panelDuration,
 	panelRows,
 	renderPanel,
@@ -108,5 +111,40 @@ describe("panel de estado", () => {
 		const rows = panelRows(data);
 		expect(rows[0]!.kind).toBe("tab");
 		expect(rows.filter((row) => row.kind === "blank").length).toBe(data.sections.length - 1);
+	});
+});
+
+// =============================================================================
+// El logo NO debe moverse cuando aparece el panel. Antes el centrado se
+// calculaba solo sobre lo dibujado, asi que al abrir la caja el EIN saltaba a
+// la izquierda: eso era el "barrido" que lo recolocaba.
+// =============================================================================
+describe("composicion en dos columnas", () => {
+	type C = { text: string };
+	const logo: C[][] = [[{ text: "X".repeat(54) }], [{ text: "Y".repeat(20) }]];
+	const pad = (width: number): C => ({ text: " ".repeat(width) });
+
+	test("toda linea mide el ancho compuesto, con panel o sin el", () => {
+		const total = composedWidth(54);
+		for (const right of [[], [[{ text: "P".repeat(PANEL_W) }]]]) {
+			for (const line of composeColumns<C, C>(logo, 54, right, pad)) {
+				expect(lineWidth(line)).toBe(total);
+			}
+		}
+	});
+
+	test("la columna izquierda arranca en la misma columna en todos los casos", () => {
+		const withPanel = composeColumns<C, C>(logo, 54, [[{ text: "P".repeat(PANEL_W) }]], pad);
+		const without = composeColumns<C, C>(logo, 54, [], pad);
+		expect(lineWidth(withPanel[0]!)).toBe(lineWidth(without[0]!));
+	});
+
+	test("la columna corta se centra en vertical", () => {
+		const right = Array.from({ length: 10 }, () => [{ text: "P".repeat(PANEL_W) }]);
+		const composed = composeColumns<C, C>(logo, 54, right, pad);
+		expect(composed).toHaveLength(10);
+		// El logo (2 filas) cae en el centro de las 10, no pegado arriba.
+		const first = composed.findIndex((line) => line[0]!.text.startsWith("X"));
+		expect(first).toBe(4);
 	});
 });

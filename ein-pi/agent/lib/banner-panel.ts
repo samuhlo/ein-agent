@@ -236,7 +236,13 @@ export function composeColumns<L extends WidthCell, R extends WidthCell>(
 		const rightLine = right[index] ?? [];
 		const gap = Math.max(0, leftWidth - lineWidth(leftLine)) + gutter;
 		const cells: (L | R)[] = [...leftLine, pad(gap)];
-		out.push(rightLine.length ? [...cells, ...rightLine] : cells);
+		if (rightLine.length) cells.push(...rightLine);
+		// Toda linea se rellena hasta el ancho compuesto TOTAL, aunque la columna
+		// derecha aun no exista. Sin esto el centrado se calculaba solo sobre lo
+		// dibujado y el logo saltaba de sitio en cuanto aparecia el panel.
+		const missing = composedWidth(leftWidth, gutter) - lineWidth(cells);
+		if (missing > 0) cells.push(pad(missing));
+		out.push(cells);
 	}
 	return out;
 }

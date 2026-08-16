@@ -404,15 +404,11 @@ export default function (pi: ExtensionAPI) {
     // El marco se dibuja solo: el borde superior barre de izquierda a derecha,
     // los laterales bajan, y el inferior cierra. Luego cada sección "abre" y sus
     // filas se rellenan con la línea de puntos que lleva la etiqueta al valor.
-    const PANEL_START_TICK = SUB_END_TICK + 2;
-    const PANEL_FRAME_TICKS = 8; // barrido del marco
-    const PANEL_ROW_TICKS = 2; // retardo entre filas al abrirse
-    const PANEL_LEADER_TICKS = 5; // relleno de la línea de puntos por fila
-    // El panel abre despues del subtitulo y tarda: marco + una fila cada
-    // PANEL_ROW_TICKS + el relleno de la ultima linea de puntos. Sin contarlo,
-    // FINISH_TICK cortaba la animacion a mitad y el panel salia incompleto.
-    // Cota superior de filas del panel (secciones + campos + huecos).
-    const PANEL_MAX_ROWS = 26;
+    const PANEL_START_TICK = STAMP_TICK;
+    // Cota superior de filas del panel. Generosa a proposito: si el cambio real
+    // tiene mas filas que la cuenta, FINISH_TICK corta la animacion antes de
+    // dibujar el borde inferior y la caja se queda abierta.
+    const PANEL_MAX_ROWS = 34;
     const PANEL_END_TICK =
       PANEL_START_TICK + PANEL_FRAME_TICKS + PANEL_MAX_ROWS * PANEL_ROW_TICKS + PANEL_LEADER_TICKS;
     const FINISH_TICK = Math.max(SUB_END_TICK + 4, PANEL_END_TICK);
@@ -528,7 +524,9 @@ export default function (pi: ExtensionAPI) {
         if (state.timer) clearInterval(state.timer);
 
         const animStart = Date.now();
-        const HARD_TIMEOUT_MS = 3000;
+        // Holgura real sobre la animacion mas larga (~2.3s). Con 3000 el corte
+        // llegaba antes que el borde inferior del panel y la caja quedaba abierta.
+        const HARD_TIMEOUT_MS = 5000;
 
         state.timer = setInterval(() => {
           tick++;
@@ -724,10 +722,20 @@ export default function (pi: ExtensionAPI) {
 
               // Lado a lado solo si el terminal da de sí; si no, apilado, que es
               // lo que cabe en un terminal estrecho.
-              const rows = width >= composedWidth(logoBase.width)
+              // El ancho compuesto se reserva DESDE EL PRIMER FOTOGRAMA, aunque
+              // el panel todavia no exista. Sin esto el centrado se calculaba
+              // solo sobre el logo, y al aparecer la caja el logo saltaba a la
+              // izquierda: ese era el "barrido" que movia el EIN de sitio.
+              const side = width >= composedWidth(logoBase.width);
+              const composed = side
                 ? composeColumns<Cell, Cell>(left, logoBase.width, panel, (gap) => ({ text: " ".repeat(gap) }))
                 : [...left, [], ...panel];
+              const rows = composed;
 
+              // Aire arriba y abajo: el banner pinta sobre pantalla limpia y
+              // pegado al borde se lee peor.
+              b.addRow();
+              b.center(width);
               for (const row of rows) {
                 b.addRow();
                 for (const cell of row) {
@@ -739,6 +747,8 @@ export default function (pi: ExtensionAPI) {
                 }
                 b.center(width);
               }
+              b.addRow();
+              b.center(width);
             } else {
               for (const row of left) {
                 b.addRow();
