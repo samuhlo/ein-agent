@@ -95,6 +95,14 @@ export class RuntimeTestOwner {
 		this.setEnv("EIN_PI_AGENT_HOME", this.agentHome);
 		this.setEnv("EIN_PI_CONFIG_HOME", this.configHome);
 		this.setEnv("CLAUDE_CONFIG_DIR", this.claudeHome);
+		// FUGA DE AISLAMIENTO -> correr la suite DESDE una sesión supervisada por
+		// Ein dejaba `EIN_CONTINUITY_ENDPOINT`/`_TOKEN` en el entorno, y de ahí
+		// bajaban a cada proceso hijo que los tests lanzan. Un proceso "destino"
+		// que ve un endpoint se cree "origen": el test de PTY de continuidad
+		// fallaba en la máquina del autor y pasaba en CI, donde no hay supervisor.
+		// El socket ambiental no es del test y nunca debe alcanzarlo.
+		this.deleteEnv("EIN_CONTINUITY_ENDPOINT");
+		this.deleteEnv("EIN_CONTINUITY_TOKEN");
 		this.activated = true;
 		for (const signal of ACTIVE_SIGNAL_NAMES) {
 			const handler = () => {

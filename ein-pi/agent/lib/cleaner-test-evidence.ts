@@ -91,19 +91,39 @@ function vitestJson(source: string, limits: Limits): Result {
 	if (seen !== tests) throw new Error("Conflicting Vitest test count"); return { suites, tests, passed, failed, skipped: pending + todo, failures, failuresTruncated: failed > failures.length, durationMs: reliable ? totalDuration : null };
 }
 
+// Elementos JUnit admitidos. `properties`/`property` son estandar y NO llevan
+// resultados: Bun los emite cuando detecta GitHub Actions (un bloque con la url
+// del run y el commit). Sin ellos en la lista, auditar con el Cleaner DENTRO de
+// CI moria con "Unsupported XML element" — el fallo que tuvo esta suite. Se
+// aceptan y se ignoran: leerlos no aporta nada, rechazarlos rompe el informe.
+const JUNIT_ELEMENTS = [
+	"testsuites",
+	"testsuite",
+	"testcase",
+	"failure",
+	"skipped",
+	"system-out",
+	"system-err",
+	"properties",
+	"property",
+];
+
 type XmlNode = { name: string; attrs: Record<string, string>; children: XmlNode[]; body: string };
 function xml(source: string): XmlNode {
 		const document = source.replace(/^<\?xml version="1\.0" encoding="UTF-8"\?>\r?\n?/, "");
 		if (/<!DOCTYPE|<!ENTITY|<\?|<!--|<!\[CDATA\[/i.test(document) || /&(?!amp;|lt;|gt;|quot;|apos;)/.test(document)) throw new Error("Unsafe or unsupported XML"); const roots: XmlNode[] = [], stack: XmlNode[] = []; const token = /<[^>]+>|[^<]+/g; let offset = 0; let count = 0;
 		for (const match of document.matchAll(token)) { if (match.index !== offset) throw new Error("Malformed XML"); offset += match[0].length; const part = match[0]; if (!part.startsWith("<")) { if (stack.length) stack[stack.length - 1]!.body += part; else if (part.trim()) throw new Error("Malformed XML"); continue; }
-		const close = part.match(/^<\/([a-z-]+)>$/), open = part.match(/^<([a-z-]+)((?:\s+[A-Za-z_:][\w:.-]*="[^"<>]*")*)\s*(\/?)>$/); if (close) { const node = stack.pop(); if (!node || node.name !== close[1]) throw new Error("Malformed XML"); continue; } if (!open || !["testsuites", "testsuite", "testcase", "failure", "skipped", "system-out", "system-err"].includes(open[1]!)) throw new Error("Unsupported XML element");
+		const close = part.match(/^<\/([a-z-]+)>$/), open = part.match(/^<([a-z-]+)((?:\s+[A-Za-z_:][\w:.-]*="[^"<>]*")*)\s*(\/?)>$/); if (close) { const node = stack.pop(); if (!node || node.name !== close[1]) throw new Error("Malformed XML"); continue; } if (!open || !JUNIT_ELEMENTS.includes(open[1]!)) throw new Error("Unsupported XML element");
 		const attrs: Record<string, string> = {}; for (const item of open[2]!.matchAll(/\s+([A-Za-z_:][\w:.-]*)="([^"<>]*)"/g)) { if (attrs[item[1]!] !== undefined) throw new Error("Duplicate XML attribute"); attrs[item[1]!] = item[2]!.replace(/&(amp|lt|gt|quot|apos);/g, (_, entity: string) => ({ amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'" })[entity]!); }
 		const node = { name: open[1]!, attrs, children: [], body: "" }; const parent = stack[stack.length - 1]; if (parent) parent.children.push(node); else roots.push(node); if (++count > 40_100) throw new Error("XML node budget exceeded"); if (!open[3]) stack.push(node);
 	}
 		if (offset !== document.length || stack.length || roots.length !== 1 || !["testsuites", "testsuite"].includes(roots[0]!.name)) throw new Error("Malformed XML"); return roots[0]!;
 }
 function bunJunit(source: string, limits: Limits): Result {
-	const root = xml(source); const suites = root.name === "testsuite" ? [root] : root.children; if (!suites.length || suites.some((item) => item.name !== "testsuite" || item.children.some((child) => !["testcase", "system-out", "system-err"].includes(child.name)))) throw new Error("Unsupported JUnit structure");
+	// `properties` cuelga del testsuite y solo lleva metadatos del run (Bun lo
+	// emite dentro de GitHub Actions). Se admite como hijo y se ignora al contar:
+	// los casos se filtran por nombre mas abajo.
+	const root = xml(source); const suites = root.name === "testsuite" ? [root] : root.children; if (!suites.length || suites.some((item) => item.name !== "testsuite" || item.children.some((child) => !["testcase", "system-out", "system-err", "properties"].includes(child.name)))) throw new Error("Unsupported JUnit structure");
 	let tests = 0, passed = 0, failed = 0, skipped = 0, total = 0; let reliable = true; const failures: Failure[] = [];
 	for (const suite of suites) { const suitePath = path(suite.attrs.file ?? suite.attrs.name); const cases = suite.children.filter((item) => item.name === "testcase"); let sf = 0, ss = 0; for (const item of cases) { if (item.children.some((child) => !["failure", "skipped", "system-out", "system-err"].includes(child.name)) || item.children.filter((child) => child.name === "failure").length > 1 || item.children.filter((child) => child.name === "skipped").length > 1) throw new Error("Unsupported JUnit testcase");
 		const failure = item.children.find((child) => child.name === "failure"), skip = item.children.some((child) => child.name === "skipped"); if (failure && skip) throw new Error("Conflicting JUnit status"); tests += 1; const seconds = duration(item.attrs.time); if (seconds === null) reliable = false; else total += seconds * 1000;
