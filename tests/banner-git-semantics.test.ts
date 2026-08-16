@@ -309,7 +309,9 @@ describe("ein-banner Git adapter", () => {
 		expect(bannerSource).toContain('import { execFile } from "node:child_process";');
 		expect(bannerSource).toContain("new GitBannerController(gitProcessRunner");
 		expect(bannerSource).toContain("renderGitBannerRows(gitController.getSnapshot(), gitLang, width)");
-		expect(bannerSource).toContain('b.add(index === 0 ? gitRow.label.padEnd(labelWidth) : " ".repeat(labelWidth), STRUCTURE);');
+		// Las filas de git comparten el lenguaje de la placa: etiqueta gris a la
+		// izquierda, valor en concreto, sin `■` amarillo por fila.
+		expect(bannerSource).toContain('b.add((index === 0 ? gitRow.label.toUpperCase() : "").padEnd(labelWidth), STRUCTURE);');
 		expect(bannerSource).toContain("for (const [index, value] of gitRow.value.split(\" ↵ \").entries())");
 		expect(bannerSource).not.toContain("computeGitSync");
 		expect(bannerSource).not.toContain("sync?");
@@ -338,21 +340,32 @@ describe("ein-banner Git adapter", () => {
 		expect(bannerSource).toContain("const tui = headerActive ? activeTui : null;");
 		expect(bannerSource).toContain("gitController.invalidate();");
 		expect(bannerSource).toContain("const FULL_INTRO_MIN_ROWS = 30;");
-		expect(bannerSource).toContain('b.add("PATH".padEnd(L), STRUCTURE);');
-		expect(bannerSource).toContain('b.add("SESIONES RECIENTES".padEnd(GRID_W - 2), STRUCTURE, { bold: true });');
+		expect(bannerSource).toContain('groupRow("PROYECTO", shortenHome(ctx.cwd));');
+		expect(bannerSource).toContain('b.add((index === 0 ? "RECIENTES" : "").padEnd(L), STRUCTURE);');
 	});
 
 	test("renders project automatic Cleaner and Architect state in a centered partial row", () => {
 		expect(bannerSource).toContain('readProjectAgentControlStatus(ctx.cwd, "cleaner")');
 		expect(bannerSource).toContain('readProjectAgentControlStatus(ctx.cwd, "architect")');
-		expect(bannerSource).toContain('["CLEANER", cleanerLabel]');
-		expect(bannerSource).toContain('["ARCH", architectLabel]');
+		// Cleaner y Architect ya no son dos celdas de una rejilla de 14: se
+		// nombran en la fila ACTIVO solo cuando están encendidos.
+		expect(bannerSource).toContain('groupRow("ACTIVO", activo || "nada extra"');
+		expect(bannerSource).toContain('cleanerLabel && !/^(off|no|desactivad)/i.test(cleanerLabel) ? "cleaner" : ""');
+		expect(bannerSource).toContain('architectLabel && !/^(off|no|desactivad)/i.test(architectLabel) ? "architect" : ""');
 		expect(bannerSource).toContain("const cleanerLabel = agentAutomaticParticipationLabel(");
 
-		const grid = bannerSource.slice(bannerSource.indexOf("const cells:"), bannerSource.indexOf("addGitBannerRows();"));
-		expect(grid.match(/^\s+\["[A-Z]+",/gm)).toHaveLength(14);
-		expect(grid).toContain("if (!cell) continue;");
-		expect(grid).toContain("b.center(width);");
+		// REDISEÑO -> la placa era una rejilla de 14 celdas, todas con el mismo
+		// `■` amarillo: el acento de marca repetido 14 veces deja de acentuar, y
+		// mezclaba tres clases de dato con el mismo peso. Ahora son cuatro grupos
+		// (qué se cargó, cómo está la sesión, qué está activo, dónde), con la
+		// etiqueta en gris y el valor en concreto.
+		const plate = bannerSource.slice(bannerSource.indexOf("const groupRow ="), bannerSource.indexOf("addGitBannerRows();"));
+		expect(plate.match(/groupRow\("[A-ZÓ]+"/g)).toHaveLength(4);
+		expect(plate).not.toContain('b.add("■ ", YELLOW)');
+		// Defensivo: un valor vacío nunca debe pintar una fila muda ni tumbar el
+		// banner — un crash aquí se lleva por delante el arranque de Pi.
+		expect(plate).toContain("if (!value) return;");
+		expect(plate).toContain("b.center(width);");
 	});
 });
 
