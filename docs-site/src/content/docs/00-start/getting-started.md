@@ -100,7 +100,10 @@ siguen intactos y sin tocar; EIN vive en `~/.pi-ein/agent` y `~/.claude-ein`.
 | `ein-install restore` | restaura desde un backup |
 
 Cada `install` sobre un árbol existente, cada `update`, `uninstall` y `restore`
-crea antes un snapshot comprimido. La reversibilidad no es un extra: está en
+crea antes un directorio `.snapshot` respaldado por manifest. El restore valida
+hashes y permisos, conserva el estado de usuario excluido y deja el árbol anterior
+como `.recovery-*` pineado para reparación o limpieza explícita. Los `.tar.gz`
+legacy requieren un instalador antiguo compatible o recuperación manual. Consulta
 [Uninstall & Recovery](/ein-agent/05-debug/uninstall-recovery/).
 
 La referencia completa de comandos y flags está en

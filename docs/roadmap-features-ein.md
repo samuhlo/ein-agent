@@ -1,599 +1,426 @@
-# Roadmap canónico de features de EIN
+# EIN Product Roadmap
 
-> **Este documento es la hoja de ruta canónica de priorización y ejecución de EIN.**
-> `docs/ein_futuras_features.md` sigue siendo el catálogo detallado de ideas; no se
-> sustituye ni se reescribe aquí. `docs/borrador_nuevas_feats_EIN.md` también se
-> conserva como material de propuesta. Este documento ordena el trabajo aceptado
-> y lo divide en cambios SDD independientes.
+EIN-Pi is the flagship and primary product. Packaged deterministic acceptance proves Cleaner and Architect in Pi. Finish the active continuity work, then strengthen the installer control plane and launcher before revisiting Claude Cleaner/Architect parity.
 
-## 1. Decisión de beta
+The product direction is deliberately narrow:
 
-La promesa de beta incluye un **launcher mínimo**. Será una CLI/workbench separada,
-no una ampliación de la TUI del instalador.
+1. Preserve the accepted packaged Pi Cleaner and Architect behavior; live credentialed semantic smoke remains optional and separate.
+2. Stabilize the active provider-neutral Pi↔Claude continuity work.
+3. Complete the installer control plane.
+4. Improve the launcher while preserving its controller and legacy renderer.
+5. Defer bounded Claude Cleaner/Architect parity until those product foundations are stable.
 
-Antes de beta, el trabajo debe recorrer este camino:
+## Current Status
 
-1. reconciliar la verdad actual de beta con la evidencia obsoleta del roadmap;
-2. definir el contrato compartido de estado de proyecto;
-3. añadir adaptadores de sesión para Pi y Claude;
-4. construir el launcher mínimo;
-5. endurecer el flujo con E2E.
+| Area | Status | Current truth |
+|---|---|---|
+| EIN-Pi | `primary` | Pi is the architecture target and the first runtime for all new behavior. |
+| Cleaner | `accepted in packaged Pi` | Deterministic packaged acceptance covers the internal Pi workflow, bounded mutation safety, evidence collectors, and isolated runtime closure. Live credentialed semantic smoke remains optional and separate. |
+| Architect | `accepted in packaged Pi` | Deterministic packaged acceptance covers the named read-only Pi workflow and its bounded evidence and plan contracts. Live credentialed semantic smoke remains optional and separate. |
+| SDD integration | `accepted in packaged Pi` | Deterministic acceptance covers independent participation and the fixed apply→Cleaner→Architect→verify order. Provider-neutral reconstruction remains continuity work. |
+| Provider-neutral continuity | `stabilizing` | Complete and verify the active WU1-WU9 continuity bytes before opening the next product front. See [`plan-continuidad-pi-claude.md`](plan-continuidad-pi-claude.md). |
+| Claude parity | `deferred` | Cleaner and Architect remain intentionally excluded from Claude until installer and launcher priorities are complete. |
+| Installer | `active next priority` | Targets, backups, update journal, rollback, acquisition checks, doctor, and uninstall foundations exist. The first control-plane unit adds one authoritative read-only install inventory and exact dry-run; execution consumes it in WU2. |
+| Launcher | `follows installer` | Shared project state, sessions, launch plans, update status, and isolated Pi/Claude flows exist. Preserve the controller and legacy renderer. |
+| OpenTUI migration | `stopped` | Functional acceptance passed, but startup and distribution costs failed mandatory gates. No production migration is authorized. |
 
-El primer SDD recomendado es **A — `beta-truth-and-exit-criteria`**. Va antes de
-implementar el launcher porque fija qué significa estar en beta, qué evidencia es
-válida y qué queda explícitamente fuera. Sin esa reconciliación, el launcher podría
-presentar estados o criterios de salida basados en documentación antigua.
+## Product Boundaries
 
-## 2. Alcance del launcher mínimo
+### What EIN is building
 
-El launcher debe permitir, para el proyecto y runtime seleccionados:
+- One Cleaner implementation used by the `ein-cleaner` Pi subagent.
+- One Architect implementation used by the `ein-architect` Pi subagent.
+- Natural-language invocation inside an active Pi session.
+- Optional control commands inside Pi for explicit invocation and activation state.
+- Small deterministic helpers that reduce token use and constrain unsafe behavior.
+- Minimal Claude-native assets later, solely to reproduce proven Pi behavior.
 
-- seleccionar un proyecto;
-- seleccionar Pi o Claude;
-- mostrar la fase activa de OpenSpec y el siguiente paso;
-- listar, crear y reanudar sesiones del runtime seleccionado;
-- lanzar el runtime;
-- ofrecer acceso compacto a doctor.
+### Simplicity Rules
 
-El launcher **orquesta** estas operaciones, pero no es dueño de la lógica de
-instalación ni de actualización. Esa responsabilidad sigue en las superficies
-correspondientes del instalador.
+1. Build for Pi first.
+2. Keep Cleaner and Architect inside the parent agent runtime.
+3. Keep deterministic collectors and contracts internal.
+4. Share logic instead of duplicating Pi and Claude engines.
+5. Add abstraction only after concrete duplication proves it necessary.
+6. Prefer bounded workflows and explicit state over platform layers.
 
-### Fuera de beta
+### Deterministic-First Rule
 
-No forman parte de la promesa de beta:
+Cleaner and Architect must obtain computable facts before spending model tokens interpreting them. Internal tools calculate metrics, coverage, duplication, dependency graphs, source fingerprints, scope boundaries, and other verifiable evidence. The model interprets those facts, identifies semantic concerns, prioritizes findings, plans changes, and performs only justified work.
 
-- updater universal o avanzado;
-- dashboard completo o TUI de navegación general;
-- escritores paralelos;
-- mutaciones del cleaner;
-- mutaciones del architect.
+This ordering is mandatory because it reduces token use while improving repeatability and auditability. It must not reduce quality: deterministic collectors cannot replace semantic reasoning when meaning, intent, responsibility, or architectural tradeoffs require model judgment. Weak heuristics must be reported as incomplete evidence, not promoted into conclusions.
 
-> Esta sección describe el alcance **de la beta**, ya cerrada. Dos de estas
-> exclusiones se han aceptado después como trabajo post-beta —el aviso de
-> actualización en el launcher (N) y la aplicación de terminal (O)—; ver §7.1.
-> Siguen fuera de la promesa de beta; ya no están fuera del roadmap.
+Minimal acceptance uses representative equivalent scenarios. For each scenario, record the deterministic evidence supplied to the model, verify that the model does not reconstruct equivalent computable facts, and confirm that required semantic inspection and outcome quality are preserved. Tool choice and numeric thresholds remain deferred to the owning workflow units.
 
-## 3. Arquitectura interna y continuidad
+### Non-Goals
 
-Las fuentes tienen responsabilidades distintas:
+This roadmap explicitly rejects:
 
-- **OpenSpec** es la autoridad del trabajo activo: cambio, fase y siguiente paso.
-- **EIN.md** es el contexto estable del proyecto.
-- **Git** representa el estado exacto del código.
-- **Las sesiones de runtime** permanecen privadas dentro de Pi o Claude.
+- external Cleaner or Architect CLI programs;
+- public Cleaner or Architect JSON or machine APIs;
+- standalone runner UX for either subagent;
+- a generic capability platform;
+- a generic provider registry;
+- duplicated Pi and Claude Cleaner or Architect engines;
+- OpenCode support in the current roadmap; it is explicitly deferred;
+- exposing deterministic collectors as product surfaces;
+- enabling Architect by default or bypassing the selected project profile;
+- Architect source mutation in v1;
+- autonomous cross-project mutation;
+- reopening the renderer decision.
 
-Un **proyector determinista de estado de proyecto** normaliza estas fuentes en una
-representación compartida. Los adaptadores de Pi y Claude exponen una superficie
-común para **listar, crear, reanudar y lanzar** sesiones, sin convertir el launcher
-en propietario de los datos internos de cada runtime.
+OpenCode is only a deferred future possibility. Consider a provider abstraction after a third runtime creates real duplication and the Pi/Claude seams are proven.
 
-La continuidad entre runtimes transfiere el **estado de proyecto** normalizado
-(proyecto, fase, siguiente paso, estado Git y señales de frescura), no el historial
-privado de conversación. Cambiar de runtime no debe fingir que una conversación
-privada fue migrada.
-
-La verificación está ligada al estado exacto que se verificó. Si una sesión cambia
-el estado relevante del código, la evidencia previa debe marcarse como inválida o
-obsoleta hasta volver a verificar; no se hereda automáticamente por reanudar o
-cambiar de runtime. El proyector debe hacer visible esa frescura para que el
-launcher no presente evidencia antigua como actual.
+## Target Pi Architecture
 
 ```text
-                    ┌──────────────────────┐
-                    │ OpenSpec: trabajo    │
-                    │ activo y siguiente   │
-                    │ paso                 │
-                    └──────────┬───────────┘
-                               │
-┌──────────────────┐           │           ┌──────────────────────┐
-│ EIN.md: contexto │───────────┼──────────▶│ Proyector determinista│
-│ estable          │           │           │ de estado de proyecto │
-└──────────────────┘           │           └──────────┬───────────┘
-                               │                      │
-                    ┌──────────▼───────────┐         │ estado común
-                    │ Git: estado exacto    │         │
-                    │ del código           │         ▼
-                    └──────────────────────┘  ┌──────────────────────┐
-                                               │ Launcher: orquesta  │
-                    ┌──────────────────────┐   │ sin instalar/actual.│
-                    │ Sesiones privadas   │   └──────────┬───────────┘
-                    │ Pi / Claude         │              │
-                    └──────────┬───────────┘              ▼
-                               │              ┌──────────────────────┐
-                    ┌──────────▼───────────┐  │ Adaptadores Pi/Claude│
-                    │ list / create /      │  │ list / create /      │
-                    │ resume / launch      │  │ resume / launch      │
-                    └──────────────────────┘  └──────────────────────┘
+user in EIN-Pi
+  |
+  | natural language or optional /ein controls
+  v
+parent orchestrator
+  |-- ein-scout
+  |-- ein-cleaner
+  `-- ein-architect
+        |
+        v
+internal deterministic tools
+  |-- project and scope discovery
+  |-- source-state fingerprints
+  |-- coverage and complexity collectors
+  |-- duplication evidence
+  |-- CodeGraph facts
+  `-- bounded write and verification helpers
 ```
 
-## 4. Horizontes
+The parent orchestrator owns routing, activation state, SDD sequencing, and user-visible progress. Named subagents own their workflows and semantic judgment. Deterministic tools collect facts, enforce boundaries, and verify state without becoming user-facing products.
 
-### Horizonte beta: A–E
+The implementation must not fork Cleaner or Architect logic by runtime. Pi owns the first complete behavior. Claude later receives the smallest native prompt, agent, hook, or command assets needed to produce the same visible workflow.
 
-Establece la verdad de beta, el contrato común, la integración con Pi y Claude, el
-launcher mínimo y la evidencia E2E necesaria para confiar en el flujo.
+## Invocation Inside Pi
 
-### Inmediato post-beta: F–I
+Users invoke subagents through normal conversation:
 
-Comparte configuración y asesoría de actualización, registra las áreas revisadas,
-audita el cleaner en modo lectura y, solo después, habilita mutaciones acotadas del
-cleaner mediante slices SDD.
+- "Ask Cleaner to audit the files changed in this task."
+- "Have Cleaner improve this module without changing behavior."
+- "Ask Architect to inspect the dependency direction under `src/core`."
+- "Have Architect validate this refactoring plan."
 
-### Alcanzable: M–O
-
-Hace invocable lo ya construido, pone el aviso de actualización donde el usuario lo
-ve, y convierte el launcher en la aplicación de terminal desde la que se controla
-Ein. Es el tramo que transforma capacidad entregada en capacidad utilizable.
-
-### Madurez: J–L
-
-Audita el architect en modo lectura, habilita mutaciones estructurales únicamente
-con análisis determinista de dependencias y property tests, y finalmente permite
-paralelismo seguro con worktrees aislados y reglas explícitas de ownership y
-conflicto.
-
-## 5. Secuencia de cambios SDD
-
-Cada bloque A–O es un cambio SDD independiente, con su propio diseño, tareas,
-aplicación y verificación. La secuencia es recomendada y sus dependencias son
-parte del contrato de planificación; no se deben fusionar varios bloques en un
-mega-cambio.
-
-### Estado de entrega
-
-La descripción de cada bloque más abajo está redactada en futuro porque es su
-contrato original; esta tabla es la que dice qué está hecho. La autoridad última
-es `openspec/changes/archive/`.
-
-| Bloque | Estado | Entregado como |
-| :--- | :--- | :--- |
-| A `beta-truth-and-exit-criteria` | entregado | `beta-truth-and-exit-criteria` |
-| B `shared-project-state-contract` | entregado | `shared-project-state-contract` |
-| C `runtime-session-adapters` | entregado | `runtime-session-adapters` |
-| D `minimal-workbench-launcher` | entregado | `minimal-workbench-launcher` |
-| E `beta-launcher-e2e-hardening` | entregado | `beta-launcher-e2e-hardening` |
-| F `shared-config-update-advisor` | entregado | `shared-config-update-advisor` |
-| G `reviewed-area-ledger` | entregado | `reviewed-area-ledger` |
-| H `cleaner-read-only-audit` | entregado | `cleaner-read-only-audit` |
-| I `cleaner-bounded-mutations` | entregado | `cleaner-bounded-mutations` |
-| M `surface-wiring` | entregado | `surface-wiring` |
-| N `launcher-update-surface` | entregado | `launcher-update-surface` (N.1) + slices N.2 y N.3 |
-| O `ein-terminal-app` | **en curso** | O.1 navegación y estado; O.2 y O.3 pendientes |
-| J `architect-read-only-audit` | pendiente | — |
-| K `architect-structural-mutations` | pendiente | — |
-| L `safe-agent-parallelism` | pendiente | — |
-
-Fuera de esta secuencia, entregado por el camino: `fix-update-notice-masking`
-(defecto de producción encontrado al preparar N), la declaración del SDK de Pi
-como dependencia del repo, y la puerta de tipos de `ein-pi`, `cc-ein` y `tests`.
-
-### A — `beta-truth-and-exit-criteria`
-
-- **Objetivo:** establecer la verdad vigente de beta y criterios de salida revisables.
-- **Alcance:** reconciliar la promesa de beta, las capacidades existentes y la
-  evidencia obsoleta del roadmap; clasificar cada punto como requisito, posterior o
-  descartado; fijar los criterios de salida de A–E.
-- **No incluye:** implementar el launcher, cambiar el instalador o resolver features
-  posteriores.
-- **Dependencias:** ninguna de esta hoja de ruta.
-- **Aceptación / salida:** existe una matriz revisada de verdad de beta; los
-  criterios de salida y exclusiones de beta están explícitos; ninguna evidencia
-  antigua se usa como criterio sin reconciliación.
-- **Riesgo:** confundir una propuesta histórica con una capacidad o requisito
-  vigente.
-
-### B — `shared-project-state-contract`
-
-- **Objetivo:** definir la representación compartida y determinista del estado de
-  proyecto.
-- **Alcance:** contrato y semántica para identidad del proyecto, fase activa y
-  siguiente paso de OpenSpec, contexto de EIN.md, estado exacto de Git, frescura de
-  verificación y referencias/capacidades de runtime; límites del proyector.
-- **No incluye:** UI del launcher, implementación de sesiones, exportación de
-  conversaciones ni lógica de instalación/actualización.
-- **Dependencias:** A.
-- **Aceptación / salida:** el contrato distingue autoridad, contexto, código y
-  sesiones privadas; define cuándo una verificación queda obsoleta; sus casos de
-  estado ambiguo o incompleto tienen una representación explícita.
-- **Riesgo:** crear un contrato demasiado amplio que mezcle estado público con
-  detalles privados de un runtime.
-
-### C — `runtime-session-adapters`
-
-- **Objetivo:** ofrecer una interfaz común de sesiones para Pi y Claude.
-- **Alcance:** adaptadores para listar, crear, reanudar y lanzar sesiones; traducción
-  de capacidades, errores y estado de cada runtime al contrato compartido.
-- **No incluye:** UI, continuidad de historiales privados, escritor paralelo ni
-  cambios en la lógica del instalador.
-- **Dependencias:** B; debe respetar la verdad de beta de A.
-- **Aceptación / salida:** Pi y Claude exponen la superficie común sin ocultar sus
-  diferencias relevantes; una reanudación identifica el estado de proyecto usado;
-  el traspaso entre runtimes comunica estado normalizado, nunca historial privado.
-- **Riesgo:** que una diferencia de ciclo de vida entre runtimes se convierta en
-  una falsa equivalencia o en una sesión reanudada con estado incorrecto.
-
-### D — `minimal-workbench-launcher`
-
-- **Objetivo:** entregar el launcher mínimo prometido para beta.
-- **Alcance:** selección de proyecto y runtime; fase activa y siguiente paso;
-  listar, crear, reanudar y lanzar sesiones; acceso compacto a doctor; presentación
-  de estado incompleto o verificación obsoleta.
-- **No incluye:** expansión de la TUI del instalador, dashboard completo,
-  navegación general, updater universal/avanzado, escritores paralelos ni
-  mutaciones de cleaner o architect.
-- **Dependencias:** A, B y C.
-- **Aceptación / salida:** un usuario puede recorrer el flujo mínimo desde el
-  proyecto seleccionado hasta el runtime seleccionado; el launcher usa el contrato
-  común y los adaptadores; no duplica ni absorbe la lógica de instalación o
-  actualización.
-- **Riesgo:** que el launcher crezca hasta ser otra TUI general o replique lógica del
-  instalador.
-
-### E — `beta-launcher-e2e-hardening`
-
-- **Objetivo:** demostrar y endurecer los caminos críticos del launcher antes de
-  beta.
-- **Alcance:** E2E del ciclo de selección de proyecto/runtime, lectura de OpenSpec,
-  listado/creación/reanudación/lanzamiento y doctor; escenarios de fallo y de
-  invalidación de verificación después de cambiar el estado del código.
-- **No incluye:** ampliar el alcance funcional del launcher ni validar features
-  post-beta.
-- **Dependencias:** D, con los criterios de salida de A como referencia.
-- **Aceptación / salida:** los escenarios críticos cubren éxito, error y estado
-  obsoleto de forma reproducible; los fallos dejan un diagnóstico accionable; la
-  evidencia de E2E corresponde al estado exacto comprobado.
-- **Riesgo:** cubrir solo el camino feliz y dejar silenciosas las transiciones de
-  estado o los fallos de un runtime.
-
-### F — `shared-config-update-advisor`
-
-- **Objetivo:** centralizar la lectura de configuración y la asesoría sobre
-  actualización después de beta.
-- **Alcance:** estado y recomendaciones compartidas para configuración y
-  actualización; explicación de qué acción corresponde al instalador; exposición
-  coherente desde las superficies que la consuman.
-- **No incluye:** updater universal o avanzado, ni trasladar la lógica de instalación
-  y actualización al launcher.
-- **Dependencias:** E; reutiliza B como contrato de estado.
-- **Aceptación / salida:** la recomendación es consistente entre superficies,
-  distingue información de acción y conserva la propiedad del instalador sobre
-  instalar/actualizar.
-- **Riesgo:** presentar una recomendación de configuración como si fuera una
-  actualización automática o segura.
-
-### G — `reviewed-area-ledger`
-
-- **Objetivo:** registrar qué áreas fueron revisadas y con qué evidencia vigente.
-- **Alcance:** límites de un área, estado de revisión, referencia a la evidencia y
-  reglas de frescura ligadas al estado Git; consumo por futuras auditorías.
-- **No incluye:** aprobar cambios automáticamente, permitir escritores paralelos o
-  sustituir la revisión humana/SDD.
-- **Dependencias:** F y B; debe conservar la evidencia obtenida en E.
-- **Aceptación / salida:** el ledger permite distinguir revisado, no revisado y
-  obsoleto; un cambio relevante de código invalida la entrada afectada; no declara
-  revisada un área por el mero hecho de que exista una sesión.
-- **Riesgo:** una granularidad incorrecta produzca confianza falsa o invalide más
-  áreas de las necesarias.
-
-### H — `cleaner-read-only-audit`
-
-- **Objetivo:** auditar el cleaner en modo lectura, sin mutar el proyecto.
-- **Alcance:** inspección y reporte de oportunidades del cleaner, usando el estado
-  proyectado y el ledger cuando corresponda; clasificación de hallazgos y límites
-  de confianza.
-- **No incluye:** aplicar cambios, limpiar automáticamente, escribir en paralelo ni
-  mutar áreas sin una slice SDD posterior.
-- **Dependencias:** G y B.
-- **Aceptación / salida:** el audit es explícitamente read-only, sus hallazgos son
-  trazables al estado revisado y no se presentan como cambios aplicados; los casos
-  inciertos quedan visibles.
-- **Riesgo:** convertir sugerencias de limpieza en mutaciones implícitas o analizar
-  evidencia ya obsoleta.
-
-### I — `cleaner-bounded-mutations`
-
-- **Objetivo:** habilitar mutaciones del cleaner únicamente como slices SDD
-  acotadas y revisables.
-- **Alcance:** seleccionar un hallazgo de H, delimitar su cambio, aplicar la
-  mutación con condiciones claras y actualizar/verificar su evidencia; detenerse
-  ante ambigüedad o fuera de alcance.
-- **No incluye:** cleaner autónomo sin límites, mutaciones del architect, escritores
-  paralelos ni cambios masivos no descompuestos.
-- **Dependencias:** H, G y B.
-- **Aceptación / salida:** cada mutación tiene una slice SDD identificable, límites
-  de ownership y verificación posterior; cualquier cambio del estado de código
-  invalida la evidencia anterior hasta repetir la verificación; el resultado es
-  atribuible y revisable.
-- **Riesgo:** que una transformación aparentemente mecánica cruce límites de
-  comportamiento o de ownership.
-
-### M — `surface-wiring`
-
-- **Objetivo:** hacer invocable lo que ya está construido. Cerrar el hueco entre los
-  módulos entregados en D e I y una superficie que una persona pueda usar.
-- **Alcance:** exponer el cleaner (`cleaner-read-only-audit`, `cleaner-bounded-mutations`)
-  y el launcher (`ein-pi/workbench.ts`) como entradas reales del harness —comando,
-  agente o skill, según lo que cada runtime permita— con activación explícita y
-  comportamiento idéntico en Pi y Claude o diferencia declarada.
-- **No incluye:** capacidades nuevas del cleaner ni del launcher, rediseño de sus
-  contratos, ni ampliar el alcance de las mutaciones ya acotadas por I.
-- **Dependencias:** D e I. Es el prerequisito de N, O y J: ninguno de ellos debe
-  construirse encima de un motor sin llave de contacto.
-- **Aceptación / salida:** desde una sesión limpia se puede invocar el cleaner y el
-  launcher sin conocer rutas internas; existe cobertura de la costura entre el
-  módulo y su superficie, no solo del núcleo puro.
-- **Riesgo:** volver a entregar lógica correcta y no alcanzable, o cablear una
-  superficie sin probar lo que el usuario ve realmente.
-
-### N — `launcher-update-surface`
-
-- **Objetivo:** que el launcher avise de actualizaciones disponibles y ofrezca
-  aplicarlas, como hace cualquier programa que se respeta.
-- **Alcance:** consumir el advisor de F desde el launcher; mostrar qué componente
-  tiene actualización (Ein, binario de Pi, extensiones y paquetes, Claude Code) y
-  ofrecer ejecutar la acción correspondiente delegando en el installer. Aviso
-  accionable y silencio cuando no hay nada que hacer o la evidencia no es fresca.
-- **No incluye:** que el launcher implemente la lógica de instalación o
-  actualización. La ejecución sigue siendo del installer; el launcher pide y
-  entrega el control. Tampoco incluye un updater universal de terceros.
-- **Dependencias:** F y M.
-- **Aceptación / salida:** el aviso nombra el componente y el comando exacto; una
-  evidencia obsoleta, expirada o incompleta nunca se presenta como accionable; la
-  ejecución cruza al installer por una frontera explícita y auditable.
-- **Riesgo:** que la conveniencia de "actualizar desde aquí" arrastre poco a poco la
-  lógica del installer dentro del launcher y duplique la fuente de verdad.
-
-### O — `ein-terminal-app`
-
-- **Objetivo:** convertir el launcher en la aplicación de terminal desde la que se
-  controla Ein, con navegación propia y estética cuidada.
-- **Alcance:** aplicación de terminal ejecutable desde cualquier shell, con banner,
-  atajos de teclado al estilo LazyVim (`f` buscar, `q` salir) y navegación con
-  flechas como alternativa; configuración del proyecto (modo solo/team, idiomas,
-  Hypa, CodeGraph, Engram) leída y escrita sobre `EIN.md`; resumen de sesiones
-  anteriores con una frase que identifique la última acción; estado del proyecto
-  leído de OpenSpec; y un apartado de sistema que agrupe doctor y las acciones de N.
-- **No incluye:** poseer la instalación (sigue en el installer), escritores
-  paralelos, ni sustituir a OpenSpec como autoridad del trabajo activo. La TUI
-  presenta estado, no lo inventa.
-- **Dependencias:** M y N. Se ejecuta en slices SDD independientes, no como un
-  único mega-cambio: navegación y estado primero, configuración después, resumen de
-  sesiones al final.
-- **Aceptación / salida:** cada pantalla se alimenta de una fuente declarada
-  (OpenSpec, `EIN.md`, Git, adaptadores de sesión) y distingue lo desconocido de lo
-  vacío; los atajos y las flechas llevan al mismo sitio; la app sigue siendo usable
-  en terminales sin capacidades avanzadas o degrada de forma declarada.
-- **Riesgo:** que la TUI acumule responsabilidades hasta convertirse en la segunda
-  fuente de verdad del proyecto, o que el coste de la interfaz desplace al trabajo
-  que de verdad escribe código.
-
-#### Evolución técnica de la TUI: evaluación de OpenTUI + SolidJS
-
-**Status (2026-08-11):** Planning complete; implementation has not started. See the
-[packaging-first OpenTUI + SolidJS spike plan](opentui-solid-spike-plan.md).
-
-Una vez estabilizado, verificado y publicado `terminal-app-rework`, se evaluará una
-migración de la capa de presentación a **OpenTUI + `@opentui/solid`**, manteniendo
-TypeScript, TSX y Bun como stack principal. OpenTUI aporta un renderer nativo en Zig
-y bindings declarativos para SolidJS; encaja con la preferencia tecnológica de EIN
-y puede reducir el coste de mantener manualmente layout, foco, entrada, repintado y
-composición visual.
-
-La evaluación será un cambio separado, no una reescritura incluida en la
-recuperación del candidato actual:
-
-1. Construir un spike con una sola vista representativa y navegación por teclado.
-2. Probar ciclo de terminal, resize, degradación sin TTY, `NO_COLOR` y cesión de la
-   terminal a Pi, Claude Code y comandos del sistema.
-3. Verificar build y distribución en los payloads empaquetados de Pi y Claude, no
-   únicamente desde el repositorio.
-4. Comparar arranque, tamaño de paquete, compatibilidad de plataformas, calidad de
-   tests y complejidad mantenida frente al renderer actual.
-5. Decidir explícitamente entre conservar el renderer propio o migrar por slices
-   verticales; el spike no autoriza por sí solo la migración completa.
-
-La frontera de migración será estricta: se reutilizan el contrato de estado,
-adaptadores de runtime, sesiones, configuración, updater y acciones del modelo. La
-evaluación sustituye únicamente presentación, input y propiedad de terminal. No
-debe reimplementar reglas de producto dentro de componentes SolidJS ni hacer que la
-UI se convierta en autoridad del estado.
-
-**Criterio de salida:** existe evidencia empaquetada y comparable que demuestra si
-OpenTUI mejora personalización y mantenibilidad sin perder compatibilidad,
-degradación honesta ni seguridad en la cesión de terminal.
-
-### J — `architect-read-only-audit`
-
-- **Objetivo:** entender y auditar el architect sin permitirle mutaciones.
-- **Alcance:** análisis estructural en modo lectura, mapa de dependencias y reporte
-  de oportunidades, límites y precondiciones para cambios futuros.
-- **No incluye:** aplicar refactors, mover archivos automáticamente, paralelismo ni
-  mutaciones de architect.
-- **Dependencias:** I y B; usa la disciplina de evidencia de G.
-- **Aceptación / salida:** el audit produce hallazgos trazables y separa hechos de
-  hipótesis; sus resultados dejan explícitas las dependencias que tendrían que
-  demostrarse antes de mutar.
-- **Riesgo:** tratar una inferencia arquitectónica como dependencia determinista o
-  como permiso de escritura.
-
-### K — `architect-structural-mutations`
-
-- **Objetivo:** permitir mutaciones estructurales del architect solo bajo guardas
-  deterministas.
-- **Alcance:** aplicar cambios derivados de J mediante slices SDD; exigir análisis
-  determinista de dependencias y property tests antes de mutar; invalidar y repetir
-  la verificación tras modificar Git.
-- **No incluye:** refactorización ilimitada, decisiones estructurales no demostradas,
-  escritores paralelos ni mutaciones que omitan revisión.
-- **Dependencias:** J, B y la disponibilidad de análisis determinista de
-  dependencias y property tests.
-- **Aceptación / salida:** ninguna mutación comienza sin pasar las precondiciones;
-  el análisis y las propiedades cubren los invariantes declarados; cada cambio es
-  acotado, revisable y deja evidencia fresca o explícitamente inválida.
-- **Riesgo:** dependencias ocultas o propiedades insuficientes permitan una
-  mutación estructural aparentemente segura pero dañina.
-
-### L — `safe-agent-parallelism`
-
-- **Objetivo:** introducir paralelismo seguro de agentes sin carreras ni ownership
-  implícito.
-- **Alcance:** aislamiento mediante worktrees, asignación explícita de áreas,
-  reglas de ownership y conflicto, integración determinista y tratamiento de
-  verificación después de integrar cambios.
-- **No incluye:** escritores paralelos en beta, compartir un working tree sin
-  aislamiento, resolver conflictos silenciosamente ni saltarse SDD/revisión.
-- **Dependencias:** K, B y las capacidades de sesión de C.
-- **Aceptación / salida:** cada agente trabaja en un aislamiento conocido; no se
-  asignan áreas incompatibles sin una regla explícita; los conflictos se detectan y
-  se detienen para resolución; la integración deja un estado Git verificable y
-  vuelve obsoleta cualquier evidencia que ya no corresponda.
-- **Riesgo:** conflictos semánticos no detectados por el aislamiento de archivos o
-  ownership incompleto.
-
-## 6. Diagrama de dependencias
-
-La secuencia principal recomendada es:
+Optional controls provide predictable activation and direct routing:
 
 ```text
-A ──▶ B ──▶ C ──▶ D ──▶ E
-                         │
-                         ▼
-F ──▶ G ──▶ H ──▶ I ──▶ M ──▶ N ──▶ O ──▶ J ──▶ K ──▶ L
+/ein:cleaner <request>
+/ein:architect <request>
+/ein:cleaner on|off|status
+/ein:architect on|off|status
 ```
 
-Lectura del diagrama:
+These are controls inside Pi, not shell commands. Natural language remains the primary interaction.
 
-- A fija la verdad y las salidas de beta antes de diseñar el contrato.
-- B es la base común de adaptadores, launcher, ledger y auditorías.
-- C y D construyen el camino de runtime; E lo endurece con E2E antes de abrir el
-  trabajo post-beta.
-- F–I introducen asesoría, evidencia y mutaciones acotadas del cleaner.
-- M es la puerta del tramo siguiente: sin superficie invocable, N, O y J construyen
-  encima de motores que nadie puede arrancar.
-- N lleva el advisor de F hasta donde el usuario lo ve, sin mover la ejecución fuera
-  del installer.
-- O crece sobre M y N en slices; la interfaz llega después de que exista algo real
-  que presentar.
-- J–K separan la comprensión arquitectónica de la mutación protegida.
-- L espera a que existan límites de estado, análisis, verificación y aislamiento
-  suficientes para paralelizar sin convertir el repositorio en una carrera.
+## Independent Activation
 
-## 7. Decisiones bloqueadas
+EIN-Pi onboarding asks once per project for one automatic SDD participation profile and persists it in `.pi/ein/agents.json`. Missing configuration is an onboarding essential. `Use recommended` writes Balanced only when the file is missing and never overwrites an existing choice. `/ein:onboard` reconfigures the profile later; no SDD flow asks again.
 
-Estas decisiones se consideran cerradas para este roadmap:
+Profiles are ordered and presented as:
 
-- La beta incluye un launcher mínimo.
-- El launcher es una CLI/workbench separada, no una expansión de la TUI del
-  instalador.
-- OpenSpec es la autoridad del trabajo activo; EIN.md aporta contexto estable; Git
-  fija el estado exacto del código.
-- Las sesiones de Pi y Claude son privadas; la continuidad entre runtimes transfiere
-  estado de proyecto, no historial privado de conversación.
-- El proyector determinista normaliza las fuentes y los adaptadores exponen
-  list/create/resume/launch.
-- El launcher orquesta, pero no posee la lógica de instalación o actualización.
-- Quedan fuera de beta el updater universal/avanzado, el dashboard completo, los
-  escritores paralelos y las mutaciones de cleaner y architect.
-- Las mutaciones posteriores deben ser slices SDD acotadas y toda evidencia de
-  verificación se invalida cuando deja de corresponder al estado de código
-  verificado.
+1. **Balanced (recommended/default):** Cleaner on, Architect off.
+2. **Thorough:** Cleaner on, Architect on.
+3. **Manual:** Cleaner off, Architect off.
 
-Cambiar una decisión bloqueada requiere una nueva decisión explícita y una revisión
- de esta secuencia; no debe introducirse como detalle incidental de una slice.
+An existing Cleaner-off, Architect-on combination is shown honestly as `custom` until the user selects a supported profile. The startup banner renders persisted values as `CLEANER auto:on/off` and `ARCH auto:on/off`.
 
-## 7.1. Revisiones de decisiones bloqueadas
+A simple project-local `.pi/ein/agents.json` shape is sufficient:
 
-Registro de decisiones que modifican §7. Cada entrada indica qué se sustituye y qué
-bloques la implementan, para que el cambio no viaje escondido dentro de una slice.
+```json
+{
+  "agents": {
+    "cleaner": { "enabled": true },
+    "architect": { "enabled": false }
+  }
+}
+```
 
-### 2026-08-10 — Ein tendrá aplicación de terminal propia
+Project configuration provides the automatic default for new sessions. `/ein:cleaner on|off` and `/ein:architect on|off` remain session overrides only and never rewrite the project profile. The `status` control reports the effective value and whether it comes from project configuration or a session override.
 
-**Sustituye a:** "quedan fuera de beta el dashboard completo o la TUI de navegación
-general", en lo relativo al horizonte post-beta.
+Activation controls automatic SDD participation only. While `off`, a direct natural-language request or `/ein:cleaner <request>` / `/ein:architect <request>` may invoke any supported mode, including Cleaner improve. Explicit invocation still follows every normal scope, write, freshness, verification, and safety requirement.
 
-**Decisión:** Ein pasa de launcher a aplicación de terminal, ejecutable desde
-cualquier shell, con navegación propia al estilo LazyVim y estética cuidada. Es
-desde donde se controla Ein: estado del proyecto, configuración, sesiones y
-sistema.
+## SDD Sequencing
 
-**Sigue en pie:** no forma parte de la promesa de beta, y la TUI no se convierte en
-autoridad de nada. OpenSpec sigue siendo la autoridad del trabajo activo, `EIN.md`
-el contexto estable y Git el estado exacto del código; la aplicación los presenta.
+When enabled, the exact order is:
 
-**Implementa:** bloque O, en slices SDD independientes.
+```text
+sdd-apply -> ein-cleaner -> ein-architect -> sdd-verify
+```
 
-### 2026-08-10 — El launcher avisa de actualizaciones y ofrece aplicarlas
+The orchestrator skips disabled subagents without changing the relative order:
 
-**Sustituye a:** "el launcher orquesta, pero no posee la lógica de instalación o
-actualización", que se matiza en lugar de retirarse.
+| Cleaner | Architect | Sequence |
+|---|---|---|
+| off | off | `sdd-apply -> sdd-verify` |
+| on | off | `sdd-apply -> ein-cleaner -> sdd-verify` |
+| off | on | `sdd-apply -> ein-architect -> sdd-verify` |
+| on | on | `sdd-apply -> ein-cleaner -> ein-architect -> sdd-verify` |
 
-**Decisión:** el launcher muestra el aviso cuando hay una actualización disponible
-de Ein o de los agentes, y ofrece ejecutarla. Un programa que necesita actualizarse
-debe decirlo donde el usuario está mirando.
+SDD wiring must reuse the same subagents as direct existing-code requests. It must not create SDD-specific Cleaner or Architect implementations.
 
-**Sigue en pie:** la ejecución de la actualización sigue siendo del installer. El
-launcher detecta, presenta y entrega el control por una frontera explícita; no
-duplica la lógica ni se convierte en una segunda fuente de verdad. El updater
-universal o avanzado de terceros sigue fuera.
+Failures are explicit. A blocked or failed enabled subagent prevents verification from claiming a complete workflow unless the user deliberately disables or resolves it.
 
-**Implementa:** bloque N, sobre el advisor ya entregado en F.
+## Milestone 1: Pi Subagents (Deterministically Accepted)
 
-### Sin revisar (siguen cerradas)
+**Outcome:** Cleaner and Architect work as named internal Pi subagents, can inspect existing code, and participate independently in SDD. Packaged deterministic acceptance is complete; live credentialed semantic smoke is optional evidence and does not reopen this milestone.
 
-- Escritores paralelos: sigue siendo el bloque L, al final de la secuencia.
-- Integración del cleaner: decidida y entregada en H e I; su exposición al usuario
-  es el bloque M, no una reapertura del diseño.
+### Cleaner Workflow
 
-## 8. Preguntas abiertas
+Cleaner improves maintainability without changing product behavior. It supports two modes inside Pi: read-only audit and bounded improvement.
 
-Estas preguntas deben resolverse en el SDD que las necesite, sin reabrir las
-decisiones bloqueadas:
+```text
+scope request
+  -> deterministic evidence
+  -> semantic audit
+  -> bounded plan
+  -> optional writes
+  -> focused verification
+  -> progress update
+```
 
-- ¿Cuál es la forma exacta del contrato de estado y qué campos son obligatorios,
-  desconocidos u obsoletos?
-- ¿Qué cambios concretos del estado Git invalidan cada tipo de verificación y cada
-  entrada del ledger?
-- ¿Qué capacidades y errores específicos de Pi y Claude deben normalizar los
-  adaptadores?
-- ¿Qué diagnósticos incluye el acceso compacto a doctor y cuáles son estrictamente
-  read-only?
-- ¿Qué granularidad debe tener un área revisada y cómo se referencia su evidencia?
-- ¿Qué invariantes y property tests son necesarios antes de las mutaciones
-  estructurales del architect?
-- ¿Cómo se declaran ownership, conflictos e integración cuando llegue el
-  paralelismo seguro?
-- ¿Qué evidencia mínima y revisada habilita cada transición de horizonte sin
-  convertirla en una promesa de funcionalidad no aceptada?
+#### Audit
 
-## 9. Regla de ejecución
+Cleaner should:
 
-El catálogo de ideas puede seguir creciendo en `docs/ein_futuras_features.md`, pero
-solo los cambios priorizados aquí deben tratarse como la secuencia de ejecución
-actual. Cada nueva capacidad aceptada debe entrar mediante un cambio SDD con
-alcance, no-alcance, dependencias y criterios de salida explícitos.
+- validate the project root and requested scope;
+- discover relevant language and test tooling;
+- collect deterministic evidence before semantic inspection or planning;
+- collect available coverage, complexity, CRAP, and duplication evidence;
+- inspect naming, responsibility, coupling, dead code, readability, and semantic duplication;
+- distinguish measured facts from agent judgment;
+- rank findings by evidence, risk, and likely value;
+- report unsupported or missing evidence honestly.
 
-No se asignan estimaciones en este documento. La planificación posterior debe
-aportar evidencia de verificación sin convertir una intención del roadmap en una
-afirmación de implementación.
+Audit performs no source writes.
 
-## 10. Índice de documentos de `docs/`
+#### Improve
 
-Solo este documento es vigente para priorizar y secuenciar. El resto tiene un papel
-declarado; ninguno debe leerse como la dirección actual del proyecto.
+Cleaner may improve code only after it has a bounded scope and plan. It should:
 
-| Documento | Estado | Papel |
-| :--- | :--- | :--- |
-| `roadmap-features-ein.md` | **vigente** | Hoja de ruta canónica. Bloques A–O, decisiones y revisiones. |
-| `borrador_nuevas_feats_EIN.md` | material de propuesta | Volcado original en crudo. Fuente de `ein_futuras_features.md`. |
-| `ein_futuras_features.md` | catálogo de ideas | Desarrollo del borrador. **No es secuencia de ejecución**: sus §2 y §3 describen trabajo ya entregado en D–F y H–I. |
-| `roadmap-beta.md` | superado | Verdad de beta y criterios de salida (bloque A, archivado). Histórico. |
-| `roadmap-codegraph-tdd-launcher.md` | superado | Plan semanal previo al roadmap canónico. |
-| `ein-multiagente-plan.md` | superado | Plan Pi → Claude, ya ejecutado; `cc-ein` existe. |
-| `EIN_DOCUMENTATION_BRIEF.md` | superado | Brief de la documentación pública, entregada en `docs-site/`. |
-| `fricciones-dogfooding.md` | material en crudo | Registro de fricciones para el artículo de lanzamiento. No es plan. |
-| `review-workload-guard.md` | vigente (acotado) | Decisión sobre el guard de carga de revisión. Alcance propio, no roadmap. |
+- preserve observable behavior;
+- own an exact file set for the run;
+- reject stale evidence or changed preconditions;
+- avoid files outside the approved scope;
+- make small, reviewable changes;
+- run focused checks and project-required verification;
+- report incomplete or failed verification rather than claiming success;
+- retain enough recovery information for the bounded write set.
 
-Antes de tratar cualquier otro documento como dirección del proyecto, comprobar
-aquí su estado. Un documento superado puede seguir siendo correcto sobre el pasado
-y equivocado sobre el presente.
+Cleaner must not add product features, redesign architecture, or expand the requested scope silently.
+
+#### Existing-Code Scope
+
+Users can ask Cleaner to inspect a directory, module, changed-file set, feature boundary, or another explicit scope from inside Pi. Cleaner rejects ambiguous roots and unbounded requests before collecting expensive evidence or writing files.
+
+#### Progress and Freshness
+
+Cleaner keeps a lightweight project-local progress record containing:
+
+- reviewed scope;
+- source-state fingerprint;
+- important findings and disposition;
+- completed improvements;
+- verification evidence;
+- freshness or invalidation state.
+
+Fresh areas may be skipped on later broad audits. Changed or explicitly requested areas are reviewed again. The progress record is an internal efficiency aid, not a public API.
+
+#### Optional Teaching
+
+Cleaner can explain significant improvements when teaching is enabled. Teaching output should focus on transferable reasoning, avoid repeating recorded lessons, and never alter execution or safety decisions.
+
+### Architect Workflow
+
+Architect v1 is read-only. It audits, plans, and validates architecture without modifying source files.
+
+```text
+scope request
+  -> CodeGraph and repository facts
+  -> architectural interpretation
+  -> findings or plan
+  -> read-only validation
+```
+
+Architect should inspect:
+
+- module and package boundaries;
+- dependency direction and cycles;
+- high-level policy coupled to low-level details;
+- encapsulation and information hiding;
+- accidental public surfaces;
+- ownership and responsibility boundaries;
+- invariants that a proposed change must preserve;
+- useful property-test suggestions such as round trips, idempotence, ordering, conservation, and boundary constraints.
+
+Every architectural claim must trace to graph or repository facts. Architect labels inference, uncertainty, and missing evidence separately.
+
+Architect must gather reusable graph and repository facts before model interpretation. It must not spend model context reconstructing facts that internal tools can calculate, and it must not treat graph topology or metric thresholds as substitutes for semantic architectural judgment.
+
+Architect plans should describe proposed boundaries, affected modules, migration order, risks, invariants, verification, and unresolved decisions. Validation checks plan consistency and evidence freshness only. Architect v1 has no path that writes or reorganizes source code.
+
+### Pi Definition of Done
+
+- Pi discovers and routes to both named subagents.
+- Natural-language requests and optional controls produce the same workflows.
+- Automatic participation follows the persisted onboarding profile, while session overrides remain independent.
+- Cleaner audit works on explicit existing-code scope.
+- Cleaner improve enforces bounded writes, freshness, and verification.
+- Cleaner progress and optional teaching are usable without affecting safety.
+- Architect audits, plans, and validates with traceable graph facts.
+- Architect performs no source mutation.
+- Cleaner and Architect collect computable evidence before model interpretation.
+- Deterministic-first execution measurably avoids redundant model analysis without dropping required semantic inspection.
+- All four SDD toggle combinations follow the exact sequence table.
+- Representative packaged Pi scenarios prove behavior, cancellation, failure reporting, and resume paths without requiring model credentials.
+
+## Milestone 2: Stabilize Provider-Neutral Continuity
+
+**Outcome:** Users continue work between fresh native Pi and Claude sessions through a bounded neutral checkpoint. Finish and verify the current continuity units without expanding them into Cleaner/Architect parity.
+
+The canonical continuity plan is [`docs/plan-continuidad-pi-claude.md`](plan-continuidad-pi-claude.md). Continuity derives current project facts, persists a privacy-safe checkpoint, and injects a bounded resume brief; it never converts transcripts or claims exact session equivalence. The terminal app's **Continue in Pi/Claude** action belongs to this milestone and is distinct from native Resume.
+
+Pi deterministic acceptance has passed. Cleaner and Architect parity remains deferred until after installer and launcher work. When resumed, it must add only the minimum Claude-native assets required for:
+
+- named Cleaner and Architect access;
+- equivalent natural-language behavior;
+- equivalent optional controls where Claude supports them;
+- independent disabled-by-default activation;
+- the same SDD order and skip behavior;
+- equivalent scope, freshness, write, and verification safety;
+- equivalent progress and failure visibility.
+
+Shared Cleaner and Architect logic remains singular. Claude-specific prompts, hooks, packaging, or runtime glue may differ, but they must not redefine workflow semantics.
+
+Parity means equivalent user-visible outcomes on representative packaged scenarios. It does not require identical private session mechanisms or runtime internals.
+
+Do not extract a generic adapter layer during this milestone. If a third runtime is pursued later and creates concrete duplication, extract the smallest abstraction from the proven Pi and Claude seams.
+
+## Milestone 3: Installer Control Plane
+
+**Outcome:** The installer manages Pi, Claude, shared EIN assets, updates, diagnosis, and removal as one coherent, recoverable lifecycle.
+
+Keep the existing TypeScript/Bun installer and improve it incrementally; do not start a Go rewrite while lifecycle contracts are still moving:
+
+- one authoritative inventory of managed assets and ownership;
+- deterministic plans for install, update, repair, selective uninstall, and full uninstall;
+- dry-run that matches the exact planned transaction;
+- sibling staging before replacement;
+- checksum and structure verification before commit;
+- atomic replacement followed by byte and metadata readback;
+- durable journal and persistent backups across interruption;
+- complete rollback of the affected transaction boundary;
+- doctor that separates observation, recommendation, and mutation;
+- selective removal that preserves unrelated runtimes and user-owned files;
+- independent release signatures in addition to SHA-256;
+- preflight and post-publication verification for supported targets.
+
+A future Go installer-only spike becomes eligible if the downloadable asset remains above 30 MiB, cold `--version` or dry-run p95 remains above 200 ms, Windows becomes committed and Bun misses acceptance, or repeated filesystem/signal defects persist. Cut over only if the spike preserves these contracts, clearly deletes the replaced TypeScript command, and meets native distribution and latency goals.
+
+### Installer Definition of Done
+
+- Pi-only, Claude-only, combined, repair, update, and removal use one planner.
+- Every managed write has an owner, staged artifact, verification, readback, and rollback source.
+- Fault injection proves recovery from acquisition, staging, replacement, readback, and journal failures.
+- Doctor reports coherent state from managed inventory, not markers alone.
+- Selective uninstall proves the retained runtime still works.
+- Published assets pass signature, checksum, lifecycle, and rollback verification.
+
+## Milestone 4: Launcher Last
+
+**Outcome:** The launcher presents stable project and managed-state information after the underlying contracts are proven.
+
+The launcher remains a consumer, not the owner of subagent logic, runtime execution, or installer transactions. It may later show project configuration, activation status, subagent progress, sessions, updates, and installer health. The earlier continuity milestone may add only the bounded **Continue in Pi/Claude** action and its isolation fix; that exception does not authorize a general launcher redesign.
+
+The legacy renderer remains the production path. OpenTUI migration stays stopped because startup and distribution costs failed the approved gates. This roadmap authorizes no renderer migration, new renderer dependency, or reopening of that decision.
+
+Go remains only a measured launcher fallback for demonstrated startup, terminal, or platform failures. Any such spike must preserve the current controller and legacy renderer boundaries.
+
+### Launcher Definition of Done
+
+- Launcher status matches authoritative project and installer state.
+- Actions delegate to their owning runtime or installer boundary.
+- Configuration writes validate, apply atomically, and read back.
+- Direct Pi and Claude launch paths remain usable without the launcher.
+- The legacy renderer remains shipped and supported.
+
+## Milestone 5: Deferred Claude Cleaner/Architect Parity
+
+**Outcome:** After continuity, installer, and launcher foundations are stable, Claude reproduces proven Pi behavior without a second engine or generic provider framework.
+
+- Pi remains the reference behavior.
+- Claude passes the same user-visible scenario matrix.
+- Claude uses the shared Cleaner and Architect implementations.
+- Runtime-specific assets stay small and isolated.
+- No provider registry or future-runtime contract is introduced.
+- Packaged Pi and Claude installations preserve their isolated launch paths.
+
+## Reviewable Work Units
+
+Each work unit should deliver one observable behavior with its tests, fixtures, documentation, runtime evidence, and rollback boundary. Keep authored changes below 400 changed lines where practical, and split larger work by behavior rather than file type.
+
+Every unit records:
+
+- the exact user-visible outcome;
+- explicit scope and non-goals;
+- focused automated verification;
+- at least one representative runtime scenario;
+- failure and rollback behavior;
+- changed-line count and a split decision when over budget.
+
+Do not combine Cleaner, Architect, SDD wiring, Claude parity, installer transactions, or launcher presentation into one cross-cutting unit.
+
+## Next Work Units
+
+Stabilize continuity WU1-WU9, then deliver installer control-plane units beginning with the canonical read-only install inventory and exact dry-run. WU2 makes real install execution consume that plan. Launcher improvements follow; continuity WU10 Cleaner/Architect Claude parity remains deferred.
+
+Claude Cleaner and Architect parity is not present today. It begins only in the bounded parity unit after the shared continuity contracts and provider-native switching paths are proven.
+
+## Measurable Roadmap Definition of Done
+
+- Each milestone passes its listed Definition of Done before the next starts.
+- Packaged deterministic Pi acceptance is complete; optional credentialed semantic smoke remains separate.
+- Provider-neutral continuity passes its packaged matrix before Cleaner and Architect Claude parity is claimed.
+- Automatic participation follows the persisted onboarding profile and remains independently overridable per session.
+- Cleaner writes stay bounded and behavior-preserving.
+- Architect v1 remains read-only.
+- Deterministic tools remain internal implementation details.
+- Deterministic evidence precedes model reasoning wherever facts are computable.
+- Token savings never justify replacing necessary semantic judgment with weak heuristics.
+- No speculative provider or capability platform appears in product surfaces.
+- Installer lifecycle claims include failure-injection and packaged evidence.
+- Launcher work preserves the OpenTUI STOP and legacy renderer.
+
+## Remaining Decisions
+
+The owning work units still need evidence for:
+
+- the location, retention, freshness, and version-control policy for progress records;
+- Architect's safe programmatic CodeGraph adapter, plus the minimum graph facts and confidence labels for findings;
+- ecosystem-specific property-test suggestions;
+- the independent signing technology and trust-root rotation policy.
+
+These future decisions do not claim the CodeGraph adapter or ecosystem-specific guidance is implemented. They cannot change the Pi-first order, expose external subagent surfaces, bypass the selected project profile, authorize Architect mutation, or reopen the renderer migration.
+
+## Deterministic Cleaner Collector Program
+
+The collector program was implemented as direct, independently reviewable work units in this order:
+
+1. Common evidence contracts plus safe JavaScript/TypeScript, Bun, Vitest, Vue, and Astro detection.
+2. Fresh test-result collection from Bun JUnit and Vitest JSON/JUnit.
+3. Common LCOV coverage normalization for Bun and Vitest.
+4. Function-level JavaScript/TypeScript complexity with Vue script-block and Astro frontmatter/script extraction.
+5. CRAP derived only from exactly bound fresh complexity and coverage.
+6. Structural duplication spike and adapter, evaluating jscpd without adding a dependency until evidence supports it.
+7. Compact Cleaner Audit integration.
+8. Packaged Pi acceptance.
+
+Initial target matrix: plain `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.mts`, `.cts`, and `.tsx`; Vue `.vue`; Astro `.astro`; Bun test/JUnit/LCOV; and Vitest JSON/JUnit/LCOV. Units 1-8 and their packaged deterministic acceptance are complete in Pi. This acceptance does not claim live credentialed semantic smoke or Claude parity.
+
+## Document Authority
+
+This file is the single canonical roadmap for product direction, sequencing, status, and target architecture. Historical roadmaps, proposals, spikes, and archived SDD artifacts preserve evidence of earlier work but do not override it.

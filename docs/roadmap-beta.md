@@ -1,5 +1,7 @@
 # Roadmap a la beta: verdad canónica y criterios de salida
 
+> **Superseded historical record.** This document is not authoritative for current status or sequencing. Use the [canonical EIN product roadmap](roadmap-features-ein.md).
+>
 > **Baseline actual del repositorio:** `installer 0.42.0` (`installer-v0.42.0`).
 > Este baseline describe el estado publicado del instalador; no demuestra que el
 > camino del launcher beta esté completo.

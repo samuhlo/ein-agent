@@ -64,7 +64,12 @@ La migración solo mueve un árbol si lo encuentra: sin marcador, no toca nada.
 
 ## Backups
 
-Van a `backups/installer/` dentro de la casa de EIN, como `.tar.gz`.
+Van a `backups/installer/` dentro de la casa de EIN, como directorios `.snapshot`
+respaldados por manifest. El restore exacto valida hashes y permisos, y conserva
+el estado de usuario excluido. El árbol anterior queda como `.recovery-*` pineado
+para reparación o limpieza explícita. Los `.tar.gz` legacy se detectan, pero esta
+versión falla cerrado: requieren un instalador antiguo compatible o recuperación
+manual.
 
 Se crea uno automáticamente antes de cada `install` sobre un árbol existente,
 cada `update`, cada `uninstall` y cada `restore`. No hay que acordarse.

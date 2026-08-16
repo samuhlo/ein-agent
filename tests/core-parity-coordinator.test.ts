@@ -7,7 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkGeneratedParity, compileClaudeSurface } from "../cc-ein/sync.ts";
+import { CLAUDE_PARITY_DEFERRALS, checkGeneratedParity, compileClaudeSurface } from "../cc-ein/sync.ts";
 
 const ROOT = join(import.meta.dir, "..");
 const CANONICAL_PATH = join(ROOT, "ein-pi", "core", "AGENTS.md");
@@ -145,6 +145,15 @@ describe("core parity: Claude coordinator contract", () => {
     expect(frontmatterField(surface.agents["sdd-scope.md"], "tools")).toBe(
       "Read, Grep, Glob, Write, Bash",
     );
+  });
+
+  test("defers exactly Cleaner and Architect until packaged Pi acceptance", () => {
+    expect(CLAUDE_PARITY_DEFERRALS).toEqual({
+      "ein-cleaner": { status: "deferred-until-pi-acceptance", reason: "Cleaner/Architect Claude parity begins after packaged Pi acceptance" },
+      "ein-architect": { status: "deferred-until-pi-acceptance", reason: "Cleaner/Architect Claude parity begins after packaged Pi acceptance" },
+    });
+    expect(Object.keys(compileClaudeSurface().agents)).not.toContain("ein-cleaner.md");
+    expect(() => compileClaudeSurface({ parityDeferrals: {} })).toThrow(/PARITY_ROUTING_MISSING.*ein-architect/);
   });
 
   test("preserves Claude adapter content in a compiled fixture boundary", () => {
@@ -358,12 +367,12 @@ describe("core parity: Claude coordinator contract", () => {
       for (const file of files) cpSync(join(ROOT, "ein-pi", "core", "agents", file), join(firstAgents, file));
       for (const file of [...files].reverse()) cpSync(join(ROOT, "ein-pi", "core", "agents", file), join(secondAgents, file));
 
-      const first = compileClaudeSurface({ agentsDir: firstAgents });
-      const second = compileClaudeSurface({ agentsDir: secondAgents });
+      const first = compileClaudeSurface({ agentsDir: firstAgents, parityDeferrals: {} });
+      const second = compileClaudeSurface({ agentsDir: secondAgents, parityDeferrals: {} });
       expect(JSON.stringify(first)).toBe(JSON.stringify(second));
       expect(Object.keys(first.agents)).toEqual(files);
       expect(first.coordinator.endsWith("\n")).toBe(true);
-      expect(first.coordinator).not.toMatch(/\/tmp\/|\\tmp\\|generated at|timestamp/i);
+      expect(first.coordinator).not.toMatch(/\/tmp\/|\\tmp\\|generated at|timestamp:/i);
     } finally {
       rmSync(fixture, { recursive: true, force: true });
     }

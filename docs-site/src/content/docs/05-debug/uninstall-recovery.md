@@ -40,7 +40,8 @@ las claves.
 
 ## Los backups
 
-Van a `backups/installer/` dentro de la casa de EIN, como `.tar.gz`:
+Van a `backups/installer/` dentro de la casa de EIN, como directorios `.snapshot`
+con manifest, metadata y contenido verificable:
 
 ```bash
 ls ~/.pi-ein/agent/backups/installer/
@@ -49,6 +50,14 @@ ls ~/.pi-ein/agent/backups/installer/
 Se crea uno **automáticamente** antes de cada operación destructiva: `install`
 sobre un árbol existente, `update`, `uninstall` y `restore`. No hay que
 acordarse de nada.
+
+Al restaurar, EIN valida hashes, tamaños y permisos antes de reemplazar el árbol
+gestionado. El original queda como `.recovery-*` privado y pineado: no se poda
+automáticamente. WU4B/repair definirá su limpieza explícita.
+
+Los `.tar.gz` legacy aparecen en la lista, pero esta versión falla cerrado antes
+de extraerlos. Para recuperarlos, usa un instalador antiguo compatible o haz una
+recuperación manual.
 
 ## Restaurar
 

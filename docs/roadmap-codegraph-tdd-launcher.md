@@ -1,5 +1,7 @@
 # Roadmap: codegraph, TDD y launcher de Ein
 
+> **Superseded historical plan.** This document is not authoritative for current status or sequencing. Use the [canonical EIN product roadmap](roadmap-features-ein.md).
+
 Hoja de ruta de esta semana para reducir verificaciones redundantes, integrar la inicialización de codegraph y hacer del launcher de Ein un punto de entrada más útil sin romper sus interfaces existentes.
 
 ## Orden de entrega

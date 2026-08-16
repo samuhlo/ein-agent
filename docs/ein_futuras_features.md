@@ -1,5 +1,9 @@
 # EIN — Propuesta de futuras funcionalidades
 
+> **Historical ideation document.** This file preserves early product exploration and does not define current priority, status, or execution order. Detailed planning lives in the [canonical EIN product roadmap](roadmap-features-ein.md).
+>
+> **Status snapshot:** EIN-Pi is the flagship. Cleaner and Architect are internal Pi subagents with independent, disabled-by-default activation. Cleaner is partial, Architect is not implemented, Claude parity follows proven Pi behavior, the installer remains third priority, and the launcher remains fourth.
+>
 > Documento de trabajo para planificación y análisis.
 >
 > Este archivo no define una implementación cerrada. Organiza las ideas actuales, identifica el valor esperado de cada funcionalidad y conserva como decisiones abiertas todos los puntos que todavía necesitan investigación.
