@@ -52,9 +52,16 @@ jobs:
       # La app de terminal se compila desde las fuentes de la RAÍZ
       # (`ein-pi/agent/app.ts`), que importan `@opentui/core` y `solid-js`. Sin
       # las dependencias de la raíz instaladas, `build:all` no las resuelve.
-      - name: Install root deps
+      #
+      # `--cpu=* --os=*` NO es decoración: `@opentui/core` carga su binario
+      # nativo con un `import("@opentui/core-<os>-<arch>")` dinámico, y esos
+      # paquetes son opcionales por plataforma. Un runner Linux solo instalaría
+      # el suyo, así que los tres cross-compiles restantes fallarían con
+      # "Could not resolve: @opentui/core-darwin-arm64". Los cuatro targets se
+      # compilan desde una sola máquina: hacen falta los cuatro binarios.
+      - name: Install root deps (todas las plataformas — cross-compile)
         working-directory: .
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --cpu='*' --os='*'
 
       - name: Install installer deps
         run: bun install --frozen-lockfile
