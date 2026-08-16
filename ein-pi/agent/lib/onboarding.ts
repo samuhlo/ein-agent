@@ -43,10 +43,16 @@ import {
 	writeHypaMode,
 } from "./hypa.ts";
 import { einMdPath, writeEinMd } from "./project-context.ts";
+import {
+	agentControlsConfigPath,
+	type AgentActivationProfile,
+	readAgentActivationProfile,
+	writeAgentActivationProfile,
+} from "./agent-controls.ts";
 
-export type Essential = "persona" | "lang" | "tdd" | "hypa" | "einmd";
+export type Essential = "persona" | "lang" | "tdd" | "hypa" | "agents" | "einmd";
 
-const ALL_ESSENTIALS: Essential[] = ["persona", "lang", "tdd", "hypa", "einmd"];
+const ALL_ESSENTIALS: Essential[] = ["persona", "lang", "tdd", "hypa", "agents", "einmd"];
 
 const HYPA_ONBOARD_LABEL: Record<string, string> = {
 	auto: "auto — detecta el stack (recomendado)",
@@ -72,6 +78,9 @@ export function applyDefault(cwd: string, item: Essential): void {
 		case "hypa":
 			writeHypaMode(cwd, "auto");
 			break;
+		case "agents":
+			writeAgentActivationProfile(cwd, "balanced");
+			break;
 		case "einmd":
 			writeEinMd(cwd);
 			break;
@@ -86,6 +95,7 @@ export function pendingEssentials(cwd: string): Essential[] {
 		["lang", langConfigPath(cwd)],
 		["tdd", tddConfigPath(cwd)],
 		["hypa", hypaConfigPath(cwd)],
+		["agents", agentControlsConfigPath(cwd)],
 		["einmd", einMdPath(cwd)],
 	];
 	return checks.filter(([, path]) => !existsSync(path)).map(([item]) => item);
@@ -99,6 +109,25 @@ async function customize(
 ): Promise<string[]> {
 	const applied: string[] = [];
 	for (const item of items) {
+		if (item === "agents") {
+			const current = readAgentActivationProfile(ctx.cwd);
+			const options: Array<{ label: string; value: AgentActivationProfile }> = [
+				{ label: "Balanced (recommended) — Cleaner on, Architect off", value: "balanced" },
+				{ label: "Thorough — Cleaner on, Architect on", value: "thorough" },
+				{ label: "Manual — Cleaner off, Architect off", value: "manual" },
+			];
+			const currentLabel = current === "custom"
+				? "custom (Cleaner off, Architect on)"
+				: current === "invalid" ? "not configured or invalid" : current;
+			const uiItems = options.map((option) => option.value === current ? `${option.label}  ← actual` : option.label);
+			const picked = await ctx.ui.select(`Automatic SDD agent profile (current: ${currentLabel})`, uiItems);
+			if (picked === undefined) continue;
+			const selected = options[uiItems.indexOf(picked)];
+			if (!selected) continue;
+			writeAgentActivationProfile(ctx.cwd, selected.value);
+			applied.push(`agents: ${selected.value}`);
+			continue;
+		}
 		if (item === "einmd") {
 			// Ya existe → no re-preguntar; refrescarlo es cosa de /ein:init.
 			if (existsSync(einMdPath(ctx.cwd))) continue;
@@ -137,7 +166,7 @@ type FeatureSpec = [
 	read: (cwd: string) => string,
 ];
 
-const FEATURE: Record<Exclude<Essential, "einmd">, FeatureSpec> = {
+const FEATURE: Record<Exclude<Essential, "einmd" | "agents">, FeatureSpec> = {
 	persona: [
 		"Persona (tono y estética de las respuestas)",
 		PERSONA_OPTIONS.map((p) => ({ label: p, value: p })),
@@ -182,7 +211,7 @@ export async function runOnboarding(
 		`Configurar Ein en este proyecto (${ctxLine}).`,
 		[
 			"Usar recomendados (rellena solo lo que falta)",
-			"Personalizar (repasar los 5, con el valor actual)",
+			"Personalizar (repasar los 6, con el valor actual)",
 			"Ahora no",
 		],
 	);
@@ -190,7 +219,7 @@ export async function runOnboarding(
 
 	let applied: string[];
 	if (choice.startsWith("Personalizar")) {
-		// Repasa SIEMPRE los 5 esenciales, no solo los ausentes: predecible y
+		// Repasa SIEMPRE los 6 esenciales, no solo los ausentes: predecible y
 		// completo. Los ya configurados muestran su valor actual.
 		applied = await customize(ctx, ALL_ESSENTIALS);
 	} else {
@@ -207,7 +236,8 @@ export async function runOnboarding(
 		[
 			"Ein configurado en este proyecto:",
 			...applied.map((a) => `  · ${a}`),
-			"Cámbialo cuando quieras con /ein:persona · :lang · :tdd · :hypa, o /ein:onboard.",
+			"Perfil automático SDD: /ein:onboard. Overrides de sesión: /ein:cleaner on|off y /ein:architect on|off.",
+			"Otros ajustes: /ein:persona · :lang · :tdd · :hypa.",
 		].join("\n"),
 		"info",
 	);

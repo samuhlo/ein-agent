@@ -108,6 +108,14 @@ describe("contrato de tools de los agentes", () => {
 		expect(offenders).toEqual([]);
 	});
 
+	test("Cleaner registra superficies compactas pasiva y activa", () => {
+		const registered = registeredExtensionTools();
+		expect(registered.has("ein_cleaner_evidence")).toBe(true);
+		expect(registered.has("ein_cleaner_active_evidence")).toBe(true);
+		expect(declaredTools("ein-cleaner.md")).toContain("ein_cleaner_evidence");
+		expect(declaredTools("ein-cleaner.md")).toContain("ein_cleaner_active_evidence");
+	});
+
 	test("ein_sdd_close expone reconciliación explícita y conserva force/reason", () => {
 		const closeTool = einAi.match(/name: "ein_sdd_close"[\s\S]*?(?=\n\t\/\/ Sin este tool)/)?.[0] ?? "";
 		expect(closeTool).toContain('reconciliationProfile: { type: "string", enum: ["scope-only-out-of-flow"]');

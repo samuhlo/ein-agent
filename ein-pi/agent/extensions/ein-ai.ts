@@ -31,7 +31,7 @@ import {
 	type SddPreflightPreferences,
 } from "../lib/sdd-preflight.ts";
 import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";
-import { delegationShapeIsUnrecognized } from "../lib/delegation-shape.ts";
+import { collectDelegationItems, delegationShapeIsUnrecognized } from "../lib/delegation-shape.ts";
 import {
 	type DeliveryIntent,
 	deliveryIntentActive,
@@ -113,6 +113,29 @@ import { buildOpenSpecDelta } from "../lib/openspec-spec-parser.ts";
 import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";
 import { evaluateStaging } from "../lib/git-staging.ts";
 import { acceptTrackedScoutResult, normalizeScoutLaunch, type ScoutTracking } from "../lib/scout-contract.ts";
+import {
+	clearAgentControlSession,
+	internalAgentRoutingDirective,
+	readAgentControlStatus,
+	routeAgentControl,
+	type EinInternalAgent,
+} from "../lib/agent-controls.ts";
+import { collectCleanerAuditEvidence, type CleanerAuditScope } from "../lib/cleaner-audit-evidence.ts";
+import {
+	collectCleanerPassiveEvidence,
+	compactCleanerEvidence,
+	ingestCleanerActiveEvidence,
+	planCleanerActiveEvidence,
+	type CleanerActiveEvidence,
+	type CleanerActivePlan,
+	type CleanerPassiveEvidence,
+	type CleanerPlanInput,
+} from "../lib/cleaner-operational-evidence.ts";
+import { admitCleanerImprove, applyCleanerImprove, completeCleanerImprove } from "../lib/cleaner-improve.ts";
+import type { CleanerBoundedMutationRequestV1, CleanerStateTransitionRecordV1, CleanerVerificationRecordV1 } from "../lib/cleaner-bounded-mutations.ts";
+import type { CleanerFindingV1 } from "../lib/cleaner-read-only-audit.ts";
+import { bindArchitectPlan, collectArchitectEvidence, validateArchitectPlan, type ArchitectEvidence, type BoundArchitectPlan } from "../lib/architect-read-only.ts";
+import { admitSddParticipantCall, clearSddParticipantSession, completeSddParticipantCall, guardSddVerify, planSddParticipants, type SddParticipant } from "../lib/sdd-participants.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
@@ -617,8 +640,11 @@ export default function einAi(pi: ExtensionAPI): void {
 		await runOnboarding(ctx);
 	});
 
-	pi.on("session_shutdown", () => {
+	pi.on("session_shutdown", (_event, ctx) => {
 		scoutTracking.clear();
+		const sessionKey = sddPreflightSessionKey(ctx);
+		clearAgentControlSession(sessionKey);
+		clearSddParticipantSession(sessionKey);
 	});
 
 	pi.on("input", async (event, ctx) => {
@@ -699,7 +725,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				: "";
 		const einPrompt = isNamedAgent || isSddAgent
 			? ""
-			: `\n\n${buildEinPrompt(readPersonaMode(ctx.cwd), readChatLang(), readMode(ctx.cwd))}`;
+			: `\n\n${buildEinPrompt(readPersonaMode(ctx.cwd), readChatLang(), readMode(ctx.cwd))}\n\n${internalAgentRoutingDirective()}`;
 		// Inyección determinista de skills: subagentes de fase/nombrados reciben
 		// paths exactos de SKILL.md resueltos desde su task, no a criterio del
 		// modelo padre (evita que el padre "invente" qué skills existen).
@@ -747,6 +773,32 @@ export default function einAi(pi: ExtensionAPI): void {
 			if (scoutLaunch) {
 				Object.assign(event.input as Record<string, unknown>, scoutLaunch);
 				return undefined;
+			}
+			const items = collectDelegationItems(event.input);
+			const verify = items.find((item) => item.agent === "sdd-verify");
+			if (verify) {
+				const sessionKey = sddPreflightSessionKey(ctx);
+				if (items.some((item) => item.agent === "sdd-apply")) {
+					const enabled = (["cleaner", "architect"] as const).filter((agent) => readAgentControlStatus(ctx.cwd, sessionKey, agent).enabled);
+					if (enabled.length) return { block: true, reason: `One-shot SDD chain blocked: automatic ${enabled.join(" and ")} participation requires the phase-by-phase loop after apply establishes its bounded scope.` };
+				} else {
+					const changes = listActiveChanges(ctx.cwd).filter((change) => resolveSddStatus(ctx.cwd, change).nextRecommended === "verify");
+					if (changes.length !== 1) return { block: true, reason: "sdd-verify blocked: expected exactly one apply-complete active change." };
+					try {
+						const blocker = guardSddVerify(ctx.cwd, sessionKey, changes[0]!);
+						if (blocker) return { block: true, reason: blocker };
+					} catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
+				}
+			}
+			for (const item of items) {
+				if ((item.agent !== "ein-cleaner" && item.agent !== "ein-architect") || !item.task) continue;
+				if (items.filter((candidate) => (candidate.agent === "ein-cleaner" || candidate.agent === "ein-architect") && candidate.task?.includes("[ein-sdd-participant/v1 ")).length > 1) {
+					return { block: true, reason: "SDD participants must run sequentially, one delegation at a time." };
+				}
+				try {
+					const blocker = admitSddParticipantCall(ctx.cwd, sddPreflightSessionKey(ctx), event.toolCallId, item.agent as SddParticipant, item.task);
+					if (blocker) return { block: true, reason: blocker };
+				} catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			}
 			// Canario de drift: si Ein no reconoce ni un child, TODOS los gates de
 			// abajo son no-ops silenciosos (es lo que pasó al mover la ejecución a
@@ -814,6 +866,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	// orquestador repetía una fase completa y pagaba dos veces.
 	pi.on("tool_result", (event, ctx) => {
 		if (event.toolName !== "subagent") return undefined;
+		completeSddParticipantCall(ctx.cwd, event.toolCallId, event.isError, event.content.map((part) => part.type === "text" ? part.text : "").join("\n"));
 		try {
 			const report = acceptTrackedScoutResult(scoutTracking, event.toolCallId, event.details, event.isError, ctx.cwd);
 			if (report) return { isError: false, content: [{ type: "text", text: JSON.stringify(report) }] };
@@ -869,6 +922,144 @@ export default function einAi(pi: ExtensionAPI): void {
 		),
 		handler: async (_args, ctx) => {
 			await runSddPreflight(ctx);
+		},
+	});
+
+	const registerAgentControl = (agent: EinInternalAgent): void => {
+		pi.registerCommand(`ein:${agent}`, {
+			description: `Route an explicit ${agent} request or set this session's automatic participation (on/off/status)`,
+			handler: async (args, ctx) => {
+				const result = routeAgentControl(ctx.cwd, sddPreflightSessionKey(ctx), agent, String(args ?? ""));
+				if (result.kind === "request") {
+					pi.sendUserMessage(result.prompt);
+					return;
+				}
+				if (result.kind === "usage") {
+					ctx.ui.notify(result.message, "warning");
+					return;
+				}
+				ctx.ui.notify(
+					`${agent}: ${result.status.enabled ? "on" : "off"} (${result.status.source}); automatic SDD participation only`,
+					"info",
+				);
+			},
+		});
+	};
+	registerAgentControl("cleaner");
+	registerAgentControl("architect");
+
+	pi.registerTool({
+		name: "ein_sdd_participants",
+		label: "Ein SDD Participants",
+		description: "Plan the exact enabled Cleaner/Architect sequence after apply and return only the next bounded participant task. Repeat after each completion before sdd-verify.",
+		parameters: { type: "object", properties: { change: { type: "string" } }, required: ["change"] } as const,
+		async execute(_id, params: { change: string }, _signal, _onUpdate, ctx: ExtensionContext) {
+			if (!isSafeChangeName(params.change)) throw new Error("Invalid SDD change name.");
+			const plan = planSddParticipants(ctx.cwd, sddPreflightSessionKey(ctx), params.change);
+			return { content: [{ type: "text", text: JSON.stringify(plan) }], details: plan };
+		},
+	});
+
+	pi.registerTool({
+		name: "ein_cleaner_audit",
+		label: "Ein Cleaner Audit Evidence",
+		description: "Read-only deterministic evidence packet for a bounded existing-code Cleaner audit. Rejects invalid, root-wide, missing, oversized, symlinked, or empty scopes before semantic inspection.",
+		parameters: {
+			type: "object",
+			properties: {
+				scope: {
+					type: "object",
+					description: "Use {kind:'changed-files'} or {kind:'selectors',selectors:[{kind:'file'|'tree',path:'relative/path'}]}. Feature/module boundaries must be represented by exact file/tree selectors.",
+				},
+			},
+			required: ["scope"],
+		} as const,
+		async execute(_id, params: { scope: CleanerAuditScope }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const evidence = collectCleanerAuditEvidence(ctx.cwd, params.scope);
+			return { content: [{ type: "text", text: JSON.stringify(evidence) }], details: evidence };
+		},
+	});
+	const cleanerEvidence = new Map<string, { passive: CleanerPassiveEvidence; plan?: CleanerActivePlan; active?: CleanerActiveEvidence }>();
+	const cleanerEvidenceKey = (stateRef: string, areaId: string): string => `${stateRef}\0${areaId}`;
+	pi.registerTool({
+		name: "ein_cleaner_evidence", label: "Ein Cleaner Evidence",
+		description: "Collect bounded source, environment, complexity, and structural-duplication evidence for one exact current Audit state. Model content is compact; full packets remain in details.",
+		parameters: { type: "object", properties: { scope: { type: "object" } }, required: ["scope"] } as const,
+		async execute(_id, params: { scope: CleanerAuditScope }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const passive = collectCleanerPassiveEvidence(ctx.cwd, params.scope); cleanerEvidence.set(cleanerEvidenceKey(passive.stateRef, passive.areaId), { passive });
+			return { content: [{ type: "text", text: compactCleanerEvidence(passive) }], details: passive };
+		},
+	});
+	pi.registerTool({
+		name: "ein_cleaner_active_evidence", label: "Ein Cleaner Active Evidence",
+		description: "Plan exact test/coverage argv without execution, or ingest externally produced bound artifacts and derive CRAP. Requires passive evidence from the same session and state.",
+		parameters: { type: "object", properties: { action: { type: "string", enum: ["plan", "ingest"] }, stateRef: { type: "string" }, areaId: { type: "string" }, input: { type: "object" } }, required: ["action", "stateRef", "areaId", "input"] } as const,
+		async execute(_id, rawParams): Promise<{ content: { type: "text"; text: string }[]; details: CleanerActivePlan | CleanerActiveEvidence }> {
+			const params = rawParams as { action: "plan" | "ingest"; stateRef: string; areaId: string; input: CleanerPlanInput | { testArtifactPath: string; coverageArtifactPath?: string; binding?: import("../lib/cleaner-test-evidence.ts").CleanerTestBinding } }; const entry = cleanerEvidence.get(cleanerEvidenceKey(params.stateRef, params.areaId)); if (!entry) throw new Error("Cleaner passive evidence is missing or stale");
+			if (params.action === "plan") { const plan = planCleanerActiveEvidence(entry.passive, params.input as CleanerPlanInput); entry.plan = plan; return { content: [{ type: "text", text: JSON.stringify({ stateRef: params.stateRef, test: plan.test, coverage: plan.coverage }) }], details: plan }; }
+			if (!entry.plan) throw new Error("Cleaner active evidence plan is missing"); const active = ingestCleanerActiveEvidence(entry.passive, entry.plan, params.input as { testArtifactPath: string; coverageArtifactPath?: string; binding?: import("../lib/cleaner-test-evidence.ts").CleanerTestBinding }); entry.active = active;
+			return { content: [{ type: "text", text: compactCleanerEvidence(entry.passive, active) }], details: active };
+		},
+	});
+
+	const improveParameters = {
+		type: "object",
+		properties: { auditEvidence: { type: "object" }, finding: { type: "object" }, request: { type: "object" } },
+		required: ["auditEvidence", "finding", "request"],
+	} as const;
+	pi.registerTool({
+		name: "ein_cleaner_improve_admit", label: "Ein Cleaner Improve Admit",
+		description: "Validate a bounded behavior-preserving exact-replacement plan against fresh Cleaner Audit evidence without writing.",
+		parameters: improveParameters,
+		async execute(_id, params: { auditEvidence: ReturnType<typeof collectCleanerAuditEvidence>; finding: CleanerFindingV1; request: CleanerBoundedMutationRequestV1 }) {
+			const outcome = admitCleanerImprove(params);
+			return { content: [{ type: "text", text: JSON.stringify(outcome) }], details: outcome };
+		},
+	});
+	pi.registerTool({
+		name: "ein_cleaner_improve_apply", label: "Ein Cleaner Improve Apply",
+		description: "Apply one previously admissible exact replacement; returns verification-required or mutation-uncertain evidence and a bounded recovery source.",
+		parameters: improveParameters,
+		async execute(_id, params: { auditEvidence: ReturnType<typeof collectCleanerAuditEvidence>; finding: CleanerFindingV1; request: CleanerBoundedMutationRequestV1 }) {
+			const outcome = applyCleanerImprove(params);
+			return { content: [{ type: "text", text: JSON.stringify(outcome) }], details: outcome };
+		},
+	});
+	pi.registerTool({
+		name: "ein_cleaner_improve_complete", label: "Ein Cleaner Improve Complete",
+		description: "Assess completion using the resulting source state, focused verification record, and current project/router verification evidence.",
+		parameters: { type: "object", properties: { transition: { type: "object" }, verification: { type: ["object", "null"] } }, required: ["transition", "verification"] } as const,
+		async execute(_id, params: { transition: CleanerStateTransitionRecordV1; verification: CleanerVerificationRecordV1 | null }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const outcome = completeCleanerImprove(ctx.cwd, params.transition, params.verification);
+			return { content: [{ type: "text", text: JSON.stringify(outcome) }], details: outcome };
+		},
+	});
+
+	pi.registerTool({
+		name: "ein_architect_evidence", label: "Ein Architect Evidence",
+		description: "Collect immutable read-only repository evidence for a bounded explicit Architect scope; graph evidence is unavailable unless an authoritative runtime contract exists.",
+		parameters: { type: "object", properties: { scope: { type: "object" } }, required: ["scope"] } as const,
+		async execute(_id, params: { scope: unknown }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const result = collectArchitectEvidence(ctx.cwd, params.scope);
+			return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
+		},
+	});
+	pi.registerTool({
+		name: "ein_architect_plan_bind", label: "Ein Architect Plan Bind",
+		description: "Validate required architecture-plan shape and bind it to fresh scope, evidence, and repository state without writing.",
+		parameters: { type: "object", properties: { evidence: { type: "object" }, plan: { type: "object" } }, required: ["evidence", "plan"] } as const,
+		async execute(_id, params: { evidence: object; plan: object }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const result = bindArchitectPlan(ctx.cwd, params.evidence as ArchitectEvidence, params.plan);
+			return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
+		},
+	});
+	pi.registerTool({
+		name: "ein_architect_validate", label: "Ein Architect Validate",
+		description: "Re-collect current evidence and admit a fresh, bound, in-scope plan for model consistency assessment; never executes the plan.",
+		parameters: { type: "object", properties: { plan: { type: "object" } }, required: ["plan"] } as const,
+		async execute(_id, params: { plan: object }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const result = validateArchitectPlan(ctx.cwd, params.plan as BoundArchitectPlan);
+			return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
 		},
 	});
 

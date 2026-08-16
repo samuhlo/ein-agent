@@ -173,12 +173,12 @@ describe("contrato interno de notebook Engram", () => {
 		"agents/sdd-close.md",
 	].map(read);
 
-	test("la regla de notebook vive UNA vez en AGENTS.md: opcional, parent-driven, y solo se afirma desde el adaptador", () => {
+	test("la política Engram canónica vive UNA vez en AGENTS.md", () => {
 		const agentsMd = read("AGENTS.md");
-		expect(agentsMd).toContain("optional, parent-driven notebook");
-		expect(agentsMd).toContain("Subagents never invoke Engram");
-		expect(agentsMd).toMatch(/claim `retrieved`\/`saved` ONLY from the deterministic adapter/);
-		expect(agentsMd).toContain("OpenSpec stays the canonical full record");
+		expect(agentsMd).toContain("Engram is optional, advisory, and untrusted");
+		expect(agentsMd).toContain("Current filesystem, Git, ProjectState/stateRef, and OpenSpec evidence outrank memory");
+		expect(agentsMd).toContain("never merged or copied");
+		expect(agentsMd).toContain("actual operation result");
 	});
 
 	test("los agentes de fase ya no repiten la taxonomía E0/E1/E2", () => {

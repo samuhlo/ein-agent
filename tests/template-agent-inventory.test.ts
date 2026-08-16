@@ -13,6 +13,7 @@ import { join } from "node:path";
 const REPO = join(import.meta.dir, "..");
 const BUNDLE = readFileSync(join(REPO, "installer", "scripts", "bundle-template.ts"), "utf8");
 const PI_LAUNCHER = readFileSync(join(REPO, "pi-ein", "pi-ein.fish"), "utf8");
+const CLAUDE_LAUNCHER = readFileSync(join(REPO, "cc-ein", "cc-ein.fish"), "utf8");
 const INSTALL_CLI = readFileSync(join(REPO, "installer", "src", "cli", "install.ts"), "utf8");
 
 function allowlist(name: string): string[] {
@@ -34,6 +35,16 @@ function covered(path: string): boolean {
 }
 
 describe("Pi template agent inventory", () => {
+	test("template stages only the target-specific production app under managed bin", () => {
+		expect(BUNDLE).toContain('join(staging, "bin", "ein")');
+		expect(BUNDLE).toContain("EIN_APP_TARGET");
+		expect(BUNDLE).not.toContain("cc-ein-runtime");
+	});
+  test("provider launchers force separate Engram stores", () => {
+    expect(PI_LAUNCHER).toContain('set -fx ENGRAM_DATA_DIR "$HOME/.engram-pi"');
+    expect(CLAUDE_LAUNCHER).toContain('set -fx ENGRAM_DATA_DIR "$HOME/.engram-cc-ein"');
+  });
+
   test("every path the launcher invokes under the agent home is shipped", () => {
     const referenced = [...PI_LAUNCHER.matchAll(/\$EIN_PI_AGENT_HOME\/([A-Za-z0-9_./-]+)/g)]
       .map((match) => match[1] ?? "");
@@ -43,9 +54,8 @@ describe("Pi template agent inventory", () => {
     }
   });
 
-  test("the terminal app the installer compiles is shipped", () => {
-    // install.ts compiles `join(piContext.agentDir, "app.ts")`.
-    expect(INSTALL_CLI).toContain('"app.ts"');
+  test("the precompiled terminal app is promoted from managed bin", () => {
+    expect(INSTALL_CLI).toContain('"bin", "ein"');
     expect(AGENT_FILES).toContain("app.ts");
   });
 

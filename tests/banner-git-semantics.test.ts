@@ -337,9 +337,22 @@ describe("ein-banner Git adapter", () => {
 		expect(bannerSource).toContain("}, 100);");
 		expect(bannerSource).toContain("const tui = headerActive ? activeTui : null;");
 		expect(bannerSource).toContain("gitController.invalidate();");
-		expect(bannerSource).toContain("const FULL_INTRO_MIN_ROWS = 29;");
+		expect(bannerSource).toContain("const FULL_INTRO_MIN_ROWS = 30;");
 		expect(bannerSource).toContain('b.add("PATH".padEnd(L), STRUCTURE);');
 		expect(bannerSource).toContain('b.add("SESIONES RECIENTES".padEnd(GRID_W - 2), STRUCTURE, { bold: true });');
+	});
+
+	test("renders project automatic Cleaner and Architect state in a centered partial row", () => {
+		expect(bannerSource).toContain('readProjectAgentControlStatus(ctx.cwd, "cleaner")');
+		expect(bannerSource).toContain('readProjectAgentControlStatus(ctx.cwd, "architect")');
+		expect(bannerSource).toContain('["CLEANER", cleanerLabel]');
+		expect(bannerSource).toContain('["ARCH", architectLabel]');
+		expect(bannerSource).toContain("const cleanerLabel = agentAutomaticParticipationLabel(");
+
+		const grid = bannerSource.slice(bannerSource.indexOf("const cells:"), bannerSource.indexOf("addGitBannerRows();"));
+		expect(grid.match(/^\s+\["[A-Z]+",/gm)).toHaveLength(14);
+		expect(grid).toContain("if (!cell) continue;");
+		expect(grid).toContain("b.center(width);");
 	});
 });
 

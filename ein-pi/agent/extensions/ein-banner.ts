@@ -29,6 +29,7 @@ import { readHypaMode, resolveHypaEnabled } from "../lib/hypa";
 import { readCodegraphMode, resolveCodegraphEnabled } from "../lib/codegraph";
 import { readPersonaMode } from "../lib/persona";
 import { readMode } from "../lib/mode";
+import { agentAutomaticParticipationLabel, readProjectAgentControlStatus } from "../lib/agent-controls";
 import { GitBannerController, renderGitBannerRows, type ProcessRunner } from "../lib/banner-git";
 import {
   createStartupProvenanceRecorder,
@@ -289,7 +290,7 @@ class LayoutBuilder {
   }
 }
 
-const FULL_INTRO_MIN_ROWS = 29;
+const FULL_INTRO_MIN_ROWS = 30;
 const FULL_INTRO_MIN_COLS = 80;
 const MINIMAL_INTRO_MIN_ROWS = 14;
 const MINIMAL_INTRO_MIN_COLS = 40;
@@ -459,6 +460,8 @@ export default function (pi: ExtensionAPI) {
       cgMode === "auto"
         ? `auto·${resolveCodegraphEnabled(ctx.cwd) ? "on" : "off"}`
         : cgMode;
+    const cleanerLabel = agentAutomaticParticipationLabel(readProjectAgentControlStatus(ctx.cwd, "cleaner").enabled);
+    const architectLabel = agentAutomaticParticipationLabel(readProjectAgentControlStatus(ctx.cwd, "architect").enabled);
 
     const allCommands = pi.getCommands();
     const skillsCount = allCommands.filter((c) => c.source === "skill").length;
@@ -694,6 +697,8 @@ export default function (pi: ExtensionAPI) {
                 ["TDD", fit(tddLabel, V)],
                 ["HYPA", fit(hypaLabel, V)],
                 ["CGRAPH", fit(cgLabel, V)],
+                ["CLEANER", cleanerLabel],
+                ["ARCH", architectLabel],
               ];
               // Defensive: una celda malformada nunca debe tumbar el banner — un
               // crash aquí se lleva por delante la sesión de Pi al arrancar.
