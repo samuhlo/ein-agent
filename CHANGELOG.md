@@ -5,6 +5,32 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.61.0] - 2026-08-16
+
+### Changed
+
+- **El banner de arranque estrena ventana de estado con estética de 16 bits**:
+  marco doble, pestañas de sección invertidas y líneas de puntos que llevan
+  cada etiqueta hasta su valor, con el blanco y el amarillo como colores
+  dominantes. El marco superior se dibuja de izquierda a derecha y las filas
+  caen en cascada mientras sus puntos corren hasta soltar el dato; el marco
+  solo cierra cuando la última ha terminado.
+- **Toda la información del arranque comparte por fin una sola rejilla**: las
+  filas de Git (`HEAD`, `LOCAL`, `UPSTREAM`), las características de la sesión,
+  la ruta del proyecto y las sesiones recientes se alinean en la misma columna.
+  Antes Git se pintaba aparte, con su propio ancho de etiqueta, y nunca cuadraba
+  con el resto.
+- **Cleaner y Architect se muestran como fichas encendidas o en hueco** en lugar
+  de ocupar dos celdas más de una rejilla uniforme: saber que existen y están
+  desactivados es información.
+
+### Internal
+
+- La geometría y la animación del panel viven en un módulo puro
+  (`lib/banner-panel.ts`): entra información y un instante de la animación,
+  salen celdas. Se puede previsualizar y probar sin abrir un terminal, y esa
+  prueba detectó un descuadre de una columna en las filas sin sufijo.
+
 ## [0.60.1] - 2026-08-16
 
 ### Changed
