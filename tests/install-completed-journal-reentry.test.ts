@@ -43,16 +43,17 @@ describe("install re-entry over a completed journal", () => {
 		expect(executed).toBeGreaterThan(0);
 	});
 
-	// El recibo de "ya está instalado" se construía y se descartaba: la orden
-	// salía con código 0 y sin una sola línea, indistinguible de un binario roto.
-	test("the idempotent re-entry reports instead of exiting silently", async () => {
+	// El diario existe para detectar una transacción interrumpida. Cuando además
+	// gateaba las completas, `install` se negaba a repetirse y no quedaba ninguna
+	// vía soportada para desplegar un binario recién construido.
+	test("a completed journal does not stop a reinstall of the same target", async () => {
 		const root = home();
 		const done = plan("pi", root);
 		await executeInstallPlanJournaled(done, handlers(done));
 
-		const lines: string[] = [], originalWrite = process.stdout.write.bind(process.stdout);
+		const errors: string[] = [], originalError = console.error;
 		let executed = 0;
-		process.stdout.write = ((chunk: string | Uint8Array) => { lines.push(typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk)); return true; }) as typeof process.stdout.write;
+		console.error = (...parts: unknown[]) => { errors.push(parts.join(" ")); };
 		try {
 			const code = await runInstall(["--yes", "--no-secrets", "--runtime", "pi"], undefined, {
 				observations: observationsFor(root),
@@ -60,9 +61,9 @@ describe("install re-entry over a completed journal", () => {
 				handlers: handlers(done, () => { executed += 1; return { ok: true }; }),
 			});
 			expect(code).toBe(0);
-		} finally { process.stdout.write = originalWrite; }
+		} finally { console.error = originalError; }
 
-		expect(executed).toBe(0);
-		expect(lines.join("\n")).toContain("already complete");
+		expect(errors).toEqual([]);
+		expect(executed).toBeGreaterThan(0);
 	});
 });

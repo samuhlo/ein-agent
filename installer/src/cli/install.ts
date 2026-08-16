@@ -63,7 +63,7 @@ import {
   type InstallPlanExecutionHandler,
   type InstallPlanExecutionHandlers,
 } from "../core/install-executor.ts";
-import { executeInstallPlanJournaled, inspectInstallJournal, installJournalMatchesPlan, installJournalPath, InstallJournalError, type InstallExecutionJournalV1 } from "../core/install-journal.ts";
+import { executeInstallPlanJournaled, inspectInstallJournal, InstallJournalError } from "../core/install-journal.ts";
 
 /** The one target selected by the menu or the direct installer default. */
 export type { InstallTarget, RuntimeInstallTarget } from "../core/install-plan.ts";
@@ -586,16 +586,13 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
   const target = resolveInstallTarget(explicitMenuTarget, flags.runtime);
 
   const platform: Platform = options.observations?.platform ?? detectPlatform();
-  let completedJournal: InstallExecutionJournalV1 | undefined;
   if (!flags.dryRun) {
+    // El diario existe para detectar una transacción INTERRUMPIDA. Un diario
+    // completo describe una instalación anterior terminada y no condiciona a la
+    // siguiente: cuando lo hacía, `install` se negaba a repetirse y no quedaba
+    // ninguna vía soportada para desplegar un binario recién construido.
     const home = options.observations?.home ?? activeHome(), status = inspectInstallJournal(home);
-    // Solo un diario ilegible o una transacción sin terminar exigen recuperación.
     if (status.status === "invalid" || status.status === "valid" && status.journal.state !== "complete") { console.error("Install recovery status: recovery-required"); return 1; }
-    // CORTE -> El atajo de reentrada idempotente pide MISMO objetivo y plataforma.
-    // Un diario completo de otro objetivo (pi ya instalado, ahora both) describe
-    // una instalación anterior terminada, no un estado a recuperar: bloquearlo
-    // dejaba al usuario sin salida y con un mensaje que además era falso.
-    if (status.status === "valid" && status.journal.target === target && status.journal.platform.os === platform.os && status.journal.platform.arch === platform.arch) completedJournal = status.journal;
   }
 
   const deps: DepStatus[] = options.observations
@@ -606,16 +603,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
   let skipLinear = true;
   let plan: InstallPlanV1;
   // Ownership admission precedes the only interactive input needed to finish a ready plan.
-  if (completedJournal) {
-    const candidates = [buildPlan(true), ...(target === "claude" ? [] : [buildPlan(false)])], match = candidates.find((candidate) => installJournalMatchesPlan(completedJournal!, candidate));
-    if (!match) { console.error(`El plan cambió desde la última instalación completa de ${target}. Ejecuta \`${INSTALLER_COMMAND} update\` para actualizar, o borra ${installJournalPath(observations.home)} para instalar de cero.`); return 1; }
-    const receipt: InstallResult = { target, ok: true, results: [...new Set(match.inventory.map((entry) => entry.runtime).filter((runtime): runtime is RuntimeInstallTarget => runtime !== "shared"))].map((runtime) => ({ target: runtime, ok: true, detail: `${runtimeLabel(runtime)} installation already complete.` })) };
-    // El recibo se construía y se tiraba: `ein install` salía con código 0 y sin
-    // una sola línea, indistinguible de un binario que no arranca.
-    for (const result of receipt.results) p.log.success(result.detail);
-    p.outro(`Nada que hacer. Usa \`${INSTALLER_COMMAND} update\` para actualizar una instalación existente.`);
-    return receipt.ok ? 0 : 1;
-  } else if (target !== "claude" && observations.piOwnership.status === "ambiguous") {
+  if (target !== "claude" && observations.piOwnership.status === "ambiguous") {
     plan = buildPlan(skipLinear);
   } else {
     if (target !== "claude" && !flags.noLinear && !flags.yes && !flags.dryRun) {
