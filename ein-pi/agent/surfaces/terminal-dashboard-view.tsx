@@ -11,9 +11,13 @@ type DashboardLine = Readonly<{ text: string; tone: LineTone }>;
 // de specs del banner, no como texto corrido.
 const VALUE_COLUMN = 30;
 
+// El glifo lo pone el MODELO (`ICON` en terminal-app.ts): `◆` Pi, `◇` Claude,
+// `▪` estado, `○` config… Dice QUÉ es la fila, que es más información que un
+// marcador uniforme, y ya está elegido para medir una columna en cualquier
+// terminal. `rowMark` solo cubre las filas que no traen icono propio.
 function rowText(row: Row, wide: boolean): string {
   const key = row.key ? `[${row.key}] ` : "";
-  const head = `${rowMark(row)} ${key}${row.label}`;
+  const head = `${row.icon ?? rowMark(row)} ${key}${row.label}`;
   if (!("value" in row)) return head;
   const value = row.value ?? "unknown";
   return wide ? `${head.padEnd(VALUE_COLUMN)}${value}` : `${head}  ${value}`;

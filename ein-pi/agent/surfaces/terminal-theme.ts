@@ -74,8 +74,10 @@ export const MARK = {
 	danger: "✕",
 } as const;
 
-// El marcador de una fila sale de su TONO y de si es accionable, nunca del
-// proveedor: Pi y Claude se leen por su etiqueta.
+// FALLBACK, no sustituto: las filas del dashboard traen su propio `icon` del
+// modelo (`◆` Pi, `◇` Claude, `▪` estado…) y ese manda, porque dice qué es la
+// fila. `rowMark` solo pinta las que no lo traen — y ahí el marcador sale del
+// TONO y de si es accionable, nunca del proveedor.
 export function rowMark(row: Row): string {
 	if (row.tone === "danger") return MARK.danger;
 	if (row.tone === "warn") return MARK.warn;

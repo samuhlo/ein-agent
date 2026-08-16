@@ -113,9 +113,12 @@ describe("Pi y Claude se distinguen por marcador, no por color", () => {
 		...over,
 	} as Row);
 
-	test("una fila accionable lleva el marcador ■ de marca", () => {
+	// El icono del modelo manda: `◆` Pi / `◇` Claude ya distinguen el proveedor y
+	// dicen qué es la fila. `rowMark` es el fallback de las filas sin icono.
+	test("el icono del modelo gana al marcador genérico", () => {
 		expect(rowMark(row({}))).toBe(MARK.active);
-		expect(rowMark(row({ action: { kind: "continue", provider: "claude" } } as Partial<Row>))).toBe(MARK.active);
+		const view = readFileSync(join(ROOT, "ein-pi/agent/surfaces/terminal-dashboard-view.tsx"), "utf8");
+		expect(view).toContain("row.icon ?? rowMark(row)");
 	});
 
 	test("el proveedor NO cambia el color — misma fila, mismo tono", () => {
