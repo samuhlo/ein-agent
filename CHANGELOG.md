@@ -5,6 +5,41 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.62.0] - 2026-08-17
+
+### Changed
+
+- **Las tres superficies comparten una sola ventana de 16 bits**: el banner de
+  arranque, la aplicación de terminal y el instalador usan ahora el mismo marco
+  doble, las mismas pestañas de sección invertidas y las mismas líneas de puntos
+  que llevan cada etiqueta hasta su valor. Arranque, uso e instalación se leen
+  como el mismo producto.
+- **El banner reparte logo y datos en dos columnas**: el logo, su animación y la
+  placa de versión a la izquierda; el panel de estado a la derecha. Apilado
+  medía 41 filas y se salía por abajo de un terminal de 30; en paralelo son 27.
+  La columna más corta se centra en vertical.
+- **La aplicación de terminal se lee como un menú**: la fila seleccionada lleva
+  un cursor que late, los atajos quedan alineados al final de cada fila y los
+  iconos por tipo de fila se conservan. Los atajos de teclado no cambian.
+- **El instalador estrena la misma ventana** en el diagnóstico y en el listado
+  de dependencias, con marcadores de correcto, aviso y fallo coherentes con el
+  resto.
+
+### Fixed
+
+- **El banner ya no se corta por abajo**: el modo completo exige el ancho real
+  de la composición en dos columnas en lugar de un mínimo heredado de cuando el
+  diseño era vertical.
+
+### Internal
+
+- El marco de cada superficie vive en un módulo puro y probado
+  (`lib/banner-panel.ts`, `surfaces/terminal-chrome.ts`, `installer/tui/frame.ts`).
+  Esas pruebas detectaron dos descuadres de una columna y dos casos de
+  desbordamiento antes de publicarse.
+- El instalador duplica la gramática a propósito, porque se ejecuta antes de que
+  exista el template; un test compara las tres copias para que no diverjan.
+
 ## [0.61.0] - 2026-08-16
 
 ### Changed
