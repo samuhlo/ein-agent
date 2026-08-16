@@ -1,10 +1,17 @@
 import { createHash } from "node:crypto";
+import { isAbsolute, join } from "node:path";
 
 export const ENGRAM_TIMEOUT_MS = 1_500;
 export const MAX_RETRIEVALS = 5;
 export const MAX_SAVES = 10;
 export const MAX_CONTEXT_BYTES = 6 * 1024;
 export const MAX_SAVE_CONTENT_BYTES = 4 * 1024;
+
+export type EngramProvider = "pi" | "claude";
+export function resolveEngramDataDir(provider: EngramProvider, environment: Readonly<Record<string, string | undefined>>): string | undefined {
+	const home = environment.HOME;
+	return typeof home === "string" && isAbsolute(home) ? join(home, provider === "pi" ? ".engram-pi" : ".engram-cc-ein") : undefined;
+}
 
 export const RETRIEVAL_BUDGET = {
 	stdoutBytes: 16 * 1024,

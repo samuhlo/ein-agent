@@ -18,7 +18,11 @@ const saved = new Map<string, string | undefined>();
 const touched = ["EIN_PI_AGENT_HOME", "CLAUDE_CONFIG_DIR"] as const;
 
 function writePi(uuid: string, text: string, mtimeMs: number): void {
-  const dir = join(root, ".pi-ein", "agent", "sessions", "--work-app--");
+  writePiAt(join(root, ".pi-ein", "agent"), uuid, text, mtimeMs);
+}
+
+function writePiAt(home: string, uuid: string, text: string, mtimeMs: number): void {
+  const dir = join(home, "sessions", "--work-app--");
   mkdirSync(dir, { recursive: true });
   const path = join(dir, `2026-08-11T10-00-00-000Z_${uuid}.jsonl`);
   writeFileSync(path, [
@@ -100,6 +104,19 @@ describe("one list for both runtimes", () => {
       writePi(`aaaaaaaa-0000-4000-8000-0000000000${String(index).padStart(2, "0")}`, `t${index}`, 1_000 + index);
     }
     expect(collectRuntimeSessions({ cwd: PROJECT }, { limit: 4 }).entries).toHaveLength(4);
+  });
+
+  test("refresh ignores conventional Pi sessions and discovers isolated-home sessions", () => {
+    writePiAt(join(root, ".pi", "agent"), PI_A, "conventional", 9_000);
+
+    expect(collectRuntimeSessions({ cwd: PROJECT }).entries).toEqual([]);
+
+    writePi(PI_C, "isolated", 10_000);
+    const refreshed = collectRuntimeSessions({ cwd: PROJECT });
+    expect(refreshed.entries.map((entry) => entry.reference)).toEqual([
+      sessionReferenceFor("pi", PI_C),
+    ]);
+    expect(refreshed.entries[0]?.lastAction).toBe("isolated");
   });
 });
 

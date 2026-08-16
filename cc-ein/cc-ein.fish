@@ -2,6 +2,7 @@ function cc-ein --description "Claude Code con el cerebro de Ein (aislado en ~/.
     # CLAUDE_CONFIG_DIR queda en el scope de la función: se exporta al proceso
     # claude hijo, pero NO contamina tu shell ni tu `claude` normal.
     set -x CLAUDE_CONFIG_DIR "$HOME/.claude-ein"
+    set -fx ENGRAM_DATA_DIR "$HOME/.engram-cc-ein"
     # bin/ del config al frente del PATH → los agentes resuelven `cc-ein-sdd`
     # (el CLI SDD determinista) por Bash. También function-scoped, no persiste.
     set -x PATH "$HOME/.claude-ein/bin" $PATH
@@ -14,12 +15,14 @@ function cc-ein --description "Claude Code con el cerebro de Ein (aislado en ~/.
 
     switch "$argv[1]"
         case app
-            set -l terminal_app "$CLAUDE_CONFIG_DIR/bin/ein-app"
-            if not test -x "$terminal_app"
+            if not test -n "$EIN_PI_AGENT_HOME"
+                set -fx EIN_PI_AGENT_HOME "$HOME/.pi-ein/agent"
+            end
+            if not type -q ein
                 echo "cc-ein: terminal app unavailable" >&2
                 return 69
             end
-            command "$terminal_app" $argv[2..-1]
+            command ein $argv[2..-1]
             return $status
         case cleaner workbench
             set -l surface_runner "$CLAUDE_CONFIG_DIR/bin/ein-surface-runner"
@@ -31,5 +34,10 @@ function cc-ein --description "Claude Code con el cerebro de Ein (aislado en ~/.
             return $status
     end
 
-    command claude $argv
+    set -l continuity_runner "$CLAUDE_CONFIG_DIR/bin/ein-continuity"
+    if not test -x "$continuity_runner"
+        echo "cc-ein: continuity runner unavailable" >&2
+        return 69
+    end
+    command "$continuity_runner" supervise $argv
 end

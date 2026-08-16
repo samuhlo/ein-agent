@@ -29,4 +29,6 @@ ein-pi/agent/bin/
 .piagents/
 .pi-subagents/
 .codegraph/
+/.atl/
+/.ein/continuity.json
 # === fin Ein / Pi runtime ===

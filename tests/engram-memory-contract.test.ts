@@ -11,6 +11,7 @@ import {
 	ENGRAM_TIMEOUT_MS,
 	RETRIEVAL_BUDGET,
 	SAVE_BUDGET,
+	resolveEngramDataDir,
 } from "../ein-pi/agent/lib/memory-contract.ts";
 
 const SEARCH = { query: "accepted design", projectId: "ein-git-abc" };
@@ -58,6 +59,11 @@ function fake(children: ProcessChild[]): { process: ProcessCapability; calls: Pr
 }
 
 describe("Engram CLI transport", () => {
+	test("derives explicit unequal provider stores from HOME", () => {
+		expect(resolveEngramDataDir("pi", { HOME: "/home/ein" })).toBe("/home/ein/.engram-pi");
+		expect(resolveEngramDataDir("claude", { HOME: "/home/ein" })).toBe("/home/ein/.engram-cc-ein");
+	});
+
 	test("uses the pinned argument arrays and never enables a shell", async () => {
 		const setup = fake([child({ stdout: ["result"] }), child({ stdout: ["saved"] })]);
 		const transport = createEngramTransport(setup.process);

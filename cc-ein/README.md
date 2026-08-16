@@ -13,6 +13,8 @@ claude                    # tu Claude normal, intacto
 
 El launcher (`cc-ein.fish`) se instala en `~/.config/fish/functions/`. Setea `CLAUDE_CONFIG_DIR=~/.claude-ein` solo para esa invocación (no contamina tu shell).
 
+`cc-ein` supervisa el Claude nativo sin alterar sus argumentos iniciales. `/ein:handoff status|to pi|to claude|refresh|clear` se intercepta en `UserPromptSubmit` antes del modelo; los handoffs crean una sesión nueva y nunca usan Resume.
+
 ## Cómo funciona
 
 `sync.ts` es un mini-compilador (patrón "un cerebro, muchos cuerpos"):

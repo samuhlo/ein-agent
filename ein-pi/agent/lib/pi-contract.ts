@@ -37,8 +37,10 @@ export const PI_BUILTIN_TOOLS: readonly string[] = ["read", "bash", "edit", "wri
 
 // Hooks de extensión que Ein registra con `pi.on(...)`.
 export const PI_HOOKS: readonly string[] = [
+	"agent_settled",
 	"before_agent_start",
 	"input",
+	"session_before_compact",
 	"session_start",
 	"session_shutdown",
 	"tool_call",

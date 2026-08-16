@@ -27,6 +27,7 @@ import {
 import { homedir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { execFileSync } from "node:child_process";
+import { resolveEngramDataDir } from "../ein-pi/agent/lib/memory-contract.ts";
 
 const REPO = join(import.meta.dir, "..");
 const CORE = join(REPO, "ein-pi", "core");
@@ -40,15 +41,22 @@ const ADAPTATION_START = "<!-- ein:claude-adaptation:start -->";
 const ADAPTATION_END = "<!-- ein:claude-adaptation:end -->";
 const HARNESS_START = "<!-- ein:harness-discipline:start -->";
 const HARNESS_END = "<!-- ein:harness-discipline:end -->";
+const PI_ENGRAM_STORE = '- Provider store: `join(validatedAbsoluteHome, ".engram-pi")`.';
+const CLAUDE_ENGRAM_STORE = '- Provider store: `join(validatedAbsoluteHome, ".engram-cc-ein")`.';
 
 export const SURFACE_RUNNER_SOURCE = join(REPO, "ein-pi", "agent", "surfaces", "surface-runner.ts");
 export const CLAUDE_SURFACE_RUNNER_NAME = "ein-surface-runner";
-export const TERMINAL_APP_SOURCE = join(REPO, "ein-pi", "agent", "app.ts");
-export const CLAUDE_TERMINAL_APP_NAME = "ein-app";
+export const CLAUDE_CONTINUITY_RUNNER_NAME = "ein-continuity";
+export const CLAUDE_CONTINUITY_RUNNER_SOURCE = join(REPO, "cc-ein", "continuity-runner.ts");
 
 const log = (s: string) => console.log(DRY ? `  [dry] ${s}` : `  ${s}`);
 
 export type ClaudeRoute = { model: string; effort?: string };
+export type ClaudeParityDeferral = { status: "deferred-until-pi-acceptance"; reason: "Cleaner/Architect Claude parity begins after packaged Pi acceptance" };
+export const CLAUDE_PARITY_DEFERRALS: Readonly<Record<string, ClaudeParityDeferral>> = Object.freeze({
+  "ein-cleaner": { status: "deferred-until-pi-acceptance", reason: "Cleaner/Architect Claude parity begins after packaged Pi acceptance" },
+  "ein-architect": { status: "deferred-until-pi-acceptance", reason: "Cleaner/Architect Claude parity begins after packaged Pi acceptance" },
+});
 
 export type ClaudeSurface = {
   coordinator: string;
@@ -61,6 +69,7 @@ export type CompileOptions = {
   agentsDir?: string;
   generatedPath?: string;
   routing?: Record<string, ClaudeRoute>;
+  parityDeferrals?: Record<string, ClaudeParityDeferral>;
 };
 
 /** A stable, machine-readable parity failure. */
@@ -341,7 +350,7 @@ function routeKeySet(routing: Record<string, ClaudeRoute>): string[] {
   return Object.keys(routing).sort();
 }
 
-function validateRouting(agents: ParsedAgent[], routing: Record<string, ClaudeRoute>): void {
+function validateRouting(agents: ParsedAgent[], routing: Record<string, ClaudeRoute>, deferrals: Record<string, ClaudeParityDeferral>): void {
   const names = agents.map((agent) => agent.fields.get("name") ?? "").sort();
   if (names.some((name) => !name)) {
     throw parity("PARITY_INVALID_AGENT", "an agent is missing its name");
@@ -352,6 +361,11 @@ function validateRouting(agents: ParsedAgent[], routing: Record<string, ClaudeRo
   }
   const routes = routeKeySet(routing);
   for (const name of names) {
+    const deferral = deferrals[name];
+    if (deferral) {
+      if (name in routing || deferral.status !== "deferred-until-pi-acceptance" || deferral.reason !== "Cleaner/Architect Claude parity begins after packaged Pi acceptance") throw parity("PARITY_INVALID_DEFERRAL", `agent ${name}`);
+      continue;
+    }
     if (!(name in routing)) {
       throw parity("PARITY_ROUTING_MISSING", `agent ${name}`);
     }
@@ -365,6 +379,7 @@ function validateRouting(agents: ParsedAgent[], routing: Record<string, ClaudeRo
       throw parity("PARITY_ROUTING_STALE", `agent ${route}`);
     }
   }
+  for (const deferred of Object.keys(deferrals)) if (!names.includes(deferred)) throw parity("PARITY_INVALID_DEFERRAL", `agent ${deferred}`);
 }
 
 function translateAgent(src: string, source: string, routing: Record<string, ClaudeRoute>): string {
@@ -410,7 +425,7 @@ function validateCoordinator(canonical: string, adapter: string): string {
   if (adapter.indexOf(HARNESS_START) > adapter.indexOf(HARNESS_END)) {
     throw parity("PARITY_INVALID_COORDINATOR", "adapter harness markers are out of order");
   }
-  const translatedCanonical = translateBody(canonical, "AGENTS.md").trimEnd();
+  const translatedCanonical = translateBody(canonical, "AGENTS.md").replace(PI_ENGRAM_STORE, CLAUDE_ENGRAM_STORE).trimEnd();
   const normalizedAdapter = translateBody(adapter, "CLAUDE.adapter.md").trimEnd();
   const output = `${PROVENANCE}\n\n${translatedCanonical}\n\n${normalizedAdapter}\n`;
   if (output.split(HARNESS_START).length - 1 !== 1 || output.split(HARNESS_END).length - 1 !== 1) {
@@ -439,6 +454,7 @@ export function compileClaudeSurface(options: CompileOptions = {}): ClaudeSurfac
   const adapterPath = options.adapterPath ?? join(CC, "CLAUDE.adapter.md");
   const agentsDir = options.agentsDir ?? join(CORE, "agents");
   const routing = options.routing ?? DEFAULT_ROUTING;
+  const parityDeferrals = options.parityDeferrals ?? CLAUDE_PARITY_DEFERRALS;
   const canonical = readFileSync(canonicalPath, "utf8");
   const adapter = readFileSync(adapterPath, "utf8");
   const files = readdirSync(agentsDir)
@@ -447,9 +463,11 @@ export function compileClaudeSurface(options: CompileOptions = {}): ClaudeSurfac
   const parsedAgents = files.map((file) =>
     parseFrontmatter(readFileSync(join(agentsDir, file), "utf8"), `agents/${file}`),
   );
-  validateRouting(parsedAgents, routing);
+  validateRouting(parsedAgents, routing, parityDeferrals);
   const agents: Record<string, string> = {};
   for (const file of files) {
+    const name = parsedAgents[files.indexOf(file)]!.fields.get("name")!;
+    if (parityDeferrals[name]) continue;
     agents[file] = translateAgent(
       readFileSync(join(agentsDir, file), "utf8"),
       `agents/${file}`,
@@ -564,6 +582,7 @@ export function compileClaudeSurfaceRunnerPayload(options: ClaudeSurfaceRunnerPa
 export function runSync(): SyncResult {
   const requiredFailures: string[] = [];
   const optionalWarnings: string[] = [];
+  const claudeEngramHome = resolveEngramDataDir("claude", process.env);
 
   try {
     // Compile and validate all coordinator, agent, tool, runtime, and routing
@@ -574,6 +593,7 @@ export function runSync(): SyncResult {
     console.log("cc-ein sync →", DEST, DRY ? "(DRY RUN)" : "");
     ensureDir(DEST);
     ensureDir(join(DEST, "agents"));
+    ensureDir(join(DEST, "commands", "ein"));
 
     const cred = join(MAIN, ".credentials.json");
     const credLink = join(DEST, ".credentials.json");
@@ -595,6 +615,8 @@ export function runSync(): SyncResult {
     // Bakea la ruta real del binario para que el hook no dependa de PATH.
     const settingsObj = JSON.parse(readFileSync(join(CC, "settings.json"), "utf8")) as Record<string, unknown>;
     const guardBin = join(DEST, "bin", "cc-ein-sdd");
+    const continuityBin = join(DEST, "bin", CLAUDE_CONTINUITY_RUNNER_NAME);
+    const continuityHook = { type: "command", command: `"${continuityBin}" hook`, timeout: 10 };
     settingsObj.hooks = {
       PreToolUse: [
         {
@@ -602,8 +624,15 @@ export function runSync(): SyncResult {
           hooks: [{ type: "command", command: `"${guardBin}" guard`, timeout: 10 }],
         },
       ],
+      UserPromptSubmit: [{ hooks: [continuityHook] }],
+      PostToolUse: [{ matcher: "Write|Edit|Bash|Task", hooks: [continuityHook] }],
+      PostToolUseFailure: [{ matcher: "Write|Edit|Bash|Task", hooks: [continuityHook] }],
+      Stop: [{ hooks: [continuityHook] }],
+      PreCompact: [{ matcher: "manual|auto", hooks: [continuityHook] }],
+      SessionEnd: [{ hooks: [continuityHook] }],
     };
     write(join(DEST, "settings.json"), `${JSON.stringify(settingsObj, null, 2)}\n`);
+    write(join(DEST, "commands", "ein", "handoff.md"), readFileSync(join(CC, "commands", "ein", "handoff.md"), "utf8"));
     log("settings.json desplegado (+ hook PreToolUse Bash → bin/cc-ein-sdd guard)");
 
     // ── 4. Agentes: traducidos desde el core canónico ─────────────────────────
@@ -661,22 +690,15 @@ export function runSync(): SyncResult {
       }
     } else log(`surface runner se compilaría → bin/${CLAUDE_SURFACE_RUNNER_NAME}`);
 
-    // ── 8. App de terminal → binario standalone requerido ────────────────────
-    // Misma forma que el runner: se compila desde la fuente canónica para que
-    // Claude ejecute el mismo núcleo que Pi, no una copia adaptada.
     if (!DRY) {
       try {
-        compileClaudeSurfaceRunnerPayload({
-          source: TERMINAL_APP_SOURCE,
-          destination: join(binDir, CLAUDE_TERMINAL_APP_NAME),
-        });
-        log(`app de terminal compilada → bin/${CLAUDE_TERMINAL_APP_NAME}`);
+        compileClaudeSurfaceRunnerPayload({ source: CLAUDE_CONTINUITY_RUNNER_SOURCE, destination: continuityBin });
+        log(`continuity runner compilado → bin/${CLAUDE_CONTINUITY_RUNNER_NAME}`);
       } catch (error) {
-        const detail = `no se pudo desplegar la app de terminal: ${failureMessage(error)}`;
-        requiredFailures.push(detail);
-        log(`✗ ${detail}`);
+        const detail = `no se pudo desplegar continuity runner: ${failureMessage(error)}`;
+        requiredFailures.push(detail); log(`✗ ${detail}`);
       }
-    } else log(`app de terminal se compilaría → bin/${CLAUDE_TERMINAL_APP_NAME}`);
+    } else log(`continuity runner se compilaría → bin/${CLAUDE_CONTINUITY_RUNNER_NAME}`);
   } catch (error) {
     requiredFailures.push(failureMessage(error));
     console.error(`✗ fallo de sincronización requerida: ${failureMessage(error)}`);
@@ -710,10 +732,10 @@ export function runSync(): SyncResult {
   // Engram es opcional: solo si el binario está en el sistema.
   let engramBin = "";
   try { engramBin = execFileSync("which", ["engram"], { encoding: "utf8" }).trim(); } catch { /* no está */ }
-  if (engramBin) {
-    mcpUser("engram", [engramBin, "mcp", "--tools=agent"], { ENGRAM_DATA_DIR: join(homedir(), ".engram-cc-ein") });
+  if (engramBin && claudeEngramHome) {
+    mcpUser("engram", [engramBin, "mcp", "--tools=agent"], { ENGRAM_DATA_DIR: claudeEngramHome });
   } else {
-    log("engram no encontrado en PATH: memoria opcional omitida");
+    log(engramBin ? "HOME inválido: memoria opcional omitida" : "engram no encontrado en PATH: memoria opcional omitida");
   }
 
   console.log("cc-ein sync core listo. Lanza con: cc-ein");

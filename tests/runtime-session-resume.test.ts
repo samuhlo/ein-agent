@@ -62,6 +62,7 @@ function reference(provider: "pi" | "claude", uuid: string): string {
 }
 
 const PI_UUID = "019fec0d-6ee0-7c8c-b791-032d7d0fa40c";
+const CONVENTIONAL_PI_UUID = "119fec0d-6ee0-7c8c-b791-032d7d0fa40c";
 const CLAUDE_UUID = "b1efcc53-4368-456f-9e74-fba3e9aada99";
 
 let root = "";
@@ -102,6 +103,22 @@ describe("resolving an opaque reference", () => {
     const result = createRuntimeSessionAdapter("pi").resume(projectState(), orphan);
     expect(result.outcome).toBe("error");
     expect(result.error?.code).toBe("reference-not-found");
+  });
+
+  test("a Pi reference that exists only in the conventional home is not found", () => {
+    writePiSession(join(root, ".pi", "agent"), CONVENTIONAL_PI_UUID, PROJECT);
+
+    const conventional = createRuntimeSessionAdapter("pi").resume(
+      projectState(),
+      reference("pi", CONVENTIONAL_PI_UUID),
+    );
+    const isolated = createRuntimeSessionAdapter("pi").resume(
+      projectState(),
+      reference("pi", PI_UUID),
+    );
+
+    expect(conventional.error?.code).toBe("reference-not-found");
+    expect(isolated.outcome).toBe("success");
   });
 
   test("another provider's reference is refused", () => {

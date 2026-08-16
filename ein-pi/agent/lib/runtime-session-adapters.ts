@@ -8,6 +8,7 @@ import type {
 } from "./project-state.ts";
 import { MAX_PROJECT_SESSIONS, scanProjectSessions } from "./sessions.ts";
 import { scanClaudeProjectSessions } from "./claude-sessions.ts";
+import { resolveEngramDataDir } from "./memory-contract.ts";
 
 /** The runtimes exposed by the common adapter boundary. */
 export type RuntimeProvider = "pi" | "claude";
@@ -1111,13 +1112,16 @@ export function buildLaunchPlan(
 
 	const piHome = join(home, ".pi-ein", "agent");
 	const claudeHome = join(home, ".claude-ein");
+	const engramHome = resolveEngramDataDir(provider, { HOME: home })!;
 	const env: Readonly<Record<string, string>> = provider === "pi"
 		? {
 				PI_CODING_AGENT_DIR: piHome,
 				EIN_PI_AGENT_HOME: piHome,
+				ENGRAM_DATA_DIR: engramHome,
 			}
 		: {
 				CLAUDE_CONFIG_DIR: claudeHome,
+				ENGRAM_DATA_DIR: engramHome,
 				PATH: [
 					join(claudeHome, "bin"),
 					typeof environment.PATH === "string" ? environment.PATH : "",
@@ -1147,8 +1151,8 @@ function validLaunchPlan(value: unknown): value is LaunchPlan {
 	const environment = value.env;
 	if (!isRecord(environment)) return false;
 	const expectedKeys = value.provider === "pi"
-		? ["EIN_PI_AGENT_HOME", "PI_CODING_AGENT_DIR"]
-		: ["CLAUDE_CONFIG_DIR", "PATH"];
+		? ["EIN_PI_AGENT_HOME", "ENGRAM_DATA_DIR", "PI_CODING_AGENT_DIR"]
+		: ["CLAUDE_CONFIG_DIR", "ENGRAM_DATA_DIR", "PATH"];
 	const actualKeys = Object.keys(environment).sort();
 	if (JSON.stringify(actualKeys) !== JSON.stringify([...expectedKeys].sort())) return false;
 	const expectedEnvironment = EXPECTED_LAUNCH_ENVIRONMENTS.get(value);
