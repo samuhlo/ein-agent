@@ -95,9 +95,17 @@ describe("la superficie solo usa colores de marca", () => {
 
 	// La regresión concreta: el azul de dev-tool y los acentos de proveedor.
 	test("no queda rastro del tema azul ni de los acentos turquesa/morado", () => {
-		const view = readFileSync(join(ROOT, "ein-pi/agent/surfaces/terminal-dashboard-view.tsx"), "utf8");
-		for (const dead of ["#0d1118", "#d7dee8", "#69778b", "#55d6be", "#bf9cff", "#344154", "#78dce8"]) {
-			expect(view.toLowerCase()).not.toContain(dead);
+		for (const rel of ["terminal-dashboard-view.tsx", "terminal-chrome.ts", "terminal-theme.ts"]) {
+			// Solo codigo: un comentario que NOMBRA el azul viejo para explicar de
+			// donde se viene es documentacion util, no una recaida.
+			const source = readFileSync(join(ROOT, "ein-pi/agent/surfaces", rel), "utf8")
+				.split("\n")
+				.filter((line) => !line.trim().startsWith("//"))
+				.join("\n")
+				.toLowerCase();
+			for (const dead of ["#0d1118", "#d7dee8", "#69778b", "#55d6be", "#bf9cff", "#344154", "#78dce8"]) {
+				expect(source).not.toContain(dead);
+			}
 		}
 	});
 
@@ -117,8 +125,9 @@ describe("Pi y Claude se distinguen por marcador, no por color", () => {
 	// dicen qué es la fila. `rowMark` es el fallback de las filas sin icono.
 	test("el icono del modelo gana al marcador genérico", () => {
 		expect(rowMark(row({}))).toBe(MARK.active);
-		const view = readFileSync(join(ROOT, "ein-pi/agent/surfaces/terminal-dashboard-view.tsx"), "utf8");
-		expect(view).toContain("row.icon ?? rowMark(row)");
+		// La eleccion vive ahora en el marco de la app, no en la vista.
+		const chrome = readFileSync(join(ROOT, "ein-pi/agent/surfaces/terminal-chrome.ts"), "utf8");
+		expect(chrome).toContain("row.icon ?? rowMark(row)");
 	});
 
 	test("el proveedor NO cambia el color — misma fila, mismo tono", () => {
