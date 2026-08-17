@@ -487,6 +487,13 @@ function assertGeneratedParity(coordinator: string, generatedPath: string): void
   }
 }
 
+/** Comandos `/ein:*` que el adaptador publica, en orden estable. */
+export function listClaudeCommands(): readonly string[] {
+  return readdirSync(join(CC, "commands", "ein"))
+    .filter((file) => file.endsWith(".md"))
+    .sort();
+}
+
 export type ClaudeHookEntry = Readonly<{
   matcher?: string;
   hooks: readonly Readonly<{ type: "command"; command: string; timeout: number }>[];
@@ -646,7 +653,12 @@ export function runSync(): SyncResult {
     const continuityBin = join(DEST, "bin", CLAUDE_CONTINUITY_RUNNER_NAME);
     settingsObj.hooks = buildClaudeHooks(guardBin, continuityBin);
     write(join(DEST, "settings.json"), `${JSON.stringify(settingsObj, null, 2)}\n`);
-    write(join(DEST, "commands", "ein", "handoff.md"), readFileSync(join(CC, "commands", "ein", "handoff.md"), "utf8"));
+    // Todos los comandos, no una lista a mano: uno nuevo que nadie recuerde
+    // añadir aquí no llega al usuario y el fallo es invisible.
+    for (const file of listClaudeCommands()) {
+      write(join(DEST, "commands", "ein", file), readFileSync(join(CC, "commands", "ein", file), "utf8"));
+    }
+    log(`comandos desplegados: ${listClaudeCommands().length}`);
     log("settings.json desplegado (+ hooks PreToolUse → guard, SessionStart → settings)");
 
     // ── 4. Agentes: traducidos desde el core canónico ─────────────────────────

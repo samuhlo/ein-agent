@@ -35,6 +35,7 @@ import { readGitBaseline, renderWorkingTreeLine } from "../../ein-pi/agent/lib/g
 import {
 	renderProjectDirectives,
 	resolveProjectDirectives,
+	summarizeProjectDirectives,
 } from "../../ein-pi/agent/lib/project-directives.ts";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -254,6 +255,11 @@ export function buildStatusOutput(cwd: string, change?: string): string {
 	} else if (initFailure) {
 		text += `\n\n- repo: none (git init failed — ${initFailure})`;
 	}
+
+	// El status contesta "dónde estoy", y los ajustes son parte de esa respuesta:
+	// llegar a un proyecto sin saber si exige TDD es llegar a ciegas.
+	const settings = summarizeProjectDirectives(resolveProjectDirectives(cwd, "claude"));
+	if (settings) text += `\n${settings}`;
 
 	return text;
 }

@@ -153,6 +153,24 @@ export function resolveProjectDirectives(
 }
 
 /**
+ * Una línea con el valor de cada ajuste, para el status. Marca lo que el
+ * runtime no honra: un status que enseña `hypa=auto` a secas afirma algo que no
+ * es cierto en Claude.
+ */
+export function summarizeProjectDirectives(
+	directives: readonly ProjectDirective[],
+): string {
+	if (directives.length === 0) return "";
+	const parts = directives.map((entry) => {
+		const value = entry.value ?? "unknown";
+		if (entry.status === "unsupported") return `${entry.id}=${value} (no aplica aquí)`;
+		if (entry.status === "unreadable") return `${entry.id}=ilegible`;
+		return `${entry.id}=${value}`;
+	});
+	return `- Ajustes del proyecto: ${parts.join(" · ")}`;
+}
+
+/**
  * Bloque inyectable. Las directivas activas van primero y enteras; el resto se
  * resume en una línea por ajuste para que el runtime sepa qué NO está honrando
  * — un ajuste omitido en silencio es justo el fallo que este módulo evita.

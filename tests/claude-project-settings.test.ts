@@ -3,8 +3,9 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { buildClaudeHooks, compileClaudeSurface } from "../cc-ein/sync.ts";
-import { buildSettingsBlock } from "../cc-ein/sdd-cli/cli.ts";
+import { readFileSync } from "node:fs";
+import { buildClaudeHooks, compileClaudeSurface, listClaudeCommands } from "../cc-ein/sync.ts";
+import { buildSettingsBlock, buildStatusOutput } from "../cc-ein/sdd-cli/cli.ts";
 
 describe("Claude reads the project settings", () => {
 	// El agujero que cerró este cambio: Claude arrancaba con sus defaults de
@@ -65,5 +66,49 @@ describe("Claude reads the project settings", () => {
 	test("the adapter explains that the path is shared, not Pi-only", () => {
 		const surface = compileClaudeSurface();
 		expect(surface.agents["sdd-apply.md"]).toContain("## Project settings");
+	});
+});
+
+describe("Claude session commands", () => {
+	// Llegar a un proyecto sin saber si exige TDD es llegar a ciegas: el status
+	// contesta "dónde estoy" entero o no lo contesta.
+	test("status answers where the work is AND which rules govern it", () => {
+		const cwd = mkdtempSync(join(tmpdir(), "ein-cc-status-"));
+		try {
+			mkdirSync(join(cwd, ".pi", "ein"), { recursive: true });
+			writeFileSync(join(cwd, ".pi", "ein", "tdd.json"), '{"mode":"strict"}\n');
+
+			const output = buildStatusOutput(cwd);
+			expect(output).toContain("Ajustes del proyecto:");
+			expect(output).toContain("tdd=strict");
+			// Lo que este runtime no honra se marca; un status que lo calla miente.
+			expect(output).toContain("no aplica aquí");
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+		}
+	});
+
+	test("every published command is a valid, self-executing skill file", () => {
+		const commands = listClaudeCommands();
+		expect(commands).toContain("status.md");
+		expect(commands).toContain("settings.md");
+		expect(commands).toContain("handoff.md");
+
+		for (const file of commands) {
+			const body = readFileSync(join(import.meta.dir, "..", "cc-ein", "commands", "ein", file), "utf8");
+			expect(body.startsWith("---\n")).toBe(true);
+			expect(body).toContain("description:");
+		}
+	});
+
+	// Un comando que ejecuta un binario sin declararlo en `allowed-tools` pide
+	// permiso cada vez y deja de ser un atajo.
+	test("a command that shells out pre-approves exactly what it runs", () => {
+		for (const file of ["status.md", "settings.md"]) {
+			const body = readFileSync(join(import.meta.dir, "..", "cc-ein", "commands", "ein", file), "utf8");
+			const invoked = body.match(/!`(cc-ein-sdd [a-z]+)/);
+			expect(invoked).not.toBeNull();
+			expect(body).toContain(`allowed-tools: Bash(${invoked?.[1]}:*)`);
+		}
 	});
 });
