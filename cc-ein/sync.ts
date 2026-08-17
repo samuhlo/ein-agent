@@ -151,9 +151,13 @@ const RUNTIME_TOKEN_RULES: ReadonlyArray<{
   replacement: string;
 }> = [
   {
+    // Antes traducía a la prosa "the OpenSpec delta writer": un nombre sin nada
+    // detrás. El agente recibía la orden de usarlo Y la prohibición de escribir
+    // el markdown a mano, así que un cambio con delta de comportamiento
+    // empezado en Claude no podía cerrarse.
     source: "agents/sdd-scope.md",
     token: "ein_openspec_delta_write",
-    replacement: "the OpenSpec delta writer",
+    replacement: "cc-ein-sdd delta",
   },
   {
     source: "agents/ein-git.md",
