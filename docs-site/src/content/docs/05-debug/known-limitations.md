@@ -1,7 +1,7 @@
 ---
 title: "Limitaciones conocidas"
 description: "Qué está probado de verdad, qué no, y qué puede cambiar."
-sources: ["docs/roadmap-beta.md", "docs/roadmap-features-ein.md"]
+sources: ["docs/roadmap-features-ein.md"]
 verified_rev: "eeceb7c"
 ---
 
@@ -65,7 +65,7 @@ ciclo de tests real.
 proyecto, adaptadores de sesión, un workbench mínimo— pero el camino completo
 sigue la secuencia declarada en el roadmap y no está terminado. El registro
 mantenido de qué está hecho y con qué evidencia vive en
-[`docs/roadmap-beta.md`](https://github.com/samuhlo/ein-agent/blob/main/docs/roadmap-beta.md).
+[`docs/roadmap-features-ein.md`](https://github.com/samuhlo/ein-agent/blob/main/docs/roadmap-features-ein.md).
 
 **El updater universal.** `ein-install update` actualiza EIN. No es un actualizador
 genérico de cualquier runtime y no debe presentarse como tal.
@@ -100,7 +100,7 @@ Los cambios con impacto van al
 
 Esta página resume. El registro mantenido, con su evidencia y sus criterios de
 salida, es
-[`docs/roadmap-beta.md`](https://github.com/samuhlo/ein-agent/blob/main/docs/roadmap-beta.md).
+[`docs/roadmap-features-ein.md`](https://github.com/samuhlo/ein-agent/blob/main/docs/roadmap-features-ein.md).
 
 Si algo de aquí y de allí no coincide, manda el roadmap.
 

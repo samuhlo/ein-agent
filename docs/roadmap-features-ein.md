@@ -347,6 +347,10 @@ Go remains only a measured launcher fallback for demonstrated startup, terminal,
 - Configuration writes validate, apply atomically, and read back.
 - Direct Pi and Claude launch paths remain usable without the launcher.
 - The legacy renderer remains shipped and supported.
+- Launcher-specific E2E covers the happy path, runtime and session errors, unavailable or incomplete project state, and freshness invalidation: changing relevant code after a verification must show the previous evidence as stale rather than inherited. Installer E2E is a separate prerequisite signal and never substitutes for this coverage.
+- Release evidence stays honest at the boundary: package version, source marker, changelog, tag, workflow outputs, and checksums agree before publishing, and any manual or platform gap is recorded rather than inferred.
+
+*(These last two gates were absorbed from the retired `roadmap-beta.md` on 2026-08-17; they were the only criteria there without an equivalent here.)*
 
 ## Milestone 5: Deferred Claude Cleaner/Architect Parity
 

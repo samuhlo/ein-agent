@@ -109,7 +109,7 @@ Referencia completa en [CLI](https://samuhlo.github.io/ein-agent/04-reference/cl
 
 ## // 07_ ESTADO
 
-Beta. El registro mantenido de qué está probado, con qué evidencia y qué puede cambiar es [`docs/roadmap-beta.md`](docs/roadmap-beta.md).
+Beta. El registro mantenido de qué está probado, con qué evidencia y qué puede cambiar es [`docs/roadmap-features-ein.md`](docs/roadmap-features-ein.md). El rumbo que no se negocia vive en [`MANIFIESTO.md`](MANIFIESTO.md).
 
 Los cambios con impacto van al [CHANGELOG](CHANGELOG.md). Las releases se publican como tags `installer-v*` desde GitHub Actions.
 

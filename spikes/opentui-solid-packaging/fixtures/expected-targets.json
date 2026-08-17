@@ -1,8 +1,0 @@
-{
-  "targets": [
-    { "id": "darwin-arm64", "bunTarget": "bun-darwin-arm64", "nativePackage": "@opentui/core-darwin-arm64", "libc": null },
-    { "id": "darwin-x64", "bunTarget": "bun-darwin-x64", "nativePackage": "@opentui/core-darwin-x64", "libc": null },
-    { "id": "linux-arm64", "bunTarget": "bun-linux-arm64", "nativePackage": "@opentui/core-linux-arm64", "libc": "glibc" },
-    { "id": "linux-x64", "bunTarget": "bun-linux-x64", "nativePackage": "@opentui/core-linux-x64", "libc": "glibc" }
-  ]
-}
