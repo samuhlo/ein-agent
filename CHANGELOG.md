@@ -5,6 +5,65 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.70.0] - 2026-08-17
+
+### Added
+
+- **Un panel vivo del cambio, encima del editor**: qué cambio está activo, con
+  qué carril, en qué fase y la lista de tareas con su progreso, actualizándose
+  solo mientras trabajas. `ctrl+shift+e` lo pliega. Proyecta `tasks.md`: no
+  tiene forma de escribir nada, así que no puede convertirse en una segunda
+  versión de la verdad. Se descartó adoptar un paquete de terceros porque
+  reconstruye su estado del historial de conversación en vez de leer el
+  proyecto.
+- **Carril declarado para el cambio pequeño**: `micro` se salta `map` y `tasks`
+  —las dos fases que leen código— y no se salta nada más; verificar y cerrar
+  siguen siendo puertas duras. Lo eliges tú al abrir el cambio, porque antes de
+  planificar no existe ninguna señal fiable para adivinarlo. De 44 cambios
+  archivados, 42 habían pagado las siete fases.
+- **Claude escribe su propio delta de comportamiento** (`cc-ein-sdd delta`).
+  Era el único punto donde alternar entre agentes se atascaba: un cambio con
+  delta empezado en Claude no podía cerrarse.
+- **Claude tiene cabina**: `/ein:status` y `/ein:settings` como comandos de
+  sesión, envolviendo el CLI determinista.
+- **Techo al prompt del orquestador**, con un test que falla si crece sin que
+  algo salga a cambio.
+
+### Changed
+
+- **Claude trabaja con los ajustes de tu proyecto**, no con sus valores de
+  fábrica: modo, idioma, persona, TDD y codegraph se leen del proyecto y se
+  inyectan al arrancar la sesión. Antes, un trabajo con TDD estricto en Pi
+  continuaba sin TDD en Claude sin que nadie se enterase.
+- **Los bloqueos dicen cómo salir de ellos**: cada estado que impide cerrar un
+  cambio trae ahora la acción concreta que lo desbloquea, nombrando el comando
+  del runtime en el que estás.
+- **`rules:` de `openspec/config.yaml` dejó de ser decoración**: se escribía y
+  no la leía nadie. Ahora relaja avisos cuando el proyecto lo declara, y solo
+  puede relajar: nunca añade comprobaciones.
+- **Cleaner y Architect se declaran, no se ejecutan, en Claude**: son de Pi, y
+  la participación automática se queda apagada allí por diseño. Antes ni se
+  mencionaba, así que el cambio de estándar era silencioso.
+- **El runtime de cada fase sale de una tabla** en vez de pedirle al
+  coordinador que recuerde qué número pasar a cada una.
+
+### Fixed
+
+- **El presupuesto de duración del Cleaner se reporta en vez de tirar el
+  trabajo**: un solo error juntaba «el árbol cambió» —que sí invalida la
+  evidencia— con «tardó de más», que no. En un runner cargado, una recogida
+  correcta salía como fallo.
+- **La paridad entre runtimes deja de citar rutas y herramientas que no
+  existen**, con un test que lo impide en adelante.
+
+### Removed
+
+- **Mil líneas de planes ya entregados**: el plan de continuidad Pi↔Claude
+  describía trabajo construido, y dos análisis habían cumplido su propia
+  condición de retirada. Sus lecciones duraderas subieron al manifiesto.
+- **Documentación superada y el spike de OpenTUI detenido**, más 3,6 GB de
+  artefactos de compilación en la raíz del repositorio.
+
 ## [0.62.1] - 2026-08-17
 
 ### Fixed
