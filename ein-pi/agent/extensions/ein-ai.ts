@@ -82,6 +82,7 @@ import {
 import { handleModelsCommand } from "./internal/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
+import { collectSddRemedies, formatSddRemedies } from "../lib/sdd-remedies.ts";
 import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
 import { reviewForecast, formatReviewForecast } from "../lib/review-forecast.ts";
 import { closeChange, type CloseOptions } from "../lib/sdd-close.ts";
@@ -480,6 +481,10 @@ function formatSddStatus(
 		lines.push("", `■ ${t("sdd-status.blocked", "blockers")}:`);
 		for (const b of blockers) lines.push(`- ${b}`);
 	}
+	// El remedio sale del MISMO estado que el bloqueo. Antes vivía como prosa en
+	// el prompt del orquestador, explicando lo que el router ya calculaba.
+	const remedies = formatSddRemedies(collectSddRemedies(status));
+	if (remedies) lines.push("", remedies);
 	return lines.join("\n");
 }
 

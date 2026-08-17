@@ -173,19 +173,40 @@ aborta a mitad de ciclo RED/GREEN. Lo cazó la suite. **Parte de esa prosa es
 portante a través de marcadores de texto**, y el presupuesto no se puede cumplir
 borrando prosa cuya ausencia cambia el comportamiento.
 
+### Segunda corrección: el inventario tampoco se recupera (2026-08-17)
+
+El plan que quedaba apuntaba al **inventario de subagentes generado** (4.822
+bytes) como la mayor palanca restante. No lo es, por dos razones que se ven al
+intentarlo:
+
+1. **Generarlo no ahorra bytes.** La tabla tiene que seguir en el prompt para
+   que el padre pueda enrutar. Componerla desde el frontmatter elimina el
+   mantenimiento a mano y la deriva —eso sí es valor— pero el coste por turno es
+   idéntico. La alternativa, cargarla bajo demanda, ya está descartada por el
+   propio prompt: listar agentes cuesta más que la tabla.
+2. **La columna «When» no está en el frontmatter, y es portante.** Contiene
+   prohibiciones —`NEVER curl the Linear API`, `NEVER run git/gh delivery
+   directly`, `NEVER call subagent list`— que **no están aplicadas en ningún
+   sitio del código**. El prompt es su única aplicación. Retirarlas sería el
+   mismo fallo que la línea de TDD.
+
+Queda en pie el envelope con `fix`, que sí se recuperó (~900 bytes reales, no
+los ~2.282 estimados: la prosa de `Gatekeeper` describe una política de bloqueo
+que el padre necesita para rutear, no un remedio).
+
 ### Qué significa para el objetivo
 
 El criterio de ≤ 34.500 bytes **no es alcanzable por esta vía**. Lo que queda:
 
-1. **Inventario de subagentes generado** (4.822 bytes). Es una tabla de datos
-   —agente, herramientas, cuándo— que puede componerse desde el frontmatter de
-   los agentes en vez de escribirse a mano. Sigue siendo una palanca real.
-2. **Envelope JSON con campo `fix`** (~2.282). Sin cambios: la prosa que explica
-   lo que un módulo ya calcula se va cuando el módulo lo dice.
+1. ~~Inventario generado~~ — descartado arriba: no ahorra bytes y su columna
+   «When» es la única aplicación de tres prohibiciones.
+2. **Envelope con `fix`** — hecho. Retiró ~900 bytes reales.
 3. **Reescribir la escalera de enrutado** (10.295). No es mover, es redactar más
    corto. Otra clase de trabajo y otro riesgo.
 
-Con (1) y (2): ~36.500. Bajar de ahí exige (3).
+El suelo alcanzable sin (3) es **42.693 bytes**, un 5,8 % por debajo de la línea
+base. Bajar de ahí exige reescribir prosa de coordinación, con el riesgo de
+tocar reglas portantes que solo se descubren rompiéndolas.
 
 **Lección para las próximas apuestas:** clasificar un párrafo por su tema
 («esto va de apply») y no por su destinatario («¿quién tiene que actuar?») da un

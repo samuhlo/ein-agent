@@ -5,6 +5,7 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
+import { specStateRemedy } from "../ein-pi/agent/lib/sdd-remedies.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -240,14 +241,23 @@ describe("ein-ai: tools deterministas cableados", () => {
 	test("un conflicto de specs NO se reporta como ok", () => {
 		expect(ai).toContain('ok: plan.state !== "conflict"');
 	});
-	test("el orquestador sabe cómo desbloquear cada estado de specs", () => {
-		const orch = read("assets/orchestrator.md");
-		expect(orch).toContain("ein_openspec_sync");
-		// Cada estado necesita una salida documentada; `conflict` es el único sin ella.
-		for (const state of ["synchronized", "pending", "unresolved", "conflict"]) {
-			expect(orch).toContain(state);
+	// Antes esto exigía que el PROMPT documentara la salida de cada estado. Ahora
+	// la dice la herramienta con el estado en la mano, que es donde el dato ya
+	// estaba calculado. El prompt solo conserva lo que no se deduce del estado:
+	// que `force` nunca archiva sobre un conflicto.
+	test("cada estado bloqueante de specs trae su salida, y nombra el comando real", () => {
+		for (const state of ["pending", "unresolved", "conflict"] as const) {
+			expect(specStateRemedy(state, "pi")).not.toBeNull();
+			expect(specStateRemedy(state, "claude")).not.toBeNull();
 		}
-		expect(orch).toContain("`force` will NOT archive over a conflict");
+		expect(specStateRemedy("synchronized", "pi")).toBeNull();
+
+		// El remedio nombra la herramienta de SU runtime: un "sincroniza" genérico
+		// obliga a adivinar cuál, que es lo que la prosa ya evitaba.
+		expect(specStateRemedy("pending", "pi")?.fix).toContain("ein_openspec_sync");
+		expect(specStateRemedy("pending", "claude")?.fix).toContain("cc-ein-sdd sync");
+
+		expect(read("assets/orchestrator.md")).toContain("NUNCA archiva sobre un conflicto");
 	});
 	test("sdd-scope enseña a declarar el spec delta (nadie lo hacía)", () => {
 		const scope = read("agents/sdd-scope.md");

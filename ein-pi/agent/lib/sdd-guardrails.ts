@@ -8,6 +8,7 @@
 // =============================================================================
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { readConfigRules, type PhaseRules } from "./openspec-config-rules.ts";
 import { join } from "node:path";
 import { extractProductionFiles, resolveChangesDir } from "./sdd-router.ts";
 import { parseOpenSpec, parseOpenSpecDelta } from "./openspec-spec-parser.ts";
@@ -34,14 +35,22 @@ export type DesignLintOptions = {
 	// Por encima de estas lineas el design probablemente esta sobre-dimensionado
 	// / es irrevisable. Mismo umbral por defecto que el Review Workload Guard.
 	oversizeLineThreshold?: number;
+	/** `rules.design` del proyecto. Solo puede relajar avisos, nunca anadirlos. */
+	designRules?: PhaseRules;
 };
 
 const DEFAULT_OVERSIZE = 400;
 
 // Las secciones que sdd-design DEBE emitir (contrato de diseño, no plan ejecutable).
-const REQUIRED_SECTIONS: { code: string; label: string; pattern: RegExp }[] = [
-	{ code: "proposal", label: "A. Proposal", pattern: /^#+\s*A\.\s*Proposal/im },
-	{ code: "spec", label: "B. Spec", pattern: /^#+\s*B\.\s*Spec/im },
+const REQUIRED_SECTIONS: {
+	code: string;
+	label: string;
+	pattern: RegExp;
+	/** Clave de `rules.design` que apaga este aviso cuando vale `false`. */
+	relaxedBy: keyof PhaseRules;
+}[] = [
+	{ code: "proposal", label: "A. Proposal", pattern: /^#+\s*A\.\s*Proposal/im, relaxedBy: "requireProblemStatement" },
+	{ code: "spec", label: "B. Spec", pattern: /^#+\s*B\.\s*Spec/im, relaxedBy: "requireAcceptanceCriteria" },
 ];
 
 // Restos de plantilla que un modelo barato deja sin rellenar.
@@ -81,6 +90,10 @@ export function lintDesignArtifact(
 	// fases (tasks -> apply -> verify) para reescribir prosa. El coste de eso
 	// medido: 28% del tiempo de apply/tasks/verify.
 	for (const section of REQUIRED_SECTIONS) {
+		// `rules.design.*` en config.yaml solo puede RELAJAR: un proyecto que
+		// declara `false` no quiere esa seccion y no debe verse avisado por ella.
+		// Sin declaracion explicita se aplica el default estricto.
+		if (opts.designRules?.[section.relaxedBy] === false) continue;
 		if (!section.pattern.test(text)) {
 			issues.push({
 				level: "warning",
@@ -397,6 +410,9 @@ export function lintChange(cwd: string, change: string): ChangeLintReport {
 	const base = join(resolveChangesDir(cwd), change);
 	const phases: ChangeLintReport["phases"] = [];
 	const provenanceIssues: GuardrailIssue[] = [];
+	// `rules:` de openspec/config.yaml. Se escribia desde el bootstrap y no la
+	// leia nadie; ahora relaja los avisos de forma que el proyecto declare.
+	const designRules = readConfigRules(cwd).design;
 	let errors = 0;
 	let warnings = 0;
 	for (const phase of Object.keys(PHASE_ARTIFACT) as SddPhase[]) {
@@ -420,7 +436,7 @@ export function lintChange(cwd: string, change: string): ChangeLintReport {
 				message: `${PHASE_ARTIFACT[phase]} fue persistido por el parent (authored_by: parent-fallback), no por el executor de fase; revisar con atencion extra.`,
 			});
 		}
-		const report = lintPhaseArtifact(phase, content);
+		const report = lintPhaseArtifact(phase, content, phase === "design" ? { designRules } : {});
 		errors += report.errors;
 		warnings += report.warnings;
 		phases.push({ phase, present: true, report });
