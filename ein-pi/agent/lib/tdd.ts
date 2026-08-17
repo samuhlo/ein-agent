@@ -63,6 +63,23 @@ export function writeTddMode(cwd: string, mode: TddMode): void {
 	writeFileSync(path, `${JSON.stringify({ mode }, null, 2)}\n`);
 }
 
+// Directiva inyectable de la postura TDD. Existe porque un runtime que no lea
+// este ajuste aplica su propio default: el trabajo cambia de estándar a mitad
+// de camino y nadie se entera hasta mirar el resultado.
+export function tddDirective(mode: TddMode): string {
+	const head = "Strict TDD stance (project setting, authoritative)";
+	if (mode === "strict") {
+		return `${head}: STRICT. Every apply follows RED, GREEN, TRIANGULATE, REFACTOR and records the evidence. Do not silently fall back to standard mode.`;
+	}
+	if (mode === "off") {
+		return `${head}: OFF. Do NOT run a RED/GREEN cycle by default; it burns tokens on work that does not need it. The independent verification phase still runs the real suite.`;
+	}
+	if (mode === "auto") {
+		return `${head}: AUTO. The project's \`openspec/config.yaml\` (\`strict_tdd\`) decides; read it before an apply instead of assuming either stance.`;
+	}
+	return `${head}: ASK. Confirm the stance with the user before the first apply of a change, then keep that answer for the rest of the change.`;
+}
+
 export async function handleTddCommand(ctx: ExtensionContext): Promise<void> {
 	const current = readTddMode(ctx.cwd);
 	const items = TDD_OPTIONS.map((m) => `${m} — ${TDD_LABEL[m]}`);

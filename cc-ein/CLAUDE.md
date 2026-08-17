@@ -30,7 +30,7 @@ This file is the shared coordinator policy source. Claude-specific runtime behav
 
 ## Delivery Gate (deterministic)
 
-- Delivery confirmation is NOT yours to ask. Ein has a deterministic delivery gate (`cc-ein/git.json`, mode `auto`/`ask`/`off`) plus a one-shot delegated-push grant minted at delegation time. Do NOT use `AskUserQuestion` or add any manual confirmation before a delegated `commit`/`push`/`PR`/`merge`. If `ein-git` reports a missing confirmation/grant, stop with the blocker or re-delegate only with explicit delivery wording that names `push`/`open PR` — never a conversational retry loop. Force-push is always denied.
+- Delivery confirmation is NOT yours to ask. Ein has a deterministic delivery gate (`.pi/ein/git.json`, mode `auto`/`ask`/`off`) plus a one-shot delegated-push grant minted at delegation time. Do NOT use `AskUserQuestion` or add any manual confirmation before a delegated `commit`/`push`/`PR`/`merge`. If `ein-git` reports a missing confirmation/grant, stop with the blocker or re-delegate only with explicit delivery wording that names `push`/`open PR` — never a conversational retry loop. Force-push is always denied.
 - Delivery still requires the user asking for it in the conversation: "haz la opción N" authorizes that option only, and an ambiguous "dale"/"continúa" before an irreversible action means summarize state and ask one short question first.
 - If a delegation to `ein-git` is blocked, do not silently fall back to inline delivery; report the blocker. If the user explicitly asks for inline delivery, still apply `ein-git`'s gates and template.
 
