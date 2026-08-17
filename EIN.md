@@ -4,7 +4,9 @@
 Harness de coding-agent sobre Pi Coding Agent y Claude Code: dos runtimes aislados con una sola disciplina de entrega. Convierte trabajo ambiguo en cambios pequeños, verificados y explicados, con el estado del cambio en disco (`openspec/`) y no en la conversación.
 Herramienta personal de Samu antes que producto público; cuando las dos cosas chocan, gana el uso propio.
 
-**Hoja de ruta canónica: [`docs/roadmap-features-ein.md`](docs/roadmap-features-ein.md).** Es la única fuente de priorización y secuencia. El resto de documentos de `docs/` son catálogo de ideas o material en crudo; ver el índice de estado al final de ese fichero antes de asumir que algo está vigente.
+**Rumbo canónico: [`MANIFIESTO.md`](MANIFIESTO.md).** Define lo que Ein tiene que ser; manda sobre cualquier plan.
+
+**Hoja de ruta canónica: [`docs/roadmap-features-ein.md`](docs/roadmap-features-ein.md).** Es la única fuente de priorización y secuencia. En `docs/` solo quedan documentos vigentes: [`plan-continuidad-pi-claude.md`](docs/plan-continuidad-pi-claude.md) (trabajo activo), [`origen-y-ideas.md`](docs/origen-y-ideas.md) (material de origen, nunca un plan) y tres guías de apoyo.
 
 ## Arquitectura
 <!-- CURADA — estilo (p.ej. screaming architecture) y dónde viven las features. -->
@@ -57,15 +59,14 @@ _No detectados automáticamente._
 ## Docs
 
 - [README](README.md)
+- [MANIFIESTO](MANIFIESTO.md)
 - [CHANGELOG](CHANGELOG.md)
 - [docs/EIN_DOCUMENTATION_BRIEF.md](docs/EIN_DOCUMENTATION_BRIEF.md)
-- [docs/borrador_nuevas_feats_EIN.md](docs/borrador_nuevas_feats_EIN.md)
-- [docs/ein-multiagente-plan.md](docs/ein-multiagente-plan.md)
-- [docs/ein_futuras_features.md](docs/ein_futuras_features.md)
 - [docs/fricciones-dogfooding.md](docs/fricciones-dogfooding.md)
+- [docs/guia-cleaner-architect-herramientas-deterministas.md](docs/guia-cleaner-architect-herramientas-deterministas.md)
+- [docs/origen-y-ideas.md](docs/origen-y-ideas.md)
+- [docs/plan-continuidad-pi-claude.md](docs/plan-continuidad-pi-claude.md)
 - [docs/review-workload-guard.md](docs/review-workload-guard.md)
-- [docs/roadmap-beta.md](docs/roadmap-beta.md)
-- [docs/roadmap-codegraph-tdd-launcher.md](docs/roadmap-codegraph-tdd-launcher.md)
 - [docs/roadmap-features-ein.md](docs/roadmap-features-ein.md)
 
 <!-- ein:auto:end -->
