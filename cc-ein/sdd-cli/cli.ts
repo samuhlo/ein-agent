@@ -32,6 +32,11 @@ import {
 	commandIsExplicitlyAllowed,
 } from "../../ein-pi/agent/lib/guardrails.ts";
 import { readGitBaseline, renderWorkingTreeLine } from "../../ein-pi/agent/lib/git-baseline.ts";
+import {
+	renderProjectDirectives,
+	resolveProjectDirectives,
+	summarizeProjectDirectives,
+} from "../../ein-pi/agent/lib/project-directives.ts";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -176,6 +181,24 @@ async function guardCmd(): Promise<void> {
 	if (result) emitDecision(result.decision, result.reason);
 }
 
+// Ajustes del proyecto → directivas. `--hook` emite el sobre de SessionStart
+// (lo llama settings.json); sin flag imprime el bloque en claro, que es lo que
+// un agente lee por Bash y lo que un humano quiere ver.
+export function buildSettingsBlock(dir: string): string {
+	return renderProjectDirectives(resolveProjectDirectives(dir, "claude"));
+}
+
+function settingsCmd(args: readonly string[]): void {
+	const block = buildSettingsBlock(cwd);
+	if (!args.includes("--hook")) {
+		console.log(block);
+		return;
+	}
+	process.stdout.write(JSON.stringify({
+		hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: block },
+	}));
+}
+
 // ── Dispatch ────────────────────────────────────────────────────────────────
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -232,6 +255,11 @@ export function buildStatusOutput(cwd: string, change?: string): string {
 	} else if (initFailure) {
 		text += `\n\n- repo: none (git init failed — ${initFailure})`;
 	}
+
+	// El status contesta "dónde estoy", y los ajustes son parte de esa respuesta:
+	// llegar a un proyecto sin saber si exige TDD es llegar a ciegas.
+	const settings = summarizeProjectDirectives(resolveProjectDirectives(cwd, "claude"));
+	if (settings) text += `\n${settings}`;
 
 	return text;
 }
@@ -458,9 +486,10 @@ if (import.meta.main) {
 		case "check": checkCmd(); break;
 		case "close": closeCmd(); break;
 		case "guard": await guardCmd(); break;
+		case "settings": settingsCmd(rest); break;
 		case "sync": await syncCmd(rest); break;
 		default:
-			console.log("cc-ein-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)");
+			console.log("cc-ein-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]");
 			process.exit(1);
 	}
 }

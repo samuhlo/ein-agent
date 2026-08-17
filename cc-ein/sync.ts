@@ -140,6 +140,8 @@ function translateTools(piTools: string, source: string, agent: string): string 
 // Runtime-specific source references are translated by the scoped registries below.
 const CC_NOTE = [
   "> **cc-ein (Claude Code):** corres en Claude Code, no en Pi. El flujo SDD se conduce con `cc-ein-sdd status|check|close` (por Bash). Las referencias de runtime específicas de Pi que puedan aparecer en una fuente canónica no aplican aquí; usa las herramientas y el coordinador de Claude. Sigue vigente: si te bloqueas, devuelve `status: blocked` con la causa concreta. Escribe tu artefacto de fase en `openspec/changes/<change>/`.",
+  ">",
+  "> `.pi/ein/` es la configuración **del proyecto**, no del runtime de Pi: los dos runtimes leen los mismos ficheros. Sus valores llegan ya resueltos en el bloque `## Project settings` que se inyecta al arrancar la sesión (`cc-ein-sdd settings` los vuelve a imprimir cuando haga falta).",
   "",
 ].join("\n");
 
@@ -185,18 +187,9 @@ type LegacyTranslation = {
   replacement: string;
 };
 
+// Las rutas bajo `.pi/ein/` ya no se traducen: son configuración del proyecto,
+// compartida por los dos runtimes, y reescribirlas rompía su significado.
 const LEGACY_TRANSLATIONS: ReadonlyArray<LegacyTranslation> = [
-  { sources: ["AGENTS.md"], signature: ".pi/ein/git.json", replacement: "cc-ein/git.json" },
-  {
-    sources: ["agents/sdd-apply.md"],
-    signature: ".pi/ein/support/strict-tdd.md",
-    replacement: "cc-ein/support/strict-tdd.md",
-  },
-  {
-    sources: ["agents/sdd-verify.md"],
-    signature: ".pi/ein/support/strict-tdd-verify.md",
-    replacement: "cc-ein/support/strict-tdd-verify.md",
-  },
   {
     sources: ["AGENTS.md", "agents/ein-git.md", "agents/ein-linear.md", "agents/sdd-verify.md"],
     signature: "pi-subagents",
@@ -293,8 +286,11 @@ function assertNoUntranslated(text: string, source: string): void {
   if (/<!--[ \t]*ein:runtime-ref\b/.test(text)) {
     throw parity("PARITY_UNTRANSLATED_TOKEN", `source ${source}, unresolved runtime marker remains in output`);
   }
+  // `.pi/ein/` NO está aquí a propósito: no es un token del runtime de Pi, es
+  // el directorio de configuración DEL PROYECTO, y los dos runtimes leen el
+  // mismo. Traducirlo (como se hacía) convertía una ruta local del proyecto en
+  // una ruta de la instalación que nadie creaba ni leía.
   for (const signature of [
-    ".pi/ein/",
     "pi-subagents",
     "acceptance-report",
     "intercom",
@@ -491,6 +487,45 @@ function assertGeneratedParity(coordinator: string, generatedPath: string): void
   }
 }
 
+/** Comandos `/ein:*` que el adaptador publica, en orden estable. */
+export function listClaudeCommands(): readonly string[] {
+  return readdirSync(join(CC, "commands", "ein"))
+    .filter((file) => file.endsWith(".md"))
+    .sort();
+}
+
+export type ClaudeHookEntry = Readonly<{
+  matcher?: string;
+  hooks: readonly Readonly<{ type: "command"; command: string; timeout: number }>[];
+}>;
+
+/**
+ * Hooks que Claude Code ejecuta. Se construye aparte del despliegue para que el
+ * cableado sea verificable: que `SessionStart` inyecte los ajustes del proyecto
+ * es un contrato, no una confianza — sin él Claude arranca con sus defaults y
+ * un handoff cambia de estándar sin avisar.
+ */
+export function buildClaudeHooks(
+  guardBin: string,
+  continuityBin: string,
+): Readonly<Record<string, readonly ClaudeHookEntry[]>> {
+  const cmd = (command: string) => ({ type: "command" as const, command, timeout: 10 });
+  const continuity = cmd(`"${continuityBin}" hook`);
+  const mutations = "Write|Edit|Bash|Task";
+  return Object.freeze({
+    PreToolUse: [{ matcher: "Bash", hooks: [cmd(`"${guardBin}" guard`)] }],
+    SessionStart: [
+      { matcher: "startup|resume|clear|compact", hooks: [cmd(`"${guardBin}" settings --hook`)] },
+    ],
+    UserPromptSubmit: [{ hooks: [continuity] }],
+    PostToolUse: [{ matcher: mutations, hooks: [continuity] }],
+    PostToolUseFailure: [{ matcher: mutations, hooks: [continuity] }],
+    Stop: [{ hooks: [continuity] }],
+    PreCompact: [{ matcher: "manual|auto", hooks: [continuity] }],
+    SessionEnd: [{ hooks: [continuity] }],
+  });
+}
+
 export function checkGeneratedParity(options: Omit<CompileOptions, "generatedPath"> = {}): void {
   const generatedPath = join(CC, "CLAUDE.md");
   const surface = compileClaudeSurface(options);
@@ -616,24 +651,15 @@ export function runSync(): SyncResult {
     const settingsObj = JSON.parse(readFileSync(join(CC, "settings.json"), "utf8")) as Record<string, unknown>;
     const guardBin = join(DEST, "bin", "cc-ein-sdd");
     const continuityBin = join(DEST, "bin", CLAUDE_CONTINUITY_RUNNER_NAME);
-    const continuityHook = { type: "command", command: `"${continuityBin}" hook`, timeout: 10 };
-    settingsObj.hooks = {
-      PreToolUse: [
-        {
-          matcher: "Bash",
-          hooks: [{ type: "command", command: `"${guardBin}" guard`, timeout: 10 }],
-        },
-      ],
-      UserPromptSubmit: [{ hooks: [continuityHook] }],
-      PostToolUse: [{ matcher: "Write|Edit|Bash|Task", hooks: [continuityHook] }],
-      PostToolUseFailure: [{ matcher: "Write|Edit|Bash|Task", hooks: [continuityHook] }],
-      Stop: [{ hooks: [continuityHook] }],
-      PreCompact: [{ matcher: "manual|auto", hooks: [continuityHook] }],
-      SessionEnd: [{ hooks: [continuityHook] }],
-    };
+    settingsObj.hooks = buildClaudeHooks(guardBin, continuityBin);
     write(join(DEST, "settings.json"), `${JSON.stringify(settingsObj, null, 2)}\n`);
-    write(join(DEST, "commands", "ein", "handoff.md"), readFileSync(join(CC, "commands", "ein", "handoff.md"), "utf8"));
-    log("settings.json desplegado (+ hook PreToolUse Bash → bin/cc-ein-sdd guard)");
+    // Todos los comandos, no una lista a mano: uno nuevo que nadie recuerde
+    // añadir aquí no llega al usuario y el fallo es invisible.
+    for (const file of listClaudeCommands()) {
+      write(join(DEST, "commands", "ein", file), readFileSync(join(CC, "commands", "ein", file), "utf8"));
+    }
+    log(`comandos desplegados: ${listClaudeCommands().length}`);
+    log("settings.json desplegado (+ hooks PreToolUse → guard, SessionStart → settings)");
 
     // ── 4. Agentes: traducidos desde el core canónico ─────────────────────────
     for (const file of Object.keys(surface.agents).sort()) {
