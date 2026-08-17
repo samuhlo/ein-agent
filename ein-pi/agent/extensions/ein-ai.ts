@@ -16,6 +16,7 @@ import {
 	createSddMemoryLifecycle,
 	ensureApplyAcceptance,
 	ensureApplyTurnBudget,
+	ensurePhaseRuntime,
 	ensureDelegationAcceptance,
 	ensurePlanningAcceptance,
 	ensureSddPreflight,
@@ -828,6 +829,9 @@ export default function einAi(pi: ExtensionAPI): void {
 			// `acceptance`/`turnBudget` explícitos y se respetan.
 			ensureApplyAcceptance(event.input);
 			ensureApplyTurnBudget(event.input);
+			// Runtime por agente desde la tabla, no desde la memoria del padre.
+			// Un maxRuntimeMs explícito del orquestador siempre gana.
+			ensurePhaseRuntime(event.input);
 			// Backstop universal: cualquier otra delegación (ein-git, ein-scout,
 			// ein-linear, sdd-verify, workflows mixtos) también sale con
 			// `acceptance: none` si el orquestador no pasó uno explícito. Sin esto

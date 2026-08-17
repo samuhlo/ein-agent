@@ -14,7 +14,7 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const CORE_AGENTS = join(import.meta.dir, "../ein-pi/core/agents");
@@ -71,8 +71,19 @@ describe("compact return envelope — cada fase SDD", () => {
 describe("orchestrator — doctrina de dieta de contexto", () => {
 	const raw = readFileSync(ORCHESTRATOR, "utf8");
 
-	test("el esquema del envelope se declara compacto por contrato", () => {
-		expect(raw).toContain("Phase result envelope (compact by contract)");
+	// El esquema detallado se retiró del orquestador porque los SIETE agentes ya
+	// lo llevan, que es donde se aplica. Aquí solo queda la consecuencia para el
+	// padre: un envelope gordo es lo que le llena el contexto.
+	test("el contrato del envelope vive en los agentes, no duplicado en el prompt", () => {
+		expect(raw).toContain("Phase result envelope");
+		expect(raw).toContain("lee el artefacto");
+
+		const agentsDir = join(import.meta.dir, "..", "ein-pi", "core", "agents");
+		const phases = readdirSync(agentsDir).filter((f) => f.startsWith("sdd-") && f.endsWith(".md"));
+		expect(phases.length).toBe(7);
+		for (const file of phases) {
+			expect(readFileSync(join(agentsDir, file), "utf8")).toContain("executive_summary");
+		}
 	});
 
 	test("ein-scout está en el inventario de subagentes", () => {

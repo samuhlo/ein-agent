@@ -12,6 +12,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
+import { ensurePhaseRuntime } from "../ein-pi/agent/lib/sdd-preflight.ts";
 import { join } from "node:path";
 
 const AGENT_DIR = join(import.meta.dir, "../ein-pi/agent");
@@ -145,16 +146,26 @@ describe("P3: veredictos de acceptance de pi-subagents", () => {
 });
 
 describe("P4: runtime y tamaño del apply estricto", () => {
-  test("guía maxRuntimeMs generoso para apply TDD-estricto (evita timeout mid-cycle)", () => {
-    expect(orch).toMatch(/maxRuntimeMs[^\n]*1800000/);
-    expect(orch).toMatch(/strict-TDD[^\n]*(SLOW|minimum|multi-group)/i);
+  // Antes esto pinchaba prosa del orquestador. El runtime dejó de ser algo que
+  // el padre debe recordar y pasó a una tabla por agente: un contrato más duro,
+  // porque un prompt lo puede ignorar el modelo y una tabla no.
+  test("un apply recibe runtime generoso sin que el padre lo pase", () => {
+    const input: Record<string, unknown> = { agent: "sdd-apply", task: "aplica el grupo 001" };
+    expect(ensurePhaseRuntime(input)).toBe(true);
+    expect(input.maxRuntimeMs).toBe(1_800_000);
   });
   test("un tasks.md con demasiados grupos es un smell de scoping, no de runtime", () => {
     expect(orch).toMatch(/scop(ed|ing)[^\n]*(too big|smell)/i);
   });
-  test("fases de planificación que leen código llevan runtime ≥600s (revisiones incluidas)", () => {
-    expect(orch).toMatch(/Planning-phase runtime/);
-    expect(orch).toMatch(/600000/);
+  test("las fases que leen código llevan ≥600s, y las de documento menos", () => {
+    for (const agent of ["sdd-map", "sdd-design", "sdd-tasks"]) {
+      const input: Record<string, unknown> = { agent, task: "t" };
+      ensurePhaseRuntime(input);
+      expect(input.maxRuntimeMs).toBeGreaterThanOrEqual(600_000);
+    }
+    const scope: Record<string, unknown> = { agent: "sdd-scope", task: "t" };
+    ensurePhaseRuntime(scope);
+    expect(scope.maxRuntimeMs).toBe(300_000);
   });
 });
 

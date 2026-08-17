@@ -403,6 +403,48 @@ export function ensureApplyTurnBudget(input: unknown): boolean {
 	return true;
 }
 
+// Runtime por agente. Vivía como ocho menciones de prosa en el prompt del
+// orquestador —pagadas en cada turno— pidiéndole que recordara qué número
+// pasar a cada fase. Un número que depende del agente y de nada más no es una
+// decisión: es una tabla. Espejo de APPLY_TURN_BUDGET.
+//
+// Los valores salen de la medición que ya estaba escrita en esa prosa: un apply
+// de TDD estricto corre muchos ciclos RED/GREEN y es lento; las fases que LEEN
+// CÓDIGO para producir su artefacto morían a 300s a mitad de lectura; la entrega
+// mató 7 de 63 ejecuciones con el cap viejo de 2 minutos.
+const PHASE_RUNTIME_MS: Readonly<Record<string, number>> = Object.freeze({
+	"sdd-apply": 1_800_000, // 30 min: ciclos RED/GREEN de un slice multi-grupo
+	"sdd-verify": 1_800_000, // reejecuta la suite real, que es lo más lento del flujo
+	"sdd-map": 600_000, // 10 min: lee código para producir su artefacto
+	"sdd-design": 600_000,
+	"sdd-tasks": 600_000,
+	"sdd-scope": 300_000, // fases de documento, sin lectura profunda
+	"sdd-close": 300_000,
+	"ein-git": 300_000, // entrega y cirugía de historia comparten este techo
+});
+
+/**
+ * Fija `maxRuntimeMs` según el agente delegado cuando el orquestador no pasó
+ * uno explícito. Un valor explícito siempre gana: la tabla es el default, no
+ * una política.
+ *
+ * Solo actúa sobre delegaciones de un único agente conocido. Una delegación
+ * mixta se deja intacta a propósito: en pi-subagents el campo baja a TODOS los
+ * children, así que fijarlo por uno se lo aplicaría a los demás.
+ */
+export function ensurePhaseRuntime(input: unknown): boolean {
+	if (!isRecord(input)) return false;
+	if (input.maxRuntimeMs != null) return false;
+	const agents = collectDelegationAgentNames(input);
+	if (agents.length === 0) return false;
+	const [first] = agents;
+	if (!first || !agents.every((name) => name === first)) return false;
+	const runtime = PHASE_RUNTIME_MS[first];
+	if (runtime === undefined) return false;
+	input.maxRuntimeMs = runtime;
+	return true;
+}
+
 export async function collectSddPreflightPreferences(
 	ctx: ExtensionContext,
 	engramAvailable: boolean,

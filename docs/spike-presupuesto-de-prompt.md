@@ -142,7 +142,58 @@ adopción no cuenta como hecha.
 
 ---
 
-## // 004. ALCANCE DE LA VERIFICACIÓN
+## // 004. CORRECCIÓN TRAS INTENTAR EJECUTARLO (2026-08-17)
+
+La clasificación de `// 002` daba 6.244 bytes «movibles al paquete de fase». Al
+ir a moverlos, la premisa se cayó: **casi todos esos párrafos están dirigidos al
+PADRE, no al ejecutor.** «Pasa `maxRuntimeMs: 1800000`», «construye un SCOPE
+PACKET», «delega un GRUPO cada vez» son instrucciones de *cómo delegar una
+fase*, no de *cómo ejecutarla*. Un ejecutor no puede actuar sobre ellas.
+
+Meterlas en un paquete de fase habría sido esconder la coordinación dentro del
+ejecutor — justo lo que `// 001` prohíbe. El paquete de instrucción por fase, en
+la forma que describía este spike, **no aplica a este prompt**: lo que un
+ejecutor necesita saber ya vive en su `.md` de agente, que se paga por
+delegación y no por turno. Ya estaba bien puesto.
+
+La palanca real que quedó al descubierto es distinta y más pequeña:
+
+| Retirado | Bytes | Por qué se pudo |
+|---|---:|---|
+| `maxRuntimeMs` en 5 sitios | ~1.400 | Un valor que depende del agente y de nada más es una **tabla**, no una decisión. Ahora lo fija `ensurePhaseRuntime`. |
+| Esquema del envelope | ~575 | Los SIETE agentes ya lo llevan. Era duplicado. |
+
+Total: **45.321 → 43.597 bytes (−1.724, −3,8 %)**, no los ~11.000 previstos.
+
+Y una retirada que hubo que **deshacer**: el párrafo de reenvío de TDD parecía
+redundante —el preflight ya inyecta la postura— pero `readDelegationTddHint`
+detecta el modo estricto **buscando la frase `STRICT TDD MODE IS ACTIVE` en el
+texto de la tarea**. Sin ella, un apply estricto recibe un cap de turnos que lo
+aborta a mitad de ciclo RED/GREEN. Lo cazó la suite. **Parte de esa prosa es
+portante a través de marcadores de texto**, y el presupuesto no se puede cumplir
+borrando prosa cuya ausencia cambia el comportamiento.
+
+### Qué significa para el objetivo
+
+El criterio de ≤ 34.500 bytes **no es alcanzable por esta vía**. Lo que queda:
+
+1. **Inventario de subagentes generado** (4.822 bytes). Es una tabla de datos
+   —agente, herramientas, cuándo— que puede componerse desde el frontmatter de
+   los agentes en vez de escribirse a mano. Sigue siendo una palanca real.
+2. **Envelope JSON con campo `fix`** (~2.282). Sin cambios: la prosa que explica
+   lo que un módulo ya calcula se va cuando el módulo lo dice.
+3. **Reescribir la escalera de enrutado** (10.295). No es mover, es redactar más
+   corto. Otra clase de trabajo y otro riesgo.
+
+Con (1) y (2): ~36.500. Bajar de ahí exige (3).
+
+**Lección para las próximas apuestas:** clasificar un párrafo por su tema
+(«esto va de apply») y no por su destinatario («¿quién tiene que actuar?») da un
+número optimista. La verificación de una reubicación de prosa es intentarla.
+
+---
+
+## // 005. ALCANCE DE LA VERIFICACIÓN
 
 - **Medido**: bytes por sección de `orchestrator.md` (partiendo por `## `);
   bytes por párrafo de `SDD Flow`; frases-anécdota por patrón de medición
