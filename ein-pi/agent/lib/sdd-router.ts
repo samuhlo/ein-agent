@@ -23,6 +23,7 @@ import type { Dirent } from "node:fs";
 import { join } from "node:path";
 import { readSpecDeltaDeclaration } from "./sdd-guardrails.ts";
 import { evaluateOpenSpecState, type OpenSpecState, type SyncBaseInput } from "./openspec-spec-sync.ts";
+import { DEFAULT_LANE, LANE_PHASES, laneIncludes, readChangeLane, type SddLane } from "./sdd-lane.ts";
 import { OUT_OF_FLOW_PROFILE, type ReconciliationBlocker } from "./sdd-reconciliation.ts";
 
 export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
@@ -100,6 +101,8 @@ export type SddChangeStatus = {
 	// invalidó la verificación; no se puede cerrar con evidencia obsoleta.
 	verifyStale: boolean;
 	specState: OpenSpecState | "legacy";
+	/** Con cuántas fases se conduce este cambio. `standard` salvo declaración. */
+	lane: SddLane;
 	// summary.md es anterior a apply/verify → el resumen no refleja el estado real.
 	summaryStale: boolean;
 	nextRecommended: SddNext;
@@ -383,8 +386,10 @@ function readBudgetStatus(changePath: string): SddBudgetStatus {
 	return out;
 }
 
-function artifactLists(present: Record<SddPhase, boolean>): SddChangeStatus["artifacts"] {
-	const artifacts = PHASE_ORDER.map((phase) => ({ phase, file: PHASE_ARTIFACT[phase], present: present[phase] }));
+function artifactLists(present: Record<SddPhase, boolean>, lane: SddLane): SddChangeStatus["artifacts"] {
+	// En `micro`, map y tasks no "faltan": no se esperan. Listarlas como
+	// ausentes convertiría una fase no pedida en una deuda aparente.
+	const artifacts = LANE_PHASES[lane].map((phase) => ({ phase, file: PHASE_ARTIFACT[phase], present: present[phase] }));
 	return {
 		present: artifacts.filter((artifact) => artifact.present),
 		missing: artifacts.filter((artifact) => !artifact.present),
@@ -518,7 +523,8 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 			change: null,
 			present,
 			currentPhase: "done",
-			artifacts: artifactLists(present),
+			artifacts: artifactLists(present, DEFAULT_LANE),
+			lane: DEFAULT_LANE,
 			summary: null,
 			tasks,
 			budget,
@@ -562,11 +568,15 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 
 	// Siguiente fase: la primera no presente en orden, con la verificación como
 	// gate antes de cerrar. apply-progress.md con status != complete retiene apply.
+	// El carril decide contra QUÉ lista se mira, no cómo se mira: sigue siendo
+	// "la primera fase esperada que no tiene su artefacto en disco".
+	const lane = readChangeLane(join(resolveChangesDir(cwd), target));
+	const pending = LANE_PHASES[lane].find(
+		(phase) => phase !== "close" && phase !== "verify" && phase !== "apply" && !present[phase],
+	);
+
 	let nextRecommended: SddNext;
-	if (!present.scope) nextRecommended = "scope";
-	else if (!present.map) nextRecommended = "map";
-	else if (!present.design) nextRecommended = "design";
-	else if (!present.tasks) nextRecommended = "tasks";
+	if (pending) nextRecommended = pending;
 	else if (!present.apply) nextRecommended = "apply";
 	else if (apply !== "complete") {
 		// FAIL CLOSED -> apply existe pero sin status:complete → no avanza a verify.
@@ -589,7 +599,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	}
 
 	const canonicalChanges = resolveChangesDir(cwd) === join(cwd, "openspec", "changes");
-	if (canonicalChanges && nextRecommended === "map" && isSpecMapProvenanceState(specState)) {
+	if (canonicalChanges && nextRecommended === "map" && laneIncludes(lane, "map") && isSpecMapProvenanceState(specState)) {
 		blocked.push(specMapProvenanceBlocker(specState));
 		nextRecommended = "scope";
 	}
@@ -613,7 +623,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 		change: target,
 		present,
 		currentPhase,
-		artifacts: artifactLists(present),
+		artifacts: artifactLists(present, lane),
 		summary,
 		tasks,
 		budget,
@@ -621,6 +631,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 		verify,
 		verifyStale,
 		specState,
+		lane,
 		summaryStale,
 		nextRecommended,
 		blocked,

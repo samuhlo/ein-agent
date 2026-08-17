@@ -83,6 +83,7 @@ import { handleModelsCommand } from "./internal/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
 import { collectSddRemedies, formatSddRemedies } from "../lib/sdd-remedies.ts";
+import { LANE_LABEL, laneSkips, normalizeLane, readChangeLane, writeChangeLane } from "../lib/sdd-lane.ts";
 import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
 import { reviewForecast, formatReviewForecast } from "../lib/review-forecast.ts";
 import { closeChange, type CloseOptions } from "../lib/sdd-close.ts";
@@ -462,6 +463,7 @@ function formatSddStatus(
 	const missing = status.artifacts.missing.map((artifact) => `${artifact.phase}(${artifact.file})`).join(", ") || t("sdd-status.no-active", "none");
 	lines.push(`${t("sdd-status.change", "change")}: ${status.change}`);
 	if (active.length > 1) lines.push(`${t("sdd-status.active", "active")}: ${active.join(", ")}`);
+	lines.push(`${t("sdd-status.lane", "lane")}: ${status.lane}`);
 	lines.push(`${t("sdd-status.current", "current phase")}: ${status.currentPhase}`);
 	lines.push(`${t("sdd-status.next", "next")}: ${status.nextRecommended}`);
 	lines.push(`${t("sdd-status.artifacts.present", "artifacts present")}: ${present}`);
@@ -1332,6 +1334,39 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	// ── Tool determinista: gatekeeper de artefactos de un cambio ──
+	pi.registerTool({
+		name: "ein_sdd_lane",
+		label: "Ein SDD Lane",
+		description:
+			"Declare or read how many phases a change is driven with. `standard` is the full seven; `micro` skips map and tasks for a genuinely small change, and skips NOTHING else — verify and close stay hard gates. Call it WITHOUT `lane` to read. The user decides the lane: there is no deterministic signal before planning, so never pick it on their behalf — ask when a change looks small. Reads and writes only the filesystem.",
+		parameters: {
+			type: "object",
+			properties: {
+				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
+				lane: { type: "string", enum: ["micro", "standard"], description: "Omit to read the current lane without changing it." },
+			},
+		} as const,
+		async execute(_id, params: { change?: string; lane?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
+			if (!change || !isSafeChangeName(change)) {
+				return { content: [{ type: "text", text: "/// SDD LANE — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
+			}
+			const changeDir = join(resolveChangesDir(ctx.cwd), change);
+			if (!existsSync(changeDir)) {
+				return { content: [{ type: "text", text: `/// SDD LANE — '${change}' no existe.` }], details: { ok: false, reason: "unknown change" } };
+			}
+			const requested = normalizeLane(params?.lane);
+			if (requested) writeChangeLane(changeDir, requested);
+			const lane = readChangeLane(changeDir);
+			const skipped = laneSkips(lane);
+			const detail = skipped.length ? ` Se salta: ${skipped.join(", ")}. Verify y close siguen siendo puertas duras.` : "";
+			return {
+				content: [{ type: "text", text: `/// SDD LANE — '${change}': ${LANE_LABEL[lane]}.${detail}` }],
+				details: { ok: true, change, lane, skipped },
+			};
+		},
+	});
+
 	pi.registerTool({
 		name: "ein_sdd_check",
 		label: "Ein SDD Check",

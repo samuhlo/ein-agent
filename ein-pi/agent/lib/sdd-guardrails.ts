@@ -9,6 +9,7 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { readConfigRules, type PhaseRules } from "./openspec-config-rules.ts";
+import { DEFAULT_LANE, LANE_PHASES, readChangeLane, type SddLane } from "./sdd-lane.ts";
 import { join } from "node:path";
 import { extractProductionFiles, resolveChangesDir } from "./sdd-router.ts";
 import { parseOpenSpec, parseOpenSpecDelta } from "./openspec-spec-parser.ts";
@@ -311,13 +312,17 @@ export type ChangeLintReport = {
 // ya cerrada (verify sin apply) o saltaría gates previstos (design sin scope).
 // Solo warn si falta tasks.md tras design: aún ejecutable, pero la continuidad
 // ejecutable queda incompleta.
-function sequenceIssues(phases: ChangeLintReport["phases"]): GuardrailIssue[] {
+function sequenceIssues(phases: ChangeLintReport["phases"], lane: SddLane = DEFAULT_LANE): GuardrailIssue[] {
 	const issues: GuardrailIssue[] = [];
 	const presentByPhase = new Map(phases.map((phase) => [phase.phase, phase.present]));
-	for (let index = 0; index < PHASE_ORDER.length; index += 1) {
-		const phase = PHASE_ORDER[index];
+	// La secuencia se valida contra las fases que ESTE carril ejecuta. En `micro`,
+	// map y tasks no faltan: no se piden. Validar contra las siete convertiría
+	// cada cambio corto en un muro de errores por fases que nadie pidió.
+	const expected = LANE_PHASES[lane];
+	for (let index = 0; index < expected.length; index += 1) {
+		const phase = expected[index];
 		if (!presentByPhase.get(phase)) continue;
-		const missingBefore = PHASE_ORDER.slice(0, index).filter((candidate) => !presentByPhase.get(candidate));
+		const missingBefore = expected.slice(0, index).filter((candidate) => !presentByPhase.get(candidate));
 		for (const missing of missingBefore) {
 			issues.push({
 				level: "error",
@@ -327,7 +332,7 @@ function sequenceIssues(phases: ChangeLintReport["phases"]): GuardrailIssue[] {
 		}
 	}
 
-	if (presentByPhase.get("design") && !presentByPhase.get("tasks")) {
+	if (expected.includes("tasks") && presentByPhase.get("design") && !presentByPhase.get("tasks")) {
 		issues.push({
 			level: "warning",
 			code: "sequence-design-without-tasks",
@@ -413,6 +418,7 @@ export function lintChange(cwd: string, change: string): ChangeLintReport {
 	// `rules:` de openspec/config.yaml. Se escribia desde el bootstrap y no la
 	// leia nadie; ahora relaja los avisos de forma que el proyecto declare.
 	const designRules = readConfigRules(cwd).design;
+	const lane = readChangeLane(base);
 	let errors = 0;
 	let warnings = 0;
 	for (const phase of Object.keys(PHASE_ARTIFACT) as SddPhase[]) {
@@ -446,7 +452,7 @@ export function lintChange(cwd: string, change: string): ChangeLintReport {
 		provenanceIssues.push({ level: "error", code: "spec-delta-unresolved", message: "El cambio OpenSpec requiere exactamente un delta válido o una declaración spec_delta: none válida." });
 	}
 	provenanceIssues.push(...lintCanonicalBases(cwd, change));
-	const issues = [...sequenceIssues(phases), ...provenanceIssues];
+	const issues = [...sequenceIssues(phases, lane), ...provenanceIssues];
 	errors += issues.filter((issue) => issue.level === "error").length;
 	warnings += issues.filter((issue) => issue.level === "warning").length;
 	return { change, ok: errors === 0, errors, warnings, issues, phases };

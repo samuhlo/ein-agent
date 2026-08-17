@@ -18,11 +18,17 @@ const ROOT = join(import.meta.dir, "..");
 // Subirlos es un acto deliberado y revisable: se hace en este fichero, con el
 // motivo en el mensaje del commit. Bajarlos no requiere permiso de nadie.
 //
+// SUBIDA 2026-08-17: +318 bytes por el carril del cambio. Es lo que la regla
+// permite —crece porque algo entra a cambio—: un párrafo que compra saltarse
+// `map` y `tasks`, las dos fases que leen código, en cada cambio pequeño. El
+// techo cumplió su función: obligó a apretar el texto de 415 a 318 bytes y a
+// justificar el resto en vez de dejarlo pasar.
+//
 // El presupuesto de agentes existe para que el orquestador no adelgace
 // empujando su prosa a los ejecutores: el total es lo que importa.
 // =============================================================================
 
-const ORCHESTRATOR_BUDGET_BYTES = 42_693;
+const ORCHESTRATOR_BUDGET_BYTES = 43_011;
 const CORE_AGENTS_BUDGET_BYTES = 83_042;
 
 function bytesOf(path: string): number {
