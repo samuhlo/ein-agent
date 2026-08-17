@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { ensurePhaseRuntime } from "../ein-pi/agent/lib/sdd-preflight.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -8,10 +9,15 @@ const orchestrator = readFileSync(join(AGENT, "assets/orchestrator.md"), "utf8")
 const einGit = readFileSync(join(CORE, "agents/ein-git.md"), "utf8");
 
 describe("contrato de recuperación de ein-git", () => {
-	test("separa el timeout de entrega normal del de recuperación", () => {
-		expect(orchestrator).toContain("normal delivery budget");
-		expect(orchestrator).toContain("120000");
-		expect(orchestrator).toContain("maxRuntimeMs: 300000");
+	// Los dos carriles llevaban el MISMO valor (300000), así que la prosa que los
+	// "separaba" no separaba ningún número. Lo que de verdad distingue la
+	// recuperación es el procedimiento: auditoría primero, mutación cerrada
+	// después. El techo lo fija la tabla, igual para ambos.
+	test("ambos carriles comparten techo y lo fija la tabla, no el prompt", () => {
+		const input: Record<string, unknown> = { agent: "ein-git", task: "reflog y reconstrucción de rama" };
+		expect(ensurePhaseRuntime(input)).toBe(true);
+		expect(input.maxRuntimeMs).toBe(300_000);
+		expect(orchestrator).not.toContain("maxRuntimeMs: 300000");
 	});
 
 	test("exige auditoría de solo lectura y una mutación cerrada", () => {

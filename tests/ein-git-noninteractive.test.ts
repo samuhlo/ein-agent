@@ -8,6 +8,7 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
+import { ensurePhaseRuntime } from "../ein-pi/agent/lib/sdd-preflight.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -67,14 +68,13 @@ describe("precheck del scope workflow (fail-fast)", () => {
 // a 6-9 turnos. Una entrega cortada entre `push` y `gh pr create` deja el repo
 // a medias y cuesta más reconciliarla que esperar a un `gh` lento.
 describe("presupuesto de entrega de ein-git", () => {
-	test("el orquestador le da 300000, ni el cap corto ni el de chain", () => {
-		expect(orchestrator).toContain("`maxRuntimeMs: 300000`");
+	// El techo de entrega dejó de vivir en la prosa —donde estaba duplicado en dos
+	// reglas— y lo fija la tabla por agente. El cap corto mataba 7 de 63 entregas.
+	test("la tabla le da 300000, ni el cap corto ni el de chain", () => {
+		const input: Record<string, unknown> = { agent: "ein-git", task: "commit y push" };
+		expect(ensurePhaseRuntime(input)).toBe(true);
+		expect(input.maxRuntimeMs).toBe(300_000);
 		expect(orchestrator).not.toContain("tight `maxRuntimeMs`");
-		// El cap corto no puede quedar en ninguna de las dos reglas de entrega
-		// (la del hand-off y la del carril de delivery), que llevaban el mismo
-		// valor duplicado.
-		expect(orchestrator).not.toContain("≈`120000`");
-		expect(orchestrator).not.toContain("(≈`120000`)");
 	});
 });
 

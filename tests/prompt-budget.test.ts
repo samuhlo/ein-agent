@@ -10,7 +10,11 @@ const ROOT = join(import.meta.dir, "..");
 // CADA turno de CADA sesión. El manifiesto (§ 004) permite que crezca solo si
 // algo sale a cambio, y sin un techo esa regla no tiene forma de aplicarse.
 //
-// Estos números son la línea base medida el 2026-08-17, no una aspiración.
+// Estos números son la línea base medida, no una aspiración. Bajan cuando una
+// retirada real los deja por debajo; el 2026-08-17 el orquestador pasó de 45.321
+// a 43.096 al llevar `maxRuntimeMs` a una tabla y retirar la prosa que lo pedía
+// a mano, el reenvío de TDD que el preflight ya inyecta, y el contrato del
+// envelope que los siete agentes ya llevan.
 // Subirlos es un acto deliberado y revisable: se hace en este fichero, con el
 // motivo en el mensaje del commit. Bajarlos no requiere permiso de nadie.
 //
@@ -18,7 +22,7 @@ const ROOT = join(import.meta.dir, "..");
 // empujando su prosa a los ejecutores: el total es lo que importa.
 // =============================================================================
 
-const ORCHESTRATOR_BUDGET_BYTES = 45_321;
+const ORCHESTRATOR_BUDGET_BYTES = 43_597;
 const CORE_AGENTS_BUDGET_BYTES = 83_042;
 
 function bytesOf(path: string): number {
