@@ -10,7 +10,10 @@
 //   cc-ein-sdd status [change]     estado + nextRecommended (rutea por `next:`)
 //   cc-ein-sdd check  [change]     gatekeeper: linta cada artefacto presente
 //   cc-ein-sdd close  <change> [--force] [reconciliation flags]   archiva un cambio verificado
-//   cc-ein-sdd sync   <change>              sincroniza el delta OpenSpec explícito
+//   cc-ein-sdd sync   <change>     sincroniza el delta OpenSpec explícito
+//   cc-ein-sdd delta  [change] --domain <d> < ops.json   escribe el delta de
+//                                 comportamiento desde operaciones estructuradas
+//   cc-ein-sdd settings [--hook]   ajustes del proyecto → directivas
 // =============================================================================
 
 import {
@@ -25,6 +28,7 @@ import {
 } from "../../ein-pi/agent/lib/sdd-router.ts";
 import { lintChange, type ChangeLintReport } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
 import { closeChange } from "../../ein-pi/agent/lib/sdd-close.ts";
+import { writeOpenSpecDelta } from "../../ein-pi/agent/lib/openspec-delta-write.ts";
 import { synchronizeOpenSpecFilesystem } from "../../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
 import {
 	evaluateDeniedCommand,
@@ -179,6 +183,54 @@ async function guardCmd(): Promise<void> {
 	const raw = await Bun.stdin.text();
 	const result = resolveGuardDecision(raw, cwd);
 	if (result) emitDecision(result.decision, result.reason);
+}
+
+// Delta de comportamiento desde operaciones estructuradas por stdin. Llama a la
+// MISMA función que la tool de Pi: sin esto, un cambio con delta empezado en
+// Claude no podía cerrarse, porque el agente tenía prohibido escribir el
+// markdown a mano y la herramienta que debía usar no existía aquí.
+export function runDeltaCommand(
+	dir: string,
+	args: readonly string[],
+	rawStdin: string,
+): { text: string; exitCode: 0 | 1 } {
+	const domainIndex = args.indexOf("--domain");
+	const domain = domainIndex >= 0 ? (args[domainIndex + 1] ?? "") : "";
+	const change = args.find((arg) => !arg.startsWith("--") && arg !== domain)
+		?? resolveSddStatus(dir).change
+		?? "";
+
+	let operations: unknown[];
+	try {
+		const parsed: unknown = JSON.parse(rawStdin);
+		// Se acepta el array suelto o envuelto en `{ operations: [...] }`: el
+		// agente escribe JSON a mano y ambas formas son naturales.
+		operations = Array.isArray(parsed)
+			? parsed
+			: Array.isArray((parsed as { operations?: unknown })?.operations)
+				? (parsed as { operations: unknown[] }).operations
+				: [];
+	} catch {
+		return { text: "/// OPENSPEC DELTA — stdin is not valid JSON. Pass the operations array (or { operations: [...] }).", exitCode: 1 };
+	}
+
+	const result = writeOpenSpecDelta({ cwd: dir, change, domain, operations });
+	if (!result.ok) {
+		const text = result.code === "malformed"
+			? `/// OPENSPEC DELTA — REJECTED, nothing written: ${result.reason}. Fix the operations and retry; the delta is validated with the SAME grammar as sync.`
+			: `/// OPENSPEC DELTA — ${result.reason}.`;
+		return { text, exitCode: 1 };
+	}
+	return {
+		text: `/// OPENSPEC DELTA — '${result.change}': wrote openspec/changes/${result.change}/specs/${result.domain}/spec.md (${result.operations} operation(s), validated). Do NOT also write the 'spec_delta: none' declaration: the delta IS the declaration.`,
+		exitCode: 0,
+	};
+}
+
+async function deltaCmd(args: readonly string[]): Promise<void> {
+	const { text, exitCode } = runDeltaCommand(cwd, args, await Bun.stdin.text());
+	console.log(text);
+	if (exitCode !== 0) process.exit(exitCode);
 }
 
 // Ajustes del proyecto → directivas. `--hook` emite el sobre de SessionStart
@@ -487,9 +539,10 @@ if (import.meta.main) {
 		case "close": closeCmd(); break;
 		case "guard": await guardCmd(); break;
 		case "settings": settingsCmd(rest); break;
+		case "delta": await deltaCmd(rest); break;
 		case "sync": await syncCmd(rest); break;
 		default:
-			console.log("cc-ein-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]");
+			console.log("cc-ein-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]  |  delta [change] --domain <domain> < operations.json");
 			process.exit(1);
 	}
 }

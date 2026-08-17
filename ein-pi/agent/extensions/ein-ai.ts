@@ -110,7 +110,7 @@ import {
 import { AGENT_DIR } from "./ein-paths";
 import { readInstalledVersion, staleSessionNudge } from "../lib/session-version";
 import { DOMAIN_ID_PATTERN, sha256 } from "../lib/openspec-spec-contract.ts";
-import { buildOpenSpecDelta } from "../lib/openspec-spec-parser.ts";
+import { writeOpenSpecDelta } from "../lib/openspec-delta-write.ts";
 import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";
 import { evaluateStaging } from "../lib/git-staging.ts";
 import { acceptTrackedScoutResult, normalizeScoutLaunch, type ScoutTracking } from "../lib/scout-contract.ts";
@@ -1564,33 +1564,21 @@ export default function einAi(pi: ExtensionAPI): void {
 			required: ["domain", "operations"],
 		} as const,
 		async execute(_id, params: { change?: string; domain?: string; operations?: unknown[] }, _signal, _onUpdate, ctx: ExtensionContext) {
-			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
-			if (!change) return { content: [{ type: "text", text: "/// OPENSPEC DELTA — no active change." }], details: { ok: false, reason: "no active change" } };
-			if (!isSafeChangeName(change)) return { content: [{ type: "text", text: `/// OPENSPEC DELTA — nombre de cambio inválido: ${JSON.stringify(change)}.` }], details: { ok: false, reason: "invalid change name" } };
-			const domain = params?.domain ?? "";
-			if (!DOMAIN_ID_PATTERN.test(domain)) return { content: [{ type: "text", text: `/// OPENSPEC DELTA — dominio inválido (debe ser kebab-case): ${JSON.stringify(domain)}.` }], details: { ok: false, reason: "invalid domain" } };
-			const rawOps = Array.isArray(params?.operations) ? params.operations : [];
-			const operations = rawOps.map((raw) => {
-				const op = (raw ?? {}) as Record<string, unknown>;
-				if (op.kind === "REMOVED") return { kind: "REMOVED", scenarioId: String(op.scenarioId ?? ""), reason: String(op.reason ?? "") };
-				const s = (op.scenario ?? {}) as Record<string, unknown>;
-				return { kind: op.kind, scenario: { id: String(s.id ?? ""), title: String(s.title ?? ""), requirement: String(s.requirement ?? ""), given: String(s.given ?? ""), when: String(s.when ?? ""), then: String(s.then ?? "") } };
+			// La lógica vive en lib/openspec-delta-write.ts: el CLI de Claude llama
+			// exactamente a la misma función, así que no hay dos escritores.
+			const result = writeOpenSpecDelta({
+				cwd: ctx.cwd,
+				change: params?.change ?? resolveSddStatus(ctx.cwd).change ?? "",
+				domain: params?.domain ?? "",
+				operations: Array.isArray(params?.operations) ? params.operations : [],
 			});
-			const built = buildOpenSpecDelta({ domain, operations } as Parameters<typeof buildOpenSpecDelta>[0]);
-			if (!built.ok) {
-				const first = built.errors[0];
-				const detail = first ? `${first.code} (línea ${first.line}): ${first.message}` : "formato inválido";
-				return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${change}' RECHAZADO, no se escribió nada: ${detail}. Corrige las operaciones y reintenta; el delta se valida con la MISMA gramática que el sync.` }], details: { ok: false, reason: detail } };
+			if (!result.ok) {
+				const text = result.code === "malformed"
+					? `/// OPENSPEC DELTA — RECHAZADO, no se escribió nada: ${result.reason}. Corrige las operaciones y reintenta; el delta se valida con la MISMA gramática que el sync.`
+					: `/// OPENSPEC DELTA — ${result.reason}.`;
+				return { content: [{ type: "text", text }], details: { ok: false, reason: result.reason } };
 			}
-			const path = join(ctx.cwd, "openspec", "changes", change, "specs", domain, "spec.md");
-			try {
-				mkdirSync(dirname(path), { recursive: true });
-				writeFileSync(path, built.value.contents);
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${change}' FALLÓ al escribir ${path}: ${message}.` }], details: { ok: false, reason: message } };
-			}
-			return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${change}': escrito openspec/changes/${change}/specs/${domain}/spec.md (${operations.length} operación(es), validado). No escribas la declaración spec_delta: none: el delta ES la declaración.` }], details: { ok: true, change, domain, path, operations: operations.length } };
+			return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${result.change}': escrito openspec/changes/${result.change}/specs/${result.domain}/spec.md (${result.operations} operación(es), validado). No escribas la declaración spec_delta: none: el delta ES la declaración.` }], details: { ...result } };
 		},
 	});
 
