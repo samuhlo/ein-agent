@@ -79,6 +79,36 @@ describe("project directives", () => {
 		expect(byId("pi", "hypa").status).not.toBe("unsupported");
 	});
 
+	// El agujero real que cerró esto: el proyecto pedía Cleaner automático y Claude
+	// no lo sabía siquiera. No ejecutarlo está bien; no decirlo, no — el cambio
+	// habría cambiado de estándar a mitad de un handoff sin que nadie se enterase.
+	test("un proyecto con Cleaner automático se declara, aunque el runtime no lo ejecute", () => {
+		// El perfil no usa la forma `{ mode }` del resto de ajustes.
+		mkdirSync(join(cwd, ".pi", "ein"), { recursive: true });
+		writeFileSync(
+			join(cwd, ".pi", "ein", "agents.json"),
+			JSON.stringify({ agents: { cleaner: { enabled: true }, architect: { enabled: false } } }),
+		);
+
+		const entry = byId("claude", "agents");
+		expect(entry.value).toBe("balanced");
+		expect(entry.status).toBe("unsupported");
+		expect(entry.reason).toContain("Pi-only");
+		// Y dice qué hacer en su lugar, no solo que no puede.
+		expect(entry.reason).toContain("explicitly");
+
+		// En Pi sí manda: el perfil se convierte en directiva.
+		const pi = byId("pi", "agents");
+		expect(pi.status).toBe("applied");
+		expect(pi.directive).toContain("Cleaner runs");
+	});
+
+	// Sin fichero no se inventa un perfil: la onboarding lo pide y hasta entonces
+	// el estado honesto es "sin configurar".
+	test("sin perfil configurado, Pi no asume un default", () => {
+		expect(byId("pi", "agents").directive).toContain("not configured");
+	});
+
 	test("a value that injects nothing is inactive, not applied", () => {
 		writeSetting("persona", "neutral");
 		const entry = byId("claude", "persona");

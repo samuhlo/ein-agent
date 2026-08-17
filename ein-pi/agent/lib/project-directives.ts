@@ -20,6 +20,7 @@
 
 import { SETTING_DEFINITIONS } from "./project-settings.ts";
 import { modeDirective, type EinMode } from "./mode.ts";
+import { participationDirective, type AgentActivationProfileState } from "./agent-controls.ts";
 import { tddDirective, type TddMode } from "./tdd.ts";
 import { codegraphDirective } from "./codegraph.ts";
 import { responseVoiceDirective } from "./persona.ts";
@@ -66,11 +67,20 @@ const UNSUPPORTED: Readonly<Record<DirectiveRuntime, Readonly<Record<string, str
 		// Hypa envuelve el tool `bash` desde una extensión de Pi. Claude no tiene
 		// ese punto de enganche, así que el ajuste se reporta, no se finge.
 		hypa: "Hypa wraps the Pi bash tool through a Pi extension; this runtime has no equivalent hook.",
+		// Cleaner y Architect solo existen en Pi. Y aunque se portaran, la
+		// participación automática se quedaría OFF aquí a propósito: el perfil del
+		// proyecto declara una preferencia de CALIDAD, mientras que ejecutar pasadas
+		// automáticas es una decisión de capacidad y coste DEL RUNTIME. Se llega a
+		// Claude porque el presupuesto se agotó; gastarlo en pasadas opcionales es
+		// justo al revés. Se declara para que el cambio de estándar no sea silencioso.
+		agents:
+			"Cleaner and Architect are Pi-only subagents. Automatic participation stays off in this runtime by design, so the project's quality profile is recorded here but not applied; ask explicitly if a change needs that pass, and run it in Pi.",
 	},
 };
 
 const TRANSLATORS: Readonly<Record<string, Translator>> = {
 	mode: (value) => modeDirective(value as EinMode),
+	agents: (value) => participationDirective(value as AgentActivationProfileState),
 	tdd: (value) => tddDirective(value as TddMode),
 	"chat-lang": (value) => responseLanguageDirective(value as Lang),
 	persona: (value) =>

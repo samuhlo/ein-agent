@@ -165,6 +165,28 @@ export function routeAgentControl(
 	};
 }
 
+// Directiva inyectable del perfil de participación automática. Existe para que
+// un runtime pueda DECLARAR qué hace con el perfil del proyecto en vez de
+// aplicarlo en silencio: Cleaner y Architect solo existen en Pi, y un cambio que
+// pasa por Claude sin ellos cambia de estándar sin avisar a nadie.
+export function participationDirective(profile: AgentActivationProfileState): string {
+	const head = "Automatic SDD participation (project profile, after apply)";
+	switch (profile) {
+		case "balanced":
+			return `${head}: Cleaner runs, Architect does not.`;
+		case "thorough":
+			return `${head}: Cleaner runs, then Architect.`;
+		case "manual":
+			return `${head}: neither runs automatically. Both remain available on an explicit request.`;
+		case "custom":
+			return `${head}: a combination outside the supported profiles. Report it as \`custom\`; do not normalize it silently.`;
+		default:
+			// Fichero ausente o ilegible. No se inventa un perfil: la onboarding lo
+			// pide, y hasta entonces el estado honesto es "sin configurar".
+			return `${head}: not configured. Do not assume a default; ask before enabling either.`;
+	}
+}
+
 export function internalAgentRoutingDirective(): string {
 	return `## EIN internal agent routing
 
