@@ -22,7 +22,7 @@ const ROOT = join(import.meta.dir, "..");
 // empujando su prosa a los ejecutores: el total es lo que importa.
 // =============================================================================
 
-const ORCHESTRATOR_BUDGET_BYTES = 43_597;
+const ORCHESTRATOR_BUDGET_BYTES = 42_693;
 const CORE_AGENTS_BUDGET_BYTES = 83_042;
 
 function bytesOf(path: string): number {

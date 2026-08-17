@@ -27,6 +27,7 @@ import {
 	type SddChangeStatus,
 } from "../../ein-pi/agent/lib/sdd-router.ts";
 import { lintChange, type ChangeLintReport } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
+import { collectSddRemedies, formatSddRemedies } from "../../ein-pi/agent/lib/sdd-remedies.ts";
 import { closeChange } from "../../ein-pi/agent/lib/sdd-close.ts";
 import { writeOpenSpecDelta } from "../../ein-pi/agent/lib/openspec-delta-write.ts";
 import { synchronizeOpenSpecFilesystem } from "../../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
@@ -82,6 +83,10 @@ function formatStatus(status: SddChangeStatus, active: string[]): string {
 		lines.push("", "■ blockers:");
 		for (const b of blockers) lines.push(`- ${b}`);
 	}
+	// Un bloqueo que no dice cómo salir obliga a interpretar, y un ejecutor
+	// barato interpreta mal. El remedio se calcula del mismo estado.
+	const remedies = formatSddRemedies(collectSddRemedies(status, "claude"));
+	if (remedies) lines.push("", remedies);
 	return lines.join("\n");
 }
 
