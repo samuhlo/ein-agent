@@ -6,7 +6,7 @@ Herramienta personal de Samu antes que producto público; cuando las dos cosas c
 
 **Rumbo canónico: [`MANIFIESTO.md`](MANIFIESTO.md).** Define lo que Ein tiene que ser; manda sobre cualquier plan.
 
-**Hoja de ruta canónica: [`docs/roadmap-features-ein.md`](docs/roadmap-features-ein.md).** Es la única fuente de priorización y secuencia. En `docs/` solo quedan documentos vigentes: [`plan-continuidad-pi-claude.md`](docs/plan-continuidad-pi-claude.md) (trabajo activo), [`origen-y-ideas.md`](docs/origen-y-ideas.md) (material de origen, nunca un plan) y tres guías de apoyo.
+**Hoja de ruta canónica: [`docs/roadmap-features-ein.md`](docs/roadmap-features-ein.md).** Es la única fuente de priorización y secuencia. En `docs/` solo quedan documentos vigentes: [`origen-y-ideas.md`](docs/origen-y-ideas.md) (material de origen, nunca un plan) y cuatro guías de apoyo.
 
 ## Arquitectura
 <!-- CURADA — estilo (p.ej. screaming architecture) y dónde viven las features. -->
@@ -65,7 +65,6 @@ _No detectados automáticamente._
 - [docs/fricciones-dogfooding.md](docs/fricciones-dogfooding.md)
 - [docs/guia-cleaner-architect-herramientas-deterministas.md](docs/guia-cleaner-architect-herramientas-deterministas.md)
 - [docs/origen-y-ideas.md](docs/origen-y-ideas.md)
-- [docs/plan-continuidad-pi-claude.md](docs/plan-continuidad-pi-claude.md)
 - [docs/review-workload-guard.md](docs/review-workload-guard.md)
 - [docs/roadmap-features-ein.md](docs/roadmap-features-ein.md)
 

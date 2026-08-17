@@ -18,10 +18,6 @@ const allowed = [
 	/ein-pi\/agent\/lib\/model-config\.ts$/,
 	/tests\/model-config\.test\.ts$/,
 	/tests\/sdd-aliases\.test\.ts$/,
-	// Cita `sdd-init.ts` por su nombre real de módulo — el mismo que ya está
-	// exento arriba — al señalar que sus `rules:` no las lee nadie. Es una
-	// referencia a código vigente, no vocabulario retirado en uso.
-	/docs\/comparativa-openspec-upstream\.md$/,
 ];
 
 function files(path: string): string[] {

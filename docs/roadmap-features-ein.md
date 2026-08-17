@@ -18,7 +18,7 @@ The product direction is deliberately narrow:
 | Cleaner | `accepted in packaged Pi` | Deterministic packaged acceptance covers the internal Pi workflow, bounded mutation safety, evidence collectors, and isolated runtime closure. Live credentialed semantic smoke remains optional and separate. |
 | Architect | `accepted in packaged Pi` | Deterministic packaged acceptance covers the named read-only Pi workflow and its bounded evidence and plan contracts. Live credentialed semantic smoke remains optional and separate. |
 | SDD integration | `accepted in packaged Pi` | Deterministic acceptance covers independent participation and the fixed apply→Cleaner→Architect→verify order. Provider-neutral reconstruction remains continuity work. |
-| Provider-neutral continuity | `stabilizing` | Complete and verify the active WU1-WU9 continuity bytes before opening the next product front. See [`plan-continuidad-pi-claude.md`](plan-continuidad-pi-claude.md). |
+| Provider-neutral continuity | `built` | Bidirectional handoff, the neutral checkpoint, the resume brief, and Claude's lifecycle integration are in the tree with their tests. Its planning document was retired on 2026-08-17: it described work already done, and a plan kept past its delivery is noise that outranks the code. |
 | Claude parity | `deferred` | Cleaner and Architect remain intentionally excluded from Claude until installer and launcher priorities are complete. |
 | Installer | `active next priority` | Targets, backups, update journal, rollback, acquisition checks, doctor, and uninstall foundations exist. The first control-plane unit adds one authoritative read-only install inventory and exact dry-run; execution consumes it in WU2. |
 | Launcher | `follows installer` | Shared project state, sessions, launch plans, update status, and isolated Pi/Claude flows exist. Preserve the controller and legacy renderer. |
@@ -282,7 +282,7 @@ Architect plans should describe proposed boundaries, affected modules, migration
 
 **Outcome:** Users continue work between fresh native Pi and Claude sessions through a bounded neutral checkpoint. Finish and verify the current continuity units without expanding them into Cleaner/Architect parity.
 
-The canonical continuity plan is [`docs/plan-continuidad-pi-claude.md`](plan-continuidad-pi-claude.md). Continuity derives current project facts, persists a privacy-safe checkpoint, and injects a bounded resume brief; it never converts transcripts or claims exact session equivalence. The terminal app's **Continue in Pi/Claude** action belongs to this milestone and is distinct from native Resume.
+Continuity derives current project facts, persists a privacy-safe checkpoint, and injects a bounded resume brief; it never converts transcripts or claims exact session equivalence. The terminal app's **Continue in Pi/Claude** action belongs to this milestone and is distinct from native Resume.
 
 Pi deterministic acceptance has passed. Cleaner and Architect parity remains deferred until after installer and launcher work. When resumed, it must add only the minimum Claude-native assets required for:
 
@@ -389,28 +389,50 @@ Do not combine Cleaner, Architect, SDD wiring, Claude parity, installer transact
 
 ## Prompt Cost Program (decided 2026-08-17)
 
-The orchestrator prompt is the system's largest fixed cost: 45,321 bytes paid on every turn of every session. `MANIFIESTO.md` § 004 allows it to grow only when something equivalent is retired, and that rule was unenforceable without a ceiling.
+The orchestrator prompt is the system's largest fixed cost, paid on every turn of every session — 45,321 bytes when this program opened, 42,693 today. `MANIFIESTO.md` § 004 allows it to grow only when something equivalent is retired, and that rule was unenforceable without a ceiling.
 
-Measured in [`docs/spike-presupuesto-de-prompt.md`](spike-presupuesto-de-prompt.md): roughly one third of the prompt is addressable, not two thirds. The target after all three levers is ~30 KB, not 20 KB.
+Measured before starting: roughly one third of the prompt looked addressable, not two thirds. Two of the three levers then shrank on contact with the code, and the floor turned out to be ~42,700 bytes rather than the ~30,000 first projected. The lessons that survive that measurement now live in `MANIFIESTO.md` § 004; the spike itself was retired once its levers were executed or discarded.
 
 **Adopted, in order:**
 
-1. **Ceiling — done.** `tests/prompt-budget.test.ts` freezes the baseline at 45,321 bytes for the orchestrator and 83,042 for the core agents combined. Raising either is a deliberate, reviewable act; the agent budget exists so the orchestrator cannot slim down by pushing prose into the executors.
-2. **Per-phase instruction package — attempted, and revised by the attempt.** The premise did not survive contact: nearly every phase-related paragraph in the orchestrator addresses the *parent* ("pass this runtime", "build a scope packet", "delegate one group at a time"), not the executor. What an executor needs already lives in its agent `.md`, which is paid per delegation rather than per turn — it was correctly placed all along. What the attempt did surface is a smaller, sharper lever: **a value that depends on the agent and nothing else is a table, not a decision.** `ensurePhaseRuntime` now sets `maxRuntimeMs` deterministically, retiring the prose that asked the parent to remember it, and the envelope schema was deduplicated against the seven agents that already carry it. Result: 45,321 → 43,597 bytes (−3.8%), not the projected ~11,000. One removal had to be reverted: the strict-TDD forwarding paragraph is load-bearing because `readDelegationTddHint` detects strict mode by matching `STRICT TDD MODE IS ACTIVE` in the task text; without it a strict apply gets a turn cap that aborts it mid-cycle. The suite caught it. See [`docs/spike-presupuesto-de-prompt.md`](spike-presupuesto-de-prompt.md) § 004.
+1. **Ceiling — done.** `tests/prompt-budget.test.ts` freezes the baseline for the orchestrator and for the core agents combined, and the numbers came down three times as prose was retired. Raising either is a deliberate, reviewable act; the agent budget exists so the orchestrator cannot slim down by pushing prose into the executors.
+2. **Per-phase instruction package — attempted, and revised by the attempt.** The premise did not survive contact: nearly every phase-related paragraph in the orchestrator addresses the *parent* ("pass this runtime", "build a scope packet", "delegate one group at a time"), not the executor. What an executor needs already lives in its agent `.md`, which is paid per delegation rather than per turn — it was correctly placed all along. What the attempt did surface is a smaller, sharper lever: **a value that depends on the agent and nothing else is a table, not a decision.** `ensurePhaseRuntime` now sets `maxRuntimeMs` deterministically, retiring the prose that asked the parent to remember it, and the envelope schema was deduplicated against the seven agents that already carry it. Result: 45,321 → 43,597 bytes (−3.8%), not the projected ~11,000. One removal had to be reverted: the strict-TDD forwarding paragraph is load-bearing because `readDelegationTddHint` detects strict mode by matching `STRICT TDD MODE IS ACTIVE` in the task text; without it a strict apply gets a turn cap that aborts it mid-cycle. The suite caught it.
 
-   **Revised acceptance:** ≤ 34,500 is not reachable this way. The remaining levers are a generated subagent inventory (~4,822 bytes of hand-written table that can be composed from agent frontmatter) and the `fix`-bearing JSON envelope (~2,282), which together land near 36,500. Going below that means rewriting the routing ladder — shorter prose, not relocated prose, which is a different kind of work and a different risk. Making `config.yaml`'s `rules:` executable is now unbundled from this item and remains undone: the key is still written by the bootstrap and read by no code.
-3. **Uniform JSON envelope with an actionable `fix` field.** Diagnostics carry `{severity, code, message, target, fix}`, one JSON document per invocation on stdout with prose on stderr, and an explicit exit-code contract. Retires ~5% of the prompt — the paragraphs that explain in prose what a deterministic module already computes — and lets a cheap executor resolve a blocker without interpreting prose.
+   **Closed.** ≤ 34,500 is not reachable this way, and the levers that remained do not close the gap either: the generated subagent inventory was discarded (composing the table from frontmatter removes hand-maintenance but not cost — it must stay in the prompt to route — and its `When` column is the only enforcement of three prohibitions), and the actionable-`fix` work shipped. The floor without rewriting the routing ladder is 42,693 bytes.
+3. **Actionable diagnostics — done; the rest of the envelope is low value.** Shipped: every blocking state that the router already computes now carries the concrete action that clears it, naming the command of the runtime it is spoken in. Not shipped, and deliberately last: one JSON document per invocation with prose on stderr, plus a fuller exit-code contract. On inspection `check` already exits non-zero on errors, which was the part worth having, so what remains is mostly cosmetic.
 4. **Artifact graph plus a declared fast lane.** Per-artifact `ready | blocked | done` derived from file existence, blocking reduced to what has a real mechanical consumer downstream, and two internal lanes (`micro`, `standard`) declared by the human when the change opens. These are one change, not two: the fast lane needs the state model, and the state model only pays off through the fast lane. No pre-plan deterministic signal exists to pick the lane automatically — `reviewForecast` measures churn already committed and `SddBudgetStatus.allocated` only exists once `tasks.md` does — so the human declares it. `verify` and `close` stay hard gates in both lanes.
 
 **Rejected, so the discussion does not reopen:** user-definable workflow schemas (a generic platform, § 008); multi-repo planning stores; 30+ assistant coverage (§ 003 — two runtimes, one discipline); default-on telemetry; "actions, not phases" in its full form, which upstream can afford only because it has no TDD or evidence gate; and upstream's model economy, which recommends high reasoning across every phase and contradicts § 001 at the root.
 
-**Deferred, not rejected:** an amendment path for in-flight changes; distilling domain specs from an existing repository at adoption time; and a per-change status board, which belongs to the launcher milestone.
+**Dropped 2026-08-17:** an amendment path for in-flight changes (redoing a phase is rare enough that a dedicated tool would not earn its keep) and distilling domain specs from an existing repository at adoption time (a new product surface, not parity or cost). The per-change status board folds into the launcher milestone, where it overlaps with the task panel below rather than standing on its own.
+
+**Archived, not rejected:** rewriting the routing ladder (10,295 bytes, near a quarter of the prompt). It is the only remaining lever of size, but it means writing shorter coordination prose rather than relocating it — and this program demonstrated twice that load-bearing rules only reveal themselves when broken. Not worth the cost today.
 
 Anecdote retirement is not a lever: measured at ~3% of the prompt, it is hygiene performed while touching a section, never its own unit.
 
+## Declared Fast Lane
+
+**Problem:** one path of seven phases for every change, including a one-line one. `MANIFIESTO.md` § 008 names that as a non-goal, and it is the friction that started this program.
+
+**Shape:** two lanes the human declares when the change opens — `micro` (one planning artifact, apply, verify) and `standard` (the current seven). The lane is stored in the change directory and read by the deterministic router, which already decides the next phase by asking which artifact files exist. The lane changes the list it walks, not the mechanism.
+
+**Why the human declares it:** no deterministic pre-plan signal exists. `reviewForecast` measures churn already committed, and `SddBudgetStatus.allocated` only exists once `tasks.md` does — both arrive after the point of decision. Inventing a heuristic there would promote weak evidence into a conclusion, which § 002 forbids.
+
+**Not relaxed:** verify and close stay hard gates in both lanes. `micro` is less paperwork, not less checking.
+
+**Known risk:** `micro` becoming the default by habit while the standard lane rots. Mitigated by the human declaring it and by the lane being visible in `status` — a habit risk, not a technical one.
+
+## Pi Task Panel
+
+Adopt `@juicesharp/rpiv-todo` as the in-session task panel: live overlay with status and progress, surviving reload and compaction.
+
+**Hard condition:** the panel is a **projection** of `tasks.md`, never a second source of truth. It reads from the deterministic router, which already computes the pending group; it never writes. Two writable stores for the same state would diverge, and § 005 puts the change's state on disk.
+
+**Cautions:** a third-party package on the interface's critical path, and Pi-only — so it widens the runtime gap just as the existing ones close. Evaluate the dependency before adopting it.
+
 ## Next Work Units
 
-Deliver the prompt-cost program above, then stabilize continuity WU1-WU9, then deliver installer control-plane units beginning with the canonical read-only install inventory and exact dry-run. WU2 makes real install execution consume that plan. Launcher improvements follow; continuity WU10 Cleaner/Architect Claude parity remains deferred.
+The prompt-cost program above is closed. Next: the declared fast lane, then the Pi task panel, then installer control-plane units beginning with the canonical read-only install inventory and exact dry-run. WU2 makes real install execution consume that plan. Launcher improvements follow.
 
 Claude Cleaner and Architect parity is not present today. It begins only in the bounded parity unit after the shared continuity contracts and provider-native switching paths are proven.
 
