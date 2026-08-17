@@ -6,6 +6,7 @@
     "ein-doctor.ts",
     "ein-linear.ts",
     "ein-paths.ts",
+    "ein-sdd-overlay.ts",
     "ein-skill-maintenance.ts",
     "ein-skill-registry.ts",
     "sdd-init.ts"
