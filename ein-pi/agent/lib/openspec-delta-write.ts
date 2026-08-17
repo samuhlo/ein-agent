@@ -18,7 +18,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { DOMAIN_ID_PATTERN } from "./openspec-spec-contract.ts";
-import { buildOpenSpecDelta } from "./openspec-spec-parser.ts";
+import { buildOpenSpecDelta, type OpenSpecDeltaOperation } from "./openspec-spec-parser.ts";
 import { isSafeChangeName } from "./sdd-router.ts";
 
 export type DeltaWriteRequest = Readonly<{
@@ -37,18 +37,19 @@ export type DeltaWriteResult =
 	  }>;
 
 /**
- * Normaliza una operación cruda a la forma que espera el serializador. No
- * valida: de eso se encarga el re-parseo, que es la única autoridad sobre el
- * formato.
+ * Normaliza una operación cruda a la forma que espera el serializador. Un
+ * `kind` desconocido se conserva tal cual en vez de corregirse: la gramática es
+ * la única autoridad sobre el formato, y hacerlo pasar por ADDED escondería el
+ * error del autor hasta el cierre.
  */
-function normalizeOperation(raw: unknown): Record<string, unknown> {
+function normalizeOperation(raw: unknown): OpenSpecDeltaOperation {
 	const op = (raw ?? {}) as Record<string, unknown>;
 	if (op.kind === "REMOVED") {
 		return { kind: "REMOVED", scenarioId: String(op.scenarioId ?? ""), reason: String(op.reason ?? "") };
 	}
 	const scenario = (op.scenario ?? {}) as Record<string, unknown>;
 	return {
-		kind: op.kind,
+		kind: op.kind === "MODIFIED" ? "MODIFIED" : (op.kind as "ADDED"),
 		scenario: {
 			id: String(scenario.id ?? ""),
 			title: String(scenario.title ?? ""),
@@ -75,7 +76,7 @@ export function writeOpenSpecDelta(request: DeltaWriteRequest): DeltaWriteResult
 	}
 
 	const operations = request.operations.map(normalizeOperation);
-	const built = buildOpenSpecDelta({ domain, operations } as Parameters<typeof buildOpenSpecDelta>[0]);
+	const built = buildOpenSpecDelta({ domain, operations });
 	if (!built.ok) {
 		const first = built.errors[0];
 		return {

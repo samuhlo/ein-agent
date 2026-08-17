@@ -1578,7 +1578,7 @@ export default function einAi(pi: ExtensionAPI): void {
 					: `/// OPENSPEC DELTA — ${result.reason}.`;
 				return { content: [{ type: "text", text }], details: { ok: false, reason: result.reason } };
 			}
-			return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${result.change}': escrito openspec/changes/${result.change}/specs/${result.domain}/spec.md (${result.operations} operación(es), validado). No escribas la declaración spec_delta: none: el delta ES la declaración.` }], details: { ok: true, ...result } };
+			return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${result.change}': escrito openspec/changes/${result.change}/specs/${result.domain}/spec.md (${result.operations} operación(es), validado). No escribas la declaración spec_delta: none: el delta ES la declaración.` }], details: { ...result } };
 		},
 	});
 
