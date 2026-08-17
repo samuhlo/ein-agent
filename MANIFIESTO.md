@@ -142,6 +142,15 @@ Contrato de bloqueo:
   ¿sustituye a un párrafo existente en vez de acumularse?
 - **Presupuesto de prompt.** El prompt del orquestador es la mayor factura fija
   del sistema. Crece solo si algo sale a cambio.
+- **Parte de la prosa es portante.** Antes de retirar un párrafo, comprobar que
+  ningún código depende de él. Hay reglas que el runtime detecta buscando una
+  frase literal en el texto: borrarlas no quita una norma, rompe un mecanismo.
+  Un presupuesto no se cumple borrando prosa cuya ausencia cambia el
+  comportamiento.
+- **Una reubicación se verifica intentándola.** Clasificar un párrafo por su
+  tema («esto va de la fase X») en vez de por su destinatario («¿quién tiene que
+  actuar con esto?») da siempre un número optimista. La estimación sobre el
+  papel no cuenta como evidencia.
 
 Señal de alarma: si el sistema pasa más tiempo resolviendo sus normas que
 programando, el arnés está roto. Da igual lo bien argumentada que esté cada
