@@ -1,0 +1,163 @@
+import { describe, expect, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import {
+	OVERLAY_KEY,
+	overlayWidth,
+	renderSddOverlay,
+	selectVisibleTasks,
+} from "../ein-pi/agent/lib/sdd-overlay.ts";
+import { createPalette } from "../ein-pi/agent/lib/theme.ts";
+import type { SddChangeStatus, SddTaskItem } from "../ein-pi/agent/lib/sdd-router.ts";
+
+// =============================================================================
+// El aspecto exacto se fija aquí. Una interfaz sin test se degrada sin que nadie
+// lo note: cambia un ancho, se descuadra una fila, y no falla nada.
+// =============================================================================
+
+function items(count: number, doneCount: number): SddTaskItem[] {
+	return Array.from({ length: count }, (_, index) => ({
+		id: String(index + 1).padStart(3, "0"),
+		title: `tarea ${index + 1}`,
+		done: index < doneCount,
+	}));
+}
+
+function status(overrides: Partial<SddChangeStatus> = {}, taskItems = items(4, 1)): SddChangeStatus {
+	const pending = taskItems.find((item) => !item.done) ?? null;
+	return {
+		change: "carril-rapido",
+		lane: "micro",
+		currentPhase: "apply",
+		nextRecommended: "apply",
+		tasks: {
+			present: true,
+			status: "ready",
+			blockedBy: null,
+			items: taskItems,
+			nextPending: pending,
+			counts: {
+				done: taskItems.filter((item) => item.done).length,
+				pending: taskItems.filter((item) => !item.done).length,
+				ready: 0,
+				blocked: 0,
+			},
+			problems: [],
+		},
+		...overrides,
+	} as SddChangeStatus;
+}
+
+describe("overlay del cambio activo", () => {
+	test("sin cambio activo no roba ni una línea", () => {
+		expect(renderSddOverlay(status({ change: null }))).toEqual([]);
+	});
+
+	test("la cabecera lleva cambio, carril, fase y progreso", () => {
+		const [header] = renderSddOverlay(status());
+		expect(header).toContain("CAMBIO");
+		expect(header).toContain("carril-rapido");
+		expect(header).toContain("micro · apply");
+		expect(header).toContain("1/4");
+	});
+
+	test("cada tarea muestra su estado, y la actual se distingue", () => {
+		const lines = renderSddOverlay(status());
+		expect(lines[1]).toContain("✓");
+		expect(lines[2]).toContain("▸");
+		expect(lines[2]).toContain("tarea 2");
+		// Una pendiente que no es la actual no lleva marca.
+		expect(lines[3]).not.toContain("▸");
+		expect(lines[3]).not.toContain("✓");
+	});
+
+	// El coste real de este widget es la pantalla, no la CPU.
+	test("nunca pasa de la altura concedida", () => {
+		for (const total of [1, 4, 12, 40]) {
+			for (const maxLines of [2, 5, 8]) {
+				const lines = renderSddOverlay(status({}, items(total, Math.floor(total / 2))), { maxLines });
+				expect(lines.length).toBeLessThanOrEqual(maxLines);
+			}
+		}
+	});
+
+	test("cuando no caben, se ocultan las completadas y se dice cuántas", () => {
+		const lines = renderSddOverlay(status({}, items(12, 8)), { maxLines: 6 });
+		expect(lines[1]).toContain("completadas");
+		// La actual sobrevive al recorte: es la única fila que no se puede perder.
+		expect(lines.some((line) => line.includes("▸"))).toBe(true);
+	});
+
+	test("una sola oculta concuerda en singular", () => {
+		const lines = renderSddOverlay(status({}, items(5, 1)), { maxLines: 5 });
+		const summary = lines.find((line) => line.includes("…"));
+		expect(summary).toContain("1 completada");
+		expect(summary).not.toContain("completadas");
+	});
+
+	test("plegado deja solo la cabecera", () => {
+		expect(renderSddOverlay(status(), { collapsed: true })).toHaveLength(1);
+	});
+
+	test("en un terminal estrecho se calla en vez de descuadrarse", () => {
+		expect(renderSddOverlay(status(), { width: 30 })).toEqual([]);
+	});
+
+	// Con color, el ancho VISIBLE no debe cambiar: si se midiera con los códigos
+	// ANSI dentro, la cabecera se descuadraría solo al encender el color.
+	test("el color no altera el ancho visible", () => {
+		const plain = renderSddOverlay(status(), { width: 72 });
+		const painted = renderSddOverlay(status(), { width: 72, palette: createPalette(true) });
+		expect(overlayWidth(painted)).toBe(overlayWidth(plain));
+		expect(painted[0]).toContain("[");
+		expect(plain[0]).not.toContain("[");
+	});
+
+	test("sin tareas todavía, la cabecera informa de la fase que toca", () => {
+		const lines = renderSddOverlay(status({ nextRecommended: "design" }, []));
+		expect(lines).toHaveLength(1);
+		expect(lines[0]).toContain("design");
+	});
+});
+
+describe("recorte de la lista", () => {
+	test("conserva la actual y lo que viene, no lo ya hecho", () => {
+		const list = items(10, 6);
+		const { visible, hiddenDone } = selectVisibleTasks(list, "007", 4);
+		expect(visible.map((item) => item.id)).toEqual(["007", "008", "009", "010"]);
+		expect(hiddenDone).toBe(6);
+	});
+
+	test("si todo cabe no oculta nada", () => {
+		const list = items(3, 1);
+		expect(selectVisibleTasks(list, "002", 5)).toEqual({ visible: list, hiddenDone: 0 });
+	});
+
+	test("sin tarea actual muestra la cola", () => {
+		const list = items(6, 6);
+		expect(selectVisibleTasks(list, null, 2).visible.map((i) => i.id)).toEqual(["005", "006"]);
+	});
+});
+
+test("la clave del widget es estable: el refresco reemplaza, no acumula", () => {
+	expect(OVERLAY_KEY).toBe("ein-sdd");
+});
+
+// El overlay solo existe si el manifiesto lo despliega. Un fichero suelto o una
+// entrada con un nombre mal escrito no fallan en ningún sitio: simplemente la
+// extensión no carga y nadie se entera.
+describe("el manifiesto de extensiones y el directorio no se separan", () => {
+	const dir = join(import.meta.dir, "..", "ein-pi", "agent", "extensions");
+	const manifest = JSON.parse(
+		readFileSync(join(import.meta.dir, "..", "ein-pi", "agent", "extensions-manifest.json"), "utf8"),
+	) as { core: string[] };
+
+	test("cada extensión declarada existe", () => {
+		for (const file of manifest.core) expect(existsSync(join(dir, file))).toBe(true);
+	});
+
+	test("el overlay está declarado", () => {
+		expect(manifest.core).toContain("ein-sdd-overlay.ts");
+	});
+});
