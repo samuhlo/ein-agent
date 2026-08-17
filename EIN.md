@@ -20,7 +20,7 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 <!-- CURADA — naming y patrones específicos de ESTE repo. -->
 - **Naming:** ficheros y carpetas en kebab-case (`shared-config-update-advisor.ts`). Cada módulo de `lib/` tiene su espejo en `tests/<mismo-nombre>.test.ts`.
 - **Idioma:** código, identificadores y comentarios en inglés; commits, PRs y documentación en español. Sin atribución de IA en el historial.
-- **TDD estricto** (`openspec/config.yaml: strict_tdd: true`). La puerta es `bun test` desde la raíz. Typecheck: `cd installer && bun run typecheck`.
+- **TDD estricto** (`openspec/config.yaml: strict_tdd: true`). La puerta es `bun test` desde la raíz. **Hay DOS typechecks y CI corre los dos**: `bun run typecheck` desde la raíz (cubre `ein-pi/` y `cc-ein/`) y `cd installer && bun run typecheck`. `bun test` en verde no basta: Bun no comprueba tipos.
 - **Fail-closed:** la incertidumbre nunca se convierte en un estado bueno. Un probe que falla, expira o llega obsoleto se representa como `unavailable`/`unknown`, jamás como `current`.
 - **Evidencia con procedencia:** los contratos conservan de dónde salió cada dato (`provenance`, `freshness`) para que un consumidor pueda distinguir un hecho de una suposición.
 - **Aislamiento primero:** `pi` y `claude` vanilla no se tocan. Ein entra por superficies explícitas (`pi-ein`, `cc-ein`) y hogares propios (`~/.pi-ein`, `~/.claude-ein`).
