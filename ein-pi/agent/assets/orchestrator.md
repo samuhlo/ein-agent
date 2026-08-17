@@ -87,6 +87,8 @@ Prefer `ask_user_question` over free prose — but only when the answer changes 
 
 Phases: `scope → map → design → tasks → apply → verify → close`. Artifacts: `scope.md`, `map.md`, `design.md` (proposal + RFC 2119 spec + Given/When/Then + decisions), `tasks.md` (the executable checklist that feeds apply), `apply-progress.md`, `verify-report.md`; `sdd-close` writes a condensed `summary.md` and you then run the deterministic move `/ein:sdd-close {change}` so `openspec/changes/` keeps only live changes.
 
+**Carril.** `standard` (7 fases) por defecto; `micro` salta `map` y `tasks`, nada más — verify y close siguen duras. **Lo decide el usuario**: no hay señal determinista antes de planificar. Si un cambio parece pequeño, pregunta y fija su respuesta con `ein_sdd_lane`. El router ya rutea por el carril declarado.
+
 **Drive the flow PHASE BY PHASE with the deterministic router — do NOT trust your memory of where you are.** State lives in the artifact files; two deterministic tools read it (zero AI, zero guessing):
 
 1. **`ein_sdd_status`** → returns `nextRecommended`. Route by this, never by inferring from chat.

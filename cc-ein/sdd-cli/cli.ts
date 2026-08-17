@@ -29,6 +29,7 @@ import {
 import { lintChange, type ChangeLintReport } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
 import { collectSddRemedies, formatSddRemedies } from "../../ein-pi/agent/lib/sdd-remedies.ts";
 import { closeChange } from "../../ein-pi/agent/lib/sdd-close.ts";
+import { LANE_LABEL, laneSkips, normalizeLane, readChangeLane, writeChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
 import { writeOpenSpecDelta } from "../../ein-pi/agent/lib/openspec-delta-write.ts";
 import { synchronizeOpenSpecFilesystem } from "../../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
 import {
@@ -61,6 +62,7 @@ function formatStatus(status: SddChangeStatus, active: string[]): string {
 	const missing = status.artifacts.missing.map((a) => `${a.phase}(${a.file})`).join(", ") || "none";
 	lines.push(`change: ${status.change}`);
 	if (active.length > 1) lines.push(`active: ${active.join(", ")}`);
+	lines.push(`lane: ${status.lane}`);
 	lines.push(`current phase: ${status.currentPhase}`);
 	lines.push(`next: ${status.nextRecommended}`);
 	lines.push(`artifacts present: ${present}`);
@@ -188,6 +190,31 @@ async function guardCmd(): Promise<void> {
 	const raw = await Bun.stdin.text();
 	const result = resolveGuardDecision(raw, cwd);
 	if (result) emitDecision(result.decision, result.reason);
+}
+
+// Carril del cambio. Lo declara el HUMANO: no existe señal determinista antes
+// de planificar, así que el sistema no lo adivina. Sin argumento, informa.
+export function runLaneCommand(dir: string, args: readonly string[]): { text: string; exitCode: 0 | 1 } {
+	const positional = args.filter((arg) => !arg.startsWith("--"));
+	const requested = positional.map(normalizeLane).find((lane) => lane !== undefined);
+	const name = positional.find((arg) => normalizeLane(arg) === undefined) ?? resolveSddStatus(dir).change ?? "";
+	if (!name) return { text: "/// SDD LANE — no active change in openspec/changes/.", exitCode: 1 };
+	if (!isSafeChangeName(name)) return { text: `/// SDD LANE — invalid change name: ${JSON.stringify(name)}.`, exitCode: 1 };
+
+	const changeDir = join(dir, "openspec", "changes", name);
+	if (!existsSync(changeDir)) return { text: `/// SDD LANE — '${name}' does not exist.`, exitCode: 1 };
+
+	if (requested) writeChangeLane(changeDir, requested);
+	const lane = readChangeLane(changeDir);
+	const skipped = laneSkips(lane);
+	const detail = skipped.length ? ` Skips: ${skipped.join(", ")}. Verify and close stay hard gates.` : "";
+	return { text: `/// SDD LANE — '${name}': ${LANE_LABEL[lane]}.${detail}`, exitCode: 0 };
+}
+
+function laneCmd(args: readonly string[]): void {
+	const { text, exitCode } = runLaneCommand(cwd, args);
+	console.log(text);
+	if (exitCode !== 0) process.exit(exitCode);
 }
 
 // Delta de comportamiento desde operaciones estructuradas por stdin. Llama a la
@@ -544,10 +571,11 @@ if (import.meta.main) {
 		case "close": closeCmd(); break;
 		case "guard": await guardCmd(); break;
 		case "settings": settingsCmd(rest); break;
+		case "lane": laneCmd(rest); break;
 		case "delta": await deltaCmd(rest); break;
 		case "sync": await syncCmd(rest); break;
 		default:
-			console.log("cc-ein-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]  |  delta [change] --domain <domain> < operations.json");
+			console.log("cc-ein-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]  |  lane [change] [micro|standard]  |  delta [change] --domain <domain> < operations.json");
 			process.exit(1);
 	}
 }

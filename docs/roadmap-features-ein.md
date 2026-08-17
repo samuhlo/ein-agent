@@ -410,7 +410,11 @@ Measured before starting: roughly one third of the prompt looked addressable, no
 
 Anecdote retirement is not a lever: measured at ~3% of the prompt, it is hygiene performed while touching a section, never its own unit.
 
-## Declared Fast Lane
+## Declared Fast Lane — built 2026-08-17
+
+**Evidence that justified it:** of the 44 archived changes, 42 used all seven phases; 43 carry `map.md` and 43 carry `tasks.md`. The ceremony was paid every time.
+
+**Shipped as five phases, not three.** `scope.md` holds the spec-delta declaration, and without it close is blocked (`spec-delta-unresolved`); close itself stays a hard gate. So `micro` is `scope → design → apply → verify → close`, skipping `map` and `tasks` — which are the two phases that read code and the slowest after apply. Letting the declaration also live in `design.md` would reach four phases and was rejected: a second location for one contract costs more later than the phase it saves.
 
 **Problem:** one path of seven phases for every change, including a one-line one. `MANIFIESTO.md` § 008 names that as a non-goal, and it is the friction that started this program.
 
