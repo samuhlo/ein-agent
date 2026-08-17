@@ -354,7 +354,16 @@ Go remains only a measured launcher fallback for demonstrated startup, terminal,
 
 ## Milestone 5: Deferred Claude Cleaner/Architect Parity
 
-**Outcome:** After continuity, installer, and launcher foundations are stable, Claude reproduces proven Pi behavior without a second engine or generic provider framework.
+**Reframed 2026-08-17.** This milestone previously assumed Claude would mirror Pi's automatic participation. It will not. The project profile in `.pi/ein/agents.json` states a **quality preference for the project**; running automatic passes is a **capability-and-cost decision of the runtime**. Conflating the two is what made "mirror Pi" look obvious and be wrong: Claude is the relief runtime, reached precisely when budget is exhausted, so spending it on optional quality passes inverts its purpose.
+
+**Decided:**
+
+- **Automatic participation is OFF in Claude regardless of the project profile.** Not a default to be overridden per project — a property of the runtime.
+- **The divergence is declared, never silent.** Done: the participation profile is now in the settings catalogue, and Claude reports it as `unsupported` with the reason and the alternative, in both the session block and `status`. Not running the pass is fine; not saying so is what would change a change's standard mid-handoff without anyone noticing.
+- **Porting waits for field evidence.** Cleaner and Architect have not yet been exercised on real work. Porting an unproven workflow is speculative work, and the measured cost says it can wait rather than that it is cheap to skip: the logic is ~1,770 lines of pure shared TypeScript that Claude's CLI already imports from, and the Pi-specific part is ~138 lines of thin tool wrappers. The build is not the expensive part; running it is.
+- **When ported, invocation is explicit only** — a command or a direct request, never automatic SDD participation.
+
+**Outcome once resumed:** Claude can invoke the proven Pi behavior on request, without a second engine or a generic provider framework.
 
 - Pi remains the reference behavior.
 - Claude passes the same user-visible scenario matrix.

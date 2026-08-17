@@ -11,6 +11,11 @@ import { readHypaMode, writeHypaMode, type HypaMode } from "./hypa.ts";
 import { readCodegraphMode, writeCodegraphMode, type CodegraphMode } from "./codegraph.ts";
 import { readPersonaMode, writePersonaMode, type PersonaMode } from "./persona.ts";
 import {
+  readAgentActivationProfile,
+  writeAgentActivationProfile,
+  type AgentActivationProfile,
+} from "./agent-controls.ts";
+import {
   ACTIVE_LANGS,
   applyChatLang,
   pick,
@@ -41,6 +46,10 @@ const TDD_MODES: readonly TddMode[] = ["auto", "strict", "ask", "off"];
 const HYPA_MODES: readonly HypaMode[] = ["auto", "on", "off"];
 const CODEGRAPH_MODES: readonly CodegraphMode[] = ["auto", "off"];
 const PERSONA_MODES: readonly PersonaMode[] = ["samuhlo", "neutral"];
+// Solo los tres perfiles soportados son elegibles. La lectura puede devolver
+// `custom` (una combinación fuera de ellos) o `invalid` (sin configurar): son
+// estados honestos que se muestran, no valores a los que se pueda ciclar.
+const AGENT_PROFILES: readonly AgentActivationProfile[] = ["balanced", "thorough", "manual"];
 /** `auto` is the absence of an override, which is a real state, not a default. */
 const ARTIFACT_LANGS: readonly string[] = ["auto", ...ACTIVE_LANGS];
 
@@ -55,6 +64,13 @@ const VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> =
   hypa: { auto: "auto", on: "on", off: "off" },
   codegraph: { auto: "auto", off: "off" },
   persona: { samuhlo: "samuhlo", neutral: "neutral" },
+  agents: {
+    balanced: "equilibrado (Cleaner)",
+    thorough: "exhaustivo (Cleaner + Architect)",
+    manual: "manual (ninguno)",
+    custom: "personalizado",
+    invalid: "sin configurar",
+  },
   "chat-lang": { es: "Español", en: "English", gl: "Galego" },
   lang: { auto: "hereda del chat", es: "Español", en: "English", gl: "Galego" },
 };
@@ -136,6 +152,17 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = Object.freeze([
     write: (cwd, value) => {
       const mode = accepted(HYPA_MODES, value);
       if (mode) writeHypaMode(cwd, mode);
+    },
+  },
+  {
+    id: "agents",
+    label: pick("Participación automática", "Automatic participation"),
+    hint: pick("Cleaner/Architect tras el apply", "Cleaner/Architect after apply"),
+    options: AGENT_PROFILES,
+    read: (cwd) => readAgentActivationProfile(cwd),
+    write: (cwd, value) => {
+      const profile = accepted(AGENT_PROFILES, value);
+      if (profile) writeAgentActivationProfile(cwd, profile);
     },
   },
   {
