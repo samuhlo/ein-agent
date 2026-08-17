@@ -378,9 +378,28 @@ Every unit records:
 
 Do not combine Cleaner, Architect, SDD wiring, Claude parity, installer transactions, or launcher presentation into one cross-cutting unit.
 
+## Prompt Cost Program (decided 2026-08-17)
+
+The orchestrator prompt is the system's largest fixed cost: 45,321 bytes paid on every turn of every session. `MANIFIESTO.md` § 004 allows it to grow only when something equivalent is retired, and that rule was unenforceable without a ceiling.
+
+Measured in [`docs/spike-presupuesto-de-prompt.md`](spike-presupuesto-de-prompt.md): roughly one third of the prompt is addressable, not two thirds. The target after all three levers is ~30 KB, not 20 KB.
+
+**Adopted, in order:**
+
+1. **Ceiling — done.** `tests/prompt-budget.test.ts` freezes the baseline at 45,321 bytes for the orchestrator and 83,042 for the core agents combined. Raising either is a deliberate, reviewable act; the agent budget exists so the orchestrator cannot slim down by pushing prose into the executors.
+2. **Per-phase instruction package.** A tool assembles `{template, context, rules, dependencies}` for one phase, so rules that only matter while that phase runs stop being paid every turn. Reaches ~24% of the prompt, and turns `config.yaml`'s `rules:` key — written today by the bootstrap and read by no code — from decoration into an executable contract. **Acceptance:** the orchestrator budget drops to ≤ 34,500 bytes with no rise in the agent budget. If the package ships and the prompt does not shrink, the rule was duplicated rather than moved, and the adoption does not count.
+3. **Uniform JSON envelope with an actionable `fix` field.** Diagnostics carry `{severity, code, message, target, fix}`, one JSON document per invocation on stdout with prose on stderr, and an explicit exit-code contract. Retires ~5% of the prompt — the paragraphs that explain in prose what a deterministic module already computes — and lets a cheap executor resolve a blocker without interpreting prose.
+4. **Artifact graph plus a declared fast lane.** Per-artifact `ready | blocked | done` derived from file existence, blocking reduced to what has a real mechanical consumer downstream, and two internal lanes (`micro`, `standard`) declared by the human when the change opens. These are one change, not two: the fast lane needs the state model, and the state model only pays off through the fast lane. No pre-plan deterministic signal exists to pick the lane automatically — `reviewForecast` measures churn already committed and `SddBudgetStatus.allocated` only exists once `tasks.md` does — so the human declares it. `verify` and `close` stay hard gates in both lanes.
+
+**Rejected, so the discussion does not reopen:** user-definable workflow schemas (a generic platform, § 008); multi-repo planning stores; 30+ assistant coverage (§ 003 — two runtimes, one discipline); default-on telemetry; "actions, not phases" in its full form, which upstream can afford only because it has no TDD or evidence gate; and upstream's model economy, which recommends high reasoning across every phase and contradicts § 001 at the root.
+
+**Deferred, not rejected:** an amendment path for in-flight changes; distilling domain specs from an existing repository at adoption time; and a per-change status board, which belongs to the launcher milestone.
+
+Anecdote retirement is not a lever: measured at ~3% of the prompt, it is hygiene performed while touching a section, never its own unit.
+
 ## Next Work Units
 
-Stabilize continuity WU1-WU9, then deliver installer control-plane units beginning with the canonical read-only install inventory and exact dry-run. WU2 makes real install execution consume that plan. Launcher improvements follow; continuity WU10 Cleaner/Architect Claude parity remains deferred.
+Deliver the prompt-cost program above, then stabilize continuity WU1-WU9, then deliver installer control-plane units beginning with the canonical read-only install inventory and exact dry-run. WU2 makes real install execution consume that plan. Launcher improvements follow; continuity WU10 Cleaner/Architect Claude parity remains deferred.
 
 Claude Cleaner and Architect parity is not present today. It begins only in the bounded parity unit after the shared continuity contracts and provider-native switching paths are proven.
 
