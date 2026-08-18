@@ -14,7 +14,7 @@ import {
 } from "./paths.ts";
 import { run } from "./exec.ts";
 
-export const INSTALLER_VERSION = "0.72.0";
+export const INSTALLER_VERSION = "0.73.0";
 
 // Keep the two machine-readable labels together so every supported binary
 // exposes the same running-installer identity and independent template probe.

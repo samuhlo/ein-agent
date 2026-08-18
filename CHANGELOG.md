@@ -5,6 +5,47 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.73.0] - 2026-08-18
+
+### Fixed
+
+- **`/ein:sdd-next` dejó de ser un callejón sin salida**: imprimía la ruta del
+  cambio —"la fase que toca es verify"— y ahí se acababa todo. Ese texto es
+  para la persona, no para el agente que ejecuta fases, así que la instrucción
+  no iba dirigida a nadie y el comando parecía no hacer nada. Ahora, además de
+  enseñarte la ruta, se la entrega al orquestador para que la recorra. Quien
+  decide la ruta sigue siendo la misma herramienta determinista de antes.
+- **El bloqueo de participantes viaja en esa entrega**: cuando la fase que toca
+  es `verify` y el Cleaner todavía no ha corrido, el aviso va incluido. Antes se
+  descubría chocándose con la puerta, y ese choque costaba una delegación.
+- **El explorador ya no se escapa a segundo plano**: `ein-scout` declara ahora
+  en su propia definición que corre en primer plano. Hasta ahora eso solo se
+  forzaba sobre la marcha, y en una ejecución real tres exploradores salieron a
+  segundo plano, gastaron su presupuesto y sus tres informes se tiraron.
+- **Un informe fuera de contrato ya no abre la puerta al siguiente**: al
+  descartarse liberaba el turno al instante, y por eso salieron tres seguidos.
+  La regla de que dos fallos seguidos son una avería de infraestructura, y no
+  mala suerte, estaba escrita en el prompt y ahora la aplica el código.
+- **El mensaje de ese fallo dice lo que se vio, no lo que se supone**: antes
+  afirmaba una causa que nadie había comprobado y mandaba a corregir lo que
+  quizá no estaba roto.
+
+### Changed
+
+- **`--auto` se retira de `/ein:sdd-next`**: se reconocía y no hacía nada. Con
+  la entrega al orquestador, el comando normal ya ejecuta.
+- **El contrato de versión del release deja de pedir mantenimiento**: comprobaba
+  la versión contra un literal escrito a mano, había que editarlo en cada
+  release y se había desincronizado solo. Ahora comprueba que los tres punteros
+  coinciden entre sí y tienen forma publicable, que es lo que de verdad importa.
+
+### Known issues
+
+- No está probado por qué aquellos tres exploradores acabaron en segundo plano
+  pese a pedirse en primer plano. Lo que sí está verificado es que Ein hace bien
+  su parte, y los arreglos de esta versión cortan el gasto y dejan evidencia
+  utilizable si vuelve a pasar, en lugar de un diagnóstico supuesto.
+
 ## [0.72.0] - 2026-08-18
 
 ### Fixed
