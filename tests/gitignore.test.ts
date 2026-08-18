@@ -24,6 +24,22 @@ describe("upsertBlock", () => {
 		expect(out).toContain(gitignoreBlock());
 	});
 
+	test("gitignoreBlock() ignora el checkpoint de continuidad SDD", () => {
+		expect(gitignoreBlock()).toContain("openspec/changes/**/continuity.json");
+	});
+
+	test("gitignoreBlock() ignora el checkpoint de continuidad del carril adhoc", () => {
+		expect(gitignoreBlock()).toContain(".ein/continuity.json");
+	});
+
+	test("upsertBlock() no duplica una regla /.ein/ preexistente fuera del bloque gestionado", () => {
+		const existing = "node_modules\n/.ein/\n";
+		const out = upsertBlock(existing) as string;
+		const einLines = out.split("\n").filter((l) => l.trim() === "/.ein/");
+		expect(einLines.length).toBe(1);
+		expect(out).toContain(".ein/continuity.json");
+	});
+
 	test("preserva contenido previo y anexa el bloque", () => {
 		const out = upsertBlock("node_modules\ndist\n");
 		expect(out).toContain("node_modules");

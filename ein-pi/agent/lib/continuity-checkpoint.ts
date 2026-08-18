@@ -117,6 +117,10 @@ function validIsoTimestamp(value: unknown): value is string {
 function validStateRef(value: unknown): value is string {
 	return typeof value === "string" && STATE_REF.test(value);
 }
+const PARTICIPANT_SCOPE_SEAL = /^sdd-scope-v1:sha256:[a-f0-9]{64}$/;
+function validParticipantSeal(value: unknown): value is string {
+	return validStateRef(value) || (typeof value === "string" && PARTICIPANT_SCOPE_SEAL.test(value));
+}
 
 function canonicalContent(checkpoint: ContinuityCheckpointV1 | CheckpointContent): CheckpointContent {
 	return {
@@ -238,10 +242,10 @@ function recordWithKeys(value: unknown, keys: readonly string[]): value is Recor
 function validParticipants(value: unknown, change: unknown): value is SddParticipantsCheckpoint | null {
 	if (value === null) return true;
 	if (!recordWithKeys(value, ["change", "applyId", "scopeId", "beforeStateRef", "order", "cleaner", "architect"])
-		|| value.change !== change || !/^[a-f0-9]{64}$/.test(String(value.applyId)) || !/^[a-f0-9]{64}$/.test(String(value.scopeId)) || !validStateRef(value.beforeStateRef)
+		|| value.change !== change || !/^[a-f0-9]{64}$/.test(String(value.applyId)) || !/^[a-f0-9]{64}$/.test(String(value.scopeId)) || !validParticipantSeal(value.beforeStateRef)
 		|| !Array.isArray(value.order) || !["", "ein-cleaner", "ein-architect", "ein-cleaner,ein-architect"].includes(value.order.join(","))) return false;
 	const evidence = (item: unknown, cleaner: boolean): item is SddParticipantEvidence | null => item === null || (recordWithKeys(item, cleaner ? ["status", "observedStateRef", "afterStateRef"] : ["status", "observedStateRef"])
-		&& (item.status === "complete" || item.status === "blocked") && validStateRef(item.observedStateRef) && (!cleaner || validStateRef(item.afterStateRef)));
+		&& (item.status === "complete" || item.status === "blocked") && validParticipantSeal(item.observedStateRef) && (!cleaner || validParticipantSeal(item.afterStateRef)));
 	if (!evidence(value.cleaner, true) || !evidence(value.architect, false)
 		|| (value.cleaner !== null && !value.order.includes("ein-cleaner")) || (value.architect !== null && !value.order.includes("ein-architect"))) return false;
 	if (value.cleaner && (value.cleaner.observedStateRef !== value.beforeStateRef || (value.cleaner.status === "blocked" && value.cleaner.afterStateRef !== value.beforeStateRef))) return false;
@@ -255,11 +259,6 @@ export function withSddParticipants(checkpoint: ContinuityCheckpointV1, particip
 	const content = canonicalContent({ ...parsed.checkpoint, version: 2, sddParticipants: participants });
 	const next = checkpointFrom(content);
 	return serializedBytes(next) <= CONTINUITY_CHECKPOINT_LIMITS.maxSerializedBytes ? { ok: true, checkpoint: next } : { ok: false, reason: "limit-exceeded" };
-}
-
-export function rebaseSddParticipants(participants: SddParticipantsCheckpoint, stateRef: string): SddParticipantsCheckpoint {
-	const terminal = participants.architect?.observedStateRef ?? participants.cleaner?.afterStateRef ?? participants.beforeStateRef;
-	return terminal === stateRef ? participants : { ...participants, beforeStateRef: stateRef, cleaner: null, architect: null };
 }
 
 export function parseContinuityCheckpoint(input: unknown): ContinuityCheckpointResult {

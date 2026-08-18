@@ -18,13 +18,7 @@ const running = new Set<string>();
 const marker = /\[ein-sdd-participant\/v1 passage=([a-f0-9]{64}) state=([^\]\s]+)\]/;
 const restricted = new Set([".atl", ".git", ".pi", "build", "coverage", "dist", "generated", "node_modules", "runtime", "vendor"]);
 
-function state(cwd: string): string {
-	const value = projectProjectState({ cwd }).git.stateRef;
-	if (!value) throw new Error("SDD participants blocked: current repository state is unavailable.");
-	return value;
-}
-
-function changedScope(cwd: string, change: string): { applyId: string; paths: string[] } {
+function changedScope(cwd: string, change: string): { applyId: string; paths: string[]; seal: string } {
 	const root = projectProjectState({ cwd }).git.root;
 	if (!root || !isAbsolute(cwd) || !isAbsolute(root) || resolve(root) !== root) throw new Error("SDD participants blocked: repository root authority is unavailable.");
 	try { const cwdEntry = lstatSync(cwd); if (cwdEntry.isSymbolicLink() || !cwdEntry.isDirectory()) throw new Error(); } catch { throw new Error("SDD participants blocked: repository root authority is unavailable."); }
@@ -37,6 +31,7 @@ function changedScope(cwd: string, change: string): { applyId: string; paths: st
 	const paths = [...section.matchAll(/`([^`]+)`/g)].map((match) => match[1]!);
 	if (!paths.length) throw new Error("SDD participants blocked: apply produced no changed-file entries.");
 	const seen = new Set<string>(), proof: { path: string; dev: number; ino: number; mode: number }[] = [];
+	const sealed: { path: string; dev: number; ino: number; mode: number; digest: string }[] = [];
 	let authority: ReturnType<typeof lstatSync>; try { authority = lstatSync(root); if (authority.isSymbolicLink() || !authority.isDirectory()) throw new Error(); } catch { throw new Error("SDD participants blocked: repository root authority is unavailable."); }
 	proof.push({ path: root, dev: Number(authority.dev), ino: Number(authority.ino), mode: authority.mode });
 	const inspect = (declared: string, finalFile: boolean): void => {
@@ -45,6 +40,10 @@ function changedScope(cwd: string, change: string): { applyId: string; paths: st
 			current = join(current, part); let entry: ReturnType<typeof lstatSync>; try { entry = lstatSync(current); } catch { throw new Error(`SDD participants blocked: changed-file path is missing: ${declared}`); }
 			if (entry.isSymbolicLink()) throw new Error(`SDD participants blocked: changed-file path has a symlink component: ${declared}`);
 			const final = index === parts.length - 1; if (finalFile && final ? !entry.isFile() : !entry.isDirectory()) throw new Error(`SDD participants blocked: changed-file ${final ? "path is not a regular file" : "parent is not a real directory"}: ${declared}`); proof.push({ path: current, dev: Number(entry.dev), ino: Number(entry.ino), mode: entry.mode });
+			if (finalFile && final) {
+				let fileBytes: Buffer; try { fileBytes = readFileSync(current); } catch { throw new Error(`SDD participants blocked: changed-file path is missing: ${declared}`); }
+				sealed.push({ path: declared, dev: Number(entry.dev), ino: Number(entry.ino), mode: entry.mode, digest: createHash("sha256").update(fileBytes).digest("hex") });
+			}
 		}
 	};
 	for (const path of paths) {
@@ -55,7 +54,9 @@ function changedScope(cwd: string, change: string): { applyId: string; paths: st
 		inspect(path, true);
 	}
 	for (const expected of proof) { let entry: ReturnType<typeof lstatSync>; try { entry = lstatSync(expected.path); } catch { throw new Error("SDD participants blocked: changed-file path changed during admission."); } if (Number(entry.dev) !== expected.dev || Number(entry.ino) !== expected.ino || entry.mode !== expected.mode) throw new Error("SDD participants blocked: changed-file path changed during admission."); }
-	return { applyId: createHash("sha256").update(bytes).digest("hex"), paths: [...paths].sort() };
+	sealed.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+	const seal = `sdd-scope-v1:sha256:${createHash("sha256").update(JSON.stringify(["sdd-scope-v1", Number(authority.dev), Number(authority.ino), ...sealed.map((entry) => [entry.path, entry.dev, entry.ino, entry.mode, entry.digest])])).digest("hex")}`;
+	return { applyId: createHash("sha256").update(bytes).digest("hex"), paths: [...paths].sort(), seal };
 }
 
 function participantId(value: SddParticipantsCheckpoint): string {
@@ -65,7 +66,7 @@ function participantId(value: SddParticipantsCheckpoint): string {
 function passage(cwd: string, sessionKey: string, change: string): Passage {
 	if (resolveSddStatus(cwd, change).apply !== "complete") throw new Error("SDD participants blocked: apply is not complete.");
 	const scoped = changedScope(cwd, change);
-	const currentState = state(cwd);
+	const currentState = scoped.seal;
 	const scopeId = createHash("sha256").update(JSON.stringify(scoped.paths)).digest("hex");
 	for (let attempt = 0; attempt < 2; attempt += 1) {
 		const read = readContinuityCheckpoint(cwd, { mode: "sdd", change });
@@ -119,7 +120,8 @@ export function admitSddParticipantCall(cwd: string, sessionKey: string, toolCal
 	const [key, value] = active;
 	const planned = planSddParticipants(cwd, sessionKey, value.change);
 	if (planned.status !== "ready" || planned.next?.agent !== agent) return planned.blocker ?? `SDD participant blocked: expected ${planned.next?.agent ?? "no participant"}.`;
-	if (match[2] !== value.stateRef || state(cwd) !== value.stateRef) return "SDD participant blocked: source state is stale; request a fresh participant plan.";
+	let recomputed: string; try { recomputed = changedScope(cwd, value.change).seal; } catch { return "SDD participant blocked: source state is stale; request a fresh participant plan."; }
+	if (match[2] !== value.stateRef || recomputed !== value.stateRef) return "SDD participant blocked: source state is stale; request a fresh participant plan.";
 	running.add(`${value.id}:${agent}`);
 	callPassages.set(toolCallId, { key, agent });
 	return null;
@@ -139,7 +141,7 @@ export function completeSddParticipantCall(cwd: string, toolCallId: string, fail
 		const durable = read.status === "valid" ? read.checkpoint.sddParticipants : null;
 		if (read.status !== "valid" || !durable || participantId(durable) !== value.id) return;
 		if (tracked.agent === "ein-cleaner" ? durable.cleaner !== null : durable.architect !== null) return;
-		let observed: string; try { observed = state(cwd); } catch { return; }
+		let observed: string; try { observed = changedScope(cwd, value.change).seal; } catch { return; }
 		if (tracked.agent === "ein-architect" && observed !== value.stateRef || statuses[0] === "blocked" && observed !== value.stateRef) return;
 		const evidence = { status: statuses[0] as "complete" | "blocked", observedStateRef: value.stateRef };
 		const next = tracked.agent === "ein-cleaner" ? { ...durable, cleaner: { ...evidence, afterStateRef: observed } } : { ...durable, architect: evidence };

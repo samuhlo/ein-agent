@@ -50,7 +50,11 @@ describe("continuity handoff lifecycle", () => {
 		expect(await exhausted.refresh(true)).toBe("refresh-conflict"); expect(calls).toBe(2);
 	});
 
-	test("refresh preserves coherent terminal evidence and clears stale complete or blocked evidence", async () => {
+	// D4/R5: refresh no longer rebases sddParticipants against the global stateRef; the invalidation
+	// authority moved to the reader (passage()), so a refresh across a global stateRef change MUST
+	// carry the stored participant evidence through unchanged. This replaces the pre-D4 contract
+	// ("clears stale complete or blocked evidence") — a deliberate behavior change, not a broken test.
+	test("refresh preserves participant evidence unchanged across a global stateRef change", async () => {
 		for (const status of ["complete", "blocked"] as const) {
 			const root = fixture(); mkdirSync(join(root, "openspec/changes/change"), { recursive: true }); let live = projectProjectState({ cwd: root });
 			const selected = (_cwd?: string, runtime = live.runtimes): ProjectStateV1 => ({ ...live, runtimes: runtime, openspec: { ...live.openspec, quality: "current", reason: "read-success", activeChanges: ["change"], selection: "selected", selectedChange: "change", provenance: "canonical" } });
@@ -59,7 +63,7 @@ describe("continuity handoff lifecycle", () => {
 			expect(writeContinuityCheckpoint(root, { mode: "sdd", change: "change" }, upgraded.checkpoint, { kind: "absent" }).ok).toBeTrue(); const lifecycle = createContinuityHandoffLifecycle(root, ports({ projectState: selected, processObservation: () => "none" }));
 			expect(await lifecycle.refresh(true)).toBe("refreshed"); expect(checkpoint(root, { mode: "sdd", change: "change" }).sddParticipants?.cleaner?.status).toBe(status);
 			const nextRef = `git-v1:sha256:${(status === "complete" ? "e" : "f").repeat(64)}`; live = { ...live, git: { ...live.git, stateRef: nextRef }, verification: { ...live.verification, currentStateRef: nextRef, observedStateRef: nextRef } };
-			expect(await lifecycle.refresh(true)).toBe("refreshed"); const saved = checkpoint(root, { mode: "sdd", change: "change" }); expect(saved.sddParticipants).toMatchObject({ beforeStateRef: nextRef, cleaner: null, architect: null }); const prepared = await lifecycle.prepare("claude"); expect(prepared.ok).toBeTrue(); if (prepared.ok) expect(prepared.brief.content).not.toContain(`\"status\":\"${status}\"`);
+			expect(await lifecycle.refresh(true)).toBe("refreshed"); const saved = checkpoint(root, { mode: "sdd", change: "change" }); expect(saved.sddParticipants).toMatchObject(upgraded.checkpoint.sddParticipants!);
 		}
 	});
 

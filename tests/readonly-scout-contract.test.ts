@@ -64,6 +64,43 @@ describe("readonly scout launch contract", () => {
 		}
 	});
 
+	test("rejects a second scout launch while one is pending (R6: fail at launch, not after)", () => {
+		const tracked = new Map<string, string>();
+		normalizeScoutLaunch({ agent: "ein-scout", task: "inspect A" }, "call-1", tracked);
+		expect(() => normalizeScoutLaunch({ agent: "ein-scout", task: "inspect B" }, "call-2", tracked)).toThrow("already pending");
+	});
+
+	test("does not reject a relaunch that reuses the same toolCallId (R6, idempotent re-normalization)", () => {
+		const tracked = new Map<string, string>();
+		normalizeScoutLaunch({ agent: "ein-scout", task: "inspect A" }, "call-1", tracked);
+		expect(() => normalizeScoutLaunch({ agent: "ein-scout", task: "inspect A" }, "call-1", tracked)).not.toThrow();
+	});
+
+	test("forces async: false on the direct form too (R7)", () => {
+		const launch = normalizeScoutLaunch({ agent: "ein-scout", task: "inspect" }, "call-direct", new Map())!;
+		expect(launch.async).toBe(false);
+	});
+
+	test("an orphaned pending entry (cancelled/dead scout, no result ever accepted) blocks every later launch until the tracking map is cleared at the next user turn (R6 residual risk closed)", () => {
+		const tracking = new Map<string, string>();
+		normalizeScoutLaunch({ agent: "ein-scout", task: "inspect A" }, "call-orphan", tracking);
+		// The orphaned scout never reaches `acceptTrackedScoutResult` (cancelled, or
+		// the subagent died without emitting a tool_result). Without a turn-boundary
+		// reset this blocks the session until `session_shutdown`.
+		expect(() => normalizeScoutLaunch({ agent: "ein-scout", task: "inspect B" }, "call-next", tracking)).toThrow("already pending");
+		// A fresh user turn (the mechanism wired into `pi.on("input", ...)` in
+		// `ein-ai.ts`) clears the tracking map, so the orphan cannot survive the
+		// turn that created it.
+		tracking.clear();
+		expect(() => normalizeScoutLaunch({ agent: "ein-scout", task: "inspect B" }, "call-next", tracking)).not.toThrow();
+	});
+
+	test("ein-ai.ts clears scoutTracking at the start of every user turn, not only at session_shutdown (R6 residual risk)", () => {
+		const einAi = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
+		const inputHook = einAi.slice(einAi.indexOf('pi.on("input"'), einAi.indexOf('pi.on("input"') + 800);
+		expect(inputHook).toMatch(/scoutTracking\.clear\(\)/);
+	});
+
 	test("el scout queda excluido de la inyección de skills (aislado, inheritSkills:false)", () => {
 		// Inyectar paths de SKILL.md (absolutos, fuera del repo) a un scout aislado
 		// produce "Skills not found" y una ejecución degradada. El gate de inyección

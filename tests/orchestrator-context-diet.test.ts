@@ -95,12 +95,14 @@ describe("orchestrator — doctrina de dieta de contexto", () => {
 		expect(raw).toContain("1-2 file peek");
 	});
 
-	test("el fan-out paralelo usa de uno a tres scouts frescos y nunca ramas sdd-map", () => {
-		const fanOut = raw.slice(raw.indexOf("## Parallel read-only fan-out"));
+	test("el fan-out secuencial usa de uno a tres scouts frescos, uno por turno, y nunca ramas sdd-map", () => {
+		const fanOut = raw.slice(raw.indexOf("## Read-only fan-out (sequential)"));
+		expect(raw).not.toContain("## Parallel read-only fan-out");
 		expect(fanOut).toContain("one to three distinct fresh scouts");
 		expect(fanOut).toMatch(/independent `ein-scout` call/);
 		expect(fanOut).not.toMatch(/read-only `sdd-map`/);
 		expect(fanOut).toContain("no OpenSpec artifacts");
+		expect(fanOut).toMatch(/one scout per turn/);
 	});
 
 	describe("routing determinista de investigación pre-scope", () => {

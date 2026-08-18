@@ -50,6 +50,14 @@ export function normalizeScoutLaunch(input: unknown, toolCallId: string, trackin
 	if (!isRecord(input)) fail("invalid invocation");
 	if (unsupportedForm(input)) fail("nested, chain, parallel, background, or resume launch is unsupported");
 	if (!toolCallId) fail("missing tool call id");
+	// R6: reject a concurrent scout launch before it executes, not after it burns a
+	// delegation. Same toolCallId is an idempotent re-normalization of the same call,
+	// never rejected. Retire when the runtime can bind N concurrent scout reports to
+	// N tool call ids (`scoutReportText` requires exactly one result, `:160`) and a
+	// measured run shows scout wall-clock dominating.
+	for (const [pendingId, status] of tracking) {
+		if (status === "pending" && pendingId !== toolCallId) fail("a scout is already pending; scouts run one per turn (sequential fan-out)");
+	}
 	tracking.set(toolCallId, "pending");
 	// `extensions` is not a supported parent-call field. The scout agent's
 	// explicit empty frontmatter declaration is the only extension policy.
@@ -71,7 +79,7 @@ export function normalizeScoutLaunch(input: unknown, toolCallId: string, trackin
 	if (delegationWorkflowScript(input) !== undefined) {
 		return { ...launch, ...contract, async: false };
 	}
-	return { ...launch, ...contract, agent: "ein-scout" };
+	return { ...launch, ...contract, agent: "ein-scout", async: false };
 }
 
 

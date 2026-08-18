@@ -64,12 +64,46 @@ Secciones minimas por batch:
 
 - `Batch`
 - `Tareas completadas`
-- `Archivos tocados`
+- `Files changed`
 - `TDD Cycle Evidence` (cuando strict TDD activo)
 - `Decisiones tecnicas`
 - `Riesgos`
 - `Checks ejecutados` (o `none`)
 - `Siguiente paso`
+
+### Gramatica de `Files changed` (parseada por `changedScope()`)
+
+Esta seccion es la unica excepcion acotada a la regla de compacidad de `sdd-apply.md`: es el
+alcance leido por maquina de la pasada Cleaner/Architect (`ein-pi/agent/lib/sdd-participants.ts`),
+no prosa para un lector humano. El parser exige exactamente lo siguiente:
+
+1. Encabezado, comparado sin distinguir mayusculas: `files changed`, `changed files`,
+   `archivos modificados` o `archivos cambiados`, con prefijo opcional `#` a `######` y `:` final
+   opcional, sin nada mas en la linea. Forma canonica: `## Files changed`.
+2. La seccion termina en el siguiente encabezado markdown, asi que debe ir seguida de otro
+   encabezado.
+3. **Cada span entre backticks dentro de la seccion se interpreta como una ruta.** No hay prosa de
+   codigo, comandos ni `` `tipos` `` inline: cualquier backtick que no sea una ruta rompe el
+   contrato.
+4. Rutas: relativas a la raiz del repo, separador `/`, sin `/` inicial, sin `\`, sin segmentos
+   `.`/`..`/vacios, sin duplicados, al menos una.
+5. Cada ruta debe resolver a un archivo regular existente sin componentes symlink en el momento de
+   la admision — un archivo borrado o renombrado por el apply NO debe listarse.
+6. Ningun segmento de ruta puede ser `.atl`, `.git`, `.pi`, `build`, `coverage`, `dist`,
+   `generated`, `node_modules`, `runtime` o `vendor`.
+
+Ejemplo canonico (ejecutable: este bloque se extrae y se alimenta a `planSddParticipants` en la
+suite de tests):
+
+```markdown
+status: complete
+
+## Files changed
+
+- `ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md`
+
+## Siguiente paso
+```
 
 ## `verify-report.md`
 

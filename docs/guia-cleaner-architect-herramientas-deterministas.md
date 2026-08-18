@@ -475,7 +475,7 @@ Vue y Astro tienen extracción limitada a regiones de script. Sus expresiones de
 
 1. El proyecto tiene Balanced: el banner muestra `CLEANER auto:on` y `ARCH auto:off`.
 2. `sdd-apply` cambia `src/pricing/calculate.ts` y su prueba.
-3. El coordinador lee la lista exacta de archivos de apply y crea un pasaje ligado al `stateRef` actual.
+3. El coordinador lee la lista exacta de archivos de apply y crea un pasaje sellado con la identidad de ese alcance declarado (`sdd-scope-v1:sha256:…`: ruta, identidad de inodo y digest de contenido por archivo), no con el `stateRef` global del árbol completo.
 4. Cleaner recoge fuente, entorno, complejidad y duplicación. Si se autoriza la ejecución externa, planifica pruebas Bun o Vitest e ingiere resultados y LCOV.
 5. Cleaner realiza la inspección semántica. Puede cerrar con Audit o aplicar un único Improve elegible mediante admisión, escritura y verificación.
 6. Si Improve cambia la fuente, el coordinador actualiza el estado del pasaje.
@@ -583,6 +583,8 @@ Los pendientes más importantes son el adaptador seguro de CodeGraph para Archit
 **Digest o hash:** resumen criptográfico del contenido. Un cambio en los bytes produce, con probabilidad práctica extremadamente alta, una identidad diferente.
 
 **`stateRef`:** identidad inmutable del estado Git relevante, incluyendo HEAD, rama y cambios observados.
+
+**Sello del pasaje SDD (`sdd-scope-v1:sha256:…`):** identidad del pasaje Cleaner/Architect en `sdd-apply`, distinta del `stateRef` de arriba. No incluye HEAD ni rama: se calcula solo sobre el alcance declarado (`Files changed`), con la ruta, la identidad de inodo y el digest de contenido de cada archivo listado. Un archivo fuera de ese alcance nunca lo invalida.
 
 **Alcance (`scope`):** conjunto explícito y limitado de archivos o árboles sobre los que una operación tiene autoridad.
 
