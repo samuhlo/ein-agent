@@ -81,10 +81,17 @@ Then: the section states one scout call per turn, retains the one-to-three indep
 
 ## Scenario: scout-launch-is-always-foreground
 title: Normalize every accepted scout launch to foreground
-requirement: The system MUST normalize every accepted ein-scout launch to a foreground call in both the workflow-script form and the direct form.
+requirement: The system MUST normalize every accepted ein-scout launch to a foreground call in both the workflow-script form and the direct form, and the canonical scout agent frontmatter MUST declare `async: false` so the runtime resolves the launch as foreground even when the normalized launch input does not reach it.
 Given: a direct ein-scout launch request
 When: the launch is normalized
 Then: the normalized launch is foreground and no asynchronous scout call is produced
+
+## Scenario: off-contract-scout-result-does-not-free-the-turn
+title: Stop a scout relaunch loop after two off-contract results
+requirement: The system MUST NOT release the one-scout-per-turn slot when a scout result fails the report contract, and MUST reject a further scout launch in the same turn once two results have failed it, naming the failure as an infrastructure incident. The rejection MUST report the observed result shape and MUST NOT assert an unverified cause.
+Given: a scout result that fails the report contract in the current turn
+When: the parent launches another scout in that same turn
+Then: the failed call remains recorded against the turn, a third launch is rejected as an infrastructure incident, and the next user turn clears the record
 
 ## Scenario: use-independent-scouts-before-scope
 title: Use bounded independent scouts before scope

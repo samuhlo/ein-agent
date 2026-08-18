@@ -7,6 +7,8 @@ import {
 } from "./delegation-shape.ts";
 
 export const SCOUT_REPORT_MAX_BYTES = 16_384;
+// Dos lanzamientos fuera de contrato en un turno dejan de ser mala suerte.
+export const OFF_CONTRACT_LIMIT = 2;
 
 // El schema del reporte se valida a mano en `parseReport` (abajo). Ya NO se
 // inyecta como `outputSchema` al lanzar el scout: forzar el canal estructurado
@@ -53,11 +55,21 @@ export function normalizeScoutLaunch(input: unknown, toolCallId: string, trackin
 	// R6: reject a concurrent scout launch before it executes, not after it burns a
 	// delegation. Same toolCallId is an idempotent re-normalization of the same call,
 	// never rejected. Retire when the runtime can bind N concurrent scout reports to
-	// N tool call ids (`scoutReportText` requires exactly one result, `:160`) and a
+	// N tool call ids (`scoutReportText` requires exactly one result) and a
 	// measured run shows scout wall-clock dominating.
+	//
+	// R8: un resultado fuera de contrato NO libera el turno (ver
+	// `acceptTrackedScoutResult`). Sin eso, un lanzamiento que vuelve vacío al
+	// instante borraba su entrada y desbloqueaba el siguiente en el mismo turno:
+	// medido en producción, tres scouts arrancados y tres reportes tirados. La
+	// regla "fuera de contrato dos veces es un incidente de infraestructura" ya
+	// existía en la prosa del orquestador; aquí es lo que corta el gasto.
+	let offContract = 0;
 	for (const [pendingId, status] of tracking) {
 		if (status === "pending" && pendingId !== toolCallId) fail("a scout is already pending; scouts run one per turn (sequential fan-out)");
+		if (status === "off-contract") offContract += 1;
 	}
+	if (offContract >= OFF_CONTRACT_LIMIT) fail("the scout returned off-contract twice this turn; treat it as an infrastructure incident, surface it, and degrade to bounded reads instead of relaunching");
 	tracking.set(toolCallId, "pending");
 	// `extensions` is not a supported parent-call field. The scout agent's
 	// explicit empty frontmatter declaration is the only extension policy.
@@ -161,12 +173,20 @@ export function validateScoutReport(payloads: readonly unknown[], root: string):
 }
 
 // Lee el reporte de la SALIDA FINAL del scout (finalOutput), como cualquier
-// subagente. `results` vacío es lo que devuelve un launch async en este punto
-// (el reporte llega luego por otro evento) → error accionable, no opaco. Exige
-// exactamente un resultado: el scout corre foreground y único.
+// subagente. Exige exactamente un resultado: el scout corre foreground y único.
+//
+// El mensaje dice lo OBSERVADO, no la causa. Antes afirmaba "launched async or
+// in parallel?" como si lo supiera: era una hipótesis, y cuando el fallo real
+// fuese otro mandaba a corregir lo que no estaba roto. Se nombra la forma
+// (cuántos resultados llegaron) y se marca como forma, no como diagnóstico.
 function scoutReportText(details: unknown): string {
-	if (!isRecord(details) || !Array.isArray(details.results) || details.results.length !== 1) {
-		fail("no in-turn report (launched async or in parallel? launch the scout foreground)");
+	if (!isRecord(details) || !Array.isArray(details.results)) {
+		fail("the runtime returned no results list for this scout call");
+	}
+	if (details.results.length !== 1) {
+		fail(details.results.length === 0
+			? "the scout call returned 0 results in this turn — the shape of a launch that did not run foreground; one scout, foreground, per turn"
+			: `the scout call returned ${details.results.length} results; one report binds to one tool call, so launch one scout at a time`);
 	}
 	const result = (details.results as unknown[])[0];
 	if (!isRecord(result) || typeof result.finalOutput !== "string" || result.finalOutput.trim().length === 0) {
@@ -177,7 +197,17 @@ function scoutReportText(details: unknown): string {
 
 export function acceptTrackedScoutResult(tracking: ScoutTracking, toolCallId: string, details: unknown, isError: boolean, root: string): Report | undefined {
 	if (!tracking.has(toolCallId)) return undefined;
-	tracking.delete(toolCallId);
-	if (isError) return undefined;
-	return validateScoutReport([scoutReportText(details)], root);
+	// Un error del runner es suyo, no del contrato: libera el turno y se pasa el
+	// mensaje original tal cual (`isError` lo devuelve sin tocar aguas arriba).
+	if (isError) { tracking.delete(toolCallId); return undefined; }
+	try {
+		const report = validateScoutReport([scoutReportText(details)], root);
+		tracking.delete(toolCallId);
+		return report;
+	} catch (error) {
+		// R8: fuera de contrato NO libera el turno. La entrada queda marcada para
+		// que el segundo intento fallido corte el tercero antes de que arranque.
+		tracking.set(toolCallId, "off-contract");
+		throw error;
+	}
 }

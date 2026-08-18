@@ -24,12 +24,19 @@ const ROOT = join(import.meta.dir, "..");
 // techo cumplió su función: obligó a apretar el texto de 415 a 318 bytes y a
 // justificar el resto en vez de dejarlo pasar.
 //
+// SUBIDA 2026-08-18: +11 bytes en los agentes por `async: false` en el
+// frontmatter de `ein-scout`. No es prosa: es el campo que el runtime lee para
+// resolver el lanzamiento en foreground. Forzarlo mutando el input del hook era
+// la única vía, y en una run real no bastó — tres scouts salieron a background,
+// gastaron tokens y sus tres reportes se tiraron. Once bytes compran que el
+// contrato no dependa de que una mutación llegue.
+//
 // El presupuesto de agentes existe para que el orquestador no adelgace
 // empujando su prosa a los ejecutores: el total es lo que importa.
 // =============================================================================
 
 const ORCHESTRATOR_BUDGET_BYTES = 43_011;
-const CORE_AGENTS_BUDGET_BYTES = 83_042;
+const CORE_AGENTS_BUDGET_BYTES = 83_053;
 
 function bytesOf(path: string): number {
 	return Buffer.byteLength(readFileSync(join(ROOT, path), "utf8"));

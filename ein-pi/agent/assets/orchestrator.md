@@ -101,7 +101,7 @@ Phases: `scope → map → design → tasks → apply → verify → close`. Art
 
 Resuming across sessions is free: call `ein_sdd_status` — no context dump, no re-reading the change.
 
-**Manual next-step view:** `/ein:sdd-next <change> [--auto]` is a conservative, read-only slash command for humans (current phase, next recommendation, reason). It does not replace the loop: the orchestrator still routes with `ein_sdd_status`. `--auto` is dry-run only; it must not trigger delegation.
+**Manual next-step handoff:** `/ein:sdd-next <change>` is a slash command the HUMAN types. It prints the deterministic route and hands it to you as a user message naming the phase to run. It does not replace the loop: you still route with `ein_sdd_status`.
 
 **Fallback (one-shot chain).** For the whole flow in a single call (or `/run-chain ein-sdd -- <task>`), the `ein-sdd` chain exists only when Cleaner and Architect automatic participation are both off. An enabled participant requires the phase-by-phase loop because its bounded scope exists only after apply and Architect must bind after Cleaner. The `subagent` `chain` field is an **array of step objects**, never a string; `reads` is a JSON array (`["scope.md"]`), never a `+`-string; keep `task: "{task}"` on every step; **ALWAYS pass `maxRuntimeMs`** (`1800000` normal / `2700000` large) as the backstop against a stalled cheap-model step. Prefer the phase-by-phase loop. Never invoke `sdd-apply` directly for a full flow; `sdd-verify` may be invoked directly for a re-check.
 

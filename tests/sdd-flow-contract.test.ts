@@ -73,10 +73,11 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("ein-sdd` chain");
 	});
 
-	test("documenta sdd-next como ruta manual sin sustituir el router interno", () => {
-		expect(orch).toContain("/ein:sdd-next <change> [--auto]");
-		expect(orch).toContain("read-only slash command for humans");
-		expect(orch).toContain("the orchestrator still routes with `ein_sdd_status`");
+	test("documenta sdd-next como traspaso manual sin sustituir el router interno", () => {
+		expect(orch).toContain("/ein:sdd-next <change>");
+		expect(orch).not.toContain("/ein:sdd-next <change> [--auto]");
+		expect(orch).toContain("hands it to you as a user message");
+		expect(orch).toContain("you still route with `ein_sdd_status`");
 	});
 
 	test("limita contexto canónico de scope/design a hints explícitos y referencias reutilizables", () => {

@@ -26,11 +26,12 @@ ein-pi/agent/bin/
 # Fuera del bloque autogestionado: el runtime lo reescribe entero y se lleva
 # por delante cualquier entrada que se añada dentro.
 /.atl/
-/.ein/
 
 # === Ein / Pi runtime (auto-gestionado, no editar) ===
 .pi/ein/
 .piagents/
 .pi-subagents/
 .codegraph/
+openspec/changes/**/continuity.json
+.ein/continuity.json
 # === fin Ein / Pi runtime ===

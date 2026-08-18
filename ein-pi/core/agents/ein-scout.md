@@ -6,6 +6,7 @@ extensions:
 defaultContext: fresh
 inheritProjectContext: false
 inheritSkills: false
+async: false
 timeoutMs: 120000
 turnBudget: { "maxTurns": 12, "graceTurns": 2 }
 toolBudget: { "hard": 30, "soft": 24, "block": "*" }
