@@ -20,6 +20,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    # Un job sano tarda ~2 min. Sin techo explícito, GitHub lo deja vivo 6 horas:
+    # un cuelgue no falla, se queda ahí ocupando runner y sin decir nada.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
 
@@ -27,15 +30,37 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
+      # `fish` hace falta de verdad: `tests/surface-wiring.test.ts` lanza los
+      # launchers con `fish -c`. Lo que colgaba el job era la DESCARGA, medida
+      # en el run 32169701416: `apt-get update` tardó 5s y desempaquetar 3s,
+      # pero bajar 3,5 MB del mirror de Azure costó 4min22s a 13,7 kB/s, con
+      # `xsel` —20 kB -— fallando tres veces seguidas a 60s por intento.
+      #
+      # De ahí las tres medidas: `--no-install-recommends` no baja `xsel` (es
+      # clipboard, y en CI nadie lo usa), `Acquire::http::Timeout` abandona una
+      # conexión estancada en 15s en vez de 60, y el timeout del paso convierte
+      # lo que quede en un fallo visible con log en vez de un cuelgue mudo.
       - name: Instalar Fish en Linux
         if: runner.os == 'Linux'
+        timeout-minutes: 5
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_MODE: a
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes fish
+          apt_opts=(
+            -o Acquire::Retries=5
+            -o Acquire::http::Timeout=15
+            -o DPkg::Lock::Timeout=120
+          )
+          sudo -E apt-get update "${apt_opts[@]}"
+          sudo -E apt-get install --yes --no-install-recommends "${apt_opts[@]}" fish
+          fish --version
 
       - name: Instalar Fish en macOS
         if: runner.os == 'macOS'
+        timeout-minutes: 10
         run: brew install fish
+
 
       - name: Install root deps
         run: bun install --frozen-lockfile
