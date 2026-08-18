@@ -4,10 +4,14 @@
 // deja escrito el bloque "## SDD Session Preflight" que el motor inyecta en el
 // prompt. Dos mitades del mismo dominio (control de la sesión SDD):
 //
-//   1. PREFERENCIAS: detecta el trigger (`/sdd`, "vamos con el sdd"…), pregunta
-//      lo que cambia el trabajo (modo de ejecución, TDD, memoria — 3 preguntas,
-//      no 5: el chained-PR y el budget se retiraron por ceremonia/fricción), y
-//      renderiza el bloque (incluye el Review Workload Guard con budget fijo 400).
+//   1. PREFERENCIAS, en dos granularidades. Lo de SESIÓN (modo de ejecución,
+//      cuaderno Engram) se pregunta una vez. Lo del CAMBIO (TDD estricto,
+//      carril) se pregunta por cambio y se PERSISTE en su directorio
+//      (`sdd-preflight-record.ts`): así el segundo cambio de una sesión larga
+//      no hereda en silencio la respuesta del primero, y Claude lee la misma
+//      decisión. Una postura ya escrita se adopta, no se re-pregunta. El
+//      chained-PR y el budget se retiraron por ceremonia/fricción; el bloque
+//      renderizado incluye el Review Workload Guard con budget fijo 400.
 //   2. SHAPING DE DELEGACIÓN: da forma a las delegaciones a las fases SDD — el
 //      gate de TDD por tarea (resuelve el `ask` de forma determinista, que en un
 //      chain el parent no puede preguntar), e inyecta `acceptance`/turn-budget en
@@ -18,9 +22,12 @@
 // re-exportados aquí por compatibilidad de imports).
 //
 // Fallback sin UI: sin `ctx.hasUI` (subagente/headless) se aplican defaults
-// (interactive / memory off / 400 budget / auto) y el bloque se inyecta igual.
+// (interactive / memory off / 400 budget / carril standard) y el bloque se
+// inyecta igual. Ahí NADIE decidió nada, así que la postura no se persiste: un
+// headless no puede dejar escrito en el cambio un "off" que no eligió nadie.
 // =============================================================================
 
+import { existsSync } from "node:fs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	collectDelegationAgentNames,
@@ -31,6 +38,14 @@ import {
 } from "./delegation-shape.ts";
 import { type GitBaseline, readGitBaseline, renderGitBaselineLine } from "./git-baseline";
 import { type TddMode, readTddMode } from "./tdd";
+import { DEFAULT_LANE, LANE_LABEL, laneConfigPath, laneSkips, normalizeLane, writeChangeLane, type SddLane } from "./sdd-lane.ts";
+import {
+	changeDirFor,
+	readChangeStance,
+	readPreflightRecord,
+	resolveActiveChange,
+	writePreflightRecord,
+} from "./sdd-preflight-record.ts";
 import { type PreparedMemory } from "./memory-lifecycle.ts";
 import { installSddAssets, sddGlobalAssetDriftCount } from "./sdd-assets.ts";
 import {
@@ -58,6 +73,23 @@ export {
 };
 
 export type SddExecutionMode = "interactive" | "auto";
+
+// Lo que se pregunta UNA vez por sesión: describe cómo trabaja el humano hoy,
+// no el cambio. Repetirlo en cada cambio sería la fricción que § 004 prohíbe.
+export interface SddSessionAnswers {
+	executionMode: SddExecutionMode;
+	memoryMode: SddMemoryMode;
+	engramAvailable: boolean;
+	prompted: boolean;
+}
+
+// Lo que describe UN CAMBIO: con qué exigencia de tests y con cuántas fases.
+// Se vuelve a preguntar cuando el cambio activo es otro.
+export interface SddChangeStanceAnswers {
+	tddMode: TddMode;
+	lane: SddLane;
+}
+
 export interface SddPreflightPreferences {
 	executionMode: SddExecutionMode;
 	memoryMode: SddMemoryMode;
@@ -65,6 +97,14 @@ export interface SddPreflightPreferences {
 	tddMode: TddMode;
 	engramAvailable: boolean;
 	prompted: boolean;
+	// Opcionales por compatibilidad: preferencias legacy (y tests que las
+	// construyen a mano) no declaran carril ni cambio, y deben seguir
+	// renderizando el bloque sin inventarse ninguno de los dos.
+	lane?: SddLane;
+	/** Cambio al que esta postura quedó atada. `undefined` = aún sin atar. */
+	activeChange?: string;
+	/** Procedencia de la postura: preguntada al humano o leída del disco. */
+	stanceSource?: "asked" | "adopted";
 	// Snapshot del árbol al arrancar el preflight (una vez por sesión). Opcional:
 	// tests y llamadas legacy pueden omitirlo → no se inyecta la línea baseline.
 	gitBaseline?: GitBaseline;
@@ -110,6 +150,10 @@ const DEFAULT_SDD_PREFLIGHT: SddPreflightPreferences = {
 };
 
 const sddPreflightBySession = new Map<string, SddPreflightPreferences>();
+// Las respuestas de SESIÓN sobreviven al cambio de cambio: solo la postura se
+// vuelve a preguntar. Sin esta separación, atar el preflight al cambio habría
+// significado repreguntar también el modo de ejecución en cada uno.
+const sddSessionAnswersBySession = new Map<string, SddSessionAnswers>();
 const sddPreflightInFlight = new Map<string, Promise<SddPreflightPreferences>>();
 const sddSessionMemoryBySession = new Map<string, PreparedMemory>();
 
@@ -445,39 +489,133 @@ export function ensurePhaseRuntime(input: unknown): boolean {
 	return true;
 }
 
-export async function collectSddPreflightPreferences(
+// Preguntas de SESIÓN. Se hacen una vez y sobreviven a los cambios que vengan
+// después: describen cómo trabaja el humano hoy, no qué es este cambio.
+export async function collectSddSessionAnswers(
 	ctx: ExtensionContext,
 	engramAvailable: boolean,
-): Promise<SddPreflightPreferences> {
-	if (!ctx.hasUI) return { ...DEFAULT_SDD_PREFLIGHT, tddMode: resolveTddNoAsk(ctx), engramAvailable };
+): Promise<SddSessionAnswers> {
+	if (!ctx.hasUI) {
+		return {
+			executionMode: DEFAULT_SDD_PREFLIGHT.executionMode,
+			memoryMode: DEFAULT_SDD_PREFLIGHT.memoryMode,
+			engramAvailable,
+			prompted: false,
+		};
+	}
 	const executionMode = await ctx.ui.select("SDD execution mode", [
 		"interactive",
 		"auto",
 	]);
-	// TDD decidido AL INICIO, una sola decisión por sesión SDD: off (default) o
-	// strict. **Siempre** fija el override determinista → el gate de delegación
-	// (askRunTddMode) ya NO vuelve a preguntar (fin del doble-ask que salía cuando
-	// el modo global era `ask`). Default off: la mayoría del trabajo (frontend/
-	// simple) no necesita RED/GREEN y no debe quemar tokens; strict es opt-in.
-	// Respeta un `strict` persistente (`/ein:tdd strict`) poniéndolo primero.
-	const tddDefaultStrict = readTddMode(ctx.cwd) === "strict";
-	const tddChoice = await ctx.ui.select(
-		"Strict TDD for this SDD change? (default off — UI/visual/simple; strict → logic-heavy, forces RED/GREEN)",
-		tddDefaultStrict ? ["strict", "off"] : ["off", "strict"],
-	);
-	const tddMode: TddMode = tddChoice === "strict" ? "strict" : "off";
-	setTaskTddMode(ctx, tddMode);
 	const memoryOptions = engramAvailable ? ["off", "engram"] : ["off"];
 	const memoryMode = await ctx.ui.select("Optional Engram project notebook", memoryOptions);
 	return {
 		executionMode:
 			executionMode === "auto" ? "auto" : DEFAULT_SDD_PREFLIGHT.executionMode,
 		memoryMode: normalizeSddMemoryMode({ memoryMode }),
-		reviewBudgetLines: DEFAULT_REVIEW_BUDGET_LINES,
-		tddMode,
 		engramAvailable,
 		prompted: true,
 	};
+}
+
+// Preguntas del CAMBIO: qué exigencia de tests y cuántas fases. Son dos porque
+// responden a la misma pregunta humana desde dos lados — "¿cuánto arnés pide
+// este trabajo?" — y ninguna tiene señal determinista antes de planificar.
+export async function collectSddChangeStance(
+	ctx: ExtensionContext,
+): Promise<SddChangeStanceAnswers> {
+	if (!ctx.hasUI) return { tddMode: resolveTddNoAsk(ctx), lane: DEFAULT_LANE };
+	// TDD: off (default) o strict. **Siempre** fija el override determinista → el
+	// gate de delegación (askRunTddMode) ya NO vuelve a preguntar (fin del
+	// doble-ask que salía cuando el modo global era `ask`). Default off: la mayoría
+	// del trabajo (frontend/simple) no necesita RED/GREEN y no debe quemar tokens.
+	// Respeta un `strict` persistente (`/ein:tdd strict`) poniéndolo primero.
+	const tddDefaultStrict = readTddMode(ctx.cwd) === "strict";
+	const tddChoice = await ctx.ui.select(
+		"Strict TDD for this SDD change? (default off — UI/visual/simple; strict → logic-heavy, forces RED/GREEN)",
+		tddDefaultStrict ? ["strict", "off"] : ["off", "strict"],
+	);
+	// Carril: vivía como un párrafo del orquestador pidiéndole al padre que se
+	// acordara de preguntarlo. 44 cambios archivados no produjeron ni un solo
+	// `lane.json`. Una pregunta que el runtime hace siempre no depende de que un
+	// prompt se lea. `standard` va primero: nunca se degrada por accidente.
+	const laneChoice = await ctx.ui.select(
+		"SDD lane for this change? (standard = seven phases; micro skips map and tasks — verify and close stay hard gates)",
+		["standard", "micro"],
+	);
+	return {
+		tddMode: tddChoice === "strict" ? "strict" : "off",
+		lane: normalizeLane(laneChoice) ?? DEFAULT_LANE,
+	};
+}
+
+/**
+ * Preferencias completas del preflight. `opts.session` reutiliza respuestas de
+ * sesión ya dadas; `opts.stance` adopta una postura que ya está en disco (la
+ * escribió este runtime antes, o el otro) en vez de volver a preguntarla.
+ */
+export async function collectSddPreflightPreferences(
+	ctx: ExtensionContext,
+	engramAvailable: boolean,
+	opts: { session?: SddSessionAnswers; stance?: SddChangeStanceAnswers } = {},
+): Promise<SddPreflightPreferences> {
+	const session = opts.session ?? (await collectSddSessionAnswers(ctx, engramAvailable));
+	const stance = opts.stance ?? (await collectSddChangeStance(ctx));
+	setTaskTddMode(ctx, stance.tddMode);
+	// Sin UI nadie decidió nada: la postura no se persiste, para que un subagente
+	// headless no deje escrito en el cambio un "off" que nadie eligió.
+	const stanceSource: "asked" | "adopted" =
+		opts.stance || !ctx.hasUI ? "adopted" : "asked";
+	return {
+		executionMode: session.executionMode,
+		memoryMode: session.memoryMode,
+		reviewBudgetLines: DEFAULT_REVIEW_BUDGET_LINES,
+		tddMode: stance.tddMode,
+		lane: stance.lane,
+		engramAvailable: session.engramAvailable,
+		prompted: session.prompted,
+		stanceSource,
+	};
+}
+
+// Escribe la postura en el directorio del cambio. NUNCA pisa una decisión ya
+// escrita: la primera decisión sobre un cambio es la que vale, y sobrescribirla
+// desde una sesión posterior es justo cómo se pierde la continuidad.
+function persistChangeStance(
+	cwd: string,
+	change: string,
+	prefs: SddPreflightPreferences,
+): void {
+	const dir = changeDirFor(cwd, change);
+	if (!existsSync(dir)) return;
+	if (prefs.stanceSource === "adopted") return;
+	if (!readPreflightRecord(dir)) {
+		writePreflightRecord(dir, {
+			tdd: prefs.tddMode === "strict" ? "strict" : "off",
+			decidedBy: "pi",
+		});
+	}
+	if (prefs.lane && !existsSync(laneConfigPath(dir))) writeChangeLane(dir, prefs.lane);
+}
+
+/**
+ * ¿Sirven estas preferencias para el cambio activo? Ata la postura al primer
+ * cambio que aparece (el preflight corre ANTES de que `sdd-scope` cree el
+ * directorio) y la declara caducada en cuanto el cambio activo es otro.
+ */
+function reusePreflightForChange(
+	cwd: string,
+	prefs: SddPreflightPreferences,
+	active: string | undefined,
+): boolean {
+	if (!active) return true;
+	if (prefs.activeChange === active) return true;
+	if (prefs.activeChange === undefined) {
+		prefs.activeChange = active;
+		persistChangeStance(cwd, active, prefs);
+		return true;
+	}
+	return false;
 }
 
 function tddPreflightLine(mode: TddMode): string {
@@ -521,6 +659,14 @@ export function renderSddPreflightPrompt(
 		`- Review budget: ${prefs.reviewBudgetLines} changed lines`,
 	];
 	if (includeTdd) lines.push(tddPreflightLine(prefs.tddMode));
+	// El carril solo se nombra cuando SALTA fases. `standard` es la forma normal
+	// del flujo: anunciarlo sería una línea pagada en cada turno que no cambia
+	// nada de lo que el destinatario va a hacer.
+	if (prefs.lane && prefs.lane !== DEFAULT_LANE) {
+		lines.push(
+			`- SDD lane: ${LANE_LABEL[prefs.lane]} — this change skips ${laneSkips(prefs.lane).join(", ")}. \`verify\` and \`close\` stay hard gates.`,
+		);
+	}
 	if (includeBaseline && prefs.gitBaseline) {
 		const baselineLine = renderGitBaselineLine(prefs.gitBaseline);
 		if (baselineLine) lines.push(baselineLine);
@@ -536,13 +682,35 @@ export async function ensureSddPreflight(
 	callbacks: SddPreflightCallbacks,
 ): Promise<SddPreflightPreferences> {
 	const sessionKey = sddPreflightSessionKey(ctx);
+	const active = resolveActiveChange(ctx.cwd);
 	const existing = sddPreflightBySession.get(sessionKey);
-	if (existing) return existing;
+	if (existing) {
+		if (reusePreflightForChange(ctx.cwd, existing, active)) return existing;
+		// Cambio distinto → la postura del anterior caducó. También el override
+		// de TDD del run: si no, el gate de delegación seguiría cortando con la
+		// respuesta del cambio pasado.
+		sddPreflightBySession.delete(sessionKey);
+		tddRunOverride.delete(sessionKey);
+	}
 	const inFlight = sddPreflightInFlight.get(sessionKey);
 	if (inFlight) return inFlight;
 	const promise = (async () => {
 		const engramAvailable = hasEngramToolCapability(callbacks.pi);
-		const prefs = await collectSddPreflightPreferences(ctx, engramAvailable);
+		// Una postura ya escrita se ADOPTA, no se re-pregunta: puede haberla
+		// dejado Claude, o esta misma sesión antes de un compact.
+		const recorded = active ? readChangeStance(ctx.cwd, active) : undefined;
+		const prefs = await collectSddPreflightPreferences(ctx, engramAvailable, {
+			session: sddSessionAnswersBySession.get(sessionKey),
+			...(recorded?.tdd ? { stance: { tddMode: recorded.tdd, lane: recorded.lane } } : {}),
+		});
+		sddSessionAnswersBySession.set(sessionKey, {
+			executionMode: prefs.executionMode,
+			memoryMode: prefs.memoryMode,
+			engramAvailable: prefs.engramAvailable,
+			prompted: prefs.prompted,
+		});
+		prefs.activeChange = active;
+		if (active) persistChangeStance(ctx.cwd, active, prefs);
 		// Snapshot del árbol antes de que el flujo mute nada: detecta un `reset`
 		// reciente / stashes que pudieran significar trabajo huérfano.
 		prefs.gitBaseline = readGitBaseline(ctx.cwd);
@@ -564,7 +732,8 @@ export async function ensureSddPreflight(
 					"OpenSpec: canonical full SDD record (always present)",
 					`Optional project notebook: Engram ${prefs.memoryMode}${prefs.engramAvailable ? " (configured; no retrieval or save is implied)" : " (unavailable)"}`,
 					`Review budget: ${prefs.reviewBudgetLines} changed lines`,
-					`Strict TDD: ${prefs.tddMode}`,
+					`Strict TDD: ${prefs.tddMode}${prefs.stanceSource === "adopted" ? " (leído del cambio, no preguntado)" : ""}`,
+					`Carril: ${LANE_LABEL[prefs.lane ?? DEFAULT_LANE]}`,
 					`Preference source: ${prefs.prompted ? "user prompt" : "defaults (no interactive UI available)"}`,
 					`Global SDD assets ready: ${result.agents} agent(s), ${result.chains} chain(s), ${result.support} support file(s) available (${result.skipped} already present).`,
 					modelRoutingLine,

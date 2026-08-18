@@ -174,6 +174,13 @@ const RUNTIME_TOKEN_RULES: ReadonlyArray<{
     token: "ein_sdd_check",
     replacement: "cc-ein-sdd check",
   },
+  {
+    // La postura del cambio (TDD + carril) es el mismo fichero en los dos
+    // runtimes; solo cambia el mando que lo lee.
+    source: "agents/sdd-apply.md",
+    token: "ein_sdd_preflight",
+    replacement: "cc-ein-sdd preflight",
+  },
 ];
 
 const RUNTIME_MARKERS: Readonly<Record<string, string>> = {

@@ -14,6 +14,8 @@
 //   cc-ein-sdd delta  [change] --domain <d> < ops.json   escribe el delta de
 //                                 comportamiento desde operaciones estructuradas
 //   cc-ein-sdd settings [--hook]   ajustes del proyecto → directivas
+//   cc-ein-sdd preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]
+//                                 lee o fija la postura del cambio (TDD + carril)
 // =============================================================================
 
 import {
@@ -30,6 +32,14 @@ import { lintChange, type ChangeLintReport } from "../../ein-pi/agent/lib/sdd-gu
 import { collectSddRemedies, formatSddRemedies } from "../../ein-pi/agent/lib/sdd-remedies.ts";
 import { closeChange } from "../../ein-pi/agent/lib/sdd-close.ts";
 import { LANE_LABEL, laneSkips, normalizeLane, readChangeLane, writeChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
+import {
+	changeStanceDirective,
+	normalizeTddStance,
+	readActiveChangeStance,
+	readChangeStance,
+	renderChangeStanceLine,
+	writePreflightRecord,
+} from "../../ein-pi/agent/lib/sdd-preflight-record.ts";
 import { writeOpenSpecDelta } from "../../ein-pi/agent/lib/openspec-delta-write.ts";
 import { synchronizeOpenSpecFilesystem } from "../../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
 import {
@@ -217,6 +227,71 @@ function laneCmd(args: readonly string[]): void {
 	if (exitCode !== 0) process.exit(exitCode);
 }
 
+// Postura del cambio: con qué exigencia de tests y con cuántas fases se
+// conduce. Es el equivalente en Claude del preflight interactivo de Pi — aquí no
+// hay selector, así que el coordinador pregunta al usuario y deja la respuesta
+// escrita con este comando. Ambos runtimes leen el mismo fichero.
+//
+// No pisa una decisión ya tomada sin `--force`: sobrescribirla en silencio es
+// exactamente cómo se pierde la continuidad que este fichero existe para dar.
+export function runPreflightCommand(
+	dir: string,
+	args: readonly string[],
+): { text: string; exitCode: 0 | 1 } {
+	const flag = (name: string): string | undefined => {
+		const index = args.indexOf(name);
+		return index >= 0 ? args[index + 1] : undefined;
+	};
+	const force = args.includes("--force");
+	const positional = args.filter((arg, index) => {
+		if (arg.startsWith("--")) return false;
+		const previous = args[index - 1];
+		return previous !== "--tdd" && previous !== "--lane";
+	});
+	const name = positional[0] ?? resolveSddStatus(dir).change ?? "";
+	if (!name) return { text: "/// SDD PREFLIGHT — no active change in openspec/changes/.", exitCode: 1 };
+
+	const stance = readChangeStance(dir, name);
+	if (!stance) return { text: `/// SDD PREFLIGHT — '${name}' does not exist or is not a valid change name.`, exitCode: 1 };
+
+	const rawTdd = flag("--tdd");
+	if (rawTdd !== undefined) {
+		const requested = normalizeTddStance(rawTdd);
+		if (!requested) {
+			return { text: `/// SDD PREFLIGHT — unknown TDD stance ${JSON.stringify(rawTdd)}; use 'off' or 'strict'.`, exitCode: 1 };
+		}
+		if (stance.tdd && !force) {
+			return {
+				text: `/// SDD PREFLIGHT — '${name}' already decided: TDD ${stance.tdd} (by ${stance.decidedBy ?? "pi"}). Pass --force to replace it.`,
+				exitCode: 1,
+			};
+		}
+		writePreflightRecord(stance.changeDir, { tdd: requested, decidedBy: "claude" });
+	}
+
+	const rawLane = flag("--lane");
+	if (rawLane !== undefined) {
+		const requested = normalizeLane(rawLane);
+		if (!requested) {
+			return { text: `/// SDD PREFLIGHT — unknown lane ${JSON.stringify(rawLane)}; use 'micro' or 'standard'.`, exitCode: 1 };
+		}
+		writeChangeLane(stance.changeDir, requested);
+	}
+
+	const current = readChangeStance(dir, name);
+	const directive = changeStanceDirective(current);
+	const text = [`/// SDD PREFLIGHT — '${name}'`, renderChangeStanceLine(current), directive]
+		.filter((part) => part.length > 0)
+		.join("\n");
+	return { text, exitCode: 0 };
+}
+
+function preflightCmd(args: readonly string[]): void {
+	const { text, exitCode } = runPreflightCommand(cwd, args);
+	console.log(text);
+	if (exitCode !== 0) process.exit(exitCode);
+}
+
 // Delta de comportamiento desde operaciones estructuradas por stdin. Llama a la
 // MISMA función que la tool de Pi: sin esto, un cambio con delta empezado en
 // Claude no podía cerrarse, porque el agente tenía prohibido escribir el
@@ -269,7 +344,12 @@ async function deltaCmd(args: readonly string[]): Promise<void> {
 // (lo llama settings.json); sin flag imprime el bloque en claro, que es lo que
 // un agente lee por Bash y lo que un humano quiere ver.
 export function buildSettingsBlock(dir: string): string {
-	return renderProjectDirectives(resolveProjectDirectives(dir, "claude"));
+	const project = renderProjectDirectives(resolveProjectDirectives(dir, "claude"));
+	// La postura del cambio va DESPUÉS y dice explícitamente que sobrescribe: un
+	// ajuste de proyecto describe el default, y una decisión tomada sobre este
+	// cambio concreto es más específica que el default.
+	const stance = changeStanceDirective(readActiveChangeStance(dir));
+	return stance ? `${project}\n\n${stance}` : project;
 }
 
 function settingsCmd(args: readonly string[]): void {
@@ -344,6 +424,11 @@ export function buildStatusOutput(cwd: string, change?: string): string {
 	// llegar a un proyecto sin saber si exige TDD es llegar a ciegas.
 	const settings = summarizeProjectDirectives(resolveProjectDirectives(cwd, "claude"));
 	if (settings) text += `\n${settings}`;
+	// Y la postura de ESTE cambio, que puede contradecir el ajuste de arriba.
+	const stanceLine = renderChangeStanceLine(
+		change ? readChangeStance(cwd, change) : readActiveChangeStance(cwd),
+	);
+	if (stanceLine) text += `\n${stanceLine}`;
 
 	return text;
 }
@@ -572,10 +657,11 @@ if (import.meta.main) {
 		case "guard": await guardCmd(); break;
 		case "settings": settingsCmd(rest); break;
 		case "lane": laneCmd(rest); break;
+		case "preflight": preflightCmd(rest); break;
 		case "delta": await deltaCmd(rest); break;
 		case "sync": await syncCmd(rest); break;
 		default:
-			console.log("cc-ein-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]  |  lane [change] [micro|standard]  |  delta [change] --domain <domain> < operations.json");
+			console.log("cc-ein-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]  |  lane [change] [micro|standard]  |  preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]  |  delta [change] --domain <domain> < operations.json");
 			process.exit(1);
 	}
 }

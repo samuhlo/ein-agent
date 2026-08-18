@@ -86,6 +86,13 @@ import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
 import { collectSddRemedies, formatSddRemedies } from "../lib/sdd-remedies.ts";
 import { LANE_LABEL, laneSkips, normalizeLane, readChangeLane, writeChangeLane } from "../lib/sdd-lane.ts";
+import {
+	changeStanceDirective,
+	normalizeTddStance,
+	readChangeStance,
+	renderChangeStanceLine,
+	writePreflightRecord,
+} from "../lib/sdd-preflight-record.ts";
 import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
 import { reviewForecast, formatReviewForecast } from "../lib/review-forecast.ts";
 import { closeChange, type CloseOptions } from "../lib/sdd-close.ts";
@@ -1375,6 +1382,59 @@ export default function einAi(pi: ExtensionAPI): void {
 			return {
 				content: [{ type: "text", text: `/// SDD LANE — '${change}': ${LANE_LABEL[lane]}.${detail}` }],
 				details: { ok: true, change, lane, skipped },
+			};
+		},
+	});
+
+	// ── Tool determinista: postura del cambio (TDD + carril) ──
+	// Existe para que la decisión del preflight tenga una superficie legible desde
+	// una fase, y para que `sdd-apply.md` pueda nombrar UNA herramienta que existe
+	// en los dos runtimes (aquí, y `cc-ein-sdd preflight` en Claude).
+	pi.registerTool({
+		name: "ein_sdd_preflight",
+		label: "Ein SDD Preflight",
+		description:
+			"Read (or record) how this change is driven: strict TDD stance and lane. Call it WITHOUT arguments to read the decision the preflight already stored — it is authoritative over `openspec/config.yaml` `strict_tdd`. A stance already decided is never replaced without `force`. Reads and writes only the filesystem.",
+		parameters: {
+			type: "object",
+			properties: {
+				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
+				tdd: { type: "string", enum: ["off", "strict"], description: "Omit to read without deciding." },
+				lane: { type: "string", enum: ["micro", "standard"], description: "Omit to leave the declared lane untouched." },
+				force: { type: "boolean", description: "Replace a stance that was already decided." },
+			},
+		} as const,
+		async execute(_id, params: { change?: string; tdd?: string; lane?: string; force?: boolean }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
+			if (!change) {
+				return { content: [{ type: "text", text: "/// SDD PREFLIGHT — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
+			}
+			const stance = readChangeStance(ctx.cwd, change);
+			if (!stance) {
+				return { content: [{ type: "text", text: `/// SDD PREFLIGHT — '${change}' no existe.` }], details: { ok: false, reason: "unknown change" } };
+			}
+			const requested = normalizeTddStance(params?.tdd);
+			if (params?.tdd !== undefined && !requested) {
+				return { content: [{ type: "text", text: `/// SDD PREFLIGHT — postura de TDD desconocida: ${JSON.stringify(params.tdd)}.` }], details: { ok: false, reason: "unknown stance" } };
+			}
+			if (requested) {
+				if (stance.tdd && !params?.force) {
+					return {
+						content: [{ type: "text", text: `/// SDD PREFLIGHT — '${change}' ya decidido: TDD ${stance.tdd} (por ${stance.decidedBy ?? "pi"}). Usa force para reemplazarlo.` }],
+						details: { ok: false, reason: "already decided", tdd: stance.tdd },
+					};
+				}
+				writePreflightRecord(stance.changeDir, { tdd: requested, decidedBy: "pi" });
+			}
+			const lane = normalizeLane(params?.lane);
+			if (lane) writeChangeLane(stance.changeDir, lane);
+			const current = readChangeStance(ctx.cwd, change);
+			const text = [`/// SDD PREFLIGHT — '${change}'`, renderChangeStanceLine(current), changeStanceDirective(current)]
+				.filter((part) => part.length > 0)
+				.join("\n");
+			return {
+				content: [{ type: "text", text }],
+				details: { ok: true, change, tdd: current?.tdd ?? null, lane: current?.lane ?? "standard" },
 			};
 		},
 	});
