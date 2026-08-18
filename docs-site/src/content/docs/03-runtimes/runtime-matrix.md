@@ -5,68 +5,68 @@ sources: ["README.md", "cc-ein/README.md", "openspec/specs/installer-runtime/spe
 verified_rev: "eeceb7c"
 ---
 
-Esta tabla solo incluye filas **comprobables contra código o especificación**.
-Lo que no tiene evidencia no aparece como paridad: aparece más abajo, en lo que
-no se puede afirmar.
+Esta matriz separa la continuidad del estado de las superficies propias de cada
+runtime y de la paridad que no está verificada o no existe. Pi es el runtime de
+referencia; Claude Code funciona como relevo sobre el mismo proyecto, no como
+una sesión equivalente.
 
-## Lo comprobable
+## Continuidad de estado compartida
 
-| Capacidad | Pi Coding Agent | Claude Code |
+Ambos runtimes pueden leer las decisiones persistidas del cambio y continuar el
+trabajo en ambos sentidos mediante el proyecto y su checkpoint en disco. Esta
+continuidad comparte estado auditable, no conversaciones, sesiones ni todas las
+capacidades del runtime.
+
+| Estado compartido comprobable | Pi Coding Agent | Claude Code |
 | :--- | :--- | :--- |
-| Instalación interactiva (menú) | sí | sí |
-| Instalación no interactiva (`--runtime`) | sí | sí |
-| Superficie aislada del runtime vanilla | `~/.pi-ein/agent` | `~/.claude-ein` |
-| Despliegue del núcleo compartido | sí | sí, traducido por `sync.ts` |
-| Ciclo SDD determinista | comandos `/ein:*` | binario `cc-ein-sdd` |
-| Migración de instalación legacy | sí, con backup | no aplica |
+| Proyecto y cambio en `openspec/` | lee y actualiza el estado | lee y actualiza el estado |
+| Carril y postura TDD del cambio | consume la declaración persistida | consume la declaración persistida |
+| Checkpoint para el relevo | escribe y retoma desde disco | escribe y retoma desde disco |
+| Continuidad Pi ↔ Claude | sí, por proyecto/checkpoint | sí, por proyecto/checkpoint |
 
-Los dos runtimes se instalan, se aíslan y ejecutan el mismo ciclo SDD. Esa es la
-parte sólida.
+La continuidad del proyecto es la capacidad compartida comprobada. No demuestra
+que las sesiones, las herramientas o la interfaz sean iguales.
 
-## Lo que NO se puede afirmar
+## Superficies específicas del runtime
 
-:::caution[SIN EVIDENCIA REPRODUCIBLE]
-Estas capacidades **no** están verificadas contra servicios reales, así que no
-figuran como paridad. Que existan no significa que estén demostradas.
+| Superficie | Pi Coding Agent | Claude Code |
+| :--- | :--- | :--- |
+| Papel operativo | runtime de referencia | runtime de relevo |
+| Consulta del estado activo | panel vivo y comandos `/ein:*`; atajo `ctrl+shift+e` | `/ein:status` |
+| Configuración | superficies propias de Pi | `/ein:settings` |
+| Ejecución del flujo | comandos del runtime y coordinador | binario `cc-ein-sdd` y hook sobre shell |
+| Cleaner y Architect automáticos | `Pi-only`; disponibles | ausentes o desactivados; no aplicable/no soportado |
+| Casa aislada | `~/.pi-ein/agent` | `~/.claude-ein` |
+
+Cleaner y Architect permanecen deliberadamente en la superficie Pi-only. Claude
+no los ejecuta automáticamente ni convierte su ausencia en una capacidad
+compartida.
+
+## Límites de paridad
+
+:::caution[SIN PARIDAD DEMOSTRADA]
+La continuidad por checkpoint no autoriza a inferir paridad 1:1. Las filas
+siguientes marcan capacidades diferentes, ausentes o no verificadas.
 :::
 
-**Paridad de MCP externo.** Las integraciones opcionales (Context7, Engram,
-Linear, Codegraph, Hypa) se configuran en ambos, pero la evidencia archivada de
-la paridad entre runtimes registra que el MCP externo de Claude **no se ejercitó
-contra servicios en vivo**. Está soportado, no comprobado.
+| Dimensión | Límite observable |
+| :--- | :--- |
+| Skills | No hay paridad 1:1; la traducción entre runtimes es aproximada por diseño. |
+| Herramientas | Las superficies y la disponibilidad difieren; no se afirma equivalencia. |
+| Sesiones e historiales | Los historiales de conversación permanecen privados; no se comparte la sesión. |
+| MCP externo | El MCP externo de Claude no está verificado contra servicios en vivo; no se presenta como paridad. |
+| Cleaner y Architect | La participación automática está ausente en Claude; su estado es no aplicable/no soportado. |
 
-**Rendimiento.** No hay medición comparada. Cualquier afirmación sobre cuál va
-más rápido sería inventada.
-
-**Inyección proactiva de skills.** El mecanismo difiere entre runtimes y la
-traducción es aproximada por diseño. No hay equivalencia 1:1 que demostrar.
-
-## Diferencias que no son huecos
-
-Algunas cosas son distintas sin que ninguna sea peor:
-
-| | Pi | Claude Code |
-| :--- | :--- | :--- |
-| Cómo se consulta el estado SDD | comandos del runtime | binario compilado |
-| Cómo se actualiza | `ein-install update` + `pi-ein update --all` | `ein-install update` + `bun cc-ein/sync.ts` |
-| Gate de comandos | política del coordinador | hook sobre shell |
+Que una integración o una capacidad esté configurada no significa que su
+paridad esté verificada. El estado desconocido permanece visible y no se
+redacta como éxito silencioso.
 
 ## Cómo elegir
 
-Si ya usas uno de los dos, usa ese. La diferencia de capacidades no justifica
-cambiar de agente.
-
-Si usas los dos, instala `both`: cada uno mantiene su casa y puedes abrir el
-mismo proyecto con cualquiera. El estado del cambio está en `openspec/`, así que
-viaja; los historiales de conversación no.
-
-## Por qué esta página es tan corta
-
-Porque una matriz de runtimes larga sería, en su mayoría, marketing.
-
-Las filas que se podrían añadir —integraciones, extensiones, comportamiento del
-modelo— no tienen medición detrás. Ponerlas con un ✓ en ambas columnas daría una
-impresión de equivalencia que nadie ha comprobado.
+Si ya usas uno de los dos, usa ese. Si usas ambos, instala `both`: cada runtime
+mantiene su casa y puede abrir el mismo proyecto con el estado persistido en
+disco. Cambiar de runtime conserva el checkpoint, pero no recupera el historial
+privado ni añade las superficies ausentes.
 
 ## Siguiente
 

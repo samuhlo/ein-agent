@@ -52,6 +52,10 @@ ein --no-intro           # sin animación de arranque
 Sin terminal interactiva —una tubería, un terminal sin capacidades— pinta la
 vista una vez, lo declara y sale con 0. No finge ser interactiva.
 
+### Panel vivo de Pi
+
+En Pi, el panel vivo se abre con `ctrl+shift+e`. Muestra el cambio activo, el carril, la fase actual y las tareas proyectadas desde `tasks.md` del cambio. Es una superficie de Pi: no representa una vista de Claude Code.
+
 ## El instalador
 
 ### `ein-install install`
@@ -95,16 +99,22 @@ Restaura desde un backup previo.
 | `--runtime pi\|claude\|both` | qué superficie desplegar |
 | `--yes` | no interactivo, acepta los valores por defecto |
 | `--dry-run` | enseña el plan sin ejecutar nada |
-| `--no-engram` | omite la memoria persistente |
+| `--no-engram` | omite la capacidad opcional de memoria persistente (Engram) |
 | `--no-secrets` | omite la configuración de secrets |
 | `--no-linear` | omite la integración con Linear |
 | `--no-hypa` | omite Hypa |
-| `--no-codegraph` | omite el grafo de código |
+| `--no-codegraph` | omite el bootstrap asistido opcional del grafo de código |
 
 :::tip[LA PRIMERA VEZ]
 `ein-install install --dry-run` enseña exactamente qué va a hacer sin tocar nada. Vale
 la pena antes de la primera instalación.
 :::
+
+### Capacidades opcionales
+
+**Codegraph** es un bootstrap asistido opcional cuando falta el índice. Su modo es `on` por defecto, pero no convierte el índice en una dependencia: puedes desactivarlo con `--no-codegraph`.
+
+**Engram** aporta memoria persistente como capacidad opcional. La instalación puede omitirla con `--no-engram`; su ausencia o configuración no cambia la validez del flujo principal.
 
 ## Comandos del flujo SDD
 
@@ -119,7 +129,14 @@ cc-ein-sdd close  <cambio>     # archiva un cambio verificado
 ```
 
 **En Pi**, comandos del agente: `/ein:status`, `/ein:sdd-next <cambio>`,
-`/ein:doctor-output`, `/ein:init`.
+`/ein:doctor-output`, `/ein:init`. El panel vivo de Pi está documentado arriba.
+
+**En Claude Code**, las superficies slash de Ein son:
+
+```text
+/ein:status [cambio]     # muestra el cambio activo, la fase y lo pendiente
+/ein:settings            # consulta y ajusta la configuración de Ein
+```
 
 ## Riesgos que conviene conocer
 

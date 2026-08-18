@@ -8,6 +8,12 @@ verified_rev: "29861f5"
 Un cambio real, archivado en este repositorio:
 [`openspec/changes/archive/docs-sync-contract/`](https://github.com/samuhlo/ein-agent/tree/main/openspec/changes/archive/docs-sync-contract).
 
+::note
+Este es un ejemplo histórico de un cambio `standard` archivado. La postura TDD
+pertenece al cambio documentado, no a una regla universal; este ejemplo no
+documenta una ejecución `micro`.
+::
+
 Lo cuento entero, con los errores intermedios. Una demo en la que todo sale a la
 primera no enseña nada sobre cómo se siente esto.
 

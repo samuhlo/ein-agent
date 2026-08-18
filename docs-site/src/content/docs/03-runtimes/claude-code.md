@@ -5,7 +5,7 @@ sources: ["README.md", "cc-ein/README.md", "openspec/changes/archive/core-parity
 verified_rev: "eeceb7c"
 ---
 
-El adaptador `cc-ein` traduce el núcleo de EIN a lo que Claude Code entiende.
+Pi es el runtime de referencia de EIN. Claude Code actúa como relevo para continuar un cambio cuando conviene, pero no es una copia de la sesión de Pi ni ofrece las mismas superficies.
 
 ## Instalar y abrir
 
@@ -17,6 +17,24 @@ cc-ein
 `cc-ein` exporta `CLAUDE_CONFIG_DIR` apuntando a `~/.claude-ein` y antepone
 `~/.claude-ein/bin` al `PATH`, **solo para esa invocación**. Tu `claude` normal
 sigue usando `~/.claude`.
+
+## Pi como referencia y Claude como relevo
+
+La continuidad entre runtimes es bidireccional: un cambio puede pasar de Pi a
+Claude y de Claude a Pi. El puente es el estado y el checkpoint del proyecto,
+persistidos en disco, para que el siguiente runtime retome las decisiones y el
+punto del cambio que están registrados allí.
+
+Ese checkpoint no recupera el historial privado de la sesión anterior ni hace
+que las conversaciones, las skills, las herramientas o los servicios MCP sean
+compartidos. Continuar el mismo proyecto demuestra continuidad de estado, no
+paridad entre runtimes.
+
+:::note
+Antes de cambiar de runtime, consulta y deja actualizado el estado del cambio
+en disco. Claude y Pi pueden leer ese estado sin depender del contexto de la
+conversación que quedó atrás.
+::
 
 ## El flujo SDD se conduce por CLI
 
@@ -32,11 +50,16 @@ cc-ein-sdd close  <cambio>     # archiva un cambio verificado
 Ese binario se compila durante la sincronización del adaptador y vive en
 `~/.claude-ein/bin`.
 
+En Claude, las superficies `/ein:status` y `/ein:settings` permiten consultar
+el estado de EIN y revisar sus ajustes desde la sesión. Estas superficies no
+convierten a Claude en Pi: el relevo sigue dependiendo del estado/checkpoint
+persistido en disco.
+
 :::caution[OJO CON EL BINARIO]
 Está **compilado**, no interpretado. Si cambias el código de los guardrails en
 el repositorio, el binario instalado sigue con la versión anterior hasta que
 vuelvas a sincronizar con `bun cc-ein/sync.ts`.
-:::
+::
 
 ## Sincronizar el adaptador
 
@@ -46,30 +69,22 @@ bun cc-ein/sync.ts --dry    # enseña qué haría
 ```
 
 Genera el `CLAUDE.md` del adaptador a partir de dos fuentes —la política
-compartida y la adaptación específica de Claude—, traduce los agentes, copia las
-skills y compila el CLI.
+compartida y la adaptación específica de Claude—, traduce los agentes, copia
+las skills y compila el CLI.
 
 Por eso `cc-ein/CLAUDE.md` es **salida generada**: editarlo a mano se pierde en
 la siguiente sincronización. Se edita la adaptación o la fuente compartida.
 
-## El gate de shell
+## Frontera Pi-first: Cleaner y Architect
 
-Un hook intercepta cada llamada a shell y decide sobre los subcomandos de git,
-con precedencia fija `deny → confirm → allow`:
-
-| | |
-| :--- | :--- |
-| **Permitido** | `status`, `diff`, `log`; `add`, `commit`, `branch` sin flags peligrosos |
-| **Pide confirmación** | `push`, `rebase`, `branch -D`, `npm publish` |
-| **Denegado siempre** | `push --force`, `reset --hard`, `clean -fd`, `rm -rf /` |
-
-Su límite conocido, y conviene saberlo: el hook intercepta **comandos de
-shell**. No fuerza que la escritura de ficheros pase por los subagentes, ni
-intercepta las ediciones directas.
+Cleaner y Architect participan automáticamente solo en Pi: son perfiles
+**Pi-only**. En Claude, esa participación está deliberadamente ausente o
+desactivada; una directiva para esos perfiles se reporta como `no aplicable` o
+`no soportada`, no como una ejecución automática.
 
 ## Huecos honestos frente a Pi
 
-No son equivalentes, y estos son los que se conocen:
+Pi y Claude no son equivalentes, y estos son los límites conocidos:
 
 **La inyección de skills no es 1:1.** El mecanismo de skills de Pi y el de
 Claude Code son distintos, así que la traducción es aproximada por diseño.

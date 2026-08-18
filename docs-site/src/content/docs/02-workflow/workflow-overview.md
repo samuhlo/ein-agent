@@ -1,96 +1,115 @@
 ---
-title: "Las siete fases"
-description: "Qué hace cada fase, qué recibe, qué produce y qué tiene prohibido hacer."
+title: "Carriles del flujo SDD"
+description: "Qué fases componen los carriles standard y micro y cómo se persisten por cambio."
 sources: ["openspec/specs/sdd-lifecycle/spec.md", "ein-pi/core/docs/GUIA_PI_WORKFLOW.md"]
 verified_rev: "29861f5"
 ---
+
+El flujo SDD ofrece dos carriles que se declaran para cada cambio. `standard`
+proporciona el recorrido completo; `micro` reduce la preparación cuando el
+cambio no necesita mapear el repositorio ni desglosar tareas.
+
+## Carril `standard`
+
+El carril `standard` recorre todas las fases del cambio:
 
 ```text
 scope → map → design → tasks → apply → verify → close
 ```
 
-Cada fase la ejecuta un subagente distinto. Lo que define a cada una no es solo
-lo que hace: es **lo que tiene prohibido hacer**. Sin esa prohibición, la
-primera fase con contexto suficiente se lleva por delante a las demás.
+Usa `standard` cuando el cambio necesita localizar sus superficies, resolver
+conflictos entre fuentes y convertir el diseño en un checklist ejecutable.
 
-## scope
+## Carril `micro`
 
-Acota. Qué entra, qué no, y con qué presupuesto se trabaja.
+El carril `micro` recorre las fases siguientes:
 
-Es también donde se detectan las capacidades del proyecto: qué runner de tests
-hay, qué comandos de calidad existen. Y donde se declara si el cambio altera
-comportamiento observable o no.
+```text
+scope → design → apply → verify → close
+```
+
+`micro` omite únicamente `map` y `tasks`. Conserva `scope`, `design`, `apply`,
+`verify` y `close`; no elimina la verificación ni el cierre del cambio.
+
+## Persistencia por cambio
+
+El carril y la postura TDD se persisten por cambio. Pi y Claude consultan esa
+decisión en los artefactos del cambio actual: no se hereda entre cambios ni se
+infiere por el tamaño, el contenido o el runtime que lo ejecuta.
+
+La postura TDD determina cómo se realiza `apply`. Con TDD activa y un runner
+disponible, el trabajo sigue ciclos RED, GREEN, TRIANGULATE y REFACTOR; con otra
+postura, se aplica la verificación que el cambio haya declarado.
+
+## Responsabilidades de las fases
+
+Las fases explican responsabilidades concretas y solo aparecen cuando el
+carril del cambio las incluye.
+
+### scope
+
+Acota qué entra, qué no y con qué presupuesto se trabaja. También detecta las
+capacidades del proyecto —como el runner de tests y los comandos de calidad— y
+declara si el cambio altera comportamiento observable.
 
 **Prohibido:** explorar el repositorio entero "para entenderlo", implementar
-nada, tocar tests.
+nada o tocar tests.
 
 Si el alcance viene sin acotar —"refactoriza el proyecto"— no lo acepta:
 recomienda partirlo en trozos.
 
-## map
+### map
 
-Localiza. Dónde vive el código que hay que tocar, qué lo llama, qué se rompe si
-cambia.
-
-Aquí es donde salen los conflictos entre fuentes: dos ficheros que dicen cosas
-distintas sobre lo mismo, documentación que ya no coincide con el código. Se
-declara cuál manda y por qué.
+Localiza dónde vive el código que hay que tocar, qué lo llama y qué se rompe si
+cambia. También identifica conflictos entre fuentes y declara cuál manda y por
+qué.
 
 **Prohibido:** escribir código, aunque sea una línea. Su única salida es
 `map.md`.
 
-## design
+### design
 
-Decide. Qué se va a hacer, qué alternativas se descartaron y **con qué criterios
-se sabrá si salió bien**.
+Decide qué se va a hacer, qué alternativas se descartan y **con qué criterios
+se sabrá si salió bien**. Un diseño sin criterios de aceptación deja a `verify`
+sin nada contra qué verificar.
 
-Esa última parte es la que hace útil la fase. Un diseño sin criterios de
-aceptación deja a `verify` sin nada contra qué verificar.
-
-**Prohibido:** implementar. Y cambiar el alcance por su cuenta: si el diseño
+**Prohibido:** implementar o cambiar el alcance por su cuenta. Si el diseño
 revela que el trabajo es el doble, se dice, no se asume.
 
-## tasks
+### tasks
 
 Convierte el diseño en un checklist ejecutable, agrupado en lotes con
-dependencias explícitas.
-
-Cada tarea lleva su comando de verificación. Si `apply` tiene que adivinar cómo
-comprobar algo, no lo comprueba.
+dependencias explícitas. Cada tarea lleva su comando de verificación.
 
 **Prohibido:** rediseñar. Si un criterio del diseño no es comprobable tal como
 está escrito, se reformula aquí **dejando constancia** de que sustituye al
 original.
 
-## apply
+### apply
 
-Implementa, lote a lote.
-
-Con runner de tests, en ciclos: escribir el test, verlo fallar por la razón
-correcta, implementar, verlo pasar. La salida real de cada ejecución queda
-registrada — no un "todos en verde", la salida.
+Implementa, lote a lote. La salida real de cada ejecución queda registrada; no
+se fabrica un "todos en verde" sin evidencia.
 
 **Prohibido:** fabricar salidas de tests que no se ejecutaron, relajar una regla
-del contrato para que el código encaje, y salirse de la superficie de escritura
+del contrato para que el código encaje o salirse de la superficie de escritura
 declarada.
 
 Si se queda sin presupuesto, para y devuelve dónde llegó. No acelera saltándose
 comprobaciones.
 
-## verify
+### verify
 
 Comprueba la implementación contra el **diseño**, no contra la intención.
-
 Ejecuta los comandos por su cuenta en lugar de fiarse de lo que `apply` diga
-haber ejecutado. Y cuando un criterio no es comprobable por comando, lo dice en
+haber ejecutado. Cuando un criterio no es comprobable por comando, lo dice en
 vez de darlo por bueno.
 
 **Prohibido:** arreglar lo que encuentra. Lo reporta con evidencia y criterio
 incumplido; arreglarlo es otra pasada.
 
-## close
+### close
 
-Condensa el cambio en un `summary.md` revisable: qué se hizo, qué se decidió,
+Condensa el cambio en un `summary.md` revisable: qué se hizo, qué se decidió y
 qué quedó abierto.
 
 **Prohibido:** afirmar que algo está desplegado, publicado o terminado si no lo

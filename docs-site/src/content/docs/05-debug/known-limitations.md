@@ -51,13 +51,45 @@ Entrar en el flujo SDD depende del coordinador, no del hook.
 
 ## Verificación: qué significa y qué no
 
-Un cambio con `verify: pass` significa que **los criterios que su propio diseño
-declaró se cumplieron**. No significa que el código sea correcto, ni que los
-criterios fueran los adecuados.
+Un cambio con `verify: pass` significa que **los criterios declarados por el
+cambio y su carril se cumplieron**. Prueba ese contrato local, no una garantía
+universal de que el código sea correcto ni de que los criterios fueran los
+adecuados.
 
 Cuando un proyecto no tiene runner de tests, la fase lo declara y usa
 comprobaciones mecánicas en su lugar. Es honesto, y es menos garantía que un
 ciclo de tests real.
+
+Codegraph ofrece un bootstrap asistido opcional cuando falta su índice. Su modo
+`on` por defecto no lo convierte en una dependencia obligatoria. Engram también
+es opcional y, cuando está habilitado, conserva el contexto compartido por
+cambio en vez de convertirse en memoria universal.
+
+El puente entre Pi y Claude es el proyecto y su checkpoint en disco. Los
+historiales privados de cada runtime siguen siendo privados y no se transfieren
+entre sesiones.
+
+## Traducción fail-closed
+
+La traducción conserva un estado visible para cada directiva. Solo `applied`
+representa una directiva inyectada en el runtime; los demás estados no
+representan aplicación exitosa ni un valor predeterminado:
+
+| Estado | Significado |
+| :--- | :--- |
+| `unreadable` | La fuente no se puede leer. |
+| `unsupported` | El runtime no admite la directiva. |
+| `inactive` | La capacidad o configuración no está activa. |
+| `unhandled` | No existe un traductor o manejador para la directiva. |
+| `applied` | La directiva se inyecta en el runtime. |
+
+Los estados `unreadable`, `unsupported`, `inactive` y `unhandled` permanecen
+visibles para diagnóstico. El comportamiento fail-closed no los convierte en
+defaults ni oculta la ausencia de aplicación.
+
+La participación automática de Cleaner y Architect está disponible únicamente
+en Pi. Claude los marca como no aplicable o no soportado; la ausencia de esa
+participación no se presenta como ejecución del perfil.
 
 ## Flujos que aún no están maduros
 
