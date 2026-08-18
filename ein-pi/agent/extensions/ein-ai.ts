@@ -18,6 +18,7 @@ import {
 	ensureApplyTurnBudget,
 	ensurePhaseRuntime,
 	ensureDelegationAcceptance,
+	ensureParticipantForeground,
 	ensurePlanningAcceptance,
 	ensureSddPreflight,
 	gateTddForDelegation,
@@ -149,7 +150,7 @@ import { admitCleanerImprove, applyCleanerImprove, completeCleanerImprove } from
 import type { CleanerBoundedMutationRequestV1, CleanerStateTransitionRecordV1, CleanerVerificationRecordV1 } from "../lib/cleaner-bounded-mutations.ts";
 import type { CleanerFindingV1 } from "../lib/cleaner-read-only-audit.ts";
 import { bindArchitectPlan, collectArchitectEvidence, validateArchitectPlan, type ArchitectEvidence, type BoundArchitectPlan } from "../lib/architect-read-only.ts";
-import { admitSddParticipantCall, clearSddParticipantSession, completeSddParticipantCall, guardSddVerify, planSddParticipants, type SddParticipant } from "../lib/sdd-participants.ts";
+import { admitSddParticipantCall, clearSddParticipantSession, completeSddParticipantCall, guardSddVerify, participantResultIsUnrecognized, planSddParticipants, sddParticipantCallsAreTracked, type SddParticipant } from "../lib/sdd-participants.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
@@ -182,6 +183,24 @@ const scoutTracking: ScoutTracking = new Map();
 // del runtime instalado, no de la delegación concreta, y repetirlo en cada
 // llamada solo taparía el resto.
 const shapeDriftWarned = new Set<string>();
+
+// Espejo del canario de admisión, del lado de la RECOGIDA (A-3): si Ein deja de
+// reconocer la forma del resultado de un participante rastreado, avisa una vez
+// por sesión en vez de perder la evidencia en silencio.
+const participantResultDriftWarned = new Set<string>();
+
+function warnParticipantResultDrift(ctx: ExtensionContext): void {
+	const key = sddPreflightSessionKey(ctx);
+	if (participantResultDriftWarned.has(key)) return;
+	participantResultDriftWarned.add(key);
+	ctx.ui.notify(
+		t(
+			"ai.delegation.participant-result-drift",
+			"Ein no reconoce la forma del resultado de este participante SDD: la evidencia no se registra. Actualiza Ein (`ein update`).",
+		),
+		"warning",
+	);
+}
 
 function rememberPhaseSnapshot(
 	toolCallId: string,
@@ -834,6 +853,11 @@ export default function einAi(pi: ExtensionAPI): void {
 					if (blocker) return { block: true, reason: blocker };
 				} catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			}
+			// R1: un participante lanzado en background nunca trae su resultado
+			// terminal por el `tool_result` de su propia llamada (`// 002 A-1`).
+			// Se fuerza foreground, sobrescribiendo un `async` explícito: un
+			// participante inobservable no debe admitirse.
+			ensureParticipantForeground(event.input);
 			// Canario de drift: si Ein no reconoce ni un child, TODOS los gates de
 			// abajo son no-ops silenciosos (es lo que pasó al mover la ejecución a
 			// `workflowScript`). Se avisa una vez y se sigue: no se bloquea trabajo
@@ -908,8 +932,16 @@ export default function einAi(pi: ExtensionAPI): void {
 	// vacía, timeout en la lectura final) con la fase YA entregada. Sin esto el
 	// orquestador repetía una fase completa y pagaba dos veces.
 	pi.on("tool_result", (event, ctx) => {
+		// R3/R4: `subagent_wait` NUNCA aporta estado de participante (`// 002`,
+		// el texto del hijo viaja por un mensaje custom que Ein no observa); solo
+		// alimenta el canario de deriva si había llamadas de participante en vuelo.
+		if (event.toolName === "subagent_wait") {
+			if (ctx.hasUI && participantResultIsUnrecognized({ toolName: event.toolName, details: event.details, hasTrackedCalls: sddParticipantCallsAreTracked() })) warnParticipantResultDrift(ctx);
+			return undefined;
+		}
 		if (event.toolName !== "subagent") return undefined;
-		completeSddParticipantCall(ctx.cwd, event.toolCallId, event.isError, event.content.map((part) => part.type === "text" ? part.text : "").join("\n"));
+		if (ctx.hasUI && participantResultIsUnrecognized({ toolName: event.toolName, details: event.details, hasTrackedCalls: sddParticipantCallsAreTracked() })) warnParticipantResultDrift(ctx);
+		completeSddParticipantCall(ctx.cwd, event.toolCallId, event.isError, event.content.map((part) => part.type === "text" ? part.text : "").join("\n"), event.details);
 		try {
 			const report = acceptTrackedScoutResult(scoutTracking, event.toolCallId, event.details, event.isError, ctx.cwd);
 			if (report) return { isError: false, content: [{ type: "text", text: JSON.stringify(report) }] };

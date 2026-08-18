@@ -13,6 +13,8 @@
 //   cc-ein-sdd sync   <change>     sincroniza el delta OpenSpec explícito
 //   cc-ein-sdd delta  [change] --domain <d> < ops.json   escribe el delta de
 //                                 comportamiento desde operaciones estructuradas
+//   cc-ein-sdd summary [change] < summary.md  escribe summary.md desde stdin,
+//                                 canal determinista para el cierre
 //   cc-ein-sdd settings [--hook]   ajustes del proyecto → directivas
 //   cc-ein-sdd preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]
 //                                 lee o fija la postura del cambio (TDD + carril)
@@ -41,6 +43,7 @@ import {
 	writePreflightRecord,
 } from "../../ein-pi/agent/lib/sdd-preflight-record.ts";
 import { writeOpenSpecDelta } from "../../ein-pi/agent/lib/openspec-delta-write.ts";
+import { writeSddSummary } from "../../ein-pi/agent/lib/sdd-summary-write.ts";
 import { synchronizeOpenSpecFilesystem } from "../../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
 import {
 	evaluateDeniedCommand,
@@ -97,7 +100,9 @@ function formatStatus(status: SddChangeStatus, active: string[]): string {
 	}
 	// Un bloqueo que no dice cómo salir obliga a interpretar, y un ejecutor
 	// barato interpreta mal. El remedio se calcula del mismo estado.
-	const remedies = formatSddRemedies(collectSddRemedies(status, "claude"));
+	const remedies = formatSddRemedies(
+		collectSddRemedies({ ...status, nextPhase: status.nextRecommended }, "claude"),
+	);
 	if (remedies) lines.push("", remedies);
 	return lines.join("\n");
 }
@@ -336,6 +341,39 @@ export function runDeltaCommand(
 
 async function deltaCmd(args: readonly string[]): Promise<void> {
 	const { text, exitCode } = runDeltaCommand(cwd, args, await Bun.stdin.text());
+	console.log(text);
+	if (exitCode !== 0) process.exit(exitCode);
+}
+
+// Persistencia de `summary.md` por stdin. Espejo exacto de `runDeltaCommand`:
+// una negativa a `Write` deja de ser terminal, porque existe un canal que no es
+// "crear un fichero por iniciativa propia". No garantiza que el agente lo
+// invoque (eso no es comprobable de forma determinista) — solo que, si lo
+// invoca, la escritura queda gateada como el resto del ciclo de vida.
+export function runSummaryCommand(
+	dir: string,
+	args: readonly string[],
+	rawStdin: string,
+): { text: string; exitCode: 0 | 1 } {
+	const change = args.find((arg) => !arg.startsWith("--")) ?? resolveSddStatus(dir).change ?? "";
+	const content = rawStdin;
+
+	if (content.trim().length === 0) {
+		return { text: "/// SDD SUMMARY — stdin is empty. Pass the summary.md content on stdin.", exitCode: 1 };
+	}
+
+	const result = writeSddSummary({ cwd: dir, change, content });
+	if (!result.ok) {
+		return { text: `/// SDD SUMMARY — ${result.reason}.`, exitCode: 1 };
+	}
+	return {
+		text: `/// SDD SUMMARY — '${result.change}': wrote openspec/changes/${result.change}/summary.md.`,
+		exitCode: 0,
+	};
+}
+
+async function summaryCmd(args: readonly string[]): Promise<void> {
+	const { text, exitCode } = runSummaryCommand(cwd, args, await Bun.stdin.text());
 	console.log(text);
 	if (exitCode !== 0) process.exit(exitCode);
 }
@@ -659,9 +697,10 @@ if (import.meta.main) {
 		case "lane": laneCmd(rest); break;
 		case "preflight": preflightCmd(rest); break;
 		case "delta": await deltaCmd(rest); break;
+		case "summary": await summaryCmd(rest); break;
 		case "sync": await syncCmd(rest); break;
 		default:
-			console.log("cc-ein-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]  |  lane [change] [micro|standard]  |  preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]  |  delta [change] --domain <domain> < operations.json");
+			console.log("cc-ein-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]  |  lane [change] [micro|standard]  |  preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]  |  delta [change] --domain <domain> < operations.json  |  summary [change] < summary.md");
 			process.exit(1);
 	}
 }

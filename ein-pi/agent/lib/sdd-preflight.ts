@@ -374,6 +374,25 @@ export function delegationIsPlanningOnly(input: unknown): boolean {
 // código y RECHAZA en falso un artefacto documental que `ein_sdd_check` ya
 // valida — un ✗ que dependía de que el orquestador recordara pasar el acceptance.
 // Devuelve true si mutó. No pisa un acceptance explícito ni toca applies.
+// R1/A-1: un participante lanzado en background nunca trae su resultado
+// terminal por el `tool_result` de su propia llamada (`asyncByDefault: true`
+// por defecto en `pi-subagents`). Forzar foreground es lo único que lo trae al
+// mismo canal que Ein ya observa por `toolCallId`. `foregroundOnly: true` es
+// el seguro contra `forceTopLevelAsync` (`pi-subagents`
+// `runs/background/top-level-async.ts:12`); el mismo par que
+// `delegation-adapters.ts:138-139` usa para su propia ruta garantizada.
+//
+// A diferencia de los otros inyectores, un `async` explícito SE SOBRESCRIBE:
+// un participante inobservable no debe admitirse (fail-closed, `// 002`).
+export function ensureParticipantForeground(input: unknown): boolean {
+	if (!isRecord(input)) return false;
+	const isParticipant = collectDelegationItems(input).some((item) => item.task?.includes("[ein-sdd-participant/v1 "));
+	if (!isParticipant) return false;
+	input.async = false;
+	input.foregroundOnly = true;
+	return true;
+}
+
 export function ensurePlanningAcceptance(input: unknown): boolean {
 	if (!isRecord(input)) return false;
 	if (input.acceptance != null) return false;

@@ -32,12 +32,28 @@ const SYNC_COMMAND: Readonly<Record<RemedyRuntime, string>> = Object.freeze({
 
 export type SddRemedy = Readonly<{
 	/** Qué está bloqueado, en una etiqueta estable. */
-	code: "spec-state" | "verify-stale" | "summary-stale";
+	code: "spec-state" | "verify-stale" | "summary-stale" | "summary-channel";
 	/** Qué pasa. */
 	message: string;
 	/** Qué hacer para salir. La frase accionable. */
 	fix: string;
 }>;
+
+/**
+ * Guía calculada, no prosa fija: cuando el runtime es Claude y la siguiente
+ * fase es `close`, nombra el canal determinista de `summary.md` en el momento
+ * exacto en que hace falta. En Pi `write` ya funciona para ese fichero, así que
+ * no aplica. No garantiza que el agente lo use — eso no es comprobable de forma
+ * determinista —; solo asegura que la salida lo nombre cuando corresponde.
+ */
+export function summaryChannelRemedy(nextPhase: string | undefined, runtime: RemedyRuntime): SddRemedy | null {
+	if (runtime !== "claude" || nextPhase !== "close") return null;
+	return {
+		code: "summary-channel",
+		message: "la fase `close` va a escribir `summary.md`",
+		fix: "si `Write` se rehúsa por política, persiste con `cc-ein-sdd summary <change>` (stdin = contenido del fichero)",
+	};
+}
 
 /**
  * Remedio para el estado de sincronización de specs. `synchronized` no es un
@@ -99,6 +115,7 @@ export function collectSddRemedies(
 		specState: OpenSpecState | "legacy";
 		verifyStale: boolean;
 		summaryStale: boolean;
+		nextPhase?: string;
 	},
 	runtime: RemedyRuntime = "pi",
 ): readonly SddRemedy[] {
@@ -107,6 +124,7 @@ export function collectSddRemedies(
 			specStateRemedy(status.specState, runtime),
 			verifyStaleRemedy(status.verifyStale),
 			summaryStaleRemedy(status.summaryStale),
+			summaryChannelRemedy(status.nextPhase, runtime),
 		].filter((remedy): remedy is SddRemedy => remedy !== null),
 	);
 }
