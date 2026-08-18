@@ -5,7 +5,26 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
-## [0.70.0] - 2026-08-17
+## [0.71.0] - 2026-08-18
+
+### Added
+
+- **Codegraph puede arrancar desde Ein**: `on` es ahora el modo por defecto y,
+  cuando falta el índice, Ein ofrece crearlo una sola vez por proyecto en vez de
+  dejarte ejecutar `codegraph init` a mano. El modo heredado `auto` se conserva
+  al leer la configuración existente.
+- **La postura de cada cambio queda escrita en disco**: puedes declarar TDD
+  `off` o `strict` y el carril del cambio antes de trabajar; Pi y Claude leen la
+  misma decisión, sin heredar por accidente la postura de otro cambio o de otro
+  runtime.
+
+### Changed
+
+- **Pi y Claude comparten un único cuaderno de Engram** en `.engram-ein`, y usan
+  el mismo nombre de proyecto que deriva Engram. La memoria de un cambio ya no
+  queda perdida en almacenes separados ni bajo un identificador que las
+  herramientas MCP no consultan.
+
 
 ### Added
 

@@ -119,9 +119,9 @@ describe("release asset contract", () => {
     const newestChangelogVersion = changelog.match(/^## \[([^\]]+)\]/m)?.[1];
 
     expect([packageJson.version, installerVersion, newestChangelogVersion]).toEqual([
-      "0.70.0",
-      "0.70.0",
-      "0.70.0",
+      "0.71.0",
+      "0.71.0",
+      "0.71.0",
     ]);
   });
 
