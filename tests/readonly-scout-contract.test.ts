@@ -81,6 +81,17 @@ describe("readonly scout launch contract", () => {
 		expect(launch.async).toBe(false);
 	});
 
+	// Cinturón y tirantes. Forzar el foreground mutando el input del hook es UNA
+	// vía; el runtime lee `async` del frontmatter por su cuenta. Si la mutación
+	// no llegara, el lanzamiento seguiría siendo foreground en vez de irse a
+	// background y perder el reporte, que es el fallo medido en producción.
+	test("el frontmatter canónico declara async: false, no solo el normalizador (R7)", () => {
+		const scout = readFileSync(SCOUT_FRONTMATTER, "utf8");
+		const frontmatter = scout.slice(0, scout.indexOf("\n---", 3));
+		expect(frontmatter).toMatch(/^async: false$/m);
+		expect(readFileSync(SCOUT_SPEC, "utf8")).toContain("MUST declare `async: false`");
+	});
+
 	test("an orphaned pending entry (cancelled/dead scout, no result ever accepted) blocks every later launch until the tracking map is cleared at the next user turn (R6 residual risk closed)", () => {
 		const tracking = new Map<string, string>();
 		normalizeScoutLaunch({ agent: "ein-scout", task: "inspect A" }, "call-orphan", tracking);
@@ -182,19 +193,52 @@ describe("readonly scout result handoff", () => {
 		expect(tracking.has("scout-call")).toBe(false);
 	});
 
-	test("error accionable si no hay reporte in-turn (async devuelve results vacío)", () => {
+	// Antes este test exigía que la entrada se borrase. Eso ERA el agujero: un
+	// resultado vacío (la forma de un lanzamiento en background) volvía al
+	// instante, liberaba el turno y dejaba arrancar el siguiente scout. En una
+	// run real salieron tres seguidos y los tres reportes se tiraron.
+	test("un resultado fuera de contrato falla y NO libera el turno (R8)", () => {
 		const cases: unknown[] = [
 			undefined,
-			{ mode: "single", results: [] },                                        // launch async: reporte llega luego
+			{ mode: "single", results: [] },                                        // sin resultado in-turn
 			{ mode: "single", results: [{ agent: "ein-scout" }] },                  // sin finalOutput
 			{ mode: "single", results: [{ agent: "ein-scout", finalOutput: "" }] }, // vacío
-			{ mode: "single", results: [{ agent: "ein-scout", finalOutput: report() }, { agent: "ein-scout", finalOutput: report() }] }, // parallel: 2 resultados
+			{ mode: "single", results: [{ agent: "ein-scout", finalOutput: report() }, { agent: "ein-scout", finalOutput: report() }] }, // 2 resultados
 		];
 		for (const details of cases) {
 			const tracking = tracked();
 			expect(() => acceptTrackedScoutResult(tracking, "scout-call", details, false, fixture())).toThrow("ein-scout contract");
-			expect(tracking.has("scout-call")).toBe(false);
+			expect(tracking.get("scout-call")).toBe("off-contract");
 		}
+	});
+
+	// El mensaje describe lo que se observó. No afirma la causa: antes decía
+	// "launched async or in parallel?" como si lo supiera, y mandaba a corregir
+	// eso aunque el fallo real fuera otro.
+	test("el mensaje nombra la forma observada, no una causa supuesta", () => {
+		const zero = () => acceptTrackedScoutResult(tracked(), "scout-call", { mode: "single", results: [] }, false, fixture());
+		expect(zero).toThrow("returned 0 results in this turn");
+		expect(zero).not.toThrow("launched async or in parallel");
+
+		const many = { mode: "single", results: [{ agent: "ein-scout", finalOutput: report() }, { agent: "ein-scout", finalOutput: report() }] };
+		expect(() => acceptTrackedScoutResult(tracked(), "scout-call", many, false, fixture())).toThrow("returned 2 results");
+	});
+
+	// La regla "fuera de contrato dos veces es un incidente" vivía solo en la
+	// prosa del orquestador. Ahora corta el tercer lanzamiento antes de gastarlo.
+	test("dos resultados fuera de contrato en un turno cortan el tercer lanzamiento (R8)", () => {
+		const tracking: Map<string, string> = new Map();
+		const empty = { mode: "single", results: [] };
+
+		for (const id of ["scout-1", "scout-2"]) {
+			normalizeScoutLaunch({ agent: "ein-scout", task: "x" }, id, tracking);
+			expect(() => acceptTrackedScoutResult(tracking, id, empty, false, fixture())).toThrow("ein-scout contract");
+		}
+
+		expect(() => normalizeScoutLaunch({ agent: "ein-scout", task: "x" }, "scout-3", tracking)).toThrow("infrastructure incident");
+		// El turno del usuario es la frontera: al limpiarse, el scout vuelve a estar disponible.
+		tracking.clear();
+		expect(normalizeScoutLaunch({ agent: "ein-scout", task: "x" }, "scout-4", tracking)).toBeDefined();
 	});
 
 	test("sigue fail-closed sobre citas/schema inválidos, malformed, y sin replay en error del runner", () => {
@@ -204,6 +248,8 @@ describe("readonly scout result handoff", () => {
 		const malformed = tracked();
 		expect(() => acceptTrackedScoutResult(malformed, "scout-call", result("not json at all"), false, fixture())).toThrow("malformed");
 
+		// Un error del runner es suyo, no del contrato: libera el turno, y su
+		// mensaje original llega al padre sin que Ein lo reescriba.
 		const errorTracking = tracked();
 		expect(acceptTrackedScoutResult(errorTracking, "scout-call", undefined, true, fixture())).toBeUndefined();
 		expect(errorTracking.has("scout-call")).toBe(false);
