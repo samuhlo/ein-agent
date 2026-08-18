@@ -13,7 +13,7 @@ type Passage = { id: string; change: string; scope: string[]; order: SddParticip
 export type SddParticipantPlan = Readonly<{ status: "ready" | "complete" | "blocked"; passageId: string; order: readonly SddParticipant[]; next?: Readonly<{ agent: SddParticipant; task: string }>; blocker?: string }>;
 
 const passages = new Map<string, Passage>();
-const callPassages = new Map<string, { key: string; agent: SddParticipant }>();
+const callPassages = new Map<string, { key: string; agent: SddParticipant; sessionKey: string }>();
 const running = new Set<string>();
 const marker = /\[ein-sdd-participant\/v1 passage=([a-f0-9]{64}) state=([^\]\s]+)\]/;
 const restricted = new Set([".atl", ".git", ".pi", "build", "coverage", "dist", "generated", "node_modules", "runtime", "vendor"]);
@@ -59,8 +59,36 @@ function changedScope(cwd: string, change: string): { applyId: string; paths: st
 	return { applyId: createHash("sha256").update(bytes).digest("hex"), paths: [...paths].sort(), seal };
 }
 
+// `order` is intentionally OUT of the identity hash (`// 003 B-2`): a passage
+// identifies WHICH bytes are audited, not WHO audits them. That is what lets
+// disabling a participant mid-passage release it without moving the
+// `passageId` and orphaning `running`/`callPassages` for a call in flight.
 function participantId(value: SddParticipantsCheckpoint): string {
-	return createHash("sha256").update(JSON.stringify({ change: value.change, applyId: value.applyId, scopeId: value.scopeId, beforeStateRef: value.beforeStateRef, order: value.order })).digest("hex");
+	return createHash("sha256").update(JSON.stringify({ change: value.change, applyId: value.applyId, scopeId: value.scopeId, beforeStateRef: value.beforeStateRef })).digest("hex");
+}
+
+// The order effective for planning/admission is filtered at READ time; the
+// durable `order` is NEVER narrowed on write, so the checkpoint invariant
+// "evidence subset order" (`continuity-checkpoint.ts:250`) stays intact by
+// construction (`// 003 B-2` regla 2).
+// Only an EXPLICIT session override (an operator's own `/ein:cleaner off` in
+// the session that owns this passage) can shrink the effective order; a bare
+// project-config default (e.g. a brand-new session after a crash, or a
+// different session that never touched this passage) must not silently drop
+// pending work it never opted out of. `readAgentControlStatus` already tells
+// the two apart via `source`.
+function disabledByThisSession(cwd: string, sessionKey: string, agent: "cleaner" | "architect"): boolean {
+	const status = readAgentControlStatus(cwd, sessionKey, agent);
+	return status.source === "session override" && !status.enabled;
+}
+
+function effectiveOrder(cwd: string, sessionKey: string, durable: SddParticipantsCheckpoint): SddParticipant[] {
+	return durable.order.filter((agent) => {
+		const has = agent === "ein-cleaner" ? durable.cleaner !== null : durable.architect !== null;
+		if (has) return true;
+		const short = agent === "ein-cleaner" ? "cleaner" : "architect";
+		return !disabledByThisSession(cwd, sessionKey, short);
+	});
 }
 
 function passage(cwd: string, sessionKey: string, change: string): Passage {
@@ -86,7 +114,7 @@ function passage(cwd: string, sessionKey: string, change: string): Passage {
 			}
 		}
 		const id = participantId(durable), key = `${sessionKey}:${change}:${id}`;
-		const created = { id, change, scope: scoped.paths, order: [...durable.order], stateRef: durable.cleaner?.afterStateRef ?? durable.beforeStateRef, participants: durable };
+		const created = { id, change, scope: scoped.paths, order: effectiveOrder(cwd, sessionKey, durable), stateRef: durable.cleaner?.afterStateRef ?? durable.beforeStateRef, participants: durable };
 		passages.set(key, created);
 		return created;
 	}
@@ -123,18 +151,60 @@ export function admitSddParticipantCall(cwd: string, sessionKey: string, toolCal
 	let recomputed: string; try { recomputed = changedScope(cwd, value.change).seal; } catch { return "SDD participant blocked: source state is stale; request a fresh participant plan."; }
 	if (match[2] !== value.stateRef || recomputed !== value.stateRef) return "SDD participant blocked: source state is stale; request a fresh participant plan.";
 	running.add(`${value.id}:${agent}`);
-	callPassages.set(toolCallId, { key, agent });
+	callPassages.set(toolCallId, { key, agent, sessionKey });
 	return null;
 }
 
-export function completeSddParticipantCall(cwd: string, toolCallId: string, failed: boolean, output: string): void {
+// Terminalidad por FORMA, no por texto (`// 002 A-2`): un handle de
+// lanzamiento en background trae `details.results: []` con `runId`/`asyncId`
+// (`async-execution.ts:1288`); un resultado terminal trae un `SingleResult`
+// real en `details.results[]` (`agent`, `task`, `finalOutput`). Se busca por
+// forma, no se adivina por el texto.
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+type TerminalResult = { agent?: unknown; task?: unknown; finalOutput?: unknown };
+
+function terminalResultsOf(details: unknown): TerminalResult[] | null {
+	if (!isRecord(details) || !Array.isArray(details.results)) return null;
+	const results = details.results.filter((entry): entry is TerminalResult => isRecord(entry) && typeof entry.finalOutput === "string");
+	return results.length ? results : null;
+}
+
+// Predicado puro (A-3): espejo del canario de admisión. `hasTrackedCalls`
+// distingue "no reconozco esta forma" de "no había nada rastreado que perder".
+export function participantResultIsUnrecognized(input: { toolName?: unknown; details?: unknown; hasTrackedCalls?: unknown }): boolean {
+	if (!input || !input.hasTrackedCalls) return false;
+	if (input.toolName === "subagent_wait") return true;
+	if (input.toolName !== "subagent") return false;
+	return terminalResultsOf(input.details) === null;
+}
+
+export function completeSddParticipantCall(cwd: string, toolCallId: string, failed: boolean, output: string, details?: unknown): void {
 	const tracked = callPassages.get(toolCallId);
 	if (!tracked) return;
+	// Un handle de lanzamiento (sin payload terminal reconocible) NO consume el
+	// rastreo: dejarlo intacto es lo que convierte un reintento en `blocked`
+	// ("already running") en vez de un bucle silencioso (`// 002 A-2`).
+	const results = terminalResultsOf(details);
+	if (!results && !failed) return;
 	callPassages.delete(toolCallId);
 	const value = passages.get(tracked.key);
 	if (!value) return;
 	running.delete(`${value.id}:${tracked.agent}`);
-	const statuses = [...output.matchAll(/\bstatus:\s*(complete|blocked|incomplete)\b/ig)].map((match) => match[1]!.toLowerCase());
+	// B-4: un resultado tardío de un participante que se acaba de desactivar y
+	// que no tenía evidencia previa se DESCARTA sin escribir nada. Escribir un
+	// `blocked` tardío volvería a bloquear el pasaje que el operador acaba de
+	// liberar. Si el participante llegó a mutar el árbol, el sello dejará de
+	// casar y `passage()` reacuñará por su cuenta (`// 003 B-4`).
+	const short = tracked.agent === "ein-cleaner" ? "cleaner" : "architect";
+	const hadEvidence = tracked.agent === "ein-cleaner" ? value.participants.cleaner !== null : value.participants.architect !== null;
+	if (!hadEvidence && disabledByThisSession(cwd, tracked.sessionKey, short)) return;
+	// Precedencia: un único `finalOutput` manda (misma que aplica
+	// `pi-subagents` a sus propios hijos); si no, el texto de `content`.
+	const effectiveOutput = results && results.length === 1 && typeof results[0]!.finalOutput === "string" ? (results[0]!.finalOutput as string) : output;
+	const statuses = [...effectiveOutput.matchAll(/\bstatus:\s*(complete|blocked|incomplete)\b/ig)].map((match) => match[1]!.toLowerCase());
 	if (failed || statuses.length !== 1 || statuses[0] === "incomplete") return;
 	for (let attempt = 0; attempt < 2; attempt += 1) {
 		const read = readContinuityCheckpoint(cwd, { mode: "sdd", change: value.change });
@@ -156,6 +226,12 @@ export function completeSddParticipantCall(cwd: string, toolCallId: string, fail
 export function guardSddVerify(cwd: string, sessionKey: string, change: string): string | null {
 	const plan = planSddParticipants(cwd, sessionKey, change);
 	return plan.status === "complete" ? null : plan.blocker ?? `SDD participants pending in order: ${plan.order.join(" -> ")}. Call ein_sdd_participants and run the returned next participant before sdd-verify.`;
+}
+
+// A-3: distingue "no reconozco esta forma" de "no había nada rastreado que
+// perder" para el canario de recogida.
+export function sddParticipantCallsAreTracked(): boolean {
+	return callPassages.size > 0;
 }
 
 export function clearSddParticipantSession(sessionKey: string): void {

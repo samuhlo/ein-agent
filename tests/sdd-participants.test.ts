@@ -9,7 +9,8 @@ import { deriveContinuityCheckpoint } from "../ein-pi/agent/lib/continuity-check
 import { readContinuityCheckpoint, writeContinuityCheckpoint } from "../ein-pi/agent/lib/continuity-checkpoint-store.ts";
 import { ensureEinGitignore } from "../ein-pi/agent/lib/gitignore.ts";
 import { projectProjectState } from "../ein-pi/agent/lib/project-state.ts";
-import { admitSddParticipantCall, clearSddParticipantSession, completeSddParticipantCall, guardSddVerify, planSddParticipants } from "../ein-pi/agent/lib/sdd-participants.ts";
+import { admitSddParticipantCall, clearSddParticipantSession, completeSddParticipantCall, guardSddVerify, participantResultIsUnrecognized, planSddParticipants } from "../ein-pi/agent/lib/sdd-participants.ts";
+import { ensureParticipantForeground } from "../ein-pi/agent/lib/sdd-preflight.ts";
 
 const roots: string[] = [];
 const sessions = ["off-off", "on-off", "off-on", "on-on", "blocked", "fresh", "once", "project"];
@@ -38,9 +39,13 @@ function setChangedFiles(cwd: string, paths: readonly string[]): void {
 	writeFileSync(join(cwd, "openspec/changes/change/apply-progress.md"), `status: complete\n\n## Files changed\n\n${paths.map((path) => `- \`${path}\``).join("\n")}\n`);
 }
 
+function terminalDetails(agent: string, task: string, output: string): unknown {
+	return { mode: "single", results: [{ agent, task, finalOutput: output }] };
+}
+
 function finish(cwd: string, session: string, call: string, agent: "ein-cleaner" | "ein-architect", task: string, output = "status: complete"): void {
 	expect(admitSddParticipantCall(cwd, session, call, agent, task)).toBeNull();
-	completeSddParticipantCall(cwd, call, false, output);
+	completeSddParticipantCall(cwd, call, false, output, terminalDetails(agent, task, output));
 }
 
 afterEach(() => {
@@ -86,7 +91,7 @@ describe("automatic SDD participant sequence", () => {
 		const cleaner = planSddParticipants(cwd, "fresh", "change").next!;
 		expect(admitSddParticipantCall(cwd, "fresh", "c", "ein-cleaner", cleaner.task)).toBeNull();
 		writeFileSync(join(cwd, "src/a.ts"), "export const a = 2;\n");
-		completeSddParticipantCall(cwd, "c", false, "status: complete");
+		completeSddParticipantCall(cwd, "c", false, "status: complete", terminalDetails("ein-cleaner", cleaner.task, "status: complete"));
 		const architect = planSddParticipants(cwd, "fresh", "change").next!;
 		expect(planSddParticipants(cwd, "fresh", "change").passageId).toBe(cleaner.task.match(/passage=([a-f0-9]+)/)![1]!);
 		expect(architect.task).not.toContain(cleaner.task.match(/state=([^\]\s]+)/)![1]!);
@@ -133,15 +138,22 @@ describe("automatic SDD participant sequence", () => {
 		expect(next.next?.task).not.toBe(first.next?.task);
 	});
 
-	test("first post-apply plan freezes order across sessions", () => {
+	test("first post-apply plan freezes acquisition across sessions; effective order still honors each session's own explicit off (Fallo B)", () => {
 		const cwd = fixture("project", false, false);
 		mkdirSync(join(cwd, ".pi/ein"), { recursive: true });
 		writeFileSync(join(cwd, ".pi/ein/agents.json"), JSON.stringify({ agents: {
 			cleaner: { enabled: true }, architect: { enabled: false },
 		} }));
 		clearAgentControlSession("new-project");
-		expect(planSddParticipants(cwd, "new-project", "change").order).toEqual(["ein-cleaner"]);
-		expect(planSddParticipants(cwd, "project", "change").order).toEqual(["ein-cleaner"]);
+		const acquired = planSddParticipants(cwd, "new-project", "change");
+		expect(acquired.order).toEqual(["ein-cleaner"]);
+		const queried = planSddParticipants(cwd, "project", "change");
+		// The durable acquisition (and its `passageId`) stays frozen; but session
+		// "project" has its own explicit Cleaner/Architect off (set in `fixture`),
+		// so its own query correctly excludes the evidence-less Cleaner from the
+		// EFFECTIVE order (`// 003 B-2` regla 2) without touching the durable one.
+		expect(queried.passageId).toBe(acquired.passageId);
+		expect(queried.order).toEqual([]);
 	});
 
 	test("restart hydrates durable completion while crash and failed or ambiguous calls remain pending", () => {
@@ -154,7 +166,7 @@ describe("automatic SDD participant sequence", () => {
 		for (const [failed, output] of [[true, "status: complete"], [false, "status: complete\nstatus: blocked"], [false, "status: incomplete"]] as const) {
 			const pending = planSddParticipants(crashed, "new-session", "change").next!;
 			expect(admitSddParticipantCall(crashed, "new-session", `pending-${output.length}-${failed}`, "ein-cleaner", pending.task)).toBeNull();
-			completeSddParticipantCall(crashed, `pending-${output.length}-${failed}`, failed, output);
+			completeSddParticipantCall(crashed, `pending-${output.length}-${failed}`, failed, output, terminalDetails("ein-cleaner", pending.task, output));
 			expect(guardSddVerify(crashed, "new-session", "change")).toContain("pending");
 		}
 	});
@@ -230,6 +242,57 @@ test("off does not affect explicit direct invocation", () => {
 	expect(direct.kind).toBe("request");
 });
 
+describe("disabling a participant mid-passage releases it without dropping evidence (Fallo B)", () => {
+	// RED B1: Cleaner completes, then Architect is disabled mid-passage. The
+	// passage must release (order shrinks, plan completes, verify unblocks),
+	// the passageId must stay stable, and the Cleaner's evidence must survive
+	// in the durable checkpoint.
+	test("disabling the pending Architect after the Cleaner completes releases the passage", () => {
+		const cwd = fixture("on-on", true, true);
+		const cleaner = planSddParticipants(cwd, "on-on", "change").next!;
+		finish(cwd, "on-on", "b1-cleaner", "ein-cleaner", cleaner.task);
+		const beforeOff = planSddParticipants(cwd, "on-on", "change");
+		expect(beforeOff.next?.agent).toBe("ein-architect");
+		routeAgentControl(cwd, "on-on", "architect", "off");
+		const plan = planSddParticipants(cwd, "on-on", "change");
+		expect(plan.order).toEqual(["ein-cleaner"]);
+		expect(plan.status).toBe("complete");
+		expect(plan.passageId).toBe(beforeOff.passageId);
+		expect(guardSddVerify(cwd, "on-on", "change")).toBeNull();
+		const saved = readContinuityCheckpoint(cwd, { mode: "sdd", change: "change" });
+		expect(saved.status === "valid" && saved.checkpoint.sddParticipants?.cleaner?.status).toBe("complete");
+	});
+
+	// RED B2 (triangulation): disabling before the agent ever ran, and
+	// re-enabling it, must be reversible with a stable passageId.
+	test("disabling the Cleaner before it runs excludes it, and re-enabling restores it as next", () => {
+		const cwd = fixture("on-on", true, true);
+		const initial = planSddParticipants(cwd, "on-on", "change");
+		routeAgentControl(cwd, "on-on", "cleaner", "off");
+		const disabled = planSddParticipants(cwd, "on-on", "change");
+		expect(disabled.order).toEqual(["ein-architect"]);
+		expect(disabled.passageId).toBe(initial.passageId);
+		routeAgentControl(cwd, "on-on", "cleaner", "on");
+		const reenabled = planSddParticipants(cwd, "on-on", "change");
+		expect(reenabled.order).toEqual(["ein-cleaner", "ein-architect"]);
+		expect(reenabled.passageId).toBe(initial.passageId);
+		expect(reenabled.next?.agent).toBe("ein-cleaner");
+	});
+
+	// RED B3 (triangulation): a disabled, evidence-less participant's late
+	// result must be discarded without re-blocking the passage.
+	test("a late blocked result from a just-disabled participant does not re-block the passage", () => {
+		const cwd = fixture("on-on", true, true);
+		const cleanerTask = planSddParticipants(cwd, "on-on", "change").next!;
+		expect(admitSddParticipantCall(cwd, "on-on", "b3-inflight", "ein-cleaner", cleanerTask.task)).toBeNull();
+		routeAgentControl(cwd, "on-on", "cleaner", "off");
+		completeSddParticipantCall(cwd, "b3-inflight", false, "status: blocked\nreason: audit unavailable", terminalDetails("ein-cleaner", cleanerTask.task, "status: blocked\nreason: audit unavailable"));
+		const plan = planSddParticipants(cwd, "on-on", "change");
+		expect(plan.order).toEqual(["ein-architect"]);
+		expect(plan.status).not.toBe("blocked");
+	});
+});
+
 describe("apply prompt does not contradict the passage parser (R9/T13)", () => {
 	test("sdd-apply.md requires the canonical Files changed section, not a blanket ban on file lists", () => {
 		const promptPath = join(import.meta.dir, "../ein-pi/core/agents/sdd-apply.md");
@@ -259,5 +322,76 @@ describe("Files changed grammar (SDD_ARTIFACT_GRAMMAR.md)", () => {
 		const plan = planSddParticipants(cwd, "off-off", "change");
 		expect(admitSddParticipantCall(cwd, "off-off", "call", "ein-cleaner", plan.next!.task)).toBeNull();
 		expect(plan.next!.task).toContain('"path":"ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md"');
+	});
+});
+
+// fix-participant-result-registration — Fallo A: el lanzamiento en background
+// nunca trae el informe terminal, y borrar el rastreo en el "resultado" del
+// lanzamiento permite reintentar en bucle sin protesta. Estos tests son
+// SECUENCIA (lanzamiento -> handle sin resultado -> replan), no una llamada
+// aislada: una llamada aislada no reproduce el bug (ver design.md D).
+describe("fix-participant-result-registration: launch handle does not consume tracking", () => {
+	test("RED A1: a launch handle (no terminal payload) leaves the same agent blocked as already running, not ready again", () => {
+		const cwd = fixture("off-off", true, false);
+		const plan = planSddParticipants(cwd, "off-off", "change");
+		expect(admitSddParticipantCall(cwd, "off-off", "launch-1", "ein-cleaner", plan.next!.task)).toBeNull();
+		// Forma exacta de un handle de lanzamiento en background: `results` vacío,
+		// con `runId`/`asyncId`, sin `finalOutput`. No hay `status:` que leer.
+		completeSddParticipantCall(cwd, "launch-1", false, "Async run started: r1 [r1]", { mode: "single", runId: "r1", asyncId: "r1", results: [] });
+		const replanned = planSddParticipants(cwd, "off-off", "change");
+		expect(replanned.status).toBe("blocked");
+		expect(replanned.blocker).toContain("already running");
+	});
+
+	test("RED A2: the terminal result for the same toolCallId still completes the passage after a launch handle", () => {
+		const cwd = fixture("off-off", true, false);
+		const plan = planSddParticipants(cwd, "off-off", "change");
+		expect(admitSddParticipantCall(cwd, "off-off", "launch-2", "ein-cleaner", plan.next!.task)).toBeNull();
+		completeSddParticipantCall(cwd, "launch-2", false, "Async run started: r2 [r2]", { mode: "single", runId: "r2", asyncId: "r2", results: [] });
+		completeSddParticipantCall(cwd, "launch-2", false, "status: complete", terminalDetails("ein-cleaner", plan.next!.task, "status: complete"));
+		expect(planSddParticipants(cwd, "off-off", "change").status).toBe("complete");
+	});
+});
+
+describe("fix-participant-result-registration: ensureParticipantForeground (RED A3, pure)", () => {
+	test("forces async:false and foregroundOnly:true on a delegation carrying the participant marker", () => {
+		const input: Record<string, unknown> = { agent: "ein-cleaner", task: "[ein-sdd-participant/v1 passage=abc state=def]\ndo it", async: true };
+		expect(ensureParticipantForeground(input)).toBe(true);
+		expect(input.async).toBe(false);
+		expect(input.foregroundOnly).toBe(true);
+	});
+
+	test("leaves a non-participant delegation untouched", () => {
+		const input: Record<string, unknown> = { agent: "ein-git", task: "commit and push", async: true };
+		expect(ensureParticipantForeground(input)).toBe(false);
+		expect(input.async).toBe(true);
+		expect(input.foregroundOnly).toBeUndefined();
+	});
+
+	test("overrides an explicit async:true for a participant workflowScript delegation", () => {
+		const input: Record<string, unknown> = {
+			workflowScript: 'runs.run("audit", { agent: "ein-cleaner", task: "[ein-sdd-participant/v1 passage=abc state=def]\\ndo it", async: true })',
+		};
+		expect(ensureParticipantForeground(input)).toBe(true);
+		expect(input.async).toBe(false);
+		expect(input.foregroundOnly).toBe(true);
+	});
+});
+
+describe("fix-participant-result-registration: participantResultIsUnrecognized (RED A4, pure)", () => {
+	test("true for a subagent launch handle with tracked calls", () => {
+		expect(participantResultIsUnrecognized({ toolName: "subagent", details: { mode: "single", runId: "r1", results: [] }, hasTrackedCalls: true })).toBe(true);
+	});
+
+	test("true for a subagent_wait result while participant calls are tracked", () => {
+		expect(participantResultIsUnrecognized({ toolName: "subagent_wait", details: { mode: "management", results: [], completions: [] }, hasTrackedCalls: true })).toBe(true);
+	});
+
+	test("false for a recognized terminal result", () => {
+		expect(participantResultIsUnrecognized({ toolName: "subagent", details: { mode: "single", results: [{ agent: "ein-cleaner", task: "t", finalOutput: "status: complete" }] }, hasTrackedCalls: true })).toBe(false);
+	});
+
+	test("false when there are no tracked calls at all", () => {
+		expect(participantResultIsUnrecognized({ toolName: "subagent", details: { mode: "single", runId: "r1", results: [] }, hasTrackedCalls: false })).toBe(false);
 	});
 });

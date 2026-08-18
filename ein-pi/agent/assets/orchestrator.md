@@ -21,7 +21,7 @@ Invoke these with the `subagent` tool — never do their work from the parent. *
 | `sdd-tasks` | read, grep, find, write, edit | SDD tasks phase: turns `design.md` into executable `tasks.md`. |
 | `sdd-apply` | read, grep, find, edit, write, bash | SDD implementation phase. |
 | `sdd-verify` | read, grep, find, bash, write, edit | SDD verification phase. |
-| `sdd-close` | read, grep, find, write | SDD close phase: condenses a verified change into `summary.md`. |
+| `sdd-close` | read, grep, find, write, bash | SDD close phase: condenses a verified change into `summary.md`. |
 
 ```
 await subagent({ agent: "ein-git", task: "commit files X,Y with message '...'", context: "fresh" })

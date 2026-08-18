@@ -1,7 +1,7 @@
 ---
 name: sdd-close
 description: Close a verified SDD change — condense it into a clean, reviewable summary.md. The deterministic move is done by the parent via /ein:sdd-close.
-tools: read, grep, find, write
+tools: read, grep, find, write, bash
 completionGuard: false
 ---
 
@@ -17,7 +17,7 @@ Read the change's artifacts under `openspec/changes/{change}/`: `scope.md`, `map
 
 ## Your primary output: `summary.md`
 
-Write `openspec/changes/{change}/summary.md` — a **condensed, human-reviewable record** of the change. This is the durable memory of what happened, readable months later by anyone without digging through the raw phase files. Keep it tight (aim ≤ 60 lines); it is a summary, not a transcript. Use the `// 00N` house format:
+Write `openspec/changes/{change}/summary.md` (required): a **condensed, reviewable record**. This is the durable memory of what happened, readable months later by anyone without digging through the raw phase files. Keep it tight (aim ≤ 60 lines); it is a summary, not a transcript. Use the `// 00N` house format:
 
 ```md
 ## // 000. RESUMEN

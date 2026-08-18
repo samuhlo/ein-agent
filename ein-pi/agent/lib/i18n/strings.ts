@@ -146,6 +146,7 @@ const EN: Record<string, string> = {
 	"ai.models.applied": "Model config applied to {0} agent(s). SDD assets ready: {1} agent(s), {2} chain(s), {3} support.",
 	"ai.models.error": "Error applying model config: {0}",
 	"ai.delegation.shape-drift": "Ein does not recognize this delegation shape: the delivery and TDD gates do not apply. If the subagent runtime was just updated, update Ein (`ein update`).",
+	"ai.delegation.participant-result-drift": "Ein does not recognize this SDD participant result shape: the evidence is not recorded. Update Ein (`ein update`).",
 	"ai.sdd.installed": "SDD assets: {0} agent(s), {1} chain(s), {2} support available ({3} installed, {4} already present).",
 
 	// ── /ein:resume ──
@@ -437,6 +438,7 @@ const ES: Record<string, string> = {
 	"ai.models.applied": "Config de modelos aplicada a {0} agente(s). Assets SDD listos: {1} agente(s), {2} chain(s), {3} soporte.",
 	"ai.models.error": "Error al aplicar config de modelos: {0}",
 	"ai.delegation.shape-drift": "Ein no reconoce la forma de esta delegación: los gates de entrega y TDD no se aplican. Si el runtime de subagentes se acaba de actualizar, actualiza Ein (`ein update`).",
+	"ai.delegation.participant-result-drift": "Ein no reconoce la forma del resultado de este participante SDD: la evidencia no se registra. Actualiza Ein (`ein update`).",
 	"ai.sdd.installed": "Assets SDD: {0} agente(s), {1} chain(s), {2} soporte disponibles ({3} instalados, {4} ya presentes).",
 
 	// ── /ein:resume ──
