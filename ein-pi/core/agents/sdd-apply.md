@@ -31,7 +31,7 @@ You are a cheap-model executor; stay tight. A bounded slice must cost a fraction
 
 ## Strict TDD Gate
 
-**Preflight override (highest priority):** if the injected `## SDD Session Preflight` block sets a Strict TDD decision, it wins over `openspec/config.yaml`. `Strict TDD: OFF` → go to Standard Mode (no RED/GREEN cycle), even if the project config declares strict TDD. `Strict TDD: ON (forced)` → strict mode regardless of config. `Strict TDD: ASK` → follow the on/off decision the parent forwarded for this apply (the parent asks the user before launching you); if no explicit decision reached you, fall back to the config rule below. `Strict TDD: AUTO` → fall back to the config rule below.
+**Change stance (highest priority):** this change's stance is recorded on disk and wins over `openspec/config.yaml`. It reaches you as a `## SDD change stance` or `## SDD Session Preflight` block; read it with `ein_sdd_preflight` when neither did. `Strict TDD: OFF` → Standard Mode, no RED/GREEN cycle, even if the project config declares strict TDD. `ON (forced)` → strict regardless of config. `AUTO`, or no stance at all → fall back to the config rule below.
 
 If `openspec/config.yaml` declares strict TDD and a test runner, or the parent prompt says strict TDD is active:
 
