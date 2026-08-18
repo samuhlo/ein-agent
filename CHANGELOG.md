@@ -5,6 +5,44 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.72.0] - 2026-08-18
+
+### Fixed
+
+- **El arnés dejó de bloquearse a sí mismo**: antes de pasarle un cambio al
+  Cleaner, Ein hacía una foto del proyecto y se la daba como salvoconducto
+  —"audita esto, y aborta si algo cambió"—, pero para preparar ese encargo
+  guardaba un fichero de estado dentro del propio proyecto fotografiado. La foto
+  nacía caducada, el Cleaner respondía `source state is stale` en bucle y
+  verificar el cambio quedaba bloqueado sin salida posible. El checkpoint de
+  continuidad ya no es visible para git, en el carril SDD y en el adhoc.
+- **El fixture que escondía el fallo**: la prueba de participantes escribía a
+  mano la línea de `.gitignore` que el producto nunca generaba, así que el bug
+  vivía en verde. Ahora la prueba mide el producto.
+- **El scout se rechazaba después de ejecutarse**: lanzar varios exploradores a
+  la vez fallaba al recoger el resultado, ya pagado. El rechazo ocurre ahora en
+  el lanzamiento, y cuesta cero.
+
+### Changed
+
+- **El sello del pasaje mide el cambio, no el árbol entero**: se calcula sobre
+  los ficheros declarados —ruta, identidad de inodo y contenido— en vez de sobre
+  todo el repositorio. La garantía se conserva entera: si alguien toca uno de
+  esos ficheros entre el plan y la admisión, el Cleaner sigue abortando. Lo que
+  desaparece es el ruido que invalidaba pasajes sin motivo.
+- **Los exploradores paralelos pasan a ser secuenciales**: el prompt del
+  orquestador autorizaba hasta tres scouts a la vez y el código los prohibía.
+  Mandaba el código; la contradicción se ha retirado del prompt.
+- **La lista de ficheros de `apply-progress.md` tiene gramática fija**, donde se
+  produce y comprobada por una prueba: el gate que la lee dejaba de funcionar
+  cuando el ejecutor la escribía a su manera.
+
+### Known issues
+
+- La verificación sigue degradándose de `fresh` a `stale` cuando se escribe
+  cualquier artefacto después de verificar. Queda declarado y medible, no
+  resuelto.
+
 ## [0.71.0] - 2026-08-18
 
 ### Added
