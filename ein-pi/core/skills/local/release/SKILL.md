@@ -21,9 +21,10 @@ Use this skill when preparing, publishing, or verifying an Ein installer release
 ## Rules
 
 - Keep `installer/package.json`, `installer/src/core/version.ts` and `CHANGELOG.md` on the same SemVer version.
-- Update `tests/release-asset-contract.test.ts` too: it pins the expected version as a
-  literal in the assertion AND in the test name, so a release that skips it fails its own
-  checks in step 2. Update both — the name has silently lagged the assertion before.
+- `tests/release-asset-contract.test.ts` needs NO edit: it checks that the three pointers
+  agree with each other and have a publishable shape, not what the version is. It used to
+  pin the version as a literal and drifted on its own; if it fails now, a pointer is
+  genuinely out of sync — fix the pointer, never the test.
 - Run the release checks before tagging.
 - Tag format: `installer-v<semver>` (for example, `installer-v0.23.0`).
 - The changelog is updated before the tag.
@@ -34,10 +35,10 @@ Use this skill when preparing, publishing, or verifying an Ein installer release
 
 ### 1. Prepare the version
 
-Update the installer version pointers, the changelog and the release-contract test, then commit the explicit paths.
+Update the installer version pointers and the changelog, then commit the explicit paths.
 
 ```bash
-git add installer/package.json installer/src/core/version.ts CHANGELOG.md tests/release-asset-contract.test.ts
+git add installer/package.json installer/src/core/version.ts CHANGELOG.md
 git commit -m "chore(release): prepara installer v<version>"
 ```
 

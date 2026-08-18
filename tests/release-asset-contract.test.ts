@@ -111,18 +111,30 @@ function sha256(hexChars: string): string {
 }
 
 describe("release asset contract", () => {
-  test("release preparation aligns the three authorized 0.72.0 version pointers", () => {
+  // Antes este test fijaba la versión como literal —tres veces, más el nombre
+  // del test— y había que editarlo en cada release. Ya se había desincronizado
+  // solo: su nombre decía 0.70.0 mientras verificaba 0.71.0, y nadie lo notó.
+  // El contrato no necesita saber CUÁL es la versión, sino que los tres
+  // punteros digan la misma y que tenga forma de versión publicable.
+  test("release preparation keeps the three authorized version pointers in sync", () => {
     const packageJson = JSON.parse(readFileSync(INSTALLER_PACKAGE_PATH, "utf8")) as { version?: unknown };
     const versionSource = readFileSync(INSTALLER_VERSION_SOURCE_PATH, "utf8");
     const changelog = readFileSync(CHANGELOG_PATH, "utf8");
-    const installerVersion = versionSource.match(/export const INSTALLER_VERSION = [\"']([^\"']+)[\"']/)?.[1];
-    const newestChangelogVersion = changelog.match(/^## \[([^\]]+)\]/m)?.[1];
+    const pointers = {
+      "installer/package.json": packageJson.version,
+      "installer/src/core/version.ts": versionSource.match(/export const INSTALLER_VERSION = [\"']([^\"']+)[\"']/)?.[1],
+      "CHANGELOG.md": changelog.match(/^## \[([^\]]+)\]/m)?.[1],
+    };
 
-    expect([packageJson.version, installerVersion, newestChangelogVersion]).toEqual([
-      "0.72.0",
-      "0.72.0",
-      "0.72.0",
-    ]);
+    // El workflow solo acepta un tag `installer-vX.Y.Z`: un puntero con otra
+    // forma publicaría un release que el instalador no sabe pedir. Se compara
+    // como "fichero: valor" para que el fallo nombre al culpable.
+    for (const [file, version] of Object.entries(pointers)) {
+      expect(`${file}: ${version}`).toMatch(/: [0-9]+\.[0-9]+\.[0-9]+$/);
+    }
+    expect(Object.entries(pointers)).toEqual(
+      Object.keys(pointers).map((file) => [file, packageJson.version]),
+    );
   });
 
   test("workflow publishes exactly the documented asset argument set", () => {
