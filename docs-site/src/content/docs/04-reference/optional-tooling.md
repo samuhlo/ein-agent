@@ -38,7 +38,7 @@ no la invocan.
 **Sin ella.** El contexto del proyecto sale de `EIN.md` y de los artefactos
 OpenSpec, que son el registro canónico de todas formas. Engram no los sustituye.
 
-**Flag:** `--no-engram`. Vive en `~/.engram-pi`.
+**Flag:** `--no-engram`. Vive en `~/.engram-ein`.
 
 ## Linear
 

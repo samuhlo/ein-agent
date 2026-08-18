@@ -41,9 +41,6 @@ const ADAPTATION_START = "<!-- ein:claude-adaptation:start -->";
 const ADAPTATION_END = "<!-- ein:claude-adaptation:end -->";
 const HARNESS_START = "<!-- ein:harness-discipline:start -->";
 const HARNESS_END = "<!-- ein:harness-discipline:end -->";
-const PI_ENGRAM_STORE = '- Provider store: `join(validatedAbsoluteHome, ".engram-pi")`.';
-const CLAUDE_ENGRAM_STORE = '- Provider store: `join(validatedAbsoluteHome, ".engram-cc-ein")`.';
-
 export const SURFACE_RUNNER_SOURCE = join(REPO, "ein-pi", "agent", "surfaces", "surface-runner.ts");
 export const CLAUDE_SURFACE_RUNNER_NAME = "ein-surface-runner";
 export const CLAUDE_CONTINUITY_RUNNER_NAME = "ein-continuity";
@@ -432,7 +429,9 @@ function validateCoordinator(canonical: string, adapter: string): string {
   if (adapter.indexOf(HARNESS_START) > adapter.indexOf(HARNESS_END)) {
     throw parity("PARITY_INVALID_COORDINATOR", "adapter harness markers are out of order");
   }
-  const translatedCanonical = translateBody(canonical, "AGENTS.md").replace(PI_ENGRAM_STORE, CLAUDE_ENGRAM_STORE).trimEnd();
+  // El almacén de Engram ya NO se reescribe por runtime: los dos comparten
+  // cuaderno, así que la línea canónica vale tal cual para Claude.
+  const translatedCanonical = translateBody(canonical, "AGENTS.md").trimEnd();
   const normalizedAdapter = translateBody(adapter, "CLAUDE.adapter.md").trimEnd();
   const output = `${PROVENANCE}\n\n${translatedCanonical}\n\n${normalizedAdapter}\n`;
   if (output.split(HARNESS_START).length - 1 !== 1 || output.split(HARNESS_END).length - 1 !== 1) {

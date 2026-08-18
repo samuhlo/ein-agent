@@ -59,9 +59,11 @@ function fake(children: ProcessChild[]): { process: ProcessCapability; calls: Pr
 }
 
 describe("Engram CLI transport", () => {
-	test("derives explicit unequal provider stores from HOME", () => {
-		expect(resolveEngramDataDir("pi", { HOME: "/home/ein" })).toBe("/home/ein/.engram-pi");
-		expect(resolveEngramDataDir("claude", { HOME: "/home/ein" })).toBe("/home/ein/.engram-cc-ein");
+	// Un solo cuaderno para los dos runtimes; el detalle vive en
+	// tests/engram-single-store.test.ts.
+	test("derives the shared Ein notebook from HOME", () => {
+		expect(resolveEngramDataDir("pi", { HOME: "/home/ein" })).toBe("/home/ein/.engram-ein");
+		expect(resolveEngramDataDir("claude", { HOME: "/home/ein" })).toBe("/home/ein/.engram-ein");
 	});
 
 	test("uses the pinned argument arrays and never enables a shell", async () => {

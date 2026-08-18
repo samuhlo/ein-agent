@@ -109,7 +109,7 @@ Las claves viven en `~/.config/opencode-secrets/` y nunca se commitean:
 
 ## Memoria
 
-Engram corre como MCP (`~/.pi/agent/mcp.json`) sobre la DB `~/.engram-pi`. Context7 corre via `bunx @upstash/context7-mcp`. Ambos son lazy: arrancan solo cuando el modelo llama una tool.
+Engram corre como MCP (`~/.pi/agent/mcp.json`) sobre la DB `~/.engram-ein`. Context7 corre via `bunx @upstash/context7-mcp`. Ambos son lazy: arrancan solo cuando el modelo llama una tool.
 
 ## Diagnóstico
 

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import {
 	approveCandidate,
@@ -94,7 +94,12 @@ describe("memory identity and topic policy", () => {
 				gitRoots: { rootCommits: () => roots },
 			});
 			await memory.prepare({ lifecycleKey: "session", query: "safe" });
-			expect(searches).toEqual([{ query: "safe", projectId: expectedProjectId }]);
+			// CONTRATO NUEVO: un repo sin remoto se nombra por su carpeta raíz,
+			// que es lo que deriva Engram (`git_root`). El hash de commits raíz
+			// queda como respaldo de último recurso, no como identidad normal:
+			// escribir bajo un identificador opaco dejaba a Claude sin ver nada.
+			expect(searches).toEqual([{ query: "safe", projectId: basename(cwd).toLowerCase() }]);
+			expect(expectedProjectId).toStartWith("ein-root-");
 		} finally {
 			rmSync(cwd, { recursive: true, force: true });
 		}

@@ -10,6 +10,7 @@ import { join } from "node:path";
 import type { Platform } from "./platform.ts";
 import { lookPath } from "./exec.ts";
 import { resolveCodegraph, resolveHypa } from "./deps.ts";
+import { ENGRAM_STORE_DIRNAME } from "../../../ein-pi/agent/lib/memory-contract.ts";
 import {
   defaultPiInstallContext,
   type PiInstallContext,
@@ -182,9 +183,9 @@ export function runDoctor(
     check(mcp.ok, "mcp.json parse", "JSON MCP valido."),
     check("engram" in mcpServers, "mcp engram", "Servidor Engram configurado."),
     check(
-      String(engramEnv.ENGRAM_DATA_DIR ?? "").includes(".engram-pi"),
+      String(engramEnv.ENGRAM_DATA_DIR ?? "").includes(ENGRAM_STORE_DIRNAME),
       "engram data dir",
-      "Engram apunta a DB Pi (~/.engram-pi).",
+      `Engram apunta al cuaderno de Ein (~/${ENGRAM_STORE_DIRNAME}).`,
     ),
     check(
       String(engramServer?.command ?? "").length > 0 &&

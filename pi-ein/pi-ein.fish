@@ -6,7 +6,7 @@ function pi-ein --description "Pi Coding Agent con el cerebro de Ein (aislado en
     #   EIN_PI_AGENT_HOME    → el código de EIN (ein-paths) resuelve sus rutas ahí.
     set -x PI_CODING_AGENT_DIR "$HOME/.pi-ein/agent"
     set -x EIN_PI_AGENT_HOME "$HOME/.pi-ein/agent"
-    set -fx ENGRAM_DATA_DIR "$HOME/.engram-pi"
+    set -fx ENGRAM_DATA_DIR "$HOME/.engram-ein"
 
     set -l namespace ""
     if test (count $argv) -gt 0
