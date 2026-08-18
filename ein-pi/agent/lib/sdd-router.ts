@@ -30,7 +30,6 @@ export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify"
 export type SddNext = SddPhase | "done";
 export type VerifyOutcome = "pass" | "fail" | "unknown" | "absent";
 export type ApplyOutcome = "complete" | "partial" | "blocked" | "unknown" | "absent";
-export type SddNextMode = "interactive" | "auto";
 
 export type SddArtifactStatus = {
 	phase: SddPhase;
@@ -140,8 +139,6 @@ export type SddNextReport = {
 	nextRecommended: SddNext;
 	reason: string;
 	suggestedAction: string;
-	mode: SddNextMode;
-	autoEnabled: false;
 	blocked: string[];
 };
 
@@ -845,10 +842,9 @@ export function formatSddPlanPreview(preview: SddPlanPreview): string {
 	return lines.join("\n");
 }
 
-export function resolveSddNext(cwd: string, change?: string, options: { auto?: boolean } = {}): SddNextReport {
+export function resolveSddNext(cwd: string, change?: string): SddNextReport {
 	const active = listActiveChanges(cwd);
 	const exists = typeof change === "string" && active.includes(change);
-	const mode: SddNextMode = options.auto ? "auto" : "interactive";
 
 	if (change && !exists) {
 		return {
@@ -858,8 +854,6 @@ export function resolveSddNext(cwd: string, change?: string, options: { auto?: b
 			nextRecommended: "done",
 			reason: `No encontre el cambio '${change}' entre los cambios activos.`,
 			suggestedAction: "Revisa el nombre del cambio o crea uno nuevo antes de continuar.",
-			mode,
-			autoEnabled: false,
 			blocked: [],
 		};
 	}
@@ -881,10 +875,44 @@ export function resolveSddNext(cwd: string, change?: string, options: { auto?: b
 		nextRecommended: status.nextRecommended,
 		reason,
 		suggestedAction,
-		mode,
-		autoEnabled: false,
 		blocked: blockers,
 	};
+}
+
+// El comando `/ein:sdd-next` imprime su reporte al USUARIO: nada de eso llega al
+// orquestador, que es quien ejecuta fases. Sin esta traducción el comando es un
+// callejón sin salida — dice "Ejecuta verify" y no se lo dice a nadie.
+//
+// `sddNextHandoff` convierte la ruta que el router determinista YA calculó en la
+// instrucción que la superficie entrega al modelo. El reparto de autoridad no
+// cambia: la ruta la decide la herramienta, el modelo solo la recorre. Por eso
+// la instrucción prohíbe explícitamente re-derivarla.
+//
+// Devuelve `null` cuando no hay nada que continuar (cambio inexistente o flujo
+// terminado): no se inventa trabajo para tener algo que decir.
+export function sddNextHandoff(
+	report: SddNextReport,
+	options: { participantsBlocker?: string | null } = {},
+): string | null {
+	if (!report.exists || report.change === null || report.nextRecommended === "done") return null;
+	const phase = report.nextRecommended;
+	// `close` son dos pasos: el agente condensa `summary.md` y después el move
+	// determinista archiva. Nombrar solo uno deja el cambio a medio cerrar.
+	const run = phase === "close"
+		? 'Run `subagent({ agent: "sdd-close", task: "…" })` to condense `summary.md`, then archive with the `ein_sdd_close` tool.'
+		: `Run \`subagent({ agent: "sdd-${phase}", task: "…" })\` with the bounded task for this change.`;
+	const lines = [
+		`Continue the SDD change '${report.change}'.`,
+		`Deterministic route, already computed — do NOT re-derive it and do NOT skip phases: current phase \`${report.currentPhase}\`, next phase to run \`${phase}\`.`,
+		run,
+		"Honor the change's recorded lane and TDD stance, and keep every normal scope, write, and safety requirement.",
+	];
+	if (options.participantsBlocker) lines.push(`Before \`sdd-verify\`: ${options.participantsBlocker}`);
+	if (report.blocked.length > 0) {
+		lines.push("Resolve these router-reported blockers first; never advance past one silently:");
+		for (const item of report.blocked) lines.push(`- ${item}`);
+	}
+	return lines.join("\n");
 }
 
 export function listActiveChangeSummaries(cwd: string): SddChangeSummary[] {

@@ -36,7 +36,7 @@ This file is the shared coordinator policy source. Claude-specific runtime behav
 
 - Subagent delegation uses the visible `subagent` tool (`pi-subagents`); builtin subagents are disabled. Routing policy (the parent never edits source inline; all code writing goes to `sdd-apply`) is specified in the orchestrator prompt.
 - Model routing comes exclusively from `/ein:models` (agent frontmatter). Never pass an ad hoc `model` override or retry a failed delegation with a self-picked model; provider/API-key errors are reported to the user.
-- Canonical public commands are `/ein:*` (`/ein:status`, `/ein:sdd-next <change> [--auto]` — read-only, `/ein:doctor-output`). Pi-native `/skill:*` stays available as a direct escape hatch.
+- Canonical public commands are `/ein:*` (`/ein:status`, `/ein:sdd-next <change>` — prints the deterministic route and hands it to the orchestrator, `/ein:doctor-output`). Pi-native `/skill:*` stays available as a direct escape hatch.
 - Branding lives in `~/.pi/agent/brand.json`. Session control: `/tree`, `/fork`, `/compact`.
 
 ## Engram Memory Policy

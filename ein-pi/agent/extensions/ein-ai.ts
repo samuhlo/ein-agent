@@ -93,7 +93,7 @@ import {
 	renderChangeStanceLine,
 	writePreflightRecord,
 } from "../lib/sdd-preflight-record.ts";
-import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddNextHandoff, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
 import { reviewForecast, formatReviewForecast } from "../lib/review-forecast.ts";
 import { closeChange, type CloseOptions } from "../lib/sdd-close.ts";
 import { parseSddCloseArgs } from "../lib/sdd-close-args.ts";
@@ -506,23 +506,25 @@ function commandArgsText(args: unknown): string {
 	return Array.isArray(args) ? args.join(" ") : "";
 }
 
-function parseSddNextArgs(args: string | string[]): { change: string | null; auto: boolean } {
+function parseSddNextArgs(args: string | string[]): { change: string | null } {
 	const raw = commandArgsText(args);
 	const parts = raw.trim().split(/\s+/).filter(Boolean);
-	const auto = parts.includes("--auto");
-	const change = parts.filter((part) => part !== "--auto")[0] ?? null;
-	return { change, auto };
+	// Los flags se descartan del candidato a nombre: un `--auto` tecleado por
+	// inercia (existió como dry-run y se retiró) no debe convertirse en la
+	// búsqueda de un cambio llamado "--auto".
+	const change = parts.filter((part) => !part.startsWith("--"))[0] ?? null;
+	return { change };
 }
 
 function formatSddNextHelp(): string {
 	return [
 		"/// 000. SDD NEXT",
 		"",
-		"Uso: /ein:sdd-next <change> [--auto]",
+		"Uso: /ein:sdd-next <change>",
 		"",
 		"- Muestra el siguiente paso recomendado para un cambio concreto.",
 		"- No elige un cambio activo implicitamente.",
-		"- --auto es dry-run en esta version: no ejecuta fases.",
+		"- Entrega ese paso al orquestador para que lo ejecute; la ruta la sigue decidiendo el router.",
 	].join("\n");
 }
 
@@ -531,16 +533,12 @@ function formatSddNext(report: SddNextReport): string {
 		"/// 000. SDD NEXT",
 		"",
 		`cambio: ${report.change ?? "ninguno"}`,
-		`modo: ${report.mode}`,
 		`fase actual: ${report.currentPhase}`,
 		`siguiente recomendado: ${report.nextRecommended}`,
 		`razon: ${report.reason}`,
 		`accion sugerida: ${report.suggestedAction}`,
 	];
 
-	if (report.mode === "auto") {
-		lines.push("", "■ dry-run: --auto fue reconocido, pero autoEnabled=false; no ejecute fases ni delegaciones.");
-	}
 	if (report.blocked.length > 0) {
 		lines.push("", "■ revisar antes de avanzar:");
 		for (const item of report.blocked) lines.push(`- ${item}`);
@@ -1495,7 +1493,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("ein:sdd-next", {
-		description: t("cmd.sdd-next.description", "Show the next recommended SDD step for a named change without executing it"),
+		description: t("cmd.sdd-next.description", "Show the next recommended SDD step for a named change and hand it to the orchestrator"),
 		handler: async (args, ctx) => {
 			const parsed = parseSddNextArgs(args);
 			if (!parsed.change) {
@@ -1503,8 +1501,23 @@ export default function einAi(pi: ExtensionAPI): void {
 				return;
 			}
 
-			const report = resolveSddNext(ctx.cwd, parsed.change, { auto: parsed.auto });
+			const report = resolveSddNext(ctx.cwd, parsed.change);
 			ctx.ui.notify(formatSddNext(report), report.exists && report.blocked.length === 0 ? "info" : "warning");
+			// El reporte lo lee el usuario; el orquestador no lo ve. Sin este
+			// traspaso el comando enseñaba la ruta y no la entregaba a nadie.
+			// Los participantes automáticos tienen su propia puerta determinista
+			// antes de verify: se pregunta AQUÍ para que el orquestador no gaste
+			// una delegación en descubrirlo bloqueándose.
+			let participantsBlocker: string | null = null;
+			if (report.exists && report.change && report.nextRecommended === "verify") {
+				try {
+					participantsBlocker = guardSddVerify(ctx.cwd, sddPreflightSessionKey(ctx), report.change);
+				} catch (error) {
+					participantsBlocker = error instanceof Error ? error.message : String(error);
+				}
+			}
+			const handoff = sddNextHandoff(report, { participantsBlocker });
+			if (handoff) pi.sendUserMessage(handoff);
 		},
 	});
 
