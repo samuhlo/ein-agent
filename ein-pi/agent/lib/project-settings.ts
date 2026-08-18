@@ -44,7 +44,7 @@ function accepted<T extends string>(options: readonly T[], value: string): T | u
 const EIN_MODES: readonly EinMode[] = ["solo", "team"];
 const TDD_MODES: readonly TddMode[] = ["auto", "strict", "ask", "off"];
 const HYPA_MODES: readonly HypaMode[] = ["auto", "on", "off"];
-const CODEGRAPH_MODES: readonly CodegraphMode[] = ["auto", "off"];
+const CODEGRAPH_MODES: readonly CodegraphMode[] = ["on", "off"];
 const PERSONA_MODES: readonly PersonaMode[] = ["samuhlo", "neutral"];
 // Solo los tres perfiles soportados son elegibles. La lectura puede devolver
 // `custom` (una combinación fuera de ellos) o `invalid` (sin configurar): son
@@ -62,7 +62,7 @@ const VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> =
   mode: { solo: "individual", team: "equipo" },
   tdd: { auto: "auto", strict: "estricto", ask: "preguntar", off: "off" },
   hypa: { auto: "auto", on: "on", off: "off" },
-  codegraph: { auto: "auto", off: "off" },
+  codegraph: { on: "on (ofrece indexar)", off: "off" },
   persona: { samuhlo: "samuhlo", neutral: "neutral" },
   agents: {
     balanced: "equilibrado (Cleaner)",

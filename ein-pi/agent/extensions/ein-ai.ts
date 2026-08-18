@@ -60,6 +60,8 @@ import { handleOnboardCommand, runOnboarding } from "../lib/onboarding.ts";
 import {
 	codegraphDirective,
 	handleCodegraphCommand,
+	offerCodegraphInit,
+	shouldOfferCodegraphInit,
 } from "../lib/codegraph.ts";
 import { handleModeCommand, readMode } from "../lib/mode.ts";
 import {
@@ -607,6 +609,16 @@ export default function einAi(pi: ExtensionAPI): void {
 		// Higiene del proyecto: un único bloque gestionado en .gitignore.
 		// Best-effort, no rompe.
 		ensureEinGitignore(ctx.cwd);
+		// Codegraph: en un proyecto sin índice la directiva nunca se activaba y
+		// no había forma de salir de ahí. Se ofrece UNA vez por proyecto —
+		// aceptes o no, no se vuelve a preguntar; `/ein:codegraph` sigue estando.
+		if (ctx.hasUI && shouldOfferCodegraphInit(ctx.cwd)) {
+			try {
+				await offerCodegraphInit(ctx);
+			} catch {
+				// Una oferta que falla no puede impedir que arranque la sesión.
+			}
+		}
 		try {
 			const installResult = installSddAssets(ctx.cwd, false);
 			const modelResult = await applySavedModelConfig(ctx);

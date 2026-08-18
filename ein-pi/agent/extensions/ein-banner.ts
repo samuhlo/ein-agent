@@ -449,9 +449,13 @@ export default function (pi: ExtensionAPI) {
         : hypaMode;
     // Codegraph: mismo formato modo·estado.
     const cgMode = readCodegraphMode(ctx.cwd);
+    // `on` declara la intención; lo que importa enseñar es si está ACTIVO de
+    // verdad, que exige índice. Sin él, `on·sin índice` dice la verdad entera.
     const cgLabel =
-      cgMode === "auto"
-        ? `auto·${resolveCodegraphEnabled(ctx.cwd) ? "on" : "off"}`
+      cgMode === "on"
+        ? resolveCodegraphEnabled(ctx.cwd)
+          ? "on"
+          : "on·sin índice"
         : cgMode;
     const cleanerLabel = agentAutomaticParticipationLabel(readProjectAgentControlStatus(ctx.cwd, "cleaner").enabled);
     const architectLabel = agentAutomaticParticipationLabel(readProjectAgentControlStatus(ctx.cwd, "architect").enabled);
