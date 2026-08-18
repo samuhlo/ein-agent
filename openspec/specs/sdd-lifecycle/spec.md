@@ -212,6 +212,13 @@ Given: a change is not an approved declarationless legacy record using the expli
 When: a caller requests close or supplies an out-of-flow-like argument
 Then: the standard close decision is unchanged and incomplete or out-of-sequence work is denied
 
+## Scenario: participant-result-via-subagent-wait
+title: Participant results register from subagent_wait events
+requirement: The system MUST handle tool_result events with toolName subagent_wait, extract status from them, and advance passages when status: complete is found. The result handler MUST not filter out subagent_wait events.
+Given: A participant (e.g., ein-cleaner) is invoked and completes
+When: The result arrives via subagent_wait event with status: complete
+Then: The passage is marked complete and ein_sdd_participants reports it as done
+
 ## Scenario: project-state-binds-verification-to-exact-git-state
 title: Verification freshness is bound to the exact Git state
 requirement: The system MUST bind verification evidence to the exact Git state it inspected and MUST mark that evidence stale or invalid when a relevant code-state change is detected, rather than inheriting freshness across a changed state, session resume, or runtime switch.
@@ -246,6 +253,13 @@ requirement: The system MUST attempt repository initialization only for a workin
 Given: SDD status is resolved in a directory that is not inside a repository, or whose repository metadata exists but cannot be read, or where initialization fails because the location is read-only, the tool is missing, or an opt-out or continuous-integration signal is set.
 When: SDD status runs in that directory.
 Then: initialization is attempted only under the bounded conditions, an existing metadata entry is never reinitialized, any failure is reported as an absent repository with its reason, and status completes normally with an unchanged exit code.
+
+## Scenario: result-collection-drift-warning
+title: Drift detection on result-collection side warns about unrecognized events
+requirement: The system MUST include a drift canary on the result-collection side (parallel to the admission-side canary at ein-ai.ts:837-839) that logs once per session if event.toolName is neither subagent nor subagent_wait.
+Given: A tool result event arrives with an unexpected toolName
+When: The event is processed by the tool_result handler
+Then: A drift warning is logged (not an error), and the handler allows the event to proceed normally
 
 ## Scenario: review-ledger-bounded-areas
 title: Reviewed areas have bounded deterministic identity and state
