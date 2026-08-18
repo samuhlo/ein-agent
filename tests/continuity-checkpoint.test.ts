@@ -160,4 +160,15 @@ describe("continuity checkpoint derivation", () => {
 			{ ...participants, architect: { ...participants.architect, observedStateRef: REF } },
 		]) expect(withSddParticipants(result.checkpoint, invalid as typeof participants).ok).toBeFalse();
 	});
+
+	// R4/T6: the validator accepts the new sdd-scope-v1 seal (minted by sdd-participants.ts) in
+	// addition to the legacy git-v1 seal, on all four participant seal fields.
+	test("accepts sdd-scope-v1 scope seals on all four participant fields", () => {
+		const result = derive(); if (!result.ok) throw new Error("fixture derivation failed");
+		const SCOPE_A = `sdd-scope-v1:sha256:${"1".repeat(64)}`, SCOPE_B = `sdd-scope-v1:sha256:${"2".repeat(64)}`;
+		const participants = { change: "continuity", applyId: "c".repeat(64), scopeId: "d".repeat(64), beforeStateRef: SCOPE_A, order: ["ein-cleaner", "ein-architect"] as const, cleaner: { status: "complete" as const, observedStateRef: SCOPE_A, afterStateRef: SCOPE_B }, architect: { status: "blocked" as const, observedStateRef: SCOPE_B } };
+		const upgraded = withSddParticipants(result.checkpoint, participants); expect(upgraded.ok).toBeTrue(); if (!upgraded.ok) return;
+		expect(upgraded.checkpoint.sddParticipants?.beforeStateRef).toMatch(/^sdd-scope-v1:sha256:[a-f0-9]{64}$/);
+		expect(parseContinuityCheckpoint(JSON.stringify(upgraded.checkpoint))).toEqual(upgraded);
+	});
 });

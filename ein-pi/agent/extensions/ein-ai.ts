@@ -677,6 +677,13 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	pi.on("input", async (event, ctx) => {
+		// R6 residual risk closed: a cancelled or dead scout never reaches
+		// `acceptTrackedScoutResult`, so its `pending` entry would otherwise survive
+		// until `session_shutdown` and permanently block every later scout launch.
+		// R7 forces `async: false` on every normalized launch, so a legitimate scout
+		// cannot outlive the turn that launched it — clearing here is exactly the
+		// contract's own boundary ("one scout per turn"), not an approximation.
+		scoutTracking.clear();
 		// Intención de entrega: ¿este mensaje pide commit/push/PR? La lee el gate de
 		// entrega en `tool_call` (modo git `auto`). Se evalúa SIEMPRE, también en
 		// mensajes sin SDD; un mensaje neutro la conserva en vez de pisarla.

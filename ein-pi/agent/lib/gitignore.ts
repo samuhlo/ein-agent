@@ -12,7 +12,14 @@
 //                    sandbox antes de promocionarse a openspec/changes/). Scratch.
 //   .codegraph/    → índice SQLite del grafo de código (regenerable con
 //                    `codegraph init`); estado local, nunca se versiona.
-// NOTA: openspec/changes/ NO se ignora — es el board SDD y se versiona.
+//   openspec/changes/**/continuity.json → checkpoint de runtime de la SDD.
+//   .ein/continuity.json → checkpoint de runtime del carril adhoc (mismo
+//                    fichero, otra ubicación: continuity-checkpoint-store.ts
+//                    escribe en `.ein/` cuando el modo es "adhoc").
+// NOTA: el board `openspec/changes/` SÍ se versiona; lo que no se versiona es
+// el checkpoint de runtime que Ein escribe dentro de cada cambio. El patrón
+// usa `**` (no `*`) porque `sdd-close` mueve el directorio a
+// `openspec/changes/archive/<change>/`, y un solo `*` no cubriría ese path.
 // =============================================================================
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -22,7 +29,7 @@ const BLOCK_START = "# === Ein / Pi runtime (auto-gestionado, no editar) ===";
 const BLOCK_END = "# === fin Ein / Pi runtime ===";
 
 // Entradas gestionadas, en orden estable.
-const ENTRIES = [".pi/ein/", ".piagents/", ".pi-subagents/", ".codegraph/"];
+const ENTRIES = [".pi/ein/", ".piagents/", ".pi-subagents/", ".codegraph/", "openspec/changes/**/continuity.json", ".ein/continuity.json"];
 
 // Restos de versiones previas que migramos al bloque nuevo: antes Ein escribía
 // `.atl/` bajo un header propio, y `.atl/` ahora vive dentro de `.pi/ein/`.

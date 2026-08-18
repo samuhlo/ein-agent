@@ -147,9 +147,9 @@ Enforced downstream; you coordinate and keep the parent light.
 - **`ctx_batch_execute` shell limits** → its fs-preload wrapper prefixes `NODE_OPTIONS='…'` to the command line, so **compound shell breaks** (`for…do`, `if…then`, `while`, heredocs → `syntax error near unexpected token`). Use ONE simple command/pipeline per entry; when you genuinely need a loop or conditional, wrap the whole thing: `bash -c 'for c in a b; do …; done'`. Do NOT retry a failed compound command with another compound command — wrap it or split it.
 - **Assessment & valuation (read-only)** → "valora/audita/qué falta/cómo está" is a read, not a build. Do NOT run `bun run build`/`nuxt generate`/the full suite and do not delegate it to `sdd-verify`. Use EIN.md, repo structure (with the exclusions above), recent `git log`, and known test/CI status. Confirm before any heavy run.
 
-## Parallel read-only fan-out
+## Read-only fan-out (sequential)
 
-Several `subagent` calls in one turn only for broad, independent, read-only investigation, then synthesize. Use **one to three distinct fresh scouts** (hard limit: 3 branches), each an independent `ein-scout` call with `context: "fresh"` and a non-overlapping bounded angle. Scouts create no OpenSpec artifacts, and read-only assessment creates no OpenSpec, SDD, or lifecycle state. NOT for writes, not for the sequential SDD phases, and not when findings feed each other. Parallelism buys wall-clock, not tokens — keep angles disjoint.
+For broad, independent, read-only investigation, then synthesize. Use **one to three distinct fresh scouts** (hard limit: 3 branches), each an independent `ein-scout` call with `context: "fresh"` and a non-overlapping bounded angle — **one scout per turn**; a second scout launched while one is still pending is rejected before it runs. Scouts create no OpenSpec artifacts, and read-only assessment creates no OpenSpec, SDD, or lifecycle state. NOT for writes, not for the sequential SDD phases, and not when findings feed each other. Keep angles disjoint.
 
 ## Delivery & board
 

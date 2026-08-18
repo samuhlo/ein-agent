@@ -4,7 +4,6 @@ import { delimiter, join } from "node:path";
 import {
 	CONTINUITY_CHECKPOINT_LIMITS,
 	deriveContinuityCheckpoint,
-	rebaseSddParticipants,
 	withSddParticipants,
 	type ContinuityCheckpointFacts,
 } from "./continuity-checkpoint.ts";
@@ -158,10 +157,9 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 				if (!expected) return "refresh-failed";
 				if (before.status === "valid" && before.checkpoint.sddParticipants) {
 					if (!derived.checkpoint.stateRef) return "refresh-failed";
-					const participants = rebaseSddParticipants(before.checkpoint.sddParticipants, derived.checkpoint.stateRef);
-					const rebased = withSddParticipants(derived.checkpoint, participants);
-					if (!rebased.ok) return "refresh-failed";
-					derived = rebased;
+					const carried = withSddParticipants(derived.checkpoint, before.checkpoint.sddParticipants);
+					if (!carried.ok) return "refresh-failed";
+					derived = carried;
 				}
 			const result = write(cwd, location, derived.checkpoint, expected);
 			if (result.ok) { facts = { objective: candidate.objective, completed: candidate.completed, nextAction: candidate.nextAction, unresolvedDecisions: candidate.unresolvedDecisions }; capturedInput = null; return "refreshed"; }

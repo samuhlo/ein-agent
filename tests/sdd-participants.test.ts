@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { clearAgentControlSession, routeAgentControl } from "../ein-pi/agent/lib/agent-controls.ts";
 import { deriveContinuityCheckpoint } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
 import { readContinuityCheckpoint, writeContinuityCheckpoint } from "../ein-pi/agent/lib/continuity-checkpoint-store.ts";
+import { ensureEinGitignore } from "../ein-pi/agent/lib/gitignore.ts";
 import { projectProjectState } from "../ein-pi/agent/lib/project-state.ts";
 import { admitSddParticipantCall, clearSddParticipantSession, completeSddParticipantCall, guardSddVerify, planSddParticipants } from "../ein-pi/agent/lib/sdd-participants.ts";
 
@@ -18,7 +19,7 @@ function fixture(session: string, cleaner: boolean, architect: boolean): string 
 	roots.push(cwd);
 	mkdirSync(join(cwd, "src"));
 	writeFileSync(join(cwd, "src/a.ts"), "export const a = 1;\n");
-	writeFileSync(join(cwd, ".gitignore"), "openspec/changes/*/continuity.json\n");
+	ensureEinGitignore(cwd);
 	execFileSync("git", ["init", "-q"], { cwd });
 	execFileSync("git", ["add", "src/a.ts"], { cwd });
 	execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "base"], { cwd });
@@ -202,8 +203,61 @@ describe("changed-file scope admission", () => {
 	});
 });
 
+describe("scope-bounded passage seal", () => {
+	// R2/T3: the seal must be bounded to the declared scope, not to the whole tree; an unrelated
+	// untracked file anywhere else in the repository must not flip it.
+	test("an unrelated untracked file does not invalidate the passage", () => {
+		const cwd = fixture("off-off", true, false);
+		const first = planSddParticipants(cwd, "off-off", "change");
+		writeFileSync(join(cwd, "openspec/changes/change/memory-receipts.jsonl"), "{}\n");
+		const second = planSddParticipants(cwd, "off-off", "change");
+		expect(second.passageId).toBe(first.passageId);
+		expect(admitSddParticipantCall(cwd, "off-off", "call", "ein-cleaner", first.next!.task)).toBeNull();
+	});
+
+	// R2/R4/T5: the persisted seal carries the new sdd-scope-v1 prefix, not git-v1.
+	test("persisted beforeStateRef carries the sdd-scope-v1 seal format", () => {
+		const cwd = fixture("off-off", true, false);
+		planSddParticipants(cwd, "off-off", "change");
+		const saved = readContinuityCheckpoint(cwd, { mode: "sdd", change: "change" });
+		expect(saved.status === "valid" && saved.checkpoint.sddParticipants?.beforeStateRef).toMatch(/^sdd-scope-v1:sha256:[a-f0-9]{64}$/);
+	});
+});
+
 test("off does not affect explicit direct invocation", () => {
 	const cwd = fixture("off-off", false, false);
 	const direct = routeAgentControl(cwd, "off-off", "cleaner", "audit src/a.ts");
 	expect(direct.kind).toBe("request");
+});
+
+describe("apply prompt does not contradict the passage parser (R9/T13)", () => {
+	test("sdd-apply.md requires the canonical Files changed section, not a blanket ban on file lists", () => {
+		const promptPath = join(import.meta.dir, "../ein-pi/core/agents/sdd-apply.md");
+		const prompt = require("node:fs").readFileSync(promptPath, "utf8") as string;
+		expect(prompt).toContain("## Files changed");
+		expect(prompt).toMatch(/REQUIRED/);
+		expect(prompt).not.toMatch(/never a dump of full file lists/);
+	});
+});
+
+describe("Files changed grammar (SDD_ARTIFACT_GRAMMAR.md)", () => {
+	// R9/T12: the doc's canonical example is proven, not just described — it is extracted from the
+	// doc and fed to planSddParticipants; the plan must succeed with exactly the declared paths.
+	test("the canonical example in the grammar doc is accepted by planSddParticipants", () => {
+		const docPath = join(import.meta.dir, "../ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md");
+		const doc = require("node:fs").readFileSync(docPath, "utf8") as string;
+		const fenced = /```markdown\n([\s\S]*?)```/.exec(doc);
+		expect(fenced).not.toBeNull();
+		const example = fenced![1]!;
+		const declared = [...example.matchAll(/`([^`]+)`/g)].map((match) => match[1]!);
+		expect(declared).toEqual(["ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md"]);
+
+		const cwd = fixture("off-off", true, false);
+		mkdirSync(join(cwd, "ein-pi/core/docs"), { recursive: true });
+		writeFileSync(join(cwd, "ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md"), "grammar copy\n");
+		writeFileSync(join(cwd, "openspec/changes/change/apply-progress.md"), example);
+		const plan = planSddParticipants(cwd, "off-off", "change");
+		expect(admitSddParticipantCall(cwd, "off-off", "call", "ein-cleaner", plan.next!.task)).toBeNull();
+		expect(plan.next!.task).toContain('"path":"ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md"');
+	});
 });
