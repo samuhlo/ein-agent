@@ -2,7 +2,60 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { MemoryCandidate, MemoryReceipt, MemoryType } from "./memory-contract.ts";
 
-const MEMORY_TYPES = new Set<MemoryType>(["decision", "architecture", "bugfix", "pattern", "config", "discovery", "learning"]);
+/**
+ * Los tipos que el validador acepta. Exportado porque el ESQUEMA que se le
+ * enseña al modelo tiene que anunciar exactamente estos: cuando el anuncio y la
+ * validación se separan, el modelo manda algo plausible y el guardado se cae en
+ * silencio como `no_candidate` — que es lo que pasó 374 veces.
+ */
+export const MEMORY_CANDIDATE_TYPES = [
+	"decision", "architecture", "bugfix", "pattern", "config", "discovery", "learning",
+] as const satisfies readonly MemoryType[];
+
+const MEMORY_TYPES = new Set<MemoryType>(MEMORY_CANDIDATE_TYPES);
+
+/**
+ * Contrato del candidato, en forma de JSON Schema, para que el runtime se lo
+ * ENSEÑE al modelo en la propia herramienta. Antes se declaraba como
+ * `{ type: "object" }` a secas y ningún prompt nombraba los campos: se le pedía
+ * adivinar cuatro nombres exactos.
+ *
+ * Vive aquí, junto al validador que lo comprueba, y no en la extensión que lo
+ * registra: un esquema lejos de su validador es dos verdades que se separan.
+ */
+export const MEMORY_CANDIDATE_SCHEMA = {
+	type: "object",
+	description:
+		"Optional notebook candidate, saved only after the phase artifact passes its gate. Offer one when the phase produced a durable lesson — a decision and why, an architectural constraint, a bug's real cause, a discovery worth not rediscovering. Skip it for routine progress: OpenSpec already holds the full record.",
+	properties: {
+		type: {
+			type: "string",
+			enum: MEMORY_CANDIDATE_TYPES,
+			description: "What kind of lesson this is.",
+		},
+		stableId: {
+			type: "string",
+			description: "Stable slug identifying the lesson across revisions (e.g. `engram-single-store`). Reusing it updates the same note instead of duplicating it.",
+		},
+		title: {
+			type: "string",
+			description: "One line, max 160 chars, naming the lesson.",
+		},
+		summary: {
+			type: "string",
+			description: "What was learned, max 1200 chars. Prose, not a diff or a command log — pasted output is rejected as noise.",
+		},
+		rationale: {
+			type: "string",
+			description: "Optional. Why it was decided this way.",
+		},
+		evidence: {
+			type: "string",
+			description: "Optional. What proves it (a measurement, a count, a file).",
+		},
+	},
+	required: ["type", "stableId", "title", "summary"],
+} as const;
 const SAVE_PHASES = {
 	scope: "scope", map: "map", design: "design", tasks: "tasks",
 	apply: "apply-progress", verify: "verify-report", close: "close",

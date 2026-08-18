@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { engramStoreDir } from "../lib/memory-contract.ts";
 
 const HOME = homedir();
 
@@ -31,7 +32,7 @@ function loadCoreExtensions(): string[] {
 
 export const CORE_EXTENSIONS: string[] = loadCoreExtensions();
 export const SECRETS_DIR = join(HOME, ".config", "opencode-secrets");
-export const ENGRAM_DIR = join(HOME, ".engram-pi");
+export const ENGRAM_DIR = engramStoreDir(HOME);
 export const LOCAL_SKILLS_DIR = join(AGENT_DIR, "skills", "local");
 export const DOWNLOADED_SKILLS_DIR = join(AGENT_DIR, "skills", "downloaded");
 export const BACKUP_AUTO_DIR = join(AGENT_DIR, "backups", "auto");

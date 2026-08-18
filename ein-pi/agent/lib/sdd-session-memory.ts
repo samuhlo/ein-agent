@@ -12,11 +12,11 @@
 
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { MemoryLifecycle, type PreparedMemory } from "./memory-lifecycle.ts";
 import { createEngramTransport } from "./engram-cli.ts";
-import { ENGRAM_TIMEOUT_MS, limitBytes, resolveProjectIdentity, type EngramTransport } from "./memory-contract.ts";
+import { ENGRAM_TIMEOUT_MS, engramProjectName, limitBytes, resolveProjectIdentity, type EngramTransport } from "./memory-contract.ts";
 
 export type SddMemoryMode = "off" | "engram";
 
@@ -64,20 +64,36 @@ const systemGitRoots: GitRootCommitCapability = {
 	},
 };
 
+/**
+ * El proyecto bajo el que Ein guarda y busca. Es el nombre que deriva ENGRAM,
+ * no un identificador propio: las herramientas MCP que usa Claude consultan ese
+ * nombre, y escribir bajo otro dejaba a los dos runtimes leyendo cuadernos
+ * distintos dentro del mismo fichero.
+ *
+ * `resolveProjectIdentity` (hash del remoto) se conserva para el resto de sus
+ * consumidores; aquí sólo decide el RESPALDO cuando no hay ni remoto ni carpeta
+ * de la que sacar un nombre, que es el único caso en que un identificador
+ * opaco es mejor que ninguno.
+ */
 function projectIdentityFromGitConfig(cwd: string, gitRoots: GitRootCommitCapability) {
 	const config = readGitConfig(cwd) ?? "";
 	const remotes = [...config.matchAll(/^\s*\[remote\s+"([^"]+)"\]\s*([\s\S]*?)(?=^\s*\[|$)/gm)]
 		.map((match) => ({ name: match[1], url: /^\s*url\s*=\s*(.+)$/m.exec(match[2])?.[1]?.trim() }))
 		.filter((remote): remote is { name: string; url: string } => Boolean(remote.url));
-	const origin = remotes.find((remote) => remote.name === "origin");
-	if (origin) {
-		const identity = resolveProjectIdentity({ originFetchRemote: origin.url });
-		if (identity.kind === "remote") return identity;
-	}
-	const validRemotes = remotes
-		.map((remote) => remote.url)
-		.filter((remote) => resolveProjectIdentity({ fetchRemotes: [remote] }).kind === "remote");
-	if (validRemotes.length) return resolveProjectIdentity({ fetchRemotes: validRemotes });
+	const origin = remotes.find((remote) => remote.name === "origin")?.url;
+	// Con varios remotos y sin `origin` no se elige uno a dedo: sería una
+	// heurística floja decidiendo bajo qué nombre vive la memoria del proyecto.
+	const single = remotes.length === 1 ? remotes[0]?.url : undefined;
+	// El respaldo por carpeta sólo vale si `cwd` ES la raíz del repo: Engram deriva
+	// del git root, y usar el nombre de un subdirectorio produciría otra vez dos
+	// nombres para el mismo proyecto. Sin esa certeza, mejor el identificador
+	// opaco por commits raíz que un nombre plausible y equivocado.
+	const cwdIsRepoRoot = existsSync(join(cwd, ".git"));
+	const name = engramProjectName({
+		originRemote: origin ?? single ?? null,
+		...(cwdIsRepoRoot ? { gitRoot: cwd } : {}),
+	});
+	if (name) return { kind: "remote", id: name } as const;
 	return resolveProjectIdentity({ rootCommits: gitRoots.rootCommits(cwd) });
 }
 

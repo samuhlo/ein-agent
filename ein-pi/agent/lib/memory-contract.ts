@@ -8,9 +8,35 @@ export const MAX_CONTEXT_BYTES = 6 * 1024;
 export const MAX_SAVE_CONTENT_BYTES = 4 * 1024;
 
 export type EngramProvider = "pi" | "claude";
-export function resolveEngramDataDir(provider: EngramProvider, environment: Readonly<Record<string, string | undefined>>): string | undefined {
+
+/**
+ * El cuaderno de Ein. ÚNICO DUEÑO de este nombre en todo el repo: seis módulos
+ * lo escribían a mano y cualquiera podía quedarse atrás en un rename.
+ *
+ * `.engram-ein` y no `.engram` a secas porque el segundo es el almacén por
+ * defecto que comparte cualquier otra herramienta de la máquina; Ein no escribe
+ * en el cuaderno de nadie.
+ *
+ * UNO para los dos runtimes, no uno por runtime. La separación anterior dejó
+ * `~/.engram-pi` muerto y `~/.engram-cc-ein` vacío, y hacía que un cambio
+ * empezado en Pi perdiera su memoria al continuarlo en Claude — lo contrario de
+ * la continuidad bidireccional que exige § 003.
+ */
+export const ENGRAM_STORE_DIRNAME = ".engram-ein";
+
+/** La ruta del cuaderno para un home ya validado. */
+export function engramStoreDir(home: string): string {
+	return join(home, ENGRAM_STORE_DIRNAME);
+}
+
+/**
+ * La ruta desde el entorno. El `provider` se conserva en la firma porque los
+ * dos runtimes siguen siendo distinguibles aguas arriba, pero ya NO cambia el
+ * destino: ese es justamente el cambio.
+ */
+export function resolveEngramDataDir(_provider: EngramProvider, environment: Readonly<Record<string, string | undefined>>): string | undefined {
 	const home = environment.HOME;
-	return typeof home === "string" && isAbsolute(home) ? join(home, provider === "pi" ? ".engram-pi" : ".engram-cc-ein") : undefined;
+	return typeof home === "string" && isAbsolute(home) ? engramStoreDir(home) : undefined;
 }
 
 export const RETRIEVAL_BUDGET = {
@@ -89,14 +115,71 @@ export function resolveProjectIdentity(input: ProjectIdentityInput): ProjectIden
 		return origin ? { kind: "remote", id: `ein-git-${digest(origin)}` } : { kind: "unknown" };
 	}
 	const remotes = input.fetchRemotes ?? [];
-	if (remotes.length === 1) {
-		const remote = canonicalRemote(remotes[0]);
+	// Se desestructura en vez de indexar: bajo `noUncheckedIndexedAccess` un
+	// índice devuelve `string | undefined`, y comprobar la longitud no se lo dice
+	// al compilador. El módulo lo compilan dos proyectos con distinta severidad.
+	const [onlyRemote] = remotes;
+	if (remotes.length === 1 && onlyRemote !== undefined) {
+		const remote = canonicalRemote(onlyRemote);
 		if (remote) return { kind: "remote", id: `ein-git-${digest(remote)}` };
 		return { kind: "unknown" };
 	}
 	if (remotes.length > 1) return { kind: "unknown" };
 	const roots = [...new Set((input.rootCommits ?? []).map((value) => value.toLowerCase()).filter((value) => /^[a-f0-9]{7,64}$/.test(value)))].sort();
 	return roots.length ? { kind: "root", id: `ein-root-${digest(roots.join("\n"))}` } : { kind: "unknown" };
+}
+
+/**
+ * El nombre de proyecto TAL Y COMO LO DERIVA ENGRAM.
+ *
+ * POR QUÉ EXISTE -> Ein guardaba bajo `ein-git-<hash>` y las herramientas MCP
+ * (las que usa Claude) guardan y buscan bajo el nombre que Engram deriva solo.
+ * Dos espacios de nombres en la misma base de datos: Claude nunca veía lo que
+ * guardaba Pi. El lado que lee en Claude es el servidor MCP, que no es nuestro,
+ * así que el que se alinea es Ein.
+ *
+ * LA REGLA ESTÁ MEDIDA, no supuesta: se interrogó a `engram mcp` con repos de
+ * prueba (ver `tests/engram-project-name.test.ts`, que lista las observaciones).
+ * Último segmento del remoto sin el `.git` final, en minúsculas; sin remoto, el
+ * nombre de la carpeta raíz del repo; sin git, el del directorio.
+ *
+ * FAIL CLOSED -> sin nada de lo que derivar devuelve `undefined`. Un nombre
+ * inventado escribiría en un proyecto que nadie consulta, que es justo el fallo.
+ */
+export type EngramProjectNameInput = {
+	originRemote?: string | null;
+	gitRoot?: string | null;
+	cwd?: string | null;
+};
+
+function lastPathSegment(value: string): string | undefined {
+	const segment = value.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
+	return segment && segment.length > 0 ? segment : undefined;
+}
+
+export function engramProjectName(input: EngramProjectNameInput): string | undefined {
+	const remote = typeof input.originRemote === "string" ? input.originRemote.trim() : "";
+	if (remote) {
+		// Se normaliza igual que `canonicalRemote`, pero conservando el nombre
+		// legible en vez de hashearlo.
+		const path = remote
+			.replace(/[?#].*$/, "")
+			.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
+			.replace(/^[^/@\s]+@/, "")
+			.replace(/:/g, "/");
+		// Se exige host Y repositorio: `git@github.com:` sin ruta no nombra un
+		// proyecto, y quedarse con el host produciría un `github.com` que nadie
+		// consulta. Sin las dos partes, se cae al siguiente respaldo.
+		const segments = path.split(/[\\/]/).filter(Boolean);
+		const name = segments.length >= 2 ? segments[segments.length - 1]?.replace(/\.git$/i, "") : undefined;
+		if (name) return name.toLowerCase();
+	}
+	for (const candidate of [input.gitRoot, input.cwd]) {
+		if (typeof candidate !== "string" || !candidate.trim()) continue;
+		const name = lastPathSegment(candidate.trim());
+		if (name) return name.toLowerCase();
+	}
+	return undefined;
 }
 
 export type MemoryType = "decision" | "architecture" | "bugfix" | "pattern" | "config" | "discovery" | "learning";

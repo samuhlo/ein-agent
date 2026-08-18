@@ -99,6 +99,7 @@ import { closeChange, type CloseOptions } from "../lib/sdd-close.ts";
 import { parseSddCloseArgs } from "../lib/sdd-close-args.ts";
 import { approveCandidate, type MemoryCandidate, type MemoryReceipt } from "../lib/memory-contract.ts";
 import {
+	MEMORY_CANDIDATE_SCHEMA,
 	appendMemoryReceipt,
 	buildCloseMemoryCandidate,
 	hasSuccessfulMemoryReceipt,
@@ -1449,7 +1450,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			properties: {
 				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
 				phase: { type: "string", enum: ["scope", "map", "design", "tasks", "apply", "verify"] },
-				memoryCandidate: { type: "object", description: "Optional concise structured notebook candidate after a clean artifact gate." },
+				memoryCandidate: MEMORY_CANDIDATE_SCHEMA,
 			},
 		} as const,
 		async execute(_id, params: { change?: string; phase?: string; memoryCandidate?: unknown }, _signal, _onUpdate, ctx: ExtensionContext) {

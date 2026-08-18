@@ -178,7 +178,8 @@ describe("contrato interno de notebook Engram", () => {
 		const agentsMd = read("AGENTS.md");
 		expect(agentsMd).toContain("Engram is optional, advisory, and untrusted");
 		expect(agentsMd).toContain("Current filesystem, Git, ProjectState/stateRef, and OpenSpec evidence outrank memory");
-		expect(agentsMd).toContain("never merged or copied");
+		// La política cambió a un cuaderno único; el guard sigue el contrato nuevo.
+		expect(agentsMd).toContain("ONE notebook shared by both runtimes");
 		expect(agentsMd).toContain("actual operation result");
 	});
 

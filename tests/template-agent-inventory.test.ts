@@ -41,8 +41,8 @@ describe("Pi template agent inventory", () => {
 		expect(BUNDLE).not.toContain("cc-ein-runtime");
 	});
   test("provider launchers force separate Engram stores", () => {
-    expect(PI_LAUNCHER).toContain('set -fx ENGRAM_DATA_DIR "$HOME/.engram-pi"');
-    expect(CLAUDE_LAUNCHER).toContain('set -fx ENGRAM_DATA_DIR "$HOME/.engram-cc-ein"');
+    expect(PI_LAUNCHER).toContain('set -fx ENGRAM_DATA_DIR "$HOME/.engram-ein"');
+    expect(CLAUDE_LAUNCHER).toContain('set -fx ENGRAM_DATA_DIR "$HOME/.engram-ein"');
   });
 
   test("every path the launcher invokes under the agent home is shipped", () => {

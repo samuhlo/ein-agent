@@ -37,8 +37,8 @@ describe("inventario instalado de agentes", () => {
 			expect(manifest.terminalApp).toEqual(expect.objectContaining({ path: "bin/ein", target: "test-target", mode: "0755" }));
 			expect(readFileSync(join(staging.payload, "bin", "ein"), "utf8")).toBe("APP");
 			expect(policy).toContain("Current filesystem, Git, ProjectState/stateRef, and OpenSpec evidence outrank memory");
-			expect(policy).toContain(".engram-pi");
-			expect(policy).toContain("Pi and Claude stores stay separate");
+			expect(policy).toContain(".engram-ein");
+			expect(policy).toContain("ONE notebook shared by both runtimes");
 		} finally {
 			rmSync(staging.root, { recursive: true, force: true });
 		}

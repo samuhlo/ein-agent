@@ -12,6 +12,7 @@ import { basename, join } from "node:path";
 import { bannerFinal, bannerFrame, frameCount, logoFor, TAGLINE } from "../lib/banner.ts";
 import { projectProjectState, type ProjectStateV1 } from "../lib/project-state.ts";
 import { applySetting, readSettings } from "../lib/project-settings.ts";
+import { engramStoreDir } from "../lib/memory-contract.ts";
 import {
   buildLaunchPlan,
   createRuntimeSessionAdapter,
@@ -467,7 +468,7 @@ function resolveAgentDir(): string {
 }
 
 function engramHome(): string {
-  return join(homedir(), ".engram-pi");
+  return engramStoreDir(homedir());
 }
 
 function productionSessions(cwd: string): RuntimeSessionList {

@@ -20,7 +20,7 @@ Dónde vive EIN y, más importante, **qué no toca**.
 │
 ├── .local/bin/ein          el binario del instalador
 ├── .config/opencode-secrets/   claves de API
-└── .engram-pi/             memoria persistente (opcional)
+└── .engram-ein/             memoria persistente (opcional)
 ```
 
 Y en cada proyecto donde uses EIN:

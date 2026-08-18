@@ -79,7 +79,7 @@ En `ein-ai.ts`: bloquea comandos destructivos, escrituras en secretos y cambios 
 
 ## Memoria y MCP
 
-`~/.pi/agent/mcp.json` conecta Engram (stdio) sobre `~/.engram-pi` y Context7 (`bunx --bun @upstash/context7-mcp`). Ambos lazy. `CONTEXT7_API_KEY` se exporta desde el shell rc, no va en `mcp.json`.
+`~/.pi/agent/mcp.json` conecta Engram (stdio) sobre `~/.engram-ein` y Context7 (`bunx --bun @upstash/context7-mcp`). Ambos lazy. `CONTEXT7_API_KEY` se exporta desde el shell rc, no va en `mcp.json`.
 
 El cableado MCP usa **`pi-mcp-adapter`** (declarado en `settings.json` packages): un proxy de un solo tool `mcp()` (~200 tokens) en vez de cargar todas las defs (10k+ tokens/server). Estrategia híbrida:
 - **engram** → proxy (`directTools: false`). Sus 15 tools no inflan el contexto; el modelo los descubre on-demand vía `mcp()`. Ahí está el ahorro.

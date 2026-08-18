@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { join } from "node:path";
+import { ENGRAM_STORE_DIRNAME } from "../lib/memory-contract.ts";
 import { promisify } from "node:util";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, loadBrand, slashCommand } from "./ein-brand";
@@ -281,9 +282,9 @@ function doctorSmokeReport(): string {
     check(mcpParseOk, "mcp.json parse", "JSON MCP valido."),
     check("engram" in mcpServers, "mcp engram", "Servidor Engram configurado."),
     check(
-      String(engramEnv.ENGRAM_DATA_DIR ?? "").includes(".engram-pi"),
+      String(engramEnv.ENGRAM_DATA_DIR ?? "").includes(ENGRAM_STORE_DIRNAME),
       "engram data dir",
-      "Engram apunta a DB Pi (~/.engram-pi).",
+      `Engram apunta al cuaderno de Ein (~/${ENGRAM_STORE_DIRNAME}).`,
     ),
     check("context7" in mcpServers, "mcp context7", "Servidor Context7 configurado."),
     check(
