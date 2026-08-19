@@ -55,7 +55,7 @@ git push origin installer-v<semver>
 
 ### 4. Verify GitHub assets
 
-`.github/workflows/installer-release.yml` builds the four installer binaries, generates `checksums.txt`, and publishes them with `install.sh` as GitHub Release assets. Verify that workflow and its assets after it completes.
+`.github/workflows/installer-release.yml` builds the four installer binaries, generates `checksums.txt`, and publishes them with `install.sh` as GitHub Release assets. It also verifies on its own that the tagged commit is the tip of `main` before building; if that step fails, the tag was cut from a stale commit — delete it and re-tag from current `main`, never move a published tag. Verify that workflow and its assets after it completes.
 
 ```bash
 gh run list --workflow installer-release.yml --limit 3

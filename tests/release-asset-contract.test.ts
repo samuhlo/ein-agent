@@ -200,6 +200,31 @@ describe("release asset contract", () => {
     expect(publish).not.toContain("einDisplayVersion");
   });
 
+  // El release `installer-v0.73.0` se publicó vacío: el tag apuntaba a un
+  // commit que era ancestro de `main`, no su punta, y el workflow no lo
+  // detectó (la versión del commit SÍ coincidía con el tag). Este test fija
+  // que exista un paso que compare el commit etiquetado contra `origin/main`
+  // ANTES de construir, con una vía de escape explícita para hotfixes.
+  test("workflow rejects a tagged commit that is not the tip of main before building", () => {
+    const workflow = readFileSync(WORKFLOW_PATH, "utf8");
+    const checkoutStart = workflow.indexOf("- uses: actions/checkout@v5");
+    const buildStart = workflow.indexOf("- name: Build all targets (bundles template + cross-compiles)");
+    const guardStart = workflow.indexOf("- name: Verify tagged commit is the tip of main");
+
+    expect(checkoutStart).toBeGreaterThanOrEqual(0);
+    expect(buildStart).toBeGreaterThanOrEqual(0);
+    expect(guardStart).toBeGreaterThan(checkoutStart);
+    expect(guardStart).toBeLessThan(buildStart);
+
+    const guardStep = workflowStep(workflow, "- name: Verify tagged commit is the tip of main");
+    expect(guardStep).toContain("git fetch origin main");
+    expect(guardStep).toMatch(/git rev-parse (origin\/main|HEAD)/);
+    expect(guardStep).toMatch(/ALLOW_NON_MAIN_TAG|SKIP_MAIN_TIP_CHECK/);
+    expect(guardStep).toContain("main");
+    expect(guardStep.toLowerCase()).toContain("hotfix");
+    expect(guardStep).toContain("exit 1");
+  });
+
   test("selectAsset accepts only the documented platform names", () => {
     for (const platform of DOCUMENTED_PLATFORMS) {
       const selection = selectAsset(platform, {

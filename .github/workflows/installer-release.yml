@@ -11,6 +11,11 @@ on:
         description: "Existing installer tag to publish"
         required: true
         type: string
+      allow_non_main_tag:
+        description: "Escape hatch for a deliberate hotfix from a maintenance branch: skip the tip-of-main check"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -44,6 +49,35 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ steps.resolve_release_tag.outputs.release_tag }}
+          fetch-depth: 0
+
+      # `installer-v0.73.0` se publicó vacío: el tag apuntaba a un ancestro de
+      # `main` (el merge de un PR anterior), no a su punta, así que el build
+      # empaquetó código viejo aunque `INSTALLER_VERSION` ya llevaba el número
+      # nuevo — comparar versiones no lo habría detectado. El checkout de un
+      # tag deja el repo en detached HEAD sin `main` local, así que hace falta
+      # traerla explícitamente. `fetch-depth: 0` trae el historial completo:
+      # un checkout superficial haría fallar esta comparación por un motivo
+      # falso (falta de commits), que sería peor que no tener el guardarraíl.
+      - name: Verify tagged commit is the tip of main
+        working-directory: .
+        env:
+          ALLOW_NON_MAIN_TAG: ${{ inputs.allow_non_main_tag }}
+        run: |
+          git fetch origin main
+          tagged_commit="$(git rev-parse HEAD)"
+          main_tip="$(git rev-parse origin/main)"
+          if [[ "$tagged_commit" != "$main_tip" ]]; then
+            if [[ "$ALLOW_NON_MAIN_TAG" == "true" ]]; then
+              echo "::warning::ALLOW_NON_MAIN_TAG=true: publishing $tagged_commit, which is NOT the tip of main ($main_tip). Only use this for a deliberate hotfix from a maintenance branch."
+            else
+              echo "::error::Tagged commit $tagged_commit is not the tip of main ($main_tip)." >&2
+              echo "This tag was created from a commit that main has already moved past — publishing it ships stale code under a new version number, exactly what broke installer-v0.73.0." >&2
+              echo "Fix: delete this tag, cut a NEW installer-v<semver> tag from the current tip of main, and push that instead. Never move an already-published tag." >&2
+              echo "Legitimate hotfix from a maintenance branch: re-run this workflow via workflow_dispatch with allow_non_main_tag=true." >&2
+              exit 1
+            fi
+          fi
 
       - uses: oven-sh/setup-bun@v2
         with:
