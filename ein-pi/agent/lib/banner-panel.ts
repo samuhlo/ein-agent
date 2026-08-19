@@ -1,19 +1,19 @@
 // =============================================================================
-// BANNER PANEL — la ventana de estado del arranque, estilo 16 bits
-// Marco doble, pestañas de sección invertidas (carbón sobre amarillo, como la
-// selección de un menú de SNES) y líneas de puntos que llevan cada etiqueta
-// hasta su valor.
+// BANNER PANEL — el estado del arranque, sin marco
+// Cabecera con el wordmark, secciones `// NNN.` y filas etiqueta/valor en
+// columna. Antes era una ventana de 16 bits: marco doble, pestañas invertidas
+// y líneas de puntos que llevaban cada etiqueta hasta su valor.
 //
-// Los puntos no son adorno. TODO cuelga de una sola rejilla, así que
-// HEAD/LOCAL/UPSTREAM quedan alineados con el resto: antes las filas de git se
-// pintaban aparte, con su propio ancho de etiqueta, y nunca cuadraban.
+// Los puntos no eran adorno — sostenían la rejilla que alinea HEAD/LOCAL con el
+// resto. Pero esa rejilla la da la COLUMNA sola: `padEnd(LABEL_W)` alinea igual
+// sin pintar nada, y el aire separa mejor que un borde (STYLE.md // 002).
 //
 // Módulo PURO: entra data + tick, salen celdas. Sin fs, sin ANSI, sin Pi. Por
 // eso se puede previsualizar y testear sin arrancar un terminal — que es como
 // se cazó que el restyle anterior se había comido los iconos de las filas.
 // =============================================================================
 
-export type PanelTone = "frame" | "label" | "value" | "plate" | "dim" | "accent";
+export type PanelTone = "frame" | "label" | "value" | "dim" | "accent";
 export type PanelCell = Readonly<{ text: string; tone: PanelTone; bold?: boolean }>;
 export type PanelLine = readonly PanelCell[];
 
@@ -29,7 +29,7 @@ export type PanelSection =
 	| Readonly<{ kind: "loose"; fields: readonly PanelField[] }>;
 
 export type PanelData = Readonly<{
-	plate: string;
+	title: string;
 	right: string;
 	sections: readonly PanelSection[];
 }>;
@@ -44,9 +44,7 @@ export const PANEL_FRAME_TICKS = 6;
 export const PANEL_ROW_TICKS = 1;
 export const PANEL_LEADER_TICKS = 4;
 
-const TOP_L = "╔", TOP_R = "╗", BOT_L = "╚", BOT_R = "╝";
-const H = "═", V = "║", SEP_L = "╟", SEP_R = "╢", SEP = "─";
-const DOT = "·", RULE = "┄";
+const RULE = "─";
 const CHIP_ON = "◆", CHIP_OFF = "◇";
 
 function fit(value: string, width: number): string {
@@ -104,95 +102,79 @@ export function renderPanel(data: PanelData, tick: number): readonly PanelLine[]
 	if (framePhase <= 0) return [];
 
 	const lines: PanelCell[][] = [];
-	const drawn = Math.min(PANEL_W, Math.round(PANEL_W * framePhase));
 
-	// Borde superior: barre de izquierda a derecha.
-	const top: PanelCell[] = [{ text: TOP_L, tone: "frame" }];
-	top.push({ text: H.repeat(Math.max(0, drawn - 2)), tone: "frame" });
-	if (drawn >= PANEL_W) top.push({ text: TOP_R, tone: "frame" });
-	lines.push(top);
+	// Cabecera: wordmark con la `i` en amarillo, el título de la vista y el
+	// contexto a la derecha. Sin placa invertida y sin bordes que cerrar.
+	const head: PanelCell[] = [
+		{ text: "e", tone: "value" },
+		{ text: "i", tone: "accent" },
+		{ text: "n", tone: "value" },
+		{ text: `   ${data.title}`, tone: "label" },
+	];
+	const used = head.reduce((total, cell) => total + [...cell.text].length, 0);
+	const gap = Math.max(1, PANEL_W - used - data.right.length);
+	head.push({ text: " ".repeat(gap), tone: "value" });
+	head.push({ text: data.right, tone: "dim" });
+	lines.push(head);
 	if (framePhase < 1) return lines;
-
-	// Cabecera: placa invertida + versión de Pi a la derecha.
-	const gap = Math.max(1, INNER_W - data.plate.length - data.right.length);
-	lines.push([
-		{ text: `${V} `, tone: "frame" },
-		{ text: data.plate, tone: "plate", bold: true },
-		{ text: " ".repeat(gap), tone: "value" },
-		{ text: data.right, tone: "label" },
-		{ text: ` ${V}`, tone: "frame" },
-	]);
-	lines.push([
-		{ text: SEP_L, tone: "frame" },
-		{ text: SEP.repeat(PANEL_W - 2), tone: "label" },
-		{ text: SEP_R, tone: "frame" },
-	]);
 
 	const rowProgress = (index: number): number =>
 		clamp01((tick - PANEL_FRAME_TICKS - index * PANEL_ROW_TICKS) / PANEL_LEADER_TICKS);
 
+	let sectionIndex = 0;
 	for (const [index, row] of rows.entries()) {
 		const progress = rowProgress(index);
 		if (progress <= 0) continue;
-		const cells: PanelCell[] = [{ text: `${V} `, tone: "frame" }];
+		const cells: PanelCell[] = [];
 
 		if (row.kind === "blank") {
-			cells.push({ text: " ".repeat(INNER_W), tone: "value" });
+			cells.push({ text: " ".repeat(PANEL_W), tone: "value" });
 		} else if (row.kind === "divider") {
-			cells.push({ text: RULE.repeat(INNER_W), tone: "dim" });
+			cells.push({ text: RULE.repeat(PANEL_W), tone: "dim" });
 		} else if (row.kind === "note") {
 			const shown = row.text.slice(0, Math.ceil(row.text.length * progress));
 			cells.push({ text: shown, tone: "dim" });
-			cells.push({ text: " ".repeat(Math.max(0, INNER_W - shown.length)), tone: "value" });
+			cells.push({ text: " ".repeat(Math.max(0, PANEL_W - shown.length)), tone: "value" });
 		} else if (row.kind === "tab") {
-			// La pestaña crece de izquierda a derecha al abrirse.
-			const full = ` ${row.text} `;
+			// Título de sección: `// NNN. sección`, con el `//` en acento. Crece de
+			// izquierda a derecha al abrirse, como el resto de la cascada.
+			const full = `// ${String(sectionIndex).padStart(3, "0")}. ${row.text.toLowerCase()}`;
+			sectionIndex += 1;
 			const shown = full.slice(0, Math.max(1, Math.ceil(full.length * progress)));
-			cells.push({ text: shown, tone: "plate", bold: true });
-			cells.push({ text: " ".repeat(Math.max(0, INNER_W - shown.length)), tone: "value" });
+			cells.push({ text: shown.slice(0, 2), tone: "accent" });
+			if (shown.length > 2) cells.push({ text: shown.slice(2), tone: "label" });
+			cells.push({ text: " ".repeat(Math.max(0, PANEL_W - shown.length)), tone: "value" });
 		} else if (row.kind === "chips") {
 			cells.push({ text: row.label.padEnd(LABEL_W), tone: "label" });
-			let used = LABEL_W;
+			let width = LABEL_W;
 			for (const chip of row.chips) {
 				const piece = `${CHIP_ON} ${chip.text}  `;
-				if (used + piece.length > INNER_W) break;
+				if (width + piece.length > PANEL_W) break;
 				cells.push({ text: `${chip.on ? CHIP_ON : CHIP_OFF} `, tone: chip.on ? "accent" : "dim" });
 				cells.push({ text: `${chip.text}  `, tone: chip.on ? "value" : "dim" });
-				used += piece.length;
+				width += piece.length;
 			}
-			cells.push({ text: " ".repeat(Math.max(0, INNER_W - used)), tone: "value" });
+			cells.push({ text: " ".repeat(Math.max(0, PANEL_W - width)), tone: "value" });
 		} else {
-			// Campo: etiqueta, puntos que corren, y el valor soltándose al final.
+			// Campo: etiqueta y valor en columna. Los puntos que llevaban la
+			// etiqueta hasta su valor eran una rejilla dibujada a mano; la sangría
+			// fija alinea igual sin pintar nada.
 			cells.push({ text: row.label.padEnd(LABEL_W), tone: row.label ? "label" : "value" });
-			// El sufijo solo reserva su separador cuando EXISTE. Contarlo siempre
-			// dejaba las filas sin sufijo una columna cortas, y el marco no
-			// cerraba en vertical: el mismo descuadre que hacia que HEAD/LOCAL no
-			// alinearan con el resto.
 			const tail = row.trail ? row.trail.length + 1 : 0;
-			const span = Math.max(0, INNER_W - LABEL_W - row.value.length - tail - 1);
-			const filled = Math.round(span * progress);
-			cells.push({ text: DOT.repeat(filled), tone: "dim" });
-			cells.push({ text: " ".repeat(span - filled), tone: "value" });
+			const room = Math.max(0, PANEL_W - LABEL_W - tail);
 			if (progress >= 1) {
-				cells.push({ text: ` ${row.value}`, tone: "value" });
+				const value = row.value.slice(0, room);
+				cells.push({ text: value, tone: "value" });
 				if (row.trail) cells.push({ text: ` ${row.trail}`, tone: "label" });
+				cells.push({ text: " ".repeat(Math.max(0, room - value.length)), tone: "value" });
 			} else {
-				cells.push({ text: " ".repeat(row.value.length + tail + 1), tone: "value" });
+				cells.push({ text: " ".repeat(room + tail), tone: "value" });
 			}
 		}
 
-		cells.push({ text: ` ${V}`, tone: "frame" });
 		lines.push(cells);
 	}
 
-	// Cierre: solo cuando la última fila ha terminado de abrir.
-	if (rows.length && rowProgress(rows.length - 1) >= 1) {
-		lines.push([
-			{ text: BOT_L, tone: "frame" },
-			{ text: H.repeat(PANEL_W - 2), tone: "frame" },
-			{ text: BOT_R, tone: "frame" },
-		]);
-	}
 	return lines;
 }
 

@@ -5,7 +5,7 @@
 // protege o libera un backup frente a la poda automatica.
 // =============================================================================
 
-import * as p from "@clack/prompts";
+import * as p from "../tui/ui.ts";
 import { listBackups, restoreBackup, setPinned, snapshot } from "../core/backup.ts";
 import { bold, gold } from "../tui/theme.ts";
 
@@ -36,7 +36,7 @@ export async function runRestore(args: string[]): Promise<number> {
     return 0;
   }
 
-  p.intro(bold(gold("Restaurar Ein")));
+  p.intro("restaurar desde un backup");
 
   const backups = listBackups();
   if (backups.length === 0) {

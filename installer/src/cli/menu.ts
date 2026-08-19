@@ -3,7 +3,7 @@
 // Banner + gold menu routing to the lifecycle commands.
 // =============================================================================
 
-import * as p from "@clack/prompts";
+import * as p from "../tui/ui.ts";
 import { playBanner } from "../tui/banner.ts";
 import { bold, gold, structure } from "../tui/theme.ts";
 import { runInstall, type InstallTarget } from "./install.ts";
@@ -58,7 +58,7 @@ export async function runMenu(options: RunMenuOptions = {}): Promise<number> {
     return 0;
   }
   await (options.playBanner ?? playBanner)();
-  p.intro(bold(gold("Ein — gestor del workbench")));
+  p.intro("gestor del workbench");
 
   const action = options.actionPrompt
     ? await options.actionPrompt()

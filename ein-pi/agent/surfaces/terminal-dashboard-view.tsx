@@ -4,10 +4,8 @@ import { visibleRows, type AppModel } from "../lib/terminal-app.ts";
 import {
 	blankLine,
 	contentLines,
-	frameBottom,
-	frameDivider,
-	frameTop,
 	headerLine,
+	ruleLine,
 	textLine,
 	type ChromeLine,
 	type ChromeTone,
@@ -16,11 +14,11 @@ import { BRAND, SIGNAL, SURFACE } from "./terminal-theme.ts";
 
 export type TerminalDashboardViewData = Readonly<{ model: AppModel; width: number; height: number }>;
 
-// Mismos cuatro colores que el banner. `tab` es la única inversión: carbón
-// sobre amarillo, el gesto de selección de un menú de 16 bits.
+// Mismos cuatro colores que el banner. Ya no hay inversión: el foco es una
+// banda de fondo, y la marca es la `i` amarilla del wordmark.
 const TONE: Record<ChromeTone, string> = {
-	frame: BRAND.yellow,
-	tab: SURFACE.plateFg,
+	frame: BRAND.structure,
+	tab: BRAND.structure,
 	label: BRAND.structure,
 	value: BRAND.concrete,
 	dim: SURFACE.dim,
@@ -31,23 +29,11 @@ const TONE: Record<ChromeTone, string> = {
 	danger: SIGNAL.danger,
 };
 
-// El cursor late. Es lo que separa un menú vivo de una lista impresa, y cuesta
-// un temporizador. 600 ms: se nota sin distraer al leer.
-const BLINK_MS = 600;
-
-function useBlink(): Accessor<boolean> {
-	const [on, setOn] = createSignal(true);
-	const timer = setInterval(() => setOn((value) => !value), BLINK_MS);
-	onCleanup(() => clearInterval(timer));
-	return on;
-}
-
 export function TerminalDashboardView(props: Readonly<{ view: Accessor<TerminalDashboardViewData> }>) {
-	const blink = useBlink();
 	const model = () => props.view().model;
 	const rows = () => visibleRows(model().view, model().query);
-	// El marco se ajusta al terminal, con un tope para que en pantallas muy
-	// anchas no quede una caja desmesurada.
+	// El ancho útil se ajusta al terminal, con tope para que en pantallas muy
+	// anchas la línea no se estire sin fin.
 	const total = () => Math.max(40, Math.min(props.view().width - 2, 96));
 	const dirty = () => model().summary.dirty === undefined
 		? "?"
@@ -68,16 +54,14 @@ export function TerminalDashboardView(props: Readonly<{ view: Accessor<TerminalD
 			"↑/↓ move   ←/→ change   enter select   / search   q quit",
 		);
 
-	// Altura disponible para filas: marco (2) + cabecera (2) + separadores (2)
-	// + pie (1). Sin esto el contenido empujaba el borde inferior fuera.
-	const CHROME_ROWS = 8;
+	// Altura disponible para filas: barra superior (1) + contexto (1) + aire (3)
+	// + barra inferior (1). Sin esto el contenido empujaba el pie fuera.
+	const CHROME_ROWS = 7;
 	const capacity = () => Math.max(1, props.view().height - CHROME_ROWS);
 
+	// Dos barras y el contenido flotando entre ellas (STYLE.md // 002, regla 7).
 	const lines = (): readonly ChromeLine[] => [
-		frameTop(total()),
-		headerLine(total(), model().view.title, model().summary.name),
-		textLine(total(), `  ${context()}`),
-		frameDivider(total()),
+		headerLine(total(), model().view.title, context()),
 		blankLine(total()),
 		...contentLines(
 			total(),
@@ -85,12 +69,10 @@ export function TerminalDashboardView(props: Readonly<{ view: Accessor<TerminalD
 			model().cursor,
 			Math.min(rows().length, capacity()),
 			model().view.kind === "config",
-			blink(),
 		),
 		blankLine(total()),
-		frameDivider(total()),
+		ruleLine(total()),
 		textLine(total(), hint(), model().status ? "warn" : "dim"),
-		frameBottom(total()),
 	];
 
 	return (
@@ -103,7 +85,7 @@ export function TerminalDashboardView(props: Readonly<{ view: Accessor<TerminalD
 								<text
 									flexShrink={0}
 									fg={TONE[cell.tone]}
-									{...(cell.tone === "tab" ? { bg: SURFACE.plateBg } : {})}
+									{...(cell.bg ? { bg: SURFACE.selectedBg } : {})}
 								>
 									{cell.bold ? <strong>{cell.text}</strong> : cell.text}
 								</text>

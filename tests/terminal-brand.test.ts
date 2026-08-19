@@ -192,36 +192,52 @@ describe("installer y app de terminal, misma marca", () => {
 });
 
 // =============================================================================
-// Las TRES superficies —banner de arranque, app de terminal e instalador— usan
-// la misma ventana de 16 bits. El instalador la duplica a proposito (corre
-// antes de que exista el template), asi que lo unico que puede protegerla es un
-// test que compare las copias.
+// Las TRES superficies —banner de arranque, app de terminal e instalador— hablan
+// la misma gramatica. El instalador la duplica a proposito (corre antes de que
+// exista el template), asi que lo unico que puede protegerla es un test que
+// compare las copias.
+//
+// Antes esto custodiaba un marco doble con pestanas invertidas y lineas de
+// puntos. La gramatica nueva es la contraria: sin contornos, con el aire y el
+// apagado haciendo la jerarquia. El test se invierte con ella — es un test de
+// presentacion, que es para lo que existe.
 // =============================================================================
-describe("una sola gramatica de ventana", () => {
+describe("una sola gramatica de terminal", () => {
 	const sources = {
 		banner: readFileSync(join(ROOT, "ein-pi/agent/lib/banner-panel.ts"), "utf8"),
 		app: readFileSync(join(ROOT, "ein-pi/agent/surfaces/terminal-chrome.ts"), "utf8"),
-		installer: readFileSync(join(ROOT, "installer/src/tui/frame.ts"), "utf8"),
+		installer: readFileSync(join(ROOT, "installer/src/tui/report.ts"), "utf8"),
 	};
 
-	test("mismo marco doble en las tres", () => {
-		for (const source of Object.values(sources)) {
+	test("ninguna dibuja un contorno cerrado", () => {
+		for (const [name, source] of Object.entries(sources)) {
 			for (const glyph of ["╔", "╗", "╚", "╝", "═", "║", "╟", "╢"]) {
-				expect(source).toContain(glyph);
+				expect(source, name).not.toContain(glyph);
 			}
 		}
 	});
 
-	test("misma linea de puntos y misma pestana invertida", () => {
+	test("ninguna conserva la placa invertida", () => {
 		for (const [name, source] of Object.entries(sources)) {
-			expect(source, name).toContain('"·"');
-			expect(source.toLowerCase(), name).toMatch(/plate|tab/);
+			expect(source.toLowerCase(), name).not.toMatch(/tone: "plate"|plate\(/);
 		}
 	});
 
-	test("las tres recortan en vez de desbordar el marco", () => {
+	test("las tres numeran sus secciones a tres dígitos", () => {
 		for (const [name, source] of Object.entries(sources)) {
-			expect(source, name).toContain(".slice(");
+			expect(source, name).toContain('padStart(3, "0")');
+		}
+	});
+
+	test("las tres bajan a minuscula el texto corrido", () => {
+		for (const [name, source] of Object.entries(sources)) {
+			expect(source, name).toContain("toLowerCase()");
+		}
+	});
+
+	test("las tres recortan en vez de desbordar el ancho", () => {
+		for (const [name, source] of Object.entries(sources)) {
+			expect(source, name).toMatch(/\.slice\(|visibleWidth/);
 		}
 	});
 });

@@ -1,8 +1,15 @@
 // =============================================================================
-// TERMINAL CHROME — el marco de la app, mismo lenguaje que el banner de Pi
-// Marco doble, pestañas de sección invertidas y líneas de puntos que llevan la
-// etiqueta hasta su valor o su tecla. Es la misma gramática que
-// `lib/banner-panel.ts`: arranque y app se leen como el mismo producto.
+// TERMINAL CHROME — la app, en la gramática de Ein
+// Dos barras y nada más: una arriba con identidad y contexto, otra abajo con
+// estado y atajos. Entre ellas el contenido FLOTA, sin marco.
+//
+// ANTES había un marco doble con pestañas invertidas y líneas de puntos que
+// llevaban cada etiqueta hasta su valor. Los puntos eran una rejilla dibujada a
+// mano y el marco encerraba una pantalla que no necesitaba paredes: la columna
+// alinea igual y el aire separa mejor (`core/docs/STYLE.md // 002`).
+//
+// La fila con foco es una BANDA de fondo, no un cursor que late: un cursor
+// parpadeante pide atención constantemente, y solo hay una fila activa.
 //
 // Módulo PURO: entra el modelo, salen líneas. Sin OpenTUI, sin fs. Es lo que
 // permite ver y testear el layout sin abrir un terminal.
@@ -11,21 +18,28 @@
 import type { Row, VisibleRow } from "../lib/terminal-app.ts";
 import { rowMark } from "./terminal-theme.ts";
 
-export const FRAME = {
-	topLeft: "╔", topRight: "╗", bottomLeft: "╚", bottomRight: "╝",
-	horizontal: "═", vertical: "║", tLeft: "╟", tRight: "╢", separator: "─",
+/** Glifos de la gramática. Ninguno dibuja un contorno cerrado, a propósito. */
+export const GLYPH = {
+	rule: "▏",
+	focus: "▸",
+	sep: "·",
+	divider: "─",
 } as const;
-
-const DOT = "·";
-/** Cursor de selección: el gesto de menú de 16 bits. Late entre dos formas. */
-export const CURSOR = ["▶", "▷"] as const;
 
 export type ChromeTone =
 	| "frame" | "tab" | "label" | "value" | "dim" | "selected" | "key"
 	| "ok" | "warn" | "danger";
 
-export type ChromeCell = Readonly<{ text: string; tone: ChromeTone; bold?: boolean }>;
+export type ChromeCell = Readonly<{
+	text: string;
+	tone: ChromeTone;
+	bold?: boolean;
+	/** Parte de la banda de foco: el fondo lo pinta la vista. */
+	bg?: boolean;
+}>;
 export type ChromeLine = readonly ChromeCell[];
+
+const INDENT = "  ";
 
 const width = (line: ChromeLine): number => {
 	let total = 0;
@@ -34,106 +48,88 @@ const width = (line: ChromeLine): number => {
 };
 
 /**
- * Rellena la línea hasta el ancho total y la cierra con el borde derecho.
- * La cuenta se hace sobre el TOTAL, no sobre el interior: derivarla del interior
- * dejaba las líneas una columna cortas y el borde derecho no caía en vertical
- * — el mismo descuadre que tenía el panel del banner.
+ * Rellena hasta el ancho total. Sin borde derecho que cerrar, pero el relleno
+ * sigue importando: es lo que hace que la banda de foco llegue al final.
  */
-function close(cells: ChromeCell[], total: number): ChromeLine {
-	const pad = Math.max(0, total - 1 - width(cells));
-	return [...cells, { text: " ".repeat(pad), tone: "value" }, { text: FRAME.vertical, tone: "frame" }];
-}
-
-const open = (): ChromeCell[] => [{ text: `${FRAME.vertical} `, tone: "frame" }];
-
-export function frameTop(total: number): ChromeLine {
-	return [
-		{ text: FRAME.topLeft, tone: "frame" },
-		{ text: FRAME.horizontal.repeat(Math.max(0, total - 2)), tone: "frame" },
-		{ text: FRAME.topRight, tone: "frame" },
-	];
-}
-
-export function frameBottom(total: number): ChromeLine {
-	return [
-		{ text: FRAME.bottomLeft, tone: "frame" },
-		{ text: FRAME.horizontal.repeat(Math.max(0, total - 2)), tone: "frame" },
-		{ text: FRAME.bottomRight, tone: "frame" },
-	];
-}
-
-export function frameDivider(total: number): ChromeLine {
-	return [
-		{ text: FRAME.tLeft, tone: "frame" },
-		{ text: FRAME.separator.repeat(Math.max(0, total - 2)), tone: "label" },
-		{ text: FRAME.tRight, tone: "frame" },
-	];
-}
-
-/** Cabecera: placa de marca, título de vista y contexto a la derecha. */
-export function headerLine(total: number, title: string, right: string): ChromeLine {
-	const inner = total - 4;
-	const plate = " EIN ";
-	const heading = `  ${title.toUpperCase()}`;
-	const cells = open();
-	cells.push({ text: plate, tone: "tab", bold: true });
-	cells.push({ text: heading, tone: "value", bold: true });
-	const used = plate.length + heading.length;
-	const trimmed = right.slice(0, Math.max(0, inner - used - 1));
-	cells.push({ text: " ".repeat(Math.max(1, inner - used - trimmed.length)), tone: "value" });
-	cells.push({ text: trimmed, tone: "label" });
-	return close(cells, total);
-}
-
-export function textLine(total: number, text: string, tone: ChromeTone = "label"): ChromeLine {
-	const inner = total - 4;
-	return close([...open(), { text: text.slice(0, inner), tone }], total);
+function pad(cells: ChromeCell[], total: number, bg = false): ChromeLine {
+	const missing = Math.max(0, total - width(cells));
+	return [...cells, { text: " ".repeat(missing), tone: "value", bg }];
 }
 
 export function blankLine(total: number): ChromeLine {
-	return close(open(), total);
+	return pad([], total);
 }
 
-/** Pestaña de sección: carbón sobre amarillo, como el banner. */
-export function tabLine(total: number, text: string): ChromeLine {
-	const inner = total - 4;
-	return close([...open(), { text: ` ${text.toUpperCase()} `, tone: "tab", bold: true }], total);
+/** Regla fina de separación. Solo donde cambia el TIPO de contenido. */
+export function ruleLine(total: number): ChromeLine {
+	return [{ text: GLYPH.divider.repeat(Math.max(0, total)), tone: "dim" }];
+}
+
+/** Barra superior: wordmark, vista y contexto a la derecha. */
+export function headerLine(total: number, title: string, right: string): ChromeLine {
+	const cells: ChromeCell[] = [
+		{ text: INDENT, tone: "value" },
+		{ text: "e", tone: "value" },
+		{ text: "i", tone: "selected" },
+		{ text: "n", tone: "value" },
+		{ text: `   ${title.toLowerCase()}`, tone: "label" },
+	];
+	const used = width(cells);
+	const trimmed = right.slice(0, Math.max(0, total - used - 3));
+	return [
+		...cells,
+		{ text: " ".repeat(Math.max(1, total - used - trimmed.length - 2)), tone: "value" },
+		{ text: trimmed, tone: "dim" },
+		{ text: INDENT, tone: "value" },
+	];
+}
+
+export function textLine(total: number, text: string, tone: ChromeTone = "label"): ChromeLine {
+	return pad([{ text: `${INDENT}${text}`.slice(0, total) }].map((cell) => ({ ...cell, tone })), total);
 }
 
 /**
- * Fila de menú: cursor, icono del modelo, etiqueta, puntos y tecla o valor.
- * El cursor sólo lo lleva la seleccionada — es lo que hace que se lea como un
- * menú y no como una lista.
+ * Título de sección: `// NNN. sección`. El `//` va en acento y el resto
+ * apagado — el gesto de marca a la intensidad de la referencia, sin pestaña.
  */
-export function rowLine(
-	total: number,
-	row: Row,
-	selected: boolean,
-	blink: boolean,
-): ChromeLine {
-	const inner = total - 4;
-	const cells = open();
-	cells.push({
-		text: selected ? `${blink ? CURSOR[0] : CURSOR[1]} ` : "  ",
-		tone: selected ? "selected" : "value",
-		bold: selected,
-	});
+export function sectionLine(total: number, index: number, text: string): ChromeLine {
+	return pad(
+		[
+			{ text: INDENT, tone: "value" },
+			{ text: "//", tone: "selected" },
+			{ text: ` ${String(index).padStart(3, "0")}. ${text.toLowerCase()}`, tone: "label" },
+		],
+		total,
+	);
+}
+
+/**
+ * Fila de menú: regla vertical, marcador, etiqueta y su valor o tecla. La
+ * seleccionada va sobre banda y con la regla en acento; las demás, apagadas.
+ */
+export function rowLine(total: number, row: Row, selected: boolean): ChromeLine {
+	const bg = selected;
+	const cells: ChromeCell[] = [
+		{ text: INDENT, tone: "value", bg },
+		{ text: GLYPH.rule, tone: selected ? "selected" : "dim", bg },
+		{ text: " ", tone: "value", bg },
+	];
 	const glyph = row.icon ?? rowMark(row);
-	cells.push({ text: `${glyph} `, tone: selected ? "selected" : toneOf(row) });
+	cells.push({ text: `${glyph} `, tone: selected ? "selected" : toneOf(row), bg });
 
-	// Presupuesto duro: cursor (2) + glifo (2) + etiqueta + puntos + cola. Un
-	// valor o una etiqueta larguisimos deben RECORTARSE, nunca empujar el borde
-	// derecho fuera del marco.
+	// Presupuesto duro: sangría + regla + glifo + etiqueta + cola. Una etiqueta
+	// o un valor larguísimos se RECORTAN, nunca empujan la línea fuera del ancho.
 	const rawTail = "value" in row ? String(row.value ?? "unknown") : row.key ? `[${row.key}]` : "";
-	const tail = rawTail.slice(0, Math.max(0, inner - 8));
-	const label = row.label.slice(0, Math.max(1, inner - 4 - [...tail].length - 2));
-	cells.push({ text: label, tone: selected ? "selected" : "value", bold: selected });
+	const tail = rawTail.slice(0, Math.max(0, total - 14));
+	const label = row.label.slice(0, Math.max(1, total - 8 - [...tail].length));
+	cells.push({ text: label, tone: selected ? "value" : "label", bold: selected, bg });
 
-	const used = 2 + 2 + [...label].length;
-	const span = Math.max(1, inner - used - [...tail].length - 1);
-	cells.push({ text: ` ${DOT.repeat(Math.max(0, span - 1))}`, tone: "dim" });
-	if (tail) cells.push({ text: ` ${tail}`, tone: "value" in row ? valueTone(row) : "key" });
-	return close(cells, total);
+	const used = width(cells);
+	const gap = Math.max(1, total - used - [...tail].length - (selected ? 4 : 2));
+	cells.push({ text: " ".repeat(gap), tone: "value", bg });
+	if (tail) cells.push({ text: tail, tone: "value" in row ? valueTone(row) : "key", bg });
+	if (selected) cells.push({ text: `  ${GLYPH.focus}`, tone: "selected", bg });
+	return pad(cells, total, bg);
 }
 
 function toneOf(row: Row): ChromeTone {
@@ -149,30 +145,31 @@ function valueTone(row: Row): ChromeTone {
 }
 
 export function noteLine(total: number, note: string): ChromeLine {
-	const inner = total - 4;
-	return close([...open(), { text: `      ${note}`.slice(0, inner), tone: "dim" }], total);
+	return pad([{ text: `${INDENT}${GLYPH.rule}     ${note}`.slice(0, total), tone: "dim" }], total);
 }
 
-/** Todas las líneas del contenido, con sus secciones como pestañas. */
+/** Todas las líneas del contenido, con sus secciones numeradas. */
 export function contentLines(
 	total: number,
 	rows: readonly VisibleRow[],
 	cursor: number,
 	maximum: number,
 	showAllNotes: boolean,
-	blink: boolean,
 ): readonly ChromeLine[] {
 	const out: ChromeLine[] = [];
 	const start = Math.min(Math.max(0, cursor - Math.floor(maximum / 2)), Math.max(0, rows.length - maximum));
 	let previous: string | undefined;
+	let sectionIndex = 0;
 	for (const [offset, { section, row }] of rows.slice(start, start + maximum).entries()) {
 		const index = start + offset;
 		if (section && section !== previous) {
 			if (out.length) out.push(blankLine(total));
-			out.push(tabLine(total, section));
+			out.push(sectionLine(total, sectionIndex, section));
+			out.push(blankLine(total));
+			sectionIndex += 1;
 		}
 		const selected = index === cursor;
-		out.push(rowLine(total, row, selected, blink));
+		out.push(rowLine(total, row, selected));
 		if ((showAllNotes || selected) && row.note) out.push(noteLine(total, row.note));
 		previous = section;
 	}

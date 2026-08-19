@@ -13,7 +13,6 @@
 // =============================================================================
 
 import type { Row, RowTone } from "../lib/terminal-app.ts";
-import { MARKER } from "../lib/ein-logo.ts";
 
 // Paleta plana. Duplica los valores de brand.json a propósito: OpenTUI quiere
 // hex y el cargador de marca devuelve RGB, y esta superficie no debe depender
@@ -30,14 +29,14 @@ export const BRAND = {
 export const SURFACE = {
 	// Fondo de la app: carbón. Es la base de la marca, no un azul de dev-tool.
 	background: BRAND.carbon,
-	// Regla estructural y bordes.
-	rule: "#3A3540",
+	// Regla estructural.
+	rule: "#3A3A3A",
 	// Texto secundario: estructura, un punto más apagado sobre carbón.
-	dim: "#8A8A8A",
-	// Placa de marca: texto carbón sobre amarillo (igual que el tag de versión
-	// del banner de Pi).
-	plateBg: BRAND.yellow,
-	plateFg: BRAND.carbon,
+	dim: "#5A5A5A",
+	// Banda de la fila con foco. Derivada del amarillo a alfa 0.08 sobre la base
+	// (STYLE.md // 001): es lo que ata el foco al acento sin meter un quinto
+	// color, y sustituye a la placa invertida que se retiró.
+	selectedBg: "#1F1A0F",
 } as const;
 
 // Semáforo. Única concesión fuera de los cuatro colores, y solo para estado.
@@ -47,7 +46,7 @@ export const SIGNAL = {
 	danger: "#E5484D",
 } as const;
 
-export type LineTone = RowTone | "selected" | "section" | "rule" | "plate";
+export type LineTone = RowTone | "selected" | "section" | "rule";
 
 export const TONE_COLOR: Record<LineTone, string> = {
 	normal: BRAND.concrete,
@@ -58,7 +57,6 @@ export const TONE_COLOR: Record<LineTone, string> = {
 	selected: BRAND.yellow,
 	section: BRAND.structure,
 	rule: SURFACE.rule,
-	plate: SURFACE.plateFg,
 };
 
 // Marcadores. Sustituyen a la distinción por color de Pi (turquesa) y Claude
@@ -66,11 +64,11 @@ export const TONE_COLOR: Record<LineTone, string> = {
 // sobrevive a un terminal sin color, que un tinte no.
 export const MARK = {
 	// Disponible / accionable.
-	active: MARKER, // ■
+	active: "✓",
 	// Presente pero sin nada que retomar.
-	idle: "□",
+	idle: "·",
 	// Aviso y fallo, dentro del semáforo.
-	warn: "▲",
+	warn: "!",
 	danger: "✕",
 } as const;
 

@@ -1,4 +1,4 @@
-import * as p from "@clack/prompts";
+import * as p from "../tui/ui.ts";
 import { dirname, join } from "node:path";
 import { INSTALLER_COMMAND, promoteCommandNames } from "../core/command-names.ts";
 import { detectPlatform, type Platform } from "../core/platform.ts";
@@ -60,7 +60,7 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
   const caps = dependencies.caps ?? defaultUpdateCaps();
   const flags = parseCliFlags(args);
   const write = dependencies.write ?? ((line: string) => p.log.message(line));
-  if (dependencies.interactive !== false) p.intro(bold(gold("Actualizar Ein")));
+  if (dependencies.interactive !== false) p.intro("actualizar ein y pi");
 
   const recovery = await recoverPendingTransaction({ caps, journalPath: dependencies.journalPath });
   const selector = parseSelector(flags.selectorArgs);

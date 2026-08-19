@@ -678,7 +678,7 @@ export default function (pi: ExtensionAPI) {
                 );
 
               const panelData = {
-                plate: " ESTADO ",
+                title: "estado",
                 right: shortenHome(ctx.cwd),
                 sections: [
                   { kind: "fields" as const, title: "SISTEMA", fields: [
@@ -712,14 +712,13 @@ export default function (pi: ExtensionAPI) {
               };
 
               const TONE: Record<PanelTone, RGB> = {
-                frame: YELLOW, label: STRUCTURE, value: CONCRETE, plate: CARBON, dim: STRUCTURE, accent: YELLOW,
+                frame: YELLOW, label: STRUCTURE, value: CONCRETE, dim: STRUCTURE, accent: YELLOW,
               };
               const panel: Cell[][] = renderPanel(panelData, tick - PANEL_START_TICK).map((line) =>
                 line.map((cell) => ({
                   text: cell.text,
                   color: TONE[cell.tone],
-                  ...(cell.tone === "plate" ? { bg: YELLOW } : {}),
-                  ...(cell.bold ? { bold: true } : {}),
+                                    ...(cell.bold ? { bold: true } : {}),
                   ...(cell.tone === "dim" ? { dim: true } : {}),
                 })),
               );
