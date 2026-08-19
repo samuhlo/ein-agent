@@ -5,6 +5,77 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.80.0] - 2026-08-19
+
+Una release de cara: Ein deja de parecer tres productos distintos y pasa a
+hablar el mismo idioma en el instalador, en el launcher y en la sesión.
+
+### Changed
+
+- **Se acabaron los recuadros.** El instalador, el launcher y el arranque de Pi
+  dibujaban cada uno su propio marco de doble línea, con pestañas invertidas y
+  líneas de puntos que llevaban cada etiqueta hasta su valor. Ahora ninguno
+  dibuja contornos: la jerarquía la hacen el aire, la sangría y el apagado. Un
+  bloque se agrupa con una barra fina a su izquierda, y la fila que tienes
+  seleccionada se distingue por una banda de fondo cálida, no por un borde ni
+  por un cursor que parpadea.
+- **El negro es negro.** El color de fondo era `#0C0011`, que no es negro sino
+  un morado muy oscuro. Pasa a `#0B0B0B`. Los ocho tonos de panel que se
+  derivaban de aquel morado se han vuelto a calcular sobre la base nueva con una
+  regla escrita, no a ojo, así que no queda ni un fondo con tinte violeta.
+- **Un solo prefijo.** La misma idea se escribía de tres formas según dónde
+  saliera: `/// 000.` en títulos, `■ 002.` en secciones y `// 000.` en las
+  respuestas. Ahora es `//` en todas partes. Se comprobó antes de tocarlo que
+  ningún código lo lee: 49 sitios lo imprimían, cero lo interpretaban.
+- **El logo deja de ser un dibujo.** El bloque `EIN` de 54×10 caracteres
+  aparecía en tres sitios, cada uno con su propia animación. Era un segundo
+  alfabeto para una marca que en el resto de la interfaz se escribe `ein`. Queda
+  el wordmark, con la `i` en amarillo — el mismo gesto de marca, en una fila en
+  vez de en quinientas cuarenta celdas. El arranque conserva su momento: el
+  panel de estado sigue entrando en cascada, que además de verse bien te dice
+  algo.
+- **El instalador es Ein por dentro y por fuera.** Usaba `@clack/prompts`, que
+  traía su propio canalón `│ ◆` con sus colores: después de un arranque cuidado,
+  volcaba líneas de log de desarrollador en un estilo ajeno. Tanto lo que cuenta
+  como lo que pregunta —menús incluidos— se han reescrito en la gramática de
+  Ein.
+
+### Added
+
+- **El TODO ya no se queda mudo.** Al marcar la última tarea, el widget del
+  cambio se quedaba enseñando `7/7` y callado, aunque todavía faltaran verificar
+  y cerrar. Ahora pinta el carril completo del cambio y, cuando las tareas se
+  acaban, pasa a enseñar las fases que quedan y qué hace cada una. La
+  verificación es la única fase que puede salir como *desconocida*: un informe
+  anterior al último cambio de código no cuenta como aprobado.
+- **El chat deja de llenarse de volcados.** Las dos herramientas que más se
+  llaman escupían veinte líneas cada vez. Ahora dejan un recibo de una línea, y
+  el detalle completo sigue estando a un toque. El modelo recibe exactamente la
+  misma información que antes: lo que cambia es lo que se te impone en pantalla.
+- **Claude recupera la voz de Ein.** El adaptador remitía al documento que define
+  el formato de respuesta, pero ese documento nunca se copiaba al home aislado de
+  Claude: le pedía seguir un contrato que no podía leer. Ahora viaja con el resto
+  del material.
+
+### Fixed
+
+- **La instalación ya no te manda a comandos equivocados.** El script de arranque
+  te decía que ejecutaras `ein`, que en ese punto todavía no existe — el binario
+  recién instalado es `ein-install`. Y al terminar te mandaba a `pi` para usar el
+  agente, cuando `pi` a secas es Pi sin Ein: el cerebro solo se carga a través de
+  su lanzador.
+- **Los colores dejan de volver al azul.** El tema de Ein se desplegaba
+  correctamente pero nunca llegaba a seleccionarse, porque el ajuste que lo elige
+  se conservaba como preferencia del usuario y cada actualización reimponía el
+  tema anterior.
+- **El carril corto ya no se bloquea a sí mismo.** Un cambio en modo `micro` con
+  su alcance y su diseño escritos se leía como si le faltaran las dos fases que
+  ese modo existe precisamente para saltarse, y quedaba atascado. El hueco se
+  mide ahora contra las fases del carril, no contra las siete siempre.
+- **Publicar una release ya no puede empaquetar código viejo.** Si el tag no
+  apunta a la punta de `main`, la publicación se aborta en vez de subir binarios
+  construidos desde un commit que `main` ya dejó atrás.
+
 ## [0.73.1] - 2026-08-19
 
 ### Fixed
