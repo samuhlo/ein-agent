@@ -3,7 +3,7 @@
 # Ein installer bootstrap
 # Detects platform, downloads the matching prebuilt binary from GitHub
 # Releases and installs it to ~/.local/bin/ein-install (or /usr/local/bin if
-# writable). Tells you to run `ein` afterwards.
+# writable). Tells you to run `ein-install` afterwards.
 #
 #   curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
 # =============================================================================
@@ -168,7 +168,7 @@ main() {
   elif [ "$OS" = "linux" ] && [ -e /dev/tty ]; then
     exec "${INSTALL_DIR}/${BINARY_NAME}" </dev/tty
   else
-    ok "Listo. Ejecuta ${BOLD}${GOLD}ein${RESET} para empezar."
+    ok "Listo. Ejecuta ${BOLD}${GOLD}ein-install${RESET} para empezar."
   fi
 }
 

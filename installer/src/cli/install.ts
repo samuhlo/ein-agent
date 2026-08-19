@@ -504,7 +504,7 @@ export function createPiInstallHandlers({ platform, flags, skipLinear, deps, age
   return success();
   },
   };
-  return { handlers, detail: () => `Ein listo. Para la aplicación, ${appHint}; para el agente, \`pi\`.` };
+  return { handlers, detail: () => `Ein listo. Para la aplicación, ${appHint}; para el agente, \`pi-ein\`.` };
 }
 
 export type ClaudeInstallOptions = {

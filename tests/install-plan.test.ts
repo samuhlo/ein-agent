@@ -245,6 +245,7 @@ describe("install plan executor", () => {
     expect(promoteOptions?.appArtifact).toBe(join(context.agentDir, "bin", "ein"));
     expect(promoteOptions?.binDir).toBe(context.localBinDir);
     expect(calls).toEqual(["backup", "deploy", "packages", "marker", "doctor", "launcher", "promote"]); expect([spinnerStarts, spinnerStops]).toEqual([0, 0]);
+    expect(pi.detail()).toBe("Ein listo. Para la aplicación, ejecuta `ein`; para el agente, `pi-ein`.");
     calls.length = 0; const base = { platform: { ...source.platform, distro: "unknown", packageManager: "brew", shell: "unknown", shellRc: join(HOME, ".profile"), home: HOME }, flags: { ...source.flags, noLinear: true, dryRun: false, runtime: "pi" }, skipLinear: true, deps: [], agentDir: context.agentDir } as Parameters<typeof createPiInstallHandlers>[0];
     const missing = createPiInstallHandlers({ ...base, effects: { resolveContext: () => context, promote: () => ({ installer: { path: "ein-install", written: true }, app: { path: "ein", written: false, reason: "app-artifact-missing" } }) } });
     expect(await missing.handlers["pi.promote-commands"]()).toEqual({ ok: false, detail: "app-artifact-missing" });
