@@ -10,31 +10,28 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { LOGO, LOGO_NARROW, logoFor } from "../ein-pi/agent/lib/banner";
+import { bannerFinal, trackingFor } from "../ein-pi/agent/lib/banner";
 import {
-	I_RANGE,
-	LOGO_LARGE,
-	LOGO_SMALL,
+	WORDMARK,
+	accentColumn,
 	centerInLogo,
-	isIColumn,
-	pickLogo,
+	wordmarkText,
 } from "../ein-pi/agent/lib/ein-logo";
 import { BRAND, MARK, SIGNAL, SURFACE, TONE_COLOR, rowColor, rowMark } from "../ein-pi/agent/surfaces/terminal-theme";
 import type { Row } from "../ein-pi/agent/lib/terminal-app";
 
 const ROOT = join(import.meta.dir, "..");
 
-describe("una sola geometría de logo", () => {
-	test("lib/banner re-exporta ein-logo — no es otra copia", () => {
-		expect(LOGO).toBe(LOGO_LARGE);
-		expect(LOGO_NARROW).toBe(LOGO_SMALL);
+describe("una sola geometría de marca", () => {
+	test("el wordmark se escribe `ein`, con la `i` como único acento", () => {
+		expect(WORDMARK.before + WORDMARK.accent + WORDMARK.after).toBe("ein");
+		expect(WORDMARK.accent).toBe("i");
 	});
 
-	// El guard que importa: si alguien vuelve a pegar el dibujo en otro fichero
-	// del árbol ein-pi, esto lo caza. El installer queda fuera a propósito (es un
-	// binario que corre antes de que exista este template).
-	test("el dibujo del logo aparece UNA sola vez en ein-pi/", () => {
-		const firstRow = LOGO_LARGE[0] ?? "";
+	// El guard que importa: si alguien vuelve a dibujar la marca a mano en otro
+	// fichero del árbol ein-pi, esto lo caza. El installer queda fuera a propósito
+	// (es un binario que corre antes de que exista este template).
+	test("no queda ni un logo de bloque en ein-pi/", () => {
 		const candidates = [
 			"ein-pi/agent/lib/ein-logo.ts",
 			"ein-pi/agent/lib/banner.ts",
@@ -42,26 +39,33 @@ describe("una sola geometría de logo", () => {
 			"ein-pi/agent/surfaces/terminal-splash.ts",
 			"ein-pi/agent/surfaces/terminal-dashboard-view.tsx",
 		];
-		const holders = candidates.filter((rel) => readFileSync(join(ROOT, rel), "utf8").includes(firstRow));
-		expect(holders).toEqual(["ein-pi/agent/lib/ein-logo.ts"]);
+		// `████` seguidos son letra de bloque; un `▏` o un `─` sueltos no lo son.
+		const holders = candidates.filter((rel) => /█{4}/.test(readFileSync(join(ROOT, rel), "utf8")));
+		expect(holders).toEqual([]);
 	});
 
-	test("pickLogo elige corte por ancho real de terminal", () => {
-		expect(pickLogo(120).lines).toEqual(LOGO_LARGE.map((l) => l));
-		expect(pickLogo(40).lines.length).toBe(LOGO_SMALL.length);
-		expect(logoFor(120)).toBe(LOGO_LARGE);
+	test("el acento cae en la columna que se declara, con y sin tracking", () => {
+		for (const tracking of ["   ", " ", ""]) {
+			const text = wordmarkText(tracking);
+			expect(text[accentColumn(tracking)]).toBe(WORDMARK.accent);
+		}
 	});
 
-	test("la I cae dentro del rango declarado en los dos cortes", () => {
-		const large = pickLogo(120);
-		expect(isIColumn(large, I_RANGE.large.start)).toBe(true);
-		expect(isIColumn(large, I_RANGE.large.end)).toBe(true);
-		expect(isIColumn(large, I_RANGE.large.start - 1)).toBe(false);
-		expect(isIColumn(large, I_RANGE.large.end + 1)).toBe(false);
+	test("el tracking se aprieta en un terminal estrecho", () => {
+		expect(trackingFor(120)).toBe("   ");
+		expect(trackingFor(40)).toBe(" ");
+		expect(wordmarkText(trackingFor(40))).toBe("e i n");
+	});
+
+	test("la marca asentada lleva wordmark, aire y lema", () => {
+		const lines = bannerFinal(120);
+		expect(lines[0]).toBe("e   i   n");
+		expect(lines[1]).toBe("");
+		expect(lines[2]).toBe("coding agent workbench");
 	});
 
 	test("centerInLogo centra sin desbordar", () => {
-		expect(centerInLogo("EIN", 11)).toBe("    EIN");
+		expect(centerInLogo("ein", 11)).toBe("    ein");
 		expect(centerInLogo("demasiado largo", 4)).toBe("demasiado largo");
 	});
 });

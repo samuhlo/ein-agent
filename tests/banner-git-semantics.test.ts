@@ -349,10 +349,12 @@ describe("ein-banner Git adapter", () => {
 		// La ruta del proyecto vive en la cabecera del panel, a la derecha de la
 		// pestana ESTADO: es contexto, no un dato mas de la lista.
 		expect(bannerSource).toContain("right: shortenHome(ctx.cwd)");
-		// Dos columnas: logo a la izquierda, panel a la derecha. Apilado medía 41
-		// filas y se salia por abajo de un terminal de 30.
-		expect(bannerSource).toContain("width >= composedWidth(logoBase.width)");
-		expect(bannerSource).toContain("composeColumns<Cell, Cell>(left, logoBase.width, panel");
+		// Apilado: marca, respiro, estado. Las dos columnas existian para que
+		// trece filas de logo y veinte de panel no sumaran cuarenta y una; con la
+		// marca en tres filas el problema desaparece, y apilar lee en el orden en
+		// que se mira.
+		expect(bannerSource).toContain("const rows = [...left, [], ...panel];");
+		expect(bannerSource).not.toContain("composeColumns");
 		expect(bannerSource).toContain('label: index === 0 ? "RECIENTES" : ""');
 	});
 

@@ -9,7 +9,7 @@ import { stdin, stdout } from "node:process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
-import { bannerFinal, bannerFrame, frameCount, logoFor, TAGLINE } from "../lib/banner.ts";
+import { bannerFinal, TAGLINE } from "../lib/banner.ts";
 import { projectProjectState, type ProjectStateV1 } from "../lib/project-state.ts";
 import { applySetting, readSettings } from "../lib/project-settings.ts";
 import { engramStoreDir } from "../lib/memory-contract.ts";
@@ -281,12 +281,11 @@ function size(value: number | undefined, fallback: number): number {
 function chromeFor(io: TerminalAppIO): Chrome {
   const columns = size(io.columns, 100);
   const rows = size(io.rows, 40);
-  const logo = logoFor(columns);
-  const fits = columns >= MIN_BANNER_COLUMNS && rows >= MIN_BANNER_ROWS && columns >= logo[0]!.length;
+  const fits = columns >= MIN_BANNER_COLUMNS && rows >= MIN_BANNER_ROWS;
   return {
     columns,
     rows,
-    ...(fits ? { banner: bannerFrame(frameCount(columns), columns), tagline: TAGLINE } : {}),
+    ...(fits ? { banner: bannerFinal(columns), tagline: TAGLINE } : {}),
   };
 }
 
@@ -443,19 +442,15 @@ function footerFor(summary: ProjectSummary): string | undefined {
 }
 
 /**
- * 8-bit wipe-in: a dither edge sweeps the logo left to right. Skipped whenever
- * the terminal cannot animate, and abandoned as soon as the sleep seam says so.
+ * La marca, una vez. Antes esto era un barrido de dithering fotograma a
+ * fotograma sobre el logo de bloque; con un wordmark de una fila no hay nada
+ * que barrer, y hacer esperar para enseñar el propio nombre cobra tiempo a
+ * cambio de nada. Queda el respiro corto para que no parpadee y desaparezca.
  */
 async function playIntro(io: TerminalAppIO, colour: boolean): Promise<void> {
   const sleep = io.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const columns = size(io.columns, 100);
   const paint = createPalette(colour).accent;
-  const total = frameCount(columns);
-  for (let frame = 0; frame <= total; frame += INTRO_COLUMN_STEP) {
-    io.clear?.();
-    io.write(`${bannerFrame(frame, columns).map(paint).join("\n")}\n`);
-    await sleep(INTRO_FRAME_MS);
-  }
   io.clear?.();
   io.write(`${bannerFinal(columns).map(paint).join("\n")}\n`);
   await sleep(INTRO_FRAME_MS * 6);
