@@ -5,6 +5,48 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.73.0] - 2026-08-19
+
+### Fixed
+
+- **El auditor automático dejó de girar en el vacío**: al revisar un cambio, Ein
+  lanzaba su auditor (Cleaner) y esperaba su informe por el mismo canal por el
+  que lo había llamado. Pero los subagentes arrancan en segundo plano, así que
+  el informe volvía por otro sitio y se perdía. El auditor terminaba
+  correctamente una y otra vez, el flujo no se enteraba, y verificar el cambio
+  quedaba fuera de alcance. Ahora esas delegaciones corren en primer plano y su
+  resultado se reconoce por su forma, no rebuscando texto.
+- **Reintentar dejó de ser gratis y silencioso**: el registro de la delegación
+  se destruía al lanzarla, antes de que existiera ningún informe, así que se
+  podía repetir en bucle sin que nada protestara. Ahora sobrevive hasta que hay
+  resultado, y un reintento sobre algo en marcha lo dice.
+- **Desactivar el auditor ya libera el trabajo**: el reparto de participantes se
+  congelaba al abrirse, de modo que apagar el Cleaner a mitad no servía de nada
+  y no había salida. Ahora la identidad de esa revisión depende de QUÉ se
+  audita, no de QUIÉN, y el reparto se recalcula al leer conservando siempre la
+  evidencia de quien ya terminó.
+
+### Added
+
+- **Una regla escrita donde se lee por obligación**: los tres fallos anteriores
+  tenían la misma raíz — dar por hecho que el trabajo de un subagente vuelve por
+  donde salió. Ahora esa regla está enunciada junto al código que la implementa,
+  con un inventario de quién depende de qué, clasificado por lo que pasa cuando
+  falla. Un test se pone en rojo si alguien añade un consumidor sin declararlo:
+  se comprobó insertando uno de mentira.
+- **Salida para el cierre de un cambio en Claude**: el agente que redacta el
+  resumen final a veces se niega a escribirlo, porque su propia política lo
+  confunde con un informe no solicitado. Ya no es un callejón sin salida:
+  `cc-ein-sdd summary <cambio>` lo persiste desde fuera, y Ein lo sugiere solo
+  cuando toca.
+
+### Known issues
+
+- Que el modelo use esa salida no se puede garantizar por test. Lo garantizado
+  es que negarse a escribir ya no bloquea el cierre.
+- El detector de la regla solo cubre un punto de entrada; un consumidor cableado
+  por otra vía se le escapa. Está declarado en el propio módulo, no escondido.
+
 ## [0.73.0] - 2026-08-18
 
 ### Fixed
