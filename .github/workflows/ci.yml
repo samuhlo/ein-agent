@@ -37,9 +37,15 @@ jobs:
       # `xsel` —20 kB -— fallando tres veces seguidas a 60s por intento.
       #
       # De ahí las tres medidas: `--no-install-recommends` no baja `xsel` (es
-      # clipboard, y en CI nadie lo usa), `Acquire::http::Timeout` abandona una
+      # clipboard, y en CI nadie lo usa), `Acquire::Timeout` abandona una
       # conexión estancada en 15s en vez de 60, y el timeout del paso convierte
       # lo que quede en un fallo visible con log en vez de un cuelgue mudo.
+      #
+      # El timeout va SIN transporte a propósito. Antes era `Acquire::http::`,
+      # que solo cubre http: el runner resuelve el mirror de Azure a `Ign` y cae
+      # a `https://archive.ubuntu.com`, así que el límite no se aplicaba a la
+      # conexión que se colgaba. Medido en el log: coge los InRelease y se queda
+      # mudo cuatro minutos y medio hasta que salta el timeout del paso.
       - name: Instalar Fish en Linux
         if: runner.os == 'Linux'
         timeout-minutes: 5
@@ -49,7 +55,7 @@ jobs:
         run: |
           apt_opts=(
             -o Acquire::Retries=5
-            -o Acquire::http::Timeout=15
+            -o Acquire::Timeout=15
             -o DPkg::Lock::Timeout=120
           )
           sudo -E apt-get update "${apt_opts[@]}"
