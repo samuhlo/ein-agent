@@ -1,5 +1,5 @@
 // =============================================================================
-// FRAME — la ventana de 16 bits del instalador
+// frame — la ventana de 16 bits del instalador
 // Misma gramática que el banner de arranque y que la app de terminal: marco
 // doble, pestañas de sección invertidas (carbón sobre amarillo) y líneas de
 // puntos que llevan cada etiqueta hasta su valor.

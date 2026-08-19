@@ -354,7 +354,7 @@ describe("pi-ein update notice", () => {
       ),
     ).toBe(
       [
-        "/// 000. EIN UPDATES",
+        "// 000. ein updates",
         "",
         "- Pi binary, extensions and packages: `pi-ein update --all`",
         "- Ein template: `ein update`",
@@ -466,7 +466,7 @@ describe("pi-ein update notice", () => {
       },
     });
     const rendered = renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME });
-    expect(rendered).toBe(["/// 000. EIN UPDATES", "", "- Ein template: `ein update`"].join("\n"));
+    expect(rendered).toBe(["// 000. ein updates", "", "- Ein template: `ein update`"].join("\n"));
     expect(rendered).not.toContain("Configuration:");
     expect(rendered).not.toContain("pi-ein update --all");
   });
@@ -483,7 +483,7 @@ describe("pi-ein update notice", () => {
     });
     expect(result.update.status).toBe("unavailable");
     const rendered = renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME });
-    expect(rendered).toBe(["/// 000. EIN UPDATES", "", "- Ein template: `ein update`"].join("\n"));
+    expect(rendered).toBe(["// 000. ein updates", "", "- Ein template: `ein update`"].join("\n"));
   });
 
   for (const [status, reason] of [
@@ -704,7 +704,7 @@ describe("pi-ein update notice", () => {
     await flushChecks();
 
     expect(notifications).toEqual([
-      ["/// 000. EIN UPDATES", "", "- Ein template: `ein update`"].join("\n"),
+      ["// 000. ein updates", "", "- Ein template: `ein update`"].join("\n"),
     ]);
     expect(unavailableOutcomes).toEqual([
       { state: "unavailable", reason: "sink-failure" },
@@ -727,7 +727,7 @@ describe("pi-ein update notice", () => {
     });
     startPiEinUpdateNotice({ cwd: "/tmp/project", ui: { notify: message => notifications.push(message) } }, async () => result, () => true, { env: PI_EIN_ENV, home: HOME });
     await flushChecks();
-    expect(notifications[0]).toBe(["/// 000. EIN UPDATES", "", "- Ein template: `ein update`"].join("\n"));
+    expect(notifications[0]).toBe(["// 000. ein updates", "", "- Ein template: `ein update`"].join("\n"));
   });
 
   test("notifies exactly once with exact commands in isolated pi-ein", async () => {
@@ -763,7 +763,7 @@ describe("pi-ein update notice", () => {
     expect(notifications).toEqual([
       {
         message: [
-          "/// 000. EIN UPDATES",
+          "// 000. ein updates",
           "",
           "- Pi binary, extensions and packages: `pi-ein update --all`",
           "- Ein template: `ein update`",

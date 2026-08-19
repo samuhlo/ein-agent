@@ -304,7 +304,7 @@ export function resolveSkills(registry: SkillEntry[], task: string, explicitStac
 function digestSkillGuidelines(skills: SkillEntry[], task: string, stack: string): string {
   if (!skills.length) {
     return [
-      "/// 000. SKILL DIGEST",
+      "// 000. skill digest",
       `- **Task:** ${task || "(no task provided)"}`,
       `- **Stack:** ${stack}`,
       "- No se encontraron skills con buena senal. Para una libreria sin skill curada, trae docs del topic via Context7. Si no, usa skill manual o refina la tarea.",
@@ -312,7 +312,7 @@ function digestSkillGuidelines(skills: SkillEntry[], task: string, stack: string
   }
 
   const header = [
-    "/// 000. SKILL DIGEST",
+    "// 000. skill digest",
     `- **Task:** ${task || "(no task provided)"}`,
     `- **Stack:** ${stack}`,
     "",
@@ -322,11 +322,11 @@ function digestSkillGuidelines(skills: SkillEntry[], task: string, stack: string
 
   const protocol = [
     "",
-    "■ 001. SKILL.md PATHS TO LOAD",
+    "// 001. SKILL.md PATHS TO LOAD",
     "Carga estos archivos antes de trabajar en la tarea:",
     ...paths.map((p) => `  - ${p}`),
     "",
-    "■ 002. PROTOCOLO",
+    "// 002. PROTOCOLO",
     "- Para cada skill cargada, lee SKILL.md y aplica sus reglas.",
     "- Si una skill no tiene sentido para la tarea, documenta por que la descartas.",
     "- Cuando edites codigo, explica en la salida que reglas seguiste y que riesgo evitaste.",
@@ -341,7 +341,7 @@ function formatRegistry(entries: SkillEntry[], source: string, totalFiltered: nu
   const downloadedCount = entries.filter((item) => item.source === "downloaded").length;
   const projectCount = entries.filter((item) => item.source === "project").length;
   const lines = [
-    "/// 000. SKILL REGISTRY",
+    "// 000. skill registry",
     `- **Fuente:** ${source}`,
     `- **Total real:** ${totalFiltered}`,
     `- **Mostrando:** ${entries.length} (project: ${projectCount}, local: ${localCount}, downloaded: ${downloadedCount})`,
@@ -455,7 +455,7 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
       const stack = params.stack && params.stack !== "unknown" ? params.stack : detectStackFromTask(task);
 
       const lines = [
-        "/// 000. SKILL RESOLVE",
+        "// 000. skill resolve",
         `- **Task:** ${task}`,
         `- **Stack detectado:** ${stack}`,
         `- **Skills sugeridas:** ${resolved.length}`,

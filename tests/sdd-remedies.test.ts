@@ -45,7 +45,7 @@ describe("remedios de estado SDD", () => {
 		expect(remedies.map((r) => r.code)).toEqual(["spec-state", "verify-stale", "summary-stale"]);
 
 		const text = formatSddRemedies(remedies);
-		expect(text).toContain("■ cómo desbloquear:");
+		expect(text).toContain("▏ cómo desbloquear:");
 		expect(text.split("\n")).toHaveLength(4);
 		for (const remedy of remedies) expect(text).toContain(remedy.fix);
 	});

@@ -56,7 +56,7 @@ function readIfExists(filePath: string): string {
 }
 
 // =============================================================================
-// DOCTOR — diagnostico explicativo (async, incluye checks de CLI)
+// doctor — diagnostico explicativo (async, incluye checks de CLI)
 // =============================================================================
 
 async function doctorReport(): Promise<string> {
@@ -97,28 +97,28 @@ async function doctorReport(): Promise<string> {
   const hasMcp = existsSync(join(AGENT_DIR, "mcp.json"));
   const hasBackupAuto = existsSync(join(AGENT_DIR, "backups", "auto"));
 
-  return `/// 000. DIAGNOSTICO EIN
+  return `// 000. diagnostico ein
 
 **Agente:** \`${brand.agentName}\`  |  **Autor:** \`${brand.author}\`  |  **Prefijo:** \`${brand.commandPrefix}\`
 
-■ 001. AGENTES (${agents.length})
+// 001. AGENTES (${agents.length})
 
 ${agents.map((a) => `- \`${a}\``).join("\n") || "- no instalados"}
 
-■ 002. CHAINS (${chains.length})
+// 002. CHAINS (${chains.length})
 
 ${chains.map((c) => `- \`${c}\``).join("\n") || "- no instaladas"}
 
-■ 003. EXTENSIONES (${extensions.length})
+// 003. EXTENSIONES (${extensions.length})
 
 ${extensions.map((e) => `- \`${e}\``).join("\n") || "- ninguna"}
 
-■ 004. SKILLS
+// 004. SKILLS
 
 - **locales:** ${localSkills}
 - **descargadas:** ${downloadedSkills}
 
-■ 005. INTEGRACIONES
+// 005. INTEGRACIONES
 
 - **Engram CLI:** ${hasEngram ? "OK → `engram` disponible (estar configurado no prueba que se recupere ni se guarde)" : "FALTA → `engram` no disponible (configurado no prueba recuperación ni persistencia)"}
 - **MCP config:** ${hasMcp ? "OK → \`mcp.json\` presente" : "FALTA → crea \`mcp.json\`"}
@@ -127,7 +127,7 @@ ${extensions.map((e) => `- \`${e}\``).join("\n") || "- ninguna"}
 - **Context7:** ${hasContext7Key ? "OK → key detectable" : `PENDIENTE → falta key en \`${CONTEXT7_KEY_PATH}\` o \`CONTEXT7_API_KEY\``}
 - **Auto backup:** ${hasBackupAuto ? "OK → directorio de backup automatico presente" : "PENDIENTE → aun no se ha creado el primer backup automatico"}
 
-■ 006. LECTURA DIDACTICA
+// 006. LECTURA DIDACTICA
 
 Ein es un workbench estructurado sobre Pi Coding Agent. El flujo principal es lenguaje natural.
 Para trabajo serio usa la chain \`ein-sdd\` (scope → map → design → tasks → apply → verify → close).
@@ -136,7 +136,7 @@ Engram es un cuaderno opcional por proyecto; estar configurado no prueba recuper
 }
 
 // =============================================================================
-// DOCTOR OUTPUT — smoke checks estaticos (sync, solo filesystem)
+// doctor output — smoke checks estaticos (sync, solo filesystem)
 // =============================================================================
 
 type CheckLevel = "OK" | "WARN" | "FAIL";
@@ -518,15 +518,15 @@ function doctorSmokeReport(): string {
   ];
 
   const groups: Array<{ title: string; checks: CheckResult[] }> = [
-    { title: "■ 011. CORE", checks: checksCore },
-    { title: "■ 012. MCP", checks: checksMcp },
-    { title: "■ 013. AGENTES + CHAIN", checks: checksAgents },
-    { title: "■ 014. EXTENSIONES", checks: checksExtensions },
-    { title: "■ 015. SKILLS", checks: checksSkills },
-    { title: "■ 016. GUARDRAILS", checks: checksGuardrails },
-    { title: "■ 017. INTEGRACIONES", checks: checksIntegrations },
-    { title: "■ 018. I18N", checks: checksI18n },
-    { title: "■ 019. COHERENCIA", checks: checksCoherence },
+    { title: "// 011. CORE", checks: checksCore },
+    { title: "// 012. MCP", checks: checksMcp },
+    { title: "// 013. AGENTES + CHAIN", checks: checksAgents },
+    { title: "// 014. EXTENSIONES", checks: checksExtensions },
+    { title: "// 015. SKILLS", checks: checksSkills },
+    { title: "// 016. GUARDRAILS", checks: checksGuardrails },
+    { title: "// 017. INTEGRACIONES", checks: checksIntegrations },
+    { title: "// 018. I18N", checks: checksI18n },
+    { title: "// 019. COHERENCIA", checks: checksCoherence },
   ];
 
   const flat = groups.flatMap((g) => g.checks);
@@ -535,7 +535,7 @@ function doctorSmokeReport(): string {
   const result: string = failCount ? "FAIL" : warnCount ? "OK_WITH_WARNINGS" : "OK";
 
   const lines = [
-    "/// 010. DOCTOR OUTPUT",
+    "// 010. doctor output",
     "",
     `resultado: ${result}`,
     `fail: ${failCount}  |  warn: ${warnCount}  |  total: ${flat.length}`,
@@ -550,7 +550,7 @@ function doctorSmokeReport(): string {
     lines.push("");
   }
 
-  lines.push("■ 020. DECISION");
+  lines.push("// 020. DECISION");
   if (failCount) {
     lines.push("accion: revisar FAIL antes de flujos de entrega o mutacion.");
   } else if (warnCount) {

@@ -372,7 +372,7 @@ describe("ein-banner Git adapter", () => {
 		const plate = bannerSource.slice(bannerSource.indexOf("const panelData ="), bannerSource.indexOf("const TONE ="));
 		for (const title of ["SISTEMA", "SESION", "REPO"]) expect(plate).toContain(`title: "${title}"`);
 		expect(plate).toContain('label: "ACTIVO"');
-		expect(plate).not.toContain('b.add("■ ", YELLOW)');
+		expect(plate).not.toContain('b.add("▏ ", YELLOW)');
 	});
 });
 
