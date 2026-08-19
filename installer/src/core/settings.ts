@@ -14,7 +14,6 @@ import { join } from "node:path";
 const USER_SETTINGS_KEYS = [
   "defaultProvider",
   "defaultModel",
-  "theme",
   "lastChangelogVersion",
   "enabledModels",
   "packages",
