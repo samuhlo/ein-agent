@@ -9,7 +9,10 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  CC_EIN_ORCHESTRATOR_ASSET,
+  CC_EIN_PAYLOAD_FILES,
   CC_EIN_PAYLOAD_REQUIRED_PATHS,
+  CC_EIN_PAYLOAD_ROOTS,
   CC_EIN_PAYLOAD_SOURCE_ENTRIES,
 } from "../installer/src/core/cc-payload-inventory.ts";
 
@@ -46,6 +49,27 @@ describe("cc-ein payload entry points", () => {
     expect(required).toContain("ein-pi/agent/surfaces/surface-runner.ts");
     expect(required).toContain("cc-ein/continuity-runner.ts");
     expect(required).toContain("cc-ein/commands/ein/handoff.md");
+  });
+
+  test("the canonical orchestrator route is explicit and required exactly once", () => {
+    const canonicalRoute = "ein-pi/agent/assets/orchestrator.md";
+    expect(CC_EIN_ORCHESTRATOR_ASSET).toBe(canonicalRoute);
+    expect(CC_EIN_PAYLOAD_FILES.filter((path) => path === canonicalRoute)).toHaveLength(1);
+    expect(CC_EIN_PAYLOAD_REQUIRED_PATHS.filter((path) => path === canonicalRoute)).toHaveLength(1);
+  });
+
+  test("the orchestrator inventory does not broaden to the agent root or aliases", () => {
+    expect(CC_EIN_PAYLOAD_FILES).not.toContain("ein-pi/agent");
+    expect(CC_EIN_PAYLOAD_ROOTS).not.toContain("ein-pi/agent");
+    expect(CC_EIN_PAYLOAD_FILES.filter((path) => path.includes("orchestrator"))).toEqual([
+      CC_EIN_ORCHESTRATOR_ASSET,
+    ]);
+    expect(CC_EIN_PAYLOAD_REQUIRED_PATHS.filter((path) => path.includes("orchestrator"))).toEqual([
+      CC_EIN_ORCHESTRATOR_ASSET,
+    ]);
+    expect(CC_EIN_PAYLOAD_FILES).toContain("pi-ein/pi-ein.fish");
+    expect(CC_EIN_PAYLOAD_FILES).toContain("pi-ein/migrate.ts");
+    expect(CC_EIN_PAYLOAD_REQUIRED_PATHS).toContain("ein-pi/core");
   });
 
   test("the compile seam reports the child's output instead of discarding it", () => {
