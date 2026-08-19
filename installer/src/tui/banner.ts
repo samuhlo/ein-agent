@@ -19,7 +19,11 @@ import { BACKUP_DIR, INSTALL_MARKER } from "../core/paths.ts";
 import type { MarkerV1, MarkerV2 } from "../core/release-types.ts";
 import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
 import { INSTALLER_VERSION } from "../core/version.ts";
-import { bold, concrete, gold, structure } from "./theme.ts";
+import { colorEnabled, concrete, gold, rgb, structure } from "./theme.ts";
+// El installer duplica la PALETA porque corre antes de que exista el template
+// desplegado, pero la geometría de la marca la comparte: al empaquetar, el
+// bundler la resuelve desde el repo. Es el mismo camino que ya usa el doctor.
+import { renderTv, tvRowWidth, TV_WIDTH, type TvCut, type TvTone } from "../../../ein-pi/agent/lib/ein-tv.ts";
 
 const BASE_SUBTITLE = "gestor del workbench";
 
@@ -51,13 +55,37 @@ export function renderBanner(state: BannerState = readBannerState()): string {
   return `${BASE_SUBTITLE} · ${bannerVersionLabel(state)}`;
 }
 
-/** El wordmark: la única pieza de marca que queda en pantalla. */
-export function wordmark(): string {
-  return `${concrete("e")}${gold("i")}${concrete("n")}`;
+// El material del mueble: tres tonos de plástico para que el aparato tenga
+// volumen. Fuera de los cuatro de marca a propósito — no son colores del
+// producto, son de un objeto dibujado.
+const TONE: Record<TvTone, (text: string) => string> = {
+  edge: (t) => rgb(138, 129, 117, t),
+  body: (t) => rgb(110, 103, 92, t),
+  shadow: (t) => rgb(74, 68, 58, t),
+  knob: (t) => rgb(196, 183, 158, t),
+  screen: concrete,
+  accent: gold,
+  danger: (t) => rgb(217, 108, 95, t),
+  dim: (t) => rgb(90, 90, 90, t),
+};
+
+/** Un televisor cortado por la derecha no es un televisor: se baja de corte. */
+function cutFor(columns: number): TvCut {
+  if (columns >= TV_WIDTH.full + 4) return "full";
+  if (columns >= TV_WIDTH.compact + 4) return "compact";
+  return "minimal";
 }
 
 export function bannerStatic(state: BannerState = readBannerState()): string {
-  return ["", `  ${bold(wordmark())}`, `  ${structure(renderBanner(state))}`, ""].join("\n");
+  const cut = cutFor(process.stdout.columns ?? 80);
+  const rows = renderTv({ cut });
+  const width = Math.max(...rows.map(tvRowWidth));
+  const subtitle = renderBanner(state);
+  const pad = " ".repeat(Math.max(0, Math.floor((width - subtitle.length) / 2)));
+  const art = rows.map((row) =>
+    `  ${row.map((span) => (colorEnabled() ? TONE[span.tone](span.text) : span.text)).join("")}`,
+  );
+  return ["", ...art, "", `  ${pad}${structure(subtitle)}`, ""].join("\n");
 }
 
 /**
