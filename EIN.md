@@ -1,4 +1,4 @@
-<!-- ein:init rev=0abd936 generado=2026-08-10 · refresca con /ein:init -->
+<!-- ein:init rev=ec6d8f3 generado=2026-08-19 · refresca con /ein:init -->
 ## Overview
 <!-- CURADA — 2-3 líneas: qué es el proyecto y para quién. -->
 Harness de coding-agent sobre Pi Coding Agent y Claude Code: dos runtimes aislados con una sola disciplina de entrega. Convierte trabajo ambiguo en cambios pequeños, verificados y explicados, con el estado del cambio en disco (`openspec/`) y no en la conversación.
@@ -36,13 +36,18 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - `installer/` — CLI, binarios y runtime del instalador.
 - `openspec/` — Especificaciones y ciclos de cambios SDD.
 - `pi-ein/` — Adaptador Pi aislado (`pi-ein`) y migración desde `~/.pi`.
+- `spikes/` — Exploraciones acotadas con su informe de decisión (stop/go).
 - `tests/` — Suite Bun de contratos y paridad.
 
 <!-- ein:auto:start — generado por /ein:init, no editar a mano -->
 
 ## Comandos
 
-_No detectados automáticamente._
+| Acción | Comando |
+|---|---|
+| install | `bun install` |
+| test | `bun run test` |
+| typecheck | `bun run typecheck` |
 
 ## Estructura
 
@@ -54,17 +59,18 @@ _No detectados automáticamente._
 - `installer/`
 - `openspec/`
 - `pi-ein/`
+- `spikes/`
 - `tests/`
 
 ## Docs
 
 - [README](README.md)
-- [MANIFIESTO](MANIFIESTO.md)
 - [CHANGELOG](CHANGELOG.md)
 - [docs/EIN_DOCUMENTATION_BRIEF.md](docs/EIN_DOCUMENTATION_BRIEF.md)
 - [docs/fricciones-dogfooding.md](docs/fricciones-dogfooding.md)
 - [docs/guia-cleaner-architect-herramientas-deterministas.md](docs/guia-cleaner-architect-herramientas-deterministas.md)
 - [docs/origen-y-ideas.md](docs/origen-y-ideas.md)
+- [docs/plan-hallazgos-dogfooding-2026-08.md](docs/plan-hallazgos-dogfooding-2026-08.md)
 - [docs/review-workload-guard.md](docs/review-workload-guard.md)
 - [docs/roadmap-features-ein.md](docs/roadmap-features-ein.md)
 
