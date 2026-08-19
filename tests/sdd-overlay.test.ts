@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
 	OVERLAY_KEY,
 	overlayWidth,
+	phaseStates,
 	renderSddOverlay,
 	selectVisibleTasks,
 } from "../ein-pi/agent/lib/sdd-overlay.ts";
@@ -31,6 +32,9 @@ function status(overrides: Partial<SddChangeStatus> = {}, taskItems = items(4, 1
 		lane: "micro",
 		currentPhase: "apply",
 		nextRecommended: "apply",
+		verify: "absent",
+		verifyStale: false,
+		present: { scope: true, map: false, design: true, tasks: true, apply: false, verify: false, close: false },
 		tasks: {
 			present: true,
 			status: "ready",
@@ -54,22 +58,64 @@ describe("overlay del cambio activo", () => {
 		expect(renderSddOverlay(status({ change: null }))).toEqual([]);
 	});
 
-	test("la cabecera lleva cambio, carril, fase y progreso", () => {
+	test("la cabecera lleva cambio, carril, fase y progreso — sin marco ni placa", () => {
 		const [header] = renderSddOverlay(status());
-		expect(header).toContain("CAMBIO");
 		expect(header).toContain("carril-rapido");
 		expect(header).toContain("micro · apply");
 		expect(header).toContain("1/4");
+		// La gramática nueva no dibuja contornos: ni caja, ni pestaña, ni ■.
+		expect(header).not.toContain("■");
+		expect(header).not.toContain("╔");
+		expect(header).not.toContain("═");
+	});
+
+	// El arreglo: el carril completo, no solo las tareas. Antes no había forma de
+	// saber desde el widget que después de `apply` aún quedaba `verify`.
+	test("el raíl pinta todas las fases del carril, con su estado", () => {
+		const rail = renderSddOverlay(status())[1];
+		// micro = scope, design, apply, verify, close. `map` y `tasks` no son suyas.
+		expect(rail).toContain("scope ✓");
+		expect(rail).toContain("design ✓");
+		expect(rail).toContain("▸ apply");
+		expect(rail).toContain("verify");
+		expect(rail).toContain("close");
+		expect(rail).not.toContain("map");
 	});
 
 	test("cada tarea muestra su estado, y la actual se distingue", () => {
 		const lines = renderSddOverlay(status());
-		expect(lines[1]).toContain("✓");
-		expect(lines[2]).toContain("▸");
-		expect(lines[2]).toContain("tarea 2");
+		expect(lines[2]).toContain("✓");
+		expect(lines[3]).toContain("▸");
+		expect(lines[3]).toContain("tarea 2");
 		// Una pendiente que no es la actual no lleva marca.
-		expect(lines[3]).not.toContain("▸");
-		expect(lines[3]).not.toContain("✓");
+		expect(lines[4]).not.toContain("▸");
+		expect(lines[4]).not.toContain("✓");
+	});
+
+	// Este era el hallazgo: con todo marcado el widget enseñaba `4/4` y se callaba.
+	test("con las tareas completas enseña las fases que faltan, no un 4/4 mudo", () => {
+		const lines = renderSddOverlay(
+			status({ nextRecommended: "verify", present: { scope: true, map: false, design: true, tasks: true, apply: true, verify: false, close: false } }, items(4, 4)),
+		);
+		const body = lines.join("\n");
+		expect(body).toContain("4/4");
+		expect(body).toContain("re-ejecutar la suite");
+		expect(body).toContain("archivar el cambio");
+		// Y ya no lista tareas hechas: no informan de nada.
+		expect(body).not.toContain("tarea 1");
+	});
+
+	// Fail-closed: un verify obsoleto no es un aprobado (manifiesto § 002).
+	test("un verify rancio se dibuja desconocido, nunca como hecho", () => {
+		const states = phaseStates(
+			status({
+				verify: "pass",
+				verifyStale: true,
+				nextRecommended: "close",
+				present: { scope: true, map: false, design: true, tasks: true, apply: true, verify: true, close: false },
+			}),
+		);
+		expect(states.find((entry) => entry.phase === "verify")?.state).toBe("unknown");
 	});
 
 	// El coste real de este widget es la pantalla, no la CPU.
@@ -84,9 +130,10 @@ describe("overlay del cambio activo", () => {
 
 	test("cuando no caben, se ocultan las completadas y se dice cuántas", () => {
 		const lines = renderSddOverlay(status({}, items(12, 8)), { maxLines: 6 });
-		expect(lines[1]).toContain("completadas");
+		// [0] cabecera, [1] raíl, [2] el resumen de lo oculto.
+		expect(lines[2]).toContain("completadas");
 		// La actual sobrevive al recorte: es la única fila que no se puede perder.
-		expect(lines.some((line) => line.includes("▸"))).toBe(true);
+		expect(lines.some((line) => line.includes("tarea 9"))).toBe(true);
 	});
 
 	test("una sola oculta concuerda en singular", () => {
@@ -114,10 +161,13 @@ describe("overlay del cambio activo", () => {
 		expect(plain[0]).not.toContain("[");
 	});
 
-	test("sin tareas todavía, la cabecera informa de la fase que toca", () => {
+	// Antes de que exista `tasks.md` el widget ya sirve: el raíl enseña por dónde
+	// va el cambio y qué queda, que es justo lo que una lista vacía no podía decir.
+	test("sin tareas todavía, el raíl informa de la fase que toca y de lo que queda", () => {
 		const lines = renderSddOverlay(status({ nextRecommended: "design" }, []));
-		expect(lines).toHaveLength(1);
 		expect(lines[0]).toContain("design");
+		expect(lines[1]).toContain("▸ design");
+		expect(lines.join("\n")).toContain("decidir el mecanismo");
 	});
 });
 

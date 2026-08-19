@@ -26,11 +26,19 @@ export default function (pi: ExtensionAPI): void {
 		shouldUseColor({ isTTY: process.stdout.isTTY === true, env: process.env }),
 	);
 
+	// El ancho REAL del terminal, no uno fijo. Con 72 clavado, un título de tarea
+	// se cortaba a mitad de palabra en una pantalla ancha que tenía sitio de
+	// sobra: el recorte no era un límite del sitio, era una constante olvidada.
+	function overlayWidth(): number {
+		const columns = process.stdout.columns;
+		return Number.isFinite(columns) && columns > 0 ? Math.min(columns - 2, 120) : 72;
+	}
+
 	function refresh(ctx: ExtensionContext): void {
 		if (!ctx.hasUI) return;
 		let lines: readonly string[];
 		try {
-			lines = renderSddOverlay(resolveSddStatus(ctx.cwd), { collapsed, palette });
+			lines = renderSddOverlay(resolveSddStatus(ctx.cwd), { collapsed, palette, width: overlayWidth() });
 		} catch {
 			// Un estado ilegible no puede tumbar la sesión ni dejar basura en
 			// pantalla: se retira el widget y se sigue.
