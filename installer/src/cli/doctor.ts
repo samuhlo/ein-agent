@@ -9,7 +9,7 @@ import { AGENT_DIR } from "../core/paths.ts";
 import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
 import { readInstallerUpdateEvidence, type InstallerUpdateReadEvidence } from "../core/update-advisor-read.ts";
 import { existsSync } from "node:fs";
-import { concrete, danger, gold, levelMark, structure, visibleWidth } from "../tui/theme.ts";
+import { MARK, concrete, danger, gold, levelMark, structure, visibleWidth } from "../tui/theme.ts";
 import { INSTALLER_VERSION } from "../core/version.ts";
 import { evaluateSharedConfigUpdateAdvisor, renderAdvisorSemantics, type AdvisorInput, type SharedConfigUpdateAdvisorResult } from "../../../ein-pi/agent/lib/shared-config-update-advisor.ts";
 
@@ -45,12 +45,33 @@ function glyph(level: string): string {
 }
 
 const LABEL_W = 30;
+/** Ancho útil de la sección, para alinear el recuento de cada grupo. */
+const REPORT_W = 62;
 
-/** Fila etiqueta/valor: columna con sangría fija, sin puntos hasta el valor. */
+/**
+ * Fila etiqueta/valor en columna. Una etiqueta más larga que la columna NO se
+ * pega a su valor: baja el valor a su propia línea. Antes se rellenaba con
+ * `max(1, …)`, así que `sdd-verify sin support colgante` y su detalle salían
+ * pegados y la rejilla se rompía justo en las filas más largas.
+ */
 function row(label: string, value: string, mark?: string): string {
   const head = label.toLowerCase();
-  const pad = " ".repeat(Math.max(1, LABEL_W - visibleWidth(head)));
-  return `    ${mark ?? " "} ${structure(head)}${pad}${concrete(value)}`;
+  const used = visibleWidth(head);
+  const head4 = `    ${mark ?? " "} ${structure(head)}`;
+  if (!value) return head4;
+  if (used + 2 > LABEL_W) return `${head4}\n${" ".repeat(6 + 2)}${concrete(value)}`;
+  return `${head4}${" ".repeat(LABEL_W - used)}${concrete(value)}`;
+}
+
+/** Recuento de un grupo: `14 ✓`, o lo que no está verde. */
+function tally(checks: readonly { level: string }[]): string {
+  const ok = checks.filter((check) => check.level === "OK").length;
+  const warn = checks.filter((check) => check.level === "WARN").length;
+  const fail = checks.filter((check) => check.level === "FAIL").length;
+  const parts = [`${ok} ${MARK.ok}`];
+  if (warn) parts.push(warn === 1 ? "1 aviso" : `${warn} avisos`);
+  if (fail) parts.push(fail === 1 ? "1 fallo" : `${fail} fallos`);
+  return parts.join(" · ");
 }
 
 export function renderDoctorAdvisor(result: SharedConfigUpdateAdvisorResult): string {
@@ -73,21 +94,35 @@ export function renderReport(report: DoctorReport): string {
   lines.push("");
   lines.push(row("resultado", report.result, levelMark(report.result)));
   lines.push(row("chequeos", `${report.total} total · ${report.warn} aviso · ${report.fail} fallo`));
+  lines.push("");
 
+  // Un grupo entero en verde cabe en una línea: su recuento. El detalle de un
+  // chequeo que pasa repetía su etiqueta —«sdd-verify sin support colgante» y
+  // «sdd-verify no referencia una guía de support global inexistente» dicen lo
+  // mismo—, así que catorce ✓ ocupaban catorce líneas para no informar de nada.
+  // Se despliega SOLO lo que no está verde, que es lo que traes que mirar.
   for (const [index, group] of report.groups.entries()) {
+    const title = `${String(index + 1).padStart(3, "0")}. ${group.title.toLowerCase()}`;
+    const count = tally(group.checks);
+    const head = `  ${gold("//")} ${structure(title)}`;
+    const gap = Math.max(2, REPORT_W - visibleWidth(title) - 5 - visibleWidth(count));
+    lines.push(`${head}${" ".repeat(gap)}${structure(count)}`);
+
+    const problems = group.checks.filter((check) => check.level !== "OK");
+    if (problems.length === 0) continue;
     lines.push("");
-    lines.push(`  ${gold("//")} ${structure(`${String(index + 1).padStart(3, "0")}. ${group.title.toLowerCase()}`)}`);
+    for (const check of problems) lines.push(row(check.name, check.detail, levelMark(check.level)));
     lines.push("");
-    for (const check of group.checks) {
-      lines.push(row(check.name, check.detail, levelMark(check.level)));
-    }
   }
 
   lines.push("");
   lines.push(`  ${(report.fail ? danger : report.warn ? gold : concrete)(verdict)}`);
   lines.push(`  ${structure(`doctor ein · v${INSTALLER_VERSION}`)}`);
 
-  return lines.join("\n");
+  // Un grupo con problemas cierra con su propio hueco, y el veredicto abre con
+  // el suyo: sin colapsar, el informe se abre por la mitad justo donde hay algo
+  // que leer. El aire separa; el doble aire despista.
+  return lines.filter((line, index) => line !== "" || lines[index - 1] !== "").join("\n");
 }
 
 export type DoctorCommandDependencies = Readonly<{
