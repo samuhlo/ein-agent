@@ -729,6 +729,12 @@ export default function (pi: ExtensionAPI) {
               // el panel todavia no exista. Sin esto el centrado se calculaba
               // solo sobre el logo, y al aparecer la caja el logo saltaba a la
               // izquierda: ese era el "barrido" que movia el EIN de sitio.
+              //
+              // PENDIENTE: el logo de bloque sigue aquí a propósito. Es el único
+              // resto del brutalismo que se retira, y su sustituto es trabajo de
+              // diseño sin resolver: el wordmark del panel ya marca, así que hoy
+              // la pantalla dice lo mismo dos veces. Arrancarlo sin un reemplazo
+              // decidido sería quitar cien líneas de animación a cambio de nada.
               const side = width >= composedWidth(logoBase.width);
               const composed = side
                 ? composeColumns<Cell, Cell>(left, logoBase.width, panel, (gap) => ({ text: " ".repeat(gap) }))
