@@ -110,7 +110,11 @@ export async function select<T>(opts: {
   });
 
   write("\n");
-  return cancelled ? CANCEL : options[cursor].value;
+  if (cancelled) return CANCEL;
+  // El cursor siempre cae dentro por el modulo, pero se resuelve sin `!`: una
+  // asercion aqui solo taparia un fallo de indice si algun dia deja de caer.
+  const chosen = options[cursor] ?? options[0];
+  return chosen ? chosen.value : CANCEL;
 }
 
 export async function confirm(opts: { message: string; initialValue?: boolean }): Promise<boolean | typeof CANCEL> {
@@ -164,7 +168,7 @@ export function spinner(): Spinner {
   let label = "";
 
   const paint = (): void => {
-    write(`\r\x1b[2K${ROW_INDENT}${gold(FRAMES[frame])} ${structure(label)}`);
+    write(`\r\x1b[2K${ROW_INDENT}${gold(FRAMES[frame] ?? FRAMES[0] ?? "")} ${structure(label)}`);
     frame = (frame + 1) % FRAMES.length;
   };
 
