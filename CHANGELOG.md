@@ -5,6 +5,38 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.80.1] - 2026-08-19
+
+### Changed
+
+- **La marca es ahora un televisor.** Un aparato de tubo con una terminal
+  dentro, dibujado con caracteres. Aparece en el arranque de Pi, en el splash de
+  la aplicación y en el instalador. Viene en cuatro tamaños que **pierden
+  piezas** en vez de encogerse —con antena y patas, solo el mueble, compacto, y
+  un mínimo donde el bisel desaparece y el mueble es la pantalla—, y el tamaño
+  se elige por el ancho real de tu ventana: antes de recortar el dibujo, baja al
+  corte siguiente, porque un televisor cortado por la derecha no es un
+  televisor.
+
+  El intento anterior dibujaba las letras `EIN` con bloques. Una letra vive en
+  una rejilla de cuatro píxeles de alto: sale roma, y el fallo se nota porque
+  todo el mundo sabe cómo es una E. Un objeto no tiene ese problema, y de paso
+  las letras de dentro del televisor son texto normal.
+
+  La pantalla puede emitir cosas distintas sin que cambie el aparato: la marca
+  en reposo, el cambio y la fase en curso, nieve cuando algo está roto, o el
+  piloto rojo latiendo cuando Ein está instalado pero parado.
+
+### Fixed
+
+- **El informe del doctor deja de romperse y de repetirse.** Con una etiqueta
+  larga, el valor se pegaba a ella y la columna se partía justo en las filas más
+  largas. Además, el detalle de cada chequeo que pasaba repetía su propia
+  etiqueta, así que catorce comprobaciones correctas ocupaban catorce líneas
+  para no decir nada. Ahora un grupo entero en verde cabe en su recuento y solo
+  se despliega lo que **no** está bien: el informe pasa de unas sesenta líneas a
+  ocho, sin ocultar nada que importe.
+
 ## [0.80.0] - 2026-08-19
 
 Una release de cara: Ein deja de parecer tres productos distintos y pasa a

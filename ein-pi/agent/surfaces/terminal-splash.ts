@@ -18,6 +18,7 @@
 // =============================================================================
 
 import { BRAND } from "./terminal-theme.ts";
+import { renderTv, tvRowWidth, TV_WIDTH, type TvCut, type TvTone } from "../lib/ein-tv.ts";
 
 const SUBTITLE = ".samuhlo · pi workbench";
 
@@ -47,6 +48,20 @@ const FG = {
 	structure: `\x1b[38;2;${hexToTriplet(BRAND.structure)}m`,
 	yellow: `\x1b[38;2;${hexToTriplet(BRAND.yellow)}m`,
 } as const;
+
+// Tres tonos de plástico para el volumen del mueble. Es la única concesión
+// fuera de los cuatro colores de marca, y va aquí y no en `brand.json` porque
+// no son colores del producto: son el material de un objeto dibujado.
+const TONE: Readonly<Record<TvTone, string>> = Object.freeze({
+	edge: "\x1b[38;2;138;129;117m",
+	body: "\x1b[38;2;110;103;92m",
+	shadow: "\x1b[38;2;74;68;58m",
+	knob: "\x1b[38;2;196;183;158m",
+	screen: FG.concrete,
+	accent: FG.yellow,
+	danger: "\x1b[38;2;217;108;95m",
+	dim: "\x1b[38;2;90;90;90m",
+});
 const RESET = "\x1b[39m";
 const BOLD = "\x1b[1m";
 const UNBOLD = "\x1b[22m";
@@ -55,16 +70,28 @@ const INDENT = "  ";
 
 let played = false;
 
-/** El wordmark con tracking: la escala de display de las mismas letras. */
-function wordmark(noColor: boolean): string {
-	if (noColor) return "e   i   n";
-	return `${BOLD}${FG.concrete}e${RESET}   ${FG.yellow}i${RESET}   ${FG.concrete}n${RESET}${UNBOLD}`;
+/**
+ * El corte más grande que quepa. Un televisor cortado por la derecha no es un
+ * televisor, así que se baja de corte antes que recortar.
+ */
+function cutFor(columns: number): TvCut {
+	const room = columns - INDENT.length * 2;
+	if (room >= TV_WIDTH.full) return "full";
+	if (room >= TV_WIDTH.compact) return "compact";
+	return "minimal";
 }
 
 /** Render plano y final. Es también el fallback de non-TTY / NO_COLOR. */
 export function renderSplashStatic(io: SplashIO, subtitle = SUBTITLE): string {
+	const rows = renderTv({ cut: cutFor(io.columns) }).map((row) =>
+		row
+			.map((span) => (io.noColor ? span.text : `${TONE[span.tone]}${span.text}${RESET}`))
+			.join(""),
+	);
+	const width = Math.max(...renderTv({ cut: cutFor(io.columns) }).map(tvRowWidth));
+	const pad = " ".repeat(Math.max(0, Math.floor((width - subtitle.length) / 2)));
 	const tag = io.noColor ? subtitle : `${FG.structure}${subtitle}${RESET}`;
-	return ["", `${INDENT}${wordmark(io.noColor)}`, `${INDENT}${tag}`, ""].join("\n");
+	return ["", ...rows.map((row) => `${INDENT}${row}`), "", `${INDENT}${pad}${tag}`, ""].join("\n");
 }
 
 export function resetSplashForTests(): void {

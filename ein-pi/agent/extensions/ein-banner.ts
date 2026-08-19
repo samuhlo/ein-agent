@@ -25,6 +25,7 @@ import { join } from "node:path";
 import { AGENT_DIR } from "./ein-paths";
 import { loadPalette, type RGB } from "./ein-brand";
 import { PANEL_FRAME_TICKS, PANEL_LEADER_TICKS, PANEL_ROW_TICKS, PANEL_W, renderPanel, type PanelTone } from "../lib/banner-panel";
+import { renderTv, tvRowWidth, TV_WIDTH, type TvCut, type TvTone } from "../lib/ein-tv";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 import { LANG_LABEL, readArtifactLang, readChatLang, type Lang } from "../lib/lang";
 import { TDD_LABEL, readTddMode } from "../lib/tdd";
@@ -164,6 +165,19 @@ const gitProcessRunner: ProcessRunner = {
 };
 
 const SUBTITLE = ".samuhlo · pi workbench";
+
+// El material del mueble. Tres tonos de plástico para que el aparato tenga
+// volumen — la técnica del arte ANSI, donde el relieve sale del color y no de
+// la forma. No entran en `brand.json` a propósito: no son colores del producto,
+// son de un objeto dibujado.
+const PLASTIC = {
+  edge: { r: 138, g: 129, b: 117 },
+  body: { r: 110, g: 103, b: 92 },
+  shadow: { r: 74, g: 68, b: 58 },
+  knob: { r: 196, g: 183, b: 158 },
+  danger: { r: 217, g: 108, b: 95 },
+  dim: { r: 90, g: 90, b: 90 },
+} as const;
 
 // Brand palette (flat — no gradients). Single source: brand.json via ein-brand.
 const PALETTE = loadPalette();
@@ -531,27 +545,44 @@ export default function (pi: ExtensionAPI) {
             const left: Cell[][] = [];
 
             // LA MARCA DE ARRANQUE
-            // Antes esto eran diez filas de bloques `██` que materializaban celda
-            // a celda. Se retira entera: era un SEGUNDO alfabeto para una marca
-            // que en todas las demás superficies se escribe `ein`, y dos alfabetos
-            // no son jerarquía, son la misma cosa dicha dos veces. Además pesaba
-            // 540 celdas encima de una pantalla cuyo argumento es el aire.
+            // Un televisor de tubo con una terminal dentro. La geometría vive en
+            // `lib/ein-tv.ts` y se comparte con el splash de la app; aquí solo se
+            // traducen sus tonos a color.
             //
-            // Queda el wordmark con tracking: mismas letras que el chrome, una
-            // escala por encima. El gesto de marca —un solo elemento amarillo
-            // sobre neutro, la `i`— sobrevive intacto y cuesta una fila.
+            // Por qué un objeto y no unas letras: dibujar una letra con bloques
+            // es pelearse con una rejilla de 2×4 píxeles, sale roma, y el fallo
+            // se ve porque todo el mundo sabe cómo es una E. Un televisor son
+            // cuatro rectángulos, dos ruedas y una antena — y las letras de
+            // dentro son TEXTO, así que no hay letterform que falle.
             //
-            // Y el arranque no pierde su momento: el panel sigue entrando en
-            // cascada, que es un reveal único (STYLE.md // 001) y además informa,
-            // en vez de decorar.
+            // El arranque conserva su momento: el panel sigue entrando en
+            // cascada, que es un reveal único (STYLE.md // 001) y además informa.
+            const TV_TONE: Record<TvTone, RGB> = {
+              edge: PLASTIC.edge,
+              body: PLASTIC.body,
+              shadow: PLASTIC.shadow,
+              knob: PLASTIC.knob,
+              screen: CONCRETE,
+              accent: YELLOW,
+              danger: PLASTIC.danger,
+              dim: PLASTIC.dim,
+            };
+            // Un televisor cortado por la derecha no es un televisor: se baja de
+            // corte antes que recortar.
+            const tvCut: TvCut = width >= TV_WIDTH.full + 2
+              ? "full"
+              : width >= TV_WIDTH.compact + 2
+                ? "compact"
+                : "minimal";
+            for (const tvRow of renderTv({ cut: tvCut })) {
+              left.push(tvRow.map((span) => ({ text: span.text, color: TV_TONE[span.tone] })));
+            }
+            const tvWidth = Math.max(...renderTv({ cut: tvCut }).map(tvRowWidth));
+            left.push([]);
             left.push([
-              { text: "e", color: CONCRETE, bold: true },
-              { text: "   " },
-              { text: "i", color: YELLOW, bold: true },
-              { text: "   " },
-              { text: "n", color: CONCRETE, bold: true },
+              { text: " ".repeat(Math.max(0, Math.floor((tvWidth - SUBTITLE.length) / 2))) },
+              { text: SUBTITLE, color: STRUCTURE },
             ]);
-            left.push([{ text: SUBTITLE, color: STRUCTURE }]);
 
             if (state.mode === "full") {
               const fit = (v: unknown, w: number) =>
