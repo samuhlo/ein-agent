@@ -71,6 +71,29 @@ describe("carril del cambio", () => {
 		expect(status.nextRecommended).toBe("design");
 	});
 
+	// REGRESIÓN: el detector de fuga de artefactos medía el hueco contra las
+	// siete fases, así que en `micro` design.md sin map.md se leía como fuga y
+	// bloqueaba el status. El carril quedaba reconocido y bloqueado a la vez,
+	// exigiendo justo las dos fases que existe para saltarse.
+	test("`micro` no bloquea por el hueco de map y tasks", () => {
+		writeChangeLane(changeDir, "micro");
+		writeFileSync(join(changeDir, "design.md"), "# design\n\n## A. Proposal\n\n## B. Spec\n");
+		expect(resolveSddStatus(cwd, "probe").blocked).toEqual([]);
+
+		writeFileSync(join(changeDir, "apply-progress.md"), "status: complete\n");
+		const applied = resolveSddStatus(cwd, "probe");
+		expect(applied.blocked).toEqual([]);
+		expect(applied.nextRecommended).toBe("verify");
+	});
+
+	// La fuga sí se detecta dentro de las fases que el carril SÍ ejecuta.
+	test("`micro` sigue detectando un artefacto fuera de orden de su propia lista", () => {
+		writeChangeLane(changeDir, "micro");
+		rmSync(join(changeDir, "scope.md"));
+		writeFileSync(join(changeDir, "design.md"), "# design\n\n## A. Proposal\n\n## B. Spec\n");
+		expect(resolveSddStatus(cwd, "probe").blocked.join(" ")).toContain("fuera de orden");
+	});
+
 	// Una fase que el carril no pide no es una deuda: listarla como ausente
 	// convertiría un ahorro deliberado en un hueco aparente.
 	test("map y tasks no figuran como artefactos ausentes en `micro`", () => {

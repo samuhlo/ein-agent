@@ -153,8 +153,6 @@ const PHASE_ARTIFACT: Record<SddPhase, string> = {
 	close: "summary.md",
 };
 
-const PHASE_ORDER: SddPhase[] = ["scope", "map", "design", "tasks", "apply", "verify", "close"];
-
 const SPEC_MAP_PROVENANCE_STATES = ["unresolved", "conflict"] as const;
 type SpecMapProvenanceState = (typeof SPEC_MAP_PROVENANCE_STATES)[number];
 
@@ -547,19 +545,27 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	const { verifyStale, summaryStale } = computeStaleness(cwd, changePath, present);
 	const specState = readOpenSpecState(cwd, target);
 
+	const lane = readChangeLane(join(resolveChangesDir(cwd), target));
+
 	// Fuga de artefacto de fase: una fase presente cuyo predecesor FALTA significa
 	// que una fase-agente (p.ej. sdd-map) se usó como explorador para un cambio que
 	// aún no se había scopeado, dejando un artefacto/dir stray. Determinista: lo
 	// surface en el status en vez de dejarlo pasar. (El flujo normal escribe en
 	// orden, así que sin fuga no hay huecos y no hay falso positivo.)
-	const orderPresent = PHASE_ORDER.map((phase) => present[phase]);
+	//
+	// EL HUECO SE MIDE CONTRA EL CARRIL, no contra las siete fases: en `micro`,
+	// map y tasks no se piden, así que su ausencia no es fuga. Medirlo contra
+	// las siete fases bloqueaba todo cambio `micro` en cuanto tenía design.md,
+	// exigiendo justo las dos fases que el carril existe para saltarse.
+	const lanePhases = LANE_PHASES[lane];
+	const orderPresent = lanePhases.map((phase) => present[phase]);
 	const lastPresentIdx = orderPresent.lastIndexOf(true);
-	const gaps = PHASE_ORDER.slice(0, Math.max(0, lastPresentIdx))
+	const gaps = lanePhases.slice(0, Math.max(0, lastPresentIdx))
 		.filter((_, index) => !orderPresent[index])
 		.map((phase) => PHASE_ARTIFACT[phase]);
 	if (gaps.length > 0) {
 		blocked.push(
-			`artefacto(s) fuera de orden: hay ${PHASE_ARTIFACT[PHASE_ORDER[lastPresentIdx]]} sin ${gaps.join(", ")} — ¿una fase se usó como explorador pre-SDD? limpia el change dir o arranca por scope.`,
+			`artefacto(s) fuera de orden: hay ${PHASE_ARTIFACT[lanePhases[lastPresentIdx]]} sin ${gaps.join(", ")} — ¿una fase se usó como explorador pre-SDD? limpia el change dir o arranca por scope.`,
 		);
 	}
 
@@ -567,8 +573,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	// gate antes de cerrar. apply-progress.md con status != complete retiene apply.
 	// El carril decide contra QUÉ lista se mira, no cómo se mira: sigue siendo
 	// "la primera fase esperada que no tiene su artefacto en disco".
-	const lane = readChangeLane(join(resolveChangesDir(cwd), target));
-	const pending = LANE_PHASES[lane].find(
+	const pending = lanePhases.find(
 		(phase) => phase !== "close" && phase !== "verify" && phase !== "apply" && !present[phase],
 	);
 
