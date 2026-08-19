@@ -197,7 +197,7 @@ function statusReport(profile: StackProfile): string {
 	const local = [...installed.values()].filter((m) => m.source === "local").length;
 	const downloaded = [...installed.values()].filter((m) => m.source === "downloaded").length;
 	const lines = [
-		"/// 000. SKILLS",
+		"// 000. skills",
 		tf("skills.status.profile", `- Perfil: ${profile.name} (v${profile.version})`, profile.name, profile.version),
 		tf("skills.status.counts", `- Instaladas: ${local} locales · ${downloaded} bajadas`, local, downloaded),
 		tf("skills.status.core2", `- Core: ${profile.core.length - coreMissing.length}/${profile.core.length}`, profile.core.length - coreMissing.length, profile.core.length),
@@ -215,17 +215,17 @@ function cleanSkills(profile: StackProfile, force: boolean): string {
 	const installed = listInstalled();
 	const allowed = new Set([...profile.core, ...profile.secondary]);
 	const candidates = [...installed.entries()].filter(([name, meta]) => meta.source === "downloaded" && !allowed.has(name)).map(([name, meta]) => ({ name, path: meta.path })).sort((a, b) => a.name.localeCompare(b.name));
-	if (!candidates.length) return t("skills.clean.nothing", "/// 000. SKILLS CLEAN\n- Nada que limpiar en downloaded/.");
+	if (!candidates.length) return t("skills.clean.nothing", "// 000. skills clean\n- Nada que limpiar en downloaded/.");
 	if (!force) {
 		return [
-			"/// 000. SKILLS CLEAN",
+			"// 000. skills clean",
 			tf("skills.clean.count", `- ${candidates.length} skills fuera de stack en downloaded/.`, candidates.length),
 			tf("skills.clean.run", `- Ejecuta ${slashCommand("skills")} clean --yes para borrarlas.`, slashCommand("skills")),
 			tf("skills.clean.candidates", `- Candidatas: ${candidates.map((c) => c.name).join(", ")}`, candidates.map((c) => c.name).join(", ")),
 		].join("\n");
 	}
 	for (const candidate of candidates) rmSync(candidate.path, { recursive: true, force: true });
-	return ["/// 000. SKILLS CLEAN", tf("skills.clean.removed", `- Eliminadas: ${candidates.length}`, candidates.length), tf("skills.clean.list", `- Lista: ${candidates.map((c) => c.name).join(", ")}`, candidates.map((c) => c.name).join(", "))].join("\n");
+	return ["// 000. skills clean", tf("skills.clean.removed", `- Eliminadas: ${candidates.length}`, candidates.length), tf("skills.clean.list", `- Lista: ${candidates.map((c) => c.name).join(", ")}`, candidates.map((c) => c.name).join(", "))].join("\n");
 }
 
 export default function einSkillMaintenance(pi: ExtensionAPI): void {
@@ -246,7 +246,7 @@ export default function einSkillMaintenance(pi: ExtensionAPI): void {
 			}
 			if (action === "add") {
 				const result = installFromCatalog(tokens[1] || "", profile);
-				ctx.ui.notify(`/// 000. SKILLS ADD\n- ${result.ok ? "OK" : "FAIL"} ${result.message}`, "info");
+				ctx.ui.notify(`// 000. skills add\n- ${result.ok ? "OK" : "FAIL"} ${result.message}`, "info");
 				return;
 			}
 			if (action === "clean") {
@@ -256,14 +256,14 @@ export default function einSkillMaintenance(pi: ExtensionAPI): void {
 			if (action === "update") {
 				const onlyLocal = tokens.includes("--local");
 				const onlyDownloaded = tokens.includes("--downloaded");
-				ctx.ui.notify(t("skills.updating", "/// 000. UPDATING SKILLS\nClonando fuentes, puede tardar…"), "info");
-				const out: string[] = ["/// 000. SKILLS UPDATE"];
+				ctx.ui.notify(t("skills.updating", "// 000. updating skills\nClonando fuentes, puede tardar…"), "info");
+				const out: string[] = ["// 000. skills update"];
 				if (!onlyDownloaded) out.push(...updateLocalFromRepo((line) => ctx.ui.notify(line, "info")));
 				if (!onlyLocal) out.push(...updateDownloaded(profile, (line) => ctx.ui.notify(line, "info")));
 				ctx.ui.notify(out.join("\n"), "info");
 				return;
 			}
-			ctx.ui.notify(["/// 000. SKILLS", tf("skills.usage", `- Uso: ${slashCommand("skills")} [status|update [--local|--downloaded]|add <skill>|clean [--yes]]`, slashCommand("skills"))].join("\n"), "info");
+			ctx.ui.notify(["// 000. skills", tf("skills.usage", `- Uso: ${slashCommand("skills")} [status|update [--local|--downloaded]|add <skill>|clean [--yes]]`, slashCommand("skills"))].join("\n"), "info");
 		},
 	});
 }

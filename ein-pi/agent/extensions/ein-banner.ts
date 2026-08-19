@@ -1,10 +1,8 @@
 // =============================================================================
-// EIN BANNER — intro de arranque, estetica de 16 bits
-// Paleta: Carbon #0C0011 · Concrete #FAF3F0 · Structure #737373 · Yellow
-// #FFCA40. Blanco y amarillo mandan. El logo materializa en concreto y la I
-// sella en amarillo; despues abre una VENTANA DE ESTADO estilo menu de SNES:
-// marco doble, pestanas de seccion invertidas y lineas de puntos que llevan
-// cada etiqueta hasta su valor.
+// EIN BANNER — la marca de arranque y el estado
+// Wordmark con la `i` en amarillo, subtitulo, versiones, y debajo el panel de
+// estado entrando en cascada. Sin marco y sin logo de bloque: el gesto de marca
+// es un solo elemento amarillo sobre neutro, y eso cabe en una fila.
 //
 // La geometria y la animacion del panel viven en `lib/banner-panel.ts` (modulo
 // puro y testeable). Aqui solo se traducen sus celdas a color y se centran.
@@ -26,8 +24,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { AGENT_DIR } from "./ein-paths";
 import { loadPalette, type RGB } from "./ein-brand";
-import { I_RANGE, LOGO_LARGE, LOGO_SMALL, RULE_CH } from "../lib/ein-logo";
-import { PANEL_FRAME_TICKS, PANEL_LEADER_TICKS, PANEL_ROW_TICKS, composeColumns, composedWidth, renderPanel, type PanelTone } from "../lib/banner-panel";
+import { PANEL_FRAME_TICKS, PANEL_LEADER_TICKS, PANEL_ROW_TICKS, PANEL_W, renderPanel, type PanelTone } from "../lib/banner-panel";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 import { LANG_LABEL, readArtifactLang, readChatLang, type Lang } from "../lib/lang";
 import { TDD_LABEL, readTddMode } from "../lib/tdd";
@@ -166,14 +163,10 @@ const gitProcessRunner: ProcessRunner = {
   },
 };
 
-// Geometria del logo: fuente unica en `lib/ein-logo.ts`, compartida con el
-// splash de la app de terminal. Aqui solo se PINTA (buffer de la extension).
-
-const SUBTITLE = ".SAMUHLO · PI WORKBENCH";
+const SUBTITLE = ".samuhlo · pi workbench";
 
 // Brand palette (flat — no gradients). Single source: brand.json via ein-brand.
 const PALETTE = loadPalette();
-const CARBON: RGB = PALETTE.carbon;
 const CONCRETE: RGB = PALETTE.concrete;
 const STRUCTURE: RGB = PALETTE.structure;
 const YELLOW: RGB = PALETTE.yellow;
@@ -188,48 +181,6 @@ function fgSeq(c: RGB): string {
 
 function bgSeq(c: RGB): string {
   return `\x1b[48;2;${clampByte(c.r)};${clampByte(c.g)};${clampByte(c.b)}m`;
-}
-
-// -----------------------------------------------------------------------------
-// Materialize animation: each logo cell appears with a pseudo-random delay
-// (biased left-to-right) and resolves ░ → ▒ → ▓ → █, like concrete setting.
-// The I settles in concrete like the rest and then the yellow stamps in as a
-// single global snap — the brand gesture as the final gesture.
-// -----------------------------------------------------------------------------
-const SWEEP = 0.45; // ticks of delay per logo column
-const JITTER = 7; // max random extra delay per cell, in ticks
-const SETTLE = 6; // ticks from first noise to solid block
-const STAMP_HOLD = 3; // ticks the yellow stamp renders bold
-
-// Deterministic per-cell hash so the shimmer is stable across renders.
-function cellHash(x: number, y: number): number {
-  let h = (x * 374761393 + y * 668265263) | 0;
-  h = ((h ^ (h >>> 13)) * 1274126177) | 0;
-  return (h ^ (h >>> 16)) >>> 0;
-}
-
-function cellDelay(x: number, y: number): number {
-  return Math.floor(x * SWEEP) + (cellHash(x, y) % JITTER);
-}
-
-function maxCellDelay(width: number): number {
-  return Math.floor((width - 1) * SWEEP) + JITTER - 1;
-}
-
-type NoiseCell = { char: string; color: RGB; bold?: boolean; dim?: boolean };
-
-// Cell appearance at a given age (ticks since its delay elapsed).
-function noiseCell(char: string, age: number, finalColor: RGB): NoiseCell | null {
-  if (age < 0) return null;
-  if (age < 2) return { char: "░", color: STRUCTURE, dim: true };
-  if (age < 4) return { char: "▒", color: STRUCTURE };
-  if (age < SETTLE) return { char: "▓", color: CONCRETE, dim: true };
-  return { char, color: finalColor };
-}
-
-function padLines(lines: readonly string[]): { lines: string[]; width: number } {
-  const width = Math.max(...lines.map((l) => l.length), 0);
-  return { lines: lines.map((l) => l.padEnd(width)), width };
 }
 
 function shortenHome(path: string): string {
@@ -267,13 +218,11 @@ class LayoutBuilder {
   }
 }
 
-// El modo completo pinta logo + panel EN DOS COLUMNAS, asi que su minimo es el
-// ancho compuesto real (54 del logo + 3 de calle + 62 del panel = 119), no un
-// 80 heredado de cuando el banner era una torre. Con 80 columnas caia al
-// apilado, que mide 41 filas y se salia por abajo del terminal: ese era el
-// "no llega hasta el fondo".
+// El minimo del modo completo es el ancho del panel mas su respiro. Con el logo
+// de bloque retirado ya no hay una columna de 54 que reservar, asi que el banner
+// entra entero en terminales donde antes caia al modo minimo.
 const FULL_INTRO_MIN_ROWS = 30;
-const FULL_INTRO_MIN_COLS = composedWidth(Math.max(...LOGO_LARGE.map((line) => line.length)));
+const FULL_INTRO_MIN_COLS = PANEL_W + 4;
 const MINIMAL_INTRO_MIN_ROWS = 14;
 const MINIMAL_INTRO_MIN_COLS = 40;
 const RESIZE_DEBOUNCE_MS = 150;
@@ -389,29 +338,17 @@ export default function (pi: ExtensionAPI) {
 
     process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
 
-    const logoLarge = padLines(LOGO_LARGE);
-    const logoSmall = padLines(LOGO_SMALL);
-    const startupLogo = currentIntroMode() === "full" ? logoLarge : logoSmall;
-
-    // Cadence: materialize → yellow stamp → rule → subtitle.
-    const NOISE_END_TICK = maxCellDelay(startupLogo.width) + SETTLE;
-    const STAMP_TICK = NOISE_END_TICK + 3;
-    const RULE_START_TICK = STAMP_TICK + STAMP_HOLD - 1;
-    const RULE_END_TICK = RULE_START_TICK + 6;
-    const SUB_START_TICK = RULE_END_TICK - 2;
-    const SUB_END_TICK = SUB_START_TICK + Math.ceil(SUBTITLE.length / 2);
-    // ── Fases del panel de estado (estilo ventana de RPG de 16 bits) ──────────
-    // El marco se dibuja solo: el borde superior barre de izquierda a derecha,
-    // los laterales bajan, y el inferior cierra. Luego cada sección "abre" y sus
-    // filas se rellenan con la línea de puntos que lleva la etiqueta al valor.
-    const PANEL_START_TICK = STAMP_TICK;
+    // La marca ya no se materializa celda a celda, así que no hay cadencia que
+    // esperar antes del panel: entra de inmediato. Lo único que queda animado es
+    // la cascada de filas del estado, que es un reveal único y además informa.
+    const PANEL_START_TICK = 0;
     // Cota superior de filas del panel. Generosa a proposito: si el cambio real
     // tiene mas filas que la cuenta, FINISH_TICK corta la animacion antes de
     // dibujar el borde inferior y la caja se queda abierta.
     const PANEL_MAX_ROWS = 34;
     const PANEL_END_TICK =
       PANEL_START_TICK + PANEL_FRAME_TICKS + PANEL_MAX_ROWS * PANEL_ROW_TICKS + PANEL_LEADER_TICKS;
-    const FINISH_TICK = Math.max(SUB_END_TICK + 4, PANEL_END_TICK);
+    const FINISH_TICK = PANEL_END_TICK;
 
     const [einVersion, extensionsCount, agentsCount] = await Promise.all([
       readEinVersion(AGENT_DIR),
@@ -574,12 +511,10 @@ export default function (pi: ExtensionAPI) {
           render(width: number): string[] {
             if (state.mode === "skip") return [];
 
-            const logoBase = state.mode === "full" ? logoLarge : logoSmall;
-            const iRange = state.mode === "full" ? I_RANGE.large : I_RANGE.small;
             const b = new LayoutBuilder();
-            // Mismo lenguaje que la placa de specs: etiqueta gris a la izquierda
-            // y valor en concreto. Sin `■` amarillo por fila — el acento se
-            // reserva para la placa de versión, no se reparte por cada dato.
+            // Etiqueta gris a la izquierda y valor en concreto, como el panel.
+            // Sin marcador por fila: el acento se reserva para la `i` y para el
+            // foco, no se reparte por cada dato.
             const addGitBannerRows = () => {
               const labelWidth = 10;
               for (const gitRow of renderGitBannerRows(gitController.getSnapshot(), gitLang, width)) {
@@ -592,80 +527,44 @@ export default function (pi: ExtensionAPI) {
               }
             };
 
-            // DISPOSICION EN DOS COLUMNAS
-            // Apilado, el banner medía 13 filas de logo + 28 de panel = 41, y el
-            // modo completo solo exige 30 filas de terminal: se salía por abajo.
-            // Lado a lado la altura es el MAXIMO de las dos columnas, no la suma,
-            // y de paso aprovecha el ancho en vez de crecer hacia abajo.
             type Cell = { text: string; color?: RGB; bg?: RGB; bold?: boolean; dim?: boolean };
             const left: Cell[][] = [];
 
-            // Logo: materialize por celda; la I sella en amarillo al final.
-            for (let y = 0; y < logoBase.lines.length; y++) {
-              const logoLine = logoBase.lines[y];
-              const row: Cell[] = [];
-              for (let x = 0; x < logoLine.length; x++) {
-                const ch = logoLine[x];
-                if (ch === " ") { row.push({ text: " " }); continue; }
-                const cell = noiseCell(ch, tick - cellDelay(x, y), CONCRETE);
-                if (!cell) { row.push({ text: " " }); continue; }
-                const settled = cell.char === ch;
-                if (settled && tick >= STAMP_TICK && x >= iRange.start && x <= iRange.end) {
-                  row.push({ text: ch, color: YELLOW, bold: tick < STAMP_TICK + STAMP_HOLD });
-                } else {
-                  row.push({ text: cell.char, color: cell.color, bold: cell.bold, dim: cell.dim });
-                }
-              }
-              left.push(row);
-            }
-
-            // Regla estructural, abriéndose desde el centro.
-            {
-              const prog = tick < RULE_START_TICK
-                ? -1
-                : Math.min(1, (tick - RULE_START_TICK) / Math.max(1, RULE_END_TICK - RULE_START_TICK));
-              const half = Math.floor((logoBase.width / 2) * prog);
-              const center = Math.floor(logoBase.width / 2);
-              const row: Cell[] = [];
-              for (let x = 0; x < logoBase.width; x++) {
-                row.push(prog >= 0 && Math.abs(x - center) <= half
-                  ? { text: RULE_CH, color: STRUCTURE }
-                  : { text: " " });
-              }
-              left.push(row);
-            }
-
-            // Subtítulo a máquina de escribir; el punto inicial en amarillo.
-            {
-              const pad = Math.max(0, Math.floor((logoBase.width - SUBTITLE.length) / 2));
-              const reveal = Math.floor((tick - SUB_START_TICK) * 2);
-              const row: Cell[] = [];
-              for (let x = 0; x < logoBase.width; x++) {
-                const i = x - pad;
-                const ch = i >= 0 && i < SUBTITLE.length ? SUBTITLE[i] : " ";
-                if (i < 0 || i >= SUBTITLE.length || ch === " " || tick < SUB_START_TICK || i > reveal) {
-                  row.push({ text: " " });
-                  continue;
-                }
-                row.push({ text: ch!, color: i === 0 ? YELLOW : STRUCTURE, bold: i === 0 });
-              }
-              left.push(row);
-            }
+            // LA MARCA DE ARRANQUE
+            // Antes esto eran diez filas de bloques `██` que materializaban celda
+            // a celda. Se retira entera: era un SEGUNDO alfabeto para una marca
+            // que en todas las demás superficies se escribe `ein`, y dos alfabetos
+            // no son jerarquía, son la misma cosa dicha dos veces. Además pesaba
+            // 540 celdas encima de una pantalla cuyo argumento es el aire.
+            //
+            // Queda el wordmark con tracking: mismas letras que el chrome, una
+            // escala por encima. El gesto de marca —un solo elemento amarillo
+            // sobre neutro, la `i`— sobrevive intacto y cuesta una fila.
+            //
+            // Y el arranque no pierde su momento: el panel sigue entrando en
+            // cascada, que es un reveal único (STYLE.md // 001) y además informa,
+            // en vez de decorar.
+            left.push([
+              { text: "e", color: CONCRETE, bold: true },
+              { text: "   " },
+              { text: "i", color: YELLOW, bold: true },
+              { text: "   " },
+              { text: "n", color: CONCRETE, bold: true },
+            ]);
+            left.push([{ text: SUBTITLE, color: STRUCTURE }]);
 
             if (state.mode === "full") {
               const fit = (v: unknown, w: number) =>
                 String(v ?? "").replace(/\s+/g, " ").trim().slice(0, w);
 
-              // La placa de versión viaja con el logo, a la izquierda: es
-              // identidad, no un dato mas del panel.
-              const plate = ` EIN ${einVersion} `;
-              const platePad = Math.max(0, Math.floor((logoBase.width - plate.length - 12) / 2));
-              left.push([]);
+              // Las versiones bajan a gris junto al wordmark. Eran una placa
+              // invertida —carbón sobre amarillo— y con ella el arranque gastaba
+              // su único acento en un dato que nadie consulta con urgencia. El
+              // amarillo queda para la `i` y para el foco, que es lo que marca.
               left.push([
-                { text: " ".repeat(platePad) },
-                { text: plate, color: CARBON, bg: YELLOW, bold: true },
-                { text: "  " },
-                { text: `PI v${VERSION}`, color: STRUCTURE },
+                { text: `ein v${einVersion}`, color: STRUCTURE },
+                { text: "  ·  ", color: STRUCTURE, dim: true },
+                { text: `pi v${VERSION}`, color: STRUCTURE },
               ]);
 
               const isOn = (label: string) => Boolean(label) && !/^(off|no|desactivad)/i.test(label);
@@ -678,7 +577,7 @@ export default function (pi: ExtensionAPI) {
                 );
 
               const panelData = {
-                plate: " ESTADO ",
+                title: "estado",
                 right: shortenHome(ctx.cwd),
                 sections: [
                   { kind: "fields" as const, title: "SISTEMA", fields: [
@@ -712,29 +611,23 @@ export default function (pi: ExtensionAPI) {
               };
 
               const TONE: Record<PanelTone, RGB> = {
-                frame: YELLOW, label: STRUCTURE, value: CONCRETE, plate: CARBON, dim: STRUCTURE, accent: YELLOW,
+                frame: YELLOW, label: STRUCTURE, value: CONCRETE, dim: STRUCTURE, accent: YELLOW,
               };
               const panel: Cell[][] = renderPanel(panelData, tick - PANEL_START_TICK).map((line) =>
                 line.map((cell) => ({
                   text: cell.text,
                   color: TONE[cell.tone],
-                  ...(cell.tone === "plate" ? { bg: YELLOW } : {}),
-                  ...(cell.bold ? { bold: true } : {}),
+                                    ...(cell.bold ? { bold: true } : {}),
                   ...(cell.tone === "dim" ? { dim: true } : {}),
                 })),
               );
 
-              // Lado a lado solo si el terminal da de sí; si no, apilado, que es
-              // lo que cabe en un terminal estrecho.
-              // El ancho compuesto se reserva DESDE EL PRIMER FOTOGRAMA, aunque
-              // el panel todavia no exista. Sin esto el centrado se calculaba
-              // solo sobre el logo, y al aparecer la caja el logo saltaba a la
-              // izquierda: ese era el "barrido" que movia el EIN de sitio.
-              const side = width >= composedWidth(logoBase.width);
-              const composed = side
-                ? composeColumns<Cell, Cell>(left, logoBase.width, panel, (gap) => ({ text: " ".repeat(gap) }))
-                : [...left, [], ...panel];
-              const rows = composed;
+              // APILADO, ya no en dos columnas.
+              // Las dos columnas existían para que trece filas de logo y veinte
+              // de panel no sumaran cuarenta y una y se salieran por abajo. Con
+              // la marca en tres filas el problema desaparece, y apilar lee mejor:
+              // marca, respiro, estado. Que es el orden en que se mira.
+              const rows = [...left, [], ...panel];
 
               // Aire arriba y abajo: el banner pinta sobre pantalla limpia y
               // pegado al borde se lee peor.

@@ -4,7 +4,7 @@
 // secrets wizard → context7 export → marker → doctor.
 // =============================================================================
 
-import * as p from "@clack/prompts";
+import * as p from "../tui/ui.ts";
 import { INSTALLER_COMMAND, promoteCommandNames } from "../core/command-names.ts";
 import piEinFish from "../../../pi-ein/pi-ein.fish" with { type: "text" };
 import { describePlatform, detectPlatform, type Platform } from "../core/platform.ts";
@@ -46,7 +46,6 @@ import { stageCcEinPayload, type CcEinPayloadStage } from "../core/cc-payload.ts
 import { renderReport } from "./doctor.ts";
 import { playBanner } from "../tui/banner.ts";
 import { bold, gold, levelMark } from "../tui/theme.ts";
-import { frameBlank, frameBlock, frameField, frameTab } from "../tui/frame.ts";
 import ccEinFish from "../../../cc-ein/cc-ein.fish" with { type: "text" };
 import {
   createInstallPlan,
@@ -504,6 +503,9 @@ export function createPiInstallHandlers({ platform, flags, skipLinear, deps, age
   return success();
   },
   };
+  // `pi` a secas es Pi vanilla: el cerebro de Ein solo se carga a través del
+  // launcher, que exporta PI_CODING_AGENT_DIR antes de invocarlo. Mandar aquí a
+  // `pi` era mandar al usuario fuera del producto que acababa de instalar.
   return { handlers, detail: () => `Ein listo. Para la aplicación, ${appHint}; para el agente, \`pi-ein\`.` };
 }
 
@@ -614,14 +616,13 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
     }
     plan = buildPlan(skipLinear);
   }
-  await (options.playBanner ?? playBanner)(); p.intro(bold(gold("Instalador Ein")));
-  // Misma ventana que el doctor, el banner y la app: una sola gramatica.
-  p.log.message(frameBlock("instalar ein", describePlatform(platform), [
-    frameBlank(),
-    frameTab("dependencias"),
-    ...deps.map((d) => frameField(d.id, d.present ? "presente" : "falta", levelMark(d.present ? "OK" : "FAIL"))),
-    frameBlank(),
-  ]));
+  await (options.playBanner ?? playBanner)();
+  // Misma gramatica que el doctor, el launcher y la sesion: sin marco, con
+  // columna. Lo que el usuario necesita antes de decidir es que falta.
+  p.report.section(0, "sistema");
+  p.report.field("plataforma", describePlatform(platform));
+  p.report.section(1, "dependencias");
+  for (const dep of deps) p.report.step(dep.present ? "ok" : "fail", dep.id, dep.present ? "presente" : "falta");
   if (plan.status === "blocked") {
     (options.writePlan ?? ((value) => p.log.message(renderInstallPlan(value))))(plan);
     p.outro(flags.dryRun ? "Dry-run blocked. Resolve the reported blocker before installation." : "Instalación bloqueada. Resuelve el conflicto de ownership antes de continuar.");

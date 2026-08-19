@@ -44,7 +44,7 @@ const compactBudget = formatBudget;
 function formatSddStatus(cwd: string, change?: string): string {
 	const s = resolveSddStatus(cwd, change);
 	const active = listActiveChanges(cwd);
-	const lines: string[] = ["/// 000. SDD STATUS", ""];
+	const lines: string[] = ["// 000. sdd status", ""];
 	if (!s.change) {
 		lines.push("- " + t("sdd-status.none", "No active SDD changes in openspec/changes/."));
 	} else {
@@ -65,7 +65,7 @@ function formatSddStatus(cwd: string, change?: string): string {
 		const blockers = sddStatusBlockers({ blocked: s.blocked, taskProblems: s.tasks.problems, budgetProblems: s.budget.problems });
 		if (blockers.length) {
 			lines.push("");
-			lines.push(`■ ${t("sdd-status.blocked", "blockers")}:`);
+			lines.push(`▏ ${t("sdd-status.blocked", "blockers")}:`);
 			for (const b of blockers) lines.push(`- ${b}`);
 		}
 	}
@@ -136,7 +136,7 @@ describe("sdd-status output format", () => {
 		put(c, "apply-progress.md", "status: blocked\n");
 
 		const out = formatSddStatus(DIR);
-		expect(out).toContain("■ blockers:");
+		expect(out).toContain("▏ blockers:");
 		expect(out).toContain("- apply-progress.md indica bloqueo.");
 	});
 

@@ -9,9 +9,20 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type {
+	AgentToolResult,
 	ExtensionAPI,
 	ExtensionContext,
+	ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import { GLYPH } from "../lib/chrome.ts";
+import {
+	checkFailed,
+	checkReceipt,
+	statusBlocked,
+	statusReceipt,
+	type ChangeLintSummary,
+} from "../lib/tool-receipts.ts";
 import {
 	createSddMemoryLifecycle,
 	ensureApplyAcceptance,
@@ -440,13 +451,13 @@ function formatChangeLint(report: ChangeLintReport): string {
 	const presentCount = present.length;
 
 	const lines: string[] = [
-		`/// 000. SDD CHECK — ${change}`,
+		`// 000. sdd check — ${change}`,
 		"",
 		`fases: ${presentCount}/${total} presentes  |  errores: ${errors}  |  warnings: ${warnings}`,
 	];
 
 	if (report.issues.length > 0) {
-		lines.push("", "■ consistencia:");
+		lines.push("", "▏ consistencia:");
 		for (const i of report.issues) {
 			lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
 		}
@@ -454,13 +465,13 @@ function formatChangeLint(report: ChangeLintReport): string {
 
 	for (const { phase, present: isPresent, report: pr } of phases) {
 		if (!isPresent) {
-			lines.push(`■ ${phase} — MISSING`);
+			lines.push(`▏ ${phase} — MISSING`);
 			continue;
 		}
 		const ok = pr!.errors === 0;
 		const icon = ok ? "OK" : "ERRORS";
 		const detail = pr!.lineCount > 0 ? `, ${pr!.lineCount} lineas` : "";
-		lines.push(`■ ${phase} — ${icon} (presente${detail})`);
+		lines.push(`▏ ${phase} — ${icon} (presente${detail})`);
 		if (pr!.issues.length > 0) {
 			for (const i of pr!.issues) {
 				lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
@@ -469,6 +480,37 @@ function formatChangeLint(report: ChangeLintReport): string {
 	}
 
 	return lines.join("\n");
+}
+
+// ── Recibos de una línea ─────────────────────────────────────────────────────
+// El `content` de la tool sigue yendo íntegro al modelo; esto solo decide qué
+// ve el humano. El porqué está en lib/tool-receipts.ts. `expanded` devuelve el
+// volcado completo, así que no se pierde nada: se deja de imponer.
+type ToolTheme = Readonly<{ fg(token: string, text: string): string; bold(text: string): string }>;
+
+function receiptCall(label: string, theme: ToolTheme): Text {
+	return new Text(
+		`${theme.fg("dim", `ein ${GLYPH.sep} `)}${theme.fg("toolTitle", label)}`,
+		0,
+		0,
+	);
+}
+
+/** El primer bloque de texto del resultado: un `content` puede traer imágenes. */
+function firstText(result: AgentToolResult<unknown>): string {
+	const first = result.content?.[0];
+	return first && first.type === "text" ? first.text : "";
+}
+
+function receiptResult(
+	summary: string,
+	bad: boolean,
+	full: string,
+	expanded: boolean,
+	theme: ToolTheme,
+): Text {
+	if (expanded) return new Text(theme.fg("toolOutput", full), 0, 0);
+	return new Text(theme.fg(bad ? "warning" : "dim", summary), 0, 0);
 }
 
 // P2-G: fuente única en sdd-router (formatBudget), que además marca cuando lo
@@ -481,7 +523,7 @@ function formatSddStatus(
 	prefs?: SddPreflightPreferences,
 ): string {
 	const notebook = `optional project notebook: Engram ${prefs?.memoryMode ?? "off"}${prefs?.engramAvailable ? " (configured; no retrieval or save is implied)" : " (unavailable or not configured)"}; OpenSpec is the canonical full record.`;
-	const lines = ["/// 000. SDD STATUS", ""];
+	const lines = ["// 000. sdd status", ""];
 	if (!status.change) {
 		lines.push("- " + t("sdd-status.none", "No active SDD changes in openspec/changes/."));
 		lines.push(`- ${notebook}`);
@@ -509,7 +551,7 @@ function formatSddStatus(
 	// Solo bloqueos reales, vía la fuente única sddStatusBlockers.
 	const blockers = sddStatusBlockers({ blocked: status.blocked, taskProblems: status.tasks.problems, budgetProblems: status.budget.problems });
 	if (blockers.length) {
-		lines.push("", `■ ${t("sdd-status.blocked", "blockers")}:`);
+		lines.push("", `▏ ${t("sdd-status.blocked", "blockers")}:`);
 		for (const b of blockers) lines.push(`- ${b}`);
 	}
 	// El remedio sale del MISMO estado que el bloqueo. Antes vivía como prosa en
@@ -537,7 +579,7 @@ function parseSddNextArgs(args: string | string[]): { change: string | null } {
 
 function formatSddNextHelp(): string {
 	return [
-		"/// 000. SDD NEXT",
+		"// 000. sdd next",
 		"",
 		"Uso: /ein:sdd-next <change>",
 		"",
@@ -549,7 +591,7 @@ function formatSddNextHelp(): string {
 
 function formatSddNext(report: SddNextReport): string {
 	const lines = [
-		"/// 000. SDD NEXT",
+		"// 000. sdd next",
 		"",
 		`cambio: ${report.change ?? "ninguno"}`,
 		`fase actual: ${report.currentPhase}`,
@@ -559,7 +601,7 @@ function formatSddNext(report: SddNextReport): string {
 	];
 
 	if (report.blocked.length > 0) {
-		lines.push("", "■ revisar antes de avanzar:");
+		lines.push("", "▏ revisar antes de avanzar:");
 		for (const item of report.blocked) lines.push(`- ${item}`);
 	}
 	return lines.join("\n");
@@ -1246,7 +1288,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		),
 		handler: async (_args, ctx) => {
 			const sessions = listRecentSessions(8);
-			const lines: string[] = [t("resume.title", "/// 000. SESIONES RECIENTES"), ""];
+			const lines: string[] = [t("resume.title", "// 000. sesiones recientes"), ""];
 			if (!sessions.length) {
 				lines.push(t("resume.none", "- No hay sesiones guardadas todavia."));
 			} else {
@@ -1300,7 +1342,7 @@ export default function einAi(pi: ExtensionAPI): void {
 					? "OK_WITH_WARNINGS"
 					: "OK";
 			const out: string[] = [
-				`/// 000. SDD ${phase.toUpperCase()} CHECK`,
+				`// 000. sdd ${phase.toUpperCase()} CHECK`,
 				"",
 				`${phase}: ${rel}`,
 				`resultado: ${status}  |  errores: ${report.errors}  |  warnings: ${report.warnings}  |  lineas: ${report.lineCount}`,
@@ -1366,6 +1408,17 @@ export default function einAi(pi: ExtensionAPI): void {
 			}
 			return { content: [{ type: "text", text }], details: { status, activeChanges: active, plan } };
 		},
+		renderCall(_args: unknown, theme: ToolTheme): Text {
+			return receiptCall("status", theme);
+		},
+		renderResult(
+			result: AgentToolResult<unknown>,
+			{ expanded }: ToolRenderResultOptions,
+			theme: ToolTheme,
+		): Text {
+			const status = (result.details as { status?: SddChangeStatus } | undefined)?.status;
+			return receiptResult(statusReceipt(status), statusBlocked(status), firstText(result), expanded, theme);
+		},
 	});
 
 	// ── Tool determinista: forecast de tamaño de PR (Review Workload Guard) ──
@@ -1406,11 +1459,11 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string; lane?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
 			if (!change || !isSafeChangeName(change)) {
-				return { content: [{ type: "text", text: "/// SDD LANE — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
+				return { content: [{ type: "text", text: "// sdd lane — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
 			}
 			const changeDir = join(resolveChangesDir(ctx.cwd), change);
 			if (!existsSync(changeDir)) {
-				return { content: [{ type: "text", text: `/// SDD LANE — '${change}' no existe.` }], details: { ok: false, reason: "unknown change" } };
+				return { content: [{ type: "text", text: `// sdd lane — '${change}' no existe.` }], details: { ok: false, reason: "unknown change" } };
 			}
 			const requested = normalizeLane(params?.lane);
 			if (requested) writeChangeLane(changeDir, requested);
@@ -1418,7 +1471,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			const skipped = laneSkips(lane);
 			const detail = skipped.length ? ` Se salta: ${skipped.join(", ")}. Verify y close siguen siendo puertas duras.` : "";
 			return {
-				content: [{ type: "text", text: `/// SDD LANE — '${change}': ${LANE_LABEL[lane]}.${detail}` }],
+				content: [{ type: "text", text: `// sdd lane — '${change}': ${LANE_LABEL[lane]}.${detail}` }],
 				details: { ok: true, change, lane, skipped },
 			};
 		},
@@ -1445,20 +1498,20 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string; tdd?: string; lane?: string; force?: boolean }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
 			if (!change) {
-				return { content: [{ type: "text", text: "/// SDD PREFLIGHT — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
+				return { content: [{ type: "text", text: "// sdd preflight — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
 			}
 			const stance = readChangeStance(ctx.cwd, change);
 			if (!stance) {
-				return { content: [{ type: "text", text: `/// SDD PREFLIGHT — '${change}' no existe.` }], details: { ok: false, reason: "unknown change" } };
+				return { content: [{ type: "text", text: `// sdd preflight — '${change}' no existe.` }], details: { ok: false, reason: "unknown change" } };
 			}
 			const requested = normalizeTddStance(params?.tdd);
 			if (params?.tdd !== undefined && !requested) {
-				return { content: [{ type: "text", text: `/// SDD PREFLIGHT — postura de TDD desconocida: ${JSON.stringify(params.tdd)}.` }], details: { ok: false, reason: "unknown stance" } };
+				return { content: [{ type: "text", text: `// sdd preflight — postura de TDD desconocida: ${JSON.stringify(params.tdd)}.` }], details: { ok: false, reason: "unknown stance" } };
 			}
 			if (requested) {
 				if (stance.tdd && !params?.force) {
 					return {
-						content: [{ type: "text", text: `/// SDD PREFLIGHT — '${change}' ya decidido: TDD ${stance.tdd} (por ${stance.decidedBy ?? "pi"}). Usa force para reemplazarlo.` }],
+						content: [{ type: "text", text: `// sdd preflight — '${change}' ya decidido: TDD ${stance.tdd} (por ${stance.decidedBy ?? "pi"}). Usa force para reemplazarlo.` }],
 						details: { ok: false, reason: "already decided", tdd: stance.tdd },
 					};
 				}
@@ -1467,7 +1520,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			const lane = normalizeLane(params?.lane);
 			if (lane) writeChangeLane(stance.changeDir, lane);
 			const current = readChangeStance(ctx.cwd, change);
-			const text = [`/// SDD PREFLIGHT — '${change}'`, renderChangeStanceLine(current), changeStanceDirective(current)]
+			const text = [`// sdd preflight — '${change}'`, renderChangeStanceLine(current), changeStanceDirective(current)]
 				.filter((part) => part.length > 0)
 				.join("\n");
 			return {
@@ -1493,7 +1546,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string; phase?: string; memoryCandidate?: unknown }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
 			if (!change) {
-				return { content: [{ type: "text", text: "/// SDD CHECK — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
+				return { content: [{ type: "text", text: "// sdd check — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
 			}
 			const report = lintChange(ctx.cwd, change);
 			const phaseReport = params?.phase
@@ -1510,6 +1563,19 @@ export default function einAi(pi: ExtensionAPI): void {
 			appendMemoryReceipt(join(resolveChangesDir(ctx.cwd), change), memory);
 			Object.assign(report, { memory });
 			return { content: [{ type: "text", text: formatChangeLint(report) }], details: report };
+		},
+		renderCall(_args: unknown, theme: ToolTheme): Text {
+			return receiptCall("check", theme);
+		},
+		renderResult(
+			result: AgentToolResult<unknown>,
+			{ expanded }: ToolRenderResultOptions,
+			theme: ToolTheme,
+		): Text {
+			// El gatekeeper solo importa por su veredicto. Cuando bloquea, el
+			// recibo se pinta como problema y el detalle sigue a un toque.
+			const report = result.details as ChangeLintSummary | undefined;
+			return receiptResult(checkReceipt(report), checkFailed(report), firstText(result), expanded, theme);
 		},
 	});
 
@@ -1626,7 +1692,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string; force?: boolean; reason?: string; reconciliationProfile?: string; reconciliationEvidencePath?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
 			if (!change) {
-				return { content: [{ type: "text", text: "/// SDD CLOSE — no active change to close." }], details: { ok: false, reason: "no active change" } };
+				return { content: [{ type: "text", text: "// sdd close — no active change to close." }], details: { ok: false, reason: "no active change" } };
 			}
 			const reason = params?.reason;
 			const { result, memory } = await performSddClose(ctx, change, {
@@ -1637,11 +1703,11 @@ export default function einAi(pi: ExtensionAPI): void {
 			});
 			const text = result.ok
 				? result.legacyEscape
-					? `/// SDD CLOSE — Closed through legacy escape (spec state remained unresolved): ${result.legacyEscape.reason}`
+					? `// sdd close — Closed through legacy escape (spec state remained unresolved): ${result.legacyEscape.reason}`
 					: result.reconciliation
-						? `/// SDD CLOSE — Reconciled '${change}' with profile ${result.reconciliation.profile}; archived to ${result.to.replace(ctx.cwd, ".")}.`
-						: `/// SDD CLOSE — Verified change '${change}' closed; archived to ${result.to.replace(ctx.cwd, ".")}.`
-				: `/// SDD CLOSE — '${change}' NOT closed: ${result.reason}`;
+						? `// sdd close — Reconciled '${change}' with profile ${result.reconciliation.profile}; archived to ${result.to.replace(ctx.cwd, ".")}.`
+						: `// sdd close — Verified change '${change}' closed; archived to ${result.to.replace(ctx.cwd, ".")}.`
+				: `// sdd close — '${change}' NOT closed: ${result.reason}`;
 			return { content: [{ type: "text", text }], details: { ...result, memory } };
 		},
 	});
@@ -1664,14 +1730,14 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
 			if (!change) {
-				return { content: [{ type: "text", text: "/// OPENSPEC SYNC — no active change." }], details: { ok: false, reason: "no active change" } };
+				return { content: [{ type: "text", text: "// openspec sync — no active change." }], details: { ok: false, reason: "no active change" } };
 			}
 			try {
 				const { plan, changed } = await synchronizeOpenSpecFilesystem(ctx.cwd, change);
 				const domains = plan.domains.map((d) => d.domain).join(", ") || "(ninguno)";
 				const head = changed
-					? `/// OPENSPEC SYNC — '${change}': ${plan.state}. dominios: ${domains}.`
-					: `/// OPENSPEC SYNC — '${change}': ya sincronizado, sin cambios. dominios: ${domains}.`;
+					? `// openspec sync — '${change}': ${plan.state}. dominios: ${domains}.`
+					: `// openspec sync — '${change}': ya sincronizado, sin cambios. dominios: ${domains}.`;
 				const tail = plan.state === "conflict"
 					? "\nCONFLICTO: los deltas se contradicen. Resuélvelo a mano; el cierre NO lo salta ni con force."
 					: "\nsync-report.md publicado. `ein_sdd_status` ya puede dar el cambio por sincronizado.";
@@ -1683,7 +1749,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				return {
-					content: [{ type: "text", text: `/// OPENSPEC SYNC — '${change}' FALLÓ: ${message}\nLos specs se restauraron a su estado previo salvo que el mensaje diga lo contrario.` }],
+					content: [{ type: "text", text: `// openspec sync — '${change}' FALLÓ: ${message}\nLos specs se restauraron a su estado previo salvo que el mensaje diga lo contrario.` }],
 					details: { ok: false, reason: message },
 				};
 			}
@@ -1743,11 +1809,11 @@ export default function einAi(pi: ExtensionAPI): void {
 			});
 			if (!result.ok) {
 				const text = result.code === "malformed"
-					? `/// OPENSPEC DELTA — RECHAZADO, no se escribió nada: ${result.reason}. Corrige las operaciones y reintenta; el delta se valida con la MISMA gramática que el sync.`
-					: `/// OPENSPEC DELTA — ${result.reason}.`;
+					? `// openspec delta — RECHAZADO, no se escribió nada: ${result.reason}. Corrige las operaciones y reintenta; el delta se valida con la MISMA gramática que el sync.`
+					: `// openspec delta — ${result.reason}.`;
 				return { content: [{ type: "text", text }], details: { ok: false, reason: result.reason } };
 			}
-			return { content: [{ type: "text", text: `/// OPENSPEC DELTA — '${result.change}': escrito openspec/changes/${result.change}/specs/${result.domain}/spec.md (${result.operations} operación(es), validado). No escribas la declaración spec_delta: none: el delta ES la declaración.` }], details: { ...result } };
+			return { content: [{ type: "text", text: `// openspec delta — '${result.change}': escrito openspec/changes/${result.change}/specs/${result.domain}/spec.md (${result.operations} operación(es), validado). No escribas la declaración spec_delta: none: el delta ES la declaración.` }], details: { ...result } };
 		},
 	});
 
@@ -1799,7 +1865,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			const lines: string[] = [];
 			const chatLang = readChatLang();
 			const artifactLang = readArtifactLang(ctx.cwd);
-			lines.push("/// 000. EIN STATUS");
+			lines.push("// 000. ein status");
 			lines.push(`${t("status.author", "autor")}: samuhlo`);
 			lines.push(`${t("status.mode", "modo")}: ${readMode(ctx.cwd)}`);
 			lines.push(`${t("status.persona", "persona")}: ${readPersonaMode(ctx.cwd)}`);
@@ -1814,7 +1880,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			);
 			lines.push("");
 
-			lines.push(`■ 001. ${t("status.sdd", "SDD")}`);
+			lines.push(`// 001. ${t("status.sdd", "SDD")}`);
 			lines.push(`${t("status.agents", "agentes")}: ${agents.length}`);
 			for (const a of agents) lines.push(`- ${a}`);
 			lines.push(`${t("status.chains", "chains")}: ${chains.length}`);
@@ -1841,12 +1907,12 @@ export default function einAi(pi: ExtensionAPI): void {
 				);
 			lines.push("");
 
-			lines.push(`■ 002. ${t("status.skills", "SKILLS")}`);
+			lines.push(`// 002. ${t("status.skills", "SKILLS")}`);
 			lines.push(`${t("status.skills.local", "locales")}: ${localSkills}`);
 			lines.push(`${t("status.skills.downloaded", "descargadas")}: ${downloadedSkills}`);
 			lines.push("");
 
-			lines.push(`■ 003. ${t("status.project", "PROYECTO")}`);
+			lines.push(`// 003. ${t("status.project", "PROYECTO")}`);
 			const einMd = readEinMd(ctx.cwd);
 			if (!einMd.exists) {
 				lines.push(`EIN.md: ${t("status.einmd.absent", "ausente — /ein:init para generarlo")}`);
@@ -1864,7 +1930,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			lines.push(`${t("status.model", "modelo")}: ${existsSync(modelConfigPath(ctx.cwd)) ? t("status.model.present", "config presente") : t("status.model.absent", "sin config local")}`);
 			lines.push("");
 
-			lines.push("■ 004. MCP");
+			lines.push("// 004. MCP");
 			if (mcpServers.length > 0) {
 				lines.push(`${t("status.mcp.servers", "servidores")}: ${mcpServers.join(", ")}`);
 			} else {
@@ -1872,7 +1938,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			}
 			lines.push("");
 
-			lines.push(`■ 005. ${t("status.diag", "DIAGNOSTICO")}`);
+			lines.push(`// 005. ${t("status.diag", "DIAGNOSTICO")}`);
 			lines.push(`- ${"/ein:doctor-output"} ${t("status.diag.output", "para smoke checks tecnicos")}`);
 			lines.push(`- ${"/ein:doctor"} ${t("status.diag.doctor", "para diagnostico explicativo")}`);
 
@@ -1893,7 +1959,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			const text =
 				mode === "full"
 					? t("help.full", "Ein listo. Autor: samuhlo. (i18n no disponible)")
-					: t("help.short", "/// AYUDA EIN — autor: samuhlo");
+					: t("help.short", "// ayuda ein — autor: samuhlo");
 			ctx.ui.notify(text, "info");
 		},
 	});

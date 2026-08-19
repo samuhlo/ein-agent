@@ -65,7 +65,7 @@ const cwd = process.cwd();
 // ── Formatters (reimplementados sin i18n; strings inglesas, mismos campos) ──
 
 function formatStatus(status: SddChangeStatus, active: string[]): string {
-	const lines = ["/// 000. SDD STATUS", ""];
+	const lines = ["// 000. sdd status", ""];
 	if (!status.change) {
 		lines.push("- No active SDD changes in openspec/changes/.");
 		lines.push("- OpenSpec is the canonical full record.");
@@ -95,7 +95,7 @@ function formatStatus(status: SddChangeStatus, active: string[]): string {
 		budgetProblems: status.budget.problems,
 	});
 	if (blockers.length) {
-		lines.push("", "■ blockers:");
+		lines.push("", "▏ blockers:");
 		for (const b of blockers) lines.push(`- ${b}`);
 	}
 	// Un bloqueo que no dice cómo salir obliga a interpretar, y un ejecutor
@@ -111,22 +111,22 @@ function formatCheck(report: ChangeLintReport): string {
 	const { change, errors, warnings, phases } = report;
 	const present = phases.filter((p) => p.present).length;
 	const lines = [
-		`/// 000. SDD CHECK — ${change}`,
+		`// 000. sdd check — ${change}`,
 		"",
 		`phases: ${present}/${phases.length} present  |  errors: ${errors}  |  warnings: ${warnings}`,
 	];
 	if (report.issues.length > 0) {
-		lines.push("", "■ consistency:");
+		lines.push("", "▏ consistency:");
 		for (const i of report.issues) lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
 	}
 	for (const { phase, present: isPresent, report: pr } of phases) {
 		if (!isPresent) {
-			lines.push(`■ ${phase} — MISSING`);
+			lines.push(`▏ ${phase} — MISSING`);
 			continue;
 		}
 		const ok = pr!.errors === 0;
 		const detail = pr!.lineCount > 0 ? `, ${pr!.lineCount} lines` : "";
-		lines.push(`■ ${phase} — ${ok ? "OK" : "ERRORS"} (present${detail})`);
+		lines.push(`▏ ${phase} — ${ok ? "OK" : "ERRORS"} (present${detail})`);
 		for (const i of pr!.issues) lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
 	}
 	return lines.join("\n");
@@ -213,17 +213,17 @@ export function runLaneCommand(dir: string, args: readonly string[]): { text: st
 	const positional = args.filter((arg) => !arg.startsWith("--"));
 	const requested = positional.map(normalizeLane).find((lane) => lane !== undefined);
 	const name = positional.find((arg) => normalizeLane(arg) === undefined) ?? resolveSddStatus(dir).change ?? "";
-	if (!name) return { text: "/// SDD LANE — no active change in openspec/changes/.", exitCode: 1 };
-	if (!isSafeChangeName(name)) return { text: `/// SDD LANE — invalid change name: ${JSON.stringify(name)}.`, exitCode: 1 };
+	if (!name) return { text: "// sdd lane — no active change in openspec/changes/.", exitCode: 1 };
+	if (!isSafeChangeName(name)) return { text: `// sdd lane — invalid change name: ${JSON.stringify(name)}.`, exitCode: 1 };
 
 	const changeDir = join(dir, "openspec", "changes", name);
-	if (!existsSync(changeDir)) return { text: `/// SDD LANE — '${name}' does not exist.`, exitCode: 1 };
+	if (!existsSync(changeDir)) return { text: `// sdd lane — '${name}' does not exist.`, exitCode: 1 };
 
 	if (requested) writeChangeLane(changeDir, requested);
 	const lane = readChangeLane(changeDir);
 	const skipped = laneSkips(lane);
 	const detail = skipped.length ? ` Skips: ${skipped.join(", ")}. Verify and close stay hard gates.` : "";
-	return { text: `/// SDD LANE — '${name}': ${LANE_LABEL[lane]}.${detail}`, exitCode: 0 };
+	return { text: `// sdd lane — '${name}': ${LANE_LABEL[lane]}.${detail}`, exitCode: 0 };
 }
 
 function laneCmd(args: readonly string[]): void {
@@ -254,20 +254,20 @@ export function runPreflightCommand(
 		return previous !== "--tdd" && previous !== "--lane";
 	});
 	const name = positional[0] ?? resolveSddStatus(dir).change ?? "";
-	if (!name) return { text: "/// SDD PREFLIGHT — no active change in openspec/changes/.", exitCode: 1 };
+	if (!name) return { text: "// sdd preflight — no active change in openspec/changes/.", exitCode: 1 };
 
 	const stance = readChangeStance(dir, name);
-	if (!stance) return { text: `/// SDD PREFLIGHT — '${name}' does not exist or is not a valid change name.`, exitCode: 1 };
+	if (!stance) return { text: `// sdd preflight — '${name}' does not exist or is not a valid change name.`, exitCode: 1 };
 
 	const rawTdd = flag("--tdd");
 	if (rawTdd !== undefined) {
 		const requested = normalizeTddStance(rawTdd);
 		if (!requested) {
-			return { text: `/// SDD PREFLIGHT — unknown TDD stance ${JSON.stringify(rawTdd)}; use 'off' or 'strict'.`, exitCode: 1 };
+			return { text: `// sdd preflight — unknown TDD stance ${JSON.stringify(rawTdd)}; use 'off' or 'strict'.`, exitCode: 1 };
 		}
 		if (stance.tdd && !force) {
 			return {
-				text: `/// SDD PREFLIGHT — '${name}' already decided: TDD ${stance.tdd} (by ${stance.decidedBy ?? "pi"}). Pass --force to replace it.`,
+				text: `// sdd preflight — '${name}' already decided: TDD ${stance.tdd} (by ${stance.decidedBy ?? "pi"}). Pass --force to replace it.`,
 				exitCode: 1,
 			};
 		}
@@ -278,14 +278,14 @@ export function runPreflightCommand(
 	if (rawLane !== undefined) {
 		const requested = normalizeLane(rawLane);
 		if (!requested) {
-			return { text: `/// SDD PREFLIGHT — unknown lane ${JSON.stringify(rawLane)}; use 'micro' or 'standard'.`, exitCode: 1 };
+			return { text: `// sdd preflight — unknown lane ${JSON.stringify(rawLane)}; use 'micro' or 'standard'.`, exitCode: 1 };
 		}
 		writeChangeLane(stance.changeDir, requested);
 	}
 
 	const current = readChangeStance(dir, name);
 	const directive = changeStanceDirective(current);
-	const text = [`/// SDD PREFLIGHT — '${name}'`, renderChangeStanceLine(current), directive]
+	const text = [`// sdd preflight — '${name}'`, renderChangeStanceLine(current), directive]
 		.filter((part) => part.length > 0)
 		.join("\n");
 	return { text, exitCode: 0 };
@@ -323,18 +323,18 @@ export function runDeltaCommand(
 				? (parsed as { operations: unknown[] }).operations
 				: [];
 	} catch {
-		return { text: "/// OPENSPEC DELTA — stdin is not valid JSON. Pass the operations array (or { operations: [...] }).", exitCode: 1 };
+		return { text: "// openspec delta — stdin is not valid JSON. Pass the operations array (or { operations: [...] }).", exitCode: 1 };
 	}
 
 	const result = writeOpenSpecDelta({ cwd: dir, change, domain, operations });
 	if (!result.ok) {
 		const text = result.code === "malformed"
-			? `/// OPENSPEC DELTA — REJECTED, nothing written: ${result.reason}. Fix the operations and retry; the delta is validated with the SAME grammar as sync.`
-			: `/// OPENSPEC DELTA — ${result.reason}.`;
+			? `// openspec delta — REJECTED, nothing written: ${result.reason}. Fix the operations and retry; the delta is validated with the SAME grammar as sync.`
+			: `// openspec delta — ${result.reason}.`;
 		return { text, exitCode: 1 };
 	}
 	return {
-		text: `/// OPENSPEC DELTA — '${result.change}': wrote openspec/changes/${result.change}/specs/${result.domain}/spec.md (${result.operations} operation(s), validated). Do NOT also write the 'spec_delta: none' declaration: the delta IS the declaration.`,
+		text: `// openspec delta — '${result.change}': wrote openspec/changes/${result.change}/specs/${result.domain}/spec.md (${result.operations} operation(s), validated). Do NOT also write the 'spec_delta: none' declaration: the delta IS the declaration.`,
 		exitCode: 0,
 	};
 }
@@ -359,15 +359,15 @@ export function runSummaryCommand(
 	const content = rawStdin;
 
 	if (content.trim().length === 0) {
-		return { text: "/// SDD SUMMARY — stdin is empty. Pass the summary.md content on stdin.", exitCode: 1 };
+		return { text: "// sdd summary — stdin is empty. Pass the summary.md content on stdin.", exitCode: 1 };
 	}
 
 	const result = writeSddSummary({ cwd: dir, change, content });
 	if (!result.ok) {
-		return { text: `/// SDD SUMMARY — ${result.reason}.`, exitCode: 1 };
+		return { text: `// sdd summary — ${result.reason}.`, exitCode: 1 };
 	}
 	return {
-		text: `/// SDD SUMMARY — '${result.change}': wrote openspec/changes/${result.change}/summary.md.`,
+		text: `// sdd summary — '${result.change}': wrote openspec/changes/${result.change}/summary.md.`,
 		exitCode: 0,
 	};
 }
@@ -478,7 +478,7 @@ function statusCmd() {
 function checkCmd() {
 	const target = change ?? resolveSddStatus(cwd).change;
 	if (!target) {
-		console.log("/// SDD CHECK — no active change in openspec/changes/.");
+		console.log("// sdd check — no active change in openspec/changes/.");
 		process.exit(1);
 	}
 	const report = lintChange(cwd, target);
@@ -489,7 +489,7 @@ function checkCmd() {
 function closeCmd() {
 	const target = change ?? resolveSddStatus(cwd).change;
 	if (!target) {
-		console.log("/// SDD CLOSE — no active change to close.");
+		console.log("// sdd close — no active change to close.");
 		process.exit(1);
 	}
 	const result = closeChange(cwd, target, {
@@ -499,10 +499,10 @@ function closeCmd() {
 		legacyReason: flagValue(rest, "--reason"),
 	});
 	if (result.ok) {
-		console.log(`/// SDD CLOSE — ${target} archived → ${result.to}`);
+		console.log(`// sdd close — ${target} archived → ${result.to}`);
 		return;
 	}
-	const lines = [`/// SDD CLOSE — ${target} NOT archived`, ""];
+	const lines = [`// sdd close — ${target} NOT archived`, ""];
 	for (const b of result.blockers ?? []) lines.push(`- [${b.code}] ${b.message}`);
 	if (!result.blockers?.length && result.reason) lines.push(`- ${result.reason}`);
 	console.log(lines.join("\n"));

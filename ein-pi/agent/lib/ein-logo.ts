@@ -1,81 +1,51 @@
 // =============================================================================
-// EIN LOGO — geometría de marca, fuente única del árbol ein-pi
-// El banner de arranque de Pi (`extensions/ein-banner.ts`) y el splash de la
-// app de terminal (`surfaces/terminal-splash.ts`) pintan el MISMO logo; tenerlo
-// dos veces garantizaba que se separasen. El installer conserva su copia a
+// EIN WORDMARK — geometría de marca, fuente única del árbol ein-pi
+// El banner de arranque de Pi (`extensions/ein-banner.ts`), el splash de la app
+// (`surfaces/terminal-splash.ts`) y su entrypoint pintan la MISMA marca; tenerla
+// varias veces garantizaba que se separasen. El installer conserva su copia a
 // propósito: es un binario que corre ANTES de que exista este template.
 //
-// Sin colores ni escapes ANSI aquí: solo la geometría. Cada superficie pinta
-// con su propio mecanismo (secuencias ANSI en Pi, atributos en OpenTUI).
+// ANTES esto era un logo de bloque de 54x10 (`██`) con su corte estrecho y el
+// rango de columnas de la I. Se retira entero: era un SEGUNDO alfabeto para una
+// marca que en todas las demás superficies se escribe `ein`, y dos alfabetos no
+// son jerarquía — son la misma cosa dicha dos veces. Además pesaba 540 celdas
+// encima de pantallas cuyo argumento de diseño es el aire.
+//
+// El gesto de marca no se pierde: sigue siendo un solo elemento amarillo sobre
+// neutro, la `i`. Solo que ahora cabe en una fila.
+//
+// Sin colores ni escapes ANSI aquí: solo la geometría. Cada superficie pinta con
+// su propio mecanismo (secuencias ANSI en Pi, atributos en OpenTUI).
 // =============================================================================
 
-// Corte grande: trazos de 4 (54 cols, 10 filas).
-export const LOGO_LARGE: readonly string[] = [
-	"██████████████      ████████████      ████        ████",
-	"██████████████      ████████████      ██████      ████",
-	"████                    ████          ███████     ████",
-	"████                    ████          ████ ███    ████",
-	"██████████              ████          ████  ███   ████",
-	"██████████              ████          ████   ███  ████",
-	"████                    ████          ████    ███ ████",
-	"████                    ████          ████     ███████",
-	"██████████████      ████████████      ████      ██████",
-	"██████████████      ████████████      ████       █████",
-];
+/**
+ * Las tres piezas del wordmark. Se exponen sueltas porque lo que cambia entre
+ * superficies es CÓMO se pinta el acento, no qué letras son: cada una colorea
+ * `accent` con su mecanismo y deja las otras dos en el color de texto.
+ */
+export const WORDMARK = Object.freeze({
+	before: "e",
+	/** El gesto de marca: la única pieza en amarillo. */
+	accent: "i",
+	after: "n",
+	/** Tracking de la escala de display. En chrome se usa sin él. */
+	tracking: "   ",
+});
 
-// Corte pequeño para terminales estrechos: trazos de 3 (38 cols, 7 filas).
-export const LOGO_SMALL: readonly string[] = [
-	"██████████    █████████    ███     ███",
-	"███              ███       ████    ███",
-	"███              ███       █████   ███",
-	"███████          ███       ███ ██  ███",
-	"███              ███       ███  ██ ███",
-	"███              ███       ███   █████",
-	"██████████    █████████    ███    ████",
-];
+/** El wordmark como texto plano, para medir y para fallback monocromo. */
+export function wordmarkText(tracking: string = WORDMARK.tracking): string {
+	return `${WORDMARK.before}${tracking}${WORDMARK.accent}${tracking}${WORDMARK.after}`;
+}
 
-// Rango de columnas de la letra I por corte. Es el gesto de marca: la I va en
-// amarillo industrial y el resto en concreto. Las columnas de hueco dentro del
-// rango son espacios, así que pintarlas es inocuo.
-export const I_RANGE = {
-	large: { start: 18, end: 33 },
-	small: { start: 12, end: 25 },
-} as const;
+/** Columna en la que cae el acento, para las superficies que pintan por celda. */
+export function accentColumn(tracking: string = WORDMARK.tracking): number {
+	return WORDMARK.before.length + tracking.length;
+}
 
 export const RULE_CH = "─";
 
-// El marcador de fila de la placa de specs, común a banner y app.
-export const MARKER = "■";
-
-export type LogoCut = Readonly<{
-	lines: readonly string[];
-	width: number;
-	iStart: number;
-	iEnd: number;
-}>;
-
-function padLines(lines: readonly string[]): { lines: string[]; width: number } {
-	const width = Math.max(...lines.map((l) => l.length), 0);
-	return { lines: lines.map((l) => l.padEnd(width)), width };
-}
-
-// Corte grande si el terminal da de sí (ancho del logo + 2 de respiro);
-// pequeño si no. `columns` explícito para poder probarlo sin un TTY.
-export function pickLogo(columns: number): LogoCut {
-	const largeWidth = Math.max(...LOGO_LARGE.map((l) => l.length));
-	const useLarge = columns >= largeWidth + 2;
-	const base = padLines(useLarge ? LOGO_LARGE : LOGO_SMALL);
-	const range = useLarge ? I_RANGE.large : I_RANGE.small;
-	return { lines: base.lines, width: base.width, iStart: range.start, iEnd: range.end };
-}
-
-// ¿Esta columna cae en la I? Decide amarillo vs concreto en las dos superficies.
-export function isIColumn(logo: LogoCut, x: number): boolean {
-	return x >= logo.iStart && x <= logo.iEnd;
-}
-
-// Centra una línea en el ancho del logo. Compartido para que el subtítulo y el
-// lema queden alineados igual en banner y splash.
+/** Centra una línea en un ancho dado. Compartido para que subtítulo y lema
+ *  queden alineados igual en banner y splash. */
 export function centerInLogo(text: string, width: number): string {
 	const pad = Math.max(0, Math.floor((width - text.length) / 2));
 	return " ".repeat(pad) + text;

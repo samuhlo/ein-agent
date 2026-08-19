@@ -1,7 +1,7 @@
 // =============================================================================
 // REVIEW FORECAST
 // Mide el tamaño de un cambio para el Review Workload Guard: líneas de
-// PRODUCCIÓN (lo que gatea) vs líneas de TESTS/generados (se reportan, no
+// producción (lo que gatea) vs líneas de TESTS/generados (se reportan, no
 // gatean). Es determinista — un `git diff --shortstat` con un pathspec fijo.
 //
 // Antes esta medición vivía como STRING DE PROMPT en TRES sitios (orchestrator,
@@ -89,11 +89,11 @@ export function reviewForecast(cwd: string, base?: string): ReviewForecast {
 // Render compacto para el envelope del tool: una línea que el parent lee.
 export function formatReviewForecast(forecast: ReviewForecast, budget: number): string {
 	if (!forecast.ok) {
-		return "/// REVIEW FORECAST — no medible (¿repo git?, ¿base válida?). Mide a ojo o nombra un base.";
+		return "// review forecast — no medible (¿repo git?, ¿base válida?). Mide a ojo o nombra un base.";
 	}
 	const over = forecast.production > budget;
 	return [
-		`/// REVIEW FORECAST (${forecast.range})`,
+		`// review forecast (${forecast.range})`,
 		`producción: ${forecast.production} · tests: +${forecast.tests} (reportado, no gatea) · budget: ${budget}`,
 		over
 			? `SUPERA el budget (${forecast.production} > ${budget}) → pregunta al usuario: PR único vs partir en PRs más pequeños.`

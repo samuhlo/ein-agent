@@ -377,21 +377,21 @@ function buildBootstrapIssues(projectName: string, preset: BootstrapPreset, lang
     description: pickFor(
       lang,
       `Proyecto: ${projectName}\n\n` +
-        "/// 001. CONTEXTO\n" +
+        "// 001. contexto\n" +
         `Issue semilla creada desde bootstrap ${loadBrand().agentName} para iniciar trabajo con alcance claro.\n\n` +
-        "■ 002. ALCANCE\n" +
+        "// 002. ALCANCE\n" +
         "- Definir resultado observable\n" +
         "- Ejecutar implementacion en cambios reviewables\n\n" +
-        "■ 003. CRITERIOS DE ACEPTACION\n" +
+        "// 003. CRITERIOS DE ACEPTACION\n" +
         "- [ ] Resultado verificable\n" +
         "- [ ] Riesgos documentados\n",
       `Project: ${projectName}\n\n` +
-        "/// 001. CONTEXT\n" +
+        "// 001. context\n" +
         `Seed issue created from ${loadBrand().agentName} bootstrap to start work with a clear scope.\n\n` +
-        "■ 002. SCOPE\n" +
+        "// 002. SCOPE\n" +
         "- Define an observable outcome\n" +
         "- Implement in reviewable changes\n\n" +
-        "■ 003. ACCEPTANCE CRITERIA\n" +
+        "// 003. ACCEPTANCE CRITERIA\n" +
         "- [ ] Verifiable result\n" +
         "- [ ] Risks documented\n",
     ),
@@ -997,20 +997,20 @@ export default function einLinear(pi: ExtensionAPI) {
     handler: async (_args, ctx) => {
       const brand = loadBrand();
       const fallback = [
-        "/// 000. LINEAR HELP",
+        "// 000. linear help",
         `agente: ${brand.agentName}`,
         "",
-        "■ 001. COMANDOS",
+        "// 001. COMANDOS",
         `${slashCommand("linear:new")} <request>`,
         `${slashCommand("linear:project-bootstrap")} <proyecto> | <preset>`,
         `${slashCommand("linear:milestones")} <proyecto>`,
         "",
-        "■ 002. RUTAS VISIBLES",
+        "// 002. RUTAS VISIBLES",
         "ein-linear para gestion diaria",
         "ein-linear para arranque, estado y sync diario",
         "ein-linear-bootstrap solo como chain legacy/deprecated manual",
         "",
-        "■ 003. PRESETS",
+        "// 003. PRESETS",
         "front-design, blog-content, ai-system, qa-hardening",
       ].join("\n");
       ctx.ui.notify(

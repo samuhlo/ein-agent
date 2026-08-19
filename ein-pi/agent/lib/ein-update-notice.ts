@@ -1,5 +1,5 @@
 // =============================================================================
-// EIN UPDATE NOTICE — runtime gate + deterministic rendering
+// ein update notice — runtime gate + deterministic rendering
 // =============================================================================
 
 import { createHash } from "node:crypto";
@@ -332,7 +332,7 @@ export function renderPiEinAdvisorNotice(
   // Version-comparison evidence names the installer action; probe observations name the component.
   const handoff = result.handoff;
   if (handoff?.owner === "installer" && handoff.performed === false) {
-    return ["/// 000. EIN UPDATES", "", HANDOFF_COMMANDS[handoff.action] ?? HANDOFF_COMMANDS.configure].join("\n");
+    return ["// 000. ein updates", "", HANDOFF_COMMANDS[handoff.action] ?? HANDOFF_COMMANDS.configure].join("\n");
   }
 
   const commands = [...new Set(
@@ -342,7 +342,7 @@ export function renderPiEinAdvisorNotice(
       .filter((command): command is string => command !== undefined),
   )];
   if (!commands.length) return null;
-  return ["/// 000. EIN UPDATES", "", ...commands].join("\n");
+  return ["// 000. ein updates", "", ...commands].join("\n");
 }
 
 export const renderPiEinUpdateAdvice = renderPiEinAdvisorNotice;
@@ -355,7 +355,7 @@ export function renderPiEinUpdateNotice(
     return null;
   }
 
-  const lines = ["/// 000. EIN UPDATES", ""];
+  const lines = ["// 000. ein updates", ""];
   if (availability.pi) {
     lines.push("- Pi binary, extensions and packages: `pi-ein update --all`");
   }

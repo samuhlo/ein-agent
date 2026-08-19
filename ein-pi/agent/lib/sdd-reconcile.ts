@@ -1,5 +1,5 @@
 // =============================================================================
-// SDD RECONCILE — el filesystem manda sobre lo que el runner cree
+// sdd reconcile — el filesystem manda sobre lo que el runner cree
 // =============================================================================
 // Una fase SDD entrega UN artefacto. Si el artefacto está escrito y sano, la
 // fase está hecha — da igual lo que el runner opine del proceso.
@@ -179,7 +179,7 @@ export function formatReconciliation(
 	originalError: string,
 ): string {
 	const lines = [
-		`/// SDD RECONCILE — fase '${result.phase}' COMPLETA pese al fallo del runner`,
+		`// sdd reconcile — fase '${result.phase}' COMPLETA pese al fallo del runner`,
 		"",
 		`El runner reportó un fallo, pero \`${PHASE_ARTIFACT[result.phase]}\` se escribió durante este run en '${result.change}' y pasa el lint de su fase.`,
 		"El artefacto es el entregable: la fase cuenta como hecha. NO la repitas.",

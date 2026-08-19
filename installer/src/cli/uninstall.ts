@@ -3,7 +3,7 @@
 // Move known Ein-owned assets to private recovery. Runtime state stays in place.
 // =============================================================================
 
-import * as p from "@clack/prompts";
+import * as p from "../tui/ui.ts";
 import { dirname, relative } from "node:path";
 import { activeHome } from "../core/paths.ts";
 import { createUninstallPlan, renderUninstallPlan } from "../core/uninstall-plan.ts";
@@ -16,7 +16,7 @@ export async function runUninstall(args: string[], explicitTarget?: InstallTarge
   let target: InstallTarget; try { target = explicitTarget ?? parseInstallFlags(args).runtime; } catch (error) { console.error(error instanceof Error ? error.message : String(error)); return 1; }
   const home = activeHome(), binDir = dirname(process.execPath), dryRun = args.includes("--dry-run");
 
-  p.intro(bold(gold("Desinstalar Ein")));
+  p.intro("desinstalar");
   const pending = inspectUninstallRecovery(home);
   if (pending.status === "blocked") {
     p.outro(`Uninstall blocked: inspect or move ~/${relative(home, pending.recoveryDirectory)} before retrying.`);

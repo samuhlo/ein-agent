@@ -133,7 +133,7 @@ export function collectSddRemedies(
 export function formatSddRemedies(remedies: readonly SddRemedy[]): string {
 	if (remedies.length === 0) return "";
 	return [
-		"■ cómo desbloquear:",
+		"▏ cómo desbloquear:",
 		...remedies.map((remedy) => `- [${remedy.code}] ${remedy.message} → ${remedy.fix}`),
 	].join("\n");
 }

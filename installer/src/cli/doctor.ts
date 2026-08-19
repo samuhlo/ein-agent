@@ -9,8 +9,7 @@ import { AGENT_DIR } from "../core/paths.ts";
 import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
 import { readInstallerUpdateEvidence, type InstallerUpdateReadEvidence } from "../core/update-advisor-read.ts";
 import { existsSync } from "node:fs";
-import { concrete, danger, gold, levelMark } from "../tui/theme.ts";
-import { frameBlank, frameBottom, frameDivider, frameField, frameHeader, frameTab, frameText, frameTop } from "../tui/frame.ts";
+import { concrete, danger, gold, levelMark, structure, visibleWidth } from "../tui/theme.ts";
 import { INSTALLER_VERSION } from "../core/version.ts";
 import { evaluateSharedConfigUpdateAdvisor, renderAdvisorSemantics, type AdvisorInput, type SharedConfigUpdateAdvisorResult } from "../../../ein-pi/agent/lib/shared-config-update-advisor.ts";
 
@@ -40,9 +39,18 @@ export function renderInstallerAdvisorHandoff(handoff: InstallerAdvisorHandoff |
 }
 
 // Marcador y color salen del tema compartido: mismo vocabulario que la app de
-// terminal (■ ok · ▲ aviso · ✕ fallo), no verdes y rojos sueltos.
+// terminal (✓ ok · ! aviso · ✕ fallo), no verdes y rojos sueltos.
 function glyph(level: string): string {
   return levelMark(level);
+}
+
+const LABEL_W = 30;
+
+/** Fila etiqueta/valor: columna con sangría fija, sin puntos hasta el valor. */
+function row(label: string, value: string, mark?: string): string {
+  const head = label.toLowerCase();
+  const pad = " ".repeat(Math.max(1, LABEL_W - visibleWidth(head)));
+  return `    ${mark ?? " "} ${structure(head)}${pad}${concrete(value)}`;
 }
 
 export function renderDoctorAdvisor(result: SharedConfigUpdateAdvisorResult): string {
@@ -52,33 +60,34 @@ export function renderDoctorAdvisor(result: SharedConfigUpdateAdvisorResult): st
 }
 
 export function renderReport(report: DoctorReport): string {
-  // Misma ventana que el banner de arranque y que la app: marco doble, pestanas
-  // de seccion y lineas de puntos. El instalador es la primera cara que ve un
-  // usuario nuevo; que hable el mismo idioma no es decoracion.
-  const body: string[] = [];
+  // Mismo idioma que la sesión y el launcher, sin marco: el instalador es la
+  // primera cara que ve un usuario nuevo, y que hable como el producto no es
+  // decoración. Cada grupo abre su `// NNN.` y sus chequeos van en columna.
+  const lines: string[] = [];
   const verdict = report.fail
-    ? "revisar FAIL antes de usar Ein."
+    ? "revisa los fallos antes de usar ein."
     : report.warn
-      ? "usable; resolver WARN para endurecer baseline."
+      ? "usable; resuelve los avisos para endurecer la baseline."
       : "baseline estable.";
 
-  body.push(frameBlank());
-  body.push(frameField("RESULTADO", report.result, levelMark(report.result)));
-  body.push(frameField("CHEQUEOS", `${report.total} total · ${report.warn} warn · ${report.fail} fail`));
+  lines.push("");
+  lines.push(row("resultado", report.result, levelMark(report.result)));
+  lines.push(row("chequeos", `${report.total} total · ${report.warn} aviso · ${report.fail} fallo`));
 
-  for (const group of report.groups) {
-    body.push(frameBlank());
-    body.push(frameTab(group.title));
+  for (const [index, group] of report.groups.entries()) {
+    lines.push("");
+    lines.push(`  ${gold("//")} ${structure(`${String(index + 1).padStart(3, "0")}. ${group.title.toLowerCase()}`)}`);
+    lines.push("");
     for (const check of group.checks) {
-      body.push(frameField(check.name, check.detail, levelMark(check.level)));
+      lines.push(row(check.name, check.detail, levelMark(check.level)));
     }
   }
 
-  body.push(frameBlank());
-  body.push(frameDivider());
-  body.push(frameText(verdict, report.fail ? danger : report.warn ? gold : concrete));
+  lines.push("");
+  lines.push(`  ${(report.fail ? danger : report.warn ? gold : concrete)(verdict)}`);
+  lines.push(`  ${structure(`doctor ein · v${INSTALLER_VERSION}`)}`);
 
-  return [frameTop(), frameHeader("doctor ein", `v${INSTALLER_VERSION}`), frameDivider(), ...body, frameBottom()].join("\n");
+  return lines.join("\n");
 }
 
 export type DoctorCommandDependencies = Readonly<{

@@ -5,7 +5,7 @@
 // exista el template desplegado. Honra NO_COLOR / non-TTY.
 // =============================================================================
 
-export const CARBON = { r: 12, g: 0, b: 17 } as const; // #0C0011
+export const CARBON = { r: 11, g: 11, b: 11 } as const; // #0B0B0B
 export const CONCRETE = { r: 250, g: 243, b: 240 } as const; // #FAF3F0
 export const STRUCTURE = { r: 115, g: 115, b: 115 } as const; // #737373
 export const YELLOW = { r: 255, g: 202, b: 64 } as const; // #FFCA40
@@ -36,15 +36,24 @@ export function concrete(text: string): string {
   return rgb(CONCRETE.r, CONCRETE.g, CONCRETE.b, text);
 }
 
-// Tag invertido: texto carbon sobre placa amarilla.
-export function plate(text: string): string {
+// Banda de foco: la fila activa se tiñe a todo el ancho, en vez de llevar borde
+// o cursor. Derivada del amarillo a alfa 0.08 sobre la base (STYLE.md // 001),
+// que es lo que la ata al acento único sin meter un quinto color.
+const BAND = { r: 31, g: 26, b: 15 } as const; // #1F1A0F
+
+export function band(text: string): string {
   if (!colorEnabled()) return text;
-  return `\x1b[48;2;${YELLOW.r};${YELLOW.g};${YELLOW.b}m\x1b[38;2;${CARBON.r};${CARBON.g};${CARBON.b}m\x1b[1m${text}\x1b[22m\x1b[39m\x1b[49m`;
+  return `\x1b[48;2;${BAND.r};${BAND.g};${BAND.b}m${text}\x1b[49m`;
 }
 
 export function bold(text: string): string {
   if (!colorEnabled()) return text;
   return `\x1b[1m${text}\x1b[22m`;
+}
+
+/** Ancho visible: los códigos ANSI no ocupan columnas. */
+export function visibleWidth(text: string): number {
+  return [...text.replace(/\x1b\[[0-9;]*m/g, "")].length;
 }
 
 // -----------------------------------------------------------------------------
@@ -55,10 +64,17 @@ export function bold(text: string): string {
 // concesión fuera de los cuatro colores, y solo porque comunica estado.
 // -----------------------------------------------------------------------------
 export const MARK = {
-  ok: "■",
-  idle: "□",
-  warn: "▲",
+  ok: "✓",
+  idle: "·",
+  warn: "!",
   fail: "✕",
+} as const;
+
+/** Glifos de la gramática. Ninguno dibuja un contorno cerrado, a propósito. */
+export const GLYPH = {
+  rule: "▏",
+  focus: "▸",
+  sep: "·",
 } as const;
 
 const DANGER = { r: 229, g: 72, b: 77 } as const; // #E5484D

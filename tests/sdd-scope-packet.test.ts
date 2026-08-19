@@ -14,6 +14,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 mock.module("@earendil-works/pi-tui", () => ({
+  // `Text` lo usa ein-ai para pintar los recibos de una linea de las tools.
+  Text: class { constructor(public text: string) {} setText(value: string) { this.text = value; } },
   matchesKey: () => false,
   truncateToWidth: (value: string) => value,
 }));

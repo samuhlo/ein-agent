@@ -43,7 +43,7 @@ function conflictChange(name: string): string {
 
 function formatSddNext(report: SddNextReport): string {
 	const lines = [
-		"/// 000. SDD NEXT",
+		"// 000. sdd next",
 		"",
 		`cambio: ${report.change ?? "ninguno"}`,
 		`fase actual: ${report.currentPhase}`,
@@ -52,7 +52,7 @@ function formatSddNext(report: SddNextReport): string {
 		`accion sugerida: ${report.suggestedAction}`,
 	];
 	if (report.blocked.length > 0) {
-		lines.push("", "■ revisar antes de avanzar:");
+		lines.push("", "▏ revisar antes de avanzar:");
 		for (const item of report.blocked) lines.push(`- ${item}`);
 	}
 	return lines.join("\n");

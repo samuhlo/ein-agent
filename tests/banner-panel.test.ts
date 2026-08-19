@@ -19,7 +19,7 @@ import {
 } from "../ein-pi/agent/lib/banner-panel";
 
 const data: PanelData = {
-	plate: " EIN v0.60.1 ",
+	title: "estado",
 	right: "PI v0.84.1",
 	sections: [
 		{ kind: "fields", title: "SISTEMA", fields: [
@@ -52,45 +52,40 @@ describe("panel de estado", () => {
 
 	test("git y el resto comparten rejilla: los valores arrancan en la misma columna", () => {
 		const lines = plain(panelDuration(data));
-		const columnOf = (label: string) => {
-			const line = lines.find((item) => item.includes(label));
-			expect(line).toBeDefined();
-			// El valor empieza tras el último punto de la línea de puntos.
-			return line!.lastIndexOf("·");
-		};
-		// Distintas secciones, misma rejilla: todas las etiquetas ocupan el mismo
-		// ancho, así que el recorrido de puntos arranca donde mismo.
+		// Misma rejilla sin pintarla: todas las etiquetas ocupan el mismo ancho,
+		// así que el valor arranca donde mismo. Antes eso lo marcaba una línea de
+		// puntos; ahora lo hace la columna, y se comprueba igual.
 		for (const label of ["AGENTES", "HEAD", "LOCAL", "UPSTREAM", "PROYECTO"]) {
 			const line = lines.find((item) => item.includes(label))!;
-			expect(line.indexOf("·")).toBe(15);
+			expect(line.slice(0, 13).trimEnd()).toBe(label);
+			expect(line[13]).not.toBe(" ");
 		}
-		expect(columnOf("HEAD")).toBeGreaterThan(0);
 	});
 
-	test("abre por fases: marco, cabecera y filas en cascada", () => {
+	test("abre por fases: cabecera y filas en cascada", () => {
 		expect(renderPanel(data, 0)).toHaveLength(0);
-		// A mitad del barrido solo existe el borde superior, aún sin esquina.
+		// Antes de completar la fase de apertura solo existe la cabecera.
 		const opening = plain(3);
 		expect(opening).toHaveLength(1);
-		expect(opening[0]!.startsWith("╔")).toBe(true);
-		expect(opening[0]!.endsWith("╗")).toBe(false);
-		// Con el marco cerrado ya hay cabecera, pero no todas las filas.
+		expect(opening[0]).toContain("estado");
+		// Después ya hay filas, pero no todas.
 		const mid = plain(8);
-		expect(mid.length).toBeGreaterThan(2);
+		expect(mid.length).toBeGreaterThan(1);
 		expect(mid.length).toBeLessThan(plain(panelDuration(data)).length);
 	});
 
-	test("el marco solo cierra cuando la última fila ha terminado", () => {
-		const total = panelDuration(data);
-		expect(plain(total).at(-1)!.startsWith("╚")).toBe(true);
-		expect(plain(total - 3).at(-1)!.startsWith("╚")).toBe(false);
+	test("ninguna línea dibuja un contorno cerrado", () => {
+		for (const line of plain(panelDuration(data))) {
+			for (const glyph of ["╔", "╗", "╚", "╝", "═", "║", "╟", "╢"]) {
+				expect(line).not.toContain(glyph);
+			}
+		}
 	});
 
-	test("una nota ocupa el ancho entero: sin etiqueta y sin puntos", () => {
+	test("una nota ocupa el ancho entero: sin etiqueta y sin sangría", () => {
 		const line = plain(panelDuration(data)).find((item) => item.includes("pi -c continuar"))!;
-		expect(line).not.toContain("·");
-		// Pegada al borde, no sangrada al ancho de etiqueta.
-		expect(line.indexOf("pi -c")).toBe(2);
+		// Arranca en la columna cero, no al ancho de etiqueta de un campo normal.
+		expect(line.indexOf("pi -c")).toBe(0);
 	});
 
 	test("lo apagado se muestra en hueco, no desaparece", () => {

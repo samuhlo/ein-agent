@@ -31,13 +31,13 @@ function formatChangeLint(report: ChangeLintReport): string {
 	const presentCount = present.length;
 
 	const lines: string[] = [
-		`/// 000. SDD CHECK — ${change}`,
+		`// 000. sdd check — ${change}`,
 		"",
 		`fases: ${presentCount}/${total} presentes  |  errores: ${errors}  |  warnings: ${warnings}`,
 	];
 
 	if (report.issues.length > 0) {
-		lines.push("", "■ consistencia:");
+		lines.push("", "▏ consistencia:");
 		for (const i of report.issues) {
 			lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
 		}
@@ -45,13 +45,13 @@ function formatChangeLint(report: ChangeLintReport): string {
 
 	for (const { phase, present: isPresent, report: pr } of phases) {
 		if (!isPresent) {
-			lines.push(`■ ${phase} — MISSING`);
+			lines.push(`▏ ${phase} — MISSING`);
 			continue;
 		}
 		const ok = pr!.errors === 0;
 		const icon = ok ? "OK" : "ERRORS";
 		const detail = pr!.lineCount > 0 ? `, ${pr!.lineCount} lineas` : "";
-		lines.push(`■ ${phase} — ${icon} (presente${detail})`);
+		lines.push(`▏ ${phase} — ${icon} (presente${detail})`);
 		if (pr!.issues.length > 0) {
 			for (const i of pr!.issues) {
 				lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
@@ -125,10 +125,10 @@ describe("formatChangeLint", () => {
 		]);
 
 		const out = formatChangeLint(report);
-		expect(out).toContain("/// 000. SDD CHECK — feat-x");
+		expect(out).toContain("// 000. sdd check — feat-x");
 		expect(out).toContain("fases: 3/7 presentes  |  errores: 0  |  warnings: 0");
-		expect(out).toContain("■ design — OK (presente, 10 lineas)");
-		expect(out).toContain("■ apply — MISSING");
+		expect(out).toContain("▏ design — OK (presente, 10 lineas)");
+		expect(out).toContain("▏ apply — MISSING");
 	});
 
 	test("design con errors y warnings", () => {
@@ -147,7 +147,7 @@ describe("formatChangeLint", () => {
 
 		const out = formatChangeLint(report);
 		expect(out).toContain("errores: 1  |  warnings: 1");
-		expect(out).toContain("■ design — ERRORS (presente, 10 lineas)");
+		expect(out).toContain("▏ design — ERRORS (presente, 10 lineas)");
 		expect(out).toContain("  - ERROR [missing-proposal]: Falta la seccion obligatoria \"A. Proposal\".");
 		expect(out).toContain("  - WARNING [placeholder-angle-number]: Quedan placeholders `<number>` sin rellenar.");
 	});
@@ -174,7 +174,7 @@ describe("formatChangeLint", () => {
 			phases: [makePhase("scope", true), makePhase("apply", true)],
 		};
 		const out = formatChangeLint(report);
-		expect(out).toContain("■ consistencia:");
+		expect(out).toContain("▏ consistencia:");
 		expect(out).toContain("ERROR [sequence-tasks-missing-before-apply]");
 	});
 });

@@ -217,7 +217,7 @@ describe("cc-ein-sdd close reconciliation flags", () => {
     try {
       const run = runSddCli(fixture.cwd, ["check", "claude-check-only"]);
       expect(run.status).toBe(1);
-      expect(run.stdout).toContain("SDD CHECK — claude-check-only");
+      expect(run.stdout).toContain("sdd check — claude-check-only");
       expect(run.stdout).toContain("errors:");
       expect(existsSync(fixture.source)).toBe(true);
       expect(existsSync(join(fixture.cwd, "openspec", "changes", "archive", "claude-check-only"))).toBe(false);
