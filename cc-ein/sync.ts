@@ -12,6 +12,7 @@
 // =============================================================================
 
 import {
+  copyFileSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -639,6 +640,14 @@ export function runSync(): SyncResult {
     ensureDir(DEST);
     ensureDir(join(DEST, "agents"));
     ensureDir(join(DEST, "commands", "ein"));
+    ensureDir(join(DEST, "assets"));
+    if (!DRY) {
+      copyFileSync(
+        join(REPO, "ein-pi", "agent", "assets", "orchestrator.md"),
+        join(DEST, "assets", "orchestrator.md"),
+      );
+      log("orchestrator.md desplegado");
+    } else log("orchestrator.md se copiaría → assets/orchestrator.md");
 
     const cred = join(MAIN, ".credentials.json");
     const credLink = join(DEST, ".credentials.json");
