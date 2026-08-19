@@ -14,6 +14,7 @@ ein-pi/agent/.sdd/
 ein-pi/openspec/changes/
 
 # === Dependencias y binarios (reproducibles) ===
+node_modules
 node_modules/
 ein-pi/**/node_modules/
 *.bun-build
