@@ -19,7 +19,7 @@ import { MARKER } from "../lib/ein-logo.ts";
 // hex y el cargador de marca devuelve RGB, y esta superficie no debe depender
 // del fs para pintarse.
 export const BRAND = {
-	carbon: "#0C0011",
+	carbon: "#0B0B0B",
 	concrete: "#FAF3F0",
 	structure: "#737373",
 	yellow: "#FFCA40",

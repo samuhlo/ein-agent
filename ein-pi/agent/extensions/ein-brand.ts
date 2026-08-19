@@ -29,7 +29,7 @@ const DEFAULT_BRAND: AgentBrand = {
 
 // Paleta brutalista samuhlo (fallback si brand.json no define colors).
 const DEFAULT_PALETTE: BrandPalette = {
-  carbon: { r: 12, g: 0, b: 17 },     // #0C0011
+  carbon: { r: 11, g: 11, b: 11 },   // #0B0B0B
   concrete: { r: 250, g: 243, b: 240 }, // #FAF3F0
   structure: { r: 115, g: 115, b: 115 }, // #737373
   yellow: { r: 255, g: 202, b: 64 },  // #FFCA40

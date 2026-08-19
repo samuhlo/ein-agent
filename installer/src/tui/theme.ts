@@ -5,7 +5,7 @@
 // exista el template desplegado. Honra NO_COLOR / non-TTY.
 // =============================================================================
 
-export const CARBON = { r: 12, g: 0, b: 17 } as const; // #0C0011
+export const CARBON = { r: 11, g: 11, b: 11 } as const; // #0B0B0B
 export const CONCRETE = { r: 250, g: 243, b: 240 } as const; // #FAF3F0
 export const STRUCTURE = { r: 115, g: 115, b: 115 } as const; // #737373
 export const YELLOW = { r: 255, g: 202, b: 64 } as const; // #FFCA40

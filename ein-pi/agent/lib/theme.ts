@@ -11,7 +11,7 @@
 // =============================================================================
 
 export const BRAND = Object.freeze({
-  carbon: "#0C0011",
+  carbon: "#0B0B0B",
   concrete: "#FAF3F0",
   structure: "#737373",
   yellow: "#FFCA40",

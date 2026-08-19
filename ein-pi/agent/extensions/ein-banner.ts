@@ -1,6 +1,6 @@
 // =============================================================================
 // EIN BANNER — intro de arranque, estetica de 16 bits
-// Paleta: Carbon #0C0011 · Concrete #FAF3F0 · Structure #737373 · Yellow
+// Paleta: Carbon #0B0B0B · Concrete #FAF3F0 · Structure #737373 · Yellow
 // #FFCA40. Blanco y amarillo mandan. El logo materializa en concreto y la I
 // sella en amarillo; despues abre una VENTANA DE ESTADO estilo menu de SNES:
 // marco doble, pestanas de seccion invertidas y lineas de puntos que llevan
