@@ -169,7 +169,9 @@ describe("release asset contract", () => {
     expect(smoke).toContain("stageCcEinPayload");
     expect(smoke).toContain("CC_EIN_PAYLOAD_REQUIRED_PATHS");
     expect(smoke).toContain("process.chdir(unrelatedCwd)");
-    expect(smoke).toContain("staged?.cleanup()");
+    expect(smoke).toContain("runClaudeInstall");
+    expect(smoke).toContain("CC_EIN_ORCHESTRATOR_ASSET");
+    expect(smoke).toContain("payload staging cleanup failed");
     expect(publishedAssetArguments(workflow).filter((asset) => asset.includes("smoke"))).toEqual([]);
   });
 

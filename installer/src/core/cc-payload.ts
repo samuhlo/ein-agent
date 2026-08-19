@@ -5,9 +5,19 @@
 // =============================================================================
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  type Dirent,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { run } from "./exec.ts";
 import {
   CC_EIN_PAYLOAD_FILES,
@@ -56,10 +66,17 @@ function errorMessage(error: unknown): string {
 
 /**
  * Resolve one concrete archive. Missing assets are errors, not invitations to
- * search the caller's cwd or an adjacent repository checkout.
+ * search the caller's cwd or an adjacent repository checkout. Existence is
+ * probed with `stat`: a compiled installer resolves its own payload to a BunFS
+ * path, which answers `stat` but has no real path to resolve.
  */
 function validateCcEinPayloadArchive(archivePath: string): string {
-  if (!archivePath || !existsSync(archivePath)) {
+  try {
+    if (!archivePath) {
+      throw new Error("ruta vacia");
+    }
+    statSync(archivePath);
+  } catch {
     throw new Error(`No se encontro el payload cc-ein: ${archivePath || "ruta vacia"}`);
   }
   return archivePath;
@@ -87,13 +104,166 @@ export function resolveCcEinPayloadArchive(archivePath?: string): string | Promi
     : validateCcEinPayloadArchive(archivePath);
 }
 
+const REQUIRED_PAYLOAD_DIRECTORIES = new Set(["ein-pi/core"]);
+const LOCAL_PAYLOAD_ARCHIVE = "cc-ein-runtime.tar.gz";
+
+function isWithinRoot(root: string, candidate: string): boolean {
+  const path = relative(root, candidate);
+  return Boolean(path) && !path.startsWith("..") && !isAbsolute(path);
+}
+
+function assertConfinedPath(root: string, relativePath: string): string {
+  const segments = relativePath.split("/");
+  const candidate = resolve(root, relativePath);
+  if (
+    !relativePath ||
+    isAbsolute(relativePath) ||
+    relativePath.includes("\\") ||
+    segments.some((segment) => segment === "" || segment === "." || segment === "..") ||
+    !isWithinRoot(root, candidate)
+  ) {
+    throw new Error(`Manifest del payload cc-ein referencia una ruta invalida: ${relativePath}`);
+  }
+
+  let realRoot: string;
+  let realCandidate: string;
+  try {
+    realRoot = realpathSync(root);
+    realCandidate = realpathSync(candidate);
+  } catch {
+    throw new Error(`Manifest del payload cc-ein referencia una ruta inexistente: ${relativePath}`);
+  }
+  if (!isWithinRoot(realRoot, realCandidate)) {
+    throw new Error(`Manifest del payload cc-ein escapa del root: ${relativePath}`);
+  }
+  return candidate;
+}
+
 function assertPayloadLayout(root: string): void {
-  const missing = CC_EIN_PAYLOAD_REQUIRED_PATHS.filter((relativePath) =>
-    !existsSync(join(root, relativePath)),
-  );
+  const missing: string[] = [];
+  const invalidKinds: string[] = [];
+  for (const relativePath of CC_EIN_PAYLOAD_REQUIRED_PATHS) {
+    const file = join(root, relativePath);
+    let stat: ReturnType<typeof lstatSync>;
+    try {
+      stat = lstatSync(file);
+    } catch {
+      missing.push(relativePath);
+      continue;
+    }
+
+    const isDirectory = REQUIRED_PAYLOAD_DIRECTORIES.has(relativePath);
+    const validKind = isDirectory ? stat.isDirectory() : stat.isFile();
+    if (!validKind) {
+      invalidKinds.push(`${relativePath} (${isDirectory ? "directory" : "file"})`);
+      continue;
+    }
+    try {
+      assertConfinedPath(root, relativePath);
+    } catch {
+      invalidKinds.push(`${relativePath} (fuera del root)`);
+    }
+  }
   if (missing.length > 0) {
     throw new Error(`Payload cc-ein incompleto; faltan: ${missing.join(", ")}`);
   }
+  if (invalidKinds.length > 0) {
+    throw new Error(`Payload cc-ein con tipos invalidos: ${invalidKinds.join(", ")}`);
+  }
+}
+
+function collectRegularFiles(root: string, current = root): string[] {
+  const files: string[] = [];
+  const entries = readdirSync(current, { withFileTypes: true }) as Dirent[];
+  for (const entry of entries) {
+    const absolutePath = join(current, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectRegularFiles(root, absolutePath));
+      continue;
+    }
+    if (!entry.isFile()) {
+      throw new Error(`Payload cc-ein contiene un miembro no regular: ${relative(root, absolutePath)}`);
+    }
+    files.push(relative(root, absolutePath).split("\\").join("/"));
+  }
+  return files;
+}
+
+function isManifestEntry(value: unknown): value is CcEinPayloadManifestEntry {
+  if (!value || typeof value !== "object") return false;
+  const entry = value as Record<string, unknown>;
+  return typeof entry.path === "string" && typeof entry.sha256 === "string";
+}
+
+async function validatePayloadManifest(root: string): Promise<string> {
+  const manifestPath = join(root, CC_EIN_PAYLOAD_MANIFEST);
+  let manifestStat: ReturnType<typeof lstatSync>;
+  try {
+    manifestStat = lstatSync(manifestPath);
+  } catch {
+    throw new Error("Manifest del payload cc-ein ausente");
+  }
+  if (!manifestStat.isFile()) {
+    throw new Error("Manifest del payload cc-ein no es un fichero regular");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await Bun.file(manifestPath).text());
+  } catch (error) {
+    throw new Error(`Manifest del payload cc-ein invalido: ${errorMessage(error)}`);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Manifest del payload cc-ein invalido");
+  }
+  const manifest = parsed as Record<string, unknown>;
+  if (manifest.format !== "ein-cc-payload/v1" || !Array.isArray(manifest.files)) {
+    throw new Error("Manifest del payload cc-ein invalido");
+  }
+
+  const listed = new Set<string>();
+  for (const value of manifest.files) {
+    if (!isManifestEntry(value)) {
+      throw new Error("Entrada invalida en el manifest del payload cc-ein");
+    }
+    const entry = value;
+    if (!/^[0-9a-f]{64}$/.test(entry.sha256)) {
+      throw new Error(`Checksum invalido en el payload cc-ein: ${entry.path}`);
+    }
+    if (listed.has(entry.path)) {
+      throw new Error(`Entrada duplicada en el manifest del payload cc-ein: ${entry.path}`);
+    }
+    listed.add(entry.path);
+    const file = assertConfinedPath(root, entry.path);
+    let stat: ReturnType<typeof lstatSync>;
+    try {
+      stat = lstatSync(file);
+    } catch {
+      throw new Error(`Manifest del payload cc-ein referencia un archivo inexistente: ${entry.path}`);
+    }
+    if (!stat.isFile()) {
+      throw new Error(`Manifest del payload cc-ein referencia un miembro no regular: ${entry.path}`);
+    }
+    const digest = createHash("sha256").update(readFileSync(file)).digest("hex");
+    if (digest !== entry.sha256) {
+      throw new Error(`Checksum invalido en el payload cc-ein: ${entry.path}`);
+    }
+  }
+
+  const extractedFiles = collectRegularFiles(root).filter(
+    (path) => path !== CC_EIN_PAYLOAD_MANIFEST && path !== LOCAL_PAYLOAD_ARCHIVE,
+  );
+  const extracted = new Set(extractedFiles);
+  const missing = extractedFiles.filter((path) => !listed.has(path));
+  const unexpected = [...listed].filter((path) => !extracted.has(path));
+  if (missing.length > 0 || unexpected.length > 0) {
+    const details = [
+      missing.length > 0 ? `sin entrada: ${missing.join(", ")}` : "",
+      unexpected.length > 0 ? `no extraidos: ${unexpected.join(", ")}` : "",
+    ].filter(Boolean).join("; ");
+    throw new Error(`Manifest del payload cc-ein incompleto: ${details}`);
+  }
+  return manifestPath;
 }
 
 /**
@@ -145,30 +315,7 @@ export async function stageCcEinPayload(
     }
     assertPayloadLayout(root);
 
-    // A manifest is emitted by the asset builder. Read it when present to
-    // catch malformed JSON early, while allowing fixture archives to exercise
-    // the extraction seam without duplicating generated checksums.
-    const manifestPath = join(root, CC_EIN_PAYLOAD_MANIFEST);
-    if (existsSync(manifestPath)) {
-      const raw = await Bun.file(manifestPath).text();
-      const manifest = JSON.parse(raw) as Partial<CcEinPayloadManifest>;
-      if (manifest.format !== "ein-cc-payload/v1" || !Array.isArray(manifest.files)) {
-        throw new Error("Manifest del payload cc-ein invalido");
-      }
-      for (const entry of manifest.files) {
-        if (!entry || typeof entry.path !== "string" || typeof entry.sha256 !== "string") {
-          throw new Error("Entrada invalida en el manifest del payload cc-ein");
-        }
-        const file = resolve(root, entry.path);
-        if (isAbsolute(entry.path) || (file !== root && !file.startsWith(`${root}/`)) || !existsSync(file)) {
-          throw new Error(`Manifest del payload cc-ein referencia un archivo invalido: ${entry.path}`);
-        }
-        const digest = createHash("sha256").update(readFileSync(file)).digest("hex");
-        if (digest !== entry.sha256) {
-          throw new Error(`Checksum invalido en el payload cc-ein: ${entry.path}`);
-        }
-      }
-    }
+    const manifestPath = await validatePayloadManifest(root);
 
     return {
       archivePath,
