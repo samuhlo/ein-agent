@@ -1,0 +1,4 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:materialize-claude-orchestrator-asset:scope","durationMs":0,"timestamp":"2026-08-19T10:11:42.367Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:materialize-claude-orchestrator-asset:map","durationMs":0,"timestamp":"2026-08-19T10:15:00.938Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:materialize-claude-orchestrator-asset:design","durationMs":0,"timestamp":"2026-08-19T10:19:00.392Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:materialize-claude-orchestrator-asset:tasks","durationMs":0,"timestamp":"2026-08-19T10:23:05.982Z"}

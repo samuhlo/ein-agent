@@ -7,8 +7,15 @@
 /** Directories copied wholesale into the embedded runtime payload. */
 export const CC_EIN_PAYLOAD_ROOTS = ["cc-ein", "ein-pi/core"] as const;
 
-/** Pi assets shipped alongside the Claude adapter for packaged execution. */
-export const CC_EIN_PAYLOAD_FILES = ["pi-ein/pi-ein.fish", "pi-ein/migrate.ts"] as const;
+/** The canonical orchestrator asset shipped in the Claude payload. */
+export const CC_EIN_ORCHESTRATOR_ASSET = "ein-pi/agent/assets/orchestrator.md" as const;
+
+/** Explicit files shipped alongside the Claude adapter for packaged execution. */
+export const CC_EIN_PAYLOAD_FILES = [
+  "pi-ein/pi-ein.fish",
+  "pi-ein/migrate.ts",
+  CC_EIN_ORCHESTRATOR_ASSET,
+] as const;
 
 /** The SDD CLI entry point whose relative imports form the extra source closure. */
 export const CC_EIN_PAYLOAD_SDD_ENTRY = "cc-ein/sdd-cli/cli.ts" as const;
@@ -33,6 +40,7 @@ export const CC_EIN_PAYLOAD_REQUIRED_PATHS = [
   "cc-ein/continuity-runner.ts",
   "cc-ein/commands/ein/handoff.md",
   "ein-pi/core",
+  CC_EIN_ORCHESTRATOR_ASSET,
   "pi-ein/pi-ein.fish",
 ] as const;
 

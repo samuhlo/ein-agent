@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -649,6 +649,35 @@ describe("Pi pi-ein launcher adapter", () => {
 });
 
 const CLAUDE_LAUNCHER_SOURCE = join(import.meta.dir, "..", "cc-ein", "cc-ein.fish");
+const CLAUDE_SYNC_SOURCE = join(import.meta.dir, "..", "cc-ein", "sync.ts");
+const CANONICAL_ORCHESTRATOR_SOURCE = join(import.meta.dir, "..", "ein-pi", "agent", "assets", "orchestrator.md");
+
+type ClaudeSyncFixture = Readonly<{
+  home: string;
+  claudeHome: string;
+  run: (args?: readonly string[]) => ReturnType<typeof spawnSync>;
+  cleanup: () => void;
+}>;
+
+function claudeSyncFixture(): ClaudeSyncFixture {
+  const root = mkdtempSync(join(tmpdir(), "ein-claude-sync-"));
+  const home = join(root, "home");
+  const claudeHome = join(home, ".claude-ein");
+  mkdirSync(home, { recursive: true });
+
+  return {
+    home,
+    claudeHome,
+    run(args = []) {
+      return spawnSync("bun", [CLAUDE_SYNC_SOURCE, ...args], {
+        cwd: join(import.meta.dir, ".."),
+        encoding: "utf8",
+        env: { ...process.env, HOME: home, CC_EIN_HOME: claudeHome },
+      });
+    },
+    cleanup: () => rmSync(root, { recursive: true, force: true }),
+  };
+}
 
 describe("Claude runner sync payload", () => {
   test("Claude sync compiles the canonical shared runner closure into the isolated payload", () => {
@@ -714,6 +743,54 @@ describe("Claude runner sync payload", () => {
       expect(existsSync(destination)).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("Claude checkout/runtime sync asset", () => {
+  test("deploys the canonical orchestrator as a regular byte-identical file", () => {
+    const fixture = claudeSyncFixture();
+    const destination = join(fixture.claudeHome, "assets", "orchestrator.md");
+    try {
+      const result = fixture.run();
+
+      expect(result.status).toBe(0);
+      expect(lstatSync(destination).isFile()).toBe(true);
+      expect(readFileSync(destination)).toEqual(readFileSync(CANONICAL_ORCHESTRATOR_SOURCE));
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("does not create the orchestrator destination or parent during a dry run", () => {
+    const fixture = claudeSyncFixture();
+    const assetsDirectory = join(fixture.claudeHome, "assets");
+    const destination = join(assetsDirectory, "orchestrator.md");
+    try {
+      const result = fixture.run(["--dry"]);
+
+      expect(result.status).toBe(0);
+      expect(existsSync(assetsDirectory)).toBe(false);
+      expect(existsSync(destination)).toBe(false);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("reports an uncreatable orchestrator destination as a required sync failure", () => {
+    const fixture = claudeSyncFixture();
+    try {
+      mkdirSync(fixture.claudeHome, { recursive: true });
+      writeFileSync(join(fixture.claudeHome, "assets"), "blocked");
+
+      const result = fixture.run();
+      const output = `${result.stdout}\n${result.stderr}`;
+
+      expect(result.status).not.toBe(0);
+      expect(output).toContain("fallo de sincronización requerida");
+      expect(output).toContain("incompleto");
+    } finally {
+      fixture.cleanup();
     }
   });
 });

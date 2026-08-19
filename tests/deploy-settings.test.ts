@@ -41,7 +41,6 @@ describe("readUserSettings + mergeUserSettings", () => {
 		expect(saved).toEqual({
 			defaultProvider: "minimax",
 			defaultModel: "MiniMax-M3",
-			theme: "dark",
 		});
 	});
 
@@ -52,7 +51,7 @@ describe("readUserSettings + mergeUserSettings", () => {
 		writeFileSync(
 			SETTINGS,
 			JSON.stringify({
-				theme: "light",
+				theme: "ein",
 				quietStartup: true,
 				campoNuevoDelTemplate: 42,
 			}),
@@ -64,7 +63,7 @@ describe("readUserSettings + mergeUserSettings", () => {
 		>;
 		expect(merged.defaultProvider).toBe("minimax");
 		expect(merged.defaultModel).toBe("MiniMax-M3");
-		expect(merged.theme).toBe("dark"); // la elección del usuario gana
+		expect(merged.theme).toBe("ein"); // el tema de Ein gana
 		expect(merged.quietStartup).toBe(true);
 		expect(merged.campoNuevoDelTemplate).toBe(42);
 	});
@@ -74,6 +73,6 @@ describe("readUserSettings + mergeUserSettings", () => {
 		writeFileSync(SETTINGS, "{roto");
 		expect(readUserSettings(DIR)).toEqual({});
 		// merge sobre fichero roto no lanza
-		mergeUserSettings(DIR, { theme: "dark" });
+		mergeUserSettings(DIR, { defaultModel: "MiniMax-M3" });
 	});
 });

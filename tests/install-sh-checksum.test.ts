@@ -95,6 +95,7 @@ describe("install.sh deterministic shell fixture", () => {
     expect(result.stderr).not.toContain("guard:");
     expect(result.stdout).toContain("checksum verificado");
     expect(result.stdout).toContain("Listo. Ejecuta");
+    expect(result.stdout).toContain("ein-install");
 
     expect(result.events.some((event) => event.startsWith("curl:binary:"))).toBe(true);
     expect(result.events.some((event) => event.startsWith("curl:checksums:"))).toBe(true);

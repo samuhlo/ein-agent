@@ -1,0 +1,13 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:package-claude-orchestrator-asset:scope","durationMs":0,"timestamp":"2026-08-19T09:12:18.077Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:package-claude-orchestrator-asset:map","durationMs":0,"timestamp":"2026-08-19T09:14:45.645Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:package-claude-orchestrator-asset:design","durationMs":0,"timestamp":"2026-08-19T09:18:05.616Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:package-claude-orchestrator-asset:tasks","durationMs":0,"timestamp":"2026-08-19T09:21:34.843Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:package-claude-orchestrator-asset:tasks","durationMs":0,"timestamp":"2026-08-19T09:25:28.875Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:package-claude-orchestrator-asset:tasks","durationMs":0,"timestamp":"2026-08-19T09:25:44.385Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:package-claude-orchestrator-asset:apply","durationMs":0,"timestamp":"2026-08-19T09:33:36.178Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:package-claude-orchestrator-asset:apply","durationMs":0,"timestamp":"2026-08-19T09:33:51.897Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:package-claude-orchestrator-asset:apply","durationMs":0,"timestamp":"2026-08-19T09:40:37.897Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:package-claude-orchestrator-asset:apply","durationMs":0,"timestamp":"2026-08-19T09:44:52.233Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:package-claude-orchestrator-asset:verify","durationMs":0,"timestamp":"2026-08-19T09:54:08.303Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:package-claude-orchestrator-asset:invalid","durationMs":0,"timestamp":"2026-08-19T09:55:11.646Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:package-claude-orchestrator-asset:close","durationMs":0,"timestamp":"2026-08-19T09:55:14.826Z"}

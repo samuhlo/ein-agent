@@ -1,17 +1,18 @@
 // =============================================================================
 // COMPILED CC-EIN PAYLOAD SMOKE
 // This entrypoint is compiled on Linux x64 so BunFS asset imports exercise the
-// same extraction path as the published installer binary.
+// same extraction path as the published installer binary. It stages the
+// embedded payload from an unrelated cwd, runs the real Claude hand-off into a
+// throwaway home, and fails non-zero unless the installed orchestrator asset
+// matches the staged bytes and every staging artifact is gone.
 // =============================================================================
 
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  CC_EIN_PAYLOAD_REQUIRED_PATHS,
-  stageCcEinPayload,
-  type CcEinPayloadStage,
-} from "../src/core/cc-payload.ts";
+import { runClaudeInstall } from "../src/cli/install.ts";
+import { CC_EIN_ORCHESTRATOR_ASSET } from "../src/core/cc-payload-inventory.ts";
+import { CC_EIN_PAYLOAD_REQUIRED_PATHS, stageCcEinPayload } from "../src/core/cc-payload.ts";
 
 function assertSmoke(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
@@ -20,30 +21,53 @@ function assertSmoke(condition: boolean, message: string): void {
 async function main(): Promise<void> {
   const originalCwd = process.cwd();
   const unrelatedCwd = mkdtempSync(join(tmpdir(), "ein-cc-payload-smoke-cwd-"));
-  let staged: CcEinPayloadStage | undefined;
+  const home = mkdtempSync(join(tmpdir(), "ein-cc-payload-smoke-home-"));
+  let stagedRoot = "";
+  let stagedArchive = "";
+  let stagedBytes: Buffer | undefined;
 
   try {
     process.chdir(unrelatedCwd);
-    staged = await stageCcEinPayload();
+    const result = await runClaudeInstall({
+      home,
+      stagePayload: async () => {
+        const staged = await stageCcEinPayload();
+        stagedRoot = staged.root;
+        stagedArchive = staged.archivePath;
+        assertSmoke(
+          staged.archivePath.startsWith(`${staged.root}/`),
+          `payload archive was not materialized inside staging root: ${staged.archivePath}`,
+        );
+        assertSmoke(existsSync(staged.archivePath), "materialized payload archive is missing");
+        for (const relativePath of CC_EIN_PAYLOAD_REQUIRED_PATHS) {
+          assertSmoke(
+            existsSync(join(staged.root, relativePath)),
+            `required payload path is missing: ${relativePath}`,
+          );
+        }
+        stagedBytes = readFileSync(join(staged.root, CC_EIN_ORCHESTRATOR_ASSET));
+        return staged;
+      },
+    });
+
+    assertSmoke(result.ok, `Claude hand-off failed: ${result.detail}`);
+    assertSmoke(stagedBytes !== undefined, "staged orchestrator bytes were never captured");
+
+    const installed = join(home, ".claude-ein", "assets", "orchestrator.md");
+    assertSmoke(existsSync(installed), `installed orchestrator asset is missing: ${installed}`);
+    assertSmoke(lstatSync(installed).isFile(), `installed orchestrator asset is not a regular file: ${installed}`);
     assertSmoke(
-      staged.archivePath.startsWith(`${staged.root}/`),
-      `payload archive was not materialized inside staging root: ${staged.archivePath}`,
+      readFileSync(installed).equals(stagedBytes as Buffer),
+      "installed orchestrator asset does not match the packaged bytes",
     );
-    assertSmoke(existsSync(staged.archivePath), "materialized payload archive is missing");
-    for (const relativePath of CC_EIN_PAYLOAD_REQUIRED_PATHS) {
-      assertSmoke(
-        existsSync(join(staged.root, relativePath)),
-        `required payload path is missing: ${relativePath}`,
-      );
-    }
+
+    assertSmoke(!existsSync(stagedArchive), "payload archive cleanup failed");
+    assertSmoke(!existsSync(stagedRoot), "payload staging cleanup failed");
   } finally {
-    staged?.cleanup();
-    if (staged) {
-      assertSmoke(!existsSync(staged.archivePath), "payload archive cleanup failed");
-      assertSmoke(!existsSync(staged.root), "payload staging cleanup failed");
-    }
+    if (stagedRoot) rmSync(stagedRoot, { recursive: true, force: true });
     process.chdir(originalCwd);
     rmSync(unrelatedCwd, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
   }
 }
 
