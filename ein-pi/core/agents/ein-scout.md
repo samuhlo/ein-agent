@@ -33,7 +33,7 @@ Return evidence only, as one bounded structured report with EXACTLY these top-le
 - `summary`: a concise factual summary (≤ 2000 chars).
 - `summaryReferenceIds`: 1–8 unique reference IDs the summary rests on.
 - `findings`: 1–12 objects, each `{ "claim": string (≤1000), "referenceIds": [1–8 unique IDs] }`.
-- `references`: 1–24 objects, each `{ "id": "R1"|"R2"…, "path": repo-relative path, "lines": "N" or "N-M", "supports": string (≤500) }`. Every `path`+`lines` must point to real lines that exist on disk; Ein rejects any reference it cannot resolve.
+- `references`: 1–24 objects, each `{ "id": "R1"|"R2"…, "path": repo-relative path, "lines": "N" or "N-M", "supports": string (≤500) }`. Cite `path`+`lines` you actually read; Ein clamps an end past EOF and drops a reference it cannot resolve.
 - `uncertainties`: 1–8 short statement **strings** for every material gap, ambiguity, inaccessible file, or limit. When nothing is uncertain, return a single string that says so explicitly.
 
 Exact shape (copy this structure):

@@ -64,10 +64,24 @@ describe("readonly scout launch contract", () => {
 		}
 	});
 
-	test("rejects a second scout launch while one is pending (R6: fail at launch, not after)", () => {
+	// R4. La puerta "un scout pendiente por turno" se retira. Su causa declarada
+	// ("un reporte se ata a una tool call, no sé de qué hijo es") dejó de ser
+	// cierta: el runtime devuelve un SingleResult por hijo dentro de
+	// `details.results[]` (`sdd-participants.ts:159-172`).
+	test("R4: un segundo scout en el mismo turno ya no se rechaza", () => {
 		const tracked = new Map<string, string>();
 		normalizeScoutLaunch({ agent: "ein-scout", task: "inspect A" }, "call-1", tracked);
-		expect(() => normalizeScoutLaunch({ agent: "ein-scout", task: "inspect B" }, "call-2", tracked)).toThrow("already pending");
+		expect(() => normalizeScoutLaunch({ agent: "ein-scout", task: "inspect B" }, "call-2", tracked)).not.toThrow();
+	});
+
+	test("R4: acepta el fan-out en workflowScript y lo deja en foreground", () => {
+		const script = 'runs.all([{ agent: "ein-scout", task: "angulo A" }, { agent: "ein-scout", task: "angulo B" }])';
+		const launch = normalizeScoutLaunch({ workflowScript: script }, "call-fanout", new Map())!;
+		expect(launch.async).toBe(false);
+		expect(launch.context).toBe("fresh");
+		// En forma script el agente vive DENTRO del script: escribirlo arriba no
+		// lanzaría nada.
+		expect(launch).not.toHaveProperty("agent");
 	});
 
 	test("does not reject a relaunch that reuses the same toolCallId (R6, idempotent re-normalization)", () => {
@@ -92,17 +106,13 @@ describe("readonly scout launch contract", () => {
 		expect(readFileSync(SCOUT_SPEC, "utf8")).toContain("MUST declare `async: false`");
 	});
 
-	test("an orphaned pending entry (cancelled/dead scout, no result ever accepted) blocks every later launch until the tracking map is cleared at the next user turn (R6 residual risk closed)", () => {
+	// El riesgo residual de R6 se cierra solo al retirar la exclusividad: un
+	// scout muerto ya no puede bloquear a los siguientes, porque nunca hubo
+	// exclusividad que heredar. La limpieza por turno se conserva para el
+	// contador de fuera-de-contrato.
+	test("R4: un scout cancelado o muerto ya no bloquea los lanzamientos siguientes", () => {
 		const tracking = new Map<string, string>();
 		normalizeScoutLaunch({ agent: "ein-scout", task: "inspect A" }, "call-orphan", tracking);
-		// The orphaned scout never reaches `acceptTrackedScoutResult` (cancelled, or
-		// the subagent died without emitting a tool_result). Without a turn-boundary
-		// reset this blocks the session until `session_shutdown`.
-		expect(() => normalizeScoutLaunch({ agent: "ein-scout", task: "inspect B" }, "call-next", tracking)).toThrow("already pending");
-		// A fresh user turn (the mechanism wired into `pi.on("input", ...)` in
-		// `ein-ai.ts`) clears the tracking map, so the orphan cannot survive the
-		// turn that created it.
-		tracking.clear();
 		expect(() => normalizeScoutLaunch({ agent: "ein-scout", task: "inspect B" }, "call-next", tracking)).not.toThrow();
 	});
 
@@ -145,9 +155,43 @@ describe("readonly scout report validation", () => {
 		const root = fixture();
 		expect(validateScoutReport([report({ references: [{ id: "R1", path: "evidence.ts", lines: "2", supports: "line two" }] })], root).references[0])
 			.toEqual({ id: "R1", path: "evidence.ts", startLine: 2, endLine: 2, supports: "line two" });
-		// El oro sigue estricto: un rango fuera del fichero o un `lines` no numérico fallan.
-		expect(() => validateScoutReport([report({ references: [{ id: "R1", path: "evidence.ts", lines: "1-99", supports: "x" }] })], root)).toThrow("line range");
+		// El oro sigue estricto donde el modelo no puede tener razón: un `lines` no
+		// numérico no es una cita, es otra cosa.
 		expect(() => validateScoutReport([report({ references: [{ id: "R1", path: "evidence.ts", lines: "abc", supports: "x" }] })], root)).toThrow("invalid reference");
+	});
+
+	// R1. El fallo medido en producción: dos reportes buenos descartados enteros
+	// porque UNA cita "el fichero entero" pasaba el final por 2 y por 4 líneas
+	// (`server/api/cursos/index.post.ts` 1-105 sobre 101 líneas). El final se
+	// recorta; el principio, que es lo que dice de dónde salió la evidencia, no.
+	test("R1: recorta el final del rango que se pasa de EOF en vez de tirar el reporte", () => {
+		const root = fixture();
+		const clamped = validateScoutReport([report({ references: [{ id: "R1", path: "evidence.ts", lines: "1-99", supports: "x" }] })], root);
+		expect(clamped.references[0]).toEqual({ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, supports: "x" });
+
+		const clampedCanonical = validateScoutReport([report({ references: [{ ...report().references[0], endLine: 99 }] })], root);
+		expect(clampedCanonical.references[0].endLine).toBe(3);
+	});
+
+	// Un `startLine` fuera del fichero no es un redondeo: no hay nada que
+	// recortar y la cita no apunta a ninguna evidencia. El oro no se relaja.
+	test("R1: un startLine fuera del fichero sigue siendo una cita inválida", () => {
+		const root = fixture();
+		expect(() => validateScoutReport([report({ references: [{ id: "R1", path: "evidence.ts", lines: "50-60", supports: "x" }] })], root)).toThrow("past the last line");
+	});
+
+	// R2. El segundo intento falló idéntico al primero porque el mensaje no
+	// nombraba nada: "reference line range is invalid" y nada más. Sin la cita
+	// concreta no hay corrección posible, solo relanzamiento a ciegas.
+	test("R2: el rechazo nombra id, path, rango citado y líneas reales", () => {
+		const root = fixture();
+		let message = "";
+		try { validateScoutReport([report({ references: [{ id: "R1", path: "evidence.ts", lines: "50-60", supports: "x" }] })], root); }
+		catch (error) { message = error instanceof Error ? error.message : String(error); }
+		expect(message).toContain("R1");
+		expect(message).toContain("evidence.ts");
+		expect(message).toContain("50");
+		expect(message).toContain("3");
 	});
 
 	test("fails closed for missing, multiple, malformed, oversized, and uncertain reports", () => {
@@ -159,12 +203,66 @@ describe("readonly scout report validation", () => {
 		expect(() => validateScoutReport([report({ uncertainties: [] })], root)).toThrow("invalid report schema");
 	});
 
-	test("rejects unreferenced and invalid evidence", () => {
+	// La coherencia INTERNA sigue estricta: es determinista, gratis, y es
+	// responsabilidad del modelo. Lo que se vuelve tolerante es la cita contra
+	// disco, que es donde el modelo escribe un número a mano.
+	test("rejects unreferenced and internally inconsistent evidence", () => {
 		const root = fixture();
 		expect(() => validateScoutReport([report({ findings: [{ claim: "uncited", referenceIds: [] }] })], root)).toThrow();
 		expect(() => validateScoutReport([report({ references: [...report().references, { id: "R2", path: "evidence.ts", startLine: 1, endLine: 1, supports: "unused" }] })], root)).toThrow("unreferenced");
-		expect(() => validateScoutReport([report({ references: [{ ...report().references[0], path: "../escape" }] })], root)).toThrow("invalid reference");
-		expect(() => validateScoutReport([report({ references: [{ ...report().references[0], endLine: 99 }] })], root)).toThrow("line range");
+		expect(() => validateScoutReport([report({ findings: [{ claim: "ghost", referenceIds: ["R9"] }] })], root)).toThrow("unknown reference id");
+	});
+
+	// R3. Una cita irrecuperable descarta esa cita, no el reporte. 19 de 21
+	// referencias eran válidas en la run medida: tirarlas todas es la burocracia
+	// que este contrato existía para no ser.
+	test("R3: una referencia irrecuperable descarta la cita, no el reporte", () => {
+		const root = fixture();
+		const salvaged = validateScoutReport([report({
+			summaryReferenceIds: ["R1", "R2"],
+			findings: [
+				{ claim: "vive", referenceIds: ["R1"] },
+				{ claim: "muere con su única cita", referenceIds: ["R2"] },
+				{ claim: "sobrevive con la cita viva", referenceIds: ["R1", "R2"] },
+			],
+			references: [
+				{ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, supports: "ok" },
+				{ id: "R2", path: "no-existe.ts", startLine: 1, endLine: 5, supports: "irrecuperable" },
+			],
+		})], root);
+
+		expect(salvaged.references.map((reference) => reference.id)).toEqual(["R1"]);
+		expect(salvaged.findings.map((finding) => finding.claim)).toEqual(["vive", "sobrevive con la cita viva"]);
+		expect(salvaged.findings[1]!.referenceIds).toEqual(["R1"]);
+		expect(salvaged.summaryReferenceIds).toEqual(["R1"]);
+		// El descarte viaja con procedencia (`// 002`): no se esconde, se declara.
+		expect(salvaged.uncertainties.some((uncertainty) => uncertainty.statement.includes("R2") && uncertainty.statement.includes("no-existe.ts"))).toBe(true);
+	});
+
+	// El salvamento tiene suelo: sin evidencia viva no hay reporte que entregar.
+	test("R3: sin evidencia viva el reporte se rechaza entero", () => {
+		const root = fixture();
+		expect(() => validateScoutReport([report({ references: [{ ...report().references[0], path: "../escape" }] })], root)).toThrow();
+		expect(() => validateScoutReport([report({ references: [{ ...report().references[0], path: "no-existe.ts" }] })], root)).toThrow("no valid evidence");
+	});
+
+	// Un finding con UNA cita viva sobrevive con esa cita, aunque pierda las
+	// demás. Es el invariante que hace imposible la "referencia huérfana
+	// sobrevenida" que el diseño preveía podar: una referencia viva siempre
+	// mantiene vivo a su finding.
+	test("R3: un finding conserva sus citas vivas y pierde solo las muertas", () => {
+		const root = fixture();
+		const salvaged = validateScoutReport([report({
+			summaryReferenceIds: ["R1"],
+			findings: [{ claim: "mixto", referenceIds: ["R1", "R2", "R3"] }],
+			references: [
+				{ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, supports: "ok" },
+				{ id: "R2", path: "no-existe.ts", startLine: 1, endLine: 5, supports: "irrecuperable" },
+				{ id: "R3", path: "evidence.ts", startLine: 2, endLine: 2, supports: "ok" },
+			],
+		})], root);
+		expect(salvaged.findings[0]!.referenceIds).toEqual(["R1", "R3"]);
+		expect(salvaged.references.map((reference) => reference.id)).toEqual(["R1", "R3"]);
 	});
 
 	test("rejects symlink escapes", () => {
@@ -203,7 +301,6 @@ describe("readonly scout result handoff", () => {
 			{ mode: "single", results: [] },                                        // sin resultado in-turn
 			{ mode: "single", results: [{ agent: "ein-scout" }] },                  // sin finalOutput
 			{ mode: "single", results: [{ agent: "ein-scout", finalOutput: "" }] }, // vacío
-			{ mode: "single", results: [{ agent: "ein-scout", finalOutput: report() }, { agent: "ein-scout", finalOutput: report() }] }, // 2 resultados
 		];
 		for (const details of cases) {
 			const tracking = tracked();
@@ -220,8 +317,69 @@ describe("readonly scout result handoff", () => {
 		expect(zero).toThrow("returned 0 results in this turn");
 		expect(zero).not.toThrow("launched async or in parallel");
 
-		const many = { mode: "single", results: [{ agent: "ein-scout", finalOutput: report() }, { agent: "ein-scout", finalOutput: report() }] };
-		expect(() => acceptTrackedScoutResult(tracked(), "scout-call", many, false, fixture())).toThrow("returned 2 results");
+	});
+
+	// R4. Cada rama se valida por su cuenta: una rama fuera de contrato no
+	// arrastra a sus hermanas. Es la diferencia entre perder un ángulo y perder
+	// la investigación entera.
+	test("R4: el fan-out devuelve las ramas válidas aunque una caiga", () => {
+		const details = { mode: "workflow", results: [
+			{ agent: "ein-scout", task: "angulo A", finalOutput: JSON.stringify(report()) },
+			{ agent: "ein-scout", task: "angulo B", finalOutput: "not json at all" },
+			{ agent: "ein-scout", task: "angulo C", finalOutput: JSON.stringify(report({ summary: "otra evidencia" })) },
+		] };
+		const accepted = acceptTrackedScoutResult(tracked(), "scout-call", details, false, fixture()) as unknown as { version: string; branches: { task: string; report: { summary: string } }[]; dropped: string[] };
+		expect(accepted.version).toBe("ein-scout-fanout/v1");
+		expect(accepted.branches.map((branch) => branch.task)).toEqual(["angulo A", "angulo C"]);
+		expect(accepted.branches[1]!.report.summary).toBe("otra evidencia");
+		expect(accepted.dropped.join(" ")).toContain("angulo B");
+	});
+
+	test("R4: un resultado único sigue devolviendo el reporte pelado", () => {
+		expect(acceptTrackedScoutResult(tracked(), "scout-call", { mode: "single", results: [{ agent: "ein-scout", finalOutput: JSON.stringify(report()) }] }, false, fixture())).toEqual(report());
+	});
+
+	test("R4: el bound de 3 ramas se aplica en el contrato, no solo en la prosa", () => {
+		const branch = (task: string) => ({ agent: "ein-scout", task, finalOutput: JSON.stringify(report()) });
+		const four = { mode: "workflow", results: [branch("A"), branch("B"), branch("C"), branch("D")] };
+		expect(() => acceptTrackedScoutResult(tracked(), "scout-call", four, false, fixture())).toThrow("at most 3");
+	});
+
+	// R5. El contador sigue existiendo, re-apuntado: solo cuenta el fallo TOTAL
+	// (el incidente de infraestructura que decía vigilar), nunca un reporte que
+	// el salvamento puede rescatar.
+	test("R5: un fan-out con una rama viva no cuenta como fuera de contrato", () => {
+		const tracking = tracked();
+		const details = { mode: "workflow", results: [
+			{ agent: "ein-scout", task: "viva", finalOutput: JSON.stringify(report()) },
+			{ agent: "ein-scout", task: "muerta", finalOutput: "" },
+		] };
+		expect(() => acceptTrackedScoutResult(tracking, "scout-call", details, false, fixture())).not.toThrow();
+		expect(tracking.has("scout-call")).toBe(false);
+	});
+
+	test("R5: un fan-out con TODAS las ramas caídas sí es fuera de contrato", () => {
+		const tracking = tracked();
+		const details = { mode: "workflow", results: [
+			{ agent: "ein-scout", task: "a", finalOutput: "not json" },
+			{ agent: "ein-scout", task: "b", finalOutput: "" },
+		] };
+		expect(() => acceptTrackedScoutResult(tracking, "scout-call", details, false, fixture())).toThrow("ein-scout contract");
+		expect(tracking.get("scout-call")).toBe("off-contract");
+	});
+
+	// R5. Una cita pasada de rango ya no gasta una de las dos vidas del turno:
+	// se recorta y el reporte pasa. Sin esto, dos reportes buenos seguidos
+	// cortaban la investigación, que es exactamente lo que se midió.
+	test("R5: dos reportes con el rango pasado no cortan el tercer lanzamiento", () => {
+		const tracking: Map<string, string> = new Map();
+		const overrun = { mode: "single", results: [{ agent: "ein-scout", finalOutput: JSON.stringify(report({ references: [{ id: "R1", path: "evidence.ts", lines: "1-99", supports: "x" }] })) }] };
+
+		for (const id of ["scout-1", "scout-2"]) {
+			normalizeScoutLaunch({ agent: "ein-scout", task: "x" }, id, tracking);
+			expect(() => acceptTrackedScoutResult(tracking, id, overrun, false, fixture())).not.toThrow();
+		}
+		expect(normalizeScoutLaunch({ agent: "ein-scout", task: "x" }, "scout-3", tracking)).toBeDefined();
 	});
 
 	// La regla "fuera de contrato dos veces es un incidente" vivía solo en la

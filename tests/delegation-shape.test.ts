@@ -280,8 +280,13 @@ describe("contrato del scout sobre workflowScript", () => {
 		expect(tracking.get("call-1")).toBe("pending");
 	});
 
-	test("rechaza un fan-out: un reporte no puede atarse a varios children", () => {
-		expect(() => normalizeScoutLaunch({ workflowScript: `return runs.all([{ agent: "ein-scout", task: "a" }, { agent: "ein-scout", task: "b" }])` }, "call-2", new Map())).toThrow(/unsupported/);
+	// Antes se rechazaba: "un reporte no puede atarse a varios children". El
+	// runtime devuelve un SingleResult por hijo, así que sí puede; el contrato
+	// valida rama a rama y el bound de 3 lo aplica `acceptTrackedScoutResult`.
+	test("acepta un fan-out de scouts y lo mantiene en foreground", () => {
+		const launch = normalizeScoutLaunch({ workflowScript: `return runs.all([{ agent: "ein-scout", task: "a" }, { agent: "ein-scout", task: "b" }])` }, "call-2", new Map())!;
+		expect(launch.async).toBe(false);
+		expect(launch.toolBudget).toEqual({ hard: 30, soft: 24, block: "*" });
 	});
 
 	test("no toca delegaciones que no son del scout", () => {

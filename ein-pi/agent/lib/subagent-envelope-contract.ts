@@ -58,9 +58,9 @@ export const ENVELOPE_CONSUMER_INVENTORY: Readonly<Record<string, EnvelopeConsum
 		note: "sin payload terminal el pasaje de participante no avanza y sdd-verify queda inalcanzable",
 	},
 	acceptTrackedScoutResult: {
-		failureMode: "loud-wasteful",
+		failureMode: "safe-degradation",
 		protection: "scout-launch-normalized",
-		note: "el reporte se tira y se marca off-contract; el trabajo del scout ya se pagó",
+		note: "una cita irrecuperable descarta esa cita, no el reporte; en fan-out, una rama caída no arrastra a sus hermanas",
 	},
 	participantResultIsUnrecognized: {
 		failureMode: "safe-degradation",
