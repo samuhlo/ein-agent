@@ -44,12 +44,19 @@ Given: a pre-scope request meets a scout delegation boundary
 When: the parent gathers enough information to route the request
 Then: the parent performs at most two routing reads before delegation
 
+## Scenario: off-contract-scout-result-does-not-free-the-turn
+title: Stop a scout relaunch loop after two wholly off-contract results
+requirement: The system MUST record a scout result that fails the report contract wholesale against the current turn instead of clearing it, and MUST reject a further scout launch in the same turn once two results have failed that way, naming the failure as an infrastructure incident. Only a wholesale failure counts: a report whose citations can be clamped or partially salvaged is accepted and MUST NOT consume the allowance, and in a fan-out the call counts as off-contract only when every branch fails. The rejection MUST report the observed result shape and MUST NOT assert an unverified cause.
+Given: a scout result that fails the report contract wholesale in the current turn
+When: the parent launches another scout in that same turn
+Then: the failed call remains recorded against the turn, a third launch is rejected as an infrastructure incident, a salvageable report leaves the allowance untouched, and the next user turn clears the record
+
 ## Scenario: readonly-scout-bounded-research-contract
 title: Scout research is normalized, tool-call bounded, and locally validated
-requirement: The system MUST normalize only direct foreground `ein-scout` launches to fresh context, `maxRuntimeMs: 120000`, `turnBudget: { maxTurns: 12, graceTurns: 2 }`, and `toolBudget: { hard: 30, soft: 24, block: "*" }`; the canonical scout agent frontmatter MUST declare exactly `read`, `grep`, and `find` with a defined but blank `extensions:` field. This declaration is the logical empty list used to disable ambient extensions. The system MUST accept only one locally fail-closed, schema-valid report of at most 16384 UTF-8 bytes with valid in-root references, line ranges, and explicit uncertainty. The current empty-extension compatibility contract MUST NOT be represented as a per-run capability probe or a pinned-package guarantee; unpinned future dependency drift remains a residual risk.
+requirement: The system MUST normalize accepted foreground `ein-scout` launches to fresh context, `maxRuntimeMs: 120000`, `turnBudget: { maxTurns: 12, graceTurns: 2 }`, and `toolBudget: { hard: 30, soft: 24, block: "*" }`; the canonical scout agent frontmatter MUST declare exactly `read`, `grep`, and `find` with a defined but blank `extensions:` field. This declaration is the logical empty list used to disable ambient extensions. The system MUST validate each returned report at two levels: internal consistency fails closed, while disk citations are clamped or dropped with recorded provenance. Malformed, oversized, unreferenced, unknown-identifier, and uncertainty-missing reports MUST still fail closed, as MUST a report left without any surviving valid reference. The current empty-extension compatibility contract MUST NOT be represented as a per-run capability probe or a pinned-package guarantee; unpinned future dependency drift remains a residual risk.
 Given: a caller requests `ein-scout` research or a scout report is returned.
-When: the direct foreground launch is normalized or the returned report is validated.
-Then: alternate invocation forms are rejected, the normalized call has the stated wall-clock, turn, and hard tool-call limits, and only a single report passing local schema, reference, uncertainty, and path validation is accepted; malformed, oversized, unreferenced, uncertainly-missing, invalid-line, missing, escaping, or symlink-escaping evidence fails closed.
+When: the foreground launch is normalized or a returned report is validated.
+Then: alternate invocation forms are rejected, the normalized call has the stated wall-clock, turn, and hard tool-call limits, internally inconsistent reports fail closed, an end line past the end of an existing file is clamped, a missing, escaping, or symlink-escaping citation is dropped with its reason recorded as an uncertainty, and a report with no surviving valid reference fails closed
 
 ## Scenario: readonly-scout-remains-outside-sdd-lifecycle
 title: Scout inventory membership does not change the seven-phase lifecycle
@@ -65,19 +72,12 @@ Given: a change does not yet have a bounded scope
 When: the parent selects the next research or reasoning step
 Then: the parent does not invoke sdd-map until the change is scoped
 
-## Scenario: scout-concurrent-launch-rejected-before-execution
-title: Reject a concurrent scout launch at launch time
-requirement: The system MUST reject a scout launch, before any delegation executes, when another scout tool call is already pending under a different tool-call identifier, and MUST NOT reject re-normalization of the same tool-call identifier.
-Given: one ein-scout launch is already normalized and pending
-When: a second ein-scout launch arrives with a different tool-call identifier
-Then: normalization fails at launch with an actionable message naming the one-per-turn rule and no second delegation executes
-
-## Scenario: scout-fan-out-is-described-as-sequential
-title: Describe read-only scout fan-out as sequential
-requirement: The system MUST describe read-only scout fan-out in the coordinator prompt as one scout call per turn while retaining the bound of one to three independent scouts.
-Given: the installed coordinator prompt
-When: its read-only fan-out section is read
-Then: the section states one scout call per turn, retains the one-to-three independent-scout bound, and does not grow the coordinator prompt byte budget
+## Scenario: scout-fan-out-runs-in-parallel-within-one-tool-call
+title: Run bounded read-only scout fan-out in parallel
+requirement: The system MUST accept a foreground fan-out launch of two or three independent `ein-scout` branches inside one tool call, MUST validate each returned child report independently, and MUST retain the hard bound of three branches with disjoint angles.
+Given: a pre-scope assessment benefits from two or three independent research angles
+When: the parent launches them as one foreground fan-out and the children return
+Then: the launch is accepted, each child report is validated on its own so one off-contract branch does not discard its siblings, the accepted reports reach the parent together, and a fourth branch is still rejected
 
 ## Scenario: scout-launch-is-always-foreground
 title: Normalize every accepted scout launch to foreground
@@ -86,12 +86,26 @@ Given: a direct ein-scout launch request
 When: the launch is normalized
 Then: the normalized launch is foreground and no asynchronous scout call is produced
 
-## Scenario: off-contract-scout-result-does-not-free-the-turn
-title: Stop a scout relaunch loop after two off-contract results
-requirement: The system MUST NOT release the one-scout-per-turn slot when a scout result fails the report contract, and MUST reject a further scout launch in the same turn once two results have failed it, naming the failure as an infrastructure incident. The rejection MUST report the observed result shape and MUST NOT assert an unverified cause.
-Given: a scout result that fails the report contract in the current turn
-When: the parent launches another scout in that same turn
-Then: the failed call remains recorded against the turn, a third launch is rejected as an infrastructure incident, and the next user turn clears the record
+## Scenario: scout-reference-end-line-clamped-to-file-end
+title: Clamp a citation that overruns the end of the file
+requirement: The system MUST clamp a scout reference whose end line exceeds the file length to the last line of that file when its start line falls inside the file, and MUST continue to reject a reference whose start line falls outside the file.
+Given: a scout reference names an existing in-root file and cites an end line greater than the file's line count
+When: the reference is validated against disk
+Then: the end line is clamped to the file's last line and the reference is accepted, while a reference whose start line is past the last line is still rejected as an unresolvable citation
+
+## Scenario: scout-reference-rejection-names-the-citation
+title: Name the citation in every reference rejection
+requirement: The system MUST name the offending reference identifier, repository-relative path, and cited line range in every reference validation failure message, and MUST name the file's actual line count when the failure is a line-range failure.
+Given: a scout reference fails disk validation
+When: the failure message is produced for the parent
+Then: the message names the reference identifier, the path, and the cited range, and a line-range failure also names the file's actual line count, so the parent can correct the citation instead of relaunching blind
+
+## Scenario: scout-report-survives-a-single-invalid-reference
+title: Salvage a report that carries one unresolvable citation
+requirement: The system MUST drop an unresolvable reference and the findings that rest solely on it instead of discarding the whole report, MUST record each dropped reference and finding as an explicit uncertainty carrying its rejection reason, and MUST reject the report entirely only when the summary retains no valid reference.
+Given: a schema-valid scout report whose references include at least one that cannot be resolved against disk
+When: the report is validated
+Then: the unresolvable reference and the findings resting solely on it are dropped, each drop is returned as an explicit uncertainty naming its reason, the remaining cited evidence reaches the parent, and only a summary left without any valid reference fails the report as a whole
 
 ## Scenario: use-independent-scouts-before-scope
 title: Use bounded independent scouts before scope

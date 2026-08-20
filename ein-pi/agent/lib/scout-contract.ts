@@ -3,12 +3,32 @@ import { isAbsolute, relative, resolve } from "node:path";
 import {
 	delegationIncludes,
 	delegationWorkflowScript,
-	workflowScriptFansOut,
 } from "./delegation-shape.ts";
 
 export const SCOUT_REPORT_MAX_BYTES = 16_384;
 // Dos lanzamientos fuera de contrato en un turno dejan de ser mala suerte.
+// RE-APUNTADO: solo cuenta el fallo TOTAL (JSON malformado, schema inválido,
+// salida vacía, cero resultados). Un reporte con una cita mala ya no gasta una
+// vida: se salva. Ese era el gasto real — dos reportes buenos seguidos cortaban
+// la investigación.
 export const OFF_CONTRACT_LIMIT = 2;
+// El bound de ramas del fan-out vive aquí, no solo en la prosa del orquestador:
+// un párrafo es una sugerencia, esto es una garantía (`// 002`).
+export const MAX_FANOUT_BRANCHES = 3;
+
+// LOS DOS NIVELES DE VALIDACIÓN (la decisión de diseño de este módulo):
+//
+//   Coherencia INTERNA -> estricta. Schema, ids únicos, ids conocidos, sin
+//     referencias huérfanas. Es determinista, gratis y es responsabilidad del
+//     modelo. Falla cerrado.
+//   Citas contra DISCO -> tolerante y con procedencia. Es donde el modelo
+//     escribe un número a mano y se equivoca. Se recorta lo recortable, se
+//     descarta lo irrecuperable, y el resto del reporte llega al padre.
+//
+// Medido antes de este cambio: dos reportes de 21 y 28 llamadas de herramienta
+// descartados enteros porque UNA cita de cada uno se pasaba del final del
+// fichero por 2 y por 4 líneas. 19 de 21 referencias eran válidas. MANIFIESTO
+// `// 004`: un arnés que impide que el trabajo salga es burocracia.
 
 // El schema del reporte se valida a mano en `parseReport` (abajo). Ya NO se
 // inyecta como `outputSchema` al lanzar el scout: forzar el canal estructurado
@@ -23,7 +43,9 @@ export const OFF_CONTRACT_LIMIT = 2;
 
 export type ScoutLaunch = Record<string, unknown>;
 export type ScoutTracking = Map<string, string>;
-type Report = { version: string; summary: string; summaryReferenceIds: string[]; findings: { claim: string; referenceIds: string[] }[]; references: { id: string; path: string; startLine: number; endLine: number; supports: string }[]; uncertainties: { level: string; statement: string }[] };
+type Reference = { id: string; path: string; startLine: number; endLine: number; supports: string };
+type Report = { version: string; summary: string; summaryReferenceIds: string[]; findings: { claim: string; referenceIds: string[] }[]; references: Reference[]; uncertainties: { level: string; statement: string }[] };
+export type ScoutFanout = { version: "ein-scout-fanout/v1"; branches: { task: string; report: Report }[]; dropped: string[] };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 // Declared (not an unannotated arrow const) so TypeScript applies never-returning
@@ -39,11 +61,12 @@ function scoutName(input: unknown): boolean {
 
 function unsupportedForm(input: Record<string, unknown>): boolean {
 	if (["chain", "steps", "tasks", "parallel", "background", "resume", "continuation", "parentToolCallId"].some((key) => input[key] !== undefined)) return true;
-	if (input.foreground === false) return true;
-	// A fan-out workflow yields several children; the contract binds ONE report to
-	// one tool call, so it cannot say which child it belongs to.
-	const script = delegationWorkflowScript(input);
-	return script !== undefined && workflowScriptFansOut(script);
+	return input.foreground === false;
+	// RETIRADO: el rechazo del fan-out. Su causa declarada — "el contrato ata UN
+	// reporte a una tool call, no sabe de qué hijo es" — dejó de ser cierta: el
+	// runtime devuelve un SingleResult por hijo dentro de `details.results[]`,
+	// cada uno con `agent`, `task` y `finalOutput` (`sdd-participants.ts:159-172`).
+	// La condición de retirada escrita en este mismo fichero se cumplió.
 }
 
 /** Normalizes the only scout form the beta can associate with one result. */
@@ -52,11 +75,10 @@ export function normalizeScoutLaunch(input: unknown, toolCallId: string, trackin
 	if (!isRecord(input)) fail("invalid invocation");
 	if (unsupportedForm(input)) fail("nested, chain, parallel, background, or resume launch is unsupported");
 	if (!toolCallId) fail("missing tool call id");
-	// R6: reject a concurrent scout launch before it executes, not after it burns a
-	// delegation. Same toolCallId is an idempotent re-normalization of the same call,
-	// never rejected. Retire when the runtime can bind N concurrent scout reports to
-	// N tool call ids (`scoutReportText` requires exactly one result) and a
-	// measured run shows scout wall-clock dominating.
+	// RETIRADO: la puerta "un scout pendiente por turno". Con el fan-out validado
+	// rama a rama ya no hay ambigüedad que proteger, y de paso muere su riesgo
+	// residual: un scout cancelado dejaba un `pending` huérfano que bloqueaba
+	// todos los lanzamientos siguientes hasta el final del turno.
 	//
 	// R8: un resultado fuera de contrato NO libera el turno (ver
 	// `acceptTrackedScoutResult`). Sin eso, un lanzamiento que vuelve vacío al
@@ -65,8 +87,7 @@ export function normalizeScoutLaunch(input: unknown, toolCallId: string, trackin
 	// regla "fuera de contrato dos veces es un incidente de infraestructura" ya
 	// existía en la prosa del orquestador; aquí es lo que corta el gasto.
 	let offContract = 0;
-	for (const [pendingId, status] of tracking) {
-		if (status === "pending" && pendingId !== toolCallId) fail("a scout is already pending; scouts run one per turn (sequential fan-out)");
+	for (const [, status] of tracking) {
 		if (status === "off-contract") offContract += 1;
 	}
 	if (offContract >= OFF_CONTRACT_LIMIT) fail("the scout returned off-contract twice this turn; treat it as an infrastructure incident, surface it, and degrade to bounded reads instead of relaunching");
@@ -149,61 +170,149 @@ function parseReport(payload: unknown): Report {
 	return { ...report, references, uncertainties } as Report;
 }
 
-function validateReference(root: string, reference: Report["references"][number]): void {
-	if (!isRecord(reference) || !closed(reference, ["id", "path", "startLine", "endLine", "supports"]) || !/^R[1-9][0-9]*$/.test(reference.id) || !boundedString(reference.path, 512) || isAbsolute(reference.path) || reference.path.includes("\0") || reference.path.split(/[\\/]/).some((part) => part === "" || part === "." || part === "..") || !Number.isInteger(reference.startLine) || reference.startLine < 1 || !Number.isInteger(reference.endLine) || reference.endLine < reference.startLine || !boundedString(reference.supports, 500)) fail("invalid reference");
+// R2. El mensaje dice QUÉ cita falla. Antes era "reference line range is
+// invalid" y nada más: el segundo intento no tenía forma de corregir lo que
+// nadie nombraba, así que falló idéntico al primero.
+function cite(reference: Reference): string {
+	return `${reference.id} ${reference.path} ${reference.startLine}-${reference.endLine}`;
+}
+
+// El `split` deja un elemento vacío final cuando el fichero acaba en salto de
+// línea. Contarlo inflaría el fichero en una línea y el recorte apuntaría a una
+// línea que no existe.
+function lineCount(lines: string[]): number {
+	return lines.length > 1 && lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
+}
+
+type ReferenceCheck = { ok: true; reference: Reference } | { ok: false; reason: string };
+
+function checkReference(root: string, reference: Reference): ReferenceCheck {
+	const shape = isRecord(reference) && closed(reference, ["id", "path", "startLine", "endLine", "supports"]) && /^R[1-9][0-9]*$/.test(reference.id) && boundedString(reference.path, 512) && !isAbsolute(reference.path) && !reference.path.includes("\0") && !reference.path.split(/[\\/]/).some((part) => part === "" || part === "." || part === "..") && Number.isInteger(reference.startLine) && reference.startLine >= 1 && Number.isInteger(reference.endLine) && reference.endLine >= reference.startLine && boundedString(reference.supports, 500);
+	if (!shape) return { ok: false, reason: `${isRecord(reference) && typeof reference.id === "string" ? reference.id : "?"}: invalid reference shape` };
+
 	const rootReal = realpathSync(root);
 	const candidate = resolve(rootReal, reference.path);
 	let actual: string;
-	try { if (!lstatSync(candidate).isFile()) fail("reference is not a regular file"); actual = realpathSync(candidate); } catch { fail("missing or unreadable reference"); }
-	if (relative(rootReal, actual).startsWith("..") || isAbsolute(relative(rootReal, actual))) fail("reference escapes repository root");
+	try {
+		if (!lstatSync(candidate).isFile()) return { ok: false, reason: `${cite(reference)}: not a regular file` };
+		actual = realpathSync(candidate);
+	} catch { return { ok: false, reason: `${cite(reference)}: missing or unreadable` }; }
+	if (relative(rootReal, actual).startsWith("..") || isAbsolute(relative(rootReal, actual))) return { ok: false, reason: `${cite(reference)}: escapes the repository root` };
+
 	let lines: string[];
-	try { lines = readFileSync(actual, "utf8").split(/\r?\n/); } catch { fail("unreadable reference"); }
-	if (reference.endLine > lines.length) fail("reference line range is invalid");
+	try { lines = readFileSync(actual, "utf8").split(/\r?\n/); } catch { return { ok: false, reason: `${cite(reference)}: unreadable` }; }
+	const last = lineCount(lines);
+	// R1. Un `startLine` fuera del fichero no es un redondeo: no hay nada que
+	// recortar y la cita no apunta a ninguna evidencia.
+	if (reference.startLine > last) return { ok: false, reason: `${cite(reference)}: startLine ${reference.startLine} is past the last line (${last})` };
+	// El final SÍ se recorta. Es el fallo medido: `1-105` sobre un fichero de 101
+	// líneas es "el fichero entero" con el final redondeado, no una cita falsa.
+	return { ok: true, reference: reference.endLine > last ? { ...reference, endLine: last } : reference };
 }
 
 export function validateScoutReport(payloads: readonly unknown[], root: string): Report {
 	if (payloads.length !== 1) fail(payloads.length === 0 ? "missing structured report" : "multiple structured reports");
 	const report = parseReport(payloads[0]);
+
+	// NIVEL 1 — coherencia interna: estricta, determinista, del modelo.
 	const ids = new Set<string>();
-	for (const reference of report.references) { if (ids.has(reference.id)) fail("duplicate reference id"); ids.add(reference.id); validateReference(root, reference); }
+	for (const reference of report.references) { if (ids.has(reference.id)) fail("duplicate reference id"); ids.add(reference.id); }
 	const used = new Set([...report.summaryReferenceIds, ...report.findings.flatMap((finding) => finding.referenceIds)]);
 	for (const id of used) if (!ids.has(id)) fail("unknown reference id");
 	if (used.size !== ids.size) fail("unreferenced reference");
-	return report;
+
+	// NIVEL 2 — citas contra disco: se recorta, se descarta, se declara.
+	const kept: Reference[] = [];
+	const dropped: string[] = [];
+	for (const reference of report.references) {
+		const checked = checkReference(root, reference);
+		if (checked.ok) kept.push(checked.reference);
+		else dropped.push(checked.reason);
+	}
+	if (dropped.length === 0) return { ...report, references: kept };
+
+	const live = new Set(kept.map((reference) => reference.id));
+	const findings = report.findings
+		.map((finding) => ({ ...finding, referenceIds: finding.referenceIds.filter((id) => live.has(id)) }))
+		.filter((finding) => finding.referenceIds.length > 0);
+	const summaryReferenceIds = report.summaryReferenceIds.filter((id) => live.has(id));
+	// NO se podan "huérfanas sobrevenidas": no existen. Un finding solo cae
+	// cuando TODAS sus referencias mueren, así que ninguna referencia viva puede
+	// quedarse sin usar por el descarte de un finding, y las del summary
+	// sobreviven al filtro. Se comprobó con un test que resultó imposible de
+	// poner en rojo; el filtro que lo implementaba era código muerto.
+	const references = kept;
+
+	if (references.length === 0 || findings.length === 0 || summaryReferenceIds.length === 0) {
+		fail(`no valid evidence survived reference validation — ${dropped.join("; ")}`);
+	}
+	return {
+		...report,
+		summaryReferenceIds,
+		findings,
+		references,
+		// El descarte viaja con procedencia (`// 002`): no se esconde, se declara.
+		// El tope de 8 incertidumbres vale para el reporte de ENTRADA, que valida
+		// al modelo; la salida es enriquecimiento de Ein y no puede quedar muda
+		// por una cota ajena.
+		uncertainties: [...report.uncertainties, ...dropped.map((reason) => ({ level: "material", statement: `referencia descartada — ${reason}` }))],
+	};
 }
 
 // Lee el reporte de la SALIDA FINAL del scout (finalOutput), como cualquier
-// subagente. Exige exactamente un resultado: el scout corre foreground y único.
+// subagente. Una rama por resultado: el runtime devuelve un SingleResult por
+// hijo, así que un fan-out son N reportes identificables dentro de UNA tool call.
 //
 // El mensaje dice lo OBSERVADO, no la causa. Antes afirmaba "launched async or
 // in parallel?" como si lo supiera: era una hipótesis, y cuando el fallo real
-// fuese otro mandaba a corregir lo que no estaba roto. Se nombra la forma
-// (cuántos resultados llegaron) y se marca como forma, no como diagnóstico.
-function scoutReportText(details: unknown): string {
+// fuese otro mandaba a corregir lo que no estaba roto.
+type Branch = { task: string; finalOutput: string };
+
+function scoutBranches(details: unknown): Branch[] {
 	if (!isRecord(details) || !Array.isArray(details.results)) {
 		fail("the runtime returned no results list for this scout call");
 	}
-	if (details.results.length !== 1) {
-		fail(details.results.length === 0
-			? "the scout call returned 0 results in this turn — the shape of a launch that did not run foreground; one scout, foreground, per turn"
-			: `the scout call returned ${details.results.length} results; one report binds to one tool call, so launch one scout at a time`);
+	if (details.results.length === 0) {
+		fail("the scout call returned 0 results in this turn — the shape of a launch that did not run foreground; a scout must run foreground to return its report");
 	}
-	const result = (details.results as unknown[])[0];
-	if (!isRecord(result) || typeof result.finalOutput !== "string" || result.finalOutput.trim().length === 0) {
-		fail("scout returned no usable report");
+	if (details.results.length > MAX_FANOUT_BRANCHES) {
+		fail(`a read-only scout fan-out carries at most ${MAX_FANOUT_BRANCHES} branches; this call returned ${details.results.length}`);
 	}
-	return result.finalOutput;
+	return (details.results as unknown[]).map((result, index) => ({
+		task: isRecord(result) && typeof result.task === "string" && result.task.length > 0 ? result.task : `branch ${index + 1}`,
+		finalOutput: isRecord(result) && typeof result.finalOutput === "string" ? result.finalOutput : "",
+	}));
 }
 
-export function acceptTrackedScoutResult(tracking: ScoutTracking, toolCallId: string, details: unknown, isError: boolean, root: string): Report | undefined {
+// Cada rama se valida por su cuenta: una rama fuera de contrato no arrastra a
+// sus hermanas. Es la diferencia entre perder un ángulo y perder la
+// investigación entera.
+function validateBranches(branches: Branch[], root: string): ScoutFanout {
+	const accepted: ScoutFanout["branches"] = [];
+	const dropped: string[] = [];
+	for (const branch of branches) {
+		if (branch.finalOutput.trim().length === 0) { dropped.push(`${branch.task}: returned no usable report`); continue; }
+		try { accepted.push({ task: branch.task, report: validateScoutReport([branch.finalOutput], root) }); }
+		catch (error) { dropped.push(`${branch.task}: ${error instanceof Error ? error.message : "off-contract"}`); }
+	}
+	if (accepted.length === 0) fail(`every scout branch returned off-contract — ${dropped.join("; ")}`);
+	return { version: "ein-scout-fanout/v1", branches: accepted, dropped };
+}
+
+export function acceptTrackedScoutResult(tracking: ScoutTracking, toolCallId: string, details: unknown, isError: boolean, root: string): Report | ScoutFanout | undefined {
 	if (!tracking.has(toolCallId)) return undefined;
 	// Un error del runner es suyo, no del contrato: libera el turno y se pasa el
 	// mensaje original tal cual (`isError` lo devuelve sin tocar aguas arriba).
 	if (isError) { tracking.delete(toolCallId); return undefined; }
 	try {
-		const report = validateScoutReport([scoutReportText(details)], root);
+		const branches = scoutBranches(details);
+		// Un solo resultado devuelve el reporte pelado, byte por byte como antes:
+		// es el caso mayoritario y no se rompe por añadir el fan-out.
+		const accepted = branches.length === 1
+			? validateScoutReport([branches[0]!.finalOutput], root)
+			: validateBranches(branches, root);
 		tracking.delete(toolCallId);
-		return report;
+		return accepted;
 	} catch (error) {
 		// R8: fuera de contrato NO libera el turno. La entrada queda marcada para
 		// que el segundo intento fallido corte el tercero antes de que arranque.
