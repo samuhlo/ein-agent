@@ -5,6 +5,44 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*` (binarios del instalador vía GitHub Actions).
 
+## [0.81.0] - 2026-08-20
+
+### Fixed
+
+- **El explorador deja de tirar la investigación que ya había hecho bien.**
+  Cuando le pides a Ein que estudie un proyecto, manda a un explorador de solo
+  lectura que lee ficheros y vuelve con lo que ha encontrado, citando cada
+  afirmación con el fichero y las líneas de donde sale. Si una sola de esas
+  citas terminaba dos líneas más abajo del final del fichero, el reporte entero
+  se tiraba a la basura. Y el error no decía **cuál** cita fallaba, así que el
+  segundo intento fallaba igual que el primero y la investigación se cortaba.
+
+  Medido en uso real: dos exploraciones completas de veintitantas llamadas cada
+  una, casi dos minutos de trabajo, descartadas con 19 de sus 21 citas
+  perfectamente válidas. Las dos citas culpables eran del tipo "este fichero
+  entero" con el final redondeado hacia arriba.
+
+  Ahora la comprobación distingue dos cosas que antes trataba igual. Lo que el
+  modelo no puede tener mal —que las referencias encajen entre sí— sigue siendo
+  motivo de rechazo. Lo que sí escribe a mano —el número de línea— se corrige:
+  un final que se pasa del fichero se recorta al final real, y una cita que no
+  apunta a ninguna parte se descarta sola, diciendo por qué, sin llevarse por
+  delante el resto del reporte. Solo se rechaza todo si no queda ninguna
+  evidencia en pie. Y cuando algo se rechaza, el mensaje dice qué cita, en qué
+  fichero, con qué rango y cuántas líneas tiene ese fichero de verdad.
+
+  Las dos exploraciones que antes se perdían enteras ahora llegan completas, con
+  un final de rango recortado cada una.
+
+### Changed
+
+- **Varios exploradores a la vez, en una sola llamada.** Hasta ahora solo podía
+  correr uno por turno, así que investigar tres ángulos distintos de un proyecto
+  costaba tres esperas seguidas. La razón por la que estaba prohibido dejó de
+  ser cierta hace tiempo. Ahora salen hasta tres en paralelo, cada uno con su
+  ángulo, y si uno vuelve mal los otros dos siguen valiendo: antes eso no
+  existía porque no había "los otros dos".
+
 ## [0.80.1] - 2026-08-19
 
 ### Changed
