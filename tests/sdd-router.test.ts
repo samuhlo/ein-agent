@@ -248,6 +248,36 @@ describe("resolveSddStatus", () => {
 		expect(s.nextRecommended).toBe("verify");
 	});
 
+	for (const outcome of ["complete", "blocked", "unavailable"] as const) {
+		test(`advisory participant ${outcome} never gates sdd-verify`, () => {
+			const c = change(`participant-${outcome}`);
+			for (const f of ["scope.md", "map.md", "design.md", "tasks.md"]) put(c, f, "x\n");
+			put(c, "apply-progress.md", `status: complete\nparticipant_outcome: ${outcome}\n`);
+
+			const status = resolveSddStatus(DIR, `participant-${outcome}`);
+			expect(status.nextRecommended).toBe("verify");
+			expect(status.blocked.join(" ")).not.toContain("participant");
+		});
+	}
+
+	test("accepted Cleaner mutation makes prior generic verification stale and routes to verify", () => {
+		const c = change("cleaner-mutation");
+		for (const f of ["scope.md", "map.md", "design.md"]) put(c, f, "x\n");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n## // 001. Cleaner\nEdita src/target.ts.\n- [ ] 1.1 limpiar\n");
+		put(c, "apply-progress.md", "status: complete\nparticipant_outcome: complete\n");
+		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
+		mkdirSync(join(DIR, "src"), { recursive: true });
+		writeFileSync(join(DIR, "src", "target.ts"), "export const cleaned = true;\n");
+		utimesSync(join(c, "verify-report.md"), new Date(3_000_000), new Date(3_000_000));
+		utimesSync(join(c, "apply-progress.md"), new Date(3_000_000), new Date(3_000_000));
+		// A Cleaner mutation after the passing generic verify invalidates its evidence.
+		utimesSync(join(DIR, "src", "target.ts"), new Date(5_000_000), new Date(5_000_000));
+
+		const status = resolveSddStatus(DIR, "cleaner-mutation");
+		expect(status.verifyStale).toBe(true);
+		expect(status.nextRecommended).toBe("verify");
+	});
+
 	test("map.md sin scope.md → blocker de artefacto fuera de orden (fuga de fase-explorador)", () => {
 		const c = change("cohesionar-x");
 		put(c, "map.md", "# Map\nx\n");

@@ -10,6 +10,7 @@ import { resolveSddNext, sddNextHandoff, type SddNextReport } from "../ein-pi/ag
 import { planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
 
 const EIN_AI_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts");
+const ORCHESTRATOR_PATH = join(import.meta.dir, "../ein-pi/agent/assets/orchestrator.md");
 let DIR: string;
 
 function change(name: string): string {
@@ -172,20 +173,40 @@ describe("sddNextHandoff", () => {
 		for (const item of report.blocked) expect(handoff).toContain(item);
 	});
 
-	test("el bloqueo de participantes se adelanta antes de verify", () => {
-		const c = change("feat-verify");
+	for (const condition of [
+		"continuity is absent",
+		"a participant is pending",
+		"a participant audit is blocked",
+	] as const) test(`verify handoff stays advisory when ${condition}`, () => {
+		const c = change(`feat-verify-${condition.replaceAll(" ", "-")}`);
 		for (const file of ["scope.md", "map.md", "design.md", "tasks.md"]) put(c, file);
 		put(c, "apply-progress.md", "status: complete\n");
 
-		const report = resolveSddNext(DIR, "feat-verify");
-		const handoff = sddNextHandoff(report, { participantsBlocker: "ein-cleaner pendiente." });
+		const report = resolveSddNext(DIR, c.split("/").pop()!);
+		const handoff = sddNextHandoff(report);
 		expect(report.nextRecommended).toBe("verify");
-		expect(handoff).toContain("Before `sdd-verify`: ein-cleaner pendiente.");
+		expect(handoff).not.toContain("Before `sdd-verify`:");
+		expect(handoff).toContain("next phase to run `verify`");
+	});
+});
+
+describe("participant advisory routing", () => {
+	for (const outcome of ["complete", "blocked", "unavailable"] as const) test(`participant ${outcome} leaves verify available`, () => {
+		const c = change(`feat-advisory-${outcome}`);
+		for (const file of ["scope.md", "map.md", "design.md", "tasks.md"]) put(c, file);
+		put(c, "apply-progress.md", `status: complete\nparticipant_outcome: ${outcome}\n`);
+
+		const report = resolveSddNext(DIR, `feat-advisory-${outcome}`);
+		const handoff = sddNextHandoff(report);
+		expect(report.nextRecommended).toBe("verify");
+		expect(handoff).toContain("next phase to run `verify`");
+		expect(handoff).not.toContain("participant");
 	});
 });
 
 describe("ein:sdd-next command wiring", () => {
 	const src = readFileSync(EIN_AI_PATH, "utf8");
+	const orchestrator = readFileSync(ORCHESTRATOR_PATH, "utf8");
 
 	test("registra el comando canonico y ayuda sin args", () => {
 		expect(src).toMatch(/registerCommand\(\s*"ein:sdd-next"/);
@@ -201,6 +222,20 @@ describe("ein:sdd-next command wiring", () => {
 		expect(src).not.toContain("autoEnabled");
 	});
 
+	test("participants describe an advisory pass and the measured withdrawal condition", () => {
+		expect(src).toContain("best-effort advisory Cleaner/Architect pass");
+		expect(src).toContain("Report unavailable or blocked audits honestly");
+		expect(src).toContain("a source mutation invalidates freshness and must be verified");
+		expect(orchestrator).toContain("best-effort advisory pass");
+		expect(orchestrator).toContain("unavailable or blocked");
+		expect(orchestrator).toContain("A source mutation invalidates freshness and MUST be verified");
+		expect(orchestrator).toContain("future measured defect proves `sdd-verify` cannot consume the required evidence");
+		expect(orchestrator).toContain("Ephemeral restart starts a fresh run at Cleaner slice 0");
+		expect(orchestrator).toContain("Cleaner runs before Architect in the foreground");
+		expect(orchestrator).toContain("complete, blocked, or unavailable");
+		expect(orchestrator).toContain("never gates `sdd-verify`");
+	});
+
 	// Antes este test fijaba lo contrario ("no ejecuta fases"), y por eso el
 	// comando era un callejón sin salida: imprimía la ruta al usuario y nadie la
 	// ejecutaba. Lo que se protege ahora es el reparto de autoridad: el comando
@@ -210,6 +245,8 @@ describe("ein:sdd-next command wiring", () => {
 		expect(block).toContain("resolveSddNext");
 		expect(block).toContain("sddNextHandoff");
 		expect(block).toContain("pi.sendUserMessage");
+		expect(block).not.toContain("guardSddVerify");
+		expect(block).not.toContain("participantsBlocker");
 		expect(block).not.toContain("writeFileSync");
 		expect(block).not.toContain("closeChange");
 		expect(block).not.toContain("handleSddClose");
