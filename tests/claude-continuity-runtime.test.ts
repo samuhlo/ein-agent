@@ -109,7 +109,7 @@ describe("Claude continuity supervisor", () => {
     expect(COMMAND).toContain("UserPromptSubmit hook");
     for (const name of ["UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "Stop", "PreCompact", "SessionEnd"]) expect(SYNC).toContain(`${name}:`);
     expect(RUNNER).toContain("await lifecycle.shutdown()");
-		expect(RESUME_BRIEF).toContain("continue participant work in Pi");
+		expect(RESUME_BRIEF).not.toMatch(/sddParticipants|participant\s+(?:work|execution)/i);
 		expect(RESUME_BRIEF).not.toMatch(/execute participant|participant execution/i);
   });
 

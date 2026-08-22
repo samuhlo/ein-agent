@@ -384,9 +384,15 @@ export function delegationIsPlanningOnly(input: unknown): boolean {
 //
 // A diferencia de los otros inyectores, un `async` explícito SE SOBRESCRIBE:
 // un participante inobservable no debe admitirse (fail-closed, `// 002`).
+const SLICE_PARTICIPANT_MARKER = /^\[ein-sdd-participant\/v1 passage=[^\]\s]+ unit=(?:ein-cleaner|ein-architect) slice=[^\]\s]+ range=\d+-\d+ state=[^\]\s]+\]/;
+
+export function isSddParticipantMarker(value: unknown): value is string {
+	return typeof value === "string" && SLICE_PARTICIPANT_MARKER.test(value);
+}
+
 export function ensureParticipantForeground(input: unknown): boolean {
 	if (!isRecord(input)) return false;
-	const isParticipant = collectDelegationItems(input).some((item) => item.task?.includes("[ein-sdd-participant/v1 "));
+	const isParticipant = collectDelegationItems(input).some((item) => isSddParticipantMarker(item.task));
 	if (!isParticipant) return false;
 	input.async = false;
 	input.foregroundOnly = true;
