@@ -18,7 +18,7 @@ type Action = "status" | "to-pi" | "to-claude" | "refresh" | "clear";
 type Tool = "Write" | "Edit" | "Bash" | "Task";
 type Event = { kind: "control"; action: Action } | { kind: "prompt"; text: string } | { kind: "mutation"; tool: Tool; success: boolean } | { kind: "refresh"; boundary: "stop" | "compact-manual" | "compact-auto" } | { kind: "shutdown"; reason: "clear" | "resume" | "logout" | "prompt_input_exit" | "bypass_permissions_disabled" | "other" };
 type HookResult = Readonly<{ stdout: string; exitCode: 0 }>;
-const FRAME_BYTES = 2_048, IO_MS = 1_000, TERM_MS = 500; let sourceStop: Promise<number> | undefined;
+const FRAME_BYTES = 2_048, IO_MS = 1_000, RESPONSE_MS = 3_000, TERM_MS = 500; let sourceStop: Promise<number> | undefined;
 
 export function parseHandoffPrompt(prompt: string): Action | null {
   const actions: Readonly<Record<string, Action>> = {
@@ -41,11 +41,22 @@ async function sendIpc(event: Event): Promise<string> {
   if (!path || !token) return "unavailable";
   return new Promise((resolve) => {
     let output = "", settled = false;
-    const finish = (value: string): void => { if (!settled) { settled = true; resolve(boundedCode(value)); } };
-    const socket = createConnection(path, () => socket.end(`${JSON.stringify({ v: 1, token, event })}\n`));
-    socket.setEncoding("utf8"); socket.on("data", (chunk) => { if (output.length < 256) output += chunk; });
-    socket.setTimeout(1_000, () => { socket.destroy(); finish("unavailable"); });
-    socket.on("end", () => finish(output.trim())); socket.on("error", () => finish("unavailable"));
+    let transportTimer: ReturnType<typeof setTimeout> | undefined;
+    let responseTimer: ReturnType<typeof setTimeout> | undefined;
+    const clearTimers = (): void => { if (transportTimer) clearTimeout(transportTimer); if (responseTimer) clearTimeout(responseTimer); };
+    const finish = (value: string): void => {
+      if (settled) return;
+      settled = true; clearTimers(); socket.destroy(); resolve(boundedCode(value));
+    };
+    const armResponseDeadline = (): void => {
+      if (settled) return;
+      if (transportTimer) clearTimeout(transportTimer);
+      responseTimer = setTimeout(() => finish("unavailable"), RESPONSE_MS);
+    };
+    const socket = createConnection(path, () => socket.write(`${JSON.stringify({ v: 1, token, event })}\n`, armResponseDeadline));
+    socket.setEncoding("utf8"); socket.on("data", (chunk) => { if (!settled && output.length < 256) output += chunk; });
+    transportTimer = setTimeout(() => finish("unavailable"), IO_MS);
+    socket.on("end", () => finish(output.trim())); socket.on("error", () => finish("unavailable")); socket.on("close", () => finish("unavailable"));
   });
 }
 
@@ -117,16 +128,45 @@ export function parseIpcFrame(raw: string, token: string): Readonly<{ ok: true; 
   return { ok: false, code: "invalid-frame" };
 }
 
-export async function listenIpc(path: string, token: string, handler: (event: Event) => Promise<string>, deadline = IO_MS): Promise<Readonly<{ close: () => Promise<void> }>> {
+export async function listenIpc(path: string, token: string, handler: (event: Event) => Promise<string>, transportDeadline = IO_MS, responseDeadline = RESPONSE_MS): Promise<Readonly<{ close: () => Promise<void> }>> {
   const sockets = new Set<Socket>();
-  const server = createServer({ allowHalfOpen: true }, (socket) => { sockets.add(socket); let size = 0, chunks: Buffer[] = [];
-    socket.setTimeout(deadline, () => socket.destroy()); socket.on("close", () => sockets.delete(socket)); socket.on("error", () => {});
-    socket.on("data", (chunk: Buffer) => { size += chunk.byteLength; if (size > FRAME_BYTES) { chunks = []; socket.destroy(); } else chunks.push(chunk); });
-    socket.on("end", async () => { const parsed = parseIpcFrame(Buffer.concat(chunks).toString("utf8"), token); if (!parsed.ok) return socket.end(parsed.code); try { socket.end(boundedCode(await handler(parsed.event))); } catch { socket.end("unavailable"); } });
+  const server = createServer({ allowHalfOpen: true }, (socket) => {
+    sockets.add(socket);
+    let size = 0, chunks: Buffer[] = [], settled = false, dispatched = false;
+    let requestTimer: ReturnType<typeof setTimeout> | undefined;
+    let responseTimer: ReturnType<typeof setTimeout> | undefined;
+    const clearTimers = (): void => { if (requestTimer) clearTimeout(requestTimer); if (responseTimer) clearTimeout(responseTimer); };
+    const settle = (value?: string): void => {
+      if (settled) return;
+      settled = true; clearTimers();
+      if (value === undefined) socket.destroy(); else socket.end(boundedCode(value));
+    };
+    const fail = (): void => settle();
+    const respond = (value: string): void => settle(value);
+    const dispatch = async (): Promise<void> => {
+      if (settled || dispatched) return;
+      dispatched = true;
+      const parsed = parseIpcFrame(Buffer.concat(chunks).toString("utf8"), token);
+      if (!parsed.ok) return respond(parsed.code);
+      if (requestTimer) clearTimeout(requestTimer);
+      responseTimer = setTimeout(fail, responseDeadline);
+      try { respond(await handler(parsed.event)); } catch { respond("unavailable"); }
+    };
+    requestTimer = setTimeout(fail, transportDeadline);
+    socket.on("close", () => { settled = true; clearTimers(); sockets.delete(socket); }); socket.on("error", () => fail());
+    socket.on("data", (chunk: Buffer) => {
+      if (settled) return;
+      if (dispatched) return fail();
+      size += chunk.byteLength;
+      if (size > FRAME_BYTES) { chunks = []; fail(); return; }
+      chunks.push(chunk);
+      if (chunk.includes(10)) void dispatch();
+    });
+    socket.on("end", () => { if (!dispatched) void dispatch(); });
   });
   await new Promise<void>((resolve, reject) => server.listen(path, resolve).once("error", reject)); chmodSync(path, 0o600);
   let closing: Promise<void> | undefined;
-  return { close: () => closing ??= (async () => { const stopped = new Promise<void>((resolve) => server.close(() => resolve())); for (const socket of sockets) socket.destroy(); await Promise.race([stopped, new Promise<void>((resolve) => setTimeout(resolve, deadline))]); rmSync(path, { force: true }); })() };
+  return { close: () => closing ??= (async () => { const stopped = new Promise<void>((resolve) => server.close(() => resolve())); for (const socket of sockets) socket.destroy(); await Promise.race([stopped, new Promise<void>((resolve) => setTimeout(resolve, transportDeadline))]); rmSync(path, { force: true }); })() };
 }
 
 type SourceChild = Readonly<{ exitCode: number | null; exited: Promise<number>; kill: (signal: NodeJS.Signals) => void }>;
