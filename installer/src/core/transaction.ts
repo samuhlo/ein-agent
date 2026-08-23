@@ -7,7 +7,8 @@ import { spawnContinuation } from "./child-continuation.ts";
 import { commitExecutableCandidate, prepareExecutableCandidate, restoreExecutableCandidate } from "./executable.ts";
 import { classifyOwnership, commitMarkerV2, readMarkerV2 } from "./marker-v2.ts";
 import { BACKUP_DIR, INSTALL_MARKER } from "./paths.ts";
-import type { MarkerV2, OwnershipMarker, ReleaseSelector, ReleaseTag, ResolvedRelease, Result, UpdateOutcome, UpdateStageError } from "./release-types.ts";
+import { deriveArtifactId, isReleaseChannel } from "./release-types.ts";
+import type { ArtifactId, MarkerV2, OwnershipMarker, ReleaseChannel, ReleaseSelector, ReleaseTag, ResolvedRelease, Result, UpdateOutcome, UpdateStageError } from "./release-types.ts";
 import { fetchLatestRelease, fetchReleaseByTag } from "./release-record.ts";
 import { resolveRecord } from "./release-resolver.ts";
 import { deployEmbeddedTemplate, restoreTemplate, snapshotTemplate, validateDeployedManifest } from "./template-transaction.ts";
@@ -22,14 +23,45 @@ export type TransactionState =
   | "validated"
   | "complete";
 
+/** A durable terminal state for a proven local rollback, distinct from update completion. */
+export type JournalState = TransactionState | "recovery-succeeded";
+
+export type ArtifactEndpoint =
+  | { status: "none" }
+  | { status: "present"; artifactId: ArtifactId }
+  | { status: "missing"; reason: string };
+
+export type RollbackOutcome =
+  | { status: "not-attempted" }
+  | { status: "attempted" }
+  | { status: "succeeded" }
+  | { status: "failed"; message: string };
+
+export type LocalTransactionEvidence = {
+  authority: "local";
+  previousArtifactId: ArtifactEndpoint;
+  attemptedArtifactId: ArtifactEndpoint;
+  managedTree: string;
+  backupReference: string;
+};
+
 export type Journal = {
   schemaVersion: 1;
   txId: string;
   target: ReleaseTag;
   owner: OwnershipMarker;
-  state: TransactionState;
+  state: JournalState;
   pending?: Exclude<TransactionState, "prepared" | "complete">;
   artifacts: Record<string, string>;
+  /** Present for the active local update path; old journals remain readable for recovery. */
+  authority?: "local";
+  /** The effective channel chosen by the caller for this local transaction. */
+  channel?: ReleaseChannel;
+  previousArtifactId?: ArtifactEndpoint;
+  attemptedArtifactId?: ArtifactEndpoint;
+  managedTree?: string;
+  backupReference?: string;
+  rollbackOutcome?: RollbackOutcome;
 };
 
 export type TransactionError = UpdateStageError & { recoveryArtifacts: string[] };
@@ -59,14 +91,57 @@ function defaultJournalPath(): string {
   return join(BACKUP_DIR, ".ein-update-journal.json");
 }
 
+function isCanonicalArtifactId(value: unknown): value is ArtifactId {
+  if (typeof value !== "string") return false;
+  const separator = value.lastIndexOf("@sha256:");
+  if (separator <= 0) return false;
+  const derived = deriveArtifactId(value.slice(0, separator), value.slice(separator + "@sha256:".length));
+  return derived.ok && derived.value === value;
+}
+
+function isArtifactEndpoint(value: unknown): value is ArtifactEndpoint {
+  if (!value || typeof value !== "object" || !("status" in value)) return false;
+  const endpoint = value as Partial<ArtifactEndpoint>;
+  if (endpoint.status === "none") return true;
+  if (endpoint.status === "missing") return typeof endpoint.reason === "string" && endpoint.reason.length > 0;
+  return endpoint.status === "present" && isCanonicalArtifactId(endpoint.artifactId);
+}
+
+function isRollbackOutcome(value: unknown): value is RollbackOutcome {
+  if (!value || typeof value !== "object" || !("status" in value)) return false;
+  const outcome = value as Partial<RollbackOutcome>;
+  if (outcome.status === "not-attempted" || outcome.status === "attempted" || outcome.status === "succeeded") return true;
+  return outcome.status === "failed" && typeof outcome.message === "string" && outcome.message.length > 0;
+}
+
+function hasLocalEvidence(journal: Journal): journal is Journal & Required<LocalTransactionEvidence> & { rollbackOutcome: RollbackOutcome } {
+  return journal.authority === "local" && isArtifactEndpoint(journal.previousArtifactId) && isArtifactEndpoint(journal.attemptedArtifactId) &&
+    typeof journal.managedTree === "string" && journal.managedTree.length > 0 &&
+    typeof journal.backupReference === "string" && journal.backupReference.length > 0 && isRollbackOutcome(journal.rollbackOutcome);
+}
+
+function hasEvidenceFields(value: Partial<Journal>): boolean {
+  return ["authority", "previousArtifactId", "attemptedArtifactId", "managedTree", "backupReference", "rollbackOutcome"].some((field) => field in value);
+}
+
+function sameRollbackOutcome(left: RollbackOutcome | undefined, right: RollbackOutcome | undefined): boolean {
+  if (!left || !right || left.status !== right.status) return false;
+  if (left.status !== "failed") return true;
+  return right.status === "failed" && left.message === right.message;
+}
+
 function readJournal(caps: UpdateCaps, journalPath: string): Journal | null {
   if (!caps.fs.exists(journalPath)) return null;
   try {
     const parsed = JSON.parse(new TextDecoder().decode(caps.fs.readFile(journalPath))) as Partial<Journal>;
+    const isTerminalRecovery = parsed.state === "recovery-succeeded";
     if (
       parsed.schemaVersion !== 1 || typeof parsed.txId !== "string" || typeof parsed.target !== "string" ||
       !parsed.owner || typeof parsed.owner !== "object" || typeof parsed.state !== "string" ||
-      !parsed.artifacts || typeof parsed.artifacts !== "object" || !(parsed.state in TRANSITIONS)
+      !parsed.artifacts || typeof parsed.artifacts !== "object" || (!isTerminalRecovery && !Object.prototype.hasOwnProperty.call(TRANSITIONS, parsed.state)) ||
+      (parsed.channel !== undefined && !isReleaseChannel(parsed.channel)) ||
+      (hasEvidenceFields(parsed) && !hasLocalEvidence(parsed as Journal)) ||
+      (isTerminalRecovery && (!hasLocalEvidence(parsed as Journal) || parsed.rollbackOutcome?.status !== "succeeded"))
     ) return null;
     return parsed as Journal;
   } catch {
@@ -80,6 +155,55 @@ function persistJournal(caps: UpdateCaps, journalPath: string, journal: Journal)
   caps.fs.writeFile(temporary, encode(journal));
   caps.fs.rename(temporary, journalPath);
   caps.fs.fsyncDir(dirname(journalPath));
+}
+
+function persistLocalRollbackOutcome(
+  caps: UpdateCaps,
+  journalPath: string,
+  journal: Journal,
+  outcome: RollbackOutcome,
+  failureMessage: string,
+): Result<void, TransactionError> {
+  if (!hasLocalEvidence(journal)) return { ok: true, value: undefined };
+  journal.rollbackOutcome = outcome;
+  try {
+    persistJournal(caps, journalPath, journal);
+    const readBack = readJournal(caps, journalPath);
+    if (!readBack || !hasLocalEvidence(readBack) || !sameRollbackOutcome(readBack.rollbackOutcome, outcome)) {
+      return { ok: false, error: transactionError("recovering", "journal-write-failed", "Recovery outcome read-back did not match the persisted evidence", journal) };
+    }
+    Object.assign(journal, readBack);
+    return { ok: true, value: undefined };
+  } catch (error) {
+    return { ok: false, error: transactionError("recovering", "journal-write-failed", error instanceof Error ? error.message : failureMessage, journal) };
+  }
+}
+
+function finalizeSuccessfulRecovery(caps: UpdateCaps, journalPath: string, journal: Journal): Result<void, TransactionError> {
+  if (!hasLocalEvidence(journal) || journal.rollbackOutcome.status !== "succeeded") {
+    return { ok: false, error: transactionError("recovering", "recovery-required", "Successful local recovery evidence is incomplete", journal) };
+  }
+  journal.state = "recovery-succeeded";
+  try {
+    persistJournal(caps, journalPath, journal);
+    const readBack = readJournal(caps, journalPath);
+    if (!readBack || readBack.state !== "recovery-succeeded" || !hasLocalEvidence(readBack) || readBack.rollbackOutcome.status !== "succeeded") {
+      return { ok: false, error: transactionError("recovering", "journal-write-failed", "Terminal recovery state read-back did not match the persisted evidence", journal) };
+    }
+    Object.assign(journal, readBack);
+    return { ok: true, value: undefined };
+  } catch (error) {
+    return { ok: false, error: transactionError("recovering", "journal-write-failed", error instanceof Error ? error.message : "Could not persist terminal recovery state", journal) };
+  }
+}
+
+function cleanTerminalRecovery(caps: UpdateCaps, journalPath: string, journal: Journal): Result<RecoveryStatus, TransactionError> {
+  try {
+    caps.fs.removeFile(journalPath);
+    return { ok: true, value: "clean" };
+  } catch (error) {
+    return { ok: false, error: transactionError("recovering", "journal-cleanup-failed", error instanceof Error ? error.message : "Could not clean terminal recovery journal", journal) };
+  }
 }
 
 export type Transaction = {
@@ -97,6 +221,8 @@ export function createTransaction(options: {
   owner: OwnershipMarker;
   txId?: string;
   journalPath?: string;
+  channel?: ReleaseChannel;
+  evidence?: LocalTransactionEvidence;
 }): Transaction {
   const journalPath = options.journalPath ?? defaultJournalPath();
   const journal: Journal = {
@@ -106,10 +232,18 @@ export function createTransaction(options: {
     owner: options.owner,
     state: "prepared",
     artifacts: {},
+    ...(options.channel ? { channel: options.channel } : {}),
+    ...(options.evidence ? {
+      ...options.evidence,
+      rollbackOutcome: { status: "not-attempted" as const },
+    } : {}),
   };
   const committedRollbacks: Rollback[] = [];
 
   const persist = (): Result<void, TransactionError> => {
+    if (hasEvidenceFields(journal) && !hasLocalEvidence(journal)) {
+      return { ok: false, error: transactionError("preparing", "invalid-journal-evidence", "Local transaction evidence is incomplete or malformed", journal) };
+    }
     try {
       persistJournal(options.caps, journalPath, journal);
       return { ok: true, value: undefined };
@@ -118,12 +252,26 @@ export function createTransaction(options: {
     }
   };
 
+  const persistRollbackOutcome = (outcome: RollbackOutcome): Result<void, TransactionError> =>
+    persistLocalRollbackOutcome(options.caps, journalPath, journal, outcome, "Could not persist rollback outcome");
+
   const rollbackCommitted = async (): Promise<Result<void, TransactionError>> => {
+    if (hasLocalEvidence(journal) && journal.rollbackOutcome.status === "succeeded") {
+      if (journal.state === "recovery-succeeded") return { ok: true, value: undefined };
+      const finalized = finalizeSuccessfulRecovery(options.caps, journalPath, journal);
+      return finalized.ok ? { ok: true, value: undefined } : finalized;
+    }
+    const attempted = persistRollbackOutcome({ status: "attempted" });
+    if (!attempted.ok) return attempted;
     for (const rollback of [...committedRollbacks].reverse()) {
       try {
         await rollback();
       } catch (error) {
-        return { ok: false, error: transactionError("recovering", "rollback-failed", error instanceof Error ? error.message : "Rollback failed", journal) };
+        const message = error instanceof Error ? error.message : "Rollback failed";
+        const failed = persistRollbackOutcome({ status: "failed", message });
+        return failed.ok
+          ? { ok: false, error: transactionError("recovering", "rollback-failed", message, journal) }
+          : failed;
       }
     }
     try {
@@ -136,6 +284,20 @@ export function createTransaction(options: {
           // Missing artifacts were either never created or already restored.
         }
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not clear recovered artifacts";
+      const failed = persistRollbackOutcome({ status: "failed", message });
+      return failed.ok
+        ? { ok: false, error: transactionError("recovering", "journal-cleanup-failed", message, journal) }
+        : failed;
+    }
+    const succeeded = persistRollbackOutcome({ status: "succeeded" });
+    if (!succeeded.ok) return succeeded;
+    if (hasLocalEvidence(journal)) {
+      const finalized = finalizeSuccessfulRecovery(options.caps, journalPath, journal);
+      return finalized.ok ? { ok: true, value: undefined } : finalized;
+    }
+    try {
       options.caps.fs.removeFile(journalPath);
       return { ok: true, value: undefined };
     } catch (error) {
@@ -150,7 +312,7 @@ export function createTransaction(options: {
       return persist();
     },
     async transition(state, action, rollback) {
-      if (!TRANSITIONS[journal.state].includes(state)) {
+      if (journal.state === "recovery-succeeded" || !TRANSITIONS[journal.state].includes(state)) {
         return { ok: false, error: transactionError("recovering", "invalid-transition", `Cannot transition from ${journal.state} to ${state}`, journal) };
       }
       journal.pending = state;
@@ -207,6 +369,8 @@ export async function recoverPendingTransaction(options: {
   const journalPath = options.journalPath ?? defaultJournalPath();
   const journal = readJournal(options.caps, journalPath);
   if (!options.caps.fs.exists(journalPath)) return { ok: true, value: "clean" };
+  const persistRecoveryOutcome = (outcome: RollbackOutcome): Result<void, TransactionError> =>
+    journal ? persistLocalRollbackOutcome(options.caps, journalPath, journal, outcome, "Could not persist recovery outcome") : { ok: true, value: undefined };
   if (!journal || journal.owner.type === "ownership-ambiguous") {
     return { ok: false, error: transactionError("recovering", "recovery-required", "Pending transaction identity is ambiguous", journal ?? {
       schemaVersion: 1, txId: "unknown", target: "installer-vunknown" as ReleaseTag, owner: { type: "ownership-ambiguous", reason: "invalid journal" }, state: "prepared", artifacts: {},
@@ -220,17 +384,41 @@ export async function recoverPendingTransaction(options: {
       return { ok: false, error: transactionError("recovering", "journal-cleanup-failed", error instanceof Error ? error.message : "Could not clean committed journal", journal) };
     }
   }
+  if (journal.state === "recovery-succeeded") return cleanTerminalRecovery(options.caps, journalPath, journal);
+  // Journals written by the previous recovery implementation can already contain
+  // durable success without the terminal state; finalize those before cleanup.
+  if (hasLocalEvidence(journal) && journal.rollbackOutcome.status === "succeeded") {
+    const finalized = finalizeSuccessfulRecovery(options.caps, journalPath, journal);
+    if (!finalized.ok) return finalized;
+    return cleanTerminalRecovery(options.caps, journalPath, journal);
+  }
   if (!options.recover) {
     return { ok: false, error: transactionError("recovering", "recovery-required", "Pending transaction requires explicit recovery", journal) };
   }
+  const attempted = persistRecoveryOutcome({ status: "attempted" });
+  if (!attempted.ok) return attempted;
   try {
     if (!await options.recover(journal)) {
-      return { ok: false, error: transactionError("recovering", "recovery-required", "Could not prove recovered installation identity", journal) };
+      const message = "Could not prove recovered installation identity";
+      const failed = persistRecoveryOutcome({ status: "failed", message });
+      return failed.ok
+        ? { ok: false, error: transactionError("recovering", "recovery-required", message, journal) }
+        : failed;
+    }
+    const succeeded = persistRecoveryOutcome({ status: "succeeded" });
+    if (!succeeded.ok) return succeeded;
+    if (hasLocalEvidence(journal)) {
+      const finalized = finalizeSuccessfulRecovery(options.caps, journalPath, journal);
+      return finalized.ok ? { ok: true, value: "recovered" } : finalized;
     }
     options.caps.fs.removeFile(journalPath);
     return { ok: true, value: "recovered" };
   } catch (error) {
-    return { ok: false, error: transactionError("recovering", "recovery-required", error instanceof Error ? error.message : "Could not recover transaction", journal) };
+    const message = error instanceof Error ? error.message : "Could not recover transaction";
+    const failed = persistRecoveryOutcome({ status: "failed", message });
+    return failed.ok
+      ? { ok: false, error: transactionError("recovering", "recovery-required", message, journal) }
+      : failed;
   }
 }
 
@@ -243,18 +431,20 @@ export type UpdateTransactionOptions = {
   markerPath?: string;
   journalPath?: string;
   dryRun?: boolean;
+  /** Effective channel supplied by the preference boundary; omitted means caller-level stable compatibility. */
+  channel?: ReleaseChannel;
 };
 
 function failure(error: UpdateStageError, selector: ReleaseSelector, release?: ResolvedRelease): UpdateOutcome {
   return { type: "failed", stage: error.stage, message: error.message, selector, ...(release ? { release } : {}) };
 }
 
-async function resolveForDryRun(options: UpdateTransactionOptions): Promise<Result<ResolvedRelease, UpdateStageError>> {
+async function resolveForDryRun(options: UpdateTransactionOptions, channel: ReleaseChannel): Promise<Result<ResolvedRelease, UpdateStageError>> {
   const record = options.selector.kind === "latest"
-    ? await fetchLatestRelease(options.caps)
-    : await fetchReleaseByTag(options.selector.tag, options.caps);
+    ? await fetchLatestRelease(options.caps, undefined, channel)
+    : await fetchReleaseByTag(options.selector.tag, options.caps, undefined, channel);
   if (!record.ok) return record;
-  return resolveRecord(options.selector, record.value);
+  return resolveRecord(options.selector, record.value, channel);
 }
 
 function currentIsCoherent(options: UpdateTransactionOptions, marker: MarkerV2, release: ResolvedRelease, digest: string): Promise<boolean> {
@@ -289,6 +479,10 @@ function cleanup(paths: string[], caps: UpdateCaps): void {
 
 /** Executes the verified release state machine; callers only render its outcome. */
 export async function runUpdateTransaction(options: UpdateTransactionOptions): Promise<UpdateOutcome> {
+  const effectiveChannel: unknown = options.channel === undefined ? "stable" : options.channel;
+  if (!isReleaseChannel(effectiveChannel)) {
+    return failure({ stage: "resolving", code: "invalid-channel", message: "Update transaction requires stable or alpha" }, options.selector);
+  }
   const markerPath = options.markerPath ?? INSTALL_MARKER;
   const marker = readMarkerV2(options.caps, markerPath);
   const owner = classifyOwnership(marker);
@@ -297,13 +491,13 @@ export async function runUpdateTransaction(options: UpdateTransactionOptions): P
   }
 
   if (options.dryRun) {
-    const resolved = await resolveForDryRun(options);
+    const resolved = await resolveForDryRun(options, effectiveChannel);
     return resolved.ok
       ? { type: "dry-run", release: resolved.value, owner }
       : failure(resolved.error, options.selector);
   }
 
-  const acquired = await acquireRelease({ selector: options.selector, platform: options.platform, caps: options.caps });
+  const acquired = await acquireRelease({ selector: options.selector, platform: options.platform, caps: options.caps, channel: effectiveChannel });
   if (!acquired.ok) return failure(acquired.error, options.selector);
   try {
     const release = acquired.value.release;
@@ -333,7 +527,25 @@ export async function runUpdateTransaction(options: UpdateTransactionOptions): P
       return failure({ stage: "preparing", code: "marker-backup-failed", message: error instanceof Error ? error.message : "Could not preserve the installed marker" }, options.selector, release);
     }
 
-    const tx = createTransaction({ caps: options.caps, target: release.release.tag, owner: { type: "standalone" }, journalPath: options.journalPath });
+    const previousArtifactId: ArtifactEndpoint = !marker
+      ? { status: "none" }
+      : "artifactId" in marker
+        ? { status: "present", artifactId: marker.artifactId }
+        : { status: "missing", reason: "Installed marker has no verified artifactId" };
+    const tx = createTransaction({
+      caps: options.caps,
+      target: release.release.tag,
+      channel: effectiveChannel,
+      owner: { type: "standalone" },
+      journalPath: options.journalPath,
+      evidence: {
+        authority: "local",
+        previousArtifactId,
+        attemptedArtifactId: { status: "present", artifactId: acquired.value.artifactId },
+        managedTree: options.agentDir,
+        backupReference: snapshot.value.path,
+      },
+    });
     const prepared = tx.prepare({ binary: candidate.value.backupPath, template: snapshot.value.path, ...(markerBackup ? { marker: markerBackup } : {}) });
     if (!prepared.ok) return failure(prepared.error, options.selector, release);
     const removeSignals = installSignalHandlers(tx, options.caps);
@@ -365,7 +577,7 @@ export async function runUpdateTransaction(options: UpdateTransactionOptions): P
       if (!deployed.ok) return failure(deployed.error, options.selector, release);
 
       const committed = await tx.transition("marker-committed", () => {
-        const result = commitMarkerV2({ release, binaryVersion: expectedVersion, templateVersion: expectedVersion, owner: { type: "standalone" }, asset: acquired.value.digest, markerPath, caps: options.caps });
+        const result = commitMarkerV2({ release, binaryVersion: expectedVersion, templateVersion: expectedVersion, owner: { type: "standalone" }, asset: acquired.value.digest, channel: effectiveChannel, markerPath, caps: options.caps });
         if (!result.ok) throw new Error(result.error.message);
       }, () => {
         if (markerBackup) options.caps.fs.copyFile(markerBackup, markerPath);
