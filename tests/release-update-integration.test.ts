@@ -34,7 +34,9 @@ const PRIOR_TAG = `installer-v${PRIOR_VERSION}` as const;
 
 const assetBytes = encoder.encode(`verified-release-${TARGET_VERSION}`);
 const assetDigest = createHash("sha256").update(assetBytes).digest("hex");
-const apiLatest = `https://api.github.com/repos/samuhlo/ein-agent/releases/latest`;
+const priorAssetBytes = encoder.encode(`prior-${PRIOR_VERSION}`);
+const priorDigest = createHash("sha256").update(priorAssetBytes).digest("hex");
+const apiLatest = `https://api.github.com/repos/samuhlo/ein-agent/releases?per_page=30`;
 const explicitUrl = `https://api.github.com/repos/samuhlo/ein-agent/releases/tags/${TARGET_TAG}`;
 const assetUrl = `https://github.com/samuhlo/ein-agent/releases/download/${TARGET_TAG}/${ASSET_NAME}`;
 const checksumsUrl = `https://github.com/samuhlo/ein-agent/releases/download/${TARGET_TAG}/checksums.txt`;
@@ -48,7 +50,7 @@ function root(): string {
   return dir;
 }
 
-function releasePayload(options: { tag?: string } = {}): Uint8Array {
+function releaseRecordPayload(options: { tag?: string } = {}): Uint8Array {
   return encoder.encode(JSON.stringify({
     tag_name: options.tag ?? TARGET_TAG,
     html_url: `https://github.com/samuhlo/ein-agent/releases/tag/${options.tag ?? TARGET_TAG}`,
@@ -57,6 +59,14 @@ function releasePayload(options: { tag?: string } = {}): Uint8Array {
       { name: "checksums.txt", browser_download_url: checksumsUrl },
     ],
   }));
+}
+
+function releaseListPayload(options: { tag?: string } = {}): Uint8Array {
+  return encoder.encode(JSON.stringify([JSON.parse(new TextDecoder().decode(releaseRecordPayload(options)))]));
+}
+
+function releasePayload(options: { tag?: string } = {}): Uint8Array {
+  return releaseListPayload(options);
 }
 
 function scriptedHttp(responses: Record<string, HttpResponse | Uint8Array | Error>): UpdateCaps["http"] {
@@ -101,7 +111,10 @@ function scriptedTemplate(templateVersion: string): UpdateCaps["template"] {
   };
 }
 
-function markerBytes(version: string, owner: object, assetSha = "old"): Uint8Array {
+function markerBytes(version: string, owner: object, assetSha = priorDigest): Uint8Array {
+  const artifactId = /^[0-9a-f]{64}$/i.test(assetSha)
+    ? `installer-v${version}@sha256:${assetSha.toLowerCase()}`
+    : undefined;
   return encoder.encode(JSON.stringify({
     schemaVersion: 2,
     version,
@@ -111,6 +124,7 @@ function markerBytes(version: string, owner: object, assetSha = "old"): Uint8Arr
     installedAt: "2026-01-01T00:00:00.000Z",
     channel: "stable",
     owner,
+    artifactId,
     asset: { assetName: ASSET_NAME, sha256: assetSha },
   }));
 }
@@ -229,7 +243,7 @@ describe("release update integration", () => {
     const caps: UpdateCaps = {
       ...base,
       http: scriptedHttp({
-        [explicitUrl]: releasePayload(),
+        [explicitUrl]: releaseRecordPayload(),
         [assetUrl]: assetBytes,
         [checksumsUrl]: encoder.encode(`${assetDigest}  ${ASSET_NAME}\n`),
       }),
@@ -312,7 +326,7 @@ describe("release update integration", () => {
     mkdirSync(agentDir, { recursive: true });
     writeFileSync(destinationPath, priorBytes(PRIOR_VERSION));
     chmodSync(destinationPath, 0o755);
-    writeFileSync(markerPath, markerBytes("0.18.0", { type: "standalone" }, "stale-digest"));
+    writeFileSync(markerPath, markerBytes("0.18.0", { type: "standalone" }, "0".repeat(64)));
 
     const base = defaultUpdateCaps();
     const child = scriptedChild((args) => {
@@ -366,7 +380,7 @@ describe("release update integration", () => {
     const priorBinary = priorBytes(PRIOR_VERSION);
     writeFileSync(destinationPath, priorBinary);
     chmodSync(destinationPath, 0o755);
-    writeFileSync(markerPath, markerBytes(PRIOR_VERSION, { type: "package-manager", manager: "homebrew" }, "external-digest"));
+    writeFileSync(markerPath, markerBytes(PRIOR_VERSION, { type: "package-manager", manager: "homebrew" }, priorDigest));
 
     const base = defaultUpdateCaps();
     // [CONTRACT] La transacción actual adquiere primero y luego bloquea por
@@ -563,11 +577,11 @@ describe("release update integration", () => {
     chmodSync(destinationPath, 0o755);
     writeFileSync(markerPath, markerBytes(PRIOR_VERSION, { type: "standalone" }));
 
-    const releaseWithoutChecksums = encoder.encode(JSON.stringify({
+    const releaseWithoutChecksums = encoder.encode(JSON.stringify([{
       tag_name: TARGET_TAG,
       html_url: `https://github.com/samuhlo/ein-agent/releases/tag/${TARGET_TAG}`,
       assets: [{ name: ASSET_NAME, browser_download_url: assetUrl }],
-    }));
+    }]));
     const base = defaultUpdateCaps();
     const caps: UpdateCaps = {
       ...base,

@@ -6,8 +6,10 @@ import { installDeclaredPackages, installPi, refreshExternalTools, type InstallS
 import { AGENT_DIR, INSTALL_MARKER } from "../core/paths.ts";
 import { parseSelector } from "../core/release-resolver.ts";
 import type { ReleaseSelector, UpdateOutcome } from "../core/release-types.ts";
+import { readReleaseChannelPreference } from "../core/release-channel-preference.ts";
 import { recoverPendingTransaction, runUpdateTransaction } from "../core/transaction.ts";
 import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
+import { readInstallerUpdateEvidence, type InstallerUpdateReadEvidence } from "../core/update-advisor-read.ts";
 import { bold, gold } from "../tui/theme.ts";
 import { renderOutcome } from "./result.ts";
 
@@ -24,6 +26,8 @@ export type UpdateRunDependencies = {
   markerPath?: string;
   journalPath?: string;
   destinationPath?: string;
+  installationPath?: string;
+  readAdvisor?: () => Promise<InstallerUpdateReadEvidence>;
   interactive?: boolean;
   write?: (line: string) => void;
   // pi (the underlying agent) is a package-manager-owned artifact outside the
@@ -62,27 +66,54 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
   const write = dependencies.write ?? ((line: string) => p.log.message(line));
   if (dependencies.interactive !== false) p.intro("actualizar ein y pi");
 
-  const recovery = await recoverPendingTransaction({ caps, journalPath: dependencies.journalPath });
+  const markerPath = dependencies.markerPath ?? INSTALL_MARKER;
+  const installationPath = dependencies.installationPath ?? dependencies.agentDir ?? dirname(markerPath);
+  const preference = readReleaseChannelPreference(installationPath);
   const selector = parseSelector(flags.selectorArgs);
   let outcome: UpdateOutcome;
-  if (!recovery.ok) {
-    outcome = failed(selector.ok ? selector.value : undefined, recovery.error.stage, recovery.error.message);
-  } else if (!selector.ok) {
-    outcome = failed(undefined, selector.error.stage, selector.error.message);
+  if (preference.status === "unavailable") {
+    outcome = failed(
+      selector.ok ? selector.value : undefined,
+      "resolving",
+      `Release channel preference unavailable: ${preference.reason}`,
+    );
   } else {
-    outcome = await runUpdateTransaction({
-      caps,
-      selector: selector.value,
-      platform: dependencies.platform ?? detectPlatform(),
-      agentDir: dependencies.agentDir ?? AGENT_DIR,
-      markerPath: dependencies.markerPath ?? INSTALL_MARKER,
-      journalPath: dependencies.journalPath,
-      destinationPath: dependencies.destinationPath ?? process.execPath,
-      dryRun: flags.dryRun,
-    });
+    const recovery = await recoverPendingTransaction({ caps, journalPath: dependencies.journalPath });
+    if (!recovery.ok) {
+      outcome = failed(selector.ok ? selector.value : undefined, recovery.error.stage, recovery.error.message);
+    } else if (!selector.ok) {
+      outcome = failed(undefined, selector.error.stage, selector.error.message);
+    } else {
+      outcome = await runUpdateTransaction({
+        caps,
+        selector: selector.value,
+        channel: preference.channel,
+        platform: dependencies.platform ?? detectPlatform(),
+        agentDir: dependencies.agentDir ?? AGENT_DIR,
+        markerPath,
+        journalPath: dependencies.journalPath,
+        destinationPath: dependencies.destinationPath ?? process.execPath,
+        dryRun: flags.dryRun,
+      });
+    }
   }
 
-  const rendered = renderOutcome(outcome);
+  const releaseForAdvisor = outcome.release?.release;
+  const readAdvisor = dependencies.readAdvisor ?? (() => readInstallerUpdateEvidence({
+    caps,
+    markerPath,
+    installationPath,
+    readRelease: async () => releaseForAdvisor
+      ? { ok: true, value: releaseForAdvisor }
+      : { ok: false, error: "update-release-unavailable" },
+  }));
+  let advisor: InstallerUpdateReadEvidence | undefined;
+  try {
+    advisor = await readAdvisor();
+  } catch {
+    // Advisor evidence is informational and must never change the update exit code.
+  }
+  const rendered = renderOutcome(outcome, advisor);
   for (const line of rendered.lines) write(line);
 
   // The transactional updater above only owns the Ein binary + template +
