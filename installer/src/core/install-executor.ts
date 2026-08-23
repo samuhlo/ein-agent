@@ -6,6 +6,7 @@ import {
   type RuntimeInstallTarget,
 } from "./install-plan.ts";
 import { isProxy } from "node:util/types";
+import { BackupFailure, sanitizeBackupFailureDetail } from "./backup.ts";
 
 export type InstallPlanHandlerResult = Readonly<{ ok: boolean; detail?: string }>;
 export type InstallPlanExecutionHandler = () => Promise<InstallPlanHandlerResult> | InstallPlanHandlerResult;
@@ -30,7 +31,13 @@ function preflight(plan: InstallPlanV1, handlers: InstallPlanExecutionHandlers):
   } catch { throw new InstallPlanExecutionError("invalid-handlers"); }
 }
 
-const failureDetail = (runtime: InstallPlanRuntime, id: InstallPlanEntryId): string => runtime === "shared" ? `Bun no disponible: ${id}` : `${runtime === "pi" ? "Pi" : "Claude Code"} installation failed at ${id}`;
+const genericFailureDetail = (runtime: InstallPlanRuntime, id: InstallPlanEntryId): string => runtime === "shared" ? `Bun no disponible: ${id}` : `${runtime === "pi" ? "Pi" : "Claude Code"} installation failed at ${id}`;
+const isBackupEntry = (runtime: InstallPlanRuntime, id: InstallPlanEntryId): boolean => runtime === "pi" && id === "pi.backup-current";
+const failureDetail = (runtime: InstallPlanRuntime, id: InstallPlanEntryId, detail?: string): string => {
+  if (!isBackupEntry(runtime, id) || !detail) return genericFailureDetail(runtime, id);
+  const safe = sanitizeBackupFailureDetail(detail);
+  return safe ? safe : genericFailureDetail(runtime, id);
+};
 
 /** Execute only the immutable inventory order; failures stop their runtime, not later runtimes. */
 export async function executeInstallPlan(plan: InstallPlanV1, handlers: InstallPlanExecutionHandlers): Promise<InstallPlanExecution> {
@@ -41,9 +48,9 @@ export async function executeInstallPlan(plan: InstallPlanV1, handlers: InstallP
     if (failures.shared || failures[entry.runtime]) continue;
     try {
       const result = await admitted[entry.id]();
-      if (!result.ok) failures[entry.runtime] = failureDetail(entry.runtime, entry.id);
-    } catch {
-      failures[entry.runtime] = failureDetail(entry.runtime, entry.id);
+      if (!result.ok) failures[entry.runtime] = failureDetail(entry.runtime, entry.id, result.detail);
+    } catch (error) {
+      failures[entry.runtime] = isBackupEntry(entry.runtime, entry.id) && error instanceof BackupFailure ? error.message : genericFailureDetail(entry.runtime, entry.id);
     }
   }
   return Object.freeze({ ok: Object.keys(failures).length === 0, failures: Object.freeze(failures) });
