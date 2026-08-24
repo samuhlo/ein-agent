@@ -33,7 +33,7 @@ import {
 	readChangeLane,
 	type SddLane,
 } from "./sdd-lane.ts";
-import { isSafeChangeName, listActiveChanges, resolveChangesDir } from "./sdd-router.ts";
+import { isSafeChangeName, resolveActiveSelection, resolveChangesDir, selectedChange } from "./sdd-router.ts";
 
 /** La postura de TDD es binaria a nivel de cambio: se corrió el ciclo o no. */
 export type TddStance = "off" | "strict";
@@ -95,7 +95,9 @@ export function changeDirFor(cwd: string, change: string): string {
  * contesten distinto a la misma pregunta.
  */
 export function resolveActiveChange(cwd: string): string | undefined {
-	return listActiveChanges(cwd)[0];
+	// Ante varios cambios abiertos no hay "el activo": devolver el primero era
+	// contestar con el orden de `readdirSync` disfrazado de decisión.
+	return selectedChange(resolveActiveSelection(cwd)) ?? undefined;
 }
 
 export function readPreflightRecord(changeDir: string): SddPreflightRecord | undefined {

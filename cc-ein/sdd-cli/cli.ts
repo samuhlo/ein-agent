@@ -28,6 +28,7 @@ import {
 	formatBudget,
 	listActiveChanges,
 	isSafeChangeName,
+	resolveActiveSelection,
 	type SddChangeStatus,
 } from "../../ein-pi/agent/lib/sdd-router.ts";
 import { lintChange, type ChangeLintReport } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
@@ -207,13 +208,39 @@ async function guardCmd(): Promise<void> {
 	if (result) emitDecision(result.decision, result.reason);
 }
 
+// Resolución del cambio sobre el que actúa un subcomando. Un solo sitio, porque
+// seis subcomandos hacían `?? resolveSddStatus(dir).change ?? ""` y heredaban la
+// misma elección implícita.
+//
+// Ante varios cambios abiertos NO elige: estos subcomandos escriben, y un
+// comando que elige y avisa es un comando cuyo aviso se lee después de escribir.
+export function resolveCommandChange(
+	dir: string,
+	requested: string | undefined,
+	command: string,
+): { ok: true; change: string } | { ok: false; text: string; exitCode: 1 } {
+	const selection = resolveActiveSelection(dir, requested);
+	if (selection.kind === "ambiguous") {
+		return {
+			ok: false,
+			exitCode: 1,
+			text: `// sdd ${command} — hay ${selection.candidates.length} cambios activos y ninguno elegido: ${selection.candidates.join(", ")}.\n// Indica cuál: cc-ein-sdd ${command} <change>`,
+		};
+	}
+	if (selection.kind === "none") {
+		return { ok: false, exitCode: 1, text: `// sdd ${command} — no active change in openspec/changes/.` };
+	}
+	return { ok: true, change: selection.change };
+}
+
 // Carril del cambio. Lo declara el HUMANO: no existe señal determinista antes
 // de planificar, así que el sistema no lo adivina. Sin argumento, informa.
 export function runLaneCommand(dir: string, args: readonly string[]): { text: string; exitCode: 0 | 1 } {
 	const positional = args.filter((arg) => !arg.startsWith("--"));
 	const requested = positional.map(normalizeLane).find((lane) => lane !== undefined);
-	const name = positional.find((arg) => normalizeLane(arg) === undefined) ?? resolveSddStatus(dir).change ?? "";
-	if (!name) return { text: "// sdd lane — no active change in openspec/changes/.", exitCode: 1 };
+	const resolved = resolveCommandChange(dir, positional.find((arg) => normalizeLane(arg) === undefined), "lane");
+	if (!resolved.ok) return { text: resolved.text, exitCode: resolved.exitCode };
+	const name = resolved.change;
 	if (!isSafeChangeName(name)) return { text: `// sdd lane — invalid change name: ${JSON.stringify(name)}.`, exitCode: 1 };
 
 	const changeDir = join(dir, "openspec", "changes", name);
@@ -253,8 +280,9 @@ export function runPreflightCommand(
 		const previous = args[index - 1];
 		return previous !== "--tdd" && previous !== "--lane";
 	});
-	const name = positional[0] ?? resolveSddStatus(dir).change ?? "";
-	if (!name) return { text: "// sdd preflight — no active change in openspec/changes/.", exitCode: 1 };
+	const resolvedChange = resolveCommandChange(dir, positional[0], "preflight");
+	if (!resolvedChange.ok) return { text: resolvedChange.text, exitCode: resolvedChange.exitCode };
+	const name = resolvedChange.change;
 
 	const stance = readChangeStance(dir, name);
 	if (!stance) return { text: `// sdd preflight — '${name}' does not exist or is not a valid change name.`, exitCode: 1 };
@@ -308,9 +336,9 @@ export function runDeltaCommand(
 ): { text: string; exitCode: 0 | 1 } {
 	const domainIndex = args.indexOf("--domain");
 	const domain = domainIndex >= 0 ? (args[domainIndex + 1] ?? "") : "";
-	const change = args.find((arg) => !arg.startsWith("--") && arg !== domain)
-		?? resolveSddStatus(dir).change
-		?? "";
+	const resolvedDelta = resolveCommandChange(dir, args.find((arg) => !arg.startsWith("--") && arg !== domain), "delta");
+	if (!resolvedDelta.ok) return { text: resolvedDelta.text, exitCode: resolvedDelta.exitCode };
+	const change = resolvedDelta.change;
 
 	let operations: unknown[];
 	try {
@@ -355,7 +383,9 @@ export function runSummaryCommand(
 	args: readonly string[],
 	rawStdin: string,
 ): { text: string; exitCode: 0 | 1 } {
-	const change = args.find((arg) => !arg.startsWith("--")) ?? resolveSddStatus(dir).change ?? "";
+	const resolvedSummary = resolveCommandChange(dir, args.find((arg) => !arg.startsWith("--")), "summary");
+	if (!resolvedSummary.ok) return { text: resolvedSummary.text, exitCode: resolvedSummary.exitCode };
+	const change = resolvedSummary.change;
 	const content = rawStdin;
 
 	if (content.trim().length === 0) {
@@ -476,22 +506,24 @@ function statusCmd() {
 }
 
 function checkCmd() {
-	const target = change ?? resolveSddStatus(cwd).change;
-	if (!target) {
-		console.log("// sdd check — no active change in openspec/changes/.");
+	const resolved = resolveCommandChange(cwd, change, "check");
+	if (!resolved.ok) {
+		console.log(resolved.text);
 		process.exit(1);
 	}
+	const target = resolved.change;
 	const report = lintChange(cwd, target);
 	console.log(formatCheck(report));
 	if (report.errors > 0) process.exit(1);
 }
 
 function closeCmd() {
-	const target = change ?? resolveSddStatus(cwd).change;
-	if (!target) {
-		console.log("// sdd close — no active change to close.");
+	const resolved = resolveCommandChange(cwd, change, "close");
+	if (!resolved.ok) {
+		console.log(resolved.text);
 		process.exit(1);
 	}
+	const target = resolved.change;
 	const result = closeChange(cwd, target, {
 		force,
 		reconciliationProfile: flagValue(rest, "--reconciliation-profile"),

@@ -55,7 +55,20 @@ function status(overrides: Partial<SddChangeStatus> = {}, taskItems = items(4, 1
 
 describe("overlay del cambio activo", () => {
 	test("sin cambio activo no roba ni una línea", () => {
-		expect(renderSddOverlay(status({ change: null }))).toEqual([]);
+		expect(renderSddOverlay(status({ change: null, selection: { kind: "none" } }))).toEqual([]);
+	});
+
+	// Callarse ante la ambigüedad la haría indistinguible de un repo limpio, que
+	// es otra mentira distinta: hay trabajo abierto, solo que sin elegir.
+	test("con varios cambios sin elegir lo dice, en vez de desaparecer", () => {
+		const lines = renderSddOverlay(status({
+			change: null,
+			selection: { kind: "ambiguous", candidates: ["feat-a", "feat-b"] },
+		}));
+		expect(lines.length).toBeGreaterThan(0);
+		const text = lines.join(" ");
+		expect(text).toContain("feat-a");
+		expect(text).toContain("feat-b");
 	});
 
 	test("la cabecera lleva cambio, carril, fase y progreso — sin marco ni placa", () => {
