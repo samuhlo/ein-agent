@@ -100,7 +100,7 @@ import {
 	renderChangeStanceLine,
 	writePreflightRecord,
 } from "../lib/sdd-preflight-record.ts";
-import { aggregateSddBudget, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddNextHandoff, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, changeUnavailableMessage, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddNextHandoff, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
 import { reviewForecast, formatReviewForecast } from "../lib/review-forecast.ts";
 import { closeChange, type CloseOptions } from "../lib/sdd-close.ts";
 import { parseSddCloseArgs } from "../lib/sdd-close-args.ts";
@@ -551,7 +551,15 @@ function formatSddStatus(
 	const notebook = `optional project notebook: Engram ${prefs?.memoryMode ?? "off"}${prefs?.engramAvailable ? " (configured; no retrieval or save is implied)" : " (unavailable or not configured)"}; OpenSpec is the canonical full record.`;
 	const lines = ["// 000. sdd status", ""];
 	if (!status.change) {
-		lines.push("- " + t("sdd-status.none", "No active SDD changes in openspec/changes/."));
+		// Ambigüedad ≠ repo limpio. Decir "no hay ninguno" habiendo varios es la
+		// mentira que producía la elección implícita, solo que por el otro lado.
+		if (status.selection.kind === "ambiguous") {
+			lines.push(`- ${status.selection.candidates.length} cambios activos y ninguno elegido.`);
+			lines.push(`- ${t("sdd-status.active", "active")}: ${status.selection.candidates.join(", ")}`);
+			lines.push("- Indica cuál con su nombre antes de continuar.");
+		} else {
+			lines.push("- " + t("sdd-status.none", "No active SDD changes in openspec/changes/."));
+		}
 		lines.push(`- ${notebook}`);
 		return lines.join("\n");
 	}
@@ -1494,7 +1502,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string; lane?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
 			if (!change || !isSafeChangeName(change)) {
-				return { content: [{ type: "text", text: "// sdd lane — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
+				return { content: [{ type: "text", text: (changeUnavailableMessage(ctx.cwd, "lane", params?.change) ?? "// sdd lane — no active change in openspec/changes/.") }], details: { ok: false, reason: "no active change" } };
 			}
 			const changeDir = join(resolveChangesDir(ctx.cwd), change);
 			if (!existsSync(changeDir)) {
@@ -1533,7 +1541,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string; tdd?: string; lane?: string; force?: boolean }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
 			if (!change) {
-				return { content: [{ type: "text", text: "// sdd preflight — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
+				return { content: [{ type: "text", text: (changeUnavailableMessage(ctx.cwd, "preflight", params?.change) ?? "// sdd preflight — no active change in openspec/changes/.") }], details: { ok: false, reason: "no active change" } };
 			}
 			const stance = readChangeStance(ctx.cwd, change);
 			if (!stance) {
@@ -1581,7 +1589,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string; phase?: string; memoryCandidate?: unknown }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
 			if (!change) {
-				return { content: [{ type: "text", text: "// sdd check — no active change in openspec/changes/." }], details: { ok: false, reason: "no active change" } };
+				return { content: [{ type: "text", text: (changeUnavailableMessage(ctx.cwd, "check", params?.change) ?? "// sdd check — no active change in openspec/changes/.") }], details: { ok: false, reason: "no active change" } };
 			}
 			const report = lintChange(ctx.cwd, change);
 			const phaseReport = params?.phase
@@ -1655,7 +1663,11 @@ export default function einAi(pi: ExtensionAPI): void {
 		const parsed = parseSddCloseArgs(args);
 		const change = parsed.change ?? resolveSddStatus(ctx.cwd).change ?? "";
 		if (!change) {
-			ctx.ui.notify('Sin cambio que cerrar. Uso: /ein:sdd-close <change> [--reconciliation-profile scope-only-out-of-flow --reconciliation-evidence <canonical-path>] --reason "<audit reason>". Legacy: --force --reason "<audit reason>"', "warning");
+			const ambiguity = changeUnavailableMessage(ctx.cwd, "close", parsed.change);
+			ctx.ui.notify(
+				`${ambiguity ?? "Sin cambio que cerrar."} Uso: /ein:sdd-close <change> [--reconciliation-profile scope-only-out-of-flow --reconciliation-evidence <canonical-path>] --reason "<audit reason>". Legacy: --force --reason "<audit reason>"`,
+				"warning",
+			);
 			return;
 		}
 		const { result: r, memory } = await performSddClose(ctx, change, {
@@ -1706,7 +1718,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string; force?: boolean; reason?: string; reconciliationProfile?: string; reconciliationEvidencePath?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
 			if (!change) {
-				return { content: [{ type: "text", text: "// sdd close — no active change to close." }], details: { ok: false, reason: "no active change" } };
+				return { content: [{ type: "text", text: (changeUnavailableMessage(ctx.cwd, "close", params?.change) ?? "// sdd close — no active change to close.") }], details: { ok: false, reason: "no active change" } };
 			}
 			const reason = params?.reason;
 			const { result, memory } = await performSddClose(ctx, change, {
@@ -1744,7 +1756,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		async execute(_id, params: { change?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
 			if (!change) {
-				return { content: [{ type: "text", text: "// openspec sync — no active change." }], details: { ok: false, reason: "no active change" } };
+				return { content: [{ type: "text", text: (changeUnavailableMessage(ctx.cwd, "sync", params?.change) ?? "// openspec sync — no active change.") }], details: { ok: false, reason: "no active change" } };
 			}
 			try {
 				const { plan, changed } = await synchronizeOpenSpecFilesystem(ctx.cwd, change);
@@ -1813,6 +1825,13 @@ export default function einAi(pi: ExtensionAPI): void {
 			required: ["domain", "operations"],
 		} as const,
 		async execute(_id, params: { change?: string; domain?: string; operations?: unknown[] }, _signal, _onUpdate, ctx: ExtensionContext) {
+			// Esta tool ESCRIBE: bajo ambigüedad se para antes de tocar disco, en vez
+			// de dejar que el escritor falle con un cambio vacío y un motivo que no
+			// nombra a los candidatos.
+			const unavailable = changeUnavailableMessage(ctx.cwd, "delta", params?.change);
+			if (unavailable) {
+				return { content: [{ type: "text", text: unavailable }], details: { ok: false, reason: "no change selected" } };
+			}
 			// La lógica vive en lib/openspec-delta-write.ts: el CLI de Claude llama
 			// exactamente a la misma función, así que no hay dos escritores.
 			const result = writeOpenSpecDelta({

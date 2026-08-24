@@ -158,7 +158,18 @@ export function renderSddOverlay(
 	options: OverlayOptions = {},
 ): readonly string[] {
 	const width = options.width ?? DEFAULT_WIDTH;
-	if (!status.change || width < MIN_WIDTH) return [];
+	if (width < MIN_WIDTH) return [];
+
+	// Hay trabajo abierto, solo que sin elegir. Callarse lo haría indistinguible
+	// de un repo limpio, que es la otra mitad de la misma mentira.
+	if (!status.change && status.selection?.kind === "ambiguous") {
+		const palette = options.palette ?? createPalette(false);
+		const names = status.selection.candidates.join(", ");
+		const label = `${status.selection.candidates.length} cambios sin elegir`;
+		return [`${INDENT}${palette.text(fit(label, Math.max(12, width - 4)))}`,
+			`${INDENT}${palette.muted(fit(names, Math.max(12, width - 4)))}`];
+	}
+	if (!status.change) return [];
 
 	const palette = options.palette ?? createPalette(false);
 	const items = status.tasks.items;

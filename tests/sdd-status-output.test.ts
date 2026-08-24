@@ -46,7 +46,14 @@ function formatSddStatus(cwd: string, change?: string): string {
 	const active = listActiveChanges(cwd);
 	const lines: string[] = ["// 000. sdd status", ""];
 	if (!s.change) {
-		lines.push("- " + t("sdd-status.none", "No active SDD changes in openspec/changes/."));
+		// Ambigüedad ≠ repo limpio: hay trabajo abierto, solo que sin elegir.
+		if (s.selection.kind === "ambiguous") {
+			lines.push(`- ${s.selection.candidates.length} cambios activos y ninguno elegido.`);
+			lines.push(`- ${t("sdd-status.active", "active")}: ${s.selection.candidates.join(", ")}`);
+			lines.push("- Indica cuál con su nombre antes de continuar.");
+		} else {
+			lines.push("- " + t("sdd-status.none", "No active SDD changes in openspec/changes/."));
+		}
 	} else {
 		const present = s.artifacts.present.map((artifact) => `${artifact.phase}(${artifact.file})`).join(", ") || t("sdd-status.no-active", "none");
 		const missing = s.artifacts.missing.map((artifact) => `${artifact.phase}(${artifact.file})`).join(", ") || t("sdd-status.no-active", "none");
@@ -120,11 +127,27 @@ describe("sdd-status output format", () => {
 		expect(out).toContain("next: close");
 	});
 
-	test("multiples cambios activos → muestra lista de activos", () => {
+	// Esta suite reproduce el handler de `/ein:sdd-status` en vez de importarlo:
+	// `ein-ai.ts` registra tools de Pi al cargarse. La réplica es útil mientras no
+	// derive, así que este contrato la ata al original en lo que importa.
+	test("la rama de ambigüedad existe también en el handler real", () => {
+		const einAi = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
+		const handler = einAi.slice(einAi.indexOf("function formatSddStatus"));
+		expect(handler).toContain('status.selection.kind === "ambiguous"');
+		expect(handler).toContain("ninguno elegido");
+	});
+
+	test("multiples cambios activos → los lista y pide elegir, sin elegir por su cuenta", () => {
 		change("feat-x");
 		change("feat-y");
 		const out = formatSddStatus(DIR);
 		expect(out).toContain("active: feat-x, feat-y");
+		// Antes salía `change: feat-x` — el primero de `readdirSync` presentado
+		// como decisión. Y con `change` nulo, decir "no hay ninguno" sería la
+		// misma mentira por el otro lado.
+		expect(out).not.toContain("change: feat-x");
+		expect(out).not.toContain("No active SDD changes");
+		expect(out).toContain("ninguno elegido");
 	});
 
 	test("bloqueos → muestra seccion de bloqueos", () => {

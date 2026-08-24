@@ -83,8 +83,22 @@ export type SddBudgetAggregate = {
 	changesWithBudget: number;
 };
 
+/**
+ * Cómo se eligió el cambio sobre el que informa el estado. Existe porque la
+ * elección implícita —`active[0]`, o sea el orden de `readdirSync`— hacía que
+ * la incertidumbre se presentara como una respuesta segura: con dos cambios
+ * abiertos, Ein trabajaba sobre uno sin decirlo.
+ */
+export type SddSelection =
+	| { kind: "none" }
+	| { kind: "only"; change: string }
+	| { kind: "explicit"; change: string }
+	| { kind: "ambiguous"; candidates: readonly string[] };
+
 export type SddChangeStatus = {
 	change: string | null;
+	/** Procedencia de `change`: sin ella no se distingue una decisión de un azar. */
+	selection: SddSelection;
 	present: Record<SddPhase, boolean>;
 	currentPhase: SddNext;
 	artifacts: {
@@ -496,9 +510,46 @@ function readApplyOutcome(changePath: string): ApplyOutcome {
 
 // Estado determinista de UN cambio. Si no se pasa `change`, usa el único activo
 // (o el primero alfabético si hay varios; el caller decide si desambiguar).
-export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus {
+/**
+ * La única implementación de "cuál es el cambio activo". Ante varios candidatos
+ * y sin petición explícita no elige: representa la ambigüedad y deja que el
+ * consumidor pida uno. Fail-closed aplicado a una pregunta de estado.
+ */
+export function resolveActiveSelection(cwd: string, change?: string): SddSelection {
+	if (change) return { kind: "explicit", change };
 	const active = listActiveChanges(cwd);
-	const target = change ?? active[0] ?? null;
+	if (active.length === 0) return { kind: "none" };
+	if (active.length === 1) return { kind: "only", change: active[0]! };
+	// Orden estable: `readdirSync` varía entre máquinas y el mensaje no debe.
+	return { kind: "ambiguous", candidates: [...active].sort() };
+}
+
+/** El cambio elegido, o `null` si no hay ninguno o hay más de uno sin elegir. */
+export function selectedChange(selection: SddSelection): string | null {
+	return selection.kind === "only" || selection.kind === "explicit" ? selection.change : null;
+}
+
+export function ambiguousChangeBlocker(candidates: readonly string[]): string {
+	return `hay ${candidates.length} cambios activos y ninguno elegido: indica cuál con su nombre (${candidates.join(", ")}).`;
+}
+
+/**
+ * El mensaje para una superficie que necesitaba un cambio y no lo tiene, o
+ * `null` si sí lo tiene. Distingue "no hay ninguno" de "hay varios": decir lo
+ * primero habiendo dos es la mentira que la elección implícita producía.
+ */
+export function changeUnavailableMessage(cwd: string, command: string, requested?: string): string | null {
+	const selection = resolveActiveSelection(cwd, requested);
+	if (selection.kind === "ambiguous") {
+		return `// sdd ${command} — hay ${selection.candidates.length} cambios activos y ninguno elegido: ${selection.candidates.join(", ")}. Indica cuál.`;
+	}
+	if (selection.kind === "none") return `// sdd ${command} — no active change in openspec/changes/.`;
+	return null;
+}
+
+export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus {
+	const selection = resolveActiveSelection(cwd, change);
+	const target = selectedChange(selection);
 
 	const present: Record<SddPhase, boolean> = {
 		scope: false,
@@ -514,8 +565,12 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 	if (!target) {
 		const tasks = emptyTasksStatus(false);
 		const budget = emptyBudgetStatus();
+		// La ambigüedad no es "no hay trabajo": se dice, y se nombra a los
+		// candidatos, para que la pantalla no la confunda con un repo limpio.
+		if (selection.kind === "ambiguous") blocked.push(ambiguousChangeBlocker(selection.candidates));
 		return {
 			change: null,
+			selection,
 			present,
 			currentPhase: "done",
 			artifacts: artifactLists(present, DEFAULT_LANE),
@@ -623,6 +678,7 @@ export function resolveSddStatus(cwd: string, change?: string): SddChangeStatus 
 
 	return {
 		change: target,
+		selection,
 		present,
 		currentPhase,
 		artifacts: artifactLists(present, lane),
@@ -818,7 +874,7 @@ export function sddStatusBlockers(input: {
 }
 
 export function resolveSddPlanPreview(cwd: string, change?: string): SddPlanPreview {
-	const target = change ?? listActiveChanges(cwd)[0] ?? null;
+	const target = selectedChange(resolveActiveSelection(cwd, change));
 	if (!target) return { change: "", groups: [] };
 	const content = readText(join(changesDir(cwd), target, PHASE_ARTIFACT.tasks));
 	if (content === null) return { change: target, groups: [] };

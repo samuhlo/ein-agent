@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assessCloseReadiness, listActiveChanges, resolveSddNext, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
+import { assessCloseReadiness, changeUnavailableMessage, listActiveChanges, resolveSddNext, resolveSddPlanPreview, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
 import { planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
 import { serializeOpenSpec } from "../ein-pi/agent/lib/openspec-spec-contract";
 
@@ -301,6 +301,66 @@ describe("resolveSddStatus", () => {
 		expect(s.verify).toBe("fail");
 		expect(s.nextRecommended).toBe("verify");
 		expect(s.blocked.length).toBeGreaterThan(0);
+	});
+
+	// GUARDIÁN -> con dos cambios abiertos el router elegía `active[0]`, o sea el
+	// orden de `readdirSync`, y trabajaba sobre él sin decirlo. La incertidumbre
+	// sobre cuál es el cambio activo no puede convertirse en una respuesta segura.
+	test("sin cambios activos la selección es ninguna", () => {
+		const s = resolveSddStatus(DIR);
+		expect(s.change).toBeNull();
+		expect(s.selection).toEqual({ kind: "none" });
+	});
+
+	test("con un solo cambio activo resuelve sin ceremonia", () => {
+		change("feat-solo");
+		const s = resolveSddStatus(DIR);
+		expect(s.change).toBe("feat-solo");
+		expect(s.selection).toEqual({ kind: "only", change: "feat-solo" });
+	});
+
+	test("con varios cambios activos no elige: declara la ambigüedad", () => {
+		change("feat-b");
+		change("feat-a");
+		const s = resolveSddStatus(DIR);
+		expect(s.change).toBeNull();
+		// Orden estable: `readdirSync` varía entre máquinas y el mensaje no debe.
+		expect(s.selection).toEqual({ kind: "ambiguous", candidates: ["feat-a", "feat-b"] });
+		expect(s.blocked.join(" ")).toContain("feat-a");
+		expect(s.blocked.join(" ")).toContain("feat-b");
+	});
+
+	test("una petición explícita gana por encima de la ambigüedad", () => {
+		change("feat-a");
+		change("feat-b");
+		const s = resolveSddStatus(DIR, "feat-b");
+		expect(s.change).toBe("feat-b");
+		expect(s.selection).toEqual({ kind: "explicit", change: "feat-b" });
+	});
+
+	test("la vista previa del plan tampoco elige por su cuenta", () => {
+		change("feat-a");
+		change("feat-b");
+		expect(resolveSddPlanPreview(DIR).change).toBe("");
+		// Con petición explícita sí trabaja.
+		put(change("feat-a"), "tasks.md", "## Grupo 001\n- [ ] algo\n");
+		expect(resolveSddPlanPreview(DIR, "feat-a").change).toBe("feat-a");
+	});
+
+	test("el mensaje de cambio no disponible distingue ninguno de varios", () => {
+		expect(changeUnavailableMessage(DIR, "lane")).toContain("no active change");
+		change("feat-b");
+		change("feat-a");
+		const ambiguous = changeUnavailableMessage(DIR, "lane");
+		expect(ambiguous).toContain("feat-a");
+		expect(ambiguous).toContain("feat-b");
+		// Decir "no hay ninguno" habiendo dos es la mentira que este cambio quita.
+		expect(ambiguous).not.toContain("no active change");
+	});
+
+	test("con un cambio elegible no hay mensaje de indisponibilidad", () => {
+		change("feat-unico");
+		expect(changeUnavailableMessage(DIR, "lane")).toBeNull();
 	});
 
 	test("listActiveChanges excluye archive/", () => {
