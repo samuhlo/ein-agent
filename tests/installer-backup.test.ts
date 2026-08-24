@@ -31,9 +31,15 @@ const AGENT = join(ROOT, "agent");
 const BACKUPS = join(ROOT, "backups");
 const PATHS = { agentDir: AGENT, backupDir: BACKUPS };
 
+function removeFixtureRoot(): void {
+  const protectedTree = join(ROOT, "omarchy-target");
+  if (existsSync(protectedTree)) chmodSync(protectedTree, 0o700);
+  rmSync(ROOT, { recursive: true, force: true });
+}
+
 function seedAgentDir(): void {
   if (existsSync(BACKUPS)) { for (const entry of listBackups(PATHS)) if (entry.kind !== "recovery") setPinned(entry.path, false); pruneBackups({ ...PATHS, keep: 0 }); }
-  rmSync(ROOT, { recursive: true, force: true });
+  removeFixtureRoot();
   mkdirSync(join(AGENT, "agents"), { recursive: true });
   mkdirSync(join(AGENT, "skills", "local", "demo"), { recursive: true });
   mkdirSync(join(AGENT, "skills", "downloaded", "huge"), { recursive: true });
@@ -54,7 +60,7 @@ function archiveNames(): string[] {
 
 describe("manifest backup v1", () => {
   beforeEach(seedAgentDir);
-  afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
+  afterAll(removeFixtureRoot);
 
   test("snapshot publica manifest determinista y excluye estado de runtime", async () => {
     const result = await snapshot("pre-update", { ...PATHS, now: () => new Date("2026-01-01T00:00:00.000Z") });

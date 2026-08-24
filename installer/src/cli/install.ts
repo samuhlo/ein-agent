@@ -41,6 +41,11 @@ import {
   type SecretName,
 } from "../core/secrets.ts";
 import { INSTALLER_VERSION, writeMarker } from "../core/version.ts";
+import {
+  readReleaseChannelPreference,
+  writeReleaseChannelPreference,
+} from "../core/release-channel-preference.ts";
+import { isReleaseChannel, type ReleaseChannel } from "../core/release-types.ts";
 import { runDoctor } from "../core/verify.ts";
 import { stageCcEinPayload, type CcEinPayloadStage } from "../core/cc-payload.ts";
 import { renderReport } from "./doctor.ts";
@@ -77,6 +82,7 @@ export type InstallFlags = {
   noCodegraph: boolean;
   dryRun: boolean;
   runtime: InstallTarget;
+  releaseChannel?: ReleaseChannel;
 };
 
 export class InstallArgumentError extends Error {
@@ -125,6 +131,8 @@ function isInstallTarget(value: string): value is InstallTarget {
 export function parseInstallFlags(args: string[]): InstallFlags {
   let runtime: InstallTarget = "pi";
   let runtimeSeen = false;
+  let releaseChannel: ReleaseChannel | undefined;
+  let releaseChannelSeen = false;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -144,8 +152,23 @@ export function parseInstallFlags(args: string[]): InstallFlags {
       continue;
     }
 
-    if (arg === "-r" || arg.startsWith("--runtime=")) {
-      throw new InstallArgumentError("usa --runtime seguido de un valor separado");
+    if (arg === "--release-channel") {
+      if (releaseChannelSeen) throw new InstallArgumentError("--release-channel no puede repetirse");
+      releaseChannelSeen = true;
+      const value = args[index + 1];
+      if (!value || value.startsWith("-")) {
+        throw new InstallArgumentError("--release-channel necesita un valor separado");
+      }
+      if (!isReleaseChannel(value)) {
+        throw new InstallArgumentError(`canal no soportado: ${value}`);
+      }
+      releaseChannel = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "-r" || arg.startsWith("--runtime=") || arg.startsWith("--release-channel=")) {
+      throw new InstallArgumentError("usa las opciones con valores separados");
     }
   }
 
@@ -158,6 +181,7 @@ export function parseInstallFlags(args: string[]): InstallFlags {
     noCodegraph: args.includes("--no-codegraph"),
     dryRun: args.includes("--dry-run"),
     runtime,
+    ...(releaseChannel ? { releaseChannel } : {}),
   };
 }
 
@@ -268,6 +292,8 @@ export type PiInstallEffects = {
   spinner: typeof p.spinner;
   deploy: typeof deployTemplate;
   packages: typeof installDeclaredPackages;
+  writePreference: typeof writeReleaseChannelPreference;
+  readPreference: typeof readReleaseChannelPreference;
   marker: typeof writeMarker;
   check: typeof checkDeps;
   doctor: typeof runDoctor;
@@ -288,7 +314,7 @@ type PiEntryId = Extract<InstallPlanEntryId, `pi.${string}`>;
 
 export function createPiInstallHandlers({ platform, flags, skipLinear, deps, agentDir, effects: overrides = {} }: PiInstallOptions): { handlers: Record<PiEntryId, InstallPlanExecutionHandler>; detail: () => string } {
   const paths = derivePiInstallPaths();
-  const effects: PiInstallEffects = { resolveContext: () => resolvePiInstallContext(paths), migrateContext: () => { if (isValidInstallMarker(paths.legacyMarker)) migrateLegacyPi(paths); return resolvePiInstallContext(paths); }, exists: existsSync, backup: snapshot, spinner: p.spinner, deploy: deployTemplate, packages: installDeclaredPackages, marker: writeMarker, check: checkDeps, doctor: runDoctor, launcher: installFishLauncher, promote: promoteCommandNames, ...overrides };
+  const effects: PiInstallEffects = { resolveContext: () => resolvePiInstallContext(paths), migrateContext: () => { if (isValidInstallMarker(paths.legacyMarker)) migrateLegacyPi(paths); return resolvePiInstallContext(paths); }, exists: existsSync, backup: snapshot, spinner: p.spinner, deploy: deployTemplate, packages: installDeclaredPackages, writePreference: writeReleaseChannelPreference, readPreference: readReleaseChannelPreference, marker: writeMarker, check: checkDeps, doctor: runDoctor, launcher: installFishLauncher, promote: promoteCommandNames, ...overrides };
   const success = (): InstallStep => ({ ok: true, detail: "ok" });
   let piContext: PiInstallContext | undefined;
   let rollbackPath: string | null = null;
@@ -455,7 +481,17 @@ export function createPiInstallHandlers({ platform, flags, skipLinear, deps, age
   return success();
   },
   "pi.write-install-marker": () => {
-  effects.marker("stable", context());
+  const piContext = context();
+  const channel = flags.releaseChannel ?? "stable";
+  const written = effects.writePreference(piContext.agentDir, channel);
+  if (written.status !== "explicit" || written.channel !== channel) {
+    return { ok: false, detail: `No se pudo persistir el canal ${channel}: ${written.status === "unavailable" ? written.reason : "read-back no explicito"}` };
+  }
+  const readBack = effects.readPreference(piContext.agentDir);
+  if (readBack.status !== "explicit" || readBack.channel !== channel) {
+    return { ok: false, detail: `No se pudo leer de vuelta el canal ${channel}: ${readBack.status === "unavailable" ? readBack.reason : "valor no coincidente"}` };
+  }
+  effects.marker(readBack.channel, piContext);
   return success();
   },
   "pi.verify-doctor": () => {
