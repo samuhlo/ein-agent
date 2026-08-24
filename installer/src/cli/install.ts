@@ -23,7 +23,7 @@ import {
 } from "../core/deps.ts";
 import { deployTemplate, type DeployOptions } from "../core/deploy.ts";
 import { installFishLauncher } from "../core/launcher.ts";
-import { restoreBackup, snapshot } from "../core/backup.ts";
+import { BackupFailure, restoreBackup, snapshot } from "../core/backup.ts";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -41,6 +41,11 @@ import {
   type SecretName,
 } from "../core/secrets.ts";
 import { INSTALLER_VERSION, writeMarker } from "../core/version.ts";
+import {
+  readReleaseChannelPreference,
+  writeReleaseChannelPreference,
+} from "../core/release-channel-preference.ts";
+import { isReleaseChannel, type ReleaseChannel } from "../core/release-types.ts";
 import { runDoctor } from "../core/verify.ts";
 import { stageCcEinPayload, type CcEinPayloadStage } from "../core/cc-payload.ts";
 import { renderReport } from "./doctor.ts";
@@ -63,7 +68,7 @@ import {
   type InstallPlanExecutionHandler,
   type InstallPlanExecutionHandlers,
 } from "../core/install-executor.ts";
-import { executeInstallPlanJournaled, inspectInstallJournal, InstallJournalError } from "../core/install-journal.ts";
+import { executeInstallPlanJournaled, inspectInstallJournal, installJournalMatchesPlan, InstallJournalError, type InstallExecutionJournalV1 } from "../core/install-journal.ts";
 
 /** The one target selected by the menu or the direct installer default. */
 export type { InstallTarget, RuntimeInstallTarget } from "../core/install-plan.ts";
@@ -77,6 +82,7 @@ export type InstallFlags = {
   noCodegraph: boolean;
   dryRun: boolean;
   runtime: InstallTarget;
+  releaseChannel?: ReleaseChannel;
 };
 
 export class InstallArgumentError extends Error {
@@ -125,6 +131,8 @@ function isInstallTarget(value: string): value is InstallTarget {
 export function parseInstallFlags(args: string[]): InstallFlags {
   let runtime: InstallTarget = "pi";
   let runtimeSeen = false;
+  let releaseChannel: ReleaseChannel | undefined;
+  let releaseChannelSeen = false;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -144,8 +152,23 @@ export function parseInstallFlags(args: string[]): InstallFlags {
       continue;
     }
 
-    if (arg === "-r" || arg.startsWith("--runtime=")) {
-      throw new InstallArgumentError("usa --runtime seguido de un valor separado");
+    if (arg === "--release-channel") {
+      if (releaseChannelSeen) throw new InstallArgumentError("--release-channel no puede repetirse");
+      releaseChannelSeen = true;
+      const value = args[index + 1];
+      if (!value || value.startsWith("-")) {
+        throw new InstallArgumentError("--release-channel necesita un valor separado");
+      }
+      if (!isReleaseChannel(value)) {
+        throw new InstallArgumentError(`canal no soportado: ${value}`);
+      }
+      releaseChannel = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "-r" || arg.startsWith("--runtime=") || arg.startsWith("--release-channel=")) {
+      throw new InstallArgumentError("usa las opciones con valores separados");
     }
   }
 
@@ -158,6 +181,7 @@ export function parseInstallFlags(args: string[]): InstallFlags {
     noCodegraph: args.includes("--no-codegraph"),
     dryRun: args.includes("--dry-run"),
     runtime,
+    ...(releaseChannel ? { releaseChannel } : {}),
   };
 }
 
@@ -268,6 +292,8 @@ export type PiInstallEffects = {
   spinner: typeof p.spinner;
   deploy: typeof deployTemplate;
   packages: typeof installDeclaredPackages;
+  writePreference: typeof writeReleaseChannelPreference;
+  readPreference: typeof readReleaseChannelPreference;
   marker: typeof writeMarker;
   check: typeof checkDeps;
   doctor: typeof runDoctor;
@@ -288,7 +314,7 @@ type PiEntryId = Extract<InstallPlanEntryId, `pi.${string}`>;
 
 export function createPiInstallHandlers({ platform, flags, skipLinear, deps, agentDir, effects: overrides = {} }: PiInstallOptions): { handlers: Record<PiEntryId, InstallPlanExecutionHandler>; detail: () => string } {
   const paths = derivePiInstallPaths();
-  const effects: PiInstallEffects = { resolveContext: () => resolvePiInstallContext(paths), migrateContext: () => { if (isValidInstallMarker(paths.legacyMarker)) migrateLegacyPi(paths); return resolvePiInstallContext(paths); }, exists: existsSync, backup: snapshot, spinner: p.spinner, deploy: deployTemplate, packages: installDeclaredPackages, marker: writeMarker, check: checkDeps, doctor: runDoctor, launcher: installFishLauncher, promote: promoteCommandNames, ...overrides };
+  const effects: PiInstallEffects = { resolveContext: () => resolvePiInstallContext(paths), migrateContext: () => { if (isValidInstallMarker(paths.legacyMarker)) migrateLegacyPi(paths); return resolvePiInstallContext(paths); }, exists: existsSync, backup: snapshot, spinner: p.spinner, deploy: deployTemplate, packages: installDeclaredPackages, writePreference: writeReleaseChannelPreference, readPreference: readReleaseChannelPreference, marker: writeMarker, check: checkDeps, doctor: runDoctor, launcher: installFishLauncher, promote: promoteCommandNames, ...overrides };
   const success = (): InstallStep => ({ ok: true, detail: "ok" });
   let piContext: PiInstallContext | undefined;
   let rollbackPath: string | null = null;
@@ -390,7 +416,10 @@ export function createPiInstallHandlers({ platform, flags, skipLinear, deps, age
       rollbackPath = snap.path;
       terminal = snap.path ? `Backup: ${snap.path}${snap.deduped ? " (sin cambios, reutilizado)" : ""}` : "Sin backup (nada que copiar)";
       p.log.info(terminal);
-    } catch { p.log.error(terminal); return { ok: false }; }
+    } catch (error) {
+      p.log.error(terminal);
+      return { ok: false, detail: error instanceof BackupFailure ? error.message : undefined };
+    }
   }
   return success();
   },
@@ -452,7 +481,17 @@ export function createPiInstallHandlers({ platform, flags, skipLinear, deps, age
   return success();
   },
   "pi.write-install-marker": () => {
-  effects.marker("stable", context());
+  const piContext = context();
+  const channel = flags.releaseChannel ?? "stable";
+  const written = effects.writePreference(piContext.agentDir, channel);
+  if (written.status !== "explicit" || written.channel !== channel) {
+    return { ok: false, detail: `No se pudo persistir el canal ${channel}: ${written.status === "unavailable" ? written.reason : "read-back no explicito"}` };
+  }
+  const readBack = effects.readPreference(piContext.agentDir);
+  if (readBack.status !== "explicit" || readBack.channel !== channel) {
+    return { ok: false, detail: `No se pudo leer de vuelta el canal ${channel}: ${readBack.status === "unavailable" ? readBack.reason : "valor no coincidente"}` };
+  }
+  effects.marker(readBack.channel, piContext);
   return success();
   },
   "pi.verify-doctor": () => {
@@ -578,6 +617,24 @@ function observePlan(platform: Platform, deps: readonly DepStatus[]): Omit<Insta
   };
 }
 
+function supportsPreMutationRecovery(journal: InstallExecutionJournalV1, plan: InstallPlanV1): boolean {
+  if (plan.status !== "ready" || !installJournalMatchesPlan(journal, plan) || journal.target !== "both" || journal.state !== "recovery-required" || journal.recoveryCode !== "handler-failed" || journal.pendingEntryId !== "pi.backup-current") return false;
+  const selected = plan.inventory.filter((entry) => entry.state === "selected" || entry.state === "conditional");
+  const entries = new Map(journal.entries.map((entry) => [entry.id, entry]));
+  if (selected.length !== journal.entries.length || selected.some(({ id }) => !entries.has(id))) return false;
+  const backupIndex = plan.inventory.findIndex(({ id }) => id === "pi.backup-current");
+  const backup = entries.get("pi.backup-current");
+  if (!backup || backup.status !== "failed" || backupIndex < 0) return false;
+  const sharedAndClaude = journal.entries.filter(({ runtime }) => runtime === "shared" || runtime === "claude");
+  if (sharedAndClaude.some(({ status }) => status !== "completed")) return false;
+  return journal.entries.filter(({ runtime }) => runtime === "pi").every((entry) => {
+    const order = plan.inventory.findIndex(({ id }) => id === entry.id);
+    if (order === backupIndex) return entry.status === "failed";
+    if (order < backupIndex) return plan.inventory[order]?.action === "ensure-dependency" && entry.status === "completed";
+    return entry.status === "not-run";
+  });
+}
+
 export async function runInstall(args: string[], explicitMenuTarget?: InstallTarget, options: InstallCommandOptions = {}): Promise<number> {
   let flags: InstallFlags;
   try {
@@ -589,13 +646,13 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
   const target = resolveInstallTarget(explicitMenuTarget, flags.runtime);
 
   const platform: Platform = options.observations?.platform ?? detectPlatform();
+  let journalStatus: ReturnType<typeof inspectInstallJournal> | undefined;
   if (!flags.dryRun) {
-    // El diario existe para detectar una transacción INTERRUMPIDA. Un diario
-    // completo describe una instalación anterior terminada y no condiciona a la
-    // siguiente: cuando lo hacía, `install` se negaba a repetirse y no quedaba
-    // ninguna vía soportada para desplegar un binario recién construido.
-    const home = options.observations?.home ?? activeHome(), status = inspectInstallJournal(home);
-    if (status.status === "invalid" || status.status === "valid" && status.journal.state !== "complete") { console.error("Install recovery status: recovery-required"); return 1; }
+    // Read the journal first, but defer valid recovery admission until the
+    // invocation has reconstructed the exact read-only plan below.
+    const home = options.observations?.home ?? activeHome();
+    journalStatus = inspectInstallJournal(home);
+    if (journalStatus.status === "invalid") { console.error("Install recovery status: recovery-required"); return 1; }
   }
 
   const deps: DepStatus[] = options.observations
@@ -604,16 +661,18 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
   const observations = options.observations ?? observePlan(platform, deps);
   const buildPlan = (skipLinear: boolean): InstallPlanV1 => createInstallPlan({ ...observations, platform: { os: observations.platform.os, arch: observations.platform.arch }, target, flags: { yes: flags.yes, noEngram: flags.noEngram, noSecrets: flags.noSecrets, noHypa: flags.noHypa, noCodegraph: flags.noCodegraph, skipLinear } });
   let skipLinear = true;
-  let plan: InstallPlanV1;
-  // Ownership admission precedes the only interactive input needed to finish a ready plan.
-  if (target !== "claude" && observations.piOwnership.status === "ambiguous") {
-    plan = buildPlan(skipLinear);
-  } else {
-    if (target !== "claude" && !flags.noLinear && !flags.yes && !flags.dryRun) {
-      const teamMode = await p.confirm({ message: "¿Activar modo Team (Linear como board de issues)? Por defecto: Solo (OpenSpec + git, sin Linear).", initialValue: false });
-      if (p.isCancel(teamMode)) { p.cancel("Instalación cancelada."); process.exit(1); }
-      skipLinear = !teamMode;
-    }
+  let plan = buildPlan(skipLinear);
+  if (journalStatus?.status === "valid" && journalStatus.journal.state !== "complete") {
+    const journal = journalStatus.journal;
+    const candidates: { skipLinear: boolean; plan: InstallPlanV1 }[] = [{ skipLinear: true, plan }];
+    if (target !== "claude" && !flags.noLinear && !flags.yes) candidates.push({ skipLinear: false, plan: buildPlan(false) });
+    const admitted = candidates.find(({ plan: candidate }) => supportsPreMutationRecovery(journal, candidate));
+    if (!admitted) { console.error("Install recovery status: recovery-required"); return 1; }
+    ({ plan, skipLinear } = admitted);
+  } else if (target !== "claude" && observations.piOwnership.status !== "ambiguous" && !flags.noLinear && !flags.yes && !flags.dryRun) {
+    const teamMode = await p.confirm({ message: "¿Activar modo Team (Linear como board de issues)? Por defecto: Solo (OpenSpec + git, sin Linear).", initialValue: false });
+    if (p.isCancel(teamMode)) { p.cancel("Instalación cancelada."); process.exit(1); }
+    skipLinear = !teamMode;
     plan = buildPlan(skipLinear);
   }
   await (options.playBanner ?? playBanner)();

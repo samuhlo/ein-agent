@@ -13,7 +13,9 @@ import {
   resolvePiInstallContext,
 } from "../installer/src/core/paths.ts";
 import { readMarkerAt, writeMarker } from "../installer/src/core/version.ts";
+import { readReleaseChannelPreference } from "../installer/src/core/release-channel-preference.ts";
 import {
+  createPiInstallHandlers,
   getInstallTargets,
   orchestrateInstall,
   parseInstallFlags,
@@ -21,6 +23,8 @@ import {
   runClaudeInstall,
   type RuntimeInstallResult,
 } from "../installer/src/cli/install.ts";
+import { resolveReleaseContract } from "../installer/src/core/release-resolver.ts";
+import { INSTALLER_VERSION } from "../installer/src/core/version.ts";
 import { bundleCcEinPayload } from "../installer/scripts/bundle-cc-ein.ts";
 import { runMenu, selectInstallTarget } from "../installer/src/cli/menu.ts";
 import { renderDoctorAdvisor, renderInstallerAdvisorHandoff, runDoctorCommand } from "../installer/src/cli/doctor.ts";
@@ -468,10 +472,13 @@ describe("Installer-owned advisor handoff", () => {
       readAdvisor: async () => {
         readCalls += 1;
         return {
-          installed: { status: "valid", source: "installer-marker", freshness: "current", reason: "read-success", version: "0.42.0", owner: "installer" },
-          release: { status: "valid", source: "release-provider", freshness: "current", reason: "read-success", version: "0.43.0" },
-          owner: { status: "valid", source: "installer-marker", freshness: "current", reason: "read-success", version: "0.42.0", owner: "installer", action: "update", actionId: "installer.update" },
+          installed: { status: "valid", source: "installer-marker", freshness: "current", reason: "read-success", version: "0.42.0", owner: "installer", artifact: { status: "unavailable", reason: "fixture-identity-unavailable" } },
+          release: { status: "valid", source: "release-provider", freshness: "current", reason: "read-success", version: "0.43.0", artifact: { status: "pending", reason: "fixture-verification-pending" } },
+          owner: { status: "valid", source: "installer-marker", freshness: "current", reason: "read-success", version: "0.42.0", owner: "installer", action: "update", actionId: "installer.update", artifact: { status: "unavailable", reason: "fixture-identity-unavailable" } },
           capability: { status: "valid", source: "installer-capability", freshness: "current", reason: "read-success", supported: true },
+          preference: { status: "defaulted", channel: "stable" },
+          effectiveChannel: "stable",
+          freshness: { status: "unknown", reason: "fixture-publication-evidence-unavailable" },
         };
       },
       log: (line: string) => logs.push(line),
@@ -591,6 +598,18 @@ describe("Runtime flag parser", () => {
     expect(parseInstallFlags(["--yes", "--runtime", "both", "--no-secrets"]).runtime).toBe("both");
   });
 
+  test("carries the explicit release channel and rejects malformed channel options", () => {
+    expect(parseInstallFlags(["--yes"]).releaseChannel).toBeUndefined();
+    expect(parseInstallFlags(["--release-channel", "stable"]).releaseChannel).toBe("stable");
+    expect(parseInstallFlags(["--release-channel", "alpha"]).releaseChannel).toBe("alpha");
+    for (const args of [
+      ["--release-channel"],
+      ["--release-channel", "beta"],
+      ["--release-channel=alpha"],
+      ["--release-channel", "alpha", "--release-channel", "stable"],
+    ]) expect(() => parseInstallFlags(args)).toThrow();
+  });
+
   test("rejects missing, flag-like, unsupported, repeated, inline, and short runtime forms", () => {
     const invalid = [
       ["--runtime"],
@@ -626,6 +645,204 @@ describe("Runtime flag parser", () => {
     expect(stderr).toContain("--runtime pi|claude|both");
     expect(stdout).toBe("");
     expect(readdirSync(home)).toEqual([]);
+  });
+});
+
+describe("Installer release-contract admission", () => {
+  test("defaults no-input installs to stable and admits exact final or alpha Pi contracts", () => {
+    expect(resolveReleaseContract(undefined, undefined, "pi", INSTALLER_VERSION)).toEqual({
+      ok: true,
+      value: { status: "defaulted", channel: "stable" },
+    });
+    const stableVersion = "0.82.0";
+    expect(resolveReleaseContract("stable", `installer-v${stableVersion}`, "both", stableVersion)).toEqual({
+      ok: true,
+      value: { status: "explicit", channel: "stable", tag: `installer-v${stableVersion}` },
+    });
+    expect(resolveReleaseContract("alpha", `installer-v${INSTALLER_VERSION}`, "pi", INSTALLER_VERSION)).toEqual({
+      ok: true,
+      value: { status: "explicit", channel: "alpha", tag: `installer-v${INSTALLER_VERSION}` },
+    });
+
+    const alphaVersion = "0.82.0-alpha.1";
+    expect(resolveReleaseContract("alpha", `installer-v${alphaVersion}`, "pi", alphaVersion)).toEqual({
+      ok: true,
+      value: { status: "explicit", channel: "alpha", tag: `installer-v${alphaVersion}` },
+    });
+  });
+
+  test("rejects incomplete, malformed, unsupported, mismatched, stale, and non-Pi contracts", () => {
+    const cases = [
+      [undefined, "installer-v0.82.0-alpha.1", "pi", "0.82.0-alpha.1"],
+      ["alpha", undefined, "pi", "0.82.0-alpha.1"],
+      ["alpha", "installer-v0.82", "pi", "0.82.0"],
+      ["alpha", "installer-v0.82.0-alpha.01", "pi", "0.82.0-alpha.01"],
+      ["alpha", "installer-v0.82.0-beta.1", "pi", "0.82.0-beta.1"],
+      ["alpha", "installer-v0.82.0-rc.1", "pi", "0.82.0-rc.1"],
+      ["stable", "installer-v0.82.0-alpha.1", "pi", "0.82.0-alpha.1"],
+      ["stable", "installer-v0.82.0", "pi", "0.81.0"],
+      ["alpha", "installer-v0.82.0", "pi", "0.81.0"],
+      ["alpha", "installer-v0.82.0-alpha.1", "claude", "0.82.0-alpha.1"],
+      ["alpha", "installer-v0.82.0-alpha.1", "both", "0.82.0-alpha.1"],
+    ] as const;
+
+    for (const [channel, tag, target, version] of cases) {
+      expect(resolveReleaseContract(channel, tag, target, version).ok, `${channel}/${tag}/${target}`).toBe(false);
+    }
+  });
+
+  test("real main rejects an incomplete handoff before banner or filesystem work", () => {
+    const home = tempHome();
+    const proc = Bun.spawnSync(["bun", MAIN, "install", "--yes", "--release-channel", "alpha"], {
+      env: { ...process.env, HOME: home, TMPDIR: home },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = new TextDecoder().decode(proc.stdout);
+    const stderr = new TextDecoder().decode(proc.stderr);
+
+    expect(proc.exitCode).toBe(1);
+    expect(stderr).toMatch(/Error de contrato release/);
+    expect(stdout).toBe("");
+    expect(readdirSync(home)).toEqual([]);
+  });
+
+  test("real main keeps an exact alpha handoff valid through the terminal dry-run branch", () => {
+    const home = tempHome();
+    const tag = `installer-v${INSTALLER_VERSION}`;
+    const proc = Bun.spawnSync(["bun", MAIN, "install", "--yes", "--dry-run", "--release-channel", "alpha", "--release-tag", tag], {
+      env: { ...process.env, HOME: home, TMPDIR: home },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = new TextDecoder().decode(proc.stdout);
+    const stderr = new TextDecoder().decode(proc.stderr);
+
+    expect(proc.exitCode).toBe(0);
+    expect(stderr).not.toContain("Error de contrato release");
+    expect(stdout).toContain("Dry-run completado");
+  });
+});
+
+describe("Pi installation channel commit", () => {
+  const platform = {
+    os: "darwin" as const,
+    arch: "arm64" as const,
+    distro: "unknown" as const,
+    packageManager: "brew" as const,
+    shell: "unknown" as const,
+    shellRc: "/tmp/.profile",
+    home: "/tmp",
+  };
+
+  test("persists alpha in the resolved managed Pi context and uses read-back for the marker", async () => {
+    const home = tempHome();
+    const paths = derivePiInstallPaths(home);
+    const context = resolvePiInstallContext(paths);
+    mkdirSync(context.agentDir, { recursive: true });
+    const untouched = new Map<string, string>();
+    const fixtures = [
+      join(home, ".pi", "agent", "vanilla-settings.json"),
+      join(home, ".claude-ein", "runtime.json"),
+      join(home, ".claude", "settings.json"),
+      join(home, "client", "settings.json"),
+    ];
+    for (const path of fixtures) {
+      mkdirSync(join(path, ".."), { recursive: true });
+      const bytes = `untouched:${path}\\n`;
+      writeFileSync(path, bytes);
+      untouched.set(path, bytes);
+    }
+
+    const markerChannels: string[] = [];
+    const pi = createPiInstallHandlers({
+      platform: { ...platform, home },
+      flags: parseInstallFlags(["--yes", "--release-channel", "alpha"]),
+      skipLinear: true,
+      deps: [],
+      agentDir: context.agentDir,
+      effects: {
+        resolveContext: () => context,
+        marker: (channel = "stable", markerContext = context) => {
+          markerChannels.push(channel);
+          return writeMarker(channel, markerContext);
+        },
+      },
+    });
+
+    expect(await pi.handlers["pi.write-install-marker"]()).toEqual({ ok: true, detail: "ok" });
+    expect(readReleaseChannelPreference(context.agentDir)).toEqual({ status: "explicit", channel: "alpha" });
+    expect(readMarkerAt(context.installMarker)?.channel).toBe("alpha");
+    expect(markerChannels).toEqual(["alpha"]);
+    for (const [path, bytes] of untouched) expect(readFileSync(path, "utf8")).toBe(bytes);
+  });
+
+  test("preserves the managed legacy Pi destination while committing the resolved channel", async () => {
+    const home = tempHome();
+    const paths = derivePiInstallPaths(home);
+    mkdirSync(paths.legacyAgentDir, { recursive: true });
+    writeFileSync(paths.legacyMarker, validMarker());
+    const context = resolvePiInstallContext(paths);
+    expect(context.agentDir).toBe(paths.legacyAgentDir);
+
+    const pi = createPiInstallHandlers({
+      platform: { ...platform, home },
+      flags: parseInstallFlags(["--yes", "--release-channel", "alpha"]),
+      skipLinear: true,
+      deps: [],
+      agentDir: context.agentDir,
+      effects: { resolveContext: () => context },
+    });
+
+    expect(await pi.handlers["pi.write-install-marker"]()).toEqual({ ok: true, detail: "ok" });
+    expect(readReleaseChannelPreference(paths.legacyAgentDir)).toEqual({ status: "explicit", channel: "alpha" });
+    expect(readReleaseChannelPreference(paths.isolatedAgentDir)).toEqual({ status: "defaulted", channel: "stable" });
+    expect(readMarkerAt(paths.legacyMarker)?.channel).toBe("alpha");
+  });
+
+  test("defaults no-input to stable and fails closed on write, read, or channel mismatch", async () => {
+    const home = tempHome();
+    const context = resolvePiInstallContext(derivePiInstallPaths(home));
+    mkdirSync(context.agentDir, { recursive: true });
+    const stable = parseInstallFlags(["--yes"]);
+    const markerChannels: string[] = [];
+    const stablePi = createPiInstallHandlers({
+      platform: { ...platform, home },
+      flags: stable,
+      skipLinear: true,
+      deps: [],
+      agentDir: context.agentDir,
+      effects: {
+        resolveContext: () => context,
+        marker: (channel = "stable") => { markerChannels.push(channel); return writeMarker(channel, context); },
+      },
+    });
+    expect(await stablePi.handlers["pi.write-install-marker"]()).toEqual({ ok: true, detail: "ok" });
+    expect(readReleaseChannelPreference(context.agentDir)).toEqual({ status: "explicit", channel: "stable" });
+    expect(markerChannels).toEqual(["stable"]);
+
+    for (const [writeResult, readResult] of [
+      [{ status: "unavailable", reason: "preference-write-failed" }, { status: "explicit", channel: "alpha" }],
+      [{ status: "explicit", channel: "alpha" }, { status: "explicit", channel: "stable" }],
+      [{ status: "explicit", channel: "alpha" }, { status: "unavailable", reason: "preference-unreadable" }],
+    ] as const) {
+      let markerCalls = 0;
+      const pi = createPiInstallHandlers({
+        platform: { ...platform, home },
+        flags: parseInstallFlags(["--yes", "--release-channel", "alpha"]),
+        skipLinear: true,
+        deps: [],
+        agentDir: context.agentDir,
+        effects: {
+          resolveContext: () => context,
+          writePreference: () => writeResult,
+          readPreference: () => readResult,
+          marker: () => { markerCalls += 1; return writeMarker("stable", context); },
+        },
+      });
+      expect((await pi.handlers["pi.write-install-marker"]()).ok).toBe(false);
+      expect(markerCalls).toBe(0);
+    }
   });
 });
 

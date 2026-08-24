@@ -14,7 +14,7 @@ import { INSTALLER_VERSION, versionOutputLines } from "./core/version.ts";
 import { deployTemplate, readBundledManifest } from "./core/deploy.ts";
 import { detectPlatform } from "./core/platform.ts";
 import { runUpdateContinuation } from "./core/child-continuation.ts";
-import { normalizeTag } from "./core/release-resolver.ts";
+import { normalizeTag, resolveReleaseContract } from "./core/release-resolver.ts";
 
 // The bundled template version = installer version by build (bundle-template
 // stamps package.json version), but read it from the embedded manifest so the
@@ -67,6 +67,60 @@ async function runDeployTemplateEntry(): Promise<number> {
   }
 }
 
+type ReleaseContractArgs = {
+  channel?: string;
+  tag?: string;
+  target: string;
+};
+
+function readReleaseContractArgs(args: readonly string[]): ReleaseContractArgs {
+  let channel: string | undefined;
+  let tag: string | undefined;
+  let target = "pi";
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg) continue;
+    if (arg === "--runtime") {
+      target = args[index + 1] ?? "";
+      index += 1;
+      continue;
+    }
+    if (arg === "--release-channel" || arg === "--release-tag") {
+      const value = args[index + 1];
+      if (!value || value.startsWith("-")) throw new Error(`${arg} necesita un valor separado`);
+      if (arg === "--release-channel") {
+        if (channel !== undefined) throw new Error("--release-channel no puede repetirse");
+        channel = value;
+      } else {
+        if (tag !== undefined) throw new Error("--release-tag no puede repetirse");
+        tag = value;
+      }
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--release-channel=") || arg.startsWith("--release-tag=")) {
+      throw new Error("El contrato release usa --release-channel/--release-tag con valores separados");
+    }
+  }
+  return { channel, tag, target };
+}
+
+function runInstallWithReleaseAdmission(args: string[]): number | Promise<number> {
+  let input: ReleaseContractArgs;
+  try {
+    input = readReleaseContractArgs(args);
+  } catch (error) {
+    console.error(`Error de contrato release: ${error instanceof Error ? error.message : String(error)}`);
+    return 1;
+  }
+  const admitted = resolveReleaseContract(input.channel, input.tag, input.target, INSTALLER_VERSION);
+  if (!admitted.ok) {
+    console.error(`Error de contrato release: ${admitted.error.message}`);
+    return 1;
+  }
+  return runInstall(args);
+}
+
 function printHelp(): void {
   console.log("ein — instalador del workbench Ein sobre Pi");
   console.log("");
@@ -96,7 +150,7 @@ async function main(): Promise<number> {
 
   switch (cmd) {
     case "install":
-      return runInstall(rest);
+      return runInstallWithReleaseAdmission(rest);
     case "update":
       return runUpdate(rest);
     case "uninstall":
