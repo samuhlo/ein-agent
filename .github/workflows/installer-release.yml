@@ -36,15 +36,43 @@ jobs:
           PUSH_TAG: ${{ github.ref_name }}
         run: |
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            if [[ ! "$INPUT_RELEASE_TAG" =~ ^installer-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "workflow_dispatch requires an installer-v<full-semver> tag" >&2
-              exit 1
-            fi
             release_tag="$INPUT_RELEASE_TAG"
           else
             release_tag="$PUSH_TAG"
           fi
+
+          semver_re='^installer-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$'
+          if [[ ! "$release_tag" =~ $semver_re ]]; then
+            echo "Release tag must use canonical installer-v<semver> syntax" >&2
+            exit 1
+          fi
+
+          version="${release_tag#installer-v}"
+          version_without_build="${version%%+*}"
+          prerelease=""
+          if [[ "$version_without_build" == *-* ]]; then
+            prerelease="${version_without_build#*-}"
+            IFS='.' read -r -a prerelease_identifiers <<< "$prerelease"
+            for identifier in "${prerelease_identifiers[@]}"; do
+              if [[ "$identifier" =~ ^0[0-9]+$ ]]; then
+                echo "Release tag contains a leading-zero prerelease identifier: $release_tag" >&2
+                exit 1
+              fi
+            done
+          fi
+
+          release_channel="stable"
+          case "$prerelease" in
+            "") ;;
+            alpha|alpha.*) release_channel="alpha" ;;
+            *)
+              echo "Unsupported installer prerelease channel: $release_tag" >&2
+              exit 1
+              ;;
+          esac
+
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "release_channel=$release_channel" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v5
         with:
@@ -77,6 +105,25 @@ jobs:
               echo "Legitimate hotfix from a maintenance branch: re-run this workflow via workflow_dispatch with allow_non_main_tag=true." >&2
               exit 1
             fi
+          fi
+
+      - name: Verify release metadata coherence
+        working-directory: .
+        env:
+          RELEASE_TAG: ${{ steps.resolve_release_tag.outputs.release_tag }}
+        run: |
+          release_version="${RELEASE_TAG#installer-v}"
+          package_version="$(jq -er '.version | strings' installer/package.json)"
+          source_version="$(sed -nE 's/^export const INSTALLER_VERSION = "([^"]+)";/\1/p' installer/src/core/version.ts)"
+          changelog_version="$(awk '/^## \[[^]]+\]/{value=$0; sub(/^## \[/, "", value); sub(/\].*$/, "", value); print value; exit}' CHANGELOG.md)"
+
+          if [[ -z "$package_version" || -z "$source_version" || -z "$changelog_version" ]]; then
+            echo "Release metadata is missing a version pointer" >&2
+            exit 1
+          fi
+          if [[ "$release_version" != "$package_version" || "$release_version" != "$source_version" || "$release_version" != "$changelog_version" ]]; then
+            echo "Release tag $RELEASE_TAG disagrees with installer/package.json, INSTALLER_VERSION, or the leading changelog release" >&2
+            exit 1
           fi
 
       - uses: oven-sh/setup-bun@v2
@@ -124,6 +171,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.resolve_release_tag.outputs.release_tag }}
+          RELEASE_CHANNEL: ${{ steps.resolve_release_tag.outputs.release_channel }}
         run: |
           cat > /tmp/release-notes.md << 'EOF'
           Instalador de Ein. Instala con:
@@ -133,7 +181,12 @@ jobs:
           ```
           EOF
           release_version="$(jq -er '.version | strings' package.json)"
+          release_prerelease_flag=""
+          if [[ "$RELEASE_CHANNEL" == "alpha" ]]; then
+            release_prerelease_flag="--prerelease"
+          fi
           gh release create "$RELEASE_TAG" \
+            $release_prerelease_flag \
             --title "EIN v${release_version}" \
             --notes-file /tmp/release-notes.md \
             dist/ein-installer-darwin-arm64 \
