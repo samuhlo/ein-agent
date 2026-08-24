@@ -24,7 +24,13 @@ jobs:
     # un cuelgue no falla, se queda ahí ocupando runner y sin decir nada.
     timeout-minutes: 15
     steps:
+      # fetch-depth: 0 es obligatorio: `tests/apply-corpus-frozen.test.ts` regenera
+      # el corpus desde el historial (`git log`/`ls-tree`/`show` sobre el commit
+      # base). Con checkout superficial ese historial no existe y el congelado no
+      # se puede verificar.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:

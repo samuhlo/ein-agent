@@ -273,3 +273,49 @@ bun test (los 4 ficheros del cambio)   63 pass · 0 fail · 408 expect()
 bun test completo                      2317 pass · 16 fail · 9 errors
 bun run typecheck                      sin errores
 ```
+
+## // 007. Corrección posterior a la PR: dos defectos que destapó CI
+
+CI falló donde el local no. Dos causas distintas, ambas en los **tests**, no en
+producción.
+
+### La medida convertía una foto en ley
+
+`TRIANGULATE: medida sobre TODO el archivo` recorría la carpeta
+`openspec/changes/archive/` del árbol de trabajo y afirmaba que **todos** los
+packets que compilan fallan por `missing-stop`. Al archivarse este mismo cambio,
+compilan 126 y solo 120 fallan por eso: los seis restantes son sus propias
+tareas, que **sí** declaran `stop:` porque la gramática se usó mientras se
+construía.
+
+El número se movió por la razón correcta y el test estaba escrito como si la
+foto de ayer fuese permanente. Es el mismo defecto de fondo que el `baseCommit`
+ya corrigió en el corpus, escondido en otro sitio.
+
+**Corregido anclando la medida al corpus congelado**: se recorren los 40 ítems
+del examen, no la carpeta. Añadida además una afirmación que faltaba —
+`EJECUTABLE` no aparece entre los motivos—, para que un packet que pase a ser
+ejecutable rompa el test en vez de diluirse en el recuento.
+
+Por qué no se vio antes: la suite completa se corrió **antes** del archivado
+final y ese fichero no se volvió a ejecutar después.
+
+### CI clona superficial
+
+Las tres pruebas del corpus leen historial (`git log`, `ls-tree`, `show` sobre el
+commit base). El job `test` de `.github/workflows/ci.yml` usaba
+`actions/checkout` sin `fetch-depth`, es decir profundidad 1: sin historial, el
+commit base no existe y el congelado no se puede verificar.
+
+Corregido con `fetch-depth: 0` y su comentario. El job `docs-site` del mismo
+fichero ya lo tenía por esta misma clase de problema.
+
+### Hallazgo colateral
+
+En CI la suite da **2462 pass / 5 fail**; en local, 16 rojos. Los 16 locales
+pasan en CI porque el workflow ejecuta `bun run bundle-template:host` antes de
+los tests y en local nadie lo hace. **No están rotos: les falta un paso previo
+sin documentar.** Queda anotado; no se toca aquí.
+
+El quinto fallo de CI (`manifest backup v1 > Omarchy real tree`, timeout a los
+5.000 ms) es del área del instalador y ajeno a este cambio.

@@ -198,24 +198,33 @@ describe("TRIANGULATE: precedencia y aislamiento entre tareas", () => {
 	});
 });
 
-describe("TRIANGULATE: medida sobre TODO el archivo", () => {
-	test("ningun packet historico es ejecutable, y siempre por la misma razon", async () => {
-		const { Glob } = await import("bun");
-		const glob = new Glob("openspec/changes/archive/*/tasks.md");
+describe("TRIANGULATE: medida sobre el corpus congelado", () => {
+	test("ningun packet del corpus es ejecutable, y siempre por la misma razon", async () => {
+		// La medida va sobre los ITEMS DEL CORPUS, no sobre la carpeta de archivo.
+		// Medir la carpeta hacia que el numero se moviera cada vez que se archivaba
+		// un cambio nuevo — incluido este, cuyo tasks.md SI declara `stop:`. Un
+		// examen que se mueve solo no mide nada.
+		const { readFileSync } = await import("node:fs");
+		const { join } = await import("node:path");
+		const root = join(import.meta.dir, "..");
+		const corpus = JSON.parse(readFileSync(join(root, "evals", "apply-corpus.json"), "utf8"));
+
 		let compiled = 0;
-		let executable = 0;
 		const reasons = new Map<string, number>();
 
-		for await (const path of glob.scan(".")) {
-			const tasksText = await Bun.file(path).text();
+		for (const item of corpus.items as { change: string }[]) {
+			const tasksText = readFileSync(
+				join(root, "openspec", "changes", "archive", item.change, "tasks.md"),
+				"utf8",
+			);
 			const ids = [...tasksText.matchAll(/^\s*-\s*\[(?: |x|X)\]\s+(\d+(?:\.\d+)*)\s+/gm)].map((m) => m[1]);
 			for (const taskId of new Set(ids)) {
-				const result = compileApplyPacket({ change: "archive", designText: "#", tasksText, taskId, sources: SOURCES });
+				const result = compileApplyPacket({ change: item.change, designText: "#", tasksText, taskId, sources: SOURCES });
 				if (!result.ok) continue;
 				compiled += 1;
 				const validation = validateApplyPacket(result.draft, SOURCES);
 				if (validation.ok) {
-					executable += 1;
+					reasons.set("EJECUTABLE", (reasons.get("EJECUTABLE") ?? 0) + 1);
 					continue;
 				}
 				for (const issue of validation.issues) reasons.set(issue.code, (reasons.get(issue.code) ?? 0) + 1);
@@ -223,7 +232,7 @@ describe("TRIANGULATE: medida sobre TODO el archivo", () => {
 		}
 
 		expect(compiled).toBeGreaterThan(50);
-		expect(executable).toBe(0);
+		expect(reasons.get("EJECUTABLE")).toBeUndefined();
 		// El hallazgo de 2A, medido y no supuesto: la condicion de parada falta en
 		// TODOS los packets que compilan. Es la brecha que justifica cambiar lo que
 		// `sdd-tasks` escribe — trabajo posterior, no de este cambio.
