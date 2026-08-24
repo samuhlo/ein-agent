@@ -63,7 +63,8 @@ function declaredTools(agentFile: string): string[] {
 		.filter(Boolean);
 }
 
-// Nombres que registran las extensiones de Ein (`pi.registerTool({ name: … })`).
+// Nombres que registran las extensiones de Ein. Ein pasa por su propia puerta
+// (`registerEinTool`), que añade el recibo humano; Pi registra directamente.
 // El hijo hereda las extensiones globales, así que estos nombres SÍ existen en
 // su runtime aunque no sean builtins.
 function registeredExtensionTools(): Set<string> {
@@ -71,7 +72,7 @@ function registeredExtensionTools(): Set<string> {
 	for (const file of readdirSync(EXTENSIONS).filter((f) => f.endsWith(".ts"))) {
 		const src = readFileSync(join(EXTENSIONS, file), "utf8");
 		for (const m of src.matchAll(
-			/registerTool\(\s*\{[\s\S]{0,200}?name:\s*"([a-z0-9_]+)"/g,
+			/register(?:Ein)?Tool\(\s*\{[\s\S]{0,200}?name:\s*"([a-z0-9_]+)"/g,
 		)) {
 			if (m[1]) names.add(m[1]);
 		}
