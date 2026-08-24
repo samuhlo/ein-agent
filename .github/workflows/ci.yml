@@ -126,9 +126,11 @@ jobs:
         working-directory: docs-site
         run: bun run build
 
-      - name: Tests del detector de drift
-        run: bun test tests/docs-site-drift-detector.test.ts tests/docs-site-drift-report.test.ts
-
+      # Los tests del detector NO se ejecutan aquí: ya corren en el job `test`,
+      # que tambien usa `fetch-depth: 0` y ademas instala las dos instalaciones
+      # del repo. Repetirlos en un job que solo instala `docs-site/` obligaba a
+      # instalar la raiz y el installer para nada, y desde el guardian de
+      # dependencias eso ni siquiera es posible: el preload corta la suite.
       - name: Procedencia de las páginas (informativo)
         continue-on-error: true
         run: bun ein-pi/agent/lib/docs-site-drift-detector.ts

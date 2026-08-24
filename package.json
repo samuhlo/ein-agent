@@ -9,6 +9,7 @@
     "solid-js": "1.9.12"
   },
   "scripts": {
+    "setup": "bun install && cd installer && bun install",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
