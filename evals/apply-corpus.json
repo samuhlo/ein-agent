@@ -1,0 +1,1175 @@
+{
+	"format": "apply-corpus/v1",
+	"baseCommit": "1671a6e",
+	"items": [
+		{
+			"change": "add-stable-alpha-release-contract",
+			"commit": "1970300",
+			"outcome": "pass",
+			"productionFiles": [
+				"installer/src/cli/result.ts",
+				"installer/src/cli/update.ts",
+				"installer/src/core/acquisition.ts",
+				"installer/src/core/marker-v2.ts",
+				"installer/src/core/release-channel-preference.ts",
+				"installer/src/core/release-record.ts",
+				"installer/src/core/release-resolver.ts",
+				"installer/src/core/release-types.ts",
+				"installer/src/core/transaction.ts",
+				"installer/src/core/update-advisor-read.ts"
+			],
+			"testFiles": [
+				"tests/installer-runtime-menu.test.ts",
+				"tests/release-update-acquisition.test.ts",
+				"tests/release-update-cli.test.ts",
+				"tests/release-update-contract.test.ts",
+				"tests/release-update-integration.test.ts",
+				"tests/release-update-state-primitives.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/release-update-contract.test.ts",
+				"bun test tests/release-update-contract.test.ts",
+				"bun test tests/release-update-contract.test.ts",
+				"bun test tests/release-update-contract.test.ts",
+				"bun test tests/release-update-contract.test.ts",
+				"bun test tests/release-update-contract.test.ts",
+				"bun test tests/release-update-state-primitives.test.ts",
+				"bun test tests/release-update-state-primitives.test.ts",
+				"bun test tests/release-update-state-primitives.test.ts",
+				"bun test tests/release-update-state-primitives.test.ts",
+				"bun test tests/release-update-cli.test.ts",
+				"bun test tests/release-update-cli.test.ts",
+				"bun test tests/release-update-cli.test.ts",
+				"bun test tests/release-update-cli.test.ts",
+				"bun test tests/release-update-contract.test.ts tests/release-update-state-primitives.test.ts tests/release-update-cli.test.ts && bun run typecheck && (cd installer && bun run typecheck)",
+				"bun test tests/release-update-contract.test.ts",
+				"bun test tests/release-update-contract.test.ts",
+				"bun test tests/release-update-contract.test.ts",
+				"bun test tests/release-update-contract.test.ts",
+				"bun test tests/release-update-contract.test.ts",
+				"bun test tests/release-update-contract.test.ts",
+				"bun test tests/release-update-state-primitives.test.ts",
+				"bun test tests/release-update-state-primitives.test.ts",
+				"bun test tests/release-update-state-primitives.test.ts",
+				"bun test tests/release-update-state-primitives.test.ts",
+				"bun test tests/release-update-cli.test.ts",
+				"bun test tests/release-update-cli.test.ts",
+				"bun test tests/release-update-state-primitives.test.ts tests/release-update-cli.test.ts",
+				"bun test tests/release-update-state-primitives.test.ts tests/release-update-cli.test.ts",
+				"bun test tests/release-update-contract.test.ts tests/release-update-state-primitives.test.ts tests/release-update-cli.test.ts && bun run typecheck && (cd installer && bun run typecheck)"
+			],
+			"groups": 15
+		},
+		{
+			"change": "archive-out-of-flow-delivery",
+			"commit": "a5f8b26",
+			"outcome": "pass",
+			"productionFiles": [
+				"cc-ein/sdd-cli/cli.ts",
+				"ein-pi/agent/extensions/ein-ai.ts",
+				"ein-pi/agent/lib/sdd-close-args.ts",
+				"ein-pi/agent/lib/sdd-close.ts",
+				"ein-pi/agent/lib/sdd-reconciliation.ts",
+				"ein-pi/agent/lib/sdd-router.ts"
+			],
+			"testFiles": [
+				"tests/agent-tools-contract.test.ts",
+				"tests/core-parity-openspec.test.ts",
+				"tests/sdd-close-args.test.ts",
+				"tests/sdd-close.test.ts",
+				"tests/sdd-reconciliation.test.ts",
+				"tests/sdd-router.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/sdd-reconciliation.test.ts",
+				"bun test tests/sdd-reconciliation.test.ts",
+				"bun test tests/sdd-router.test.ts",
+				"bun test tests/sdd-router.test.ts",
+				"bun test tests/sdd-close.test.ts",
+				"bun test tests/sdd-close.test.ts",
+				"bun test tests/agent-tools-contract.test.ts",
+				"bun test tests/agent-tools-contract.test.ts",
+				"bun test tests/core-parity-openspec.test.ts",
+				"bun test tests/core-parity-openspec.test.ts",
+				"bun test tests/sdd-reconciliation.test.ts tests/sdd-router.test.ts tests/sdd-close.test.ts tests/agent-tools-contract.test.ts tests/core-parity-openspec.test.ts && bun test && (cd installer && bun run typecheck)"
+			],
+			"groups": 6
+		},
+		{
+			"change": "banner-git-semantics",
+			"commit": "63d146a",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/extensions/ein-banner.ts",
+				"ein-pi/agent/lib/banner-git.ts"
+			],
+			"testFiles": [
+				"tests/banner-git-semantics.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/banner-git-semantics.test.ts",
+				"bun test tests/banner-git-semantics.test.ts",
+				"bun test tests/banner-git-semantics.test.ts",
+				"bun test && bun test tests/banner-git-semantics.test.ts"
+			],
+			"groups": 4
+		},
+		{
+			"change": "beta-launcher-e2e-hardening",
+			"commit": "d85780d",
+			"outcome": "pass",
+			"productionFiles": [
+				"EIN.md"
+			],
+			"testFiles": [
+				"tests/beta-launcher-e2e-hardening.test.ts",
+				"tests/fixtures/beta-launcher-e2e-driver.ts",
+				"tests/fixtures/runtime-test-fixture-isolation-probe-worker.ts",
+				"tests/fixtures/runtime-test-fixture-isolation-probe.test.ts",
+				"tests/fixtures/runtime-test-fixture.ts",
+				"tests/lang.test.ts",
+				"tests/model-config.test.ts",
+				"tests/preload-env.ts",
+				"tests/runtime-session-adapters.test.ts",
+				"tests/runtime-test-fixture-isolation.test.ts",
+				"tests/sessions.test.ts",
+				"tests/tdd.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts",
+				"bun test tests/beta-launcher-e2e-hardening.test.ts && bun test tests/minimal-workbench-launcher.test.ts tests/shared-project-state.test.ts tests/runtime-session-adapters.test.ts tests/beta-launcher-e2e-hardening.test.ts && cd installer && bun run typecheck"
+			],
+			"groups": 5
+		},
+		{
+			"change": "beta-truth-and-exit-criteria",
+			"commit": "8b86ef2",
+			"outcome": "pass",
+			"productionFiles": [
+				"README.md",
+				"docs/roadmap-beta.md",
+				"docs/roadmap-features-ein.md",
+				"installer/README.md"
+			],
+			"testFiles": [],
+			"focusedChecks": [
+				"grep -nF '0.42.0' docs/roadmap-beta.md` y revisión manual de las anotaciones históricas y límites de evidencia.",
+				"grep -nE 'BE-0[1-6]' docs/roadmap-beta.md`; revisión manual de que installer E2E nunca se presenta como launcher E2E y de que la frescura se invalida tras cambios relevantes de código.",
+				"Revisión semántica contra `scope.md`, `map.md` y `design.md`; confirmar que toda afirmación superseded está fechada o contextualizada.",
+				"grep -nF '0.42.0' README.md` y `grep -nF -- '--runtime pi|claude|both' README.md`; revisión manual de ausencia de claims de launcher implementado.",
+				"grep -nF -- '--runtime pi|claude|both' installer/README.md` y revisión manual de la etiqueta installer-vs-launcher E2E y ownership del instalador.",
+				"git diff --check -- docs/roadmap-beta.md README.md installer/README.md` y `git diff --name-only -- docs/roadmap-beta.md README.md installer/README.md`; revisión manual de `spec_delta: none`.",
+				"Revisión manual contra REQ-01–REQ-07 y criterios 1–10 de `design.md`; no ejecutar tests/build/typecheck por ser documentación-only."
+			],
+			"groups": 4
+		},
+		{
+			"change": "candidate-receipt-retirement",
+			"commit": "1f89b0f",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/extensions/ein-ai.ts",
+				"ein-pi/agent/lib/candidate-receipt.ts",
+				"ein-pi/agent/lib/delivery-receipt.ts"
+			],
+			"testFiles": [
+				"tests/candidate-receipt.test.ts",
+				"tests/delivery-gate.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/candidate-receipt.test.ts tests/delivery-gate.test.ts` (and `bun run typecheck` if that script exists)",
+				"bun test tests/candidate-receipt.test.ts` (and `bun run typecheck` if that script exists)",
+				"bun test tests/candidate-receipt.test.ts tests/delivery-gate.test.ts` (and `bun run typecheck` if that script exists)",
+				"bun test tests/candidate-receipt.test.ts tests/delivery-gate.test.ts && bun test && git diff --check && bun test tests/candidate-receipt.test.ts tests/delivery-gate.test.ts` (run `bun run typecheck` if available; no installer files are touched, so no installer typecheck is required)"
+			],
+			"groups": 4
+		},
+		{
+			"change": "candidate-receipt-retirement-hardening",
+			"commit": "874cab4",
+			"outcome": "pass",
+			"productionFiles": [],
+			"testFiles": [
+				"tests/candidate-receipt-retirement-remote.test.ts",
+				"tests/candidate-receipt-retirement-tool.test.ts"
+			],
+			"focusedChecks": [
+				"for path in openspec/changes/archive/candidate-receipt-retirement/apply-progress.md openspec/changes/archive/candidate-receipt-retirement/design.md openspec/changes/archive/candidate-receipt-retirement/specs/sdd-lifecycle/spec.md openspec/changes/archive/candidate-receipt-retirement/summary.md openspec/changes/archive/candidate-receipt-retirement/sync-report.md openspec/changes/archive/candidate-receipt-retirement/verify-report.md; do cmp \"$path\" <(git show \"1f89b0f:$path\") || exit 1; done",
+				"cmp openspec/specs/sdd-lifecycle/spec.md <(git show '1f89b0f:openspec/specs/sdd-lifecycle/spec.md')",
+				"bun test tests/candidate-receipt-retirement-remote.test.ts",
+				"bun test tests/candidate-receipt-retirement-tool.test.ts",
+				"ein_openspec_sync candidate-receipt-retirement-hardening && test \"$(grep -c '^state: synchronized$' openspec/changes/candidate-receipt-retirement-hardening/sync-report.md)\" -eq 1",
+				"test -f openspec/changes/candidate-receipt-retirement-hardening/apply-progress.md && grep -Fx 'state: synchronized' openspec/changes/candidate-receipt-retirement-hardening/sync-report.md",
+				"bun test tests/candidate-receipt.test.ts tests/delivery-gate.test.ts tests/candidate-receipt-retirement-remote.test.ts tests/candidate-receipt-retirement-tool.test.ts && bun test tests/openspec-specs.test.ts && bun test && bun run --cwd installer typecheck && git diff --check && for path in openspec/changes/archive/candidate-receipt-retirement/apply-progress.md openspec/changes/archive/candidate-receipt-retirement/design.md openspec/changes/archive/candidate-receipt-retirement/specs/sdd-lifecycle/spec.md openspec/changes/archive/candidate-receipt-retirement/summary.md openspec/changes/archive/candidate-receipt-retirement/sync-report.md openspec/changes/archive/candidate-receipt-retirement/verify-report.md; do cmp \"$path\" <(git show \"1f89b0f:$path\") || exit 1; done && grep -Fx 'state: synchronized' openspec/changes/candidate-receipt-retirement-hardening/sync-report.md",
+				"grep -Fq 'verify → close → fresh receipt' openspec/changes/candidate-receipt-retirement-hardening/apply-progress.md && grep -Eq '^- \\[x\\] [1-4]\\.' openspec/changes/candidate-receipt-retirement-hardening/tasks.md"
+			],
+			"groups": 4
+		},
+		{
+			"change": "candidate-receipt-spec-adoption",
+			"commit": "17c673f",
+			"outcome": "pass",
+			"productionFiles": [
+				"docs/sdd-cost-plan.md"
+			],
+			"testFiles": [],
+			"focusedChecks": [
+				"bun test tests/openspec-specs.test.ts",
+				"bun test tests/openspec-specs.test.ts",
+				"bun test tests/candidate-receipt.test.ts && bun test tests/openspec-specs.test.ts"
+			],
+			"groups": 3
+		},
+		{
+			"change": "canonical-openspec",
+			"commit": "976084e",
+			"outcome": "pass",
+			"productionFiles": [
+				"docs/quality-roadmap/02-canonical-openspec.md",
+				"docs/quality-roadmap/README.md",
+				"ein-pi/agent/assets/orchestrator.md",
+				"ein-pi/agent/extensions/ein-ai.ts",
+				"ein-pi/agent/lib/openspec-spec-contract.ts",
+				"ein-pi/agent/lib/openspec-spec-parser.ts",
+				"ein-pi/agent/lib/openspec-spec-sync-fs.ts",
+				"ein-pi/agent/lib/openspec-spec-sync.ts",
+				"ein-pi/agent/lib/sdd-close.ts",
+				"ein-pi/agent/lib/sdd-guardrails.ts",
+				"ein-pi/agent/lib/sdd-router.ts",
+				"ein-pi/core/agents/sdd-design.md",
+				"ein-pi/core/agents/sdd-scope.md"
+			],
+			"testFiles": [
+				"tests/openspec-specs.test.ts",
+				"tests/sdd-close.test.ts",
+				"tests/sdd-flow-contract.test.ts",
+				"tests/sdd-guardrails.test.ts",
+				"tests/sdd-router.test.ts",
+				"tests/sdd-scope-packet.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/openspec-specs.test.ts",
+				"bun test tests/openspec-specs.test.ts",
+				"bun test tests/openspec-specs.test.ts",
+				"bun test tests/openspec-specs.test.ts",
+				"bun test tests/sdd-guardrails.test.ts",
+				"bun test tests/sdd-router.test.ts && bun test tests/sdd-close.test.ts",
+				"bun test tests/sdd-scope-packet.test.ts && bun test tests/sdd-flow-contract.test.ts",
+				"bun test tests/sdd-flow-contract.test.ts && bun test tests/sdd-scope-packet.test.ts",
+				"bun test tests/openspec-specs.test.ts && bun test tests/sdd-flow-contract.test.ts"
+			],
+			"groups": 7
+		},
+		{
+			"change": "cleaner-bounded-mutations",
+			"commit": "0d0de9f",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/lib/cleaner-bounded-mutations.ts"
+			],
+			"testFiles": [
+				"tests/cleaner-bounded-mutations.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/cleaner-bounded-mutations.test.ts -t \"contract shape\"",
+				"bun test tests/cleaner-bounded-mutations.test.ts -t \"admission|ownership|mechanical|precondition\"",
+				"bun test tests/cleaner-bounded-mutations.test.ts -t \"single write|invalidation|uncertain|writer\"",
+				"bun test tests/cleaner-bounded-mutations.test.ts -t \"completion|verification|required|resume|runtime\"",
+				"bun test tests/cleaner-bounded-mutations.test.ts tests/cleaner-read-only-audit.test.ts tests/reviewed-area-ledger.test.ts tests/shared-project-state.test.ts tests/sdd-router.test.ts && cd installer && bun run typecheck",
+				"bun test tests/cleaner-bounded-mutations.test.ts -t \"architect|extra fields|runtime shape|contract shape\"",
+				"git diff --numstat -- ein-pi/agent/lib/cleaner-bounded-mutations.ts` and confirm production changed lines are `<=400`; then run `bun test tests/cleaner-bounded-mutations.test.ts`.",
+				"grep -n \"TDD Cycle Evidence\" openspec/changes/cleaner-bounded-mutations/apply-progress.md` and manually confirm every cell is sourced or marked not recorded.",
+				"bun test tests/cleaner-bounded-mutations.test.ts && bun test tests/cleaner-read-only-audit.test.ts tests/reviewed-area-ledger.test.ts tests/shared-project-state.test.ts tests/sdd-router.test.ts && cd installer && bun run typecheck",
+				"bunx tsc --noEmit --pretty false ein-pi/agent/lib/cleaner-bounded-mutations.ts` (or the exact direct diagnostic command recorded by the latest verify run); inspect only the listed diagnostics and confirm no new diagnostics.",
+				"python3 -c 'from pathlib import Path; p=Path(\"openspec/changes/cleaner-bounded-mutations/apply-progress.md\"); b=p.read_bytes(); assert b.endswith(b\"\\\\n\") and not b.endswith(b\"\\\\n\\\\n\")'",
+				"bunx tsc --noEmit --pretty false ein-pi/agent/lib/cleaner-bounded-mutations.ts && bun test tests/cleaner-bounded-mutations.test.ts && bun test tests/cleaner-read-only-audit.test.ts tests/reviewed-area-ledger.test.ts tests/shared-project-state.test.ts tests/sdd-router.test.ts && (cd installer && bun run typecheck) && git diff --check && test \"$(git diff --numstat -- ein-pi/agent/lib/cleaner-bounded-mutations.ts | awk '{a+=$1; d+=$2} END {print a+d+0}')\" -le 400"
+			],
+			"groups": 7
+		},
+		{
+			"change": "cleaner-read-only-audit",
+			"commit": "9efa2a1",
+			"outcome": "pass",
+			"productionFiles": [
+				"EIN.md",
+				"ein-pi/agent/lib/cleaner-read-only-audit.ts"
+			],
+			"testFiles": [
+				"tests/cleaner-read-only-audit.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/cleaner-read-only-audit.test.ts` (RED: import/entrypoint is intentionally absent before implementation).",
+				"bun test tests/cleaner-read-only-audit.test.ts` (RED evidence recorded in the test run output).",
+				"bun test tests/cleaner-read-only-audit.test.ts` (GREEN after implementing the contract).",
+				"bun test tests/cleaner-read-only-audit.test.ts` (GREEN assertions for IDs, ordering, immutability, traceability, and no-change output).",
+				"bun test tests/cleaner-read-only-audit.test.ts && rg \"replaceWorkspaceLedger|replaceReviewedAreaLedger|writeEinMd|cleanSkills|child_process|node:fs|fetch|spawn|exec|rename|writeFile\" ein-pi/agent/lib/cleaner-read-only-audit.ts` (TRIANGULATE/REFACTOR evidence; forbidden-import search must return no matches).",
+				"bun test tests/cleaner-read-only-audit.test.ts tests/shared-project-state.test.ts tests/reviewed-area-ledger.test.ts`.",
+				"bun test tests/cleaner-read-only-audit.test.ts tests/shared-project-state.test.ts tests/reviewed-area-ledger.test.ts && rg \"node:fs|node:child_process|replaceWorkspaceLedger|replaceReviewedAreaLedger|writeEinMd|cleanSkills|spawn|exec|fetch\" ein-pi/agent/lib/cleaner-read-only-audit.ts`."
+			],
+			"groups": 3
+		},
+		{
+			"change": "core-parity",
+			"commit": "4cc32d2",
+			"outcome": "pass",
+			"productionFiles": [
+				"EIN.md",
+				"cc-ein/sdd-cli/cli.ts",
+				"docs/roadmap-beta.md"
+			],
+			"testFiles": [
+				"tests/core-parity-openspec.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/core-parity.test.ts",
+				"bun test tests/core-parity.test.ts tests/agent-frontmatter-json.test.ts tests/agent-tools-contract.test.ts",
+				"bun test tests/core-parity.test.ts",
+				"bun test tests/core-parity.test.ts tests/openspec-specs.test.ts tests/sdd-close.test.ts tests/harness-discipline.test.ts` and `bun build --compile cc-ein/sdd-cli/cli.ts --outfile /tmp/cc-ein-sdd",
+				"bun test tests/core-parity.test.ts && bun test",
+				"git diff --check -- EIN.md docs/roadmap-beta.md` and manual confirmation that no `installer/` paths changed."
+			],
+			"groups": 5
+		},
+		{
+			"change": "deploy-claude-orchestrator-asset",
+			"commit": "f176fc0",
+			"outcome": "pass",
+			"productionFiles": [
+				"cc-ein/sync.ts"
+			],
+			"testFiles": [
+				"tests/surface-wiring.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/surface-wiring.test.ts` (capture RED: the non-dry asset assertion and required-failure assertion fail before implementation; the dry-run no-mutation assertion must remain valid).",
+				"bun test tests/surface-wiring.test.ts` (GREEN: all focused isolated sync cases pass, including exact bytes, dry-run absence, and non-zero required failure).",
+				"bun test tests/surface-wiring.test.ts`; after the focused gate, run the required broader checks `bun test`, `bun run typecheck`, `cd installer && bun run typecheck`, and canonical-integrity checks `wc -c < ein-pi/agent/assets/orchestrator.md` and `shasum -a 256 ein-pi/agent/assets/orchestrator.md`."
+			],
+			"groups": 4
+		},
+		{
+			"change": "docs-content-inventory",
+			"commit": "e0bb691",
+			"outcome": "pass",
+			"productionFiles": [
+				"docs-site/src/content/docs/00-start/first-run.md",
+				"docs-site/src/content/docs/00-start/getting-started.md",
+				"docs-site/src/content/docs/00-start/overview.md",
+				"docs-site/src/content/docs/01-concepts/context.md",
+				"docs-site/src/content/docs/01-concepts/deterministic-boundaries.md",
+				"docs-site/src/content/docs/01-concepts/orchestrator.md",
+				"docs-site/src/content/docs/01-concepts/sdd-openspec.md",
+				"docs-site/src/content/docs/02-workflow/artifacts.md",
+				"docs-site/src/content/docs/02-workflow/real-workflow-example.md",
+				"docs-site/src/content/docs/02-workflow/workflow-overview.md"
+			],
+			"testFiles": [],
+			"focusedChecks": [
+				"grep -c \"^## \" docs-site/src/content/docs/01-concepts/orchestrator.md | grep -q \"^7$\"` (7 secciones exactas); `grep \"verified_rev: \\\"0ae709d\\\"\" docs-site/src/content/docs/01-concepts/orchestrator.md`.",
+				"grep \"^## \" docs-site/src/content/docs/01-concepts/sdd-openspec.md | wc -l | grep -q \"^7$\"`; `test -f docs-site/src/content/docs/01-concepts/sdd-openspec.md && echo \"existe\"`.",
+				"grep -q \"fork\" docs-site/src/content/docs/01-concepts/context.md && grep -q \"fresh\" docs-site/src/content/docs/01-concepts/context.md && grep -q \"max_tokens\" docs-site/src/content/docs/01-concepts/context.md && echo \"términos OK\"`; `grep \"^## \" docs-site/src/content/docs/01-concepts/context.md | wc -l | grep -q \"^7$\"`.",
+				"Ejecutar tras escribir cada archivo; aplicar todo el Lote 1 de una vez, luego confirmar gate.",
+				"grep \"7.*fases\" docs-site/src/content/docs/02-workflow/workflow-overview.md` debe encontrar mención de 7 fases (en bloque PENDIENTE-D es OK). `grep -q \"ein-pi/core/docs/EIN_OPERATING_SYSTEM.md\" docs-site/src/content/docs/02-workflow/workflow-overview.md` puede ser verdadero (puede estar en sources), pero si menciona \"5 fases\" debe estar en bloque PENDIENTE-D, NO afirmación libre.",
+				"grep \"scope.md\" docs-site/src/content/docs/02-workflow/artifacts.md && grep \"close\" docs-site/src/content/docs/02-workflow/artifacts.md && echo \"artefactos OK\"`; `grep \"^## \" docs-site/src/content/docs/02-workflow/artifacts.md | wc -l | grep -q \"^7$\"`.",
+				"Comando concreto tras Lote 2 escrito.",
+				"grep -E \"(modelo|herramienta|garantía|observable)\" docs-site/src/content/docs/01-concepts/deterministic-boundaries.md | head -4` debe encontrar esos términos (en bloques PENDIENTE-D es OK); criterio 14: `grep \"modelo\" docs-site/src/content/docs/01-concepts/deterministic-boundaries.md && ! grep \"modelo\" docs-site/src/content/docs/00-start/overview.md && ! grep \"modelo\" docs-site/src/content/docs/02-workflow/workflow-overview.md && echo \"modelo único en deterministic-boundaries\"`.",
+				"**Criterio 11:** `grep -A2 \"^## En una frase\" docs-site/src/content/docs/00-start/overview.md | grep -E \"(pi-ein|cc-ein)\" | head -1` debe encontrar ambos en la línea `falta:` del bloque PENDIENTE-D. Comando concreto: `grep -A3 \"^## En una frase\" docs-site/src/content/docs/00-start/overview.md | grep \"pi-ein\" && grep -A3 \"^## En una frase\" docs-site/src/content/docs/00-start/overview.md | grep \"cc-ein\" && echo \"ambos runtimes OK\"`.",
+				"**Criterio 12:** `grep \"sources:\" docs-site/src/content/docs/00-start/getting-started.md | grep -q \"EIN_OPERATING_SYSTEM\" && echo \"ERROR: EIN_OPERATING_SYSTEM en sources\" || echo \"OK: sin EIN_OPERATING_SYSTEM\"`.",
+				"Ejecutar comandos concretos tras escribir ambos archivos.",
+				"**Criterio 13 (fases):** `grep -l \"scope.*map.*design.*tasks.*apply.*verify.*close\" docs-site/src/content/docs/02-workflow/real-workflow-example.md && echo \"7 fases mencionadas\"`. `for file in docs-site/src/content/docs/02-workflow/real-workflow-example.md docs-site/src/content/docs/02-workflow/workflow-overview.md docs-site/src/content/docs/02-workflow/artifacts.md docs-site/src/content/docs/00-start/first-run.md; do grep -q \"EIN_OPERATING_SYSTEM\" \"$file\" && echo \"EIN_OS en $(basename $file) — revisar si es solo sources, no sección de fases\"; done`.",
+				"test -f docs-site/src/content/docs/00-start/first-run.md && grep \"installer-beta\" docs-site/src/content/docs/00-start/first-run.md && echo \"first-run con referencias a installer-beta\"`. **Criterio 14 (no-solapamiento):** Verificar que términos de context.md (fork, fresh, max_tokens, max_reads) no aparecen aquí (OK si están en PENDIENTE-D o en enlace a context.md, pero NO como redacción independiente).",
+				"Ejecutar checks D1–D4 completos.",
+				"test -f openspec/changes/docs-content-inventory/gap-inventory.md && grep \"^### \" openspec/changes/docs-content-inventory/gap-inventory.md | wc -l | grep -q \"^5$\"` (exactamente 5 huecos).",
+				"grep -E \"D[123]\" openspec/changes/docs-content-inventory/gap-inventory.md | wc -l | grep -q \"^3$\"` (exactamente 3 defectos); `grep \"no se corrigen\" openspec/changes/docs-content-inventory/gap-inventory.md && echo \"declaración GI-6 presente\"`.",
+				"grep -A1 \"Known Limitations\" openspec/changes/docs-content-inventory/gap-inventory.md | grep \"desbloqueante:\" && echo \"GI-4 presente\"`.",
+				"Ejecutar checks GI-1 a GI-6 completos (comandos concretos en apply-progress.md).",
+				"for file in docs-site/src/content/docs/{00-start,01-concepts,02-workflow}/*.md; do grep \"^## Siguiente paso\" \"$file\" -A1 | grep -E \"^\\[.*\\]\\(\" | grep -oE \"\\./[^)]*\\.md\" | while read link; do if ! test -f \"$(dirname \"$file\")/$link\"; then echo \"ROTO: $file → $link\"; fi; done; done` → debe retornar vacío (sin links rotos).",
+				"grep -r \"^## Siguiente paso\" docs-site/src/content/docs/ -A2 | grep -E \"03-runtimes|04-reference|05-debug|docs-content-reference\" | head -5` debe retornar líneas de texto (no enlaces `[...](...)`).",
+				"Ver apply-progress.md tras cada lote; tabla resumen de checks + pass/fail."
+			],
+			"groups": 11
+		},
+		{
+			"change": "duplicate-startup-output-investigation",
+			"commit": "bdf3b48",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/extensions/ein-banner.ts",
+				"ein-pi/agent/lib/ein-update-notice.ts",
+				"ein-pi/agent/lib/startup-provenance-classifier.ts",
+				"ein-pi/agent/lib/startup-provenance.ts"
+			],
+			"testFiles": [
+				"tests/ein-banner-updates.test.ts",
+				"tests/startup-provenance-classifier.test.ts",
+				"tests/startup-provenance.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/startup-provenance.test.ts` (RED expected before implementation); `cd installer && bun run typecheck",
+				"bun test tests/startup-provenance.test.ts`; `cd installer && bun run typecheck",
+				"bun test tests/startup-provenance.test.ts`; `cd installer && bun run typecheck",
+				"bun test tests/startup-provenance.test.ts`; `cd installer && bun run typecheck",
+				"bun test tests/startup-provenance-classifier.test.ts` (RED expected before implementation); `cd installer && bun run typecheck",
+				"bun test tests/startup-provenance-classifier.test.ts`; `cd installer && bun run typecheck",
+				"bun test tests/startup-provenance-classifier.test.ts`; `cd installer && bun run typecheck",
+				"bun test tests/startup-provenance-classifier.test.ts`; `cd installer && bun run typecheck",
+				"bun test tests/ein-banner-updates.test.ts` (RED expected before implementation); `cd installer && bun run typecheck",
+				"bun test tests/ein-banner-updates.test.ts`; `cd installer && bun run typecheck",
+				"bun test tests/ein-banner-updates.test.ts`; `cd installer && bun run typecheck",
+				"bun test tests/ein-banner-updates.test.ts`; `cd installer && bun run typecheck",
+				"bun test tests/ein-banner-updates.test.ts` (RED expected before implementation); `cd installer && bun run typecheck",
+				"bun test tests/ein-banner-updates.test.ts`; `cd installer && bun run typecheck",
+				"bun test tests/ein-banner-updates.test.ts`; `cd installer && bun run typecheck",
+				"bun test tests/ein-banner-updates.test.ts`; `cd installer && bun run typecheck",
+				"Before capture, run `bun test tests/ein-banner-updates.test.ts` and `cd installer && bun run typecheck`; run the actual Pi startup command under the repository’s PTY capture procedure and preserve the raw capture.",
+				"Re-run `bun test tests/startup-provenance-classifier.test.ts`; `cd installer && bun run typecheck`; manually confirm the capture has independent presentation records.",
+				"bun test tests/startup-provenance-classifier.test.ts`; `bun test tests/ein-banner-updates.test.ts`; `cd installer && bun run typecheck",
+				"bun test`; `cd installer && bun run typecheck`; inspect `git status --short` and `git diff -- installer` against the pre-existing dirty state."
+			],
+			"groups": 5
+		},
+		{
+			"change": "engram-deterministic-contract",
+			"commit": "09d3385",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/assets/orchestrator.md",
+				"ein-pi/agent/extensions/ein-ai.ts",
+				"ein-pi/agent/extensions/ein-doctor.ts",
+				"ein-pi/agent/lib/engram-cli.ts",
+				"ein-pi/agent/lib/memory-contract.ts",
+				"ein-pi/agent/lib/memory-lifecycle.ts",
+				"ein-pi/agent/lib/sdd-memory-save.ts",
+				"ein-pi/agent/lib/sdd-preflight.ts",
+				"ein-pi/core/agents/sdd-apply.md",
+				"ein-pi/core/agents/sdd-close.md",
+				"ein-pi/core/agents/sdd-design.md",
+				"ein-pi/core/agents/sdd-map.md",
+				"ein-pi/core/agents/sdd-scope.md",
+				"ein-pi/core/agents/sdd-tasks.md",
+				"ein-pi/core/agents/sdd-verify.md"
+			],
+			"testFiles": [
+				"tests/engram-memory-contract.test.ts",
+				"tests/engram-memory-lifecycle.test.ts",
+				"tests/git-baseline.test.ts",
+				"tests/review-workload-guard.test.ts",
+				"tests/sdd-close.test.ts",
+				"tests/sdd-flow-contract.test.ts",
+				"tests/sdd-preflight-tdd-gate.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/engram-memory-contract.test.ts",
+				"bun test tests/engram-memory-contract.test.ts tests/engram-memory-lifecycle.test.ts",
+				"bun test tests/engram-memory-lifecycle.test.ts tests/sdd-preflight-tdd-gate.test.ts tests/sdd-router.test.ts",
+				"bun test tests/engram-memory-lifecycle.test.ts tests/sdd-close.test.ts tests/sdd-router.test.ts",
+				"bun test tests/sdd-preflight-tdd-gate.test.ts tests/sdd-flow-contract.test.ts tests/review-workload-guard.test.ts",
+				"bun test tests/engram-memory-contract.test.ts tests/engram-memory-lifecycle.test.ts`; `bun test tests/sdd-preflight-tdd-gate.test.ts tests/sdd-close.test.ts tests/sdd-router.test.ts`; `bun test tests/sdd-flow-contract.test.ts tests/review-workload-guard.test.ts"
+			],
+			"groups": 6
+		},
+		{
+			"change": "fix-cleaner-participant-slicing",
+			"commit": "16faf82",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/assets/orchestrator.md",
+				"ein-pi/agent/extensions/ein-ai.ts",
+				"ein-pi/agent/lib/cleaner-audit-evidence.ts",
+				"ein-pi/agent/lib/continuity-checkpoint.ts",
+				"ein-pi/agent/lib/continuity-handoff-lifecycle.ts",
+				"ein-pi/agent/lib/continuity-resume-brief.ts",
+				"ein-pi/agent/lib/sdd-participants.ts",
+				"ein-pi/agent/lib/sdd-preflight.ts",
+				"ein-pi/agent/lib/sdd-router.ts"
+			],
+			"testFiles": [
+				"tests/agent-tools-contract.test.ts",
+				"tests/claude-continuity-runtime.test.ts",
+				"tests/cleaner-audit-evidence.test.ts",
+				"tests/continuity-checkpoint.test.ts",
+				"tests/continuity-handoff-lifecycle.test.ts",
+				"tests/continuity-resume-brief.test.ts",
+				"tests/sdd-next-dispatcher.test.ts",
+				"tests/sdd-participants.test.ts",
+				"tests/sdd-preflight-per-change.test.ts",
+				"tests/sdd-router.test.ts",
+				"tests/subagent-envelope-contract.test.ts"
+			],
+			"focusedChecks": [
+				"git diff --no-ext-diff -- ein-pi/agent/lib/sdd-participants.ts ein-pi/agent/lib/continuity-checkpoint.ts ein-pi/agent/lib/pi-sdd-participant-receipt.ts ein-pi/agent/extensions/ein-ai.ts ein-pi/agent/lib/sdd-preflight.ts ein-pi/agent/lib/sdd-router.ts ein-pi/agent/assets/orchestrator.md tests/sdd-participants.test.ts tests/pi-sdd-participant-receipt.test.ts tests/continuity-checkpoint.test.ts tests/sdd-next-dispatcher.test.ts tests/sdd-router.test.ts tests/agent-tools-contract.test.ts tests/fixtures/pi-sdd-participant-foreground.json > /tmp/fix-cleaner-participant-slicing.before.patch && shasum -a 256 ein-pi/agent/lib/continuity-checkpoint-store.ts cc-ein/continuity-runner.ts tests/claude-continuity-runtime.test.ts tests/installer-backup.test.ts > /tmp/fix-cleaner-participant-slicing.protected.sha256 && test -s /tmp/fix-cleaner-participant-slicing.before.patch && shasum -a 256 -c /tmp/fix-cleaner-participant-slicing.protected.sha256",
+				"! bun test tests/continuity-checkpoint.test.ts",
+				"bun test tests/continuity-checkpoint.test.ts tests/continuity-checkpoint-store.test.ts && ! grep -nE 'SddParticipant|sddParticipants|withSddParticipants|migrateSddParticipants' ein-pi/agent/lib/continuity-checkpoint.ts && shasum -a 256 -c /tmp/fix-cleaner-participant-slicing.protected.sha256",
+				"! bun test tests/sdd-participants.test.ts",
+				"! grep -nE 'continuity-checkpoint-store|generation|orphan|receipt|migration|abandonedAttempt|activeAttempt' ein-pi/agent/lib/sdd-participants.ts",
+				"bun test tests/sdd-participants.test.ts --test-name-pattern 'slice|scope|limit|impossible'",
+				"bun test tests/sdd-participants.test.ts tests/cleaner-audit-evidence.test.ts",
+				"bun test tests/sdd-participants.test.ts tests/cleaner-audit-evidence.test.ts && ! grep -n 'continuity-checkpoint-store' ein-pi/agent/lib/sdd-participants.ts",
+				"! bun test tests/agent-tools-contract.test.ts",
+				"test ! -e ein-pi/agent/lib/pi-sdd-participant-receipt.ts && test ! -e tests/pi-sdd-participant-receipt.test.ts && test ! -e tests/fixtures/pi-sdd-participant-foreground.json",
+				"bun test tests/agent-tools-contract.test.ts tests/sdd-participants.test.ts && ! grep -nE 'pi-sdd-participant-receipt|runtime/sdd-participants|participantArtifact|output\\.txt' ein-pi/agent/extensions/ein-ai.ts",
+				"! bun test tests/sdd-preflight-per-change.test.ts tests/sdd-preflight-record.test.ts tests/sdd-preflight-tdd-gate.test.ts tests/agent-tools-contract.test.ts",
+				"bun test tests/sdd-preflight-per-change.test.ts tests/sdd-preflight-record.test.ts tests/sdd-preflight-tdd-gate.test.ts tests/agent-tools-contract.test.ts tests/sdd-participants.test.ts",
+				"! bun test tests/sdd-router.test.ts tests/sdd-next-dispatcher.test.ts",
+				"bun test tests/sdd-router.test.ts tests/sdd-next-dispatcher.test.ts",
+				"bun test tests/sdd-participants.test.ts tests/continuity-checkpoint.test.ts tests/sdd-next-dispatcher.test.ts tests/sdd-router.test.ts tests/cleaner-audit-evidence.test.ts tests/architect-read-only.test.ts tests/agent-tools-contract.test.ts",
+				"! bun test tests/continuity-handoff-lifecycle.test.ts",
+				"bun test tests/continuity-handoff-lifecycle.test.ts",
+				"bun test tests/continuity-handoff-lifecycle.test.ts",
+				"bun test tests/continuity-handoff-lifecycle.test.ts && ! grep -nE 'withSddParticipants|checkpoint\\.sddParticipants' ein-pi/agent/lib/continuity-handoff-lifecycle.ts && git diff --check -- ein-pi/agent/lib/continuity-handoff-lifecycle.ts tests/continuity-handoff-lifecycle.test.ts",
+				"! bun test tests/continuity-resume-brief.test.ts tests/claude-continuity-runtime.test.ts",
+				"bun test tests/continuity-resume-brief.test.ts",
+				"bun test tests/continuity-resume-brief.test.ts tests/claude-continuity-runtime.test.ts",
+				"bun test tests/continuity-resume-brief.test.ts tests/claude-continuity-runtime.test.ts && ! grep -nE 'withSddParticipants|sddParticipants|continue participant work in Pi' ein-pi/agent/lib/continuity-resume-brief.ts && ! grep -nE 'withSddParticipants|continue participant work in Pi' tests/claude-continuity-runtime.test.ts && git diff --check -- ein-pi/agent/lib/continuity-resume-brief.ts tests/continuity-resume-brief.test.ts tests/claude-continuity-runtime.test.ts",
+				"! bun test tests/subagent-envelope-contract.test.ts --test-name-pattern 'T2'",
+				"bun test tests/subagent-envelope-contract.test.ts --test-name-pattern 'T2'",
+				"bun test tests/subagent-envelope-contract.test.ts && git diff --check -- tests/subagent-envelope-contract.test.ts && git diff --no-ext-diff -U3 -- tests/subagent-envelope-contract.test.ts",
+				"bun test tests/continuity-handoff-lifecycle.test.ts tests/continuity-resume-brief.test.ts && bun test tests/claude-continuity-runtime.test.ts tests/installer-backup.test.ts && bun test && bun run typecheck && (cd installer && bun run typecheck) && grep -E ' (ein-pi/agent/lib/continuity-checkpoint-store\\.ts|cc-ein/continuity-runner\\.ts|tests/installer-backup\\.test\\.ts)$' /tmp/fix-cleaner-participant-slicing.protected.sha256 > /tmp/fix-cleaner-participant-slicing.still-protected.sha256 && test \"$(wc -l < /tmp/fix-cleaner-participant-slicing.still-protected.sha256 | tr -d ' ')\" -eq 3 && shasum -a 256 -c /tmp/fix-cleaner-participant-slicing.still-protected.sha256 && git diff --no-ext-diff -U3 -- tests/claude-continuity-runtime.test.ts > /tmp/fix-cleaner-participant-slicing.claude-test-hunks.patch && test -s /tmp/fix-cleaner-participant-slicing.claude-test-hunks.patch && test ! -e ein-pi/agent/lib/pi-sdd-participant-receipt.ts && test ! -e tests/pi-sdd-participant-receipt.test.ts && test ! -e tests/fixtures/pi-sdd-participant-foreground.json && ! grep -R -nE 'pi-sdd-participant-receipt|runtime/sdd-participants' ein-pi/agent/extensions/ein-ai.ts ein-pi/agent/lib/sdd-participants.ts tests/agent-tools-contract.test.ts tests/sdd-participants.test.ts && ! grep -nE 'withSddParticipants|checkpoint\\.sddParticipants' ein-pi/agent/lib/continuity-handoff-lifecycle.ts && ! grep -nE 'withSddParticipants|sddParticipants|continue participant work in Pi' ein-pi/agent/lib/continuity-resume-brief.ts && ! grep -nE 'withSddParticipants|continue participant work in Pi' tests/claude-continuity-runtime.test.ts && git diff --check",
+				"! bun test tests/sdd-participants.test.ts --test-name-pattern 'deleted changed-file'",
+				"bun test tests/sdd-participants.test.ts --test-name-pattern 'deleted changed-file'",
+				"bun test tests/sdd-participants.test.ts",
+				"bun test tests/sdd-participants.test.ts tests/cleaner-audit-evidence.test.ts && bun run typecheck && git diff --check -- ein-pi/agent/lib/sdd-participants.ts tests/sdd-participants.test.ts"
+			],
+			"groups": 11
+		},
+		{
+			"change": "fix-installer-backup-real-trees",
+			"commit": "5e53171",
+			"outcome": "pass",
+			"productionFiles": [
+				"installer/src/cli/install.ts",
+				"installer/src/core/backup-manifest.ts",
+				"installer/src/core/backup.ts",
+				"installer/src/core/install-executor.ts",
+				"installer/src/core/install-journal.ts"
+			],
+			"testFiles": [
+				"tests/install-journal.test.ts",
+				"tests/installer-backup.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/installer-backup.test.ts -t \"manifest|exclude|hardlink\"`; record RED before implementation, GREEN after, TRIANGULATE with tampered/non-canonical fixtures, and REFACTOR only after behavior is green.",
+				"bun test tests/installer-backup.test.ts -t \"symlink|restore|tamper|v1|v2\"`; require RED, GREEN, TRIANGULATE with path-escape/conflict fixtures, then REFACTOR evidence.",
+				"bun test tests/installer-backup.test.ts -t \"Omarchy|real tree|dependency|hardlink\"`; capture RED/GREEN, TRIANGULATE via external-target sentinel and over-limit included fixture, then REFACTOR.",
+				"bun test tests/install-journal.test.ts -t \"backup failure|cause|detail\"`; require RED before production edits, GREEN, TRIANGULATE with long/control/absolute-path errors, and REFACTOR evidence.",
+				"bun test tests/install-journal.test.ts -t \"recovery|retry|completed Claude|unsupported|interrupted\"`; record RED/GREEN, TRIANGULATE with rejection matrix and repeated failure, then REFACTOR.",
+				"bun test tests/installer-backup.test.ts tests/install-journal.test.ts tests/install-completed-journal-reentry.test.ts && bun test && bun run typecheck && (cd installer && bun run typecheck)`; require RED/GREEN/TRIANGULATE/REFACTOR evidence for the caller tests, and do not run a production build."
+			],
+			"groups": 6
+		},
+		{
+			"change": "harden-scope-retries",
+			"commit": "ad6190f",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/lib/sdd-router.ts",
+				"ein-pi/core/agents/sdd-scope.md"
+			],
+			"testFiles": [
+				"tests/sdd-flow-contract.test.ts",
+				"tests/sdd-next-dispatcher.test.ts",
+				"tests/sdd-router.test.ts",
+				"tests/sdd-status-output.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/sdd-flow-contract.test.ts",
+				"bun test tests/sdd-flow-contract.test.ts",
+				"bun test tests/sdd-flow-contract.test.ts",
+				"bun test tests/sdd-flow-contract.test.ts",
+				"bun test tests/sdd-router.test.ts",
+				"bun test tests/sdd-router.test.ts",
+				"bun test tests/sdd-router.test.ts",
+				"bun test tests/sdd-router.test.ts",
+				"bun test tests/sdd-next-dispatcher.test.ts",
+				"bun test tests/sdd-next-dispatcher.test.ts",
+				"bun test tests/sdd-router.test.ts tests/sdd-next-dispatcher.test.ts tests/sdd-flow-contract.test.ts",
+				"bun test tests/sdd-router.test.ts tests/sdd-next-dispatcher.test.ts tests/sdd-flow-contract.test.ts"
+			],
+			"groups": 3
+		},
+		{
+			"change": "installer-beta",
+			"commit": "47b4b58",
+			"outcome": "pass",
+			"productionFiles": [
+				"EIN.md"
+			],
+			"testFiles": [],
+			"focusedChecks": [
+				"bun test tests/installer-runtime-menu.test.ts` (RED evidence: new focused assertions fail for the missing behavior)",
+				"bun test tests/installer-runtime-menu.test.ts` (GREEN evidence: parser-focused tests pass)",
+				"bun test tests/installer-runtime-menu.test.ts tests/updater-cli-entrypoints.test.ts` (TRIANGULATE and REFACTOR evidence)",
+				"bun test tests/installer-runtime-menu.test.ts` (RED evidence: routing assertions fail before implementation)",
+				"bun test tests/installer-runtime-menu.test.ts` (GREEN evidence: focused routing/orchestration tests pass)",
+				"bun test tests/installer-runtime-menu.test.ts tests/updater-cli-entrypoints.test.ts` (TRIANGULATE and REFACTOR evidence)",
+				"./e2e/docker-test.sh` (RED evidence: new scenario assertions fail before preparation)",
+				"./e2e/docker-test.sh` (GREEN evidence: all four scenarios pass twice where valid)",
+				"bun test tests/installer-runtime-menu.test.ts && ./e2e/docker-test.sh` (TRIANGULATE/REFACTOR evidence)",
+				"bun test tests/updater-cli-entrypoints.test.ts tests/release-update-cli.test.ts` (RED evidence)",
+				"cd installer && bun run bundle-template && bun run build:all -- darwin-x64 && ./dist/ein-installer-darwin-x64 --version` (GREEN evidence on supported native macOS runner)",
+				"bun test tests/updater-cli-entrypoints.test.ts tests/release-update-cli.test.ts && cd installer && ./dist/ein-installer-darwin-x64 --version` (TRIANGULATE/REFACTOR evidence)",
+				"bun test tests/release-asset-contract.test.ts` (RED evidence before metadata update)",
+				"bun test tests/release-asset-contract.test.ts && cd installer && bun run typecheck` (GREEN evidence)",
+				"bun test tests/installer-runtime-menu.test.ts tests/updater-cli-entrypoints.test.ts tests/release-update-cli.test.ts tests/release-asset-contract.test.ts tests/install-sh-checksum.test.ts tests/installer-safe-secret-writes.test.ts tests/installer-backup.test.ts tests/deploy-clean-managed.test.ts tests/deps-pi.test.ts tests/deps-hypa.test.ts && cd installer && bun run typecheck && ./e2e/docker-test.sh` (TRIANGULATE/REFACTOR evidence)"
+			],
+			"groups": 5
+		},
+		{
+			"change": "installer-mandatory-checksum",
+			"commit": "31bb9f5",
+			"outcome": "pass",
+			"productionFiles": [
+				"installer/install.sh"
+			],
+			"testFiles": [
+				"tests/install-sh-checksum.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/install-sh-checksum.test.ts --test-name-pattern='sandbox|fixture'",
+				"bun test tests/install-sh-checksum.test.ts --test-name-pattern='download failure|missing|malformed|duplicate|mismatch|utility'` (must fail before production edits)",
+				"bun test tests/install-sh-checksum.test.ts --test-name-pattern='download failure|missing|malformed|duplicate'` (GREEN)",
+				"bun test tests/install-sh-checksum.test.ts --test-name-pattern='mismatch|utility|fallback|order'",
+				"bun test tests/install-sh-checksum.test.ts --test-name-pattern='verified success|fallback|cleanup'",
+				"bun test tests/install-sh-checksum.test.ts tests/install-sh-wsl.test.ts tests/release-asset-contract.test.ts && cd installer && bun run typecheck"
+			],
+			"groups": 6
+		},
+		{
+			"change": "installer-safe-secret-writes",
+			"commit": "0248d2c",
+			"outcome": "pass",
+			"productionFiles": [
+				"installer/src/core/secrets.ts"
+			],
+			"testFiles": [
+				"tests/installer-safe-secret-writes.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"cd installer && bun run typecheck",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts",
+				"bun test tests/installer-safe-secret-writes.test.ts && (cd installer && bun run typecheck)"
+			],
+			"groups": 6
+		},
+		{
+			"change": "macos-ci-parity",
+			"commit": "8257533",
+			"outcome": "pass",
+			"productionFiles": [
+				".github/workflows/ci.yml",
+				"README.md",
+				"docs/quality-roadmap/01-macos-ci-parity.md"
+			],
+			"testFiles": [],
+			"focusedChecks": [
+				"git diff --check -- .github/workflows/ci.yml && sed -n '/^jobs:/,$p' .github/workflows/ci.yml",
+				"git diff --check -- README.md docs/quality-roadmap/01-macos-ci-parity.md && grep -nE 'BUN_VERSION|1\\.3\\.0|macOS|Ubuntu|verif|pend' README.md docs/quality-roadmap/01-macos-ci-parity.md .github/workflows/ci.yml"
+			],
+			"groups": 1
+		},
+		{
+			"change": "materialize-claude-orchestrator-asset",
+			"commit": "a3fd60f",
+			"outcome": "pass",
+			"productionFiles": [
+				"installer/scripts/cc-payload-smoke.ts",
+				"installer/src/core/cc-payload.ts"
+			],
+			"testFiles": [
+				"tests/installer-runtime-menu.test.ts",
+				"tests/release-asset-contract.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/installer-runtime-menu.test.ts",
+				"bun test tests/installer-runtime-menu.test.ts",
+				"bun test tests/cc-payload-bundle.test.ts tests/installer-runtime-menu.test.ts",
+				"cd installer && bun run typecheck",
+				"bun test tests/installer-runtime-menu.test.ts",
+				"bun test tests/installer-runtime-menu.test.ts",
+				"bun test tests/installer-runtime-menu.test.ts tests/surface-wiring.test.ts",
+				"cd installer && bun build scripts/cc-payload-smoke.ts --compile --target=bun-linux-x64 --outfile /tmp/ein-cc-payload-smoke && (cd /tmp && /tmp/ein-cc-payload-smoke)",
+				"cd installer && bun build scripts/cc-payload-smoke.ts --compile --target=bun-linux-x64 --outfile /tmp/ein-cc-payload-smoke && (cd /tmp && /tmp/ein-cc-payload-smoke)",
+				"bun test tests/cc-payload-entrypoints.test.ts tests/release-asset-contract.test.ts && bun run typecheck && (cd installer && bun run typecheck) && cd installer && bun build scripts/cc-payload-smoke.ts --compile --target=bun-linux-x64 --outfile /tmp/ein-cc-payload-smoke && (cd /tmp && /tmp/ein-cc-payload-smoke)"
+			],
+			"groups": 3
+		},
+		{
+			"change": "minimal-workbench-launcher",
+			"commit": "d3da1de",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/lib/workbench.ts",
+				"ein-pi/workbench.ts"
+			],
+			"testFiles": [
+				"tests/minimal-workbench-launcher.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/minimal-workbench-launcher.test.ts --test-name-pattern 'contract|exit|cancellation'",
+				"bun test tests/minimal-workbench-launcher.test.ts --test-name-pattern 'selection|confirmation|state|freshness|privacy|accessibility'",
+				"bun test tests/minimal-workbench-launcher.test.ts --test-name-pattern 'confirmed project|runtime selection|capabilit(y|ies)|menu gating'",
+				"bun test tests/minimal-workbench-launcher.test.ts --test-name-pattern 'Pi list|request-only create|opaque reference|adapter outcome|unsupported|unavailable|cancelled|normalized error'",
+				"bun test tests/minimal-workbench-launcher.test.ts --test-name-pattern 'launch|stale|plan|executor|shell|argv|cancel|exit'",
+				"bun test tests/minimal-workbench-launcher.test.ts --test-name-pattern 'doctor|unavailable|returns to menu|no writes'",
+				"bun test tests/minimal-workbench-launcher.test.ts --test-name-pattern 'entrypoint|argv|TTY|help|exit' && bun run tsc --noEmit --pretty false"
+			],
+			"groups": 7
+		},
+		{
+			"change": "optimize-tdd-verify",
+			"commit": "86ad505",
+			"outcome": "pass",
+			"productionFiles": [
+				"EIN.md",
+				"docs/roadmap-codegraph-tdd-launcher.md",
+				"ein-pi/core/agents/sdd-apply.md",
+				"ein-pi/core/agents/sdd-verify.md"
+			],
+			"testFiles": [
+				"tests/sdd-tdd-phase-boundary.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/sdd-tdd-phase-boundary.test.ts` (expected RED before documentation changes)",
+				"bun test tests/sdd-tdd-phase-boundary.test.ts",
+				"bun test tests/sdd-tdd-phase-boundary.test.ts",
+				"bun test tests/sdd-tdd-phase-boundary.test.ts"
+			],
+			"groups": 4
+		},
+		{
+			"change": "package-claude-orchestrator-asset",
+			"commit": "13ebc40",
+			"outcome": "pass",
+			"productionFiles": [
+				"installer/scripts/bundle-cc-ein.ts",
+				"installer/src/core/cc-payload-inventory.ts"
+			],
+			"testFiles": [
+				"tests/cc-payload-bundle.test.ts",
+				"tests/cc-payload-entrypoints.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/cc-payload-entrypoints.test.ts` (expected RED before implementation)",
+				"bun test tests/cc-payload-entrypoints.test.ts",
+				"bun test tests/cc-payload-entrypoints.test.ts",
+				"bun test tests/cc-payload-entrypoints.test.ts && git diff --check -- installer/src/core/cc-payload-inventory.ts tests/cc-payload-entrypoints.test.ts",
+				"bun test tests/cc-payload-bundle.test.ts` (expected RED before the seam exists)",
+				"bun test tests/cc-payload-bundle.test.ts",
+				"bun test tests/cc-payload-bundle.test.ts",
+				"bun test tests/cc-payload-bundle.test.ts && (cd installer && bun run typecheck)",
+				"bun test tests/installer-runtime-menu.test.ts` (expected RED until fixture data is updated)",
+				"bun test tests/installer-runtime-menu.test.ts",
+				"bun test tests/cc-payload-entrypoints.test.ts tests/cc-payload-bundle.test.ts tests/installer-runtime-menu.test.ts",
+				"git diff --check && bun test && bun run typecheck && (cd installer && bun run typecheck)"
+			],
+			"groups": 3
+		},
+		{
+			"change": "readonly-scout-contract",
+			"commit": "ffe2034",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/extensions/ein-ai.ts",
+				"ein-pi/agent/extensions/ein-doctor.ts",
+				"ein-pi/agent/lib/model-config.ts",
+				"ein-pi/agent/lib/scout-contract.ts",
+				"ein-pi/core/agents/ein-scout.md",
+				"installer/src/core/verify.ts"
+			],
+			"testFiles": [
+				"tests/agent-tools-contract.test.ts",
+				"tests/installed-agent-inventory.test.ts",
+				"tests/model-config.test.ts",
+				"tests/readonly-scout-contract.test.ts",
+				"tests/sdd-flow-contract.test.ts",
+				"tests/sdd-phase-runtime-contract.test.ts",
+				"tests/sdd-reconcile.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/agent-tools-contract.test.ts tests/sdd-phase-runtime-contract.test.ts tests/sdd-flow-contract.test.ts tests/sdd-reconcile.test.ts",
+				"bun test tests/readonly-scout-contract.test.ts tests/agent-tools-contract.test.ts",
+				"bun test tests/installed-agent-inventory.test.ts tests/model-config.test.ts tests/agent-tools-contract.test.ts tests/sdd-phase-runtime-contract.test.ts && cd installer && bun run bundle-template && bun run typecheck",
+				"bun test tests/readonly-scout-contract.test.ts tests/sdd-phase-runtime-contract.test.ts tests/sdd-flow-contract.test.ts tests/sdd-reconcile.test.ts",
+				"bun test tests/readonly-scout-contract.test.ts tests/installed-agent-inventory.test.ts tests/agent-tools-contract.test.ts tests/model-config.test.ts tests/sdd-phase-runtime-contract.test.ts tests/sdd-flow-contract.test.ts tests/sdd-reconcile.test.ts && cd installer && bun run typecheck && bun run bundle-template"
+			],
+			"groups": 5
+		},
+		{
+			"change": "reviewed-area-ledger",
+			"commit": "09af955",
+			"outcome": "pass",
+			"productionFiles": [
+				"EIN.md",
+				"ein-pi/agent/lib/project-state.ts",
+				"ein-pi/agent/lib/reviewed-area-ledger-store.ts",
+				"ein-pi/agent/lib/reviewed-area-ledger.ts"
+			],
+			"testFiles": [
+				"tests/reviewed-area-ledger.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/reviewed-area-ledger.test.ts",
+				"bun test tests/reviewed-area-ledger.test.ts",
+				"bun test tests/reviewed-area-ledger.test.ts",
+				"bun test tests/reviewed-area-ledger.test.ts",
+				"bun test tests/reviewed-area-ledger.test.ts",
+				"bun test tests/reviewed-area-ledger.test.ts",
+				"bun test tests/reviewed-area-ledger.test.ts",
+				"bun test tests/reviewed-area-ledger.test.ts tests/shared-project-state.test.ts tests/shared-config-update-advisor.test.ts",
+				"bun test tests/reviewed-area-ledger.test.ts tests/shared-project-state.test.ts tests/shared-config-update-advisor.test.ts",
+				"bun test tests/reviewed-area-ledger.test.ts && bun test tests/shared-project-state.test.ts tests/shared-config-update-advisor.test.ts"
+			],
+			"groups": 6
+		},
+		{
+			"change": "runtime-session-adapters",
+			"commit": "264cf92",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/lib/runtime-session-adapters.ts",
+				"ein-pi/agent/lib/sessions.ts"
+			],
+			"testFiles": [
+				"tests/runtime-session-adapters.test.ts",
+				"tests/sessions.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/runtime-session-adapters.test.ts` with RED contract assertions, GREEN minimal unions/matrix, TRIANGULATE malformed state/provider/outcome/privacy cases, then REFACTOR with unchanged public discriminants.",
+				"bun test tests/runtime-session-adapters.test.ts tests/sessions.test.ts` using RED malformed/missing-id/cwd/unreadable/neighbor/overflow fixtures, GREEN bounded scan, TRIANGULATE duplicate/recency/privacy cases, REFACTOR while existing Pi behavior remains green.",
+				"bun test tests/runtime-session-adapters.test.ts` with RED cross-runtime/wrong-project/unknown/missing-state/no-write tests, GREEN request/outcome implementation, TRIANGULATE stale-binding/privacy/capability-matrix tests, REFACTOR into small functions without changing codes.",
+				"bun test tests/runtime-session-adapters.test.ts` with RED fixed-plan/shell/privacy/cancellation/exit tests, GREEN injectable executor and normalized results, TRIANGULATE spawn failure, signal, missing executable, metacharacter cwd, and no-write cases, REFACTOR preserving closed diagnostics.",
+				"bun test tests/runtime-session-adapters.test.ts tests/sessions.test.ts tests/shared-project-state.test.ts tests/installer-runtime-menu.test.ts` with RED serialized-privacy/immutability/compatibility assertions, GREEN translation, TRIANGULATE filesystem/no-migration/no-freshness and ownership checks, REFACTOR only after all four suites pass."
+			],
+			"groups": 5
+		},
+		{
+			"change": "runtime-test-fixture-isolation",
+			"commit": "d85780d",
+			"outcome": "pass",
+			"productionFiles": [
+				"EIN.md"
+			],
+			"testFiles": [
+				"tests/beta-launcher-e2e-hardening.test.ts",
+				"tests/fixtures/beta-launcher-e2e-driver.ts",
+				"tests/fixtures/runtime-test-fixture-isolation-probe-worker.ts",
+				"tests/fixtures/runtime-test-fixture-isolation-probe.test.ts",
+				"tests/fixtures/runtime-test-fixture.ts",
+				"tests/lang.test.ts",
+				"tests/model-config.test.ts",
+				"tests/preload-env.ts",
+				"tests/runtime-session-adapters.test.ts",
+				"tests/runtime-test-fixture-isolation.test.ts",
+				"tests/sessions.test.ts",
+				"tests/tdd.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/fixtures/runtime-test-fixture-isolation-probe.test.ts` — expected RED with shared homes or cross-owner observation.",
+				"bun test tests/fixtures/runtime-test-fixture-isolation.test.ts` — expected RED until the behavior tests in the next task are present, then GREEN for unique owner/cache binding and disposal invariants.",
+				"bun test tests/runtime-test-fixture-isolation.test.ts` — all ownership, cache, restoration, and successor checks pass.",
+				"bun test tests/runtime-test-fixture-isolation.test.ts` — overlapping lease users never overlap, cleanup completes, unrelated users proceed.",
+				"bun test tests/sessions.test.ts` — the three mapped cases pass with unchanged expectations and no shared-root deletion.",
+				"bun test tests/runtime-session-adapters.test.ts` — all mapped adapter cases and lifecycle assertions pass.",
+				"bun test tests/model-config.test.ts tests/lang.test.ts tests/tdd.test.ts` — existing assertions pass and no top-level runtime-home mutation remains.",
+				"bun test tests/runtime-test-fixture-isolation.test.ts tests/fixtures/runtime-test-fixture-isolation-probe.test.ts` — all lifecycle paths pass and no owned root/child/lease remains.",
+				"for i in 1 2 3 4 5 6 7 8 9 10; do bun test tests/runtime-test-fixture-isolation.test.ts tests/sessions.test.ts tests/runtime-session-adapters.test.ts || exit 1; done` and `bun test tests/minimal-workbench-launcher.test.ts tests/shared-project-state.test.ts tests/runtime-session-adapters.test.ts tests/sessions.test.ts tests/beta-launcher-e2e-hardening.test.ts` — all pass.",
+				"cd installer && bun run typecheck`; `cd .. && for i in 1 2 3; do bun test || exit 1; done`; `git diff -- ein-pi/agent cc-ein installer package.json bun.lock tests/beta-launcher-e2e-hardening.test.ts` — typecheck and all three suites pass, with no forbidden diff.",
+				"Manual handback checklist against `design.md` success criteria and recorded apply/verify evidence — explicit RESUME E decision only when all criteria are green."
+			],
+			"groups": 7
+		},
+		{
+			"change": "scout-evidence-salvage-and-fanout",
+			"commit": "53491a1",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/assets/orchestrator.md",
+				"ein-pi/agent/lib/scout-contract.ts",
+				"ein-pi/agent/lib/subagent-envelope-contract.ts",
+				"ein-pi/core/agents/ein-scout.md"
+			],
+			"testFiles": [
+				"tests/delegation-shape.test.ts",
+				"tests/orchestrator-context-diet.test.ts",
+				"tests/readonly-scout-contract.test.ts"
+			],
+			"focusedChecks": [
+				"bun test && bun run typecheck"
+			],
+			"groups": 5
+		},
+		{
+			"change": "sdd-apply-contract-drift",
+			"commit": "eac68b0",
+			"outcome": "pass",
+			"productionFiles": [
+				"docs/public-beta-implementation-plan.md",
+				"docs/public-beta-plan.md"
+			],
+			"testFiles": [],
+			"focusedChecks": [
+				"bun test tests/sdd-phase-runtime-contract.test.ts tests/sdd-planning-acceptance.test.ts tests/subagent-build-hygiene.test.ts tests/sdd-cost-block-e.test.ts"
+			],
+			"groups": 2
+		},
+		{
+			"change": "sdd-close-force-guard",
+			"commit": "eac68b0",
+			"outcome": "pass",
+			"productionFiles": [
+				"docs/public-beta-implementation-plan.md",
+				"docs/public-beta-plan.md"
+			],
+			"testFiles": [],
+			"focusedChecks": [
+				"bun test tests/sdd-router.test.ts",
+				"bun test tests/sdd-close.test.ts",
+				"bun test tests/sdd-close.test.ts tests/sdd-router.test.ts",
+				"bun test tests/sdd-flow-contract.test.ts",
+				"bun test tests/sdd-flow-contract.test.ts",
+				"bun test tests/sdd-close.test.ts tests/sdd-router.test.ts tests/sdd-flow-contract.test.ts"
+			],
+			"groups": 5
+		},
+		{
+			"change": "sdd-cost-ledger-provenance",
+			"commit": "f823cae",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/extensions/ein-ai.ts",
+				"ein-pi/agent/lib/sdd-cost-provenance.ts",
+				"ein-pi/agent/lib/sdd-router.ts"
+			],
+			"testFiles": [
+				"tests/sdd-phase-runtime-contract.test.ts",
+				"tests/sdd-real-cost-provenance.test.ts",
+				"tests/sdd-status-output.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/sdd-real-cost-provenance.test.ts",
+				"bun test tests/sdd-real-cost-provenance.test.ts && bun test tests/sdd-reconcile.test.ts && bun test tests/sdd-phase-runtime-contract.test.ts",
+				"bun test tests/sdd-real-cost-provenance.test.ts && bun test tests/sdd-status-output.test.ts",
+				"git diff --check -- openspec/changes/sdd-cost-ledger-provenance/specs/sdd-lifecycle/spec.md",
+				"bun test tests/sdd-real-cost-provenance.test.ts && bun test tests/sdd-status-output.test.ts && bun test tests/sdd-reconcile.test.ts && bun test tests/sdd-phase-runtime-contract.test.ts && cd installer && bun run typecheck"
+			],
+			"groups": 5
+		},
+		{
+			"change": "shared-project-state-contract",
+			"commit": "1ff6a63",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/lib/project-state.ts"
+			],
+			"testFiles": [
+				"tests/shared-project-state.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/shared-project-state.test.ts --test-name-pattern \"contract|schema|runtime shape\"` (RED before implementation, then GREEN after the minimal type surface)",
+				"bun test tests/shared-project-state.test.ts --test-name-pattern \"contract|schema|runtime shape\"`; record RED → GREEN evidence.",
+				"bun test tests/shared-project-state.test.ts --test-name-pattern \"Git|HEAD|index|tracked|untracked|detached|overflow\"` (RED → GREEN → TRIANGULATE → REFACTOR evidence required)",
+				"bun test tests/shared-project-state.test.ts --test-name-pattern \"Git|HEAD|index|tracked|untracked|detached|overflow\"`; preserve independent TRIANGULATE and REFACTOR runs.",
+				"bun test tests/shared-project-state.test.ts tests/sdd-router.test.ts --test-name-pattern \"OpenSpec|active|legacy|ambiguous|provenance\"` (RED → GREEN → TRIANGULATE → REFACTOR)",
+				"bun test tests/shared-project-state.test.ts tests/project-context.test.ts --test-name-pattern \"EIN|context|revision|read-only\"`; record RED → GREEN → TRIANGULATE → REFACTOR.",
+				"bun test tests/shared-project-state.test.ts tests/sdd-router.test.ts --test-name-pattern \"verification|fresh|stale|unbound|binding\"`; RED → GREEN → TRIANGULATE → REFACTOR evidence required.",
+				"bun test tests/shared-project-state.test.ts --test-name-pattern \"degradation|determin|no.*(file|write)|mutation\"`; record RED → GREEN → TRIANGULATE → REFACTOR.",
+				"bun test tests/shared-project-state.test.ts --test-name-pattern \"runtime|privacy|not-provided|capabilit\"`; RED → GREEN → TRIANGULATE → REFACTOR.",
+				"bun test tests/shared-project-state.test.ts` and `bun test tests/sdd-router.test.ts tests/sdd-status-output.test.ts tests/project-context.test.ts tests/git-baseline.test.ts`; retain RED → GREEN → TRIANGULATE → REFACTOR records and inspect the filesystem for no writes."
+			],
+			"groups": 5
+		},
+		{
+			"change": "surface-wiring",
+			"commit": "e45a13e",
+			"outcome": "pass",
+			"productionFiles": [
+				"cc-ein/cc-ein.fish",
+				"cc-ein/sync.ts",
+				"ein-pi/agent/surfaces/surface-runner.ts",
+				"ein-pi/agent/surfaces/workbench-entrypoint.ts",
+				"ein-pi/workbench.ts",
+				"pi-ein/pi-ein.fish"
+			],
+			"testFiles": [
+				"tests/minimal-workbench-launcher.test.ts",
+				"tests/surface-wiring.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/surface-wiring.test.ts --test-name-pattern 'protocol|request|diagnostic'",
+				"bun test tests/surface-wiring.test.ts --test-name-pattern 'audit|authority'",
+				"bun test tests/surface-wiring.test.ts --test-name-pattern 'mutate|complete'",
+				"bun test tests/minimal-workbench-launcher.test.ts",
+				"bun test tests/surface-wiring.test.ts --test-name-pattern 'Pi|pi-ein|passthrough'",
+				"bun test tests/surface-wiring.test.ts --test-name-pattern 'Claude|sync|payload|compile'` and `cd installer && bun run typecheck",
+				"bun test tests/surface-wiring.test.ts --test-name-pattern 'Claude|cc-ein|parity|passthrough'",
+				"bun test tests/surface-wiring.test.ts` and `bun test"
+			],
+			"groups": 7
+		},
+		{
+			"change": "thin-parent-research-routing",
+			"commit": "1fa5e37",
+			"outcome": "pass",
+			"productionFiles": [
+				"ein-pi/agent/assets/orchestrator.md",
+				"ein-pi/core/agents/ein-scout.md"
+			],
+			"testFiles": [
+				"tests/orchestrator-context-diet.test.ts",
+				"tests/orchestrator-scope-gate.test.ts"
+			],
+			"focusedChecks": [
+				"bun test tests/orchestrator-context-diet.test.ts` (RED: new assertions fail before the prompt edit)",
+				"bun test tests/orchestrator-context-diet.test.ts` (GREEN: all routing assertions pass)",
+				"bun test tests/orchestrator-context-diet.test.ts` (TRIANGULATE and REFACTOR: focused suite remains green)",
+				"bun test tests/orchestrator-scope-gate.test.ts` (RED: new packet assertions fail before prompt edits)",
+				"bun test tests/orchestrator-scope-gate.test.ts` (GREEN: packet and scoped-map assertions pass)",
+				"bun test tests/orchestrator-scope-gate.test.ts && bun test tests/readonly-scout-contract.test.ts && cd installer && bun run typecheck` (TRIANGULATE and REFACTOR: focused contracts, v0.24.4 guard, and types pass)",
+				"git diff --shortstat <base>..HEAD -- . ':(exclude)*.test.*' ':(exclude)*.spec.*' ':(exclude)**/tests/**' ':(exclude)**/__tests__/**' ':(exclude)**/e2e/**' ':(exclude)*.snap' ':(exclude)*-lock.*' ':(exclude)dist/**' ':(exclude).output/**' ':(exclude).nuxt/**' ':(exclude)coverage/**' ':(exclude)*.min.*'"
+			],
+			"groups": 3
+		},
+		{
+			"change": "update-astro-documentation",
+			"commit": "6348b2a",
+			"outcome": "pass",
+			"productionFiles": [
+				"docs-site/src/content/docs/02-workflow/real-workflow-example.md",
+				"docs-site/src/content/docs/02-workflow/workflow-overview.md",
+				"docs-site/src/content/docs/03-runtimes/claude-code.md",
+				"docs-site/src/content/docs/03-runtimes/runtime-matrix.md",
+				"docs-site/src/content/docs/04-reference/cli.md",
+				"docs-site/src/content/docs/05-debug/known-limitations.md"
+			],
+			"testFiles": [],
+			"focusedChecks": [
+				"grep -nE 'standard|micro|map|tasks|persist|persisten' docs-site/src/content/docs/02-workflow/workflow-overview.md && ! grep -nE 'flujo fijo|flujo universal|Las siete fases' docs-site/src/content/docs/02-workflow/workflow-overview.md",
+				"grep -nE 'standard|archivad|históric|postura TDD|TDD.*cambio' docs-site/src/content/docs/02-workflow/real-workflow-example.md",
+				"grep -nE '/ein:status|/ein:settings|ctrl\\+shift\\+e|tasks\\.md' docs-site/src/content/docs/04-reference/cli.md",
+				"grep -nE 'Codegraph|CodeGraph|bootstrap|--no-codegraph|Engram|--no-engram' docs-site/src/content/docs/04-reference/cli.md",
+				"grep -nE '/ein:status|/ein:settings|Pi.*referencia|Claude.*relevo|checkpoint|disco' docs-site/src/content/docs/03-runtimes/claude-code.md && ! grep -nE 'paridad completa|equivalencia 1:1|historial.*compart' docs-site/src/content/docs/03-runtimes/claude-code.md",
+				"grep -nE 'Cleaner|Architect|Pi-only|Pi.*solo|no aplicable|no soportad|best-effort|MCP' docs-site/src/content/docs/03-runtimes/claude-code.md",
+				"grep -nE 'Pi.*referencia|Claude.*relevo|compartid|superfic|límite|checkpoint|disco' docs-site/src/content/docs/03-runtimes/runtime-matrix.md && ! grep -nE 'mismo ciclo SDD|equivalencia completa|paridad completa' docs-site/src/content/docs/03-runtimes/runtime-matrix.md",
+				"grep -nE 'Cleaner|Architect|Pi-only|skills|herramientas|sesion|MCP|1:1|no.*paridad|no verif' docs-site/src/content/docs/03-runtimes/runtime-matrix.md",
+				"grep -nE 'verify: pass|criterios.*cambio|carril|Codegraph|bootstrap|Engram|checkpoint|historial' docs-site/src/content/docs/05-debug/known-limitations.md",
+				"cd docs-site && bun run build && cd .. && grep -nE 'unreadable|unsupported|inactive|unhandled|applied|Cleaner|Architect|fail-closed|silencios' docs-site/src/content/docs/05-debug/known-limitations.md && ! grep -nE 'se aplica por defecto|éxito silencioso|automátic.*Claude' docs-site/src/content/docs/05-debug/known-limitations.md"
+			],
+			"groups": 5
+		},
+		{
+			"change": "zero-friction-sdd-start",
+			"commit": "eac68b0",
+			"outcome": "pass",
+			"productionFiles": [
+				"docs/public-beta-implementation-plan.md",
+				"docs/public-beta-plan.md"
+			],
+			"testFiles": [],
+			"focusedChecks": [
+				"bun test tests/sdd-config-bootstrap.test.ts` — RED para creación/preservación, GREEN tras implementar, TRIANGULATE con bytes arbitrarios y llamadas repetidas/concurrentes, REFACTOR sin alterar el YAML generado.",
+				"bun test tests/sdd-config-bootstrap.test.ts` con evidencia RED → GREEN → TRIANGULATE → REFACTOR registrada en el commit del work unit.",
+				"bun test tests/sdd-flow-contract.test.ts tests/sdd-preflight-tdd-gate.test.ts` — RED sobre continuidad y ausencia de doble bootstrap, GREEN al integrar, TRIANGULATE cubriendo input más fallback lazy, REFACTOR preservando gates.",
+				"bun test tests/sdd-flow-contract.test.ts tests/sdd-preflight-tdd-gate.test.ts` con RED/GREEN/TRIANGULATE/REFACTOR y aserciones explícitas sobre `sdd-scope`.",
+				"bun test tests/sdd-router.test.ts tests/sdd-status-output.test.ts` — RED con la expectativa antigua, GREEN con filtrado phase-aware, TRIANGULATE en scope/map/design y tasks/apply/verify, REFACTOR sin cambiar orden de fases.",
+				"bun test tests/sdd-router.test.ts tests/sdd-status-output.test.ts` con evidencia RED → GREEN → TRIANGULATE → REFACTOR.",
+				"bun test tests/sdd-config-bootstrap.test.ts tests/sdd-flow-contract.test.ts` y `cd installer && bun run typecheck`; ejecutar RED/GREEN/TRIANGULATE/REFACTOR para la delegación y salida manual.",
+				"bun test tests/sdd-flow-contract.test.ts` con comprobaciones de una fila `sdd-scope`, scope primero y gate interactivo; evidencia RED/GREEN/TRIANGULATE/REFACTOR.",
+				"bun test tests/sdd-config-bootstrap.test.ts tests/sdd-router.test.ts tests/sdd-status-output.test.ts tests/sdd-flow-contract.test.ts tests/sdd-preflight-tdd-gate.test.ts && (cd installer && bun run typecheck)`; registrar TRIANGULATE final y revisar que la fila baseline `sdd-scope` no se duplique."
+			],
+			"groups": 5
+		}
+	],
+	"exclusions": [
+		{
+			"change": "2026-08-11-terminal-app-rework",
+			"reason": "sin-commit"
+		},
+		{
+			"change": "add-installer-runtime-menu",
+			"reason": "solo-artefactos"
+		},
+		{
+			"change": "delivery-receipt-gates",
+			"reason": "verify-sin-status"
+		},
+		{
+			"change": "docs-content-reference",
+			"reason": "verify-sin-status"
+		},
+		{
+			"change": "docs-site-shell",
+			"reason": "solo-artefactos"
+		},
+		{
+			"change": "docs-sync-contract",
+			"reason": "solo-artefactos"
+		},
+		{
+			"change": "fix-continuity-ipc-response-timeout",
+			"reason": "sin-tasks"
+		},
+		{
+			"change": "fix-harness-selfblocking-contracts",
+			"reason": "sin-tasks"
+		},
+		{
+			"change": "fix-participant-result-registration",
+			"reason": "sin-tasks"
+		},
+		{
+			"change": "fix-update-notice-masking",
+			"reason": "solo-artefactos"
+		},
+		{
+			"change": "harden-subagent-envelope-contract",
+			"reason": "sin-tasks"
+		},
+		{
+			"change": "harness-discipline",
+			"reason": "solo-artefactos"
+		},
+		{
+			"change": "launcher-update-surface",
+			"reason": "solo-artefactos"
+		},
+		{
+			"change": "readme-release-ia",
+			"reason": "verify-sin-status"
+		},
+		{
+			"change": "release-update-semantics",
+			"reason": "solo-artefactos"
+		},
+		{
+			"change": "shared-config-update-advisor",
+			"reason": "verify-sin-status"
+		}
+	]
+}
