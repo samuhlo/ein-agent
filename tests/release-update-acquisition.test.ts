@@ -12,7 +12,7 @@ const encoder = new TextEncoder();
 const assetName = "ein-installer-linux-arm64";
 const assetBytes = encoder.encode("verified-installer-bytes");
 const digest = createHash("sha256").update(assetBytes).digest("hex");
-const apiUrl = "https://api.github.com/repos/samuhlo/ein-agent/releases/latest";
+const apiUrl = "https://api.github.com/repos/samuhlo/ein-agent/releases?per_page=30";
 const explicitUrl = "https://api.github.com/repos/samuhlo/ein-agent/releases/tags/installer-v0.19.0";
 const assetUrl = "https://github.com/samuhlo/ein-agent/releases/download/installer-v0.19.0/ein-installer-linux-arm64";
 const checksumsUrl = "https://github.com/samuhlo/ein-agent/releases/download/installer-v0.19.0/checksums.txt";
@@ -21,8 +21,8 @@ function response(status: number, body: Uint8Array, url = "https://github.com/re
   return { status, body, url, headers: {} };
 }
 
-function releasePayload(options: { draft?: boolean; prerelease?: boolean; checksums?: boolean } = {}): Uint8Array {
-  return encoder.encode(JSON.stringify({
+function releaseRecord(options: { draft?: boolean; prerelease?: boolean; checksums?: boolean } = {}) {
+  return {
     tag_name: "installer-v0.19.0",
     html_url: "https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.19.0",
     draft: options.draft ?? false,
@@ -31,7 +31,15 @@ function releasePayload(options: { draft?: boolean; prerelease?: boolean; checks
       { name: assetName, browser_download_url: assetUrl },
       ...(options.checksums === false ? [] : [{ name: "checksums.txt", browser_download_url: checksumsUrl }]),
     ],
-  }));
+  };
+}
+
+function releasePayload(options: { draft?: boolean; prerelease?: boolean; checksums?: boolean } = {}): Uint8Array {
+  return encoder.encode(JSON.stringify(releaseRecord(options)));
+}
+
+function releaseListPayload(options: { draft?: boolean; prerelease?: boolean; checksums?: boolean } = {}): Uint8Array {
+  return encoder.encode(JSON.stringify([releaseRecord(options)]));
 }
 
 function fakeHttp(responses: Map<string, HttpResponse | Error>) {
@@ -52,7 +60,7 @@ function acquireFixture(options: { checksums?: string; asset?: Uint8Array; asset
     files,
     removedDirs,
     http: fakeHttp(new Map([
-      [apiUrl, response(200, options.release ?? releasePayload())],
+      [apiUrl, response(200, options.release ?? releaseListPayload())],
       [assetUrl, options.failure ?? response(200, options.asset ?? assetBytes, options.assetResponseUrl)],
       [checksumsUrl, response(200, encoder.encode(options.checksums ?? `${digest}  ${assetName}\n`))],
     ])),
@@ -114,7 +122,7 @@ describe("release acquisition", () => {
   });
 
   test("keeps latest and explicit endpoints distinct and rejects unavailable or ineligible records", async () => {
-    const latestCaps = fakeUpdateCaps({ http: fakeHttp(new Map([[apiUrl, response(200, releasePayload({ draft: true }))]])) });
+    const latestCaps = fakeUpdateCaps({ http: fakeHttp(new Map([[apiUrl, response(200, releaseListPayload({ draft: true }))]])) });
     expect(await fetchLatestRelease(latestCaps)).toEqual(expect.objectContaining({ error: expect.objectContaining({ code: "ineligible" }) }));
 
     const explicitCaps = fakeUpdateCaps({ http: fakeHttp(new Map([[explicitUrl, response(404, encoder.encode("missing"))]])) });

@@ -9,7 +9,9 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assetNameFor, selectAsset, type AssetPlatform } from "../installer/src/core/asset-selector.ts";
 import { parseChecksums } from "../installer/src/core/checksum.ts";
@@ -57,6 +59,25 @@ function workflowStep(workflow: string, marker: string): string {
   return workflow.slice(start, end === -1 ? workflow.length : end);
 }
 
+function workflowRunScript(step: string): string {
+  const runStart = step.indexOf("\n        run: |\n");
+  if (runStart === -1) throw new Error("Workflow run script not found");
+  return step
+    .slice(runStart + "\n        run: |\n".length)
+    .split("\n")
+    .map((line) => (line.startsWith("          ") ? line.slice(10) : line))
+    .join("\n");
+}
+
+function runWorkflowScript(script: string, env: Record<string, string>, cwd?: string): { code: number | null; stdout: string; stderr: string } {
+  const result = spawnSync("bash", ["-e", "-u", "-o", "pipefail", "-c", script], {
+    cwd,
+    env: { ...process.env, ...env },
+    encoding: "utf8",
+  });
+  return { code: result.status, stdout: result.stdout, stderr: result.stderr };
+}
+
 function workflowDispatchInput(workflow: string, name: string): string {
   const dispatchStart = workflow.indexOf("  workflow_dispatch:");
   const dispatchEnd = workflow.indexOf("\n\npermissions:", dispatchStart);
@@ -90,6 +111,7 @@ function publishedAssetArguments(workflow: string): string[] {
 
   const assets: string[] = [];
   const valueOptions = new Set(["--title", "--notes-file"]);
+  const expansionOptions = new Set(["$release_prerelease_flag"]);
   let releaseTagSeen = false;
   for (let index = 3; index < tokens.length; index += 1) {
     const token = tokens[index];
@@ -101,6 +123,7 @@ function publishedAssetArguments(workflow: string): string[] {
       if (valueOptions.has(token)) index += 1;
       continue;
     }
+    if (expansionOptions.has(token)) continue;
     assets.push(token);
   }
   return assets;
@@ -108,6 +131,92 @@ function publishedAssetArguments(workflow: string): string[] {
 
 function sha256(hexChars: string): string {
   return hexChars.repeat(64).slice(0, 64);
+}
+
+function runResolver(workflow: string, eventName: "push" | "workflow_dispatch", tag: string): { code: number | null; outputs: Record<string, string>; stderr: string } {
+  const root = mkdtempSync(join(tmpdir(), "ein-release-resolver-"));
+  const outputPath = join(root, "github-output");
+  writeFileSync(outputPath, "");
+  try {
+    const result = runWorkflowScript(
+      workflowRunScript(workflowStep(workflow, "- name: Resolve release tag")),
+      {
+        EVENT_NAME: eventName,
+        INPUT_RELEASE_TAG: eventName === "workflow_dispatch" ? tag : "",
+        PUSH_TAG: eventName === "push" ? tag : "",
+        GITHUB_OUTPUT: outputPath,
+      },
+      REPO_ROOT,
+    );
+    const outputs = Object.fromEntries(
+      readFileSync(outputPath, "utf8")
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+          const separator = line.indexOf("=");
+          return [line.slice(0, separator), line.slice(separator + 1)];
+        }),
+    );
+    return { code: result.code, outputs, stderr: result.stderr };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function runMetadataGate(
+  workflow: string,
+  tag: string,
+  pointers: { packageVersion: string; sourceVersion: string; changelogVersion: string },
+): { code: number | null; stderr: string } {
+  const root = mkdtempSync(join(tmpdir(), "ein-release-metadata-"));
+  mkdirSync(join(root, "installer", "src", "core"), { recursive: true });
+  writeFileSync(join(root, "installer", "package.json"), JSON.stringify({ version: pointers.packageVersion }));
+  writeFileSync(
+    join(root, "installer", "src", "core", "version.ts"),
+    `export const INSTALLER_VERSION = "${pointers.sourceVersion}";\n`,
+  );
+  writeFileSync(join(root, "CHANGELOG.md"), `# Changelog\n\n## [${pointers.changelogVersion}] - 2026-08-23\n`);
+  try {
+    const result = runWorkflowScript(
+      workflowRunScript(workflowStep(workflow, "- name: Verify release metadata coherence")),
+      { RELEASE_TAG: tag },
+      root,
+    );
+    return { code: result.code, stderr: result.stderr };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function runPublish(workflow: string, channel: "stable" | "alpha"): { code: number | null; args: string[] } {
+  const root = mkdtempSync(join(tmpdir(), "ein-release-publish-"));
+  const binDir = join(root, "bin");
+  const capturePath = join(root, "gh-args");
+  mkdirSync(binDir);
+  writeFileSync(join(root, "package.json"), JSON.stringify({ version: "0.82.0" }));
+  const ghPath = join(binDir, "gh");
+  writeFileSync(ghPath, '#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "$GH_CAPTURE"\n');
+  chmodSync(ghPath, 0o755);
+  try {
+    const result = runWorkflowScript(
+      workflowRunScript(workflowStep(workflow, "- name: Publish release")),
+      {
+        GH_TOKEN: "fixture-token",
+        RELEASE_TAG: "installer-v0.82.0",
+        RELEASE_CHANNEL: channel,
+        GH_CAPTURE: capturePath,
+        PATH: `${binDir}:${process.env.PATH ?? ""}`,
+      },
+      root,
+    );
+    return {
+      code: result.code,
+      args: existsSync(capturePath) ? readFileSync(capturePath, "utf8").trim().split("\n").filter(Boolean) : [`stderr:${result.stderr}`],
+    };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 }
 
 describe("release asset contract", () => {
@@ -126,11 +235,13 @@ describe("release asset contract", () => {
       "CHANGELOG.md": changelog.match(/^## \[([^\]]+)\]/m)?.[1],
     };
 
-    // El workflow solo acepta un tag `installer-vX.Y.Z`: un puntero con otra
-    // forma publicaría un release que el instalador no sabe pedir. Se compara
-    // como "fichero: valor" para que el fallo nombre al culpable.
+    // El workflow solo acepta un tag `installer-v<SemVer>`: un puntero con
+    // otra forma publicaría un release que el instalador no sabe pedir. Se
+    // compara como "fichero: valor" para que el fallo nombre al culpable.
     for (const [file, version] of Object.entries(pointers)) {
-      expect(`${file}: ${version}`).toMatch(/: [0-9]+\.[0-9]+\.[0-9]+$/);
+      expect(`${file}: ${version}`).toMatch(
+        /: (0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/,
+      );
     }
     expect(Object.entries(pointers)).toEqual(
       Object.keys(pointers).map((file) => [file, packageJson.version]),
@@ -175,6 +286,101 @@ describe("release asset contract", () => {
     expect(publishedAssetArguments(workflow).filter((asset) => asset.includes("smoke"))).toEqual([]);
   });
 
+  test("push and dispatch share canonical final/alpha classification and reject unsupported prereleases", () => {
+    const workflow = readFileSync(WORKFLOW_PATH, "utf8");
+    const resolver = workflowStep(workflow, "- name: Resolve release tag");
+    const resolverScript = workflowRunScript(resolver);
+
+    expect(resolverScript).toContain('if [[ "$EVENT_NAME" == "workflow_dispatch" ]]');
+    expect(resolverScript).toContain('release_tag="$INPUT_RELEASE_TAG"');
+    expect(resolverScript).toContain('release_tag="$PUSH_TAG"');
+    expect(resolverScript).toContain('release_channel="stable"');
+    expect(resolverScript).toContain('release_channel="alpha"');
+    expect(resolverScript).toContain('echo "release_channel=$release_channel" >> "$GITHUB_OUTPUT"');
+
+    for (const eventName of ["push", "workflow_dispatch"] as const) {
+      for (const [tag, channel] of [
+        ["installer-v0.82.0", "stable"],
+        ["installer-v0.82.0+build.7", "stable"],
+        ["installer-v0.82.0-alpha.1", "alpha"],
+        ["installer-v0.82.0-alpha.1+build.7", "alpha"],
+      ] as const) {
+        const result = runResolver(workflow, eventName, tag);
+        expect(result.code).toBe(0);
+        expect(result.outputs).toEqual({ release_tag: tag, release_channel: channel });
+      }
+
+      for (const rejected of [
+        "installer-v01.82.0",
+        "installer-v0.82.0-beta.1",
+        "installer-v0.82.0-rc.1",
+        "installer-v0.82.0-alpha.01",
+        "installer-v0.82.0-alpha..1",
+      ]) {
+        expect(runResolver(workflow, eventName, rejected).code).not.toBe(0);
+      }
+    }
+  });
+
+  test("workflow gates tag, package, runtime, and leading changelog metadata before build", () => {
+    const workflow = readFileSync(WORKFLOW_PATH, "utf8");
+    const metadataStart = workflow.indexOf("- name: Verify release metadata coherence");
+    const buildStart = workflow.indexOf("- name: Build all targets (bundles template + cross-compiles)");
+    const metadata = workflowStep(workflow, "- name: Verify release metadata coherence");
+
+    expect(metadataStart).toBeGreaterThanOrEqual(0);
+    expect(metadataStart).toBeLessThan(buildStart);
+    expect(metadata).toContain('RELEASE_TAG: ${{ steps.resolve_release_tag.outputs.release_tag }}');
+    expect(metadata).toContain('release_version="${RELEASE_TAG#installer-v}"');
+    expect(metadata).toContain("installer/package.json");
+    expect(metadata).toContain("installer/src/core/version.ts");
+    expect(metadata).toContain("CHANGELOG.md");
+    expect(metadata).toContain("INSTALLER_VERSION");
+    expect(metadata).toContain("exit 1");
+    expect(metadata).toContain("package_version");
+    expect(metadata).toContain("source_version");
+    expect(metadata).toContain("changelog_version");
+
+    const tag = "installer-v0.82.0-alpha.1";
+    expect(runMetadataGate(workflow, tag, {
+      packageVersion: "0.82.0-alpha.1",
+      sourceVersion: "0.82.0-alpha.1",
+      changelogVersion: "0.82.0-alpha.1",
+    }).code).toBe(0);
+    for (const mismatch of ["packageVersion", "sourceVersion", "changelogVersion"] as const) {
+      const pointers = {
+        packageVersion: "0.82.0-alpha.1",
+        sourceVersion: "0.82.0-alpha.1",
+        changelogVersion: "0.82.0-alpha.1",
+      };
+      pointers[mismatch] = "0.82.0-alpha.0";
+      expect(runMetadataGate(workflow, tag, pointers).code).not.toBe(0);
+    }
+  });
+
+  test("only alpha publication adds prerelease metadata", () => {
+    const workflow = readFileSync(WORKFLOW_PATH, "utf8");
+    const publish = workflowStep(workflow, "- name: Publish release");
+    const resolver = workflowStep(workflow, "- name: Resolve release tag");
+    const publishStart = workflow.indexOf("- name: Publish release");
+    const buildStart = workflow.indexOf("- name: Build all targets (bundles template + cross-compiles)");
+
+    expect(publishStart).toBeGreaterThan(buildStart);
+    expect(publish).toContain('RELEASE_CHANNEL: ${{ steps.resolve_release_tag.outputs.release_channel }}');
+    expect(publish).toContain('if [[ "$RELEASE_CHANNEL" == "alpha" ]]');
+    expect(publish).toContain('release_prerelease_flag="--prerelease"');
+    expect(publish).toContain("$release_prerelease_flag");
+    expect(publish).not.toContain("--prerelease=true");
+    expect(resolver).toContain('echo "release_channel=$release_channel" >> "$GITHUB_OUTPUT"');
+
+    const stableArgs = runPublish(workflow, "stable");
+    expect(stableArgs).toEqual(expect.objectContaining({ code: 0 }));
+    expect(stableArgs.args).not.toContain("--prerelease");
+    const alphaArgs = runPublish(workflow, "alpha");
+    expect(alphaArgs).toEqual(expect.objectContaining({ code: 0 }));
+    expect(alphaArgs.args).toContain("--prerelease");
+  });
+
   test("manual dispatch requires a validated release tag for checkout and publishing", () => {
     const workflow = readFileSync(WORKFLOW_PATH, "utf8");
     const input = workflowDispatchInput(workflow, "release_tag");
@@ -189,7 +395,8 @@ describe("release asset contract", () => {
     expect(resolver).toContain('if [[ "$EVENT_NAME" == "workflow_dispatch" ]]');
     expect(resolver).toContain('INPUT_RELEASE_TAG: ${{ inputs.release_tag }}');
     expect(resolver).toContain('PUSH_TAG: ${{ github.ref_name }}');
-    expect(validation).toBe("^installer-v[0-9]+\\.[0-9]+\\.[0-9]+$");
+    expect(validation).toBe("$semver_re");
+    expect(resolver).toContain("semver_re='^installer-v(0|[1-9][0-9]*)");
     expect(resolver).toContain('release_tag="$INPUT_RELEASE_TAG"');
     expect(resolver).toContain('release_tag="$PUSH_TAG"');
     expect(resolver).toContain('echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"');
@@ -221,10 +428,14 @@ describe("release asset contract", () => {
     const guardStep = workflowStep(workflow, "- name: Verify tagged commit is the tip of main");
     expect(guardStep).toContain("git fetch origin main");
     expect(guardStep).toMatch(/git rev-parse (origin\/main|HEAD)/);
-    expect(guardStep).toMatch(/ALLOW_NON_MAIN_TAG|SKIP_MAIN_TIP_CHECK/);
+    expect(guardStep).toContain("ALLOW_NON_MAIN_TAG: ${{ inputs.allow_non_main_tag }}");
+    expect(guardStep).toContain("allow_non_main_tag=true");
     expect(guardStep).toContain("main");
     expect(guardStep.toLowerCase()).toContain("hotfix");
     expect(guardStep).toContain("exit 1");
+    expect(workflow.indexOf("- name: Verify tagged commit is the tip of main")).toBeLessThan(
+      workflow.indexOf("- name: Verify release metadata coherence"),
+    );
   });
 
   test("selectAsset accepts only the documented platform names", () => {

@@ -1,0 +1,15 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:scope","durationMs":0,"timestamp":"2026-08-22T12:31:15.904Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:map","durationMs":0,"timestamp":"2026-08-22T12:33:09.044Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:design","durationMs":0,"timestamp":"2026-08-22T12:41:38.536Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:tasks","durationMs":0,"timestamp":"2026-08-22T12:44:56.813Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:tasks","durationMs":0,"timestamp":"2026-08-22T12:46:38.634Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:design","durationMs":0,"timestamp":"2026-08-22T13:08:23.973Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:tasks","durationMs":0,"timestamp":"2026-08-22T13:12:39.489Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:apply","durationMs":0,"timestamp":"2026-08-22T13:29:18.383Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:apply","durationMs":0,"timestamp":"2026-08-22T13:29:35.033Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:apply","durationMs":0,"timestamp":"2026-08-22T14:21:09.524Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:tasks","durationMs":0,"timestamp":"2026-08-22T14:28:26.786Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:apply","durationMs":0,"timestamp":"2026-08-22T16:05:24.305Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:verify","durationMs":0,"timestamp":"2026-08-22T16:16:51.980Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:add-stable-alpha-release-contract:invalid","durationMs":0,"timestamp":"2026-08-22T16:17:49.143Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:add-stable-alpha-release-contract:close","durationMs":0,"timestamp":"2026-08-22T16:17:52.254Z"}
