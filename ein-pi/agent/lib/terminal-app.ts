@@ -171,13 +171,10 @@ export const RESERVED_KEYS: readonly string[] = ["j", "k", "g", "G", "f", "h", "
 // ─── views ───────────────────────────────────────────────────────────────────
 
 export function buildDashboard(summary: ProjectSummary): View {
+  // Order is product, not cosmetics: `ein` shows state before work, so the work
+  // has to be the first thing under the cursor. Keys stay bound to their own
+  // rows, so muscle memory survives the reorder.
   const rows: Row[] = [
-    {
-      label: pick("Continuar una sesión", "Continue a session"),
-      icon: ICON.sessions,
-      key: DASHBOARD_KEYS.sessions,
-      action: { kind: "open-view", view: "sessions" },
-    },
     {
       label: pick("Arrancar Pi", "Start Pi"),
       icon: ICON.pi,
@@ -189,6 +186,12 @@ export function buildDashboard(summary: ProjectSummary): View {
       icon: ICON.claude,
       key: DASHBOARD_KEYS.claude,
       action: { kind: "launch", provider: "claude" },
+    },
+    {
+      label: pick("Continuar una sesión", "Continue a session"),
+      icon: ICON.sessions,
+      key: DASHBOARD_KEYS.sessions,
+      action: { kind: "open-view", view: "sessions" },
     },
     {
       label: pick("Continuar en Pi", "Continue in Pi"),

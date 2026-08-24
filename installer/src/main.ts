@@ -6,7 +6,7 @@
 
 import { runDoctorCommand } from "./cli/doctor.ts";
 import { runInstall } from "./cli/install.ts";
-import { runMenu } from "./cli/menu.ts";
+import { runBootstrapInstall } from "./cli/runtime-prompt.ts";
 import { runUpdate } from "./cli/update.ts";
 import { runUninstall } from "./cli/uninstall.ts";
 import { runRestore } from "./cli/restore.ts";
@@ -122,9 +122,12 @@ function runInstallWithReleaseAdmission(args: string[]): number | Promise<number
 }
 
 function printHelp(): void {
-  console.log("ein — instalador del workbench Ein sobre Pi");
+  console.log("ein-install — arranque y ciclo de vida local de Ein");
   console.log("");
-  console.log("uso: ein <comando>");
+  console.log("uso: ein-install [comando]");
+  console.log("");
+  console.log("sin comando: instala, preguntando solo el runtime.");
+  console.log("`ein` es la puerta normal; estos verbos tambien responden desde ahi.");
   console.log("");
   console.log("comandos:");
   console.log("  install      instala/actualiza Ein (checks + deploy + secrets)");
@@ -168,8 +171,9 @@ async function main(): Promise<number> {
       printHelp();
       return 0;
     case undefined:
-      // No args → interactive TUI menu.
-      return runMenu();
+      // No args → install, asking only for the runtime. The lifecycle actions
+      // are `ein`'s, not a second menu here.
+      return runBootstrapInstall();
     default:
       console.error(`comando desconocido: ${cmd}`);
       printHelp();

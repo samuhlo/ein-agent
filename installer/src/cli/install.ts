@@ -691,7 +691,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
 
   if (flags.dryRun) {
     (options.writePlan ?? ((value) => p.log.message(renderInstallPlan(value))))(plan);
-    p.outro("Dry-run completado. Ejecuta `ein install` para aplicar.");
+    p.outro("Dry-run completado. Ejecuta `ein-install install` para aplicar.");
     return 0;
   }
 

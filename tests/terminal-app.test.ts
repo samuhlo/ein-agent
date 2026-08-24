@@ -134,6 +134,16 @@ describe("the dashboard", () => {
     expect(rows).toContain("quit");
   });
 
+  test("starting work is the first row, under the cursor, with its own key", () => {
+    const rows = visibleRows(buildDashboard(SUMMARY), "");
+    const first = rows[0]!.row;
+    expect(first.action).toEqual({ kind: "launch", provider: "pi" });
+    expect(first.key).toBe(DASHBOARD_KEYS.pi);
+    // The dashboard earns its keystroke by showing state; it must not charge a
+    // toll for the thing the user opened it to do.
+    expect(handleKey(dashboard(), "\r").effect).toMatchObject({ kind: "launch", provider: "pi" });
+  });
+
   test("every entry has a distinct hotkey", () => {
     const keys = visibleRows(buildDashboard(SUMMARY), "").map(({ row }) => row.key);
     expect(keys.every(Boolean)).toBe(true);
