@@ -30,7 +30,7 @@ const REPOSITORY_URL = "https://github.com/samuhlo/ein-agent";
 const DOCS_URL = "https://samuhlo.github.io/ein-agent/";
 
 function firstRelease(changelog: string): { version: string; date: string } {
-  const match = changelog.match(/^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})$/m);
+  const match = changelog.match(/^## \[(\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)\] - (\d{4}-\d{2}-\d{2})$/m);
   if (!match) throw new Error("CHANGELOG.md no contiene una primera cabecera de release compatible");
   return { version: match[1], date: match[2] };
 }

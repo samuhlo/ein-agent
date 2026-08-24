@@ -51,6 +51,8 @@ type ChecksumUtilityMode = "host" | "success" | "failing" | "unusable" | "fallba
 type FixtureOptions = {
   checksumMode?: ChecksumMode;
   checksumUtility?: ChecksumUtilityMode;
+  args?: readonly string[];
+  expectedBase?: string;
 };
 
 type Fixture = {
@@ -66,6 +68,8 @@ type Fixture = {
   digest: string;
   checksumMode: ChecksumMode;
   checksumUtility: ChecksumUtilityMode;
+  args: readonly string[];
+  expectedBase: string;
 };
 
 type RunResult = {
@@ -118,6 +122,71 @@ describe("install.sh deterministic shell fixture", () => {
     // The command guards are the network/path boundary: an unexpected URL or
     // output path makes fake curl/mv fail instead of reaching the host.
     expect(result.events.some((event) => event.startsWith("guard:"))).toBe(false);
+  });
+
+  test("explicit alpha selection binds both downloads and the Pi handoff to one tag", () => {
+    const tag = "installer-v0.82.0-alpha.1";
+    const fixture = createFixture({
+      args: ["--release-channel", "alpha", "--release-tag", tag],
+      expectedBase: `https://github.com/${REPO}/releases/download/${tag}`,
+      checksumUtility: "success",
+    });
+    const result = runFixture(fixture);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).not.toContain("guard:");
+    expect(result.events).toContain("sha256sum:success");
+    expect(result.stdout).toContain(
+      `ein-install install --runtime pi --release-channel alpha --release-tag ${tag}`,
+    );
+    expectSandboxedDownloads(fixture, result);
+    expectTemporaryDirectoryCleaned(fixture);
+  });
+
+  test("explicit stable selection accepts a final tag without changing checksum ordering", () => {
+    const tag = "installer-v0.82.0";
+    const fixture = createFixture({
+      args: ["--release-channel", "stable", "--release-tag", tag],
+      expectedBase: `https://github.com/${REPO}/releases/download/${tag}`,
+      checksumUtility: "success",
+    });
+    const result = runFixture(fixture);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).not.toContain("guard:");
+    const checksumIndex = result.events.findIndex((event) => event.startsWith("curl:checksums:"));
+    const verificationIndex = result.events.indexOf("sha256sum:success");
+    const chmodIndex = result.events.findIndex((event) => event.startsWith("chmod:"));
+    expect(verificationIndex).toBeGreaterThan(checksumIndex);
+    expect(chmodIndex).toBeGreaterThan(verificationIndex);
+    expect(result.stdout).toContain(
+      `ein-install install --runtime pi --release-channel stable --release-tag ${tag}`,
+    );
+    expectSandboxedDownloads(fixture, result);
+    expectTemporaryDirectoryCleaned(fixture);
+  });
+
+  test("partial or unsupported explicit release contracts reject before curl", () => {
+    const cases = [
+      ["--release-channel", "alpha"],
+      ["--release-tag", "installer-v0.82.0-alpha.1"],
+      ["--release-channel", "alpha", "--release-tag", "installer-v0.82.0-beta.1"],
+      ["--release-channel", "alpha", "--release-tag", "installer-v0.82.0-rc.1"],
+      ["--release-channel", "stable", "--release-tag", "installer-v0.82.0-alpha.1"],
+      ["--release-channel", "alpha", "--release-tag", "installer-v0.82.0-alpha.01"],
+    ] as const;
+
+    for (const args of cases) {
+      const fixture = createFixture({ args });
+      const result = runFixture(fixture);
+
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).not.toContain("guard:");
+      expect(result.events.some((event) => event.startsWith("curl:"))).toBe(false);
+      expect(result.events.some((event) => event.startsWith("chmod:"))).toBe(false);
+      expect(result.events.some((event) => event.startsWith("mv:"))).toBe(false);
+      expect(existsSync(join(fixture.publicationDir, "ein-install"))).toBe(false);
+    }
   });
 
   test("verified success preserves non-TTY handoff and cleanup", () => {
@@ -325,6 +394,8 @@ function expectTemporaryDirectoryCleaned(fixture: Fixture): void {
 function createFixture(options: FixtureOptions = {}): Fixture {
   const checksumMode = options.checksumMode ?? "valid";
   const checksumUtility = options.checksumUtility ?? "host";
+  const args = options.args ?? [];
+  const expectedBase = options.expectedBase ?? BASE_URL;
   const root = mkdtempSync(join(CANONICAL_TMPDIR, "install-sh-checksum-fixture-"));
   roots.push(root);
 
@@ -564,6 +635,8 @@ printf '%s\\n' "mv:$2:$EIN_PUBLICATION_ROOT/ein-install" >> "$EIN_FIXTURE_LOG"
     digest,
     checksumMode,
     checksumUtility,
+    args,
+    expectedBase,
   };
 }
 
@@ -580,7 +653,7 @@ function runFixture(fixture: Fixture): RunResult {
       : fixture.checksumUtility === "absent"
         ? pathWithoutCommands(hostPath, fixture.root, ["sha256sum", "shasum"])
         : hostPath;
-  const proc = Bun.spawnSync(["bash", INSTALLER], {
+  const proc = Bun.spawnSync(["bash", INSTALLER, ...fixture.args], {
     env: {
       ...process.env,
       PATH: `${fixture.commandDir}:${runtimePath}`,
@@ -591,7 +664,7 @@ function runFixture(fixture: Fixture): RunResult {
       EIN_INSTALLER_REPO: REPO,
       EIN_FIXTURE_ROOT: fixture.root,
       EIN_FIXTURE_LOG: fixture.logPath,
-      EIN_EXPECTED_BASE: BASE_URL,
+      EIN_EXPECTED_BASE: fixture.expectedBase,
       EIN_ASSET: ASSET,
       EIN_BINARY_SOURCE: fixture.binarySource,
       EIN_CHECKSUM_SOURCE: fixture.checksumSource,
