@@ -6,8 +6,7 @@ import { projectProjectState } from "./project-state.ts";
 import { canonicalArea, type AreaSelector } from "./reviewed-area-ledger.ts";
 
 export const CLEANER_EVIDENCE_VERSION = "cleaner-audit-evidence/v1" as const;
-const MAX_FILES = 32;
-const MAX_SOURCE_BYTES = 128 * 1024;
+export const CLEANER_AUDIT_LIMITS = Object.freeze({ maxFiles: 32, maxSourceBytes: 128 * 1024 } as const);
 const SOURCE_EXTENSIONS = new Set([".c", ".cc", ".css", ".go", ".h", ".html", ".java", ".js", ".jsx", ".md", ".php", ".py", ".rs", ".scss", ".svelte", ".ts", ".tsx", ".vue"]);
 const EXCLUDED_SEGMENTS = new Set([".atl", ".git", ".pi", "build", "coverage", "dist", "generated", "node_modules", "runtime", "vendor"]);
 
@@ -55,7 +54,7 @@ function collectTree(root: string, relativePath: string, paths: string[]): void 
 		if (excluded(path) || entry.isSymbolicLink()) continue;
 		if (entry.isDirectory()) collectTree(root, path, paths);
 		else if (entry.isFile() && SOURCE_EXTENSIONS.has(extension(path))) paths.push(path);
-		if (paths.length > MAX_FILES) throw new CleanerAuditScopeError("scope-exceeds-32-source-files");
+		if (paths.length > CLEANER_AUDIT_LIMITS.maxFiles) throw new CleanerAuditScopeError("scope-exceeds-32-source-files");
 	}
 }
 
@@ -111,13 +110,13 @@ export function collectCleanerAuditEvidence(cwd: string, requested: CleanerAudit
 	}
 	const area = canonicalArea(selectors);
 	const paths = resolveSelectors(root, area.selectors);
-	if (paths.length > MAX_FILES) throw new CleanerAuditScopeError("scope-exceeds-32-source-files");
+	if (paths.length > CLEANER_AUDIT_LIMITS.maxFiles) throw new CleanerAuditScopeError("scope-exceeds-32-source-files");
 	if (paths.length === 0) throw new CleanerAuditScopeError("scope-has-no-supported-source");
 	let sourceBytes = 0;
 	const files = paths.map((path) => {
 		const bytes = readFileSync(join(root, path));
 		sourceBytes += bytes.byteLength;
-		if (sourceBytes > MAX_SOURCE_BYTES) throw new CleanerAuditScopeError("scope-exceeds-128-kib-source");
+		if (sourceBytes > CLEANER_AUDIT_LIMITS.maxSourceBytes) throw new CleanerAuditScopeError("scope-exceeds-128-kib-source");
 		let source: string;
 		try { source = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { throw new CleanerAuditScopeError("non-utf8-source"); }
 		return Object.freeze({ path, bytes: bytes.byteLength, lines: source === "" ? 0 : source.split(/\r\n|\r|\n/).length, sha256: createHash("sha256").update(bytes).digest("hex"), source });

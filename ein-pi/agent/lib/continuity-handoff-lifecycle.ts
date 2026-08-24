@@ -4,7 +4,6 @@ import { delimiter, join } from "node:path";
 import {
 	CONTINUITY_CHECKPOINT_LIMITS,
 	deriveContinuityCheckpoint,
-	withSddParticipants,
 	type ContinuityCheckpointFacts,
 } from "./continuity-checkpoint.ts";
 import { continuitySddFacts } from "./continuity-sdd-facts.ts";
@@ -152,15 +151,9 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 			let derived = deriveContinuityCheckpoint(observed, candidate);
 			if (!derived.ok) { candidate = { ...GENERIC, capturedAt: ports.now() }; derived = deriveContinuityCheckpoint(observed, candidate); }
 			if (!derived.ok) return "refresh-failed";
-				const location: ContinuityCheckpointLocation = derived.checkpoint.mode === "sdd" ? { mode: "sdd", change: derived.checkpoint.change! } : { mode: "adhoc" };
-				const before = read(cwd, location), expected = expectation(before);
-				if (!expected) return "refresh-failed";
-				if (before.status === "valid" && before.checkpoint.sddParticipants) {
-					if (!derived.checkpoint.stateRef) return "refresh-failed";
-					const carried = withSddParticipants(derived.checkpoint, before.checkpoint.sddParticipants);
-					if (!carried.ok) return "refresh-failed";
-					derived = carried;
-				}
+			const location: ContinuityCheckpointLocation = derived.checkpoint.mode === "sdd" ? { mode: "sdd", change: derived.checkpoint.change! } : { mode: "adhoc" };
+			const before = read(cwd, location), expected = expectation(before);
+			if (!expected) return "refresh-failed";
 			const result = write(cwd, location, derived.checkpoint, expected);
 			if (result.ok) { facts = { objective: candidate.objective, completed: candidate.completed, nextAction: candidate.nextAction, unresolvedDecisions: candidate.unresolvedDecisions }; capturedInput = null; return "refreshed"; }
 			if (result.reason !== "conflict") return "refresh-failed";

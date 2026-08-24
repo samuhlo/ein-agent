@@ -99,14 +99,13 @@ function payload(checkpoint: ContinuityCheckpointV1, target: ProjectRuntimeProvi
 		changedPaths: lists.changedPaths,
 		verification: { status: checkpoint.verification.status, observedStateRef: checkpoint.verification.observedStateRef },
 			checkpointWarnings: checkpoint.warnings,
-			sddParticipants: checkpoint.sddParticipants ?? null,
 		readinessWarnings: warnings,
 		omitted: omissions,
 		truncated: omissions.changedPaths + omissions.completed + omissions.unresolvedDecisions > 0,
 	});
 }
 
-function frame(data: string, target: ProjectRuntimeProvider, revision: string, omissions: ContinuityResumeBriefOmissions, pending = false): {
+function frame(data: string, target: ProjectRuntimeProvider, revision: string, omissions: ContinuityResumeBriefOmissions): {
 	content: string; byteLength: number; payloadByteLength: number; payloadSha256: string; truncated: boolean;
 } {
 	const payloadByteLength = encoder.encode(data).byteLength;
@@ -137,7 +136,6 @@ function frame(data: string, target: ProjectRuntimeProvider, revision: string, o
 		"Compare live state with checkpoint data.",
 		"Inspect checkpoint and readiness warnings.",
 			"Continue only from a demonstrable next action.",
-			...(target === "claude" && pending ? ["Participant work is pending; continue participant work in Pi."] : []),
 		"Reverify before claiming completion when verification is stale, failed, not-run, or unknown.",
 		"BOOTSTRAP_CHECKLIST_END",
 	].join("\n");
@@ -161,13 +159,11 @@ export function buildContinuityResumeBrief(input: ContinuityReadinessInput): Con
 		const checkpoint = parsed.checkpoint;
 		const lists = { changedPaths: [...checkpoint.changedPaths], completed: [...checkpoint.completed], unresolvedDecisions: [...checkpoint.unresolvedDecisions] };
 			const omissions = { changedPaths: 0, completed: 0, unresolvedDecisions: 0 };
-			const participants = checkpoint.sddParticipants;
-			const pending = participants !== undefined && participants !== null && (participants.order.includes("ein-cleaner") && participants.cleaner === null || participants.order.includes("ein-architect") && participants.architect === null);
-			let framed = frame(payload(checkpoint, readinessInput.target, readiness.warnings, lists, omissions), readinessInput.target, checkpoint.revision, omissions, pending);
+			let framed = frame(payload(checkpoint, readinessInput.target, readiness.warnings, lists, omissions), readinessInput.target, checkpoint.revision, omissions);
 		for (const key of ["changedPaths", "completed", "unresolvedDecisions"] as const) {
 			while (framed.byteLength > CONTINUITY_RESUME_BRIEF_MAX_BYTES && lists[key].length) {
 				lists[key].pop(); omissions[key] += 1;
-					framed = frame(payload(checkpoint, readinessInput.target, readiness.warnings, lists, omissions), readinessInput.target, checkpoint.revision, omissions, pending);
+					framed = frame(payload(checkpoint, readinessInput.target, readiness.warnings, lists, omissions), readinessInput.target, checkpoint.revision, omissions);
 			}
 		}
 		if (framed.byteLength > CONTINUITY_RESUME_BRIEF_MAX_BYTES) return failure("budget-impossible");

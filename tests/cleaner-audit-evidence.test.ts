@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, wr
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
-import { CleanerAuditScopeError, collectCleanerAuditEvidence } from "../ein-pi/agent/lib/cleaner-audit-evidence.ts";
+import { CLEANER_AUDIT_LIMITS, CleanerAuditScopeError, collectCleanerAuditEvidence } from "../ein-pi/agent/lib/cleaner-audit-evidence.ts";
 
 const roots: string[] = [];
 
@@ -53,16 +53,32 @@ describe("Cleaner deterministic audit evidence", () => {
 		}
 	});
 
-	test("enforces the source-file cap for explicit file selectors", () => {
+	test("publishes immutable limits shared by Cleaner consumers", () => {
+		expect(CLEANER_AUDIT_LIMITS).toEqual({ maxFiles: 32, maxSourceBytes: 128 * 1024 });
+		expect(Object.isFrozen(CLEANER_AUDIT_LIMITS)).toBe(true);
+
 		const root = fixture();
-		const selectors = addSourceFiles(root, 33).map((path) => ({ kind: "file" as const, path }));
+		const selectors = addSourceFiles(root, CLEANER_AUDIT_LIMITS.maxFiles + 1).map((path) => ({ kind: "file" as const, path }));
 		expect(() => collectCleanerAuditEvidence(root, { kind: "selectors", selectors })).toThrow("scope-exceeds-32-source-files");
+
+		const oversized = fixture();
+		const path = "src/oversized.ts";
+		writeFileSync(join(oversized, path), Buffer.alloc(CLEANER_AUDIT_LIMITS.maxSourceBytes + 1, 0x61));
+		expect(() => collectCleanerAuditEvidence(oversized, { kind: "selectors", selectors: [{ kind: "file", path }] })).toThrow("scope-exceeds-128-kib-source");
 	});
 
 	test("enforces the source-file cap for the changed-file set", () => {
 		const root = fixture();
-		addSourceFiles(root, 33);
+		addSourceFiles(root, CLEANER_AUDIT_LIMITS.maxFiles + 1);
 		expect(() => collectCleanerAuditEvidence(root, { kind: "changed-files" })).toThrow("scope-exceeds-32-source-files");
+	});
+
+	test("accepts exactly the authoritative per-call file and byte limits", () => {
+		const root = fixture();
+		const paths = addSourceFiles(root, CLEANER_AUDIT_LIMITS.maxFiles - 2);
+		const accepted = collectCleanerAuditEvidence(root, { kind: "selectors", selectors: paths.map((path) => ({ kind: "file" as const, path })) });
+		expect(accepted.repository.scopedFiles).toBe(CLEANER_AUDIT_LIMITS.maxFiles - 2);
+		expect(accepted.files.map(({ path }) => path)).toEqual(paths);
 	});
 
 	test("produces a stable compact packet with facts, source identity, and honest missing evidence", () => {

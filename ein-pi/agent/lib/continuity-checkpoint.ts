@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { isAbsolute, posix } from "node:path";
 import type { ProjectStateV1 } from "./project-state.ts";
 export const CONTINUITY_CHECKPOINT_VERSION = 1 as const;
-export const CONTINUITY_CHECKPOINT_PARTICIPANTS_VERSION = 2 as const;
 export const CONTINUITY_CHECKPOINT_LIMITS = Object.freeze({
 	maxObjectiveBytes: 512,
 	maxNextActionBytes: 512,
@@ -27,14 +26,8 @@ export type ContinuityWarning =
 	| "verification-unknown"
 	| "openspec-ambiguous"
 	| "provider-runtime-unavailable";
-export type SddParticipantEvidence = Readonly<{ status: "complete" | "blocked"; observedStateRef: string; afterStateRef?: string }>;
-export type SddParticipantsCheckpoint = Readonly<{
-	change: string; applyId: string; scopeId: string; beforeStateRef: string;
-	order: readonly ("ein-cleaner" | "ein-architect")[];
-	cleaner: SddParticipantEvidence | null; architect: SddParticipantEvidence | null;
-}>;
 export type ContinuityCheckpointV1 = Readonly<{
-	version: typeof CONTINUITY_CHECKPOINT_VERSION | typeof CONTINUITY_CHECKPOINT_PARTICIPANTS_VERSION;
+	version: typeof CONTINUITY_CHECKPOINT_VERSION;
 	revision: string;
 	mode: ContinuityMode;
 	change: string | null;
@@ -50,7 +43,6 @@ export type ContinuityCheckpointV1 = Readonly<{
 		observedStateRef: string | null;
 	}>;
 	warnings: readonly ContinuityWarning[];
-	sddParticipants?: SddParticipantsCheckpoint | null;
 }>;
 export type ContinuityCheckpointReason =
 	| "invalid-state"
@@ -117,11 +109,6 @@ function validIsoTimestamp(value: unknown): value is string {
 function validStateRef(value: unknown): value is string {
 	return typeof value === "string" && STATE_REF.test(value);
 }
-const PARTICIPANT_SCOPE_SEAL = /^sdd-scope-v1:sha256:[a-f0-9]{64}$/;
-function validParticipantSeal(value: unknown): value is string {
-	return validStateRef(value) || (typeof value === "string" && PARTICIPANT_SCOPE_SEAL.test(value));
-}
-
 function canonicalContent(checkpoint: ContinuityCheckpointV1 | CheckpointContent): CheckpointContent {
 	return {
 		version: checkpoint.version, mode: checkpoint.mode, change: checkpoint.change, stateRef: checkpoint.stateRef,
@@ -130,7 +117,6 @@ function canonicalContent(checkpoint: ContinuityCheckpointV1 | CheckpointContent
 		changedPaths: [...checkpoint.changedPaths], verification: {
 			status: checkpoint.verification.status, observedStateRef: checkpoint.verification.observedStateRef,
 		}, warnings: [...checkpoint.warnings],
-		...(checkpoint.version === 2 ? { sddParticipants: checkpoint.sddParticipants ?? null } : {}),
 	};
 }
 
@@ -144,7 +130,6 @@ function checkpointFrom(content: CheckpointContent, revision = revisionFor(conte
 		capturedAt: content.capturedAt, objective: content.objective, completed: content.completed,
 		nextAction: content.nextAction, unresolvedDecisions: content.unresolvedDecisions,
 		changedPaths: content.changedPaths, verification: content.verification, warnings: content.warnings,
-		...(content.version === 2 ? { sddParticipants: content.sddParticipants ?? null } : {}),
 	};
 }
 
@@ -239,38 +224,14 @@ function recordWithKeys(value: unknown, keys: readonly string[]): value is Recor
 		&& Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 }
 
-function validParticipants(value: unknown, change: unknown): value is SddParticipantsCheckpoint | null {
-	if (value === null) return true;
-	if (!recordWithKeys(value, ["change", "applyId", "scopeId", "beforeStateRef", "order", "cleaner", "architect"])
-		|| value.change !== change || !/^[a-f0-9]{64}$/.test(String(value.applyId)) || !/^[a-f0-9]{64}$/.test(String(value.scopeId)) || !validParticipantSeal(value.beforeStateRef)
-		|| !Array.isArray(value.order) || !["", "ein-cleaner", "ein-architect", "ein-cleaner,ein-architect"].includes(value.order.join(","))) return false;
-	const evidence = (item: unknown, cleaner: boolean): item is SddParticipantEvidence | null => item === null || (recordWithKeys(item, cleaner ? ["status", "observedStateRef", "afterStateRef"] : ["status", "observedStateRef"])
-		&& (item.status === "complete" || item.status === "blocked") && validParticipantSeal(item.observedStateRef) && (!cleaner || validParticipantSeal(item.afterStateRef)));
-	if (!evidence(value.cleaner, true) || !evidence(value.architect, false)
-		|| (value.cleaner !== null && !value.order.includes("ein-cleaner")) || (value.architect !== null && !value.order.includes("ein-architect"))) return false;
-	if (value.cleaner && (value.cleaner.observedStateRef !== value.beforeStateRef || (value.cleaner.status === "blocked" && value.cleaner.afterStateRef !== value.beforeStateRef))) return false;
-	const architectState = value.cleaner?.status === "complete" ? value.cleaner.afterStateRef : value.beforeStateRef;
-	return value.architect === null || (value.cleaner?.status !== "blocked" && value.architect.observedStateRef === architectState);
-}
-
-export function withSddParticipants(checkpoint: ContinuityCheckpointV1, participants: SddParticipantsCheckpoint): ContinuityCheckpointResult {
-	const parsed = parseContinuityCheckpoint(checkpoint);
-	if (!parsed.ok || parsed.checkpoint.mode !== "sdd" || !validParticipants(participants, parsed.checkpoint.change)) return { ok: false, reason: "invalid-checkpoint" };
-	const content = canonicalContent({ ...parsed.checkpoint, version: 2, sddParticipants: participants });
-	const next = checkpointFrom(content);
-	return serializedBytes(next) <= CONTINUITY_CHECKPOINT_LIMITS.maxSerializedBytes ? { ok: true, checkpoint: next } : { ok: false, reason: "limit-exceeded" };
-}
-
 export function parseContinuityCheckpoint(input: unknown): ContinuityCheckpointResult {
 	try {
 		if (typeof input === "string" && new TextEncoder().encode(input).byteLength > CONTINUITY_CHECKPOINT_LIMITS.maxSerializedBytes) return { ok: false, reason: "limit-exceeded" };
 		const value: unknown = typeof input === "string" ? JSON.parse(input) : input;
-		const baseKeys = ["version", "revision", "mode", "change", "stateRef", "capturedAt", "objective", "completed", "nextAction", "unresolvedDecisions", "changedPaths", "verification", "warnings"] as const;
-		const keys = value !== null && typeof value === "object" && !Array.isArray(value) && (value as { version?: unknown }).version === 2 ? [...baseKeys, "sddParticipants"] : baseKeys;
-		if (!recordWithKeys(value, keys) || (value.version !== 1 && value.version !== 2) || typeof value.revision !== "string" || !REVISION.test(value.revision)
+		const keys = ["version", "revision", "mode", "change", "stateRef", "capturedAt", "objective", "completed", "nextAction", "unresolvedDecisions", "changedPaths", "verification", "warnings"] as const;
+		if (!recordWithKeys(value, keys) || value.version !== 1 || typeof value.revision !== "string" || !REVISION.test(value.revision)
 			|| (value.mode !== "adhoc" && value.mode !== "sdd") || (value.mode === "adhoc" ? value.change !== null : !safeChange(value.change))
-			|| (value.stateRef !== null && !validStateRef(value.stateRef)) || !validIsoTimestamp(value.capturedAt)
-			|| (value.version === 2 && (value.mode !== "sdd" || !validParticipants(value.sddParticipants, value.change)))) return { ok: false, reason: "invalid-checkpoint" };
+			|| (value.stateRef !== null && !validStateRef(value.stateRef)) || !validIsoTimestamp(value.capturedAt)) return { ok: false, reason: "invalid-checkpoint" };
 		const facts = { capturedAt: value.capturedAt, objective: value.objective, completed: value.completed, nextAction: value.nextAction, unresolvedDecisions: value.unresolvedDecisions };
 		const factsError = validateFacts(facts as ContinuityCheckpointFacts); if (factsError) return { ok: false, reason: factsError };
 		if (!Array.isArray(value.changedPaths)) return { ok: false, reason: "invalid-checkpoint" };

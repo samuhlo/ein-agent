@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createContinuityHandoffLifecycle } from "../ein-pi/agent/lib/continuity-handoff-lifecycle.ts";
-import { deriveContinuityCheckpoint, withSddParticipants } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
+import { deriveContinuityCheckpoint } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
 import { readContinuityCheckpoint, writeContinuityCheckpoint, type ContinuityCheckpointLocation } from "../ein-pi/agent/lib/continuity-checkpoint-store.ts";
 import { projectProjectState, type ProjectStateV1 } from "../ein-pi/agent/lib/project-state.ts";
 
@@ -50,31 +50,29 @@ describe("continuity handoff lifecycle", () => {
 		expect(await exhausted.refresh(true)).toBe("refresh-conflict"); expect(calls).toBe(2);
 	});
 
-	// D4/R5: refresh no longer rebases sddParticipants against the global stateRef; the invalidation
-	// authority moved to the reader (passage()), so a refresh across a global stateRef change MUST
-	// carry the stored participant evidence through unchanged. This replaces the pre-D4 contract
-	// ("clears stale complete or blocked evidence") — a deliberate behavior change, not a broken test.
-	test("refresh preserves participant evidence unchanged across a global stateRef change", async () => {
-		for (const status of ["complete", "blocked"] as const) {
-			const root = fixture(); mkdirSync(join(root, "openspec/changes/change"), { recursive: true }); let live = projectProjectState({ cwd: root });
-			const selected = (_cwd?: string, runtime = live.runtimes): ProjectStateV1 => ({ ...live, runtimes: runtime, openspec: { ...live.openspec, quality: "current", reason: "read-success", activeChanges: ["change"], selection: "selected", selectedChange: "change", provenance: "canonical" } });
-			const initial = deriveContinuityCheckpoint(selected(), { capturedAt: NOW, objective: "Keep participant state.", completed: [], nextAction: "Resume Cleaner.", unresolvedDecisions: [] }); if (!initial.ok) throw new Error(initial.reason);
-			const evidence = { status, observedStateRef: live.git.stateRef!, afterStateRef: live.git.stateRef! }, upgraded = withSddParticipants(initial.checkpoint, { change: "change", applyId: "c".repeat(64), scopeId: "d".repeat(64), beforeStateRef: live.git.stateRef!, order: ["ein-cleaner"], cleaner: evidence, architect: null }); if (!upgraded.ok) throw new Error(upgraded.reason);
-			expect(writeContinuityCheckpoint(root, { mode: "sdd", change: "change" }, upgraded.checkpoint, { kind: "absent" }).ok).toBeTrue(); const lifecycle = createContinuityHandoffLifecycle(root, ports({ projectState: selected, processObservation: () => "none" }));
-			expect(await lifecycle.refresh(true)).toBe("refreshed"); expect(checkpoint(root, { mode: "sdd", change: "change" }).sddParticipants?.cleaner?.status).toBe(status);
-			const nextRef = `git-v1:sha256:${(status === "complete" ? "e" : "f").repeat(64)}`; live = { ...live, git: { ...live.git, stateRef: nextRef }, verification: { ...live.verification, currentStateRef: nextRef, observedStateRef: nextRef } };
-			expect(await lifecycle.refresh(true)).toBe("refreshed"); const saved = checkpoint(root, { mode: "sdd", change: "change" }); expect(saved.sddParticipants).toMatchObject(upgraded.checkpoint.sddParticipants!);
-		}
+	test("refresh republishes generic facts without participant fields across a state-ref change", async () => {
+		const root = fixture(); mkdirSync(join(root, "openspec/changes/change"), { recursive: true }); let live = projectProjectState({ cwd: root });
+		const selected = (_cwd?: string, runtime = live.runtimes): ProjectStateV1 => ({ ...live, runtimes: runtime, openspec: { ...live.openspec, quality: "current", reason: "read-success", activeChanges: ["change"], selection: "selected", selectedChange: "change", provenance: "canonical" } });
+		const initial = deriveContinuityCheckpoint(selected(), { capturedAt: NOW, objective: "Keep generic facts.", completed: ["Record the handoff."], nextAction: "Resume the generic lifecycle.", unresolvedDecisions: ["Choose the next safe step."] }); if (!initial.ok) throw new Error(initial.reason);
+		expect(writeContinuityCheckpoint(root, { mode: "sdd", change: "change" }, initial.checkpoint, { kind: "absent" }).ok).toBeTrue(); const lifecycle = createContinuityHandoffLifecycle(root, ports({ projectState: selected, processObservation: () => "none" }));
+		expect(await lifecycle.refresh(true)).toBe("refreshed"); const first = checkpoint(root, { mode: "sdd", change: "change" }); expect(first).toMatchObject({ objective: "Keep generic facts.", completed: ["Record the handoff."], nextAction: "Resume the generic lifecycle.", unresolvedDecisions: ["Choose the next safe step."] }); expect("sddParticipants" in first).toBeFalse();
+		const nextRef = `git-v1:sha256:${"e".repeat(64)}`; live = { ...live, git: { ...live.git, stateRef: nextRef }, verification: { ...live.verification, currentStateRef: nextRef, observedStateRef: nextRef } };
+		expect(await lifecycle.refresh(true)).toBe("refreshed"); const saved = checkpoint(root, { mode: "sdd", change: "change" }); expect(saved).toMatchObject({ objective: "Keep generic facts.", completed: ["Record the handoff."], nextAction: "Resume the generic lifecycle.", unresolvedDecisions: ["Choose the next safe step."] }); expect("sddParticipants" in saved).toBeFalse();
 	});
 
-	test("refresh conflict rereads and preserves a newer participant update", async () => {
-		const root = fixture(); mkdirSync(join(root, "openspec/changes/change"), { recursive: true }); const base = projectProjectState({ cwd: root });
-		const selected = (): ProjectStateV1 => ({ ...base, openspec: { ...base.openspec, quality: "current", reason: "read-success", activeChanges: ["change"], selection: "selected", selectedChange: "change", provenance: "canonical" } });
-		const initial = deriveContinuityCheckpoint(selected(), { capturedAt: NOW, objective: "Preserve CAS.", completed: [], nextAction: "Resume.", unresolvedDecisions: [] }); if (!initial.ok) throw new Error(initial.reason);
-		const pending = withSddParticipants(initial.checkpoint, { change: "change", applyId: "c".repeat(64), scopeId: "d".repeat(64), beforeStateRef: base.git.stateRef!, order: ["ein-cleaner"], cleaner: null, architect: null }); if (!pending.ok) throw new Error(pending.reason);
-		expect(writeContinuityCheckpoint(root, { mode: "sdd", change: "change" }, pending.checkpoint, { kind: "absent" }).ok).toBeTrue(); let injected = false;
-		const lifecycle = createContinuityHandoffLifecycle(root, ports({ projectState: selected, write: (...args: Parameters<typeof writeContinuityCheckpoint>) => { if (injected) return writeContinuityCheckpoint(...args); injected = true; const current = checkpoint(root, { mode: "sdd", change: "change" }), participants = current.sddParticipants!; const newer = withSddParticipants(current, { ...participants, cleaner: { status: "blocked", observedStateRef: base.git.stateRef!, afterStateRef: base.git.stateRef! } }); if (!newer.ok || !writeContinuityCheckpoint(root, { mode: "sdd", change: "change" }, newer.checkpoint, { kind: "revision", revision: current.revision }).ok) throw new Error("injection failed"); return { ok: false, outcome: "not-published", reason: "conflict" }; } }));
-		expect(await lifecycle.refresh(true)).toBe("refreshed"); expect(checkpoint(root, { mode: "sdd", change: "change" }).sddParticipants?.cleaner?.status).toBe("blocked");
+	test("refresh conflict rereads the generic checkpoint before retrying", async () => {
+		const root = fixture(), base = projectProjectState({ cwd: root });
+		const initial = deriveContinuityCheckpoint(base, { capturedAt: NOW, objective: "Preserve generic CAS.", completed: ["Keep the current facts."], nextAction: "Retry the generic refresh.", unresolvedDecisions: [] }); if (!initial.ok) throw new Error(initial.reason);
+		expect(writeContinuityCheckpoint(root, { mode: "adhoc" }, initial.checkpoint, { kind: "absent" }).ok).toBeTrue(); let injected = false; const expectations: string[] = [];
+		const lifecycle = createContinuityHandoffLifecycle(root, ports({ write: (...args: Parameters<typeof writeContinuityCheckpoint>) => {
+			expectations.push(args[3].kind === "revision" ? args[3].revision : "absent");
+			if (injected) return writeContinuityCheckpoint(...args); injected = true;
+			const current = checkpoint(root), newer = deriveContinuityCheckpoint(base, { capturedAt: NOW, objective: "Concurrent generic update.", completed: ["Keep the newer facts."], nextAction: "Continue the concurrent refresh.", unresolvedDecisions: [] });
+			if (!newer.ok || !writeContinuityCheckpoint(root, { mode: "adhoc" }, newer.checkpoint, { kind: "revision", revision: current.revision }).ok) throw new Error("injection failed");
+			return { ok: false, outcome: "not-published", reason: "conflict" };
+		} }));
+		expect(await lifecycle.refresh(true)).toBe("refreshed"); expect(expectations).toHaveLength(2); expect(expectations[0]).toBe(initial.checkpoint.revision); expect(expectations[1]).not.toBe(expectations[0]);
+		const saved = checkpoint(root); expect(saved).toMatchObject({ objective: "Preserve generic CAS.", completed: ["Keep the current facts."], nextAction: "Retry the generic refresh." }); expect("sddParticipants" in saved).toBeFalse();
 	});
 
 	test("bounds concurrent automatic refresh pressure to one active and one coalesced pending operation", async () => {
