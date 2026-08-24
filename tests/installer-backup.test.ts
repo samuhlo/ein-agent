@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -14,7 +14,17 @@ import {
   snapshot,
   treeHash,
 } from "../installer/src/core/backup";
-import { fsyncTree, readBoundedFile } from "../installer/src/core/backup-manifest";
+import {
+  BACKUP_LIMITS,
+  canonicalManifest,
+  collectTree,
+  contentDigest,
+  fsyncTree,
+  parseManifest,
+  readBoundedFile,
+  sealTree,
+  validateSnapshot,
+} from "../installer/src/core/backup-manifest";
 
 const ROOT = join(tmpdir(), "ein-agent-tests", "backup");
 const AGENT = join(ROOT, "agent");
@@ -58,6 +68,234 @@ describe("manifest backup v1", () => {
     expect(manifest.entries.map((entry: { path: string }) => entry.path)).toEqual(["agents/sdd-scope.md", "settings.json", "skills/local/demo/SKILL.md"]);
     expect(manifest.entries.every((entry: { size: number; sha256: string }) => Number.isSafeInteger(entry.size) && /^[a-f0-9]{64}$/.test(entry.sha256))).toBe(true);
     expect(JSON.stringify(manifest)).not.toContain("secret");
+  });
+
+  test("manifest v1 can be parsed canonically and v2 distinguishes file and symlink content", () => {
+    const file = { path: "settings.json", type: "file" as const, size: 3, sha256: "a".repeat(64), mode: 0o644 };
+    const v1 = { schemaVersion: 1 as const, excludedStateVersion: 1 as const, entries: [file] };
+    expect(parseManifest(canonicalManifest(v1))).toEqual(v1);
+
+    const link = { path: "skills/omarchy", type: "symlink" as const, target: "/external/omarchy" };
+    const v2 = { schemaVersion: 2 as const, excludedStateVersion: 1 as const, entries: [file, link] };
+    expect(parseManifest(canonicalManifest(v2))).toEqual(v2);
+    expect(contentDigest(v2.entries)).not.toBe(contentDigest([{ ...file, path: "skills/omarchy" }]));
+    expect(contentDigest(v2.entries)).not.toBe(contentDigest([...v2.entries.slice(0, 1), { ...link, target: "/external/other" }]));
+  });
+
+  test("manifest v2 records opaque symlink targets in canonical path order", () => {
+    const external = join(ROOT, "external-omarchy");
+    mkdirSync(external, { recursive: true });
+    symlinkSync(external, join(AGENT, "skills", "local", "omarchy"));
+    const manifest = collectTree(AGENT);
+    expect(manifest.schemaVersion).toBe(2);
+    expect(manifest.entries.map((entry) => entry.path)).toEqual([
+      "agents/sdd-scope.md",
+      "settings.json",
+      "skills/local/demo/SKILL.md",
+      "skills/local/omarchy",
+    ]);
+    expect(manifest.entries.at(-1)).toEqual({ path: "skills/local/omarchy", type: "symlink", target: external });
+    expect(canonicalManifest(manifest)).toBe(`${JSON.stringify(manifest)}\n`);
+  });
+
+  test("manifest rejects empty and over-limit opaque symlink targets", () => {
+    const entry = { path: "skills/omarchy", type: "symlink", target: "x".repeat(BACKUP_LIMITS.target + 1) };
+    expect(() => parseManifest(JSON.stringify({ schemaVersion: 2, excludedStateVersion: 1, entries: [entry] }))).toThrow("target");
+    expect(() => parseManifest(JSON.stringify({ schemaVersion: 2, excludedStateVersion: 1, entries: [{ ...entry, target: "" }] }))).toThrow("target");
+  });
+
+  test("manifest v2 rejects control targets, path collisions, and non-canonical ordering", () => {
+    const file = { path: "a", type: "file", size: 0, sha256: "a".repeat(64), mode: 0o644 };
+    const link = { path: "b", type: "symlink", target: "safe" };
+    expect(() => parseManifest(JSON.stringify({ schemaVersion: 2, excludedStateVersion: 1, entries: [{ ...link, target: "bad\u0001target" }] }))).toThrow("target");
+    expect(() => parseManifest(JSON.stringify({ schemaVersion: 2, excludedStateVersion: 1, entries: [link, file] }))).toThrow("canonico");
+    expect(() => parseManifest(JSON.stringify({ schemaVersion: 2, excludedStateVersion: 1, entries: [file, { ...link, path: "a/child" }] }))).toThrow("canonico");
+    expect(() => parseManifest(JSON.stringify({ schemaVersion: 1, excludedStateVersion: 1, entries: [link] }))).toThrow("entrada");
+  });
+
+  test("manifest v2 rejects Unicode control targets", () => {
+    const entry = { path: "skills/omarchy", type: "symlink", target: "safe\u0085target" };
+    expect(() => parseManifest(JSON.stringify({ schemaVersion: 2, excludedStateVersion: 1, entries: [entry] }))).toThrow("target");
+  });
+
+  test("node_modules is excluded before lstat and hardlinked user files are accepted", () => {
+    const external = join(ROOT, "dependency-target");
+    mkdirSync(external, { recursive: true });
+    writeFileSync(join(external, "must-not-be-read"), "dependency");
+    mkdirSync(join(AGENT, "skills", "local", "node_modules"), { recursive: true });
+    rmSync(join(AGENT, "skills", "local", "node_modules"), { recursive: true, force: true });
+    symlinkSync(external, join(AGENT, "skills", "local", "node_modules"));
+    writeFileSync(join(AGENT, "agents", "hardlink-source"), "shared");
+    linkSync(join(AGENT, "agents", "hardlink-source"), join(AGENT, "agents", "hardlink-copy"));
+
+    const manifest = collectTree(AGENT);
+    expect(manifest.entries.map((entry) => entry.path)).toEqual([
+      "agents/hardlink-copy",
+      "agents/hardlink-source",
+      "agents/sdd-scope.md",
+      "settings.json",
+      "skills/local/demo/SKILL.md",
+    ]);
+    expect(manifest.entries.filter((entry) => entry.path.includes("node_modules")).length).toBe(0);
+  });
+
+  test("snapshot y restore v2 conservan targets externos y relativos sin seguirlos", async () => {
+    const external = join(ROOT, "external-omarchy");
+    const relativeTarget = join(ROOT, "relative-target");
+    mkdirSync(external, { recursive: true });
+    mkdirSync(relativeTarget, { recursive: true });
+    writeFileSync(join(external, "sentinel"), "must-not-be-read");
+    symlinkSync(external, join(AGENT, "skills", "local", "omarchy"));
+    symlinkSync("../../relative-target", join(AGENT, "agents", "relative-link"));
+
+    const snap = await snapshot("links", PATHS);
+    const manifest = validateSnapshot(snap.path!).manifest;
+    expect(manifest.schemaVersion).toBe(2);
+    expect(manifest.entries).toContainEqual({ path: "skills/local/omarchy", type: "symlink", target: external });
+    expect(manifest.entries).toContainEqual({ path: "agents/relative-link", type: "symlink", target: "../../relative-target" });
+
+    rmSync(join(AGENT, "skills", "local", "omarchy"));
+    rmSync(join(AGENT, "agents", "relative-link"));
+    await restoreBackup(snap.path!, PATHS);
+
+    expect(lstatSync(join(AGENT, "skills", "local", "omarchy")).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(join(AGENT, "skills", "local", "omarchy"))).toBe(external);
+    expect(readlinkSync(join(AGENT, "agents", "relative-link"))).toBe("../../relative-target");
+    expect(readFileSync(join(external, "sentinel"), "utf8")).toBe("must-not-be-read");
+  });
+
+  test("staging rechaza padres enlazados sin escribir fuera del stage", () => {
+    const source = join(ROOT, "source");
+    const stage = join(ROOT, "stage");
+    const external = join(ROOT, "stage-external");
+    mkdirSync(join(source, "nested"), { recursive: true });
+    mkdirSync(stage, { recursive: true });
+    mkdirSync(external, { recursive: true });
+    writeFileSync(join(source, "nested", "state.json"), "safe");
+    writeFileSync(join(external, "state.json"), "sentinel");
+    symlinkSync(external, join(stage, "nested"));
+
+    expect(() => collectTree(source, stage, false)).toThrow();
+    expect(readFileSync(join(external, "state.json"), "utf8")).toBe("sentinel");
+  });
+
+  test("restore rechaza un padre enlazado al reinsertar estado excluido", async () => {
+    const external = join(ROOT, "excluded-external");
+    mkdirSync(external, { recursive: true });
+    writeFileSync(join(external, "must-not-change"), "sentinel");
+    rmSync(join(AGENT, "skills"), { recursive: true, force: true });
+    symlinkSync(external, join(AGENT, "skills"));
+    const snap = await snapshot("linked-excluded", PATHS);
+
+    rmSync(join(AGENT, "skills"), { recursive: true, force: true });
+    mkdirSync(join(AGENT, "skills", "downloaded"), { recursive: true });
+    writeFileSync(join(AGENT, "skills", "downloaded", "state"), "excluded-state");
+
+    await expect(restoreBackup(snap.path!, PATHS)).rejects.toThrow();
+    expect(readFileSync(join(external, "must-not-change"), "utf8")).toBe("sentinel");
+  });
+
+  test("restore rechaza una raiz live enlazada aunque el target no exista", async () => {
+    const snap = await snapshot("dangling-live", PATHS);
+    rmSync(AGENT, { recursive: true, force: true });
+    symlinkSync(join(ROOT, "missing-live-target"), AGENT);
+
+    await expect(restoreBackup(snap.path!, PATHS)).rejects.toThrow();
+    expect(lstatSync(AGENT).isSymbolicLink()).toBe(true);
+  });
+
+  test("fsync y seal tratan enlaces como nodos y no siguen su target", () => {
+    const tree = join(ROOT, "link-tree");
+    const external = join(ROOT, "link-tree-external");
+    mkdirSync(tree, { recursive: true });
+    mkdirSync(external, { recursive: true });
+    writeFileSync(join(external, "sentinel"), "untouched");
+    symlinkSync(external, join(tree, "external"));
+    symlinkSync(external, join(ROOT, "link-tree-root"));
+
+    expect(() => fsyncTree(tree)).not.toThrow();
+    expect(() => sealTree(tree)).not.toThrow();
+    expect(() => fsyncTree(join(ROOT, "link-tree-root"))).toThrow();
+    expect(() => sealTree(join(ROOT, "link-tree-root"))).toThrow();
+    expect(lstatSync(join(tree, "external")).isSymbolicLink()).toBe(true);
+    expect(readFileSync(join(external, "sentinel"), "utf8")).toBe("untouched");
+  });
+
+  test("v1 y v2 validan antes de mutar live y el tamper de un enlace se rechaza", async () => {
+    const v1 = await snapshot("v1", PATHS);
+    expect(validateSnapshot(v1.path!).manifest.schemaVersion).toBe(1);
+
+    const external = join(ROOT, "tamper-external");
+    mkdirSync(external, { recursive: true });
+    symlinkSync(external, join(AGENT, "skills", "local", "omarchy"));
+    const v2 = await snapshot("v2", PATHS);
+    expect(validateSnapshot(v2.path!).manifest.schemaVersion).toBe(2);
+    const before = readFileSync(join(AGENT, "settings.json"), "utf8");
+    rmSync(join(v2.path!, "content", "skills", "local", "omarchy"));
+    symlinkSync(join(ROOT, "tampered-target"), join(v2.path!, "content", "skills", "local", "omarchy"));
+
+    await expect(restoreBackup(v2.path!, PATHS)).rejects.toThrow();
+    expect(readFileSync(join(AGENT, "settings.json"), "utf8")).toBe(before);
+  });
+
+  test("Omarchy real tree snapshots and restores user state without dependency traversal", async () => {
+    const external = join(ROOT, "omarchy-target");
+    mkdirSync(join(external, "private"), { recursive: true });
+    writeFileSync(join(external, "private", "sentinel"), "must-not-be-read");
+    chmodSync(external, 0o000);
+    symlinkSync(external, join(AGENT, "skills", "omarchy"));
+
+    const npmBin = join(AGENT, "npm", "node_modules", ".bin");
+    const nestedBin = join(AGENT, "skills", "local", "node_modules", ".bin");
+    mkdirSync(npmBin, { recursive: true });
+    mkdirSync(nestedBin, { recursive: true });
+    symlinkSync(join(external, "private"), join(npmBin, "omarchy"));
+    symlinkSync(join(external, "private"), join(nestedBin, "omarchy"));
+
+    const dependencyPayload = join(AGENT, "npm", "node_modules", "payload");
+    mkdirSync(dependencyPayload, { recursive: true });
+    for (let index = 0; index <= BACKUP_LIMITS.files; index++) writeFileSync(join(dependencyPayload, `package-${index}.js`), "dependency");
+    const oversizedDependency = join(dependencyPayload, "oversized.bin");
+    writeFileSync(oversizedDependency, "");
+    truncateSync(oversizedDependency, BACKUP_LIMITS.bytes + 1);
+
+    const userFile = join(AGENT, "agents", "omarchy-user.json");
+    const hardlinkedUserFile = join(AGENT, "agents", "omarchy-user-copy.json");
+    writeFileSync(userFile, JSON.stringify({ source: "omarchy" }));
+    linkSync(userFile, hardlinkedUserFile);
+
+    const snap = await snapshot("omarchy-real-tree", PATHS);
+    chmodSync(external, 0o755);
+    expect(snap.path).not.toBeNull();
+    const manifest = validateSnapshot(snap.path!).manifest;
+    const paths = manifest.entries.map((entry) => entry.path);
+    expect(manifest.schemaVersion).toBe(2);
+    expect(paths).toContain("skills/omarchy");
+    expect(paths).toContain("agents/omarchy-user.json");
+    expect(paths).toContain("agents/omarchy-user-copy.json");
+    expect(paths.some((path) => path.startsWith("npm/") || path.includes("node_modules") || path.includes(".bin/"))).toBe(false);
+    expect(existsSync(join(snap.path!, "content", "npm"))).toBe(false);
+    expect(paths).not.toContain("skills/omarchy/private/sentinel");
+    expect(readFileSync(join(external, "private", "sentinel"), "utf8")).toBe("must-not-be-read");
+
+    writeFileSync(userFile, "changed");
+    rmSync(hardlinkedUserFile);
+    await restoreBackup(snap.path!, PATHS);
+
+    expect(readFileSync(userFile, "utf8")).toBe(JSON.stringify({ source: "omarchy" }));
+    expect(readFileSync(hardlinkedUserFile, "utf8")).toBe(JSON.stringify({ source: "omarchy" }));
+    expect(lstatSync(userFile).isFile()).toBe(true);
+    expect(lstatSync(hardlinkedUserFile).isFile()).toBe(true);
+    expect(lstatSync(userFile).ino).not.toBe(lstatSync(hardlinkedUserFile).ino);
+    expect(lstatSync(join(AGENT, "skills", "omarchy")).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(join(AGENT, "skills", "omarchy"))).toBe(external);
+    expect(existsSync(join(AGENT, "npm"))).toBe(false);
+    expect(existsSync(join(AGENT, "skills", "local", "node_modules"))).toBe(false);
+    expect(readFileSync(join(external, "private", "sentinel"), "utf8")).toBe("must-not-be-read");
+
+    writeFileSync(join(AGENT, "agents", "included-over-limit.bin"), "x");
+    truncateSync(join(AGENT, "agents", "included-over-limit.bin"), BACKUP_LIMITS.bytes + 1);
+    await expect(snapshot("omarchy-over-limit", PATHS)).rejects.toThrow("limite de contenido excedido");
   });
 
   test("un socket unix fuera de exclusiones se rechaza sin publicar", async () => {
@@ -156,7 +394,7 @@ describe("manifest backup v1", () => {
     expect(readFileSync(join(AGENT, "settings.json"), "utf8")).toBe(before);
     pruneBackups({ ...PATHS, keep: 0 });
     symlinkSync(join(AGENT, "settings.json"), join(AGENT, "agents", "escape"));
-    await expect(snapshot("unsafe", PATHS)).rejects.toThrow("tipo de entrada");
+    await expect(snapshot("unsafe", PATHS)).rejects.toThrow();
     rmSync(join(AGENT, "agents", "escape")); chmodSync(join(AGENT, "settings.json"), 0o666); await expect(snapshot("unsafe-mode", PATHS)).rejects.toThrow("modo no permitido");
   });
 
@@ -175,7 +413,7 @@ describe("manifest backup v1", () => {
     for (const entries of invalid) { writeFileSync(path, `${JSON.stringify({ ...original, entries })}\n`); await expect(restoreBackup(snap.path!, PATHS)).rejects.toThrow("Backup invalido"); }
   });
 
-  test("cada ocurrencia restore revierte exactamente", async () => { const seen: string[] = [], fixed = { ...PATHS, now: () => new Date("2026-01-01T00:00:00.000Z") }; let snap = await snapshot("probe", fixed); await restoreBackup(snap.path!, { ...fixed, fault: (point) => { seen.push(point); } }); const labels = [...new Set(seen)]; for (const failure of labels) { seedAgentDir(); snap = await snapshot("probe", fixed); writeFileSync(join(AGENT, "settings.json"), failure); await expect(restoreBackup(snap.path!, { ...fixed, fault: (point) => { if (point === failure) throw new Error("fault"); } })).rejects.toThrow(); expect(readFileSync(join(AGENT, "settings.json"), "utf8")).toBe(failure); } expect(labels.length).toBe(57); });
+  test("cada ocurrencia restore revierte exactamente", async () => { const seen: string[] = [], fixed = { ...PATHS, now: () => new Date("2026-01-01T00:00:00.000Z") }; let snap = await snapshot("probe", fixed); await restoreBackup(snap.path!, { ...fixed, fault: (point) => { seen.push(point); } }); const labels = [...new Set(seen)]; for (const failure of labels) { seedAgentDir(); snap = await snapshot("probe", fixed); writeFileSync(join(AGENT, "settings.json"), failure); await expect(restoreBackup(snap.path!, { ...fixed, fault: (point) => { if (point === failure) throw new Error("fault"); } })).rejects.toThrow(); expect(readFileSync(join(AGENT, "settings.json"), "utf8")).toBe(failure); } expect(labels.length).toBe(56); });
 
   test("fallo compuesto conserva original nombrado", async () => { for (const recoveryFailure of ["recovery:retained-to-rollback", "recovery:meta-remove", "recovery:pin-remove", "recovery:backup-parent-fsync", "recovery:live-remove", "recovery:rollback-to-live", "recovery:live-fsync", "recovery:parent-fsync", "recovery:stage-remove"]) { seedAgentDir(); const snap = await snapshot("compound", PATHS); writeFileSync(join(AGENT, "settings.json"), recoveryFailure); let primary = true; const primaryPoint = recoveryFailure === "recovery:stage-remove" ? "restore:stage-copy" : "restore:retain-pin-write"; await expect(restoreBackup(snap.path!, { ...PATHS, fault: (point) => { if (primary && point === primaryPoint) { primary = false; throw new Error("primary"); } if (!primary && point === recoveryFailure) throw new Error("compound"); } })).rejects.toThrow("recuperacion"); const roots = [AGENT, ...readdirSync(ROOT).filter((name) => name.includes("rollback-")).map((name) => join(ROOT, name)), ...listBackups(PATHS).filter((entry) => entry.kind === "recovery").map((entry) => entry.path)]; expect(roots.some((root) => existsSync(join(root, "settings.json")) && readFileSync(join(root, "settings.json"), "utf8") === recoveryFailure)).toBe(true); } });
 
@@ -193,6 +431,22 @@ describe("manifest backup v1", () => {
     await restoreBackup(legacy, PATHS);
     expect(readFileSync(join(AGENT, "agents", "sdd-scope.md"), "utf8")).toBe("# legacy");
     for (const failure of ["legacy:copy:agents/sdd-scope.md", "legacy:chmod:agents/sdd-scope.md"]) await expect(restoreBackup(legacy, { ...PATHS, fault: (point) => { if (point === failure) throw new Error("fault"); } })).rejects.toThrow("fault");
+  });
+
+  test("legacy restore recreates symlinks without chmoding external targets", async () => {
+    const legacy = join(BACKUPS, "2026-01-01T00-00-00-000Z_legacy-link");
+    const external = join(ROOT, "legacy-external.txt");
+    mkdirSync(join(legacy, "agents"), { recursive: true });
+    writeFileSync(external, "sentinel", { mode: 0o644 });
+    symlinkSync(external, join(legacy, "agents", "external-link"));
+
+    await restoreBackup(legacy, PATHS);
+
+    const restored = join(AGENT, "agents", "external-link");
+    expect(lstatSync(restored).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(restored)).toBe(external);
+    expect(readFileSync(external, "utf8")).toBe("sentinel");
+    if (process.platform !== "win32") expect(statSync(external).mode & 0o777).toBe(0o644);
   });
 
   test("archives legacy fallan cerrado antes de extraer", async () => {

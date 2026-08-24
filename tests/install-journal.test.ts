@@ -2,18 +2,20 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { closeSync, fsyncSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runInstall } from "../installer/src/cli/install.ts";
+import { createPiInstallHandlers, runInstall } from "../installer/src/cli/install.ts";
+import { snapshot, BackupFailure } from "../installer/src/core/backup.ts";
 import { executeInstallPlanJournaled, inspectInstallJournal, installJournalMatchesPlan, installJournalPath, installPlanDigest, InstallJournalError, validateInstallJournal, type InstallExecutionJournalV1, type InstallJournalFs } from "../installer/src/core/install-journal.ts";
-import type { InstallPlanExecutionHandlers } from "../installer/src/core/install-executor.ts";
+import { executeInstallPlan, type InstallPlanExecutionHandlers } from "../installer/src/core/install-executor.ts";
 import { createInstallPlan, type InstallPlanInput, type InstallPlanV1 } from "../installer/src/core/install-plan.ts";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 const home = (): string => { const value = mkdtempSync(join(realpathSync(tmpdir()), "ein-install-journal-")); roots.push(value); return value; };
-function plan(target: InstallPlanInput["target"] = "both", root = home()): InstallPlanV1 { return createInstallPlan({ target, home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" }, claudeConfigHome: join(root, ".claude-ein"), platform: { os: "darwin", arch: "arm64" }, dependencies: { bun: false, pi: false, engram: false, gh: false, hypa: false, codegraph: false }, flags: { yes: true, noEngram: false, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true } }); }
-const handlers = (value: InstallPlanV1, call: (id: string) => { ok: boolean } = () => ({ ok: true })): InstallPlanExecutionHandlers => Object.fromEntries(value.inventory.map(({ id }) => [id, () => call(id)])) as InstallPlanExecutionHandlers;
+function plan(target: InstallPlanInput["target"] = "both", root = home(), piOwnership: InstallPlanInput["piOwnership"] = { status: "absent" }): InstallPlanV1 { return createInstallPlan({ target, home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership, claudeConfigHome: join(root, ".claude-ein"), platform: { os: "darwin", arch: "arm64" }, dependencies: { bun: false, pi: false, engram: false, gh: false, hypa: false, codegraph: false }, flags: { yes: true, noEngram: false, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true } }); }
+const handlers = (value: InstallPlanV1, call: (id: string) => { ok: boolean; detail?: string } = () => ({ ok: true })): InstallPlanExecutionHandlers => Object.fromEntries(value.inventory.map(({ id }) => [id, () => call(id)])) as InstallPlanExecutionHandlers;
 const fsOps = (): InstallJournalFs => ({ read: (path) => readFileSync(path), mkdir: (path, mode) => mkdirSync(path, { mode }), open: (path, flags, mode) => openSync(path, flags, mode), write: (fd, data, offset) => writeSync(fd, data, offset, data.length - offset), fsync: fsyncSync, close: closeSync, rename: renameSync, unlink: unlinkSync, inspect: (path) => { try { const item = lstatSync(path); return { kind: item.isSymbolicLink() ? "symlink" : item.isFile() ? "file" : item.isDirectory() ? "directory" : "other", mode: item.mode & 0o777, size: item.size }; } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "missing", mode: 0, size: 0 }; throw error; } } });
 function recovery(target: InstallPlanInput["target"], patterns: Partial<Record<"shared" | "pi" | "claude", string>>): InstallExecutionJournalV1 { const value = plan(target), indexes = { shared: 0, pi: 0, claude: 0 }, states = { c: "completed", f: "failed", p: "pending", n: "not-run" } as const; const entries = value.inventory.filter(({ state }) => state === "selected" || state === "conditional").map(({ id, runtime }) => ({ id, runtime, status: states[(patterns[runtime]?.[indexes[runtime]++] ?? "n") as keyof typeof states] })); const terminal = entries.find(({ status }) => status === "pending") ?? entries.find(({ status }) => status === "failed"); return { schemaVersion: 1, transactionId: "eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee", planDigest: installPlanDigest(value), target, platform: value.platform, state: "recovery-required", entries, pendingEntryId: terminal!.id, recoveryCode: entries.some(({ status }) => status === "failed") ? "handler-failed" : "interrupted" }; }
+function preMutationRecovery(value: InstallPlanV1, detail?: string): InstallExecutionJournalV1 { return { schemaVersion: 1, transactionId: "eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee", planDigest: installPlanDigest(value), target: value.target, platform: value.platform, state: "recovery-required", entries: value.inventory.filter(({ state }) => state === "selected" || state === "conditional").map(({ id, runtime }) => ({ id, runtime, status: id === "pi.backup-current" ? "failed" : runtime === "claude" || id.includes("dependency.") ? "completed" : "not-run", ...(id === "pi.backup-current" && detail ? { detail } : {}) })), pendingEntryId: "pi.backup-current", recoveryCode: "handler-failed" }; }
 
 describe("install execution journal", () => {
   test("is closed, bounded, deterministic, and rejects malformed or private identity", async () => {
@@ -44,6 +46,155 @@ describe("install execution journal", () => {
 
   test("persists bounded recovery for returned and thrown failures without raw detail", async () => {
     for (const throws of [false, true]) { const value = plan("pi"); await executeInstallPlanJournaled(value, handlers(value, (id) => { if (id !== "pi.dependency.pi") return { ok: true }; if (throws) throw new Error("PRIVATE raw path stdout"); return { ok: false, detail: "PRIVATE raw path stdout" } as { ok: boolean }; }), { transactionId: () => throws ? "cccccccc-cccc-4ccc-cccc-cccccccccccc" : "dddddddd-dddd-4ddd-dddd-dddddddddddd" }); const status = inspectInstallJournal(value.home); expect(status.status).toBe("valid"); expect(JSON.stringify(status)).toContain("handler-failed"); expect(JSON.stringify(status)).not.toContain("PRIVATE"); }
+  });
+
+  test("backup failure cause and detail remain actionable and bounded", async () => {
+    const value = plan("pi"), agentDir = join(value.home, "agent"), backupDir = join(value.home, "backups");
+    mkdirSync(agentDir, { recursive: true, mode: 0o700 }); writeFileSync(join(agentDir, "settings.json"), "{}", { mode: 0o600 });
+    let failure: unknown;
+    try {
+      await snapshot("pre-install", { agentDir, backupDir, fault: (point) => {
+        if (point === "snapshot:copy:write:settings.json") throw new Error(`EACCES: permission denied ${agentDir}/private\nstdout=secret stderr=secret stack=secret environment=secret\n${"界".repeat(400)}\u0000`);
+      } });
+    } catch (error) { failure = error; }
+    expect(failure).toBeInstanceOf(BackupFailure);
+    const detail = failure instanceof Error ? failure.message : "";
+    expect(detail).toContain("snapshot:copy"); expect(detail).toContain("settings.json"); expect(detail).toContain("permission denied");
+    expect(detail).not.toContain(agentDir); expect(detail).not.toMatch(/stdout|stderr|stack|environment/i); expect(detail).not.toContain("\u0000"); expect(new TextEncoder().encode(detail).byteLength).toBeLessThanOrEqual(512);
+    failure = undefined;
+    try {
+      await snapshot("pre-install", { agentDir, backupDir, fault: (point) => { if (point === "snapshot:metadata-write") throw new Error("metadata rejected"); } });
+    } catch (error) { failure = error; }
+    expect(failure).toBeInstanceOf(BackupFailure); expect((failure as BackupFailure).operation).toBe("snapshot:metadata-write"); expect((failure as BackupFailure).relativeEntry).toBeUndefined();
+  });
+
+  test("pi backup caller preserves bounded detail through the journal", async () => {
+    const value = plan("pi"), agentDir = join(value.home, "agent"), backupDir = join(value.home, "backups");
+    mkdirSync(agentDir, { recursive: true, mode: 0o700 });
+    const failure = new BackupFailure("snapshot:copy", "settings.json", new Error(`permission denied ${agentDir}/private\nstdout=secret\n${"界".repeat(400)}`), [agentDir]);
+    const pi = createPiInstallHandlers({
+      platform: { os: "darwin", arch: "arm64", distro: "unknown", packageManager: "brew", shell: "unknown", shellRc: join(value.home, ".profile"), home: value.home },
+      flags: { yes: true, noEngram: false, noSecrets: true, noLinear: true, noHypa: false, noCodegraph: false, dryRun: false, runtime: "pi" },
+      skipLinear: true,
+      deps: [],
+      agentDir,
+      effects: {
+        exists: () => true,
+        resolveContext: () => ({ agentDir, backupDir } as never),
+        backup: async () => { throw failure; },
+      },
+    });
+    const result = await executeInstallPlanJournaled(value, { ...handlers(value), "pi.backup-current": pi.handlers["pi.backup-current"] });
+    expect(result.ok).toBe(false);
+    const status = inspectInstallJournal(value.home);
+    expect(status.status).toBe("valid");
+    if (status.status === "valid") expect(status.journal.entries.find(({ id }) => id === "pi.backup-current")?.detail).toBe(failure.message);
+  });
+
+  test("executor preserves backup detail and falls back generically", async () => {
+    const value = plan("pi"), cause = "Backup failed during snapshot:copy at settings.json: permission denied";
+    const detailed = await executeInstallPlan(value, handlers(value, (id) => id === "pi.backup-current" ? { ok: false, detail: cause } : { ok: true }));
+    expect(detailed.failures.pi).toBe(cause);
+    const generic = await executeInstallPlan(value, handlers(value, (id) => id === "pi.backup-current" ? { ok: false } : { ok: true }));
+    expect(generic.failures.pi).toBe("Pi installation failed at pi.backup-current");
+    const thrown = await executeInstallPlan(value, handlers(value, (id) => { if (id === "pi.backup-current") throw new Error("raw native failure"); return { ok: true }; }));
+    expect(thrown.failures.pi).toBe("Pi installation failed at pi.backup-current");
+  });
+
+  test("backup failure leaves pi.backup-current failed and later Pi work non-complete", async () => {
+    const value = plan(), calls: string[] = [];
+    const result = await executeInstallPlanJournaled(value, handlers(value, (id) => {
+      calls.push(id); return id === "pi.backup-current" ? { ok: false, detail: "Backup failed during snapshot:copy at settings.json: permission denied" } : { ok: true };
+    }));
+    expect(result.ok).toBe(false); expect(calls).not.toContain("pi.deploy-template");
+    const status = inspectInstallJournal(value.home); expect(status.status).toBe("valid");
+    if (status.status === "valid") {
+      expect(status.journal.state).toBe("recovery-required");
+      expect(status.journal.entries.find(({ id }) => id === "pi.backup-current")?.status).toBe("failed");
+      expect(status.journal.entries.find(({ id }) => id === "pi.deploy-template")?.status).toBe("not-run");
+      expect(status.journal.entries.find(({ id }) => id === "claude.deploy-runtime")?.status).toBe("completed");
+    }
+  });
+
+  test("validates optional bounded recovery failure detail", () => {
+    const value = plan(), valid = preMutationRecovery(value, "Backup failed during snapshot:copy at settings.json: permission denied");
+    expect(() => validateInstallJournal(valid)).not.toThrow();
+    const oversized = { ...valid, entries: valid.entries.map((entry) => entry.id === "pi.backup-current" ? { ...entry, detail: "界".repeat(300) } : entry) };
+    expect(() => validateInstallJournal(oversized)).toThrow(InstallJournalError);
+    const misplaced = { ...valid, entries: valid.entries.map((entry) => entry.id === "pi.dependency.pi" ? { ...entry, detail: "unexpected" } : entry) };
+    expect(() => validateInstallJournal(misplaced)).toThrow(InstallJournalError);
+    const control = { ...valid, entries: valid.entries.map((entry) => entry.id === "pi.backup-current" ? { ...entry, detail: "bad\u0000detail" } : entry) };
+    expect(() => validateInstallJournal(control)).toThrow(InstallJournalError);
+  });
+
+  test("retries exact both pre-mutation recovery and preserves completed Claude", async () => {
+    const value = plan();
+    await executeInstallPlanJournaled(value, handlers(value, (id) => id === "pi.backup-current" ? { ok: false } : { ok: true }));
+    const calls: string[] = [], result = await executeInstallPlanJournaled(value, handlers(value, (id) => { calls.push(id); return { ok: true }; }));
+    expect(result.ok).toBe(true); expect(calls).toContain("pi.backup-current"); expect(calls).toContain("pi.deploy-template"); expect(calls).not.toContain("claude.deploy-runtime"); expect(calls).not.toContain("claude.deploy-launcher");
+    const status = inspectInstallJournal(value.home); expect(status.status).toBe("valid"); if (status.status === "valid") { expect(status.journal.state).toBe("complete"); expect(status.journal.entries.every(({ status: entryStatus }) => entryStatus === "completed")).toBe(true); }
+  });
+
+  test("failed recovery retry preserves completed Claude and later Pi non-completion", async () => {
+    const value = plan();
+    await executeInstallPlanJournaled(value, handlers(value, (id) => id === "pi.backup-current" ? { ok: false, detail: "first backup failure" } : { ok: true }));
+    const calls: string[] = [], result = await executeInstallPlanJournaled(value, handlers(value, (id) => { calls.push(id); return id === "pi.backup-current" ? { ok: false, detail: "retry backup failure" } : { ok: true }; }));
+    expect(result.ok).toBe(false); expect(calls).toEqual(["pi.backup-current"]);
+    const status = inspectInstallJournal(value.home); expect(status.status).toBe("valid"); if (status.status === "valid") { expect(status.journal.state).toBe("recovery-required"); expect(status.journal.entries.find(({ id }) => id === "pi.backup-current")?.status).toBe("failed"); expect(status.journal.entries.find(({ id }) => id === "pi.deploy-template")?.status).toBe("not-run"); expect(status.journal.entries.find(({ id }) => id === "claude.deploy-runtime")?.status).toBe("completed"); expect((status.journal.entries.find(({ id }) => id === "pi.backup-current") as { detail?: string }).detail).toBe("retry backup failure"); }
+  });
+
+  test("rejects interrupted, migrated, mutated, unsupported, and plan-mismatched recovery", async () => {
+    const value = plan(), detail = "backup failure", exact = preMutationRecovery(value, detail), path = installJournalPath(value.home);
+    await executeInstallPlanJournaled(value, handlers(value, (id) => id === "pi.backup-current" ? { ok: false, detail } : { ok: true }));
+    const reject = async (journal: InstallExecutionJournalV1, candidate = value): Promise<void> => { writeFileSync(installJournalPath(candidate.home), `${JSON.stringify(journal)}\n`, { mode: 0o600 }); await expect(executeInstallPlanJournaled(candidate, handlers(candidate, () => { throw new Error("must not run"); }))).rejects.toMatchObject({ code: "recovery-required" }); };
+    await reject({ ...exact, recoveryCode: "interrupted" });
+    const legacy = plan("both", home(), { status: "managed", layout: "legacy" }); await executeInstallPlanJournaled(legacy, handlers(legacy, (id) => id === "pi.backup-current" ? { ok: false } : { ok: true })); const legacyStatus = inspectInstallJournal(legacy.home); expect(legacyStatus.status).toBe("valid"); if (legacyStatus.status === "valid") await reject(legacyStatus.journal, legacy);
+    const mutated = plan(), mutatedPath = installJournalPath(mutated.home); await executeInstallPlanJournaled(mutated, handlers(mutated, (id) => id === "pi.deploy-template" ? { ok: false } : { ok: true })); const mutatedStatus = inspectInstallJournal(mutated.home); expect(mutatedStatus.status).toBe("valid"); if (mutatedStatus.status === "valid") { writeFileSync(mutatedPath, `${JSON.stringify(mutatedStatus.journal)}\n`, { mode: 0o600 }); await expect(executeInstallPlanJournaled(mutated, handlers(mutated, () => { throw new Error("must not run"); }))).rejects.toMatchObject({ code: "recovery-required" }); }
+    const unsupported = plan("pi"), unsupportedPath = installJournalPath(unsupported.home); await executeInstallPlanJournaled(unsupported, handlers(unsupported, (id) => id === "pi.backup-current" ? { ok: false } : { ok: true })); const unsupportedStatus = inspectInstallJournal(unsupported.home); expect(unsupportedStatus.status).toBe("valid"); if (unsupportedStatus.status === "valid") { writeFileSync(unsupportedPath, `${JSON.stringify(unsupportedStatus.journal)}\n`, { mode: 0o600 }); await expect(executeInstallPlanJournaled(unsupported, handlers(unsupported, () => { throw new Error("must not run"); }))).rejects.toMatchObject({ code: "recovery-required" }); }
+    const mismatch = plan("pi", value.home); await expect(executeInstallPlanJournaled(mismatch, handlers(mismatch, () => { throw new Error("must not run"); }))).rejects.toMatchObject({ code: "recovery-required" }); expect(path).toBe(installJournalPath(value.home));
+  });
+
+  test("admits only the supported pre-mutation recovery at install startup", async () => {
+    const value = plan(), root = value.home;
+    const observations = { home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" } as const, claudeConfigHome: join(root, ".claude-ein"), dependencies: { bun: false, pi: false, engram: false, gh: false, hypa: false, codegraph: false }, platform: { os: "darwin" as const, arch: "arm64" as const, distro: "unknown" as const, packageManager: "brew" as const, shell: "unknown" as const, shellRc: join(root, ".profile"), home: root } };
+    await executeInstallPlanJournaled(value, handlers(value, (id) => id === "pi.backup-current" ? { ok: false, detail: "backup failed before Pi mutation" } : { ok: true }));
+    const calls: string[] = [], banners: number[] = [];
+    const code = await runInstall(["--yes", "--no-secrets", "--runtime", "both"], undefined, { observations, playBanner: async () => { banners.push(1); }, handlers: handlers(value, (id) => { calls.push(id); return { ok: true }; }) });
+    expect(code).toBe(0);
+    expect(banners).toHaveLength(1);
+    expect(calls).toContain("pi.backup-current");
+    expect(calls).toContain("pi.deploy-template");
+    expect(calls).not.toContain("shared.dependency.bun");
+    expect(calls).not.toContain("claude.deploy-runtime");
+    expect(calls).not.toContain("claude.deploy-launcher");
+  });
+
+  test("blocks every other valid non-complete journal before banner or handlers", async () => {
+    const blocked = async (value: InstallPlanV1, journal: InstallExecutionJournalV1): Promise<void> => {
+      mkdirSync(join(value.home, ".ein-installer"), { recursive: true, mode: 0o700 });
+      writeFileSync(installJournalPath(value.home), `${JSON.stringify(journal)}\n`, { mode: 0o600 });
+      const observations = { home: value.home, piAgentDir: join(value.home, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" } as const, claudeConfigHome: join(value.home, ".claude-ein"), dependencies: { bun: false, pi: false, engram: false, gh: false, hypa: false, codegraph: false }, platform: { os: "darwin" as const, arch: "arm64" as const, distro: "unknown" as const, packageManager: "brew" as const, shell: "unknown" as const, shellRc: join(value.home, ".profile"), home: value.home } };
+      let banners = 0, calls = 0;
+      expect(await runInstall(["--yes", "--no-secrets", "--runtime", value.target], undefined, { observations, playBanner: async () => { banners += 1; }, handlers: handlers(value, () => { calls += 1; return { ok: true }; }) })).toBe(1);
+      expect(banners).toBe(0);
+      expect(calls).toBe(0);
+    };
+
+    const interrupted = plan();
+    const exact = preMutationRecovery(interrupted);
+    await blocked(interrupted, { ...exact, recoveryCode: "interrupted" });
+
+    const postMutation = plan();
+    await executeInstallPlanJournaled(postMutation, handlers(postMutation, (id) => id === "pi.deploy-template" ? { ok: false } : { ok: true }));
+    const postMutationStatus = inspectInstallJournal(postMutation.home);
+    expect(postMutationStatus.status).toBe("valid");
+    if (postMutationStatus.status === "valid") await blocked(postMutation, postMutationStatus.journal);
+
+    const piOnly = plan("pi");
+    await executeInstallPlanJournaled(piOnly, handlers(piOnly, (id) => id === "pi.backup-current" ? { ok: false } : { ok: true }));
+    const piOnlyStatus = inspectInstallJournal(piOnly.home);
+    expect(piOnlyStatus.status).toBe("valid");
+    if (piOnlyStatus.status === "valid") await blocked(piOnly, piOnlyStatus.journal);
   });
 
   test("retains verified completion and reports every publication fault", async () => {

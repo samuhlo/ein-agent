@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
 
-import { deriveContinuityCheckpoint, withSddParticipants, type ContinuityCheckpointFacts, type ContinuityCheckpointV1 } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
+import { deriveContinuityCheckpoint, type ContinuityCheckpointFacts, type ContinuityCheckpointV1 } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
 import { CONTINUITY_RESUME_BRIEF_MAX_BYTES, buildContinuityResumeBrief } from "../ein-pi/agent/lib/continuity-resume-brief.ts";
 import type { ContinuityReadinessInput } from "../ein-pi/agent/lib/continuity-readiness.ts";
 import type { ProjectStateV1 } from "../ein-pi/agent/lib/project-state.ts";
@@ -85,15 +85,12 @@ describe("continuity resume brief", () => {
 		expect(data(pi.content).target).toBe("pi");
 	});
 
-	test("shows bounded pending participant identity and tells Claude to continue it in Pi", () => {
-		const project = state(); project.openspec = { ...project.openspec, quality: "current", reason: "read-success", activeChanges: ["continuity"], selection: "selected", selectedChange: "continuity", provenance: "canonical" };
-		const request = input(project), base = (request.checkpoint as { status: "valid"; checkpoint: ContinuityCheckpointV1 }).checkpoint;
-		const upgraded = withSddParticipants(base, { change: "continuity", applyId: "c".repeat(64), scopeId: "d".repeat(64), beforeStateRef: REF, order: ["ein-cleaner"], cleaner: null, architect: null });
-		if (!upgraded.ok) throw new Error(upgraded.reason);
-		const result = success({ ...request, checkpoint: { status: "valid", checkpoint: upgraded.checkpoint } });
-		expect(data(result.content).sddParticipants).toMatchObject({ order: ["ein-cleaner"], cleaner: null });
-		expect(result.content).toContain("continue participant work in Pi");
-		expect(result.content).not.toMatch(/session_id|toolCallId|prompt|output/i);
+	test("emits generic checkpoint data without participant payload or bootstrap guidance", () => {
+		const result = success(input());
+		expect(data(result.content)).toMatchObject({ checkpointVersion: 1, checkpointRevision: result.checkpointRevision, objective: FACTS.objective });
+		expect(data(result.content)).not.toHaveProperty("sddParticipants");
+		expect(result.content).not.toContain("sddParticipants");
+		expect(result.content).not.toContain("continue participant work in Pi");
 	});
 
 	test("keeps hostile-looking values on one escaped untrusted JSON line", () => {

@@ -8,21 +8,29 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import {
-  cpSync,
   chmodSync,
+  closeSync,
+  constants,
   existsSync,
+  fchmodSync,
+  fstatSync,
   lstatSync,
   mkdirSync,
-  renameSync,
-  readdirSync,
+  openSync,
   readFileSync,
+  readlinkSync,
+  readdirSync,
+  renameSync,
   rmSync,
   statSync,
+  symlinkSync,
+  unlinkSync,
   writeFileSync,
+  writeSync,
 } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { AGENT_DIR, BACKUP_DIR } from "./paths.ts";
-import { CONTENT_DIR, MANIFEST_FILE, METADATA_FILE, assertSafeParent, assertSafePath, canonicalManifest, canonicalMetadata, collectTree, contentDigest, fsyncDirectory, fsyncFile, fsyncTree, isExcluded, manifestDigest, snapshotId, unsealTree, validateSnapshot, type BackupMetadataV1 } from "./backup-manifest.ts";
+import { CONTENT_DIR, MANIFEST_FILE, METADATA_FILE, assertLinkTarget, assertSafeParent, assertSafePath, canonicalManifest, canonicalMetadata, collectTree, contentDigest, ensureSafeDestinationParent, fsyncDirectory, fsyncFile, fsyncTree, isExcluded, manifestDigest, snapshotId, unsealTree, validateSnapshot, type BackupMetadataV1 } from "./backup-manifest.ts";
 
 // BLINDAJE -> auth.json and sessions are never copied: restoring an old
 // credential over the current one silently breaks Pi. Rest are regenerable
@@ -69,48 +77,53 @@ export type SnapshotResult = {
   pruned: string[];
 };
 
-// NOISE KILL -> Excluding downloaded/ (large, reinstallable) keeps snapshots
-// small without losing local skills or lockfiles.
-// GUARD -> cpSync abre cada fichero; un socket/FIFO/dispositivo (p.ej. el
-// intercom/broker.sock del runtime de Pi) revienta con ENXIO. Se saltan del
-// copiado — nunca son estado que restaurar.
-function isCopyable(path: string): boolean {
-  try {
-    const st = lstatSync(path);
-    return !(
-      st.isSocket() ||
-      st.isFIFO() ||
-      st.isCharacterDevice() ||
-      st.isBlockDevice()
-    );
-  } catch {
-    return false;
-  }
+export const BACKUP_FAILURE_MAX_BYTES = 512;
+export const GENERIC_BACKUP_FAILURE = "Pi backup failed";
+const backupEncoder = new TextEncoder();
+
+function boundUtf8(value: string): string {
+  let bounded = value;
+  while (backupEncoder.encode(bounded).byteLength > BACKUP_FAILURE_MAX_BYTES) bounded = bounded.slice(0, -1);
+  return bounded;
 }
 
-function copyEntry(srcRoot: string, destRoot: string, name: string): void {
-  const src = join(srcRoot, name);
-  const dest = join(destRoot, name);
-  if (name === "skills") {
-    mkdirSync(dest, { recursive: true });
-    for (const sub of readdirSync(src)) {
-      if (sub === "downloaded") continue;
-      cpSync(join(src, sub), join(dest, sub), { recursive: true, filter: isCopyable });
-    }
-    return;
+function sanitizeText(value: string, privateRoots: readonly string[]): string {
+  let sanitized = value.replace(/\u001b\[[0-?]*[ -\/]*[@-~]/g, "").replace(/[\u0000-\u001f\u007f]/g, " ");
+  for (const root of [...privateRoots].filter(Boolean).sort((a, b) => b.length - a.length)) sanitized = sanitized.split(root).join("[private-path]");
+  sanitized = sanitized.replace(/\b(?:stack|stdout|stderr|environment)\b\s*[:=]?/gi, "");
+  sanitized = sanitized.replace(/(?:[A-Za-z]:[\\/]|\/)(?:[^\s"'`<>]+[\\/])*[^\s"'`<>]+/g, "[path]");
+  return sanitized.replace(/\s+/g, " ").trim();
+}
+
+function safeEntry(relativeEntry: string | undefined): string | undefined {
+  if (!relativeEntry || relativeEntry.includes("\\") || relativeEntry.startsWith("/") || /^[A-Za-z]:[\\/]/.test(relativeEntry) || relativeEntry.split("/").some((part) => !part || part === "." || part === "..")) return undefined;
+  return relativeEntry.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 160) || undefined;
+}
+
+export function sanitizeBackupFailureDetail(value: unknown, privateRoots: readonly string[] = []): string {
+  const raw = value instanceof Error ? value.message : typeof value === "string" ? value : "";
+  return boundUtf8(sanitizeText(raw, privateRoots));
+}
+
+export class BackupFailure extends Error {
+  readonly operation: string;
+  readonly relativeEntry?: string;
+
+  constructor(operation: string, relativeEntry: string | undefined, cause: unknown, privateRoots: readonly string[] = []) {
+    const entry = safeEntry(relativeEntry);
+    const detail = sanitizeBackupFailureDetail(cause, privateRoots) || "operation failed";
+    super(boundUtf8(`${GENERIC_BACKUP_FAILURE}: operation=${sanitizeText(operation, privateRoots)}${entry ? `; entry=${entry}` : ""}; detail=${detail}`));
+    this.name = "BackupFailure";
+    this.operation = operation;
+    this.relativeEntry = entry;
   }
-  cpSync(src, dest, { recursive: true, filter: isCopyable });
 }
 
 function walkFiles(root: string, dir: string, out: string[]): void {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     let st;
-    try {
-      st = statSync(full);
-    } catch {
-      continue;
-    }
+    try { st = statSync(full); } catch { continue; }
     if (st.isDirectory()) walkFiles(root, full, out);
     else if (st.isFile()) out.push(relative(root, full));
   }
@@ -244,42 +257,153 @@ export function setPinned(backupPath: string, pinned: boolean): void {
 export async function snapshot(reason: string, paths: BackupPaths = {}): Promise<SnapshotResult> {
   const agentDir = paths.agentDir ?? AGENT_DIR;
   const backupDir = paths.backupDir ?? BACKUP_DIR;
-  try { const source = lstatSync(agentDir); if (source.isSymbolicLink() || !source.isDirectory()) throw 0; } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return { path: null, deduped: false, pruned: [] }; throw new Error("Raiz de backup no permitida"); }
-  assertSafePath(agentDir); assertSafeParent(backupDir);
-
-  // Manifest-backed snapshots publish on the backup filesystem and dedupe bytes, not mtimes.
-  const hash = treeHash(agentDir);
-  const newest = listBackups({ ...paths, backupDir })[0];
-  if (hash && newest && newest.kind === "manifest-dir" && validateSnapshot(newest.path).metadata.contentDigest === hash) {
-    return { path: newest.path, deduped: true, pruned: [] };
-  }
-
-  const createdAt = (paths.now?.() ?? new Date()).toISOString();
-  const stamp = createdAt.replace(/[:.]/g, "-");
-  const safeReason = reason.replace(/[^a-z0-9-]/gi, "-").slice(0, 80) || "snapshot";
-  mkdirSync(backupDir, { recursive: true, mode: 0o700 });
-  assertSafePath(backupDir);
-  const staging = join(backupDir, `.staging-${randomUUID()}`);
+  let operation = "snapshot";
+  let relativeEntry: string | undefined;
+  const fault = (point: string): void => {
+    const parts = point.split(":");
+    const entryStart = parts.length >= 4 ? 3 : 2;
+    operation = parts.slice(0, entryStart).join(":");
+    relativeEntry = parts.length > entryStart ? parts.slice(entryStart).join(":") || undefined : undefined;
+    try { paths.fault?.(point); } catch (error) { throw new BackupFailure(operation, relativeEntry, error, [agentDir, backupDir]); }
+  };
   let published: string | null = null;
   let complete = false;
-  mkdirSync(join(staging, CONTENT_DIR), { recursive: true, mode: 0o700 });
   try {
-    const manifest = collectTree(agentDir, join(staging, CONTENT_DIR), true, paths.fault, "snapshot:copy");
-    paths.fault?.("snapshot:copy");
-    const manifestRaw = canonicalManifest(manifest);
-    const metadata: BackupMetadataV1 = { schemaVersion: 1, snapshotId: snapshotId(manifestRaw, safeReason, createdAt), manifestSha256: manifestDigest(manifest), contentDigest: contentDigest(manifest.entries), reason: safeReason, createdAt };
-    writeFileSync(join(staging, MANIFEST_FILE), manifestRaw, { mode: 0o600 }); paths.fault?.("snapshot:manifest-write");
-    writeFileSync(join(staging, METADATA_FILE), canonicalMetadata(metadata), { mode: 0o600 }); paths.fault?.("snapshot:metadata-write");
-    validateSnapshot(staging); paths.fault?.("snapshot:fsync"); fsyncTree(staging, paths.fault, "snapshot:fsync");
-    const dest = join(backupDir, `${stamp}_${safeReason}_${metadata.contentDigest.slice(0, 12)}.snapshot`);
-    renameSync(staging, dest); published = dest; paths.fault?.("snapshot:rename");
-    validateSnapshot(dest); paths.fault?.("snapshot:readback"); fsyncDirectory(backupDir); paths.fault?.("snapshot:parent-fsync"); complete = true;
-    const pruned = pruneBackups({ ...paths, backupDir });
-    return { path: dest, deduped: false, pruned };
-  } finally {
-    if (existsSync(staging)) { paths.fault?.("snapshot:cleanup-staging"); unsealTree(staging); rmSync(staging, { recursive: true, force: true }); }
-    if (!complete && published) { paths.fault?.("snapshot:cleanup-published"); unsealTree(published); rmSync(published, { recursive: true, force: true }); }
+    try { const source = lstatSync(agentDir); if (source.isSymbolicLink() || !source.isDirectory()) throw 0; } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return { path: null, deduped: false, pruned: [] }; throw new Error("Raiz de backup no permitida"); }
+    operation = "snapshot:root-check"; assertSafePath(agentDir); assertSafeParent(backupDir);
+
+    // Manifest-backed snapshots publish on the backup filesystem and dedupe bytes, not mtimes.
+    operation = "snapshot:hash";
+    const hash = treeHash(agentDir);
+    operation = "snapshot:list";
+    const newest = listBackups({ ...paths, backupDir })[0];
+    if (hash && newest && newest.kind === "manifest-dir") {
+      operation = "snapshot:dedupe-validate";
+      if (validateSnapshot(newest.path).metadata.contentDigest === hash) return { path: newest.path, deduped: true, pruned: [] };
+    }
+
+    const createdAt = (paths.now?.() ?? new Date()).toISOString();
+    const stamp = createdAt.replace(/[:.]/g, "-");
+    const safeReason = reason.replace(/[^a-z0-9-]/gi, "-").slice(0, 80) || "snapshot";
+    operation = "snapshot:prepare";
+    mkdirSync(backupDir, { recursive: true, mode: 0o700 });
+    assertSafePath(backupDir);
+    const staging = join(backupDir, `.staging-${randomUUID()}`);
+    mkdirSync(join(staging, CONTENT_DIR), { recursive: true, mode: 0o700 });
+    try {
+      operation = "snapshot:copy";
+      const manifest = collectTree(agentDir, join(staging, CONTENT_DIR), true, fault, "snapshot:copy");
+      fault("snapshot:copy");
+      const manifestRaw = canonicalManifest(manifest);
+      const metadata: BackupMetadataV1 = { schemaVersion: 1, snapshotId: snapshotId(manifestRaw, safeReason, createdAt), manifestSha256: manifestDigest(manifest), contentDigest: contentDigest(manifest.entries), reason: safeReason, createdAt };
+      operation = "snapshot:manifest-write";
+      writeFileSync(join(staging, MANIFEST_FILE), manifestRaw, { mode: 0o600 }); fault("snapshot:manifest-write");
+      operation = "snapshot:metadata-write";
+      writeFileSync(join(staging, METADATA_FILE), canonicalMetadata(metadata), { mode: 0o600 }); fault("snapshot:metadata-write");
+      operation = "snapshot:validate";
+      validateSnapshot(staging); fault("snapshot:fsync");
+      operation = "snapshot:fsync";
+      fsyncTree(staging, fault, "snapshot:fsync");
+      const dest = join(backupDir, `${stamp}_${safeReason}_${metadata.contentDigest.slice(0, 12)}.snapshot`);
+      operation = "snapshot:rename";
+      renameSync(staging, dest); published = dest; fault("snapshot:rename");
+      operation = "snapshot:readback";
+      validateSnapshot(dest); fault("snapshot:readback");
+      operation = "snapshot:parent-fsync";
+      fsyncDirectory(backupDir); fault("snapshot:parent-fsync"); complete = true;
+      const pruned = pruneBackups({ ...paths, backupDir });
+      return { path: dest, deduped: false, pruned };
+    } finally {
+      operation = "snapshot:cleanup";
+      if (existsSync(staging)) { fault("snapshot:cleanup-staging"); unsealTree(staging); rmSync(staging, { recursive: true, force: true }); }
+      if (!complete && published) { fault("snapshot:cleanup-published"); unsealTree(published); rmSync(published, { recursive: true, force: true }); }
+    }
+  } catch (error) {
+    if (error instanceof BackupFailure) throw error;
+    throw new BackupFailure(operation, relativeEntry, error, [agentDir, backupDir]);
   }
+}
+
+function assertDestinationAbsent(path: string): void {
+  try {
+    lstatSync(path);
+    throw new Error("Restore rechazado: colision de destino");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
+function writeNoFollowFile(path: string, data: Buffer, mode: number): void {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0), mode);
+    let offset = 0;
+    while (offset < data.byteLength) offset += writeSync(fd, data, offset, data.byteLength - offset, null);
+    fchmodSync(fd, mode);
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+function copyNodeNoFollow(source: string, destination: string, destinationRoot: string): void {
+  assertSafePath(dirname(source));
+  const rel = relative(destinationRoot, destination).split(sep).join("/");
+  ensureSafeDestinationParent(destinationRoot, rel);
+  assertDestinationAbsent(destination);
+  const sourceStat = lstatSync(source);
+  if (sourceStat.isSymbolicLink()) {
+    const target = readlinkSync(source, "utf8");
+    assertLinkTarget(target);
+    symlinkSync(target, destination);
+    return;
+  }
+  if (sourceStat.isDirectory()) {
+    mkdirSync(destination, { mode: sourceStat.mode & 0o7777 });
+    assertSafePath(destination);
+    for (const name of readdirSync(source).sort()) copyNodeNoFollow(join(source, name), join(destination, name), destinationRoot);
+    chmodSync(destination, sourceStat.mode & 0o7777);
+    return;
+  }
+  if (!sourceStat.isFile()) throw new Error("Restore rechazado: estado excluido no permitido");
+  let fd: number | undefined;
+  try {
+    fd = openSync(source, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const opened = fstatSync(fd);
+    if (!opened.isFile() || opened.dev !== sourceStat.dev || opened.ino !== sourceStat.ino || opened.mode !== sourceStat.mode || opened.size !== sourceStat.size) throw new Error("Restore rechazado: origen excluido cambio");
+    const data = readFileSync(fd);
+    const after = fstatSync(fd);
+    if (after.dev !== sourceStat.dev || after.ino !== sourceStat.ino || after.mode !== sourceStat.mode || after.size !== sourceStat.size) throw new Error("Restore rechazado: origen excluido cambio");
+    writeNoFollowFile(destination, data, sourceStat.mode & 0o7777);
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+function replaceNodeNoFollow(source: string, destination: string, destinationRoot: string): void {
+  const rel = relative(destinationRoot, destination).split(sep).join("/");
+  ensureSafeDestinationParent(destinationRoot, rel);
+  try {
+    const targetStat = lstatSync(destination);
+    if (targetStat.isDirectory() && !targetStat.isSymbolicLink()) throw new Error("Restore rechazado: destino de estado legacy no permitido");
+    unlinkSync(destination);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  copyNodeNoFollow(source, destination, destinationRoot);
+}
+
+function copyExcludedState(sourceRoot: string, destinationRoot: string): void {
+  assertSafePath(sourceRoot);
+  assertSafePath(destinationRoot);
+  for (const name of readdirSync(sourceRoot).sort()) {
+    // Regenerable dependency trees stay excluded during restore as well; copying
+    // them would turn a bounded backup into an unbounded dependency transfer.
+    if (name === "npm" || name === "node_modules") continue;
+    if (isExcluded(name)) copyNodeNoFollow(join(sourceRoot, name), join(destinationRoot, name), destinationRoot);
+  }
+  const downloaded = join(sourceRoot, "skills", "downloaded");
+  try { lstatSync(downloaded); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+  copyNodeNoFollow(downloaded, join(destinationRoot, "skills", "downloaded"), destinationRoot);
 }
 
 // Restore a backup over the live tree. Only overwrites files present in the
@@ -309,9 +433,9 @@ export async function restoreBackup(backupPath: string, paths: BackupPaths = {})
       if (existsSync(agentDir)) { if (lstatSync(agentDir).isSymbolicLink()) throw new Error("Restore rechazado: raiz live enlazada"); renameSync(agentDir, rollback); moved = true; paths.fault?.("restore:live-rename"); }
       renameSync(stage, agentDir); paths.fault?.("restore:stage-rename");
       if (moved) {
-        for (const name of readdirSync(rollback)) if (isExcluded(name)) { cpSync(join(rollback, name), join(agentDir, name), { recursive: true, dereference: false }); paths.fault?.(`restore:excluded-copy:${name}`); }
-        const downloaded = join(rollback, "skills", "downloaded");
-        if (existsSync(downloaded)) { cpSync(downloaded, join(agentDir, "skills", "downloaded"), { recursive: true, dereference: false }); paths.fault?.("restore:excluded-copy:skills/downloaded"); }
+        copyExcludedState(rollback, agentDir);
+        for (const name of readdirSync(rollback)) if (isExcluded(name)) paths.fault?.(`restore:excluded-copy:${name}`);
+        if (existsSync(join(rollback, "skills", "downloaded"))) paths.fault?.("restore:excluded-copy:skills/downloaded");
         paths.fault?.("restore:excluded-copy");
       }
       if (canonicalManifest(collectTree(agentDir)) !== canonicalManifest(manifest)) throw new Error("Restore rechazado: readback no coincide");
@@ -331,7 +455,15 @@ export async function restoreBackup(backupPath: string, paths: BackupPaths = {})
   }
   if (statSync(backupPath).isDirectory()) {
     const legacy = collectTree(backupPath);
-    for (const entry of legacy.entries) { const target = join(agentDir, ...entry.path.split("/")); mkdirSync(dirname(target), { recursive: true }); cpSync(join(backupPath, ...entry.path.split("/")), target); paths.fault?.(`legacy:copy:${entry.path}`); chmodSync(target, entry.mode ?? 0o600); paths.fault?.(`legacy:chmod:${entry.path}`); }
+    for (const entry of legacy.entries) {
+      const source = join(backupPath, ...entry.path.split("/"));
+      const target = join(agentDir, ...entry.path.split("/"));
+      replaceNodeNoFollow(source, target, agentDir);
+      paths.fault?.(`legacy:copy:${entry.path}`);
+      // Regular files are chmodded by descriptor in copyNodeNoFollow. Symlink
+      // entries intentionally have no chmod fault point: chmodSync would follow.
+      if (entry.type === "file") paths.fault?.(`legacy:chmod:${entry.path}`);
+    }
     return;
   }
   throw new Error("Restore legacy rechazado: archives no soportados de forma segura");

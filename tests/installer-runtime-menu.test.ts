@@ -468,10 +468,13 @@ describe("Installer-owned advisor handoff", () => {
       readAdvisor: async () => {
         readCalls += 1;
         return {
-          installed: { status: "valid", source: "installer-marker", freshness: "current", reason: "read-success", version: "0.42.0", owner: "installer" },
-          release: { status: "valid", source: "release-provider", freshness: "current", reason: "read-success", version: "0.43.0" },
-          owner: { status: "valid", source: "installer-marker", freshness: "current", reason: "read-success", version: "0.42.0", owner: "installer", action: "update", actionId: "installer.update" },
+          installed: { status: "valid", source: "installer-marker", freshness: "current", reason: "read-success", version: "0.42.0", owner: "installer", artifact: { status: "unavailable", reason: "fixture-identity-unavailable" } },
+          release: { status: "valid", source: "release-provider", freshness: "current", reason: "read-success", version: "0.43.0", artifact: { status: "pending", reason: "fixture-verification-pending" } },
+          owner: { status: "valid", source: "installer-marker", freshness: "current", reason: "read-success", version: "0.42.0", owner: "installer", action: "update", actionId: "installer.update", artifact: { status: "unavailable", reason: "fixture-identity-unavailable" } },
           capability: { status: "valid", source: "installer-capability", freshness: "current", reason: "read-success", supported: true },
+          preference: { status: "defaulted", channel: "stable" },
+          effectiveChannel: "stable",
+          freshness: { status: "unknown", reason: "fixture-publication-evidence-unavailable" },
         };
       },
       log: (line: string) => logs.push(line),

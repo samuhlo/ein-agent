@@ -1,9 +1,12 @@
 import { INSTALL_MARKER } from "./paths.ts";
+import { agreeArtifactIdentity, deriveArtifactId, isReleaseChannel } from "./release-types.ts";
 import type {
+  ArtifactId,
   AssetDigest,
   MarkerV1,
   MarkerV2,
   OwnershipMarker,
+  ReleaseChannel,
   ReleaseTag,
   ResolvedRelease,
   Result,
@@ -13,12 +16,17 @@ import type { UpdateCaps } from "./update-caps.ts";
 
 export type MarkerError = UpdateStageError;
 
+export type InstalledMarkerV2 = MarkerV2 & { artifactId: ArtifactId };
+
 export type MarkerCommit = {
   release: ResolvedRelease;
   binaryVersion: string;
   templateVersion: string;
   owner: OwnershipMarker;
   asset: AssetDigest;
+  /** Optional cross-stage evidence; the canonical value is always derived from tag + verified digest. */
+  artifactId?: string | null;
+  channel?: ReleaseChannel;
   markerPath?: string;
   caps: UpdateCaps;
 };
@@ -48,20 +56,23 @@ function isOwner(value: unknown): value is Extract<OwnershipMarker, { type: "sta
     (owner.type === "package-manager" && typeof owner.manager === "string" && owner.manager.length > 0);
 }
 
-function isV2(value: unknown): value is MarkerV2 {
+function isV2(value: unknown): value is InstalledMarkerV2 {
   if (!isV1(value)) return false;
-  const marker = value as Partial<MarkerV2>;
-  return marker.schemaVersion === 2 && typeof marker.releaseTag === "string" && typeof marker.binaryVersion === "string" &&
-    typeof marker.templateVersion === "string" && isOwner(marker.owner) && !!marker.asset &&
-    typeof marker.asset.assetName === "string" && typeof marker.asset.sha256 === "string";
+  const marker = value as Partial<InstalledMarkerV2>;
+  if (marker.schemaVersion !== 2 || typeof marker.releaseTag !== "string" || typeof marker.binaryVersion !== "string" ||
+    typeof marker.templateVersion !== "string" || !isReleaseChannel(marker.channel) || !isOwner(marker.owner) || !marker.asset ||
+    typeof marker.asset.assetName !== "string" || marker.asset.assetName.length === 0 || typeof marker.asset.sha256 !== "string" ||
+    marker.asset.sha256.length === 0 || marker.asset.sha256 !== marker.asset.sha256.toLowerCase() || typeof marker.artifactId !== "string") return false;
+  return agreeArtifactIdentity({ releaseTag: marker.releaseTag, sha256: marker.asset.sha256, artifactId: marker.artifactId }).ok;
 }
 
-export function readMarkerV2(caps: Pick<UpdateCaps, "fs">, markerPath = INSTALL_MARKER): MarkerV1 | MarkerV2 | null {
+export function readMarkerV2(caps: Pick<UpdateCaps, "fs">, markerPath = INSTALL_MARKER): MarkerV1 | InstalledMarkerV2 | null {
   if (!caps.fs.exists(markerPath)) return null;
   try {
     const raw = new TextDecoder().decode(caps.fs.readFile(markerPath));
     const marker: unknown = JSON.parse(raw);
-    return isV2(marker) || isV1(marker) ? marker : null;
+    // A malformed v2 must not be downgraded to an apparently coherent legacy marker.
+    return isV2(marker) || (isV1(marker) && !("schemaVersion" in marker)) ? marker : null;
   } catch {
     return null;
   }
@@ -82,25 +93,34 @@ function versionFor(tag: ReleaseTag): string {
 }
 
 /** Commits only a fully proven identity and verifies the renamed marker by reading it back. */
-export function commitMarkerV2(options: MarkerCommit): Result<MarkerV2, MarkerError> {
+export function commitMarkerV2(options: MarkerCommit): Result<InstalledMarkerV2, MarkerError> {
   const markerPath = options.markerPath ?? INSTALL_MARKER;
   if (options.owner.type === "legacy-standalone" || options.owner.type === "ownership-ambiguous") {
     return { ok: false, error: markerError("ambiguous-owner", "A v2 marker requires explicit ownership") };
+  }
+  const derivedIdentity = deriveArtifactId(options.release.release.tag, options.asset.sha256);
+  if (!derivedIdentity.ok) {
+    return { ok: false, error: markerError(derivedIdentity.error.code, derivedIdentity.error.message) };
+  }
+  if (options.artifactId !== undefined && options.artifactId !== null) {
+    const agreement = agreeArtifactIdentity({ releaseTag: options.release.release.tag, sha256: options.asset.sha256, artifactId: options.artifactId });
+    if (!agreement.ok) return { ok: false, error: markerError(agreement.error.code, agreement.error.message) };
   }
   const version = versionFor(options.release.release.tag);
   if (options.binaryVersion !== version || options.templateVersion !== version) {
     return { ok: false, error: markerError("identity-mismatch", "Marker cannot lead deployed binary or template") };
   }
-  const marker: MarkerV2 = {
+  const marker: InstalledMarkerV2 = {
     schemaVersion: 2,
     version,
     releaseTag: options.release.release.tag,
     binaryVersion: options.binaryVersion,
     templateVersion: options.templateVersion,
     installedAt: options.caps.clock.now().toISOString(),
-    channel: "stable",
+    channel: options.channel ?? "stable",
     owner: options.owner,
-    asset: options.asset,
+    artifactId: derivedIdentity.value,
+    asset: { ...options.asset, sha256: options.asset.sha256.toLowerCase() },
   };
   const temporary = options.caps.fs.createSiblingFile(markerPath);
   try {
