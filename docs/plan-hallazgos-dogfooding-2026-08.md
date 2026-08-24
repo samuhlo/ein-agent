@@ -168,17 +168,27 @@ Ese diseño depende de un atributo interno de un componente de terceros
 (`data-open-modal`) y de que el diálogo escape del recorte del ancestro. Es
 frágil por construcción.
 
-**Pendiente antes de tocar:** diez minutos de reproducción en navegador para
-separar "el modal se abre recortado" de "el click llega antes de la
-hidratación". El arreglo robusto es el mismo en ambos casos.
+**Causa real, encontrada en el código (ninguna de las dos hipótesis):** el
+síntoma no era "no va", era "va una vez". Starlight monta Pagefind dentro de un
+listener de `DOMContentLoaded` (`node_modules/@astrojs/starlight/components/
+Search.astro`), y `docs-site/src/components/Head.astro` añade el `ClientRouter`
+de Astro. Con transiciones de vista ese evento solo dispara en la primera carga:
+al navegar, el `<site-search>` se sustituye por HTML nuevo con el contenedor
+`#starlight__search` vacío, el módulo del componente no se reejecuta —Astro
+deduplica scripts por origen— y nadie vuelve a montar Pagefind. El diálogo sigue
+abriéndose, pero en blanco.
 
-**Arreglo:** dejar de esconder y proxear. Estilar el botón propio de Starlight
-como la entrada `[B]` del menú.
+**Arreglo:** dos cortes.
 
-**Descartado como causa:** `astro dev` no genera índice Pagefind, así que una
-prueba en desarrollo siempre da cero resultados. Si la comprobación se hizo en
-`dev`, ese comportamiento es esperado y no es este bug. Merece confirmarse en
-la reproducción.
+1. Dejar de esconder y proxear: el botón propio de Starlight se estila como la
+   entrada `[B]` del menú.
+2. Envolver `<Search />` en un contenedor con `transition:persist`, para que el
+   nodo —y con él la instancia de Pagefind— viaje de página en página.
+
+**Descartado como causa:** el recorte del ancestro, la carrera con la
+hidratación, y `astro dev` (que no genera índice Pagefind, así que una prueba en
+desarrollo siempre da cero resultados). El índice, el `showModal()` y la
+reactivación del botón estaban bien desde el principio.
 
 ---
 
@@ -640,14 +650,26 @@ se pierde el rastro de qué edición pertenece a qué cambio.
 
 ### Tanda 1 — Que no mienta (A1–A5)
 
-**A1 y A2 son una línea cada uno. No abren ciclo SDD.** El manifiesto es
-explícito (`// 004`): *"Un defecto de forma se arregla, no se procesa."*
-Edición directa, un test de regresión que fije la cadena, y a correr.
+**A1 y A2 están completados.** El cambio merged en `b13f8c9` corrige las dos
+instrucciones del instalador. No abrieron ciclo SDD, de acuerdo con el principio
+del manifiesto (`// 004`): *"Un defecto de forma se arregla, no se procesa."*
 
-**A3, A4 y A5 entran como un cambio SDD.** A4 es el de mejor retorno por línea
-tocada de toda la lista: restituye la voz del producto en un runtime entero.
+**A3 está completado.** El cambio merged en `6d6800d` corrige la persistencia del
+tema de marca.
 
-A5 pide su reproducción en navegador antes de tocar nada.
+**A4 está completado en sus tres cortes:**
+
+- **Checkout/runtime sync:** sincronización entre el checkout y el runtime en
+  `f176fc0`.
+- **Packaged-payload transport:** cubierto por el código actual y el SDD
+  archivado; no se atribuye a un commit intermedio separado.
+- **Materialización y compiled smoke:** manifiesto, materialización y smoke
+  compilado en `a3fd60f`.
+
+**A5 está completado.** La causa apareció leyendo el código, no en el
+navegador: `DOMContentLoaded` contra `ClientRouter`. El arreglo persiste el nodo
+del buscador entre transiciones y, de paso, reviste el modal con la gramática
+del sitio y le añade navegación con flechas.
 
 ### Tanda 1.5 — La gramática, antes de pintar nada nuevo
 
@@ -657,7 +679,12 @@ fases— **son** ejemplos de la gramática nueva (reglas 10 y 2 de `// 003`).
 Construirlas con la gramática vieja (`///`, `■`, marco) obliga a reescribir
 exactamente los mismos ficheros dos tandas después.
 
-Alcance deliberadamente pequeño, porque no es una pasada de rediseño:
+**Completada.** El negro neutro llegó en `2259f46`, el prefijo unificado y los
+recibos de una línea en `97c897b`, y el marco desapareció de las tres
+superficies en `edbd699`. La placa amarilla ya no existe en el árbol y
+`ein-pi/agent/lib/chrome.ts` es el módulo de primitivas.
+
+Alcance que tuvo, para el registro:
 
 1. **El negro neutro y sus tintes.** `brand.json` a `#0B0B0B`, las cinco copias
    detrás (los tests dicen cuáles), y las once vars de `themes/ein.json` con los
@@ -679,16 +706,21 @@ Nada de aplicarlo todavía a las superficies grandes. Eso es la tanda 4.
 
 ### Tanda 2 — Que se lea (B1–B4)
 
-Un cambio SDD, tres piezas que se refuerzan, ya en la gramática nueva:
+**Completada, menos media B3.**
 
-1. `renderResult` en las dos tools ruidosas: una línea en pantalla, contenido
-   íntegro al modelo.
-2. El overlay pinta el raíl de fases completo, con `LANE_PHASES` + `present`,
-   que ya están calculados.
-3. El estado del gatekeeper por fase sobre ese mismo raíl (B4).
-
-Más el ancho real del terminal en el overlay y el título corto en el contrato
-de `tasks.md`.
+1. **B1 hecho, y más ancho de lo planeado** (`75d9077`, PR #229). No fueron las
+   dos tools ruidosas: fueron las dieciocho. El cableado no se repite dieciocho
+   veces —hay una puerta única, `registerEinTool`, que añade los dos renderers—
+   y las frases viven en `ein-pi/agent/lib/tool-receipts.ts`, que es puro y se
+   prueba sin arrancar Pi. El expandido dejó de ser volcado técnico: antes la
+   elección era entre no ver nada o ver JSON.
+2. **B2 y B4 hechos** (`82313d6`): el overlay pinta el raíl de fases completo
+   desde `LANE_PHASES` + `present`, con el estado del gatekeeper sobre ese mismo
+   raíl.
+3. **B3 a medias.** El ancho real del terminal ya llega al overlay
+   (`ein-sdd-overlay.ts:41`, vía `overlayWidth()`). La otra mitad —el título
+   corto en el contrato de `tasks.md`— **sigue pendiente**, y es la mitad que
+   ataca la causa en vez del síntoma.
 
 ### Tanda 3 — Que se llame bien (C1)
 
@@ -704,16 +736,20 @@ Con la gramática ya escrita en la tanda 1.5 y ya probada contra contenido real
 en la tanda 2 (el overlay hace de banco de pruebas: es pequeño y está fijado
 por `tests/sdd-overlay.test.ts`). Aquí se propaga:
 
-1. **El instalador.** Retirar `frame.ts` y unificar la superficie de `@clack`
-   bajo la gramática nueva, que es lo que cierra `D1`. Incluye podar el
-   contenido, no solo el estilo: la ruta absoluta del `.fish` no responde a
-   ninguna pregunta que el usuario tenga en ese momento.
-2. **La app de terminal y el panel de modelos.** Aquí cae
-   `tests/terminal-chrome.test.ts`, cuya premisa entera —el borde cae en
-   columna, cada sección abre su pestaña— desaparece con el marco.
-3. **Las salidas de comando restantes** de `ein-ai.ts`: los 49 sitios que
-   imprimen `///`.
-4. **`docs-site/`** al final: es la superficie con menos coste de espera.
+1. **El instalador. PENDIENTE, y es lo que queda de `D1`.** `frame.ts` ya no
+   existe, pero `@clack/prompts` sigue imprimiendo su canalón `│ ◆` en
+   `installer/src/tui/ui.ts`, `prompt.ts` y `report.ts`. Hoy el usuario ve un
+   banner de marca cuidado seguido de líneas de log de desarrollador. Incluye
+   podar el contenido, no solo el estilo: la ruta absoluta del `.fish` no
+   responde a ninguna pregunta que el usuario tenga en ese momento.
+2. **La app de terminal y el panel de modelos. Hecho** (`edbd699`): el marco
+   cayó en las tres superficies, y con él la premisa de
+   `tests/terminal-chrome.test.ts`.
+3. **Las salidas de comando de `ein-ai.ts`. Hecho**: cero `///` en el fichero.
+4. **`docs-site/`. Pendiente**, y sigue siendo la superficie con menos coste de
+   espera.
+5. **El logo. Hecho** (`d3931d5`): la marca es un televisor de tubo con una
+   terminal dentro, en cuatro tamaños que pierden piezas en vez de encoger.
 
 Las tres decisiones abiertas de `// 003` se resuelven aquí, con el paso 1
 delante.
@@ -748,7 +784,8 @@ delante.
 
 ## // 006. ESTADO
 
-Plan aprobado, ejecución no iniciada.
+**Completados: A1–A5, la tanda 1.5 entera, B1, B2, B4 y la mitad de B3.
+Pendientes: la otra mitad de B3, C1 y lo que queda de D1 y D3.**
 
 **2026-08-18** — Trece hallazgos ordenados y localizados en código. Decisión de
 diseño tomada en dirección, pendiente de concretar.
@@ -777,4 +814,23 @@ Anulado. El principio es **adaptar, no arrasar**: se conserva la paleta y el
 
 Queda abierta **una sola** decisión: el revelado gradual.
 
-Siguiente paso: tanda 0.
+**2026-08-24, revisión de estado contra el árbol.** Medido en `origin/main`, no
+en el documento:
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| A1–A5 | completado | `b13f8c9`, `6d6800d`, `f176fc0`, `a3fd60f` |
+| Tanda 1.5 (gramática) | completado | `2259f46`, `97c897b`, `edbd699`; `chrome.ts` existe, cero `"plate"` |
+| B1 recibos humanos | completado, y en las 18 tools | `75d9077` (PR #229), puerta `registerEinTool` |
+| B2/B4 raíl de fases | completado | `82313d6` |
+| B3 ancho del overlay | completado | `ein-sdd-overlay.ts:41` |
+| B3 título corto en `tasks.md` | **pendiente** | sin contrato en `sdd-tasks` |
+| C1 nombres | **pendiente** | `pi-ein/` y `cc-ein/` siguen en el árbol |
+| D1 instalador | **pendiente** | `@clack` en tres ficheros de `installer/src/tui/` |
+| D3 logo | completado | `d3931d5` |
+
+Lo pendiente se absorbe en el plan de la alpha 0.90, donde C1 deja de ser un
+rename mecánico y pasa a formar parte del cierre de la puerta pública única
+(`docs/valoracion-estado-y-rumbo-2026-08.md`, `// 011`).
+
+Siguiente paso: la puerta pública y los nombres, en una sola pasada.

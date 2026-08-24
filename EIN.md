@@ -73,6 +73,7 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - [docs/plan-hallazgos-dogfooding-2026-08.md](docs/plan-hallazgos-dogfooding-2026-08.md)
 - [docs/review-workload-guard.md](docs/review-workload-guard.md)
 - [docs/roadmap-features-ein.md](docs/roadmap-features-ein.md)
+- [docs/valoracion-estado-y-rumbo-2026-08.md](docs/valoracion-estado-y-rumbo-2026-08.md)
 
 <!-- ein:auto:end -->
 
