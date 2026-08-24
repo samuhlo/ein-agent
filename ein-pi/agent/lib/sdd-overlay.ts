@@ -57,19 +57,25 @@ const PHASE_WORK: Readonly<Record<SddPhase, string>> = Object.freeze({
 	close: "archivar el cambio y apartar el plan",
 });
 
-export type PhaseState = "done" | "current" | "pending" | "unknown";
+export type PhaseState = "done" | "current" | "pending" | "unknown" | "failed";
 
 /**
  * Estado de cada fase del carril. `verify` es el único que puede salir
- * DESCONOCIDO: un informe obsoleto o ilegible no es un aprobado, y fingir que
- * lo es sería ascender una incertidumbre a estado bueno (§ 002, fail-closed).
+ * DESCONOCIDO o FALLIDO, y son cosas distintas:
+ *
+ * - DESCONOCIDO: un informe obsoleto o ilegible no es un aprobado, y fingir que
+ *   lo es sería ascender una incertidumbre a estado bueno (§ 002, fail-closed).
+ * - FALLIDO: el informe se leyó y dice que no pasó. No es incertidumbre, es un
+ *   suspenso, y durante un tiempo se pintó igual que un aprobado porque el
+ *   `fail` caía por el hueco hasta la rama de "artefacto presente = fase hecha".
  */
 export function phaseStates(status: SddChangeStatus): readonly { phase: SddPhase; state: PhaseState }[] {
 	const phases = LANE_PHASES[status.lane] ?? LANE_PHASES.standard;
 	const current = status.nextRecommended;
 	return phases.map((phase) => {
-		if (phase === "verify" && status.present?.verify && (status.verifyStale || status.verify === "unknown")) {
-			return { phase, state: "unknown" as const };
+		if (phase === "verify" && status.present?.verify) {
+			if (status.verifyStale || status.verify === "unknown") return { phase, state: "unknown" as const };
+			if (status.verify === "fail") return { phase, state: "failed" as const };
 		}
 		if (phase === current) return { phase, state: "current" as const };
 		if (status.present?.[phase]) return { phase, state: "done" as const };
@@ -82,6 +88,7 @@ function railLine(status: SddChangeStatus, width: number, palette: Palette): str
 		if (state === "current") return `${palette.accent(GLYPH.focus)} ${palette.text(phase)}`;
 		if (state === "done") return palette.muted(`${phase} ${GLYPH.done}`);
 		if (state === "unknown") return palette.danger(`${GLYPH.unknown} ${phase}`);
+		if (state === "failed") return palette.danger(`${GLYPH.failed} ${phase}`);
 		return palette.muted(phase);
 	});
 	const line = `${INDENT}${INDENT}${cells.join("   ")}`;
