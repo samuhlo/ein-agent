@@ -271,6 +271,28 @@ describe("release update contract", () => {
     }
   });
 
+  test("preserves prior preference bytes when a write fails before rename", () => {
+    const root = mkdtempSync(join(tmpdir(), "ein-release-channel-preserve-"));
+    const installation = join(root, "installation");
+    mkdirSync(installation, { recursive: true });
+    const prior = Buffer.from('{"channel":"alpha"}\n');
+    writeFileSync(preferenceFilePath(installation), prior);
+    const realFs = createPreferenceFs();
+    try {
+      const failingFs: ReleaseChannelPreferenceFs = {
+        ...realFs,
+        writeFile: () => { throw new Error("pre-rename failure"); },
+      };
+      expect(writeReleaseChannelPreference(installation, "stable", { fs: failingFs })).toEqual({
+        status: "unavailable",
+        reason: "preference-write-failed",
+      });
+      expect(readFileSync(preferenceFilePath(installation))).toEqual(prior);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("fails closed when atomic preference read-back differs from the bytes written", () => {
     const root = mkdtempSync(join(tmpdir(), "ein-release-channel-atomic-"));
     const installation = join(root, "installation");

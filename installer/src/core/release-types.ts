@@ -7,6 +7,10 @@ export type ReleaseChannelResolution =
   | { status: "explicit"; channel: ReleaseChannel }
   | { status: "unavailable"; reason: string };
 
+export type ReleaseContract =
+  | { status: "defaulted"; channel: "stable" }
+  | { status: "explicit"; channel: ReleaseChannel; tag: ReleaseTag };
+
 export type FreshnessEvidence =
   | { status: "current" | "stale" | "expired"; source: "immutable-publication" }
   | { status: "unknown" | "unavailable"; reason: string };

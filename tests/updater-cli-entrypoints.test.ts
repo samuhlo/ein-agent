@@ -19,7 +19,7 @@ import { BUILD_TARGETS, buildInstallerTarget, compileCommand } from "../installe
 import { terminalAppBuildOptions } from "../installer/scripts/build-terminal-app.ts";
 
 const MAIN = join(import.meta.dir, "..", "installer", "src", "main.ts");
-const SEMVER = "[0-9]+\\.[0-9]+\\.[0-9]+";
+const SEMVER = "[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?";
 const roots: string[] = [];
 
 afterEach(() => {

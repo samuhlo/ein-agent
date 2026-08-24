@@ -1,6 +1,7 @@
-import { normalizeReleaseTag } from "./release-types.ts";
+import { isReleaseChannel, normalizeReleaseTag } from "./release-types.ts";
 import type {
   ReleaseChannel,
+  ReleaseContract,
   ReleaseRecord,
   ReleaseSelector,
   ReleaseTag,
@@ -26,6 +27,52 @@ export function normalizeTag(input: string): Result<ReleaseTag, ResolutionError>
   const normalized = normalizeReleaseTag(input);
   if (!normalized.ok) return { ok: false, error: resolutionError("invalid-selector", normalized.error.message) };
   return { ok: true, value: normalized.value };
+}
+
+export function resolveReleaseContract(
+  channel: unknown,
+  tag: unknown,
+  target: unknown,
+  runningVersion: string,
+): Result<ReleaseContract, ResolutionError> {
+  if (channel === undefined && tag === undefined) {
+    return { ok: true, value: { status: "defaulted", channel: "stable" } };
+  }
+  if (channel === undefined || tag === undefined) {
+    return { ok: false, error: resolutionError("incomplete-contract", "Release channel and tag must be provided together") };
+  }
+  if (!isReleaseChannel(channel)) {
+    return { ok: false, error: resolutionError("invalid-channel", `Unsupported release channel: ${String(channel)}`) };
+  }
+
+  const normalized = normalizeReleaseTag(tag);
+  if (!normalized.ok) return { ok: false, error: resolutionError("invalid-contract-tag", normalized.error.message) };
+  if (tag !== normalized.value) {
+    return { ok: false, error: resolutionError("non-canonical-tag", `Release tag must use canonical form: ${normalized.value}`) };
+  }
+
+  const version = parseSemVer(normalized.value);
+  if (!version) return { ok: false, error: resolutionError("invalid-contract-tag", `Invalid release tag: ${String(tag)}`) };
+  const tagChannel: ReleaseChannel | undefined = version.prerelease.length === 0
+    ? "stable"
+    : version.prerelease[0] === "alpha"
+      ? "alpha"
+      : undefined;
+  if (!tagChannel) {
+    return { ok: false, error: resolutionError("unsupported-prerelease", `Unsupported release prerelease vocabulary in ${normalized.value}`) };
+  }
+  if (channel === "stable" && tagChannel !== "stable") {
+    return { ok: false, error: resolutionError("channel-tag-mismatch", `Release channel ${channel} does not match ${normalized.value}`) };
+  }
+  if (channel === "alpha" && target !== "pi") {
+    return { ok: false, error: resolutionError("alpha-target-unsupported", "Explicit alpha installs are supported only for Pi") };
+  }
+
+  const versionText = normalized.value.slice("installer-v".length);
+  if (versionText !== runningVersion) {
+    return { ok: false, error: resolutionError("compiled-version-mismatch", `Release ${normalized.value} does not match running installer ${runningVersion}`) };
+  }
+  return { ok: true, value: { status: "explicit", channel, tag: normalized.value } };
 }
 
 function parseSemVer(tag: string): SemVer | null {
