@@ -244,6 +244,15 @@ describe("manifest backup v1", () => {
     expect(readFileSync(join(AGENT, "settings.json"), "utf8")).toBe(before);
   });
 
+  // TIEMPO -> este test monta un arbol real: crea directorios, pone uno en modo
+  // 000, teje symlinks y hardlinks, y hace un snapshot y un restore completos.
+  // Su duracion la manda la contencion del disco, no la logica: 1,3 s en una
+  // maquina tranquila y 33,8 s en un runner de CI compitiendo con el resto de
+  // la suite en paralelo. Los 5 s que lo tumbaron eran el DEFAULT de Bun, que
+  // nadie eligio para este caso. El limite explicito deja margen para un runner
+  // cargado sin dejar de cortar un cuelgue de verdad.
+  const REAL_TREE_TIMEOUT_MS = 60_000;
+
   test("Omarchy real tree snapshots and restores user state without dependency traversal", async () => {
     const external = join(ROOT, "omarchy-target");
     mkdirSync(join(external, "private"), { recursive: true });
@@ -302,7 +311,7 @@ describe("manifest backup v1", () => {
     writeFileSync(join(AGENT, "agents", "included-over-limit.bin"), "x");
     truncateSync(join(AGENT, "agents", "included-over-limit.bin"), BACKUP_LIMITS.bytes + 1);
     await expect(snapshot("omarchy-over-limit", PATHS)).rejects.toThrow("limite de contenido excedido");
-  });
+  }, REAL_TREE_TIMEOUT_MS);
 
   test("un socket unix fuera de exclusiones se rechaza sin publicar", async () => {
     const { createServer } = await import("node:net");
