@@ -16,13 +16,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { GLYPH } from "../lib/chrome.ts";
-import {
-	checkFailed,
-	checkReceipt,
-	statusBlocked,
-	statusReceipt,
-	type ChangeLintSummary,
-} from "../lib/tool-receipts.ts";
+import { TOOL_LABELS, receiptFor } from "../lib/tool-receipts.ts";
 import {
 	createSddMemoryLifecycle,
 	ensureApplyAcceptance,
@@ -528,10 +522,13 @@ function formatChangeLint(report: ChangeLintReport): string {
 	return lines.join("\n");
 }
 
-// ── Recibos de una línea ─────────────────────────────────────────────────────
-// El `content` de la tool sigue yendo íntegro al modelo; esto solo decide qué
-// ve el humano. El porqué está en lib/tool-receipts.ts. `expanded` devuelve el
-// volcado completo, así que no se pierde nada: se deja de imponer.
+// ── Recibos humanos ─────────────────────────────────────────────────────────
+// El `content` de la tool sigue yendo ÍNTEGRO al modelo; esto solo decide qué
+// ve el humano. Las frases viven en lib/tool-receipts.ts, que es puro y se
+// prueba sin arrancar Pi; aquí solo se elige color y nivel.
+//
+// El expandido pinta el DETALLE HUMANO, no el volcado técnico: antes la
+// elección era entre no ver nada o ver JSON.
 type ToolTheme = Readonly<{ fg(token: string, text: string): string; bold(text: string): string }>;
 
 function receiptCall(label: string, theme: ToolTheme): Text {
@@ -540,23 +537,6 @@ function receiptCall(label: string, theme: ToolTheme): Text {
 		0,
 		0,
 	);
-}
-
-/** El primer bloque de texto del resultado: un `content` puede traer imágenes. */
-function firstText(result: AgentToolResult<unknown>): string {
-	const first = result.content?.[0];
-	return first && first.type === "text" ? first.text : "";
-}
-
-function receiptResult(
-	summary: string,
-	bad: boolean,
-	full: string,
-	expanded: boolean,
-	theme: ToolTheme,
-): Text {
-	if (expanded) return new Text(theme.fg("toolOutput", full), 0, 0);
-	return new Text(theme.fg(bad ? "warning" : "dim", summary), 0, 0);
 }
 
 // P2-G: fuente única en sdd-router (formatBudget), que además marca cuando lo
@@ -1112,7 +1092,26 @@ export default function einAi(pi: ExtensionAPI): void {
 	registerAgentControl("cleaner");
 	registerAgentControl("architect");
 
-	pi.registerTool({
+	// Toda tool de Ein se registra por aquí: así ninguna puede quedarse sin
+	// recibo humano por olvido. Eran 16 de 18 volcando salida cruda al chat.
+	const registerEinTool = (spec: Parameters<typeof pi.registerTool>[0]): void =>
+		pi.registerTool({
+			...spec,
+			renderCall(_args: unknown, theme: ToolTheme): Text {
+				return receiptCall(TOOL_LABELS[spec.name] ?? spec.name, theme);
+			},
+			renderResult(
+				result: AgentToolResult<unknown>,
+				{ expanded }: ToolRenderResultOptions,
+				theme: ToolTheme,
+			): Text {
+				const receipt = receiptFor(spec.name, result.details);
+				if (expanded) return new Text(theme.fg("toolOutput", receipt.detail.join("\n")), 0, 0);
+				return new Text(theme.fg(receipt.bad ? "warning" : "dim", receipt.line), 0, 0);
+			},
+		});
+
+	registerEinTool({
 		name: "ein_sdd_participants",
 		label: "Ein SDD Participants",
 		description: "Attempt a best-effort advisory Cleaner/Architect pass after apply when enabled and return the next bounded participant task. Report unavailable or blocked audits honestly, then continue to sdd-verify; a source mutation invalidates freshness and must be verified.",
@@ -1124,7 +1123,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_cleaner_audit",
 		label: "Ein Cleaner Audit Evidence",
 		description: "Read-only deterministic evidence packet for a bounded existing-code Cleaner audit. Rejects invalid, root-wide, missing, oversized, symlinked, or empty scopes before semantic inspection.",
@@ -1145,7 +1144,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 	const cleanerEvidence = new Map<string, { passive: CleanerPassiveEvidence; plan?: CleanerActivePlan; active?: CleanerActiveEvidence }>();
 	const cleanerEvidenceKey = (stateRef: string, areaId: string): string => `${stateRef}\0${areaId}`;
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_cleaner_evidence", label: "Ein Cleaner Evidence",
 		description: "Collect bounded source, environment, complexity, and structural-duplication evidence for one exact current Audit state. Model content is compact; full packets remain in details.",
 		parameters: { type: "object", properties: { scope: { type: "object" } }, required: ["scope"] } as const,
@@ -1154,7 +1153,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			return { content: [{ type: "text", text: compactCleanerEvidence(passive) }], details: passive };
 		},
 	});
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_cleaner_active_evidence", label: "Ein Cleaner Active Evidence",
 		description: "Plan exact test/coverage argv without execution, or ingest externally produced bound artifacts and derive CRAP. Requires passive evidence from the same session and state.",
 		parameters: { type: "object", properties: { action: { type: "string", enum: ["plan", "ingest"] }, stateRef: { type: "string" }, areaId: { type: "string" }, input: { type: "object" } }, required: ["action", "stateRef", "areaId", "input"] } as const,
@@ -1171,7 +1170,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		properties: { auditEvidence: { type: "object" }, finding: { type: "object" }, request: { type: "object" } },
 		required: ["auditEvidence", "finding", "request"],
 	} as const;
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_cleaner_improve_admit", label: "Ein Cleaner Improve Admit",
 		description: "Validate a bounded behavior-preserving exact-replacement plan against fresh Cleaner Audit evidence without writing.",
 		parameters: improveParameters,
@@ -1180,7 +1179,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			return { content: [{ type: "text", text: JSON.stringify(outcome) }], details: outcome };
 		},
 	});
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_cleaner_improve_apply", label: "Ein Cleaner Improve Apply",
 		description: "Apply one previously admissible exact replacement; returns verification-required or mutation-uncertain evidence and a bounded recovery source.",
 		parameters: improveParameters,
@@ -1189,7 +1188,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			return { content: [{ type: "text", text: JSON.stringify(outcome) }], details: outcome };
 		},
 	});
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_cleaner_improve_complete", label: "Ein Cleaner Improve Complete",
 		description: "Assess completion using the resulting source state, focused verification record, and current project/router verification evidence.",
 		parameters: { type: "object", properties: { transition: { type: "object" }, verification: { type: ["object", "null"] } }, required: ["transition", "verification"] } as const,
@@ -1199,7 +1198,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_architect_evidence", label: "Ein Architect Evidence",
 		description: "Collect immutable read-only repository evidence for a bounded explicit Architect scope; graph evidence is unavailable unless an authoritative runtime contract exists.",
 		parameters: { type: "object", properties: { scope: { type: "object" } }, required: ["scope"] } as const,
@@ -1208,7 +1207,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
 		},
 	});
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_architect_plan_bind", label: "Ein Architect Plan Bind",
 		description: "Validate required architecture-plan shape and bind it to fresh scope, evidence, and repository state without writing.",
 		parameters: { type: "object", properties: { evidence: { type: "object" }, plan: { type: "object" } }, required: ["evidence", "plan"] } as const,
@@ -1217,7 +1216,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
 		},
 	});
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_architect_validate", label: "Ein Architect Validate",
 		description: "Re-collect current evidence and admit a fresh, bound, in-scope plan for model consistency assessment; never executes the plan.",
 		parameters: { type: "object", properties: { plan: { type: "object" } }, required: ["plan"] } as const,
@@ -1429,7 +1428,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	// ── Tool determinista: estado SDD (lo llama el ORQUESTADOR para enrutar) ──
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_sdd_status",
 		label: "Ein SDD Status",
 		description:
@@ -1455,23 +1454,12 @@ export default function einAi(pi: ExtensionAPI): void {
 			}
 			return { content: [{ type: "text", text }], details: { status, activeChanges: active, plan } };
 		},
-		renderCall(_args: unknown, theme: ToolTheme): Text {
-			return receiptCall("status", theme);
-		},
-		renderResult(
-			result: AgentToolResult<unknown>,
-			{ expanded }: ToolRenderResultOptions,
-			theme: ToolTheme,
-		): Text {
-			const status = (result.details as { status?: SddChangeStatus } | undefined)?.status;
-			return receiptResult(statusReceipt(status), statusBlocked(status), firstText(result), expanded, theme);
-		},
 	});
 
 	// ── Tool determinista: forecast de tamaño de PR (Review Workload Guard) ──
 	// El parent la llama ANTES de delegar un PR en vez de ejecutar git inline.
 	// Dueña única del pathspec de exclusión (antes triplicado en prompts).
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_review_forecast",
 		label: "Ein Review Forecast",
 		description:
@@ -1491,7 +1479,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	});
 
 	// ── Tool determinista: gatekeeper de artefactos de un cambio ──
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_sdd_lane",
 		label: "Ein SDD Lane",
 		description:
@@ -1528,7 +1516,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	// Existe para que la decisión del preflight tenga una superficie legible desde
 	// una fase, y para que `sdd-apply.md` pueda nombrar UNA herramienta que existe
 	// en los dos runtimes (aquí, y `cc-ein-sdd preflight` en Claude).
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_sdd_preflight",
 		label: "Ein SDD Preflight",
 		description:
@@ -1577,7 +1565,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_sdd_check",
 		label: "Ein SDD Check",
 		description:
@@ -1610,19 +1598,6 @@ export default function einAi(pi: ExtensionAPI): void {
 			appendMemoryReceipt(join(resolveChangesDir(ctx.cwd), change), memory);
 			Object.assign(report, { memory });
 			return { content: [{ type: "text", text: formatChangeLint(report) }], details: report };
-		},
-		renderCall(_args: unknown, theme: ToolTheme): Text {
-			return receiptCall("check", theme);
-		},
-		renderResult(
-			result: AgentToolResult<unknown>,
-			{ expanded }: ToolRenderResultOptions,
-			theme: ToolTheme,
-		): Text {
-			// El gatekeeper solo importa por su veredicto. Cuando bloquea, el
-			// recibo se pinta como problema y el detalle sigue a un toque.
-			const report = result.details as ChangeLintSummary | undefined;
-			return receiptResult(checkReceipt(report), checkFailed(report), firstText(result), expanded, theme);
 		},
 	});
 
@@ -1713,7 +1688,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	// Tool determinista de cierre: gemelo model-callable del comando. Antes el
 	// orquestador solo tenía el slash command (que no puede invocar), así que
 	// cerraba con hacks (`bun -e` importando la lib) o delegaba en el usuario.
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_sdd_close",
 		label: "Ein SDD Close",
 		description:
@@ -1755,7 +1730,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	// llamaban los tests. Un cambio con deltas se quedaba en `pending` para
 	// siempre porque NADA en el producto sabía generar `sync-report.md`, y el
 	// cierre lo exigía. Es la salida determinista de ese estado.
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_openspec_sync",
 		label: "Ein OpenSpec Sync",
 		description:
@@ -1800,7 +1775,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	// con el formato). Esto los genera desde datos estructurados y los valida
 	// re-parseando ANTES de escribir: nunca deja en disco un delta que el sync
 	// rechazaría en close.
-	pi.registerTool({
+	registerEinTool({
 		name: "ein_openspec_delta_write",
 		label: "Ein OpenSpec Delta Write",
 		description:

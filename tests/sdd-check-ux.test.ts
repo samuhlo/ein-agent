@@ -207,7 +207,7 @@ describe("contract: ein_sdd_check tool devuelve texto formateado", () => {
 		// El handler del comando llama a formatChangeLint
 		expect(ai).toMatch(/formatChangeLint\(report\)/);
 		// No hay JSON.stringify en el handler del comando
-		const commandBlock = ai.match(/registerCommand\(\s*"ein:sdd-check"[\s\S]*?(?=registerCommand|registerTool|$)/)?.[0];
+		const commandBlock = ai.match(/registerCommand\(\s*"ein:sdd-check"[\s\S]*?(?=registerCommand|register(?:Ein)?Tool|$)/)?.[0];
 		expect(commandBlock).not.toMatch(/JSON\.stringify/);
 	});
 });
