@@ -28,6 +28,8 @@ export const GLYPH = Object.freeze({
 	pending: "·",
 	/** Fail-closed: lo que no se ha comprobado se dibuja como desconocido. */
 	unknown: "?",
+	/** Distinto de `unknown`: esto SÍ se comprobó, y salió mal. */
+	failed: "×",
 });
 
 // Tintes derivados de `#0B0B0B` con la regla de STYLE.md // 001:
