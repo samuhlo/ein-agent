@@ -69,7 +69,7 @@ describe("core parity: Claude coordinator contract", () => {
     for (const heading of [
       "# Ein Pi Workbench",
       "## Core Rules",
-      "## Linear (Team mode only)",
+      "## Linear (optional integration)",
       "## GitHub",
       "## Delivery Gate (deterministic)",
       "## Pi Notes",

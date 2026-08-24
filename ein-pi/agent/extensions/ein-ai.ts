@@ -70,7 +70,7 @@ import {
 	offerCodegraphInit,
 	shouldOfferCodegraphInit,
 } from "../lib/codegraph.ts";
-import { handleModeCommand, readMode } from "../lib/mode.ts";
+import { handleLinearIntegrationCommand, readLinearIntegration } from "../lib/linear-integration.ts";
 import {
 	confirmCommand,
 	confirmDelegatedDelivery,
@@ -846,7 +846,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				: "";
 		const einPrompt = isNamedAgent || isSddAgent
 			? ""
-			: `\n\n${buildEinPrompt(readPersonaMode(ctx.cwd), readChatLang(), readMode(ctx.cwd))}\n\n${internalAgentRoutingDirective()}`;
+			: `\n\n${buildEinPrompt(readPersonaMode(ctx.cwd), readChatLang(), readLinearIntegration(ctx.cwd))}\n\n${internalAgentRoutingDirective()}`;
 		// Inyección determinista de skills: subagentes de fase/nombrados reciben
 		// paths exactos de SKILL.md resueltos desde su task, no a criterio del
 		// modelo padre (evita que el padre "invente" qué skills existen).
@@ -1307,13 +1307,13 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
-	pi.registerCommand("ein:mode", {
+	pi.registerCommand("ein:linear", {
 		description: t(
-			"cmd.mode.description",
-			"Ver o cambiar el modo de trabajo (solo/team): Linear opcional",
+			"cmd.linear.description",
+			"Encender o apagar la integración opcional con Linear",
 		),
 		handler: async (_args, ctx) => {
-			await handleModeCommand(ctx);
+			await handleLinearIntegrationCommand(ctx);
 		},
 	});
 
@@ -1881,7 +1881,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			const artifactLang = readArtifactLang(ctx.cwd);
 			lines.push("// 000. ein status");
 			lines.push(`${t("status.author", "autor")}: samuhlo`);
-			lines.push(`${t("status.mode", "modo")}: ${readMode(ctx.cwd)}`);
+			lines.push(`${t("status.linear", "linear")}: ${readLinearIntegration(ctx.cwd)}`);
 			lines.push(`${t("status.persona", "persona")}: ${readPersonaMode(ctx.cwd)}`);
 			lines.push(
 				`${t("status.git", "entrega git")}: ${readGitDeliveryMode(ctx.cwd)}`,

@@ -32,7 +32,7 @@ import { TDD_LABEL, readTddMode } from "../lib/tdd";
 import { readHypaMode, resolveHypaEnabled } from "../lib/hypa";
 import { readCodegraphMode, resolveCodegraphEnabled } from "../lib/codegraph";
 import { readPersonaMode } from "../lib/persona";
-import { readMode } from "../lib/mode";
+import { readLinearIntegration } from "../lib/linear-integration";
 import { agentAutomaticParticipationLabel, readProjectAgentControlStatus } from "../lib/agent-controls";
 import { GitBannerController, renderGitBannerRows, type ProcessRunner } from "../lib/banner-git";
 import {
@@ -391,7 +391,7 @@ export default function (pi: ExtensionAPI) {
     const langArtifact = LANG_LABEL[readArtifactLang(ctx.cwd)];
     const tddLabel = TDD_LABEL[readTddMode(ctx.cwd)];
     const personaLabel = readPersonaMode(ctx.cwd);
-    const modeLabel = readMode(ctx.cwd);
+    const linearLabel = readLinearIntegration(ctx.cwd);
     // Hypa: modo + estado resuelto en auto (como TDD muestra su label).
     const hypaMode = readHypaMode(ctx.cwd);
     const hypaLabel =
@@ -618,7 +618,7 @@ export default function (pi: ExtensionAPI) {
                     { label: "SKILLS", value: `${skillsCount}` },
                     { label: "MCP", value: `${mcpServersCount} srv` } ] },
                   { kind: "fields" as const, title: "SESION", fields: [
-                    { label: "MODO", value: fit(modeLabel, 24) },
+                    { label: "LINEAR", value: fit(linearLabel, 24) },
                     { label: "PERSONA", value: fit(personaLabel, 24) },
                     { label: "IDIOMA", value: langChat === langArtifact ? langChat : `${langChat} / ${langArtifact}` },
                     { label: "TDD", value: fit(tddLabel, 24) } ] },

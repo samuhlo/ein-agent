@@ -64,7 +64,7 @@ describe("separate workbench entrypoint argv TTY help and exit", () => {
       verification: { effectiveOutcome: "absent", freshness: "current", quality: "current", reason: "read-success" },
     } as any;
     const advisor = createWorkbenchAdvisor(state, {
-      inspectMode: () => ({ status: "valid", source: "default", value: "solo", reason: "defaulted", provenance: { source: "default", reason: "defaulted" }, observed: [] }),
+      inspectLinearIntegration: () => ({ status: "valid", source: "default", value: "off", reason: "defaulted", provenance: { source: "default", reason: "defaulted" }, observed: [] }),
       inspectModelConfig: () => ({ status: "valid", source: "global", config: { orchestrator: { model: "configured" } }, reason: "read-success", provenance: { source: "global", reason: "read-success" }, observed: [] }),
     });
     const output: string[] = [];
@@ -440,7 +440,7 @@ describe("launcher update surface — component detail (N.1)", () => {
   // Annotated so the literals keep their narrow types: an unannotated object
   // widens `status` to string and stops satisfying the reader contract.
   const baseReaders: WorkbenchAdvisorReaders = {
-    inspectMode: () => ({ status: "valid", source: "default", value: "solo", reason: "defaulted", provenance: { source: "default", reason: "defaulted" }, observed: [] }),
+    inspectLinearIntegration: () => ({ status: "valid", source: "default", value: "off", reason: "defaulted", provenance: { source: "default", reason: "defaulted" }, observed: [] }),
     inspectModelConfig: () => ({ status: "valid", source: "global", config: { orchestrator: { model: "configured" } }, reason: "read-success", provenance: { source: "global", reason: "read-success" }, observed: [] }),
   };
 

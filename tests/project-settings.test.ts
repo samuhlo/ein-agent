@@ -47,7 +47,7 @@ function valueOf(id: string): string | undefined {
 describe("the catalogue covers what init configures", () => {
   test("every setting init writes is present", () => {
     const ids = SETTING_DEFINITIONS.map((definition) => definition.id).sort();
-    expect(ids).toEqual(["agents", "chat-lang", "codegraph", "hypa", "lang", "mode", "persona", "tdd"]);
+    expect(ids).toEqual(["agents", "chat-lang", "codegraph", "hypa", "lang", "linear", "persona", "tdd"]);
   });
 
   test("every setting declares at least two values to cycle between", () => {
@@ -103,16 +103,17 @@ describe("the artifact language", () => {
 
 describe("writing through the owner", () => {
   test("a declared value reaches its owner's file", () => {
-    expect(applySetting(cwd, "mode", "team")).toBe(true);
-    expect(JSON.parse(readFileSync(join(cwd, ".pi", "ein", "mode.json"), "utf8"))).toEqual({ mode: "team" });
+    expect(applySetting(cwd, "linear", "on")).toBe(true);
+    // El fichero conserva su nombre heredado a propósito: es estado del usuario.
+    expect(JSON.parse(readFileSync(join(cwd, ".pi", "ein", "mode.json"), "utf8"))).toEqual({ linear: "on" });
   });
 
   test("an unknown id is refused", () => {
-    expect(applySetting(cwd, "not-a-setting", "team")).toBe(false);
+    expect(applySetting(cwd, "not-a-setting", "on")).toBe(false);
   });
 
   test("a value outside the declared options is refused", () => {
-    expect(applySetting(cwd, "mode", "duo")).toBe(false);
+    expect(applySetting(cwd, "linear", "quizas")).toBe(false);
   });
 
   test("a write that throws is refused, not propagated", () => {

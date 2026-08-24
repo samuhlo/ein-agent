@@ -43,7 +43,7 @@ Flujo único `ein-sdd`: **scope → map → design → tasks → apply → verif
 
 - `design` reúne propuesta + spec técnica + tareas en un solo `design.md`.
 - `apply` no ocurre solo: necesita un scope aprobado.
-- En modo **team** el preflight de Linear corre antes de SDD (salvo "no linear"); en modo **solo** (por defecto) no hay Linear — el board es `openspec/changes/` + git + EIN.md. Cambia con `/ein:mode`.
+- Con la integración de Linear **encendida**, su preflight corre antes de SDD (salvo "no linear"); **apagada** (por defecto) no hay Linear — el board es `openspec/changes/` + git + EIN.md. Cámbiala con `/ein:linear`.
 
 Para preparar SDD en un proyecto: `/ein:ai:install-sdd`. El preflight: `/ein:ai:sdd-preflight`.
 

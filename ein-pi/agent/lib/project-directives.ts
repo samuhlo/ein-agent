@@ -19,7 +19,7 @@
 // =============================================================================
 
 import { SETTING_DEFINITIONS } from "./project-settings.ts";
-import { modeDirective, type EinMode } from "./mode.ts";
+import { linearDirective, type LinearIntegration } from "./linear-integration.ts";
 import { participationDirective, type AgentActivationProfileState } from "./agent-controls.ts";
 import { tddDirective, type TddMode } from "./tdd.ts";
 import { codegraphDirective } from "./codegraph.ts";
@@ -79,7 +79,7 @@ const UNSUPPORTED: Readonly<Record<DirectiveRuntime, Readonly<Record<string, str
 };
 
 const TRANSLATORS: Readonly<Record<string, Translator>> = {
-	mode: (value) => modeDirective(value as EinMode),
+	linear: (value) => linearDirective(value as LinearIntegration),
 	agents: (value) => participationDirective(value as AgentActivationProfileState),
 	tdd: (value) => tddDirective(value as TddMode),
 	"chat-lang": (value) => responseLanguageDirective(value as Lang),

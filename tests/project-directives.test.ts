@@ -49,14 +49,18 @@ describe("project directives", () => {
 		}
 	});
 
-	test("the project's work mode reaches the directive, not the default", () => {
-		expect(byId("claude", "mode").directive).toContain("SOLO");
+	test("the project's Linear integration reaches the directive, not the default", () => {
+		expect(byId("claude", "linear").directive).toContain("OFF");
 
-		writeSetting("mode", "team");
-		const team = byId("claude", "mode");
-		expect(team.status).toBe("applied");
-		expect(team.value).toBe("team");
-		expect(team.directive).toContain("TEAM");
+		// No usa `writeSetting`: ese helper asume la convención fichero=<id> con
+		// clave `mode`, y la integración con Linear conserva a propósito el
+		// fichero heredado `mode.json` con la clave nueva.
+		mkdirSync(join(cwd, ".pi", "ein"), { recursive: true });
+		writeFileSync(join(cwd, ".pi", "ein", "mode.json"), `${JSON.stringify({ linear: "on" })}\n`);
+		const on = byId("claude", "linear");
+		expect(on.status).toBe("applied");
+		expect(on.value).toBe("on");
+		expect(on.directive).toContain("ON");
 	});
 
 	// El caso que motivó el cambio: TDD estricto en Pi tiene que llegar a Claude.
@@ -118,12 +122,13 @@ describe("project directives", () => {
 
 	test("the rendered block carries the active directives and names what it skips", () => {
 		writeSetting("tdd", "strict");
-		writeSetting("mode", "team");
+		mkdirSync(join(cwd, ".pi", "ein"), { recursive: true });
+		writeFileSync(join(cwd, ".pi", "ein", "mode.json"), `${JSON.stringify({ linear: "on" })}\n`);
 		const block = renderProjectDirectives(resolveProjectDirectives(cwd, "claude"));
 
 		expect(block).toContain("## Project settings");
 		expect(block).toContain("STRICT");
-		expect(block).toContain("TEAM");
+		expect(block).toContain("ON");
 		expect(block).toContain("Not applied:");
 		expect(block).toContain("`hypa`");
 	});
