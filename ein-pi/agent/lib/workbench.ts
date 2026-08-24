@@ -14,7 +14,7 @@ import {
 } from "./shared-config-update-advisor.ts";
 import type { PiEinUpdateObservation } from "./ein-update-notice.ts";
 import { CLAUDE_UPDATE_COMMAND } from "./update-probes.ts";
-import { inspectMode, type ModeInspection } from "./mode.ts";
+import { inspectLinearIntegration, type LinearIntegrationInspection } from "./linear-integration.ts";
 import { inspectModelConfig, type ModelConfigInspection } from "./model-config.ts";
 import {
   getRuntimeCapabilities,
@@ -144,14 +144,14 @@ export function renderWorkbenchAdvisor(result: SharedConfigUpdateAdvisorResult):
 }
 
 export type WorkbenchAdvisorReaders = Readonly<{
-  inspectMode: (cwd: string) => ModeInspection;
+  inspectLinearIntegration: (cwd: string) => LinearIntegrationInspection;
   inspectModelConfig: (cwd: string) => ModelConfigInspection;
   readUpdateObservations?: () => readonly PiEinUpdateObservation[] | undefined;
 }>;
 
 function configEvidence(
   source: string,
-  evidence: ModeInspection | ModelConfigInspection,
+  evidence: LinearIntegrationInspection | ModelConfigInspection,
   value: unknown,
 ): AdvisorEvidence & { value?: unknown } {
   return {
@@ -180,14 +180,17 @@ function projectEvidence(state: ProjectStateV1): AdvisorEvidence {
 /** Read-only factory used by the launcher; readers remain replaceable in tests. */
 export function createWorkbenchAdvisor(
   state: ProjectStateV1,
-  readers: WorkbenchAdvisorReaders = { inspectMode, inspectModelConfig },
+  readers: WorkbenchAdvisorReaders = { inspectLinearIntegration, inspectModelConfig },
 ): SharedConfigUpdateAdvisorResult {
-  const mode = readers.inspectMode(state.identity.cwd);
+  const linear = readers.inspectLinearIntegration(state.identity.cwd);
   const model = readers.inspectModelConfig(state.identity.cwd);
   const observations = readers.readUpdateObservations?.();
   return evaluateSharedConfigUpdateAdvisor({
     configuration: {
-      mode: configEvidence("mode", mode, mode.value),
+      // La ranura `mode` del advisor es su vocabulario genérico para "una
+      // configuración inspeccionada"; la llena la integración con Linear desde
+      // que el modo de trabajo de dos valores dejó de existir.
+      mode: configEvidence("linear", linear, linear.value),
       model: configEvidence("model", model, model.config),
       project: projectEvidence(state),
     },

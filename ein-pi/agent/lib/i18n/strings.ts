@@ -12,7 +12,7 @@ import { readChatLang } from "../lang";
 const EN: Record<string, string> = {
 	// ── /ein:status ──
 	"status.author": "author",
-	"status.mode": "mode",
+	"status.linear": "linear",
 	"status.persona": "persona",
 	"status.lang": "language",
 	"status.lang.chat": "chat",
@@ -75,7 +75,7 @@ const EN: Record<string, string> = {
 	// ── /ein:lang descripcion ──
 	"cmd.lang.description": "View or change Ein's language (chat/UI and PR/commit/Linear artifacts)",
 	"cmd.tdd.description": "View or change strict TDD mode (auto/strict/off/ask)",
-	"cmd.mode.description": "View or change work mode (solo/team): Linear optional",
+	"cmd.linear.description": "Turn the optional Linear integration on or off",
 	"cmd.sdd-status.description": "Deterministic SDD status of the active or named change (phase, tasks, budget)",
 	"cmd.sdd-next.description": "Show the next recommended SDD step for a named change and hand it to the orchestrator",
 	"cmd.sdd-audit.description": "Validate a change (all phases) or lint a design.md path",
@@ -304,7 +304,7 @@ const EN: Record<string, string> = {
 const ES: Record<string, string> = {
 	// ── /ein:status ──
 	"status.author": "autor",
-	"status.mode": "modo",
+	"status.linear": "linear",
 	"status.persona": "persona",
 	"status.lang": "idioma",
 	"status.lang.chat": "conversación",
@@ -367,7 +367,7 @@ const ES: Record<string, string> = {
 	// ── /ein:lang descripcion ──
 	"cmd.lang.description": "Ver o cambiar el idioma de Ein (conversación/UI y artefactos PR/commit/Linear)",
 	"cmd.tdd.description": "Ver o cambiar el modo de TDD estricto (auto/strict/off/ask)",
-	"cmd.mode.description": "Ver o cambiar el modo de trabajo (solo/team): Linear opcional",
+	"cmd.linear.description": "Encender o apagar la integración opcional con Linear",
 	"cmd.sdd-status.description": "Estado SDD determinista del cambio activo o nombrado (fase, tareas, budget)",
 	"cmd.sdd-next.description": "Mostrar el siguiente paso SDD recomendado para un cambio y entregarselo al orquestador",
 	"cmd.sdd-audit.description": "Validar un cambio (todas las fases) o lintar un path de design.md",

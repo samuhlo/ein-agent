@@ -41,11 +41,12 @@ describe("Claude reads the project settings", () => {
 		try {
 			mkdirSync(join(cwd, ".pi", "ein"), { recursive: true });
 			writeFileSync(join(cwd, ".pi", "ein", "tdd.json"), '{"mode":"strict"}\n');
+			// Evidencia heredada: `mode: team` sigue significando Linear encendido.
 			writeFileSync(join(cwd, ".pi", "ein", "mode.json"), '{"mode":"team"}\n');
 
 			const block = buildSettingsBlock(cwd);
 			expect(block).toContain("STRICT");
-			expect(block).toContain("TEAM");
+			expect(block).toContain("ON");
 		} finally {
 			rmSync(cwd, { recursive: true, force: true });
 		}

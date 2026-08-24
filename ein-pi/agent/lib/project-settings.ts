@@ -5,7 +5,7 @@
 // second source of truth — EIN.md stays project context, not configuration.
 // =============================================================================
 
-import { readMode, writeMode, type EinMode } from "./mode.ts";
+import { readLinearIntegration, writeLinearIntegration, type LinearIntegration } from "./linear-integration.ts";
 import { readTddMode, writeTddMode, type TddMode } from "./tdd.ts";
 import { readHypaMode, writeHypaMode, type HypaMode } from "./hypa.ts";
 import { readCodegraphMode, writeCodegraphMode, type CodegraphMode } from "./codegraph.ts";
@@ -41,7 +41,7 @@ function accepted<T extends string>(options: readonly T[], value: string): T | u
   return options.find((option) => option === value);
 }
 
-const EIN_MODES: readonly EinMode[] = ["solo", "team"];
+const LINEAR_STATES: readonly LinearIntegration[] = ["off", "on"];
 const TDD_MODES: readonly TddMode[] = ["auto", "strict", "ask", "off"];
 const HYPA_MODES: readonly HypaMode[] = ["auto", "on", "off"];
 const CODEGRAPH_MODES: readonly CodegraphMode[] = ["on", "off"];
@@ -59,7 +59,7 @@ const ARTIFACT_LANGS: readonly string[] = ["auto", ...ACTIVE_LANGS];
  * language.
  */
 const VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  mode: { solo: "individual", team: "equipo" },
+  linear: { off: "apagada", on: "encendida" },
   tdd: { auto: "auto", strict: "estricto", ask: "preguntar", off: "off" },
   hypa: { auto: "auto", on: "on", off: "off" },
   codegraph: { on: "on (ofrece indexar)", off: "off" },
@@ -82,14 +82,14 @@ export function settingLabelFor(settingId: string, value: string): string {
 
 export const SETTING_DEFINITIONS: readonly SettingDefinition[] = Object.freeze([
   {
-    id: "mode",
-    label: pick("Modo de trabajo", "Work mode"),
-    hint: pick("equipo activa Linear como board", "team turns Linear into the board"),
-    options: EIN_MODES,
-    read: (cwd) => readMode(cwd),
+    id: "linear",
+    label: pick("Integración con Linear", "Linear integration"),
+    hint: pick("encendida convierte Linear en la board", "on turns Linear into the board"),
+    options: LINEAR_STATES,
+    read: (cwd) => readLinearIntegration(cwd),
     write: (cwd, value) => {
-      const mode = accepted(EIN_MODES, value);
-      if (mode) writeMode(cwd, mode);
+      const linear = accepted(LINEAR_STATES, value);
+      if (linear) writeLinearIntegration(cwd, linear);
     },
   },
   {

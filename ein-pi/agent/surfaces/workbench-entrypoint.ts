@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { projectProjectState } from "../lib/project-state.ts";
-import { inspectMode } from "../lib/mode.ts";
+import { inspectLinearIntegration } from "../lib/linear-integration.ts";
 import { inspectModelConfig } from "../lib/model-config.ts";
 import {
   buildLaunchPlan,
@@ -146,7 +146,7 @@ function createProductionDependencies(candidates: readonly string[]): WorkbenchD
     adapter: createRuntimeSessionAdapter,
     launch: { build: buildLaunchPlan, execute: executeLaunchPlan, executor },
     advisor: state => createWorkbenchAdvisor(state, {
-      inspectMode,
+      inspectLinearIntegration,
       inspectModelConfig,
       readUpdateObservations: () => snapshot.read(),
     }),

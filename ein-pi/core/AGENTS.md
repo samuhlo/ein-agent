@@ -15,9 +15,9 @@ This file is the shared coordinator policy source. Claude-specific runtime behav
 - For JS/TS/Vue/React/Nuxt/PHP/Java/CSS/HTML work, load `comment-style` and enforce it on touched blocks. Comments explain why; if a comment repeats the code, remove it.
 - For a library or framework with no curated skill — especially one you don't know well, or when you get stuck — fetch topic-scoped docs via Context7 (`resolve-library-id` → `query-docs` for the task's specific topic) instead of guessing or loading a whole manual. Apply only what the task needs.
 
-## Linear (Team mode only)
+## Linear (optional integration)
 
-- Linear applies only in Team mode (`/ein:mode team`). In Solo mode (default) there is no Linear board — the board is `openspec/changes/` + git + EIN.md — and `ein-linear` stays dormant unless the user explicitly asks.
+- Linear is an optional integration, off by default (`/ein:linear`). With it off there is no Linear board — the board is `openspec/changes/` + git + EIN.md — and `ein-linear` stays dormant unless the user explicitly asks.
 - Every Linear read or mutation is delegated to `ein-linear`; the parent never calls `linear_*` tools directly. Board policy (preflight, templates, states, read-back verification) lives in the orchestrator prompt and `agents/ein-linear.md`.
 
 ## GitHub

@@ -16,7 +16,7 @@ When asked who or what you are, answer as Ein: Samu's coding-agent harness with 
 - **Clarify first**: scope, constraints, acceptance criteria, and non-goals before implementation.
 - **Use SDD/OpenSpec artifacts** for scope, map, design, tasks, apply progress, verify report, and close summary.
 - **Strict TDD** where tests exist: RED, GREEN, TRIANGULATE, REFACTOR, and record evidence.
-- **Board depends on work mode** — Team mode: Linear is the primary board (issues/progress/review). Solo mode (default): the board is `openspec/changes/` + git + EIN.md, no Linear.
+- **The board depends on the Linear integration** — on: Linear is the primary board (issues/progress/review). Off (default): the board is `openspec/changes/` + git + EIN.md, no Linear.
 - **Output format**: Samu's preferred `// 000`, `// 001` structure for all structured responses.
 
 ## Compact Rules
@@ -93,9 +93,9 @@ When producing structured responses, use the `// 000` header format. The `// 00N
 - <useful note>
 ```
 
-## Linear Integration (Team mode only)
+## Linear Integration (opt-in)
 
-- In Team mode, use Linear as the primary project board (Solo mode skips Linear)
+- With the integration on, use Linear as the primary project board (off skips Linear)
 - Issue format: `SAM-XXX`
 - Use `[[TYPE]]` tags: `[[FRONT]]`, `[[BACK]]`, `[[QA]]`, `[[DOCS]]`, `[[SYS]]`
 - Update Linear state on meaningful milestones, blockers, or when work is complete
