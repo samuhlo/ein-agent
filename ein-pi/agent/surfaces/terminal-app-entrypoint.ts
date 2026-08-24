@@ -49,7 +49,13 @@ import {
   type VersionProbeRunner,
 } from "../lib/update-probes.ts";
 
-const HELP = "Usage: ein [--project <root>] [--once] [--no-intro] [--help]";
+const HELP = [
+  "Usage: ein [--project <root>] [--once] [--no-intro] [--help]",
+  "       ein <install|update|uninstall|restore|doctor> [...]",
+  "",
+  "Sin argumentos abre la aplicación. Los verbos de ciclo de vida los ejecuta",
+  "`ein-install`, que sigue disponible por separado como escotilla de reparación.",
+].join("\n");
 
 /** Short enough to read as a flourish, not a wait. Any key skips it. */
 export const INTRO_FRAME_MS = 22;
@@ -62,13 +68,14 @@ const SESSION_LIST_LIMIT = 8;
 export type TerminalAppArgs =
   | { kind: "run"; cwd: string; once: boolean; intro: boolean }
   | { kind: "help" }
-  | { kind: "moved"; verb: string }
+  | { kind: "delegate"; command: string; argv: readonly string[] }
   | { kind: "usage"; reason: string };
 
 /**
- * `ein` used to be the installer. Its verbs are recognized and redirected for
- * as long as muscle memory lasts, instead of opening the app and swallowing an
- * argument the user clearly meant as a command.
+ * `ein` is the public entry; `ein-install` owns the local lifecycle. These verbs
+ * are delegated to it rather than announced: telling someone the correct command
+ * they just typed, and making them type it again, is not a redirection — it is a
+ * refusal. The decision is computed here and executed at the edge.
  */
 export const INSTALLER_VERBS: readonly string[] = [
   "install", "update", "uninstall", "restore", "doctor",
@@ -80,7 +87,9 @@ export function parseTerminalAppArgs(argv: readonly string[], cwd: string): Term
   let once = false;
   let intro = true;
   const first = argv[0];
-  if (first && INSTALLER_VERBS.includes(first)) return { kind: "moved", verb: first };
+  if (first && INSTALLER_VERBS.includes(first)) {
+    return { kind: "delegate", command: INSTALLER_COMMAND, argv: [...argv] };
+  }
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index];
     if (argument === "--help" || argument === "-h") return { kind: "help" };
@@ -299,12 +308,21 @@ export async function runTerminalApp(options: TerminalAppOptions): Promise<numbe
   const io = options.io;
   const parsed = parseTerminalAppArgs(options.argv, options.cwd);
   if (parsed.kind === "help") { io.write(`${HELP}\n`); return 0; }
-  if (parsed.kind === "moved") {
-    io.write(
-      `\`ein ${parsed.verb}\` ahora es \`${INSTALLER_COMMAND} ${parsed.verb}\`.\n` +
-      `\`ein\` sin argumentos abre la aplicación.\n`,
-    );
-    return 2;
+  if (parsed.kind === "delegate") {
+    const run = options.run ?? productionRun;
+    // A lifecycle verb that cannot run is unavailable, never done: 127 is the
+    // shell's "command not found", and it is reported with the command name so
+    // the repair hatch is findable when the app itself is what broke.
+    let code: number;
+    try {
+      code = await run([parsed.command, ...parsed.argv]);
+    } catch {
+      code = 127;
+    }
+    if (code === 127) {
+      io.write(`No se pudo ejecutar \`${parsed.command}\`. Comprueba que está en el PATH.\n`);
+    }
+    return code;
   }
   if (parsed.kind === "usage") { io.write(`${HELP}\n`); return 2; }
 
@@ -543,7 +561,9 @@ async function productionRun(command: readonly string[]): Promise<number> {
     const child = Bun.spawn([file, ...args], { stdin: "inherit", stdout: "inherit", stderr: "inherit" });
     return await child.exited;
   } catch {
-    return 1;
+    // 127, not 1: the process never started. A caller has to be able to tell
+    // "the command is missing" from "the command ran and failed".
+    return 127;
   }
 }
 

@@ -127,12 +127,56 @@ describe("arguments", () => {
     expect(parseTerminalAppArgs(["--project", "/other"], "/work")).toMatchObject({ cwd: "/other" });
   });
 
-  test("every old installer verb is redirected instead of opening the app", async () => {
+  test("every lifecycle verb delegates to the installer instead of announcing it", async () => {
     for (const verb of INSTALLER_VERBS) {
       const h = harness();
-      expect(await runTerminalApp(seams({ argv: [verb], io: h.io }))).toBe(2);
-      expect(output(h.written)).toContain(`${INSTALLER_COMMAND} ${verb}`);
+      const ran: string[][] = [];
+      const code = await runTerminalApp(seams({
+        argv: [verb],
+        io: h.io,
+        run: async (command) => { ran.push([...command]); return 0; },
+      }));
+      expect(code).toBe(0);
+      expect(ran).toEqual([[INSTALLER_COMMAND, verb]]);
     }
+  });
+
+  test("the delegated child keeps its arguments and its exit code", async () => {
+    const h = harness();
+    const ran: string[][] = [];
+    const code = await runTerminalApp(seams({
+      argv: ["update", "--release-channel", "alpha"],
+      io: h.io,
+      run: async (command) => { ran.push([...command]); return 3; },
+    }));
+    expect(ran).toEqual([[INSTALLER_COMMAND, "update", "--release-channel", "alpha"]]);
+    expect(code).toBe(3);
+  });
+
+  test("an installer that cannot be run is named, not silently swallowed", async () => {
+    const h = harness();
+    const code = await runTerminalApp(seams({
+      argv: ["doctor"],
+      io: h.io,
+      run: async () => { throw new Error("spawn ein-install ENOENT"); },
+    }));
+    expect(code).toBe(127);
+    expect(output(h.written)).toContain(INSTALLER_COMMAND);
+  });
+
+  test("a child reporting command-not-found is reported, not treated as done", async () => {
+    const h = harness();
+    const code = await runTerminalApp(seams({ argv: ["restore"], io: h.io, run: async () => 127 }));
+    expect(code).toBe(127);
+    expect(output(h.written)).toContain(INSTALLER_COMMAND);
+  });
+
+  test("delegation is decided without running anything", () => {
+    expect(parseTerminalAppArgs(["update", "--yes"], "/work")).toEqual({
+      kind: "delegate",
+      command: INSTALLER_COMMAND,
+      argv: ["update", "--yes"],
+    });
   });
 
   test("a verb-looking flag is not mistaken for an installer verb", () => {

@@ -86,12 +86,20 @@ ein-agent/
 ## // 05_ COMMAND_DECK
 
 ```bash
-ein                 # menú interactivo
-ein install         # instala o repara
+ein                 # abre la aplicación: estado del proyecto y arrancar a trabajar
 ein update          # actualiza Ein y su template con backup
 ein doctor          # diagnostica el despliegue
-ein uninstall       # elimina Ein y conserva auth, secrets y sesiones
 ein restore         # restaura desde un backup
+ein uninstall       # elimina Ein y conserva auth, secrets y sesiones
+```
+
+`ein` es la única puerta. Los verbos de ciclo de vida los ejecuta `ein-install`,
+que sigue en el `PATH` como arranque y escotilla de reparación: si lo que está
+roto es `ein`, la reparación no puede pasar por `ein`.
+
+```bash
+ein-install         # instala, preguntando solo el runtime
+ein-install doctor  # el mismo diagnóstico, sin depender de la aplicación
 ```
 
 Referencia completa en [CLI](https://samuhlo.github.io/ein-agent/04-reference/cli/).

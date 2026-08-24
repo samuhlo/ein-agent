@@ -26,7 +26,7 @@ import {
 import { resolveReleaseContract } from "../installer/src/core/release-resolver.ts";
 import { INSTALLER_VERSION } from "../installer/src/core/version.ts";
 import { bundleCcEinPayload } from "../installer/scripts/bundle-cc-ein.ts";
-import { runMenu, selectInstallTarget } from "../installer/src/cli/menu.ts";
+import { runBootstrapInstall, selectInstallTarget } from "../installer/src/cli/runtime-prompt.ts";
 import { renderDoctorAdvisor, renderInstallerAdvisorHandoff, runDoctorCommand } from "../installer/src/cli/doctor.ts";
 import { evaluateSharedConfigUpdateAdvisor } from "../ein-pi/agent/lib/shared-config-update-advisor.ts";
 import {
@@ -518,7 +518,7 @@ describe("Installer-owned advisor handoff", () => {
   });
 });
 
-describe("Interactive runtime menu", () => {
+describe("Bootstrap runtime prompt", () => {
   test("offers Pi, Claude Code, and Both and forwards one selection", async () => {
     let promptCalls = 0;
     let promptedOptions: Array<{ value: string; label: string; hint: string }> = [];
@@ -551,14 +551,13 @@ describe("Interactive runtime menu", () => {
     expect(selected).toBeNull();
   });
 
-  test("real Install branch forwards the selected target exactly once", async () => {
+  test("no arguments installs, asking only for the runtime", async () => {
     const descriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
     Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: true });
     const installCalls: Array<{ args: string[]; target: string }> = [];
 
     try {
-      const result = await runMenu({
-        actionPrompt: async () => "install",
+      const result = await runBootstrapInstall({
         runtimePrompt: async () => "claude",
         runInstall: async (args, target) => {
           installCalls.push({ args, target });
@@ -576,17 +575,54 @@ describe("Interactive runtime menu", () => {
     }
   });
 
-  test("real Uninstall branch requires and forwards one explicit target", async () => { const descriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY"); Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: true }); const calls: string[] = []; try { const result = await runMenu({ actionPrompt: async () => "uninstall", runtimePrompt: async (options) => { expect(options.message).toContain("desinstalar"); return "claude"; }, runUninstall: async (_args, target) => { calls.push(target); return 17; }, playBanner: async () => {}, isCancel: () => false }); expect(result).toBe(17); expect(calls).toEqual(["claude"]); } finally { if (descriptor) Object.defineProperty(process.stdin, "isTTY", descriptor); else delete (process.stdin as unknown as { isTTY?: boolean }).isTTY; } });
-
-  test("non-TTY menu exits before prompting", async () => {
+  test("cancelling the runtime question installs nothing", async () => {
     const descriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
-    Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: false });
+    Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: true });
+    let installs = 0;
     try {
-      await expect(runMenu()).resolves.toBe(0);
+      const result = await runBootstrapInstall({
+        runtimePrompt: async () => Symbol("cancel"),
+        runInstall: async () => { installs += 1; return 0; },
+        playBanner: async () => {},
+        isCancel: (value) => typeof value === "symbol",
+      });
+      expect(result).toBe(0);
+      expect(installs).toBe(0);
     } finally {
       if (descriptor) Object.defineProperty(process.stdin, "isTTY", descriptor);
       else delete (process.stdin as unknown as { isTTY?: boolean }).isTTY;
     }
+  });
+
+  test("without a terminal it explains what to pass instead of hanging", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
+    Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: false });
+    const said: string[] = [];
+    let installs = 0;
+    try {
+      const result = await runBootstrapInstall({
+        write: (line) => { said.push(line); },
+        runInstall: async () => { installs += 1; return 0; },
+        playBanner: async () => {},
+      });
+      expect(result).toBe(0);
+      expect(installs).toBe(0);
+      expect(said.join("\n")).toContain("--runtime");
+    } finally {
+      if (descriptor) Object.defineProperty(process.stdin, "isTTY", descriptor);
+      else delete (process.stdin as unknown as { isTTY?: boolean }).isTTY;
+    }
+  });
+
+  test("the lifecycle action menu is gone from the tree, not hidden behind a flag", () => {
+    const cliDir = join(import.meta.dir, "..", "installer", "src", "cli");
+    const sources = readdirSync(cliDir)
+      .filter((name) => name.endsWith(".ts"))
+      .map((name) => readFileSync(join(cliDir, name), "utf8"));
+
+    expect(sources.some((source) => source.includes("runMenu"))).toBe(false);
+    expect(sources.some((source) => source.includes("Que quieres hacer?"))).toBe(false);
+    expect(existsSync(join(cliDir, "menu.ts"))).toBe(false);
   });
 });
 

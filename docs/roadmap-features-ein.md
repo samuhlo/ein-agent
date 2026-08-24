@@ -1,486 +1,550 @@
-# EIN Product Roadmap
+# Hoja de ruta de producto de Ein
 
-EIN-Pi is the flagship and primary product. Packaged deterministic acceptance proves Cleaner and Architect in Pi. Finish the active continuity work, then strengthen the installer control plane and launcher before revisiting Claude Cleaner/Architect parity.
+Este es el roadmap canónico de Ein. Ordena el trabajo futuro en un único
+programa; no compite con el `MANIFIESTO.md`, que fija el rumbo y los límites, ni
+con los documentos de valoración y dogfooding, que aportan evidencia.
 
-The product direction is deliberately narrow:
+Ein sigue siendo un arnés para una persona: convierte trabajo ambiguo en
+cambios pequeños, verificables y explicados, con el estado en disco y no en la
+conversación. Pi es el runtime de referencia; Claude es el relevo. El uso
+propio gana cuando entra en conflicto con una ambición de producto más amplia.
 
-1. Preserve the accepted packaged Pi Cleaner and Architect behavior; live credentialed semantic smoke remains optional and separate.
-2. Stabilize the active provider-neutral Pi↔Claude continuity work.
-3. Complete the installer control plane.
-4. Improve the launcher while preserving its controller and legacy renderer.
-5. Defer bounded Claude Cleaner/Architect parity until those product foundations are stable.
+## Veredicto actual
 
-## Current Status
+Ein tiene buenos cimientos deterministas y una historia de trabajo aceptada,
+pero todavía no tiene un contrato de release ni una secuencia de producto
+cerrada.
 
-| Area | Status | Current truth |
+- **No existe hoy un contrato alpha/estable.** `isEligibleRelease` rechaza las
+  prereleases y, por tanto, cada publicación acaba siendo efectivamente de
+  producción (`docs/valoracion-estado-y-rumbo-2026-08.md:36-38,448-517`). El
+  backup y rollback sobre el árbol real ya completados permiten corregir esto
+  sin poner en riesgo el trabajo.
+- **El resultado de apply aún se presenta como procedimiento.** La etiqueta
+  actual de apply y la prosa de tareas/fases describen acciones del agente, no
+  el resultado que debe quedar (`ein-pi/agent/lib/sdd-overlay.ts:45-153`). Eso
+  no es una instrucción ejecutable suficiente para un modelo local.
+- **La preflight ya persiste la postura TDD por cambio y la resuelve de forma
+  determinista.** No debe volver a preguntarla en cada sesión o fase
+  (`ein-pi/agent/lib/sdd-preflight.ts:1-18,220-240`).
+- **La frontera de configuración de modelo y thinking por agente ya existe.**
+  La mejora de esfuerzo debe ampliar esa frontera, no crear otra
+  (`ein-pi/agent/lib/model-config.ts:1-65`).
+- **La selección de cambios múltiples es ambigua por contrato.** El router
+  representa la ambigüedad; no puede escoger un TODO arbitrario
+  (`ein-pi/agent/lib/sdd-router.ts:35-125`).
+- **La presentación tiene deuda visible.** Hay 18 herramientas de Ein sin
+  renderer humano y el instalador mezcla dos gramáticas visuales
+  (`docs/plan-hallazgos-dogfooding-2026-08.md:240-258,287-304`).
+
+La prioridad de producto es convertir la salida de pre-apply en una instrucción
+cerrada y medible para modelos baratos y futuros modelos locales. La seguridad
+de release va inmediatamente antes o en paralelo a la ejecución local; no es un
+prerrequisito de meses para empezar a medir, diseñar el packet o simplificar la
+experiencia.
+
+## Estado de ejecución — 2026-08-24
+
+El veredicto de arriba se escribió antes de ejecutar. Esto es lo entregado
+desde entonces, medido contra `origin/main` y no contra la memoria:
+
+| Unidad | Estado | Evidencia |
 |---|---|---|
-| EIN-Pi | `primary` | Pi is the architecture target and the first runtime for all new behavior. |
-| Cleaner | `accepted in packaged Pi` | Deterministic packaged acceptance covers the internal Pi workflow, bounded mutation safety, evidence collectors, and isolated runtime closure. Live credentialed semantic smoke remains optional and separate. |
-| Architect | `accepted in packaged Pi` | Deterministic packaged acceptance covers the named read-only Pi workflow and its bounded evidence and plan contracts. Live credentialed semantic smoke remains optional and separate. |
-| SDD integration | `accepted in packaged Pi` | Deterministic acceptance covers independent participation and the fixed apply→Cleaner→Architect→verify order. Provider-neutral reconstruction remains continuity work. |
-| Provider-neutral continuity | `built` | Bidirectional handoff, the neutral checkpoint, the resume brief, and Claude's lifecycle integration are in the tree with their tests. Its planning document was retired on 2026-08-17: it described work already done, and a plan kept past its delivery is noise that outranks the code. |
-| Claude parity | `deferred` | Cleaner and Architect remain intentionally excluded from Claude until installer and launcher priorities are complete. |
-| Installer | `active next priority` | Targets, backups, update journal, rollback, acquisition checks, doctor, and uninstall foundations exist. The first control-plane unit adds one authoritative read-only install inventory and exact dry-run; execution consumes it in WU2. |
-| Launcher | `follows installer` | Shared project state, sessions, launch plans, update status, and isolated Pi/Claude flows exist. Preserve the controller and legacy renderer. |
-| OpenTUI migration | `stopped` | Functional acceptance passed, but startup and distribution costs failed mandatory gates. No production migration is authorized. |
+| 1A contrato mínimo stable/alpha | **entregado** | PRs #224, #225, #226; preferencia persistida, resolución determinista, `artifactId`, rollback local auditable |
+| 1B publicación remota determinista | **entregado** | PR #227 y tag `installer-v0.82.0-alpha.1`; coherencia tag/versión/changelog y `--prerelease` solo para alpha |
+| 2A corpus, baseline y schema del packet | **entregado** | PR #228; carpeta `evals/` y `openspec/specs/apply-packet/` |
+| Recibos humanos de las 18 tools (parte de 3A) | **entregado** | PR #229; puerta única `registerEinTool` |
+| 2B ejecución del packet y modelo local | pendiente | espera a que 2A se use contra candidatos reales |
+| 3A simplificación independiente | pendiente, menos los recibos | Team sigue siendo modo de primera clase; no hay selector de cambio activo |
+| 3B overlays dependientes del packet | pendiente | depende de 2A, ya cerrado |
+| 4A investigación del freeze | pendiente | sin reproducción ni clasificación de ownership |
+| 5 superficie installer/launcher | pendiente | `@clack` en tres ficheros, segundo menú vivo, `pi-ein`/`cc-ein` sin renombrar |
+| 6 logo | **entregado antes de tiempo** | `d3931d5`; la marca es un televisor con una terminal dentro |
 
-## Product Boundaries
+La unidad 6 se adelantó a su dependencia. No reabre nada: la geometría se
+decidió con evidencia visual y la gramática de 5 no la contradice.
 
-### What EIN is building
+La siguiente unidad en ejecución es la **puerta pública única**, que absorbe
+C1 del plan de dogfooding y el recorte de superficie de `// 011` de la
+valoración: un nombre, una entrada, y el segundo menú retirado.
 
-- One Cleaner implementation used by the `ein-cleaner` Pi subagent.
-- One Architect implementation used by the `ein-architect` Pi subagent.
-- Natural-language invocation inside an active Pi session.
-- Optional control commands inside Pi for explicit invocation and activation state.
-- Small deterministic helpers that reduce token use and constrain unsafe behavior.
-- Minimal Claude-native assets later, solely to reproduce proven Pi behavior.
+## Historia aceptada y cimientos que no se reabren
 
-### Simplicity Rules
+Se conserva esta historia como estado, no como una segunda lista de prioridades:
 
-1. Build for Pi first.
-2. Keep Cleaner and Architect inside the parent agent runtime.
-3. Keep deterministic collectors and contracts internal.
-4. Share logic instead of duplicating Pi and Claude engines.
-5. Add abstraction only after concrete duplication proves it necessary.
-6. Prefer bounded workflows and explicit state over platform layers.
+- **Pi Cleaner y Architect:** aceptados en escenarios deterministas empaquetados.
+  Cleaner puede auditar y hacer mejoras acotadas; Architect sigue siendo de solo
+  lectura. Las invocaciones naturales y los controles explícitos siguen siendo
+  superficies del mismo workflow. El smoke semántico con credenciales es
+  opcional y no reabre la aceptación.
+- **SDD y continuidad:** la participación de Pi, el orden
+  `sdd-apply → ein-cleaner → ein-architect → sdd-verify`, los perfiles de
+  activación y el checkpoint bidireccional Pi↔Claude están construidos y
+  probados. El estado del trabajo continúa viviendo en
+  `openspec/changes/<cambio>/`.
+- **Claude:** sigue siendo relevo, no segundo producto. Cleaner y Architect en
+  Claude permanecen aplazados; si se retoman, serán invocación explícita,
+  compartirán la implementación y no introducirán un registro genérico de
+  proveedores.
+- **Instalador:** ya existen inventario parcial de ciclo de vida, adquisición,
+  backups, journal, transacciones, rollback, doctor y uninstall. El backup y
+  rollback sobre el árbol real están completados. El inventario autoritativo,
+  el planner común y el dry-run exacto siguen siendo unidades de cierre del
+  ciclo de vida local.
+- **Launcher y superficies:** el launcher conserva su controlador y renderer
+  legado. La migración a OpenTUI está detenida: pasó la aceptación funcional,
+  pero no las puertas de arranque y distribución. No se autoriza reabrirla.
+- **Coste del prompt y carril ligero:** el programa anterior de presupuesto de
+  prompt, diagnósticos accionables y el carril `micro` ya están construidos como
+  baseline. Eso no demuestra que `micro` resuelva cambios de una línea ni cierra
+  la pregunta de adelgazar el prompt; ambas decisiones quedan medidas más
+  adelante sin relajar `verify` ni `close`.
+- **Collectors y contratos deterministas:** el programa de collectors de
+  Cleaner y la aceptación empaquetada de Pi están completos. Los hechos
+  computables siguen calculándose antes de gastar razonamiento del modelo.
 
-### Deterministic-First Rule
+Estos cimientos se protegen: un runtime vanilla no se modifica, el estado no se
+mueve a la conversación, la incertidumbre sigue siendo `unknown`/`unavailable`,
+y ningún agente sustituye una garantía que puede calcular una herramienta.
 
-Cleaner and Architect must obtain computable facts before spending model tokens interpreting them. Internal tools calculate metrics, coverage, duplication, dependency graphs, source fingerprints, scope boundaries, and other verifiable evidence. The model interprets those facts, identifies semantic concerns, prioritizes findings, plans changes, and performs only justified work.
+## Programa único y secuencia ejecutable
 
-This ordering is mandatory because it reduces token use while improving repeatability and auditability. It must not reduce quality: deterministic collectors cannot replace semantic reasoning when meaning, intent, responsibility, or architectural tradeoffs require model judgment. Weak heuristics must be reported as incomplete evidence, not promoted into conclusions.
-
-Minimal acceptance uses representative equivalent scenarios. For each scenario, record the deterministic evidence supplied to the model, verify that the model does not reconstruct equivalent computable facts, and confirm that required semantic inspection and outcome quality are preserved. Tool choice and numeric thresholds remain deferred to the owning workflow units.
-
-### Non-Goals
-
-This roadmap explicitly rejects:
-
-- external Cleaner or Architect CLI programs;
-- public Cleaner or Architect JSON or machine APIs;
-- standalone runner UX for either subagent;
-- a generic capability platform;
-- a generic provider registry;
-- duplicated Pi and Claude Cleaner or Architect engines;
-- OpenCode support in the current roadmap; it is explicitly deferred;
-- exposing deterministic collectors as product surfaces;
-- enabling Architect by default or bypassing the selected project profile;
-- Architect source mutation in v1;
-- autonomous cross-project mutation;
-- reopening the renderer decision.
-
-OpenCode is only a deferred future possibility. Consider a provider abstraction after a third runtime creates real duplication and the Pi/Claude seams are proven.
-
-## Target Pi Architecture
-
-```text
-user in EIN-Pi
-  |
-  | natural language or optional /ein controls
-  v
-parent orchestrator
-  |-- ein-scout
-  |-- ein-cleaner
-  `-- ein-architect
-        |
-        v
-internal deterministic tools
-  |-- project and scope discovery
-  |-- source-state fingerprints
-  |-- coverage and complexity collectors
-  |-- duplication evidence
-  |-- CodeGraph facts
-  `-- bounded write and verification helpers
-```
-
-The parent orchestrator owns routing, activation state, SDD sequencing, and user-visible progress. Named subagents own their workflows and semantic judgment. Deterministic tools collect facts, enforce boundaries, and verify state without becoming user-facing products.
-
-The implementation must not fork Cleaner or Architect logic by runtime. Pi owns the first complete behavior. Claude later receives the smallest native prompt, agent, hook, or command assets needed to produce the same visible workflow.
-
-## Invocation Inside Pi
-
-Users invoke subagents through normal conversation:
-
-- "Ask Cleaner to audit the files changed in this task."
-- "Have Cleaner improve this module without changing behavior."
-- "Ask Architect to inspect the dependency direction under `src/core`."
-- "Have Architect validate this refactoring plan."
-
-Optional controls provide predictable activation and direct routing:
+Las letras son subtracks del mismo programa, no otra cola ni otra prioridad.
+Cada unidad debe ser pequeña, reversible, con un outcome observable, archivos
+acotados y una frontera de rollback explícita.
 
 ```text
-/ein:cleaner <request>
-/ein:architect <request>
-/ein:cleaner on|off|status
-/ein:architect on|off|status
+Inicio en paralelo:
+  1A contrato mínimo stable/alpha ───────┐
+  2A corpus + baseline + schema packet ──┼─→ 1B publicación remota determinista
+  3A simplificación independiente ───────┤       ║
+  4A investigar freeze y ownership ──────┘       ║
+                                                   └─→ 2B ejecución del packet y
+                                                       promoción de modelo local
+Después de 2A: 3B overlays de outcome/stop rules
+Después de 3A/3B: 4B arreglo UX integrado, si la evidencia lo atribuye a Ein
+Después de 1A y 3A: 5 superficie installer/launcher y ciclo de vida local
+Al final de la gramática estable: 6 logo
 ```
 
-These are controls inside Pi, not shell commands. Natural language remains the primary interaction.
+`2A` puede empezar sin esperar a todo el release system: congela corpus,
+línea base, métricas y schema. `1B` debe quedar validada inmediatamente antes
+o en paralelo a `2B`; así la ejecución local se prueba con un carril seguro, sin
+bloquear la medición y el diseño iniciales.
 
-## Independent Activation
+### Fronteras de autoridad: publicación remota y ciclo de vida local
 
-EIN-Pi onboarding asks once per project for one automatic SDD participation profile and persists it in `.pi/ein/agents.json`. Missing configuration is an onboarding essential. `Use recommended` writes Balanced only when the file is missing and never overwrites an existing choice. `/ein:onboard` reconfigures the profile later; no SDD flow asks again.
+No existe una transacción ni un rollback compartido entre estas dos
+autoridades. Pueden compartir el identificador inmutable de artefacto, pero no
+suponer que una operación deshace la otra.
 
-Profiles are ordered and presented as:
+- **Autoridad remota de publicación:** CI y el sistema de artefactos poseen la
+  versión publicada, canales, promoción, firmas, checksums y read-back de los
+  bytes y metadatos. Promover significa mover un canal de `alpha` a `stable`
+  después de sus gates. Hacer rollback remoto significa devolver el canal a un
+  artefacto publicado anterior y verificable; no restaura árboles de máquinas
+  locales.
+- **Autoridad local de installer:** la CLI y el installer poseen install,
+  update, repair, uninstall, restore, el inventario de lo gestionado y el
+  planner local. El rollback local significa recuperar el árbol local anterior
+  desde backups y journal de la transacción afectada; no mueve canales ni
+  reescribe un release remoto.
 
-1. **Balanced (recommended/default):** Cleaner on, Architect off.
-2. **Thorough:** Cleaner on, Architect on.
-3. **Manual:** Cleaner off, Architect off.
+El `artifactId` común permite trazar ambas historias. La publicación remota no
+promete rollback local, y una reparación o rollback local no altera la
+promoción remota.
 
-An existing Cleaner-off, Architect-on combination is shown honestly as `custom` until the user selects a supported profile. The startup banner renders persisted values as `CLEANER auto:on/off` and `ARCH auto:on/off`.
+### 1. Contrato de releases y control de riesgo
 
-A simple project-local `.pi/ein/agents.json` shape is sufficient:
+**Propósito.** Crear una distribución que permita probar cambios sin convertir
+cada publicación en producción. El release system lo poseen el código, la CLI
+de publicación y CI; no una skill de agente.
 
-```json
-{
-  "agents": {
-    "cleaner": { "enabled": true },
-    "architect": { "enabled": false }
-  }
-}
-```
+#### 1A. Contrato mínimo stable/alpha
 
-Project configuration provides the automatic default for new sessions. `/ein:cleaner on|off` and `/ein:architect on|off` remain session overrides only and never rewrite the project profile. The `status` control reports the effective value and whether it comes from project configuration or a session override.
+- Persistir la preferencia de canal y resolverla de forma determinista.
+  `stable` nunca acepta prereleases; `alpha` es el carril de experimentación y
+  dogfooding de Ein.
+- Mostrar honestamente el canal efectivo, la versión y cualquier estado de
+  expiración. Clientes permanecen en `stable`; Ein puede usar `alpha`.
+- Definir una política comprobable de expiración, promoción y retirada de alpha:
+  edad y uso se miden, una alpha expirada no se presenta como current y la
+  promoción exige la evidencia de publicación de 1B.
 
-Activation controls automatic SDD participation only. While `off`, a direct natural-language request or `/ein:cleaner <request>` / `/ein:architect <request>` may invoke any supported mode, including Cleaner improve. Explicit invocation still follows every normal scope, write, freshness, verification, and safety requirement.
+**Aceptación de 1A.** Fixtures de settings, resolución, prerelease, expiración
+y canal efectivo prueban que el camino estable no consume alpha y que la
+incertidumbre es `unknown`/`unavailable`, nunca `current`.
 
-## SDD Sequencing
+#### 1B. Publicación remota determinista
 
-When enabled, the exact order is:
+- CI publica artefactos con versión, tag, changelog, checksums y firma
+  coherentes; lee de vuelta bytes y metadatos antes de declarar éxito.
+- Promoción alpha→stable y rollback remoto operan sobre el identificador de
+  artefacto y el canal, con una frontera explícita y auditable.
+- Los fallos de adquisición, staging, publicación, firma y read-back dejan el
+  canal remoto en su estado anterior. La tecnología de firma y la rotación de
+  trust roots se eligen con evidencia dentro de este subtrack.
 
-```text
-sdd-apply -> ein-cleaner -> ein-architect -> sdd-verify
-```
+**Aceptación de 1B.** CI demuestra cero discrepancias entre versión, tag,
+changelog, checksum, firma y read-back; fault injection demuestra que una
+publicación fallida no promociona el canal y que el rollback remoto devuelve el
+artefacto anterior. Esto no afirma nada sobre restaurar un árbol local.
 
-The orchestrator skips disabled subagents without changing the relative order:
+**No objetivos de 1.** No publicar desde una máquina local, no delegar releases
+a una skill, no introducir un registro de proveedores, no usar alpha para
+clientes y no decidir aquí la geometría del logo.
 
-| Cleaner | Architect | Sequence |
+### 2. Apply Packet/IR y ejecución local
+
+**Propósito.** Hacer que el output de pre-apply sea ejecutable por modelos de
+bajo coste y, después, por un modelo local con ventana limitada. La valoración
+mide el coste de papeleo y sitúa el límite en el contexto de apply/verify:
+mejorar la calidad del plan, no dividir apply en más agentes
+(`docs/valoracion-estado-y-rumbo-2026-08.md:195-209,676-792`).
+
+#### 2A. Corpus, baseline y schema del packet
+
+Este subtrack empieza en paralelo con 1A y no puede hacer circular la decisión
+de promoción:
+
+1. congelar un corpus representativo de cambios archivados, con outcome
+   conocido, slices permitidos y checks enfocados;
+2. ejecutar la línea base con el flujo actual y registrar éxito de tarea,
+   desviaciones, preguntas al supervisor, turnos, contexto pico y señales de
+   razonamiento;
+3. fijar métricas, presupuesto y umbrales a partir de esa línea base;
+4. solo después comparar candidatos y decidir si alguno se promociona.
+
+En paralelo a los pasos 1–3 se puede diseñar y validar el schema de un **Apply
+Packet/IR** compilado determinísticamente desde `design.md` y `tasks.md`. Como
+mínimo contiene outcome exacto, archivos permitidos, ediciones ordenadas o una
+intención acotada, invariantes, comando enfocado, condiciones de parada y
+evidencia esperada. No contiene decisiones pendientes que el ejecutor deba
+inventar.
+
+**Aceptación de 2A.** El corpus y la línea base quedan versionados con sus
+métricas y umbrales; una segunda ejecución reproduce la medición. El schema
+rechaza packet sin invariante, ambiguo, obsoleto o fuera de alcance. La tabla de
+umbrales existe antes de evaluar o promocionar cualquier modelo local.
+
+#### 2B. Ejecución del packet y promoción de modelo local
+
+`2B` espera a que `2A` haya congelado corpus, baseline, métricas y thresholds, y
+a que `1B` esté validada o se ejecute en paralelo como protección de
+publicación. Incluye:
+
+- validar frescura, alcance, consistencia, stop rules y evidencia antes de
+  escribir;
+- ejecutar solo el slice y el comando enfocado declarados, con parada
+  fail-closed ante una decisión ausente;
+- comparar candidatos locales contra la misma línea base y corpus, usando éxito
+  de outcome, desviación cero o clasificada, preguntas al supervisor y contexto
+  dentro del presupuesto;
+- promocionar un candidato solo cuando los umbrales previamente fijados se
+  cumplen por el corpus acordado. La promoción del modelo no es promoción de un
+  canal remoto ni rollback del installer.
+
+**Aceptación de 2B.** Un executor no escribe fuera de sus archivos ni puede
+saltarse el check enfocado. Las métricas se leen por cambio y por modelo; un
+candidato no se declara mejor antes de la comparación contra baseline. Una
+demostración local cumple el presupuesto medido sin degradar ningún gate
+determinista y su fallo deja evidencia, no un éxito implícito.
+
+**No objetivos de 2.** No partir apply o verify en más agentes, no comprar
+hardware por adelantado, no construir un RAG o un proveedor genérico, no hacer
+que un modelo local decida arquitectura y no reemplazar el juicio de design por
+heurísticas débiles.
+
+### 3. Modos, esfuerzo y ciclo de vida legibles
+
+**Propósito.** Reducir decisiones de producto duplicadas y hacer que una sesión
+nueva sepa qué cambio está activo, qué se ha hecho y qué queda. La interfaz
+debe mostrar el cálculo del sistema, no una interpretación libre del agente.
+
+#### 3A. Simplificación independiente
+
+Puede ejecutarse sin Apply Packet:
+
+- retirar **Team** como modo de primera clase; **Solo/OpenSpec+git** queda como
+  contrato normal y Linear como integración opcional, explícitamente activada,
+  nunca como fuente paralela de estado;
+- definir presets seguros para el esfuerzo del orquestador usando solo la
+  frontera existente de modelo/thinking por agente. Un preset cambia el modelo
+  o thinking previsto, no reduce silenciosamente la prosa fija del
+  orquestador ni altera un blocker, check, scope o resultado determinista;
+- añadir selector de cambio activo con fixtures de cero, uno y varios cambios;
+  ante ambigüedad se pide selección explícita y nunca se elige un TODO
+  arbitrario;
+- garantizar una sola pregunta TDD por cambio, respetando la postura persistida
+  por preflight en reanudaciones y fases;
+- extender los renderers humanos de preflight, `ask_user_question`, selector,
+  singular/plural y bloqueos, sin depender todavía del packet.
+
+**Aceptación de 3A.** La selección explícita sobrevive a una reanudación, Team no
+aparece como modo visible, Linear no es requisito, los presets no cambian gates
+y cada cambio produce como máximo una pregunta TDD. Los fixtures de renderer
+cubren estado vacío, selección ambigua, `1 bloqueo` y error.
+
+Se conserva como **decisión para evaluación**, no como aprobación de
+implementación, la propuesta de una sola comprobación opcional o auto-skippeable
+de enfoque inmediatamente después de design y antes de tasks. La evaluación
+debe medir si evita trabajo mal orientado sin añadir otra ceremonia obligatoria;
+no se puede convertir en gate por esta frase del roadmap.
+
+#### 3B. Overlays dependientes del Apply Packet
+
+Después de que 2A cierre el schema, los overlays pueden mostrar el outcome del
+bloque, la tarea completada, las fases restantes, las invariantes y las stop
+rules del packet. Los títulos de tareas describen outcomes de usuario; RED,
+GREEN, TRIANGULATE y REFACTOR permanecen como evidencia y estado bajo la tarea.
+
+**Aceptación de 3B.** Fixtures demuestran que el overlay coincide con el estado
+calculado por router y packet, no inventa una decisión pendiente y muestra con
+claridad por qué se detiene. El overlay no es una segunda fuente de verdad ni
+permite escribir fuera del alcance.
+
+**No objetivos de 3.** No mantener Team por compatibilidad como modo visible,
+no obligar a Linear, no crear otra configuración de modelo, no añadir puertas
+humanas entre cada fase y no resolver la ambigüedad escogiendo por el usuario.
+
+### 4. Actividad de runtime y continuidad visible
+
+**Propósito.** Hacer útil la actividad durante una sesión y corregir la
+experiencia de reanudación sin atribuir prematuramente un defecto a Ein o a Pi.
+
+#### 4A. Investigación inmediata del freeze
+
+Empieza en paralelo con 1A, 2A y 3A. Hay que reproducir el freeze de
+live-refresh de TODO/subagente en una sesión reanudada y clasificar ownership
+como Ein, integración o upstream de Pi antes de parchear. El resultado puede
+ser `unknown` mientras falte una reproducción; en ese caso se registra qué
+lado puede corregirlo. Esta investigación no depende de milestone 3.
+
+#### 4B. UX integrada y continuidad
+
+Solo el arreglo de UX que integre la investigación con selector, overlays o
+renderers depende de 3A/3B. Incluye corrección de la presentación que sea
+propiedad de Ein, manteniendo el estado persistido y sin falsear freshness, y
+reanudar continuidad Pi↔Claude sin una segunda implementación de
+Cleaner/Architect ni una nueva fuente de estado.
+
+El progreso de subagentes tiene un contrato mínimo medible:
+
+- estados observables: `queued`, `running`, `blocked`, `complete`;
+- eventos ordenados por secuencia monotónica, con cambio de estado, tarea o
+  subagente, momento y resumen accionable de qué/por qué/siguiente paso;
+- después de resume, el overlay marca el dato anterior como stale hasta recibir
+  un evento posterior al resume y muestra su freshness; no puede presentar un
+  estado antiguo como current;
+- `complete` y `blocked` son estados terminales del run; un nuevo trabajo abre
+  otra secuencia y no reescribe la anterior;
+- no se muestran logs crudos, transcripts ni razonamiento privado.
+
+**Aceptación de 4A/4B.** Un caso reproducible identifica la frontera de
+ownership. Fixtures de cada estado y transición comprueban orden, freshness
+posterior a resume, terminalidad y renderizado sin datos privados. Si el
+freeze es de Ein, una prueba evita su regresión; si es upstream, queda un
+informe verificable y no una afirmación de arreglo.
+
+**No objetivos de 4.** No parchear Pi por conjetura, no rediseñar el runtime
+entero, no mostrar conversaciones privadas y no reactivar la paridad automática
+de Claude.
+
+### 5. Installer y launcher como superficie de producto, sin perder CI
+
+**Propósito.** Pasar de una acumulación de output de comandos a un frame
+estable, legible y app-like, unificando la gramática visual sin confundir la
+autoridad remota con el ciclo de vida local.
+
+**Ciclo de vida local.** El installer es dueño de install, update, repair,
+restore, uninstall, inventario autoritativo, planner común, dry-run exacto,
+staging, checksum/estructura, reemplazo atómico, read-back, journal, backups,
+doctor y rollback local. Todas las operaciones pasan por esa frontera. Un fallo
+local restaura el árbol local afectado; no modifica el canal remoto.
+
+**Entrada pública única.** La arquitectura de UX conserva una única entrada
+pública `ein`. El lifecycle passthrough (`install`, `update`, `repair`,
+`restore`, `doctor`, `uninstall`) delega al installer sin duplicar su autoridad.
+Se retira el segundo menú de installer; la elección no puede aparecer dos veces.
+Antes de cambiar binarios, aliases o comandos se toma y documenta una decisión
+explícita de shims y naming, incluidos los caminos de compatibilidad que se
+conservan o retiran. No se deja que los nombres emerjan accidentalmente de dos
+entradas.
+
+**TTY y no-TTY.** TTY, no-TTY y CI tienen la misma semántica, estados, códigos
+de salida y evidencia de lifecycle; la presentación puede adaptar el formato,
+pero no ocultar comandos, fallos, checksums, firmas, read-back o rollback.
+
+**Invariantes visuales objetivos.** La aceptación usa snapshots reproducibles en
+anchos de terminal fijados (incluidos 80 y 120 columnas), una matriz de estados
+completos/incompletos y errores de adquisición, checksum, read-back y rollback.
+Cada error tiene estado observable, acción y código de salida, y los writes de
+configuración y los artefactos se leen de vuelta antes de presentarse como
+correctos. La geometría del logo no se decide aquí: queda como decisión
+posterior explícita de 6.
+
+**Dependencias.** El ciclo de vida local consume el contrato mínimo de 1A; la
+publicación remota sigue siendo CI/1B. Selector, renderers y overlays de 3
+pueden alimentar la gramática común, pero el installer no se convierte en dueño
+del router ni el launcher en dueño del installer.
+
+**Aceptación de 5.** Escenarios TTY, no-TTY y CI demuestran el mismo resultado de
+lifecycle; snapshots en los anchos fijados, errores observables y read-back
+confirman las invariantes. Fault injection conserva el runtime no afectado en
+un uninstall selectivo y restaura el árbol local solo dentro de la frontera
+correspondiente. La segunda entrada/menu ya no ofrece una ruta alternativa.
+
+**No objetivos de 5.** No hacer una reescritura en Go, no migrar a OpenTUI, no
+retirar el renderer legado soportado, no crear otra transacción con CI y no
+sacrificar la salida de CI por una experiencia TTY.
+
+### 6. Logo, al final
+
+**Propósito.** Refinar la marca solo cuando los contratos, la experiencia y la
+gramática estén estables.
+
+**Entregables.** Revisar la geometría del logo, en particular quitar o
+replantear la antena si la evidencia visual lo justifica, y actualizar las
+copias de marca sin romper los bootstrap copies ni la coherencia de terminal.
+La decisión de geometría y su sustitución permanecen explícitamente abiertas;
+no se infieren de la aceptación de installer.
+
+**Dependencias y aceptación.** Requiere la gramática visual de 5 y una decisión
+explícita sobre la forma. La comparación visual en las superficies instaladas,
+la sincronización de copias y un bootstrap limpio no deben depender de una copia
+antigua ni perder legibilidad.
+
+**No objetivos de 6.** No hacer ahora un rebranding completo, no cambiar
+contratos de instalación y no tocar el bootstrap sin una prueba de
+compatibilidad.
+
+## Medición común
+
+La medición sirve para decidir promoción, bloqueo o aplazamiento; no para crear
+otra cola de trabajo.
+
+| Señal | Medición | Uso de la evidencia |
 |---|---|---|
-| off | off | `sdd-apply -> sdd-verify` |
-| on | off | `sdd-apply -> ein-cleaner -> sdd-verify` |
-| off | on | `sdd-apply -> ein-architect -> sdd-verify` |
-| on | on | `sdd-apply -> ein-cleaner -> ein-architect -> sdd-verify` |
-
-SDD wiring must reuse the same subagents as direct existing-code requests. It must not create SDD-specific Cleaner or Architect implementations.
-
-Failures are explicit. A blocked or failed enabled subagent prevents verification from claiming a complete workflow unless the user deliberately disables or resolves it.
-
-## Milestone 1: Pi Subagents (Deterministically Accepted)
-
-**Outcome:** Cleaner and Architect work as named internal Pi subagents, can inspect existing code, and participate independently in SDD. Packaged deterministic acceptance is complete; live credentialed semantic smoke is optional evidence and does not reopen this milestone.
-
-### Cleaner Workflow
-
-Cleaner improves maintainability without changing product behavior. It supports two modes inside Pi: read-only audit and bounded improvement.
-
-```text
-scope request
-  -> deterministic evidence
-  -> semantic audit
-  -> bounded plan
-  -> optional writes
-  -> focused verification
-  -> progress update
-```
-
-#### Audit
-
-Cleaner should:
-
-- validate the project root and requested scope;
-- discover relevant language and test tooling;
-- collect deterministic evidence before semantic inspection or planning;
-- collect available coverage, complexity, CRAP, and duplication evidence;
-- inspect naming, responsibility, coupling, dead code, readability, and semantic duplication;
-- distinguish measured facts from agent judgment;
-- rank findings by evidence, risk, and likely value;
-- report unsupported or missing evidence honestly.
-
-Audit performs no source writes.
-
-#### Improve
-
-Cleaner may improve code only after it has a bounded scope and plan. It should:
-
-- preserve observable behavior;
-- own an exact file set for the run;
-- reject stale evidence or changed preconditions;
-- avoid files outside the approved scope;
-- make small, reviewable changes;
-- run focused checks and project-required verification;
-- report incomplete or failed verification rather than claiming success;
-- retain enough recovery information for the bounded write set.
-
-Cleaner must not add product features, redesign architecture, or expand the requested scope silently.
-
-#### Existing-Code Scope
-
-Users can ask Cleaner to inspect a directory, module, changed-file set, feature boundary, or another explicit scope from inside Pi. Cleaner rejects ambiguous roots and unbounded requests before collecting expensive evidence or writing files.
-
-#### Progress and Freshness
-
-Cleaner keeps a lightweight project-local progress record containing:
-
-- reviewed scope;
-- source-state fingerprint;
-- important findings and disposition;
-- completed improvements;
-- verification evidence;
-- freshness or invalidation state.
-
-Fresh areas may be skipped on later broad audits. Changed or explicitly requested areas are reviewed again. The progress record is an internal efficiency aid, not a public API.
-
-#### Optional Teaching
-
-Cleaner can explain significant improvements when teaching is enabled. Teaching output should focus on transferable reasoning, avoid repeating recorded lessons, and never alter execution or safety decisions.
-
-### Architect Workflow
-
-Architect v1 is read-only. It audits, plans, and validates architecture without modifying source files.
-
-```text
-scope request
-  -> CodeGraph and repository facts
-  -> architectural interpretation
-  -> findings or plan
-  -> read-only validation
-```
-
-Architect should inspect:
-
-- module and package boundaries;
-- dependency direction and cycles;
-- high-level policy coupled to low-level details;
-- encapsulation and information hiding;
-- accidental public surfaces;
-- ownership and responsibility boundaries;
-- invariants that a proposed change must preserve;
-- useful property-test suggestions such as round trips, idempotence, ordering, conservation, and boundary constraints.
-
-Every architectural claim must trace to graph or repository facts. Architect labels inference, uncertainty, and missing evidence separately.
-
-Architect must gather reusable graph and repository facts before model interpretation. It must not spend model context reconstructing facts that internal tools can calculate, and it must not treat graph topology or metric thresholds as substitutes for semantic architectural judgment.
-
-Architect plans should describe proposed boundaries, affected modules, migration order, risks, invariants, verification, and unresolved decisions. Validation checks plan consistency and evidence freshness only. Architect v1 has no path that writes or reorganizes source code.
-
-### Pi Definition of Done
-
-- Pi discovers and routes to both named subagents.
-- Natural-language requests and optional controls produce the same workflows.
-- Automatic participation follows the persisted onboarding profile, while session overrides remain independent.
-- Cleaner audit works on explicit existing-code scope.
-- Cleaner improve enforces bounded writes, freshness, and verification.
-- Cleaner progress and optional teaching are usable without affecting safety.
-- Architect audits, plans, and validates with traceable graph facts.
-- Architect performs no source mutation.
-- Cleaner and Architect collect computable evidence before model interpretation.
-- Deterministic-first execution measurably avoids redundant model analysis without dropping required semantic inspection.
-- All four SDD toggle combinations follow the exact sequence table.
-- Representative packaged Pi scenarios prove behavior, cancellation, failure reporting, and resume paths without requiring model credentials.
-
-## Milestone 2: Stabilize Provider-Neutral Continuity
-
-**Outcome:** Users continue work between fresh native Pi and Claude sessions through a bounded neutral checkpoint. Finish and verify the current continuity units without expanding them into Cleaner/Architect parity.
-
-Continuity derives current project facts, persists a privacy-safe checkpoint, and injects a bounded resume brief; it never converts transcripts or claims exact session equivalence. The terminal app's **Continue in Pi/Claude** action belongs to this milestone and is distinct from native Resume.
-
-Pi deterministic acceptance has passed. Cleaner and Architect parity remains deferred until after installer and launcher work. When resumed, it must add only the minimum Claude-native assets required for:
-
-- named Cleaner and Architect access;
-- equivalent natural-language behavior;
-- equivalent optional controls where Claude supports them;
-- independent disabled-by-default activation;
-- the same SDD order and skip behavior;
-- equivalent scope, freshness, write, and verification safety;
-- equivalent progress and failure visibility.
-
-Shared Cleaner and Architect logic remains singular. Claude-specific prompts, hooks, packaging, or runtime glue may differ, but they must not redefine workflow semantics.
-
-Parity means equivalent user-visible outcomes on representative packaged scenarios. It does not require identical private session mechanisms or runtime internals.
-
-Do not extract a generic adapter layer during this milestone. If a third runtime is pursued later and creates concrete duplication, extract the smallest abstraction from the proven Pi and Claude seams.
-
-## Milestone 3: Installer Control Plane
-
-**Outcome:** The installer manages Pi, Claude, shared EIN assets, updates, diagnosis, and removal as one coherent, recoverable lifecycle.
-
-Keep the existing TypeScript/Bun installer and improve it incrementally; do not start a Go rewrite while lifecycle contracts are still moving:
-
-- one authoritative inventory of managed assets and ownership;
-- deterministic plans for install, update, repair, selective uninstall, and full uninstall;
-- dry-run that matches the exact planned transaction;
-- sibling staging before replacement;
-- checksum and structure verification before commit;
-- atomic replacement followed by byte and metadata readback;
-- durable journal and persistent backups across interruption;
-- complete rollback of the affected transaction boundary;
-- doctor that separates observation, recommendation, and mutation;
-- selective removal that preserves unrelated runtimes and user-owned files;
-- independent release signatures in addition to SHA-256;
-- preflight and post-publication verification for supported targets.
-
-A future Go installer-only spike becomes eligible if the downloadable asset remains above 30 MiB, cold `--version` or dry-run p95 remains above 200 ms, Windows becomes committed and Bun misses acceptance, or repeated filesystem/signal defects persist. Cut over only if the spike preserves these contracts, clearly deletes the replaced TypeScript command, and meets native distribution and latency goals.
-
-### Installer Definition of Done
-
-- Pi-only, Claude-only, combined, repair, update, and removal use one planner.
-- Every managed write has an owner, staged artifact, verification, readback, and rollback source.
-- Fault injection proves recovery from acquisition, staging, replacement, readback, and journal failures.
-- Doctor reports coherent state from managed inventory, not markers alone.
-- Selective uninstall proves the retained runtime still works.
-- Published assets pass signature, checksum, lifecycle, and rollback verification.
-
-## Milestone 4: Launcher Last
-
-**Outcome:** The launcher presents stable project and managed-state information after the underlying contracts are proven.
-
-The launcher remains a consumer, not the owner of subagent logic, runtime execution, or installer transactions. It may later show project configuration, activation status, subagent progress, sessions, updates, and installer health. The earlier continuity milestone may add only the bounded **Continue in Pi/Claude** action and its isolation fix; that exception does not authorize a general launcher redesign.
-
-The legacy renderer remains the production path. OpenTUI migration stays stopped because startup and distribution costs failed the approved gates. This roadmap authorizes no renderer migration, new renderer dependency, or reopening of that decision.
-
-Go remains only a measured launcher fallback for demonstrated startup, terminal, or platform failures. Any such spike must preserve the current controller and legacy renderer boundaries.
-
-### Launcher Definition of Done
-
-- Launcher status matches authoritative project and installer state.
-- Actions delegate to their owning runtime or installer boundary.
-- Configuration writes validate, apply atomically, and read back.
-- Direct Pi and Claude launch paths remain usable without the launcher.
-- The legacy renderer remains shipped and supported.
-- Launcher-specific E2E covers the happy path, runtime and session errors, unavailable or incomplete project state, and freshness invalidation: changing relevant code after a verification must show the previous evidence as stale rather than inherited. Installer E2E is a separate prerequisite signal and never substitutes for this coverage.
-- Release evidence stays honest at the boundary: package version, source marker, changelog, tag, workflow outputs, and checksums agree before publishing, and any manual or platform gap is recorded rather than inferred.
-
-*(These last two gates were absorbed from the retired `roadmap-beta.md` on 2026-08-17; they were the only criteria there without an equivalent here.)*
-
-## Milestone 5: Deferred Claude Cleaner/Architect Parity
-
-**Reframed 2026-08-17.** This milestone previously assumed Claude would mirror Pi's automatic participation. It will not. The project profile in `.pi/ein/agents.json` states a **quality preference for the project**; running automatic passes is a **capability-and-cost decision of the runtime**. Conflating the two is what made "mirror Pi" look obvious and be wrong: Claude is the relief runtime, reached precisely when budget is exhausted, so spending it on optional quality passes inverts its purpose.
-
-**Decided:**
-
-- **Automatic participation is OFF in Claude regardless of the project profile.** Not a default to be overridden per project — a property of the runtime.
-- **The divergence is declared, never silent.** Done: the participation profile is now in the settings catalogue, and Claude reports it as `unsupported` with the reason and the alternative, in both the session block and `status`. Not running the pass is fine; not saying so is what would change a change's standard mid-handoff without anyone noticing.
-- **Porting waits for field evidence.** Cleaner and Architect have not yet been exercised on real work. Porting an unproven workflow is speculative work, and the measured cost says it can wait rather than that it is cheap to skip: the logic is ~1,770 lines of pure shared TypeScript that Claude's CLI already imports from, and the Pi-specific part is ~138 lines of thin tool wrappers. The build is not the expensive part; running it is.
-- **When ported, invocation is explicit only** — a command or a direct request, never automatic SDD participation.
-
-**Outcome once resumed:** Claude can invoke the proven Pi behavior on request, without a second engine or a generic provider framework.
-
-- Pi remains the reference behavior.
-- Claude passes the same user-visible scenario matrix.
-- Claude uses the shared Cleaner and Architect implementations.
-- Runtime-specific assets stay small and isolated.
-- No provider registry or future-runtime contract is introduced.
-- Packaged Pi and Claude installations preserve their isolated launch paths.
-
-## Reviewable Work Units
-
-Each work unit should deliver one observable behavior with its tests, fixtures, documentation, runtime evidence, and rollback boundary. Keep authored changes below 400 changed lines where practical, and split larger work by behavior rather than file type.
-
-Every unit records:
-
-- the exact user-visible outcome;
-- explicit scope and non-goals;
-- focused automated verification;
-- at least one representative runtime scenario;
-- failure and rollback behavior;
-- changed-line count and a split decision when over budget.
-
-Do not combine Cleaner, Architect, SDD wiring, Claude parity, installer transactions, or launcher presentation into one cross-cutting unit.
-
-## Prompt Cost Program (decided 2026-08-17)
-
-The orchestrator prompt is the system's largest fixed cost, paid on every turn of every session — 45,321 bytes when this program opened, 42,693 today. `MANIFIESTO.md` § 004 allows it to grow only when something equivalent is retired, and that rule was unenforceable without a ceiling.
-
-Measured before starting: roughly one third of the prompt looked addressable, not two thirds. Two of the three levers then shrank on contact with the code, and the floor turned out to be ~42,700 bytes rather than the ~30,000 first projected. The lessons that survive that measurement now live in `MANIFIESTO.md` § 004; the spike itself was retired once its levers were executed or discarded.
-
-**Adopted, in order:**
-
-1. **Ceiling — done.** `tests/prompt-budget.test.ts` freezes the baseline for the orchestrator and for the core agents combined, and the numbers came down three times as prose was retired. Raising either is a deliberate, reviewable act; the agent budget exists so the orchestrator cannot slim down by pushing prose into the executors.
-2. **Per-phase instruction package — attempted, and revised by the attempt.** The premise did not survive contact: nearly every phase-related paragraph in the orchestrator addresses the *parent* ("pass this runtime", "build a scope packet", "delegate one group at a time"), not the executor. What an executor needs already lives in its agent `.md`, which is paid per delegation rather than per turn — it was correctly placed all along. What the attempt did surface is a smaller, sharper lever: **a value that depends on the agent and nothing else is a table, not a decision.** `ensurePhaseRuntime` now sets `maxRuntimeMs` deterministically, retiring the prose that asked the parent to remember it, and the envelope schema was deduplicated against the seven agents that already carry it. Result: 45,321 → 43,597 bytes (−3.8%), not the projected ~11,000. One removal had to be reverted: the strict-TDD forwarding paragraph is load-bearing because `readDelegationTddHint` detects strict mode by matching `STRICT TDD MODE IS ACTIVE` in the task text; without it a strict apply gets a turn cap that aborts it mid-cycle. The suite caught it.
-
-   **Closed.** ≤ 34,500 is not reachable this way, and the levers that remained do not close the gap either: the generated subagent inventory was discarded (composing the table from frontmatter removes hand-maintenance but not cost — it must stay in the prompt to route — and its `When` column is the only enforcement of three prohibitions), and the actionable-`fix` work shipped. The floor without rewriting the routing ladder is 42,693 bytes.
-3. **Actionable diagnostics — done; the rest of the envelope is low value.** Shipped: every blocking state that the router already computes now carries the concrete action that clears it, naming the command of the runtime it is spoken in. Not shipped, and deliberately last: one JSON document per invocation with prose on stderr, plus a fuller exit-code contract. On inspection `check` already exits non-zero on errors, which was the part worth having, so what remains is mostly cosmetic.
-4. **Artifact graph plus a declared fast lane.** Per-artifact `ready | blocked | done` derived from file existence, blocking reduced to what has a real mechanical consumer downstream, and two internal lanes (`micro`, `standard`) declared by the human when the change opens. These are one change, not two: the fast lane needs the state model, and the state model only pays off through the fast lane. No pre-plan deterministic signal exists to pick the lane automatically — `reviewForecast` measures churn already committed and `SddBudgetStatus.allocated` only exists once `tasks.md` does — so the human declares it. `verify` and `close` stay hard gates in both lanes.
-
-**Rejected, so the discussion does not reopen:** user-definable workflow schemas (a generic platform, § 008); multi-repo planning stores; 30+ assistant coverage (§ 003 — two runtimes, one discipline); default-on telemetry; "actions, not phases" in its full form, which upstream can afford only because it has no TDD or evidence gate; and upstream's model economy, which recommends high reasoning across every phase and contradicts § 001 at the root.
-
-**Dropped 2026-08-17:** an amendment path for in-flight changes (redoing a phase is rare enough that a dedicated tool would not earn its keep) and distilling domain specs from an existing repository at adoption time (a new product surface, not parity or cost). The per-change status board folds into the launcher milestone, where it overlaps with the task panel below rather than standing on its own.
-
-**Archived, not rejected:** rewriting the routing ladder (10,295 bytes, near a quarter of the prompt). It is the only remaining lever of size, but it means writing shorter coordination prose rather than relocating it — and this program demonstrated twice that load-bearing rules only reveal themselves when broken. Not worth the cost today.
-
-Anecdote retirement is not a lever: measured at ~3% of the prompt, it is hygiene performed while touching a section, never its own unit.
-
-## Declared Fast Lane — built 2026-08-17
-
-**Evidence that justified it:** of the 44 archived changes, 42 used all seven phases; 43 carry `map.md` and 43 carry `tasks.md`. The ceremony was paid every time.
-
-**Shipped as five phases, not three.** `scope.md` holds the spec-delta declaration, and without it close is blocked (`spec-delta-unresolved`); close itself stays a hard gate. So `micro` is `scope → design → apply → verify → close`, skipping `map` and `tasks` — which are the two phases that read code and the slowest after apply. Letting the declaration also live in `design.md` would reach four phases and was rejected: a second location for one contract costs more later than the phase it saves.
-
-**Problem:** one path of seven phases for every change, including a one-line one. `MANIFIESTO.md` § 008 names that as a non-goal, and it is the friction that started this program.
-
-**Shape:** two lanes the human declares when the change opens — `micro` (one planning artifact, apply, verify) and `standard` (the current seven). The lane is stored in the change directory and read by the deterministic router, which already decides the next phase by asking which artifact files exist. The lane changes the list it walks, not the mechanism.
-
-**Why the human declares it:** no deterministic pre-plan signal exists. `reviewForecast` measures churn already committed, and `SddBudgetStatus.allocated` only exists once `tasks.md` does — both arrive after the point of decision. Inventing a heuristic there would promote weak evidence into a conclusion, which § 002 forbids.
-
-**Not relaxed:** verify and close stay hard gates in both lanes. `micro` is less paperwork, not less checking.
-
-**Known risk:** `micro` becoming the default by habit while the standard lane rots. Mitigated by the human declaring it and by the lane being visible in `status` — a habit risk, not a technical one.
-
-## Pi Task Panel
-
-Adopt `@juicesharp/rpiv-todo` as the in-session task panel: live overlay with status and progress, surviving reload and compaction.
-
-**Hard condition:** the panel is a **projection** of `tasks.md`, never a second source of truth. It reads from the deterministic router, which already computes the pending group; it never writes. Two writable stores for the same state would diverge, and § 005 puts the change's state on disk.
-
-**Cautions:** a third-party package on the interface's critical path, and Pi-only — so it widens the runtime gap just as the existing ones close. Evaluate the dependency before adopting it.
-
-## Next Work Units
-
-The prompt-cost program above is closed. Next: the declared fast lane, then the Pi task panel, then installer control-plane units beginning with the canonical read-only install inventory and exact dry-run. WU2 makes real install execution consume that plan. Launcher improvements follow.
-
-Claude Cleaner and Architect parity is not present today. It begins only in the bounded parity unit after the shared continuity contracts and provider-native switching paths are proven.
-
-## Measurable Roadmap Definition of Done
-
-- Each milestone passes its listed Definition of Done before the next starts.
-- Packaged deterministic Pi acceptance is complete; optional credentialed semantic smoke remains separate.
-- Provider-neutral continuity passes its packaged matrix before Cleaner and Architect Claude parity is claimed.
-- Automatic participation follows the persisted onboarding profile and remains independently overridable per session.
-- Cleaner writes stay bounded and behavior-preserving.
-- Architect v1 remains read-only.
-- Deterministic tools remain internal implementation details.
-- Deterministic evidence precedes model reasoning wherever facts are computable.
-- Token savings never justify replacing necessary semantic judgment with weak heuristics.
-- No speculative provider or capability platform appears in product surfaces.
-- Installer lifecycle claims include failure-injection and packaged evidence.
-- Launcher work preserves the OpenTUI STOP and legacy renderer.
-
-## Remaining Decisions
-
-The owning work units still need evidence for:
-
-- the location, retention, freshness, and version-control policy for progress records;
-- Architect's safe programmatic CodeGraph adapter, plus the minimum graph facts and confidence labels for findings;
-- ecosystem-specific property-test suggestions;
-- the independent signing technology and trust-root rotation policy.
-
-These future decisions do not claim the CodeGraph adapter or ecosystem-specific guidance is implemented. They cannot change the Pi-first order, expose external subagent surfaces, bypass the selected project profile, authorize Architect mutation, or reopen the renderer migration.
-
-## Deterministic Cleaner Collector Program
-
-The collector program was implemented as direct, independently reviewable work units in this order:
-
-1. Common evidence contracts plus safe JavaScript/TypeScript, Bun, Vitest, Vue, and Astro detection.
-2. Fresh test-result collection from Bun JUnit and Vitest JSON/JUnit.
-3. Common LCOV coverage normalization for Bun and Vitest.
-4. Function-level JavaScript/TypeScript complexity with Vue script-block and Astro frontmatter/script extraction.
-5. CRAP derived only from exactly bound fresh complexity and coverage.
-6. Structural duplication spike and adapter, evaluating jscpd without adding a dependency until evidence supports it.
-7. Compact Cleaner Audit integration.
-8. Packaged Pi acceptance.
-
-Initial target matrix: plain `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.mts`, `.cts`, and `.tsx`; Vue `.vue`; Astro `.astro`; Bun test/JUnit/LCOV; and Vitest JSON/JUnit/LCOV. Units 1-8 and their packaged deterministic acceptance are complete in Pi. This acceptance does not claim live credentialed semantic smoke or Claude parity.
-
-## Document Authority
-
-This file is the single canonical roadmap for product direction, sequencing, status, and target architecture. Historical roadmaps, proposals, spikes, and archived SDD artifacts preserve evidence of earlier work but do not override it.
+| Integridad de publicación remota | Concordancia de versión, tag, changelog, checksums, firmas y read-back | Cero discrepancias antes de promoción |
+| Edad/uso de alpha | Edad de cada prerelease y uso por Ein frente a proyectos cliente | Expirar o promover alpha; cliente permanece en stable |
+| Separación de rollback | Identificador de artefacto, canal remoto y árbol local afectado | Ningún rollback cruza la frontera equivocada |
+| Éxito de tarea de apply | Tareas del corpus que alcanzan el outcome y pasan su check enfocado | Criterio principal del modelo local |
+| Preguntas/desviaciones de apply | Preguntas al supervisor, decisiones no planificadas y archivos fuera de slice | Detectar plan insuficiente y bloquear promoción |
+| Contexto pico | Máximo contexto observado dentro de apply y verify | Compararlo con el presupuesto del ejecutor local |
+| Promoción de modelo local | Resultado de cada candidato contra corpus, baseline y thresholds congelados | Solo promover después de la comparación completa |
+| Coste fijo del orquestador | Bytes de prosa fija cargados por turno frente a baseline 42.693 | Activar thinning si crece; buscar reducción medida sin mover reglas |
+| Carril verdaderamente ligero | Al menos 10 cambios de una línea, outcome, checks, scope escapes y tiempo de ceremonia | No implementar apply→verify sin OpenSpec si no pasa el gate |
+| Preguntas TDD duplicadas | Número de prompts TDD por cambio y por reanudación | Esperado: una decisión por cambio, no una por sesión |
+| Progreso de subagentes | Estados, secuencias, freshness posterior a resume y terminalidad | Cero estados antiguos como current; cero logs privados |
+| Incidentes de live-refresh | Freeze reproducido en sesiones reanudadas, con ownership clasificado | Separar regresión de Ein, integración y upstream |
+| Ambigüedad de cambio activo | Sesiones con varios cambios sin selección explícita o con TODO arbitrario | Esperado: cero elección implícita |
+| Invariantes de installer UX | Snapshots a 80/120 columnas, matriz de errores, códigos y read-back | TTY/no-TTY equivalentes y sin segunda entrada |
+
+## Baseline medido: prompt y carril ligero
+
+El programa anterior de presupuesto de prompt se conserva como baseline ya
+completado: el orquestador pasó aproximadamente de 45.321 a 42.693 bytes, se
+fijó un ceiling, se intentó y corrigió el paquete por fase, se deduplicó el
+schema de envelopes, se completaron diagnósticos accionables y se construyó el
+carril `micro`. La reescritura completa de la escalera de routing quedó
+archivada por coste y riesgo. Esa historia no se borra ni se convierte en una
+nueva prioridad.
+
+La pregunta de **prompt thinning** se reabre como trabajo medido, no como una
+promesa de poda. El trigger es cualquier crecimiento de la prosa fija del
+orquestador por encima del baseline congelado de 42.693 bytes (o una nueva
+ceremonia que añada coste fijo). El primer target es un experimento acotado que
+reduzca al menos un 5% de esa prosa fija sin trasladarla a los prompts de los
+agentes, romper reglas load-bearing ni aumentar preguntas o desviaciones; si la
+medición demuestra un suelo, se registra el suelo y se detiene. El coste fijo
+cargado en cada turno es distinto de los presets de esfuerzo: estos eligen
+modelo/thinking por agente y no son una forma encubierta de reducir prosa.
+
+El `micro` existente sigue siendo `scope → design → apply → verify → close` y
+mantiene `verify` y `close` como gates. No se afirma que resuelva cambios de una
+línea. La propuesta de un carril verdaderamente no ceremonial
+`apply → verify`, sin crear OpenSpec, queda **aceptada para evaluación**, no
+aprobada para implementación automática. Su gate exige al menos 10 cambios
+reales de una línea: outcome correcto, checks enfocados y verify completos,
+cero escapes de scope, cero pérdida de evidencia/rollback y una reducción de
+ceremonia medida frente a `micro`. Un fallo bloquea la adopción; ningún router
+elige este carril por heurística mientras la evaluación no termine.
+
+## Decisiones de producto
+
+| Propuesta | Decisión | Condición o alcance |
+|---|---|---|
+| Prompt thinning | Aceptada para evaluación | Baseline ya completado; se reabre solo con el trigger y target de coste fijo |
+| Carril verdaderamente ligero | Aceptada para evaluación | Evaluar `apply → verify` sin OpenSpec con el gate de 10 cambios; no está aprobado |
+| Gate posterior a design | Aceptada para evaluación | Una sola approach-check opcional/auto-skippeable antes de tasks; no es implementación aprobada |
+| Entrada pública única `ein` | Aceptada para ejecución | Lifecycle passthrough, naming y shims explícitos, una sola superficie pública |
+| Retirada del segundo menú de installer | Aceptada para ejecución | No duplicar selección ni autoridad; TTY y no-TTY conservan semántica |
+| Orphan modules, archivo OpenSpec y hygiene de downloaded skills | Aplazada con trigger medible | Inventario acotado cuando aparezca un huérfano o una nueva superficie; no abre una prioridad paralela |
+| Separación de project profile y style | Aplazada con trigger medible | Solo si adopción externa o una fricción demostrada exige separar disciplina y estética |
+| Expiración/promoción de alpha | Aceptada para ejecución | Edad/uso, prerelease eligibility y gates de 1B; nunca promoción por intuición |
+
+La tabla conserva decisiones, no las convierte en trabajo simultáneo. Una
+propuesta marcada para evaluación requiere evidencia antes de cambiar el
+contrato. Lo ya completado sigue en la historia aceptada y no se reaudita por
+aparecer aquí.
+
+## Trabajo válido aplazado o detenido
+
+Estos temas no se borran; quedan fuera del programa ejecutable para que no
+compitan con él:
+
+- **Claude Cleaner/Architect parity:** aplazado hasta que el workflow probado
+  en Pi tenga evidencia de uso real. Cuando vuelva, será explícito, disabled by
+  default para participación automática y compartirá el cerebro de Pi.
+- **Pi task panel:** aplazado a una evaluación de dependencia. Si se adopta,
+  será una proyección de `tasks.md` y del router, nunca un store escribible.
+- **Perfil de proyecto y separación de estilo:** aplazados con el trigger de la
+  tabla. La disciplina de ingeniería puede propagarse; la estética de Ein no se
+  impone a proyectos externos.
+- **Design system:** aplazado hasta contar con dos o tres webs reales y
+  patrones repetidos; es otro producto, no una feature del arnés.
+- **Go installer-only spike:** solo elegible si el asset descargable, latencia,
+  Windows o defectos repetidos aportan evidencia suficiente. No se autoriza una
+  reescritura por preferencia.
+- **OpenTUI:** detenido por sus gates de arranque y distribución. No hay nueva
+  dependencia ni migración autorizada.
+- **OpenCode, tercer runtime y provider registry:** explícitamente fuera del
+  roadmap actual. Una abstracción futura exige duplicación concreta y probada.
+- **Reescritura de la escalera de routing:** archivada; solo vuelve si una
+  medición nueva supera el trigger del programa de prompt y justifica su coste.
+- **Smoke semántico con credenciales y decisiones sobre hardware local:**
+  opcionales o posteriores a los evals; no se presentan como evidencia de
+  aceptación ni se compran modelos o GPU a ciegas.
+
+## Decisiones abiertas que conservan su dueño
+
+- La política de ubicación, retención, frescura y versionado de progress
+  records se resuelve donde el estado de ciclo de vida demuestre que hace falta.
+- El adapter seguro de CodeGraph, el conjunto mínimo de facts y las etiquetas de
+  confianza quedan con la futura parity de Architect, no con el Apply Packet.
+- Las sugerencias de property tests siguen siendo específicas de cada ecosistema
+  y no se convierten en una plataforma general.
+- La tecnología de firma y la rotación de trust roots se deciden dentro de 1B
+  con evidencia de CI, no por una suposición de este documento.
+- La geometría final del logo y la política exacta de compatibilidad de shims y
+  nombres conservan una decisión explícita antes de ejecutar sus cambios.
+
+## Límites permanentes
+
+- Pi primero; Claude como relevo; runtimes vanilla aislados.
+- Un único Cleaner y un único Architect compartidos; ningún motor duplicado por
+  runtime.
+- Estado, routing, alcance, freshness y seguridad deterministas cuando puedan
+  serlo; fail-closed ante incertidumbre.
+- Architect de solo lectura hasta una decisión posterior con evidencia.
+- No CLI pública independiente para Cleaner o Architect, no API JSON pública, no
+  plataforma genérica de capacidades y no mutación autónoma entre proyectos.
+- Cada unidad conserva un outcome observable, archivos permitidos, verificación
+  enfocada, evidencia de fallo y frontera de rollback.
+- Publicación remota y ciclo de vida local comparten identidad trazable, nunca
+  una transacción ni una promesa de rollback.
+
+Este archivo sigue siendo la única hoja de ruta canónica. La historia aceptada,
+los aplazamientos y las decisiones se mantienen aquí para que una sesión futura
+no confunda trabajo terminado, trabajo detenido y trabajo que realmente tiene
+prioridad.
