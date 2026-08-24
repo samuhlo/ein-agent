@@ -6,8 +6,8 @@
 // se cablea.
 // =============================================================================
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
 	AgentToolResult,
 	ExtensionAPI,
@@ -30,6 +30,7 @@ import {
 	ensurePhaseRuntime,
 	ensureDelegationAcceptance,
 	ensureParticipantForeground,
+	isSddParticipantMarker,
 	ensurePlanningAcceptance,
 	ensureSddPreflight,
 	gateTddForDelegation,
@@ -161,12 +162,58 @@ import { admitCleanerImprove, applyCleanerImprove, completeCleanerImprove } from
 import type { CleanerBoundedMutationRequestV1, CleanerStateTransitionRecordV1, CleanerVerificationRecordV1 } from "../lib/cleaner-bounded-mutations.ts";
 import type { CleanerFindingV1 } from "../lib/cleaner-read-only-audit.ts";
 import { bindArchitectPlan, collectArchitectEvidence, validateArchitectPlan, type ArchitectEvidence, type BoundArchitectPlan } from "../lib/architect-read-only.ts";
-import { admitSddParticipantCall, clearSddParticipantSession, completeSddParticipantCall, guardSddVerify, participantResultIsUnrecognized, planSddParticipants, sddParticipantCallsAreTracked, type SddParticipant } from "../lib/sdd-participants.ts";
+import { admitSddParticipantCall, clearSddParticipantSession, completeSddParticipantCall, getSddParticipantCall, participantResultIsUnrecognized, planSddParticipants, sddParticipantCallsAreTracked, type SddParticipant } from "../lib/sdd-participants.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const MAX_PI_PARTICIPANT_OUTPUT_BYTES = 1024 * 1024;
+
+type PiParticipantTerminal = Readonly<{
+	status: "complete" | "blocked" | "unavailable";
+	reason?: string;
+}>;
+
+function participantTerminalUnavailable(reason: string): PiParticipantTerminal {
+	return { status: "unavailable", reason };
+}
+
+/**
+ * Recognize only the exact terminal child delivered by the foreground Pi call.
+ * This stays private to the Pi edge: sequencing, source seals, and outcome
+ * transitions remain in `sdd-participants.ts`.
+ */
+function recognizePiParticipantTerminal(input: {
+	toolName: unknown;
+	isError: unknown;
+	details: unknown;
+	agent: string;
+	task: string;
+}): PiParticipantTerminal {
+	if (input.toolName !== "subagent") return participantTerminalUnavailable("unsupported participant delivery");
+	if (input.isError !== false) return participantTerminalUnavailable("participant transport failed");
+	if (!isRecord(input.details) || (input.details.mode !== "single" && input.details.mode !== "workflow") || !Array.isArray(input.details.results) || input.details.results.length !== 1) {
+		return participantTerminalUnavailable("participant terminal result is missing or ambiguous");
+	}
+	const child = input.details.results[0];
+	if (!isRecord(child) || child.agent !== input.agent || child.task !== input.task || typeof child.finalOutput !== "string" || child.finalOutput.trim().length === 0) {
+		return participantTerminalUnavailable("participant terminal child identity or output is missing");
+	}
+	if (Buffer.byteLength(child.finalOutput, "utf8") > MAX_PI_PARTICIPANT_OUTPUT_BYTES) {
+		return participantTerminalUnavailable("participant terminal output exceeds the bounded limit");
+	}
+	const statusLines = child.finalOutput.split(/\r?\n/u).filter((line) => /^\s*status\s*:/u.test(line));
+	if (statusLines.length !== 1) return participantTerminalUnavailable("participant terminal status is missing or ambiguous");
+	const status = /^\s*status\s*:\s*(complete|blocked|unavailable)\s*$/u.exec(statusLines[0]!);
+	if (!status) return participantTerminalUnavailable("participant terminal status is unsupported or ambiguous");
+	if (status[1] === "blocked") {
+		const reason = child.finalOutput.split(/\r?\n/u).find((line) => /^\s*reason\s*:\s*\S/u.test(line))?.replace(/^\s*reason\s*:\s*/u, "").trim();
+		return { status: "blocked", ...(reason ? { reason } : {}) };
+	}
+	return { status: status[1] as "complete" | "unavailable" };
 }
 
 // Intención de entrega del usuario, por sesión. La fija el hook `input` y la
@@ -199,7 +246,6 @@ const shapeDriftWarned = new Set<string>();
 // reconocer la forma del resultado de un participante rastreado, avisa una vez
 // por sesión en vez de perder la evidencia en silencio.
 const participantResultDriftWarned = new Set<string>();
-
 function warnParticipantResultDrift(ctx: ExtensionContext): void {
 	const key = sddPreflightSessionKey(ctx);
 	if (participantResultDriftWarned.has(key)) return;
@@ -870,24 +916,9 @@ export default function einAi(pi: ExtensionAPI): void {
 				return undefined;
 			}
 			const items = collectDelegationItems(event.input);
-			const verify = items.find((item) => item.agent === "sdd-verify");
-			if (verify) {
-				const sessionKey = sddPreflightSessionKey(ctx);
-				if (items.some((item) => item.agent === "sdd-apply")) {
-					const enabled = (["cleaner", "architect"] as const).filter((agent) => readAgentControlStatus(ctx.cwd, sessionKey, agent).enabled);
-					if (enabled.length) return { block: true, reason: `One-shot SDD chain blocked: automatic ${enabled.join(" and ")} participation requires the phase-by-phase loop after apply establishes its bounded scope.` };
-				} else {
-					const changes = listActiveChanges(ctx.cwd).filter((change) => resolveSddStatus(ctx.cwd, change).nextRecommended === "verify");
-					if (changes.length !== 1) return { block: true, reason: "sdd-verify blocked: expected exactly one apply-complete active change." };
-					try {
-						const blocker = guardSddVerify(ctx.cwd, sessionKey, changes[0]!);
-						if (blocker) return { block: true, reason: blocker };
-					} catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
-				}
-			}
 			for (const item of items) {
 				if ((item.agent !== "ein-cleaner" && item.agent !== "ein-architect") || !item.task) continue;
-				if (items.filter((candidate) => (candidate.agent === "ein-cleaner" || candidate.agent === "ein-architect") && candidate.task?.includes("[ein-sdd-participant/v1 ")).length > 1) {
+				if (items.filter((candidate) => (candidate.agent === "ein-cleaner" || candidate.agent === "ein-architect") && isSddParticipantMarker(candidate.task)).length > 1) {
 					return { block: true, reason: "SDD participants must run sequentially, one delegation at a time." };
 				}
 				try {
@@ -974,16 +1005,32 @@ export default function einAi(pi: ExtensionAPI): void {
 	// vacía, timeout en la lectura final) con la fase YA entregada. Sin esto el
 	// orquestador repetía una fase completa y pagaba dos veces.
 	pi.on("tool_result", (event, ctx) => {
-		// R3/R4: `subagent_wait` NUNCA aporta estado de participante (`// 002`,
-		// el texto del hijo viaja por un mensaje custom que Ein no observa); solo
-		// alimenta el canario de deriva si había llamadas de participante en vuelo.
+		// A participant result must arrive on its own foreground `subagent` call.
+		// `subagent_wait` and every other delivery shape are unavailable evidence,
+		// not a reason to leave the coordinator call in flight.
 		if (event.toolName === "subagent_wait") {
 			if (ctx.hasUI && participantResultIsUnrecognized({ toolName: event.toolName, details: event.details, hasTrackedCalls: sddParticipantCallsAreTracked() })) warnParticipantResultDrift(ctx);
+			const tracked = getSddParticipantCall(event.toolCallId);
+			if (tracked) completeSddParticipantCall(ctx.cwd, sddPreflightSessionKey(ctx), event.toolCallId, { status: "unavailable", reason: "background participant delivery is unsupported" });
 			return undefined;
 		}
-		if (event.toolName !== "subagent") return undefined;
+		if (event.toolName !== "subagent") {
+			const tracked = getSddParticipantCall(event.toolCallId);
+			if (tracked) completeSddParticipantCall(ctx.cwd, sddPreflightSessionKey(ctx), event.toolCallId, { status: "unavailable", reason: "unsupported participant delivery" });
+			return undefined;
+		}
 		if (ctx.hasUI && participantResultIsUnrecognized({ toolName: event.toolName, details: event.details, hasTrackedCalls: sddParticipantCallsAreTracked() })) warnParticipantResultDrift(ctx);
-		completeSddParticipantCall(ctx.cwd, event.toolCallId, event.isError, event.content.map((part) => part.type === "text" ? part.text : "").join("\n"), event.details);
+		const tracked = getSddParticipantCall(event.toolCallId);
+		if (tracked) {
+			const terminal = recognizePiParticipantTerminal({
+				toolName: event.toolName,
+				isError: event.isError,
+				details: event.details,
+				agent: tracked.unit,
+				task: tracked.task,
+			});
+			completeSddParticipantCall(ctx.cwd, sddPreflightSessionKey(ctx), event.toolCallId, terminal);
+		}
 		try {
 			const report = acceptTrackedScoutResult(scoutTracking, event.toolCallId, event.details, event.isError, ctx.cwd);
 			if (report) return { isError: false, content: [{ type: "text", text: JSON.stringify(report) }] };
@@ -1068,7 +1115,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: "ein_sdd_participants",
 		label: "Ein SDD Participants",
-		description: "Plan the exact enabled Cleaner/Architect sequence after apply and return only the next bounded participant task. Repeat after each completion before sdd-verify.",
+		description: "Attempt a best-effort advisory Cleaner/Architect pass after apply when enabled and return the next bounded participant task. Report unavailable or blocked audits honestly, then continue to sdd-verify; a source mutation invalidates freshness and must be verified.",
 		parameters: { type: "object", properties: { change: { type: "string" } }, required: ["change"] } as const,
 		async execute(_id, params: { change: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			if (!isSafeChangeName(params.change)) throw new Error("Invalid SDD change name.");
@@ -1603,18 +1650,10 @@ export default function einAi(pi: ExtensionAPI): void {
 			ctx.ui.notify(formatSddNext(report), report.exists && report.blocked.length === 0 ? "info" : "warning");
 			// El reporte lo lee el usuario; el orquestador no lo ve. Sin este
 			// traspaso el comando enseñaba la ruta y no la entregaba a nadie.
-			// Los participantes automáticos tienen su propia puerta determinista
-			// antes de verify: se pregunta AQUÍ para que el orquestador no gaste
-			// una delegación en descubrirlo bloqueándose.
-			let participantsBlocker: string | null = null;
-			if (report.exists && report.change && report.nextRecommended === "verify") {
-				try {
-					participantsBlocker = guardSddVerify(ctx.cwd, sddPreflightSessionKey(ctx), report.change);
-				} catch (error) {
-					participantsBlocker = error instanceof Error ? error.message : String(error);
-				}
-			}
-			const handoff = sddNextHandoff(report, { participantsBlocker });
+			// Automatic Cleaner/Architect participation is advisory: the handoff
+			// always follows the mechanical router, including when an audit is
+			// unavailable, pending, or blocked.
+			const handoff = sddNextHandoff(report);
 			if (handoff) pi.sendUserMessage(handoff);
 		},
 	});

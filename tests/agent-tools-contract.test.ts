@@ -15,9 +15,15 @@
 // con los artefactos correctos y ~120k tokens quemados en reintentos.
 // =============================================================================
 
-import { describe, expect, test } from "bun:test";
-import { readFileSync, readdirSync } from "node:fs";
+import { afterEach, describe, expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import einAiExtension from "../ein-pi/agent/extensions/ein-ai.ts";
+import { clearAgentControlSession, routeAgentControl } from "../ein-pi/agent/lib/agent-controls.ts";
+import { clearSddParticipantSession, planSddParticipants } from "../ein-pi/agent/lib/sdd-participants.ts";
+import { ensureEinGitignore } from "../ein-pi/agent/lib/gitignore.ts";
 import { PI_BUILTIN_TOOLS as PI_CONTRACT_BUILTINS } from "../ein-pi/agent/lib/pi-contract";
 
 const CORE_AGENTS = join(import.meta.dir, "../ein-pi/core/agents");
@@ -26,7 +32,7 @@ const orchestrator = readFileSync(
 	join(import.meta.dir, "../ein-pi/agent/assets/orchestrator.md"),
 	"utf8",
 );
-const einAi = readFileSync(join(EXTENSIONS, "ein-ai.ts"), "utf8");
+const einAiSource = readFileSync(join(EXTENSIONS, "ein-ai.ts"), "utf8");
 
 // Builtins de Pi: FUENTE ÚNICA en lib/pi-contract.ts, que además se contrasta
 // contra la instalación real (tests/pi-contract.test.ts y `ein doctor`). Antes
@@ -117,7 +123,7 @@ describe("contrato de tools de los agentes", () => {
 	});
 
 	test("ein_sdd_close expone reconciliación explícita y conserva force/reason", () => {
-		const closeTool = einAi.match(/name: "ein_sdd_close"[\s\S]*?(?=\n\t\/\/ Sin este tool)/)?.[0] ?? "";
+		const closeTool = einAiSource.match(/name: "ein_sdd_close"[\s\S]*?(?=\n\t\/\/ Sin este tool)/)?.[0] ?? "";
 		expect(closeTool).toContain('reconciliationProfile: { type: "string", enum: ["scope-only-out-of-flow"]');
 		expect(closeTool).toContain('reconciliationEvidencePath: { type: "string"');
 		expect(closeTool).toContain('reason: { type: "string"');
@@ -127,8 +133,8 @@ describe("contrato de tools de los agentes", () => {
 	});
 
 	test("check/audit siguen siendo lectura y no reciben opciones de reconciliación", () => {
-		const checkTool = einAi.match(/name: "ein_sdd_check"[\s\S]*?(?=\n\tpi\.registerCommand\("ein:sdd-status")/)?.[0] ?? "";
-		const auditFlow = einAi.match(/async function handleSddAudit[\s\S]*?(?=\n\tpi\.registerCommand\("ein:sdd-audit")/)?.[0] ?? "";
+		const checkTool = einAiSource.match(/name: "ein_sdd_check"[\s\S]*?(?=\n\tpi\.registerCommand\("ein:sdd-status")/)?.[0] ?? "";
+		const auditFlow = einAiSource.match(/async function handleSddAudit[\s\S]*?(?=\n\tpi\.registerCommand\("ein:sdd-audit")/)?.[0] ?? "";
 		expect(checkTool).not.toContain("reconciliationProfile");
 		expect(checkTool).not.toContain("reconciliationEvidencePath");
 		expect(auditFlow).not.toContain("closeChange(");
@@ -203,5 +209,169 @@ describe("contrato de tools de los agentes", () => {
 			}
 		}
 		expect(mismatches).toEqual([]);
+	});
+});
+
+// Pi-edge harness: exercise the extension hook without exposing a provider-neutral
+// result API. The coordinator remains the owner of sequencing and outcomes.
+type Hook = (...args: unknown[]) => unknown;
+const participantRoots: string[] = [];
+const participantSessions: string[] = [];
+
+function participantFixture(session: string): { cwd: string; task: string; context: Record<string, unknown> } {
+	const cwd = mkdtempSync(join(tmpdir(), "ein-agent-tools-participant-"));
+	participantRoots.push(cwd);
+	participantSessions.push(session);
+	mkdirSync(join(cwd, "src"), { recursive: true });
+	writeFileSync(join(cwd, "src/a.ts"), "export const a = 1;\n");
+	ensureEinGitignore(cwd);
+	execFileSync("git", ["init", "-q"], { cwd });
+	execFileSync("git", ["add", "src/a.ts"], { cwd });
+	execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "base"], { cwd });
+	const change = join(cwd, "openspec/changes/change");
+	mkdirSync(change, { recursive: true });
+	writeFileSync(join(change, "scope.md"), "scope\n");
+	writeFileSync(join(change, "map.md"), "map\n");
+	writeFileSync(join(change, "design.md"), "design\n");
+	writeFileSync(join(change, "tasks.md"), "status: ready\nblocked_by: none\n- [x] 1. done\n");
+	writeFileSync(join(change, "apply-progress.md"), "status: complete\n\n## Files changed\n\n- `src/a.ts`\n");
+	routeAgentControl(cwd, session, "cleaner", "on");
+	routeAgentControl(cwd, session, "architect", "off");
+	const plan = planSddParticipants(cwd, session, "change");
+	if (!plan.next) throw new Error("participant fixture did not produce a Cleaner task");
+	const context = {
+		cwd,
+		hasUI: false,
+		ui: { notify() {}, async confirm() { return false; } },
+		sessionManager: { getSessionId: () => session },
+	};
+	return { cwd, task: plan.next.task, context };
+}
+
+function participantHooks(): Map<string, Hook> {
+	const hooks = new Map<string, Hook>();
+	const pi = {
+		on(name: string, handler: Hook) { hooks.set(name, handler); },
+		registerCommand() {},
+		registerTool() {},
+		sendUserMessage() {},
+	};
+	einAiExtension(pi as never);
+	return hooks;
+}
+
+async function deliverParticipantResult(
+	details: unknown | ((task: string) => unknown),
+	options: { toolName?: string; isError?: boolean; content?: unknown; workflow?: boolean } = {},
+): Promise<{ cwd: string; session: string; result: unknown }> {
+	const session = `pi-edge-${participantSessions.length}`;
+	const fixture = participantFixture(session);
+	const hooks = participantHooks();
+	const toolCall = hooks.get("tool_call");
+	const toolResult = hooks.get("tool_result");
+	if (!toolCall || !toolResult) throw new Error("participant hooks were not registered");
+	const workflowTask = JSON.stringify(fixture.task).replace(/\\n/g, "\n");
+	const input: Record<string, unknown> = options.workflow
+		? { workflowScript: `runs.run("audit", { agent: "ein-cleaner", task: ${workflowTask} })`, async: true, foregroundOnly: false }
+		: { agent: "ein-cleaner", task: fixture.task, async: true, foregroundOnly: false };
+	const callOutcome = await toolCall({ toolName: "subagent", toolCallId: "participant-call", input }, fixture.context);
+	expect(callOutcome).toBeUndefined();
+	expect(input.async).toBe(false);
+	expect(input.foregroundOnly).toBe(true);
+	const result = toolResult({
+		toolName: options.toolName ?? "subagent",
+		toolCallId: "participant-call",
+		isError: options.isError ?? false,
+		content: options.content ?? [],
+		details: typeof details === "function" ? details(fixture.task) : details,
+	}, fixture.context);
+	return { cwd: fixture.cwd, session, result };
+}
+
+afterEach(() => {
+	for (const session of participantSessions.splice(0)) {
+		clearSddParticipantSession(session);
+		clearAgentControlSession(session);
+	}
+	for (const root of participantRoots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+describe("Pi participant terminal edge", () => {
+	test("accepts one foreground direct terminal result", async () => {
+		const { cwd, session } = await deliverParticipantResult((task: string) => ({
+			mode: "single",
+			results: [{ index: 0, agent: "ein-cleaner", task, finalOutput: "status: complete\n" }],
+		}));
+		expect(planSddParticipants(cwd, session, "change").status).toBe("complete");
+	});
+
+	test("accepts one foreground one-child workflow terminal result", async () => {
+		const { cwd, session } = await deliverParticipantResult((task: string) => ({
+			mode: "workflow",
+			results: [{ index: 0, agent: "ein-cleaner", task, exitCode: 0, finalOutput: "status: complete\n" }],
+		}), { workflow: true });
+		expect(planSddParticipants(cwd, session, "change").status).toBe("complete");
+	});
+
+	test("rejects multiple automatic participant children before foreground normalization", async () => {
+		const session = `pi-edge-${participantSessions.length}`;
+		const fixture = participantFixture(session);
+		const hooks = participantHooks();
+		const toolCall = hooks.get("tool_call");
+		if (!toolCall) throw new Error("participant tool_call hook was not registered");
+		const task = JSON.stringify(fixture.task);
+		const input: Record<string, unknown> = {
+			workflowScript: `runs.run("audit-one", { agent: "ein-cleaner", task: ${task} }); runs.run("audit-two", { agent: "ein-cleaner", task: ${task} })`,
+			async: true,
+			foregroundOnly: false,
+		};
+
+		expect(await toolCall({ toolName: "subagent", toolCallId: "participant-call", input }, fixture.context)).toMatchObject({ block: true });
+		expect(input.async).toBe(true);
+		expect(input.foregroundOnly).toBe(false);
+	});
+
+	test.each([
+		["multiple children", (task: string) => ({ mode: "workflow", results: [
+			{ index: 0, agent: "ein-cleaner", task, finalOutput: "status: complete\n" },
+			{ index: 1, agent: "ein-cleaner", task, finalOutput: "status: complete\n" },
+		] })],
+		["missing output", (task: string) => ({ mode: "single", results: [{ index: 0, agent: "ein-cleaner", task }] })],
+		["ambiguous output", (task: string) => ({ mode: "single", results: [{ index: 0, agent: "ein-cleaner", task, finalOutput: "status: complete\nstatus: blocked\n" }] })],
+		["unsupported delivery", (_task: string) => ({ mode: "management", results: [] })],
+	] as const)("returns unavailable for %s", async (_label, details) => {
+		const { cwd, session } = await deliverParticipantResult(details, { content: [{ type: "text", text: "status: complete\n" }] });
+		expect(planSddParticipants(cwd, session, "change").status).toBe("unavailable");
+	});
+
+	test("returns unavailable for background subagent_wait delivery", async () => {
+		const { cwd, session } = await deliverParticipantResult({ mode: "management", results: [] }, { toolName: "subagent_wait", content: [{ type: "text", text: "status: complete\n" }] });
+		expect(planSddParticipants(cwd, session, "change").status).toBe("unavailable");
+	});
+
+	test("returns unavailable for an unsupported result tool", async () => {
+		const { cwd, session } = await deliverParticipantResult({ mode: "single", results: [] }, { toolName: "other_tool" });
+		expect(planSddParticipants(cwd, session, "change").status).toBe("unavailable");
+	});
+
+	test("forwards an explicit blocked audit result and transport errors honestly", async () => {
+		const blocked = await deliverParticipantResult((task: string) => ({
+			mode: "single",
+			results: [{ index: 0, agent: "ein-cleaner", task, finalOutput: "status: blocked\nreason: explicit audit finding\n" }],
+		}));
+		expect(planSddParticipants(blocked.cwd, blocked.session, "change")).toMatchObject({ status: "blocked", blocker: expect.stringContaining("explicit audit finding") });
+		const failed = await deliverParticipantResult((task: string) => ({
+			mode: "single",
+			results: [{ index: 0, agent: "ein-cleaner", task, finalOutput: "status: complete\n" }],
+		}), { isError: true });
+		expect(planSddParticipants(failed.cwd, failed.session, "change").status).toBe("unavailable");
+	});
+
+	test("keeps explicit Cleaner and Architect tools independent", () => {
+		const registered = registeredExtensionTools();
+		expect(registered.has("ein_cleaner_audit")).toBe(true);
+		expect(registered.has("ein_architect_evidence")).toBe(true);
+		expect(einAiSource).toContain('name: "ein_cleaner_audit"');
+		expect(einAiSource).toContain('name: "ein_architect_evidence"');
 	});
 });

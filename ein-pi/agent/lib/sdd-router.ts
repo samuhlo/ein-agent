@@ -895,10 +895,7 @@ export function resolveSddNext(cwd: string, change?: string): SddNextReport {
 //
 // Devuelve `null` cuando no hay nada que continuar (cambio inexistente o flujo
 // terminado): no se inventa trabajo para tener algo que decir.
-export function sddNextHandoff(
-	report: SddNextReport,
-	options: { participantsBlocker?: string | null } = {},
-): string | null {
+export function sddNextHandoff(report: SddNextReport): string | null {
 	if (!report.exists || report.change === null || report.nextRecommended === "done") return null;
 	const phase = report.nextRecommended;
 	// `close` son dos pasos: el agente condensa `summary.md` y después el move
@@ -912,7 +909,6 @@ export function sddNextHandoff(
 		run,
 		"Honor the change's recorded lane and TDD stance, and keep every normal scope, write, and safety requirement.",
 	];
-	if (options.participantsBlocker) lines.push(`Before \`sdd-verify\`: ${options.participantsBlocker}`);
 	if (report.blocked.length > 0) {
 		lines.push("Resolve these router-reported blockers first; never advance past one silently:");
 		for (const item of report.blocked) lines.push(`- ${item}`);

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
@@ -15,6 +16,24 @@ const RESUME_BRIEF = readFileSync(join(ROOT, "ein-pi", "agent", "lib", "continui
 
 function hook(name: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return { hook_event_name: name, session_id: "PRIVATE-ID", transcript_path: "/private/transcript", ...extra };
+}
+
+async function delayed(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+async function runHook(endpoint: string, token: string, prompt: string): Promise<Record<string, unknown>> {
+  const child = Bun.spawn([process.execPath, join(ROOT, "cc-ein", "continuity-runner.ts"), "hook"], {
+    env: { ...process.env, EIN_CONTINUITY_ENDPOINT: endpoint, EIN_CONTINUITY_TOKEN: token },
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  child.stdin.write(JSON.stringify(hook("UserPromptSubmit", { prompt })));
+  child.stdin.end();
+  const stdout = await new Response(child.stdout).text();
+  expect(await child.exited).toBe(0);
+  return JSON.parse(stdout) as Record<string, unknown>;
 }
 
 describe("Claude native continuity hook", () => {
@@ -81,6 +100,32 @@ describe("Claude continuity supervisor", () => {
     const halfClosed = new Promise<void>((resolve) => halfOpen.once("close", resolve)); await ipc.close(); await ipc.close(); await halfClosed; expect(halfOpen.destroyed).toBe(true); expect(existsSync(path)).toBe(false); expect(effects).toBe(0); rmSync(root, { recursive: true, force: true });
   });
 
+  test("returns a bounded preparation result after transport inactivity expires", async () => {
+    const root = mkdtempSync(join(tmpdir(), "ein-ipc-response-")), path = join(root, "control.sock"), token = "c".repeat(64);
+    const ipc = await listenIpc(path, token, async () => { await delayed(1_050); return "prepared-result"; }, 1_000);
+    try {
+      const result = await runHook(path, token, "/ein:handoff to pi");
+      expect(result).toMatchObject({ decision: "block", reason: "prepared-result", suppressOutput: true });
+    } finally { await ipc.close(); rmSync(root, { recursive: true, force: true }); }
+  });
+
+  test("expires a dispatched response once without accepting a late result", async () => {
+    const root = mkdtempSync(join(tmpdir(), "ein-ipc-expiry-")), path = join(root, "control.sock"), token = "d".repeat(64);
+    let completed = false;
+    const ipc = await listenIpc(path, token, async () => { await delayed(200); completed = true; return "late-result"; }, 100, 40);
+    const socket = createConnection(path), chunks: Buffer[] = [], started = Date.now();
+    socket.on("data", (chunk: Buffer) => chunks.push(chunk));
+    const closed = new Promise<void>((resolve) => socket.once("close", () => resolve()));
+    socket.end(`${JSON.stringify({ v: 1, token, event: { kind: "control", action: "to-pi" } })}\n`);
+    try {
+      await closed;
+      expect(Date.now() - started).toBeLessThan(80);
+      expect(Buffer.concat(chunks).toString("utf8")).toBe("");
+      await delayed(250);
+      expect(completed).toBe(true);
+    } finally { await ipc.close(); rmSync(root, { recursive: true, force: true }); }
+  });
+
   test("hands off only successful WU5 briefs to fresh Pi or Claude", async () => {
     for (const target of ["pi", "claude"] as const) {
       const calls: unknown[] = [];
@@ -109,12 +154,19 @@ describe("Claude continuity supervisor", () => {
     expect(COMMAND).toContain("UserPromptSubmit hook");
     for (const name of ["UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "Stop", "PreCompact", "SessionEnd"]) expect(SYNC).toContain(`${name}:`);
     expect(RUNNER).toContain("await lifecycle.shutdown()");
-		expect(RESUME_BRIEF).toContain("continue participant work in Pi");
+		expect(RESUME_BRIEF).not.toMatch(/sddParticipants|participant\s+(?:work|execution)/i);
 		expect(RESUME_BRIEF).not.toMatch(/execute participant|participant execution/i);
   });
 
   test("runs real PTY Claude-to-fresh-provider handoffs and native-exit fallback", async () => {
     const root = mkdtempSync(join(tmpdir(), "ein-claude-continuity-")), bin = join(root, "bin"), runner = join(ROOT, "cc-ein", "continuity-runner.ts");
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    execFileSync("git", ["config", "user.email", "fixture@example.invalid"], { cwd: root });
+    execFileSync("git", ["config", "user.name", "Fixture"], { cwd: root });
+    writeFileSync(join(root, ".gitignore"), "/.ein/continuity.json\n");
+    writeFileSync(join(root, "fixture.txt"), "fixture\n");
+    execFileSync("git", ["add", "."], { cwd: root });
+    execFileSync("git", ["commit", "-qm", "fixture"], { cwd: root });
     mkdirSync(bin);
     const stub = `#!/usr/bin/env bun
 import { basename } from "node:path";
@@ -134,7 +186,7 @@ if (process.env.EIN_CONTINUITY_ENDPOINT) {
     for (const provider of ["pi", "claude"]) { const path = join(bin, provider); writeFileSync(path, stub); chmodSync(path, 0o755); }
     const execute = async (mode: "handoff" | "resist-handoff" | "signal" | "exit", target = "pi"): Promise<{ code: number; output: string }> => {
       let output = ""; const terminal = new Bun.Terminal({ data: (_terminal, bytes) => { output += new TextDecoder().decode(bytes); } });
-      const child = Bun.spawn([process.execPath, runner, "supervise", "-c", "--resume", "hook"], { cwd: ROOT, env: { ...process.env, HOME: root, CLAUDE_CONFIG_DIR: join(root, "claude-config"), EIN_PI_AGENT_HOME: join(root, "pi-agent"), ENGRAM_DATA_DIR: "/hostile/source", PATH: `${bin}:${process.env.PATH ?? ""}`, EIN_TEST_RUNNER: runner, EIN_TEST_MODE: mode, EIN_TEST_TARGET: target }, terminal });
+      const child = Bun.spawn([process.execPath, runner, "supervise", "-c", "--resume", "hook"], { cwd: root, env: { ...process.env, HOME: root, CLAUDE_CONFIG_DIR: join(root, "claude-config"), EIN_PI_AGENT_HOME: join(root, "pi-agent"), ENGRAM_DATA_DIR: "/hostile/source", PATH: `${bin}:${process.env.PATH ?? ""}`, EIN_TEST_RUNNER: runner, EIN_TEST_MODE: mode, EIN_TEST_TARGET: target }, terminal });
       const signalTimer = mode === "signal" ? setInterval(() => { if (output.includes("SOCKET:")) { clearInterval(signalTimer); child.kill("SIGTERM"); } }, 5) : undefined; let timer: ReturnType<typeof setTimeout> | undefined;
       try { const code = await Promise.race([child.exited, new Promise<number>((_, reject) => { timer = setTimeout(() => reject(new Error(output)), 4000); })]); return { code, output }; }
       finally { if (timer) clearTimeout(timer); if (signalTimer) clearInterval(signalTimer); if (child.exitCode === null) child.kill(); terminal.close(); }

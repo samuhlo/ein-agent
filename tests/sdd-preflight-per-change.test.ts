@@ -18,7 +18,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	collectSddPreflightPreferences,
+	ensureParticipantForeground,
 	ensureSddPreflight,
+	isSddParticipantMarker,
 	renderSddPreflightPrompt,
 } from "../ein-pi/agent/lib/sdd-preflight";
 import {
@@ -87,6 +89,47 @@ function sandbox() {
 		cleanup: () => rmSync(cwd, { recursive: true, force: true }),
 	};
 }
+
+const PARTICIPANT_MARKER =
+	"[ein-sdd-participant/v1 passage=run unit=ein-cleaner slice=slice range=0-1 state=seal]";
+
+describe("automatic participant foreground preflight", () => {
+	test("forces foreground execution for a direct reduced participant call", () => {
+		const input: Record<string, unknown> = {
+			agent: "ein-cleaner",
+			task: `${PARTICIPANT_MARKER}\nRun the bounded audit.`,
+			async: true,
+			foregroundOnly: false,
+		};
+
+		expect(isSddParticipantMarker(input.task)).toBe(true);
+		expect(ensureParticipantForeground(input)).toBe(true);
+		expect(input.async).toBe(false);
+		expect(input.foregroundOnly).toBe(true);
+	});
+
+	test("forces foreground execution for a one-child workflow call", () => {
+		const input: Record<string, unknown> = {
+			workflowScript: `runs.run("audit", { agent: "ein-cleaner", task: "${PARTICIPANT_MARKER}" })`,
+			async: true,
+			foregroundOnly: false,
+		};
+
+		expect(ensureParticipantForeground(input)).toBe(true);
+		expect(input.async).toBe(false);
+		expect(input.foregroundOnly).toBe(true);
+	});
+
+	test("does not classify an embedded receipt-shaped marker as a participant call", () => {
+		const task = `legacy receipt context: ${PARTICIPANT_MARKER}`;
+		const input: Record<string, unknown> = { task, async: true };
+
+		expect(isSddParticipantMarker(task)).toBe(false);
+		expect(ensureParticipantForeground(input)).toBe(false);
+		expect(input.async).toBe(true);
+		expect(input.foregroundOnly).toBeUndefined();
+	});
+});
 
 describe("B — el carril se pregunta en el preflight", () => {
 	test("la respuesta `micro` llega a las preferencias", async () => {

@@ -4,7 +4,6 @@ import {
 	CONTINUITY_CHECKPOINT_LIMITS,
 	deriveContinuityCheckpoint,
 	parseContinuityCheckpoint,
-	withSddParticipants,
 	type ContinuityCheckpointV1,
 	type ContinuityCheckpointFacts,
 } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
@@ -44,8 +43,8 @@ function derive(projectState = state(), facts: ContinuityCheckpointFacts = FACTS
 	return deriveContinuityCheckpoint(projectState, facts);
 }
 
-function resign(checkpoint: ContinuityCheckpointV1): ContinuityCheckpointV1 {
-	const { revision: previous, ...content } = checkpoint;
+function resign<T extends object>(checkpoint: T): T & { revision: string } {
+	const { revision: previous, ...content } = checkpoint as T & { revision?: string };
 	void previous;
 	return { ...checkpoint, revision: `sha256:${createHash("sha256").update(JSON.stringify(content)).digest("hex")}` };
 }
@@ -119,7 +118,7 @@ describe("continuity checkpoint derivation", () => {
 	});
 });
 
-	describe("continuity checkpoint parser", () => {
+describe("continuity checkpoint parser", () => {
 	test("rejects malformed, extended, unsafe, and tampered input without throwing", () => {
 		const result = derive();
 		if (!result.ok) throw new Error("fixture derivation failed");
@@ -146,29 +145,22 @@ describe("continuity checkpoint derivation", () => {
 		for (const checkpoint of cases) expect(parseContinuityCheckpoint(checkpoint)).toEqual({ ok: false, reason: "invalid-checkpoint" });
 	});
 
-	test("reads v1 unchanged and strictly canonicalizes bounded participant v2 evidence", () => {
-		const result = derive(); if (!result.ok) throw new Error("fixture derivation failed");
-		expect(parseContinuityCheckpoint(result.checkpoint)).toEqual(result);
-		expect(parseContinuityCheckpoint(resign({ ...result.checkpoint, version: 2, sddParticipants: null })).ok).toBeTrue();
-		const participants = { change: "continuity", applyId: "c".repeat(64), scopeId: "d".repeat(64), beforeStateRef: REF, order: ["ein-cleaner", "ein-architect"] as const, cleaner: { status: "complete" as const, observedStateRef: REF, afterStateRef: OLD_REF }, architect: { status: "blocked" as const, observedStateRef: OLD_REF } };
-		const upgraded = withSddParticipants(result.checkpoint, participants); expect(upgraded.ok).toBeTrue(); if (!upgraded.ok) return;
-		expect(upgraded.checkpoint).toMatchObject({ version: 2, sddParticipants: participants });
-		expect(parseContinuityCheckpoint(JSON.stringify(upgraded.checkpoint))).toEqual(upgraded);
-		for (const invalid of [
-			{ ...participants, applyId: "session_id=private" },
-			{ ...participants, order: ["ein-architect", "ein-cleaner"] },
-			{ ...participants, architect: { ...participants.architect, observedStateRef: REF } },
-		]) expect(withSddParticipants(result.checkpoint, invalid as typeof participants).ok).toBeFalse();
-	});
+	test("serializes only generic continuity fields and rejects participant-bearing versions", () => {
+		const result = derive();
+		if (!result.ok) throw new Error("fixture derivation failed");
+		expect(Object.keys(result.checkpoint)).toEqual([
+			"version", "revision", "mode", "change", "stateRef", "capturedAt", "objective", "completed", "nextAction",
+			"unresolvedDecisions", "changedPaths", "verification", "warnings",
+		]);
+		expect(result.checkpoint.version).toBe(1);
+		expect(result.checkpoint).not.toHaveProperty("sddParticipants");
+		expect(JSON.stringify(result.checkpoint)).not.toContain("sddParticipants");
+		expect(parseContinuityCheckpoint(JSON.stringify(result.checkpoint))).toEqual(result);
+		expect(parseContinuityCheckpoint(JSON.stringify({ ...result.checkpoint, sddParticipants: null }))).toEqual({ ok: false, reason: "invalid-checkpoint" });
 
-	// R4/T6: the validator accepts the new sdd-scope-v1 seal (minted by sdd-participants.ts) in
-	// addition to the legacy git-v1 seal, on all four participant seal fields.
-	test("accepts sdd-scope-v1 scope seals on all four participant fields", () => {
-		const result = derive(); if (!result.ok) throw new Error("fixture derivation failed");
-		const SCOPE_A = `sdd-scope-v1:sha256:${"1".repeat(64)}`, SCOPE_B = `sdd-scope-v1:sha256:${"2".repeat(64)}`;
-		const participants = { change: "continuity", applyId: "c".repeat(64), scopeId: "d".repeat(64), beforeStateRef: SCOPE_A, order: ["ein-cleaner", "ein-architect"] as const, cleaner: { status: "complete" as const, observedStateRef: SCOPE_A, afterStateRef: SCOPE_B }, architect: { status: "blocked" as const, observedStateRef: SCOPE_B } };
-		const upgraded = withSddParticipants(result.checkpoint, participants); expect(upgraded.ok).toBeTrue(); if (!upgraded.ok) return;
-		expect(upgraded.checkpoint.sddParticipants?.beforeStateRef).toMatch(/^sdd-scope-v1:sha256:[a-f0-9]{64}$/);
-		expect(parseContinuityCheckpoint(JSON.stringify(upgraded.checkpoint))).toEqual(upgraded);
+		const legacy = resign({ ...result.checkpoint, version: 2 as const, sddParticipants: null });
+		expect(parseContinuityCheckpoint(legacy)).toEqual({ ok: false, reason: "invalid-checkpoint" });
+		expect(parseContinuityCheckpoint(JSON.stringify(legacy))).toEqual({ ok: false, reason: "invalid-checkpoint" });
+		expect(parseContinuityCheckpoint({ ...result.checkpoint, version: 3 as const, sddParticipants: null })).toEqual({ ok: false, reason: "invalid-checkpoint" });
 	});
 });

@@ -3,13 +3,19 @@
 Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
-`installer-v*` (binarios del instalador vía GitHub Actions).
 
 ## [0.82.0-alpha.1] - 2026-08-24
 
 ### Added
 
 - Preparación de publicación alpha determinista del instalador y bootstrap exacto para Pi Ein.
+`installer-v*` (binarios del instalador vía GitHub Actions).
+
+## [0.81.1] - 2026-08-22
+
+### Changed
+
+- **El instalador pasa a `0.81.1`.** El paquete y la versión que expone el ejecutable quedan alineados con la release publicada `installer-v0.81.1`.
 
 ## [0.81.0] - 2026-08-20
 
