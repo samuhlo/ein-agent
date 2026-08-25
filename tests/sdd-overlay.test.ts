@@ -105,6 +105,17 @@ describe("overlay del cambio activo", () => {
 		expect(lines[4]).not.toContain("✓");
 	});
 
+	test("las filas prefieren el título de grupo y conservan el checkbox como fallback", () => {
+		const taskItems: SddTaskItem[] = [
+			{ id: "1.1", title: "Long checkbox sentence for router semantics", groupTitle: "Prerelease-aware selection", done: false },
+			{ id: "2.1", title: "Fallback checkbox title", done: false },
+		];
+		const body = renderSddOverlay(status({}, taskItems)).join("\n");
+		expect(body).toContain("Prerelease-aware selection");
+		expect(body).not.toContain("Long checkbox sentence");
+		expect(body).toContain("Fallback checkbox title");
+	});
+
 	// Este era el hallazgo: con todo marcado el widget enseñaba `4/4` y se callaba.
 	test("con las tareas completas enseña las fases que faltan, no un 4/4 mudo", () => {
 		const lines = renderSddOverlay(

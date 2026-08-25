@@ -40,6 +40,7 @@ export type SddArtifactStatus = {
 export type SddTaskItem = {
 	id: string;
 	title: string;
+	groupTitle?: string;
 	done: boolean;
 };
 
@@ -348,8 +349,14 @@ function readTasksStatus(changePath: string): SddTasksStatus {
 	const rawBlockedBy = blockedByMatch?.[1]?.trim() ?? null;
 	const blockedBy = rawBlockedBy && !/^none$/i.test(rawBlockedBy) ? rawBlockedBy : null;
 	const items: SddTaskItem[] = [];
+	let groupTitle: string | undefined;
 
 	for (const line of content.split("\n")) {
+		const headingMatch = line.match(/^##\s+(.+)$/);
+		if (headingMatch) {
+			groupTitle = headingMatch[1].trim().replace(/^\/\/\s*\d+\.\s*/, "").trim() || undefined;
+			continue;
+		}
 		const match = line.match(/^\s*-\s*\[( |x|X)\]\s+(.+)$/);
 		if (!match) continue;
 		const title = match[2].trim();
@@ -357,6 +364,7 @@ function readTasksStatus(changePath: string): SddTasksStatus {
 		items.push({
 			id: idMatch?.[1] ?? String(items.length + 1),
 			title: idMatch?.[2]?.trim() ?? title,
+			...(groupTitle ? { groupTitle } : {}),
 			done: match[1].toLowerCase() === "x",
 		});
 	}
