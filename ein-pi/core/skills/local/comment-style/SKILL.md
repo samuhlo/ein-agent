@@ -16,6 +16,27 @@ Use it when editing or adding comments in:
 - `.css`, `.scss`, `.sass`
 - `.html`
 
+## Essentials
+
+Lo que hay que saber para escribir. El resto del documento es referencia.
+
+- Comenta el PORQUE, no el QUE. Si el codigo es obvio, no comentes. Si el
+  comentario repite el codigo, borralo. Nombres claros antes que comentarios.
+- Inline: razon en MAYUSCULAS y `->` para causa/efecto.
+  `// BLINDAJE -> Limpiar el listener al desmontar previene fugas.`
+- Vocabulario, solo cuando explica un riesgo real: RUIDO · BLINDAJE · CORTE ·
+  GUARD · FAIL CLOSED · FRICTION CUT · BUNKER · FORGE · NOISE KILL · HARD STOP.
+  Maximo un acento por bloque logico.
+- Tags entre corchetes cuando ayudan a navegar: [CORE] [FLOW] [AUTH] [DATA]
+  [API] [DB] [CACHE] [UI] [LAYOUT] [NOTE] [TODO] [FIX] [HACK] [DEPRECATED].
+  La lista sugiere; un tag propio que aclare vale igual.
+- Bloque de cabecera solo en ficheros no triviales: regla `===`, titulo con tag.
+- Constante con nombre antes que comentar un numero suelto.
+- Sin emojis. Sin decoracion. Sin frases motivacionales.
+
+Al tocar codigo: aplicalo a los bloques que tocas, normaliza lo util que ya
+este, borra lo que no ayude al mantenimiento. Nunca comentes por documentar.
+
 ## Core Principle
 
 Comment the WHY, not the WHAT.
