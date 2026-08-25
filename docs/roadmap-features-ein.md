@@ -60,6 +60,7 @@ desde entonces, medido contra `origin/main` y no contra la memoria:
 | 4A investigación del freeze | pendiente | sin reproducción ni clasificación de ownership |
 | 5 superficie installer/launcher | pendiente | `@clack` en tres ficheros, segundo menú vivo, `pi-ein`/`cc-ein` sin renombrar |
 | 6 logo | **entregado antes de tiempo** | `d3931d5`; la marca es un televisor con una terminal dentro |
+| 7 estilo de código entregado | pendiente, abierto 2026-08-25 | las skills existen y no se aplican; el bloque entrega rutas y nada verifica el resultado |
 
 La unidad 6 se adelantó a su dependencia. No reabre nada: la geometría se
 decidió con evidencia visual y la gramática de 5 no la contradice.
@@ -418,6 +419,78 @@ antigua ni perder legibilidad.
 contratos de instalación y no tocar el bootstrap sin una prueba de
 compatibilidad.
 
+### 7. El estilo de código, entregado y comprobado
+
+**Propósito.** Las skills `comment-style` y `logging-style` definen la voz del
+código de Samu con mucho detalle —tags, vocabulario acotado, bloques visuales,
+formato de log grepeable— y no se aplican. Ni en el código de Ein ni en el que
+Ein escribe para otros proyectos. Es el mismo patrón del bloque A una vez más:
+el contrato existe, correcto y escrito, y la superficie que debía entregarlo no
+lo hace.
+
+**Diagnóstico, en tres capas.** Medido sobre el árbol, no supuesto:
+
+1. **La entrega es una promesa, no un contenido.** `codeConventionSkillBlock`
+   (`ein-pi/agent/extensions/ein-skill-registry.ts:376`) construye un bloque que
+   dice «lee y sigue estas skills» seguido de **tres rutas**. El cableado es
+   correcto —llega al padre y a `sdd-apply`
+   (`ein-ai.ts:850,872`)— pero lo que llega es un puntero. `comment-style` tiene
+   258 líneas: abrirla cuesta contexto, y un ejecutor con presupuesto ajustado
+   escribe el código sin haberla leído. Nada distingue «no la leyó» de «la leyó
+   y la ignoró».
+2. **En Claude ni siquiera es un bloque: es una frase.** `cc-ein/CLAUDE.md:17`
+   pide «load `comment-style` and enforce it», una línea entre diez mil bytes de
+   política. No hay entrega del contenido ni mecanismo que la respalde.
+3. **Nada comprueba el resultado.** Cero gates. Las dos únicas menciones en
+   `tests/` son a la palabra dentro de una directiva y de un fixture de texto;
+   ninguna mira un comentario real. El rigor que el motor tiene a 1,1:1 no llegó
+   al estilo, igual que no había llegado a la interfaz.
+
+**7A. Entregar el contenido, no la ruta.** Un extracto normativo compilado
+determinísticamente desde cada skill —las reglas operativas y el vocabulario,
+no las 258 líneas— inyectado a quien escribe código. Compilado, no copiado: dos
+fuentes divergen, y la skill sigue siendo la canónica. El coste en bytes se mide
+contra el baseline del prompt antes de adoptarlo.
+
+**7B. Paridad de entrega en Claude.** El mismo extracto llega a los agentes de
+`cc-ein`, por el mismo compilador. Claude es relevo, no un segundo estándar: hoy
+recibe una frase donde Pi recibe un bloque.
+
+**7C. El gate que lo hace medible.** Un linter determinista sobre las líneas
+tocadas, no sobre el repositorio entero. Solo lo mecánicamente comprobable, que
+es más de lo que parece:
+
+- `logging-style` es casi enteramente verificable: el formato
+  `[TAG] SEP ACTION :: key: value`, tag de hasta 6 caracteres en mayúsculas,
+  acción de hasta 12, separadores del catálogo, cero emojis, cero frases.
+- De `comment-style` se comprueban los emojis, los comentarios decorativos, los
+  tags fuera del catálogo, el formato de los bloques de cabecera y el patrón
+  `MAYÚSCULA ->` de los inline de causa/efecto.
+- Lo que **no** se comprueba con una máquina se declara: si un comentario
+  explica de verdad el porqué es juicio, y un linter que lo finja sería otra
+  pantalla que afirma lo que no ha calculado.
+
+**Alcance permanente.** El estilo se aplica a **bloques tocados**. No se
+autoriza una pasada global sobre el repositorio: sería el arnés reescribiendo
+sus propios artefactos por estética, que es la señal 2 del manifiesto.
+
+**Dependencia con 2.** El Apply Packet ya declara invariantes por tarea. El
+estilo es una invariante, no una recomendación: cuando 7A exista, el packet la
+lleva y el ejecutor local la recibe con el resto del contrato en vez de tener
+que ir a buscarla.
+
+**Aceptación de 7.** El extracto se compila desde la skill y un test lo prueba
+divergente-cero. Los dos runtimes reciben el mismo bloque. El linter falla sobre
+un fixture con emoji, log fuera de formato y comentario decorativo, y pasa sobre
+el estilo correcto. Y la evidencia que de verdad cuenta: un cambio real, escrito
+después de 7A, cuyos comentarios y logs pasan el gate sin edición posterior.
+
+**No objetivos de 7.** No reescribir comentarios existentes en masa, no aplicar
+el estilo estético de Samu a proyectos cliente sin su perfil (eso es la tanda 4
+de la valoración), no juzgar con un modelo lo que no puede comprobar una
+máquina, y no convertir el gate en una puerta que bloquee el apply antes de
+tener medido su ruido.
+
 ## Medición común
 
 La medición sirve para decidir promoción, bloqueo o aplazamiento; no para crear
@@ -439,6 +512,7 @@ otra cola de trabajo.
 | Incidentes de live-refresh | Freeze reproducido en sesiones reanudadas, con ownership clasificado | Separar regresión de Ein, integración y upstream |
 | Ambigüedad de cambio activo | Sesiones con varios cambios sin selección explícita o con TODO arbitrario | Esperado: cero elección implícita |
 | Invariantes de installer UX | Snapshots a 80/120 columnas, matriz de errores, códigos y read-back | TTY/no-TTY equivalentes y sin segunda entrada |
+| Estilo aplicado sin recordatorio | Cambios cuyos comentarios y logs pasan el gate sin edición posterior, por runtime | Adoptar 7A solo si el extracto reduce las correcciones; medir el coste en bytes contra el baseline |
 
 ## Baseline medido: prompt y carril ligero
 
