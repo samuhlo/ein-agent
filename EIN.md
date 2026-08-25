@@ -71,6 +71,7 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - [docs/fricciones-dogfooding.md](docs/fricciones-dogfooding.md)
 - [docs/guia-cleaner-architect-herramientas-deterministas.md](docs/guia-cleaner-architect-herramientas-deterministas.md)
 - [docs/origen-y-ideas.md](docs/origen-y-ideas.md)
+- [docs/investigacion-freeze-repintado-2026-08.md](docs/investigacion-freeze-repintado-2026-08.md)
 - [docs/plan-hallazgos-dogfooding-2026-08.md](docs/plan-hallazgos-dogfooding-2026-08.md)
 - [docs/review-workload-guard.md](docs/review-workload-guard.md)
 - [docs/roadmap-features-ein.md](docs/roadmap-features-ein.md)

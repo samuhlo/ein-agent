@@ -57,7 +57,7 @@ desde entonces, medido contra `origin/main` y no contra la memoria:
 | 2B ejecución del packet y modelo local | pendiente | espera a que 2A se use contra candidatos reales |
 | 3A simplificación independiente | pendiente, menos los recibos | Team sigue siendo modo de primera clase; no hay selector de cambio activo |
 | 3B overlays dependientes del packet | pendiente | depende de 2A, ya cerrado |
-| 4A investigación del freeze | pendiente | sin reproducción ni clasificación de ownership |
+| 4A investigación del freeze | **clasificado, pendiente de una prueba** | `docs/investigacion-freeze-repintado-2026-08.md`; el sintoma es de repintado y sus tres partes visibles caen fuera del codigo de Ein |
 | 5 superficie installer/launcher | pendiente | `@clack` en tres ficheros, segundo menú vivo, `pi-ein`/`cc-ein` sin renombrar |
 | 6 logo | **entregado antes de tiempo** | `d3931d5`; la marca es un televisor con una terminal dentro |
 
@@ -313,6 +313,28 @@ humanas entre cada fase y no resolver la ambigüedad escogiendo por el usuario.
 experiencia de reanudación sin atribuir prematuramente un defecto a Ein o a Pi.
 
 #### 4A. Investigación inmediata del freeze
+
+**Resultado (2026-08-25): `docs/investigacion-freeze-repintado-2026-08.md`.**
+
+El síntoma no es un congelado de estado sino de repintado: el widget se refresca
+en cuanto se pulsa una tecla, así que los datos llegan y lo que falla es el
+dibujo autónomo. Eso descartó la primera hipótesis —una caché del overlay— antes
+de tocar nada.
+
+Medido sobre el árbol, Ein registra **un solo widget** (`ein-sdd-overlay.ts:50`)
+y no toca el indicador de subagente, ni el spinner, ni el footer, ni existe una
+API de repintado en su superficie de extensiones. Las tres partes visibles del
+síntoma caen fuera del código de Ein.
+
+Queda una prueba de dos minutos que cierra la clasificación: reproducir el
+arranque sobre sesión existente en `pi` vanilla. Si pasa igual, es upstream y el
+informe sirve de reporte; si no pasa, la primera candidata es el trabajo que
+`ein-ai` hace en `session_start`, que incluye escritura de assets y un diálogo
+interactivo.
+
+Sigue en pie el texto original de la unidad:
+
+
 
 Empieza en paralelo con 1A, 2A y 3A. Hay que reproducir el freeze de
 live-refresh de TODO/subagente en una sesión reanudada y clasificar ownership
