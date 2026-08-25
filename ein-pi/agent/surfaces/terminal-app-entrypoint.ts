@@ -554,7 +554,7 @@ export async function productionContinue(
   const resolved = productionLaunchPlan(cwd, provider, undefined, focusedChange);
   if (!resolved.ok) return resolved.outcome;
   return run({
-    cwd,
+    cwd: resolved.plan.cwd,
     provider,
     brief,
     command: [resolved.plan.executable, ...resolved.plan.argv],
