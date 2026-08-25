@@ -30,6 +30,8 @@ import { basename, dirname, join, relative } from "node:path";
 import { execFileSync } from "node:child_process";
 import { resolveEngramDataDir } from "../ein-pi/agent/lib/memory-contract.ts";
 
+import { compileStyleContract } from "../ein-pi/agent/lib/style-contract.ts";
+
 const REPO = join(import.meta.dir, "..");
 const CORE = join(REPO, "ein-pi", "core");
 const CC = import.meta.dir; // cc-ein/
@@ -411,6 +413,27 @@ function boundedBlock(text: string, start: string, end: string): string {
   return text.slice(from, to + end.length);
 }
 
+// Quien escribe codigo en Claude: el agente de apply y el coordinador, que en la
+// practica tambien edita. Los demas no cargan con los 2 KB.
+const STYLE_CONSUMERS: readonly string[] = ["sdd-apply.md"];
+
+/**
+ * El bloque de estilo que se MATERIALIZA en el despliegue.
+ *
+ * Diferencia con Pi, a proposito: alli se inyecta en cada turno leyendo las
+ * skills del home, aqui se congela al sincronizar. Por eso el contrato de
+ * paridad comprueba que lo materializado siga coincidiendo con la skill: sin
+ * eso, editarla y no re-sincronizar dejaria a Claude con reglas viejas y sin
+ * que nada lo dijera.
+ */
+function styleBlock(): string {
+  const contract = compileStyleContract(join(CORE, "skills", "local"));
+  if (!contract.ok) {
+    throw parity("PARITY_STYLE_CONTRACT", `no se pudo compilar el contrato de estilo: ${contract.reason}`);
+  }
+  return `\n\n${contract.value.text}\n`;
+}
+
 function validateCoordinator(canonical: string, adapter: string): string {
   if (canonical.includes(ADAPTATION_START) || canonical.includes(ADAPTATION_END)) {
     throw parity("PARITY_INVALID_COORDINATOR", "canonical source contains Claude adaptation markers");
@@ -481,7 +504,11 @@ export function compileClaudeSurface(options: CompileOptions = {}): ClaudeSurfac
       routing,
     );
   }
-  const coordinator = validateCoordinator(canonical, adapter);
+  const style = styleBlock();
+  for (const file of STYLE_CONSUMERS) {
+    if (agents[file]) agents[file] = `${agents[file]}${style}`;
+  }
+  const coordinator = `${validateCoordinator(canonical, adapter)}${style}`;
   if (options.generatedPath) {
     assertGeneratedParity(coordinator, options.generatedPath);
   }

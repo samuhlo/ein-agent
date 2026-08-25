@@ -37,6 +37,7 @@ import {
   CC_EIN_PAYLOAD_MANIFEST,
   CC_EIN_PAYLOAD_REQUIRED_PATHS,
   CC_EIN_PAYLOAD_ROOTS,
+  CC_EIN_STYLE_CONTRACT,
   CC_EIN_PAYLOAD_SDD_ENTRY,
   resolveCcEinPayloadArchive,
   stageCcEinPayload,
@@ -76,6 +77,7 @@ const PAYLOAD_FIXTURE_FILES = [
   "cc-ein/commands/ein/handoff.md",
   "pi-ein/pi-ein.fish",
   CC_EIN_ORCHESTRATOR_ASSET,
+  CC_EIN_STYLE_CONTRACT,
 ] as const;
 
 function createPayloadArchive(home: string, options: PayloadFixtureOptions = {}): { archive: string; source: string } {
@@ -162,6 +164,9 @@ describe("Claude runtime payload", () => {
       "pi-ein/pi-ein.fish",
       "pi-ein/migrate.ts",
       CC_EIN_ORCHESTRATOR_ASSET,
+      // `sync.ts` lo importa: sin el en el payload, la sincronizacion falla en
+      // la maquina del usuario y no al empaquetar.
+      CC_EIN_STYLE_CONTRACT,
     ]);
     expect(CC_EIN_PAYLOAD_SDD_ENTRY).toBe("cc-ein/sdd-cli/cli.ts");
     expect(CC_EIN_PAYLOAD_REQUIRED_PATHS).toContain("cc-ein/sync.ts");
