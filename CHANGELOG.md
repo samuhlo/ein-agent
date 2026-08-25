@@ -4,6 +4,77 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.82.0-alpha.2] - 2026-08-25
+
+### Fixed
+
+- **El overlay del cambio ya no se congela al repintar.** El panel SDD
+  (TODO overlay) dejaba de responder tras ciertos eventos de repintado: el
+  layout del widget se recalculaba en un estado intermedio y el widget
+  quedaba fijo en pantalla. La recuperación se activa ahora en cuanto se
+  detecta el bloqueo, sin esperar a un gesto del usuario. Cobertura:
+  `tests/sdd-overlay-repaint.test.ts` y `tests/subagent-widget-layout.test.ts`.
+  Investigación completa en
+  `docs/investigacion-freeze-repintado-2026-08.md`.
+- **Los títulos de los grupos de tareas se renderizan correctamente sobre el
+  overlay.** El router SDD no transmitía la referencia al título del grupo al
+  componente de overlay, así que los grupos de tareas se enseñaban sin nombre.
+  Se inyecta ahora esa referencia y la cobertura correspondiente.
+- **El guard de dependencias de workspace ya no bloquea con falso positivo.**
+  El detector de dependencias de workspace rechazaba cambios en raíz que no
+  tocaban el lockfile del workspace, porque su lógica no distinguía entre
+  «el workspace es monolítico» y «el cambio no afecta a ningún paquete».
+
+### Added
+
+- **Schema canónico del corpus de apply (`apply-corpus.ts`) y del paquete de
+  entrega (`apply-packet.ts`).** Un corpus cerrado de 39+ patrones de ejecución
+  del apply-cicle con su variante congelada, más un schema formalizado para
+  los paquetes que `sdd-apply` intercambia con `sdd-verify`. Ambos blindan
+  contra deriva del contrato y permiten comprobación determinista de cualquier
+  entregable.
+- **Tool receipts humanizados.** Los receipts de las herramientas delegadas
+  pasan de volcados técnicos a mensajes concisos y accionables: quién, qué,
+  resultado y una línea de detalle cuando el resultado lo merece. El modelo
+  recibe la misma información estructurada; lo que cambia es lo que se impone
+  en pantalla al usuario. Cobertura nueva en `tests/tool-receipts.test.ts`.
+- **Selector explícito de cambio activo en el router.** El router SDD muestra
+  y permite cambiar el cambio activo directamente, sin pasar por el panel de
+  estado. La selección ambigua —varios cambios con el mismo nombre— se resuelve
+  interactivamente en el CLI y con un error claro si se invoca sin contexto.
+  Cobertura en `tests/cli-ambiguous-change.test.ts`.
+- **Contrato de estilo como infraestructura.** Se define y se valida
+  programmatically qué puede y qué no puede emitirse como bloque de estilo en
+  el deliverable SDD: lint de estilo (`style-lint.ts`), contrato
+  (`style-contract.ts`) y cobertura. El contrato es leíble por el modelo e
+  interpretable por la máquina.
+- **Cobertura de estados de pantalla.** Cada estado de la superficie
+  (estado del proyecto, configuración, sesiones, sistema, runtime) tiene ahora
+  una especificación canónica y una prueba determinista de su contenido en
+  español e inglés, sin depender del locale de la máquina.
+- **Estilo de Ein en Claude: segunda entrega.** El payload de Claude ya incluye
+  el surface runner compilado, y la sincronización copia también el material
+  del estilo. Las pruebas de paridad de estilo cubren la instalación desde
+  cero (`tests/style-parity-claude.test.ts`).
+- **Tool receipts humanos en Pi.** Los receipts de herramientas delegadas
+  devuelven ahora un resumen legible en vez de un volcado de depuración.
+
+### Changed
+
+- **El modo `team` se retira.** La integración con Linear y la facturación por
+  seats no estaban activas; el modo existía pero ningún flujo lo invocaba.
+  Se elimina el módulo `mode.ts` y se limpian las referencias. El modo por
+  defecto sigue siendo `single`.
+- **Documentación: el roadmap se rescata como contrato vigente.** El documento
+  `docs/roadmap-features-ein.md` pasa a reflejar solo trabajo efectivamente
+  construido o en construcción activa; el material obsoleto se archiva o se
+  retira. `docs/valoracion-estado-y-rumbo-2026-08.md` da contexto estratégico.
+
+### Internal
+
+- El evaluador de corpus (`evals/build-corpus.ts`) se alinea con el schema
+  nuevo y reconstruye el corpus cerrado a partir de él.
+
 ## [0.82.0-alpha.1] - 2026-08-24
 
 ### Added
