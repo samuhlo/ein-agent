@@ -52,6 +52,7 @@ export const PI_HOOKS: readonly string[] = [
 
 // Métodos de `ExtensionAPI` que Ein invoca.
 export const PI_EXTENSION_API: readonly string[] = [
+	"appendEntry",
 	"getAllTools",
 	"getCommands",
 	"on",

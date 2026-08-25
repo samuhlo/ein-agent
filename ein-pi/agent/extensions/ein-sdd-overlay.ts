@@ -10,8 +10,21 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { resolveSddStatus } from "../lib/sdd-router.ts";
+import { isSafeChangeName, listActiveChanges, resolveSddStatus, type SddChangeStatus } from "../lib/sdd-router.ts";
 import { OVERLAY_KEY, renderSddOverlay } from "../lib/sdd-overlay.ts";
+import {
+	EIN_SDD_SESSION_BINDING_ENV_KEY,
+	SDD_SESSION_BINDING_CUSTOM_TYPE,
+	SDD_SESSION_BINDING_EVENT_CHANNEL,
+	parseSessionBindingEntryV1,
+	parseSessionBindingEventV1,
+	parseSessionBindingLaunchMetadataV1,
+	restoreSessionBinding,
+	revalidateSessionBinding,
+	type SessionBinding,
+	type SessionBindingLaunchMetadataV1,
+	type SessionBindingValidation,
+} from "../lib/sdd-session-binding.ts";
 import { createPalette, shouldUseColor } from "../lib/theme.ts";
 
 const COLLAPSE_KEY = "ctrl+shift+e";
@@ -26,6 +39,10 @@ export default function (pi: ExtensionAPI): void {
 	// abrir sobre una sesión con historial—, el widget se queda mudo hasta que el
 	// contenido cambie por su cuenta. Por eso la caché no sobrevive a un arranque.
 	let painted: string | null = null;
+	let binding: SessionBinding = { kind: "unbound" };
+	let launchIntentCaptured = false;
+	let activeContext: ExtensionContext | null = null;
+	let unsubscribeBindingEvent: (() => void) | null = null;
 
 	const palette = createPalette(
 		shouldUseColor({ isTTY: process.stdout.isTTY === true, env: process.env }),
@@ -39,20 +56,103 @@ export default function (pi: ExtensionAPI): void {
 		return Number.isFinite(columns) && columns > 0 ? Math.min(columns - 2, 120) : 72;
 	}
 
-	function refresh(ctx: ExtensionContext): void {
-		if (!ctx.hasUI) return;
-		let lines: readonly string[];
+	function inspectBinding(cwd: string, change: string): {
+		validation: SessionBindingValidation;
+		status: SddChangeStatus | null;
+	} {
+		if (!isSafeChangeName(change)) return { validation: { change, active: false }, status: null };
 		try {
-			lines = renderSddOverlay(resolveSddStatus(ctx.cwd), { collapsed, palette, width: overlayWidth() });
+			if (!listActiveChanges(cwd).includes(change)) {
+				return { validation: { change, active: false }, status: null };
+			}
+			const status = resolveSddStatus(cwd, change);
+			return status.change === change
+				? { validation: { change, active: true }, status }
+				: { validation: { change, active: false }, status: null };
 		} catch {
-			// Un estado ilegible no puede tumbar la sesión ni dejar basura en
-			// pantalla: se retira el widget y se sigue.
-			lines = [];
+			return { validation: { change, active: false }, status: null };
 		}
+	}
+
+	function persist(entry: { version: 1; state: "bound"; change: string } | { version: 1; state: "unbound" }): void {
+		pi.appendEntry(SDD_SESSION_BINDING_CUSTOM_TYPE, entry);
+	}
+
+	function newestEntryChange(entries: readonly unknown[]): string | null {
+		for (let index = entries.length - 1; index >= 0; index -= 1) {
+			const entry = entries[index];
+			if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+			const candidate = entry as Record<string, unknown>;
+			if (candidate.type !== "custom" || candidate.customType !== SDD_SESSION_BINDING_CUSTOM_TYPE) continue;
+			const parsed = parseSessionBindingEntryV1(candidate.data);
+			return parsed?.state === "bound" ? parsed.change : null;
+		}
+		return null;
+	}
+
+	function captureLaunchIntent(event: unknown): SessionBindingLaunchMetadataV1 | null {
+		if (launchIntentCaptured || !event || typeof event !== "object" || (event as { reason?: unknown }).reason !== "startup") {
+			return null;
+		}
+		launchIntentCaptured = true;
+		const source = process.env[EIN_SDD_SESSION_BINDING_ENV_KEY];
+		delete process.env[EIN_SDD_SESSION_BINDING_ENV_KEY];
+		return typeof source === "string" ? parseSessionBindingLaunchMetadataV1(source) : null;
+	}
+
+	function refresh(ctx: ExtensionContext): void {
+		let lines: readonly string[] = [];
+		if (binding.kind === "bound") {
+			const inspection = inspectBinding(ctx.cwd, binding.change);
+			const transition = revalidateSessionBinding(binding, inspection.validation);
+			binding = transition.binding;
+			if (transition.persist) persist(transition.persist);
+			if (binding.kind === "bound" && inspection.status) {
+				try {
+					lines = renderSddOverlay(inspection.status, { collapsed, palette, width: overlayWidth() });
+				} catch {
+					// Rendering failure removes stale UI without inventing another focus.
+					lines = [];
+				}
+			}
+		}
+		if (!ctx.hasUI) return;
 		const next = lines.join("\n");
 		if (next === painted) return;
 		painted = next;
 		ctx.ui.setWidget(OVERLAY_KEY, lines.length > 0 ? [...lines] : undefined, { placement: "belowEditor" });
+	}
+
+	function rebindEventListener(ctx: ExtensionContext): void {
+		unsubscribeBindingEvent?.();
+		activeContext = ctx;
+		unsubscribeBindingEvent = pi.events.on(SDD_SESSION_BINDING_EVENT_CHANNEL, (payload) => {
+			const event = parseSessionBindingEventV1(payload);
+			const current = activeContext;
+			if (!event || !current) return;
+
+			if (event.action === "bind") {
+				if (binding.kind === "bound" && binding.change === event.change) return;
+				const inspection = inspectBinding(current.cwd, event.change);
+				if (!inspection.validation.active) return;
+				binding = { kind: "bound", change: event.change };
+				persist({ version: 1, state: "bound", change: event.change });
+			} else {
+				if (binding.kind === "unbound") return;
+				if (event.action === "invalidate" && event.change !== binding.change) return;
+				binding = { kind: "unbound" };
+				persist({ version: 1, state: "unbound" });
+			}
+
+			painted = null;
+			refresh(current);
+		});
+	}
+
+	function unbindEventListener(): void {
+		activeContext = null;
+		unsubscribeBindingEvent?.();
+		unsubscribeBindingEvent = null;
 	}
 
 	// Se refresca donde el estado PUEDE haber cambiado: al abrir, al terminar un
@@ -63,13 +163,29 @@ export default function (pi: ExtensionAPI): void {
 	// CORTE -> al arrancar, la UI es nueva aunque el contenido sea el mismo. Dar
 	// por pintado lo que quizá nunca llegó a la pantalla es lo que dejaba el
 	// widget mudo el resto de la sesión. El atajo de plegar ya hacía esto mismo.
-	pi.on("session_start", (_event, ctx) => {
+	pi.on("session_start", (event, ctx) => {
 		painted = null;
+		binding = { kind: "unbound" };
+		rebindEventListener(ctx);
+		const launchIntent = captureLaunchIntent(event);
+		let entries: readonly unknown[];
+		try {
+			entries = ctx.sessionManager.getEntries();
+		} catch {
+			entries = [{ type: "custom", customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: null }];
+		}
+		const candidate = newestEntryChange(entries) ?? launchIntent?.change;
+		const validation = candidate ? inspectBinding(ctx.cwd, candidate).validation : null;
+		const usableIntent = launchIntent?.projectCwd === ctx.cwd ? launchIntent : null;
+		const transition = restoreSessionBinding({ entries, validation, launchIntent: usableIntent });
+		binding = transition.binding;
+		if (transition.persist) persist(transition.persist);
 		refresh(ctx);
 	});
 	pi.on("turn_end", (_event, ctx) => refresh(ctx));
 	pi.on("tool_execution_end", (_event, ctx) => refresh(ctx));
 	pi.on("agent_end", (_event, ctx) => refresh(ctx));
+	pi.on("session_shutdown", () => unbindEventListener());
 
 	pi.registerShortcut(COLLAPSE_KEY, {
 		description: "Plegar o desplegar el overlay del cambio activo",

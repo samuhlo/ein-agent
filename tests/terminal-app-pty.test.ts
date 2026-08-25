@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { isContinueBriefTransportSafe, runContinueInPty } from "../ein-pi/agent/lib/terminal-continue-transport.ts";
-import { readFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { isContinueBriefTransportSafe, runContinueInPty, type ContinuePtyOptions } from "../ein-pi/agent/lib/terminal-continue-transport.ts";
+import type { LaunchOutcome } from "../ein-pi/agent/lib/terminal-app-controller.ts";
+import { productionContinue } from "../ein-pi/agent/surfaces/terminal-app-entrypoint.ts";
+import {
+  EIN_SDD_SESSION_BINDING_ENV_KEY,
+  parseSessionBindingLaunchMetadataV1,
+} from "../ein-pi/agent/lib/sdd-session-binding.ts";
 
 const DRIVER = join(import.meta.dir, "fixtures", "terminal-app-pty-driver.ts");
 const ALT_ENTER = "\u001b[?1049h";
@@ -82,6 +89,93 @@ function occurrences(value: string, needle: string): number {
 }
 
 describe("terminal app real PTY lifecycle", () => {
+  test("binding metadata reaches only validated Pi create before the separate brief", async () => {
+    const root = mkdtempSync(join(tmpdir(), "ein-terminal-binding-"));
+    const project = join(root, "project");
+    const cwd = join(root, "linked-project");
+    const focusedChange = "active-binding-change";
+    const bin = join(project, "bin");
+    const originalHome = process.env.HOME;
+    const originalPath = process.env.PATH;
+    mkdirSync(join(project, "openspec", "changes", focusedChange), { recursive: true });
+    mkdirSync(bin);
+    symlinkSync(project, cwd, "dir");
+    writeFileSync(join(bin, "pi"), "#!/bin/sh\nexit 0\n");
+    writeFileSync(join(bin, "claude"), "#!/bin/sh\nexit 0\n");
+    chmodSync(join(bin, "pi"), 0o755);
+    chmodSync(join(bin, "claude"), 0o755);
+    process.env.HOME = project;
+    process.env.PATH = bin;
+
+    try {
+      const observations: string[] = [];
+      const launches: ContinuePtyOptions[] = [];
+      const run = async (options: ContinuePtyOptions): Promise<LaunchOutcome> => {
+        launches.push(options);
+        observations.push(options.env?.[EIN_SDD_SESSION_BINDING_ENV_KEY] ? "child-metadata" : "child-unbound");
+        observations.push(`brief:${options.brief}`);
+        return { kind: "exited", code: 0 };
+      };
+
+      expect(await productionContinue(cwd, "pi", "continuity-only", focusedChange, run)).toEqual({ kind: "exited", code: 0 });
+      const piLaunch = launches[0]!;
+      expect(piLaunch.command).toEqual([join(bin, "pi")]);
+      expect(piLaunch.cwd).toBe(realpathSync(project));
+      const bindingMetadata = piLaunch.env?.[EIN_SDD_SESSION_BINDING_ENV_KEY];
+      expect(bindingMetadata).toBeDefined();
+      expect(parseSessionBindingLaunchMetadataV1(bindingMetadata ?? "")).toEqual({
+        version: 1,
+        change: focusedChange,
+        projectCwd: realpathSync(project),
+      });
+      expect(piLaunch.brief).toBe("continuity-only");
+      expect(piLaunch.brief).not.toContain(focusedChange);
+      expect(observations).toEqual(["child-metadata", "brief:continuity-only"]);
+
+      expect(await productionContinue(cwd, "pi", "fresh", undefined, run)).toEqual({ kind: "exited", code: 0 });
+      expect(launches[1]!.env?.[EIN_SDD_SESSION_BINDING_ENV_KEY]).toBeUndefined();
+
+      expect(await productionContinue(cwd, "claude", "provider-isolated", focusedChange, run)).toEqual({ kind: "exited", code: 0 });
+      expect(launches[2]!.env?.[EIN_SDD_SESSION_BINDING_ENV_KEY]).toBeUndefined();
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("binding validation refuses stale and unsafe requested Pi focus without spawning", async () => {
+    let launches = 0;
+    const run = async (): Promise<LaunchOutcome> => {
+      launches += 1;
+      return { kind: "exited", code: 0 };
+    };
+
+    for (const focusedChange of ["already-closed-change", "../unsafe-change"]) {
+      const outcome = await productionContinue(
+        join(import.meta.dir, ".."),
+        "pi",
+        "continuity-only",
+        focusedChange,
+        run,
+      );
+      expect(outcome.kind).toBe("unavailable");
+    }
+    expect(launches).toBe(0);
+  });
+
+  test("binding intent stays exclusive to continue-as-new, outside direct create and picked resume", () => {
+    const source = readFileSync(
+      join(import.meta.dir, "..", "ein-pi", "agent", "surfaces", "terminal-app-entrypoint.ts"),
+      "utf8",
+    );
+    expect(source).toContain("productionLaunch(cwd, provider, reference)");
+    expect(source).toContain("productionLaunchPlan(cwd, provider, reference);");
+    expect(source).toContain("productionLaunchPlan(cwd, provider, undefined, focusedChange)");
+  });
+
   test("Continue brief validation preserves multiline Unicode and rejects paste termination", () => {
     expect(isContinueBriefTransportSafe("first line\nsegunda línea 漢字")).toBe(true);
     expect(isContinueBriefTransportSafe("safe\n\u001b[201~injected")).toBe(false);

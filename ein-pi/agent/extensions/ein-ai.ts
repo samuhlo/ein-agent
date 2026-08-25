@@ -101,6 +101,7 @@ import {
 	writePreflightRecord,
 } from "../lib/sdd-preflight-record.ts";
 import { aggregateSddBudget, changeUnavailableMessage, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddNextHandoff, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
+import { SDD_SESSION_BINDING_EVENT_CHANNEL, type SessionBindingEventV1 } from "../lib/sdd-session-binding.ts";
 import { reviewForecast, formatReviewForecast } from "../lib/review-forecast.ts";
 import { closeChange, type CloseOptions } from "../lib/sdd-close.ts";
 import { parseSddCloseArgs } from "../lib/sdd-close-args.ts";
@@ -644,6 +645,10 @@ function formatSddNext(report: SddNextReport): string {
 // ─── Extensión ────────────────────────────────────────────────────────────────
 
 export default function einAi(pi: ExtensionAPI): void {
+	function publishSessionBinding(event: SessionBindingEventV1): void {
+		pi.events.emit(SDD_SESSION_BINDING_EVENT_CHANNEL, event);
+	}
+
 	async function runSddPreflight(ctx: ExtensionContext): Promise<SddPreflightPreferences> {
 		const preferences = await ensureSddPreflight(ctx, {
 			pi,
@@ -1631,6 +1636,9 @@ export default function einAi(pi: ExtensionAPI): void {
 
 			const report = resolveSddNext(ctx.cwd, parsed.change);
 			ctx.ui.notify(formatSddNext(report), report.exists && report.blocked.length === 0 ? "info" : "warning");
+			if (report.exists && report.change === parsed.change) {
+				publishSessionBinding({ version: 1, action: "bind", change: parsed.change });
+			}
 			// El reporte lo lee el usuario; el orquestador no lo ve. Sin este
 			// traspaso el comando enseñaba la ruta y no la entregaba a nadie.
 			// Automatic Cleaner/Architect participation is advisory: the handoff
@@ -1649,6 +1657,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		const result = closeChange(ctx.cwd, change, options);
 		let memory: SafeMemoryReceipt | undefined;
 		if (result.ok) {
+			publishSessionBinding({ version: 1, action: "invalidate", change });
 			memory = await saveArchivedCloseMemory(ctx, change, result.to);
 			appendMemoryReceipt(result.to, memory);
 			// FORGE -> al cerrar un cambio, refresca la zona AUTO de EIN.md (comandos/

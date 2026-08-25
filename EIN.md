@@ -1,4 +1,4 @@
-<!-- ein:init rev=ec6d8f3 generado=2026-08-19 · refresca con /ein:init -->
+<!-- ein:init rev=d01f571 generado=2026-08-25 · refresca con /ein:init -->
 ## Overview
 <!-- CURADA — 2-3 líneas: qué es el proyecto y para quién. -->
 Harness de coding-agent sobre Pi Coding Agent y Claude Code: dos runtimes aislados con una sola disciplina de entrega. Convierte trabajo ambiguo en cambios pequeños, verificados y explicados, con el estado del cambio en disco (`openspec/`) y no en la conversación.
@@ -34,6 +34,7 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - `docs-site/` — Sitio de documentación pública de Ein.
 - `e2e/` — Escenarios E2E del instalador en contenedores limpios.
 - `ein-pi/` — Core Ein, agentes y sincronización OpenSpec.
+- `evals/` — _(describe)_
 - `installer/` — CLI, binarios y runtime del instalador.
 - `openspec/` — Especificaciones y ciclos de cambios SDD.
 - `pi-ein/` — Adaptador Pi aislado (`pi-ein`) y migración desde `~/.pi`.
@@ -49,6 +50,7 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 | install | `bun install` |
 | test | `bun run test` |
 | typecheck | `bun run typecheck` |
+| setup | `bun run setup` |
 
 ## Estructura
 
@@ -57,6 +59,7 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - `docs-site/`
 - `e2e/`
 - `ein-pi/`
+- `evals/`
 - `installer/`
 - `openspec/`
 - `pi-ein/`
@@ -70,8 +73,8 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - [docs/EIN_DOCUMENTATION_BRIEF.md](docs/EIN_DOCUMENTATION_BRIEF.md)
 - [docs/fricciones-dogfooding.md](docs/fricciones-dogfooding.md)
 - [docs/guia-cleaner-architect-herramientas-deterministas.md](docs/guia-cleaner-architect-herramientas-deterministas.md)
-- [docs/origen-y-ideas.md](docs/origen-y-ideas.md)
 - [docs/investigacion-freeze-repintado-2026-08.md](docs/investigacion-freeze-repintado-2026-08.md)
+- [docs/origen-y-ideas.md](docs/origen-y-ideas.md)
 - [docs/plan-hallazgos-dogfooding-2026-08.md](docs/plan-hallazgos-dogfooding-2026-08.md)
 - [docs/review-workload-guard.md](docs/review-workload-guard.md)
 - [docs/roadmap-features-ein.md](docs/roadmap-features-ein.md)

@@ -142,7 +142,7 @@ export type TerminalAppOptions = Readonly<{
   system?: () => readonly SystemComponent[];
   runtime?: Readonly<{
     launch: (provider: RuntimeProvider, reference?: string) => Promise<LaunchOutcome>;
-    continue?: (provider: RuntimeProvider, brief: string) => Promise<LaunchOutcome>;
+    continue?: (provider: RuntimeProvider, brief: string, focusedChange?: string) => Promise<LaunchOutcome>;
   }>;
   continuity?: Readonly<{ prepare: (target: unknown) => Promise<ContinuityPrepareResult> }>;
   /** Runs a system command with the terminal handed over; returns its code. */
@@ -176,7 +176,8 @@ export function createTerminalAppControllerFactoryForCwd(
     runtimeAvailable: (provider) => localExecutableAvailable(provider),
   });
   const continueLaunch = options.runtime?.continue
-    ?? ((provider: RuntimeProvider, brief: string) => productionContinue(cwd, provider, brief));
+    ?? ((provider: RuntimeProvider, brief: string, focusedChange?: string) =>
+      productionContinue(cwd, provider, brief, focusedChange));
   const runCommand = options.run ?? productionRun;
   const readSummary = options.summary
     ?? ((root: string, change?: string) =>
@@ -508,29 +509,52 @@ function productionLaunchPlan(
   cwd: string,
   provider: RuntimeProvider,
   reference?: string,
+  focusedChange?: string,
 ): { ok: true; plan: LaunchPlan } | { ok: false; outcome: LaunchOutcome } {
-  const state = projectProjectState({ cwd });
+  const state = projectProjectState({
+    cwd,
+    ...(provider === "pi" && focusedChange !== undefined ? { selectedChange: focusedChange } : {}),
+  });
+  const focusedPiCreate = provider === "pi" && reference === undefined && focusedChange !== undefined;
+  const focusedChangeIsActive = focusedPiCreate
+    && state.openspec.selection === "selected"
+    && state.openspec.selectedChange === focusedChange
+    && state.openspec.activeChanges.includes(focusedChange);
+  // An active change is intentionally launchable while its SDD lifecycle is incomplete.
+  // At this edge, exact canonical selection proves availability; the adapter still owns
+  // safe-name, project binding, metadata serialization, and the closed plan shape.
+  const launchState = focusedChangeIsActive && state.openspec.quality === "incomplete"
+    ? { ...state, openspec: { ...state.openspec, quality: "current" as const } }
+    : state;
   const adapter = createRuntimeSessionAdapter(provider);
-  const intent = reference ? adapter.resume(state, reference) : adapter.create(state);
+  const intent = reference ? adapter.resume(launchState, reference) : adapter.create(launchState);
   if (intent.outcome !== "success") {
     return { ok: false, outcome: { kind: "unavailable", reason: intent.error?.code ?? intent.outcome } };
   }
-  const plan = buildLaunchPlan(state, intent.data);
+  const launchIntent = provider === "pi" && intent.data.mode === "create" && focusedChange !== undefined
+    ? {
+        ...intent.data,
+        sessionBinding: { change: focusedChange, projectCwd: launchState.identity.cwd },
+      }
+    : intent.data;
+  const plan = buildLaunchPlan(launchState, launchIntent);
   if (plan.outcome !== "success") {
     return { ok: false, outcome: { kind: "unavailable", reason: plan.error?.code ?? plan.outcome } };
   }
   return { ok: true, plan: plan.data };
 }
 
-async function productionContinue(
+export async function productionContinue(
   cwd: string,
   provider: RuntimeProvider,
   brief: string,
+  focusedChange?: string,
+  run: typeof runContinueInPty = runContinueInPty,
 ): Promise<LaunchOutcome> {
-  const resolved = productionLaunchPlan(cwd, provider);
+  const resolved = productionLaunchPlan(cwd, provider, undefined, focusedChange);
   if (!resolved.ok) return resolved.outcome;
-  return runContinueInPty({
-    cwd,
+  return run({
+    cwd: resolved.plan.cwd,
     provider,
     brief,
     command: [resolved.plan.executable, ...resolved.plan.argv],

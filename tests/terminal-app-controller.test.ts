@@ -27,6 +27,17 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+function focusChange(controller: ReturnType<typeof createTerminalAppController>, change: string): void {
+  controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.state });
+  const index = visibleRows(controller.snapshot().view, "")
+    .findIndex(({ row }) => row.action.kind === "focus-change" && row.action.change === change);
+  expect(index).toBeGreaterThanOrEqual(0);
+  controller.dispatch({ kind: "key", key: "g" });
+  for (let cursor = 0; cursor < index; cursor += 1) controller.dispatch({ kind: "key", key: "j" });
+  controller.dispatch({ kind: "key", key: ENTER });
+  controller.dispatch({ kind: "key", key: "\u001b" });
+}
+
 function harness(overrides: Partial<TerminalAppControllerPorts> = {}) {
   const lifecycle: string[] = [];
   const snapshots: ProjectSummary[] = [];
@@ -192,6 +203,61 @@ describe("terminal app controller effects", () => {
     await tick(); await tick();
     expect(order).toEqual(["prepare:claude", "launch:claude:true"]);
     expect(lifecycle).toEqual(["release", "resume"]);
+  });
+
+  test("continue captures focus before async preparation while preserving no-focus and Claude intent", async () => {
+    let resolvePrepare!: (value: ContinuityPrepareResult) => void;
+    const prepared = new Promise<ContinuityPrepareResult>((resolve) => { resolvePrepare = resolve; });
+    const calls: unknown[][] = [];
+    const summary = { ...SUMMARY, change: "focus-before", activeChanges: ["focus-before", "focus-after"] };
+    const focused = harness({
+      readSummary: (focusedChange, sessions) => ({ ...summary, change: focusedChange ?? summary.change, sessions }),
+      prepareContinue: async () => prepared,
+      continueLaunch: async (...args) => { calls.push(args); return { kind: "exited", code: 0 }; },
+    });
+    focusChange(focused.controller, "focus-before");
+    focused.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
+    focusChange(focused.controller, "focus-after");
+    resolvePrepare({ ok: true, brief: {
+      ok: true, version: 1, format: "continuity-resume-brief/v1", content: "PRIVATE-BRIEF-CANARY", byteLength: 20,
+      payloadByteLength: 1, payloadSha256: `sha256:${"a".repeat(64)}`, target: "pi", checkpointRevision: `sha256:${"b".repeat(64)}`,
+      truncated: false, omissions: { changedPaths: 0, completed: 0, unresolvedDecisions: 0 }, warnings: [],
+    } });
+    await tick(); await tick();
+    expect(calls).toEqual([["pi", "PRIVATE-BRIEF-CANARY", "focus-before"]]);
+
+    const noFocusCalls: unknown[][] = [];
+    const noFocus = harness({ continueLaunch: async (...args) => { noFocusCalls.push(args); return { kind: "exited", code: 0 }; } });
+    noFocus.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
+    await tick(); await tick();
+    expect(noFocusCalls).toEqual([["pi", "PRIVATE-BRIEF-CANARY", undefined]]);
+
+    const claudeCalls: unknown[][] = [];
+    const claude = harness({
+      readSummary: (focusedChange, sessions) => ({ ...summary, change: focusedChange ?? summary.change, sessions }),
+      continueLaunch: async (...args) => { claudeCalls.push(args); return { kind: "exited", code: 0 }; },
+    });
+    focusChange(claude.controller, "focus-before");
+    claude.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continueClaude });
+    await tick(); await tick();
+    expect(claudeCalls).toEqual([["claude", "PRIVATE-BRIEF-CANARY", "focus-before"]]);
+  });
+
+  test("continue does not change ordinary create or picked resume launch arguments", async () => {
+    const calls: unknown[][] = [];
+    const { controller } = harness({
+      launch: async (...args) => { calls.push(args); return { kind: "exited", code: 0 }; },
+    });
+    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.pi });
+    await tick();
+    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.sessions });
+    controller.dispatch({ kind: "key", key: ENTER });
+    await tick();
+
+    expect(calls).toEqual([
+      ["pi"],
+      ["claude", "claude:v1:sha256:opaque"],
+    ]);
   });
 
   test("quit invalidates pending Continue before its preparation completes", async () => {
