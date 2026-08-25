@@ -69,6 +69,10 @@ import {
   type InstallPlanExecutionHandlers,
 } from "../core/install-executor.ts";
 import { executeInstallPlanJournaled, inspectInstallJournal, installJournalMatchesPlan, InstallJournalError, type InstallExecutionJournalV1 } from "../core/install-journal.ts";
+import {
+  LINEAR_INTEGRATION_OPTIONS,
+  type LinearIntegration,
+} from "../../../ein-pi/agent/lib/linear-integration.ts";
 
 /** The one target selected by the menu or the direct installer default. */
 export type { InstallTarget, RuntimeInstallTarget } from "../core/install-plan.ts";
@@ -304,7 +308,9 @@ export type PiInstallEffects = {
 export type PiInstallOptions = {
   platform: Platform;
   flags: InstallFlags;
-  skipLinear: boolean;
+  linear?: LinearIntegration;
+  /** Compatibility for existing direct handler callers; the CLI uses `linear`. */
+  skipLinear?: boolean;
   deps: readonly DepStatus[];
   agentDir: string;
   effects?: Partial<PiInstallEffects>;
@@ -312,7 +318,9 @@ export type PiInstallOptions = {
 
 type PiEntryId = Extract<InstallPlanEntryId, `pi.${string}`>;
 
-export function createPiInstallHandlers({ platform, flags, skipLinear, deps, agentDir, effects: overrides = {} }: PiInstallOptions): { handlers: Record<PiEntryId, InstallPlanExecutionHandler>; detail: () => string } {
+export function createPiInstallHandlers(options: PiInstallOptions): { handlers: Record<PiEntryId, InstallPlanExecutionHandler>; detail: () => string } {
+  const { platform, flags, deps, agentDir, effects: overrides = {} } = options;
+  const linear: LinearIntegration = options.linear ?? (options.skipLinear ? "off" : "on");
   const paths = derivePiInstallPaths();
   const effects: PiInstallEffects = { resolveContext: () => resolvePiInstallContext(paths), migrateContext: () => { if (isValidInstallMarker(paths.legacyMarker)) migrateLegacyPi(paths); return resolvePiInstallContext(paths); }, exists: existsSync, backup: snapshot, spinner: p.spinner, deploy: deployTemplate, packages: installDeclaredPackages, writePreference: writeReleaseChannelPreference, readPreference: readReleaseChannelPreference, marker: writeMarker, check: checkDeps, doctor: runDoctor, launcher: installFishLauncher, promote: promoteCommandNames, ...overrides };
   const success = (): InstallStep => ({ ok: true, detail: "ok" });
@@ -427,7 +435,7 @@ export function createPiInstallHandlers({ platform, flags, skipLinear, deps, age
   const piContext = context();
   const spinner = p.spinner();
   spinner.start("Desplegando Ein en ~/.pi/agent");
-  const deployOpts: DeployOptions = { skipLinear };
+  const deployOpts: DeployOptions = { linear };
   try {
     const deployed = await effects.deploy(platform, deployOpts, piContext);
     spinner.stop(
@@ -466,7 +474,7 @@ export function createPiInstallHandlers({ platform, flags, skipLinear, deps, age
   if (!flags.noSecrets && !flags.yes) {
     p.log.step("Configuración de secrets (todo opcional)");
     await maybeSecret("context7", "Context7 API key", flags);
-    if (!skipLinear) await maybeSecret("linear", "Linear API key", flags);
+    if (linear === "on") await maybeSecret("linear", "Linear API key", flags);
     await maybeSecret("minimax", "MiniMax API key", flags);
   }
   return success();
@@ -635,6 +643,32 @@ function supportsPreMutationRecovery(journal: InstallExecutionJournalV1, plan: I
   });
 }
 
+type LinearIntegrationPrompt = (options: {
+  message: string;
+  options: Array<{ value: LinearIntegration; label: string }>;
+}) => Promise<unknown>;
+
+export async function selectLinearIntegration(
+  flags: InstallFlags,
+  target: InstallTarget,
+  prompt: LinearIntegrationPrompt = (options) => p.select(options),
+  isCancel: (value: unknown) => boolean = p.isCancel,
+): Promise<LinearIntegration | null> {
+  if (target === "claude" || flags.noLinear || flags.yes) return "off";
+  const selected = await prompt({
+    message: "Integración Linear",
+    options: LINEAR_INTEGRATION_OPTIONS.map((value) => ({ value, label: value })),
+  });
+  if (isCancel(selected)) return null;
+  return LINEAR_INTEGRATION_OPTIONS.includes(selected as LinearIntegration)
+    ? selected as LinearIntegration
+    : "off";
+}
+
+export function formatLinearIntegrationSummary(linear: LinearIntegration): string {
+  return `Integración Linear: ${linear}`;
+}
+
 export async function runInstall(args: string[], explicitMenuTarget?: InstallTarget, options: InstallCommandOptions = {}): Promise<number> {
   let flags: InstallFlags;
   try {
@@ -659,21 +693,24 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
     ? (Object.keys(options.observations.dependencies) as InstallDependencyId[]).map((id) => ({ id, present: options.observations!.dependencies[id], path: null, required: id === "bun" || id === "pi", hint: "injected observation" }))
     : checkDeps(platform);
   const observations = options.observations ?? observePlan(platform, deps);
-  const buildPlan = (skipLinear: boolean): InstallPlanV1 => createInstallPlan({ ...observations, platform: { os: observations.platform.os, arch: observations.platform.arch }, target, flags: { yes: flags.yes, noEngram: flags.noEngram, noSecrets: flags.noSecrets, noHypa: flags.noHypa, noCodegraph: flags.noCodegraph, skipLinear } });
-  let skipLinear = true;
-  let plan = buildPlan(skipLinear);
+  const buildPlan = (linear: LinearIntegration): InstallPlanV1 => {
+    const skipLinear = linear === "off";
+    return createInstallPlan({ ...observations, platform: { os: observations.platform.os, arch: observations.platform.arch }, target, flags: { yes: flags.yes, noEngram: flags.noEngram, noSecrets: flags.noSecrets, noHypa: flags.noHypa, noCodegraph: flags.noCodegraph, skipLinear } });
+  };
+  let linear: LinearIntegration = "off";
+  let plan = buildPlan(linear);
   if (journalStatus?.status === "valid" && journalStatus.journal.state !== "complete") {
     const journal = journalStatus.journal;
-    const candidates: { skipLinear: boolean; plan: InstallPlanV1 }[] = [{ skipLinear: true, plan }];
-    if (target !== "claude" && !flags.noLinear && !flags.yes) candidates.push({ skipLinear: false, plan: buildPlan(false) });
+    const candidates: { linear: LinearIntegration; plan: InstallPlanV1 }[] = [{ linear: "off", plan }];
+    if (target !== "claude" && !flags.noLinear && !flags.yes) candidates.push({ linear: "on", plan: buildPlan("on") });
     const admitted = candidates.find(({ plan: candidate }) => supportsPreMutationRecovery(journal, candidate));
     if (!admitted) { console.error("Install recovery status: recovery-required"); return 1; }
-    ({ plan, skipLinear } = admitted);
-  } else if (target !== "claude" && observations.piOwnership.status !== "ambiguous" && !flags.noLinear && !flags.yes && !flags.dryRun) {
-    const teamMode = await p.confirm({ message: "¿Activar modo Team (Linear como board de issues)? Por defecto: Solo (OpenSpec + git, sin Linear).", initialValue: false });
-    if (p.isCancel(teamMode)) { p.cancel("Instalación cancelada."); process.exit(1); }
-    skipLinear = !teamMode;
-    plan = buildPlan(skipLinear);
+    ({ plan, linear } = admitted);
+  } else if (observations.piOwnership.status !== "ambiguous" && !flags.dryRun) {
+    const selected = await selectLinearIntegration(flags, target);
+    if (selected === null) { p.cancel("Instalación cancelada."); process.exit(1); }
+    linear = selected;
+    plan = buildPlan(linear);
   }
   await (options.playBanner ?? playBanner)();
   // Misma gramatica que el doctor, el launcher y la sesion: sin marco, con
@@ -687,7 +724,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
     p.outro(flags.dryRun ? "Dry-run blocked. Resolve the reported blocker before installation." : "Instalación bloqueada. Resuelve el conflicto de ownership antes de continuar.");
     return 1;
   }
-  if (target !== "claude") p.log.info(skipLinear ? "Modo Solo: OpenSpec + git, sin Linear. Actívalo cuando quieras con `/ein:mode team`." : "Modo Team: Linear como board de issues.");
+  if (target !== "claude") p.log.info(formatLinearIntegrationSummary(linear));
 
   if (flags.dryRun) {
     (options.writePlan ?? ((value) => p.log.message(renderInstallPlan(value))))(plan);
@@ -695,7 +732,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
     return 0;
   }
 
-  const pi = createPiInstallHandlers({ platform, flags, skipLinear, deps, agentDir: observations.piAgentDir });
+  const pi = createPiInstallHandlers({ platform, flags, linear, deps, agentDir: observations.piAgentDir });
   const claude = createClaudeInstallHandlers({ home: observations.home, bunPath: deps.find((dependency) => dependency.id === "bun")?.path ?? undefined });
   const available: InstallPlanExecutionHandlers = {
     "shared.dependency.bun": async () => { const result = await prepareSharedBun(deps, flags); return result.ok ? result : { ok: false, detail: `Bun no disponible: ${result.detail}` }; },

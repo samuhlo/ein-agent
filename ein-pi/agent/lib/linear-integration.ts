@@ -59,16 +59,22 @@ function normalizeLegacyMode(value: unknown): LinearIntegration | undefined {
 // escritura deliberada quedaría sin efecto sin que nada lo dijera.
 function valueFrom(parsed: unknown): LinearIntegration | undefined {
 	if (!isRecord(parsed)) return undefined;
-	return normalizeIntegration(parsed.linear) ?? normalizeLegacyMode(parsed.mode);
+	if (Object.hasOwn(parsed, "linear")) return normalizeIntegration(parsed.linear);
+	return normalizeLegacyMode(parsed.mode);
 }
 
 export function linearIntegrationConfigPath(cwd: string): string {
 	return join(cwd, ".pi", "ein", "mode.json");
 }
 
-// Default global que escribe el installer según --linear/--no-linear.
-export function globalLinearIntegrationConfigPath(): string {
-	return join(homedir(), ".pi", "agent", "ein-mode.json");
+// Autoridad global del agente activo. El installer pasa su agentDir efectivo;
+// el runtime respeta primero el hogar aislado de Ein y después el de Pi.
+export function globalLinearIntegrationConfigPath(agentDir?: string): string {
+	const activeAgentDir = agentDir
+		?? process.env.EIN_PI_AGENT_HOME
+		?? process.env.PI_CODING_AGENT_DIR
+		?? join(homedir(), ".pi", "agent");
+	return join(activeAgentDir, "ein-mode.json");
 }
 
 function readIntegrationFile(path: string): LinearIntegration | undefined {
@@ -85,20 +91,26 @@ function inspectIntegrationFile(path: string, source: Exclude<LinearEvidenceSour
 	if (!existsSync(path)) {
 		return { status: "missing", source, reason: "missing", provenance: { source, reason: "missing" }, observed: [{ source, status: "missing", reason: "missing" }] };
 	}
+	let contents: string;
 	try {
-		const value = valueFrom(JSON.parse(readFileSync(path, "utf8")) as unknown);
-		if (value) return { status: "valid", source, value, reason: "read-success", provenance: { source, reason: "read-success" }, observed: [{ source, status: "valid", reason: "read-success" }] };
-		return { status: "invalid", source, reason: "invalid-evidence", provenance: { source, reason: "invalid-evidence" }, observed: [{ source, status: "invalid", reason: "invalid-evidence" }] };
+		contents = readFileSync(path, "utf8");
 	} catch {
 		return { status: "unreadable", source, reason: "unreadable", provenance: { source, reason: "unreadable" }, observed: [{ source, status: "unreadable", reason: "unreadable" }] };
 	}
+	try {
+		const value = valueFrom(JSON.parse(contents) as unknown);
+		if (value) return { status: "valid", source, value, reason: "read-success", provenance: { source, reason: "read-success" }, observed: [{ source, status: "valid", reason: "read-success" }] };
+	} catch {
+		// Sintaxis JSON rota es evidencia legible pero inválida.
+	}
+	return { status: "invalid", source, reason: "invalid-evidence", provenance: { source, reason: "invalid-evidence" }, observed: [{ source, status: "invalid", reason: "invalid-evidence" }] };
 }
 
 /** Lector aditivo con estado; el resolutor conserva su contrato y los datos perdidos. */
-export function inspectLinearIntegration(cwd: string): LinearIntegrationInspection {
+export function inspectLinearIntegration(cwd: string, agentDir?: string): LinearIntegrationInspection {
 	const project = inspectIntegrationFile(linearIntegrationConfigPath(cwd), "project");
 	if (project.status !== "missing") return project;
-	const global = inspectIntegrationFile(globalLinearIntegrationConfigPath(), "global");
+	const global = inspectIntegrationFile(globalLinearIntegrationConfigPath(agentDir), "global");
 	if (global.status !== "missing") return { ...global, observed: [...project.observed, ...global.observed] };
 	return {
 		status: "valid",
@@ -111,10 +123,10 @@ export function inspectLinearIntegration(cwd: string): LinearIntegrationInspecti
 }
 
 // Resolución: override del proyecto → default global → apagado.
-export function readLinearIntegration(cwd: string): LinearIntegration {
+export function readLinearIntegration(cwd: string, agentDir?: string): LinearIntegration {
 	return (
 		readIntegrationFile(linearIntegrationConfigPath(cwd)) ??
-		readIntegrationFile(globalLinearIntegrationConfigPath()) ??
+		readIntegrationFile(globalLinearIntegrationConfigPath(agentDir)) ??
 		DEFAULT_INTEGRATION
 	);
 }

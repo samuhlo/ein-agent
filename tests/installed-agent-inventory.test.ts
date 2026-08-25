@@ -2,6 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { deployTemplate } from "../installer/src/core/deploy.ts";
+import { detectPlatform } from "../installer/src/core/platform.ts";
+import { resolvePiInstallContext } from "../installer/src/core/paths.ts";
+import { runDoctor, type DoctorReport } from "../installer/src/core/verify.ts";
+import type { LinearIntegration } from "../ein-pi/agent/lib/linear-integration.ts";
+import { doctorSmokeReport } from "../ein-pi/agent/extensions/ein-doctor.ts";
 
 const ROOT = join(import.meta.dir, "..");
 const SOURCE_AGENTS = join(ROOT, "ein-pi", "core", "agents");
@@ -11,15 +17,31 @@ function sourceAgents(): string[] {
 	return readdirSync(SOURCE_AGENTS).filter((file) => file.endsWith(".md")).sort();
 }
 
-function bundledTemplate(): { root: string; payload: string } {
+function bundledTemplate(): { root: string; archive: string; payload: string } {
 	const root = mkdtempSync(join(tmpdir(), "ein-template-inventory-")); const archive = join(root, "template.tar.gz"); const payload = join(root, "payload"); mkdirSync(payload);
 	const app = join(root, "ein-app"); writeFileSync(app, "APP"); chmodSync(app, 0o755);
 	const result = Bun.spawnSync(["bun", "run", BUNDLE_SCRIPT], { cwd: ROOT, env: { ...process.env, EIN_TEMPLATE_OUT: archive, EIN_APP_BINARY: app, EIN_APP_TARGET: "test-target" } });
 	expect(result.exitCode).toBe(0);
 	const extract = Bun.spawnSync(["tar", "-xzf", archive, "-C", payload]);
 	expect(extract.exitCode).toBe(0);
-	return { root, payload };
+	return { root, archive, payload };
 }
+
+function doctorCheck(report: DoctorReport, name: string) {
+	return report.groups.flatMap((group) => group.checks).find((check) => check.name === name);
+}
+
+function runtimeDoctorLevel(report: string, name: string): "OK" | "WARN" | "FAIL" | undefined {
+	const match = report.match(new RegExp(`^- (OK|WARN|FAIL) - ${name}:`, "m"));
+	return match?.[1] as "OK" | "WARN" | "FAIL" | undefined;
+}
+
+const LINEAR_DOCTOR_CHECKS = [
+	"linear integration module",
+	"linear dynamic prompt",
+	"linear prompt directive",
+	"linear integration evidence",
+] as const;
 
 describe("inventario instalado de agentes", () => {
 	test("el scan fuente genera agents, assets/agents y manifest idénticos", () => {
@@ -36,9 +58,82 @@ describe("inventario instalado de agentes", () => {
 			expect(manifest.agents).toEqual(source);
 			expect(manifest.terminalApp).toEqual(expect.objectContaining({ path: "bin/ein", target: "test-target", mode: "0755" }));
 			expect(readFileSync(join(staging.payload, "bin", "ein"), "utf8")).toBe("APP");
+			expect(existsSync(join(staging.payload, "lib", "linear-integration.ts"))).toBe(true);
+			expect(existsSync(join(staging.payload, "lib", "mode.ts"))).toBe(false);
 			expect(policy).toContain("Current filesystem, Git, ProjectState/stateRef, and OpenSpec evidence outrank memory");
 			expect(policy).toContain(".engram-ein");
 			expect(policy).toContain("ONE notebook shared by both runtimes");
+		} finally {
+			rmSync(staging.root, { recursive: true, force: true });
+		}
+	});
+
+	for (const linear of ["off", "on"] as const satisfies readonly LinearIntegration[]) {
+		test(`deploy persiste Linear ${linear} desde el archive staged`, async () => {
+			const staging = bundledTemplate();
+			const home = join(staging.root, "home");
+			const context = resolvePiInstallContext(home);
+			try {
+				await deployTemplate(
+					{ ...detectPlatform(), home },
+					{ linear, archivePath: staging.archive },
+					context,
+				);
+				expect(readFileSync(join(context.agentDir, "ein-mode.json"), "utf8")).toBe(
+					`${JSON.stringify({ linear }, null, 2)}\n`,
+				);
+				// The fixture binary exists only in the injected archive, not the source tree.
+				expect(readFileSync(join(context.agentDir, "bin", "ein"), "utf8")).toBe("APP");
+			} finally {
+				rmSync(staging.root, { recursive: true, force: true });
+			}
+		});
+	}
+
+	test("los doctors reales mantienen paridad para Linear válido y roturas staged", async () => {
+		const staging = bundledTemplate();
+		const scenarios: readonly {
+			name: string;
+			linear: LinearIntegration;
+			mutate?: (agentDir: string) => void;
+			failed?: (typeof LINEAR_DOCTOR_CHECKS)[number];
+		}[] = [
+			{ name: "valid off", linear: "off" },
+			{ name: "valid on", linear: "on" },
+			{ name: "missing module", linear: "off", failed: "linear integration module", mutate: (agentDir) => rmSync(join(agentDir, "lib", "linear-integration.ts")) },
+			{ name: "missing dynamic read", linear: "off", failed: "linear dynamic prompt", mutate: (agentDir) => {
+				const path = join(agentDir, "extensions", "ein-ai.ts");
+				writeFileSync(path, readFileSync(path, "utf8").replace("readLinearIntegration(ctx.cwd)", '"off"'));
+			} },
+			{ name: "missing directive", linear: "off", failed: "linear prompt directive", mutate: (agentDir) => {
+				const path = join(agentDir, "lib", "persona.ts");
+				writeFileSync(path, readFileSync(path, "utf8").replace("${linearDirective(linear)}", ""));
+			} },
+			{ name: "unknown evidence", linear: "off", failed: "linear integration evidence", mutate: (agentDir) => writeFileSync(join(agentDir, "ein-mode.json"), '{"linear":"unknown"}\n') },
+			{ name: "malformed evidence", linear: "off", failed: "linear integration evidence", mutate: (agentDir) => writeFileSync(join(agentDir, "ein-mode.json"), "{broken\n") },
+			{ name: "unreadable evidence", linear: "off", failed: "linear integration evidence", mutate: (agentDir) => chmodSync(join(agentDir, "ein-mode.json"), 0o000) },
+		];
+
+		try {
+			for (const [index, scenario] of scenarios.entries()) {
+				const home = join(staging.root, `doctor-home-${index}`);
+				const context = resolvePiInstallContext(home);
+				await deployTemplate({ ...detectPlatform(), home }, { linear: scenario.linear, archivePath: staging.archive }, context);
+				scenario.mutate?.(context.agentDir);
+				const installerReport = runDoctor({ ...detectPlatform(), home }, context);
+				const runtimeReport = doctorSmokeReport(context.agentDir, context.home);
+				for (const name of LINEAR_DOCTOR_CHECKS) {
+					const expected = name === scenario.failed ? "FAIL" : "OK";
+					const installerLevel = doctorCheck(installerReport, name)?.level;
+					const runtimeLevel = runtimeDoctorLevel(runtimeReport, name);
+					expect({ scenario: scenario.name, name, installerLevel, runtimeLevel }).toEqual({
+						scenario: scenario.name,
+						name,
+						installerLevel: expected,
+						runtimeLevel: expected,
+					});
+				}
+			}
 		} finally {
 			rmSync(staging.root, { recursive: true, force: true });
 		}

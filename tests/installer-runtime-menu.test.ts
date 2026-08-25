@@ -16,11 +16,13 @@ import { readMarkerAt, writeMarker } from "../installer/src/core/version.ts";
 import { readReleaseChannelPreference } from "../installer/src/core/release-channel-preference.ts";
 import {
   createPiInstallHandlers,
+  formatLinearIntegrationSummary,
   getInstallTargets,
   orchestrateInstall,
   parseInstallFlags,
   resolveInstallTarget,
   runClaudeInstall,
+  selectLinearIntegration,
   type RuntimeInstallResult,
 } from "../installer/src/cli/install.ts";
 import { resolveReleaseContract } from "../installer/src/core/release-resolver.ts";
@@ -628,6 +630,81 @@ describe("Bootstrap runtime prompt", () => {
     expect(sources.some((source) => source.includes("runMenu"))).toBe(false);
     expect(sources.some((source) => source.includes("Que quieres hacer?"))).toBe(false);
     expect(existsSync(join(cliDir, "menu.ts"))).toBe(false);
+  });
+});
+
+describe("Installer Linear integration selection", () => {
+  test("offers the canonical off/on choice and preserves either interactive selection", async () => {
+    for (const selected of ["off", "on"] as const) {
+      let promptOptions: Array<{ value: string; label: string }> = [];
+      let promptMessage = "";
+      const value = await selectLinearIntegration(
+        parseInstallFlags([]),
+        "pi",
+        async (options) => {
+          promptMessage = options.message;
+          promptOptions = options.options;
+          return selected;
+        },
+        () => false,
+      );
+
+      expect(promptMessage).toBe("Integración Linear");
+      expect(promptOptions.map((option) => option.value)).toEqual(["off", "on"]);
+      expect(promptOptions.map((option) => option.label)).toEqual(["off", "on"]);
+      expect(value).toBe(selected);
+    }
+  });
+
+  test("defaults --yes and explicit opt-out to off without prompting", async () => {
+    for (const flags of [parseInstallFlags(["--yes"]), parseInstallFlags(["--no-linear"])]) {
+      let prompts = 0;
+      const value = await selectLinearIntegration(flags, "pi", async () => {
+        prompts += 1;
+        return "on";
+      });
+      expect(value).toBe("off");
+      expect(prompts).toBe(0);
+    }
+  });
+
+  test("reports exactly the canonical value without retired mode instructions", () => {
+    for (const value of ["off", "on"] as const) {
+      const summary = formatLinearIntegrationSummary(value);
+      expect(summary).toBe(`Integración Linear: ${value}`);
+      expect(summary).not.toMatch(/Modo (Solo|Team)|ein:mode|solo|team/i);
+    }
+  });
+
+  test("passes the canonical selection to deploy without a boolean translation", async () => {
+    const home = tempHome();
+    const context = resolvePiInstallContext(derivePiInstallPaths(home));
+    let deployedOptions: unknown;
+    const pi = createPiInstallHandlers({
+      platform: {
+        os: "darwin",
+        arch: "arm64",
+        distro: "unknown",
+        packageManager: "brew",
+        shell: "unknown",
+        shellRc: join(home, ".profile"),
+        home,
+      },
+      flags: parseInstallFlags([]),
+      linear: "on",
+      deps: [],
+      agentDir: context.agentDir,
+      effects: {
+        resolveContext: () => context,
+        deploy: async (_platform, options) => {
+          deployedOptions = options;
+          return { agentDir: context.agentDir, engramCommand: "engram", engramFound: true };
+        },
+      },
+    });
+
+    expect(await pi.handlers["pi.deploy-template"]()).toEqual({ ok: true, detail: "ok" });
+    expect(deployedOptions).toEqual({ linear: "on" });
   });
 });
 

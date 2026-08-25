@@ -1,0 +1,16 @@
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:scope","durationMs":0,"timestamp":"2026-08-25T10:47:07.811Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:map","durationMs":0,"timestamp":"2026-08-25T10:49:46.347Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:design","durationMs":0,"timestamp":"2026-08-25T10:55:08.845Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:tasks","durationMs":0,"timestamp":"2026-08-25T10:59:14.070Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:tasks","durationMs":0,"timestamp":"2026-08-25T11:02:03.263Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:apply","durationMs":0,"timestamp":"2026-08-25T11:07:32.530Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:apply","durationMs":0,"timestamp":"2026-08-25T11:10:33.930Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:apply","durationMs":0,"timestamp":"2026-08-25T11:12:29.059Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:apply","durationMs":0,"timestamp":"2026-08-25T11:16:15.976Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:apply","durationMs":0,"timestamp":"2026-08-25T11:20:11.413Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:apply","durationMs":0,"timestamp":"2026-08-25T11:23:14.814Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:apply","durationMs":0,"timestamp":"2026-08-25T11:27:43.559Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:apply","durationMs":0,"timestamp":"2026-08-25T11:28:19.539Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:verify","durationMs":0,"timestamp":"2026-08-25T11:39:13.700Z"}
+{"status":"skipped","reason":"no_candidate","key":"sdd:fix-linear-integration-install-coherence:invalid","durationMs":0,"timestamp":"2026-08-25T11:40:06.221Z"}
+{"status":"skipped","reason":"memory_disabled","key":"sdd:fix-linear-integration-install-coherence:close","durationMs":0,"timestamp":"2026-08-25T11:40:14.261Z"}

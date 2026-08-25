@@ -11,6 +11,7 @@ import type { Platform } from "./platform.ts";
 import { lookPath } from "./exec.ts";
 import { resolveCodegraph, resolveHypa } from "./deps.ts";
 import { ENGRAM_STORE_DIRNAME } from "../../../ein-pi/agent/lib/memory-contract.ts";
+import { inspectLinearIntegration } from "../../../ein-pi/agent/lib/linear-integration.ts";
 import {
   defaultPiInstallContext,
   type PiInstallContext,
@@ -148,6 +149,12 @@ export function runDoctor(
   const sddApplyRaw = readIfExists(join(agentsDir, "sdd-apply.md"));
   const sddVerifyRaw = readIfExists(join(agentsDir, "sdd-verify.md"));
   const orchestratorRaw = readIfExists(join(agentDir, "assets", "orchestrator.md"));
+  const einAiRaw = readIfExists(join(agentDir, "extensions", "ein-ai.ts"));
+  const personaRaw = readIfExists(join(agentDir, "lib", "persona.ts"));
+  const linearInspection = inspectLinearIntegration(context.home, agentDir);
+  const hasDynamicLinearPrompt = einAiRaw.split("\n").some((line) =>
+    line.includes("buildEinPrompt(") && line.includes("readLinearIntegration(ctx.cwd)"),
+  );
   const mcpServers = (mcp.value.mcpServers as Record<string, unknown>) ?? {};
   const engramServer = mcpServers.engram as Record<string, unknown> | undefined;
   const engramEnv = (engramServer?.environment as Record<string, unknown>) ?? {};
@@ -250,9 +257,15 @@ export function runDoctor(
     check(orchestratorRaw.includes("Plan Gate"), "orchestrator plan gate", "El orchestrator exige plan + confirmación antes de mutaciones ambiguas/bulk."),
     check(orchestratorRaw.includes("Exploration hygiene"), "orchestrator exploration hygiene", "El orchestrator excluye node_modules/dist/etc. de find/grep/glob."),
     check(orchestratorRaw.includes("Assessment & valuation"), "orchestrator valuation read-only", "Una valoración no dispara build/test pesados por defecto."),
-    check(existsSync(join(agentDir, "lib", "mode.ts")), "work mode module", "lib/mode.ts presente (modo solo/team)."),
-    check(orchestratorRaw.toLowerCase().includes("work mode") && orchestratorRaw.includes("solo"), "orchestrator mode-aware", "El orchestrator es consciente del modo (solo/team); Linear condicional."),
-    check(existsSync(join(agentDir, "lib", "sdd-router.ts")) && readIfExists(join(agentDir, "extensions", "ein-ai.ts")).includes("ein_sdd_status"), "sdd router cableado", "Router determinista (sdd-router + tool ein_sdd_status) presente."),
+    check(existsSync(join(agentDir, "lib", "linear-integration.ts")), "linear integration module", "lib/linear-integration.ts presente."),
+    check(hasDynamicLinearPrompt, "linear dynamic prompt", "ein-ai obtiene Linear y lo entrega a buildEinPrompt."),
+    check(personaRaw.includes("linearDirective(linear)"), "linear prompt directive", "buildEinPrompt incorpora la directiva Linear dinámica."),
+    check(
+      linearInspection.status === "valid",
+      "linear integration evidence",
+      `Estado Linear ${linearInspection.status} desde ${linearInspection.source} (${linearInspection.reason}).`,
+    ),
+    check(existsSync(join(agentDir, "lib", "sdd-router.ts")) && einAiRaw.includes("ein_sdd_status"), "sdd router cableado", "Router determinista (sdd-router + tool ein_sdd_status) presente."),
     check(existsSync(join(agentDir, "agents", "sdd-close.md")) && orchestratorRaw.includes("ein_sdd_check"), "sdd gatekeeper + close", "Gatekeeper (ein_sdd_check) y fase close cableados."),
   ];
 

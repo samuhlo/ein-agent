@@ -8,6 +8,7 @@ import { commandName, loadBrand, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
 import { pick } from "../lib/lang";
 import { PI_BUILTIN_TOOLS, formatDrift, verifyPiContract } from "../lib/pi-contract.ts";
+import { inspectLinearIntegration } from "../lib/linear-integration.ts";
 import {
   AGENT_DIR,
   CONTEXT7_KEY_PATH,
@@ -157,10 +158,10 @@ const BUILTIN_TOOLS = new Set(PI_BUILTIN_TOOLS);
 // Tools declaradas por los agentes DESPLEGADOS que Pi no puede resolver.
 // Ignora rutas de proveedor (van a --extension) y nombres registrados por las
 // extensiones de Ein, que el hijo hereda.
-function unknownDeployedAgentTools(agentsDir: string): string[] {
+function unknownDeployedAgentTools(agentsDir: string, agentDir: string = AGENT_DIR): string[] {
   if (!existsSync(agentsDir)) return [];
   const extensionTools = new Set<string>();
-  const extDir = join(AGENT_DIR, "extensions");
+  const extDir = join(agentDir, "extensions");
   if (existsSync(extDir)) {
     for (const file of readdirSync(extDir).filter((f) => f.endsWith(".ts"))) {
       const src = readIfExists(join(extDir, file));
@@ -197,13 +198,16 @@ export function scoutStaticContract(
   };
 }
 
-function doctorSmokeReport(): string {
-  const brandFile = join(AGENT_DIR, "brand.json");
-  const settingsFile = join(AGENT_DIR, "settings.json");
-  const mcpFile = join(AGENT_DIR, "mcp.json");
-  const guardrailsFile = join(AGENT_DIR, "lib", "guardrails.ts");
-  const agentsDir = join(AGENT_DIR, "agents");
-  const chainsDir = join(AGENT_DIR, "chains");
+export function doctorSmokeReport(
+  agentDir: string = AGENT_DIR,
+  cwd: string = process.cwd(),
+): string {
+  const brandFile = join(agentDir, "brand.json");
+  const settingsFile = join(agentDir, "settings.json");
+  const mcpFile = join(agentDir, "mcp.json");
+  const guardrailsFile = join(agentDir, "lib", "guardrails.ts");
+  const agentsDir = join(agentDir, "agents");
+  const chainsDir = join(agentDir, "chains");
 
   let brand: Record<string, unknown> = {};
   let brandParseOk = false;
@@ -236,11 +240,17 @@ function doctorSmokeReport(): string {
   const guardrailsRaw = readIfExists(guardrailsFile);
   // BLINDAJE -> Ficheros donde historicamente quedaban referencias colgantes
   // (forecast muerto, support inexistente, straggler de marca).
-  const preflightRaw = readIfExists(join(AGENT_DIR, "lib", "sdd-preflight.ts"));
+  const preflightRaw = readIfExists(join(agentDir, "lib", "sdd-preflight.ts"));
   const einGitRaw = readIfExists(join(agentsDir, "ein-git.md"));
   const sddApplyRaw = readIfExists(join(agentsDir, "sdd-apply.md"));
   const sddVerifyRaw = readIfExists(join(agentsDir, "sdd-verify.md"));
-  const orchestratorRaw = readIfExists(join(AGENT_DIR, "assets", "orchestrator.md"));
+  const orchestratorRaw = readIfExists(join(agentDir, "assets", "orchestrator.md"));
+  const einAiRaw = readIfExists(join(agentDir, "extensions", "ein-ai.ts"));
+  const personaRaw = readIfExists(join(agentDir, "lib", "persona.ts"));
+  const linearInspection = inspectLinearIntegration(cwd, agentDir);
+  const hasDynamicLinearPrompt = einAiRaw.split("\n").some((line) =>
+    line.includes("buildEinPrompt(") && line.includes("readLinearIntegration(ctx.cwd)"),
+  );
   const mcpServers = (mcpCfg.mcpServers as Record<string, unknown>) ?? {};
   const engramServer = mcpServers.engram as Record<string, unknown> | undefined;
   const engramEnv = (engramServer?.environment as Record<string, unknown>) ?? {};
@@ -254,8 +264,8 @@ function doctorSmokeReport(): string {
   const hasAskUserQuestion = packages.includes("npm:@juicesharp/rpiv-ask-user-question");
   const hasI18nPkg = packages.includes("npm:@juicesharp/rpiv-i18n");
   const hasContextMode = packages.includes("npm:context-mode");
-  const langLibFile = join(AGENT_DIR, "lib", "lang.ts");
-  const stringsLibFile = join(AGENT_DIR, "lib", "i18n", "strings.ts");
+  const langLibFile = join(agentDir, "lib", "lang.ts");
+  const stringsLibFile = join(agentDir, "lib", "i18n", "strings.ts");
 
   const checksCore: CheckResult[] = [
     check(existsSync(brandFile), "brand.json", "Archivo de marca presente."),
@@ -307,10 +317,10 @@ function doctorSmokeReport(): string {
   const scoutContract = scoutStaticContract(
     agentsDir,
     readIfExists(
-      join(AGENT_DIR, "npm", "node_modules", "pi-subagents", "src", "runs", "shared", "pi-args.ts"),
+      join(agentDir, "npm", "node_modules", "pi-subagents", "src", "runs", "shared", "pi-args.ts"),
     ),
   );
-  const unknownDeployedTools = unknownDeployedAgentTools(agentsDir);
+  const unknownDeployedTools = unknownDeployedAgentTools(agentsDir, agentDir);
   const piContract = verifyPiContract();
 
   const checksAgents: CheckResult[] = [
@@ -366,7 +376,7 @@ function doctorSmokeReport(): string {
 
   const checksExtensions: CheckResult[] = CORE_EXTENSIONS.map((e) =>
     check(
-      existsSync(join(AGENT_DIR, "extensions", e)),
+      existsSync(join(agentDir, "extensions", e)),
       `ext ${e}`,
       "Extension presente.",
     ),
@@ -413,7 +423,7 @@ function doctorSmokeReport(): string {
       "Key Context7 detectable.",
     ),
     warn(
-      existsSync(join(AGENT_DIR, "backups", "auto")),
+      existsSync(join(agentDir, "backups", "auto")),
       "backup auto",
       "Directorio de backup automatico presente.",
     ),
@@ -493,24 +503,33 @@ function doctorSmokeReport(): string {
       "Una valoracion no dispara build/test pesados por defecto.",
     ),
     check(
-      existsSync(join(AGENT_DIR, "lib", "mode.ts")),
-      "work mode module",
-      "lib/mode.ts presente (modo solo/team).",
+      existsSync(join(agentDir, "lib", "linear-integration.ts")),
+      "linear integration module",
+      "lib/linear-integration.ts presente.",
     ),
     check(
-      orchestratorRaw.toLowerCase().includes("work mode") &&
-        orchestratorRaw.includes("solo"),
-      "orchestrator mode-aware",
-      "El orchestrator es consciente del modo (solo/team); Linear es condicional.",
+      hasDynamicLinearPrompt,
+      "linear dynamic prompt",
+      "ein-ai obtiene Linear y lo entrega a buildEinPrompt.",
     ),
     check(
-      existsSync(join(AGENT_DIR, "lib", "sdd-router.ts")) &&
-        readIfExists(join(AGENT_DIR, "extensions", "ein-ai.ts")).includes("ein_sdd_status"),
+      personaRaw.includes("linearDirective(linear)"),
+      "linear prompt directive",
+      "buildEinPrompt incorpora la directiva Linear dinamica.",
+    ),
+    check(
+      linearInspection.status === "valid",
+      "linear integration evidence",
+      `Estado Linear ${linearInspection.status} desde ${linearInspection.source} (${linearInspection.reason}).`,
+    ),
+    check(
+      existsSync(join(agentDir, "lib", "sdd-router.ts")) &&
+        einAiRaw.includes("ein_sdd_status"),
       "sdd router cableado",
       "Router determinista (lib/sdd-router.ts + tool ein_sdd_status) presente.",
     ),
     check(
-      existsSync(join(AGENT_DIR, "agents", "sdd-close.md")) &&
+      existsSync(join(agentDir, "agents", "sdd-close.md")) &&
         orchestratorRaw.includes("ein_sdd_check"),
       "sdd gatekeeper + close",
       "Gatekeeper (ein_sdd_check) y fase close cableados.",

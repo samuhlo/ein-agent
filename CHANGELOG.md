@@ -4,6 +4,20 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.82.0-alpha.4] - 2026-08-25
+
+### Fixed
+
+- **La instalación de Pi vuelve a mantener coherente la integración Linear.**
+  La selección `off`/`on`, su persistencia global y el resumen final comparten
+  ahora el mismo contrato, incluido el valor `off` por defecto.
+- **Los doctors del installer y del runtime validan el flujo dinámico actual.**
+  Ambos comprueban el módulo canónico, la inyección del prompt y la evidencia
+  persistida sin exigir el módulo ni el vocabulario Solo/Team retirados.
+- **Una regresión staged cubre la instalación limpia de extremo a extremo.**
+  El bundle generado atraviesa el deploy y los doctors reales para `off` y
+  `on`, y conserva fallos cerrados ante costuras o evidencia defectuosas.
+
 ## [0.82.0-alpha.3] - 2026-08-25
 
 ### Fixed

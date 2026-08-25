@@ -11,6 +11,10 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  globalLinearIntegrationConfigPath,
+  type LinearIntegration,
+} from "../../../ein-pi/agent/lib/linear-integration.ts";
 // Embedded at compile time via `bun build --compile`; at runtime resolves to
 // the bundled asset path.
 import templateTarball from "../assets/template.tar.gz" with { type: "file" };
@@ -56,10 +60,12 @@ export async function readBundledManifest(): Promise<TemplateManifest | null> {
 }
 
 export type DeployOptions = {
-  // skipLinear writes ein-mode.json=solo instead of deleting ein-linear files.
-  // Deletion was destructive and incoherent; the agent stays deployed and the
-  // runtime mode in lib/mode.ts decides whether Linear is actually used.
+  linear?: LinearIntegration;
+  // Kept until the CLI boundary migrates to the canonical value.
   skipLinear?: boolean;
+  // Production uses the embedded asset; staged integration tests inject the
+  // bundle they built while preserving the same deployment pipeline.
+  archivePath?: string;
 };
 
 export type DeployResult = {
@@ -68,10 +74,9 @@ export type DeployResult = {
   engramFound: boolean;
 };
 
-// Writes the global default work mode (lib/mode.ts fallback when a project has
-// no .pi/ein/mode.json). solo when skipLinear, team otherwise.
-function writeGlobalMode(agentDir: string, mode: "solo" | "team"): void {
-  writeFileSync(join(agentDir, "ein-mode.json"), `${JSON.stringify({ mode }, null, 2)}\n`);
+function writeGlobalLinearIntegration(agentDir: string, linear: LinearIntegration): void {
+  const path = globalLinearIntegrationConfigPath(agentDir);
+  writeFileSync(path, `${JSON.stringify({ linear }, null, 2)}\n`);
 }
 
 // Template-owned dirs. Wiped before extraction so files removed upstream (e.g.
@@ -114,9 +119,9 @@ export async function deployTemplate(
   const { agentDir } = context;
   const userSettings = readUserSettings(agentDir);
 
-  // Stage the embedded asset to a real file: `tar` needs a concrete path,
-  // not a bun:// import.
-  const bytes = await Bun.file(templateTarball).arrayBuffer();
+  // Stage the selected asset to a real file: `tar` needs a concrete path,
+  // not a bun:// import. Production and staged fixtures join the same pipeline here.
+  const bytes = await Bun.file(opts.archivePath ?? templateTarball).arrayBuffer();
   const staging = mkdtempSync(join(tmpdir(), "ein-deploy-"));
   const stagedTar = join(staging, "template.tar.gz");
   try {
@@ -143,8 +148,8 @@ export async function deployTemplate(
     // Re-apply user-owned fields the tarball reset.
     mergeUserSettings(agentDir, userSettings);
 
-    // Default work mode (overridden per-project by .pi/ein/mode.json).
-    writeGlobalMode(agentDir, opts.skipLinear ? "solo" : "team");
+    const linear = opts.linear ?? (opts.skipLinear ? "off" : "on");
+    writeGlobalLinearIntegration(agentDir, linear);
 
     return {
       agentDir,

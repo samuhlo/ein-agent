@@ -84,6 +84,19 @@ describe("managed install plan", () => {
     expect(renderInstallPlan(first)).toContain(`[satisfied] ${first.inventory[0]?.id}`);
   });
 
+  test("describes Linear integration with canonical off/on vocabulary", () => {
+    for (const [skipLinear, expected] of [[true, "Linear integration off"], [false, "Linear integration on"]] as const) {
+      const plan = createInstallPlan(input("pi", { flags: { ...input("pi").flags, skipLinear } }));
+      const reason = plan.inventory.find((entry) => entry.id === "pi.deploy-template")?.reason;
+      const observablePlan = `${renderInstallPlan(plan)}\n${serializeInstallPlan(plan)}`;
+
+      expect(reason).toContain(expected);
+      expect(observablePlan).toContain(expected);
+      expect(observablePlan).not.toMatch(/\b(?:solo|team)\b/i);
+      expect(observablePlan).not.toContain("skipLinear");
+    }
+  });
+
   test("rejects malformed runtime input with bounded non-echoing errors", () => {
     const valid = input("pi");
     const malformed: unknown[] = [
