@@ -12,6 +12,22 @@ Samuhlo's style for **runtime logs** (Node, APIs, servers, jobs, webhooks). Not 
 
 Use it when adding, refactoring, or normalizing logs in `.ts` / `.js`, or when writing a logger helper.
 
+## Essentials
+
+Lo que hay que saber para escribir un log. El resto del documento es referencia.
+
+- Un log es un registro de evento, no prosa. Un log = un evento.
+- Formato: `[TAG] SEP ACCION :: key: value | key: value`
+  Tag hasta 6 mayusculas · SEP `::` general, `>>` arranque, `++` exito, `->`
+  saliente · Accion hasta 12 mayusculas · detalles en `key: value`.
+  `[DB] >> CONN_OPEN :: host: local | attempt: 1`
+- Tags: [INFO] [WARN] [ERR] [HOOK] [INGEST] [ANLZ] [DATA] [DB] [API] [AUTH] [CACHE].
+- Sin emojis, nunca. Sin frases.
+- Un error lleva lo necesario para reproducirlo.
+- Nunca secretos ni PII: ids en su lugar.
+- Nada de ruido: no logues por iteracion en bucles calientes. Registra
+  decisiones, fronteras, fallos y operaciones lentas.
+
 ## Core Principle
 
 A log line is an **event record**, not prose. Optimised for instant scanning and grep.

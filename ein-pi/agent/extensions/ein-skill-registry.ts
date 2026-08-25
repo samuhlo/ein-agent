@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
+import { buildConventionBlock } from "../lib/style-contract.ts";
 import { pick } from "../lib/lang";
 import { readLinearIntegration, type LinearIntegration } from "../lib/linear-integration";
 import { AGENT_DIR, DOWNLOADED_SKILLS_DIR, LOCAL_SKILLS_DIR } from "./ein-paths";
@@ -385,6 +386,17 @@ export function codeConventionSkillBlock(cwd: string): string {
     (p): p is string => typeof p === "string",
   );
   if (!paths.length) return "";
+
+  // La raiz de skills sale de la propia entrada del registry: en produccion es
+  // el home instalado y en un test es un arbol de prueba, y asi el extracto se
+  // compila de las MISMAS skills cuyas rutas se estan citando.
+  const commentPath = byKey.get("comment-style")?.path;
+  const root = commentPath ? dirname(dirname(commentPath)) : undefined;
+  const block = root ? buildConventionBlock(root, paths) : "";
+  if (block) return block;
+
+  // BLINDAJE -> si el extracto no se puede compilar, se entregan las rutas como
+  // antes. Peor que las reglas, mejor que el silencio.
   return [
     "## Code conventions (mandatory house style)",
     "Before writing or editing ANY code, read and follow these convention skills — not optional:",
