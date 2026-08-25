@@ -104,6 +104,14 @@ function alphaUpdateHttp(requests: string[] = []): UpdateCaps["http"] {
   };
 }
 
+function legacyMarker(version: string, channel: "stable" | "alpha"): Uint8Array {
+  return encoder.encode(JSON.stringify({
+    version,
+    installedAt: "2026-01-01T00:00:00.000Z",
+    channel,
+  }));
+}
+
 function marker(version = "0.19.0", owner: object = { type: "standalone" }): Uint8Array {
   return encoder.encode(JSON.stringify({
     schemaVersion: 2,
@@ -161,7 +169,7 @@ describe("release update CLI", () => {
     expect([...files.keys()]).toEqual([markerPath]);
   });
 
-  test("resolves explicit installation alpha before the transaction and preserves marker/evidence isolation", async () => {
+  test("updates an alpha v1 standalone installation through the verified transaction", async () => {
     const dir = root();
     const agentDir = join(dir, "agent");
     const clientDir = join(dir, "client");
@@ -174,7 +182,7 @@ describe("release update CLI", () => {
     mkdirSync(clientDir, { recursive: true });
     writeFileSync(destinationPath, "old-binary");
     chmodSync(destinationPath, 0o755);
-    writeFileSync(markerPath, marker());
+    writeFileSync(markerPath, legacyMarker("0.19.0-alpha.1", "alpha"));
     writeFileSync(clientSettingsPath, clientSettings);
     expect(writeReleaseChannelPreference(dir, "alpha")).toEqual({ status: "explicit", channel: "alpha" });
 

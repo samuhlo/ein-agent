@@ -21,6 +21,7 @@ import {
 } from "../installer/src/core/release-types.ts";
 import { adaptReleaseRecord, fetchLatestRelease, fetchReleaseByTag } from "../installer/src/core/release-record.ts";
 import { isEligibleRelease, normalizeTag, parseSelector, resolveExplicitTag, resolveRecord, resolveReleases } from "../installer/src/core/release-resolver.ts";
+import { classifyOwnership as classifyMarkerOwnership, readMarkerV2 } from "../installer/src/core/marker-v2.ts";
 import { defaultUpdateCaps } from "../installer/src/core/update-caps.ts";
 import { fakeUpdateCaps } from "./helpers/fake-update-caps.ts";
 import { readInstallerUpdateEvidence } from "../installer/src/core/update-advisor-read.ts";
@@ -567,10 +568,11 @@ describe("release update contract", () => {
     });
   });
 
-  test("classifies ownership from metadata instead of install paths", () => {
-    const legacy: MarkerV1 = { version: "0.18.0", installedAt: "2026-01-01", channel: "stable" };
+  test("classifies valid stable and alpha v1 markers as legacy standalone without changing v2 ownership", () => {
+    const stableLegacy: MarkerV1 = { version: "0.18.0", installedAt: "2026-01-01", channel: "stable" };
+    const alphaLegacy: MarkerV1 = { ...stableLegacy, channel: "alpha" };
     const external: MarkerV2 = {
-      ...legacy,
+      ...stableLegacy,
       schemaVersion: 2,
       releaseTag: "installer-v0.18.0",
       binaryVersion: "0.18.0",
@@ -578,9 +580,19 @@ describe("release update contract", () => {
       owner: { type: "package-manager", manager: "homebrew" },
       asset: { assetName: "ein-installer-darwin-arm64", sha256: "0".repeat(64) },
     };
-    expect(classifyOwnership(legacy)).toEqual({ type: "legacy-standalone" });
+    expect(classifyOwnership(stableLegacy)).toEqual({ type: "legacy-standalone" });
+    expect(classifyOwnership(alphaLegacy)).toEqual({ type: "legacy-standalone" });
+    expect(classifyOwnership({ ...stableLegacy, channel: "beta" } as unknown as MarkerV1)).toEqual(expect.objectContaining({ type: "ownership-ambiguous" }));
     expect(classifyOwnership(external)).toEqual({ type: "package-manager", manager: "homebrew" });
     expect(classifyOwnership(null)).toEqual(expect.objectContaining({ type: "ownership-ambiguous" }));
+  });
+
+  test("rejects unsupported legacy marker channels before ownership can be trusted", () => {
+    const markerPath = "/fake/.ein-install.json";
+    const bytes = new TextEncoder().encode(JSON.stringify({ version: "0.18.0", installedAt: "2026-01-01", channel: "beta" }));
+    const marker = readMarkerV2(fakeUpdateCaps({ files: new Map([[markerPath, bytes]]) }), markerPath);
+    expect(marker).toBeNull();
+    expect(classifyMarkerOwnership(marker)).toEqual(expect.objectContaining({ type: "ownership-ambiguous" }));
   });
 
   test("constructs production and fake capabilities without test-only branches", () => {

@@ -172,7 +172,7 @@ export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
 export function classifyOwnership(marker: MarkerV1 | MarkerV2 | null): OwnershipMarker {
   if (!marker) return { type: "ownership-ambiguous", reason: "missing marker" };
   if (!("schemaVersion" in marker)) {
-    return marker.channel === "stable"
+    return isReleaseChannel(marker.channel)
       ? { type: "legacy-standalone" }
       : { type: "ownership-ambiguous", reason: "unknown legacy channel" };
   }

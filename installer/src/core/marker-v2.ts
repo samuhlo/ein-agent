@@ -46,7 +46,7 @@ function markerError(code: string, message: string): MarkerError {
 function isV1(value: unknown): value is MarkerV1 {
   if (!value || typeof value !== "object") return false;
   const marker = value as Partial<MarkerV1>;
-  return typeof marker.version === "string" && typeof marker.installedAt === "string" && typeof marker.channel === "string";
+  return typeof marker.version === "string" && typeof marker.installedAt === "string" && isReleaseChannel(marker.channel);
 }
 
 function isOwner(value: unknown): value is Extract<OwnershipMarker, { type: "standalone" } | { type: "package-manager" }> {
@@ -80,11 +80,7 @@ export function readMarkerV2(caps: Pick<UpdateCaps, "fs">, markerPath = INSTALL_
 
 export function classifyOwnership(marker: MarkerV1 | MarkerV2 | null): OwnershipMarker {
   if (!marker) return { type: "ownership-ambiguous", reason: "missing or malformed marker" };
-  if (!isV2(marker)) {
-    return marker.channel === "stable"
-      ? { type: "legacy-standalone" }
-      : { type: "ownership-ambiguous", reason: "unknown legacy channel" };
-  }
+  if (!isV2(marker)) return { type: "legacy-standalone" };
   return marker.owner;
 }
 

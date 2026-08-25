@@ -4,6 +4,15 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.82.0-alpha.3] - 2026-08-25
+
+### Fixed
+
+- **Las instalaciones alpha con marcador v1 ya se reconocen como instalaciones
+  standalone gestionadas por Ein.** Esto permite ejecutar `ein-install update`
+  desde alpha.1 y alpha.2, mientras los canales no válidos siguen fallando de
+  forma cerrada.
+
 ## [0.82.0-alpha.2] - 2026-08-25
 
 ### Fixed
