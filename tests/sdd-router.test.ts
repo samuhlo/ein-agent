@@ -90,6 +90,35 @@ describe("resolveSddStatus", () => {
 		expect(s.tasks.nextPending).toEqual({ id: "1.1", title: "Build router", done: false });
 	});
 
+	test("asocia cada checkbox con el grupo ## precedente sin alterar su título semántico", () => {
+		const c = change("feat-x");
+		put(c, "tasks.md", [
+			"status: ready",
+			"blocked_by: none",
+			"## // 001. Prerelease-aware package selection",
+			"- [ ] 1.1 Resolve the longest matching prerelease package sentence",
+			"## // 002. Preserve router semantics",
+			"- [x] 2.1 Keep the checkbox title intact",
+		].join("\n"));
+
+		const items = resolveSddStatus(DIR, "feat-x").tasks.items;
+		expect(items[0]).toEqual({
+			id: "1.1",
+			title: "Resolve the longest matching prerelease package sentence",
+			groupTitle: "Prerelease-aware package selection",
+			done: false,
+		});
+		expect(items[1]?.groupTitle).toBe("Preserve router semantics");
+	});
+
+	test("sin heading conserva el checkbox como único título", () => {
+		const c = change("feat-x");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [ ] 1.1 Build router\n");
+		const item = resolveSddStatus(DIR, "feat-x").tasks.items[0];
+		expect(item).toEqual({ id: "1.1", title: "Build router", done: false });
+		expect(item?.groupTitle).toBeUndefined();
+	});
+
 	test("nextPending = primera tarea sin marcar, saltando las hechas (reanudación)", () => {
 		const c = change("feat-x");
 		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [x] 1 hecho\n- [x] 2 hecho\n- [ ] 3 pendiente\n- [ ] 4 pendiente\n");

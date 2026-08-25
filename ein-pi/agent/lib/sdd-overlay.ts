@@ -218,7 +218,13 @@ export function renderSddOverlay(
 		summaryFits ? rowSpace - 1 : rowSpace,
 	);
 	const rows = visible.map((item) =>
-		blockRow(item.id, item.title, item.done ? "done" : item.id === currentId ? "current" : "pending", width, palette),
+		blockRow(
+			item.id,
+			item.groupTitle ?? item.title,
+			item.done ? "done" : item.id === currentId ? "current" : "pending",
+			width,
+			palette,
+		),
 	);
 
 	if (summaryFits && hiddenDone > 0) {
