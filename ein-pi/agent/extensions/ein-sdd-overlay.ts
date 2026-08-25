@@ -20,6 +20,11 @@ export default function (pi: ExtensionAPI): void {
 	let collapsed = false;
 	// Última pintura, para no repintar lo idéntico: el widget se refresca en
 	// cada herramienta y un setWidget por llamada es trabajo y parpadeo gratis.
+	//
+	// RUIDO -> esto registra lo ENVIADO, no lo que llegó a la pantalla, y no hay
+	// forma de saber lo segundo. Si un envío se pierde —la TUI montándose aún al
+	// abrir sobre una sesión con historial—, el widget se queda mudo hasta que el
+	// contenido cambie por su cuenta. Por eso la caché no sobrevive a un arranque.
 	let painted: string | null = null;
 
 	const palette = createPalette(
@@ -47,7 +52,7 @@ export default function (pi: ExtensionAPI): void {
 		const next = lines.join("\n");
 		if (next === painted) return;
 		painted = next;
-		ctx.ui.setWidget(OVERLAY_KEY, lines.length > 0 ? [...lines] : undefined, { placement: "aboveEditor" });
+		ctx.ui.setWidget(OVERLAY_KEY, lines.length > 0 ? [...lines] : undefined, { placement: "belowEditor" });
 	}
 
 	// Se refresca donde el estado PUEDE haber cambiado: al abrir, al terminar un
@@ -55,7 +60,13 @@ export default function (pi: ExtensionAPI): void {
 	// escribe su artefacto o `sdd-apply` marca una tarea. Cuesta 0,12 ms medidos.
 	// Cuatro llamadas y no un bucle: cada `on` tiene su propia sobrecarga tipada,
 	// y recorrer los nombres las colapsa a la última.
-	pi.on("session_start", (_event, ctx) => refresh(ctx));
+	// CORTE -> al arrancar, la UI es nueva aunque el contenido sea el mismo. Dar
+	// por pintado lo que quizá nunca llegó a la pantalla es lo que dejaba el
+	// widget mudo el resto de la sesión. El atajo de plegar ya hacía esto mismo.
+	pi.on("session_start", (_event, ctx) => {
+		painted = null;
+		refresh(ctx);
+	});
 	pi.on("turn_end", (_event, ctx) => refresh(ctx));
 	pi.on("tool_execution_end", (_event, ctx) => refresh(ctx));
 	pi.on("agent_end", (_event, ctx) => refresh(ctx));
