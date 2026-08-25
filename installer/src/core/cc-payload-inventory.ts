@@ -10,11 +10,19 @@ export const CC_EIN_PAYLOAD_ROOTS = ["cc-ein", "ein-pi/core"] as const;
 /** The canonical orchestrator asset shipped in the Claude payload. */
 export const CC_EIN_ORCHESTRATOR_ASSET = "ein-pi/agent/assets/orchestrator.md" as const;
 
+/**
+ * The style contract compiler, imported by `cc-ein/sync.ts` itself. It is a pure
+ * module with no relative imports, so it ships as a single file rather than as
+ * an entry-point closure.
+ */
+export const CC_EIN_STYLE_CONTRACT = "ein-pi/agent/lib/style-contract.ts" as const;
+
 /** Explicit files shipped alongside the Claude adapter for packaged execution. */
 export const CC_EIN_PAYLOAD_FILES = [
   "pi-ein/pi-ein.fish",
   "pi-ein/migrate.ts",
   CC_EIN_ORCHESTRATOR_ASSET,
+  CC_EIN_STYLE_CONTRACT,
 ] as const;
 
 /** The SDD CLI entry point whose relative imports form the extra source closure. */
@@ -41,6 +49,7 @@ export const CC_EIN_PAYLOAD_REQUIRED_PATHS = [
   "cc-ein/commands/ein/handoff.md",
   "ein-pi/core",
   CC_EIN_ORCHESTRATOR_ASSET,
+  CC_EIN_STYLE_CONTRACT,
   "pi-ein/pi-ein.fish",
 ] as const;
 

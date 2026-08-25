@@ -140,3 +140,41 @@ sobre cuándo pedir confirmación explícita al usuario.
 <!-- ein:harness-discipline:end -->
 
 <!-- ein:claude-adaptation:end -->
+
+
+## Code conventions (mandatory house style)
+Estas son las reglas, no un puntero a ellas. Aplicalas a los bloques que toques.
+
+# comment-style
+Lo que hay que saber para escribir. El resto del documento es referencia.
+
+- Comenta el PORQUE, no el QUE. Si el codigo es obvio, no comentes. Si el
+  comentario repite el codigo, borralo. Nombres claros antes que comentarios.
+- Inline: razon en MAYUSCULAS y `->` para causa/efecto.
+  `// BLINDAJE -> Limpiar el listener al desmontar previene fugas.`
+- Vocabulario, solo cuando explica un riesgo real: RUIDO · BLINDAJE · CORTE ·
+  GUARD · FAIL CLOSED · FRICTION CUT · BUNKER · FORGE · NOISE KILL · HARD STOP.
+  Maximo un acento por bloque logico.
+- Tags entre corchetes cuando ayudan a navegar: [CORE] [FLOW] [AUTH] [DATA]
+  [API] [DB] [CACHE] [UI] [LAYOUT] [NOTE] [TODO] [FIX] [HACK] [DEPRECATED].
+  La lista sugiere; un tag propio que aclare vale igual.
+- Bloque de cabecera solo en ficheros no triviales: regla `===`, titulo con tag.
+- Constante con nombre antes que comentar un numero suelto.
+- Sin emojis. Sin decoracion. Sin frases motivacionales.
+
+Al tocar codigo: aplicalo a los bloques que tocas, normaliza lo util que ya
+este, borra lo que no ayude al mantenimiento. Nunca comentes por documentar.
+# logging-style
+Lo que hay que saber para escribir un log. El resto del documento es referencia.
+
+- Un log es un registro de evento, no prosa. Un log = un evento.
+- Formato: `[TAG] SEP ACCION :: key: value | key: value`
+  Tag hasta 6 mayusculas · SEP `::` general, `>>` arranque, `++` exito, `->`
+  saliente · Accion hasta 12 mayusculas · detalles en `key: value`.
+  `[DB] >> CONN_OPEN :: host: local | attempt: 1`
+- Tags: [INFO] [WARN] [ERR] [HOOK] [INGEST] [ANLZ] [DATA] [DB] [API] [AUTH] [CACHE].
+- Sin emojis, nunca. Sin frases.
+- Un error lleva lo necesario para reproducirlo.
+- Nunca secretos ni PII: ids en su lugar.
+- Nada de ruido: no logues por iteracion en bucles calientes. Registra
+  decisiones, fronteras, fallos y operaciones lentas.
