@@ -8,6 +8,7 @@ import type {
 	AdapterErrorCode,
 	AdapterResult,
 	LaunchIntent,
+	LaunchPlan,
 	ProjectBinding,
 	SessionMetadata,
 } from "../ein-pi/agent/lib/runtime-session-adapters";
@@ -15,6 +16,7 @@ import type {
 	ProjectStateReasonCode,
 	ProjectStateV1,
 } from "../ein-pi/agent/lib/project-state";
+import { EIN_SDD_SESSION_BINDING_ENV_KEY } from "../ein-pi/agent/lib/sdd-session-binding";
 
 const owner = getRuntimeTestOwner();
 const {
@@ -878,6 +880,142 @@ describe("transient ProjectStateV1 runtime metadata translation", () => {
 		expect(metadata.references).toHaveLength(20);
 		expect(metadata.references?.[0]).toBe(references[0]?.reference);
 		expect(JSON.stringify(metadata)).not.toContain("malformed private entry");
+	});
+});
+
+describe("Pi create session binding metadata", () => {
+	const launchOptions = {
+		home: "/home/test-user",
+		environment: { PATH: "/usr/bin" },
+		resolveExecutable: () => "/trusted/pi",
+	};
+
+	function bindingState(activeChanges: readonly string[] = ["bind-todo-to-session"]): ProjectStateV1 {
+		const state = stateFor();
+		state.openspec = {
+			quality: "current",
+			reason: "read-success",
+			activeChanges,
+		} as ProjectStateV1["openspec"];
+		return state;
+	}
+
+	test("binding adds canonical one-shot metadata only to a validated Pi create plan", () => {
+		const state = bindingState();
+		const created = createSessionRequest("pi", state);
+		if (created.outcome !== "success") throw new Error("expected create intent");
+		const intent: Extract<LaunchIntent, { provider: "pi"; mode: "create" }> = {
+			provider: "pi",
+			mode: "create",
+			project: created.data.project,
+			sessionBinding: {
+				change: "bind-todo-to-session",
+				projectCwd: state.identity.cwd,
+			},
+		};
+
+		const planned = buildLaunchPlan(state, intent, launchOptions);
+		expect(planned.outcome).toBe("success");
+		if (planned.outcome !== "success") throw new Error("expected bound launch plan");
+		expect(planned.data.argv).toEqual([]);
+		const canonical = '{"version":1,"change":"bind-todo-to-session","projectCwd":"/work/example/packages/app"}';
+		expect(planned.data.env[EIN_SDD_SESSION_BINDING_ENV_KEY]).toBe(canonical);
+		const repeated = buildLaunchPlan(state, intent, launchOptions);
+		expect(repeated.outcome === "success" && repeated.data.env[EIN_SDD_SESSION_BINDING_ENV_KEY]).toBe(canonical);
+	});
+
+	test("executes only the original bound Pi create plan and rejects metadata tampering before spawn", async () => {
+		const state = bindingState();
+		const created = createSessionRequest("pi", state);
+		if (created.outcome !== "success") throw new Error("expected create intent");
+		const buildBoundPlan = (): LaunchPlan => {
+			const planned = buildLaunchPlan(state, {
+				...created.data,
+				sessionBinding: {
+					change: "bind-todo-to-session",
+					projectCwd: state.identity.cwd,
+				},
+			}, launchOptions);
+			if (planned.outcome !== "success") throw new Error("expected bound launch plan");
+			return planned.data;
+		};
+
+		let spawned = 0;
+		let seen: LaunchPlan["env"] | undefined;
+		const original = buildBoundPlan();
+		const executed = await executeLaunchPlan(original, (input) => {
+			spawned += 1;
+			seen = input.env;
+			return { kind: "exit", code: 0 };
+		});
+		expect(executed.outcome).toBe("success");
+		expect(original.argv).toEqual([]);
+		expect(original.shell).toBe(false);
+		expect(seen).toEqual(original.env);
+
+		const mutations: Array<(plan: LaunchPlan) => void> = [
+			(plan) => { (plan as { argv: readonly string[] }).argv = ["--session", "019fec0d-6ee0-7c8c-b791-032d7d0fa40c"]; },
+			(plan) => { (plan.env as Record<string, string>).EXTRA = "tampered"; },
+			(plan) => { delete (plan.env as Record<string, string>)[EIN_SDD_SESSION_BINDING_ENV_KEY]; },
+			(plan) => { (plan.env as Record<string, string>)[EIN_SDD_SESSION_BINDING_ENV_KEY] = "{\"version\":1}"; },
+			(plan) => { (plan as { cwd: string }).cwd = "/work/other"; },
+			(plan) => { (plan as { provider: "pi" | "claude" }).provider = "claude"; },
+		];
+		for (const mutate of mutations) {
+			const plan = buildBoundPlan();
+			mutate(plan);
+			const rejected = await executeLaunchPlan(plan, () => {
+				spawned += 1;
+				return { kind: "exit", code: 0 };
+			});
+			expect(rejected.error?.code).toBe("invalid-request");
+		}
+		const copied = await executeLaunchPlan({ ...buildBoundPlan() }, () => {
+			spawned += 1;
+			return { kind: "exit", code: 0 };
+		});
+		expect(copied.error?.code).toBe("invalid-request");
+		expect(spawned).toBe(1);
+	});
+
+	test("binding remains absent without focus and is rejected outside validated Pi create", () => {
+		const state = bindingState();
+		const piCreated = createSessionRequest("pi", state);
+		if (piCreated.outcome !== "success") throw new Error("expected Pi create intent");
+		const unbound = buildLaunchPlan(state, piCreated.data, launchOptions);
+		if (unbound.outcome !== "success") throw new Error("expected unbound launch plan");
+		expect(EIN_SDD_SESSION_BINDING_ENV_KEY in unbound.data.env).toBe(false);
+
+		for (const intent of [
+			{ ...piCreated.data, sessionBinding: { change: "../unsafe", projectCwd: state.identity.cwd } },
+			{ ...piCreated.data, sessionBinding: { change: "bind-todo-to-session", projectCwd: "/work/other" } },
+			{ ...piCreated.data, sessionBinding: { change: "inactive-change", projectCwd: state.identity.cwd } },
+			{ ...piCreated.data, sessionBinding: '{"version":1,"change":"bind-todo-to-session"}' },
+			{ ...piCreated.data, mode: "resume", reference: "pi:v1:sha256:" + "b".repeat(64), sessionBinding: { change: "bind-todo-to-session", projectCwd: state.identity.cwd } },
+		] as const) {
+			const rejected = buildLaunchPlan(state, intent, launchOptions);
+			expect(rejected.outcome).not.toBe("success");
+		}
+
+		const unavailableState = bindingState();
+		unavailableState.openspec.quality = "unavailable";
+		const unavailable = buildLaunchPlan(unavailableState, {
+			...piCreated.data,
+			sessionBinding: { change: "bind-todo-to-session", projectCwd: state.identity.cwd },
+		}, launchOptions);
+		expect(unavailable.outcome).not.toBe("success");
+
+		const claudeCreated = createSessionRequest("claude", state);
+		if (claudeCreated.outcome !== "success") throw new Error("expected Claude create intent");
+		const claudeOptions = { ...launchOptions, resolveExecutable: () => "/trusted/claude" };
+		const plainClaude = buildLaunchPlan(state, claudeCreated.data, claudeOptions);
+		if (plainClaude.outcome !== "success") throw new Error("expected unbound Claude plan");
+		expect(EIN_SDD_SESSION_BINDING_ENV_KEY in plainClaude.data.env).toBe(false);
+		const claude = buildLaunchPlan(state, {
+			...claudeCreated.data,
+			sessionBinding: { change: "bind-todo-to-session", projectCwd: state.identity.cwd },
+		}, claudeOptions);
+		expect(claude.outcome).not.toBe("success");
 	});
 });
 

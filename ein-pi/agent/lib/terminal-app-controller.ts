@@ -39,7 +39,7 @@ export type TerminalAppControllerPorts = Readonly<{
   readSystem: () => readonly SystemComponent[];
   launch: (provider: RuntimeProvider, reference?: string) => Promise<LaunchOutcome>;
   prepareContinue?: (provider: RuntimeProvider) => Promise<ContinuityPrepareResult>;
-  continueLaunch?: (provider: RuntimeProvider, brief: string) => Promise<LaunchOutcome>;
+  continueLaunch?: (provider: RuntimeProvider, brief: string, focusedChange?: string) => Promise<LaunchOutcome>;
   run: (command: readonly string[]) => Promise<number>;
   lifecycle: Readonly<{
     release: () => void;
@@ -140,6 +140,7 @@ export function createTerminalAppController(ports: TerminalAppControllerPorts): 
       publish({ ...model, status: pick("Continuación no disponible", "Continue is not available") });
       return;
     }
+    const capturedFocusedChange = focusedChange;
     const owner = ++operationGeneration;
     continueOwner = owner;
     const ownsOperation = (): boolean => continueOwner === owner;
@@ -168,7 +169,7 @@ export function createTerminalAppController(ports: TerminalAppControllerPorts): 
       }
       ports.lifecycle.release();
       let result: LaunchOutcome;
-      try { result = await continueLaunch(provider, prepared.brief.content); }
+      try { result = await continueLaunch(provider, prepared.brief.content, capturedFocusedChange); }
       catch { if (ownsOperation()) exitSafely(1); return; }
       if (!ownsOperation()) return;
       if (result.kind === "exited") {

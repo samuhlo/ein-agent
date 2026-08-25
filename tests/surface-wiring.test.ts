@@ -504,7 +504,7 @@ const PI_LAUNCHER_SOURCE = join(import.meta.dir, "..", "pi-ein", "pi-ein.fish");
 type PiLauncherFixture = Readonly<{
   home: string;
   runnerPath: string;
-  invoke: (args: readonly string[], stubExitCode?: number) => Readonly<{ exitCode: number; stdout: string; stderr: string; call: string[] }>;
+  invoke: (args: readonly string[], stubExitCode?: number, inheritedBinding?: string) => Readonly<{ exitCode: number; stdout: string; stderr: string; call: string[] }>;
   removeRunner: () => void;
   cleanup: () => void;
 }>;
@@ -514,6 +514,7 @@ function piLauncherFixture(): PiLauncherFixture {
   const binDir = join(home, "bin");
   const functionDir = join(home, ".config", "fish", "functions");
   const runnerPath = join(home, ".pi-ein", "agent", "surfaces", "surface-runner.ts");
+  const appPath = join(home, ".pi-ein", "agent", "app.ts");
   const launcherPath = join(functionDir, "pi-ein.fish");
   const callLog = join(home, "call.log");
   mkdirSync(binDir, { recursive: true });
@@ -521,6 +522,7 @@ function piLauncherFixture(): PiLauncherFixture {
   mkdirSync(join(runnerPath, ".."), { recursive: true });
   copyFileSync(PI_LAUNCHER_SOURCE, launcherPath);
   writeFileSync(runnerPath, "// shipped runner fixture\n");
+  writeFileSync(appPath, "// shipped terminal app fixture\n");
 
   for (const command of ["pi", "bun"] as const) {
     writeFileSync(join(binDir, command), [
@@ -528,6 +530,7 @@ function piLauncherFixture(): PiLauncherFixture {
       `printf '%s\\n' '${command}' > \"$EIN_CALL_LOG\"`,
       "printf '%s\\n' \"$PI_CODING_AGENT_DIR\" \"$EIN_PI_AGENT_HOME\" >> \"$EIN_CALL_LOG\"",
       "for arg in \"$@\"; do printf '%s\\n' \"$arg\" >> \"$EIN_CALL_LOG\"; done",
+      "if [ \"${EIN_SDD_SESSION_BINDING_V1+x}\" = x ]; then exit 88; fi",
       "exit \"${EIN_STUB_EXIT:-0}\"",
       "",
     ].join("\n"), { mode: 0o755 });
@@ -536,7 +539,7 @@ function piLauncherFixture(): PiLauncherFixture {
   return {
     home,
     runnerPath,
-    invoke(args, stubExitCode = 0) {
+    invoke(args, stubExitCode = 0, inheritedBinding) {
       rmSync(callLog, { force: true });
       const result = spawnSync("fish", ["-c", 'source "$EIN_LAUNCHER"; pi-ein $argv', "--", ...args], {
         encoding: "utf8",
@@ -547,6 +550,7 @@ function piLauncherFixture(): PiLauncherFixture {
           EIN_CALL_LOG: callLog,
           EIN_LAUNCHER: launcherPath,
           EIN_STUB_EXIT: String(stubExitCode),
+          EIN_SDD_SESSION_BINDING_V1: inheritedBinding,
         },
       });
       return {
@@ -608,6 +612,46 @@ describe("Pi pi-ein launcher adapter", () => {
       const result = fixture.invoke(["cleaner", "{not-json"]);
       expect(result.exitCode).toBe(0);
       expect(result.call.slice(3)).toEqual([fixture.runnerPath, "cleaner", "{not-json"]);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("EIN_SDD_SESSION_BINDING_V1 is absent from ordinary Pi delegation and terminal app startup", () => {
+    const fixture = piLauncherFixture();
+    try {
+      const direct = fixture.invoke(["chat", "--literal", "value with spaces"], 0, "stale-parent-binding");
+      expect(direct.exitCode).toBe(0);
+      expect(direct.call).toEqual([
+        "pi",
+        join(fixture.home, ".pi-ein", "agent"),
+        join(fixture.home, ".pi-ein", "agent"),
+        "chat",
+        "--literal",
+        "value with spaces",
+      ]);
+
+      const app = fixture.invoke(["app", "--project", "/tmp/example"], 0, "stale-parent-binding");
+      expect(app.exitCode).toBe(0);
+      expect(app.call).toEqual([
+        "bun",
+        join(fixture.home, ".pi-ein", "agent"),
+        join(fixture.home, ".pi-ein", "agent"),
+        join(fixture.home, ".pi-ein", "agent", "app.ts"),
+        "--project",
+        "/tmp/example",
+      ]);
+
+      const cleaner = fixture.invoke(["cleaner", "audit"], 0, "stale-parent-binding");
+      expect(cleaner.exitCode).toBe(0);
+      expect(cleaner.call).toEqual([
+        "bun",
+        join(fixture.home, ".pi-ein", "agent"),
+        join(fixture.home, ".pi-ein", "agent"),
+        fixture.runnerPath,
+        "cleaner",
+        "audit",
+      ]);
     } finally {
       fixture.cleanup();
     }

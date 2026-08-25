@@ -16,8 +16,11 @@ import {
   createRuntimeSessionAdapter,
   executeLaunchPlan,
   getRuntimeCapabilities,
+  isDeclaredLaunchArgv,
+  launchArgvFor,
   type LaunchPlan,
 } from "../ein-pi/agent/lib/runtime-session-adapters.ts";
+import { EIN_SDD_SESSION_BINDING_ENV_KEY } from "../ein-pi/agent/lib/sdd-session-binding.ts";
 
 const PROJECT = "/tmp/ein-resume-project";
 const STATE_REF = `git-v1:sha256:${"a".repeat(64)}`;
@@ -166,6 +169,17 @@ describe("the resume launch plan", () => {
     });
     expect(plan.data?.argv).toEqual([]);
   });
+
+  test("declares only the byte-for-byte create and provider resume argv forms", () => {
+    expect(launchArgvFor("pi", "create")).toEqual([]);
+    expect(launchArgvFor("pi", "resume", PI_UUID)).toEqual(["--session", PI_UUID]);
+    expect(launchArgvFor("claude", "resume", CLAUDE_UUID)).toEqual(["--resume", CLAUDE_UUID]);
+    expect(isDeclaredLaunchArgv("pi", "create", [])).toBe(true);
+    expect(isDeclaredLaunchArgv("pi", "resume", ["--session", PI_UUID])).toBe(true);
+    expect(isDeclaredLaunchArgv("claude", "resume", ["--resume", CLAUDE_UUID])).toBe(true);
+    expect(isDeclaredLaunchArgv("pi", "resume", ["--resume", PI_UUID])).toBe(false);
+    expect(isDeclaredLaunchArgv("pi", "create", ["--session", PI_UUID])).toBe(false);
+  });
 });
 
 describe("argv is the adapter's, never the caller's", () => {
@@ -225,6 +239,27 @@ describe("argv is the adapter's, never the caller's", () => {
     });
     expect(executed.outcome).toBe("success");
     expect(seen).toEqual(["--session", PI_UUID]);
+  });
+
+  test("resume plans reject binding metadata and coordinated shape tampering without spawn", async () => {
+    let spawned = 0;
+    const mutations: Array<(plan: LaunchPlan) => void> = [
+      (plan) => { (plan as { argv: readonly string[] }).argv = ["--session", CONVENTIONAL_PI_UUID]; },
+      (plan) => { (plan.env as Record<string, string>)[EIN_SDD_SESSION_BINDING_ENV_KEY] = "{\"version\":1}"; },
+      (plan) => { (plan as { mode: "create" | "resume" }).mode = "create"; (plan as { argv: readonly string[] }).argv = []; },
+      (plan) => { (plan as { cwd: string }).cwd = `${PROJECT}/other`; (plan.project as { cwd: string }).cwd = `${PROJECT}/other`; },
+      (plan) => { (plan as { provider: "pi" | "claude" }).provider = "claude"; (plan as { executable: string }).executable = join(root, "bin", "claude"); (plan as { argv: readonly string[] }).argv = ["--resume", PI_UUID]; },
+    ];
+    for (const mutate of mutations) {
+      const plan = await validPlan();
+      mutate(plan);
+      const rejected = await executeLaunchPlan(plan, () => {
+        spawned += 1;
+        return { kind: "exit", code: 0 };
+      });
+      expect(rejected.error?.code).toBe("invalid-request");
+    }
+    expect(spawned).toBe(0);
   });
 });
 

@@ -1,64 +1,513 @@
 // =============================================================================
-// TESTS: la cache de pintura del overlay no sobrevive a un arranque
-//   El overlay marcaba `painted` ANTES de saber si el dibujo habia llegado a la
-//   pantalla. Si el primer `setWidget` se perdia —la TUI montandose todavia al
-//   abrir sobre una sesion con historial—, cualquier refresco posterior con el
-//   mismo contenido salia por la puerta de arriba y no repintaba NUNCA. Solo se
-//   recuperaba cuando el contenido cambiaba de verdad, o al pulsar una tecla.
+// TESTS: session-local SDD overlay focus and repaint cache
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import createAiExtension from "../ein-pi/agent/extensions/ein-ai.ts";
 import createOverlayExtension from "../ein-pi/agent/extensions/ein-sdd-overlay.ts";
+import {
+	EIN_SDD_SESSION_BINDING_ENV_KEY,
+	SDD_SESSION_BINDING_CUSTOM_TYPE,
+	SDD_SESSION_BINDING_EVENT_CHANNEL,
+	serializeSessionBindingLaunchMetadataV1,
+} from "../ein-pi/agent/lib/sdd-session-binding.ts";
 
 type Handler = (event: unknown, ctx: unknown) => void;
+type CommandHandler = (args: string | string[], ctx: unknown) => void | Promise<void>;
 type WidgetPaint = {
 	key: string;
 	lines: string[];
 	options: { placement?: string } | undefined;
 };
+type AppendedEntry = { customType: string; data: unknown };
+type FakeSession = { getEntries: () => readonly unknown[] };
 
-/** Doble minimo de la API de extension: captura los handlers por evento. */
-function fakePi(): { pi: unknown; fire: (event: string, ctx: unknown) => void } {
+/** Minimal extension API double: captures lifecycle handlers, bus listeners, and custom entries. */
+function fakePi(trace: string[] = []): {
+	pi: unknown;
+	appended: AppendedEntry[];
+	fire: (event: string, ctx: unknown, payload?: unknown) => void;
+	emit: (payload: unknown) => void;
+	runCommand: (name: string, args: string | string[], ctx: unknown) => Promise<void>;
+	listenerCount: () => number;
+} {
 	const handlers = new Map<string, Handler[]>();
+	const commands = new Map<string, CommandHandler>();
+	const busHandlers = new Set<(payload: unknown) => void>();
+	const appended: AppendedEntry[] = [];
 	const pi = {
 		on(event: string, handler: Handler) {
 			handlers.set(event, [...(handlers.get(event) ?? []), handler]);
 		},
+		events: {
+			on(channel: string, handler: (payload: unknown) => void) {
+				if (channel === SDD_SESSION_BINDING_EVENT_CHANNEL) busHandlers.add(handler);
+				return () => busHandlers.delete(handler);
+			},
+			emit(channel: string, payload: unknown) {
+				if (channel === SDD_SESSION_BINDING_EVENT_CHANNEL) {
+					for (const handler of [...busHandlers]) handler(payload);
+				}
+			},
+		},
+		appendEntry(customType: string, data: unknown) {
+			trace.push("append");
+			appended.push({ customType, data });
+		},
+		registerCommand(name: string, command: { handler: CommandHandler }) {
+			commands.set(name, command.handler);
+		},
+		registerTool() {},
 		registerShortcut() {},
+		sendUserMessage() {},
 	};
 	return {
 		pi,
-		fire: (event, ctx) => {
-			for (const handler of handlers.get(event) ?? []) handler({}, ctx);
+		appended,
+		fire: (event, ctx, payload = {}) => {
+			for (const handler of handlers.get(event) ?? []) handler(payload, ctx);
 		},
+		emit: (payload) => {
+			for (const handler of [...busHandlers]) handler(payload);
+			trace.push("returned");
+		},
+		runCommand: async (name, args, ctx) => {
+			const handler = commands.get(name);
+			if (!handler) throw new Error(`Missing command: ${name}`);
+			await handler(args, ctx);
+			trace.push("command-returned");
+		},
+		listenerCount: () => busHandlers.size,
 	};
 }
 
-function sandbox(): { cwd: string; cleanup: () => void } {
-	const cwd = mkdtempSync(join(tmpdir(), "ein-overlay-repaint-"));
-	const change = join(cwd, "openspec", "changes", "un-cambio");
+function addChange(cwd: string, name: string): void {
+	const change = join(cwd, "openspec", "changes", name);
 	mkdirSync(change, { recursive: true });
 	writeFileSync(join(change, "scope.md"), "# Scope\n");
 	writeFileSync(join(change, "design.md"), "# Design\n");
 	writeFileSync(join(change, "tasks.md"), "## Grupo 001\n- [ ] 001 una tarea\n");
+}
+
+function markChangeReadyToClose(cwd: string, name: string): void {
+	const change = join(cwd, "openspec", "changes", name);
+	const files = {
+		"scope.md": "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: fixture\n",
+		"map.md": "# Map\n",
+		"design.md": "# Design\n",
+		"tasks.md": "status: ready\n- [x] done\n",
+		"apply-progress.md": "status: complete\n",
+		"verify-report.md": "status: pass\n",
+		"summary.md": "# Summary\n",
+	};
+	for (const [file, contents] of Object.entries(files)) writeFileSync(join(change, file), contents);
+}
+
+function sandbox(names: readonly string[] = ["un-cambio"]): { cwd: string; cleanup: () => void } {
+	const cwd = mkdtempSync(join(tmpdir(), "ein-overlay-repaint-"));
+	for (const name of names) addChange(cwd, name);
 	return { cwd, cleanup: () => rmSync(cwd, { recursive: true, force: true }) };
 }
 
-function fakeCtx(cwd: string, painted: WidgetPaint[]): unknown {
+function bindingEntry(data: unknown): unknown {
+	return { type: "custom", customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data };
+}
+
+function fakeCtx(
+	cwd: string,
+	painted: WidgetPaint[],
+	entries: readonly unknown[] = [],
+	hasUI = true,
+	trace: string[] = [],
+): unknown {
 	return {
 		cwd,
-		hasUI: true,
+		hasUI,
+		sessionManager: { getEntries: () => entries } satisfies FakeSession,
 		ui: {
+			notify() {},
+			async select() {
+				return "Ahora no";
+			},
 			setWidget(key: string, lines: readonly string[] | undefined, options?: { placement?: string }) {
+				trace.push("paint");
 				painted.push({ key, lines: lines ? [...lines] : [], options });
 			},
 		},
 	};
 }
+
+function lastLines(painted: readonly WidgetPaint[]): string[] {
+	return painted.at(-1)?.lines ?? [];
+}
+
+describe("session-local overlay focus", () => {
+	test("session fresh stays empty even when the filesystem has exactly one active change", () => {
+		const box = sandbox();
+		try {
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, appended } = fakePi();
+			createOverlayExtension(pi as never);
+
+			fire("session_start", fakeCtx(box.cwd, painted), { reason: "startup" });
+
+			expect(lastLines(painted)).toEqual([]);
+			expect(appended).toEqual([]);
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("session resume restores only the newest valid entry from its own manager", () => {
+		const box = sandbox(["alpha", "beta"]);
+		try {
+			const painted: WidgetPaint[] = [];
+			const { pi, fire } = fakePi();
+			createOverlayExtension(pi as never);
+			const alpha = [bindingEntry({ version: 1, state: "bound", change: "alpha" })];
+			const beta = [bindingEntry({ version: 1, state: "bound", change: "beta" })];
+
+			fire("session_start", fakeCtx(box.cwd, painted, alpha), { reason: "resume" });
+			expect(lastLines(painted).join("\n")).toContain("alpha");
+			expect(lastLines(painted).join("\n")).not.toContain("beta");
+
+			fire("session_start", fakeCtx(box.cwd, painted, beta), { reason: "resume" });
+			expect(lastLines(painted).join("\n")).toContain("beta");
+			expect(lastLines(painted).join("\n")).not.toContain("alpha");
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("session malformed newest entry clears once without reviving an older binding", () => {
+		const box = sandbox(["alpha"]);
+		try {
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, appended } = fakePi();
+			createOverlayExtension(pi as never);
+			const entries = [
+				bindingEntry({ version: 1, state: "bound", change: "alpha" }),
+				bindingEntry({ version: 1, state: "bound", change: "alpha", extra: true }),
+			];
+
+			fire("session_start", fakeCtx(box.cwd, painted, entries), { reason: "resume" });
+			fire("tool_execution_end", fakeCtx(box.cwd, painted, entries));
+
+			expect(lastLines(painted)).toEqual([]);
+			expect(appended).toEqual([
+				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "unbound" } },
+			]);
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("session clear, missing, archived, unsafe, and unavailable bindings fail closed", () => {
+		const cases: Array<{ name: string; prepare?: (cwd: string) => string; data: unknown; expectsClear: boolean }> = [
+			{ name: "clear", data: { version: 1, state: "unbound" }, expectsClear: false },
+			{ name: "missing", data: { version: 1, state: "bound", change: "missing" }, expectsClear: true },
+			{ name: "unsafe", data: { version: 1, state: "bound", change: "../alpha" }, expectsClear: true },
+			{
+				name: "archived",
+				data: { version: 1, state: "bound", change: "alpha" },
+				prepare: (cwd) => {
+					mkdirSync(join(cwd, "openspec", "changes", "archive"), { recursive: true });
+					renameSync(
+						join(cwd, "openspec", "changes", "alpha"),
+						join(cwd, "openspec", "changes", "archive", "alpha"),
+					);
+					return cwd;
+				},
+				expectsClear: true,
+			},
+		];
+
+		for (const scenario of cases) {
+			const box = sandbox(["alpha", "beta"]);
+			try {
+				const cwd = scenario.prepare?.(box.cwd) ?? box.cwd;
+				const painted: WidgetPaint[] = [];
+				const { pi, fire, appended } = fakePi();
+				createOverlayExtension(pi as never);
+				fire("session_start", fakeCtx(cwd, painted, [bindingEntry(scenario.data)]), { reason: "resume" });
+				expect(lastLines(painted), scenario.name).toEqual([]);
+				expect(appended.length, scenario.name).toBe(scenario.expectsClear ? 1 : 0);
+			} finally {
+				box.cleanup();
+			}
+		}
+
+		const box = sandbox(["alpha"]);
+		const moved = `${box.cwd}-moved`;
+		try {
+			renameSync(box.cwd, moved);
+			writeFileSync(box.cwd, "not a project directory");
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, appended } = fakePi();
+			createOverlayExtension(pi as never);
+			fire("session_start", fakeCtx(box.cwd, painted, [bindingEntry({ version: 1, state: "bound", change: "alpha" })]), { reason: "resume" });
+			expect(lastLines(painted)).toEqual([]);
+			expect(appended).toHaveLength(1);
+		} finally {
+			rmSync(box.cwd, { force: true });
+			rmSync(moved, { recursive: true, force: true });
+		}
+	});
+
+	test("session startup intent is consumed, deleted, persisted, and never reused", () => {
+		const box = sandbox(["alpha"]);
+		const previous = process.env[EIN_SDD_SESSION_BINDING_ENV_KEY];
+		try {
+			process.env[EIN_SDD_SESSION_BINDING_ENV_KEY] = serializeSessionBindingLaunchMetadataV1({
+				version: 1,
+				change: "alpha",
+				projectCwd: box.cwd,
+			});
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, appended } = fakePi();
+			createOverlayExtension(pi as never);
+
+			fire("session_start", fakeCtx(box.cwd, painted), { reason: "startup" });
+			expect(lastLines(painted).join("\n")).toContain("alpha");
+			expect(process.env[EIN_SDD_SESSION_BINDING_ENV_KEY]).toBeUndefined();
+			expect(appended).toEqual([
+				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "bound", change: "alpha" } },
+			]);
+
+			fire("session_start", fakeCtx(box.cwd, painted), { reason: "startup" });
+			expect(lastLines(painted)).toEqual([]);
+			expect(appended).toHaveLength(1);
+		} finally {
+			if (previous === undefined) delete process.env[EIN_SDD_SESSION_BINDING_ENV_KEY];
+			else process.env[EIN_SDD_SESSION_BINDING_ENV_KEY] = previous;
+			box.cleanup();
+		}
+	});
+});
+
+describe("session binding event listener", () => {
+	test("event bind appends V1 and repaints before emit returns", () => {
+		const box = sandbox(["alpha"]);
+		try {
+			const trace: string[] = [];
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, emit, appended } = fakePi(trace);
+			createOverlayExtension(pi as never);
+			fire("session_start", fakeCtx(box.cwd, painted, [], true, trace), { reason: "startup" });
+			trace.length = 0;
+
+			emit({ version: 1, action: "bind", change: "alpha" });
+
+			expect(appended).toEqual([
+				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "bound", change: "alpha" } },
+			]);
+			expect(lastLines(painted).join("\n")).toContain("alpha");
+			expect(trace).toEqual(["append", "paint", "returned"]);
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("event payloads fail closed, deduplicate, and invalidate only the current focus", () => {
+		const box = sandbox(["alpha", "beta"]);
+		try {
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, emit, appended } = fakePi();
+			createOverlayExtension(pi as never);
+			const ctx = fakeCtx(box.cwd, painted);
+			fire("session_start", ctx, { reason: "startup" });
+
+			emit({ version: 1, action: "bind", change: "alpha", extra: true });
+			emit({ version: 1, action: "bind", change: "missing" });
+			emit({ version: 1, action: "bind", change: "alpha" });
+			emit({ version: 1, action: "bind", change: "alpha" });
+			const afterBind = painted.length;
+			emit({ version: 1, action: "invalidate", change: "beta" });
+			fire("tool_execution_end", ctx);
+			fire("tool_execution_end", ctx);
+
+			expect(painted).toHaveLength(afterBind);
+			expect(lastLines(painted).join("\n")).toContain("alpha");
+			expect(appended).toEqual([
+				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "bound", change: "alpha" } },
+			]);
+
+			emit({ version: 1, action: "invalidate", change: "alpha" });
+			expect(lastLines(painted)).toEqual([]);
+			expect(appended.at(-1)).toEqual({
+				customType: SDD_SESSION_BINDING_CUSTOM_TYPE,
+				data: { version: 1, state: "unbound" },
+			});
+
+			emit({ version: 1, action: "bind", change: "beta" });
+			emit({ version: 1, action: "clear" });
+			expect(lastLines(painted)).toEqual([]);
+			expect(appended.slice(-2)).toEqual([
+				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "bound", change: "beta" } },
+				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "unbound" } },
+			]);
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("event listener tears down and rebinds without repainting a retired context", () => {
+		const box = sandbox(["alpha", "beta"]);
+		try {
+			const oldPainted: WidgetPaint[] = [];
+			const currentPainted: WidgetPaint[] = [];
+			const { pi, fire, emit, listenerCount } = fakePi();
+			createOverlayExtension(pi as never);
+			fire("session_start", fakeCtx(box.cwd, oldPainted), { reason: "startup" });
+			expect(listenerCount()).toBe(1);
+
+			fire("session_start", fakeCtx(box.cwd, currentPainted), { reason: "resume" });
+			expect(listenerCount()).toBe(1);
+			const oldCount = oldPainted.length;
+			emit({ version: 1, action: "bind", change: "beta" });
+			expect(oldPainted).toHaveLength(oldCount);
+			expect(lastLines(currentPainted).join("\n")).toContain("beta");
+
+			fire("session_shutdown", fakeCtx(box.cwd, currentPainted));
+			expect(listenerCount()).toBe(0);
+			const currentCount = currentPainted.length;
+			emit({ version: 1, action: "clear" });
+			expect(currentPainted).toHaveLength(currentCount);
+		} finally {
+			box.cleanup();
+		}
+	});
+});
+
+describe("sdd-next session binding", () => {
+	test("sdd-next binds one explicitly named active change and repaints before the command returns", async () => {
+		const box = sandbox(["alpha", "beta"]);
+		try {
+			const trace: string[] = [];
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, runCommand, appended } = fakePi(trace);
+			createOverlayExtension(pi as never);
+			createAiExtension(pi as never);
+			const ctx = fakeCtx(box.cwd, painted, [], true, trace);
+			fire("session_start", ctx, { reason: "startup" });
+			trace.length = 0;
+
+			await runCommand("ein:sdd-next", "alpha", ctx);
+
+			expect(appended).toEqual([
+				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "bound", change: "alpha" } },
+			]);
+			expect(lastLines(painted).join("\n")).toContain("alpha");
+			expect(trace).toEqual(["append", "paint", "command-returned"]);
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("sdd-next does not bind unnamed, unsafe, or inactive changes", async () => {
+		const box = sandbox(["alpha"]);
+		try {
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, runCommand, appended } = fakePi();
+			createOverlayExtension(pi as never);
+			createAiExtension(pi as never);
+			const ctx = fakeCtx(box.cwd, painted);
+			fire("session_start", ctx, { reason: "startup" });
+			const paintsAfterStart = painted.length;
+
+			await runCommand("ein:sdd-next", "", ctx);
+			await runCommand("ein:sdd-next", "../alpha", ctx);
+			await runCommand("ein:sdd-next", "missing", ctx);
+
+			expect(appended).toEqual([]);
+			expect(painted).toHaveLength(paintsAfterStart);
+			expect(lastLines(painted)).toEqual([]);
+		} finally {
+			box.cleanup();
+		}
+	});
+});
+
+describe("sdd-close session binding invalidation", () => {
+	test("close clears the focused change immediately and only once across later refreshes", async () => {
+		const box = sandbox(["alpha"]);
+		try {
+			markChangeReadyToClose(box.cwd, "alpha");
+			const trace: string[] = [];
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, runCommand, appended } = fakePi(trace);
+			createOverlayExtension(pi as never);
+			createAiExtension(pi as never);
+			const entries = [bindingEntry({ version: 1, state: "bound", change: "alpha" })];
+			const ctx = fakeCtx(box.cwd, painted, entries, true, trace);
+			fire("session_start", ctx, { reason: "resume" });
+			trace.length = 0;
+
+			await runCommand("ein:sdd-close", "alpha", ctx);
+			fire("tool_execution_end", ctx);
+			fire("tool_execution_end", ctx);
+
+			expect(lastLines(painted)).toEqual([]);
+			expect(appended).toEqual([
+				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "unbound" } },
+			]);
+			expect(trace.slice(0, 3)).toEqual(["append", "paint", "command-returned"]);
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("close leaves a different focused change untouched", async () => {
+		const box = sandbox(["alpha", "beta"]);
+		try {
+			markChangeReadyToClose(box.cwd, "alpha");
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, runCommand, appended } = fakePi();
+			createOverlayExtension(pi as never);
+			createAiExtension(pi as never);
+			const entries = [bindingEntry({ version: 1, state: "bound", change: "beta" })];
+			const ctx = fakeCtx(box.cwd, painted, entries);
+			fire("session_start", ctx, { reason: "resume" });
+			const paintsAfterStart = painted.length;
+
+			await runCommand("ein:sdd-close", "alpha", ctx);
+			fire("tool_execution_end", ctx);
+			fire("tool_execution_end", ctx);
+
+			expect(lastLines(painted).join("\n")).toContain("beta");
+			expect(painted).toHaveLength(paintsAfterStart);
+			expect(appended).toEqual([]);
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("failed close does not clear the focused change", async () => {
+		const box = sandbox(["alpha"]);
+		try {
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, runCommand, appended } = fakePi();
+			createOverlayExtension(pi as never);
+			createAiExtension(pi as never);
+			const entries = [bindingEntry({ version: 1, state: "bound", change: "alpha" })];
+			const ctx = fakeCtx(box.cwd, painted, entries);
+			fire("session_start", ctx, { reason: "resume" });
+			const paintsAfterStart = painted.length;
+
+			await runCommand("ein:sdd-close", "alpha", ctx);
+
+			expect(lastLines(painted).join("\n")).toContain("alpha");
+			expect(painted).toHaveLength(paintsAfterStart);
+			expect(appended).toEqual([]);
+		} finally {
+			box.cleanup();
+		}
+	});
+});
 
 describe("la cache de pintura del overlay", () => {
 	test("pinta TODO bajo el editor con una identidad estable y deduplica dentro de la sesion", () => {
@@ -67,14 +516,14 @@ describe("la cache de pintura del overlay", () => {
 			const painted: WidgetPaint[] = [];
 			const { pi, fire } = fakePi();
 			createOverlayExtension(pi as never);
-			const ctx = fakeCtx(box.cwd, painted);
+			const entries = [bindingEntry({ version: 1, state: "bound", change: "un-cambio" })];
+			const ctx = fakeCtx(box.cwd, painted, entries);
 
-			fire("session_start", ctx);
+			fire("session_start", ctx, { reason: "resume" });
 			const afterStart = painted.length;
 			fire("tool_execution_end", ctx);
 			fire("tool_execution_end", ctx);
 
-			// Sin cambio de contenido no hay trabajo ni parpadeo: eso se conserva.
 			expect(painted.length).toBe(afterStart);
 			expect(afterStart).toBeGreaterThan(0);
 			expect(painted.every(({ key }) => key === "ein-sdd")).toBe(true);
@@ -90,15 +539,12 @@ describe("la cache de pintura del overlay", () => {
 			const painted: WidgetPaint[] = [];
 			const { pi, fire } = fakePi();
 			createOverlayExtension(pi as never);
-			const ctx = fakeCtx(box.cwd, painted);
+			const entries = [bindingEntry({ version: 1, state: "bound", change: "un-cambio" })];
+			const ctx = fakeCtx(box.cwd, painted, entries);
 
-			fire("session_start", ctx);
+			fire("session_start", ctx, { reason: "resume" });
 			const afterFirst = painted.length;
-
-			// La UI puede haberse reconstruido debajo del widget. Dar por pintado lo
-			// que quiza nunca llego a la pantalla es lo que dejaba el overlay mudo
-			// hasta que el contenido cambiara solo.
-			fire("session_start", ctx);
+			fire("session_start", ctx, { reason: "resume" });
 
 			expect(painted.length).toBeGreaterThan(afterFirst);
 		} finally {
@@ -113,11 +559,7 @@ describe("la cache de pintura del overlay", () => {
 			const { pi, fire } = fakePi();
 			createOverlayExtension(pi as never);
 
-			fire("session_start", {
-				cwd: box.cwd,
-				hasUI: false,
-				ui: { setWidget() { painted.push({ key: "unexpected", lines: [], options: undefined }); } },
-			});
+			fire("session_start", fakeCtx(box.cwd, painted, [], false), { reason: "startup" });
 
 			expect(painted).toEqual([]);
 		} finally {

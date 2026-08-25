@@ -9,6 +9,12 @@ import type {
 import { MAX_PROJECT_SESSIONS, scanProjectSessions } from "./sessions.ts";
 import { scanClaudeProjectSessions } from "./claude-sessions.ts";
 import { resolveEngramDataDir } from "./memory-contract.ts";
+import {
+	EIN_SDD_SESSION_BINDING_ENV_KEY,
+	parseSessionBindingLaunchMetadataV1,
+	serializeSessionBindingLaunchMetadataV1,
+} from "./sdd-session-binding.ts";
+import { isSafeChangeName } from "./sdd-router.ts";
 
 /** The runtimes exposed by the common adapter boundary. */
 export type RuntimeProvider = "pi" | "claude";
@@ -67,19 +73,33 @@ export type AdapterError = {
 	signal?: string;
 };
 
+export type PiCreateSessionBindingIntent = {
+	change: string;
+	projectCwd: string;
+};
+
 /** A launch request is discriminated so resume cannot omit its reference. */
 export type LaunchIntent =
 	| {
-			provider: RuntimeProvider;
+			provider: "pi";
 			mode: "create";
 			project: ProjectBinding;
 			reference?: never;
+			sessionBinding?: PiCreateSessionBindingIntent;
+		}
+	| {
+			provider: "claude";
+			mode: "create";
+			project: ProjectBinding;
+			reference?: never;
+			sessionBinding?: never;
 		}
 	| {
 			provider: RuntimeProvider;
 			mode: "resume";
 			project: ProjectBinding;
 			reference: string;
+			sessionBinding?: never;
 		};
 
 export type AdapterSuccess<T> = {
@@ -938,7 +958,18 @@ const TRUSTED_LAUNCH_EXECUTABLE: Record<RuntimeProvider, string> = {
 	pi: "pi",
 	claude: "claude",
 };
-const EXPECTED_LAUNCH_ENVIRONMENTS = new WeakMap<object, Readonly<Record<string, string>>>();
+type LaunchPlanSnapshot = Readonly<{
+	provider: RuntimeProvider;
+	mode: LaunchPlan["mode"];
+	project: ProjectBinding;
+	executable: string;
+	argv: readonly string[];
+	cwd: string;
+	env: Readonly<Record<string, string>>;
+	shell: false;
+}>;
+
+const EXPECTED_LAUNCH_PLANS = new WeakMap<object, LaunchPlanSnapshot>();
 
 function launchEnvironment(
 	options: LaunchPlanOptions = {},
@@ -1047,6 +1078,35 @@ function launchFailureProject(state: unknown, intent: unknown): ProjectBinding |
 	return undefined;
 }
 
+function validatedPiCreateBindingMetadata(
+	state: unknown,
+	intent: Record<string, unknown>,
+	project: ProjectBinding,
+): string | null | undefined {
+	if (!("sessionBinding" in intent) || intent.sessionBinding === undefined) return undefined;
+	if (intent.provider !== "pi" || intent.mode !== "create" || !isRecord(intent.sessionBinding)) return null;
+	const binding = intent.sessionBinding;
+	if (
+		Object.keys(binding).length !== 2
+		|| !Object.prototype.hasOwnProperty.call(binding, "change")
+		|| !Object.prototype.hasOwnProperty.call(binding, "projectCwd")
+		|| !isSafeChangeName(binding.change)
+		|| binding.projectCwd !== project.cwd
+	) return null;
+	const openspec = isRecord(state) && isRecord(state.openspec) ? state.openspec : null;
+	if (
+		openspec?.quality !== "current"
+		|| !Array.isArray(openspec.activeChanges)
+		|| !openspec.activeChanges.every((change) => typeof change === "string")
+		|| !openspec.activeChanges.includes(binding.change)
+	) return null;
+	return serializeSessionBindingLaunchMetadataV1({
+		version: 1,
+		change: binding.change,
+		projectCwd: binding.projectCwd,
+	});
+}
+
 /**
  * Build an adapter-owned, argument-free launch plan. Caller data is used only as
  * a validated project cwd; it is never converted into argv or a command string.
@@ -1077,6 +1137,10 @@ export function buildLaunchPlan(
 		return stateFailure(provider, "launch", state, projectValidation, intent.project);
 	}
 	const project = projectValidation.project;
+	const bindingMetadata = validatedPiCreateBindingMetadata(state, intent, project);
+	if (bindingMetadata === null) {
+		return failure(provider, "launch", state, "invalid-request", project);
+	}
 
 	let argv: readonly string[] | null = [];
 	if (intent.mode === "resume") {
@@ -1118,6 +1182,7 @@ export function buildLaunchPlan(
 				PI_CODING_AGENT_DIR: piHome,
 				EIN_PI_AGENT_HOME: piHome,
 				ENGRAM_DATA_DIR: engramHome,
+				...(bindingMetadata ? { [EIN_SDD_SESSION_BINDING_ENV_KEY]: bindingMetadata } : {}),
 			}
 		: {
 				CLAUDE_CONFIG_DIR: claudeHome,
@@ -1137,27 +1202,57 @@ export function buildLaunchPlan(
 		env,
 		shell: false,
 	};
-	EXPECTED_LAUNCH_ENVIRONMENTS.set(plan, Object.freeze({ ...env }));
+	EXPECTED_LAUNCH_PLANS.set(plan, Object.freeze({
+		provider,
+		mode: intent.mode,
+		project: Object.freeze({ ...project }),
+		executable,
+		argv: Object.freeze([...argv]),
+		cwd: project.cwd,
+		env: Object.freeze({ ...env }),
+		shell: false,
+	}));
 	return success(provider, "launch", project, plan);
+}
+
+function exactRecordValues(
+	actual: Record<string, unknown>,
+	expected: Readonly<Record<string, unknown>>,
+): boolean {
+	const actualKeys = Object.keys(actual).sort();
+	const expectedKeys = Object.keys(expected).sort();
+	return actualKeys.length === expectedKeys.length
+		&& actualKeys.every((key, index) => key === expectedKeys[index] && actual[key] === expected[key]);
 }
 
 function validLaunchPlan(value: unknown): value is LaunchPlan {
 	if (!isRecord(value) || !knownProvider(value.provider)) return false;
-	if (value.mode !== "create" && value.mode !== "resume") return false;
-	if (!validProjectBinding(value.project) || typeof value.cwd !== "string" || !isAbsolute(value.cwd)) return false;
+	const snapshot = EXPECTED_LAUNCH_PLANS.get(value);
+	if (!snapshot) return false;
+	if (Object.keys(value).sort().join("\0") !== [
+		"argv", "cwd", "env", "executable", "mode", "project", "provider", "shell",
+	].join("\0")) return false;
+	if (
+		value.provider !== snapshot.provider
+		|| value.mode !== snapshot.mode
+		|| value.executable !== snapshot.executable
+		|| value.cwd !== snapshot.cwd
+		|| value.shell !== snapshot.shell
+	) return false;
+	if (!validProjectBinding(value.project) || !exactRecordValues(value.project, snapshot.project)) return false;
 	if (normalize(value.cwd) !== normalize(value.project.cwd)) return false;
 	if (!isTrustedExecutable(value.provider, value.executable) || value.shell !== false) return false;
-	if (!isDeclaredLaunchArgv(value.provider, value.mode, value.argv)) return false;
+	if (!isDeclaredLaunchArgv(value.provider, value.mode, value.argv) || !Array.isArray(value.argv)) return false;
+	if (value.argv.length !== snapshot.argv.length || value.argv.some((part, index) => part !== snapshot.argv[index])) return false;
 	const environment = value.env;
-	if (!isRecord(environment)) return false;
-	const expectedKeys = value.provider === "pi"
-		? ["EIN_PI_AGENT_HOME", "ENGRAM_DATA_DIR", "PI_CODING_AGENT_DIR"]
-		: ["CLAUDE_CONFIG_DIR", "ENGRAM_DATA_DIR", "PATH"];
-	const actualKeys = Object.keys(environment).sort();
-	if (JSON.stringify(actualKeys) !== JSON.stringify([...expectedKeys].sort())) return false;
-	const expectedEnvironment = EXPECTED_LAUNCH_ENVIRONMENTS.get(value);
-	if (expectedEnvironment === undefined) return false;
-	return expectedKeys.every((key) => environment[key] === expectedEnvironment[key]);
+	if (!isRecord(environment) || !exactRecordValues(environment, snapshot.env)) return false;
+	const metadata = environment[EIN_SDD_SESSION_BINDING_ENV_KEY];
+	if (metadata !== undefined) {
+		if (value.provider !== "pi" || value.mode !== "create" || typeof metadata !== "string") return false;
+		const parsed = parseSessionBindingLaunchMetadataV1(metadata);
+		if (!parsed || parsed.projectCwd !== value.cwd) return false;
+	}
+	return true;
 }
 
 const SIGNAL_BY_NUMBER: Readonly<Record<number, string>> = {

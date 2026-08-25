@@ -8,6 +8,10 @@ function pi-ein --description "Pi Coding Agent con el cerebro de Ein (aislado en
     set -x EIN_PI_AGENT_HOME "$HOME/.pi-ein/agent"
     set -fx ENGRAM_DATA_DIR "$HOME/.engram-ein"
 
+    # One-shot session binding is trusted only when the validated Pi child
+    # adapter adds it back. Ordinary Fish entrypoints must not inherit it.
+    set -e EIN_SDD_SESSION_BINDING_V1
+
     set -l namespace ""
     if test (count $argv) -gt 0
         set namespace $argv[1]
