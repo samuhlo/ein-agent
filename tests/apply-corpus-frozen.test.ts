@@ -7,11 +7,13 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { buildApplyCorpus, serializeApplyCorpus, applyCorpusDigest, APPLY_CORPUS_FORMAT } from "../ein-pi/agent/lib/apply-corpus";
-import { collectArchivedFacts } from "../evals/build-corpus";
+import { collectArchivedFacts, resolveBaseCommit } from "../evals/build-corpus";
 
 const ROOT = join(import.meta.dir, "..");
 const FROZEN = join(ROOT, "evals", "apply-corpus.json");
@@ -115,6 +117,32 @@ describe("TRIANGULATE: el escaneo detecta de verdad", () => {
 });
 
 describe("TRIANGULATE: bordes del recolector", () => {
+	test("la abreviatura del commit congelado no depende de core.abbrev", () => {
+		const dir = mkdtempSync(join(tmpdir(), "apply-corpus-abbrev-"));
+		const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
+		try {
+			git("init", "-q");
+			git("config", "user.email", "tests@example.invalid");
+			git("config", "user.name", "Ein tests");
+			git("config", "core.abbrev", "8");
+			const archive = join(dir, "openspec", "changes", "archive", "demo");
+			mkdirSync(archive, { recursive: true });
+			writeFileSync(join(archive, "summary.md"), "# Summary\n");
+			writeFileSync(join(archive, "tasks.md"), "## Group\n- verify: bun test tests/demo.test.ts\n");
+			writeFileSync(join(archive, "verify-report.md"), "status: pass\n");
+			writeFileSync(join(dir, "demo.ts"), "export const demo = true;\n");
+			git("add", ".");
+			git("commit", "-qm", "archive demo");
+			const fullCommit = git("rev-parse", "HEAD");
+
+			expect(resolveBaseCommit(dir)).toBe(fullCommit.slice(0, 7));
+			const [facts] = collectArchivedFacts(dir, fullCommit);
+			expect(facts.deliveringCommits).toEqual([fullCommit.slice(0, 7)]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	test("un commit base inexistente devuelve cero hechos, no revienta", () => {
 		expect(collectArchivedFacts(ROOT, "0000000")).toEqual([]);
 	});

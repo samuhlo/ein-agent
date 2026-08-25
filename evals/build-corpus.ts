@@ -44,8 +44,12 @@ function lines(output: string | null): string[] {
 	return (output ?? "").split("\n").map((line) => line.trim()).filter(Boolean);
 }
 
+function frozenCommitId(value: string): string {
+	return value.slice(0, 7);
+}
+
 export function resolveBaseCommit(cwd: string): string {
-	return lines(git(cwd, ["rev-parse", "--short", "HEAD"]))[0] ?? "";
+	return frozenCommitId(lines(git(cwd, ["rev-parse", "HEAD"]))[0] ?? "");
 }
 
 export function collectArchivedFacts(cwd: string, baseCommit: string): ArchivedChangeFacts[] {
@@ -60,7 +64,8 @@ export function collectArchivedFacts(cwd: string, baseCommit: string): ArchivedC
 
 	return changes.map((change) => {
 		const summary = `${ARCHIVE}/${change}/summary.md`;
-		const deliveringCommits = lines(git(cwd, ["log", baseCommit, "--format=%h", "--diff-filter=A", "--", summary]));
+		const deliveringCommits = lines(git(cwd, ["log", baseCommit, "--format=%H", "--diff-filter=A", "--", summary]))
+			.map(frozenCommitId);
 		const touchedFiles =
 			deliveringCommits.length === 1
 				? lines(git(cwd, ["show", "--name-only", "--format=", deliveringCommits[0]]))

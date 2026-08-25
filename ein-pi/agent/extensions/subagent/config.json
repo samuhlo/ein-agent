@@ -4,5 +4,7 @@
   },
   "intercomBridge": {
     "mode": "off"
-  }
+  },
+  "fleetViewPlacement": "aboveEditor",
+  "asyncWidget": false
 }

@@ -3,8 +3,8 @@
 > Intención corta: clasificar de quién es el fallo antes de tocar una línea, que
 > es lo que pide la unidad 4A del roadmap.
 
-**Estado: clasificado como upstream de Pi con alta probabilidad, pendiente de
-una prueba de dos minutos que lo cierra.** No se ha parcheado nada.
+**Estado: una causa encontrada y corregida en Ein; el resto del síntoma sigue
+siendo de Pi, pendiente de una prueba de dos minutos.**
 
 ---
 
@@ -57,6 +57,36 @@ comprobaciones de actualización"*. Alguien ya se encontró con un bloqueo ahí.
 
 Es una hipótesis, no un hallazgo: **no está reproducida**.
 
+## // 003 bis. UNA CAUSA ENCONTRADA, Y ES NUESTRA
+
+Buscando por la zona que apuntaba la intuición del usuario —el orden de pintado—
+aparece otra cosa, en `ein-sdd-overlay.ts:47-50`:
+
+```ts
+const next = lines.join("\n");
+if (next === painted) return;   // sale sin pintar
+painted = next;                 // se marca como pintado...
+ctx.ui.setWidget(OVERLAY_KEY, ...);  // ...antes de saber si llego a la pantalla
+```
+
+`painted` registra lo **enviado**, no lo que llegó a la pantalla, y la API no
+ofrece forma de saber lo segundo. Si un envío se pierde —la TUI montándose
+todavía al abrir sobre una sesión con historial—, la caché queda marcada y
+cualquier refresco posterior con el mismo contenido sale por la puerta de
+arriba. **El widget se queda mudo hasta que el contenido cambie por su cuenta.**
+
+Eso encaja con dos de las observaciones: que se actualice "cada cierto tiempo"
+(cuando el contenido cambia de verdad y la caché deja de coincidir) y que se
+actualice al pulsar una tecla (Pi fuerza el render por otro camino).
+
+**Corregido:** la caché se invalida en `session_start`, porque al arrancar la UI
+es nueva aunque el contenido sea el mismo. El atajo de plegar ya hacía
+exactamente eso. Cubierto por `tests/sdd-overlay-repaint.test.ts`, que también
+fija que la caché siga evitando repintados redundantes dentro de una sesión.
+
+**Lo que esto no arregla:** la posición del indicador de subagente y la falta de
+animación. Siguen siendo de Pi, y la prueba de abajo sigue en pie.
+
 ## // 004. LA PRUEBA QUE CIERRA LA CLASIFICACIÓN
 
 Dos minutos, y la puede hacer cualquiera con el runtime delante:
@@ -72,13 +102,17 @@ Dos minutos, y la puede hacer cualquiera con el runtime delante:
 - **Si en vanilla va bien** → es de Ein o de la integración, y entonces la
   hipótesis de `session_start` pasa a ser la primera candidata y merece cavar.
 
-## // 005. POR QUÉ NO SE HA PARCHEADO NADA
+## // 005. POR QUÉ NO SE PARCHEA MÁS QUE ESO
 
-Porque no sabemos qué arreglar. Las tres partes visibles del síntoma pertenecen
-a superficies que Ein no dibuja, y tocar el arranque por conjetura es
-exactamente lo que la unidad 4A prohíbe: *"clasificar ownership antes de
-parchear"*. Un parche a ciegas aquí tiene el coste habitual de tocar el arranque
-—romperlo para todos— sin la contrapartida de saber si arregla algo.
+Lo corregido es lo que la evidencia de código sostiene: una caché que se marca
+antes de tiempo. No se toca el arranque ni el layout, porque las otras dos
+partes del síntoma pertenecen a superficies que Ein no dibuja, y ahí un parche
+por conjetura tiene el coste habitual —romper el arranque para todos— sin saber
+si arregla algo.
+
+**El arreglo es una hipótesis con evidencia, no una causa demostrada.** Nadie ha
+reproducido el fallo con un depurador. Lo que sí garantiza es que, si el widget
+se pierde una vez, deja de quedarse perdido para siempre.
 
 ## // 006. SI RESULTA SER DE PI
 
