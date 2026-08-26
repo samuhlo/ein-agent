@@ -284,11 +284,45 @@ describe("readonly scout result handoff", () => {
 	function result(finalOutput: unknown = JSON.stringify(report())): unknown {
 		return { mode: "single", results: [{ agent: "ein-scout", finalOutput }] };
 	}
+	function wrappedResult(finalOutput: string = JSON.stringify(report()), overrides: Record<string, unknown> = {}): unknown {
+		const note = "Turn budget wrap-up was requested after 12 assistant turns (soft limit 12, grace 2). Process-mode live steering is unavailable, so the child was warned at launch to wrap up by this budget. Output may be partial.";
+		return { mode: "single", results: [{
+			agent: "ein-scout",
+			exitCode: 0,
+			wrapUpRequested: true,
+			turnBudget: { maxTurns: 12, graceTurns: 2, turnCount: 22, outcome: "wrap-up-requested", wrapUpRequestedAtTurn: 12 },
+			finalOutput: `${note}\n\n${finalOutput}`,
+			...overrides,
+		}] };
+	}
 
 	test("valida el reporte entregado en finalOutput como texto (el bug real de hoy)", () => {
 		const tracking = tracked();
 		expect(acceptTrackedScoutResult(tracking, "scout-call", result(), false, fixture())).toEqual(report());
 		expect(tracking.has("scout-call")).toBe(false);
+	});
+
+	test("acepta el JSON que pi-subagents decora tras pedir cierre y conserva la procedencia", () => {
+		const tracking = tracked();
+		const accepted = acceptTrackedScoutResult(tracking, "scout-call", wrappedResult(), false, fixture()) as ReturnType<typeof report>;
+
+		expect(accepted.summary).toBe(report().summary);
+		expect(accepted.uncertainties).toContainEqual({
+			level: "material",
+			statement: "el runner pidió cierre en el turno 12 (límite 12, gracia 2); la salida puede ser parcial",
+		});
+		expect(tracking.has("scout-call")).toBe(false);
+	});
+
+	test("no retira preámbulos si los metadatos no prueban que los generó el runner", () => {
+		const noWrap = tracked();
+		expect(() => acceptTrackedScoutResult(noWrap, "scout-call", wrappedResult(undefined, { wrapUpRequested: false }), false, fixture())).toThrow("malformed structured report");
+
+		const wrongOutcome = tracked();
+		expect(() => acceptTrackedScoutResult(wrongOutcome, "scout-call", wrappedResult(undefined, { turnBudget: { maxTurns: 12, graceTurns: 2, turnCount: 22, outcome: "within-budget", wrapUpRequestedAtTurn: 12 } }), false, fixture())).toThrow("malformed structured report");
+
+		const arbitrary = tracked();
+		expect(() => acceptTrackedScoutResult(arbitrary, "scout-call", wrappedResult(`otro preámbulo\n\n${JSON.stringify(report())}`), false, fixture())).toThrow("malformed structured report");
 	});
 
 	// Antes este test exigía que la entrada se borrase. Eso ERA el agujero: un

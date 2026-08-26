@@ -44,7 +44,8 @@ export const MAX_FANOUT_BRANCHES = 3;
 export type ScoutLaunch = Record<string, unknown>;
 export type ScoutTracking = Map<string, string>;
 type Reference = { id: string; path: string; startLine: number; endLine: number; supports: string };
-type Report = { version: string; summary: string; summaryReferenceIds: string[]; findings: { claim: string; referenceIds: string[] }[]; references: Reference[]; uncertainties: { level: string; statement: string }[] };
+type Uncertainty = { level: string; statement: string };
+type Report = { version: string; summary: string; summaryReferenceIds: string[]; findings: { claim: string; referenceIds: string[] }[]; references: Reference[]; uncertainties: Uncertainty[] };
 export type ScoutFanout = { version: "ein-scout-fanout/v1"; branches: { task: string; report: Report }[]; dropped: string[] };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -266,7 +267,47 @@ export function validateScoutReport(payloads: readonly unknown[], root: string):
 // El mensaje dice lo OBSERVADO, no la causa. Antes afirmaba "launched async or
 // in parallel?" como si lo supiera: era una hipótesis, y cuando el fallo real
 // fuese otro mandaba a corregir lo que no estaba roto.
-type Branch = { task: string; finalOutput: string };
+type Branch = { task: string; finalOutput: string; runtimeUncertainties: Uncertainty[] };
+
+function turnBudgetSoftNote(maxTurns: number, graceTurns: number, requestedAtTurn: number): string {
+	return `Turn budget wrap-up was requested after ${requestedAtTurn} assistant turn${requestedAtTurn === 1 ? "" : "s"} (soft limit ${maxTurns}, grace ${graceTurns}). Process-mode live steering is unavailable, so the child was warned at launch to wrap up by this budget. Output may be partial.`;
+}
+
+function branchOutput(result: unknown): Pick<Branch, "finalOutput" | "runtimeUncertainties"> {
+	const finalOutput = isRecord(result) && typeof result.finalOutput === "string" ? result.finalOutput : "";
+	if (!isRecord(result) || result.exitCode !== 0 || result.wrapUpRequested !== true || !isRecord(result.turnBudget)) {
+		return { finalOutput, runtimeUncertainties: [] };
+	}
+	const budget = result.turnBudget;
+	const maxTurns = budget.maxTurns;
+	const graceTurns = budget.graceTurns;
+	const requestedAtTurn = budget.wrapUpRequestedAtTurn ?? budget.turnCount;
+	if (
+		budget.outcome !== "wrap-up-requested"
+		|| !Number.isInteger(maxTurns) || Number(maxTurns) < 1
+		|| !Number.isInteger(graceTurns) || Number(graceTurns) < 0
+		|| !Number.isInteger(requestedAtTurn) || Number(requestedAtTurn) < 1
+	) {
+		return { finalOutput, runtimeUncertainties: [] };
+	}
+	const note = turnBudgetSoftNote(Number(maxTurns), Number(graceTurns), Number(requestedAtTurn));
+	const prefix = `${note}\n\n`;
+	if (!finalOutput.startsWith(prefix)) return { finalOutput, runtimeUncertainties: [] };
+
+	// Compatibilidad acotada con pi-subagents 0.57.0: el runner mezcla una nota
+	// de presentación con el payload de máquina aunque la rama haya terminado
+	// con exitCode 0. No se busca JSON heurísticamente: solo se retira la cadena
+	// exacta reconstruida desde sus metadatos estructurados. Retirar este bloque
+	// cuando la versión mínima soportada mantenga la nota fuera de finalOutput y
+	// la sonda de runtime pruebe esa semántica.
+	return {
+		finalOutput: finalOutput.slice(prefix.length),
+		runtimeUncertainties: [{
+			level: "material",
+			statement: `el runner pidió cierre en el turno ${requestedAtTurn} (límite ${maxTurns}, gracia ${graceTurns}); la salida puede ser parcial`,
+		}],
+	};
+}
 
 function scoutBranches(details: unknown): Branch[] {
 	if (!isRecord(details) || !Array.isArray(details.results)) {
@@ -280,8 +321,15 @@ function scoutBranches(details: unknown): Branch[] {
 	}
 	return (details.results as unknown[]).map((result, index) => ({
 		task: isRecord(result) && typeof result.task === "string" && result.task.length > 0 ? result.task : `branch ${index + 1}`,
-		finalOutput: isRecord(result) && typeof result.finalOutput === "string" ? result.finalOutput : "",
+		...branchOutput(result),
 	}));
+}
+
+function validateBranch(branch: Branch, root: string): Report {
+	const report = validateScoutReport([branch.finalOutput], root);
+	return branch.runtimeUncertainties.length === 0
+		? report
+		: { ...report, uncertainties: [...report.uncertainties, ...branch.runtimeUncertainties] };
 }
 
 // Cada rama se valida por su cuenta: una rama fuera de contrato no arrastra a
@@ -292,7 +340,7 @@ function validateBranches(branches: Branch[], root: string): ScoutFanout {
 	const dropped: string[] = [];
 	for (const branch of branches) {
 		if (branch.finalOutput.trim().length === 0) { dropped.push(`${branch.task}: returned no usable report`); continue; }
-		try { accepted.push({ task: branch.task, report: validateScoutReport([branch.finalOutput], root) }); }
+		try { accepted.push({ task: branch.task, report: validateBranch(branch, root) }); }
 		catch (error) { dropped.push(`${branch.task}: ${error instanceof Error ? error.message : "off-contract"}`); }
 	}
 	if (accepted.length === 0) fail(`every scout branch returned off-contract — ${dropped.join("; ")}`);
@@ -309,7 +357,7 @@ export function acceptTrackedScoutResult(tracking: ScoutTracking, toolCallId: st
 		// Un solo resultado devuelve el reporte pelado, byte por byte como antes:
 		// es el caso mayoritario y no se rompe por añadir el fan-out.
 		const accepted = branches.length === 1
-			? validateScoutReport([branches[0]!.finalOutput], root)
+			? validateBranch(branches[0]!, root)
 			: validateBranches(branches, root);
 		tracking.delete(toolCallId);
 		return accepted;

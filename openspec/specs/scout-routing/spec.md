@@ -30,6 +30,13 @@ Given: a scout report contains accepted findings with citations and explicit unc
 When: the parent continues routing or scoping
 Then: the parent forwards the accepted findings and uncertainties without automatically repeating the scout research
 
+## Scenario: accept-runner-decorated-wrap-up-report
+title: Recover an exact runner wrap-up note without weakening the report contract
+requirement: The system MUST recover a scout report when a successful runtime branch prefixes `finalOutput` with the exact turn-budget wrap-up note reconstructed from that branch's structured metadata, MUST record that the recovered output may be partial as a material uncertainty, and MUST continue to reject arbitrary preambles or notes that are not proven by matching metadata.
+Given: a scout branch exits successfully with `wrapUpRequested: true`, a `turnBudget.outcome` of `wrap-up-requested`, and an exact runner-generated note before one JSON report
+When: the local scout adapter consumes the branch
+Then: only the exact reconstructed note is removed, the JSON still passes the complete `ein-scout-report/v1` validation, the wrap-up provenance reaches the parent as an uncertainty, and any mismatched preamble remains off-contract
+
 ## Scenario: limit-material-spot-checks
 title: Limit material spot-checks
 requirement: The system MAY allow the parent, after accepting a valid cited scout report, to perform no more than two spot-checks limited to material claims.
