@@ -4,13 +4,14 @@ import { visibleRows, type AppModel } from "../lib/terminal-app.ts";
 import {
 	blankLine,
 	contentLines,
+	homeTopLines,
 	headerLine,
 	ruleLine,
 	textLine,
 	type ChromeLine,
 	type ChromeTone,
 } from "./terminal-chrome.ts";
-import { BRAND, SIGNAL, SURFACE } from "./terminal-theme.ts";
+import { BRAND, PLASTIC, SIGNAL, SURFACE } from "./terminal-theme.ts";
 
 export type TerminalDashboardViewData = Readonly<{ model: AppModel; width: number; height: number }>;
 
@@ -27,6 +28,10 @@ const TONE: Record<ChromeTone, string> = {
 	ok: SIGNAL.ok,
 	warn: SIGNAL.warn,
 	danger: SIGNAL.danger,
+	edge: PLASTIC.edge,
+	body: PLASTIC.body,
+	shadow: PLASTIC.shadow,
+	knob: PLASTIC.knob,
 };
 
 export function TerminalDashboardView(props: Readonly<{ view: Accessor<TerminalDashboardViewData> }>) {
@@ -47,6 +52,15 @@ export function TerminalDashboardView(props: Readonly<{ view: Accessor<TerminalD
 		model().summary.change ?? pick("sin cambio activo", "no active change"),
 	].join(" · ");
 
+	// La PORTADA abre con el aparato y su barra de contexto; las demás vistas
+	// conservan la cabecera, que es lo que dice dónde estás. Repetir el aparato
+	// en cada pantalla lo convertiría en papel pintado, y la cabecera de la
+	// portada decía «ein   ein»: el wordmark y luego el título de la vista.
+	const isHome = () => model().view.kind === "dashboard";
+	const top = (): readonly ChromeLine[] => isHome()
+		? homeTopLines(total(), props.view().height, model().summary)
+		: [headerLine(total(), model().view.title, context())];
+
 	const hint = () => model().searching
 		? `${pick("buscar", "find")}: ${model().query}_`
 		: model().status || pick(
@@ -54,14 +68,16 @@ export function TerminalDashboardView(props: Readonly<{ view: Accessor<TerminalD
 			"↑/↓ move   ←/→ change   enter select   / search   q quit",
 		);
 
-	// Altura disponible para filas: barra superior (1) + contexto (1) + aire (3)
-	// + barra inferior (1). Sin esto el contenido empujaba el pie fuera.
-	const CHROME_ROWS = 7;
-	const capacity = () => Math.max(1, props.view().height - CHROME_ROWS);
+	// Altura disponible para filas: lo que ocupe la parte de arriba (una barra en
+	// las vistas, la placa y el contexto en la portada) + aire (3) + barra
+	// inferior (1). Se MIDE en vez de fijarse: la portada no ocupa lo mismo que
+	// una vista, y una constante fija empujaba el pie fuera de la pantalla.
+	const CHROME_ROWS = 4;
+	const capacity = () => Math.max(1, props.view().height - top().length - CHROME_ROWS);
 
 	// Dos barras y el contenido flotando entre ellas (STYLE.md // 002, regla 7).
 	const lines = (): readonly ChromeLine[] => [
-		headerLine(total(), model().view.title, context()),
+		...top(),
 		blankLine(total()),
 		...contentLines(
 			total(),

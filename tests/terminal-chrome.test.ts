@@ -9,7 +9,10 @@
 import { describe, expect, test } from "bun:test";
 import {
 	blankLine,
+	brandLines,
 	contentLines,
+	contextLines,
+	homeTopLines,
 	GLYPH,
 	headerLine,
 	noteLine,
@@ -108,6 +111,115 @@ describe("chrome de la app", () => {
 			expect(widthOf(rowLine(width, rows[0]!.row, true))).toBe(width);
 			expect(widthOf(sectionLine(width, 0, "sesiones"))).toBe(width);
 			expect(widthOf(headerLine(width, "config", "proyecto"))).toBe(width);
+		}
+	});
+});
+
+// =============================================================================
+// LA PORTADA
+// El aparato y el contexto del proyecto se componen como LÍNEAS del chrome, no
+// escribiendo a stdout: es lo que permite medirlos aquí y lo que deja a la vista
+// montarlos junto al resto. El ancho vuelve a ser lo único que se rompe solo.
+// =============================================================================
+
+const SUMMARY = {
+	name: "ein-agent",
+	root: "~/dev/ein-agent",
+	branch: "main",
+	dirty: 0,
+	change: "redesign-launcher-installer-shell",
+	phase: "apply",
+	next: "cc-ein-sdd verify",
+};
+
+describe("la marca de la portada", () => {
+	test("en placa el texto va al costado del mueble, no debajo", () => {
+		const lines = brandLines(W, "ein v0.82.0");
+		const art = lines.map(flat);
+		// El subtítulo comparte fila con el mueble: si estuviera debajo, ninguna
+		// fila del aparato lo contendría.
+		expect(art.some((line) => line.includes("│") && line.includes("workbench"))).toBe(true);
+	});
+
+	test("sin sitio para la placa, la marca se apila en vez de recortarse", () => {
+		const narrow = brandLines(40, "ein v0.82.0").map(flat);
+		expect(narrow.some((line) => line.includes("│") && line.includes("workbench"))).toBe(false);
+		expect(narrow.some((line) => line.includes("workbench"))).toBe(true);
+	});
+
+	test("sin versión que enseñar, la placa se queda con el lema", () => {
+		const lines = brandLines(W).map(flat);
+		expect(lines.some((line) => line.includes("workbench"))).toBe(true);
+		expect(lines.join("")).not.toContain("v0.");
+		for (const line of brandLines(W)) expect(widthOf(line)).toBe(W);
+	});
+
+	test("toda línea mide el ancho pedido, quepa o no la placa", () => {
+		for (const total of [W, 96, 40]) {
+			for (const line of brandLines(total, "ein v0.82.0")) {
+				expect(widthOf(line)).toBe(total);
+			}
+		}
+	});
+});
+
+describe("el contexto del proyecto", () => {
+	test("nombra proyecto y rama, y pega la ruta al margen derecho", () => {
+		const [head] = contextLines(W, SUMMARY).map(flat);
+		expect(head).toContain("ein-agent");
+		expect(head).toContain("main");
+		expect(head!.trimEnd().endsWith("~/dev/ein-agent")).toBe(true);
+	});
+
+	test("el cambio en curso añade una línea con su fase y su siguiente paso", () => {
+		const withChange = contextLines(W, SUMMARY).map(flat);
+		expect(withChange).toHaveLength(2);
+		expect(withChange[1]).toContain("redesign-launcher-installer-shell");
+		expect(withChange[1]).toContain("apply");
+		expect(withChange[1]).toContain("cc-ein-sdd verify");
+	});
+
+	test("sin cambio activo esa línea no se dibuja vacía: no existe", () => {
+		expect(contextLines(W, { ...SUMMARY, change: undefined })).toHaveLength(1);
+	});
+
+	test("toda línea mide el ancho pedido, con cambio y sin él", () => {
+		for (const summary of [SUMMARY, { ...SUMMARY, change: undefined }]) {
+			for (const line of contextLines(W, summary)) expect(widthOf(line)).toBe(W);
+		}
+	});
+
+	test("una ruta larguísima se recorta y NO desborda", () => {
+		const [head] = contextLines(W, { ...SUMMARY, root: "~/".padEnd(400, "x") });
+		expect(widthOf(head!)).toBe(W);
+	});
+});
+
+// El aparato son ocho filas. En un terminal bajo eso se come el menú entero, así
+// que la marca cede por ALTO igual que ya cedía por ancho: primero pierde la
+// placa, y el contexto —que es lo que informa— se queda siempre.
+describe("cuánto sitio se lleva la portada", () => {
+	test("con altura de sobra, la portada abre con el aparato", () => {
+		const lines = homeTopLines(W, 40, SUMMARY).map(flat);
+		expect(lines.some((line) => line.includes("│") && line.includes("workbench"))).toBe(true);
+		expect(lines.some((line) => line.includes("ein-agent"))).toBe(true);
+	});
+
+	test("en un terminal bajo la marca desaparece, el contexto no", () => {
+		const lines = homeTopLines(W, 24, SUMMARY).map(flat);
+		expect(lines.some((line) => line.includes("│") && line.includes("workbench"))).toBe(false);
+		expect(lines.some((line) => line.includes("ein-agent"))).toBe(true);
+	});
+
+	test("la portada nunca se lleva más de un tercio de la pantalla", () => {
+		for (const height of [18, 24, 30, 40, 60]) {
+			expect(homeTopLines(W, height, SUMMARY).length).toBeLessThanOrEqual(Math.ceil(height / 3));
+		}
+	});
+
+	test("toda línea mide el ancho pedido, a cualquier altura", () => {
+		for (const height of [18, 24, 40]) {
+			for (const line of homeTopLines(W, height, SUMMARY)) expect(widthOf(line)).toBe(W);
 		}
 	});
 });

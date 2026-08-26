@@ -8,13 +8,11 @@
 
 import * as p from "../tui/ui.ts";
 import { playBanner } from "../tui/banner.ts";
-import { gold } from "../tui/theme.ts";
+import { RUNTIME_PROMPT_OPTIONS, type RuntimePromptOption } from "./runtime-options.ts";
 import { runInstall, type InstallTarget } from "./install.ts";
-
-type RuntimePromptOption = { value: InstallTarget; label: string; hint: string };
 type RuntimePrompt = (options: {
   message: string;
-  options: RuntimePromptOption[];
+  options: readonly RuntimePromptOption[];
 }) => Promise<unknown>;
 
 export type RunBootstrapInstallOptions = {
@@ -24,12 +22,6 @@ export type RunBootstrapInstallOptions = {
   isCancel?: (value: unknown) => boolean;
   write?: (line: string) => void;
 };
-
-const RUNTIME_PROMPT_OPTIONS: RuntimePromptOption[] = [
-  { value: "pi", label: gold("Pi"), hint: "solo Pi" },
-  { value: "claude", label: gold("Claude Code"), hint: "solo Claude Code" },
-  { value: "both", label: gold("Both"), hint: "Pi + Claude Code" },
-];
 
 export async function selectInstallTarget(
   prompt?: RuntimePrompt,

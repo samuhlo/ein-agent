@@ -15,8 +15,10 @@
 // permite ver y testear el layout sin abrir un terminal.
 // =============================================================================
 
+import { pick } from "../lib/lang.ts";
+import { placaRows, TV_WIDTH, type TvCut, type TvTone } from "../lib/ein-tv.ts";
 import type { Row, VisibleRow } from "../lib/terminal-app.ts";
-import { rowMark } from "./terminal-theme.ts";
+import { BRAND_SUBTITLE, rowMark } from "./terminal-theme.ts";
 
 /** Glifos de la gramática. Ninguno dibuja un contorno cerrado, a propósito. */
 export const GLYPH = {
@@ -28,7 +30,10 @@ export const GLYPH = {
 
 export type ChromeTone =
 	| "frame" | "tab" | "label" | "value" | "dim" | "selected" | "key"
-	| "ok" | "warn" | "danger";
+	| "ok" | "warn" | "danger"
+	// El material del mueble. Los cuatro de marca no bastan para un objeto con
+	// volumen, y el aparato es un objeto dibujado, no un color de producto.
+	| "edge" | "body" | "shadow" | "knob";
 
 export type ChromeCell = Readonly<{
 	text: string;
@@ -82,6 +87,102 @@ export function headerLine(total: number, title: string, right: string): ChromeL
 		{ text: trimmed, tone: "dim" },
 		{ text: INDENT, tone: "value" },
 	];
+}
+
+// El aparato traduce sus tonos a los del chrome. Los de marca ya coinciden por
+// nombre; los del plástico entraron en `ChromeTone` para que la vista los pinte.
+const TV_TONE: Readonly<Record<TvTone, ChromeTone>> = Object.freeze({
+	edge: "edge", body: "body", shadow: "shadow", knob: "knob",
+	screen: "value", accent: "selected", danger: "danger", dim: "dim",
+	label: "label",
+});
+
+/**
+ * LA MARCA DE LA PORTADA, en placa: el mueble a la izquierda y el lema con las
+ * versiones a su costado. Devuelve LÍNEAS del chrome, no escritura a stdout, que
+ * es lo que permite medirlas y montarlas junto al resto de la pantalla.
+ *
+ * Si el ancho no da para mueble + aire + el texto más largo, la marca se APILA.
+ * Un televisor cortado por la derecha no es un televisor, y recortar el lema
+ * tampoco es una opción: lo que cede es la composición, no la marca.
+ */
+export function brandLines(total: number, tag = ""): readonly ChromeLine[] {
+	const room = total - INDENT.length * 2;
+	const cut: TvCut = room >= TV_WIDTH.cabinet ? "cabinet" : room >= TV_WIDTH.compact ? "compact" : "minimal";
+	return placaRows({ cut, subtitle: BRAND_SUBTITLE, tag, width: room }).map((row) =>
+		pad([
+			{ text: INDENT, tone: "value" },
+			...row.map((span): ChromeCell => ({ text: span.text, tone: TV_TONE[span.tone] })),
+		], total),
+	);
+}
+
+/** Lo que la portada necesita saber del proyecto. Menos que `ProjectSummary`. */
+export type ContextSummary = Readonly<{
+	name: string;
+	root: string;
+	branch?: string | undefined;
+	dirty?: number | undefined;
+	change?: string | undefined;
+	phase?: string | undefined;
+	next?: string | undefined;
+}>;
+
+function dirtyLabel(dirty: number | undefined): string {
+	if (dirty === undefined) return "?";
+	return dirty === 0 ? pick("limpio", "clean") : pick(`${dirty} sin confirmar`, `${dirty} uncommitted`);
+}
+
+/**
+ * El contexto del proyecto: identidad a la izquierda, ruta pegada al margen
+ * derecho, y —solo si existe— el cambio SDD en curso con su fase y su siguiente
+ * paso.
+ *
+ * Por qué NO es una fila del dashboard: una fila es una acción con atajo, cae
+ * bajo el cursor y desplazaría a «arrancar Pi», que es lo primero que el usuario
+ * viene a hacer. Esto es estado, así que vive en el chrome.
+ */
+export function contextLines(total: number, summary: ContextSummary): readonly ChromeLine[] {
+	const head: ChromeCell[] = [
+		{ text: INDENT, tone: "value" },
+		{ text: summary.name, tone: "value" },
+		{ text: `   ${summary.branch ?? "detached"} ${GLYPH.sep} ${dirtyLabel(summary.dirty)}`, tone: "label" },
+	];
+	const used = width(head);
+	const root = summary.root.slice(0, Math.max(0, total - used - INDENT.length - 1));
+	const lines: ChromeLine[] = [[
+		...head,
+		{ text: " ".repeat(Math.max(1, total - used - root.length - INDENT.length)), tone: "value" },
+		{ text: root, tone: "dim" },
+		{ text: INDENT, tone: "value" },
+	]];
+
+	if (!summary.change) return lines;
+	const trail = [summary.phase, summary.next].filter(Boolean).join(` ${GLYPH.sep} `);
+	lines.push(pad([
+		{ text: INDENT, tone: "value" },
+		{ text: GLYPH.rule, tone: "selected" },
+		{ text: ` ${summary.change}`, tone: "value" },
+		...(trail ? [{ text: `   ${trail}`, tone: "label" as ChromeTone }] : []),
+	], total));
+	return lines;
+}
+
+// El aparato son ocho filas. Con una pantalla de veinte, la marca se lleva la
+// mitad del menú, y una portada que no deja ver lo que se puede hacer no es una
+// portada. Así que la marca cede por ALTO igual que cede por ancho: el contexto
+// —que es lo que informa— se queda siempre.
+const HOME_PLATE_ROWS = 34;
+
+/**
+ * La cabecera de la PORTADA: el aparato cuando cabe, y siempre el contexto del
+ * proyecto. Vive aquí y no en la vista porque es una decisión de layout, y las
+ * decisiones de layout se miden.
+ */
+export function homeTopLines(total: number, height: number, summary: ContextSummary): readonly ChromeLine[] {
+	const context = contextLines(total, summary);
+	if (height < HOME_PLATE_ROWS) return context;
+	return [...brandLines(total), blankLine(total), ...context];
 }
 
 export function textLine(total: number, text: string, tone: ChromeTone = "label"): ChromeLine {

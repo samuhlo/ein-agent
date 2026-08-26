@@ -11,6 +11,20 @@ import { BackupFailure, sanitizeBackupFailureDetail } from "./backup.ts";
 export type InstallPlanHandlerResult = Readonly<{ ok: boolean; detail?: string }>;
 export type InstallPlanExecutionHandler = () => Promise<InstallPlanHandlerResult> | InstallPlanHandlerResult;
 export type InstallPlanExecutionHandlers = Readonly<Record<InstallPlanEntryId, InstallPlanExecutionHandler>>;
+/**
+ * Lo que el ejecutor cuenta mientras trabaja. Existe porque el plan se conoce
+ * ANTES de empezar y hasta ahora no se enseñaba: quien instala solo veía la
+ * línea que estaba corriendo. `abandoned` no es un fallo — es un paso que ya no
+ * se va a ejecutar porque su runtime cayó antes, y callarlo deja la pantalla
+ * enseñando pendientes que nunca van a llegar.
+ */
+export type InstallPlanProgressEvent =
+  | Readonly<{ kind: "start"; id: InstallPlanEntryId }>
+  | Readonly<{ kind: "done"; id: InstallPlanEntryId; ok: boolean; detail?: string }>
+  | Readonly<{ kind: "abandoned"; id: InstallPlanEntryId }>;
+
+export type InstallPlanProgress = (event: InstallPlanProgressEvent) => void;
+
 export type InstallPlanExecution = Readonly<{
   ok: boolean;
   failures: Readonly<Partial<Record<InstallPlanRuntime, string>>>;
@@ -39,18 +53,29 @@ const failureDetail = (runtime: InstallPlanRuntime, id: InstallPlanEntryId, deta
   return safe ? safe : genericFailureDetail(runtime, id);
 };
 
-/** Execute only the immutable inventory order; failures stop their runtime, not later runtimes. */
-export async function executeInstallPlan(plan: InstallPlanV1, handlers: InstallPlanExecutionHandlers): Promise<InstallPlanExecution> {
+/**
+ * Execute only the immutable inventory order; failures stop their runtime, not later runtimes.
+ *
+ * `progress` es opcional y NO cambia una sola decisión: cuenta lo que ya ocurría.
+ * Sin oyente el ejecutor se comporta exactamente igual, que es lo que permite
+ * que el journal siga envolviendo handlers sin enterarse de nada.
+ */
+export async function executeInstallPlan(plan: InstallPlanV1, handlers: InstallPlanExecutionHandlers, progress?: InstallPlanProgress): Promise<InstallPlanExecution> {
   const admitted = preflight(plan, handlers);
   const failures: Partial<Record<InstallPlanRuntime, string>> = {};
+  const tell = (event: InstallPlanProgressEvent): void => { progress?.(event); };
   for (const entry of plan.inventory) {
     if (entry.state !== "selected" && entry.state !== "conditional") continue;
-    if (failures.shared || failures[entry.runtime]) continue;
+    if (failures.shared || failures[entry.runtime]) { tell({ kind: "abandoned", id: entry.id }); continue; }
+    tell({ kind: "start", id: entry.id });
     try {
       const result = await admitted[entry.id]();
       if (!result.ok) failures[entry.runtime] = failureDetail(entry.runtime, entry.id, result.detail);
+      tell({ kind: "done", id: entry.id, ok: result.ok, ...(result.detail ? { detail: result.detail } : {}) });
     } catch (error) {
-      failures[entry.runtime] = isBackupEntry(entry.runtime, entry.id) && error instanceof BackupFailure ? error.message : genericFailureDetail(entry.runtime, entry.id);
+      const detail = isBackupEntry(entry.runtime, entry.id) && error instanceof BackupFailure ? error.message : genericFailureDetail(entry.runtime, entry.id);
+      failures[entry.runtime] = detail;
+      tell({ kind: "done", id: entry.id, ok: false, detail });
     }
   }
   return Object.freeze({ ok: Object.keys(failures).length === 0, failures: Object.freeze(failures) });

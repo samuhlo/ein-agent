@@ -528,7 +528,7 @@ describe("Installer-owned advisor handoff", () => {
 describe("Bootstrap runtime prompt", () => {
   test("offers Pi, Claude Code, and Both and forwards one selection", async () => {
     let promptCalls = 0;
-    let promptedOptions: Array<{ value: string; label: string; hint: string }> = [];
+    let promptedOptions: ReadonlyArray<{ value: string; label: string; hint: string }> = [];
     const selected = await selectInstallTarget(
       async (options) => {
         promptCalls += 1;
@@ -540,10 +540,12 @@ describe("Bootstrap runtime prompt", () => {
 
     expect(promptCalls).toBe(1);
     expect(promptedOptions.map((option) => option.value)).toEqual(["pi", "claude", "both"]);
-    expect(promptedOptions.map((option) => option.label.replace(/\x1b\[[0-9;]*m/g, ""))).toEqual([
+    // Sin ANSI que limpiar: la etiqueta ya no viene pintada del punto de
+    // llamada, para que el prompt pueda marcar cuál tiene el foco.
+    expect(promptedOptions.map((option) => option.label)).toEqual([
       "Pi",
       "Claude Code",
-      "Both",
+      "Los dos",
     ]);
     expect(selected).toBe("claude");
   });

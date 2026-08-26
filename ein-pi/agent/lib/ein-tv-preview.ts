@@ -25,6 +25,7 @@ const TONE: Readonly<Record<TvTone, string>> = Object.freeze({
 	accent: "\u001b[38;2;255;202;64m",
 	danger: "\u001b[38;2;217;108;95m",
 	dim: "\u001b[38;2;90;90;90m",
+	label: "\u001b[38;2;115;115;115m",
 });
 
 const colour = !process.env.NO_COLOR && process.stdout.isTTY !== false;

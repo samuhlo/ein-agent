@@ -25,7 +25,7 @@ import { join } from "node:path";
 import { AGENT_DIR } from "./ein-paths";
 import { loadPalette, type RGB } from "./ein-brand";
 import { GRID_VALUE_W, PANEL_FRAME_TICKS, PANEL_LEADER_TICKS, PANEL_ROW_TICKS, PANEL_W, renderPanel, type PanelTone } from "../lib/banner-panel";
-import { renderTv, tvRowWidth, TV_WIDTH, type TvCut, type TvTone } from "../lib/ein-tv";
+import { placaRows, TV_WIDTH, type TvCut, type TvTone } from "../lib/ein-tv";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 import { LANG_LABEL, readArtifactLang, readChatLang, type Lang } from "../lib/lang";
 import { TDD_LABEL, readTddMode } from "../lib/tdd";
@@ -165,17 +165,6 @@ const gitProcessRunner: ProcessRunner = {
 };
 
 const SUBTITLE = ".samuhlo · pi workbench";
-
-// LA PLACA: el aire entre el mueble y la marca, y en qué fila del mueble se
-// apoya cada línea. No son «arriba y abajo» genéricos — cada corte tiene su
-// altura, y el texto tiene que caer contra la pantalla, no contra los bordes.
-const BAND_GUTTER = 3;
-const BAND_ANCHORS: Readonly<Record<TvCut, { subtitle: number; versions: number }>> = Object.freeze({
-  full: { subtitle: 6, versions: 8 },
-  cabinet: { subtitle: 2, versions: 4 },
-  compact: { subtitle: 1, versions: 3 },
-  minimal: { subtitle: 0, versions: 2 },
-});
 
 // El material del mueble. Tres tonos de plástico para que el aparato tenga
 // volumen — la técnica del arte ANSI, donde el relieve sale del color y no de
@@ -577,6 +566,7 @@ export default function (pi: ExtensionAPI) {
               accent: YELLOW,
               danger: PLASTIC.danger,
               dim: PLASTIC.dim,
+              label: STRUCTURE,
             };
             // Un televisor cortado por la derecha no es un televisor: se baja de
             // corte antes que recortar. `full` ya no se elige: la antena y las
@@ -587,43 +577,19 @@ export default function (pi: ExtensionAPI) {
               : width >= TV_WIDTH.compact + 2
                 ? "compact"
                 : "minimal";
-            const tvRows = renderTv({ cut: tvCut });
-            const tvWidth = Math.max(...tvRows.map(tvRowWidth));
-
             // LA PLACA
-            // El subtítulo y las versiones se ponen al costado del aparato en vez
-            // de debajo. Son dos filas de texto contra ocho de mueble: apiladas
-            // costaban tres filas de banner para no llenar ni media.
-            const versions: Cell[] = [
-              { text: `ein v${einVersion}`, color: STRUCTURE },
-              { text: "  ·  ", color: STRUCTURE, dim: true },
-              { text: `pi v${VERSION}`, color: STRUCTURE },
-            ];
-            const versionsWidth = versions.reduce((total, cell) => total + [...cell.text].length, 0);
-            const brandWidth = Math.max(SUBTITLE.length, versionsWidth);
-            const anchors = BAND_ANCHORS[tvCut];
-            // La placa pide el mueble, el aire y el texto más ancho. Si no cabe,
-            // el banner vuelve a apilarse: recortar la marca no es una opción.
-            const banded = tvWidth + BAND_GUTTER + brandWidth <= width;
-
-            for (const [index, tvRow] of tvRows.entries()) {
-              const row: Cell[] = tvRow.map((span) => ({ text: span.text, color: TV_TONE[span.tone] }));
-              if (banded && index === anchors.subtitle) {
-                row.push({ text: " ".repeat(BAND_GUTTER) }, { text: SUBTITLE, color: STRUCTURE });
-              }
-              if (banded && index === anchors.versions) {
-                row.push({ text: " ".repeat(BAND_GUTTER) }, ...versions);
-              }
-              left.push(row);
-            }
-
-            if (!banded) {
-              left.push([]);
-              left.push([
-                { text: " ".repeat(Math.max(0, Math.floor((tvWidth - SUBTITLE.length) / 2))) },
-                { text: SUBTITLE, color: STRUCTURE },
-              ]);
-              left.push(versions);
+            // El subtítulo y las versiones al costado del aparato en vez de
+            // debajo. La composición la pone `ein-tv.ts` — la comparten el
+            // instalador, el splash y la portada de `ein`.
+            const versionTag = `ein v${einVersion}  ·  pi v${VERSION}`;
+            const tvRows = placaRows({
+              cut: tvCut,
+              subtitle: SUBTITLE,
+              tag: versionTag,
+              width,
+            });
+            for (const tvRow of tvRows) {
+              left.push(tvRow.map((span) => ({ text: span.text, color: TV_TONE[span.tone] })));
             }
 
             if (state.mode === "full") {

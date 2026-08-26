@@ -179,6 +179,31 @@ describe("the dashboard", () => {
     expect(press(dashboard(), DASHBOARD_KEYS.continueClaude).effects[0]).toEqual({ kind: "continue", provider: "claude" });
   });
 
+  // Nueve acciones en una sola seccion sin nombre obligaban a leerlas todas para
+  // encontrar una. Arrancar, continuar y administrar son tres decisiones, y la
+  // pantalla ya sabe pintar secciones: era la unica vista que no las usaba.
+  test("the rows are grouped by the verb that decides them", () => {
+    const sections = visibleRows(buildDashboard(SUMMARY), "").map(({ section }) => section);
+    expect(new Set(sections.filter(Boolean)).size).toBeGreaterThan(1);
+    expect(sections[0]).toBe(sections[1]);
+  });
+
+  test("grouping moves no row: same order, same keys", () => {
+    const rows = visibleRows(buildDashboard(SUMMARY), "").map(({ row }) => row);
+    expect(rows.map((row) => row.key)).toEqual([
+      DASHBOARD_KEYS.pi, DASHBOARD_KEYS.claude, DASHBOARD_KEYS.sessions,
+      DASHBOARD_KEYS.continuePi, DASHBOARD_KEYS.continueClaude,
+      DASHBOARD_KEYS.state, DASHBOARD_KEYS.config, DASHBOARD_KEYS.system,
+      DASHBOARD_KEYS.quit,
+    ]);
+  });
+
+  test("no row is left outside a section", () => {
+    for (const { section } of visibleRows(buildDashboard(SUMMARY), "")) {
+      expect(section).toBeTruthy();
+    }
+  });
+
   test("q quits from anywhere", () => {
     for (const start of ALL_VIEWS()) {
       expect(press(start, "q").effects[0]).toMatchObject({ kind: "quit" });
