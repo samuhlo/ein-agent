@@ -32,6 +32,7 @@ describe("readUserSettings + mergeUserSettings", () => {
 			JSON.stringify({
 				defaultProvider: "minimax",
 				defaultModel: "MiniMax-M3",
+				defaultThinkingLevel: "xhigh",
 				theme: "dark",
 				extensions: ["/ruta/del/template"],
 				quietStartup: true,
@@ -41,6 +42,7 @@ describe("readUserSettings + mergeUserSettings", () => {
 		expect(saved).toEqual({
 			defaultProvider: "minimax",
 			defaultModel: "MiniMax-M3",
+			defaultThinkingLevel: "xhigh",
 		});
 	});
 
@@ -63,6 +65,7 @@ describe("readUserSettings + mergeUserSettings", () => {
 		>;
 		expect(merged.defaultProvider).toBe("minimax");
 		expect(merged.defaultModel).toBe("MiniMax-M3");
+		expect(merged.defaultThinkingLevel).toBe("xhigh");
 		expect(merged.theme).toBe("ein"); // el tema de Ein gana
 		expect(merged.quietStartup).toBe(true);
 		expect(merged.campoNuevoDelTemplate).toBe(42);

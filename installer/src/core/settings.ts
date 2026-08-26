@@ -14,6 +14,7 @@ import { join } from "node:path";
 const USER_SETTINGS_KEYS = [
   "defaultProvider",
   "defaultModel",
+  "defaultThinkingLevel",
   "lastChangelogVersion",
   "enabledModels",
   "packages",

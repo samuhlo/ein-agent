@@ -29,3 +29,10 @@ requirement: The system MUST distinguish a failed verification from a passed, un
 Given: A change whose verify report exists and states that verification failed.
 When: The phase rail computes and renders the verify phase.
 Then: The phase is marked failed rather than done, is distinguishable from an unknown result, and renders differently from a passed verification.
+
+## Scenario: screen-truth-orchestrator-effort-is-observed
+title: Never present requested orchestrator effort as effective without readback
+requirement: The orchestrator model panel MUST distinguish inherited, requested, effective, pending, clamped, and unknown effort states, and MUST read the active Pi runtime after applying a requested effort before calling it effective.
+Given: A user selects high or xhigh for the orchestrator, while the selected model can differ from the active model or Pi can clamp the requested effort.
+When: The panel renders or saves the orchestrator routing.
+Then: It shows the requested and observed runtime values, labels model-switch work as pending until restart, labels a clamped value as limited rather than applied, and labels invalid persisted evidence as unknown.

@@ -25,7 +25,10 @@ const {
 	inspectModelConfig,
 	writeModelConfig,
 	readOrchestratorModel,
+	readOrchestratorThinking,
+	inspectOrchestratorThinking,
 	updateGlobalDefaultModel,
+	updateGlobalOrchestratorRouting,
 	modelConfigPath,
 	AGENT_RECOMMENDATIONS,
 } = await import("../ein-pi/agent/lib/model-config");
@@ -130,6 +133,8 @@ describe("modelo del orquestador (settings.json global)", () => {
 
 	test("sin settings.json devuelve undefined", () => {
 		expect(readOrchestratorModel()).toBeUndefined();
+		expect(readOrchestratorThinking()).toBeUndefined();
+		expect(inspectOrchestratorThinking()).toMatchObject({ status: "missing" });
 	});
 
 	test("update + read roundtrip preserva el resto del settings", () => {
@@ -144,6 +149,67 @@ describe("modelo del orquestador (settings.json global)", () => {
 		) as Record<string, unknown>;
 		expect(settings.theme).toBe("dark");
 		expect(settings.packages).toEqual(["npm:pi-subagents"]);
+	});
+
+	test("high/xhigh hacen roundtrip y preservan campos ajenos", () => {
+		writeFileSync(
+			join(TEST_AGENT_HOME, "settings.json"),
+			JSON.stringify({ theme: "dark", defaultThinkingLevel: "high" }),
+		);
+		expect(inspectOrchestratorThinking()).toMatchObject({
+			status: "valid",
+			thinking: "high",
+		});
+
+		updateGlobalOrchestratorRouting({ thinking: "xhigh" });
+		expect(readOrchestratorThinking()).toBe("xhigh");
+		const settings = JSON.parse(
+			readFileSync(join(TEST_AGENT_HOME, "settings.json"), "utf8"),
+		) as Record<string, unknown>;
+		expect(settings.theme).toBe("dark");
+	});
+
+	test("null elimina el esfuerzo explícito para volver a heredar", () => {
+		writeFileSync(
+			join(TEST_AGENT_HOME, "settings.json"),
+			JSON.stringify({ defaultThinkingLevel: "xhigh", theme: "dark" }),
+		);
+		updateGlobalOrchestratorRouting({ thinking: null });
+		expect(readOrchestratorThinking()).toBeUndefined();
+		expect(inspectOrchestratorThinking()).toMatchObject({ status: "missing" });
+		const settings = JSON.parse(
+			readFileSync(join(TEST_AGENT_HOME, "settings.json"), "utf8"),
+		) as Record<string, unknown>;
+		expect(settings.defaultThinkingLevel).toBeUndefined();
+		expect(settings.theme).toBe("dark");
+	});
+
+	test("evidencia de esfuerzo inválida se expone como desconocida y se puede corregir", () => {
+		writeFileSync(
+			join(TEST_AGENT_HOME, "settings.json"),
+			JSON.stringify({ defaultThinkingLevel: "turbo", theme: "dark" }),
+		);
+		expect(inspectOrchestratorThinking()).toMatchObject({
+			status: "invalid",
+			reason: "invalid-thinking",
+		});
+		expect(readOrchestratorThinking()).toBeUndefined();
+		updateGlobalOrchestratorRouting({ thinking: "high" });
+		expect(readOrchestratorThinking()).toBe("high");
+	});
+
+	test("settings.json roto falla cerrado y conserva exactamente sus bytes", () => {
+		const path = join(TEST_AGENT_HOME, "settings.json");
+		const broken = "{esto no es json\n";
+		writeFileSync(path, broken);
+		expect(inspectOrchestratorThinking()).toMatchObject({
+			status: "invalid",
+			reason: "invalid-settings",
+		});
+		expect(() =>
+			updateGlobalOrchestratorRouting({ thinking: "xhigh" }),
+		).toThrow();
+		expect(readFileSync(path, "utf8")).toBe(broken);
 	});
 
 	test("añade el modelo a enabledModels si la lista existe y no lo contiene", () => {
