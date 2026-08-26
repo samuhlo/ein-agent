@@ -39,8 +39,27 @@ const data: PanelData = {
 	],
 };
 
-const plain = (tick: number): string[] =>
-	renderPanel(data, tick).map((line) => line.map((cell) => cell.text).join(""));
+const flat = (line: readonly { text: string }[]): string =>
+	line.map((cell) => cell.text).join("");
+
+const plain = (tick: number): string[] => renderPanel(data, tick).map(flat);
+
+const grid: PanelData = {
+	title: "estado",
+	right: "PI v0.84.1",
+	sections: [
+		{ kind: "grid", columns: [
+			{ title: "SISTEMA", fields: [
+				{ label: "AGENTES", value: "12" },
+				{ label: "EXTENSIONES", value: "9" },
+				{ label: "MCP", value: "3 srv" } ] },
+			{ title: "SESION", fields: [
+				{ label: "MODO", value: "solo" },
+				{ label: "TDD", value: "preguntar" } ] },
+		] },
+		{ kind: "chips", label: "ACTIVO", chips: [{ text: "hypa", on: true }] },
+	],
+};
 
 describe("panel de estado", () => {
 	// EL test del rediseño. Antes esto era imposible: git iba por libre.
@@ -100,6 +119,49 @@ describe("panel de estado", () => {
 		for (const line of renderPanel(wide, panelDuration(wide)).map((l) => l.map((c) => c.text).join(""))) {
 			expect([...line].length).toBe(PANEL_W);
 		}
+	});
+
+	// LA REJILLA. Dos secciones en paralelo dentro del mismo ancho: el fallo que
+	// hay que cerrar es que una mitad mida de más y abra el panel por la derecha.
+	test("la rejilla no rompe el ancho: dos mitades exactas suman PANEL_W", () => {
+		const lines = renderPanel(grid, panelDuration(grid)).map(flat);
+		expect(lines.length).toBeGreaterThan(5);
+		for (const line of lines) expect([...line].length).toBe(PANEL_W);
+	});
+
+	test("la rejilla numera de izquierda a derecha: 000 y luego 001", () => {
+		const line = renderPanel(grid, panelDuration(grid)).map(flat)
+			.find((item) => item.includes("sistema"))!;
+		expect(line.indexOf("// 000. sistema")).toBe(0);
+		expect(line.indexOf("// 001. sesion")).toBe(PANEL_W / 2);
+	});
+
+	test("cada mitad tiene su propia sangría de etiqueta", () => {
+		const line = renderPanel(grid, panelDuration(grid)).map(flat)
+			.find((item) => item.includes("AGENTES"))!;
+		expect(line.slice(0, 13).trimEnd()).toBe("AGENTES");
+		expect(line[13]).not.toBe(" ");
+		// La mitad derecha arranca justo en la columna del medio, no antes.
+		expect(line.slice(PANEL_W / 2, PANEL_W / 2 + 13).trimEnd()).toBe("MODO");
+	});
+
+	test("la columna corta se queda en blanco por abajo, no descuadra", () => {
+		const lines = renderPanel(grid, panelDuration(grid)).map(flat);
+		const last = lines.find((item) => item.includes("MCP"))!;
+		// SISTEMA tiene una fila más que SESION: esa fila existe y mide igual.
+		expect([...last].length).toBe(PANEL_W);
+		expect(last.slice(PANEL_W / 2).trim()).toBe("");
+	});
+
+	test("un valor largo en la rejilla se recorta en su mitad, no en la vecina", () => {
+		const wide: PanelData = { ...grid, sections: [{ kind: "grid", columns: [
+			{ title: "A", fields: [{ label: "LARGO", value: "x".repeat(400) }] },
+			{ title: "B", fields: [{ label: "OTRO", value: "y".repeat(400) }] },
+		] }] };
+		const line = renderPanel(wide, panelDuration(wide)).map(flat)
+			.find((item) => item.includes("LARGO"))!;
+		expect([...line].length).toBe(PANEL_W);
+		expect(line.slice(0, PANEL_W / 2)).not.toContain("y");
 	});
 
 	test("panelRows separa secciones con un hueco y no abre con uno", () => {

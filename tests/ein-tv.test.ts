@@ -36,7 +36,13 @@ describe("cada corte pierde una pieza, no se encoge", () => {
 		const full = renderTv({ cut: "full" }).map(flat).join("\n");
 		expect(full).toContain("╲");
 		expect(full).toContain("▀▀▀");
-		expect(renderTv({ cut: "cabinet" }).map(flat).join("\n")).not.toContain("╲");
+		// Ningún otro corte apoya el mueble en nada: es un rectángulo, y por eso
+		// todas sus filas miden lo mismo.
+		for (const cut of ["cabinet", "compact", "minimal"] as const) {
+			const art = renderTv({ cut }).map(flat).join("\n");
+			expect(art).not.toContain("╲");
+			expect(art).not.toContain("▀");
+		}
 	});
 
 	test("el mínimo se queda sin bisel: el mueble ES la pantalla", () => {
