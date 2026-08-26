@@ -68,6 +68,7 @@ import {
   type InstallPlanExecutionHandler,
   type InstallPlanExecutionHandlers,
 } from "../core/install-executor.ts";
+import { createProgressView, productionProgressIO } from "../tui/progress-view.ts";
 import { executeInstallPlanJournaled, inspectInstallJournal, installJournalMatchesPlan, InstallJournalError, type InstallExecutionJournalV1 } from "../core/install-journal.ts";
 import {
   LINEAR_INTEGRATION_OPTIONS,
@@ -228,7 +229,7 @@ export function getInstallTargets(target: InstallTarget): RuntimeInstallTarget[]
  * Resolve/install Bun once for an installation, before any selected runner.
  * Pi and Claude both consume this prerequisite; target runners never repeat it.
  */
-async function prepareSharedBun(deps: readonly DepStatus[], flags: InstallFlags): Promise<InstallStep> {
+async function prepareSharedBun(deps: readonly DepStatus[], flags: InstallFlags, makeSpinner: typeof p.spinner = p.spinner): Promise<InstallStep> {
   if (deps.find((d) => d.id === "bun")?.present) {
     return { ok: true, detail: "bun ya presente" };
   }
@@ -237,7 +238,7 @@ async function prepareSharedBun(deps: readonly DepStatus[], flags: InstallFlags)
     return { ok: false, detail: "bun es obligatorio." };
   }
 
-  const spinner = p.spinner();
+  const spinner = makeSpinner();
   spinner.start("Instalando bun");
   const result = await installBun();
   spinner.stop(result.detail);
@@ -433,7 +434,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   },
   "pi.deploy-template": async () => {
   const piContext = context();
-  const spinner = p.spinner();
+  const spinner = effects.spinner();
   spinner.start("Desplegando Ein en ~/.pi/agent");
   const deployOpts: DeployOptions = { linear };
   try {
@@ -445,7 +446,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
     spinner.stop("Fallo el deploy.");
     p.log.error(error instanceof Error ? error.message : String(error));
     if (rollbackPath) {
-      const rollbackSpinner = p.spinner();
+      const rollbackSpinner = effects.spinner();
       rollbackSpinner.start("Restaurando el backup previo (rollback automático)");
       try {
         await restoreBackup(rollbackPath, {
@@ -464,7 +465,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   return success();
   },
   "pi.configure-packages": async () => {
-  const packagesSpinner = p.spinner();
+  const packagesSpinner = effects.spinner();
   packagesSpinner.start("Instalando paquetes de Pi declarados");
   const packages = await effects.packages(context());
   packagesSpinner.stop(packages.detail);
@@ -732,17 +733,28 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
     return 0;
   }
 
-  const pi = createPiInstallHandlers({ platform, flags, linear, deps, agentDir: observations.piAgentDir });
+  // LA LISTA MANDA LA PANTALLA
+  // Los pasos pendientes se pintan desde el primer fotograma, así que quien
+  // instala ve cuánto falta en vez de adivinarlo. Los spinners de los handlers
+  // dejan de pintar por su cuenta y alimentan la fila que corre: su etiqueta ya
+  // decía lo correcto, lo que sobraba era que compitiera con la lista.
+  const view = createProgressView(plan, productionProgressIO());
+  const pi = createPiInstallHandlers({
+    platform, flags, linear, deps,
+    agentDir: observations.piAgentDir,
+    effects: { spinner: view.spinner },
+  });
   const claude = createClaudeInstallHandlers({ home: observations.home, bunPath: deps.find((dependency) => dependency.id === "bun")?.path ?? undefined });
   const available: InstallPlanExecutionHandlers = {
-    "shared.dependency.bun": async () => { const result = await prepareSharedBun(deps, flags); return result.ok ? result : { ok: false, detail: `Bun no disponible: ${result.detail}` }; },
+    "shared.dependency.bun": async () => { const result = await prepareSharedBun(deps, flags, view.spinner); return result.ok ? result : { ok: false, detail: `Bun no disponible: ${result.detail}` }; },
     ...pi.handlers,
     ...claude.handlers,
   };
   const handlers = options.handlers ?? Object.fromEntries(plan.inventory.map((entry) => [entry.id, available[entry.id]])) as InstallPlanExecutionHandlers;
   let execution;
-  try { execution = await executeInstallPlanJournaled(plan, handlers); }
-  catch (error) { console.error(error instanceof InstallJournalError ? error.message : "Install recovery status: journal-write-failed"); return 1; }
+  try { execution = await executeInstallPlanJournaled(plan, handlers, { progress: view.progress }); }
+  catch (error) { view.finish(); console.error(error instanceof InstallJournalError ? error.message : "Install recovery status: journal-write-failed"); return 1; }
+  view.finish();
   const runtimes = [...new Set(plan.inventory.map((entry) => entry.runtime).filter((runtime): runtime is RuntimeInstallTarget => runtime !== "shared"))];
   const results: RuntimeInstallResult[] = runtimes.map((runtime) => {
     const failure = runtimeFailure(execution, runtime);
