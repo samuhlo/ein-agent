@@ -71,7 +71,7 @@ const TONE: Record<TvTone, (text: string) => string> = {
 
 /** Un televisor cortado por la derecha no es un televisor: se baja de corte. */
 function cutFor(columns: number): TvCut {
-  if (columns >= TV_WIDTH.full + 4) return "full";
+  if (columns >= TV_WIDTH.cabinet + 4) return "cabinet";
   if (columns >= TV_WIDTH.compact + 4) return "compact";
   return "minimal";
 }

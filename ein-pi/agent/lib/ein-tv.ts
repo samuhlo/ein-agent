@@ -5,10 +5,13 @@
 //
 // POR QUÉ UN OBJETO Y NO UNAS LETRAS -> dibujar una letra con bloques es
 // pelearse con una rejilla de 2×4 píxeles: sale roma, y el fallo se ve porque
-// todo el mundo sabe cómo es una E. Un televisor son cuatro rectángulos, dos
-// ruedas y una antena — se reconoce aunque la silueta sea aproximada. Y de paso
-// las letras de dentro son TEXTO, no dibujo, así que no hay letterform que
-// falle.
+// todo el mundo sabe cómo es una E. Un televisor son cuatro rectángulos y dos
+// ruedas — se reconoce aunque la silueta sea aproximada. Y de paso las letras de
+// dentro son TEXTO, no dibujo, así que no hay letterform que falle.
+//
+// La antena y las patas solo las lleva `full`, y ninguna superficie lo elige ya:
+// el mueble solo es un rectángulo, así que todas sus filas miden lo mismo y el
+// centrado por fila deja de descolocarlo.
 //
 // Sin colores ni escapes ANSI aquí: solo la geometría y qué tono lleva cada
 // tramo. Cada superficie pinta con su mecanismo (secuencias ANSI en Pi,
@@ -145,7 +148,6 @@ export function renderTv(options: TvOptions = {}): readonly TvRow[] {
 			[s("│ ", edge), s("╰──────────╯", bezel), s(" │", edge)],
 			[s("│ ", edge), s("◉", power), s(" ", edge), s("◉", knob), s("    ", edge), s("▤▤▤▤", bezel), s("  │", edge)],
 			[s("╰──────────────╯", edge)],
-			[s("  ▀▀        ▀▀", bezel)],
 		];
 	}
 

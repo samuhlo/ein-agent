@@ -24,7 +24,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { AGENT_DIR } from "./ein-paths";
 import { loadPalette, type RGB } from "./ein-brand";
-import { PANEL_FRAME_TICKS, PANEL_LEADER_TICKS, PANEL_ROW_TICKS, PANEL_W, renderPanel, type PanelTone } from "../lib/banner-panel";
+import { GRID_VALUE_W, PANEL_FRAME_TICKS, PANEL_LEADER_TICKS, PANEL_ROW_TICKS, PANEL_W, renderPanel, type PanelTone } from "../lib/banner-panel";
 import { renderTv, tvRowWidth, TV_WIDTH, type TvCut, type TvTone } from "../lib/ein-tv";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 import { LANG_LABEL, readArtifactLang, readChatLang, type Lang } from "../lib/lang";
@@ -165,6 +165,17 @@ const gitProcessRunner: ProcessRunner = {
 };
 
 const SUBTITLE = ".samuhlo · pi workbench";
+
+// LA PLACA: el aire entre el mueble y la marca, y en qué fila del mueble se
+// apoya cada línea. No son «arriba y abajo» genéricos — cada corte tiene su
+// altura, y el texto tiene que caer contra la pantalla, no contra los bordes.
+const BAND_GUTTER = 3;
+const BAND_ANCHORS: Readonly<Record<TvCut, { subtitle: number; versions: number }>> = Object.freeze({
+  full: { subtitle: 6, versions: 8 },
+  cabinet: { subtitle: 2, versions: 4 },
+  compact: { subtitle: 1, versions: 3 },
+  minimal: { subtitle: 0, versions: 2 },
+});
 
 // El material del mueble. Tres tonos de plástico para que el aparato tenga
 // volumen — la técnica del arte ANSI, donde el relieve sale del color y no de
@@ -568,35 +579,56 @@ export default function (pi: ExtensionAPI) {
               dim: PLASTIC.dim,
             };
             // Un televisor cortado por la derecha no es un televisor: se baja de
-            // corte antes que recortar.
-            const tvCut: TvCut = width >= TV_WIDTH.full + 2
-              ? "full"
+            // corte antes que recortar. `full` ya no se elige: la antena y las
+            // patas son las únicas filas que no miden lo que el mueble, y con el
+            // centrado por fila eso las descolocaba.
+            const tvCut: TvCut = width >= TV_WIDTH.cabinet + 2
+              ? "cabinet"
               : width >= TV_WIDTH.compact + 2
                 ? "compact"
                 : "minimal";
-            for (const tvRow of renderTv({ cut: tvCut })) {
-              left.push(tvRow.map((span) => ({ text: span.text, color: TV_TONE[span.tone] })));
+            const tvRows = renderTv({ cut: tvCut });
+            const tvWidth = Math.max(...tvRows.map(tvRowWidth));
+
+            // LA PLACA
+            // El subtítulo y las versiones se ponen al costado del aparato en vez
+            // de debajo. Son dos filas de texto contra ocho de mueble: apiladas
+            // costaban tres filas de banner para no llenar ni media.
+            const versions: Cell[] = [
+              { text: `ein v${einVersion}`, color: STRUCTURE },
+              { text: "  ·  ", color: STRUCTURE, dim: true },
+              { text: `pi v${VERSION}`, color: STRUCTURE },
+            ];
+            const versionsWidth = versions.reduce((total, cell) => total + [...cell.text].length, 0);
+            const brandWidth = Math.max(SUBTITLE.length, versionsWidth);
+            const anchors = BAND_ANCHORS[tvCut];
+            // La placa pide el mueble, el aire y el texto más ancho. Si no cabe,
+            // el banner vuelve a apilarse: recortar la marca no es una opción.
+            const banded = tvWidth + BAND_GUTTER + brandWidth <= width;
+
+            for (const [index, tvRow] of tvRows.entries()) {
+              const row: Cell[] = tvRow.map((span) => ({ text: span.text, color: TV_TONE[span.tone] }));
+              if (banded && index === anchors.subtitle) {
+                row.push({ text: " ".repeat(BAND_GUTTER) }, { text: SUBTITLE, color: STRUCTURE });
+              }
+              if (banded && index === anchors.versions) {
+                row.push({ text: " ".repeat(BAND_GUTTER) }, ...versions);
+              }
+              left.push(row);
             }
-            const tvWidth = Math.max(...renderTv({ cut: tvCut }).map(tvRowWidth));
-            left.push([]);
-            left.push([
-              { text: " ".repeat(Math.max(0, Math.floor((tvWidth - SUBTITLE.length) / 2))) },
-              { text: SUBTITLE, color: STRUCTURE },
-            ]);
+
+            if (!banded) {
+              left.push([]);
+              left.push([
+                { text: " ".repeat(Math.max(0, Math.floor((tvWidth - SUBTITLE.length) / 2))) },
+                { text: SUBTITLE, color: STRUCTURE },
+              ]);
+              left.push(versions);
+            }
 
             if (state.mode === "full") {
               const fit = (v: unknown, w: number) =>
                 String(v ?? "").replace(/\s+/g, " ").trim().slice(0, w);
-
-              // Las versiones bajan a gris junto al wordmark. Eran una placa
-              // invertida —carbón sobre amarillo— y con ella el arranque gastaba
-              // su único acento en un dato que nadie consulta con urgencia. El
-              // amarillo queda para la `i` y para el foco, que es lo que marca.
-              left.push([
-                { text: `ein v${einVersion}`, color: STRUCTURE },
-                { text: "  ·  ", color: STRUCTURE, dim: true },
-                { text: `pi v${VERSION}`, color: STRUCTURE },
-              ]);
 
               const isOn = (label: string) => Boolean(label) && !/^(off|no|desactivad)/i.test(label);
               const gitFields = renderGitBannerRows(gitController.getSnapshot(), gitLang, width)
@@ -611,17 +643,22 @@ export default function (pi: ExtensionAPI) {
                 title: "estado",
                 right: shortenHome(ctx.cwd),
                 sections: [
-                  { kind: "fields" as const, title: "SISTEMA", fields: [
-                    { label: "AGENTES", value: `${agentsCount}` },
-                    { label: "EXTENSIONES", value: `${extensionsCount}` },
-                    { label: "TOOLS", value: `${toolsCount}` },
-                    { label: "SKILLS", value: `${skillsCount}` },
-                    { label: "MCP", value: `${mcpServersCount} srv` } ] },
-                  { kind: "fields" as const, title: "SESION", fields: [
-                    { label: "LINEAR", value: fit(linearLabel, 24) },
-                    { label: "PERSONA", value: fit(personaLabel, 24) },
-                    { label: "IDIOMA", value: langChat === langArtifact ? langChat : `${langChat} / ${langArtifact}` },
-                    { label: "TDD", value: fit(tddLabel, 24) } ] },
+                  // SISTEMA y SESION en paralelo: ninguna de las dos pasa de media
+                  // placa, así que apiladas desperdiciaban la otra mitad en cada
+                  // fila. Son cinco filas menos de arranque.
+                  { kind: "grid" as const, columns: [
+                    { title: "SISTEMA", fields: [
+                      { label: "AGENTES", value: `${agentsCount}` },
+                      { label: "EXTENSIONES", value: `${extensionsCount}` },
+                      { label: "TOOLS", value: `${toolsCount}` },
+                      { label: "SKILLS", value: `${skillsCount}` },
+                      { label: "MCP", value: `${mcpServersCount} srv` } ] },
+                    { title: "SESION", fields: [
+                      { label: "LINEAR", value: fit(linearLabel, GRID_VALUE_W) },
+                      { label: "PERSONA", value: fit(personaLabel, GRID_VALUE_W) },
+                      { label: "IDIOMA", value: langChat === langArtifact ? langChat : `${langChat} / ${langArtifact}` },
+                      { label: "TDD", value: fit(tddLabel, GRID_VALUE_W) } ] },
+                  ] as const },
                   { kind: "chips" as const, label: "ACTIVO", chips: [
                     { text: "hypa", on: isOn(hypaLabel) },
                     { text: "codegraph", on: isOn(cgLabel) },

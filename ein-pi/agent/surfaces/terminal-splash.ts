@@ -76,7 +76,7 @@ let played = false;
  */
 function cutFor(columns: number): TvCut {
 	const room = columns - INDENT.length * 2;
-	if (room >= TV_WIDTH.full) return "full";
+	if (room >= TV_WIDTH.cabinet) return "cabinet";
 	if (room >= TV_WIDTH.compact) return "compact";
 	return "minimal";
 }

@@ -23,8 +23,13 @@ export type PanelLine = readonly PanelCell[];
 export type PanelField = Readonly<{ label: string; value: string; trail?: string; note?: boolean }>;
 export type PanelChip = Readonly<{ text: string; on: boolean }>;
 
+// Una columna de la rejilla. Toma campos planos: `trail` y `note` piden el ancho
+// entero del panel, y aqui solo hay media.
+export type PanelColumn = Readonly<{ title: string; fields: readonly PanelField[] }>;
+
 export type PanelSection =
 	| Readonly<{ kind: "fields"; title: string; fields: readonly PanelField[] }>
+	| Readonly<{ kind: "grid"; columns: readonly [PanelColumn, PanelColumn] }>
 	| Readonly<{ kind: "chips"; label: string; chips: readonly PanelChip[] }>
 	| Readonly<{ kind: "loose"; fields: readonly PanelField[] }>;
 
@@ -37,6 +42,13 @@ export type PanelData = Readonly<{
 export const PANEL_W = 62;
 const INNER_W = PANEL_W - 4;
 const LABEL_W = 13;
+
+// LA REJILLA. Ni SISTEMA ni SESION pasan de media placa, asi que apiladas
+// desperdiciaban la otra mitad en cada fila. Media columna exacta: las dos
+// mitades tienen que sumar PANEL_W o el panel se abre por la derecha.
+const GRID_W = PANEL_W >> 1;
+/** Lo que le queda a un valor de la rejilla tras la sangría de etiqueta. */
+export const GRID_VALUE_W = GRID_W - LABEL_W;
 
 // Ritmo. Un menú de 16 bits abre RÁPIDO: las filas caen a un tick de distancia
 // (30 ms) y eso es justo lo que produce la cascada.
@@ -53,13 +65,71 @@ function fit(value: string, width: number): string {
 
 // Filas planas del panel. Se aplanan las secciones para que la animación pueda
 // escalonarlas por índice sin conocer su estructura.
+type GridCell =
+	| Readonly<{ kind: "tab"; text: string }>
+	| Readonly<{ kind: "field"; label: string; value: string }>
+	| null;
+
 type Row =
 	| Readonly<{ kind: "tab"; text: string }>
 	| Readonly<{ kind: "field"; label: string; value: string; trail: string }>
 	| Readonly<{ kind: "note"; text: string }>
 	| Readonly<{ kind: "chips"; label: string; chips: readonly PanelChip[] }>
+	| Readonly<{ kind: "grid"; left: GridCell; right: GridCell }>
 	| Readonly<{ kind: "blank" }>
 	| Readonly<{ kind: "divider" }>;
+
+/**
+ * Las dos columnas se emiten fila a fila, no bloque tras bloque: la animacion
+ * escalona por indice de fila y tiene que ver la rejilla como filas normales.
+ * La columna corta se queda en blanco por abajo.
+ */
+function gridRows(columns: readonly [PanelColumn, PanelColumn]): Row[] {
+	const [left, right] = columns;
+	const cell = (item: PanelField | undefined): GridCell =>
+		item ? { kind: "field", label: item.label, value: fit(item.value, GRID_VALUE_W) } : null;
+
+	const rows: Row[] = [{
+		kind: "grid",
+		left: { kind: "tab", text: left.title },
+		right: { kind: "tab", text: right.title },
+	}];
+	const height = Math.max(left.fields.length, right.fields.length);
+	for (let index = 0; index < height; index += 1) {
+		rows.push({ kind: "grid", left: cell(left.fields[index]), right: cell(right.fields[index]) });
+	}
+	return rows;
+}
+
+/**
+ * Una mitad de la rejilla, rellenada o recortada a `GRID_W`. Ese ajuste final es
+ * lo que sostiene la invariante del panel: dos mitades exactas suman PANEL_W
+ * pase lo que pase con la etiqueta o el valor.
+ */
+function gridCells(cell: GridCell, progress: number, nextSection: () => number): PanelCell[] {
+	const out: PanelCell[] = [];
+
+	if (cell?.kind === "tab") {
+		const full = `// ${String(nextSection()).padStart(3, "0")}. ${cell.text.toLowerCase()}`;
+		const shown = full.slice(0, Math.max(1, Math.ceil(full.length * progress)));
+		out.push({ text: shown.slice(0, 2), tone: "accent" });
+		if (shown.length > 2) out.push({ text: shown.slice(2), tone: "label" });
+	} else if (cell?.kind === "field") {
+		out.push({ text: cell.label.padEnd(LABEL_W), tone: cell.label ? "label" : "value" });
+		if (progress >= 1) out.push({ text: cell.value, tone: "value" });
+	}
+
+	let width = out.reduce((total, item) => total + [...item.text].length, 0);
+	while (width > GRID_W) {
+		const last = out.pop();
+		if (!last) break;
+		const keep = [...last.text].slice(0, [...last.text].length - (width - GRID_W));
+		if (keep.length) out.push({ ...last, text: keep.join("") });
+		width = out.reduce((total, item) => total + [...item.text].length, 0);
+	}
+	if (width < GRID_W) out.push({ text: " ".repeat(GRID_W - width), tone: "value" });
+	return out;
+}
 
 export function panelRows(data: PanelData): readonly Row[] {
 	const rows: Row[] = [];
@@ -67,6 +137,10 @@ export function panelRows(data: PanelData): readonly Row[] {
 		if (index > 0) rows.push({ kind: "blank" });
 		if (section.kind === "chips") {
 			rows.push({ kind: "chips", label: section.label, chips: section.chips });
+			continue;
+		}
+		if (section.kind === "grid") {
+			rows.push(...gridRows(section.columns));
 			continue;
 		}
 		if (section.kind === "fields") rows.push({ kind: "tab", text: section.title });
@@ -144,6 +218,11 @@ export function renderPanel(data: PanelData, tick: number): readonly PanelLine[]
 			cells.push({ text: shown.slice(0, 2), tone: "accent" });
 			if (shown.length > 2) cells.push({ text: shown.slice(2), tone: "label" });
 			cells.push({ text: " ".repeat(Math.max(0, PANEL_W - shown.length)), tone: "value" });
+		} else if (row.kind === "grid") {
+			// Izquierda antes que derecha: es lo que da `// 000.` y `// 001.` en el
+			// orden en que se leen.
+			cells.push(...gridCells(row.left, progress, () => sectionIndex++));
+			cells.push(...gridCells(row.right, progress, () => sectionIndex++));
 		} else if (row.kind === "chips") {
 			cells.push({ text: row.label.padEnd(LABEL_W), tone: "label" });
 			let width = LABEL_W;
