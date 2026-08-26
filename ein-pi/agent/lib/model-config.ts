@@ -15,6 +15,8 @@ import {
 	mkdirSync,
 	readdirSync,
 	readFileSync,
+	renameSync,
+	rmSync,
 	writeFileSync,
 } from "node:fs";
 import {
@@ -55,6 +57,22 @@ export interface AgentRoutingEntry {
 	model?: string;
 	thinking?: ThinkingLevel;
 }
+
+export type OrchestratorThinkingInspection =
+	| { status: "missing"; path: string }
+	| { status: "valid"; path: string; thinking: ThinkingLevel }
+	| {
+			status: "invalid";
+			path: string;
+			reason: "invalid-settings" | "invalid-thinking";
+	  };
+
+export type OrchestratorRoutingUpdate = {
+	/** provider/model; null elimina el default explícito; undefined preserva. */
+	model?: string | null;
+	/** null vuelve a heredar; undefined preserva. */
+	thinking?: ThinkingLevel | null;
+};
 export type AgentModelConfig = Record<string, AgentRoutingEntry>;
 export type ModelConfigFileResult =
 	| { status: "missing" }
@@ -520,30 +538,88 @@ function globalSettingsPath(): string {
 	return join(agentHome(), "settings.json");
 }
 
-export function updateGlobalDefaultModel(provider: string, model: string): void {
+function readGlobalSettingsForUpdate(path: string): Record<string, unknown> {
+	if (!existsSync(path)) return {};
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(readFileSync(path, "utf8"));
+	} catch (error) {
+		throw new Error(
+			`No se puede actualizar ${path}: settings.json no es JSON valido.`,
+			{ cause: error },
+		);
+	}
+	if (!isRecord(parsed)) {
+		throw new Error(
+			`No se puede actualizar ${path}: settings.json no contiene un objeto.`,
+		);
+	}
+	return parsed;
+}
+
+function writeGlobalSettingsAtomic(
+	path: string,
+	settings: Record<string, unknown>,
+): void {
+	mkdirSync(dirname(path), { recursive: true });
+	const temporaryPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+	try {
+		writeFileSync(temporaryPath, `${JSON.stringify(settings, null, "\t")}\n`);
+		renameSync(temporaryPath, path);
+	} catch (error) {
+		rmSync(temporaryPath, { force: true });
+		throw error;
+	}
+}
+
+/**
+ * Actualiza modelo y esfuerzo del orquestador en una sola escritura atómica.
+ * Un settings roto nunca se sustituye por `{}`: falla cerrado y conserva bytes.
+ */
+export function updateGlobalOrchestratorRouting(
+	update: OrchestratorRoutingUpdate,
+): void {
 	const path = globalSettingsPath();
-	let settings: Record<string, unknown> = {};
-	if (existsSync(path)) {
-		try {
-			const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
-			if (isRecord(parsed)) settings = parsed;
-		} catch {
-			settings = {};
+	const settings = readGlobalSettingsForUpdate(path);
+
+	if (update.model !== undefined) {
+		if (update.model === null) {
+			delete settings.defaultProvider;
+			delete settings.defaultModel;
+		} else {
+			const requested = update.model.trim();
+			const slash = requested.indexOf("/");
+			const provider = slash > 0 ? requested.slice(0, slash).trim() : "";
+			const model = (slash > 0 ? requested.slice(slash + 1) : requested).trim();
+			if (!model || (slash >= 0 && !provider)) {
+				throw new Error(`Modelo de orquestador invalido: ${update.model}`);
+			}
+			if (provider) settings.defaultProvider = provider;
+			else delete settings.defaultProvider;
+			settings.defaultModel = model;
+
+			// Si enabledModels existe, el picker (ctrl+p) solo ofrece esa lista; un
+			// modelo de orquestador fuera de ella quedaría inseleccionable.
+			const modelId = provider ? `${provider}/${model}` : model;
+			if (
+				Array.isArray(settings.enabledModels) &&
+				!settings.enabledModels.includes(modelId)
+			) {
+				settings.enabledModels = [...settings.enabledModels, modelId];
+			}
 		}
 	}
-	settings.defaultProvider = provider;
-	settings.defaultModel = model;
-	// Si enabledModels existe, el picker (ctrl+p) solo ofrece esa lista; un
-	// modelo de orquestador fuera de ella quedaría inseleccionable.
-	const modelId = `${provider}/${model}`;
-	if (
-		Array.isArray(settings.enabledModels) &&
-		!settings.enabledModels.includes(modelId)
-	) {
-		settings.enabledModels = [...settings.enabledModels, modelId];
+
+	if (update.thinking !== undefined) {
+		if (update.thinking === null) delete settings.defaultThinkingLevel;
+		else settings.defaultThinkingLevel = update.thinking;
 	}
-	mkdirSync(dirname(path), { recursive: true });
-	writeFileSync(path, `${JSON.stringify(settings, null, "\t")}\n`);
+
+	writeGlobalSettingsAtomic(path, settings);
+}
+
+export function updateGlobalDefaultModel(provider: string, model: string): void {
+	updateGlobalOrchestratorRouting({ model: `${provider}/${model}` });
 }
 
 export function readOrchestratorModel(): string | undefined {
@@ -561,6 +637,34 @@ export function readOrchestratorModel(): string | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+export function inspectOrchestratorThinking(): OrchestratorThinkingInspection {
+	const path = globalSettingsPath();
+	if (!existsSync(path)) return { status: "missing", path };
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(readFileSync(path, "utf8"));
+	} catch {
+		return { status: "invalid", path, reason: "invalid-settings" };
+	}
+	if (!isRecord(parsed)) {
+		return { status: "invalid", path, reason: "invalid-settings" };
+	}
+	if (!("defaultThinkingLevel" in parsed)) return { status: "missing", path };
+	if (!isThinkingLevel(parsed.defaultThinkingLevel)) {
+		return { status: "invalid", path, reason: "invalid-thinking" };
+	}
+	return {
+		status: "valid",
+		path,
+		thinking: parsed.defaultThinkingLevel,
+	};
+}
+
+export function readOrchestratorThinking(): ThinkingLevel | undefined {
+	const inspection = inspectOrchestratorThinking();
+	return inspection.status === "valid" ? inspection.thinking : undefined;
 }
 
 function updateBuiltinModelOverride(

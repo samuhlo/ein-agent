@@ -5,11 +5,15 @@
 // orquestador (persiste en settings.json global, no en models.json).
 // =============================================================================
 
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import { loadPalette } from "../ein-brand";
 import {
 	type AgentModelConfig,
+	type OrchestratorThinkingInspection,
 	type ThinkingLevel,
 	AGENT_RECOMMENDATIONS,
 	SDD_AGENT_NAME_SET,
@@ -18,9 +22,10 @@ import {
 	describeModelConfig,
 	listDiscoverableAgents,
 	modelConfigPath,
+	inspectOrchestratorThinking,
 	readOrchestratorModel,
 	readSavedModelConfigAsync,
-	updateGlobalDefaultModel,
+	updateGlobalOrchestratorRouting,
 	writeModelConfig,
 } from "../../lib/model-config";
 import { t, tf } from "../../lib/i18n/strings";
@@ -56,12 +61,23 @@ interface OverlayComponent {
 }
 
 type ModelPanelResult =
-	| { type: "save"; config: AgentModelConfig }
-	| { type: "custom"; agent: string | "all"; config: AgentModelConfig }
+	| {
+			type: "save";
+			config: AgentModelConfig;
+			orchestratorThinkingTouched: boolean;
+	  }
+	| {
+			type: "custom";
+			agent: string | "all";
+			config: AgentModelConfig;
+			orchestratorThinkingTouched: boolean;
+	  }
 	| { type: "cancel" };
+type ModelPanelSaveResult = Extract<ModelPanelResult, { type: "save" }>;
 
 const SET_ALL_AGENTS = t("models.set_all", "Configurar todos los agentes");
 const ORCHESTRATOR_ROW = "__orchestrator__";
+type RuntimeThinkingLevel = ThinkingLevel | "max";
 
 // ─── Models panel visual helpers ─────────────────────────────────────────────
 // Truecolor desde la paleta de marca (brand.json). Sin matices fuera de marca:
@@ -121,20 +137,38 @@ class SddModelPanel implements OverlayComponent {
 	private readonly rows: string[];
 	private readonly modelOptions: string[];
 	private readonly done: (result: ModelPanelResult) => void;
+	private readonly orchestratorThinkingInspection: OrchestratorThinkingInspection;
+	private readonly effectiveThinking: RuntimeThinkingLevel;
+	private orchestratorThinkingTouched: boolean;
 
 	constructor(
 		initialConfig: AgentModelConfig,
 		modelOptions: string[],
 		agents: string[],
+		orchestratorThinkingInspection: OrchestratorThinkingInspection,
+		effectiveThinking: RuntimeThinkingLevel,
+		orchestratorThinkingTouched: boolean,
 		done: (result: ModelPanelResult) => void,
 	) {
 		this.draft = cloneModelConfig(initialConfig);
 		this.rows = [ORCHESTRATOR_ROW, SET_ALL_AGENTS, ...agents];
 		this.modelOptions = modelOptions;
+		this.orchestratorThinkingInspection = orchestratorThinkingInspection;
+		this.effectiveThinking = effectiveThinking;
+		this.orchestratorThinkingTouched = orchestratorThinkingTouched;
 		this.done = done;
 	}
 
 	invalidate(): void {}
+
+	/** Snapshot determinista usado por las dos rutas de guardado del panel. */
+	saveResult(): ModelPanelSaveResult {
+		return {
+			type: "save",
+			config: this.draft,
+			orchestratorThinkingTouched: this.orchestratorThinkingTouched,
+		};
+	}
 
 	handleInput(data: string): void {
 		if (this.mode === "models") {
@@ -156,7 +190,7 @@ class SddModelPanel implements OverlayComponent {
 			return;
 		}
 		if (matchesKey(data, "ctrl+s")) {
-			this.done({ type: "save", config: this.draft });
+			this.done(this.saveResult());
 			return;
 		}
 		if (matchesKey(data, "down") || data === "j") {
@@ -178,14 +212,24 @@ class SddModelPanel implements OverlayComponent {
 		if (data === "c") {
 			const row = this.rows[this.cursor];
 			if (row === SET_ALL_AGENTS)
-				this.done({ type: "custom", agent: "all", config: this.draft });
+				this.done({
+					type: "custom",
+					agent: "all",
+					config: this.draft,
+					orchestratorThinkingTouched: this.orchestratorThinkingTouched,
+				});
 			else if (row)
-				this.done({ type: "custom", agent: row, config: this.draft });
+				this.done({
+					type: "custom",
+					agent: row,
+					config: this.draft,
+					orchestratorThinkingTouched: this.orchestratorThinkingTouched,
+				});
 			return;
 		}
 		if (!matchesKey(data, "return")) return;
 		if (this.cursor === this.rows.length) {
-			this.done({ type: "save", config: this.draft });
+			this.done(this.saveResult());
 			return;
 		}
 		if (this.cursor === this.rows.length + 1) {
@@ -236,6 +280,7 @@ class SddModelPanel implements OverlayComponent {
 					type: "custom",
 					agent: this.selectedRow === SET_ALL_AGENTS ? "all" : this.selectedRow,
 					config: this.draft,
+					orchestratorThinkingTouched: this.orchestratorThinkingTouched,
 				});
 				return;
 			}
@@ -259,6 +304,10 @@ class SddModelPanel implements OverlayComponent {
 		return this.rows.filter(r => r !== ORCHESTRATOR_ROW && r !== SET_ALL_AGENTS);
 	}
 
+	private get allNames(): string[] {
+		return [ORCHESTRATOR_ROW, ...this.agentNames];
+	}
+
 	private applyModelSelection(model: string | undefined): void {
 		const row = this.rows[this.cursor];
 		if (row === SET_ALL_AGENTS) {
@@ -274,23 +323,21 @@ class SddModelPanel implements OverlayComponent {
 	private applyThinkingSelection(thinking: ThinkingLevel | undefined): void {
 		const row = this.selectedRow;
 		if (row === SET_ALL_AGENTS) {
-			for (const name of this.agentNames) this.setThinking(name, thinking);
+			for (const name of this.allNames) this.setThinking(name, thinking);
 			return;
 		}
-		if (row === ORCHESTRATOR_ROW) return; // Orquestador no tiene ajuste de esfuerzo.
 		this.setThinking(row, thinking);
 	}
 
 	// Esfuerzo del set "Todos": el común si coincide, undefined si es mixto.
 	private commonEffort(): ThinkingLevel | undefined {
-		const efforts = [...new Set(this.agentNames.map((name) => this.draft[name]?.thinking))];
+		const efforts = [...new Set(this.allNames.map((name) => this.draft[name]?.thinking))];
 		return efforts.length === 1 ? efforts[0] : undefined;
 	}
 
 	// `e` avanza el esfuerzo de la fila enfocada al siguiente del ciclo, in situ.
 	private cycleEffort(): void {
 		const row = this.rows[this.cursor] ?? SET_ALL_AGENTS;
-		if (row === ORCHESTRATOR_ROW) return; // Orquestador no tiene ajuste de esfuerzo.
 		const current = row === SET_ALL_AGENTS ? this.commonEffort() : this.draft[row]?.thinking;
 		const idx = EFFORT_CYCLE.findIndex((level) => level === current);
 		const next = EFFORT_CYCLE[(idx + 1) % EFFORT_CYCLE.length];
@@ -317,6 +364,7 @@ class SddModelPanel implements OverlayComponent {
 	}
 
 	private setThinking(name: string, thinking: ThinkingLevel | undefined): void {
+		if (name === ORCHESTRATOR_ROW) this.orchestratorThinkingTouched = true;
 		const current = this.draft[name] ?? {};
 		if (thinking === undefined) delete current.thinking;
 		else current.thinking = thinking;
@@ -325,7 +373,29 @@ class SddModelPanel implements OverlayComponent {
 	}
 
 	private clearEntry(name: string): void {
+		if (name === ORCHESTRATOR_ROW) this.orchestratorThinkingTouched = true;
 		delete this.draft[name];
+	}
+
+	private orchestratorEffort(): string {
+		const requested = this.draft[ORCHESTRATOR_ROW]?.thinking;
+		const current = this.effectiveThinking;
+		if (
+			this.orchestratorThinkingInspection.status === "invalid" &&
+			!this.orchestratorThinkingTouched
+		) {
+			return `${AP.yellow}? ${t("models.effort.unknown", "desconocido")}${AP.r}${AP.d}${AP.gray} · ${tf("models.effort.current", "actual {0}", current)}${AP.r}`;
+		}
+		if (!requested) {
+			const state = this.orchestratorThinkingTouched
+				? tf("models.effort.pending_current", "pendiente · actual {0}", current)
+				: tf("models.effort.effective_value", "efectivo {0}", current);
+			return `${AP.d}${AP.gray}${t("models.effort.inherit", "hereda")} · ${state}${AP.r}`;
+		}
+		const state = requested === current
+			? t("models.effort.effective", "efectivo")
+			: tf("models.effort.pending_current", "pendiente · actual {0}", current);
+		return `${vaEffortColor(requested)}${AP.d}${AP.gray} · ${state}${AP.r}`;
 	}
 
 	private static addBorder(title: string, lines: string[], width: number): string[] {
@@ -382,15 +452,15 @@ class SddModelPanel implements OverlayComponent {
 					? `${AP.b}${AP.yellow}◈ ${orchLabel}${AP.r}`
 					: `${AP.concrete}◈ ${orchLabel}${AP.r}`;
 				lines.push(tr(
-					`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${AP.d}${AP.gray}─${AP.r}`
+					`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${this.orchestratorEffort()}`
 				));
 				lines.push(tr(` ${AP.d}${AP.gray}${'─'.repeat(C1 + C2 + 10)}${AP.r}`));
 				continue;
 			}
 
 			if (row === SET_ALL_AGENTS) {
-				const allModels = this.agentNames.map(n => this.draft[n]?.model);
-				const allEfforts = this.agentNames.map(n => this.draft[n]?.thinking);
+				const allModels = this.allNames.map(n => this.draft[n]?.model);
+				const allEfforts = this.allNames.map(n => this.draft[n]?.thinking);
 				const uniqM = [...new Set(allModels)];
 				const uniqE = [...new Set(allEfforts)];
 				const mStr = uniqM.length === 1 ? vaModelColor(uniqM[0]) : `${AP.yellow}mixed${AP.r}`;
@@ -438,7 +508,7 @@ class SddModelPanel implements OverlayComponent {
 		if (rec) {
 			const tier = rec.tier === "cheap" ? t("models.rec.cheap", "barato") : t("models.rec.capable", "capaz");
 			// Si el esfuerzo fijado se desvía, dilo explícito (el `!` de la fila).
-			const focusedEffort = focusedRow && focusedRow !== ORCHESTRATOR_ROW ? this.draft[focusedRow]?.thinking : undefined;
+			const focusedEffort = focusedRow ? this.draft[focusedRow]?.thinking : undefined;
 			if (focusedEffort && focusedEffort !== rec.thinking) {
 				lines.push(tr(''));
 				lines.push(tr(
@@ -555,12 +625,23 @@ class SddModelPanel implements OverlayComponent {
 async function showSddModelPanel(
 	ctx: ExtensionContext,
 	config: AgentModelConfig,
+	orchestratorThinkingInspection: OrchestratorThinkingInspection,
+	effectiveThinking: RuntimeThinkingLevel,
+	orchestratorThinkingTouched: boolean,
 ): Promise<ModelPanelResult> {
 	const modelOptions = await getPiModelOptions(ctx);
 	const agents = listDiscoverableAgents(ctx.cwd).map((agent) => agent.name);
 	return ctx.ui.custom<ModelPanelResult>(
 		(_tui, _theme, _keybindings, done) =>
-			new SddModelPanel(config, modelOptions, agents, done),
+			new SddModelPanel(
+				config,
+				modelOptions,
+				agents,
+				orchestratorThinkingInspection,
+				effectiveThinking,
+				orchestratorThinkingTouched,
+				done,
+			),
 		{
 			overlay: true,
 			overlayOptions: {
@@ -573,7 +654,10 @@ async function showSddModelPanel(
 	);
 }
 
-export async function handleModelsCommand(ctx: ExtensionContext): Promise<void> {
+export async function handleModelsCommand(
+	pi: ExtensionAPI,
+	ctx: ExtensionContext,
+): Promise<void> {
 	const savedConfig = await readSavedModelConfigAsync(ctx.cwd);
 	if (savedConfig.status === "invalid") {
 		ctx.ui.notify(
@@ -588,13 +672,34 @@ export async function handleModelsCommand(ctx: ExtensionContext): Promise<void> 
 	}
 	// Sembrar el modelo actual del orquestador para que aparezca en el panel.
 	const orchModelStr = readOrchestratorModel();
+	const orchThinkingInspection = inspectOrchestratorThinking();
+	const orchThinking =
+		orchThinkingInspection.status === "valid"
+			? orchThinkingInspection.thinking
+			: undefined;
 	let config: AgentModelConfig = {
 		...(savedConfig.status === "valid" ? savedConfig.config : {}),
-		...(orchModelStr ? { [ORCHESTRATOR_ROW]: { model: orchModelStr } } : {}),
+		...(orchModelStr || orchThinking
+			? {
+					[ORCHESTRATOR_ROW]: {
+						...(orchModelStr ? { model: orchModelStr } : {}),
+						...(orchThinking ? { thinking: orchThinking } : {}),
+					},
+			  }
+			: {}),
 	};
-	let result = await showSddModelPanel(ctx, config);
+	const effectiveThinking = pi.getThinkingLevel();
+	let orchestratorThinkingTouched = false;
+	let result = await showSddModelPanel(
+		ctx,
+		config,
+		orchThinkingInspection,
+		effectiveThinking,
+		orchestratorThinkingTouched,
+	);
 	while (result.type === "custom") {
 		config = cloneModelConfig(result.config);
+		orchestratorThinkingTouched = result.orchestratorThinkingTouched;
 		const isOrch = result.agent === ORCHESTRATOR_ROW;
 		const current =
 			result.agent === "all" || isOrch
@@ -620,7 +725,10 @@ export async function handleModelsCommand(ctx: ExtensionContext): Promise<void> 
 					};
 				}
 				// "Todos" incluye al orquestador.
-				next[ORCHESTRATOR_ROW] = { model: trimmed };
+				next[ORCHESTRATOR_ROW] = {
+					...(next[ORCHESTRATOR_ROW] ?? {}),
+					model: trimmed,
+				};
 				config = next;
 			} else {
 				config = {
@@ -632,26 +740,126 @@ export async function handleModelsCommand(ctx: ExtensionContext): Promise<void> 
 				};
 			}
 		}
-		result = await showSddModelPanel(ctx, config);
+		result = await showSddModelPanel(
+			ctx,
+			config,
+			orchThinkingInspection,
+			effectiveThinking,
+			orchestratorThinkingTouched,
+		);
 	}
 	if (result.type !== "save") return;
 
 	// El orquestador persiste aparte: settings.json global, no models.json.
 	const orchEntry = result.config[ORCHESTRATOR_ROW];
+	const requestedModel = orchEntry?.model;
+	const requestedThinking = orchEntry?.thinking;
+	const modelChanged = requestedModel !== orchModelStr;
+	const thinkingChanged = result.orchestratorThinkingTouched;
 	const subagentConfig = Object.fromEntries(
 		Object.entries(result.config).filter(([k]) => k !== ORCHESTRATOR_ROW),
 	);
+	// Primero persiste el orquestador: si settings.json está roto, no deja una
+	// aplicación parcial donde los subagentes cambian pero el principal no.
+	if (modelChanged || thinkingChanged) {
+		try {
+			updateGlobalOrchestratorRouting({
+				...(modelChanged ? { model: requestedModel ?? null } : {}),
+				...(thinkingChanged ? { thinking: requestedThinking ?? null } : {}),
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			ctx.ui.notify(
+				tf(
+					"models.orch.save_failed",
+					`No se ha aplicado nada: no se pudo guardar el orquestador (${message}).`,
+					message,
+				),
+				"warning",
+			);
+			return;
+		}
+	}
 	writeModelConfig(ctx.cwd, subagentConfig);
 	const applyResult = await applyModelConfigAsync(ctx.cwd, subagentConfig);
 
 	const notifyLines: string[] = [t("models.saved", "Config de modelos guardada.")];
-	if (orchEntry?.model) {
-		const slash = orchEntry.model.indexOf('/');
-		const provider = slash > 0 ? orchEntry.model.slice(0, slash) : "";
-		const model = slash > 0 ? orchEntry.model.slice(slash + 1) : orchEntry.model;
-		if (provider && model) {
-			updateGlobalDefaultModel(provider, model);
-			notifyLines.push(tf("models.orch.applied", `Orquestador → ${orchEntry.model} (reinicia Pi para aplicar)`, orchEntry.model));
+	const activeModel = ctx.model
+		? `${ctx.model.provider}/${ctx.model.id}`
+		: undefined;
+	const activeModelLabel = activeModel ?? t("models.orch.model.unknown", "desconocido");
+	const requestedModelIsActive =
+		activeModel !== undefined &&
+		(requestedModel === undefined || requestedModel === activeModel);
+	if (requestedModel && !requestedModelIsActive) {
+		notifyLines.push(
+			tf(
+				"models.orch.model.pending",
+				`Modelo solicitado: ${requestedModel}; actual: ${activeModelLabel}. Reinicia Pi para aplicarlo.`,
+				requestedModel,
+				activeModelLabel,
+			),
+		);
+	} else if (modelChanged) {
+		if (!requestedModel) {
+			notifyLines.push(
+				tf(
+					"models.orch.model.inherit",
+					`Modelo del orquestador → heredar (sesión actual: ${activeModelLabel}; efectivo al reiniciar).`,
+					activeModelLabel,
+				),
+			);
+		} else if (requestedModelIsActive) {
+			notifyLines.push(
+				tf(
+					"models.orch.model.effective",
+					`Modelo del orquestador: ${requestedModel} (ya efectivo).`,
+					requestedModel,
+				),
+			);
+		}
+	}
+	if (thinkingChanged) {
+		if (!requestedThinking) {
+			notifyLines.push(
+				tf(
+					"models.orch.thinking.inherit",
+					`Esfuerzo del orquestador → heredar; actual: ${pi.getThinkingLevel()}. Reinicia Pi para resolver la herencia.`,
+					pi.getThinkingLevel(),
+				),
+			);
+		} else if (!requestedModelIsActive) {
+			notifyLines.push(
+				tf(
+					"models.orch.thinking.pending",
+					`Esfuerzo solicitado: ${requestedThinking}; actual: ${pi.getThinkingLevel()}. Se aplicará al reiniciar con ${requestedModel ?? activeModelLabel}.`,
+					requestedThinking,
+					pi.getThinkingLevel(),
+					requestedModel ?? activeModelLabel,
+				),
+			);
+		} else {
+			pi.setThinkingLevel(requestedThinking);
+			const effective = pi.getThinkingLevel();
+			if (effective === requestedThinking) {
+				notifyLines.push(
+					tf(
+						"models.orch.thinking.applied",
+						`Esfuerzo del orquestador: solicitado ${requestedThinking}; efectivo ${effective}.`,
+						requestedThinking,
+						effective,
+					),
+				);
+			} else {
+				notifyLines.push(
+					tf(
+						"models.orch.thinking.clamped",
+						`Esfuerzo solicitado: ${requestedThinking}; efectivo: ${effective} (limitado por el modelo activo).`,
+						requestedThinking,
+						effective,
+					),
+				);
+			}
 		}
 	}
 	notifyLines.push(

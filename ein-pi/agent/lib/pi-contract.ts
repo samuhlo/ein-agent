@@ -55,11 +55,13 @@ export const PI_EXTENSION_API: readonly string[] = [
 	"appendEntry",
 	"getAllTools",
 	"getCommands",
+	"getThinkingLevel",
 	"on",
 	"registerCommand",
 	"registerShortcut",
 	"registerTool",
 	"sendUserMessage",
+	"setThinkingLevel",
 ];
 
 export type PiSurface = {

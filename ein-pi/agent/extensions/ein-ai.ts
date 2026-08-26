@@ -1245,7 +1245,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			"Ver o configurar los modelos activos por agente en Ein",
 		),
 		handler: async (_args, ctx) => {
-			await handleModelsCommand(ctx);
+			await handleModelsCommand(pi, ctx);
 		},
 	});
 
