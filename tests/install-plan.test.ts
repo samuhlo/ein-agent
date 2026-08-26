@@ -268,8 +268,9 @@ describe("install plan executor", () => {
     expect(await missing.handlers["pi.promote-commands"]()).toEqual({ ok: false, detail: "app-artifact-missing" });
     const absent = createPiInstallHandlers({ ...base, effects: { resolveContext: () => context, exists: () => false, spinner: () => ({ start: () => { spinnerStarts += 1; }, stop: () => { spinnerStops += 1; }, message: () => {} }), backup: async () => { calls.push("backup"); return { path: null, deduped: false, pruned: [] }; }, deploy: async () => { calls.push("deploy"); return { agentDir: context.agentDir, engramCommand: "engram", engramFound: true }; } } });
     // Sin backup que hacer, `pi.backup-current` sale antes de pedir spinner: el
-    // único que gira aquí es el del deploy.
-    await absent.handlers["pi.backup-current"](); await absent.handlers["pi.deploy-template"](); expect(calls).toEqual(["deploy"]); expect([spinnerStarts, spinnerStops]).toEqual([1, 1]);
+    // único que gira aquí es el del deploy. Los contadores son ACUMULADOS — no
+    // se reinician entre bloques —, así que a los dos de arriba se les suma uno.
+    await absent.handlers["pi.backup-current"](); await absent.handlers["pi.deploy-template"](); expect(calls).toEqual(["deploy"]); expect([spinnerStarts, spinnerStops]).toEqual([3, 3]);
     for (const mode of ["returned", "thrown"] as const) { const lifecycle: string[] = [], failing = createPiInstallHandlers({ ...base, effects: { resolveContext: () => context, exists: () => true, spinner: () => { lifecycle.push("spinner"); return { start: () => {}, stop: () => {}, message: () => {} }; }, backup: async () => { lifecycle.push("backup"); if (mode === "thrown") throw new Error("PRIVATE"); return { ok: false } as never; }, deploy: async () => { lifecycle.push("deploy"); return { agentDir: context.agentDir, engramCommand: "engram", engramFound: true }; } } }); const result = await executeInstallPlan(plan, { ...fakeHandlers(plan), ...failing.handlers }); expect(result.failures.pi).toBe("Pi installation failed at pi.backup-current"); expect(lifecycle).toEqual(["backup"]); }
   });
 });
