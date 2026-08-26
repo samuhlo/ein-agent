@@ -8,7 +8,7 @@
 // =============================================================================
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, readdirSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -645,6 +645,49 @@ describe("release update integration", () => {
       expect(outcome.message.toLowerCase()).toContain("does not match");
     }
     expect(readFileSync(destinationPath)).toEqual(priorBinary);
+    // Un binario descartado son ~100 MB al lado del bueno. La ruta de fallo
+    // siguiente (backup del marker) sí limpiaba; estas dos no, así que cada
+    // intento fallido dejaba un candidato huérfano en el PATH del usuario.
+    expect(readdirSync(dir).filter((name) => name.includes("ein-candidate"))).toEqual([]);
+  });
+
+  test("a probe that cannot read an identity leaves no candidate behind either", async () => {
+    const dir = root();
+    const agentDir = join(dir, "agent");
+    const destinationPath = join(dir, "ein");
+    const markerPath = join(dir, "marker.json");
+    const journalPath = join(dir, "journal.json");
+    mkdirSync(agentDir, { recursive: true });
+    const priorBinary = priorBytes(PRIOR_VERSION);
+    writeFileSync(destinationPath, priorBinary);
+    chmodSync(destinationPath, 0o755);
+    writeFileSync(markerPath, markerBytes(PRIOR_VERSION, { type: "standalone" }));
+
+    const base = defaultUpdateCaps();
+    // El binario responde algo que no es una identidad: `identity-missing`.
+    const child = scriptedChild((args) => args.includes("--version") ? { stdout: "sin identidad aquí\n", exitCode: 0 } : undefined);
+    const outcome = await runUpdateTransaction({
+      caps: {
+        ...base,
+        http: scriptedHttp({
+          [apiLatest]: releasePayload(),
+          [assetUrl]: assetBytes,
+          [checksumsUrl]: encoder.encode(`${assetDigest}  ${ASSET_NAME}\n`),
+        }),
+        child: child.child,
+      },
+      selector: { kind: "latest", raw: "latest" },
+      platform: { os: "linux", arch: "x64" },
+      agentDir,
+      markerPath,
+      journalPath,
+      destinationPath,
+    });
+
+    expect(outcome.type).toBe("failed");
+    if (outcome.type === "failed") expect(outcome.stage).toBe("verifying");
+    expect(readFileSync(destinationPath)).toEqual(priorBinary);
+    expect(readdirSync(dir).filter((name) => name.includes("ein-candidate"))).toEqual([]);
   });
 
   test("dry-run returns without mutating any artifact even when release and binary already agree", async () => {

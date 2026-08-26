@@ -12,8 +12,17 @@ function probeError(code: string, message: string): BinaryProbeError {
   return { stage: "verifying", code, message };
 }
 
+// SemVer ENTERO, sufijos incluidos. Antes esto exigía fin de línea justo tras
+// `X.Y.Z`, así que `0.90.0-alpha.1` casaba `0.90.0`, se topaba con el `-alpha.1`
+// y devolvía null: la actualización moría en `verifying` con `identity-missing`
+// y `ein-install update` no podía saltar a una alpha, solo reinstalarse.
+//
+// Capturar el CORE tampoco valdría: `verifyBinaryIdentity` compara con la
+// versión del release seleccionado, y `0.90.0` nunca es `0.90.0-alpha.1`.
+const SEMVER = "[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?";
+
 function versionFromOutput(label: "ein-installer" | "template-version", stdout: string): string | null {
-  const match = stdout.match(new RegExp(`(?:^|\\n)${label}\\s+([0-9]+\\.[0-9]+\\.[0-9]+)\\s*$`, "m"));
+  const match = stdout.match(new RegExp(`(?:^|\\n)${label}\\s+(${SEMVER})\\s*$`, "m"));
   return match?.[1] ?? null;
 }
 
