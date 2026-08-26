@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeSync } from "node:fs";
 import { dirname, join, parse, resolve, sep } from "node:path";
 import { isProxy } from "node:util/types";
-import { executeInstallPlan, type InstallPlanExecution, type InstallPlanExecutionHandlers } from "./install-executor.ts";
+import { executeInstallPlan, type InstallPlanExecution, type InstallPlanExecutionHandlers, type InstallPlanProgress } from "./install-executor.ts";
 import { INSTALL_PLAN_ENTRY_CONTRACTS, INSTALL_PLAN_ENTRY_IDS, validateInstallPlan, type InstallPlanEntryId, type InstallPlanRuntime, type InstallPlanV1 } from "./install-plan.ts";
 
 export type InstallJournalState = "prepared" | "executing" | "recovery-required" | "complete";
@@ -85,7 +85,7 @@ function publish(home: string, journal: InstallExecutionJournalV1, fs: InstallJo
   catch { if (fd !== undefined) try { fs.close(fd); } catch {} try { fs.unlink(temp); } catch {} throw new InstallJournalError("journal-write-failed"); }
 }
 
-export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers: InstallPlanExecutionHandlers, options: { fs?: InstallJournalFs; transactionId?: () => string; signals?: Pick<NodeJS.Process, "on" | "off"> } = {}): Promise<InstallPlanExecution> {
+export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers: InstallPlanExecutionHandlers, options: { fs?: InstallJournalFs; transactionId?: () => string; signals?: Pick<NodeJS.Process, "on" | "off">; progress?: InstallPlanProgress } = {}): Promise<InstallPlanExecution> {
   validateInstallPlan(plan); const fs = options.fs ?? productionFs, home = plan.home;
   const existing = inspectInstallJournal(home, fs);
   if (existing.status === "invalid") throw new InstallJournalError("recovery-required");
@@ -132,5 +132,5 @@ export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers:
   }])) as InstallPlanExecutionHandlers;
   const interrupted = (): void => { if (interruptedOnce || journal.state === "complete") return; interruptedOnce = true; if (writing) { journalFailure = new InstallJournalError("recovery-write-failed"); return; } journal = { ...journal, state: "recovery-required", recoveryCode: "interrupted" }; try { persist(); journalFailure = new InstallJournalError("recovery-required"); } catch { journalFailure = new InstallJournalError("recovery-write-failed"); } };
   const signals = options.signals ?? process; signals.on("SIGINT", interrupted); signals.on("SIGTERM", interrupted);
-  try { const result = await executeInstallPlan(plan, wrapped); if (journalFailure) throw journalFailure; if (!result.ok) return result; journal = { ...journal, state: "complete" }; persist(); return result; } finally { signals.off("SIGINT", interrupted); signals.off("SIGTERM", interrupted); }
+  try { const result = await executeInstallPlan(plan, wrapped, options.progress); if (journalFailure) throw journalFailure; if (!result.ok) return result; journal = { ...journal, state: "complete" }; persist(); return result; } finally { signals.off("SIGINT", interrupted); signals.off("SIGTERM", interrupted); }
 }
