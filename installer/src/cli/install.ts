@@ -34,6 +34,7 @@ import {
   type PiInstallContext,
 } from "../core/paths.ts";
 import { migrateLegacyPi } from "../core/pi-migration.ts";
+import { PI_HOST_SPEC } from "../../../ein-pi/agent/lib/runtime-compat.ts";
 import {
   ensureContext7Export,
   hasSecret,
@@ -338,7 +339,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   const needPi = !deps.find((d) => d.id === "pi")?.present;
 
   if (needPi) {
-    if (await confirm("Instalar pi (@earendil-works/pi-coding-agent)?", flags)) {
+    if (await confirm(`Instalar pi compatible (${PI_HOST_SPEC})?`, flags)) {
       const spinner = p.spinner();
       spinner.start("Instalando pi");
       const result = await installPi();
@@ -469,7 +470,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   packagesSpinner.start("Instalando paquetes de Pi declarados");
   const packages = await effects.packages(context());
   packagesSpinner.stop(packages.detail);
-  return success();
+  return packages;
   },
   "pi.configure-secrets": async () => {
   if (!flags.noSecrets && !flags.yes) {

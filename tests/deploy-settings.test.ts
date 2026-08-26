@@ -12,6 +12,7 @@ import {
 	mergeUserSettings,
 	readUserSettings,
 } from "../installer/src/core/settings";
+import { REQUIRED_PI_PACKAGE_SPECS } from "../ein-pi/agent/lib/runtime-compat";
 
 const DIR = join(tmpdir(), "ein-agent-tests", "deploy");
 const SETTINGS = join(DIR, "settings.json");
@@ -77,5 +78,37 @@ describe("readUserSettings + mergeUserSettings", () => {
 		expect(readUserSettings(DIR)).toEqual({});
 		// merge sobre fichero roto no lanza
 		mergeUserSettings(DIR, { defaultModel: "MiniMax-M3" });
+	});
+
+	test("actualiza los paquetes de Ein a versiones compatibles y conserva extras del usuario", () => {
+		writeFileSync(
+			SETTINGS,
+			JSON.stringify({
+				packages: [
+					"npm:pi-subagents",
+					"npm:pi-mcp-adapter@1.0.0",
+					"npm:mi-extension@4.2.0",
+					"file:./extension-local",
+				],
+			}),
+		);
+		const saved = readUserSettings(DIR);
+		writeFileSync(SETTINGS, JSON.stringify({ packages: REQUIRED_PI_PACKAGE_SPECS }));
+
+		mergeUserSettings(DIR, saved);
+
+		const merged = JSON.parse(readFileSync(SETTINGS, "utf8")) as { packages: string[] };
+		expect(merged.packages).toEqual([
+			...REQUIRED_PI_PACKAGE_SPECS,
+			"npm:mi-extension@4.2.0",
+			"file:./extension-local",
+		]);
+	});
+
+	test("una lista de paquetes inválida no borra el contrato nuevo del template", () => {
+		writeFileSync(SETTINGS, JSON.stringify({ packages: REQUIRED_PI_PACKAGE_SPECS }));
+		mergeUserSettings(DIR, { packages: "npm:pi-subagents" });
+		const merged = JSON.parse(readFileSync(SETTINGS, "utf8")) as { packages: string[] };
+		expect(merged.packages).toEqual([...REQUIRED_PI_PACKAGE_SPECS]);
 	});
 });

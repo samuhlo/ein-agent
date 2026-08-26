@@ -118,7 +118,7 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
 
   // The transactional updater above only owns the Ein binary + template +
   // marker. pi (@earendil-works/pi-coding-agent) is installed via bun and was
-  // refreshed by the pre-transactional `ein update`; keep that promise (menu
+  // reconciled by the pre-transactional `ein update`; keep that promise (menu
   // and help still say "Ein y pi") by refreshing it after a successful,
   // non-dry-run update. Best-effort: never turns a good update into a failure.
   if (rendered.exitCode === 0 && !flags.dryRun) {
@@ -178,7 +178,7 @@ async function refreshPi(
   const syncPackages = dependencies.syncPiPackages ?? installDeclaredPackages;
 
   const piSpinner = interactive ? p.spinner() : null;
-  piSpinner?.start("Actualizando pi a la última versión");
+  piSpinner?.start("Ajustando pi a la versión compatible con Ein");
   const pi = await updatePi();
   piSpinner?.stop(pi.detail);
   if (!interactive) write(pi.detail);

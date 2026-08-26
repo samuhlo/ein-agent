@@ -89,7 +89,7 @@ Comandos del adapter: `/mcp` (panel), `/mcp setup`, `/mcp reconnect <server>`. T
 
 ## Paquetes (settings.json)
 
-Ein declara en `settings.json` → `packages`: `pi-subagents` (subagentes), `pi-mcp-adapter` (proxy MCP), `@juicesharp/rpiv-ask-user-question` (tool `ask_user_question`: diálogos estructurados en checkpoints), `@juicesharp/rpiv-i18n` (motor de i18n de la UI: locale compartido + `registerStrings`/`tr`; ver «Idioma»). Pi resuelve estos paquetes (su subsistema de extensiones es npm por dentro).
+Ein declara en `settings.json` → `packages`, siempre con la versión exacta validada en `lib/runtime-compat.ts`: `pi-subagents` (subagentes), `pi-mcp-adapter` (proxy MCP), `context-mode` (sandbox de salidas), `@juicesharp/rpiv-ask-user-question` (tool `ask_user_question`: diálogos estructurados en checkpoints) y `@juicesharp/rpiv-i18n` (motor de i18n de la UI; ver «Idioma»). El instalador reemplaza specs antiguas de estos paquetes, conserva paquetes extra del usuario y ambos doctors comprueban tanto la declaración como la versión instalada.
 
 ## Idioma (i18n)
 
