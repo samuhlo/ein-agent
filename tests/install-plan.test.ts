@@ -257,13 +257,19 @@ describe("install plan executor", () => {
     expect(execution.ok).toBe(true);
     expect(promoteOptions?.appArtifact).toBe(join(context.agentDir, "bin", "ein"));
     expect(promoteOptions?.binDir).toBe(context.localBinDir);
-    expect(calls).toEqual(["backup", "deploy", "packages", "marker", "doctor", "launcher", "promote"]); expect([spinnerStarts, spinnerStops]).toEqual([0, 0]);
+    // El spinner inyectado era efecto MUERTO: los handlers llamaban a
+    // `p.spinner()` directo, así que un test no podía silenciar el de verdad ni
+    // saber qué paso estaba corriendo. Ahora `deploy` y `packages` lo usan —uno
+    // cada uno— y por eso la pantalla del avance puede alimentar su fila viva.
+    expect(calls).toEqual(["backup", "deploy", "packages", "marker", "doctor", "launcher", "promote"]); expect([spinnerStarts, spinnerStops]).toEqual([2, 2]);
     expect(pi.detail()).toBe("Ein listo. Para la aplicación, ejecuta `ein`; para el agente, `pi-ein`.");
     calls.length = 0; const base = { platform: { ...source.platform, distro: "unknown", packageManager: "brew", shell: "unknown", shellRc: join(HOME, ".profile"), home: HOME }, flags: { ...source.flags, noLinear: true, dryRun: false, runtime: "pi" }, skipLinear: true, deps: [], agentDir: context.agentDir } as Parameters<typeof createPiInstallHandlers>[0];
     const missing = createPiInstallHandlers({ ...base, effects: { resolveContext: () => context, promote: () => ({ installer: { path: "ein-install", written: true }, app: { path: "ein", written: false, reason: "app-artifact-missing" } }) } });
     expect(await missing.handlers["pi.promote-commands"]()).toEqual({ ok: false, detail: "app-artifact-missing" });
     const absent = createPiInstallHandlers({ ...base, effects: { resolveContext: () => context, exists: () => false, spinner: () => ({ start: () => { spinnerStarts += 1; }, stop: () => { spinnerStops += 1; }, message: () => {} }), backup: async () => { calls.push("backup"); return { path: null, deduped: false, pruned: [] }; }, deploy: async () => { calls.push("deploy"); return { agentDir: context.agentDir, engramCommand: "engram", engramFound: true }; } } });
-    await absent.handlers["pi.backup-current"](); await absent.handlers["pi.deploy-template"](); expect(calls).toEqual(["deploy"]); expect([spinnerStarts, spinnerStops]).toEqual([0, 0]);
+    // Sin backup que hacer, `pi.backup-current` sale antes de pedir spinner: el
+    // único que gira aquí es el del deploy.
+    await absent.handlers["pi.backup-current"](); await absent.handlers["pi.deploy-template"](); expect(calls).toEqual(["deploy"]); expect([spinnerStarts, spinnerStops]).toEqual([1, 1]);
     for (const mode of ["returned", "thrown"] as const) { const lifecycle: string[] = [], failing = createPiInstallHandlers({ ...base, effects: { resolveContext: () => context, exists: () => true, spinner: () => { lifecycle.push("spinner"); return { start: () => {}, stop: () => {}, message: () => {} }; }, backup: async () => { lifecycle.push("backup"); if (mode === "thrown") throw new Error("PRIVATE"); return { ok: false } as never; }, deploy: async () => { lifecycle.push("deploy"); return { agentDir: context.agentDir, engramCommand: "engram", engramFound: true }; } } }); const result = await executeInstallPlan(plan, { ...fakeHandlers(plan), ...failing.handlers }); expect(result.failures.pi).toBe("Pi installation failed at pi.backup-current"); expect(lifecycle).toEqual(["backup"]); }
   });
 });
