@@ -514,10 +514,23 @@ export async function runUpdateTransaction(options: UpdateTransactionOptions): P
     const candidate = prepareExecutableCandidate({ sourcePath: acquired.value.stagedPath, destinationPath: options.destinationPath, caps: options.caps });
     if (!candidate.ok) return failure(candidate.error, options.selector, release);
 
+    // Un candidato descartado son ~100 MB al lado del binario bueno, y el
+    // snapshot del template otro tanto. La ruta de fallo siguiente ya limpiaba;
+    // estas dos no, así que cada intento fallido dejaba huérfanos en el PATH.
+    const discardCandidate = (): void => {
+      cleanup([candidate.value.candidatePath, snapshot.value.path], options.caps);
+    };
+
     const identity = await probeBinaryVersion(candidate.value.candidatePath, options.caps);
-    if (!identity.ok) return failure(identity.error, options.selector, release);
+    if (!identity.ok) {
+      discardCandidate();
+      return failure(identity.error, options.selector, release);
+    }
     const verified = verifyBinaryIdentity(identity.value, expectedVersion);
-    if (!verified.ok) return failure(verified.error, options.selector, release);
+    if (!verified.ok) {
+      discardCandidate();
+      return failure(verified.error, options.selector, release);
+    }
 
     const markerBackup = marker ? options.caps.fs.createSiblingFile(markerPath) : undefined;
     try {

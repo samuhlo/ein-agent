@@ -115,6 +115,44 @@ describe("release executable transaction surfaces", () => {
     }
   });
 
+  // LA REGRESIÓN CONCRETA: el regex de la sonda exigía fin de línea justo tras
+  // `X.Y.Z`, así que con `0.90.0-alpha.1` casaba `0.90.0`, se encontraba el
+  // `-alpha.1` y devolvía null. La actualización moría en `verifying` con
+  // `identity-missing`, y por tanto `ein-install update` NUNCA pudo saltar a una
+  // alpha: solo se entraba reinstalando.
+  test("a prerelease identity is read whole, not truncated to its core", async () => {
+    const caps = fakeUpdateCaps({
+      child: { spawn: async () => ({ code: 0, stdout: "ein-installer 0.90.0-alpha.1\ntemplate-version 0.90.0-alpha.1\n" }) },
+    });
+    const identity = await probeBinaryVersion("/candidate/ein", caps);
+    expect(identity).toEqual({ ok: true, value: { binaryVersion: "0.90.0-alpha.1", templateVersion: "0.90.0-alpha.1" } });
+  });
+
+  test("a prerelease identity matches the release it claims to be", async () => {
+    const caps = fakeUpdateCaps({
+      child: { spawn: async () => ({ code: 0, stdout: "ein-installer 0.90.0-alpha.1\ntemplate-version 0.90.0-alpha.1\n" }) },
+    });
+    const identity = await probeBinaryVersion("/candidate/ein", caps);
+    expect(identity.ok).toBe(true);
+    if (!identity.ok) return;
+    // Capturar el core rompería esto en silencio: `0.90.0` nunca es `0.90.0-alpha.1`.
+    expect(verifyBinaryIdentity(identity.value, "0.90.0-alpha.1")).toEqual({ ok: true, value: identity.value });
+    // Y una alpha distinta sigue siendo un desajuste, no un pase libre.
+    expect(verifyBinaryIdentity(identity.value, "0.90.0-alpha.2")).toEqual(expect.objectContaining({ error: expect.objectContaining({ code: "identity-mismatch" }) }));
+  });
+
+  test("build metadata rides along and a malformed line is still rejected", async () => {
+    const build = fakeUpdateCaps({
+      child: { spawn: async () => ({ code: 0, stdout: "ein-installer 1.0.0+sha.abc\ntemplate-version 1.0.0+sha.abc\n" }) },
+    });
+    expect(await probeBinaryVersion("/candidate/ein", build)).toEqual({ ok: true, value: { binaryVersion: "1.0.0+sha.abc", templateVersion: "1.0.0+sha.abc" } });
+
+    for (const stdout of ["ein-installer 0.90\ntemplate-version 0.90\n", "ein-installer\ntemplate-version\n", "algo que no es una versión\n"]) {
+      const bad = fakeUpdateCaps({ child: { spawn: async () => ({ code: 0, stdout }) } });
+      expect(await probeBinaryVersion("/candidate/ein", bad)).toEqual(expect.objectContaining({ error: expect.objectContaining({ code: "identity-missing" }) }));
+    }
+  });
+
   test("spawns only the candidate in private continuation mode and parses its verified result", async () => {
     const calls: Array<{ command: string; args: string[]; env?: Record<string, string> }> = [];
     const caps = fakeUpdateCaps({
