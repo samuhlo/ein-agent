@@ -32,7 +32,8 @@ function doctorCheck(report: DoctorReport, name: string) {
 }
 
 function runtimeDoctorLevel(report: string, name: string): "OK" | "WARN" | "FAIL" | undefined {
-	const match = report.match(new RegExp(`^- (OK|WARN|FAIL) - ${name}:`, "m"));
+	const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const match = report.match(new RegExp(`^- (OK|WARN|FAIL) - ${escaped}:`, "m"));
 	return match?.[1] as "OK" | "WARN" | "FAIL" | undefined;
 }
 
@@ -42,6 +43,8 @@ const LINEAR_DOCTOR_CHECKS = [
 	"linear prompt directive",
 	"linear integration evidence",
 ] as const;
+const SHARED_DOCTOR_GROUPS = new Set(["CORE", "PAQUETES PI", "MCP", "SKILLS", "GUARDRAILS", "COHERENCIA"]);
+const INSTALLER_ONLY_DOCTOR_CHECKS = new Set(["extensions-manifest.json", "engram command", "terminal app"]);
 
 describe("inventario instalado de agentes", () => {
 	test("el scan fuente genera agents, assets/agents y manifest idénticos", () => {
@@ -59,6 +62,7 @@ describe("inventario instalado de agentes", () => {
 			expect(manifest.terminalApp).toEqual(expect.objectContaining({ path: "bin/ein", target: "test-target", mode: "0755" }));
 			expect(readFileSync(join(staging.payload, "bin", "ein"), "utf8")).toBe("APP");
 			expect(existsSync(join(staging.payload, "lib", "linear-integration.ts"))).toBe(true);
+			expect(existsSync(join(staging.payload, "lib", "doctor-core.ts"))).toBe(true);
 			expect(existsSync(join(staging.payload, "lib", "mode.ts"))).toBe(false);
 			expect(policy).toContain("Current filesystem, Git, ProjectState/stateRef, and OpenSpec evidence outrank memory");
 			expect(policy).toContain(".engram-ein");
@@ -90,7 +94,7 @@ describe("inventario instalado de agentes", () => {
 		});
 	}
 
-	test("los doctors reales mantienen paridad para Linear válido y roturas staged", async () => {
+	test("los doctors reales mantienen paridad común para Linear válido y roturas staged", async () => {
 		const staging = bundledTemplate();
 		const scenarios: readonly {
 			name: string;
@@ -132,6 +136,16 @@ describe("inventario instalado de agentes", () => {
 						installerLevel: expected,
 						runtimeLevel: expected,
 					});
+				}
+				for (const group of installerReport.groups.filter(({ title }) => SHARED_DOCTOR_GROUPS.has(title))) {
+					for (const check of group.checks.filter(({ name }) => !INSTALLER_ONLY_DOCTOR_CHECKS.has(name))) {
+						expect({ scenario: scenario.name, name: check.name, installer: check.level, runtime: runtimeDoctorLevel(runtimeReport, check.name) }).toEqual({
+							scenario: scenario.name,
+							name: check.name,
+							installer: check.level,
+							runtime: check.level,
+						});
+					}
 				}
 			}
 		} finally {

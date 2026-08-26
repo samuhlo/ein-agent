@@ -1,18 +1,21 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { join } from "node:path";
-import { ENGRAM_STORE_DIRNAME } from "../lib/memory-contract.ts";
 import { promisify } from "node:util";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, loadBrand, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
 import { pick } from "../lib/lang";
 import { PI_BUILTIN_TOOLS, formatDrift, verifyPiContract } from "../lib/pi-contract.ts";
-import { inspectLinearIntegration } from "../lib/linear-integration.ts";
 import {
-  readInstalledPiPackageVersion,
-  REQUIRED_PI_PACKAGES,
-} from "../lib/runtime-compat.ts";
+  countDoctorSkillFiles,
+  doctorCheck as check,
+  doctorWarn as warn,
+  inspectCommonDoctor,
+  readDoctorText as readIfExists,
+  summarizeDoctorChecks,
+  type DoctorCheckResult as CheckResult,
+} from "../lib/doctor-core.ts";
 import {
   AGENT_DIR,
   CONTEXT7_KEY_PATH,
@@ -24,29 +27,6 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-function countSkillFiles(dir: string): number {
-  if (!existsSync(dir)) return 0;
-  let count = 0;
-  let entries: string[] = [];
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return count;
-  }
-  for (const entry of entries) {
-    const p = join(dir, entry);
-    let stat;
-    try {
-      stat = statSync(p);
-    } catch {
-      continue;
-    }
-    if (stat.isDirectory()) count += countSkillFiles(p);
-    if (entry === "SKILL.md") count += 1;
-  }
-  return count;
-}
-
 async function cliExists(cmd: string): Promise<boolean> {
   try {
     await execFileAsync("/bin/zsh", ["-lc", `command -v ${cmd}`], { timeout: 5000 });
@@ -54,10 +34,6 @@ async function cliExists(cmd: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function readIfExists(filePath: string): string {
-  return existsSync(filePath) ? readFileSync(filePath, "utf8") : "";
 }
 
 // =============================================================================
@@ -80,15 +56,8 @@ async function doctorReport(): Promise<string> {
     ? readdirSync(extensionsDir).filter((f) => f.endsWith(".ts")).sort()
     : [];
 
-  const localSkills = countSkillFiles(LOCAL_SKILLS_DIR);
-  const downloadedSkills = countSkillFiles(DOWNLOADED_SKILLS_DIR);
-
-  let settings: Record<string, unknown> = {};
-  try {
-    settings = JSON.parse(readFileSync(join(AGENT_DIR, "settings.json"), "utf8")) as Record<string, unknown>;
-  } catch {
-    // silencio intencional: settings opcional; el reporte usa defaults.
-  }
+  const localSkills = countDoctorSkillFiles(LOCAL_SKILLS_DIR);
+  const downloadedSkills = countDoctorSkillFiles(DOWNLOADED_SKILLS_DIR);
 
   const hasEngram = await cliExists("engram");
   const hasGh = await cliExists("gh");
@@ -142,17 +111,6 @@ Engram es un cuaderno opcional por proyecto; estar configurado no prueba recuper
 // doctor output — smoke checks estaticos (sync, solo filesystem)
 // =============================================================================
 
-type CheckLevel = "OK" | "WARN" | "FAIL";
-type CheckResult = { name: string; detail: string; level: CheckLevel };
-
-function check(pass: boolean, name: string, detail: string): CheckResult {
-  return { name, detail, level: pass ? "OK" : "FAIL" };
-}
-
-function warn(pass: boolean, name: string, detail: string): CheckResult {
-  return { name, detail, level: pass ? "OK" : "WARN" };
-}
-
 // Builtins de Pi: fuente única en lib/pi-contract.ts. Estaba replicado aquí y
 // en el test de allowlists, que es justo la duplicación que abre agujeros.
 const BUILTIN_TOOLS = new Set(PI_BUILTIN_TOOLS);
@@ -204,112 +162,19 @@ export function doctorSmokeReport(
   agentDir: string = AGENT_DIR,
   cwd: string = process.cwd(),
 ): string {
-  const brandFile = join(agentDir, "brand.json");
-  const settingsFile = join(agentDir, "settings.json");
-  const mcpFile = join(agentDir, "mcp.json");
-  const guardrailsFile = join(agentDir, "lib", "guardrails.ts");
   const agentsDir = join(agentDir, "agents");
   const chainsDir = join(agentDir, "chains");
-
-  let brand: Record<string, unknown> = {};
-  let brandParseOk = false;
-  let settings: Record<string, unknown> = {};
-  let settingsParseOk = false;
-  let mcpCfg: Record<string, unknown> = {};
-  let mcpParseOk = false;
-
-  try {
-    brand = JSON.parse(readFileSync(brandFile, "utf8")) as Record<string, unknown>;
-    brandParseOk = true;
-  } catch {
-    brandParseOk = false;
-  }
-
-  try {
-    settings = JSON.parse(readFileSync(settingsFile, "utf8")) as Record<string, unknown>;
-    settingsParseOk = true;
-  } catch {
-    settingsParseOk = false;
-  }
-
-  try {
-    mcpCfg = JSON.parse(readFileSync(mcpFile, "utf8")) as Record<string, unknown>;
-    mcpParseOk = true;
-  } catch {
-    mcpParseOk = false;
-  }
-
-  const guardrailsRaw = readIfExists(guardrailsFile);
-  // BLINDAJE -> Ficheros donde historicamente quedaban referencias colgantes
-  // (forecast muerto, support inexistente, straggler de marca).
-  const preflightRaw = readIfExists(join(agentDir, "lib", "sdd-preflight.ts"));
-  const einGitRaw = readIfExists(join(agentsDir, "ein-git.md"));
-  const sddApplyRaw = readIfExists(join(agentsDir, "sdd-apply.md"));
-  const sddVerifyRaw = readIfExists(join(agentsDir, "sdd-verify.md"));
-  const orchestratorRaw = readIfExists(join(agentDir, "assets", "orchestrator.md"));
-  const einAiRaw = readIfExists(join(agentDir, "extensions", "ein-ai.ts"));
-  const personaRaw = readIfExists(join(agentDir, "lib", "persona.ts"));
-  const linearInspection = inspectLinearIntegration(cwd, agentDir);
-  const hasDynamicLinearPrompt = einAiRaw.split("\n").some((line) =>
-    line.includes("buildEinPrompt(") && line.includes("readLinearIntegration(ctx.cwd)"),
-  );
-  const mcpServers = (mcpCfg.mcpServers as Record<string, unknown>) ?? {};
-  const engramServer = mcpServers.engram as Record<string, unknown> | undefined;
-  const engramEnv = (engramServer?.environment as Record<string, unknown>) ?? {};
-
-  const localSkillsCount = countSkillFiles(LOCAL_SKILLS_DIR);
-  const downloadedSkillsCount = countSkillFiles(DOWNLOADED_SKILLS_DIR);
+  const common = inspectCommonDoctor({
+    agentDir,
+    linearCwd: cwd,
+    localSkillsDir: join(agentDir, "skills", "local"),
+    downloadedSkillsDir: join(agentDir, "skills", "downloaded"),
+  });
   const hasLinearToken = Boolean(
     process.env.LINEAR_API_KEY || process.env.LINEAR_TOKEN || existsSync(LINEAR_KEY_PATH),
   );
-  const packages = Array.isArray(settings.packages)
-    ? settings.packages.filter((value): value is string => typeof value === "string")
-    : [];
   const langLibFile = join(agentDir, "lib", "lang.ts");
   const stringsLibFile = join(agentDir, "lib", "i18n", "strings.ts");
-
-  const checksCore: CheckResult[] = [
-    check(existsSync(brandFile), "brand.json", "Archivo de marca presente."),
-    check(brandParseOk, "brand.json parse", "JSON de marca valido."),
-    check(String(brand.agentName ?? "") === "Ein", "brand.agentName", "Nombre canonico: Ein."),
-    check(String(brand.commandPrefix ?? "") === "ein", "brand.commandPrefix", "Prefijo canonico: ein."),
-    check(String(brand.author ?? "") === "samuhlo", "brand.author", "Autor canonico: samuhlo."),
-    check(existsSync(settingsFile), "settings.json", "Config Pi presente."),
-    check(settingsParseOk, "settings.json parse", "JSON de settings valido."),
-    check(
-      Boolean((settings.enabledModels as unknown[] | undefined)?.length),
-      "enabledModels",
-      "Hay modelos habilitados.",
-    ),
-    check(
-      settings.enableSkillCommands === true,
-      "enableSkillCommands",
-      "Comandos /skill:* activos.",
-    ),
-  ];
-
-  const checksMcp: CheckResult[] = [
-    check(existsSync(mcpFile), "mcp.json", "Archivo MCP presente."),
-    check(mcpParseOk, "mcp.json parse", "JSON MCP valido."),
-    check("engram" in mcpServers, "mcp engram", "Servidor Engram configurado."),
-    check(
-      String(engramEnv.ENGRAM_DATA_DIR ?? "").includes(ENGRAM_STORE_DIRNAME),
-      "engram data dir",
-      `Engram apunta al cuaderno de Ein (~/${ENGRAM_STORE_DIRNAME}).`,
-    ),
-    check("context7" in mcpServers, "mcp context7", "Servidor Context7 configurado."),
-  ];
-
-  const checksPiPackages: CheckResult[] = REQUIRED_PI_PACKAGES.map(({ name, spec, version }) => {
-    const installed = readInstalledPiPackageVersion(agentDir, name);
-    return check(
-      packages.includes(spec) && installed === version,
-      `pi package ${name}`,
-      installed
-        ? `Declaracion ${spec}; instalada ${installed}.`
-        : `Declaracion ${spec}; paquete no instalado en el runtime aislado.`,
-    );
-  });
 
   const SDD_AGENTS = [
     "sdd-scope.md",
@@ -389,39 +254,6 @@ export function doctorSmokeReport(
     ),
   );
 
-  const checksSkills: CheckResult[] = [
-    check(localSkillsCount > 0, "skills local", `Skills locales: ${localSkillsCount}.`),
-    check(
-      downloadedSkillsCount > 0,
-      "skills downloaded",
-      `Skills descargadas: ${downloadedSkillsCount}.`,
-    ),
-    warn(localSkillsCount >= 5, "skills local threshold", "Cantidad local saludable (>=5)."),
-    warn(
-      downloadedSkillsCount >= 20,
-      "skills downloaded threshold",
-      "Cantidad descargada saludable (>=20).",
-    ),
-  ];
-
-  const checksGuardrails: CheckResult[] = [
-    check(
-      guardrailsRaw.includes("git\\s+reset\\s+--hard"),
-      "guardrails git reset",
-      "Bloqueo de git reset --hard activo.",
-    ),
-    check(
-      guardrailsRaw.includes("DENIED_BASH_PATTERNS"),
-      "guardrails bash deny",
-      "Lista de comandos bash denegados activa.",
-    ),
-    check(
-      guardrailsRaw.includes("CONFIRM_BASH_PATTERNS"),
-      "guardrails bash confirm",
-      "Lista de confirmacion de comandos activa.",
-    ),
-  ];
-
   const checksIntegrations: CheckResult[] = [
     warn(hasLinearToken, "linear token", "Token Linear detectable en entorno o archivo."),
     warn(
@@ -445,112 +277,26 @@ export function doctorSmokeReport(
     ),
   ];
 
-  // FAIL CLOSED -> Detecta referencias colgantes que un deploy stale o un
-  // refactor a medias deja atras: prompts o codigo apuntando a artefactos que
-  // ya no existen.
-  const checksCoherence: CheckResult[] = [
-    check(
-      einGitRaw.includes("Review Workload Gate"),
-      "review workload gate",
-      "ein-git documenta el gate de carga de revision.",
-    ),
-    check(
-      !preflightRaw.includes("task/workload forecasts conflict"),
-      "preflight sin forecast muerto",
-      "La preflight ya no referencia un 'workload forecast' que ninguna fase genera.",
-    ),
-    check(
-      preflightRaw.includes("Review Workload Guard"),
-      "preflight inyecta guard",
-      "La preflight inyecta la regla determinista de Review Workload Guard.",
-    ),
-    check(
-      orchestratorRaw.includes("Review Workload Guard"),
-      "orchestrator coordina guard",
-      "El orchestrator coordina el guard (reenvio de budget + ask).",
-    ),
-    check(
-      !sddApplyRaw.includes("global EIN strict-TDD support guidance"),
-      "sdd-apply sin support colgante",
-      "sdd-apply no referencia una guia de support global inexistente.",
-    ),
-    check(
-      !sddVerifyRaw.includes("global EIN strict-TDD verification support guidance"),
-      "sdd-verify sin support colgante",
-      "sdd-verify no referencia una guia de support global inexistente.",
-    ),
-    check(
-      orchestratorRaw.includes("Plan Gate"),
-      "orchestrator plan gate",
-      "El orchestrator exige plan + confirmacion antes de mutaciones ambiguas/bulk.",
-    ),
-    check(
-      orchestratorRaw.includes("Exploration hygiene"),
-      "orchestrator exploration hygiene",
-      "El orchestrator excluye node_modules/dist/etc. de find/grep/ls.",
-    ),
-    check(
-      orchestratorRaw.includes("Assessment & valuation"),
-      "orchestrator valuation read-only",
-      "Una valoracion no dispara build/test pesados por defecto.",
-    ),
-    check(
-      existsSync(join(agentDir, "lib", "linear-integration.ts")),
-      "linear integration module",
-      "lib/linear-integration.ts presente.",
-    ),
-    check(
-      hasDynamicLinearPrompt,
-      "linear dynamic prompt",
-      "ein-ai obtiene Linear y lo entrega a buildEinPrompt.",
-    ),
-    check(
-      personaRaw.includes("linearDirective(linear)"),
-      "linear prompt directive",
-      "buildEinPrompt incorpora la directiva Linear dinamica.",
-    ),
-    check(
-      linearInspection.status === "valid",
-      "linear integration evidence",
-      `Estado Linear ${linearInspection.status} desde ${linearInspection.source} (${linearInspection.reason}).`,
-    ),
-    check(
-      existsSync(join(agentDir, "lib", "sdd-router.ts")) &&
-        einAiRaw.includes("ein_sdd_status"),
-      "sdd router cableado",
-      "Router determinista (lib/sdd-router.ts + tool ein_sdd_status) presente.",
-    ),
-    check(
-      existsSync(join(agentDir, "agents", "sdd-close.md")) &&
-        orchestratorRaw.includes("ein_sdd_check"),
-      "sdd gatekeeper + close",
-      "Gatekeeper (ein_sdd_check) y fase close cableados.",
-    ),
-  ];
-
   const groups: Array<{ title: string; checks: CheckResult[] }> = [
-    { title: "// 011. CORE", checks: checksCore },
-    { title: "// 012. PAQUETES PI", checks: checksPiPackages },
-    { title: "// 013. MCP", checks: checksMcp },
+    { title: "// 011. CORE", checks: common.checks.core },
+    { title: "// 012. PAQUETES PI", checks: common.checks.piPackages },
+    { title: "// 013. MCP", checks: common.checks.mcp },
     { title: "// 014. AGENTES + CHAIN", checks: checksAgents },
     { title: "// 015. EXTENSIONES", checks: checksExtensions },
-    { title: "// 016. SKILLS", checks: checksSkills },
-    { title: "// 017. GUARDRAILS", checks: checksGuardrails },
+    { title: "// 016. SKILLS", checks: common.checks.skills },
+    { title: "// 017. GUARDRAILS", checks: common.checks.guardrails },
     { title: "// 018. INTEGRACIONES", checks: checksIntegrations },
     { title: "// 019. I18N", checks: checksI18n },
-    { title: "// 020. COHERENCIA", checks: checksCoherence },
+    { title: "// 020. COHERENCIA", checks: common.checks.coherence },
   ];
 
-  const flat = groups.flatMap((g) => g.checks);
-  const failCount = flat.filter((c) => c.level === "FAIL").length;
-  const warnCount = flat.filter((c) => c.level === "WARN").length;
-  const result: string = failCount ? "FAIL" : warnCount ? "OK_WITH_WARNINGS" : "OK";
+  const summary = summarizeDoctorChecks(groups);
 
   const lines = [
     "// 010. doctor output",
     "",
-    `resultado: ${result}`,
-    `fail: ${failCount}  |  warn: ${warnCount}  |  total: ${flat.length}`,
+    `resultado: ${summary.result}`,
+    `fail: ${summary.fail}  |  warn: ${summary.warn}  |  total: ${summary.total}`,
     "",
   ];
 
@@ -563,9 +309,9 @@ export function doctorSmokeReport(
   }
 
   lines.push("// 021. DECISION");
-  if (failCount) {
+  if (summary.fail) {
     lines.push("accion: revisar FAIL antes de flujos de entrega o mutacion.");
-  } else if (warnCount) {
+  } else if (summary.warn) {
     lines.push("accion: sistema usable; resolver WARN para endurecer baseline.");
   } else {
     lines.push("accion: baseline tecnico estable.");

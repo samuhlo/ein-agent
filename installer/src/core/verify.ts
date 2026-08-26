@@ -5,76 +5,37 @@
 // template-manifest.json with hardcoded fallbacks for older binaries.
 // =============================================================================
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Platform } from "./platform.ts";
 import { lookPath } from "./exec.ts";
 import { inspectPiRuntime, resolveCodegraph, resolveHypa } from "./deps.ts";
-import { ENGRAM_STORE_DIRNAME } from "../../../ein-pi/agent/lib/memory-contract.ts";
-import { inspectLinearIntegration } from "../../../ein-pi/agent/lib/linear-integration.ts";
 import {
-  PI_HOST_VERSION,
-  readInstalledPiPackageVersion,
-  REQUIRED_PI_PACKAGES,
-} from "../../../ein-pi/agent/lib/runtime-compat.ts";
+  doctorCheck as check,
+  doctorWarn as warn,
+  inspectCommonDoctor,
+  summarizeDoctorChecks,
+  type DoctorCheckGroup as SharedCheckGroup,
+  type DoctorCheckLevel as SharedCheckLevel,
+  type DoctorCheckResult as SharedCheckResult,
+  type DoctorResult,
+} from "../../../ein-pi/agent/lib/doctor-core.ts";
+import { PI_HOST_VERSION } from "../../../ein-pi/agent/lib/runtime-compat.ts";
 import {
   defaultPiInstallContext,
   type PiInstallContext,
 } from "./paths.ts";
 
-export type CheckLevel = "OK" | "WARN" | "FAIL";
-export type CheckResult = { name: string; detail: string; level: CheckLevel };
-export type CheckGroup = { title: string; checks: CheckResult[] };
+export type CheckLevel = SharedCheckLevel;
+export type CheckResult = SharedCheckResult;
+export type CheckGroup = SharedCheckGroup;
 export type DoctorReport = {
   groups: CheckGroup[];
   fail: number;
   warn: number;
   total: number;
-  result: "OK" | "OK_WITH_WARNINGS" | "FAIL";
+  result: DoctorResult;
 };
-
-function check(pass: boolean, name: string, detail: string): CheckResult {
-  return { name, detail, level: pass ? "OK" : "FAIL" };
-}
-
-function warn(pass: boolean, name: string, detail: string): CheckResult {
-  return { name, detail, level: pass ? "OK" : "WARN" };
-}
-
-function countSkillFiles(dir: string): number {
-  if (!existsSync(dir)) return 0;
-  let count = 0;
-  let entries: string[] = [];
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return count;
-  }
-  for (const entry of entries) {
-    const p = join(dir, entry);
-    let st;
-    try {
-      st = statSync(p);
-    } catch {
-      continue;
-    }
-    if (st.isDirectory()) count += countSkillFiles(p);
-    if (entry === "SKILL.md") count += 1;
-  }
-  return count;
-}
-
-function readIfExists(path: string): string {
-  return existsSync(path) ? readFileSync(path, "utf8") : "";
-}
-
-function parseJson(path: string): { ok: boolean; value: Record<string, unknown> } {
-  try {
-    return { ok: true, value: JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown> };
-  } catch {
-    return { ok: false, value: {} };
-  }
-}
 
 // Fallback lists when no template-manifest.json is deployed (installs made by
 // older binaries, or a deploy that died before extracting it).
@@ -135,56 +96,18 @@ export function runDoctor(
   context: PiInstallContext = defaultPiInstallContext(),
 ): DoctorReport {
   const { agentDir } = context;
-  const brandFile = join(agentDir, "brand.json");
-  const settingsFile = join(agentDir, "settings.json");
-  const mcpFile = join(agentDir, "mcp.json");
-  const guardrailsFile = join(agentDir, "lib", "guardrails.ts");
   const agentsDir = join(agentDir, "agents");
   const chainsDir = join(agentDir, "chains");
-
-  const brand = parseJson(brandFile);
-  const settings = parseJson(settingsFile);
-  const mcp = parseJson(mcpFile);
-
-  // Los patrones de guardrails viven en lib/guardrails.ts desde el refactor P2.
-  const guardrailsRaw = readIfExists(guardrailsFile);
-  // Coherencia: ficheros donde historicamente quedaban referencias colgantes.
-  const preflightRaw = readIfExists(join(agentDir, "lib", "sdd-preflight.ts"));
-  const einGitRaw = readIfExists(join(agentsDir, "ein-git.md"));
-  const sddApplyRaw = readIfExists(join(agentsDir, "sdd-apply.md"));
-  const sddVerifyRaw = readIfExists(join(agentsDir, "sdd-verify.md"));
-  const orchestratorRaw = readIfExists(join(agentDir, "assets", "orchestrator.md"));
-  const einAiRaw = readIfExists(join(agentDir, "extensions", "ein-ai.ts"));
-  const personaRaw = readIfExists(join(agentDir, "lib", "persona.ts"));
-  const linearInspection = inspectLinearIntegration(context.home, agentDir);
-  const hasDynamicLinearPrompt = einAiRaw.split("\n").some((line) =>
-    line.includes("buildEinPrompt(") && line.includes("readLinearIntegration(ctx.cwd)"),
-  );
-  const mcpServers = (mcp.value.mcpServers as Record<string, unknown>) ?? {};
-  const engramServer = mcpServers.engram as Record<string, unknown> | undefined;
-  const engramEnv = (engramServer?.environment as Record<string, unknown>) ?? {};
-  const settingsPackages = Array.isArray(settings.value.packages)
-    ? settings.value.packages.filter((value): value is string => typeof value === "string")
-    : [];
-
-  const localSkills = countSkillFiles(context.localSkillsDir);
-  const downloadedSkills = countSkillFiles(context.downloadedSkillsDir);
+  const common = inspectCommonDoctor({
+    agentDir,
+    linearCwd: context.home,
+    localSkillsDir: context.localSkillsDir,
+    downloadedSkillsDir: context.downloadedSkillsDir,
+  });
   const extraPath = [context.bunBinDir, context.localBinDir];
 
   const checksCore: CheckResult[] = [
-    check(existsSync(brandFile), "brand.json", "Archivo de marca presente."),
-    check(brand.ok, "brand.json parse", "JSON de marca valido."),
-    check(String(brand.value.agentName ?? "") === "Ein", "brand.agentName", "Nombre canonico: Ein."),
-    check(String(brand.value.commandPrefix ?? "") === "ein", "brand.commandPrefix", "Prefijo canonico: ein."),
-    check(String(brand.value.author ?? "") === "samuhlo", "brand.author", "Autor canonico: samuhlo."),
-    check(existsSync(settingsFile), "settings.json", "Config Pi presente."),
-    check(settings.ok, "settings.json parse", "JSON de settings valido."),
-    check(
-      Boolean((settings.value.enabledModels as unknown[] | undefined)?.length),
-      "enabledModels",
-      "Hay modelos habilitados.",
-    ),
-    check(settings.value.enableSkillCommands === true, "enableSkillCommands", "Comandos /skill:* activos."),
+    ...common.checks.core,
     check(
       existsSync(join(agentDir, "extensions-manifest.json")),
       "extensions-manifest.json",
@@ -193,33 +116,14 @@ export function runDoctor(
   ];
 
   const checksMcp: CheckResult[] = [
-    check(existsSync(mcpFile), "mcp.json", "Archivo MCP presente."),
-    check(mcp.ok, "mcp.json parse", "JSON MCP valido."),
-    check("engram" in mcpServers, "mcp engram", "Servidor Engram configurado."),
+    ...common.checks.mcp,
     check(
-      String(engramEnv.ENGRAM_DATA_DIR ?? "").includes(ENGRAM_STORE_DIRNAME),
-      "engram data dir",
-      `Engram apunta al cuaderno de Ein (~/${ENGRAM_STORE_DIRNAME}).`,
-    ),
-    check(
-      String(engramServer?.command ?? "").length > 0 &&
-        !String(engramServer?.command ?? "").includes("{{"),
+      Boolean(common.evidence.engramCommand) &&
+        !common.evidence.engramCommand?.includes("{{"),
       "engram command",
       "Ruta de engram resuelta (sin tokens sin templar).",
     ),
-    check("context7" in mcpServers, "mcp context7", "Servidor Context7 configurado."),
   ];
-
-  const checksPiPackages: CheckResult[] = REQUIRED_PI_PACKAGES.map(({ name, spec, version }) => {
-    const installed = readInstalledPiPackageVersion(agentDir, name);
-    return check(
-      settingsPackages.includes(spec) && installed === version,
-      `pi package ${name}`,
-      installed
-        ? `Declaración ${spec}; instalada ${installed}.`
-        : `Declaración ${spec}; paquete no instalado en el runtime aislado.`,
-    );
-  });
 
   const manifest = loadTemplateManifest(agentDir);
   const expectedAgents = manifest?.agents?.length ? manifest.agents : [...SDD_AGENTS, ...NON_SDD_AGENTS];
@@ -244,42 +148,9 @@ export function runDoctor(
     check(existsSync(join(agentDir, "extensions", e)), `ext ${e}`, "Extension presente."),
   );
 
-  const checksSkills: CheckResult[] = [
-    check(localSkills > 0, "skills local", `Skills locales: ${localSkills}.`),
-    check(downloadedSkills > 0, "skills downloaded", `Skills descargadas: ${downloadedSkills}.`),
-    warn(localSkills >= 5, "skills local threshold", "Cantidad local saludable (>=5)."),
-    warn(downloadedSkills >= 20, "skills downloaded threshold", "Cantidad descargada saludable (>=20)."),
-  ];
-
-  const checksGuardrails: CheckResult[] = [
-    check(guardrailsRaw.includes("git\\s+reset\\s+--hard"), "guardrails git reset", "Bloqueo de git reset --hard activo."),
-    check(guardrailsRaw.includes("DENIED_BASH_PATTERNS"), "guardrails bash deny", "Lista de comandos bash denegados activa."),
-    check(guardrailsRaw.includes("CONFIRM_BASH_PATTERNS"), "guardrails bash confirm", "Lista de confirmación de comandos activa."),
-  ];
-
-  // Coherencia: referencias colgantes / desajustes que deja un deploy stale
-  // o un refactor a medias.
   const checksCoherence: CheckResult[] = [
     check(existsSync(join(agentDir, "bin", "ein")) && (statSync(join(agentDir, "bin", "ein")).mode & 0o111) !== 0, "terminal app", "bin/ein precompilado y ejecutable."),
-    check(einGitRaw.includes("Review Workload Gate"), "review workload gate", "ein-git documenta el gate de carga de revisión."),
-    check(!preflightRaw.includes("task/workload forecasts conflict"), "preflight sin forecast muerto", "La preflight ya no referencia un forecast que ninguna fase genera."),
-    check(preflightRaw.includes("Review Workload Guard"), "preflight inyecta guard", "La preflight inyecta la regla determinista de Review Workload Guard."),
-    check(orchestratorRaw.includes("Review Workload Guard"), "orchestrator coordina guard", "El orchestrator coordina el guard (reenvio de budget + ask)."),
-    check(!sddApplyRaw.includes("global EIN strict-TDD support guidance"), "sdd-apply sin support colgante", "sdd-apply no referencia una guia de support global inexistente."),
-    check(!sddVerifyRaw.includes("global EIN strict-TDD verification support guidance"), "sdd-verify sin support colgante", "sdd-verify no referencia una guia de support global inexistente."),
-    check(orchestratorRaw.includes("Plan Gate"), "orchestrator plan gate", "El orchestrator exige plan + confirmación antes de mutaciones ambiguas/bulk."),
-    check(orchestratorRaw.includes("Exploration hygiene"), "orchestrator exploration hygiene", "El orchestrator excluye node_modules/dist/etc. de find/grep/glob."),
-    check(orchestratorRaw.includes("Assessment & valuation"), "orchestrator valuation read-only", "Una valoración no dispara build/test pesados por defecto."),
-    check(existsSync(join(agentDir, "lib", "linear-integration.ts")), "linear integration module", "lib/linear-integration.ts presente."),
-    check(hasDynamicLinearPrompt, "linear dynamic prompt", "ein-ai obtiene Linear y lo entrega a buildEinPrompt."),
-    check(personaRaw.includes("linearDirective(linear)"), "linear prompt directive", "buildEinPrompt incorpora la directiva Linear dinámica."),
-    check(
-      linearInspection.status === "valid",
-      "linear integration evidence",
-      `Estado Linear ${linearInspection.status} desde ${linearInspection.source} (${linearInspection.reason}).`,
-    ),
-    check(existsSync(join(agentDir, "lib", "sdd-router.ts")) && einAiRaw.includes("ein_sdd_status"), "sdd router cableado", "Router determinista (sdd-router + tool ein_sdd_status) presente."),
-    check(existsSync(join(agentDir, "agents", "sdd-close.md")) && orchestratorRaw.includes("ein_sdd_check"), "sdd gatekeeper + close", "Gatekeeper (ein_sdd_check) y fase close cableados."),
+    ...common.checks.coherence,
   ];
 
   const hasEngramBin = lookPath("engram", extraPath) !== null;
@@ -323,21 +194,16 @@ export function runDoctor(
 
   const groups: CheckGroup[] = [
     { title: "CORE", checks: checksCore },
-    { title: "PAQUETES PI", checks: checksPiPackages },
+    { title: "PAQUETES PI", checks: common.checks.piPackages },
     { title: "MCP", checks: checksMcp },
     { title: "AGENTES + CHAIN", checks: checksAgents },
     { title: "EXTENSIONES", checks: checksExtensions },
-    { title: "SKILLS", checks: checksSkills },
-    { title: "GUARDRAILS", checks: checksGuardrails },
+    { title: "SKILLS", checks: common.checks.skills },
+    { title: "GUARDRAILS", checks: common.checks.guardrails },
     { title: "COHERENCIA", checks: checksCoherence },
     { title: "RUNTIME", checks: checksRuntime },
     { title: "INTEGRACIONES", checks: checksIntegrations },
   ];
 
-  const flat = groups.flatMap((g) => g.checks);
-  const fail = flat.filter((c) => c.level === "FAIL").length;
-  const warnCount = flat.filter((c) => c.level === "WARN").length;
-  const result = fail ? "FAIL" : warnCount ? "OK_WITH_WARNINGS" : "OK";
-
-  return { groups, fail, warn: warnCount, total: flat.length, result };
+  return { groups, ...summarizeDoctorChecks(groups) };
 }
