@@ -8,6 +8,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { piNpmPackageIdentity } from "../../../ein-pi/agent/lib/runtime-compat.ts";
 
 // Fields in settings.json that belong to the user, not to Ein.
 // These survive across `ein update` re-deployments.
@@ -45,7 +46,23 @@ export function mergeUserSettings(agentDir: string, saved: UserSettings): void {
   try {
     const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
-    const merged = { ...(parsed as Record<string, unknown>), ...saved };
+    const template = parsed as Record<string, unknown>;
+    const { packages: savedPackages, ...savedFields } = saved;
+    const merged: Record<string, unknown> = { ...template, ...savedFields };
+    if (Array.isArray(template.packages) && Array.isArray(savedPackages)) {
+      const templatePackages = template.packages.filter(
+        (value): value is string => typeof value === "string",
+      );
+      const managedIdentities = new Set(
+        templatePackages.map(piNpmPackageIdentity).filter((value): value is string => value !== null),
+      );
+      const userPackages = savedPackages.filter(
+        (value): value is string =>
+          typeof value === "string" &&
+          !managedIdentities.has(piNpmPackageIdentity(value) ?? ""),
+      );
+      merged.packages = [...templatePackages, ...userPackages];
+    }
     writeFileSync(path, `${JSON.stringify(merged, null, "\t")}\n`);
   } catch {
     // Leave freshly-extracted file as-is if merge fails

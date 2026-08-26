@@ -266,6 +266,8 @@ describe("install plan executor", () => {
     calls.length = 0; const base = { platform: { ...source.platform, distro: "unknown", packageManager: "brew", shell: "unknown", shellRc: join(HOME, ".profile"), home: HOME }, flags: { ...source.flags, noLinear: true, dryRun: false, runtime: "pi" }, skipLinear: true, deps: [], agentDir: context.agentDir } as Parameters<typeof createPiInstallHandlers>[0];
     const missing = createPiInstallHandlers({ ...base, effects: { resolveContext: () => context, promote: () => ({ installer: { path: "ein-install", written: true }, app: { path: "ein", written: false, reason: "app-artifact-missing" } }) } });
     expect(await missing.handlers["pi.promote-commands"]()).toEqual({ ok: false, detail: "app-artifact-missing" });
+    const packageFailure = createPiInstallHandlers({ ...base, effects: { resolveContext: () => context, spinner: () => ({ start: () => {}, stop: () => {}, message: () => {} }), packages: async () => ({ ok: false, detail: "falló el pin" }) } });
+    expect(await packageFailure.handlers["pi.configure-packages"]()).toEqual({ ok: false, detail: "falló el pin" });
     const absent = createPiInstallHandlers({ ...base, effects: { resolveContext: () => context, exists: () => false, spinner: () => ({ start: () => { spinnerStarts += 1; }, stop: () => { spinnerStops += 1; }, message: () => {} }), backup: async () => { calls.push("backup"); return { path: null, deduped: false, pruned: [] }; }, deploy: async () => { calls.push("deploy"); return { agentDir: context.agentDir, engramCommand: "engram", engramFound: true }; } } });
     // Sin backup que hacer, `pi.backup-current` sale antes de pedir spinner: el
     // único que gira aquí es el del deploy. Los contadores son ACUMULADOS — no

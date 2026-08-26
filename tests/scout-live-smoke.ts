@@ -2,12 +2,14 @@ import { copyFileSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { validateScoutReport } from "../ein-pi/agent/lib/scout-contract.ts";
+import { REQUIRED_PI_PACKAGES } from "../ein-pi/agent/lib/runtime-compat.ts";
 
 const ROOT = join(import.meta.dir, "..");
 const SCOUT_SOURCE = join(ROOT, "ein-pi", "core", "agents", "ein-scout.md");
 const EIN_AI_EXTENSION = join(ROOT, "ein-pi", "agent", "extensions", "ein-ai.ts");
 const OBSERVER_EXTENSION = join(import.meta.dir, "fixtures", "scout-live-smoke-observer.ts");
 const EVIDENCE_FILE = "controlled-evidence.txt";
+const PI_SUBAGENTS_SPEC = REQUIRED_PI_PACKAGES.find(({ name }) => name === "pi-subagents")!.spec;
 
 type SmokeConfiguration = {
 	model: string;
@@ -106,7 +108,7 @@ async function run(): Promise<void> {
 		const process = Bun.spawn([
 			config.piBinary,
 			"--no-extensions",
-			"-e", "npm:pi-subagents",
+			"-e", PI_SUBAGENTS_SPEC,
 			"-e", EIN_AI_EXTENSION,
 			"-e", OBSERVER_EXTENSION,
 			"--session-dir", join(root, "sessions"),
@@ -131,7 +133,7 @@ async function run(): Promise<void> {
 			throw new Error("Live smoke failed: validated scout report cited data outside the controlled evidence file.");
 		}
 
-		console.log(`Live smoke passed: Pi ${version.stdout.toString().trim()}, requested npm:pi-subagents, validated direct handoff, cleanup pending.`);
+		console.log(`Live smoke passed: Pi ${version.stdout.toString().trim()}, requested ${PI_SUBAGENTS_SPEC}, validated direct handoff, cleanup pending.`);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 		cleaned = !existsSync(root);

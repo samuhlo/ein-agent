@@ -28,6 +28,10 @@ import {
   LOCAL_BIN_DIR,
   MISE_SHIM_DIR,
 } from "./paths.ts";
+import {
+  PI_HOST_SPEC,
+  PI_HOST_VERSION,
+} from "../../../ein-pi/agent/lib/runtime-compat.ts";
 
 export type DepId =
   | "git"
@@ -62,13 +66,46 @@ export function resolveCodegraph(searchPath: string[] = HYPA_PATH): string | nul
   return lookPath("codegraph", searchPath);
 }
 
+export type PiRuntimeInspection = {
+  path: string | null;
+  version: string | null;
+  compatible: boolean;
+};
+
+export type PiRuntimeInspectionDeps = {
+  lookPath?: typeof lookPath;
+  readVersion?: (path: string) => string | null;
+};
+
+function readPiVersion(path: string): string | null {
+  try {
+    const result = Bun.spawnSync([path, "--version"], { stdout: "pipe", stderr: "pipe" });
+    if (result.exitCode !== 0) return null;
+    const version = new TextDecoder().decode(result.stdout).trim();
+    return version || null;
+  } catch {
+    return null;
+  }
+}
+
+export function inspectPiRuntime(
+  searchPath: string[] = EXTRA_PATH,
+  deps: PiRuntimeInspectionDeps = {},
+): PiRuntimeInspection {
+  const path = (deps.lookPath ?? lookPath)("pi", searchPath);
+  if (!path) return { path: null, version: null, compatible: false };
+  const version = (deps.readVersion ?? readPiVersion)(path);
+  return { path, version, compatible: version === PI_HOST_VERSION };
+}
+
 export function checkDeps(platform: Platform): DepStatus[] {
   const engram = resolveEngram(platform);
+  const piRuntime = inspectPiRuntime();
   const defs: Array<Omit<DepStatus, "present" | "path">> = [
     { id: "git", required: true, hint: "instala git con tu gestor de paquetes" },
     { id: "curl", required: true, hint: "instala curl con tu gestor de paquetes" },
     { id: "bun", required: true, hint: "curl -fsSL https://bun.sh/install | bash" },
-    { id: "pi", required: true, hint: "bun install -g @earendil-works/pi-coding-agent" },
+    { id: "pi", required: true, hint: `bun install -g ${PI_HOST_SPEC}` },
     { id: "engram", required: false, hint: "memoria persistente (opcional)" },
     { id: "gh", required: false, hint: "GitHub CLI para entrega (opcional)" },
     { id: "hypa", required: false, hint: "compresión de salida de comandos (opcional)" },
@@ -86,6 +123,13 @@ export function checkDeps(platform: Platform): DepStatus[] {
     if (d.id === "codegraph") {
       const path = resolveCodegraph();
       return { ...d, present: path !== null, path };
+    }
+    if (d.id === "pi") {
+      return {
+        ...d,
+        present: piRuntime.compatible,
+        path: piRuntime.path,
+      };
     }
     const path = lookPath(d.id, EXTRA_PATH);
     return { ...d, present: path !== null, path };
@@ -113,11 +157,18 @@ export async function installBun(): Promise<InstallStep> {
     : { ok: false, detail: "bun instalado pero no resoluble; reinicia el shell" };
 }
 
+export type PiInstallDeps = {
+  lookPath?: typeof lookPath;
+  run?: typeof run;
+};
+
 // pi via bun global install. Lands in ~/.bun/bin/pi.
-export async function installPi(): Promise<InstallStep> {
-  const bun = lookPath("bun", EXTRA_PATH);
+export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> {
+  const find = deps.lookPath ?? lookPath;
+  const execute = deps.run ?? run;
+  const bun = find("bun", EXTRA_PATH);
   if (!bun) return { ok: false, detail: "bun no disponible; instala bun primero" };
-  const res = await run(bun, ["install", "-g", "@earendil-works/pi-coding-agent"], {
+  const res = await execute(bun, ["install", "-g", PI_HOST_SPEC], {
     ...CAPTURED,
     extraPath: EXTRA_PATH,
   });
@@ -125,10 +176,10 @@ export async function installPi(): Promise<InstallStep> {
   // library whose bin shadows the agent and breaks `pi`. A truncated hint here
   // is a footgun if a user copies it.
   if (!res.ok) {
-    return { ok: false, detail: `'bun install -g @earendil-works/pi-coding-agent' falló (${why(res)})` };
+    return { ok: false, detail: `'bun install -g ${PI_HOST_SPEC}' falló (${why(res)})` };
   }
-  return lookPath("pi", EXTRA_PATH)
-    ? { ok: true, detail: "pi instalado" }
+  return find("pi", EXTRA_PATH)
+    ? { ok: true, detail: `pi ${PI_HOST_VERSION} instalado` }
     : { ok: false, detail: "pi instalado pero no resoluble; reinicia el shell" };
 }
 
@@ -139,12 +190,19 @@ export async function installEngramDep(platform: Platform): Promise<InstallStep>
 
 // Install Pi extension packages declared in settings.json (pi-subagents,
 // pi-mcp-adapter, ask-user-question, i18n...). Idempotent: `pi install`
-// reports "up to date". Best-effort.
+// reports "up to date". The caller decides whether a failed reconciliation is
+// fatal; fresh installs fail closed while updates retain the working release.
+export type PiPackageInstallDeps = {
+  lookPath?: typeof lookPath;
+  run?: typeof run;
+};
+
 export async function installDeclaredPackages(
   context: PiInstallContext = defaultPiInstallContext(),
+  deps: PiPackageInstallDeps = {},
 ): Promise<InstallStep> {
   const extraPath = [context.bunBinDir, context.localBinDir];
-  const pi = lookPath("pi", extraPath);
+  const pi = (deps.lookPath ?? lookPath)("pi", extraPath);
   if (!pi) return { ok: false, detail: "pi no disponible; salto paquetes" };
   const settingsPath = join(context.agentDir, "settings.json");
   if (!existsSync(settingsPath)) return { ok: true, detail: "sin settings.json" };
@@ -163,7 +221,13 @@ export async function installDeclaredPackages(
   let ok = 0;
   const failed: string[] = [];
   for (const pkg of packages) {
-    const res = await run(pi, ["install", pkg], { extraPath });
+    const res = await (deps.run ?? run)(pi, ["install", pkg], {
+      extraPath,
+      env: {
+        PI_CODING_AGENT_DIR: context.agentDir,
+        EIN_PI_AGENT_HOME: context.agentDir,
+      },
+    });
     if (res.ok) ok += 1;
     else failed.push(pkg);
   }

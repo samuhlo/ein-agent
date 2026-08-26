@@ -9,9 +9,14 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Platform } from "./platform.ts";
 import { lookPath } from "./exec.ts";
-import { resolveCodegraph, resolveHypa } from "./deps.ts";
+import { inspectPiRuntime, resolveCodegraph, resolveHypa } from "./deps.ts";
 import { ENGRAM_STORE_DIRNAME } from "../../../ein-pi/agent/lib/memory-contract.ts";
 import { inspectLinearIntegration } from "../../../ein-pi/agent/lib/linear-integration.ts";
+import {
+  PI_HOST_VERSION,
+  readInstalledPiPackageVersion,
+  REQUIRED_PI_PACKAGES,
+} from "../../../ein-pi/agent/lib/runtime-compat.ts";
 import {
   defaultPiInstallContext,
   type PiInstallContext,
@@ -158,7 +163,9 @@ export function runDoctor(
   const mcpServers = (mcp.value.mcpServers as Record<string, unknown>) ?? {};
   const engramServer = mcpServers.engram as Record<string, unknown> | undefined;
   const engramEnv = (engramServer?.environment as Record<string, unknown>) ?? {};
-  const settingsPackages = (settings.value.packages as unknown[] | undefined) ?? [];
+  const settingsPackages = Array.isArray(settings.value.packages)
+    ? settings.value.packages.filter((value): value is string => typeof value === "string")
+    : [];
 
   const localSkills = countSkillFiles(context.localSkillsDir);
   const downloadedSkills = countSkillFiles(context.downloadedSkillsDir);
@@ -201,12 +208,18 @@ export function runDoctor(
       "Ruta de engram resuelta (sin tokens sin templar).",
     ),
     check("context7" in mcpServers, "mcp context7", "Servidor Context7 configurado."),
-    check(
-      settingsPackages.includes("npm:pi-mcp-adapter"),
-      "mcp adapter",
-      "pi-mcp-adapter declarado (proxy MCP, ahorro de contexto).",
-    ),
   ];
+
+  const checksPiPackages: CheckResult[] = REQUIRED_PI_PACKAGES.map(({ name, spec, version }) => {
+    const installed = readInstalledPiPackageVersion(agentDir, name);
+    return check(
+      settingsPackages.includes(spec) && installed === version,
+      `pi package ${name}`,
+      installed
+        ? `Declaración ${spec}; instalada ${installed}.`
+        : `Declaración ${spec}; paquete no instalado en el runtime aislado.`,
+    );
+  });
 
   const manifest = loadTemplateManifest(agentDir);
   const expectedAgents = manifest?.agents?.length ? manifest.agents : [...SDD_AGENTS, ...NON_SDD_AGENTS];
@@ -272,7 +285,7 @@ export function runDoctor(
   const hasEngramBin = lookPath("engram", extraPath) !== null;
   const hasGh = lookPath("gh", extraPath) !== null;
   const hasBun = lookPath("bun", extraPath) !== null;
-  const hasPi = lookPath("pi", extraPath) !== null;
+  const piRuntime = inspectPiRuntime(extraPath);
   const optionalPath = [...extraPath, context.miseShimDir];
   const hasHypa = resolveHypa(optionalPath) !== null;
   const hasLinearToken = Boolean(
@@ -284,7 +297,13 @@ export function runDoctor(
 
   const checksRuntime: CheckResult[] = [
     check(hasBun, "bun", "Runtime bun disponible en PATH."),
-    check(hasPi, "pi", "Binario pi disponible (bun install -g @earendil-works/pi-coding-agent)."),
+    check(
+      piRuntime.compatible,
+      "pi",
+      piRuntime.version
+        ? `Pi ${piRuntime.version} detectado; Ein requiere ${PI_HOST_VERSION}.`
+        : `Pi no resoluble; Ein requiere ${PI_HOST_VERSION}.`,
+    ),
     warn(hasEngramBin, "engram cli", "CLI engram disponible (memoria)."),
     warn(hasGh, "gh cli", "GitHub CLI disponible (entrega)."),
     warn(hasHypa, "hypa cli", "Compresión de salida disponible; /ein:hypa la activa."),
@@ -298,17 +317,13 @@ export function runDoctor(
   const checksIntegrations: CheckResult[] = [
     warn(hasLinearToken, "linear token", "Token Linear detectable en entorno o archivo."),
     warn(hasContext7, "context7 key", "Key Context7 detectable."),
-    check(
-      settingsPackages.includes("npm:@juicesharp/rpiv-ask-user-question"),
-      "ask-user-question",
-      "Paquete ask-user-question declarado en settings.",
-    ),
   ];
 
   void platform;
 
   const groups: CheckGroup[] = [
     { title: "CORE", checks: checksCore },
+    { title: "PAQUETES PI", checks: checksPiPackages },
     { title: "MCP", checks: checksMcp },
     { title: "AGENTES + CHAIN", checks: checksAgents },
     { title: "EXTENSIONES", checks: checksExtensions },

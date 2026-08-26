@@ -29,3 +29,10 @@ requirement: The system MUST accept valid legacy solo/team state through the exi
 Given: The deployed runtime encounters canonical Linear state, legacy work-mode state, or malformed persisted state.
 When: It resolves the integration for compatibility and a doctor verifies the evidence.
 Then: Canonical off/on and legacy solo/team values map to the intended integration state, but malformed or unreadable evidence cannot produce a successful doctor result.
+
+## Scenario: pi-runtime-dependencies-remain-reproducible
+title: Pi runtime dependencies remain reproducible across install and update
+requirement: The system MUST install the compatible Pi host and every Ein-owned Pi package using exact versions inside the selected isolated agent home, replace stale or unversioned Ein package declarations during update, preserve unrelated user package declarations, fail a fresh installation when package reconciliation fails, and make both doctors fail when the deployed or installed package drifts from the compatible set.
+Given: A clean installation or an existing settings file with unversioned, stale, extra, or malformed package declarations.
+When: The installer deploys or updates the Pi runtime and reconciles user settings.
+Then: The Pi host command and all Ein-owned package declarations use the exact compatible versions, package installation receives the selected isolated Pi home, unrelated valid user declarations survive in order, malformed saved package state cannot erase the template contract, a failed reconciliation cannot be reported as a successful fresh install, and both doctors report declaration or installed-version drift as a failure.

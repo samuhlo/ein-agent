@@ -10,6 +10,10 @@ import { pick } from "../lib/lang";
 import { PI_BUILTIN_TOOLS, formatDrift, verifyPiContract } from "../lib/pi-contract.ts";
 import { inspectLinearIntegration } from "../lib/linear-integration.ts";
 import {
+  readInstalledPiPackageVersion,
+  REQUIRED_PI_PACKAGES,
+} from "../lib/runtime-compat.ts";
+import {
   AGENT_DIR,
   CONTEXT7_KEY_PATH,
   CORE_EXTENSIONS,
@@ -91,8 +95,6 @@ async function doctorReport(): Promise<string> {
   const hasLinearToken = Boolean(
     process.env.LINEAR_API_KEY || process.env.LINEAR_TOKEN || existsSync(LINEAR_KEY_PATH),
   );
-  const packages = (settings.packages as unknown[] | undefined) ?? [];
-  const hasAskUserQuestion = packages.includes("npm:@juicesharp/rpiv-ask-user-question");
   const hasContext7Key =
     existsSync(CONTEXT7_KEY_PATH) || Boolean(process.env.CONTEXT7_API_KEY);
   const hasMcp = existsSync(join(AGENT_DIR, "mcp.json"));
@@ -260,10 +262,9 @@ export function doctorSmokeReport(
   const hasLinearToken = Boolean(
     process.env.LINEAR_API_KEY || process.env.LINEAR_TOKEN || existsSync(LINEAR_KEY_PATH),
   );
-  const packages = (settings.packages as unknown[] | undefined) ?? [];
-  const hasAskUserQuestion = packages.includes("npm:@juicesharp/rpiv-ask-user-question");
-  const hasI18nPkg = packages.includes("npm:@juicesharp/rpiv-i18n");
-  const hasContextMode = packages.includes("npm:context-mode");
+  const packages = Array.isArray(settings.packages)
+    ? settings.packages.filter((value): value is string => typeof value === "string")
+    : [];
   const langLibFile = join(agentDir, "lib", "lang.ts");
   const stringsLibFile = join(agentDir, "lib", "i18n", "strings.ts");
 
@@ -297,12 +298,18 @@ export function doctorSmokeReport(
       `Engram apunta al cuaderno de Ein (~/${ENGRAM_STORE_DIRNAME}).`,
     ),
     check("context7" in mcpServers, "mcp context7", "Servidor Context7 configurado."),
-    check(
-      packages.includes("npm:pi-mcp-adapter"),
-      "mcp adapter",
-      "pi-mcp-adapter declarado (proxy MCP, ahorro de contexto).",
-    ),
   ];
+
+  const checksPiPackages: CheckResult[] = REQUIRED_PI_PACKAGES.map(({ name, spec, version }) => {
+    const installed = readInstalledPiPackageVersion(agentDir, name);
+    return check(
+      packages.includes(spec) && installed === version,
+      `pi package ${name}`,
+      installed
+        ? `Declaracion ${spec}; instalada ${installed}.`
+        : `Declaracion ${spec}; paquete no instalado en el runtime aislado.`,
+    );
+  });
 
   const SDD_AGENTS = [
     "sdd-scope.md",
@@ -427,24 +434,9 @@ export function doctorSmokeReport(
       "backup auto",
       "Directorio de backup automatico presente.",
     ),
-    check(
-      hasAskUserQuestion,
-      "ask-user-question",
-      "Paquete ask-user-question declarado en settings.",
-    ),
-    warn(
-      hasContextMode,
-      "context-mode",
-      "Paquete context-mode declarado (sandbox de salidas + continuidad de sesion).",
-    ),
   ];
 
   const checksI18n: CheckResult[] = [
-    warn(
-      hasI18nPkg,
-      "i18n package",
-      "Paquete @juicesharp/rpiv-i18n declarado en settings.packages.",
-    ),
     check(existsSync(langLibFile), "lib/lang.ts", "Modulo de idioma presente."),
     check(
       existsSync(stringsLibFile),
@@ -538,14 +530,15 @@ export function doctorSmokeReport(
 
   const groups: Array<{ title: string; checks: CheckResult[] }> = [
     { title: "// 011. CORE", checks: checksCore },
-    { title: "// 012. MCP", checks: checksMcp },
-    { title: "// 013. AGENTES + CHAIN", checks: checksAgents },
-    { title: "// 014. EXTENSIONES", checks: checksExtensions },
-    { title: "// 015. SKILLS", checks: checksSkills },
-    { title: "// 016. GUARDRAILS", checks: checksGuardrails },
-    { title: "// 017. INTEGRACIONES", checks: checksIntegrations },
-    { title: "// 018. I18N", checks: checksI18n },
-    { title: "// 019. COHERENCIA", checks: checksCoherence },
+    { title: "// 012. PAQUETES PI", checks: checksPiPackages },
+    { title: "// 013. MCP", checks: checksMcp },
+    { title: "// 014. AGENTES + CHAIN", checks: checksAgents },
+    { title: "// 015. EXTENSIONES", checks: checksExtensions },
+    { title: "// 016. SKILLS", checks: checksSkills },
+    { title: "// 017. GUARDRAILS", checks: checksGuardrails },
+    { title: "// 018. INTEGRACIONES", checks: checksIntegrations },
+    { title: "// 019. I18N", checks: checksI18n },
+    { title: "// 020. COHERENCIA", checks: checksCoherence },
   ];
 
   const flat = groups.flatMap((g) => g.checks);
@@ -569,7 +562,7 @@ export function doctorSmokeReport(
     lines.push("");
   }
 
-  lines.push("// 020. DECISION");
+  lines.push("// 021. DECISION");
   if (failCount) {
     lines.push("accion: revisar FAIL antes de flujos de entrega o mutacion.");
   } else if (warnCount) {
