@@ -23,7 +23,7 @@ import { colorEnabled, concrete, gold, rgb, structure } from "./theme.ts";
 // El installer duplica la PALETA porque corre antes de que exista el template
 // desplegado, pero la geometría de la marca la comparte: al empaquetar, el
 // bundler la resuelve desde el repo. Es el mismo camino que ya usa el doctor.
-import { renderTv, tvRowWidth, TV_WIDTH, type TvCut, type TvTone } from "../../../ein-pi/agent/lib/ein-tv.ts";
+import { placaRows, TV_WIDTH, type TvCut, type TvTone } from "../../../ein-pi/agent/lib/ein-tv.ts";
 
 const BASE_SUBTITLE = "gestor del workbench";
 
@@ -67,6 +67,7 @@ const TONE: Record<TvTone, (text: string) => string> = {
   accent: gold,
   danger: (t) => rgb(217, 108, 95, t),
   dim: (t) => rgb(90, 90, 90, t),
+  label: structure,
 };
 
 /** Un televisor cortado por la derecha no es un televisor: se baja de corte. */
@@ -77,15 +78,20 @@ function cutFor(columns: number): TvCut {
 }
 
 export function bannerStatic(state: BannerState = readBannerState()): string {
-  const cut = cutFor(process.stdout.columns ?? 80);
-  const rows = renderTv({ cut });
-  const width = Math.max(...rows.map(tvRowWidth));
-  const subtitle = renderBanner(state);
-  const pad = " ".repeat(Math.max(0, Math.floor((width - subtitle.length) / 2)));
+  // La marca en placa: qué es esto y qué versión corre, al costado del mueble en
+  // vez de debajo. La composición la pone `ein-tv.ts`, igual que la geometría:
+  // instalador, launcher y sesión dibujan la misma marca.
+  const columns = process.stdout.columns ?? 80;
+  const rows = placaRows({
+    cut: cutFor(columns),
+    subtitle: BASE_SUBTITLE,
+    tag: bannerVersionLabel(state),
+    width: columns - 4,
+  });
   const art = rows.map((row) =>
     `  ${row.map((span) => (colorEnabled() ? TONE[span.tone](span.text) : span.text)).join("")}`,
   );
-  return ["", ...art, "", `  ${pad}${structure(subtitle)}`, ""].join("\n");
+  return ["", ...art, ""].join("\n");
 }
 
 /**

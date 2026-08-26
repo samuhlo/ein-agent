@@ -40,6 +40,20 @@ export const SURFACE = {
 } as const;
 
 // Semáforo. Única concesión fuera de los cuatro colores, y solo para estado.
+/** El lema de la marca. Una sola copia: splash y portada dibujan lo mismo. */
+export const BRAND_SUBTITLE = ".samuhlo · pi workbench";
+
+// El material del mueble. Tres tonos de plástico para que el aparato tenga
+// volumen: la técnica del arte ANSI, donde el relieve sale del color y no de la
+// forma. Fuera de los cuatro de marca a propósito — no son colores del producto,
+// son de un objeto dibujado.
+export const PLASTIC = {
+	edge: "#8A8175",
+	body: "#6E675C",
+	shadow: "#4A443A",
+	knob: "#C4B79E",
+} as const;
+
 export const SIGNAL = {
 	ok: BRAND.concrete,
 	warn: BRAND.yellow,

@@ -17,10 +17,10 @@
 // hueco del arranque, no para cobrarlo en tiempo.
 // =============================================================================
 
-import { BRAND } from "./terminal-theme.ts";
-import { renderTv, tvRowWidth, TV_WIDTH, type TvCut, type TvTone } from "../lib/ein-tv.ts";
+import { BRAND, BRAND_SUBTITLE } from "./terminal-theme.ts";
+import { placaRows, TV_WIDTH, type TvCut, type TvTone } from "../lib/ein-tv.ts";
 
-const SUBTITLE = ".samuhlo · pi workbench";
+const SUBTITLE = BRAND_SUBTITLE;
 
 export type SplashIO = Readonly<{
 	write: (text: string) => void;
@@ -61,6 +61,7 @@ const TONE: Readonly<Record<TvTone, string>> = Object.freeze({
 	accent: FG.yellow,
 	danger: "\x1b[38;2;217;108;95m",
 	dim: "\x1b[38;2;90;90;90m",
+	label: FG.structure,
 });
 const RESET = "\x1b[39m";
 const BOLD = "\x1b[1m";
@@ -83,15 +84,19 @@ function cutFor(columns: number): TvCut {
 
 /** Render plano y final. Es también el fallback de non-TTY / NO_COLOR. */
 export function renderSplashStatic(io: SplashIO, subtitle = SUBTITLE): string {
-	const rows = renderTv({ cut: cutFor(io.columns) }).map((row) =>
+	// La marca en placa: el lema al costado del mueble, no debajo. Es la misma
+	// composición que el banner de Pi y la portada de `ein` — el aparato se
+	// dibuja igual en las tres puertas del producto.
+	const rows = placaRows({
+		cut: cutFor(io.columns),
+		subtitle,
+		width: io.columns - INDENT.length * 2,
+	}).map((row) =>
 		row
 			.map((span) => (io.noColor ? span.text : `${TONE[span.tone]}${span.text}${RESET}`))
 			.join(""),
 	);
-	const width = Math.max(...renderTv({ cut: cutFor(io.columns) }).map(tvRowWidth));
-	const pad = " ".repeat(Math.max(0, Math.floor((width - subtitle.length) / 2)));
-	const tag = io.noColor ? subtitle : `${FG.structure}${subtitle}${RESET}`;
-	return ["", ...rows.map((row) => `${INDENT}${row}`), "", `${INDENT}${pad}${tag}`, ""].join("\n");
+	return ["", ...rows.map((row) => `${INDENT}${row}`), ""].join("\n");
 }
 
 export function resetSplashForTests(): void {

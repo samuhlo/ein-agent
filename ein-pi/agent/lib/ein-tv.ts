@@ -19,7 +19,7 @@
 // =============================================================================
 
 /** Tramo de una fila: el texto y con qué tono se pinta. */
-export type TvTone = "edge" | "body" | "shadow" | "knob" | "screen" | "accent" | "danger" | "dim";
+export type TvTone = "edge" | "body" | "shadow" | "knob" | "screen" | "accent" | "danger" | "dim" | "label";
 export type TvSpan = Readonly<{ text: string; tone: TvTone }>;
 export type TvRow = readonly TvSpan[];
 
@@ -53,6 +53,20 @@ export const TV_WIDTH: Readonly<Record<TvCut, number>> = Object.freeze({
 	cabinet: 30,
 	compact: 16,
 	minimal: 14,
+});
+
+/**
+ * LA PLACA. El aire entre el mueble y la marca, y en qué fila del mueble se
+ * apoya cada línea. No son «arriba y abajo» genéricos: cada corte tiene su
+ * altura, y el texto tiene que caer contra la pantalla, no contra los bordes.
+ * Vive aquí y no en cada superficie porque es geometría del aparato.
+ */
+export const BAND_GUTTER = 3;
+export const BAND_ANCHORS: Readonly<Record<TvCut, { subtitle: number; versions: number }>> = Object.freeze({
+	full: { subtitle: 6, versions: 8 },
+	cabinet: { subtitle: 2, versions: 4 },
+	compact: { subtitle: 1, versions: 3 },
+	minimal: { subtitle: 0, versions: 2 },
 });
 
 function center(text: string, width: number): string {
@@ -171,6 +185,49 @@ export function renderTv(options: TvOptions = {}): readonly TvRow[] {
 		...cabinet,
 		[s("     ▀▀▀              ▀▀▀", bezel)],
 	];
+}
+
+export type PlacaOptions = Readonly<{
+	cut?: TvCut;
+	/** Lo que se lee a la altura de la pantalla. */
+	subtitle: string;
+	/** Lo que se lee bajo el subtítulo. Vacío = no se dibuja esa línea. */
+	tag?: string;
+	/** Columnas disponibles. Si no dan, la marca se apila en vez de recortarse. */
+	width: number;
+}>;
+
+/**
+ * LA PLACA: el mueble a la izquierda y el texto de marca a su costado.
+ *
+ * Vive aquí, con el aparato, y no en cada superficie: el banner de Pi, la
+ * portada de `ein` y el instalador dibujan la MISMA marca, y tres copias de la
+ * misma composición son tres sitios donde puede divergir.
+ *
+ * Si el ancho no da para mueble + aire + el texto más largo, la marca se APILA.
+ * Un televisor cortado por la derecha no es un televisor, y un lema recortado
+ * tampoco es un lema: lo que cede es la composición, nunca la marca.
+ */
+export function placaRows(options: PlacaOptions): readonly TvRow[] {
+	const cut = options.cut ?? "cabinet";
+	const art = renderTv({ cut });
+	const artWidth = Math.max(...art.map(tvRowWidth));
+	const tag = options.tag ?? "";
+	const textWidth = Math.max([...options.subtitle].length, [...tag].length);
+	const anchors = BAND_ANCHORS[cut];
+
+	if (artWidth + BAND_GUTTER + textWidth > options.width) {
+		const stacked: TvRow[] = [...art, [s("", "screen")], [s(options.subtitle, "label")]];
+		if (tag) stacked.push([s(tag, "label")]);
+		return stacked;
+	}
+
+	const gutter = s(" ".repeat(BAND_GUTTER), "screen");
+	return art.map((row, index): TvRow => {
+		if (index === anchors.subtitle) return [...row, gutter, s(options.subtitle, "label")];
+		if (tag && index === anchors.versions) return [...row, gutter, s(tag, "label")];
+		return row;
+	});
 }
 
 /** Ancho visible de una fila, para centrar el aparato en su superficie. */

@@ -174,37 +174,44 @@ export function buildDashboard(summary: ProjectSummary): View {
   // Order is product, not cosmetics: `ein` shows state before work, so the work
   // has to be the first thing under the cursor. Keys stay bound to their own
   // rows, so muscle memory survives the reorder.
-  const rows: Row[] = [
+  // Las secciones nombran el VERBO, así que la etiqueta ya no lo repite:
+  // «arrancar › Pi», no «Arrancar Pi». El orden y los atajos no se mueven — la
+  // memoria muscular no paga el reagrupado.
+  const arrancar: Row[] = [
     {
-      label: pick("Arrancar Pi", "Start Pi"),
+      label: "Pi",
       icon: ICON.pi,
       key: DASHBOARD_KEYS.pi,
       action: { kind: "launch", provider: "pi" },
     },
     {
-      label: pick("Arrancar Claude Code", "Start Claude Code"),
+      label: "Claude Code",
       icon: ICON.claude,
       key: DASHBOARD_KEYS.claude,
       action: { kind: "launch", provider: "claude" },
     },
+  ];
+  const continuar: Row[] = [
     {
-      label: pick("Continuar una sesión", "Continue a session"),
+      label: pick("Elegir una sesión", "Pick a session"),
       icon: ICON.sessions,
       key: DASHBOARD_KEYS.sessions,
       action: { kind: "open-view", view: "sessions" },
     },
     {
-      label: pick("Continuar en Pi", "Continue in Pi"),
+      label: pick("La última de Pi", "The last Pi one"),
       icon: ICON.pi,
       key: DASHBOARD_KEYS.continuePi,
       action: { kind: "continue", provider: "pi" },
     },
     {
-      label: pick("Continuar en Claude", "Continue in Claude"),
+      label: pick("La última de Claude", "The last Claude one"),
       icon: ICON.claude,
       key: DASHBOARD_KEYS.continueClaude,
       action: { kind: "continue", provider: "claude" },
     },
+  ];
+  const taller: Row[] = [
     {
       label: pick("Estado del proyecto", "Project state"),
       icon: ICON.state,
@@ -233,7 +240,11 @@ export function buildDashboard(summary: ProjectSummary): View {
   return Object.freeze({
     kind: "dashboard",
     title: "Ein",
-    sections: Object.freeze([Object.freeze({ rows: Object.freeze(rows) })]),
+    sections: Object.freeze([
+      Object.freeze({ title: pick("ARRANCAR", "START"), rows: Object.freeze(arrancar) }),
+      Object.freeze({ title: pick("CONTINUAR", "CONTINUE"), rows: Object.freeze(continuar) }),
+      Object.freeze({ title: pick("TALLER", "WORKSHOP"), rows: Object.freeze(taller) }),
+    ]),
   });
 }
 

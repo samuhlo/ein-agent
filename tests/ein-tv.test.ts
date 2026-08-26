@@ -6,7 +6,7 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
-import { TV_WIDTH, renderTv, tvRowWidth, type TvCut, type TvRow, type TvSignal } from "../ein-pi/agent/lib/ein-tv.ts";
+import { TV_WIDTH, placaRows, renderTv, tvRowWidth, type TvCut, type TvRow, type TvSignal } from "../ein-pi/agent/lib/ein-tv.ts";
 
 const CUTS: readonly TvCut[] = ["full", "cabinet", "compact", "minimal"];
 const SIGNALS: readonly TvSignal[] = ["idle", "working", "static", "standby"];
@@ -88,5 +88,56 @@ describe("lo que emite la pantalla", () => {
 		const rows = renderTv({ cut: "cabinet", signal: "standby" });
 		expect(rows.flat().some((span) => span.tone === "edge")).toBe(false);
 		expect(rows.flat().some((span) => span.tone === "danger")).toBe(true);
+	});
+});
+
+// =============================================================================
+// LA PLACA
+// El texto de marca al costado del mueble. Es la composición que comparten el
+// banner de Pi, la portada de `ein` y el instalador, así que se fija una vez.
+// =============================================================================
+describe("la placa", () => {
+	const SUB = ".samuhlo · pi workbench";
+	const TAG = "ein v0.82.0";
+
+	test("el texto comparte fila con el mueble, no cae debajo", () => {
+		const rows = placaRows({ subtitle: SUB, tag: TAG, width: 80 }).map(flat);
+		expect(rows.some((line) => line.includes("│") && line.includes(SUB))).toBe(true);
+		expect(rows.some((line) => line.includes("│") && line.includes(TAG))).toBe(true);
+	});
+
+	test("el mueble no se toca: sus filas siguen cerrando en columna", () => {
+		const rows = placaRows({ subtitle: SUB, tag: TAG, width: 80 });
+		const box = rows.filter((row) => /^[╭│╰]/.test(flat(row))).map((row) => flat(row).indexOf(SUB));
+		// El aparato sigue midiendo lo mismo: el texto se AÑADE a la derecha.
+		for (const row of rows.filter((r) => /^[╭│╰]/.test(flat(r)))) {
+			expect(flat(row).startsWith("╭") || flat(row).startsWith("│") || flat(row).startsWith("╰")).toBe(true);
+		}
+		expect(box.filter((index) => index > 0)).toHaveLength(1);
+	});
+
+	test("sin sitio, la marca se apila en vez de recortarse", () => {
+		const rows = placaRows({ subtitle: SUB, tag: TAG, width: 40 }).map(flat);
+		expect(rows.some((line) => line.includes("│") && line.includes(SUB))).toBe(false);
+		expect(rows).toContain(SUB);
+		expect(rows).toContain(TAG);
+	});
+
+	test("sin tag no se dibuja una fila vacía para él", () => {
+		const banded = placaRows({ subtitle: SUB, width: 80 }).map(flat);
+		expect(banded.some((line) => line.includes(SUB))).toBe(true);
+		expect(banded).toHaveLength(renderTv({ cut: "cabinet" }).length);
+		const stacked = placaRows({ subtitle: SUB, width: 40 }).map(flat);
+		expect(stacked).toHaveLength(renderTv({ cut: "cabinet" }).length + 2);
+	});
+
+	test("cada corte apoya el texto contra su pantalla, no contra el borde", () => {
+		for (const cut of ["cabinet", "compact", "minimal"] as const) {
+			const rows = placaRows({ cut, subtitle: SUB, width: 120 });
+			const index = rows.findIndex((row) => flat(row).includes(SUB));
+			expect(index).toBeGreaterThanOrEqual(0);
+			// Nunca la primera ni la última: esas son las tapas del mueble.
+			expect(index).toBeLessThan(rows.length - 1);
+		}
 	});
 });
