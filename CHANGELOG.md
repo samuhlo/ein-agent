@@ -4,6 +4,45 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.90.0-alpha.1] - 2026-08-26
+
+### Changed
+
+- **La marca es la misma en las tres puertas del producto.** El televisor deja
+  de componerse por separado en cada superficie: `placaRows` vive con el aparato
+  y la usan el banner de Pi, el splash, la portada de `ein` y el instalador. Y
+  el mueble pierde antena y patas — siendo un rectángulo, todas sus filas miden
+  lo mismo y el centrado por fila deja de descolocarlo.
+- **El arranque de Pi baja de 44 filas a 30.** La marca y sus datos comparten
+  banda en vez de apilarse, y las secciones `sistema` y `sesion` del panel de
+  estado se dibujan en paralelo: ninguna de las dos pasaba de media placa. Sigue
+  cabiendo en 62 columnas.
+- **La portada de `ein` agrupa su menú por verbo.** Arrancar, continuar y taller,
+  sin mover una fila ni cambiar un atajo. Su cabecera —que se leía `ein   ein`—
+  pasa a ser la barra de contexto, con el cambio SDD en curso, su fase y su
+  siguiente paso a la vista.
+
+### Added
+
+- **El instalador enseña su plan y lo va tachando.** Los pasos pendientes se
+  pintan desde el primer fotograma, con contador y barra. El plan ya se calculaba
+  antes de tocar la máquina —es lo que alimenta el journal de recuperación—, así
+  que solo faltaba enseñarlo. Sin terminal no se repinta: `curl | bash` recibe un
+  fichero, no una pantalla.
+- **El TODO queda vinculado a la sesión de Pi.**
+
+### Fixed
+
+- **El foco vuelve a pintar en el menú de runtime del instalador.** Las tres
+  opciones llegaban envueltas en `gold(...)` desde el punto de llamada, y el
+  `concrete(...)` que el prompt aplica a la fila con foco no puede tapar un ANSI
+  interior: salían las tres amarillas, con cursor encima o sin él. Sus pistas
+  dicen ahora qué se instala y qué launcher deja puesto.
+- **El efecto `spinner` del instalador deja de ser código muerto.** Los handlers
+  llamaban al spinner real en vez de al inyectado, así que un test no podía
+  silenciarlo ni saber qué paso corría.
+- **El fixture de PTY queda aislado en Ubuntu.**
+
 ## [0.82.0-alpha.4] - 2026-08-25
 
 ### Fixed
