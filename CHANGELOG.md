@@ -4,6 +4,21 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.90.0-alpha.2] - 2026-08-26
+
+### Fixed
+
+- **`ein-install update` ya puede saltar a una release alpha.** La sonda que
+  verifica el binario descargado antes de reemplazarlo leía la versión con un
+  patrón que exigía fin de línea tras `X.Y.Z`: con `0.90.0-alpha.1` casaba
+  `0.90.0`, se topaba con el `-alpha.1` y devolvía nada, así que la
+  actualización abortaba en `verifying`. Ahora lee el SemVer entero, sufijo
+  incluido, y sigue rechazando lo que no es una versión.
+- **Un intento de actualización fallido ya no deja restos.** Al abortar en la
+  verificación se devolvía el error sin descartar el binario candidato ni el
+  snapshot del template — unos 100 MB huérfanos junto al binario bueno por cada
+  intento.
+
 ## [0.90.0-alpha.1] - 2026-08-26
 
 ### Changed
