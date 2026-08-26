@@ -21,7 +21,6 @@ import {
 import { createProgressView } from "../installer/src/tui/progress-view.ts";
 import {
   advanceProgress,
-  progressLines,
   startProgress,
   type InstallProgressEvent,
 } from "../installer/src/tui/progress.ts";
@@ -121,12 +120,12 @@ describe("el avance que se pinta", () => {
     expect(model.done).toBe(0);
   });
 
-  test("los pendientes se ven desde el principio: para eso existe el plan", () => {
+  test("el modelo conoce el plan entero desde el principio", () => {
     const model = startProgress(plan);
-    const lines = progressLines(model);
-    // Cabecera, aire, y una fila por paso — todas desde el primer fotograma.
-    expect(lines).toHaveLength(2 + model.total);
-    expect(lines.slice(2).every((line) => line.includes("pendiente"))).toBe(true);
+    // La lista ya no se pinta arriba —la pantalla es append-only—, pero el
+    // modelo sigue sabiendo qué viene: de ahí sale el total del contador.
+    expect(model.steps).toHaveLength(model.total);
+    expect(Object.values(model.status).every((state) => state === "pending")).toBe(true);
   });
 
   test("solo un paso corre a la vez", () => {
@@ -150,7 +149,7 @@ describe("el avance que se pinta", () => {
     model = advanceProgress(model, { kind: "done", id: "shared.dependency.bun", ok: false, detail: "sin bun" });
     expect(model.done).toBe(1);
     expect(model.status["shared.dependency.bun"]).toBe("failed");
-    expect(progressLines(model).join("\n")).toContain("sin bun");
+    expect(model.detail["shared.dependency.bun"]).toBe("sin bun");
   });
 
   test("el contador nunca pasa del total, pase lo que pase con los eventos", () => {
@@ -170,20 +169,29 @@ describe("el avance que se pinta", () => {
     expect(model.total).toBe(runnable(plan).length);
   });
 
-  test("las líneas no desbordan el ancho del terminal", () => {
-    let model = startProgress(plan);
-    model = advanceProgress(model, { kind: "start", id: "pi.deploy-template" });
-    model = advanceProgress(model, { kind: "done", id: "pi.deploy-template", ok: true, detail: "x".repeat(400) });
-    for (const line of progressLines(model, 76)) {
+  test("un detalle larguísimo se recorta: la línea no desborda el terminal", () => {
+    let out = "";
+    const view = createProgressView(plan, { write: (text) => { out += text; }, isTTY: false, columns: 76 });
+    const first = runnable(plan)[0]!;
+    view.progress({ kind: "start", id: first.id });
+    view.progress({ kind: "done", id: first.id, ok: true, detail: "x".repeat(400) });
+    view.finish();
+    for (const line of out.split("\n")) {
       expect([...line.replace(/\x1b\[[0-9;]*m/g, "")].length).toBeLessThanOrEqual(76);
     }
   });
 });
 
 // ─── la pantalla que lo pinta ────────────────────────────────────────────────
-// Repintar en un terminal es reescribir sobre lo ya escrito. Sin TTY eso no
-// existe: `curl | bash` recibe un fichero, no una pantalla, y ahí un repintado
-// deja basura de escapes en el log.
+// LA REGRESIÓN QUE ESTO CIERRA: la lista se repintaba en sitio subiendo el
+// cursor tantas filas como había pintado. Pero la pantalla no es suya — trece
+// puntos de `install.ts` escriben durante los handlers, el informe entero del
+// doctor incluido. Cada uno de esos writes invalida la cuenta de filas, así que
+// el siguiente repintado sube a ciegas y deja trozos de lista pegados encima de
+// lo que hubiera debajo.
+//
+// La forma correcta en un terminal compartido es APPEND-ONLY: una línea por paso
+// al cerrarse, y nunca mover el cursor a una fila anterior.
 
 describe("la pantalla del avance", () => {
   const plan = createInstallPlan(input("claude"));
@@ -191,23 +199,25 @@ describe("la pantalla del avance", () => {
     let out = "";
     return { io: { write: (text: string) => { out += text; }, isTTY, columns: 80 }, out: () => out };
   };
+  const CURSOR_UP = /\u001b\[\d*A/;
 
-  test("con terminal, repinta en sitio: la salida no crece sin fin", () => {
-    const sink = io(true);
-    const view = createProgressView(plan, sink.io);
-    for (const entry of runnable(plan)) {
-      view.progress({ kind: "start", id: entry.id });
-      view.progress({ kind: "done", id: entry.id, ok: true, detail: "ok" });
+  test("nunca sube el cursor: la pantalla no es suya", () => {
+    for (const isTTY of [true, false]) {
+      const sink = io(isTTY);
+      const view = createProgressView(plan, sink.io);
+      for (const entry of runnable(plan)) {
+        view.progress({ kind: "start", id: entry.id });
+        const spinner = view.spinner();
+        spinner.start("trabajando");
+        spinner.stop("ok");
+        view.progress({ kind: "done", id: entry.id, ok: true, detail: "ok" });
+      }
+      view.finish();
+      expect(sink.out()).not.toMatch(CURSOR_UP);
     }
-    view.finish();
-    // Cada repintado sube el cursor: sin eso, cada evento apilaría la lista otra
-    // vez y el terminal acabaría con veinte copias.
-    expect(sink.out()).toContain("\u001b[");
-    const rendered = sink.out().split("\n").filter((line) => line.includes("bun") || line.includes("claude"));
-    expect(rendered.length).toBeGreaterThan(0);
   });
 
-  test("sin terminal no repinta: una línea por paso cerrado y ni un escape", () => {
+  test("una línea por paso cerrado, en el orden en que se cierran", () => {
     const sink = io(false);
     const view = createProgressView(plan, sink.io);
     for (const entry of runnable(plan)) {
@@ -215,22 +225,67 @@ describe("la pantalla del avance", () => {
       view.progress({ kind: "done", id: entry.id, ok: true, detail: "listo" });
     }
     view.finish();
-    expect(sink.out()).not.toContain("\u001b[");
-    const lines = sink.out().split("\n").filter(Boolean);
-    expect(lines).toHaveLength(runnable(plan).length);
+    const settled = sink.out().split("\n").filter((line) => line.includes("listo"));
+    expect(settled).toHaveLength(runnable(plan).length);
   });
 
-  test("su spinner no pinta por su cuenta: alimenta la fila que corre", () => {
+  test("cada línea cerrada lleva su posición en el plan", () => {
+    const sink = io(false);
+    const view = createProgressView(plan, sink.io);
+    const total = runnable(plan).length;
+    const first = runnable(plan)[0]!;
+    view.progress({ kind: "start", id: first.id });
+    view.progress({ kind: "done", id: first.id, ok: true, detail: "ok" });
+    expect(sink.out()).toContain(`1/${total}`);
+  });
+
+  test("la cabecera anuncia el total una sola vez", () => {
+    const sink = io(false);
+    const view = createProgressView(plan, sink.io);
+    for (const entry of runnable(plan)) {
+      view.progress({ kind: "start", id: entry.id });
+      view.progress({ kind: "done", id: entry.id, ok: true });
+    }
+    view.finish();
+    const heads = sink.out().split("\n").filter((line) => line.includes("instalando"));
+    expect(heads).toHaveLength(1);
+  });
+
+  test("sin terminal no hay ni un escape: `curl | bash` recibe un fichero", () => {
     const sink = io(false);
     const view = createProgressView(plan, sink.io);
     const first = runnable(plan)[0]!;
     view.progress({ kind: "start", id: first.id });
-    const spinner = view.spinner();
-    spinner.start("Instalando bun");
-    // Nada se ha escrito todavía: el paso sigue corriendo.
-    expect(sink.out()).toBe("");
-    spinner.stop("v1.3.14");
-    view.progress({ kind: "done", id: first.id, ok: true });
-    expect(sink.out()).toContain("v1.3.14");
+    view.spinner().start("trabajando");
+    view.progress({ kind: "done", id: first.id, ok: true, detail: "ok" });
+    view.finish();
+    expect(sink.out()).not.toContain("\u001b[");
+  });
+
+  test("con terminal el indicador vivo se queda en SU línea y la cierra el resultado", () => {
+    const sink = io(true);
+    const view = createProgressView(plan, sink.io);
+    const first = runnable(plan)[0]!;
+    view.progress({ kind: "start", id: first.id });
+    view.spinner().start("desplegando");
+    // Se reescribe sobre sí mismo con retorno de carro, nunca sobre la fila de
+    // arriba: un `\r` no puede pisar lo que escribió otro.
+    expect(sink.out()).toContain("\r");
+    expect(sink.out()).not.toMatch(CURSOR_UP);
+    view.progress({ kind: "done", id: first.id, ok: true, detail: "ok" });
+    const lines = sink.out().split("\n").filter((line) => line.includes("ok"));
+    expect(lines.length).toBeGreaterThan(0);
+  });
+
+  test("un paso abandonado también deja su línea, no desaparece", () => {
+    const sink = io(false);
+    const view = createProgressView(plan, sink.io);
+    const [first, second] = runnable(plan);
+    view.progress({ kind: "start", id: first!.id });
+    view.progress({ kind: "done", id: first!.id, ok: false, detail: "reventó" });
+    view.progress({ kind: "abandoned", id: second!.id });
+    view.finish();
+    expect(sink.out()).toContain("reventó");
+    expect(sink.out()).toContain("no ejecutado");
   });
 });
