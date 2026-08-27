@@ -1405,6 +1405,13 @@ export default function einAi(pi: ExtensionAPI): void {
 		];
 	}
 
+	function formatNamedSlices<T extends Slice>(kind: "model" | "agent", entries: readonly T[], nameOf: (entry: T) => string | null): string[] {
+		return entries.flatMap((entry) => [
+			"",
+			...formatSlice(`-- ${kind}: ${nameOf(entry) ?? "unattributed"} --`, entry),
+		]);
+	}
+
 	pi.registerCommand("ein:accounting", {
 		description: t(
 			"cmd.accounting.description",
@@ -1433,6 +1440,8 @@ export default function einAi(pi: ExtensionAPI): void {
 				...formatSlice(t("accounting.parent", "-- parent --"), report.partition.parent),
 				"",
 				...formatSlice(t("accounting.subagent", "-- subagent --"), report.partition.subagent),
+				...formatNamedSlices("model", report.byModel, (entry) => entry.model),
+				...formatNamedSlices("agent", report.byAgent, (entry) => entry.agent),
 			];
 			ctx.ui.notify(lines.join("\n"), "info");
 		},

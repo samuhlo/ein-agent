@@ -70,10 +70,18 @@ function statOrNull(path: string): ReturnType<typeof statSync> | null {
 
 function listDir(path: string): readonly string[] {
 	try {
-		return readdirSync(path);
+		return readdirSync(path).sort();
 	} catch {
 		return [];
 	}
+}
+
+const THINKING_SUFFIX = /:(?:low|medium|high|xhigh)$/;
+
+function normalizeModelKey(model: string | null, provider: string | null = null): string | null {
+	if (!model) return null;
+	const normalized = model.replace(THINKING_SUFFIX, "");
+	return provider && !normalized.includes("/") ? `${provider}/${normalized}` : normalized;
 }
 
 function isDirectory(path: string): boolean {
@@ -108,11 +116,17 @@ function parseTranscriptUsage(raw: unknown): UsageSample | null {
 function timestampOf(line: Record<string, unknown>): string | null {
 	const top = line.timestamp;
 	if (typeof top === "string" && top.length > 0) return top;
-	if (typeof top === "number" && Number.isFinite(top)) return new Date(top).toISOString();
+	if (typeof top === "number" && Number.isFinite(top)) {
+		const date = new Date(top);
+		if (!Number.isNaN(date.getTime())) return date.toISOString();
+	}
 	const message = line.message;
 	const inner = isRecord(message) ? message.timestamp : undefined;
 	if (typeof inner === "string" && inner.length > 0) return inner;
-	if (typeof inner === "number" && Number.isFinite(inner)) return new Date(inner).toISOString();
+	if (typeof inner === "number" && Number.isFinite(inner)) {
+		const date = new Date(inner);
+		if (!Number.isNaN(date.getTime())) return date.toISOString();
+	}
 	return null;
 }
 
@@ -182,7 +196,7 @@ function readTranscript(path: string): TranscriptRead {
 		}
 		if (parsed.type === "model_change") {
 			const modelId = asString(parsed.modelId);
-			if (modelId) lastModel = modelId;
+			if (modelId) lastModel = normalizeModelKey(modelId, asString(parsed.provider));
 			continue;
 		}
 		if (parsed.type !== "message") continue;
@@ -204,7 +218,7 @@ function readTranscript(path: string): TranscriptRead {
 
 function parseAttempt(raw: unknown): ArtifactAttempt | null {
 	if (!isRecord(raw)) return null;
-	const model = asString(raw.model);
+	const model = normalizeModelKey(asString(raw.model));
 	const usageRaw = raw.usage;
 	const usage: UsageSample | null = isRecord(usageRaw)
 		? {
@@ -233,7 +247,9 @@ function readArtifactMeta(path: string): ArtifactRecord {
 	}
 	if (!isRecord(parsed)) return CORRUPT_ARTIFACT;
 	const attemptedModelsRaw = asArray(parsed.attemptedModels) ?? [];
-	const attemptedModels = attemptedModelsRaw.filter((m): m is string => typeof m === "string");
+	const attemptedModels = attemptedModelsRaw
+		.map((model) => normalizeModelKey(asString(model)))
+		.filter((model): model is string => model !== null);
 	const attemptsRaw = asArray(parsed.modelAttempts);
 	const attempts = attemptsRaw ? attemptsRaw.map(parseAttempt).filter((a): a is ArtifactAttempt => a !== null) : null;
 	return {

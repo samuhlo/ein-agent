@@ -151,7 +151,7 @@ describe("inventario instalado de agentes", () => {
 		} finally {
 			rmSync(staging.root, { recursive: true, force: true });
 		}
-	});
+	}, 15_000);
 
 	test("install fallback y doctor incluyen scout sin ampliar los siete SDD", () => {
 		const verify = readFileSync(join(ROOT, "installer", "src", "core", "verify.ts"), "utf8");

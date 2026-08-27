@@ -268,7 +268,7 @@ describe("readSessionCorpus", () => {
 		expect(values).toEqual([0.5, 0.7]);
 	});
 
-	test("model attribution follows model_change events, not a per-message field", () => {
+	test("model attribution canonicalizes provider/model and effort suffix across channels", () => {
 		const dir = join(sessionsDir(), "proj", "2026-01-01T00-00-00-000Z_uuid-a", "run-id-1", "run-0");
 		mkdirSync(dir, { recursive: true });
 		const lines = [
@@ -278,10 +278,37 @@ describe("readSessionCorpus", () => {
 			messageLine({ cost: { total: 0.2 } }),
 		];
 		writeFileSync(join(dir, "session.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+		writeArtifact("proj", "run-id-1", "sdd-apply", {
+			agent: "sdd-apply",
+			exitCode: 0,
+			modelAttempts: [{ model: "p/model-a:high", usage: { cost: 0.2, turns: 1 } }],
+		});
 
 		const corpus = readSessionCorpus();
 		const models = corpus.runs[0]!.messages.map((m) => m.model);
-		expect(models).toEqual([null, "model-a"]);
+		expect(models).toEqual([null, "p/model-a"]);
+		expect(corpus.runs[0]!.artifact?.attempts?.[0]?.model).toBe("p/model-a");
+
+		const report = readAccountingReport();
+		const modelCost = report.byModel.reduce(
+			(sum, entry) => sum + (entry.cost.status === "known" ? entry.cost.value : 0),
+			0,
+		);
+		expect(modelCost).toBeCloseTo(0.3);
+	});
+
+	test("invalid numeric timestamp is ignored instead of escaping the no-throw boundary", () => {
+		const dir = join(sessionsDir(), "proj", "2026-01-01T00-00-00-000Z_uuid-a", "run-id-1", "run-0");
+		mkdirSync(dir, { recursive: true });
+		const invalidTimestamp = {
+			type: "message",
+			id: "msg-invalid-time",
+			timestamp: 1e300,
+			message: { role: "assistant", content: [], usage: { cost: { total: 0.1 } } },
+		};
+		writeFileSync(join(dir, "session.jsonl"), JSON.stringify(invalidTimestamp) + "\n");
+		expect(() => readSessionCorpus()).not.toThrow();
+		expect(readSessionCorpus().runs[0]!.messages[0]!.timestamp).toBeNull();
 	});
 
 	test("bound exceeded (MAX_MESSAGES_PER_RUN) marks records truncated, not dropped", () => {
