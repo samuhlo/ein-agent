@@ -69,13 +69,26 @@ snapshot_state() {
   local root="$1"
   local destination="$2"
   # installedAt, installer backups, and Pi's package-manager JSON formatting are
-  # intentionally mutable between passes; every other managed file must converge
-  # byte-for-byte. The package list itself is still exercised by install output.
+  # intentionally mutable between passes. Bun also embeds the unique staging
+  # output name in the two runners that sync recompiles atomically; their
+  # executable presence is asserted below instead of comparing unstable bytes.
   find "$root" -type f \
     ! -path "$root/backups/*" \
+    ! -path "$root/bin/ein-surface-runner" \
+    ! -path "$root/bin/ein-continuity" \
     ! -name ".ein-install.json" \
     ! -name "settings.json" \
     -print0 | sort -z | xargs -0 -r sha256sum >"$destination"
+}
+
+assert_same_state() {
+  local first="$1"
+  local second="$2"
+  if ! cmp -s "$first" "$second"; then
+    echo "[assert] el estado estable cambió entre instalaciones" >&2
+    diff -u "$first" "$second" >&2 || true
+    exit 1
+  fi
 }
 
 pi_agent="$HOME/.pi-ein/agent"
@@ -98,8 +111,10 @@ assert_pi_surface() {
 assert_claude_surface() {
   assert_present "$claude_home/CLAUDE.md"
   assert_present "$claude_home/settings.json"
-  assert_present "$claude_home/bin/cc-ein-sdd"
-  test -x "$claude_home/bin/cc-ein-sdd"
+  for executable in cc-ein-sdd ein-surface-runner ein-continuity; do
+    assert_present "$claude_home/bin/$executable"
+    test -x "$claude_home/bin/$executable"
+  done
   assert_present "$claude_launcher"
   assert_exactly_one "$fish_functions" "cc-ein.fish"
   grep -Fq 'function cc-ein' "$claude_launcher"
@@ -157,7 +172,7 @@ case "$scenario" in
     assert_pi_surface
     assert_absent "$claude_home"
     assert_absent "$claude_launcher"
-    cmp /tmp/ein-default-pi-state-1 /tmp/ein-default-pi-state-2
+    assert_same_state /tmp/ein-default-pi-state-1 /tmp/ein-default-pi-state-2
 
     echo "== doctor =="
     ein doctor
@@ -189,7 +204,7 @@ case "$scenario" in
     assert_claude_surface
     assert_absent "$pi_agent"
     assert_absent "$pi_launcher"
-    cmp /tmp/ein-claude-only-state-1 /tmp/ein-claude-only-state-2
+    assert_same_state /tmp/ein-claude-only-state-1 /tmp/ein-claude-only-state-2
     ;;
 
   both)
@@ -207,8 +222,8 @@ case "$scenario" in
     done
     assert_pi_surface
     assert_claude_surface
-    cmp /tmp/ein-both-pi-state-1 /tmp/ein-both-pi-state-2
-    cmp /tmp/ein-both-claude-state-1 /tmp/ein-both-claude-state-2
+    assert_same_state /tmp/ein-both-pi-state-1 /tmp/ein-both-pi-state-2
+    assert_same_state /tmp/ein-both-claude-state-1 /tmp/ein-both-claude-state-2
     ;;
 
   *)

@@ -308,6 +308,16 @@ describe("release asset contract", () => {
     expect(script).not.toContain(legacyArchiveAssertion);
   });
 
+  test("installer E2E treats only atomically recompiled Claude runners as byte-unstable", () => {
+    const script = readFileSync(E2E_SCRIPT_PATH, "utf8");
+
+    expect(script).toContain('! -path "$root/bin/ein-surface-runner"');
+    expect(script).toContain('! -path "$root/bin/ein-continuity"');
+    expect(script).not.toContain('! -path "$root/bin/*"');
+    expect(script).toContain("for executable in cc-ein-sdd ein-surface-runner ein-continuity");
+    expect(script).toContain('diff -u "$first" "$second"');
+  });
+
   test("push and dispatch share canonical final/alpha classification and reject unsupported prereleases", () => {
     const workflow = readFileSync(WORKFLOW_PATH, "utf8");
     const resolver = workflowStep(workflow, "- name: Resolve release tag");
