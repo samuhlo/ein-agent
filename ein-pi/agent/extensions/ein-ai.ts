@@ -147,7 +147,7 @@ import {
 import { collectCleanerAuditEvidence, type CleanerAuditScope } from "../lib/cleaner-audit-evidence.ts";
 import {
 	collectCleanerPassiveEvidence,
-	compactCleanerEvidence,
+	cleanerEvidenceForModel,
 	ingestCleanerActiveEvidence,
 	planCleanerActiveEvidence,
 	type CleanerActiveEvidence,
@@ -1126,6 +1126,37 @@ export default function einAi(pi: ExtensionAPI): void {
 			},
 		});
 
+	const areaSelectorSchema = {
+		type: "object",
+		properties: {
+			kind: { type: "string", enum: ["file", "tree"] },
+			path: { type: "string", minLength: 1, maxLength: 512, description: "Repository-relative path; never use '.', absolute paths, traversal, or globs." },
+		},
+		required: ["kind", "path"],
+		additionalProperties: false,
+	} as const;
+	const selectorScopeSchema = {
+		type: "object",
+		properties: {
+			kind: { type: "string", enum: ["selectors"] },
+			selectors: { type: "array", minItems: 1, maxItems: 32, items: areaSelectorSchema },
+		},
+		required: ["kind", "selectors"],
+		additionalProperties: false,
+	} as const;
+	const changedFilesScopeSchema = {
+		type: "object",
+		properties: {
+			kind: { type: "string", enum: ["changed-files"] },
+		},
+		required: ["kind"],
+		additionalProperties: false,
+	} as const;
+	const cleanerScopeSchema = {
+		description: "Use exactly {kind:'changed-files'} or {kind:'selectors',selectors:[{kind:'file'|'tree',path:'relative/path'}]}.",
+		oneOf: [changedFilesScopeSchema, selectorScopeSchema],
+	} as const;
+
 	registerEinTool({
 		name: "ein_sdd_participants",
 		label: "Ein SDD Participants",
@@ -1145,12 +1176,10 @@ export default function einAi(pi: ExtensionAPI): void {
 		parameters: {
 			type: "object",
 			properties: {
-				scope: {
-					type: "object",
-					description: "Use {kind:'changed-files'} or {kind:'selectors',selectors:[{kind:'file'|'tree',path:'relative/path'}]}. Feature/module boundaries must be represented by exact file/tree selectors.",
-				},
+				scope: cleanerScopeSchema,
 			},
 			required: ["scope"],
+			additionalProperties: false,
 		} as const,
 		async execute(_id, params: { scope: CleanerAuditScope }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const evidence = collectCleanerAuditEvidence(ctx.cwd, params.scope);
@@ -1161,11 +1190,11 @@ export default function einAi(pi: ExtensionAPI): void {
 	const cleanerEvidenceKey = (stateRef: string, areaId: string): string => `${stateRef}\0${areaId}`;
 	registerEinTool({
 		name: "ein_cleaner_evidence", label: "Ein Cleaner Evidence",
-		description: "Collect bounded source, environment, complexity, and structural-duplication evidence for one exact current Audit state. Model content is compact; full packets remain in details.",
-		parameters: { type: "object", properties: { scope: { type: "object" } }, required: ["scope"] } as const,
+		description: "Collect bounded source, environment, complexity, and structural-duplication evidence for one exact current Audit state. Model content includes compact measured facts plus every admitted source file.",
+		parameters: { type: "object", properties: { scope: cleanerScopeSchema }, required: ["scope"], additionalProperties: false } as const,
 		async execute(_id, params: { scope: CleanerAuditScope }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const passive = collectCleanerPassiveEvidence(ctx.cwd, params.scope); cleanerEvidence.set(cleanerEvidenceKey(passive.stateRef, passive.areaId), { passive });
-			return { content: [{ type: "text", text: compactCleanerEvidence(passive) }], details: passive };
+			return { content: [{ type: "text", text: cleanerEvidenceForModel(passive) }], details: passive };
 		},
 	});
 	registerEinTool({
@@ -1176,7 +1205,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			const params = rawParams as { action: "plan" | "ingest"; stateRef: string; areaId: string; input: CleanerPlanInput | { testArtifactPath: string; coverageArtifactPath?: string; binding?: import("../lib/cleaner-test-evidence.ts").CleanerTestBinding } }; const entry = cleanerEvidence.get(cleanerEvidenceKey(params.stateRef, params.areaId)); if (!entry) throw new Error("Cleaner passive evidence is missing or stale");
 			if (params.action === "plan") { const plan = planCleanerActiveEvidence(entry.passive, params.input as CleanerPlanInput); entry.plan = plan; return { content: [{ type: "text", text: JSON.stringify({ stateRef: params.stateRef, test: plan.test, coverage: plan.coverage }) }], details: plan }; }
 			if (!entry.plan) throw new Error("Cleaner active evidence plan is missing"); const active = ingestCleanerActiveEvidence(entry.passive, entry.plan, params.input as { testArtifactPath: string; coverageArtifactPath?: string; binding?: import("../lib/cleaner-test-evidence.ts").CleanerTestBinding }); entry.active = active;
-			return { content: [{ type: "text", text: compactCleanerEvidence(entry.passive, active) }], details: active };
+			return { content: [{ type: "text", text: cleanerEvidenceForModel(entry.passive, active) }], details: active };
 		},
 	});
 
@@ -1216,7 +1245,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	registerEinTool({
 		name: "ein_architect_evidence", label: "Ein Architect Evidence",
 		description: "Collect immutable read-only repository evidence for a bounded explicit Architect scope; graph evidence is unavailable unless an authoritative runtime contract exists.",
-		parameters: { type: "object", properties: { scope: { type: "object" } }, required: ["scope"] } as const,
+		parameters: { type: "object", properties: { scope: selectorScopeSchema }, required: ["scope"], additionalProperties: false } as const,
 		async execute(_id, params: { scope: unknown }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const result = collectArchitectEvidence(ctx.cwd, params.scope);
 			return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
