@@ -224,9 +224,19 @@ class LayoutBuilder {
     }
   }
 
-  center(width: number) {
+  /**
+   * Centra la fila COMO PARTE DE UN BLOQUE de ancho `block`, no por su propio
+   * ancho.
+   *
+   * BLINDAJE -> centrar cada fila por separado solo cuadra si todas miden lo
+   * mismo. La placa no: las dos filas que llevan el lema y las versiones al
+   * costado del mueble son mas anchas, asi que se desplazaban a la izquierda y
+   * partian el televisor por la mitad. Con el bloque como referencia todas las
+   * filas arrancan en la misma columna.
+   */
+  centerIn(width: number, block: number) {
     const row = this.lines[this.lines.length - 1];
-    const pad = Math.max(0, Math.floor((width - row.length) / 2));
+    const pad = Math.max(0, Math.floor((width - block) / 2));
     const prefix: LayoutCell[] = Array.from({ length: pad }, () => ({ char: " " }));
     this.lines[this.lines.length - 1] = prefix.concat(row);
   }
@@ -526,22 +536,27 @@ export default function (pi: ExtensionAPI) {
             if (state.mode === "skip") return [];
 
             const b = new LayoutBuilder();
+            type Cell = { text: string; color?: RGB; bg?: RGB; bold?: boolean; dim?: boolean };
+            const rowWidth = (row: readonly Cell[]): number =>
+              row.reduce((total, cell) => total + [...cell.text].length, 0);
+
             // Etiqueta gris a la izquierda y valor en concreto, como el panel.
             // Sin marcador por fila: el acento se reserva para la `i` y para el
             // foco, no se reparte por cada dato.
-            const addGitBannerRows = () => {
+            const gitBannerRows = (): Cell[][] => {
               const labelWidth = 10;
+              const rows: Cell[][] = [];
               for (const gitRow of renderGitBannerRows(gitController.getSnapshot(), gitLang, width)) {
                 for (const [index, value] of gitRow.value.split(" ↵ ").entries()) {
-                  b.addRow();
-                  b.add((index === 0 ? gitRow.label.toUpperCase() : "").padEnd(labelWidth), STRUCTURE);
-                  b.add(value, CONCRETE);
-                  b.center(width);
+                  rows.push([
+                    { text: (index === 0 ? gitRow.label.toUpperCase() : "").padEnd(labelWidth), color: STRUCTURE },
+                    { text: value, color: CONCRETE },
+                  ]);
                 }
               }
+              return rows;
             };
 
-            type Cell = { text: string; color?: RGB; bg?: RGB; bold?: boolean; dim?: boolean };
             const left: Cell[][] = [];
 
             // LA MARCA DE ARRANQUE
@@ -592,6 +607,7 @@ export default function (pi: ExtensionAPI) {
               left.push(tvRow.map((span) => ({ text: span.text, color: TV_TONE[span.tone] })));
             }
 
+            let rows: Cell[][];
             if (state.mode === "full") {
               const fit = (v: unknown, w: number) =>
                 String(v ?? "").replace(/\s+/g, " ").trim().slice(0, w);
@@ -661,39 +677,34 @@ export default function (pi: ExtensionAPI) {
               // de panel no sumaran cuarenta y una y se salieran por abajo. Con
               // la marca en tres filas el problema desaparece, y apilar lee mejor:
               // marca, respiro, estado. Que es el orden en que se mira.
-              const rows = [...left, [], ...panel];
-
+              //
               // Aire arriba y abajo: el banner pinta sobre pantalla limpia y
               // pegado al borde se lee peor.
-              b.addRow();
-              b.center(width);
-              for (const row of rows) {
-                b.addRow();
-                for (const cell of row) {
-                  b.add(cell.text, cell.color, {
-                    ...(cell.bg ? { bg: cell.bg } : {}),
-                    ...(cell.bold ? { bold: true } : {}),
-                    ...(cell.dim ? { dim: true } : {}),
-                  });
-                }
-                b.center(width);
-              }
-              b.addRow();
-              b.center(width);
+              rows = [[], ...left, [], ...panel, []];
             } else {
-              for (const row of left) {
-                b.addRow();
-                for (const cell of row) {
-                  b.add(cell.text, cell.color, {
-                    ...(cell.bold ? { bold: true } : {}),
-                    ...(cell.dim ? { dim: true } : {}),
-                  });
-                }
-                b.center(width);
-              }
+              rows = [...left, ...gitBannerRows()];
             }
 
-            if (state.mode === "minimal") addGitBannerRows();
+            // EL ANCLA DEL BLOQUE ES LA MARCA, NO EL FOTOGRAMA.
+            // El panel entra en cascada y las filas de git llegan cuando git
+            // contesta, asi que medir el bloque por lo dibujado AHORA lo haria
+            // encoger y estirarse: el televisor saltaria de columna solo. El
+            // ancho lo fijan la placa y el panel, que no dependen del tick.
+            const block = state.mode === "full"
+              ? Math.max(PANEL_W, ...left.map(rowWidth))
+              : Math.max(0, ...left.map(rowWidth));
+
+            for (const row of rows) {
+              b.addRow();
+              for (const cell of row) {
+                b.add(cell.text, cell.color, {
+                  ...(cell.bg ? { bg: cell.bg } : {}),
+                  ...(cell.bold ? { bold: true } : {}),
+                  ...(cell.dim ? { dim: true } : {}),
+                });
+              }
+              b.centerIn(width, block);
+            }
 
             const out: string[] = [];
             for (const row of b.lines) {

@@ -45,6 +45,21 @@ describe("cada corte pierde una pieza, no se encoge", () => {
 		}
 	});
 
+	// Los mandos son la fila que más fácil se tuerce: no la sostiene ningún borde,
+	// solo el conteo de espacios. Se mide contra el bisel, que es lo que el ojo
+	// usa de referencia.
+	test("los mandos caen bajo el cristal, no bajo las tapas", () => {
+		for (const cut of ["cabinet", "compact"] as const) {
+			const rows = renderTv({ cut }).map(flat);
+			const bezel = rows.find((line) => line.includes("╭─") && line.startsWith("│"))!;
+			const knobs = rows.find((line) => line.includes("◉"))!;
+			// El interior del bisel: la columna siguiente a su esquina y la anterior
+			// a la otra. Ahí arranca el mando y ahí muere la rejilla.
+			expect(knobs.indexOf("◉")).toBe(bezel.indexOf("╭") + 1);
+			expect(knobs.lastIndexOf("▤")).toBe(bezel.indexOf("╮") - 1);
+		}
+	});
+
 	test("el mínimo se queda sin bisel: el mueble ES la pantalla", () => {
 		const rows = renderTv({ cut: "minimal" });
 		expect(rows).toHaveLength(3);
@@ -68,6 +83,15 @@ describe("lo que emite la pantalla", () => {
 		// El mando de la izquierda pasa a acento: hay señal.
 		const knobRow = rows.find((row) => flat(row).includes("◉"))!;
 		expect(knobRow.find((span) => span.text === "◉")?.tone).toBe("accent");
+	});
+
+	// Un aparato encendido con el cristal en blanco es peor que uno apagado: dice
+	// que hay señal y no enseña ninguna.
+	test("ningún corte se queda con el cristal en blanco emitiendo", () => {
+		for (const cut of CUTS) {
+			const body = renderTv({ cut, signal: "working", lines: ["mi-cambio", "▸ apply"] }).map(flat).join("\n");
+			expect(body).toContain("mi-cambio");
+		}
 	});
 
 	test("un texto más largo que el cristal se recorta, no desborda", () => {
@@ -132,12 +156,25 @@ describe("la placa", () => {
 	});
 
 	test("cada corte apoya el texto contra su pantalla, no contra el borde", () => {
-		for (const cut of ["cabinet", "compact", "minimal"] as const) {
+		for (const cut of ["cabinet", "compact"] as const) {
 			const rows = placaRows({ cut, subtitle: SUB, width: 120 });
 			const index = rows.findIndex((row) => flat(row).includes(SUB));
 			expect(index).toBeGreaterThanOrEqual(0);
 			// Nunca la primera ni la última: esas son las tapas del mueble.
+			expect(index).toBeGreaterThan(0);
 			expect(index).toBeLessThan(rows.length - 1);
 		}
+	});
+
+	// `minimal` mide tres filas, de las que dos son las tapas. Antes anclaba el
+	// texto ahí: el lema colgado del borde de arriba y las versiones del de
+	// abajo, con el cristal vacío en medio. Sin fila que ofrecer, apila.
+	test("el mínimo no tiene fila contra el cristal, así que apila aunque sobre ancho", () => {
+		const rows = placaRows({ cut: "minimal", subtitle: SUB, tag: TAG, width: 200 }).map(flat);
+		const art = renderTv({ cut: "minimal" }).map(flat);
+		expect(rows.slice(0, art.length)).toEqual(art);
+		expect(rows).toContain(SUB);
+		expect(rows).toContain(TAG);
+		expect(rows.some((line) => line.includes("│") && line.includes(SUB))).toBe(false);
 	});
 });

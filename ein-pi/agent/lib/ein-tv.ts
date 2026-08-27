@@ -60,13 +60,17 @@ export const TV_WIDTH: Readonly<Record<TvCut, number>> = Object.freeze({
  * apoya cada línea. No son «arriba y abajo» genéricos: cada corte tiene su
  * altura, y el texto tiene que caer contra la pantalla, no contra los bordes.
  * Vive aquí y no en cada superficie porque es geometría del aparato.
+ *
+ * `minimal` NO tiene anclas, y es a propósito: mide tres filas, de las que dos
+ * son las tapas. Anclar ahí colgaba el lema del borde superior y las versiones
+ * del inferior, con el cristal vacío en medio — justo lo que esta tabla existe
+ * para impedir. Sin fila que ofrecer, la placa apila.
  */
 export const BAND_GUTTER = 3;
-export const BAND_ANCHORS: Readonly<Record<TvCut, { subtitle: number; versions: number }>> = Object.freeze({
+export const BAND_ANCHORS: Readonly<Partial<Record<TvCut, { subtitle: number; versions: number }>>> = Object.freeze({
 	full: { subtitle: 6, versions: 8 },
 	cabinet: { subtitle: 2, versions: 4 },
 	compact: { subtitle: 1, versions: 3 },
-	minimal: { subtitle: 0, versions: 2 },
 });
 
 function center(text: string, width: number): string {
@@ -113,7 +117,10 @@ function screenRows(options: TvOptions, cut: TvCut, height: number): TvRow[] {
 	}
 
 	if (signal === "working") {
-		const lines = (options.lines ?? []).slice(0, Math.max(0, height - 1));
+		// Se reserva una fila de respiro bajo el texto, pero NUNCA la única que
+		// hay: en `compact` la pantalla mide una fila, y reservarla dejaba el
+		// cristal en blanco con el aparato emitiendo.
+		const lines = (options.lines ?? []).slice(0, Math.max(1, height - 1));
 		const rows: TvRow[] = [];
 		const pad = Math.max(0, height - lines.length - 1);
 		const top = Math.floor(pad / 2);
@@ -146,10 +153,18 @@ export function renderTv(options: TvOptions = {}): readonly TvRow[] {
 	const power: TvTone = signal === "static" ? "danger" : signal === "working" ? "accent" : off ? "danger" : "knob";
 
 	if (cut === "minimal") {
+		// El cristal pasa por `screenRows` como el de los demás cortes. Fijar aquí
+		// el wordmark dejaba al mínimo emitiendo siempre lo mismo: con `working`
+		// no enseñaba la tarea y con `static` no tenía nieve, aunque el piloto sí
+		// cambiaba de color. Un aparato que enciende la luz y no cambia de imagen
+		// miente. En reposo `screenRows` devuelve el wordmark igual.
 		return [
 			[s("╭────────────╮", edge)],
-			[s("│", edge), ...wordmarkSpans(12), s("│", edge)],
-			[s("╰─", edge), s("◉", power), s("──────", edge), s("▤▤", bezel), s("──╯", edge)],
+			[s("│", edge), ...(screenRows(options, cut, 1)[0] ?? []), s("│", edge)],
+			// Mando y rejilla, a dos columnas de su esquina cada uno. Aquí no hay
+			// bisel contra el que medir —el borde ES el mueble—, así que la única
+			// referencia es la simetría, y estaba coja por una columna.
+			[s("╰─", edge), s("◉", power), s("───────", edge), s("▤▤", bezel), s("─╯", edge)],
 		];
 	}
 
@@ -160,7 +175,12 @@ export function renderTv(options: TvOptions = {}): readonly TvRow[] {
 			[s("│ ", edge), s("╭──────────╮", bezel), s(" │", edge)],
 			[s("│ ", edge), s("│", bezel), ...(glass[0] ?? []), s("│", bezel), s(" │", edge)],
 			[s("│ ", edge), s("╰──────────╯", bezel), s(" │", edge)],
-			[s("│ ", edge), s("◉", power), s(" ", edge), s("◉", knob), s("    ", edge), s("▤▤▤▤", bezel), s("  │", edge)],
+			// El mando arranca en el INTERIOR del bisel (col 3), no en la columna de
+			// su esquina, y la rejilla muere en el interior derecho. Es la misma
+			// regla que en `cabinet`: los mandos viven bajo el cristal, no bajo las
+			// tapas. Con el mando una columna a la izquierda el aparato se leía
+			// torcido, porque el desajuste solo estaba en un lado.
+			[s("│  ", edge), s("◉", power), s(" ", edge), s("◉", knob), s("   ", edge), s("▤▤▤▤", bezel), s("  │", edge)],
 			[s("╰──────────────╯", edge)],
 		];
 	}
@@ -216,7 +236,9 @@ export function placaRows(options: PlacaOptions): readonly TvRow[] {
 	const textWidth = Math.max([...options.subtitle].length, [...tag].length);
 	const anchors = BAND_ANCHORS[cut];
 
-	if (artWidth + BAND_GUTTER + textWidth > options.width) {
+	// Se apila por dos motivos distintos: no cabe a lo ancho, o el corte no tiene
+	// una fila contra el cristal donde apoyar el texto.
+	if (!anchors || artWidth + BAND_GUTTER + textWidth > options.width) {
 		const stacked: TvRow[] = [...art, [s("", "screen")], [s(options.subtitle, "label")]];
 		if (tag) stacked.push([s(tag, "label")]);
 		return stacked;

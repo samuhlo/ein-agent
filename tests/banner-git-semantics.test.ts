@@ -311,7 +311,7 @@ describe("ein-banner Git adapter", () => {
 		expect(bannerSource).toContain("renderGitBannerRows(gitController.getSnapshot(), gitLang, width)");
 		// Las filas de git comparten el lenguaje de la placa: etiqueta gris a la
 		// izquierda, valor en concreto, sin `■` amarillo por fila.
-		expect(bannerSource).toContain('b.add((index === 0 ? gitRow.label.toUpperCase() : "").padEnd(labelWidth), STRUCTURE);');
+		expect(bannerSource).toContain('{ text: (index === 0 ? gitRow.label.toUpperCase() : "").padEnd(labelWidth), color: STRUCTURE },');
 		expect(bannerSource).toContain("for (const [index, value] of gitRow.value.split(\" ↵ \").entries())");
 		expect(bannerSource).not.toContain("computeGitSync");
 		expect(bannerSource).not.toContain("sync?");
@@ -321,22 +321,21 @@ describe("ein-banner Git adapter", () => {
 
 	test("emits semantic rows through the actual full/minimal branches and skips below 40 columns", () => {
 		const renderBody = bannerSource.slice(bannerSource.indexOf("render(width: number)"), bannerSource.indexOf("invalidate()"));
-		const fullBranch = renderBody.slice(renderBody.indexOf('if (state.mode === "full")'), renderBody.indexOf('if (state.mode === "minimal")'));
-		const minimalBranch = renderBody.slice(renderBody.indexOf('if (state.mode === "minimal")'));
+		const fullBranch = renderBody.slice(renderBody.indexOf('if (state.mode === "full")'), renderBody.indexOf("rows = [...left, ...gitBannerRows()];"));
 
 		// En modo completo las filas de git entran DENTRO del panel, en su misma
 		// rejilla — ese era el arreglo: antes se pintaban aparte y no alineaban.
 		// En modo minimo no hay panel, asi que siguen saliendo sueltas.
 		expect(fullBranch).toContain("renderGitBannerRows(gitController.getSnapshot(), gitLang, width)");
 		expect(fullBranch).toContain("renderPanel(panelData");
-		expect(fullBranch).not.toContain("addGitBannerRows()");
-		expect(minimalBranch).toContain("addGitBannerRows()");
+		expect(fullBranch).not.toContain("gitBannerRows()");
+		expect(renderBody).toContain("rows = [...left, ...gitBannerRows()];");
 		for (const cols of [80, 60, 40]) {
 			expect(renderGitBannerRows(snapshot(), "en", cols).map((row) => row.label)).toEqual(["HEAD", "LOCAL", "UPSTREAM"]);
 		}
 		expect(bannerSource).toContain("const MINIMAL_INTRO_MIN_COLS = 40;");
 		expect(bannerSource).toContain('if (state.mode === "skip") return [];');
-		expect(renderBody.match(/addGitBannerRows\(\)/g)).toHaveLength(1);
+		expect(renderBody.match(/gitBannerRows\(\)/g)).toHaveLength(1);
 		expect(renderBody).not.toMatch(/gitController\.refresh|gitProcessRunner\.run/);
 	});
 
@@ -353,7 +352,11 @@ describe("ein-banner Git adapter", () => {
 		// trece filas de logo y veinte de panel no sumaran cuarenta y una; con la
 		// marca en tres filas el problema desaparece, y apilar lee en el orden en
 		// que se mira.
-		expect(bannerSource).toContain("const rows = [...left, [], ...panel];");
+		expect(bannerSource).toContain("rows = [[], ...left, [], ...panel, []];");
+		// El bloque se centra entero: por fila, la placa se partia porque el lema
+		// y las versiones hacen sus dos filas mas anchas que el mueble.
+		expect(bannerSource).toContain("b.centerIn(width, block);");
+		expect(bannerSource).not.toContain("b.center(width);");
 		expect(bannerSource).not.toContain("composeColumns");
 		expect(bannerSource).toContain('label: index === 0 ? "RECIENTES" : ""');
 	});
