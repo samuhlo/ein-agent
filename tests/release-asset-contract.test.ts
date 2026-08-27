@@ -297,6 +297,17 @@ describe("release asset contract", () => {
     expect(script.indexOf(rootInstall)).toBeLessThan(script.indexOf(installerBuild));
   });
 
+  test("installer E2E validates the current manifest-backed backup format", () => {
+    const script = readFileSync(E2E_SCRIPT_PATH, "utf8");
+    const legacyArchiveAssertion = '"$pi_agent/backups/installer/"*.tar.gz';
+
+    expect(script).toContain("-name '*.snapshot'");
+    expect(script).toContain('assert_present "$snapshot_dir/manifest.json"');
+    expect(script).toContain('assert_present "$snapshot_dir/metadata.json"');
+    expect(script).toContain('assert_present "$snapshot_dir/content"');
+    expect(script).not.toContain(legacyArchiveAssertion);
+  });
+
   test("push and dispatch share canonical final/alpha classification and reject unsupported prereleases", () => {
     const workflow = readFileSync(WORKFLOW_PATH, "utf8");
     const resolver = workflowStep(workflow, "- name: Resolve release tag");

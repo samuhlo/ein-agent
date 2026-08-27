@@ -161,10 +161,20 @@ case "$scenario" in
 
     echo "== doctor =="
     ein doctor
-    echo "== backups: sidecar metadata exists after rerun =="
-    ls -la "$pi_agent/backups/installer/"
-    ls "$pi_agent/backups/installer/"*.tar.gz >/dev/null
-    ls "$pi_agent/backups/installer/"*.meta.json >/dev/null
+    echo "== backups: snapshot transaccional valido tras rerun =="
+    backup_dir="$pi_agent/backups/installer"
+    ls -la "$backup_dir"
+    snapshot_count="$(find "$backup_dir" -mindepth 1 -maxdepth 1 -type d -name '*.snapshot' | wc -l)"
+    test "$snapshot_count" -eq 1 || {
+      echo "[assert] debe existir exactamente un backup .snapshot (actual: $snapshot_count)" >&2
+      exit 1
+    }
+    snapshot_dir="$(find "$backup_dir" -mindepth 1 -maxdepth 1 -type d -name '*.snapshot' -print -quit)"
+    assert_present "$snapshot_dir/manifest.json"
+    assert_present "$snapshot_dir/metadata.json"
+    assert_present "$snapshot_dir/content"
+    grep -Fq '"schemaVersion":1' "$snapshot_dir/manifest.json"
+    grep -Fq '"schemaVersion":1' "$snapshot_dir/metadata.json"
     echo "== manifest desplegado =="
     test -f "$pi_manifest"
     echo "== dry-runs (no mutan nada) =="
