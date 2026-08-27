@@ -90,6 +90,8 @@ import {
 } from "../lib/model-config.ts";
 import { handleModelsCommand } from "./internal/models-panel.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
+import { readAccountingReport } from "../lib/session-accounting-store.ts";
+import type { Coverage, Known, Slice, Stat, Total } from "../lib/session-accounting.ts";
 import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
 import { collectSddRemedies, formatSddRemedies } from "../lib/sdd-remedies.ts";
 import { LANE_LABEL, laneSkips, normalizeLane, readChangeLane, writeChangeLane } from "../lib/sdd-lane.ts";
@@ -1363,6 +1365,75 @@ export default function einAi(pi: ExtensionAPI): void {
 					lines.push(`  pi --session ${s.id}`);
 				}
 			}
+			ctx.ui.notify(lines.join("\n"), "info");
+		},
+	});
+
+	// --- ein:accounting: renderiza el AccountingReport. Sólo formatea lo que
+	// el store + [CORE] ya calcularon (R12); ninguna cifra se computa aquí.
+
+	function formatCoverage(coverage: Coverage): string {
+		return `[${coverage.status}, ${coverage.attributed}/${coverage.total}]`;
+	}
+
+	function formatKnown(known: Known<string | number>): string {
+		return known.status === "known" ? String(known.value) : "unknown";
+	}
+
+	function formatTotal(label: string, total: Total): string {
+		if (total.status === "unknown") return `- ${label}: unknown ${formatCoverage(total.coverage)}`;
+		return `- ${label}: ${total.value} ${formatCoverage(total.coverage)}`;
+	}
+
+	function formatStat(label: string, stat: Stat): string {
+		if (stat.status === "unknown") return `- ${label}: unknown ${formatCoverage(stat.coverage)}`;
+		return `- ${label}: mean=${stat.mean.toFixed(2)} p95=${stat.p95} max=${stat.max} n=${stat.n} ${formatCoverage(stat.coverage)}`;
+	}
+
+	function formatSlice(title: string, slice: Slice): string[] {
+		return [
+			`${title} (runs=${slice.runs})`,
+			formatTotal("coste", slice.cost),
+			formatTotal("tokens de salida", slice.outputTokens),
+			formatStat("pico prompt", slice.peakPromptTokens),
+			formatStat("pico secuencia", slice.peakSequenceTokens),
+			formatStat("turnos por run", slice.turnsPerRun),
+			`- fallos: ${slice.outcomes.failures.count} (indeterminado ${slice.outcomes.failures.undetermined}) ${formatCoverage(slice.outcomes.failures.coverage)}`,
+			`- fallback de modelo: ${slice.outcomes.modelFallbacks.count} (indeterminado ${slice.outcomes.modelFallbacks.undetermined}) ${formatCoverage(slice.outcomes.modelFallbacks.coverage)}`,
+			`- reruns de proceso: ${slice.outcomes.processReruns.count} (indeterminado ${slice.outcomes.processReruns.undetermined}, maxRunIndex ${formatKnown(slice.outcomes.maxRunIndex)}) ${formatCoverage(slice.outcomes.processReruns.coverage)}`,
+			`- canales: transcript=${slice.channels.transcript} artifact=${slice.channels.artifact} sin-atribuir=${slice.channels.unattributed}`,
+		];
+	}
+
+	pi.registerCommand("ein:accounting", {
+		description: t(
+			"cmd.accounting.description",
+			"Ver el coste medido de las sesiones de Ein (dinero, tokens, turnos y fallos)",
+		),
+		handler: async (_args, ctx) => {
+			const report = readAccountingReport();
+			if (report.store === "absent") {
+				ctx.ui.notify(t("accounting.absent", "// 000. accounting\n\n- No hay directorio de sesiones todavia."), "info");
+				return;
+			}
+			const snapshot = report.snapshot;
+			const lines: string[] = [
+				t("accounting.title", "// 000. accounting"),
+				"",
+				t("accounting.snapshot", "-- snapshot --"),
+				`- generatedAt: ${snapshot.generatedAt}`,
+				`- corpus: ${formatKnown(snapshot.corpusFrom)} .. ${formatKnown(snapshot.corpusTo)}`,
+				`- sessions=${formatKnown(snapshot.sessions)} transcripts=${formatKnown(snapshot.transcripts)} artifacts=${formatKnown(snapshot.artifacts)}`,
+				`- corruptFiles=${snapshot.corruptFiles} missingFiles=${snapshot.missingFiles}`,
+				`- runsAttributed=${snapshot.runsAttributed} runsUnattributable=${snapshot.runsUnattributable}`,
+				`- discovery: scanned=${snapshot.discovery.scanned} skipped=${snapshot.discovery.skipped} scanLimitExceeded=${snapshot.discovery.scanLimitExceeded}`,
+				"",
+				...formatSlice(t("accounting.overall", "-- overall --"), report.overall),
+				"",
+				...formatSlice(t("accounting.parent", "-- parent --"), report.partition.parent),
+				"",
+				...formatSlice(t("accounting.subagent", "-- subagent --"), report.partition.subagent),
+			];
 			ctx.ui.notify(lines.join("\n"), "info");
 		},
 	});
