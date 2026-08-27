@@ -1,6 +1,6 @@
 # Verify report — `rename-ein-runtime-surfaces`
 
-status: verified
+status: pass
 verification_state: all-required-gates-green
 behavior_coverage: complete
 release_eligible: true

@@ -435,7 +435,7 @@ apply_release_boundary: >-
 
 ## // 029. Prepare `0.91.0-alpha.3` only after successful SDD verify
 
-- [ ] 29.1 POST-VERIFY: create the release metadata commit from the verified tip; this task is forbidden during `sdd-apply`.
+- [x] 29.1 POST-VERIFY: create the release metadata commit from the verified tip; this task is forbidden during `sdd-apply`.
   - skills: `ein-discipline`, `release`, `bun`
   - RED: With an isolated fixture or the release contract test, prove the metadata gate rejects any disagreement among tag, `installer/package.json`, `installer/src/core/version.ts` and the leading `CHANGELOG.md` version.
   - GREEN: After `verify-report.md` records `status: verified` for the exact candidate commit, update only the authoritative version in `installer/package.json`, `installer/src/core/version.ts` and the leading `CHANGELOG.md` entry to `0.91.0-alpha.3`; document Ein-first surfaces, hard cut, owned-only cleanup and unchanged data homes.
@@ -449,7 +449,7 @@ apply_release_boundary: >-
 
 ## // 030. Tag and publish the immutable alpha from main
 
-- [ ] 30.1 POST-VERIFY: deliver `installer-v0.91.0-alpha.3` only from the clean verified metadata commit at the tip of `main`.
+- [x] 30.1 POST-VERIFY: deliver `installer-v0.91.0-alpha.3` only from the clean verified metadata commit at the tip of `main`.
   - skills: `ein-discipline`, `release`
   - RED: Before tagging, make the delivery guard fail if the worktree is dirty, local `HEAD` differs from `origin/main`, the tag exists locally/remotely, version pointers disagree, or required gates are not attached to this commit.
   - GREEN: Commit and push the verified metadata change through the repository delivery owner, confirm the pushed commit is `origin/main`, create the new annotated tag once, push it once, and let `.github/workflows/installer-release.yml` publish the prerelease.
@@ -463,7 +463,7 @@ apply_release_boundary: >-
 
 ## // 031. Smoke the published artifact and close delivery
 
-- [ ] 31.1 POST-PUBLISH: verify checksums plus fresh and managed-upgrade behavior from downloaded release assets.
+- [x] 31.1 POST-PUBLISH: verify checksums plus fresh and managed-upgrade behavior from downloaded release assets.
   - skills: `ein-discipline`, `release`, `bun`
   - RED: Prove the published-smoke harness rejects a checksum mismatch, missing asset, old launcher/archive member, unowned collision deletion and changed runtime-home path using isolated fixtures.
   - GREEN: Download `checksums.txt`, `install.sh` and the host-matching binary from `installer-v0.91.0-alpha.3`; verify checksum, then exercise fresh Pi-only/Claude-only/both and managed `0.91.0-alpha.2` upgrade fixtures from the published binary.
