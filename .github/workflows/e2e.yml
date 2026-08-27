@@ -1,7 +1,7 @@
 # E2E real del instalador en un Ubuntu limpio (Docker). Manual por diseño:
-# instala bun + pi desde la red dentro del contenedor, así que es más lento y
-# frágil que la CI normal — se lanza antes de publicar una release o cuando se
-# toca el instalador a fondo.
+# prepara Node 22 e instala bun + pi desde la red dentro del contenedor, así que
+# es más lento y frágil que la CI normal — se lanza antes de publicar una
+# release o cuando se toca el instalador a fondo.
 name: e2e
 
 on:

@@ -11,6 +11,7 @@ import { join } from "node:path";
 export const PI_HOST_PACKAGE = "@earendil-works/pi-coding-agent";
 export const PI_HOST_VERSION = "0.84.3";
 export const PI_HOST_SPEC = `${PI_HOST_PACKAGE}@${PI_HOST_VERSION}`;
+export const PI_NODE_MIN_VERSION = "22.19.0";
 
 const packageContract = <const Name extends string, const Version extends string>(
   name: Name,

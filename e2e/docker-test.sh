@@ -3,8 +3,8 @@
 # E2E: instala Ein en un Ubuntu limpio (Docker) y verifica los cuatro runtimes:
 # invalid, Pi por defecto, Claude-only y Both (Pi -> Claude).
 # Uso: ./e2e/docker-test.sh          (compila el binario linux y lo prueba)
-# Requiere: docker corriendo y bun en el host. Necesita red (bun + pi se
-# instalan dentro del contenedor).
+# Requiere: docker corriendo y bun en el host. La imagen aporta Node 22 como
+# prerrequisito documentado; bun + pi se instalan dentro del contenedor.
 # =============================================================================
 set -euo pipefail
 

@@ -32,9 +32,9 @@ Todos los cambios relevantes de Ein. El formato sigue
 ### Fixed
 
 - **La instalación de paquetes de Pi funciona en una máquina limpia.** El
-  runtime administrado usa Bun —dependencia obligatoria de Ein— como gestor de
-  paquetes en vez de asumir que también existe `npm`; si una reconciliación
-  falla, el instalador conserva ahora la primera causa real en el diagnóstico.
+  instalador comprueba que exista Node `22.19.0` o posterior y explica cómo
+  corregirlo antes de instalar Pi. Las extensiones usan Bun en vez de asumir
+  que también existe `npm`; si fallan, se conserva la primera causa real.
 - **`ein-scout` recupera informes válidos decorados por el runtime.** Los cierres
   por presupuesto, recibos y envoltorios de `pi-subagents` ya no convierten una
   investigación terminada en un falso contrato malformado.

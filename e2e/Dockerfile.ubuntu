@@ -1,14 +1,19 @@
 # =============================================================================
 # E2E: Ubuntu limpio para probar el instalador de verdad.
-# La imagen solo lleva las dependencias base de un usuario normal; el binario
-# `ein` se monta en runtime (docker-test.sh) para no reconstruir la imagen en
-# cada build del instalador.
+# La imagen representa la base documentada de un desarrollador: utilidades del
+# sistema y Node 22. El binario `ein` se monta en runtime (docker-test.sh) para
+# no reconstruir la imagen en cada build del instalador.
 # =============================================================================
+
+FROM node:22.19.0-bookworm-slim AS node-runtime
 
 FROM ubuntu:24.04
 
+COPY --from=node-runtime /usr/local/ /usr/local/
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git unzip tar gzip \
+    && test "$(node --version)" = "v22.19.0" \
     && rm -rf /var/lib/apt/lists/*
 
 # Usuario normal: el instalador escribe en ~/.pi, ~/.bun y el rc del shell,

@@ -6,6 +6,7 @@ import {
   PI_HOST_PACKAGE,
   PI_HOST_SPEC,
   PI_HOST_VERSION,
+  PI_NODE_MIN_VERSION,
   REQUIRED_PI_PACKAGES,
   REQUIRED_PI_PACKAGE_SPECS,
 } from "../ein-pi/agent/lib/runtime-compat.ts";
@@ -40,6 +41,7 @@ describe("contrato reproducible del runtime Pi", () => {
     expect(settings.packages).toEqual([...REQUIRED_PI_PACKAGE_SPECS]);
     expect(settings.npmCommand).toEqual(["bun"]);
     expect(PI_HOST_SPEC).toBe(`${PI_HOST_PACKAGE}@${PI_HOST_VERSION}`);
+    expect(PI_NODE_MIN_VERSION).toBe("22.19.0");
     expect(pkg.devDependencies[PI_HOST_PACKAGE]).toBe(PI_HOST_VERSION);
     expect(pkg.devDependencies["@earendil-works/pi-tui"]).toBe(PI_HOST_VERSION);
     expect(REQUIRED_PI_PACKAGES.length).toBeGreaterThan(0);

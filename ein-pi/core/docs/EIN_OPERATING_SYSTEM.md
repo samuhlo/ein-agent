@@ -30,7 +30,8 @@ Esto descarga el instalador y **abre un menú bonito** (con tu paleta brutalista
 
 El instalador, paso a paso:
 1. Mira tu ordenador (Mac o Linux, qué procesador, qué terminal).
-2. Instala lo que falte: `bun` y `pi` (obligatorios), `engram` y `gh` (opcionales).
+2. Comprueba que tengas Node `22.19.0` o posterior e instala lo que falte:
+   `bun` y `pi` (obligatorios); `engram` y `gh` son opcionales.
 3. Te pregunta si quieres **Linear** (gestor de tareas). Si dices que no, no lo instala.
 4. Copia Ein a su sitio (`~/.pi/agent`) y ajusta las rutas a TU ordenador automáticamente.
 5. Te pregunta por tus claves secretas (opcional).
