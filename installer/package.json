@@ -1,6 +1,6 @@
 {
   "name": "ein-installer",
-  "version": "0.90.0-alpha.2",
+  "version": "0.91.0-alpha.1",
   "description": "Cross-platform installer for the Ein Pi Coding Agent workbench",
   "type": "module",
   "private": true,

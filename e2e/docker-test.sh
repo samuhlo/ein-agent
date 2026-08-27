@@ -3,8 +3,8 @@
 # E2E: instala Ein en un Ubuntu limpio (Docker) y verifica los cuatro runtimes:
 # invalid, Pi por defecto, Claude-only y Both (Pi -> Claude).
 # Uso: ./e2e/docker-test.sh          (compila el binario linux y lo prueba)
-# Requiere: docker corriendo y bun en el host. Necesita red (bun + pi se
-# instalan dentro del contenedor).
+# Requiere: docker corriendo y bun en el host. La imagen aporta Node 22 como
+# prerrequisito documentado; bun + pi se instalan dentro del contenedor.
 # =============================================================================
 set -euo pipefail
 
@@ -29,6 +29,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 echo "/// e2e: compilando binario ($TARGET)"
+(cd "$ROOT" && bun install --frozen-lockfile)
 (cd "$ROOT/installer" && bun install --frozen-lockfile && bun run build:all -- "$TARGET")
 test -x "$BINARY" || { echo "[error] no existe el binario: $BINARY"; exit 1; }
 
@@ -68,13 +69,26 @@ snapshot_state() {
   local root="$1"
   local destination="$2"
   # installedAt, installer backups, and Pi's package-manager JSON formatting are
-  # intentionally mutable between passes; every other managed file must converge
-  # byte-for-byte. The package list itself is still exercised by install output.
+  # intentionally mutable between passes. Bun also embeds the unique staging
+  # output name in the two runners that sync recompiles atomically; their
+  # executable presence is asserted below instead of comparing unstable bytes.
   find "$root" -type f \
     ! -path "$root/backups/*" \
+    ! -path "$root/bin/ein-surface-runner" \
+    ! -path "$root/bin/ein-continuity" \
     ! -name ".ein-install.json" \
     ! -name "settings.json" \
     -print0 | sort -z | xargs -0 -r sha256sum >"$destination"
+}
+
+assert_same_state() {
+  local first="$1"
+  local second="$2"
+  if ! cmp -s "$first" "$second"; then
+    echo "[assert] el estado estable cambió entre instalaciones" >&2
+    diff -u "$first" "$second" >&2 || true
+    exit 1
+  fi
 }
 
 pi_agent="$HOME/.pi-ein/agent"
@@ -97,8 +111,10 @@ assert_pi_surface() {
 assert_claude_surface() {
   assert_present "$claude_home/CLAUDE.md"
   assert_present "$claude_home/settings.json"
-  assert_present "$claude_home/bin/cc-ein-sdd"
-  test -x "$claude_home/bin/cc-ein-sdd"
+  for executable in cc-ein-sdd ein-surface-runner ein-continuity; do
+    assert_present "$claude_home/bin/$executable"
+    test -x "$claude_home/bin/$executable"
+  done
   assert_present "$claude_launcher"
   assert_exactly_one "$fish_functions" "cc-ein.fish"
   grep -Fq 'function cc-ein' "$claude_launcher"
@@ -140,7 +156,7 @@ case "$scenario" in
       exit 1
     fi
     cat "$invalid_log"
-    grep -Fq "Error de opcion runtime" "$invalid_log"
+    grep -Fq "Error de opción runtime" "$invalid_log"
     grep -Fq -- "--runtime pi|claude|both" "$invalid_log"
     assert_absent "$HOME/.bun"
     assert_absent "$pi_agent"
@@ -156,14 +172,24 @@ case "$scenario" in
     assert_pi_surface
     assert_absent "$claude_home"
     assert_absent "$claude_launcher"
-    cmp /tmp/ein-default-pi-state-1 /tmp/ein-default-pi-state-2
+    assert_same_state /tmp/ein-default-pi-state-1 /tmp/ein-default-pi-state-2
 
     echo "== doctor =="
     ein doctor
-    echo "== backups: sidecar metadata exists after rerun =="
-    ls -la "$pi_agent/backups/installer/"
-    ls "$pi_agent/backups/installer/"*.tar.gz >/dev/null
-    ls "$pi_agent/backups/installer/"*.meta.json >/dev/null
+    echo "== backups: snapshot transaccional valido tras rerun =="
+    backup_dir="$pi_agent/backups/installer"
+    ls -la "$backup_dir"
+    snapshot_count="$(find "$backup_dir" -mindepth 1 -maxdepth 1 -type d -name '*.snapshot' | wc -l)"
+    test "$snapshot_count" -eq 1 || {
+      echo "[assert] debe existir exactamente un backup .snapshot (actual: $snapshot_count)" >&2
+      exit 1
+    }
+    snapshot_dir="$(find "$backup_dir" -mindepth 1 -maxdepth 1 -type d -name '*.snapshot' -print -quit)"
+    assert_present "$snapshot_dir/manifest.json"
+    assert_present "$snapshot_dir/metadata.json"
+    assert_present "$snapshot_dir/content"
+    grep -Fq '"schemaVersion":1' "$snapshot_dir/manifest.json"
+    grep -Fq '"schemaVersion":1' "$snapshot_dir/metadata.json"
     echo "== manifest desplegado =="
     test -f "$pi_manifest"
     echo "== dry-runs (no mutan nada) =="
@@ -178,15 +204,15 @@ case "$scenario" in
     assert_claude_surface
     assert_absent "$pi_agent"
     assert_absent "$pi_launcher"
-    cmp /tmp/ein-claude-only-state-1 /tmp/ein-claude-only-state-2
+    assert_same_state /tmp/ein-claude-only-state-1 /tmp/ein-claude-only-state-2
     ;;
 
   both)
     install_twice --runtime both
     for pass in 1 2; do
       log="/tmp/ein-both-${pass}.log"
-      pi_line="$(awk '/Pi:/{print NR; exit}' "$log")"
-      claude_line="$(awk '/Claude Code:/{print NR; exit}' "$log")"
+      pi_line="$(awk 'tolower($0) ~ /pi: ein listo/{print NR; exit}' "$log")"
+      claude_line="$(awk 'tolower($0) ~ /claude code: claude code listo/{print NR; exit}' "$log")"
       test -n "$pi_line" || { echo "[assert] falta completion de Pi en pass $pass" >&2; exit 1; }
       test -n "$claude_line" || { echo "[assert] falta completion de Claude en pass $pass" >&2; exit 1; }
       test "$pi_line" -lt "$claude_line" || {
@@ -196,8 +222,8 @@ case "$scenario" in
     done
     assert_pi_surface
     assert_claude_surface
-    cmp /tmp/ein-both-pi-state-1 /tmp/ein-both-pi-state-2
-    cmp /tmp/ein-both-claude-state-1 /tmp/ein-both-claude-state-2
+    assert_same_state /tmp/ein-both-pi-state-1 /tmp/ein-both-pi-state-2
+    assert_same_state /tmp/ein-both-claude-state-1 /tmp/ein-both-claude-state-2
     ;;
 
   *)

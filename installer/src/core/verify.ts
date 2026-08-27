@@ -9,7 +9,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Platform } from "./platform.ts";
 import { lookPath } from "./exec.ts";
-import { inspectPiRuntime, resolveCodegraph, resolveHypa } from "./deps.ts";
+import { inspectNodeRuntime, inspectPiRuntime, resolveCodegraph, resolveHypa } from "./deps.ts";
 import {
   doctorCheck as check,
   doctorWarn as warn,
@@ -20,7 +20,7 @@ import {
   type DoctorCheckResult as SharedCheckResult,
   type DoctorResult,
 } from "../../../ein-pi/agent/lib/doctor-core.ts";
-import { PI_HOST_VERSION } from "../../../ein-pi/agent/lib/runtime-compat.ts";
+import { PI_HOST_VERSION, PI_NODE_MIN_VERSION } from "../../../ein-pi/agent/lib/runtime-compat.ts";
 import {
   defaultPiInstallContext,
   type PiInstallContext,
@@ -156,6 +156,7 @@ export function runDoctor(
   const hasEngramBin = lookPath("engram", extraPath) !== null;
   const hasGh = lookPath("gh", extraPath) !== null;
   const hasBun = lookPath("bun", extraPath) !== null;
+  const nodeRuntime = inspectNodeRuntime(extraPath);
   const piRuntime = inspectPiRuntime(extraPath);
   const optionalPath = [...extraPath, context.miseShimDir];
   const hasHypa = resolveHypa(optionalPath) !== null;
@@ -168,6 +169,13 @@ export function runDoctor(
 
   const checksRuntime: CheckResult[] = [
     check(hasBun, "bun", "Runtime bun disponible en PATH."),
+    check(
+      nodeRuntime.compatible,
+      "node",
+      nodeRuntime.version
+        ? `Node ${nodeRuntime.version} detectado; Pi requiere ${PI_NODE_MIN_VERSION} o posterior.`
+        : `Node no resoluble; Pi requiere ${PI_NODE_MIN_VERSION} o posterior.`,
+    ),
     check(
       piRuntime.compatible,
       "pi",

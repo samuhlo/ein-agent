@@ -4,6 +4,49 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.91.0-alpha.1] - 2026-08-27
+
+### Added
+
+- **El orquestador de Pi admite esfuerzo `high` y `xhigh`.** El modelo principal
+  deja de ser la única pieza cuyo nivel de razonamiento no podía elegirse; la
+  selección se guarda en la configuración administrada y sobrevive a reinicios
+  y actualizaciones.
+- **`ein:accounting` convierte el historial de sesiones en métricas útiles para
+  modelos API y locales.** Agrega coste opcional, tokens de salida, picos de
+  prompt y secuencia, turnos, fallos, fallbacks y reruns por padre, subagente,
+  modelo y agente. Cada cifra declara su cobertura y procedencia; ausencia de
+  precio o datos se representa como desconocida, nunca como un cero inventado.
+
+### Changed
+
+- **El runtime de Pi queda reproducible con versiones compatibles exactas.** El
+  instalador reconcilia y los doctors verifican Pi `0.84.3`, `pi-subagents`
+  `0.57.0`, `pi-mcp-adapter` `2.28.0`, `context-mode` `1.0.169`, `ask-user`
+  `2.7.1` e `i18n` `2.7.1`, tanto en la declaración como en la instalación
+  efectiva.
+- **Los doctors comparten un único núcleo de comprobaciones.** Installer y
+  runtime dejan de mantener copias divergentes de las mismas reglas, conservan
+  los chequeos propios de cada superficie y respetan homes de agente aislados.
+
+### Fixed
+
+- **La instalación de paquetes de Pi funciona en una máquina limpia.** El
+  instalador comprueba que exista Node `22.19.0` o posterior y explica cómo
+  corregirlo antes de instalar Pi. Las extensiones usan Bun en vez de asumir
+  que también existe `npm`; si fallan, se conserva la primera causa real.
+- **`ein-scout` recupera informes válidos decorados por el runtime.** Los cierres
+  por presupuesto, recibos y envoltorios de `pi-subagents` ya no convierten una
+  investigación terminada en un falso contrato malformado.
+- **El progreso del instalador es append-only.** Los pasos completados avanzan
+  hacia abajo sin repintar las filas anteriores, evitando congelaciones y
+  pérdida de trazabilidad en terminales reales y salidas redirigidas.
+- **La contabilidad no duplica transcript y artefacto en los desgloses.** Las
+  identidades de modelo se normalizan como `provider/modelo`, el canal primario
+  prevalece también dentro de `byModel` y los transcripts parciales no pueden
+  declarar cobertura completa. En el corpus auditado, `overall`, `byModel` y
+  `byAgent` vuelven a sumar exactamente lo mismo.
+
 ## [0.90.0-alpha.2] - 2026-08-26
 
 ### Fixed

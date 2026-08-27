@@ -31,11 +31,13 @@ import {
 import {
   PI_HOST_SPEC,
   PI_HOST_VERSION,
+  PI_NODE_MIN_VERSION,
 } from "../../../ein-pi/agent/lib/runtime-compat.ts";
 
 export type DepId =
   | "git"
   | "curl"
+  | "node"
   | "bun"
   | "pi"
   | "engram"
@@ -98,12 +100,58 @@ export function inspectPiRuntime(
   return { path, version, compatible: version === PI_HOST_VERSION };
 }
 
+export type NodeRuntimeInspection = {
+  path: string | null;
+  version: string | null;
+  compatible: boolean;
+};
+
+export type NodeRuntimeInspectionDeps = {
+  lookPath?: typeof lookPath;
+  readVersion?: (path: string) => string | null;
+};
+
+function readNodeVersion(path: string): string | null {
+  try {
+    const result = Bun.spawnSync([path, "--version"], { stdout: "pipe", stderr: "pipe" });
+    if (result.exitCode !== 0) return null;
+    return new TextDecoder().decode(result.stdout).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+export function isCompatibleNodeVersion(version: string | null): boolean {
+  const parse = (value: string): readonly [number, number, number] | null => {
+    const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value);
+    return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+  };
+  const current = parse(version ?? "");
+  const minimum = parse(PI_NODE_MIN_VERSION);
+  if (!current || !minimum) return false;
+  return current[0] > minimum[0]
+    || (current[0] === minimum[0] && current[1] > minimum[1])
+    || (current[0] === minimum[0] && current[1] === minimum[1] && current[2] >= minimum[2]);
+}
+
+export function inspectNodeRuntime(
+  searchPath: string[] = EXTRA_PATH,
+  deps: NodeRuntimeInspectionDeps = {},
+): NodeRuntimeInspection {
+  const path = (deps.lookPath ?? lookPath)("node", searchPath);
+  if (!path) return { path: null, version: null, compatible: false };
+  const version = (deps.readVersion ?? readNodeVersion)(path);
+  return { path, version, compatible: isCompatibleNodeVersion(version) };
+}
+
 export function checkDeps(platform: Platform): DepStatus[] {
   const engram = resolveEngram(platform);
+  const nodeRuntime = inspectNodeRuntime();
   const piRuntime = inspectPiRuntime();
   const defs: Array<Omit<DepStatus, "present" | "path">> = [
     { id: "git", required: true, hint: "instala git con tu gestor de paquetes" },
     { id: "curl", required: true, hint: "instala curl con tu gestor de paquetes" },
+    { id: "node", required: true, hint: `instala Node ${PI_NODE_MIN_VERSION} o posterior` },
     { id: "bun", required: true, hint: "curl -fsSL https://bun.sh/install | bash" },
     { id: "pi", required: true, hint: `bun install -g ${PI_HOST_SPEC}` },
     { id: "engram", required: false, hint: "memoria persistente (opcional)" },
@@ -123,6 +171,9 @@ export function checkDeps(platform: Platform): DepStatus[] {
     if (d.id === "codegraph") {
       const path = resolveCodegraph();
       return { ...d, present: path !== null, path };
+    }
+    if (d.id === "node") {
+      return { ...d, present: nodeRuntime.compatible, path: nodeRuntime.path };
     }
     if (d.id === "pi") {
       return {
@@ -158,6 +209,7 @@ export async function installBun(): Promise<InstallStep> {
 }
 
 export type PiInstallDeps = {
+  inspectNode?: () => NodeRuntimeInspection;
   lookPath?: typeof lookPath;
   run?: typeof run;
 };
@@ -166,6 +218,11 @@ export type PiInstallDeps = {
 export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> {
   const find = deps.lookPath ?? lookPath;
   const execute = deps.run ?? run;
+  const node = (deps.inspectNode ?? inspectNodeRuntime)();
+  if (!node.compatible) {
+    const found = node.version ? `Node ${node.version} no es compatible.` : "Node no está instalado o no aparece en PATH.";
+    return { ok: false, detail: `${found} Pi requiere Node ${PI_NODE_MIN_VERSION} o posterior; actualízalo y repite la instalación.` };
+  }
   const bun = find("bun", EXTRA_PATH);
   if (!bun) return { ok: false, detail: "bun no disponible; instala bun primero" };
   const res = await execute(bun, ["install", "-g", PI_HOST_SPEC], {
@@ -219,7 +276,7 @@ export async function installDeclaredPackages(
   if (packages.length === 0) return { ok: true, detail: "sin paquetes declarados" };
 
   let ok = 0;
-  const failed: string[] = [];
+  const failed: Array<{ pkg: string; reason: string }> = [];
   for (const pkg of packages) {
     const res = await (deps.run ?? run)(pi, ["install", pkg], {
       extraPath,
@@ -229,11 +286,16 @@ export async function installDeclaredPackages(
       },
     });
     if (res.ok) ok += 1;
-    else failed.push(pkg);
+    else failed.push({ pkg, reason: why(res) });
   }
-  return failed.length === 0
-    ? { ok: true, detail: `${ok} paquetes instalados/al dia` }
-    : { ok: false, detail: `fallaron: ${failed.join(", ")}` };
+  if (failed.length === 0) return { ok: true, detail: `${ok} paquetes instalados/al dia` };
+
+  const first = failed[0]!;
+  const remaining = failed.length - 1;
+  return {
+    ok: false,
+    detail: `${failed.length}/${packages.length} fallaron; primera causa: ${first.reason} (${first.pkg})${remaining > 0 ? `; +${remaining}` : ""}`,
+  };
 }
 
 // gh: best-effort via the platform package manager. Optional, never blocks.

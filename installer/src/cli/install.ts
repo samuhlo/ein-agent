@@ -344,7 +344,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
       spinner.start("Instalando pi");
       const result = await installPi();
       spinner.stop(result.detail);
-      if (!result.ok) return { ok: false, detail: "pi es obligatorio." };
+      if (!result.ok) return { ok: false, detail: `Pi es obligatorio: ${result.detail}` };
     } else {
       return { ok: false, detail: "pi es obligatorio." };
     }

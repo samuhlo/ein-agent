@@ -60,7 +60,8 @@ antes un directorio snapshot `.snapshot` con manifest, metadata y contenido en
 
 1. Detecta OS/arch/distro/shell.
 2. Comprueba e instala las dependencias de las superficies seleccionadas, incluyendo los
-   runtimes Pi/Claude; `engram` y `gh` son opcionales.
+   runtimes Pi/Claude. Pi requiere Node `>=22.19.0`; si falta o es antiguo, el
+   instalador se detiene con un diagnóstico accionable. `engram` y `gh` son opcionales.
 3. Despliega las superficies seleccionadas desde el template de Ein (embebido en el
    binario), manteniéndolas aisladas y **templando las rutas** (`mcp.json`, `settings.json`)
    según tu `$HOME` y la ubicación real de `engram`.

@@ -35,6 +35,9 @@
     "minimax/MiniMax-M2.7-highspeed",
     "minimax/MiniMax-M3"
   ],
+  "npmCommand": [
+    "bun"
+  ],
   "packages": [
     "npm:pi-subagents@0.57.0",
     "npm:pi-mcp-adapter@2.28.0",
