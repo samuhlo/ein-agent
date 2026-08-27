@@ -22,6 +22,7 @@ const BUILD_SCRIPT_PATH = join(REPO_ROOT, "installer", "scripts", "build-all.ts"
 const INSTALLER_PACKAGE_PATH = join(REPO_ROOT, "installer", "package.json");
 const INSTALLER_VERSION_SOURCE_PATH = join(REPO_ROOT, "installer", "src", "core", "version.ts");
 const CHANGELOG_PATH = join(REPO_ROOT, "CHANGELOG.md");
+const E2E_SCRIPT_PATH = join(REPO_ROOT, "e2e", "docker-test.sh");
 
 // [CONTRACT] Cuatro assets publicados y la línea "checksums.txt" deben
 // casar exactamente con `assetNameFor` y `assetNameFor`'s strict shape.
@@ -284,6 +285,16 @@ describe("release asset contract", () => {
     expect(smoke).toContain("CC_EIN_ORCHESTRATOR_ASSET");
     expect(smoke).toContain("payload staging cleanup failed");
     expect(publishedAssetArguments(workflow).filter((asset) => asset.includes("smoke"))).toEqual([]);
+  });
+
+  test("installer E2E installs root dependencies before building the embedded app", () => {
+    const script = readFileSync(E2E_SCRIPT_PATH, "utf8");
+    const rootInstall = '(cd "$ROOT" && bun install --frozen-lockfile)';
+    const installerBuild = '(cd "$ROOT/installer" && bun install --frozen-lockfile && bun run build:all -- "$TARGET")';
+
+    expect(script).toContain(rootInstall);
+    expect(script).toContain(installerBuild);
+    expect(script.indexOf(rootInstall)).toBeLessThan(script.indexOf(installerBuild));
   });
 
   test("push and dispatch share canonical final/alpha classification and reject unsupported prereleases", () => {

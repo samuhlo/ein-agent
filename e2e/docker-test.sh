@@ -29,6 +29,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 echo "/// e2e: compilando binario ($TARGET)"
+(cd "$ROOT" && bun install --frozen-lockfile)
 (cd "$ROOT/installer" && bun install --frozen-lockfile && bun run build:all -- "$TARGET")
 test -x "$BINARY" || { echo "[error] no existe el binario: $BINARY"; exit 1; }
 
