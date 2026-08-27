@@ -4,6 +4,32 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.91.0-alpha.3] - 2026-08-27
+
+### Changed
+
+- **Ein adopta una nomenclatura única y enseña una sola puerta de entrada.**
+  `ein` queda como aplicación pública y `ein-install` como bootstrap y
+  reparación; los accesos avanzados pasan a llamarse `ein-pi`, `ein-cc` y
+  `ein-cc-sdd`. Código, payload, ayuda, especificaciones y documentación usan
+  ya esos nombres Ein-first.
+- **La actualización aplica un corte limpio de los nombres anteriores.** La
+  `legacy-migration` retira únicamente launchers y binarios de alpha.2 cuyo
+  ownership puede probarse por bytes, marcador y ruta exactos; una colisión del
+  usuario se conserva. Los hogares `~/.pi-ein/agent` y `~/.claude-ein`, junto a
+  sus sesiones y configuración, permanecen sin cambios.
+
+### Fixed
+
+- **La retirada de accesos antiguos sobrevive a interrupciones.** Un manifiesto
+  durable registra cada movimiento antes de ejecutarlo y permite reanudar o
+  restaurar bytes y permisos mediante los journals de instalación y
+  actualización; la copia de recuperación solo se elimina tras el commit
+  global.
+- **Los payloads generados en macOS son portables a Linux.** El empaquetado
+  excluye metadatos AppleDouble y atributos extendidos, evitando miembros
+  invisibles `._*` que GNU tar extraía fuera del manifiesto.
+
 ## [0.91.0-alpha.2] - 2026-08-27
 
 ### Fixed
