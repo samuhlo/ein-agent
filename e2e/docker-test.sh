@@ -211,8 +211,8 @@ case "$scenario" in
     install_twice --runtime both
     for pass in 1 2; do
       log="/tmp/ein-both-${pass}.log"
-      pi_line="$(awk '/Pi:/{print NR; exit}' "$log")"
-      claude_line="$(awk '/Claude Code:/{print NR; exit}' "$log")"
+      pi_line="$(awk 'tolower($0) ~ /pi: ein listo/{print NR; exit}' "$log")"
+      claude_line="$(awk 'tolower($0) ~ /claude code: claude code listo/{print NR; exit}' "$log")"
       test -n "$pi_line" || { echo "[assert] falta completion de Pi en pass $pass" >&2; exit 1; }
       test -n "$claude_line" || { echo "[assert] falta completion de Claude en pass $pass" >&2; exit 1; }
       test "$pi_line" -lt "$claude_line" || {

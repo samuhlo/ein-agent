@@ -318,6 +318,15 @@ describe("release asset contract", () => {
     expect(script).toContain('diff -u "$first" "$second"');
   });
 
+  test("installer E2E recognizes the current lowercase completion receipts", () => {
+    const script = readFileSync(E2E_SCRIPT_PATH, "utf8");
+
+    expect(script).toContain("tolower($0) ~ /pi: ein listo/");
+    expect(script).toContain("tolower($0) ~ /claude code: claude code listo/");
+    expect(script).not.toContain("awk '/Pi:/'");
+    expect(script).not.toContain("awk '/Claude Code:/'");
+  });
+
   test("push and dispatch share canonical final/alpha classification and reject unsupported prereleases", () => {
     const workflow = readFileSync(WORKFLOW_PATH, "utf8");
     const resolver = workflowStep(workflow, "- name: Resolve release tag");
