@@ -141,7 +141,7 @@ case "$scenario" in
       exit 1
     fi
     cat "$invalid_log"
-    grep -Fq "Error de opcion runtime" "$invalid_log"
+    grep -Fq "Error de opción runtime" "$invalid_log"
     grep -Fq -- "--runtime pi|claude|both" "$invalid_log"
     assert_absent "$HOME/.bun"
     assert_absent "$pi_agent"
