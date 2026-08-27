@@ -16,7 +16,7 @@ import {
 	runLaneCommand,
 	runPreflightCommand,
 	runSummaryCommand,
-} from "../cc-ein/sdd-cli/cli.ts";
+} from "../ein-cc/sdd-cli/cli.ts";
 
 function sandbox(...changes: string[]) {
 	const cwd = mkdtempSync(join(tmpdir(), "ein-cli-ambiguous-"));

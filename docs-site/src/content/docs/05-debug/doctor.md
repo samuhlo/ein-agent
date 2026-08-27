@@ -93,7 +93,7 @@ El doctor comprueba **el despliegue**, no tu trabajo. Que salga todo en verde
 significa que EIN está bien instalado, no que tu proyecto esté bien ni que un
 cambio esté correcto.
 
-Para eso están `cc-ein-sdd check` y los artefactos del cambio.
+Para eso están `ein-cc-sdd check` y los artefactos del cambio.
 
 ## Siguiente
 

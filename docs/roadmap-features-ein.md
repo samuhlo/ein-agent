@@ -58,7 +58,7 @@ desde entonces, medido contra `origin/main` y no contra la memoria:
 | 3A simplificación independiente | pendiente, menos los recibos | Team sigue siendo modo de primera clase; no hay selector de cambio activo |
 | 3B overlays dependientes del packet | pendiente | depende de 2A, ya cerrado |
 | 4A investigación del freeze | **clasificado, pendiente de una prueba** | `docs/investigacion-freeze-repintado-2026-08.md`; el sintoma es de repintado y sus tres partes visibles caen fuera del codigo de Ein |
-| 5 superficie installer/launcher | pendiente | `@clack` en tres ficheros, segundo menú vivo, `pi-ein`/`cc-ein` sin renombrar |
+| 5 superficie installer/launcher | pendiente | `@clack` en tres ficheros, segundo menú vivo, `ein-pi`/`ein-cc` sin renombrar |
 | 6 logo | **entregado antes de tiempo** | `d3931d5`; la marca es un televisor con una terminal dentro |
 | 7 estilo de código entregado | pendiente, abierto 2026-08-25 | las skills existen y no se aplican; el bloque entrega rutas y nada verifica el resultado |
 
@@ -460,7 +460,7 @@ lo hace.
    258 líneas: abrirla cuesta contexto, y un ejecutor con presupuesto ajustado
    escribe el código sin haberla leído. Nada distingue «no la leyó» de «la leyó
    y la ignoró».
-2. **En Claude ni siquiera es un bloque: es una frase.** `cc-ein/CLAUDE.md:17`
+2. **En Claude ni siquiera es un bloque: es una frase.** `ein-cc/CLAUDE.md:17`
    pide «load `comment-style` and enforce it», una línea entre diez mil bytes de
    política. No hay entrega del contenido ni mecanismo que la respalde.
 3. **Nada comprueba el resultado.** Cero gates. Las dos únicas menciones en
@@ -475,7 +475,7 @@ fuentes divergen, y la skill sigue siendo la canónica. El coste en bytes se mid
 contra el baseline del prompt antes de adoptarlo.
 
 **7B. Paridad de entrega en Claude.** El mismo extracto llega a los agentes de
-`cc-ein`, por el mismo compilador. Claude es relevo, no un segundo estándar: hoy
+`ein-cc`, por el mismo compilador. Claude es relevo, no un segundo estándar: hoy
 recibe una frase donde Pi recibe un bloque.
 
 **7C. El gate que lo hace medible.** Un linter determinista sobre las líneas

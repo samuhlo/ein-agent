@@ -77,7 +77,7 @@ describe("contrato offline del README para release e instalación", () => {
   });
 
   test("describe los tres destinos y mantiene aislados los runtimes vanilla", () => {
-    for (const value of ["pi-ein", "cc-ein", "~/.pi-ein/agent", "~/.claude-ein", "~/.pi/agent", "~/.claude"]) {
+    for (const value of ["ein-pi", "ein-cc", "~/.pi-ein/agent", "~/.claude-ein", "~/.pi/agent", "~/.claude"]) {
       expect(readme).toContain(value);
     }
   });

@@ -42,7 +42,7 @@ está tomada (`// 003`).
 | B1 | `ein_sdd_status` / `ein_sdd_check` ensucian el chat | Ruido | medio |
 | B2 | El TODO se queda mudo al completar tasks | Ruido | bajo |
 | B3 | Títulos de tarea largos e ilegibles | Ruido | bajo |
-| C1 | `pi-ein`/`cc-ein` → `ein-pi`/`ein-cc` | Nombres | mecánico, ancho |
+| C1 | `ein-pi`/`ein-cc` → `ein-pi`/`ein-cc` | Nombres | mecánico, ancho |
 | D1 | El instalador es feo | Diseño | alto |
 | D2 | La TUI de Pi tiene que ser más bonita | Diseño | alto |
 | D3 | Coherencia visual entre superficies | Diseño | alto |
@@ -84,12 +84,12 @@ Ein listo. Para la aplicación, ejecuta `ein`; para el agente, `pi`.
 ```
 
 `pi` a secas es Pi vanilla contra `~/.pi/agent`, que en la máquina de
-desarrollo está prácticamente vacío de Ein. El agente de Ein es `pi-ein`, cuyo
+desarrollo está prácticamente vacío de Ein. El agente de Ein es `ein-pi`, cuyo
 launcher exporta `PI_CODING_AGENT_DIR=~/.pi-ein/agent` y `EIN_PI_AGENT_HOME`
 **antes** de llamar a `command pi`. Sin esas variables no hay cerebro.
 
 El instalador acaba de escribir ese launcher tres líneas antes
-(`install.ts:467-479`, `name: "pi-ein.fish"`) y luego manda al comando
+(`install.ts:467-479`, `name: "ein-pi.fish"`) y luego manda al comando
 equivocado.
 
 **Arreglo:** el outro nombra el launcher que acaba de instalar.
@@ -121,10 +121,10 @@ propia, pero es una libertad que se retira a conciencia.
 
 #### A4 — El adaptador de Claude promete un fichero que en Claude no existe
 
-`cc-ein/CLAUDE.md:55` dice que el formato docente lo define "the orchestrator
+`ein-cc/CLAUDE.md:55` dice que el formato docente lo define "the orchestrator
 prompt". Pero:
 
-- `cc-ein/sync.ts` tiene **cero** referencias a `orchestrator.md`; nunca lo
+- `ein-cc/sync.ts` tiene **cero** referencias a `orchestrator.md`; nunca lo
   despliega.
 - `~/.claude-ein/` no tiene directorio `assets/`.
 - En Pi sí se carga: `ein-pi/agent/lib/persona.ts:70`.
@@ -261,13 +261,13 @@ un hallazgo aparte: es la forma que toma el arreglo.
 
 ### Bloque C — Nombres
 
-#### C1 — `pi-ein`/`cc-ein` → `ein-pi`/`ein-cc`
+#### C1 — `ein-pi`/`ein-cc` → `ein-pi`/`ein-cc`
 
 La propuesta es correcta y además **el directorio fuente ya se llama
 `ein-pi/`**: la incoherencia es interna hoy mismo (fuente en `ein-pi/`, launcher
-en `pi-ein/`, adaptador en `cc-ein/`).
+en `ein-pi/`, adaptador en `ein-cc/`).
 
-Superficie medida: unas 350 referencias a `pi-ein` y unas 680 a `cc-ein`. La
+Superficie medida: unas 350 referencias a `ein-pi` y unas 680 a `ein-cc`. La
 mayoría están en `openspec/changes/archive/`.
 
 **Frontera dura:** no se tocan `openspec/changes/archive/**` ni `CHANGELOG.md`.
@@ -292,7 +292,7 @@ No es falta de pulido. Son dos sistemas de diseño en el mismo binario:
 2. Los cinco ficheros de `installer/src/cli/` imprimen con `@clack/prompts`,
    que trae su propio canalón `│ ◆` con sus propios colores.
 
-Lo que se ve en pantalla —`◆ Launcher: /Users/…/pi-ein.fish`— **es** el clack.
+Lo que se ve en pantalla —`◆ Launcher: /Users/…/ein-pi.fish`— **es** el clack.
 Tras un banner de marca cuidado, el instalador vuelca líneas de log de
 desarrollador (rutas de launcher, inventario de comandos) en un estilo que no
 es el de Ein.
@@ -555,7 +555,7 @@ código que depende de frases literales, así que se comprobó antes de decidir.
 
 **Resultado de la comprobación: el prefijo es presentación pura.** 49 sitios
 imprimen `///`; **cero lo parsean**. No hay `startsWith`, ni regex, ni
-`includes` sobre él en `ein-pi/`, `installer/`, `cc-ein/` ni `tests/`. Ningún
+`includes` sobre él en `ein-pi/`, `installer/`, `ein-cc/` ni `tests/`. Ningún
 consumidor mecánico depende del prefijo, así que retirarlo no rompe ningún
 mecanismo — solo cambia lo que se ve.
 
@@ -825,7 +825,7 @@ en el documento:
 | B2/B4 raíl de fases | completado | `82313d6` |
 | B3 ancho del overlay | completado | `ein-sdd-overlay.ts:41` |
 | B3 título corto en `tasks.md` | **pendiente** | sin contrato en `sdd-tasks` |
-| C1 nombres | **pendiente** | `pi-ein/` y `cc-ein/` siguen en el árbol |
+| C1 nombres | **pendiente** | `ein-pi/` y `ein-cc/` siguen en el árbol |
 | D1 instalador | **pendiente** | `@clack` en tres ficheros de `installer/src/tui/` |
 | D3 logo | completado | `d3931d5` |
 

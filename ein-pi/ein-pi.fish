@@ -1,5 +1,5 @@
-function pi-ein --description "Pi Coding Agent con el cerebro de Ein (aislado en ~/.pi-ein)"
-    # Aislamiento simétrico con cc-ein. Ambas envs quedan en el scope de la
+function ein-pi --description "Pi Coding Agent con el cerebro de Ein (aislado en ~/.pi-ein)"
+    # Aislamiento simétrico con ein-cc. Ambas envs quedan en el scope de la
     # función (se exportan al proceso pi hijo, NO contaminan tu shell ni tu
     # `pi` vanilla):
     #   PI_CODING_AGENT_DIR → Pi carga su config/agente/auth/sesiones de ahí.
@@ -21,14 +21,14 @@ function pi-ein --description "Pi Coding Agent con el cerebro de Ein (aislado en
         case app
             set -l terminal_app "$EIN_PI_AGENT_HOME/app.ts"
             if not test -f "$terminal_app"
-                printf "pi-ein: terminal app unavailable\n" >&2
+                printf "ein-pi: terminal app unavailable\n" >&2
                 return 69
             end
             command bun "$terminal_app" $argv[2..-1]
         case cleaner workbench
             set -l surface_runner "$EIN_PI_AGENT_HOME/surfaces/surface-runner.ts"
             if not test -f "$surface_runner"
-                printf "pi-ein: surface runner unavailable\n" >&2
+                printf "ein-pi: surface runner unavailable\n" >&2
                 return 69
             end
             command bun "$surface_runner" $argv

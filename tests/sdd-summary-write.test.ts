@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { writeSddSummary } from "../ein-pi/agent/lib/sdd-summary-write.ts";
-import { runSummaryCommand } from "../cc-ein/sdd-cli/cli.ts";
+import { runSummaryCommand } from "../ein-cc/sdd-cli/cli.ts";
 import { collectSddRemedies } from "../ein-pi/agent/lib/sdd-remedies.ts";
 
 let cwd: string;
@@ -43,7 +43,7 @@ describe("writeSddSummary — deterministic persistence channel for sdd-close", 
 	});
 });
 
-describe("runSummaryCommand — cc-ein-sdd summary <change> from stdin", () => {
+describe("runSummaryCommand — ein-cc-sdd summary <change> from stdin", () => {
 	test("writes the file and returns exitCode 0 on the good path", () => {
 		const result = runSummaryCommand(cwd, ["probe"], "## // 000. RESUMEN\nOk.\n");
 		expect(result.exitCode).toBe(0);
@@ -58,12 +58,12 @@ describe("runSummaryCommand — cc-ein-sdd summary <change> from stdin", () => {
 });
 
 describe("collectSddRemedies — names the summary command for Claude when close is next", () => {
-	test("mentions cc-ein-sdd summary when runtime is claude and the next phase is close", () => {
+	test("mentions ein-cc-sdd summary when runtime is claude and the next phase is close", () => {
 		const remedies = collectSddRemedies(
 			{ specState: "synchronized", verifyStale: false, summaryStale: false, nextPhase: "close" },
 			"claude",
 		);
-		expect(remedies.some((remedy) => remedy.fix.includes("cc-ein-sdd summary"))).toBe(true);
+		expect(remedies.some((remedy) => remedy.fix.includes("ein-cc-sdd summary"))).toBe(true);
 	});
 
 	test("stays silent for the pi runtime, which already writes with `write`", () => {
@@ -71,6 +71,6 @@ describe("collectSddRemedies — names the summary command for Claude when close
 			{ specState: "synchronized", verifyStale: false, summaryStale: false, nextPhase: "close" },
 			"pi",
 		);
-		expect(remedies.some((remedy) => remedy.fix.includes("cc-ein-sdd summary"))).toBe(false);
+		expect(remedies.some((remedy) => remedy.fix.includes("ein-cc-sdd summary"))).toBe(false);
 	});
 });

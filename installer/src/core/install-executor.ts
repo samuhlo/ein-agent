@@ -9,7 +9,8 @@ import { isProxy } from "node:util/types";
 import { BackupFailure, sanitizeBackupFailureDetail } from "./backup.ts";
 
 export type InstallPlanHandlerResult = Readonly<{ ok: boolean; detail?: string }>;
-export type InstallPlanExecutionHandler = () => Promise<InstallPlanHandlerResult> | InstallPlanHandlerResult;
+export type InstallPlanExecutionContext = Readonly<{ transactionId: string }>;
+export type InstallPlanExecutionHandler = (context?: InstallPlanExecutionContext) => Promise<InstallPlanHandlerResult> | InstallPlanHandlerResult;
 export type InstallPlanExecutionHandlers = Readonly<Record<InstallPlanEntryId, InstallPlanExecutionHandler>>;
 /**
  * Lo que el ejecutor cuenta mientras trabaja. Existe porque el plan se conoce
@@ -66,7 +67,7 @@ export async function executeInstallPlan(plan: InstallPlanV1, handlers: InstallP
   const tell = (event: InstallPlanProgressEvent): void => { progress?.(event); };
   for (const entry of plan.inventory) {
     if (entry.state !== "selected" && entry.state !== "conditional") continue;
-    if (failures.shared || failures[entry.runtime]) { tell({ kind: "abandoned", id: entry.id }); continue; }
+    if (failures.shared || failures[entry.runtime] || entry.id === "shared.retire-legacy" && Object.keys(failures).length > 0) { tell({ kind: "abandoned", id: entry.id }); continue; }
     tell({ kind: "start", id: entry.id });
     try {
       const result = await admitted[entry.id]();

@@ -61,7 +61,7 @@ describe("la frontera sale de la etiqueta, no del cuerpo", () => {
 
 	test("REGRESION: rutas en el cuerpo pero no en la etiqueta NO son frontera", () => {
 		const body = [
-			"El grupo menciona `ein-pi/agent/lib/sdd-router.ts` y `cc-ein/sync.ts`",
+			"El grupo menciona `ein-pi/agent/lib/sdd-router.ts` y `ein-cc/sync.ts`",
 			"como evidencia de solo lectura, y no debe tocarlos.",
 		].join("\n");
 		const result = compile(tasksDoc("Production files (apply touches):", "none.", body));

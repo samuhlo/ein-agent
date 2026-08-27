@@ -14,7 +14,7 @@ import {
 } from "../ein-pi/agent/lib/sdd-lane.ts";
 import { resolveSddStatus } from "../ein-pi/agent/lib/sdd-router.ts";
 import { lintChange } from "../ein-pi/agent/lib/sdd-guardrails.ts";
-import { runLaneCommand } from "../cc-ein/sdd-cli/cli.ts";
+import { runLaneCommand } from "../ein-cc/sdd-cli/cli.ts";
 
 // =============================================================================
 // Medido sobre los 44 cambios archivados: 42 usaron las siete fases. La

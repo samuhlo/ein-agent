@@ -91,7 +91,7 @@ describe("renderGitBaselineLine (puro)", () => {
 	});
 });
 
-describe("renderWorkingTreeLine (puro, canal único de `cc-ein-sdd status`)", () => {
+describe("renderWorkingTreeLine (puro, canal único de `ein-cc-sdd status`)", () => {
 	const base: GitBaseline = { isRepo: true, dirty: false, stashes: 0, recentReset: null };
 
 	test("no-repo → null (no reporta un árbol que no existe)", () => {

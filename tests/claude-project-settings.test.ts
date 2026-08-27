@@ -4,25 +4,25 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { readFileSync } from "node:fs";
-import { buildClaudeHooks, compileClaudeSurface, listClaudeCommands } from "../cc-ein/sync.ts";
-import { buildSettingsBlock, buildStatusOutput } from "../cc-ein/sdd-cli/cli.ts";
+import { buildClaudeHooks, compileClaudeSurface, listClaudeCommands } from "../ein-cc/sync.ts";
+import { buildSettingsBlock, buildStatusOutput } from "../ein-cc/sdd-cli/cli.ts";
 
 describe("Claude reads the project settings", () => {
 	// El agujero que cerró este cambio: Claude arrancaba con sus defaults de
 	// fábrica y un handoff desde Pi cambiaba de estándar sin avisar.
 	test("SessionStart injects the settings through the deterministic CLI", () => {
-		const hooks = buildClaudeHooks("/bin/cc-ein-sdd", "/bin/continuity");
+		const hooks = buildClaudeHooks("/bin/ein-cc-sdd", "/bin/continuity");
 		const sessionStart = hooks.SessionStart;
 
 		expect(sessionStart).toHaveLength(1);
 		expect(sessionStart[0].matcher).toContain("startup");
 		expect(sessionStart[0].matcher).toContain("resume");
-		expect(sessionStart[0].hooks[0].command).toBe('"/bin/cc-ein-sdd" settings --hook');
+		expect(sessionStart[0].hooks[0].command).toBe('"/bin/ein-cc-sdd" settings --hook');
 	});
 
 	test("the guard and continuity wiring survives alongside it", () => {
-		const hooks = buildClaudeHooks("/bin/cc-ein-sdd", "/bin/continuity");
-		expect(hooks.PreToolUse[0].hooks[0].command).toBe('"/bin/cc-ein-sdd" guard');
+		const hooks = buildClaudeHooks("/bin/ein-cc-sdd", "/bin/continuity");
+		expect(hooks.PreToolUse[0].hooks[0].command).toBe('"/bin/ein-cc-sdd" guard');
 		expect(hooks.UserPromptSubmit[0].hooks[0].command).toBe('"/bin/continuity" hook');
 		expect(Object.keys(hooks).sort()).toEqual([
 			"PreCompact",
@@ -59,7 +59,7 @@ describe("Claude reads the project settings", () => {
 		const surface = compileClaudeSurface();
 
 		expect(surface.coordinator).toContain(".pi/ein/git.json");
-		expect(surface.coordinator).not.toContain("cc-ein/git.json");
+		expect(surface.coordinator).not.toContain("ein-cc/git.json");
 		expect(surface.agents["sdd-apply.md"]).toContain(".pi/ein/support/strict-tdd.md");
 		expect(surface.agents["sdd-verify.md"]).toContain(".pi/ein/support/strict-tdd-verify.md");
 	});
@@ -96,7 +96,7 @@ describe("Claude session commands", () => {
 		expect(commands).toContain("handoff.md");
 
 		for (const file of commands) {
-			const body = readFileSync(join(import.meta.dir, "..", "cc-ein", "commands", "ein", file), "utf8");
+			const body = readFileSync(join(import.meta.dir, "..", "ein-cc", "commands", "ein", file), "utf8");
 			expect(body.startsWith("---\n")).toBe(true);
 			expect(body).toContain("description:");
 		}
@@ -106,8 +106,8 @@ describe("Claude session commands", () => {
 	// permiso cada vez y deja de ser un atajo.
 	test("a command that shells out pre-approves exactly what it runs", () => {
 		for (const file of ["status.md", "settings.md"]) {
-			const body = readFileSync(join(import.meta.dir, "..", "cc-ein", "commands", "ein", file), "utf8");
-			const invoked = body.match(/!`(cc-ein-sdd [a-z]+)/);
+			const body = readFileSync(join(import.meta.dir, "..", "ein-cc", "commands", "ein", file), "utf8");
+			const invoked = body.match(/!`(ein-cc-sdd [a-z]+)/);
 			expect(invoked).not.toBeNull();
 			expect(body).toContain(`allowed-tools: Bash(${invoked?.[1]}:*)`);
 		}

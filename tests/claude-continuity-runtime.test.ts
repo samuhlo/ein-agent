@@ -5,13 +5,13 @@ import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createSupervisorHandler, handleClaudeHook, listenIpc, parseHandoffPrompt, parseIpcFrame, terminateSource } from "../cc-ein/continuity-runner.ts";
+import { createSupervisorHandler, handleClaudeHook, listenIpc, parseHandoffPrompt, parseIpcFrame, terminateSource } from "../ein-cc/continuity-runner.ts";
 import type { ContinuityHandoffLifecycle } from "../ein-pi/agent/lib/continuity-handoff-lifecycle.ts";
 
 const ROOT = join(import.meta.dir, "..");
-const COMMAND = readFileSync(join(ROOT, "cc-ein", "commands", "ein", "handoff.md"), "utf8");
-const RUNNER = readFileSync(join(ROOT, "cc-ein", "continuity-runner.ts"), "utf8");
-const SYNC = readFileSync(join(ROOT, "cc-ein", "sync.ts"), "utf8");
+const COMMAND = readFileSync(join(ROOT, "ein-cc", "commands", "ein", "handoff.md"), "utf8");
+const RUNNER = readFileSync(join(ROOT, "ein-cc", "continuity-runner.ts"), "utf8");
+const SYNC = readFileSync(join(ROOT, "ein-cc", "sync.ts"), "utf8");
 const RESUME_BRIEF = readFileSync(join(ROOT, "ein-pi", "agent", "lib", "continuity-resume-brief.ts"), "utf8");
 
 function hook(name: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
@@ -23,7 +23,7 @@ async function delayed(ms: number): Promise<void> {
 }
 
 async function runHook(endpoint: string, token: string, prompt: string): Promise<Record<string, unknown>> {
-  const child = Bun.spawn([process.execPath, join(ROOT, "cc-ein", "continuity-runner.ts"), "hook"], {
+  const child = Bun.spawn([process.execPath, join(ROOT, "ein-cc", "continuity-runner.ts"), "hook"], {
     env: { ...process.env, EIN_CONTINUITY_ENDPOINT: endpoint, EIN_CONTINUITY_TOKEN: token },
     stdin: "pipe",
     stdout: "pipe",
@@ -159,7 +159,7 @@ describe("Claude continuity supervisor", () => {
   });
 
   test("runs real PTY Claude-to-fresh-provider handoffs and native-exit fallback", async () => {
-    const root = mkdtempSync(join(tmpdir(), "ein-claude-continuity-")), bin = join(root, "bin"), runner = join(ROOT, "cc-ein", "continuity-runner.ts");
+    const root = mkdtempSync(join(tmpdir(), "ein-claude-continuity-")), bin = join(root, "bin"), runner = join(ROOT, "ein-cc", "continuity-runner.ts");
     execFileSync("git", ["init", "-q"], { cwd: root });
     execFileSync("git", ["config", "user.email", "fixture@example.invalid"], { cwd: root });
     execFileSync("git", ["config", "user.name", "Fixture"], { cwd: root });

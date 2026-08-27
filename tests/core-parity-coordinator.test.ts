@@ -7,12 +7,12 @@ import { describe, expect, test } from "bun:test";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CLAUDE_PARITY_DEFERRALS, checkGeneratedParity, compileClaudeSurface } from "../cc-ein/sync.ts";
+import { CLAUDE_PARITY_DEFERRALS, checkGeneratedParity, compileClaudeSurface } from "../ein-cc/sync.ts";
 
 const ROOT = join(import.meta.dir, "..");
 const CANONICAL_PATH = join(ROOT, "ein-pi", "core", "AGENTS.md");
-const ADAPTER_PATH = join(ROOT, "cc-ein", "CLAUDE.adapter.md");
-const GENERATED_PATH = join(ROOT, "cc-ein", "CLAUDE.md");
+const ADAPTER_PATH = join(ROOT, "ein-cc", "CLAUDE.adapter.md");
+const GENERATED_PATH = join(ROOT, "ein-cc", "CLAUDE.md");
 
 function readIfPresent(path: string): string {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
@@ -60,7 +60,7 @@ describe("core parity: Claude coordinator contract", () => {
       adapter.indexOf("<!-- ein:claude-adaptation:end -->"),
     );
     expect(adapter).toContain("Claude Code");
-    expect(adapter).toContain("cc-ein-sdd");
+    expect(adapter).toContain("ein-cc-sdd");
     expect(adapter).toMatch(/`Task` tool/);
     expect(adapter).toContain("CLAUDE_CONFIG_DIR");
   });
@@ -88,7 +88,7 @@ describe("core parity: Claude coordinator contract", () => {
     const adaptationEnd = "<!-- ein:claude-adaptation:end -->";
 
     expect(generated.split("\n", 1)[0]).toBe(
-      "<!-- GENERATED: source=ein-pi/core/AGENTS.md adapter=cc-ein/CLAUDE.adapter.md; DO NOT EDIT -->",
+      "<!-- GENERATED: source=ein-pi/core/AGENTS.md adapter=ein-cc/CLAUDE.adapter.md; DO NOT EDIT -->",
     );
     expect(count(generated, adaptationStart)).toBe(1);
     expect(count(generated, adaptationEnd)).toBe(1);
@@ -100,7 +100,7 @@ describe("core parity: Claude coordinator contract", () => {
     expect(boundedBlock(generated, harnessStart, harnessEnd)).toBe(
       boundedBlock(adapter, harnessStart, harnessEnd),
     );
-    expect(generated).toContain("cc-ein-sdd");
+    expect(generated).toContain("ein-cc-sdd");
     expect(generated).toContain("Claude Code");
   });
 
@@ -109,7 +109,7 @@ describe("core parity: Claude coordinator contract", () => {
     expect(surface.coordinator).toBe(generated);
     expect(surface.agents["ein-scout.md"]).toContain("tools: Read, Grep, Glob");
     expect(surface.agents["ein-linear.md"]).toContain("mcp__linear__linear_get_issue");
-    expect(surface.agents["sdd-apply.md"]).toContain("cc-ein-sdd status");
+    expect(surface.agents["sdd-apply.md"]).toContain("ein-cc-sdd status");
     expect(surface.agents["sdd-apply.md"]).not.toContain("ein_sdd_status");
   });
 
@@ -161,7 +161,7 @@ describe("core parity: Claude coordinator contract", () => {
     try {
       const canonicalPath = join(fixture, "AGENTS.md");
       const adapterPath = join(fixture, "CLAUDE.adapter.md");
-      const adapterMarker = "Fixture Claude adaptation: `Task`, `cc-ein-sdd sync`, and `CLAUDE_CONFIG_DIR`.";
+      const adapterMarker = "Fixture Claude adaptation: `Task`, `ein-cc-sdd sync`, and `CLAUDE_CONFIG_DIR`.";
       writeFileSync(canonicalPath, `${canonical}\nFixture canonical policy.\n`);
       writeFileSync(
         adapterPath,
@@ -173,7 +173,7 @@ describe("core parity: Claude coordinator contract", () => {
 
       const surface = compileClaudeSurface({ canonicalPath, adapterPath });
       expect(surface.coordinator.startsWith(
-        "<!-- GENERATED: source=ein-pi/core/AGENTS.md adapter=cc-ein/CLAUDE.adapter.md; DO NOT EDIT -->\n",
+        "<!-- GENERATED: source=ein-pi/core/AGENTS.md adapter=ein-cc/CLAUDE.adapter.md; DO NOT EDIT -->\n",
       )).toBe(true);
       expect(surface.coordinator).toContain("Fixture canonical policy.");
       expect(surface.coordinator).toContain(adapterMarker);
@@ -307,7 +307,7 @@ describe("core parity: Claude coordinator contract", () => {
       const output = surface.agents["sdd-apply.md"];
       expect(output).toContain("prefixein_unknown_runtime");
       expect(output).toContain("wrapped_ein_unknown_runtime_suffix");
-      expect(output).toContain("Registered token: cc-ein-sdd status.");
+      expect(output).toContain("Registered token: ein-cc-sdd status.");
       expect(output).not.toContain('<!-- ein:runtime-ref id="pi-runtime" -->');
       expect(output).not.toMatch(/(?<![A-Za-z0-9_])ein_[A-Za-z0-9_]+(?![A-Za-z0-9_])/);
     } finally {

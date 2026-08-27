@@ -42,8 +42,8 @@ Ein ataca las dos cosas: parte el trabajo en fases con contrato, y deja el estad
 
 | ELECCIÓN | SUPERFICIE | HOGAR DE EIN | RUNTIME VANILLA |
 | :--- | :--- | :--- | :--- |
-| **Pi** | `pi-ein` | `~/.pi-ein/agent` | `pi` → `~/.pi/agent` |
-| **Claude Code** | `cc-ein` | `~/.claude-ein` | `claude` → `~/.claude` |
+| **Pi** | `ein-pi` | `~/.pi-ein/agent` | `pi` → `~/.pi/agent` |
+| **Claude Code** | `ein-cc` | `~/.claude-ein` | `claude` → `~/.claude` |
 | **Both** | ambas | ambos hogares | ambos intactos |
 
 Comparten el núcleo, **no las capacidades**. Las diferencias, sin maquillar, en la [matriz de runtimes](https://samuhlo.github.io/ein-agent/03-runtimes/runtime-matrix/).
@@ -66,9 +66,10 @@ Y hay comprobaciones que no dependen del modelo: el estado de las fases lo calcu
 ein-agent/
 ├── ein-pi/
 │   ├── core/       # agentes, skills, docs y prompts compartidos
-│   └── agent/      # extensiones, chains y runtime específico de Pi
-├── pi-ein/         # adaptador + migración Pi
-├── cc-ein/         # CLAUDE.md, hooks, sync y CLI SDD del adaptador Claude
+│   ├── agent/      # extensiones, chains y runtime específico de Pi
+│   ├── ein-pi.fish # acceso directo avanzado
+│   └── migrate.ts  # migración del hogar Pi
+├── ein-cc/         # CLAUDE.md, hooks, sync y CLI SDD del adaptador Claude
 ├── docs-site/      # documentación pública (Astro + Starlight)
 └── installer/      # CLI, TUI, paths, deploy, backups y releases
 ```
@@ -103,6 +104,14 @@ ein-install doctor  # el mismo diagnóstico, sin depender de la aplicación
 ```
 
 Referencia completa en [CLI](https://samuhlo.github.io/ein-agent/04-reference/cli/).
+
+Acceso directo avanzado, sin pasar por la aplicación:
+
+```bash
+ein-pi             # Ein sobre Pi
+ein-cc             # Ein sobre Claude Code
+ein-cc-sdd status  # canal determinista SDD de Claude
+```
 
 ## // 06_ DOCS
 

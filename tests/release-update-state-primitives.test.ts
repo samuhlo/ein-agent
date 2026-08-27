@@ -66,6 +66,7 @@ function transactionFixture(candidates: Record<string, unknown>[]): {
   files: Map<string, Uint8Array>;
   requests: string[];
   journalWrites: Record<string, unknown>[];
+  continuationActions: string[];
   markerPath: string;
   journalPath: string;
   destinationPath: string;
@@ -94,6 +95,7 @@ function transactionFixture(candidates: Record<string, unknown>[]): {
   ]);
   const requests: string[] = [];
   const journalWrites: Record<string, unknown>[] = [];
+  const continuationActions: string[] = [];
   const caps = fakeUpdateCaps({
     files,
     http: { get: async (url) => {
@@ -125,6 +127,7 @@ function transactionFixture(candidates: Record<string, unknown>[]): {
         ...baseChild,
         spawn: async (_command, args) => {
           if (args[0] === "--version") return { code: 0, stdout: "ein-installer 1.2.0\ntemplate-version 1.2.0\n" };
+          continuationActions.push(args.find((argument) => argument.startsWith("--ein-runtime-surfaces="))?.split("=")[1] ?? "missing");
           const txId = args[0]?.slice("--ein-continuation=".length) ?? "";
           const releaseTag = args[1]?.slice("--ein-release=".length) ?? "";
           return { code: 0, stdout: JSON.stringify({ txId, releaseTag, binaryVersion: "1.2.0", templateVersion: "1.2.0", status: "ok" }) };
@@ -144,6 +147,7 @@ function transactionFixture(candidates: Record<string, unknown>[]): {
     files,
     requests,
     journalWrites,
+    continuationActions,
     markerPath,
     journalPath,
     destinationPath,
@@ -403,6 +407,7 @@ describe("release update state primitives", () => {
     expect(JSON.parse(new TextDecoder().decode(alphaInstall.files.get(alphaInstall.markerPath)!))).toEqual(expect.objectContaining({ channel: "alpha" }));
     expect(readMarkerV2(alphaInstall.caps, alphaInstall.markerPath)).toEqual(expect.objectContaining({ channel: "alpha" }));
     expect(alphaInstall.journalWrites).toContainEqual(expect.objectContaining({ channel: "alpha" }));
+    expect(alphaInstall.continuationActions).toEqual(["prepare", "commit"]);
 
     const stableInstall = transactionFixture(installCandidates);
     const stableResult = await runUpdateTransaction({
@@ -418,6 +423,25 @@ describe("release update state primitives", () => {
     expect(JSON.parse(new TextDecoder().decode(stableInstall.files.get(stableInstall.markerPath)!))).toEqual(expect.objectContaining({ channel: "stable" }));
     expect(readMarkerV2(stableInstall.caps, stableInstall.markerPath)).toEqual(expect.objectContaining({ channel: "stable" }));
     expect(stableInstall.journalWrites).toContainEqual(expect.objectContaining({ channel: "stable" }));
+
+    const failedInstall = transactionFixture(installCandidates);
+    const failed = await runUpdateTransaction({
+      caps: {
+        ...failedInstall.caps,
+        template: {
+          ...failedInstall.caps.template,
+          deploy: async () => { throw new Error("post-retirement-template-failure"); },
+        },
+      },
+      selector: { kind: "latest", raw: "latest" },
+      platform: { os: "linux", arch: "arm64" },
+      destinationPath: failedInstall.destinationPath,
+      agentDir: failedInstall.agentDir,
+      markerPath: failedInstall.markerPath,
+      journalPath: failedInstall.journalPath,
+    });
+    expect(failed).toEqual(expect.objectContaining({ type: "failed" }));
+    expect(failedInstall.continuationActions).toEqual(["prepare", "rollback"]);
   });
 
   test("fails before local mutation when the effective channel has no eligible candidate", async () => {
@@ -755,6 +779,8 @@ describe("release update state primitives", () => {
     }
     expect(completeTx.complete()).toEqual(expect.objectContaining({ error: expect.objectContaining({ code: "journal-cleanup-failed" }) }));
     expect(JSON.parse(readFileSync(completePath, "utf8"))).toMatchObject({ state: "complete" });
-    expect(await recoverPendingTransaction({ caps: base, journalPath: completePath })).toEqual({ ok: true, value: "clean" });
+    const finalized: string[] = [];
+    expect(await recoverPendingTransaction({ caps: base, journalPath: completePath, finalizeCommitted: (journal) => { finalized.push(journal.txId); return true; } })).toEqual({ ok: true, value: "clean" });
+    expect(finalized).toEqual([completeTx.journal.txId]);
   });
 });

@@ -45,7 +45,7 @@ Cuatro adopciones salen de ahí. Dos son urgentes y una de ellas es un defecto:
 1. **Guardrail shell-aware** — sus regex están sustituidas por tokenización real.
    Las de Ein tienen falsos negativos medidos: `git push -f` y `rm -fr /` pasan.
    La promesa *"Force-push is always denied"* escrita en `ein-pi/core/AGENTS.md:31`
-   y `cc-ein/CLAUDE.md:33` **hoy es falsa**.
+   y `ein-cc/CLAUDE.md:33` **hoy es falsa**.
 2. **Contabilidad de sesiones** — su skill lee el coste real del JSONL. Ein tiene
    1.278 sesiones con `usage.cost` completo y **nadie las ha leído nunca**: son
    **$412,76** de gasto ciego, y el **85,4% se ha ido en construir Ein, no en
@@ -174,7 +174,7 @@ Cuando Amos jubila una extensión, la mueve a `deprecated/` y escribe una línea
 Coste: un `git mv`.
 
 Cuando Ein jubila una pieza hay que tocar el módulo, su test espejo, el bundle del
-instalador, la paridad del adaptador Claude, `cc-ein/sync.ts`, la docs-site y
+instalador, la paridad del adaptador Claude, `ein-cc/sync.ts`, la docs-site y
 probablemente un spec de OpenSpec. Coste: un cambio SDD completo.
 
 **La arquitectura de Ein hace barato añadir y caro quitar.** Por eso crece: no
@@ -279,7 +279,7 @@ DENY  F=1 git push --force
 
 ### Las dos consecuencias
 
-1. **`ein-pi/core/AGENTS.md:31` y `cc-ein/CLAUDE.md:33` prometen *"Force-push is
+1. **`ein-pi/core/AGENTS.md:31` y `ein-cc/CLAUDE.md:33` prometen *"Force-push is
    always denied"*. No es cierto.** `git push -f` no está en `DENIED`; cae en
    `CONFIRM` por `/\bgit\s+push\b/` y se aprueba con un enter. El manifiesto
    `// 009` señal 9 —*"una pantalla muestra como verdad algo que no ha

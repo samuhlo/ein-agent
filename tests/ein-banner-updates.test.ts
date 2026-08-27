@@ -1,5 +1,5 @@
 // =============================================================================
-// TESTS: aviso de updates propio de Ein en el runtime pi-ein
+// TESTS: aviso de updates propio de Ein en el runtime ein-pi
 // =============================================================================
 
 import { describe, expect, mock, test } from "bun:test";
@@ -26,19 +26,19 @@ mock.module("@earendil-works/pi-tui", () => ({
 }));
 
 import {
-  collectPiEinUpdates,
-  collectPiEinUpdateEvidence,
-  detectPiEinUpdates,
+  collectEinPiUpdates,
+  collectEinPiUpdateEvidence,
+  detectEinPiUpdates,
   legacyAvailabilityFromEvidence,
-  renderPiEinAdvisorNotice,
-  isPiEinRuntime,
-  renderPiEinUpdateNotice,
-  startPiEinUpdateNotice,
+  renderEinPiAdvisorNotice,
+  isEinPiRuntime,
+  renderEinPiUpdateNotice,
+  startEinPiUpdateNotice,
   UPDATE_CHECK_TIMEOUT_MS,
 } from "../ein-pi/agent/lib/ein-update-notice";
 
 const HOME = "/tmp/ein-banner-home";
-const PI_EIN_ENV = {
+const EIN_PI_ENV = {
   PI_CODING_AGENT_DIR: `${HOME}/.pi-ein/agent`,
   EIN_PI_AGENT_HOME: `${HOME}/.pi-ein/agent`,
 };
@@ -332,12 +332,12 @@ describe("ein-banner extension provenance", () => {
   });
 });
 
-describe("pi-ein update notice", () => {
+describe("ein-pi update notice", () => {
   test("detects the isolated launcher runtime, not vanilla Pi", () => {
-    expect(isPiEinRuntime(PI_EIN_ENV, HOME)).toBe(true);
-    expect(isPiEinRuntime({ ...PI_EIN_ENV, CLAUDE_CODE: "1" }, HOME)).toBe(false);
+    expect(isEinPiRuntime(EIN_PI_ENV, HOME)).toBe(true);
+    expect(isEinPiRuntime({ ...EIN_PI_ENV, CLAUDE_CODE: "1" }, HOME)).toBe(false);
     expect(
-      isPiEinRuntime(
+      isEinPiRuntime(
         {
           PI_CODING_AGENT_DIR: `${HOME}/.pi/agent`,
           EIN_PI_AGENT_HOME: `${HOME}/.pi/agent`,
@@ -345,48 +345,48 @@ describe("pi-ein update notice", () => {
         HOME,
       ),
     ).toBe(false);
-    expect(isPiEinRuntime({}, HOME)).toBe(false);
+    expect(isEinPiRuntime({}, HOME)).toBe(false);
   });
 
-  test("renders exact pi-ein and Ein commands when both updates are available", () => {
+  test("renders exact ein-pi and Ein commands when both updates are available", () => {
     expect(
-      renderPiEinUpdateNotice(
+      renderEinPiUpdateNotice(
         { pi: true, ein: true },
-        { env: PI_EIN_ENV, home: HOME },
+        { env: EIN_PI_ENV, home: HOME },
       ),
     ).toBe(
       [
         "// 000. ein updates",
         "",
-        "- Pi binary, extensions and packages: `pi-ein update --all`",
+        "- Pi binary, extensions and packages: `ein-pi update --all`",
         "- Ein template: `ein update`",
       ].join("\n"),
     );
   });
 
-  test("does not emit the pi-ein notice for vanilla or without updates", () => {
+  test("does not emit the ein-pi notice for vanilla or without updates", () => {
     expect(
-      renderPiEinUpdateNotice(
+      renderEinPiUpdateNotice(
         { pi: true, ein: true },
         { env: {}, home: HOME },
       ),
     ).toBeNull();
     expect(
-      renderPiEinUpdateNotice(
+      renderEinPiUpdateNotice(
         { pi: false, ein: false },
-        { env: PI_EIN_ENV, home: HOME },
+        { env: EIN_PI_ENV, home: HOME },
       ),
     ).toBeNull();
     expect(
-      renderPiEinUpdateNotice(
+      renderEinPiUpdateNotice(
         { pi: true, ein: false },
-        { env: PI_EIN_ENV, home: HOME },
+        { env: EIN_PI_ENV, home: HOME },
       ),
-    ).toContain("`pi-ein update --all`");
+    ).toContain("`ein-pi update --all`");
     expect(
-      renderPiEinUpdateNotice(
+      renderEinPiUpdateNotice(
         { pi: true, ein: false },
-        { env: PI_EIN_ENV, home: HOME },
+        { env: EIN_PI_ENV, home: HOME },
       ),
     ).not.toContain("`ein update`");
   });
@@ -397,7 +397,7 @@ describe("pi-ein update notice", () => {
       resolvePackages = resolve;
     });
     const { timers, scheduler } = createManualScheduler();
-    const availabilityPromise = collectPiEinUpdates(
+    const availabilityPromise = collectEinPiUpdates(
       {
         binary: () => Promise.reject(new Error("binary unavailable")),
         packages: () => packages,
@@ -424,7 +424,7 @@ describe("pi-ein update notice", () => {
   test("preserves timeout, rejection, malformed and skipped evidence without treating false as current", async () => {
     const { timers, scheduler } = createManualScheduler();
     const pending = new Promise<boolean>(() => {});
-    const observationsPromise = collectPiEinUpdateEvidence({
+    const observationsPromise = collectEinPiUpdateEvidence({
       binary: () => Promise.reject(new Error("private-token")),
       packages: () => pending,
       ein: () => Promise.resolve({ status: "skipped", reason: "offline", freshness: "current" }),
@@ -454,7 +454,7 @@ describe("pi-ein update notice", () => {
       },
     });
     expect(result.update.status).toBe("unavailable");
-    expect(renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME })).toBeNull();
+    expect(renderEinPiAdvisorNotice(result, { env: EIN_PI_ENV, home: HOME })).toBeNull();
   });
 
   test("startup notice renders actionable commands and never claims unread configuration", () => {
@@ -467,10 +467,10 @@ describe("pi-ein update notice", () => {
         ],
       },
     });
-    const rendered = renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME });
+    const rendered = renderEinPiAdvisorNotice(result, { env: EIN_PI_ENV, home: HOME });
     expect(rendered).toBe(["// 000. ein updates", "", "- Ein template: `ein update`"].join("\n"));
     expect(rendered).not.toContain("Configuration:");
-    expect(rendered).not.toContain("pi-ein update --all");
+    expect(rendered).not.toContain("ein-pi update --all");
   });
 
   test("renders an actionable component even when the aggregate facet is unavailable", () => {
@@ -484,7 +484,7 @@ describe("pi-ein update notice", () => {
       },
     });
     expect(result.update.status).toBe("unavailable");
-    const rendered = renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME });
+    const rendered = renderEinPiAdvisorNotice(result, { env: EIN_PI_ENV, home: HOME });
     expect(rendered).toBe(["// 000. ein updates", "", "- Ein template: `ein update`"].join("\n"));
   });
 
@@ -500,7 +500,7 @@ describe("pi-ein update notice", () => {
       ] as const;
       const result = evaluateSharedConfigUpdateAdvisor({ update: { observations } });
       expect(result.update.status).toBe(status);
-      expect(renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME })).toBeNull();
+      expect(renderEinPiAdvisorNotice(result, { env: EIN_PI_ENV, home: HOME })).toBeNull();
     });
   }
 
@@ -514,7 +514,7 @@ describe("pi-ein update notice", () => {
       },
     });
     expect(result.update.status).toBe("current");
-    expect(renderPiEinAdvisorNotice(result, { env: PI_EIN_ENV, home: HOME })).toBeNull();
+    expect(renderEinPiAdvisorNotice(result, { env: EIN_PI_ENV, home: HOME })).toBeNull();
   });
 
   test("an update with no ownership handoff is a read gap, not a healthy no-op", () => {
@@ -531,7 +531,7 @@ describe("pi-ein update notice", () => {
   });
 
   test("production detector preserves canonical observation status, provenance, and freshness until rendering", async () => {
-    const result = await detectPiEinUpdates("/tmp/project", {
+    const result = await detectEinPiUpdates("/tmp/project", {
       runtime: () => true,
       sources: {
         binary: async () => ({ source: "binary", status: "update-available", reason: "newer-release", freshness: "current" }),
@@ -574,22 +574,22 @@ describe("pi-ein update notice", () => {
       },
     };
 
-    startPiEinUpdateNotice(
+    startEinPiUpdateNotice(
       context,
       () => first.promise,
       () => true,
-      { env: PI_EIN_ENV, home: HOME },
+      { env: EIN_PI_ENV, home: HOME },
       {
         recorder,
         invocationEventId: "invocation-first",
         runtimeSessionIdentity: { state: "unknown" },
       },
     );
-    startPiEinUpdateNotice(
+    startEinPiUpdateNotice(
       context,
       () => second.promise,
       () => true,
-      { env: PI_EIN_ENV, home: HOME },
+      { env: EIN_PI_ENV, home: HOME },
       {
         recorder,
         invocationEventId: "invocation-second",
@@ -636,26 +636,26 @@ describe("pi-ein update notice", () => {
     };
 
     expect(() =>
-      startPiEinUpdateNotice(
+      startEinPiUpdateNotice(
         context,
         () => Promise.reject(new Error("update service unavailable")),
         () => true,
-        { env: PI_EIN_ENV, home: HOME },
+        { env: EIN_PI_ENV, home: HOME },
         provenance,
       ),
     ).not.toThrow();
     await flushChecks();
 
     const { timers, scheduler } = createManualScheduler();
-    startPiEinUpdateNotice(
+    startEinPiUpdateNotice(
       context,
-      () => collectPiEinUpdates({
+      () => collectEinPiUpdates({
         binary: () => new Promise<boolean>(() => {}),
         packages: () => Promise.resolve(false),
         ein: () => Promise.resolve(false),
       }, { scheduler }),
       () => true,
-      { env: PI_EIN_ENV, home: HOME },
+      { env: EIN_PI_ENV, home: HOME },
       provenance,
     );
     await flushChecks();
@@ -689,14 +689,14 @@ describe("pi-ein update notice", () => {
     };
     const notifications: string[] = [];
 
-    startPiEinUpdateNotice(
+    startEinPiUpdateNotice(
       {
         cwd: "/tmp/project",
         ui: { notify: (message: string) => notifications.push(message) },
       },
       async () => ({ pi: false, ein: true }),
       () => true,
-      { env: PI_EIN_ENV, home: HOME },
+      { env: EIN_PI_ENV, home: HOME },
       {
         recorder,
         invocationEventId: "invocation-failed-sink",
@@ -727,12 +727,12 @@ describe("pi-ein update notice", () => {
         capability: { status: "valid", source: "installer-capability", supported: true, freshness: "current" },
       },
     });
-    startPiEinUpdateNotice({ cwd: "/tmp/project", ui: { notify: message => notifications.push(message) } }, async () => result, () => true, { env: PI_EIN_ENV, home: HOME });
+    startEinPiUpdateNotice({ cwd: "/tmp/project", ui: { notify: message => notifications.push(message) } }, async () => result, () => true, { env: EIN_PI_ENV, home: HOME });
     await flushChecks();
     expect(notifications[0]).toBe(["// 000. ein updates", "", "- Ein template: `ein update`"].join("\n"));
   });
 
-  test("notifies exactly once with exact commands in isolated pi-ein", async () => {
+  test("notifies exactly once with exact commands in isolated ein-pi", async () => {
     const notifications: Array<{ message: string; level: string }> = [];
     const context = {
       cwd: "/tmp/project",
@@ -743,11 +743,11 @@ describe("pi-ein update notice", () => {
     const { scheduler } = createManualScheduler();
     let detectorCalls = 0;
 
-    startPiEinUpdateNotice(
+    startEinPiUpdateNotice(
       context,
       () => {
         detectorCalls++;
-        return collectPiEinUpdates(
+        return collectEinPiUpdates(
           {
             binary: () => Promise.resolve(true),
             packages: () => Promise.resolve(false),
@@ -756,8 +756,8 @@ describe("pi-ein update notice", () => {
           { scheduler },
         );
       },
-      () => isPiEinRuntime(PI_EIN_ENV, HOME),
-      { env: PI_EIN_ENV, home: HOME },
+      () => isEinPiRuntime(EIN_PI_ENV, HOME),
+      { env: EIN_PI_ENV, home: HOME },
     );
     await flushChecks();
 
@@ -767,7 +767,7 @@ describe("pi-ein update notice", () => {
         message: [
           "// 000. ein updates",
           "",
-          "- Pi binary, extensions and packages: `pi-ein update --all`",
+          "- Pi binary, extensions and packages: `ein-pi update --all`",
           "- Ein template: `ein update`",
         ].join("\n"),
         level: "warning",
@@ -776,7 +776,7 @@ describe("pi-ein update notice", () => {
 
     let vanillaCalls = 0;
     const vanillaNotifications: string[] = [];
-    startPiEinUpdateNotice(
+    startEinPiUpdateNotice(
       {
         cwd: "/tmp/project",
         ui: { notify: (message: string) => vanillaNotifications.push(message) },
@@ -785,7 +785,7 @@ describe("pi-ein update notice", () => {
         vanillaCalls++;
         return Promise.resolve({ pi: true, ein: true });
       },
-      () => isPiEinRuntime({}, HOME),
+      () => isEinPiRuntime({}, HOME),
       { env: {}, home: HOME },
     );
     await flushChecks();

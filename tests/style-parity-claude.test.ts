@@ -12,7 +12,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
-import { compileClaudeSurface } from "../cc-ein/sync.ts";
+import { compileClaudeSurface } from "../ein-cc/sync.ts";
 import { compileStyleContract } from "../ein-pi/agent/lib/style-contract.ts";
 
 const SKILLS = join(import.meta.dir, "..", "ein-pi", "core", "skills", "local");

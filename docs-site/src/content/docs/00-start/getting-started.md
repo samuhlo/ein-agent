@@ -80,8 +80,8 @@ lanzas. `tab` rota entre las vistas, `q` sale.
 También puedes ir directo al runtime:
 
 ```bash
-pi-ein      # Pi con EIN
-cc-ein      # Claude Code con EIN
+ein-pi      # Pi con EIN
+ein-cc      # Claude Code con EIN
 ```
 
 Son comandos distintos de `pi` y `claude` a propósito. Tus runtimes originales

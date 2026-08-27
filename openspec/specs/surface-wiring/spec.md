@@ -11,10 +11,10 @@ Then: Then: Then the promised destination exists and its bytes are identical to 
 
 ## Scenario: close-phase-summary-has-a-deterministic-persistence-channel
 title: The close phase has a deterministic persistence channel that does not depend on agent initiative
-requirement: The system MUST offer the close phase a persistence channel for summary.md that does not depend on the agent writing the file on its own initiative, and that channel MUST validate the destination rather than only dumping bytes.
-Given: Given: a summary.md produced by sdd-close and an existing change.
-When: When: the content is passed to cc-ein-sdd summary <change> over stdin.
-Then: Then: it is written to openspec/changes/<change>/summary.md, and rejected when the name is unsafe, the change does not exist, or the content is empty.
+requirement: The system MUST offer the close phase a persistence channel for `summary.md` through `ein-cc-sdd` that does not depend on the agent writing the file on its own initiative, and that channel MUST validate the destination rather than only dumping bytes.
+Given: a `summary.md` produced by sdd-close and an existing change
+When: the content is passed to `ein-cc-sdd summary <change>` over stdin
+Then: it is written to `openspec/changes/<change>/summary.md`, and rejected when the name is unsafe, the change does not exist, or the content is empty
 
 ## Scenario: envelope-consumer-rule-is-declared-pi-specific
 title: The envelope-consumer rule is declared as Pi-specific, not silently assumed for Claude

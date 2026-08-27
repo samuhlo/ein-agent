@@ -27,7 +27,7 @@ comando. Saber dónde está la línea es saber qué significan sus afirmaciones.
 
 Estas cosas no dependen de que el modelo tenga un buen día:
 
-**El estado de las fases.** `cc-ein-sdd status` lee el disco. Si faltan
+**El estado de las fases.** `ein-cc-sdd status` lee el disco. Si faltan
 artefactos, lo dice, y el agente no puede afirmar lo contrario.
 
 **La validación de artefactos.** Un guardrail comprueba que cada fase escribió

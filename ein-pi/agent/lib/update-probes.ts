@@ -8,9 +8,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  collectPiEinUpdateEvidence,
+  collectEinPiUpdateEvidence,
   UPDATE_CHECK_TIMEOUT_MS,
-  type PiEinUpdateObservation,
+  type EinPiUpdateObservation,
   type UpdateEvidenceSources,
   type UpdateTimeoutScheduler,
 } from "./ein-update-notice.ts";
@@ -18,11 +18,11 @@ import {
 export type FetchLike = typeof fetch;
 
 function updateObservation(
-  source: PiEinUpdateObservation["source"],
-  status: PiEinUpdateObservation["status"],
+  source: EinPiUpdateObservation["source"],
+  status: EinPiUpdateObservation["status"],
   reason: string,
-  freshness: PiEinUpdateObservation["freshness"] = "current",
-): PiEinUpdateObservation {
+  freshness: EinPiUpdateObservation["freshness"] = "current",
+): EinPiUpdateObservation {
   return { source, status, reason, freshness };
 }
 
@@ -49,7 +49,7 @@ export function isNewerVersion(candidate: string, current: string): boolean {
 export async function checkPiBinaryUpdate(
   installedVersion?: string,
   fetchFn: FetchLike = fetch,
-): Promise<PiEinUpdateObservation> {
+): Promise<EinPiUpdateObservation> {
   if (!installedVersion) return updateObservation("binary", "skipped", "installed-version-unavailable", "unknown");
   try {
     const response = await fetchFn("https://pi.dev/api/latest-version", {
@@ -80,7 +80,7 @@ export async function readEinVersion(agentDir: string): Promise<string> {
 export async function checkEinTemplateUpdate(
   installedVersion?: string,
   fetchFn: FetchLike = fetch,
-): Promise<PiEinUpdateObservation> {
+): Promise<EinPiUpdateObservation> {
   if (!installedVersion) return updateObservation("ein", "skipped", "installed-version-unavailable", "unknown");
   if (installedVersion === "dev") return updateObservation("ein", "skipped", "development-install", "unknown");
   try {
@@ -147,7 +147,7 @@ export const CLAUDE_UPDATE_COMMAND = "claude update";
 export async function checkClaudeCodeUpdate(
   run: VersionProbeRunner,
   executable = "claude",
-): Promise<PiEinUpdateObservation> {
+): Promise<EinPiUpdateObservation> {
   let result: Awaited<ReturnType<VersionProbeRunner>>;
   try {
     result = await run({
@@ -170,7 +170,7 @@ export async function checkClaudeCodeUpdate(
 
 export type UpdateEvidenceSnapshot = Readonly<{
   /** Synchronous, non-blocking: resolved observations, or `undefined` while pending. */
-  read(): readonly PiEinUpdateObservation[] | undefined;
+  read(): readonly EinPiUpdateObservation[] | undefined;
 }>;
 
 export type UpdateEvidenceSnapshotOptions = Readonly<{
@@ -188,8 +188,8 @@ export function startUpdateEvidenceSnapshot(
   sources: UpdateEvidenceSources,
   options: UpdateEvidenceSnapshotOptions = {},
 ): UpdateEvidenceSnapshot {
-  let resolved: readonly PiEinUpdateObservation[] | undefined;
-  void collectPiEinUpdateEvidence(sources, options).then((observations) => {
+  let resolved: readonly EinPiUpdateObservation[] | undefined;
+  void collectEinPiUpdateEvidence(sources, options).then((observations) => {
     resolved = observations;
   });
   return Object.freeze({

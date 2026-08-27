@@ -18,14 +18,14 @@ export const UPDATE_CHECK_TIMEOUT_MS = 2_000;
 export type RuntimeEnvironment = Readonly<Record<string, string | undefined>>;
 
 export type UpdateCheckSource = () => Promise<boolean>;
-export type PiEinUpdateStatus = "current" | "update-available" | "unavailable" | "unsupported" | "ambiguous" | "error" | "skipped";
-export type PiEinUpdateObservation = Readonly<{
+export type EinPiUpdateStatus = "current" | "update-available" | "unavailable" | "unsupported" | "ambiguous" | "error" | "skipped";
+export type EinPiUpdateObservation = Readonly<{
   source: "binary" | "packages" | "ein" | "claude";
-  status: PiEinUpdateStatus;
+  status: EinPiUpdateStatus;
   reason: string;
   freshness: "current" | "stale" | "unknown";
 }>;
-export type UpdateEvidenceSource = () => Promise<PiEinUpdateObservation | boolean | unknown>;
+export type UpdateEvidenceSource = () => Promise<EinPiUpdateObservation | boolean | unknown>;
 
 export type UpdateCheckSources = Readonly<{
   binary: UpdateCheckSource;
@@ -80,10 +80,10 @@ function failOpenWithin(
 }
 
 function observation(
-  source: PiEinUpdateObservation["source"],
+  source: EinPiUpdateObservation["source"],
   value: unknown,
   fallbackReason: string,
-): PiEinUpdateObservation {
+): EinPiUpdateObservation {
   if (typeof value === "boolean") {
     return Object.freeze({
       source,
@@ -95,9 +95,9 @@ function observation(
   if (!value || typeof value !== "object") {
     return Object.freeze({ source, status: "error", reason: fallbackReason, freshness: "unknown" });
   }
-  const candidate = value as Partial<PiEinUpdateObservation>;
-  const statuses: readonly PiEinUpdateStatus[] = ["current", "update-available", "unavailable", "unsupported", "ambiguous", "error", "skipped"];
-  const status = statuses.includes(candidate.status as PiEinUpdateStatus) ? candidate.status as PiEinUpdateStatus : "error";
+  const candidate = value as Partial<EinPiUpdateObservation>;
+  const statuses: readonly EinPiUpdateStatus[] = ["current", "update-available", "unavailable", "unsupported", "ambiguous", "error", "skipped"];
+  const status = statuses.includes(candidate.status as EinPiUpdateStatus) ? candidate.status as EinPiUpdateStatus : "error";
   const freshness = candidate.freshness === "stale" || candidate.freshness === "unknown" ? candidate.freshness : "current";
   return Object.freeze({
     source,
@@ -109,14 +109,14 @@ function observation(
 
 function failOpenEvidenceWithin(
   source: UpdateEvidenceSource,
-  sourceName: PiEinUpdateObservation["source"],
+  sourceName: EinPiUpdateObservation["source"],
   timeoutMs: number,
   scheduler: UpdateTimeoutScheduler,
-): Promise<PiEinUpdateObservation> {
+): Promise<EinPiUpdateObservation> {
   return new Promise((resolve) => {
     let settled = false;
     let timeoutHandle: unknown;
-    const finish = (value: PiEinUpdateObservation) => {
+    const finish = (value: EinPiUpdateObservation) => {
       if (settled) return;
       settled = true;
       if (timeoutHandle !== undefined) scheduler.clearTimeout(timeoutHandle);
@@ -134,10 +134,10 @@ function failOpenEvidenceWithin(
 }
 
 /** Status-preserving probe collection. The old boolean collector wraps this seam below. */
-export async function collectPiEinUpdateEvidence(
+export async function collectEinPiUpdateEvidence(
   sources: UpdateEvidenceSources,
   options: { timeoutMs?: number; scheduler?: UpdateTimeoutScheduler } = {},
-): Promise<readonly PiEinUpdateObservation[]> {
+): Promise<readonly EinPiUpdateObservation[]> {
   const timeoutMs = options.timeoutMs ?? UPDATE_CHECK_TIMEOUT_MS;
   const scheduler = options.scheduler ?? DEFAULT_TIMEOUT_SCHEDULER;
   const { claude } = sources;
@@ -149,45 +149,45 @@ export async function collectPiEinUpdateEvidence(
   ]);
 }
 
-export const collectPiEinUpdatesEvidence = collectPiEinUpdateEvidence;
-export const collectPiEinUpdateObservations = collectPiEinUpdateEvidence;
+export const collectEinPiUpdatesEvidence = collectEinPiUpdateEvidence;
+export const collectEinPiUpdateObservations = collectEinPiUpdateEvidence;
 
-export function advisorResultFromPiEinUpdateObservations(
-  observations: readonly PiEinUpdateObservation[],
+export function advisorResultFromEinPiUpdateObservations(
+  observations: readonly EinPiUpdateObservation[],
 ): SharedConfigUpdateAdvisorResult {
   return evaluateSharedConfigUpdateAdvisor({ update: { observations } });
 }
 
-export type PiEinUpdateDetectorOptions = Readonly<{
+export type EinPiUpdateDetectorOptions = Readonly<{
   runtime?: () => boolean;
   sources?: UpdateEvidenceSources;
 }>;
 
-export async function detectPiEinUpdates(
+export async function detectEinPiUpdates(
   _cwd: string,
-  options: PiEinUpdateDetectorOptions = {},
+  options: EinPiUpdateDetectorOptions = {},
 ): Promise<SharedConfigUpdateAdvisorResult> {
-  const runtime = options.runtime ?? (() => isPiEinRuntime());
+  const runtime = options.runtime ?? (() => isEinPiRuntime());
   if (!runtime()) {
-    return advisorResultFromPiEinUpdateObservations([
+    return advisorResultFromEinPiUpdateObservations([
       { source: "binary", status: "skipped", reason: "not-isolated-runtime", freshness: "current" },
       { source: "packages", status: "skipped", reason: "not-isolated-runtime", freshness: "current" },
       { source: "ein", status: "skipped", reason: "not-isolated-runtime", freshness: "current" },
     ]);
   }
   if (!options.sources) {
-    return advisorResultFromPiEinUpdateObservations([
+    return advisorResultFromEinPiUpdateObservations([
       { source: "binary", status: "skipped", reason: "no-probe", freshness: "unknown" },
       { source: "packages", status: "skipped", reason: "no-probe", freshness: "unknown" },
       { source: "ein", status: "skipped", reason: "no-probe", freshness: "unknown" },
     ]);
   }
-  return advisorResultFromPiEinUpdateObservations(await collectPiEinUpdateEvidence(options.sources));
+  return advisorResultFromEinPiUpdateObservations(await collectEinPiUpdateEvidence(options.sources));
 }
 
 /** Compatibility lives at the boundary; uncertainty never becomes current evidence. */
 export function legacyAvailabilityFromEvidence(
-  observations: readonly PiEinUpdateObservation[],
+  observations: readonly EinPiUpdateObservation[],
 ): EinUpdateAvailability {
   return {
     pi: observations.some((item) => (item.source === "binary" || item.source === "packages") && item.status === "update-available" && item.freshness === "current"),
@@ -195,9 +195,9 @@ export function legacyAvailabilityFromEvidence(
   };
 }
 
-export const adaptPiEinUpdateEvidence = legacyAvailabilityFromEvidence;
+export const adaptEinPiUpdateEvidence = legacyAvailabilityFromEvidence;
 
-export async function collectPiEinUpdates(
+export async function collectEinPiUpdates(
   sources: UpdateCheckSources,
   options: {
     timeoutMs?: number;
@@ -235,7 +235,7 @@ export type RuntimeOptions = {
 };
 
 /** The isolated launcher sets both runtime roots; vanilla Pi and Claude do not. */
-export function isPiEinRuntime(
+export function isEinPiRuntime(
   env: RuntimeEnvironment = process.env,
   home = homedir(),
 ): boolean {
@@ -267,10 +267,10 @@ function recordNotificationEmission(
 }
 
 /** Start the notice without making session_start wait for update checks. */
-export function startPiEinUpdateNotice(
+export function startEinPiUpdateNotice(
   ctx: UpdateNoticeContext,
   detectUpdates: UpdateAvailabilityDetector,
-  runtime: () => boolean = () => isPiEinRuntime(),
+  runtime: () => boolean = () => isEinPiRuntime(),
   renderRuntime: RuntimeOptions = {},
   provenance?: UpdateNoticeProvenance,
 ): void {
@@ -279,8 +279,8 @@ export function startPiEinUpdateNotice(
     void detectUpdates(ctx.cwd)
       .then((availability) => {
         const notice = "configuration" in availability
-          ? renderPiEinAdvisorNotice(availability, renderRuntime)
-          : renderPiEinUpdateNotice(availability, renderRuntime);
+          ? renderEinPiAdvisorNotice(availability, renderRuntime)
+          : renderEinPiUpdateNotice(availability, renderRuntime);
         if (notice) {
           recordNotificationEmission(notice, provenance);
           ctx.ui.notify(notice, "warning");
@@ -295,8 +295,8 @@ export function startPiEinUpdateNotice(
 }
 
 const UPDATE_COMMANDS: Readonly<Record<string, string>> = {
-  binary: "- Pi binary, extensions and packages: `pi-ein update --all`",
-  packages: "- Pi binary, extensions and packages: `pi-ein update --all`",
+  binary: "- Pi binary, extensions and packages: `ein-pi update --all`",
+  packages: "- Pi binary, extensions and packages: `ein-pi update --all`",
   ein: "- Ein template: `ein update`",
 };
 
@@ -322,11 +322,11 @@ const RENDERABLE_UPDATE_STATUSES: ReadonlySet<AdvisorUpdateStatus> = new Set(["u
  * semantics stay on the workbench surface, which does supply configuration evidence.
  * Everything except a fresh, actionable update stays silent — the probe is best-effort.
  */
-export function renderPiEinAdvisorNotice(
+export function renderEinPiAdvisorNotice(
   result: SharedConfigUpdateAdvisorResult,
   runtime: { env?: RuntimeEnvironment; home?: string } = {},
 ): string | null {
-  if (!isPiEinRuntime(runtime.env, runtime.home)) return null;
+  if (!isEinPiRuntime(runtime.env, runtime.home)) return null;
   if (!RENDERABLE_UPDATE_STATUSES.has(result.update.status)) return null;
 
   // Version-comparison evidence names the installer action; probe observations name the component.
@@ -345,19 +345,19 @@ export function renderPiEinAdvisorNotice(
   return ["// 000. ein updates", "", ...commands].join("\n");
 }
 
-export const renderPiEinUpdateAdvice = renderPiEinAdvisorNotice;
+export const renderEinPiUpdateAdvice = renderEinPiAdvisorNotice;
 
-export function renderPiEinUpdateNotice(
+export function renderEinPiUpdateNotice(
   availability: EinUpdateAvailability,
   runtime: { env?: RuntimeEnvironment; home?: string } = {},
 ): string | null {
-  if (!isPiEinRuntime(runtime.env, runtime.home) || (!availability.pi && !availability.ein)) {
+  if (!isEinPiRuntime(runtime.env, runtime.home) || (!availability.pi && !availability.ein)) {
     return null;
   }
 
   const lines = ["// 000. ein updates", ""];
   if (availability.pi) {
-    lines.push("- Pi binary, extensions and packages: `pi-ein update --all`");
+    lines.push("- Pi binary, extensions and packages: `ein-pi update --all`");
   }
   if (availability.ein) {
     lines.push("- Ein template: `ein update`");

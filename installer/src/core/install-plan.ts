@@ -5,7 +5,7 @@ export type RuntimeInstallTarget = Exclude<InstallTarget, "both">;
 export type InstallPlanRuntime = "shared" | RuntimeInstallTarget;
 export type InstallPlanAction =
   | "ensure-dependency" | "migrate" | "backup" | "deploy" | "configure"
-  | "promote-command" | "write-marker" | "verify";
+  | "promote-command" | "write-marker" | "verify" | "retire-legacy";
 export type InstallPlanState = "selected" | "conditional" | "satisfied" | "skipped" | "blocked";
 export type InstallDependencyId = "bun" | "pi" | "engram" | "gh" | "hypa" | "codegraph";
 export const INSTALL_PLAN_ENTRY_IDS = [
@@ -13,9 +13,10 @@ export const INSTALL_PLAN_ENTRY_IDS = [
   "pi.migrate-legacy", "pi.backup-current", "pi.deploy-template", "pi.configure-packages", "pi.configure-secrets",
   "pi.configure-context7-export", "pi.write-install-marker", "pi.verify-doctor", "pi.deploy-launcher", "pi.promote-commands",
   "claude.deploy-runtime", "claude.deploy-launcher",
+  "shared.retire-legacy",
 ] as const;
 export type InstallPlanEntryId = typeof INSTALL_PLAN_ENTRY_IDS[number];
-export const PI_INSTALL_PLAN_ENTRY_IDS = INSTALL_PLAN_ENTRY_IDS.slice(1, 16), CLAUDE_INSTALL_PLAN_ENTRY_IDS = INSTALL_PLAN_ENTRY_IDS.slice(16);
+export const PI_INSTALL_PLAN_ENTRY_IDS = INSTALL_PLAN_ENTRY_IDS.slice(1, 16), CLAUDE_INSTALL_PLAN_ENTRY_IDS = INSTALL_PLAN_ENTRY_IDS.slice(16, 18);
 type EntryContract = readonly [InstallPlanRuntime, InstallPlanAction, readonly string[]];
 export const INSTALL_PLAN_ENTRY_CONTRACTS = {
   "shared.dependency.bun": ["shared", "ensure-dependency", ["external:selected", "external:satisfied"]], "pi.dependency.pi": ["pi", "ensure-dependency", ["external:selected", "external:satisfied"]],
@@ -27,6 +28,7 @@ export const INSTALL_PLAN_ENTRY_CONTRACTS = {
   "pi.write-install-marker": ["pi", "write-marker", ["installer:selected", "unknown:selected"]], "pi.verify-doctor": ["pi", "verify", ["installer:selected", "unknown:selected"]],
   "pi.deploy-launcher": ["pi", "deploy", ["installer:selected", "unknown:selected"]], "pi.promote-commands": ["pi", "promote-command", ["installer:conditional", "unknown:conditional"]],
   "claude.deploy-runtime": ["claude", "deploy", ["installer:selected"]], "claude.deploy-launcher": ["claude", "deploy", ["installer:selected"]],
+  "shared.retire-legacy": ["shared", "retire-legacy", ["installer:selected"]],
 } as const satisfies Record<InstallPlanEntryId, EntryContract>;
 export type PiOwnershipEvidence =
   | { status: "absent" }
@@ -89,7 +91,7 @@ export function validateInstallPlan(plan: unknown): asserts plan is InstallPlanV
     if (!exact(plan, ["schemaVersion", "target", "home", "claudeConfigHome", "platform", "status", "blockers", "inventory"]) || plan.schemaVersion !== 1 || !["pi", "claude", "both"].includes(plan.target as string) || !["ready", "blocked"].includes(plan.status as string) || !safePath(plan.home) || !safePath(plan.claudeConfigHome)) throw 0;
     if (!exact(plan.platform, ["os", "arch"]) || !["darwin", "linux"].includes(plan.platform.os as string) || !["arm64", "x64"].includes(plan.platform.arch as string) || !Array.isArray(plan.blockers) || !Array.isArray(plan.inventory)) throw 0;
     const target = plan.target as InstallTarget;
-    const expected = ["shared.dependency.bun", ...(target === "claude" ? [] : PI_INSTALL_PLAN_ENTRY_IDS), ...(target === "pi" ? [] : CLAUDE_INSTALL_PLAN_ENTRY_IDS)];
+    const expected = ["shared.dependency.bun", ...(target === "claude" ? [] : PI_INSTALL_PLAN_ENTRY_IDS), ...(target === "pi" ? [] : CLAUDE_INSTALL_PLAN_ENTRY_IDS), "shared.retire-legacy"];
     if (plan.inventory.length !== expected.length) throw 0;
     for (let index = 0; index < expected.length; index += 1) {
       const entry = plan.inventory[index];
@@ -164,6 +166,7 @@ export function createInstallPlan(input: InstallPlanInput): InstallPlanV1 {
   const inventory = [dependency(input, "bun", "shared")];
   if (input.target !== "claude") inventory.push(...piEntries(input));
   if (input.target !== "pi") inventory.push(...claudeEntries(input));
+  inventory.push({ id: "shared.retire-legacy", runtime: "shared", action: "retire-legacy", state: "selected", destination: input.home, ownership: "installer", reason: "retire proven legacy entry points after every selected current surface validates" });
   for (const entry of inventory) Object.freeze(entry);
   const blocked = input.target !== "claude" && input.piOwnership.status === "ambiguous";
   const blockers: InstallPlanBlocker[] = blocked ? [{ code: "pi-ownership-ambiguous", reason: "Pi ownership cannot be proven safely" }] : [];

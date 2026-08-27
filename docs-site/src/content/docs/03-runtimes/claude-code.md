@@ -1,7 +1,7 @@
 ---
 title: "Claude Code"
 description: "Cómo usar EIN con Claude Code, y qué no se traslada exactamente desde Pi."
-sources: ["README.md", "cc-ein/README.md", "openspec/changes/archive/core-parity/verify-report.md"]
+sources: ["README.md", "ein-cc/README.md", "openspec/changes/archive/core-parity/verify-report.md"]
 verified_rev: "eeceb7c"
 ---
 
@@ -11,10 +11,11 @@ Pi es el runtime de referencia de EIN. Claude Code actúa como relevo para conti
 
 ```bash
 ein-install install --runtime claude
-cc-ein
+ein                         # entrada normal
+ein-cc                      # acceso directo avanzado
 ```
 
-`cc-ein` exporta `CLAUDE_CONFIG_DIR` apuntando a `~/.claude-ein` y antepone
+`ein-cc` exporta `CLAUDE_CONFIG_DIR` apuntando a `~/.claude-ein` y antepone
 `~/.claude-ein/bin` al `PATH`, **solo para esa invocación**. Tu `claude` normal
 sigue usando `~/.claude`.
 
@@ -42,9 +43,9 @@ Es la diferencia más visible respecto a Pi. Aquí las comprobaciones
 deterministas van por un binario:
 
 ```bash
-cc-ein-sdd status [cambio]     # en qué fase va y qué falta
-cc-ein-sdd check  [cambio]     # valida los artefactos presentes
-cc-ein-sdd close  <cambio>     # archiva un cambio verificado
+ein-cc-sdd status [cambio]     # en qué fase va y qué falta
+ein-cc-sdd check  [cambio]     # valida los artefactos presentes
+ein-cc-sdd close  <cambio>     # archiva un cambio verificado
 ```
 
 Ese binario se compila durante la sincronización del adaptador y vive en
@@ -58,21 +59,21 @@ persistido en disco.
 :::caution[OJO CON EL BINARIO]
 Está **compilado**, no interpretado. Si cambias el código de los guardrails en
 el repositorio, el binario instalado sigue con la versión anterior hasta que
-vuelvas a sincronizar con `bun cc-ein/sync.ts`.
+vuelvas a sincronizar con `bun ein-cc/sync.ts`.
 ::
 
 ## Sincronizar el adaptador
 
 ```bash
-bun cc-ein/sync.ts          # sincroniza
-bun cc-ein/sync.ts --dry    # enseña qué haría
+bun ein-cc/sync.ts          # sincroniza
+bun ein-cc/sync.ts --dry    # enseña qué haría
 ```
 
 Genera el `CLAUDE.md` del adaptador a partir de dos fuentes —la política
 compartida y la adaptación específica de Claude—, traduce los agentes, copia
 las skills y compila el CLI.
 
-Por eso `cc-ein/CLAUDE.md` es **salida generada**: editarlo a mano se pierde en
+Por eso `ein-cc/CLAUDE.md` es **salida generada**: editarlo a mano se pierde en
 la siguiente sincronización. Se edita la adaptación o la fuente compartida.
 
 ## Frontera Pi-first: Cleaner y Architect

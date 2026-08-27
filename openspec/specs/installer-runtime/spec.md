@@ -10,11 +10,11 @@ When: The installer handles the failed `pi.backup-current` operation.
 Then: The journal and installer result retain a bounded cause containing the failing operation or entry and the original error detail, rather than replacing it with a generic handler-failed message; the failure remains recovery-required and no uncertain operation is marked complete.
 
 ## Scenario: claude-code-runtime-installation
-title: Claude Code target installs cc-ein
-requirement: The system MUST install the Claude Code EIN runtime by invoking bun cc-ein/sync.ts and installing cc-ein.fish under the Fish functions directory.
+title: Claude Code target installs the Ein-first runtime surface
+requirement: The system MUST install the Claude Code Ein runtime by invoking `bun ein-cc/sync.ts`, installing `ein-cc.fish`, and publishing `ein-cc-sdd` as its deterministic SDD command.
 Given: the Claude Code runtime path is selected
 When: installation runs
-Then: cc-ein/sync.ts is invoked with Bun, cc-ein.fish is installed, and the installer reports a failed Claude Code path when either operation fails
+Then: the renamed sync path runs with Bun, the Ein-first launcher and SDD command are installed, and either failure produces a failed Claude Code installation result
 
 ## Scenario: claude-payload-materializes-canonical-orchestrator
 title: Claude payload materializes the canonical orchestrator asset into the installed home
@@ -45,11 +45,11 @@ When: the installer parses the flags and selects runtime targets
 Then: Pi, Claude Code, or both run in the existing Pi-then-Claude order exactly as selected, omission preserves the current Pi-only behavior, and an invalid value fails before installation
 
 ## Scenario: pi-runtime-isolated-installation
-title: Pi target installs the isolated EIN runtime
-requirement: The system MUST deploy Pi EIN through the existing isolated-agent resolution, install pi-ein.fish, and migrate legacy EIN from ~/.pi/agent only when legacy EIN is detected.
+title: Pi target installs the isolated Ein-first runtime surface
+requirement: The system MUST deploy Ein for Pi through the existing isolated-agent resolution, install `ein-pi.fish`, preserve `~/.pi-ein/agent`, and migrate legacy Ein from `~/.pi/agent` only when legacy Ein is detected.
 Given: the Pi runtime path is selected
 When: installation runs with an isolated or legacy Pi agent state
-Then: the template targets the isolated Pi directory, the pi-ein launcher is installed under the Fish functions directory, and a detected legacy installation is migrated without treating an ordinary vanilla Pi directory as EIN
+Then: the template targets the unchanged isolated Pi data directory, the `ein-pi` launcher is installed under the Fish functions directory, and a detected legacy installation is migrated without treating an ordinary vanilla Pi directory as Ein
 
 ## Scenario: pre-mutation-pi-failure-retry
 title: Pre-mutation Pi failure supports fail-closed retry
@@ -71,6 +71,13 @@ requirement: The system MUST offer Pi, Claude Code, and both as installer runtim
 Given: the interactive installer menu is opened
 When: the user selects Pi, Claude Code, or both
 Then: the installer runs the corresponding target path exactly once and does not run an unselected runtime path
+
+## Scenario: runtime-surface-rename-cleans-owned-legacy-entrypoints
+title: Upgrade removes only installer-owned retired runtime entry points
+requirement: The system MUST publish the Ein-first runtime launchers and SDD command before removing retired installer-owned entry points, and MUST NOT delete unrelated user-owned files or migrate runtime data homes.
+Given: an existing managed alpha installation contains retired runtime launcher or SDD executable names
+When: the supported install or update path deploys the renamed runtime surfaces
+Then: the new entry points are usable, each retired installer-owned entry point is removed through a bounded explicit cleanup, unrelated functions remain byte-identical, and the Pi and Claude data homes stay in place
 
 ## Scenario: safe-secret-file-writes
 title: Installer safely writes secret files

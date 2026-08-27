@@ -6,7 +6,7 @@
 
 import * as p from "../tui/ui.ts";
 import { INSTALLER_COMMAND, promoteCommandNames } from "../core/command-names.ts";
-import piEinFish from "../../../pi-ein/pi-ein.fish" with { type: "text" };
+import einPiFish from "../../../ein-pi/ein-pi.fish" with { type: "text" };
 import { describePlatform, detectPlatform, type Platform } from "../core/platform.ts";
 import { run } from "../core/exec.ts";
 import {
@@ -48,11 +48,11 @@ import {
 } from "../core/release-channel-preference.ts";
 import { isReleaseChannel, type ReleaseChannel } from "../core/release-types.ts";
 import { runDoctor } from "../core/verify.ts";
-import { stageCcEinPayload, type CcEinPayloadStage } from "../core/cc-payload.ts";
+import { stageEinCcPayload, type EinCcPayloadStage } from "../core/cc-payload.ts";
 import { renderReport } from "./doctor.ts";
 import { playBanner } from "../tui/banner.ts";
 import { bold, gold, levelMark } from "../tui/theme.ts";
-import ccEinFish from "../../../cc-ein/cc-ein.fish" with { type: "text" };
+import einCcFish from "../../../ein-cc/ein-cc.fish" with { type: "text" };
 import {
   createInstallPlan,
   renderInstallPlan,
@@ -71,6 +71,14 @@ import {
 } from "../core/install-executor.ts";
 import { createProgressView, productionProgressIO } from "../tui/progress-view.ts";
 import { executeInstallPlanJournaled, inspectInstallJournal, installJournalMatchesPlan, InstallJournalError, type InstallExecutionJournalV1 } from "../core/install-journal.ts";
+import { readInstallMarkerVersion } from "../core/legacy-runtime-artifacts.ts";
+import {
+  finalizeRuntimeSurfaceRetirement,
+  retireOwnedLegacyRuntimeArtifacts,
+  rollbackRuntimeSurfaceRetirement,
+  type RuntimeSurfaceRetirementActionOptions,
+  type RuntimeSurfaceRetirementResult,
+} from "../core/runtime-surface-transaction.ts";
 import {
   LINEAR_INTEGRATION_OPTIONS,
   type LinearIntegration,
@@ -128,6 +136,15 @@ export type InstallCommandOptions = {
   playBanner?: () => Promise<void>;
   writePlan?: (plan: InstallPlanV1) => void;
   handlers?: InstallPlanExecutionHandlers;
+  retireLegacy?: (options: {
+    home: string;
+    target: InstallTarget;
+    validatedCurrentArtifacts: true;
+    claudeMarkerVersion: string | null;
+    transactionId: string;
+  }) => RuntimeSurfaceRetirementResult;
+  rollbackLegacy?: (options: RuntimeSurfaceRetirementActionOptions) => void;
+  finalizeLegacy?: (options: RuntimeSurfaceRetirementActionOptions & { globalCommit: true }) => void;
 };
 
 function isInstallTarget(value: string): value is InstallTarget {
@@ -328,7 +345,6 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   const success = (): InstallStep => ({ ok: true, detail: "ok" });
   let piContext: PiInstallContext | undefined;
   let rollbackPath: string | null = null;
-  let appHint = "usa `pi-ein app`";
   const context = (migrate = false): PiInstallContext => {
     piContext ??= migrate ? effects.migrateContext() : effects.resolveContext();
     if (piContext.agentDir !== agentDir) throw new Error("Pi install path changed after planning");
@@ -516,13 +532,13 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   try {
     const launcher = effects.launcher({
       home: context().home,
-      name: "pi-ein.fish",
-      content: piEinFish,
+      name: "ein-pi.fish",
+      content: einPiFish,
     });
     p.log.success(`${launcher.changed ? "Launcher" : "Launcher ya actualizado"}: ${launcher.path}`);
     return success();
   } catch (error) {
-    return { ok: false, detail: `No se pudo instalar el launcher pi-ein: ${error instanceof Error ? error.message : String(error)}` };
+    return { ok: false, detail: `No se pudo instalar el launcher ein-pi: ${error instanceof Error ? error.message : String(error)}` };
   }
   },
   "pi.promote-commands": () => {
@@ -535,7 +551,6 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
       selfPath,
       appArtifact: join(context().agentDir, "bin", "ein"),
     });
-    if (promoted.app.written) appHint = "ejecuta `ein`";
     // La razón viaja al mensaje: descartarla fue lo que hizo indiagnosticable
     // un `app-artifact-missing` en la primera instalación real.
     p.log.success(
@@ -555,7 +570,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   // `pi` a secas es Pi vanilla: el cerebro de Ein solo se carga a través del
   // launcher, que exporta PI_CODING_AGENT_DIR antes de invocarlo. Mandar aquí a
   // `pi` era mandar al usuario fuera del producto que acababa de instalar.
-  return { handlers, detail: () => `Ein listo. Para la aplicación, ${appHint}; para el agente, \`pi-ein\`.` };
+  return { handlers, detail: () => "Ein listo. Ejecuta `ein`." };
 }
 
 export type ClaudeInstallOptions = {
@@ -564,7 +579,7 @@ export type ClaudeInstallOptions = {
   /** Resolved Bun executable; the normal PATH name remains the fallback. */
   bunPath?: string;
   /** Injectable seams keep the runner deterministic in focused tests. */
-  stagePayload?: () => Promise<CcEinPayloadStage>;
+  stagePayload?: () => Promise<EinCcPayloadStage>;
   execute?: typeof run;
   installLauncher?: typeof installFishLauncher;
 };
@@ -578,14 +593,14 @@ type ClaudeEntryId = Extract<InstallPlanEntryId, `claude.${string}`>;
 
 function createClaudeInstallHandlers(options: ClaudeInstallOptions = {}): { handlers: Record<ClaudeEntryId, InstallPlanExecutionHandler> } {
   const home = options.home ?? activeHome();
-  const stagePayload = options.stagePayload ?? (() => stageCcEinPayload());
+  const stagePayload = options.stagePayload ?? (() => stageEinCcPayload());
   const execute = options.execute ?? run;
   const installLauncher = options.installLauncher ?? installFishLauncher;
-  let staged: CcEinPayloadStage | undefined;
+  let staged: EinCcPayloadStage | undefined;
   const cleanup = (): void => { staged?.cleanup(); staged = undefined; };
   const handlers: Record<ClaudeEntryId, InstallPlanExecutionHandler> = {
-    "claude.deploy-runtime": async () => { try { staged = await stagePayload(); const sync = await execute(options.bunPath ?? "bun", ["cc-ein/sync.ts"], { cwd: staged.root, env: { HOME: home, CC_EIN_HOME: join(home, ".claude-ein") }, extraPath: [join(home, ".bun", "bin")] }); if (!sync.ok) { const reason = [sync.stdout, sync.stderr].map((stream) => stream.trim()).filter(Boolean).join("\n") || `codigo ${sync.code}`; cleanup(); return { ok: false, detail: `La sincronizacion de Claude fallo: ${reason}` }; } const root = join(home, ".claude-ein"); mkdirSync(root, { recursive: true }); writeFileSync(join(root, ".ein-install.json"), `${JSON.stringify({ version: INSTALLER_VERSION, installedAt: new Date().toISOString(), channel: "stable" }, null, 2)}\n`); return { ok: true }; } catch (error) { cleanup(); return { ok: false, detail: error instanceof Error ? error.message : String(error) }; } },
-    "claude.deploy-launcher": () => { try { const launcher = installLauncher({ home, name: "cc-ein.fish", content: ccEinFish }); p.log.success(`${launcher.changed ? "Launcher" : "Launcher ya actualizado"}: ${launcher.path}`); return { ok: true }; } catch (error) { return { ok: false, detail: error instanceof Error ? error.message : String(error) }; } finally { cleanup(); } },
+    "claude.deploy-runtime": async () => { try { staged = await stagePayload(); const sync = await execute(options.bunPath ?? "bun", ["ein-cc/sync.ts"], { cwd: staged.root, env: { HOME: home, EIN_CC_HOME: join(home, ".claude-ein") }, extraPath: [join(home, ".bun", "bin")] }); if (!sync.ok) { const reason = [sync.stdout, sync.stderr].map((stream) => stream.trim()).filter(Boolean).join("\n") || `codigo ${sync.code}`; cleanup(); return { ok: false, detail: `La sincronizacion de Claude fallo: ${reason}` }; } const root = join(home, ".claude-ein"); mkdirSync(root, { recursive: true }); writeFileSync(join(root, ".ein-install.json"), `${JSON.stringify({ version: INSTALLER_VERSION, installedAt: new Date().toISOString(), channel: "stable" }, null, 2)}\n`); return { ok: true }; } catch (error) { cleanup(); return { ok: false, detail: error instanceof Error ? error.message : String(error) }; } },
+    "claude.deploy-launcher": () => { try { const launcher = installLauncher({ home, name: "ein-cc.fish", content: einCcFish }); p.log.success(`${launcher.changed ? "Launcher" : "Launcher ya actualizado"}: ${launcher.path}`); return { ok: true }; } catch (error) { return { ok: false, detail: error instanceof Error ? error.message : String(error) }; } finally { cleanup(); } },
   }; return { handlers };
 }
 
@@ -595,7 +610,7 @@ export async function runClaudeInstall(options: ClaudeInstallOptions = {}): Prom
     const result = await handlers.handlers[id]();
     if (!result.ok) return { target: "claude", ok: false, detail: result.detail ?? "Claude installation failed" };
   }
-  return { target: "claude", ok: true, detail: "Claude Code listo. Ejecuta `cc-ein` para empezar." };
+  return { target: "claude", ok: true, detail: "Ein listo. Ejecuta `ein`." };
 }
 
 function runtimeLabel(target: RuntimeInstallTarget): string {
@@ -635,14 +650,23 @@ function supportsPreMutationRecovery(journal: InstallExecutionJournalV1, plan: I
   const backupIndex = plan.inventory.findIndex(({ id }) => id === "pi.backup-current");
   const backup = entries.get("pi.backup-current");
   if (!backup || backup.status !== "failed" || backupIndex < 0) return false;
-  const sharedAndClaude = journal.entries.filter(({ runtime }) => runtime === "shared" || runtime === "claude");
+  const sharedAndClaude = journal.entries.filter(({ runtime, id }) => runtime === "claude" || runtime === "shared" && id !== "shared.retire-legacy");
   if (sharedAndClaude.some(({ status }) => status !== "completed")) return false;
+  if (entries.get("shared.retire-legacy")?.status !== "not-run") return false;
   return journal.entries.filter(({ runtime }) => runtime === "pi").every((entry) => {
     const order = plan.inventory.findIndex(({ id }) => id === entry.id);
     if (order === backupIndex) return entry.status === "failed";
     if (order < backupIndex) return plan.inventory[order]?.action === "ensure-dependency" && entry.status === "completed";
     return entry.status === "not-run";
   });
+}
+
+function supportsRetirementRecovery(journal: InstallExecutionJournalV1, plan: InstallPlanV1): boolean {
+  if (plan.status !== "ready" || !installJournalMatchesPlan(journal, plan) || !["executing", "recovery-required"].includes(journal.state)) return false;
+  const cleanup = journal.entries.find(({ id }) => id === "shared.retire-legacy");
+  if (!cleanup || !["pending", "failed", "completed"].includes(cleanup.status)) return false;
+  if (journal.entries.some((entry) => entry.id !== cleanup.id && entry.status !== "completed")) return false;
+  return cleanup.status === "completed" ? journal.pendingEntryId === undefined : journal.pendingEntryId === cleanup.id;
 }
 
 type LinearIntegrationPrompt = (options: {
@@ -695,6 +719,9 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
     ? (Object.keys(options.observations.dependencies) as InstallDependencyId[]).map((id) => ({ id, present: options.observations!.dependencies[id], path: null, required: id === "bun" || id === "pi", hint: "injected observation" }))
     : checkDeps(platform);
   const observations = options.observations ?? observePlan(platform, deps);
+  const previousClaudeMarkerVersion = readInstallMarkerVersion(
+    join(observations.home, ".claude-ein", ".ein-install.json"),
+  );
   const buildPlan = (linear: LinearIntegration): InstallPlanV1 => {
     const skipLinear = linear === "off";
     return createInstallPlan({ ...observations, platform: { os: observations.platform.os, arch: observations.platform.arch }, target, flags: { yes: flags.yes, noEngram: flags.noEngram, noSecrets: flags.noSecrets, noHypa: flags.noHypa, noCodegraph: flags.noCodegraph, skipLinear } });
@@ -705,7 +732,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
     const journal = journalStatus.journal;
     const candidates: { linear: LinearIntegration; plan: InstallPlanV1 }[] = [{ linear: "off", plan }];
     if (target !== "claude" && !flags.noLinear && !flags.yes) candidates.push({ linear: "on", plan: buildPlan("on") });
-    const admitted = candidates.find(({ plan: candidate }) => supportsPreMutationRecovery(journal, candidate));
+    const admitted = candidates.find(({ plan: candidate }) => supportsPreMutationRecovery(journal, candidate) || supportsRetirementRecovery(journal, candidate));
     if (!admitted) { console.error("Install recovery status: recovery-required"); return 1; }
     ({ plan, linear } = admitted);
   } else if (observations.piOwnership.status !== "ambiguous" && !flags.dryRun) {
@@ -746,20 +773,45 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
     effects: { spinner: view.spinner },
   });
   const claude = createClaudeInstallHandlers({ home: observations.home, bunPath: deps.find((dependency) => dependency.id === "bun")?.path ?? undefined });
+  let retirement: RuntimeSurfaceRetirementResult | undefined;
   const available: InstallPlanExecutionHandlers = {
     "shared.dependency.bun": async () => { const result = await prepareSharedBun(deps, flags, view.spinner); return result.ok ? result : { ok: false, detail: `Bun no disponible: ${result.detail}` }; },
     ...pi.handlers,
     ...claude.handlers,
+    "shared.retire-legacy": (context) => {
+      if (!context) return { ok: false };
+      try {
+        retirement = (options.retireLegacy ?? retireOwnedLegacyRuntimeArtifacts)({
+          home: observations.home,
+          target,
+          validatedCurrentArtifacts: true,
+          claudeMarkerVersion: previousClaudeMarkerVersion,
+          transactionId: context.transactionId,
+        });
+        return { ok: true };
+      } catch {
+        return { ok: false };
+      }
+    },
   };
-  const handlers = options.handlers ?? Object.fromEntries(plan.inventory.map((entry) => [entry.id, available[entry.id]])) as InstallPlanExecutionHandlers;
+  const supplied = options.handlers ?? Object.fromEntries(plan.inventory.map((entry) => [entry.id, available[entry.id]])) as InstallPlanExecutionHandlers;
+  const handlers = { ...supplied, "shared.retire-legacy": available["shared.retire-legacy"] };
   let execution;
-  try { execution = await executeInstallPlanJournaled(plan, handlers, { progress: view.progress }); }
+  try {
+    execution = await executeInstallPlanJournaled(plan, handlers, {
+      progress: view.progress,
+      lifecycle: {
+        rollback: ({ transactionId, target: lifecycleTarget }) => (options.rollbackLegacy ?? rollbackRuntimeSurfaceRetirement)({ home: observations.home, target: lifecycleTarget, transactionId }),
+        finalize: ({ transactionId, target: lifecycleTarget }) => (options.finalizeLegacy ?? finalizeRuntimeSurfaceRetirement)({ home: observations.home, target: lifecycleTarget, transactionId, globalCommit: true }),
+      },
+    });
+  }
   catch (error) { view.finish(); console.error(error instanceof InstallJournalError ? error.message : "Install recovery status: journal-write-failed"); return 1; }
   view.finish();
   const runtimes = [...new Set(plan.inventory.map((entry) => entry.runtime).filter((runtime): runtime is RuntimeInstallTarget => runtime !== "shared"))];
   const results: RuntimeInstallResult[] = runtimes.map((runtime) => {
     const failure = runtimeFailure(execution, runtime);
-    return { target: runtime, ok: failure === undefined, detail: failure ?? (runtime === "pi" ? pi.detail() : "Claude Code listo. Ejecuta `cc-ein` para empezar.") };
+    return { target: runtime, ok: failure === undefined, detail: failure ?? (runtime === "pi" ? pi.detail() : "Ein listo. Ejecuta `ein`.") };
   });
   const result: InstallResult = { target, ok: execution.ok, results };
 
@@ -776,10 +828,12 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
     return 1;
   }
 
-  if (target === "pi") {
-    p.outro(result.results[0]?.detail ?? "Ein listo.");
-  } else {
-    p.outro("Ein listo en los runtimes seleccionados.");
+  if (retirement) {
+    for (const collision of retirement.collisions) {
+      p.log.warn(`Se conserva ${collision}: el ownership del artefacto antiguo no se pudo probar.`);
+    }
   }
+
+  p.outro("Ein listo. Ejecuta `ein`.");
   return 0;
 }

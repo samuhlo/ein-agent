@@ -18,7 +18,7 @@ export type EngramProvider = "pi" | "claude";
  * en el cuaderno de nadie.
  *
  * UNO para los dos runtimes, no uno por runtime. La separación anterior dejó
- * `~/.engram-pi` muerto y `~/.engram-cc-ein` vacío, y hacía que un cambio
+ * `~/.engram-pi` muerto y `~/__PRESERVE_ENGRAM_EIN_CC__` vacío, y hacía que un cambio
  * empezado en Pi perdiera su memoria al continuarlo en Claude — lo contrario de
  * la continuidad bidireccional que exige § 003.
  */

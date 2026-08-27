@@ -10,6 +10,7 @@ import { readReleaseChannelPreference } from "../core/release-channel-preference
 import { recoverPendingTransaction, runUpdateTransaction } from "../core/transaction.ts";
 import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
 import { readInstallerUpdateEvidence, type InstallerUpdateReadEvidence } from "../core/update-advisor-read.ts";
+import { spawnContinuation } from "../core/child-continuation.ts";
 import { bold, gold } from "../tui/theme.ts";
 import { renderOutcome } from "./result.ts";
 
@@ -68,6 +69,7 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
 
   const markerPath = dependencies.markerPath ?? INSTALL_MARKER;
   const installationPath = dependencies.installationPath ?? dependencies.agentDir ?? dirname(markerPath);
+  const destinationPath = dependencies.destinationPath ?? process.execPath;
   const preference = readReleaseChannelPreference(installationPath);
   const selector = parseSelector(flags.selectorArgs);
   let outcome: UpdateOutcome;
@@ -78,7 +80,17 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
       `Release channel preference unavailable: ${preference.reason}`,
     );
   } else {
-    const recovery = await recoverPendingTransaction({ caps, journalPath: dependencies.journalPath });
+    const recovery = await recoverPendingTransaction({
+      caps,
+      journalPath: dependencies.journalPath,
+      finalizeCommitted: async (journal) => (await spawnContinuation({
+        candidatePath: destinationPath,
+        txId: journal.txId,
+        releaseTag: journal.target,
+        caps,
+        runtimeSurfaces: "commit",
+      })).ok,
+    });
     if (!recovery.ok) {
       outcome = failed(selector.ok ? selector.value : undefined, recovery.error.stage, recovery.error.message);
     } else if (!selector.ok) {
@@ -92,7 +104,7 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
         agentDir: dependencies.agentDir ?? AGENT_DIR,
         markerPath,
         journalPath: dependencies.journalPath,
-        destinationPath: dependencies.destinationPath ?? process.execPath,
+        destinationPath,
         dryRun: flags.dryRun,
       });
     }
@@ -150,7 +162,7 @@ function promoteCommands(
     if (result.installer.written) write(`Instalador disponible como \`${INSTALLER_COMMAND}\`.`);
     write(result.app.written
       ? "App de terminal disponible como `ein`."
-      : `App de terminal no desplegada (${result.app.reason ?? "desconocido"}); usa \`pi-ein app\`.`);
+      : `App de terminal no desplegada (${result.app.reason ?? "desconocido"}); usa \`ein-pi app\`.`);
     return result.app.written;
   } catch (error) {
     write(`No se pudieron promover los comandos: ${error instanceof Error ? error.message : String(error)}`);

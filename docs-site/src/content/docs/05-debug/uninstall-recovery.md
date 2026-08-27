@@ -35,6 +35,11 @@ Crea un backup antes, elimina la casa de EIN y **conserva**:
 Es deliberado: reinstalar no te obliga a reconfigurar ni a volver a
 autenticarte.
 
+La transición a `ein-pi`, `ein-cc` y `ein-cc-sdd` es un corte de comandos, no
+una migración de datos. El instalador publica primero las superficies nuevas y
+solo pone en recuperación un artefacto anterior cuyo ownership puede probar. Si
+encuentra una función homónima modificada por ti, la deja byte a byte intacta.
+
 Para una limpieza total, borra además el directorio de secrets a mano. Perderás
 las claves.
 

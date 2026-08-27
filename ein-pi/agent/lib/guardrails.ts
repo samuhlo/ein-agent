@@ -184,7 +184,7 @@ export function commandRequiresConfirmation(command: string): boolean {
 	return CONFIRM_BASH_PATTERNS.some((pattern) => pattern.test(command));
 }
 
-// ─── Allowlist explícita para el guard de cc-ein (grupo 001) ────────────────
+// ─── Allowlist explícita para el guard de ein-cc (grupo 001) ────────────────
 // Optimización de permisos de Claude Code, NO una capa de seguridad: esta
 // función solo responde "¿está explícitamente permitido?" para un comando ya
 // evaluado por deny/confirm (la precedencia deny→confirm→allow vive en el

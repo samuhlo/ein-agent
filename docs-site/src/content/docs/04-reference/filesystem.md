@@ -16,7 +16,7 @@ Dónde vive EIN y, más importante, **qué no toca**.
 │
 ├── .pi-ein/agent/          casa de EIN para Pi
 ├── .claude-ein/            casa de EIN para Claude
-│   └── bin/cc-ein-sdd      el CLI del flujo SDD
+│   └── bin/ein-cc-sdd      el CLI del flujo SDD
 │
 ├── .local/bin/ein          el binario del instalador
 ├── .config/opencode-secrets/   claves de API
@@ -97,8 +97,8 @@ reinstalar no te obliga a reconfigurarlas.
 
 - Tus runtimes vanilla, salvo la migración explícita de una instalación legacy
   de EIN con marcador válido.
-- Tu configuración de shell más allá de instalar las funciones `pi-ein` y
-  `cc-ein`.
+- Tu configuración de shell más allá de instalar las funciones `ein-pi` y
+  `ein-cc`.
 - El código de tus proyectos, fuera de los cambios que pidas y del directorio
   `openspec/`.
 

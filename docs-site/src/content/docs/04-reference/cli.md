@@ -10,7 +10,7 @@ Hay dos binarios y hacen cosas distintas:
 - **`ein`** abre la aplicación de terminal. Es desde donde se ve y se controla
   el proyecto.
 - **`ein-install`** gestiona la instalación, la actualización y el diagnóstico.
-  No lanza los runtimes: eso lo hacen `pi-ein`, `cc-ein` y la propia app.
+  No lanza los runtimes: eso lo hacen `ein-pi`, `ein-cc` y la propia app.
 
 Si vienes de una versión anterior, `ein` era el instalador. Los verbos viejos
 siguen reconocidos y te dicen dónde han ido:
@@ -74,8 +74,9 @@ ein-install install --runtime pi|claude|both
 Actualiza EIN y su plantilla desde la release estable de GitHub. Verifica el
 payload antes de aplicar, y crea backup con posibilidad de rollback.
 
-**No actualiza el runtime.** Para Pi, eso es `pi-ein update --all`. Para Claude
-Code, `bun cc-ein/sync.ts` desde un checkout del repositorio.
+**No actualiza el runtime.** Para Pi, eso es `ein-pi update --all`. Para Claude
+Code, actualiza Claude por su canal normal. La actualización de EIN sí renueva
+sus launchers y el payload Claude con los nombres actuales.
 
 ### `ein-install doctor`
 
@@ -123,9 +124,9 @@ Estos no vienen del instalador: pertenecen al runtime.
 **En Claude Code**, un binario:
 
 ```bash
-cc-ein-sdd status [cambio]     # fase actual y qué falta
-cc-ein-sdd check  [cambio]     # valida los artefactos
-cc-ein-sdd close  <cambio>     # archiva un cambio verificado
+ein-cc-sdd status [cambio]     # fase actual y qué falta
+ein-cc-sdd check  [cambio]     # valida los artefactos
+ein-cc-sdd close  <cambio>     # archiva un cambio verificado
 ```
 
 **En Pi**, comandos del agente: `/ein:status`, `/ein:sdd-next <cambio>`,

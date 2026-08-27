@@ -230,7 +230,7 @@ export function summaryFromState(state: ProjectStateV1, sessions?: number): Proj
 const UPDATE_COMMANDS: Readonly<Record<string, readonly string[]>> = {
   ein: ["ein-install", "update"],
   binary: ["ein-install", "update"],
-  packages: ["pi-ein", "update", "--all"],
+  packages: ["ein-pi", "update", "--all"],
   claude: ["claude", "update"],
 };
 

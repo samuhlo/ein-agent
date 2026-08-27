@@ -1,11 +1,11 @@
 ---
 description: Qué reglas del proyecto rigen esta sesión y cuáles no aplican en Claude
-allowed-tools: Bash(cc-ein-sdd settings:*)
+allowed-tools: Bash(ein-cc-sdd settings:*)
 ---
 
 Ajustes del proyecto, resueltos desde su configuración:
 
-!`cc-ein-sdd settings`
+!`ein-cc-sdd settings`
 
 Resume al usuario en su idioma qué reglas está siguiendo la sesión ahora mismo. Dos cosas que no se pueden omitir:
 

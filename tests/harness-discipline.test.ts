@@ -1,5 +1,5 @@
 // =============================================================================
-// TESTS: cc-ein guard — precedencia de decisión (deny → confirm → allow → none)
+// TESTS: ein-cc guard — precedencia de decisión (deny → confirm → allow → none)
 // -----------------------------------------------------------------------------
 // Cubre los escenarios del delta harness-discipline (grupo 003):
 //   guard-decision-precedence, guard-envelope-degrades-open,
@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 const TEST_CONFIG_HOME = join(tmpdir(), "ein-agent-tests", "harness-discipline-guardrails");
 process.env.EIN_PI_CONFIG_HOME = TEST_CONFIG_HOME;
 
-const { resolveGuardDecision, buildStatusOutput } = await import("../cc-ein/sdd-cli/cli.ts");
+const { resolveGuardDecision, buildStatusOutput } = await import("../ein-cc/sdd-cli/cli.ts");
 const { grantDelegatedDelivery, deliveryGrantPath } = await import("../ein-pi/agent/lib/guardrails.ts");
 const { execFileSync } = await import("node:child_process");
 
@@ -157,7 +157,7 @@ describe("resolveGuardDecision — no cross-harness delivery-grant consumption",
 });
 
 // =============================================================================
-// TESTS: cc-ein status — repository bootstrap and working-tree reporting (004)
+// TESTS: ein-cc status — repository bootstrap and working-tree reporting (004)
 // -----------------------------------------------------------------------------
 // `buildStatusOutput()` es la función pura que envuelve `statusCmd()`: hace el
 // bootstrap best-effort de `git init` y añade la línea de working tree
@@ -169,21 +169,21 @@ function withOpenspecChanges(cwd: string): void {
 	mkdirSync(join(cwd, "openspec", "changes"), { recursive: true });
 }
 
-// El bootstrap se suprime si `CI` o `CC_EIN_NO_GIT_INIT` están definidas. Los
+// El bootstrap se suprime si `CI` o `EIN_CC_NO_GIT_INIT` están definidas. Los
 // casos que EJERCITAN el init tienen que borrarlas del entorno heredado: en
 // GitHub Actions `CI=true` viene puesta, y sin esto el init nunca se intenta y
 // el test pasa en local pero falla en CI.
 function withoutInitSuppressors<T>(fn: () => T): T {
-	const previous = { ci: process.env.CI, disabled: process.env.CC_EIN_NO_GIT_INIT };
+	const previous = { ci: process.env.CI, disabled: process.env.EIN_CC_NO_GIT_INIT };
 	delete process.env.CI;
-	delete process.env.CC_EIN_NO_GIT_INIT;
+	delete process.env.EIN_CC_NO_GIT_INIT;
 	try {
 		return fn();
 	} finally {
 		if (previous.ci === undefined) delete process.env.CI;
 		else process.env.CI = previous.ci;
-		if (previous.disabled === undefined) delete process.env.CC_EIN_NO_GIT_INIT;
-		else process.env.CC_EIN_NO_GIT_INIT = previous.disabled;
+		if (previous.disabled === undefined) delete process.env.EIN_CC_NO_GIT_INIT;
+		else process.env.EIN_CC_NO_GIT_INIT = previous.disabled;
 	}
 }
 
@@ -211,14 +211,14 @@ describe("buildStatusOutput — repository bootstrap", () => {
 		expect(after).toEqual(before);
 	});
 
-	test("CC_EIN_NO_GIT_INIT suppresses initialization", () => {
+	test("EIN_CC_NO_GIT_INIT suppresses initialization", () => {
 		const cwd = freshCwd();
 		withOpenspecChanges(cwd);
-		process.env.CC_EIN_NO_GIT_INIT = "1";
+		process.env.EIN_CC_NO_GIT_INIT = "1";
 		try {
 			buildStatusOutput(cwd);
 		} finally {
-			delete process.env.CC_EIN_NO_GIT_INIT;
+			delete process.env.EIN_CC_NO_GIT_INIT;
 		}
 		expect(existsSync(join(cwd, ".git"))).toBe(false);
 	});
@@ -287,10 +287,10 @@ describe("buildStatusOutput — working-tree reporting channel", () => {
 });
 
 // -----------------------------------------------------------------------------
-// Grupo 007: cc-ein/settings.json — allowlist de subcomandos de git de solo lectura
+// Grupo 007: ein-cc/settings.json — allowlist de subcomandos de git de solo lectura
 // -----------------------------------------------------------------------------
-describe("cc-ein/settings.json permissions", () => {
-	const settingsPath = join(fileURLToPath(new URL("..", import.meta.url)), "cc-ein", "settings.json");
+describe("ein-cc/settings.json permissions", () => {
+	const settingsPath = join(fileURLToPath(new URL("..", import.meta.url)), "ein-cc", "settings.json");
 	const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as {
 		permissions: { allow: string[]; deny: string[] };
 	};

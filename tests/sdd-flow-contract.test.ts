@@ -257,7 +257,7 @@ describe("ein-ai: tools deterministas cableados", () => {
 		// El remedio nombra la herramienta de SU runtime: un "sincroniza" genérico
 		// obliga a adivinar cuál, que es lo que la prosa ya evitaba.
 		expect(specStateRemedy("pending", "pi")?.fix).toContain("ein_openspec_sync");
-		expect(specStateRemedy("pending", "claude")?.fix).toContain("cc-ein-sdd sync");
+		expect(specStateRemedy("pending", "claude")?.fix).toContain("ein-cc-sdd sync");
 
 		expect(read("assets/orchestrator.md")).toContain("NUNCA archiva sobre un conflicto");
 	});

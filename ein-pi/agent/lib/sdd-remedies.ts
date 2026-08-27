@@ -27,7 +27,7 @@ export type RemedyRuntime = "pi" | "claude";
 
 const SYNC_COMMAND: Readonly<Record<RemedyRuntime, string>> = Object.freeze({
 	pi: "`ein_openspec_sync`",
-	claude: "`cc-ein-sdd sync <change>`",
+	claude: "`ein-cc-sdd sync <change>`",
 });
 
 export type SddRemedy = Readonly<{
@@ -51,7 +51,7 @@ export function summaryChannelRemedy(nextPhase: string | undefined, runtime: Rem
 	return {
 		code: "summary-channel",
 		message: "la fase `close` va a escribir `summary.md`",
-		fix: "si `Write` se rehúsa por política, persiste con `cc-ein-sdd summary <change>` (stdin = contenido del fichero)",
+		fix: "si `Write` se rehúsa por política, persiste con `ein-cc-sdd summary <change>` (stdin = contenido del fichero)",
 	};
 }
 
