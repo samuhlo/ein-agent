@@ -3,7 +3,7 @@
 // -----------------------------------------------------------------------------
 // POR QUÉ CAMBIA -> la política anterior daba un almacén por runtime y prohibía
 // mezclarlos. Medido: `~/.engram-pi` murió el 7 de junio con 238 observaciones,
-// `~/.engram-cc-ein` nunca llegó a tener ninguna, y un cambio empezado en Pi
+// `~/__PRESERVE_ENGRAM_EIN_CC__` nunca llegó a tener ninguna, y un cambio empezado en Pi
 // perdía su memoria al continuarlo en Claude. Eso es § 003 al revés: la
 // continuidad entre runtimes es bidireccional, y el puente es el disco.
 //
@@ -62,7 +62,7 @@ describe("un solo dueño de la ruta", () => {
 
 	test("ningún módulo escribe el nombre del almacén a mano", () => {
 		const offenders = CODE_OWNERS.filter((file) =>
-			/"\.engram(-pi|-cc-ein|-ein)?"/.test(readFileSync(join(ROOT, file), "utf8")),
+			/"\.engram(-pi|-ein-cc|-ein)?"/.test(readFileSync(join(ROOT, file), "utf8")),
 		);
 		expect(offenders).toEqual([]);
 	});
@@ -71,11 +71,11 @@ describe("un solo dueño de la ruta", () => {
 	// un comentario a propósito, porque explicar por qué cambió la política vale
 	// más que la pureza de un grep.
 	test("ningún módulo enruta ya a los almacenes viejos", () => {
-		for (const file of [...CODE_OWNERS, "cc-ein/sync.ts"]) {
+		for (const file of [...CODE_OWNERS, "ein-cc/sync.ts"]) {
 			const code = readFileSync(join(ROOT, file), "utf8")
 				.replace(/\/\*[\s\S]*?\*\//g, "")
 				.replace(/^\s*\/\/.*$/gm, "");
-			expect(code).not.toContain(".engram-cc-ein");
+			expect(code).not.toContain("__PRESERVE_ENGRAM_EIN_CC__");
 			expect(code).not.toContain(".engram-pi");
 		}
 	});

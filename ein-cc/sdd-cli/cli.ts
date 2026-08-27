@@ -1,22 +1,22 @@
 #!/usr/bin/env bun
 // =============================================================================
-// cc-ein-sdd — CLI determinista del flujo SDD para Claude Code
+// ein-cc-sdd — CLI determinista del flujo SDD para Claude Code
 // -----------------------------------------------------------------------------
 // Reusa el MISMO core determinista que Pi (`ein-pi/agent/lib`, TS puro sin API
-// de Pi): resolveSddStatus/Next, lintChange, closeChange. Los agentes de cc-ein
+// de Pi): resolveSddStatus/Next, lintChange, closeChange. Los agentes de ein-cc
 // lo llaman por Bash en vez de las tools `ein_sdd_*` de Pi. Solo lee/mueve el
 // filesystem — cero IA, cero adivinación.
 //
-//   cc-ein-sdd status [change]     estado + nextRecommended (rutea por `next:`)
-//   cc-ein-sdd check  [change]     gatekeeper: linta cada artefacto presente
-//   cc-ein-sdd close  <change> [--force] [reconciliation flags]   archiva un cambio verificado
-//   cc-ein-sdd sync   <change>     sincroniza el delta OpenSpec explícito
-//   cc-ein-sdd delta  [change] --domain <d> < ops.json   escribe el delta de
+//   ein-cc-sdd status [change]     estado + nextRecommended (rutea por `next:`)
+//   ein-cc-sdd check  [change]     gatekeeper: linta cada artefacto presente
+//   ein-cc-sdd close  <change> [--force] [reconciliation flags]   archiva un cambio verificado
+//   ein-cc-sdd sync   <change>     sincroniza el delta OpenSpec explícito
+//   ein-cc-sdd delta  [change] --domain <d> < ops.json   escribe el delta de
 //                                 comportamiento desde operaciones estructuradas
-//   cc-ein-sdd summary [change] < summary.md  escribe summary.md desde stdin,
+//   ein-cc-sdd summary [change] < summary.md  escribe summary.md desde stdin,
 //                                 canal determinista para el cierre
-//   cc-ein-sdd settings [--hook]   ajustes del proyecto → directivas
-//   cc-ein-sdd preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]
+//   ein-cc-sdd settings [--hook]   ajustes del proyecto → directivas
+//   ein-cc-sdd preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]
 //                                 lee o fija la postura del cambio (TDD + carril)
 // =============================================================================
 
@@ -165,7 +165,7 @@ function sddAdvisoryNote(cwd: string): string {
 // allow siempre: "git add . && git push" no puede auto-aprobarse porque el
 // segmento `add` matchea el allowlist — el `push` de al lado debe seguir
 // pidiendo confirmación nativa. No consumimos delivery-grant aquí (decisión
-// 1D): ese mecanismo es de Pi, cc-ein nunca lo lee ni lo escribe, así que un
+// 1D): ese mecanismo es de Pi, ein-cc nunca lo lee ni lo escribe, así que un
 // grant dejado por otro harness no puede colar un `allow`.
 export function resolveGuardDecision(
 	rawInput: string,
@@ -224,7 +224,7 @@ export function resolveCommandChange(
 		return {
 			ok: false,
 			exitCode: 1,
-			text: `// sdd ${command} — hay ${selection.candidates.length} cambios activos y ninguno elegido: ${selection.candidates.join(", ")}.\n// Indica cuál: cc-ein-sdd ${command} <change>`,
+			text: `// sdd ${command} — hay ${selection.candidates.length} cambios activos y ninguno elegido: ${selection.candidates.join(", ")}.\n// Indica cuál: ein-cc-sdd ${command} <change>`,
 		};
 	}
 	if (selection.kind === "none") {
@@ -447,7 +447,7 @@ function flagValue(args: readonly string[], flag: string): string | undefined {
 
 // Best-effort git init: solo cuando el directorio ya tiene artefactos SDD
 // (`openspec/changes/`) — no queremos inicializar git en cualquier carpeta
-// donde alguien corra `status` por curiosidad. `CC_EIN_NO_GIT_INIT`/`CI`
+// donde alguien corra `status` por curiosidad. `EIN_CC_NO_GIT_INIT`/`CI`
 // permiten opt-out explícito (entornos de CI que no quieren un repo git
 // espontáneo). Un fallo de `git init` (binario ausente, destino no
 // escribible) se reporta como texto, nunca como excepción propagada: el
@@ -455,7 +455,7 @@ function flagValue(args: readonly string[], flag: string): string | undefined {
 function bootstrapRepoIfNeeded(cwd: string): string | null {
 	if (readGitBaseline(cwd).isRepo) return null;
 	if (!existsSync(join(cwd, "openspec", "changes"))) return null;
-	if (process.env.CC_EIN_NO_GIT_INIT || process.env.CI) return null;
+	if (process.env.EIN_CC_NO_GIT_INIT || process.env.CI) return null;
 	try {
 		execFileSync("git", ["init"], { cwd, stdio: "ignore", timeout: 5_000 });
 		return null;
@@ -674,7 +674,7 @@ async function syncCmd(args: string[]): Promise<void> {
 			domains: [],
 			report: null,
 			code: "USAGE",
-			message: "usage: cc-ein-sdd sync <change>",
+			message: "usage: ein-cc-sdd sync <change>",
 		}), 64);
 		return;
 	}
@@ -732,7 +732,7 @@ if (import.meta.main) {
 		case "summary": await summaryCmd(rest); break;
 		case "sync": await syncCmd(rest); break;
 		default:
-			console.log("cc-ein-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]  |  lane [change] [micro|standard]  |  preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]  |  delta [change] --domain <domain> < operations.json  |  summary [change] < summary.md");
+			console.log("ein-cc-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]  |  lane [change] [micro|standard]  |  preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]  |  delta [change] --domain <domain> < operations.json  |  summary [change] < summary.md");
 			process.exit(1);
 	}
 }

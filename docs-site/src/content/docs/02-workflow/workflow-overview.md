@@ -120,8 +120,8 @@ está. Un resumen que envejece mal es peor que no tenerlo.
 En cualquier momento:
 
 ```bash
-cc-ein-sdd status     # en qué fase va y qué falta
-cc-ein-sdd check      # valida los artefactos presentes
+ein-cc-sdd status     # en qué fase va y qué falta
+ein-cc-sdd check      # valida los artefactos presentes
 ```
 
 Lo calculan leyendo el disco. El agente no puede afirmar que va por `apply` si

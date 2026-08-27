@@ -29,7 +29,7 @@ import {
   CLAUDE_SURFACE_RUNNER_NAME,
   SURFACE_RUNNER_SOURCE,
   compileClaudeSurfaceRunnerPayload,
-} from "../cc-ein/sync.ts";
+} from "../ein-cc/sync.ts";
 
 function request(capability: "cleaner.audit" | "cleaner.mutate" | "cleaner.complete", input: Record<string, unknown> = {}) {
   return JSON.stringify({ version: CLEANER_REQUEST_VERSION, capability, input });
@@ -499,7 +499,7 @@ describe("authority-owned mutate and complete adapters", () => {
   });
 });
 
-const PI_LAUNCHER_SOURCE = join(import.meta.dir, "..", "pi-ein", "pi-ein.fish");
+const PI_LAUNCHER_SOURCE = join(import.meta.dir, "..", "ein-pi", "ein-pi.fish");
 
 type PiLauncherFixture = Readonly<{
   home: string;
@@ -515,7 +515,7 @@ function piLauncherFixture(): PiLauncherFixture {
   const functionDir = join(home, ".config", "fish", "functions");
   const runnerPath = join(home, ".pi-ein", "agent", "surfaces", "surface-runner.ts");
   const appPath = join(home, ".pi-ein", "agent", "app.ts");
-  const launcherPath = join(functionDir, "pi-ein.fish");
+  const launcherPath = join(functionDir, "ein-pi.fish");
   const callLog = join(home, "call.log");
   mkdirSync(binDir, { recursive: true });
   mkdirSync(functionDir, { recursive: true });
@@ -541,7 +541,7 @@ function piLauncherFixture(): PiLauncherFixture {
     runnerPath,
     invoke(args, stubExitCode = 0, inheritedBinding) {
       rmSync(callLog, { force: true });
-      const result = spawnSync("fish", ["-c", 'source "$EIN_LAUNCHER"; pi-ein $argv', "--", ...args], {
+      const result = spawnSync("fish", ["-c", 'source "$EIN_LAUNCHER"; ein-pi $argv', "--", ...args], {
         encoding: "utf8",
         env: {
           ...process.env,
@@ -568,7 +568,7 @@ function piLauncherFixture(): PiLauncherFixture {
 }
 
 // Group 5: the Pi launcher owns only exact reserved namespaces.
-describe("Pi pi-ein launcher adapter", () => {
+describe("Pi ein-pi launcher adapter", () => {
   test("Pi dispatches cleaner audit, mutate, complete and workbench to the installed runner", () => {
     const fixture = piLauncherFixture();
     try {
@@ -657,7 +657,7 @@ describe("Pi pi-ein launcher adapter", () => {
     }
   });
 
-  test("pi-ein passthrough preserves every unrelated first argument and isolated environment", () => {
+  test("ein-pi passthrough preserves every unrelated first argument and isolated environment", () => {
     const fixture = piLauncherFixture();
     try {
       for (const args of [[], ["--help"], ["cleaner-extra", "audit"], ["workbench-extra"], ["chat", "hello"]]) {
@@ -683,7 +683,7 @@ describe("Pi pi-ein launcher adapter", () => {
       expect(result.exitCode).toBe(69);
       expect(result.call).toEqual([]);
       expect(result.stdout).toBe("");
-      expect(result.stderr.trim()).toBe("pi-ein: surface runner unavailable");
+      expect(result.stderr.trim()).toBe("ein-pi: surface runner unavailable");
       expect(result.stderr).not.toContain(fixture.home);
       expect(result.stderr.length).toBeLessThan(128);
     } finally {
@@ -692,8 +692,8 @@ describe("Pi pi-ein launcher adapter", () => {
   });
 });
 
-const CLAUDE_LAUNCHER_SOURCE = join(import.meta.dir, "..", "cc-ein", "cc-ein.fish");
-const CLAUDE_SYNC_SOURCE = join(import.meta.dir, "..", "cc-ein", "sync.ts");
+const CLAUDE_LAUNCHER_SOURCE = join(import.meta.dir, "..", "ein-cc", "ein-cc.fish");
+const CLAUDE_SYNC_SOURCE = join(import.meta.dir, "..", "ein-cc", "sync.ts");
 const CANONICAL_ORCHESTRATOR_SOURCE = join(import.meta.dir, "..", "ein-pi", "agent", "assets", "orchestrator.md");
 
 type ClaudeSyncFixture = Readonly<{
@@ -716,7 +716,7 @@ function claudeSyncFixture(): ClaudeSyncFixture {
       return spawnSync("bun", [CLAUDE_SYNC_SOURCE, ...args], {
         cwd: join(import.meta.dir, ".."),
         encoding: "utf8",
-        env: { ...process.env, HOME: home, CC_EIN_HOME: claudeHome },
+        env: { ...process.env, HOME: home, EIN_CC_HOME: claudeHome },
       });
     },
     cleanup: () => rmSync(root, { recursive: true, force: true }),
@@ -855,7 +855,7 @@ function claudeLauncherFixture(): ClaudeLauncherFixture {
   const runnerPath = join(home, ".claude-ein", "bin", CLAUDE_SURFACE_RUNNER_NAME);
   const appPath = join(binDir, "ein");
   const continuityPath = join(home, ".claude-ein", "bin", CLAUDE_CONTINUITY_RUNNER_NAME);
-  const launcherPath = join(functionDir, "cc-ein.fish");
+  const launcherPath = join(functionDir, "ein-cc.fish");
   const callLog = join(home, "call.log");
   mkdirSync(binDir, { recursive: true });
   mkdirSync(functionDir, { recursive: true });
@@ -879,7 +879,7 @@ function claudeLauncherFixture(): ClaudeLauncherFixture {
     runnerPath,
     invoke(args, stubExitCode = 0, piAgentHome) {
       rmSync(callLog, { force: true });
-      const result = spawnSync("fish", ["-c", 'source "$EIN_LAUNCHER"; cc-ein $argv', "--", ...args], {
+      const result = spawnSync("fish", ["-c", 'source "$EIN_LAUNCHER"; ein-cc $argv', "--", ...args], {
         encoding: "utf8",
         env: {
           ...process.env,
@@ -904,7 +904,7 @@ function claudeLauncherFixture(): ClaudeLauncherFixture {
   };
 }
 
-describe("Claude cc-ein launcher adapter", () => {
+describe("Claude ein-cc launcher adapter", () => {
   test("Claude dispatches cleaner and workbench to the compiled payload with isolated config", () => {
     const fixture = claudeLauncherFixture();
     try {
@@ -930,7 +930,7 @@ describe("Claude cc-ein launcher adapter", () => {
       fixture.removeContinuity();
       const missing = fixture.invoke(["--resume", "opaque"]);
       expect(missing.exitCode).toBe(69);
-      expect(missing.stderr.trim()).toBe("cc-ein: continuity runner unavailable");
+      expect(missing.stderr.trim()).toBe("ein-cc: continuity runner unavailable");
     } finally {
       fixture.cleanup();
     }
@@ -948,7 +948,7 @@ describe("Claude cc-ein launcher adapter", () => {
       expect(missing.exitCode).toBe(69);
       expect(missing.call).toEqual([]);
       expect(missing.stdout).toBe("");
-      expect(missing.stderr.trim()).toBe("cc-ein: surface runner unavailable");
+      expect(missing.stderr.trim()).toBe("ein-cc: surface runner unavailable");
       expect(missing.stderr).not.toContain(fixture.home);
     } finally {
       fixture.cleanup();
@@ -1000,7 +1000,7 @@ function installedSurfaceFixture(runtime: InstalledRuntime) {
   const sourceAgent = join(import.meta.dir, "..", "ein-pi", "agent");
   const isolatedRoot = join(home, runtime === "pi" ? ".pi-ein" : ".claude-ein");
   const installedAgent = join(isolatedRoot, "agent");
-  const launcherName = runtime === "pi" ? "pi-ein" : "cc-ein";
+  const launcherName = runtime === "pi" ? "ein-pi" : "ein-cc";
   const launcherSource = runtime === "pi" ? PI_LAUNCHER_SOURCE : CLAUDE_LAUNCHER_SOURCE;
   const launcherPath = join(functionDir, `${launcherName}.fish`);
   const vanillaHome = join(home, runtime === "pi" ? ".pi" : ".claude");

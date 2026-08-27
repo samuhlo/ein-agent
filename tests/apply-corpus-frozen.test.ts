@@ -90,7 +90,7 @@ describe("BLINDAJE: el corpus no es una segunda fuente de verdad", () => {
 		]);
 		const offenders: string[] = [];
 
-		for (const pattern of ["ein-pi/**/*.ts", "cc-ein/**/*.ts"]) {
+		for (const pattern of ["ein-pi/**/*.ts", "ein-cc/**/*.ts"]) {
 			for await (const relative of new Glob(pattern).scan(ROOT)) {
 				if (owned.has(relative)) continue;
 				if (consumesCorpus(readFileSync(join(ROOT, relative), "utf8"))) offenders.push(relative);

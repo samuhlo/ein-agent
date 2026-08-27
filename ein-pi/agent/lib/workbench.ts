@@ -12,7 +12,7 @@ import {
   type AdvisorProvenance,
   type SharedConfigUpdateAdvisorResult,
 } from "./shared-config-update-advisor.ts";
-import type { PiEinUpdateObservation } from "./ein-update-notice.ts";
+import type { EinPiUpdateObservation } from "./ein-update-notice.ts";
 import { CLAUDE_UPDATE_COMMAND } from "./update-probes.ts";
 import { inspectLinearIntegration, type LinearIntegrationInspection } from "./linear-integration.ts";
 import { inspectModelConfig, type ModelConfigInspection } from "./model-config.ts";
@@ -94,8 +94,8 @@ const UPDATE_COMPONENT_LABEL: Readonly<Record<UpdateComponent, string>> = {
 };
 const UPDATE_COMPONENT_COMMAND: Readonly<Record<UpdateComponent, string>> = {
   ein: "ein update",
-  binary: "pi-ein update --all",
-  packages: "pi-ein update --all",
+  binary: "ein-pi update --all",
+  packages: "ein-pi update --all",
   claude: CLAUDE_UPDATE_COMMAND,
 };
 // Claude Code is not owned by the Ein installer (F-007), and its only check
@@ -146,7 +146,7 @@ export function renderWorkbenchAdvisor(result: SharedConfigUpdateAdvisorResult):
 export type WorkbenchAdvisorReaders = Readonly<{
   inspectLinearIntegration: (cwd: string) => LinearIntegrationInspection;
   inspectModelConfig: (cwd: string) => ModelConfigInspection;
-  readUpdateObservations?: () => readonly PiEinUpdateObservation[] | undefined;
+  readUpdateObservations?: () => readonly EinPiUpdateObservation[] | undefined;
 }>;
 
 function configEvidence(

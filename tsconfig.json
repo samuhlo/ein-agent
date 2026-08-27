@@ -22,7 +22,7 @@
   "include": [
     "ein-pi/**/*.ts",
     "ein-pi/**/*.tsx",
-    "cc-ein/**/*.ts",
+    "ein-cc/**/*.ts",
     "tests/**/*.ts"
   ],
   "exclude": [

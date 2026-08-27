@@ -1,14 +1,14 @@
 #!/usr/bin/env bun
 // =============================================================================
-// cc-ein SYNC — compilador core → Claude Code (adaptador aislado)
+// ein-cc SYNC — compilador core → Claude Code (adaptador aislado)
 // -----------------------------------------------------------------------------
 // Despliega el cerebro de EIN a un CLAUDE_CONFIG_DIR propio (~/.claude-ein) sin
 // tocar tu ~/.claude. Fuente única de verdad: `ein-pi/core` (agentes + skills)
 // se traducen/copian; lo específico de Claude Code (CLAUDE.md, settings.json,
-// hooks) vive en `cc-ein/`. Idempotente: se puede re-ejecutar siempre.
+// hooks) vive en `ein-cc/`. Idempotente: se puede re-ejecutar siempre.
 //
-//   bun cc-ein/sync.ts            # despliega
-//   bun cc-ein/sync.ts --dry      # enseña qué haría, sin escribir
+//   bun ein-cc/sync.ts            # despliega
+//   bun ein-cc/sync.ts --dry      # enseña qué haría, sin escribir
 // =============================================================================
 
 import {
@@ -34,12 +34,12 @@ import { compileStyleContract } from "../ein-pi/agent/lib/style-contract.ts";
 
 const REPO = join(import.meta.dir, "..");
 const CORE = join(REPO, "ein-pi", "core");
-const CC = import.meta.dir; // cc-ein/
-const DEST = process.env.CC_EIN_HOME ?? join(homedir(), ".claude-ein");
+const CC = import.meta.dir; // ein-cc/
+const DEST = process.env.EIN_CC_HOME ?? join(homedir(), ".claude-ein");
 const MAIN = join(homedir(), ".claude");
 const DRY = process.argv.includes("--dry");
 const PROVENANCE =
-  "<!-- GENERATED: source=ein-pi/core/AGENTS.md adapter=cc-ein/CLAUDE.adapter.md; DO NOT EDIT -->";
+  "<!-- GENERATED: source=ein-pi/core/AGENTS.md adapter=ein-cc/CLAUDE.adapter.md; DO NOT EDIT -->";
 const ADAPTATION_START = "<!-- ein:claude-adaptation:start -->";
 const ADAPTATION_END = "<!-- ein:claude-adaptation:end -->";
 const HARNESS_START = "<!-- ein:harness-discipline:start -->";
@@ -47,7 +47,7 @@ const HARNESS_END = "<!-- ein:harness-discipline:end -->";
 export const SURFACE_RUNNER_SOURCE = join(REPO, "ein-pi", "agent", "surfaces", "surface-runner.ts");
 export const CLAUDE_SURFACE_RUNNER_NAME = "ein-surface-runner";
 export const CLAUDE_CONTINUITY_RUNNER_NAME = "ein-continuity";
-export const CLAUDE_CONTINUITY_RUNNER_SOURCE = join(REPO, "cc-ein", "continuity-runner.ts");
+export const CLAUDE_CONTINUITY_RUNNER_SOURCE = join(REPO, "ein-cc", "continuity-runner.ts");
 
 const log = (s: string) => console.log(DRY ? `  [dry] ${s}` : `  ${s}`);
 
@@ -139,9 +139,9 @@ function translateTools(piTools: string, source: string, agent: string): string 
 // The adapter note deliberately contains no Pi-only marker or runtime token.
 // Runtime-specific source references are translated by the scoped registries below.
 const CC_NOTE = [
-  "> **cc-ein (Claude Code):** corres en Claude Code, no en Pi. El flujo SDD se conduce con `cc-ein-sdd status|check|close` (por Bash). Las referencias de runtime específicas de Pi que puedan aparecer en una fuente canónica no aplican aquí; usa las herramientas y el coordinador de Claude. Sigue vigente: si te bloqueas, devuelve `status: blocked` con la causa concreta. Escribe tu artefacto de fase en `openspec/changes/<change>/`.",
+  "> **ein-cc (Claude Code):** corres en Claude Code, no en Pi. El flujo SDD se conduce con `ein-cc-sdd status|check|close` (por Bash). Las referencias de runtime específicas de Pi que puedan aparecer en una fuente canónica no aplican aquí; usa las herramientas y el coordinador de Claude. Sigue vigente: si te bloqueas, devuelve `status: blocked` con la causa concreta. Escribe tu artefacto de fase en `openspec/changes/<change>/`.",
   ">",
-  "> `.pi/ein/` es la configuración **del proyecto**, no del runtime de Pi: los dos runtimes leen los mismos ficheros. Sus valores llegan ya resueltos en el bloque `## Project settings` que se inyecta al arrancar la sesión (`cc-ein-sdd settings` los vuelve a imprimir cuando haga falta).",
+  "> `.pi/ein/` es la configuración **del proyecto**, no del runtime de Pi: los dos runtimes leen los mismos ficheros. Sus valores llegan ya resueltos en el bloque `## Project settings` que se inyecta al arrancar la sesión (`ein-cc-sdd settings` los vuelve a imprimir cuando haga falta).",
   "",
 ].join("\n");
 
@@ -157,7 +157,7 @@ const RUNTIME_TOKEN_RULES: ReadonlyArray<{
     // empezado en Claude no podía cerrarse.
     source: "agents/sdd-scope.md",
     token: "ein_openspec_delta_write",
-    replacement: "cc-ein-sdd delta",
+    replacement: "ein-cc-sdd delta",
   },
   {
     source: "agents/ein-git.md",
@@ -167,19 +167,19 @@ const RUNTIME_TOKEN_RULES: ReadonlyArray<{
   {
     source: "agents/sdd-apply.md",
     token: "ein_sdd_status",
-    replacement: "cc-ein-sdd status",
+    replacement: "ein-cc-sdd status",
   },
   {
     source: "agents/sdd-apply.md",
     token: "ein_sdd_check",
-    replacement: "cc-ein-sdd check",
+    replacement: "ein-cc-sdd check",
   },
   {
     // La postura del cambio (TDD + carril) es el mismo fichero en los dos
     // runtimes; solo cambia el mando que lo lee.
     source: "agents/sdd-apply.md",
     token: "ein_sdd_preflight",
-    replacement: "cc-ein-sdd preflight",
+    replacement: "ein-cc-sdd preflight",
   },
 ];
 
@@ -461,7 +461,7 @@ function validateCoordinator(canonical: string, adapter: string): string {
   if (output.split(HARNESS_START).length - 1 !== 1 || output.split(HARNESS_END).length - 1 !== 1) {
     throw parity("PARITY_INVALID_COORDINATOR", "compiled coordinator must contain one harness block");
   }
-  assertNoUntranslated(output, "cc-ein/CLAUDE.md");
+  assertNoUntranslated(output, "ein-cc/CLAUDE.md");
   return output;
 }
 
@@ -663,7 +663,7 @@ export function runSync(): SyncResult {
     const surface = compileClaudeSurface();
 
     // ── 1. Estructura + credenciales compartidas ─────────────────────────────
-    console.log("cc-ein sync →", DEST, DRY ? "(DRY RUN)" : "");
+    console.log("ein-cc sync →", DEST, DRY ? "(DRY RUN)" : "");
     ensureDir(DEST);
     ensureDir(join(DEST, "agents"));
     ensureDir(join(DEST, "commands", "ein"));
@@ -685,7 +685,7 @@ export function runSync(): SyncResult {
         log("credenciales: symlink → ~/.claude/.credentials.json (login compartido)");
       } else log("credenciales: symlink ya presente");
     } else {
-      log("⚠ ~/.claude/.credentials.json no existe: cc-ein pedirá login la 1ª vez");
+      log("⚠ ~/.claude/.credentials.json no existe: ein-cc pedirá login la 1ª vez");
     }
 
     // ── 2. CLAUDE.md (cerebro del parent, compilado y validado) ───────────────
@@ -695,7 +695,7 @@ export function runSync(): SyncResult {
     // ── 3. settings.json + hook PreToolUse (guard) con ruta ABSOLUTA ──────────
     // Bakea la ruta real del binario para que el hook no dependa de PATH.
     const settingsObj = JSON.parse(readFileSync(join(CC, "settings.json"), "utf8")) as Record<string, unknown>;
-    const guardBin = join(DEST, "bin", "cc-ein-sdd");
+    const guardBin = join(DEST, "bin", "ein-cc-sdd");
     const continuityBin = join(DEST, "bin", CLAUDE_CONTINUITY_RUNNER_NAME);
     settingsObj.hooks = buildClaudeHooks(guardBin, continuityBin);
     write(join(DEST, "settings.json"), `${JSON.stringify(settingsObj, null, 2)}\n`);
@@ -737,14 +737,14 @@ export function runSync(): SyncResult {
     ensureDir(binDir);
     if (!DRY) {
       try {
-        compileStandalone(join(CC, "sdd-cli", "cli.ts"), join(binDir, "cc-ein-sdd"));
-        log("CLI SDD compilado → bin/cc-ein-sdd (standalone; status|check|close)");
+        compileStandalone(join(CC, "sdd-cli", "cli.ts"), join(binDir, "ein-cc-sdd"));
+        log("CLI SDD compilado → bin/ein-cc-sdd (standalone; status|check|close)");
       } catch (error) {
-        const detail = `no se pudo compilar cc-ein-sdd: ${failureMessage(error)}`;
+        const detail = `no se pudo compilar ein-cc-sdd: ${failureMessage(error)}`;
         requiredFailures.push(detail);
         log(`✗ ${detail}`);
       }
-    } else log("CLI SDD se compilaría → bin/cc-ein-sdd");
+    } else log("CLI SDD se compilaría → bin/ein-cc-sdd");
 
     // ── 7. Runner compartido → binario standalone requerido ──────────────────
     // Bun follows the import closure from the canonical source, so Claude ships
@@ -777,7 +777,7 @@ export function runSync(): SyncResult {
   }
 
   if (requiredFailures.length > 0) {
-    console.error(`✗ cc-ein sync incompleto (${requiredFailures.length} operación(es) requerida(s) fallaron).`);
+    console.error(`✗ ein-cc sync incompleto (${requiredFailures.length} operación(es) requerida(s) fallaron).`);
     return { ok: false, requiredFailures, optionalWarnings };
   }
 
@@ -810,7 +810,7 @@ export function runSync(): SyncResult {
     log(engramBin ? "HOME inválido: memoria opcional omitida" : "engram no encontrado en PATH: memoria opcional omitida");
   }
 
-  console.log("cc-ein sync core listo. Lanza con: cc-ein");
+  console.log("ein-cc sync core listo. Lanza con: ein-cc");
   return { ok: true, requiredFailures, optionalWarnings };
 }
 

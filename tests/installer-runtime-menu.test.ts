@@ -27,23 +27,23 @@ import {
 } from "../installer/src/cli/install.ts";
 import { resolveReleaseContract } from "../installer/src/core/release-resolver.ts";
 import { INSTALLER_VERSION } from "../installer/src/core/version.ts";
-import { bundleCcEinPayload } from "../installer/scripts/bundle-cc-ein.ts";
+import { bundleEinCcPayload } from "../installer/scripts/bundle-ein-cc.ts";
 import { runBootstrapInstall, selectInstallTarget } from "../installer/src/cli/runtime-prompt.ts";
 import { renderDoctorAdvisor, renderInstallerAdvisorHandoff, runDoctorCommand } from "../installer/src/cli/doctor.ts";
 import { evaluateSharedConfigUpdateAdvisor } from "../ein-pi/agent/lib/shared-config-update-advisor.ts";
 import {
-  CC_EIN_ORCHESTRATOR_ASSET,
+  EIN_CC_ORCHESTRATOR_ASSET,
 } from "../installer/src/core/cc-payload-inventory.ts";
 import {
-  CC_EIN_PAYLOAD_FILES,
-  CC_EIN_PAYLOAD_MANIFEST,
-  CC_EIN_PAYLOAD_REQUIRED_PATHS,
-  CC_EIN_PAYLOAD_ROOTS,
-  CC_EIN_STYLE_CONTRACT,
-  CC_EIN_PAYLOAD_SDD_ENTRY,
-  resolveCcEinPayloadArchive,
-  stageCcEinPayload,
-  type CcEinPayloadStage,
+  EIN_CC_PAYLOAD_FILES,
+  EIN_CC_PAYLOAD_MANIFEST,
+  EIN_CC_PAYLOAD_REQUIRED_PATHS,
+  EIN_CC_PAYLOAD_ROOTS,
+  EIN_CC_STYLE_CONTRACT,
+  EIN_CC_PAYLOAD_SDD_ENTRY,
+  resolveEinCcPayloadArchive,
+  stageEinCcPayload,
+  type EinCcPayloadStage,
 } from "../installer/src/core/cc-payload.ts";
 
 const ORCHESTRATOR_FIXTURE_BYTES = Buffer.from("# orchestrator fixture\\n", "utf8");
@@ -72,14 +72,14 @@ type PayloadFixtureOptions = {
 };
 
 const PAYLOAD_FIXTURE_FILES = [
-  "cc-ein/sync.ts",
-  "cc-ein/sdd-cli/cli.ts",
+  "ein-cc/sync.ts",
+  "ein-cc/sdd-cli/cli.ts",
   "ein-pi/agent/surfaces/surface-runner.ts",
-  "cc-ein/continuity-runner.ts",
-  "cc-ein/commands/ein/handoff.md",
-  "pi-ein/pi-ein.fish",
-  CC_EIN_ORCHESTRATOR_ASSET,
-  CC_EIN_STYLE_CONTRACT,
+  "ein-cc/continuity-runner.ts",
+  "ein-cc/commands/ein/handoff.md",
+  "ein-pi/ein-pi.fish",
+  EIN_CC_ORCHESTRATOR_ASSET,
+  EIN_CC_STYLE_CONTRACT,
 ] as const;
 
 function createPayloadArchive(home: string, options: PayloadFixtureOptions = {}): { archive: string; source: string } {
@@ -88,7 +88,7 @@ function createPayloadArchive(home: string, options: PayloadFixtureOptions = {})
   for (const path of PAYLOAD_FIXTURE_FILES) {
     const fullPath = join(source, path);
     mkdirSync(join(fullPath, ".."), { recursive: true });
-    writeFileSync(fullPath, path === CC_EIN_ORCHESTRATOR_ASSET ? ORCHESTRATOR_FIXTURE_BYTES : `// ${path}\\n`);
+    writeFileSync(fullPath, path === EIN_CC_ORCHESTRATOR_ASSET ? ORCHESTRATOR_FIXTURE_BYTES : `// ${path}\\n`);
   }
   mkdirSync(join(source, "ein-pi/core"), { recursive: true });
   options.mutate?.(source);
@@ -105,7 +105,7 @@ function createPayloadArchive(home: string, options: PayloadFixtureOptions = {})
     };
     const manifest = options.manifest ?? options.manifestTransform?.(generated) ?? generated;
     writeFileSync(
-      join(source, CC_EIN_PAYLOAD_MANIFEST),
+      join(source, EIN_CC_PAYLOAD_MANIFEST),
       typeof manifest === "string" ? manifest : `${JSON.stringify(manifest)}\n`,
     );
   }
@@ -125,8 +125,8 @@ describe("EIN Fish launcher", () => {
     const unrelatedPath = join(destination, "unrelated.fish");
     const unrelatedContent = "function unrelated\nend\n";
     const launchers = [
-      ["pi-ein.fish", readFileSync(join(import.meta.dir, "../pi-ein/pi-ein.fish"), "utf8")],
-      ["cc-ein.fish", readFileSync(join(import.meta.dir, "../cc-ein/cc-ein.fish"), "utf8")],
+      ["ein-pi.fish", readFileSync(join(import.meta.dir, "../ein-pi/ein-pi.fish"), "utf8")],
+      ["ein-cc.fish", readFileSync(join(import.meta.dir, "../ein-cc/ein-cc.fish"), "utf8")],
     ] as const;
 
     const first = installFishLauncher({
@@ -150,28 +150,28 @@ describe("EIN Fish launcher", () => {
       content: launchers[1][1],
     });
 
-    expect(first.path).toBe(join(destination, "pi-ein.fish"));
+    expect(first.path).toBe(join(destination, "ein-pi.fish"));
     expect(first.changed).toBe(true);
     expect(second.changed).toBe(false);
     expect(readFileSync(first.path, "utf8")).toBe(launchers[0][1]);
-    expect(readFileSync(join(destination, "cc-ein.fish"), "utf8")).toBe(launchers[1][1]);
+    expect(readFileSync(join(destination, "ein-cc.fish"), "utf8")).toBe(launchers[1][1]);
     expect(readFileSync(unrelatedPath, "utf8")).toBe(unrelatedContent);
   });
 });
 
 describe("Claude runtime payload", () => {
-  test("inventory names the cc-ein roots, Pi assets, and SDD entry", () => {
-    expect(CC_EIN_PAYLOAD_ROOTS).toEqual(["cc-ein", "ein-pi/core"]);
-    expect(CC_EIN_PAYLOAD_FILES).toEqual([
-      "pi-ein/pi-ein.fish",
-      "pi-ein/migrate.ts",
-      CC_EIN_ORCHESTRATOR_ASSET,
+  test("inventory names the ein-cc roots, Pi assets, and SDD entry", () => {
+    expect(EIN_CC_PAYLOAD_ROOTS).toEqual(["ein-cc", "ein-pi/core"]);
+    expect(EIN_CC_PAYLOAD_FILES).toEqual([
+      "ein-pi/ein-pi.fish",
+      "ein-pi/migrate.ts",
+      EIN_CC_ORCHESTRATOR_ASSET,
       // `sync.ts` lo importa: sin el en el payload, la sincronizacion falla en
       // la maquina del usuario y no al empaquetar.
-      CC_EIN_STYLE_CONTRACT,
+      EIN_CC_STYLE_CONTRACT,
     ]);
-    expect(CC_EIN_PAYLOAD_SDD_ENTRY).toBe("cc-ein/sdd-cli/cli.ts");
-    expect(CC_EIN_PAYLOAD_REQUIRED_PATHS).toContain("cc-ein/sync.ts");
+    expect(EIN_CC_PAYLOAD_SDD_ENTRY).toBe("ein-cc/sdd-cli/cli.ts");
+    expect(EIN_CC_PAYLOAD_REQUIRED_PATHS).toContain("ein-cc/sync.ts");
   });
 
   test("stages an explicit archive and rejects missing assets without cwd fallback", async () => {
@@ -179,11 +179,11 @@ describe("Claude runtime payload", () => {
     const { archive } = createPayloadArchive(home);
     const sourceBytes = readFileSync(archive);
 
-    const staged = await stageCcEinPayload({ archivePath: archive, tempDirectory: home });
-    expect(readFileSync(staged.syncPath, "utf8")).toContain("cc-ein/sync.ts");
-    expect(staged.sddCliPath).toBe(join(staged.root, "cc-ein", "sdd-cli", "cli.ts"));
+    const staged = await stageEinCcPayload({ archivePath: archive, tempDirectory: home });
+    expect(readFileSync(staged.syncPath, "utf8")).toContain("ein-cc/sync.ts");
+    expect(staged.sddCliPath).toBe(join(staged.root, "ein-cc", "sdd-cli", "cli.ts"));
     expect(staged.archivePath).not.toBe(archive);
-    expect(staged.archivePath).toBe(join(staged.root, "cc-ein-runtime.tar.gz"));
+    expect(staged.archivePath).toBe(join(staged.root, "ein-cc-runtime.tar.gz"));
     expect(existsSync(staged.archivePath)).toBe(true);
     expect(readFileSync(staged.archivePath)).toEqual(sourceBytes);
     const stagedRoot = staged.root;
@@ -191,7 +191,7 @@ describe("Claude runtime payload", () => {
     staged.cleanup();
     expect(existsSync(staged.archivePath)).toBe(false);
     expect(existsSync(stagedRoot)).toBe(false);
-    expect(() => resolveCcEinPayloadArchive(join(home, "missing.tar.gz"))).toThrow(/payload cc-ein/);
+    expect(() => resolveEinCcPayloadArchive(join(home, "missing.tar.gz"))).toThrow(/payload ein-cc/);
   });
 
   test("requires a complete manifest and required path kinds, cleaning every rejected stage", async () => {
@@ -216,11 +216,11 @@ describe("Claude runtime payload", () => {
       },
       {
         name: "unlisted regular member",
-        options: { mutate: (source) => writeFileSync(join(source, "cc-ein/unlisted.ts"), "unlisted\\n") },
+        options: { mutate: (source) => writeFileSync(join(source, "ein-cc/unlisted.ts"), "unlisted\\n") },
       },
       {
         name: "required file is a directory",
-        options: { mutate: (source) => { rmSync(join(source, "cc-ein/sync.ts")); mkdirSync(join(source, "cc-ein/sync.ts")); } },
+        options: { mutate: (source) => { rmSync(join(source, "ein-cc/sync.ts")); mkdirSync(join(source, "ein-cc/sync.ts")); } },
       },
       {
         name: "required directory is a file",
@@ -228,7 +228,7 @@ describe("Claude runtime payload", () => {
       },
       {
         name: "missing required member",
-        options: { mutate: (source) => rmSync(join(source, CC_EIN_ORCHESTRATOR_ASSET)) },
+        options: { mutate: (source) => rmSync(join(source, EIN_CC_ORCHESTRATOR_ASSET)) },
       },
     ];
 
@@ -238,7 +238,7 @@ describe("Claude runtime payload", () => {
       mkdirSync(stagingParent);
       const { archive } = createPayloadArchive(home, options);
 
-      await expect(stageCcEinPayload({ archivePath: archive, tempDirectory: stagingParent }), name).rejects.toThrow();
+      await expect(stageEinCcPayload({ archivePath: archive, tempDirectory: stagingParent }), name).rejects.toThrow();
       expect(readdirSync(stagingParent), name).toEqual([]);
     }
   });
@@ -250,11 +250,11 @@ describe("Claude runtime payload", () => {
     const { archive } = createPayloadArchive(home, {
       manifestTransform: (manifest) => ({
         ...manifest,
-        files: [...manifest.files, { path: "cc-ein/sync.ts", sha256: "not-a-sha256" }],
+        files: [...manifest.files, { path: "ein-cc/sync.ts", sha256: "not-a-sha256" }],
       }),
     });
 
-    await expect(stageCcEinPayload({ archivePath: archive, tempDirectory: stagingParent })).rejects.toThrow();
+    await expect(stageEinCcPayload({ archivePath: archive, tempDirectory: stagingParent })).rejects.toThrow();
     expect(readdirSync(stagingParent)).toEqual([]);
   });
 
@@ -266,8 +266,8 @@ describe("Claude runtime payload", () => {
     mkdirSync(unreadableSource);
 
     await expect(
-      stageCcEinPayload({ archivePath: unreadableSource, tempDirectory: stagingParent }),
-    ).rejects.toThrow(/No se pudo materializar el payload cc-ein/);
+      stageEinCcPayload({ archivePath: unreadableSource, tempDirectory: stagingParent }),
+    ).rejects.toThrow(/No se pudo materializar el payload ein-cc/);
     expect(readdirSync(stagingParent)).toEqual([]);
   });
 
@@ -279,25 +279,25 @@ describe("Claude runtime payload", () => {
     writeFileSync(invalidArchive, "not a tar archive");
 
     await expect(
-      stageCcEinPayload({ archivePath: invalidArchive, tempDirectory: stagingParent }),
-    ).rejects.toThrow(/No se pudo extraer el payload cc-ein/);
+      stageEinCcPayload({ archivePath: invalidArchive, tempDirectory: stagingParent }),
+    ).rejects.toThrow(/No se pudo extraer el payload ein-cc/);
     expect(readdirSync(stagingParent)).toEqual([]);
   });
 });
 
 describe("Claude runtime runner", () => {
-  function fakeStage(home: string, onCleanup: () => void): CcEinPayloadStage {
+  function fakeStage(home: string, onCleanup: () => void): EinCcPayloadStage {
     return {
       archivePath: join(home, "payload.tar.gz"),
       root: join(home, "staged-payload"),
-      syncPath: join(home, "staged-payload", "cc-ein", "sync.ts"),
-      sddCliPath: join(home, "staged-payload", "cc-ein", "sdd-cli", "cli.ts"),
+      syncPath: join(home, "staged-payload", "ein-cc", "sync.ts"),
+      sddCliPath: join(home, "staged-payload", "ein-cc", "sdd-cli", "cli.ts"),
       manifestPath: join(home, "staged-payload", "ein-cc-payload-manifest.json"),
       cleanup: onCleanup,
     };
   }
 
-  test("runs Bun from the staged context before installing cc-ein.fish", async () => {
+  test("runs Bun from the staged context before installing ein-cc.fish", async () => {
     const home = tempHome();
     const calls: Array<{ command: string; args: string[]; cwd?: string; env?: Record<string, string> }> = [];
     let cleaned = false;
@@ -315,16 +315,16 @@ describe("Claude runtime runner", () => {
       },
       installLauncher: () => {
         launcherInstalled = true;
-        return { path: join(home, ".config", "fish", "functions", "cc-ein.fish"), changed: true };
+        return { path: join(home, ".config", "fish", "functions", "ein-cc.fish"), changed: true };
       },
     });
 
-    expect(result).toEqual({ target: "claude", ok: true, detail: "Claude Code listo. Ejecuta `cc-ein` para empezar." });
+    expect(result).toEqual({ target: "claude", ok: true, detail: "Ein listo. Ejecuta `ein`." });
     expect(calls).toEqual([{
       command: "/custom/bun",
-      args: ["cc-ein/sync.ts"],
+      args: ["ein-cc/sync.ts"],
       cwd: stage.root,
-      env: { HOME: home, CC_EIN_HOME: join(home, ".claude-ein") },
+      env: { HOME: home, EIN_CC_HOME: join(home, ".claude-ein") },
     }]);
     expect(launcherInstalled).toBe(true);
     expect(cleaned).toBe(true);
@@ -398,7 +398,7 @@ describe("Claude runtime runner", () => {
       home,
       stagePayload: async () => stage,
       execute: async () => ({ ok: true, code: 0, stdout: "MCP warning: optional integration unavailable", stderr: "" }),
-      installLauncher: () => ({ path: join(home, "cc-ein.fish"), changed: true }),
+      installLauncher: () => ({ path: join(home, "ein-cc.fish"), changed: true }),
     });
 
     expect(result.ok).toBe(true);
@@ -408,26 +408,26 @@ describe("Claude runtime runner", () => {
   test("packaged payload reaches the isolated Claude home with canonical orchestrator bytes", async () => {
     const home = tempHome();
     const workspace = tempHome();
-    const archive = join(workspace, "cc-ein-runtime.tar.gz");
-    await bundleCcEinPayload({ outputPath: archive });
-    const canonical = readFileSync(join(import.meta.dir, "..", CC_EIN_ORCHESTRATOR_ASSET));
+    const archive = join(workspace, "ein-cc-runtime.tar.gz");
+    await bundleEinCcPayload({ outputPath: archive });
+    const canonical = readFileSync(join(import.meta.dir, "..", EIN_CC_ORCHESTRATOR_ASSET));
 
     let stagedRoot = "";
     let stagedBytes: Buffer<ArrayBuffer> | undefined;
     const result = await runClaudeInstall({
       home,
       stagePayload: async () => {
-        const stage = await stageCcEinPayload({
+        const stage = await stageEinCcPayload({
           archivePath: archive,
           tempDirectory: join(workspace, "staging"),
         });
         stagedRoot = stage.root;
-        stagedBytes = readFileSync(join(stage.root, CC_EIN_ORCHESTRATOR_ASSET));
+        stagedBytes = readFileSync(join(stage.root, EIN_CC_ORCHESTRATOR_ASSET));
         return stage;
       },
     });
 
-    expect(result).toEqual({ target: "claude", ok: true, detail: "Claude Code listo. Ejecuta `cc-ein` para empezar." });
+    expect(result).toEqual({ target: "claude", ok: true, detail: "Ein listo. Ejecuta `ein`." });
     const installed = join(home, ".claude-ein", "assets", "orchestrator.md");
     expect(lstatSync(installed).isFile()).toBe(true);
     expect(readFileSync(installed)).toEqual(stagedBytes!);
@@ -439,8 +439,8 @@ describe("Claude runtime runner", () => {
   test("a real staged payload whose sync fails installs no launcher, asset, or leftover stage", async () => {
     const home = tempHome();
     const workspace = tempHome();
-    const archive = join(workspace, "cc-ein-runtime.tar.gz");
-    await bundleCcEinPayload({ outputPath: archive });
+    const archive = join(workspace, "ein-cc-runtime.tar.gz");
+    await bundleEinCcPayload({ outputPath: archive });
     const stagingParent = join(workspace, "staging");
     let stagedRoot = "";
     let launcherCalls = 0;
@@ -449,7 +449,7 @@ describe("Claude runtime runner", () => {
       home,
       bunPath: join(workspace, "missing-bun"),
       stagePayload: async () => {
-        const stage = await stageCcEinPayload({ archivePath: archive, tempDirectory: stagingParent });
+        const stage = await stageEinCcPayload({ archivePath: archive, tempDirectory: stagingParent });
         stagedRoot = stage.root;
         return stage;
       },

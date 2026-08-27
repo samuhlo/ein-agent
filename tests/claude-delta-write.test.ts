@@ -3,8 +3,8 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { compileClaudeSurface } from "../cc-ein/sync.ts";
-import { runDeltaCommand } from "../cc-ein/sdd-cli/cli.ts";
+import { compileClaudeSurface } from "../ein-cc/sync.ts";
+import { runDeltaCommand } from "../ein-cc/sdd-cli/cli.ts";
 import { writeOpenSpecDelta } from "../ein-pi/agent/lib/openspec-delta-write.ts";
 import { parseOpenSpecDelta } from "../ein-pi/agent/lib/openspec-spec-parser.ts";
 
@@ -79,10 +79,10 @@ describe("OpenSpec delta writing is shared, not Pi-only", () => {
 describe("a translated agent never names a command that does not exist", () => {
 	// El fallo original: la traducción convertía `ein_openspec_delta_write` en la
 	// prosa "the OpenSpec delta writer" — un nombre sin nada detrás. Este test
-	// exige que todo `cc-ein-sdd <sub>` citado por un agente o por el
+	// exige que todo `ein-cc-sdd <sub>` citado por un agente o por el
 	// coordinador sea un subcomando real del CLI.
-	test("every cc-ein-sdd subcommand cited in the compiled surface is dispatched", () => {
-		const cli = readFileSync(join(import.meta.dir, "..", "cc-ein", "sdd-cli", "cli.ts"), "utf8");
+	test("every ein-cc-sdd subcommand cited in the compiled surface is dispatched", () => {
+		const cli = readFileSync(join(import.meta.dir, "..", "ein-cc", "sdd-cli", "cli.ts"), "utf8");
 		const dispatched = new Set(
 			[...cli.matchAll(/^\t\tcase "([a-z-]+)":/gm)].map((match) => match[1]!),
 		);
@@ -92,7 +92,7 @@ describe("a translated agent never names a command that does not exist", () => {
 		const documents = [surface.coordinator, ...Object.values(surface.agents)];
 		const cited = new Set<string>();
 		for (const document of documents) {
-			for (const match of document.matchAll(/cc-ein-sdd ([a-z-]+)/g)) cited.add(match[1]!);
+			for (const match of document.matchAll(/ein-cc-sdd ([a-z-]+)/g)) cited.add(match[1]!);
 		}
 
 		expect(cited.has("delta")).toBe(true);

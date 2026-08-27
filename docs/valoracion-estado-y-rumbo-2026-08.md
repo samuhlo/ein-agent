@@ -69,8 +69,8 @@ Antes de opinar, el inventario. Los números son de hoy, no de memoria.
 | `ein-pi/core/skills/local/` | 27 ficheros, **3.457 líneas** | Tus skills de estilo y workflow |
 | `openspec/changes/archive/` | 463 ficheros, **51.218 líneas** | 51 cambios SDD cerrados |
 | `docs-site/` | 22 páginas | Documentación pública (Astro + Starlight) |
-| `cc-ein/` | 10 ficheros, **1.986 líneas** | Adaptador Claude |
-| `pi-ein/` | 2 ficheros, **84 líneas** | Adaptador Pi (launcher) |
+| `ein-cc/` | 10 ficheros, **1.986 líneas** | Adaptador Claude |
+| `ein-pi/` | 2 ficheros, **84 líneas** | Adaptador Pi (launcher) |
 
 Tres lecturas que el inventario deja claras y que conviene tener presentes todo
 el rato:
@@ -85,8 +85,8 @@ más 125 KB de CHANGELOG con 91 entradas. Es el registro de tu propio proceso, y
 es legítimo — pero es también el 40% del repo, y es lo primero que va a
 desconcertar a cualquiera que llegue de fuera.
 
-**Los adaptadores están desequilibrados 16 a 1.** `cc-ein/` tiene 1.986 líneas;
-`pi-ein/` tiene 84. Eso no es porque Claude haga más: es porque Pi consume el
+**Los adaptadores están desequilibrados 16 a 1.** `ein-cc/` tiene 1.986 líneas;
+`ein-pi/` tiene 84. Eso no es porque Claude haga más: es porque Pi consume el
 motor directamente y Claude tiene que reimplementar una superficie propia
 (`sync.ts` solo son 33 KB). Esa asimetría es la que hace cara la paridad, y es
 un dato para la decisión de `// 006`.
@@ -219,7 +219,7 @@ continuidad tiene que ser bidireccional. Está construido y tiene tests.
 Pero la factura real es la asimetría del `// 001`: 1.986 líneas de adaptador
 frente a 84, y `sync.ts` de 33 KB reimplementando superficie. Y el hallazgo A4
 del plan de dogfooding demuestra que la asimetría ya produjo una mentira:
-`cc-ein/CLAUDE.md:55` remite cinco veces a `orchestrator.md`, un fichero que
+`ein-cc/CLAUDE.md:55` remite cinco veces a `orchestrator.md`, un fichero que
 `sync.ts` nunca despliega y que en `~/.claude-ein/` no existe. Señal 5 del
 manifiesto, disparada.
 
@@ -232,7 +232,7 @@ merece. Ver `// 006`.
 51.218 líneas de artefactos de 51 cambios cerrados, versionadas junto al código.
 Sirven — el propio plan de hallazgos las cita como frontera dura que no se
 reescribe, y tiene razón. Pero también son el 40% del repo, distorsionan
-cualquier búsqueda (`grep` de `cc-ein` da 680 resultados, "la mayoría en
+cualquier búsqueda (`grep` de `ein-cc` da 680 resultados, "la mayoría en
 `archive/`") y multiplican el ruido de cada herramienta que recorre el árbol.
 
 **Diagnóstico:** no borrar. Mover a una rama huérfana de archivo o a un
@@ -410,7 +410,7 @@ Pi se agota**. Eso necesita exactamente tres cosas: leer el checkpoint, ejecutar
 las fases, escribir el checkpoint. No necesita `/ein:settings`, ni superficies
 propias de configuración, ni una segunda voz, ni paridad de skills.
 
-La propuesta concreta: **Claude se reduce a `cc-ein-sdd` + el contrato de voz
+La propuesta concreta: **Claude se reduce a `ein-cc-sdd` + el contrato de voz
 compartido + el checkpoint.** Todo lo demás se retira. Eso arregla A4 por
 construcción (no puede prometer un fichero que no despliega si no promete nada) y
 convierte la paridad de "objetivo permanente" en "superficie cerrada".
@@ -863,8 +863,8 @@ que el de trocear, aplicado al juicio en vez de al contexto.
 
 ## // 011. UNA SOLA PUERTA: `ein`, INSTALLER Y SHIMS
 
-La duda de producto era legítima: hoy existen `ein`, `ein-install`, `pi-ein` y
-`cc-ein`, y a simple vista parece que hay **dos launchers compitiendo**. Después
+La duda de producto era legítima: hoy existen `ein`, `ein-install`, `ein-pi` y
+`ein-cc`, y a simple vista parece que hay **dos launchers compitiendo**. Después
 de mirar qué hace realmente cada pieza, la conclusión es más concreta: **la
 arquitectura de dos binarios es correcta; lo que está a medias es la superficie
 que ve el humano.**
@@ -925,7 +925,7 @@ correcto detrás de una superficie que cuenta algo distinto**. A1 y A2 del plan 
 dogfooding ya apuntan a la misma migración incompleta: `install.sh` termina
 orientando al usuario hacia `ein` en un punto donde el bootstrap todavía depende
 de `ein-install`, e `install.ts:507` dice `pi` donde la superficie aislada que
-quiere señalar es `pi-ein`. Son síntomas distintos del mismo renombrado sin
+quiere señalar es `ein-pi`. Son síntomas distintos del mismo renombrado sin
 cerrar.
 
 Y la buena noticia es que la relación correcta ya está cableada.
@@ -958,22 +958,22 @@ La forma que deja cada pieza con una responsabilidad clara es esta:
    porque es una decisión real del bootstrap. `ein-install` a secas pasa a ser
    esencialmente *instalar, preguntando solo el runtime*.
 
-5. **Los launchers de runtime sobreviven como shims, no como puertas.** `pi-ein`
-   y `cc-ein` son, en esencia, shims de variables de entorno con passthrough.
+5. **Los launchers de runtime sobreviven como shims, no como puertas.** `ein-pi`
+   y `ein-cc` son, en esencia, shims de variables de entorno con passthrough.
    Siguen siendo útiles para uso directo y scripts, pero
    dejan de anunciarse como la forma principal de entrar. El dashboard ya puede
    ofrecer “Arrancar Pi” y “Arrancar Claude” sin convertir esos shims en producto.
 
 ### El naming que cae por su propio peso
 
-C1 del plan ya proponía `pi-ein` → `ein-pi` y `cc-ein` → `ein-cc`. Esta discusión
+C1 del plan ya proponía `ein-pi` → `ein-pi` y `ein-cc` → `ein-cc`. Esta discusión
 le da un segundo motivo independiente: no es solo coherencia interna, es
 **jerarquía visual del producto**.
 
 Hoy el humano ve:
 
 ```text
-ein · ein-install · pi-ein · cc-ein
+ein · ein-install · ein-pi · ein-cc
 ```
 
 Con C1 aplicado:
@@ -1044,7 +1044,7 @@ Aquí entra también el cierre de `// 011`: **una sola puerta pública**. README
 mensajes post-instalación y CLI cuentan que `ein` es la app; `ein update`,
 `ein doctor`, `ein restore` y `ein uninstall` delegan a `ein-install`; C1 se
 aplica en esta misma pasada
-(`pi-ein`→`ein-pi`, `cc-ein`→`ein-cc`) para que toda la superficie use una sola
+(`ein-pi`→`ein-pi`, `ein-cc`→`ein-cc`) para que toda la superficie use una sola
 jerarquía de nombres.
 
 *Por qué segunda:* es barato, está localizado con línea exacta, y es lo que más

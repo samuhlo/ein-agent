@@ -1,5 +1,5 @@
 // =============================================================================
-// BUNDLE CC-EIN
+// BUNDLE EIN-CC
 // Build the repository-relative source payload consumed by Claude sync. The
 // archive is generated alongside template.tar.gz and embedded by Bun compile.
 // =============================================================================
@@ -20,32 +20,32 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  CC_EIN_PAYLOAD_FILES,
-  CC_EIN_PAYLOAD_MANIFEST,
-  CC_EIN_PAYLOAD_ROOTS,
-  CC_EIN_PAYLOAD_SOURCE_ENTRIES,
-  type CcEinPayloadManifest,
-  type CcEinPayloadManifestEntry,
+  EIN_CC_PAYLOAD_FILES,
+  EIN_CC_PAYLOAD_MANIFEST,
+  EIN_CC_PAYLOAD_ROOTS,
+  EIN_CC_PAYLOAD_SOURCE_ENTRIES,
+  type EinCcPayloadManifest,
+  type EinCcPayloadManifestEntry,
 } from "../src/core/cc-payload-inventory.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = dirname(HERE);
 const REPO_ROOT = dirname(INSTALLER_ROOT);
-const OUT = join(INSTALLER_ROOT, "src", "assets", "cc-ein-runtime.tar.gz");
+const OUT = join(INSTALLER_ROOT, "src", "assets", "ein-cc-runtime.tar.gz");
 
 const SOURCE_EXTENSIONS = ["", ".ts", ".tsx", ".js", ".json"];
 const IMPORT_RE = /(?:from\s+|import\s*\(\s*|export\s+from\s+)["']([^"']+)["']/g;
 
-export type BundleCcEinPayloadOptions = Readonly<{
+export type BundleEinCcPayloadOptions = Readonly<{
   /** Checkout root used as the source of repository-relative payload paths. */
   repoRoot?: string;
   /** Archive output path; the normal CLI default remains the generated asset. */
   outputPath?: string;
 }>;
 
-export type BundleCcEinPayloadResult = Readonly<{
+export type BundleEinCcPayloadResult = Readonly<{
   outputPath: string;
-  manifest: CcEinPayloadManifest;
+  manifest: EinCcPayloadManifest;
 }>;
 
 function sourcePath(repoRoot: string, repoRelativePath: string): string {
@@ -133,30 +133,35 @@ function addDirectFile(repoRoot: string, repoRelativePath: string, staging: stri
   addFile(repoRoot, source, staging, files);
 }
 
-export async function bundleCcEinPayload(
-  options: BundleCcEinPayloadOptions = {},
-): Promise<BundleCcEinPayloadResult> {
+export async function bundleEinCcPayload(
+  options: BundleEinCcPayloadOptions = {},
+): Promise<BundleEinCcPayloadResult> {
   const repoRoot = resolve(options.repoRoot ?? REPO_ROOT);
   const outputPath = resolve(options.outputPath ?? OUT);
   const staging = mkdtempSync(join(tmpdir(), "ein-cc-payload-"));
   try {
     const files = new Set<string>();
-    for (const root of CC_EIN_PAYLOAD_ROOTS) addSourcePath(repoRoot, root, staging, files);
-    for (const file of CC_EIN_PAYLOAD_FILES) addDirectFile(repoRoot, file, staging, files);
-    for (const source of collectSourceClosure(repoRoot, CC_EIN_PAYLOAD_SOURCE_ENTRIES)) {
+    for (const root of EIN_CC_PAYLOAD_ROOTS) addSourcePath(repoRoot, root, staging, files);
+    for (const file of EIN_CC_PAYLOAD_FILES) addDirectFile(repoRoot, file, staging, files);
+    for (const source of collectSourceClosure(repoRoot, EIN_CC_PAYLOAD_SOURCE_ENTRIES)) {
       addFile(repoRoot, source, staging, files);
     }
 
-    const manifest: CcEinPayloadManifest = {
+    const manifest: EinCcPayloadManifest = {
       format: "ein-cc-payload/v1",
       files: [...files]
         .sort()
-        .map((path): CcEinPayloadManifestEntry => ({ path, sha256: hash(join(staging, path)) })),
+        .map((path): EinCcPayloadManifestEntry => ({ path, sha256: hash(join(staging, path)) })),
     };
-    writeFileSync(join(staging, CC_EIN_PAYLOAD_MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
+    writeFileSync(join(staging, EIN_CC_PAYLOAD_MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
 
     mkdirSync(dirname(outputPath), { recursive: true });
-    const proc = Bun.spawn(["tar", "-czf", outputPath, "."], { cwd: staging, stderr: "pipe" });
+    // macOS needs both gates: one suppresses AppleDouble and one strips PAX xattrs.
+    const proc = Bun.spawn(["tar", "--no-xattrs", "-czf", outputPath, "."], {
+      cwd: staging,
+      stderr: "pipe",
+      env: { ...process.env, COPYFILE_DISABLE: "1" },
+    });
     const stderr = await new Response(proc.stderr).text();
     const code = await proc.exited;
     if (code !== 0) throw new Error(`tar fallo (code ${code}): ${stderr}`);
@@ -168,8 +173,8 @@ export async function bundleCcEinPayload(
 }
 
 if (import.meta.main) {
-  bundleCcEinPayload().then(({ outputPath, manifest }) => {
-    console.log("/// cc-ein payload empaquetado");
+  bundleEinCcPayload().then(({ outputPath, manifest }) => {
+    console.log("/// ein-cc payload empaquetado");
     console.log(`  archivos: ${manifest.files.length}`);
     console.log(`  salida:   ${outputPath}`);
   }).catch((error) => {

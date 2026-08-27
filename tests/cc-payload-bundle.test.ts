@@ -12,17 +12,17 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  CC_EIN_ORCHESTRATOR_ASSET,
-  CC_EIN_PAYLOAD_FILES,
-  CC_EIN_PAYLOAD_MANIFEST,
-  CC_EIN_PAYLOAD_ROOTS,
-  CC_EIN_PAYLOAD_SOURCE_ENTRIES,
+  EIN_CC_ORCHESTRATOR_ASSET,
+  EIN_CC_PAYLOAD_FILES,
+  EIN_CC_PAYLOAD_MANIFEST,
+  EIN_CC_PAYLOAD_ROOTS,
+  EIN_CC_PAYLOAD_SOURCE_ENTRIES,
 } from "../installer/src/core/cc-payload-inventory.ts";
 
-type BundlerModule = typeof import("../installer/scripts/bundle-cc-ein.ts");
+type BundlerModule = typeof import("../installer/scripts/bundle-ein-cc.ts");
 
 async function loadBundler(): Promise<BundlerModule> {
-  return import("../installer/scripts/bundle-cc-ein.ts");
+  return import("../installer/scripts/bundle-ein-cc.ts");
 }
 
 const CANONICAL_BYTES = Buffer.from([
@@ -31,23 +31,23 @@ const CANONICAL_BYTES = Buffer.from([
 ]);
 
 function seedCheckout(root: string, asset: "valid" | "absent" | "directory" | "unreadable"): string {
-  for (const payloadRoot of CC_EIN_PAYLOAD_ROOTS) {
+  for (const payloadRoot of EIN_CC_PAYLOAD_ROOTS) {
     mkdirSync(join(root, payloadRoot), { recursive: true });
     writeFileSync(join(root, payloadRoot, "fixture.txt"), payloadRoot);
   }
-  for (const entry of CC_EIN_PAYLOAD_SOURCE_ENTRIES) {
+  for (const entry of EIN_CC_PAYLOAD_SOURCE_ENTRIES) {
     const path = join(root, entry);
     mkdirSync(join(path, ".."), { recursive: true });
     writeFileSync(path, `export const fixture = ${JSON.stringify(entry)};\n`);
   }
-  for (const file of CC_EIN_PAYLOAD_FILES) {
-    if (file === CC_EIN_ORCHESTRATOR_ASSET) continue;
+  for (const file of EIN_CC_PAYLOAD_FILES) {
+    if (file === EIN_CC_ORCHESTRATOR_ASSET) continue;
     const path = join(root, file);
     mkdirSync(join(path, ".."), { recursive: true });
     writeFileSync(path, `fixture:${file}\n`);
   }
 
-  const assetPath = join(root, CC_EIN_ORCHESTRATOR_ASSET);
+  const assetPath = join(root, EIN_CC_ORCHESTRATOR_ASSET);
   if (asset === "directory") {
     mkdirSync(assetPath, { recursive: true });
   } else if (asset !== "absent") {
@@ -77,8 +77,8 @@ async function inspectArchive(archivePath: string, extractionRoot: string): Prom
     .filter(Boolean);
   const extracted = await runTar(["-xzf", archivePath, "-C", extractionRoot]);
   expect(extracted.code).toBe(0);
-  const bytes = readFileSync(join(extractionRoot, CC_EIN_ORCHESTRATOR_ASSET));
-  const manifest = JSON.parse(readFileSync(join(extractionRoot, CC_EIN_PAYLOAD_MANIFEST), "utf8")) as {
+  const bytes = readFileSync(join(extractionRoot, EIN_CC_ORCHESTRATOR_ASSET));
+  const manifest = JSON.parse(readFileSync(join(extractionRoot, EIN_CC_PAYLOAD_MANIFEST), "utf8")) as {
     format: string;
     files: { path: string; sha256: string }[];
   };
@@ -92,10 +92,10 @@ async function assertInvalidSource(asset: "absent" | "directory" | "unreadable")
   mkdirSync(checkout, { recursive: true });
   const assetPath = seedCheckout(checkout, asset);
   try {
-    const { bundleCcEinPayload } = await loadBundler();
+    const { bundleEinCcPayload } = await loadBundler();
     let error: unknown;
     try {
-      await bundleCcEinPayload({ repoRoot: checkout, outputPath: output });
+      await bundleEinCcPayload({ repoRoot: checkout, outputPath: output });
     } catch (caught) {
       error = caught;
     }
@@ -107,7 +107,7 @@ async function assertInvalidSource(asset: "absent" | "directory" | "unreadable")
   }
 }
 
-describe("cc-ein payload bundler", () => {
+describe("ein-cc payload bundler", () => {
   test("archives the canonical asset bytes and staged-byte manifest", async () => {
     const tempRoot = mkdtempSync(join(tmpdir(), "ein-cc-payload-bundle-valid-"));
     const checkout = join(tempRoot, "checkout");
@@ -117,18 +117,18 @@ describe("cc-ein payload bundler", () => {
     mkdirSync(extraction, { recursive: true });
     const assetPath = seedCheckout(checkout, "valid");
     try {
-      const { bundleCcEinPayload } = await loadBundler();
-      const result = await bundleCcEinPayload({ repoRoot: checkout, outputPath: output });
+      const { bundleEinCcPayload } = await loadBundler();
+      const result = await bundleEinCcPayload({ repoRoot: checkout, outputPath: output });
       const archive = await inspectArchive(output, extraction);
-      expect(archive.names.filter((name) => name === CC_EIN_ORCHESTRATOR_ASSET)).toHaveLength(1);
+      expect(archive.names.filter((name) => name === EIN_CC_ORCHESTRATOR_ASSET)).toHaveLength(1);
       expect(archive.bytes).toEqual(readFileSync(assetPath));
       expect(archive.bytes).toEqual(CANONICAL_BYTES);
-      const entries = archive.manifest.files.filter((entry) => entry.path === CC_EIN_ORCHESTRATOR_ASSET);
+      const entries = archive.manifest.files.filter((entry) => entry.path === EIN_CC_ORCHESTRATOR_ASSET);
       expect(entries).toHaveLength(1);
       expect(archive.manifest.format).toBe("ein-cc-payload/v1");
       expect(entries[0]?.sha256).toBe(createHash("sha256").update(archive.bytes).digest("hex"));
       expect(result.outputPath).toBe(output);
-      expect(result.manifest.files.find((entry) => entry.path === CC_EIN_ORCHESTRATOR_ASSET)?.sha256)
+      expect(result.manifest.files.find((entry) => entry.path === EIN_CC_ORCHESTRATOR_ASSET)?.sha256)
         .toBe(entries[0]?.sha256);
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });

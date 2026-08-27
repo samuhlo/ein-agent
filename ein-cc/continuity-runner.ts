@@ -184,7 +184,7 @@ async function runSource(argv: readonly string[], env: NodeJS.ProcessEnv, setChi
 }
 
 export async function runClaudeContinuity(argv: readonly string[]): Promise<number> {
-  const root = mkdtempSync(join(tmpdir(), "cc-ein-continuity-")), path = join(root, "control.sock"), token = randomBytes(32).toString("hex");
+  const root = mkdtempSync(join(tmpdir(), "ein-cc-continuity-")), path = join(root, "control.sock"), token = randomBytes(32).toString("hex");
   let child: ReturnType<typeof Bun.spawn> | undefined, replacement: { target: "pi" | "claude"; brief: string } | undefined, termination: Promise<boolean> | undefined, interrupted = false, accepting = true;
   const lifecycle = createContinuityHandoffLifecycle(process.cwd(), { now: () => new Date().toISOString(), runtimeAvailable: localExecutableAvailable, processObservation: () => child?.exitCode === null ? "active" : "none" });
   let stopSource!: (code: number) => void; const stopped = new Promise<number>((resolve) => { stopSource = resolve; }); sourceStop = stopped;

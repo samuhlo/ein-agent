@@ -57,7 +57,7 @@ El checklist ejecutable, en lotes con dependencias. Cada tarea lleva su comando
 de comprobación.
 
 El estado de las casillas se lee del fichero, no se recuerda. Por eso
-`cc-ein-sdd status` puede decirte cuántas quedan sin preguntarle a nadie.
+`ein-cc-sdd status` puede decirte cuántas quedan sin preguntarle a nadie.
 
 ## apply-progress.md
 

@@ -1,11 +1,11 @@
 ---
 description: Dónde está el trabajo: cambio activo, fase, siguiente paso y ajustes del proyecto
-allowed-tools: Bash(cc-ein-sdd status:*)
+allowed-tools: Bash(ein-cc-sdd status:*)
 ---
 
-Estado determinista del proyecto, ya resuelto por `cc-ein-sdd` — cero adivinación:
+Estado determinista del proyecto, ya resuelto por `ein-cc-sdd` — cero adivinación:
 
-!`cc-ein-sdd status`
+!`ein-cc-sdd status`
 
 Preséntaselo al usuario en su idioma, en una lectura corta y honesta:
 

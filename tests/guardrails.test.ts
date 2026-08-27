@@ -417,7 +417,7 @@ describe("confirmDelegatedDelivery (tool subagent)", () => {
 
 // =============================================================================
 // commandIsExplicitlyAllowed — allowlist de solo-lectura/local para el guard de
-// cc-ein. Pura: sin I/O, sin estado. NO decide precedencia (eso vive en el
+// ein-cc. Pura: sin I/O, sin estado. NO decide precedencia (eso vive en el
 // grupo 003 de harness-discipline); solo responde "¿está explícitamente
 // permitido?" para un comando ya evaluado por deny/confirm.
 // =============================================================================

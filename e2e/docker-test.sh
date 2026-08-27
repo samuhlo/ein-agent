@@ -95,29 +95,29 @@ pi_agent="$HOME/.pi-ein/agent"
 pi_marker="$pi_agent/.ein-install.json"
 pi_manifest="$pi_agent/template-manifest.json"
 fish_functions="$HOME/.config/fish/functions"
-pi_launcher="$fish_functions/pi-ein.fish"
+pi_launcher="$fish_functions/ein-pi.fish"
 claude_home="$HOME/.claude-ein"
-claude_launcher="$fish_functions/cc-ein.fish"
+claude_launcher="$fish_functions/ein-cc.fish"
 
 assert_pi_surface() {
   assert_present "$pi_marker"
   assert_present "$pi_manifest"
   assert_present "$pi_launcher"
-  assert_exactly_one "$fish_functions" "pi-ein.fish"
+  assert_exactly_one "$fish_functions" "ein-pi.fish"
   grep -Fq '"version":' "$pi_marker"
-  grep -Fq 'function pi-ein' "$pi_launcher"
+  grep -Fq 'function ein-pi' "$pi_launcher"
 }
 
 assert_claude_surface() {
   assert_present "$claude_home/CLAUDE.md"
   assert_present "$claude_home/settings.json"
-  for executable in cc-ein-sdd ein-surface-runner ein-continuity; do
+  for executable in ein-cc-sdd ein-surface-runner ein-continuity; do
     assert_present "$claude_home/bin/$executable"
     test -x "$claude_home/bin/$executable"
   done
   assert_present "$claude_launcher"
-  assert_exactly_one "$fish_functions" "cc-ein.fish"
-  grep -Fq 'function cc-ein' "$claude_launcher"
+  assert_exactly_one "$fish_functions" "ein-cc.fish"
+  grep -Fq 'function ein-cc' "$claude_launcher"
 }
 
 install_twice() {
@@ -212,7 +212,7 @@ case "$scenario" in
     for pass in 1 2; do
       log="/tmp/ein-both-${pass}.log"
       pi_line="$(awk 'tolower($0) ~ /pi: ein listo/{print NR; exit}' "$log")"
-      claude_line="$(awk 'tolower($0) ~ /claude code: claude code listo/{print NR; exit}' "$log")"
+      claude_line="$(awk 'tolower($0) ~ /claude code: ein listo/{print NR; exit}' "$log")"
       test -n "$pi_line" || { echo "[assert] falta completion de Pi en pass $pass" >&2; exit 1; }
       test -n "$claude_line" || { echo "[assert] falta completion de Claude en pass $pass" >&2; exit 1; }
       test "$pi_line" -lt "$claude_line" || {

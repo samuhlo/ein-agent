@@ -1,9 +1,9 @@
-function cc-ein --description "Claude Code con el cerebro de Ein (aislado en ~/.claude-ein)"
+function ein-cc --description "Claude Code con el cerebro de Ein (aislado en ~/.claude-ein)"
     # CLAUDE_CONFIG_DIR queda en el scope de la función: se exporta al proceso
     # claude hijo, pero NO contamina tu shell ni tu `claude` normal.
     set -x CLAUDE_CONFIG_DIR "$HOME/.claude-ein"
     set -fx ENGRAM_DATA_DIR "$HOME/.engram-ein"
-    # bin/ del config al frente del PATH → los agentes resuelven `cc-ein-sdd`
+    # bin/ del config al frente del PATH → los agentes resuelven `ein-cc-sdd`
     # (el CLI SDD determinista) por Bash. También function-scoped, no persiste.
     set -x PATH "$HOME/.claude-ein/bin" $PATH
     # Key de Context7 para el MCP: del env, o del fichero de secretos como
@@ -19,7 +19,7 @@ function cc-ein --description "Claude Code con el cerebro de Ein (aislado en ~/.
                 set -fx EIN_PI_AGENT_HOME "$HOME/.pi-ein/agent"
             end
             if not type -q ein
-                echo "cc-ein: terminal app unavailable" >&2
+                echo "ein-cc: terminal app unavailable" >&2
                 return 69
             end
             command ein $argv[2..-1]
@@ -27,7 +27,7 @@ function cc-ein --description "Claude Code con el cerebro de Ein (aislado en ~/.
         case cleaner workbench
             set -l surface_runner "$CLAUDE_CONFIG_DIR/bin/ein-surface-runner"
             if not test -x "$surface_runner"
-                echo "cc-ein: surface runner unavailable" >&2
+                echo "ein-cc: surface runner unavailable" >&2
                 return 69
             end
             command "$surface_runner" $argv
@@ -36,7 +36,7 @@ function cc-ein --description "Claude Code con el cerebro de Ein (aislado en ~/.
 
     set -l continuity_runner "$CLAUDE_CONFIG_DIR/bin/ein-continuity"
     if not test -x "$continuity_runner"
-        echo "cc-ein: continuity runner unavailable" >&2
+        echo "ein-cc: continuity runner unavailable" >&2
         return 69
     end
     command "$continuity_runner" supervise $argv

@@ -129,7 +129,7 @@ const SUMMARY = {
 	dirty: 0,
 	change: "redesign-launcher-installer-shell",
 	phase: "apply",
-	next: "cc-ein-sdd verify",
+	next: "ein-cc-sdd verify",
 };
 
 describe("la marca de la portada", () => {
@@ -176,7 +176,7 @@ describe("el contexto del proyecto", () => {
 		expect(withChange).toHaveLength(2);
 		expect(withChange[1]).toContain("redesign-launcher-installer-shell");
 		expect(withChange[1]).toContain("apply");
-		expect(withChange[1]).toContain("cc-ein-sdd verify");
+		expect(withChange[1]).toContain("ein-cc-sdd verify");
 	});
 
 	test("sin cambio activo esa línea no se dibuja vacía: no existe", () => {

@@ -1,7 +1,7 @@
 ---
 title: "Pi Coding Agent"
 description: "Cómo usar EIN con Pi: superficie, migración y particularidades."
-sources: ["README.md", "pi-ein/README.md"]
+sources: ["README.md", "ein-pi/README.md"]
 verified_rev: "eeceb7c"
 ---
 
@@ -11,10 +11,11 @@ Pi es el runtime para el que nació EIN, y donde la superficie está más comple
 
 ```bash
 ein-install install --runtime pi
-pi-ein
+ein                         # entrada normal
+ein-pi                      # acceso directo avanzado
 ```
 
-`pi-ein` es una función de shell que exporta `PI_CODING_AGENT_DIR` y
+`ein-pi` es una función de shell que exporta `PI_CODING_AGENT_DIR` y
 `EIN_PI_AGENT_HOME` **solo para esa invocación**, y arranca Pi apuntando a
 `~/.pi-ein/agent`.
 
@@ -43,8 +44,8 @@ absolutas de la plantilla. Conserva login, sesiones e historial.
 Desde un checkout del repositorio puedes inspeccionarla antes:
 
 ```bash
-bun pi-ein/migrate.ts --dry     # enseña qué haría
-bun pi-ein/migrate.ts           # la ejecuta
+bun ein-pi/migrate.ts --dry     # enseña qué haría
+bun ein-pi/migrate.ts           # la ejecuta
 ```
 
 Revertir es mover `~/.pi-ein/agent` de vuelta a `~/.pi/agent`, o restaurar el
@@ -55,7 +56,7 @@ backup.
 Esto confunde al principio, y la separación es deliberada:
 
 ```bash
-pi-ein update --all    # actualiza Pi: binario, extensiones, paquetes
+ein-pi update --all    # actualiza Pi: binario, extensiones, paquetes
 ein-install update             # actualiza EIN: instalador y plantilla
 ```
 

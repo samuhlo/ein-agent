@@ -1,5 +1,5 @@
 // =============================================================================
-// COMPILED CC-EIN PAYLOAD SMOKE
+// COMPILED EIN-CC PAYLOAD SMOKE
 // This entrypoint is compiled on Linux x64 so BunFS asset imports exercise the
 // same extraction path as the published installer binary. It stages the
 // embedded payload from an unrelated cwd, runs the real Claude hand-off into a
@@ -11,8 +11,8 @@ import { existsSync, lstatSync, mkdtempSync, readFileSync, rmSync } from "node:f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runClaudeInstall } from "../src/cli/install.ts";
-import { CC_EIN_ORCHESTRATOR_ASSET } from "../src/core/cc-payload-inventory.ts";
-import { CC_EIN_PAYLOAD_REQUIRED_PATHS, stageCcEinPayload } from "../src/core/cc-payload.ts";
+import { EIN_CC_ORCHESTRATOR_ASSET } from "../src/core/cc-payload-inventory.ts";
+import { EIN_CC_PAYLOAD_REQUIRED_PATHS, stageEinCcPayload } from "../src/core/cc-payload.ts";
 
 function assertSmoke(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
@@ -31,7 +31,7 @@ async function main(): Promise<void> {
     const result = await runClaudeInstall({
       home,
       stagePayload: async () => {
-        const staged = await stageCcEinPayload();
+        const staged = await stageEinCcPayload();
         stagedRoot = staged.root;
         stagedArchive = staged.archivePath;
         assertSmoke(
@@ -39,13 +39,13 @@ async function main(): Promise<void> {
           `payload archive was not materialized inside staging root: ${staged.archivePath}`,
         );
         assertSmoke(existsSync(staged.archivePath), "materialized payload archive is missing");
-        for (const relativePath of CC_EIN_PAYLOAD_REQUIRED_PATHS) {
+        for (const relativePath of EIN_CC_PAYLOAD_REQUIRED_PATHS) {
           assertSmoke(
             existsSync(join(staged.root, relativePath)),
             `required payload path is missing: ${relativePath}`,
           );
         }
-        stagedBytes = readFileSync(join(staged.root, CC_EIN_ORCHESTRATOR_ASSET));
+        stagedBytes = readFileSync(join(staged.root, EIN_CC_ORCHESTRATOR_ASSET));
         return staged;
       },
     });

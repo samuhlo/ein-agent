@@ -278,11 +278,11 @@ describe("release asset contract", () => {
     expect(smokeStep).toContain("--target=bun-linux-x64");
     expect(smokeStep).toContain("--outfile /tmp/ein-cc-payload-smoke");
     expect(smokeStep).toContain("(cd /tmp && /tmp/ein-cc-payload-smoke)");
-    expect(smoke).toContain("stageCcEinPayload");
-    expect(smoke).toContain("CC_EIN_PAYLOAD_REQUIRED_PATHS");
+    expect(smoke).toContain("stageEinCcPayload");
+    expect(smoke).toContain("EIN_CC_PAYLOAD_REQUIRED_PATHS");
     expect(smoke).toContain("process.chdir(unrelatedCwd)");
     expect(smoke).toContain("runClaudeInstall");
-    expect(smoke).toContain("CC_EIN_ORCHESTRATOR_ASSET");
+    expect(smoke).toContain("EIN_CC_ORCHESTRATOR_ASSET");
     expect(smoke).toContain("payload staging cleanup failed");
     expect(publishedAssetArguments(workflow).filter((asset) => asset.includes("smoke"))).toEqual([]);
   });
@@ -314,7 +314,7 @@ describe("release asset contract", () => {
     expect(script).toContain('! -path "$root/bin/ein-surface-runner"');
     expect(script).toContain('! -path "$root/bin/ein-continuity"');
     expect(script).not.toContain('! -path "$root/bin/*"');
-    expect(script).toContain("for executable in cc-ein-sdd ein-surface-runner ein-continuity");
+    expect(script).toContain("for executable in ein-cc-sdd ein-surface-runner ein-continuity");
     expect(script).toContain('diff -u "$first" "$second"');
   });
 
@@ -322,7 +322,7 @@ describe("release asset contract", () => {
     const script = readFileSync(E2E_SCRIPT_PATH, "utf8");
 
     expect(script).toContain("tolower($0) ~ /pi: ein listo/");
-    expect(script).toContain("tolower($0) ~ /claude code: claude code listo/");
+    expect(script).toContain("tolower($0) ~ /claude code: ein listo/");
     expect(script).not.toContain("awk '/Pi:/'");
     expect(script).not.toContain("awk '/Claude Code:/'");
   });

@@ -1,7 +1,7 @@
 name: ci
 
 # Gate de calidad en cada push a main y cada PR: corre la suite (workbench +
-# installer), el typecheck de ein-pi/cc-ein y del installer, y un smoke de empaquetado.
+# installer), el typecheck de ein-pi/ein-cc y del installer, y un smoke de empaquetado.
 on:
   push:
     branches: [main]
@@ -96,7 +96,7 @@ jobs:
       - name: Test (workbench + installer)
         run: bun test
 
-      - name: Typecheck ein-pi + cc-ein
+      - name: Typecheck ein-pi + ein-cc
         run: bun run typecheck
 
       - name: Typecheck installer

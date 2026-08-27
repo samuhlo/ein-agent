@@ -1,5 +1,5 @@
 // =============================================================================
-// TESTS: explicit cc-ein-sdd OpenSpec synchronization contract (group 003)
+// TESTS: explicit ein-cc-sdd OpenSpec synchronization contract (group 003)
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const ROOT = join(import.meta.dir, "..");
-const SDD_CLI_PATH = join(ROOT, "cc-ein", "sdd-cli", "cli.ts");
+const SDD_CLI_PATH = join(ROOT, "ein-cc", "sdd-cli", "cli.ts");
 
 type CliRun = { status: number | null; stdout: string; stderr: string };
 
@@ -19,7 +19,7 @@ function runSddCli(cwd: string, args: string[], input = ""): CliRun {
     cwd,
     input,
     encoding: "utf8",
-    env: { ...process.env, CC_EIN_NO_GIT_INIT: "1" },
+    env: { ...process.env, EIN_CC_NO_GIT_INIT: "1" },
   });
   return {
     status: result.status,
@@ -152,7 +152,7 @@ function makeReconciliationFixture(change: string): { cwd: string; source: strin
   return { cwd, source, evidencePath: `openspec/changes/${change}/out-of-flow-reconciliation.json` };
 }
 
-describe("cc-ein-sdd close reconciliation flags", () => {
+describe("ein-cc-sdd close reconciliation flags", () => {
   test("translates explicit profile, canonical evidence, and reason into shared close success", () => {
     const fixture = makeReconciliationFixture("claude-close-success");
     try {
@@ -227,7 +227,7 @@ describe("cc-ein-sdd close reconciliation flags", () => {
   });
 });
 
-describe("cc-ein-sdd sync <change>", () => {
+describe("ein-cc-sdd sync <change>", () => {
   test("synchronizes with stable JSON, sorted domains, and idempotence", () => {
     const cwd = makeOpenSpecFixture("sync-contract");
     try {
@@ -340,7 +340,7 @@ describe("cc-ein-sdd sync <change>", () => {
 
     const usage = runSddCli(mkdtempSync(join(tmpdir(), "core-parity-usage-")), ["sync"]);
     expect(usage.status).toBe(64);
-    expect(usage.stdout).toBe(JSON.stringify({ command: "sync", change: null, ok: false, outcome: "usage", canonicalChanged: false, domains: [], report: null, code: "USAGE", message: "usage: cc-ein-sdd sync <change>" }) + "\n");
+    expect(usage.stdout).toBe(JSON.stringify({ command: "sync", change: null, ok: false, outcome: "usage", canonicalChanged: false, domains: [], report: null, code: "USAGE", message: "usage: ein-cc-sdd sync <change>" }) + "\n");
     expect(usage.stderr).toBe("");
   });
 

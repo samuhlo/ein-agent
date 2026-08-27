@@ -465,8 +465,15 @@ describe("release update integration", () => {
     const base = defaultUpdateCaps();
     const child = scriptedChild((args) => {
       if (args.includes("--version")) return { stdout: `ein-installer ${TARGET_VERSION}\ntemplate-version ${TARGET_VERSION}\n`, exitCode: 0 };
-      // [GUARD] El continuation falla; el binario hijo nunca confirma la identidad.
-      if (args.some((arg) => arg.startsWith("--ein-continuation="))) return { stdout: "", exitCode: 1 };
+      // [GUARD] La preparación falla, pero el rollback privado sigue siendo
+      // ejecutable para que la transacción pueda restaurar el binario previo.
+      if (args.some((arg) => arg.startsWith("--ein-continuation="))) {
+        if (args.includes("--ein-runtime-surfaces=rollback")) {
+          const txId = args.find((arg) => arg.startsWith("--ein-continuation="))!.split("=")[1]!;
+          return { stdout: JSON.stringify({ txId, releaseTag: TARGET_TAG, binaryVersion: TARGET_VERSION, templateVersion: TARGET_VERSION, status: "ok" }), exitCode: 0 };
+        }
+        return { stdout: "", exitCode: 1 };
+      }
       return undefined;
     });
     const caps: UpdateCaps = {

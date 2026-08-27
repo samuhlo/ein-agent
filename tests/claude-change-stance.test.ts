@@ -16,7 +16,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { buildSettingsBlock, buildStatusOutput, runPreflightCommand } from "../cc-ein/sdd-cli/cli.ts";
+import { buildSettingsBlock, buildStatusOutput, runPreflightCommand } from "../ein-cc/sdd-cli/cli.ts";
 import { readPreflightRecord } from "../ein-pi/agent/lib/sdd-preflight-record";
 import { readChangeLane } from "../ein-pi/agent/lib/sdd-lane";
 
@@ -32,7 +32,7 @@ function sandbox(change = "mi-cambio") {
 	return { cwd, change, changeDir, cleanup: () => rmSync(cwd, { recursive: true, force: true }) };
 }
 
-describe("cc-ein-sdd preflight — leer", () => {
+describe("ein-cc-sdd preflight — leer", () => {
 	test("sin postura decidida lo dice, y no inventa una", () => {
 		const box = sandbox();
 		try {
@@ -64,7 +64,7 @@ describe("cc-ein-sdd preflight — leer", () => {
 	});
 });
 
-describe("cc-ein-sdd preflight — escribir", () => {
+describe("ein-cc-sdd preflight — escribir", () => {
 	test("`--tdd off` deja la decisión en disco firmada por claude", () => {
 		const box = sandbox();
 		try {

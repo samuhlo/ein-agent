@@ -15,6 +15,12 @@ import { deployTemplate, readBundledManifest } from "./core/deploy.ts";
 import { detectPlatform } from "./core/platform.ts";
 import { runUpdateContinuation } from "./core/child-continuation.ts";
 import { normalizeTag, resolveReleaseContract } from "./core/release-resolver.ts";
+import { activeHome } from "./core/paths.ts";
+import { refreshManagedRuntimeSurfaces } from "./core/runtime-surface-upgrade.ts";
+import {
+  finalizeRuntimeSurfaceRetirementByTransaction,
+  rollbackRuntimeSurfaceRetirementByTransaction,
+} from "./core/runtime-surface-transaction.ts";
 
 // The bundled template version = installer version by build (bundle-template
 // stamps package.json version), but read it from the embedded manifest so the
@@ -50,7 +56,30 @@ async function runContinuationEntry(argv: string[]): Promise<number> {
     console.log(JSON.stringify({ txId, releaseTag: releaseRaw, ...identity, status: "failed", error: "invalid release tag" }));
     return 1;
   }
-  const message = runUpdateContinuation({ txId, releaseTag: tag.value, identity });
+  let message = runUpdateContinuation({ txId, releaseTag: tag.value, identity });
+  if (message.status === "ok") {
+    const action = argv.find((a) => a.startsWith("--ein-runtime-surfaces="))?.slice("--ein-runtime-surfaces=".length)
+      ?? process.env.EIN_UPDATE_RUNTIME_SURFACES
+      ?? "prepare";
+    try {
+      if (action === "prepare") {
+        const surfaces = await refreshManagedRuntimeSurfaces({ home: activeHome(), transactionId: txId });
+        if (surfaces.status === "failed") throw new Error(`runtime-surface-${surfaces.runtime}-${surfaces.reason}`);
+      } else if (action === "rollback") {
+        rollbackRuntimeSurfaceRetirementByTransaction({ home: activeHome(), transactionId: txId });
+      } else if (action === "commit") {
+        finalizeRuntimeSurfaceRetirementByTransaction({ home: activeHome(), transactionId: txId, globalCommit: true });
+      } else {
+        throw new Error("invalid-runtime-surface-action");
+      }
+    } catch (error) {
+      message = {
+        ...message,
+        status: "failed",
+        error: error instanceof Error ? error.message : "runtime-surface-action-failed",
+      };
+    }
+  }
   console.log(JSON.stringify(message));
   return message.status === "ok" ? 0 : 1;
 }

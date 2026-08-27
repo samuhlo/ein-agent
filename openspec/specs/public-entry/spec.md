@@ -3,11 +3,11 @@ format: openspec-spec/v1
 domain: public-entry
 
 ## Scenario: public-entry-consistent-story
-title: Every surface names one public entry
-requirement: The system MUST describe `ein` as the public entry and `ein-install` as bootstrap and repair hatch in the README, in both binaries' help output, and in the post-install messages.
-Given: A reader consults the README, `ein --help`, or `ein-install --help`.
-When: They look for how to install, update, or repair Ein.
-Then: Each surface names `ein` as the single door and `ein-install` as the hatch, and none of them presents the installer as `ein`.
+title: Every surface names one public entry and Ein-first runtime shims
+requirement: The system MUST describe `ein` as the public entry, `ein-install` as the bootstrap and repair hatch, and `ein-pi` plus `ein-cc` only as secondary direct-runtime shims in the README, help output, installation messages, and runtime documentation.
+Given: a reader consults the README, `ein --help`, `ein-install --help`, installation output, or runtime documentation
+When: they look for how to start, install, update, repair, or directly enter a runtime
+Then: each surface names `ein` as the single door, keeps `ein-install` as the hatch, uses only the Ein-first names for secondary runtime shims, and never advertises a retired runtime-first name as current
 
 ## Scenario: public-entry-lifecycle-delegation
 title: Run the lifecycle verb instead of announcing where it moved
@@ -15,6 +15,13 @@ requirement: The system MUST execute `ein-install <verb>` when `ein` receives a 
 Given: A user types `ein update` with any further arguments on a machine where the app is deployed.
 When: The public entry classifies the first argument as a lifecycle verb.
 Then: `ein-install update` runs with the terminal inherited and the same arguments, and its exit code becomes the exit code of `ein`.
+
+## Scenario: public-entry-runtime-shims-remain-secondary
+title: Direct runtime shims do not become competing product doors
+requirement: The system MUST expose `ein-pi` and `ein-cc` for advanced direct runtime access while keeping normal first-run and post-install guidance centered on `ein`.
+Given: Ein is installed for Pi, Claude Code, or both
+When: the product presents the next command to a normal user or documents an advanced direct-runtime path
+Then: normal guidance says to run `ein`, advanced documentation may name the applicable Ein-first shim, and no completion message requires remembering a runtime shim
 
 ## Scenario: public-entry-single-lifecycle-surface
 title: Offer the lifecycle actions exactly once

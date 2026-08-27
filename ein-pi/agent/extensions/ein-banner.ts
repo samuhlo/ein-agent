@@ -41,10 +41,10 @@ import {
   type StartupProvenanceRecorder,
 } from "../lib/startup-provenance";
 import {
-  detectPiEinUpdates as detectCanonicalPiEinUpdates,
-  isPiEinRuntime,
-  startPiEinUpdateNotice,
-  type PiEinUpdateObservation,
+  detectEinPiUpdates as detectCanonicalEinPiUpdates,
+  isEinPiRuntime,
+  startEinPiUpdateNotice,
+  type EinPiUpdateObservation,
   type UpdateNoticeProvenance,
 } from "../lib/ein-update-notice";
 import {
@@ -267,23 +267,23 @@ function currentIntroMode(): IntroMode {
 }
 
 function updateObservation(
-  source: PiEinUpdateObservation["source"],
-  status: PiEinUpdateObservation["status"],
+  source: EinPiUpdateObservation["source"],
+  status: EinPiUpdateObservation["status"],
   reason: string,
-  freshness: PiEinUpdateObservation["freshness"] = "current",
-): PiEinUpdateObservation {
+  freshness: EinPiUpdateObservation["freshness"] = "current",
+): EinPiUpdateObservation {
   return { source, status, reason, freshness };
 }
 
 // Gated wrappers: PI_OFFLINE/PI_SKIP_VERSION_CHECK short-circuit before the
 // portable probe runs, and the SDK-provided version is injected here — the
 // only place in this file allowed to know about `VERSION` and `AGENT_DIR`.
-async function checkPiBinaryUpdate(): Promise<PiEinUpdateObservation> {
+async function checkPiBinaryUpdate(): Promise<EinPiUpdateObservation> {
   if (process.env.PI_OFFLINE || process.env.PI_SKIP_VERSION_CHECK) return updateObservation("binary", "skipped", "offline-check");
   return checkPiBinaryUpdateProbe(VERSION);
 }
 
-async function checkPiPackageUpdates(cwd: string): Promise<PiEinUpdateObservation> {
+async function checkPiPackageUpdates(cwd: string): Promise<EinPiUpdateObservation> {
   if (process.env.PI_OFFLINE) return updateObservation("packages", "skipped", "offline-check");
   try {
     const settingsManager = SettingsManager.create(cwd, AGENT_DIR);
@@ -299,15 +299,15 @@ async function checkPiPackageUpdates(cwd: string): Promise<PiEinUpdateObservatio
   }
 }
 
-async function checkEinTemplateUpdate(): Promise<PiEinUpdateObservation> {
+async function checkEinTemplateUpdate(): Promise<EinPiUpdateObservation> {
   if (process.env.PI_OFFLINE) return updateObservation("ein", "skipped", "offline-check");
   const installed = await readEinVersion(AGENT_DIR);
   return checkEinTemplateUpdateProbe(installed);
 }
 
-export async function detectPiEinUpdates(cwd: string) {
-  return detectCanonicalPiEinUpdates(cwd, {
-    runtime: () => isPiEinRuntime(),
+export async function detectEinPiUpdates(cwd: string) {
+  return detectCanonicalEinPiUpdates(cwd, {
+    runtime: () => isEinPiRuntime(),
     sources: {
       binary: checkPiBinaryUpdate,
       packages: () => checkPiPackageUpdates(cwd),
@@ -350,9 +350,9 @@ export default function (pi: ExtensionAPI) {
     if (!ctx.hasUI) return;
     if (isCLICommand) return;
 
-    startPiEinUpdateNotice(
+    startEinPiUpdateNotice(
       ctx,
-      detectPiEinUpdates,
+      detectEinPiUpdates,
       undefined,
       undefined,
       noticeProvenance,

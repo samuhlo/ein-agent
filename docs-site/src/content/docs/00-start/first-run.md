@@ -10,7 +10,9 @@ pequeño, sin demo de escaparate.
 
 ## La petición
 
-Abres tu runtime (`pi-ein` o `cc-ein`) y pides algo en lenguaje normal:
+Abres `ein`, eliges Pi o Claude Code y pides algo en lenguaje normal. Si ya
+sabes a qué runtime quieres entrar, `ein-pi` y `ein-cc` son los accesos directos
+avanzados:
 
 ```text
 El validador de emails acepta direcciones sin dominio. Arréglalo.
@@ -24,7 +26,7 @@ problema: qué entra, qué no, y con qué presupuesto de lectura se trabaja.
 En cuanto hay un cambio activo, puedes preguntar dónde está en cualquier momento:
 
 ```bash
-cc-ein-sdd status
+ein-cc-sdd status
 ```
 
 ```text

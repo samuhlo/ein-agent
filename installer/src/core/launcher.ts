@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 export type LauncherInstallOptions = {
   /** Active user home used for the default Fish functions directory. */
   home: string;
-  /** Exact file name to own, for example `pi-ein.fish`. */
+  /** Exact file name to own, for example `ein-pi.fish`. */
   name: string;
   /** Packaged launcher source to write verbatim. */
   content: string;

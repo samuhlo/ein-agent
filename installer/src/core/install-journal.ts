@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeSync } from "node:fs";
 import { dirname, join, parse, resolve, sep } from "node:path";
 import { isProxy } from "node:util/types";
-import { executeInstallPlan, type InstallPlanExecution, type InstallPlanExecutionHandlers, type InstallPlanProgress } from "./install-executor.ts";
+import { executeInstallPlan, type InstallPlanExecution, type InstallPlanExecutionContext, type InstallPlanExecutionHandlers, type InstallPlanProgress } from "./install-executor.ts";
 import { INSTALL_PLAN_ENTRY_CONTRACTS, INSTALL_PLAN_ENTRY_IDS, validateInstallPlan, type InstallPlanEntryId, type InstallPlanRuntime, type InstallPlanV1 } from "./install-plan.ts";
 
 export type InstallJournalState = "prepared" | "executing" | "recovery-required" | "complete";
@@ -21,6 +21,11 @@ export type InstallJournalFs = {
   fsync(fd: number): void; close(fd: number): void; rename(from: string, to: string): void; unlink(path: string): void;
   inspect(path: string): { kind: "missing" | "file" | "directory" | "symlink" | "other"; mode: number; size: number };
 };
+
+export type InstallJournalLifecycle = Readonly<{
+  rollback: (context: InstallPlanExecutionContext & { target: InstallPlanV1["target"] }) => void;
+  finalize: (context: InstallPlanExecutionContext & { target: InstallPlanV1["target"] }) => void;
+}>;
 
 const noFollow = (constants as unknown as Record<string, number | undefined>).O_NOFOLLOW ?? 0;
 const productionFs: InstallJournalFs = {
@@ -44,9 +49,17 @@ const supportsPreMutationRetry = (journal: InstallExecutionJournalV1, plan: Inst
   if (!installJournalMatchesPlan(journal, plan) || journal.target !== "both" || journal.state !== "recovery-required" || journal.recoveryCode !== "handler-failed" || journal.pendingEntryId !== "pi.backup-current") return false;
   const selected = plan.inventory.filter((entry) => entry.state === "selected" || entry.state === "conditional").map(({ id }) => id), entries = new Map(journal.entries.map((entry) => [entry.id, entry]));
   if (selected.length !== journal.entries.length || selected.some((id) => !entries.has(id))) return false;
-  const backupOrder = INSTALL_PLAN_ENTRY_IDS.indexOf("pi.backup-current"), backup = entries.get("pi.backup-current"), shared = journal.entries.filter(({ runtime }) => runtime === "shared"), pi = journal.entries.filter(({ runtime }) => runtime === "pi"), claude = journal.entries.filter(({ runtime }) => runtime === "claude");
+  const backupOrder = INSTALL_PLAN_ENTRY_IDS.indexOf("pi.backup-current"), backup = entries.get("pi.backup-current"), shared = journal.entries.filter(({ runtime, id }) => runtime === "shared" && id !== "shared.retire-legacy"), cleanup = entries.get("shared.retire-legacy"), pi = journal.entries.filter(({ runtime }) => runtime === "pi"), claude = journal.entries.filter(({ runtime }) => runtime === "claude");
   if (!backup || backup.status !== "failed" || shared.some(({ status }) => status !== "completed") || claude.some(({ status }) => status !== "completed")) return false;
-  return pi.every((entry) => { const order = INSTALL_PLAN_ENTRY_IDS.indexOf(entry.id); return order === backupOrder ? entry.status === "failed" : order < backupOrder ? INSTALL_PLAN_ENTRY_CONTRACTS[entry.id][1] === "ensure-dependency" && entry.status === "completed" : entry.status === "not-run"; });
+  return cleanup?.status === "not-run" && pi.every((entry) => { const order = INSTALL_PLAN_ENTRY_IDS.indexOf(entry.id); return order === backupOrder ? entry.status === "failed" : order < backupOrder ? INSTALL_PLAN_ENTRY_CONTRACTS[entry.id][1] === "ensure-dependency" && entry.status === "completed" : entry.status === "not-run"; });
+};
+
+const supportsRetirementRetry = (journal: InstallExecutionJournalV1, plan: InstallPlanV1): boolean => {
+  if (!installJournalMatchesPlan(journal, plan) || !["executing", "recovery-required"].includes(journal.state)) return false;
+  const cleanup = journal.entries.find(({ id }) => id === "shared.retire-legacy");
+  if (!cleanup || !["pending", "failed", "completed"].includes(cleanup.status)) return false;
+  if (journal.entries.some((entry) => entry.id !== cleanup.id && entry.status !== "completed")) return false;
+  return cleanup.status === "completed" ? journal.pendingEntryId === undefined : journal.pendingEntryId === cleanup.id;
 };
 
 export function validateInstallJournal(value: unknown): asserts value is InstallExecutionJournalV1 {
@@ -57,8 +70,8 @@ export function validateInstallJournal(value: unknown): asserts value is Install
   for (const entry of value.entries) { const entryOwn = entry && typeof entry === "object" && !isProxy(entry) ? Object.getOwnPropertyDescriptors(entry) : {}, detail = entryOwn.detail ? ["detail"] : [], order = typeof entry?.id === "string" ? INSTALL_PLAN_ENTRY_IDS.indexOf(entry.id as InstallPlanEntryId) : -1, runtime = order >= 0 ? INSTALL_PLAN_ENTRY_CONTRACTS[entry.id as InstallPlanEntryId][0] : undefined; if (!exact(entry, ["id", "runtime", "status", ...detail]) || order <= previous || ids.has(entry.id as string) || entry.runtime !== runtime || !["shared", ...(value.target === "claude" ? [] : ["pi"]), ...(value.target === "pi" ? [] : ["claude"])].includes(entry.runtime as string) || !["not-run", "pending", "completed", "failed"].includes(entry.status as string) || (entryOwn.detail && (entry.id !== "pi.backup-current" || !["failed", "pending"].includes(entry.status as string) || !validFailureDetail(entry.detail)))) throw new InstallJournalError("recovery-required"); previous = order; ids.add(entry.id as string); if (entry.status === "pending") pending += 1; }
   const completed = value.entries.filter(({ status }) => status === "completed").length, failed = value.entries.filter(({ status }) => status === "failed"), points = value.pendingEntryId !== undefined && value.entries.some((entry) => entry.id === value.pendingEntryId && (entry.status === "pending" || entry.status === "failed"));
   const segment = (runtime: InstallPlanRuntime) => (value.entries as InstallExecutionJournalV1["entries"]).filter((entry) => entry.runtime === runtime), reachable = (["shared", "pi", "claude"] as const).every((runtime) => /^(completed,)*((failed|pending),)?(not-run,)*$/.test(`${segment(runtime).map(({ status }) => status).join(",")}${segment(runtime).length ? "," : ""}`));
-  const shared = segment("shared"), pi = segment("pi"), claude = segment("claude"), sharedTerminal = shared.some(({ status }) => status === "failed" || status === "pending"), claudeStarted = claude.some(({ status }) => status !== "not-run"), backupPending = pi.some(({ id, status }) => id === "pi.backup-current" && status === "pending"), recoveryReachable = reachable && pending <= 1 && failed.length + pending > 0 && (!sharedTerminal || [...pi, ...claude].every(({ status }) => status === "not-run")) && (!claudeStarted || shared.every(({ status }) => status === "completed") && (pi.length === 0 || pi.every(({ status }) => status === "completed") || pi.some(({ status }) => status === "failed") || backupPending) && (!pi.some(({ status }) => status === "pending") || backupPending));
-  const standardExecuting = /^(completed,)*(pending,)?(not-run,)*$/.test(`${value.entries.map(({ status }) => status).join(",")},`), resumedExecuting = shared.every(({ status }) => status === "completed") && claude.length > 0 && claude.every(({ status }) => status === "completed") && /^(completed,)*(pending,)?(not-run,)*$/.test(`${pi.map(({ status }) => status).join(",")}${pi.length ? "," : ""}`);
+  const shared = segment("shared"), bootstrapShared = shared.filter(({ id }) => id !== "shared.retire-legacy"), cleanup = shared.find(({ id }) => id === "shared.retire-legacy"), pi = segment("pi"), claude = segment("claude"), sharedTerminal = bootstrapShared.some(({ status }) => status === "failed" || status === "pending"), claudeStarted = claude.some(({ status }) => status !== "not-run"), backupPending = pi.some(({ id, status }) => id === "pi.backup-current" && status === "pending"), cleanupRecovery = !!cleanup && ["failed", "pending"].includes(cleanup.status) && [...bootstrapShared, ...pi, ...claude].every(({ status }) => status === "completed"), recoveryReachable = reachable && pending <= 1 && failed.length + pending > 0 && (cleanupRecovery || (!sharedTerminal || [...pi, ...claude].every(({ status }) => status === "not-run")) && (!claudeStarted || bootstrapShared.every(({ status }) => status === "completed") && (pi.length === 0 || pi.every(({ status }) => status === "completed") || pi.some(({ status }) => status === "failed") || backupPending) && (!pi.some(({ status }) => status === "pending") || backupPending)));
+  const standardExecuting = /^(completed,)*(pending,)?(not-run,)*$/.test(`${value.entries.map(({ status }) => status).join(",")},`), resumedExecuting = bootstrapShared.every(({ status }) => status === "completed") && cleanup?.status === "not-run" && claude.length > 0 && claude.every(({ status }) => status === "completed") && /^(completed,)*(pending,)?(not-run,)*$/.test(`${pi.map(({ status }) => status).join(",")}${pi.length ? "," : ""}`);
   const coherent = value.state === "prepared" ? completed === 0 && pending === 0 && failed.length === 0 && !own.pendingEntryId && !own.recoveryCode : value.state === "complete" ? completed === value.entries.length && pending === 0 && failed.length === 0 && !own.pendingEntryId && !own.recoveryCode : value.state === "executing" ? failed.length === 0 && pending <= 1 && !own.recoveryCode && (pending === 0 ? !own.pendingEntryId : points) && (standardExecuting || resumedExecuting) : recoveryReachable && ["handler-failed", "interrupted"].includes(value.recoveryCode as string) && (value.recoveryCode === "handler-failed" ? failed.length > 0 || pending > 0 : pending > 0) && points;
   if (!coherent) throw new InstallJournalError("recovery-required");
 }
@@ -85,12 +98,13 @@ function publish(home: string, journal: InstallExecutionJournalV1, fs: InstallJo
   catch { if (fd !== undefined) try { fs.close(fd); } catch {} try { fs.unlink(temp); } catch {} throw new InstallJournalError("journal-write-failed"); }
 }
 
-export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers: InstallPlanExecutionHandlers, options: { fs?: InstallJournalFs; transactionId?: () => string; signals?: Pick<NodeJS.Process, "on" | "off">; progress?: InstallPlanProgress } = {}): Promise<InstallPlanExecution> {
+export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers: InstallPlanExecutionHandlers, options: { fs?: InstallJournalFs; transactionId?: () => string; signals?: Pick<NodeJS.Process, "on" | "off">; progress?: InstallPlanProgress; lifecycle?: InstallJournalLifecycle } = {}): Promise<InstallPlanExecution> {
   validateInstallPlan(plan); const fs = options.fs ?? productionFs, home = plan.home;
   const existing = inspectInstallJournal(home, fs);
   if (existing.status === "invalid") throw new InstallJournalError("recovery-required");
+  if (existing.status === "valid" && existing.journal.state === "complete") options.lifecycle?.finalize({ transactionId: existing.journal.transactionId, target: existing.journal.target });
   const resuming = existing.status === "valid" && existing.journal.state !== "complete";
-  if (resuming && !supportsPreMutationRetry(existing.journal, plan)) throw new InstallJournalError("recovery-required");
+  if (resuming && !supportsPreMutationRetry(existing.journal, plan) && !supportsRetirementRetry(existing.journal, plan)) throw new InstallJournalError("recovery-required");
   let journal: InstallExecutionJournalV1 = resuming ? existing.journal : { schemaVersion: 1, transactionId: (options.transactionId ?? randomUUID)(), planDigest: installPlanDigest(plan), target: plan.target, platform: plan.platform, state: "prepared", entries: plan.inventory.filter((entry) => entry.state === "selected" || entry.state === "conditional").map(({ id, runtime }) => ({ id, runtime, status: "not-run" })) };
   let writing = false, interruptedOnce = false, journalFailure: InstallJournalError | undefined;
   const persist = (): void => { writing = true; try { publish(home, journal, fs); } finally { writing = false; } };
@@ -101,9 +115,10 @@ export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers:
     if (index < 0) return handlers[entry.id]();
     const current = journal.entries[index];
     if (!current) return { ok: false };
-    if (current.status === "completed") return { ok: true };
+    if (current.status === "completed" && entry.id !== "shared.retire-legacy") return { ok: true };
     const retryingBackup = resuming && entry.id === "pi.backup-current" && current.status === "failed";
-    if (resuming && !retryingBackup && current.status !== "not-run") return { ok: false };
+    const retryingRetirement = resuming && entry.id === "shared.retire-legacy" && ["pending", "failed", "completed"].includes(current.status);
+    if (resuming && !retryingBackup && !retryingRetirement && current.status !== "not-run") return { ok: false };
     const update = (status: InstallJournalEntryState): void => {
       const entries = journal.entries.map((item, at) => {
         if (at !== index) return item;
@@ -125,12 +140,29 @@ export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers:
     };
     try { update("pending"); } catch { journalFailure = new InstallJournalError("journal-write-failed"); return { ok: false }; }
     let result;
-    try { result = await handlers[entry.id](); } catch { fail(); return { ok: false }; }
+    try { result = await handlers[entry.id]({ transactionId: journal.transactionId }); } catch { fail(); return { ok: false }; }
     if (journalFailure) return { ok: false };
     if (!result.ok) fail(result.detail); else try { update("completed"); } catch { journalFailure = new InstallJournalError("journal-write-failed"); return { ok: false }; }
     return result;
   }])) as InstallPlanExecutionHandlers;
   const interrupted = (): void => { if (interruptedOnce || journal.state === "complete") return; interruptedOnce = true; if (writing) { journalFailure = new InstallJournalError("recovery-write-failed"); return; } journal = { ...journal, state: "recovery-required", recoveryCode: "interrupted" }; try { persist(); journalFailure = new InstallJournalError("recovery-required"); } catch { journalFailure = new InstallJournalError("recovery-write-failed"); } };
   const signals = options.signals ?? process; signals.on("SIGINT", interrupted); signals.on("SIGTERM", interrupted);
-  try { const result = await executeInstallPlan(plan, wrapped, options.progress); if (journalFailure) throw journalFailure; if (!result.ok) return result; journal = { ...journal, state: "complete" }; persist(); return result; } finally { signals.off("SIGINT", interrupted); signals.off("SIGTERM", interrupted); }
+  let globallyCommitted = false, rolledBack = false;
+  try {
+    const result = await executeInstallPlan(plan, wrapped, options.progress);
+    if (journalFailure) throw journalFailure;
+    if (!result.ok) {
+      options.lifecycle?.rollback({ transactionId: journal.transactionId, target: journal.target });
+      rolledBack = true;
+      return result;
+    }
+    journal = { ...journal, state: "complete" };
+    persist();
+    globallyCommitted = true;
+    options.lifecycle?.finalize({ transactionId: journal.transactionId, target: journal.target });
+    return result;
+  } catch (error) {
+    if (!globallyCommitted && !rolledBack) options.lifecycle?.rollback({ transactionId: journal.transactionId, target: journal.target });
+    throw error;
+  } finally { signals.off("SIGINT", interrupted); signals.off("SIGTERM", interrupted); }
 }

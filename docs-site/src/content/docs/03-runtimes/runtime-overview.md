@@ -1,11 +1,14 @@
 ---
 title: "Runtimes"
 description: "EIN tiene un núcleo compartido y dos adaptadores que no son idénticos."
-sources: ["README.md", "cc-ein/README.md", "pi-ein/README.md", "openspec/specs/installer-runtime/spec.md"]
+sources: ["README.md", "ein-cc/README.md", "ein-pi/README.md", "openspec/specs/installer-runtime/spec.md"]
 verified_rev: "eeceb7c"
 ---
 
 EIN se despliega sobre dos runtimes: **Pi Coding Agent** y **Claude Code**.
+
+Normalmente se entra por `ein` y se elige runtime en la aplicación. `ein-pi` y
+`ein-cc` son atajos avanzados para saltarse esa selección.
 
 Comparten el núcleo —los agentes de fase, las skills, el flujo SDD, los
 artefactos— pero cada uno tiene su adaptador, y **no ofrecen exactamente las
@@ -32,7 +35,7 @@ Cada adaptador traduce ese núcleo a lo que su runtime entiende:
 
 | | Pi Coding Agent | Claude Code |
 | :--- | :--- | :--- |
-| Superficie | `pi-ein` | `cc-ein` |
+| Acceso directo avanzado | `ein-pi` | `ein-cc` |
 | Casa de EIN | `~/.pi-ein/agent` | `~/.claude-ein` |
 | Runtime vanilla | `pi` → `~/.pi/agent` | `claude` → `~/.claude` |
 | Variable de entorno | `PI_CODING_AGENT_DIR` | `CLAUDE_CONFIG_DIR` |

@@ -19,6 +19,7 @@ export type ContinuationOptions = {
   txId: string;
   releaseTag: ReleaseTag;
   caps: UpdateCaps;
+  runtimeSurfaces?: "prepare" | "rollback" | "commit";
 };
 
 function continuationError(code: string, message: string): ContinuationError {
@@ -51,8 +52,8 @@ export async function spawnContinuation(
   try {
     const child = await caps.child.spawn(
       candidatePath,
-      [`--ein-continuation=${txId}`, `--ein-release=${releaseTag}`],
-      { env: { EIN_UPDATE_TX_ID: txId, EIN_UPDATE_RELEASE_TAG: releaseTag } },
+      [`--ein-continuation=${txId}`, `--ein-release=${releaseTag}`, ...(options.runtimeSurfaces ? [`--ein-runtime-surfaces=${options.runtimeSurfaces}`] : [])],
+      { env: { EIN_UPDATE_TX_ID: txId, EIN_UPDATE_RELEASE_TAG: releaseTag, ...(options.runtimeSurfaces ? { EIN_UPDATE_RUNTIME_SURFACES: options.runtimeSurfaces } : {}) } },
     );
     if (child.code !== 0) return { ok: false, error: continuationError("child-exit", `Continuation exited with ${child.code}`) };
     const message = parseMessage(child.stdout);

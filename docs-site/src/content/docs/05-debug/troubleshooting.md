@@ -24,13 +24,26 @@ echo $PATH | tr ':' '\n' | grep -q "$HOME/.local/bin" && echo "está" || echo "f
 
 Si falta, añádelo a la configuración de tu shell y abre una terminal nueva.
 
-## `pi-ein` o `cc-ein` no existen
+## `ein-pi` o `ein-cc` no existen
 
 Son funciones de shell que instala `ein-install install`. Si el comando no aparece:
 
 1. Comprueba que instalaste ese runtime: `ein-install doctor` te lo dice.
 2. Abre una terminal nueva — las funciones se cargan al arrancar el shell.
 3. Si sigue sin estar: `ein-install install --runtime pi` (o `claude`).
+
+La entrada normal sigue siendo `ein`; estos dos comandos son accesos directos
+avanzados.
+
+## Quedó un fichero con el nombre anterior tras actualizar
+
+El instalador solo retira un launcher antiguo cuando sus bytes coinciden con
+una versión publicada por Ein. Si modificaste una función con ese mismo nombre,
+la conserva y muestra un aviso: el nombre por sí solo no demuestra ownership.
+
+Ejecuta `ein-install install` para reparar las superficies actuales. No borres
+funciones ni hogares completos a ciegas; `~/.pi-ein/agent` y `~/.claude-ein`
+siguen siendo los hogares vigentes y no se migran con este cambio.
 
 ## El doctor da FAIL
 
@@ -45,21 +58,21 @@ que suelen ser ficheros que faltan o una sincronización a medias.
 
 ## Cambié el código y el comportamiento no cambia (Claude Code)
 
-El CLI `cc-ein-sdd` está **compilado**, no interpretado. Un cambio en el código
+El CLI `ein-cc-sdd` está **compilado**, no interpretado. Un cambio en el código
 del repositorio no llega al binario instalado hasta que sincronizas:
 
 ```bash
-bun cc-ein/sync.ts
+bun ein-cc/sync.ts
 ```
 
 Es la causa más habitual de "lo he arreglado pero sigue igual".
 
-## Edité `cc-ein/CLAUDE.md` y se perdió
+## Edité `ein-cc/CLAUDE.md` y se perdió
 
 Es un fichero **generado**. Se compone de la política compartida más la
 adaptación de Claude, y `sync.ts` lo reescribe entero.
 
-Edita `cc-ein/CLAUDE.adapter.md` o la fuente compartida, y vuelve a sincronizar.
+Edita `ein-cc/CLAUDE.adapter.md` o la fuente compartida, y vuelve a sincronizar.
 
 ## Una actualización salió mal
 
@@ -76,7 +89,7 @@ anterior.
 Es comportamiento correcto, no un fallo. La causa está en el mensaje:
 
 ```bash
-cc-ein-sdd check <cambio>
+ein-cc-sdd check <cambio>
 ```
 
 Los bloqueos típicos son un artefacto que falta, una señal obligatoria que no se

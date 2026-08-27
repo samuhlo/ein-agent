@@ -200,7 +200,12 @@ async function main(): Promise<void> {
 
     // tar desde dentro de staging para que las rutas sean relativas
     // (./agents, ./extensions, ...).
-    const proc = Bun.spawn(["tar", "-czf", OUT, "."], { cwd: staging, stderr: "pipe" });
+    // macOS needs both gates: one suppresses AppleDouble and one strips PAX xattrs.
+    const proc = Bun.spawn(["tar", "--no-xattrs", "-czf", OUT, "."], {
+      cwd: staging,
+      stderr: "pipe",
+      env: { ...process.env, COPYFILE_DISABLE: "1" },
+    });
     const stderr = await new Response(proc.stderr).text();
     const code = await proc.exited;
     if (code !== 0) {

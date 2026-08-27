@@ -52,10 +52,11 @@ const LABEL: Readonly<Record<InstallPlanEntryId, string>> = Object.freeze({
   "pi.configure-context7-export": "export de context7",
   "pi.write-install-marker": "marcar la instalación",
   "pi.verify-doctor": "doctor",
-  "pi.deploy-launcher": "launcher pi-ein",
+  "pi.deploy-launcher": "launcher ein-pi",
   "pi.promote-commands": "comandos en el PATH",
   "claude.deploy-runtime": "desplegar claude code",
-  "claude.deploy-launcher": "launcher cc-ein",
+  "claude.deploy-launcher": "launcher ein-cc",
+  "shared.retire-legacy": "retirar accesos antiguos",
 });
 
 /** La etiqueta humana de un paso. El id del plan es dato, no frase. */

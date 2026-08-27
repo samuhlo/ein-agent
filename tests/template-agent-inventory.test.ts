@@ -1,7 +1,7 @@
 // =============================================================================
 // TESTS: the Pi template ships everything the launchers and installer invoke
 // Three releases shipped with `surfaces/` missing from the template allowlist,
-// so `pi-ein workbench` and `pi-ein cleaner` never worked from a packaged
+// so `ein-pi workbench` and `ein-pi cleaner` never worked from a packaged
 // install. These assertions derive what is required from the code that uses it,
 // instead of trusting a hand-kept list.
 // =============================================================================
@@ -12,8 +12,8 @@ import { join } from "node:path";
 
 const REPO = join(import.meta.dir, "..");
 const BUNDLE = readFileSync(join(REPO, "installer", "scripts", "bundle-template.ts"), "utf8");
-const PI_LAUNCHER = readFileSync(join(REPO, "pi-ein", "pi-ein.fish"), "utf8");
-const CLAUDE_LAUNCHER = readFileSync(join(REPO, "cc-ein", "cc-ein.fish"), "utf8");
+const PI_LAUNCHER = readFileSync(join(REPO, "ein-pi", "ein-pi.fish"), "utf8");
+const CLAUDE_LAUNCHER = readFileSync(join(REPO, "ein-cc", "ein-cc.fish"), "utf8");
 const INSTALL_CLI = readFileSync(join(REPO, "installer", "src", "cli", "install.ts"), "utf8");
 const LINEAR_INTEGRATION = readFileSync(join(REPO, "ein-pi", "agent", "lib", "linear-integration.ts"), "utf8");
 const EIN_AI = readFileSync(join(REPO, "ein-pi", "agent", "extensions", "ein-ai.ts"), "utf8");
@@ -41,7 +41,7 @@ describe("Pi template agent inventory", () => {
 	test("template stages only the target-specific production app under managed bin", () => {
 		expect(BUNDLE).toContain('join(staging, "bin", "ein")');
 		expect(BUNDLE).toContain("EIN_APP_TARGET");
-		expect(BUNDLE).not.toContain("cc-ein-runtime");
+		expect(BUNDLE).not.toContain("ein-cc-runtime");
 	});
   test("provider launchers force separate Engram stores", () => {
     expect(PI_LAUNCHER).toContain('set -fx ENGRAM_DATA_DIR "$HOME/.engram-ein"');

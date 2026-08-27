@@ -23,7 +23,7 @@
 // existe porque Pi intercepta resultados de subagente vía `pi.on("tool_result")`.
 // Claude no tiene ese hook (los hooks generados son
 // `PreToolUse`/`PostToolUse`/`SessionStart`/…, ninguno de resultado de subagente
-// — `cc-ein/sync.ts:518-537`); no hay nada que auditar ahí, y no se finge
+// — `ein-cc/sync.ts:518-537`); no hay nada que auditar ahí, y no se finge
 // paridad.
 //
 // LO QUE ESTE MÓDULO NO CUBRE (`// 007`, no vender cobertura que no existe):

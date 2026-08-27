@@ -1,7 +1,7 @@
 ---
 title: "Matriz de runtimes"
 description: "Comparación Pi vs Claude Code con las capacidades que se pueden comprobar."
-sources: ["README.md", "cc-ein/README.md", "openspec/specs/installer-runtime/spec.md", "openspec/changes/archive/core-parity/verify-report.md"]
+sources: ["README.md", "ein-cc/README.md", "openspec/specs/installer-runtime/spec.md", "openspec/changes/archive/core-parity/verify-report.md"]
 verified_rev: "eeceb7c"
 ---
 
@@ -34,7 +34,7 @@ que las sesiones, las herramientas o la interfaz sean iguales.
 | Papel operativo | runtime de referencia | runtime de relevo |
 | Consulta del estado activo | panel vivo y comandos `/ein:*`; atajo `ctrl+shift+e` | `/ein:status` |
 | Configuración | superficies propias de Pi | `/ein:settings` |
-| Ejecución del flujo | comandos del runtime y coordinador | binario `cc-ein-sdd` y hook sobre shell |
+| Ejecución del flujo | comandos del runtime y coordinador | binario `ein-cc-sdd` y hook sobre shell |
 | Cleaner y Architect automáticos | `Pi-only`; disponibles | ausentes o desactivados; no aplicable/no soportado |
 | Casa aislada | `~/.pi-ein/agent` | `~/.claude-ein` |
 

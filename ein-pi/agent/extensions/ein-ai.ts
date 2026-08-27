@@ -1637,7 +1637,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	// ── Tool determinista: postura del cambio (TDD + carril) ──
 	// Existe para que la decisión del preflight tenga una superficie legible desde
 	// una fase, y para que `sdd-apply.md` pueda nombrar UNA herramienta que existe
-	// en los dos runtimes (aquí, y `cc-ein-sdd preflight` en Claude).
+	// en los dos runtimes (aquí, y `ein-cc-sdd preflight` en Claude).
 	registerEinTool({
 		name: "ein_sdd_preflight",
 		label: "Ein SDD Preflight",

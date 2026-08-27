@@ -40,8 +40,8 @@ async function bundleTemplate(target: BuildTarget, appArtifact: string): Promise
   await bundleAssetScript("bundle-template.ts", "bundle-template", { EIN_APP_BINARY: appArtifact, EIN_APP_TARGET: target.id });
 }
 
-async function bundleCcEinPayload(): Promise<void> {
-  await bundleAssetScript("bundle-cc-ein.ts", "bundle-cc-ein");
+async function bundleEinCcPayload(): Promise<void> {
+  await bundleAssetScript("bundle-ein-cc.ts", "bundle-ein-cc");
 }
 
 // Pure command construction keeps target injection testable without executing a
@@ -92,7 +92,7 @@ async function main(): Promise<void> {
   await mkdir(DIST, { recursive: true });
 
   console.log("/// empaquetando assets");
-  await bundleCcEinPayload();
+  await bundleEinCcPayload();
 
   // Allow building a single target: bun run build:all -- linux-x64
   const only = process.argv.slice(2)[0];

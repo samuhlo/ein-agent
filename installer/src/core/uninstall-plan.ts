@@ -3,6 +3,12 @@ import { isAbsolute, join, relative, sep } from "node:path";
 import { APP_COMMAND, INSTALLER_COMMAND } from "./command-names.ts";
 import type { InstallTarget, RuntimeInstallTarget } from "./install-plan.ts";
 import { isValidInstallMarker } from "./paths.ts";
+import {
+  classifyLegacyRuntimeArtifact,
+  legacyRuntimeArtifactInventory,
+  observeLegacyRuntimeArtifact,
+  readInstallMarkerVersion,
+} from "./legacy-runtime-artifacts.ts";
 
 export type UninstallEntry = Readonly<{ id: string; runtime: RuntimeInstallTarget; path: string; destination: string; state: "selected" | "absent" }>;
 export type UninstallPlan = Readonly<{ target: InstallTarget; status: "ready" | "blocked"; blockers: readonly Readonly<{ runtime: RuntimeInstallTarget; reason: string }>[]; entries: readonly UninstallEntry[] }>;
@@ -12,22 +18,31 @@ const pathsUnder = (root: string, names: readonly string[]): string[] => names.m
 const PI_ASSETS = [
   ...pathsUnder(".pi-ein/agent", ["agents", "assets", "chains", "docs", "extensions", "lib", "prompts", "surfaces"]),
   ...pathsUnder(".pi-ein/agent", [".gitignore", "AGENTS.md", "app.ts", "brand.json", "ein-mode.json", "extensions-manifest.json", "mcp.json", "models.json", "settings.json", "template-manifest.json", ".ein-install.json"]),
-  ".config/fish/functions/pi-ein.fish",
+  ".config/fish/functions/ein-pi.fish",
 ] as const;
 const CLAUDE_ASSETS = [
   ...pathsUnder(".claude-ein", ["CLAUDE.md", "settings.json", ".ein-install.json", "skills"]),
-  ...pathsUnder(".claude-ein/bin", ["cc-ein-sdd", "ein-surface-runner", "ein-app", "ein-continuity"]),
+  ...pathsUnder(".claude-ein/bin", ["ein-cc-sdd", "ein-surface-runner", "ein-app", "ein-continuity"]),
   ".claude-ein/commands/ein/handoff.md",
   ...pathsUnder(".claude-ein/agents", ["sdd-scope.md", "sdd-map.md", "sdd-design.md", "sdd-tasks.md", "sdd-apply.md", "sdd-verify.md", "sdd-close.md", "ein-scout.md", "ein-git.md", "ein-linear.md"]),
-  ".config/fish/functions/cc-ein.fish",
+  ".config/fish/functions/ein-cc.fish",
 ] as const;
 export const UNINSTALL_ASSETS = { pi: PI_ASSETS, claude: CLAUDE_ASSETS } as const;
 
 function runtimeAssets(input: UninstallPlanInput, runtime: RuntimeInstallTarget): readonly string[] {
-  if (runtime === "claude") return CLAUDE_ASSETS;
+  const marker = runtime === "pi" ? ".pi-ein/agent/.ein-install.json" : ".claude-ein/.ein-install.json";
+  const markerVersion = readInstallMarkerVersion(join(input.home, marker));
+  const legacy = legacyRuntimeArtifactInventory(input.home)
+    .filter((artifact) => artifact.runtime === runtime)
+    .filter((artifact) => classifyLegacyRuntimeArtifact(
+      artifact,
+      observeLegacyRuntimeArtifact(artifact, runtime === "claude" ? markerVersion : null),
+    ).status === "owned")
+    .map((artifact) => relative(input.home, artifact.path));
+  if (runtime === "claude") return [...CLAUDE_ASSETS, ...legacy];
   const bin = relative(input.home, input.binDir);
   const commands = bin && bin !== ".." && !bin.startsWith(`..${sep}`) ? [join(bin, APP_COMMAND), join(bin, INSTALLER_COMMAND)] : [];
-  return [...PI_ASSETS, ...commands];
+  return [...PI_ASSETS, ...commands, ...legacy];
 }
 
 export function createUninstallPlan(input: UninstallPlanInput): UninstallPlan {

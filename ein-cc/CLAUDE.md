@@ -1,4 +1,4 @@
-<!-- GENERATED: source=ein-pi/core/AGENTS.md adapter=cc-ein/CLAUDE.adapter.md; DO NOT EDIT -->
+<!-- GENERATED: source=ein-pi/core/AGENTS.md adapter=ein-cc/CLAUDE.adapter.md; DO NOT EDIT -->
 
 # Ein Pi Workbench
 
@@ -6,7 +6,7 @@ Author: samuhlo
 
 Global operating guide for Pi Coding Agent on this machine — only the rules **every** session (parent and subagents) shares. Single owner per policy: parent coordination (routing, delegation, SDD loop, gates) lives in `assets/orchestrator.md`; each executor's contract lives in its `agents/*.md`; anything enforced deterministically in code (guardrails, delivery gate, SDD router) is only *referenced* here, never re-specified.
 
-This file is the shared coordinator policy source. Claude-specific runtime behavior belongs in `cc-ein/CLAUDE.adapter.md`; `cc-ein/CLAUDE.md` is generated from both inputs and is never an authoritative hand-maintained source.
+This file is the shared coordinator policy source. Claude-specific runtime behavior belongs in `ein-cc/CLAUDE.adapter.md`; `ein-cc/CLAUDE.md` is generated from both inputs and is never an authoritative hand-maintained source.
 
 ## Core Rules
 
@@ -55,13 +55,13 @@ This file is the shared coordinator policy source. Claude-specific runtime behav
 - Teach proportionally to the change (the orchestrator prompt defines the full `// 00N` teaching format): trivial or read-only work gets a compact explanation; a meaningful change (files, dependencies, schema, delivery, or architecture touched) explains what was done, why, how it works inside, the decision taken, and the risk. Start in everyday human language: the goal, user impact, and reason must be understandable without software knowledge. Introduce a technical term only after the plain idea and define it in one short sentence at first use; never stack unexplained jargon or acronyms. Use a small analogy or example when the mechanism is abstract. Never infantilize the reader or lose technical correctness.
 - Close with one concrete next step and ask confirmation before phase changes or delivery actions.
 
-# Ein — Claude Code adaptation (`cc-ein`)
+# Ein — Claude Code adaptation (`ein-cc`)
 
 <!-- ein:claude-adaptation:start -->
 This file is the Claude-specific input for the generated coordinator. Shared
 policy lives in `ein-pi/core/AGENTS.md`; do not copy that policy here. The
 compiler places this bounded adaptation after the shared policy in
-`cc-ein/CLAUDE.md`.
+`ein-cc/CLAUDE.md`.
 
 ## Claude Code runtime
 
@@ -73,30 +73,30 @@ execution, then synthesize the returned summaries.
 
 ## Claude SDD lifecycle
 
-Use the standalone `cc-ein-sdd` command through `Bash` for deterministic SDD
+Use the standalone `ein-cc-sdd` command through `Bash` for deterministic SDD
 lifecycle checks:
 
-- `cc-ein-sdd status [change]` reports the next phase.
-- `cc-ein-sdd check [change]` validates the current phase artifact.
-- `cc-ein-sdd close <change>` archives a verified change.
-- `cc-ein-sdd guard` enforces the shell guard contract.
-- `cc-ein-sdd preflight [change]` reads how this change is driven.
+- `ein-cc-sdd status [change]` reports the next phase.
+- `ein-cc-sdd check [change]` validates the current phase artifact.
+- `ein-cc-sdd close <change>` archives a verified change.
+- `ein-cc-sdd guard` enforces the shell guard contract.
+- `ein-cc-sdd preflight [change]` reads how this change is driven.
 
 The coordinator delegates phase work to `sdd-scope`, `sdd-map`, `sdd-design`,
 `sdd-tasks`, `sdd-apply`, `sdd-verify`, and `sdd-close`. Read the `next:` result
-from `cc-ein-sdd status` before selecting the next phase; do not infer routing
+from `ein-cc-sdd status` before selecting the next phase; do not infer routing
 from memory.
 
 ## Claude SDD change stance
 
 Pi asks two questions before working a change: strict TDD, and the lane. This
 runtime has no interactive preflight, so **you** ask them, and only once per
-change. Before delegating the first phase of a change, run `cc-ein-sdd
+change. Before delegating the first phase of a change, run `ein-cc-sdd
 preflight`. If it reports the stance as `sin decidir`, ask the user with
 `AskUserQuestion` — strict TDD `off` (UI, visual, mechanical, low risk) or
 `strict` (logic-heavy), and lane `standard` (seven phases) or `micro` (skips
 `map` and `tasks`; `verify` and `close` stay hard gates) — then record the
-answer with `cc-ein-sdd preflight <change> --tdd <off|strict> --lane
+answer with `ein-cc-sdd preflight <change> --tdd <off|strict> --lane
 <standard|micro>`.
 
 A stance that is already decided is never re-asked and never overwritten: it may
@@ -108,8 +108,8 @@ deterministic signal before planning. The recorded stance overrides
 ## Claude configuration boundary
 
 The adapter runs with its own `CLAUDE_CONFIG_DIR` and does not modify the
-user's normal Claude configuration. `cc-ein/sync.ts` generates the settings
-and `PreToolUse` hook for that directory. Treat `cc-ein/CLAUDE.md` as generated
+user's normal Claude configuration. `ein-cc/sync.ts` generates the settings
+and `PreToolUse` hook for that directory. Treat `ein-cc/CLAUDE.md` as generated
 output: edit this adapter or the shared source instead of editing the output.
 
 ## Claude response boundary

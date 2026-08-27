@@ -211,6 +211,8 @@ export type Transaction = {
   prepare(artifacts: Record<string, string>): Result<void, TransactionError>;
   transition(state: Exclude<TransactionState, "prepared" | "complete">, action: () => Promise<void> | void, rollback: Rollback): Promise<Result<void, TransactionError>>;
   rollback(): Promise<Result<void, TransactionError>>;
+  commit(): Result<void, TransactionError>;
+  cleanupComplete(): Result<void, TransactionError>;
   complete(): Result<void, TransactionError>;
 };
 
@@ -254,6 +256,28 @@ export function createTransaction(options: {
 
   const persistRollbackOutcome = (outcome: RollbackOutcome): Result<void, TransactionError> =>
     persistLocalRollbackOutcome(options.caps, journalPath, journal, outcome, "Could not persist rollback outcome");
+
+  const commitComplete = (): Result<void, TransactionError> => {
+    if (journal.state !== "validated") {
+      return { ok: false, error: transactionError("recovering", "invalid-transition", "Transaction must validate before completion", journal) };
+    }
+    journal.state = "complete";
+    const committed = persist();
+    if (!committed.ok) journal.state = "validated";
+    return committed;
+  };
+
+  const cleanupComplete = (): Result<void, TransactionError> => {
+    if (journal.state !== "complete") {
+      return { ok: false, error: transactionError("recovering", "invalid-transition", "Transaction must commit before cleanup", journal) };
+    }
+    try {
+      options.caps.fs.removeFile(journalPath);
+      return { ok: true, value: undefined };
+    } catch (error) {
+      return { ok: false, error: transactionError("recovering", "journal-cleanup-failed", error instanceof Error ? error.message : "Committed journal retained for cleanup", journal) };
+    }
+  };
 
   const rollbackCommitted = async (): Promise<Result<void, TransactionError>> => {
     if (hasLocalEvidence(journal) && journal.rollbackOutcome.status === "succeeded") {
@@ -334,25 +358,18 @@ export function createTransaction(options: {
       }
     },
     rollback: rollbackCommitted,
+    commit: commitComplete,
+    cleanupComplete,
     complete() {
-      if (journal.state !== "validated") {
-        return { ok: false, error: transactionError("recovering", "invalid-transition", "Transaction must validate before completion", journal) };
-      }
-      journal.state = "complete";
-      const committed = persist();
+      const committed = commitComplete();
       if (!committed.ok) return committed;
-      try {
-        options.caps.fs.removeFile(journalPath);
-        return { ok: true, value: undefined };
-      } catch (error) {
-        return { ok: false, error: transactionError("recovering", "journal-cleanup-failed", error instanceof Error ? error.message : "Committed journal retained for cleanup", journal) };
-      }
+      return cleanupComplete();
     },
   };
 }
 
 export function installSignalHandlers(transaction: Transaction, caps: UpdateCaps): () => void {
-  const onSignal = () => { void transaction.rollback(); };
+  const onSignal = () => { if (transaction.journal.state !== "complete") void transaction.rollback(); };
   const removeInt = caps.signals.on("SIGINT", onSignal);
   const removeTerm = caps.signals.on("SIGTERM", onSignal);
   return () => {
@@ -365,6 +382,7 @@ export async function recoverPendingTransaction(options: {
   caps: UpdateCaps;
   journalPath?: string;
   recover?: (journal: Journal) => Promise<boolean> | boolean;
+  finalizeCommitted?: (journal: Journal) => Promise<boolean> | boolean;
 }): Promise<Result<RecoveryStatus, TransactionError>> {
   const journalPath = options.journalPath ?? defaultJournalPath();
   const journal = readJournal(options.caps, journalPath);
@@ -378,6 +396,9 @@ export async function recoverPendingTransaction(options: {
   }
   if (journal.state === "complete") {
     try {
+      if (options.finalizeCommitted && !await options.finalizeCommitted(journal)) {
+        return { ok: false, error: transactionError("recovering", "recovery-required", "Committed runtime surfaces could not be finalized", journal) };
+      }
       options.caps.fs.removeFile(journalPath);
       return { ok: true, value: "clean" };
     } catch (error) {
@@ -573,9 +594,12 @@ export async function runUpdateTransaction(options: UpdateTransactionOptions): P
       if (!replaced.ok) return failure(replaced.error, options.selector, release);
 
       const continued = await tx.transition("child-reexecuted", async () => {
-        const result = await spawnContinuation({ candidatePath: options.destinationPath, txId: tx.journal.txId, releaseTag: release.release.tag, caps: options.caps });
+        const result = await spawnContinuation({ candidatePath: options.destinationPath, txId: tx.journal.txId, releaseTag: release.release.tag, caps: options.caps, runtimeSurfaces: "prepare" });
         if (!result.ok) throw new Error(result.error.message);
-      }, () => undefined);
+      }, async () => {
+        const result = await spawnContinuation({ candidatePath: options.destinationPath, txId: tx.journal.txId, releaseTag: release.release.tag, caps: options.caps, runtimeSurfaces: "rollback" });
+        if (!result.ok) throw new Error(result.error.message);
+      });
       if (!continued.ok) return failure(continued.error, options.selector, release);
 
       const deployed = await tx.transition("template-deployed", async () => {
@@ -605,8 +629,15 @@ export async function runUpdateTransaction(options: UpdateTransactionOptions): P
         }
       }, () => undefined);
       if (!validated.ok) return failure(validated.error, options.selector, release);
-      const complete = tx.complete();
-      if (!complete.ok) return failure(complete.error, options.selector, release);
+      const complete = tx.commit();
+      if (!complete.ok) {
+        const restored = await tx.rollback();
+        return failure(restored.ok ? complete.error : restored.error, options.selector, release);
+      }
+      const finalizedSurfaces = await spawnContinuation({ candidatePath: options.destinationPath, txId: tx.journal.txId, releaseTag: release.release.tag, caps: options.caps, runtimeSurfaces: "commit" });
+      if (!finalizedSurfaces.ok) return failure(finalizedSurfaces.error, options.selector, release);
+      const cleaned = tx.cleanupComplete();
+      if (!cleaned.ok) return failure(cleaned.error, options.selector, release);
       cleanup([candidate.value.backupPath, snapshot.value.path, ...(markerBackup ? [markerBackup] : [])], options.caps);
       return { type: "updated", release };
     } finally {

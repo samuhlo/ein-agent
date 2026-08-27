@@ -25,16 +25,16 @@ export const RUNTIME_PROMPT_OPTIONS: readonly RuntimePromptOption[] = Object.fre
   Object.freeze({
     value: "pi" as const,
     label: "Pi",
-    hint: "pi, bun, engram y gh · launcher pi-ein · estado en ~/.pi-ein",
+    hint: "pi, bun, engram y gh · launcher ein-pi · estado en ~/.pi-ein",
   }),
   Object.freeze({
     value: "claude" as const,
     label: "Claude Code",
-    hint: "claude code, bun, engram y gh · launcher cc-ein",
+    hint: "claude code, bun, engram y gh · launcher ein-cc",
   }),
   Object.freeze({
     value: "both" as const,
     label: "Los dos",
-    hint: "pi-ein y cc-ein, compartiendo un solo estado",
+    hint: "ein-pi y ein-cc, compartiendo un solo estado",
   }),
 ]);

@@ -1,4 +1,4 @@
-// Bun resolves `template.tar.gz` and `cc-ein-runtime.tar.gz` imports with
+// Bun resolves `template.tar.gz` and `ein-cc-runtime.tar.gz` imports with
 // `{ type: "file" }` to paths embedded into the binary under `bun build --compile`.
 declare module "*.tar.gz" {
   const path: string;

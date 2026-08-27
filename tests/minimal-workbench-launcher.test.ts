@@ -25,7 +25,7 @@ import {
   type WorkbenchDependencies,
   type WorkbenchResult,
 } from "../ein-pi/agent/lib/workbench.ts";
-import type { PiEinUpdateObservation } from "../ein-pi/agent/lib/ein-update-notice.ts";
+import type { EinPiUpdateObservation } from "../ein-pi/agent/lib/ein-update-notice.ts";
 
 describe("separate workbench entrypoint argv TTY help and exit", () => {
   test("the public launcher and deployable surface share one entrypoint implementation", () => {
@@ -538,7 +538,7 @@ describe("launcher update surface — component detail (N.1)", () => {
   });
 
   describe("claude code as a fourth update component", () => {
-    const withClaude = (claude: PiEinUpdateObservation) => createWorkbenchAdvisor(workbenchState, {
+    const withClaude = (claude: EinPiUpdateObservation) => createWorkbenchAdvisor(workbenchState, {
       ...baseReaders,
       readUpdateObservations: () => [
         { source: "ein", status: "current", reason: "read-success", freshness: "current" },

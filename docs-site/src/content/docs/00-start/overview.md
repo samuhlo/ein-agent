@@ -53,10 +53,13 @@ no.
 
 EIN no toca tu instalación normal. Cada runtime tiene su casa separada:
 
+La entrada normal es `ein`. Las superficies de la tabla son accesos directos
+avanzados para entrar en un runtime concreto.
+
 | Runtime | Superficie EIN | Casa de EIN | Tu runtime vanilla |
 | :--- | :--- | :--- | :--- |
-| Pi Coding Agent | `pi-ein` | `~/.pi-ein/agent` | `pi` → `~/.pi/agent` |
-| Claude Code | `cc-ein` | `~/.claude-ein` | `claude` → `~/.claude` |
+| Pi Coding Agent | `ein-pi` | `~/.pi-ein/agent` | `pi` → `~/.pi/agent` |
+| Claude Code | `ein-cc` | `~/.claude-ein` | `claude` → `~/.claude` |
 
 Sigues teniendo `pi` y `claude` intactos. EIN entra por comandos explícitos, no
 contaminando tu configuración.

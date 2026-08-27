@@ -1,6 +1,6 @@
 // =============================================================================
 // AGENT HOME RESOLUTION
-// The launchers (`pi-ein`, `cc-ein`) export EIN_PI_AGENT_HOME before running
+// The launchers (`ein-pi`, `ein-cc`) export EIN_PI_AGENT_HOME before running
 // anything. The standalone terminal app has no launcher in front of it, so it
 // resolves the isolated home itself instead of falling back to `~/.pi/agent`,
 // which is vanilla Pi and holds none of Ein's sessions.

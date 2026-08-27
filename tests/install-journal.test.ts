@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { closeSync, fsyncSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
+import { chmodSync, closeSync, fsyncSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createPiInstallHandlers, runInstall } from "../installer/src/cli/install.ts";
@@ -7,6 +7,7 @@ import { snapshot, BackupFailure } from "../installer/src/core/backup.ts";
 import { executeInstallPlanJournaled, inspectInstallJournal, installJournalMatchesPlan, installJournalPath, installPlanDigest, InstallJournalError, validateInstallJournal, type InstallExecutionJournalV1, type InstallJournalFs } from "../installer/src/core/install-journal.ts";
 import { executeInstallPlan, type InstallPlanExecutionHandlers } from "../installer/src/core/install-executor.ts";
 import { createInstallPlan, type InstallPlanInput, type InstallPlanV1 } from "../installer/src/core/install-plan.ts";
+import { finalizeRuntimeSurfaceRetirement, retireOwnedLegacyRuntimeArtifacts, rollbackRuntimeSurfaceRetirement } from "../installer/src/core/runtime-surface-transaction.ts";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -203,6 +204,64 @@ describe("install execution journal", () => {
     const value = plan("claude"), base = fsOps(); let unlinks = 0; await executeInstallPlanJournaled(value, handlers(value), { fs: { ...base, unlink(path) { unlinks += 1; base.unlink(path); } } }); const receipt = inspectInstallJournal(value.home); expect(receipt.status).toBe("valid"); if (receipt.status === "valid") expect(receipt.journal.state).toBe("complete"); expect(unlinks).toBe(0);
     const zero = plan("claude"); await expect(executeInstallPlanJournaled(zero, handlers(zero), { fs: { ...fsOps(), write: () => 0 } })).rejects.toMatchObject({ code: "journal-write-failed" });
   });
+
+	test("binds final legacy retirement to journal rollback and global completion", async () => {
+		const committed = plan("claude");
+		expect(committed.inventory.at(-1)?.id).toBe("shared.retire-legacy");
+		const committedLifecycle: string[] = [];
+		const committedHandlers = Object.fromEntries(committed.inventory.map(({ id }) => [id, (context?: { transactionId: string }) => {
+			committedLifecycle.push(`${id}:${context?.transactionId ?? "missing"}`);
+			return { ok: true };
+		}])) as InstallPlanExecutionHandlers;
+		await executeInstallPlanJournaled(committed, committedHandlers, {
+			transactionId: () => "abababab-abab-4bab-abab-abababababab",
+			lifecycle: {
+				rollback: ({ transactionId }) => committedLifecycle.push(`rollback:${transactionId}`),
+				finalize: ({ transactionId }) => committedLifecycle.push(`finalize:${transactionId}`),
+			},
+		});
+		expect(committedLifecycle.at(-2)).toBe("shared.retire-legacy:abababab-abab-4bab-abab-abababababab");
+		expect(committedLifecycle.at(-1)).toBe("finalize:abababab-abab-4bab-abab-abababababab");
+
+		const rolledBack = plan("claude");
+		const legacySdd = join(rolledBack.home, ".claude-ein", "bin", "cc-ein-sdd");
+		mkdirSync(join(rolledBack.home, ".claude-ein", "bin"), { recursive: true });
+		writeFileSync(legacySdd, "legacy-sdd-bytes\n");
+		chmodSync(legacySdd, 0o741);
+		const base = fsOps();
+		const rolledBackLifecycle: string[] = [];
+		const failGlobalCommit: InstallJournalFs = {
+			...base,
+			rename(from, to) {
+				if (new TextDecoder().decode(base.read(from)).includes('"state":"complete"')) throw new Error("global-commit-write-failed");
+				base.rename(from, to);
+			},
+		};
+		const rollbackHandlers = {
+			...handlers(rolledBack, (id) => {
+				rolledBackLifecycle.push(id);
+				return { ok: true };
+			}),
+			"shared.retire-legacy": (context?: { transactionId: string }) => {
+				rolledBackLifecycle.push("shared.retire-legacy");
+				retireOwnedLegacyRuntimeArtifacts({ home: rolledBack.home, target: "claude", validatedCurrentArtifacts: true, claudeMarkerVersion: "0.91.0-alpha.2", transactionId: context!.transactionId });
+				return { ok: true };
+			},
+		} as InstallPlanExecutionHandlers;
+		await expect(executeInstallPlanJournaled(rolledBack, rollbackHandlers, {
+			fs: failGlobalCommit,
+			transactionId: () => "cdcdcdcd-cdcd-4dcd-cdcd-cdcdcdcdcdcd",
+			lifecycle: {
+				rollback: ({ transactionId }) => { rolledBackLifecycle.push(`rollback:${transactionId}`); rollbackRuntimeSurfaceRetirement({ home: rolledBack.home, target: "claude", transactionId }); },
+				finalize: ({ transactionId }) => { rolledBackLifecycle.push(`finalize:${transactionId}`); finalizeRuntimeSurfaceRetirement({ home: rolledBack.home, target: "claude", transactionId, globalCommit: true }); },
+			},
+		})).rejects.toBeInstanceOf(InstallJournalError);
+		expect(rolledBackLifecycle.at(-2)).toBe("shared.retire-legacy");
+		expect(rolledBackLifecycle.at(-1)).toBe("rollback:cdcdcdcd-cdcd-4dcd-cdcd-cdcdcdcdcdcd");
+		expect(rolledBackLifecycle).not.toContain("finalize:cdcdcdcd-cdcd-4dcd-cdcd-cdcdcdcdcdcd");
+		expect(readFileSync(legacySdd, "utf8")).toBe("legacy-sdd-bytes\n");
+		expect(statSync(legacySdd).mode & 0o777).toBe(0o741);
+	});
 
   test("rejects symlinked/private stores and keeps target-specific provider-neutral paths", () => {
     const root = home(), path = installJournalPath(root); mkdirSync(join(root, ".ein-installer"), { mode: 0o700 }); symlinkSync(join(root, "missing"), path);

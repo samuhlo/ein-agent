@@ -33,9 +33,9 @@ describe("las opciones de runtime", () => {
   });
 
   test("cada pista nombra el launcher que deja puesto", () => {
-    expect(RUNTIME_PROMPT_OPTIONS[0]!.hint).toContain("pi-ein");
-    expect(RUNTIME_PROMPT_OPTIONS[1]!.hint).toContain("cc-ein");
-    expect(RUNTIME_PROMPT_OPTIONS[2]!.hint).toContain("pi-ein");
-    expect(RUNTIME_PROMPT_OPTIONS[2]!.hint).toContain("cc-ein");
+    expect(RUNTIME_PROMPT_OPTIONS[0]!.hint).toContain("ein-pi");
+    expect(RUNTIME_PROMPT_OPTIONS[1]!.hint).toContain("ein-cc");
+    expect(RUNTIME_PROMPT_OPTIONS[2]!.hint).toContain("ein-pi");
+    expect(RUNTIME_PROMPT_OPTIONS[2]!.hint).toContain("ein-cc");
   });
 });

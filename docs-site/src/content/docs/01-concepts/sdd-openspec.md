@@ -59,7 +59,7 @@ el estado está ahí. No hay que reconstruir nada.
 herramienta leyendo ficheros:
 
 ```bash
-cc-ein-sdd status
+ein-cc-sdd status
 ```
 
 Si el agente cree que va por `apply` y el disco dice que falta `design.md`, gana
