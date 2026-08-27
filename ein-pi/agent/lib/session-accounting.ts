@@ -159,14 +159,19 @@ function finite(value: number | null): value is number {
 
 // --- cobertura: única función con las tres ramas (R1/C.3)
 
-function coverageOf(attributed: number, total: number, provenance: readonly Provenance[]): Coverage {
-	const status: Coverage["status"] = attributed === 0 ? "unknown" : attributed === total && total > 0 ? "complete" : "partial";
+function coverageOf(attributed: number, total: number, provenance: readonly Provenance[], forcePartial = false): Coverage {
+	const status: Coverage["status"] = attributed === 0 ? "unknown" : !forcePartial && attributed === total && total > 0 ? "complete" : "partial";
 	const sorted = [...new Set(provenance)].sort();
 	return { status, attributed, total, provenance: sorted };
 }
 
 function mergeCoverage(a: Coverage, b: Coverage): Coverage {
-	return coverageOf(a.attributed + b.attributed, a.total + b.total, [...a.provenance, ...b.provenance]);
+	return coverageOf(
+		a.attributed + b.attributed,
+		a.total + b.total,
+		[...a.provenance, ...b.provenance],
+		a.status === "partial" || b.status === "partial",
+	);
 }
 
 const EMPTY_COVERAGE = coverageOf(0, 0, []);
@@ -177,9 +182,16 @@ function percentileIndex(p: number, n: number): number {
 	return Math.min(Math.max(Math.ceil((p / 100) * n) - 1, 0), n - 1);
 }
 
-function statFromSamples(unit: SampleUnit, values: readonly number[], sources: Sources, total: number, provenance: readonly Provenance[]): Stat {
+function statFromSamples(
+	unit: SampleUnit,
+	values: readonly number[],
+	sources: Sources,
+	total: number,
+	provenance: readonly Provenance[],
+	forcePartial = false,
+): Stat {
 	const n = values.length;
-	const coverage = coverageOf(n, total, provenance);
+	const coverage = coverageOf(n, total, provenance, forcePartial);
 	if (n === 0) return { status: "unknown", unit, n: 0, sources, coverage };
 	const sorted = [...values].sort((a, b) => a - b);
 	const sum = sorted.reduce((acc, v) => acc + v, 0);
@@ -189,8 +201,8 @@ function statFromSamples(unit: SampleUnit, values: readonly number[], sources: S
 	return { status: "known", unit, n, mean, p95, max, sources, coverage };
 }
 
-function totalFromSamples(values: readonly number[], total: number, provenance: readonly Provenance[]): Total {
-	const coverage = coverageOf(values.length, total, provenance);
+function totalFromSamples(values: readonly number[], total: number, provenance: readonly Provenance[], forcePartial = false): Total {
+	const coverage = coverageOf(values.length, total, provenance, forcePartial);
 	if (values.length === 0) return { status: "unknown", coverage };
 	const value = values.reduce((acc, v) => acc + v, 0);
 	return { status: "known", value, coverage };
@@ -359,9 +371,13 @@ function buildSlice(runs: readonly RunObservation[]): Slice {
 	let transcriptChannel = 0;
 	let artifactChannel = 0;
 	let unattributedChannel = 0;
+	let costIncomplete = false;
+	let outputIncomplete = false;
 
 	const promptSamples: number[] = [];
 	const sequenceSamples: number[] = [];
+	let promptIncomplete = false;
+	let sequenceIncomplete = false;
 	let sequenceReported = 0;
 	let sequenceDerived = 0;
 
@@ -372,6 +388,7 @@ function buildSlice(runs: readonly RunObservation[]): Slice {
 		if (cost.value !== null) {
 			costValues.push(cost.value);
 			costProvenance.push(cost.channel as Provenance);
+			if (cost.channel === "transcript" && run.transcript !== "present") costIncomplete = true;
 		}
 		if (cost.channel === "transcript") transcriptChannel += 1;
 		else if (cost.channel === "artifact") artifactChannel += 1;
@@ -381,14 +398,19 @@ function buildSlice(runs: readonly RunObservation[]): Slice {
 		if (output.value !== null) {
 			outputValues.push(output.value);
 			outputProvenance.push(output.channel as Provenance);
+			if (output.channel === "transcript" && run.transcript !== "present") outputIncomplete = true;
 		}
 
 		const prompt = promptPeakOfRun(run.messages);
-		if (prompt !== null) promptSamples.push(prompt);
+		if (prompt !== null) {
+			promptSamples.push(prompt);
+			if (run.transcript !== "present") promptIncomplete = true;
+		}
 
 		const sequence = sequencePeakOfRun(run.messages);
 		if (sequence !== null) {
 			sequenceSamples.push(sequence.value);
+			if (run.transcript !== "present") sequenceIncomplete = true;
 			if (sequence.source === "reported") sequenceReported += 1;
 			else sequenceDerived += 1;
 		}
@@ -397,15 +419,23 @@ function buildSlice(runs: readonly RunObservation[]): Slice {
 		if (turns !== null) turnSamples.push(turns);
 	}
 
-	const cost = totalFromSamples(costValues, runs.length, costProvenance);
-	const outputTokens = totalFromSamples(outputValues, runs.length, outputProvenance);
-	const peakPromptTokens = statFromSamples("run", promptSamples, { reported: 0, derived: promptSamples.length }, runs.length, promptSamples.length > 0 ? (["transcript"] as const) : []);
+	const cost = totalFromSamples(costValues, runs.length, costProvenance, costIncomplete);
+	const outputTokens = totalFromSamples(outputValues, runs.length, outputProvenance, outputIncomplete);
+	const peakPromptTokens = statFromSamples(
+		"run",
+		promptSamples,
+		{ reported: 0, derived: promptSamples.length },
+		runs.length,
+		promptSamples.length > 0 ? (["transcript"] as const) : [],
+		promptIncomplete,
+	);
 	const peakSequenceTokens = statFromSamples(
 		"run",
 		sequenceSamples,
 		{ reported: sequenceReported, derived: sequenceDerived },
 		runs.length,
 		sequenceSamples.length > 0 ? (["transcript"] as const) : [],
+		sequenceIncomplete,
 	);
 	const turnsPerRun = statFromSamples("run", turnSamples, { reported: turnSamples.length, derived: 0 }, runs.length, turnSamples.length > 0 ? (["artifact"] as const) : []);
 	const outcomes = buildOutcomes(runs);
@@ -432,7 +462,22 @@ function modelsOfRun(run: RunObservation): readonly (string | null)[] {
 // modelo aportó.
 function perModelRunView(run: RunObservation, model: string | null): RunObservation {
 	const messages = run.messages.filter((m) => m.model === model);
-	const attempts = run.artifact?.attempts ? run.artifact.attempts.filter((a) => a.model === model) : run.artifact?.attempts ?? null;
+	const transcriptOwnsCost = transcriptCost(run.messages) !== null;
+	const transcriptOwnsOutput = transcriptOutputTokens(run.messages) !== null;
+	const attempts = run.artifact?.attempts
+		? run.artifact.attempts
+				.filter((a) => a.model === model)
+				.map((attempt) => ({
+					...attempt,
+					usage: attempt.usage
+						? {
+								...attempt.usage,
+								cost: transcriptOwnsCost ? null : attempt.usage.cost,
+								output: transcriptOwnsOutput ? null : attempt.usage.output,
+							}
+						: null,
+				}))
+		: run.artifact?.attempts ?? null;
 	const artifact = run.artifact ? { ...run.artifact, attempts } : null;
 	return { ...run, messages, artifact };
 }

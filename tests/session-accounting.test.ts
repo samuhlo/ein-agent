@@ -143,6 +143,38 @@ describe("session-accounting [CORE] aggregator", () => {
 		expect(report.overall.channels.artifact).toBe(0);
 	});
 
+	test("per-model breakdown preserves single-channel precedence when model labels differ", () => {
+		const c = corpus({
+			runs: [
+				run({
+					messages: [message({ model: "gpt-5.6-sol", usage: usage({ cost: 5, output: 7 }) })],
+					artifact: artifact({
+						attempts: [
+							attempt({
+								model: "openai-codex/gpt-5.6-sol:high",
+								usage: usage({ cost: 5, output: 7 }),
+								turns: 2,
+							}),
+						],
+					}),
+				}),
+			],
+		});
+		const report = buildAccountingReport(c);
+		const modelCost = report.byModel.reduce(
+			(sum, entry) => sum + (entry.cost.status === "known" ? entry.cost.value : 0),
+			0,
+		);
+		const modelOutput = report.byModel.reduce(
+			(sum, entry) => sum + (entry.outputTokens.status === "known" ? entry.outputTokens.value : 0),
+			0,
+		);
+		expect(report.overall.cost.status).toBe("known");
+		expect(report.overall.outputTokens.status).toBe("known");
+		expect(modelCost).toBe(5);
+		expect(modelOutput).toBe(7);
+	});
+
 	test("both cost paths (message.usage.cost.total and usage.cost.total) attribute", () => {
 		const c = corpus({
 			runs: [
@@ -409,6 +441,28 @@ describe("session-accounting [CORE] aggregator", () => {
 		const emptyReport = buildAccountingReport(corpus());
 		expect(emptyReport.overall.cost.coverage.status).toBe("unknown");
 		expect(emptyReport.overall.cost.coverage.total).toBe(0);
+	});
+
+	test("partial transcript keeps measured values but cannot claim complete coverage", () => {
+		const c = corpus({
+			runs: [
+				run({
+					transcript: "partial",
+					messages: [
+						message({
+							model: "m1",
+							usage: usage({ input: 10, output: 2, cacheRead: 3, cacheWrite: 0, total: 15, cost: 1 }),
+						}),
+					],
+				}),
+			],
+		});
+		const report = buildAccountingReport(c);
+		expect(report.overall.cost.status).toBe("known");
+		expect(report.overall.cost.coverage).toMatchObject({ status: "partial", attributed: 1, total: 1 });
+		expect(report.overall.outputTokens.coverage.status).toBe("partial");
+		expect(report.overall.peakPromptTokens.coverage.status).toBe("partial");
+		expect(report.overall.peakSequenceTokens.coverage.status).toBe("partial");
 	});
 
 	test("determinism: two serialisations of the same corpus are byte-identical", () => {
