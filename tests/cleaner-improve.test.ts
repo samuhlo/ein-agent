@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
@@ -16,12 +16,13 @@ const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 const hash = (value: string): string => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 
-function fixture(source = "export const value = 'old';\n"): CleanerImprovePlan {
+function fixture(source = "export const value = 'old';\n", targetPath = "entry.ts"): CleanerImprovePlan {
 	const root = mkdtempSync(join(tmpdir(), "ein-cleaner-improve-"));
 	roots.push(root);
 	Bun.spawnSync(["git", "init", "-q"], { cwd: root });
-	writeFileSync(join(root, "entry.ts"), source);
-	const auditEvidence = collectCleanerAuditEvidence(root, { kind: "selectors", selectors: [{ kind: "file", path: "entry.ts" }] });
+	mkdirSync(join(root, targetPath, ".."), { recursive: true });
+	writeFileSync(join(root, targetPath), source);
+	const auditEvidence = collectCleanerAuditEvidence(root, { kind: "selectors", selectors: [{ kind: "file", path: targetPath }] });
 	const binding = cleanerAuditBinding(auditEvidence);
 	const before = "'old'", after = "'new'";
 	const resulting = source.replace(before, after);
@@ -39,7 +40,7 @@ function fixture(source = "export const value = 'old';\n"): CleanerImprovePlan {
 			version: CLEANER_BOUNDED_MUTATION_VERSION, findingId: finding.id,
 			declaration: {
 				version: "cleaner-declaration-v1", changeId: "bounded-cleanup", phase: "apply", areaId: auditEvidence.scope.areaId,
-				targetPath: "entry.ts", affectedSeam: "entry-cleanup", operation: { kind: "exact-replacement", before, after },
+				targetPath, affectedSeam: "entry-cleanup", operation: { kind: "exact-replacement", before, after },
 				actorRef: `actor-v1:sha256:${"b".repeat(64)}`, reviewerRef: `reviewer-v1:sha256:${"c".repeat(64)}`, behaviorPreserved: true,
 				expected: { stateRef: auditEvidence.sourceIdentity.stateRef, beforeDigest: hash(source), afterDigest: hash(resulting) },
 				verification: { commands: ["bun test tests/entry.test.ts"] },
@@ -96,5 +97,20 @@ describe("Cleaner Improve runtime boundary", () => {
 		const outcome = applyCleanerImprove(plan, undefined, { beforeDescriptorOpen: () => writeFileSync(path, newer) });
 		expect(outcome).toMatchObject({ status: "mutation-uncertain", reason: "writer-failed" });
 		expect(readFileSync(path, "utf8")).toBe(newer);
+	});
+
+	test("never writes through an ancestor replaced by a symlink", () => {
+		const plan = fixture("export const value = 'old';\n", "src/entry.ts");
+		const root = plan.auditEvidence.repository.root;
+		const outside = mkdtempSync(join(tmpdir(), "ein-cleaner-improve-outside-"));
+		roots.push(outside);
+		const outsideTarget = join(outside, "entry.ts");
+		writeFileSync(outsideTarget, "export const value = 'old';\n");
+		const outcome = applyCleanerImprove(plan, undefined, { beforeDescriptorOpen: () => {
+			rmSync(join(root, "src"), { recursive: true });
+			symlinkSync(outside, join(root, "src"));
+		} });
+		expect(outcome).toMatchObject({ status: "mutation-uncertain", reason: "writer-failed" });
+		expect(readFileSync(outsideTarget, "utf8")).toBe("export const value = 'old';\n");
 	});
 });

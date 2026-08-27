@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
@@ -95,6 +95,22 @@ describe("Cleaner deterministic audit evidence", () => {
 		expect(first.missingEvidence.find(({ kind }) => kind === "crap")?.reason).toBe("No fresh bound test and coverage evidence has been ingested for CRAP.");
 		expect(JSON.stringify(first.missingEvidence)).not.toContain("No deterministic CRAP collector available");
 		expect(first.constraints).toContain("do-not-recompute-measured-facts");
+	});
+
+	test("admits repository configuration and executable source formats", () => {
+		const root = fixture();
+		for (const [path, source] of [["src/settings.json", "{}\n"], ["src/deploy.sh", "#!/bin/sh\n"], ["src/launcher.fish", "function launch\nend\n"], ["src/pipeline.yaml", "steps: []\n"], ["src/Dockerfile", "FROM scratch\n"]]) writeFileSync(join(root, path), source);
+		const evidence = collectCleanerAuditEvidence(root, { kind: "selectors", selectors: [{ kind: "tree", path: "src" }] });
+		expect(evidence.files.map(({ path }) => path)).toEqual(["src/alpha.ts", "src/beta.ts", "src/deploy.sh", "src/Dockerfile", "src/launcher.fish", "src/pipeline.yaml", "src/settings.json"]);
+	});
+
+	test("rejects a regular file reached through a symlinked ancestor", () => {
+		const root = fixture();
+		const outside = mkdtempSync(join(tmpdir(), "ein-cleaner-outside-"));
+		roots.push(outside);
+		writeFileSync(join(outside, "outside.ts"), "export const secret = true;\n");
+		symlinkSync(outside, join(root, "linked"));
+		expect(() => collectCleanerAuditEvidence(root, { kind: "selectors", selectors: [{ kind: "file", path: "linked/outside.ts" }] })).toThrow("symlink-not-supported");
 	});
 
 	test("is source-read-only and supports the deterministic changed-file set", () => {

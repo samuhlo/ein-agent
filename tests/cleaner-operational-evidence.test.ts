@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { collectCleanerPassiveEvidence, compactCleanerEvidence, ingestCleanerActiveEvidence, planCleanerActiveEvidence } from "../ein-pi/agent/lib/cleaner-operational-evidence.ts";
+import { cleanerEvidenceForModel, collectCleanerPassiveEvidence, compactCleanerEvidence, ingestCleanerActiveEvidence, planCleanerActiveEvidence } from "../ein-pi/agent/lib/cleaner-operational-evidence.ts";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -23,6 +23,17 @@ describe("Cleaner operational evidence", () => {
 	test("combines passive packets into capped source-free deterministic facts", () => {
 		const root = fixture(); const passive = collectCleanerPassiveEvidence(root, { kind: "selectors", selectors: [{ kind: "tree", path: "src" }] }); const summary = compactCleanerEvidence(passive); const parsed = JSON.parse(summary);
 		expect(Buffer.byteLength(summary)).toBeLessThan(16 * 1024); expect(summary).not.toContain("return value"); expect(summary).not.toContain("if (value)"); expect(parsed.stateRef).toBe(passive.stateRef); expect(parsed.source.files).toBe(1); expect(parsed.stack.packageManager).toBe("bun"); expect(parsed.complexity.status).toBe("available"); expect(parsed.complexity.top[0].name).toBe("alpha"); expect(parsed.complexity.top.length).toBeLessThanOrEqual(10); expect(parsed.duplication.status).toBe("available"); expect(parsed.duplication.locations.length).toBeLessThanOrEqual(10); expect(passive.audit.files[0]!.source).toContain("return value");
+	});
+
+	test("delivers every admitted source file to the model without hiding it in tool details", () => {
+		const root = fixture();
+		writeFileSync(join(root, "src/settings.json"), "{\"enabled\":true}\n");
+		const passive = collectCleanerPassiveEvidence(root, { kind: "selectors", selectors: [{ kind: "tree", path: "src" }] });
+		const packet = JSON.parse(cleanerEvidenceForModel(passive));
+		expect(packet.summary.source.files).toBe(2);
+		expect(packet.admittedSource.map(({ path }: { path: string }) => path)).toEqual(["src/sample.ts", "src/settings.json"]);
+		expect(packet.admittedSource[0].source).toContain("return value");
+		expect(packet.admittedSource[1].source).toContain("enabled");
 	});
 
 	test("reports unsupported passive metrics and rejects stale combination", () => {

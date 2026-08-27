@@ -38,11 +38,19 @@ describe("Architect read-only flow", () => {
 		expect(readFileSync(join(root, "src/core/policy.ts"), "utf8")).toBe(before);
 	});
 
+	test("includes configuration and executable source needed to inspect a module boundary", () => {
+		const root = fixture();
+		writeFileSync(join(root, "src/core/settings.json"), "{}\n");
+		writeFileSync(join(root, "src/core/deploy.sh"), "#!/bin/sh\n");
+		const evidence = collectArchitectEvidence(root, scope);
+		expect(evidence.files.map(({ path }) => path)).toEqual(["src/core/deploy.sh", "src/core/detail.ts", "src/core/policy.ts", "src/core/settings.json"]);
+	});
+
 	test("rejects malformed, root-wide, missing, restricted, symlinked, unsupported, and oversized scopes", () => {
 		const root = fixture();
 		symlinkSync(join(root, "src/core"), join(root, "linked"));
 		writeFileSync(join(root, "README.bin"), "unsupported");
-		for (const requested of [undefined, { kind: "selectors", selectors: [{ kind: "tree", path: "." }] }, { kind: "selectors", selectors: [{ kind: "tree", path: "missing" }] }, { kind: "selectors", selectors: [{ kind: "tree", path: ".git" }] }, { kind: "selectors", selectors: [{ kind: "tree", path: "linked" }] }, { kind: "selectors", selectors: [{ kind: "file", path: "README.bin" }] }]) {
+		for (const requested of [undefined, { kind: "selectors", selectors: [{ kind: "tree", path: "." }] }, { kind: "selectors", selectors: [{ kind: "tree", path: "missing" }] }, { kind: "selectors", selectors: [{ kind: "tree", path: ".git" }] }, { kind: "selectors", selectors: [{ kind: "tree", path: "linked" }] }, { kind: "selectors", selectors: [{ kind: "file", path: "linked/policy.ts" }] }, { kind: "selectors", selectors: [{ kind: "file", path: "README.bin" }] }]) {
 			expect(() => collectArchitectEvidence(root, requested)).toThrow(ArchitectAdmissionError);
 		}
 		writeFileSync(join(root, "src/core/huge.ts"), "x".repeat(129 * 1024));

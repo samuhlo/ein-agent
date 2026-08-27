@@ -1,13 +1,16 @@
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { basename, extname, join } from "node:path";
 
 import { projectProjectState } from "./project-state.ts";
 import { canonicalArea, type AreaSelector } from "./reviewed-area-ledger.ts";
 
 export const CLEANER_EVIDENCE_VERSION = "cleaner-audit-evidence/v1" as const;
 export const CLEANER_AUDIT_LIMITS = Object.freeze({ maxFiles: 32, maxSourceBytes: 128 * 1024 } as const);
-const SOURCE_EXTENSIONS = new Set([".c", ".cc", ".css", ".go", ".h", ".html", ".java", ".js", ".jsx", ".md", ".php", ".py", ".rs", ".scss", ".svelte", ".ts", ".tsx", ".vue"]);
+const SOURCE_EXTENSIONS = new Set([
+	".astro", ".bash", ".c", ".cc", ".cjs", ".cpp", ".css", ".cts", ".cxx", ".fish", ".go", ".h", ".hpp", ".html", ".java", ".js", ".json", ".jsonc", ".jsx", ".md", ".mjs", ".mts", ".php", ".py", ".rs", ".scss", ".sh", ".svelte", ".toml", ".ts", ".tsx", ".vue", ".yaml", ".yml", ".zsh",
+]);
+const SOURCE_FILENAMES = new Set(["Dockerfile", "Makefile"]);
 const EXCLUDED_SEGMENTS = new Set([".atl", ".git", ".pi", "build", "coverage", "dist", "generated", "node_modules", "runtime", "vendor"]);
 
 export type CleanerAuditScope =
@@ -43,9 +46,28 @@ function excluded(path: string): boolean {
 	return path.split("/").some((segment) => EXCLUDED_SEGMENTS.has(segment.toLowerCase()));
 }
 
-function extension(path: string): string {
-	const index = path.lastIndexOf(".");
-	return index < 0 ? "" : path.slice(index).toLowerCase();
+const supportedSource = (path: string): boolean => SOURCE_EXTENSIONS.has(extname(path).toLowerCase()) || SOURCE_FILENAMES.has(basename(path));
+
+function readRegularSource(root: string, path: string): Buffer {
+	const target = join(root, path);
+	let descriptor: number | undefined;
+	try {
+		const initial = lstatSync(target);
+		if (initial.isSymbolicLink()) throw new CleanerAuditScopeError("symlink-not-supported");
+		if (!initial.isFile()) throw new CleanerAuditScopeError("path-not-found");
+		descriptor = openSync(target, constants.O_RDONLY | constants.O_NOFOLLOW);
+		const opened = fstatSync(descriptor);
+		const current = lstatSync(target);
+		if (!opened.isFile() || !current.isFile() || current.isSymbolicLink() || current.dev !== opened.dev || current.ino !== opened.ino || realpathSync(target) !== target) {
+			throw new CleanerAuditScopeError("symlink-not-supported");
+		}
+		return readFileSync(descriptor);
+	} catch (error) {
+		if (error instanceof CleanerAuditScopeError) throw error;
+		throw new CleanerAuditScopeError("path-not-found");
+	} finally {
+		if (descriptor !== undefined) closeSync(descriptor);
+	}
 }
 
 function collectTree(root: string, relativePath: string, paths: string[]): void {
@@ -53,24 +75,30 @@ function collectTree(root: string, relativePath: string, paths: string[]): void 
 		const path = `${relativePath}/${entry.name}`;
 		if (excluded(path) || entry.isSymbolicLink()) continue;
 		if (entry.isDirectory()) collectTree(root, path, paths);
-		else if (entry.isFile() && SOURCE_EXTENSIONS.has(extension(path))) paths.push(path);
+		else if (entry.isFile() && supportedSource(path)) paths.push(path);
 		if (paths.length > CLEANER_AUDIT_LIMITS.maxFiles) throw new CleanerAuditScopeError("scope-exceeds-32-source-files");
 	}
 }
 
 function resolveSelectors(root: string, selectors: readonly AreaSelector[]): string[] {
+	const canonicalRoot = realpathSync(root);
 	const paths: string[] = [];
 	for (const selector of selectors) {
 		if (excluded(selector.path)) throw new CleanerAuditScopeError("restricted-path");
 		let stat: ReturnType<typeof lstatSync>;
-		try { stat = lstatSync(join(root, selector.path)); } catch { throw new CleanerAuditScopeError("path-not-found"); }
+		const target = join(canonicalRoot, selector.path);
+		try { stat = lstatSync(target); } catch { throw new CleanerAuditScopeError("path-not-found"); }
 		if (stat.isSymbolicLink()) throw new CleanerAuditScopeError("symlink-not-supported");
+		try { if (realpathSync(target) !== target) throw new CleanerAuditScopeError("symlink-not-supported"); } catch (error) {
+			if (error instanceof CleanerAuditScopeError) throw error;
+			throw new CleanerAuditScopeError("path-not-found");
+		}
 		if (selector.kind === "file") {
 			if (!stat.isFile()) throw new CleanerAuditScopeError("file-selector-not-file");
-			if (SOURCE_EXTENSIONS.has(extension(selector.path))) paths.push(selector.path);
+			if (supportedSource(selector.path)) paths.push(selector.path);
 		} else {
 			if (!stat.isDirectory()) throw new CleanerAuditScopeError("tree-selector-not-directory");
-			collectTree(root, selector.path, paths);
+			collectTree(canonicalRoot, selector.path, paths);
 		}
 	}
 	return [...new Set(paths)].sort((a, b) => a.localeCompare(b, "en"));
@@ -109,12 +137,13 @@ export function collectCleanerAuditEvidence(cwd: string, requested: CleanerAudit
 		try { selectors = canonicalArea(requested.selectors).selectors; } catch { throw new CleanerAuditScopeError("invalid-or-unbounded-selectors"); }
 	}
 	const area = canonicalArea(selectors);
-	const paths = resolveSelectors(root, area.selectors);
+	const canonicalRoot = realpathSync(root);
+	const paths = resolveSelectors(canonicalRoot, area.selectors);
 	if (paths.length > CLEANER_AUDIT_LIMITS.maxFiles) throw new CleanerAuditScopeError("scope-exceeds-32-source-files");
 	if (paths.length === 0) throw new CleanerAuditScopeError("scope-has-no-supported-source");
 	let sourceBytes = 0;
 	const files = paths.map((path) => {
-		const bytes = readFileSync(join(root, path));
+		const bytes = readRegularSource(canonicalRoot, path);
 		sourceBytes += bytes.byteLength;
 		if (sourceBytes > CLEANER_AUDIT_LIMITS.maxSourceBytes) throw new CleanerAuditScopeError("scope-exceeds-128-kib-source");
 		let source: string;

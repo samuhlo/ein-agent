@@ -123,6 +123,16 @@ describe("contrato de tools de los agentes", () => {
 		expect(declaredTools("ein-cleaner.md")).toContain("ein_cleaner_active_evidence");
 	});
 
+	test("Cleaner y Architect publican el contrato anidado de scope al modelo", () => {
+		expect(einAiSource).toContain('enum: ["file", "tree"]');
+		expect(einAiSource).toContain('required: ["kind", "path"]');
+		expect(einAiSource).toContain('required: ["kind", "selectors"]');
+		expect(einAiSource).toContain('enum: ["changed-files"]');
+		expect(einAiSource).toContain("oneOf: [changedFilesScopeSchema, selectorScopeSchema]");
+		expect(einAiSource).toContain("scope: cleanerScopeSchema");
+		expect(einAiSource).toContain("scope: selectorScopeSchema");
+	});
+
 	test("ein_sdd_close expone reconciliación explícita y conserva force/reason", () => {
 		const closeTool = einAiSource.match(/name: "ein_sdd_close"[\s\S]*?(?=\n\t\/\/ Sin este tool)/)?.[0] ?? "";
 		expect(closeTool).toContain('reconciliationProfile: { type: "string", enum: ["scope-only-out-of-flow"]');

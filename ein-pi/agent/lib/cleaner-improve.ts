@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { closeSync, constants, fstatSync, ftruncateSync, lstatSync, openSync, readFileSync, readSync, writeSync } from "node:fs";
+import { closeSync, constants, fstatSync, ftruncateSync, lstatSync, openSync, readFileSync, readSync, realpathSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import type { CleanerAuditEvidence } from "./cleaner-audit-evidence.ts";
 import { collectCleanerAuditEvidence } from "./cleaner-audit-evidence.ts";
@@ -58,11 +58,22 @@ function mutationAdapters(cwd: string, finding: CleanerFindingV1, targetPath: st
 	const root = state.git.root;
 	const read = (targetPath: string) => {
 		const path = join(root, targetPath);
-		const stat = lstatSync(path);
-		if (stat.isSymbolicLink()) return { bytes: new Uint8Array(), digest: digest(new Uint8Array()), kind: "symlink" as const };
-		if (!stat.isFile()) return { bytes: new Uint8Array(), digest: digest(new Uint8Array()), kind: "directory" as const };
-		const bytes = readFileSync(path);
-		return { bytes, digest: digest(bytes), kind: "regular" as const };
+		let descriptor: number | undefined;
+		try {
+			const initial = lstatSync(path);
+			if (initial.isSymbolicLink() || realpathSync(path) !== path) return { bytes: new Uint8Array(), digest: digest(new Uint8Array()), kind: "symlink" as const };
+			if (!initial.isFile()) return { bytes: new Uint8Array(), digest: digest(new Uint8Array()), kind: "directory" as const };
+			descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+			const opened = fstatSync(descriptor);
+			const current = lstatSync(path);
+			if (!opened.isFile() || !current.isFile() || current.isSymbolicLink() || current.dev !== opened.dev || current.ino !== opened.ino || realpathSync(path) !== path) {
+				return { bytes: new Uint8Array(), digest: digest(new Uint8Array()), kind: "symlink" as const };
+			}
+			const bytes = readFileSync(descriptor);
+			return { bytes, digest: digest(bytes), kind: "regular" as const };
+		} finally {
+			if (descriptor !== undefined) closeSync(descriptor);
+		}
 	};
 	return {
 		projectState: { project: () => projectSnapshot(root) },
@@ -70,10 +81,12 @@ function mutationAdapters(cwd: string, finding: CleanerFindingV1, targetPath: st
 		target: { read },
 		writer: { write: (writePath, bytes) => {
 			testHooks?.beforeDescriptorOpen?.();
-			const fd = openSync(join(root, writePath), constants.O_RDWR | constants.O_NOFOLLOW);
+			const path = join(root, writePath);
+			const fd = openSync(path, constants.O_RDWR | constants.O_NOFOLLOW);
 			try {
 				const stat = fstatSync(fd);
-				if (!stat.isFile() || writePath !== targetPath || stat.size !== expectedBytes.byteLength) throw new Error("Target precondition changed");
+				const currentPath = lstatSync(path);
+				if (!stat.isFile() || !currentPath.isFile() || currentPath.isSymbolicLink() || currentPath.dev !== stat.dev || currentPath.ino !== stat.ino || realpathSync(path) !== path || writePath !== targetPath || stat.size !== expectedBytes.byteLength) throw new Error("Target precondition changed");
 				const current = new Uint8Array(stat.size);
 				let offset = 0;
 				while (offset < current.byteLength) offset += readSync(fd, current, offset, current.byteLength - offset, offset);
