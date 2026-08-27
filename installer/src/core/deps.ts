@@ -219,7 +219,7 @@ export async function installDeclaredPackages(
   if (packages.length === 0) return { ok: true, detail: "sin paquetes declarados" };
 
   let ok = 0;
-  const failed: string[] = [];
+  const failed: Array<{ pkg: string; reason: string }> = [];
   for (const pkg of packages) {
     const res = await (deps.run ?? run)(pi, ["install", pkg], {
       extraPath,
@@ -229,11 +229,16 @@ export async function installDeclaredPackages(
       },
     });
     if (res.ok) ok += 1;
-    else failed.push(pkg);
+    else failed.push({ pkg, reason: why(res) });
   }
-  return failed.length === 0
-    ? { ok: true, detail: `${ok} paquetes instalados/al dia` }
-    : { ok: false, detail: `fallaron: ${failed.join(", ")}` };
+  if (failed.length === 0) return { ok: true, detail: `${ok} paquetes instalados/al dia` };
+
+  const first = failed[0]!;
+  const remaining = failed.length - 1;
+  return {
+    ok: false,
+    detail: `${failed.length}/${packages.length} fallaron; primera causa: ${first.reason} (${first.pkg})${remaining > 0 ? `; +${remaining}` : ""}`,
+  };
 }
 
 // gh: best-effort via the platform package manager. Optional, never blocks.

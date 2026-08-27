@@ -76,4 +76,31 @@ describe("deps — pi siempre con scope", () => {
 			rmSync(home, { recursive: true, force: true });
 		}
 	});
+
+	test("un fallo de paquetes conserva la primera causa útil", async () => {
+		const home = mkdtempSync(join(tmpdir(), "ein-pi-package-failure-"));
+		try {
+			const context = resolvePiInstallContext(home);
+			mkdirSync(context.agentDir, { recursive: true });
+			writeFileSync(join(context.agentDir, "settings.json"), JSON.stringify({
+				packages: REQUIRED_PI_PACKAGE_SPECS.slice(0, 2),
+			}));
+			const result = await installDeclaredPackages(context, {
+				lookPath: () => "/fake/pi",
+				run: async () => ({
+					ok: false,
+					code: -1,
+					stdout: "",
+					stderr: "Failed to spawn npm: ENOENT",
+				}),
+			});
+
+			expect(result).toEqual({
+				ok: false,
+				detail: `2/2 fallaron; primera causa: Failed to spawn npm: ENOENT (${REQUIRED_PI_PACKAGE_SPECS[0]}); +1`,
+			});
+		} finally {
+			rmSync(home, { recursive: true, force: true });
+		}
+	});
 });
