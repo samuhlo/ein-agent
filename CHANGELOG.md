@@ -4,6 +4,19 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.91.0-alpha.2] - 2026-08-27
+
+### Fixed
+
+- **Cleaner y Architect reciben alcances completos y cerrados.** Sus tools
+  publican al modelo el esquema anidado real; Cleaner distingue exactamente el
+  conjunto de ficheros cambiados de los selectores explícitos y Architect deja
+  de encadenar reintentos `malformed-or-missing-scope` ante una auditoría válida.
+- **Cleaner puede inspeccionar todo el código admitido sin escapar del repo.** El
+  paquete visible para el modelo incluye cada fuente junto a los hechos medidos,
+  admite configuración y scripts relevantes y rechaza lecturas o escrituras que
+  atraviesen un enlace simbólico ancestro.
+
 ## [0.91.0-alpha.1] - 2026-08-27
 
 ### Added
