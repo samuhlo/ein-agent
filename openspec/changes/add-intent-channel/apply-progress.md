@@ -82,3 +82,35 @@ which this phase does not run.
 ## Remaining tasks
 
 None. All 17 checkboxes in `tasks.md` are ticked.
+
+## Continuación — fix: `/ein:intent` descartaba la petición
+
+status: complete
+
+Bug encontrado probando el comando en vivo: `buildIntentKickoff()` no
+aceptaba argumento y el handler Pi ignoraba `args`, así que `/ein:intent` y
+`/ein:intent <texto>` inyectaban el mismo texto fijo — siempre arranque en
+frío. Además el SKILL.md no definía ese arranque en frío ni prohibía
+plantillas con huecos entre corchetes como "opción".
+
+### TDD Cycle Evidence
+
+| Seam | RED | GREEN | Comando final |
+|---|---|---|---|
+| `buildIntentKickoff` incluye la petición como raíz cuando llega | 3 tests nuevos fallan contra el builder sin parámetro | parámetro opcional `peticion?: string`, `trim()` normaliza vacío/espacios a ausente | `bun test tests/intent-channel.test.ts` → 15 pass |
+| `/ein:intent` con petición vs sin ella no colisiona con no-restatement (R1) | primer intento en `intent.md` usó "árbol de decisiones" y rompió `intent-channel-parity.test.ts` | reescrito sin vocabulario reservado | `bun test tests/intent-channel.test.ts tests/intent-channel-parity.test.ts` → 23 pass |
+
+### Files changed (continuación)
+
+`ein-pi/agent/lib/intent-channel.ts`
+`ein-pi/agent/extensions/ein-intent.ts`
+`ein-pi/core/skills/local/intent-channel/SKILL.md`
+`ein-cc/commands/ein/intent.md`
+`tests/intent-channel.test.ts`
+
+### Verificación
+
+- `bun test` (completo) → 2816 pass, 0 fail, 202 files.
+- `bun run typecheck` (raíz) → limpio.
+- `cd installer && bun run typecheck` → limpio.
+- `buildEhKickoff` sin cambios (opera sobre el último mensaje, no petición).
