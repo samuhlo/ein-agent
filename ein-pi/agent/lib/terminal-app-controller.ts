@@ -37,7 +37,7 @@ export type TerminalAppControllerPorts = Readonly<{
   }>;
   readSessions: () => RuntimeSessionList;
   readSystem: () => readonly SystemComponent[];
-  launch: (provider: RuntimeProvider, reference?: string) => Promise<LaunchOutcome>;
+  launch: (provider: RuntimeProvider, reference?: string, focusedChange?: string) => Promise<LaunchOutcome>;
   prepareContinue?: (provider: RuntimeProvider) => Promise<ContinuityPrepareResult>;
   continueLaunch?: (provider: RuntimeProvider, brief: string, focusedChange?: string) => Promise<LaunchOutcome>;
   run: (command: readonly string[]) => Promise<number>;
@@ -102,7 +102,10 @@ export function createTerminalAppController(ports: TerminalAppControllerPorts): 
       return;
     }
 
-    void ports.launch(effect.provider, effect.reference).then(
+    const launched = effect.focusedChange === undefined
+      ? ports.launch(effect.provider, effect.reference)
+      : ports.launch(effect.provider, effect.reference, effect.focusedChange);
+    void launched.then(
       (result) => {
         try {
           if (result.kind === "exited") {

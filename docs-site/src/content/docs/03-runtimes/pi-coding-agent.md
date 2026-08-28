@@ -76,8 +76,9 @@ por la superficie de EIN, que es la que aplica los contratos de fase.
 **El enrutado de modelos viene de la configuración de EIN**, no de decisiones
 sobre la marcha. Cada agente tiene su modelo declarado.
 
-**Comandos del flujo:** `/ein:status`, `/ein:sdd-next`, `/ein:doctor-output`,
-`/ein:init`. Los `/skill:*` nativos siguen disponibles como escape.
+**Comandos del flujo:** `/ein:status`, `/ein:focus <cambio>`, `/ein:sdd-next`,
+`/ein:doctor-output`, `/ein:init`. Los `/skill:*` nativos siguen disponibles
+como escape.
 
 ## Siguiente
 

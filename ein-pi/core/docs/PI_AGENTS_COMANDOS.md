@@ -59,6 +59,7 @@ El flujo SDD es `scope → map → design → tasks → apply → verify → clo
 | `/ein:ai:install-sdd` | Instala el OpenSpec en el proyecto actual |
 | `/ein:ai:sdd-preflight` | Preflight (Linear + repo) antes de una sesión SDD |
 | `/ein:sdd-status` | Muestra estado determinista del cambio |
+| `/ein:focus <cambio>` | Enfoca y repinta el TODO de esta sesión sin ejecutar trabajo |
 | `/ein:sdd-next` | Muestra siguiente paso recomendado sin ejecutar fases |
 | `/ein:sdd-close` | Cierra un cambio verificado |
 

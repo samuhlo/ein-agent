@@ -172,6 +172,21 @@ describe("terminal app controller effects", () => {
     expect(controller.snapshot().status).toMatch(/código 7|code 7/);
   });
 
+  test("a selected project change survives back navigation and reaches a new Pi launch", async () => {
+    const calls: unknown[][] = [];
+    const summary = { ...SUMMARY, change: undefined, activeChanges: ["alpha", "beta"] };
+    const { controller } = harness({
+      readSummary: (focusedChange, sessions) => ({ ...summary, change: focusedChange, sessions }),
+      launch: async (...args) => { calls.push(args); return { kind: "exited", code: 0 }; },
+    });
+
+    focusChange(controller, "beta");
+    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.pi });
+    await tick();
+
+    expect(calls).toEqual([["pi", undefined, "beta"]]);
+  });
+
   test("an unavailable runtime resumes the same app and publishes status", async () => {
     const outcome: LaunchOutcome = { kind: "unavailable", reason: "executable-unavailable" };
     const { controller, lifecycle } = harness({ launch: async () => outcome });
@@ -243,7 +258,7 @@ describe("terminal app controller effects", () => {
     expect(claudeCalls).toEqual([["claude", "PRIVATE-BRIEF-CANARY", "focus-before"]]);
   });
 
-  test("continue does not change ordinary create or picked resume launch arguments", async () => {
+  test("direct create carries visible focus while picked resume remains session-owned", async () => {
     const calls: unknown[][] = [];
     const { controller } = harness({
       launch: async (...args) => { calls.push(args); return { kind: "exited", code: 0 }; },
@@ -255,7 +270,7 @@ describe("terminal app controller effects", () => {
     await tick();
 
     expect(calls).toEqual([
-      ["pi"],
+      ["pi", undefined, "terminal-app-controller"],
       ["claude", "claude:v1:sha256:opaque"],
     ]);
   });

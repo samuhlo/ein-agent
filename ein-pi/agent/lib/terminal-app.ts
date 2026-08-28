@@ -29,7 +29,7 @@ export type ViewKind = "dashboard" | "state" | "config" | "sessions" | "system";
 /** What pressing enter on a row does. There is no "nothing" case on purpose. */
 export type RowAction =
   | { kind: "open-view"; view: ViewKind }
-  | { kind: "launch"; provider: RuntimeProvider; reference?: string }
+  | { kind: "launch"; provider: RuntimeProvider; reference?: string; focusedChange?: string }
   | { kind: "continue"; provider: RuntimeProvider }
   | { kind: "session"; provider: RuntimeProvider; reference: string }
   | { kind: "setting"; settingId: string }
@@ -179,10 +179,16 @@ export function buildDashboard(summary: ProjectSummary): View {
   // memoria muscular no paga el reagrupado.
   const arrancar: Row[] = [
     {
-      label: "Pi",
+      label: summary.change
+        ? `${pick("Pi · continuar", "Pi · continue")} ${summary.change}`
+        : "Pi",
       icon: ICON.pi,
       key: DASHBOARD_KEYS.pi,
-      action: { kind: "launch", provider: "pi" },
+      action: {
+        kind: "launch",
+        provider: "pi",
+        ...(summary.change ? { focusedChange: summary.change } : {}),
+      },
     },
     {
       label: "Claude Code",
@@ -481,7 +487,7 @@ export type AppEffect =
   | { kind: "quit" }
   | { kind: "open"; view: ViewKind }
   /** Hands the terminal over; the driver leaves raw mode first. */
-  | { kind: "launch"; provider: RuntimeProvider; reference?: string }
+  | { kind: "launch"; provider: RuntimeProvider; reference?: string; focusedChange?: string }
   | { kind: "continue"; provider: RuntimeProvider }
   /** The driver persists it: writing is I/O and stays at the edge. */
   | { kind: "apply-setting"; settingId: string; value: string }
@@ -580,7 +586,14 @@ function activate(model: AppModel, row: Row): KeyOutcome {
     case "open-view":
       return { model, effect: { kind: "open", view: row.action.view } };
     case "launch":
-      return { model, effect: { kind: "launch", provider: row.action.provider } };
+      return {
+        model,
+        effect: {
+          kind: "launch",
+          provider: row.action.provider,
+          ...(row.action.focusedChange ? { focusedChange: row.action.focusedChange } : {}),
+        },
+      };
     case "continue":
       return { model, effect: { kind: "continue", provider: row.action.provider } };
     case "session":

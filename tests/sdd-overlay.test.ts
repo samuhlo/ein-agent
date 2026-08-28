@@ -116,6 +116,18 @@ describe("overlay del cambio activo", () => {
 		expect(body).toContain("Fallback checkbox title");
 	});
 
+	test("un grupo visible se nombra una vez y luego enseña cada tarea real", () => {
+		const taskItems: SddTaskItem[] = [
+			{ id: "3.3", title: "Audit the final diff", groupTitle: "Verify automated behavior and scope", done: true },
+			{ id: "3.4", title: "Reproduce the corpus mismatch", groupTitle: "Verify automated behavior and scope", done: true },
+			{ id: "3.5", title: "Re-run the composite gate", groupTitle: "Verify automated behavior and scope", done: false },
+		];
+		const body = renderSddOverlay(status({}, taskItems)).join("\n");
+		expect(body.split("Verify automated behavior and scope")).toHaveLength(2);
+		expect(body).toContain("Reproduce the corpus mismatch");
+		expect(body).toContain("Re-run the composite gate");
+	});
+
 	// Este era el hallazgo: con todo marcado el widget enseñaba `4/4` y se callaba.
 	test("con las tareas completas enseña las fases que faltan, no un 4/4 mudo", () => {
 		const lines = renderSddOverlay(

@@ -356,15 +356,19 @@ describe("handing the terminal to a runtime", () => {
     const run = runTerminalApp(seams({
       io: h.io,
       runtime: {
-        launch: async (provider, reference) => {
-          launched.push({ provider, reference });
+        launch: async (provider, reference, focusedChange) => {
+          launched.push({ provider, reference, focusedChange });
           return { kind: "exited", code: 7 };
         },
       },
     }));
     h.send(DASHBOARD_KEYS.pi);
     await tick();
-    expect(launched).toEqual([{ provider: "pi", reference: undefined }]);
+    expect(launched).toEqual([{
+      provider: "pi",
+      reference: undefined,
+      focusedChange: "terminal-app-rework",
+    }]);
     expect(output(h.written)).toMatch(/código 7|code 7/);
     expect(h.altScreen).toEqual([true, false, true]);
     expect(h.raw).toEqual([true, false, true]);

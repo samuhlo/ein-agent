@@ -141,7 +141,7 @@ export type TerminalAppOptions = Readonly<{
   sessions?: (cwd: string) => RuntimeSessionList;
   system?: () => readonly SystemComponent[];
   runtime?: Readonly<{
-    launch: (provider: RuntimeProvider, reference?: string) => Promise<LaunchOutcome>;
+    launch: (provider: RuntimeProvider, reference?: string, focusedChange?: string) => Promise<LaunchOutcome>;
     continue?: (provider: RuntimeProvider, brief: string, focusedChange?: string) => Promise<LaunchOutcome>;
   }>;
   continuity?: Readonly<{ prepare: (target: unknown) => Promise<ContinuityPrepareResult> }>;
@@ -170,7 +170,8 @@ export function createTerminalAppControllerFactoryForCwd(
   });
   const readSystem = options.system
     ?? (() => systemComponentsFrom(updateSnapshot?.read(), { engramInstalled: existsSync(engramHome()) }));
-  const launch = options.runtime?.launch ?? ((provider, reference) => productionLaunch(cwd, provider, reference));
+  const launch = options.runtime?.launch
+    ?? ((provider, reference, focusedChange) => productionLaunch(cwd, provider, reference, focusedChange));
   const handoff = options.continuity ?? createContinuityHandoffLifecycle(cwd, {
     now: () => new Date().toISOString(),
     runtimeAvailable: (provider) => localExecutableAvailable(provider),
@@ -566,8 +567,9 @@ async function productionLaunch(
   cwd: string,
   provider: RuntimeProvider,
   reference?: string,
+  focusedChange?: string,
 ): Promise<LaunchOutcome> {
-  const resolved = productionLaunchPlan(cwd, provider, reference);
+  const resolved = productionLaunchPlan(cwd, provider, reference, focusedChange);
   if (!resolved.ok) return resolved.outcome;
   const executed = await executeLaunchPlan(resolved.plan);
   if (executed.outcome === "success") return { kind: "exited", code: 0 };

@@ -4,6 +4,44 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.92.0-alpha.1] - 2026-08-28
+
+### Added
+
+- **Ein incorpora un canal de intención explícito y compartido.** `/ein:intent`
+  recorre con la persona las decisiones que delimitan un cambio y solo escribe
+  `intent.md` después de confirmación; `/ein:eh` reformula la petición en
+  lenguaje llano sin actuar. Pi y Claude consumen el mismo protocolo sin cargar
+  coste de prompt cuando no se invoca.
+- **Una sesión de Pi puede recuperar el TODO sin reiniciarse.**
+  `/ein:focus <cambio>` valida que el cambio siga activo, lo vincula a la sesión
+  y repinta el panel sin despachar trabajo SDD al modelo.
+- **`ein-install update` permite elegir canal de publicación.** `--channel
+  stable|alpha` cambia la preferencia solo cuando la actualización se completa
+  o ya estaba al día; dry-runs, bloqueos y fallos conservan el valor anterior.
+
+### Changed
+
+- **El preflight de intención se ejecuta antes de construir.** El flujo común
+  clasifica trabajo normal frente a cambios pequeños o documentales, respeta
+  primero cualquier lane declarada y persiste la resolución en `preflight.json`.
+  Los riesgos protegidos y la evidencia insuficiente siguen tomando la ruta
+  cerrada, mientras `/ein:intent` permanece exclusivamente humano.
+- **El launcher hace visible qué cambio recibirá Pi.** Tras elegir un cambio en
+  Estado del proyecto y volver atrás, la acción principal pasa a mostrarse como
+  `Pi · continuar <cambio>` y una sesión nueva hereda ese foco antes de arrancar.
+
+### Fixed
+
+- **El TODO deja de desaparecer al iniciar o recuperar sesiones.** Una sesión
+  sin binding muestra automáticamente el único cambio activo y, si hay varios,
+  declara la ambigüedad en lugar de quedar vacía. El intent de lanzamiento se
+  consume en el primer `session_start` válido aunque Pi use otro motivo de
+  arranque.
+- **Las tareas del TODO vuelven a ser distinguibles.** El título de un grupo se
+  muestra una sola vez; las filas siguientes enseñan el texto real de cada
+  tarea en vez de repetir la misma etiqueta sobre todos los checkboxes.
+
 ## [0.91.0-alpha.3] - 2026-08-27
 
 ### Changed
