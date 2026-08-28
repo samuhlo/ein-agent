@@ -5,19 +5,21 @@ import { detectPlatform, type Platform } from "../core/platform.ts";
 import { installDeclaredPackages, installPi, refreshExternalTools, type InstallStep } from "../core/deps.ts";
 import { AGENT_DIR, INSTALL_MARKER } from "../core/paths.ts";
 import { parseSelector } from "../core/release-resolver.ts";
-import type { ReleaseSelector, UpdateOutcome } from "../core/release-types.ts";
-import { readReleaseChannelPreference } from "../core/release-channel-preference.ts";
+import { isReleaseChannel, type ReleaseChannel, type ReleaseSelector, type UpdateOutcome } from "../core/release-types.ts";
+import { readReleaseChannelPreference, writeReleaseChannelPreference } from "../core/release-channel-preference.ts";
 import { recoverPendingTransaction, runUpdateTransaction } from "../core/transaction.ts";
 import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
 import { readInstallerUpdateEvidence, type InstallerUpdateReadEvidence } from "../core/update-advisor-read.ts";
 import { spawnContinuation } from "../core/child-continuation.ts";
 import { bold, gold } from "../tui/theme.ts";
-import { renderOutcome } from "./result.ts";
+import { EXIT_FAILED, renderOutcome } from "./result.ts";
 
 export type UpdateFlags = {
   selectorArgs: string[];
   dryRun: boolean;
   yes: boolean;
+  channel?: ReleaseChannel;
+  error?: string;
 };
 
 export type UpdateRunDependencies = {
@@ -48,19 +50,33 @@ export function parseCliFlags(args: string[]): UpdateFlags {
   const selectorArgs: string[] = [];
   let dryRun = false;
   let yes = false;
-  for (const arg of args) {
+  let channel: ReleaseChannel | undefined;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
     if (arg === "--dry-run") dryRun = true;
     else if (arg === "--yes" || arg === "-y") yes = true;
-    else selectorArgs.push(arg);
+    else if (arg === "--channel") {
+      if (channel !== undefined) return { selectorArgs, dryRun, yes, channel, error: "--channel no puede repetirse" };
+      const value = args[index + 1];
+      if (!value || value.startsWith("-")) {
+        return { selectorArgs, dryRun, yes, error: "--channel necesita un valor separado" };
+      }
+      if (!isReleaseChannel(value)) {
+        return { selectorArgs, dryRun, yes, error: `canal no soportado: ${value}` };
+      }
+      channel = value;
+      index += 1;
+    } else if (arg.startsWith("--channel=")) {
+      return { selectorArgs, dryRun, yes, channel, error: "--channel usa un valor separado: --channel alpha|stable" };
+    } else selectorArgs.push(arg);
   }
-  return { selectorArgs, dryRun, yes };
+  return { selectorArgs, dryRun, yes, ...(channel ? { channel } : {}) };
 }
 
 function failed(selector: ReleaseSelector | undefined, stage: Extract<UpdateOutcome, { type: "failed" }>["stage"], message: string): UpdateOutcome {
   return { type: "failed", stage, message, ...(selector ? { selector } : {}) };
 }
 
-/** Keeps dispatch and menu callers on the existing async numeric exit-code contract. */
 export async function runUpdate(args: string[], dependencies: UpdateRunDependencies = {}): Promise<number> {
   const caps = dependencies.caps ?? defaultUpdateCaps();
   const flags = parseCliFlags(args);
@@ -72,12 +88,17 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
   const destinationPath = dependencies.destinationPath ?? process.execPath;
   const preference = readReleaseChannelPreference(installationPath);
   const selector = parseSelector(flags.selectorArgs);
+  const effectiveChannel = flags.channel ?? (preference.status === "unavailable" ? undefined : preference.channel);
   let outcome: UpdateOutcome;
-  if (preference.status === "unavailable") {
+  let persistedChannel = false;
+  let channelPersistenceError: string | undefined;
+  if (flags.error) {
+    outcome = failed(selector.ok ? selector.value : undefined, "resolving", flags.error);
+  } else if (!effectiveChannel) {
     outcome = failed(
       selector.ok ? selector.value : undefined,
       "resolving",
-      `Release channel preference unavailable: ${preference.reason}`,
+      `Release channel preference unavailable: ${preference.status === "unavailable" ? preference.reason : "effective-channel-unavailable"}`,
     );
   } else {
     const recovery = await recoverPendingTransaction({
@@ -99,7 +120,7 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
       outcome = await runUpdateTransaction({
         caps,
         selector: selector.value,
-        channel: preference.channel,
+        channel: effectiveChannel,
         platform: dependencies.platform ?? detectPlatform(),
         agentDir: dependencies.agentDir ?? AGENT_DIR,
         markerPath,
@@ -107,6 +128,20 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
         destinationPath,
         dryRun: flags.dryRun,
       });
+    }
+  }
+
+  if (
+    flags.channel
+    && !flags.dryRun
+    && (outcome.type === "updated" || outcome.type === "already-current")
+  ) {
+    const written = writeReleaseChannelPreference(installationPath, flags.channel);
+    if (written.status === "explicit" && written.channel === flags.channel) {
+      persistedChannel = true;
+    } else {
+      const updateState = outcome.type === "updated" ? "se actualizó" : "ya estaba actualizado";
+      channelPersistenceError = `Ein ${updateState}, pero no se pudo guardar el canal ${flags.channel}; la preferencia anterior sigue vigente.`;
     }
   }
 
@@ -122,10 +157,20 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
   let advisor: InstallerUpdateReadEvidence | undefined;
   try {
     advisor = await readAdvisor();
+    if (flags.channel) advisor = projectExplicitChannel(advisor, flags.channel, persistedChannel);
   } catch {
     // Advisor evidence is informational and must never change the update exit code.
   }
-  const rendered = renderOutcome(outcome, advisor);
+  const baseRendered = renderOutcome(outcome, advisor);
+  const rendered = channelPersistenceError
+    ? {
+      lines: [
+        ...baseRendered.lines.filter((line) => line !== "Actualización completada." && line !== "Ya está actualizado."),
+        channelPersistenceError,
+      ],
+      exitCode: EXIT_FAILED,
+    }
+    : baseRendered;
   for (const line of rendered.lines) write(line);
 
   // The transactional updater above only owns the Ein binary + template +
@@ -145,6 +190,28 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
     p.outro(rendered.exitCode === 0 ? "Actualización finalizada." : "Actualización no aplicada.");
   }
   return rendered.exitCode;
+}
+
+function projectExplicitChannel(
+  evidence: InstallerUpdateReadEvidence,
+  channel: ReleaseChannel,
+  persisted: boolean,
+): InstallerUpdateReadEvidence {
+  const release = evidence.release.status === "valid"
+    ? { ...evidence.release, freshness: channel === "alpha" ? "unknown" as const : "current" as const }
+    : evidence.release;
+  const freshness = evidence.release.status === "valid"
+    ? channel === "alpha"
+      ? { status: "unknown" as const, reason: "alpha-expiration-evidence-unavailable" }
+      : { status: "unknown" as const, reason: "publication-evidence-unavailable" }
+    : evidence.freshness;
+  return Object.freeze({
+    ...evidence,
+    release,
+    freshness,
+    effectiveChannel: channel,
+    preference: persisted ? { status: "explicit" as const, channel } : evidence.preference,
+  });
 }
 
 /** Best-effort: a naming problem must never turn a good update into a failure. */

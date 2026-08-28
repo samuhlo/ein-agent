@@ -160,13 +160,17 @@ function printHelp(): void {
   console.log("");
   console.log("comandos:");
   console.log("  install      instala/actualiza Ein (checks + deploy + secrets)");
-  console.log("  update       actualiza Ein y ajusta pi a su versión compatible");
+  console.log("  update       actualiza Ein y ajusta pi (--channel alpha|stable)");
   console.log("  uninstall    mueve Ein a recuperación (--runtime pi|claude|both; conserva estado privado)");
   console.log("  restore      restaura desde un backup (--pin/--unpin <nombre>)");
   console.log("  doctor       diagnostico del despliegue (sin lanzar pi)");
   console.log("  --version    versión del instalador");
   console.log("");
-  console.log("flags: --yes --dry-run --no-engram --no-secrets --no-linear --no-hypa --no-codegraph");
+  console.log("canales de update:");
+  console.log("  ein-install update --channel alpha");
+  console.log("  ein-install update --channel stable");
+  console.log("");
+  console.log("flags: --yes --dry-run --channel alpha|stable --no-engram --no-secrets --no-linear --no-hypa --no-codegraph");
 }
 
 async function main(): Promise<number> {

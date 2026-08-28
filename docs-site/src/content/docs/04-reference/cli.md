@@ -71,8 +71,19 @@ ein-install install --runtime pi|claude|both
 
 ### `ein-install update`
 
-Actualiza EIN y su plantilla desde la release estable de GitHub. Verifica el
-payload antes de aplicar, y crea backup con posibilidad de rollback.
+Actualiza EIN y su plantilla desde el canal guardado. Verifica el payload antes
+de aplicar, y crea backup con posibilidad de rollback.
+
+```bash
+ein-install update --channel alpha   # actualiza y deja alpha como preferencia
+ein-install update --channel stable  # actualiza y vuelve a dejar stable
+ein-install update --dry-run --channel alpha  # previsualiza alpha sin cambiar la preferencia
+```
+
+`--channel` acepta `alpha` o `stable` con el valor separado. Si se omite, se usa
+la preferencia persistida —o `stable` cuando todavía no existe—. El cambio se
+guarda de forma atómica solo después de una actualización correcta, también si
+la versión ya estaba al día. Un dry-run, un bloqueo o un fallo no lo guarda.
 
 **No actualiza el runtime.** Para Pi, eso es `ein-pi update --all`. Para Claude
 Code, actualiza Claude por su canal normal. La actualización de EIN sí renueva
@@ -100,6 +111,7 @@ Restaura desde un backup previo.
 | `--runtime pi\|claude\|both` | qué superficie desplegar |
 | `--yes` | no interactivo, acepta los valores por defecto |
 | `--dry-run` | enseña el plan sin ejecutar nada |
+| `--channel alpha\|stable` | elige y, tras un update correcto, persiste el canal |
 | `--no-engram` | omite la capacidad opcional de memoria persistente (Engram) |
 | `--no-secrets` | omite la configuración de secrets |
 | `--no-linear` | omite la integración con Linear |

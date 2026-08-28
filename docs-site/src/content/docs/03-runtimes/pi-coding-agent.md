@@ -56,12 +56,16 @@ backup.
 Esto confunde al principio, y la separación es deliberada:
 
 ```bash
-ein-pi update --all    # actualiza Pi: binario, extensiones, paquetes
-ein-install update             # actualiza EIN: instalador y plantilla
+ein-pi update --all                    # actualiza Pi: binario, extensiones, paquetes
+ein-install update                     # actualiza EIN desde el canal guardado
+ein-install update --channel alpha     # cambia EIN a alpha
+ein-install update --channel stable    # vuelve EIN a estable
 ```
 
-`ein-install update` usa la release estable de GitHub, verifica el payload y actualiza
-con backup y rollback. No es un actualizador de Pi.
+`ein-install update` verifica el payload y actualiza con backup y rollback. Un
+cambio de canal solo se guarda si el update termina correctamente; con
+`--dry-run` se puede previsualizar sin modificar la preferencia. No es un
+actualizador de Pi.
 
 ## Particularidades
 
