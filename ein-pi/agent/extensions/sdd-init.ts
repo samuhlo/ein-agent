@@ -1,6 +1,4 @@
-import { applySavedModelConfig } from "../lib/model-config.ts";
 import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";
-import { ensureSddPreflight, installSddAssets } from "../lib/sdd-preflight.ts";
 type ExtensionAPI = any;
 
 export default function (pi: ExtensionAPI) {
@@ -8,11 +6,6 @@ export default function (pi: ExtensionAPI) {
 		description:
 			"Auto-detect project stack and bootstrap openspec/config.yaml for SDD.",
 		handler: async (_args: unknown, ctx: any) => {
-			await ensureSddPreflight(ctx, {
-				pi,
-				installAssets: (cwd) => installSddAssets(cwd, false),
-				applyModelConfig: () => applySavedModelConfig(ctx),
-			});
 			const result = bootstrapOpenSpecConfig(ctx.cwd);
 			if (result.kind === "preserved") {
 				ctx.ui.notify(

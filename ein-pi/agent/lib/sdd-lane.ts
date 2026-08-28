@@ -59,19 +59,36 @@ export function normalizeLane(value: unknown): SddLane | undefined {
 	return (SDD_LANES as readonly string[]).includes(token) ? (token as SddLane) : undefined;
 }
 
-/** Lee el carril declarado. Todo lo que no sea una declaración válida es `standard`. */
-export function readChangeLane(changeDir: string): SddLane {
+export type ChangeLaneInspection = Readonly<{
+	lane: SddLane;
+	/** Any existing lane.json is an authoritative legacy declaration. */
+	exists: boolean;
+	/** Whether the existing file contains a recognized lane value. */
+	valid: boolean;
+}>;
+
+/**
+ * Reads the lane and preserves the evidence needed by provenance consumers.
+ * Corrupt files remain declarations while falling back to the safe lane.
+ */
+export function inspectChangeLane(changeDir: string): ChangeLaneInspection {
 	const path = laneConfigPath(changeDir);
-	if (!existsSync(path)) return DEFAULT_LANE;
+	if (!existsSync(path)) return Object.freeze({ lane: DEFAULT_LANE, exists: false, valid: false });
 	try {
 		const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
 		if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-			return normalizeLane((parsed as Record<string, unknown>).lane) ?? DEFAULT_LANE;
+			const lane = normalizeLane((parsed as Record<string, unknown>).lane);
+			if (lane) return Object.freeze({ lane, exists: true, valid: true });
 		}
 	} catch {
-		// Fichero roto → ceremonia completa, que es el lado seguro del error.
+		// Broken declaration → full ceremony, without erasing its authority.
 	}
-	return DEFAULT_LANE;
+	return Object.freeze({ lane: DEFAULT_LANE, exists: true, valid: false });
+}
+
+/** Reads the effective lane. Unknown state always falls back to `standard`. */
+export function readChangeLane(changeDir: string): SddLane {
+	return inspectChangeLane(changeDir).lane;
 }
 
 export function writeChangeLane(changeDir: string, lane: SddLane): void {

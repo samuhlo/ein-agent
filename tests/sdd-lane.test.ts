@@ -7,6 +7,7 @@ import { join } from "node:path";
 import {
 	DEFAULT_LANE,
 	LANE_PHASES,
+	inspectChangeLane,
 	laneSkips,
 	normalizeLane,
 	readChangeLane,
@@ -126,6 +127,35 @@ describe("carril del cambio", () => {
 		}
 		expect(normalizeLane("MICRO")).toBe("micro");
 		expect(normalizeLane("rapido")).toBeUndefined();
+	});
+
+	test("la inspección distingue ausencia de lane declarado, incluso corrupto", () => {
+		rmSync(join(changeDir, "lane.json"), { force: true });
+		expect(inspectChangeLane(changeDir)).toEqual({
+			lane: "standard",
+			exists: false,
+			valid: false,
+		});
+
+		writeFileSync(join(changeDir, "lane.json"), "{ corrupt");
+		expect(inspectChangeLane(changeDir)).toEqual({
+			lane: "standard",
+			exists: true,
+			valid: false,
+		});
+
+		writeChangeLane(changeDir, "micro");
+		expect(inspectChangeLane(changeDir)).toEqual({
+			lane: "micro",
+			exists: true,
+			valid: true,
+		});
+	});
+
+	test("provenance does not change SddLane or phase lists", () => {
+		expect(Object.keys(LANE_PHASES)).toEqual(["standard", "micro"]);
+		expect(LANE_PHASES.standard).toEqual(["scope", "map", "design", "tasks", "apply", "verify", "close"]);
+		expect(LANE_PHASES.micro).toEqual(["scope", "design", "apply", "verify", "close"]);
 	});
 });
 

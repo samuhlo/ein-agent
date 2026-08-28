@@ -69,6 +69,20 @@ antes de que nada se ejecute.
 La superficie Claude aplica esto declarando `allowed-tools` vacío, así la
 restricción la impone el runtime, no solo la prosa.
 
+### Qué mensaje se restata
+
+`/ein:eh` se dispara con un mensaje de usuario, así que "el último mensaje" se
+autorreferencia si no se define. El objetivo es **el último mensaje escrito por
+el usuario en prosa, anterior a esta invocación**.
+
+- No cuentan como objetivo la invocación de `/ein:eh`, su kickoff, ni ninguna
+  otra invocación de comando ni su expansión: se salta hacia atrás hasta la
+  última prosa del usuario.
+- Si no hay ninguno, se dice en una línea y se para. Nunca se restata la propia
+  invocación, nunca se inventa una petición.
+- Si esa petición ya se ejecutó, se restata igual, en pasado, sin proponer un
+  siguiente paso ni volver a actuar.
+
 ## Artefact template
 
 `intent.md` lleva frontmatter (`change`, `phase: intent`, `created`) y estas

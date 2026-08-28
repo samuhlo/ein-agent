@@ -30,23 +30,20 @@ The coordinator delegates phase work to `sdd-scope`, `sdd-map`, `sdd-design`,
 from `ein-cc-sdd status` before selecting the next phase; do not infer routing
 from memory.
 
-## Claude SDD change stance
+## Claude automatic intent preflight
 
-Pi asks two questions before working a change: strict TDD, and the lane. This
-runtime has no interactive preflight, so **you** ask them, and only once per
-change. Before delegating the first phase of a change, run `ein-cc-sdd
-preflight`. If it reports the stance as `sin decidir`, ask the user with
-`AskUserQuestion` — strict TDD `off` (UI, visual, mechanical, low risk) or
-`strict` (logic-heavy), and lane `standard` (seven phases) or `micro` (skips
-`map` and `tasks`; `verify` and `close` stay hard gates) — then record the
-answer with `ein-cc-sdd preflight <change> --tdd <off|strict> --lane
-<standard|micro>`.
+Invoke the automatic intent preflight exactly once before delegating work that
+constructs or may modify the project. Use `ein-cc-sdd preflight [change]` to
+adopt a resolution already stored in `preflight.json`; a resolution written by
+Pi has the same authority and is never re-asked or overwritten.
 
-A stance that is already decided is never re-asked and never overwritten: it may
-have been decided in Pi, and replacing it would silently change the standard of
-work mid-change. Never pick either answer on the user's behalf — there is no
-deterministic signal before planning. The recorded stance overrides
-`openspec/config.yaml` `strict_tdd`.
+When the shared contract returns the normal route, present its two numbered
+questions together as one plain-text turn, add only its optional material third
+question, and wait for explicit final confirmation. For the small route, emit
+the single restatement line and continue without waiting. Do not recreate TDD
+or lane selectors in Claude, and do not use a parallel modal question flow.
+After resolution, delegate according to `ein-cc-sdd status`; the existing router
+still owns phase selection and hard gates.
 
 ## Claude configuration boundary
 

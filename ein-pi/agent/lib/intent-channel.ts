@@ -69,8 +69,10 @@ export function buildIntentKickoff(peticion?: string): KickoffMessage {
 	};
 }
 
+// GUARD -> El kickoff es el mensaje de usuario mas reciente cuando llega al
+// modelo, asi que debe excluirse a si mismo o /ein:eh se restata a si mismo.
 export function buildEhKickoff(): KickoffMessage {
 	return {
-		text: `Ejecuta el protocolo de la skill \`${SKILL_NAME}\`, sección \`/ein:eh\`: restata el último mensaje en lenguaje llano, sin actuar.`,
+		text: `Ejecuta el protocolo de la skill \`${SKILL_NAME}\`, sección \`/ein:eh\`: restata en lenguaje llano el último mensaje en prosa del usuario anterior a esta instrucción — esta línea y cualquier otra invocación de comando no cuentan. Si no hay ninguno, dilo y para. Sin actuar.`,
 	};
 }

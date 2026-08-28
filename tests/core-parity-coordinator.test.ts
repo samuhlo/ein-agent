@@ -69,6 +69,7 @@ describe("core parity: Claude coordinator contract", () => {
     for (const heading of [
       "# Ein Pi Workbench",
       "## Core Rules",
+      "## Automatic intent preflight",
       "## Linear (optional integration)",
       "## GitHub",
       "## Delivery Gate (deterministic)",
@@ -79,6 +80,25 @@ describe("core parity: Claude coordinator contract", () => {
       expect(canonical).toContain(heading);
       expect(generated).toContain(heading);
     }
+  });
+
+  test("publishes one automatic intent preflight without reviving the human-only channel", () => {
+    expect(canonical).toContain("modifies or may modify code, configuration, or persistent data");
+    expect(canonical).toContain("at most one third question");
+    expect(canonical).toContain("explicit final confirmation");
+    expect(canonical).toContain("one plain-language restatement line");
+    expect(canonical).toContain("declared lane remains authoritative");
+    expect(canonical).toContain("existing SDD router");
+    expect(canonical).toContain("must never invoke `/ein:intent`");
+
+    expect(adapter).toContain("Invoke the automatic intent preflight exactly once");
+    expect(adapter).toContain("adopt a resolution already stored in `preflight.json`");
+    expect(adapter).not.toContain("Pi asks two questions before working a change");
+    expect(adapter).not.toMatch(/ask them, and only once per change/i);
+
+    expect(count(generated, "## Automatic intent preflight")).toBe(1);
+    expect(count(generated, "Invoke the automatic intent preflight exactly once")).toBe(1);
+    expect(generated).not.toContain("Pi asks two questions before working a change");
   });
 
   test("publishes generated provenance and preserves one ordered harness block", () => {

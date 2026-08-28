@@ -5,8 +5,9 @@
 //    `acceptance: none` en delegaciones documentales (scope/map/design/tasks/
 //    close) para que el runner no rechace en falso — sin depender de que el
 //    orquestador recuerde pasarlo.
-// B) collectSddPreflightPreferences: el TDD se elige AL INICIO (off/strict/auto)
-//    junto al modo de ejecución, en vez de leerse en silencio del config.
+// B) collectSddPreflightPreferences: conserva las preferencias de sesión, pero
+//    no abre un selector TDD/lane por cambio. La postura técnica procede del
+//    valor persistido o del default y el gate la consume sin volver a preguntar.
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
@@ -79,50 +80,64 @@ describe("ensurePlanningAcceptance", () => {
 });
 
 // Stub de ExtensionContext con ui.select/ui.input scripted por el texto del
-// prompt (robusto al orden de las preguntas). cwd único por test: el override
-// de TDD se guarda en un map keyed por cwd → reusar cwd contamina el siguiente.
+// prompt. Registra los títulos para demostrar que la superficie técnica retirada
+// no reaparece. cwd único por test evita compartir preferencias de sesión.
 let cwdSeq = 0;
-function ctxStub(answers: { execution: string; tdd: string; memory?: string; budget?: string }) {
+function ctxStub(
+	answers: { execution: string; memory?: string; budget?: string },
+	cwd = `/tmp/does-not-exist-planning-acceptance-${cwdSeq++}`,
+) {
 	const notes: string[] = [];
+	const selectTitles: string[] = [];
 	return {
 		ctx: {
 			hasUI: true,
-			cwd: `/tmp/does-not-exist-planning-acceptance-${cwdSeq++}`,
+			cwd,
 			ui: {
-				select: async (title: string, _opts: string[]) => {
+				select: async (title: string, opts: string[]) => {
+					selectTitles.push(title);
 					if (/execution mode/i.test(title)) return answers.execution;
-					if (/strict tdd/i.test(title)) return answers.tdd;
 					if (/notebook/i.test(title)) return answers.memory ?? "off";
-					return _opts[0];
+					return opts[0];
 				},
 				input: async () => answers.budget ?? "400",
 				notify: (msg: string) => notes.push(msg),
 			},
 		} as never,
 		notes,
+		selectTitles,
 	};
 }
 
-describe("collectSddPreflightPreferences — TDD elegido al inicio", () => {
-	test("strict elegido → tddMode strict y ejecución respetada", async () => {
-		const { ctx } = ctxStub({ execution: "auto", tdd: "strict" });
-		const prefs = await collectSddPreflightPreferences(ctx, false);
-		expect(prefs.tddMode).toBe("strict");
-		expect(prefs.executionMode).toBe("auto");
-		expect(prefs.prompted).toBe(true);
+describe("collectSddPreflightPreferences — postura técnica sin selector por cambio", () => {
+	test("consume strict persistido y respeta la ejecución sin preguntar TDD", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "ein-tdd-persisted-"));
+		try {
+			writeTddMode(cwd, "strict");
+			const { ctx, selectTitles } = ctxStub({ execution: "auto" }, cwd);
+			const prefs = await collectSddPreflightPreferences(ctx, false);
+			expect(prefs.tddMode).toBe("strict");
+			expect(prefs.executionMode).toBe("auto");
+			expect(prefs.prompted).toBe(true);
+			expect(selectTitles.some((title) => /strict tdd|tdd estricto|lane/i.test(title))).toBe(false);
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+		}
 	});
 
-	test("off elegido → tddMode off", async () => {
-		const { ctx } = ctxStub({ execution: "interactive", tdd: "off" });
+	test("usa off por defecto y respeta la ejecución interactiva", async () => {
+		const { ctx, selectTitles } = ctxStub({ execution: "interactive" });
 		const prefs = await collectSddPreflightPreferences(ctx, false);
 		expect(prefs.tddMode).toBe("off");
 		expect(prefs.executionMode).toBe("interactive");
+		expect(selectTitles.some((title) => /strict tdd|tdd estricto|lane/i.test(title))).toBe(false);
 	});
 
-	test("cualquier cosa que no sea strict → off (default del bloque B)", async () => {
-		const { ctx } = ctxStub({ execution: "interactive", tdd: "auto" });
+	test("las demás preferencias de sesión no alteran el default técnico", async () => {
+		const { ctx, selectTitles } = ctxStub({ execution: "interactive", memory: "off", budget: "250" });
 		const prefs = await collectSddPreflightPreferences(ctx, false);
 		expect(prefs.tddMode).toBe("off");
+		expect(selectTitles.some((title) => /strict tdd|tdd estricto|lane/i.test(title))).toBe(false);
 	});
 
 	test("sin UI → defaults sin preguntar", async () => {
@@ -132,10 +147,9 @@ describe("collectSddPreflightPreferences — TDD elegido al inicio", () => {
 		expect(prefs.executionMode).toBe("interactive");
 	});
 
-	// Bloque B: el bug del doble-ask. Con el modo global `ask`, el preflight
-	// preguntaba TDD y luego el gate volvía a preguntar. Ahora el preflight fija
-	// SIEMPRE el override → el gate corta y no re-pregunta.
-	test("tras el preflight, el gate de TDD ya no re-pregunta aunque el modo sea `ask`", async () => {
+	// El modo técnico legacy `ask` se proyecta como `auto` sin restaurar el
+	// selector retirado; los gates posteriores consumen esa resolución.
+	test("el preflight y el gate no preguntan TDD aunque el modo persistido sea `ask`", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "ein-tdd-double-"));
 		try {
 			writeTddMode(cwd, "ask");
@@ -154,11 +168,12 @@ describe("collectSddPreflightPreferences — TDD elegido al inicio", () => {
 					notify: () => {},
 				},
 			} as never;
-			await collectSddPreflightPreferences(ctx, false);
-			expect(tddAsks).toBe(1); // preguntado UNA vez, en el preflight
+			const prefs = await collectSddPreflightPreferences(ctx, false);
+			expect(prefs.tddMode).toBe("auto");
+			expect(tddAsks).toBe(0);
 			await gateTddForDelegation({ agent: "sdd-scope", task: "x" }, ctx);
 			await gateTddForDelegation({ agent: "sdd-apply", task: "y" }, ctx);
-			expect(tddAsks).toBe(1); // el gate NO vuelve a preguntar
+			expect(tddAsks).toBe(0);
 		} finally {
 			rmSync(cwd, { recursive: true, force: true });
 		}

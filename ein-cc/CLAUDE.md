@@ -17,6 +17,15 @@ This file is the shared coordinator policy source. Claude-specific runtime behav
 - For JS/TS/Vue/React/Nuxt/PHP/Java/CSS/HTML work, load `comment-style` and enforce it on touched blocks. Comments explain why; if a comment repeats the code, remove it.
 - For a library or framework with no curated skill — especially one you don't know well, or when you get stuck — fetch topic-scoped docs via Context7 (`resolve-library-id` → `query-docs` for the task's specific topic) instead of guessing or loading a whole manual. Apply only what the task needs.
 
+## Automatic intent preflight
+
+- Before construction, run one automatic intent preflight for a request that modifies or may modify code, configuration, or persistent data. An unequivocally read-only request continues without it. Adopt a current resolution from `preflight.json` before presenting anything, and never start a second interaction from a secondary hook or adapter.
+- A declared lane remains authoritative. Without one, only positively proven bounded mechanical, non-behavioral work or bounded documentation/text takes the small route; risk, uncertainty, new behavior, or incomplete evidence takes the normal route.
+- The normal route presents two numbered questions together in one plain-text turn to close outcome, boundaries, and completion criteria. Ask at most one third question only for a concrete material decision with no persisted value or applicable default, then require explicit final confirmation before persistence or construction. TDD and lane are reused from persisted values or project defaults and are not a standing questionnaire.
+- The small route emits exactly one plain-language restatement line, requests no response, and continues. A requested bypass stays normal for security, persistent-data, destructive, or unknown risk.
+- Persistence remains in `preflight.json` through the existing `sdd-preflight.ts` owner. After confirmed, automatic-small, or allowed bypass resolution, return control to the existing SDD router; phase selection, verification, delivery, and OpenSpec bootstrap remain unchanged.
+- This automatic flow is separate from the explicitly human-only intent channel: it must never invoke `/ein:intent`, replace it, or mutate its `intent.md` artifact.
+
 ## Linear (optional integration)
 
 - Linear is an optional integration, off by default (`/ein:linear`). With it off there is no Linear board — the board is `openspec/changes/` + git + EIN.md — and `ein-linear` stays dormant unless the user explicitly asks.
@@ -87,23 +96,20 @@ The coordinator delegates phase work to `sdd-scope`, `sdd-map`, `sdd-design`,
 from `ein-cc-sdd status` before selecting the next phase; do not infer routing
 from memory.
 
-## Claude SDD change stance
+## Claude automatic intent preflight
 
-Pi asks two questions before working a change: strict TDD, and the lane. This
-runtime has no interactive preflight, so **you** ask them, and only once per
-change. Before delegating the first phase of a change, run `ein-cc-sdd
-preflight`. If it reports the stance as `sin decidir`, ask the user with
-`AskUserQuestion` — strict TDD `off` (UI, visual, mechanical, low risk) or
-`strict` (logic-heavy), and lane `standard` (seven phases) or `micro` (skips
-`map` and `tasks`; `verify` and `close` stay hard gates) — then record the
-answer with `ein-cc-sdd preflight <change> --tdd <off|strict> --lane
-<standard|micro>`.
+Invoke the automatic intent preflight exactly once before delegating work that
+constructs or may modify the project. Use `ein-cc-sdd preflight [change]` to
+adopt a resolution already stored in `preflight.json`; a resolution written by
+Pi has the same authority and is never re-asked or overwritten.
 
-A stance that is already decided is never re-asked and never overwritten: it may
-have been decided in Pi, and replacing it would silently change the standard of
-work mid-change. Never pick either answer on the user's behalf — there is no
-deterministic signal before planning. The recorded stance overrides
-`openspec/config.yaml` `strict_tdd`.
+When the shared contract returns the normal route, present its two numbered
+questions together as one plain-text turn, add only its optional material third
+question, and wait for explicit final confirmation. For the small route, emit
+the single restatement line and continue without waiting. Do not recreate TDD
+or lane selectors in Claude, and do not use a parallel modal question flow.
+After resolution, delegate according to `ein-cc-sdd status`; the existing router
+still owns phase selection and hard gates.
 
 ## Claude configuration boundary
 

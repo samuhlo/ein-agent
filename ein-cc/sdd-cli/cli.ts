@@ -40,9 +40,15 @@ import {
 	normalizeTddStance,
 	readActiveChangeStance,
 	readChangeStance,
+	readPreflightRecord,
 	renderChangeStanceLine,
-	writePreflightRecord,
 } from "../../ein-pi/agent/lib/sdd-preflight-record.ts";
+import {
+	resolveSddIntentPreflight,
+	updateSddPreflightStance,
+	type SddIntentPreflightInput,
+	type SddIntentPreflightOutcome,
+} from "../../ein-pi/agent/lib/sdd-preflight.ts";
 import { writeOpenSpecDelta } from "../../ein-pi/agent/lib/openspec-delta-write.ts";
 import { writeSddSummary } from "../../ein-pi/agent/lib/sdd-summary-write.ts";
 import { synchronizeOpenSpecFilesystem } from "../../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
@@ -259,13 +265,40 @@ function laneCmd(args: readonly string[]): void {
 	if (exitCode !== 0) process.exit(exitCode);
 }
 
-// Postura del cambio: con qué exigencia de tests y con cuántas fases se
-// conduce. Es el equivalente en Claude del preflight interactivo de Pi — aquí no
-// hay selector, así que el coordinador pregunta al usuario y deja la respuesta
-// escrita con este comando. Ambos runtimes leen el mismo fichero.
-//
-// No pisa una decisión ya tomada sin `--force`: sobrescribirla en silencio es
-// exactamente cómo se pierde la continuidad que este fichero existe para dar.
+export function runClaudeIntentPreflight(
+	dir: string,
+	input: Omit<SddIntentPreflightInput, "resolvedBy">,
+): Promise<SddIntentPreflightOutcome> {
+	const ctx = {
+		cwd: dir,
+		hasUI: false,
+		sessionManager: { getSessionId: () => `claude:${dir}` },
+	} as Parameters<typeof resolveSddIntentPreflight>[0];
+	return resolveSddIntentPreflight(ctx, { ...input, resolvedBy: "claude" });
+}
+
+export async function runClaudePreflightCommand(
+	dir: string,
+	args: readonly string[],
+	intentInput: Omit<SddIntentPreflightInput, "resolvedBy">,
+): Promise<{ intent: SddIntentPreflightOutcome; text: string; exitCode: 0 | 1 }> {
+	// Intent must settle or expose its pending route before legacy stance flags run.
+	const intent = await runClaudeIntentPreflight(dir, intentInput);
+	const stance = runPreflightCommand(dir, args);
+	const intentText = intent.kind === "pending"
+		? intent.interaction.text
+		: intent.kind === "resolved" && intent.interaction?.kind === "small"
+			? intent.interaction.lines[0]
+			: "";
+	return {
+		intent,
+		...stance,
+		text: [intentText, stance.text].filter((part) => part.length > 0).join("\n"),
+	};
+}
+
+// Compatibilidad de postura: los flags legacy siguen vigentes, pero toda
+// escritura pasa por el propietario compartido. Un lane explícito es declarado.
 export function runPreflightCommand(
 	dir: string,
 	args: readonly string[],
@@ -288,27 +321,35 @@ export function runPreflightCommand(
 	if (!stance) return { text: `// sdd preflight — '${name}' does not exist or is not a valid change name.`, exitCode: 1 };
 
 	const rawTdd = flag("--tdd");
-	if (rawTdd !== undefined) {
-		const requested = normalizeTddStance(rawTdd);
-		if (!requested) {
-			return { text: `// sdd preflight — unknown TDD stance ${JSON.stringify(rawTdd)}; use 'off' or 'strict'.`, exitCode: 1 };
-		}
-		if (stance.tdd && !force) {
-			return {
-				text: `// sdd preflight — '${name}' already decided: TDD ${stance.tdd} (by ${stance.decidedBy ?? "pi"}). Pass --force to replace it.`,
-				exitCode: 1,
-			};
-		}
-		writePreflightRecord(stance.changeDir, { tdd: requested, decidedBy: "claude" });
+	const requestedTdd = rawTdd === undefined ? undefined : normalizeTddStance(rawTdd);
+	if (rawTdd !== undefined && !requestedTdd) {
+		return { text: `// sdd preflight — unknown TDD stance ${JSON.stringify(rawTdd)}; use 'off' or 'strict'.`, exitCode: 1 };
+	}
+	if (requestedTdd && stance.tdd && !force) {
+		return {
+			text: `// sdd preflight — '${name}' already decided: TDD ${stance.tdd} (by ${stance.decidedBy ?? "pi"}). Pass --force to replace it.`,
+			exitCode: 1,
+		};
 	}
 
 	const rawLane = flag("--lane");
-	if (rawLane !== undefined) {
-		const requested = normalizeLane(rawLane);
-		if (!requested) {
-			return { text: `// sdd preflight — unknown lane ${JSON.stringify(rawLane)}; use 'micro' or 'standard'.`, exitCode: 1 };
+	const requestedLane = rawLane === undefined ? undefined : normalizeLane(rawLane);
+	if (rawLane !== undefined && !requestedLane) {
+		return { text: `// sdd preflight — unknown lane ${JSON.stringify(rawLane)}; use 'micro' or 'standard'.`, exitCode: 1 };
+	}
+	if (requestedTdd || requestedLane) {
+		const update = updateSddPreflightStance(dir, name, {
+			...(requestedTdd ? { tdd: requestedTdd } : {}),
+			...(requestedLane ? { declaredLane: requestedLane } : {}),
+			author: "claude",
+			replaceTdd: force,
+		});
+		if (update.kind === "tdd-conflict") {
+			return {
+				text: `// sdd preflight — '${name}' already decided: TDD ${update.record.tdd} (by ${update.record.decidedBy}). Pass --force to replace it.`,
+				exitCode: 1,
+			};
 		}
-		writeChangeLane(stance.changeDir, requested);
 	}
 
 	const current = readChangeStance(dir, name);
@@ -319,10 +360,79 @@ export function runPreflightCommand(
 	return { text, exitCode: 0 };
 }
 
-function preflightCmd(args: readonly string[]): void {
-	const { text, exitCode } = runPreflightCommand(cwd, args);
-	console.log(text);
-	if (exitCode !== 0) process.exit(exitCode);
+function preflightIntentInput(dir: string, args: readonly string[]): Omit<SddIntentPreflightInput, "resolvedBy"> | undefined {
+	const positional = args.filter((arg, index) => {
+		if (arg.startsWith("--")) return false;
+		const previous = args[index - 1];
+		return previous !== "--tdd" && previous !== "--lane";
+	});
+	const selected = resolveCommandChange(dir, positional[0], "preflight");
+	if (!selected.ok) return undefined;
+	const record = readPreflightRecord(join(dir, "openspec", "changes", selected.change));
+	const existing = record?.intent;
+	return {
+		change: selected.change,
+		evidence: {
+			activation: "unknown",
+			declaredLane: null,
+			bounded: "unknown",
+			mechanical: "unknown",
+			documentationOrTextOnly: "unknown",
+			introducesBehavior: "unknown",
+			securityRisk: "unknown",
+			persistentDataRisk: "unknown",
+			destructiveActionRisk: "unknown",
+			bypassRequested: false,
+		},
+		summary: existing?.summary ?? `Resolve intent for ${selected.change}.`,
+		...(existing
+			? {
+				material: {
+					objective: existing.objective,
+					boundaries: existing.boundaries,
+					completionCriteria: existing.completionCriteria,
+				},
+			}
+			: {}),
+		materialEvidence: existing ? "sufficient" : "uncertain",
+	};
+}
+
+export async function runClaudePreflightInputCommand(
+	dir: string,
+	args: readonly string[],
+	rawInput: string,
+): Promise<{ intent?: SddIntentPreflightOutcome; text: string; exitCode: 0 | 1 }> {
+	const fallback = preflightIntentInput(dir, args);
+	if (!fallback) return runPreflightCommand(dir, args);
+	let input = fallback;
+	if (rawInput.trim().length > 0) {
+		try {
+			const parsed: unknown = JSON.parse(rawInput);
+			if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new TypeError("object expected");
+			input = { ...(parsed as Omit<SddIntentPreflightInput, "resolvedBy">), change: fallback.change };
+		} catch {
+			return {
+				text: "// sdd preflight — invalid intent JSON on stdin.",
+				exitCode: 1,
+			};
+		}
+	}
+	try {
+		return await runClaudePreflightCommand(dir, args, input);
+	} catch {
+		return {
+			text: "// sdd preflight — invalid or incomplete intent evidence on stdin.",
+			exitCode: 1,
+		};
+	}
+}
+
+async function preflightCmd(args: readonly string[]): Promise<void> {
+	const rawInput = process.stdin.isTTY ? "" : await Bun.stdin.text();
+	const result = await runClaudePreflightInputCommand(cwd, args, rawInput);
+	console.log(result.text);
+	if (result.exitCode !== 0) process.exit(result.exitCode);
 }
 
 // Delta de comportamiento desde operaciones estructuradas por stdin. Llama a la
@@ -727,7 +837,7 @@ if (import.meta.main) {
 		case "guard": await guardCmd(); break;
 		case "settings": settingsCmd(rest); break;
 		case "lane": laneCmd(rest); break;
-		case "preflight": preflightCmd(rest); break;
+		case "preflight": await preflightCmd(rest); break;
 		case "delta": await deltaCmd(rest); break;
 		case "summary": await summaryCmd(rest); break;
 		case "sync": await syncCmd(rest); break;

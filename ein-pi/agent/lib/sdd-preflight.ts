@@ -4,13 +4,11 @@
 // deja escrito el bloque "## SDD Session Preflight" que el motor inyecta en el
 // prompt. Dos mitades del mismo dominio (control de la sesión SDD):
 //
-//   1. PREFERENCIAS, en dos granularidades. Lo de SESIÓN (modo de ejecución,
-//      cuaderno Engram) se pregunta una vez. Lo del CAMBIO (TDD estricto,
-//      carril) se pregunta por cambio y se PERSISTE en su directorio
-//      (`sdd-preflight-record.ts`): así el segundo cambio de una sesión larga
-//      no hereda en silencio la respuesta del primero, y Claude lee la misma
-//      decisión. Una postura ya escrita se adopta, no se re-pregunta. El
-//      chained-PR y el budget se retiraron por ceremonia/fricción; el bloque
+//   1. PREFERENCIAS DE SESIÓN (modo de ejecución, cuaderno Engram), preguntadas
+//      una vez. La intención del CAMBIO sigue un único flujo propietario:
+//      adopta o reabre por materialKey, presenta normal/small/bypass y solo
+//      persiste resoluciones cerradas. TDD y lane se consumen desde disco o sus
+//      defaults técnicos; ya no forman un cuestionario paralelo. El bloque
 //      renderizado incluye el Review Workload Guard con budget fijo 400.
 //   2. SHAPING DE DELEGACIÓN: da forma a las delegaciones a las fases SDD — el
 //      gate de TDD por tarea (resuelve el `ask` de forma determinista, que en un
@@ -38,13 +36,33 @@ import {
 } from "./delegation-shape.ts";
 import { type GitBaseline, readGitBaseline, renderGitBaselineLine } from "./git-baseline";
 import { type TddMode, readTddMode } from "./tdd";
-import { DEFAULT_LANE, LANE_LABEL, laneConfigPath, laneSkips, normalizeLane, writeChangeLane, type SddLane } from "./sdd-lane.ts";
+import {
+	DEFAULT_LANE,
+	LANE_LABEL,
+	inspectChangeLane,
+	laneSkips,
+	writeChangeLane,
+	type SddLane,
+} from "./sdd-lane.ts";
+import {
+	createIntentMaterialKey,
+	decideIntentPreflight,
+	normalizeIntentMaterial,
+	planIntentInteraction,
+	type IntentDecisionEvidence,
+	type IntentInteractionPlan,
+	type IntentMaterial,
+	type MaterialThirdDecision,
+} from "./sdd-intent-preflight.ts";
 import {
 	changeDirFor,
 	readChangeStance,
 	readPreflightRecord,
 	resolveActiveChange,
 	writePreflightRecord,
+	type PreflightAuthor,
+	type SddIntentRecord,
+	type SddPreflightRecord,
 } from "./sdd-preflight-record.ts";
 import { type PreparedMemory } from "./memory-lifecycle.ts";
 import { installSddAssets, sddGlobalAssetDriftCount } from "./sdd-assets.ts";
@@ -83,8 +101,7 @@ export interface SddSessionAnswers {
 	prompted: boolean;
 }
 
-// Lo que describe UN CAMBIO: con qué exigencia de tests y con cuántas fases.
-// Se vuelve a preguntar cuando el cambio activo es otro.
+// Compatibility projection for the persisted/default technical stance.
 export interface SddChangeStanceAnswers {
 	tddMode: TddMode;
 	lane: SddLane;
@@ -150,11 +167,11 @@ const DEFAULT_SDD_PREFLIGHT: SddPreflightPreferences = {
 };
 
 const sddPreflightBySession = new Map<string, SddPreflightPreferences>();
-// Las respuestas de SESIÓN sobreviven al cambio de cambio: solo la postura se
-// vuelve a preguntar. Sin esta separación, atar el preflight al cambio habría
-// significado repreguntar también el modo de ejecución en cada uno.
+// Las respuestas de SESIÓN sobreviven al cambio de cambio. La intención y su
+// postura técnica se resuelven aparte, sin volver a preguntar estas preferencias.
 const sddSessionAnswersBySession = new Map<string, SddSessionAnswers>();
 const sddPreflightInFlight = new Map<string, Promise<SddPreflightPreferences>>();
+const sddIntentInFlight = new Map<string, Promise<SddIntentPreflightOutcome>>();
 const sddSessionMemoryBySession = new Map<string, PreparedMemory>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -514,6 +531,267 @@ export function ensurePhaseRuntime(input: unknown): boolean {
 	return true;
 }
 
+export type SddIntentMaterialPatch = Readonly<{
+	objective?: string;
+	boundaries?: Readonly<{ in?: readonly string[]; out?: readonly string[] }>;
+	completionCriteria?: readonly string[];
+}>;
+
+export type SddIntentPersistenceResult =
+	| Readonly<{ kind: "persisted"; record: SddPreflightRecord }>
+	| Readonly<{ kind: "adopted"; record: SddPreflightRecord }>
+	| Readonly<{ kind: "unpersisted"; reason: "missing-change" | "missing-tdd" }>;
+
+export type SddPreflightStanceUpdate = Readonly<{
+	tdd?: Exclude<TddMode, "auto" | "ask">;
+	declaredLane?: SddLane;
+	author: PreflightAuthor;
+	replaceTdd?: boolean;
+}>;
+
+export type SddPreflightStanceUpdateResult =
+	| Readonly<{ kind: "updated"; record?: SddPreflightRecord }>
+	| Readonly<{ kind: "tdd-conflict"; record: SddPreflightRecord }>;
+
+export type SddIntentPreflightOutcome =
+	| Readonly<{ kind: "read-only"; reason: string }>
+	| Readonly<{ kind: "adopted"; intent: SddIntentRecord }>
+	| Readonly<{
+			kind: "pending";
+			route: "normal";
+			reason: "confirmation-required" | "material-change" | "material-uncertain";
+			interaction: Extract<IntentInteractionPlan, { kind: "normal" }>;
+	  }>
+	| Readonly<{
+			kind: "resolved";
+			route: "normal" | "small";
+			resolution: SddIntentRecord["resolution"];
+			persisted: boolean;
+			intent: SddIntentRecord;
+			interaction?: Extract<IntentInteractionPlan, { kind: "small" }>;
+	  }>;
+
+export type SddIntentPreflightInput = Readonly<{
+	change: string;
+	evidence: IntentDecisionEvidence;
+	summary: string;
+	material?: SddIntentMaterialPatch;
+	materialEvidence: "sufficient" | "uncertain";
+	confirmed?: boolean;
+	thirdDecision?: MaterialThirdDecision;
+	resolvedBy?: PreflightAuthor;
+}>;
+
+function materialFromRecord(intent: SddIntentRecord): IntentMaterial {
+	return {
+		objective: intent.objective,
+		boundaries: { in: [...intent.boundaries.in], out: [...intent.boundaries.out] },
+		completionCriteria: [...intent.completionCriteria],
+	};
+}
+
+/** Applies only declared material slots; omitted slots inherit from the current intent. */
+export function patchSddIntentMaterial(
+	current: IntentMaterial | undefined,
+	patch: SddIntentMaterialPatch,
+): IntentMaterial {
+	const objective = patch.objective ?? current?.objective;
+	const boundaries = {
+		in: [...(patch.boundaries?.in ?? current?.boundaries.in ?? [])],
+		out: [...(patch.boundaries?.out ?? current?.boundaries.out ?? [])],
+	};
+	const completionCriteria = [
+		...(patch.completionCriteria ?? current?.completionCriteria ?? []),
+	];
+	return normalizeIntentMaterial({
+		objective: objective ?? "",
+		boundaries,
+		completionCriteria,
+	});
+}
+
+/**
+ * Owns compatibility stance writes. Explicit lanes also update provenance so
+ * an equal classified value cannot keep automatic authority by accident.
+ */
+export function updateSddPreflightStance(
+	cwd: string,
+	change: string,
+	update: SddPreflightStanceUpdate,
+): SddPreflightStanceUpdateResult {
+	const changeDir = changeDirFor(cwd, change);
+	if (!existsSync(changeDir)) return { kind: "updated" };
+	const latest = readPreflightRecord(changeDir);
+	if (update.tdd && latest?.tdd && !update.replaceTdd) {
+		return { kind: "tdd-conflict", record: latest };
+	}
+
+	if (update.declaredLane) writeChangeLane(changeDir, update.declaredLane);
+	const intent = latest?.intent && update.declaredLane
+		? { ...latest.intent, laneOrigin: "declared" as const }
+		: latest?.intent;
+	if (!update.tdd && intent === latest?.intent) return { kind: "updated", record: latest };
+	const tdd = update.tdd ?? latest?.tdd;
+	const decidedBy = update.tdd ? update.author : latest?.decidedBy;
+	if (!tdd || !decidedBy) return { kind: "updated", record: latest };
+
+	return {
+		kind: "updated",
+		record: writePreflightRecord(changeDir, {
+			tdd,
+			decidedBy,
+			...(intent ? { intent } : {}),
+		}),
+	};
+}
+
+/**
+ * Sole durable owner for intent resolution. It rereads immediately before the
+ * write: a resolution that appeared since observation is adopted, never lost.
+ */
+export function persistSddIntentResolution(
+	cwd: string,
+	change: string,
+	intent: SddIntentRecord,
+	observedMaterialKey: string | undefined,
+): SddIntentPersistenceResult {
+	const changeDir = changeDirFor(cwd, change);
+	if (!existsSync(changeDir)) return { kind: "unpersisted", reason: "missing-change" };
+	const latest = readPreflightRecord(changeDir);
+	if (!latest) return { kind: "unpersisted", reason: "missing-tdd" };
+	if (latest.intent) {
+		if (latest.intent.materialKey === intent.materialKey) return { kind: "adopted", record: latest };
+		if (observedMaterialKey === undefined || latest.intent.materialKey !== observedMaterialKey) {
+			return { kind: "adopted", record: latest };
+		}
+	}
+
+	const lane = inspectChangeLane(changeDir);
+	const previousClassifiedLane = latest.intent?.laneOrigin === "classified" &&
+		lane.valid && lane.lane === (latest.intent.route === "small" ? "micro" : "standard");
+	const laneIsDeclared = lane.exists && !previousClassifiedLane;
+	const effectiveIntent: SddIntentRecord = laneIsDeclared
+		? { ...intent, laneOrigin: "declared" }
+		: intent;
+	const record = writePreflightRecord(changeDir, {
+		tdd: latest.tdd,
+		decidedBy: latest.decidedBy,
+		intent: effectiveIntent,
+	});
+	const classifiedLane = effectiveIntent.route === "small" ? "micro" : "standard";
+	if (
+		effectiveIntent.laneOrigin === "classified" &&
+		(!lane.exists || (previousClassifiedLane && lane.lane !== classifiedLane))
+	) {
+		writeChangeLane(changeDir, classifiedLane);
+	}
+	return { kind: "persisted", record };
+}
+
+function normalPending(
+	reason: Extract<SddIntentPreflightOutcome, { kind: "pending" }>["reason"],
+	thirdDecision?: MaterialThirdDecision,
+): Extract<SddIntentPreflightOutcome, { kind: "pending" }> {
+	const interaction = planIntentInteraction({
+		route: "normal",
+		...(thirdDecision ? { thirdDecision } : {}),
+	});
+	if (interaction.kind !== "normal") throw new Error("Normal intent plan expected");
+	return { kind: "pending", route: "normal", reason, interaction };
+}
+
+async function resolveSddIntentPreflightOnce(
+	ctx: ExtensionContext,
+	input: SddIntentPreflightInput,
+): Promise<SddIntentPreflightOutcome> {
+	// Yield once so reentrant hooks in the same session observe the in-flight mark.
+	await Promise.resolve();
+	const changeDir = changeDirFor(ctx.cwd, input.change);
+	const observed = readPreflightRecord(changeDir);
+	const existingIntent = observed?.intent;
+	const stance = readChangeStance(ctx.cwd, input.change);
+	const declaredLane = stance?.laneDeclared ? stance.lane : null;
+	const decision = decideIntentPreflight({ ...input.evidence, declaredLane });
+	if (decision.kind === "read-only") return { kind: "read-only", reason: decision.reason };
+
+	if (input.materialEvidence !== "sufficient") {
+		return normalPending("material-uncertain", input.thirdDecision);
+	}
+	let material: IntentMaterial;
+	try {
+		material = patchSddIntentMaterial(
+			existingIntent ? materialFromRecord(existingIntent) : undefined,
+			input.material ?? {},
+		);
+	} catch {
+		return normalPending("material-uncertain", input.thirdDecision);
+	}
+	const materialKey = createIntentMaterialKey(material);
+	if (existingIntent?.materialKey === materialKey) {
+		return { kind: "adopted", intent: existingIntent };
+	}
+
+	if (decision.route === "normal" && !decision.bypassQuestions && input.confirmed !== true) {
+		return normalPending(existingIntent ? "material-change" : "confirmation-required", input.thirdDecision);
+	}
+
+	const interaction = decision.route === "small"
+		? planIntentInteraction({ route: "small", restatement: input.summary })
+		: undefined;
+	if (interaction?.kind === "small" && ctx.hasUI) ctx.ui.notify(interaction.lines[0], "info");
+	const resolution: SddIntentRecord["resolution"] = decision.bypassQuestions
+		? "bypassed"
+		: decision.route === "small"
+			? "automatic-small"
+			: "confirmed";
+	const intent: SddIntentRecord = {
+		version: 1,
+		resolution,
+		route: decision.route,
+		summary: input.summary.trim(),
+		...material,
+		materialKey,
+		laneOrigin: stance?.laneDeclared ? "declared" : "classified",
+		reason: decision.reason,
+		resolvedBy: input.resolvedBy ?? "pi",
+		resolvedAt: new Date().toISOString(),
+	};
+	const persisted = persistSddIntentResolution(
+		ctx.cwd,
+		input.change,
+		intent,
+		existingIntent?.materialKey,
+	);
+	if (persisted.kind === "adopted" && persisted.record.intent) {
+		return { kind: "adopted", intent: persisted.record.intent };
+	}
+	return {
+		kind: "resolved",
+		route: decision.route,
+		resolution,
+		persisted: persisted.kind === "persisted",
+		intent,
+		...(interaction?.kind === "small" ? { interaction } : {}),
+	};
+}
+
+/** Owns one intent flow per session/change; adapters call this, never the codec. */
+export function resolveSddIntentPreflight(
+	ctx: ExtensionContext,
+	input: SddIntentPreflightInput,
+): Promise<SddIntentPreflightOutcome> {
+	const key = `${sddPreflightSessionKey(ctx)}\u0000${input.change}`;
+	const current = sddIntentInFlight.get(key);
+	if (current) return current;
+	const promise = resolveSddIntentPreflightOnce(ctx, input);
+	sddIntentInFlight.set(key, promise);
+	const clear = () => {
+		if (sddIntentInFlight.get(key) === promise) sddIntentInFlight.delete(key);
+	};
+	void promise.then(clear, clear);
+	return promise;
+}
+
 // Preguntas de SESIÓN. Se hacen una vez y sobreviven a los cambios que vengan
 // después: describen cómo trabaja el humano hoy, no qué es este cambio.
 export async function collectSddSessionAnswers(
@@ -543,35 +821,13 @@ export async function collectSddSessionAnswers(
 	};
 }
 
-// Preguntas del CAMBIO: qué exigencia de tests y cuántas fases. Son dos porque
-// responden a la misma pregunta humana desde dos lados — "¿cuánto arnés pide
-// este trabajo?" — y ninguna tiene señal determinista antes de planificar.
+// Compatibility seam for consumers that still request a stance object. It no
+// longer asks per-change TDD/lane questions: persisted values are supplied by
+// the owner flow and absent values use technical defaults without persistence.
 export async function collectSddChangeStance(
 	ctx: ExtensionContext,
 ): Promise<SddChangeStanceAnswers> {
-	if (!ctx.hasUI) return { tddMode: resolveTddNoAsk(ctx), lane: DEFAULT_LANE };
-	// TDD: off (default) o strict. **Siempre** fija el override determinista → el
-	// gate de delegación (askRunTddMode) ya NO vuelve a preguntar (fin del
-	// doble-ask que salía cuando el modo global era `ask`). Default off: la mayoría
-	// del trabajo (frontend/simple) no necesita RED/GREEN y no debe quemar tokens.
-	// Respeta un `strict` persistente (`/ein:tdd strict`) poniéndolo primero.
-	const tddDefaultStrict = readTddMode(ctx.cwd) === "strict";
-	const tddChoice = await ctx.ui.select(
-		"Strict TDD for this SDD change? (default off — UI/visual/simple; strict → logic-heavy, forces RED/GREEN)",
-		tddDefaultStrict ? ["strict", "off"] : ["off", "strict"],
-	);
-	// Carril: vivía como un párrafo del orquestador pidiéndole al padre que se
-	// acordara de preguntarlo. 44 cambios archivados no produjeron ni un solo
-	// `lane.json`. Una pregunta que el runtime hace siempre no depende de que un
-	// prompt se lea. `standard` va primero: nunca se degrada por accidente.
-	const laneChoice = await ctx.ui.select(
-		"SDD lane for this change? (standard = seven phases; micro skips map and tasks — verify and close stay hard gates)",
-		["standard", "micro"],
-	);
-	return {
-		tddMode: tddChoice === "strict" ? "strict" : "off",
-		lane: normalizeLane(laneChoice) ?? DEFAULT_LANE,
-	};
+	return { tddMode: resolveTddNoAsk(ctx), lane: DEFAULT_LANE };
 }
 
 /**
@@ -587,10 +843,8 @@ export async function collectSddPreflightPreferences(
 	const session = opts.session ?? (await collectSddSessionAnswers(ctx, engramAvailable));
 	const stance = opts.stance ?? (await collectSddChangeStance(ctx));
 	setTaskTddMode(ctx, stance.tddMode);
-	// Sin UI nadie decidió nada: la postura no se persiste, para que un subagente
-	// headless no deje escrito en el cambio un "off" que nadie eligió.
-	const stanceSource: "asked" | "adopted" =
-		opts.stance || !ctx.hasUI ? "adopted" : "asked";
+	// Technical defaults are consumed, never promoted to a human change stance.
+	const stanceSource: "adopted" = "adopted";
 	return {
 		executionMode: session.executionMode,
 		memoryMode: session.memoryMode,
@@ -603,33 +857,12 @@ export async function collectSddPreflightPreferences(
 	};
 }
 
-// Escribe la postura en el directorio del cambio. NUNCA pisa una decisión ya
-// escrita: la primera decisión sobre un cambio es la que vale, y sobrescribirla
-// desde una sesión posterior es justo cómo se pierde la continuidad.
-function persistChangeStance(
-	cwd: string,
-	change: string,
-	prefs: SddPreflightPreferences,
-): void {
-	const dir = changeDirFor(cwd, change);
-	if (!existsSync(dir)) return;
-	if (prefs.stanceSource === "adopted") return;
-	if (!readPreflightRecord(dir)) {
-		writePreflightRecord(dir, {
-			tdd: prefs.tddMode === "strict" ? "strict" : "off",
-			decidedBy: "pi",
-		});
-	}
-	if (prefs.lane && !existsSync(laneConfigPath(dir))) writeChangeLane(dir, prefs.lane);
-}
-
 /**
  * ¿Sirven estas preferencias para el cambio activo? Ata la postura al primer
  * cambio que aparece (el preflight corre ANTES de que `sdd-scope` cree el
  * directorio) y la declara caducada en cuanto el cambio activo es otro.
  */
 function reusePreflightForChange(
-	cwd: string,
 	prefs: SddPreflightPreferences,
 	active: string | undefined,
 ): boolean {
@@ -637,7 +870,6 @@ function reusePreflightForChange(
 	if (prefs.activeChange === active) return true;
 	if (prefs.activeChange === undefined) {
 		prefs.activeChange = active;
-		persistChangeStance(cwd, active, prefs);
 		return true;
 	}
 	return false;
@@ -710,7 +942,7 @@ export async function ensureSddPreflight(
 	const active = resolveActiveChange(ctx.cwd);
 	const existing = sddPreflightBySession.get(sessionKey);
 	if (existing) {
-		if (reusePreflightForChange(ctx.cwd, existing, active)) return existing;
+		if (reusePreflightForChange(existing, active)) return existing;
 		// Cambio distinto → la postura del anterior caducó. También el override
 		// de TDD del run: si no, el gate de delegación seguiría cortando con la
 		// respuesta del cambio pasado.
@@ -735,7 +967,6 @@ export async function ensureSddPreflight(
 			prompted: prefs.prompted,
 		});
 		prefs.activeChange = active;
-		if (active) persistChangeStance(ctx.cwd, active, prefs);
 		// Snapshot del árbol antes de que el flujo mute nada: detecta un `reset`
 		// reciente / stashes que pudieran significar trabajo huérfano.
 		prefs.gitBaseline = readGitBaseline(ctx.cwd);
