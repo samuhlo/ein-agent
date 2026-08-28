@@ -54,9 +54,18 @@ export type KickoffMessage = { text: string };
 
 // Los builders solo devuelven el texto a inyectar; quien llama decide cuando (y
 // si) enviarlo -- nunca escriben ni ejecutan nada (R8).
-export function buildIntentKickoff(): KickoffMessage {
+// La peticion inicial (argumentos de /ein:intent) es opcional: sin ella, el
+// protocolo arranca en frio con una sola pregunta abierta -- ver SKILL.md.
+export function buildIntentKickoff(peticion?: string): KickoffMessage {
+	const trimmed = peticion?.trim();
+	const base = `Ejecuta el protocolo de la skill \`${SKILL_NAME}\`, sección \`/ein:intent\`: modela la petición como árbol de decisiones y recorre la frontera por rondas.`;
+	if (!trimmed) {
+		return {
+			text: `${base} No hay petición inicial: arranque en frío -- la ronda 1 es una sola pregunta abierta ("¿qué quieres hacer?"), nunca un formulario.`,
+		};
+	}
 	return {
-		text: `Ejecuta el protocolo de la skill \`${SKILL_NAME}\`, sección \`/ein:intent\`: modela la petición como árbol de decisiones y recorre la frontera por rondas.`,
+		text: `${base} Petición inicial del usuario, raíz del árbol: "${trimmed}".`,
 	};
 }
 

@@ -27,6 +27,14 @@ vive en su propia sección `##` addressable, separada del resto del flujo.
 - Cada pregunta va numerada y trae una recomendación.
 - La ronda se entrega como **un solo mensaje de texto plano**, respondible de una
   sola vez (`"1A, 2B"`); nunca como un diálogo modal ni una pregunta a la vez.
+- **Arranque en frío**: si no hay petición inicial ni contexto previo, la ronda 1
+  es una sola pregunta abierta y llana (`"¿qué quieres hacer?"`), nunca un
+  formulario. Si llega una petición inicial, la ronda 1 ya modela el árbol sobre
+  ella y no vuelve a preguntar qué quiere.
+- **Forma de las opciones**: cada opción es una respuesta concreta ya redactada,
+  que el usuario acepta, matiza o rechaza tal cual. Nunca una plantilla con
+  huecos entre corchetes para que la rellene él — si no hay una respuesta
+  concreta que proponer, la pregunta todavía no está lista para la ronda.
 
 ### Rondas siguientes
 

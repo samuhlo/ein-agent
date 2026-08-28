@@ -102,6 +102,23 @@ describe("builders de kickoff (R8): nunca escriben, solo devuelven texto", () =>
 		expect(eh.text).toContain(SKILL_NAME);
 		expect(eh.text).toContain("/ein:eh");
 	});
+
+	test("con peticion, el texto la incluye como raiz del arbol", () => {
+		const intent = buildIntentKickoff("quiero enganchar el eje a la preflight");
+		expect(intent.text).toContain("quiero enganchar el eje a la preflight");
+	});
+
+	test("sin peticion, el texto declara arranque en frio explicito", () => {
+		const intent = buildIntentKickoff();
+		expect(intent.text.toLowerCase()).toContain("arranque en frío");
+	});
+
+	test("una peticion vacia o solo-espacios se trata como ausente", () => {
+		const empty = buildIntentKickoff("");
+		const spaces = buildIntentKickoff("   ");
+		expect(empty.text.toLowerCase()).toContain("arranque en frío");
+		expect(spaces.text.toLowerCase()).toContain("arranque en frío");
+	});
 });
 
 describe("contrato estructural de SKILL.md (grupo 002 dependencia)", () => {

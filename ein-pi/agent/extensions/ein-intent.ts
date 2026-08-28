@@ -36,8 +36,8 @@ function guardIdleAndInject(
 export default function einIntent(pi: ExtensionAPI): void {
 	pi.registerCommand(INTENT_COMMAND, {
 		description: "Interroga la petición en rondas y cierra a disco en intent.md.",
-		handler: async (_args, ctx: ExtensionContext): Promise<void> => {
-			guardIdleAndInject(pi, ctx, buildIntentKickoff());
+		handler: async (args, ctx: ExtensionContext): Promise<void> => {
+			guardIdleAndInject(pi, ctx, buildIntentKickoff(args));
 		},
 	});
 
