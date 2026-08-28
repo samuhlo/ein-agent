@@ -659,3 +659,53 @@ describe("resolveSddStatus con raíz .sdd/changes (legacy)", () => {
 		expect(listActiveChanges(DIR)).toEqual(["feat-nuevo"]);
 	});
 });
+
+// intent.md NO es un artefacto de fase (R6): su presencia no puede mover la
+// respuesta determinista del router en ningún estado. add-intent-channel
+// añadió el fichero como opcional; este bloque prueba que sigue sin efecto.
+describe("intent.md es invisible para el router (R6/R7)", () => {
+	function statusWithout(state: string[]): ReturnType<typeof resolveSddStatus> {
+		const c = change("con-intent");
+		for (const f of state) put(c, f);
+		return resolveSddStatus(DIR, "con-intent");
+	}
+
+	function statusWith(state: string[]): ReturnType<typeof resolveSddStatus> {
+		DIR = mkdtempSync(join(tmpdir(), "sdd-router-"));
+		const c = change("con-intent");
+		put(c, "intent.md", "phase: intent\n");
+		for (const f of state) put(c, f);
+		return resolveSddStatus(DIR, "con-intent");
+	}
+
+	const states: string[][] = [
+		[],
+		["scope.md"],
+		["scope.md", "map.md"],
+		["scope.md", "map.md", "design.md", "tasks.md"],
+	];
+
+	for (const state of states) {
+		test(`estado ${JSON.stringify(state)}: next: idéntico con y sin intent.md`, () => {
+			const without = statusWithout(state);
+			const withIntent = statusWith(state);
+			expect(withIntent.nextRecommended).toBe(without.nextRecommended);
+			expect(withIntent.currentPhase).toBe(without.currentPhase);
+			expect(withIntent.artifacts.present.map((a) => a.phase)).toEqual(
+				without.artifacts.present.map((a) => a.phase),
+			);
+		});
+	}
+
+	test("intent.md nunca aparece en el mapa de artefactos ni como faltante", () => {
+		const s = statusWith(["scope.md"]);
+		const phases = [...s.artifacts.present, ...s.artifacts.missing].map((a) => a.phase);
+		expect(phases).not.toContain("intent");
+	});
+
+	test("scope corre sin bloqueo aunque no exista intent.md (R7)", () => {
+		const s = statusWithout([]);
+		expect(s.nextRecommended).toBe("scope");
+		expect(s.blocked.some((b) => b.toLowerCase().includes("intent"))).toBe(false);
+	});
+});
