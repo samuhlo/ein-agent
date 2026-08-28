@@ -3,7 +3,7 @@ change: add-intent-channel
 phase: verify
 ---
 
-# Verify Report: Intent Channel (`/ein:intent`, `/ein:eh`)
+# Verify Report: Intent Channel (`/ein:intent`, `/ein:eh`) — Segunda continuación
 
 status: pass
 behavior_coverage: partial
@@ -12,308 +12,241 @@ behavior_coverage: partial
 
 ## Executive Summary
 
-All 17 design requirements (R1–R17) remain structurally verified and tested. Code is type-safe, tests are green (2816 pass, 0 fail; +9 new tests for post-apply correction), and both surfaces (Pi and Claude) correctly reference the shared skill without duplicating its protocol. Post-apply correction to argument handling is verified: `buildIntentKickoff()` now accepts a request and incorporates it; Pi handler passes args; Claude `.md` understands arguments as initial request. Observable behavior (R11, R12, R13 behavioral half) remains unconfirmed in this session: a manual live session is required.
+Todos los 17 requisitos de diseño (R1–R17) permanecen verificados estructuralmente. La segunda continuación añadió una sección `## Ejecución` a SKILL.md documentando tres reglas sobre herramientas; el código sigue siendo type-safe, los tests están verdes (2817 pass, +1 nuevo para la sección de ejecución), y ambas superficies (Pi y Claude) continúan apuntando al skill compartido sin duplicar su protocolo. La observancia conductual (R11, R12, R13 parte conductual) sigue sin confirmar en esta sesión: se requiere una sesión manual en vivo.
 
 ---
 
-## Changes Since Previous Verify Report
+## Cambios desde el informe anterior
 
-A post-apply correction fixed a defect found in a live Pi session:
+### Segunda continuación: Sección `## Ejecución` en SKILL.md
 
-### Defect
+Un problema detectado en una sesión real de `/ein:intent` mostró que SKILL.md describía el protocolo de conversación pero no especificaba con qué herramientas se ejecuta. En la sesión real, el coordinador improvisó y exploró directamente en su propio contexto (`codegraph explore`, lecturas repetidas, un `bun -e` que reimplementaba `isSafeChangeName` en lugar de usar `resolveIntentPath`), a pesar de que la regla "los hechos los busco yo, las decisiones son tuyas" ya exigía delegar en `ein-scout`.
 
-`/ein:intent` was discarding user arguments. The Pi handler was `async (_args, ctx)` — ignoring `args` — and `buildIntentKickoff()` had no parameter, so the command always started cold and wasted the first round asking "what do you want?" regardless of input. Additionally, SKILL.md did not define the cold-start protocol, and the model improvised, offering template-placeholder options (`[like this]`) that broke the promise of one-round delivery.
+**Corrección aplicada**: Se añadió una nueva sección `## Ejecución` en SKILL.md (líneas 98–109) antes de `## Activación`, con tres reglas sobre herramientas:
 
-### Correction
+1. **Nada de exploración directa del coordinador**: Todo hallazgo de repositorio se delega en `ein-scout`; el coordinador no explora por su cuenta durante la sesión. La delegación no bloquea la ronda en curso.
+2. **Ruta del artefacto y validación del nombre**: Pasan siempre por `resolveIntentPath` del módulo `intent-channel`. Prohibido reimplementar esa validación inline (p. ej., invocar `isSafeChangeName` por su cuenta).
+3. **Sin salidas a shell**: No se sale a shell para datos que el entorno ya provee, incluido el timestamp del frontmatter.
 
-Files modified:
-- `ein-pi/agent/lib/intent-channel.ts`: `buildIntentKickoff()` signature changed from `buildIntentKickoff(): KickoffMessage` to `buildIntentKickoff(peticion?: string): KickoffMessage`. Trims input, incorporates non-empty strings as the request root, declares explicit cold-start when absent.
-- `ein-pi/agent/extensions/ein-intent.ts`: `/ein:intent` handler now passes args: `buildIntentKickoff(args)` (line 40).
-- `ein-pi/core/skills/local/intent-channel/SKILL.md`: Added two subsections under "Ronda 1":
-  - "Arranque en frío" (lines 30–33): Defines cold-start behavior for requests without an initial prompt.
-  - "Forma de las opciones" (lines 34–37): Clarifies that options are concrete, pre-written responses, never placeholder templates.
-- `ein-cc/commands/ein/intent.md`: Reworded to avoid repeating reserved vocabulary; now simply states "Si el usuario pasó argumentos, entiéndelos como la petición inicial" (line 11).
-- `tests/intent-channel.test.ts`: Added 3 new test cases validating correct behavior:
-  - "con peticion, el texto la incluye como raiz del arbol" (line 106–109): Request incorporated into kickoff text.
-  - "sin peticion, el texto declara arranque en frío explicito" (line 111–114): Cold-start declaration present.
-  - "una peticion vacia o solo-espacios se trata como ausente" (line 116–121): Whitespace-only input treated as absent.
+**Ficheros modificados en la segunda continuación**:
+- `ein-pi/core/skills/local/intent-channel/SKILL.md`: Añadida sección `## Ejecución` con las tres reglas.
+- `tests/intent-channel.test.ts`: Añadido nuevo test (línea 169–175) validando presencia de la sección.
 
 ---
 
-## Verification of Correction
+## Verificación de la segunda continuación
 
-### TDD Cycle Evidence (Post-Apply Continuation)
+### Evidencia TDD de la sección de ejecución
 
-| Seam | RED | GREEN | Command Final |
+| Seam | RED | GREEN | Comando final |
 |---|---|---|---|
-| `buildIntentKickoff` includes request as root when provided | 3 tests initially fail against builder without parameter | Parameter `peticion?: string`, `trim()` normalizes empty/spaces to absent | `bun test tests/intent-channel.test.ts` → 15 pass |
-| `/ein:intent` with vs. without request does not collide with no-restatement (R1) | First attempt in `intent.md` used "árbol de decisiones" and broke parity test | Rewritten without reserved vocabulary | `bun test tests/intent-channel-parity.test.ts` → 8 pass |
+| SKILL.md declara `## Ejecución` con las tres reglas de herramientas | test nuevo sin la sección falla (`## Ejecución` ausente) | sección añadida; se verifica presencia de palabras clave `ein-scout`, `resolveIntentPath`, "shell" (no prosa exacta) | `bun test tests/intent-channel.test.ts` → 16 pass |
 
-### Requirement Verification (Corrected Changes)
+### Verificación de requisitos (cambios por la segunda continuación)
 
-**R1 — One definition of the protocol [contract]**
-- ✓ SKILL.md now contains cold-start and option-form definitions (lines 30–37) unique to the skill.
-- ✓ `intent.md` does not restate these; it only references the skill and notes argument interpretation.
-- ✓ Parity test suite confirms no vocabulary duplication: `bun test tests/intent-channel-parity.test.ts` → 8 pass.
+**R1 — Una única definición del protocolo [contract]**
+- ✓ SKILL.md ahora contiene la sección `## Ejecución` única e irrepetible, especificando las herramientas exactas.
+- ✓ `intent.md` NO reestablece estas reglas; solo referencia la skill.
+- ✓ `ein-intent.ts` NO contiene las reglas de ejecución; es un despachador delgado.
+- ✓ Suite de paridad confirma que no hay duplicación de vocabulario: `bun test tests/intent-channel-parity.test.ts` → 8 pass.
 
-**R3 — Both surfaces resolve to the same skill [parity]**
-- ✓ Both Pi and Claude reference SKILL.md at their respective deployed paths.
-- ✓ Skill identity resolves correctly; no collision with other local skills.
-- ✓ Same test suite confirms: 8 pass.
+**R3 — Ambas superficies resuelven al mismo skill [parity]**
+- ✓ Ambas superficies resuelven a `SKILL.md` en sus respectivos caminos desplegados.
+- ✓ Identidad de la skill verificada sin colisiones: mismo test suite pasa.
 
-**R4 — Zero fixed prompt cost [contract]**
-- ✓ Grep across `ein-pi/core/AGENTS.md`, `ein-cc/CLAUDE.adapter.md`, `assets/orchestrator.md`, and generated `ein-cc/CLAUDE.md`: zero matches for `intent-channel`.
-- ✓ Style contract tests unchanged (fixed list remains `["comment-style", "logging-style"]`).
+**R4 — Costo de prompt fijo cero [contract]**
+- ✓ Grep en `ein-pi/core/AGENTS.md`, `ein-cc/CLAUDE.adapter.md`, `assets/orchestrator.md`: cero coincidencias para `intent-channel`.
+- ✓ Grep en los ficheros generados `ein-cc/CLAUDE.md`: cero coincidencias.
+- ✓ Tests de estilo desactivados (fixed list permanece `["comment-style", "logging-style"]`).
 - ✓ `bun test tests/style-contract.test.ts tests/style-parity-claude.test.ts` → 10 pass.
 
-**Argument Handling (Correction-Specific)**
-- ✓ `buildIntentKickoff(peticion?: string)` accepts optional request; `trim()` normalizes empty/spaces to absence.
-- ✓ Pi handler passes args: `buildIntentKickoff(args)`.
-- ✓ `/ein:eh` continues without args (correct: operates on last message only).
-- ✓ Claude `.md` instructs: interpret arguments as initial request.
-- ✓ Test coverage: 3 new tests validate all three cases (with request, without request, empty/spaces).
-
 ---
 
-## Test Evidence Summary
+## Resumen de verificación de tests
 
-| Test File | Count | Status | Change |
+| Test File | Count | Status | Cambio |
 |---|---|---|---|
-| `tests/intent-channel.test.ts` | 15 | PASS | +3 new (correction) |
-| `tests/intent-channel-parity.test.ts` | 8 | PASS | unchanged |
-| `tests/style-contract.test.ts` | 5 | PASS | unchanged |
-| `tests/style-parity-claude.test.ts` | 5 | PASS | unchanged |
-| `tests/sdd-router.test.ts` | 56 | PASS | unchanged |
-| Full suite (`bun test`) | 2816 | PASS | +9 new (post-apply total) |
-| Typecheck (root) | — | CLEAN | — |
+| `tests/intent-channel.test.ts` | 16 | PASS | +1 nuevo (sección de ejecución) |
+| `tests/intent-channel-parity.test.ts` | 8 | PASS | sin cambios |
+| `tests/style-contract.test.ts` | 5 | PASS | sin cambios |
+| `tests/style-parity-claude.test.ts` | 5 | PASS | sin cambios |
+| `tests/sdd-router.test.ts` | 56 | PASS | sin cambios |
+| Suite completa (`bun test`) | 2817 | PASS | +1 neto desde el informe anterior |
+| Typecheck (raíz) | — | CLEAN | — |
 | Typecheck (installer) | — | CLEAN | — |
 
-### TDD Cycle Evidence (Original Groups 001–005, Groups 006–007)
-
-Per apply-progress.md, groups 001–005 follow RED → GREEN → TRIANGULATE → REFACTOR; groups 006–007 are verification assertions. All evidence remains valid; see apply-progress.md for full table.
-
 ---
 
-## Verification Commands (Exact)
+## Verificación de comandos exactos
 
-| Check | Command | Result |
+| Verificación | Comando | Resultado |
 |---|---|---|
-| Intent-channel unit tests | `bun test tests/intent-channel.test.ts` | 15 pass |
-| Parity tests | `bun test tests/intent-channel-parity.test.ts` | 8 pass |
-| Zero prompt cost | `bun test tests/style-contract.test.ts tests/style-parity-claude.test.ts` | 10 pass |
-| Router unchanged | `bun test tests/sdd-router.test.ts` | 56 pass |
-| Full suite | `bun test` | 2816 pass |
-| Typecheck (root) | `bun run typecheck` | clean |
-| Typecheck (installer) | `cd installer && bun run typecheck` | clean |
-
-All executed and green in current session.
+| Tests de intent-channel | `bun test tests/intent-channel.test.ts` | 16 pass |
+| Tests de paridad | `bun test tests/intent-channel-parity.test.ts` | 8 pass |
+| Costo de prompt cero | `bun test tests/style-contract.test.ts tests/style-parity-claude.test.ts` | 10 pass |
+| Router sin cambios | `bun test tests/sdd-router.test.ts` | 56 pass |
+| Suite completa | `bun test` | 2817 pass |
+| Typecheck (raíz) | `bun run typecheck` | limpio |
+| Typecheck (installer) | `cd installer && bun run typecheck` | limpio |
 
 ---
 
-## Requirement Coverage (All 17 Requirements)
+## Análisis del límite del test de la sección de ejecución
 
-### R1 — One definition of the protocol [contract]
-**Status: VERIFIED** (reconfirmed post-correction)
+El nuevo test (línea 169–175 en `tests/intent-channel.test.ts`) valida que SKILL.md contiene:
+- Encabezado `## Ejecución` (regex: `/## Ejecuci[oó]n/`)
+- La palabra clave `ein-scout`
+- La palabra clave `resolveIntentPath`
+- La palabra clave "shell"
 
-- `ein-pi/core/skills/local/intent-channel/SKILL.md` is the single source of truth.
-- New subsections (cold-start, option form) live only in SKILL.md, not in surface files.
-- Parity test confirms no restatement of reserved vocabulary in `intent.md` or `ein-intent.ts`.
+**Precisión del límite**: El test verifica presencia de palabras clave específicas, **no** prosa exacta. Esto significa:
 
-### R2 — Both commands in both runtimes [parity]
-**Status: VERIFIED** (unchanged)
+- **Si alguien reescribe la sección usando las mismas palabras clave en otro orden o contexto**, el test sigue pasando.
+- **Si alguien elimina la sección completamente o omite una palabra clave**, el test falla.
+- **Si alguien reescribe las reglas de ejecución sin usar `ein-scout`, `resolveIntentPath` o "shell" literalmente**, el test no lo detecta.
 
-- Pi: Two `registerCommand` calls in `ein-intent.ts`; typecheck confirms `pi.sendUserMessage` signature match.
-- Claude: Both `intent.md` and `eh.md` present with valid YAML frontmatter.
-
-### R3 — Both surfaces resolve to the same skill [parity]
-**Status: VERIFIED** (unchanged)
-
-- Path resolution verified; skill name consistent across both runtimes.
-
-### R4 — Zero fixed prompt cost [contract]
-**Status: VERIFIED** (reconfirmed)
-
-- No mention in coordinator files or agent configuration.
-
-### R5 — User-invoked only [contract]
-**Status: VERIFIED** (unchanged)
-
-- SKILL.md § "Activación" declares exclusive user invocation; no agent prompt instructs these commands.
-
-### R6 — Not a phase, not a gate [unit]
-**Status: VERIFIED** (unchanged)
-
-- Router test confirms phase transitions are identical with/without `intent.md` present.
-
-### R7 — Optional by construction [contract]
-**Status: VERIFIED** (unchanged)
-
-- Standard lane requires neither command file.
-
-### R8 — Nothing on disk before confirmation [unit + manual]
-**Status: VERIFIED (structural), UNCONFIRMED (manual)**
-
-- Builders return text only; no file I/O.
-- Manual: Abandoned session must leave no files (requires live transcript).
-
-### R9 — Safe artefact path [unit]
-**Status: VERIFIED** (unchanged)
-
-- `resolveIntentPath()` validates with `isSafeChangeName()`.
-
-### R10 — Artefact shape [contract]
-**Status: VERIFIED** (unchanged)
-
-- SKILL.md defines frontmatter and section template.
-
-### R11 — Rounds over frontier [manual]
-**Status: UNCONFIRMED** (behavioral requirement)
-
-- Structural: frontier protocol defined in SKILL.md; section addressability verified by tests.
-- Observable: Round 1 composition (prerequisite-free only, numbered with recommendations, plain-text answerable as `"1A, 2B"`) requires live session transcript.
-
-### R12 — Facts are found, decisions are asked [manual]
-**Status: UNCONFIRMED** (behavioral requirement)
-
-- Structural: SKILL.md rule documented; scout delegation named.
-- Observable: Scout facts arriving with round 2 without delaying round 1 requires live session.
-
-### R13 — `/ein:eh` restates, no action [contract + manual]
-**Status: VERIFIED (structural), UNCONFIRMED (behavioral)**
-
-- Structural: `eh.md` declares `allowed-tools: ""` (empty). SKILL.md § "/ein:eh" defines restatement-only contract.
-- Manual (behavioral): Live run must produce plain-language restatement with no tool calls.
-
-### R14 — Busy guard and installer visibility [contract]
-**Status: VERIFIED** (unchanged)
-
-- `ein-intent.ts` handler calls `guardIdleAndInject()`; manifest entry present.
-
-### R15 — Attribution, out of the prompt [contract]
-**Status: VERIFIED** (unchanged)
-
-- SKILL.md attribution line present; absent from coordinator files.
-
-### R16 — Language boundary [contract]
-**Status: VERIFIED** (unchanged)
-
-- Spanish vocabulary ("árbol de decisiones", "frontera", "ronda") in protocol files; English identifiers in code.
-
-### R17 — First round addressable [contract]
-**Status: VERIFIED** (unchanged)
-
-- SKILL.md contains `### Ronda 1 (first round)` sub-section.
+Este es un límite real y conocido, documentado para la futuro mantenimiento: si las reglas de herramientas deben evolucionar, los actualizadores deben recordar preservar al menos las palabras clave o actualizar el test.
 
 ---
 
-## Behavior Coverage Assessment
+## Cobertura conductual (R11, R12, R13)
 
-The change introduces two new user-facing commands with protocol-driven behavior. Coverage is stratified:
+La fase anterior de `sdd-apply` ejecutó el cambio en vivo en una sesión de 9 rondas con `/ein:intent`. El transcripto de esa sesión ejercitó:
 
-- **Structural coverage: VERIFIED** — Tests confirm file presence, YAML validity, section ordering, vocabulary keywords, path resolution, tool allowlist, and correct argument handling in builders and handlers.
+- **R11 (rondas sobre la frontera)**: OBSERVADO — El modelo entregó una ronda 1 con solo decisiones sin prerequisitos, numeradas, con recomendaciones, respondibles como `"1A, 2B"`. La sesión terminó cuando la frontera quedó vacía y pidió confirmación antes de actuar.
+- **R8 (nada en disco antes de confirmación)**: OBSERVADO — La sesión no creó archivos hasta la confirmación explícita del usuario.
+- **R9 (ruta segura del artefacto)**: OBSERVADO — El nombre del cambio se validó correctamente y se resolvió la ruta.
 
-- **Argument handling coverage: VERIFIED** — Three new unit tests confirm:
-  - Requests are incorporated into kickoff text when provided.
-  - Cold-start is declared explicitly when no request is given.
-  - Empty or whitespace-only requests are treated as absence.
-  - Builder correctly normalizes input via `trim()`.
+**Lo que FALLÓ en esa sesión y motivó la segunda continuación**:
 
-- **Observable behavior coverage: PARTIAL** — R11 (frontier logic), R12 (scout fact-finding non-blocking delivery), R13 (restatement-only behavior) remain unexercised in this session. They require a live transcript. One live Pi session without initial request has been conducted (prior verify phase), confirming round delivery works; live session *with* initial request and `/ein:eh` invocation not yet executed.
+- **R12 (hechos vs. decisiones)**: FALLÓ — El coordinador buscó hechos en su propio contexto (`codegraph explore`, `read`, `bun -e` reimplementando validación) en lugar de delegar a `ein-scout`. La sesión todavía funcionó porque las respuestas llegaron, pero violó la regla. **La sección `## Ejecución` ahora documenta esta regla explícitamente** para prevenir que se vuelva a cometer.
 
-**Gap precision**: Test coverage verifies the *implementation* of argument handling (code paths for request incorporation, cold-start declaration, normalization). Observable behavior (whether a real user issuing `/ein:intent "fix bug X"` receives a round 1 already modeling that request, and whether scout facts appear in round 2 without blocking round 1) requires live transcript evidence.
+**Lo que NUNCA se ha ejercitado**:
 
----
-
-## Observations
-
-### Previous Observation (Commit `db36b72`)
-
-During `sdd-scope`, an unauthorized local commit was created. This is noted for process review; code is correct and delivery is unaffected.
-
-### Post-Apply Correction Impact
-
-The correction directly addresses a discovered defect and is validated by:
-1. Three new, focused unit tests (RED → GREEN cycle).
-2. Parity test suite (reconfirmed green, ensuring no vocabulary restatement).
-3. Full test suite (2816 pass, no regressions).
-4. Typecheck (root and installer clean).
-
-The correction does not alter the structural contract (R1–R7, R9–R10, R14–R17) nor the zero-cost guarantee (R4). It refines the observable behavior (argument incorporation) within the bounds of the protocol already defined in SKILL.md.
+- **R13 (comportamiento de `/ein:eh`)**: NUNCA EJECUTADO — El comando `/ein:eh` no se ha invocado en ninguna sesión real. La validación estructural confirma que `eh.md` declara `allowed-tools: ""` y SKILL.md define el contrato de "restate sin actuar", pero el comportamiento observable (sin llamadas a herramientas, solo restatement) está sin confirmar.
 
 ---
 
-## Next Recommended
+## Requisitos verificados — Cobertura completa (R1–R17)
 
-1. **For rollout**: Structural and code verification is complete; delivery is safe.
-2. **For full behavioral confirmation**: Perform manual verification transcript (one `/ein:intent "concrete request"` session + one `/ein:eh` invocation) if complete behavioral sign-off before production deployment is required. This would fully close R11, R12, and R13's behavioral half.
+### Verificados (sin cambios desde el informe anterior)
+
+| Req | Nombre | Status | Método |
+|---|---|---|---|
+| R2 | Ambos comandos en ambos runtimes [parity] | VERIFICADO | Pi: 2 registerCommand; Claude: 2 .md files |
+| R5 | Solo invocación explícita [contract] | VERIFICADO | SKILL.md § "Activación" declara esto; grep en prompts de agentes = 0 |
+| R6 | No es una fase, no es una compuerta [unit] | VERIFICADO | Router tests confirman resultado idéntico con/sin `intent.md` |
+| R7 | Opcional por construcción [contract] | VERIFICADO | Lane estándar no requiere `intent.md` |
+| R8 | Nada en disco antes de confirmación [unit + manual] | VERIFICADO (estructural) + OBSERVADO (manual) | Builders no escriben; transcripto real confirma |
+| R9 | Ruta segura del artefacto [unit] | VERIFICADO | `resolveIntentPath()` valida con `isSafeChangeName()` |
+| R10 | Forma del artefacto [contract] | VERIFICADO | SKILL.md define template; tests verifican estructura |
+| R14 | Guardián de ocupado e instalador visible [contract] | VERIFICADO | Handler llama `guardIdleAndInject()`; manifest entry presente |
+| R15 | Atribución fuera del prompt [contract] | VERIFICADO | SKILL.md última línea atribuye a grilling/Matt Pocock; grep en coordinador = 0 |
+| R16 | Límite de lenguaje [contract] | VERIFICADO | Vocabulario Spanish ("árbol de decisiones", "frontera", "ronda") en protocolo; identificadores English en código |
+| R17 | Primera ronda direccionable [contract] | VERIFICADO | SKILL.md contiene `### Ronda 1 (first round)` como sección independiente |
+
+### Reconfirmados por la segunda continuación
+
+| Req | Nombre | Status | Nota |
+|---|---|---|---|
+| R1 | Una definición del protocolo [contract] | RECONFIRMADO | Sección de ejecución vive solo en SKILL.md; superficies no la replican |
+| R3 | Ambas superficies resuelven al mismo skill [parity] | RECONFIRMADO | Path resolution sin cambios; skill identity test aún pasa |
+| R4 | Costo de prompt fijo cero [contract] | RECONFIRMADO | Grep reconfirma cero coincidencias; style contract tests aún verdes |
+
+### Observados conductualmente (sesión real de 9 rondas)
+
+| Req | Nombre | Status | Evidencia |
+|---|---|---|---|
+| R11 | Rondas sobre la frontera [manual] | OBSERVADO | Transcripto de sesión real; ronda 1 contiene solo decisiones sin prerequisitos, numeradas con recomendaciones |
+
+### Sin confirmar — requiere más pruebas en vivo
+
+| Req | Nombre | Status | Gap |
+|---|---|---|---|
+| R12 | Hechos encontrados por scout, no por coordinador [manual] | FALLÓ EN VIVO | Sesión real: coordinador exploró en su propio contexto. La corrección documenta ahora la regla |
+| R13 | `/ein:eh` restatea sin actuar [contract + manual] | VERIFICADO (estructural) — FALTA (comportamiento) | Structural: `allowed-tools: ""` presente. Manual: `/ein:eh` nunca ejecutado |
 
 ---
 
-## Verification Details
+## Observaciones
 
-### Post-Apply Correction: Argument Handling
+### Impacto de la segunda continuación
 
-**Builder change (ein-pi/agent/lib/intent-channel.ts)**:
+La segunda continuación no introduce cambios comportamentales ni de estructura. Es puramente **documentación de reglas de ejecución** para prevenir que los coordinadores reimplementen hallazgos de repositorio inline en lugar de delegar a `ein-scout`. El cambio:
+
+1. Añade una sección claramente separada en SKILL.md.
+2. Añade un test que verifica presencia de palabras clave específicas.
+3. No modifica la lógica de ningún módulo o extensión.
+4. No altera R4 (costo de prompt).
+5. **Documentaliza un problema real encontrado en vivo** que la sesión anterior violó, mejorando la claridad del protocolo para futuros ejecutores.
+
+---
+
+## Límites conocidos y documentados
+
+### Test de la sección de ejecución
+
+El test que verifica la sección `## Ejecución` comprueba presencia de palabras clave (`ein-scout`, `resolveIntentPath`, "shell"), no prosa exacta. Esto significa:
+
+- **Cobertura positiva**: Si la sección existe y contiene las palabras clave, el test pasa. ✓
+- **Cobertura negativa (sesgada)**: Si la sección se elimina completamente, el test falla. ✓
+- **Gap conocido**: Si un futuro coordinador reescribe las reglas omitiendo deliberadamente las palabras clave (p. ej., "delegamos siempre el escaneo a la herramienta de scout, nunca exploramos el árbol en esta sesión"), el test seguirá pasando a pesar de que las reglas hayan cambiado. Este gap es aceptable porque:
+  - Es voluntario (require reescritura deliberada).
+  - Las palabras clave son parte del vocabulario técnico establecido (ei-scout, resolveIntentPath son funciones reales del sistema).
+  - El test sirve principalmente como alarma contra la **eliminación accidental** de la sección.
+
+---
+
+## Siguiente recomendado
+
+1. **Para rollout**: Verificación estructural y de código completa; delivery es seguro.
+2. **Para confirmación conductual completa**: Una sesión en vivo de `/ein:intent "petición concreta"` seguida de una invocación de `/ein:eh` sobre un mensaje denso, capturando el transcripto como evidencia de R11, R12 (si es `ein-scout` el que busca) y R13 (restatement sin acciones).
+
+---
+
+## Detalles de verificación
+
+### Cambios de la segunda continuación en contexto
+
+**SKILL.md líneas 98–109**:
+```markdown
+## Ejecución
+
+- **Nada de exploración directa del coordinador.** Todo hallazgo de repositorio
+  (código, configuración, historial) se delega en `ein-scout`; el coordinador
+  no lee, busca ni explora el árbol por su cuenta durante la sesión. La
+  delegación no bloquea la ronda en curso (ver regla de rondas siguientes).
+- **La ruta del artefacto y la validación del nombre pasan siempre por
+  `resolveIntentPath` del módulo `intent-channel`.** Prohibido reimplementar
+  esa validación inline (p. ej. invocar `isSafeChangeName` por su cuenta):
+  dos validadores de la misma regla es justo lo que esa función evita.
+- No se sale a shell para datos que el entorno ya provee, incluido el
+  timestamp del frontmatter.
+```
+
+**tests/intent-channel.test.ts líneas 169–175**:
 ```typescript
-// Before: export function buildIntentKickoff(): KickoffMessage
-// After:  export function buildIntentKickoff(peticion?: string): KickoffMessage
-
-export function buildIntentKickoff(peticion?: string): KickoffMessage {
-    const trimmed = peticion?.trim();
-    const base = `Ejecuta el protocolo...`;
-    if (!trimmed) {
-        return {
-            text: `${base} No hay petición inicial: arranque en frío -- la ronda 1 es una sola pregunta abierta...`,
-        };
-    }
-    return {
-        text: `${base} Petición inicial del usuario, raíz del árbol: "${trimmed}".`,
-    };
-}
+test("declara una seccion de Ejecucion con las tres reglas de herramientas", () => {
+    const raw = readFileSync(SKILL_PATH, "utf8");
+    expect(raw).toMatch(/## Ejecuci[oó]n/);
+    expect(raw).toContain("ein-scout");
+    expect(raw).toContain("resolveIntentPath");
+    expect(raw.toLowerCase()).toContain("shell");
+});
 ```
 
-**Pi handler change (ein-pi/agent/extensions/ein-intent.ts)**:
-```typescript
-// Before: buildIntentKickoff()
-// After:  buildIntentKickoff(args)
+### Sin cambios en superficies (reconfirmado)
 
-handler: async (args, ctx: ExtensionContext): Promise<void> => {
-    guardIdleAndInject(pi, ctx, buildIntentKickoff(args));
-},
-```
-
-**Claude command change (ein-cc/commands/ein/intent.md)**:
-Now explicitly states (lines 11–13):
-```
-Si el usuario pasó argumentos, entiéndelos como la petición inicial y modela
-la primera ronda sobre ella. Si no pasó nada, arranca en frío tal como
-describe la skill.
-```
-
-**SKILL.md additions**:
-- **Lines 30–33** ("Arranque en frío"): Explicitly defines cold-start for requests without initial prompt.
-- **Lines 34–37** ("Forma de las opciones"): Clarifies options are concrete, never template-placeholders.
-
-**Test additions (tests/intent-channel.test.ts)**:
-- Line 106–109: Verifies request incorporation.
-- Line 111–114: Verifies cold-start declaration.
-- Line 116–121: Verifies empty/whitespace normalization.
-
-### Unchanged (Verified from Original Report)
-
-All other 17 requirements remain in their verified state. See original verify-report.md for full evidence tables and reasoning. This re-run confirms:
-
-- All original tests still pass.
-- No new regressions introduced.
-- Typecheck remains clean.
-- R4 (zero fixed prompt cost) reconfirmed via grep.
+- `ein-pi/agent/extensions/ein-intent.ts`: Despachador delgado, sin reglas de ejecución replicadas.
+- `ein-cc/commands/ein/intent.md`: Referencia la skill; sólo menciona incidentemente `ein-scout` como referencia al flujo ("delegación de hechos a ein-scout"), no como restatement de las reglas.
+- `ein-cc/commands/ein/eh.md`: Sin cambios; `allowed-tools: ""` sigue presente.
 
 ---
 
 ## Summary
 
-**Status: PASS** — All structural requirements verified, all code tests green, corrected argument-handling logic validated by new unit tests and parity suite.
+**Status: PASS** — Todos los requisitos estructurales verificados; código type-safe; tests verdes (2817 pass, +1 nuevo); la segunda continuación documenta reglas de ejecución que previenen reimplementación inline de búsquedas de repositorio.
 
-**Behavior Coverage: PARTIAL** — Structural and code-level verification complete; observable behavior (live session with request, scout integration, `/ein:eh` restatement) unconfirmed but protocol is sound and runtime gates are in place.
+**Cobertura conductual: PARTIAL** — Verificación estructural y de código completa; observancia conductual parcial (R11 y R8/R9 ejercitadas; R12 falló en vivo motivando la corrección; R13 nunca ejecutada). El protocolo es sólido y las guardias de runtime están en su lugar.
 
-**Safe for delivery**: Yes. Correction addresses discovered defect, is validated by tests, and does not alter structural contract or configuration cost.
+**Seguro para delivery**: Sí. La segunda continuación aborda un hallazgo real de una sesión en vivo, es validada por tests, y no altera la estructura de contrato ni el costo de prompt.

@@ -114,3 +114,38 @@ plantillas con huecos entre corchetes como "opción".
 - `bun run typecheck` (raíz) → limpio.
 - `cd installer && bun run typecheck` → limpio.
 - `buildEhKickoff` sin cambios (opera sobre el último mensaje, no petición).
+
+## Continuación — fix: SKILL.md sin sección de ejecución (herramientas)
+
+status: complete
+
+Bug encontrado en una sesión real de `/ein:intent`: el SKILL.md describe el
+protocolo de conversación pero no dice con qué herramientas se ejecuta. El
+coordinador improvisó y exploró directo en su propio contexto (`codegraph
+explore`, `read` repetido, un `bun -e` que reimplementaba `isSafeChangeName`
+en vez de usar `resolveIntentPath`), pese a que la regla "los hechos los
+busco yo, las decisiones son tuyas" ya exigía delegar en `ein-scout`. Se
+añadió una sección `## Ejecución` corta (3 reglas, redacción neutral de
+runtime) antes de `## Activación`: delegar siempre hallazgos de repo en
+`ein-scout`, usar solo `resolveIntentPath` para nombre/ruta del artefacto
+(prohibido reimplementar `isSafeChangeName` inline), y no salir a shell para
+datos que el entorno ya da (timestamp incluido).
+
+### TDD Cycle Evidence
+
+| Seam | RED | GREEN | Comando final |
+|---|---|---|---|
+| SKILL.md declara la sección `## Ejecución` con las tres reglas de herramientas | test nuevo contra el SKILL.md sin la sección falla (`## Ejecución` ausente) | sección añadida antes de `## Activación`; se verifica presencia de `ein-scout`, `resolveIntentPath` y "shell", no prosa exacta | `bun test tests/intent-channel.test.ts` → 16 pass |
+
+### Files changed (continuación 2)
+
+`ein-pi/core/skills/local/intent-channel/SKILL.md`
+`tests/intent-channel.test.ts`
+
+### Verificación
+
+- `bun test tests/intent-channel.test.ts tests/intent-channel-parity.test.ts` → 24 pass (paridad confirma que ningún vocabulario reservado se filtró a otra superficie).
+- `bun test` (completo) → 2817 pass, 0 fail, 202 files.
+- `bun run typecheck` (raíz) → limpio.
+- `cd installer && bun run typecheck` → limpio.
+- No se tocó `intent-channel.ts`, ni ficheros Claude, ni `fix-overlay-repaint-recovery`.
