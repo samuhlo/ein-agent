@@ -204,6 +204,19 @@ describe("participant advisory routing", () => {
 	});
 });
 
+describe("intent preflight continuation", () => {
+	const src = readFileSync(EIN_AI_PATH, "utf8");
+
+	test("resolved input returns to the existing router and handoff", () => {
+		const block = src.match(/function continueAfterPiIntent[\s\S]*?\n\t}/)?.[0] ?? "";
+		expect(block).toContain("resolveSddNext");
+		expect(block).toContain("sddNextHandoff");
+		expect(block).toContain("pi.sendUserMessage");
+		expect(block).not.toContain("sdd-scope");
+		expect(block).not.toContain("sdd-apply");
+	});
+});
+
 describe("ein:sdd-next command wiring", () => {
 	const src = readFileSync(EIN_AI_PATH, "utf8");
 	const orchestrator = readFileSync(ORCHESTRATOR_PATH, "utf8");

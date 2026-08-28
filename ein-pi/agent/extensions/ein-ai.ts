@@ -34,9 +34,11 @@ import {
 	isSddPreflightTrigger,
 	renderMemoryAdvisory,
 	renderSddPreflightPrompt,
+	resolveSddIntentPreflight,
 	sddGlobalAssetDriftCount,
 	sddPreflightSessionKey,
 	type MemoryPreparationLifecycle,
+	type SddIntentPreflightInput,
 	type SddPreflightPreferences,
 } from "../lib/sdd-preflight.ts";
 import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";
@@ -100,6 +102,7 @@ import {
 	normalizeTddStance,
 	readChangeStance,
 	renderChangeStanceLine,
+	resolveActiveChange,
 	writePreflightRecord,
 } from "../lib/sdd-preflight-record.ts";
 import { aggregateSddBudget, changeUnavailableMessage, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddNextHandoff, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
@@ -222,6 +225,72 @@ function recognizePiParticipantTerminal(input: {
 // que un log pegado a mitad del trabajo revocaba en silencio el "haz push" de
 // dos turnos antes y bloqueaba la delegación siguiente.
 const deliveryIntentBySession = new Map<string, DeliveryIntent>();
+
+type PiIntentGate =
+	| Readonly<{ kind: "pending"; input: SddIntentPreflightInput }>
+	| Readonly<{ kind: "confirming"; input: SddIntentPreflightInput; answers: string }>
+	| Readonly<{ kind: "resolved" }>;
+const piIntentGateBySession = new Map<string, PiIntentGate>();
+
+const READ_ONLY_INTENT = /^(?:(?:can|could|would)\s+you\s+|please\s+|(?:puedes|podrías)\s+|por\s+favor[,\s]+)?(?:explain|inspect|show|list|read|review|analy[sz]e|describe|what|why|how|where|which|explica|inspecciona|muestra|lista|lee|revisa|analiza|qué|que|por qué|por que|cómo|como|dónde|donde|cuál|cual)\b/iu;
+const MODIFYING_INTENT = /\b(?:implement|add|change|update|fix|remove|delete|write|create|refactor|rename|move|install|configur|implementa|añade|agrega|cambia|actualiza|corrige|elimina|borra|escribe|crea|refactoriza|renombra|mueve|instala)\w*\b/iu;
+const SMALL_TEXT_INTENT = /^(?:fix|correct|update|corrige|actualiza)\s+(?:the\s+|el\s+|la\s+)?(?:typo|spelling|wording|text|errata|ortograf[ií]a|texto)\s+(?:in|en)\s+\S+(?:\s+(?:skip questions|without questions|don't ask|do not ask|sin preguntas|no preguntes))?\s*\.?$/iu;
+const SAFE_BYPASS_INTENT = /\b(?:skip questions|without questions|don't ask|do not ask|sin preguntas|no preguntes)\b/iu;
+
+export function classifyPiIntentRequest(text: string) {
+	const modifying = MODIFYING_INTENT.test(text);
+	const readOnly = !modifying && READ_ONLY_INTENT.test(text.trim());
+	const smallText = SMALL_TEXT_INTENT.test(text.trim());
+	return {
+		activation: readOnly ? "read-only" : modifying ? "modifying" : "unknown",
+		declaredLane: null,
+		bounded: smallText ? true : "unknown",
+		mechanical: smallText ? true : "unknown",
+		documentationOrTextOnly: smallText ? true : "unknown",
+		introducesBehavior: smallText ? false : "unknown",
+		securityRisk: smallText ? false : "unknown",
+		persistentDataRisk: smallText ? false : "unknown",
+		destructiveActionRisk: smallText ? false : "unknown",
+		bypassRequested: SAFE_BYPASS_INTENT.test(text),
+	} as const;
+}
+
+function piIntentMaterial(text: string, answers?: string) {
+	return {
+		objective: text,
+		boundaries: {
+			in: [answers?.trim() || "The explicitly requested change"],
+			out: ["Behavior and files outside the explicit request"],
+		},
+		completionCriteria: ["The requested outcome is complete and focused checks pass"],
+	};
+}
+
+function piIntentGateDirective(ctx: ExtensionContext): string {
+	const gate = piIntentGateBySession.get(sddPreflightSessionKey(ctx));
+	return gate && gate.kind !== "resolved"
+		? "\n\n## Intent preflight gate\nFAIL CLOSED: intent is unresolved. Do not construct, edit, delegate modifying work, or invoke mutating tools. Secondary hooks cannot ask intent questions."
+		: "";
+}
+
+async function adoptPiIntentGate(ctx: ExtensionContext): Promise<void> {
+	const sessionKey = sddPreflightSessionKey(ctx);
+	const gate = piIntentGateBySession.get(sessionKey);
+	if (!gate || gate.kind === "resolved") return;
+	const change = resolveActiveChange(ctx.cwd);
+	if (!change) return;
+	const outcome = await resolveSddIntentPreflight(ctx, { ...gate.input, change });
+	if (outcome.kind === "adopted" || outcome.kind === "resolved") {
+		piIntentGateBySession.set(sessionKey, { kind: "resolved" });
+	}
+}
+
+function piIntentToolBlockReason(ctx: ExtensionContext, toolName: string): string | undefined {
+	const gate = piIntentGateBySession.get(sddPreflightSessionKey(ctx));
+	if (!gate || gate.kind === "resolved") return undefined;
+	if (["read", "grep", "find", "codegraph_explore", "codegraph_callers", "codegraph_callees"].includes(toolName)) return undefined;
+	return "Intent preflight is unresolved. Only the input hook may ask; submit a clarified or confirmed request before construction.";
+}
 
 // Foto del artefacto de fase justo ANTES de delegar, por toolCallId. La lee el
 // hook `tool_result` para distinguir "la fase no se hizo" de "el runner falló
@@ -662,6 +731,63 @@ export default function einAi(pi: ExtensionAPI): void {
 		return preferences;
 	}
 
+	function continueAfterPiIntent(ctx: ExtensionContext, change: string | undefined): void {
+		if (!change) return;
+		const handoff = sddNextHandoff(resolveSddNext(ctx.cwd, change));
+		if (handoff) pi.sendUserMessage(handoff);
+	}
+
+	async function runPiIntentPreflight(text: string, ctx: ExtensionContext): Promise<"read-only" | "pending" | "resolved"> {
+		const sessionKey = sddPreflightSessionKey(ctx);
+		const current = piIntentGateBySession.get(sessionKey);
+		if (current?.kind === "pending") {
+			const answers = text.trim();
+			if (!answers) return "pending";
+			piIntentGateBySession.set(sessionKey, { kind: "confirming", input: current.input, answers });
+			if (ctx.hasUI) {
+				ctx.ui.notify(
+					`${current.input.summary} — ${answers}\nReply \"confirm\" to continue, or send a revised request.`,
+					"info",
+				);
+			}
+			return "pending";
+		}
+		if (current?.kind === "confirming") {
+			if (!/^(?:confirm|confirmed|yes|sí|si)$/iu.test(text.trim())) {
+				piIntentGateBySession.delete(sessionKey);
+				return runPiIntentPreflight(text, ctx);
+			}
+			const confirmed = await resolveSddIntentPreflight(ctx, {
+				...current.input,
+				summary: `${current.input.summary} — ${current.answers}`,
+				material: piIntentMaterial(current.input.summary, current.answers),
+				confirmed: true,
+			});
+			if (confirmed.kind === "pending") return "pending";
+			piIntentGateBySession.set(sessionKey, { kind: "resolved" });
+			return "resolved";
+		}
+
+		piIntentGateBySession.delete(sessionKey);
+		const change = resolveActiveChange(ctx.cwd);
+		const input: SddIntentPreflightInput = {
+			change: change ?? `pi-session-${sessionKey.replace(/[^a-z0-9-]/giu, "-").slice(-48) || "pending"}`,
+			evidence: classifyPiIntentRequest(text),
+			summary: text.trim(),
+			material: piIntentMaterial(text),
+			materialEvidence: "sufficient",
+		};
+		const outcome = await resolveSddIntentPreflight(ctx, input);
+		if (outcome.kind === "read-only") return "read-only";
+		if (outcome.kind === "pending") {
+			piIntentGateBySession.set(sessionKey, { kind: "pending", input });
+			if (ctx.hasUI) ctx.ui.notify(outcome.interaction.text, "info");
+			return "pending";
+		}
+		piIntentGateBySession.set(sessionKey, { kind: "resolved" });
+		return "resolved";
+	}
+
 	async function saveCheckedPhaseMemory(
 		ctx: ExtensionContext,
 		change: string,
@@ -772,6 +898,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	pi.on("session_shutdown", (_event, ctx) => {
 		scoutTracking.clear();
 		const sessionKey = sddPreflightSessionKey(ctx);
+		piIntentGateBySession.delete(sessionKey);
 		clearAgentControlSession(sessionKey);
 		clearSddParticipantSession(sessionKey);
 	});
@@ -794,21 +921,19 @@ export default function einAi(pi: ExtensionAPI): void {
 				nextDeliveryIntent(deliveryIntentBySession.get(key), event.text),
 			);
 		}
-		if (typeof event.text !== "string" || !isSddPreflightTrigger(event.text)) {
-			return { action: "continue" };
-		}
-		await runSddPreflight(ctx);
-		// El gate de TDD ya no vive aquí: se dispara en tool_call ante CUALQUIER
-		// delegación que escriba código (sdd-apply directo o dentro de un chain),
-		// no solo en el trigger SDD explícito. Así un cambio de código ad-hoc
-		// también pregunta, y el flujo SDD explícito no pregunta dos veces.
+		if (typeof event.text !== "string") return { action: "continue" };
+		const explicitSdd = isSddPreflightTrigger(event.text);
+		if (explicitSdd) await runSddPreflight(ctx);
+		const intent = await runPiIntentPreflight(event.text, ctx);
+		if (intent === "pending") return { action: "handled" };
+		if (intent === "resolved") continueAfterPiIntent(ctx, resolveActiveChange(ctx.cwd));
 		return { action: "continue" };
 	});
 
 	pi.on("before_agent_start", async (event, ctx) => {
+		await adoptPiIntentGate(ctx);
 		const isSddAgent = isSddAgentStartEvent(event);
 		const isNamedAgent = isNamedAgentStartEvent(event);
-		if (isSddAgent) await runSddPreflight(ctx);
 		const prefs = getSddPreflightPreferences(ctx);
 		const startNames = readAgentStartNames(event);
 		// Memoria a granularidad de SESIÓN, no de fase: solo el parent recibe el
@@ -896,11 +1021,14 @@ export default function einAi(pi: ExtensionAPI): void {
 		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
 		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}`,
+			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${piIntentGateDirective(ctx)}`,
 		};
 	});
 
 	pi.on("tool_call", async (event, ctx) => {
+		await adoptPiIntentGate(ctx);
+		const intentBlock = piIntentToolBlockReason(ctx, event.toolName);
+		if (intentBlock) return { block: true, reason: intentBlock };
 		// Delegaciones con push: el usuario confirma aquí (sesión con UI) y se
 		// emite el grant one-shot que el guard headless del subagente consume.
 		if (event.toolName === "subagent") {

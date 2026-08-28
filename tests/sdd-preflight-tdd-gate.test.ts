@@ -7,7 +7,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-const { normalizeSddMemoryMode, renderSddPreflightPrompt } = await import(
+const { collectSddPreflightPreferences, normalizeSddMemoryMode, renderSddPreflightPrompt } = await import(
 	"../ein-pi/agent/lib/sdd-preflight"
 );
 
@@ -48,5 +48,24 @@ describe("renderSddPreflightPrompt TDD gate", () => {
 		expect(out).not.toContain("retrieved");
 		expect(out).not.toContain("saved");
 		expect(out).toContain("Execution mode");
+	});
+
+	test("TDD technical default is consumed without a per-change TDD or lane selector", async () => {
+		const selected: string[] = [];
+		const ctx = {
+			hasUI: true,
+			cwd: "/tmp/ein-preflight-tdd-default",
+			sessionManager: { getSessionId: () => "tdd-default-session" },
+			ui: {
+				select: async (title: string, options: string[]) => {
+					selected.push(title);
+					return options[0];
+				},
+				notify: () => {},
+			},
+		} as never;
+		const prefs = await collectSddPreflightPreferences(ctx, false);
+		expect(selected.some((title) => /strict tdd|lane/i.test(title))).toBe(false);
+		expect(["auto", "off", "strict"]).toContain(prefs.tddMode);
 	});
 });

@@ -27,10 +27,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import {
+	inspectChangeLane,
 	LANE_LABEL,
-	laneConfigPath,
 	laneSkips,
-	readChangeLane,
 	type SddLane,
 } from "./sdd-lane.ts";
 import { isSafeChangeName, resolveActiveSelection, resolveChangesDir, selectedChange } from "./sdd-router.ts";
@@ -40,12 +39,32 @@ export type TddStance = "off" | "strict";
 
 /** Qué runtime tomó la decisión. Se guarda para que el status pueda decirlo. */
 export type PreflightAuthor = "pi" | "claude";
+export type SddIntentResolution = "confirmed" | "automatic-small" | "bypassed";
+export type SddIntentRoute = "normal" | "small";
+export type SddLaneOrigin = "declared" | "classified";
+
+export type SddIntentRecord = Readonly<{
+	version: 1;
+	resolution: SddIntentResolution;
+	route: SddIntentRoute;
+	summary: string;
+	objective: string;
+	boundaries: Readonly<{ in: readonly string[]; out: readonly string[] }>;
+	completionCriteria: readonly string[];
+	materialKey: string;
+	laneOrigin: SddLaneOrigin;
+	reason: string;
+	resolvedBy: PreflightAuthor;
+	resolvedAt: string;
+}>;
 
 export type SddPreflightRecord = Readonly<{
 	tdd: TddStance;
 	decidedBy: PreflightAuthor;
 	/** ISO-8601. Sirve para explicar una postura vieja, no para caducarla. */
 	decidedAt: string;
+	/** Optional so every historical TDD-only record remains valid. */
+	intent?: SddIntentRecord;
 }>;
 
 /** Lo que hay que saber de un cambio antes de trabajarlo. */
@@ -57,12 +76,18 @@ export type SddChangeStance = Readonly<{
 	decidedBy: PreflightAuthor | undefined;
 	decidedAt: string | undefined;
 	lane: SddLane;
-	/** ¿El carril está DECLARADO, o es solo el `standard` por defecto? */
+	/** Provenance is absent only when no lane.json exists. */
+	laneOrigin: SddLaneOrigin | undefined;
+	/** Compatibility projection: true only for an authoritative declaration. */
 	laneDeclared: boolean;
 }>;
 
 const STANCES: readonly TddStance[] = ["off", "strict"];
 const AUTHORS: readonly PreflightAuthor[] = ["pi", "claude"];
+const INTENT_RESOLUTIONS: readonly SddIntentResolution[] = ["confirmed", "automatic-small", "bypassed"];
+const INTENT_ROUTES: readonly SddIntentRoute[] = ["normal", "small"];
+const LANE_ORIGINS: readonly SddLaneOrigin[] = ["declared", "classified"];
+const MATERIAL_KEY = /^sha256:[0-9a-f]{64}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -78,6 +103,68 @@ function normalizeAuthor(value: unknown): PreflightAuthor | undefined {
 	if (typeof value !== "string") return undefined;
 	const token = value.trim().toLowerCase();
 	return (AUTHORS as readonly string[]).includes(token) ? (token as PreflightAuthor) : undefined;
+}
+
+function nonEmptyText(value: unknown): value is string {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function nonEmptyTextList(value: unknown, allowEmpty = false): value is string[] {
+	return Array.isArray(value) && (allowEmpty || value.length > 0) && value.every(nonEmptyText);
+}
+
+function exactIsoDate(value: unknown): value is string {
+	if (typeof value !== "string") return false;
+	try {
+		return new Date(value).toISOString() === value;
+	} catch {
+		return false;
+	}
+}
+
+function normalizeIntent(value: unknown): SddIntentRecord | undefined {
+	if (!isRecord(value) || value.version !== 1) return undefined;
+	const resolution = typeof value.resolution === "string" &&
+		(INTENT_RESOLUTIONS as readonly string[]).includes(value.resolution)
+		? value.resolution as SddIntentResolution
+		: undefined;
+	const route = typeof value.route === "string" &&
+		(INTENT_ROUTES as readonly string[]).includes(value.route)
+		? value.route as SddIntentRoute
+		: undefined;
+	const laneOrigin = typeof value.laneOrigin === "string" &&
+		(LANE_ORIGINS as readonly string[]).includes(value.laneOrigin)
+		? value.laneOrigin as SddLaneOrigin
+		: undefined;
+	const boundaries = isRecord(value.boundaries) ? value.boundaries : undefined;
+	const resolvedBy = normalizeAuthor(value.resolvedBy);
+	if (
+		!resolution || !route || !laneOrigin || !nonEmptyText(value.summary) ||
+		!nonEmptyText(value.objective) || !boundaries ||
+		!nonEmptyTextList(boundaries.in, true) || !nonEmptyTextList(boundaries.out, true) ||
+		(boundaries.in.length === 0 && boundaries.out.length === 0) ||
+		!nonEmptyTextList(value.completionCriteria) ||
+		typeof value.materialKey !== "string" || !MATERIAL_KEY.test(value.materialKey) ||
+		!nonEmptyText(value.reason) || !resolvedBy || !exactIsoDate(value.resolvedAt) ||
+		(resolution === "automatic-small" && route !== "small")
+	) return undefined;
+	return Object.freeze({
+		version: 1,
+		resolution,
+		route,
+		summary: value.summary,
+		objective: value.objective,
+		boundaries: Object.freeze({
+			in: Object.freeze([...boundaries.in]),
+			out: Object.freeze([...boundaries.out]),
+		}),
+		completionCriteria: Object.freeze([...value.completionCriteria]),
+		materialKey: value.materialKey,
+		laneOrigin,
+		reason: value.reason,
+		resolvedBy,
+		resolvedAt: value.resolvedAt,
+	});
 }
 
 export function preflightRecordPath(changeDir: string): string {
@@ -113,21 +200,26 @@ export function readPreflightRecord(changeDir: string): SddPreflightRecord | und
 	const tdd = normalizeTddStance(parsed.tdd);
 	if (!tdd) return undefined;
 	const decidedAt = typeof parsed.decidedAt === "string" ? parsed.decidedAt : "";
+	const intent = normalizeIntent(parsed.intent);
 	return Object.freeze({
 		tdd,
 		decidedBy: normalizeAuthor(parsed.decidedBy) ?? "pi",
 		decidedAt: Number.isNaN(Date.parse(decidedAt)) ? "" : decidedAt,
+		...(intent ? { intent } : {}),
 	});
 }
 
 export function writePreflightRecord(
 	changeDir: string,
-	input: { tdd: TddStance; decidedBy: PreflightAuthor },
+	input: { tdd: TddStance; decidedBy: PreflightAuthor; intent?: SddIntentRecord },
 ): SddPreflightRecord {
+	const intent = input.intent ? normalizeIntent(input.intent) : undefined;
+	if (input.intent && !intent) throw new TypeError("Invalid preflight intent record");
 	const record: SddPreflightRecord = Object.freeze({
 		tdd: input.tdd,
 		decidedBy: input.decidedBy,
 		decidedAt: new Date().toISOString(),
+		...(intent ? { intent } : {}),
 	});
 	const path = preflightRecordPath(changeDir);
 	mkdirSync(dirname(path), { recursive: true });
@@ -145,14 +237,22 @@ export function readChangeStance(cwd: string, change: string): SddChangeStance |
 	const changeDir = changeDirFor(cwd, change);
 	if (!existsSync(changeDir)) return undefined;
 	const record = readPreflightRecord(changeDir);
+	const laneState = inspectChangeLane(changeDir);
+	const classifiedLane = record?.intent?.route === "small" ? "micro" : "standard";
+	const laneOrigin: SddLaneOrigin | undefined = !laneState.exists
+		? undefined
+		: record?.intent?.laneOrigin === "classified" && laneState.valid && laneState.lane === classifiedLane
+			? "classified"
+			: "declared";
 	return Object.freeze({
 		change,
 		changeDir,
 		tdd: record?.tdd,
 		decidedBy: record?.decidedBy,
 		decidedAt: record?.decidedAt,
-		lane: readChangeLane(changeDir),
-		laneDeclared: existsSync(laneConfigPath(changeDir)),
+		lane: laneState.lane,
+		laneOrigin,
+		laneDeclared: laneOrigin === "declared",
 	});
 }
 
@@ -171,7 +271,11 @@ export function renderChangeStanceLine(stance: SddChangeStance | undefined): str
 	const tdd = stance.tdd
 		? `${stance.tdd}${stance.decidedBy ? ` (${stance.decidedBy})` : ""}`
 		: "sin decidir";
-	const lane = stance.laneDeclared ? stance.lane : `${stance.lane} (por defecto)`;
+	const lane = stance.laneOrigin === "declared"
+		? stance.lane
+		: stance.laneOrigin === "classified"
+			? `${stance.lane} (clasificado)`
+			: `${stance.lane} (por defecto)`;
 	return `- Postura del cambio: TDD estricto=${tdd} · carril=${lane}`;
 }
 

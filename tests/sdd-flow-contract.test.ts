@@ -269,13 +269,42 @@ describe("ein-ai: tools deterministas cableados", () => {
 	});
 });
 
+describe("adapter Pi: un solo iniciador de intención", () => {
+	const ai = read("extensions/ein-ai.ts");
+
+	test("el hook input arma y resuelve intención mediante el contrato compartido", () => {
+		expect(ai).toContain("resolveSddIntentPreflight");
+		expect(ai).toContain("await runPiIntentPreflight(event.text, ctx)");
+		expect(ai).toContain('if (intent === "pending") return { action: "handled" }');
+	});
+
+	test("normal usa un único mensaje textual y no abre un modal paralelo", () => {
+		expect(ai).toContain("outcome.interaction.text");
+		expect(ai).not.toContain("ctx.ui.input");
+		expect(ai).not.toContain("ctx.ui.confirm");
+	});
+
+	test("los hooks secundarios nunca inician interacción y bloquean construcción pendiente", () => {
+		const beforeStart = ai.match(/pi\.on\("before_agent_start"[\s\S]*?\n\t}\);/)?.[0] ?? "";
+		const toolCall = ai.match(/pi\.on\("tool_call"[\s\S]*?\n\t}\);/)?.[0] ?? "";
+		expect(beforeStart).not.toContain("runPiIntentPreflight(");
+		expect(beforeStart).not.toContain("runSddPreflight(ctx)");
+		expect(beforeStart).toContain("adoptPiIntentGate");
+		expect(beforeStart).toContain("piIntentGateDirective");
+		expect(toolCall).not.toContain("runPiIntentPreflight(");
+		expect(toolCall).toContain("adoptPiIntentGate");
+		expect(toolCall).toContain("piIntentToolBlockReason");
+	});
+});
+
 describe("sdd-init conserva el comando manual mediante el bootstrap compartido", () => {
 	const init = read("extensions/sdd-init.ts");
-	test("mantiene registro y distingue creación de preservación", () => {
+	test("mantiene registro y distingue creación de preservación sin abrir otra interacción", () => {
 		expect(init).toContain('pi.registerCommand("sdd-init"');
 		expect(init).toContain('import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";');
 		expect(init).toContain('result.kind === "preserved"');
 		expect(init).toContain("Wrote openspec/config.yaml");
+		expect(init).not.toContain("ensureSddPreflight");
 	});
 });
 

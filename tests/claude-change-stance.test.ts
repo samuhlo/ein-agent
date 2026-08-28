@@ -16,9 +16,34 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { buildSettingsBlock, buildStatusOutput, runPreflightCommand } from "../ein-cc/sdd-cli/cli.ts";
+import {
+	buildSettingsBlock,
+	buildStatusOutput,
+	runClaudeIntentPreflight,
+	runClaudePreflightCommand,
+	runClaudePreflightInputCommand,
+	runPreflightCommand,
+} from "../ein-cc/sdd-cli/cli.ts";
 import { readPreflightRecord } from "../ein-pi/agent/lib/sdd-preflight-record";
 import { readChangeLane } from "../ein-pi/agent/lib/sdd-lane";
+
+function modifyingEvidence(
+	overrides: Partial<Parameters<typeof runClaudeIntentPreflight>[1]["evidence"]> = {},
+): Parameters<typeof runClaudeIntentPreflight>[1]["evidence"] {
+	return {
+		activation: "modifying",
+		declaredLane: null,
+		bounded: true,
+		mechanical: true,
+		documentationOrTextOnly: false,
+		introducesBehavior: false,
+		securityRisk: false,
+		persistentDataRisk: false,
+		destructiveActionRisk: false,
+		bypassRequested: false,
+		...overrides,
+	};
+}
 
 function sandbox(change = "mi-cambio") {
 	const cwd = mkdtempSync(join(tmpdir(), "ein-cc-stance-"));
@@ -64,6 +89,87 @@ describe("ein-cc-sdd preflight — leer", () => {
 	});
 });
 
+describe("ein-cc-sdd preflight — dispatch público", () => {
+	test("entra por la intención compartida antes de conservar la salida de postura", async () => {
+		const box = sandbox();
+		try {
+			runPreflightCommand(box.cwd, ["--tdd", "strict"]);
+			const result = await runClaudePreflightInputCommand(box.cwd, [], JSON.stringify({
+				evidence: modifyingEvidence(),
+				summary: "Ajustar un dispatch acotado.",
+				material: {
+					objective: "Ajustar el dispatch",
+					boundaries: { in: ["CLI Claude"], out: ["core"] },
+					completionCriteria: ["El comando público pasa por intención"],
+				},
+				materialEvidence: "sufficient",
+			}));
+
+			expect(result.intent?.kind).toBe("resolved");
+			if (result.intent?.kind === "resolved") {
+				expect(result.intent.resolution).toBe("automatic-small");
+			}
+			expect(result.exitCode).toBe(0);
+			expect(result.text.split("\n")[0]).toBe("Ajustar un dispatch acotado.");
+			expect(result.text).toContain("TDD estricto=strict");
+			expect(readPreflightRecord(box.changeDir)?.intent?.resolution).toBe("automatic-small");
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("expone normal pendiente sin alterar la compatibilidad de consulta", async () => {
+		const box = sandbox();
+		try {
+			runPreflightCommand(box.cwd, ["--tdd", "off"]);
+			const result = await runClaudePreflightCommand(box.cwd, [], {
+				change: box.change,
+				evidence: modifyingEvidence({ introducesBehavior: true, mechanical: false }),
+				summary: "Añadir comportamiento.",
+				material: {
+					objective: "Añadir comportamiento",
+					boundaries: { in: ["adapter"], out: ["router"] },
+					completionCriteria: ["El comportamiento queda probado"],
+				},
+				materialEvidence: "sufficient",
+			});
+
+			expect(result.intent.kind).toBe("pending");
+			expect(result.text).toContain("1. What outcome should this change achieve?");
+			expect(result.text).toContain("2. What is in and out of scope");
+			expect(result.text).toContain("TDD estricto=off");
+			expect(readPreflightRecord(box.changeDir)?.intent).toBeUndefined();
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("resuelve bypass seguro por la misma entrada y luego aplica flags legacy", async () => {
+		const box = sandbox();
+		try {
+			runPreflightCommand(box.cwd, ["--tdd", "strict"]);
+			const result = await runClaudePreflightCommand(box.cwd, ["--lane", "standard"], {
+				change: box.change,
+				evidence: modifyingEvidence({ bypassRequested: true, mechanical: false }),
+				summary: "Aplicar el cambio sin preguntas.",
+				material: {
+					objective: "Aplicar el cambio",
+					boundaries: { in: ["adapter"], out: ["core"] },
+					completionCriteria: ["La prueba pública pasa"],
+				},
+				materialEvidence: "sufficient",
+			});
+
+			expect(result.intent.kind).toBe("resolved");
+			if (result.intent.kind === "resolved") expect(result.intent.resolution).toBe("bypassed");
+			expect(readChangeLane(box.changeDir)).toBe("standard");
+			expect(readPreflightRecord(box.changeDir)?.intent?.laneOrigin).toBe("declared");
+		} finally {
+			box.cleanup();
+		}
+	});
+});
+
 describe("ein-cc-sdd preflight — escribir", () => {
 	test("`--tdd off` deja la decisión en disco firmada por claude", () => {
 		const box = sandbox();
@@ -84,6 +190,59 @@ describe("ein-cc-sdd preflight — escribir", () => {
 		try {
 			expect(runPreflightCommand(box.cwd, ["--tdd", "off", "--lane", "micro"]).exitCode).toBe(0);
 			expect(readChangeLane(box.changeDir)).toBe("micro");
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("un `--lane` explícito conserva un record legacy escrito por Pi", () => {
+		const box = sandbox();
+		try {
+			const legacy = JSON.stringify({
+				tdd: "off",
+				decidedBy: "pi",
+				decidedAt: "2026-08-28T00:00:00.000Z",
+			});
+			writeFileSync(join(box.changeDir, "preflight.json"), legacy);
+
+			expect(runPreflightCommand(box.cwd, ["--lane", "micro"]).exitCode).toBe(0);
+			expect(readPreflightRecord(box.changeDir)).toEqual({
+				tdd: "off",
+				decidedBy: "pi",
+				decidedAt: "2026-08-28T00:00:00.000Z",
+			});
+			expect(readChangeLane(box.changeDir)).toBe("micro");
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("un `--lane` explícito conserva la intención y adquiere autoridad declarada", async () => {
+		const box = sandbox();
+		try {
+			runPreflightCommand(box.cwd, ["--tdd", "strict"]);
+			const resolved = await runClaudeIntentPreflight(box.cwd, {
+				change: box.change,
+				evidence: {} as Parameters<typeof runClaudeIntentPreflight>[1]["evidence"],
+				summary: "Actualizar el adapter sin ampliar el alcance.",
+				material: {
+					objective: "Actualizar el adapter",
+					boundaries: { in: ["adapter"], out: ["coordinator"] },
+					completionCriteria: ["La prueba focalizada pasa"],
+				},
+				materialEvidence: "sufficient",
+				confirmed: true,
+			});
+			expect(resolved.kind).toBe("resolved");
+			const before = readPreflightRecord(box.changeDir);
+
+			expect(runPreflightCommand(box.cwd, ["--lane", "standard"]).exitCode).toBe(0);
+			const after = readPreflightRecord(box.changeDir);
+			expect(after?.intent?.laneOrigin).toBe("declared");
+			expect(after?.intent?.resolvedBy).toBe("claude");
+			expect(after?.intent?.materialKey).toBe(before?.intent?.materialKey);
+			expect(after?.tdd).toBe("strict");
+			expect(after?.decidedBy).toBe("claude");
 		} finally {
 			box.cleanup();
 		}
