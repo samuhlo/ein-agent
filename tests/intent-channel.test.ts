@@ -165,4 +165,12 @@ describe("contrato estructural de SKILL.md (grupo 002 dependencia)", () => {
 		const raw = readFileSync(SKILL_PATH, "utf8");
 		expect(raw).toMatch(/## .*[Rr]onda 1|## .*[Ff]irst [Rr]ound/);
 	});
+
+	test("declara una seccion de Ejecucion con las tres reglas de herramientas", () => {
+		const raw = readFileSync(SKILL_PATH, "utf8");
+		expect(raw).toMatch(/## Ejecuci[oó]n/);
+		expect(raw).toContain("ein-scout");
+		expect(raw).toContain("resolveIntentPath");
+		expect(raw.toLowerCase()).toContain("shell");
+	});
 });

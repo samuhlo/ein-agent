@@ -95,6 +95,19 @@ created: <ISO-8601>
 - Cada decisión cerrada registra la opción elegida y una línea del porqué.
 - Cada hecho verificado trae una referencia `path:line` obtenida de `ein-scout`.
 
+## Ejecución
+
+- **Nada de exploración directa del coordinador.** Todo hallazgo de repositorio
+  (código, configuración, historial) se delega en `ein-scout`; el coordinador
+  no lee, busca ni explora el árbol por su cuenta durante la sesión. La
+  delegación no bloquea la ronda en curso (ver regla de rondas siguientes).
+- **La ruta del artefacto y la validación del nombre pasan siempre por
+  `resolveIntentPath` del módulo `intent-channel`.** Prohibido reimplementar
+  esa validación inline (p. ej. invocar `isSafeChangeName` por su cuenta):
+  dos validadores de la misma regla es justo lo que esa función evita.
+- No se sale a shell para datos que el entorno ya provee, incluido el
+  timestamp del frontmatter.
+
 ## Activación
 
 Ambos comandos se invocan **únicamente** por el usuario, desde el prompt. Ningún
