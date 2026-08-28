@@ -174,3 +174,34 @@ describe("contrato estructural de SKILL.md (grupo 002 dependencia)", () => {
 		expect(raw.toLowerCase()).toContain("shell");
 	});
 });
+
+// El log de la primera sesión real: /ein:eh restató su propia invocación. El
+// disparador es él mismo un mensaje de usuario, así que "el último mensaje" se
+// autorreferencia si nadie lo excluye.
+describe("objetivo de /ein:eh: la invocacion nunca se restata a si misma", () => {
+	test("el kickoff excluye su propia linea del objetivo", () => {
+		const eh = buildEhKickoff();
+		expect(eh.text).toContain("anterior a esta instrucción");
+		expect(eh.text.toLowerCase()).toContain("no cuentan");
+	});
+
+	test("el kickoff dice que hacer cuando no hay mensaje previo", () => {
+		const eh = buildEhKickoff();
+		expect(eh.text.toLowerCase()).toContain("si no hay ninguno");
+	});
+
+	test("SKILL.md define el objetivo y sus casos borde", () => {
+		const raw = readFileSync(SKILL_PATH, "utf8");
+		const ehIdx = raw.indexOf("## /ein:eh");
+		const templateIdx = raw.indexOf("## Artefact template");
+		const targetIdx = raw.indexOf("### Qué mensaje se restata");
+		expect(targetIdx).toBeGreaterThan(ehIdx);
+		expect(targetIdx).toBeLessThan(templateIdx);
+
+		const section = raw.slice(targetIdx, templateIdx);
+		expect(section).toContain("en prosa");
+		expect(section).toMatch(/invocaci[óo]n/);
+		expect(section).toContain("no hay ninguno");
+		expect(section).toContain("ya se ejecutó");
+	});
+});

@@ -12,6 +12,7 @@ import { listClaudeCommands } from "../ein-cc/sync.ts";
 import {
 	CANONICAL_COMMANDS,
 	SKILL_NAME,
+	buildEhKickoff,
 	resolveClaudeSkillPath,
 	resolvePiSkillPath,
 } from "../ein-pi/agent/lib/intent-channel.ts";
@@ -94,6 +95,16 @@ describe("no restatement: las superficies apuntan al skill, no repiten el protoc
 			for (const marker of VOCAB_MARKERS) {
 				expect(src).not.toContain(marker);
 			}
+		}
+	});
+});
+
+describe("objetivo de /ein:eh: las dos superficies excluyen la propia invocacion", () => {
+	test("kickoff Pi y comando Claude llevan la exclusion, no solo uno", () => {
+		const claudeSurface = readFileSync(join(CLAUDE_COMMANDS_DIR, "eh.md"), "utf8");
+		for (const surface of [buildEhKickoff().text, claudeSurface]) {
+			expect(surface).toMatch(/anterior a esta (instrucción|invocación)/);
+			expect(surface.toLowerCase()).toContain("no cuentan");
 		}
 	});
 });
