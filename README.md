@@ -88,7 +88,7 @@ ein-agent/
 
 ```bash
 ein                 # abre la aplicación: estado del proyecto y arrancar a trabajar
-ein update          # actualiza Ein y su template con backup
+ein-install update  # actualiza Ein y su template con backup
 ein doctor          # diagnostica el despliegue
 ein restore         # restaura desde un backup
 ein uninstall       # elimina Ein y conserva auth, secrets y sesiones
@@ -101,7 +101,13 @@ roto es `ein`, la reparación no puede pasar por `ein`.
 ```bash
 ein-install         # instala, preguntando solo el runtime
 ein-install doctor  # el mismo diagnóstico, sin depender de la aplicación
+ein-install update --channel alpha   # cambia a alpha y la deja como preferencia
+ein-install update --channel stable  # vuelve a estable y la deja como preferencia
 ```
+
+Sin `--channel`, `update` reutiliza la preferencia guardada. Un `--dry-run`
+resuelve el canal indicado para enseñar el resultado, pero no cambia esa
+preferencia.
 
 Referencia completa en [CLI](https://samuhlo.github.io/ein-agent/04-reference/cli/).
 

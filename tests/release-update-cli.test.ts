@@ -18,7 +18,11 @@ import { fakeUpdateCaps } from "./helpers/fake-update-caps.ts";
 import { bannerStatic, bannerVersionLabel, readBannerState, renderBanner } from "../installer/src/tui/banner.ts";
 import { INSTALLER_VERSION } from "../installer/src/core/version.ts";
 import { readInstallerUpdateEvidence } from "../installer/src/core/update-advisor-read.ts";
-import { preferenceFilePath, writeReleaseChannelPreference } from "../installer/src/core/release-channel-preference.ts";
+import {
+  preferenceFilePath,
+  readReleaseChannelPreference,
+  writeReleaseChannelPreference,
+} from "../installer/src/core/release-channel-preference.ts";
 import { createTransaction, recoverPendingTransaction } from "../installer/src/core/transaction.ts";
 function createArtifactId(releaseTag: string, sha256: string): ArtifactId {
   const result = deriveArtifactId(releaseTag, sha256);
@@ -184,7 +188,7 @@ describe("release update CLI", () => {
     chmodSync(destinationPath, 0o755);
     writeFileSync(markerPath, legacyMarker("0.19.0-alpha.1", "alpha"));
     writeFileSync(clientSettingsPath, clientSettings);
-    expect(writeReleaseChannelPreference(dir, "alpha")).toEqual({ status: "explicit", channel: "alpha" });
+    expect(writeReleaseChannelPreference(dir, "stable")).toEqual({ status: "explicit", channel: "stable" });
 
     const requests: string[] = [];
     const base = defaultUpdateCaps();
@@ -210,7 +214,7 @@ describe("release update CLI", () => {
       },
     };
     const output: string[] = [];
-    const code = await runUpdate([], {
+    const code = await runUpdate(["--channel", "alpha"], {
       caps,
       platform: { os: "linux", arch: "x64" },
       agentDir,
@@ -225,7 +229,9 @@ describe("release update CLI", () => {
 
     expect(code).toBe(EXIT_UPDATED);
     expect(requests[0]).toContain("/releases?per_page=30");
+    expect(output.join("\n")).toContain("Preferencia de canal: persistida (alpha)");
     expect(output.join("\n")).toContain("Canal efectivo: alpha");
+    expect(readReleaseChannelPreference(dir)).toEqual({ status: "explicit", channel: "alpha" });
     const installed = await Bun.file(markerPath).json() as Record<string, unknown>;
     expect(installed).toMatchObject({
       channel: "alpha",
@@ -270,6 +276,219 @@ describe("release update CLI", () => {
     expect(code).toBe(EXIT_DRY_RUN);
     expect(requests[0]).toContain("/releases?per_page=30");
     expect(output.join("\n")).toContain("Canal efectivo: alpha");
+  });
+
+  test("previews an explicit alpha channel without changing the stable preference", async () => {
+    const dir = root();
+    const markerPath = "/fake/marker.json";
+    expect(writeReleaseChannelPreference(dir, "stable")).toEqual({ status: "explicit", channel: "stable" });
+    const requests: string[] = [];
+    const caps = fakeUpdateCaps({ files: new Map([[markerPath, marker()]]), http: alphaUpdateHttp(requests) });
+    const output: string[] = [];
+
+    const code = await runUpdate(["--dry-run", "--channel", "alpha"], {
+      caps,
+      platform: { os: "linux", arch: "x64" },
+      installationPath: dir,
+      markerPath,
+      journalPath: "/fake/journal.json",
+      destinationPath: "/fake/ein",
+      interactive: false,
+      write: (line) => output.push(line),
+    });
+
+    expect(code).toBe(EXIT_DRY_RUN);
+    expect(requests[0]).toContain("/releases?per_page=30");
+    expect(output.join("\n")).toContain("Preferencia de canal: persistida (stable)");
+    expect(output.join("\n")).toContain("Canal efectivo: alpha");
+    expect(readReleaseChannelPreference(dir)).toEqual({ status: "explicit", channel: "stable" });
+  });
+
+  test("rejects malformed channel flags before treating them as release selectors", async () => {
+    const cases = [
+      { args: ["--channel"], message: "--channel necesita un valor separado" },
+      { args: ["--channel", "alpha", "--channel", "stable"], message: "--channel no puede repetirse" },
+      { args: ["--channel=alpha"], message: "--channel usa un valor separado" },
+      { args: ["--channel", "beta"], message: "canal no soportado: beta" },
+    ];
+
+    for (const fixture of cases) {
+      let httpCalls = 0;
+      const output: string[] = [];
+      const caps = fakeUpdateCaps({ http: { get: async () => { httpCalls += 1; throw new Error("must not acquire"); } } });
+      const code = await runUpdate(fixture.args, {
+        caps,
+        markerPath: "/fake/marker.json",
+        journalPath: "/fake/journal.json",
+        destinationPath: "/fake/ein",
+        interactive: false,
+        write: (line) => output.push(line),
+      });
+
+      expect(code).toBe(EXIT_FAILED);
+      expect(output.join("\n")).toContain(fixture.message);
+      expect(httpCalls).toBe(0);
+    }
+  });
+
+  test("repairs a malformed preference after an explicit successful channel selection", async () => {
+    const dir = root();
+    const agentDir = join(dir, "agent");
+    const destinationPath = join(dir, "ein");
+    const markerPath = join(agentDir, ".ein-install.json");
+    mkdirSync(agentDir, { recursive: true });
+    writeFileSync(destinationPath, assetBytes);
+    chmodSync(destinationPath, 0o755);
+    writeFileSync(join(agentDir, "template-manifest.json"), JSON.stringify({ templateVersion: "0.20.0" }));
+    writeFileSync(markerPath, JSON.stringify({
+      schemaVersion: 2, version: "0.20.0", releaseTag: "installer-v0.20.0", binaryVersion: "0.20.0", templateVersion: "0.20.0",
+      installedAt: "2026-01-01T00:00:00.000Z", channel: "stable", owner: { type: "standalone" }, artifactId: `installer-v0.20.0@sha256:${assetDigest}`, asset: { assetName: "ein-installer-linux-x64", sha256: assetDigest },
+    }));
+    writeFileSync(preferenceFilePath(dir), '{"channel":"alpha"', "utf8");
+    const base = defaultUpdateCaps();
+    const caps: UpdateCaps = {
+      ...base,
+      http: updateHttp(),
+      child: { spawn: async () => ({ code: 0, stdout: "ein-installer 0.20.0\ntemplate-version 0.20.0\n" }) },
+    };
+    const output: string[] = [];
+
+    const code = await runUpdate(["--channel", "stable"], {
+      caps,
+      platform: { os: "linux", arch: "x64" },
+      agentDir,
+      installationPath: dir,
+      markerPath,
+      journalPath: join(dir, "journal.json"),
+      destinationPath,
+      interactive: false,
+      write: (line) => output.push(line),
+      promote: () => ({ installer: { path: join(dir, "ein-install"), written: false }, app: { path: destinationPath, written: false, reason: "test" } }),
+    });
+
+    expect(code).toBe(EXIT_ALREADY_CURRENT);
+    expect(output.join("\n")).toContain("Preferencia de canal: persistida (stable)");
+    expect(output.join("\n")).toContain("Canal efectivo: stable");
+    expect(readReleaseChannelPreference(dir)).toEqual({ status: "explicit", channel: "stable" });
+  });
+
+  test("does not persist an explicit channel after a failed update", async () => {
+    const dir = root();
+    const markerPath = "/fake/marker.json";
+    expect(writeReleaseChannelPreference(dir, "stable")).toEqual({ status: "explicit", channel: "stable" });
+    const caps = fakeUpdateCaps({
+      files: new Map([[markerPath, marker()]]),
+      http: { get: async () => { throw new Error("offline"); } },
+    });
+    const output: string[] = [];
+
+    const code = await runUpdate(["--channel", "alpha"], {
+      caps,
+      installationPath: dir,
+      markerPath,
+      journalPath: "/fake/journal.json",
+      destinationPath: "/fake/ein",
+      interactive: false,
+      write: (line) => output.push(line),
+    });
+
+    expect(code).toBe(EXIT_FAILED);
+    expect(output.join("\n")).toContain("Canal efectivo: alpha");
+    expect(readReleaseChannelPreference(dir)).toEqual({ status: "explicit", channel: "stable" });
+  });
+
+  test("does not persist an explicit channel when an external owner blocks the update", async () => {
+    const dir = root();
+    const markerPath = "/fake/marker.json";
+    expect(writeReleaseChannelPreference(dir, "stable")).toEqual({ status: "explicit", channel: "stable" });
+    const caps = fakeUpdateCaps({
+      files: new Map([[markerPath, marker("0.19.0", { type: "package-manager", manager: "homebrew" })]]),
+      http: alphaUpdateHttp(),
+    });
+
+    const code = await runUpdate(["--channel", "alpha"], {
+      caps,
+      platform: { os: "linux", arch: "x64" },
+      installationPath: dir,
+      markerPath,
+      journalPath: "/fake/journal.json",
+      destinationPath: "/fake/ein",
+      interactive: false,
+      write: () => {},
+    });
+
+    expect(code).toBe(EXIT_BLOCKED_EXTERNAL_OWNER);
+    expect(readReleaseChannelPreference(dir)).toEqual({ status: "explicit", channel: "stable" });
+  });
+
+  test("reports an atomic preference write failure instead of claiming a channel switch", async () => {
+    const dir = root();
+    const blockedInstallationPath = join(dir, "not-a-directory");
+    const agentDir = join(dir, "agent");
+    const destinationPath = join(dir, "ein");
+    const markerPath = join(agentDir, ".ein-install.json");
+    mkdirSync(agentDir, { recursive: true });
+    writeFileSync(blockedInstallationPath, "owned");
+    writeFileSync(destinationPath, "old-binary");
+    chmodSync(destinationPath, 0o755);
+    writeFileSync(markerPath, marker());
+    const base = defaultUpdateCaps();
+    const caps: UpdateCaps = {
+      ...base,
+      http: updateHttp(),
+      child: {
+        async spawn(_command, args) {
+          if (args.some((arg) => arg.startsWith("--ein-continuation="))) {
+            const txId = args.find((arg) => arg.startsWith("--ein-continuation="))!.split("=")[1]!;
+            return { code: 0, stdout: JSON.stringify({ txId, releaseTag: "installer-v0.20.0", binaryVersion: "0.20.0", templateVersion: "0.20.0", status: "ok" }) };
+          }
+          return { code: 0, stdout: "ein-installer 0.20.0\ntemplate-version 0.20.0\n" };
+        },
+      },
+      template: {
+        async deploy(_binary, target) {
+          writeFileSync(join(target, "template-manifest.json"), JSON.stringify({ templateVersion: "0.20.0" }));
+        },
+        async readManifest(target) {
+          return JSON.parse(await Bun.file(join(target, "template-manifest.json")).text()) as { templateVersion?: string };
+        },
+      },
+    };
+    const output: string[] = [];
+    let promoted = false;
+    let piRefreshed = false;
+
+    const code = await runUpdate(["--yes", "--channel", "stable"], {
+      caps,
+      platform: { os: "linux", arch: "x64" },
+      agentDir,
+      installationPath: blockedInstallationPath,
+      markerPath,
+      journalPath: join(dir, "journal.json"),
+      destinationPath,
+      interactive: false,
+      write: (line) => output.push(line),
+      promote: () => {
+        promoted = true;
+        return { installer: { path: join(dir, "ein-install"), written: true }, app: { path: destinationPath, written: true } };
+      },
+      updatePi: async () => {
+        piRefreshed = true;
+        return { ok: true, detail: "pi actualizado" };
+      },
+    });
+
+    expect(code).toBe(EXIT_FAILED);
+    expect(output.join("\n")).toContain("Instalado verificado: v0.20.0");
+    expect(output.join("\n")).toContain("Ein se actualizó, pero no se pudo guardar el canal stable");
+    expect(output.join("\n")).not.toContain("No se confirmó una nueva instalación");
+    expect(output.join("\n")).not.toContain("Preferencia de canal: persistida (stable)");
+    expect(await Bun.file(markerPath).json()).toMatchObject({
+      version: "0.20.0",
+      releaseTag: "installer-v0.20.0",
+    });
+    expect(promoted).toBe(false);
+    expect(piRefreshed).toBe(false);
   });
 
   test("fails closed before recovery or update when preference bytes are malformed", async () => {
