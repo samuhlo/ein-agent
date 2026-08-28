@@ -30,6 +30,13 @@ describe("SDD canonical command aliases", () => {
 		expect(src).not.toMatch(/registerCommand\(\s*"ein:sdd-next-[^"]+"/);
 	});
 
+	test("ein:focus is registered as a session-only recovery command", () => {
+		expect(src).toMatch(/registerCommand\(\s*"ein:focus"/);
+		const block = src.match(/registerCommand\(\s*"ein:focus"[\s\S]*?\n\t}\);/)?.[0] ?? "";
+		expect(block).toContain("publishSessionBinding");
+		expect(block).not.toContain("sendUserMessage");
+	});
+
 	test("old close command is not registered", () => {
 		const oldCloseCommand = `ein:sdd-${"archive"}`;
 		expect(src).not.toContain(`registerCommand("${oldCloseCommand}"`);

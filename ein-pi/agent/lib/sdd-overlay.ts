@@ -217,15 +217,21 @@ export function renderSddOverlay(
 		currentId,
 		summaryFits ? rowSpace - 1 : rowSpace,
 	);
-	const rows = visible.map((item) =>
-		blockRow(
+	const rows = visible.map((item, index) => {
+		const previous = visible[index - 1];
+		// El encabezado da contexto una vez. Repetirlo en cada checkbox convierte
+		// tareas distintas en copias visuales y oculta qué hizo realmente cada una.
+		const title = item.groupTitle && item.groupTitle !== previous?.groupTitle
+			? item.groupTitle
+			: item.title;
+		return blockRow(
 			item.id,
-			item.groupTitle ?? item.title,
+			title,
 			item.done ? "done" : item.id === currentId ? "current" : "pending",
 			width,
 			palette,
-		),
-	);
+		);
+	});
 
 	if (summaryFits && hiddenDone > 0) {
 		const word = hiddenDone === 1 ? "completada" : "completadas";

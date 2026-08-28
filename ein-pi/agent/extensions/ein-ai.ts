@@ -1862,6 +1862,26 @@ export default function einAi(pi: ExtensionAPI): void {
 		},
 	});
 
+	pi.registerCommand("ein:focus", {
+		description: t("cmd.focus.description", "Focus the session TODO on a named active change"),
+		handler: async (args, ctx) => {
+			const parts = commandArgsText(args).trim().split(/\s+/).filter(Boolean);
+			if (parts.length !== 1) {
+				ctx.ui.notify(t("focus.usage", "Usage: /ein:focus <change>"), "info");
+				return;
+			}
+			const change = parts[0]!;
+			const active = listActiveChanges(ctx.cwd);
+			if (!isSafeChangeName(change) || !active.includes(change)) {
+				const available = active.length > 0 ? active.join(", ") : t("focus.none", "none");
+				ctx.ui.notify(tf("focus.invalid", "Cannot focus '{0}'. Active changes: {1}", change, available), "warning");
+				return;
+			}
+			publishSessionBinding({ version: 1, action: "bind", change });
+			ctx.ui.notify(tf("focus.success", "TODO focused on {0}.", change), "info");
+		},
+	});
+
 	pi.registerCommand("ein:sdd-next", {
 		description: t("cmd.sdd-next.description", "Show the next recommended SDD step for a named change and hand it to the orchestrator"),
 		handler: async (args, ctx) => {

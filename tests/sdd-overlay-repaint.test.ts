@@ -30,6 +30,7 @@ type FakeSession = { getEntries: () => readonly unknown[] };
 function fakePi(trace: string[] = []): {
 	pi: unknown;
 	appended: AppendedEntry[];
+	sentUserMessages: string[];
 	fire: (event: string, ctx: unknown, payload?: unknown) => void;
 	emit: (payload: unknown) => void;
 	runCommand: (name: string, args: string | string[], ctx: unknown) => Promise<void>;
@@ -39,6 +40,7 @@ function fakePi(trace: string[] = []): {
 	const commands = new Map<string, CommandHandler>();
 	const busHandlers = new Set<(payload: unknown) => void>();
 	const appended: AppendedEntry[] = [];
+	const sentUserMessages: string[] = [];
 	const pi = {
 		on(event: string, handler: Handler) {
 			handlers.set(event, [...(handlers.get(event) ?? []), handler]);
@@ -63,11 +65,12 @@ function fakePi(trace: string[] = []): {
 		},
 		registerTool() {},
 		registerShortcut() {},
-		sendUserMessage() {},
+		sendUserMessage(message: string) { sentUserMessages.push(message); },
 	};
 	return {
 		pi,
 		appended,
+		sentUserMessages,
 		fire: (event, ctx, payload = {}) => {
 			for (const handler of handlers.get(event) ?? []) handler(payload, ctx);
 		},
@@ -146,17 +149,50 @@ function lastLines(painted: readonly WidgetPaint[]): string[] {
 }
 
 describe("session-local overlay focus", () => {
-	test("session fresh stays empty even when the filesystem has exactly one active change", () => {
+	test("session fresh shows the only active change without requiring a binding", () => {
 		const box = sandbox();
 		try {
 			const painted: WidgetPaint[] = [];
 			const { pi, fire, appended } = fakePi();
 			createOverlayExtension(pi as never);
 
-			fire("session_start", fakeCtx(box.cwd, painted), { reason: "startup" });
+			fire("session_start", fakeCtx(box.cwd, painted), { reason: "new" });
+
+			expect(lastLines(painted).join("\n")).toContain("un-cambio");
+			expect(appended).toEqual([]);
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("session fresh declares ambiguity when several changes are active", () => {
+		const box = sandbox(["alpha", "beta"]);
+		try {
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, appended } = fakePi();
+			createOverlayExtension(pi as never);
+
+			fire("session_start", fakeCtx(box.cwd, painted), { reason: "new" });
+
+			const output = lastLines(painted).join("\n");
+			expect(output).toContain("2 cambios sin elegir");
+			expect(output).toContain("alpha, beta");
+			expect(appended).toEqual([]);
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("session fresh stays empty when the project has no active changes", () => {
+		const box = sandbox([]);
+		try {
+			const painted: WidgetPaint[] = [];
+			const { pi, fire } = fakePi();
+			createOverlayExtension(pi as never);
+
+			fire("session_start", fakeCtx(box.cwd, painted), { reason: "new" });
 
 			expect(lastLines(painted)).toEqual([]);
-			expect(appended).toEqual([]);
 		} finally {
 			box.cleanup();
 		}
@@ -183,7 +219,7 @@ describe("session-local overlay focus", () => {
 		}
 	});
 
-	test("session malformed newest entry clears once without reviving an older binding", () => {
+	test("session malformed newest entry clears once and falls back to project state", () => {
 		const box = sandbox(["alpha"]);
 		try {
 			const painted: WidgetPaint[] = [];
@@ -197,7 +233,7 @@ describe("session-local overlay focus", () => {
 			fire("session_start", fakeCtx(box.cwd, painted, entries), { reason: "resume" });
 			fire("tool_execution_end", fakeCtx(box.cwd, painted, entries));
 
-			expect(lastLines(painted)).toEqual([]);
+			expect(lastLines(painted).join("\n")).toContain("alpha");
 			expect(appended).toEqual([
 				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "unbound" } },
 			]);
@@ -206,11 +242,17 @@ describe("session-local overlay focus", () => {
 		}
 	});
 
-	test("session clear, missing, archived, unsafe, and unavailable bindings fail closed", () => {
-		const cases: Array<{ name: string; prepare?: (cwd: string) => string; data: unknown; expectsClear: boolean }> = [
-			{ name: "clear", data: { version: 1, state: "unbound" }, expectsClear: false },
-			{ name: "missing", data: { version: 1, state: "bound", change: "missing" }, expectsClear: true },
-			{ name: "unsafe", data: { version: 1, state: "bound", change: "../alpha" }, expectsClear: true },
+	test("session clear, missing, archived, and unsafe bindings fall back without inventing focus", () => {
+		const cases: Array<{
+			name: string;
+			prepare?: (cwd: string) => string;
+			data: unknown;
+			expectsClear: boolean;
+			expectsText: string;
+		}> = [
+			{ name: "clear", data: { version: 1, state: "unbound" }, expectsClear: false, expectsText: "alpha, beta" },
+			{ name: "missing", data: { version: 1, state: "bound", change: "missing" }, expectsClear: true, expectsText: "alpha, beta" },
+			{ name: "unsafe", data: { version: 1, state: "bound", change: "../alpha" }, expectsClear: true, expectsText: "alpha, beta" },
 			{
 				name: "archived",
 				data: { version: 1, state: "bound", change: "alpha" },
@@ -223,6 +265,7 @@ describe("session-local overlay focus", () => {
 					return cwd;
 				},
 				expectsClear: true,
+				expectsText: "beta",
 			},
 		];
 
@@ -234,7 +277,8 @@ describe("session-local overlay focus", () => {
 				const { pi, fire, appended } = fakePi();
 				createOverlayExtension(pi as never);
 				fire("session_start", fakeCtx(cwd, painted, [bindingEntry(scenario.data)]), { reason: "resume" });
-				expect(lastLines(painted), scenario.name).toEqual([]);
+				const output = lastLines(painted).join("\n");
+				expect(output, scenario.name).toContain(scenario.expectsText);
 				expect(appended.length, scenario.name).toBe(scenario.expectsClear ? 1 : 0);
 			} finally {
 				box.cleanup();
@@ -249,7 +293,11 @@ describe("session-local overlay focus", () => {
 			const painted: WidgetPaint[] = [];
 			const { pi, fire, appended } = fakePi();
 			createOverlayExtension(pi as never);
-			fire("session_start", fakeCtx(box.cwd, painted, [bindingEntry({ version: 1, state: "bound", change: "alpha" })]), { reason: "resume" });
+			fire(
+				"session_start",
+				fakeCtx(box.cwd, painted, [bindingEntry({ version: 1, state: "bound", change: "alpha" })]),
+				{ reason: "resume" },
+			);
 			expect(lastLines(painted)).toEqual([]);
 			expect(appended).toHaveLength(1);
 		} finally {
@@ -258,7 +306,7 @@ describe("session-local overlay focus", () => {
 		}
 	});
 
-	test("session startup intent is consumed, deleted, persisted, and never reused", () => {
+	test("session launch intent is consumed on resume, deleted, persisted, and never reused", () => {
 		const box = sandbox(["alpha"]);
 		const previous = process.env[EIN_SDD_SESSION_BINDING_ENV_KEY];
 		try {
@@ -271,15 +319,15 @@ describe("session-local overlay focus", () => {
 			const { pi, fire, appended } = fakePi();
 			createOverlayExtension(pi as never);
 
-			fire("session_start", fakeCtx(box.cwd, painted), { reason: "startup" });
+			fire("session_start", fakeCtx(box.cwd, painted), { reason: "resume" });
 			expect(lastLines(painted).join("\n")).toContain("alpha");
 			expect(process.env[EIN_SDD_SESSION_BINDING_ENV_KEY]).toBeUndefined();
 			expect(appended).toEqual([
 				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "bound", change: "alpha" } },
 			]);
 
-			fire("session_start", fakeCtx(box.cwd, painted), { reason: "startup" });
-			expect(lastLines(painted)).toEqual([]);
+			fire("session_start", fakeCtx(box.cwd, painted), { reason: "new" });
+			expect(lastLines(painted).join("\n")).toContain("alpha");
 			expect(appended).toHaveLength(1);
 		} finally {
 			if (previous === undefined) delete process.env[EIN_SDD_SESSION_BINDING_ENV_KEY];
@@ -337,7 +385,7 @@ describe("session binding event listener", () => {
 			]);
 
 			emit({ version: 1, action: "invalidate", change: "alpha" });
-			expect(lastLines(painted)).toEqual([]);
+			expect(lastLines(painted).join("\n")).toContain("2 cambios sin elegir");
 			expect(appended.at(-1)).toEqual({
 				customType: SDD_SESSION_BINDING_CUSTOM_TYPE,
 				data: { version: 1, state: "unbound" },
@@ -345,7 +393,7 @@ describe("session binding event listener", () => {
 
 			emit({ version: 1, action: "bind", change: "beta" });
 			emit({ version: 1, action: "clear" });
-			expect(lastLines(painted)).toEqual([]);
+			expect(lastLines(painted).join("\n")).toContain("2 cambios sin elegir");
 			expect(appended.slice(-2)).toEqual([
 				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "bound", change: "beta" } },
 				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "unbound" } },
@@ -425,7 +473,51 @@ describe("sdd-next session binding", () => {
 
 			expect(appended).toEqual([]);
 			expect(painted).toHaveLength(paintsAfterStart);
-			expect(lastLines(painted)).toEqual([]);
+			expect(lastLines(painted).join("\n")).toContain("alpha");
+		} finally {
+			box.cleanup();
+		}
+	});
+});
+
+describe("manual session focus", () => {
+	test("ein:focus binds and repaints without dispatching SDD work", async () => {
+		const box = sandbox(["alpha", "beta"]);
+		try {
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, runCommand, appended, sentUserMessages } = fakePi();
+			createOverlayExtension(pi as never);
+			createAiExtension(pi as never);
+			const ctx = fakeCtx(box.cwd, painted);
+			fire("session_start", ctx, { reason: "new" });
+
+			await runCommand("ein:focus", "beta", ctx);
+
+			expect(lastLines(painted).join("\n")).toContain("beta");
+			expect(appended).toEqual([
+				{ customType: SDD_SESSION_BINDING_CUSTOM_TYPE, data: { version: 1, state: "bound", change: "beta" } },
+			]);
+			expect(sentUserMessages).toEqual([]);
+		} finally {
+			box.cleanup();
+		}
+	});
+
+	test("ein:focus rejects absent and unsafe changes without replacing ambiguity", async () => {
+		const box = sandbox(["alpha", "beta"]);
+		try {
+			const painted: WidgetPaint[] = [];
+			const { pi, fire, runCommand, appended } = fakePi();
+			createOverlayExtension(pi as never);
+			createAiExtension(pi as never);
+			const ctx = fakeCtx(box.cwd, painted);
+			fire("session_start", ctx, { reason: "new" });
+
+			await runCommand("ein:focus", "missing", ctx);
+			await runCommand("ein:focus", "../alpha", ctx);
+
+			expect(lastLines(painted).join("\n")).toContain("2 cambios sin elegir");
+			expect(appended).toEqual([]);
 		} finally {
 			box.cleanup();
 		}

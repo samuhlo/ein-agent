@@ -166,15 +166,15 @@ describe("terminal app real PTY lifecycle", () => {
     expect(launches).toBe(0);
   });
 
-  test("binding intent stays exclusive to continue-as-new, outside direct create and picked resume", () => {
+  test("binding intent reaches focused direct create and continue-as-new, but not picked resume", () => {
     const source = readFileSync(
       join(import.meta.dir, "..", "ein-pi", "agent", "surfaces", "terminal-app-entrypoint.ts"),
       "utf8",
     );
-    expect(source).toContain("productionLaunch(cwd, provider, reference)");
-    expect(source).toContain("productionLaunchPlan(cwd, provider, reference);");
-    expect(source).toContain("productionLaunchPlan(cwd, provider, undefined, focusedChange)");
-  });
+		expect(source).toContain("productionLaunch(cwd, provider, reference, focusedChange)");
+		expect(source).toContain("productionLaunchPlan(cwd, provider, reference, focusedChange);");
+		expect(source).toContain("productionLaunchPlan(cwd, provider, undefined, focusedChange)");
+	});
 
   test("Continue brief validation preserves multiline Unicode and rejects paste termination", () => {
     expect(isContinueBriefTransportSafe("first line\nsegunda línea 漢字")).toBe(true);

@@ -141,8 +141,9 @@ ein-cc-sdd check  [cambio]     # valida los artefactos
 ein-cc-sdd close  <cambio>     # archiva un cambio verificado
 ```
 
-**En Pi**, comandos del agente: `/ein:status`, `/ein:sdd-next <cambio>`,
-`/ein:doctor-output`, `/ein:init`. El panel vivo de Pi está documentado arriba.
+**En Pi**, comandos del agente: `/ein:status`, `/ein:focus <cambio>`,
+`/ein:sdd-next <cambio>`, `/ein:doctor-output`, `/ein:init`. El panel vivo de Pi
+está documentado arriba.
 
 **En Claude Code**, las superficies slash de Ein son:
 

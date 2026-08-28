@@ -137,7 +137,7 @@ describe("the dashboard", () => {
   test("starting work is the first row, under the cursor, with its own key", () => {
     const rows = visibleRows(buildDashboard(SUMMARY), "");
     const first = rows[0]!.row;
-    expect(first.action).toEqual({ kind: "launch", provider: "pi" });
+    expect(first.action).toEqual({ kind: "launch", provider: "pi", focusedChange: "terminal-app-rework" });
     expect(first.key).toBe(DASHBOARD_KEYS.pi);
     // The dashboard earns its keystroke by showing state; it must not charge a
     // toll for the thing the user opened it to do.
@@ -177,6 +177,25 @@ describe("the dashboard", () => {
   test("P and C continue in fresh provider sessions", () => {
     expect(press(dashboard(), DASHBOARD_KEYS.continuePi).effects[0]).toEqual({ kind: "continue", provider: "pi" });
     expect(press(dashboard(), DASHBOARD_KEYS.continueClaude).effects[0]).toEqual({ kind: "continue", provider: "claude" });
+  });
+
+  test("a focused change makes the main Pi action explicit and carries launch metadata", () => {
+    const rows = visibleRows(buildDashboard(SUMMARY), "").map(({ row }) => row);
+    const focused = rows.find((row) => row.key === DASHBOARD_KEYS.pi);
+    expect(focused?.label).toMatch(/continuar|continue/i);
+    expect(focused?.label).toContain("terminal-app-rework");
+    expect(focused?.note).toBeUndefined();
+    expect(focused?.action).toEqual({
+      kind: "launch",
+      provider: "pi",
+      focusedChange: "terminal-app-rework",
+    });
+
+    const withoutFocus = buildDashboard({ ...SUMMARY, change: undefined });
+    expect(visibleRows(withoutFocus, "").find(({ row }) => row.key === DASHBOARD_KEYS.pi)?.row).toMatchObject({
+      label: "Pi",
+      action: { kind: "launch", provider: "pi" },
+    });
   });
 
   // Nueve acciones en una sola seccion sin nombre obligaban a leerlas todas para

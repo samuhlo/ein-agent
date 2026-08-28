@@ -265,6 +265,12 @@ describe("strings.ts i18n keys present", () => {
 		expect(t("help.full", "")).not.toContain("dry-run");
 	});
 
+	test("manual TODO focus is discoverable in both help surfaces", () => {
+		expect(t("cmd.focus.description", "")).toContain("session TODO");
+		expect(t("help.short", "")).toContain("/ein:focus <change>");
+		expect(t("help.full", "")).toContain("without dispatching work");
+	});
+
 	test("status.sdd.active key exists", () => {
 		expect(t("status.sdd.active", "")).toBe("active change");
 	});

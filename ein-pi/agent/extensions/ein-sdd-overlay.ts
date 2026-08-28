@@ -90,10 +90,8 @@ export default function (pi: ExtensionAPI): void {
 		return null;
 	}
 
-	function captureLaunchIntent(event: unknown): SessionBindingLaunchMetadataV1 | null {
-		if (launchIntentCaptured || !event || typeof event !== "object" || (event as { reason?: unknown }).reason !== "startup") {
-			return null;
-		}
+	function captureLaunchIntent(): SessionBindingLaunchMetadataV1 | null {
+		if (launchIntentCaptured) return null;
 		launchIntentCaptured = true;
 		const source = process.env[EIN_SDD_SESSION_BINDING_ENV_KEY];
 		delete process.env[EIN_SDD_SESSION_BINDING_ENV_KEY];
@@ -101,19 +99,30 @@ export default function (pi: ExtensionAPI): void {
 	}
 
 	function refresh(ctx: ExtensionContext): void {
-		let lines: readonly string[] = [];
+		let status: SddChangeStatus | null = null;
 		if (binding.kind === "bound") {
 			const inspection = inspectBinding(ctx.cwd, binding.change);
 			const transition = revalidateSessionBinding(binding, inspection.validation);
 			binding = transition.binding;
 			if (transition.persist) persist(transition.persist);
-			if (binding.kind === "bound" && inspection.status) {
-				try {
-					lines = renderSddOverlay(inspection.status, { collapsed, palette, width: overlayWidth() });
-				} catch {
-					// Rendering failure removes stale UI without inventing another focus.
-					lines = [];
-				}
+			if (binding.kind === "bound") status = inspection.status;
+		}
+		// Sin foco de sesión, el estado del proyecto sigue siendo verdad: un único
+		// cambio se puede mostrar sin elegir y varios deben declarar la ambigüedad.
+		if (!status && binding.kind === "unbound") {
+			try {
+				status = resolveSddStatus(ctx.cwd);
+			} catch {
+				status = null;
+			}
+		}
+		let lines: readonly string[] = [];
+		if (status) {
+			try {
+				lines = renderSddOverlay(status, { collapsed, palette, width: overlayWidth() });
+			} catch {
+				// Rendering failure removes stale UI without inventing another focus.
+				lines = [];
 			}
 		}
 		if (!ctx.hasUI) return;
@@ -163,11 +172,11 @@ export default function (pi: ExtensionAPI): void {
 	// CORTE -> al arrancar, la UI es nueva aunque el contenido sea el mismo. Dar
 	// por pintado lo que quizá nunca llegó a la pantalla es lo que dejaba el
 	// widget mudo el resto de la sesión. El atajo de plegar ya hacía esto mismo.
-	pi.on("session_start", (event, ctx) => {
+	pi.on("session_start", (_event, ctx) => {
 		painted = null;
 		binding = { kind: "unbound" };
 		rebindEventListener(ctx);
-		const launchIntent = captureLaunchIntent(event);
+		const launchIntent = captureLaunchIntent();
 		let entries: readonly unknown[];
 		try {
 			entries = ctx.sessionManager.getEntries();

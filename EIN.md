@@ -1,4 +1,4 @@
-<!-- ein:init rev=d01f571 generado=2026-08-25 · refresca con /ein:init -->
+<!-- ein:init rev=5a6b65a generado=2026-08-28 · refresca con /ein:init -->
 ## Overview
 <!-- CURADA — 2-3 líneas: qué es el proyecto y para quién. -->
 Harness de coding-agent sobre Pi Coding Agent y Claude Code: dos runtimes aislados con una sola disciplina de entrega. Convierte trabajo ambiguo en cambios pequeños, verificados y explicados, con el estado del cambio en disco (`openspec/`) y no en la conversación.
@@ -29,10 +29,10 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 
 ## Índice
 <!-- SEMI-CURADA — una línea por carpeta/pieza: qué es. Ein la siembra; el modelo/tú la mantenéis al crecer el proyecto. -->
-- `ein-cc/` — Adaptador Claude y sincronización de superficies.
 - `docs/` — Documentación y roadmap del proyecto.
 - `docs-site/` — Sitio de documentación pública de Ein.
 - `e2e/` — Escenarios E2E del instalador en contenedores limpios.
+- `ein-cc/` — Adaptador Claude y sincronización de superficies.
 - `ein-pi/` — Core compartido, runtime Pi, launcher aislado y migración.
 - `evals/` — _(describe)_
 - `installer/` — CLI, binarios y runtime del instalador.
@@ -53,11 +53,11 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 
 ## Estructura
 
-- `ein-cc/`
-- `ein-pi/`
 - `docs/`
 - `docs-site/`
 - `e2e/`
+- `ein-cc/`
+- `ein-pi/`
 - `evals/`
 - `installer/`
 - `openspec/`
@@ -69,6 +69,7 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - [README](README.md)
 - [CHANGELOG](CHANGELOG.md)
 - [docs/EIN_DOCUMENTATION_BRIEF.md](docs/EIN_DOCUMENTATION_BRIEF.md)
+- [docs/comparativa-pi-config-2026-08.md](docs/comparativa-pi-config-2026-08.md)
 - [docs/fricciones-dogfooding.md](docs/fricciones-dogfooding.md)
 - [docs/guia-cleaner-architect-herramientas-deterministas.md](docs/guia-cleaner-architect-herramientas-deterministas.md)
 - [docs/investigacion-freeze-repintado-2026-08.md](docs/investigacion-freeze-repintado-2026-08.md)
