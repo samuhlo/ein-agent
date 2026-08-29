@@ -322,6 +322,7 @@ export type PiInstallEffects = {
   doctor: typeof runDoctor;
   launcher: typeof installFishLauncher;
   promote: typeof promoteCommandNames;
+  requestSecret: typeof maybeSecret;
 };
 
 export type PiInstallOptions = {
@@ -341,7 +342,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   const { platform, flags, deps, agentDir, effects: overrides = {} } = options;
   const linear: LinearIntegration = options.linear ?? (options.skipLinear ? "off" : "on");
   const paths = derivePiInstallPaths();
-  const effects: PiInstallEffects = { resolveContext: () => resolvePiInstallContext(paths), migrateContext: () => { if (isValidInstallMarker(paths.legacyMarker)) migrateLegacyPi(paths); return resolvePiInstallContext(paths); }, exists: existsSync, backup: snapshot, spinner: p.spinner, deploy: deployTemplate, packages: installDeclaredPackages, writePreference: writeReleaseChannelPreference, readPreference: readReleaseChannelPreference, marker: writeMarker, check: checkDeps, doctor: runDoctor, launcher: installFishLauncher, promote: promoteCommandNames, ...overrides };
+  const effects: PiInstallEffects = { resolveContext: () => resolvePiInstallContext(paths), migrateContext: () => { if (isValidInstallMarker(paths.legacyMarker)) migrateLegacyPi(paths); return resolvePiInstallContext(paths); }, exists: existsSync, backup: snapshot, spinner: p.spinner, deploy: deployTemplate, packages: installDeclaredPackages, writePreference: writeReleaseChannelPreference, readPreference: readReleaseChannelPreference, marker: writeMarker, check: checkDeps, doctor: runDoctor, launcher: installFishLauncher, promote: promoteCommandNames, requestSecret: maybeSecret, ...overrides };
   const success = (): InstallStep => ({ ok: true, detail: "ok" });
   let piContext: PiInstallContext | undefined;
   let rollbackPath: string | null = null;
@@ -491,9 +492,8 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   "pi.configure-secrets": async () => {
   if (!flags.noSecrets && !flags.yes) {
     p.log.step("Configuración de secrets (todo opcional)");
-    await maybeSecret("context7", "Context7 API key", flags);
-    if (linear === "on") await maybeSecret("linear", "Linear API key", flags);
-    await maybeSecret("minimax", "MiniMax API key", flags);
+    await effects.requestSecret("context7", "Context7 API key", flags);
+    if (linear === "on") await effects.requestSecret("linear", "Linear API key", flags);
   }
   return success();
   },

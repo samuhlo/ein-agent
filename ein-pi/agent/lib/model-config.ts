@@ -7,7 +7,7 @@
 // SIN presets de modelos a propósito: hardcodear nombres (gpt-X, MiniMax-Y) se
 // pudre en semanas —salen modelos y cambian precios— y da falsa confianza. Lo
 // que NO caduca vive aquí: el thinking por agente (un NIVEL, no un nombre) y las
-// recomendaciones por ROL (barato/capaz). El modelo concreto lo eliges tú.
+// recomendaciones de ESFUERZO por rol. El modelo concreto lo eliges tú.
 // =============================================================================
 
 import {
@@ -287,7 +287,7 @@ export function cloneModelConfig(config: AgentModelConfig): AgentModelConfig {
 // Thinking por defecto por fase. Sin fijarlo, cada agente hereda el thinking
 // alto del modelo y da vueltas quemando tokens (apply llegó a 47 turnos; map a
 // 222k). Solo RAZONAN de verdad orchestrator y sdd-design (compuertas de
-// decisión) → se dejan sin fijar (heredan el default del modelo capaz). Las
+// decisión) → se dejan sin fijar (heredan la configuración activa). Las
 // fases que LEEN/EJECUTAN corren más bajo. El usuario/preset puede overridear.
 const DEFAULT_THINKING: Record<string, ThinkingLevel> = {
 	"sdd-apply": "low", // ejecuta el plan masticado (E0)
@@ -295,25 +295,39 @@ const DEFAULT_THINKING: Record<string, ThinkingLevel> = {
 	"sdd-verify": "medium", // corre tests + razona cobertura (G)
 };
 
-// Recomendación por agente para el panel /ein:models: nivel de modelo (barato/
-// capaz) + thinking + por qué. Ayuda a elegir sin memorizar la arquitectura.
-export type AgentTier = "cheap" | "capable";
-export type AgentRecommendation = { tier: AgentTier; thinking: ThinkingLevel; reason: string };
-export const AGENT_RECOMMENDATIONS: Record<string, AgentRecommendation> = {
-	orchestrator: { tier: "capable", thinking: "high", reason: "decide el mapa; el cerebro del flujo" },
-	"sdd-design": { tier: "capable", thinking: "high", reason: "última compuerta de razonamiento antes de ejecutar" },
-	"sdd-scope": { tier: "cheap", thinking: "low", reason: "extracción estructurada del alcance" },
-	"sdd-map": { tier: "cheap", thinking: "medium", reason: "lee y resume impacto (codegraph), no diseña" },
-	"sdd-tasks": { tier: "cheap", thinking: "low", reason: "descompone el diseño en checklist" },
-	// El coste lo controla el THINKING (low), no abaratar el modelo: un modelo
-	// barato no "ahorra", da 135 turnos de prueba y error en un TDD estricto.
-	"sdd-apply": { tier: "capable", thinking: "low", reason: "ejecuta a thinking bajo; el modelo capaz evita el thrashing (barato = 135 turnos)" },
-	"sdd-verify": { tier: "cheap", thinking: "medium", reason: "corre tests + razona cobertura" },
-	"sdd-close": { tier: "cheap", thinking: "low", reason: "condensa el resumen" },
-	"ein-git": { tier: "cheap", thinking: "low", reason: "entrega mecánica (commit/push/PR)" },
-	"ein-linear": { tier: "cheap", thinking: "low", reason: "operaciones de board acotadas" },
-	"ein-scout": { tier: "cheap", thinking: "low", reason: "investigación read-only acotada y citada" },
+// /ein:models recomienda solo esfuerzo. Proveedor y modelo son decisiones del
+// usuario y nunca se infieren a partir del rol, precio o nombre del modelo.
+export type AgentEffortRecommendation = { thinking: ThinkingLevel; reason: string };
+export const AGENT_EFFORT_RECOMMENDATIONS: Record<string, AgentEffortRecommendation> = {
+	orchestrator: { thinking: "high", reason: "decide el mapa; el cerebro del flujo" },
+	"sdd-design": { thinking: "high", reason: "última compuerta de razonamiento antes de ejecutar" },
+	"sdd-scope": { thinking: "low", reason: "extracción estructurada del alcance" },
+	"sdd-map": { thinking: "medium", reason: "lee y resume impacto (codegraph), no diseña" },
+	"sdd-tasks": { thinking: "low", reason: "descompone el diseño en checklist" },
+	"sdd-apply": { thinking: "low", reason: "ejecuta un plan ya decidido" },
+	"sdd-verify": { thinking: "medium", reason: "corre tests y razona cobertura" },
+	"sdd-close": { thinking: "low", reason: "condensa el resumen" },
+	"ein-git": { thinking: "low", reason: "entrega mecánica (commit/push/PR)" },
+	"ein-linear": { thinking: "low", reason: "operaciones de board acotadas" },
+	"ein-scout": { thinking: "low", reason: "investigación read-only acotada y citada" },
 };
+
+const THINKING_DISTANCE: Record<ThinkingLevel, number> = {
+	off: 0,
+	minimal: 1,
+	low: 2,
+	medium: 3,
+	high: 4,
+	xhigh: 5,
+};
+
+/** Evita ruido: heredar o desviarse un único nivel no merece una alerta. */
+export function isEffortRecommendationGapLarge(
+	actual: ThinkingLevel | undefined,
+	recommended: ThinkingLevel,
+): boolean {
+	return actual !== undefined && Math.abs(THINKING_DISTANCE[actual] - THINKING_DISTANCE[recommended]) >= 2;
+}
 
 // Aplica el thinking por defecto del agente cuando ni models.json ni el preset
 // lo fijan. Un thinking explícito (usuario/preset) siempre gana.

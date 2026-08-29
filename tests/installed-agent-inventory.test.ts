@@ -54,12 +54,16 @@ describe("inventario instalado de agentes", () => {
 			const staged = readdirSync(join(staging.payload, "agents")).filter((file) => file.endsWith(".md")).sort();
 			const assets = readdirSync(join(staging.payload, "assets", "agents")).filter((file) => file.endsWith(".md")).sort();
 			const manifest = JSON.parse(readFileSync(join(staging.payload, "template-manifest.json"), "utf8")) as { agents: string[]; terminalApp: { path: string; target: string; mode: string } };
+			const settings = JSON.parse(readFileSync(join(staging.payload, "settings.json"), "utf8")) as Record<string, unknown>;
 			const policy = readFileSync(join(staging.payload, "AGENTS.md"), "utf8");
 			expect(source).toContain("ein-scout.md");
 			expect(staged).toEqual(source);
 			expect(assets).toEqual(source);
 			expect(manifest.agents).toEqual(source);
 			expect(manifest.terminalApp).toEqual(expect.objectContaining({ path: "bin/ein", target: "test-target", mode: "0755" }));
+			expect(settings).not.toHaveProperty("defaultProvider");
+			expect(settings).not.toHaveProperty("defaultModel");
+			expect(settings).not.toHaveProperty("enabledModels");
 			expect(readFileSync(join(staging.payload, "bin", "ein"), "utf8")).toBe("APP");
 			expect(existsSync(join(staging.payload, "lib", "linear-integration.ts"))).toBe(true);
 			expect(existsSync(join(staging.payload, "lib", "doctor-core.ts"))).toBe(true);

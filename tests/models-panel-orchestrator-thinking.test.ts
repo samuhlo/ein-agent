@@ -118,6 +118,30 @@ describe("esfuerzo del orquestador en /ein:models", () => {
 		rmSync(ROOT, { recursive: true, force: true });
 	});
 
+	test("solo pinta alerta cuando la diferencia de esfuerzo es grande", async () => {
+		writeFileSync(
+			join(AGENT_HOME, "settings.json"),
+			JSON.stringify({ defaultThinkingLevel: "medium" }),
+		);
+		const adjacent = await runPanel({
+			activeModel: "openai-codex/gpt-5.6-sol",
+			effective: "medium",
+		});
+		expect(orchestratorLine(adjacent.rendered)).not.toContain("!");
+		expect(adjacent.rendered).not.toContain("Fuera de recomendación");
+
+		writeFileSync(
+			join(AGENT_HOME, "settings.json"),
+			JSON.stringify({ defaultThinkingLevel: "low" }),
+		);
+		const far = await runPanel({
+			activeModel: "openai-codex/gpt-5.6-sol",
+			effective: "low",
+		});
+		expect(orchestratorLine(far.rendered)).toContain("!");
+		expect(far.rendered).toContain("Fuera de recomendación");
+	});
+
 	test("permite pasar high → xhigh y muestra el clamp efectivo sin mentir", async () => {
 		writeFileSync(
 			join(AGENT_HOME, "settings.json"),

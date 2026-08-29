@@ -30,7 +30,7 @@ const {
 	updateGlobalDefaultModel,
 	updateGlobalOrchestratorRouting,
 	modelConfigPath,
-	AGENT_RECOMMENDATIONS,
+	AGENT_EFFORT_RECOMMENDATIONS,
 } = await import("../ein-pi/agent/lib/model-config");
 
 const CWD = "/tmp/proyecto-irrelevante";
@@ -265,10 +265,10 @@ describe("routing de agentes de ~/.pi/agent/agents (fuente user)", () => {
 		);
 	});
 
-	test("descubre ein-scout como agente user y lo recomienda barato", () => {
+	test("descubre ein-scout como agente user y le recomienda esfuerzo low", () => {
 		const scout = listDiscoverableAgents(CWD).find((agent) => agent.name === "ein-scout");
 		expect(scout).toMatchObject({ source: "user" });
-		expect(AGENT_RECOMMENDATIONS["ein-scout"]).toMatchObject({ tier: "cheap", thinking: "low" });
+		expect(AGENT_EFFORT_RECOMMENDATIONS["ein-scout"]).toEqual(expect.objectContaining({ thinking: "low" }));
 	});
 
 	test("applyModelConfigAsync escribe model: en el frontmatter, no en settings", async () => {

@@ -31,6 +31,24 @@ function fakeHandlers(plan: InstallPlanV1, call: (id: string) => { ok: boolean; 
 }
 
 describe("managed install plan", () => {
+	test("el wizard de secrets no selecciona ni promociona proveedores", async () => {
+		const requested: string[] = [];
+		const base = {
+			platform: { os: "darwin", arch: "arm64", distro: "unknown", packageManager: "brew", shell: "unknown", shellRc: join(HOME, ".profile"), home: HOME },
+			flags: { yes: false, noEngram: true, noSecrets: false, noLinear: false, noHypa: true, noCodegraph: true, dryRun: false, runtime: "pi" },
+			deps: [],
+			agentDir: join(HOME, ".pi-ein", "agent"),
+			effects: { requestSecret: async (name: string) => { requested.push(name); } },
+		} as Parameters<typeof createPiInstallHandlers>[0];
+
+		await createPiInstallHandlers({ ...base, linear: "on" }).handlers["pi.configure-secrets"]();
+		expect(requested).toEqual(["context7", "linear"]);
+
+		requested.length = 0;
+		await createPiInstallHandlers({ ...base, linear: "off" }).handlers["pi.configure-secrets"]();
+		expect(requested).toEqual(["context7"]);
+	});
+
   test("keeps stable target order and shared Bun exactly once", () => {
     const pi = createInstallPlan(input("pi"));
     const claude = createInstallPlan(input("claude"));
