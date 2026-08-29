@@ -34,7 +34,7 @@ import {
   type PiInstallContext,
 } from "../core/paths.ts";
 import { migrateLegacyPi } from "../core/pi-migration.ts";
-import { PI_HOST_SPEC } from "../../../ein-pi/agent/lib/runtime-compat.ts";
+import { PI_HOST_SPEC } from "../../../shared/contracts/runtime-compat.ts";
 import {
   ensureContext7Export,
   hasSecret,
@@ -82,7 +82,7 @@ import {
 import {
   LINEAR_INTEGRATION_OPTIONS,
   type LinearIntegration,
-} from "../../../ein-pi/agent/lib/linear-integration.ts";
+} from "../../../shared/ports/linear.ts";
 
 /** The one target selected by the menu or the direct installer default. */
 export type { InstallTarget, RuntimeInstallTarget } from "../core/install-plan.ts";

@@ -11,7 +11,7 @@ import { readInstallerUpdateEvidence, type InstallerUpdateReadEvidence } from ".
 import { existsSync } from "node:fs";
 import { MARK, concrete, danger, gold, levelMark, structure, visibleWidth } from "../tui/theme.ts";
 import { INSTALLER_VERSION } from "../core/version.ts";
-import { evaluateSharedConfigUpdateAdvisor, renderAdvisorSemantics, type AdvisorInput, type SharedConfigUpdateAdvisorResult } from "../../../ein-pi/agent/lib/shared-config-update-advisor.ts";
+import { evaluateSharedConfigUpdateAdvisor, renderAdvisorSemantics, type AdvisorInput, type SharedConfigUpdateAdvisorResult } from "../../../shared/contracts/shared-config-update-advisor.ts";
 
 
 type InstallerAdvisorAction = "install" | "update" | "repair" | "configure";

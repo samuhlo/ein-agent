@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   evaluateSharedConfigUpdateAdvisor,
   type AdvisorInput,
-} from "../ein-pi/agent/lib/shared-config-update-advisor.ts";
+} from "../shared/contracts/shared-config-update-advisor.ts";
 
 // `satisfies` and not an annotation: `AdvisorInput.update` is optional, so
 // annotating erases the literal's known shape and every spread below breaks.

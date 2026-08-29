@@ -10,7 +10,7 @@ Herramienta personal de Samu antes que producto público; cuando las dos cosas c
 
 ## Arquitectura
 <!-- CURADA — estilo (p.ej. screaming architecture) y dónde viven las features. -->
-Núcleo portable + adaptadores por runtime. `runtime/` contiene política, agentes, skills propias, docs y prompts compartidos; `vendor/skills/` contiene únicamente material externo curado. `ein-pi/agent/` posee el adaptador Pi y `ein-cc/` el adaptador Claude. `installer/` controla el comando público `ein`, instalación, despliegue, backups y releases; `tooling/` solo mantiene el checkout y `docs-site/` es la documentación pública.
+Núcleo portable + contratos compartidos + adaptadores por runtime. `runtime/` contiene política, agentes, skills propias, docs y prompts compartidos; `shared/contracts/` contiene lógica sin dependencia de adaptadores y `shared/ports/` es la única frontera autorizada hacia implementaciones todavía Pi-first; `vendor/skills/` contiene únicamente material externo curado. `ein-pi/agent/` posee el adaptador Pi y `ein-cc/` el adaptador Claude. `installer/` controla el comando público `ein`, instalación, despliegue, backups y releases; `tooling/` solo mantiene el checkout y `docs-site/` es la documentación pública.
 
 La lógica vive en `ein-pi/agent/lib/` como módulos deterministas y sin estado global: reciben la evidencia como parámetro y devuelven un resultado. Los marcados `[CORE]` no leen, no escriben y no ejecutan nada — la E/S se queda en el borde (extensiones, CLI, installer). Las features se nombran por lo que hacen, no por su capa.
 
@@ -38,6 +38,7 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - `installer/` — CLI, binarios y runtime del instalador.
 - `openspec/` — Especificaciones y ciclos de cambios SDD.
 - `runtime/` — Contenido propio y portable que consumen ambos adaptadores.
+- `shared/` — Contratos agnósticos y puertos públicos entre adaptadores.
 - `tests/` — Suite Bun de contratos y paridad.
 - `tooling/` — Utilidades de mantenimiento que no se distribuyen.
 - `vendor/` — Dependencias fuente externas, aisladas del código propio.
@@ -64,6 +65,7 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - `installer/`
 - `openspec/`
 - `runtime/`
+- `shared/`
 - `tests/`
 - `tooling/`
 - `vendor/`

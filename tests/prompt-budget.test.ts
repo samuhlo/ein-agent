@@ -52,7 +52,7 @@ function overBudgetMessage(name: string, actual: number, budget: number): string
 
 describe("presupuesto de prompt", () => {
 	test("el prompt del orquestador no crece sin que algo salga a cambio", () => {
-		const actual = bytesOf("ein-pi/agent/assets/orchestrator.md");
+		const actual = bytesOf("runtime/assets/orchestrator.md");
 		if (actual > ORCHESTRATOR_BUDGET_BYTES) {
 			throw new Error(overBudgetMessage("orchestrator.md", actual, ORCHESTRATOR_BUDGET_BYTES));
 		}
@@ -77,7 +77,7 @@ describe("presupuesto de prompt", () => {
 	// la línea base y los presupuestos se separan tanto que el techo dejó de
 	// medir nada — señal de que hay que rebajarlo a lo que de verdad se ocupa.
 	test("un presupuesto muy holgado deja de ser un techo", () => {
-		const orchestrator = bytesOf("ein-pi/agent/assets/orchestrator.md");
+		const orchestrator = bytesOf("runtime/assets/orchestrator.md");
 		const slack = ORCHESTRATOR_BUDGET_BYTES - orchestrator;
 		expect(slack).toBeLessThanOrEqual(Math.round(ORCHESTRATOR_BUDGET_BYTES * 0.15));
 	});

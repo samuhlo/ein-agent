@@ -23,6 +23,7 @@
     "ein-pi/**/*.ts",
     "ein-pi/**/*.tsx",
     "ein-cc/**/*.ts",
+    "shared/**/*.ts",
     "tooling/**/*.ts",
     "tests/**/*.ts"
   ],

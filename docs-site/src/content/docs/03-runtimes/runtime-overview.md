@@ -21,6 +21,7 @@ mismas capacidades**.
 ```text
 runtime/
 ├── agents/     los ejecutores de fase (sdd-scope, sdd-map, …)
+├── assets/     políticas y recursos portables del runtime
 ├── skills/     las skills propias de Ein
 ├── docs/       la documentación interna del sistema
 └── prompts/    los prompts compartidos
@@ -29,6 +30,12 @@ runtime/
 Las skills externas curadas viven aparte en `vendor/skills/`. El empaquetado las
 instala bajo `skills/downloaded/`, pero el checkout no las presenta como código
 propio. Un cambio en un agente de fase de `runtime/` llega a Pi y Claude Code.
+
+La lógica que sí ejecutan varios consumidores vive en `shared/`. Los módulos de
+`shared/contracts/` no dependen de Pi, Claude ni del instalador. Los pocos
+servicios cuya implementación aún es Pi-first se exponen expresamente mediante
+`shared/ports/`; Claude y el instalador no atraviesan directamente el interior
+de `ein-pi/agent/`. La suite comprueba ambas fronteras automáticamente.
 
 ## Qué es distinto
 

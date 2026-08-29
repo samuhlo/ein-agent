@@ -10,7 +10,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { ESSENTIALS_SECTION, compileStyleContract } from "../ein-pi/agent/lib/style-contract.ts";
+import { ESSENTIALS_SECTION, compileStyleContract } from "../shared/contracts/style-contract.ts";
 
 const SKILLS = join(import.meta.dir, "..", "runtime", "skills", "local");
 

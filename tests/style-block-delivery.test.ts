@@ -7,7 +7,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
-import { buildConventionBlock } from "../ein-pi/agent/lib/style-contract.ts";
+import { buildConventionBlock } from "../shared/contracts/style-contract.ts";
 import { codeConventionSkillBlock } from "../ein-pi/agent/extensions/ein-skill-registry";
 
 const REPO = join(import.meta.dir, "..");

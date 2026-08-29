@@ -65,6 +65,7 @@ Y hay comprobaciones que no dependen del modelo: el estado de las fases lo calcu
 ```text
 ein-agent/
 ├── runtime/        # agentes, skills propias, docs y prompts compartidos
+├── shared/         # contratos puros y puertos explícitos entre adaptadores
 ├── vendor/skills/  # skills externas curadas; no son código propio
 ├── ein-pi/         # adaptador Pi, launcher avanzado y migración
 ├── ein-cc/         # adaptador Claude, launcher, sync y CLI SDD
@@ -73,7 +74,7 @@ ein-agent/
 └── docs-site/      # documentación pública (Astro + Starlight)
 ```
 
-`runtime/` es el contenido propio y portable; `vendor/skills/` deja visible lo externo. El instalador compone ambos con `ein-pi/agent/` para Pi y empaqueta las fuentes necesarias para Claude. El recorrido exacto de cada comando está en [Entry points](https://samuhlo.github.io/ein-agent/04-reference/entrypoints/).
+`runtime/` es el contenido propio y portable; `vendor/skills/` deja visible lo externo. `shared/contracts/` contiene lógica sin dependencia de adaptadores y `shared/ports/` concentra los pocos puentes que todavía tienen implementación Pi. Claude y el instalador consumen esas fronteras: no importan interiores de `ein-pi/agent/`. El instalador compone estas raíces para Pi y empaqueta las fuentes necesarias para Claude. El recorrido exacto de cada comando está en [Entry points](https://samuhlo.github.io/ein-agent/04-reference/entrypoints/).
 
 | LAYER | TECH |
 | :--- | :--- |

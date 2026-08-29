@@ -1,9 +1,11 @@
 // =============================================================================
 // BUNDLE TEMPLATE
 // Empaqueta src/assets/template.tar.gz componiendo tres raices:
-//   runtime/     — assets Ein portables (agents, skills, docs, prompts)
+//   runtime/     — assets Ein portables (agents, policy, skills, docs, prompts)
 //   vendor/skills — skills externas curadas, separadas del codigo propio
-//   ein-pi/agent/ — runtime de Pi (extensions, lib, chains, assets, configs)
+//   ein-pi/agent/ — adaptador Pi (extensions, lib, chains, surfaces, configs)
+// Los contratos compartidos se superponen en lib/: el checkout conserva
+// entrypoints de compatibilidad, pero el despliegue recibe la implementación.
 // El layout DESPLEGADO va plano bajo ~/.pi/agent (es lo que Pi espera); el
 // split solo existe repo-side para que cada origen tenga un dueño visible.
 // - allowlist de contenido Ein-owned (nunca secrets/runtime/binarios)
@@ -33,6 +35,7 @@ const INSTALLER_ROOT = dirname(HERE);
 const REPO_ROOT = dirname(INSTALLER_ROOT);
 const RUNTIME_SOURCE = join(REPO_ROOT, "runtime");
 const VENDOR_SKILLS_SOURCE = join(REPO_ROOT, "vendor", "skills");
+const SHARED_CONTRACT_SOURCE = join(REPO_ROOT, "shared", "contracts");
 const AGENT_SOURCE = join(REPO_ROOT, "ein-pi", "agent");
 const OUT = process.env.EIN_TEMPLATE_OUT ? resolve(process.env.EIN_TEMPLATE_OUT) : join(INSTALLER_ROOT, "src", "assets", "template.tar.gz");
 const TYPESCRIPT_VERSION = "5.9.3";
@@ -41,12 +44,19 @@ const TYPESCRIPT_VERSION = "5.9.3";
 // sessions/, backups/, .atl/, .piagents/, .sdd/,
 // disabled-skill-conflicts/, run-history) queda fuera a proposito.
 const RUNTIME_FILES = ["AGENTS.md"];
-const RUNTIME_DIRS = ["agents", "docs", "prompts", "skills"];
+const RUNTIME_DIRS = ["agents", "assets", "docs", "prompts", "skills"];
+const SHARED_CONTRACT_FILES = [
+  "ein-tv.ts",
+  "memory-contract.ts",
+  "runtime-compat.ts",
+  "shared-config-update-advisor.ts",
+  "style-contract.ts",
+];
 // Allowlist del template. `app.ts` remains available to provider launchers;
 // the user-facing app is precompiled and staged separately as bin/ein. Ver
 // tests/template-agent-inventory.test.ts, que deriva lo requerido del código.
 const AGENT_FILES = ["app.ts", "brand.json", "extensions-manifest.json", "models.json", "mcp.json", "settings.json"];
-const AGENT_DIRS = ["assets", "chains", "extensions", "lib", "surfaces", "themes"];
+const AGENT_DIRS = ["chains", "extensions", "lib", "surfaces", "themes"];
 
 function tokenizeMcp(staging: string): void {
   const path = join(staging, "mcp.json");
@@ -164,7 +174,7 @@ function copyInto(sourceRoot: string, staging: string, files: string[], dirs: st
 }
 
 async function main(): Promise<void> {
-  for (const source of [RUNTIME_SOURCE, VENDOR_SKILLS_SOURCE, AGENT_SOURCE]) {
+  for (const source of [RUNTIME_SOURCE, VENDOR_SKILLS_SOURCE, SHARED_CONTRACT_SOURCE, AGENT_SOURCE]) {
     if (!existsSync(source)) {
       throw new Error(`No existe el source del template: ${source}`);
     }
@@ -175,6 +185,7 @@ async function main(): Promise<void> {
     copyInto(RUNTIME_SOURCE, staging, RUNTIME_FILES, RUNTIME_DIRS);
     cpSync(VENDOR_SKILLS_SOURCE, join(staging, "skills", "downloaded"), { recursive: true });
     copyInto(AGENT_SOURCE, staging, AGENT_FILES, AGENT_DIRS);
+    copyInto(SHARED_CONTRACT_SOURCE, join(staging, "lib"), SHARED_CONTRACT_FILES, []);
 
     // assets/agents y assets/chains son la copia "de fabrica" que usa
     // installSddAssets para reparar instalaciones. Se generan aqui desde las
@@ -216,7 +227,7 @@ async function main(): Promise<void> {
 
     const size = Bun.file(OUT).size;
     console.log(`/// template empaquetado`);
-    console.log(`  origen:  ${RUNTIME_SOURCE} + ${VENDOR_SKILLS_SOURCE} + ${AGENT_SOURCE}`);
+    console.log(`  origen:  ${RUNTIME_SOURCE} + ${VENDOR_SKILLS_SOURCE} + ${SHARED_CONTRACT_SOURCE} + ${AGENT_SOURCE}`);
     console.log(`  salida:  ${OUT}`);
     console.log(`  tamano:  ${(size / 1024 / 1024).toFixed(2)} MB`);
   } finally {

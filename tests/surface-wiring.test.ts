@@ -694,7 +694,7 @@ describe("Pi ein-pi launcher adapter", () => {
 
 const CLAUDE_LAUNCHER_SOURCE = join(import.meta.dir, "..", "ein-cc", "launchers", "ein-cc.fish");
 const CLAUDE_SYNC_SOURCE = join(import.meta.dir, "..", "ein-cc", "sync.ts");
-const CANONICAL_ORCHESTRATOR_SOURCE = join(import.meta.dir, "..", "ein-pi", "agent", "assets", "orchestrator.md");
+const CANONICAL_ORCHESTRATOR_SOURCE = join(import.meta.dir, "..", "runtime", "assets", "orchestrator.md");
 
 type ClaudeSyncFixture = Readonly<{
   home: string;
@@ -998,6 +998,7 @@ function installedSurfaceFixture(runtime: InstalledRuntime) {
   const binDir = join(root, "bin");
   const functionDir = join(home, ".config", "fish", "functions");
   const sourceAgent = join(import.meta.dir, "..", "ein-pi", "agent");
+  const sourceSharedContracts = join(import.meta.dir, "..", "shared", "contracts");
   const isolatedRoot = join(home, runtime === "pi" ? ".pi-ein" : ".claude-ein");
   const installedAgent = join(isolatedRoot, "agent");
   const launcherName = runtime === "pi" ? "ein-pi" : "ein-cc";
@@ -1012,6 +1013,9 @@ function installedSurfaceFixture(runtime: InstalledRuntime) {
   writeFileSync(vanillaMarker, "vanilla-home\n");
   copyFileSync(launcherSource, launcherPath);
   cpSync(sourceAgent, installedAgent, { recursive: true });
+  // The production template overlays shared implementations onto the flat Pi
+  // layout; mirror that composition instead of executing checkout wrappers.
+  cpSync(sourceSharedContracts, join(installedAgent, "lib"), { recursive: true });
 
   const runnerPath = runtime === "pi"
     ? join(installedAgent, "surfaces", "surface-runner.ts")

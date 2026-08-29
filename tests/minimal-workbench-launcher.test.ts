@@ -6,7 +6,7 @@ import {
   runWorkbenchEntrypoint as runSurfaceWorkbenchEntrypoint,
 } from "../ein-pi/agent/surfaces/workbench-entrypoint.ts";
 import { createProductionWorkbenchInvocationAdapter } from "../ein-pi/agent/surfaces/surface-runner.ts";
-import { evaluateSharedConfigUpdateAdvisor } from "../ein-pi/agent/lib/shared-config-update-advisor.ts";
+import { evaluateSharedConfigUpdateAdvisor } from "../shared/contracts/shared-config-update-advisor.ts";
 import { getRuntimeCapabilities } from "../ein-pi/agent/lib/runtime-session-adapters.ts";
 import {
   classifyWorkbenchExit,

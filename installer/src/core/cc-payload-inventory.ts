@@ -4,18 +4,24 @@
 // caller's working directory or an adjacent checkout.
 // =============================================================================
 
+import {
+  ORCHESTRATOR_SOURCE,
+  STYLE_CONTRACT_SOURCE,
+  SURFACE_RUNNER_SOURCE,
+} from "../../../shared/ports/runtime-payload.ts";
+
 /** Directories copied wholesale into the embedded runtime payload. */
 export const EIN_CC_PAYLOAD_ROOTS = ["ein-cc", "runtime", "vendor/skills"] as const;
 
 /** The canonical orchestrator asset shipped in the Claude payload. */
-export const EIN_CC_ORCHESTRATOR_ASSET = "ein-pi/agent/assets/orchestrator.md" as const;
+export const EIN_CC_ORCHESTRATOR_ASSET = ORCHESTRATOR_SOURCE;
 
 /**
  * The style contract compiler, imported by `ein-cc/sync.ts` itself. It is a pure
  * module with no relative imports, so it ships as a single file rather than as
  * an entry-point closure.
  */
-export const EIN_CC_STYLE_CONTRACT = "ein-pi/agent/lib/style-contract.ts" as const;
+export const EIN_CC_STYLE_CONTRACT = STYLE_CONTRACT_SOURCE;
 
 /** Explicit files shipped alongside the Claude adapter for packaged execution. */
 export const EIN_CC_PAYLOAD_FILES = [
@@ -35,8 +41,9 @@ export const EIN_CC_PAYLOAD_SDD_ENTRY = "ein-cc/sdd-cli/cli.ts" as const;
  * machine, not at packaging time.
  */
 export const EIN_CC_PAYLOAD_SOURCE_ENTRIES = [
+  "ein-cc/sync.ts",
   EIN_CC_PAYLOAD_SDD_ENTRY,
-  "ein-pi/agent/surfaces/surface-runner.ts",
+  SURFACE_RUNNER_SOURCE,
   "ein-cc/continuity-runner.ts",
 ] as const;
 
@@ -44,7 +51,7 @@ export const EIN_CC_PAYLOAD_SOURCE_ENTRIES = [
 export const EIN_CC_PAYLOAD_REQUIRED_PATHS = [
   "ein-cc/sync.ts",
   EIN_CC_PAYLOAD_SDD_ENTRY,
-  "ein-pi/agent/surfaces/surface-runner.ts",
+  SURFACE_RUNNER_SOURCE,
   "ein-cc/continuity-runner.ts",
   "ein-cc/commands/ein/handoff.md",
   "runtime",

@@ -21,7 +21,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { engramProjectName } from "../ein-pi/agent/lib/memory-contract.ts";
+import { engramProjectName } from "../shared/contracts/memory-contract.ts";
 
 describe("nombre derivado del remoto", () => {
 	test("toma el último segmento y quita el `.git` final", () => {

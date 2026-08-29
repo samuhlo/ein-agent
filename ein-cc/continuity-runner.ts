@@ -6,10 +6,14 @@ import { createConnection, createServer, type Socket } from "node:net";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { stdin, stdout } from "node:process";
 
-import { CONTINUITY_CHECKPOINT_LIMITS } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
-import { createContinuityHandoffLifecycle, localExecutableAvailable, type ContinuityHandoffLifecycle } from "../ein-pi/agent/lib/continuity-handoff-lifecycle.ts";
-import { runContinueInPty } from "../ein-pi/agent/lib/terminal-continue-transport.ts";
-import { resolveEngramDataDir } from "../ein-pi/agent/lib/memory-contract.ts";
+import {
+  CONTINUITY_CHECKPOINT_LIMITS,
+  createContinuityHandoffLifecycle,
+  localExecutableAvailable,
+  runContinueInPty,
+  type ContinuityHandoffLifecycle,
+} from "../shared/ports/continuity.ts";
+import { resolveEngramDataDir } from "../shared/contracts/memory-contract.ts";
 
 const ENDPOINT = "EIN_CONTINUITY_ENDPOINT", TOKEN = "EIN_CONTINUITY_TOKEN";
 const USAGE = "usage: /ein:handoff status|to pi|to claude|refresh|clear";

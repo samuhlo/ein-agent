@@ -71,6 +71,7 @@ describe("estructura canónica de ein-pi", () => {
 
 		expect(content).toContain('const RUNTIME_SOURCE = join(REPO_ROOT, "runtime")');
 		expect(content).toContain('const VENDOR_SKILLS_SOURCE = join(REPO_ROOT, "vendor", "skills")');
+		expect(content).toContain('const SHARED_CONTRACT_SOURCE = join(REPO_ROOT, "shared", "contracts")');
 		expect(content).toContain('const AGENT_SOURCE = join(REPO_ROOT, "ein-pi", "agent")');
 	});
 
@@ -79,20 +80,24 @@ describe("estructura canónica de ein-pi", () => {
 
 		expect(content).toContain("`runtime/` es el contenido propio y portable");
 		expect(content).toContain("`vendor/skills/` deja visible lo externo");
+		expect(content).toContain("`shared/contracts/` contiene lógica sin dependencia de adaptadores");
 		expect(content).toContain("├── installer/      # dueño de `ein`");
 	});
 
 	test("el corte portable/runtime es el declarado", () => {
 		// runtime/: contenido propio; agent/: adaptador Pi. Si un dir cambia de lado,
 		// este test obliga a actualizar bundler, README y la decisión consciente.
-		for (const dir of ["agents", "docs", "prompts", "skills"]) {
+		for (const dir of ["agents", "assets", "docs", "prompts", "skills"]) {
 			expect(existsSync(join(REPO_ROOT, "runtime", dir))).toBe(true);
-			expect(existsSync(join(REPO_ROOT, "ein-pi", "agent", dir))).toBe(false);
+			if (dir !== "assets") expect(existsSync(join(REPO_ROOT, "ein-pi", "agent", dir))).toBe(false);
 		}
-		for (const dir of ["assets", "chains", "extensions", "lib"]) {
+		expect(existsSync(join(REPO_ROOT, "ein-pi", "agent", "assets", "orchestrator.md"))).toBe(false);
+		for (const dir of ["chains", "extensions", "lib"]) {
 			expect(existsSync(join(REPO_ROOT, "ein-pi", "agent", dir))).toBe(true);
 			expect(existsSync(join(REPO_ROOT, "runtime", dir))).toBe(false);
 		}
+		expect(existsSync(join(REPO_ROOT, "shared", "contracts"))).toBe(true);
+		expect(existsSync(join(REPO_ROOT, "shared", "ports"))).toBe(true);
 		expect(existsSync(join(REPO_ROOT, "runtime", "AGENTS.md"))).toBe(true);
 		expect(existsSync(join(REPO_ROOT, "runtime", "skills", "downloaded"))).toBe(false);
 		expect(existsSync(join(REPO_ROOT, "vendor", "skills"))).toBe(true);

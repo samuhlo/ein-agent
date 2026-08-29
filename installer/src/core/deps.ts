@@ -32,7 +32,7 @@ import {
   PI_HOST_SPEC,
   PI_HOST_VERSION,
   PI_NODE_MIN_VERSION,
-} from "../../../ein-pi/agent/lib/runtime-compat.ts";
+} from "../../../shared/contracts/runtime-compat.ts";
 
 export type DepId =
   | "git"

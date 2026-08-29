@@ -15,7 +15,7 @@ const AGENT = join(import.meta.dir, "../ein-pi/agent");
 const CORE = join(import.meta.dir, "../runtime");
 const sddApply = readFileSync(join(CORE, "agents/sdd-apply.md"), "utf8");
 const sddVerify = readFileSync(join(CORE, "agents/sdd-verify.md"), "utf8");
-const orchestrator = readFileSync(join(AGENT, "assets/orchestrator.md"), "utf8");
+const orchestrator = readFileSync(join(CORE, "assets/orchestrator.md"), "utf8");
 
 describe("sdd-apply no corre build de produccion como gate", () => {
 	test("prohíbe explícitamente el build completo", () => {

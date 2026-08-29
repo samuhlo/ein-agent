@@ -27,6 +27,9 @@ function compiledEntrypoints(source: string): string[] {
     const path = parts.join("/");
     if (path.endsWith(".ts")) found.add(path);
   }
+  if (source.includes("join(REPO, SURFACE_RUNNER_REPOSITORY_PATH)")) {
+    found.add("ein-pi/agent/surfaces/surface-runner.ts");
+  }
   return [...found];
 }
 
@@ -52,7 +55,7 @@ describe("ein-cc payload entry points", () => {
   });
 
   test("the canonical orchestrator route is explicit and required exactly once", () => {
-    const canonicalRoute = "ein-pi/agent/assets/orchestrator.md";
+    const canonicalRoute = "runtime/assets/orchestrator.md";
     expect(EIN_CC_ORCHESTRATOR_ASSET).toBe(canonicalRoute);
     expect(EIN_CC_PAYLOAD_FILES.filter((path) => path === canonicalRoute)).toHaveLength(1);
     expect(EIN_CC_PAYLOAD_REQUIRED_PATHS.filter((path) => path === canonicalRoute)).toHaveLength(1);

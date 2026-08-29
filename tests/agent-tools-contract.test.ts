@@ -29,7 +29,7 @@ import { PI_BUILTIN_TOOLS as PI_CONTRACT_BUILTINS } from "../ein-pi/agent/lib/pi
 const CORE_AGENTS = join(import.meta.dir, "../runtime/agents");
 const EXTENSIONS = join(import.meta.dir, "../ein-pi/agent/extensions");
 const orchestrator = readFileSync(
-	join(import.meta.dir, "../ein-pi/agent/assets/orchestrator.md"),
+	join(import.meta.dir, "../runtime/assets/orchestrator.md"),
 	"utf8",
 );
 const einAiSource = readFileSync(join(EXTENSIONS, "ein-ai.ts"), "utf8");
