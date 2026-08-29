@@ -23,11 +23,12 @@
     "ein-pi/**/*.ts",
     "ein-pi/**/*.tsx",
     "ein-cc/**/*.ts",
+    "tooling/**/*.ts",
     "tests/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "ein-pi/core/skills/downloaded/**",
+    "vendor/skills/**",
     "ein-pi/**/node_modules/**",
     "installer/**",
     "docs-site/**"

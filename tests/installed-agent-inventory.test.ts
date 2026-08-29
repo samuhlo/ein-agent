@@ -10,7 +10,7 @@ import type { LinearIntegration } from "../ein-pi/agent/lib/linear-integration.t
 import { doctorSmokeReport } from "../ein-pi/agent/extensions/ein-doctor.ts";
 
 const ROOT = join(import.meta.dir, "..");
-const SOURCE_AGENTS = join(ROOT, "ein-pi", "core", "agents");
+const SOURCE_AGENTS = join(ROOT, "runtime", "agents");
 const BUNDLE_SCRIPT = join(ROOT, "installer", "scripts", "bundle-template.ts");
 
 function sourceAgents(): string[] {

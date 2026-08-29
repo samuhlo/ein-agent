@@ -1,7 +1,7 @@
 ---
 title: "SDD y OpenSpec"
 description: "Por qué EIN trabaja por fases y por qué el estado del cambio vive en disco."
-sources: ["openspec/specs/sdd-lifecycle/spec.md", "ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md", "ein-pi/core/docs/GUIA_PI_WORKFLOW.md"]
+sources: ["openspec/specs/sdd-lifecycle/spec.md", "runtime/docs/SDD_ARTIFACT_GRAMMAR.md", "runtime/docs/GUIA_PI_WORKFLOW.md"]
 verified_rev: "29861f5"
 ---
 

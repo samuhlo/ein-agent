@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { compileClaudeSurface } from "../ein-cc/sync.ts";
 import { compileStyleContract } from "../ein-pi/agent/lib/style-contract.ts";
 
-const SKILLS = join(import.meta.dir, "..", "ein-pi", "core", "skills", "local");
+const SKILLS = join(import.meta.dir, "..", "runtime", "skills", "local");
 
 function styleText(): string {
 	const contract = compileStyleContract(SKILLS);

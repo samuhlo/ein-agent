@@ -10,7 +10,7 @@ Herramienta personal de Samu antes que producto público; cuando las dos cosas c
 
 ## Arquitectura
 <!-- CURADA — estilo (p.ej. screaming architecture) y dónde viven las features. -->
-Núcleo portable + adaptadores por runtime. `ein-pi/core/` es contenido agnóstico del runtime (agentes, skills, docs, prompts) y lo comparten los dos adaptadores; `ein-pi/agent/` es el runtime específico de Pi (extensiones, chains, `lib/`). El mismo árbol `ein-pi/` posee el adaptador Pi y `ein-cc/` posee el adaptador Claude; `installer/` controla instalación, despliegue, backups y releases; `docs-site/` es la documentación pública.
+Núcleo portable + adaptadores por runtime. `runtime/` contiene política, agentes, skills propias, docs y prompts compartidos; `vendor/skills/` contiene únicamente material externo curado. `ein-pi/agent/` posee el adaptador Pi y `ein-cc/` el adaptador Claude. `installer/` controla el comando público `ein`, instalación, despliegue, backups y releases; `tooling/` solo mantiene el checkout y `docs-site/` es la documentación pública.
 
 La lógica vive en `ein-pi/agent/lib/` como módulos deterministas y sin estado global: reciben la evidencia como parámetro y devuelven un resultado. Los marcados `[CORE]` no leen, no escriben y no ejecutan nada — la E/S se queda en el borde (extensiones, CLI, installer). Las features se nombran por lo que hacen, no por su capa.
 
@@ -33,11 +33,14 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - `docs-site/` — Sitio de documentación pública de Ein.
 - `e2e/` — Escenarios E2E del instalador en contenedores limpios.
 - `ein-cc/` — Adaptador Claude y sincronización de superficies.
-- `ein-pi/` — Core compartido, runtime Pi, launcher aislado y migración.
+- `ein-pi/` — Adaptador Pi, launcher avanzado y migración.
 - `evals/` — Corpus y evaluaciones reproducibles que no participan en el runtime.
 - `installer/` — CLI, binarios y runtime del instalador.
 - `openspec/` — Especificaciones y ciclos de cambios SDD.
+- `runtime/` — Contenido propio y portable que consumen ambos adaptadores.
 - `tests/` — Suite Bun de contratos y paridad.
+- `tooling/` — Utilidades de mantenimiento que no se distribuyen.
+- `vendor/` — Dependencias fuente externas, aisladas del código propio.
 
 <!-- ein:auto:start — generado por /ein:init, no editar a mano -->
 
@@ -60,7 +63,10 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - `evals/`
 - `installer/`
 - `openspec/`
+- `runtime/`
 - `tests/`
+- `tooling/`
+- `vendor/`
 
 ## Docs
 

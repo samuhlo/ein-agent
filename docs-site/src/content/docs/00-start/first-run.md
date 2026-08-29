@@ -1,7 +1,7 @@
 ---
 title: "First Run"
 description: "Un cambio pequeño de principio a fin: qué pides, qué hace EIN y qué te deja para revisar."
-sources: ["ein-pi/core/docs/GUIA_PI_WORKFLOW.md", "ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md", "openspec/specs/sdd-lifecycle/spec.md"]
+sources: ["runtime/docs/GUIA_PI_WORKFLOW.md", "runtime/docs/SDD_ARTIFACT_GRAMMAR.md", "openspec/specs/sdd-lifecycle/spec.md"]
 verified_rev: "29861f5"
 ---
 

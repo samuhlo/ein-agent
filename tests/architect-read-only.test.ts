@@ -97,7 +97,7 @@ describe("Architect read-only flow", () => {
 	});
 
 	test("agent exposes only the three Architect read-only tools", () => {
-		const asset = readFileSync(join(import.meta.dir, "../ein-pi/core/agents/ein-architect.md"), "utf8");
+		const asset = readFileSync(join(import.meta.dir, "../runtime/agents/ein-architect.md"), "utf8");
 		expect(asset.match(/^tools: (.+)$/m)?.[1]).toBe("ein_architect_evidence, ein_architect_plan_bind, ein_architect_validate");
 		for (const forbidden of ["bash", "write", "edit", "ein_cleaner_improve_apply", "ein_openspec_delta_write"]) expect(asset.match(/^tools: (.+)$/m)?.[1]).not.toContain(forbidden);
 	});

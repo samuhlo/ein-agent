@@ -1,7 +1,7 @@
 ---
 title: "Orquestador"
 description: "Quién decide qué en EIN, y por qué el coordinador no escribe el código."
-sources: ["ein-pi/agent/assets/orchestrator.md", "ein-pi/core/docs/PI_AGENTS_ARQUITECTURA.md"]
+sources: ["ein-pi/agent/assets/orchestrator.md", "runtime/docs/PI_AGENTS_ARQUITECTURA.md"]
 verified_rev: "29861f5"
 ---
 

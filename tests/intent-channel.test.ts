@@ -25,8 +25,7 @@ import {
 const SKILL_PATH = join(
 	import.meta.dir,
 	"..",
-	"ein-pi",
-	"core",
+	"runtime",
 	"skills",
 	"local",
 	"intent-channel",

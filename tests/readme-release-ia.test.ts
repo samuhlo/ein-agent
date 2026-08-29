@@ -87,8 +87,8 @@ describe("contrato offline del README para release e instalación", () => {
     for (const phase of ["scope", "map", "design", "tasks", "apply", "verify", "close"]) {
       expect(readme).toContain(phase);
     }
-    expect(readme).toContain("`ein-pi/core/` (contenido portable, agnóstico del runtime)");
-    expect(readme).toContain("`ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench");
+    expect(readme).toContain("`runtime/` es el contenido propio y portable");
+    expect(readme).toContain("`vendor/skills/` deja visible lo externo");
   });
 
   test("enlaza la documentación publicada", () => {

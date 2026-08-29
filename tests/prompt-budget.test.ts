@@ -62,13 +62,13 @@ describe("presupuesto de prompt", () => {
 	// Anti-trampa: adelgazar el orquestador engordando los agentes no es poda,
 	// es mudanza. Los ejecutores también se pagan, una vez por delegación.
 	test("los agentes no absorben lo que el orquestador suelta", () => {
-		const dir = join(ROOT, "ein-pi/core/agents");
+		const dir = join(ROOT, "runtime/agents");
 		const actual = readdirSync(dir)
 			.filter((file) => file.endsWith(".md"))
 			.reduce((sum, file) => sum + Buffer.byteLength(readFileSync(join(dir, file), "utf8")), 0);
 
 		if (actual > CORE_AGENTS_BUDGET_BYTES) {
-			throw new Error(overBudgetMessage("core/agents/*.md", actual, CORE_AGENTS_BUDGET_BYTES));
+			throw new Error(overBudgetMessage("runtime/agents/*.md", actual, CORE_AGENTS_BUDGET_BYTES));
 		}
 		expect(actual).toBeLessThanOrEqual(CORE_AGENTS_BUDGET_BYTES);
 	});

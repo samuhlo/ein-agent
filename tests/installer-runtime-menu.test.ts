@@ -77,7 +77,7 @@ const PAYLOAD_FIXTURE_FILES = [
   "ein-pi/agent/surfaces/surface-runner.ts",
   "ein-cc/continuity-runner.ts",
   "ein-cc/commands/ein/handoff.md",
-  "ein-pi/ein-pi.fish",
+  "ein-pi/launchers/ein-pi.fish",
   EIN_CC_ORCHESTRATOR_ASSET,
   EIN_CC_STYLE_CONTRACT,
 ] as const;
@@ -90,7 +90,8 @@ function createPayloadArchive(home: string, options: PayloadFixtureOptions = {})
     mkdirSync(join(fullPath, ".."), { recursive: true });
     writeFileSync(fullPath, path === EIN_CC_ORCHESTRATOR_ASSET ? ORCHESTRATOR_FIXTURE_BYTES : `// ${path}\\n`);
   }
-  mkdirSync(join(source, "ein-pi/core"), { recursive: true });
+  mkdirSync(join(source, "runtime"), { recursive: true });
+  mkdirSync(join(source, "vendor", "skills"), { recursive: true });
   options.mutate?.(source);
 
   if (options.manifest !== "absent") {
@@ -125,8 +126,8 @@ describe("EIN Fish launcher", () => {
     const unrelatedPath = join(destination, "unrelated.fish");
     const unrelatedContent = "function unrelated\nend\n";
     const launchers = [
-      ["ein-pi.fish", readFileSync(join(import.meta.dir, "../ein-pi/ein-pi.fish"), "utf8")],
-      ["ein-cc.fish", readFileSync(join(import.meta.dir, "../ein-cc/ein-cc.fish"), "utf8")],
+      ["ein-pi.fish", readFileSync(join(import.meta.dir, "../ein-pi/launchers/ein-pi.fish"), "utf8")],
+      ["ein-cc.fish", readFileSync(join(import.meta.dir, "../ein-cc/launchers/ein-cc.fish"), "utf8")],
     ] as const;
 
     const first = installFishLauncher({
@@ -161,9 +162,9 @@ describe("EIN Fish launcher", () => {
 
 describe("Claude runtime payload", () => {
   test("inventory names the ein-cc roots, Pi assets, and SDD entry", () => {
-    expect(EIN_CC_PAYLOAD_ROOTS).toEqual(["ein-cc", "ein-pi/core"]);
+    expect(EIN_CC_PAYLOAD_ROOTS).toEqual(["ein-cc", "runtime", "vendor/skills"]);
     expect(EIN_CC_PAYLOAD_FILES).toEqual([
-      "ein-pi/ein-pi.fish",
+      "ein-pi/launchers/ein-pi.fish",
       "ein-pi/migrate.ts",
       EIN_CC_ORCHESTRATOR_ASSET,
       // `sync.ts` lo importa: sin el en el payload, la sincronizacion falla en
@@ -224,7 +225,7 @@ describe("Claude runtime payload", () => {
       },
       {
         name: "required directory is a file",
-        options: { mutate: (source) => { rmSync(join(source, "ein-pi/core"), { recursive: true }); writeFileSync(join(source, "ein-pi/core"), "not a directory\\n"); } },
+        options: { mutate: (source) => { rmSync(join(source, "runtime"), { recursive: true }); writeFileSync(join(source, "runtime"), "not a directory\\n"); } },
       },
       {
         name: "missing required member",
@@ -335,7 +336,7 @@ describe("Claude runtime runner", () => {
     let cleaned = false;
     let launcherCalls = 0;
     const stage = fakeStage(home, () => { cleaned = true; });
-    const detailedFailure = "required path missing: ein-pi/core/skills";
+    const detailedFailure = "required path missing: runtime/skills";
     const summary = "required sync failed";
 
     const result = await runClaudeInstall({

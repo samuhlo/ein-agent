@@ -15,7 +15,7 @@ import {
 	lintStyle,
 } from "../ein-pi/agent/lib/style-lint.ts";
 
-const SKILLS = join(import.meta.dir, "..", "ein-pi", "core", "skills", "local");
+const SKILLS = join(import.meta.dir, "..", "runtime", "skills", "local");
 
 describe("lo que si comprueba", () => {
 	test("un emoji en un comentario es un hallazgo", () => {

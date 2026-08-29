@@ -13,9 +13,7 @@ ein install --runtime claude
 ein install --runtime both
 ```
 
-El selector contractual acepta `pi`, `claude` o `both`: `pi` y `claude` seleccionan un runtime aislado; `both` despliega ambos. Esta selección,
-igual que el estado del despliegue, pertenece al instalador y no implica que el launcher
-beta esté implementado.
+El selector contractual acepta `pi`, `claude` o `both`: `pi` y `claude` seleccionan un runtime aislado; `both` despliega ambos. Esta selección y el estado del despliegue pertenecen al instalador.
 
 ## Instalación
 
@@ -23,8 +21,7 @@ beta esté implementado.
 curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
 ```
 
-El bootstrap detecta tu plataforma, descarga el binario `ein` de la última release
-y lo deja en `~/.local/bin/ein` (o `/usr/local/bin` si es escribible). Luego:
+El bootstrap detecta tu plataforma, descarga inicialmente el instalador y lo ejecuta. La instalación conserva ese binario como `ein-install` y promociona la aplicación terminal como `ein` en `~/.local/bin` (o `/usr/local/bin` si es escribible). Luego:
 
 ```bash
 ein            # menú interactivo
@@ -77,7 +74,7 @@ Nunca toca `auth.json`, `sessions/` ni `backups/`.
 bun install
 bun run dev               # ejecuta sin compilar
 bun run typecheck
-bun run bundle-template   # genera src/assets/template.tar.gz desde ../ein-pi/{core,agent}
+bun run bundle-template   # compone ../runtime + ../vendor/skills + ../ein-pi/agent
 bun run build:all         # compila los 4 binarios en dist/
 bun run build:all linux-x64   # un solo target
 ./e2e/docker-test.sh      # installer E2E: install → doctor en un Ubuntu limpio (Docker)
@@ -87,17 +84,17 @@ bun run build:all linux-x64   # un solo target
 No prueba el launcher beta: la futura E2E del launcher deberá cubrir flujo de proyecto,
 sesiones y frescura del estado.
 
-El contenido de Ein se empaqueta componiendo `../ein-pi/core` (assets portables) y
-`../ein-pi/agent` (runtime Pi) con una allowlist (sin secrets, runtime ni
-node_modules), más un `template-manifest.json` generado que describe el contenido
-exacto (lo consumen `ein doctor` y `--dry-run`). Todo se embebe en el binario vía
-`bun build --compile`.
+El contenido de Ein se empaqueta componiendo `../runtime` (contenido propio),
+`../vendor/skills` (fuentes externas) y `../ein-pi/agent` (adaptador Pi) con una
+allowlist. No entran secrets, estado de ejecución ni `node_modules`. Un
+`template-manifest.json` generado describe el contenido exacto para `ein doctor`
+y `--dry-run`. Todo se embebe en el binario vía `bun build --compile`.
 
 ## Propiedad del instalador
 
-La instalación, actualización, release y `doctor` del despliegue siguen siendo
-responsabilidad del instalador. El launcher beta futuro no absorbe estas tareas ni
-convierte la E2E del instalador en evidencia de launcher.
+La instalación, actualización, release y `doctor` del despliegue son
+responsabilidad de `ein-install`. La aplicación `ein` delega esos verbos en él,
+de modo que una interfaz rota no elimina la vía de reparación.
 
 ## Release
 

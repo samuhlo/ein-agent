@@ -1,6 +1,6 @@
 // =============================================================================
 // [CORE] GRAMÁTICA DE TERMINAL
-// Las primitivas de `core/docs/STYLE.md // 002`, una sola vez. Antes cada
+// Las primitivas de `runtime/docs/STYLE.md // 002`, una sola vez. Antes cada
 // superficie dibujaba su propio marco: el installer tenía `tui/frame.ts`, el
 // banner `banner-panel.ts` y el overlay lo suyo, y las tres se separaron.
 //
