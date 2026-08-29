@@ -15,7 +15,7 @@ import {
 	type AgentModelConfig,
 	type OrchestratorThinkingInspection,
 	type ThinkingLevel,
-	AGENT_RECOMMENDATIONS,
+	AGENT_EFFORT_RECOMMENDATIONS,
 	SDD_AGENT_NAME_SET,
 	applyModelConfigAsync,
 	cloneModelConfig,
@@ -23,6 +23,7 @@ import {
 	listDiscoverableAgents,
 	modelConfigPath,
 	inspectOrchestratorThinking,
+	isEffortRecommendationGapLarge,
 	readOrchestratorModel,
 	readSavedModelConfigAsync,
 	updateGlobalOrchestratorRouting,
@@ -447,12 +448,17 @@ class SddModelPanel implements OverlayComponent {
 
 			if (row === ORCHESTRATOR_ROW) {
 				const model = this.draft[ORCHESTRATOR_ROW]?.model;
+				const effort = this.draft[ORCHESTRATOR_ROW]?.thinking;
+				const recommendation = AGENT_EFFORT_RECOMMENDATIONS.orchestrator;
+				const mark = recommendation && isEffortRecommendationGapLarge(effort, recommendation.thinking)
+					? `  ${AP.yellow}${AP.b}!${AP.r}`
+					: "";
 				const orchLabel = t("models.row.orchestrator", "Orquestador");
 				const nameStr = focused
 					? `${AP.b}${AP.yellow}◈ ${orchLabel}${AP.r}`
 					: `${AP.concrete}◈ ${orchLabel}${AP.r}`;
 				lines.push(tr(
-					`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${this.orchestratorEffort()}`
+					`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${this.orchestratorEffort()}${mark}`
 				));
 				lines.push(tr(` ${AP.d}${AP.gray}${'─'.repeat(C1 + C2 + 10)}${AP.r}`));
 				continue;
@@ -489,27 +495,22 @@ class SddModelPanel implements OverlayComponent {
 			const model = this.draft[row]?.model;
 			const effort = this.draft[row]?.thinking;
 			const nameStr = focused ? `${AP.b}${AP.yellow}${row}${AP.r}` : row;
-			// Marcador de desviación: solo cuando el esfuerzo está FIJADO y no
-			// coincide con el recomendado. El tier del modelo no se puede clasificar
-			// (un nombre no dice si es barato o capaz), así que no se marca.
-			const rowRec = AGENT_RECOMMENDATIONS[row];
-			const deviates = Boolean(rowRec && effort && effort !== rowRec.thinking);
+			// Una diferencia adyacente es calibración personal, no una alerta.
+			const rowRec = AGENT_EFFORT_RECOMMENDATIONS[row];
+			const deviates = Boolean(rowRec && isEffortRecommendationGapLarge(effort, rowRec.thinking));
 			const mark = deviates ? `  ${AP.yellow}${AP.b}!${AP.r}` : "";
 			lines.push(tr(
 				`${cur} ${vaPad(nameStr, C1)}  ${vaPad(vaModelColor(model), C2)}  ${vaEffortColor(effort)}${mark}`
 			));
 		}
 
-		// Recomendación para el agente enfocado: nivel de modelo (barato/capaz) +
-		// thinking + por qué. Ayuda a elegir sin memorizar la arquitectura.
+		// Recomendación para el agente enfocado: solo esfuerzo y motivo.
 		const focusedRow = this.rows[this.cursor];
 		const recKey = focusedRow === ORCHESTRATOR_ROW ? "orchestrator" : focusedRow;
-		const rec = recKey ? AGENT_RECOMMENDATIONS[recKey] : undefined;
+		const rec = recKey ? AGENT_EFFORT_RECOMMENDATIONS[recKey] : undefined;
 		if (rec) {
-			const tier = rec.tier === "cheap" ? t("models.rec.cheap", "barato") : t("models.rec.capable", "capaz");
-			// Si el esfuerzo fijado se desvía, dilo explícito (el `!` de la fila).
 			const focusedEffort = focusedRow ? this.draft[focusedRow]?.thinking : undefined;
-			if (focusedEffort && focusedEffort !== rec.thinking) {
+			if (isEffortRecommendationGapLarge(focusedEffort, rec.thinking)) {
 				lines.push(tr(''));
 				lines.push(tr(
 					` ${AP.yellow}${AP.b}!${AP.r} ${AP.yellow}${t("models.rec.deviates", "Fuera de recomendación")}: ${AP.r}${AP.concrete}${focusedEffort}${AP.r}${AP.d}${AP.gray} → recomendado ${AP.r}${AP.concrete}${rec.thinking}${AP.r}`
@@ -517,7 +518,7 @@ class SddModelPanel implements OverlayComponent {
 			}
 			lines.push(tr(''));
 			lines.push(tr(
-				` ${AP.d}${AP.gray}${t("models.rec.label", "Recomendado")}: ${AP.r}${AP.concrete}${tier} · ${rec.thinking}${AP.r}${AP.d}${AP.gray} — ${rec.reason}${AP.r}`
+				` ${AP.d}${AP.gray}${t("models.rec.label", "Recomendado")}: ${AP.r}${AP.concrete}${rec.thinking}${AP.r}${AP.d}${AP.gray} — ${rec.reason}${AP.r}`
 			));
 		}
 
