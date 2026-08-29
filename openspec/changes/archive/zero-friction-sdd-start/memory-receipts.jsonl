@@ -1,4 +1,0 @@
-{"status":"skipped","reason":"no_candidate","key":"sdd:zero-friction-sdd-start:invalid","durationMs":0,"timestamp":"2026-07-21T11:13:24.369Z"}
-{"status":"skipped","reason":"artifact_gate_failed","key":"sdd:zero-friction-sdd-start:gate","durationMs":0,"timestamp":"2026-07-29T17:12:34.971Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:zero-friction-sdd-start:verify","durationMs":0,"timestamp":"2026-07-29T17:17:32.049Z"}
-{"status":"skipped","reason":"memory_disabled","key":"sdd:zero-friction-sdd-start:close","durationMs":0,"timestamp":"2026-07-29T17:17:46.485Z"}

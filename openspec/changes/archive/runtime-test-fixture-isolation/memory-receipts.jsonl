@@ -1,9 +1,0 @@
-{"status":"skipped","reason":"no_candidate","key":"sdd:runtime-test-fixture-isolation:scope","durationMs":0,"timestamp":"2026-08-07T13:51:58.464Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:runtime-test-fixture-isolation:map","durationMs":0,"timestamp":"2026-08-07T13:53:46.472Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:runtime-test-fixture-isolation:design","durationMs":0,"timestamp":"2026-08-07T14:00:08.753Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:runtime-test-fixture-isolation:tasks","durationMs":0,"timestamp":"2026-08-07T14:01:23.248Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:runtime-test-fixture-isolation:apply","durationMs":0,"timestamp":"2026-08-07T14:30:36.416Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:runtime-test-fixture-isolation:verify","durationMs":0,"timestamp":"2026-08-07T14:38:51.894Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:runtime-test-fixture-isolation:apply","durationMs":0,"timestamp":"2026-08-07T14:53:15.241Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:runtime-test-fixture-isolation:verify","durationMs":0,"timestamp":"2026-08-07T14:58:33.371Z"}
-{"status":"skipped","reason":"memory_disabled","key":"sdd:runtime-test-fixture-isolation:close","durationMs":0,"timestamp":"2026-08-07T14:59:25.575Z"}

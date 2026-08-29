@@ -115,7 +115,6 @@ import {
 	MEMORY_CANDIDATE_SCHEMA,
 	appendMemoryReceipt,
 	buildCloseMemoryCandidate,
-	hasSuccessfulMemoryReceipt,
 	safeMemoryReceipt,
 	saveAfterArtifactGate,
 	type SafeMemoryReceipt,
@@ -821,13 +820,6 @@ export default function einAi(pi: ExtensionAPI): void {
 		const candidate = buildCloseMemoryCandidate(change);
 		const approved = approveCandidate(candidate).approved;
 		if (!approved) return safeMemoryReceipt(skippedMemoryReceipt("invalid_candidate"), `sdd:${change}:close`);
-		if (hasSuccessfulMemoryReceipt(archiveDir, approved.topic, approved.digest)) {
-			return safeMemoryReceipt({
-				...skippedMemoryReceipt("duplicate"),
-				topic: approved.topic,
-				digest: approved.digest,
-			}, `sdd:${change}:close`);
-		}
 		if (!memorySaveEnabled(ctx)) return safeMemoryReceipt(skippedMemoryReceipt("memory_disabled"), `sdd:${change}:close`);
 		try {
 			return safeMemoryReceipt((await memorySaveLifecycleForSession(ctx).save(candidate)).receipt, `sdd:${change}:close`);
@@ -1916,7 +1908,6 @@ export default function einAi(pi: ExtensionAPI): void {
 		if (result.ok) {
 			publishSessionBinding({ version: 1, action: "invalidate", change });
 			memory = await saveArchivedCloseMemory(ctx, change, result.to);
-			appendMemoryReceipt(result.to, memory);
 			// FORGE -> al cerrar un cambio, refresca la zona AUTO de EIN.md (comandos/
 			// estructura/docs) para que el índice no envejezca. Solo si ya existe: el
 			// cierre no es momento de crearlo (eso es /ein:init o el onboarding).

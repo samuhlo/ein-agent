@@ -1,16 +1,14 @@
 // =============================================================================
-// SDD CLOSE (deterministic move)
-// Cierra un cambio terminado: mueve openspec/changes/<change>/ a
-// openspec/changes/archive/<change>/ para que `openspec/changes/` solo contenga
-// cambios VIVOS y el estado quede revisable y ordenado. El resumen condensado
-// (summary.md) lo escribe el agente sdd-close ANTES de llamar a esto; aquí
-// solo se hace el movimiento, que es determinista y debe ser fiable.
+// SDD CLOSE (deterministic compaction)
+// Cierra un cambio terminado: valida todos sus artefactos y conserva únicamente
+// summary.md en openspec/changes/archive/<change>/. El detalle exhaustivo sigue
+// en Git; el árbol actual muestra trabajo vivo y decisiones condensadas.
 // Módulo puro (builtins de Node).
 // =============================================================================
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, renameSync, cpSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, renameSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { readSpecDeltaDeclaration } from "./sdd-guardrails.ts";
 import {
@@ -110,18 +108,17 @@ function currentRepositoryState(cwd: string, capturedAt: unknown): RepositorySta
 	} catch { return null; }
 }
 
-function moveToArchive(from: string, to: string): string | null {
+function compactToArchive(from: string, to: string): string | null {
+	const staging = `${to}.staging-${process.pid}-${Date.now()}`;
 	try {
-		renameSync(from, to);
+		mkdirSync(staging);
+		copyFileSync(join(from, "summary.md"), join(staging, "summary.md"));
+		renameSync(staging, to);
+		rmSync(from, { recursive: true, force: true });
 		return null;
-	} catch {
-		try {
-			cpSync(from, to, { recursive: true });
-			rmSync(from, { recursive: true, force: true });
-			return null;
-		} catch (error) {
-			return error instanceof Error ? error.message : String(error);
-		}
+	} catch (error) {
+		rmSync(staging, { recursive: true, force: true });
+		return error instanceof Error ? error.message : String(error);
 	}
 }
 
@@ -168,7 +165,7 @@ function assessReconciliationClose(cwd: string, change: string, from: string, to
 	return blockers.length === 0 && validation.ok ? { blockers, reconciliation: validation.reconciliation } : { blockers };
 }
 
-// Storage interno heredado: `archive/` conserva historial sin migración destructiva.
+// `archive/` conserva el resumen útil; Git conserva la evidencia exhaustiva.
 export function closeChange(cwd: string, change: string, options: CloseOptions = {}): CloseResult {
 	const from = join(changesDir(cwd), change);
 	const to = closedChangePath(cwd, change);
@@ -192,7 +189,7 @@ export function closeChange(cwd: string, change: string, options: CloseOptions =
 			};
 		}
 		mkdirSync(join(changesDir(cwd), "archive"), { recursive: true });
-		const moveError = moveToArchive(from, to);
+		const moveError = compactToArchive(from, to);
 		return moveError === null
 			? { ok: true, from, to, reconciliation: assessment.reconciliation }
 			: { ok: false, from, to, reason: moveError };
@@ -221,7 +218,7 @@ export function closeChange(cwd: string, change: string, options: CloseOptions =
 	}
 
 	mkdirSync(join(changesDir(cwd), "archive"), { recursive: true });
-	const moveError = moveToArchive(from, to);
+	const moveError = compactToArchive(from, to);
 	if (moveError !== null) return { ok: false, from, to, reason: moveError };
 	return usesLegacyEscape
 		? {

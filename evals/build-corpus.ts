@@ -66,17 +66,21 @@ export function collectArchivedFacts(cwd: string, baseCommit: string): ArchivedC
 		const summary = `${ARCHIVE}/${change}/summary.md`;
 		const deliveringCommits = lines(git(cwd, ["log", baseCommit, "--format=%H", "--diff-filter=A", "--", summary]))
 			.map(frozenCommitId);
+		const deliveringCommit = deliveringCommits.length === 1 ? deliveringCommits[0] : null;
 		const touchedFiles =
-			deliveringCommits.length === 1
-				? lines(git(cwd, ["show", "--name-only", "--format=", deliveringCommits[0]]))
+			deliveringCommit
+				? lines(git(cwd, ["show", "--name-only", "--format=", deliveringCommit]))
 				: [];
+		const historicalArtifact = (file: string): string | null =>
+			git(cwd, ["show", `${baseCommit}:${ARCHIVE}/${change}/${file}`])
+			?? (deliveringCommit ? git(cwd, ["show", `${deliveringCommit}:${ARCHIVE}/${change}/${file}`]) : null);
 
 		return {
 			change,
 			deliveringCommits,
 			touchedFiles,
-			tasksText: git(cwd, ["show", `${baseCommit}:${ARCHIVE}/${change}/tasks.md`]),
-			verifyText: git(cwd, ["show", `${baseCommit}:${ARCHIVE}/${change}/verify-report.md`]),
+			tasksText: historicalArtifact("tasks.md"),
+			verifyText: historicalArtifact("verify-report.md"),
 		};
 	});
 }

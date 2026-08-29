@@ -143,6 +143,34 @@ describe("TRIANGULATE: bordes del recolector", () => {
 		}
 	});
 
+	test("recupera tasks y verify del commit de entrega tras compactar HEAD", () => {
+		const dir = mkdtempSync(join(tmpdir(), "apply-corpus-compact-"));
+		const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
+		try {
+			git("init", "-q");
+			git("config", "user.email", "tests@example.invalid");
+			git("config", "user.name", "Ein tests");
+			const archive = join(dir, "openspec", "changes", "archive", "demo");
+			mkdirSync(archive, { recursive: true });
+			writeFileSync(join(archive, "summary.md"), "# Summary\n");
+			writeFileSync(join(archive, "tasks.md"), "## Group\n- verify: bun test tests/demo.test.ts\n");
+			writeFileSync(join(archive, "verify-report.md"), "status: pass\n");
+			writeFileSync(join(dir, "demo.ts"), "export const demo = true;\n");
+			git("add", ".");
+			git("commit", "-qm", "archive demo");
+			rmSync(join(archive, "tasks.md"));
+			rmSync(join(archive, "verify-report.md"));
+			git("add", "-u");
+			git("commit", "-qm", "compact archive");
+
+			const [facts] = collectArchivedFacts(dir, git("rev-parse", "HEAD"));
+			expect(facts.tasksText).toContain("bun test tests/demo.test.ts");
+			expect(facts.verifyText).toContain("status: pass");
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	test("un commit base inexistente devuelve cero hechos, no revienta", () => {
 		expect(collectArchivedFacts(ROOT, "0000000")).toEqual([]);
 	});

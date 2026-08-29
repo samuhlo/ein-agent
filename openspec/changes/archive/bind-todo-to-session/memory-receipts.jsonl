@@ -1,9 +1,0 @@
-{"status":"skipped","reason":"no_candidate","key":"sdd:bind-todo-to-session:scope","durationMs":0,"timestamp":"2026-08-25T12:05:04.488Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:bind-todo-to-session:map","durationMs":0,"timestamp":"2026-08-25T12:07:31.065Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:bind-todo-to-session:design","durationMs":0,"timestamp":"2026-08-25T12:12:29.748Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:bind-todo-to-session:tasks","durationMs":0,"timestamp":"2026-08-25T12:33:08.262Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:bind-todo-to-session:apply","durationMs":0,"timestamp":"2026-08-25T13:25:19.473Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:bind-todo-to-session:apply","durationMs":0,"timestamp":"2026-08-25T14:08:27.638Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:bind-todo-to-session:verify","durationMs":0,"timestamp":"2026-08-25T14:26:40.409Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:bind-todo-to-session:invalid","durationMs":0,"timestamp":"2026-08-25T14:27:34.857Z"}
-{"status":"skipped","reason":"memory_disabled","key":"sdd:bind-todo-to-session:close","durationMs":0,"timestamp":"2026-08-25T14:27:41.875Z"}

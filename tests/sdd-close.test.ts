@@ -3,18 +3,12 @@
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { closeChange } from "../ein-pi/agent/lib/sdd-close";
-import { approveCandidate } from "../ein-pi/agent/lib/memory-contract.ts";
-import {
-	appendMemoryReceipt,
-	buildCloseMemoryCandidate,
-	hasSuccessfulMemoryReceipt,
-} from "../ein-pi/agent/lib/sdd-memory-save.ts";
 import { lintChange, lintPhaseArtifact, oversizedGroupWarnings } from "../ein-pi/agent/lib/sdd-guardrails";
 import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
 
@@ -34,7 +28,7 @@ afterEach(() => {
 });
 
 describe("closeChange", () => {
-	test("mueve el cambio a storage interno y conserva summary.md", () => {
+	test("condensa el cambio en un único summary.md", () => {
 		makeFresh("feat-x");
 		const r = closeChange(DIR, "feat-x", { force: true });
 		expect(r.ok).toBe(true);
@@ -42,6 +36,7 @@ describe("closeChange", () => {
 		const closed = join(DIR, "openspec", "changes", "archive", "feat-x");
 		expect(existsSync(join(closed, "summary.md"))).toBe(true);
 		expect(readFileSync(join(closed, "summary.md"), "utf8")).toContain("cierre");
+		expect(readdirSync(closed)).toEqual(["summary.md"]);
 	});
 
 	test("no pisa si ya existe en storage interno (idempotente-safe)", () => {
@@ -159,31 +154,6 @@ describe("closeChange", () => {
 		expect(r).toEqual({ ok: true, from: join(DIR, ".sdd", "changes", "fix-legacy"), to: join(DIR, ".sdd", "changes", "archive", "fix-legacy") });
 	});
 
-	test("el receipt de close vive tras el archive y evita otro fallback del mismo digest", () => {
-		makeFresh("feat-x");
-		const r = closeChange(DIR, "feat-x", { force: true });
-		expect(r.ok).toBe(true);
-		const approved = approveCandidate(buildCloseMemoryCandidate("feat-x")).approved!;
-		appendMemoryReceipt(r.to, {
-			status: "saved",
-			reason: "acknowledged",
-			key: "sdd:feat-x:close",
-			topic: approved.topic,
-			digest: approved.digest,
-			bytes: 12,
-			durationMs: 1,
-			timestamp: "2026-07-14T00:00:00.000Z",
-		});
-		expect(hasSuccessfulMemoryReceipt(r.to, approved.topic, approved.digest)).toBe(true);
-		appendMemoryReceipt(join(DIR, "missing"), {
-			status: "failed",
-			reason: "timeout",
-			key: "sdd:feat-x:close",
-			durationMs: 1500,
-			timestamp: "2026-07-14T00:00:00.000Z",
-		});
-		expect(existsSync(join(r.to, "summary.md"))).toBe(true);
-	});
 });
 
 describe("closeChange — scope-only out-of-flow reconciliation", () => {
