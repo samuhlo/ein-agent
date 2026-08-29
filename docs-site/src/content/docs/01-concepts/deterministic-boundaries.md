@@ -1,7 +1,7 @@
 ---
 title: "Límites deterministas"
 description: "Qué decide un modelo, qué comprueba una herramienta y qué puede garantizar EIN de verdad."
-sources: ["ein-pi/agent/assets/orchestrator.md", "openspec/specs/sdd-lifecycle/spec.md", "docs/roadmap-features-ein.md"]
+sources: ["ein-pi/agent/assets/orchestrator.md", "openspec/specs/sdd-lifecycle/spec.md", "docs/roadmap.md"]
 verified_rev: "29861f5"
 ---
 

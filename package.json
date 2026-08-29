@@ -11,6 +11,7 @@
   "scripts": {
     "setup": "bun install && cd installer && bun install",
     "test": "bun test",
+    "clean:workspace": "bun run tooling/clean-workspace.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
