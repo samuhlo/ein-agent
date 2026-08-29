@@ -13,7 +13,7 @@ Objetivo: que el árbol explique el producto sin depender de conocimiento privad
 - [x] Hacer visible y única la propiedad del launcher público `ein`.
 - [x] Extraer contratos compartidos para eliminar dependencias Claude/installer → interiores de Pi.
 - [x] Añadir fronteras automáticas de imports y ownership.
-- [ ] Dividir los hotspots principales una vez fijadas sus responsabilidades.
+- [x] Dividir los hotspots principales una vez fijadas sus responsabilidades.
 
 ## Después — cierre de la beta
 

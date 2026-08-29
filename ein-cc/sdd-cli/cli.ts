@@ -23,13 +23,10 @@
 import {
 	changeStanceDirective,
 	closeChange,
-	collectSddRemedies,
 	commandIsExplicitlyAllowed,
 	commandRequiresConfirmation,
 	evaluateDeniedCommand,
-	formatBudget,
 	formatSddPlanPreview,
-	formatSddRemedies,
 	isSafeChangeName,
 	LANE_LABEL,
 	laneSkips,
@@ -50,11 +47,7 @@ import {
 	resolveSddIntentPreflight,
 	resolveSddPlanPreview,
 	resolveSddStatus,
-	sddStatusBlockers,
 	summarizeProjectDirectives,
-	synchronizeOpenSpecFilesystem,
-	type ChangeLintReport,
-	type SddChangeStatus,
 	type SddIntentPreflightInput,
 	type SddIntentPreflightOutcome,
 	updateSddPreflightStance,
@@ -65,78 +58,10 @@ import {
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { formatSddCheck, formatSddStatus } from "./presentation.ts";
+import { runSyncCommand, type SyncCliResponse } from "./sync-command.ts";
 
 const cwd = process.cwd();
-
-// ── Formatters (reimplementados sin i18n; strings inglesas, mismos campos) ──
-
-function formatStatus(status: SddChangeStatus, active: string[]): string {
-	const lines = ["// 000. sdd status", ""];
-	if (!status.change) {
-		lines.push("- No active SDD changes in openspec/changes/.");
-		lines.push("- OpenSpec is the canonical full record.");
-		return lines.join("\n");
-	}
-	const present = status.artifacts.present.map((a) => `${a.phase}(${a.file})`).join(", ") || "none";
-	const missing = status.artifacts.missing.map((a) => `${a.phase}(${a.file})`).join(", ") || "none";
-	lines.push(`change: ${status.change}`);
-	if (active.length > 1) lines.push(`active: ${active.join(", ")}`);
-	lines.push(`lane: ${status.lane}`);
-	lines.push(`current phase: ${status.currentPhase}`);
-	lines.push(`next: ${status.nextRecommended}`);
-	lines.push(`artifacts present: ${present}`);
-	lines.push(`artifacts missing: ${missing}`);
-	lines.push(`apply: ${status.apply}`);
-	lines.push(`verify: ${status.verify}`);
-	lines.push(
-		`tasks: status=${status.tasks.status ?? "absent"} · ready=${status.tasks.counts.ready} · blocked=${status.tasks.counts.blocked} · pending=${status.tasks.counts.pending} · done=${status.tasks.counts.done}`,
-	);
-	if (status.tasks.nextPending) lines.push(`next pending: ${status.tasks.nextPending.id} ${status.tasks.nextPending.title}`);
-	if (status.tasks.blockedBy) lines.push(`blocked_by: ${status.tasks.blockedBy}`);
-	lines.push(`budget: ${formatBudget(status.budget)}`);
-
-	const blockers = sddStatusBlockers({
-		blocked: status.blocked,
-		taskProblems: status.tasks.problems,
-		budgetProblems: status.budget.problems,
-	});
-	if (blockers.length) {
-		lines.push("", "▏ blockers:");
-		for (const b of blockers) lines.push(`- ${b}`);
-	}
-	// Un bloqueo que no dice cómo salir obliga a interpretar, y un ejecutor
-	// barato interpreta mal. El remedio se calcula del mismo estado.
-	const remedies = formatSddRemedies(
-		collectSddRemedies({ ...status, nextPhase: status.nextRecommended }, "claude"),
-	);
-	if (remedies) lines.push("", remedies);
-	return lines.join("\n");
-}
-
-function formatCheck(report: ChangeLintReport): string {
-	const { change, errors, warnings, phases } = report;
-	const present = phases.filter((p) => p.present).length;
-	const lines = [
-		`// 000. sdd check — ${change}`,
-		"",
-		`phases: ${present}/${phases.length} present  |  errors: ${errors}  |  warnings: ${warnings}`,
-	];
-	if (report.issues.length > 0) {
-		lines.push("", "▏ consistency:");
-		for (const i of report.issues) lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
-	}
-	for (const { phase, present: isPresent, report: pr } of phases) {
-		if (!isPresent) {
-			lines.push(`▏ ${phase} — MISSING`);
-			continue;
-		}
-		const ok = pr!.errors === 0;
-		const detail = pr!.lineCount > 0 ? `, ${pr!.lineCount} lines` : "";
-		lines.push(`▏ ${phase} — ${ok ? "OK" : "ERRORS"} (present${detail})`);
-		for (const i of pr!.issues) lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
-	}
-	return lines.join("\n");
-}
 
 // ── Guard (hook PreToolUse) ──────────────────────────────────────────────────
 // Lee el JSON del hook por stdin y emite la decisión de permiso de Claude Code.
@@ -581,7 +506,7 @@ export function buildStatusOutput(cwd: string, change?: string): string {
 
 	const status = resolveSddStatus(cwd, change);
 	const active = listActiveChanges(cwd);
-	let text = formatStatus(status, active);
+	let text = formatSddStatus(status, active);
 	if (status.nextRecommended === "apply" && status.change) {
 		const block = formatSddPlanPreview(resolveSddPlanPreview(cwd, status.change));
 		if (block) text += `\n\n${block}`;
@@ -622,7 +547,7 @@ function checkCmd() {
 	}
 	const target = resolved.change;
 	const report = lintChange(cwd, target);
-	console.log(formatCheck(report));
+	console.log(formatSddCheck(report));
 	if (report.errors > 0) process.exit(1);
 }
 
@@ -651,178 +576,14 @@ function closeCmd() {
 }
 
 // ── Explicit OpenSpec synchronization ───────────────────────────────────────
-// The filesystem synchronizer remains the only implementation of planning,
-// writes, conflict handling, idempotence, and rollback. This adapter only maps
-// its result/error to Claude's stable JSON + exit contract.
-type SyncCliOutcome = "synchronized" | "conflict" | "malformed" | "operational_failure" | "usage";
-type SyncCliResponse = {
-	command: "sync";
-	change: string | null;
-	ok: boolean;
-	outcome: SyncCliOutcome;
-	canonicalChanged: boolean;
-	domains: string[];
-	report: string | null;
-	code: string | null;
-	message: string | null;
-};
-
-function syncResponse(
-	response: Omit<SyncCliResponse, "command">,
-): SyncCliResponse {
-	return { command: "sync", ...response };
-}
-
 function emitSyncResponse(response: SyncCliResponse, exitCode: number): void {
 	process.stdout.write(`${JSON.stringify(response)}\n`);
 	process.exitCode = exitCode;
 }
 
-function normalizedSyncDiagnostic(error: unknown): string {
-	const raw = error instanceof Error ? error.message : String(error);
-	const root = cwd.replaceAll("\\", "/");
-	const repositoryRoot = root.endsWith("/") ? root.slice(0, -1) : root;
-	return raw
-		.replaceAll("\\", "/")
-		.replaceAll(repositoryRoot, ".")
-		.replace(/\s+/g, " ")
-		.trim() || "OpenSpec synchronization failed";
-}
-
-const OPEN_SPEC_PARSE_CODES = [
-	"invalid-header",
-	"invalid-format",
-	"invalid-domain",
-	"unexpected-blank-line",
-	"invalid-scenario-id",
-	"invalid-scenario-field",
-	"duplicate-scenario-id",
-	"invalid-operation",
-	"invalid-operation-order",
-	"invalid-removal-reason",
-	"unexpected-content",
-	"empty-operation",
-	"invalid-requirement",
-];
-
-function isMalformedSyncDiagnostic(diagnostic: string): boolean {
-	return OPEN_SPEC_PARSE_CODES.some((code) => diagnostic.includes(code)) ||
-		/invalid delta path|duplicate (?:delta|base) domain|domain does not match canonical path/.test(diagnostic);
-}
-
-function syncErrorResponse(changeName: string, error: unknown): { response: SyncCliResponse; exitCode: number } {
-	if (!isSafeChangeName(changeName)) {
-		return {
-			response: syncResponse({
-				change: changeName,
-				ok: false,
-				outcome: "malformed",
-				canonicalChanged: false,
-				domains: [],
-				report: null,
-				code: "UNSAFE_CHANGE_NAME",
-				message: "change name must be a safe repository-relative segment",
-			}),
-			exitCode: 3,
-		};
-	}
-	if (!existsSync(join(cwd, "openspec", "changes", changeName))) {
-		return {
-			response: syncResponse({
-				change: changeName,
-				ok: false,
-				outcome: "malformed",
-				canonicalChanged: false,
-				domains: [],
-				report: null,
-				code: "CHANGE_NOT_FOUND",
-				message: `change '${changeName}' was not found in openspec/changes`,
-			}),
-			exitCode: 3,
-		};
-	}
-
-	const diagnostic = normalizedSyncDiagnostic(error);
-	if (isMalformedSyncDiagnostic(diagnostic)) {
-		return {
-			response: syncResponse({
-				change: changeName,
-				ok: false,
-				outcome: "malformed",
-				canonicalChanged: false,
-				domains: [],
-				report: null,
-				code: "MALFORMED_OPENSPEC",
-				message: `malformed OpenSpec input: ${diagnostic}`,
-			}),
-			exitCode: 3,
-		};
-	}
-	return {
-		response: syncResponse({
-			change: changeName,
-			ok: false,
-			outcome: "operational_failure",
-			canonicalChanged: false,
-			domains: [],
-			report: null,
-			code: "OPERATIONAL_ERROR",
-			message: diagnostic,
-		}),
-		exitCode: 4,
-	};
-}
-
-async function syncCmd(args: string[]): Promise<void> {
-	if (args.length !== 1) {
-		emitSyncResponse(syncResponse({
-			change: null,
-			ok: false,
-			outcome: "usage",
-			canonicalChanged: false,
-			domains: [],
-			report: null,
-			code: "USAGE",
-			message: "usage: ein-cc-sdd sync <change>",
-		}), 64);
-		return;
-	}
-	const changeName = args[0]!;
-	try {
-		const result = await synchronizeOpenSpecFilesystem(cwd, changeName);
-		const domains = result.plan.domains
-			.map((domain) => domain.domain)
-			.sort((left, right) => left.localeCompare(right, "en"));
-		const synchronized = !result.changed || result.plan.state === "synchronized";
-		const canonicalChanged = result.changed && result.plan.state === "synchronized" &&
-			result.plan.domains.some((domain) => domain.before !== domain.after);
-		if (!synchronized) {
-			emitSyncResponse(syncResponse({
-				change: changeName,
-				ok: false,
-				outcome: "conflict",
-				canonicalChanged: false,
-				domains,
-				report: `openspec/changes/${changeName}/sync-report.md`,
-				code: "OPENSPEC_CONFLICT",
-				message: "canonical OpenSpec bytes were not changed",
-			}), 2);
-			return;
-		}
-		emitSyncResponse(syncResponse({
-			change: changeName,
-			ok: true,
-			outcome: "synchronized",
-			canonicalChanged,
-			domains,
-			report: `openspec/changes/${changeName}/sync-report.md`,
-			code: null,
-			message: null,
-		}), 0);
-	} catch (error) {
-		const failure = syncErrorResponse(changeName, error);
-		emitSyncResponse(failure.response, failure.exitCode);
-	}
+async function syncCmd(args: readonly string[]): Promise<void> {
+	const result = await runSyncCommand(cwd, args);
+	emitSyncResponse(result.response, result.exitCode);
 }
 
 // Guardado tras `import.meta.main`: los tests importan este módulo para
