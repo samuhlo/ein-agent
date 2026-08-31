@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { UninstallPlan, UninstallPlanInput } from "./uninstall-plan.ts";
 
@@ -11,6 +11,19 @@ export type UninstallRecoveryStatus = Readonly<{ status: "clear" }> | Readonly<{
 
 const recoveryBase = (home: string): string => join(home, ".ein-installer", "uninstall-recovery");
 const publish = (path: string, manifest: RecoveryManifest): void => writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+
+function pruneEmptyRuntimeDirectories(home: string, target: UninstallPlan["target"]): void {
+  const directories = [
+    ...(target === "claude" ? [] : [join(home, ".pi-ein", "agent", "skills"), join(home, ".pi-ein", "agent", "themes")]),
+    ...(target === "pi" ? [] : [join(home, ".claude-ein", "commands", "ein"), join(home, ".claude-ein", "commands"), join(home, ".claude-ein", "agents"), join(home, ".claude-ein", "assets"), join(home, ".claude-ein", "bin"), join(home, ".claude-ein", "skills"), join(home, ".claude-ein")]),
+  ];
+  for (const directory of directories) {
+    try { rmdirSync(directory); }
+    catch {
+      // CORTE -> la recuperación ya está sellada; una carpeta no vacía o protegida no invalida la desinstalación.
+    }
+  }
+}
 
 function readManifest(path: string): RecoveryManifest {
   const value: unknown = JSON.parse(readFileSync(path, "utf8"));
@@ -62,6 +75,7 @@ export function executeUninstallPlan(plan: UninstallPlan, options: UninstallReco
     }
     manifest = { ...manifest, state: "complete" };
     publish(manifestPath, manifest);
+    pruneEmptyRuntimeDirectories(options.home, plan.target);
     return { status: "complete", moved: moved.map(({ id }) => id), absent, recoveryDirectory: root };
   } catch {
     let incomplete = false;
