@@ -16,14 +16,17 @@ export type UninstallPlanInput = Readonly<{ home: string; target: InstallTarget;
 
 const pathsUnder = (root: string, names: readonly string[]): string[] => names.map((name) => `${root}/${name}`);
 const PI_ASSETS = [
-  ...pathsUnder(".pi-ein/agent", ["agents", "assets", "chains", "docs", "extensions", "lib", "prompts", "surfaces"]),
-  ...pathsUnder(".pi-ein/agent", [".gitignore", "AGENTS.md", "app.ts", "brand.json", "ein-mode.json", "extensions-manifest.json", "mcp.json", "models.json", "settings.json", "template-manifest.json", ".ein-install.json"]),
+  ...pathsUnder(".pi-ein/agent", ["agents", "assets", "bin", "chains", "docs", "extensions", "lib", "npm", "prompts", "surfaces"]),
+  ...pathsUnder(".pi-ein/agent/skills", ["local", "downloaded", "stack-profile.json"]),
+  ".pi-ein/agent/themes/ein.json",
+  ...pathsUnder(".pi-ein/agent", [".gitignore", "AGENTS.md", "app.ts", "brand.json", "ein-mode.json", "extensions-manifest.json", "mcp.json", "models.json", "release-channel-preference.json", "settings.json", "template-manifest.json", ".ein-install.json"]),
   ".config/fish/functions/ein-pi.fish",
 ] as const;
 const CLAUDE_ASSETS = [
   ...pathsUnder(".claude-ein", ["CLAUDE.md", "settings.json", ".ein-install.json", "skills"]),
+  ".claude-ein/assets/orchestrator.md",
   ...pathsUnder(".claude-ein/bin", ["ein-cc-sdd", "ein-surface-runner", "ein-app", "ein-continuity"]),
-  ".claude-ein/commands/ein/handoff.md",
+  ...pathsUnder(".claude-ein/commands/ein", ["eh.md", "handoff.md", "intent.md", "settings.md", "status.md"]),
   ...pathsUnder(".claude-ein/agents", ["sdd-scope.md", "sdd-map.md", "sdd-design.md", "sdd-tasks.md", "sdd-apply.md", "sdd-verify.md", "sdd-close.md", "ein-scout.md", "ein-git.md", "ein-linear.md"]),
   ".config/fish/functions/ein-cc.fish",
 ] as const;
