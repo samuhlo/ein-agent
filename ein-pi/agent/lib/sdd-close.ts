@@ -130,8 +130,13 @@ function assessDurableSummary(from: string, change: string): CloseBlocker | null
 	try { text = readFileSync(join(from, "summary.md"), "utf8").replaceAll("\r\n", "\n"); }
 	catch { return null; } // assessCloseReadiness owns the missing/unreadable case.
 
+	// CORTE -> los metadatos solo se leen de la cabecera (lo anterior a la primera
+	// sección). El cuerpo cita el verify-report, y `status: pass` dentro de
+	// `// 004` sobrescribía el `status: complete` declarado arriba: un resumen
+	// correcto bloqueaba su propio cierre.
+	const header = text.split(/^## /m)[0] ?? "";
 	const fields = new Map(
-		text.split("\n").flatMap((line) => {
+		header.split("\n").flatMap((line) => {
 			const match = /^([a-z_]+):\s*(.*?)\s*$/.exec(line);
 			return match ? [[match[1]!, match[2]!] as const] : [];
 		}),
