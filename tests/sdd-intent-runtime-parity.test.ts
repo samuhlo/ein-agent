@@ -39,9 +39,8 @@ function input(change: string): Omit<SddIntentPreflightInput, "resolvedBy"> {
 function piContext(cwd: string, session: string) {
 	return {
 		cwd,
-		hasUI: false,
-		sessionManager: { getSessionId: () => session },
-	} as never;
+		sessionKey: session,
+	};
 }
 
 describe("paridad de intención Pi ↔ Claude", () => {

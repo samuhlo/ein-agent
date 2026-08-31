@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { evaluateSharedConfigUpdateAdvisor } from "../ein-pi/agent/lib/shared-config-update-advisor.ts";
+import { evaluateSharedConfigUpdateAdvisor } from "../shared/contracts/shared-config-update-advisor.ts";
 import {
   createStartupProvenanceRecorder,
   type StartupProvenanceEvent,

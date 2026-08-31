@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { engramStoreDir } from "../../../ein-pi/agent/lib/memory-contract.ts";
+import { engramStoreDir } from "../../../shared/contracts/memory-contract.ts";
 
 // Respect $HOME when set (standard on POSIX, and lets tests use a temp home).
 // Keep HOME for the established no-context callers; new install flows use the

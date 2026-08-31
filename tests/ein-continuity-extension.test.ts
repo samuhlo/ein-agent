@@ -102,6 +102,6 @@ describe("ein continuity extension", () => {
 
 	test("is included by the existing recursive template packaging and Pi directory discovery contract", () => {
 		const repo = join(import.meta.dir, ".."), bundle = readFileSync(join(repo, "installer/scripts/bundle-template.ts"), "utf8"), settings = JSON.parse(readFileSync(join(repo, "ein-pi/agent/settings.json"), "utf8")) as { extensions: string[] };
-		expect(bundle).toContain('const AGENT_DIRS = ["assets", "chains", "extensions"'); expect(bundle).toContain("cpSync(src, join(staging, dir), { recursive: true });"); expect(settings.extensions.some((path) => path.endsWith("/extensions"))).toBeTrue(); expect(readFileSync(join(repo, "ein-pi/agent/extensions/ein-continuity.ts"), "utf8")).toContain("export default");
+		expect(bundle).toContain('const RUNTIME_DIRS = ["agents", "assets", "docs", "prompts", "skills"]'); expect(bundle).toContain('const AGENT_DIRS = ["chains", "extensions"'); expect(bundle).toContain("cpSync(src, join(staging, dir), { recursive: true });"); expect(settings.extensions.some((path) => path.endsWith("/extensions"))).toBeTrue(); expect(readFileSync(join(repo, "ein-pi/agent/extensions/ein-continuity.ts"), "utf8")).toContain("export default");
 	});
 });

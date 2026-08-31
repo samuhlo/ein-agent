@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 const ORCH_MD = join(
   import.meta.dir,
-  "../ein-pi/agent/assets/orchestrator.md",
+  "../runtime/assets/orchestrator.md",
 );
 const content = readFileSync(ORCH_MD, "utf8");
 const SCOUT_MD = join(import.meta.dir, "../runtime/agents/ein-scout.md");

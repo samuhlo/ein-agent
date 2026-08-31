@@ -29,9 +29,12 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { resolveEngramDataDir } from "../ein-pi/agent/lib/memory-contract.ts";
-
-import { compileStyleContract } from "../ein-pi/agent/lib/style-contract.ts";
+import { resolveEngramDataDir } from "../shared/contracts/memory-contract.ts";
+import { compileStyleContract } from "../shared/contracts/style-contract.ts";
+import {
+  ORCHESTRATOR_SOURCE as ORCHESTRATOR_REPOSITORY_PATH,
+  SURFACE_RUNNER_SOURCE as SURFACE_RUNNER_REPOSITORY_PATH,
+} from "../shared/ports/runtime-payload.ts";
 
 const REPO = join(import.meta.dir, "..");
 const RUNTIME = join(REPO, "runtime");
@@ -46,7 +49,7 @@ const ADAPTATION_START = "<!-- ein:claude-adaptation:start -->";
 const ADAPTATION_END = "<!-- ein:claude-adaptation:end -->";
 const HARNESS_START = "<!-- ein:harness-discipline:start -->";
 const HARNESS_END = "<!-- ein:harness-discipline:end -->";
-export const SURFACE_RUNNER_SOURCE = join(REPO, "ein-pi", "agent", "surfaces", "surface-runner.ts");
+export const SURFACE_RUNNER_SOURCE = join(REPO, SURFACE_RUNNER_REPOSITORY_PATH);
 export const CLAUDE_SURFACE_RUNNER_NAME = "ein-surface-runner";
 export const CLAUDE_CONTINUITY_RUNNER_NAME = "ein-continuity";
 export const CLAUDE_CONTINUITY_RUNNER_SOURCE = join(REPO, "ein-cc", "continuity-runner.ts");
@@ -676,7 +679,7 @@ export function runSync(): SyncResult {
     ensureDir(join(DEST, "assets"));
     if (!DRY) {
       copyFileSync(
-        join(REPO, "ein-pi", "agent", "assets", "orchestrator.md"),
+        join(REPO, ORCHESTRATOR_REPOSITORY_PATH),
         join(DEST, "assets", "orchestrator.md"),
       );
       log("orchestrator.md desplegado");

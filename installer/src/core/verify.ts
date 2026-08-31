@@ -19,8 +19,8 @@ import {
   type DoctorCheckLevel as SharedCheckLevel,
   type DoctorCheckResult as SharedCheckResult,
   type DoctorResult,
-} from "../../../ein-pi/agent/lib/doctor-core.ts";
-import { PI_HOST_VERSION, PI_NODE_MIN_VERSION } from "../../../ein-pi/agent/lib/runtime-compat.ts";
+} from "../../../shared/ports/doctor.ts";
+import { PI_HOST_VERSION, PI_NODE_MIN_VERSION } from "../../../shared/contracts/runtime-compat.ts";
 import {
   defaultPiInstallContext,
   type PiInstallContext,

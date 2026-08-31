@@ -12,7 +12,7 @@ import {
 	RETRIEVAL_BUDGET,
 	SAVE_BUDGET,
 	resolveEngramDataDir,
-} from "../ein-pi/agent/lib/memory-contract.ts";
+} from "../shared/contracts/memory-contract.ts";
 
 const SEARCH = { query: "accepted design", projectId: "ein-git-abc" };
 const SAVE = {

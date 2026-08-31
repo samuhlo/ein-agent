@@ -13,10 +13,10 @@ import { join } from "node:path";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
 const CORE = join(import.meta.dir, "../runtime");
-// Runtime Pi (assets/, lib/, extensions/) vive en agent/; el contenido
-// portable (agents/, AGENTS.md, skills/) vive en runtime/.
+// El adaptador Pi (lib/, extensions/) vive en agent/; el contenido portable
+// (agents/, assets/, AGENTS.md, skills/) vive en runtime/.
 const read = (p: string) =>
-	readFileSync(join(p.startsWith("agents/") || p === "AGENTS.md" ? CORE : AGENT, p), "utf8");
+	readFileSync(join(p.startsWith("agents/") || p.startsWith("assets/") || p === "AGENTS.md" ? CORE : AGENT, p), "utf8");
 
 describe("el orquestador conoce la integración", () => {
 	const orch = read("assets/orchestrator.md");

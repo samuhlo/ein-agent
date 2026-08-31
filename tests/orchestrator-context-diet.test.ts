@@ -18,7 +18,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const CORE_AGENTS = join(import.meta.dir, "../runtime/agents");
-const ORCHESTRATOR = join(import.meta.dir, "../ein-pi/agent/assets/orchestrator.md");
+const ORCHESTRATOR = join(import.meta.dir, "../runtime/assets/orchestrator.md");
 
 // Las siete fases SDD cuyo envelope de retorno drena al padre.
 const PHASE_AGENTS = [

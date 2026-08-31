@@ -20,7 +20,7 @@ import {
 	ENGRAM_STORE_DIRNAME,
 	engramStoreDir,
 	resolveEngramDataDir,
-} from "../ein-pi/agent/lib/memory-contract.ts";
+} from "../shared/contracts/memory-contract.ts";
 
 const ROOT = join(import.meta.dir, "..");
 

@@ -23,7 +23,7 @@ import { colorEnabled, concrete, gold, rgb, structure } from "./theme.ts";
 // El installer duplica la PALETA porque corre antes de que exista el template
 // desplegado, pero la geometría de la marca la comparte: al empaquetar, el
 // bundler la resuelve desde el repo. Es el mismo camino que ya usa el doctor.
-import { placaRows, TV_WIDTH, type TvCut, type TvTone } from "../../../ein-pi/agent/lib/ein-tv.ts";
+import { placaRows, TV_WIDTH, type TvCut, type TvTone } from "../../../shared/contracts/ein-tv.ts";
 
 const BASE_SUBTITLE = "gestor del workbench";
 

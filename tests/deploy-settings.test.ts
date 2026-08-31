@@ -12,7 +12,7 @@ import {
 	mergeUserSettings,
 	readUserSettings,
 } from "../installer/src/core/settings";
-import { REQUIRED_PI_PACKAGE_SPECS } from "../ein-pi/agent/lib/runtime-compat";
+import { REQUIRED_PI_PACKAGE_SPECS } from "../shared/contracts/runtime-compat.ts";
 
 const DIR = join(tmpdir(), "ein-agent-tests", "deploy");
 const SETTINGS = join(DIR, "settings.json");
