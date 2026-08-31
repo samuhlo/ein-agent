@@ -1,12 +1,17 @@
 ---
 title: "Ejemplo real"
 description: "Un cambio de verdad de principio a fin, con lo que salió torcido incluido."
-sources: ["openspec/changes/archive/docs-sync-contract/scope.md", "openspec/changes/archive/docs-sync-contract/design.md", "openspec/changes/archive/docs-sync-contract/apply-progress.md", "openspec/changes/archive/docs-sync-contract/verify-report.md", "openspec/changes/archive/docs-sync-contract/summary.md"]
+sources: ["openspec/changes/archive/docs-sync-contract/summary.md"]
 verified_rev: "29861f5"
 ---
 
-Un cambio real, archivado en este repositorio:
+El resumen permanente de un cambio real, archivado en este repositorio:
 [`openspec/changes/archive/docs-sync-contract/`](https://github.com/samuhlo/ein-agent/tree/main/openspec/changes/archive/docs-sync-contract).
+
+Durante el trabajo existieron `scope.md`, `design.md`, `tasks.md` y los informes
+de ejecución. Al cerrar se condensaron en `summary.md` y se eliminaron. Lo que
+sigue cuenta las decisiones e incidencias que ese resumen conservó; no pretende
+ser una transcripción de los artefactos temporales.
 
 ::note
 Este es un ejemplo histórico de un cambio `standard` archivado. La postura TDD

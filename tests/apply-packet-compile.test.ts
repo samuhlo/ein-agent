@@ -7,10 +7,22 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { compileApplyPacket } from "../ein-pi/agent/lib/apply-packet-compile";
 import { validateApplyPacket } from "../ein-pi/agent/lib/apply-packet";
 
 const SOURCES = { "design.md": "dd", "tasks.md": "tt" };
+const ROOT = join(import.meta.dir, "..");
+
+function frozenArchiveFile(change: string, file: string): string {
+	const corpus = JSON.parse(readFileSync(join(ROOT, "evals", "apply-corpus.json"), "utf8"));
+	return execFileSync("git", ["show", `${corpus.baseCommit}:openspec/changes/archive/${change}/${file}`], {
+		cwd: ROOT,
+		encoding: "utf8",
+	});
+}
 
 function tasksDoc(label: string, files: string, body = ""): string {
 	return [
@@ -121,8 +133,7 @@ describe("campos que el packet toma de la tarea", () => {
 
 describe("contra el archivo real: que le falta hoy a un packet historico", () => {
 	test("un grupo archivado compila pero NO es ejecutable, y se dice por que", async () => {
-		const path = "openspec/changes/archive/fix-cleaner-participant-slicing/tasks.md";
-		const tasksText = await Bun.file(path).text();
+		const tasksText = frozenArchiveFile("fix-cleaner-participant-slicing", "tasks.md");
 		const result = compileApplyPacket({
 			change: "fix-cleaner-participant-slicing",
 			designText: "# Design",
@@ -204,19 +215,13 @@ describe("TRIANGULATE: medida sobre el corpus congelado", () => {
 		// Medir la carpeta hacia que el numero se moviera cada vez que se archivaba
 		// un cambio nuevo — incluido este, cuyo tasks.md SI declara `stop:`. Un
 		// examen que se mueve solo no mide nada.
-		const { readFileSync } = await import("node:fs");
-		const { join } = await import("node:path");
-		const root = join(import.meta.dir, "..");
-		const corpus = JSON.parse(readFileSync(join(root, "evals", "apply-corpus.json"), "utf8"));
+		const corpus = JSON.parse(readFileSync(join(ROOT, "evals", "apply-corpus.json"), "utf8"));
 
 		let compiled = 0;
 		const reasons = new Map<string, number>();
 
 		for (const item of corpus.items as { change: string }[]) {
-			const tasksText = readFileSync(
-				join(root, "openspec", "changes", "archive", item.change, "tasks.md"),
-				"utf8",
-			);
+			const tasksText = frozenArchiveFile(item.change, "tasks.md");
 			const ids = [...tasksText.matchAll(/^\s*-\s*\[(?: |x|X)\]\s+(\d+(?:\.\d+)*)\s+/gm)].map((m) => m[1]);
 			for (const taskId of new Set(ids)) {
 				const result = compileApplyPacket({ change: item.change, designText: "#", tasksText, taskId, sources: SOURCES });

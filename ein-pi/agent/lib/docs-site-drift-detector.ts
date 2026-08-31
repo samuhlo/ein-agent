@@ -259,15 +259,25 @@ export function findMissingSources(
 if (import.meta.main) {
 	const repoRoot = process.cwd();
 	const pages = collectDriftPageInputs(repoRoot);
-	const report = detectDrift(pages, repoRoot);
-	console.log(formatDriftReport(report));
-
 	const broken = findMissingSources(pages, repoRoot);
-	if (broken.length > 0) {
-		console.log("");
-		console.log("FUENTES DECLARADAS QUE NO EXISTEN:");
-		for (const b of broken) console.log(`  - ${b.path}: ${b.missing.join(", ")}`);
-	}
+	if (process.argv.includes("--check-sources")) {
+		if (broken.length === 0) {
+			console.log(`Fuentes declaradas de docs-site: ${pages.length} páginas, 0 rutas ausentes.`);
+		} else {
+			console.log("FUENTES DECLARADAS QUE NO EXISTEN:");
+			for (const b of broken) console.log(`  - ${b.path}: ${b.missing.join(", ")}`);
+		}
+		process.exitCode = broken.length > 0 ? 1 : 0;
+	} else {
+		const report = detectDrift(pages, repoRoot);
+		console.log(formatDriftReport(report));
 
-	process.exitCode = broken.length > 0 ? 2 : driftExitCode(report);
+		if (broken.length > 0) {
+			console.log("");
+			console.log("FUENTES DECLARADAS QUE NO EXISTEN:");
+			for (const b of broken) console.log(`  - ${b.path}: ${b.missing.join(", ")}`);
+		}
+
+		process.exitCode = broken.length > 0 ? 2 : driftExitCode(report);
+	}
 }

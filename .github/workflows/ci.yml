@@ -131,6 +131,9 @@ jobs:
       # del repo. Repetirlos en un job que solo instala `docs-site/` obligaba a
       # instalar la raiz y el installer para nada, y desde el guardian de
       # dependencias eso ni siquiera es posible: el preload corta la suite.
-      - name: Procedencia de las páginas (informativo)
+      - name: Fuentes declaradas de las páginas (bloqueante)
+        run: bun ein-pi/agent/lib/docs-site-drift-detector.ts --check-sources
+
+      - name: Frescura de las páginas (informativo)
         continue-on-error: true
         run: bun ein-pi/agent/lib/docs-site-drift-detector.ts

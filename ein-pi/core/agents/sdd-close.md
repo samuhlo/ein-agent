@@ -17,28 +17,37 @@ Read the change's artifacts under `openspec/changes/{change}/`: `scope.md`, `map
 
 ## Your primary output: `summary.md`
 
-Write `openspec/changes/{change}/summary.md` (required): a **condensed, reviewable record**. This is the durable memory of what happened, readable months later by anyone without digging through the raw phase files. Keep it tight (aim ≤ 60 lines); it is a summary, not a transcript. Use the `// 00N` house format:
+Write `openspec/changes/{change}/summary.md`: the durable, reviewable record. It
+must stand alone months later and stay under 60 lines:
 
 ```md
+status: complete
+change: <change-name>
+work_groups: <number of groups completed in tasks.md; 1 for a micro change>
+verification_status: pass
+
 ## // 000. RESUMEN
-<one or two sentences: what the change delivered>
+<one or two sentences: delivered outcome>
 
 ## // 001. QUÉ CAMBIÓ
-<the concrete changes, one bullet per unit; name the key files>
+<one bullet per unit; name key files>
 
 ## // 002. CÓMO FUNCIONA POR DENTRO
-<the real mechanism — name each piece and how they connect. The heart of the
-summary: someone must understand how it works from this alone.>
+<pieces, mechanism and connections; enough to understand it alone>
 
 ## // 003. DECISIONES
-<key decisions and why; alternatives discarded>
+<key decisions, reasons and discarded alternatives>
 
 ## // 004. VERIFICACIÓN
-<what was verified (from verify-report): tests/checks and their outcome>
+<checks and outcomes from verify-report.md>
+- verify: `<one exact command per check used by the change>`
 
 ## // 005. PENDIENTE / RIESGOS
-<follow-ups, gotchas, or "Ninguno.">
+<follow-ups, risks, or "Ninguno.">
 ```
+
+All metadata fields and one exact `- verify:` command are mandatory; evals read
+them after the temporary phase artifacts are removed.
 
 The artifact language follows the parent's "Artifact language" directive (Spanish if absent).
 
@@ -53,7 +62,7 @@ If `EIN.md` exists at the repo root, update ONLY its `## Índice` (`## Index`) s
 
 ## Constraints
 
-- Do NOT move or delete files. The move of `openspec/changes/{change}/` to closed storage is a deterministic step the parent runs (`/ein:sdd-close {change}` / the `closeChange` helper) AFTER you return — your job is only to leave a clean `summary.md`.
+- Do NOT move or delete files. The parent runs the deterministic close AFTER you return. That close keeps only `summary.md`; `scope.md`, `map.md`, `design.md`, `tasks.md`, apply evidence and verify evidence are temporary working material and are removed deliberately.
 - Do NOT implement, verify, or change code. You read artifacts and write `summary.md`; the only other permitted edit is the bounded `## Índice` update in `EIN.md` described above.
 - If `verify-report.md` indicates failure, STOP and report `blocked` — a failed change must not be closed.
 - Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit unless the user explicitly asks.

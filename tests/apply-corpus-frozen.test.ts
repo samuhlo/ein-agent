@@ -143,6 +143,44 @@ describe("TRIANGULATE: bordes del recolector", () => {
 		}
 	});
 
+	test("un cierre nuevo alimenta el corpus desde su único summary.md", () => {
+		const dir = mkdtempSync(join(tmpdir(), "apply-corpus-compact-"));
+		const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
+		try {
+			git("init", "-q");
+			git("config", "user.email", "tests@example.invalid");
+			git("config", "user.name", "Ein tests");
+			const archive = join(dir, "openspec", "changes", "archive", "demo");
+			mkdirSync(archive, { recursive: true });
+			writeFileSync(join(archive, "summary.md"), [
+				"status: complete",
+				"change: demo",
+				"work_groups: 2",
+				"verification_status: pass",
+				"",
+				"## // 000. RESUMEN",
+				"Demo cerrada.",
+				"",
+				"## // 004. VERIFICACIÓN",
+				"- verify: `bun test tests/demo.test.ts`",
+				"",
+			].join("\n"));
+			writeFileSync(join(dir, "demo.ts"), "export const demo = true;\n");
+			git("add", ".");
+			git("commit", "-qm", "deliver compact demo");
+
+			const [facts] = collectArchivedFacts(dir, git("rev-parse", "HEAD"));
+			expect(facts.tasksText).toContain("bun test tests/demo.test.ts");
+			expect(facts.verifyText).toContain("verification_status: pass");
+			const corpus = buildApplyCorpus([facts], git("rev-parse", "HEAD"));
+			expect(corpus.items).toEqual([
+				expect.objectContaining({ change: "demo", groups: 2, focusedChecks: ["bun test tests/demo.test.ts"] }),
+			]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	test("un commit base inexistente devuelve cero hechos, no revienta", () => {
 		expect(collectArchivedFacts(ROOT, "0000000")).toEqual([]);
 	});

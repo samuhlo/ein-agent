@@ -121,6 +121,25 @@ Regla:
 
 - Si un check no se ejecuta, debe figurar como `Skipped: <motivo>`.
 
+## `summary.md`
+
+Es el único registro que permanece después del cierre. Debe empezar con:
+
+```markdown
+status: complete
+change: <nombre>
+work_groups: <entero positivo>
+verification_status: pass
+```
+
+Después conserva, en formato `// 00N`, el resultado, el mecanismo, las
+decisiones, la verificación y los riesgos. Cada comprobación reutilizable se
+declara como `- verify: \`<comando exacto>\``.
+
+Los demás artefactos son una mesa de trabajo: permiten retomar y comprobar el
+cambio mientras está activo. El cierre requiere que el resumen sea posterior a
+apply/verify, copia únicamente `summary.md` al archivo y elimina el resto.
+
 ## Gates Entre Fases
 
 El flujo `ein-sdd` se lanza por lenguaje natural o por la chain (no por comandos `/ein:sdd:*`). Los gates entre fases son:

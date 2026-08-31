@@ -1,7 +1,0 @@
-{"status":"skipped","reason":"no_candidate","key":"sdd:fix-continuity-ipc-response-timeout:scope","durationMs":0,"timestamp":"2026-08-21T08:36:18.401Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:fix-continuity-ipc-response-timeout:scope","durationMs":0,"timestamp":"2026-08-21T08:36:27.854Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:fix-continuity-ipc-response-timeout:design","durationMs":0,"timestamp":"2026-08-21T08:40:47.730Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:fix-continuity-ipc-response-timeout:apply","durationMs":0,"timestamp":"2026-08-21T08:58:34.030Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:fix-continuity-ipc-response-timeout:verify","durationMs":0,"timestamp":"2026-08-22T10:57:42.274Z"}
-{"status":"skipped","reason":"no_candidate","key":"sdd:fix-continuity-ipc-response-timeout:verify","durationMs":0,"timestamp":"2026-08-22T11:11:54.433Z"}
-{"status":"skipped","reason":"memory_disabled","key":"sdd:fix-continuity-ipc-response-timeout:close","durationMs":0,"timestamp":"2026-08-22T11:11:58.237Z"}

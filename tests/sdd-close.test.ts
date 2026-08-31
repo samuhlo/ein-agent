@@ -3,22 +3,39 @@
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { closeChange } from "../ein-pi/agent/lib/sdd-close";
-import { approveCandidate } from "../ein-pi/agent/lib/memory-contract.ts";
-import {
-	appendMemoryReceipt,
-	buildCloseMemoryCandidate,
-	hasSuccessfulMemoryReceipt,
-} from "../ein-pi/agent/lib/sdd-memory-save.ts";
 import { lintChange, lintPhaseArtifact, oversizedGroupWarnings } from "../ein-pi/agent/lib/sdd-guardrails";
 import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
 
 let DIR: string;
+function durableSummary(change: string): string {
+	return [
+		"status: complete",
+		`change: ${change}`,
+		"work_groups: 1",
+		"verification_status: pass",
+		"",
+		"## // 000. RESUMEN",
+		"cierre",
+		"## // 001. QUÉ CAMBIÓ",
+		"- cambio",
+		"## // 002. CÓMO FUNCIONA POR DENTRO",
+		"mecanismo",
+		"## // 003. DECISIONES",
+		"- decisión",
+		"## // 004. VERIFICACIÓN",
+		"- verify: `bun test tests/example.test.ts`",
+		"## // 005. PENDIENTE / RIESGOS",
+		"Ninguno.",
+		"",
+	].join("\n");
+}
+
 function mkChange(name: string, files: Record<string, string>): string {
 	const p = join(DIR, "openspec", "changes", name);
 	mkdirSync(p, { recursive: true });
@@ -34,7 +51,7 @@ afterEach(() => {
 });
 
 describe("closeChange", () => {
-	test("mueve el cambio a storage interno y conserva summary.md", () => {
+	test("condensa el cambio en un único summary.md", () => {
 		makeFresh("feat-x");
 		const r = closeChange(DIR, "feat-x", { force: true });
 		expect(r.ok).toBe(true);
@@ -42,6 +59,7 @@ describe("closeChange", () => {
 		const closed = join(DIR, "openspec", "changes", "archive", "feat-x");
 		expect(existsSync(join(closed, "summary.md"))).toBe(true);
 		expect(readFileSync(join(closed, "summary.md"), "utf8")).toContain("cierre");
+		expect(readdirSync(closed)).toEqual(["summary.md"]);
 	});
 
 	test("no pisa si ya existe en storage interno (idempotente-safe)", () => {
@@ -66,7 +84,7 @@ describe("closeChange", () => {
 		"tasks.md": "status: ready\nblocked_by: none\n- [x] hecho\n",
 		"apply-progress.md": "status: complete\n",
 		"verify-report.md": "status: pass\nbehavior_coverage: verified\n",
-		"summary.md": "# Resumen\ncierre",
+		"summary.md": durableSummary("placeholder"),
 	};
 
 	function setMtime(change: string, file: string, ms: number): void {
@@ -76,7 +94,8 @@ describe("closeChange", () => {
 
 	// apply < verify < summary → todo fresco (orden natural del flujo).
 	function makeFresh(change: string): void {
-		mkChange(change, READY_FILES);
+		const path = mkChange(change, READY_FILES);
+		writeFileSync(join(path, "summary.md"), durableSummary(change));
 		setMtime(change, "apply-progress.md", 1_000_000);
 		setMtime(change, "verify-report.md", 2_000_000);
 		setMtime(change, "summary.md", 3_000_000);
@@ -104,6 +123,30 @@ describe("closeChange", () => {
 		const r = closeChange(DIR, "feat-stale");
 		expect(r.ok).toBe(false);
 		expect(r.reason).toContain("obsoleta");
+	});
+
+	// El prompt de `sdd-close` pide volcar en `// 004` los resultados del
+	// verify-report, y ese report empieza por `status: pass`. Leer los metadatos
+	// del fichero entero hacía ganar a esa cita sobre la cabecera.
+	test("un resumen que cita el verify-report en // 004 cierra igual", () => {
+		makeFresh("feat-quotes-verify");
+		const quoted = durableSummary("feat-quotes-verify")
+			.replace("## // 004. VERIFICACIÓN\n", "## // 004. VERIFICACIÓN\nEl verify-report cerró así:\nstatus: pass\n");
+		writeFileSync(join(DIR, "openspec", "changes", "feat-quotes-verify", "summary.md"), quoted);
+		setMtime("feat-quotes-verify", "summary.md", 3_000_000);
+
+		const result = closeChange(DIR, "feat-quotes-verify");
+		expect(result.ok).toBe(true);
+		expect(readFileSync(join(DIR, "openspec", "changes", "archive", "feat-quotes-verify", "summary.md"), "utf8"))
+			.toContain("status: pass");
+	});
+
+	test("un resumen incompleto no se convierte en el único registro permanente", () => {
+		makeFresh("feat-summary-incomplete");
+		writeFileSync(join(DIR, "openspec", "changes", "feat-summary-incomplete", "summary.md"), "# Parece terminado\n");
+		const result = closeChange(DIR, "feat-summary-incomplete");
+		expect(result.ok).toBe(false);
+		expect(result.blockers?.map((blocker) => blocker.code)).toContain("summary-contract-invalid");
 	});
 
 	// `unresolved` SÍ es forzable: es un problema de metadatos, y hacerlo
@@ -153,37 +196,12 @@ describe("closeChange", () => {
 			"tasks.md": "status: ready\n- [x] done\n",
 			"apply-progress.md": "status: complete\n",
 			"verify-report.md": "status: pass\n",
-			"summary.md": "# Resumen legacy\n",
+			"summary.md": durableSummary("fix-legacy"),
 		})) writeFileSync(join(p, file), body);
 		const r = closeChange(DIR, "fix-legacy", { force: true });
 		expect(r).toEqual({ ok: true, from: join(DIR, ".sdd", "changes", "fix-legacy"), to: join(DIR, ".sdd", "changes", "archive", "fix-legacy") });
 	});
 
-	test("el receipt de close vive tras el archive y evita otro fallback del mismo digest", () => {
-		makeFresh("feat-x");
-		const r = closeChange(DIR, "feat-x", { force: true });
-		expect(r.ok).toBe(true);
-		const approved = approveCandidate(buildCloseMemoryCandidate("feat-x")).approved!;
-		appendMemoryReceipt(r.to, {
-			status: "saved",
-			reason: "acknowledged",
-			key: "sdd:feat-x:close",
-			topic: approved.topic,
-			digest: approved.digest,
-			bytes: 12,
-			durationMs: 1,
-			timestamp: "2026-07-14T00:00:00.000Z",
-		});
-		expect(hasSuccessfulMemoryReceipt(r.to, approved.topic, approved.digest)).toBe(true);
-		appendMemoryReceipt(join(DIR, "missing"), {
-			status: "failed",
-			reason: "timeout",
-			key: "sdd:feat-x:close",
-			durationMs: 1500,
-			timestamp: "2026-07-14T00:00:00.000Z",
-		});
-		expect(existsSync(join(r.to, "summary.md"))).toBe(true);
-	});
 });
 
 describe("closeChange — scope-only out-of-flow reconciliation", () => {
@@ -467,9 +485,13 @@ describe("closeChange — force fail-closed matrix", () => {
 		"tasks.md": "status: ready\n- [x] done\n",
 		"apply-progress.md": "status: complete\n",
 		"verify-report.md": "status: pass\n",
-		"summary.md": "# Summary\n",
+		"summary.md": durableSummary("placeholder"),
 	};
-	function ready(name: string): string { return mkChange(name, READY); }
+	function ready(name: string): string {
+		const path = mkChange(name, READY);
+		writeFileSync(join(path, "summary.md"), durableSummary(name));
+		return path;
+	}
 	function declarationless(name: string): string {
 		const path = ready(name);
 		writeFileSync(join(path, "scope.md"), "# Scope legacy\n");

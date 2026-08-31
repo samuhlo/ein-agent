@@ -1,16 +1,15 @@
 // =============================================================================
-// SDD CLOSE (deterministic move)
-// Cierra un cambio terminado: mueve openspec/changes/<change>/ a
-// openspec/changes/archive/<change>/ para que `openspec/changes/` solo contenga
-// cambios VIVOS y el estado quede revisable y ordenado. El resumen condensado
-// (summary.md) lo escribe el agente sdd-close ANTES de llamar a esto; aquí
-// solo se hace el movimiento, que es determinista y debe ser fiable.
+// SDD CLOSE (deterministic compaction)
+// Cierra un cambio terminado: valida todos sus artefactos y conserva únicamente
+// summary.md en openspec/changes/archive/<change>/. Los artefactos de fase son
+// material de trabajo: al cerrar desaparecen y el resumen pasa a ser el registro
+// duradero, legible y compacto del cambio.
 // Módulo puro (builtins de Node).
 // =============================================================================
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, renameSync, cpSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, renameSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { readSpecDeltaDeclaration } from "./sdd-guardrails.ts";
 import {
@@ -110,19 +109,53 @@ function currentRepositoryState(cwd: string, capturedAt: unknown): RepositorySta
 	} catch { return null; }
 }
 
-function moveToArchive(from: string, to: string): string | null {
+function compactToArchive(from: string, to: string): string | null {
+	const staging = `${to}.staging-${process.pid}-${Date.now()}`;
 	try {
-		renameSync(from, to);
+		mkdirSync(staging);
+		copyFileSync(join(from, "summary.md"), join(staging, "summary.md"));
+		renameSync(staging, to);
+		rmSync(from, { recursive: true, force: true });
 		return null;
-	} catch {
-		try {
-			cpSync(from, to, { recursive: true });
-			rmSync(from, { recursive: true, force: true });
-			return null;
-		} catch (error) {
-			return error instanceof Error ? error.message : String(error);
-		}
+	} catch (error) {
+		rmSync(staging, { recursive: true, force: true });
+		return error instanceof Error ? error.message : String(error);
 	}
+}
+
+const DURABLE_SUMMARY_SECTIONS = ["000", "001", "002", "003", "004", "005"] as const;
+
+function assessDurableSummary(from: string, change: string): CloseBlocker | null {
+	let text = "";
+	try { text = readFileSync(join(from, "summary.md"), "utf8").replaceAll("\r\n", "\n"); }
+	catch { return null; } // assessCloseReadiness owns the missing/unreadable case.
+
+	// CORTE -> los metadatos solo se leen de la cabecera (lo anterior a la primera
+	// sección). El cuerpo cita el verify-report, y `status: pass` dentro de
+	// `// 004` sobrescribía el `status: complete` declarado arriba: un resumen
+	// correcto bloqueaba su propio cierre.
+	const header = text.split(/^## /m)[0] ?? "";
+	const fields = new Map(
+		header.split("\n").flatMap((line) => {
+			const match = /^([a-z_]+):\s*(.*?)\s*$/.exec(line);
+			return match ? [[match[1]!, match[2]!] as const] : [];
+		}),
+	);
+	const groups = Number(fields.get("work_groups"));
+	const missingSections = DURABLE_SUMMARY_SECTIONS.filter((section) => !new RegExp(`^## // ${section}\\.`, "m").test(text));
+	const valid = fields.get("status") === "complete"
+		&& fields.get("change") === change
+		&& Number.isInteger(groups)
+		&& groups > 0
+		&& fields.get("verification_status") === "pass"
+		&& /^\s*-\s*verify\s*:\s*`[^`]+`\s*$/im.test(text)
+		&& missingSections.length === 0;
+	return valid
+		? null
+		: {
+			code: "summary-contract-invalid",
+			message: "summary.md debe declarar status/change/work_groups/verification_status, las secciones // 000..005 y al menos un comando `- verify:` exacto.",
+		};
 }
 
 function assessReconciliationClose(cwd: string, change: string, from: string, to: string, options: CloseOptions): { blockers: CloseBlocker[]; reconciliation?: ValidatedOutOfFlowReconciliation } {
@@ -168,7 +201,8 @@ function assessReconciliationClose(cwd: string, change: string, from: string, to
 	return blockers.length === 0 && validation.ok ? { blockers, reconciliation: validation.reconciliation } : { blockers };
 }
 
-// Storage interno heredado: `archive/` conserva historial sin migración destructiva.
+// `archive/` conserva el registro duradero; los artefactos intermedios existen
+// únicamente mientras el cambio está activo.
 export function closeChange(cwd: string, change: string, options: CloseOptions = {}): CloseResult {
 	const from = join(changesDir(cwd), change);
 	const to = closedChangePath(cwd, change);
@@ -192,7 +226,7 @@ export function closeChange(cwd: string, change: string, options: CloseOptions =
 			};
 		}
 		mkdirSync(join(changesDir(cwd), "archive"), { recursive: true });
-		const moveError = moveToArchive(from, to);
+		const moveError = compactToArchive(from, to);
 		return moveError === null
 			? { ok: true, from, to, reconciliation: assessment.reconciliation }
 			: { ok: false, from, to, reason: moveError };
@@ -201,13 +235,15 @@ export function closeChange(cwd: string, change: string, options: CloseOptions =
 		return { ok: false, from, to, reason: "ya existe en archive/; no se pisa" };
 	}
 	const readiness = assessCloseReadiness(cwd, change);
+	const summaryContractBlocker = assessDurableSummary(from, change);
 	const escapeEligible = readiness.legacyEligibility === "declarationless-record";
-	const nonEscapeBlockers = readiness.blockers.filter((blocker) => blocker.code !== "spec-unresolved");
+	const readinessBlockers = summaryContractBlocker ? [...readiness.blockers, summaryContractBlocker] : [...readiness.blockers];
+	const nonEscapeBlockers = readinessBlockers.filter((blocker) => blocker.code !== "spec-unresolved");
 	const legacyReason = normalizeLegacyReason(options.legacyReason);
 	const usesLegacyEscape = options.force && escapeEligible && nonEscapeBlockers.length === 0 && legacyReason !== null;
 
-	if (!readiness.ready && !usesLegacyEscape) {
-		const blockers: CloseBlocker[] = [...readiness.blockers];
+	if ((!readiness.ready || summaryContractBlocker !== null) && !usesLegacyEscape) {
+		const blockers: CloseBlocker[] = [...readinessBlockers];
 		if (options.force && escapeEligible && nonEscapeBlockers.length === 0 && legacyReason === null) {
 			blockers.push({ code: "legacy-reason-invalid", message: "--force para un registro legacy requiere una razón de auditoría válida." });
 		}
@@ -221,7 +257,7 @@ export function closeChange(cwd: string, change: string, options: CloseOptions =
 	}
 
 	mkdirSync(join(changesDir(cwd), "archive"), { recursive: true });
-	const moveError = moveToArchive(from, to);
+	const moveError = compactToArchive(from, to);
 	if (moveError !== null) return { ok: false, from, to, reason: moveError };
 	return usesLegacyEscape
 		? {

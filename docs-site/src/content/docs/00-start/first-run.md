@@ -101,9 +101,10 @@ en el mensaje y la decisión es tuya.
 
 ## Al cerrar
 
-El cambio se archiva en `openspec/changes/archive/` con todos sus artefactos.
-Dentro de seis meses, `summary.md` responde qué se hizo y por qué; los demás
-artefactos responden cómo se decidió.
+El cambio se archiva en `openspec/changes/archive/` como un único `summary.md`.
+Ese resumen conserva qué se hizo, cómo funciona, las decisiones, la
+verificación y los riesgos. Los demás artefactos eran la mesa de trabajo y se
+eliminan al cerrar.
 
 ## Siguiente
 

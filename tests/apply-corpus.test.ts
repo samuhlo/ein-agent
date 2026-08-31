@@ -65,6 +65,21 @@ describe("pertenencia calculada", () => {
 		expect(item.groups).toBe(2);
 	});
 
+	test("el summary compacto aporta verificación y grupos sin conservar artefactos de fase", () => {
+		const summary = [
+			"status: complete",
+			"work_groups: 2",
+			"verification_status: pass",
+			"- verify: `bun test tests/demo.test.ts`",
+		].join("\n");
+		const corpus = build([facts({ tasksText: summary, verifyText: summary })]);
+		expect(corpus.exclusions).toEqual([]);
+		expect(corpus.items[0]).toEqual(expect.objectContaining({
+			groups: 2,
+			focusedChecks: ["bun test tests/demo.test.ts"],
+		}));
+	});
+
 	test("los artefactos de proceso no cuentan como ficheros tocados", () => {
 		const corpus = build([facts()]);
 		const item = corpus.items[0];

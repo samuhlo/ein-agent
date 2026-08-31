@@ -52,9 +52,10 @@ funciona".
 sus alternativas. Que sea la acertada es juicio, y por eso es lo primero que
 deberías revisar tú.
 
-**Que el resumen sea fiel.** Un `summary.md` lo escribe un modelo. Suele ser
-bueno; no es evidencia. La evidencia son los artefactos y la salida de los
-comandos.
+**Que el resumen sea una transcripción perfecta.** Un `summary.md` lo escribe
+un modelo. El cierre comprueba que exista y sea posterior a apply/verify, y su
+formato conserva los comandos ejecutados, pero sigue siendo una condensación.
+Por eso se revisa antes de cerrar: después será el único registro duradero.
 
 **Que un informe de subagente sea exacto.** Pasa que un informe cita una línea
 que no dice eso, o da un recuento que no cuadra. Son datos plausibles en el

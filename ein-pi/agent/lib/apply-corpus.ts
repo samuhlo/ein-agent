@@ -51,9 +51,10 @@ export type ApplyCorpus = Readonly<{
 	exclusions: readonly CorpusExclusion[];
 }>;
 
-const VERIFY_PASS_RE = /^\s*(?:status|result|resultado)\s*[:=]\s*(?:pass|passed|ok|pasa)\b/im;
+const VERIFY_PASS_RE = /^\s*(?:status|result|resultado|verification_status)\s*[:=]\s*(?:pass|passed|ok|pasa)\b/im;
 const FOCUSED_CHECK_RE = /^\s*-\s*verify\s*:\s*(.+)$/gim;
 const GROUP_RE = /^##\s+.+$/gm;
+const EXPLICIT_GROUPS_RE = /^\s*work_groups\s*:\s*(\d+)\s*$/im;
 
 // Artefactos de proceso SDD: el commit de entrega los mueve siempre, y contarlos
 // como trabajo haría que un cambio que solo archiva papeles pareciera código.
@@ -67,6 +68,11 @@ function stripTicks(value: string): string {
 
 function focusedChecksOf(tasksText: string): string[] {
 	return [...tasksText.matchAll(FOCUSED_CHECK_RE)].map((match) => stripTicks(match[1])).filter(Boolean);
+}
+
+function groupCountOf(text: string): number {
+	const explicit = EXPLICIT_GROUPS_RE.exec(text)?.[1];
+	return explicit === undefined ? (text.match(GROUP_RE) ?? []).length : Number(explicit);
 }
 
 /**
@@ -93,7 +99,7 @@ function itemOf(facts: ArchivedChangeFacts): CorpusItem {
 		productionFiles: delivered.filter((path) => !isTestPath(path)).sort(),
 		testFiles: delivered.filter((path) => isTestPath(path)).sort(),
 		focusedChecks: focusedChecksOf(tasksText),
-		groups: (tasksText.match(GROUP_RE) ?? []).length,
+		groups: groupCountOf(tasksText),
 	};
 }
 
