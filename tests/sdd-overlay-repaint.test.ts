@@ -105,7 +105,26 @@ function markChangeReadyToClose(cwd: string, name: string): void {
 		"tasks.md": "status: ready\n- [x] done\n",
 		"apply-progress.md": "status: complete\n",
 		"verify-report.md": "status: pass\n",
-		"summary.md": "# Summary\n",
+		"summary.md": [
+			"status: complete",
+			`change: ${name}`,
+			"work_groups: 1",
+			"verification_status: pass",
+			"",
+			"## // 000. RESUMEN",
+			"Cierre de fixture.",
+			"## // 001. QUÉ CAMBIÓ",
+			"- Fixture.",
+			"## // 002. CÓMO FUNCIONA POR DENTRO",
+			"El cierre consume los artefactos.",
+			"## // 003. DECISIONES",
+			"- Ninguna.",
+			"## // 004. VERIFICACIÓN",
+			"- verify: `bun test tests/sdd-overlay-repaint.test.ts`",
+			"## // 005. PENDIENTE / RIESGOS",
+			"Ninguno.",
+			"",
+		].join("\n"),
 	};
 	for (const [file, contents] of Object.entries(files)) writeFileSync(join(change, file), contents);
 }
