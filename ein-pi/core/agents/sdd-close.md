@@ -17,7 +17,8 @@ Read the change's artifacts under `openspec/changes/{change}/`: `scope.md`, `map
 
 ## Your primary output: `summary.md`
 
-Write `openspec/changes/{change}/summary.md` (required): a **condensed, reviewable record**. This is the durable memory of what happened, readable months later by anyone without digging through the raw phase files. Keep it tight (aim ≤ 60 lines); it is a summary, not a transcript. Use the `// 00N` house format:
+Write `openspec/changes/{change}/summary.md`: the durable, reviewable record. It
+must stand alone months later and stay under 60 lines:
 
 ```md
 status: complete
@@ -26,29 +27,27 @@ work_groups: <number of groups completed in tasks.md; 1 for a micro change>
 verification_status: pass
 
 ## // 000. RESUMEN
-<one or two sentences: what the change delivered>
+<one or two sentences: delivered outcome>
 
 ## // 001. QUÉ CAMBIÓ
-<the concrete changes, one bullet per unit; name the key files>
+<one bullet per unit; name key files>
 
 ## // 002. CÓMO FUNCIONA POR DENTRO
-<the real mechanism — name each piece and how they connect. The heart of the
-summary: someone must understand how it works from this alone.>
+<pieces, mechanism and connections; enough to understand it alone>
 
 ## // 003. DECISIONES
-<key decisions and why; alternatives discarded>
+<key decisions, reasons and discarded alternatives>
 
 ## // 004. VERIFICACIÓN
-<what was verified (from verify-report): tests/checks and their outcome>
+<checks and outcomes from verify-report.md>
 - verify: `<one exact command per check used by the change>`
 
 ## // 005. PENDIENTE / RIESGOS
-<follow-ups, gotchas, or "Ninguno.">
+<follow-ups, risks, or "Ninguno.">
 ```
 
-The four metadata lines and at least one exact `- verify:` command are part of
-the durable contract. The evaluation corpus reads them after the temporary
-phase artifacts have been removed.
+All metadata fields and one exact `- verify:` command are mandatory; evals read
+them after the temporary phase artifacts are removed.
 
 The artifact language follows the parent's "Artifact language" directive (Spanish if absent).
 
