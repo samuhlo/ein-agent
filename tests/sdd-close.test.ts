@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -62,6 +62,33 @@ describe("closeChange", () => {
 		expect(readdirSync(closed)).toEqual(["summary.md"]);
 	});
 
+	test("retoma una compactación cuya poda se interrumpe", () => {
+		makeFresh("feat-retry");
+		let interrupted = false;
+		const first = closeChange(DIR, "feat-retry", {}, {
+			removeEntry(path) {
+				if (!interrupted && path.endsWith("design.md")) {
+					interrupted = true;
+					throw new Error("poda interrumpida");
+				}
+				rmSync(path, { recursive: true, force: true });
+			},
+		});
+
+		const active = join(DIR, "openspec", "changes", "feat-retry");
+		const archived = join(DIR, "openspec", "changes", "archive", "feat-retry");
+		expect(first.ok).toBe(false);
+		expect(first.reason).toContain("poda interrumpida");
+		expect(existsSync(active)).toBe(false);
+		expect(existsSync(join(archived, "summary.md"))).toBe(true);
+		expect(readdirSync(archived)).toContain(".ein-close-pending.json");
+		expect(readdirSync(archived)).toContain("design.md");
+
+		const retry = closeChange(DIR, "feat-retry");
+		expect(retry.ok).toBe(true);
+		expect(readdirSync(archived)).toEqual(["summary.md"]);
+	});
+
 	test("no pisa si ya existe en storage interno (idempotente-safe)", () => {
 		makeFresh("feat-x");
 		expect(closeChange(DIR, "feat-x", { force: true }).ok).toBe(true);
@@ -69,6 +96,58 @@ describe("closeChange", () => {
 		const r2 = closeChange(DIR, "feat-x", { force: true });
 		expect(r2.ok).toBe(false);
 		expect(r2.reason).toContain("archive");
+	});
+
+	test("no adopta como propio un archivo con una marca de recuperación inválida", () => {
+		makeFresh("feat-foreign");
+		const active = join(DIR, "openspec", "changes", "feat-foreign");
+		const archived = join(DIR, "openspec", "changes", "archive", "feat-foreign");
+		mkdirSync(archived, { recursive: true });
+		writeFileSync(join(archived, ".ein-close-pending.json"), "{}\n");
+
+		const result = closeChange(DIR, "feat-foreign");
+		expect(result.ok).toBe(false);
+		expect(result.reason).toContain("marca de cierre inválida");
+		expect(existsSync(active)).toBe(true);
+		expect(existsSync(archived)).toBe(true);
+	});
+
+	test("no sigue una marca de recuperación a través de un enlace simbólico", () => {
+		const external = join(DIR, "external-archive");
+		const summary = durableSummary("feat-linked-archive");
+		mkdirSync(external);
+		writeFileSync(join(external, "summary.md"), summary);
+		writeFileSync(join(external, "design.md"), "no borrar");
+		writeFileSync(join(external, ".ein-close-pending.json"), JSON.stringify({
+			version: 1,
+			change: "feat-linked-archive",
+			summarySha256: createHash("sha256").update(summary).digest("hex"),
+			completion: { kind: "normal" },
+		}));
+		const archiveRoot = join(DIR, "openspec", "changes", "archive");
+		mkdirSync(archiveRoot, { recursive: true });
+		symlinkSync(external, join(archiveRoot, "feat-linked-archive"), "dir");
+
+		const result = closeChange(DIR, "feat-linked-archive");
+		expect(result.ok).toBe(false);
+		expect(existsSync(join(external, "design.md"))).toBe(true);
+		expect(existsSync(join(external, ".ein-close-pending.json"))).toBe(true);
+	});
+
+	test("no archiva un summary.md que sea un enlace simbólico", () => {
+		makeFresh("feat-linked-summary");
+		const active = join(DIR, "openspec", "changes", "feat-linked-summary");
+		const external = join(DIR, "external-summary.md");
+		writeFileSync(external, durableSummary("feat-linked-summary"));
+		rmSync(join(active, "summary.md"));
+		symlinkSync(external, join(active, "summary.md"));
+		setMtime("feat-linked-summary", "summary.md", 3_000_000);
+
+		const result = closeChange(DIR, "feat-linked-summary");
+		expect(result.ok).toBe(false);
+		expect(result.reason).toContain("fichero regular");
+		expect(existsSync(active)).toBe(true);
+		expect(existsSync(join(DIR, "openspec", "changes", "archive", "feat-linked-summary"))).toBe(false);
 	});
 
 	test("nombre inválido se rechaza", () => {
@@ -263,11 +342,20 @@ describe("closeChange — scope-only out-of-flow reconciliation", () => {
 
 	test("archives an eligible record and returns a reconciliation receipt distinct from legacyEscape", () => {
 		const fixture = reconciliationFixture();
-		const result = closeChange(DIR, "legacy-delivery", {
+		const options = {
 			reconciliationProfile: profile,
 			reconciliationEvidencePath: fixture.evidencePath,
 			legacyReason: reason,
+		};
+		const interrupted = closeChange(DIR, "legacy-delivery", options, {
+			removeEntry(path) {
+				if (path.endsWith("scope.md")) throw new Error("poda interrumpida");
+				rmSync(path, { recursive: true, force: true });
+			},
 		});
+		expect(interrupted.ok).toBe(false);
+
+		const result = closeChange(DIR, "legacy-delivery", options);
 		expect(result.ok).toBe(true);
 		expect(result.reconciliation).toMatchObject({ profile, change: "legacy-delivery", reason, checkIds: ["core-tests"], repositoryState: fixture.identity });
 		expect(result).not.toHaveProperty("legacyEscape");
@@ -531,7 +619,15 @@ describe("closeChange — force fail-closed matrix", () => {
 			expect(existsSync(join(DIR, "openspec", "changes", "legacy"))).toBe(true);
 		}
 		expect(closeChange(DIR, "legacy").ok).toBe(false);
-		const result = closeChange(DIR, "legacy", { force: true, legacyReason: "  historic declaration missing  " });
+		const options = { force: true, legacyReason: "  historic declaration missing  " };
+		const interrupted = closeChange(DIR, "legacy", options, {
+			removeEntry(path) {
+				if (path.endsWith("design.md")) throw new Error("poda interrumpida");
+				rmSync(path, { recursive: true, force: true });
+			},
+		});
+		expect(interrupted.ok).toBe(false);
+		const result = closeChange(DIR, "legacy", options);
 		expect(result.legacyEscape).toEqual({ used: true, priorSpecState: "unresolved", eligibility: "declarationless-record", reason: "historic declaration missing" });
 	});
 
