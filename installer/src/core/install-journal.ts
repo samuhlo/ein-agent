@@ -10,13 +10,14 @@ import {
   type InstallJournalEntryState,
   type InstallJournalState,
 } from "./install-journal-contract.ts";
+import { isInstallJournalStateReachable } from "./install-journal-reachability.ts";
 import {
   inspectStoredInstallJournal,
   productionInstallJournalFs,
   publishStoredInstallJournal,
   type InstallJournalFs,
 } from "./install-journal-store.ts";
-import { INSTALL_PLAN_ENTRY_CONTRACTS, INSTALL_PLAN_ENTRY_IDS, validateInstallPlan, type InstallPlanEntryId, type InstallPlanRuntime, type InstallPlanV1 } from "./install-plan.ts";
+import { INSTALL_PLAN_ENTRY_CONTRACTS, INSTALL_PLAN_ENTRY_IDS, validateInstallPlan, type InstallPlanEntryId, type InstallPlanV1 } from "./install-plan.ts";
 
 export { installJournalPath } from "./install-journal-store.ts";
 export type { InstallJournalFs } from "./install-journal-store.ts";
@@ -69,10 +70,6 @@ const supportsRetirementRetry = (journal: InstallExecutionJournalV1, plan: Insta
 const JOURNAL_TARGETS = ["pi", "claude", "both"] as const;
 const JOURNAL_STATES: readonly InstallJournalState[] = ["prepared", "executing", "recovery-required", "complete"];
 const ENTRY_STATES: readonly InstallJournalEntryState[] = ["not-run", "pending", "completed", "failed"];
-const SEGMENT_ORDER: readonly InstallPlanRuntime[] = ["shared", "pi", "claude"];
-const RECOVERY_CODES = ["handler-failed", "interrupted"] as const;
-const RECOVERY_SEQUENCE = /^(completed,)*((failed|pending),)?(not-run,)*$/;
-const EXECUTING_SEQUENCE = /^(completed,)*(pending,)?(not-run,)*$/;
 
 type JournalEnvelope = Record<string, unknown> & {
   schemaVersion: 1;
@@ -83,15 +80,6 @@ type JournalEnvelope = Record<string, unknown> & {
   state: InstallJournalState;
   entries: unknown[];
 };
-
-type JournalValidationFacts = Readonly<{
-  completed: number;
-  failed: number;
-  pending: number;
-  pointsAtProblem: boolean;
-  recoveryReachable: boolean;
-  executingReachable: boolean;
-}>;
 
 function rejectJournal(): never {
   throw new InstallJournalError("recovery-required");
@@ -167,100 +155,15 @@ function validateEntries(
   return validated;
 }
 
-function statusSequence(entries: InstallExecutionJournalV1["entries"]): string {
-  const statuses = entries.map(({ status }) => status).join(",");
-  return entries.length > 0 ? `${statuses},` : "";
-}
-
-function deriveValidationFacts(
-  journal: InstallExecutionJournalV1,
-): JournalValidationFacts {
-  const segment = (runtime: InstallPlanRuntime) => journal.entries.filter((entry) => entry.runtime === runtime);
-  const shared = segment("shared");
-  const bootstrapShared = shared.filter(({ id }) => id !== "shared.retire-legacy");
-  const cleanup = shared.find(({ id }) => id === "shared.retire-legacy");
-  const pi = segment("pi");
-  const claude = segment("claude");
-  const pending = journal.entries.filter(({ status }) => status === "pending").length;
-  const failed = journal.entries.filter(({ status }) => status === "failed").length;
-  const completed = journal.entries.filter(({ status }) => status === "completed").length;
-  const pointsAtProblem = journal.pendingEntryId !== undefined && journal.entries.some(
-    (entry) => entry.id === journal.pendingEntryId && (entry.status === "pending" || entry.status === "failed"),
-  );
-
-  const segmentsReachable = SEGMENT_ORDER.every((runtime) => RECOVERY_SEQUENCE.test(statusSequence(segment(runtime))));
-  const sharedTerminal = bootstrapShared.some(({ status }) => status === "failed" || status === "pending");
-  const claudeStarted = claude.some(({ status }) => status !== "not-run");
-  const backupPending = pi.some(({ id, status }) => id === "pi.backup-current" && status === "pending");
-  const cleanupRecovery = cleanup !== undefined
-    && ["failed", "pending"].includes(cleanup.status)
-    && [...bootstrapShared, ...pi, ...claude].every(({ status }) => status === "completed");
-  const earlierRuntimeStateAllowsRecovery = !sharedTerminal
-    || [...pi, ...claude].every(({ status }) => status === "not-run");
-  const piStateAllowsClaude = pi.length === 0
-    || pi.every(({ status }) => status === "completed")
-    || pi.some(({ status }) => status === "failed")
-    || backupPending;
-  const claudeStateReachable = !claudeStarted || (
-    bootstrapShared.every(({ status }) => status === "completed")
-    && piStateAllowsClaude
-    && (!pi.some(({ status }) => status === "pending") || backupPending)
-  );
-  const recoveryReachable = segmentsReachable
-    && pending <= 1
-    && failed + pending > 0
-    && (cleanupRecovery || earlierRuntimeStateAllowsRecovery && claudeStateReachable);
-
-  const standardExecuting = EXECUTING_SEQUENCE.test(statusSequence(journal.entries));
-  const resumedExecuting = bootstrapShared.every(({ status }) => status === "completed")
-    && cleanup?.status === "not-run"
-    && claude.length > 0
-    && claude.every(({ status }) => status === "completed")
-    && EXECUTING_SEQUENCE.test(statusSequence(pi));
-
-  return {
-    completed,
-    failed,
-    pending,
-    pointsAtProblem,
-    recoveryReachable,
-    executingReachable: standardExecuting || resumedExecuting,
-  };
-}
-
-function stateIsCoherent(
-  journal: InstallExecutionJournalV1,
-  own: PropertyDescriptorMap,
-  facts: JournalValidationFacts,
-): boolean {
-  if (journal.state === "prepared") {
-    return facts.completed === 0 && facts.pending === 0 && facts.failed === 0
-      && !own.pendingEntryId && !own.recoveryCode;
-  }
-  if (journal.state === "complete") {
-    return facts.completed === journal.entries.length && facts.pending === 0 && facts.failed === 0
-      && !own.pendingEntryId && !own.recoveryCode;
-  }
-  if (journal.state === "executing") {
-    return facts.failed === 0
-      && facts.pending <= 1
-      && !own.recoveryCode
-      && (facts.pending === 0 ? !own.pendingEntryId : facts.pointsAtProblem)
-      && facts.executingReachable;
-  }
-  return facts.recoveryReachable
-    && RECOVERY_CODES.includes(journal.recoveryCode as typeof RECOVERY_CODES[number])
-    && (journal.recoveryCode === "handler-failed" ? facts.failed > 0 || facts.pending > 0 : facts.pending > 0)
-    && facts.pointsAtProblem;
-}
-
-// FAIL CLOSED -> este fichero autoriza reanudar mutaciones. Cada forma dudosa
-// se rechaza antes de que el ejecutor pueda interpretar el estado.
 export function validateInstallJournal(value: unknown): asserts value is InstallExecutionJournalV1 {
   if (!isJournalEnvelope(value)) rejectJournal();
   const entries = validateEntries(value.entries, value.target);
   const journal = { ...value, entries } as InstallExecutionJournalV1;
-  if (!stateIsCoherent(journal, Object.getOwnPropertyDescriptors(value), deriveValidationFacts(journal))) rejectJournal();
+  const own = Object.getOwnPropertyDescriptors(value);
+  if (!isInstallJournalStateReachable(journal, {
+    pendingEntryId: own.pendingEntryId !== undefined,
+    recoveryCode: own.recoveryCode !== undefined,
+  })) rejectJournal();
 }
 
 const encodeJournal = (value: InstallExecutionJournalV1): Uint8Array =>
