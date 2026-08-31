@@ -1,7 +1,7 @@
 ---
 title: "Contexto"
 description: "Por qué el contexto es el recurso que escasea y cómo lo administra EIN."
-sources: ["ein-pi/agent/assets/orchestrator.md", "openspec/specs/scout-routing/spec.md"]
+sources: ["runtime/assets/orchestrator.md", "openspec/specs/scout-routing/spec.md"]
 verified_rev: "29861f5"
 ---
 

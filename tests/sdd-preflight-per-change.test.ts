@@ -21,8 +21,9 @@ import {
 	ensureSddPreflight,
 	isSddParticipantMarker,
 	patchSddIntentMaterial,
+	piSddIntentPreflightContext,
 	persistSddIntentResolution,
-	resolveSddIntentPreflight,
+	resolveSddIntentPreflight as resolveSddIntentPreflightWithContext,
 } from "../ein-pi/agent/lib/sdd-preflight";
 import { createIntentMaterialKey, decideIntentPreflight, type IntentDecisionEvidence, type IntentMaterial } from "../ein-pi/agent/lib/sdd-intent-preflight";
 import { classifyPiIntentRequest } from "../ein-pi/agent/extensions/ein-ai";
@@ -74,6 +75,11 @@ function makeCtx(cwd: string, answers: { tdd?: string; lane?: string; execution?
 	} as never;
 	return { ctx, asks };
 }
+
+const resolveSddIntentPreflight = (
+	ctx: Parameters<typeof piSddIntentPreflightContext>[0],
+	input: Parameters<typeof resolveSddIntentPreflightWithContext>[1],
+) => resolveSddIntentPreflightWithContext(piSddIntentPreflightContext(ctx), input);
 
 const EIN_AI_SOURCE = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
 

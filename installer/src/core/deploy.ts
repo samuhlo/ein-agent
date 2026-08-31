@@ -14,7 +14,7 @@ import { join } from "node:path";
 import {
   globalLinearIntegrationConfigPath,
   type LinearIntegration,
-} from "../../../ein-pi/agent/lib/linear-integration.ts";
+} from "../../../shared/ports/linear.ts";
 // Embedded at compile time via `bun build --compile`; at runtime resolves to
 // the bundled asset path.
 import templateTarball from "../assets/template.tar.gz" with { type: "file" };

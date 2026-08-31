@@ -6,7 +6,7 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
-import { TV_WIDTH, placaRows, renderTv, tvRowWidth, type TvCut, type TvRow, type TvSignal } from "../ein-pi/agent/lib/ein-tv.ts";
+import { TV_WIDTH, placaRows, renderTv, tvRowWidth, type TvCut, type TvRow, type TvSignal } from "../shared/contracts/ein-tv.ts";
 
 const CUTS: readonly TvCut[] = ["full", "cabinet", "compact", "minimal"];
 const SIGNALS: readonly TvSignal[] = ["idle", "working", "static", "standby"];

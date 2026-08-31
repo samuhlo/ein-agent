@@ -32,6 +32,7 @@ import {
 	getSddSessionMemory,
 	installSddAssets,
 	isSddPreflightTrigger,
+	piSddIntentPreflightContext,
 	renderMemoryAdvisory,
 	renderSddPreflightPrompt,
 	resolveSddIntentPreflight,
@@ -278,7 +279,7 @@ async function adoptPiIntentGate(ctx: ExtensionContext): Promise<void> {
 	if (!gate || gate.kind === "resolved") return;
 	const change = resolveActiveChange(ctx.cwd);
 	if (!change) return;
-	const outcome = await resolveSddIntentPreflight(ctx, { ...gate.input, change });
+	const outcome = await resolveSddIntentPreflight(piSddIntentPreflightContext(ctx), { ...gate.input, change });
 	if (outcome.kind === "adopted" || outcome.kind === "resolved") {
 		piIntentGateBySession.set(sessionKey, { kind: "resolved" });
 	}
@@ -756,7 +757,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				piIntentGateBySession.delete(sessionKey);
 				return runPiIntentPreflight(text, ctx);
 			}
-			const confirmed = await resolveSddIntentPreflight(ctx, {
+			const confirmed = await resolveSddIntentPreflight(piSddIntentPreflightContext(ctx), {
 				...current.input,
 				summary: `${current.input.summary} — ${current.answers}`,
 				material: piIntentMaterial(current.input.summary, current.answers),
@@ -776,7 +777,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			material: piIntentMaterial(text),
 			materialEvidence: "sufficient",
 		};
-		const outcome = await resolveSddIntentPreflight(ctx, input);
+		const outcome = await resolveSddIntentPreflight(piSddIntentPreflightContext(ctx), input);
 		if (outcome.kind === "read-only") return "read-only";
 		if (outcome.kind === "pending") {
 			piIntentGateBySession.set(sessionKey, { kind: "pending", input });

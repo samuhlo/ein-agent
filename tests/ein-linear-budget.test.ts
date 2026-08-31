@@ -16,7 +16,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const LINEAR_MD = join(import.meta.dir, "../runtime/agents/ein-linear.md");
-const ORCH_MD = join(import.meta.dir, "../ein-pi/agent/assets/orchestrator.md");
+const ORCH_MD = join(import.meta.dir, "../runtime/assets/orchestrator.md");
 const linearContent = readFileSync(LINEAR_MD, "utf8");
 const orchContent = readFileSync(ORCH_MD, "utf8");
 

@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const orch = readFileSync(
-	join(import.meta.dir, "../ein-pi/agent/assets/orchestrator.md"),
+	join(import.meta.dir, "../runtime/assets/orchestrator.md"),
 	"utf8",
 );
 

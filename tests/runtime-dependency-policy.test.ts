@@ -9,7 +9,7 @@ import {
   PI_NODE_MIN_VERSION,
   REQUIRED_PI_PACKAGES,
   REQUIRED_PI_PACKAGE_SPECS,
-} from "../ein-pi/agent/lib/runtime-compat.ts";
+} from "../shared/contracts/runtime-compat.ts";
 import { detectPlatform } from "../installer/src/core/platform.ts";
 import { derivePiInstallPaths, resolvePiInstallContext } from "../installer/src/core/paths.ts";
 import { runDoctor, type DoctorReport } from "../installer/src/core/verify.ts";

@@ -11,10 +11,10 @@ import { join } from "node:path";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
 const CORE = join(import.meta.dir, "../runtime");
-// Contenido portable (agents/, AGENTS.md) vive en runtime/; el runtime Pi
-// (assets/, lib/, extensions/) sigue en agent/.
+// Contenido portable (agents/, assets/, AGENTS.md) vive en runtime/; el
+// adaptador Pi (lib/, extensions/) sigue en agent/.
 const read = (p: string) =>
-	readFileSync(join(p.startsWith("agents/") || p === "AGENTS.md" ? CORE : AGENT, p), "utf8");
+	readFileSync(join(p.startsWith("agents/") || p.startsWith("assets/") || p === "AGENTS.md" ? CORE : AGENT, p), "utf8");
 
 describe("orchestrator: flujo por fases determinista", () => {
 	const orch = read("assets/orchestrator.md");

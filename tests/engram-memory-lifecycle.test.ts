@@ -11,7 +11,7 @@ import {
 	type EngramTransport,
 	type MemoryEntry,
 	type ProjectIdentity,
-} from "../ein-pi/agent/lib/memory-contract.ts";
+} from "../shared/contracts/memory-contract.ts";
 import { MemoryLifecycle } from "../ein-pi/agent/lib/memory-lifecycle.ts";
 import {
 	appendMemoryReceipt,

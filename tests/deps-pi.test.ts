@@ -19,7 +19,7 @@ import {
 } from "../installer/src/core/deps";
 import { detectPlatform } from "../installer/src/core/platform";
 import { resolvePiInstallContext } from "../installer/src/core/paths";
-import { PI_HOST_SPEC, PI_HOST_VERSION, PI_NODE_MIN_VERSION, REQUIRED_PI_PACKAGE_SPECS } from "../ein-pi/agent/lib/runtime-compat";
+import { PI_HOST_SPEC, PI_HOST_VERSION, PI_NODE_MIN_VERSION, REQUIRED_PI_PACKAGE_SPECS } from "../shared/contracts/runtime-compat.ts";
 
 const DEPS_SOURCE = readFileSync(join(import.meta.dir, "..", "installer", "src", "core", "deps.ts"), "utf8");
 const SCOPED = "@earendil-works/pi-coding-agent";

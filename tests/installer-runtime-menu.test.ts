@@ -30,7 +30,7 @@ import { INSTALLER_VERSION } from "../installer/src/core/version.ts";
 import { bundleEinCcPayload } from "../installer/scripts/bundle-ein-cc.ts";
 import { runBootstrapInstall, selectInstallTarget } from "../installer/src/cli/runtime-prompt.ts";
 import { renderDoctorAdvisor, renderInstallerAdvisorHandoff, runDoctorCommand } from "../installer/src/cli/doctor.ts";
-import { evaluateSharedConfigUpdateAdvisor } from "../ein-pi/agent/lib/shared-config-update-advisor.ts";
+import { evaluateSharedConfigUpdateAdvisor } from "../shared/contracts/shared-config-update-advisor.ts";
 import {
   EIN_CC_ORCHESTRATOR_ASSET,
 } from "../installer/src/core/cc-payload-inventory.ts";

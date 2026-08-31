@@ -2,8 +2,8 @@
 // =============================================================================
 // ein-cc-sdd — CLI determinista del flujo SDD para Claude Code
 // -----------------------------------------------------------------------------
-// Reusa el MISMO core determinista que Pi (`ein-pi/agent/lib`, TS puro sin API
-// de Pi): resolveSddStatus/Next, lintChange, closeChange. Los agentes de ein-cc
+// Reusa el MISMO motor determinista que Pi a través de `shared/ports/sdd.ts`:
+// resolveSddStatus/Next, lintChange, closeChange. Los agentes de ein-cc
 // lo llaman por Bash en vez de las tools `ein_sdd_*` de Pi. Solo lee/mueve el
 // filesystem — cero IA, cero adivinación.
 //
@@ -21,48 +21,47 @@
 // =============================================================================
 
 import {
-	resolveSddStatus,
-	resolveSddPlanPreview,
-	formatSddPlanPreview,
-	sddStatusBlockers,
-	formatBudget,
-	listActiveChanges,
-	isSafeChangeName,
-	resolveActiveSelection,
-	type SddChangeStatus,
-} from "../../ein-pi/agent/lib/sdd-router.ts";
-import { lintChange, type ChangeLintReport } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
-import { collectSddRemedies, formatSddRemedies } from "../../ein-pi/agent/lib/sdd-remedies.ts";
-import { closeChange } from "../../ein-pi/agent/lib/sdd-close.ts";
-import { LANE_LABEL, laneSkips, normalizeLane, readChangeLane, writeChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
-import {
 	changeStanceDirective,
+	closeChange,
+	collectSddRemedies,
+	commandIsExplicitlyAllowed,
+	commandRequiresConfirmation,
+	evaluateDeniedCommand,
+	formatBudget,
+	formatSddPlanPreview,
+	formatSddRemedies,
+	isSafeChangeName,
+	LANE_LABEL,
+	laneSkips,
+	lintChange,
+	listActiveChanges,
+	normalizeLane,
 	normalizeTddStance,
 	readActiveChangeStance,
 	readChangeStance,
+	readChangeLane,
+	readGitBaseline,
 	readPreflightRecord,
 	renderChangeStanceLine,
-} from "../../ein-pi/agent/lib/sdd-preflight-record.ts";
-import {
+	renderProjectDirectives,
+	renderWorkingTreeLine,
+	resolveActiveSelection,
+	resolveProjectDirectives,
 	resolveSddIntentPreflight,
-	updateSddPreflightStance,
+	resolveSddPlanPreview,
+	resolveSddStatus,
+	sddStatusBlockers,
+	summarizeProjectDirectives,
+	synchronizeOpenSpecFilesystem,
+	type ChangeLintReport,
+	type SddChangeStatus,
 	type SddIntentPreflightInput,
 	type SddIntentPreflightOutcome,
-} from "../../ein-pi/agent/lib/sdd-preflight.ts";
-import { writeOpenSpecDelta } from "../../ein-pi/agent/lib/openspec-delta-write.ts";
-import { writeSddSummary } from "../../ein-pi/agent/lib/sdd-summary-write.ts";
-import { synchronizeOpenSpecFilesystem } from "../../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
-import {
-	evaluateDeniedCommand,
-	commandRequiresConfirmation,
-	commandIsExplicitlyAllowed,
-} from "../../ein-pi/agent/lib/guardrails.ts";
-import { readGitBaseline, renderWorkingTreeLine } from "../../ein-pi/agent/lib/git-baseline.ts";
-import {
-	renderProjectDirectives,
-	resolveProjectDirectives,
-	summarizeProjectDirectives,
-} from "../../ein-pi/agent/lib/project-directives.ts";
+	updateSddPreflightStance,
+	writeChangeLane,
+	writeOpenSpecDelta,
+	writeSddSummary,
+} from "../../shared/ports/sdd.ts";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -269,12 +268,10 @@ export function runClaudeIntentPreflight(
 	dir: string,
 	input: Omit<SddIntentPreflightInput, "resolvedBy">,
 ): Promise<SddIntentPreflightOutcome> {
-	const ctx = {
+	return resolveSddIntentPreflight({
 		cwd: dir,
-		hasUI: false,
-		sessionManager: { getSessionId: () => `claude:${dir}` },
-	} as Parameters<typeof resolveSddIntentPreflight>[0];
-	return resolveSddIntentPreflight(ctx, { ...input, resolvedBy: "claude" });
+		sessionKey: `claude:${dir}`,
+	}, { ...input, resolvedBy: "claude" });
 }
 
 export async function runClaudePreflightCommand(

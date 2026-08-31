@@ -1,7 +1,8 @@
 // =============================================================================
 // PERSONA
 // Identidad y voz de Ein: prompts de persona (samuhlo | neutral), prompt del
-// orquestador (assets/orchestrator.md) y persistencia del modo por proyecto
+// orquestador (runtime/assets in the checkout, assets/ when deployed) and
+// project-scoped persona persistence
 // en .pi/ein/persona.json.
 // =============================================================================
 
@@ -14,6 +15,7 @@ import { type LinearIntegration, linearDirective } from "./linear-integration.ts
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ASSETS_DIR = join(PACKAGE_ROOT, "assets");
+const REPOSITORY_ASSETS_DIR = join(PACKAGE_ROOT, "..", "..", "runtime", "assets");
 
 export type PersonaMode = "samuhlo" | "neutral";
 
@@ -66,8 +68,9 @@ export function responseVoiceDirective(): string {
 let orchestratorPromptCache: string | null = null;
 export function getOrchestratorPrompt(): string {
 	if (orchestratorPromptCache === null) {
+		const assetsDir = existsSync(REPOSITORY_ASSETS_DIR) ? REPOSITORY_ASSETS_DIR : ASSETS_DIR;
 		orchestratorPromptCache = readFileSync(
-			join(ASSETS_DIR, "orchestrator.md"),
+			join(assetsDir, "orchestrator.md"),
 			"utf8",
 		).trim();
 	}

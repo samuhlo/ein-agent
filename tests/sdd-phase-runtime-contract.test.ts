@@ -17,10 +17,10 @@ import { join } from "node:path";
 
 const AGENT_DIR = join(import.meta.dir, "../ein-pi/agent");
 const CORE = join(import.meta.dir, "../runtime");
-// Contenido portable (agents/, AGENTS.md) vive en runtime/; el runtime Pi
-// (assets/, lib/, extensions/) sigue en agent/.
+// Contenido portable (agents/, assets/, AGENTS.md) vive en runtime/; el
+// adaptador Pi (lib/, extensions/) sigue en agent/.
 const read = (p: string) =>
-	readFileSync(join(p.startsWith("agents/") || p === "AGENTS.md" ? CORE : AGENT_DIR, p), "utf8");
+	readFileSync(join(p.startsWith("agents/") || p.startsWith("assets/") || p === "AGENTS.md" ? CORE : AGENT_DIR, p), "utf8");
 
 const orch = read("assets/orchestrator.md");
 const sddMap = read("agents/sdd-map.md");

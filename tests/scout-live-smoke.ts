@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { validateScoutReport } from "../ein-pi/agent/lib/scout-contract.ts";
-import { REQUIRED_PI_PACKAGES } from "../ein-pi/agent/lib/runtime-compat.ts";
+import { REQUIRED_PI_PACKAGES } from "../shared/contracts/runtime-compat.ts";
 
 const ROOT = join(import.meta.dir, "..");
 const SCOUT_SOURCE = join(ROOT, "runtime", "agents", "ein-scout.md");

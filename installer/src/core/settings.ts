@@ -8,7 +8,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { piNpmPackageIdentity } from "../../../ein-pi/agent/lib/runtime-compat.ts";
+import { piNpmPackageIdentity } from "../../../shared/contracts/runtime-compat.ts";
 
 // Fields in settings.json that belong to the user, not to Ein.
 // These survive across `ein update` re-deployments.

@@ -27,6 +27,7 @@
 
 import { existsSync } from "node:fs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { SddIntentPreflightContext } from "./sdd-intent-preflight-context.ts";
 import {
 	collectDelegationAgentNames,
 	collectDelegationItems,
@@ -213,6 +214,17 @@ export function sddPreflightSessionKey(ctx: ExtensionContext): string {
 		}
 	}
 	return ctx.cwd;
+}
+
+/** Pi owns the adapter from its broad SDK context to the narrow shared input. */
+export function piSddIntentPreflightContext(
+	ctx: ExtensionContext,
+): SddIntentPreflightContext {
+	return {
+		cwd: ctx.cwd,
+		sessionKey: sddPreflightSessionKey(ctx),
+		...(ctx.hasUI ? { notify: (message: string) => ctx.ui.notify(message, "info") } : {}),
+	};
 }
 
 // Decisión de TDD por TAREA cuando el modo global es "ask". El parent no
@@ -701,7 +713,7 @@ function normalPending(
 }
 
 async function resolveSddIntentPreflightOnce(
-	ctx: ExtensionContext,
+	ctx: SddIntentPreflightContext,
 	input: SddIntentPreflightInput,
 ): Promise<SddIntentPreflightOutcome> {
 	// Yield once so reentrant hooks in the same session observe the in-flight mark.
@@ -738,7 +750,7 @@ async function resolveSddIntentPreflightOnce(
 	const interaction = decision.route === "small"
 		? planIntentInteraction({ route: "small", restatement: input.summary })
 		: undefined;
-	if (interaction?.kind === "small" && ctx.hasUI) ctx.ui.notify(interaction.lines[0], "info");
+	if (interaction?.kind === "small") ctx.notify?.(interaction.lines[0]);
 	const resolution: SddIntentRecord["resolution"] = decision.bypassQuestions
 		? "bypassed"
 		: decision.route === "small"
@@ -777,10 +789,10 @@ async function resolveSddIntentPreflightOnce(
 
 /** Owns one intent flow per session/change; adapters call this, never the codec. */
 export function resolveSddIntentPreflight(
-	ctx: ExtensionContext,
+	ctx: SddIntentPreflightContext,
 	input: SddIntentPreflightInput,
 ): Promise<SddIntentPreflightOutcome> {
-	const key = `${sddPreflightSessionKey(ctx)}\u0000${input.change}`;
+	const key = `${ctx.sessionKey}\u0000${input.change}`;
 	const current = sddIntentInFlight.get(key);
 	if (current) return current;
 	const promise = resolveSddIntentPreflightOnce(ctx, input);

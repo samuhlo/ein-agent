@@ -10,7 +10,7 @@ import { resolveSddNext, sddNextHandoff, type SddNextReport } from "../ein-pi/ag
 import { planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
 
 const EIN_AI_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts");
-const ORCHESTRATOR_PATH = join(import.meta.dir, "../ein-pi/agent/assets/orchestrator.md");
+const ORCHESTRATOR_PATH = join(import.meta.dir, "../runtime/assets/orchestrator.md");
 let DIR: string;
 
 function change(name: string): string {
