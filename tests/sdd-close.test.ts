@@ -125,6 +125,22 @@ describe("closeChange", () => {
 		expect(r.reason).toContain("obsoleta");
 	});
 
+	// El prompt de `sdd-close` pide volcar en `// 004` los resultados del
+	// verify-report, y ese report empieza por `status: pass`. Leer los metadatos
+	// del fichero entero hacía ganar a esa cita sobre la cabecera.
+	test("un resumen que cita el verify-report en // 004 cierra igual", () => {
+		makeFresh("feat-quotes-verify");
+		const quoted = durableSummary("feat-quotes-verify")
+			.replace("## // 004. VERIFICACIÓN\n", "## // 004. VERIFICACIÓN\nEl verify-report cerró así:\nstatus: pass\n");
+		writeFileSync(join(DIR, "openspec", "changes", "feat-quotes-verify", "summary.md"), quoted);
+		setMtime("feat-quotes-verify", "summary.md", 3_000_000);
+
+		const result = closeChange(DIR, "feat-quotes-verify");
+		expect(result.ok).toBe(true);
+		expect(readFileSync(join(DIR, "openspec", "changes", "archive", "feat-quotes-verify", "summary.md"), "utf8"))
+			.toContain("status: pass");
+	});
+
 	test("un resumen incompleto no se convierte en el único registro permanente", () => {
 		makeFresh("feat-summary-incomplete");
 		writeFileSync(join(DIR, "openspec", "changes", "feat-summary-incomplete", "summary.md"), "# Parece terminado\n");
