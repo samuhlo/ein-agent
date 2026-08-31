@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { isProxy } from "node:util/types";
 import { executeInstallPlan, type InstallPlanExecution, type InstallPlanExecutionContext, type InstallPlanExecutionHandlers, type InstallPlanProgress } from "./install-executor.ts";
 import {
   installJournalMatchesPlan,
@@ -11,13 +10,14 @@ import {
   type InstallJournalState,
 } from "./install-journal-contract.ts";
 import { isInstallJournalStateReachable } from "./install-journal-reachability.ts";
+import { isStructurallyValidInstallJournal } from "./install-journal-shape.ts";
 import {
   inspectStoredInstallJournal,
   productionInstallJournalFs,
   publishStoredInstallJournal,
   type InstallJournalFs,
 } from "./install-journal-store.ts";
-import { INSTALL_PLAN_ENTRY_CONTRACTS, INSTALL_PLAN_ENTRY_IDS, validateInstallPlan, type InstallPlanEntryId, type InstallPlanV1 } from "./install-plan.ts";
+import { INSTALL_PLAN_ENTRY_CONTRACTS, INSTALL_PLAN_ENTRY_IDS, validateInstallPlan, type InstallPlanV1 } from "./install-plan.ts";
 
 export { installJournalPath } from "./install-journal-store.ts";
 export type { InstallJournalFs } from "./install-journal-store.ts";
@@ -34,21 +34,6 @@ export type InstallJournalLifecycle = Readonly<{
   rollback: (context: InstallPlanExecutionContext & { target: InstallPlanV1["target"] }) => void;
   finalize: (context: InstallPlanExecutionContext & { target: InstallPlanV1["target"] }) => void;
 }>;
-
-const exact = (value: unknown, keys: readonly string[]): value is Record<string, unknown> => {
-  try {
-    if (!value || typeof value !== "object" || Array.isArray(value) || isProxy(value)) return false;
-    if (Object.getPrototypeOf(value) !== Object.prototype) return false;
-    const descriptors = Object.getOwnPropertyDescriptors(value);
-    return Reflect.ownKeys(descriptors).length === keys.length
-      && keys.every((key) => {
-        const item = descriptors[key];
-        return item?.enumerable && "value" in item;
-      });
-  } catch {
-    return false;
-  }
-};
 
 const supportsPreMutationRetry = (journal: InstallExecutionJournalV1, plan: InstallPlanV1): boolean => {
   if (!installJournalMatchesPlan(journal, plan) || journal.target !== "both" || journal.state !== "recovery-required" || journal.recoveryCode !== "handler-failed" || journal.pendingEntryId !== "pi.backup-current") return false;
@@ -67,100 +52,14 @@ const supportsRetirementRetry = (journal: InstallExecutionJournalV1, plan: Insta
   return cleanup.status === "completed" ? journal.pendingEntryId === undefined : journal.pendingEntryId === cleanup.id;
 };
 
-const JOURNAL_TARGETS = ["pi", "claude", "both"] as const;
-const JOURNAL_STATES: readonly InstallJournalState[] = ["prepared", "executing", "recovery-required", "complete"];
-const ENTRY_STATES: readonly InstallJournalEntryState[] = ["not-run", "pending", "completed", "failed"];
-
-type JournalEnvelope = Record<string, unknown> & {
-  schemaVersion: 1;
-  transactionId: string;
-  planDigest: string;
-  target: InstallPlanV1["target"];
-  platform: InstallPlanV1["platform"];
-  state: InstallJournalState;
-  entries: unknown[];
-};
-
 function rejectJournal(): never {
   throw new InstallJournalError("recovery-required");
 }
 
-function isDenseDataArray(value: unknown): value is unknown[] {
-  return Array.isArray(value)
-    && value.length > 0
-    && !isProxy(value)
-    && Object.getPrototypeOf(value) === Array.prototype
-    && Object.keys(value).length === value.length
-    && Object.entries(Object.getOwnPropertyDescriptors(value)).every(
-      ([key, item]) => key === "length" || item.enumerable && "value" in item,
-    );
-}
-
-function isJournalEnvelope(value: unknown): value is JournalEnvelope {
-  if (!value || typeof value !== "object" || isProxy(value)) return false;
-  const own = Object.getOwnPropertyDescriptors(value);
-  const optional = own.pendingEntryId ? ["pendingEntryId"] : [];
-  const recovery = own.recoveryCode ? ["recoveryCode"] : [];
-  if (!exact(value, ["schemaVersion", "transactionId", "planDigest", "target", "platform", "state", "entries", ...optional, ...recovery])) return false;
-  return value.schemaVersion === 1
-    && typeof value.transactionId === "string"
-    && /^[0-9a-f-]{16,64}$/.test(value.transactionId)
-    && typeof value.planDigest === "string"
-    && /^[0-9a-f]{64}$/.test(value.planDigest)
-    && JOURNAL_TARGETS.includes(value.target as InstallPlanV1["target"])
-    && JOURNAL_STATES.includes(value.state as InstallJournalState)
-    && exact(value.platform, ["os", "arch"])
-    && ["darwin", "linux"].includes(value.platform.os as string)
-    && ["arm64", "x64"].includes(value.platform.arch as string)
-    && isDenseDataArray(value.entries);
-}
-
-function allowedRuntime(target: InstallPlanV1["target"], runtime: unknown): boolean {
-  return runtime === "shared"
-    || target !== "claude" && runtime === "pi"
-    || target !== "pi" && runtime === "claude";
-}
-
-function validateEntries(
-  entries: readonly unknown[],
-  target: InstallPlanV1["target"],
-): InstallExecutionJournalV1["entries"] {
-  const ids = new Set<string>();
-  let previous = -1;
-  const validated: InstallExecutionJournalV1["entries"][number][] = [];
-
-  for (const entry of entries) {
-    const own = entry && typeof entry === "object" && !isProxy(entry)
-      ? Object.getOwnPropertyDescriptors(entry)
-      : {};
-    const detail = own.detail ? ["detail"] : [];
-    const id = own.id && "value" in own.id ? own.id.value : undefined;
-    const order = typeof id === "string" ? INSTALL_PLAN_ENTRY_IDS.indexOf(id as InstallPlanEntryId) : -1;
-    const expectedRuntime = order >= 0 ? INSTALL_PLAN_ENTRY_CONTRACTS[id as InstallPlanEntryId][0] : undefined;
-
-    if (!exact(entry, ["id", "runtime", "status", ...detail])) rejectJournal();
-    if (order <= previous || ids.has(entry.id as string)) rejectJournal();
-    if (entry.runtime !== expectedRuntime || !allowedRuntime(target, entry.runtime)) rejectJournal();
-    if (!ENTRY_STATES.includes(entry.status as InstallJournalEntryState)) rejectJournal();
-    if (own.detail && (
-      entry.id !== "pi.backup-current"
-      || !["failed", "pending"].includes(entry.status as string)
-      || !validFailureDetail(entry.detail)
-    )) rejectJournal();
-
-    previous = order;
-    ids.add(entry.id as string);
-    validated.push(entry as InstallExecutionJournalV1["entries"][number]);
-  }
-  return validated;
-}
-
 export function validateInstallJournal(value: unknown): asserts value is InstallExecutionJournalV1 {
-  if (!isJournalEnvelope(value)) rejectJournal();
-  const entries = validateEntries(value.entries, value.target);
-  const journal = { ...value, entries } as InstallExecutionJournalV1;
+  if (!isStructurallyValidInstallJournal(value)) rejectJournal();
   const own = Object.getOwnPropertyDescriptors(value);
-  if (!isInstallJournalStateReachable(journal, {
+  if (!isInstallJournalStateReachable(value, {
     pendingEntryId: own.pendingEntryId !== undefined,
     recoveryCode: own.recoveryCode !== undefined,
   })) rejectJournal();
