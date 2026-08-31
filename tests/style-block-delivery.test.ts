@@ -11,7 +11,7 @@ import { buildConventionBlock } from "../ein-pi/agent/lib/style-contract.ts";
 import { codeConventionSkillBlock } from "../ein-pi/agent/extensions/ein-skill-registry";
 
 const REPO = join(import.meta.dir, "..");
-const SKILLS = join(REPO, "ein-pi", "core", "skills", "local");
+const SKILLS = join(REPO, "runtime", "skills", "local");
 
 describe("el bloque de convenciones", () => {
 	test("entrega las reglas, no solo el camino a las reglas", () => {

@@ -16,8 +16,8 @@ import { ensurePhaseRuntime } from "../ein-pi/agent/lib/sdd-preflight.ts";
 import { join } from "node:path";
 
 const AGENT_DIR = join(import.meta.dir, "../ein-pi/agent");
-const CORE = join(import.meta.dir, "../ein-pi/core");
-// Contenido portable (agents/, AGENTS.md) vive en core/; el runtime Pi
+const CORE = join(import.meta.dir, "../runtime");
+// Contenido portable (agents/, AGENTS.md) vive en runtime/; el runtime Pi
 // (assets/, lib/, extensions/) sigue en agent/.
 const read = (p: string) =>
 	readFileSync(join(p.startsWith("agents/") || p === "AGENTS.md" ? CORE : AGENT_DIR, p), "utf8");

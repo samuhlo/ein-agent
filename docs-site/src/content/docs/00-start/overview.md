@@ -1,7 +1,7 @@
 ---
 title: "Overview"
 description: "Qué es EIN, qué problema resuelve y para quién está pensado."
-sources: ["README.md", "docs/roadmap.md", "ein-pi/core/docs/EIN_OPERATING_SYSTEM.md"]
+sources: ["README.md", "docs/roadmap.md", "runtime/docs/EIN_OPERATING_SYSTEM.md"]
 verified_rev: "29861f5"
 ---
 

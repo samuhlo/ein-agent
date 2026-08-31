@@ -16,7 +16,7 @@ const ORCH_MD = join(
   "../ein-pi/agent/assets/orchestrator.md",
 );
 const content = readFileSync(ORCH_MD, "utf8");
-const SCOUT_MD = join(import.meta.dir, "../ein-pi/core/agents/ein-scout.md");
+const SCOUT_MD = join(import.meta.dir, "../runtime/agents/ein-scout.md");
 const scout = readFileSync(SCOUT_MD, "utf8");
 
 function expectAll(text: string, terms: string[]) {

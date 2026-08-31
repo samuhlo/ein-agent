@@ -10,8 +10,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
-const CORE = join(import.meta.dir, "../ein-pi/core");
-// Contenido portable (agents/, AGENTS.md) vive en core/; el runtime Pi
+const CORE = join(import.meta.dir, "../runtime");
+// Contenido portable (agents/, AGENTS.md) vive en runtime/; el runtime Pi
 // (assets/, lib/, extensions/) sigue en agent/.
 const read = (p: string) =>
 	readFileSync(join(p.startsWith("agents/") || p === "AGENTS.md" ? CORE : AGENT, p), "utf8");

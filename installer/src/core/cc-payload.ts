@@ -106,7 +106,7 @@ export function resolveEinCcPayloadArchive(archivePath?: string): string | Promi
     : validateEinCcPayloadArchive(archivePath);
 }
 
-const REQUIRED_PAYLOAD_DIRECTORIES = new Set(["ein-pi/core"]);
+const REQUIRED_PAYLOAD_DIRECTORIES = new Set(["runtime", "vendor/skills"]);
 const LOCAL_PAYLOAD_ARCHIVE = "ein-cc-runtime.tar.gz";
 
 function isWithinRoot(root: string, candidate: string): boolean {

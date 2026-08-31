@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { reviewForecast } from "../ein-pi/agent/lib/review-forecast";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
-const CORE = join(import.meta.dir, "../ein-pi/core");
+const CORE = join(import.meta.dir, "../runtime");
 const einGit = readFileSync(join(CORE, "agents/ein-git.md"), "utf8");
 const orchestrator = readFileSync(join(AGENT, "assets/orchestrator.md"), "utf8");
 const einAi = readFileSync(join(AGENT, "extensions/ein-ai.ts"), "utf8");

@@ -6,7 +6,7 @@
 
 import * as p from "../tui/ui.ts";
 import { INSTALLER_COMMAND, promoteCommandNames } from "../core/command-names.ts";
-import einPiFish from "../../../ein-pi/ein-pi.fish" with { type: "text" };
+import einPiFish from "../../../ein-pi/launchers/ein-pi.fish" with { type: "text" };
 import { describePlatform, detectPlatform, type Platform } from "../core/platform.ts";
 import { run } from "../core/exec.ts";
 import {
@@ -52,7 +52,7 @@ import { stageEinCcPayload, type EinCcPayloadStage } from "../core/cc-payload.ts
 import { renderReport } from "./doctor.ts";
 import { playBanner } from "../tui/banner.ts";
 import { bold, gold, levelMark } from "../tui/theme.ts";
-import einCcFish from "../../../ein-cc/ein-cc.fish" with { type: "text" };
+import einCcFish from "../../../ein-cc/launchers/ein-cc.fish" with { type: "text" };
 import {
   createInstallPlan,
   renderInstallPlan,

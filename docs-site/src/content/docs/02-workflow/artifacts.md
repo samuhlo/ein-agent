@@ -1,7 +1,7 @@
 ---
 title: "Artefactos"
 description: "Qué problema resuelve cada fichero de un cambio y cuál deberías leer tú."
-sources: ["ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md", "openspec/specs/sdd-lifecycle/spec.md"]
+sources: ["runtime/docs/SDD_ARTIFACT_GRAMMAR.md", "openspec/specs/sdd-lifecycle/spec.md"]
 verified_rev: "29861f5"
 ---
 

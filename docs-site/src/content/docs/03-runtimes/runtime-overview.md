@@ -16,18 +16,19 @@ mismas capacidades**.
 
 ## Qué se comparte
 
-`ein-pi/core/` es contenido portable, agnóstico del runtime:
+`runtime/` es contenido propio y portable, agnóstico del runtime:
 
 ```text
-ein-pi/core/
+runtime/
 ├── agents/     los ejecutores de fase (sdd-scope, sdd-map, …)
-├── skills/     las skills locales y descargadas
+├── skills/     las skills propias de Ein
 ├── docs/       la documentación interna del sistema
 └── prompts/    los prompts compartidos
 ```
 
-De ahí sale lo mismo para los dos. Un cambio en un agente de fase llega a Pi y a
-Claude Code.
+Las skills externas curadas viven aparte en `vendor/skills/`. El empaquetado las
+instala bajo `skills/downloaded/`, pero el checkout no las presenta como código
+propio. Un cambio en un agente de fase de `runtime/` llega a Pi y Claude Code.
 
 ## Qué es distinto
 
@@ -46,7 +47,7 @@ esa invocación**. No contaminan tu sesión ni tu configuración normal.
 ## El núcleo compartido no lo hace portable
 
 Conviene decirlo claro porque es fácil deducir lo contrario: que exista un
-`core/` agnóstico no significa que EIN funcione sobre cualquier agente.
+núcleo agnóstico no significa que EIN funcione sobre cualquier agente.
 
 Hoy la superficie soportada son estos dos. Cada uno necesitó su adaptador, y
 añadir un tercero sería trabajo, no configuración.

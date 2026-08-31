@@ -2,7 +2,7 @@
 
 <!-- ein:claude-adaptation:start -->
 This file is the Claude-specific input for the generated coordinator. Shared
-policy lives in `ein-pi/core/AGENTS.md`; do not copy that policy here. The
+policy lives in `runtime/AGENTS.md`; do not copy that policy here. The
 compiler places this bounded adaptation after the shared policy in
 `ein-cc/CLAUDE.md`.
 

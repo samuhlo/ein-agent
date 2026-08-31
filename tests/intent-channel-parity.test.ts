@@ -20,7 +20,7 @@ import {
 const REPO = join(import.meta.dir, "..");
 const PI_EXTENSION = join(REPO, "ein-pi", "agent", "extensions", "ein-intent.ts");
 const CLAUDE_COMMANDS_DIR = join(REPO, "ein-cc", "commands", "ein");
-const SKILL_SOURCE = join(REPO, "ein-pi", "core", "skills", "local", "intent-channel", "SKILL.md");
+const SKILL_SOURCE = join(REPO, "runtime", "skills", "local", "intent-channel", "SKILL.md");
 
 function shortName(canonical: string): string {
 	// "ein:intent" -> "intent"

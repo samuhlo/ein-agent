@@ -12,7 +12,7 @@ import { join } from "node:path";
 
 import { ESSENTIALS_SECTION, compileStyleContract } from "../ein-pi/agent/lib/style-contract.ts";
 
-const SKILLS = join(import.meta.dir, "..", "ein-pi", "core", "skills", "local");
+const SKILLS = join(import.meta.dir, "..", "runtime", "skills", "local");
 
 describe("el extracto sale de la skill, no de una copia", () => {
 	test("compila las dos skills reales y trae sus propias palabras", () => {

@@ -12,8 +12,8 @@ import { join } from "node:path";
 
 const REPO = join(import.meta.dir, "..");
 const BUNDLE = readFileSync(join(REPO, "installer", "scripts", "bundle-template.ts"), "utf8");
-const PI_LAUNCHER = readFileSync(join(REPO, "ein-pi", "ein-pi.fish"), "utf8");
-const CLAUDE_LAUNCHER = readFileSync(join(REPO, "ein-cc", "ein-cc.fish"), "utf8");
+const PI_LAUNCHER = readFileSync(join(REPO, "ein-pi", "launchers", "ein-pi.fish"), "utf8");
+const CLAUDE_LAUNCHER = readFileSync(join(REPO, "ein-cc", "launchers", "ein-cc.fish"), "utf8");
 const INSTALL_CLI = readFileSync(join(REPO, "installer", "src", "cli", "install.ts"), "utf8");
 const LINEAR_INTEGRATION = readFileSync(join(REPO, "ein-pi", "agent", "lib", "linear-integration.ts"), "utf8");
 const EIN_AI = readFileSync(join(REPO, "ein-pi", "agent", "extensions", "ein-ai.ts"), "utf8");

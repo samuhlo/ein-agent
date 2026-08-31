@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { CLAUDE_PARITY_DEFERRALS, checkGeneratedParity, compileClaudeSurface } from "../ein-cc/sync.ts";
 
 const ROOT = join(import.meta.dir, "..");
-const CANONICAL_PATH = join(ROOT, "ein-pi", "core", "AGENTS.md");
+const CANONICAL_PATH = join(ROOT, "runtime", "AGENTS.md");
 const ADAPTER_PATH = join(ROOT, "ein-cc", "CLAUDE.adapter.md");
 const GENERATED_PATH = join(ROOT, "ein-cc", "CLAUDE.md");
 
@@ -108,7 +108,7 @@ describe("core parity: Claude coordinator contract", () => {
     const adaptationEnd = "<!-- ein:claude-adaptation:end -->";
 
     expect(generated.split("\n", 1)[0]).toBe(
-      "<!-- GENERATED: source=ein-pi/core/AGENTS.md adapter=ein-cc/CLAUDE.adapter.md; DO NOT EDIT -->",
+      "<!-- GENERATED: source=runtime/AGENTS.md adapter=ein-cc/CLAUDE.adapter.md; DO NOT EDIT -->",
     );
     expect(count(generated, adaptationStart)).toBe(1);
     expect(count(generated, adaptationEnd)).toBe(1);
@@ -150,7 +150,7 @@ describe("core parity: Claude coordinator contract", () => {
     ]);
 
     for (const file of files) {
-      const source = readFileSync(join(ROOT, "ein-pi", "core", "agents", file), "utf8");
+      const source = readFileSync(join(ROOT, "runtime", "agents", file), "utf8");
       const rawTools = frontmatterField(source, "tools")
         .split(",")
         .map((tool) => tool.trim())
@@ -193,7 +193,7 @@ describe("core parity: Claude coordinator contract", () => {
 
       const surface = compileClaudeSurface({ canonicalPath, adapterPath });
       expect(surface.coordinator.startsWith(
-        "<!-- GENERATED: source=ein-pi/core/AGENTS.md adapter=ein-cc/CLAUDE.adapter.md; DO NOT EDIT -->\n",
+        "<!-- GENERATED: source=runtime/AGENTS.md adapter=ein-cc/CLAUDE.adapter.md; DO NOT EDIT -->\n",
       )).toBe(true);
       expect(surface.coordinator).toContain("Fixture canonical policy.");
       expect(surface.coordinator).toContain(adapterMarker);
@@ -212,7 +212,7 @@ describe("core parity: Claude coordinator contract", () => {
     try {
       const agents = join(fixture, "agents");
       const generatedFixture = join(fixture, "CLAUDE.md");
-      cpSync(join(ROOT, "ein-pi", "core", "agents"), agents, { recursive: true });
+      cpSync(join(ROOT, "runtime", "agents"), agents, { recursive: true });
       writeFileSync(generatedFixture, generated);
       const scout = join(agents, "ein-scout.md");
       writeFileSync(scout, readFileSync(scout, "utf8").replace("tools: read, grep, find", "tools: read, ein_unknown_tool, find"));
@@ -230,7 +230,7 @@ describe("core parity: Claude coordinator contract", () => {
     const fixture = mkdtempSync(join(tmpdir(), "core-parity-"));
     try {
       const agents = join(fixture, "agents");
-      cpSync(join(ROOT, "ein-pi", "core", "agents"), agents, { recursive: true });
+      cpSync(join(ROOT, "runtime", "agents"), agents, { recursive: true });
       const apply = join(agents, "sdd-apply.md");
       writeFileSync(apply, `${readFileSync(apply, "utf8")}\nUnknown runtime: ein_unknown_runtime\n`);
 
@@ -284,7 +284,7 @@ describe("core parity: Claude coordinator contract", () => {
     const fixture = mkdtempSync(join(tmpdir(), "core-parity-"));
     try {
       const agents = join(fixture, "agents");
-      cpSync(join(ROOT, "ein-pi", "core", "agents"), agents, { recursive: true });
+      cpSync(join(ROOT, "runtime", "agents"), agents, { recursive: true });
       const apply = join(agents, "sdd-apply.md");
       writeFileSync(apply, `${readFileSync(apply, "utf8")}\nA supervisor reviews intercom architecture.\n`);
 
@@ -298,7 +298,7 @@ describe("core parity: Claude coordinator contract", () => {
     const fixture = mkdtempSync(join(tmpdir(), "core-parity-"));
     try {
       const agents = join(fixture, "agents");
-      cpSync(join(ROOT, "ein-pi", "core", "agents"), agents, { recursive: true });
+      cpSync(join(ROOT, "runtime", "agents"), agents, { recursive: true });
       const apply = join(agents, "sdd-apply.md");
       writeFileSync(apply, `${readFileSync(apply, "utf8")}\n<!-- ein:runtime-ref id="unknown-runtime" -->\n`);
 
@@ -314,7 +314,7 @@ describe("core parity: Claude coordinator contract", () => {
     const fixture = mkdtempSync(join(tmpdir(), "core-parity-runtime-"));
     try {
       const agents = join(fixture, "agents");
-      cpSync(join(ROOT, "ein-pi", "core", "agents"), agents, { recursive: true });
+      cpSync(join(ROOT, "runtime", "agents"), agents, { recursive: true });
       const apply = join(agents, "sdd-apply.md");
       writeFileSync(apply, [
         readFileSync(apply, "utf8"),
@@ -339,7 +339,7 @@ describe("core parity: Claude coordinator contract", () => {
     const fixture = mkdtempSync(join(tmpdir(), "core-parity-runtime-"));
     try {
       const agents = join(fixture, "agents");
-      cpSync(join(ROOT, "ein-pi", "core", "agents"), agents, { recursive: true });
+      cpSync(join(ROOT, "runtime", "agents"), agents, { recursive: true });
       const apply = join(agents, "sdd-apply.md");
       writeFileSync(apply, `${readFileSync(apply, "utf8")}\nUnregistered signature: completionGuard\n`);
 
@@ -355,7 +355,7 @@ describe("core parity: Claude coordinator contract", () => {
     const fixture = mkdtempSync(join(tmpdir(), "core-parity-routing-"));
     try {
       const agents = join(fixture, "agents");
-      cpSync(join(ROOT, "ein-pi", "core", "agents"), agents, { recursive: true });
+      cpSync(join(ROOT, "runtime", "agents"), agents, { recursive: true });
       const inventory = compileClaudeSurface({ agentsDir: agents });
       const names = Object.values(inventory.agents)
         .map((content) => frontmatterField(content, "name"))
@@ -384,8 +384,8 @@ describe("core parity: Claude coordinator contract", () => {
       mkdirSync(firstAgents, { recursive: true });
       mkdirSync(secondAgents, { recursive: true });
       const files = Object.keys(compileClaudeSurface().agents).sort();
-      for (const file of files) cpSync(join(ROOT, "ein-pi", "core", "agents", file), join(firstAgents, file));
-      for (const file of [...files].reverse()) cpSync(join(ROOT, "ein-pi", "core", "agents", file), join(secondAgents, file));
+      for (const file of files) cpSync(join(ROOT, "runtime", "agents", file), join(firstAgents, file));
+      for (const file of [...files].reverse()) cpSync(join(ROOT, "runtime", "agents", file), join(secondAgents, file));
 
       const first = compileClaudeSurface({ agentsDir: firstAgents, parityDeferrals: {} });
       const second = compileClaudeSurface({ agentsDir: secondAgents, parityDeferrals: {} });

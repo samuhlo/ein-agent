@@ -28,7 +28,7 @@ type InstalledSkill = { path: string; source: "local" | "downloaded" };
 
 const PROFILE_PATH = join(DOWNLOADED_SKILLS_DIR, "..", "stack-profile.json");
 const LOCAL_REPO = "samuhlo/ein-agent";
-const LOCAL_REPO_SKILLS_PATH = "ein-pi/agent/skills/local";
+export const LOCAL_REPO_SKILLS_PATH = "runtime/skills/local";
 
 const FALLBACK_PROFILE: StackProfile = { name: "ein-web-motion-stack", version: 1, core: [], secondary: [], catalog: {} };
 
