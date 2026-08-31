@@ -133,6 +133,28 @@ describe("core parity: Claude coordinator contract", () => {
     expect(surface.agents["sdd-apply.md"]).not.toContain("ein_sdd_status");
   });
 
+  test("reserva Opus para decidir y usa modelos menores para ejecutar la rutina", () => {
+    const surface = compileClaudeSurface();
+    const route = (agent: string) => ({
+      model: frontmatterField(surface.agents[`${agent}.md`], "model"),
+      effort: frontmatterField(surface.agents[`${agent}.md`], "effort"),
+    });
+
+    for (const agent of ["sdd-scope", "sdd-design", "sdd-tasks"]) {
+      expect(route(agent)).toEqual({ model: "opus", effort: "high" });
+    }
+    expect(route("sdd-map")).toEqual({ model: "haiku", effort: "medium" });
+    expect(route("sdd-apply")).toEqual({ model: "sonnet", effort: "low" });
+    expect(route("sdd-verify")).toEqual({ model: "haiku", effort: "medium" });
+    expect(route("sdd-close")).toEqual({ model: "haiku", effort: "low" });
+
+    const settings = JSON.parse(readFileSync(join(ROOT, "ein-cc", "settings.json"), "utf8")) as {
+      model?: string;
+      effortLevel?: string;
+    };
+    expect(settings).toMatchObject({ model: "opus", effortLevel: "high" });
+  });
+
   test("translates every canonical tool through its exact Claude identity", () => {
     const surface = compileClaudeSurface();
     const files = Object.keys(surface.agents).sort();

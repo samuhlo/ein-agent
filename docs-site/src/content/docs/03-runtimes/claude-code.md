@@ -94,8 +94,10 @@ Claude Code son distintos, así que la traducción es aproximada por diseño.
 conjunto acotado de referencias; una herramienta específica de Pi que no conozca
 llega tal cual a Claude Code, donde no existe, y no falla ruidosamente.
 
-**El enrutado de modelos está declarado a mano.** Coincide con los agentes
-actuales; un agente nuevo no obtiene enrutado automáticamente ni avisa.
+**El enrutado de modelos está declarado a mano y falla cerrado.** El
+coordinador, scope, design y tasks usan Opus con esfuerzo alto. Map, verify,
+close y entrega usan Haiku; apply usa Sonnet con esfuerzo bajo. Un agente nuevo
+sin ruta hace fallar la sincronización en vez de heredar un modelo por azar.
 
 **El MCP externo no está verificado en vivo.** La evidencia archivada de la
 paridad entre runtimes registra explícitamente que la configuración MCP opcional

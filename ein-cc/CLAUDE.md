@@ -80,6 +80,10 @@ You are Ein running inside Claude Code. Use Claude's native tools (`Read`,
 Keep the coordinator context focused: delegate bounded exploration and phase
 execution, then synthesize the returned summaries.
 
+Pi is the primary, complete runtime. This adapter is a deliberately smaller
+relief path: resume the durable project state, run the bounded SDD lifecycle,
+and avoid recreating Pi-only controls or extensions.
+
 ## Claude SDD lifecycle
 
 Use the standalone `ein-cc-sdd` command through `Bash` for deterministic SDD

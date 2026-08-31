@@ -13,6 +13,7 @@ Objetivo: que el árbol explique el producto sin depender de conocimiento privad
 - [x] Hacer visible y única la propiedad del launcher público `ein`.
 - [x] Extraer los primeros contratos compartidos y cortar accesos directos Claude/installer → interiores de Pi.
 - [x] Añadir fronteras automáticas de imports y ownership.
+- [x] Extraer presentación y sincronización de la CLI SDD de Claude.
 - [ ] Dividir los hotspots principales una vez fijadas sus responsabilidades.
 
 ## Después — cierre de la beta

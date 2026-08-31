@@ -30,12 +30,13 @@ acotadas.**
 Es el principio fundacional, no una optimización. De él se derivan casi todas
 las demás reglas.
 
-- **Pensar y diseñar** — orquestador, `sdd-design` — es trabajo de modelo capaz
-  con razonamiento alto. Es donde se decide si el cambio es correcto.
-- **Leer, descomponer, ejecutar, verificar, entregar** — `scope`, `map`, `tasks`,
-  `apply`, `verify`, `close`, `git`, `linear`, `scout` — es trabajo mecánico. Va
-  a modelos baratos, o a modelos capaces con razonamiento bajo cuando abaratar
-  el modelo saldría más caro.
+- **Acotar, pensar, diseñar y descomponer** — orquestador, `scope`, `sdd-design`,
+  `tasks` — es trabajo de modelo capaz con razonamiento alto. Es donde se decide
+  si el cambio es correcto y se deja la ruta suficientemente masticada.
+- **Recorrer la ruta, ejecutar, verificar y entregar** — `map`, `apply`,
+  `verify`, `close`, `git`, `linear`, `scout` — es trabajo mecánico. Va a modelos
+  baratos, o a modelos capaces con razonamiento bajo cuando abaratar el modelo
+  saldría más caro.
 - **El coste se controla con el nivel de razonamiento antes que con el precio
   del modelo.** Un modelo barato que da 135 turnos de prueba y error no ahorra:
   arruina. La regla operativa es *thinking bajo sobre plan masticado*, no
