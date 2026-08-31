@@ -1,9 +1,17 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { isProxy } from "node:util/types";
 import { executeInstallPlan, type InstallPlanExecution, type InstallPlanExecutionContext, type InstallPlanExecutionHandlers, type InstallPlanProgress } from "./install-executor.ts";
 import {
+  installJournalMatchesPlan,
+  installPlanDigest,
+  InstallJournalError,
+  isValidInstallFailureDetail as validFailureDetail,
+  type InstallExecutionJournalV1,
+  type InstallJournalEntryState,
+  type InstallJournalState,
+} from "./install-journal-contract.ts";
+import {
   inspectStoredInstallJournal,
-  installJournalPath,
   productionInstallJournalFs,
   publishStoredInstallJournal,
   type InstallJournalFs,
@@ -12,25 +20,19 @@ import { INSTALL_PLAN_ENTRY_CONTRACTS, INSTALL_PLAN_ENTRY_IDS, validateInstallPl
 
 export { installJournalPath } from "./install-journal-store.ts";
 export type { InstallJournalFs } from "./install-journal-store.ts";
-
-export type InstallJournalState = "prepared" | "executing" | "recovery-required" | "complete";
-export type InstallJournalEntryState = "not-run" | "pending" | "completed" | "failed";
-export type InstallExecutionJournalV1 = Readonly<{
-  schemaVersion: 1; transactionId: string; planDigest: string;
-  target: InstallPlanV1["target"]; platform: InstallPlanV1["platform"];
-  state: InstallJournalState;
-  entries: readonly Readonly<{ id: InstallPlanEntryId; runtime: InstallPlanRuntime; status: InstallJournalEntryState; detail?: string }>[];
-  pendingEntryId?: InstallPlanEntryId; recoveryCode?: "handler-failed" | "interrupted";
-}>;
+export {
+  installJournalMatchesPlan,
+  installPlanDigest,
+  InstallJournalError,
+  type InstallExecutionJournalV1,
+  type InstallJournalEntryState,
+  type InstallJournalState,
+} from "./install-journal-contract.ts";
 
 export type InstallJournalLifecycle = Readonly<{
   rollback: (context: InstallPlanExecutionContext & { target: InstallPlanV1["target"] }) => void;
   finalize: (context: InstallPlanExecutionContext & { target: InstallPlanV1["target"] }) => void;
 }>;
-
-export class InstallJournalError extends Error {
-  constructor(readonly code: "recovery-required" | "journal-write-failed" | "recovery-write-failed") { super(`Install recovery status: ${code}`); this.name = "InstallJournalError"; }
-}
 
 const exact = (value: unknown, keys: readonly string[]): value is Record<string, unknown> => {
   try {
@@ -46,14 +48,7 @@ const exact = (value: unknown, keys: readonly string[]): value is Record<string,
     return false;
   }
 };
-const MAX_FAILURE_DETAIL_BYTES = 512;
-const validFailureDetail = (value: unknown): value is string =>
-  typeof value === "string"
-  && value.length > 0
-  && !/[\u0000-\u001f\u007f]/.test(value)
-  && new TextEncoder().encode(value).byteLength <= MAX_FAILURE_DETAIL_BYTES;
-const canonical = (value: unknown): string => Array.isArray(value) ? `[${value.map(canonical).join(",")}]` : value && typeof value === "object" ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(",")}}` : JSON.stringify(value); export const installPlanDigest = (plan: InstallPlanV1): string => { validateInstallPlan(plan); return createHash("sha256").update(canonical(plan)).digest("hex"); };
-export const installJournalMatchesPlan = (journal: InstallExecutionJournalV1, plan: InstallPlanV1): boolean => journal.planDigest === installPlanDigest(plan) && journal.target === plan.target && journal.platform.os === plan.platform.os && journal.platform.arch === plan.platform.arch && journal.entries.map(({ id }) => id).join() === plan.inventory.filter((entry) => entry.state === "selected" || entry.state === "conditional").map(({ id }) => id).join();
+
 const supportsPreMutationRetry = (journal: InstallExecutionJournalV1, plan: InstallPlanV1): boolean => {
   if (!installJournalMatchesPlan(journal, plan) || journal.target !== "both" || journal.state !== "recovery-required" || journal.recoveryCode !== "handler-failed" || journal.pendingEntryId !== "pi.backup-current") return false;
   const selected = plan.inventory.filter((entry) => entry.state === "selected" || entry.state === "conditional").map(({ id }) => id), entries = new Map(journal.entries.map((entry) => [entry.id, entry]));
