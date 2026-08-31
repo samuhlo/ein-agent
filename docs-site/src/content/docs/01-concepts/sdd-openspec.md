@@ -65,9 +65,9 @@ ein-cc-sdd status
 Si el agente cree que va por `apply` y el disco dice que falta `design.md`, gana
 el disco. No es una opinión que se pueda negociar.
 
-**Revisar la decisión, no solo el diff.** Dentro de seis meses, `design.md`
-explica por qué se eligió ese enfoque y qué se descartó. El diff solo enseña el
-resultado.
+**Revisar la decisión, no solo el diff.** Mientras el cambio está activo,
+`design.md` explica por qué se eligió un enfoque. Al cerrar, esas decisiones se
+condensan en `summary.md`; el diff solo enseña el resultado.
 
 ## Los artefactos no son notas
 
@@ -91,12 +91,13 @@ ella.
 
 ## Qué pasa al cerrar
 
-El cambio se mueve a `openspec/changes/archive/` con todo dentro. A partir de
-ahí es **evidencia inmutable**: no se reescribe para que encaje con lo que se
-sabe después.
+El cambio se condensa en `openspec/changes/archive/<cambio>/summary.md`. Los
+artefactos completos solo existen mientras sirven para decidir, ejecutar y
+verificar. Después se eliminan para que el repositorio conserve historia útil,
+no papeles de proceso.
 
-Eso importa más de lo que parece. Un registro que se retoca cuando la historia
-resulta incómoda deja de servir como registro.
+El resumen archivado es el registro duradero: dice qué cambió, cómo funciona,
+qué se decidió, qué se verificó y qué quedó pendiente.
 
 ## Siguiente
 

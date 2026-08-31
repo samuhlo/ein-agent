@@ -88,17 +88,19 @@ El resumen de cierre. Qué se hizo, cómo funciona por dentro, qué se decidió 
 qué queda abierto.
 
 Es lo que alguien leerá dentro de seis meses. Lo escribe un modelo, así que es
-un buen resumen y **no es evidencia**: la evidencia son los otros artefactos.
+una condensación, no una transcripción. Mientras el cambio está activo se puede
+contrastar con los demás artefactos; después del cierre se convierte en el
+registro permanente del cambio.
 
 ## Al archivar
 
-El cambio entero se mueve a `openspec/changes/archive/<nombre>/`.
-
-A partir de ahí es inmutable. No se reescribe para que encaje con lo que se
-supo después, ni para que la historia quede más limpia. Un registro que se
-retoca deja de ser un registro.
+Solo `summary.md` se mueve a `openspec/changes/archive/<nombre>/`. El resto son
+papeles de trabajo y se elimina. El resumen archivado debe bastar para entender
+el resultado, el mecanismo, las decisiones, las comprobaciones y los riesgos.
 
 ## Qué leer tú, y en qué orden
+
+Mientras está activo:
 
 1. **`design.md`** — la decisión. Si el enfoque está mal, el resto da igual.
 2. **El diff.**
@@ -106,6 +108,9 @@ retoca deja de ser un registro.
 
 `map.md` y `apply-progress.md` son para cuando algo no cuadra y hay que
 reconstruir por qué.
+
+Cuando ya está cerrado, lee `summary.md`: es la única pieza histórica que se
+mantiene deliberadamente.
 
 ## Siguiente
 

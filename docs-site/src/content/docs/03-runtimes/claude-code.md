@@ -1,7 +1,7 @@
 ---
 title: "Claude Code"
 description: "Cómo usar EIN con Claude Code, y qué no se traslada exactamente desde Pi."
-sources: ["README.md", "ein-cc/README.md", "openspec/changes/archive/core-parity/verify-report.md"]
+sources: ["README.md", "ein-cc/README.md", "openspec/changes/archive/core-parity/summary.md"]
 verified_rev: "eeceb7c"
 ---
 

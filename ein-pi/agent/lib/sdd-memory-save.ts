@@ -96,7 +96,7 @@ export function buildPhaseMemoryCandidate(change: string, phase: unknown, input:
 export function buildCloseMemoryCandidate(change: string): MemoryCandidate {
 	return {
 		type: "learning", stableId: `${change}-close`, title: `Closed SDD change ${change}`,
-		summary: `OpenSpec archived the verified SDD change ${change}. The archive remains the canonical record.`,
+		summary: `OpenSpec archived the verified SDD change ${change}. Its summary is the durable record.`,
 		change, phase: "close",
 	};
 }

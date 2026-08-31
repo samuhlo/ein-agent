@@ -128,6 +128,13 @@ Given: a canonical legacy SDD change has an unresolved state caused solely by a 
 When: forced close readiness and archival are evaluated.
 Then: the system may archive through the legacy escape, returns distinguishable legacy evidence with the reason without reclassifying or synchronizing the unresolved state, and does not weaken normal close or admit incomplete modern changes.
 
+## Scenario: close-condenses-temporary-artifacts-into-one-durable-summary
+title: Closed changes retain one useful summary instead of phase paperwork
+requirement: The system MUST keep the complete SDD artifacts while a change is active, MUST require a fresh passing verification and a fresh summary before close, and MUST retain only `summary.md` under `openspec/changes/archive/<change>/` after close. The durable summary MUST identify the change, completed work groups, verification status, exact verification commands, mechanism, decisions, and known risks so downstream evaluation and human review do not depend on deleted phase artifacts.
+Given: a change has completed tasks, apply, verification, and a fresh structured summary.
+When: deterministic close archives the change.
+Then: the active directory is removed, the archive directory contains only `summary.md`, and the summary exposes enough structured facts for the evaluation corpus and enough explanation for a future reader.
+
 ## Scenario: forced-close-preserves-readiness-gates
 title: Forced close cannot archive incomplete or unverified work
 requirement: The system MUST preserve task, apply, verify, summary, and canonical-spec readiness gates when forced close is requested and MUST NOT archive a change with pending tasks, incomplete apply, missing, failing, or stale verify evidence, missing or stale summary evidence, or an OpenSpec conflict.

@@ -1,7 +1,7 @@
 ---
 title: "Matriz de runtimes"
 description: "Comparación Pi vs Claude Code con las capacidades que se pueden comprobar."
-sources: ["README.md", "ein-cc/README.md", "openspec/specs/installer-runtime/spec.md", "openspec/changes/archive/core-parity/verify-report.md"]
+sources: ["README.md", "ein-cc/README.md", "openspec/specs/installer-runtime/spec.md", "openspec/changes/archive/core-parity/summary.md"]
 verified_rev: "eeceb7c"
 ---
 

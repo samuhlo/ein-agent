@@ -20,6 +20,11 @@ Read the change's artifacts under `openspec/changes/{change}/`: `scope.md`, `map
 Write `openspec/changes/{change}/summary.md` (required): a **condensed, reviewable record**. This is the durable memory of what happened, readable months later by anyone without digging through the raw phase files. Keep it tight (aim ≤ 60 lines); it is a summary, not a transcript. Use the `// 00N` house format:
 
 ```md
+status: complete
+change: <change-name>
+work_groups: <number of groups completed in tasks.md; 1 for a micro change>
+verification_status: pass
+
 ## // 000. RESUMEN
 <one or two sentences: what the change delivered>
 
@@ -35,10 +40,15 @@ summary: someone must understand how it works from this alone.>
 
 ## // 004. VERIFICACIÓN
 <what was verified (from verify-report): tests/checks and their outcome>
+- verify: `<one exact command per check used by the change>`
 
 ## // 005. PENDIENTE / RIESGOS
 <follow-ups, gotchas, or "Ninguno.">
 ```
+
+The four metadata lines and at least one exact `- verify:` command are part of
+the durable contract. The evaluation corpus reads them after the temporary
+phase artifacts have been removed.
 
 The artifact language follows the parent's "Artifact language" directive (Spanish if absent).
 
@@ -53,7 +63,7 @@ If `EIN.md` exists at the repo root, update ONLY its `## Índice` (`## Index`) s
 
 ## Constraints
 
-- Do NOT move or delete files. The move of `openspec/changes/{change}/` to closed storage is a deterministic step the parent runs (`/ein:sdd-close {change}` / the `closeChange` helper) AFTER you return — your job is only to leave a clean `summary.md`.
+- Do NOT move or delete files. The parent runs the deterministic close AFTER you return. That close keeps only `summary.md`; `scope.md`, `map.md`, `design.md`, `tasks.md`, apply evidence and verify evidence are temporary working material and are removed deliberately.
 - Do NOT implement, verify, or change code. You read artifacts and write `summary.md`; the only other permitted edit is the bounded `## Índice` update in `EIN.md` described above.
 - If `verify-report.md` indicates failure, STOP and report `blocked` — a failed change must not be closed.
 - Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit unless the user explicitly asks.

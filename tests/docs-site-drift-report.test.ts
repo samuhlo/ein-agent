@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	collectDriftPageInputs,
+	findMissingSources,
 	formatDriftReport,
 	driftExitCode,
 	type DriftReport,
@@ -18,6 +19,11 @@ describe("collectDriftPageInputs", () => {
 			expect(typeof input.verifiedRev).toBe("string");
 			expect(Array.isArray(input.sources)).toBe(true);
 		}
+	});
+
+	test("todas las fuentes declaradas existen en el árbol actual", () => {
+		const inputs = collectDriftPageInputs(REPO_ROOT);
+		expect(findMissingSources(inputs, REPO_ROOT)).toEqual([]);
 	});
 });
 
