@@ -6,6 +6,7 @@ import { deployTemplate } from "../installer/src/core/deploy.ts";
 import { detectPlatform } from "../installer/src/core/platform.ts";
 import { resolvePiInstallContext } from "../installer/src/core/paths.ts";
 import { runDoctor, type DoctorReport } from "../installer/src/core/verify.ts";
+import { inspectCommonDoctor, summarizeDoctorChecks } from "../ein-pi/agent/lib/doctor-core.ts";
 import type { LinearIntegration } from "../ein-pi/agent/lib/linear-integration.ts";
 import { doctorSmokeReport } from "../ein-pi/agent/extensions/ein-doctor.ts";
 
@@ -71,6 +72,26 @@ describe("inventario instalado de agentes", () => {
 			expect(policy).toContain("Current filesystem, Git, ProjectState/stateRef, and OpenSpec evidence outrank memory");
 			expect(policy).toContain(".engram-ein");
 			expect(policy).toContain("ONE notebook shared by both runtimes");
+		} finally {
+			rmSync(staging.root, { recursive: true, force: true });
+		}
+	});
+
+	test("un usuario nuevo puede instalar antes de elegir sus modelos", () => {
+		const staging = bundledTemplate();
+		try {
+			const inspection = inspectCommonDoctor({
+				agentDir: staging.payload,
+				linearCwd: staging.root,
+				localSkillsDir: join(staging.payload, "skills", "local"),
+				downloadedSkillsDir: join(staging.payload, "skills", "downloaded"),
+			});
+			const enabledModels = inspection.checks.core.find(({ name }) => name === "enabledModels");
+			const core = summarizeDoctorChecks([{ title: "CORE", checks: inspection.checks.core }]);
+
+			expect(enabledModels?.level).toBe("WARN");
+			expect(enabledModels?.detail).toContain("primera sesión");
+			expect(core).toMatchObject({ fail: 0, warn: 1, result: "OK_WITH_WARNINGS" });
 		} finally {
 			rmSync(staging.root, { recursive: true, force: true });
 		}

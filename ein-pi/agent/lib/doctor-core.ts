@@ -114,6 +114,11 @@ export function inspectCommonDoctor(input: {
         (value): value is string => typeof value === "string",
       )
     : [];
+  const enabledModels = Array.isArray(settings.value.enabledModels)
+    ? settings.value.enabledModels.filter(
+        (value): value is string => typeof value === "string",
+      )
+    : [];
   const localSkills = countDoctorSkillFiles(input.localSkillsDir);
   const downloadedSkills = countDoctorSkillFiles(input.downloadedSkillsDir);
 
@@ -172,12 +177,12 @@ export function inspectCommonDoctor(input: {
           "settings.json parse",
           "JSON de settings válido.",
         ),
-        doctorCheck(
-          Boolean(
-            (settings.value.enabledModels as unknown[] | undefined)?.length,
-          ),
+        doctorWarn(
+          enabledModels.length > 0,
           "enabledModels",
-          "Hay modelos habilitados.",
+          enabledModels.length > 0
+            ? "Hay modelos habilitados."
+            : "Elige al menos un modelo antes de iniciar tu primera sesión.",
         ),
         doctorCheck(
           settings.value.enableSkillCommands === true,
