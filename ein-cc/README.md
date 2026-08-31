@@ -30,6 +30,11 @@ El launcher fuente vive en `ein-cc/launchers/ein-cc.fish` y se instala en `~/.co
 - Traduce el frontmatter de agentes Pi→CC (`read→Read`, `find→Glob`, …) y descarta lo específico de Pi (`budget`, `turnBudget`, `completionGuard`…).
 - Symlinkea `~/.claude/.credentials.json` (login compartido).
 
+El coordinador usa Opus con esfuerzo alto. Scope, design y tasks también usan
+Opus porque fijan alcance y decisiones; map, verify, close y las tareas de
+entrega usan Haiku, mientras apply usa Sonnet con esfuerzo bajo para conservar
+capacidad de edición sin pagar razonamiento arquitectónico en cada paso.
+
 ## Estado (por incrementos)
 
 - **✅ Incremento 1 — fundación:** aislamiento vía `CLAUDE_CONFIG_DIR`, launcher, cerebro (`CLAUDE.md`), 10 agentes traducidos (7 SDD + scout/git/linear), ~50 skills, primer gate (deny de force-push vía `permissions`). Verificado: responde como Ein, aislado, sin tocar `~/.claude`.

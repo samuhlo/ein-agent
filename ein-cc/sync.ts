@@ -471,10 +471,10 @@ function validateCoordinator(canonical: string, adapter: string): string {
 }
 
 const DEFAULT_ROUTING: Record<string, ClaudeRoute> = {
-  "sdd-scope": { model: "haiku", effort: "low" },
+  "sdd-scope": { model: "opus", effort: "high" },
   "sdd-map": { model: "haiku", effort: "medium" },
   "sdd-design": { model: "opus", effort: "high" },
-  "sdd-tasks": { model: "haiku", effort: "low" },
+  "sdd-tasks": { model: "opus", effort: "high" },
   "sdd-apply": { model: "sonnet", effort: "low" },
   "sdd-verify": { model: "haiku", effort: "medium" },
   "sdd-close": { model: "haiku", effort: "low" },
