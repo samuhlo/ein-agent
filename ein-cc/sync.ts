@@ -3,8 +3,8 @@
 // ein-cc SYNC — compilador core → Claude Code (adaptador aislado)
 // -----------------------------------------------------------------------------
 // Despliega el cerebro de EIN a un CLAUDE_CONFIG_DIR propio (~/.claude-ein) sin
-// tocar tu ~/.claude. Fuente única de verdad: `ein-pi/core` (agentes + skills)
-// se traducen/copian; lo específico de Claude Code (CLAUDE.md, settings.json,
+// tocar tu ~/.claude. `runtime/` aporta la política propia y `vendor/skills/`
+// las skills externas; lo específico de Claude Code (CLAUDE.md, settings.json,
 // hooks) vive en `ein-cc/`. Idempotente: se puede re-ejecutar siempre.
 //
 //   bun ein-cc/sync.ts            # despliega
@@ -34,13 +34,14 @@ import { resolveEngramDataDir } from "../ein-pi/agent/lib/memory-contract.ts";
 import { compileStyleContract } from "../ein-pi/agent/lib/style-contract.ts";
 
 const REPO = join(import.meta.dir, "..");
-const CORE = join(REPO, "ein-pi", "core");
+const RUNTIME = join(REPO, "runtime");
+const VENDOR_SKILLS = join(REPO, "vendor", "skills");
 const CC = import.meta.dir; // ein-cc/
 const DEST = process.env.EIN_CC_HOME ?? join(homedir(), ".claude-ein");
 const MAIN = join(homedir(), ".claude");
 const DRY = process.argv.includes("--dry");
 const PROVENANCE =
-  "<!-- GENERATED: source=ein-pi/core/AGENTS.md adapter=ein-cc/CLAUDE.adapter.md; DO NOT EDIT -->";
+  "<!-- GENERATED: source=runtime/AGENTS.md adapter=ein-cc/CLAUDE.adapter.md; DO NOT EDIT -->";
 const ADAPTATION_START = "<!-- ein:claude-adaptation:start -->";
 const ADAPTATION_END = "<!-- ein:claude-adaptation:end -->";
 const HARNESS_START = "<!-- ein:harness-discipline:start -->";
@@ -428,7 +429,7 @@ const STYLE_CONSUMERS: readonly string[] = ["sdd-apply.md"];
  * que nada lo dijera.
  */
 function styleBlock(): string {
-  const contract = compileStyleContract(join(CORE, "skills", "local"));
+  const contract = compileStyleContract(join(RUNTIME, "skills", "local"));
   if (!contract.ok) {
     throw parity("PARITY_STYLE_CONTRACT", `no se pudo compilar el contrato de estilo: ${contract.reason}`);
   }
@@ -481,9 +482,9 @@ const DEFAULT_ROUTING: Record<string, ClaudeRoute> = {
 
 /** Compile every Claude byte in memory; no filesystem promotion occurs here. */
 export function compileClaudeSurface(options: CompileOptions = {}): ClaudeSurface {
-  const canonicalPath = options.canonicalPath ?? join(CORE, "AGENTS.md");
+  const canonicalPath = options.canonicalPath ?? join(RUNTIME, "AGENTS.md");
   const adapterPath = options.adapterPath ?? join(CC, "CLAUDE.adapter.md");
-  const agentsDir = options.agentsDir ?? join(CORE, "agents");
+  const agentsDir = options.agentsDir ?? join(RUNTIME, "agents");
   const routing = options.routing ?? DEFAULT_ROUTING;
   const parityDeferrals = options.parityDeferrals ?? CLAUDE_PARITY_DEFERRALS;
   const canonical = readFileSync(canonicalPath, "utf8");
@@ -718,22 +719,20 @@ export function runSync(): SyncResult {
     }
     log(`agentes traducidos Pi→CC: ${Object.keys(surface.agents).length}`);
 
-    // ── 5. Skills: copiadas del core (local + downloaded) ─────────────────────
-    const skillsSrc = join(CORE, "skills");
+    // ── 5. Skills: propias desde runtime; externas desde vendor ───────────────
+    const localSkills = join(RUNTIME, "skills", "local");
     const skillsDest = join(DEST, "skills");
-    if (!existsSync(skillsSrc)) throw new Error(`No existe el core de skills: ${skillsSrc}`);
-    const skillGroups = ["local", "downloaded"] as const;
-    for (const group of skillGroups) {
-      if (!existsSync(join(skillsSrc, group))) throw new Error(`Falta el grupo de skills requerido: ${group}`);
-    }
+    if (!existsSync(localSkills)) throw new Error(`Faltan las skills propias: ${localSkills}`);
+    if (!existsSync(VENDOR_SKILLS)) throw new Error(`Faltan las skills externas: ${VENDOR_SKILLS}`);
     if (!DRY) {
       rmSync(skillsDest, { recursive: true, force: true });
-      for (const group of skillGroups) cpSync(join(skillsSrc, group), join(skillsDest), { recursive: true });
+      cpSync(localSkills, join(skillsDest, "local"), { recursive: true });
+      cpSync(VENDOR_SKILLS, join(skillsDest, "downloaded"), { recursive: true });
     }
-    const n = skillGroups.reduce((acc, group) => {
-      const p = join(skillsSrc, group);
-      return acc + readdirSync(p).filter((d) => existsSync(join(p, d, "SKILL.md"))).length;
-    }, 0);
+    const n = [localSkills, VENDOR_SKILLS].reduce(
+      (total, path) => total + readdirSync(path).filter((entry) => existsSync(join(path, entry, "SKILL.md"))).length,
+      0,
+    );
     log(`skills copiadas: ~${n} (local + downloaded, aplanadas en skills/)`);
 
     // ── 6. CLI SDD determinista → binario standalone en bin/ ──────────────────

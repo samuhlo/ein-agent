@@ -9,8 +9,8 @@ Objetivo: que el árbol explique el producto sin depender de conocimiento privad
 - [x] Congelar la línea base de beta y retirar defaults heredados de modelos/proveedores.
 - [x] Condensar OpenSpec a un resumen por cambio cerrado.
 - [x] Reducir documentación interna, assets huérfanos y residuos de build.
-- [ ] Separar código de producto, runtime desplegable, vendor y tooling.
-- [ ] Hacer visible y única la propiedad del launcher público `ein`.
+- [x] Separar código de producto, runtime desplegable, vendor y tooling.
+- [x] Hacer visible y única la propiedad del launcher público `ein`.
 - [ ] Extraer contratos compartidos para eliminar dependencias Claude/installer → interiores de Pi.
 - [ ] Añadir fronteras automáticas de imports y ownership.
 - [ ] Dividir los hotspots principales una vez fijadas sus responsabilidades.

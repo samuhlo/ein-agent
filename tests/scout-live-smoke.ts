@@ -5,7 +5,7 @@ import { validateScoutReport } from "../ein-pi/agent/lib/scout-contract.ts";
 import { REQUIRED_PI_PACKAGES } from "../ein-pi/agent/lib/runtime-compat.ts";
 
 const ROOT = join(import.meta.dir, "..");
-const SCOUT_SOURCE = join(ROOT, "ein-pi", "core", "agents", "ein-scout.md");
+const SCOUT_SOURCE = join(ROOT, "runtime", "agents", "ein-scout.md");
 const EIN_AI_EXTENSION = join(ROOT, "ein-pi", "agent", "extensions", "ein-ai.ts");
 const OBSERVER_EXTENSION = join(import.meta.dir, "fixtures", "scout-live-smoke-observer.ts");
 const EVIDENCE_FILE = "controlled-evidence.txt";

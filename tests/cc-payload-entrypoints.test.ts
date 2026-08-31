@@ -67,9 +67,10 @@ describe("ein-cc payload entry points", () => {
     expect(EIN_CC_PAYLOAD_REQUIRED_PATHS.filter((path) => path.includes("orchestrator"))).toEqual([
       EIN_CC_ORCHESTRATOR_ASSET,
     ]);
-    expect(EIN_CC_PAYLOAD_FILES).toContain("ein-pi/ein-pi.fish");
+    expect(EIN_CC_PAYLOAD_FILES).toContain("ein-pi/launchers/ein-pi.fish");
     expect(EIN_CC_PAYLOAD_FILES).toContain("ein-pi/migrate.ts");
-    expect(EIN_CC_PAYLOAD_REQUIRED_PATHS).toContain("ein-pi/core");
+    expect(EIN_CC_PAYLOAD_REQUIRED_PATHS).toContain("runtime");
+    expect(EIN_CC_PAYLOAD_REQUIRED_PATHS).toContain("vendor/skills");
   });
 
   test("the compile seam reports the child's output instead of discarding it", () => {

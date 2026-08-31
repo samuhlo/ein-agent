@@ -1,7 +1,7 @@
 ---
 title: "Carriles del flujo SDD"
 description: "Qué fases componen los carriles standard y micro y cómo se persisten por cambio."
-sources: ["openspec/specs/sdd-lifecycle/spec.md", "ein-pi/core/docs/GUIA_PI_WORKFLOW.md"]
+sources: ["openspec/specs/sdd-lifecycle/spec.md", "runtime/docs/GUIA_PI_WORKFLOW.md"]
 verified_rev: "29861f5"
 ---
 

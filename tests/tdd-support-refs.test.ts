@@ -12,7 +12,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
-const CORE = join(import.meta.dir, "../ein-pi/core");
+const CORE = join(import.meta.dir, "../runtime");
 const apply = readFileSync(join(CORE, "agents/sdd-apply.md"), "utf8");
 const verify = readFileSync(join(CORE, "agents/sdd-verify.md"), "utf8");
 

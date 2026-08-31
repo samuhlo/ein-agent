@@ -7,6 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, extname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { LOCAL_REPO_SKILLS_PATH } from "../ein-pi/agent/extensions/ein-skill-maintenance.ts";
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const THIS_FILE = relative(REPO_ROOT, fileURLToPath(import.meta.url));
@@ -66,34 +67,55 @@ function collectFiles(root: string, extensions: Set<string>): string[] {
 }
 
 describe("estructura canónica de ein-pi", () => {
-	test("el bundler compone ein-pi/core + ein-pi/agent como fuentes", () => {
+	test("el bundler compone runtime + ein-pi/agent como fuentes", () => {
 		const content = readRepoFile("installer/scripts/bundle-template.ts");
 
-		expect(content).toContain('const CORE_SOURCE = join(REPO_ROOT, "ein-pi", "core")');
+		expect(content).toContain('const RUNTIME_SOURCE = join(REPO_ROOT, "runtime")');
+		expect(content).toContain('const VENDOR_SKILLS_SOURCE = join(REPO_ROOT, "vendor", "skills")');
 		expect(content).toContain('const AGENT_SOURCE = join(REPO_ROOT, "ein-pi", "agent")');
 	});
 
-	test("README declara core/ + agent/ como fuente canónica", () => {
+	test("README distingue runtime propio, vendor y adaptadores", () => {
 		const content = readRepoFile("README.md");
 
-		expect(content).toContain("`ein-pi/core/` (contenido portable, agnóstico del runtime)");
-		expect(content).toContain(
-			"`ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench",
-		);
+		expect(content).toContain("`runtime/` es el contenido propio y portable");
+		expect(content).toContain("`vendor/skills/` deja visible lo externo");
+		expect(content).toContain("├── installer/      # dueño de `ein`");
 	});
 
 	test("el corte portable/runtime es el declarado", () => {
-		// core/: contenido portable; agent/: runtime Pi. Si un dir cambia de lado,
+		// runtime/: contenido propio; agent/: adaptador Pi. Si un dir cambia de lado,
 		// este test obliga a actualizar bundler, README y la decisión consciente.
 		for (const dir of ["agents", "docs", "prompts", "skills"]) {
-			expect(existsSync(join(REPO_ROOT, "ein-pi", "core", dir))).toBe(true);
+			expect(existsSync(join(REPO_ROOT, "runtime", dir))).toBe(true);
 			expect(existsSync(join(REPO_ROOT, "ein-pi", "agent", dir))).toBe(false);
 		}
 		for (const dir of ["assets", "chains", "extensions", "lib"]) {
 			expect(existsSync(join(REPO_ROOT, "ein-pi", "agent", dir))).toBe(true);
-			expect(existsSync(join(REPO_ROOT, "ein-pi", "core", dir))).toBe(false);
+			expect(existsSync(join(REPO_ROOT, "runtime", dir))).toBe(false);
 		}
-		expect(existsSync(join(REPO_ROOT, "ein-pi", "core", "AGENTS.md"))).toBe(true);
+		expect(existsSync(join(REPO_ROOT, "runtime", "AGENTS.md"))).toBe(true);
+		expect(existsSync(join(REPO_ROOT, "runtime", "skills", "downloaded"))).toBe(false);
+		expect(existsSync(join(REPO_ROOT, "vendor", "skills"))).toBe(true);
+		expect(existsSync(join(REPO_ROOT, "ein-pi", "launchers", "ein-pi.fish"))).toBe(true);
+		expect(existsSync(join(REPO_ROOT, "ein-cc", "launchers", "ein-cc.fish"))).toBe(true);
+	});
+
+	test("el refresco remoto de skills sigue la ubicación canónica", () => {
+		expect(LOCAL_REPO_SKILLS_PATH).toBe("runtime/skills/local");
+		expect(existsSync(join(REPO_ROOT, LOCAL_REPO_SKILLS_PATH))).toBe(true);
+	});
+
+	test("vendor contiene exactamente las skills declaradas por el catálogo", () => {
+		const profile = JSON.parse(readRepoFile("runtime/skills/stack-profile.json")) as {
+			catalog: Record<string, unknown>;
+		};
+		const vendored = readdirSync(join(REPO_ROOT, "vendor", "skills")).sort();
+
+		expect(vendored).toEqual(Object.keys(profile.catalog).sort());
+		for (const skill of vendored) {
+			expect(existsSync(join(REPO_ROOT, "vendor", "skills", skill, "SKILL.md"))).toBe(true);
+		}
 	});
 
 	test("las rutas legacy borradas no existen en el repo", () => {
@@ -108,7 +130,7 @@ describe("estructura canónica de ein-pi", () => {
 			...collectFiles("installer", new Set([".ts"])),
 			...collectFiles("tests", new Set([".ts"])),
 			...collectFiles(join("ein-pi", "agent"), new Set([".ts", ".md", ".json"])),
-			...collectFiles(join("ein-pi", "core"), new Set([".ts", ".md", ".json"])),
+			...collectFiles("runtime", new Set([".ts", ".md", ".json"])),
 		].filter((path) => path !== THIS_FILE);
 
 		const offenders = files.flatMap((path) => {

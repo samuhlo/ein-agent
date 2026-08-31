@@ -29,7 +29,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-const CORE_AGENTS = join(import.meta.dir, "../ein-pi/core/agents");
+const CORE_AGENTS = join(import.meta.dir, "../runtime/agents");
 
 // Campos que pi-subagents pasa por JSON.parse (agents.ts:1378/1401).
 const JSON_FIELDS = ["turnBudget", "toolBudget"];

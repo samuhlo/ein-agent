@@ -10,7 +10,7 @@
 // es un binario que corre antes de que exista el template desplegado, así que
 // no puede importar de `ein-pi/`. Un test compara las dos copias.
 //
-// Aquí no hay marco. Aire, sangría y apagado: `core/docs/STYLE.md // 002`.
+// Aquí no hay marco. Aire, sangría y apagado: `runtime/docs/STYLE.md // 002`.
 // =============================================================================
 
 import { GLYPH, MARK, bold, concrete, danger, gold, structure, visibleWidth } from "./theme.ts";

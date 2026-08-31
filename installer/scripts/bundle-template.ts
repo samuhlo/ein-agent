@@ -1,11 +1,11 @@
 // =============================================================================
 // BUNDLE TEMPLATE
-// Empaqueta src/assets/template.tar.gz componiendo dos raices:
-//   ein-pi/core/  — assets portables (agents, skills, docs, prompts)
+// Empaqueta src/assets/template.tar.gz componiendo tres raices:
+//   runtime/     — assets Ein portables (agents, skills, docs, prompts)
+//   vendor/skills — skills externas curadas, separadas del codigo propio
 //   ein-pi/agent/ — runtime de Pi (extensions, lib, chains, assets, configs)
 // El layout DESPLEGADO va plano bajo ~/.pi/agent (es lo que Pi espera); el
-// split solo existe repo-side para que un futuro adaptador no-Pi pueda
-// consumir core/ tal cual.
+// split solo existe repo-side para que cada origen tenga un dueño visible.
 // - allowlist de contenido Ein-owned (nunca secrets/runtime/binarios)
 // - tokenizacion JSON-aware de mcp.json + settings.json en {{TOKENS}}
 // Run: bun run bundle-template
@@ -31,7 +31,8 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = dirname(HERE);
 const REPO_ROOT = dirname(INSTALLER_ROOT);
-const CORE_SOURCE = join(REPO_ROOT, "ein-pi", "core");
+const RUNTIME_SOURCE = join(REPO_ROOT, "runtime");
+const VENDOR_SKILLS_SOURCE = join(REPO_ROOT, "vendor", "skills");
 const AGENT_SOURCE = join(REPO_ROOT, "ein-pi", "agent");
 const OUT = process.env.EIN_TEMPLATE_OUT ? resolve(process.env.EIN_TEMPLATE_OUT) : join(INSTALLER_ROOT, "src", "assets", "template.tar.gz");
 const TYPESCRIPT_VERSION = "5.9.3";
@@ -39,8 +40,8 @@ const TYPESCRIPT_VERSION = "5.9.3";
 // Contenido Ein-owned por raiz de origen. Todo lo demas (auth.json, npm/,
 // sessions/, backups/, .atl/, .piagents/, .sdd/,
 // disabled-skill-conflicts/, run-history) queda fuera a proposito.
-const CORE_FILES = ["AGENTS.md"];
-const CORE_DIRS = ["agents", "docs", "prompts", "skills"];
+const RUNTIME_FILES = ["AGENTS.md"];
+const RUNTIME_DIRS = ["agents", "docs", "prompts", "skills"];
 // Allowlist del template. `app.ts` remains available to provider launchers;
 // the user-facing app is precompiled and staged separately as bin/ein. Ver
 // tests/template-agent-inventory.test.ts, que deriva lo requerido del código.
@@ -163,7 +164,7 @@ function copyInto(sourceRoot: string, staging: string, files: string[], dirs: st
 }
 
 async function main(): Promise<void> {
-  for (const source of [CORE_SOURCE, AGENT_SOURCE]) {
+  for (const source of [RUNTIME_SOURCE, VENDOR_SKILLS_SOURCE, AGENT_SOURCE]) {
     if (!existsSync(source)) {
       throw new Error(`No existe el source del template: ${source}`);
     }
@@ -171,15 +172,16 @@ async function main(): Promise<void> {
 
   const staging = mkdtempSync(join(tmpdir(), "ein-template-"));
   try {
-    copyInto(CORE_SOURCE, staging, CORE_FILES, CORE_DIRS);
+    copyInto(RUNTIME_SOURCE, staging, RUNTIME_FILES, RUNTIME_DIRS);
+    cpSync(VENDOR_SKILLS_SOURCE, join(staging, "skills", "downloaded"), { recursive: true });
     copyInto(AGENT_SOURCE, staging, AGENT_FILES, AGENT_DIRS);
 
     // assets/agents y assets/chains son la copia "de fabrica" que usa
     // installSddAssets para reparar instalaciones. Se generan aqui desde las
-    // fuentes (core/agents, agent/chains) — unica fuente de verdad, drift
+    // fuentes (runtime/agents, agent/chains) — unica fuente de verdad, drift
     // imposible.
     for (const [root, dir] of [
-      [CORE_SOURCE, "agents"],
+      [RUNTIME_SOURCE, "agents"],
       [AGENT_SOURCE, "chains"],
     ] as const) {
       const src = join(root, dir);
@@ -214,7 +216,7 @@ async function main(): Promise<void> {
 
     const size = Bun.file(OUT).size;
     console.log(`/// template empaquetado`);
-    console.log(`  origen:  ${CORE_SOURCE} + ${AGENT_SOURCE}`);
+    console.log(`  origen:  ${RUNTIME_SOURCE} + ${VENDOR_SKILLS_SOURCE} + ${AGENT_SOURCE}`);
     console.log(`  salida:  ${OUT}`);
     console.log(`  tamano:  ${(size / 1024 / 1024).toFixed(2)} MB`);
   } finally {

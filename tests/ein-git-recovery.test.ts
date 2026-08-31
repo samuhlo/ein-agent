@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
-const CORE = join(import.meta.dir, "../ein-pi/core");
+const CORE = join(import.meta.dir, "../runtime");
 const orchestrator = readFileSync(join(AGENT, "assets/orchestrator.md"), "utf8");
 const einGit = readFileSync(join(CORE, "agents/ein-git.md"), "utf8");
 

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { acceptTrackedScoutResult, normalizeScoutLaunch, SCOUT_REPORT_MAX_BYTES, validateScoutReport } from "../ein-pi/agent/lib/scout-contract.ts";
 import { scoutStaticContract } from "../ein-pi/agent/extensions/ein-doctor.ts";
-const SCOUT_FRONTMATTER = join(import.meta.dir, "../ein-pi/core/agents/ein-scout.md");
+const SCOUT_FRONTMATTER = join(import.meta.dir, "../runtime/agents/ein-scout.md");
 const SCOUT_SPEC = join(import.meta.dir, "../openspec/specs/scout-routing/spec.md");
 
 function fixture() {

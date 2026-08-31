@@ -15,7 +15,7 @@ La entrada normal del producto es `ein`; `ein-pi` es el acceso directo avanzado.
 
 ## Cómo funciona el aislamiento
 
-Pi documenta **`PI_CODING_AGENT_DIR`** (= "Override config directory, default `~/.pi/agent`") — su equivalente a `CLAUDE_CONFIG_DIR`. Relocaliza config **+ auth + sesiones + settings** por completo (verificado: `pi list` con el override apuntando a un dir vacío no ve los paquetes de EIN). El launcher `ein-pi.fish` setea, function-scoped (no contamina tu shell):
+Pi documenta **`PI_CODING_AGENT_DIR`** (= "Override config directory, default `~/.pi/agent`") — su equivalente a `CLAUDE_CONFIG_DIR`. Relocaliza config **+ auth + sesiones + settings** por completo (verificado: `pi list` con el override apuntando a un dir vacío no ve los paquetes de EIN). El launcher fuente `ein-pi/launchers/ein-pi.fish` setea, function-scoped (no contamina tu shell):
 
 - `PI_CODING_AGENT_DIR=~/.pi-ein/agent` → Pi carga de ahí.
 - `EIN_PI_AGENT_HOME=~/.pi-ein/agent` → el código de EIN (`ein-paths`) resuelve sus rutas ahí.
@@ -25,7 +25,7 @@ Pi documenta **`PI_CODING_AGENT_DIR`** (= "Override config directory, default `~
 ```bash
 bun ein-pi/migrate.ts --dry    # enseña qué haría
 bun ein-pi/migrate.ts          # mueve ~/.pi/agent → ~/.pi-ein/agent
-cp ein-pi/ein-pi.fish ~/.config/fish/functions/
+cp ein-pi/launchers/ein-pi.fish ~/.config/fish/functions/
 ```
 
 `migrate.ts` hace un backup `.tar.gz`, mueve el dir (conserva login/sesiones/historial) y **reescribe las rutas absolutas** que el template bakea en `settings.json` (`~/.pi/agent` → `~/.pi-ein/agent`). Reversible: `mv ~/.pi-ein/agent ~/.pi/agent`.

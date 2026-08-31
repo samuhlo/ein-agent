@@ -5,7 +5,7 @@
 // =============================================================================
 
 /** Directories copied wholesale into the embedded runtime payload. */
-export const EIN_CC_PAYLOAD_ROOTS = ["ein-cc", "ein-pi/core"] as const;
+export const EIN_CC_PAYLOAD_ROOTS = ["ein-cc", "runtime", "vendor/skills"] as const;
 
 /** The canonical orchestrator asset shipped in the Claude payload. */
 export const EIN_CC_ORCHESTRATOR_ASSET = "ein-pi/agent/assets/orchestrator.md" as const;
@@ -19,7 +19,7 @@ export const EIN_CC_STYLE_CONTRACT = "ein-pi/agent/lib/style-contract.ts" as con
 
 /** Explicit files shipped alongside the Claude adapter for packaged execution. */
 export const EIN_CC_PAYLOAD_FILES = [
-  "ein-pi/ein-pi.fish",
+  "ein-pi/launchers/ein-pi.fish",
   "ein-pi/migrate.ts",
   EIN_CC_ORCHESTRATOR_ASSET,
   EIN_CC_STYLE_CONTRACT,
@@ -47,10 +47,11 @@ export const EIN_CC_PAYLOAD_REQUIRED_PATHS = [
   "ein-pi/agent/surfaces/surface-runner.ts",
   "ein-cc/continuity-runner.ts",
   "ein-cc/commands/ein/handoff.md",
-  "ein-pi/core",
+  "runtime",
+  "vendor/skills",
   EIN_CC_ORCHESTRATOR_ASSET,
   EIN_CC_STYLE_CONTRACT,
-  "ein-pi/ein-pi.fish",
+  "ein-pi/launchers/ein-pi.fish",
 ] as const;
 
 export const EIN_CC_PAYLOAD_MANIFEST = "ein-cc-payload-manifest.json" as const;

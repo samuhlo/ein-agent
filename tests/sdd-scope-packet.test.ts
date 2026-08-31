@@ -26,7 +26,7 @@ const { resolveCanonicalSpecContext } = await import(
 
 const MAP_MD = join(
   import.meta.dir,
-  "../ein-pi/core/agents/sdd-map.md",
+  "../runtime/agents/sdd-map.md",
 );
 const AI_TS = join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts");
 const content = readFileSync(MAP_MD, "utf8");

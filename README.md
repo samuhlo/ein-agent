@@ -64,17 +64,16 @@ Y hay comprobaciones que no dependen del modelo: el estado de las fases lo calcu
 
 ```text
 ein-agent/
-├── ein-pi/
-│   ├── core/       # agentes, skills, docs y prompts compartidos
-│   ├── agent/      # extensiones, chains y runtime específico de Pi
-│   ├── ein-pi.fish # acceso directo avanzado
-│   └── migrate.ts  # migración del hogar Pi
-├── ein-cc/         # CLAUDE.md, hooks, sync y CLI SDD del adaptador Claude
-├── docs-site/      # documentación pública (Astro + Starlight)
-└── installer/      # CLI, TUI, paths, deploy, backups y releases
+├── runtime/        # agentes, skills propias, docs y prompts compartidos
+├── vendor/skills/  # skills externas curadas; no son código propio
+├── ein-pi/         # adaptador Pi, launcher avanzado y migración
+├── ein-cc/         # adaptador Claude, launcher, sync y CLI SDD
+├── installer/      # dueño de `ein`, deploy, backups y releases
+├── tooling/        # mantenimiento del repositorio; no se distribuye
+└── docs-site/      # documentación pública (Astro + Starlight)
 ```
 
-`ein-pi/core/` (contenido portable, agnóstico del runtime) se comparte entre los dos adaptadores soportados. `ein-pi/core/` + `ein-pi/agent/` son la única fuente versionada del workbench; `installer/scripts/bundle-template.ts` los compone para el despliegue.
+`runtime/` es el contenido propio y portable; `vendor/skills/` deja visible lo externo. El instalador compone ambos con `ein-pi/agent/` para Pi y empaqueta las fuentes necesarias para Claude. El recorrido exacto de cada comando está en [Entry points](https://samuhlo.github.io/ein-agent/04-reference/entrypoints/).
 
 | LAYER | TECH |
 | :--- | :--- |

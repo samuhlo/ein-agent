@@ -100,7 +100,7 @@ status: complete
 
 ## Files changed
 
-- `ein-pi/core/docs/SDD_ARTIFACT_GRAMMAR.md`
+- `runtime/docs/SDD_ARTIFACT_GRAMMAR.md`
 
 ## Siguiente paso
 ```

@@ -62,13 +62,13 @@ describe("resolveSddPlanPreview", () => {
 			"status: ready",
 			"blocked_by: none",
 			"## // 001. Contrato del scout",
-			"Edita ein-pi/core/agents/ein-scout.md y ein-pi/agent/assets/orchestrator.md.",
+			"Edita runtime/agents/ein-scout.md y ein-pi/agent/assets/orchestrator.md.",
 			"Declara el delta en openspec/changes/feat-md/specs/scout-routing/spec.md y actualiza design.md y tasks.md.",
 			"- [ ] 1.1 hacer\n  - verify: `bunx vitest run tests/orchestrator-scope-gate.test.ts`",
 		].join("\n");
 		mkTasks("feat-md", body);
 		const files = resolveSddPlanPreview(DIR, "feat-md").groups[0].files;
-		expect(files).toContain("ein-pi/core/agents/ein-scout.md");
+		expect(files).toContain("runtime/agents/ein-scout.md");
 		expect(files).toContain("ein-pi/agent/assets/orchestrator.md");
 		expect(files).not.toContain("design.md");
 		expect(files).not.toContain("tasks.md");

@@ -1,7 +1,7 @@
 import { lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import einPiFish from "../../../ein-pi/ein-pi.fish" with { type: "text" };
-import einCcFish from "../../../ein-cc/ein-cc.fish" with { type: "text" };
+import einPiFish from "../../../ein-pi/launchers/ein-pi.fish" with { type: "text" };
+import einCcFish from "../../../ein-cc/launchers/ein-cc.fish" with { type: "text" };
 import { run } from "./exec.ts";
 import { installFishLauncher } from "./launcher.ts";
 import { readInstallMarkerVersion } from "./legacy-runtime-artifacts.ts";

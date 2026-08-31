@@ -136,7 +136,7 @@ describe("direct routing", () => {
 describe("Pi-native agent assets", () => {
 	for (const name of ["ein-cleaner", "ein-architect"] as const) {
 		test(`${name} is named, internal, and honest about this work unit`, () => {
-			const asset = readFileSync(join(import.meta.dir, "../ein-pi/core/agents", `${name}.md`), "utf8");
+			const asset = readFileSync(join(import.meta.dir, "../runtime/agents", `${name}.md`), "utf8");
 			expect(asset).toContain(`name: ${name}`);
 			expect(asset).toContain("internal Pi subagent");
 			if (name === "ein-cleaner") {

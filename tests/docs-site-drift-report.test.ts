@@ -11,9 +11,9 @@ import { join } from "node:path";
 const REPO_ROOT = join(import.meta.dir, "..");
 
 describe("collectDriftPageInputs", () => {
-	test("recoge las 21 páginas reales con path, verifiedRev y sources", () => {
+	test("recoge las 22 páginas reales con path, verifiedRev y sources", () => {
 		const inputs = collectDriftPageInputs(REPO_ROOT);
-		expect(inputs.length).toBe(21);
+		expect(inputs.length).toBe(22);
 		for (const input of inputs) {
 			expect(input.path.endsWith(".md")).toBe(true);
 			expect(typeof input.verifiedRev).toBe("string");

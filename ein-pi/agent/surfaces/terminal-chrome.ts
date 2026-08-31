@@ -6,7 +6,7 @@
 // ANTES había un marco doble con pestañas invertidas y líneas de puntos que
 // llevaban cada etiqueta hasta su valor. Los puntos eran una rejilla dibujada a
 // mano y el marco encerraba una pantalla que no necesitaba paredes: la columna
-// alinea igual y el aire separa mejor (`core/docs/STYLE.md // 002`).
+// alinea igual y el aire separa mejor (`runtime/docs/STYLE.md // 002`).
 //
 // La fila con foco es una BANDA de fondo, no un cursor que late: un cursor
 // parpadeante pide atención constantemente, y solo hay una fila activa.

@@ -499,7 +499,7 @@ describe("authority-owned mutate and complete adapters", () => {
   });
 });
 
-const PI_LAUNCHER_SOURCE = join(import.meta.dir, "..", "ein-pi", "ein-pi.fish");
+const PI_LAUNCHER_SOURCE = join(import.meta.dir, "..", "ein-pi", "launchers", "ein-pi.fish");
 
 type PiLauncherFixture = Readonly<{
   home: string;
@@ -692,7 +692,7 @@ describe("Pi ein-pi launcher adapter", () => {
   });
 });
 
-const CLAUDE_LAUNCHER_SOURCE = join(import.meta.dir, "..", "ein-cc", "ein-cc.fish");
+const CLAUDE_LAUNCHER_SOURCE = join(import.meta.dir, "..", "ein-cc", "launchers", "ein-cc.fish");
 const CLAUDE_SYNC_SOURCE = join(import.meta.dir, "..", "ein-cc", "sync.ts");
 const CANONICAL_ORCHESTRATOR_SOURCE = join(import.meta.dir, "..", "ein-pi", "agent", "assets", "orchestrator.md");
 const BUN_BUILD_ARTIFACT = /^\.[a-f0-9]+-\d+\.bun-build$/;

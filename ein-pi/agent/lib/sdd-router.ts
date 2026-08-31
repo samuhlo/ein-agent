@@ -814,7 +814,7 @@ export type SddPlanGroup = { title: string; files: string[]; verify: string | nu
 export type SddPlanPreview = { change: string; groups: SddPlanGroup[] };
 
 // Ficheros que el apply EDITA y que cuestan ciclos: código y CONTRATOS markdown
-// (prompts de agentes en ein-pi/core/agents, orchestrator, docs). Antes `.md`
+// (prompts de agentes en runtime/agents, orchestrator, docs). Antes `.md`
 // quedaba fuera del patrón y el preview mentía con "sin ficheros de producción"
 // en cambios que SOLO tocaban contratos (el caso real del slice 05). Pero no
 // todo `.md` es producción: los artefactos de proceso SDD y el árbol openspec/

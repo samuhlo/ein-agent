@@ -26,7 +26,7 @@ import { clearSddParticipantSession, planSddParticipants } from "../ein-pi/agent
 import { ensureEinGitignore } from "../ein-pi/agent/lib/gitignore.ts";
 import { PI_BUILTIN_TOOLS as PI_CONTRACT_BUILTINS } from "../ein-pi/agent/lib/pi-contract";
 
-const CORE_AGENTS = join(import.meta.dir, "../ein-pi/core/agents");
+const CORE_AGENTS = join(import.meta.dir, "../runtime/agents");
 const EXTENSIONS = join(import.meta.dir, "../ein-pi/agent/extensions");
 const orchestrator = readFileSync(
 	join(import.meta.dir, "../ein-pi/agent/assets/orchestrator.md"),

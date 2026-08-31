@@ -13,7 +13,7 @@ ein-cc -c                 # continúa la última conversación de ein-cc
 claude                    # tu Claude normal, intacto
 ```
 
-El launcher (`ein-cc.fish`) se instala en `~/.config/fish/functions/`. Setea `CLAUDE_CONFIG_DIR=~/.claude-ein` solo para esa invocación (no contamina tu shell).
+El launcher fuente vive en `ein-cc/launchers/ein-cc.fish` y se instala en `~/.config/fish/functions/`. Setea `CLAUDE_CONFIG_DIR=~/.claude-ein` solo para esa invocación (no contamina tu shell).
 
 `ein-cc` supervisa el Claude nativo sin alterar sus argumentos iniciales. `/ein:handoff status|to pi|to claude|refresh|clear` se intercepta en `UserPromptSubmit` antes del modelo; los handoffs crean una sesión nueva y nunca usan Resume.
 
@@ -21,7 +21,8 @@ El launcher (`ein-cc.fish`) se instala en `~/.config/fish/functions/`. Setea `CL
 
 `sync.ts` es un mini-compilador (patrón "un cerebro, muchos cuerpos"):
 
-- **Fuente canónica** = `ein-pi/core/` (agentes + skills), compartida con Pi. No se duplica: se traduce/copia en cada sync.
+- **Fuente propia canónica** = `runtime/` (agentes + skills propias), compartida con Pi. No se duplica: se traduce/copia en cada sync.
+- **Fuentes externas** = `vendor/skills/`; se copian como `skills/downloaded/` sin mezclarlas con la autoría de Ein.
 - **Específico de CC** = este dir (`CLAUDE.md`, `settings.json`, `hooks/`). 
 - Traduce el frontmatter de agentes Pi→CC (`read→Read`, `find→Glob`, …) y descarta lo específico de Pi (`budget`, `turnBudget`, `completionGuard`…).
 - Symlinkea `~/.claude/.credentials.json` (login compartido).

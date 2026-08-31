@@ -17,7 +17,7 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const CORE_AGENTS = join(import.meta.dir, "../ein-pi/core/agents");
+const CORE_AGENTS = join(import.meta.dir, "../runtime/agents");
 const ORCHESTRATOR = join(import.meta.dir, "../ein-pi/agent/assets/orchestrator.md");
 
 // Las siete fases SDD cuyo envelope de retorno drena al padre.
@@ -78,7 +78,7 @@ describe("orchestrator — doctrina de dieta de contexto", () => {
 		expect(raw).toContain("Phase result envelope");
 		expect(raw).toContain("lee el artefacto");
 
-		const agentsDir = join(import.meta.dir, "..", "ein-pi", "core", "agents");
+		const agentsDir = join(import.meta.dir, "..", "runtime", "agents");
 		const phases = readdirSync(agentsDir).filter((f) => f.startsWith("sdd-") && f.endsWith(".md"));
 		expect(phases.length).toBe(7);
 		for (const file of phases) {
