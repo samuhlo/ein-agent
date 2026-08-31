@@ -1,9 +1,17 @@
 import { createHash, randomUUID } from "node:crypto";
-import { closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeSync } from "node:fs";
-import { dirname, join, parse, resolve, sep } from "node:path";
 import { isProxy } from "node:util/types";
 import { executeInstallPlan, type InstallPlanExecution, type InstallPlanExecutionContext, type InstallPlanExecutionHandlers, type InstallPlanProgress } from "./install-executor.ts";
+import {
+  inspectStoredInstallJournal,
+  installJournalPath,
+  productionInstallJournalFs,
+  publishStoredInstallJournal,
+  type InstallJournalFs,
+} from "./install-journal-store.ts";
 import { INSTALL_PLAN_ENTRY_CONTRACTS, INSTALL_PLAN_ENTRY_IDS, validateInstallPlan, type InstallPlanEntryId, type InstallPlanRuntime, type InstallPlanV1 } from "./install-plan.ts";
+
+export { installJournalPath } from "./install-journal-store.ts";
+export type { InstallJournalFs } from "./install-journal-store.ts";
 
 export type InstallJournalState = "prepared" | "executing" | "recovery-required" | "complete";
 export type InstallJournalEntryState = "not-run" | "pending" | "completed" | "failed";
@@ -15,25 +23,10 @@ export type InstallExecutionJournalV1 = Readonly<{
   pendingEntryId?: InstallPlanEntryId; recoveryCode?: "handler-failed" | "interrupted";
 }>;
 
-export type InstallJournalFs = {
-  read(path: string): Uint8Array; mkdir(path: string, mode: number): void;
-  open(path: string, flags: number, mode?: number): number; write(fd: number, data: Uint8Array, offset: number): number;
-  fsync(fd: number): void; close(fd: number): void; rename(from: string, to: string): void; unlink(path: string): void;
-  inspect(path: string): { kind: "missing" | "file" | "directory" | "symlink" | "other"; mode: number; size: number };
-};
-
 export type InstallJournalLifecycle = Readonly<{
   rollback: (context: InstallPlanExecutionContext & { target: InstallPlanV1["target"] }) => void;
   finalize: (context: InstallPlanExecutionContext & { target: InstallPlanV1["target"] }) => void;
 }>;
-
-const noFollow = (constants as unknown as Record<string, number | undefined>).O_NOFOLLOW ?? 0;
-const productionFs: InstallJournalFs = {
-  read: (path) => readFileSync(path), mkdir: (path, mode) => mkdirSync(path, { mode }),
-  open: (path, flags, mode) => openSync(path, flags, mode), write: (fd, data, offset) => writeSync(fd, data, offset, data.length - offset),
-  fsync: fsyncSync, close: closeSync, rename: renameSync, unlink: unlinkSync,
-  inspect: (path) => { try { const value = lstatSync(path); return { kind: value.isSymbolicLink() ? "symlink" : value.isFile() ? "file" : value.isDirectory() ? "directory" : "other", mode: value.mode & 0o777, size: value.size }; } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "missing", mode: 0, size: 0 }; throw error; } },
-};
 
 export class InstallJournalError extends Error {
   constructor(readonly code: "recovery-required" | "journal-write-failed" | "recovery-write-failed") { super(`Install recovery status: ${code}`); this.name = "InstallJournalError"; }
@@ -60,7 +53,6 @@ const validFailureDetail = (value: unknown): value is string =>
   && !/[\u0000-\u001f\u007f]/.test(value)
   && new TextEncoder().encode(value).byteLength <= MAX_FAILURE_DETAIL_BYTES;
 const canonical = (value: unknown): string => Array.isArray(value) ? `[${value.map(canonical).join(",")}]` : value && typeof value === "object" ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(",")}}` : JSON.stringify(value); export const installPlanDigest = (plan: InstallPlanV1): string => { validateInstallPlan(plan); return createHash("sha256").update(canonical(plan)).digest("hex"); };
-export const installJournalPath = (home: string): string => join(home, ".ein-installer", "install-execution-v1.json");
 export const installJournalMatchesPlan = (journal: InstallExecutionJournalV1, plan: InstallPlanV1): boolean => journal.planDigest === installPlanDigest(plan) && journal.target === plan.target && journal.platform.os === plan.platform.os && journal.platform.arch === plan.platform.arch && journal.entries.map(({ id }) => id).join() === plan.inventory.filter((entry) => entry.state === "selected" || entry.state === "conditional").map(({ id }) => id).join();
 const supportsPreMutationRetry = (journal: InstallExecutionJournalV1, plan: InstallPlanV1): boolean => {
   if (!installJournalMatchesPlan(journal, plan) || journal.target !== "both" || journal.state !== "recovery-required" || journal.recoveryCode !== "handler-failed" || journal.pendingEntryId !== "pi.backup-current") return false;
@@ -276,30 +268,42 @@ export function validateInstallJournal(value: unknown): asserts value is Install
   if (!stateIsCoherent(journal, Object.getOwnPropertyDescriptors(value), deriveValidationFacts(journal))) rejectJournal();
 }
 
-function safeParent(home: string, fs: InstallJournalFs): string {
-  if (resolve(home) !== home) throw new InstallJournalError("recovery-required");
-  let cursor = parse(home).root;
-  for (const part of home.slice(cursor.length).split(sep).filter(Boolean)) { cursor = join(cursor, part); if (fs.inspect(cursor).kind !== "directory") throw new InstallJournalError("recovery-required"); }
-  const parent = dirname(installJournalPath(home)), info = fs.inspect(parent);
-  if (info.kind === "missing") fs.mkdir(parent, 0o700);
-  else if (info.kind !== "directory" || (info.mode & 0o077) !== 0) throw new InstallJournalError("recovery-required");
-  return parent;
+const encodeJournal = (value: InstallExecutionJournalV1): Uint8Array =>
+  new TextEncoder().encode(`${JSON.stringify(value)}\n`);
+
+function parseJournal(bytes: Uint8Array): InstallExecutionJournalV1 {
+  try {
+    const text = new TextDecoder().decode(bytes);
+    const value: unknown = JSON.parse(text);
+    validateInstallJournal(value);
+    if (text !== new TextDecoder().decode(encodeJournal(value))) throw new Error("non-canonical journal");
+    return value;
+  } catch {
+    throw new InstallJournalError("recovery-required");
+  }
 }
 
-const MAX_JOURNAL_BYTES = 64 * 1024; const encodeJournal = (value: InstallExecutionJournalV1): Uint8Array => new TextEncoder().encode(`${JSON.stringify(value)}\n`); function parseJournal(bytes: Uint8Array): InstallExecutionJournalV1 { try { if (bytes.length > MAX_JOURNAL_BYTES) throw 0; const text = new TextDecoder().decode(bytes), value: unknown = JSON.parse(text); validateInstallJournal(value); if (text !== new TextDecoder().decode(encodeJournal(value))) throw 0; return value; } catch { throw new InstallJournalError("recovery-required"); } }
-
-export function inspectInstallJournal(home: string, fs: InstallJournalFs = productionFs): { status: "missing" } | { status: "valid"; journal: InstallExecutionJournalV1 } | { status: "invalid" } {
-  try { if (resolve(home) !== home) return { status: "invalid" }; let cursor = parse(home).root; for (const part of home.slice(cursor.length).split(sep).filter(Boolean)) { cursor = join(cursor, part); if (fs.inspect(cursor).kind !== "directory") return { status: "invalid" }; } const path = installJournalPath(home), parentInfo = fs.inspect(dirname(path)); if (parentInfo.kind === "missing") return { status: "missing" }; if (parentInfo.kind !== "directory" || (parentInfo.mode & 0o077) !== 0) return { status: "invalid" }; const info = fs.inspect(path); if (info.kind === "missing") return { status: "missing" }; if (info.kind !== "file" || (info.mode & 0o077) !== 0 || info.size > MAX_JOURNAL_BYTES) return { status: "invalid" }; return { status: "valid", journal: parseJournal(fs.read(path)) }; } catch { return { status: "invalid" }; }
+export function inspectInstallJournal(home: string, fs: InstallJournalFs = productionInstallJournalFs): { status: "missing" } | { status: "valid"; journal: InstallExecutionJournalV1 } | { status: "invalid" } {
+  const stored = inspectStoredInstallJournal(home, fs);
+  if (stored.status !== "available") return stored;
+  try {
+    return { status: "valid", journal: parseJournal(stored.bytes) };
+  } catch {
+    return { status: "invalid" };
+  }
 }
 
 function publish(home: string, journal: InstallExecutionJournalV1, fs: InstallJournalFs): void {
-  validateInstallJournal(journal); const path = installJournalPath(home), temp = `${path}.${journal.transactionId}.tmp`; let fd: number | undefined;
-  try { const parent = safeParent(home, fs), target = fs.inspect(path); if (target.kind !== "missing" && (target.kind !== "file" || (target.mode & 0o077) !== 0) || fs.inspect(temp).kind !== "missing") throw 0; fd = fs.open(temp, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | noFollow, 0o600); const bytes = encodeJournal(journal); let offset = 0; while (offset < bytes.length) { const written = fs.write(fd, bytes, offset); if (!Number.isInteger(written) || written <= 0 || written > bytes.length - offset) throw 0; offset += written; } fs.fsync(fd); fs.close(fd); fd = undefined; fs.rename(temp, path); const dir = fs.open(parent, constants.O_RDONLY); try { fs.fsync(dir); } finally { fs.close(dir); } if (new TextDecoder().decode(fs.read(path)) !== new TextDecoder().decode(bytes)) throw 0; }
-  catch { if (fd !== undefined) try { fs.close(fd); } catch {} try { fs.unlink(temp); } catch {} throw new InstallJournalError("journal-write-failed"); }
+  validateInstallJournal(journal);
+  try {
+    publishStoredInstallJournal(home, journal.transactionId, encodeJournal(journal), fs);
+  } catch {
+    throw new InstallJournalError("journal-write-failed");
+  }
 }
 
 export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers: InstallPlanExecutionHandlers, options: { fs?: InstallJournalFs; transactionId?: () => string; signals?: Pick<NodeJS.Process, "on" | "off">; progress?: InstallPlanProgress; lifecycle?: InstallJournalLifecycle } = {}): Promise<InstallPlanExecution> {
-  validateInstallPlan(plan); const fs = options.fs ?? productionFs, home = plan.home;
+  validateInstallPlan(plan); const fs = options.fs ?? productionInstallJournalFs, home = plan.home;
   const existing = inspectInstallJournal(home, fs);
   if (existing.status === "invalid") throw new InstallJournalError("recovery-required");
   if (existing.status === "valid" && existing.journal.state === "complete") options.lifecycle?.finalize({ transactionId: existing.journal.transactionId, target: existing.journal.target });

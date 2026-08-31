@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createPiInstallHandlers, runInstall } from "../installer/src/cli/install.ts";
 import { snapshot, BackupFailure } from "../installer/src/core/backup.ts";
 import { executeInstallPlanJournaled, inspectInstallJournal, installJournalMatchesPlan, installJournalPath, installPlanDigest, InstallJournalError, validateInstallJournal, type InstallExecutionJournalV1, type InstallJournalFs } from "../installer/src/core/install-journal.ts";
+import { inspectStoredInstallJournal } from "../installer/src/core/install-journal-store.ts";
 import { executeInstallPlan, type InstallPlanExecutionHandlers } from "../installer/src/core/install-executor.ts";
 import { createInstallPlan, type InstallPlanInput, type InstallPlanV1 } from "../installer/src/core/install-plan.ts";
 import { finalizeRuntimeSurfaceRetirement, retireOwnedLegacyRuntimeArtifacts, rollbackRuntimeSurfaceRetirement } from "../installer/src/core/runtime-surface-transaction.ts";
@@ -267,6 +268,21 @@ describe("install execution journal", () => {
     const root = home(), path = installJournalPath(root); mkdirSync(join(root, ".ein-installer"), { mode: 0o700 }); symlinkSync(join(root, "missing"), path);
     expect(inspectInstallJournal(root)).toEqual({ status: "invalid" }); expect(path).toBe(join(root, ".ein-installer", "install-execution-v1.json")); expect(path).not.toMatch(/\.pi|\.claude|\.ein\/|\.atl/);
     unlinkSync(path); writeFileSync(path, "{}", { mode: 0o644 }); expect(inspectInstallJournal(root)).toEqual({ status: "invalid" }); writeFileSync(path, "x".repeat(65537), { mode: 0o600 }); expect(inspectInstallJournal(root)).toEqual({ status: "invalid" }); const linked = `${root}-link`; roots.push(linked); symlinkSync(root, linked); expect(inspectInstallJournal(linked)).toEqual({ status: "invalid" }); rmSync(join(root, ".ein-installer"), { recursive: true }); symlinkSync(root, join(root, ".ein-installer")); expect(inspectInstallJournal(root)).toEqual({ status: "invalid" });
+  });
+
+  test("bounds stored bytes even when filesystem metadata understates their size", () => {
+    const root = home(), path = installJournalPath(root), base = fsOps();
+    mkdirSync(join(root, ".ein-installer"), { mode: 0o700 });
+    writeFileSync(path, "x", { mode: 0o600 });
+    const dishonest: InstallJournalFs = {
+      ...base,
+      inspect(candidate) {
+        const info = base.inspect(candidate);
+        return candidate === path ? { ...info, size: 1 } : info;
+      },
+      read: (candidate) => candidate === path ? new Uint8Array(64 * 1024 + 1) : base.read(candidate),
+    };
+    expect(inspectStoredInstallJournal(root, dishonest)).toEqual({ status: "invalid" });
   });
 
   test("blocks startup before banner/handlers, reinstalls over a complete journal, and leaves dry-run untouched", async () => {
