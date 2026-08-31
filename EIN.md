@@ -6,7 +6,7 @@ Herramienta personal de Samu antes que producto público; cuando las dos cosas c
 
 **Rumbo canónico: [`MANIFIESTO.md`](MANIFIESTO.md).** Define lo que Ein tiene que ser; manda sobre cualquier plan.
 
-**Hoja de ruta canónica: [`docs/roadmap-features-ein.md`](docs/roadmap-features-ein.md).** Es la única fuente de priorización y secuencia. En `docs/` solo quedan documentos vigentes: [`origen-y-ideas.md`](docs/origen-y-ideas.md) (material de origen, nunca un plan) y cuatro guías de apoyo.
+**Hoja de ruta canónica: [`docs/roadmap.md`](docs/roadmap.md).** Solo contiene trabajo vigente. `docs/README.md` explica dónde vive cada clase de información y `docs/adr/` conserva decisiones duraderas.
 
 ## Arquitectura
 <!-- CURADA — estilo (p.ej. screaming architecture) y dónde viven las features. -->
@@ -34,10 +34,9 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - `e2e/` — Escenarios E2E del instalador en contenedores limpios.
 - `ein-cc/` — Adaptador Claude y sincronización de superficies.
 - `ein-pi/` — Core compartido, runtime Pi, launcher aislado y migración.
-- `evals/` — _(describe)_
+- `evals/` — Corpus y evaluaciones reproducibles que no participan en el runtime.
 - `installer/` — CLI, binarios y runtime del instalador.
 - `openspec/` — Especificaciones y ciclos de cambios SDD.
-- `spikes/` — Exploraciones acotadas con su informe de decisión (stop/go).
 - `tests/` — Suite Bun de contratos y paridad.
 
 <!-- ein:auto:start — generado por /ein:init, no editar a mano -->
@@ -61,23 +60,16 @@ El flujo es SDD: `scope → map → design → tasks → apply → verify → cl
 - `evals/`
 - `installer/`
 - `openspec/`
-- `spikes/`
 - `tests/`
 
 ## Docs
 
 - [README](README.md)
 - [CHANGELOG](CHANGELOG.md)
-- [docs/EIN_DOCUMENTATION_BRIEF.md](docs/EIN_DOCUMENTATION_BRIEF.md)
-- [docs/comparativa-pi-config-2026-08.md](docs/comparativa-pi-config-2026-08.md)
-- [docs/fricciones-dogfooding.md](docs/fricciones-dogfooding.md)
-- [docs/guia-cleaner-architect-herramientas-deterministas.md](docs/guia-cleaner-architect-herramientas-deterministas.md)
-- [docs/investigacion-freeze-repintado-2026-08.md](docs/investigacion-freeze-repintado-2026-08.md)
-- [docs/origen-y-ideas.md](docs/origen-y-ideas.md)
-- [docs/plan-hallazgos-dogfooding-2026-08.md](docs/plan-hallazgos-dogfooding-2026-08.md)
-- [docs/review-workload-guard.md](docs/review-workload-guard.md)
-- [docs/roadmap-features-ein.md](docs/roadmap-features-ein.md)
-- [docs/valoracion-estado-y-rumbo-2026-08.md](docs/valoracion-estado-y-rumbo-2026-08.md)
+- [docs/README.md](docs/README.md)
+- [docs/roadmap.md](docs/roadmap.md)
+- [docs/adr/0001-review-workload-guard.md](docs/adr/0001-review-workload-guard.md)
+- [docs/adr/0002-retain-legacy-terminal-renderer.md](docs/adr/0002-retain-legacy-terminal-renderer.md)
 
 <!-- ein:auto:end -->
 

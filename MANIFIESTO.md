@@ -5,7 +5,7 @@ describe lo que Ein **tiene que ser**. Cuando una decisión de producto choque
 con este documento, gana este documento. Cuando este documento choque con la
 realidad medida, se corrige este documento — nunca se ignora.
 
-Autoridad: por encima de `docs/roadmap-features-ein.md` (que ordena el trabajo)
+Autoridad: por encima de `docs/roadmap.md` (que ordena el trabajo)
 y de cualquier plan, spike o artefacto SDD (que registran evidencia).
 
 ---

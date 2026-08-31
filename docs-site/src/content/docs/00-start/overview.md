@@ -1,7 +1,7 @@
 ---
 title: "Overview"
 description: "Qué es EIN, qué problema resuelve y para quién está pensado."
-sources: ["README.md", "docs/roadmap-features-ein.md", "ein-pi/core/docs/EIN_OPERATING_SYSTEM.md"]
+sources: ["README.md", "docs/roadmap.md", "ein-pi/core/docs/EIN_OPERATING_SYSTEM.md"]
 verified_rev: "29861f5"
 ---
 
@@ -84,7 +84,7 @@ Es útil cuando el cuello de botella es **revisar**, no producir.
 
 :::caution[BETA]
 EIN está en beta. El registro honesto de qué está probado, qué no y qué puede
-cambiar vive en [`docs/roadmap-features-ein.md`](https://github.com/samuhlo/ein-agent/blob/main/docs/roadmap-features-ein.md).
+cambiar vive en [`docs/roadmap.md`](https://github.com/samuhlo/ein-agent/blob/main/docs/roadmap.md).
 :::
 
 La release vigente se publica en

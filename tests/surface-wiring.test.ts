@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -695,6 +695,13 @@ describe("Pi ein-pi launcher adapter", () => {
 const CLAUDE_LAUNCHER_SOURCE = join(import.meta.dir, "..", "ein-cc", "ein-cc.fish");
 const CLAUDE_SYNC_SOURCE = join(import.meta.dir, "..", "ein-cc", "sync.ts");
 const CANONICAL_ORCHESTRATOR_SOURCE = join(import.meta.dir, "..", "ein-pi", "agent", "assets", "orchestrator.md");
+const BUN_BUILD_ARTIFACT = /^\.[a-f0-9]+-\d+\.bun-build$/;
+
+function repositoryBunBuildArtifacts(): string[] {
+  return readdirSync(join(import.meta.dir, ".."))
+    .filter((name) => BUN_BUILD_ARTIFACT.test(name))
+    .sort();
+}
 
 type ClaudeSyncFixture = Readonly<{
   home: string;
@@ -795,12 +802,14 @@ describe("Claude checkout/runtime sync asset", () => {
   test("deploys the canonical orchestrator as a regular byte-identical file", () => {
     const fixture = claudeSyncFixture();
     const destination = join(fixture.claudeHome, "assets", "orchestrator.md");
+    const artifactsBeforeSync = repositoryBunBuildArtifacts();
     try {
       const result = fixture.run();
 
       expect(result.status).toBe(0);
       expect(lstatSync(destination).isFile()).toBe(true);
       expect(readFileSync(destination)).toEqual(readFileSync(CANONICAL_ORCHESTRATOR_SOURCE));
+      expect(repositoryBunBuildArtifacts()).toEqual(artifactsBeforeSync);
     } finally {
       fixture.cleanup();
     }
