@@ -212,7 +212,7 @@ Todos los cambios relevantes de Ein. El formato sigue
   detecta el bloqueo, sin esperar a un gesto del usuario. Cobertura:
   `tests/sdd-overlay-repaint.test.ts` y `tests/subagent-widget-layout.test.ts`.
   Investigación completa en
-  `docs/investigacion-freeze-repintado-2026-08.md`.
+  la investigación histórica del freeze, conservada en Git.
 - **Los títulos de los grupos de tareas se renderizan correctamente sobre el
   overlay.** El router SDD no transmitía la referencia al título del grupo al
   componente de overlay, así que los grupos de tareas se enseñaban sin nombre.
@@ -263,9 +263,9 @@ Todos los cambios relevantes de Ein. El formato sigue
   Se elimina el módulo `mode.ts` y se limpian las referencias. El modo por
   defecto sigue siendo `single`.
 - **Documentación: el roadmap se rescata como contrato vigente.** El documento
-  `docs/roadmap-features-ein.md` pasa a reflejar solo trabajo efectivamente
+  el roadmap pasa a reflejar solo trabajo efectivamente
   construido o en construcción activa; el material obsoleto se archiva o se
-  retira. `docs/valoracion-estado-y-rumbo-2026-08.md` da contexto estratégico.
+  retira. El contexto estratégico histórico queda conservado en Git.
 
 ### Internal
 
@@ -1346,7 +1346,7 @@ más ligero), sin prometer estabilidad todavía.
 - **Docs de planificación, roadmaps y spikes** (`1f81a7b`, PR #70). `docs/` pasó
   de 21 ficheros a 2. Doctrina nueva: `docs/` guarda solo estado actual; la
   historia de lo planteado vive en git y en `openspec/changes/archive`. Se
-  conserva `review-workload-guard.md` (feature viva) y `ein-multiagente-plan.md`
+  conserva la decisión del workload guard (hoy ADR 0001) y `ein-multiagente-plan.md`
   (semilla del replanteamiento, ahora trackeado).
 
 ### Changed

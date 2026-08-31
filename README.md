@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="ein-logo.png" alt="Ein · coding-agent harness" width="440">
+  <img src="docs-site/public/assets/brand/ein-logo.png" alt="Ein · coding-agent harness" width="440">
   <h1><code>./EIN.sh</code></h1>
 
 **Un harness de coding-agent para Pi Coding Agent y Claude Code: dos runtimes aislados, una disciplina de entrega.**
@@ -132,7 +132,7 @@ ein-cc-sdd status  # canal determinista SDD de Claude
 
 ## // 07_ ESTADO
 
-Beta. El registro mantenido de qué está probado, con qué evidencia y qué puede cambiar es [`docs/roadmap-features-ein.md`](docs/roadmap-features-ein.md). El rumbo que no se negocia vive en [`MANIFIESTO.md`](MANIFIESTO.md).
+Beta. El registro mantenido de qué está probado, con qué evidencia y qué puede cambiar es [`docs/roadmap.md`](docs/roadmap.md). El rumbo que no se negocia vive en [`MANIFIESTO.md`](MANIFIESTO.md).
 
 Los cambios con impacto van al [CHANGELOG](CHANGELOG.md). Las releases se publican como tags `installer-v*` desde GitHub Actions.
 

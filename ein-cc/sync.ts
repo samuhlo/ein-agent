@@ -15,6 +15,8 @@ import {
   copyFileSync,
   cpSync,
   existsSync,
+  lstatSync,
+  mkdtempSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -23,10 +25,9 @@ import {
   statSync,
   symlinkSync,
   writeFileSync,
-  lstatSync,
 } from "node:fs";
-import { homedir } from "node:os";
-import { basename, dirname, join, relative } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { resolveEngramDataDir } from "../ein-pi/agent/lib/memory-contract.ts";
 
@@ -605,8 +606,10 @@ export type ClaudeSurfaceRunnerPayloadOptions = {
  * an undiagnosable failure on a user's machine.
  */
 export function compileStandalone(entrypoint: string, output: string): void {
+  const buildDirectory = mkdtempSync(join(tmpdir(), "ein-cc-compile-"));
   try {
-    execFileSync("bun", ["build", "--compile", entrypoint, "--outfile", output], {
+    execFileSync("bun", ["build", "--compile", resolve(entrypoint), "--outfile", resolve(output)], {
+      cwd: buildDirectory,
       stdio: ["ignore", "pipe", "pipe"],
       encoding: "utf8",
     });
@@ -614,6 +617,8 @@ export function compileStandalone(entrypoint: string, output: string): void {
     const detail = error as { stderr?: string; stdout?: string };
     const captured = [detail.stderr, detail.stdout].filter(Boolean).join("\n").trim();
     throw new Error(captured || failureMessage(error));
+  } finally {
+    rmSync(buildDirectory, { recursive: true, force: true });
   }
 }
 
