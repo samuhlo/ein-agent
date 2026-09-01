@@ -34,11 +34,7 @@ const REPO_ROOT = dirname(INSTALLER_ROOT);
 const OUT = join(INSTALLER_ROOT, "src", "assets", "ein-cc-runtime.tar.gz");
 
 const SOURCE_EXTENSIONS = ["", ".ts", ".tsx", ".js", ".json"];
-const SOURCE_TRANSPILERS = {
-  js: new Bun.Transpiler({ loader: "js" }),
-  ts: new Bun.Transpiler({ loader: "ts" }),
-  tsx: new Bun.Transpiler({ loader: "tsx" }),
-} as const;
+type SourceTranspilers = Readonly<Record<"js" | "ts" | "tsx", Bun.Transpiler>>;
 
 export type BundleEinCcPayloadOptions = Readonly<{
   /** Checkout root used as the source of repository-relative payload paths. */
@@ -87,17 +83,17 @@ function resolveImportedFile(from: string, specifier: string): string | null {
   throw new Error(`Import relativo del payload no encontrado: ${specifier} desde ${from}`);
 }
 
-function runtimeModuleSpecifiers(path: string, source: string): string[] {
+function runtimeModuleSpecifiers(path: string, source: string, transpilers: SourceTranspilers): string[] {
   try {
     if (path.endsWith(".json")) {
       JSON.parse(source);
       return [];
     }
     const transpiler = path.endsWith(".tsx")
-      ? SOURCE_TRANSPILERS.tsx
+      ? transpilers.tsx
       : path.endsWith(".js")
-        ? SOURCE_TRANSPILERS.js
-        : SOURCE_TRANSPILERS.ts;
+        ? transpilers.js
+        : transpilers.ts;
     const scannableSource = source.startsWith("#!") ? source.replace(/^#![^\r\n]*(?:\r?\n|$)/, "") : source;
     return [...new Set(transpiler.scanImports(scannableSource).map((entry) => entry.path))];
   } catch (error) {
@@ -109,12 +105,17 @@ function runtimeModuleSpecifiers(path: string, source: string): string[] {
 function collectSourceClosure(repoRoot: string, entries: readonly string[]): string[] {
   const pending = entries.map((entry) => sourcePath(repoRoot, entry));
   const found = new Set<string>();
+  const transpilers: SourceTranspilers = {
+    js: new Bun.Transpiler({ loader: "js" }),
+    ts: new Bun.Transpiler({ loader: "ts" }),
+    tsx: new Bun.Transpiler({ loader: "tsx" }),
+  };
   while (pending.length > 0) {
     const current = pending.pop()!;
     if (found.has(current)) continue;
     found.add(current);
     const source = readFileSync(current, "utf8");
-    for (const specifier of runtimeModuleSpecifiers(current, source)) {
+    for (const specifier of runtimeModuleSpecifiers(current, source, transpilers)) {
       const imported = resolveImportedFile(current, specifier);
       if (imported) pending.push(imported);
     }
