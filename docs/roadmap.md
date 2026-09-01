@@ -2,21 +2,9 @@
 
 Este documento contiene únicamente trabajo vigente. Las decisiones estables viven en `docs/adr/`, el comportamiento actual en `openspec/specs/` y la historia exhaustiva en Git y las releases.
 
-El trabajo anterior llegó hasta la PR #280: baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, primeros contratos compartidos extraídos y fronteras automáticas de imports en su sitio. La deuda que sobrevivió a esa etapa se reordena aquí según sus dependencias reales; dividir los hotspots deja de ser el siguiente movimiento automático.
+El trabajo anterior dejó la baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, primeros contratos compartidos extraídos y fronteras automáticas de imports en su sitio. Las fases posteriores repararon el presupuesto de revisión y separaron el diario de instalación en contrato, forma, alcanzabilidad, codec, store, política, persistencia y ejecución.
 
-## Ahora — fase 3, terminar el diario de instalación
-
-Objetivo: que el flujo de instalación se lea de arriba abajo.
-
-`executeInstallPlanJournaled` ocupa 68 renglones con 6.044 caracteres y concentra reanudación, dos reintentos cableados a mano, envoltura de handlers, transiciones, persistencia, señales, rollback y finalización. Mover la función a otro fichero cambia de cajón sin arreglar nada: el corte separa la decisión pura de la ejecución con efectos.
-
-- [ ] Codec: bytes canónicos ↔ diario validado.
-- [ ] Política de reanudación y transiciones del diario, como funciones puras.
-- [ ] Bucle de ejecución y fachada fina. Si el metro reparado dice que sigue siendo demasiado para una revisión, se parte — y esa decisión es del humano.
-
-Criterio de salida: el flujo se lee como «abre, reanuda, ejecuta, persiste, finaliza o revierte» sin descifrar renglones comprimidos.
-
-## Después — fase 4, retirar peso accidental del payload
+## Ahora — fase 4, retirar peso accidental del payload
 
 Objetivo: que la frontera declarada en prosa la confirme el archive.
 
