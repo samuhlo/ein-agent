@@ -136,9 +136,12 @@ export function markInstallJournalEntryPending(
   validateInstallJournal(journal);
   const index = entryIndex(journal, id);
   const current = journal.entries[index]!;
+  // GUARD -> La retirada final admite los mismos estados que su clasificador:
+  // interrumpida deja el checkpoint en `pending` y aun así debe poder reanudarse.
   const retryable = current.status === "failed"
     && (id === "pi.backup-current" || id === "shared.retire-legacy")
-    || current.status === "completed" && id === "shared.retire-legacy";
+    || ["pending", "completed"].includes(current.status)
+    && id === "shared.retire-legacy";
   if (current.status !== "not-run" && !retryable) {
     throw new InstallJournalError("recovery-required");
   }

@@ -171,6 +171,56 @@ describe("install execution journal", () => {
     if (stored.status === "valid") expect(stored.journal.state).toBe("complete");
   });
 
+  test("resumes a retirement interrupted mid-handler without repeating completed work", async () => {
+    const value = plan("claude");
+    const listeners = new Set<() => void>();
+    const signals = {
+      on(_name: string, listener: () => void) {
+        listeners.add(listener);
+        return this;
+      },
+      off(_name: string, listener: () => void) {
+        listeners.delete(listener);
+        return this;
+      },
+    };
+
+    await expect(executeInstallPlanJournaled(
+      value,
+      handlers(value, (id) => {
+        if (id === "shared.retire-legacy") for (const listener of listeners) listener();
+        return { ok: true };
+      }),
+      { signals: signals as never },
+    )).rejects.toMatchObject({ code: "recovery-required" });
+
+    const interrupted = inspectInstallJournal(value.home);
+    expect(interrupted.status).toBe("valid");
+    if (interrupted.status === "valid") {
+      expect(interrupted.journal).toMatchObject({
+        state: "recovery-required",
+        recoveryCode: "interrupted",
+        pendingEntryId: "shared.retire-legacy",
+      });
+      expect(interrupted.journal.entries.find(({ id }) => id === "shared.retire-legacy")?.status).toBe("pending");
+    }
+
+    const calls: string[] = [];
+    const recovered = await executeInstallPlanJournaled(
+      value,
+      handlers(value, (id) => {
+        calls.push(id);
+        return { ok: true };
+      }),
+    );
+
+    expect(recovered.ok).toBe(true);
+    expect(calls).toEqual(["shared.retire-legacy"]);
+    const stored = inspectInstallJournal(value.home);
+    expect(stored.status).toBe("valid");
+    if (stored.status === "valid") expect(stored.journal.state).toBe("complete");
+  });
+
   test("rejects interrupted, migrated, mutated, unsupported, and plan-mismatched recovery", async () => {
     const value = plan(), detail = "backup failure", exact = preMutationRecovery(value, detail), path = installJournalPath(value.home);
     await executeInstallPlanJournaled(value, handlers(value, (id) => id === "pi.backup-current" ? { ok: false, detail } : { ok: true }));
