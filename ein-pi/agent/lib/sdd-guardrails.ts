@@ -9,9 +9,14 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { readConfigRules, type PhaseRules } from "./openspec-config-rules.ts";
+import { evaluateOpenSpecState, type SyncBaseInput } from "./openspec-spec-sync.ts";
 import { DEFAULT_LANE, LANE_PHASES, readChangeLane, type SddLane } from "./sdd-lane.ts";
 import { join } from "node:path";
-import { extractProductionFiles, resolveChangesDir } from "./sdd-router.ts";
+import {
+	extractProductionFiles,
+	resolveChangesDir,
+	type SddSpecState,
+} from "./sdd-routing-core.ts";
 import { parseOpenSpec, parseOpenSpecDelta } from "./openspec-spec-parser.ts";
 
 export type SpecDeltaDeclaration = { mode: "none" | "delta" | "invalid"; deltas: { path: string; bytes: Uint8Array }[] };
@@ -370,6 +375,35 @@ export function readSpecDeltaDeclaration(cwd: string, change: string): SpecDelta
 	const hasNoneTokens = /^## Spec delta declaration\n(?:spec_delta:|spec_delta_reason:)/m.test(scope);
 	if (deltas.length > 0) return blocks.length === 0 && !hasNoneTokens ? { mode: "delta", deltas } : { mode: "invalid", deltas: [] };
 	return blocks.length === 1 && !invalidReason ? { mode: "none", deltas: [] } : { mode: "invalid", deltas: [] };
+}
+
+export function readOpenSpecState(cwd: string, change: string): SddSpecState {
+	if (resolveChangesDir(cwd) !== join(cwd, "openspec", "changes")) return "legacy";
+	const declaration = readSpecDeltaDeclaration(cwd, change);
+	const bases: SyncBaseInput[] = [];
+	for (const delta of declaration.deltas) {
+		const domain = delta.path.split("/")[1]!;
+		const path = join(cwd, "openspec", "specs", domain, "spec.md");
+		if (!existsSync(path)) continue;
+		try {
+			bases.push({ domain, bytes: readFileSync(path) });
+		} catch {
+			return "unresolved";
+		}
+	}
+	let report: string | null = null;
+	try {
+		report = readFileSync(join(cwd, "openspec", "changes", change, "sync-report.md"), "utf8");
+	} catch {
+		// An absent or unreadable report remains pending/unresolved in the evaluator.
+	}
+	return evaluateOpenSpecState({
+		declaration: declaration.mode,
+		change,
+		deltas: declaration.deltas,
+		bases,
+		report,
+	});
 }
 
 // P0-B: el sync de close mergea cada delta DENTRO de su spec canónico base y

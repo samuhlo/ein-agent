@@ -19,7 +19,7 @@ import { dirname, join } from "node:path";
 
 import { DOMAIN_ID_PATTERN } from "./openspec-spec-contract.ts";
 import { buildOpenSpecDelta, type OpenSpecDeltaOperation } from "./openspec-spec-parser.ts";
-import { isSafeChangeName } from "./sdd-router.ts";
+import { isSafeChangeName } from "./sdd-routing-core.ts";
 
 export type DeltaWriteRequest = Readonly<{
 	cwd: string;

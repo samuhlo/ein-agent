@@ -1008,6 +1008,7 @@ function installedSurfaceFixture(runtime: InstalledRuntime) {
   const functionDir = join(home, ".config", "fish", "functions");
   const sourceAgent = join(import.meta.dir, "..", "ein-pi", "agent");
   const sourceSharedContracts = join(import.meta.dir, "..", "shared", "contracts");
+  const sourceSharedSdd = join(import.meta.dir, "..", "shared", "sdd");
   const isolatedRoot = join(home, runtime === "pi" ? ".pi-ein" : ".claude-ein");
   const installedAgent = join(isolatedRoot, "agent");
   const launcherName = runtime === "pi" ? "ein-pi" : "ein-cc";
@@ -1025,6 +1026,7 @@ function installedSurfaceFixture(runtime: InstalledRuntime) {
   // The production template overlays shared implementations onto the flat Pi
   // layout; mirror that composition instead of executing checkout wrappers.
   cpSync(sourceSharedContracts, join(installedAgent, "lib"), { recursive: true });
+  cpSync(sourceSharedSdd, join(installedAgent, "lib"), { recursive: true });
 
   const runnerPath = runtime === "pi"
     ? join(installedAgent, "surfaces", "surface-runner.ts")

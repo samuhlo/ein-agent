@@ -19,7 +19,9 @@ import {
 	type ScopeOnlyRecordFacts,
 	type ValidatedOutOfFlowReconciliation,
 } from "./sdd-reconciliation.ts";
-import { assessCloseReadiness, isSafeChangeName, resolveChangesDir, resolveSddStatus } from "./sdd-router.ts";
+import { assessCloseReadiness } from "./sdd-close-readiness.ts";
+import { isSafeChangeName, resolveChangesDir } from "./sdd-routing-core.ts";
+import { resolveSddStatus } from "./sdd-routing-runtime.ts";
 
 export type CloseBlocker = { code: string; message: string };
 

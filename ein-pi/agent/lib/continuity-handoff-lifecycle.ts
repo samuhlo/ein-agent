@@ -7,7 +7,8 @@ import {
 	type ContinuityCheckpointFacts,
 } from "./continuity-checkpoint.ts";
 import { continuitySddFacts } from "./continuity-sdd-facts.ts";
-import { resolveSddStatus, type SddChangeStatus } from "./sdd-router.ts";
+import type { SddChangeStatus } from "./sdd-routing-core.ts";
+import { resolveSddStatus } from "./sdd-routing-runtime.ts";
 import {
 	clearContinuityCheckpoint,
 	readContinuityCheckpoint,

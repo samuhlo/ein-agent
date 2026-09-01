@@ -20,9 +20,8 @@ Objetivo: que el motor compartido exista de verdad, no como fachada.
 
 `shared/ports/` sigue siendo una fachada de migración hacia implementaciones propiedad de Pi. La CLI SDD de Claude consume parte de ese cierre; la frontera compartida todavía está declarada antes que construida.
 
-La primera pieza ya vive en `shared/sdd/`: política y coordinación de intención con E/S inyectada, consumidas por Pi y Claude. La migración continúa pieza a pieza, con reexports temporales durante cada corte:
+Las dos primeras piezas ya viven en `shared/sdd/`: la política y coordinación de intención, y la selección, lectura de estado y routing. Pi y Claude consumen esas decisiones con E/S inyectada; las fachadas temporales solo conservan compatibilidad mientras continúa la migración:
 
-- [ ] Selección, lectura de estado y routing, hoy en `sdd-router.ts` (40 exports, 19 consumidores).
 - [ ] Cierre, OpenSpec y guardas que ambos runtimes usan realmente.
 
 Hooks, preguntas, interfaz y herramientas exclusivas se quedan en Pi. Cada PR debe reducir la lista de puentes y el cierre real de la CLI.

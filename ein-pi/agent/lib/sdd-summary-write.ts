@@ -19,7 +19,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { isSafeChangeName } from "./sdd-router.ts";
+import { isSafeChangeName } from "./sdd-routing-core.ts";
 
 export type SummaryWriteRequest = Readonly<{
 	cwd: string;

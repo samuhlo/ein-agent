@@ -29,3 +29,10 @@ requirement: The system MUST refuse to generate an apparently complete Claude pa
 Given: a payload entry or discovered relative dependency contains invalid TypeScript syntax
 When: the bundler analyzes that source while calculating the closure
 Then: bundling fails with the affected source identified and no archive is published
+
+## Scenario: claude-payload-uses-shared-sdd-routing-core
+title: Claude payload routes SDD state through the shared core
+requirement: The system MUST derive active-change selection, lifecycle status, and next-phase routing for Pi and Claude from one runtime-neutral SDD core, and the Claude payload MUST NOT depend on the Pi sdd-router implementation for those decisions.
+Given: Pi and Claude inspect the same OpenSpec change tree, including absent, unique, explicit, ambiguous, incomplete, stale, and conflicting states
+When: each runtime resolves lifecycle status or the Claude payload source closure is calculated
+Then: both runtimes return equivalent selection and routing results, the shared routing core is present in the payload, and the Pi sdd-router implementation is absent from that closure

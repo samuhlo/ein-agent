@@ -33,7 +33,12 @@ import {
 	writeChangeLane,
 	type SddLane,
 } from "./sdd-lane.ts";
-import { isSafeChangeName, resolveActiveSelection, resolveChangesDir, selectedChange } from "./sdd-router.ts";
+import {
+	isSafeChangeName,
+	resolveActiveSelection,
+	resolveChangesDir,
+	selectedChange,
+} from "./sdd-routing-core.ts";
 import type {
 	PreflightAuthor,
 	SddIntentRecord,

@@ -9,11 +9,8 @@ import {
 	realpathSync,
 } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
-import {
-	listActiveChanges,
-	resolveSddNext,
-	resolveSddStatus,
-} from "./sdd-router.ts";
+import { listActiveChanges } from "./sdd-routing-core.ts";
+import { resolveSddNext, resolveSddStatus } from "./sdd-routing-runtime.ts";
 import { einMdPath, readEinMd } from "./project-context.ts";
 
 export const PROJECT_STATE_SCHEMA_VERSION = 1 as const;
