@@ -9,7 +9,7 @@
 //      adopta o reabre por materialKey, presenta normal/small/bypass y solo
 //      persiste resoluciones cerradas. TDD y lane se consumen desde disco o sus
 //      defaults técnicos; ya no forman un cuestionario paralelo. El bloque
-//      renderizado incluye el Review Workload Guard con budget fijo 400.
+//      renderizado incluye el Review Workload Guard con budgets fijos.
 //   2. SHAPING DE DELEGACIÓN: da forma a las delegaciones a las fases SDD — el
 //      gate de TDD por tarea (resuelve el `ask` de forma determinista, que en un
 //      chain el parent no puede preguntar), e inyecta `acceptance`/turn-budget en
@@ -20,7 +20,7 @@
 // re-exportados aquí por compatibilidad de imports).
 //
 // Fallback sin UI: sin `ctx.hasUI` (subagente/headless) se aplican defaults
-// (interactive / memory off / 400 budget / carril standard) y el bloque se
+// (interactive / memory off / budgets por defecto / carril standard) y el bloque se
 // inyecta igual. Ahí NADIE decidió nada, así que la postura no se persiste: un
 // headless no puede dejar escrito en el cambio un "off" que no eligió nadie.
 // =============================================================================
@@ -36,6 +36,7 @@ import {
 	delegationTargetsOnly,
 } from "./delegation-shape.ts";
 import { type GitBaseline, readGitBaseline, renderGitBaselineLine } from "./git-baseline";
+import { DEFAULT_REVIEW_BUDGET_BYTES } from "./review-forecast.ts";
 import { type TddMode, readTddMode } from "./tdd";
 import {
 	DEFAULT_LANE,
@@ -925,7 +926,7 @@ export function renderSddPreflightPrompt(
 		`- Execution mode: ${prefs.executionMode}`,
 		"- OpenSpec: canonical full SDD record (always present).",
 		`- Optional project notebook: Engram ${prefs.memoryMode}${prefs.engramAvailable ? " (configured; no retrieval or save is implied)" : " (unavailable in this session)"}.`,
-		`- Review budget: ${prefs.reviewBudgetLines} changed lines`,
+		`- Review budget: ${prefs.reviewBudgetLines} changed lines / ${DEFAULT_REVIEW_BUDGET_BYTES.toLocaleString("en-US")} changed non-whitespace bytes`,
 	];
 	if (includeTdd) lines.push(tddPreflightLine(prefs.tddMode));
 	// El carril solo se nombra cuando SALTA fases. `standard` es la forma normal
@@ -941,7 +942,7 @@ export function renderSddPreflightPrompt(
 		if (baselineLine) lines.push(baselineLine);
 	}
 	lines.push(
-		`- Review Workload Guard: before delegating a PR, the parent calls \`ein_review_forecast\` (a deterministic tool — pass \`base\` = the PR base) to get PRODUCTION changed lines vs the ${prefs.reviewBudgetLines}-line review budget. Test/generated lines are reported, never counted. If production exceeds the budget, pause and ask the user (single PR vs split into smaller PRs); forward \`Production lines: N\` so ein-git gates without re-measuring. \`auto\` execution mode does NOT bypass this gate.`,
+		`- Review Workload Guard: before delegating a PR, call \`ein_review_forecast\` with the PR base. It owns the pathspec and evaluates production against the ${prefs.reviewBudgetLines}-line and ${DEFAULT_REVIEW_BUDGET_BYTES.toLocaleString("en-US")}-byte review budgets; tests, file count and density notices never gate. If its combined result is over budget, pause and ask the user (single PR vs chained PRs). Forward \`Production lines\`, \`Production bytes\`, both \`Review budgets\` and the \`Over budget\` result so ein-git trusts the same decision without re-measuring. \`auto\` does NOT bypass this gate.`,
 	);
 	return lines.join("\n");
 }

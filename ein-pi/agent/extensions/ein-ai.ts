@@ -108,7 +108,13 @@ import {
 } from "../lib/sdd-preflight-record.ts";
 import { aggregateSddBudget, changeUnavailableMessage, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddNextHandoff, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
 import { SDD_SESSION_BINDING_EVENT_CHANNEL, type SessionBindingEventV1 } from "../lib/sdd-session-binding.ts";
-import { reviewForecast, formatReviewForecast } from "../lib/review-forecast.ts";
+import {
+	DEFAULT_REVIEW_BUDGET_BYTES,
+	DEFAULT_REVIEW_DENSITY_NOTICE_BYTES_PER_LINE,
+	evaluateReviewForecast,
+	formatReviewForecast,
+	reviewForecast,
+} from "../lib/review-forecast.ts";
 import { closeChange, type CloseOptions } from "../lib/sdd-close.ts";
 import { parseSddCloseArgs } from "../lib/sdd-close-args.ts";
 import { approveCandidate, type MemoryCandidate, type MemoryReceipt } from "../lib/memory-contract.ts";
@@ -1709,7 +1715,8 @@ export default function einAi(pi: ExtensionAPI): void {
 			"Deterministic PR-size forecast for the Review Workload Guard.",
 			"Uses a fixed production pathspec and returns changed production lines,",
 			"non-whitespace UTF-8 bytes, touched files and per-file volume; test lines stay separate.",
-			"The line count remains the gate in this measurement slice.",
+			"The result exceeds the review budget when either production lines or bytes exceed their limit.",
+			"File density is a localized notice and never blocks by itself.",
 			"With `base` it measures `base..HEAD`; without it, the working tree.",
 			"Call this before delegating a PR. Reads git only.",
 		].join(" "),
@@ -1718,11 +1725,23 @@ export default function einAi(pi: ExtensionAPI): void {
 			properties: { base: { type: "string", description: "PR base ref (e.g. `main`, `dev`). Omit to measure the working tree (staged + unstaged)." } },
 		} as const,
 		async execute(_id, params: { base?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
-			const budget = getSddPreflightPreferences(ctx)?.reviewBudgetLines ?? 400;
+			const budget = {
+				lines: getSddPreflightPreferences(ctx)?.reviewBudgetLines ?? 400,
+				bytes: DEFAULT_REVIEW_BUDGET_BYTES,
+				densityBytesPerLine: DEFAULT_REVIEW_DENSITY_NOTICE_BYTES_PER_LINE,
+			};
 			const forecast = reviewForecast(ctx.cwd, params?.base);
+			const evaluation = evaluateReviewForecast(forecast, budget);
 			return {
-				content: [{ type: "text", text: formatReviewForecast(forecast, budget) }],
-				details: { ...forecast, budget, overBudget: forecast.ok && forecast.production > budget },
+				content: [{ type: "text", text: formatReviewForecast(forecast, budget, evaluation) }],
+				details: {
+					...forecast,
+					budget: budget.lines,
+					lineBudget: budget.lines,
+					byteBudget: budget.bytes,
+					densityNoticeThreshold: budget.densityBytesPerLine,
+					...evaluation,
+				},
 			};
 		},
 	});

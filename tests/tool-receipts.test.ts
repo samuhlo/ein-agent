@@ -174,6 +174,10 @@ describe("lo que dice cada recibo", () => {
 			tests: 88,
 			range: "main..HEAD",
 			budget: 400,
+			byteBudget: 20_000,
+			densityNotices: [],
+			overLines: false,
+			overBytes: false,
 			overBudget: false,
 		});
 		expect(cabe.line).toBe("312 líneas de producción, dentro del presupuesto");
@@ -181,11 +185,43 @@ describe("lo que dice cada recibo", () => {
 		expect(cabe.detail.join(" ")).toContain("88");
 		expect(cabe.detail.join(" ")).toContain("12.400 bytes");
 		expect(cabe.detail.join(" ")).toContain("4 ficheros");
+		expect(cabe.detail.join(" ")).toContain("20.000");
 
-		const nocabe = receiptFor("ein_review_forecast", { ok: true, production: 980, tests: 120, range: "main..HEAD", budget: 400, overBudget: true });
+		const nocabe = receiptFor("ein_review_forecast", {
+			ok: true,
+			production: 980,
+			productionBytes: 18_000,
+			productionFiles: 5,
+			tests: 120,
+			range: "main..HEAD",
+			budget: 400,
+			byteBudget: 20_000,
+			densityNotices: [],
+			overLines: true,
+			overBytes: false,
+			overBudget: true,
+		});
 		expect(nocabe.line).toBe("980 líneas de producción, se pasa del presupuesto");
 		expect(nocabe.bad).toBe(true);
 		expect(nocabe.detail.join(" ")).toMatch(/partir|dividir/i);
+
+		const porBytes = receiptFor("ein_review_forecast", {
+			ok: true,
+			production: 30,
+			productionBytes: 29_000,
+			productionFiles: 1,
+			tests: 2,
+			range: "main..HEAD",
+			budget: 400,
+			byteBudget: 20_000,
+			densityNotices: [{ path: "packed.ts" }],
+			overLines: false,
+			overBytes: true,
+			overBudget: true,
+		});
+		expect(porBytes.bad).toBe(true);
+		expect(porBytes.detail.join(" ")).toContain("bytes");
+		expect(porBytes.detail.join(" ")).toContain("packed.ts");
 	});
 
 	test("specs: cuantos dominios se movieron", () => {

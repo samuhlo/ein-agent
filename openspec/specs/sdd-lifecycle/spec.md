@@ -65,6 +65,13 @@ Given: Projected state and applicable ledger evidence are available, incomplete,
 When: A cleaner audit is requested.
 Then: The audit reports classified findings with source and evidence references plus explicit uncertainty, does not present suggestions as applied changes, and leaves all inspected project, Git, and ledger state unchanged.
 
+## Scenario: close-condenses-temporary-artifacts-into-one-durable-summary
+title: Closed changes retain one useful summary instead of phase paperwork
+requirement: The system MUST keep the complete SDD artifacts while a change is active, MUST require a fresh passing verification and a fresh summary before close, and MUST retain only `summary.md` under `openspec/changes/archive/<change>/` after close. The durable summary MUST identify the change, completed work groups, verification status, exact verification commands, mechanism, decisions, and known risks so downstream evaluation and human review do not depend on deleted phase artifacts.
+Given: a change has completed tasks, apply, verification, and a fresh structured summary.
+When: deterministic close archives the change.
+Then: the active directory is removed, the archive directory contains only `summary.md`, and the summary exposes enough structured facts for the evaluation corpus and enough explanation for a future reader.
+
 ## Scenario: core-coordinator-source-generates-claude-brain
 title: Claude coordinator brain is generated from canonical core
 requirement: The system MUST generate the Claude coordinator brain from a canonical coordinator source plus an explicit Claude adaptation block during synchronization, and MUST NOT treat a separately hand-maintained full `ein-cc/CLAUDE.md` as authoritative.
@@ -127,13 +134,6 @@ requirement: The system MUST allow forced close only for an unresolved spec stat
 Given: a canonical legacy SDD change has an unresolved state caused solely by a readable declarationless scope, no delta document, no sync-report.md, all non-spec close-readiness gates pass, and the caller explicitly supplies force and a valid audit reason.
 When: forced close readiness and archival are evaluated.
 Then: the system may archive through the legacy escape, returns distinguishable legacy evidence with the reason without reclassifying or synchronizing the unresolved state, and does not weaken normal close or admit incomplete modern changes.
-
-## Scenario: close-condenses-temporary-artifacts-into-one-durable-summary
-title: Closed changes retain one useful summary instead of phase paperwork
-requirement: The system MUST keep the complete SDD artifacts while a change is active, MUST require a fresh passing verification and a fresh summary before close, and MUST retain only `summary.md` under `openspec/changes/archive/<change>/` after close. The durable summary MUST identify the change, completed work groups, verification status, exact verification commands, mechanism, decisions, and known risks so downstream evaluation and human review do not depend on deleted phase artifacts.
-Given: a change has completed tasks, apply, verification, and a fresh structured summary.
-When: deterministic close archives the change.
-Then: the active directory is removed, the archive directory contains only `summary.md`, and the summary exposes enough structured facts for the evaluation corpus and enough explanation for a future reader.
 
 ## Scenario: forced-close-preserves-readiness-gates
 title: Forced close cannot archive incomplete or unverified work
@@ -316,6 +316,27 @@ requirement: The system MUST include a drift canary on the result-collection sid
 Given: A tracked participant call and a result of unrecognized shape (or a subagent_wait tool_result while participant calls are tracked)
 When: The event is processed by the tool_result handler with UI available
 Then: A drift warning is emitted once per session (not an error), and the handler allows processing to continue
+
+## Scenario: review-budget-resists-line-packing
+title: A change cannot enter the budget by packing production code into fewer lines
+requirement: The system MUST NOT report a measured range as within the review budget when the UTF-8 byte volume of non-whitespace content in its added and deleted production lines exceeds the configured byte budget, regardless of how few production lines that range contains.
+Given: a measured range whose production line count sits below the line budget while its changed non-whitespace production byte volume exceeds the configured byte budget
+When: the review-size forecast evaluates that range against the budget
+Then: the range is reported as exceeding the budget and the caller is asked to choose between a declared exception and chained PRs, exactly as for a range that exceeds the line budget
+
+## Scenario: review-forecast-density-is-a-localized-notice
+title: Anomalous line density is reported where it happens and never blocks on its own
+requirement: The system MUST surface production files whose changed non-whitespace byte volume per changed line exceeds the configured notice threshold, and MUST NOT deny a change solely because an individual line exceeds a character length.
+Given: a measured range contains a production file whose changed non-whitespace byte volume per changed line exceeds the configured notice threshold
+When: the review-size forecast renders its result
+Then: the result carries a notice naming the affected files so a reviewer can find them, and no change is denied solely because an individual line is long
+
+## Scenario: review-forecast-reports-volume
+title: The review forecast reports character volume and file count, not only lines
+requirement: The system MUST report, alongside the production line count, the UTF-8 byte volume of non-whitespace content in added and deleted production lines and the number of distinct production files touched in the measured range.
+Given: a measured range contains production source changes
+When: the review-size forecast measures that range
+Then: the reported forecast carries the production line count, changed non-whitespace production byte volume and distinct production file count, so a consumer can distinguish a change that is small in every dimension from one that is small only in lines
 
 ## Scenario: review-ledger-bounded-areas
 title: Reviewed areas have bounded deterministic identity and state
