@@ -81,7 +81,7 @@ El **idioma** de estos artefactos lo fija el eje «artefactos» de `/ein:lang` (
 
 ## // 004. CÓDIGO
 
-- Todo `.ts` abre con su placa:
+- Todo módulo `.ts` nuevo debería abrir con su placa:
 
 ```ts
 // =============================================================================
@@ -89,6 +89,8 @@ El **idioma** de estos artefactos lo fija el eje «artefactos» de `/ein:lang` (
 // Propósito en una o dos líneas: qué hace este fichero y por qué existe.
 // =============================================================================
 ```
+
+Es una recomendación de autoría, no una puerta global sobre el árbol existente. Al trabajar de forma sustancial en un módulo antiguo se puede añadir la placa dentro del mismo cambio; su ausencia aislada no crea una tarea ni bloquea una entrega.
 
 - Comentarios explican *por qué*, no *qué*. Español o inglés, pero consistente dentro del fichero.
 - Colores en código: nunca hex/RGB hardcodeado fuera de `brand.json` y `theme.ts` — siempre via `loadPalette()` (extensiones) o los helpers de `theme.ts` (installer).

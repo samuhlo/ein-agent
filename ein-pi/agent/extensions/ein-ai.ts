@@ -1705,8 +1705,14 @@ export default function einAi(pi: ExtensionAPI): void {
 	registerEinTool({
 		name: "ein_review_forecast",
 		label: "Ein Review Forecast",
-		description:
-			"Deterministic PR-size forecast for the Review Workload Guard. Runs `git diff --shortstat` with a fixed exclusion pathspec and returns PRODUCTION changed lines (insertions+deletions, the number that gates the review budget) and TEST changed lines (reported, never gate). With `base` it measures `base..HEAD` (committed work toward a PR); without it, the working tree (staged + unstaged). Call this BEFORE delegating a PR instead of running git yourself; if production exceeds the review budget, ask the user single-PR vs split. Reads git only.",
+		description: [
+			"Deterministic PR-size forecast for the Review Workload Guard.",
+			"Uses a fixed production pathspec and returns changed production lines,",
+			"non-whitespace UTF-8 bytes, touched files and per-file volume; test lines stay separate.",
+			"The line count remains the gate in this measurement slice.",
+			"With `base` it measures `base..HEAD`; without it, the working tree.",
+			"Call this before delegating a PR. Reads git only.",
+		].join(" "),
 		parameters: {
 			type: "object",
 			properties: { base: { type: "string", description: "PR base ref (e.g. `main`, `dev`). Omit to measure the working tree (staged + unstaged)." } },

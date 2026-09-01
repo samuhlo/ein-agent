@@ -2,27 +2,94 @@
 
 Este documento contiene únicamente trabajo vigente. Las decisiones estables viven en `docs/adr/`, el comportamiento actual en `openspec/specs/` y la historia exhaustiva en Git y las releases.
 
-## Ahora — fase 1, arquitectura mantenible
+El trabajo anterior llegó hasta la PR #280: baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, primeros contratos compartidos extraídos y fronteras automáticas de imports en su sitio. La deuda que sobrevivió a esa etapa se reordena aquí según sus dependencias reales; dividir los hotspots deja de ser el siguiente movimiento automático.
 
-Objetivo: que el árbol explique el producto sin depender de conocimiento privado del autor.
+## Ahora — fase 2, reparar el metro
 
-- [x] Congelar la línea base de beta y retirar defaults heredados de modelos/proveedores.
-- [x] Condensar OpenSpec a un resumen por cambio cerrado.
-- [x] Reducir documentación interna, assets huérfanos y residuos de build.
-- [x] Separar código de producto, runtime desplegable, vendor y tooling.
-- [x] Hacer visible y única la propiedad del launcher público `ein`.
-- [x] Extraer los primeros contratos compartidos y cortar accesos directos Claude/installer → interiores de Pi.
-- [x] Añadir fronteras automáticas de imports y ownership.
-- [x] Extraer presentación y sincronización de la CLI SDD de Claude.
-- [ ] Dividir los hotspots principales una vez fijadas sus responsabilidades.
+Objetivo: que el tamaño de un cambio se pueda medir sin poder engañarse.
 
-## Después — cierre de la beta
+El presupuesto de revisión (`ADR 0001`, `ein-pi/agent/lib/review-forecast.ts`) cuenta renglones de `git diff --shortstat`. Esa unidad permite esconder volumen real dentro de líneas largas. Partir hotspots bajo esta regla puede producir más ficheros sin hacer el cambio más revisable.
 
-- Probar instalación, update, rollback y uninstall desde un HOME limpio.
-- Alinear documentación pública, versión, artefactos y release.
-- Publicar un quickstart reproducible y una demo del flujo completo.
-- Mantener Pi como camino principal y declarar con precisión el soporte Claude.
-- Verificar que integraciones opcionales ausentes degradan sin romper el núcleo.
+El presupuesto del prompt aporta un principio útil ya probado en el repositorio: acompañar la unidad comprimible con volumen medido en bytes. Sus otras señales responden a la forma concreta de los prompts y no se trasladan al código sin evidencia propia.
+
+- [ ] Medir bytes no pertenecientes a espacios en blanco y ficheros de producción junto a los renglones. La densidad anómala se muestra como aviso localizado, nunca como bloqueo por longitud de línea.
+- [ ] Calibrar el presupuesto contra PRs mergeadas reales, usando los cambios OpenSpec solo como contexto, y declarar la condición de retirada de cada señal nueva.
+- [ ] Convertir la placa de cabecera de `runtime/docs/STYLE.md` en recomendación para módulos nuevos: su ausencia no rompe ningún consumidor mecánico.
+
+Criterio de salida: una entrega de 30 renglones y 29.000 caracteres no puede presentarse como un cambio pequeño.
+
+No entra aquí una reformateada masiva de los módulos densos. Se descomprime lo que se toca, cuando se toca.
+
+## Después — fase 3, terminar el diario de instalación
+
+Objetivo: que el flujo de instalación se lea de arriba abajo.
+
+`executeInstallPlanJournaled` ocupa 68 renglones con 6.044 caracteres y concentra reanudación, dos reintentos cableados a mano, envoltura de handlers, transiciones, persistencia, señales, rollback y finalización. Mover la función a otro fichero cambia de cajón sin arreglar nada: el corte separa la decisión pura de la ejecución con efectos.
+
+- [ ] Codec: bytes canónicos ↔ diario validado.
+- [ ] Política de reanudación y transiciones del diario, como funciones puras.
+- [ ] Bucle de ejecución y fachada fina. Si el metro reparado dice que sigue siendo demasiado para una revisión, se parte — y esa decisión es del humano.
+
+Criterio de salida: el flujo se lee como «abre, reanuda, ejecuta, persiste, finaliza o revierte» sin descifrar renglones comprimidos.
+
+## Después — fase 4, retirar peso accidental del payload
+
+Objetivo: que la frontera declarada en prosa la confirme el archive.
+
+`ein-pi/agent/lib/project-settings.ts` importa el tipo `Setting` desde la aplicación de terminal, invirtiendo la dirección correcta de la dependencia. El empaquetador persigue imports con una expresión regular (`installer/scripts/bundle-ein-cc.ts`) que no distingue dependencias de solo tipo, así que copia código de interfaz de Pi dentro del paquete de Claude aunque nunca se ejecute.
+
+- [ ] Mover `Setting` al dominio de ajustes e invertir la dependencia: la interfaz importa el dominio, no al revés.
+- [ ] Sustituir el perseguidor de imports por análisis de TypeScript y descartar los imports de solo tipo.
+
+Criterio de salida: desaparecen los ocho ficheros accidentales y el payload sigue siendo autocontenido. Verificación dura: regenerar el archive, comparar el manifiesto, compilar las cuatro entradas desde el payload aislado y pasar el smoke compilado BunFS. `bun test` no compila binarios y no cubre esta puerta.
+
+## Condicionado — liberar presupuesto de prompt
+
+Objetivo: crear espacio solo cuando un cambio de contrato observable demuestre que necesita tocar el orquestador.
+
+`runtime/assets/orchestrator.md` pesa 42.988 bytes contra un techo de 43.011: quedan 23 bytes. Hay 26 ficheros de test que fijan frases literales del texto, así que parte de esa prosa es portante y borrarla rompe mecanismos.
+
+- [ ] Si `map` o `design` prueban que una fase posterior necesita cambiar el prompt, retirar comportamiento duplicado y cicatrices que ya no protegen de nada, comprobando cada retirada contra sus consumidores. No comprimir prosa para ganar bytes.
+
+Criterio de salida: el cambio de contrato medido cabe con margen explícito y los consumidores de la prosa retirada siguen verdes. Sin necesidad demostrada, esta fase no se ejecuta.
+
+## Después — fase 6, núcleo SDD neutral
+
+Objetivo: que el motor compartido exista de verdad, no como fachada.
+
+`shared/ports/` sigue siendo una fachada de migración hacia implementaciones propiedad de Pi. La CLI SDD de Claude consume parte de ese cierre; la frontera compartida todavía está declarada antes que construida.
+
+Zona explícita `shared/sdd/`, pieza a pieza, con reexports temporales durante cada migración:
+
+- [ ] Resolución pura de intención, hoy mezclada con el diálogo de Pi en `sdd-preflight.ts`.
+- [ ] Selección, lectura de estado y routing, hoy en `sdd-router.ts` (40 exports, 19 consumidores).
+- [ ] Cierre, OpenSpec y guardas que ambos runtimes usan realmente.
+
+Hooks, preguntas, interfaz y herramientas exclusivas se quedan en Pi. Cada PR debe reducir la lista de puentes y el cierre real de la CLI.
+
+Criterio de salida: cada puente superviviente tiene motivo, propietario y condición de retirada. No se persigue cero.
+
+## Después — fase 7, hotspots con reglas sanas
+
+Objetivo: dividir por responsabilidad medida, nunca por número de líneas.
+
+Es el último punto vivo de la fase 1, y va aquí porque su resultado depende de las fases 2 y 6. Volver a medir antes de elegir; orden provisional:
+
+- [ ] `project-state.ts` — 19 consumidores; Git, OpenSpec, configuración y verificación en un módulo.
+- [ ] `runtime-session-adapters.ts` — 57 exports; contratos, búsqueda, validación, plan y ejecución.
+- [ ] `installer/src/cli/install.ts` — solo si la evidencia de ciclo de vida de la fase 8 muestra coste o riesgo.
+- [ ] `ein-ai.ts` — al final: separar registro de hooks, herramientas SDD, Cleaner y comandos. Ordenar la fachada antes de estabilizar los motores que registra es trabajo que se rehace.
+
+`ein-linear.ts` y `model-config.ts` no se dividen por tamaño. `ein-linear.ts` entra solo si vuelve a cambiar con frecuencia.
+
+## Después — fase 8, cierre de la beta
+
+`e2e/docker-test.sh` cubre hoy cuatro escenarios instalados dos veces y un `update --dry-run`, y se dispara solo a mano (`workflow_dispatch`).
+
+- [ ] Matriz completa en hogares desechables: Pi, Claude, ambos, instalación repetida, update real, fallo inducido y rollback, uninstall, conservación de ficheros ajenos y credenciales, integraciones opcionales ausentes y smoke compilado del payload.
+- [ ] Alinear documentación pública, versión, artefactos y release.
+- [ ] Publicar un quickstart reproducible y una demo del flujo completo.
+- [ ] Mantener Pi como camino principal y declarar con precisión el soporte Claude.
 
 ## Secundario
 
@@ -32,7 +99,9 @@ Objetivo: que el árbol explique el producto sin depender de conocimiento privad
 
 ## Reglas de prioridad
 
-- La arquitectura y la higiene entran ahora porque reducen el coste diario de mantener Ein.
+- El metro va primero: partir módulos con una regla que se puede engañar produce ficheros ilegibles con un contador satisfecho.
 - Ningún proveedor o modelo se selecciona por defecto. Ein puede recomendar esfuerzo, pero la elección pertenece al usuario.
 - No se añade una integración nueva durante el cierre de beta salvo que bloquee el flujo principal.
+- No se divide un fichero por su número de líneas. Se divide cuando tiene más de un dueño.
+- Ninguna fase persigue un cero absoluto —ni cero puentes, ni cero ficheros grandes—. Se persigue que cada pieza tenga dueño y que cambiarla no obligue a entender media casa.
 - Un elemento completado sale de este roadmap; su resultado queda en spec, ADR, changelog o release según corresponda.
