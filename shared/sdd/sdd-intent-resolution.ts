@@ -9,6 +9,9 @@ import {
 	type IntentMaterial,
 	type MaterialThirdDecision,
 } from "./sdd-intent-preflight.ts";
+import type { SddIntentPreflightContext } from "./sdd-intent-preflight-context.ts";
+
+export type { SddIntentPreflightContext } from "./sdd-intent-preflight-context.ts";
 
 export type PreflightAuthor = "pi" | "claude";
 export type SddIntentResolution = "confirmed" | "automatic-small" | "bypassed";
@@ -63,12 +66,6 @@ export type SddIntentPreflightInput = Readonly<{
 	confirmed?: boolean;
 	thirdDecision?: MaterialThirdDecision;
 	resolvedBy?: PreflightAuthor;
-}>;
-
-export type SddIntentPreflightContext = Readonly<{
-	cwd: string;
-	sessionKey: string;
-	notify?: (message: string) => void;
 }>;
 
 export type SddIntentResolutionState = Readonly<{

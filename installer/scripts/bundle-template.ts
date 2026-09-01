@@ -50,11 +50,11 @@ const SHARED_CONTRACT_FILES = [
   "ein-tv.ts",
   "memory-contract.ts",
   "runtime-compat.ts",
-  "sdd-intent-preflight-context.ts",
   "shared-config-update-advisor.ts",
   "style-contract.ts",
 ];
 const SHARED_SDD_FILES = [
+  "sdd-intent-preflight-context.ts",
   "sdd-intent-preflight.ts",
   "sdd-intent-resolution.ts",
 ];

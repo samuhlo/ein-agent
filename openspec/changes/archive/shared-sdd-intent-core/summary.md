@@ -27,7 +27,7 @@ Claude construye el mismo coordinador desde su port usando únicamente el adapta
 - Extraer primero intención porque era la costura con mayor reducción aislable y no exigía tocar el orquestador.
 - Inyectar E/S y reloj en vez de introducir abstracciones de runtime dentro del núcleo.
 - Mantener reexports temporales en Pi para no romper consumidores mientras progresa la migración.
-- Fijar un presupuesto de cierre ejecutable, además de la frontera de imports, para impedir regresiones silenciosas.
+- Fijar una frontera estructural ejecutable que impida reintroducir los colaboradores exclusivos de Pi sin volver a medir el corte por renglones.
 - Reservar selección/estado/routing y cierre/OpenSpec/guardas para PRs independientes.
 
 ## // 004. VERIFICACIÓN
@@ -45,4 +45,4 @@ Claude construye el mismo coordinador desde su port usando únicamente el adapta
 
 - El adaptador de persistencia aún pertenece a Pi y mantiene compatibilidad legacy; el siguiente corte debe abordar selección, lectura de estado y routing sin mezclarlo con este PR.
 - Los reexports Pi son deliberadamente temporales y deben retirarse cuando no queden consumidores internos.
-- El presupuesto fija el cierre actual de Claude; nuevas dependencias legítimas requerirán una decisión explícita y una medición nueva.
+- El centinela estructural del corte se retira cuando la persistencia de intención deje de cruzar Pi y el inventario general de puentes posea por sí solo esta garantía.

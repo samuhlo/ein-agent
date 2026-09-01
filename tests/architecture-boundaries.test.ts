@@ -31,6 +31,7 @@ const ALLOWED_PI_BRIDGES = [
 ] as const;
 
 const SHARED_SDD_FILES = [
+	"sdd-intent-preflight-context.ts",
 	"sdd-intent-preflight.ts",
 	"sdd-intent-resolution.ts",
 ] as const;
@@ -39,7 +40,6 @@ const SHARED_CONTRACTS = [
 	"ein-tv.ts",
 	"memory-contract.ts",
 	"runtime-compat.ts",
-	"sdd-intent-preflight-context.ts",
 	"shared-config-update-advisor.ts",
 	"style-contract.ts",
 ] as const;
