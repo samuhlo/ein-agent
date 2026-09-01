@@ -186,7 +186,7 @@ Then: the decision is exactly what the command-policy layers produced with no ad
 
 ## Scenario: intent-confirmation-persistence-routing
 title: La intención confirmada se persiste y continúa por el router existente
-requirement: The system MUST require final confirmation before persisting a closed intent, store that intent in `preflight.json` through the existing `sdd-preflight.ts` writer, reuse it until objective, boundaries, or completion criteria change materially, and then continue through the existing SDD router.
+requirement: The system MUST require final confirmation before persisting a closed intent, store that intent in `preflight.json` through the shared intent coordinator and its preflight-record adapter, reuse it until objective, boundaries, or completion criteria change materially, and then continue through the existing SDD router.
 Given: un cambio ha completado su recorrido de intención y existe una formulación cerrada pendiente de confirmación
 When: el usuario confirma la intención final o cambia materialmente el objetivo, los límites o el criterio de terminado
 Then: la intención confirmada se guarda mediante el escritor y almacén existentes y el router actual recibe la continuación; una intención vigente se reutiliza, mientras que un cambio material la reabre y una mera reformulación no

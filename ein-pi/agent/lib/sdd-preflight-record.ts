@@ -30,33 +30,29 @@ import {
 	inspectChangeLane,
 	LANE_LABEL,
 	laneSkips,
+	writeChangeLane,
 	type SddLane,
 } from "./sdd-lane.ts";
 import { isSafeChangeName, resolveActiveSelection, resolveChangesDir, selectedChange } from "./sdd-router.ts";
+import type {
+	PreflightAuthor,
+	SddIntentRecord,
+	SddIntentResolution,
+	SddIntentRoute,
+	SddIntentResolutionState,
+	SddLaneOrigin,
+} from "./sdd-intent-resolution.ts";
+
+export type {
+	PreflightAuthor,
+	SddIntentRecord,
+	SddIntentResolution,
+	SddIntentRoute,
+	SddLaneOrigin,
+} from "./sdd-intent-resolution.ts";
 
 /** La postura de TDD es binaria a nivel de cambio: se corrió el ciclo o no. */
 export type TddStance = "off" | "strict";
-
-/** Qué runtime tomó la decisión. Se guarda para que el status pueda decirlo. */
-export type PreflightAuthor = "pi" | "claude";
-export type SddIntentResolution = "confirmed" | "automatic-small" | "bypassed";
-export type SddIntentRoute = "normal" | "small";
-export type SddLaneOrigin = "declared" | "classified";
-
-export type SddIntentRecord = Readonly<{
-	version: 1;
-	resolution: SddIntentResolution;
-	route: SddIntentRoute;
-	summary: string;
-	objective: string;
-	boundaries: Readonly<{ in: readonly string[]; out: readonly string[] }>;
-	completionCriteria: readonly string[];
-	materialKey: string;
-	laneOrigin: SddLaneOrigin;
-	reason: string;
-	resolvedBy: PreflightAuthor;
-	resolvedAt: string;
-}>;
 
 export type SddPreflightRecord = Readonly<{
 	tdd: TddStance;
@@ -302,4 +298,111 @@ export function changeStanceDirective(stance: SddChangeStance | undefined): stri
 		`- Decided by \`${stance.decidedBy ?? "pi"}\`${stance.decidedAt ? ` at ${stance.decidedAt}` : ""}. Do not re-ask the user; the decision is recorded in \`preflight.json\`.`,
 	);
 	return lines.join("\n");
+}
+
+export type SddIntentPersistenceResult =
+	| Readonly<{ kind: "persisted"; record: SddPreflightRecord }>
+	| Readonly<{ kind: "adopted"; record: SddPreflightRecord; intent: SddIntentRecord }>
+	| Readonly<{ kind: "unpersisted"; reason: "missing-change" | "missing-tdd" }>;
+
+export type SddPreflightStanceUpdate = Readonly<{
+	tdd?: TddStance;
+	declaredLane?: SddLane;
+	author: PreflightAuthor;
+	replaceTdd?: boolean;
+}>;
+
+export type SddPreflightStanceUpdateResult =
+	| Readonly<{ kind: "updated"; record?: SddPreflightRecord }>
+	| Readonly<{ kind: "tdd-conflict"; record: SddPreflightRecord }>;
+
+/** Compatibility stance writes remain with the preflight record owner. */
+export function updateSddPreflightStance(
+	cwd: string,
+	change: string,
+	update: SddPreflightStanceUpdate,
+): SddPreflightStanceUpdateResult {
+	const changeDir = changeDirFor(cwd, change);
+	if (!existsSync(changeDir)) return { kind: "updated" };
+	const latest = readPreflightRecord(changeDir);
+	if (update.tdd && latest?.tdd && !update.replaceTdd) {
+		return { kind: "tdd-conflict", record: latest };
+	}
+
+	if (update.declaredLane) writeChangeLane(changeDir, update.declaredLane);
+	const intent = latest?.intent && update.declaredLane
+		? { ...latest.intent, laneOrigin: "declared" as const }
+		: latest?.intent;
+	if (!update.tdd && intent === latest?.intent) return { kind: "updated", record: latest };
+	const tdd = update.tdd ?? latest?.tdd;
+	const decidedBy = update.tdd ? update.author : latest?.decidedBy;
+	if (!tdd || !decidedBy) return { kind: "updated", record: latest };
+
+	return {
+		kind: "updated",
+		record: writePreflightRecord(changeDir, {
+			tdd,
+			decidedBy,
+			...(intent ? { intent } : {}),
+		}),
+	};
+}
+
+/** Read-side projection consumed by the runtime-neutral intent coordinator. */
+export function readSddIntentResolutionState(
+	cwd: string,
+	change: string,
+): SddIntentResolutionState {
+	const changeDir = changeDirFor(cwd, change);
+	const intent = readPreflightRecord(changeDir)?.intent;
+	const stance = readChangeStance(cwd, change);
+	return {
+		...(intent ? { intent } : {}),
+		declaredLane: stance?.laneDeclared ? stance.lane : null,
+	};
+}
+
+/**
+ * Sole durable owner for intent resolution. It rereads immediately before the
+ * write: a resolution that appeared since observation is adopted, never lost.
+ */
+export function persistSddIntentResolution(
+	cwd: string,
+	change: string,
+	intent: SddIntentRecord,
+	observedMaterialKey: string | undefined,
+): SddIntentPersistenceResult {
+	const changeDir = changeDirFor(cwd, change);
+	if (!existsSync(changeDir)) return { kind: "unpersisted", reason: "missing-change" };
+	const latest = readPreflightRecord(changeDir);
+	if (!latest) return { kind: "unpersisted", reason: "missing-tdd" };
+	if (latest.intent) {
+		if (latest.intent.materialKey === intent.materialKey) {
+			return { kind: "adopted", record: latest, intent: latest.intent };
+		}
+		if (observedMaterialKey === undefined || latest.intent.materialKey !== observedMaterialKey) {
+			return { kind: "adopted", record: latest, intent: latest.intent };
+		}
+	}
+
+	const lane = inspectChangeLane(changeDir);
+	const previousClassifiedLane = latest.intent?.laneOrigin === "classified" &&
+		lane.valid && lane.lane === (latest.intent.route === "small" ? "micro" : "standard");
+	const laneIsDeclared = lane.exists && !previousClassifiedLane;
+	const effectiveIntent: SddIntentRecord = laneIsDeclared
+		? { ...intent, laneOrigin: "declared" }
+		: intent;
+	const record = writePreflightRecord(changeDir, {
+		tdd: latest.tdd,
+		decidedBy: latest.decidedBy,
+		intent: effectiveIntent,
+	});
+	const classifiedLane = effectiveIntent.route === "small" ? "micro" : "standard";
+	if (
+		effectiveIntent.laneOrigin === "classified" &&
+		(!lane.exists || (previousClassifiedLane && lane.lane !== classifiedLane))
+	) {
+		writeChangeLane(changeDir, classifiedLane);
+	}
+	return { kind: "persisted", record };
 }

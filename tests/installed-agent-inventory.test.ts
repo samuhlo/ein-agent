@@ -68,6 +68,9 @@ describe("inventario instalado de agentes", () => {
 			expect(readFileSync(join(staging.payload, "bin", "ein"), "utf8")).toBe("APP");
 			expect(existsSync(join(staging.payload, "lib", "linear-integration.ts"))).toBe(true);
 			expect(existsSync(join(staging.payload, "lib", "doctor-core.ts"))).toBe(true);
+			const sharedIntent = readFileSync(join(staging.payload, "lib", "sdd-intent-resolution.ts"), "utf8");
+			expect(sharedIntent).toContain("createSddIntentPreflightCoordinator");
+			expect(sharedIntent).not.toContain("Compatibility entrypoint");
 			expect(existsSync(join(staging.payload, "lib", "mode.ts"))).toBe(false);
 			expect(policy).toContain("Current filesystem, Git, ProjectState/stateRef, and OpenSpec evidence outrank memory");
 			expect(policy).toContain(".engram-ein");

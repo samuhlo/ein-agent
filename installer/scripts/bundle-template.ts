@@ -36,6 +36,7 @@ const REPO_ROOT = dirname(INSTALLER_ROOT);
 const RUNTIME_SOURCE = join(REPO_ROOT, "runtime");
 const VENDOR_SKILLS_SOURCE = join(REPO_ROOT, "vendor", "skills");
 const SHARED_CONTRACT_SOURCE = join(REPO_ROOT, "shared", "contracts");
+const SHARED_SDD_SOURCE = join(REPO_ROOT, "shared", "sdd");
 const AGENT_SOURCE = join(REPO_ROOT, "ein-pi", "agent");
 const OUT = process.env.EIN_TEMPLATE_OUT ? resolve(process.env.EIN_TEMPLATE_OUT) : join(INSTALLER_ROOT, "src", "assets", "template.tar.gz");
 const TYPESCRIPT_VERSION = "5.9.3";
@@ -52,6 +53,10 @@ const SHARED_CONTRACT_FILES = [
   "sdd-intent-preflight-context.ts",
   "shared-config-update-advisor.ts",
   "style-contract.ts",
+];
+const SHARED_SDD_FILES = [
+  "sdd-intent-preflight.ts",
+  "sdd-intent-resolution.ts",
 ];
 // Allowlist del template. `app.ts` remains available to provider launchers;
 // the user-facing app is precompiled and staged separately as bin/ein. Ver
@@ -175,7 +180,7 @@ function copyInto(sourceRoot: string, staging: string, files: string[], dirs: st
 }
 
 async function main(): Promise<void> {
-  for (const source of [RUNTIME_SOURCE, VENDOR_SKILLS_SOURCE, SHARED_CONTRACT_SOURCE, AGENT_SOURCE]) {
+  for (const source of [RUNTIME_SOURCE, VENDOR_SKILLS_SOURCE, SHARED_CONTRACT_SOURCE, SHARED_SDD_SOURCE, AGENT_SOURCE]) {
     if (!existsSync(source)) {
       throw new Error(`No existe el source del template: ${source}`);
     }
@@ -187,6 +192,7 @@ async function main(): Promise<void> {
     cpSync(VENDOR_SKILLS_SOURCE, join(staging, "skills", "downloaded"), { recursive: true });
     copyInto(AGENT_SOURCE, staging, AGENT_FILES, AGENT_DIRS);
     copyInto(SHARED_CONTRACT_SOURCE, join(staging, "lib"), SHARED_CONTRACT_FILES, []);
+    copyInto(SHARED_SDD_SOURCE, join(staging, "lib"), SHARED_SDD_FILES, []);
 
     // assets/agents y assets/chains son la copia "de fabrica" que usa
     // installSddAssets para reparar instalaciones. Se generan aqui desde las
@@ -228,7 +234,7 @@ async function main(): Promise<void> {
 
     const size = Bun.file(OUT).size;
     console.log(`/// template empaquetado`);
-    console.log(`  origen:  ${RUNTIME_SOURCE} + ${VENDOR_SKILLS_SOURCE} + ${SHARED_CONTRACT_SOURCE} + ${AGENT_SOURCE}`);
+    console.log(`  origen:  ${RUNTIME_SOURCE} + ${VENDOR_SKILLS_SOURCE} + ${SHARED_CONTRACT_SOURCE} + ${SHARED_SDD_SOURCE} + ${AGENT_SOURCE}`);
     console.log(`  salida:  ${OUT}`);
     console.log(`  tamano:  ${(size / 1024 / 1024).toFixed(2)} MB`);
   } finally {
