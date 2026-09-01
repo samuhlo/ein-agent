@@ -5,11 +5,6 @@ import {
   type InstallExecutionJournalV1,
 } from "./install-journal-contract.ts";
 import {
-  encodeInstallJournal,
-  parseInstallJournal,
-  validateInstallJournal,
-} from "./install-journal-codec.ts";
-import {
   classifyInstallJournalResume,
   completeInstallJournal,
   createPreparedInstallJournal,
@@ -19,9 +14,11 @@ import {
   markInstallJournalEntryPending,
 } from "./install-journal-policy.ts";
 import {
-  inspectStoredInstallJournal,
+  inspectInstallJournal,
+  publishInstallJournal,
+} from "./install-journal-persistence.ts";
+import {
   productionInstallJournalFs,
-  publishStoredInstallJournal,
   type InstallJournalFs,
 } from "./install-journal-store.ts";
 import { validateInstallPlan, type InstallPlanV1 } from "./install-plan.ts";
@@ -29,6 +26,7 @@ import { validateInstallPlan, type InstallPlanV1 } from "./install-plan.ts";
 export { installJournalPath } from "./install-journal-store.ts";
 export type { InstallJournalFs } from "./install-journal-store.ts";
 export { validateInstallJournal } from "./install-journal-codec.ts";
+export { inspectInstallJournal } from "./install-journal-persistence.ts";
 export {
   installJournalMatchesPlan,
   installPlanDigest,
@@ -43,25 +41,6 @@ export type InstallJournalLifecycle = Readonly<{
   finalize: (context: InstallPlanExecutionContext & { target: InstallPlanV1["target"] }) => void;
 }>;
 
-export function inspectInstallJournal(home: string, fs: InstallJournalFs = productionInstallJournalFs): { status: "missing" } | { status: "valid"; journal: InstallExecutionJournalV1 } | { status: "invalid" } {
-  const stored = inspectStoredInstallJournal(home, fs);
-  if (stored.status !== "available") return stored;
-  try {
-    return { status: "valid", journal: parseInstallJournal(stored.bytes) };
-  } catch {
-    return { status: "invalid" };
-  }
-}
-
-function publish(home: string, journal: InstallExecutionJournalV1, fs: InstallJournalFs): void {
-  validateInstallJournal(journal);
-  try {
-    publishStoredInstallJournal(home, journal.transactionId, encodeInstallJournal(journal), fs);
-  } catch {
-    throw new InstallJournalError("journal-write-failed");
-  }
-}
-
 export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers: InstallPlanExecutionHandlers, options: { fs?: InstallJournalFs; transactionId?: () => string; signals?: Pick<NodeJS.Process, "on" | "off">; progress?: InstallPlanProgress; lifecycle?: InstallJournalLifecycle } = {}): Promise<InstallPlanExecution> {
   validateInstallPlan(plan); const fs = options.fs ?? productionInstallJournalFs, home = plan.home;
   const existing = inspectInstallJournal(home, fs);
@@ -74,7 +53,7 @@ export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers:
     ? existing.journal
     : createPreparedInstallJournal(plan, (options.transactionId ?? randomUUID)());
   let writing = false, interruptedOnce = false, journalFailure: InstallJournalError | undefined;
-  const persist = (): void => { writing = true; try { publish(home, journal, fs); } finally { writing = false; } };
+  const persist = (): void => { writing = true; try { publishInstallJournal(home, journal, fs); } finally { writing = false; } };
   if (!resuming) persist();
   const wrapped = Object.fromEntries(plan.inventory.map((entry) => [entry.id, async () => {
     if (journalFailure) return { ok: false };
