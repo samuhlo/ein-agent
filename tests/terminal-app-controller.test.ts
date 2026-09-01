@@ -6,7 +6,8 @@ import {
   type LaunchOutcome,
   type TerminalAppControllerPorts,
 } from "../ein-pi/agent/lib/terminal-app-controller.ts";
-import { DASHBOARD_KEYS, visibleRows, type ProjectSummary, type Setting } from "../ein-pi/agent/lib/terminal-app.ts";
+import { DASHBOARD_KEYS, visibleRows, type ProjectSummary } from "../ein-pi/agent/lib/terminal-app.ts";
+import type { Setting } from "../ein-pi/agent/lib/project-settings.ts";
 import type { ContinuityPrepareResult } from "../ein-pi/agent/lib/continuity-handoff-lifecycle.ts";
 
 const ENTER = "\r";

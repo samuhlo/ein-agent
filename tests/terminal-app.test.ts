@@ -25,10 +25,10 @@ import {
   visibleRows,
   type AppModel,
   type ProjectSummary,
-  type Setting,
   type SystemComponent,
   type View,
 } from "../ein-pi/agent/lib/terminal-app.ts";
+import type { Setting } from "../ein-pi/agent/lib/project-settings.ts";
 import { createPalette, stripAnsi } from "../ein-pi/agent/lib/theme.ts";
 
 const SUMMARY: ProjectSummary = {

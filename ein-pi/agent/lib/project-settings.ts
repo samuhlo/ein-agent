@@ -24,7 +24,19 @@ import {
   writeArtifactLang,
   type Lang,
 } from "./lang.ts";
-import type { Setting } from "./terminal-app.ts";
+
+/** One project setting exposed to presentation surfaces. */
+export type Setting = Readonly<{
+  id: string;
+  label: string;
+  /** Allowed values, in cycling order. */
+  options: readonly string[];
+  /** `undefined` when the setting could not be read; never guessed. */
+  value: string | undefined;
+  hint?: string;
+  /** Human names per stored token. The file on disk keeps the token. */
+  labels?: Readonly<Record<string, string>>;
+}>;
 
 export type SettingDefinition = Readonly<{
   id: string;
