@@ -272,7 +272,13 @@ function forecastReceipt(details: unknown): ToolReceipt {
 	const productionBytes = num(details.productionBytes);
 	const productionFiles = num(details.productionFiles);
 	const budget = num(details.budget) ?? 0;
+	const byteBudget = num(details.byteBudget);
+	const overLines = details.overLines === true;
+	const overBytes = details.overBytes === true;
 	const over = details.overBudget === true;
+	const densePaths = list(details.densityNotices)
+		.map((notice) => isRecord(notice) ? str(notice.path) : null)
+		.filter((path): path is string => path !== null);
 
 	const line = `${plural(production, "línea", "líneas")} de producción, ${over ? "se pasa del presupuesto" : "dentro del presupuesto"}`;
 	const detail = [
@@ -281,10 +287,16 @@ function forecastReceipt(details: unknown): ToolReceipt {
 			? "El forecast todavía no aporta el volumen detallado."
 			: `Son ${String(productionBytes).replace(/\B(?=(\d{3})+(?!\d))/g, ".")} bytes no blancos repartidos en ${plural(productionFiles, "fichero", "ficheros")}.`,
 		`Las ${plural(tests, "línea", "líneas")} de pruebas no cuentan para el presupuesto.`,
+		byteBudget === null
+			? `El límite para una sola revisión es de ${budget} líneas.`
+			: `Los límites son ${budget} líneas o ${String(byteBudget).replace(/\B(?=(\d{3})+(?!\d))/g, ".")} bytes.`,
+		densePaths.length > 0
+			? `Conviene mirar la densidad de ${densePaths.slice(0, 3).join(", ")}${densePaths.length > 3 ? " y más ficheros" : ""}.`
+			: "",
 		over
-			? `El límite para una sola revisión es de ${budget}, así que conviene partir el trabajo en varias.`
-			: `El límite para una sola revisión es de ${budget}, así que cabe entera.`,
-	];
+			? `Se pasa por ${overLines && overBytes ? "líneas y bytes" : overBytes ? "bytes" : "líneas"}; conviene partir el trabajo en varias revisiones.`
+			: "Cabe entera dentro de ambos límites.",
+	].filter(Boolean);
 	return receipt(line, detail, over);
 }
 

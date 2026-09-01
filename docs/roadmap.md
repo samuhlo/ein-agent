@@ -4,23 +4,7 @@ Este documento contiene únicamente trabajo vigente. Las decisiones estables viv
 
 El trabajo anterior llegó hasta la PR #280: baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, primeros contratos compartidos extraídos y fronteras automáticas de imports en su sitio. La deuda que sobrevivió a esa etapa se reordena aquí según sus dependencias reales; dividir los hotspots deja de ser el siguiente movimiento automático.
 
-## Ahora — fase 2, reparar el metro
-
-Objetivo: que el tamaño de un cambio se pueda medir sin poder engañarse.
-
-El presupuesto de revisión (`ADR 0001`, `ein-pi/agent/lib/review-forecast.ts`) cuenta renglones de `git diff --shortstat`. Esa unidad permite esconder volumen real dentro de líneas largas. Partir hotspots bajo esta regla puede producir más ficheros sin hacer el cambio más revisable.
-
-El presupuesto del prompt aporta un principio útil ya probado en el repositorio: acompañar la unidad comprimible con volumen medido en bytes. Sus otras señales responden a la forma concreta de los prompts y no se trasladan al código sin evidencia propia.
-
-- [ ] Medir bytes no pertenecientes a espacios en blanco y ficheros de producción junto a los renglones. La densidad anómala se muestra como aviso localizado, nunca como bloqueo por longitud de línea.
-- [ ] Calibrar el presupuesto contra PRs mergeadas reales, usando los cambios OpenSpec solo como contexto, y declarar la condición de retirada de cada señal nueva.
-- [ ] Convertir la placa de cabecera de `runtime/docs/STYLE.md` en recomendación para módulos nuevos: su ausencia no rompe ningún consumidor mecánico.
-
-Criterio de salida: una entrega de 30 renglones y 29.000 caracteres no puede presentarse como un cambio pequeño.
-
-No entra aquí una reformateada masiva de los módulos densos. Se descomprime lo que se toca, cuando se toca.
-
-## Después — fase 3, terminar el diario de instalación
+## Ahora — fase 3, terminar el diario de instalación
 
 Objetivo: que el flujo de instalación se lea de arriba abajo.
 
@@ -47,7 +31,7 @@ Criterio de salida: desaparecen los ocho ficheros accidentales y el payload sigu
 
 Objetivo: crear espacio solo cuando un cambio de contrato observable demuestre que necesita tocar el orquestador.
 
-`runtime/assets/orchestrator.md` pesa 42.988 bytes contra un techo de 43.011: quedan 23 bytes. Hay 26 ficheros de test que fijan frases literales del texto, así que parte de esa prosa es portante y borrarla rompe mecanismos.
+`runtime/assets/orchestrator.md` pesa 42.730 bytes contra un techo de 43.011: quedan 281 bytes después de retirar duplicación al reparar el metro. Sigue siendo un margen estrecho. Hay 26 ficheros de test que fijan frases literales del texto, así que parte de esa prosa es portante y borrarla rompe mecanismos.
 
 - [ ] Si `map` o `design` prueban que una fase posterior necesita cambiar el prompt, retirar comportamiento duplicado y cicatrices que ya no protegen de nada, comprobando cada retirada contra sus consumidores. No comprimir prosa para ganar bytes.
 
@@ -99,7 +83,6 @@ Es el último punto vivo de la fase 1, y va aquí porque su resultado depende de
 
 ## Reglas de prioridad
 
-- El metro va primero: partir módulos con una regla que se puede engañar produce ficheros ilegibles con un contador satisfecho.
 - Ningún proveedor o modelo se selecciona por defecto. Ein puede recomendar esfuerzo, pero la elección pertenece al usuario.
 - No se añade una integración nueva durante el cierre de beta salvo que bloquee el flujo principal.
 - No se divide un fichero por su número de líneas. Se divide cuando tiene más de un dueño.

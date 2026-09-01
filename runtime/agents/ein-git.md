@@ -70,14 +70,13 @@ When the parent delegates delivery after a verified change and the user has appr
 
 ## Review Workload Gate
 
-Protects the reviewer from un-reviewable PRs. The parent already measured the change with the deterministic `ein_review_forecast` tool and forwarded the result — you **TRUST the forwarded number, you do NOT re-measure** (no `git diff` counting here).
+Protects the reviewer from un-reviewable PRs. The parent already ran `ein_review_forecast`: you **TRUST the forwarded number, you do NOT re-measure** or recalculate its combined decision.
 
 Right before opening (or pushing for) a PR:
 
-1. Read what the parent forwarded in the task: `Production lines: N` and `Review budget: N changed lines` (default **400** if not forwarded). Test/generated lines never gate.
-2. Production **≤ budget** → within budget, proceed to open the PR.
-3. Production **> budget** with no split decision forwarded → **STOP. Do NOT open the PR.** Return a report to the parent: the forwarded production count, the budget, and a recommended split into smaller PRs (slice boundaries by work-unit; the `chained-pr` skill has the recipe). The parent asks the user (single PR vs split) and re-delegates.
-4. `auto` execution mode does **not** bypass this gate — reviewer-burnout protection is not a speed preference. You are headless (hard gate #8): never ask the user yourself; stopping and reporting is how the decision reaches them.
+1. Read `Production lines`, `Production bytes`, both `Review budgets` (defaults: 400 / 20,000) and `Over budget: yes|no`. Tests, file count and density notices never gate alone.
+2. `no` → open the PR. `yes` without a forwarded single/chained decision → **STOP. Do NOT open it.** Return both measures, both limits and a work-unit split; the parent asks and re-delegates.
+3. `auto` execution mode does **not** bypass this gate. You are headless: never ask the user yourself.
 
 ## PR body (brutalist style, samuhlo persona)
 

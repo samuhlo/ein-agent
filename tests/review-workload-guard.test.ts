@@ -11,7 +11,13 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { formatReviewForecast, reviewForecast } from "../ein-pi/agent/lib/review-forecast";
+import {
+	DEFAULT_REVIEW_BUDGET_BYTES,
+	DEFAULT_REVIEW_DENSITY_NOTICE_BYTES_PER_LINE,
+	evaluateReviewForecast,
+	formatReviewForecast,
+	reviewForecast,
+} from "../ein-pi/agent/lib/review-forecast";
 
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
 const CORE = join(import.meta.dir, "../runtime");
@@ -125,6 +131,55 @@ describe("reviewForecast — medición determinista", () => {
 		}
 	});
 
+	test("mide un par de refs explícito para que la calibración no dependa del HEAD actual", () => {
+		const dir = mkdtempSync(join(tmpdir(), "review-forecast-range-"));
+		try {
+			git(dir, "init", "-q");
+			git(dir, "config", "user.email", "t@t.t");
+			git(dir, "config", "user.name", "t");
+			writeFileSync(join(dir, "base.txt"), "base\n");
+			git(dir, "add", "-A");
+			git(dir, "commit", "-qm", "base");
+			const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: dir, encoding: "utf8" }).trim();
+
+			writeFileSync(join(dir, "feature.ts"), "one two\n");
+			git(dir, "add", "-A");
+			git(dir, "commit", "-qm", "measured");
+			const measuredHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: dir, encoding: "utf8" }).trim();
+			writeFileSync(join(dir, "later.ts"), "must not count\n");
+			git(dir, "add", "-A");
+			git(dir, "commit", "-qm", "later");
+
+			const f = reviewForecast(dir, base, measuredHead);
+			expect(f.ok).toBe(true);
+			expect(f.production).toBe(1);
+			expect(f.productionBytes).toBe(6);
+			expect(f.productionFiles).toBe(1);
+			expect(f.range).toBe(`${base}..${measuredHead}`);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("una ref insegura falla cerrada sin medir el working tree como sustituto", () => {
+		const dir = mkdtempSync(join(tmpdir(), "review-forecast-ref-"));
+		try {
+			git(dir, "init", "-q");
+			git(dir, "config", "user.email", "t@t.t");
+			git(dir, "config", "user.name", "t");
+			writeFileSync(join(dir, "feature.ts"), "work\n");
+			git(dir, "add", "-A");
+			git(dir, "commit", "-qm", "base");
+
+			const f = reviewForecast(dir, "main; echo unsafe");
+			expect(f.ok).toBe(false);
+			expect(f.production).toBe(0);
+			expect(f.productionBytes).toBe(0);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	test("fuera de un repo git → ok:false, no revienta", () => {
 		const dir = mkdtempSync(join(tmpdir(), "review-forecast-nogit-"));
 		try {
@@ -166,21 +221,82 @@ describe("reviewForecast — medición determinista", () => {
 	});
 });
 
-describe("formatReviewForecast — medición antes que política de bytes", () => {
-	test("presenta volumen y ficheros pero la primera entrega conserva la puerta lineal", () => {
-		const text = formatReviewForecast({
+describe("evaluateReviewForecast — puerta combinada y aviso localizado", () => {
+	const budget = {
+		lines: 400,
+		bytes: 20_000,
+		densityBytesPerLine: 160,
+	};
+
+	function forecast(overrides: Partial<ReturnType<typeof reviewForecast>> = {}) {
+		return {
 			production: 30,
-			productionBytes: 29_000,
+			productionBytes: 1_000,
 			productionFiles: 1,
-			fileVolumes: [{ path: "packed.ts", changedLines: 30, changedBytes: 29_000, bytesPerLine: 966.67 }],
+			fileVolumes: [{ path: "normal.ts", changedLines: 30, changedBytes: 1_000, bytesPerLine: 33.33 }],
 			tests: 4,
 			range: "main..HEAD",
 			ok: true,
-		}, 400);
+			...overrides,
+		};
+	}
+
+	test("el exceso de bytes bloquea aunque las líneas quepan", () => {
+		const result = evaluateReviewForecast(forecast({
+			production: 30,
+			productionBytes: 29_000,
+			fileVolumes: [{ path: "packed.ts", changedLines: 30, changedBytes: 29_000, bytesPerLine: 966.67 }],
+		}), budget);
+
+		expect(result.overLines).toBe(false);
+		expect(result.overBytes).toBe(true);
+		expect(result.overBudget).toBe(true);
+		expect(result.densityNotices.map((notice) => notice.path)).toEqual(["packed.ts"]);
+	});
+
+	test("el exceso de líneas sigue bloqueando y un aviso aislado no", () => {
+		const lines = evaluateReviewForecast(forecast({ production: 401 }), budget);
+		expect(lines.overLines).toBe(true);
+		expect(lines.overBudget).toBe(true);
+
+		const notice = evaluateReviewForecast(forecast({
+			production: 1,
+			productionBytes: 500,
+			fileVolumes: [{ path: "regex.ts", changedLines: 1, changedBytes: 500, bytesPerLine: 500 }],
+		}), budget);
+		expect(notice.overBudget).toBe(false);
+		expect(notice.densityNotices.map((entry) => entry.path)).toEqual(["regex.ts"]);
+	});
+
+	test("los límites por defecto son los valores calibrados", () => {
+		expect(DEFAULT_REVIEW_BUDGET_BYTES).toBe(20_000);
+		expect(DEFAULT_REVIEW_DENSITY_NOTICE_BYTES_PER_LINE).toBe(160);
+	});
+
+	test("TRIANGULATE: tocar exactamente los límites no bloquea ni avisa", () => {
+		const result = evaluateReviewForecast(forecast({
+			production: 400,
+			productionBytes: 20_000,
+			fileVolumes: [{ path: "boundary.ts", changedLines: 1, changedBytes: 160, bytesPerLine: 160 }],
+		}), budget);
+		expect(result).toEqual({
+			overLines: false,
+			overBytes: false,
+			overBudget: false,
+			densityNotices: [],
+		});
+	});
+
+	test("el formato explica presupuesto, causa y fichero denso", () => {
+		const text = formatReviewForecast(forecast({
+			productionBytes: 29_000,
+			fileVolumes: [{ path: "packed.ts", changedLines: 30, changedBytes: 29_000, bytesPerLine: 966.67 }],
+		}), budget);
 
 		expect(text).toContain("29.000 bytes");
-		expect(text).toContain("1 fichero");
-		expect(text).toContain("dentro del budget");
+		expect(text).toContain("20.000 bytes");
+		expect(text).toContain("packed.ts");
+		expect(text).toContain("SUPERA el budget");
 	});
 });
 
@@ -208,18 +324,20 @@ describe("el parent llama la tool; ein-git confía en el número", () => {
 		expect(orchestrator).toContain("do NOT run `git diff` yourself");
 		expect(orchestrator).toContain("ask_user_question");
 		expect(orchestrator.toLowerCase()).toContain("production");
+		expect(orchestrator.toLowerCase()).toContain("bytes");
 	});
 
 	test("ein-git confía en el número reenviado, no re-mide", () => {
 		expect(einGit).toContain("Review Workload Gate");
 		expect(einGit).toContain("TRUST the forwarded number");
 		expect(einGit).toContain("do NOT re-measure");
+		expect(einGit).toContain("Production bytes");
 		expect(einGit).toContain("`auto` execution mode does **not** bypass this gate");
 	});
 
 	test("el preflight apunta a la tool con el budget", () => {
 		const out = renderSddPreflightPrompt(PREFS);
 		expect(out).toContain("ein_review_forecast");
-		expect(out).toContain("400-line review budget");
+		expect(out).toContain("400-line and 20,000-byte review budgets");
 	});
 });

@@ -41,7 +41,7 @@ export type ReviewForecast = {
 	productionBytes: number;
 	// Ficheros distintos de producción tocados por el rango.
 	productionFiles: number;
-	// Volumen localizado. Informa; en esta primera entrega no bloquea.
+	// Volumen localizado. Informa; nunca bloquea por sí solo.
 	fileVolumes: ReviewFileVolume[];
 	// insertions + deletions en ficheros de test (reportado, no gatea).
 	tests: number;
@@ -57,6 +57,22 @@ export type ReviewFileVolume = {
 	changedBytes: number;
 	bytesPerLine: number;
 };
+
+export type ReviewBudget = {
+	lines: number;
+	bytes: number;
+	densityBytesPerLine: number;
+};
+
+export type ReviewEvaluation = {
+	overLines: boolean;
+	overBytes: boolean;
+	overBudget: boolean;
+	densityNotices: ReviewFileVolume[];
+};
+
+export const DEFAULT_REVIEW_BUDGET_BYTES = 20_000;
+export const DEFAULT_REVIEW_DENSITY_NOTICE_BYTES_PER_LINE = 160;
 
 type DiffFile = {
 	path: string;
@@ -173,14 +189,45 @@ function formatInteger(value: number): string {
 	return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
-/**
- * Mide producción y tests de un cambio. Con `base`, mide `base..HEAD` (lo
- * comitado hacia un PR); sin él, el árbol de trabajo (staged + unstaged vs HEAD).
- */
-export function reviewForecast(cwd: string, base?: string): ReviewForecast {
-	// `base..HEAD` para lo comitado; `HEAD` a secas = staged + unstaged.
-	const range = base && /^[\w./-]+$/.test(base) ? [`${base}..HEAD`] : ["HEAD"];
-	const rangeLabel = base ? `${base}..HEAD` : "working-tree";
+function normalizeBudget(budget: number | ReviewBudget): ReviewBudget {
+	if (typeof budget !== "number") return budget;
+	return {
+		lines: budget,
+		bytes: DEFAULT_REVIEW_BUDGET_BYTES,
+		densityBytesPerLine: DEFAULT_REVIEW_DENSITY_NOTICE_BYTES_PER_LINE,
+	};
+}
+
+export function evaluateReviewForecast(
+	forecast: ReviewForecast,
+	budgetInput: number | ReviewBudget,
+): ReviewEvaluation {
+	const budget = normalizeBudget(budgetInput);
+	const overLines = forecast.ok && forecast.production > budget.lines;
+	const overBytes = forecast.ok && forecast.productionBytes > budget.bytes;
+	return {
+		overLines,
+		overBytes,
+		overBudget: overLines || overBytes,
+		densityNotices: forecast.ok
+			? forecast.fileVolumes.filter((file) => file.bytesPerLine > budget.densityBytesPerLine)
+			: [],
+	};
+}
+
+function unavailableForecast(range: string): ReviewForecast {
+	return {
+		production: 0,
+		productionBytes: 0,
+		productionFiles: 0,
+		fileVolumes: [],
+		tests: 0,
+		range,
+		ok: false,
+	};
+}
+
+function measureRange(cwd: string, range: string[], rangeLabel: string): ReviewForecast {
 	const production = measureProduction(cwd, range);
 	const tests = measureTestLines(cwd, range);
 	return {
@@ -194,24 +241,54 @@ export function reviewForecast(cwd: string, base?: string): ReviewForecast {
 	};
 }
 
-// Render compacto para el envelope del tool: una línea que el parent lee.
-export function formatReviewForecast(forecast: ReviewForecast, budget: number): string {
+/**
+ * Mide producción y tests de un cambio. Con `base`, compara `base..head`; sin
+ * ella, mide staged + unstaged contra HEAD. El `head` explícito permite
+ * reproducir el diff de una PR mergeada sin mover el checkout actual.
+ */
+export function reviewForecast(cwd: string, base?: string, head = "HEAD"): ReviewForecast {
+	if (!base) return measureRange(cwd, ["HEAD"], "working-tree");
+	const safeRef = /^[\w./-]+$/;
+	const rangeLabel = `${base}..${head}`;
+	if (!safeRef.test(base) || !safeRef.test(head)) return unavailableForecast(rangeLabel);
+	return measureRange(cwd, [rangeLabel], rangeLabel);
+}
+
+// Render compacto para el envelope del tool: el parent transporta esta decisión.
+export function formatReviewForecast(
+	forecast: ReviewForecast,
+	budgetInput: number | ReviewBudget,
+	evaluation = evaluateReviewForecast(forecast, budgetInput),
+): string {
 	if (!forecast.ok) {
 		return "// review forecast — no medible (¿repo git?, ¿base válida?). Mide a ojo o nombra un base.";
 	}
-	const over = forecast.production > budget;
+	const budget = normalizeBudget(budgetInput);
 	const productionUnit = forecast.productionFiles === 1 ? "fichero" : "ficheros";
 	const volume = [
 		`${forecast.production} líneas`,
 		`${formatInteger(forecast.productionBytes)} bytes no blancos`,
 		`${forecast.productionFiles} ${productionUnit}`,
 	].join(" · ");
+	const excess = [
+		evaluation.overLines ? `${forecast.production} > ${budget.lines} líneas` : "",
+		evaluation.overBytes
+			? `${formatInteger(forecast.productionBytes)} > ${formatInteger(budget.bytes)} bytes`
+			: "",
+	].filter(Boolean).join(" · ");
+	const noticePaths = evaluation.densityNotices.slice(0, 8).map((notice) => notice.path);
+	const hiddenNotices = evaluation.densityNotices.length - noticePaths.length;
+	const notice = noticePaths.length === 0
+		? ""
+		: `aviso de densidad: ${noticePaths.join(", ")}${hiddenNotices > 0 ? ` y ${hiddenNotices} más` : ""}`;
 	return [
 		`// review forecast (${forecast.range})`,
 		`producción: ${volume}`,
-		`tests: +${forecast.tests} líneas (reportado, no gatea) · budget: ${budget} líneas`,
-		over
-			? `SUPERA el budget (${forecast.production} > ${budget}) → pregunta al usuario: PR único vs partir en PRs más pequeños.`
-			: `dentro del budget (${forecast.production} ≤ ${budget}) → adelante con un PR.`,
-	].join("\n");
+		`tests: +${forecast.tests} líneas (reportado, no gatea)`,
+		`budget: ${budget.lines} líneas · ${formatInteger(budget.bytes)} bytes`,
+		notice,
+		evaluation.overBudget
+			? `SUPERA el budget (${excess}) → pregunta al usuario: PR único vs partir en PRs más pequeños.`
+			: "dentro del budget de líneas y bytes → adelante con un PR.",
+	].filter(Boolean).join("\n");
 }
