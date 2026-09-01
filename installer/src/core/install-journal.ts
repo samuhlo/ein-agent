@@ -9,8 +9,11 @@ import {
   type InstallJournalEntryState,
   type InstallJournalState,
 } from "./install-journal-contract.ts";
-import { isInstallJournalStateReachable } from "./install-journal-reachability.ts";
-import { isStructurallyValidInstallJournal } from "./install-journal-shape.ts";
+import {
+  encodeInstallJournal,
+  parseInstallJournal,
+  validateInstallJournal,
+} from "./install-journal-codec.ts";
 import {
   inspectStoredInstallJournal,
   productionInstallJournalFs,
@@ -21,6 +24,7 @@ import { INSTALL_PLAN_ENTRY_CONTRACTS, INSTALL_PLAN_ENTRY_IDS, validateInstallPl
 
 export { installJournalPath } from "./install-journal-store.ts";
 export type { InstallJournalFs } from "./install-journal-store.ts";
+export { validateInstallJournal } from "./install-journal-codec.ts";
 export {
   installJournalMatchesPlan,
   installPlanDigest,
@@ -52,39 +56,11 @@ const supportsRetirementRetry = (journal: InstallExecutionJournalV1, plan: Insta
   return cleanup.status === "completed" ? journal.pendingEntryId === undefined : journal.pendingEntryId === cleanup.id;
 };
 
-function rejectJournal(): never {
-  throw new InstallJournalError("recovery-required");
-}
-
-export function validateInstallJournal(value: unknown): asserts value is InstallExecutionJournalV1 {
-  if (!isStructurallyValidInstallJournal(value)) rejectJournal();
-  const own = Object.getOwnPropertyDescriptors(value);
-  if (!isInstallJournalStateReachable(value, {
-    pendingEntryId: own.pendingEntryId !== undefined,
-    recoveryCode: own.recoveryCode !== undefined,
-  })) rejectJournal();
-}
-
-const encodeJournal = (value: InstallExecutionJournalV1): Uint8Array =>
-  new TextEncoder().encode(`${JSON.stringify(value)}\n`);
-
-function parseJournal(bytes: Uint8Array): InstallExecutionJournalV1 {
-  try {
-    const text = new TextDecoder().decode(bytes);
-    const value: unknown = JSON.parse(text);
-    validateInstallJournal(value);
-    if (text !== new TextDecoder().decode(encodeJournal(value))) throw new Error("non-canonical journal");
-    return value;
-  } catch {
-    throw new InstallJournalError("recovery-required");
-  }
-}
-
 export function inspectInstallJournal(home: string, fs: InstallJournalFs = productionInstallJournalFs): { status: "missing" } | { status: "valid"; journal: InstallExecutionJournalV1 } | { status: "invalid" } {
   const stored = inspectStoredInstallJournal(home, fs);
   if (stored.status !== "available") return stored;
   try {
-    return { status: "valid", journal: parseJournal(stored.bytes) };
+    return { status: "valid", journal: parseInstallJournal(stored.bytes) };
   } catch {
     return { status: "invalid" };
   }
@@ -93,7 +69,7 @@ export function inspectInstallJournal(home: string, fs: InstallJournalFs = produ
 function publish(home: string, journal: InstallExecutionJournalV1, fs: InstallJournalFs): void {
   validateInstallJournal(journal);
   try {
-    publishStoredInstallJournal(home, journal.transactionId, encodeJournal(journal), fs);
+    publishStoredInstallJournal(home, journal.transactionId, encodeInstallJournal(journal), fs);
   } catch {
     throw new InstallJournalError("journal-write-failed");
   }
