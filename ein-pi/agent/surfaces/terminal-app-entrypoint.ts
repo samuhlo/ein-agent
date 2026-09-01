@@ -11,7 +11,7 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { bannerFinal, TAGLINE } from "../lib/banner.ts";
 import { projectProjectState, type ProjectStateV1 } from "../lib/project-state.ts";
-import { applySetting, readSettings } from "../lib/project-settings.ts";
+import { applySetting, readSettings, type Setting } from "../lib/project-settings.ts";
 import { engramStoreDir } from "../lib/memory-contract.ts";
 import {
   buildLaunchPlan,
@@ -35,7 +35,6 @@ import {
   renderApp,
   splitKeys,
   type ProjectSummary,
-  type Setting,
   type SystemComponent,
 } from "../lib/terminal-app.ts";
 import {
