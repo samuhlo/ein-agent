@@ -4,10 +4,12 @@ import {
 	persistSddIntentResolution,
 	readSddIntentResolutionState,
 } from "../../ein-pi/agent/lib/sdd-preflight-record.ts";
+import { readOpenSpecState } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
+import { readChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
 import { createSddIntentPreflightCoordinator } from "../sdd/sdd-intent-resolution.ts";
+import { createSddRoutingCore } from "../sdd/sdd-routing-core.ts";
 
 export {
-	resolveSddStatus,
 	resolveSddPlanPreview,
 	formatSddPlanPreview,
 	sddStatusBlockers,
@@ -16,7 +18,7 @@ export {
 	isSafeChangeName,
 	resolveActiveSelection,
 	type SddChangeStatus,
-} from "../../ein-pi/agent/lib/sdd-router.ts";
+} from "../sdd/sdd-routing-core.ts";
 export { lintChange, type ChangeLintReport } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
 export { collectSddRemedies, formatSddRemedies } from "../../ein-pi/agent/lib/sdd-remedies.ts";
 export { closeChange } from "../../ein-pi/agent/lib/sdd-close.ts";
@@ -37,7 +39,13 @@ const intentCoordinator = createSddIntentPreflightCoordinator({
 	now: () => new Date().toISOString(),
 });
 
+const routingCore = createSddRoutingCore({
+	readLane: readChangeLane,
+	readSpecState: readOpenSpecState,
+});
+
 export const resolveSddIntentPreflight = intentCoordinator.resolve;
+export const resolveSddStatus = routingCore.resolveSddStatus;
 export type {
 	SddIntentPreflightInput,
 	SddIntentPreflightOutcome,

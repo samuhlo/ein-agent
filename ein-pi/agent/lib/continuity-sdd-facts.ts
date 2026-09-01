@@ -6,7 +6,7 @@
 // =============================================================================
 
 import { CONTINUITY_CHECKPOINT_LIMITS, isSafeCheckpointText } from "./continuity-checkpoint.ts";
-import type { SddChangeStatus } from "./sdd-router.ts";
+import type { SddChangeStatus } from "./sdd-routing-core.ts";
 
 /** Los tres campos que el ciclo de vida no sabía rellenar. */
 export type ContinuitySddFacts = Readonly<{

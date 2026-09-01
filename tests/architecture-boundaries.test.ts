@@ -26,7 +26,6 @@ const ALLOWED_PI_BRIDGES = [
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-lane.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-preflight-record.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-remedies.ts",
-	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-router.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-summary-write.ts",
 ] as const;
 
@@ -34,6 +33,7 @@ const SHARED_SDD_FILES = [
 	"sdd-intent-preflight-context.ts",
 	"sdd-intent-preflight.ts",
 	"sdd-intent-resolution.ts",
+	"sdd-routing-core.ts",
 ] as const;
 
 const SHARED_CONTRACTS = [

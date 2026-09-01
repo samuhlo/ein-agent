@@ -57,6 +57,7 @@ const SHARED_SDD_FILES = [
   "sdd-intent-preflight-context.ts",
   "sdd-intent-preflight.ts",
   "sdd-intent-resolution.ts",
+  "sdd-routing-core.ts",
 ];
 // Allowlist del template. `app.ts` remains available to provider launchers;
 // the user-facing app is precompiled and staged separately as bin/ein. Ver

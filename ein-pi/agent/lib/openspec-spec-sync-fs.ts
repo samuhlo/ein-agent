@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { isSafeChangeName } from "./sdd-router";
+import { isSafeChangeName } from "./sdd-routing-core.ts";
 import { parseSyncReport, planOpenSpecSync, serializeSyncReport, type OpenSpecSyncPlan, type SyncBaseInput, type SyncDeltaInput } from "./openspec-spec-sync";
 import { digestManifest, serializeOpenSpec } from "./openspec-spec-contract";
 

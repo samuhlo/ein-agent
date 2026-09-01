@@ -14,7 +14,7 @@ import {
 	parseSessionBindingLaunchMetadataV1,
 	serializeSessionBindingLaunchMetadataV1,
 } from "./sdd-session-binding.ts";
-import { isSafeChangeName } from "./sdd-router.ts";
+import { isSafeChangeName } from "./sdd-routing-core.ts";
 
 /** The runtimes exposed by the common adapter boundary. */
 export type RuntimeProvider = "pi" | "claude";

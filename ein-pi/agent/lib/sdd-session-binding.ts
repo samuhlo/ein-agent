@@ -4,7 +4,7 @@
 // one-shot launch metadata. This module performs no I/O and owns no state.
 // =============================================================================
 
-import { isSafeChangeName } from "./sdd-router.ts";
+import { isSafeChangeName } from "./sdd-routing-core.ts";
 
 export const SDD_SESSION_BINDING_CUSTOM_TYPE = "ein:sdd-session-binding";
 export const SDD_SESSION_BINDING_EVENT_CHANNEL = "ein:sdd-session-binding:v1";

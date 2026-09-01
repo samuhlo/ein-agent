@@ -26,23 +26,16 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import type { SddPhase } from "./sdd-router.ts";
+import {
+	DEFAULT_LANE,
+	LANE_PHASES,
+	type SddLane,
+	type SddPhase,
+} from "./sdd-routing-core.ts";
 
-export type SddLane = "micro" | "standard";
+export { DEFAULT_LANE, LANE_PHASES, type SddLane } from "./sdd-routing-core.ts";
 
 export const SDD_LANES: readonly SddLane[] = ["micro", "standard"];
-
-/** El carril por defecto. Nunca se degrada a `micro` por accidente. */
-export const DEFAULT_LANE: SddLane = "standard";
-
-/**
- * Las fases que cada carril espera, en orden. `micro` no relaja `verify` ni
- * `close`: solo se salta el centro caro.
- */
-export const LANE_PHASES: Readonly<Record<SddLane, readonly SddPhase[]>> = Object.freeze({
-	standard: Object.freeze(["scope", "map", "design", "tasks", "apply", "verify", "close"] as const),
-	micro: Object.freeze(["scope", "design", "apply", "verify", "close"] as const),
-});
 
 export const LANE_LABEL: Readonly<Record<SddLane, string>> = Object.freeze({
 	micro: "micro (sin map ni tasks)",
