@@ -287,10 +287,43 @@ describe("install execution journal", () => {
 		expect(rolledBackLifecycle.at(-1)).toBe("rollback:cdcdcdcd-cdcd-4dcd-cdcd-cdcdcdcdcdcd");
 		expect(rolledBackLifecycle).not.toContain("finalize:cdcdcdcd-cdcd-4dcd-cdcd-cdcdcdcdcdcd");
 		expect(readFileSync(legacySdd, "utf8")).toBe("legacy-sdd-bytes\n");
-		expect(statSync(legacySdd).mode & 0o777).toBe(0o741);
-	});
+			expect(statSync(legacySdd).mode & 0o777).toBe(0o741);
+		});
 
-  test("rejects symlinked/private stores and keeps target-specific provider-neutral paths", () => {
+	  test("attempts a throwing rollback only once and always removes signal listeners", async () => {
+	    const value = plan("claude");
+	    let rollbackCalls = 0;
+	    const listeners = new Set<() => void>();
+	    const signals = {
+	      on(_name: string, listener: () => void) {
+	        listeners.add(listener);
+	        return this;
+	      },
+	      off(_name: string, listener: () => void) {
+	        listeners.delete(listener);
+	        return this;
+	      },
+	    };
+
+	    await expect(executeInstallPlanJournaled(
+	      value,
+	      handlers(value, () => ({ ok: false })),
+	      {
+	        signals: signals as never,
+	        lifecycle: {
+	          rollback: () => {
+	            rollbackCalls += 1;
+	            throw new Error("rollback failed");
+	          },
+	          finalize: () => {},
+	        },
+	      },
+	    )).rejects.toThrow("rollback failed");
+	    expect(rollbackCalls).toBe(1);
+	    expect(listeners.size).toBe(0);
+	  });
+
+	  test("rejects symlinked/private stores and keeps target-specific provider-neutral paths", () => {
     const root = home(), path = installJournalPath(root); mkdirSync(join(root, ".ein-installer"), { mode: 0o700 }); symlinkSync(join(root, "missing"), path);
     expect(inspectInstallJournal(root)).toEqual({ status: "invalid" }); expect(path).toBe(join(root, ".ein-installer", "install-execution-v1.json")); expect(path).not.toMatch(/\.pi|\.claude|\.ein\/|\.atl/);
     unlinkSync(path); writeFileSync(path, "{}", { mode: 0o644 }); expect(inspectInstallJournal(root)).toEqual({ status: "invalid" }); writeFileSync(path, "x".repeat(65537), { mode: 0o600 }); expect(inspectInstallJournal(root)).toEqual({ status: "invalid" }); const linked = `${root}-link`; roots.push(linked); symlinkSync(root, linked); expect(inspectInstallJournal(linked)).toEqual({ status: "invalid" }); rmSync(join(root, ".ein-installer"), { recursive: true }); symlinkSync(root, join(root, ".ein-installer")); expect(inspectInstallJournal(root)).toEqual({ status: "invalid" });

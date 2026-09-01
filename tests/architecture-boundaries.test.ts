@@ -121,4 +121,19 @@ describe("fronteras arquitectónicas del repositorio", () => {
 		}
 		expect(bundle).toContain('copyInto(SHARED_CONTRACT_SOURCE, join(staging, "lib"), SHARED_CONTRACT_FILES, [])');
 	});
+
+	test("el diario deja una fachada fina y mantiene puras sus decisiones", () => {
+		const core = join(ROOT, "installer", "src", "core");
+		const facade = readFileSync(join(core, "install-journal.ts"), "utf8");
+		const executionPath = join(core, "install-journal-execution.ts");
+
+		expect(existsSync(executionPath)).toBeTrue();
+		expect(facade).not.toMatch(/\bfunction\b|randomUUID|executeInstallPlan\(/);
+		expect(facade).toContain('export { executeInstallPlanJournaled } from "./install-journal-execution.ts";');
+
+		for (const name of ["install-journal-codec.ts", "install-journal-policy.ts"]) {
+			const source = readFileSync(join(core, name), "utf8");
+			expect(source).not.toMatch(/node:fs|install-executor|install-journal-persistence|install-journal-store/);
+		}
+	});
 });
