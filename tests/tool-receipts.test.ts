@@ -166,10 +166,21 @@ describe("lo que dice cada recibo", () => {
 	});
 
 	test("tamano de la PR: la consecuencia antes que el numero", () => {
-		const cabe = receiptFor("ein_review_forecast", { ok: true, production: 312, tests: 88, range: "main..HEAD", budget: 400, overBudget: false });
+		const cabe = receiptFor("ein_review_forecast", {
+			ok: true,
+			production: 312,
+			productionBytes: 12_400,
+			productionFiles: 4,
+			tests: 88,
+			range: "main..HEAD",
+			budget: 400,
+			overBudget: false,
+		});
 		expect(cabe.line).toBe("312 líneas de producción, dentro del presupuesto");
 		expect(cabe.bad).toBe(false);
 		expect(cabe.detail.join(" ")).toContain("88");
+		expect(cabe.detail.join(" ")).toContain("12.400 bytes");
+		expect(cabe.detail.join(" ")).toContain("4 ficheros");
 
 		const nocabe = receiptFor("ein_review_forecast", { ok: true, production: 980, tests: 120, range: "main..HEAD", budget: 400, overBudget: true });
 		expect(nocabe.line).toBe("980 líneas de producción, se pasa del presupuesto");

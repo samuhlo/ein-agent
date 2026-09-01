@@ -269,12 +269,17 @@ function forecastReceipt(details: unknown): ToolReceipt {
 	}
 	const production = num(details.production) ?? 0;
 	const tests = num(details.tests) ?? 0;
+	const productionBytes = num(details.productionBytes);
+	const productionFiles = num(details.productionFiles);
 	const budget = num(details.budget) ?? 0;
 	const over = details.overBudget === true;
 
 	const line = `${plural(production, "línea", "líneas")} de producción, ${over ? "se pasa del presupuesto" : "dentro del presupuesto"}`;
 	const detail = [
 		`El cambio toca ${plural(production, "línea", "líneas")} de código de producción.`,
+		productionBytes === null || productionFiles === null
+			? "El forecast todavía no aporta el volumen detallado."
+			: `Son ${String(productionBytes).replace(/\B(?=(\d{3})+(?!\d))/g, ".")} bytes no blancos repartidos en ${plural(productionFiles, "fichero", "ficheros")}.`,
 		`Las ${plural(tests, "línea", "líneas")} de pruebas no cuentan para el presupuesto.`,
 		over
 			? `El límite para una sola revisión es de ${budget}, así que conviene partir el trabajo en varias.`
