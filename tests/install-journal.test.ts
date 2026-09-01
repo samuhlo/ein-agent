@@ -147,6 +147,30 @@ describe("install execution journal", () => {
     const status = inspectInstallJournal(value.home); expect(status.status).toBe("valid"); if (status.status === "valid") { expect(status.journal.state).toBe("recovery-required"); expect(status.journal.entries.find(({ id }) => id === "pi.backup-current")?.status).toBe("failed"); expect(status.journal.entries.find(({ id }) => id === "pi.deploy-template")?.status).toBe("not-run"); expect(status.journal.entries.find(({ id }) => id === "claude.deploy-runtime")?.status).toBe("completed"); expect((status.journal.entries.find(({ id }) => id === "pi.backup-current") as { detail?: string }).detail).toBe("retry backup failure"); }
   });
 
+  test("retries a failed final retirement without repeating completed work", async () => {
+    const value = plan("claude");
+    const failed = await executeInstallPlanJournaled(
+      value,
+      handlers(value, (id) => ({ ok: id !== "shared.retire-legacy" })),
+    );
+    expect(failed.ok).toBe(false);
+
+    const calls: string[] = [];
+    const recovered = await executeInstallPlanJournaled(
+      value,
+      handlers(value, (id) => {
+        calls.push(id);
+        return { ok: true };
+      }),
+    );
+
+    expect(recovered.ok).toBe(true);
+    expect(calls).toEqual(["shared.retire-legacy"]);
+    const stored = inspectInstallJournal(value.home);
+    expect(stored.status).toBe("valid");
+    if (stored.status === "valid") expect(stored.journal.state).toBe("complete");
+  });
+
   test("rejects interrupted, migrated, mutated, unsupported, and plan-mismatched recovery", async () => {
     const value = plan(), detail = "backup failure", exact = preMutationRecovery(value, detail), path = installJournalPath(value.home);
     await executeInstallPlanJournaled(value, handlers(value, (id) => id === "pi.backup-current" ? { ok: false, detail } : { ok: true }));

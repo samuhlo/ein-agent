@@ -1,13 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { executeInstallPlan, type InstallPlanExecution, type InstallPlanExecutionContext, type InstallPlanExecutionHandlers, type InstallPlanProgress } from "./install-executor.ts";
 import {
-  installJournalMatchesPlan,
-  installPlanDigest,
   InstallJournalError,
-  isValidInstallFailureDetail as validFailureDetail,
   type InstallExecutionJournalV1,
-  type InstallJournalEntryState,
-  type InstallJournalState,
 } from "./install-journal-contract.ts";
 import {
   encodeInstallJournal,
@@ -15,12 +10,21 @@ import {
   validateInstallJournal,
 } from "./install-journal-codec.ts";
 import {
+  classifyInstallJournalResume,
+  completeInstallJournal,
+  createPreparedInstallJournal,
+  failInstallJournalEntry,
+  interruptInstallJournal,
+  markInstallJournalEntryCompleted,
+  markInstallJournalEntryPending,
+} from "./install-journal-policy.ts";
+import {
   inspectStoredInstallJournal,
   productionInstallJournalFs,
   publishStoredInstallJournal,
   type InstallJournalFs,
 } from "./install-journal-store.ts";
-import { INSTALL_PLAN_ENTRY_CONTRACTS, INSTALL_PLAN_ENTRY_IDS, validateInstallPlan, type InstallPlanV1 } from "./install-plan.ts";
+import { validateInstallPlan, type InstallPlanV1 } from "./install-plan.ts";
 
 export { installJournalPath } from "./install-journal-store.ts";
 export type { InstallJournalFs } from "./install-journal-store.ts";
@@ -38,23 +42,6 @@ export type InstallJournalLifecycle = Readonly<{
   rollback: (context: InstallPlanExecutionContext & { target: InstallPlanV1["target"] }) => void;
   finalize: (context: InstallPlanExecutionContext & { target: InstallPlanV1["target"] }) => void;
 }>;
-
-const supportsPreMutationRetry = (journal: InstallExecutionJournalV1, plan: InstallPlanV1): boolean => {
-  if (!installJournalMatchesPlan(journal, plan) || journal.target !== "both" || journal.state !== "recovery-required" || journal.recoveryCode !== "handler-failed" || journal.pendingEntryId !== "pi.backup-current") return false;
-  const selected = plan.inventory.filter((entry) => entry.state === "selected" || entry.state === "conditional").map(({ id }) => id), entries = new Map(journal.entries.map((entry) => [entry.id, entry]));
-  if (selected.length !== journal.entries.length || selected.some((id) => !entries.has(id))) return false;
-  const backupOrder = INSTALL_PLAN_ENTRY_IDS.indexOf("pi.backup-current"), backup = entries.get("pi.backup-current"), shared = journal.entries.filter(({ runtime, id }) => runtime === "shared" && id !== "shared.retire-legacy"), cleanup = entries.get("shared.retire-legacy"), pi = journal.entries.filter(({ runtime }) => runtime === "pi"), claude = journal.entries.filter(({ runtime }) => runtime === "claude");
-  if (!backup || backup.status !== "failed" || shared.some(({ status }) => status !== "completed") || claude.some(({ status }) => status !== "completed")) return false;
-  return cleanup?.status === "not-run" && pi.every((entry) => { const order = INSTALL_PLAN_ENTRY_IDS.indexOf(entry.id); return order === backupOrder ? entry.status === "failed" : order < backupOrder ? INSTALL_PLAN_ENTRY_CONTRACTS[entry.id][1] === "ensure-dependency" && entry.status === "completed" : entry.status === "not-run"; });
-};
-
-const supportsRetirementRetry = (journal: InstallExecutionJournalV1, plan: InstallPlanV1): boolean => {
-  if (!installJournalMatchesPlan(journal, plan) || !["executing", "recovery-required"].includes(journal.state)) return false;
-  const cleanup = journal.entries.find(({ id }) => id === "shared.retire-legacy");
-  if (!cleanup || !["pending", "failed", "completed"].includes(cleanup.status)) return false;
-  if (journal.entries.some((entry) => entry.id !== cleanup.id && entry.status !== "completed")) return false;
-  return cleanup.status === "completed" ? journal.pendingEntryId === undefined : journal.pendingEntryId === cleanup.id;
-};
 
 export function inspectInstallJournal(home: string, fs: InstallJournalFs = productionInstallJournalFs): { status: "missing" } | { status: "valid"; journal: InstallExecutionJournalV1 } | { status: "invalid" } {
   const stored = inspectStoredInstallJournal(home, fs);
@@ -81,8 +68,11 @@ export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers:
   if (existing.status === "invalid") throw new InstallJournalError("recovery-required");
   if (existing.status === "valid" && existing.journal.state === "complete") options.lifecycle?.finalize({ transactionId: existing.journal.transactionId, target: existing.journal.target });
   const resuming = existing.status === "valid" && existing.journal.state !== "complete";
-  if (resuming && !supportsPreMutationRetry(existing.journal, plan) && !supportsRetirementRetry(existing.journal, plan)) throw new InstallJournalError("recovery-required");
-  let journal: InstallExecutionJournalV1 = resuming ? existing.journal : { schemaVersion: 1, transactionId: (options.transactionId ?? randomUUID)(), planDigest: installPlanDigest(plan), target: plan.target, platform: plan.platform, state: "prepared", entries: plan.inventory.filter((entry) => entry.state === "selected" || entry.state === "conditional").map(({ id, runtime }) => ({ id, runtime, status: "not-run" })) };
+  const resumeKind = resuming ? classifyInstallJournalResume(existing.journal, plan) : null;
+  if (resuming && !resumeKind) throw new InstallJournalError("recovery-required");
+  let journal: InstallExecutionJournalV1 = resuming
+    ? existing.journal
+    : createPreparedInstallJournal(plan, (options.transactionId ?? randomUUID)());
   let writing = false, interruptedOnce = false, journalFailure: InstallJournalError | undefined;
   const persist = (): void => { writing = true; try { publish(home, journal, fs); } finally { writing = false; } };
   if (!resuming) persist();
@@ -93,26 +83,17 @@ export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers:
     const current = journal.entries[index];
     if (!current) return { ok: false };
     if (current.status === "completed" && entry.id !== "shared.retire-legacy") return { ok: true };
-    const retryingBackup = resuming && entry.id === "pi.backup-current" && current.status === "failed";
-    const retryingRetirement = resuming && entry.id === "shared.retire-legacy" && ["pending", "failed", "completed"].includes(current.status);
+    const retryingBackup = resumeKind === "pre-mutation-retry" && entry.id === "pi.backup-current" && current.status === "failed";
+    const retryingRetirement = resumeKind === "retirement-retry" && entry.id === "shared.retire-legacy" && ["pending", "failed", "completed"].includes(current.status);
     if (resuming && !retryingBackup && !retryingRetirement && current.status !== "not-run") return { ok: false };
-    const update = (status: InstallJournalEntryState): void => {
-      const entries = journal.entries.map((item, at) => {
-        if (at !== index) return item;
-        const updated = { ...item, status };
-        if (status === "completed") { const { detail: _, ...withoutDetail } = updated; return withoutDetail; }
-        return updated;
-      });
-      const { pendingEntryId: _, ...withoutPending } = journal;
-      let base = withoutPending;
-      if (status === "completed" && entry.id === "pi.backup-current") { const { recoveryCode: __, ...withoutRecovery } = base; base = withoutRecovery; }
-      const failed = entries.find((item) => item.status === "failed")?.id, nextPending = status === "pending" ? entry.id : failed;
-      journal = { ...base, entries, state: status === "completed" && entry.id === "pi.backup-current" ? "executing" : journal.state === "recovery-required" ? "recovery-required" : "executing", ...(nextPending ? { pendingEntryId: nextPending } : {}) };
+    const update = (status: "pending" | "completed"): void => {
+      journal = status === "pending"
+        ? markInstallJournalEntryPending(journal, entry.id)
+        : markInstallJournalEntryCompleted(journal, entry.id);
       persist();
     };
     const fail = (detail?: string): void => {
-      const existingDetail = journal.entries[index]?.detail, nextDetail = entry.id === "pi.backup-current" && (validFailureDetail(detail) ? detail : existingDetail);
-      journal = { ...journal, state: "recovery-required", pendingEntryId: entry.id, recoveryCode: "handler-failed", entries: journal.entries.map((item, at) => at === index ? { ...item, status: "failed", ...(nextDetail ? { detail: nextDetail } : {}) } : item) };
+      journal = failInstallJournalEntry(journal, entry.id, detail);
       try { persist(); } catch { journalFailure = new InstallJournalError("recovery-write-failed"); }
     };
     try { update("pending"); } catch { journalFailure = new InstallJournalError("journal-write-failed"); return { ok: false }; }
@@ -122,7 +103,7 @@ export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers:
     if (!result.ok) fail(result.detail); else try { update("completed"); } catch { journalFailure = new InstallJournalError("journal-write-failed"); return { ok: false }; }
     return result;
   }])) as InstallPlanExecutionHandlers;
-  const interrupted = (): void => { if (interruptedOnce || journal.state === "complete") return; interruptedOnce = true; if (writing) { journalFailure = new InstallJournalError("recovery-write-failed"); return; } journal = { ...journal, state: "recovery-required", recoveryCode: "interrupted" }; try { persist(); journalFailure = new InstallJournalError("recovery-required"); } catch { journalFailure = new InstallJournalError("recovery-write-failed"); } };
+  const interrupted = (): void => { if (interruptedOnce || journal.state === "complete") return; interruptedOnce = true; if (writing) { journalFailure = new InstallJournalError("recovery-write-failed"); return; } journal = interruptInstallJournal(journal); try { persist(); journalFailure = new InstallJournalError("recovery-required"); } catch { journalFailure = new InstallJournalError("recovery-write-failed"); } };
   const signals = options.signals ?? process; signals.on("SIGINT", interrupted); signals.on("SIGTERM", interrupted);
   let globallyCommitted = false, rolledBack = false;
   try {
@@ -133,7 +114,7 @@ export async function executeInstallPlanJournaled(plan: InstallPlanV1, handlers:
       rolledBack = true;
       return result;
     }
-    journal = { ...journal, state: "complete" };
+    journal = completeInstallJournal(journal);
     persist();
     globallyCommitted = true;
     options.lifecycle?.finalize({ transactionId: journal.transactionId, target: journal.target });

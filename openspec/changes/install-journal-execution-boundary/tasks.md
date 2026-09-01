@@ -14,14 +14,14 @@ blocked_by: none
 
 ## // 002. Política pura — PR 2
 
-- [ ] 2.1 Añadir pruebas RED de clasificación exacta y sustituir las cuatro funciones duplicadas por `classifyInstallJournalResume`.
+- [x] 2.1 Añadir pruebas RED de clasificación exacta y sustituir las cuatro funciones duplicadas por `classifyInstallJournalResume`.
   - skills: `none`
   - why: CLI y ejecutor no pueden discrepar sobre qué diario autoriza mutaciones.
   - architecture: un resultado cerrado explica el retry admitido.
   - avoid: ampliar los casos soportados o consultar filesystem.
   - verify: `bun test tests/install-journal-policy.test.ts tests/install-journal.test.ts`
 
-- [ ] 2.2 Añadir pruebas RED de inmutabilidad y alcanzabilidad; extraer preparación y transiciones puras de entrada, interrupción y finalización.
+- [x] 2.2 Añadir pruebas RED de inmutabilidad y alcanzabilidad; extraer preparación y transiciones puras de entrada, interrupción y finalización.
   - skills: `none`
   - why: la ejecución debe coordinar efectos, no construir estados a mano.
   - architecture: funciones de dominio con nombres, sin reducer genérico.

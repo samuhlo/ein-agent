@@ -70,7 +70,8 @@ import {
   type InstallPlanExecutionHandlers,
 } from "../core/install-executor.ts";
 import { createProgressView, productionProgressIO } from "../tui/progress-view.ts";
-import { executeInstallPlanJournaled, inspectInstallJournal, installJournalMatchesPlan, InstallJournalError, type InstallExecutionJournalV1 } from "../core/install-journal.ts";
+import { executeInstallPlanJournaled, inspectInstallJournal, InstallJournalError } from "../core/install-journal.ts";
+import { classifyInstallJournalResume } from "../core/install-journal-policy.ts";
 import { readInstallMarkerVersion } from "../core/legacy-runtime-artifacts.ts";
 import {
   finalizeRuntimeSurfaceRetirement,
@@ -642,33 +643,6 @@ function observePlan(platform: Platform, deps: readonly DepStatus[]): Omit<Insta
   };
 }
 
-function supportsPreMutationRecovery(journal: InstallExecutionJournalV1, plan: InstallPlanV1): boolean {
-  if (plan.status !== "ready" || !installJournalMatchesPlan(journal, plan) || journal.target !== "both" || journal.state !== "recovery-required" || journal.recoveryCode !== "handler-failed" || journal.pendingEntryId !== "pi.backup-current") return false;
-  const selected = plan.inventory.filter((entry) => entry.state === "selected" || entry.state === "conditional");
-  const entries = new Map(journal.entries.map((entry) => [entry.id, entry]));
-  if (selected.length !== journal.entries.length || selected.some(({ id }) => !entries.has(id))) return false;
-  const backupIndex = plan.inventory.findIndex(({ id }) => id === "pi.backup-current");
-  const backup = entries.get("pi.backup-current");
-  if (!backup || backup.status !== "failed" || backupIndex < 0) return false;
-  const sharedAndClaude = journal.entries.filter(({ runtime, id }) => runtime === "claude" || runtime === "shared" && id !== "shared.retire-legacy");
-  if (sharedAndClaude.some(({ status }) => status !== "completed")) return false;
-  if (entries.get("shared.retire-legacy")?.status !== "not-run") return false;
-  return journal.entries.filter(({ runtime }) => runtime === "pi").every((entry) => {
-    const order = plan.inventory.findIndex(({ id }) => id === entry.id);
-    if (order === backupIndex) return entry.status === "failed";
-    if (order < backupIndex) return plan.inventory[order]?.action === "ensure-dependency" && entry.status === "completed";
-    return entry.status === "not-run";
-  });
-}
-
-function supportsRetirementRecovery(journal: InstallExecutionJournalV1, plan: InstallPlanV1): boolean {
-  if (plan.status !== "ready" || !installJournalMatchesPlan(journal, plan) || !["executing", "recovery-required"].includes(journal.state)) return false;
-  const cleanup = journal.entries.find(({ id }) => id === "shared.retire-legacy");
-  if (!cleanup || !["pending", "failed", "completed"].includes(cleanup.status)) return false;
-  if (journal.entries.some((entry) => entry.id !== cleanup.id && entry.status !== "completed")) return false;
-  return cleanup.status === "completed" ? journal.pendingEntryId === undefined : journal.pendingEntryId === cleanup.id;
-}
-
 type LinearIntegrationPrompt = (options: {
   message: string;
   options: Array<{ value: LinearIntegration; label: string }>;
@@ -732,7 +706,9 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
     const journal = journalStatus.journal;
     const candidates: { linear: LinearIntegration; plan: InstallPlanV1 }[] = [{ linear: "off", plan }];
     if (target !== "claude" && !flags.noLinear && !flags.yes) candidates.push({ linear: "on", plan: buildPlan("on") });
-    const admitted = candidates.find(({ plan: candidate }) => supportsPreMutationRecovery(journal, candidate) || supportsRetirementRecovery(journal, candidate));
+    const admitted = candidates.find(
+      ({ plan: candidate }) => classifyInstallJournalResume(journal, candidate) !== null,
+    );
     if (!admitted) { console.error("Install recovery status: recovery-required"); return 1; }
     ({ plan, linear } = admitted);
   } else if (observations.piOwnership.status !== "ambiguous" && !flags.dryRun) {
