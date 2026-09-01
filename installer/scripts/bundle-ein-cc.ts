@@ -35,6 +35,7 @@ const REPO_ROOT = dirname(INSTALLER_ROOT);
 const OUT = join(INSTALLER_ROOT, "src", "assets", "ein-cc-runtime.tar.gz");
 
 const SOURCE_EXTENSIONS = ["", ".ts", ".tsx", ".js", ".json"];
+const DYNAMIC_IMPORT_CANDIDATE_RE = /\bimport(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*(?:\r?\n|$))*\(/;
 
 export type BundleEinCcPayloadOptions = Readonly<{
   /** Checkout root used as the source of repository-relative payload paths. */
@@ -105,7 +106,7 @@ function exportCarriesRuntime(declaration: ts.ExportDeclaration): boolean {
 }
 
 function runtimeModuleSpecifiers(path: string, source: string): string[] {
-  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true) as ParsedSourceFile;
+  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, false) as ParsedSourceFile;
   if (file.parseDiagnostics.length > 0) {
     const first = file.parseDiagnostics[0];
     const location = first?.start === undefined
@@ -146,7 +147,7 @@ function runtimeModuleSpecifiers(path: string, source: string): string[] {
     }
     ts.forEachChild(node, visitDynamicImports);
   };
-  visitDynamicImports(file);
+  if (DYNAMIC_IMPORT_CANDIDATE_RE.test(source)) visitDynamicImports(file);
   return [...found];
 }
 

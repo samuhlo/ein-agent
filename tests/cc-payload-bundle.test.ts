@@ -30,16 +30,6 @@ const CANONICAL_BYTES = Buffer.from([
   0x0a, 0x00, 0xff, 0x80, 0x0a,
 ]);
 const CLOSURE_FIXTURE_ENTRY = "ein-pi/agent/surfaces/surface-runner.ts";
-const ACCIDENTAL_TYPE_ONLY_PAYLOAD = [
-  "ein-pi/agent/lib/runtime-sessions.ts",
-  "ein-pi/agent/lib/sdd-intent-preflight-context.ts",
-  "ein-pi/agent/lib/session-summary.ts",
-  "ein-pi/agent/lib/startup-provenance.ts",
-  "ein-pi/agent/lib/terminal-app-controller.ts",
-  "ein-pi/agent/lib/terminal-app.ts",
-  "ein-pi/agent/lib/theme.ts",
-  "shared/contracts/sdd-intent-preflight-context.ts",
-] as const;
 
 function writeSource(root: string, path: string, source: string): void {
   const target = join(root, path);
@@ -176,7 +166,7 @@ describe("ein-cc payload bundler", () => {
         'export * from "./runtime-star.ts";',
         'export type ImportedType = import("./type-import-expression.ts").ImportedType;',
         'export const dynamicImport = () => import("./runtime-dynamic.ts");',
-        'export const dynamicTemplate = () => import(`./runtime-dynamic-template.ts`);',
+        'export const dynamicTemplate = () => import /* fixture */ (`./runtime-dynamic-template.ts`);',
         'export const values = [runtimeDefault, runtimeValue, runtimeMixed];',
         'export type Types = DefaultType | NamedType | MixedType;',
         "",
@@ -251,16 +241,4 @@ describe("ein-cc payload bundler", () => {
     }
   });
 
-  test("keeps the canonical Claude payload free of the proven type-only Pi branch", async () => {
-    const tempRoot = mkdtempSync(join(tmpdir(), "ein-cc-payload-bundle-canonical-"));
-    const output = join(tempRoot, "payload.tar.gz");
-    try {
-      const { bundleEinCcPayload } = await loadBundler();
-      const { manifest } = await bundleEinCcPayload({ outputPath: output });
-      const paths = manifest.files.map((entry) => entry.path);
-      for (const accidental of ACCIDENTAL_TYPE_ONLY_PAYLOAD) expect(paths).not.toContain(accidental);
-    } finally {
-      rmSync(tempRoot, { recursive: true, force: true });
-    }
-  });
 });

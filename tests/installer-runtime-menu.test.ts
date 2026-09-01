@@ -47,6 +47,16 @@ import {
 } from "../installer/src/core/cc-payload.ts";
 
 const ORCHESTRATOR_FIXTURE_BYTES = Buffer.from("# orchestrator fixture\\n", "utf8");
+const ACCIDENTAL_TYPE_ONLY_PAYLOAD = [
+  "ein-pi/agent/lib/runtime-sessions.ts",
+  "ein-pi/agent/lib/sdd-intent-preflight-context.ts",
+  "ein-pi/agent/lib/session-summary.ts",
+  "ein-pi/agent/lib/startup-provenance.ts",
+  "ein-pi/agent/lib/terminal-app-controller.ts",
+  "ein-pi/agent/lib/terminal-app.ts",
+  "ein-pi/agent/lib/theme.ts",
+  "shared/contracts/sdd-intent-preflight-context.ts",
+] as const;
 const roots: string[] = [];
 const MAIN = join(import.meta.dir, "../installer/src/main.ts");
 
@@ -410,7 +420,9 @@ describe("Claude runtime runner", () => {
     const home = tempHome();
     const workspace = tempHome();
     const archive = join(workspace, "ein-cc-runtime.tar.gz");
-    await bundleEinCcPayload({ outputPath: archive });
+    const { manifest } = await bundleEinCcPayload({ outputPath: archive });
+    const packagedPaths = manifest.files.map((entry) => entry.path);
+    for (const accidental of ACCIDENTAL_TYPE_ONLY_PAYLOAD) expect(packagedPaths).not.toContain(accidental);
     const canonical = readFileSync(join(import.meta.dir, "..", EIN_CC_ORCHESTRATOR_ASSET));
 
     let stagedRoot = "";

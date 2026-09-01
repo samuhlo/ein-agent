@@ -11,7 +11,7 @@ El payload de Claude calcula su cierre con la sintaxis de TypeScript, conserva s
 
 - `project-settings.ts` posee `Setting`; terminal, controlador, entrypoint y tests lo importan directamente.
 - `bundle-ein-cc.ts` sustituye `IMPORT_RE` por un collector sintáctico de imports, exports y `import()` runtime.
-- `cc-payload-bundle.test.ts` fija tipos puros, mezclas, laterales, dinámicos, transitividad, parseo inválido y el payload canónico.
+- `cc-payload-bundle.test.ts` fija tipos puros, mezclas, laterales, dinámicos, transitividad y parseo inválido; `installer-runtime-menu.test.ts` comprueba la exclusión exacta sobre el payload canónico que ya instala aislado.
 - `claude-payload-transport` incorpora tres escenarios; el roadmap avanza al núcleo SDD neutral.
 
 ## // 002. CÓMO FUNCIONA POR DENTRO
@@ -30,7 +30,7 @@ La comparación real pasa de 914 a 906 rutas: desaparecen ocho ficheros y 1.744 
 ## // 004. VERIFICACIÓN
 
 - verify: `bun test tests/architecture-boundaries.test.ts tests/terminal-app.test.ts tests/terminal-app-controller.test.ts`
-- verify: `bun test tests/cc-payload-bundle.test.ts tests/cc-payload-entrypoints.test.ts`
+- verify: `bun test tests/cc-payload-bundle.test.ts tests/cc-payload-entrypoints.test.ts tests/installer-runtime-menu.test.ts`
 - verify: `bun test tests/installer-runtime-menu.test.ts`
 - verify: `bun test`
 - verify: `bun run typecheck`
