@@ -16,7 +16,7 @@ El payload de Claude calcula su cierre con la sintaxis de TypeScript, conserva s
 
 ## // 002. CÓMO FUNCIONA POR DENTRO
 
-Cada source del cierre se parsea con TypeScript. Imports laterales, valores, reexports runtime, estrellas y dinámicos literales alimentan el resolvedor existente; declaraciones y elementos marcados exclusivamente `type` se omiten. Un diagnóstico de parseo aborta antes de escribir el tar.
+Cada source del cierre se analiza como TypeScript con el parser integrado de Bun. Imports laterales, valores, reexports runtime, estrellas y dinámicos literales alimentan el resolvedor existente; declaraciones y elementos marcados exclusivamente `type` se omiten. Un diagnóstico de parseo aborta antes de escribir el tar.
 
 La comparación real pasa de 914 a 906 rutas: desaparecen ocho ficheros y 1.744 líneas que sólo llegaban por tipos, sin añadidos. Las cuatro entradas siguen compilando desde el archive aislado.
 
@@ -24,7 +24,7 @@ La comparación real pasa de 914 a 906 rutas: desaparecen ocho ficheros y 1.744 
 
 - Parser sintáctico, no `Program` ni typecheck: la distinción explícita de tipos no necesita resolver el proyecto.
 - Dos PRs: primero propiedad del modelo, después comportamiento del empaquetador. La primera no se presentó falsamente como poda; otra arista type-only conservaba el archive.
-- Sin fallback regex, reexport temporal ni nueva dependencia; TypeScript ya estaba fijado en raíz e installer.
+- Sin fallback regex, reexport temporal ni nueva dependencia; el analizador viaja con el Bun que ya ejecuta el empaquetador.
 - Sin puerta CI nueva: fixtures y suite fijan la semántica; el release conserva su smoke Linux bloqueante.
 
 ## // 004. VERIFICACIÓN

@@ -154,6 +154,7 @@ describe("ein-cc payload bundler", () => {
     seedCheckout(checkout, "valid");
     const sources: Readonly<Record<string, string>> = {
       [CLOSURE_FIXTURE_ENTRY]: [
+        "#!/usr/bin/env bun",
         'import "./runtime-side-effect.ts";',
         'import runtimeDefault from "./runtime-default.ts";',
         'import { runtimeValue } from "./runtime-value.ts";',
