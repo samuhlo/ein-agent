@@ -164,6 +164,28 @@ describe("install journal policy", () => {
     }
   });
 
+  test("accepts every retirement checkpoint its own classifier admits", () => {
+    const value = plan("claude");
+    const failed = retirementRetry(value);
+    const cleanup = (status: "pending" | "completed") => failed.entries.map((entry) =>
+      entry.id === "shared.retire-legacy" ? { ...entry, status } : entry);
+    const { pendingEntryId: _pending, recoveryCode: _recovery, ...withoutRecovery } = failed;
+    const admitted: readonly InstallExecutionJournalV1[] = [
+      failed,
+      { ...failed, recoveryCode: "interrupted", entries: cleanup("pending") },
+      { ...withoutRecovery, state: "executing", entries: cleanup("completed") },
+    ];
+
+    for (const journal of admitted) {
+      expect(() => validateInstallJournal(journal)).not.toThrow();
+      expect(classifyInstallJournalResume(journal, value)).toBe("retirement-retry");
+      const pending = markInstallJournalEntryPending(journal, "shared.retire-legacy");
+      const completed = markInstallJournalEntryCompleted(pending, "shared.retire-legacy");
+      expect(pending.entries.find(({ id }) => id === "shared.retire-legacy")?.status).toBe("pending");
+      expect(completeInstallJournal(completed).state).toBe("complete");
+    }
+  });
+
   test("turns the current pending entry into an interrupted recovery", () => {
     const value = plan("claude");
     const prepared = createPreparedInstallJournal(
