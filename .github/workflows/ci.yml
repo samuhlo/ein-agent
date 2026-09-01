@@ -94,7 +94,12 @@ jobs:
         run: bun run bundle-template:host
 
       - name: Test (workbench + installer)
-        run: bun test
+        # El mismo SHA de la PR #288 pasó en macOS y, al relanzarlo sin cambiar
+        # un byte, agotó cuatro tests en 6,4–9,9 s (job 99860268707). Ubuntu
+        # agotó después otro en 7,98 s (job 99863277588). El job completo aún
+        # limita los cuelgues a 15 min. Volver a 5 s cuando 20 runs consecutivos
+        # por SO terminen la suite en <3 min y ningún test supere 4 s.
+        run: bun test --timeout 15000
 
       - name: Typecheck ein-pi + ein-cc
         run: bun run typecheck

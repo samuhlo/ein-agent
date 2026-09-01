@@ -29,6 +29,13 @@ const CANONICAL_BYTES = Buffer.from([
   0x23, 0x20, 0x6f, 0x72, 0x63, 0x68, 0x65, 0x73, 0x74, 0x72, 0x61, 0x74, 0x6f, 0x72,
   0x0a, 0x00, 0xff, 0x80, 0x0a,
 ]);
+const CLOSURE_FIXTURE_ENTRY = "ein-pi/agent/surfaces/surface-runner.ts";
+
+function writeSource(root: string, path: string, source: string): void {
+  const target = join(root, path);
+  mkdirSync(join(target, ".."), { recursive: true });
+  writeFileSync(target, source);
+}
 
 function seedCheckout(root: string, asset: "valid" | "absent" | "directory" | "unreadable"): string {
   for (const payloadRoot of EIN_CC_PAYLOAD_ROOTS) {
@@ -138,4 +145,101 @@ describe("ein-cc payload bundler", () => {
   test("fails closed when the canonical asset is absent", () => assertInvalidSource("absent"));
   test("fails closed when the canonical asset is a directory", () => assertInvalidSource("directory"));
   test("fails closed when the canonical asset is unreadable", () => assertInvalidSource("unreadable"));
+
+  test("follows runtime TypeScript edges and excludes edges that are only types", async () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), "ein-cc-payload-bundle-closure-"));
+    const checkout = join(tempRoot, "checkout");
+    const output = join(tempRoot, "payload.tar.gz");
+    mkdirSync(checkout, { recursive: true });
+    seedCheckout(checkout, "valid");
+    const sources: Readonly<Record<string, string>> = {
+      [CLOSURE_FIXTURE_ENTRY]: [
+        "#!/usr/bin/env bun",
+        'import "./runtime-side-effect.ts";',
+        'import runtimeDefault from "./runtime-default.ts";',
+        'import { runtimeValue } from "./runtime-value.ts";',
+        'import type DefaultType from "./type-default.ts";',
+        'import { type NamedType } from "./type-named.ts";',
+        'import { runtimeMixed, type MixedType } from "./runtime-mixed.ts";',
+        'export { runtimeExport } from "./runtime-export.ts";',
+        'export type { ExportedType } from "./type-export.ts";',
+        'export { type NamedExport } from "./type-named-export.ts";',
+        'export * from "./runtime-star.ts";',
+        'export type ImportedType = import("./type-import-expression.ts").ImportedType;',
+        'export const dynamicImport = () => import("./runtime-dynamic.ts");',
+        'export const dynamicTemplate = () => import /* fixture */ (`./runtime-dynamic-template.ts`);',
+        'export const values = [runtimeDefault, runtimeValue, runtimeMixed];',
+        'export type Types = DefaultType | NamedType | MixedType;',
+        "",
+      ].join("\n"),
+      "ein-pi/agent/surfaces/runtime-side-effect.ts": "globalThis.runtimeFixture = true;\n",
+      "ein-pi/agent/surfaces/runtime-default.ts": "export default 1;\n",
+      "ein-pi/agent/surfaces/runtime-value.ts": 'export { nestedValue as runtimeValue } from "./runtime-transitive.ts";\n',
+      "ein-pi/agent/surfaces/runtime-transitive.ts": "export const nestedValue = 2;\n",
+      "ein-pi/agent/surfaces/runtime-mixed.ts": "export const runtimeMixed = 3; export type MixedType = string;\n",
+      "ein-pi/agent/surfaces/runtime-export.ts": "export const runtimeExport = 4;\n",
+      "ein-pi/agent/surfaces/runtime-star.ts": "export const runtimeStar = 5;\n",
+      "ein-pi/agent/surfaces/runtime-dynamic.ts": "export const runtimeDynamic = 6;\n",
+      "ein-pi/agent/surfaces/runtime-dynamic-template.ts": "export const runtimeDynamicTemplate = 7;\n",
+      "ein-pi/agent/surfaces/type-default.ts": "export default interface DefaultType {}\n",
+      "ein-pi/agent/surfaces/type-named.ts": "export type NamedType = string;\n",
+      "ein-pi/agent/surfaces/type-export.ts": "export type ExportedType = string;\n",
+      "ein-pi/agent/surfaces/type-named-export.ts": "export type NamedExport = string;\n",
+      "ein-pi/agent/surfaces/type-import-expression.ts": "export type ImportedType = string;\n",
+    };
+    for (const [path, source] of Object.entries(sources)) writeSource(checkout, path, source);
+
+    try {
+      const { bundleEinCcPayload } = await loadBundler();
+      const { manifest } = await bundleEinCcPayload({ repoRoot: checkout, outputPath: output });
+      const paths = manifest.files.map((entry) => entry.path);
+      for (const path of [
+        "runtime-side-effect.ts",
+        "runtime-default.ts",
+        "runtime-value.ts",
+        "runtime-transitive.ts",
+        "runtime-mixed.ts",
+        "runtime-export.ts",
+        "runtime-star.ts",
+        "runtime-dynamic.ts",
+        "runtime-dynamic-template.ts",
+      ]) expect(paths).toContain(`ein-pi/agent/surfaces/${path}`);
+      for (const path of [
+        "type-default.ts",
+        "type-named.ts",
+        "type-export.ts",
+        "type-named-export.ts",
+        "type-import-expression.ts",
+      ]) expect(paths).not.toContain(`ein-pi/agent/surfaces/${path}`);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("fails closed before publishing when a discovered source cannot be parsed", async () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), "ein-cc-payload-bundle-parse-"));
+    const checkout = join(tempRoot, "checkout");
+    const output = join(tempRoot, "payload.tar.gz");
+    mkdirSync(checkout, { recursive: true });
+    seedCheckout(checkout, "valid");
+    const brokenSource = "ein-pi/agent/surfaces/runtime-broken.ts";
+    writeSource(checkout, CLOSURE_FIXTURE_ENTRY, 'import "./runtime-broken.ts";\nexport const entry = true;\n');
+    writeSource(checkout, brokenSource, 'import { broken from "./runtime-missing.ts";\n');
+
+    try {
+      const { bundleEinCcPayload } = await loadBundler();
+      let error: unknown;
+      try {
+        await bundleEinCcPayload({ repoRoot: checkout, outputPath: output });
+      } catch (caught) {
+        error = caught;
+      }
+      expect(error).toBeInstanceOf(Error);
+      expect(String(error)).toContain(brokenSource);
+      expect(existsSync(output)).toBe(false);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
 });

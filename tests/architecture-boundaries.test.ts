@@ -81,6 +81,15 @@ function functionCalls(file: string, functionName: string, calleeName: string): 
 	return calls;
 }
 
+function importedModules(file: string): string[] {
+	const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+	return source.statements.flatMap((statement) =>
+		ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)
+			? [statement.moduleSpecifier.text]
+			: [],
+	);
+}
+
 describe("fronteras arquitectónicas del repositorio", () => {
 	test("Claude e installer no acceden directamente a interiores de Pi", () => {
 		expect(stringLiteralsContaining(EXTERNAL_CONSUMER_ROOTS, "ein-pi/agent")).toEqual([]);
@@ -135,5 +144,11 @@ describe("fronteras arquitectónicas del repositorio", () => {
 			const source = readFileSync(join(core, name), "utf8");
 			expect(source).not.toMatch(/node:fs|install-executor|install-journal-persistence|install-journal-store/);
 		}
+	});
+
+	test("el dominio de ajustes posee su modelo y la interfaz depende de él", () => {
+		const lib = join(ROOT, "ein-pi", "agent", "lib");
+		expect(importedModules(join(lib, "project-settings.ts"))).not.toContain("./terminal-app.ts");
+		expect(importedModules(join(lib, "terminal-app.ts"))).toContain("./project-settings.ts");
 	});
 });

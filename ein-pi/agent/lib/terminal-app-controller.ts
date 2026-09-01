@@ -1,4 +1,5 @@
 import { pick } from "./lang.ts";
+import type { Setting } from "./project-settings.ts";
 import type { RuntimeProvider } from "./runtime-session-adapters.ts";
 import type { RuntimeSessionList } from "./runtime-sessions.ts";
 import type { ContinuityPrepareResult } from "./continuity-handoff-lifecycle.ts";
@@ -15,7 +16,6 @@ import {
   type AppEffect,
   type AppModel,
   type ProjectSummary,
-  type Setting,
   type SystemComponent,
   type View,
   type ViewKind,

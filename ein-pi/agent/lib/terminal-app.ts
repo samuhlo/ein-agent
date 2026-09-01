@@ -10,6 +10,7 @@
 // =============================================================================
 
 import { pick } from "./lang.ts";
+import type { Setting } from "./project-settings.ts";
 import type { RuntimeProvider } from "./runtime-session-adapters.ts";
 import {
   center,
@@ -69,19 +70,6 @@ export type View = Readonly<{
   notes?: readonly string[];
   /** Config view only: the option lists cycling needs. */
   settings?: readonly Setting[];
-}>;
-
-/** One project setting the config view can cycle through. */
-export type Setting = Readonly<{
-  id: string;
-  label: string;
-  /** Allowed values, in cycling order. */
-  options: readonly string[];
-  /** `undefined` when the setting could not be read; never guessed. */
-  value: string | undefined;
-  hint?: string;
-  /** Human names per stored token. The file on disk keeps the token. */
-  labels?: Readonly<Record<string, string>>;
 }>;
 
 export type ProjectSummary = Readonly<{
