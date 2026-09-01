@@ -102,7 +102,7 @@ function runtimeModuleSpecifiers(path: string, source: string, transpilers: Sour
   }
 }
 
-function collectSourceClosure(repoRoot: string, entries: readonly string[]): string[] {
+export function collectSourceClosure(repoRoot: string, entries: readonly string[]): string[] {
   const pending = entries.map((entry) => sourcePath(repoRoot, entry));
   const found = new Set<string>();
   const transpilers: SourceTranspilers = {

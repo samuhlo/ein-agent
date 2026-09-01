@@ -21,7 +21,7 @@ This file is the shared coordinator policy source. Claude-specific runtime behav
 - A declared lane remains authoritative. Without one, only positively proven bounded mechanical, non-behavioral work or bounded documentation/text takes the small route; risk, uncertainty, new behavior, or incomplete evidence takes the normal route.
 - The normal route presents two numbered questions together in one plain-text turn to close outcome, boundaries, and completion criteria. Ask at most one third question only for a concrete material decision with no persisted value or applicable default, then require explicit final confirmation before persistence or construction. TDD and lane are reused from persisted values or project defaults and are not a standing questionnaire.
 - The small route emits exactly one plain-language restatement line, requests no response, and continues. A requested bypass stays normal for security, persistent-data, destructive, or unknown risk.
-- Persistence remains in `preflight.json` through the existing `sdd-preflight.ts` owner. After confirmed, automatic-small, or allowed bypass resolution, return control to the existing SDD router; phase selection, verification, delivery, and OpenSpec bootstrap remain unchanged.
+- Persistence remains in `preflight.json` through the shared intent coordinator and its preflight-record adapter. After confirmed, automatic-small, or allowed bypass resolution, return control to the existing SDD router; phase selection, verification, delivery, and OpenSpec bootstrap remain unchanged.
 - This automatic flow is separate from the explicitly human-only intent channel: it must never invoke `/ein:intent`, replace it, or mutate its `intent.md` artifact.
 
 ## Linear (optional integration)

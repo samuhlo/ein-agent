@@ -55,7 +55,7 @@ const ACCIDENTAL_TYPE_ONLY_PAYLOAD = [
   "ein-pi/agent/lib/terminal-app-controller.ts",
   "ein-pi/agent/lib/terminal-app.ts",
   "ein-pi/agent/lib/theme.ts",
-  "shared/contracts/sdd-intent-preflight-context.ts",
+  "shared/sdd/sdd-intent-preflight-context.ts",
 ] as const;
 const roots: string[] = [];
 const MAIN = join(import.meta.dir, "../installer/src/main.ts");

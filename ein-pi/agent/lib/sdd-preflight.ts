@@ -25,7 +25,6 @@
 // headless no puede dejar escrito en el cambio un "off" que no eligió nadie.
 // =============================================================================
 
-import { existsSync } from "node:fs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SddIntentPreflightContext } from "./sdd-intent-preflight-context.ts";
 import {
@@ -41,31 +40,21 @@ import { type TddMode, readTddMode } from "./tdd";
 import {
 	DEFAULT_LANE,
 	LANE_LABEL,
-	inspectChangeLane,
 	laneSkips,
-	writeChangeLane,
 	type SddLane,
 } from "./sdd-lane.ts";
 import {
-	createIntentMaterialKey,
-	decideIntentPreflight,
-	normalizeIntentMaterial,
-	planIntentInteraction,
-	type IntentDecisionEvidence,
-	type IntentInteractionPlan,
-	type IntentMaterial,
-	type MaterialThirdDecision,
-} from "./sdd-intent-preflight.ts";
-import {
-	changeDirFor,
+	persistSddIntentResolution,
 	readChangeStance,
-	readPreflightRecord,
+	readSddIntentResolutionState,
 	resolveActiveChange,
-	writePreflightRecord,
-	type PreflightAuthor,
-	type SddIntentRecord,
-	type SddPreflightRecord,
+	updateSddPreflightStance,
 } from "./sdd-preflight-record.ts";
+import {
+	createSddIntentPreflightCoordinator,
+	type SddIntentPreflightInput,
+	type SddIntentPreflightOutcome,
+} from "./sdd-intent-resolution.ts";
 import { type PreparedMemory } from "./memory-lifecycle.ts";
 import { installSddAssets, sddGlobalAssetDriftCount } from "./sdd-assets.ts";
 import {
@@ -173,7 +162,6 @@ const sddPreflightBySession = new Map<string, SddPreflightPreferences>();
 // postura técnica se resuelven aparte, sin volver a preguntar estas preferencias.
 const sddSessionAnswersBySession = new Map<string, SddSessionAnswers>();
 const sddPreflightInFlight = new Map<string, Promise<SddPreflightPreferences>>();
-const sddIntentInFlight = new Map<string, Promise<SddIntentPreflightOutcome>>();
 const sddSessionMemoryBySession = new Map<string, PreparedMemory>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -544,265 +532,32 @@ export function ensurePhaseRuntime(input: unknown): boolean {
 	return true;
 }
 
-export type SddIntentMaterialPatch = Readonly<{
-	objective?: string;
-	boundaries?: Readonly<{ in?: readonly string[]; out?: readonly string[] }>;
-	completionCriteria?: readonly string[];
-}>;
+export {
+	patchSddIntentMaterial,
+	type SddIntentMaterialPatch,
+	type SddIntentPreflightInput,
+	type SddIntentPreflightOutcome,
+} from "./sdd-intent-resolution.ts";
+export {
+	persistSddIntentResolution,
+	updateSddPreflightStance,
+	type SddIntentPersistenceResult,
+	type SddPreflightStanceUpdate,
+	type SddPreflightStanceUpdateResult,
+} from "./sdd-preflight-record.ts";
 
-export type SddIntentPersistenceResult =
-	| Readonly<{ kind: "persisted"; record: SddPreflightRecord }>
-	| Readonly<{ kind: "adopted"; record: SddPreflightRecord }>
-	| Readonly<{ kind: "unpersisted"; reason: "missing-change" | "missing-tdd" }>;
+const sddIntentCoordinator = createSddIntentPreflightCoordinator({
+	readState: readSddIntentResolutionState,
+	persistResolution: persistSddIntentResolution,
+	now: () => new Date().toISOString(),
+});
 
-export type SddPreflightStanceUpdate = Readonly<{
-	tdd?: Exclude<TddMode, "auto" | "ask">;
-	declaredLane?: SddLane;
-	author: PreflightAuthor;
-	replaceTdd?: boolean;
-}>;
-
-export type SddPreflightStanceUpdateResult =
-	| Readonly<{ kind: "updated"; record?: SddPreflightRecord }>
-	| Readonly<{ kind: "tdd-conflict"; record: SddPreflightRecord }>;
-
-export type SddIntentPreflightOutcome =
-	| Readonly<{ kind: "read-only"; reason: string }>
-	| Readonly<{ kind: "adopted"; intent: SddIntentRecord }>
-	| Readonly<{
-			kind: "pending";
-			route: "normal";
-			reason: "confirmation-required" | "material-change" | "material-uncertain";
-			interaction: Extract<IntentInteractionPlan, { kind: "normal" }>;
-	  }>
-	| Readonly<{
-			kind: "resolved";
-			route: "normal" | "small";
-			resolution: SddIntentRecord["resolution"];
-			persisted: boolean;
-			intent: SddIntentRecord;
-			interaction?: Extract<IntentInteractionPlan, { kind: "small" }>;
-	  }>;
-
-export type SddIntentPreflightInput = Readonly<{
-	change: string;
-	evidence: IntentDecisionEvidence;
-	summary: string;
-	material?: SddIntentMaterialPatch;
-	materialEvidence: "sufficient" | "uncertain";
-	confirmed?: boolean;
-	thirdDecision?: MaterialThirdDecision;
-	resolvedBy?: PreflightAuthor;
-}>;
-
-function materialFromRecord(intent: SddIntentRecord): IntentMaterial {
-	return {
-		objective: intent.objective,
-		boundaries: { in: [...intent.boundaries.in], out: [...intent.boundaries.out] },
-		completionCriteria: [...intent.completionCriteria],
-	};
-}
-
-/** Applies only declared material slots; omitted slots inherit from the current intent. */
-export function patchSddIntentMaterial(
-	current: IntentMaterial | undefined,
-	patch: SddIntentMaterialPatch,
-): IntentMaterial {
-	const objective = patch.objective ?? current?.objective;
-	const boundaries = {
-		in: [...(patch.boundaries?.in ?? current?.boundaries.in ?? [])],
-		out: [...(patch.boundaries?.out ?? current?.boundaries.out ?? [])],
-	};
-	const completionCriteria = [
-		...(patch.completionCriteria ?? current?.completionCriteria ?? []),
-	];
-	return normalizeIntentMaterial({
-		objective: objective ?? "",
-		boundaries,
-		completionCriteria,
-	});
-}
-
-/**
- * Owns compatibility stance writes. Explicit lanes also update provenance so
- * an equal classified value cannot keep automatic authority by accident.
- */
-export function updateSddPreflightStance(
-	cwd: string,
-	change: string,
-	update: SddPreflightStanceUpdate,
-): SddPreflightStanceUpdateResult {
-	const changeDir = changeDirFor(cwd, change);
-	if (!existsSync(changeDir)) return { kind: "updated" };
-	const latest = readPreflightRecord(changeDir);
-	if (update.tdd && latest?.tdd && !update.replaceTdd) {
-		return { kind: "tdd-conflict", record: latest };
-	}
-
-	if (update.declaredLane) writeChangeLane(changeDir, update.declaredLane);
-	const intent = latest?.intent && update.declaredLane
-		? { ...latest.intent, laneOrigin: "declared" as const }
-		: latest?.intent;
-	if (!update.tdd && intent === latest?.intent) return { kind: "updated", record: latest };
-	const tdd = update.tdd ?? latest?.tdd;
-	const decidedBy = update.tdd ? update.author : latest?.decidedBy;
-	if (!tdd || !decidedBy) return { kind: "updated", record: latest };
-
-	return {
-		kind: "updated",
-		record: writePreflightRecord(changeDir, {
-			tdd,
-			decidedBy,
-			...(intent ? { intent } : {}),
-		}),
-	};
-}
-
-/**
- * Sole durable owner for intent resolution. It rereads immediately before the
- * write: a resolution that appeared since observation is adopted, never lost.
- */
-export function persistSddIntentResolution(
-	cwd: string,
-	change: string,
-	intent: SddIntentRecord,
-	observedMaterialKey: string | undefined,
-): SddIntentPersistenceResult {
-	const changeDir = changeDirFor(cwd, change);
-	if (!existsSync(changeDir)) return { kind: "unpersisted", reason: "missing-change" };
-	const latest = readPreflightRecord(changeDir);
-	if (!latest) return { kind: "unpersisted", reason: "missing-tdd" };
-	if (latest.intent) {
-		if (latest.intent.materialKey === intent.materialKey) return { kind: "adopted", record: latest };
-		if (observedMaterialKey === undefined || latest.intent.materialKey !== observedMaterialKey) {
-			return { kind: "adopted", record: latest };
-		}
-	}
-
-	const lane = inspectChangeLane(changeDir);
-	const previousClassifiedLane = latest.intent?.laneOrigin === "classified" &&
-		lane.valid && lane.lane === (latest.intent.route === "small" ? "micro" : "standard");
-	const laneIsDeclared = lane.exists && !previousClassifiedLane;
-	const effectiveIntent: SddIntentRecord = laneIsDeclared
-		? { ...intent, laneOrigin: "declared" }
-		: intent;
-	const record = writePreflightRecord(changeDir, {
-		tdd: latest.tdd,
-		decidedBy: latest.decidedBy,
-		intent: effectiveIntent,
-	});
-	const classifiedLane = effectiveIntent.route === "small" ? "micro" : "standard";
-	if (
-		effectiveIntent.laneOrigin === "classified" &&
-		(!lane.exists || (previousClassifiedLane && lane.lane !== classifiedLane))
-	) {
-		writeChangeLane(changeDir, classifiedLane);
-	}
-	return { kind: "persisted", record };
-}
-
-function normalPending(
-	reason: Extract<SddIntentPreflightOutcome, { kind: "pending" }>["reason"],
-	thirdDecision?: MaterialThirdDecision,
-): Extract<SddIntentPreflightOutcome, { kind: "pending" }> {
-	const interaction = planIntentInteraction({
-		route: "normal",
-		...(thirdDecision ? { thirdDecision } : {}),
-	});
-	if (interaction.kind !== "normal") throw new Error("Normal intent plan expected");
-	return { kind: "pending", route: "normal", reason, interaction };
-}
-
-async function resolveSddIntentPreflightOnce(
-	ctx: SddIntentPreflightContext,
-	input: SddIntentPreflightInput,
-): Promise<SddIntentPreflightOutcome> {
-	// Yield once so reentrant hooks in the same session observe the in-flight mark.
-	await Promise.resolve();
-	const changeDir = changeDirFor(ctx.cwd, input.change);
-	const observed = readPreflightRecord(changeDir);
-	const existingIntent = observed?.intent;
-	const stance = readChangeStance(ctx.cwd, input.change);
-	const declaredLane = stance?.laneDeclared ? stance.lane : null;
-	const decision = decideIntentPreflight({ ...input.evidence, declaredLane });
-	if (decision.kind === "read-only") return { kind: "read-only", reason: decision.reason };
-
-	if (input.materialEvidence !== "sufficient") {
-		return normalPending("material-uncertain", input.thirdDecision);
-	}
-	let material: IntentMaterial;
-	try {
-		material = patchSddIntentMaterial(
-			existingIntent ? materialFromRecord(existingIntent) : undefined,
-			input.material ?? {},
-		);
-	} catch {
-		return normalPending("material-uncertain", input.thirdDecision);
-	}
-	const materialKey = createIntentMaterialKey(material);
-	if (existingIntent?.materialKey === materialKey) {
-		return { kind: "adopted", intent: existingIntent };
-	}
-
-	if (decision.route === "normal" && !decision.bypassQuestions && input.confirmed !== true) {
-		return normalPending(existingIntent ? "material-change" : "confirmation-required", input.thirdDecision);
-	}
-
-	const interaction = decision.route === "small"
-		? planIntentInteraction({ route: "small", restatement: input.summary })
-		: undefined;
-	if (interaction?.kind === "small") ctx.notify?.(interaction.lines[0]);
-	const resolution: SddIntentRecord["resolution"] = decision.bypassQuestions
-		? "bypassed"
-		: decision.route === "small"
-			? "automatic-small"
-			: "confirmed";
-	const intent: SddIntentRecord = {
-		version: 1,
-		resolution,
-		route: decision.route,
-		summary: input.summary.trim(),
-		...material,
-		materialKey,
-		laneOrigin: stance?.laneDeclared ? "declared" : "classified",
-		reason: decision.reason,
-		resolvedBy: input.resolvedBy ?? "pi",
-		resolvedAt: new Date().toISOString(),
-	};
-	const persisted = persistSddIntentResolution(
-		ctx.cwd,
-		input.change,
-		intent,
-		existingIntent?.materialKey,
-	);
-	if (persisted.kind === "adopted" && persisted.record.intent) {
-		return { kind: "adopted", intent: persisted.record.intent };
-	}
-	return {
-		kind: "resolved",
-		route: decision.route,
-		resolution,
-		persisted: persisted.kind === "persisted",
-		intent,
-		...(interaction?.kind === "small" ? { interaction } : {}),
-	};
-}
-
-/** Owns one intent flow per session/change; adapters call this, never the codec. */
+/** Compatibility surface for Pi consumers; behavior lives in the shared coordinator. */
 export function resolveSddIntentPreflight(
 	ctx: SddIntentPreflightContext,
 	input: SddIntentPreflightInput,
 ): Promise<SddIntentPreflightOutcome> {
-	const key = `${ctx.sessionKey}\u0000${input.change}`;
-	const current = sddIntentInFlight.get(key);
-	if (current) return current;
-	const promise = resolveSddIntentPreflightOnce(ctx, input);
-	sddIntentInFlight.set(key, promise);
-	const clear = () => {
-		if (sddIntentInFlight.get(key) === promise) sddIntentInFlight.delete(key);
-	};
-	void promise.then(clear, clear);
-	return promise;
+	return sddIntentCoordinator.resolve(ctx, input);
 }
 
 // Preguntas de SESIÓN. Se hacen una vez y sobreviven a los cambios que vengan

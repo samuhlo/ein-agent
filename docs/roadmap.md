@@ -2,7 +2,7 @@
 
 Este documento contiene únicamente trabajo vigente. Las decisiones estables viven en `docs/adr/`, el comportamiento actual en `openspec/specs/` y la historia exhaustiva en Git y las releases.
 
-El trabajo anterior dejó la baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, primeros contratos compartidos extraídos y fronteras automáticas de imports en su sitio. Las fases posteriores repararon el presupuesto de revisión, separaron el diario de instalación en contrato, forma, alcanzabilidad, codec, store, política, persistencia y ejecución, y hicieron que el payload de Claude siga dependencias de ejecución en lugar de imports puramente de tipo.
+El trabajo anterior dejó la baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, primeros contratos compartidos extraídos y fronteras automáticas de imports en su sitio. Las fases posteriores repararon el presupuesto de revisión, separaron el diario de instalación en contrato, forma, alcanzabilidad, codec, store, política, persistencia y ejecución, hicieron que el payload de Claude siga dependencias de ejecución en lugar de imports puramente de tipo y extrajeron la resolución de intención a un núcleo SDD neutral.
 
 ## Condicionado — liberar presupuesto de prompt
 
@@ -20,9 +20,8 @@ Objetivo: que el motor compartido exista de verdad, no como fachada.
 
 `shared/ports/` sigue siendo una fachada de migración hacia implementaciones propiedad de Pi. La CLI SDD de Claude consume parte de ese cierre; la frontera compartida todavía está declarada antes que construida.
 
-Zona explícita `shared/sdd/`, pieza a pieza, con reexports temporales durante cada migración:
+La primera pieza ya vive en `shared/sdd/`: política y coordinación de intención con E/S inyectada, consumidas por Pi y Claude. La migración continúa pieza a pieza, con reexports temporales durante cada corte:
 
-- [ ] Resolución pura de intención, hoy mezclada con el diálogo de Pi en `sdd-preflight.ts`.
 - [ ] Selección, lectura de estado y routing, hoy en `sdd-router.ts` (40 exports, 19 consumidores).
 - [ ] Cierre, OpenSpec y guardas que ambos runtimes usan realmente.
 

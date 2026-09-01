@@ -5,7 +5,7 @@ import {
   normalizeIntentMaterial,
   planIntentInteraction,
   type IntentDecisionEvidence,
-} from "../ein-pi/agent/lib/sdd-intent-preflight";
+} from "../shared/sdd/sdd-intent-preflight.ts";
 
 const completeSmallEvidence = (
   overrides: Partial<IntentDecisionEvidence> = {},

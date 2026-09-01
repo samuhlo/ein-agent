@@ -4,6 +4,7 @@ Esta raíz es la frontera ejecutable entre los adaptadores de Ein.
 
 - `contracts/` contiene implementaciones agnósticas. No puede importar desde
   `ein-pi/`, `ein-cc/` ni `installer/`.
+- `sdd/` contiene el núcleo SDD agnóstico y sus contratos propios.
 - `ports/` publica capacidades con una API explícita. Es el único lugar donde
   se permiten puentes hacia implementaciones que todavía viven en Pi. Es una
   fachada de migración visible, no una prueba de que esas implementaciones ya
