@@ -19,6 +19,7 @@ import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import {
   EIN_CC_PAYLOAD_FILES,
   EIN_CC_PAYLOAD_MANIFEST,
@@ -34,7 +35,6 @@ const REPO_ROOT = dirname(INSTALLER_ROOT);
 const OUT = join(INSTALLER_ROOT, "src", "assets", "ein-cc-runtime.tar.gz");
 
 const SOURCE_EXTENSIONS = ["", ".ts", ".tsx", ".js", ".json"];
-const IMPORT_RE = /(?:from\s+|import\s*\(\s*|export\s+from\s+)["']([^"']+)["']/g;
 
 export type BundleEinCcPayloadOptions = Readonly<{
   /** Checkout root used as the source of repository-relative payload paths. */
@@ -83,6 +83,73 @@ function resolveImportedFile(from: string, specifier: string): string | null {
   throw new Error(`Import relativo del payload no encontrado: ${specifier} desde ${from}`);
 }
 
+type ParsedSourceFile = ts.SourceFile & { readonly parseDiagnostics: readonly ts.Diagnostic[] };
+
+function moduleSpecifierText(node: ts.Expression | undefined): string | undefined {
+  return node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+    ? node.text
+    : undefined;
+}
+
+function importCarriesRuntime(clause: ts.ImportClause | undefined): boolean {
+  if (!clause) return true;
+  if (clause.isTypeOnly) return false;
+  if (clause.name || !clause.namedBindings || ts.isNamespaceImport(clause.namedBindings)) return true;
+  return clause.namedBindings.elements.length === 0 || clause.namedBindings.elements.some((element) => !element.isTypeOnly);
+}
+
+function exportCarriesRuntime(declaration: ts.ExportDeclaration): boolean {
+  if (declaration.isTypeOnly) return false;
+  if (!declaration.exportClause || ts.isNamespaceExport(declaration.exportClause)) return true;
+  return declaration.exportClause.elements.length === 0 || declaration.exportClause.elements.some((element) => !element.isTypeOnly);
+}
+
+function runtimeModuleSpecifiers(path: string, source: string): string[] {
+  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true) as ParsedSourceFile;
+  if (file.parseDiagnostics.length > 0) {
+    const first = file.parseDiagnostics[0];
+    const location = first?.start === undefined
+      ? ""
+      : (() => {
+          const { line, character } = file.getLineAndCharacterOfPosition(first.start);
+          return `:${line + 1}:${character + 1}`;
+        })();
+    throw new Error(`Source del payload no se puede analizar: ${path}${location}`);
+  }
+
+  const found = new Set<string>();
+  for (const statement of file.statements) {
+    if (ts.isImportDeclaration(statement) && importCarriesRuntime(statement.importClause)) {
+      const specifier = moduleSpecifierText(statement.moduleSpecifier);
+      if (specifier) found.add(specifier);
+      continue;
+    }
+    if (ts.isExportDeclaration(statement) && exportCarriesRuntime(statement)) {
+      const specifier = moduleSpecifierText(statement.moduleSpecifier);
+      if (specifier) found.add(specifier);
+      continue;
+    }
+    if (
+      ts.isImportEqualsDeclaration(statement) &&
+      !statement.isTypeOnly &&
+      ts.isExternalModuleReference(statement.moduleReference)
+    ) {
+      const specifier = moduleSpecifierText(statement.moduleReference.expression);
+      if (specifier) found.add(specifier);
+    }
+  }
+
+  const visitDynamicImports = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      const specifier = moduleSpecifierText(node.arguments[0]);
+      if (specifier) found.add(specifier);
+    }
+    ts.forEachChild(node, visitDynamicImports);
+  };
+  visitDynamicImports(file);
+  return [...found];
+}
+
 function collectSourceClosure(repoRoot: string, entries: readonly string[]): string[] {
   const pending = entries.map((entry) => sourcePath(repoRoot, entry));
   const found = new Set<string>();
@@ -91,9 +158,7 @@ function collectSourceClosure(repoRoot: string, entries: readonly string[]): str
     if (found.has(current)) continue;
     found.add(current);
     const source = readFileSync(current, "utf8");
-    for (const match of source.matchAll(IMPORT_RE)) {
-      const specifier = match[1];
-      if (!specifier) continue;
+    for (const specifier of runtimeModuleSpecifiers(current, source)) {
       const imported = resolveImportedFile(current, specifier);
       if (imported) pending.push(imported);
     }

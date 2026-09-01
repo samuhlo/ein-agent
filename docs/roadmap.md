@@ -2,18 +2,7 @@
 
 Este documento contiene únicamente trabajo vigente. Las decisiones estables viven en `docs/adr/`, el comportamiento actual en `openspec/specs/` y la historia exhaustiva en Git y las releases.
 
-El trabajo anterior dejó la baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, primeros contratos compartidos extraídos y fronteras automáticas de imports en su sitio. Las fases posteriores repararon el presupuesto de revisión y separaron el diario de instalación en contrato, forma, alcanzabilidad, codec, store, política, persistencia y ejecución.
-
-## Ahora — fase 4, retirar peso accidental del payload
-
-Objetivo: que la frontera declarada en prosa la confirme el archive.
-
-`ein-pi/agent/lib/project-settings.ts` importa el tipo `Setting` desde la aplicación de terminal, invirtiendo la dirección correcta de la dependencia. El empaquetador persigue imports con una expresión regular (`installer/scripts/bundle-ein-cc.ts`) que no distingue dependencias de solo tipo, así que copia código de interfaz de Pi dentro del paquete de Claude aunque nunca se ejecute.
-
-- [ ] Mover `Setting` al dominio de ajustes e invertir la dependencia: la interfaz importa el dominio, no al revés.
-- [ ] Sustituir el perseguidor de imports por análisis de TypeScript y descartar los imports de solo tipo.
-
-Criterio de salida: desaparecen los ocho ficheros accidentales y el payload sigue siendo autocontenido. Verificación dura: regenerar el archive, comparar el manifiesto, compilar las cuatro entradas desde el payload aislado y pasar el smoke compilado BunFS. `bun test` no compila binarios y no cubre esta puerta.
+El trabajo anterior dejó la baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, primeros contratos compartidos extraídos y fronteras automáticas de imports en su sitio. Las fases posteriores repararon el presupuesto de revisión, separaron el diario de instalación en contrato, forma, alcanzabilidad, codec, store, política, persistencia y ejecución, y hicieron que el payload de Claude siga dependencias de ejecución en lugar de imports puramente de tipo.
 
 ## Condicionado — liberar presupuesto de prompt
 
@@ -25,7 +14,7 @@ Objetivo: crear espacio solo cuando un cambio de contrato observable demuestre q
 
 Criterio de salida: el cambio de contrato medido cabe con margen explícito y los consumidores de la prosa retirada siguen verdes. Sin necesidad demostrada, esta fase no se ejecuta.
 
-## Después — fase 6, núcleo SDD neutral
+## Ahora — fase 6, núcleo SDD neutral
 
 Objetivo: que el motor compartido exista de verdad, no como fachada.
 
