@@ -30,7 +30,7 @@ blocked_by: none
 
 ## // 003. Persistencia — PR 3
 
-- [ ] 3.1 Añadir pruebas RED de composición y errores; mover inspección/publicación a `install-journal-persistence.ts` usando codec y store sin cambiar resultados públicos.
+- [x] 3.1 Añadir pruebas RED de composición y errores; mover inspección/publicación a `install-journal-persistence.ts` usando codec y store sin cambiar resultados públicos.
   - skills: `none`
   - why: ejecución necesita consumir IO sin crear un ciclo con la fachada.
   - architecture: persistencia traduce bytes/errores; store conserva atomicidad.
