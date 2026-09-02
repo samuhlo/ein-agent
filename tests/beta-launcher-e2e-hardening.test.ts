@@ -774,10 +774,10 @@ describe("doctor, failure matrix, privacy, and closed exits", () => {
         HOME: fixture.home,
         EIN_PI_AGENT_HOME: fixture.runtimeHome,
         EIN_PI_CONFIG_HOME: join(fixture.home, ".ein"),
-        // Bun 1.4 can populate its package cache lazily when this real child
-        // loads the production graph. Keep that tool cache outside the runtime
-        // home whose immutability this test is measuring.
-        BUN_INSTALL_CACHE_DIR: join(fixture.root, "bun-cache"),
+        // Bun 1.4 can populate its runtime transpiler cache lazily when this
+        // real child loads the production graph. Disable that disposable tool
+        // cache so this assertion measures only mutations made by Ein.
+        BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0",
       },
     );
     try {
