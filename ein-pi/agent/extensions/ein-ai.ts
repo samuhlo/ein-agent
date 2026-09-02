@@ -81,26 +81,14 @@ import { registerGeneralCommands } from "./internal/ein-general-commands.ts";
 import { registerOpenSpecWriteTools } from "./internal/ein-openspec-write-tools.ts";
 import {
 	memoryLifecycleForSession,
-	saveArchivedCloseMemory,
-	saveCheckedPhaseMemory,
-	skippedMemoryReceipt,
 } from "./internal/ein-sdd-memory.ts";
+import { registerSddLifecycleTools } from "./internal/ein-sdd-lifecycle-tools.ts";
 import { registerSddChangeSettings } from "./internal/ein-sdd-change-settings.ts";
 import { registerSddReadSurface } from "./internal/ein-sdd-read-surface.ts";
-import { formatChangeLint } from "./internal/ein-sdd-presentation.ts";
 import { createEinToolRegistrar } from "./internal/ein-tool-registration.ts";
-import { lintChange, type SddPhase } from "../lib/sdd-guardrails.ts";
+import type { SddPhase } from "../lib/sdd-guardrails.ts";
 import { resolveActiveChange } from "../lib/sdd-preflight-record.ts";
-import { aggregateSddBudget, changeUnavailableMessage, formatBudget, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddStatus, sddNextHandoff } from "../lib/sdd-router.ts";
-import { SDD_SESSION_BINDING_EVENT_CHANNEL, type SessionBindingEventV1 } from "../lib/sdd-session-binding.ts";
-import { closeChange, type CloseOptions } from "../lib/sdd-close.ts";
-import { parseSddCloseArgs } from "../lib/sdd-close-args.ts";
-import {
-	MEMORY_CANDIDATE_SCHEMA,
-	appendMemoryReceipt,
-	safeMemoryReceipt,
-	type SafeMemoryReceipt,
-} from "../lib/sdd-memory-save.ts";
+import { aggregateSddBudget, formatBudget, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, sddNextHandoff } from "../lib/sdd-router.ts";
 import {
 	codeConventionSkillBlock,
 	resolveSkillInjection,
@@ -109,9 +97,7 @@ import { ensureEinGitignore } from "../lib/gitignore.ts";
 import {
 	einContextDirective,
 	einMdCommitsBehind,
-	einMdPath,
 	readEinMd,
-	writeEinMd,
 } from "../lib/project-context.ts";
 import { AGENT_DIR } from "./ein-paths";
 import { readInstalledVersion, staleSessionNudge } from "../lib/session-version";
@@ -447,10 +433,6 @@ function canonicalSpecPrompt(cwd: string, agent: "sdd-scope" | "sdd-design", tas
 // ─── Extensión ────────────────────────────────────────────────────────────────
 
 export default function einAi(pi: ExtensionAPI): void {
-	function publishSessionBinding(event: SessionBindingEventV1): void {
-		pi.events.emit(SDD_SESSION_BINDING_EVENT_CHANNEL, event);
-	}
-
 	async function runSddPreflight(ctx: ExtensionContext): Promise<SddPreflightPreferences> {
 		const preferences = await ensureSddPreflight(ctx, {
 			pi,
@@ -927,138 +909,7 @@ export default function einAi(pi: ExtensionAPI): void {
 
 	registerOpenSpecWriteTools(registerEinTool);
 
-	registerEinTool({
-		name: "ein_sdd_check",
-		label: "Ein SDD Check",
-		description:
-			"Deterministic gatekeeper: lint every present SDD artifact of a change (sections, required signals like verify's status line, placeholders, size). Run it AFTER each phase before advancing. Returns a compact per-phase summary (OK/ERRORS + issues). Reads only the filesystem.",
-		parameters: {
-			type: "object",
-			properties: {
-				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
-				phase: { type: "string", enum: ["scope", "map", "design", "tasks", "apply", "verify"] },
-				memoryCandidate: MEMORY_CANDIDATE_SCHEMA,
-			},
-		} as const,
-		async execute(_id, params: { change?: string; phase?: string; memoryCandidate?: unknown }, _signal, _onUpdate, ctx: ExtensionContext) {
-			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
-			if (!change) {
-				return { content: [{ type: "text", text: (changeUnavailableMessage(ctx.cwd, "check", params?.change) ?? "// sdd check — no active change in openspec/changes/.") }], details: { ok: false, reason: "no active change" } };
-			}
-			const report = lintChange(ctx.cwd, change);
-			const phaseReport = params?.phase
-				? report.phases.find((entry) => entry.phase === params.phase)
-				: undefined;
-			const candidateHasCleanArtifact = Boolean(phaseReport?.present && phaseReport.report?.errors === 0);
-			if (report.errors > 0 || (params?.memoryCandidate !== undefined && !candidateHasCleanArtifact)) {
-				const memory = safeMemoryReceipt(skippedMemoryReceipt("artifact_gate_failed"), `sdd:${change}:gate`);
-				appendMemoryReceipt(join(resolveChangesDir(ctx.cwd), change), memory);
-				Object.assign(report, { memory });
-				return { content: [{ type: "text", text: formatChangeLint(report) }], details: report };
-			}
-			const memory = await saveCheckedPhaseMemory(ctx, change, params?.phase, params?.memoryCandidate);
-			appendMemoryReceipt(join(resolveChangesDir(ctx.cwd), change), memory);
-			Object.assign(report, { memory });
-			return { content: [{ type: "text", text: formatChangeLint(report) }], details: report };
-		},
-	});
-
-	// ── SDD close (canonical) ──────────────────────────────────────────────────
-	// Lógica compartida por el comando /ein:sdd-close y el tool ein_sdd_close: el
-	// move determinista (con guard de readiness) + memoria de cierre + refresco de
-	// EIN.md. Un único punto para que ambas superficies se comporten igual.
-	async function performSddClose(ctx: ExtensionContext, change: string, options: CloseOptions) {
-		const result = closeChange(ctx.cwd, change, options);
-		let memory: SafeMemoryReceipt | undefined;
-		if (result.ok) {
-			publishSessionBinding({ version: 1, action: "invalidate", change });
-			memory = await saveArchivedCloseMemory(ctx, change, result.to);
-			// FORGE -> al cerrar un cambio, refresca la zona AUTO de EIN.md (comandos/
-			// estructura/docs) para que el índice no envejezca. Solo si ya existe: el
-			// cierre no es momento de crearlo (eso es /ein:init o el onboarding).
-			if (existsSync(einMdPath(ctx.cwd))) writeEinMd(ctx.cwd);
-		}
-		return { result, memory };
-	}
-
-	async function handleSddClose(args: string | string[], ctx: ExtensionContext) {
-		const parsed = parseSddCloseArgs(args);
-		const change = parsed.change ?? resolveSddStatus(ctx.cwd).change ?? "";
-		if (!change) {
-			const ambiguity = changeUnavailableMessage(ctx.cwd, "close", parsed.change);
-			ctx.ui.notify(
-				`${ambiguity ?? "Sin cambio que cerrar."} Uso: /ein:sdd-close <change> [--reconciliation-profile scope-only-out-of-flow --reconciliation-evidence <canonical-path>] --reason "<audit reason>". Legacy: --force --reason "<audit reason>"`,
-				"warning",
-			);
-			return;
-		}
-		const { result: r, memory } = await performSddClose(ctx, change, {
-			force: parsed.force,
-			legacyReason: parsed.reason,
-			reconciliationProfile: parsed.reconciliationProfile,
-			reconciliationEvidencePath: parsed.reconciliationEvidencePath,
-		});
-		const memoryMessage = memory
-			? memory.status === "saved" && memory.reason === "acknowledged"
-				? " Memoria: guardada."
-				: ` Memoria: ${memory.status}/${memory.reason}.`
-			: "";
-		const success = r.legacyEscape
-			? `Closed through legacy escape (spec state remained unresolved): ${r.legacyEscape.reason}${memoryMessage}`
-			: r.reconciliation
-				? `Reconciled out-of-flow change '${change}' closed with profile ${r.reconciliation.profile}.${memoryMessage}`
-				: `Verified change '${change}' closed. openspec/changes/ is clean.${memoryMessage}`;
-		ctx.ui.notify(
-			r.ok ? success : `No se cerró '${change}': ${r.reason}`,
-			r.ok ? "info" : "warning",
-		);
-	}
-
-	pi.registerCommand("ein:sdd-close", {
-		description: t("cmd.sdd-close.description", "Close a verified change"),
-		handler: async (args, ctx) => handleSddClose(args, ctx),
-	});
-
-	// Tool determinista de cierre: gemelo model-callable del comando. Antes el
-	// orquestador solo tenía el slash command (que no puede invocar), así que
-	// cerraba con hacks (`bun -e` importando la lib) o delegaba en el usuario.
-	registerEinTool({
-		name: "ein_sdd_close",
-		label: "Ein SDD Close",
-		description:
-			"Deterministically archive a VERIFIED change. For audited scope-only delivery outside SDD, explicitly provide reconciliationProfile `scope-only-out-of-flow`, the canonical reconciliationEvidencePath, and reason. `--force --reason \"<audit reason>\"` is only for an otherwise complete, freshly verified declarationless legacy record. It never bypasses tasks, apply, verify, summary, pending spec synchronization, or conflicts, and close never synchronizes specs. Moves the filesystem; never commits or pushes.",
-		parameters: {
-			type: "object",
-			properties: {
-				change: { type: "string", description: "Change name under openspec/changes/ (optional; defaults to the active one)." },
-				force: { type: "boolean", description: "Use only with reason for the narrow declarationless legacy escape; eligibility remains enforced by the close library." },
-				reason: { type: "string", description: "Audit reason required with force or reconciliation; validated by the shared close library." },
-				reconciliationProfile: { type: "string", enum: ["scope-only-out-of-flow"], description: "Explicit audited reconciliation profile; never inferred from evidence." },
-				reconciliationEvidencePath: { type: "string", description: "Canonical openspec/changes/<change>/out-of-flow-reconciliation.json path." },
-			},
-		} as const,
-		async execute(_id, params: { change?: string; force?: boolean; reason?: string; reconciliationProfile?: string; reconciliationEvidencePath?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
-			const change = params?.change ?? resolveSddStatus(ctx.cwd).change ?? "";
-			if (!change) {
-				return { content: [{ type: "text", text: (changeUnavailableMessage(ctx.cwd, "close", params?.change) ?? "// sdd close — no active change to close.") }], details: { ok: false, reason: "no active change" } };
-			}
-			const reason = params?.reason;
-			const { result, memory } = await performSddClose(ctx, change, {
-				force: Boolean(params?.force),
-				legacyReason: reason,
-				reconciliationProfile: params?.reconciliationProfile,
-				reconciliationEvidencePath: params?.reconciliationEvidencePath,
-			});
-			const text = result.ok
-				? result.legacyEscape
-					? `// sdd close — Closed through legacy escape (spec state remained unresolved): ${result.legacyEscape.reason}`
-					: result.reconciliation
-						? `// sdd close — Reconciled '${change}' with profile ${result.reconciliation.profile}; archived to ${result.to.replace(ctx.cwd, ".")}.`
-						: `// sdd close — Verified change '${change}' closed; archived to ${result.to.replace(ctx.cwd, ".")}.`
-				: `// sdd close — '${change}' NOT closed: ${result.reason}`;
-			return { content: [{ type: "text", text }], details: { ...result, memory } };
-		},
-	});
+	registerSddLifecycleTools(pi, registerEinTool);
 
 	pi.registerCommand("ein:status", {
 		description: t(

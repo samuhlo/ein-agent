@@ -137,7 +137,7 @@ describe("formatChangeLint", () => {
 describe("contract: ein_sdd_check tool devuelve texto formateado", () => {
 	test("las superficies SDD registran ein_sdd_check como tool (no como command)", () => {
 		const ai = [
-			"../ein-pi/agent/extensions/ein-ai.ts",
+			"../ein-pi/agent/extensions/internal/ein-sdd-lifecycle-tools.ts",
 			"../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts",
 		].map((path) => require("fs").readFileSync(join(import.meta.dir, path), "utf8")).join("\n");
 		// La tool usa registerTool y devuelve formatChangeLint, no JSON.stringify

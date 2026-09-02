@@ -29,7 +29,7 @@ describe("orchestrator: flujo por fases determinista", () => {
 	});
 
 	test("expone ein_sdd_close como tool model-callable (no solo comando) y veta el hack bun -e", () => {
-		const ext = read("extensions/ein-ai.ts");
+		const ext = read("extensions/internal/ein-sdd-lifecycle-tools.ts");
 		expect(ext).toContain('name: "ein_sdd_close"');
 		expect(orch).toContain("ein_sdd_close");
 		expect(orch).toContain("NEVER shell out to the SDD libraries");
@@ -206,6 +206,7 @@ describe("ein-ai: tools deterministas cableados", () => {
 	const ai = [
 		read("extensions/ein-ai.ts"),
 		read("extensions/internal/ein-openspec-write-tools.ts"),
+		read("extensions/internal/ein-sdd-lifecycle-tools.ts"),
 		read("extensions/internal/ein-sdd-read-surface.ts"),
 	].join("\n");
 	test("registra ein_sdd_status y ein_sdd_check", () => {

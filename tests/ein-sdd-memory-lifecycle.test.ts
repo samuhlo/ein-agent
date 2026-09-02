@@ -22,10 +22,14 @@ test("the main extension consumes the memory owner", () => {
 		join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"),
 		"utf8",
 	);
+	const lifecycle = readFileSync(
+		join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-sdd-lifecycle-tools.ts"),
+		"utf8",
+	);
 
 	expect(source).toContain("memoryLifecycleForSession");
-	expect(source).toContain("saveCheckedPhaseMemory");
-	expect(source).toContain("saveArchivedCloseMemory");
+	expect(lifecycle).toContain("saveCheckedPhaseMemory");
+	expect(lifecycle).toContain("saveArchivedCloseMemory");
 	expect(source).not.toContain("function memoryLifecycleForSession");
 	expect(source).not.toContain("function saveCheckedPhaseMemory");
 });
