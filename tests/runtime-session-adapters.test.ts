@@ -151,6 +151,8 @@ describe("runtime session adapter contract", () => {
 			environment: {},
 		};
 
+		expect(buildLaunchPlan).toBe(runtimeLaunchPlan.buildLaunchPlan);
+		expect(resolveLaunchExecutable).toBe(runtimeLaunchPlan.resolveLaunchExecutable);
 		expect(runtimeLaunchPlan.launchArgvFor("pi", "create")).toEqual([]);
 		expect(runtimeLaunchPlan.resolveLaunchExecutable("pi", options)).toBe(
 			resolveLaunchExecutable("pi", options),
