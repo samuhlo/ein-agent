@@ -24,6 +24,7 @@ import {
 import { PROJECT_STATE_SCHEMA_VERSION as CONTRACT_SCHEMA_VERSION } from "../ein-pi/agent/lib/project-state-contract";
 import { projectRuntimeState } from "../ein-pi/agent/lib/project-state-runtime";
 import { readProjectOpenSpecState } from "../ein-pi/agent/lib/project-state-openspec";
+import { readProjectEinState } from "../ein-pi/agent/lib/project-state-ein";
 
 const QUALITY_VALUES: readonly ProjectStateQuality[] = [
 	"current",
@@ -447,6 +448,11 @@ describe("OpenSpec active projection", () => {
 });
 
 describe("EIN context projection", () => {
+	test("the aggregate delegates EIN.md inspection to its owner", () => {
+		const cwd = "/tmp/example-project";
+		expect(projectProjectState({ cwd }).ein).toEqual(readProjectEinState(cwd));
+	});
+
 	test("EIN absent context is explicit", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "ein-project-state-ein-"));
 		try {
