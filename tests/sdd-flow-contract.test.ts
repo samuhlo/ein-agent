@@ -276,17 +276,19 @@ describe("ein-ai: tools deterministas cableados", () => {
 
 describe("adapter Pi: un solo iniciador de intención", () => {
 	const ai = read("extensions/ein-ai.ts");
+	const intentGate = read("extensions/internal/ein-pi-intent-gate.ts");
 
 	test("el hook input arma y resuelve intención mediante el contrato compartido", () => {
-		expect(ai).toContain("resolveSddIntentPreflight");
-		expect(ai).toContain("await runPiIntentPreflight(event.text, ctx)");
+		expect(intentGate).toContain("resolveSddIntentPreflight");
+		expect(ai).toContain("await intentGate.runPiIntentPreflight(event.text, ctx)");
 		expect(ai).toContain('if (intent === "pending") return { action: "handled" }');
+		expect(ai).not.toContain("function classifyPiIntentRequest");
 	});
 
 	test("normal usa un único mensaje textual y no abre un modal paralelo", () => {
-		expect(ai).toContain("outcome.interaction.text");
-		expect(ai).not.toContain("ctx.ui.input");
-		expect(ai).not.toContain("ctx.ui.confirm");
+		expect(intentGate).toContain("outcome.interaction.text");
+		expect(intentGate).not.toContain("ctx.ui.input");
+		expect(intentGate).not.toContain("ctx.ui.confirm");
 	});
 
 	test("los hooks secundarios nunca inician interacción y bloquean construcción pendiente", () => {

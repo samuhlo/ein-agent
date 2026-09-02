@@ -26,7 +26,7 @@ import {
 	resolveSddIntentPreflight as resolveSddIntentPreflightWithContext,
 } from "../ein-pi/agent/lib/sdd-preflight";
 import { createIntentMaterialKey, decideIntentPreflight, type IntentDecisionEvidence, type IntentMaterial } from "../ein-pi/agent/lib/sdd-intent-preflight";
-import { classifyPiIntentRequest } from "../ein-pi/agent/extensions/ein-ai";
+import { classifyPiIntentRequest } from "../ein-pi/agent/extensions/internal/ein-pi-intent-gate";
 import {
 	preflightRecordPath,
 	readPreflightRecord,
