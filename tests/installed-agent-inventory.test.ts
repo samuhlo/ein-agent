@@ -9,13 +9,29 @@ import { runDoctor, type DoctorReport } from "../installer/src/core/verify.ts";
 import { inspectCommonDoctor, summarizeDoctorChecks } from "../ein-pi/agent/lib/doctor-core.ts";
 import type { LinearIntegration } from "../ein-pi/agent/lib/linear-integration.ts";
 import { doctorSmokeReport } from "../ein-pi/agent/extensions/ein-doctor.ts";
+import {
+	assertUniqueSharedOverlayFiles,
+	sharedTypeScriptFiles,
+} from "../installer/scripts/bundle-template.ts";
 
 const ROOT = join(import.meta.dir, "..");
 const SOURCE_AGENTS = join(ROOT, "runtime", "agents");
 const BUNDLE_SCRIPT = join(ROOT, "installer", "scripts", "bundle-template.ts");
+const SHARED_SOURCE_ROOTS = [
+	join(ROOT, "shared", "contracts"),
+	join(ROOT, "shared", "sdd"),
+] as const;
 
 function sourceAgents(): string[] {
 	return readdirSync(SOURCE_AGENTS).filter((file) => file.endsWith(".md")).sort();
+}
+
+function sharedSources(): { name: string; path: string }[] {
+	return SHARED_SOURCE_ROOTS.flatMap((root) =>
+		readdirSync(root, { withFileTypes: true })
+			.filter((entry) => entry.isFile() && entry.name.endsWith(".ts"))
+			.map((entry) => ({ name: entry.name, path: join(root, entry.name) })),
+	).sort((left, right) => left.name.localeCompare(right.name, "en"));
 }
 
 function bundledTemplate(): { root: string; archive: string; payload: string } {
@@ -77,6 +93,34 @@ describe("inventario instalado de agentes", () => {
 			expect(policy).toContain("ONE notebook shared by both runtimes");
 		} finally {
 			rmSync(staging.root, { recursive: true, force: true });
+		}
+	});
+
+	test("el overlay instalado contiene cada módulo compartido byte a byte", () => {
+		const staging = bundledTemplate();
+		try {
+			const sources = sharedSources();
+			expect(sources.length).toBeGreaterThan(0);
+			for (const source of sources) {
+				expect(readFileSync(join(staging.payload, "lib", source.name))).toEqual(readFileSync(source.path));
+			}
+		} finally {
+			rmSync(staging.root, { recursive: true, force: true });
+		}
+	});
+
+	test("el inventario compartido rechaza fuentes no regulares y nombres que se pisarían", () => {
+		const root = mkdtempSync(join(tmpdir(), "ein-shared-inventory-"));
+		try {
+			writeFileSync(join(root, "valid.ts"), "export {};\n");
+			mkdirSync(join(root, "invalid.ts"));
+			expect(() => sharedTypeScriptFiles(root)).toThrow("deben ser ficheros regulares: invalid.ts");
+			expect(() => assertUniqueSharedOverlayFiles([
+				{ root: "contracts", files: ["same.ts"] },
+				{ root: "sdd", files: ["same.ts"] },
+			])).toThrow("Colisión en el overlay compartido");
+		} finally {
+			rmSync(root, { recursive: true, force: true });
 		}
 	});
 

@@ -72,6 +72,13 @@ Given: the Pi runtime path is selected
 When: installation runs with an isolated or legacy Pi agent state
 Then: the template targets the unchanged isolated Pi data directory, the `ein-pi` launcher is installed under the Fish functions directory, and a detected legacy installation is migrated without treating an ordinary vanilla Pi directory as Ein
 
+## Scenario: pi-template-includes-all-shared-typescript
+title: Pi template includes every shared TypeScript module
+requirement: The system MUST derive the Pi template shared-module overlay from every regular TypeScript source in shared/contracts and shared/sdd instead of a duplicated hand-maintained inventory.
+Given: the shared runtime roots contain regular TypeScript modules, an invalid TypeScript-shaped entry, or duplicate flat overlay names
+When: the installer builds the Pi template archive
+Then: every valid shared module is copied byte-identically into the installed lib overlay, while invalid sources and name collisions fail before an apparently complete archive is produced
+
 ## Scenario: pre-mutation-pi-failure-retry
 title: Pre-mutation Pi failure supports fail-closed retry
 requirement: The system MUST provide a supported fail-closed retry or recovery path when a Pi install fails before any Pi mutation, while preserving completed Claude work.

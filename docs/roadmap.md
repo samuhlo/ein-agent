@@ -24,7 +24,7 @@ Tres piezas ya viven en `shared/sdd/`: política y coordinación de intención; 
 
 - [ ] Cierre, OpenSpec y validación de artefactos que ambos runtimes usan realmente.
 
-Hooks, preguntas, interfaz y herramientas exclusivas se quedan en Pi. Cada PR debe reducir la lista de puentes y el cierre real de la CLI.
+Hooks, preguntas, interfaz y herramientas exclusivas se quedan en Pi. Cada corte funcional terminado debe reducir la lista de puentes y el cierre real de la CLI. Si el presupuesto obliga a apilarlo en varias PRs, una preparación intermedia no puede añadir puentes ni ampliar el cierre.
 
 Criterio de salida: cada puente superviviente tiene motivo, propietario y condición de retirada. No se persigue cero.
 

@@ -46,20 +46,36 @@ const TYPESCRIPT_VERSION = "5.9.3";
 // disabled-skill-conflicts/, run-history) queda fuera a proposito.
 const RUNTIME_FILES = ["AGENTS.md"];
 const RUNTIME_DIRS = ["agents", "assets", "docs", "prompts", "skills"];
-const SHARED_CONTRACT_FILES = [
-  "ein-tv.ts",
-  "memory-contract.ts",
-  "runtime-compat.ts",
-  "shared-config-update-advisor.ts",
-  "style-contract.ts",
-];
-const SHARED_SDD_FILES = [
-  "sdd-intent-preflight-context.ts",
-  "sdd-intent-preflight.ts",
-  "sdd-intent-resolution.ts",
-  "sdd-remedies.ts",
-  "sdd-routing-core.ts",
-];
+
+export function sharedTypeScriptFiles(sourceRoot: string): string[] {
+  const entries = readdirSync(sourceRoot, { withFileTypes: true })
+    .filter((entry) => entry.name.endsWith(".ts"));
+  const invalid = entries.filter((entry) => !entry.isFile()).map((entry) => entry.name).sort();
+  if (invalid.length > 0) {
+    throw new Error(`Los módulos compartidos deben ser ficheros regulares: ${invalid.join(", ")}`);
+  }
+  return entries.map((entry) => entry.name).sort();
+}
+
+export function assertUniqueSharedOverlayFiles(
+  groups: readonly Readonly<{ root: string; files: readonly string[] }>[],
+): void {
+  const owners = new Map<string, string>();
+  for (const group of groups) {
+    for (const file of group.files) {
+      const owner = owners.get(file);
+      if (owner) throw new Error(`Colisión en el overlay compartido: ${file} existe en ${owner} y ${group.root}`);
+      owners.set(file, group.root);
+    }
+  }
+}
+
+const SHARED_CONTRACT_FILES = sharedTypeScriptFiles(SHARED_CONTRACT_SOURCE);
+const SHARED_SDD_FILES = sharedTypeScriptFiles(SHARED_SDD_SOURCE);
+assertUniqueSharedOverlayFiles([
+  { root: SHARED_CONTRACT_SOURCE, files: SHARED_CONTRACT_FILES },
+  { root: SHARED_SDD_SOURCE, files: SHARED_SDD_FILES },
+]);
 // Allowlist del template. `app.ts` remains available to provider launchers;
 // the user-facing app is precompiled and staged separately as bin/ein. Ver
 // tests/template-agent-inventory.test.ts, que deriva lo requerido del código.
@@ -181,6 +197,10 @@ function copyInto(sourceRoot: string, staging: string, files: string[], dirs: st
   }
 }
 
+function copyRequiredFiles(sourceRoot: string, staging: string, files: readonly string[]): void {
+  for (const file of files) cpSync(join(sourceRoot, file), join(staging, file));
+}
+
 async function main(): Promise<void> {
   for (const source of [RUNTIME_SOURCE, VENDOR_SKILLS_SOURCE, SHARED_CONTRACT_SOURCE, SHARED_SDD_SOURCE, AGENT_SOURCE]) {
     if (!existsSync(source)) {
@@ -193,8 +213,8 @@ async function main(): Promise<void> {
     copyInto(RUNTIME_SOURCE, staging, RUNTIME_FILES, RUNTIME_DIRS);
     cpSync(VENDOR_SKILLS_SOURCE, join(staging, "skills", "downloaded"), { recursive: true });
     copyInto(AGENT_SOURCE, staging, AGENT_FILES, AGENT_DIRS);
-    copyInto(SHARED_CONTRACT_SOURCE, join(staging, "lib"), SHARED_CONTRACT_FILES, []);
-    copyInto(SHARED_SDD_SOURCE, join(staging, "lib"), SHARED_SDD_FILES, []);
+    copyRequiredFiles(SHARED_CONTRACT_SOURCE, join(staging, "lib"), SHARED_CONTRACT_FILES);
+    copyRequiredFiles(SHARED_SDD_SOURCE, join(staging, "lib"), SHARED_SDD_FILES);
 
     // assets/agents y assets/chains son la copia "de fabrica" que usa
     // installSddAssets para reparar instalaciones. Se generan aqui desde las
@@ -244,7 +264,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error(`[error] ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((error) => {
+    console.error(`[error] ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  });
+}

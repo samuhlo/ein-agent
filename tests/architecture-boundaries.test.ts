@@ -28,22 +28,6 @@ const ALLOWED_PI_BRIDGES = [
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-summary-write.ts",
 ] as const;
 
-const SHARED_SDD_FILES = [
-	"sdd-intent-preflight-context.ts",
-	"sdd-intent-preflight.ts",
-	"sdd-intent-resolution.ts",
-	"sdd-remedies.ts",
-	"sdd-routing-core.ts",
-] as const;
-
-const SHARED_CONTRACTS = [
-	"ein-tv.ts",
-	"memory-contract.ts",
-	"runtime-compat.ts",
-	"shared-config-update-advisor.ts",
-	"style-contract.ts",
-] as const;
-
 function typescriptFiles(directory: string): string[] {
 	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
 		const path = join(directory, entry.name);
@@ -114,6 +98,10 @@ describe("fronteras arquitectónicas del repositorio", () => {
 		expect(adapterReferences).toEqual([]);
 	});
 
+	test("el código compartido no lanza procesos", () => {
+		expect(stringLiteralsContaining([CONTRACT_ROOT, SDD_CORE_ROOT], "node:child_process")).toEqual([]);
+	});
+
 	test("todo puente temporal hacia Pi está centralizado y declarado", () => {
 		expect(stringLiteralsContaining([PORT_ROOT], "ein-pi/agent")).toEqual([...ALLOWED_PI_BRIDGES].sort());
 	});
@@ -133,22 +121,10 @@ describe("fronteras arquitectónicas del repositorio", () => {
 
 	test("el template despliega las implementaciones compartidas, no los entrypoints de compatibilidad", () => {
 		const bundle = readFileSync(join(ROOT, "installer/scripts/bundle-template.ts"), "utf8");
-		for (const contract of SHARED_CONTRACTS) {
-			expect(existsSync(join(ROOT, CONTRACT_ROOT, contract))).toBeTrue();
-			const compatibilityEntrypoint = readFileSync(join(ROOT, "ein-pi/agent/lib", contract), "utf8");
-			expect(compatibilityEntrypoint).toContain("Compatibility entrypoint");
-			expect(compatibilityEntrypoint).toContain(`export * from "../../../shared/contracts/${contract}";`);
-			expect(bundle).toContain(`  "${contract}",`);
-		}
-		expect(bundle).toContain('copyInto(SHARED_CONTRACT_SOURCE, join(staging, "lib"), SHARED_CONTRACT_FILES, [])');
-		for (const name of SHARED_SDD_FILES) {
-			expect(existsSync(join(ROOT, SDD_CORE_ROOT, name))).toBeTrue();
-			const compatibilityEntrypoint = readFileSync(join(ROOT, "ein-pi/agent/lib", name), "utf8");
-			expect(compatibilityEntrypoint).toContain("Compatibility entrypoint");
-			expect(compatibilityEntrypoint).toContain(`shared/sdd/${name}`);
-			expect(bundle).toContain(`  "${name}",`);
-		}
-		expect(bundle).toContain('copyInto(SHARED_SDD_SOURCE, join(staging, "lib"), SHARED_SDD_FILES, [])');
+		expect(bundle).toContain("sharedTypeScriptFiles(SHARED_CONTRACT_SOURCE)");
+		expect(bundle).toContain('copyRequiredFiles(SHARED_CONTRACT_SOURCE, join(staging, "lib"), SHARED_CONTRACT_FILES)');
+		expect(bundle).toContain("sharedTypeScriptFiles(SHARED_SDD_SOURCE)");
+		expect(bundle).toContain('copyRequiredFiles(SHARED_SDD_SOURCE, join(staging, "lib"), SHARED_SDD_FILES)');
 	});
 
 	test("el diario deja una fachada fina y mantiene puras sus decisiones", () => {
