@@ -22,6 +22,7 @@ import {
 	type ProjectStateV1,
 } from "../ein-pi/agent/lib/project-state";
 import { PROJECT_STATE_SCHEMA_VERSION as CONTRACT_SCHEMA_VERSION } from "../ein-pi/agent/lib/project-state-contract";
+import { projectRuntimeState } from "../ein-pi/agent/lib/project-state-runtime";
 
 const QUALITY_VALUES: readonly ProjectStateQuality[] = [
 	"current",
@@ -80,6 +81,7 @@ describe("projectProjectState contract", () => {
 				errors: [],
 			});
 		}
+		expect(state.runtimes.pi).toEqual(projectRuntimeState("pi", undefined));
 	});
 
 	test("public state has no private session or execution surfaces", () => {
