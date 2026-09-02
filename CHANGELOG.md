@@ -4,7 +4,7 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
-## [0.94.0-alpha.2] - 2026-09-02
+## [0.94.0-alpha.3] - 2026-09-02
 
 ### Changed
 
@@ -36,9 +36,9 @@ Todos los cambios relevantes de Ein. El formato sigue
   generar checksums o subir assets, la CI prueba hogares Ubuntu limpios,
   Omarchy, reinstalación, rollback, desinstalación y el binario `ein` realmente
   promovido; después valida la actualización desde `0.93.0-alpha.4`.
-- **El E2E aísla también la caché del Bun que ejecuta las pruebas.** Así una
-  carga perezosa de Bun 1.4 no se confunde con una mutación del hogar de Ein en
-  runners limpios de CI.
+- **El E2E desactiva la caché del transpilador Bun que ejecuta las pruebas.**
+  Así los `.pile` desechables de Bun 1.4 no se confunden con una mutación del
+  hogar de Ein en runners limpios de CI.
 
 ## [0.93.0-alpha.4] - 2026-09-02
 
