@@ -17,6 +17,7 @@ import type {
 	ProjectStateV1,
 } from "../ein-pi/agent/lib/project-state";
 import * as runtimeIdentity from "../ein-pi/agent/lib/runtime-session-identity";
+import * as runtimeLaunchExecution from "../ein-pi/agent/lib/runtime-session-launch-execution";
 import * as runtimeLaunchPlan from "../ein-pi/agent/lib/runtime-session-launch-plan";
 import { EIN_SDD_SESSION_BINDING_ENV_KEY } from "../ein-pi/agent/lib/sdd-session-binding";
 
@@ -157,6 +158,17 @@ describe("runtime session adapter contract", () => {
 		expect(runtimeLaunchPlan.resolveLaunchExecutable("pi", options)).toBe(
 			resolveLaunchExecutable("pi", options),
 		);
+	});
+
+	test("prepares one owner for normalized launch execution", () => {
+		expect(runtimeLaunchExecution.normalizeLaunchExecution({
+			kind: "signal",
+			signal: "sigterm",
+		})).toEqual({ kind: "signal", signal: "SIGTERM" });
+		expect(runtimeLaunchExecution.normalizeLaunchExecution({
+			kind: "exit",
+			code: 0,
+		})).toEqual({ kind: "exit", code: 0 });
 	});
 
 	test("publishes the evidence-based asymmetric provider matrix", () => {
