@@ -205,6 +205,7 @@ describe("contrato interno de notebook Engram", () => {
 describe("ein-ai: tools deterministas cableados", () => {
 	const ai = [
 		read("extensions/ein-ai.ts"),
+		read("extensions/internal/ein-openspec-write-tools.ts"),
 		read("extensions/internal/ein-sdd-read-surface.ts"),
 	].join("\n");
 	test("registra ein_sdd_status y ein_sdd_check", () => {
@@ -237,7 +238,7 @@ describe("ein-ai: tools deterministas cableados", () => {
 	// quedaba en `pending` para siempre. Un motor sin tool no es una feature.
 	test("cablea el motor de sincronización OpenSpec a un tool invocable", () => {
 		expect(ai).toContain('name: "ein_openspec_sync"');
-		expect(ai).toContain('import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";');
+		expect(ai).toContain('import { synchronizeOpenSpecFilesystem } from "../../lib/openspec-spec-sync-fs.ts";');
 		expect(ai).toContain("synchronizeOpenSpecFilesystem(ctx.cwd, change)");
 	});
 	// `ok` describe el RESULTADO, no que el tool corriera. Un conflicto devolvía

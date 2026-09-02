@@ -37,6 +37,10 @@ const advisoryToolsSource = readFileSync(
 	join(EXTENSIONS, "internal", "ein-advisory-tools.ts"),
 	"utf8",
 );
+const sddReadSource = readFileSync(
+	join(EXTENSIONS, "internal", "ein-sdd-read-surface.ts"),
+	"utf8",
+);
 
 // Builtins de Pi: FUENTE ÚNICA en lib/pi-contract.ts, que además se contrasta
 // contra la instalación real (tests/pi-contract.test.ts y `ein doctor`). Antes
@@ -147,7 +151,9 @@ describe("contrato de tools de los agentes", () => {
 	});
 
 	test("ein_sdd_close expone reconciliación explícita y conserva force/reason", () => {
-		const closeTool = einAiSource.match(/name: "ein_sdd_close"[\s\S]*?(?=\n\t\/\/ Sin este tool)/)?.[0] ?? "";
+		const start = einAiSource.indexOf('name: "ein_sdd_close"');
+		const end = einAiSource.indexOf('pi.registerCommand("ein:status"', start);
+		const closeTool = start >= 0 && end > start ? einAiSource.slice(start, end) : "";
 		expect(closeTool).toContain('reconciliationProfile: { type: "string", enum: ["scope-only-out-of-flow"]');
 		expect(closeTool).toContain('reconciliationEvidencePath: { type: "string"');
 		expect(closeTool).toContain('reason: { type: "string"');
@@ -157,8 +163,18 @@ describe("contrato de tools de los agentes", () => {
 	});
 
 	test("check/audit siguen siendo lectura y no reciben opciones de reconciliación", () => {
-		const checkTool = einAiSource.match(/name: "ein_sdd_check"[\s\S]*?(?=\n\tpi\.registerCommand\("ein:sdd-status")/)?.[0] ?? "";
-		const auditFlow = einAiSource.match(/async function handleSddAudit[\s\S]*?(?=\n\tpi\.registerCommand\("ein:sdd-audit")/)?.[0] ?? "";
+		const checkStart = einAiSource.indexOf('name: "ein_sdd_check"');
+		const checkEnd = einAiSource.indexOf("// ── SDD close", checkStart);
+		const checkTool = checkStart >= 0 && checkEnd > checkStart
+			? einAiSource.slice(checkStart, checkEnd)
+			: "";
+		const auditStart = sddReadSource.indexOf("async function handleSddAudit");
+		const auditEnd = sddReadSource.indexOf("/** Register SDD inspection", auditStart);
+		const auditFlow = auditStart >= 0 && auditEnd > auditStart
+			? sddReadSource.slice(auditStart, auditEnd)
+			: "";
+		expect(checkTool).toContain("lintChange");
+		expect(auditFlow).toContain("formatChangeLint");
 		expect(checkTool).not.toContain("reconciliationProfile");
 		expect(checkTool).not.toContain("reconciliationEvidencePath");
 		expect(auditFlow).not.toContain("closeChange(");
