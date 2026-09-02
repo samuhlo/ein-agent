@@ -23,6 +23,7 @@ import {
 } from "../ein-pi/agent/lib/project-state";
 import { PROJECT_STATE_SCHEMA_VERSION as CONTRACT_SCHEMA_VERSION } from "../ein-pi/agent/lib/project-state-contract";
 import { projectRuntimeState } from "../ein-pi/agent/lib/project-state-runtime";
+import { readProjectOpenSpecState } from "../ein-pi/agent/lib/project-state-openspec";
 
 const QUALITY_VALUES: readonly ProjectStateQuality[] = [
 	"current",
@@ -289,6 +290,11 @@ function commitVerificationFixture(cwd: string, change = "verification-change", 
 }
 
 describe("OpenSpec active projection", () => {
+	test("the aggregate delegates OpenSpec inspection to its owner", () => {
+		const cwd = "/tmp/example-project";
+		expect(projectProjectState({ cwd }).openspec).toEqual(readProjectOpenSpecState(cwd));
+	});
+
 	test("OpenSpec absent state is done without an active change", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "ein-project-state-openspec-"));
 		try {
