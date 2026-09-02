@@ -25,6 +25,7 @@ import { PROJECT_STATE_SCHEMA_VERSION as CONTRACT_SCHEMA_VERSION } from "../ein-
 import { projectRuntimeState } from "../ein-pi/agent/lib/project-state-runtime";
 import { readProjectOpenSpecState } from "../ein-pi/agent/lib/project-state-openspec";
 import { readProjectEinState } from "../ein-pi/agent/lib/project-state-ein";
+import { readProjectVerificationState } from "../ein-pi/agent/lib/project-state-verification";
 
 const QUALITY_VALUES: readonly ProjectStateQuality[] = [
 	"current",
@@ -557,6 +558,14 @@ describe("EIN context projection", () => {
 });
 
 describe("verification freshness and source degradation", () => {
+	test("the aggregate delegates verification freshness to its owner", () => {
+		const cwd = "/tmp/example-project";
+		const state = projectProjectState({ cwd });
+		expect(state.verification).toEqual(
+			readProjectVerificationState(cwd, state.openspec, state.git),
+		);
+	});
+
 	test("verification bound pass is fresh only with exact complete Git binding", () => {
 		withRepository((cwd) => {
 			const reportPath = commitVerificationFixture(cwd);
