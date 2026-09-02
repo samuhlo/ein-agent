@@ -20,6 +20,11 @@ import {
 	parseOpenSpecDelta as parseSharedOpenSpecDelta,
 } from "../shared/sdd/openspec-spec-parser.ts";
 import { evaluateOpenSpecState, parseSyncReport, planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
+import {
+	evaluateOpenSpecState as evaluateSharedOpenSpecState,
+	planOpenSpecSync as planSharedOpenSpecSync,
+	serializeSyncReport as serializeSharedSyncReport,
+} from "../shared/sdd/openspec-spec-sync.ts";
 import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -124,6 +129,12 @@ describe("deterministic OpenSpec synchronization", () => {
 	const beta = { ...alpha, id: "beta", title: "Beta" };
 	const base = serializeOpenSpec({ domain: "sdd-lifecycle", scenarios: [alpha] });
 	const delta = ["# OpenSpec Delta", "format: openspec-delta/v1", "domain: sdd-lifecycle", "", "## ADDED", "### Scenario: beta", "title: Beta", "requirement: The system MUST retain alpha", "Given: an input", "When: it runs", "Then: it succeeds"].join("\n");
+
+	test("Pi y shared exponen el mismo core de sincronización", () => {
+		expect(planOpenSpecSync).toBe(planSharedOpenSpecSync);
+		expect(serializeSyncReport).toBe(serializeSharedSyncReport);
+		expect(evaluateOpenSpecState).toBe(evaluateSharedOpenSpecState);
+	});
 
 	test("plans against the original snapshot and produces stable conflict evidence", () => {
 		const plan = planOpenSpecSync("change", [{ path: "specs/sdd-lifecycle/spec.md", bytes: encoder.encode(delta) }], [{ domain: "sdd-lifecycle", bytes: encoder.encode(base) }]);
