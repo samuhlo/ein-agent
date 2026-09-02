@@ -21,6 +21,7 @@ import {
 	type ProjectStateQuality,
 	type ProjectStateV1,
 } from "../ein-pi/agent/lib/project-state";
+import { PROJECT_STATE_SCHEMA_VERSION as CONTRACT_SCHEMA_VERSION } from "../ein-pi/agent/lib/project-state-contract";
 
 const QUALITY_VALUES: readonly ProjectStateQuality[] = [
 	"current",
@@ -43,6 +44,7 @@ describe("projectProjectState contract", () => {
 		const state: ProjectStateV1 = projectProjectState({ cwd: "/tmp/example-project" });
 
 		expect(PROJECT_STATE_SCHEMA_VERSION).toBe(1);
+		expect(PROJECT_STATE_SCHEMA_VERSION).toBe(CONTRACT_SCHEMA_VERSION);
 		expect(state.schemaVersion).toBe(1);
 		expect(state.identity).toBeDefined();
 		expect(state.openspec).toBeDefined();
