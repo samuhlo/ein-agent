@@ -21,6 +21,13 @@ import {
 	type ProjectStateQuality,
 	type ProjectStateV1,
 } from "../ein-pi/agent/lib/project-state";
+import { PROJECT_STATE_SCHEMA_VERSION as CONTRACT_SCHEMA_VERSION } from "../ein-pi/agent/lib/project-state-contract";
+import { projectRuntimeState } from "../ein-pi/agent/lib/project-state-runtime";
+import { readProjectOpenSpecState } from "../ein-pi/agent/lib/project-state-openspec";
+import { readProjectEinState } from "../ein-pi/agent/lib/project-state-ein";
+import { readProjectVerificationState } from "../ein-pi/agent/lib/project-state-verification";
+import { parseProjectGitStatus } from "../ein-pi/agent/lib/project-state-git-status";
+import { readProjectGitState } from "../ein-pi/agent/lib/project-state-git";
 
 const QUALITY_VALUES: readonly ProjectStateQuality[] = [
 	"current",
@@ -43,6 +50,7 @@ describe("projectProjectState contract", () => {
 		const state: ProjectStateV1 = projectProjectState({ cwd: "/tmp/example-project" });
 
 		expect(PROJECT_STATE_SCHEMA_VERSION).toBe(1);
+		expect(PROJECT_STATE_SCHEMA_VERSION).toBe(CONTRACT_SCHEMA_VERSION);
 		expect(state.schemaVersion).toBe(1);
 		expect(state.identity).toBeDefined();
 		expect(state.openspec).toBeDefined();
@@ -78,6 +86,7 @@ describe("projectProjectState contract", () => {
 				errors: [],
 			});
 		}
+		expect(state.runtimes.pi).toEqual(projectRuntimeState("pi", undefined));
 	});
 
 	test("public state has no private session or execution surfaces", () => {
@@ -285,6 +294,11 @@ function commitVerificationFixture(cwd: string, change = "verification-change", 
 }
 
 describe("OpenSpec active projection", () => {
+	test("the aggregate delegates OpenSpec inspection to its owner", () => {
+		const cwd = "/tmp/example-project";
+		expect(projectProjectState({ cwd }).openspec).toEqual(readProjectOpenSpecState(cwd));
+	});
+
 	test("OpenSpec absent state is done without an active change", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "ein-project-state-openspec-"));
 		try {
@@ -437,6 +451,11 @@ describe("OpenSpec active projection", () => {
 });
 
 describe("EIN context projection", () => {
+	test("the aggregate delegates EIN.md inspection to its owner", () => {
+		const cwd = "/tmp/example-project";
+		expect(projectProjectState({ cwd }).ein).toEqual(readProjectEinState(cwd));
+	});
+
 	test("EIN absent context is explicit", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "ein-project-state-ein-"));
 		try {
@@ -541,6 +560,14 @@ describe("EIN context projection", () => {
 });
 
 describe("verification freshness and source degradation", () => {
+	test("the aggregate delegates verification freshness to its owner", () => {
+		const cwd = "/tmp/example-project";
+		const state = projectProjectState({ cwd });
+		expect(state.verification).toEqual(
+			readProjectVerificationState(cwd, state.openspec, state.git),
+		);
+	});
+
 	test("verification bound pass is fresh only with exact complete Git binding", () => {
 		withRepository((cwd) => {
 			const reportPath = commitVerificationFixture(cwd);
@@ -771,6 +798,38 @@ describe("verification freshness and source degradation", () => {
 });
 
 describe("Git bounded exact identity", () => {
+	test("the aggregate delegates Git inspection to its owner", () => {
+		const cwd = "/tmp/example-project";
+		expect(projectProjectState({ cwd }).git).toEqual(readProjectGitState(cwd));
+	});
+
+	test("the Git reader consumes the status owner instead of carrying a second parser", () => {
+		const source = readFileSync(
+			join(import.meta.dir, "..", "ein-pi", "agent", "lib", "project-state-git.ts"),
+			"utf8",
+		);
+		expect(source).toContain('from "./project-state-git-status.ts"');
+		expect(source).not.toContain("function parseGitStatus(");
+	});
+
+	test("the status parser is pure, bounded to the repository, and explicit on malformed input", () => {
+		expect(parseProjectGitStatus("/work/project", "? untracked.txt\0")).toEqual({
+			records: [{
+				recordType: "?",
+				path: "untracked.txt",
+				kind: "added",
+				indexStatus: "?",
+				worktreeStatus: "?",
+				identityFields: ["?"],
+			}],
+			malformed: false,
+		});
+		expect(parseProjectGitStatus("/work/project", "? /outside.txt\0")).toEqual({
+			records: [],
+			malformed: true,
+		});
+	});
+
 	test("HEAD, unborn, and detached states have exact bounded identities", () => {
 		withRepository((cwd) => {
 			const unbornState = projectProjectState({ cwd });

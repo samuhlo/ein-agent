@@ -23,7 +23,7 @@ const AGENT = join(import.meta.dir, "../ein-pi/agent");
 const CORE = join(import.meta.dir, "../runtime");
 const einGit = readFileSync(join(CORE, "agents/ein-git.md"), "utf8");
 const orchestrator = readFileSync(join(CORE, "assets/orchestrator.md"), "utf8");
-const einAi = readFileSync(join(AGENT, "extensions/ein-ai.ts"), "utf8");
+const sddReadSurface = readFileSync(join(AGENT, "extensions/internal/ein-sdd-read-surface.ts"), "utf8");
 const { renderSddPreflightPrompt } = await import("../ein-pi/agent/lib/sdd-preflight");
 
 const PREFS = {
@@ -316,7 +316,7 @@ describe("el pathspec vive en UN sitio (anti-drift eliminado)", () => {
 
 describe("el parent llama la tool; ein-git confía en el número", () => {
 	test("la tool ein_review_forecast está registrada", () => {
-		expect(einAi).toContain('name: "ein_review_forecast"');
+		expect(sddReadSurface).toContain('name: "ein_review_forecast"');
 	});
 
 	test("el orchestrator llama la tool (no ejecuta git) y pregunta antes de delegar", () => {

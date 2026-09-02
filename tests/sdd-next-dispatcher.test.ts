@@ -9,7 +9,10 @@ import { join } from "node:path";
 import { resolveSddNext, sddNextHandoff, type SddNextReport } from "../ein-pi/agent/lib/sdd-router";
 import { planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
 
-const EIN_AI_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts");
+const SESSION_LIFECYCLE_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-session-lifecycle.ts");
+const SDD_PRESENTATION_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-sdd-presentation.ts");
+const SDD_READ_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts");
+const ADVISORY_TOOLS_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-advisory-tools.ts");
 const ORCHESTRATOR_PATH = join(import.meta.dir, "../runtime/assets/orchestrator.md");
 let DIR: string;
 
@@ -205,7 +208,7 @@ describe("participant advisory routing", () => {
 });
 
 describe("intent preflight continuation", () => {
-	const src = readFileSync(EIN_AI_PATH, "utf8");
+	const src = readFileSync(SESSION_LIFECYCLE_PATH, "utf8");
 
 	test("resolved input returns to the existing router and handoff", () => {
 		const block = src.match(/function continueAfterPiIntent[\s\S]*?\n\t}/)?.[0] ?? "";
@@ -218,13 +221,15 @@ describe("intent preflight continuation", () => {
 });
 
 describe("ein:sdd-next command wiring", () => {
-	const src = readFileSync(EIN_AI_PATH, "utf8");
+	const src = readFileSync(SDD_READ_PATH, "utf8");
+	const presentation = readFileSync(SDD_PRESENTATION_PATH, "utf8");
+	const advisoryTools = readFileSync(ADVISORY_TOOLS_PATH, "utf8");
 	const orchestrator = readFileSync(ORCHESTRATOR_PATH, "utf8");
 
 	test("registra el comando canonico y ayuda sin args", () => {
 		expect(src).toMatch(/registerCommand\(\s*"ein:sdd-next"/);
-		expect(src).toContain("Uso: /ein:sdd-next <change>");
-		expect(src).toContain("No elige un cambio activo implicitamente.");
+		expect(presentation).toContain("Uso: /ein:sdd-next <change>");
+		expect(presentation).toContain("No elige un cambio activo implicitamente.");
 	});
 
 	// Se comprueba que la superficie ya no la OFRECE ni la reporta. El código
@@ -236,9 +241,9 @@ describe("ein:sdd-next command wiring", () => {
 	});
 
 	test("participants describe an advisory pass and the measured withdrawal condition", () => {
-		expect(src).toContain("best-effort advisory Cleaner/Architect pass");
-		expect(src).toContain("Report unavailable or blocked audits honestly");
-		expect(src).toContain("a source mutation invalidates freshness and must be verified");
+		expect(advisoryTools).toContain("best-effort advisory Cleaner/Architect pass");
+		expect(advisoryTools).toContain("Report unavailable or blocked audits honestly");
+		expect(advisoryTools).toContain("a source mutation invalidates freshness and must be verified");
 		expect(orchestrator).toContain("best-effort advisory pass");
 		expect(orchestrator).toContain("unavailable or blocked");
 		expect(orchestrator).toContain("A source mutation invalidates freshness and MUST be verified");

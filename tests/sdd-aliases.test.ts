@@ -9,9 +9,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const EIN_AI_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts");
+const SDD_READ_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts");
+const SDD_LIFECYCLE_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-sdd-lifecycle-tools.ts");
 
 describe("SDD canonical command aliases", () => {
-	const src = readFileSync(EIN_AI_PATH, "utf8");
+	const src = [EIN_AI_PATH, SDD_READ_PATH, SDD_LIFECYCLE_PATH]
+		.map((path) => readFileSync(path, "utf8"))
+		.join("\n");
 
 	test("ein:sdd-audit is registered as canonical command", () => {
 		expect(src).toMatch(/registerCommand\(\s*"ein:sdd-audit"/);

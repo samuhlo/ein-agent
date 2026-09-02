@@ -21,7 +21,7 @@ mock.module("@earendil-works/pi-tui", () => ({
 }));
 
 const { resolveCanonicalSpecContext } = await import(
-  "../ein-pi/agent/extensions/ein-ai.ts"
+  "../ein-pi/agent/extensions/internal/ein-canonical-spec-context.ts"
 );
 
 const MAP_MD = join(
@@ -29,8 +29,12 @@ const MAP_MD = join(
   "../runtime/agents/sdd-map.md",
 );
 const AI_TS = join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts");
+const AGENT_PROMPT_TS = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts");
+const CONTEXT_TS = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-canonical-spec-context.ts");
 const content = readFileSync(MAP_MD, "utf8");
 const ai = readFileSync(AI_TS, "utf8");
+const agentPrompt = readFileSync(AGENT_PROMPT_TS, "utf8");
+const canonicalContext = readFileSync(CONTEXT_TS, "utf8");
 
 describe("sdd-map.md SCOPE PACKET contract", () => {
   test("contiene SCOPE PACKET como texto", () => {
@@ -120,7 +124,8 @@ describe("canonical OpenSpec context", () => {
   });
 
   test("keeps the exact-path and no-truncation instructions in the prompt contract", () => {
-    expect(ai).toContain("never glob domains or read .sdd specs");
-    expect(ai).toContain("Do not truncate or glob specs");
+    expect(agentPrompt).toContain("canonicalSpecPrompt");
+    expect(canonicalContext).toContain("never glob domains or read .sdd specs");
+    expect(canonicalContext).toContain("Do not truncate or glob specs");
   });
 });

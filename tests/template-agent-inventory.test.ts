@@ -16,7 +16,7 @@ const PI_LAUNCHER = readFileSync(join(REPO, "ein-pi", "launchers", "ein-pi.fish"
 const CLAUDE_LAUNCHER = readFileSync(join(REPO, "ein-cc", "launchers", "ein-cc.fish"), "utf8");
 const INSTALL_CLI = readFileSync(join(REPO, "installer", "src", "cli", "install.ts"), "utf8");
 const LINEAR_INTEGRATION = readFileSync(join(REPO, "ein-pi", "agent", "lib", "linear-integration.ts"), "utf8");
-const EIN_AI = readFileSync(join(REPO, "ein-pi", "agent", "extensions", "ein-ai.ts"), "utf8");
+const AGENT_PROMPT = readFileSync(join(REPO, "ein-pi", "agent", "extensions", "internal", "ein-agent-prompt-hook.ts"), "utf8");
 const PERSONA = readFileSync(join(REPO, "ein-pi", "agent", "lib", "persona.ts"), "utf8");
 
 function allowlist(name: string): string[] {
@@ -73,7 +73,8 @@ describe("Pi template agent inventory", () => {
   test("ships the canonical Linear module and dynamic prompt chain without legacy mode", () => {
     expect(AGENT_DIRS).toContain("lib");
     expect(LINEAR_INTEGRATION).toContain("export function readLinearIntegration");
-    expect(EIN_AI).toContain("buildEinPrompt(readPersonaMode(ctx.cwd), readChatLang(), readLinearIntegration(ctx.cwd))");
+    expect(AGENT_PROMPT).toContain("readLinearIntegration(ctx.cwd)");
+    expect(AGENT_PROMPT).toContain("buildEinPrompt(");
     expect(PERSONA).toContain("linearDirective(linear)");
     expect(existsSync(join(REPO, "ein-pi", "agent", "lib", "mode.ts"))).toBe(false);
   });

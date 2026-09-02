@@ -29,7 +29,7 @@ describe("orchestrator: flujo por fases determinista", () => {
 	});
 
 	test("expone ein_sdd_close como tool model-callable (no solo comando) y veta el hack bun -e", () => {
-		const ext = read("extensions/ein-ai.ts");
+		const ext = read("extensions/internal/ein-sdd-lifecycle-tools.ts");
 		expect(ext).toContain('name: "ein_sdd_close"');
 		expect(orch).toContain("ein_sdd_close");
 		expect(orch).toContain("NEVER shell out to the SDD libraries");
@@ -193,17 +193,23 @@ describe("contrato interno de notebook Engram", () => {
 	});
 
 	test("status y doctor son factuales, sin jerga E0/E2", () => {
-		const ai = read("extensions/ein-ai.ts");
+		const presentation = read("extensions/internal/ein-sdd-presentation.ts");
 		const doctor = read("extensions/ein-doctor.ts");
-		expect(ai).toContain("optional project notebook: Engram");
-		expect(ai).toContain("OpenSpec is the canonical full record");
+		expect(presentation).toContain("optional project notebook: Engram");
+		expect(presentation).toContain("OpenSpec is the canonical full record");
 		expect(doctor).not.toContain("E0");
 		expect(doctor).toContain("configurado no prueba");
 	});
 });
 
 describe("ein-ai: tools deterministas cableados", () => {
-	const ai = read("extensions/ein-ai.ts");
+	const ai = [
+		read("extensions/ein-ai.ts"),
+		read("extensions/internal/ein-openspec-write-tools.ts"),
+		read("extensions/internal/ein-sdd-lifecycle-tools.ts"),
+		read("extensions/internal/ein-sdd-read-surface.ts"),
+		read("extensions/internal/ein-session-lifecycle.ts"),
+	].join("\n");
 	test("registra ein_sdd_status y ein_sdd_check", () => {
 		expect(ai).toContain('name: "ein_sdd_status"');
 		expect(ai).toContain('name: "ein_sdd_check"');
@@ -224,7 +230,7 @@ describe("ein-ai: tools deterministas cableados", () => {
 		expect(ai).not.toContain("Bypass the readiness guard");
 	});
 	test("prepara config antes de continuar el SDD solicitado", () => {
-		expect(ai).toContain('import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";');
+		expect(ai).toContain("openspec-config-bootstrap.ts");
 		expect(ai).toContain("bootstrapOpenSpecConfig(ctx.cwd)");
 		expect(ai).toContain('return { action: "continue" };');
 	});
@@ -234,7 +240,7 @@ describe("ein-ai: tools deterministas cableados", () => {
 	// quedaba en `pending` para siempre. Un motor sin tool no es una feature.
 	test("cablea el motor de sincronización OpenSpec a un tool invocable", () => {
 		expect(ai).toContain('name: "ein_openspec_sync"');
-		expect(ai).toContain('import { synchronizeOpenSpecFilesystem } from "../lib/openspec-spec-sync-fs.ts";');
+		expect(ai).toContain('import { synchronizeOpenSpecFilesystem } from "../../lib/openspec-spec-sync-fs.ts";');
 		expect(ai).toContain("synchronizeOpenSpecFilesystem(ctx.cwd, change)");
 	});
 	// `ok` describe el RESULTADO, no que el tool corriera. Un conflicto devolvía
@@ -271,22 +277,27 @@ describe("ein-ai: tools deterministas cableados", () => {
 
 describe("adapter Pi: un solo iniciador de intención", () => {
 	const ai = read("extensions/ein-ai.ts");
+	const intentGate = read("extensions/internal/ein-pi-intent-gate.ts");
+	const toolCallGate = read("extensions/internal/ein-tool-call-gate.ts");
+	const sessionLifecycle = read("extensions/internal/ein-session-lifecycle.ts");
+	const agentPrompt = read("extensions/internal/ein-agent-prompt-hook.ts");
 
 	test("el hook input arma y resuelve intención mediante el contrato compartido", () => {
-		expect(ai).toContain("resolveSddIntentPreflight");
-		expect(ai).toContain("await runPiIntentPreflight(event.text, ctx)");
-		expect(ai).toContain('if (intent === "pending") return { action: "handled" }');
+		expect(intentGate).toContain("resolveSddIntentPreflight");
+		expect(sessionLifecycle).toContain("dependencies.intentGate.runPiIntentPreflight(");
+		expect(sessionLifecycle).toContain('if (intent === "pending") return { action: "handled" }');
+		expect(ai).not.toContain("function classifyPiIntentRequest");
 	});
 
 	test("normal usa un único mensaje textual y no abre un modal paralelo", () => {
-		expect(ai).toContain("outcome.interaction.text");
-		expect(ai).not.toContain("ctx.ui.input");
-		expect(ai).not.toContain("ctx.ui.confirm");
+		expect(intentGate).toContain("outcome.interaction.text");
+		expect(intentGate).not.toContain("ctx.ui.input");
+		expect(intentGate).not.toContain("ctx.ui.confirm");
 	});
 
 	test("los hooks secundarios nunca inician interacción y bloquean construcción pendiente", () => {
-		const beforeStart = ai.match(/pi\.on\("before_agent_start"[\s\S]*?\n\t}\);/)?.[0] ?? "";
-		const toolCall = ai.match(/pi\.on\("tool_call"[\s\S]*?\n\t}\);/)?.[0] ?? "";
+		const beforeStart = agentPrompt.match(/pi\.on\("before_agent_start"[\s\S]*?\n\t}\);/)?.[0] ?? "";
+		const toolCall = toolCallGate.match(/pi\.on\("tool_call"[\s\S]*?\n\t}\);/)?.[0] ?? "";
 		expect(beforeStart).not.toContain("runPiIntentPreflight(");
 		expect(beforeStart).not.toContain("runSddPreflight(ctx)");
 		expect(beforeStart).toContain("adoptPiIntentGate");
@@ -294,6 +305,8 @@ describe("adapter Pi: un solo iniciador de intención", () => {
 		expect(toolCall).not.toContain("runPiIntentPreflight(");
 		expect(toolCall).toContain("adoptPiIntentGate");
 		expect(toolCall).toContain("piIntentToolBlockReason");
+		expect(ai).not.toContain('pi.on("before_agent_start"');
+		expect(ai).not.toContain('pi.on("tool_call"');
 	});
 });
 

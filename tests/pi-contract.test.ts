@@ -35,10 +35,18 @@ const {
 const EXTENSIONS = join(import.meta.dir, "../ein-pi/agent/extensions");
 
 function extensionSources(): string {
-	return readdirSync(EXTENSIONS)
-		.filter((file) => file.endsWith(".ts"))
-		.map((file) => readFileSync(join(EXTENSIONS, file), "utf8"))
-		.join("\n");
+	const sources: string[] = [];
+	const visit = (dir: string): void => {
+		for (const entry of readdirSync(dir, { withFileTypes: true })) {
+			const path = join(dir, entry.name);
+			if (entry.isDirectory()) visit(path);
+			else if (entry.isFile() && entry.name.endsWith(".ts")) {
+				sources.push(readFileSync(path, "utf8"));
+			}
+		}
+	};
+	visit(EXTENSIONS);
+	return sources.join("\n");
 }
 
 // =============================================================================

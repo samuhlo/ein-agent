@@ -26,7 +26,7 @@ import {
 	resolveSddIntentPreflight as resolveSddIntentPreflightWithContext,
 } from "../ein-pi/agent/lib/sdd-preflight";
 import { createIntentMaterialKey, decideIntentPreflight, type IntentDecisionEvidence, type IntentMaterial } from "../ein-pi/agent/lib/sdd-intent-preflight";
-import { classifyPiIntentRequest } from "../ein-pi/agent/extensions/ein-ai";
+import { classifyPiIntentRequest } from "../ein-pi/agent/extensions/internal/ein-pi-intent-gate";
 import {
 	preflightRecordPath,
 	readPreflightRecord,
@@ -82,6 +82,18 @@ const resolveSddIntentPreflight = (
 ) => resolveSddIntentPreflightWithContext(piSddIntentPreflightContext(ctx), input);
 
 const EIN_AI_SOURCE = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
+const TOOL_CALL_GATE_SOURCE = readFileSync(
+	join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-tool-call-gate.ts"),
+	"utf8",
+);
+const SESSION_LIFECYCLE_SOURCE = readFileSync(
+	join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-session-lifecycle.ts"),
+	"utf8",
+);
+const AGENT_PROMPT_SOURCE = readFileSync(
+	join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts"),
+	"utf8",
+);
 
 const CALLBACKS = {
 	pi: {} as never,
@@ -107,11 +119,11 @@ const PARTICIPANT_MARKER =
 
 describe("Pi intent ownership across hooks", () => {
 	test("only input invokes the interactive owner while secondary hooks adopt or block", () => {
-		const inputHook = EIN_AI_SOURCE.match(/pi\.on\("input"[\s\S]*?\n\t}\);/)?.[0] ?? "";
+		const inputHook = SESSION_LIFECYCLE_SOURCE.match(/pi\.on\("input"[\s\S]*?\n\t}\);/)?.[0] ?? "";
 		expect(inputHook.match(/runPiIntentPreflight\(/g)).toHaveLength(1);
-		expect(EIN_AI_SOURCE).toContain('pi.on("input"');
-		expect(EIN_AI_SOURCE).toContain("piIntentGateDirective");
-		expect(EIN_AI_SOURCE).toContain("piIntentToolBlockReason");
+		expect(SESSION_LIFECYCLE_SOURCE).toContain('pi.on("input"');
+		expect(AGENT_PROMPT_SOURCE).toContain("piIntentGateDirective");
+		expect(TOOL_CALL_GATE_SOURCE).toContain("piIntentToolBlockReason");
 	});
 
 	test("read-only bypasses while uncertain modification fails closed", () => {

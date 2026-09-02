@@ -178,7 +178,7 @@ describe("inventario instalado de agentes", () => {
 			{ name: "valid on", linear: "on" },
 			{ name: "missing module", linear: "off", failed: "linear integration module", mutate: (agentDir) => rmSync(join(agentDir, "lib", "linear-integration.ts")) },
 			{ name: "missing dynamic read", linear: "off", failed: "linear dynamic prompt", mutate: (agentDir) => {
-				const path = join(agentDir, "extensions", "ein-ai.ts");
+				const path = join(agentDir, "extensions", "internal", "ein-agent-prompt-hook.ts");
 				writeFileSync(path, readFileSync(path, "utf8").replace("readLinearIntegration(ctx.cwd)", '"off"'));
 			} },
 			{ name: "missing directive", linear: "off", failed: "linear prompt directive", mutate: (agentDir) => {

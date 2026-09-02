@@ -26,6 +26,14 @@ const orch = read("assets/orchestrator.md");
 const sddMap = read("agents/sdd-map.md");
 const scout = read("agents/ein-scout.md");
 const einAi = readFileSync(join(AGENT_DIR, "extensions/ein-ai.ts"), "utf8");
+const delegationResults = readFileSync(
+  join(AGENT_DIR, "extensions/internal/ein-delegation-results.ts"),
+  "utf8",
+);
+const toolCallGate = readFileSync(
+  join(AGENT_DIR, "extensions/internal/ein-tool-call-gate.ts"),
+  "utf8",
+);
 
 const PHASE_AGENTS = [
   "sdd-scope.md",
@@ -171,13 +179,15 @@ describe("P4: runtime y tamaño del apply estricto", () => {
 
 describe("P5: foto de fase para reconciliar, sin ampliar el input del subagent", () => {
   test("recuerda la foto antes de delegar y reconcilia después", () => {
-    expect(einAi).toContain("before: snapshotPhaseArtifacts(cwd, phase)");
-    expect(einAi).toContain("reconcilePhaseFailure(ctx.cwd, snapshot.phase, snapshot.before)");
+    expect(delegationResults).toContain("before: snapshotPhaseArtifacts(cwd, phase)");
+    expect(delegationResults).toContain("reconcilePhaseFailure(");
+    expect(delegationResults).toContain("snapshot.before");
+    expect(toolCallGate).toContain("dependencies.rememberPhaseSnapshot(");
     // El ledger de procedencia se retiró: la delegación no mints receipts ni observa coste.
-    expect(einAi).not.toContain("beginDelegationObservation");
-    expect(einAi).not.toContain("observeDelegationResult");
+    expect(delegationResults).not.toContain("beginDelegationObservation");
+    expect(delegationResults).not.toContain("observeDelegationResult");
     // El hook nunca amplía el input del subagent con campos de flujo/coste.
-    expect(einAi).not.toMatch(/(?:event\.input|input)\.(?:output|outputMode|flowId|runId|changeId)\s*=/);
+    expect(`${einAi}\n${delegationResults}`).not.toMatch(/(?:event\.input|input)\.(?:output|outputMode|flowId|runId|changeId)\s*=/);
   });
 });
 

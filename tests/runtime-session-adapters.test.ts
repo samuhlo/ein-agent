@@ -16,6 +16,10 @@ import type {
 	ProjectStateReasonCode,
 	ProjectStateV1,
 } from "../ein-pi/agent/lib/project-state";
+import * as runtimeIdentity from "../ein-pi/agent/lib/runtime-session-identity";
+import * as runtimeLaunchExecution from "../ein-pi/agent/lib/runtime-session-launch-execution";
+import * as runtimeLaunchPlan from "../ein-pi/agent/lib/runtime-session-launch-plan";
+import * as runtimeMetadata from "../ein-pi/agent/lib/runtime-session-metadata";
 import { EIN_SDD_SESSION_BINDING_ENV_KEY } from "../ein-pi/agent/lib/sdd-session-binding";
 
 const owner = getRuntimeTestOwner();
@@ -128,6 +132,51 @@ function stateFor(options: {
 }
 
 describe("runtime session adapter contract", () => {
+	test("prepares one owner for project and opaque session identity", () => {
+		const state = stateFor();
+		const reference = opaque("session-id");
+
+		expect(projectBindingFromState).toBe(runtimeIdentity.projectBindingFromState);
+		expect(validateOpaqueReference).toBe(runtimeIdentity.validateOpaqueReference);
+		expect(runtimeIdentity.projectBindingFromState(state)).toEqual(
+			projectBindingFromState(state),
+		);
+		expect(runtimeIdentity.validateOpaqueReference("pi", reference)).toBe(
+			validateOpaqueReference("pi", reference),
+		);
+		expect(runtimeIdentity.sessionReferenceFor("pi", "session-id")).toBe(reference);
+	});
+
+	test("prepares one owner for fixed launch plans", () => {
+		const options = {
+			resolveExecutable: () => "/opt/bin/pi",
+			environment: {},
+		};
+
+		expect(buildLaunchPlan).toBe(runtimeLaunchPlan.buildLaunchPlan);
+		expect(resolveLaunchExecutable).toBe(runtimeLaunchPlan.resolveLaunchExecutable);
+		expect(runtimeLaunchPlan.launchArgvFor("pi", "create")).toEqual([]);
+		expect(runtimeLaunchPlan.resolveLaunchExecutable("pi", options)).toBe(
+			resolveLaunchExecutable("pi", options),
+		);
+	});
+
+	test("prepares one owner for normalized launch execution", () => {
+		expect(executeLaunchPlan).toBe(runtimeLaunchExecution.executeLaunchPlan);
+		expect(runtimeLaunchExecution.normalizeLaunchExecution({
+			kind: "signal",
+			signal: "sigterm",
+		})).toEqual({ kind: "signal", signal: "SIGTERM" });
+		expect(runtimeLaunchExecution.normalizeLaunchExecution({
+			kind: "exit",
+			code: 0,
+		})).toEqual({ kind: "exit", code: 0 });
+	});
+
+	test("delegates project runtime metadata to its pure translator", () => {
+		expect(toProjectRuntimeMetadata).toBe(runtimeMetadata.toProjectRuntimeMetadata);
+	});
+
 	test("publishes the evidence-based asymmetric provider matrix", () => {
 		expect(Object.keys(RUNTIME_CAPABILITY_MATRIX)).toEqual(["pi", "claude"]);
 		expect(Object.keys(RUNTIME_CAPABILITY_MATRIX.pi)).toEqual([

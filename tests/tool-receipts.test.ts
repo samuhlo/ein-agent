@@ -312,10 +312,18 @@ describe("el detalle expandido habla como una persona", () => {
 // ─── TRIANGULACIÓN: el registro contra el código real ────────────────────────
 
 describe("TRIANGULATE: ninguna herramienta se queda sin recibo por olvido", () => {
-	const SOURCE = new URL("../ein-pi/agent/extensions/ein-ai.ts", import.meta.url).pathname;
+	const SOURCES = [
+		new URL("../ein-pi/agent/extensions/internal/ein-tool-registration.ts", import.meta.url).pathname,
+		new URL("../ein-pi/agent/extensions/internal/ein-advisory-tools.ts", import.meta.url).pathname,
+		new URL("../ein-pi/agent/extensions/internal/ein-openspec-write-tools.ts", import.meta.url).pathname,
+		new URL("../ein-pi/agent/extensions/internal/ein-sdd-change-settings.ts", import.meta.url).pathname,
+		new URL("../ein-pi/agent/extensions/internal/ein-sdd-lifecycle-tools.ts", import.meta.url).pathname,
+		new URL("../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts", import.meta.url).pathname,
+		new URL("../ein-pi/agent/extensions/ein-ai.ts", import.meta.url).pathname,
+	];
 
 	async function source(): Promise<string> {
-		return await Bun.file(SOURCE).text();
+		return (await Promise.all(SOURCES.map((path) => Bun.file(path).text()))).join("\n");
 	}
 
 	test("ninguna herramienta se registra saltandose la puerta", async () => {

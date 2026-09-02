@@ -116,19 +116,19 @@ describe("readonly scout launch contract", () => {
 		expect(() => normalizeScoutLaunch({ agent: "ein-scout", task: "inspect B" }, "call-next", tracking)).not.toThrow();
 	});
 
-	test("ein-ai.ts clears scoutTracking at the start of every user turn, not only at session_shutdown (R6 residual risk)", () => {
-		const einAi = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
-		const inputHook = einAi.slice(einAi.indexOf('pi.on("input"'), einAi.indexOf('pi.on("input"') + 800);
+	test("the session owner clears scoutTracking at the start of every user turn, not only at session_shutdown (R6 residual risk)", () => {
+		const sessionLifecycle = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-session-lifecycle.ts"), "utf8");
+		const inputHook = sessionLifecycle.slice(sessionLifecycle.indexOf('pi.on("input"'), sessionLifecycle.indexOf('pi.on("input"') + 800);
 		expect(inputHook).toMatch(/scoutTracking\.clear\(\)/);
 	});
 
 	test("el scout queda excluido de la inyección de skills (aislado, inheritSkills:false)", () => {
 		// Inyectar paths de SKILL.md (absolutos, fuera del repo) a un scout aislado
-		// produce "Skills not found" y una ejecución degradada. El gate de inyección
-		// de skills en ein-ai.ts debe excluir explícitamente al scout.
-		const einAi = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
-		expect(einAi).toMatch(/const isScout\s*=\s*startNames\.includes\("ein-scout"\)/);
-		expect(einAi).toMatch(/\(isNamedAgent \|\| isSddAgent\) && !isScout/);
+		// produce "Skills not found" y una ejecución degradada. El dueño del prompt
+		// debe excluir explícitamente al scout.
+		const agentPrompt = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts"), "utf8");
+		expect(agentPrompt).toMatch(/const isScout\s*=\s*startNames\.includes\("ein-scout"\)/);
+		expect(agentPrompt).toMatch(/\(isNamedAgent \|\| isSddAgent\) && !isScout/);
 	});
 });
 

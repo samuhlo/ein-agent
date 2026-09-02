@@ -33,6 +33,18 @@ const orchestrator = readFileSync(
 	"utf8",
 );
 const einAiSource = readFileSync(join(EXTENSIONS, "ein-ai.ts"), "utf8");
+const advisoryToolsSource = readFileSync(
+	join(EXTENSIONS, "internal", "ein-advisory-tools.ts"),
+	"utf8",
+);
+const sddReadSource = readFileSync(
+	join(EXTENSIONS, "internal", "ein-sdd-read-surface.ts"),
+	"utf8",
+);
+const sddLifecycleSource = readFileSync(
+	join(EXTENSIONS, "internal", "ein-sdd-lifecycle-tools.ts"),
+	"utf8",
+);
 
 // Builtins de Pi: FUENTE ÚNICA en lib/pi-contract.ts, que además se contrasta
 // contra la instalación real (tests/pi-contract.test.ts y `ein doctor`). Antes
@@ -67,10 +79,19 @@ function declaredTools(agentFile: string): string[] {
 // (`registerEinTool`), que añade el recibo humano; Pi registra directamente.
 // El hijo hereda las extensiones globales, así que estos nombres SÍ existen en
 // su runtime aunque no sean builtins.
+function extensionSourceFiles(dir: string): string[] {
+	return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+		const path = join(dir, entry.name);
+		return entry.isDirectory()
+			? extensionSourceFiles(path)
+			: entry.name.endsWith(".ts") ? [path] : [];
+	});
+}
+
 function registeredExtensionTools(): Set<string> {
 	const names = new Set<string>();
-	for (const file of readdirSync(EXTENSIONS).filter((f) => f.endsWith(".ts"))) {
-		const src = readFileSync(join(EXTENSIONS, file), "utf8");
+	for (const file of extensionSourceFiles(EXTENSIONS)) {
+		const src = readFileSync(file, "utf8");
 		for (const m of src.matchAll(
 			/register(?:Ein)?Tool\(\s*\{[\s\S]{0,200}?name:\s*"([a-z0-9_]+)"/g,
 		)) {
@@ -124,17 +145,18 @@ describe("contrato de tools de los agentes", () => {
 	});
 
 	test("Cleaner y Architect publican el contrato anidado de scope al modelo", () => {
-		expect(einAiSource).toContain('enum: ["file", "tree"]');
-		expect(einAiSource).toContain('required: ["kind", "path"]');
-		expect(einAiSource).toContain('required: ["kind", "selectors"]');
-		expect(einAiSource).toContain('enum: ["changed-files"]');
-		expect(einAiSource).toContain("oneOf: [changedFilesScopeSchema, selectorScopeSchema]");
-		expect(einAiSource).toContain("scope: cleanerScopeSchema");
-		expect(einAiSource).toContain("scope: selectorScopeSchema");
+		expect(advisoryToolsSource).toContain('enum: ["file", "tree"]');
+		expect(advisoryToolsSource).toContain('required: ["kind", "path"]');
+		expect(advisoryToolsSource).toContain('required: ["kind", "selectors"]');
+		expect(advisoryToolsSource).toContain('enum: ["changed-files"]');
+		expect(advisoryToolsSource).toContain("oneOf: [changedFilesScopeSchema, selectorScopeSchema]");
+		expect(advisoryToolsSource).toContain("scope: cleanerScopeSchema");
+		expect(advisoryToolsSource).toContain("scope: selectorScopeSchema");
 	});
 
 	test("ein_sdd_close expone reconciliación explícita y conserva force/reason", () => {
-		const closeTool = einAiSource.match(/name: "ein_sdd_close"[\s\S]*?(?=\n\t\/\/ Sin este tool)/)?.[0] ?? "";
+		const start = sddLifecycleSource.indexOf('name: "ein_sdd_close"');
+		const closeTool = start >= 0 ? sddLifecycleSource.slice(start) : "";
 		expect(closeTool).toContain('reconciliationProfile: { type: "string", enum: ["scope-only-out-of-flow"]');
 		expect(closeTool).toContain('reconciliationEvidencePath: { type: "string"');
 		expect(closeTool).toContain('reason: { type: "string"');
@@ -144,8 +166,18 @@ describe("contrato de tools de los agentes", () => {
 	});
 
 	test("check/audit siguen siendo lectura y no reciben opciones de reconciliación", () => {
-		const checkTool = einAiSource.match(/name: "ein_sdd_check"[\s\S]*?(?=\n\tpi\.registerCommand\("ein:sdd-status")/)?.[0] ?? "";
-		const auditFlow = einAiSource.match(/async function handleSddAudit[\s\S]*?(?=\n\tpi\.registerCommand\("ein:sdd-audit")/)?.[0] ?? "";
+		const checkStart = sddLifecycleSource.indexOf('name: "ein_sdd_check"');
+		const checkEnd = sddLifecycleSource.indexOf("async function handleSddClose", checkStart);
+		const checkTool = checkStart >= 0 && checkEnd > checkStart
+			? sddLifecycleSource.slice(checkStart, checkEnd)
+			: "";
+		const auditStart = sddReadSource.indexOf("async function handleSddAudit");
+		const auditEnd = sddReadSource.indexOf("/** Register SDD inspection", auditStart);
+		const auditFlow = auditStart >= 0 && auditEnd > auditStart
+			? sddReadSource.slice(auditStart, auditEnd)
+			: "";
+		expect(checkTool).toContain("lintChange");
+		expect(auditFlow).toContain("formatChangeLint");
 		expect(checkTool).not.toContain("reconciliationProfile");
 		expect(checkTool).not.toContain("reconciliationEvidencePath");
 		expect(auditFlow).not.toContain("closeChange(");
@@ -382,7 +414,7 @@ describe("Pi participant terminal edge", () => {
 		const registered = registeredExtensionTools();
 		expect(registered.has("ein_cleaner_audit")).toBe(true);
 		expect(registered.has("ein_architect_evidence")).toBe(true);
-		expect(einAiSource).toContain('name: "ein_cleaner_audit"');
-		expect(einAiSource).toContain('name: "ein_architect_evidence"');
+		expect(advisoryToolsSource).toContain('name: "ein_cleaner_audit"');
+		expect(advisoryToolsSource).toContain('name: "ein_architect_evidence"');
 	});
 });

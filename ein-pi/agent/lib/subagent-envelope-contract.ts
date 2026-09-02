@@ -14,7 +14,8 @@
 //     da el veredicto real (MAY quedarse sin protección, pero debe declararse).
 //
 // `tests/subagent-envelope-contract.test.ts` audita el handler real
-// (`ein-pi/agent/extensions/ein-ai.ts`, `pi.on("tool_result")`) contra este
+// (`ein-pi/agent/extensions/internal/ein-delegation-results.ts`,
+// `pi.on("tool_result")`) contra este
 // inventario: un consumidor no declarado, o una protección declarada que
 // desaparece de la fuente, pone el test en rojo. Añadir un consumidor sin
 // editar este fichero no compila el guardarraíl — ese es el punto.
@@ -29,7 +30,8 @@
 // LO QUE ESTE MÓDULO NO CUBRE (`// 007`, no vender cobertura que no existe):
 // no previene "el tercer consumidor" en general. Previene dos cosas concretas:
 // (a) un consumidor nuevo, no declarado, sobre la superficie `pi.on("tool_result")`
-// de `ein-ai.ts`; (b) una protección declarada que desaparece de la fuente. Es
+// de `ein-delegation-results.ts`; (b) una protección declarada que desaparece
+// de la fuente. Es
 // mundo cerrado sobre un único handler: un consumidor cableado por otra vía (otro
 // hook, o que reciba el texto del envelope indirectamente) se escapa.
 //
@@ -48,7 +50,8 @@ export interface EnvelopeConsumerEntry {
 }
 
 // Inventario declarado de los cuatro consumidores reales de
-// `ein-ai.ts:934-968`. `ein-continuity.ts:81` queda fuera con criterio: solo lee
+// `ein-delegation-results.ts`. `ein-continuity.ts:81` queda fuera con criterio:
+// solo lee
 // `event.isError` para tools mutadoras, nunca deriva estado del payload de un
 // subagente.
 export const ENVELOPE_CONSUMER_INVENTORY: Readonly<Record<string, EnvelopeConsumerEntry>> = {
