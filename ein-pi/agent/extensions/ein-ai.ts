@@ -9,14 +9,9 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
-	AgentToolResult,
 	ExtensionAPI,
 	ExtensionContext,
-	ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
-import { GLYPH } from "../lib/chrome.ts";
-import { TOOL_LABELS, receiptFor } from "../lib/tool-receipts.ts";
 import {
 	createSddMemoryLifecycle,
 	ensureApplyAcceptance,
@@ -92,6 +87,7 @@ import {
 	modelConfigPath,
 } from "../lib/model-config.ts";
 import { handleModelsCommand } from "./internal/models-panel.ts";
+import { createEinToolRegistrar } from "./internal/ein-tool-registration.ts";
 import { humanizeAge, listRecentSessions } from "../lib/sessions";
 import { readAccountingReport } from "../lib/session-accounting-store.ts";
 import type { Coverage, Known, Slice, Stat, Total } from "../lib/session-accounting.ts";
@@ -598,23 +594,6 @@ function formatChangeLint(report: ChangeLintReport): string {
 	}
 
 	return lines.join("\n");
-}
-
-// ── Recibos humanos ─────────────────────────────────────────────────────────
-// El `content` de la tool sigue yendo ÍNTEGRO al modelo; esto solo decide qué
-// ve el humano. Las frases viven en lib/tool-receipts.ts, que es puro y se
-// prueba sin arrancar Pi; aquí solo se elige color y nivel.
-//
-// El expandido pinta el DETALLE HUMANO, no el volcado técnico: antes la
-// elección era entre no ver nada o ver JSON.
-type ToolTheme = Readonly<{ fg(token: string, text: string): string; bold(text: string): string }>;
-
-function receiptCall(label: string, theme: ToolTheme): Text {
-	return new Text(
-		`${theme.fg("dim", `ein ${GLYPH.sep} `)}${theme.fg("toolTitle", label)}`,
-		0,
-		0,
-	);
 }
 
 // P2-G: fuente única en sdd-router (formatBudget), que además marca cuando lo
@@ -1234,24 +1213,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	registerAgentControl("cleaner");
 	registerAgentControl("architect");
 
-	// Toda tool de Ein se registra por aquí: así ninguna puede quedarse sin
-	// recibo humano por olvido. Eran 16 de 18 volcando salida cruda al chat.
-	const registerEinTool = (spec: Parameters<typeof pi.registerTool>[0]): void =>
-		pi.registerTool({
-			...spec,
-			renderCall(_args: unknown, theme: ToolTheme): Text {
-				return receiptCall(TOOL_LABELS[spec.name] ?? spec.name, theme);
-			},
-			renderResult(
-				result: AgentToolResult<unknown>,
-				{ expanded }: ToolRenderResultOptions,
-				theme: ToolTheme,
-			): Text {
-				const receipt = receiptFor(spec.name, result.details);
-				if (expanded) return new Text(theme.fg("toolOutput", receipt.detail.join("\n")), 0, 0);
-				return new Text(theme.fg(receipt.bad ? "warning" : "dim", receipt.line), 0, 0);
-			},
-		});
+	const registerEinTool = createEinToolRegistrar(pi);
 
 	const areaSelectorSchema = {
 		type: "object",
