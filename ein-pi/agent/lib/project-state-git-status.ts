@@ -23,7 +23,7 @@ export type ParsedProjectGitStatus = {
 	identityFields: readonly string[];
 };
 
-function isObjectId(value: string): boolean {
+export function isProjectGitObjectId(value: string): boolean {
 	return HEX_OBJECT_ID.test(value);
 }
 
@@ -117,8 +117,8 @@ export function parseProjectGitStatus(
 				tokens?.slice(2, 8).some((token) => !token) ||
 				!firstObjectId ||
 				!secondObjectId ||
-				!isObjectId(firstObjectId) ||
-				!isObjectId(secondObjectId) ||
+				!isProjectGitObjectId(firstObjectId) ||
+				!isProjectGitObjectId(secondObjectId) ||
 				!pathToken
 			) {
 				return { records: [], malformed: true };
@@ -149,8 +149,8 @@ export function parseProjectGitStatus(
 				tokens?.slice(2, 8).some((token) => !token) ||
 				!firstObjectId ||
 				!secondObjectId ||
-				!isObjectId(firstObjectId) ||
-				!isObjectId(secondObjectId) ||
+				!isProjectGitObjectId(firstObjectId) ||
+				!isProjectGitObjectId(secondObjectId) ||
 				!score ||
 				!/^[RC][0-9]+$/.test(score) ||
 				!pathToken
@@ -183,7 +183,7 @@ export function parseProjectGitStatus(
 				type !== "u" ||
 				!pair ||
 				tokens?.slice(2, 10).some((token) => !token) ||
-				objectIds.some((objectId) => !objectId || !isObjectId(objectId)) ||
+				objectIds.some((objectId) => !objectId || !isProjectGitObjectId(objectId)) ||
 				!pathToken
 			) {
 				return { records: [], malformed: true };

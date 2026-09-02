@@ -797,6 +797,15 @@ describe("verification freshness and source degradation", () => {
 });
 
 describe("Git bounded exact identity", () => {
+	test("the aggregate consumes the status owner instead of carrying a second parser", () => {
+		const source = readFileSync(
+			join(import.meta.dir, "..", "ein-pi", "agent", "lib", "project-state.ts"),
+			"utf8",
+		);
+		expect(source).toContain('from "./project-state-git-status.ts"');
+		expect(source).not.toContain("function parseGitStatus(");
+	});
+
 	test("the status parser is pure, bounded to the repository, and explicit on malformed input", () => {
 		expect(parseProjectGitStatus("/work/project", "? untracked.txt\0")).toEqual({
 			records: [{
