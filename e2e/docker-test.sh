@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# E2E: instala Ein en un Ubuntu limpio (Docker) y verifica los cuatro runtimes:
-# invalid, Pi por defecto, Claude-only y Both (Pi -> Claude).
+# E2E: instala Ein en Ubuntu limpio y verifica runtime, idempotencia, rollback
+# determinista, launcher, preservación y uninstall recuperable.
 # Uso: ./e2e/docker-test.sh          (compila el binario linux y lo prueba)
 # Requiere: docker corriendo y bun en el host. La imagen aporta Node 22 como
 # prerrequisito documentado; bun + pi se instalan dentro del contenedor.
@@ -33,10 +33,16 @@ echo "/// e2e: compilando binario ($TARGET)"
 (cd "$ROOT/installer" && bun install --frozen-lockfile && bun run build:all -- "$TARGET")
 test -x "$BINARY" || { echo "[error] no existe el binario: $BINARY"; exit 1; }
 
+echo "/// e2e: matriz determinista de update, rollback, uninstall y launcher"
+(cd "$ROOT" && bun test \
+  tests/release-update-integration.test.ts \
+  tests/installer-uninstall.test.ts \
+  tests/beta-launcher-e2e-hardening.test.ts)
+
 echo "/// e2e: construyendo imagen"
 docker build -t "$IMAGE" -f "$HERE/Dockerfile.ubuntu" "$HERE"
 
-echo "/// e2e: ejecutando cuatro contenedores desechables"
+echo "/// e2e: ejecutando cinco contenedores desechables"
 
 run_scenario() {
   local scenario="$1"
@@ -69,11 +75,12 @@ snapshot_state() {
   local root="$1"
   local destination="$2"
   # installedAt, installer backups, and Pi's package-manager JSON formatting are
-  # intentionally mutable between passes. Bun also embeds the unique staging
-  # output name in the two runners that sync recompiles atomically; their
-  # executable presence is asserted below instead of comparing unstable bytes.
+  # intentionally mutable between passes. Bun-compiled executables are not
+  # reproducible byte-for-byte; their presence and executable behavior are
+  # asserted below instead of pretending their hashes are stable.
   find "$root" -type f \
     ! -path "$root/backups/*" \
+    ! -path "$root/bin/ein-cc-sdd" \
     ! -path "$root/bin/ein-surface-runner" \
     ! -path "$root/bin/ein-continuity" \
     ! -name ".ein-install.json" \
@@ -88,6 +95,49 @@ assert_same_state() {
     echo "[assert] el estado estable cambió entre instalaciones" >&2
     diff -u "$first" "$second" >&2 || true
     exit 1
+  fi
+}
+
+seed_preserved_state() {
+  local target="$1"
+  mkdir -p "$HOME/.config/opencode-secrets"
+  printf '%s\n' 'PRIVATE-TOKEN' >"$HOME/.config/opencode-secrets/token"
+  if [[ "$target" == "pi" || "$target" == "both" ]]; then
+    mkdir -p "$HOME/.pi-ein/agent/sessions" "$HOME/.pi-ein/agent/skills/user/private"
+    printf '%s\n' 'PRIVATE-AUTH' >"$HOME/.pi-ein/agent/auth.json"
+    printf '%s\n' 'PRIVATE-SESSION' >"$HOME/.pi-ein/agent/sessions/existing.json"
+    printf '%s\n' 'PRIVATE-SKILL' >"$HOME/.pi-ein/agent/skills/user/private/SKILL.md"
+  fi
+  if [[ "$target" == "claude" || "$target" == "both" ]]; then
+    mkdir -p "$HOME/.claude-ein/sessions" "$HOME/.claude-ein/agents" "$HOME/.claude-ein/commands/ein"
+    printf '%s\n' 'PRIVATE-HISTORY' >"$HOME/.claude-ein/history.jsonl"
+    printf '%s\n' 'PRIVATE-SESSION' >"$HOME/.claude-ein/sessions/existing.json"
+    printf '%s\n' 'PRIVATE-AGENT' >"$HOME/.claude-ein/agents/mine.md"
+    printf '%s\n' 'PRIVATE-COMMAND' >"$HOME/.claude-ein/commands/ein/mine.md"
+  fi
+}
+
+assert_preserved_state() {
+  local target="$1"
+  assert_present "$HOME/.config/opencode-secrets/token"
+  grep -Fqx 'PRIVATE-TOKEN' "$HOME/.config/opencode-secrets/token"
+  if [[ "$target" == "pi" || "$target" == "both" ]]; then
+    assert_present "$HOME/.pi-ein/agent/auth.json"
+    assert_present "$HOME/.pi-ein/agent/sessions/existing.json"
+    assert_present "$HOME/.pi-ein/agent/skills/user/private/SKILL.md"
+    grep -Fqx 'PRIVATE-AUTH' "$HOME/.pi-ein/agent/auth.json"
+    grep -Fqx 'PRIVATE-SESSION' "$HOME/.pi-ein/agent/sessions/existing.json"
+    grep -Fqx 'PRIVATE-SKILL' "$HOME/.pi-ein/agent/skills/user/private/SKILL.md"
+  fi
+  if [[ "$target" == "claude" || "$target" == "both" ]]; then
+    assert_present "$HOME/.claude-ein/history.jsonl"
+    assert_present "$HOME/.claude-ein/sessions/existing.json"
+    assert_present "$HOME/.claude-ein/agents/mine.md"
+    assert_present "$HOME/.claude-ein/commands/ein/mine.md"
+    grep -Fqx 'PRIVATE-HISTORY' "$HOME/.claude-ein/history.jsonl"
+    grep -Fqx 'PRIVATE-SESSION' "$HOME/.claude-ein/sessions/existing.json"
+    grep -Fqx 'PRIVATE-AGENT' "$HOME/.claude-ein/agents/mine.md"
+    grep -Fqx 'PRIVATE-COMMAND' "$HOME/.claude-ein/commands/ein/mine.md"
   fi
 }
 
@@ -126,7 +176,7 @@ install_twice() {
   for pass in 1 2; do
     local log="/tmp/ein-${scenario}-${pass}.log"
     echo "== install ${scenario} pass ${pass} =="
-    if ! ein install --yes --no-engram --no-secrets --no-linear "${args[@]}" >"$log" 2>&1; then
+    if ! ein install --yes --no-engram --no-secrets --no-linear --no-hypa --no-codegraph "${args[@]}" >"$log" 2>&1; then
       cat "$log"
       if grep -Eiq 'network|timed out|temporary failure|could not resolve|curl:|fetch failed|ECONN' "$log"; then
         echo "E2E_RESULT=BLOCKED: dependencia externa/red en ${scenario} pass ${pass}" >&2
@@ -136,10 +186,17 @@ install_twice() {
       exit 1
     fi
     cat "$log"
+    if [[ "$pass" -eq 1 ]]; then
+      case "$scenario" in
+        default-pi) seed_preserved_state pi ;;
+        claude-only) seed_preserved_state claude ;;
+        both|uninstall-preservation) seed_preserved_state both ;;
+      esac
+    fi
     case "$scenario" in
       default-pi) snapshot_state "$pi_agent" "/tmp/ein-default-pi-state-$pass" ;;
       claude-only) snapshot_state "$claude_home" "/tmp/ein-claude-only-state-$pass" ;;
-      both)
+      both|uninstall-preservation)
         snapshot_state "$pi_agent" "/tmp/ein-both-pi-state-$pass"
         snapshot_state "$claude_home" "/tmp/ein-both-claude-state-$pass"
         ;;
@@ -170,6 +227,7 @@ case "$scenario" in
     ein --version
     install_twice
     assert_pi_surface
+    assert_preserved_state pi
     assert_absent "$claude_home"
     assert_absent "$claude_launcher"
     assert_same_state /tmp/ein-default-pi-state-1 /tmp/ein-default-pi-state-2
@@ -193,8 +251,8 @@ case "$scenario" in
     echo "== manifest desplegado =="
     test -f "$pi_manifest"
     echo "== dry-runs (no mutan nada) =="
-    ein install --dry-run
-    ein update --dry-run
+    PATH="$HOME/.local/bin:$PATH" ein-install install --dry-run
+    PATH="$HOME/.local/bin:$PATH" ein-install update --dry-run
     echo "== doctor final =="
     ein doctor
     ;;
@@ -202,6 +260,7 @@ case "$scenario" in
   claude-only)
     install_twice --runtime claude
     assert_claude_surface
+    assert_preserved_state claude
     assert_absent "$pi_agent"
     assert_absent "$pi_launcher"
     assert_same_state /tmp/ein-claude-only-state-1 /tmp/ein-claude-only-state-2
@@ -222,8 +281,33 @@ case "$scenario" in
     done
     assert_pi_surface
     assert_claude_surface
+    assert_preserved_state both
     assert_same_state /tmp/ein-both-pi-state-1 /tmp/ein-both-pi-state-2
     assert_same_state /tmp/ein-both-claude-state-1 /tmp/ein-both-claude-state-2
+    ;;
+
+  uninstall-preservation)
+    install_twice --runtime both
+    assert_pi_surface
+    assert_claude_surface
+    assert_preserved_state both
+    assert_same_state /tmp/ein-both-pi-state-1 /tmp/ein-both-pi-state-2
+    assert_same_state /tmp/ein-both-claude-state-1 /tmp/ein-both-claude-state-2
+
+    echo "== uninstall recuperable con estado privado =="
+    PATH="$HOME/.local/bin:$PATH" ein-install uninstall --yes --runtime both
+    assert_absent "$pi_marker"
+    assert_absent "$pi_manifest"
+    assert_absent "$pi_launcher"
+    assert_absent "$claude_home/CLAUDE.md"
+    assert_absent "$claude_launcher"
+    assert_absent "$HOME/.local/bin/ein"
+    assert_absent "$HOME/.local/bin/ein-install"
+    assert_preserved_state both
+    recovery_root="$HOME/.ein-installer/uninstall-recovery"
+    recovery_dir="$(find "$recovery_root" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+    test -n "$recovery_dir" || { echo "[assert] falta recuperación de uninstall" >&2; exit 1; }
+    assert_present "$recovery_dir/manifest.json"
     ;;
 
   *)
@@ -236,7 +320,7 @@ echo "E2E_SCENARIO_RESULT=OK:$scenario"
 EOF
 }
 
-for scenario in invalid default-pi claude-only both; do
+for scenario in invalid default-pi claude-only both uninstall-preservation; do
   run_scenario "$scenario"
 done
 

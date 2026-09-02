@@ -4,6 +4,43 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.93.0-alpha.1] - 2026-09-02
+
+### Added
+
+- **La salida de la auditoría arquitectónica queda convertida en fronteras
+  verificables.** El núcleo SDD compartido concentra intención, routing,
+  remedios, validación, sincronización OpenSpec, resumen y cierre; Pi y Claude
+  lo consumen mediante adaptadores explícitos en vez de duplicar el cerebro.
+- **La release prueba el ciclo de vida, no solo que el binario arranque.** La
+  matriz en hogares desechables cubre Pi, Claude y ambos, reinstalación,
+  actualización, rollback, launcher, uninstall recuperable y preservación de
+  credenciales, sesiones, secrets y ficheros ajenos.
+
+### Changed
+
+- **El launcher y el estado de proyecto tienen dueños claros.** Lectores,
+  sesiones, renderizado y acciones se componen desde una raíz explícita; los
+  puentes que siguen siendo específicos de Pi están inventariados con su dueño
+  y condición de retirada.
+- **Repositorio, runtime distribuido y skills externas quedan separados.** El
+  payload se construye mediante una allowlist y valida su grafo de cierre, de
+  forma que la instalación compilada funciona fuera del checkout sin arrastrar
+  tooling ni dependencias accidentales.
+- **La publicación de una alpha enseña un comando reproducible por tag.** Las
+  notas ya no ofrecen por error el bootstrap del canal estable y el workflow
+  comprueba una actualización real desde la alpha anterior tras publicar.
+
+### Fixed
+
+- **Reinstalar deja de confundirse con idempotencia byte a byte en binarios Bun.**
+  La evidencia compara el árbol gestionado estable y comprueba por separado la
+  presencia y ejecución de los binarios compilados, cuyos bytes pueden variar
+  entre compilaciones equivalentes.
+- **La prueba de uninstall usa la copia realmente instalada de `ein-install`.**
+  Así calcula el directorio de comandos del hogar desechable, retira solo lo
+  gestionado y conserva el estado privado junto a su manifiesto de recuperación.
+
 ## [0.92.0-alpha.1] - 2026-08-28
 
 ### Added

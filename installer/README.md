@@ -34,13 +34,14 @@ ein restore    # restaura desde un backup
 
 Flags: `--yes` (no interactivo), `--dry-run` (muestra el plan sin ejecutar nada),
 `--runtime <pi|claude|both>` (selecciona la superficie del instalador), `--no-engram`,
-`--no-secrets`, `--no-linear`.
+`--no-secrets`, `--no-linear`, `--no-hypa`, `--no-codegraph`.
 
 ## Backups
 
 Cada `install` (sobre un árbol existente), `update`, `uninstall` y `restore` crea
 antes un directorio snapshot `.snapshot` con manifest, metadata y contenido en
-`~/.pi/agent/backups/installer/`:
+`~/.pi-ein/agent/backups/installer/` por defecto (o en el hogar Pi legacy si
+una instalación gestionada válida sigue activa allí):
 
 - **Dedup**: si el árbol no cambió desde el último backup, no se crea otro.
 - **Poda**: se conservan los 5 más recientes; `ein restore --pin <nombre>` protege
@@ -77,12 +78,15 @@ bun run typecheck
 bun run bundle-template   # compone ../runtime + ../vendor/skills + ../ein-pi/agent
 bun run build:all         # compila los 4 binarios en dist/
 bun run build:all linux-x64   # un solo target
-./e2e/docker-test.sh      # installer E2E: install → doctor en un Ubuntu limpio (Docker)
+./e2e/docker-test.sh      # matriz de ciclo de vida en hogares Ubuntu desechables
 ```
 
-`./e2e/docker-test.sh` es evidencia de despliegue del **installer E2E** únicamente.
-No prueba el launcher beta: la futura E2E del launcher deberá cubrir flujo de proyecto,
-sesiones y frescura del estado.
+`./e2e/docker-test.sh` instala dos veces y prueba Pi, Claude, ambos y uninstall
+recuperable. Además ejecuta la matriz determinista de update/rollback,
+preservación de estado privado y el launcher beta con PTY. Para comprobar la
+ruta pública entre releases, ejecuta `./e2e/release-update-test.sh
+<tag-origen> <tag-destino>`: descarga el asset anterior y actualiza mediante la
+API y los assets reales de GitHub dentro de Docker.
 
 El contenido de Ein se empaqueta componiendo `../runtime` (contenido propio),
 `../vendor/skills` (fuentes externas) y `../ein-pi/agent` (adaptador Pi) con una
@@ -106,5 +110,9 @@ La publicación canónica vive en GitHub Actions; no hay publicación local ni e
 3. Crea y sube el tag `installer-v<semver>`.
 4. `.github/workflows/installer-release.yml` compila los cuatro targets, genera
    `checksums.txt` y publica la GitHub Release con los binarios e `install.sh`.
+5. Ya publicada, el workflow instala la alpha anterior en un hogar desechable,
+   actualiza a la nueva y comprueba versión, marker, `doctor` y datos privados.
 
-El bootstrap y `ein update` consumen esos assets de GitHub Release.
+El bootstrap y `ein update` consumen esos assets de GitHub Release. Las notas de
+una prerelease incluyen el comando con canal y tag exactos; las de una release
+final conservan el bootstrap del canal estable.

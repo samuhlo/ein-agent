@@ -173,17 +173,27 @@ jobs:
           RELEASE_TAG: ${{ steps.resolve_release_tag.outputs.release_tag }}
           RELEASE_CHANNEL: ${{ steps.resolve_release_tag.outputs.release_channel }}
         run: |
-          cat > /tmp/release-notes.md << 'EOF'
-          Instalador de Ein. Instala con:
+          release_version="$(jq -er '.version | strings' package.json)"
+          release_prerelease_flag=""
+          if [[ "$RELEASE_CHANNEL" == "alpha" ]]; then
+            release_prerelease_flag="--prerelease"
+            cat > /tmp/release-notes.md << 'EOF'
+          Prerelease de Ein. Instala exactamente esta alpha con:
+
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/installer/install.sh | bash -s -- --release-channel alpha --release-tag __RELEASE_TAG__
+          ```
+          EOF
+            sed -i.bak "s/__RELEASE_TAG__/$RELEASE_TAG/g" /tmp/release-notes.md
+            rm /tmp/release-notes.md.bak
+          else
+            cat > /tmp/release-notes.md << 'EOF'
+          Instalador de Ein. Instala la última versión estable con:
 
           ```bash
           curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/installer/install.sh | bash
           ```
           EOF
-          release_version="$(jq -er '.version | strings' package.json)"
-          release_prerelease_flag=""
-          if [[ "$RELEASE_CHANNEL" == "alpha" ]]; then
-            release_prerelease_flag="--prerelease"
           fi
           gh release create "$RELEASE_TAG" \
             $release_prerelease_flag \
@@ -195,3 +205,10 @@ jobs:
             dist/ein-installer-linux-x64 \
             dist/checksums.txt \
             install.sh
+
+      - name: Published release upgrade smoke
+        timeout-minutes: 20
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.resolve_release_tag.outputs.release_tag }}
+        run: ../e2e/release-update-test.sh installer-v0.92.0-alpha.1 "$RELEASE_TAG"

@@ -4,6 +4,13 @@ Este documento contiene únicamente trabajo vigente. Las decisiones estables viv
 
 El trabajo anterior dejó la baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, presupuesto de revisión resistente a código empaquetado y el diario de instalación separado por responsabilidades. El núcleo SDD compartido ya posee intención, routing, remedios, validación, lenguaje y sincronización OpenSpec, resumen y cierre. Sus cinco adaptadores supervivientes están inventariados con dueño y condición de retirada en `shared/README.md`. La auditoría de salida de la fase arquitectónica quedó aceptada en `docs/adr/0004-close-architecture-phase.md`.
 
+El cierre de beta también está completado: la matriz desechable prueba Pi,
+Claude, ambos, reinstalación, update, rollback, uninstall, preservación y
+launcher; el workflow de release añade un update real entre alphas publicadas.
+El quickstart y el recorrido de primera ejecución viven en la documentación
+pública, y la matriz de runtimes declara Pi como referencia y los límites de
+Claude sin prometer paridad inexistente.
+
 ## Condicionado — liberar presupuesto de prompt
 
 Objetivo: crear espacio solo cuando un cambio de contrato observable demuestre que necesita tocar el orquestador.
@@ -13,16 +20,6 @@ Objetivo: crear espacio solo cuando un cambio de contrato observable demuestre q
 - [ ] Si `map` o `design` prueban que una fase posterior necesita cambiar el prompt, retirar comportamiento duplicado y cicatrices que ya no protegen de nada, comprobando cada retirada contra sus consumidores. No comprimir prosa para ganar bytes.
 
 Criterio de salida: el cambio de contrato medido cabe con margen explícito y los consumidores de la prosa retirada siguen verdes. Sin necesidad demostrada, esta fase no se ejecuta.
-
-## Ahora — fase 8, cierre de la beta
-
-`e2e/docker-test.sh` cubre hoy cuatro escenarios instalados dos veces y un `update --dry-run`, y se dispara solo a mano (`workflow_dispatch`).
-
-- [ ] Matriz completa en hogares desechables: Pi, Claude, ambos, instalación repetida, update real, fallo inducido y rollback, uninstall, conservación de ficheros ajenos y credenciales, integraciones opcionales ausentes y smoke compilado del payload.
-- [ ] Dividir `installer/src/cli/install.ts` solo si esa matriz localiza coste de cambio o riesgo de ciclo de vida en más de un dueño. El tamaño del fichero, por sí solo, no activa el trabajo.
-- [ ] Alinear documentación pública, versión, artefactos y release.
-- [ ] Publicar un quickstart reproducible y una demo del flujo completo.
-- [ ] Mantener Pi como camino principal y declarar con precisión el soporte Claude.
 
 ## Secundario
 
