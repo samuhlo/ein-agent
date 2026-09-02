@@ -208,6 +208,7 @@ describe("ein-ai: tools deterministas cableados", () => {
 		read("extensions/internal/ein-openspec-write-tools.ts"),
 		read("extensions/internal/ein-sdd-lifecycle-tools.ts"),
 		read("extensions/internal/ein-sdd-read-surface.ts"),
+		read("extensions/internal/ein-session-lifecycle.ts"),
 	].join("\n");
 	test("registra ein_sdd_status y ein_sdd_check", () => {
 		expect(ai).toContain('name: "ein_sdd_status"');
@@ -229,7 +230,7 @@ describe("ein-ai: tools deterministas cableados", () => {
 		expect(ai).not.toContain("Bypass the readiness guard");
 	});
 	test("prepara config antes de continuar el SDD solicitado", () => {
-		expect(ai).toContain('import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";');
+		expect(ai).toContain("openspec-config-bootstrap.ts");
 		expect(ai).toContain("bootstrapOpenSpecConfig(ctx.cwd)");
 		expect(ai).toContain('return { action: "continue" };');
 	});
@@ -278,11 +279,12 @@ describe("adapter Pi: un solo iniciador de intención", () => {
 	const ai = read("extensions/ein-ai.ts");
 	const intentGate = read("extensions/internal/ein-pi-intent-gate.ts");
 	const toolCallGate = read("extensions/internal/ein-tool-call-gate.ts");
+	const sessionLifecycle = read("extensions/internal/ein-session-lifecycle.ts");
 
 	test("el hook input arma y resuelve intención mediante el contrato compartido", () => {
 		expect(intentGate).toContain("resolveSddIntentPreflight");
-		expect(ai).toContain("await intentGate.runPiIntentPreflight(event.text, ctx)");
-		expect(ai).toContain('if (intent === "pending") return { action: "handled" }');
+		expect(sessionLifecycle).toContain("dependencies.intentGate.runPiIntentPreflight(");
+		expect(sessionLifecycle).toContain('if (intent === "pending") return { action: "handled" }');
 		expect(ai).not.toContain("function classifyPiIntentRequest");
 	});
 

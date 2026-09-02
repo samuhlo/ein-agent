@@ -3,7 +3,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const EIN_AI_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts");
+const EIN_SESSION_PATH = join(
+	import.meta.dir,
+	"../ein-pi/agent/extensions/internal/ein-session-lifecycle.ts",
+);
 const SDD_INIT_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/sdd-init.ts");
 import { bootstrapOpenSpecConfig } from "../ein-pi/agent/lib/openspec-config-bootstrap";
 
@@ -20,7 +23,7 @@ afterEach(() => {
 
 describe("Pi bootstrap wiring", () => {
 	test("both entry surfaces reuse create-if-absent bootstrap", () => {
-		for (const path of [EIN_AI_PATH, SDD_INIT_PATH]) {
+		for (const path of [EIN_SESSION_PATH, SDD_INIT_PATH]) {
 			const source = readFileSync(path, "utf8");
 			expect(source).toContain("bootstrapOpenSpecConfig(ctx.cwd)");
 		}

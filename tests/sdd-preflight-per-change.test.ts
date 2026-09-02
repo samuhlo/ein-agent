@@ -86,6 +86,10 @@ const TOOL_CALL_GATE_SOURCE = readFileSync(
 	join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-tool-call-gate.ts"),
 	"utf8",
 );
+const SESSION_LIFECYCLE_SOURCE = readFileSync(
+	join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-session-lifecycle.ts"),
+	"utf8",
+);
 
 const CALLBACKS = {
 	pi: {} as never,
@@ -111,9 +115,9 @@ const PARTICIPANT_MARKER =
 
 describe("Pi intent ownership across hooks", () => {
 	test("only input invokes the interactive owner while secondary hooks adopt or block", () => {
-		const inputHook = EIN_AI_SOURCE.match(/pi\.on\("input"[\s\S]*?\n\t}\);/)?.[0] ?? "";
+		const inputHook = SESSION_LIFECYCLE_SOURCE.match(/pi\.on\("input"[\s\S]*?\n\t}\);/)?.[0] ?? "";
 		expect(inputHook.match(/runPiIntentPreflight\(/g)).toHaveLength(1);
-		expect(EIN_AI_SOURCE).toContain('pi.on("input"');
+		expect(SESSION_LIFECYCLE_SOURCE).toContain('pi.on("input"');
 		expect(EIN_AI_SOURCE).toContain("piIntentGateDirective");
 		expect(TOOL_CALL_GATE_SOURCE).toContain("piIntentToolBlockReason");
 	});

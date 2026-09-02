@@ -8,23 +8,16 @@
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
-	ensureSddPreflight,
 	getSddPreflightPreferences,
 	getSddSessionMemory,
 	installSddAssets,
-	isSddPreflightTrigger,
 	renderMemoryAdvisory,
 	renderSddPreflightPrompt,
 	sddGlobalAssetDriftCount,
 	sddPreflightSessionKey,
-	type SddPreflightPreferences,
 } from "../lib/sdd-preflight.ts";
-import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";
 import { readGitDeliveryMode } from "../lib/git-delivery.ts";
 import { buildEinPrompt, readPersonaMode } from "../lib/persona.ts";
 import {
@@ -34,14 +27,9 @@ import {
 	readChatLang,
 } from "../lib/lang.ts";
 import { t, tf } from "../lib/i18n/strings.ts";
-import { runOnboarding } from "../lib/onboarding.ts";
-import {
-	codegraphDirective,
-	offerCodegraphInit,
-	shouldOfferCodegraphInit,
-} from "../lib/codegraph.ts";
+import { codegraphDirective } from "../lib/codegraph.ts";
 import { readLinearIntegration } from "../lib/linear-integration.ts";
-import { applySavedModelConfig, modelConfigPath } from "../lib/model-config.ts";
+import { modelConfigPath } from "../lib/model-config.ts";
 import { registerAdvisoryTools } from "./internal/ein-advisory-tools.ts";
 import { registerGeneralCommands } from "./internal/ein-general-commands.ts";
 import { canonicalSpecPrompt } from "./internal/ein-canonical-spec-context.ts";
@@ -56,20 +44,16 @@ import { registerDelegationResultHook } from "./internal/ein-delegation-results.
 import { createPiIntentGate } from "./internal/ein-pi-intent-gate.ts";
 import { registerToolCallGate } from "./internal/ein-tool-call-gate.ts";
 import { registerOpenSpecWriteTools } from "./internal/ein-openspec-write-tools.ts";
-import {
-	memoryLifecycleForSession,
-} from "./internal/ein-sdd-memory.ts";
+import { registerSessionLifecycle } from "./internal/ein-session-lifecycle.ts";
 import { registerSddLifecycleTools } from "./internal/ein-sdd-lifecycle-tools.ts";
 import { registerSddChangeSettings } from "./internal/ein-sdd-change-settings.ts";
 import { registerSddReadSurface } from "./internal/ein-sdd-read-surface.ts";
 import { createEinToolRegistrar } from "./internal/ein-tool-registration.ts";
-import { resolveActiveChange } from "../lib/sdd-preflight-record.ts";
-import { aggregateSddBudget, formatBudget, listActiveChangeSummaries, resolveSddNext, sddNextHandoff } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, formatBudget, listActiveChangeSummaries } from "../lib/sdd-router.ts";
 import {
 	codeConventionSkillBlock,
 	resolveSkillInjection,
 } from "./ein-skill-registry.ts";
-import { ensureEinGitignore } from "../lib/gitignore.ts";
 import {
 	einContextDirective,
 	einMdCommitsBehind,
@@ -79,13 +63,11 @@ import { AGENT_DIR } from "./ein-paths";
 import { readInstalledVersion, staleSessionNudge } from "../lib/session-version";
 import type { ScoutTracking } from "../lib/scout-contract.ts";
 import {
-	clearAgentControlSession,
 	internalAgentRoutingDirective,
 	readAgentControlStatus,
 	routeAgentControl,
 	type EinInternalAgent,
 } from "../lib/agent-controls.ts";
-import { clearSddParticipantSession } from "../lib/sdd-participants.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
@@ -107,109 +89,10 @@ export default function einAi(pi: ExtensionAPI): void {
 		scoutTracking,
 		rememberPhaseSnapshot: delegationResults.rememberPhaseSnapshot,
 	});
-
-	async function runSddPreflight(ctx: ExtensionContext): Promise<SddPreflightPreferences> {
-		const preferences = await ensureSddPreflight(ctx, {
-			pi,
-			memoryLifecycle: memoryLifecycleForSession(ctx),
-			installAssets: (cwd) => installSddAssets(cwd, false),
-			applyModelConfig: async () => applySavedModelConfig(ctx),
-		});
-		bootstrapOpenSpecConfig(ctx.cwd);
-		return preferences;
-	}
-
-	function continueAfterPiIntent(ctx: ExtensionContext, change: string | undefined): void {
-		if (!change) return;
-		const handoff = sddNextHandoff(resolveSddNext(ctx.cwd, change));
-		if (handoff) pi.sendUserMessage(handoff);
-	}
-
-	pi.on("session_start", async (_event, ctx) => {
-		// Higiene del proyecto: un único bloque gestionado en .gitignore.
-		// Best-effort, no rompe.
-		ensureEinGitignore(ctx.cwd);
-		// Codegraph: en un proyecto sin índice la directiva nunca se activaba y
-		// no había forma de salir de ahí. Se ofrece UNA vez por proyecto —
-		// aceptes o no, no se vuelve a preguntar; `/ein:codegraph` sigue estando.
-		if (ctx.hasUI && shouldOfferCodegraphInit(ctx.cwd)) {
-			try {
-				await offerCodegraphInit(ctx);
-			} catch {
-				// Una oferta que falla no puede impedir que arranque la sesión.
-			}
-		}
-		try {
-			const installResult = installSddAssets(ctx.cwd, false);
-			const modelResult = await applySavedModelConfig(ctx);
-			if (ctx.hasUI && modelResult.invalidPath) {
-				ctx.ui.notify(
-					tf(
-						"ai.models.invalid",
-						`Ein omitio la config de modelos: ${modelResult.invalidPath} no es JSON valido. Corrigelo o eliminalo y vuelve a ejecutar /ein:models.`,
-						modelResult.invalidPath,
-					),
-					"warning",
-				);
-				return;
-			}
-			if (ctx.hasUI && modelResult.updated > 0) {
-				ctx.ui.notify(
-					tf(
-						"ai.models.applied",
-						`Config de modelos aplicada a ${modelResult.updated} agente(s). Assets SDD listos: ${installResult.agents} agente(s), ${installResult.chains} chain(s), ${installResult.support} soporte.`,
-						modelResult.updated,
-						installResult.agents,
-						installResult.chains,
-						installResult.support,
-					),
-					"info",
-				);
-			}
-		} catch (error) {
-			if (ctx.hasUI) {
-				const message =
-					error instanceof Error ? error.message : String(error);
-				ctx.ui.notify(
-					tf("ai.models.error", `Error al aplicar config de modelos: ${message}`, message),
-					"warning",
-				);
-			}
-		}
-		// Onboarding first-run: si faltan esenciales (persona/lang/tdd/hypa/EIN.md)
-		// el wizard los resuelve. No-op sin UI o si ya está todo configurado.
-		await runOnboarding(ctx);
-	});
-
-	pi.on("session_shutdown", (_event, ctx) => {
-		scoutTracking.clear();
-		const sessionKey = sddPreflightSessionKey(ctx);
-		intentGate.clearPiIntentGate(ctx);
-		clearAgentControlSession(sessionKey);
-		clearSddParticipantSession(sessionKey);
-	});
-
-	pi.on("input", async (event, ctx) => {
-		// R6 residual risk closed: a cancelled or dead scout never reaches
-		// `acceptTrackedScoutResult`, so its `pending` entry would otherwise survive
-		// until `session_shutdown` and permanently block every later scout launch.
-		// R7 forces `async: false` on every normalized launch, so a legitimate scout
-		// cannot outlive the turn that launched it — clearing here is exactly the
-		// contract's own boundary ("one scout per turn"), not an approximation.
-		scoutTracking.clear();
-		// Intención de entrega: ¿este mensaje pide commit/push/PR? La lee el gate de
-		// entrega en `tool_call` (modo git `auto`). Se evalúa SIEMPRE, también en
-		// mensajes sin SDD; un mensaje neutro la conserva en vez de pisarla.
-		if (typeof event.text === "string") {
-			toolCallGate.recordDeliveryIntent(ctx, event.text);
-		}
-		if (typeof event.text !== "string") return { action: "continue" };
-		const explicitSdd = isSddPreflightTrigger(event.text);
-		if (explicitSdd) await runSddPreflight(ctx);
-		const intent = await intentGate.runPiIntentPreflight(event.text, ctx);
-		if (intent === "pending") return { action: "handled" };
-		if (intent === "resolved") continueAfterPiIntent(ctx, resolveActiveChange(ctx.cwd));
-		return { action: "continue" };
+	const sessionLifecycle = registerSessionLifecycle(pi, {
+		intentGate,
+		scoutTracking,
+		recordDeliveryIntent: toolCallGate.recordDeliveryIntent,
 	});
 
 	pi.on("before_agent_start", async (event, ctx) => {
@@ -336,7 +219,7 @@ export default function einAi(pi: ExtensionAPI): void {
 			"Ejecutar o reutilizar el preflight SDD para esta sesion de Pi",
 		),
 		handler: async (_args, ctx) => {
-			await runSddPreflight(ctx);
+			await sessionLifecycle.runSddPreflight(ctx);
 		},
 	});
 
