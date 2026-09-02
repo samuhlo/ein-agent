@@ -34,6 +34,11 @@ describe("openspec-spec/v1 contract", () => {
 		expect(serializeSharedOpenSpec(document)).toBe(source);
 		expect(parseSharedOpenSpec(source)).toEqual(parseOpenSpec(source));
 	});
+	test("las rutas Pi delegan en el mismo dueño compartido", () => {
+		expect(serializeOpenSpec).toBe(serializeSharedOpenSpec);
+		expect(parseOpenSpec).toBe(parseSharedOpenSpec);
+		expect(parseOpenSpecDelta).toBe(parseSharedOpenSpecDelta);
+	});
 	test("serializes scenarios by stable ID with LF and one final newline", () => {
 		const serialized = serializeOpenSpec({ domain: "sdd-lifecycle", scenarios: [{ id: "zeta", title: "Zeta", requirement: "The system MUST retain zeta", given: "a zeta input", when: "it is serialized", then: "it remains zeta" }, { id: "alpha", title: "Alpha", requirement: "The system MUST retain alpha", given: "an alpha input", when: "it is serialized", then: "it remains alpha" }] });
 		expect(serialized).toContain("## Scenario: alpha");
