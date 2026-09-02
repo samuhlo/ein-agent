@@ -26,6 +26,7 @@ import {
 	serializeSyncReport as serializeSharedSyncReport,
 } from "../shared/sdd/openspec-spec-sync.ts";
 import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs";
+import { synchronizeOpenSpecFilesystem as synchronizeSharedOpenSpecFilesystem } from "../shared/sdd/openspec-spec-sync-fs.ts";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -134,6 +135,9 @@ describe("deterministic OpenSpec synchronization", () => {
 		expect(planOpenSpecSync).toBe(planSharedOpenSpecSync);
 		expect(serializeSyncReport).toBe(serializeSharedSyncReport);
 		expect(evaluateOpenSpecState).toBe(evaluateSharedOpenSpecState);
+	});
+	test("Pi y Claude reciben el mismo adaptador de filesystem", () => {
+		expect(synchronizeOpenSpecFilesystem).toBe(synchronizeSharedOpenSpecFilesystem);
 	});
 
 	test("plans against the original snapshot and produces stable conflict evidence", () => {

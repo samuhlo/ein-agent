@@ -52,7 +52,7 @@ export type {
 } from "../sdd/sdd-intent-resolution.ts";
 export { writeOpenSpecDelta } from "../sdd/openspec-delta-write.ts";
 export { writeSddSummary } from "../sdd/sdd-summary-write.ts";
-export { synchronizeOpenSpecFilesystem } from "../../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
+export { synchronizeOpenSpecFilesystem } from "../sdd/openspec-spec-sync-fs.ts";
 export {
 	evaluateDeniedCommand,
 	commandRequiresConfirmation,
