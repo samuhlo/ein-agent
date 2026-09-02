@@ -8,9 +8,10 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { closeChange } from "../ein-pi/agent/lib/sdd-close";
+import { closeChange, closedChangePath } from "../ein-pi/agent/lib/sdd-close";
 import { lintChange, lintPhaseArtifact, oversizedGroupWarnings } from "../ein-pi/agent/lib/sdd-guardrails";
 import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
+import { closedChangePath as sharedClosedChangePath } from "../shared/sdd/sdd-close-compaction.ts";
 
 let DIR: string;
 function durableSummary(change: string): string {
@@ -51,6 +52,10 @@ afterEach(() => {
 });
 
 describe("closeChange", () => {
+	test("la compactación neutral conserva la ruta canónica", () => {
+		expect(sharedClosedChangePath(DIR, "feat-x")).toBe(closedChangePath(DIR, "feat-x"));
+	});
+
 	test("condensa el cambio en un único summary.md", () => {
 		makeFresh("feat-x");
 		const r = closeChange(DIR, "feat-x", { force: true });
