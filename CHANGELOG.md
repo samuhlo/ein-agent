@@ -4,6 +4,21 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.93.0-alpha.2] - 2026-09-02
+
+### Fixed
+
+- **La instalación de Pi ya no diverge en Omarchy cuando Bun redirige sus
+  globales.** Ein fija su runtime administrado en `~/.bun/bin`, comprueba allí
+  la versión realmente ejecutable y solo declara éxito si coincide con el pin
+  requerido.
+- **Las dependencias opcionales dejan de aparecer como éxitos falsos.** Si
+  `gh`, Engram, Hypa o Codegraph no se instalan, la instalación puede continuar
+  pero el progreso conserva la causa y lo muestra como aviso.
+- **La matriz E2E reproduce la regresión observada.** Parte de Pi `0.84.4`,
+  activa `BUN_INSTALL_GLOBAL_DIR` y `BUN_INSTALL_BIN` alternativos, instala dos
+  veces y exige Pi `0.84.3` canónico más un `doctor` sin fallos.
+
 ## [0.93.0-alpha.1] - 2026-09-02
 
 ### Added

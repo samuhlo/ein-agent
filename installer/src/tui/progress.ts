@@ -24,7 +24,7 @@ export type InstallProgressEvent =
   | InstallPlanProgressEvent
   | Readonly<{ kind: "live"; id: InstallPlanEntryId; detail: string }>;
 
-export type StepStatus = "pending" | "running" | "ok" | "failed" | "abandoned";
+export type StepStatus = "pending" | "running" | "ok" | "warning" | "failed" | "abandoned";
 
 export type InstallProgressModel = Readonly<{
   /** Los pasos que el plan va a ejecutar, en su orden inmutable. */
@@ -109,8 +109,14 @@ export function advanceProgress(
     return Object.freeze({ ...model, status: Object.freeze(status) });
   }
 
-  const settled = current === "ok" || current === "failed" || current === "abandoned";
-  const next: StepStatus = event.kind === "abandoned" ? "abandoned" : event.ok ? "ok" : "failed";
+  const settled = current === "ok" || current === "warning" || current === "failed" || current === "abandoned";
+  const next: StepStatus = event.kind === "abandoned"
+    ? "abandoned"
+    : !event.ok
+      ? "failed"
+      : event.warning
+        ? "warning"
+        : "ok";
   const status = Object.freeze({ ...model.status, [event.id]: next });
   const detail = event.kind === "done" && event.detail
     ? Object.freeze({ ...model.detail, [event.id]: event.detail })
@@ -129,6 +135,7 @@ const GLYPH_FOR: Readonly<Record<StepStatus, string>> = Object.freeze({
 	pending: MARK.idle,
 	running: "▸",
 	ok: MARK.ok,
+	warning: MARK.warn,
 	failed: MARK.fail,
 	abandoned: MARK.idle,
 });
@@ -137,6 +144,7 @@ const GLYPH_FOR: Readonly<Record<StepStatus, string>> = Object.freeze({
 export function stepMark(status: StepStatus): string {
 	const glyph = GLYPH_FOR[status];
 	if (status === "failed") return danger(glyph);
+	if (status === "warning") return gold(glyph);
 	if (status === "running") return gold(glyph);
 	if (status === "ok") return concrete(glyph);
 	return structure(glyph);

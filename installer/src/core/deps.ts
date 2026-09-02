@@ -22,6 +22,7 @@ import {
   resolveEngram,
 } from "./engram.ts";
 import {
+  activeHome,
   BUN_BIN_DIR,
   defaultPiInstallContext,
   type PiInstallContext,
@@ -209,13 +210,21 @@ export async function installBun(): Promise<InstallStep> {
 }
 
 export type PiInstallDeps = {
+  home?: string;
   inspectNode?: () => NodeRuntimeInspection;
   lookPath?: typeof lookPath;
+  readPiVersion?: (path: string) => string | null;
   run?: typeof run;
 };
 
 // pi via bun global install. Lands in ~/.bun/bin/pi.
 export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> {
+  const home = deps.home ?? activeHome();
+  const bunBinDir = join(home, ".bun", "bin");
+  const bunGlobalDir = join(home, ".bun", "install", "global");
+  const localBinDir = join(home, ".local", "bin");
+  const managedPath = [bunBinDir, localBinDir];
+  const piPath = join(bunBinDir, "pi");
   const find = deps.lookPath ?? lookPath;
   const execute = deps.run ?? run;
   const node = (deps.inspectNode ?? inspectNodeRuntime)();
@@ -223,11 +232,18 @@ export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> 
     const found = node.version ? `Node ${node.version} no es compatible.` : "Node no está instalado o no aparece en PATH.";
     return { ok: false, detail: `${found} Pi requiere Node ${PI_NODE_MIN_VERSION} o posterior; actualízalo y repite la instalación.` };
   }
-  const bun = find("bun", EXTRA_PATH);
+  const bun = find("bun", managedPath);
   if (!bun) return { ok: false, detail: "bun no disponible; instala bun primero" };
   const res = await execute(bun, ["install", "-g", PI_HOST_SPEC], {
     ...CAPTURED,
-    extraPath: EXTRA_PATH,
+    extraPath: managedPath,
+    env: {
+      // Ein owns this Pi runtime. Bun also supports user-wide redirection via
+      // BUN_INSTALL_{GLOBAL_DIR,BIN}; overriding both here keeps install,
+      // doctor and the launcher on the same canonical executable.
+      BUN_INSTALL_GLOBAL_DIR: bunGlobalDir,
+      BUN_INSTALL_BIN: bunBinDir,
+    },
   });
   // Always name the scoped package: the bare `pi` on npm is an unrelated math
   // library whose bin shadows the agent and breaks `pi`. A truncated hint here
@@ -235,9 +251,15 @@ export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> 
   if (!res.ok) {
     return { ok: false, detail: `'bun install -g ${PI_HOST_SPEC}' falló (${why(res)})` };
   }
-  return find("pi", EXTRA_PATH)
-    ? { ok: true, detail: `pi ${PI_HOST_VERSION} instalado` }
-    : { ok: false, detail: "pi instalado pero no resoluble; reinicia el shell" };
+  const installedVersion = (deps.readPiVersion ?? readPiVersion)(piPath);
+  if (installedVersion !== PI_HOST_VERSION) {
+    const observed = installedVersion ? `se detectó ${installedVersion}` : "no se pudo leer su versión";
+    return {
+      ok: false,
+      detail: `pi en ${piPath}: ${observed}; se requiere ${PI_HOST_VERSION}`,
+    };
+  }
+  return { ok: true, detail: `pi ${PI_HOST_VERSION} instalado` };
 }
 
 export async function installEngramDep(platform: Platform): Promise<InstallStep> {

@@ -55,18 +55,55 @@ describe("deps — pi siempre con scope", () => {
 		})).toEqual({ path: "/fake/pi", version: PI_HOST_VERSION, compatible: true });
 	});
 
-	test("installPi entrega a bun el spec exacto, sin shell ni latest implícito", async () => {
-		const calls: Array<{ command: string; args: string[] }> = [];
+	test("installPi fija el destino administrado de bun y verifica el binario canónico", async () => {
+		const home = "/fake/home";
+		const canonicalPi = join(home, ".bun", "bin", "pi");
+		const calls: Array<{
+			command: string;
+			args: string[];
+			env: Record<string, string> | undefined;
+		}> = [];
+		const inspected: string[] = [];
 		const result = await installPi({
+			home,
 			inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
-			lookPath: (command) => command === "bun" ? "/fake/bun" : "/fake/pi",
-			run: async (command, args) => {
-				calls.push({ command, args: args ?? [] });
+			lookPath: (command) => command === "bun" ? "/fake/bun" : null,
+			readPiVersion: (path) => {
+				inspected.push(path);
+				return PI_HOST_VERSION;
+			},
+			run: async (command, args, options) => {
+				calls.push({ command, args: args ?? [], env: options?.env });
 				return { ok: true, code: 0, stdout: "", stderr: "" };
 			},
 		});
-		expect(calls).toEqual([{ command: "/fake/bun", args: ["install", "-g", PI_HOST_SPEC] }]);
+		expect(calls).toEqual([{
+			command: "/fake/bun",
+			args: ["install", "-g", PI_HOST_SPEC],
+			env: {
+				BUN_INSTALL_GLOBAL_DIR: join(home, ".bun", "install", "global"),
+				BUN_INSTALL_BIN: join(home, ".bun", "bin"),
+			},
+		}]);
+		expect(inspected).toEqual([canonicalPi]);
 		expect(result).toEqual({ ok: true, detail: `pi ${PI_HOST_VERSION} instalado` });
+	});
+
+	test("installPi falla sin mentir si bun deja otra versión en la ruta canónica", async () => {
+		const home = "/fake/home";
+		const result = await installPi({
+			home,
+			inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
+			lookPath: (command) => command === "bun" ? "/fake/bun" : null,
+			readPiVersion: () => "0.84.4",
+			run: async () => ({ ok: true, code: 0, stdout: "", stderr: "" }),
+		});
+
+		expect(result.ok).toBe(false);
+		expect(result.detail).toContain("0.84.4");
+		expect(result.detail).toContain(PI_HOST_VERSION);
+		expect(result.detail).toContain(join(home, ".bun", "bin", "pi"));
+		expect(result.detail).not.toContain("instalado");
 	});
 
 	test("Pi exige Node 22.19+ y explica cómo corregir un runtime ausente", async () => {
