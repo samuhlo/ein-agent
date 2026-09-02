@@ -23,6 +23,7 @@ const INSTALLER_PACKAGE_PATH = join(REPO_ROOT, "installer", "package.json");
 const INSTALLER_VERSION_SOURCE_PATH = join(REPO_ROOT, "installer", "src", "core", "version.ts");
 const CHANGELOG_PATH = join(REPO_ROOT, "CHANGELOG.md");
 const E2E_SCRIPT_PATH = join(REPO_ROOT, "e2e", "docker-test.sh");
+const RELEASE_UPDATE_E2E_SCRIPT_PATH = join(REPO_ROOT, "e2e", "release-update-test.sh");
 
 // [CONTRACT] Cuatro assets publicados y la línea "checksums.txt" deben
 // casar exactamente con `assetNameFor` y `assetNameFor`'s strict shape.
@@ -190,7 +191,7 @@ function runMetadataGate(
   }
 }
 
-function runPublish(workflow: string, channel: "stable" | "alpha"): { code: number | null; args: string[] } {
+function runPublish(workflow: string, channel: "stable" | "alpha"): { code: number | null; args: string[]; notes: string } {
   const root = mkdtempSync(join(tmpdir(), "ein-release-publish-"));
   const binDir = join(root, "bin");
   const capturePath = join(root, "gh-args");
@@ -214,6 +215,7 @@ function runPublish(workflow: string, channel: "stable" | "alpha"): { code: numb
     return {
       code: result.code,
       args: existsSync(capturePath) ? readFileSync(capturePath, "utf8").trim().split("\n").filter(Boolean) : [`stderr:${result.stderr}`],
+      notes: existsSync("/tmp/release-notes.md") ? readFileSync("/tmp/release-notes.md", "utf8") : "",
     };
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -308,9 +310,10 @@ describe("release asset contract", () => {
     expect(script).not.toContain(legacyArchiveAssertion);
   });
 
-  test("installer E2E treats only atomically recompiled Claude runners as byte-unstable", () => {
+  test("installer E2E treats every runtime-compiled Claude binary as byte-unstable", () => {
     const script = readFileSync(E2E_SCRIPT_PATH, "utf8");
 
+    expect(script).toContain('! -path "$root/bin/ein-cc-sdd"');
     expect(script).toContain('! -path "$root/bin/ein-surface-runner"');
     expect(script).toContain('! -path "$root/bin/ein-continuity"');
     expect(script).not.toContain('! -path "$root/bin/*"');
@@ -325,6 +328,39 @@ describe("release asset contract", () => {
     expect(script).toContain("tolower($0) ~ /claude code: ein listo/");
     expect(script).not.toContain("awk '/Pi:/'");
     expect(script).not.toContain("awk '/Claude Code:/'");
+  });
+
+  test("installer E2E gates rollback, launcher, preservation, and recoverable uninstall", () => {
+    const script = readFileSync(E2E_SCRIPT_PATH, "utf8");
+
+    expect(script).toContain("tests/release-update-integration.test.ts");
+    expect(script).toContain("tests/installer-uninstall.test.ts");
+    expect(script).toContain("tests/beta-launcher-e2e-hardening.test.ts");
+    expect(script).toContain("uninstall-preservation");
+    expect(script).toContain("seed_preserved_state");
+    expect(script).toContain("assert_preserved_state");
+    expect(script).toContain('ein-install uninstall --yes --runtime both');
+    expect(script).toContain('assert_present "$HOME/.pi-ein/agent/auth.json"');
+    expect(script).toContain('assert_present "$HOME/.claude-ein/history.jsonl"');
+    expect(script).toContain('assert_present "$HOME/.config/opencode-secrets/token"');
+  });
+
+  test("release workflow performs a real previous-to-published upgrade smoke", () => {
+    const workflow = readFileSync(WORKFLOW_PATH, "utf8");
+    const script = readFileSync(RELEASE_UPDATE_E2E_SCRIPT_PATH, "utf8");
+    const publishStart = workflow.indexOf("- name: Publish release");
+    const smokeStart = workflow.indexOf("- name: Published release upgrade smoke");
+    const smokeStep = workflowStep(workflow, "- name: Published release upgrade smoke");
+
+    expect(publishStart).toBeGreaterThanOrEqual(0);
+    expect(smokeStart).toBeGreaterThan(publishStart);
+    expect(smokeStep).toContain("../e2e/release-update-test.sh");
+    expect(smokeStep).toContain("installer-v0.92.0-alpha.1");
+    expect(smokeStep).toContain('"$RELEASE_TAG"');
+    expect(script).toContain("gh release download");
+    expect(script).toContain("ein-install update --yes latest");
+    expect(script).toContain("assert_preserved_state");
+    expect(script).toContain("E2E_RELEASE_UPDATE_RESULT=OK");
   });
 
   test("push and dispatch share canonical final/alpha classification and reject unsupported prereleases", () => {
@@ -417,9 +453,12 @@ describe("release asset contract", () => {
     const stableArgs = runPublish(workflow, "stable");
     expect(stableArgs).toEqual(expect.objectContaining({ code: 0 }));
     expect(stableArgs.args).not.toContain("--prerelease");
+    expect(stableArgs.notes).toContain("installer/install.sh | bash");
+    expect(stableArgs.notes).not.toContain("--release-channel alpha");
     const alphaArgs = runPublish(workflow, "alpha");
     expect(alphaArgs).toEqual(expect.objectContaining({ code: 0 }));
     expect(alphaArgs.args).toContain("--prerelease");
+    expect(alphaArgs.notes).toContain('--release-channel alpha --release-tag installer-v0.82.0');
   });
 
   test("manual dispatch requires a validated release tag for checkout and publishing", () => {
