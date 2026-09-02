@@ -13,6 +13,11 @@ afterEach(() => {
 });
 
 describe("paridad del coordinador de validación SDD", () => {
+	test("Pi reexporta los lectores neutrales", () => {
+		expect(pi.readSpecDeltaDeclaration).toBe(shared.readSpecDeltaDeclaration);
+		expect(pi.readOpenSpecState).toBe(shared.readOpenSpecState);
+		expect(pi.lintCanonicalBases).toBe(shared.lintCanonicalBases);
+	});
 	test("filesystem, OpenSpec y secuencia producen el mismo informe", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "ein-shared-validation-"));
 		roots.push(cwd);

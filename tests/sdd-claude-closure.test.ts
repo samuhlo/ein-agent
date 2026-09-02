@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { collectSourceClosure } from "../installer/scripts/bundle-ein-cc.ts";
@@ -72,6 +73,14 @@ describe("Claude SDD runtime closure", () => {
 
 		expect(closure).toContain("shared/sdd/openspec-spec-sync-fs.ts");
 		for (const path of RETIRED_SYNC_COLLATERAL) expect(closure).not.toContain(path);
+	});
+
+	test("serves validation from shared without a validation bridge in the public port", () => {
+		const closure = runtimeClosure(EIN_CC_PAYLOAD_SOURCE_ENTRIES);
+		const portSource = readFileSync(join(ROOT, "shared/ports/sdd.ts"), "utf8");
+
+		expect(closure).toContain("shared/sdd/sdd-change-validation.ts");
+		expect(portSource).not.toContain("../../ein-pi/agent/lib/sdd-guardrails.ts");
 	});
 });
 

@@ -4,10 +4,10 @@ import {
 	persistSddIntentResolution,
 	readSddIntentResolutionState,
 } from "../../ein-pi/agent/lib/sdd-preflight-record.ts";
-import { readOpenSpecState } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
-import { readChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
+import { LANE_PHASES, readChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
 import { createSddIntentPreflightCoordinator } from "../sdd/sdd-intent-resolution.ts";
 import { createSddRoutingCore } from "../sdd/sdd-routing-core.ts";
+import { createLintChange, readOpenSpecState } from "../sdd/sdd-change-validation.ts";
 
 export {
 	resolveSddPlanPreview,
@@ -19,7 +19,7 @@ export {
 	resolveActiveSelection,
 	type SddChangeStatus,
 } from "../sdd/sdd-routing-core.ts";
-export { lintChange, type ChangeLintReport } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
+export type { ChangeLintReport } from "../sdd/sdd-change-validation.ts";
 export { collectSddRemedies, formatSddRemedies } from "../sdd/sdd-remedies.ts";
 export { closeChange } from "../../ein-pi/agent/lib/sdd-close.ts";
 export { LANE_LABEL, laneSkips, normalizeLane, readChangeLane, writeChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
@@ -43,6 +43,10 @@ const routingCore = createSddRoutingCore({
 	readLane: readChangeLane,
 	readSpecState: readOpenSpecState,
 });
+
+export const lintChange = createLintChange(
+	(changePath) => LANE_PHASES[readChangeLane(changePath)],
+);
 
 export const resolveSddIntentPreflight = intentCoordinator.resolve;
 export const resolveSddStatus = routingCore.resolveSddStatus;
