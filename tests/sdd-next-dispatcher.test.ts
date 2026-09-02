@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { resolveSddNext, sddNextHandoff, type SddNextReport } from "../ein-pi/agent/lib/sdd-router";
 import { planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
 
-const EIN_AI_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts");
+const SESSION_LIFECYCLE_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-session-lifecycle.ts");
 const SDD_PRESENTATION_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-sdd-presentation.ts");
 const SDD_READ_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts");
 const ADVISORY_TOOLS_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-advisory-tools.ts");
@@ -208,7 +208,7 @@ describe("participant advisory routing", () => {
 });
 
 describe("intent preflight continuation", () => {
-	const src = readFileSync(EIN_AI_PATH, "utf8");
+	const src = readFileSync(SESSION_LIFECYCLE_PATH, "utf8");
 
 	test("resolved input returns to the existing router and handoff", () => {
 		const block = src.match(/function continueAfterPiIntent[\s\S]*?\n\t}/)?.[0] ?? "";

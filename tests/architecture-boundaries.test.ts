@@ -172,4 +172,19 @@ describe("fronteras arquitectónicas del repositorio", () => {
 		expect(importedModules(join(lib, "project-settings.ts"))).not.toContain("./terminal-app.ts");
 		expect(importedModules(join(lib, "terminal-app.ts"))).toContain("./project-settings.ts");
 	});
+
+	test("la extensión principal de Pi solo compone dueños especializados", () => {
+		const facade = readFileSync(join(ROOT, "ein-pi/agent/extensions/ein-ai.ts"), "utf8");
+		expect(facade).not.toMatch(/\bpi\.(?:on|registerCommand|registerTool)\(/);
+		for (const owner of [
+			"registerAgentPromptHook",
+			"registerDelegationResultHook",
+			"registerToolCallGate",
+			"registerSessionLifecycle",
+			"registerRuntimeCommands",
+			"registerStatusCommands",
+		]) {
+			expect(facade).toContain(`${owner}(`);
+		}
+	});
 });

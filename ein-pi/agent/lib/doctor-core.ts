@@ -132,16 +132,17 @@ export function inspectCommonDoctor(input: {
   const orchestratorRaw = readDoctorText(
     join(agentDir, "assets", "orchestrator.md"),
   );
-  const einAiRaw = readDoctorText(join(agentDir, "extensions", "ein-ai.ts"));
+  const agentPromptRaw = readDoctorText(
+    join(agentDir, "extensions", "internal", "ein-agent-prompt-hook.ts"),
+  );
+  const sddReadSurfaceRaw = readDoctorText(
+    join(agentDir, "extensions", "internal", "ein-sdd-read-surface.ts"),
+  );
   const personaRaw = readDoctorText(join(agentDir, "lib", "persona.ts"));
   const linearInspection = inspectLinearIntegration(input.linearCwd, agentDir);
-  const hasDynamicLinearPrompt = einAiRaw
-    .split("\n")
-    .some(
-      (line) =>
-        line.includes("buildEinPrompt(") &&
-        line.includes("readLinearIntegration(ctx.cwd)"),
-    );
+  const hasDynamicLinearPrompt =
+    agentPromptRaw.includes("buildEinPrompt(") &&
+    agentPromptRaw.includes("readLinearIntegration(ctx.cwd)");
 
   return {
     checks: {
@@ -330,7 +331,7 @@ export function inspectCommonDoctor(input: {
         ),
         doctorCheck(
           existsSync(join(agentDir, "lib", "sdd-router.ts")) &&
-            einAiRaw.includes("ein_sdd_status"),
+            sddReadSurfaceRaw.includes("ein_sdd_status"),
           "sdd router cableado",
           "Router determinista (sdd-router + tool ein_sdd_status) presente.",
         ),

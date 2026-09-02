@@ -2,7 +2,7 @@
 
 Este documento contiene únicamente trabajo vigente. Las decisiones estables viven en `docs/adr/`, el comportamiento actual en `openspec/specs/` y la historia exhaustiva en Git y las releases.
 
-El trabajo anterior dejó la baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, presupuesto de revisión resistente a código empaquetado y el diario de instalación separado por responsabilidades. El núcleo SDD compartido ya posee intención, routing, remedios, validación, lenguaje y sincronización OpenSpec, resumen y cierre. Sus cinco adaptadores supervivientes están inventariados con dueño y condición de retirada en `shared/README.md`.
+El trabajo anterior dejó la baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, presupuesto de revisión resistente a código empaquetado y el diario de instalación separado por responsabilidades. El núcleo SDD compartido ya posee intención, routing, remedios, validación, lenguaje y sincronización OpenSpec, resumen y cierre. Sus cinco adaptadores supervivientes están inventariados con dueño y condición de retirada en `shared/README.md`. La auditoría de salida de la fase arquitectónica quedó aceptada en `docs/adr/0004-close-architecture-phase.md`.
 
 ## Condicionado — liberar presupuesto de prompt
 
@@ -14,24 +14,12 @@ Objetivo: crear espacio solo cuando un cambio de contrato observable demuestre q
 
 Criterio de salida: el cambio de contrato medido cabe con margen explícito y los consumidores de la prosa retirada siguen verdes. Sin necesidad demostrada, esta fase no se ejecuta.
 
-## Ahora — fase 7, hotspots con reglas sanas
-
-Objetivo: dividir por responsabilidad medida, nunca por número de líneas.
-
-Es el último punto vivo de la fase 1, y va aquí porque su resultado depende de las fases 2 y 6. Volver a medir antes de elegir; orden provisional:
-
-- [ ] `project-state.ts` — 19 consumidores; Git, OpenSpec, configuración y verificación en un módulo.
-- [ ] `runtime-session-adapters.ts` — 57 exports; contratos, búsqueda, validación, plan y ejecución.
-- [ ] `installer/src/cli/install.ts` — solo si la evidencia de ciclo de vida de la fase 8 muestra coste o riesgo.
-- [ ] `ein-ai.ts` — al final: separar registro de hooks, herramientas SDD, Cleaner y comandos. Ordenar la fachada antes de estabilizar los motores que registra es trabajo que se rehace.
-
-`ein-linear.ts` y `model-config.ts` no se dividen por tamaño. `ein-linear.ts` entra solo si vuelve a cambiar con frecuencia.
-
-## Después — fase 8, cierre de la beta
+## Ahora — fase 8, cierre de la beta
 
 `e2e/docker-test.sh` cubre hoy cuatro escenarios instalados dos veces y un `update --dry-run`, y se dispara solo a mano (`workflow_dispatch`).
 
 - [ ] Matriz completa en hogares desechables: Pi, Claude, ambos, instalación repetida, update real, fallo inducido y rollback, uninstall, conservación de ficheros ajenos y credenciales, integraciones opcionales ausentes y smoke compilado del payload.
+- [ ] Dividir `installer/src/cli/install.ts` solo si esa matriz localiza coste de cambio o riesgo de ciclo de vida en más de un dueño. El tamaño del fichero, por sí solo, no activa el trabajo.
 - [ ] Alinear documentación pública, versión, artefactos y release.
 - [ ] Publicar un quickstart reproducible y una demo del flujo completo.
 - [ ] Mantener Pi como camino principal y declarar con precisión el soporte Claude.
