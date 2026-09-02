@@ -142,10 +142,16 @@ jobs:
       # compilan desde una sola máquina: hacen falta los cuatro binarios.
       - name: Install root deps (todas las plataformas — cross-compile)
         working-directory: .
-        run: bun install --frozen-lockfile --cpu='*' --os='*'
+        run: |
+          bun install --frozen-lockfile --cpu='*' --os='*'
+          bun update --latest --no-save --force --cpu='*' --os='*' @earendil-works/pi-coding-agent @earendil-works/pi-tui
 
       - name: Install installer deps
         run: bun install --frozen-lockfile
+
+      - name: Verify latest Pi host and extensions
+        working-directory: .
+        run: bun tooling/verify-latest-pi-runtime.ts
 
       - name: Typecheck
         run: bun run typecheck

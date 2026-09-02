@@ -291,10 +291,11 @@ describe("release asset contract", () => {
 
   test("installer E2E installs root dependencies before building the embedded app", () => {
     const script = readFileSync(E2E_SCRIPT_PATH, "utf8");
-    const rootInstall = '(cd "$ROOT" && bun install --frozen-lockfile)';
+    const rootInstall = '(cd "$ROOT" && bun install --frozen-lockfile && bun run sync:pi)';
     const installerBuild = '(cd "$ROOT/installer" && bun install --frozen-lockfile && bun run build:all -- "$TARGET")';
 
     expect(script).toContain(rootInstall);
+    expect(rootInstall).toContain("bun run sync:pi");
     expect(script).toContain(installerBuild);
     expect(script.indexOf(rootInstall)).toBeLessThan(script.indexOf(installerBuild));
   });
@@ -340,6 +341,8 @@ describe("release asset contract", () => {
     expect(script).toContain("omarchy-bun-global-bin");
     expect(script).toContain("BUN_INSTALL_GLOBAL_DIR");
     expect(script).toContain("BUN_INSTALL_BIN");
+    expect(script).toContain("@earendil-works/pi-coding-agent@latest");
+    expect(script).toContain('npm view @earendil-works/pi-coding-agent@latest version');
     expect(script).toContain("installer-v0.93.0-alpha.1");
     expect(script).toContain("install-execution-v1.json");
     expect(script).toContain("seed_preserved_state");

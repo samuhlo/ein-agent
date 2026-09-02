@@ -9,14 +9,15 @@
     "solid-js": "1.9.12"
   },
   "scripts": {
-    "setup": "bun install && cd installer && bun install",
+    "setup": "bun install && bun run sync:pi && cd installer && bun install",
+    "sync:pi": "bun update --latest --no-save --force @earendil-works/pi-coding-agent @earendil-works/pi-tui",
     "test": "bun test",
     "clean:workspace": "bun run tooling/clean-workspace.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.84.3",
-    "@earendil-works/pi-tui": "0.84.3",
+    "@earendil-works/pi-coding-agent": "latest",
+    "@earendil-works/pi-tui": "latest",
     "@types/bun": "latest",
     "typescript": "5.9.3"
   }

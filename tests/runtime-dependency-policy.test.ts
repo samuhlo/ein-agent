@@ -5,8 +5,8 @@ import { join } from "node:path";
 import {
   PI_HOST_PACKAGE,
   PI_HOST_SPEC,
-  PI_HOST_VERSION,
   PI_NODE_MIN_VERSION,
+  PI_RUNTIME_DIST_TAG,
   REQUIRED_PI_PACKAGES,
   REQUIRED_PI_PACKAGE_SPECS,
 } from "../shared/contracts/runtime-compat.ts";
@@ -30,27 +30,40 @@ function smokeLevel(report: string, name: string): string | undefined {
   return report.match(new RegExp(`^- (OK|WARN|FAIL) - ${name}:`, "m"))?.[1];
 }
 
-describe("contrato reproducible del runtime Pi", () => {
-  test("settings, host de desarrollo y contrato comparten versiones exactas", () => {
+describe("contrato latest del runtime Pi", () => {
+  test("settings, host de desarrollo y CI siguen el dist-tag móvil", () => {
     const settings = JSON.parse(readFileSync(join(ROOT, "ein-pi", "agent", "settings.json"), "utf8")) as {
       npmCommand: string[];
       packages: string[];
     };
-    const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { devDependencies: Record<string, string> };
+    const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    const ci = readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8");
+    const release = readFileSync(join(ROOT, ".github", "workflows", "installer-release.yml"), "utf8");
 
     expect(settings.packages).toEqual([...REQUIRED_PI_PACKAGE_SPECS]);
     expect(settings.npmCommand).toEqual(["bun"]);
-    expect(PI_HOST_SPEC).toBe(`${PI_HOST_PACKAGE}@${PI_HOST_VERSION}`);
+    expect(PI_RUNTIME_DIST_TAG).toBe("latest");
+    expect(PI_HOST_SPEC).toBe(`${PI_HOST_PACKAGE}@latest`);
     expect(PI_NODE_MIN_VERSION).toBe("22.19.0");
-    expect(pkg.devDependencies[PI_HOST_PACKAGE]).toBe(PI_HOST_VERSION);
-    expect(pkg.devDependencies["@earendil-works/pi-tui"]).toBe(PI_HOST_VERSION);
+    expect(pkg.devDependencies[PI_HOST_PACKAGE]).toBe("latest");
+    expect(pkg.devDependencies["@earendil-works/pi-tui"]).toBe("latest");
+    expect(pkg.scripts["sync:pi"]).toBe(
+      "bun update --latest --no-save --force @earendil-works/pi-coding-agent @earendil-works/pi-tui",
+    );
+    expect(ci).toContain("bun run sync:pi");
+    expect(ci).toContain("bun tooling/verify-latest-pi-runtime.ts");
+    expect(release).toContain("bun update --latest --no-save --force");
+    expect(release).toContain("bun tooling/verify-latest-pi-runtime.ts");
     expect(REQUIRED_PI_PACKAGES.length).toBeGreaterThan(0);
     for (const spec of REQUIRED_PI_PACKAGE_SPECS) {
-      expect(spec).toMatch(/^npm:(?:@[^/]+\/[^@]+|[^@]+)@\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
+      expect(spec).toMatch(/^npm:(?:@[^/]+\/[^@]+|[^@]+)@latest$/);
     }
   });
 
-  test("ambos doctors fallan ante un paquete sin el pin compatible", () => {
+  test("ambos doctors exigen la declaración latest y una versión instalada válida", () => {
     const home = mkdtempSync(join(tmpdir(), "ein-runtime-policy-"));
     roots.push(home);
     const context = resolvePiInstallContext(derivePiInstallPaths(home));
@@ -58,7 +71,7 @@ describe("contrato reproducible del runtime Pi", () => {
     for (const pkg of REQUIRED_PI_PACKAGES) {
       const directory = join(context.agentDir, "npm", "node_modules", ...pkg.name.split("/"));
       mkdirSync(directory, { recursive: true });
-      writeFileSync(join(directory, "package.json"), JSON.stringify({ version: pkg.version }));
+      writeFileSync(join(directory, "package.json"), JSON.stringify({ version: "0.0.1" }));
     }
     const missing = REQUIRED_PI_PACKAGES[0]!;
     const checkName = `pi package ${missing.name}`;
@@ -75,7 +88,7 @@ describe("contrato reproducible del runtime Pi", () => {
     expect(smokeLevel(doctorSmokeReport(context.agentDir, home), checkName)).toBe("OK");
 
     const installedManifest = join(context.agentDir, "npm", "node_modules", missing.name, "package.json");
-    writeFileSync(installedManifest, JSON.stringify({ version: "0.0.1" }));
+    writeFileSync(installedManifest, JSON.stringify({ version: "not-semver" }));
     expect(checkLevel(runDoctor({ ...detectPlatform(), home }, context), checkName)).toBe("FAIL");
     expect(smokeLevel(doctorSmokeReport(context.agentDir, home), checkName)).toBe("FAIL");
   });

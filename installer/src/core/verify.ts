@@ -20,7 +20,7 @@ import {
   type DoctorCheckResult as SharedCheckResult,
   type DoctorResult,
 } from "../../../shared/ports/doctor.ts";
-import { PI_HOST_VERSION, PI_NODE_MIN_VERSION } from "../../../shared/contracts/runtime-compat.ts";
+import { PI_HOST_SPEC, PI_NODE_MIN_VERSION } from "../../../shared/contracts/runtime-compat.ts";
 import {
   defaultPiInstallContext,
   type PiInstallContext,
@@ -180,8 +180,8 @@ export function runDoctor(
       piRuntime.compatible,
       "pi",
       piRuntime.version
-        ? `Pi ${piRuntime.version} detectado; Ein requiere ${PI_HOST_VERSION}.`
-        : `Pi no resoluble; Ein requiere ${PI_HOST_VERSION}.`,
+        ? `Pi ${piRuntime.version} detectado; Ein sigue ${PI_HOST_SPEC}.`
+        : `Pi no resoluble; instala ${PI_HOST_SPEC}.`,
     ),
     warn(hasEngramBin, "engram cli", "CLI engram disponible (memoria)."),
     warn(hasGh, "gh cli", "GitHub CLI disponible (entrega)."),

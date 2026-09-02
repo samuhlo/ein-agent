@@ -1,29 +1,28 @@
 // =============================================================================
 // PI RUNTIME COMPATIBILITY
-// Exact versions verified together for one Ein release. Pi treats exact npm
-// specs as pinned, so this contract prevents a package update from silently
-// changing the runtime under an unchanged Ein installer.
+// Pi and its managed extensions intentionally follow npm's latest dist-tag.
+// Ein must adapt when upstream moves; install/update resolve the moving tag and
+// CI tests against it instead of preserving an older known-good runtime.
 // =============================================================================
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 export const PI_HOST_PACKAGE = "@earendil-works/pi-coding-agent";
-export const PI_HOST_VERSION = "0.84.3";
-export const PI_HOST_SPEC = `${PI_HOST_PACKAGE}@${PI_HOST_VERSION}`;
+export const PI_RUNTIME_DIST_TAG = "latest";
+export const PI_HOST_SPEC = `${PI_HOST_PACKAGE}@${PI_RUNTIME_DIST_TAG}`;
 export const PI_NODE_MIN_VERSION = "22.19.0";
 
-const packageContract = <const Name extends string, const Version extends string>(
+const packageContract = <const Name extends string>(
   name: Name,
-  version: Version,
-) => ({ name, version, spec: `npm:${name}@${version}` as const });
+) => ({ name, spec: `npm:${name}@${PI_RUNTIME_DIST_TAG}` as const });
 
 export const REQUIRED_PI_PACKAGES = [
-  packageContract("pi-subagents", "0.57.0"),
-  packageContract("pi-mcp-adapter", "2.28.0"),
-  packageContract("context-mode", "1.0.169"),
-  packageContract("@juicesharp/rpiv-ask-user-question", "2.7.1"),
-  packageContract("@juicesharp/rpiv-i18n", "2.7.1"),
+  packageContract("pi-subagents"),
+  packageContract("pi-mcp-adapter"),
+  packageContract("context-mode"),
+  packageContract("@juicesharp/rpiv-ask-user-question"),
+  packageContract("@juicesharp/rpiv-i18n"),
 ] as const;
 
 export const REQUIRED_PI_PACKAGE_SPECS: readonly string[] = REQUIRED_PI_PACKAGES.map(
@@ -64,4 +63,8 @@ export function readInstalledPiPackageVersion(agentDir: string, packageName: str
   } catch {
     return null;
   }
+}
+
+export function isPublishedPackageVersion(version: string | null): boolean {
+  return version !== null && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$/.test(version);
 }

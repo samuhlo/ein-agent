@@ -80,7 +80,7 @@ describe("readUserSettings + mergeUserSettings", () => {
 		mergeUserSettings(DIR, { defaultModel: "MiniMax-M3" });
 	});
 
-	test("actualiza los paquetes de Ein a versiones compatibles y conserva extras del usuario", () => {
+	test("actualiza los paquetes de Ein a latest y conserva extras del usuario", () => {
 		writeFileSync(
 			SETTINGS,
 			JSON.stringify({

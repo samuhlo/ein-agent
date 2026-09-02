@@ -19,7 +19,7 @@ import {
 } from "../installer/src/core/deps";
 import { detectPlatform } from "../installer/src/core/platform";
 import { resolvePiInstallContext } from "../installer/src/core/paths";
-import { PI_HOST_SPEC, PI_HOST_VERSION, PI_NODE_MIN_VERSION, REQUIRED_PI_PACKAGE_SPECS } from "../shared/contracts/runtime-compat.ts";
+import { PI_HOST_SPEC, PI_NODE_MIN_VERSION, PI_RUNTIME_DIST_TAG, REQUIRED_PI_PACKAGE_SPECS } from "../shared/contracts/runtime-compat.ts";
 
 const DEPS_SOURCE = readFileSync(join(import.meta.dir, "..", "installer", "src", "core", "deps.ts"), "utf8");
 const SCOPED = "@earendil-works/pi-coding-agent";
@@ -44,18 +44,18 @@ describe("deps — pi siempre con scope", () => {
 		expect(DEPS_SOURCE).not.toContain("installManagedNode");
 	});
 
-	test("una versión distinta se considera incompatible aunque el binario exista", () => {
+	test("acepta cualquier versión publicada y rechaza una salida que no sea SemVer", () => {
 		expect(inspectPiRuntime([], {
 			lookPath: () => "/fake/pi",
 			readVersion: () => "0.1.0",
-		})).toEqual({ path: "/fake/pi", version: "0.1.0", compatible: false });
+		})).toEqual({ path: "/fake/pi", version: "0.1.0", compatible: true });
 		expect(inspectPiRuntime([], {
 			lookPath: () => "/fake/pi",
-			readVersion: () => PI_HOST_VERSION,
-		})).toEqual({ path: "/fake/pi", version: PI_HOST_VERSION, compatible: true });
+			readVersion: () => "latest",
+		})).toEqual({ path: "/fake/pi", version: "latest", compatible: false });
 	});
 
-	test("installPi fija el destino administrado de bun y verifica el binario canónico", async () => {
+	test("installPi resuelve latest en el destino administrado y verifica el binario canónico", async () => {
 		const home = "/fake/home";
 		const canonicalPi = join(home, ".bun", "bin", "pi");
 		const calls: Array<{
@@ -66,11 +66,12 @@ describe("deps — pi siempre con scope", () => {
 		const inspected: string[] = [];
 		const result = await installPi({
 			home,
+			runtimeEnv: {},
 			inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
 			lookPath: (command) => command === "bun" ? "/fake/bun" : null,
 			readPiVersion: (path) => {
 				inspected.push(path);
-				return PI_HOST_VERSION;
+				return "9.8.7";
 			},
 			run: async (command, args, options) => {
 				calls.push({ command, args: args ?? [], env: options?.env });
@@ -86,22 +87,78 @@ describe("deps — pi siempre con scope", () => {
 			},
 		}]);
 		expect(inspected).toEqual([canonicalPi]);
-		expect(result).toEqual({ ok: true, detail: `pi ${PI_HOST_VERSION} instalado` });
+		expect(PI_HOST_SPEC.endsWith(`@${PI_RUNTIME_DIST_TAG}`)).toBe(true);
+		expect(result).toEqual({ ok: true, detail: `pi 9.8.7 instalado desde ${PI_HOST_SPEC}` });
 	});
 
-	test("installPi falla sin mentir si bun deja otra versión en la ruta canónica", async () => {
+	test("reconcilia una copia Bun redirigida existente sin crear otra por accidente", async () => {
+		const home = mkdtempSync(join(tmpdir(), "ein-pi-redirected-"));
+		try {
+			const redirectedBin = join(home, ".omarchy", "bun", "bin");
+			const redirectedGlobal = join(home, ".omarchy", "bun", "global");
+			const redirectedPi = join(redirectedBin, "pi");
+			mkdirSync(join(redirectedGlobal, "node_modules", "@earendil-works", "pi-coding-agent"), { recursive: true });
+			mkdirSync(redirectedBin, { recursive: true });
+			writeFileSync(redirectedPi, "fixture");
+			writeFileSync(
+				join(redirectedGlobal, "node_modules", "@earendil-works", "pi-coding-agent", "package.json"),
+				JSON.stringify({ name: "@earendil-works/pi-coding-agent", version: "0.1.0" }),
+			);
+
+			const calls: Array<Record<string, string> | undefined> = [];
+			const inspected: string[] = [];
+			const result = await installPi({
+				home,
+				runtimeEnv: {
+					BUN_INSTALL_BIN: redirectedBin,
+					BUN_INSTALL_GLOBAL_DIR: redirectedGlobal,
+				},
+				inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
+				lookPath: (command) => command === "bun" ? "/fake/bun" : null,
+				readPiVersion: (path) => {
+					inspected.push(path);
+					return "9.8.7";
+				},
+				run: async (_command, _args, options) => {
+					calls.push(options?.env);
+					return { ok: true, code: 0, stdout: "", stderr: "" };
+				},
+			});
+
+			expect(calls).toEqual([
+				{
+					BUN_INSTALL_GLOBAL_DIR: join(home, ".bun", "install", "global"),
+					BUN_INSTALL_BIN: join(home, ".bun", "bin"),
+				},
+				{
+					BUN_INSTALL_GLOBAL_DIR: redirectedGlobal,
+					BUN_INSTALL_BIN: redirectedBin,
+				},
+			]);
+			expect(inspected).toEqual([join(home, ".bun", "bin", "pi"), redirectedPi]);
+			expect(result).toEqual({
+				ok: true,
+				detail: `pi 9.8.7 instalado desde ${PI_HOST_SPEC}; copia Bun heredada reconciliada`,
+			});
+		} finally {
+			rmSync(home, { recursive: true, force: true });
+		}
+	});
+
+	test("installPi falla sin mentir si bun no deja una versión publicada en la ruta canónica", async () => {
 		const home = "/fake/home";
 		const result = await installPi({
 			home,
+			runtimeEnv: {},
 			inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
 			lookPath: (command) => command === "bun" ? "/fake/bun" : null,
-			readPiVersion: () => "0.84.4",
+			readPiVersion: () => "not-a-version",
 			run: async () => ({ ok: true, code: 0, stdout: "", stderr: "" }),
 		});
 
 		expect(result.ok).toBe(false);
-		expect(result.detail).toContain("0.84.4");
-		expect(result.detail).toContain(PI_HOST_VERSION);
+		expect(result.detail).toContain("not-a-version");
+		expect(result.detail).toContain(PI_HOST_SPEC);
 		expect(result.detail).toContain(join(home, ".bun", "bin", "pi"));
 		expect(result.detail).not.toContain("instalado");
 	});
@@ -126,7 +183,7 @@ describe("deps — pi siempre con scope", () => {
 		expect(missing.detail).toContain("actualízalo y repite");
 	});
 
-	test("los paquetes se instalan en el runtime aislado y con sus specs exactos", async () => {
+	test("los paquetes se instalan en el runtime aislado desde sus specs latest", async () => {
 		const home = mkdtempSync(join(tmpdir(), "ein-pi-packages-"));
 		try {
 			const context = resolvePiInstallContext(home);

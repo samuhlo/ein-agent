@@ -58,8 +58,10 @@ una instalación gestionada válida sigue activa allí):
 1. Detecta OS/arch/distro/shell.
 2. Comprueba e instala las dependencias del núcleo Pi y, si se selecciona, del
    complemento Claude. Pi requiere Node `>=22.19.0`; si falta o es antiguo, el
-   instalador se detiene con un diagnóstico accionable. Claude, `engram` y `gh`
-   no forman parte del núcleo.
+   instalador se detiene con un diagnóstico accionable. El host Pi y sus
+   extensiones administradas se resuelven siempre desde el tag npm `latest`;
+   Ein no conserva una versión antigua conocida. Claude, `engram` y `gh` no
+   forman parte del núcleo.
 3. Despliega las superficies seleccionadas desde el template de Ein (embebido en el
    binario), manteniéndolas aisladas y **templando las rutas** (`mcp.json`, `settings.json`)
    según tu `$HOME` y la ubicación real de `engram`.

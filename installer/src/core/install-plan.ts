@@ -128,18 +128,33 @@ function validateInput(input: InstallPlanInput): void {
   if (!exact(flags, flagKeys) || flagKeys.some((key) => typeof flags[key] !== "boolean")) throw new InstallPlanInputError("invalid-flags");
 }
 
-function dependency(input: InstallPlanInput, id: InstallDependencyId, runtime: InstallPlanRuntime, disabled = false): ManagedInstallEntry {
+function dependency(
+  input: InstallPlanInput,
+  id: InstallDependencyId,
+  runtime: InstallPlanRuntime,
+  disabled = false,
+  refresh = false,
+): ManagedInstallEntry {
   const present = input.dependencies[id];
   const optional = id !== "bun" && id !== "pi";
-  const state: InstallPlanState = present ? "satisfied" : disabled ? "skipped" : optional && !input.flags.yes ? "conditional" : "selected";
-  return { id: `${runtime}.dependency.${id}` as InstallPlanEntryId, runtime, action: "ensure-dependency", state, ownership: "external", reason: present ? `${id} already available` : disabled ? `${id} disabled by flags` : optional && !input.flags.yes ? `${id} requires confirmation` : `${id} required by selected work` };
+  const state: InstallPlanState = refresh ? "selected" : present ? "satisfied" : disabled ? "skipped" : optional && !input.flags.yes ? "conditional" : "selected";
+  const reason = refresh
+    ? `${id} must resolve the current npm latest dist-tag`
+    : present
+      ? `${id} already available`
+      : disabled
+        ? `${id} disabled by flags`
+        : optional && !input.flags.yes
+          ? `${id} requires confirmation`
+          : `${id} required by selected work`;
+  return { id: `${runtime}.dependency.${id}` as InstallPlanEntryId, runtime, action: "ensure-dependency", state, ownership: "external", reason };
 }
 
 function piEntries(input: InstallPlanInput): ManagedInstallEntry[] {
   const ownership = input.piOwnership.status === "ambiguous" ? "unknown" : "installer";
   const migrationState: InstallPlanState = input.piOwnership.status === "ambiguous" ? "blocked" : input.piOwnership.status === "managed" && input.piOwnership.layout === "legacy" ? "selected" : "skipped";
   return [
-    dependency(input, "pi", "pi"),
+    dependency(input, "pi", "pi", false, true),
     dependency(input, "engram", "pi", input.flags.noEngram),
     dependency(input, "gh", "pi", input.flags.yes),
     dependency(input, "hypa", "pi", input.flags.noHypa || input.flags.yes),

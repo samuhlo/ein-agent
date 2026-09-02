@@ -324,6 +324,7 @@ export async function orchestrateInstall(
 }
 
 export type PiInstallEffects = {
+  pi: typeof installPi;
   resolveContext: () => PiInstallContext;
   migrateContext: () => PiInstallContext;
   exists: typeof existsSync;
@@ -364,7 +365,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   const { platform, flags, deps, agentDir, effects: overrides = {} } = options;
   const linear: LinearIntegration = options.linear ?? (options.skipLinear ? "off" : "on");
   const paths = derivePiInstallPaths();
-  const effects: PiInstallEffects = { resolveContext: () => resolvePiInstallContext(paths), migrateContext: () => { if (isValidInstallMarker(paths.legacyMarker)) migrateLegacyPi(paths); return resolvePiInstallContext(paths); }, exists: existsSync, backup: snapshot, spinner: p.spinner, deploy: deployTemplate, packages: installDeclaredPackages, writePreference: writeReleaseChannelPreference, readPreference: readReleaseChannelPreference, marker: writeMarker, check: checkDeps, doctor: runDoctor, launcher: installFishLauncher, promote: promoteCommandNames, requestSecret: maybeSecret, ...overrides };
+  const effects: PiInstallEffects = { pi: installPi, resolveContext: () => resolvePiInstallContext(paths), migrateContext: () => { if (isValidInstallMarker(paths.legacyMarker)) migrateLegacyPi(paths); return resolvePiInstallContext(paths); }, exists: existsSync, backup: snapshot, spinner: p.spinner, deploy: deployTemplate, packages: installDeclaredPackages, writePreference: writeReleaseChannelPreference, readPreference: readReleaseChannelPreference, marker: writeMarker, check: checkDeps, doctor: runDoctor, launcher: installFishLauncher, promote: promoteCommandNames, requestSecret: maybeSecret, ...overrides };
   const success = (): InstallStep => ({ ok: true, detail: "ok" });
   let piContext: PiInstallContext | undefined;
   let rollbackPath: string | null = null;
@@ -375,19 +376,15 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   };
   const handlers: Record<PiEntryId, InstallPlanExecutionHandler> = {
   "pi.dependency.pi": async () => {
-  const needPi = !deps.find((d) => d.id === "pi")?.present;
-
-  if (needPi) {
-    if (await confirm(`Instalar pi compatible (${PI_HOST_SPEC})?`, flags)) {
-      const spinner = p.spinner();
-      spinner.start("Instalando pi");
-      const result = await installPi();
+    if (await confirm(`Instalar o actualizar pi (${PI_HOST_SPEC})?`, flags)) {
+      const spinner = effects.spinner();
+      spinner.start("Instalando la última versión de pi");
+      const result = await effects.pi();
       spinner.stop(result.detail);
       if (!result.ok) return { ok: false, detail: `Pi es obligatorio: ${result.detail}` };
     } else {
       return { ok: false, detail: "pi es obligatorio." };
     }
-  }
   return success();
   },
   "pi.dependency.engram": async () => {

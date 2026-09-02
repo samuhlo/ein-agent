@@ -86,6 +86,13 @@ Given: a shared module is missing its facade, a facade contains runtime composit
 When: the installer builds the Pi template archive
 Then: the build fails before publishing the archive; a valid flat overlay resolves entirely inside the payload and all Pi runtime entrypoints compile from the installed layout
 
+## Scenario: pi-runtime-tracks-latest
+title: Pi host and managed extensions track npm latest
+requirement: The system MUST resolve the Pi host and every Ein-managed Pi extension from the npm latest dist-tag during install and update, and MUST test Ein against the current host APIs in CI rather than pinning a previously verified version.
+Given: Pi or one of its managed extensions already exists at an older published version
+When: Ein installs, repairs, updates, or runs its CI compatibility gate
+Then: the package manager is asked for the current latest tag; offline doctor checks require the latest declaration and a concrete installed version without claiming registry freshness
+
 ## Scenario: pre-mutation-pi-failure-retry
 title: Pre-mutation Pi failure supports fail-closed retry
 requirement: The system MUST provide a supported fail-closed retry or recovery path when a Pi install fails before any Pi mutation, while accepting both current deferred-Claude journals and completed-Claude journals written by alpha.3/alpha.4.

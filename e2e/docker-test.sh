@@ -28,8 +28,8 @@ if ! docker info >/dev/null 2>&1; then
   exit 2
 fi
 
-echo "/// e2e: compilando binario ($TARGET)"
-(cd "$ROOT" && bun install --frozen-lockfile)
+echo "/// e2e: compilando binario ($TARGET) contra Pi latest"
+(cd "$ROOT" && bun install --frozen-lockfile && bun run sync:pi)
 (cd "$ROOT/installer" && bun install --frozen-lockfile && bun run build:all -- "$TARGET")
 test -x "$BINARY" || { echo "[error] no existe el binario: $BINARY"; exit 1; }
 
@@ -277,8 +277,9 @@ case "$scenario" in
     printf '%s\n' '#!/bin/bash' 'mise use -g --quiet "claude" || exit 1' \
       'exec mise x "claude" -- "claude" "$@"' >"$HOME/.local/bin/claude"
     chmod +x "$HOME/.local/bin/claude"
-    bun install -g @earendil-works/pi-coding-agent@0.84.4
-    test "$("$HOME/.bun/bin/pi" --version)" = "0.84.4"
+    latest_pi_version="$(npm view @earendil-works/pi-coding-agent@latest version)"
+    bun install -g @earendil-works/pi-coding-agent@latest
+    test "$("$HOME/.bun/bin/pi" --version)" = "$latest_pi_version"
     export BUN_INSTALL_GLOBAL_DIR="$HOME/.omarchy/bun/global"
     export BUN_INSTALL_BIN="$HOME/.omarchy/bun/bin"
 
@@ -297,7 +298,7 @@ case "$scenario" in
       exit 1
     fi
     cat /tmp/ein-alpha1-failure.log
-    grep -Fq "Pi 0.84.4 detectado; Ein requiere 0.84.3" /tmp/ein-alpha1-failure.log
+    grep -Fq "Pi $latest_pi_version detectado; Ein requiere 0.84.3" /tmp/ein-alpha1-failure.log
     assert_present "$HOME/.ein-installer/install-execution-v1.json"
 
     candidate_version="$(ein --version | sed -n 's/^ein-installer //p')"
@@ -307,8 +308,8 @@ case "$scenario" in
       --release-tag "installer-v$candidate_version"
     echo "== completar Pi + Claude desde el estado ya recuperado =="
     install_twice --runtime both --release-channel alpha --release-tag "installer-v$candidate_version"
-    test "$("$HOME/.bun/bin/pi" --version)" = "0.84.3"
-    test "$("$HOME/.omarchy/bun/bin/pi" --version)" = "0.84.3"
+    test "$("$HOME/.bun/bin/pi" --version)" = "$latest_pi_version"
+    test "$("$HOME/.omarchy/bun/bin/pi" --version)" = "$latest_pi_version"
     assert_pi_surface
     assert_claude_surface
     fish -c "source '$claude_launcher'; ein-cc --version" | grep -Fq 'Claude Code'

@@ -3,7 +3,10 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:f
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runUpdate } from "../installer/src/cli/update.ts";
+import {
+  runUpdate as runUpdateImpl,
+  type UpdateRunDependencies,
+} from "../installer/src/cli/update.ts";
 import {
   EXIT_ALREADY_CURRENT,
   EXIT_BLOCKED_EXTERNAL_OWNER,
@@ -33,6 +36,14 @@ function createArtifactId(releaseTag: string, sha256: string): ArtifactId {
 const roots: string[] = [];
 const encoder = new TextEncoder();
 const assetBytes = encoder.encode("verified-release-0.20.0");
+
+function runUpdate(args: string[], dependencies: UpdateRunDependencies = {}): Promise<number> {
+  return runUpdateImpl(args, {
+    updatePi: async () => ({ ok: true, detail: "pi latest (fixture)" }),
+    syncPiPackages: async () => ({ ok: true, detail: "extensiones latest (fixture)" }),
+    ...dependencies,
+  });
+}
 const assetDigest = createHash("sha256").update(assetBytes).digest("hex");
 
 function root(): string {
@@ -696,7 +707,7 @@ describe("release update CLI", () => {
     expect(await Bun.file(markerPath).json()).toMatchObject({ schemaVersion: 2, version: "0.20.0" });
   });
 
-  test("refreshes pi and declared packages after a successful update", async () => {
+  test("always refreshes pi and declared packages after a successful update", async () => {
     const dir = root();
     const agentDir = join(dir, "agent");
     const destinationPath = join(dir, "ein");
@@ -732,11 +743,12 @@ describe("release update CLI", () => {
     let packagesSynced = 0;
     let externalRefreshed = 0;
     const output: string[] = [];
-    const code = await runUpdate(["--yes"], {
+    const code = await runUpdate([], {
       caps, platform: { os: "linux", arch: "x64" }, agentDir, markerPath, journalPath, destinationPath, interactive: false,
       write: (line) => output.push(line),
       updatePi: async () => { piUpdated += 1; return { ok: true, detail: "pi actualizado" }; },
       syncPiPackages: async () => { packagesSynced += 1; return { ok: true, detail: "2 paquetes al dia" }; },
+      confirmExternalToolsUpdate: async () => true,
       refreshExternalTools: async () => { externalRefreshed += 1; return [{ ok: true, detail: "engram actualizado a la última release" }]; },
     });
     expect(code).toBe(EXIT_UPDATED);
@@ -746,6 +758,18 @@ describe("release update CLI", () => {
     expect(externalRefreshed).toBe(1);
     expect(output.join("\n")).toContain("pi actualizado");
     expect(output.join("\n")).toContain("engram actualizado a la última release");
+
+    const failedOutput: string[] = [];
+    const failedCode = await runUpdate([], {
+      caps, platform: { os: "linux", arch: "x64" }, agentDir, markerPath, journalPath, destinationPath, interactive: false,
+      write: (line) => failedOutput.push(line),
+      updatePi: async () => ({ ok: false, detail: "pi latest no resolvió" }),
+      syncPiPackages: async () => ({ ok: true, detail: "extensiones latest" }),
+    });
+    expect(failedCode).toBe(EXIT_FAILED);
+    expect(failedOutput).toContain("pi latest no resolvió");
+    expect(failedOutput).toContain("Ein se actualizó, pero Pi o sus extensiones no alcanzaron npm latest.");
+    expect(failedOutput).not.toContain("Ya está actualizado.");
   });
 
   test("skips pi and external-tool refresh on dry-run and on failure", async () => {
