@@ -266,9 +266,28 @@ case "$scenario" in
     export BUN_INSTALL_GLOBAL_DIR="$HOME/.omarchy/bun/global"
     export BUN_INSTALL_BIN="$HOME/.omarchy/bun/bin"
 
-    install_twice
+    echo "== reproducir instalación incompleta de alpha.1 =="
+    case "$(uname -m)" in
+      arm64|aarch64) prior_asset="ein-installer-linux-arm64" ;;
+      *) prior_asset="ein-installer-linux-x64" ;;
+    esac
+    curl -fsSL -o /tmp/ein-alpha1 \
+      "https://github.com/samuhlo/ein-agent/releases/download/installer-v0.93.0-alpha.1/$prior_asset"
+    chmod +x /tmp/ein-alpha1
+    if /tmp/ein-alpha1 install --yes --no-engram --no-secrets --no-linear \
+      --no-hypa --no-codegraph --release-channel alpha \
+      --release-tag installer-v0.93.0-alpha.1 >/tmp/ein-alpha1-failure.log 2>&1; then
+      echo "[assert] alpha.1 debía reproducir el fallo de Pi" >&2
+      exit 1
+    fi
+    cat /tmp/ein-alpha1-failure.log
+    grep -Fq "Pi 0.84.4 detectado; Ein requiere 0.84.3" /tmp/ein-alpha1-failure.log
+    assert_present "$HOME/.ein-installer/install-execution-v1.json"
+
+    candidate_version="$(ein --version | sed -n 's/^ein-installer //p')"
+    install_twice --release-channel alpha --release-tag "installer-v$candidate_version"
     test "$("$HOME/.bun/bin/pi" --version)" = "0.84.3"
-    assert_absent "$HOME/.omarchy/bun/bin/pi"
+    test "$("$HOME/.omarchy/bun/bin/pi" --version)" = "0.84.3"
     assert_pi_surface
     ein doctor
     ;;

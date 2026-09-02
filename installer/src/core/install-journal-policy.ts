@@ -20,6 +20,7 @@ import {
 
 export type InstallJournalResumeKind =
   | "pre-mutation-retry"
+  | "post-verification-restart"
   | "retirement-retry";
 
 function selectedEntries(plan: InstallPlanV1) {
@@ -83,6 +84,39 @@ function supportsRetirementRetry(
     : journal.pendingEntryId === cleanup.id;
 }
 
+function supportsPostVerificationRestart(
+  journal: InstallExecutionJournalV1,
+  plan: InstallPlanV1,
+): boolean {
+  if (
+    journal.target !== "pi"
+    || plan.target !== "pi"
+    || journal.platform.os !== plan.platform.os
+    || journal.platform.arch !== plan.platform.arch
+    || journal.state !== "recovery-required"
+    || journal.recoveryCode !== "handler-failed"
+    || journal.pendingEntryId !== "pi.verify-doctor"
+  ) return false;
+
+  // The fresh observation must prove that the failed deployment wrote a valid
+  // Ein marker. An unmarked existing tree is blocked by the planner and an
+  // absent target keeps the backup reason below, so neither can be adopted.
+  const backup = plan.inventory.find(({ id }) => id === "pi.backup-current");
+  if (
+    plan.status !== "ready"
+    || backup?.ownership !== "installer"
+    || backup.reason !== "existing target is snapshotted before deploy"
+  ) return false;
+
+  const verifyIndex = journal.entries.findIndex(({ id }) => id === "pi.verify-doctor");
+  if (verifyIndex < 0 || journal.entries[verifyIndex]?.status !== "failed") return false;
+  return journal.entries.every((entry, index) => index < verifyIndex
+    ? entry.status === "completed"
+    : index === verifyIndex
+      ? entry.status === "failed"
+      : entry.status === "not-run");
+}
+
 export function classifyInstallJournalResume(
   journal: InstallExecutionJournalV1,
   plan: InstallPlanV1,
@@ -90,7 +124,9 @@ export function classifyInstallJournalResume(
   try {
     validateInstallPlan(plan);
     validateInstallJournal(journal);
-    if (plan.status !== "ready" || !installJournalMatchesPlan(journal, plan)) return null;
+    if (plan.status !== "ready") return null;
+    if (supportsPostVerificationRestart(journal, plan)) return "post-verification-restart";
+    if (!installJournalMatchesPlan(journal, plan)) return null;
     if (supportsPreMutationRetry(journal, plan)) return "pre-mutation-retry";
     return supportsRetirementRetry(journal) ? "retirement-retry" : null;
   } catch {

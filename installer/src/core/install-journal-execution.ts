@@ -82,13 +82,19 @@ function openJournal(
     });
   }
 
-  const resuming = existing.status === "valid" && existing.journal.state !== "complete";
-  const resumeKind = resuming
+  const unfinished = existing.status === "valid" && existing.journal.state !== "complete";
+  const resumeKind = unfinished
     ? classifyInstallJournalResume(existing.journal, plan)
     : null;
-  if (resuming && !resumeKind) {
+  if (unfinished && !resumeKind) {
     throw new InstallJournalError("recovery-required");
   }
+
+  // A doctor failure happens after the managed marker is written. If a fresh
+  // plan proves that ownership, start a new journal so changed dependency
+  // observations (the common repair case) do not masquerade as an exact resume.
+  const restarting = resumeKind === "post-verification-restart";
+  const resuming = unfinished && !restarting;
 
   const journal = resuming
     ? existing.journal
