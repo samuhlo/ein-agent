@@ -48,3 +48,5 @@ export function createEinToolRegistrar(pi: ExtensionAPI) {
 			},
 		});
 }
+
+export type EinToolRegistrar = ReturnType<typeof createEinToolRegistrar>;
