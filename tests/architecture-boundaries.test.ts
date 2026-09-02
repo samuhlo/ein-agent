@@ -19,7 +19,6 @@ const ALLOWED_PI_BRIDGES = [
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/git-baseline.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/guardrails.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/project-directives.ts",
-	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-close.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-lane.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-preflight-record.ts",
 ] as const;

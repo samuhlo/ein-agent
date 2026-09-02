@@ -82,6 +82,15 @@ describe("Claude SDD runtime closure", () => {
 		expect(closure).toContain("shared/sdd/sdd-change-validation.ts");
 		expect(portSource).not.toContain("../../ein-pi/agent/lib/sdd-guardrails.ts");
 	});
+
+	test("serves close from the shared engine without a close bridge in the public port", () => {
+		const closure = runtimeClosure(EIN_CC_PAYLOAD_SOURCE_ENTRIES);
+		const portSource = readFileSync(join(ROOT, "shared/ports/sdd.ts"), "utf8");
+
+		expect(closure).toContain("shared/sdd/sdd-close-engine.ts");
+		expect(closure).toContain("shared/sdd/sdd-close-compaction.ts");
+		expect(portSource).not.toContain("../../ein-pi/agent/lib/sdd-close.ts");
+	});
 });
 
 // RETIRADA -> Este centinela deja de ser necesario cuando la persistencia de

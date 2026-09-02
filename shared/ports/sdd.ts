@@ -4,7 +4,10 @@ import {
 	persistSddIntentResolution,
 	readSddIntentResolutionState,
 } from "../../ein-pi/agent/lib/sdd-preflight-record.ts";
+import { readRepositoryStateIdentity } from "../../ein-pi/agent/lib/git-baseline.ts";
 import { LANE_PHASES, readChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
+import { createAssessCloseReadiness } from "../sdd/sdd-close-readiness.ts";
+import { createCloseChange } from "../sdd/sdd-close-engine.ts";
 import { createSddIntentPreflightCoordinator } from "../sdd/sdd-intent-resolution.ts";
 import { createSddRoutingCore } from "../sdd/sdd-routing-core.ts";
 import { createLintChange, readOpenSpecState } from "../sdd/sdd-change-validation.ts";
@@ -21,7 +24,6 @@ export {
 } from "../sdd/sdd-routing-core.ts";
 export type { ChangeLintReport } from "../sdd/sdd-change-validation.ts";
 export { collectSddRemedies, formatSddRemedies } from "../sdd/sdd-remedies.ts";
-export { closeChange } from "../../ein-pi/agent/lib/sdd-close.ts";
 export { LANE_LABEL, laneSkips, normalizeLane, readChangeLane, writeChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
 export {
 	changeStanceDirective,
@@ -43,10 +45,18 @@ const routingCore = createSddRoutingCore({
 	readLane: readChangeLane,
 	readSpecState: readOpenSpecState,
 });
+const closeReadiness = createAssessCloseReadiness({
+	resolveSddStatus: routingCore.resolveSddStatus,
+});
 
 export const lintChange = createLintChange(
 	(changePath) => LANE_PHASES[readChangeLane(changePath)],
 );
+export const closeChange = createCloseChange({
+	assessCloseReadiness: closeReadiness,
+	resolveSddStatus: routingCore.resolveSddStatus,
+	readRepositoryStateIdentity,
+});
 
 export const resolveSddIntentPreflight = intentCoordinator.resolve;
 export const resolveSddStatus = routingCore.resolveSddStatus;
