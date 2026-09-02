@@ -133,6 +133,8 @@ describe("runtime session adapter contract", () => {
 		const state = stateFor();
 		const reference = opaque("session-id");
 
+		expect(projectBindingFromState).toBe(runtimeIdentity.projectBindingFromState);
+		expect(validateOpaqueReference).toBe(runtimeIdentity.validateOpaqueReference);
 		expect(runtimeIdentity.projectBindingFromState(state)).toEqual(
 			projectBindingFromState(state),
 		);

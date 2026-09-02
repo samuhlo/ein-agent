@@ -1,20 +1,45 @@
-import { createHash } from "node:crypto";
 import { existsSync, statSync } from "node:fs";
-import { basename, delimiter, isAbsolute, join, normalize, sep } from "node:path";
+import { basename, delimiter, isAbsolute, join, normalize } from "node:path";
 import type {
 	ProjectRuntimeMetadata,
 	ProjectStateReasonCode,
 	ProjectStateV1,
 } from "./project-state.ts";
-import { MAX_PROJECT_SESSIONS, scanProjectSessions } from "./sessions.ts";
-import { scanClaudeProjectSessions } from "./claude-sessions.ts";
+import { MAX_PROJECT_SESSIONS } from "./sessions.ts";
 import { resolveEngramDataDir } from "./memory-contract.ts";
+import {
+	failure,
+	isOpaqueReference,
+	isRecord,
+	knownProvider,
+	normalizedBinding,
+	projectBindingFromState,
+	referenceProvider,
+	resolveSessionReference,
+	safeProvider,
+	scanRuntimeSessions,
+	sessionReferenceFor,
+	stateFailure,
+	validProjectBinding,
+	validateOpaqueReference,
+	validateProjectState,
+} from "./runtime-session-identity.ts";
 import {
 	EIN_SDD_SESSION_BINDING_ENV_KEY,
 	parseSessionBindingLaunchMetadataV1,
 	serializeSessionBindingLaunchMetadataV1,
 } from "./sdd-session-binding.ts";
 import { isSafeChangeName } from "./sdd-routing-core.ts";
+
+export {
+	isOpaqueReference,
+	projectBindingFromState,
+	resolveSessionReference,
+	sessionReferenceFor,
+	validateOpaqueReference,
+	validateProjectState,
+};
+export type { ProjectStateValidation } from "./runtime-session-identity.ts";
 
 /** The runtimes exposed by the common adapter boundary. */
 export type RuntimeProvider = "pi" | "claude";
@@ -327,283 +352,12 @@ export type RuntimeSessionAdapter = {
 	): AdapterResult<LaunchIntent>;
 };
 
-const STATE_REF_PATTERN = /^git-v1:sha256:[0-9a-f]{64}$/;
-const OPAQUE_REFERENCE_PATTERNS: Record<RuntimeProvider, RegExp> = {
-	pi: /^pi:v1:sha256:[0-9a-f]{64}$/,
-	claude: /^claude:v1:sha256:[0-9a-f]{64}$/,
-};
 const RUNTIME_OPERATIONS: readonly RuntimeOperation[] = [
 	"list",
 	"create",
 	"resume",
 	"launch",
 ];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function knownProvider(value: unknown): value is RuntimeProvider {
-	return value === "pi" || value === "claude";
-}
-
-function safeProvider(value: unknown): RuntimeProvider {
-	return knownProvider(value) ? value : "pi";
-}
-
-/**
- * Derive the public binding without copying verification, runtime state, or any
- * filesystem details. Invalid input still yields a bounded result envelope.
- */
-export function projectBindingFromState(state: unknown): ProjectBinding {
-	const record = isRecord(state) ? state : {};
-	const identity = isRecord(record.identity) ? record.identity : {};
-	const git = isRecord(record.git) ? record.git : {};
-	const cwd = typeof identity.cwd === "string" ? identity.cwd : "";
-	const repositoryRoot =
-		typeof identity.repositoryRoot === "string" ? identity.repositoryRoot : undefined;
-	const gitStateRef = typeof git.stateRef === "string" ? git.stateRef : undefined;
-	return {
-		schemaVersion: 1,
-		cwd,
-		...(repositoryRoot ? { repositoryRoot } : {}),
-		...(gitStateRef ? { gitStateRef } : {}),
-	};
-}
-
-function bindingMatches(left: ProjectBinding, right: ProjectBinding): boolean {
-	return (
-		left.schemaVersion === right.schemaVersion &&
-		normalize(left.cwd) === normalize(right.cwd) &&
-		normalize(left.repositoryRoot ?? "") === normalize(right.repositoryRoot ?? "") &&
-		(left.gitStateRef ?? "") === (right.gitStateRef ?? "")
-	);
-}
-
-function bindingForState(state: unknown): ProjectBinding {
-	const binding = projectBindingFromState(state);
-	return {
-		...binding,
-		cwd: normalize(binding.cwd),
-		...(binding.repositoryRoot ? { repositoryRoot: normalize(binding.repositoryRoot) } : {}),
-	};
-}
-
-export type ProjectStateValidation =
-	| { ok: true; project: ProjectBinding }
-	| { ok: false; project: ProjectBinding; code: AdapterErrorCode };
-type ProjectStateValidationFailure = Extract<ProjectStateValidation, { ok: false }>;
-
-/** Validate identity and Git binding before touching any provider source. */
-export function validateProjectState(
-	state: unknown,
-	operation: RuntimeOperation = "list",
-	expectedProject?: ProjectBinding,
-): ProjectStateValidation {
-	const project = bindingForState(state);
-	if (!isRecord(state)) {
-		return { ok: false, project, code: "project-identity-unavailable" };
-	}
-	if (state.schemaVersion !== 1) {
-		return { ok: false, project, code: "unsupported-state-version" };
-	}
-	const identity = isRecord(state.identity) ? state.identity : undefined;
-	const git = isRecord(state.git) ? state.git : undefined;
-	if (!identity || !git || typeof identity.cwd !== "string" || !isAbsolute(identity.cwd)) {
-		return { ok: false, project, code: "project-identity-unavailable" };
-	}
-
-	const cwd = normalize(identity.cwd);
-	const identityRoot = identity.repositoryRoot;
-	if (identityRoot !== undefined && (typeof identityRoot !== "string" || !isAbsolute(identityRoot))) {
-		return { ok: false, project, code: "project-identity-unavailable" };
-	}
-	const repository = git.repository;
-	if (repository !== true && repository !== false) {
-		return { ok: false, project, code: "state-ref-unavailable" };
-	}
-
-	if (repository === true) {
-		if (
-			typeof git.root !== "string" ||
-			!isAbsolute(git.root) ||
-			!identityRoot ||
-			normalize(git.root) !== normalize(identityRoot) ||
-			!isWithinRoot(normalize(git.root), cwd)
-		) {
-			return { ok: false, project, code: "project-identity-unavailable" };
-		}
-		if (
-			git.stateRef !== undefined &&
-			(typeof git.stateRef !== "string" || !STATE_REF_PATTERN.test(git.stateRef))
-		) {
-			return { ok: false, project, code: "state-ref-unavailable" };
-		}
-		if (
-			operation !== "list" &&
-			(git.complete !== true ||
-				typeof git.stateRef !== "string" ||
-				!STATE_REF_PATTERN.test(git.stateRef))
-		) {
-			return { ok: false, project, code: "state-ref-unavailable" };
-		}
-	} else {
-		if (
-			identityRoot !== undefined ||
-			git.root !== undefined ||
-			git.stateRef !== undefined ||
-			git.complete !== true
-		) {
-			return { ok: false, project, code: "project-identity-unavailable" };
-		}
-	}
-
-	if (expectedProject !== undefined) {
-		if (!validProjectBinding(expectedProject) || !bindingMatches(project, normalizedBinding(expectedProject))) {
-			return { ok: false, project, code: "project-mismatch" };
-		}
-	}
-	return { ok: true, project };
-}
-
-function validProjectBinding(project: unknown): project is ProjectBinding {
-	if (
-		!isRecord(project) ||
-		project.schemaVersion !== 1 ||
-		typeof project.cwd !== "string" ||
-		!isAbsolute(project.cwd)
-	) {
-		return false;
-	}
-	if (
-		project.repositoryRoot !== undefined &&
-		(typeof project.repositoryRoot !== "string" || !isAbsolute(project.repositoryRoot))
-	) {
-		return false;
-	}
-	if (
-		project.gitStateRef !== undefined &&
-		(typeof project.gitStateRef !== "string" || !STATE_REF_PATTERN.test(project.gitStateRef))
-	) {
-		return false;
-	}
-	return true;
-}
-
-function normalizedBinding(project: ProjectBinding): ProjectBinding {
-	return {
-		...project,
-		cwd: normalize(project.cwd),
-		...(project.repositoryRoot ? { repositoryRoot: normalize(project.repositoryRoot) } : {}),
-	};
-}
-
-function isWithinRoot(root: string, candidate: string): boolean {
-	const boundary = root.endsWith(sep) ? root : `${root}${sep}`;
-	return candidate === root || candidate.startsWith(boundary);
-}
-
-/** True only for a provider-issued opaque reference envelope. */
-export function validateOpaqueReference(
-	provider: RuntimeProvider,
-	reference: unknown,
-): reference is string {
-	return (
-		knownProvider(provider) &&
-		typeof reference === "string" &&
-		OPAQUE_REFERENCE_PATTERNS[provider].test(reference)
-	);
-}
-
-export const isOpaqueReference = validateOpaqueReference;
-
-function referenceProvider(reference: string): RuntimeProvider | undefined {
-	if (/^pi:v1:sha256:/.test(reference)) return "pi";
-	if (/^claude:v1:sha256:/.test(reference)) return "claude";
-	return undefined;
-}
-
-function resultProject(state: unknown, expectedProject?: ProjectBinding): ProjectBinding {
-	return expectedProject && validProjectBinding(expectedProject)
-		? normalizedBinding(expectedProject)
-		: projectBindingFromState(state);
-}
-
-function failure<T>(
-	provider: RuntimeProvider,
-	operation: RuntimeOperation,
-	state: unknown,
-	code: AdapterErrorCode,
-	expectedProject?: ProjectBinding,
-	outcome: AdapterFailureOutcome = "error",
-): AdapterResult<T> {
-	return {
-		provider,
-		operation,
-		outcome,
-		project: resultProject(state, expectedProject),
-		error: { code },
-	};
-}
-
-function stateFailure<T>(
-	provider: unknown,
-	operation: RuntimeOperation,
-	state: unknown,
-	validation: ProjectStateValidationFailure,
-	expectedProject?: ProjectBinding,
-): AdapterResult<T> {
-	return failure(
-		safeProvider(provider),
-		operation,
-		state,
-		validation.code,
-		expectedProject,
-	);
-}
-
-/**
- * The one place the public reference format is spelled. Exported so a reader
- * that lists sessions for display derives the same reference the adapter will
- * later resolve, instead of a second, drifting implementation of the format.
- */
-export function sessionReferenceFor(provider: RuntimeProvider, id: string): string {
-	return `${provider}:v1:sha256:${createHash("sha256").update(id).digest("hex")}`;
-}
-
-const opaqueReference = sessionReferenceFor;
-
-function opaquePiReference(id: string): string {
-	return opaqueReference("pi", id);
-}
-
-function scanFor(provider: RuntimeProvider, project: ProjectBinding, limit: number) {
-	const scope = { cwd: project.cwd, repositoryRoot: project.repositoryRoot };
-	return provider === "claude"
-		? scanClaudeProjectSessions(scope, limit)
-		: scanProjectSessions(scope, limit);
-}
-
-/**
- * Turn a public reference back into the private session id.
- *
- * The reference is `sha256(id)` and stays irreversible: this does not invert the
- * hash, it re-scans the project's store and asks which live session hashes to
- * it. That keeps the id out of every public envelope while making resume
- * possible, and costs one bounded scan per resume instead of a persisted
- * reference→id map, which would just be the hash reversed and written to disk.
- */
-export function resolveSessionReference(
-	provider: RuntimeProvider,
-	project: ProjectBinding,
-	reference: string,
-): string | undefined {
-	if (!validateOpaqueReference(provider, reference)) return undefined;
-	for (const session of scanFor(provider, project, MAX_PROJECT_SESSIONS).matches) {
-		if (opaqueReference(provider, session.id) === reference) return session.id;
-	}
-	return undefined;
-}
 
 /** Compose a bounded private runtime reader into the normalized adapter boundary. */
 function listProjectSessions(
@@ -622,7 +376,7 @@ function listProjectSessions(
 		};
 	}
 
-	const scan = scanFor(provider, project, limit);
+	const scan = scanRuntimeSessions(provider, project, limit);
 	// A store that cannot be listed is not a store with no sessions. Collapsing
 	// the two would let the app tell the user "no sessions here" about a runtime
 	// it never managed to look at.
@@ -648,7 +402,7 @@ function listProjectSessions(
 	const references = new Set<string>();
 	const data: SessionMetadata[] = [];
 	for (const session of scan.matches) {
-		const reference = opaqueReference(provider, session.id);
+		const reference = sessionReferenceFor(provider, session.id);
 		if (references.has(reference)) {
 			return {
 				provider,
