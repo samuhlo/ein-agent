@@ -1,307 +1,43 @@
 // =============================================================================
 // SDD GUARDRAILS
-// Chequeo determinista de higiene de los artefactos SDD — el gatekeeper que
-// corre ENTRE fases para no construir sobre basura. `lintDesignArtifact` y
-// `lintTasksArtifact` son checks ricos; `lintPhaseArtifact` valida cualquier fase; `lintChange`
-// agrega todas las fases presentes de un cambio. Los lints de string son puros
-// (testeables sin fs); solo `lintChange` toca el filesystem para leer ficheros.
+// Coordina el lint de un cambio con su filesystem, lane y configuración. Las
+// reglas que solo reciben texto viven en sdd-artifact-validation.ts.
 // =============================================================================
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { readConfigRules, type PhaseRules } from "./openspec-config-rules.ts";
-import { evaluateOpenSpecState, type SyncBaseInput } from "./openspec-spec-sync.ts";
-import { DEFAULT_LANE, LANE_PHASES, readChangeLane, type SddLane } from "./sdd-lane.ts";
 import { join } from "node:path";
-import {
-	extractProductionFiles,
-	resolveChangesDir,
-	type SddSpecState,
-} from "./sdd-routing-core.ts";
+
+import { readConfigRules } from "./openspec-config-rules.ts";
 import { parseOpenSpec, parseOpenSpecDelta } from "./openspec-spec-parser.ts";
+import { evaluateOpenSpecState, type SyncBaseInput } from "./openspec-spec-sync.ts";
+import {
+	PHASE_ARTIFACT,
+	lintPhaseArtifact,
+	type DesignLintReport,
+	type GuardrailIssue,
+	type SddPhase,
+} from "./sdd-artifact-validation.ts";
+import { DEFAULT_LANE, LANE_PHASES, readChangeLane, type SddLane } from "./sdd-lane.ts";
+import { resolveChangesDir, type SddSpecState } from "./sdd-routing-core.ts";
 
-export type SpecDeltaDeclaration = { mode: "none" | "delta" | "invalid"; deltas: { path: string; bytes: Uint8Array }[] };
+export {
+	lintDesignArtifact,
+	lintPhaseArtifact,
+	lintTasksArtifact,
+	oversizedGroupWarnings,
+} from "./sdd-artifact-validation.ts";
+export type {
+	DesignLintOptions,
+	DesignLintReport,
+	GuardrailIssue,
+	GuardrailLevel,
+	SddPhase,
+} from "./sdd-artifact-validation.ts";
 
-export type GuardrailLevel = "error" | "warning";
-
-export type GuardrailIssue = {
-	level: GuardrailLevel;
-	code: string;
-	message: string;
+export type SpecDeltaDeclaration = {
+	mode: "none" | "delta" | "invalid";
+	deltas: { path: string; bytes: Uint8Array }[];
 };
-
-export type DesignLintReport = {
-	ok: boolean; // sin errores (los warnings no bloquean)
-	issues: GuardrailIssue[];
-	errors: number;
-	warnings: number;
-	lineCount: number;
-};
-
-export type DesignLintOptions = {
-	// Por encima de estas lineas el design probablemente esta sobre-dimensionado
-	// / es irrevisable. Mismo umbral por defecto que el Review Workload Guard.
-	oversizeLineThreshold?: number;
-	/** `rules.design` del proyecto. Solo puede relajar avisos, nunca anadirlos. */
-	designRules?: PhaseRules;
-};
-
-const DEFAULT_OVERSIZE = 400;
-
-// Las secciones que sdd-design DEBE emitir (contrato de diseño, no plan ejecutable).
-const REQUIRED_SECTIONS: {
-	code: string;
-	label: string;
-	pattern: RegExp;
-	/** Clave de `rules.design` que apaga este aviso cuando vale `false`. */
-	relaxedBy: keyof PhaseRules;
-}[] = [
-	{ code: "proposal", label: "A. Proposal", pattern: /^#+\s*A\.\s*Proposal/im, relaxedBy: "requireProblemStatement" },
-	{ code: "spec", label: "B. Spec", pattern: /^#+\s*B\.\s*Spec/im, relaxedBy: "requireAcceptanceCriteria" },
-];
-
-// Restos de plantilla que un modelo barato deja sin rellenar.
-const PLACEHOLDER_PATTERNS: { code: string; message: string; pattern: RegExp }[] = [
-	{ code: "angle-number", message: "Quedan placeholders `<number>` sin rellenar.", pattern: /<number>/ },
-	{ code: "change-token", message: "Quedan tokens `{change}` sin expandir.", pattern: /\{change\}/ },
-];
-
-// RETIRADO: los patterns de FABRICACION (`tokens: unknown`, `parent-direct`…)
-// vigilaban la telemetria del ledger de coste, que se borro entero en `3a2ec6b`.
-// Quedaron policiando un campo que ya no existe: coste puro de proceso.
-//
-// RETIRADO: el check de `behavior_coverage`. Exigia que verify DECLARASE una
-// palabra en su informe; no comprobaba nada del codigo. Lo que si protege
-// calidad — que verify EJECUTE la suite — sigue en sdd-verify y en el requisito
-// `status: pass|fail` de mas abajo, que es lo que lee el router determinista.
-
-export function lintDesignArtifact(
-	content: string,
-	opts: DesignLintOptions = {},
-): DesignLintReport {
-	const issues: GuardrailIssue[] = [];
-	const text = content ?? "";
-	const lineCount = text.length ? text.split("\n").length : 0;
-
-	if (!text.trim()) {
-		issues.push({
-			level: "error",
-			code: "empty",
-			message: "design.md esta vacio o no se pudo leer.",
-		});
-		return finalize(issues, lineCount);
-	}
-
-	// Warning, no error: la ausencia de una seccion es informacion util, pero
-	// bloquear la fase por la FORMA de un documento manda el arreglo al ciclo de
-	// fases (tasks -> apply -> verify) para reescribir prosa. El coste de eso
-	// medido: 28% del tiempo de apply/tasks/verify.
-	for (const section of REQUIRED_SECTIONS) {
-		// `rules.design.*` en config.yaml solo puede RELAJAR: un proyecto que
-		// declara `false` no quiere esa seccion y no debe verse avisado por ella.
-		// Sin declaracion explicita se aplica el default estricto.
-		if (opts.designRules?.[section.relaxedBy] === false) continue;
-		if (!section.pattern.test(text)) {
-			issues.push({
-				level: "warning",
-				code: `missing-${section.code}`,
-				message: `Falta la seccion "${section.label}".`,
-			});
-		}
-	}
-
-	for (const p of PLACEHOLDER_PATTERNS) {
-		if (p.pattern.test(text)) {
-			issues.push({ level: "warning", code: `placeholder-${p.code}`, message: p.message });
-		}
-	}
-
-	const threshold = opts.oversizeLineThreshold ?? DEFAULT_OVERSIZE;
-	if (lineCount > threshold) {
-		issues.push({
-			level: "warning",
-			code: "oversize",
-			message: `El design tiene ${lineCount} lineas (> ${threshold}); posible scope demasiado amplio. Considera dividir en slices.`,
-		});
-	}
-
-	return finalize(issues, lineCount);
-}
-
-// Solo lo que tiene CONSECUENCIA MECANICA aguas abajo:
-//   - checkbox: `sdd-apply` lee las casillas para saber que grupo ejecutar.
-//   - verify:   es el comando que se corre; sin el, la fase de verify no sabe
-//               que ejecutar.
-// RETIRADAS como obligatorias: `skills`, `why`, `learn`, `architecture`,
-// `avoid`. Eran secciones de prosa que nadie lee aguas abajo y cuya ausencia
-// bloqueaba la fase. `status`/`blocked_by` bajan a warning: son señales de
-// planificacion, no entradas de ninguna herramienta.
-const TASKS_REQUIRED: { code: string; label: string; pattern: RegExp; level?: GuardrailLevel }[] = [
-	{ code: "status-line", label: "status: ready|blocked", pattern: /\bstatus\s*[:=]\s*(ready|blocked)\b/i, level: "warning" },
-	{ code: "blocked-by", label: "blocked_by", pattern: /\bblocked_by\s*[:=]\s*.+/i, level: "warning" },
-	// GUARD -> acepta marcadas y sin marcar: un tasks.md 100% completado (todo
-	// `- [x]` tras el apply) es VÁLIDO, no un artefacto roto. Exigir el literal
-	// `- [ ]` hacía fallar el gate justo al terminar el trabajo.
-	{ code: "checkbox", label: "checkbox `- [ ]`/`- [x]`", pattern: /^\s*-\s*\[(?: |x|X)\]/m },
-	{ code: "verify", label: "verify", pattern: /^\s*-\s*verify\s*:/im },
-];
-
-// F: un grupo que toca demasiados ficheros de PRODUCCIÓN no es una unidad de
-// apply acotada — bajo TDD estricto cada fichero son muchos ciclos RED/GREEN y el
-// apply se va de turnos (fue el bloqueo real de un grupo fundacional). Proxy de
-// tamaño: cuenta ficheros de fuente (no tests) por sección de grupo (## ...).
-const MAX_GROUP_SOURCE_FILES = 4;
-
-export function oversizedGroupWarnings(text: string): GuardrailIssue[] {
-	const out: GuardrailIssue[] = [];
-	// [preámbulo, heading1, body1, heading2, body2, ...]
-	const parts = text.split(/^##\s+(.+)$/m);
-	for (let i = 1; i < parts.length; i += 2) {
-		const heading = (parts[i] ?? "").trim();
-		const body = parts[i + 1] ?? "";
-		// Mismo predicado de producción que el preview (sdd-router): dos regex
-		// que derivaban por separado eran justo la clase de mentira que P1-C cierra.
-		const files = extractProductionFiles(body);
-		if (files.length > MAX_GROUP_SOURCE_FILES) {
-			out.push({
-				level: "warning",
-				code: "oversized-group",
-				message: `Grupo "${heading}" toca ${files.length} ficheros de producción (> ${MAX_GROUP_SOURCE_FILES}): pártelo en unidades más pequeñas (bajo TDD estricto cada fichero son muchos ciclos RED/GREEN → el apply se va de turnos).`,
-			});
-		}
-	}
-	return out;
-}
-
-export function lintTasksArtifact(
-	content: string,
-	opts: DesignLintOptions = {},
-): DesignLintReport {
-	const issues: GuardrailIssue[] = [];
-	const text = content ?? "";
-	const lineCount = text.length ? text.split("\n").length : 0;
-
-	if (!text.trim()) {
-		issues.push({ level: "error", code: "empty", message: "tasks.md esta vacio o no se pudo leer." });
-		return finalize(issues, lineCount);
-	}
-
-	// Un tasks.md 100% cerrado (todas las casillas `- [x]`, ninguna `- [ ]`) es
-	// un artefacto TERMINADO válido: `status`/`blocked_by` son señales de
-	// planificación que sdd-tasks fija y dejan de aplicar una vez el apply cierra
-	// todo. Exigirlas entonces hacía fallar el gate justo al acabar (apply solía
-	// dejar `status: complete`, valor no válido para tasks.md) → retry inútil.
-	const hasOpenBox = /^\s*-\s*\[ \]/m.test(text);
-	const hasDoneBox = /^\s*-\s*\[[xX]\]/m.test(text);
-	const allDone = hasDoneBox && !hasOpenBox;
-
-	for (const req of TASKS_REQUIRED) {
-		if (allDone && (req.code === "status-line" || req.code === "blocked-by")) continue;
-		if (!req.pattern.test(text)) {
-			issues.push({ level: req.level ?? "error", code: `missing-${req.code}`, message: `Falta señal de tasks.md: ${req.label}.` });
-		}
-	}
-
-	for (const p of PLACEHOLDER_PATTERNS) {
-		if (p.pattern.test(text)) {
-			issues.push({ level: "warning", code: `placeholder-${p.code}`, message: p.message });
-		}
-	}
-
-	const threshold = opts.oversizeLineThreshold ?? DEFAULT_OVERSIZE;
-	if (lineCount > threshold) {
-		issues.push({ level: "warning", code: "oversize", message: `tasks.md tiene ${lineCount} lineas (> ${threshold}).` });
-	}
-
-	// F: grupos sobredimensionados (demasiados ficheros de producción por grupo).
-	issues.push(...oversizedGroupWarnings(text));
-
-	return finalize(issues, lineCount);
-}
-
-function finalize(issues: GuardrailIssue[], lineCount: number): DesignLintReport {
-	const errors = issues.filter((i) => i.level === "error").length;
-	const warnings = issues.filter((i) => i.level === "warning").length;
-	return { ok: errors === 0, issues, errors, warnings, lineCount };
-}
-
-// ─── Gatekeeper por fase ──────────────────────────────────────────────────────
-
-export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
-
-const PHASE_ARTIFACT: Record<SddPhase, string> = {
-	scope: "scope.md",
-	map: "map.md",
-	design: "design.md",
-	tasks: "tasks.md",
-	apply: "apply-progress.md",
-	verify: "verify-report.md",
-	close: "summary.md",
-};
-
-const PHASE_ORDER: SddPhase[] = ["scope", "map", "design", "tasks", "apply", "verify", "close"];
-
-// Señal mínima obligatoria por fase (además de "no vacío"): si falta, es error.
-// El caso clave es `verify`, que DEBE emitir una línea `status: pass|fail` para
-// que el router determinista pueda enrutar. apply requiere `status: complete|partial|blocked`.
-const PHASE_REQUIRED: Partial<Record<SddPhase, { code: string; label: string; pattern: RegExp }[]>> = {
-	// RETIRADOS `budget_allocated` (scope) y `ledger`/`budget_consumed` (map):
-	// eran la telemetria del ledger de coste borrado en `3a2ec6b`. Bloqueaban la
-	// fase por no declarar cifras que ya no consume nadie.
-	scope: [{ code: "scope", label: "scope", pattern: /\bscope\b/i }],
-	map: [{ code: "scope-status", label: "scope_status", pattern: /\bscope_status\b/i }],
-	apply: [
-		{
-			code: "status-line",
-			label: "status: complete|partial|blocked",
-			pattern: /\bstatus\s*[:=]\s*(complete|partial|blocked)\b/i,
-		},
-	],
-	verify: [
-		{
-			code: "status-line",
-			label: "status: pass|fail",
-			pattern: /\b(?:status|result|resultado)\s*[:=]\s*(pass|fail|passed|failed|ok|pasa|falla)\b/i,
-		},
-	],
-};
-
-// Lint genérico de un artefacto de fase. `design` delega en el check rico.
-export function lintPhaseArtifact(
-	phase: SddPhase,
-	content: string,
-	opts: DesignLintOptions = {},
-): DesignLintReport {
-	if (phase === "design") return lintDesignArtifact(content, opts);
-	if (phase === "tasks") return lintTasksArtifact(content, opts);
-
-	const issues: GuardrailIssue[] = [];
-	const text = content ?? "";
-	const lineCount = text.length ? text.split("\n").length : 0;
-
-	if (!text.trim()) {
-		issues.push({ level: "error", code: "empty", message: `${PHASE_ARTIFACT[phase]} esta vacio o no se pudo leer.` });
-		return finalize(issues, lineCount);
-	}
-
-	for (const req of PHASE_REQUIRED[phase] ?? []) {
-		if (!req.pattern.test(text)) {
-			issues.push({ level: "error", code: `missing-${req.code}`, message: `Falta señal obligatoria de ${phase}: ${req.label}.` });
-		}
-	}
-
-	for (const p of PLACEHOLDER_PATTERNS) {
-		if (p.pattern.test(text)) {
-			issues.push({ level: "warning", code: `placeholder-${p.code}`, message: p.message });
-		}
-	}
-
-	const threshold = opts.oversizeLineThreshold ?? DEFAULT_OVERSIZE;
-	if (lineCount > threshold) {
-		issues.push({ level: "warning", code: "oversize", message: `${PHASE_ARTIFACT[phase]} tiene ${lineCount} lineas (> ${threshold}).` });
-	}
-
-	return finalize(issues, lineCount);
-}
 
 export type ChangeLintReport = {
 	change: string;

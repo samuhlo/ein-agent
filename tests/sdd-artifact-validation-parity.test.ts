@@ -4,6 +4,12 @@ import * as pi from "../ein-pi/agent/lib/sdd-guardrails.ts";
 import * as shared from "../shared/sdd/sdd-artifact-validation.ts";
 
 describe("paridad de validación de artefactos SDD", () => {
+	test("Pi delega en las mismas funciones compartidas", () => {
+		expect(pi.lintDesignArtifact).toBe(shared.lintDesignArtifact);
+		expect(pi.lintTasksArtifact).toBe(shared.lintTasksArtifact);
+		expect(pi.lintPhaseArtifact).toBe(shared.lintPhaseArtifact);
+		expect(pi.oversizedGroupWarnings).toBe(shared.oversizedGroupWarnings);
+	});
 	test("diseño, tareas y fases producen los mismos informes", () => {
 		const design = "# Design\n\n## A. Proposal\n\nAlgo\n\n## B. Spec\n\nOtra cosa\n";
 		const tasks = "# Tasks\n\nstatus: ready\nblocked_by: none\n\n## Grupo\n\n- [ ] Hacer algo\n- verify: `bun test`\n";
