@@ -81,7 +81,7 @@ seed_preserved_state
 assert_preserved_state
 
 echo "/// release-update: $source_tag -> $target_tag"
-ein-install update --yes latest
+ein-install update --yes "$target_tag"
 ein-install --version | grep -Fq "ein-installer $target_version"
 grep -Fq "\"version\": \"$target_version\"" "$marker"
 grep -Fq '"channel": "alpha"' "$marker"
