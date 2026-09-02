@@ -360,10 +360,10 @@ describe("release asset contract", () => {
     expect(publishStart).toBeGreaterThanOrEqual(0);
     expect(smokeStart).toBeGreaterThan(publishStart);
     expect(smokeStep).toContain("../e2e/release-update-test.sh");
-    expect(smokeStep).toContain("installer-v0.93.0-alpha.4");
+    expect(smokeStep).toContain("installer-v0.94.0-alpha.3");
     expect(smokeStep).toContain('"$RELEASE_TAG"');
     expect(script).toContain("gh release download");
-    expect(script).toContain("ein-install update --yes latest");
+    expect(script).toContain('ein-install update --yes "$target_tag"');
     expect(script).toContain("assert_preserved_state");
     expect(script).toContain("E2E_RELEASE_UPDATE_RESULT=OK");
   });

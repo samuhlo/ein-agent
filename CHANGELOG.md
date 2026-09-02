@@ -4,6 +4,15 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.94.0-alpha.4] - 2026-09-02
+
+### Fixed
+
+- **El smoke posterior a la publicación fija el tag objetivo exacto.** La
+  verificación ya no depende de que el endpoint `latest` de GitHub refleje una
+  release recién creada; descarga, instala y valida los assets publicados para
+  la versión que disparó el workflow.
+
 ## [0.94.0-alpha.3] - 2026-09-02
 
 ### Changed
