@@ -20,6 +20,7 @@ const RETIRED_INTENT_COLLATERAL = [
 const RETIRED_ROUTING_COLLATERAL = ["ein-pi/agent/lib/sdd-router.ts"] as const;
 const RETIRED_REMEDIES_COLLATERAL = ["ein-pi/agent/lib/sdd-remedies.ts"] as const;
 const RETIRED_SUMMARY_COLLATERAL = ["ein-pi/agent/lib/sdd-summary-write.ts"] as const;
+const RETIRED_DELTA_COLLATERAL = ["ein-pi/agent/lib/openspec-delta-write.ts"] as const;
 
 function runtimeClosure(entries: readonly string[]): string[] {
 	return collectSourceClosure(ROOT, entries)
@@ -56,6 +57,13 @@ describe("Claude SDD runtime closure", () => {
 
 		expect(closure).toContain("shared/sdd/sdd-summary-write.ts");
 		for (const path of RETIRED_SUMMARY_COLLATERAL) expect(closure).not.toContain(path);
+	});
+
+	test("keeps the historical Pi delta writer outside the complete Claude payload", () => {
+		const closure = runtimeClosure(EIN_CC_PAYLOAD_SOURCE_ENTRIES);
+
+		expect(closure).toContain("shared/sdd/openspec-delta-write.ts");
+		for (const path of RETIRED_DELTA_COLLATERAL) expect(closure).not.toContain(path);
 	});
 });
 
