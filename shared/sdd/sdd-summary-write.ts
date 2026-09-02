@@ -1,8 +1,10 @@
 // =============================================================================
 // [CORE] SDD SUMMARY WRITE
 // Writes the durable close summary from content already produced by the agent.
-// Both runtimes need this deterministic fallback when their ordinary write
-// surface cannot persist the requested Markdown artifact.
+// Both runtimes need this deterministic fallback because Claude agents have
+// refused an explicitly requested ordinary Write to a Markdown report twice in
+// one observed session. This does not reinterpret that refusal; it provides a
+// bounded persistence path that does not depend on the model overcoming it.
 //
 // FAIL CLOSED -> validate the change name, its directory and non-empty content
 // before touching the filesystem.

@@ -8,6 +8,7 @@ const EXTERNAL_CONSUMER_ROOTS = ["ein-cc", "installer/src", "installer/scripts"]
 const CONTRACT_ROOT = "shared/contracts";
 const PORT_ROOT = "shared/ports";
 const SDD_CORE_ROOT = "shared/sdd";
+const SHARED_FACADE_ROOTS = [CONTRACT_ROOT, SDD_CORE_ROOT] as const;
 const SHARED_README = readFileSync(join(ROOT, "shared", "README.md"), "utf8");
 
 const ALLOWED_PI_BRIDGES = [
@@ -81,6 +82,14 @@ function documentedSddBridges(): string[] {
 		.sort();
 }
 
+function expectedPiSharedFacadeReferences(): string[] {
+	return SHARED_FACADE_ROOTS.flatMap((root) =>
+		readdirSync(join(ROOT, root), { withFileTypes: true })
+			.filter((entry) => entry.isFile() && entry.name.endsWith(".ts"))
+			.map((entry) => `ein-pi/agent/lib/${entry.name}::../../../${root}/${entry.name}`),
+	).sort();
+}
+
 describe("fronteras arquitectónicas del repositorio", () => {
 	test("Claude e installer no acceden directamente a interiores de Pi", () => {
 		expect(stringLiteralsContaining(EXTERNAL_CONSUMER_ROOTS, "ein-pi/agent")).toEqual([]);
@@ -102,6 +111,12 @@ describe("fronteras arquitectónicas del repositorio", () => {
 
 	test("el código compartido no lanza procesos", () => {
 		expect(stringLiteralsContaining([CONTRACT_ROOT, SDD_CORE_ROOT], "node:child_process")).toEqual([]);
+	});
+
+	test("Pi accede a cada módulo compartido solo mediante su fachada instalable", () => {
+		expect(stringLiteralsContaining(["ein-pi/agent"], "../../../shared/")).toEqual(
+			expectedPiSharedFacadeReferences(),
+		);
 	});
 
 	test("todo puente temporal hacia Pi está centralizado y declarado", () => {

@@ -14,7 +14,7 @@
 
 import { execFileSync } from "node:child_process";
 
-import type { RepositoryStateIdentity } from "../../../shared/sdd/sdd-reconciliation.ts";
+import type { RepositoryStateIdentity } from "./sdd-reconciliation.ts";
 
 export interface GitReset {
 	// Selector del reflog, p.ej. `HEAD@{2026-07-07 17:14:53 +0200}`.

@@ -79,6 +79,13 @@ Given: the shared runtime roots contain regular TypeScript modules, an invalid T
 When: the installer builds the Pi template archive
 Then: every valid shared module is copied byte-identically into the installed lib overlay, while invalid sources and name collisions fail before an apparently complete archive is produced
 
+## Scenario: pi-template-runtime-graph-is-closed
+title: Pi template validates its installed runtime graph
+requirement: The system MUST publish a Pi template only when every shared module has a pure checkout facade and the staged TypeScript graph resolves and links from the entrypoints Pi loads or executes.
+Given: a shared module is missing its facade, a facade contains runtime composition, a relative value or type import is missing or escapes the staged payload, or an entrypoint imports an absent named export
+When: the installer builds the Pi template archive
+Then: the build fails before publishing the archive; a valid flat overlay resolves entirely inside the payload and all Pi runtime entrypoints compile from the installed layout
+
 ## Scenario: pre-mutation-pi-failure-retry
 title: Pre-mutation Pi failure supports fail-closed retry
 requirement: The system MUST provide a supported fail-closed retry or recovery path when a Pi install fails before any Pi mutation, while preserving completed Claude work.

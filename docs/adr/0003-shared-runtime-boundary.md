@@ -32,25 +32,39 @@ compatibilidad.
 
 El template de Pi deriva todos los `.ts` regulares situados en la raíz de
 `shared/contracts/` y `shared/sdd/`. Los despliega byte a byte en su `lib/`
-plano y falla si una fuente no es regular o si dos módulos comparten nombre.
+plano y falla si una fuente no es regular, está anidada o si dos módulos
+comparten nombre.
+
+Cada módulo que participa en ese overlay tiene una fachada homónima en
+`ein-pi/agent/lib/`. En el checkout la fachada es un único `export *` hacia
+`shared/`; en el paquete la implementación compartida la sustituye. Las
+composiciones específicas de Pi usan otro nombre, normalmente `-runtime`, y
+todo consumidor Pi importa mediante la ruta local instalable.
+
+Antes de producir el archive, el bundler exige esa correspondencia, resuelve
+todos los imports relativos del TypeScript staged —incluidos los de tipo— y
+compila los entrypoints que Pi carga o ejecuta. Ningún import puede escapar del
+payload.
 
 ## Consecuencias
 
 - Un módulo compartido nuevo no necesita una segunda edición en el bundler ni
-  en su test de inventario.
+  en su inventario, pero sí su fachada explícita de checkout.
 - El filesystem común no genera una capa de puertos sin consumidor real.
 - Ningún núcleo compartido puede ejecutar Git o procesos a escondidas.
 - Los subdirectorios y los nombres duplicados no forman parte del contrato del
-  overlay plano.
+  overlay plano y hacen fallar el bundle de forma explícita.
+- El archive no puede publicarse si sus rutas existen pero sus exports no
+  enlazan desde los entrypoints reales de Pi.
 - Cada puente SDD superviviente declara motivo, propietario y condición de
   retirada en `shared/README.md`; la suite exige que ese inventario y los
   imports autorizados sean exactamente el mismo conjunto.
 
 ## Condiciones de retirada
 
-- Sustituir el scan por un cierre de imports solo si el template de Pi deja de
-  superponer módulos planos y el nuevo empaquetador demuestra el cierre desde
-  sus entrypoints reales.
+- Retirar las fachadas solo si el template de Pi deja de superponer módulos
+  planos y el nuevo empaquetador demuestra el cierre desde sus entrypoints
+  reales.
 - Retirar la prohibición de procesos únicamente si `shared/` deja de ser el
   núcleo independiente del runtime mediante una decisión arquitectónica que la
   reemplace.

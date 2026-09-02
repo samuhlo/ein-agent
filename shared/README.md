@@ -39,4 +39,7 @@ coincida exactamente con los imports autorizados de `shared/ports/sdd.ts`.
 El template de Pi deriva el inventario de todos los `.ts` regulares situados en
 la raíz de `contracts/` y `sdd/`. Ambos se despliegan a un único `lib/`, por lo
 que dos módulos compartidos con el mismo nombre son una colisión y bloquean el
-bundle.
+bundle. Cada módulo tiene una fachada homónima y de re-export puro en
+`ein-pi/agent/lib/`; las composiciones Pi viven bajo otro nombre. El bundler
+rechaza módulos anidados, imports que salgan del payload y entrypoints cuyos
+exports no enlacen después del overlay.

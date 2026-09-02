@@ -27,8 +27,13 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  assertPiPayloadIsLinked,
+  assertSharedOverlayFacades,
+  type SharedOverlayGroup,
+} from "./pi-payload-validation.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = dirname(HERE);
@@ -47,12 +52,28 @@ const TYPESCRIPT_VERSION = "5.9.3";
 const RUNTIME_FILES = ["AGENTS.md"];
 const RUNTIME_DIRS = ["agents", "assets", "docs", "prompts", "skills"];
 
+function nestedTypeScriptFiles(sourceRoot: string): string[] {
+  const visit = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return visit(path);
+    return entry.isFile() && entry.name.endsWith(".ts") ? [relative(sourceRoot, path)] : [];
+  });
+  return readdirSync(sourceRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => visit(join(sourceRoot, entry.name)))
+    .sort();
+}
+
 export function sharedTypeScriptFiles(sourceRoot: string): string[] {
   const entries = readdirSync(sourceRoot, { withFileTypes: true })
     .filter((entry) => entry.name.endsWith(".ts"));
   const invalid = entries.filter((entry) => !entry.isFile()).map((entry) => entry.name).sort();
   if (invalid.length > 0) {
     throw new Error(`Los módulos compartidos deben ser ficheros regulares: ${invalid.join(", ")}`);
+  }
+  const nested = nestedTypeScriptFiles(sourceRoot);
+  if (nested.length > 0) {
+    throw new Error(`Los módulos compartidos deben vivir en la raíz plana: ${nested.join(", ")}`);
   }
   return entries.map((entry) => entry.name).sort();
 }
@@ -72,10 +93,12 @@ export function assertUniqueSharedOverlayFiles(
 
 const SHARED_CONTRACT_FILES = sharedTypeScriptFiles(SHARED_CONTRACT_SOURCE);
 const SHARED_SDD_FILES = sharedTypeScriptFiles(SHARED_SDD_SOURCE);
-assertUniqueSharedOverlayFiles([
-  { root: SHARED_CONTRACT_SOURCE, files: SHARED_CONTRACT_FILES },
-  { root: SHARED_SDD_SOURCE, files: SHARED_SDD_FILES },
-]);
+const SHARED_OVERLAY_GROUPS = [
+  { root: SHARED_CONTRACT_SOURCE, namespace: "contracts", files: SHARED_CONTRACT_FILES },
+  { root: SHARED_SDD_SOURCE, namespace: "sdd", files: SHARED_SDD_FILES },
+] as const satisfies readonly SharedOverlayGroup[];
+assertUniqueSharedOverlayFiles(SHARED_OVERLAY_GROUPS);
+assertSharedOverlayFacades(join(AGENT_SOURCE, "lib"), SHARED_OVERLAY_GROUPS);
 // Allowlist del template. `app.ts` remains available to provider launchers;
 // the user-facing app is precompiled and staged separately as bin/ein. Ver
 // tests/template-agent-inventory.test.ts, que deriva lo requerido del código.
@@ -233,6 +256,7 @@ async function main(): Promise<void> {
     tokenizeSettings(staging);
     const terminalApp = stageTerminalApp(staging);
     const runtimeDependencies = vendorTypescriptRuntime(staging);
+    await assertPiPayloadIsLinked(staging);
     writeManifest(staging, runtimeDependencies, terminalApp);
 
     // src/assets/ solo guarda el tarball generado (gitignored), asi que el dir
