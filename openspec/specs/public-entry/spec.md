@@ -19,16 +19,16 @@ Then: `ein-install update` runs with the terminal inherited and the same argumen
 ## Scenario: public-entry-runtime-shims-remain-secondary
 title: Direct runtime shims do not become competing product doors
 requirement: The system MUST expose `ein-pi` and `ein-cc` for advanced direct runtime access while keeping normal first-run and post-install guidance centered on `ein`.
-Given: Ein is installed for Pi, Claude Code, or both
+Given: Ein is installed on Pi, with or without the Claude Code complement
 When: the product presents the next command to a normal user or documents an advanced direct-runtime path
 Then: normal guidance says to run `ein`, advanced documentation may name the applicable Ein-first shim, and no completion message requires remembering a runtime shim
 
 ## Scenario: public-entry-single-lifecycle-surface
 title: Offer the lifecycle actions exactly once
-requirement: The system MUST NOT present the lifecycle actions in a second interactive menu; `ein-install` with no arguments MUST install, prompting only for the runtime, and MUST stay bounded without a terminal.
+requirement: The system MUST NOT present the lifecycle actions in a second interactive menu; `ein-install` with no arguments MUST install Pi and ask only whether to add Claude Code, and MUST stay bounded without a terminal.
 Given: A user runs `ein-install` with no arguments.
 When: The installer dispatches its no-argument path.
-Then: It installs after asking only which runtime to install, a cancelled answer installs nothing, and a non-interactive run explains the explicit runtime flag instead of waiting on a keypress.
+Then: It installs Ein after asking only whether to add Claude Code, a cancelled answer installs nothing, and a non-interactive run explains `--runtime pi|both` instead of waiting on a keypress.
 
 ## Scenario: public-entry-unavailable-lifecycle
 title: An unrunnable lifecycle command is unavailable, never done

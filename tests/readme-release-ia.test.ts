@@ -72,11 +72,14 @@ describe("contrato offline del README para release e instalación", () => {
     expect(readme).toMatch(/<h1><code>\.\/EIN\.sh<\/code><\/h1>/);
     expect(commandMatches).toHaveLength(1);
     expect(readme).not.toContain("https://raw.githubusercontent.com/samuhlo/ein-agent/main/install.sh");
-    for (const choice of ["Pi", "Claude Code", "Both"]) expect(readme).toContain(choice);
+    expect(readme).toContain("Pi");
+    expect(readme).toContain("Claude Code");
+    expect(readme).toContain("--runtime pi|both");
+    expect(readme).not.toContain("--runtime pi|claude|both");
     expect(readme.indexOf("## // 00_ QUICK_START")).toBeLessThan(readme.indexOf("## // 04_ BLUEPRINT"));
   });
 
-  test("describe los tres destinos y mantiene aislados los runtimes vanilla", () => {
+  test("describe el núcleo, el complemento y mantiene aislados los runtimes vanilla", () => {
     for (const value of ["ein-pi", "ein-cc", "~/.pi-ein/agent", "~/.claude-ein", "~/.pi/agent", "~/.claude"]) {
       expect(readme).toContain(value);
     }

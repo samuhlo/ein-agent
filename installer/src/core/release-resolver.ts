@@ -64,8 +64,8 @@ export function resolveReleaseContract(
   if (channel === "stable" && tagChannel !== "stable") {
     return { ok: false, error: resolutionError("channel-tag-mismatch", `Release channel ${channel} does not match ${normalized.value}`) };
   }
-  if (target !== "pi" && target !== "claude" && target !== "both") {
-    return { ok: false, error: resolutionError("invalid-target", "Explicit installs require runtime pi, claude, or both") };
+  if (target !== "pi" && target !== "both") {
+    return { ok: false, error: resolutionError("invalid-target", "Explicit installs require Ein core (pi) or Ein with Claude (both)") };
   }
 
   const versionText = normalized.value.slice("installer-v".length);

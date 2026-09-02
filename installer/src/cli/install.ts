@@ -61,6 +61,7 @@ import {
   type InstallPlanEntryId,
   type InstallPlanInput,
   type InstallPlanV1,
+  type InstallSelection,
   type InstallTarget,
   type PiOwnershipEvidence,
   type RuntimeInstallTarget,
@@ -88,7 +89,7 @@ import {
 } from "../../../shared/ports/linear.ts";
 
 /** The one target selected by the menu or the direct installer default. */
-export type { InstallTarget, RuntimeInstallTarget } from "../core/install-plan.ts";
+export type { InstallSelection, InstallTarget, RuntimeInstallTarget } from "../core/install-plan.ts";
 
 export type InstallFlags = {
   yes: boolean;
@@ -98,7 +99,7 @@ export type InstallFlags = {
   noHypa: boolean;
   noCodegraph: boolean;
   dryRun: boolean;
-  runtime: InstallTarget;
+  runtime: InstallSelection;
   releaseChannel?: ReleaseChannel;
 };
 
@@ -106,7 +107,7 @@ export class InstallArgumentError extends Error {
   readonly code = "invalid-runtime";
 
   constructor(detail: string) {
-    super(`Error de opción runtime: ${detail}. Usa --runtime pi|claude|both.`);
+    super(`Error de opción runtime: ${detail}. Usa --runtime pi|both.`);
     this.name = "InstallArgumentError";
   }
 }
@@ -118,10 +119,18 @@ export type RuntimeInstallResult = {
 };
 
 export type InstallResult = {
-  target: InstallTarget;
+  target: InstallSelection;
   ok: boolean;
   results: RuntimeInstallResult[];
 };
+
+export function formatInstallFailure(result: InstallResult): string {
+  const pi = result.results.find(({ target }) => target === "pi");
+  const claude = result.results.find(({ target }) => target === "claude");
+  return pi?.ok && claude && !claude.ok
+    ? "Ein con Pi está listo, pero Claude Code no pudo añadirse."
+    : "Instalación de Ein incompleta.";
+}
 
 export type InstallTargetRunner = () => Promise<RuntimeInstallResult>;
 
@@ -150,12 +159,12 @@ export type InstallCommandOptions = {
   finalizeLegacy?: (options: RuntimeSurfaceRetirementActionOptions & { globalCommit: true }) => void;
 };
 
-function isInstallTarget(value: string): value is InstallTarget {
-  return value === "pi" || value === "claude" || value === "both";
+function isInstallSelection(value: string): value is InstallSelection {
+  return value === "pi" || value === "both";
 }
 
 export function parseInstallFlags(args: string[]): InstallFlags {
-  let runtime: InstallTarget = "pi";
+  let runtime: InstallSelection = "pi";
   let runtimeSeen = false;
   let releaseChannel: ReleaseChannel | undefined;
   let releaseChannelSeen = false;
@@ -170,7 +179,10 @@ export function parseInstallFlags(args: string[]): InstallFlags {
       if (!value || value.startsWith("-")) {
         throw new InstallArgumentError("--runtime necesita un valor separado");
       }
-      if (!isInstallTarget(value)) {
+      if (value === "claude") {
+        throw new InstallArgumentError("Claude Code es un complemento: Pi es el núcleo de Ein");
+      }
+      if (!isInstallSelection(value)) {
         throw new InstallArgumentError(`valor no soportado: ${value}`);
       }
       runtime = value;
@@ -235,14 +247,14 @@ async function maybeSecret(name: SecretName, label: string, flags: InstallFlags)
 
 /** Resolve menu intent first, then direct CLI selection, then the Pi default. */
 export function resolveInstallTarget(
-  explicitMenuTarget: InstallTarget | undefined,
-  parsedRuntime?: InstallTarget,
-): InstallTarget {
+  explicitMenuTarget: InstallSelection | undefined,
+  parsedRuntime?: InstallSelection,
+): InstallSelection {
   return explicitMenuTarget ?? parsedRuntime ?? "pi";
 }
 
 /** Return selected runtime paths in their required execution order. */
-export function getInstallTargets(target: InstallTarget): RuntimeInstallTarget[] {
+export function getInstallTargets(target: InstallSelection): RuntimeInstallTarget[] {
   return target === "both" ? ["pi", "claude"] : [target];
 }
 
@@ -267,7 +279,7 @@ async function prepareSharedBun(deps: readonly DepStatus[], flags: InstallFlags,
 }
 
 export async function orchestrateInstall(
-  target: InstallTarget,
+  target: InstallSelection,
   options: InstallOrchestratorOptions,
 ): Promise<InstallResult> {
   const targets = getInstallTargets(target);
@@ -293,6 +305,7 @@ export async function orchestrateInstall(
 
   const results: RuntimeInstallResult[] = [];
   for (const runtime of targets) {
+    if (runtime === "claude" && results.some((result) => result.target === "pi" && !result.ok)) break;
     try {
       const result = await options.runners[runtime]();
       // Keep the aggregate contract trustworthy even if an injected runner
@@ -679,11 +692,11 @@ type LinearIntegrationPrompt = (options: {
 
 export async function selectLinearIntegration(
   flags: InstallFlags,
-  target: InstallTarget,
+  target: InstallSelection,
   prompt: LinearIntegrationPrompt = (options) => p.select(options),
   isCancel: (value: unknown) => boolean = p.isCancel,
 ): Promise<LinearIntegration | null> {
-  if (target === "claude" || flags.noLinear || flags.yes) return "off";
+  if (flags.noLinear || flags.yes) return "off";
   const selected = await prompt({
     message: "Integración Linear",
     options: LINEAR_INTEGRATION_OPTIONS.map((value) => ({ value, label: value })),
@@ -698,7 +711,7 @@ export function formatLinearIntegrationSummary(linear: LinearIntegration): strin
   return `Integración Linear: ${linear}`;
 }
 
-export async function runInstall(args: string[], explicitMenuTarget?: InstallTarget, options: InstallCommandOptions = {}): Promise<number> {
+export async function runInstall(args: string[], explicitMenuTarget?: InstallSelection, options: InstallCommandOptions = {}): Promise<number> {
   let flags: InstallFlags;
   try {
     flags = parseInstallFlags(args);
@@ -719,7 +732,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
   }
 
   const deps: DepStatus[] = options.observations
-    ? (Object.keys(options.observations.dependencies) as InstallDependencyId[]).map((id) => ({ id, present: options.observations!.dependencies[id], path: null, required: id === "bun" || id === "pi" || id === "claude", hint: "injected observation" }))
+    ? (Object.keys(options.observations.dependencies) as InstallDependencyId[]).map((id) => ({ id, present: options.observations!.dependencies[id], path: null, required: id === "bun" || id === "pi", hint: "injected observation" }))
     : checkDeps(platform);
   const observations = options.observations ?? observePlan(platform, deps);
   const previousClaudeMarkerVersion = readInstallMarkerVersion(
@@ -734,7 +747,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
   if (journalStatus?.status === "valid" && journalStatus.journal.state !== "complete") {
     const journal = journalStatus.journal;
     const candidates: { linear: LinearIntegration; plan: InstallPlanV1 }[] = [{ linear: "off", plan }];
-    if (target !== "claude" && !flags.noLinear && !flags.yes) candidates.push({ linear: "on", plan: buildPlan("on") });
+    if (!flags.noLinear && !flags.yes) candidates.push({ linear: "on", plan: buildPlan("on") });
     const admitted = candidates.find(
       ({ plan: candidate }) => classifyInstallJournalResume(journal, candidate) !== null,
     );
@@ -752,13 +765,20 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
   p.report.section(0, "sistema");
   p.report.field("plataforma", describePlatform(platform));
   p.report.section(1, "dependencias");
-  for (const dep of deps) p.report.step(dep.present ? "ok" : "fail", dep.id, dep.present ? "presente" : "falta");
+  for (const dep of deps) {
+    if (dep.id === "claude" && target === "pi") continue;
+    p.report.step(
+      dep.present ? "ok" : dep.required ? "fail" : "warn",
+      dep.id,
+      dep.present ? "presente" : dep.required ? "falta" : "opcional",
+    );
+  }
   if (plan.status === "blocked") {
     (options.writePlan ?? ((value) => p.log.message(renderInstallPlan(value))))(plan);
     p.outro(flags.dryRun ? "Dry-run blocked. Resolve the reported blocker before installation." : "Instalación bloqueada. Resuelve el conflicto de ownership antes de continuar.");
     return 1;
   }
-  if (target !== "claude") p.log.info(formatLinearIntegrationSummary(linear));
+  p.log.info(formatLinearIntegrationSummary(linear));
 
   if (flags.dryRun) {
     (options.writePlan ?? ((value) => p.log.message(renderInstallPlan(value))))(plan);
@@ -835,7 +855,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
   }
 
   if (!result.ok) {
-    p.outro("Instalación incompleta.");
+    p.outro(formatInstallFailure(result));
     return 1;
   }
 

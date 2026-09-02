@@ -36,10 +36,10 @@ describe("install execution journal", () => {
     const traced: InstallJournalFs = { ...base, rename(from, to) { base.rename(from, to); snapshots.push(JSON.parse(new TextDecoder().decode(base.read(to))) as InstallExecutionJournalV1); } };
     const calls: string[] = []; const failed = "pi.dependency.pi";
     const result = await executeInstallPlanJournaled(value, handlers(value, (id) => { calls.push(id); return { ok: id !== failed }; }), { fs: traced, transactionId: () => "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb" });
-    expect(result.ok).toBe(false); expect(calls).toContain("claude.deploy-runtime");
+    expect(result.ok).toBe(false); expect(calls).not.toContain("claude.deploy-runtime");
     expect(snapshots[0]?.state).toBe("prepared"); expect(snapshots[1]).toMatchObject({ state: "executing", pendingEntryId: "shared.dependency.bun" });
     const final = snapshots.at(-1)!; expect(final).toMatchObject({ state: "recovery-required", recoveryCode: "handler-failed", pendingEntryId: failed });
-    expect(final.entries.find(({ id }) => id === failed)?.status).toBe("failed"); expect(final.entries.find(({ id }) => id === "claude.deploy-runtime")?.status).toBe("completed");
+    expect(final.entries.find(({ id }) => id === failed)?.status).toBe("failed"); expect(final.entries.find(({ id }) => id === "claude.deploy-runtime")?.status).toBe("not-run");
   });
 
   test("admits only reachable recovery states within and across runtime segments", () => {
@@ -116,7 +116,7 @@ describe("install execution journal", () => {
       expect(status.journal.state).toBe("recovery-required");
       expect(status.journal.entries.find(({ id }) => id === "pi.backup-current")?.status).toBe("failed");
       expect(status.journal.entries.find(({ id }) => id === "pi.deploy-template")?.status).toBe("not-run");
-      expect(status.journal.entries.find(({ id }) => id === "claude.deploy-runtime")?.status).toBe("completed");
+      expect(status.journal.entries.find(({ id }) => id === "claude.deploy-runtime")?.status).toBe("not-run");
     }
   });
 
@@ -131,20 +131,20 @@ describe("install execution journal", () => {
     expect(() => validateInstallJournal(control)).toThrow(InstallJournalError);
   });
 
-  test("retries exact both pre-mutation recovery and preserves completed Claude", async () => {
+  test("retries exact both pre-mutation recovery and then installs the deferred Claude complement", async () => {
     const value = plan();
     await executeInstallPlanJournaled(value, handlers(value, (id) => id === "pi.backup-current" ? { ok: false } : { ok: true }));
     const calls: string[] = [], result = await executeInstallPlanJournaled(value, handlers(value, (id) => { calls.push(id); return { ok: true }; }));
-    expect(result.ok).toBe(true); expect(calls).toContain("pi.backup-current"); expect(calls).toContain("pi.deploy-template"); expect(calls).not.toContain("claude.deploy-runtime"); expect(calls).not.toContain("claude.deploy-launcher");
+    expect(result.ok).toBe(true); expect(calls).toContain("pi.backup-current"); expect(calls).toContain("pi.deploy-template"); expect(calls).toContain("claude.deploy-runtime"); expect(calls).toContain("claude.deploy-launcher");
     const status = inspectInstallJournal(value.home); expect(status.status).toBe("valid"); if (status.status === "valid") { expect(status.journal.state).toBe("complete"); expect(status.journal.entries.every(({ status: entryStatus }) => entryStatus === "completed")).toBe(true); }
   });
 
-  test("failed recovery retry preserves completed Claude and later Pi non-completion", async () => {
+  test("failed recovery retry keeps the Claude complement deferred and later Pi non-complete", async () => {
     const value = plan();
     await executeInstallPlanJournaled(value, handlers(value, (id) => id === "pi.backup-current" ? { ok: false, detail: "first backup failure" } : { ok: true }));
     const calls: string[] = [], result = await executeInstallPlanJournaled(value, handlers(value, (id) => { calls.push(id); return id === "pi.backup-current" ? { ok: false, detail: "retry backup failure" } : { ok: true }; }));
     expect(result.ok).toBe(false); expect(calls).toEqual(["pi.backup-current"]);
-    const status = inspectInstallJournal(value.home); expect(status.status).toBe("valid"); if (status.status === "valid") { expect(status.journal.state).toBe("recovery-required"); expect(status.journal.entries.find(({ id }) => id === "pi.backup-current")?.status).toBe("failed"); expect(status.journal.entries.find(({ id }) => id === "pi.deploy-template")?.status).toBe("not-run"); expect(status.journal.entries.find(({ id }) => id === "claude.deploy-runtime")?.status).toBe("completed"); expect((status.journal.entries.find(({ id }) => id === "pi.backup-current") as { detail?: string }).detail).toBe("retry backup failure"); }
+    const status = inspectInstallJournal(value.home); expect(status.status).toBe("valid"); if (status.status === "valid") { expect(status.journal.state).toBe("recovery-required"); expect(status.journal.entries.find(({ id }) => id === "pi.backup-current")?.status).toBe("failed"); expect(status.journal.entries.find(({ id }) => id === "pi.deploy-template")?.status).toBe("not-run"); expect(status.journal.entries.find(({ id }) => id === "claude.deploy-runtime")?.status).toBe("not-run"); expect((status.journal.entries.find(({ id }) => id === "pi.backup-current") as { detail?: string }).detail).toBe("retry backup failure"); }
   });
 
   test("retries a failed final retirement without repeating completed work", async () => {
@@ -208,6 +208,49 @@ describe("install execution journal", () => {
     if (stored.status === "valid") {
       expect(stored.journal.state).toBe("complete");
       expect(stored.journal.transactionId).toBe("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb");
+    }
+  });
+
+  test("settles a working Pi core after the optional Claude complement fails", async () => {
+    const root = home();
+    const previous = plan("both", root);
+    const failed = await executeInstallPlanJournaled(
+      previous,
+      handlers(previous, (id) => ({ ok: id !== "claude.deploy-runtime" })),
+      { transactionId: () => "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa" },
+    );
+    expect(failed.ok).toBe(false);
+
+    const current = createInstallPlan({
+      target: "pi",
+      home: root,
+      piAgentDir: join(root, ".pi-ein", "agent"),
+      piAgentDirExists: true,
+      piOwnership: { status: "managed", layout: "isolated" },
+      claudeConfigHome: join(root, ".claude-ein"),
+      platform: { os: "darwin", arch: "arm64" },
+      dependencies: { bun: true, pi: true, claude: false, engram: true, gh: true, hypa: true, codegraph: true },
+      flags: { yes: true, noEngram: false, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true },
+    });
+    const calls: string[] = [];
+    const recovered = await executeInstallPlanJournaled(
+      current,
+      handlers(current, (id) => { calls.push(id); return { ok: true }; }),
+      { transactionId: () => "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb" },
+    );
+
+    expect(recovered.ok).toBe(true);
+    expect(calls).toContain("pi.backup-current");
+    expect(calls).toContain("pi.deploy-template");
+    expect(calls.some((id) => id.startsWith("claude."))).toBe(false);
+    const stored = inspectInstallJournal(root);
+    expect(stored.status).toBe("valid");
+    if (stored.status === "valid") {
+      expect(stored.journal).toMatchObject({
+        state: "complete",
+        target: "pi",
+        transactionId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      });
     }
   });
 
@@ -283,8 +326,8 @@ describe("install execution journal", () => {
     expect(calls).toContain("pi.backup-current");
     expect(calls).toContain("pi.deploy-template");
     expect(calls).not.toContain("shared.dependency.bun");
-    expect(calls).not.toContain("claude.deploy-runtime");
-    expect(calls).not.toContain("claude.deploy-launcher");
+    expect(calls).toContain("claude.deploy-runtime");
+    expect(calls).toContain("claude.deploy-launcher");
   });
 
   test("blocks every other valid non-complete journal before banner or handlers", async () => {
@@ -435,11 +478,11 @@ describe("install execution journal", () => {
   });
 
   test("blocks startup before banner/handlers, reinstalls over a complete journal, and leaves dry-run untouched", async () => {
-    const value = plan("claude"), root = value.home; await executeInstallPlanJournaled(value, handlers(value, () => ({ ok: false })));
+    const value = plan("both"), root = value.home; await executeInstallPlanJournaled(value, handlers(value, () => ({ ok: false })));
     let effects = 0; const observations = { home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" } as const, claudeConfigHome: join(root, ".claude-ein"), dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false }, platform: { os: "darwin" as const, arch: "arm64" as const, distro: "unknown" as const, packageManager: "brew" as const, shell: "unknown" as const, shellRc: join(root, ".profile"), home: root } };
-    expect(await runInstall(["--runtime", "claude"], undefined, { observations, playBanner: async () => { effects += 1; }, handlers: handlers(value, () => { effects += 1; return { ok: true }; }) })).toBe(1); expect(effects).toBe(0);
-    const impossible = recovery("claude", { shared: "n", claude: "p" }), errors: string[] = [], originalError = console.error; writeFileSync(installJournalPath(root), `${JSON.stringify(impossible)}\n`, { mode: 0o600 }); console.error = (...parts: unknown[]) => { errors.push(parts.join(" ")); }; try { expect(await runInstall(["--runtime", "claude"], undefined, { observations, playBanner: async () => { effects += 1; }, handlers: handlers(value, () => { effects += 1; return { ok: true }; }) })).toBe(1); } finally { console.error = originalError; } expect(effects).toBe(0); expect(errors).toEqual(["Install recovery status: recovery-required"]); expect(inspectInstallJournal(root)).toEqual({ status: "invalid" });
-    unlinkSync(installJournalPath(root)); expect(await runInstall(["--dry-run", "--runtime", "claude"], undefined, { observations, playBanner: async () => {}, writePlan: () => {} })).toBe(0); expect(inspectInstallJournal(root)).toEqual({ status: "missing" });
-    const complete = plan("claude"); await executeInstallPlanJournaled(complete, handlers(complete)); const completeObservations = { ...observations, home: complete.home, claudeConfigHome: join(complete.home, ".claude-ein"), piAgentDir: join(complete.home, ".pi-ein", "agent"), platform: { ...observations.platform, home: complete.home, shellRc: join(complete.home, ".profile") } }; effects = 0; expect(await runInstall(["--yes", "--no-secrets", "--runtime", "claude"], undefined, { observations: completeObservations, playBanner: async () => { effects += 1; }, handlers: handlers(complete, () => { effects += 1; return { ok: true }; }) })).toBe(0); expect(effects).toBeGreaterThan(0); expect(inspectInstallJournal(complete.home).status).toBe("valid"); const failed = plan("pi"), base = fsOps(); let recoveryWrites = 0; const fault: InstallJournalFs = { ...base, rename(from, to) { if (new TextDecoder().decode(base.read(from)).includes('"recovery-required"')) { recoveryWrites += 1; throw new Error("fault"); } base.rename(from, to); } }; await expect(executeInstallPlanJournaled(failed, handlers(failed, (id) => ({ ok: id !== "pi.dependency.pi" })), { fs: fault })).rejects.toMatchObject({ code: "recovery-write-failed" }); expect(recoveryWrites).toBe(1); const pending = inspectInstallJournal(failed.home); expect(pending.status).toBe("valid"); if (pending.status === "valid") expect(pending.journal.state).toBe("executing"); const signaled = plan("claude"), callbacks = new Set<() => void>(), signalFs = fsOps(); let signalWrites = 0; const tracedSignals: InstallJournalFs = { ...signalFs, rename(from, to) { if (new TextDecoder().decode(signalFs.read(from)).includes('"recovery-required"')) signalWrites += 1; signalFs.rename(from, to); } }; const signals = { on(_name: string, callback: () => void) { callbacks.add(callback); return this; }, off(_name: string, callback: () => void) { callbacks.delete(callback); return this; } }; let calls = 0; await expect(executeInstallPlanJournaled(signaled, handlers(signaled, () => { calls += 1; for (const callback of callbacks) { callback(); callback(); } return { ok: true }; }), { fs: tracedSignals, signals: signals as never })).rejects.toMatchObject({ code: "recovery-required" }); expect(calls).toBe(1); expect(signalWrites).toBe(1); const signalStatus = inspectInstallJournal(signaled.home); expect(signalStatus.status).toBe("valid"); if (signalStatus.status === "valid") expect(signalStatus.journal.recoveryCode).toBe("interrupted");
+    expect(await runInstall(["--runtime", "both"], undefined, { observations, playBanner: async () => { effects += 1; }, handlers: handlers(value, () => { effects += 1; return { ok: true }; }) })).toBe(1); expect(effects).toBe(0);
+    const impossible = recovery("claude", { shared: "n", claude: "p" }), errors: string[] = [], originalError = console.error; writeFileSync(installJournalPath(root), `${JSON.stringify(impossible)}\n`, { mode: 0o600 }); console.error = (...parts: unknown[]) => { errors.push(parts.join(" ")); }; try { expect(await runInstall(["--runtime", "both"], undefined, { observations, playBanner: async () => { effects += 1; }, handlers: handlers(value, () => { effects += 1; return { ok: true }; }) })).toBe(1); } finally { console.error = originalError; } expect(effects).toBe(0); expect(errors).toEqual(["Install recovery status: recovery-required"]); expect(inspectInstallJournal(root)).toEqual({ status: "invalid" });
+    unlinkSync(installJournalPath(root)); expect(await runInstall(["--dry-run", "--runtime", "both"], undefined, { observations, playBanner: async () => {}, writePlan: () => {} })).toBe(0); expect(inspectInstallJournal(root)).toEqual({ status: "missing" });
+    const complete = plan("both"); await executeInstallPlanJournaled(complete, handlers(complete)); const completeObservations = { ...observations, home: complete.home, claudeConfigHome: join(complete.home, ".claude-ein"), piAgentDir: join(complete.home, ".pi-ein", "agent"), platform: { ...observations.platform, home: complete.home, shellRc: join(complete.home, ".profile") } }; effects = 0; expect(await runInstall(["--yes", "--no-secrets", "--runtime", "both"], undefined, { observations: completeObservations, playBanner: async () => { effects += 1; }, handlers: handlers(complete, () => { effects += 1; return { ok: true }; }) })).toBe(0); expect(effects).toBeGreaterThan(0); expect(inspectInstallJournal(complete.home).status).toBe("valid"); const failed = plan("pi"), base = fsOps(); let recoveryWrites = 0; const fault: InstallJournalFs = { ...base, rename(from, to) { if (new TextDecoder().decode(base.read(from)).includes('"recovery-required"')) { recoveryWrites += 1; throw new Error("fault"); } base.rename(from, to); } }; await expect(executeInstallPlanJournaled(failed, handlers(failed, (id) => ({ ok: id !== "pi.dependency.pi" })), { fs: fault })).rejects.toMatchObject({ code: "recovery-write-failed" }); expect(recoveryWrites).toBe(1); const pending = inspectInstallJournal(failed.home); expect(pending.status).toBe("valid"); if (pending.status === "valid") expect(pending.journal.state).toBe("executing"); const signaled = plan("claude"), callbacks = new Set<() => void>(), signalFs = fsOps(); let signalWrites = 0; const tracedSignals: InstallJournalFs = { ...signalFs, rename(from, to) { if (new TextDecoder().decode(signalFs.read(from)).includes('"recovery-required"')) signalWrites += 1; signalFs.rename(from, to); } }; const signals = { on(_name: string, callback: () => void) { callbacks.add(callback); return this; }, off(_name: string, callback: () => void) { callbacks.delete(callback); return this; } }; let calls = 0; await expect(executeInstallPlanJournaled(signaled, handlers(signaled, () => { calls += 1; for (const callback of callbacks) { callback(); callback(); } return { ok: true }; }), { fs: tracedSignals, signals: signals as never })).rejects.toMatchObject({ code: "recovery-required" }); expect(calls).toBe(1); expect(signalWrites).toBe(1); const signalStatus = inspectInstallJournal(signaled.home); expect(signalStatus.status).toBe("valid"); if (signalStatus.status === "valid") expect(signalStatus.journal.recoveryCode).toBe("interrupted");
   });
 });

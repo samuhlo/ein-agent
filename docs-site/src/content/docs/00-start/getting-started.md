@@ -1,18 +1,18 @@
 ---
 title: "Getting Started"
-description: "Instalar EIN, elegir runtime y comprobar que el despliegue está sano."
+description: "Instalar EIN, añadir Claude opcionalmente y comprobar que el despliegue está sano."
 sources: ["README.md", "installer/README.md"]
 verified_rev: "eeceb7c"
 ---
 
-De cero a EIN funcionando. Al terminar tendrás el binario `ein`, al menos un
-runtime desplegado en su casa aislada, y el diagnóstico en verde.
+De cero a EIN funcionando. Al terminar tendrás `ein`, su núcleo Pi desplegado
+en una casa aislada y el diagnóstico en verde. Claude Code es opcional.
 
 ## Requisitos
 
 - **macOS o Linux.** No hay soporte de Windows.
-- **Pi Coding Agent, Claude Code, o ambos.** EIN se instala encima; si no tienes
-  ninguno, instálalo antes.
+- **Pi Coding Agent.** Es el runtime principal de EIN; el instalador lo prepara.
+- **Claude Code es opcional.** Puedes añadirlo como relevo durante la instalación.
 - Un shell con `curl`.
 
 El instalador comprueba y prepara sus propias dependencias durante `install`.
@@ -31,22 +31,20 @@ Si `ein` no aparece tras instalarlo, `~/.local/bin` no está en tu `PATH`. Añá
 y reabre la terminal.
 :::
 
-## 2. Elegir runtime
+## 2. Instalar Ein y decidir si añadir Claude
 
 ```bash
 ein
 ```
 
-Se abre el menú y pregunta qué desplegar: **Pi**, **Claude Code** o **Both**.
-Prepara solo lo que elijas, instala sus superficies aisladas y ejecuta el doctor
-al terminar.
+Se abre el menú con dos opciones: **Ein** y **Ein + Claude Code**. Pi se instala
+siempre; Claude solo se prepara después como complemento aislado.
 
 Si prefieres no pasar por el menú:
 
 ```bash
 ein-install install --runtime pi        # solo Pi
-ein-install install --runtime claude    # solo Claude Code
-ein-install install --runtime both      # los dos
+ein-install install --runtime both      # Pi + complemento Claude Code
 ```
 
 Con `--yes` no pregunta nada, y con `--dry-run` enseña el plan sin tocar nada —

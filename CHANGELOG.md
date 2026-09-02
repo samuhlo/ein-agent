@@ -4,6 +4,39 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.94.0-alpha.1] - 2026-09-02
+
+### Changed
+
+- **Ein vuelve a tener un único núcleo: Pi.** La instalación pública ofrece
+  Ein o Ein con Claude Code; ya no admite Claude como destino independiente y
+  el acceso normal queda concentrado en el ejecutable `ein` instalado.
+- **Claude Code queda como complemento opcional.** Solo se instala después de
+  verificar Pi y su ausencia ya no convierte una instalación básica de Ein en
+  un falso error de dependencia.
+- **La interfaz y la documentación explican el producto real.** El selector,
+  la ayuda, el preflight y las guías distinguen el núcleo Pi de las
+  integraciones opcionales sin añadir otra capa de instalador.
+
+### Fixed
+
+- **Un fallo de Pi detiene el flujo antes de Claude.** El ejecutor mantiene el
+  orden núcleo-complemento y deja las operaciones posteriores como no
+  ejecutadas en el diario de recuperación.
+- **Un fallo al añadir Claude no deja bloqueado un Ein funcional.** Si Pi ya
+  quedó verificado, el siguiente intento puede cerrar una instalación solo Pi
+  o volver a intentar Claude desde una transacción nueva y comprobada.
+- **La desinstalación conserva compatibilidad selectiva.** Aunque ya no se
+  instala Claude en solitario, sigue siendo posible retirar únicamente sus
+  superficies gestionadas sin tocar Pi ni los datos privados del usuario.
+
+### Release
+
+- **La publicación queda bloqueada por el E2E del instalador real.** Antes de
+  generar checksums o subir assets, la CI prueba hogares Ubuntu limpios,
+  Omarchy, reinstalación, rollback, desinstalación y el binario `ein` realmente
+  promovido; después valida la actualización desde `0.93.0-alpha.4`.
+
 ## [0.93.0-alpha.4] - 2026-09-02
 
 ### Fixed

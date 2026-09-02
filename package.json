@@ -2,7 +2,7 @@
   "name": "ein-agent",
   "private": true,
   "type": "module",
-  "description": "Harness de coding-agent sobre Pi Coding Agent y Claude Code.",
+  "description": "Harness de coding-agent sobre Pi con Claude Code como relevo opcional.",
   "dependencies": {
     "@opentui/core": "0.5.1",
     "@opentui/solid": "0.5.1",

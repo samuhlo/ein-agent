@@ -16,6 +16,7 @@ import { readMarkerAt, writeMarker } from "../installer/src/core/version.ts";
 import { readReleaseChannelPreference } from "../installer/src/core/release-channel-preference.ts";
 import {
   createPiInstallHandlers,
+  formatInstallFailure,
   formatLinearIntegrationSummary,
   getInstallTargets,
   orchestrateInstall,
@@ -348,7 +349,7 @@ describe("Claude runtime runner", () => {
     const result = await runClaudeInstall({
       home,
       claudePresent: false,
-      flags: parseInstallFlags(["--yes", "--runtime", "claude"]),
+      flags: parseInstallFlags(["--yes", "--runtime", "both"]),
       spinner: () => ({ start: () => {}, stop: () => {}, message: () => {} }),
       installClaude: async () => { events.push("install-claude"); return { ok: true, detail: "claude code instalado" }; },
       stagePayload: async () => { events.push("stage"); return stage; },
@@ -557,29 +558,28 @@ describe("Installer-owned advisor handoff", () => {
   });
 });
 
-describe("Bootstrap runtime prompt", () => {
-  test("offers Pi, Claude Code, and Both and forwards one selection", async () => {
+describe("Bootstrap install prompt", () => {
+  test("offers Ein and the optional Claude complement, always keeping Pi", async () => {
     let promptCalls = 0;
     let promptedOptions: ReadonlyArray<{ value: string; label: string; hint: string }> = [];
     const selected = await selectInstallTarget(
       async (options) => {
         promptCalls += 1;
         promptedOptions = options.options;
-        return "claude";
+        return "both";
       },
       () => false,
     );
 
     expect(promptCalls).toBe(1);
-    expect(promptedOptions.map((option) => option.value)).toEqual(["pi", "claude", "both"]);
+    expect(promptedOptions.map((option) => option.value)).toEqual(["pi", "both"]);
     // Sin ANSI que limpiar: la etiqueta ya no viene pintada del punto de
     // llamada, para que el prompt pueda marcar cuál tiene el foco.
     expect(promptedOptions.map((option) => option.label)).toEqual([
-      "Pi",
-      "Claude Code",
-      "Los dos",
+      "Ein",
+      "Ein + Claude Code",
     ]);
-    expect(selected).toBe("claude");
+    expect(selected).toBe("both");
   });
 
   test("cancelling runtime selection returns cleanly without a target", async () => {
@@ -592,14 +592,14 @@ describe("Bootstrap runtime prompt", () => {
     expect(selected).toBeNull();
   });
 
-  test("no arguments installs, asking only for the runtime", async () => {
+  test("no arguments installs Ein and forwards the optional Claude choice", async () => {
     const descriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
     Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: true });
     const installCalls: Array<{ args: string[]; target: string }> = [];
 
     try {
       const result = await runBootstrapInstall({
-        runtimePrompt: async () => "claude",
+        runtimePrompt: async () => "both",
         runInstall: async (args, target) => {
           installCalls.push({ args, target });
           return 23;
@@ -609,7 +609,7 @@ describe("Bootstrap runtime prompt", () => {
       });
 
       expect(result).toBe(23);
-      expect(installCalls).toEqual([{ args: [], target: "claude" }]);
+      expect(installCalls).toEqual([{ args: [], target: "both" }]);
     } finally {
       if (descriptor) Object.defineProperty(process.stdin, "isTTY", descriptor);
       else delete (process.stdin as unknown as { isTTY?: boolean }).isTTY;
@@ -648,7 +648,7 @@ describe("Bootstrap runtime prompt", () => {
       });
       expect(result).toBe(0);
       expect(installs).toBe(0);
-      expect(said.join("\n")).toContain("--runtime");
+      expect(said.join("\n")).toContain("--runtime pi|both");
     } finally {
       if (descriptor) Object.defineProperty(process.stdin, "isTTY", descriptor);
       else delete (process.stdin as unknown as { isTTY?: boolean }).isTTY;
@@ -743,11 +743,11 @@ describe("Installer Linear integration selection", () => {
 });
 
 describe("Runtime flag parser", () => {
-  test("accepts only separated runtime values and defaults to Pi", () => {
+  test("accepts only Ein core or Ein plus Claude and defaults to the core", () => {
     expect(parseInstallFlags(["--yes"]).runtime).toBe("pi");
     expect(parseInstallFlags(["--yes", "--runtime", "pi"]).runtime).toBe("pi");
-    expect(parseInstallFlags(["--runtime", "claude", "--yes"]).runtime).toBe("claude");
     expect(parseInstallFlags(["--yes", "--runtime", "both", "--no-secrets"]).runtime).toBe("both");
+    expect(() => parseInstallFlags(["--runtime", "claude", "--yes"])).toThrow(/Pi es el núcleo/);
   });
 
   test("carries the explicit release channel and rejects malformed channel options", () => {
@@ -777,7 +777,7 @@ describe("Runtime flag parser", () => {
       expect(() => {
         parseInstallFlags(args);
         runtimeWork += 1;
-      }).toThrow(/--runtime (pi|claude|both)/);
+      }).toThrow(/--runtime pi\|both/);
       expect(runtimeWork).toBe(0);
     }
   });
@@ -794,7 +794,7 @@ describe("Runtime flag parser", () => {
 
     expect(proc.exitCode).toBe(1);
     expect(stderr).toMatch(/Error de opción runtime/);
-    expect(stderr).toContain("--runtime pi|claude|both");
+    expect(stderr).toContain("--runtime pi|both");
     expect(stdout).toBe("");
     expect(readdirSync(home)).toEqual([]);
   });
@@ -821,9 +821,8 @@ describe("Installer release-contract admission", () => {
       ok: true,
       value: { status: "explicit", channel: "alpha", tag: `installer-v${alphaVersion}` },
     });
-    for (const target of ["claude", "both"] as const) {
-      expect(resolveReleaseContract("alpha", `installer-v${alphaVersion}`, target, alphaVersion).ok).toBe(true);
-    }
+    expect(resolveReleaseContract("alpha", `installer-v${alphaVersion}`, "both", alphaVersion).ok).toBe(true);
+    expect(resolveReleaseContract("alpha", `installer-v${alphaVersion}`, "claude", alphaVersion).ok).toBe(false);
   });
 
   test("rejects incomplete, malformed, unsupported, mismatched, stale, and invalid-runtime contracts", () => {
@@ -1001,19 +1000,33 @@ describe("Pi installation channel commit", () => {
 });
 
 describe("Runtime target orchestration", () => {
-  test("direct runtime selection resolves default Pi, Claude-only, and Both", () => {
+  test("distinguishes a failed optional Claude complement from a failed Ein core", () => {
+    expect(formatInstallFailure({
+      target: "both",
+      ok: false,
+      results: [
+        { target: "pi", ok: true, detail: "core ok" },
+        { target: "claude", ok: false, detail: "addon failed" },
+      ],
+    })).toBe("Ein con Pi está listo, pero Claude Code no pudo añadirse.");
+    expect(formatInstallFailure({
+      target: "pi",
+      ok: false,
+      results: [{ target: "pi", ok: false, detail: "core failed" }],
+    })).toBe("Instalación de Ein incompleta.");
+  });
+
+  test("direct runtime selection resolves Ein or Ein plus Claude", () => {
     expect(resolveInstallTarget(undefined, parseInstallFlags(["--yes"]).runtime)).toBe("pi");
-    expect(resolveInstallTarget(undefined, parseInstallFlags(["--runtime", "claude"]).runtime)).toBe("claude");
     expect(resolveInstallTarget(undefined, parseInstallFlags(["--runtime", "both"]).runtime)).toBe("both");
   });
 
   test("explicit menu target takes precedence over direct runtime selection", () => {
-    expect(resolveInstallTarget("claude", parseInstallFlags(["--runtime", "both"]).runtime)).toBe("claude");
+    expect(resolveInstallTarget("pi", parseInstallFlags(["--runtime", "both"]).runtime)).toBe("pi");
   });
 
-  test("target contract keeps Pi and Claude distinct and orders both Pi then Claude", () => {
+  test("target contract always starts with Pi and appends Claude when requested", () => {
     expect(getInstallTargets("pi")).toEqual(["pi"]);
-    expect(getInstallTargets("claude")).toEqual(["claude"]);
     expect(getInstallTargets("both")).toEqual(["pi", "claude"]);
   });
 
@@ -1039,7 +1052,7 @@ describe("Runtime target orchestration", () => {
     expect(result.results.map((item) => item.target)).toEqual(["pi", "claude"]);
   });
 
-  test("both continues after one target fails and aggregates independent results", async () => {
+  test("never attempts the Claude complement when the Ein core fails", async () => {
     const calls: string[] = [];
     const result = await orchestrateInstall("both", {
       prepareBun: async () => ({ ok: true, detail: "bun ready" }),
@@ -1055,11 +1068,10 @@ describe("Runtime target orchestration", () => {
       },
     });
 
-    expect(calls).toEqual(["pi", "claude"]);
+    expect(calls).toEqual(["pi"]);
     expect(result.ok).toBe(false);
     expect(result.results).toEqual([
       { target: "pi", ok: false, detail: "pi failed" },
-      { target: "claude", ok: true, detail: "claude ok" },
     ]);
   });
 });

@@ -1,7 +1,7 @@
 // =============================================================================
 // CLI: bootstrap runtime prompt (no-arg default)
-// `ein-install` with no arguments installs. It asks one question — which
-// runtime — because that is a real bootstrap decision. It does NOT offer the
+// `ein-install` with no arguments installs Ein. Pi is always the core; the one
+// question only decides whether to add Claude Code. It does NOT offer the
 // lifecycle actions: those live behind `ein`, and offering them twice is what
 // forced two visual grammars for the same administration.
 // =============================================================================
@@ -9,7 +9,7 @@
 import * as p from "../tui/ui.ts";
 import { playBanner } from "../tui/banner.ts";
 import { RUNTIME_PROMPT_OPTIONS, type RuntimePromptOption } from "./runtime-options.ts";
-import { runInstall, type InstallTarget } from "./install.ts";
+import { runInstall, type InstallSelection } from "./install.ts";
 type RuntimePrompt = (options: {
   message: string;
   options: readonly RuntimePromptOption[];
@@ -17,7 +17,7 @@ type RuntimePrompt = (options: {
 
 export type RunBootstrapInstallOptions = {
   runtimePrompt?: RuntimePrompt;
-  runInstall?: (args: string[], target: InstallTarget) => Promise<number>;
+  runInstall?: (args: string[], target: InstallSelection) => Promise<number>;
   playBanner?: () => Promise<void>;
   isCancel?: (value: unknown) => boolean;
   write?: (line: string) => void;
@@ -26,12 +26,12 @@ export type RunBootstrapInstallOptions = {
 export async function selectInstallTarget(
   prompt?: RuntimePrompt,
   isCancel: (value: unknown) => boolean = p.isCancel,
-  message = "Que runtime quieres instalar?",
-): Promise<InstallTarget | null> {
+  message = "Quieres añadir Claude Code como complemento?",
+): Promise<InstallSelection | null> {
   const target = prompt
     ? await prompt({ message, options: RUNTIME_PROMPT_OPTIONS })
     : await p.select({ message, options: RUNTIME_PROMPT_OPTIONS });
-  return isCancel(target) ? null : (target as InstallTarget);
+  return isCancel(target) ? null : (target as InstallSelection);
 }
 
 export async function runBootstrapInstall(options: RunBootstrapInstallOptions = {}): Promise<number> {
@@ -43,8 +43,8 @@ export async function runBootstrapInstall(options: RunBootstrapInstallOptions = 
   // queda congelado (curl|bash en macOS: kqueue no puede poll /dev/tty). Decir
   // que falta el runtime es util; colgarse esperando una tecla no lo es.
   if (!process.stdin.isTTY) {
-    write("ein-install: sin terminal no se puede preguntar por el runtime.");
-    write("Pasalo explicito: ein-install install --runtime pi|claude|both");
+    write("ein-install: sin terminal no se puede preguntar si quieres añadir Claude Code.");
+    write("Pásalo explícito: ein-install install --runtime pi|both");
     return 0;
   }
 

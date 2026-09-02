@@ -28,9 +28,9 @@ Si falta, añádelo a la configuración de tu shell y abre una terminal nueva.
 
 Son funciones de shell que instala `ein-install install`. Si el comando no aparece:
 
-1. Comprueba que instalaste ese runtime: `ein-install doctor` te lo dice.
+1. Comprueba el núcleo con `ein-install doctor`; para `ein-cc`, comprueba además que añadiste Claude.
 2. Abre una terminal nueva — las funciones se cargan al arrancar el shell.
-3. Si sigue sin estar: `ein-install install --runtime pi` (o `claude`).
+3. Si sigue sin estar: `ein-install install --runtime pi` para Ein o `--runtime both` para repararlo también con Claude.
 
 La entrada normal sigue siendo `ein`; estos dos comandos son accesos directos
 avanzados.

@@ -5,12 +5,12 @@ sources: ["README.md", "ein-cc/README.md", "openspec/changes/archive/core-parity
 verified_rev: "eeceb7c"
 ---
 
-Pi es el runtime de referencia de EIN. Claude Code actúa como relevo para continuar un cambio cuando conviene, pero no es una copia de la sesión de Pi ni ofrece las mismas superficies.
+Pi es el núcleo de EIN. Claude Code actúa como relevo opcional para continuar un cambio cuando conviene, pero no es una instalación alternativa, una copia de la sesión de Pi ni ofrece las mismas superficies.
 
 ## Instalar y abrir
 
 ```bash
-ein-install install --runtime claude
+ein-install install --runtime both       # instala Ein y añade Claude
 ein                         # entrada normal
 ein-cc                      # acceso directo avanzado
 ```

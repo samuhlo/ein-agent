@@ -12,7 +12,8 @@ No es un agente. No es un modelo. Es lo que rodea al agente para que el trabajo
 salga en piezas pequeñas, verificadas y explicadas, en lugar de en un volcado de
 código que nadie revisa.
 
-Hoy se despliega sobre dos runtimes: **Pi Coding Agent** y **Claude Code**.
+El runtime de EIN es **Pi Coding Agent**. **Claude Code** puede añadirse como
+relevo opcional para continuar trabajo sobre el mismo estado del proyecto.
 
 ## El problema
 

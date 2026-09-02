@@ -1,11 +1,12 @@
 ---
 title: "Runtimes"
-description: "EIN tiene un núcleo compartido y dos adaptadores que no son idénticos."
+description: "Pi es el núcleo de EIN y Claude Code un relevo opcional."
 sources: ["README.md", "ein-cc/README.md", "ein-pi/README.md", "openspec/specs/installer-runtime/spec.md"]
 verified_rev: "eeceb7c"
 ---
 
-EIN se despliega sobre dos runtimes: **Pi Coding Agent** y **Claude Code**.
+EIN funciona sobre **Pi Coding Agent**. **Claude Code** es un relevo opcional
+para continuar un cambio cuando conviene, no una instalación alternativa.
 
 Normalmente se entra por `ein` y se elige runtime en la aplicación. `ein-pi` y
 `ein-cc` son atajos avanzados para saltarse esa selección.
@@ -65,16 +66,15 @@ núcleo agnóstico no significa que EIN funcione sobre cualquier agente.
 Hoy la superficie soportada son estos dos. Cada uno necesitó su adaptador, y
 añadir un tercero sería trabajo, no configuración.
 
-## Instalar uno, otro o los dos
+## Instalar Ein o añadir Claude
 
 ```bash
 ein-install install --runtime pi
-ein-install install --runtime claude
 ein-install install --runtime both
 ```
 
-`both` despliega ambos sin mezclar sus rutas ni sus artefactos. Cada uno mantiene
-su casa y su runtime vanilla intacto.
+`pi` instala Ein. `both` instala Ein y después añade Claude, sin mezclar rutas ni
+artefactos. No existe una instalación nueva Claude-only.
 
 ## Continuidad entre ellos
 

@@ -2,7 +2,7 @@
   <img src="docs-site/public/assets/brand/ein-logo.png" alt="Ein · coding-agent harness" width="440">
   <h1><code>./EIN.sh</code></h1>
 
-**Un harness de coding-agent para Pi Coding Agent y Claude Code: dos runtimes aislados, una disciplina de entrega.**
+**Un harness de coding-agent construido sobre Pi, con Claude Code como relevo opcional.**
 
 [Documentación](https://samuhlo.github.io/ein-agent/) ·
 [Releases](https://github.com/samuhlo/ein-agent/releases/latest) ·
@@ -28,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/in
 ein
 ```
 
-El menú pregunta el runtime: **Pi**, **Claude Code** o **Both**. Sin menú: `ein install --runtime pi|claude|both`.
+Ein instala siempre su núcleo Pi. El menú solo pregunta si quieres añadir **Claude Code** como relevo opcional. Sin menú: `ein install --runtime pi|both`.
 
 Guía completa en [Getting Started](https://samuhlo.github.io/ein-agent/00-start/getting-started/).
 
@@ -40,11 +40,10 @@ Ein ataca las dos cosas: parte el trabajo en fases con contrato, y deja el estad
 
 ## // 02_ RUNTIME_SURFACE
 
-| ELECCIÓN | SUPERFICIE | HOGAR DE EIN | RUNTIME VANILLA |
+| PAPEL | SUPERFICIE | HOGAR DE EIN | RUNTIME VANILLA |
 | :--- | :--- | :--- | :--- |
-| **Pi** | `ein-pi` | `~/.pi-ein/agent` | `pi` → `~/.pi/agent` |
-| **Claude Code** | `ein-cc` | `~/.claude-ein` | `claude` → `~/.claude` |
-| **Both** | ambas | ambos hogares | ambos intactos |
+| **Núcleo · Pi** | `ein-pi` | `~/.pi-ein/agent` | `pi` → `~/.pi/agent` |
+| **Complemento · Claude Code** | `ein-cc` | `~/.claude-ein` | `claude` → `~/.claude` |
 
 Comparten el núcleo, **no las capacidades**. Las diferencias, sin maquillar, en la [matriz de runtimes](https://samuhlo.github.io/ein-agent/03-runtimes/runtime-matrix/).
 
@@ -78,7 +77,7 @@ ein-agent/
 
 | LAYER | TECH |
 | :--- | :--- |
-| **Runtimes** | Pi Coding Agent · Claude Code |
+| **Runtime** | Pi Coding Agent · Claude Code como complemento opcional |
 | **Core** | TypeScript + Bun |
 | **Workflow** | OpenSpec + SDD |
 | **Docs** | Astro + Starlight |
@@ -99,7 +98,7 @@ que sigue en el `PATH` como arranque y escotilla de reparación: si lo que está
 roto es `ein`, la reparación no puede pasar por `ein`.
 
 ```bash
-ein-install         # instala, preguntando solo el runtime
+ein-install         # instala Ein y pregunta si añadir Claude Code
 ein-install doctor  # el mismo diagnóstico, sin depender de la aplicación
 ein-install update --channel alpha   # cambia a alpha y la deja como preferencia
 ein-install update --channel stable  # vuelve a estable y la deja como preferencia

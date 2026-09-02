@@ -155,11 +155,11 @@ function printHelp(): void {
   console.log("");
   console.log("uso: ein-install [comando]");
   console.log("");
-  console.log("sin comando: instala, preguntando solo el runtime.");
+  console.log("sin comando: instala Ein y pregunta si quieres añadir Claude Code.");
   console.log("`ein` es la puerta normal; estos verbos tambien responden desde ahi.");
   console.log("");
   console.log("comandos:");
-  console.log("  install      instala/actualiza Ein (checks + deploy + secrets)");
+  console.log("  install      instala/actualiza Ein con Pi (--runtime pi|both)");
   console.log("  update       actualiza Ein y ajusta pi (--channel alpha|stable)");
   console.log("  uninstall    mueve Ein a recuperación (--runtime pi|claude|both; conserva estado privado)");
   console.log("  restore      restaura desde un backup (--pin/--unpin <nombre>)");

@@ -22,7 +22,8 @@ probadas, cosas probadas a medias y cosas que van a cambiar.
 
 ## Runtimes
 
-Los dos —Pi Coding Agent y Claude Code— están soportados y se instalan aislados.
+Pi Coding Agent es el núcleo soportado y se instala siempre. Claude Code es un
+relevo opcional con hogar aislado.
 Lo que **no** está demostrado:
 
 **El MCP externo de Claude Code no se ha ejercitado contra servicios en vivo.**

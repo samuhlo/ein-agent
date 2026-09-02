@@ -3,6 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  checkDeps,
   installClaudeCode,
   installGh,
 } from "../installer/src/core/deps.ts";
@@ -28,6 +29,10 @@ const platform = (packageManager: Platform["packageManager"]): Platform => ({
 const ok = { ok: true, code: 0, stdout: "version", stderr: "" } as const;
 
 describe("Claude Code dependency", () => {
+  test("is reported as an optional complement, never as part of Ein core", () => {
+    expect(checkDeps(platform("brew")).find(({ id }) => id === "claude")?.required).toBe(false);
+  });
+
   test("uses Anthropic's native installer and verifies the resulting executable", async () => {
     const home = "/fake/home";
     const claude = join(home, ".local", "bin", "claude");

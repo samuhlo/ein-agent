@@ -42,7 +42,7 @@ echo "/// e2e: matriz determinista de update, rollback, uninstall y launcher"
 echo "/// e2e: construyendo imagen"
 docker build -t "$IMAGE" -f "$HERE/Dockerfile.ubuntu" "$HERE"
 
-echo "/// e2e: ejecutando seis contenedores desechables"
+echo "/// e2e: ejecutando cinco contenedores desechables"
 
 run_scenario() {
   local scenario="$1"
@@ -160,6 +160,9 @@ assert_pi_surface() {
   assert_present "$pi_marker"
   assert_present "$pi_manifest"
   assert_present "$pi_launcher"
+  assert_present "$HOME/.local/bin/ein"
+  test -x "$HOME/.local/bin/ein"
+  PATH="$HOME/.local/bin:$PATH" "$HOME/.local/bin/ein" doctor >/tmp/ein-installed-app-doctor.log
   assert_exactly_one "$fish_functions" "ein-pi.fish"
   grep -Fq '"version":' "$pi_marker"
   grep -Fq 'function ein-pi' "$pi_launcher"
@@ -198,13 +201,11 @@ install_twice() {
     if [[ "$pass" -eq 1 ]]; then
       case "$scenario" in
         default-pi) seed_preserved_state pi ;;
-        claude-only) seed_preserved_state claude ;;
         both|uninstall-preservation) seed_preserved_state both ;;
       esac
     fi
     case "$scenario" in
       default-pi) snapshot_state "$pi_agent" "/tmp/ein-default-pi-state-$pass" ;;
-      claude-only) snapshot_state "$claude_home" "/tmp/ein-claude-only-state-$pass" ;;
       both|uninstall-preservation)
         snapshot_state "$pi_agent" "/tmp/ein-both-pi-state-$pass"
         snapshot_state "$claude_home" "/tmp/ein-both-claude-state-$pass"
@@ -215,15 +216,17 @@ install_twice() {
 
 case "$scenario" in
   invalid)
-    echo "== invalid runtime: no side effects =="
-    invalid_log=/tmp/ein-invalid.log
-    if ein install --yes --runtime nope --no-engram --no-secrets --no-linear >"$invalid_log" 2>&1; then
-      echo "[assert] runtime invalido fue aceptado" >&2
-      exit 1
-    fi
-    cat "$invalid_log"
-    grep -Fq "Error de opción runtime" "$invalid_log"
-    grep -Fq -- "--runtime pi|claude|both" "$invalid_log"
+    echo "== invalid and Claude-only installs: no side effects =="
+    for invalid_runtime in nope claude; do
+      invalid_log="/tmp/ein-invalid-$invalid_runtime.log"
+      if ein install --yes --runtime "$invalid_runtime" --no-engram --no-secrets --no-linear >"$invalid_log" 2>&1; then
+        echo "[assert] runtime inválido fue aceptado: $invalid_runtime" >&2
+        exit 1
+      fi
+      cat "$invalid_log"
+      grep -Fq "Error de opción runtime" "$invalid_log"
+      grep -Fq -- "--runtime pi|both" "$invalid_log"
+    done
     assert_absent "$HOME/.bun"
     assert_absent "$pi_agent"
     assert_absent "$claude_home"
@@ -312,16 +315,6 @@ case "$scenario" in
     ein doctor
     ;;
 
-  claude-only)
-    seed_claude_cli
-    install_twice --runtime claude
-    assert_claude_surface
-    assert_preserved_state claude
-    assert_absent "$pi_agent"
-    assert_absent "$pi_launcher"
-    assert_same_state /tmp/ein-claude-only-state-1 /tmp/ein-claude-only-state-2
-    ;;
-
   both)
     seed_claude_cli
     install_twice --runtime both
@@ -378,7 +371,7 @@ echo "E2E_SCENARIO_RESULT=OK:$scenario"
 EOF
 }
 
-for scenario in invalid default-pi omarchy-bun-global-bin claude-only both uninstall-preservation; do
+for scenario in invalid default-pi omarchy-bun-global-bin both uninstall-preservation; do
   run_scenario "$scenario"
 done
 

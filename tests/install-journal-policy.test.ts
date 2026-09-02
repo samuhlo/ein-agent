@@ -120,9 +120,38 @@ function doctorFailure(value: InstallPlanV1): InstallExecutionJournalV1 {
   };
 }
 
-function managedRepairPlan(home = "/tmp/ein-policy-home"): InstallPlanV1 {
+function claudeComplementFailure(value: InstallPlanV1): InstallExecutionJournalV1 {
+  const failedId = "claude.deploy-runtime";
+  const failedIndex = value.inventory.findIndex(({ id }) => id === failedId);
+  return {
+    schemaVersion: 1,
+    transactionId: "abababab-abab-4bab-abab-abababababab",
+    planDigest: installPlanDigest(value),
+    target: value.target,
+    platform: value.platform,
+    state: "recovery-required",
+    entries: value.inventory
+      .filter((entry) => entry.state === "selected" || entry.state === "conditional")
+      .map(({ id, runtime }) => {
+        const order = value.inventory.findIndex((entry) => entry.id === id);
+        return {
+          id,
+          runtime,
+          status: id === failedId
+            ? "failed" as const
+            : order < failedIndex
+              ? "completed" as const
+              : "not-run" as const,
+        };
+      }),
+    pendingEntryId: failedId,
+    recoveryCode: "handler-failed",
+  };
+}
+
+function managedRepairPlan(home = "/tmp/ein-policy-home", target: "pi" | "both" = "pi"): InstallPlanV1 {
   return createInstallPlan({
-    target: "pi",
+    target,
     home,
     piAgentDir: `${home}/.pi-ein/agent`,
     piAgentDirExists: true,
@@ -167,6 +196,18 @@ describe("install journal policy", () => {
         : entry),
     };
     expect(classifyInstallJournalResume(premature, current)).toBeNull();
+  });
+
+  test("restarts after a Claude complement failure without treating Claude as the core", () => {
+    const oldPlan = plan("both");
+    const failed = claudeComplementFailure(oldPlan);
+    const coreOnly = managedRepairPlan(oldPlan.home);
+    const withClaude = managedRepairPlan(oldPlan.home, "both");
+
+    expect(classifyInstallJournalResume(failed, coreOnly)).toBe("claude-complement-restart");
+    expect(classifyInstallJournalResume(failed, withClaude)).toBe("claude-complement-restart");
+    expect(classifyInstallJournalResume({ ...failed, recoveryCode: "interrupted" }, coreOnly)).toBeNull();
+    expect(classifyInstallJournalResume(failed, plan("pi", oldPlan.home))).toBeNull();
   });
 
   test("classifies the exact unchanged-plan retry shapes", () => {
