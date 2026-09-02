@@ -10,9 +10,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
-	installSddAssets,
 	sddGlobalAssetDriftCount,
-	sddPreflightSessionKey,
 } from "../lib/sdd-preflight.ts";
 import { readGitDeliveryMode } from "../lib/git-delivery.ts";
 import { readPersonaMode } from "../lib/persona.ts";
@@ -31,6 +29,7 @@ import { registerDelegationResultHook } from "./internal/ein-delegation-results.
 import { createPiIntentGate } from "./internal/ein-pi-intent-gate.ts";
 import { registerToolCallGate } from "./internal/ein-tool-call-gate.ts";
 import { registerOpenSpecWriteTools } from "./internal/ein-openspec-write-tools.ts";
+import { registerRuntimeCommands } from "./internal/ein-runtime-commands.ts";
 import { registerSessionLifecycle } from "./internal/ein-session-lifecycle.ts";
 import { registerSddLifecycleTools } from "./internal/ein-sdd-lifecycle-tools.ts";
 import { registerSddChangeSettings } from "./internal/ein-sdd-change-settings.ts";
@@ -45,8 +44,6 @@ import { AGENT_DIR } from "./ein-paths";
 import type { ScoutTracking } from "../lib/scout-contract.ts";
 import {
 	readAgentControlStatus,
-	routeAgentControl,
-	type EinInternalAgent,
 } from "../lib/agent-controls.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
@@ -69,62 +66,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		recordDeliveryIntent: toolCallGate.recordDeliveryIntent,
 	});
 	registerAgentPromptHook(pi, intentGate);
-
-	pi.registerCommand("ein:ai:install-sdd", {
-		description: t(
-			"cmd.install-sdd.description",
-			"Reinstalar o refrescar los agentes y chains SDD globales de Ein",
-		),
-		handler: async (args, ctx) => {
-			const force = args.includes("--force");
-			const result = installSddAssets(ctx.cwd, force);
-			ctx.ui.notify(
-				tf(
-					"ai.sdd.installed",
-					`Assets SDD: ${result.agents} agente(s), ${result.chains} chain(s), ${result.support} soporte disponibles (${result.installed} instalados, ${result.skipped} ya presentes).`,
-					result.agents,
-					result.chains,
-					result.support,
-					result.installed,
-					result.skipped,
-				),
-				"info",
-			);
-		},
-	});
-
-	pi.registerCommand("ein:ai:sdd-preflight", {
-		description: t(
-			"cmd.sdd-preflight.description",
-			"Ejecutar o reutilizar el preflight SDD para esta sesion de Pi",
-		),
-		handler: async (_args, ctx) => {
-			await sessionLifecycle.runSddPreflight(ctx);
-		},
-	});
-
-	const registerAgentControl = (agent: EinInternalAgent): void => {
-		pi.registerCommand(`ein:${agent}`, {
-			description: `Route an explicit ${agent} request or set this session's automatic participation (on/off/status)`,
-			handler: async (args, ctx) => {
-				const result = routeAgentControl(ctx.cwd, sddPreflightSessionKey(ctx), agent, String(args ?? ""));
-				if (result.kind === "request") {
-					pi.sendUserMessage(result.prompt);
-					return;
-				}
-				if (result.kind === "usage") {
-					ctx.ui.notify(result.message, "warning");
-					return;
-				}
-				ctx.ui.notify(
-					`${agent}: ${result.status.enabled ? "on" : "off"} (${result.status.source}); automatic SDD participation only`,
-					"info",
-				);
-			},
-		});
-	};
-	registerAgentControl("cleaner");
-	registerAgentControl("architect");
+	registerRuntimeCommands(pi, sessionLifecycle.runSddPreflight);
 
 	const registerEinTool = createEinToolRegistrar(pi);
 
