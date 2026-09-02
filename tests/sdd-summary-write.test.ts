@@ -3,9 +3,12 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { writeSddSummary } from "../ein-pi/agent/lib/sdd-summary-write.ts";
+import * as piSummaryWriter from "../ein-pi/agent/lib/sdd-summary-write.ts";
+import * as sharedSummaryWriter from "../shared/sdd/sdd-summary-write.ts";
 import { runSummaryCommand } from "../ein-cc/sdd-cli/cli.ts";
 import { collectSddRemedies } from "../ein-pi/agent/lib/sdd-remedies.ts";
+
+const { writeSddSummary } = sharedSummaryWriter;
 
 let cwd: string;
 
@@ -19,6 +22,10 @@ afterEach(() => {
 });
 
 describe("writeSddSummary — deterministic persistence channel for sdd-close", () => {
+	test("Pi and the shared owner expose the same implementation", () => {
+		expect(piSummaryWriter.writeSddSummary).toBe(sharedSummaryWriter.writeSddSummary);
+	});
+
 	test("writes summary.md at the computed path when the change exists and content is non-empty", () => {
 		const result = writeSddSummary({ cwd, change: "probe", content: "## // 000. RESUMEN\nOk.\n" });
 		expect(result.ok).toBe(true);

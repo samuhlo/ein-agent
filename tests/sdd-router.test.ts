@@ -9,6 +9,9 @@ import { join } from "node:path";
 import { assessCloseReadiness, changeUnavailableMessage, listActiveChanges, resolveSddNext, resolveSddPlanPreview, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
 import { planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
 import { serializeOpenSpec } from "../ein-pi/agent/lib/openspec-spec-contract";
+import { createAssessCloseReadiness } from "../shared/sdd/sdd-close-readiness";
+
+const assessSharedCloseReadiness = createAssessCloseReadiness({ resolveSddStatus });
 
 let DIR: string;
 function change(name: string): string {
@@ -427,6 +430,7 @@ describe("assessCloseReadiness", () => {
 			{ code: "spec-unresolved", message: "estado de specs OpenSpec: unresolved." },
 		]);
 		expect(readiness.reasons).toEqual(readiness.blockers.map((blocker) => blocker.message));
+		expect(assessSharedCloseReadiness(DIR, "blocked")).toEqual(readiness);
 	});
 
 	test("reconoce solamente el registro canónico declarationless completo", () => {

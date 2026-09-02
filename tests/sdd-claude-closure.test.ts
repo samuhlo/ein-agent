@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { collectSourceClosure } from "../installer/scripts/bundle-ein-cc.ts";
@@ -19,6 +20,9 @@ const RETIRED_INTENT_COLLATERAL = [
 ] as const;
 const RETIRED_ROUTING_COLLATERAL = ["ein-pi/agent/lib/sdd-router.ts"] as const;
 const RETIRED_REMEDIES_COLLATERAL = ["ein-pi/agent/lib/sdd-remedies.ts"] as const;
+const RETIRED_SUMMARY_COLLATERAL = ["ein-pi/agent/lib/sdd-summary-write.ts"] as const;
+const RETIRED_DELTA_COLLATERAL = ["ein-pi/agent/lib/openspec-delta-write.ts"] as const;
+const RETIRED_SYNC_COLLATERAL = ["ein-pi/agent/lib/openspec-spec-sync-fs.ts"] as const;
 
 function runtimeClosure(entries: readonly string[]): string[] {
 	return collectSourceClosure(ROOT, entries)
@@ -48,6 +52,44 @@ describe("Claude SDD runtime closure", () => {
 
 		expect(closure).toContain("shared/sdd/sdd-remedies.ts");
 		for (const path of RETIRED_REMEDIES_COLLATERAL) expect(closure).not.toContain(path);
+	});
+
+	test("keeps the historical Pi summary writer outside the complete Claude payload", () => {
+		const closure = runtimeClosure(EIN_CC_PAYLOAD_SOURCE_ENTRIES);
+
+		expect(closure).toContain("shared/sdd/sdd-summary-write.ts");
+		for (const path of RETIRED_SUMMARY_COLLATERAL) expect(closure).not.toContain(path);
+	});
+
+	test("keeps the historical Pi delta writer outside the complete Claude payload", () => {
+		const closure = runtimeClosure(EIN_CC_PAYLOAD_SOURCE_ENTRIES);
+
+		expect(closure).toContain("shared/sdd/openspec-delta-write.ts");
+		for (const path of RETIRED_DELTA_COLLATERAL) expect(closure).not.toContain(path);
+	});
+
+	test("keeps the historical Pi sync adapter outside the complete Claude payload", () => {
+		const closure = runtimeClosure(EIN_CC_PAYLOAD_SOURCE_ENTRIES);
+
+		expect(closure).toContain("shared/sdd/openspec-spec-sync-fs.ts");
+		for (const path of RETIRED_SYNC_COLLATERAL) expect(closure).not.toContain(path);
+	});
+
+	test("serves validation from shared without a validation bridge in the public port", () => {
+		const closure = runtimeClosure(EIN_CC_PAYLOAD_SOURCE_ENTRIES);
+		const portSource = readFileSync(join(ROOT, "shared/ports/sdd.ts"), "utf8");
+
+		expect(closure).toContain("shared/sdd/sdd-change-validation.ts");
+		expect(portSource).not.toContain("../../ein-pi/agent/lib/sdd-guardrails.ts");
+	});
+
+	test("serves close from the shared engine without a close bridge in the public port", () => {
+		const closure = runtimeClosure(EIN_CC_PAYLOAD_SOURCE_ENTRIES);
+		const portSource = readFileSync(join(ROOT, "shared/ports/sdd.ts"), "utf8");
+
+		expect(closure).toContain("shared/sdd/sdd-close-engine.ts");
+		expect(closure).toContain("shared/sdd/sdd-close-compaction.ts");
+		expect(portSource).not.toContain("../../ein-pi/agent/lib/sdd-close.ts");
 	});
 });
 

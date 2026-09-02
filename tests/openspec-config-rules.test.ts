@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { parseConfigRules, readConfigRules } from "../ein-pi/agent/lib/openspec-config-rules.ts";
+import {
+	parseConfigRules as parseSharedConfigRules,
+	readConfigRules as readSharedConfigRules,
+} from "../shared/sdd/openspec-config-rules.ts";
 import { lintDesignArtifact } from "../ein-pi/agent/lib/sdd-guardrails.ts";
 
 // La forma EXACTA que escribe openspec-config-bootstrap.
@@ -34,6 +38,10 @@ afterEach(() => {
 });
 
 describe("rules de config.yaml", () => {
+	test("Pi y shared reciben el mismo parser y lector", () => {
+		expect(parseConfigRules).toBe(parseSharedConfigRules);
+		expect(readConfigRules).toBe(readSharedConfigRules);
+	});
 	test("lee la forma que escribe el bootstrap, comentario incluido", () => {
 		const rules = parseConfigRules(BOOTSTRAP_CONFIG);
 		expect(rules.design?.requireProblemStatement).toBe(true);

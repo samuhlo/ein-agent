@@ -11,14 +11,40 @@ import {
 	parseOpenSpecDelta,
 	serializeOpenSpecDelta,
 } from "../ein-pi/agent/lib/openspec-spec-parser";
+import {
+	OPEN_SPEC_FORMAT as SHARED_OPEN_SPEC_FORMAT,
+	serializeOpenSpec as serializeSharedOpenSpec,
+} from "../shared/sdd/openspec-spec-contract.ts";
+import {
+	parseOpenSpec as parseSharedOpenSpec,
+	parseOpenSpecDelta as parseSharedOpenSpecDelta,
+} from "../shared/sdd/openspec-spec-parser.ts";
 import { evaluateOpenSpecState, parseSyncReport, planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
+import {
+	evaluateOpenSpecState as evaluateSharedOpenSpecState,
+	planOpenSpecSync as planSharedOpenSpecSync,
+	serializeSyncReport as serializeSharedSyncReport,
+} from "../shared/sdd/openspec-spec-sync.ts";
 import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs";
+import { synchronizeOpenSpecFilesystem as synchronizeSharedOpenSpecFilesystem } from "../shared/sdd/openspec-spec-sync-fs.ts";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, sep } from "node:path";
 
 describe("openspec-spec/v1 contract", () => {
+	test("el lenguaje compartido conserva exactamente el contrato de Pi", () => {
+		const document = { domain: "sdd-lifecycle", scenarios: [{ id: "alpha", title: "Alpha", requirement: "The system MUST retain alpha", given: "an input", when: "it runs", then: "it remains alpha" }] };
+		const source = serializeOpenSpec(document);
+		expect(SHARED_OPEN_SPEC_FORMAT).toBe(OPEN_SPEC_FORMAT);
+		expect(serializeSharedOpenSpec(document)).toBe(source);
+		expect(parseSharedOpenSpec(source)).toEqual(parseOpenSpec(source));
+	});
+	test("las rutas Pi delegan en el mismo dueño compartido", () => {
+		expect(serializeOpenSpec).toBe(serializeSharedOpenSpec);
+		expect(parseOpenSpec).toBe(parseSharedOpenSpec);
+		expect(parseOpenSpecDelta).toBe(parseSharedOpenSpecDelta);
+	});
 	test("serializes scenarios by stable ID with LF and one final newline", () => {
 		const serialized = serializeOpenSpec({ domain: "sdd-lifecycle", scenarios: [{ id: "zeta", title: "Zeta", requirement: "The system MUST retain zeta", given: "a zeta input", when: "it is serialized", then: "it remains zeta" }, { id: "alpha", title: "Alpha", requirement: "The system MUST retain alpha", given: "an alpha input", when: "it is serialized", then: "it remains alpha" }] });
 		expect(serialized).toContain("## Scenario: alpha");
@@ -34,6 +60,10 @@ describe("strict OpenSpec parsers", () => {
 	test("parses a canonical spec with CRLF input", () => expect(parseOpenSpec(["# OpenSpec Specification", `format: ${OPEN_SPEC_FORMAT}`, "domain: sdd-lifecycle", "", scenario.replace("###", "##")].join("\r\n")).ok).toBe(true));
 	test("parses allowed delta operations", () => expect(parseOpenSpecDelta(["# OpenSpec Delta", "format: openspec-delta/v1", "domain: sdd-lifecycle", "", "## ADDED", scenario].join("\n")).ok).toBe(true));
 	test("rejects malformed input", () => expect(parseOpenSpec("# OpenSpec Specification\nformat: openspec-spec/v2\ndomain: sdd-lifecycle\n").ok).toBe(false));
+	test("el parser compartido conserva los mismos errores de delta", () => {
+		const malformed = "# OpenSpec Delta\nformat: openspec-delta/v1\ndomain: Bad Domain\n";
+		expect(parseSharedOpenSpecDelta(malformed)).toEqual(parseOpenSpecDelta(malformed));
+	});
 });
 
 describe("openspec-delta/v1 serializer (P0-A)", () => {
@@ -100,6 +130,15 @@ describe("deterministic OpenSpec synchronization", () => {
 	const beta = { ...alpha, id: "beta", title: "Beta" };
 	const base = serializeOpenSpec({ domain: "sdd-lifecycle", scenarios: [alpha] });
 	const delta = ["# OpenSpec Delta", "format: openspec-delta/v1", "domain: sdd-lifecycle", "", "## ADDED", "### Scenario: beta", "title: Beta", "requirement: The system MUST retain alpha", "Given: an input", "When: it runs", "Then: it succeeds"].join("\n");
+
+	test("Pi y shared exponen el mismo core de sincronización", () => {
+		expect(planOpenSpecSync).toBe(planSharedOpenSpecSync);
+		expect(serializeSyncReport).toBe(serializeSharedSyncReport);
+		expect(evaluateOpenSpecState).toBe(evaluateSharedOpenSpecState);
+	});
+	test("Pi y Claude reciben el mismo adaptador de filesystem", () => {
+		expect(synchronizeOpenSpecFilesystem).toBe(synchronizeSharedOpenSpecFilesystem);
+	});
 
 	test("plans against the original snapshot and produces stable conflict evidence", () => {
 		const plan = planOpenSpecSync("change", [{ path: "specs/sdd-lifecycle/spec.md", bytes: encoder.encode(delta) }], [{ domain: "sdd-lifecycle", bytes: encoder.encode(base) }]);

@@ -7,6 +7,7 @@ import { compileClaudeSurface } from "../ein-cc/sync.ts";
 import { runDeltaCommand } from "../ein-cc/sdd-cli/cli.ts";
 import { writeOpenSpecDelta } from "../ein-pi/agent/lib/openspec-delta-write.ts";
 import { parseOpenSpecDelta } from "../ein-pi/agent/lib/openspec-spec-parser.ts";
+import { writeOpenSpecDelta as writeSharedOpenSpecDelta } from "../shared/sdd/openspec-delta-write.ts";
 
 const OPERATION = {
 	kind: "ADDED",
@@ -32,6 +33,9 @@ afterEach(() => {
 });
 
 describe("OpenSpec delta writing is shared, not Pi-only", () => {
+	test("Pi y Claude reciben el mismo escritor", () => {
+		expect(writeOpenSpecDelta).toBe(writeSharedOpenSpecDelta);
+	});
 	test("structured operations become a delta that re-parses with the strict grammar", () => {
 		const result = writeOpenSpecDelta({ cwd, change: "probe", domain: "scout-routing", operations: [OPERATION] });
 		expect(result.ok).toBe(true);

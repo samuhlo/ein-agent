@@ -8,9 +8,11 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { closeChange } from "../ein-pi/agent/lib/sdd-close";
+import { closeChange, closedChangePath } from "../ein-pi/agent/lib/sdd-close";
 import { lintChange, lintPhaseArtifact, oversizedGroupWarnings } from "../ein-pi/agent/lib/sdd-guardrails";
 import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
+import { closedChangePath as sharedClosedChangePath } from "../shared/sdd/sdd-close-compaction.ts";
+import { createCloseChange } from "../shared/sdd/sdd-close-engine.ts";
 
 let DIR: string;
 function durableSummary(change: string): string {
@@ -51,6 +53,20 @@ afterEach(() => {
 });
 
 describe("closeChange", () => {
+	test("la compactación neutral conserva la ruta canónica", () => {
+		expect(closedChangePath).toBe(sharedClosedChangePath);
+		expect(sharedClosedChangePath(DIR, "feat-x")).toBe(closedChangePath(DIR, "feat-x"));
+	});
+
+	test("el motor neutral rechaza nombres inseguros antes de pedir capacidades", () => {
+		const neutralClose = createCloseChange({
+			assessCloseReadiness: () => { throw new Error("readiness must not run"); },
+			resolveSddStatus: () => { throw new Error("status must not run"); },
+			readRepositoryStateIdentity: () => { throw new Error("git must not run"); },
+		});
+		expect(neutralClose(DIR, "../escape")).toEqual(closeChange(DIR, "../escape"));
+	});
+
 	test("condensa el cambio en un único summary.md", () => {
 		makeFresh("feat-x");
 		const r = closeChange(DIR, "feat-x", { force: true });

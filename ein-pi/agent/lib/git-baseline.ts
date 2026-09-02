@@ -14,6 +14,8 @@
 
 import { execFileSync } from "node:child_process";
 
+import type { RepositoryStateIdentity } from "./sdd-reconciliation.ts";
+
 export interface GitReset {
 	// Selector del reflog, p.ej. `HEAD@{2026-07-07 17:14:53 +0200}`.
 	selector: string;
@@ -83,6 +85,28 @@ export function readGitBaseline(cwd: string, lookback = 15): GitBaseline {
 		stashes: stashRaw.split("\n").filter((l) => l.trim().length > 0).length,
 		recentReset: parseRecentReset(reflog, lookback),
 	};
+}
+
+export function readRepositoryStateIdentity(
+	cwd: string,
+	capturedAt: unknown,
+): RepositoryStateIdentity | null {
+	if (typeof capturedAt !== "string") return null;
+	try {
+		const readRevision = (revision: string) => execFileSync("git", ["-C", cwd, "rev-parse", revision], {
+			encoding: "utf8",
+			timeout: 2_000,
+			maxBuffer: 16 * 1024,
+			shell: false,
+		}).trim().toLowerCase();
+		const head = readRevision("HEAD");
+		const tree = readRevision("HEAD^{tree}");
+		return /^[a-f0-9]{40,64}$/.test(head) && /^[a-f0-9]{40,64}$/.test(tree)
+			? { head, tree, capturedAt }
+			: null;
+	} catch {
+		return null;
+	}
 }
 
 // Puro: traduce el baseline a la línea inyectada en el bloque de preflight.

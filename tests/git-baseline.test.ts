@@ -16,6 +16,7 @@ import {
 	type GitBaseline,
 	parseRecentReset,
 	readGitBaseline,
+	readRepositoryStateIdentity,
 	renderGitBaselineLine,
 	renderWorkingTreeLine,
 } from "../ein-pi/agent/lib/git-baseline";
@@ -157,6 +158,12 @@ describe("readGitBaseline (repo real)", () => {
 		const b = readGitBaseline(dir);
 		expect(b.isRepo).toBe(true);
 		expect(b.recentReset).toBeNull();
+		const identity = readRepositoryStateIdentity(dir, "2026-09-02T10:40:00.000Z");
+		expect(identity).toEqual({
+			head: execFileSync("git", ["rev-parse", "HEAD"], { cwd: dir, encoding: "utf8" }).trim(),
+			tree: execFileSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: dir, encoding: "utf8" }).trim(),
+			capturedAt: "2026-09-02T10:40:00.000Z",
+		});
 	});
 
 	test("un `reset --hard` aparece como recentReset (el incidente)", () => {

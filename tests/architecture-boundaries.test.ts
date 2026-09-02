@@ -8,6 +8,8 @@ const EXTERNAL_CONSUMER_ROOTS = ["ein-cc", "installer/src", "installer/scripts"]
 const CONTRACT_ROOT = "shared/contracts";
 const PORT_ROOT = "shared/ports";
 const SDD_CORE_ROOT = "shared/sdd";
+const SHARED_FACADE_ROOTS = [CONTRACT_ROOT, SDD_CORE_ROOT] as const;
+const SHARED_README = readFileSync(join(ROOT, "shared", "README.md"), "utf8");
 
 const ALLOWED_PI_BRIDGES = [
 	"shared/ports/continuity.ts::../../ein-pi/agent/lib/continuity-checkpoint.ts",
@@ -18,30 +20,9 @@ const ALLOWED_PI_BRIDGES = [
 	"shared/ports/runtime-payload.ts::ein-pi/agent/surfaces/surface-runner.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/git-baseline.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/guardrails.ts",
-	"shared/ports/sdd.ts::../../ein-pi/agent/lib/openspec-delta-write.ts",
-	"shared/ports/sdd.ts::../../ein-pi/agent/lib/openspec-spec-sync-fs.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/project-directives.ts",
-	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-close.ts",
-	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-guardrails.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-lane.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-preflight-record.ts",
-	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-summary-write.ts",
-] as const;
-
-const SHARED_SDD_FILES = [
-	"sdd-intent-preflight-context.ts",
-	"sdd-intent-preflight.ts",
-	"sdd-intent-resolution.ts",
-	"sdd-remedies.ts",
-	"sdd-routing-core.ts",
-] as const;
-
-const SHARED_CONTRACTS = [
-	"ein-tv.ts",
-	"memory-contract.ts",
-	"runtime-compat.ts",
-	"shared-config-update-advisor.ts",
-	"style-contract.ts",
 ] as const;
 
 function typescriptFiles(directory: string): string[] {
@@ -95,6 +76,20 @@ function importedModules(file: string): string[] {
 	);
 }
 
+function documentedSddBridges(): string[] {
+	return [...SHARED_README.matchAll(/^\| `([^`]+)` \| [^|]+ \| `[^`]+` \| [^|]+ \|$/gm)]
+		.map((match) => match[1]!)
+		.sort();
+}
+
+function expectedPiSharedFacadeReferences(): string[] {
+	return SHARED_FACADE_ROOTS.flatMap((root) =>
+		readdirSync(join(ROOT, root), { withFileTypes: true })
+			.filter((entry) => entry.isFile() && entry.name.endsWith(".ts"))
+			.map((entry) => `ein-pi/agent/lib/${entry.name}::../../../${root}/${entry.name}`),
+	).sort();
+}
+
 describe("fronteras arquitectónicas del repositorio", () => {
 	test("Claude e installer no acceden directamente a interiores de Pi", () => {
 		expect(stringLiteralsContaining(EXTERNAL_CONSUMER_ROOTS, "ein-pi/agent")).toEqual([]);
@@ -114,8 +109,26 @@ describe("fronteras arquitectónicas del repositorio", () => {
 		expect(adapterReferences).toEqual([]);
 	});
 
+	test("el código compartido no lanza procesos", () => {
+		expect(stringLiteralsContaining([CONTRACT_ROOT, SDD_CORE_ROOT], "node:child_process")).toEqual([]);
+	});
+
+	test("Pi accede a cada módulo compartido solo mediante su fachada instalable", () => {
+		expect(stringLiteralsContaining(["ein-pi/agent"], "../../../shared/")).toEqual(
+			expectedPiSharedFacadeReferences(),
+		);
+	});
+
 	test("todo puente temporal hacia Pi está centralizado y declarado", () => {
 		expect(stringLiteralsContaining([PORT_ROOT], "ein-pi/agent")).toEqual([...ALLOWED_PI_BRIDGES].sort());
+	});
+
+	test("cada puente SDD superviviente declara motivo, dueño y retirada", () => {
+		const authorized = ALLOWED_PI_BRIDGES
+			.filter((bridge) => bridge.startsWith("shared/ports/sdd.ts::"))
+			.map((bridge) => bridge.split("::")[1]!)
+			.sort();
+		expect(documentedSddBridges()).toEqual(authorized);
 	});
 
 	test("Claude adapta la intención con el contexto mínimo, sin fabricar un contexto de Pi", () => {
@@ -133,22 +146,10 @@ describe("fronteras arquitectónicas del repositorio", () => {
 
 	test("el template despliega las implementaciones compartidas, no los entrypoints de compatibilidad", () => {
 		const bundle = readFileSync(join(ROOT, "installer/scripts/bundle-template.ts"), "utf8");
-		for (const contract of SHARED_CONTRACTS) {
-			expect(existsSync(join(ROOT, CONTRACT_ROOT, contract))).toBeTrue();
-			const compatibilityEntrypoint = readFileSync(join(ROOT, "ein-pi/agent/lib", contract), "utf8");
-			expect(compatibilityEntrypoint).toContain("Compatibility entrypoint");
-			expect(compatibilityEntrypoint).toContain(`export * from "../../../shared/contracts/${contract}";`);
-			expect(bundle).toContain(`  "${contract}",`);
-		}
-		expect(bundle).toContain('copyInto(SHARED_CONTRACT_SOURCE, join(staging, "lib"), SHARED_CONTRACT_FILES, [])');
-		for (const name of SHARED_SDD_FILES) {
-			expect(existsSync(join(ROOT, SDD_CORE_ROOT, name))).toBeTrue();
-			const compatibilityEntrypoint = readFileSync(join(ROOT, "ein-pi/agent/lib", name), "utf8");
-			expect(compatibilityEntrypoint).toContain("Compatibility entrypoint");
-			expect(compatibilityEntrypoint).toContain(`shared/sdd/${name}`);
-			expect(bundle).toContain(`  "${name}",`);
-		}
-		expect(bundle).toContain('copyInto(SHARED_SDD_SOURCE, join(staging, "lib"), SHARED_SDD_FILES, [])');
+		expect(bundle).toContain("sharedTypeScriptFiles(SHARED_CONTRACT_SOURCE)");
+		expect(bundle).toContain('copyRequiredFiles(SHARED_CONTRACT_SOURCE, join(staging, "lib"), SHARED_CONTRACT_FILES)');
+		expect(bundle).toContain("sharedTypeScriptFiles(SHARED_SDD_SOURCE)");
+		expect(bundle).toContain('copyRequiredFiles(SHARED_SDD_SOURCE, join(staging, "lib"), SHARED_SDD_FILES)');
 	});
 
 	test("el diario deja una fachada fina y mantiene puras sus decisiones", () => {

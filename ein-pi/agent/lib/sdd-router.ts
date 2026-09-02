@@ -8,6 +8,7 @@ import type { SddNextReport } from "./sdd-routing-core.ts";
 
 export * from "./sdd-routing-core.ts";
 export * from "./sdd-close-readiness.ts";
+export { assessCloseReadiness } from "./sdd-close-readiness-runtime.ts";
 export {
 	listActiveChangeSummaries,
 	resolveSddNext,
