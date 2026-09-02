@@ -76,6 +76,7 @@ describe("scope-only out-of-flow reconciliation", () => {
 	test("the neutral owner preserves Pi reconciliation decisions", () => {
 		expect(SHARED_FORMAT).toBe("ein-out-of-flow-reconciliation/v1");
 		expect(SHARED_PROFILE).toBe("scope-only-out-of-flow");
+		expect(validateOutOfFlowReconciliation).toBe(validateSharedReconciliation);
 		expect(validateSharedReconciliation(validInput())).toEqual(validateOutOfFlowReconciliation(validInput()));
 		const invalid = validInput();
 		invalid.currentRepositoryState = null;
