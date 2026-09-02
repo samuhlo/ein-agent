@@ -3,6 +3,11 @@ import {
 	validateOutOfFlowReconciliation,
 	type OutOfFlowReconciliationInput,
 } from "../ein-pi/agent/lib/sdd-reconciliation.ts";
+import {
+	OUT_OF_FLOW_FORMAT as SHARED_FORMAT,
+	OUT_OF_FLOW_PROFILE as SHARED_PROFILE,
+	validateOutOfFlowReconciliation as validateSharedReconciliation,
+} from "../shared/sdd/sdd-reconciliation.ts";
 
 const repositoryState = {
 	head: "0123456789abcdef0123456789abcdef01234567",
@@ -68,6 +73,15 @@ function validInput(): OutOfFlowReconciliationInput {
 }
 
 describe("scope-only out-of-flow reconciliation", () => {
+	test("the neutral owner preserves Pi reconciliation decisions", () => {
+		expect(SHARED_FORMAT).toBe("ein-out-of-flow-reconciliation/v1");
+		expect(SHARED_PROFILE).toBe("scope-only-out-of-flow");
+		expect(validateSharedReconciliation(validInput())).toEqual(validateOutOfFlowReconciliation(validInput()));
+		const invalid = validInput();
+		invalid.currentRepositoryState = null;
+		expect(validateSharedReconciliation(invalid)).toEqual(validateOutOfFlowReconciliation(invalid));
+	});
+
 	test("accepts valid evidence for any structurally eligible change", () => {
 		const result = validateOutOfFlowReconciliation(validInput());
 		expect(result).toEqual({
