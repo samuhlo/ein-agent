@@ -135,11 +135,11 @@ describe("formatChangeLint", () => {
 // ---------------------------------------------------------------------------
 
 describe("contract: ein_sdd_check tool devuelve texto formateado", () => {
-	test("ein-ai.ts registra ein_sdd_check como tool (no como command)", () => {
-		const ai = require("fs").readFileSync(
-			join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"),
-			"utf8",
-		);
+	test("las superficies SDD registran ein_sdd_check como tool (no como command)", () => {
+		const ai = [
+			"../ein-pi/agent/extensions/ein-ai.ts",
+			"../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts",
+		].map((path) => require("fs").readFileSync(join(import.meta.dir, path), "utf8")).join("\n");
 		// La tool usa registerTool y devuelve formatChangeLint, no JSON.stringify
 		expect(ai).toMatch(/name:\s*"ein_sdd_check"/);
 		expect(ai).not.toMatch(/JSON\.stringify\(lintChange/);
@@ -151,7 +151,7 @@ describe("contract: ein_sdd_check tool devuelve texto formateado", () => {
 
 	test("el comando /ein:sdd-check usa formatChangeLint (no JSON.stringify)", () => {
 		const ai = require("fs").readFileSync(
-			join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"),
+			join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts"),
 			"utf8",
 		);
 		// El handler del comando llama a formatChangeLint

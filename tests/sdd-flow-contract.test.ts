@@ -203,7 +203,10 @@ describe("contrato interno de notebook Engram", () => {
 });
 
 describe("ein-ai: tools deterministas cableados", () => {
-	const ai = read("extensions/ein-ai.ts");
+	const ai = [
+		read("extensions/ein-ai.ts"),
+		read("extensions/internal/ein-sdd-read-surface.ts"),
+	].join("\n");
 	test("registra ein_sdd_status y ein_sdd_check", () => {
 		expect(ai).toContain('name: "ein_sdd_status"');
 		expect(ai).toContain('name: "ein_sdd_check"');

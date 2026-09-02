@@ -11,6 +11,7 @@ import { planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/opens
 
 const EIN_AI_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts");
 const SDD_PRESENTATION_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-sdd-presentation.ts");
+const SDD_READ_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts");
 const ADVISORY_TOOLS_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-advisory-tools.ts");
 const ORCHESTRATOR_PATH = join(import.meta.dir, "../runtime/assets/orchestrator.md");
 let DIR: string;
@@ -220,7 +221,7 @@ describe("intent preflight continuation", () => {
 });
 
 describe("ein:sdd-next command wiring", () => {
-	const src = readFileSync(EIN_AI_PATH, "utf8");
+	const src = readFileSync(SDD_READ_PATH, "utf8");
 	const presentation = readFileSync(SDD_PRESENTATION_PATH, "utf8");
 	const advisoryTools = readFileSync(ADVISORY_TOOLS_PATH, "utf8");
 	const orchestrator = readFileSync(ORCHESTRATOR_PATH, "utf8");
