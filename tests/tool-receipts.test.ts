@@ -314,6 +314,7 @@ describe("el detalle expandido habla como una persona", () => {
 describe("TRIANGULATE: ninguna herramienta se queda sin recibo por olvido", () => {
 	const SOURCES = [
 		new URL("../ein-pi/agent/extensions/internal/ein-tool-registration.ts", import.meta.url).pathname,
+		new URL("../ein-pi/agent/extensions/internal/ein-advisory-tools.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/ein-ai.ts", import.meta.url).pathname,
 	];
 
