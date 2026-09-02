@@ -53,6 +53,7 @@ afterEach(() => {
 
 describe("closeChange", () => {
 	test("la compactación neutral conserva la ruta canónica", () => {
+		expect(closedChangePath).toBe(sharedClosedChangePath);
 		expect(sharedClosedChangePath(DIR, "feat-x")).toBe(closedChangePath(DIR, "feat-x"));
 	});
 
