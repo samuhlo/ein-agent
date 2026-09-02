@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { inspectLinearIntegration } from "./linear-integration.ts";
 import { ENGRAM_STORE_DIRNAME } from "./memory-contract.ts";
 import {
+  isPublishedPackageVersion,
   readInstalledPiPackageVersion,
   REQUIRED_PI_PACKAGES,
 } from "./runtime-compat.ts";
@@ -191,10 +192,10 @@ export function inspectCommonDoctor(input: {
           "Comandos /skill:* activos.",
         ),
       ],
-      piPackages: REQUIRED_PI_PACKAGES.map(({ name, spec, version }) => {
+      piPackages: REQUIRED_PI_PACKAGES.map(({ name, spec }) => {
         const installed = readInstalledPiPackageVersion(agentDir, name);
         return doctorCheck(
-          settingsPackages.includes(spec) && installed === version,
+          settingsPackages.includes(spec) && isPublishedPackageVersion(installed),
           `pi package ${name}`,
           installed
             ? `Declaración ${spec}; instalada ${installed}.`

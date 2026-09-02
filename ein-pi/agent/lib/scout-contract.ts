@@ -294,12 +294,12 @@ function branchOutput(result: unknown): Pick<Branch, "finalOutput" | "runtimeUnc
 	const prefix = `${note}\n\n`;
 	if (!finalOutput.startsWith(prefix)) return { finalOutput, runtimeUncertainties: [] };
 
-	// Compatibilidad acotada con pi-subagents 0.57.0: el runner mezcla una nota
+	// Caso observado desde pi-subagents 0.57.0: el runner mezcla una nota
 	// de presentación con el payload de máquina aunque la rama haya terminado
 	// con exitCode 0. No se busca JSON heurísticamente: solo se retira la cadena
 	// exacta reconstruida desde sus metadatos estructurados. Retirar este bloque
-	// cuando la versión mínima soportada mantenga la nota fuera de finalOutput y
-	// la sonda de runtime pruebe esa semántica.
+	// cuando la versión latest ya mantenga la nota fuera de finalOutput y la
+	// sonda de runtime pruebe esa semántica.
 	return {
 		finalOutput: finalOutput.slice(prefix.length),
 		runtimeUncertainties: [{

@@ -34,11 +34,11 @@ export type UpdateRunDependencies = {
   interactive?: boolean;
   write?: (line: string) => void;
   // pi (the underlying agent) is a package-manager-owned artifact outside the
-  // transactional Ein-binary update; these hooks let it refresh alongside and
-  // keep tests off the network. Defaults hit bun/pi for real.
+  // transactional Ein-binary update; these hooks let it resolve npm latest
+  // alongside Ein and keep tests off the network. Defaults hit bun/pi for real.
   updatePi?: () => Promise<InstallStep>;
   syncPiPackages?: () => Promise<InstallStep>;
-  confirmPiUpdate?: () => Promise<boolean>;
+  confirmExternalToolsUpdate?: () => Promise<boolean>;
   // Deps externas opcionales (engram/hypa/codegraph): binarios fuera de la
   // transacción de Ein que envejecen en silencio. Este hook las refresca tras un
   // update exitoso; el default refresca las presentes de verdad.
@@ -171,25 +171,33 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
       exitCode: EXIT_FAILED,
     }
     : baseRendered;
-  for (const line of rendered.lines) write(line);
 
-  // The transactional updater above only owns the Ein binary + template +
-  // marker. pi (@earendil-works/pi-coding-agent) is installed via bun and was
-  // reconciled by the pre-transactional `ein update`; keep that promise (menu
-  // and help still say "Ein y pi") by refreshing it after a successful,
-  // non-dry-run update. Best-effort: never turns a good update into a failure.
+  // The transaction above owns the Ein binary + template + marker. Pi and its
+  // declared extensions are package-manager artifacts: resolve their moving
+  // latest tags after every successful, non-dry-run Ein update.
+  let runtimeLatest = true;
   if (rendered.exitCode === 0 && !flags.dryRun) {
-    await refreshPi(flags, dependencies, write);
+    runtimeLatest = await refreshPi(flags, dependencies, write);
     // `ein` is the terminal app and `ein-install` is this binary. Promoting on
     // every successful update is what migrates a machine still on the old
     // layout, where `ein` was the installer, in a single step.
     promoteCommands(dependencies, write);
   }
+  const finalRendered = runtimeLatest
+    ? rendered
+    : {
+      lines: [
+        ...rendered.lines.filter((line) => line !== "Actualización completada." && line !== "Ya está actualizado."),
+        "Ein se actualizó, pero Pi o sus extensiones no alcanzaron npm latest.",
+      ],
+      exitCode: EXIT_FAILED,
+    };
+  for (const line of finalRendered.lines) write(line);
 
   if (dependencies.interactive !== false) {
-    p.outro(rendered.exitCode === 0 ? "Actualización finalizada." : "Actualización no aplicada.");
+    p.outro(finalRendered.exitCode === 0 ? "Actualización finalizada." : runtimeLatest ? "Actualización no aplicada." : "Actualización incompleta: resuelve Pi latest y repite.");
   }
-  return rendered.exitCode;
+  return finalRendered.exitCode;
 }
 
 function projectExplicitChannel(
@@ -237,49 +245,56 @@ function promoteCommands(
   }
 }
 
-/** Refreshes pi and the declared Pi packages after the Ein binary transaction. */
+/** Refreshes pi and its declared extensions after the Ein binary transaction. */
 async function refreshPi(
   flags: UpdateFlags,
   dependencies: UpdateRunDependencies,
   write: (line: string) => void,
-): Promise<void> {
+): Promise<boolean> {
   const interactive = dependencies.interactive !== false;
-  const wantPi = flags.yes
-    ? true
-    : dependencies.confirmPiUpdate
-      ? await dependencies.confirmPiUpdate()
-      : interactive
-        ? await confirmPiUpdate()
-        : false;
-  if (!wantPi) return;
-
   const updatePi = dependencies.updatePi ?? installPi;
   const syncPackages = dependencies.syncPiPackages ?? installDeclaredPackages;
 
   const piSpinner = interactive ? p.spinner() : null;
-  piSpinner?.start("Ajustando pi a la versión compatible con Ein");
-  const pi = await updatePi();
-  piSpinner?.stop(pi.detail);
+  piSpinner?.start("Actualizando pi desde npm latest");
+  let pi: InstallStep;
+  try {
+    pi = await updatePi();
+  } catch {
+    pi = { ok: false, detail: "pi latest: la actualización lanzó un error" };
+  }
+  piSpinner?.stop(pi.ok ? pi.detail : "Pi latest no actualizado");
   if (!interactive) write(pi.detail);
+  else if (!pi.ok) p.log.warn(pi.detail);
 
   const pkgSpinner = interactive ? p.spinner() : null;
   pkgSpinner?.start("Verificando paquetes de Pi declarados");
-  const pkgs = await syncPackages();
-  pkgSpinner?.stop(pkgs.detail);
+  let pkgs: InstallStep;
+  try {
+    pkgs = await syncPackages();
+  } catch {
+    pkgs = { ok: false, detail: "extensiones Pi latest: la actualización lanzó un error" };
+  }
+  pkgSpinner?.stop(pkgs.ok ? pkgs.detail : "Extensiones Pi latest no actualizadas");
   if (!interactive) write(pkgs.detail);
+  else if (!pkgs.ok) p.log.warn(pkgs.detail);
 
-  // Bajo la misma confirmación que pi: las deps externas presentes forman parte
-  // de "actualizar el toolchain". Gatearlo aquí (no fuera) mantiene los tests de
-  // update sin red — un update que no confirma no toca binarios reales.
-  await refreshExternalDeps(dependencies, write);
+  const refreshExternal = flags.yes
+    ? true
+    : dependencies.confirmExternalToolsUpdate
+      ? await dependencies.confirmExternalToolsUpdate()
+      : interactive
+        ? await confirmExternalToolsUpdate()
+        : false;
+  if (refreshExternal) await refreshExternalDeps(dependencies, write);
+  return pi.ok && pkgs.ok;
 }
 
 /**
- * Refresca las deps externas presentes (engram/hypa/codegraph) tras un update
- * exitoso. Best-effort y sin confirmación aparte: son herramientas que el
- * usuario ya tiene y que envejecen en silencio porque la transacción de Ein no
- * las gestiona. Un fallo de red conserva la versión actual y nunca tumba el
- * update.
+ * Refresca, con confirmación salvo `--yes`, las herramientas externas presentes
+ * (engram/hypa/codegraph) tras un update exitoso. Un fallo de red conserva su
+ * versión actual y nunca tumba el update; no forman parte del runtime Pi que
+ * Ein declara y verifica contra npm latest.
  */
 async function refreshExternalDeps(
   dependencies: UpdateRunDependencies,
@@ -313,8 +328,8 @@ async function refreshExternalDeps(
   }
 }
 
-async function confirmPiUpdate(): Promise<boolean> {
-  const response = await p.confirm({ message: "Actualizar pi y las herramientas externas presentes (engram/hypa/codegraph)?" });
+async function confirmExternalToolsUpdate(): Promise<boolean> {
+  const response = await p.confirm({ message: "Actualizar también las herramientas externas presentes (engram/hypa/codegraph)?" });
   return p.isCancel(response) ? false : response;
 }
 

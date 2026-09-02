@@ -5,7 +5,7 @@
 // =============================================================================
 
 import { existsSync, readFileSync, renameSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import type { Platform } from "./platform.ts";
 import {
   EXTERNAL_TOOL_TIMEOUT_MS,
@@ -30,8 +30,8 @@ import {
   MISE_SHIM_DIR,
 } from "./paths.ts";
 import {
+  isPublishedPackageVersion,
   PI_HOST_SPEC,
-  PI_HOST_VERSION,
   PI_NODE_MIN_VERSION,
 } from "../../../shared/contracts/runtime-compat.ts";
 
@@ -116,7 +116,7 @@ export function inspectPiRuntime(
   const path = (deps.lookPath ?? lookPath)("pi", searchPath);
   if (!path) return { path: null, version: null, compatible: false };
   const version = (deps.readVersion ?? readPiVersion)(path);
-  return { path, version, compatible: version === PI_HOST_VERSION };
+  return { path, version, compatible: isPublishedPackageVersion(version) };
 }
 
 export type NodeRuntimeInspection = {
@@ -238,7 +238,30 @@ export type PiInstallDeps = {
   lookPath?: typeof lookPath;
   readPiVersion?: (path: string) => string | null;
   run?: typeof run;
+  runtimeEnv?: Record<string, string | undefined>;
 };
+
+type BunGlobalTarget = {
+  binDir: string;
+  globalDir: string;
+  piPath: string;
+};
+
+function existingRedirectedPiTarget(
+  canonicalBinDir: string,
+  environment: Record<string, string | undefined>,
+): BunGlobalTarget | null {
+  const binDir = environment.BUN_INSTALL_BIN?.trim();
+  const globalDir = environment.BUN_INSTALL_GLOBAL_DIR?.trim();
+  if (!binDir || !globalDir || !isAbsolute(binDir) || !isAbsolute(globalDir)) return null;
+  if (resolve(binDir) === resolve(canonicalBinDir)) return null;
+
+  const piPath = join(binDir, "pi");
+  const manifest = join(globalDir, "node_modules", "@earendil-works", "pi-coding-agent", "package.json");
+  // Never create or overwrite an arbitrary redirected `pi`: this path is
+  // reconciled only when Bun's matching scoped package is already installed.
+  return existsSync(piPath) && existsSync(manifest) ? { binDir, globalDir, piPath } : null;
+}
 
 // pi via bun global install. Lands in ~/.bun/bin/pi.
 export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> {
@@ -275,14 +298,39 @@ export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> 
     return { ok: false, detail: `'bun install -g ${PI_HOST_SPEC}' falló (${why(res)})` };
   }
   const installedVersion = (deps.readPiVersion ?? readPiVersion)(piPath);
-  if (installedVersion !== PI_HOST_VERSION) {
-    const observed = installedVersion ? `se detectó ${installedVersion}` : "no se pudo leer su versión";
+  if (!isPublishedPackageVersion(installedVersion)) {
+    const observed = installedVersion ? `devolvió una versión no válida (${installedVersion})` : "no se pudo leer su versión";
     return {
       ok: false,
-      detail: `pi en ${piPath}: ${observed}; se requiere ${PI_HOST_VERSION}`,
+      detail: `pi en ${piPath}: ${observed} tras instalar ${PI_HOST_SPEC}`,
     };
   }
-  return { ok: true, detail: `pi ${PI_HOST_VERSION} instalado` };
+
+  // Alpha installers once honored a user-wide Bun redirection and could leave
+  // a second Pi installation shadowing the canonical ~/.bun/bin runtime. Keep
+  // an existing scoped copy in lockstep, but do not create a new redirected
+  // installation merely because those environment variables are present.
+  const redirected = existingRedirectedPiTarget(bunBinDir, deps.runtimeEnv ?? process.env);
+  if (redirected) {
+    const redirectedInstall = await execute(bun, ["install", "-g", PI_HOST_SPEC], {
+      ...CAPTURED,
+      extraPath: managedPath,
+      env: {
+        BUN_INSTALL_GLOBAL_DIR: redirected.globalDir,
+        BUN_INSTALL_BIN: redirected.binDir,
+      },
+    });
+    if (!redirectedInstall.ok) {
+      return { ok: false, detail: `Pi latest canónico instalado, pero la copia Bun heredada no se actualizó (${why(redirectedInstall)})` };
+    }
+    const redirectedVersion = (deps.readPiVersion ?? readPiVersion)(redirected.piPath);
+    if (redirectedVersion !== installedVersion) {
+      const observed = redirectedVersion ?? "no resoluble";
+      return { ok: false, detail: `Pi latest quedó bifurcado: canónico ${installedVersion}; copia Bun heredada ${observed}` };
+    }
+    return { ok: true, detail: `pi ${installedVersion} instalado desde ${PI_HOST_SPEC}; copia Bun heredada reconciliada` };
+  }
+  return { ok: true, detail: `pi ${installedVersion} instalado desde ${PI_HOST_SPEC}` };
 }
 
 export type ClaudeCodeInstallDeps = {

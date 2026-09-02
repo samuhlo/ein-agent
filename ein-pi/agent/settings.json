@@ -31,11 +31,11 @@
     "bun"
   ],
   "packages": [
-    "npm:pi-subagents@0.57.0",
-    "npm:pi-mcp-adapter@2.28.0",
-    "npm:context-mode@1.0.169",
-    "npm:@juicesharp/rpiv-ask-user-question@2.7.1",
-    "npm:@juicesharp/rpiv-i18n@2.7.1"
+    "npm:pi-subagents@latest",
+    "npm:pi-mcp-adapter@latest",
+    "npm:context-mode@latest",
+    "npm:@juicesharp/rpiv-ask-user-question@latest",
+    "npm:@juicesharp/rpiv-i18n@latest"
   ],
   "subagents": {
     "disableBuiltins": true
