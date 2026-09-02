@@ -51,7 +51,7 @@ export type {
 	SddIntentPreflightOutcome,
 } from "../sdd/sdd-intent-resolution.ts";
 export { writeOpenSpecDelta } from "../../ein-pi/agent/lib/openspec-delta-write.ts";
-export { writeSddSummary } from "../../ein-pi/agent/lib/sdd-summary-write.ts";
+export { writeSddSummary } from "../sdd/sdd-summary-write.ts";
 export { synchronizeOpenSpecFilesystem } from "../../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
 export {
 	evaluateDeniedCommand,
