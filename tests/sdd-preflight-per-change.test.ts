@@ -82,6 +82,10 @@ const resolveSddIntentPreflight = (
 ) => resolveSddIntentPreflightWithContext(piSddIntentPreflightContext(ctx), input);
 
 const EIN_AI_SOURCE = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
+const TOOL_CALL_GATE_SOURCE = readFileSync(
+	join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-tool-call-gate.ts"),
+	"utf8",
+);
 
 const CALLBACKS = {
 	pi: {} as never,
@@ -111,7 +115,7 @@ describe("Pi intent ownership across hooks", () => {
 		expect(inputHook.match(/runPiIntentPreflight\(/g)).toHaveLength(1);
 		expect(EIN_AI_SOURCE).toContain('pi.on("input"');
 		expect(EIN_AI_SOURCE).toContain("piIntentGateDirective");
-		expect(EIN_AI_SOURCE).toContain("piIntentToolBlockReason");
+		expect(TOOL_CALL_GATE_SOURCE).toContain("piIntentToolBlockReason");
 	});
 
 	test("read-only bypasses while uncertain modification fails closed", () => {

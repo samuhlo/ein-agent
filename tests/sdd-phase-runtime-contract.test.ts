@@ -30,6 +30,10 @@ const delegationResults = readFileSync(
   join(AGENT_DIR, "extensions/internal/ein-delegation-results.ts"),
   "utf8",
 );
+const toolCallGate = readFileSync(
+  join(AGENT_DIR, "extensions/internal/ein-tool-call-gate.ts"),
+  "utf8",
+);
 
 const PHASE_AGENTS = [
   "sdd-scope.md",
@@ -178,7 +182,7 @@ describe("P5: foto de fase para reconciliar, sin ampliar el input del subagent",
     expect(delegationResults).toContain("before: snapshotPhaseArtifacts(cwd, phase)");
     expect(delegationResults).toContain("reconcilePhaseFailure(");
     expect(delegationResults).toContain("snapshot.before");
-    expect(einAi).toContain("delegationResults.rememberPhaseSnapshot(");
+    expect(toolCallGate).toContain("dependencies.rememberPhaseSnapshot(");
     // El ledger de procedencia se retiró: la delegación no mints receipts ni observa coste.
     expect(delegationResults).not.toContain("beginDelegationObservation");
     expect(delegationResults).not.toContain("observeDelegationResult");

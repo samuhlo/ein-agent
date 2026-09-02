@@ -277,6 +277,7 @@ describe("ein-ai: tools deterministas cableados", () => {
 describe("adapter Pi: un solo iniciador de intención", () => {
 	const ai = read("extensions/ein-ai.ts");
 	const intentGate = read("extensions/internal/ein-pi-intent-gate.ts");
+	const toolCallGate = read("extensions/internal/ein-tool-call-gate.ts");
 
 	test("el hook input arma y resuelve intención mediante el contrato compartido", () => {
 		expect(intentGate).toContain("resolveSddIntentPreflight");
@@ -293,7 +294,7 @@ describe("adapter Pi: un solo iniciador de intención", () => {
 
 	test("los hooks secundarios nunca inician interacción y bloquean construcción pendiente", () => {
 		const beforeStart = ai.match(/pi\.on\("before_agent_start"[\s\S]*?\n\t}\);/)?.[0] ?? "";
-		const toolCall = ai.match(/pi\.on\("tool_call"[\s\S]*?\n\t}\);/)?.[0] ?? "";
+		const toolCall = toolCallGate.match(/pi\.on\("tool_call"[\s\S]*?\n\t}\);/)?.[0] ?? "";
 		expect(beforeStart).not.toContain("runPiIntentPreflight(");
 		expect(beforeStart).not.toContain("runSddPreflight(ctx)");
 		expect(beforeStart).toContain("adoptPiIntentGate");
@@ -301,6 +302,7 @@ describe("adapter Pi: un solo iniciador de intención", () => {
 		expect(toolCall).not.toContain("runPiIntentPreflight(");
 		expect(toolCall).toContain("adoptPiIntentGate");
 		expect(toolCall).toContain("piIntentToolBlockReason");
+		expect(ai).not.toContain('pi.on("tool_call"');
 	});
 });
 

@@ -13,15 +13,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
-	ensureApplyAcceptance,
-	ensureApplyTurnBudget,
-	ensurePhaseRuntime,
-	ensureDelegationAcceptance,
-	ensureParticipantForeground,
-	isSddParticipantMarker,
-	ensurePlanningAcceptance,
 	ensureSddPreflight,
-	gateTddForDelegation,
 	getSddPreflightPreferences,
 	getSddSessionMemory,
 	installSddAssets,
@@ -33,13 +25,7 @@ import {
 	type SddPreflightPreferences,
 } from "../lib/sdd-preflight.ts";
 import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";
-import { collectDelegationItems, delegationShapeIsUnrecognized } from "../lib/delegation-shape.ts";
-import {
-	type DeliveryIntent,
-	deliveryIntentActive,
-	nextDeliveryIntent,
-	readGitDeliveryMode,
-} from "../lib/git-delivery.ts";
+import { readGitDeliveryMode } from "../lib/git-delivery.ts";
 import { buildEinPrompt, readPersonaMode } from "../lib/persona.ts";
 import {
 	LANG_LABEL,
@@ -48,7 +34,6 @@ import {
 	readChatLang,
 } from "../lib/lang.ts";
 import { t, tf } from "../lib/i18n/strings.ts";
-import { maybeWrapBashInput } from "../lib/hypa.ts";
 import { runOnboarding } from "../lib/onboarding.ts";
 import {
 	codegraphDirective,
@@ -56,17 +41,12 @@ import {
 	shouldOfferCodegraphInit,
 } from "../lib/codegraph.ts";
 import { readLinearIntegration } from "../lib/linear-integration.ts";
-import {
-	confirmCommand,
-	confirmDelegatedDelivery,
-} from "../lib/guardrails.ts";
 import { applySavedModelConfig, modelConfigPath } from "../lib/model-config.ts";
 import { registerAdvisoryTools } from "./internal/ein-advisory-tools.ts";
 import { registerGeneralCommands } from "./internal/ein-general-commands.ts";
 import { canonicalSpecPrompt } from "./internal/ein-canonical-spec-context.ts";
 import {
 	isNamedAgentStartEvent,
-	isRecord,
 	isSddAgentStartEvent,
 	readAgentStartNames,
 	readAgentTask,
@@ -74,6 +54,7 @@ import {
 } from "./internal/ein-pi-event-contracts.ts";
 import { registerDelegationResultHook } from "./internal/ein-delegation-results.ts";
 import { createPiIntentGate } from "./internal/ein-pi-intent-gate.ts";
+import { registerToolCallGate } from "./internal/ein-tool-call-gate.ts";
 import { registerOpenSpecWriteTools } from "./internal/ein-openspec-write-tools.ts";
 import {
 	memoryLifecycleForSession,
@@ -96,8 +77,7 @@ import {
 } from "../lib/project-context.ts";
 import { AGENT_DIR } from "./ein-paths";
 import { readInstalledVersion, staleSessionNudge } from "../lib/session-version";
-import { evaluateStaging } from "../lib/git-staging.ts";
-import { normalizeScoutLaunch, type ScoutTracking } from "../lib/scout-contract.ts";
+import type { ScoutTracking } from "../lib/scout-contract.ts";
 import {
 	clearAgentControlSession,
 	internalAgentRoutingDirective,
@@ -105,18 +85,11 @@ import {
 	routeAgentControl,
 	type EinInternalAgent,
 } from "../lib/agent-controls.ts";
-import { admitSddParticipantCall, clearSddParticipantSession, type SddParticipant } from "../lib/sdd-participants.ts";
+import { clearSddParticipantSession } from "../lib/sdd-participants.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
-const deliveryIntentBySession = new Map<string, DeliveryIntent>();
-
 const scoutTracking: ScoutTracking = new Map();
-
-// Sesiones ya avisadas del drift de forma. Un aviso por sesión: el problema es
-// del runtime instalado, no de la delegación concreta, y repetirlo en cada
-// llamada solo taparía el resto.
-const shapeDriftWarned = new Set<string>();
 
 // Versión instalada al arrancar cada sesión + sesiones ya avisadas: si `ein
 // update` corre a mitad de sesión, esta sigue con la plantilla vieja → nudge de
@@ -129,6 +102,11 @@ const staleSessionNudged = new Set<string>();
 export default function einAi(pi: ExtensionAPI): void {
 	const intentGate = createPiIntentGate();
 	const delegationResults = registerDelegationResultHook(pi, scoutTracking);
+	const toolCallGate = registerToolCallGate(pi, {
+		intentGate,
+		scoutTracking,
+		rememberPhaseSnapshot: delegationResults.rememberPhaseSnapshot,
+	});
 
 	async function runSddPreflight(ctx: ExtensionContext): Promise<SddPreflightPreferences> {
 		const preferences = await ensureSddPreflight(ctx, {
@@ -223,11 +201,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		// entrega en `tool_call` (modo git `auto`). Se evalúa SIEMPRE, también en
 		// mensajes sin SDD; un mensaje neutro la conserva en vez de pisarla.
 		if (typeof event.text === "string") {
-			const key = sddPreflightSessionKey(ctx);
-			deliveryIntentBySession.set(
-				key,
-				nextDeliveryIntent(deliveryIntentBySession.get(key), event.text),
-			);
+			toolCallGate.recordDeliveryIntent(ctx, event.text);
 		}
 		if (typeof event.text !== "string") return { action: "continue" };
 		const explicitSdd = isSddPreflightTrigger(event.text);
@@ -331,108 +305,6 @@ export default function einAi(pi: ExtensionAPI): void {
 		return {
 			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${intentGate.piIntentGateDirective(ctx)}`,
 		};
-	});
-
-	pi.on("tool_call", async (event, ctx) => {
-		await intentGate.adoptPiIntentGate(ctx);
-		const intentBlock = intentGate.piIntentToolBlockReason(ctx, event.toolName);
-		if (intentBlock) return { block: true, reason: intentBlock };
-		// Delegaciones con push: el usuario confirma aquí (sesión con UI) y se
-		// emite el grant one-shot que el guard headless del subagente consume.
-		if (event.toolName === "subagent") {
-			// Scout is deliberately handled before any SDD/delivery behavior.
-			const scoutLaunch = normalizeScoutLaunch(event.input, event.toolCallId, scoutTracking);
-			if (scoutLaunch) {
-				Object.assign(event.input as Record<string, unknown>, scoutLaunch);
-				return undefined;
-			}
-			const items = collectDelegationItems(event.input);
-			for (const item of items) {
-				if ((item.agent !== "ein-cleaner" && item.agent !== "ein-architect") || !item.task) continue;
-				if (items.filter((candidate) => (candidate.agent === "ein-cleaner" || candidate.agent === "ein-architect") && isSddParticipantMarker(candidate.task)).length > 1) {
-					return { block: true, reason: "SDD participants must run sequentially, one delegation at a time." };
-				}
-				try {
-					const blocker = admitSddParticipantCall(ctx.cwd, sddPreflightSessionKey(ctx), event.toolCallId, item.agent as SddParticipant, item.task);
-					if (blocker) return { block: true, reason: blocker };
-				} catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
-			}
-			// R1: un participante lanzado en background nunca trae su resultado
-			// terminal por el `tool_result` de su propia llamada (`// 002 A-1`).
-			// Se fuerza foreground, sobrescribiendo un `async` explícito: un
-			// participante inobservable no debe admitirse.
-			ensureParticipantForeground(event.input);
-			// Canario de drift: si Ein no reconoce ni un child, TODOS los gates de
-			// abajo son no-ops silenciosos (es lo que pasó al mover la ejecución a
-			// `workflowScript`). Se avisa una vez y se sigue: no se bloquea trabajo
-			// por una forma que puede ser legítima (agente/task construidos en runtime).
-			if (ctx.hasUI && delegationShapeIsUnrecognized(event.input)) {
-				const driftKey = sddPreflightSessionKey(ctx);
-				if (!shapeDriftWarned.has(driftKey)) {
-					shapeDriftWarned.add(driftKey);
-					ctx.ui.notify(
-						t(
-							"ai.delegation.shape-drift",
-							"Ein no reconoce la forma de esta delegación: los gates de entrega y TDD no se aplican. Si el runtime de subagentes se acaba de actualizar, actualiza Ein (`ein update`).",
-						),
-						"warning",
-					);
-				}
-			}
-			// Fases de planificación (scope/map/design/tasks/close): inyecta
-			// `acceptance: none` determinista si el orquestador no lo pasó. Sin esto
-			// el runner infiere un nivel con forma de código y rechaza en falso un
-			// artefacto documental que `ein_sdd_check` ya valida.
-			ensurePlanningAcceptance(event.input);
-			// Apply ejecuta: por defecto `acceptance: none` (sdd-verify es el gate) y
-			// un `turnBudget` backstop contra thrashing. El orquestador puede pasar
-			// `acceptance`/`turnBudget` explícitos y se respetan.
-			ensureApplyAcceptance(event.input);
-			ensureApplyTurnBudget(event.input);
-			// Runtime por agente desde la tabla, no desde la memoria del padre.
-			// Un maxRuntimeMs explícito del orquestador siempre gana.
-			ensurePhaseRuntime(event.input);
-			// Backstop universal: cualquier otra delegación (ein-git, ein-scout,
-			// ein-linear, sdd-verify, workflows mixtos) también sale con
-			// `acceptance: none` si el orquestador no pasó uno explícito. Sin esto
-			// el runner INFIERE el contrato de la redacción de la tarea y rechaza
-			// trabajo terminado por no emitir un `acceptance-report` con su forma.
-			ensureDelegationAcceptance(event.input);
-			// Gate de TDD ante una delegación que escribe código (sdd-apply directo
-			// o dentro de un chain). En modo global "ask": si el orquestador clasificó
-			// el cambio (hint tdd off/strict) se fija sin preguntar; si no, pregunta.
-			// Así un mover/renombrar/config marcado off no interrumpe el flujo.
-			await gateTddForDelegation(event.input, ctx);
-			// Foto del artefacto de fase ANTES de delegar. Si el run acaba en ✗, el
-			// hook `tool_result` compara y decide si la fase se hizo igualmente.
-			delegationResults.rememberPhaseSnapshot(
-				event.toolCallId,
-				event.input,
-				ctx.cwd,
-			);
-			return confirmDelegatedDelivery(event.input, ctx, {
-				mode: readGitDeliveryMode(ctx.cwd),
-				userRequested: deliveryIntentActive(
-					deliveryIntentBySession.get(sddPreflightSessionKey(ctx)),
-				),
-			});
-		}
-		if (event.toolName !== "bash") return undefined;
-		if (!isRecord(event.input) || typeof event.input.command !== "string")
-			return undefined;
-		// GUARD primero sobre el comando ORIGINAL; solo si pasa se envuelve con
-		// Hypa. Mutar después preserva la política de seguridad sin evaluarla
-		// sobre un comando ya reescrito.
-		const guard = await confirmCommand(event.input.command, ctx);
-		if (guard) return guard;
-		// Pathspec cerrado: un commit contiene lo que se decidió entregar, no lo
-		// que hubiera en el árbol. Bloquea el staging a granel y el arrastre de
-		// untracked ajenos. Determinista y sin confirmación: la salida es nombrar
-		// las rutas, que es exactamente lo que debería hacerse.
-		const staging = evaluateStaging(ctx.cwd, event.input.command);
-		if (staging.kind === "blocked") return { block: true, reason: staging.reason };
-		maybeWrapBashInput(event.input as { command: string }, ctx.cwd);
-		return undefined;
 	});
 
 	pi.registerCommand("ein:ai:install-sdd", {
