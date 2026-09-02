@@ -26,6 +26,7 @@ import { projectRuntimeState } from "../ein-pi/agent/lib/project-state-runtime";
 import { readProjectOpenSpecState } from "../ein-pi/agent/lib/project-state-openspec";
 import { readProjectEinState } from "../ein-pi/agent/lib/project-state-ein";
 import { readProjectVerificationState } from "../ein-pi/agent/lib/project-state-verification";
+import { parseProjectGitStatus } from "../ein-pi/agent/lib/project-state-git-status";
 
 const QUALITY_VALUES: readonly ProjectStateQuality[] = [
 	"current",
@@ -796,6 +797,24 @@ describe("verification freshness and source degradation", () => {
 });
 
 describe("Git bounded exact identity", () => {
+	test("the status parser is pure, bounded to the repository, and explicit on malformed input", () => {
+		expect(parseProjectGitStatus("/work/project", "? untracked.txt\0")).toEqual({
+			records: [{
+				recordType: "?",
+				path: "untracked.txt",
+				kind: "added",
+				indexStatus: "?",
+				worktreeStatus: "?",
+				identityFields: ["?"],
+			}],
+			malformed: false,
+		});
+		expect(parseProjectGitStatus("/work/project", "? /outside.txt\0")).toEqual({
+			records: [],
+			malformed: true,
+		});
+	});
+
 	test("HEAD, unborn, and detached states have exact bounded identities", () => {
 		withRepository((cwd) => {
 			const unbornState = projectProjectState({ cwd });
