@@ -42,7 +42,7 @@ echo "/// e2e: matriz determinista de update, rollback, uninstall y launcher"
 echo "/// e2e: construyendo imagen"
 docker build -t "$IMAGE" -f "$HERE/Dockerfile.ubuntu" "$HERE"
 
-echo "/// e2e: ejecutando cinco contenedores desechables"
+echo "/// e2e: ejecutando seis contenedores desechables"
 
 run_scenario() {
   local scenario="$1"
@@ -257,6 +257,22 @@ case "$scenario" in
     ein doctor
     ;;
 
+  omarchy-bun-global-bin)
+    echo "== bun redirigido como en Omarchy =="
+    curl -fsSL https://bun.sh/install | bash
+    export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"
+    bun install -g @earendil-works/pi-coding-agent@0.84.4
+    test "$("$HOME/.bun/bin/pi" --version)" = "0.84.4"
+    export BUN_INSTALL_GLOBAL_DIR="$HOME/.omarchy/bun/global"
+    export BUN_INSTALL_BIN="$HOME/.omarchy/bun/bin"
+
+    install_twice
+    test "$("$HOME/.bun/bin/pi" --version)" = "0.84.3"
+    assert_absent "$HOME/.omarchy/bun/bin/pi"
+    assert_pi_surface
+    ein doctor
+    ;;
+
   claude-only)
     install_twice --runtime claude
     assert_claude_surface
@@ -320,7 +336,7 @@ echo "E2E_SCENARIO_RESULT=OK:$scenario"
 EOF
 }
 
-for scenario in invalid default-pi claude-only both uninstall-preservation; do
+for scenario in invalid default-pi omarchy-bun-global-bin claude-only both uninstall-preservation; do
   run_scenario "$scenario"
 done
 

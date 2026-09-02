@@ -66,6 +66,7 @@ import {
 } from "../core/install-plan.ts";
 import {
   runtimeFailure,
+  type InstallPlanHandlerResult,
   type InstallPlanExecutionHandler,
   type InstallPlanExecutionHandlers,
 } from "../core/install-executor.ts";
@@ -339,6 +340,12 @@ export type PiInstallOptions = {
 
 type PiEntryId = Extract<InstallPlanEntryId, `pi.${string}`>;
 
+export function optionalInstallOutcome(result: InstallStep): InstallPlanHandlerResult {
+  return result.ok
+    ? { ok: true, detail: result.detail }
+    : { ok: true, warning: true, detail: `opcional no instalado: ${result.detail}` };
+}
+
 export function createPiInstallHandlers(options: PiInstallOptions): { handlers: Record<PiEntryId, InstallPlanExecutionHandler>; detail: () => string } {
   const { platform, flags, deps, agentDir, effects: overrides = {} } = options;
   const linear: LinearIntegration = options.linear ?? (options.skipLinear ? "off" : "on");
@@ -378,6 +385,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
       spinner.start("Instalando engram");
       const result = await installEngramDep(platform);
       spinner.stop(result.detail);
+      return optionalInstallOutcome(result);
     }
   }
   return success();
@@ -391,6 +399,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
       spinner.start("Instalando gh");
       const result = await installGh(platform);
       spinner.stop(result.detail);
+      return optionalInstallOutcome(result);
     }
   }
   return success();
@@ -404,6 +413,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
       spinner.start("Instalando hypa");
       const result = await installHypa();
       spinner.stop(result.detail);
+      return optionalInstallOutcome(result);
     }
   }
   return success();
@@ -418,6 +428,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
       const result = await installCodegraph();
       spinner.stop(result.detail);
       if (result.ok) p.log.info("Actívalo por proyecto con `codegraph init` en la raíz del repo.");
+      return optionalInstallOutcome(result);
     }
   }
   return success();

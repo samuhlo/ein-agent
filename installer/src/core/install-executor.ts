@@ -8,7 +8,7 @@ import {
 import { isProxy } from "node:util/types";
 import { BackupFailure, sanitizeBackupFailureDetail } from "./backup.ts";
 
-export type InstallPlanHandlerResult = Readonly<{ ok: boolean; detail?: string }>;
+export type InstallPlanHandlerResult = Readonly<{ ok: boolean; detail?: string; warning?: boolean }>;
 export type InstallPlanExecutionContext = Readonly<{ transactionId: string }>;
 export type InstallPlanExecutionHandler = (context?: InstallPlanExecutionContext) => Promise<InstallPlanHandlerResult> | InstallPlanHandlerResult;
 export type InstallPlanExecutionHandlers = Readonly<Record<InstallPlanEntryId, InstallPlanExecutionHandler>>;
@@ -21,7 +21,7 @@ export type InstallPlanExecutionHandlers = Readonly<Record<InstallPlanEntryId, I
  */
 export type InstallPlanProgressEvent =
   | Readonly<{ kind: "start"; id: InstallPlanEntryId }>
-  | Readonly<{ kind: "done"; id: InstallPlanEntryId; ok: boolean; detail?: string }>
+  | Readonly<{ kind: "done"; id: InstallPlanEntryId; ok: boolean; detail?: string; warning?: boolean }>
   | Readonly<{ kind: "abandoned"; id: InstallPlanEntryId }>;
 
 export type InstallPlanProgress = (event: InstallPlanProgressEvent) => void;
@@ -72,7 +72,13 @@ export async function executeInstallPlan(plan: InstallPlanV1, handlers: InstallP
     try {
       const result = await admitted[entry.id]();
       if (!result.ok) failures[entry.runtime] = failureDetail(entry.runtime, entry.id, result.detail);
-      tell({ kind: "done", id: entry.id, ok: result.ok, ...(result.detail ? { detail: result.detail } : {}) });
+      tell({
+        kind: "done",
+        id: entry.id,
+        ok: result.ok,
+        ...(result.detail ? { detail: result.detail } : {}),
+        ...(result.warning ? { warning: true } : {}),
+      });
     } catch (error) {
       const detail = isBackupEntry(entry.runtime, entry.id) && error instanceof BackupFailure ? error.message : genericFailureDetail(entry.runtime, entry.id);
       failures[entry.runtime] = detail;

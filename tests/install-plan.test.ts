@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { createPiInstallHandlers, runInstall } from "../installer/src/cli/install.ts";
+import { createPiInstallHandlers, optionalInstallOutcome, runInstall } from "../installer/src/cli/install.ts";
 import { executeInstallPlan, InstallPlanExecutionError, type InstallPlanExecutionHandlers } from "../installer/src/core/install-executor.ts";
 import { createInstallPlan, InstallPlanInputError, InstallPlanValidationError, renderInstallPlan, serializeInstallPlan, type InstallPlanInput, type InstallPlanV1 } from "../installer/src/core/install-plan.ts";
 import { derivePiInstallPaths, resolvePiInstallContext } from "../installer/src/core/paths.ts";
@@ -31,6 +31,18 @@ function fakeHandlers(plan: InstallPlanV1, call: (id: string) => { ok: boolean; 
 }
 
 describe("managed install plan", () => {
+	test("un instalador opcional fallido se presenta como aviso sin bloquear", () => {
+		expect(optionalInstallOutcome({ ok: false, detail: "instala gh manualmente" })).toEqual({
+			ok: true,
+			warning: true,
+			detail: "opcional no instalado: instala gh manualmente",
+		});
+		expect(optionalInstallOutcome({ ok: true, detail: "gh instalado" })).toEqual({
+			ok: true,
+			detail: "gh instalado",
+		});
+	});
+
 	test("el wizard de secrets no selecciona ni promociona proveedores", async () => {
 		const requested: string[] = [];
 		const base = {
