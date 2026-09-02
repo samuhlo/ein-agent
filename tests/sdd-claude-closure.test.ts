@@ -18,6 +18,7 @@ const RETIRED_INTENT_COLLATERAL = [
 	"shared/contracts/memory-contract.ts",
 ] as const;
 const RETIRED_ROUTING_COLLATERAL = ["ein-pi/agent/lib/sdd-router.ts"] as const;
+const RETIRED_REMEDIES_COLLATERAL = ["ein-pi/agent/lib/sdd-remedies.ts"] as const;
 
 function runtimeClosure(entries: readonly string[]): string[] {
 	return collectSourceClosure(ROOT, entries)
@@ -40,6 +41,13 @@ describe("Claude SDD runtime closure", () => {
 
 		expect(closure).toContain("shared/sdd/sdd-routing-core.ts");
 		for (const path of RETIRED_ROUTING_COLLATERAL) expect(closure).not.toContain(path);
+	});
+
+	test("keeps the historical Pi remedies entrypoint outside the complete Claude payload", () => {
+		const closure = runtimeClosure(EIN_CC_PAYLOAD_SOURCE_ENTRIES);
+
+		expect(closure).toContain("shared/sdd/sdd-remedies.ts");
+		for (const path of RETIRED_REMEDIES_COLLATERAL) expect(closure).not.toContain(path);
 	});
 });
 

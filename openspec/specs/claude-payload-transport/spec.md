@@ -30,6 +30,13 @@ Given: a payload entry or discovered relative dependency contains invalid TypeSc
 When: the bundler analyzes that source while calculating the closure
 Then: bundling fails with the affected source identified and no archive is published
 
+## Scenario: claude-payload-uses-shared-sdd-remedies-core
+title: Claude payload renders SDD remedies through the shared core
+requirement: The system MUST derive deterministic SDD remedies for Pi and Claude from one runtime-neutral core, and the Claude payload MUST NOT depend on the Pi sdd-remedies implementation for those results.
+Given: Pi and Claude receive equivalent lifecycle status including OpenSpec provenance, stale verification, stale summary, and close-channel context
+When: each runtime collects and formats the applicable remedies or the Claude payload source closure is calculated
+Then: both runtimes return equivalent ordered remedies, the shared remedies core is present in the payload, and the Pi sdd-remedies implementation is absent from that closure
+
 ## Scenario: claude-payload-uses-shared-sdd-routing-core
 title: Claude payload routes SDD state through the shared core
 requirement: The system MUST derive active-change selection, lifecycle status, and next-phase routing for Pi and Claude from one runtime-neutral SDD core, and the Claude payload MUST NOT depend on the Pi sdd-router implementation for those decisions.

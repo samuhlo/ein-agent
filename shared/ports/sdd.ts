@@ -20,7 +20,7 @@ export {
 	type SddChangeStatus,
 } from "../sdd/sdd-routing-core.ts";
 export { lintChange, type ChangeLintReport } from "../../ein-pi/agent/lib/sdd-guardrails.ts";
-export { collectSddRemedies, formatSddRemedies } from "../../ein-pi/agent/lib/sdd-remedies.ts";
+export { collectSddRemedies, formatSddRemedies } from "../sdd/sdd-remedies.ts";
 export { closeChange } from "../../ein-pi/agent/lib/sdd-close.ts";
 export { LANE_LABEL, laneSkips, normalizeLane, readChangeLane, writeChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
 export {
