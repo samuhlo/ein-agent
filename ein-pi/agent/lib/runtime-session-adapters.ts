@@ -1,8 +1,4 @@
-import type {
-	ProjectRuntimeMetadata,
-	ProjectStateReasonCode,
-	ProjectStateV1,
-} from "./project-state.ts";
+import type { ProjectStateV1 } from "./project-state.ts";
 import { MAX_PROJECT_SESSIONS } from "./sessions.ts";
 import {
 	failure,
@@ -46,6 +42,7 @@ export {
 	normalizeLaunchSignal,
 } from "./runtime-session-launch-execution.ts";
 export type { NormalizedLaunchExecution } from "./runtime-session-launch-execution.ts";
+export { toProjectRuntimeMetadata } from "./runtime-session-metadata.ts";
 
 /** The runtimes exposed by the common adapter boundary. */
 export type RuntimeProvider = "pi" | "claude";
@@ -439,98 +436,6 @@ function success<T>(
 	data: T,
 ): AdapterSuccess<T> {
 	return { provider, operation, outcome: "success", project, data };
-}
-
-const RUNTIME_METADATA_CAPABILITIES: Partial<Record<RuntimeOperation, string>> = {
-	list: "session.list",
-	create: "session.create",
-	launch: "runtime.launch",
-};
-const MAX_RUNTIME_METADATA_REFERENCES = 20;
-
-function adapterErrorReason(code: AdapterErrorCode | undefined): ProjectStateReasonCode {
-	switch (code) {
-		case "operation-not-supported":
-			return "not-provided";
-		case "session-source-unavailable":
-		case "scan-limit-exceeded":
-			return "read-error";
-		case "runtime-unavailable":
-		case "executable-unavailable":
-		case "spawn-failed":
-		case "process-exit":
-		case "process-signalled":
-			return "command-error";
-		case "project-mismatch":
-		case "provider-mismatch":
-			return "state-mismatch";
-		case "reference-not-found":
-			return "not-found";
-		case "reference-ambiguous":
-			return "ambiguous-selection";
-		case "invalid-request":
-		case "unsupported-state-version":
-		case "project-identity-unavailable":
-		case "state-ref-unavailable":
-		case "reference-invalid":
-		default:
-			return "invalid-source";
-	}
-}
-
-function publicRuntimeReferences(
-	provider: RuntimeProvider,
-	data: unknown,
-): string[] {
-	if (!Array.isArray(data)) return [];
-	const references: string[] = [];
-	const seen = new Set<string>();
-	for (const item of data) {
-		if (references.length >= MAX_RUNTIME_METADATA_REFERENCES) break;
-		if (!isRecord(item)) continue;
-		const reference = item.reference;
-		if (!validateOpaqueReference(provider, reference) || seen.has(reference)) continue;
-		seen.add(reference);
-		references.push(reference);
-	}
-	return references;
-}
-
-function failureRuntimeMetadata(
-	outcome: AdapterFailureOutcome,
-	code: AdapterErrorCode | undefined,
-): ProjectRuntimeMetadata {
-	if (outcome === "cancelled") return { availability: "unavailable" };
-	const reason: ProjectStateReasonCode =
-		outcome === "unsupported" ? "not-provided" : adapterErrorReason(code);
-	return {
-		availability: outcome === "unsupported" ? "not-provided" : "unavailable",
-		reason,
-		errors: [{ code: reason }],
-	};
-}
-
-/**
- * Translate one transient adapter observation into the existing B metadata
- * input. This is deliberately one-way: it copies no project state and performs
- * no projection, persistence, or filesystem work.
- */
-export function toProjectRuntimeMetadata(
-	result: AdapterResult<unknown>,
-): ProjectRuntimeMetadata {
-	if (result.outcome === "success") {
-		const capability = RUNTIME_METADATA_CAPABILITIES[result.operation];
-		const metadata: ProjectRuntimeMetadata = {
-			availability: "available",
-			...(capability ? { capabilities: [capability] } : {}),
-		};
-		if (result.operation === "list") {
-			metadata.references = publicRuntimeReferences(result.provider, result.data);
-		}
-		return metadata;
-	}
-
-	return failureRuntimeMetadata(result.outcome, result.error?.code);
 }
 
 /** State-bound request-only create; no runtime store or projector is touched. */

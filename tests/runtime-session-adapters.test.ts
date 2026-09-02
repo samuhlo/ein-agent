@@ -19,6 +19,7 @@ import type {
 import * as runtimeIdentity from "../ein-pi/agent/lib/runtime-session-identity";
 import * as runtimeLaunchExecution from "../ein-pi/agent/lib/runtime-session-launch-execution";
 import * as runtimeLaunchPlan from "../ein-pi/agent/lib/runtime-session-launch-plan";
+import * as runtimeMetadata from "../ein-pi/agent/lib/runtime-session-metadata";
 import { EIN_SDD_SESSION_BINDING_ENV_KEY } from "../ein-pi/agent/lib/sdd-session-binding";
 
 const owner = getRuntimeTestOwner();
@@ -170,6 +171,10 @@ describe("runtime session adapter contract", () => {
 			kind: "exit",
 			code: 0,
 		})).toEqual({ kind: "exit", code: 0 });
+	});
+
+	test("delegates project runtime metadata to its pure translator", () => {
+		expect(toProjectRuntimeMetadata).toBe(runtimeMetadata.toProjectRuntimeMetadata);
 	});
 
 	test("publishes the evidence-based asymmetric provider matrix", () => {
