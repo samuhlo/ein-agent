@@ -16,6 +16,7 @@ import type {
 	ProjectStateReasonCode,
 	ProjectStateV1,
 } from "../ein-pi/agent/lib/project-state";
+import * as runtimeIdentity from "../ein-pi/agent/lib/runtime-session-identity";
 import { EIN_SDD_SESSION_BINDING_ENV_KEY } from "../ein-pi/agent/lib/sdd-session-binding";
 
 const owner = getRuntimeTestOwner();
@@ -128,6 +129,19 @@ function stateFor(options: {
 }
 
 describe("runtime session adapter contract", () => {
+	test("prepares one owner for project and opaque session identity", () => {
+		const state = stateFor();
+		const reference = opaque("session-id");
+
+		expect(runtimeIdentity.projectBindingFromState(state)).toEqual(
+			projectBindingFromState(state),
+		);
+		expect(runtimeIdentity.validateOpaqueReference("pi", reference)).toBe(
+			validateOpaqueReference("pi", reference),
+		);
+		expect(runtimeIdentity.sessionReferenceFor("pi", "session-id")).toBe(reference);
+	});
+
 	test("publishes the evidence-based asymmetric provider matrix", () => {
 		expect(Object.keys(RUNTIME_CAPABILITY_MATRIX)).toEqual(["pi", "claude"]);
 		expect(Object.keys(RUNTIME_CAPABILITY_MATRIX.pi)).toEqual([
