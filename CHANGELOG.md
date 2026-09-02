@@ -4,6 +4,19 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.93.0-alpha.3] - 2026-09-02
+
+### Fixed
+
+- **Una instalación incompleta de `0.93.0-alpha.1` en Omarchy se recupera sin
+  borrar estado a mano.** Si el despliegue gestionado llegó hasta `doctor` y
+  falló allí, Ein reconoce únicamente esa forma cerrada del diario, crea una
+  transacción nueva, toma backup y vuelve a ejecutar el plan con las
+  dependencias observadas de nuevo.
+- **El E2E parte ahora del fallo publicado real.** Descarga `alpha.1`, reproduce
+  la divergencia de Pi y su diario bloqueado, y exige que el candidato complete
+  dos instalaciones y termine con `doctor` sin fallos.
+
 ## [0.93.0-alpha.2] - 2026-09-02
 
 ### Fixed

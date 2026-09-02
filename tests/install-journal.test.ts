@@ -171,6 +171,46 @@ describe("install execution journal", () => {
     if (stored.status === "valid") expect(stored.journal.state).toBe("complete");
   });
 
+  test("restarts a fresh managed transaction after doctor failed and dependency observations changed", async () => {
+    const root = home();
+    const previous = plan("pi", root);
+    const failed = await executeInstallPlanJournaled(
+      previous,
+      handlers(previous, (id) => ({ ok: id !== "pi.verify-doctor" })),
+      { transactionId: () => "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa" },
+    );
+    expect(failed.ok).toBe(false);
+
+    const current = createInstallPlan({
+      target: "pi",
+      home: root,
+      piAgentDir: join(root, ".pi-ein", "agent"),
+      piAgentDirExists: true,
+      piOwnership: { status: "managed", layout: "isolated" },
+      claudeConfigHome: join(root, ".claude-ein"),
+      platform: { os: "darwin", arch: "arm64" },
+      dependencies: { bun: true, pi: false, engram: true, gh: false, hypa: true, codegraph: true },
+      flags: { yes: true, noEngram: false, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true },
+    });
+    const calls: string[] = [];
+    const recovered = await executeInstallPlanJournaled(
+      current,
+      handlers(current, (id) => { calls.push(id); return { ok: true }; }),
+      { transactionId: () => "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb" },
+    );
+
+    expect(recovered.ok).toBe(true);
+    expect(calls).toEqual(current.inventory
+      .filter(({ state }) => state === "selected" || state === "conditional")
+      .map(({ id }) => id));
+    const stored = inspectInstallJournal(root);
+    expect(stored.status).toBe("valid");
+    if (stored.status === "valid") {
+      expect(stored.journal.state).toBe("complete");
+      expect(stored.journal.transactionId).toBe("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb");
+    }
+  });
+
   test("resumes a retirement interrupted mid-handler without repeating completed work", async () => {
     const value = plan("claude");
     const listeners = new Set<() => void>();

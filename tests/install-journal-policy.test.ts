@@ -91,8 +91,83 @@ function retirementRetry(value: InstallPlanV1): InstallExecutionJournalV1 {
   };
 }
 
+function doctorFailure(value: InstallPlanV1): InstallExecutionJournalV1 {
+  const verifyIndex = value.inventory.findIndex(({ id }) => id === "pi.verify-doctor");
+  return {
+    schemaVersion: 1,
+    transactionId: "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
+    planDigest: installPlanDigest(value),
+    target: value.target,
+    platform: value.platform,
+    state: "recovery-required",
+    entries: value.inventory
+      .filter((entry) => entry.state === "selected" || entry.state === "conditional")
+      .map(({ id, runtime }) => {
+        const order = value.inventory.findIndex((entry) => entry.id === id);
+        return {
+          id,
+          runtime,
+          status: id === "pi.verify-doctor"
+            ? "failed" as const
+            : order < verifyIndex
+              ? "completed" as const
+              : "not-run" as const,
+        };
+      }),
+    pendingEntryId: "pi.verify-doctor",
+    recoveryCode: "handler-failed",
+  };
+}
+
+function managedRepairPlan(home = "/tmp/ein-policy-home"): InstallPlanV1 {
+  return createInstallPlan({
+    target: "pi",
+    home,
+    piAgentDir: `${home}/.pi-ein/agent`,
+    piAgentDirExists: true,
+    piOwnership: { status: "managed", layout: "isolated" },
+    claudeConfigHome: `${home}/.claude-ein`,
+    platform: { os: "darwin", arch: "arm64" },
+    dependencies: {
+      bun: true,
+      pi: false,
+      engram: true,
+      gh: false,
+      hypa: true,
+      codegraph: true,
+    },
+    flags: {
+      yes: true,
+      noEngram: false,
+      noSecrets: true,
+      noHypa: false,
+      noCodegraph: false,
+      skipLinear: true,
+    },
+  });
+}
+
 describe("install journal policy", () => {
-  test("classifies only the two supported retry shapes", () => {
+
+  test("restarts only a managed Pi install that failed at doctor after its writes", () => {
+    const oldPlan = plan("pi");
+    const failed = doctorFailure(oldPlan);
+    const current = managedRepairPlan(oldPlan.home);
+
+    expect(classifyInstallJournalResume(failed, current)).toBe("post-verification-restart");
+    expect(classifyInstallJournalResume({ ...failed, recoveryCode: "interrupted" }, current)).toBeNull();
+    expect(classifyInstallJournalResume({ ...failed, pendingEntryId: "pi.deploy-template" }, current)).toBeNull();
+    expect(classifyInstallJournalResume(failed, plan("pi", oldPlan.home))).toBeNull();
+    const premature = {
+      ...failed,
+      entries: failed.entries.map((entry) => entry.id === "pi.deploy-template"
+        ? { ...entry, status: "not-run" as const }
+        : entry),
+    };
+    expect(classifyInstallJournalResume(premature, current)).toBeNull();
+  });
+
+  test("classifies the exact unchanged-plan retry shapes", () => {
     const value = plan();
     const backup = backupRetry(value);
     const retirement = retirementRetry(value);

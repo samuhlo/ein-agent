@@ -340,6 +340,8 @@ describe("release asset contract", () => {
     expect(script).toContain("omarchy-bun-global-bin");
     expect(script).toContain("BUN_INSTALL_GLOBAL_DIR");
     expect(script).toContain("BUN_INSTALL_BIN");
+    expect(script).toContain("installer-v0.93.0-alpha.1");
+    expect(script).toContain("install-execution-v1.json");
     expect(script).toContain("seed_preserved_state");
     expect(script).toContain("assert_preserved_state");
     expect(script).toContain('ein-install uninstall --yes --runtime both');
@@ -358,7 +360,7 @@ describe("release asset contract", () => {
     expect(publishStart).toBeGreaterThanOrEqual(0);
     expect(smokeStart).toBeGreaterThan(publishStart);
     expect(smokeStep).toContain("../e2e/release-update-test.sh");
-    expect(smokeStep).toContain("installer-v0.93.0-alpha.1");
+    expect(smokeStep).toContain("installer-v0.93.0-alpha.2");
     expect(smokeStep).toContain('"$RELEASE_TAG"');
     expect(script).toContain("gh release download");
     expect(script).toContain("ein-install update --yes latest");
