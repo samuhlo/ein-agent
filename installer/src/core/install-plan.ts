@@ -1,6 +1,8 @@
 import { isAbsolute, normalize, resolve } from "node:path";
 
 export type InstallTarget = "pi" | "claude" | "both";
+/** Public install choices. `claude` remains in V1 codecs only for recovery. */
+export type InstallSelection = Exclude<InstallTarget, "claude">;
 export type RuntimeInstallTarget = Exclude<InstallTarget, "both">;
 export type InstallPlanRuntime = "shared" | RuntimeInstallTarget;
 export type InstallPlanAction =
@@ -27,7 +29,7 @@ export const INSTALL_PLAN_ENTRY_CONTRACTS = {
   "pi.configure-secrets": ["pi", "configure", ["installer:conditional", "installer:skipped"]], "pi.configure-context7-export": ["pi", "configure", ["installer:conditional", "installer:skipped"]],
   "pi.write-install-marker": ["pi", "write-marker", ["installer:selected", "unknown:selected"]], "pi.verify-doctor": ["pi", "verify", ["installer:selected", "unknown:selected"]],
   "pi.deploy-launcher": ["pi", "deploy", ["installer:selected", "unknown:selected"]], "pi.promote-commands": ["pi", "promote-command", ["installer:conditional", "unknown:conditional"]],
-  "claude.dependency.claude": ["claude", "ensure-dependency", ["external:selected", "external:satisfied"]],
+  "claude.dependency.claude": ["claude", "ensure-dependency", ["external:selected", "external:conditional", "external:satisfied"]],
   "claude.deploy-runtime": ["claude", "deploy", ["installer:selected"]], "claude.deploy-launcher": ["claude", "deploy", ["installer:selected"]],
   "shared.retire-legacy": ["shared", "retire-legacy", ["installer:selected"]],
 } as const satisfies Record<InstallPlanEntryId, EntryContract>;

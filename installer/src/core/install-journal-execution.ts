@@ -93,7 +93,8 @@ function openJournal(
   // A doctor failure happens after the managed marker is written. If a fresh
   // plan proves that ownership, start a new journal so changed dependency
   // observations (the common repair case) do not masquerade as an exact resume.
-  const restarting = resumeKind === "post-verification-restart";
+  const restarting = resumeKind === "post-verification-restart"
+    || resumeKind === "claude-complement-restart";
   const resuming = unfinished && !restarting;
 
   const journal = resuming

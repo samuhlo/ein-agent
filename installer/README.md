@@ -1,19 +1,18 @@
 # Ein installer
 
-Instalador cross-platform (macOS + Linux) del workbench **Ein**, con superficies aisladas para Pi Coding Agent y Claude.
+Instalador cross-platform (macOS + Linux) de **Ein**. Pi Coding Agent es siempre el núcleo; Claude Code puede añadirse como relevo aislado.
 Bun + TypeScript, compilado a binarios standalone, con TUI brutalista (paleta plana de marca: Carbon, Concrete, Structure, Yellow `#FFCA40`).
 
-## Selección de runtime
+## Instalación del núcleo y complemento
 
-El instalador permite seleccionar qué superficie desplegar, sin mezclar los runtimes:
+El instalador siempre despliega Ein sobre Pi. La única elección es añadir o no el complemento Claude Code:
 
 ```bash
 ein install --runtime pi
-ein install --runtime claude
 ein install --runtime both
 ```
 
-El selector contractual acepta `pi`, `claude` o `both`: `pi` y `claude` seleccionan un runtime aislado; `both` despliega ambos. Esta selección y el estado del despliegue pertenecen al instalador.
+`pi` instala el núcleo. `both` instala el núcleo y después Claude. `claude` solo se conserva en los formatos internos V1 para leer recuperaciones antiguas; una instalación nueva Claude-only se rechaza antes de modificar el sistema.
 
 ## Instalación
 
@@ -33,7 +32,7 @@ ein restore    # restaura desde un backup
 ```
 
 Flags: `--yes` (no interactivo), `--dry-run` (muestra el plan sin ejecutar nada),
-`--runtime <pi|claude|both>` (selecciona la superficie del instalador), `--no-engram`,
+`--runtime <pi|both>` (Ein o Ein + Claude), `--no-engram`,
 `--no-secrets`, `--no-linear`, `--no-hypa`, `--no-codegraph`.
 
 ## Backups
@@ -57,9 +56,10 @@ una instalación gestionada válida sigue activa allí):
 ## Qué hace `ein install`
 
 1. Detecta OS/arch/distro/shell.
-2. Comprueba e instala las dependencias de las superficies seleccionadas, incluyendo los
-   runtimes Pi/Claude. Pi requiere Node `>=22.19.0`; si falta o es antiguo, el
-   instalador se detiene con un diagnóstico accionable. `engram` y `gh` son opcionales.
+2. Comprueba e instala las dependencias del núcleo Pi y, si se selecciona, del
+   complemento Claude. Pi requiere Node `>=22.19.0`; si falta o es antiguo, el
+   instalador se detiene con un diagnóstico accionable. Claude, `engram` y `gh`
+   no forman parte del núcleo.
 3. Despliega las superficies seleccionadas desde el template de Ein (embebido en el
    binario), manteniéndolas aisladas y **templando las rutas** (`mcp.json`, `settings.json`)
    según tu `$HOME` y la ubicación real de `engram`.
@@ -81,7 +81,7 @@ bun run build:all linux-x64   # un solo target
 ./e2e/docker-test.sh      # matriz de ciclo de vida en hogares Ubuntu desechables
 ```
 
-`./e2e/docker-test.sh` instala dos veces y prueba Pi, Claude, ambos y uninstall
+`./e2e/docker-test.sh` instala dos veces y prueba Ein, Ein + Claude y uninstall
 recuperable. Además ejecuta la matriz determinista de update/rollback,
 preservación de estado privado y el launcher beta con PTY. Para comprobar la
 ruta pública entre releases, ejecuta `./e2e/release-update-test.sh

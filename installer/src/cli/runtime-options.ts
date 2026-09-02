@@ -13,10 +13,10 @@
 // launcher queda puesto. «Pi → solo Pi» no informa de nada.
 // =============================================================================
 
-import type { InstallTarget } from "../core/install-plan.ts";
+import type { InstallSelection } from "../core/install-plan.ts";
 
 export type RuntimePromptOption = Readonly<{
-  value: InstallTarget;
+  value: InstallSelection;
   label: string;
   hint: string;
 }>;
@@ -24,17 +24,12 @@ export type RuntimePromptOption = Readonly<{
 export const RUNTIME_PROMPT_OPTIONS: readonly RuntimePromptOption[] = Object.freeze([
   Object.freeze({
     value: "pi" as const,
-    label: "Pi",
-    hint: "pi, bun, engram y gh · launcher ein-pi · estado en ~/.pi-ein",
-  }),
-  Object.freeze({
-    value: "claude" as const,
-    label: "Claude Code",
-    hint: "claude code, bun, engram y gh · launcher ein-cc",
+    label: "Ein",
+    hint: "núcleo Pi · launcher ein-pi · estado en ~/.pi-ein",
   }),
   Object.freeze({
     value: "both" as const,
-    label: "Los dos",
-    hint: "ein-pi y ein-cc, compartiendo un solo estado",
+    label: "Ein + Claude Code",
+    hint: "núcleo ein-pi con Claude como complemento ein-cc",
   }),
 ]);

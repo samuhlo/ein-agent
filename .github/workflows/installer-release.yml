@@ -161,6 +161,13 @@ jobs:
             --outfile /tmp/ein-cc-payload-smoke
           (cd /tmp && /tmp/ein-cc-payload-smoke)
 
+      # Publication is the irreversible boundary. Exercise the candidate in
+      # clean Ubuntu homes before checksumming and uploading those exact bytes.
+      - name: Pre-publication installer E2E (Ubuntu)
+        working-directory: .
+        timeout-minutes: 45
+        run: ./e2e/docker-test.sh
+
       - name: Checksums
         run: |
           cd dist
@@ -211,4 +218,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.resolve_release_tag.outputs.release_tag }}
-        run: ../e2e/release-update-test.sh installer-v0.93.0-alpha.3 "$RELEASE_TAG"
+        run: ../e2e/release-update-test.sh installer-v0.93.0-alpha.4 "$RELEASE_TAG"

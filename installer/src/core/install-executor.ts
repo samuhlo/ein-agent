@@ -55,7 +55,8 @@ const failureDetail = (runtime: InstallPlanRuntime, id: InstallPlanEntryId, deta
 };
 
 /**
- * Execute only the immutable inventory order; failures stop their runtime, not later runtimes.
+ * Execute only the immutable inventory order. Pi is Ein's core, so a Pi
+ * failure also abandons the optional Claude complement.
  *
  * `progress` es opcional y NO cambia una sola decisión: cuenta lo que ya ocurría.
  * Sin oyente el ejecutor se comporta exactamente igual, que es lo que permite
@@ -67,7 +68,8 @@ export async function executeInstallPlan(plan: InstallPlanV1, handlers: InstallP
   const tell = (event: InstallPlanProgressEvent): void => { progress?.(event); };
   for (const entry of plan.inventory) {
     if (entry.state !== "selected" && entry.state !== "conditional") continue;
-    if (failures.shared || failures[entry.runtime] || entry.id === "shared.retire-legacy" && Object.keys(failures).length > 0) { tell({ kind: "abandoned", id: entry.id }); continue; }
+    const coreUnavailable = entry.runtime === "claude" && failures.pi !== undefined;
+    if (failures.shared || failures[entry.runtime] || coreUnavailable || entry.id === "shared.retire-legacy" && Object.keys(failures).length > 0) { tell({ kind: "abandoned", id: entry.id }); continue; }
     tell({ kind: "start", id: entry.id });
     try {
       const result = await admitted[entry.id]();

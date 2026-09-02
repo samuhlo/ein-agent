@@ -9,7 +9,7 @@ import { derivePiInstallPaths, resolvePiInstallContext } from "../installer/src/
 
 const HOME = "/synthetic/home";
 const ENTRY_ORACLE = { "shared.dependency.bun": "shared/ensure-dependency/external:selected|external:satisfied", "pi.dependency.pi": "pi/ensure-dependency/external:selected|external:satisfied", "pi.dependency.engram": "pi/ensure-dependency/external:selected|external:conditional|external:satisfied|external:skipped", "pi.dependency.gh": "pi/ensure-dependency/external:conditional|external:satisfied|external:skipped", "pi.dependency.hypa": "pi/ensure-dependency/external:conditional|external:satisfied|external:skipped", "pi.dependency.codegraph": "pi/ensure-dependency/external:conditional|external:satisfied|external:skipped", "pi.migrate-legacy": "pi/migrate/installer:selected|installer:skipped|unknown:blocked", "pi.backup-current": "pi/backup/installer:conditional|unknown:conditional", "pi.deploy-template": "pi/deploy/installer:selected|unknown:selected",
-  "pi.configure-packages": "pi/configure/installer:selected|unknown:selected", "pi.configure-secrets": "pi/configure/installer:conditional|installer:skipped", "pi.configure-context7-export": "pi/configure/installer:conditional|installer:skipped", "pi.write-install-marker": "pi/write-marker/installer:selected|unknown:selected", "pi.verify-doctor": "pi/verify/installer:selected|unknown:selected", "pi.deploy-launcher": "pi/deploy/installer:selected|unknown:selected", "pi.promote-commands": "pi/promote-command/installer:conditional|unknown:conditional", "claude.dependency.claude": "claude/ensure-dependency/external:selected|external:satisfied", "claude.deploy-runtime": "claude/deploy/installer:selected", "claude.deploy-launcher": "claude/deploy/installer:selected", "shared.retire-legacy": "shared/retire-legacy/installer:selected" } as const;
+  "pi.configure-packages": "pi/configure/installer:selected|unknown:selected", "pi.configure-secrets": "pi/configure/installer:conditional|installer:skipped", "pi.configure-context7-export": "pi/configure/installer:conditional|installer:skipped", "pi.write-install-marker": "pi/write-marker/installer:selected|unknown:selected", "pi.verify-doctor": "pi/verify/installer:selected|unknown:selected", "pi.deploy-launcher": "pi/deploy/installer:selected|unknown:selected", "pi.promote-commands": "pi/promote-command/installer:conditional|unknown:conditional", "claude.dependency.claude": "claude/ensure-dependency/external:selected|external:conditional|external:satisfied", "claude.deploy-runtime": "claude/deploy/installer:selected", "claude.deploy-launcher": "claude/deploy/installer:selected", "shared.retire-legacy": "shared/retire-legacy/installer:selected" } as const;
 
 function input(target: InstallPlanInput["target"], patch: Partial<InstallPlanInput> = {}): InstallPlanInput {
   return {
@@ -81,6 +81,19 @@ describe("managed install plan", () => {
       "claude.dependency.claude", "claude.deploy-runtime", "claude.deploy-launcher", "shared.retire-legacy",
     ]);
     expect([pi.status, claude.status, both.status]).toEqual(["ready", "ready", "ready"]);
+  });
+
+  test("models a missing Claude CLI as a conditional complement to the Pi core", () => {
+    const plan = createInstallPlan(input("both", {
+      dependencies: { ...input("both").dependencies, claude: false },
+    }));
+
+    expect(plan.inventory.find(({ id }) => id === "claude.dependency.claude")).toMatchObject({
+      runtime: "claude",
+      state: "conditional",
+      ownership: "external",
+    });
+    expect(plan.inventory.some(({ runtime }) => runtime === "pi")).toBe(true);
   });
 
   test("derives synthetic HOME paths, flags, satisfaction, and ownership blockers", () => {
@@ -221,7 +234,7 @@ describe("install plan executor", () => {
 		}
 	});
 
-  test("executes Pi, Claude, and Both strictly in executable inventory order", async () => {
+  test("keeps legacy Claude plans readable and executes current plans in inventory order", async () => {
     for (const target of ["pi", "claude", "both"] as const) {
       const plan = createInstallPlan(input(target, { dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false } }));
       const calls: string[] = [];
@@ -278,7 +291,7 @@ describe("install plan executor", () => {
       expect(result.ok).toBe(false);
       const laterSameRuntime = executable.slice(executable.indexOf(failed) + 1).filter((entry) => entry.runtime === failed.runtime);
       expect(laterSameRuntime.every((entry) => !calls.includes(entry.id))).toBe(true);
-      if (failed.runtime === "pi") expect(calls).toContain("claude.deploy-runtime");
+      if (failed.runtime === "pi") expect(calls).not.toContain("claude.deploy-runtime");
       if (failed.runtime === "shared" && failed.id !== "shared.retire-legacy") expect(calls).toEqual([failed.id]);
     }
   });

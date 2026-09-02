@@ -360,12 +360,24 @@ describe("release asset contract", () => {
     expect(publishStart).toBeGreaterThanOrEqual(0);
     expect(smokeStart).toBeGreaterThan(publishStart);
     expect(smokeStep).toContain("../e2e/release-update-test.sh");
-    expect(smokeStep).toContain("installer-v0.93.0-alpha.3");
+    expect(smokeStep).toContain("installer-v0.93.0-alpha.4");
     expect(smokeStep).toContain('"$RELEASE_TAG"');
     expect(script).toContain("gh release download");
     expect(script).toContain("ein-install update --yes latest");
     expect(script).toContain("assert_preserved_state");
     expect(script).toContain("E2E_RELEASE_UPDATE_RESULT=OK");
+  });
+
+  test("release workflow gates publication on the clean-home installer E2E", () => {
+    const workflow = readFileSync(WORKFLOW_PATH, "utf8");
+    const e2eStart = workflow.indexOf("- name: Pre-publication installer E2E (Ubuntu)");
+    const checksumsStart = workflow.indexOf("- name: Checksums");
+    const publishStart = workflow.indexOf("- name: Publish release");
+
+    expect(e2eStart).toBeGreaterThanOrEqual(0);
+    expect(e2eStart).toBeLessThan(checksumsStart);
+    expect(checksumsStart).toBeLessThan(publishStart);
+    expect(workflowStep(workflow, "- name: Pre-publication installer E2E (Ubuntu)")).toContain("./e2e/docker-test.sh");
   });
 
   test("push and dispatch share canonical final/alpha classification and reject unsupported prereleases", () => {

@@ -21,6 +21,7 @@ import {
 export type InstallJournalResumeKind =
   | "pre-mutation-retry"
   | "post-verification-restart"
+  | "claude-complement-restart"
   | "retirement-retry";
 
 function selectedEntries(plan: InstallPlanV1) {
@@ -50,11 +51,18 @@ function supportsPreMutationRetry(
   const backup = entries.get("pi.backup-current");
   if (!backup || backup.status !== "failed" || backupIndex < 0) return false;
 
-  const sharedAndClaude = journal.entries.filter(
-    ({ runtime, id }) => runtime === "claude"
-      || runtime === "shared" && id !== "shared.retire-legacy",
+  const shared = journal.entries.filter(
+    ({ runtime, id }) => runtime === "shared" && id !== "shared.retire-legacy",
   );
-  if (sharedAndClaude.some(({ status }) => status !== "completed")) return false;
+  if (shared.some(({ status }) => status !== "completed")) return false;
+  const claude = journal.entries.filter(({ runtime }) => runtime === "claude");
+  // alpha.3/alpha.4 continued with Claude after a pre-mutation Pi failure.
+  // Current installs defer the complement until the Ein core is healthy. Both
+  // closed shapes are safe: a retry either preserves completed Claude work or
+  // executes the still untouched complement after Pi succeeds.
+  const claudeCompleted = claude.every(({ status }) => status === "completed");
+  const claudeDeferred = claude.every(({ status }) => status === "not-run");
+  if (!claudeCompleted && !claudeDeferred) return false;
   if (entries.get("shared.retire-legacy")?.status !== "not-run") return false;
 
   return journal.entries
@@ -117,6 +125,44 @@ function supportsPostVerificationRestart(
       : entry.status === "not-run");
 }
 
+function supportsClaudeComplementRestart(
+  journal: InstallExecutionJournalV1,
+  plan: InstallPlanV1,
+): boolean {
+  if (
+    journal.target !== "both"
+    || journal.state !== "recovery-required"
+    || journal.recoveryCode !== "handler-failed"
+    || !["pi", "both"].includes(plan.target)
+    || journal.platform.os !== plan.platform.os
+    || journal.platform.arch !== plan.platform.arch
+    || plan.status !== "ready"
+  ) return false;
+
+  const failedIndex = journal.entries.findIndex(({ id }) => id === journal.pendingEntryId);
+  const failed = journal.entries[failedIndex];
+  if (failedIndex < 0 || failed?.runtime !== "claude" || failed.status !== "failed") return false;
+
+  const coreWasVerified = journal.entries
+    .filter(({ runtime }) => runtime === "shared" || runtime === "pi")
+    .every(({ id, status }) => id === "shared.retire-legacy" ? status === "not-run" : status === "completed");
+  if (!coreWasVerified) return false;
+
+  const claudeReachable = journal.entries.every((entry, index) => {
+    if (entry.runtime !== "claude") return true;
+    if (index < failedIndex) return entry.status === "completed";
+    if (index === failedIndex) return entry.status === "failed";
+    return entry.status === "not-run";
+  });
+  if (!claudeReachable) return false;
+
+  // A fresh plan must independently prove that the core written by the old
+  // transaction is now an installer-owned existing Ein tree.
+  const backup = plan.inventory.find(({ id }) => id === "pi.backup-current");
+  return backup?.ownership === "installer"
+    && backup.reason === "existing target is snapshotted before deploy";
+}
+
 export function classifyInstallJournalResume(
   journal: InstallExecutionJournalV1,
   plan: InstallPlanV1,
@@ -126,6 +172,7 @@ export function classifyInstallJournalResume(
     validateInstallJournal(journal);
     if (plan.status !== "ready") return null;
     if (supportsPostVerificationRestart(journal, plan)) return "post-verification-restart";
+    if (supportsClaudeComplementRestart(journal, plan)) return "claude-complement-restart";
     if (!installJournalMatchesPlan(journal, plan)) return null;
     if (supportsPreMutationRetry(journal, plan)) return "pre-mutation-retry";
     return supportsRetirementRetry(journal) ? "retirement-retry" : null;

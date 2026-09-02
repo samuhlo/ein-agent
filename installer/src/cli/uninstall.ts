@@ -8,12 +8,25 @@ import { dirname, relative } from "node:path";
 import { activeHome } from "../core/paths.ts";
 import { createUninstallPlan, renderUninstallPlan } from "../core/uninstall-plan.ts";
 import { executeUninstallPlan, inspectUninstallRecovery } from "../core/uninstall-recovery.ts";
-import { parseInstallFlags, type InstallTarget } from "./install.ts";
+import type { InstallTarget } from "../core/install-plan.ts";
 import { bold, gold } from "../tui/theme.ts";
+
+function parseUninstallTarget(args: string[]): InstallTarget {
+  const runtimeIndexes = args.flatMap((arg, index) => arg === "--runtime" ? [index] : []);
+  if (runtimeIndexes.length > 1) throw new Error("--runtime no puede repetirse");
+  const index = runtimeIndexes[0];
+  if (index === undefined) return "both";
+  const value = args[index + 1];
+  if (!value || value.startsWith("-")) throw new Error("--runtime necesita un valor separado");
+  if (value !== "pi" && value !== "claude" && value !== "both") {
+    throw new Error(`valor no soportado: ${value}. Usa --runtime pi|claude|both.`);
+  }
+  return value;
+}
 
 export async function runUninstall(args: string[], explicitTarget?: InstallTarget): Promise<number> {
   const yes = args.includes("--yes") || args.includes("-y");
-  let target: InstallTarget; try { target = explicitTarget ?? parseInstallFlags(args).runtime; } catch (error) { console.error(error instanceof Error ? error.message : String(error)); return 1; }
+  let target: InstallTarget; try { target = explicitTarget ?? parseUninstallTarget(args); } catch (error) { console.error(error instanceof Error ? error.message : String(error)); return 1; }
   const home = activeHome(), binDir = dirname(process.execPath), dryRun = args.includes("--dry-run");
 
   p.intro("desinstalar");

@@ -66,7 +66,7 @@ las superficies, configura secrets y ejecuta el doctor al terminar.
 Sobre un árbol existente crea un backup antes de tocar nada.
 
 ```bash
-ein-install install --runtime pi|claude|both
+ein-install install --runtime pi|both
 ```
 
 ### `ein-install update`
@@ -108,7 +108,7 @@ Restaura desde un backup previo.
 
 | Flag | Qué hace |
 | :--- | :--- |
-| `--runtime pi\|claude\|both` | qué superficie desplegar |
+| `--runtime pi\|both` | instalar Ein o Ein + Claude Code |
 | `--yes` | no interactivo, acepta los valores por defecto |
 | `--dry-run` | enseña el plan sin ejecutar nada |
 | `--channel alpha\|stable` | elige y, tras un update correcto, persiste el canal |

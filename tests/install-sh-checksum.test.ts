@@ -193,6 +193,7 @@ describe("install.sh deterministic shell fixture", () => {
       ["--release-channel", "stable", "--release-tag", "installer-v0.82.0-alpha.1"],
       ["--release-channel", "alpha", "--release-tag", "installer-v0.82.0-alpha.01"],
       ["--runtime"],
+      ["--runtime", "claude"],
       ["--runtime", "unknown"],
       ["--runtime", "pi", "--runtime", "both"],
       ["--runtime=both"],

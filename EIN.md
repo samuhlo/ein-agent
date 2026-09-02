@@ -1,7 +1,7 @@
 <!-- ein:init rev=5a6b65a generado=2026-08-28 · refresca con /ein:init -->
 ## Overview
 <!-- CURADA — 2-3 líneas: qué es el proyecto y para quién. -->
-Harness de coding-agent sobre Pi Coding Agent y Claude Code: dos runtimes aislados con una sola disciplina de entrega. Convierte trabajo ambiguo en cambios pequeños, verificados y explicados, con el estado del cambio en disco (`openspec/`) y no en la conversación.
+Harness de coding-agent construido sobre Pi Coding Agent, con Claude Code como relevo opcional. Convierte trabajo ambiguo en cambios pequeños, verificados y explicados, con el estado del cambio en disco (`openspec/`) y no en la conversación.
 Herramienta personal de Samu antes que producto público; cuando las dos cosas chocan, gana el uso propio.
 
 **Rumbo canónico: [`MANIFIESTO.md`](MANIFIESTO.md).** Define lo que Ein tiene que ser; manda sobre cualquier plan.

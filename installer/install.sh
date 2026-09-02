@@ -185,8 +185,9 @@ parse_release_args() {
         [ "$#" -ge 2 ] || fatal "--runtime requiere un valor"
         [ "$runtime_seen" -eq 0 ] || fatal "--runtime no puede repetirse"
         case "$2" in
-          pi|claude|both) INSTALL_RUNTIME="$2" ;;
-          *) fatal "runtime no soportado: $2 (usa pi, claude o both)" ;;
+          pi|both) INSTALL_RUNTIME="$2" ;;
+          claude) fatal "Claude Code es un complemento: Pi es el núcleo de Ein (usa pi o both)" ;;
+          *) fatal "runtime no soportado: $2 (usa pi o both)" ;;
         esac
         runtime_seen=1
         RUNTIME_EXPLICIT=1

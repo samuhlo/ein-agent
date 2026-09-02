@@ -13,9 +13,9 @@
 import { describe, expect, test } from "bun:test";
 import { RUNTIME_PROMPT_OPTIONS } from "../installer/src/cli/runtime-options.ts";
 
-describe("las opciones de runtime", () => {
-  test("son las tres, en el orden en que se instalan", () => {
-    expect(RUNTIME_PROMPT_OPTIONS.map((option) => option.value)).toEqual(["pi", "claude", "both"]);
+describe("las opciones de instalación", () => {
+  test("Ein siempre incluye Pi y Claude solo se ofrece como complemento", () => {
+    expect(RUNTIME_PROMPT_OPTIONS.map((option) => option.value)).toEqual(["pi", "both"]);
   });
 
   test("la etiqueta no trae color propio: el foco es quien pinta la fila", () => {
@@ -32,10 +32,9 @@ describe("las opciones de runtime", () => {
     }
   });
 
-  test("cada pista nombra el launcher que deja puesto", () => {
+  test("cada pista explica el núcleo que deja instalado", () => {
     expect(RUNTIME_PROMPT_OPTIONS[0]!.hint).toContain("ein-pi");
+    expect(RUNTIME_PROMPT_OPTIONS[1]!.hint).toContain("ein-pi");
     expect(RUNTIME_PROMPT_OPTIONS[1]!.hint).toContain("ein-cc");
-    expect(RUNTIME_PROMPT_OPTIONS[2]!.hint).toContain("ein-pi");
-    expect(RUNTIME_PROMPT_OPTIONS[2]!.hint).toContain("ein-cc");
   });
 });

@@ -173,7 +173,7 @@ export function checkDeps(platform: Platform): DepStatus[] {
     { id: "node", required: true, hint: `instala Node ${PI_NODE_MIN_VERSION} o posterior` },
     { id: "bun", required: true, hint: "curl -fsSL https://bun.sh/install | bash" },
     { id: "pi", required: true, hint: `bun install -g ${PI_HOST_SPEC}` },
-    { id: "claude", required: true, hint: "curl -fsSL https://claude.ai/install.sh | bash" },
+    { id: "claude", required: false, hint: "complemento opcional: curl -fsSL https://claude.ai/install.sh | bash" },
     { id: "engram", required: false, hint: "memoria persistente (opcional)" },
     { id: "gh", required: false, hint: "GitHub CLI para entrega (opcional)" },
     { id: "hypa", required: false, hint: "compresión de salida de comandos (opcional)" },

@@ -9,12 +9,12 @@ Given: A backup operation fails while inspecting, reading, copying, validating, 
 When: The installer handles the failed `pi.backup-current` operation.
 Then: The journal and installer result retain a bounded cause containing the failing operation or entry and the original error detail, rather than replacing it with a generic handler-failed message; the failure remains recovery-required and no uncertain operation is marked complete.
 
-## Scenario: claude-code-runtime-installation
-title: Claude Code target installs the Ein-first runtime surface
-requirement: The system MUST install the Claude Code Ein runtime by invoking `bun ein-cc/sync.ts`, installing `ein-cc.fish`, and publishing `ein-cc-sdd` as its deterministic SDD command.
-Given: the Claude Code runtime path is selected
+## Scenario: claude-code-complement-installation
+title: Claude Code installs only as a complement to the Ein Pi core
+requirement: The system MUST install Pi before the optional Claude Code surface, and MUST never create a new Claude-only Ein installation.
+Given: Ein with the Claude Code complement is selected
 When: installation runs
-Then: the renamed sync path runs with Bun, the Ein-first launcher and SDD command are installed, and either failure produces a failed Claude Code installation result
+Then: the Pi core deploys and verifies first; only then `bun ein-cc/sync.ts` runs, `ein-cc.fish` and `ein-cc-sdd` are published, and a Pi failure leaves every Claude step untouched
 
 ## Scenario: claude-payload-materializes-canonical-orchestrator
 title: Claude payload materializes the canonical orchestrator asset into the installed home
@@ -59,11 +59,11 @@ When: checksums.txt is unavailable, malformed, missing exactly one entry for the
 Then: the installer exits nonzero before publishing or executing the asset; when checksums.txt is valid and the digest matches, the installer verifies first and then uses the existing successful installation path
 
 ## Scenario: noninteractive-runtime-flag-selection
-title: Non-interactive installer accepts an explicit runtime
-requirement: The system MUST accept --runtime pi, --runtime claude, or --runtime both for non-interactive installation, default to Pi when the flag is omitted, and reject unsupported values before running a runtime path.
+title: Non-interactive installer accepts Ein or Ein with Claude
+requirement: The system MUST accept --runtime pi or --runtime both for non-interactive installation, default to Pi when the flag is omitted, and reject Claude-only and unsupported values before running a runtime path.
 Given: ein install is invoked with --yes and an optional --runtime value
 When: the installer parses the flags and selects runtime targets
-Then: Pi, Claude Code, or both run in the existing Pi-then-Claude order exactly as selected, omission preserves the current Pi-only behavior, and an invalid value fails before installation
+Then: Pi always runs as the Ein core, Claude runs only after Pi when `both` is selected, omission preserves the Pi core behavior, and Claude-only or an invalid value fails before installation
 
 ## Scenario: pi-runtime-isolated-installation
 title: Pi target installs the isolated Ein-first runtime surface
@@ -88,10 +88,10 @@ Then: the build fails before publishing the archive; a valid flat overlay resolv
 
 ## Scenario: pre-mutation-pi-failure-retry
 title: Pre-mutation Pi failure supports fail-closed retry
-requirement: The system MUST provide a supported fail-closed retry or recovery path when a Pi install fails before any Pi mutation, while preserving completed Claude work.
-Given: A `both` install journal is valid and recovery-required with `recoveryCode` `handler-failed`, `pendingEntryId` `pi.backup-current`, every later Pi entry is `not-run`, and Claude entries are completed.
+requirement: The system MUST provide a supported fail-closed retry or recovery path when a Pi install fails before any Pi mutation, while accepting both current deferred-Claude journals and completed-Claude journals written by alpha.3/alpha.4.
+Given: A `both` install journal is valid and recovery-required with `recoveryCode` `handler-failed`, `pendingEntryId` `pi.backup-current`, every later Pi entry is `not-run`, and all Claude entries are either `not-run` or all `completed`.
 When: The installer starts or explicitly resumes recovery for the same plan.
-Then: It preserves completed Claude entries, retries or safely recovers the failed Pi backup before any Pi mutation, keeps failed or uncertain work non-complete until success is proven, and removes or completes the journal only after the whole plan reaches a verified complete state; unsupported or ambiguous journals remain blocked.
+Then: It preserves legacy completed Claude entries or defers untouched Claude entries until Pi succeeds, retries the failed Pi backup before any Pi mutation, and completes the journal only after the whole selected installation is verified; unsupported or ambiguous journals remain blocked.
 
 ## Scenario: real-pi-tree-backup-safety
 title: Real Pi trees snapshot user state without dependency payloads or symlink traversal
@@ -100,12 +100,19 @@ Given: A Pi agent tree contains more than 10,000 files and 128 MiB in regenerabl
 When: The installer creates and validates a current-state backup.
 Then: The backup succeeds without reading external symlink targets, records or restores safe symlink entries according to the backup contract, accepts safe hardlinked files, excludes regenerable dependency payloads, and restores user-owned regular files without escaping the agent tree.
 
+## Scenario: claude-complement-failure-preserves-pi
+title: A failed Claude complement does not trap the working Pi core
+requirement: The system MUST keep a verified Pi deployment usable when the optional Claude complement fails and MUST admit a fresh, ownership-proven Pi or Pi-plus-Claude transaction on retry.
+Given: a `both` install journal completed every shared and Pi entry, failed in a Claude entry, and a fresh observation proves the Pi tree is installer-owned and isolated
+When: the user retries Ein alone or Ein with the Claude complement
+Then: the installer starts a fresh transaction from the verified Pi core, never treats Claude as the core, and either completes Pi alone or retries Claude only after Pi is ready; ambiguous ownership remains blocked.
+
 ## Scenario: runtime-menu-target-selection
-title: Installer offers explicit runtime targets
-requirement: The system MUST offer Pi, Claude Code, and both as installer runtime choices and execute only the selected runtime path or paths.
+title: Installer offers Ein with an optional Claude complement
+requirement: The system MUST offer Ein and Ein with Claude Code, with Pi present in every install choice.
 Given: the interactive installer menu is opened
-When: the user selects Pi, Claude Code, or both
-Then: the installer runs the corresponding target path exactly once and does not run an unselected runtime path
+When: the user selects Ein or Ein with Claude Code
+Then: the installer runs Pi exactly once and runs Claude exactly once only for the complement choice
 
 ## Scenario: runtime-surface-rename-cleans-owned-legacy-entrypoints
 title: Upgrade removes only installer-owned retired runtime entry points
