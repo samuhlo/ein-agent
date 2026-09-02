@@ -2,7 +2,7 @@
 
 Este documento contiene únicamente trabajo vigente. Las decisiones estables viven en `docs/adr/`, el comportamiento actual en `openspec/specs/` y la historia exhaustiva en Git y las releases.
 
-El trabajo anterior dejó la baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, primeros contratos compartidos extraídos y fronteras automáticas de imports en su sitio. Las fases posteriores repararon el presupuesto de revisión, separaron el diario de instalación en contrato, forma, alcanzabilidad, codec, store, política, persistencia y ejecución, hicieron que el payload de Claude siga dependencias de ejecución en lugar de imports puramente de tipo y extrajeron la resolución de intención a un núcleo SDD neutral.
+El trabajo anterior dejó la baseline de beta congelada, OpenSpec condensado, producto y runtime separados, propiedad del launcher `ein` unificada, presupuesto de revisión resistente a código empaquetado y el diario de instalación separado por responsabilidades. El núcleo SDD compartido ya posee intención, routing, remedios, validación, lenguaje y sincronización OpenSpec, resumen y cierre. Sus cinco adaptadores supervivientes están inventariados con dueño y condición de retirada en `shared/README.md`.
 
 ## Condicionado — liberar presupuesto de prompt
 
@@ -14,21 +14,7 @@ Objetivo: crear espacio solo cuando un cambio de contrato observable demuestre q
 
 Criterio de salida: el cambio de contrato medido cabe con margen explícito y los consumidores de la prosa retirada siguen verdes. Sin necesidad demostrada, esta fase no se ejecuta.
 
-## Ahora — fase 6, núcleo SDD neutral
-
-Objetivo: que el motor compartido exista de verdad, no como fachada.
-
-`shared/ports/` sigue siendo una fachada de migración hacia implementaciones propiedad de Pi. La CLI SDD de Claude consume parte de ese cierre; la frontera compartida todavía está declarada antes que construida.
-
-Tres piezas ya viven en `shared/sdd/`: política y coordinación de intención; selección, lectura de estado y routing; y remedios deterministas de estado. Pi y Claude consumen esas decisiones compartidas; las fachadas temporales solo conservan compatibilidad mientras continúa la migración:
-
-- [ ] Cierre, OpenSpec y validación de artefactos que ambos runtimes usan realmente.
-
-Hooks, preguntas, interfaz y herramientas exclusivas se quedan en Pi. Cada corte funcional terminado debe reducir la lista de puentes y el cierre real de la CLI. Si el presupuesto obliga a apilarlo en varias PRs, una preparación intermedia no puede añadir puentes ni ampliar el cierre.
-
-Criterio de salida: cada puente superviviente tiene motivo, propietario y condición de retirada. No se persigue cero.
-
-## Después — fase 7, hotspots con reglas sanas
+## Ahora — fase 7, hotspots con reglas sanas
 
 Objetivo: dividir por responsabilidad medida, nunca por número de líneas.
 

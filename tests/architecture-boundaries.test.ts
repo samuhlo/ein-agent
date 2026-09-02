@@ -8,6 +8,7 @@ const EXTERNAL_CONSUMER_ROOTS = ["ein-cc", "installer/src", "installer/scripts"]
 const CONTRACT_ROOT = "shared/contracts";
 const PORT_ROOT = "shared/ports";
 const SDD_CORE_ROOT = "shared/sdd";
+const SHARED_README = readFileSync(join(ROOT, "shared", "README.md"), "utf8");
 
 const ALLOWED_PI_BRIDGES = [
 	"shared/ports/continuity.ts::../../ein-pi/agent/lib/continuity-checkpoint.ts",
@@ -74,6 +75,12 @@ function importedModules(file: string): string[] {
 	);
 }
 
+function documentedSddBridges(): string[] {
+	return [...SHARED_README.matchAll(/^\| `([^`]+)` \| [^|]+ \| `[^`]+` \| [^|]+ \|$/gm)]
+		.map((match) => match[1]!)
+		.sort();
+}
+
 describe("fronteras arquitectónicas del repositorio", () => {
 	test("Claude e installer no acceden directamente a interiores de Pi", () => {
 		expect(stringLiteralsContaining(EXTERNAL_CONSUMER_ROOTS, "ein-pi/agent")).toEqual([]);
@@ -99,6 +106,14 @@ describe("fronteras arquitectónicas del repositorio", () => {
 
 	test("todo puente temporal hacia Pi está centralizado y declarado", () => {
 		expect(stringLiteralsContaining([PORT_ROOT], "ein-pi/agent")).toEqual([...ALLOWED_PI_BRIDGES].sort());
+	});
+
+	test("cada puente SDD superviviente declara motivo, dueño y retirada", () => {
+		const authorized = ALLOWED_PI_BRIDGES
+			.filter((bridge) => bridge.startsWith("shared/ports/sdd.ts::"))
+			.map((bridge) => bridge.split("::")[1]!)
+			.sort();
+		expect(documentedSddBridges()).toEqual(authorized);
 	});
 
 	test("Claude adapta la intención con el contexto mínimo, sin fabricar un contexto de Pi", () => {

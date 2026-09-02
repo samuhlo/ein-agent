@@ -42,6 +42,9 @@ plano y falla si una fuente no es regular o si dos módulos comparten nombre.
 - Ningún núcleo compartido puede ejecutar Git o procesos a escondidas.
 - Los subdirectorios y los nombres duplicados no forman parte del contrato del
   overlay plano.
+- Cada puente SDD superviviente declara motivo, propietario y condición de
+  retirada en `shared/README.md`; la suite exige que ese inventario y los
+  imports autorizados sean exactamente el mismo conjunto.
 
 ## Condiciones de retirada
 
