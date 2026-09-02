@@ -27,6 +27,7 @@ import { readProjectOpenSpecState } from "../ein-pi/agent/lib/project-state-open
 import { readProjectEinState } from "../ein-pi/agent/lib/project-state-ein";
 import { readProjectVerificationState } from "../ein-pi/agent/lib/project-state-verification";
 import { parseProjectGitStatus } from "../ein-pi/agent/lib/project-state-git-status";
+import { readProjectGitState } from "../ein-pi/agent/lib/project-state-git";
 
 const QUALITY_VALUES: readonly ProjectStateQuality[] = [
 	"current",
@@ -797,9 +798,14 @@ describe("verification freshness and source degradation", () => {
 });
 
 describe("Git bounded exact identity", () => {
-	test("the aggregate consumes the status owner instead of carrying a second parser", () => {
+	test("the aggregate delegates Git inspection to its owner", () => {
+		const cwd = "/tmp/example-project";
+		expect(projectProjectState({ cwd }).git).toEqual(readProjectGitState(cwd));
+	});
+
+	test("the Git reader consumes the status owner instead of carrying a second parser", () => {
 		const source = readFileSync(
-			join(import.meta.dir, "..", "ein-pi", "agent", "lib", "project-state.ts"),
+			join(import.meta.dir, "..", "ein-pi", "agent", "lib", "project-state-git.ts"),
 			"utf8",
 		);
 		expect(source).toContain('from "./project-state-git-status.ts"');
