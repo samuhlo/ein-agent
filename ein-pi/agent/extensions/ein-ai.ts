@@ -60,13 +60,6 @@ import {
 	confirmCommand,
 	confirmDelegatedDelivery,
 } from "../lib/guardrails.ts";
-import {
-	formatReconciliation,
-	reconcilePhaseFailure,
-	resolveDelegationPhase,
-	snapshotPhaseArtifacts,
-	type PhaseSnapshot,
-} from "../lib/sdd-reconcile.ts";
 import { applySavedModelConfig, modelConfigPath } from "../lib/model-config.ts";
 import { registerAdvisoryTools } from "./internal/ein-advisory-tools.ts";
 import { registerGeneralCommands } from "./internal/ein-general-commands.ts";
@@ -78,8 +71,8 @@ import {
 	readAgentStartNames,
 	readAgentTask,
 	readExplicitSddChange,
-	recognizePiParticipantTerminal,
 } from "./internal/ein-pi-event-contracts.ts";
+import { registerDelegationResultHook } from "./internal/ein-delegation-results.ts";
 import { createPiIntentGate } from "./internal/ein-pi-intent-gate.ts";
 import { registerOpenSpecWriteTools } from "./internal/ein-openspec-write-tools.ts";
 import {
@@ -89,7 +82,6 @@ import { registerSddLifecycleTools } from "./internal/ein-sdd-lifecycle-tools.ts
 import { registerSddChangeSettings } from "./internal/ein-sdd-change-settings.ts";
 import { registerSddReadSurface } from "./internal/ein-sdd-read-surface.ts";
 import { createEinToolRegistrar } from "./internal/ein-tool-registration.ts";
-import type { SddPhase } from "../lib/sdd-guardrails.ts";
 import { resolveActiveChange } from "../lib/sdd-preflight-record.ts";
 import { aggregateSddBudget, formatBudget, listActiveChangeSummaries, resolveSddNext, sddNextHandoff } from "../lib/sdd-router.ts";
 import {
@@ -105,7 +97,7 @@ import {
 import { AGENT_DIR } from "./ein-paths";
 import { readInstalledVersion, staleSessionNudge } from "../lib/session-version";
 import { evaluateStaging } from "../lib/git-staging.ts";
-import { acceptTrackedScoutResult, normalizeScoutLaunch, type ScoutTracking } from "../lib/scout-contract.ts";
+import { normalizeScoutLaunch, type ScoutTracking } from "../lib/scout-contract.ts";
 import {
 	clearAgentControlSession,
 	internalAgentRoutingDirective,
@@ -113,20 +105,11 @@ import {
 	routeAgentControl,
 	type EinInternalAgent,
 } from "../lib/agent-controls.ts";
-import { admitSddParticipantCall, clearSddParticipantSession, completeSddParticipantCall, getSddParticipantCall, participantResultIsUnrecognized, sddParticipantCallsAreTracked, type SddParticipant } from "../lib/sdd-participants.ts";
+import { admitSddParticipantCall, clearSddParticipantSession, type SddParticipant } from "../lib/sdd-participants.ts";
 
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
 const deliveryIntentBySession = new Map<string, DeliveryIntent>();
-
-// Foto del artefacto de fase justo ANTES de delegar, por toolCallId. La lee el
-// hook `tool_result` para distinguir "la fase no se hizo" de "el runner falló
-// por algo ajeno al trabajo". Sin la foto no se reconcilia nada: un artefacto
-// preexistente no puede rescatar un run que no escribió nada.
-const phaseSnapshotByToolCall = new Map<
-	string,
-	{ phase: SddPhase; before: PhaseSnapshot }
->();
 
 const scoutTracking: ScoutTracking = new Map();
 
@@ -135,35 +118,6 @@ const scoutTracking: ScoutTracking = new Map();
 // llamada solo taparía el resto.
 const shapeDriftWarned = new Set<string>();
 
-// Espejo del canario de admisión, del lado de la RECOGIDA (A-3): si Ein deja de
-// reconocer la forma del resultado de un participante rastreado, avisa una vez
-// por sesión en vez de perder la evidencia en silencio.
-const participantResultDriftWarned = new Set<string>();
-function warnParticipantResultDrift(ctx: ExtensionContext): void {
-	const key = sddPreflightSessionKey(ctx);
-	if (participantResultDriftWarned.has(key)) return;
-	participantResultDriftWarned.add(key);
-	ctx.ui.notify(
-		t(
-			"ai.delegation.participant-result-drift",
-			"Ein no reconoce la forma del resultado de este participante SDD: la evidencia no se registra. Actualiza Ein (`ein update`).",
-		),
-		"warning",
-	);
-}
-
-function rememberPhaseSnapshot(
-	toolCallId: string,
-	input: unknown,
-	cwd: string,
-): void {
-	const phase = resolveDelegationPhase(input);
-	if (!phase) return;
-	phaseSnapshotByToolCall.set(toolCallId, {
-		phase,
-		before: snapshotPhaseArtifacts(cwd, phase),
-	});
-}
 // Versión instalada al arrancar cada sesión + sesiones ya avisadas: si `ein
 // update` corre a mitad de sesión, esta sigue con la plantilla vieja → nudge de
 // reinicio (una vez).
@@ -174,6 +128,7 @@ const staleSessionNudged = new Set<string>();
 
 export default function einAi(pi: ExtensionAPI): void {
 	const intentGate = createPiIntentGate();
+	const delegationResults = registerDelegationResultHook(pi, scoutTracking);
 
 	async function runSddPreflight(ctx: ExtensionContext): Promise<SddPreflightPreferences> {
 		const preferences = await ensureSddPreflight(ctx, {
@@ -450,7 +405,11 @@ export default function einAi(pi: ExtensionAPI): void {
 			await gateTddForDelegation(event.input, ctx);
 			// Foto del artefacto de fase ANTES de delegar. Si el run acaba en ✗, el
 			// hook `tool_result` compara y decide si la fase se hizo igualmente.
-			rememberPhaseSnapshot(event.toolCallId, event.input, ctx.cwd);
+			delegationResults.rememberPhaseSnapshot(
+				event.toolCallId,
+				event.input,
+				ctx.cwd,
+			);
 			return confirmDelegatedDelivery(event.input, ctx, {
 				mode: readGitDeliveryMode(ctx.cwd),
 				userRequested: deliveryIntentActive(
@@ -474,62 +433,6 @@ export default function einAi(pi: ExtensionAPI): void {
 		if (staging.kind === "blocked") return { block: true, reason: staging.reason };
 		maybeWrapBashInput(event.input as { command: string }, ctx.cwd);
 		return undefined;
-	});
-
-	// El artefacto manda sobre el veredicto del runner. Un ✗ puede venir de algo
-	// que no dice nada del trabajo (tool ausente en la allowlist, respuesta final
-	// vacía, timeout en la lectura final) con la fase YA entregada. Sin esto el
-	// orquestador repetía una fase completa y pagaba dos veces.
-	pi.on("tool_result", (event, ctx) => {
-		// A participant result must arrive on its own foreground `subagent` call.
-		// `subagent_wait` and every other delivery shape are unavailable evidence,
-		// not a reason to leave the coordinator call in flight.
-		if (event.toolName === "subagent_wait") {
-			if (ctx.hasUI && participantResultIsUnrecognized({ toolName: event.toolName, details: event.details, hasTrackedCalls: sddParticipantCallsAreTracked() })) warnParticipantResultDrift(ctx);
-			const tracked = getSddParticipantCall(event.toolCallId);
-			if (tracked) completeSddParticipantCall(ctx.cwd, sddPreflightSessionKey(ctx), event.toolCallId, { status: "unavailable", reason: "background participant delivery is unsupported" });
-			return undefined;
-		}
-		if (event.toolName !== "subagent") {
-			const tracked = getSddParticipantCall(event.toolCallId);
-			if (tracked) completeSddParticipantCall(ctx.cwd, sddPreflightSessionKey(ctx), event.toolCallId, { status: "unavailable", reason: "unsupported participant delivery" });
-			return undefined;
-		}
-		if (ctx.hasUI && participantResultIsUnrecognized({ toolName: event.toolName, details: event.details, hasTrackedCalls: sddParticipantCallsAreTracked() })) warnParticipantResultDrift(ctx);
-		const tracked = getSddParticipantCall(event.toolCallId);
-		if (tracked) {
-			const terminal = recognizePiParticipantTerminal({
-				toolName: event.toolName,
-				isError: event.isError,
-				details: event.details,
-				agent: tracked.unit,
-				task: tracked.task,
-			});
-			completeSddParticipantCall(ctx.cwd, sddPreflightSessionKey(ctx), event.toolCallId, terminal);
-		}
-		try {
-			const report = acceptTrackedScoutResult(scoutTracking, event.toolCallId, event.details, event.isError, ctx.cwd);
-			if (report) return { isError: false, content: [{ type: "text", text: JSON.stringify(report) }] };
-		} catch (error) {
-			return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "ein-scout contract: validation failed" }] };
-		}
-		// Se libera SIEMPRE, falle o no: si solo se borrase en la rama de fallo,
-		// cada delegación exitosa dejaría su foto ahí para toda la sesión.
-		const snapshot = phaseSnapshotByToolCall.get(event.toolCallId);
-		phaseSnapshotByToolCall.delete(event.toolCallId);
-		if (!snapshot) return undefined;
-		if (!event.isError) return undefined;
-		const result = reconcilePhaseFailure(ctx.cwd, snapshot.phase, snapshot.before);
-		if (!result.reconciled) return undefined;
-		const originalError = event.content
-			.map((part) => (part.type === "text" ? part.text : ""))
-			.join("\n");
-		return {
-			isError: false,
-			content: [
-				{ type: "text", text: formatReconciliation(result, originalError) },
-			],
-		};
 	});
 
 	pi.registerCommand("ein:ai:install-sdd", {

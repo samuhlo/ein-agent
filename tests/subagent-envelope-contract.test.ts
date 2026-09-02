@@ -9,7 +9,10 @@ import {
 	type EnvelopeConsumerEntry,
 } from "../ein-pi/agent/lib/subagent-envelope-contract.ts";
 
-const EIN_AI_PATH = join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts");
+const DELEGATION_RESULTS_PATH = join(
+	import.meta.dir,
+	"../ein-pi/agent/extensions/internal/ein-delegation-results.ts",
+);
 const SDD_PREFLIGHT_PATH = join(import.meta.dir, "../ein-pi/agent/lib/sdd-preflight.ts");
 const SCOUT_CONTRACT_PATH = join(import.meta.dir, "../ein-pi/agent/lib/scout-contract.ts");
 
@@ -72,8 +75,8 @@ describe("subagent envelope contract — T1 unitario (fixtures)", () => {
 
 describe("subagent envelope contract — T2 integración (detector de novedad, mundo cerrado)", () => {
 	test("los consumidores hallados en el handler tool_result real == las claves del inventario declarado", () => {
-		const einAiSource = readFileSync(EIN_AI_PATH, "utf8");
-		const body = extractToolResultHandlerBody(einAiSource);
+		const resultHookSource = readFileSync(DELEGATION_RESULTS_PATH, "utf8");
+		const body = extractToolResultHandlerBody(resultHookSource);
 		const found = findEnvelopeConsumers(body);
 		const declared = new Set(Object.keys(ENVELOPE_CONSUMER_INVENTORY).map((consumer) => consumer === "completeSddParticipantCall" ? "recognizePiParticipantTerminal" : consumer));
 		expect(found).toEqual(declared);
