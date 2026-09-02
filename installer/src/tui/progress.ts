@@ -54,7 +54,8 @@ const LABEL: Readonly<Record<InstallPlanEntryId, string>> = Object.freeze({
   "pi.verify-doctor": "doctor",
   "pi.deploy-launcher": "launcher ein-pi",
   "pi.promote-commands": "comandos en el PATH",
-  "claude.deploy-runtime": "desplegar claude code",
+  "claude.dependency.claude": "claude code cli",
+  "claude.deploy-runtime": "desplegar ein para claude",
   "claude.deploy-launcher": "launcher ein-cc",
   "shared.retire-legacy": "retirar accesos antiguos",
 });

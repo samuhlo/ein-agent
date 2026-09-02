@@ -31,6 +31,7 @@ function plan(target: "pi" | "claude" | "both" = "both", home = "/tmp/ein-policy
     dependencies: {
       bun: true,
       pi: true,
+      claude: true,
       engram: true,
       gh: true,
       hypa: true,
@@ -131,6 +132,7 @@ function managedRepairPlan(home = "/tmp/ein-policy-home"): InstallPlanV1 {
     dependencies: {
       bun: true,
       pi: false,
+      claude: true,
       engram: true,
       gh: false,
       hypa: true,

@@ -85,6 +85,7 @@ function prepared(root: string) {
     dependencies: {
       bun: true,
       pi: false,
+      claude: true,
       engram: false,
       gh: false,
       hypa: false,

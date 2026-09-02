@@ -23,6 +23,7 @@ function plan(): InstallPlanV1 {
     dependencies: {
       bun: true,
       pi: false,
+      claude: true,
       engram: false,
       gh: false,
       hypa: false,

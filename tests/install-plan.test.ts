@@ -9,7 +9,7 @@ import { derivePiInstallPaths, resolvePiInstallContext } from "../installer/src/
 
 const HOME = "/synthetic/home";
 const ENTRY_ORACLE = { "shared.dependency.bun": "shared/ensure-dependency/external:selected|external:satisfied", "pi.dependency.pi": "pi/ensure-dependency/external:selected|external:satisfied", "pi.dependency.engram": "pi/ensure-dependency/external:selected|external:conditional|external:satisfied|external:skipped", "pi.dependency.gh": "pi/ensure-dependency/external:conditional|external:satisfied|external:skipped", "pi.dependency.hypa": "pi/ensure-dependency/external:conditional|external:satisfied|external:skipped", "pi.dependency.codegraph": "pi/ensure-dependency/external:conditional|external:satisfied|external:skipped", "pi.migrate-legacy": "pi/migrate/installer:selected|installer:skipped|unknown:blocked", "pi.backup-current": "pi/backup/installer:conditional|unknown:conditional", "pi.deploy-template": "pi/deploy/installer:selected|unknown:selected",
-  "pi.configure-packages": "pi/configure/installer:selected|unknown:selected", "pi.configure-secrets": "pi/configure/installer:conditional|installer:skipped", "pi.configure-context7-export": "pi/configure/installer:conditional|installer:skipped", "pi.write-install-marker": "pi/write-marker/installer:selected|unknown:selected", "pi.verify-doctor": "pi/verify/installer:selected|unknown:selected", "pi.deploy-launcher": "pi/deploy/installer:selected|unknown:selected", "pi.promote-commands": "pi/promote-command/installer:conditional|unknown:conditional", "claude.deploy-runtime": "claude/deploy/installer:selected", "claude.deploy-launcher": "claude/deploy/installer:selected", "shared.retire-legacy": "shared/retire-legacy/installer:selected" } as const;
+  "pi.configure-packages": "pi/configure/installer:selected|unknown:selected", "pi.configure-secrets": "pi/configure/installer:conditional|installer:skipped", "pi.configure-context7-export": "pi/configure/installer:conditional|installer:skipped", "pi.write-install-marker": "pi/write-marker/installer:selected|unknown:selected", "pi.verify-doctor": "pi/verify/installer:selected|unknown:selected", "pi.deploy-launcher": "pi/deploy/installer:selected|unknown:selected", "pi.promote-commands": "pi/promote-command/installer:conditional|unknown:conditional", "claude.dependency.claude": "claude/ensure-dependency/external:selected|external:satisfied", "claude.deploy-runtime": "claude/deploy/installer:selected", "claude.deploy-launcher": "claude/deploy/installer:selected", "shared.retire-legacy": "shared/retire-legacy/installer:selected" } as const;
 
 function input(target: InstallPlanInput["target"], patch: Partial<InstallPlanInput> = {}): InstallPlanInput {
   return {
@@ -20,7 +20,7 @@ function input(target: InstallPlanInput["target"], patch: Partial<InstallPlanInp
     piOwnership: { status: "absent" },
     claudeConfigHome: join(HOME, ".claude-ein"),
     platform: { os: "darwin", arch: "arm64" },
-    dependencies: { bun: true, pi: false, engram: false, gh: true, hypa: false, codegraph: false },
+    dependencies: { bun: true, pi: false, claude: true, engram: false, gh: true, hypa: false, codegraph: false },
     flags: { yes: false, noEngram: false, noSecrets: false, noHypa: false, noCodegraph: false, skipLinear: true },
     ...patch,
   };
@@ -69,16 +69,16 @@ describe("managed install plan", () => {
     expect(pi.inventory[0]?.id).toBe("shared.dependency.bun");
     expect(pi.inventory.every((entry) => entry.runtime !== "claude")).toBe(true);
     expect(claude.inventory.map((entry) => entry.id)).toEqual([
-      "shared.dependency.bun", "claude.deploy-runtime", "claude.deploy-launcher", "shared.retire-legacy",
+      "shared.dependency.bun", "claude.dependency.claude", "claude.deploy-runtime", "claude.deploy-launcher", "shared.retire-legacy",
     ]);
     expect(both.inventory.filter((entry) => entry.id === "shared.dependency.bun")).toHaveLength(1);
     expect(both.inventory.map((entry) => entry.runtime)).toEqual([
-      "shared", ...Array(15).fill("pi"), "claude", "claude",
+      "shared", ...Array(15).fill("pi"), "claude", "claude", "claude",
       "shared",
     ]);
     expect(both.inventory.map((entry) => entry.id)).toEqual([
       ...pi.inventory.slice(0, -1).map((entry) => entry.id),
-      "claude.deploy-runtime", "claude.deploy-launcher", "shared.retire-legacy",
+      "claude.dependency.claude", "claude.deploy-runtime", "claude.deploy-launcher", "shared.retire-legacy",
     ]);
     expect([pi.status, claude.status, both.status]).toEqual(["ready", "ready", "ready"]);
   });
@@ -194,7 +194,7 @@ describe("install plan executor", () => {
 				home: root,
 				piAgentDir: join(root, ".pi-ein", "agent"),
 				claudeConfigHome: join(root, ".claude-ein"),
-				dependencies: { bun: false, pi: false, engram: false, gh: false, hypa: false, codegraph: false },
+				dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false },
 				flags: { yes: true, noEngram: true, noSecrets: true, noHypa: true, noCodegraph: true, skipLinear: true },
 			});
 			const events: string[] = [];
@@ -223,7 +223,7 @@ describe("install plan executor", () => {
 
   test("executes Pi, Claude, and Both strictly in executable inventory order", async () => {
     for (const target of ["pi", "claude", "both"] as const) {
-      const plan = createInstallPlan(input(target, { dependencies: { bun: false, pi: false, engram: false, gh: false, hypa: false, codegraph: false } }));
+      const plan = createInstallPlan(input(target, { dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false } }));
       const calls: string[] = [];
       const result = await executeInstallPlan(plan, fakeHandlers(plan, (id) => { calls.push(id); return { ok: true }; }));
       expect(result.ok).toBe(true);
@@ -270,7 +270,7 @@ describe("install plan executor", () => {
   });
 
   test("fault injection stops the failed runtime at every executable boundary", async () => {
-    const plan = createInstallPlan(input("both", { dependencies: { bun: false, pi: false, engram: false, gh: false, hypa: false, codegraph: false } }));
+    const plan = createInstallPlan(input("both", { dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false } }));
     const executable = plan.inventory.filter((entry) => entry.state === "selected" || entry.state === "conditional");
     for (const failed of executable) {
       const calls: string[] = [];
@@ -284,7 +284,7 @@ describe("install plan executor", () => {
   });
 
   test("bounds returned and thrown private failures at shared, Pi, and Claude boundaries", async () => {
-    const plan = createInstallPlan(input("both", { dependencies: { bun: false, pi: false, engram: false, gh: false, hypa: false, codegraph: false } }));
+    const plan = createInstallPlan(input("both", { dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false } }));
     for (const [id, runtime, detail] of [["shared.dependency.bun", "shared", "Bun no disponible: shared.dependency.bun"], ["pi.dependency.pi", "pi", "Pi installation failed at pi.dependency.pi"], ["claude.deploy-runtime", "claude", "Claude Code installation failed at claude.deploy-runtime"]] as const) {
       for (const throws of [false, true]) {
         const result = await executeInstallPlan(plan, fakeHandlers(plan, (entry) => { if (entry !== id) return { ok: true, detail: "PRIVATE-success" }; if (throws) throw new Error("PRIVATE-secret-path-stdout"); return { ok: false, detail: "PRIVATE-secret-path-stdout" }; }));
@@ -295,7 +295,7 @@ describe("install plan executor", () => {
 
   test("real wiring consumes one frozen snapshot even if observations change during execution", async () => {
     const testHome = mkdtempSync(join(realpathSync(tmpdir()), "ein-plan-wiring-"));
-    const source = input("both", { home: testHome, piAgentDir: join(testHome, ".pi-ein", "agent"), claudeConfigHome: join(testHome, ".claude-ein"), dependencies: { bun: false, pi: false, engram: false, gh: false, hypa: false, codegraph: false }, flags: { yes: true, noEngram: false, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true } });
+    const source = input("both", { home: testHome, piAgentDir: join(testHome, ".pi-ein", "agent"), claudeConfigHome: join(testHome, ".claude-ein"), dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false }, flags: { yes: true, noEngram: false, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true } });
     const { target: _target, flags: _flags, platform, ...rest } = source;
     const observations = { ...rest, dependencies: { ...rest.dependencies }, platform: { ...platform, distro: "unknown" as const, packageManager: "brew" as const, shell: "unknown" as const, shellRc: join(HOME, ".profile"), home: HOME } };
     const calls: string[] = [];
@@ -306,7 +306,7 @@ describe("install plan executor", () => {
   });
 
   test("Pi plan handlers retain deploy, packages, doctor, launcher, and promotion capabilities", async () => {
-    const source = input("pi", { dependencies: { bun: true, pi: true, engram: true, gh: true, hypa: true, codegraph: true }, flags: { yes: true, noEngram: true, noSecrets: true, noHypa: true, noCodegraph: true, skipLinear: true } });
+    const source = input("pi", { dependencies: { bun: true, pi: true, claude: true, engram: true, gh: true, hypa: true, codegraph: true }, flags: { yes: true, noEngram: true, noSecrets: true, noHypa: true, noCodegraph: true, skipLinear: true } });
     const plan = createInstallPlan(source);
     const context = resolvePiInstallContext(derivePiInstallPaths(HOME));
     const calls: string[] = []; let spinnerStarts = 0, spinnerStops = 0;

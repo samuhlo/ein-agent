@@ -12,6 +12,7 @@ import { run } from "../core/exec.ts";
 import {
   checkDeps,
   installBun,
+  installClaudeCode,
   installDeclaredPackages,
   installEngramDep,
   installGh,
@@ -395,10 +396,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
 
   if (needGh && !flags.yes) {
     if (await confirm("Instalar gh (GitHub CLI)?", flags, false)) {
-      const spinner = p.spinner();
-      spinner.start("Instalando gh");
       const result = await installGh(platform);
-      spinner.stop(result.detail);
       return optionalInstallOutcome(result);
     }
   }
@@ -594,6 +592,13 @@ export type ClaudeInstallOptions = {
   stagePayload?: () => Promise<EinCcPayloadStage>;
   execute?: typeof run;
   installLauncher?: typeof installFishLauncher;
+  /** Fresh dependency observation from the immutable install plan. */
+  claudePresent?: boolean;
+  /** Interactive policy used only when Claude Code is missing. */
+  flags?: InstallFlags;
+  /** Injectable native installer and progress seam. */
+  installClaude?: typeof installClaudeCode;
+  spinner?: typeof p.spinner;
 };
 
 /**
@@ -608,9 +613,22 @@ function createClaudeInstallHandlers(options: ClaudeInstallOptions = {}): { hand
   const stagePayload = options.stagePayload ?? (() => stageEinCcPayload());
   const execute = options.execute ?? run;
   const installLauncher = options.installLauncher ?? installFishLauncher;
+  const installClaude = options.installClaude ?? (() => installClaudeCode({ home }));
+  const makeSpinner = options.spinner ?? p.spinner;
   let staged: EinCcPayloadStage | undefined;
   const cleanup = (): void => { staged?.cleanup(); staged = undefined; };
   const handlers: Record<ClaudeEntryId, InstallPlanExecutionHandler> = {
+    "claude.dependency.claude": async () => {
+      if (options.claudePresent !== false) return { ok: true, detail: "claude code ya presente" };
+      if (options.flags && !(await confirm("Instalar Claude Code CLI?", options.flags))) {
+        return { ok: false, detail: "Claude Code CLI es obligatorio para ein-cc." };
+      }
+      const spinner = makeSpinner();
+      spinner.start("Instalando Claude Code CLI");
+      const result = await installClaude();
+      spinner.stop(result.detail);
+      return result.ok ? result : { ok: false, detail: `Claude Code CLI es obligatorio: ${result.detail}` };
+    },
     "claude.deploy-runtime": async () => { try { staged = await stagePayload(); const sync = await execute(options.bunPath ?? "bun", ["ein-cc/sync.ts"], { cwd: staged.root, env: { HOME: home, EIN_CC_HOME: join(home, ".claude-ein") }, extraPath: [join(home, ".bun", "bin")] }); if (!sync.ok) { const reason = [sync.stdout, sync.stderr].map((stream) => stream.trim()).filter(Boolean).join("\n") || `codigo ${sync.code}`; cleanup(); return { ok: false, detail: `La sincronizacion de Claude fallo: ${reason}` }; } const root = join(home, ".claude-ein"); mkdirSync(root, { recursive: true }); writeFileSync(join(root, ".ein-install.json"), `${JSON.stringify({ version: INSTALLER_VERSION, installedAt: new Date().toISOString(), channel: "stable" }, null, 2)}\n`); return { ok: true }; } catch (error) { cleanup(); return { ok: false, detail: error instanceof Error ? error.message : String(error) }; } },
     "claude.deploy-launcher": () => { try { const launcher = installLauncher({ home, name: "ein-cc.fish", content: einCcFish }); p.log.success(`${launcher.changed ? "Launcher" : "Launcher ya actualizado"}: ${launcher.path}`); return { ok: true }; } catch (error) { return { ok: false, detail: error instanceof Error ? error.message : String(error) }; } finally { cleanup(); } },
   }; return { handlers };
@@ -618,7 +636,7 @@ function createClaudeInstallHandlers(options: ClaudeInstallOptions = {}): { hand
 
 export async function runClaudeInstall(options: ClaudeInstallOptions = {}): Promise<RuntimeInstallResult> {
   const handlers = createClaudeInstallHandlers(options);
-  for (const id of ["claude.deploy-runtime", "claude.deploy-launcher"] as const) {
+  for (const id of ["claude.dependency.claude", "claude.deploy-runtime", "claude.deploy-launcher"] as const) {
     const result = await handlers.handlers[id]();
     if (!result.ok) return { target: "claude", ok: false, detail: result.detail ?? "Claude installation failed" };
   }
@@ -650,7 +668,7 @@ function observePlan(platform: Platform, deps: readonly DepStatus[]): Omit<Insta
     piOwnership,
     claudeConfigHome: join(home, ".claude-ein"),
     platform,
-    dependencies: { bun: present("bun"), pi: present("pi"), engram: present("engram"), gh: present("gh"), hypa: present("hypa"), codegraph: present("codegraph") },
+    dependencies: { bun: present("bun"), pi: present("pi"), claude: present("claude"), engram: present("engram"), gh: present("gh"), hypa: present("hypa"), codegraph: present("codegraph") },
   };
 }
 
@@ -701,7 +719,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
   }
 
   const deps: DepStatus[] = options.observations
-    ? (Object.keys(options.observations.dependencies) as InstallDependencyId[]).map((id) => ({ id, present: options.observations!.dependencies[id], path: null, required: id === "bun" || id === "pi", hint: "injected observation" }))
+    ? (Object.keys(options.observations.dependencies) as InstallDependencyId[]).map((id) => ({ id, present: options.observations!.dependencies[id], path: null, required: id === "bun" || id === "pi" || id === "claude", hint: "injected observation" }))
     : checkDeps(platform);
   const observations = options.observations ?? observePlan(platform, deps);
   const previousClaudeMarkerVersion = readInstallMarkerVersion(
@@ -759,7 +777,13 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallTar
     agentDir: observations.piAgentDir,
     effects: { spinner: view.spinner },
   });
-  const claude = createClaudeInstallHandlers({ home: observations.home, bunPath: deps.find((dependency) => dependency.id === "bun")?.path ?? undefined });
+  const claude = createClaudeInstallHandlers({
+    home: observations.home,
+    bunPath: deps.find((dependency) => dependency.id === "bun")?.path ?? undefined,
+    claudePresent: deps.find((dependency) => dependency.id === "claude")?.present ?? false,
+    flags,
+    spinner: view.spinner,
+  });
   let retirement: RuntimeSurfaceRetirementResult | undefined;
   const available: InstallPlanExecutionHandlers = {
     "shared.dependency.bun": async () => { const result = await prepareSharedBun(deps, flags, view.spinner); return result.ok ? result : { ok: false, detail: `Bun no disponible: ${result.detail}` }; },

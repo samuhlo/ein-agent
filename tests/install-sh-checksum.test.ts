@@ -143,6 +143,24 @@ describe("install.sh deterministic shell fixture", () => {
     expectTemporaryDirectoryCleaned(fixture);
   });
 
+  test("explicit alpha selection carries a requested Both runtime into the verified handoff", () => {
+    const tag = "installer-v0.82.0-alpha.1";
+    const fixture = createFixture({
+      args: ["--release-channel", "alpha", "--release-tag", tag, "--runtime", "both"],
+      expectedBase: `https://github.com/${REPO}/releases/download/${tag}`,
+      checksumUtility: "success",
+    });
+    const result = runFixture(fixture);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).not.toContain("guard:");
+    expect(result.stdout).toContain(
+      `ein-install install --runtime both --release-channel alpha --release-tag ${tag}`,
+    );
+    expectSandboxedDownloads(fixture, result);
+    expectTemporaryDirectoryCleaned(fixture);
+  });
+
   test("explicit stable selection accepts a final tag without changing checksum ordering", () => {
     const tag = "installer-v0.82.0";
     const fixture = createFixture({
@@ -174,6 +192,10 @@ describe("install.sh deterministic shell fixture", () => {
       ["--release-channel", "alpha", "--release-tag", "installer-v0.82.0-rc.1"],
       ["--release-channel", "stable", "--release-tag", "installer-v0.82.0-alpha.1"],
       ["--release-channel", "alpha", "--release-tag", "installer-v0.82.0-alpha.01"],
+      ["--runtime"],
+      ["--runtime", "unknown"],
+      ["--runtime", "pi", "--runtime", "both"],
+      ["--runtime=both"],
     ] as const;
 
     for (const args of cases) {

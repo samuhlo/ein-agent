@@ -141,6 +141,13 @@ assert_preserved_state() {
   fi
 }
 
+seed_claude_cli() {
+  mkdir -p "$HOME/.local/bin"
+  printf '%s\n' '#!/bin/sh' 'echo "2.1.0 (Claude Code)"' >"$HOME/.local/bin/claude"
+  chmod +x "$HOME/.local/bin/claude"
+  export PATH="$HOME/.local/bin:$PATH"
+}
+
 pi_agent="$HOME/.pi-ein/agent"
 pi_marker="$pi_agent/.ein-install.json"
 pi_manifest="$pi_agent/template-manifest.json"
@@ -159,6 +166,8 @@ assert_pi_surface() {
 }
 
 assert_claude_surface() {
+  command -v claude >/dev/null
+  claude --version | grep -Fq 'Claude Code'
   assert_present "$claude_home/CLAUDE.md"
   assert_present "$claude_home/settings.json"
   for executable in ein-cc-sdd ein-surface-runner ein-continuity; do
@@ -261,6 +270,10 @@ case "$scenario" in
     echo "== bun redirigido como en Omarchy =="
     curl -fsSL https://bun.sh/install | bash
     export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"
+    mkdir -p "$HOME/.local/bin"
+    printf '%s\n' '#!/bin/bash' 'mise use -g --quiet "claude" || exit 1' \
+      'exec mise x "claude" -- "claude" "$@"' >"$HOME/.local/bin/claude"
+    chmod +x "$HOME/.local/bin/claude"
     bun install -g @earendil-works/pi-coding-agent@0.84.4
     test "$("$HOME/.bun/bin/pi" --version)" = "0.84.4"
     export BUN_INSTALL_GLOBAL_DIR="$HOME/.omarchy/bun/global"
@@ -285,14 +298,22 @@ case "$scenario" in
     assert_present "$HOME/.ein-installer/install-execution-v1.json"
 
     candidate_version="$(ein --version | sed -n 's/^ein-installer //p')"
-    install_twice --release-channel alpha --release-tag "installer-v$candidate_version"
+    echo "== recuperar primero el diario Pi de alpha.1 =="
+    ein install --yes --runtime pi --no-engram --no-secrets --no-linear \
+      --no-hypa --no-codegraph --release-channel alpha \
+      --release-tag "installer-v$candidate_version"
+    echo "== completar Pi + Claude desde el estado ya recuperado =="
+    install_twice --runtime both --release-channel alpha --release-tag "installer-v$candidate_version"
     test "$("$HOME/.bun/bin/pi" --version)" = "0.84.3"
     test "$("$HOME/.omarchy/bun/bin/pi" --version)" = "0.84.3"
     assert_pi_surface
+    assert_claude_surface
+    fish -c "source '$claude_launcher'; ein-cc --version" | grep -Fq 'Claude Code'
     ein doctor
     ;;
 
   claude-only)
+    seed_claude_cli
     install_twice --runtime claude
     assert_claude_surface
     assert_preserved_state claude
@@ -302,6 +323,7 @@ case "$scenario" in
     ;;
 
   both)
+    seed_claude_cli
     install_twice --runtime both
     for pass in 1 2; do
       log="/tmp/ein-both-${pass}.log"
@@ -322,6 +344,7 @@ case "$scenario" in
     ;;
 
   uninstall-preservation)
+    seed_claude_cli
     install_twice --runtime both
     assert_pi_surface
     assert_claude_surface
