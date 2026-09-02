@@ -770,7 +770,15 @@ describe("doctor, failure matrix, privacy, and closed exits", () => {
     const pty = new PtySession(
       [process.execPath, resolve(import.meta.dir, "../ein-pi/workbench.ts"), "--project", fixture.project],
       undefined,
-      { HOME: fixture.home, EIN_PI_AGENT_HOME: fixture.runtimeHome, EIN_PI_CONFIG_HOME: join(fixture.home, ".ein") },
+      {
+        HOME: fixture.home,
+        EIN_PI_AGENT_HOME: fixture.runtimeHome,
+        EIN_PI_CONFIG_HOME: join(fixture.home, ".ein"),
+        // Bun 1.4 can populate its package cache lazily when this real child
+        // loads the production graph. Keep that tool cache outside the runtime
+        // home whose immutability this test is measuring.
+        BUN_INSTALL_CACHE_DIR: join(fixture.root, "bun-cache"),
+      },
     );
     try {
       try {
