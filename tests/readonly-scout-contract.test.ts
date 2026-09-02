@@ -124,11 +124,11 @@ describe("readonly scout launch contract", () => {
 
 	test("el scout queda excluido de la inyección de skills (aislado, inheritSkills:false)", () => {
 		// Inyectar paths de SKILL.md (absolutos, fuera del repo) a un scout aislado
-		// produce "Skills not found" y una ejecución degradada. El gate de inyección
-		// de skills en ein-ai.ts debe excluir explícitamente al scout.
-		const einAi = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
-		expect(einAi).toMatch(/const isScout\s*=\s*startNames\.includes\("ein-scout"\)/);
-		expect(einAi).toMatch(/\(isNamedAgent \|\| isSddAgent\) && !isScout/);
+		// produce "Skills not found" y una ejecución degradada. El dueño del prompt
+		// debe excluir explícitamente al scout.
+		const agentPrompt = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts"), "utf8");
+		expect(agentPrompt).toMatch(/const isScout\s*=\s*startNames\.includes\("ein-scout"\)/);
+		expect(agentPrompt).toMatch(/\(isNamedAgent \|\| isSddAgent\) && !isScout/);
 	});
 });
 

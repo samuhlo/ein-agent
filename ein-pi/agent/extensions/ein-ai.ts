@@ -6,40 +6,27 @@
 // se cablea.
 // =============================================================================
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
-	getSddPreflightPreferences,
-	getSddSessionMemory,
 	installSddAssets,
-	renderMemoryAdvisory,
-	renderSddPreflightPrompt,
 	sddGlobalAssetDriftCount,
 	sddPreflightSessionKey,
 } from "../lib/sdd-preflight.ts";
 import { readGitDeliveryMode } from "../lib/git-delivery.ts";
-import { buildEinPrompt, readPersonaMode } from "../lib/persona.ts";
+import { readPersonaMode } from "../lib/persona.ts";
 import {
 	LANG_LABEL,
-	artifactLanguageDirective,
 	readArtifactLang,
 	readChatLang,
 } from "../lib/lang.ts";
 import { t, tf } from "../lib/i18n/strings.ts";
-import { codegraphDirective } from "../lib/codegraph.ts";
 import { readLinearIntegration } from "../lib/linear-integration.ts";
 import { modelConfigPath } from "../lib/model-config.ts";
 import { registerAdvisoryTools } from "./internal/ein-advisory-tools.ts";
 import { registerGeneralCommands } from "./internal/ein-general-commands.ts";
-import { canonicalSpecPrompt } from "./internal/ein-canonical-spec-context.ts";
-import {
-	isNamedAgentStartEvent,
-	isSddAgentStartEvent,
-	readAgentStartNames,
-	readAgentTask,
-	readExplicitSddChange,
-} from "./internal/ein-pi-event-contracts.ts";
+import { registerAgentPromptHook } from "./internal/ein-agent-prompt-hook.ts";
 import { registerDelegationResultHook } from "./internal/ein-delegation-results.ts";
 import { createPiIntentGate } from "./internal/ein-pi-intent-gate.ts";
 import { registerToolCallGate } from "./internal/ein-tool-call-gate.ts";
@@ -51,19 +38,12 @@ import { registerSddReadSurface } from "./internal/ein-sdd-read-surface.ts";
 import { createEinToolRegistrar } from "./internal/ein-tool-registration.ts";
 import { aggregateSddBudget, formatBudget, listActiveChangeSummaries } from "../lib/sdd-router.ts";
 import {
-	codeConventionSkillBlock,
-	resolveSkillInjection,
-} from "./ein-skill-registry.ts";
-import {
-	einContextDirective,
 	einMdCommitsBehind,
 	readEinMd,
 } from "../lib/project-context.ts";
 import { AGENT_DIR } from "./ein-paths";
-import { readInstalledVersion, staleSessionNudge } from "../lib/session-version";
 import type { ScoutTracking } from "../lib/scout-contract.ts";
 import {
-	internalAgentRoutingDirective,
 	readAgentControlStatus,
 	routeAgentControl,
 	type EinInternalAgent,
@@ -72,12 +52,6 @@ import {
 // ─── Detección de eventos de subagentes ──────────────────────────────────────
 
 const scoutTracking: ScoutTracking = new Map();
-
-// Versión instalada al arrancar cada sesión + sesiones ya avisadas: si `ein
-// update` corre a mitad de sesión, esta sigue con la plantilla vieja → nudge de
-// reinicio (una vez).
-const sessionStartVersion = new Map<string, string | null>();
-const staleSessionNudged = new Set<string>();
 
 // ─── Extensión ────────────────────────────────────────────────────────────────
 
@@ -94,101 +68,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		scoutTracking,
 		recordDeliveryIntent: toolCallGate.recordDeliveryIntent,
 	});
-
-	pi.on("before_agent_start", async (event, ctx) => {
-		await intentGate.adoptPiIntentGate(ctx);
-		const isSddAgent = isSddAgentStartEvent(event);
-		const isNamedAgent = isNamedAgentStartEvent(event);
-		const prefs = getSddPreflightPreferences(ctx);
-		const startNames = readAgentStartNames(event);
-		// Memoria a granularidad de SESIÓN, no de fase: solo el parent recibe el
-		// snapshot de sesión (recuperado en el preflight). Los agentes de fase leen
-		// sus inputs del disco; el parent les pasa el contexto que necesiten. Antes
-		// se hacía una búsqueda Engram + inyección POR FASE — coste por fase y
-		// superficie de fallo para un modelo barato, sin más valor que la sesión.
-		const memoryPrompt = renderMemoryAdvisory(
-			!isNamedAgent && !isSddAgent ? getSddSessionMemory(ctx) : undefined,
-		);
-		// Convenciones de codigo (comment/logging/file-naming): SOLO donde se
-		// escribe codigo — el parent (trabajo inline) y sdd-apply. Inyectarlas en
-		// delivery/linear/map solo hacia que el modelo barato leyera 3 SKILL.md
-		// inutiles (gasto de tokens) sin escribir codigo. Tambien gobierna si la
-		// linea de Strict TDD entra en el preflight: solo donde hay RED/GREEN real.
-		const isParent = !isNamedAgent && !isSddAgent;
-		// `ein-scout` es un investigador de solo lectura, aislado al repo y con
-		// `inheritSkills: false`: declara explícitamente que NO usa skills. Inyectarle
-		// paths de SKILL.md (absolutos, fuera del repo) sólo produce "Skills not found"
-		// y una ejecución degradada. Se excluye de toda inyección de skills.
-		const isScout = startNames.includes("ein-scout");
-		// Nudge de sesión obsoleta: solo la sesión padre interactiva. Registra la
-		// versión al primer turno; si cambia después (un `ein update` a mitad de
-		// sesión), avisa una vez de reiniciar — esta sesión no cargará la plantilla
-		// nueva hasta un Pi fresco.
-		if (isParent && ctx.hasUI) {
-			const sessKey = sddPreflightSessionKey(ctx);
-			const current = readInstalledVersion(join(AGENT_DIR, ".ein-install.json"));
-			if (!sessionStartVersion.has(sessKey)) {
-				sessionStartVersion.set(sessKey, current);
-			} else {
-				const decision = staleSessionNudge({
-					startVersion: sessionStartVersion.get(sessKey) ?? null,
-					currentVersion: current,
-					alreadyNudged: staleSessionNudged.has(sessKey),
-				});
-				if (decision.nudge) {
-					staleSessionNudged.add(sessKey);
-					ctx.ui.notify(
-						`Ein se actualizó a v${decision.version} durante esta sesión — sigue con la plantilla anterior. Reinicia Pi (o abre una sesión nueva) para cargar los cambios.`,
-						"warning",
-					);
-				}
-			}
-		}
-		const writesCode = isParent || startNames.includes("sdd-apply");
-		const sddPrompt =
-			prefs && (!isNamedAgent || isSddAgent)
-				? `\n\n${renderSddPreflightPrompt(prefs, { includeTdd: writesCode, includeBaseline: isParent })}`
-				: "";
-		const einPrompt = isNamedAgent || isSddAgent
-			? ""
-			: `\n\n${buildEinPrompt(readPersonaMode(ctx.cwd), readChatLang(), readLinearIntegration(ctx.cwd))}\n\n${internalAgentRoutingDirective()}`;
-		// Inyección determinista de skills: subagentes de fase/nombrados reciben
-		// paths exactos de SKILL.md resueltos desde su task, no a criterio del
-		// modelo padre (evita que el padre "invente" qué skills existen).
-		let skillsPrompt = "";
-		if ((isNamedAgent || isSddAgent) && !isScout) {
-			const block = resolveSkillInjection(ctx.cwd, readAgentTask(event));
-			if (block) skillsPrompt = `\n\n${block}`;
-		}
-		// Idioma de artefactos: los agentes de delivery (PR/commits/Linear) reciben
-		// la directiva autoritativa segun .pi/ein/lang.json (o el idioma de chat).
-		let artifactPrompt = "";
-		if (isNamedAgent && startNames.some((n) => n === "ein-git" || n === "ein-linear")) {
-			artifactPrompt = `\n\n${artifactLanguageDirective(readArtifactLang(ctx.cwd))}`;
-		}
-		const conventions = writesCode ? codeConventionSkillBlock(ctx.cwd) : "";
-		const conventionsPrompt = conventions ? `\n\n${conventions}` : "";
-		// Contexto de proyecto (EIN.md): verdad de base para el parent y las fases
-		// SDD; los agentes de delivery (PR/Linear) no lo necesitan.
-		const wantsContext = !isNamedAgent || isSddAgent;
-		const context = wantsContext ? einContextDirective(ctx.cwd) : "";
-		const contextPrompt = context ? `\n\n${context}` : "";
-		const canonicalAgent = startNames.includes("sdd-scope")
-			? "sdd-scope"
-			: startNames.includes("sdd-design")
-				? "sdd-design"
-				: undefined;
-		const canonicalSpecContext = canonicalAgent
-			? canonicalSpecPrompt(ctx.cwd, canonicalAgent, readAgentTask(event), readExplicitSddChange(event))
-			: "";
-		// Codegraph: mismo público que EIN.md (parent + fases SDD). La directiva
-		// es "" salvo binario + índice presentes — sin codegraph, cero tokens.
-		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
-		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
-		return {
-			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${intentGate.piIntentGateDirective(ctx)}`,
-		};
-	});
+	registerAgentPromptHook(pi, intentGate);
 
 	pi.registerCommand("ein:ai:install-sdd", {
 		description: t(

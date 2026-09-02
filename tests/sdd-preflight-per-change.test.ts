@@ -90,6 +90,10 @@ const SESSION_LIFECYCLE_SOURCE = readFileSync(
 	join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-session-lifecycle.ts"),
 	"utf8",
 );
+const AGENT_PROMPT_SOURCE = readFileSync(
+	join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts"),
+	"utf8",
+);
 
 const CALLBACKS = {
 	pi: {} as never,
@@ -118,7 +122,7 @@ describe("Pi intent ownership across hooks", () => {
 		const inputHook = SESSION_LIFECYCLE_SOURCE.match(/pi\.on\("input"[\s\S]*?\n\t}\);/)?.[0] ?? "";
 		expect(inputHook.match(/runPiIntentPreflight\(/g)).toHaveLength(1);
 		expect(SESSION_LIFECYCLE_SOURCE).toContain('pi.on("input"');
-		expect(EIN_AI_SOURCE).toContain("piIntentGateDirective");
+		expect(AGENT_PROMPT_SOURCE).toContain("piIntentGateDirective");
 		expect(TOOL_CALL_GATE_SOURCE).toContain("piIntentToolBlockReason");
 	});
 
