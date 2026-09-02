@@ -161,6 +161,7 @@ describe("runtime session adapter contract", () => {
 	});
 
 	test("prepares one owner for normalized launch execution", () => {
+		expect(executeLaunchPlan).toBe(runtimeLaunchExecution.executeLaunchPlan);
 		expect(runtimeLaunchExecution.normalizeLaunchExecution({
 			kind: "signal",
 			signal: "sigterm",
