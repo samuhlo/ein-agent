@@ -12,11 +12,11 @@ afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: 
 const home = (): string => { const value = mkdtempSync(join(realpathSync(tmpdir()), "ein-install-reentry-")); roots.push(value); return value; };
 
 function plan(target: InstallPlanInput["target"], root: string): InstallPlanV1 {
-	return createInstallPlan({ target, home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" }, claudeConfigHome: join(root, ".claude-ein"), platform: { os: "darwin", arch: "arm64" }, dependencies: { bun: false, pi: false, engram: false, gh: false, hypa: false, codegraph: false }, flags: { yes: true, noEngram: false, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true } });
+	return createInstallPlan({ target, home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" }, claudeConfigHome: join(root, ".claude-ein"), platform: { os: "darwin", arch: "arm64" }, dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false }, flags: { yes: true, noEngram: false, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true } });
 }
 const handlers = (value: InstallPlanV1, call: (id: string) => { ok: boolean } = () => ({ ok: true })): InstallPlanExecutionHandlers =>
 	Object.fromEntries(value.inventory.map(({ id }) => [id, () => call(id)])) as InstallPlanExecutionHandlers;
-const observationsFor = (root: string) => ({ home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" } as const, claudeConfigHome: join(root, ".claude-ein"), dependencies: { bun: false, pi: false, engram: false, gh: false, hypa: false, codegraph: false }, platform: { os: "darwin" as const, arch: "arm64" as const, distro: "unknown" as const, packageManager: "brew" as const, shell: "unknown" as const, shellRc: join(root, ".profile"), home: root } });
+const observationsFor = (root: string) => ({ home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" } as const, claudeConfigHome: join(root, ".claude-ein"), dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false }, platform: { os: "darwin" as const, arch: "arm64" as const, distro: "unknown" as const, packageManager: "brew" as const, shell: "unknown" as const, shellRc: join(root, ".profile"), home: root } });
 
 describe("install re-entry over a completed journal", () => {
 	// Un diario COMPLETO de otro objetivo describe una instalación anterior

@@ -341,6 +341,25 @@ describe("Claude runtime runner", () => {
     expect(cleaned).toBe(true);
   });
 
+  test("installs and verifies the required Claude CLI before syncing Ein's surface", async () => {
+    const home = tempHome();
+    const events: string[] = [];
+    const stage = fakeStage(home, () => { events.push("cleanup"); });
+    const result = await runClaudeInstall({
+      home,
+      claudePresent: false,
+      flags: parseInstallFlags(["--yes", "--runtime", "claude"]),
+      spinner: () => ({ start: () => {}, stop: () => {}, message: () => {} }),
+      installClaude: async () => { events.push("install-claude"); return { ok: true, detail: "claude code instalado" }; },
+      stagePayload: async () => { events.push("stage"); return stage; },
+      execute: async () => { events.push("sync"); return { ok: true, code: 0, stdout: "", stderr: "" }; },
+      installLauncher: () => { events.push("launcher"); return { path: join(home, "ein-cc.fish"), changed: true }; },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(events).toEqual(["install-claude", "stage", "sync", "launcher", "cleanup"]);
+  });
+
   test("required sync failure reports detailed stdout before the stderr summary", async () => {
     const home = tempHome();
     let cleaned = false;
@@ -782,7 +801,7 @@ describe("Runtime flag parser", () => {
 });
 
 describe("Installer release-contract admission", () => {
-  test("defaults no-input installs to stable and admits exact final or alpha Pi contracts", () => {
+  test("defaults no-input installs to stable and admits exact final or alpha runtime contracts", () => {
     expect(resolveReleaseContract(undefined, undefined, "pi", INSTALLER_VERSION)).toEqual({
       ok: true,
       value: { status: "defaulted", channel: "stable" },
@@ -802,9 +821,12 @@ describe("Installer release-contract admission", () => {
       ok: true,
       value: { status: "explicit", channel: "alpha", tag: `installer-v${alphaVersion}` },
     });
+    for (const target of ["claude", "both"] as const) {
+      expect(resolveReleaseContract("alpha", `installer-v${alphaVersion}`, target, alphaVersion).ok).toBe(true);
+    }
   });
 
-  test("rejects incomplete, malformed, unsupported, mismatched, stale, and non-Pi contracts", () => {
+  test("rejects incomplete, malformed, unsupported, mismatched, stale, and invalid-runtime contracts", () => {
     const cases = [
       [undefined, "installer-v0.82.0-alpha.1", "pi", "0.82.0-alpha.1"],
       ["alpha", undefined, "pi", "0.82.0-alpha.1"],
@@ -815,8 +837,7 @@ describe("Installer release-contract admission", () => {
       ["stable", "installer-v0.82.0-alpha.1", "pi", "0.82.0-alpha.1"],
       ["stable", "installer-v0.82.0", "pi", "0.81.0"],
       ["alpha", "installer-v0.82.0", "pi", "0.81.0"],
-      ["alpha", "installer-v0.82.0-alpha.1", "claude", "0.82.0-alpha.1"],
-      ["alpha", "installer-v0.82.0-alpha.1", "both", "0.82.0-alpha.1"],
+      ["alpha", "installer-v0.82.0-alpha.1", "private-runtime", "0.82.0-alpha.1"],
     ] as const;
 
     for (const [channel, tag, target, version] of cases) {

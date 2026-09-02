@@ -12,7 +12,7 @@ FROM ubuntu:24.04
 COPY --from=node-runtime /usr/local/ /usr/local/
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl git unzip tar gzip \
+      ca-certificates curl fish git unzip tar gzip \
     && test "$(node --version)" = "v22.19.0" \
     && rm -rf /var/lib/apt/lists/*
 

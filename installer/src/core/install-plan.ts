@@ -7,16 +7,16 @@ export type InstallPlanAction =
   | "ensure-dependency" | "migrate" | "backup" | "deploy" | "configure"
   | "promote-command" | "write-marker" | "verify" | "retire-legacy";
 export type InstallPlanState = "selected" | "conditional" | "satisfied" | "skipped" | "blocked";
-export type InstallDependencyId = "bun" | "pi" | "engram" | "gh" | "hypa" | "codegraph";
+export type InstallDependencyId = "bun" | "pi" | "claude" | "engram" | "gh" | "hypa" | "codegraph";
 export const INSTALL_PLAN_ENTRY_IDS = [
   "shared.dependency.bun", "pi.dependency.pi", "pi.dependency.engram", "pi.dependency.gh", "pi.dependency.hypa", "pi.dependency.codegraph",
   "pi.migrate-legacy", "pi.backup-current", "pi.deploy-template", "pi.configure-packages", "pi.configure-secrets",
   "pi.configure-context7-export", "pi.write-install-marker", "pi.verify-doctor", "pi.deploy-launcher", "pi.promote-commands",
-  "claude.deploy-runtime", "claude.deploy-launcher",
+  "claude.dependency.claude", "claude.deploy-runtime", "claude.deploy-launcher",
   "shared.retire-legacy",
 ] as const;
 export type InstallPlanEntryId = typeof INSTALL_PLAN_ENTRY_IDS[number];
-export const PI_INSTALL_PLAN_ENTRY_IDS = INSTALL_PLAN_ENTRY_IDS.slice(1, 16), CLAUDE_INSTALL_PLAN_ENTRY_IDS = INSTALL_PLAN_ENTRY_IDS.slice(16, 18);
+export const PI_INSTALL_PLAN_ENTRY_IDS = INSTALL_PLAN_ENTRY_IDS.slice(1, 16), CLAUDE_INSTALL_PLAN_ENTRY_IDS = INSTALL_PLAN_ENTRY_IDS.slice(16, 19);
 type EntryContract = readonly [InstallPlanRuntime, InstallPlanAction, readonly string[]];
 export const INSTALL_PLAN_ENTRY_CONTRACTS = {
   "shared.dependency.bun": ["shared", "ensure-dependency", ["external:selected", "external:satisfied"]], "pi.dependency.pi": ["pi", "ensure-dependency", ["external:selected", "external:satisfied"]],
@@ -27,6 +27,7 @@ export const INSTALL_PLAN_ENTRY_CONTRACTS = {
   "pi.configure-secrets": ["pi", "configure", ["installer:conditional", "installer:skipped"]], "pi.configure-context7-export": ["pi", "configure", ["installer:conditional", "installer:skipped"]],
   "pi.write-install-marker": ["pi", "write-marker", ["installer:selected", "unknown:selected"]], "pi.verify-doctor": ["pi", "verify", ["installer:selected", "unknown:selected"]],
   "pi.deploy-launcher": ["pi", "deploy", ["installer:selected", "unknown:selected"]], "pi.promote-commands": ["pi", "promote-command", ["installer:conditional", "unknown:conditional"]],
+  "claude.dependency.claude": ["claude", "ensure-dependency", ["external:selected", "external:satisfied"]],
   "claude.deploy-runtime": ["claude", "deploy", ["installer:selected"]], "claude.deploy-launcher": ["claude", "deploy", ["installer:selected"]],
   "shared.retire-legacy": ["shared", "retire-legacy", ["installer:selected"]],
 } as const satisfies Record<InstallPlanEntryId, EntryContract>;
@@ -114,7 +115,7 @@ function validateInput(input: InstallPlanInput): void {
   if (typeof value.target !== "string" || !["pi", "claude", "both"].includes(value.target)) throw new InstallPlanInputError("invalid-target");
   if (!exact(value.platform, ["os", "arch"]) || typeof value.platform.os !== "string" || typeof value.platform.arch !== "string" || !["darwin", "linux"].includes(value.platform.os) || !["arm64", "x64"].includes(value.platform.arch)) throw new InstallPlanInputError("invalid-platform");
   if (![value.home, value.piAgentDir, value.claudeConfigHome].every(safePath) || typeof value.piAgentDirExists !== "boolean") throw new InstallPlanInputError("invalid-path");
-  const dependencyKeys: InstallDependencyId[] = ["bun", "pi", "engram", "gh", "hypa", "codegraph"];
+  const dependencyKeys: InstallDependencyId[] = ["bun", "pi", "claude", "engram", "gh", "hypa", "codegraph"];
   const dependencies = value.dependencies;
   if (!exact(dependencies, dependencyKeys) || dependencyKeys.some((key) => typeof dependencies[key] !== "boolean")) throw new InstallPlanInputError("invalid-dependencies");
   const owner = value.piOwnership;
@@ -156,6 +157,7 @@ function piEntries(input: InstallPlanInput): ManagedInstallEntry[] {
 
 function claudeEntries(input: InstallPlanInput): ManagedInstallEntry[] {
   return [
+    dependency(input, "claude", "claude"),
     { id: "claude.deploy-runtime", runtime: "claude", action: "deploy", state: "selected", destination: input.claudeConfigHome, ownership: "installer", reason: "sync the staged managed Claude runtime" },
     { id: "claude.deploy-launcher", runtime: "claude", action: "deploy", state: "selected", destination: input.home, ownership: "installer", reason: "install the Claude Fish launcher after sync" },
   ];

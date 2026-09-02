@@ -158,10 +158,12 @@ validate_release_tag() {
 }
 
 parse_release_args() {
-  local channel_seen=0 tag_seen=0
+  local channel_seen=0 tag_seen=0 runtime_seen=0
   RELEASE_CHANNEL=""
   RELEASE_TAG=""
   RELEASE_EXPLICIT=0
+  INSTALL_RUNTIME="pi"
+  RUNTIME_EXPLICIT=0
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -177,6 +179,17 @@ parse_release_args() {
         [ "$tag_seen" -eq 0 ] || fatal "--release-tag no puede repetirse"
         RELEASE_TAG="$2"
         tag_seen=1
+        shift 2
+        ;;
+      --runtime)
+        [ "$#" -ge 2 ] || fatal "--runtime requiere un valor"
+        [ "$runtime_seen" -eq 0 ] || fatal "--runtime no puede repetirse"
+        case "$2" in
+          pi|claude|both) INSTALL_RUNTIME="$2" ;;
+          *) fatal "runtime no soportado: $2 (usa pi, claude o both)" ;;
+        esac
+        runtime_seen=1
+        RUNTIME_EXPLICIT=1
         shift 2
         ;;
       *)
@@ -281,7 +294,9 @@ main() {
 
   local -a handoff_args=()
   if [ "${RELEASE_EXPLICIT}" -eq 1 ]; then
-    handoff_args=(install --runtime pi --release-channel "${RELEASE_CHANNEL}" --release-tag "${RELEASE_TAG}")
+    handoff_args=(install --runtime "${INSTALL_RUNTIME}" --release-channel "${RELEASE_CHANNEL}" --release-tag "${RELEASE_TAG}")
+  elif [ "${RUNTIME_EXPLICIT}" -eq 1 ]; then
+    handoff_args=(install --runtime "${INSTALL_RUNTIME}")
   fi
 
   # When piped via `curl | bash`, stdin is the pipe (not the terminal).

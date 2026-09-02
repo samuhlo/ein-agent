@@ -36,7 +36,7 @@ function input(target: InstallPlanInput["target"], patch: Partial<InstallPlanInp
     piOwnership: { status: "absent" },
     claudeConfigHome: join(HOME, ".claude-ein"),
     platform: { os: "darwin", arch: "arm64" },
-    dependencies: { bun: false, pi: false, engram: false, gh: true, hypa: false, codegraph: false },
+    dependencies: { bun: false, pi: false, claude: true, engram: false, gh: true, hypa: false, codegraph: false },
     flags: { yes: false, noEngram: false, noSecrets: false, noHypa: false, noCodegraph: false, skipLinear: true },
     ...patch,
   };

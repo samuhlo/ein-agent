@@ -4,7 +4,7 @@
 // git/curl are check-only prerequisites.
 // =============================================================================
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import type { Platform } from "./platform.ts";
 import {
@@ -41,6 +41,7 @@ export type DepId =
   | "node"
   | "bun"
   | "pi"
+  | "claude"
   | "engram"
   | "gh"
   | "hypa"
@@ -67,6 +68,23 @@ export function resolveHypa(searchPath: string[] = HYPA_PATH): string | null {
 // codegraph: npm global (mise lo shima) o instaladores en ~/.local/bin.
 export function resolveCodegraph(searchPath: string[] = HYPA_PATH): string | null {
   return lookPath("codegraph", searchPath);
+}
+
+function isOmarchyMiseWrapper(
+  path: string,
+  home: string,
+  packageName: string,
+  bin: string,
+): boolean {
+  if (path !== join(home, ".local", "bin", bin)) return false;
+  try {
+    const source = readFileSync(path, "utf8");
+    const use = source.includes(`mise use -g --quiet "${packageName}"`)
+      || source.includes(`mise use -g "${packageName}"`);
+    return use && source.includes(`exec mise x "${packageName}" -- "${bin}"`);
+  } catch {
+    return false;
+  }
 }
 
 export type PiRuntimeInspection = {
@@ -155,6 +173,7 @@ export function checkDeps(platform: Platform): DepStatus[] {
     { id: "node", required: true, hint: `instala Node ${PI_NODE_MIN_VERSION} o posterior` },
     { id: "bun", required: true, hint: "curl -fsSL https://bun.sh/install | bash" },
     { id: "pi", required: true, hint: `bun install -g ${PI_HOST_SPEC}` },
+    { id: "claude", required: true, hint: "curl -fsSL https://claude.ai/install.sh | bash" },
     { id: "engram", required: false, hint: "memoria persistente (opcional)" },
     { id: "gh", required: false, hint: "GitHub CLI para entrega (opcional)" },
     { id: "hypa", required: false, hint: "compresión de salida de comandos (opcional)" },
@@ -184,7 +203,11 @@ export function checkDeps(platform: Platform): DepStatus[] {
       };
     }
     const path = lookPath(d.id, EXTRA_PATH);
-    return { ...d, present: path !== null, path };
+    const brokenOmarchyWrapper = path !== null && (
+      (d.id === "gh" && isOmarchyMiseWrapper(path, platform.home, "gh", "gh"))
+      || (d.id === "claude" && isOmarchyMiseWrapper(path, platform.home, "claude", "claude"))
+    );
+    return { ...d, present: path !== null && !brokenOmarchyWrapper, path };
   });
 }
 
@@ -262,6 +285,80 @@ export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> 
   return { ok: true, detail: `pi ${PI_HOST_VERSION} instalado` };
 }
 
+export type ClaudeCodeInstallDeps = {
+  home?: string;
+  lookPath?: typeof lookPath;
+  run?: typeof run;
+};
+
+// Claude Code via Anthropic's native installer. The native binary lives in
+// ~/.local/bin and self-updates; Ein verifies the executable before claiming
+// that the isolated Claude surface is usable.
+export async function installClaudeCode(deps: ClaudeCodeInstallDeps = {}): Promise<InstallStep> {
+  const home = deps.home ?? activeHome();
+  const localBinDir = join(home, ".local", "bin");
+  const find = deps.lookPath ?? lookPath;
+  const execute = deps.run ?? run;
+  const extraPath = [localBinDir, join(home, ".bun", "bin")];
+  const existing = find("claude", extraPath);
+  const omarchyWrapper = existing && isOmarchyMiseWrapper(existing, home, "claude", "claude")
+    ? existing
+    : null;
+  if (existing && !omarchyWrapper) {
+    const probe = await execute(existing, ["--version"], CAPTURED);
+    if (probe.ok) return { ok: true, detail: "claude code ya presente" };
+  }
+
+  // Anthropic's installer deliberately preserves an existing command. Move
+  // only the exact generated Omarchy wrapper out of the way, and keep it
+  // recoverable until the native binary has answered its version probe.
+  const wrapperBackup = omarchyWrapper ? `${omarchyWrapper}.ein-omarchy-wrapper.bak` : null;
+  if (omarchyWrapper && wrapperBackup) {
+    if (existsSync(wrapperBackup)) {
+      return { ok: false, detail: "existe un backup pendiente del wrapper de Claude de Omarchy" };
+    }
+    try {
+      renameSync(omarchyWrapper, wrapperBackup);
+    } catch (error) {
+      return { ok: false, detail: `no se pudo apartar el wrapper roto de Claude (${error instanceof Error ? error.message : String(error)})` };
+    }
+  }
+  const restoreWrapper = (): void => {
+    if (!omarchyWrapper || !wrapperBackup || !existsSync(wrapperBackup) || existsSync(omarchyWrapper)) return;
+    try { renameSync(wrapperBackup, omarchyWrapper); } catch { /* recovery path stays visible */ }
+  };
+
+  const installed = await execute(
+    "bash",
+    ["-c", "curl -fsSL https://claude.ai/install.sh | bash"],
+    { ...CAPTURED, env: { HOME: home }, extraPath },
+  );
+  if (!installed.ok) {
+    restoreWrapper();
+    return { ok: false, detail: `instalación de claude code falló (${why(installed)})` };
+  }
+  const claude = find("claude", extraPath);
+  if (!claude) {
+    restoreWrapper();
+    return { ok: false, detail: "claude code se instaló pero no aparece en ~/.local/bin" };
+  }
+  if (isOmarchyMiseWrapper(claude, home, "claude", "claude")) {
+    restoreWrapper();
+    return { ok: false, detail: "el instalador no reemplazó el wrapper roto de Claude de Omarchy" };
+  }
+  const probe = await execute(claude, ["--version"], { ...CAPTURED, extraPath });
+  if (!probe.ok) {
+    restoreWrapper();
+    return { ok: false, detail: `claude code instalado pero no ejecutable (${why(probe)})` };
+  }
+  if (wrapperBackup) {
+    try { unlinkSync(wrapperBackup); } catch {
+      return { ok: false, detail: "claude funciona, pero no se pudo retirar el backup del wrapper roto de Omarchy" };
+    }
+  }
+  return { ok: true, detail: "claude code instalado" };
+}
+
 export async function installEngramDep(platform: Platform): Promise<InstallStep> {
   const result = await installEngram(platform);
   return { ok: result.ok, detail: result.detail };
@@ -320,25 +417,71 @@ export async function installDeclaredPackages(
   };
 }
 
-// gh: best-effort via the platform package manager. Optional, never blocks.
-export async function installGh(platform: Platform): Promise<InstallStep> {
-  if (lookPath("gh", EXTRA_PATH)) return { ok: true, detail: "gh ya presente" };
+export type GhInstallDeps = {
+  home?: string;
+  lookPath?: typeof lookPath;
+  run?: typeof run;
+  isRoot?: () => boolean;
+};
+
+// gh: best-effort via Omarchy's package wrapper or the platform package
+// manager. Optional, never blocks the rest of Ein, but a confirmed install must
+// actually execute and verify gh instead of printing a manual command.
+export async function installGh(platform: Platform, deps: GhInstallDeps = {}): Promise<InstallStep> {
+  const home = deps.home ?? activeHome();
+  const find = deps.lookPath ?? lookPath;
+  const execute = deps.run ?? run;
+  const current = find("gh", EXTRA_PATH);
+  if (current && !isOmarchyMiseWrapper(current, home, "gh", "gh")) {
+    const probe = await execute(current, ["--version"], CAPTURED);
+    if (probe.ok) return { ok: true, detail: "gh ya presente" };
+  }
+
+  const omarchyInstaller = find("omarchy-mise-install");
+  if (platform.packageManager === "pacman" && omarchyInstaller) {
+    const result = await execute(
+      omarchyInstaller,
+      ["github:cli/cli", "gh"],
+      { ...CAPTURED, env: { HOME: home }, extraPath: [join(home, ".local", "bin")] },
+    );
+    if (!result.ok) return { ok: false, detail: `omarchy no pudo preparar gh (${why(result)})` };
+    const gh = find("gh", [join(home, ".local", "bin")]);
+    if (!gh) return { ok: false, detail: "omarchy preparó gh pero el comando no aparece en ~/.local/bin" };
+    const probe = await execute(gh, ["--version"], { ...CAPTURED, extraPath: [join(home, ".local", "bin")] });
+    return probe.ok
+      ? { ok: true, detail: "gh instalado via omarchy/mise" }
+      : { ok: false, detail: `omarchy preparó gh pero no se puede ejecutar (${why(probe)})` };
+  }
+
   switch (platform.packageManager) {
     case "brew": {
-      const res = await run("brew", ["install", "gh"], CAPTURED);
-      return res.ok
-        ? { ok: true, detail: "gh instalado via brew" }
-        : { ok: false, detail: `brew install gh falló (${why(res)})` };
+      const res = await execute("brew", ["install", "gh"], CAPTURED);
+      if (!res.ok) return { ok: false, detail: `brew install gh falló (${why(res)})` };
+      break;
     }
     case "apt":
-      return { ok: false, detail: "instala gh manualmente: sudo apt install gh" };
     case "dnf":
-      return { ok: false, detail: "instala gh manualmente: sudo dnf install gh" };
-    case "pacman":
-      return { ok: false, detail: "instala gh manualmente: sudo pacman -S github-cli" };
+    case "pacman": {
+      const manager = platform.packageManager === "apt" ? "apt-get" : platform.packageManager;
+      const managerArgs = platform.packageManager === "pacman"
+        ? ["-S", "--noconfirm", "--needed", "github-cli"]
+        : ["install", "-y", "gh"];
+      const root = deps.isRoot?.() ?? (typeof process.getuid === "function" && process.getuid() === 0);
+      const command = root ? manager : "sudo";
+      const args = root ? managerArgs : [manager, ...managerArgs];
+      const res = await execute(command, args, { ...CAPTURED, inherit: true });
+      if (!res.ok) return { ok: false, detail: `${manager} no pudo instalar gh (${why(res)})` };
+      break;
+    }
     default:
       return { ok: false, detail: "instala gh manualmente desde cli.github.com" };
   }
+  const gh = find("gh", ["/usr/local/bin", "/usr/bin"]);
+  if (!gh) return { ok: false, detail: "el gestor terminó pero gh no aparece en PATH" };
+  const probe = await execute(gh, ["--version"], CAPTURED);
+  return probe.ok
+    ? { ok: true, detail: `gh instalado via ${platform.packageManager}` }
+    : { ok: false, detail: `gh se instaló pero no se puede ejecutar (${why(probe)})` };
 }
 
 // codegraph: best-effort vía el instalador oficial. Opcional, nunca bloquea.

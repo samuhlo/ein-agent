@@ -14,7 +14,7 @@ import {
 } from "./paths.ts";
 import { run } from "./exec.ts";
 
-export const INSTALLER_VERSION = "0.93.0-alpha.3";
+export const INSTALLER_VERSION = "0.93.0-alpha.4";
 
 // Keep the two machine-readable labels together so every supported binary
 // exposes the same running-installer identity and independent template probe.

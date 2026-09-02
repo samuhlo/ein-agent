@@ -4,6 +4,24 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.93.0-alpha.4] - 2026-09-02
+
+### Fixed
+
+- **Claude Code se instala y verifica de verdad cuando el destino es Claude o
+  ambos runtimes.** El plan usa el instalador nativo oficial, exige que el
+  ejecutable responda antes de desplegar Ein y deja de anunciar una integración
+  utilizable cuando faltaba el CLI.
+- **`gh` ya se instala en Omarchy y Arch.** Omarchy usa su integración de Mise
+  con el backend explícito `github:cli/cli`, evitando el wrapper ambiguo que
+  podía fallar; el resto de sistemas ejecuta su gestor de paquetes y verifica
+  el binario resultante.
+- **El bootstrap de una alpha ya no fuerza Pi.** `install.sh` acepta
+  `--runtime pi|claude|both` y conserva ese destino al entregar el control al
+  instalador descargado.
+- **El E2E de Omarchy cubre el recorrido completo.** Instala Claude Code real,
+  ejecuta `ein-cc` desde Fish y prueba reinstalación del destino combinado.
+
 ## [0.93.0-alpha.3] - 2026-09-02
 
 ### Fixed
