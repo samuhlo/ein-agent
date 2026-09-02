@@ -6,61 +6,11 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { ChangeLintReport, GuardrailIssue } from "../ein-pi/agent/lib/sdd-guardrails";
-
-// Pure helpers from ein-ai.ts that are testable without the full Pi extension.
-// We replicate just the logic tree here so tests are self-contained.
-
-function changeDirExists(cwd: string, name: string): boolean {
-	try {
-		const { statSync } = require("node:fs") as typeof import("node:fs");
-		const base = join(cwd, "openspec", "changes", name);
-		return statSync(base).isDirectory();
-	} catch {
-		return false;
-	}
-}
-
-function formatChangeLint(report: ChangeLintReport): string {
-	const { change, errors, warnings, phases } = report;
-	const present = phases.filter((p) => p.present);
-	const total = phases.length;
-	const presentCount = present.length;
-
-	const lines: string[] = [
-		`// 000. sdd check — ${change}`,
-		"",
-		`fases: ${presentCount}/${total} presentes  |  errores: ${errors}  |  warnings: ${warnings}`,
-	];
-
-	if (report.issues.length > 0) {
-		lines.push("", "▏ consistencia:");
-		for (const i of report.issues) {
-			lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
-		}
-	}
-
-	for (const { phase, present: isPresent, report: pr } of phases) {
-		if (!isPresent) {
-			lines.push(`▏ ${phase} — MISSING`);
-			continue;
-		}
-		const ok = pr!.errors === 0;
-		const icon = ok ? "OK" : "ERRORS";
-		const detail = pr!.lineCount > 0 ? `, ${pr!.lineCount} lineas` : "";
-		lines.push(`▏ ${phase} — ${icon} (presente${detail})`);
-		if (pr!.issues.length > 0) {
-			for (const i of pr!.issues) {
-				lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
-			}
-		}
-	}
-
-	return lines.join("\n");
-}
+import { changeDirExists, formatChangeLint } from "../ein-pi/agent/extensions/internal/ein-sdd-presentation";
 
 // ---------------------------------------------------------------------------
 // changeDirExists

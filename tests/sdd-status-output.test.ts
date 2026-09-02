@@ -8,9 +8,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { formatBudget, listActiveChanges, resolveSddStatus, sddStatusBlockers, type SddBudgetStatus, type SddChangeStatus } from "../ein-pi/agent/lib/sdd-router";
+import { formatBudget, listActiveChanges, resolveSddStatus, sddStatusBlockers, type SddBudgetStatus } from "../ein-pi/agent/lib/sdd-router";
 import { t, tf } from "../ein-pi/agent/lib/i18n/strings";
 import { readFileSync } from "node:fs";
+import { formatSddStatus as renderSddStatus } from "../ein-pi/agent/extensions/internal/ein-sdd-presentation";
 
 let DIR: string;
 const I18N_KEY = Symbol.for("rpiv-i18n");
@@ -38,45 +39,8 @@ afterEach(() => {
 	(globalThis as Record<symbol, unknown>)[I18N_KEY] = originalLocale;
 });
 
-// Replica del handler /ein:sdd-status; el budget usa la fuente única formatBudget.
-const compactBudget = formatBudget;
-
 function formatSddStatus(cwd: string, change?: string): string {
-	const s = resolveSddStatus(cwd, change);
-	const active = listActiveChanges(cwd);
-	const lines: string[] = ["// 000. sdd status", ""];
-	if (!s.change) {
-		// Ambigüedad ≠ repo limpio: hay trabajo abierto, solo que sin elegir.
-		if (s.selection.kind === "ambiguous") {
-			lines.push(`- ${s.selection.candidates.length} cambios activos y ninguno elegido.`);
-			lines.push(`- ${t("sdd-status.active", "active")}: ${s.selection.candidates.join(", ")}`);
-			lines.push("- Indica cuál con su nombre antes de continuar.");
-		} else {
-			lines.push("- " + t("sdd-status.none", "No active SDD changes in openspec/changes/."));
-		}
-	} else {
-		const present = s.artifacts.present.map((artifact) => `${artifact.phase}(${artifact.file})`).join(", ") || t("sdd-status.no-active", "none");
-		const missing = s.artifacts.missing.map((artifact) => `${artifact.phase}(${artifact.file})`).join(", ") || t("sdd-status.no-active", "none");
-		lines.push(`${t("sdd-status.change", "change")}: ${s.change}`);
-		if (active.length > 1) lines.push(`${t("sdd-status.active", "active")}: ${active.join(", ")}`);
-		lines.push(`${t("sdd-status.current", "current phase")}: ${s.currentPhase}`);
-		lines.push(`${t("sdd-status.next", "next")}: ${s.nextRecommended}`);
-		lines.push(`${t("sdd-status.artifacts.present", "artifacts present")}: ${present}`);
-		lines.push(`${t("sdd-status.artifacts.missing", "artifacts missing")}: ${missing}`);
-		lines.push(`${t("sdd-status.apply", "apply")}: ${s.apply}`);
-		lines.push(`${t("sdd-status.verify", "verify")}: ${s.verify}`);
-		lines.push(`${t("sdd-status.tasks", "tasks")}: status=${s.tasks.status ?? "absent"} · ready=${s.tasks.counts.ready} · blocked=${s.tasks.counts.blocked} · pending=${s.tasks.counts.pending} · done=${s.tasks.counts.done}`);
-		if (s.tasks.nextPending) lines.push(`${t("sdd-status.next-pending", "next pending")}: ${s.tasks.nextPending.id} ${s.tasks.nextPending.title}`);
-		if (s.tasks.blockedBy) lines.push(`${t("sdd-status.blocked-by", "blocked_by")}: ${s.tasks.blockedBy}`);
-		lines.push(`${t("sdd-status.budget", "budget")}: ${compactBudget(s.budget)}`);
-		const blockers = sddStatusBlockers({ blocked: s.blocked, taskProblems: s.tasks.problems, budgetProblems: s.budget.problems });
-		if (blockers.length) {
-			lines.push("");
-			lines.push(`▏ ${t("sdd-status.blocked", "blockers")}:`);
-			for (const b of blockers) lines.push(`- ${b}`);
-		}
-	}
-	return lines.join("\n");
+	return renderSddStatus(resolveSddStatus(cwd, change), listActiveChanges(cwd));
 }
 
 describe("sdd-status output format", () => {
@@ -131,7 +95,7 @@ describe("sdd-status output format", () => {
 	// `ein-ai.ts` registra tools de Pi al cargarse. La réplica es útil mientras no
 	// derive, así que este contrato la ata al original en lo que importa.
 	test("la rama de ambigüedad existe también en el handler real", () => {
-		const einAi = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
+		const einAi = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-sdd-presentation.ts"), "utf8");
 		const handler = einAi.slice(einAi.indexOf("function formatSddStatus"));
 		expect(handler).toContain('status.selection.kind === "ambiguous"');
 		expect(handler).toContain("ninguno elegido");
@@ -236,7 +200,7 @@ describe("sddStatusBlockers separa bloqueos de procedencia (P1-D)", () => {
 	});
 
 	test("el formatter real no vuelca la procedencia del ledger en los bloqueos", () => {
-		const einAi = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
+		const einAi = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-sdd-presentation.ts"), "utf8");
 		// Usa la fuente única de bloqueos...
 		expect(einAi).toContain("sddStatusBlockers(");
 		// ...y ya NO mezcla realCost.problems en la sección de bloqueos.

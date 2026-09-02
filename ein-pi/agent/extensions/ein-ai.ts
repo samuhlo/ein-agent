@@ -6,7 +6,7 @@
 // se cablea.
 // =============================================================================
 
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
 	ExtensionAPI,
@@ -80,9 +80,18 @@ import {
 } from "../lib/model-config.ts";
 import { registerAdvisoryTools } from "./internal/ein-advisory-tools.ts";
 import { registerGeneralCommands } from "./internal/ein-general-commands.ts";
+import {
+	changeDirExists,
+	commandArgsText,
+	formatChangeLint,
+	formatSddNext,
+	formatSddNextHelp,
+	formatSddStatus,
+	parseSddNextArgs,
+	PHASE_BY_FILE,
+} from "./internal/ein-sdd-presentation.ts";
 import { createEinToolRegistrar } from "./internal/ein-tool-registration.ts";
-import { lintChange, lintPhaseArtifact, type ChangeLintReport, type SddPhase } from "../lib/sdd-guardrails.ts";
-import { collectSddRemedies, formatSddRemedies } from "../lib/sdd-remedies.ts";
+import { lintChange, lintPhaseArtifact, type SddPhase } from "../lib/sdd-guardrails.ts";
 import { LANE_LABEL, laneSkips, normalizeLane, readChangeLane, writeChangeLane } from "../lib/sdd-lane.ts";
 import {
 	changeStanceDirective,
@@ -92,7 +101,7 @@ import {
 	resolveActiveChange,
 	writePreflightRecord,
 } from "../lib/sdd-preflight-record.ts";
-import { aggregateSddBudget, changeUnavailableMessage, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddNextHandoff, sddStatusBlockers, type SddChangeStatus, type SddNextReport } from "../lib/sdd-router.ts";
+import { aggregateSddBudget, changeUnavailableMessage, formatBudget, formatSddPlanPreview, isSafeChangeName, listActiveChanges, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddNextHandoff } from "../lib/sdd-router.ts";
 import { SDD_SESSION_BINDING_EVENT_CHANNEL, type SessionBindingEventV1 } from "../lib/sdd-session-binding.ts";
 import {
 	DEFAULT_REVIEW_BUDGET_BYTES,
@@ -507,169 +516,6 @@ function canonicalSpecPrompt(cwd: string, agent: "sdd-scope" | "sdd-design", tas
 	}
 	const referenceLines = context.references.map((reference) => `- path: ${reference.path}; sha256: ${reference.sha256}; bytes: ${reference.bytes}`);
 	return `\n\n## Canonical OpenSpec context\nDomain hints: ${hints.join(", ") || "none"}\nRead only these exact canonical paths when needed; never glob domains or read .sdd specs. Record these references in ${agent === "sdd-scope" ? "scope.md" : "design.md"}:\n${referenceLines.join("\n") || "- none"}\nShared hard limit: ${CANONICAL_SPEC_MAX_FILES} files and ${CANONICAL_SPEC_MAX_BYTES} UTF-8 bytes per phase. If a requested selection exceeds it, block and request narrower explicit domain hints; never truncate.`;
-}
-
-// Devuelve true si `name` es un directorio existente en la raíz de cambios
-// (openspec/changes/ o .sdd/changes/; ver resolveChangesDir en sdd-router).
-function changeDirExists(cwd: string, name: string): boolean {
-	const base = join(resolveChangesDir(cwd), name);
-	try {
-		return statSync(base).isDirectory();
-	} catch {
-		return false;
-	}
-}
-
-const PHASE_BY_FILE: Record<string, SddPhase> = {
-	"scope.md": "scope",
-	"map.md": "map",
-	"design.md": "design",
-	"tasks.md": "tasks",
-	"apply-progress.md": "apply",
-	"verify-report.md": "verify",
-	"summary.md": "close",
-};
-
-// Formatea un ChangeLintReport como salida legible para el comando /ein:sdd-check.
-// La herramienta ein_sdd_check sigue devolviendo JSON (contrato del orquestador).
-function formatChangeLint(report: ChangeLintReport): string {
-	const { change, errors, warnings, phases } = report;
-	const present = phases.filter((p) => p.present);
-	const total = phases.length;
-	const presentCount = present.length;
-
-	const lines: string[] = [
-		`// 000. sdd check — ${change}`,
-		"",
-		`fases: ${presentCount}/${total} presentes  |  errores: ${errors}  |  warnings: ${warnings}`,
-	];
-
-	if (report.issues.length > 0) {
-		lines.push("", "▏ consistencia:");
-		for (const i of report.issues) {
-			lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
-		}
-	}
-
-	for (const { phase, present: isPresent, report: pr } of phases) {
-		if (!isPresent) {
-			lines.push(`▏ ${phase} — MISSING`);
-			continue;
-		}
-		const ok = pr!.errors === 0;
-		const icon = ok ? "OK" : "ERRORS";
-		const detail = pr!.lineCount > 0 ? `, ${pr!.lineCount} lineas` : "";
-		lines.push(`▏ ${phase} — ${icon} (presente${detail})`);
-		if (pr!.issues.length > 0) {
-			for (const i of pr!.issues) {
-				lines.push(`  - ${i.level.toUpperCase()} [${i.code}]: ${i.message}`);
-			}
-		}
-	}
-
-	return lines.join("\n");
-}
-
-// P2-G: fuente única en sdd-router (formatBudget), que además marca cuando lo
-// consumido supera lo asignado. Alias local para no tocar los puntos de llamada.
-const compactBudget = formatBudget;
-
-function formatSddStatus(
-	status: SddChangeStatus,
-	active: string[],
-	prefs?: SddPreflightPreferences,
-): string {
-	const notebook = `optional project notebook: Engram ${prefs?.memoryMode ?? "off"}${prefs?.engramAvailable ? " (configured; no retrieval or save is implied)" : " (unavailable or not configured)"}; OpenSpec is the canonical full record.`;
-	const lines = ["// 000. sdd status", ""];
-	if (!status.change) {
-		// Ambigüedad ≠ repo limpio. Decir "no hay ninguno" habiendo varios es la
-		// mentira que producía la elección implícita, solo que por el otro lado.
-		if (status.selection.kind === "ambiguous") {
-			lines.push(`- ${status.selection.candidates.length} cambios activos y ninguno elegido.`);
-			lines.push(`- ${t("sdd-status.active", "active")}: ${status.selection.candidates.join(", ")}`);
-			lines.push("- Indica cuál con su nombre antes de continuar.");
-		} else {
-			lines.push("- " + t("sdd-status.none", "No active SDD changes in openspec/changes/."));
-		}
-		lines.push(`- ${notebook}`);
-		return lines.join("\n");
-	}
-
-	const present = status.artifacts.present.map((artifact) => `${artifact.phase}(${artifact.file})`).join(", ") || t("sdd-status.no-active", "none");
-	const missing = status.artifacts.missing.map((artifact) => `${artifact.phase}(${artifact.file})`).join(", ") || t("sdd-status.no-active", "none");
-	lines.push(`${t("sdd-status.change", "change")}: ${status.change}`);
-	if (active.length > 1) lines.push(`${t("sdd-status.active", "active")}: ${active.join(", ")}`);
-	lines.push(`${t("sdd-status.lane", "lane")}: ${status.lane}`);
-	lines.push(`${t("sdd-status.current", "current phase")}: ${status.currentPhase}`);
-	lines.push(`${t("sdd-status.next", "next")}: ${status.nextRecommended}`);
-	lines.push(`${t("sdd-status.artifacts.present", "artifacts present")}: ${present}`);
-	lines.push(`${t("sdd-status.artifacts.missing", "artifacts missing")}: ${missing}`);
-	lines.push(`${t("sdd-status.apply", "apply")}: ${status.apply}`);
-	lines.push(`${t("sdd-status.verify", "verify")}: ${status.verify}`);
-	lines.push(`${t("sdd-status.tasks", "tasks")}: status=${status.tasks.status ?? "absent"} · ready=${status.tasks.counts.ready} · blocked=${status.tasks.counts.blocked} · pending=${status.tasks.counts.pending} · done=${status.tasks.counts.done}`);
-	// Punto de reanudación del apply por grupos: sobrevive a reabrir Pi.
-	if (status.tasks.nextPending) lines.push(`${t("sdd-status.next-pending", "next pending")}: ${status.tasks.nextPending.id} ${status.tasks.nextPending.title}`);
-	if (status.tasks.blockedBy) lines.push(`${t("sdd-status.blocked-by", "blocked_by")}: ${status.tasks.blockedBy}`);
-	lines.push(`${t("sdd-status.budget", "budget")}: ${compactBudget(status.budget)}`);
-	lines.push(notebook);
-
-	// Solo bloqueos reales, vía la fuente única sddStatusBlockers.
-	const blockers = sddStatusBlockers({ blocked: status.blocked, taskProblems: status.tasks.problems, budgetProblems: status.budget.problems });
-	if (blockers.length) {
-		lines.push("", `▏ ${t("sdd-status.blocked", "blockers")}:`);
-		for (const b of blockers) lines.push(`- ${b}`);
-	}
-	// El remedio sale del MISMO estado que el bloqueo. Antes vivía como prosa en
-	// el prompt del orquestador, explicando lo que el router ya calculaba.
-	const remedies = formatSddRemedies(collectSddRemedies(status));
-	if (remedies) lines.push("", remedies);
-	return lines.join("\n");
-}
-
-/** Command args arrive as a string or as argv, depending on the caller. */
-function commandArgsText(args: unknown): string {
-	if (typeof args === "string") return args;
-	return Array.isArray(args) ? args.join(" ") : "";
-}
-
-function parseSddNextArgs(args: string | string[]): { change: string | null } {
-	const raw = commandArgsText(args);
-	const parts = raw.trim().split(/\s+/).filter(Boolean);
-	// Los flags se descartan del candidato a nombre: un `--auto` tecleado por
-	// inercia (existió como dry-run y se retiró) no debe convertirse en la
-	// búsqueda de un cambio llamado "--auto".
-	const change = parts.filter((part) => !part.startsWith("--"))[0] ?? null;
-	return { change };
-}
-
-function formatSddNextHelp(): string {
-	return [
-		"// 000. sdd next",
-		"",
-		"Uso: /ein:sdd-next <change>",
-		"",
-		"- Muestra el siguiente paso recomendado para un cambio concreto.",
-		"- No elige un cambio activo implicitamente.",
-		"- Entrega ese paso al orquestador para que lo ejecute; la ruta la sigue decidiendo el router.",
-	].join("\n");
-}
-
-function formatSddNext(report: SddNextReport): string {
-	const lines = [
-		"// 000. sdd next",
-		"",
-		`cambio: ${report.change ?? "ninguno"}`,
-		`fase actual: ${report.currentPhase}`,
-		`siguiente recomendado: ${report.nextRecommended}`,
-		`razon: ${report.reason}`,
-		`accion sugerida: ${report.suggestedAction}`,
-	];
-
-	if (report.blocked.length > 0) {
-		lines.push("", "▏ revisar antes de avanzar:");
-		for (const item of report.blocked) lines.push(`- ${item}`);
-	}
-	return lines.join("\n");
 }
 
 // ─── Extensión ────────────────────────────────────────────────────────────────
@@ -1193,7 +1039,6 @@ export default function einAi(pi: ExtensionAPI): void {
 
 	registerGeneralCommands(pi);
 
-	// [DEPRECATED] ein:sdd-check queda como alias del canónico ein:sdd-audit.
 	// [DEPRECATED] ein:sdd-check queda como alias del canónico ein:sdd-audit.
 	// El handler es compartido para que ambos resuelvan al mismo flujo.
 	async function handleSddAudit(args: string | string[], ctx: ExtensionContext) {
@@ -1800,7 +1645,7 @@ export default function einAi(pi: ExtensionAPI): void {
 				} else {
 					lines.push(tf("status.sdd.multi", "{0} active", summaries.length));
 					for (const summary of summaries.slice(0, 8)) {
-						lines.push(`- ${summary.change}: phase=${summary.currentPhase} · next=${summary.nextRecommended} · ready=${summary.tasks.ready} · blocked=${summary.tasks.blocked} · budget=${compactBudget(summary.budget)}`);
+						lines.push(`- ${summary.change}: phase=${summary.currentPhase} · next=${summary.nextRecommended} · ready=${summary.tasks.ready} · blocked=${summary.tasks.blocked} · budget=${formatBudget(summary.budget)}`);
 					}
 					if (summaries.length > 8) lines.push(`- … ${summaries.length - 8} more`);
 					if (budget.changesWithBudget > 0) {

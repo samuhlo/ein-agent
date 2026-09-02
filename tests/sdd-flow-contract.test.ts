@@ -193,10 +193,10 @@ describe("contrato interno de notebook Engram", () => {
 	});
 
 	test("status y doctor son factuales, sin jerga E0/E2", () => {
-		const ai = read("extensions/ein-ai.ts");
+		const presentation = read("extensions/internal/ein-sdd-presentation.ts");
 		const doctor = read("extensions/ein-doctor.ts");
-		expect(ai).toContain("optional project notebook: Engram");
-		expect(ai).toContain("OpenSpec is the canonical full record");
+		expect(presentation).toContain("optional project notebook: Engram");
+		expect(presentation).toContain("OpenSpec is the canonical full record");
 		expect(doctor).not.toContain("E0");
 		expect(doctor).toContain("configurado no prueba");
 	});
