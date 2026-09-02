@@ -4,6 +4,8 @@
 // =============================================================================
 
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { registerGeneralCommands } from "../ein-pi/agent/extensions/internal/ein-general-commands.ts";
 
 test("registers the complete general command surface", () => {
@@ -30,4 +32,14 @@ test("registers the complete general command surface", () => {
 		"ein:resume",
 		"ein:accounting",
 	]);
+});
+
+test("the main extension delegates the general command surface", () => {
+	const source = readFileSync(
+		join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"),
+		"utf8",
+	);
+
+	expect(source).toContain("registerGeneralCommands(pi);");
+	expect(source).not.toContain('pi.registerCommand("ein:models"');
 });
