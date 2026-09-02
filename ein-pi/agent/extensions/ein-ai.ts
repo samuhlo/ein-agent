@@ -13,7 +13,6 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
-	createSddMemoryLifecycle,
 	ensureApplyAcceptance,
 	ensureApplyTurnBudget,
 	ensurePhaseRuntime,
@@ -33,7 +32,6 @@ import {
 	resolveSddIntentPreflight,
 	sddGlobalAssetDriftCount,
 	sddPreflightSessionKey,
-	type MemoryPreparationLifecycle,
 	type SddIntentPreflightInput,
 	type SddPreflightPreferences,
 } from "../lib/sdd-preflight.ts";
@@ -81,23 +79,26 @@ import {
 import { registerAdvisoryTools } from "./internal/ein-advisory-tools.ts";
 import { registerGeneralCommands } from "./internal/ein-general-commands.ts";
 import { registerOpenSpecWriteTools } from "./internal/ein-openspec-write-tools.ts";
+import {
+	memoryLifecycleForSession,
+	saveArchivedCloseMemory,
+	saveCheckedPhaseMemory,
+	skippedMemoryReceipt,
+} from "./internal/ein-sdd-memory.ts";
 import { registerSddChangeSettings } from "./internal/ein-sdd-change-settings.ts";
 import { registerSddReadSurface } from "./internal/ein-sdd-read-surface.ts";
 import { formatChangeLint } from "./internal/ein-sdd-presentation.ts";
 import { createEinToolRegistrar } from "./internal/ein-tool-registration.ts";
-import { lintChange, lintPhaseArtifact, type SddPhase } from "../lib/sdd-guardrails.ts";
+import { lintChange, type SddPhase } from "../lib/sdd-guardrails.ts";
 import { resolveActiveChange } from "../lib/sdd-preflight-record.ts";
 import { aggregateSddBudget, changeUnavailableMessage, formatBudget, listActiveChangeSummaries, resolveChangesDir, resolveSddNext, resolveSddStatus, sddNextHandoff } from "../lib/sdd-router.ts";
 import { SDD_SESSION_BINDING_EVENT_CHANNEL, type SessionBindingEventV1 } from "../lib/sdd-session-binding.ts";
 import { closeChange, type CloseOptions } from "../lib/sdd-close.ts";
 import { parseSddCloseArgs } from "../lib/sdd-close-args.ts";
-import { approveCandidate, type MemoryCandidate, type MemoryReceipt } from "../lib/memory-contract.ts";
 import {
 	MEMORY_CANDIDATE_SCHEMA,
 	appendMemoryReceipt,
-	buildCloseMemoryCandidate,
 	safeMemoryReceipt,
-	saveAfterArtifactGate,
 	type SafeMemoryReceipt,
 } from "../lib/sdd-memory-save.ts";
 import {
@@ -304,10 +305,6 @@ function rememberPhaseSnapshot(
 // reinicio (una vez).
 const sessionStartVersion = new Map<string, string | null>();
 const staleSessionNudged = new Set<string>();
-type MemorySaveLifecycle = {
-	save(candidate: MemoryCandidate): Promise<{ receipt: MemoryReceipt }>;
-};
-const memoryLifecycleBySession = new Map<string, MemoryPreparationLifecycle & MemorySaveLifecycle>();
 
 function readStringPath(value: unknown, path: string[]): string | undefined {
 	let current = value;
@@ -344,54 +341,6 @@ function isSddAgentStartEvent(event: unknown): boolean {
 
 function isNamedAgentStartEvent(event: unknown): boolean {
 	return readAgentStartNames(event).length > 0;
-}
-
-function readMemoryLifecycle(ctx: ExtensionContext): MemoryPreparationLifecycle | undefined {
-	const candidate = (ctx as unknown as { memoryLifecycle?: unknown }).memoryLifecycle;
-	return typeof candidate === "object" && candidate !== null && "prepare" in candidate &&
-		typeof (candidate as { prepare?: unknown }).prepare === "function"
-		? candidate as MemoryPreparationLifecycle
-		: undefined;
-}
-
-function memoryLifecycleForSession(ctx: ExtensionContext): MemoryPreparationLifecycle {
-	const injected = readMemoryLifecycle(ctx);
-	if (injected) return injected;
-	const key = sddPreflightSessionKey(ctx);
-	const existing = memoryLifecycleBySession.get(key);
-	if (existing) return existing;
-	const created = createSddMemoryLifecycle(ctx.cwd) as MemoryPreparationLifecycle & MemorySaveLifecycle;
-	memoryLifecycleBySession.set(key, created);
-	return created;
-}
-
-function readMemorySaveLifecycle(ctx: ExtensionContext): MemorySaveLifecycle | undefined {
-	const candidate = (ctx as unknown as { memoryLifecycle?: unknown }).memoryLifecycle;
-	return typeof candidate === "object" && candidate !== null && "save" in candidate &&
-		typeof (candidate as { save?: unknown }).save === "function"
-		? candidate as MemorySaveLifecycle
-		: undefined;
-}
-
-function memorySaveLifecycleForSession(ctx: ExtensionContext): MemorySaveLifecycle {
-	const injected = readMemorySaveLifecycle(ctx);
-	if (injected) return injected;
-	return memoryLifecycleForSession(ctx) as MemoryPreparationLifecycle & MemorySaveLifecycle;
-}
-
-function memorySaveEnabled(ctx: ExtensionContext): boolean {
-	const prefs = getSddPreflightPreferences(ctx);
-	return Boolean(prefs && prefs.engramAvailable && prefs.memoryMode === "engram");
-}
-
-function skippedMemoryReceipt(reason: MemoryReceipt["reason"]): MemoryReceipt {
-	return {
-		operation: "save",
-		status: "skipped",
-		reason,
-		durationMs: 0,
-		timestamp: new Date().toISOString(),
-	};
 }
 
 function readExplicitSddChange(event: unknown): string | undefined {
@@ -568,50 +517,6 @@ export default function einAi(pi: ExtensionAPI): void {
 		}
 		piIntentGateBySession.set(sessionKey, { kind: "resolved" });
 		return "resolved";
-	}
-
-	async function saveCheckedPhaseMemory(
-		ctx: ExtensionContext,
-		change: string,
-		phase: unknown,
-		candidateInput: unknown,
-	): Promise<SafeMemoryReceipt> {
-		return saveAfterArtifactGate({
-			artifactClean: true,
-			change,
-			phase,
-			candidate: candidateInput,
-			enabled: memorySaveEnabled(ctx),
-			save: (candidate) => memorySaveLifecycleForSession(ctx).save(candidate),
-		});
-	}
-
-	async function saveArchivedCloseMemory(
-		ctx: ExtensionContext,
-		change: string,
-		archiveDir: string,
-	): Promise<SafeMemoryReceipt> {
-		let summary = "";
-		try {
-			summary = readFileSync(join(archiveDir, "summary.md"), "utf8");
-		} catch {
-			return safeMemoryReceipt(skippedMemoryReceipt("artifact_gate_failed"), `sdd:${change}:close`);
-		}
-		if (lintPhaseArtifact("close", summary).errors > 0) {
-			return safeMemoryReceipt(skippedMemoryReceipt("artifact_gate_failed"), `sdd:${change}:close`);
-		}
-		const candidate = buildCloseMemoryCandidate(change);
-		const approved = approveCandidate(candidate).approved;
-		if (!approved) return safeMemoryReceipt(skippedMemoryReceipt("invalid_candidate"), `sdd:${change}:close`);
-		if (!memorySaveEnabled(ctx)) return safeMemoryReceipt(skippedMemoryReceipt("memory_disabled"), `sdd:${change}:close`);
-		try {
-			return safeMemoryReceipt((await memorySaveLifecycleForSession(ctx).save(candidate)).receipt, `sdd:${change}:close`);
-		} catch {
-			return safeMemoryReceipt({
-				...skippedMemoryReceipt("spawn_error"),
-				status: "failed",
-			}, `sdd:${change}:close`);
-		}
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
