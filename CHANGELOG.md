@@ -4,6 +4,35 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.95.0-alpha.1] - 2026-09-03
+
+### Added
+
+- **El modelo capaz entrega una orden ejecutable por grupo.**
+  `apply-packet/v2` convierte el siguiente grupo de `tasks.md` en pasos
+  ordenados con fronteras independientes de lectura, escritura y verificación;
+  una fuente obsoleta, un campo ausente o una decisión abierta fallan cerrado.
+- **La calidad del handoff ya se puede medir en sesiones reales.** Cada intento
+  exclusivo de `sdd-apply` conserva un recibo pequeño ligado al tool call, y
+  `/ein:accounting` muestra estados, telemetría malformada, tasa de packets
+  ejecutables y la racha actual sin confundir readiness con código correcto.
+
+### Changed
+
+- **Los modelos caros concentran el pensamiento donde aporta valor.** Scope,
+  design y tasks recomiendan razonamiento alto; apply conserva trabajo mecánico
+  con razonamiento bajo y la elección concreta de proveedor sigue perteneciendo
+  al usuario.
+- **Pi y las extensiones administradas siguen `latest`.** Instalación,
+  reparación, actualización, CI y release resuelven la combinación vigente y
+  hacen visible cualquier incompatibilidad upstream en vez de congelarla.
+
+### Release
+
+- **El smoke publicado actualiza desde la última alpha disponible.** La
+  publicación de `0.95.0-alpha.1` probará preservación y actualización real
+  desde `installer-v0.94.0-alpha.4` antes de darse por terminada.
+
 ## [0.94.0-alpha.4] - 2026-09-02
 
 ### Fixed
