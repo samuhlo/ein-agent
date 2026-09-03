@@ -293,38 +293,33 @@ describe("ein-ai: tools deterministas cableados", () => {
 	});
 });
 
-describe("adapter Pi: un solo iniciador de intención", () => {
+describe("adapter Pi: entrada transparente y decisión semántica del parent", () => {
 	const ai = read("extensions/ein-ai.ts");
-	const intentGate = read("extensions/internal/ein-pi-intent-gate.ts");
 	const toolCallGate = read("extensions/internal/ein-tool-call-gate.ts");
 	const sessionLifecycle = read("extensions/internal/ein-session-lifecycle.ts");
 	const agentPrompt = read("extensions/internal/ein-agent-prompt-hook.ts");
+	const orchestrator = read("assets/orchestrator.md");
+	const policy = read("AGENTS.md");
 
-	test("el hook input arma y resuelve intención mediante el contrato compartido", () => {
-		expect(intentGate).toContain("resolveSddIntentPreflight");
-		expect(sessionLifecycle).toContain("dependencies.intentGate.runPiIntentPreflight(");
-		expect(sessionLifecycle).toContain('if (intent === "pending") return { action: "handled" }');
-		expect(ai).not.toContain("function classifyPiIntentRequest");
+	test("el hook input nunca consume la petición antes del orquestador", () => {
+		expect(sessionLifecycle).toContain('pi.on("input"');
+		expect(sessionLifecycle).toContain('return { action: "continue" }');
+		expect(sessionLifecycle).not.toContain('action: "handled"');
+		expect(sessionLifecycle).not.toContain("runPiIntentPreflight");
 	});
 
-	test("normal usa un único mensaje textual y no abre un modal paralelo", () => {
-		expect(intentGate).toContain("outcome.interaction.text");
-		expect(intentGate).not.toContain("ctx.ui.input");
-		expect(intentGate).not.toContain("ctx.ui.confirm");
+	test("prompt, tools y composición no conservan el gate retirado", () => {
+		for (const source of [ai, toolCallGate, sessionLifecycle, agentPrompt]) {
+			expect(source).not.toContain("PiIntentGate");
+			expect(source).not.toContain("piIntentGate");
+		}
 	});
 
-	test("los hooks secundarios nunca inician interacción y bloquean construcción pendiente", () => {
-		const beforeStart = agentPrompt.match(/pi\.on\("before_agent_start"[\s\S]*?\n\t}\);/)?.[0] ?? "";
-		const toolCall = toolCallGate.match(/pi\.on\("tool_call"[\s\S]*?\n\t}\);/)?.[0] ?? "";
-		expect(beforeStart).not.toContain("runPiIntentPreflight(");
-		expect(beforeStart).not.toContain("runSddPreflight(ctx)");
-		expect(beforeStart).toContain("adoptPiIntentGate");
-		expect(beforeStart).toContain("piIntentGateDirective");
-		expect(toolCall).not.toContain("runPiIntentPreflight(");
-		expect(toolCall).toContain("adoptPiIntentGate");
-		expect(toolCall).toContain("piIntentToolBlockReason");
-		expect(ai).not.toContain('pi.on("before_agent_start"');
-		expect(ai).not.toContain('pi.on("tool_call"');
+	test("el parent decide por significado y el intent explícito conserva consentimiento", () => {
+		expect(orchestrator).toContain("Every ordinary input reaches you unchanged");
+		expect(orchestrator).toContain("offer `/ein:intent`");
+		expect(policy).toContain("Every ordinary input reaches the parent orchestrator unchanged");
+		expect(policy).toContain("never activates `/ein:intent` without user consent");
 	});
 });
 

@@ -107,13 +107,6 @@ Given: canonical agent or coordinator content contains an untranslated Pi-only t
 When: synchronization translates or generates the Claude surface
 Then: synchronization exits unsuccessfully with the source token and location identified, and the generated surface is not accepted as synchronized
 
-## Scenario: delegated-child-does-not-reopen-human-intent
-title: A bounded child consumes its authorized task without a second human preflight
-requirement: The system MUST reserve the interactive intent preflight for human input, MUST let a child carrying the complete `pi-subagents` identity contract continue directly, and MUST NOT treat an incomplete child marker as sufficient authorization.
-Given: a non-interactive child launch includes the child marker, agent name, child index and run id
-When: its parent-authorized task contains modifying language
-Then: the task reaches the child model without an interactive confirmation and the runner's tool boundary remains unchanged
-
 ## Scenario: disabling-a-pending-participant-releases-the-passage
 title: Disabling a participant without evidence releases the passage without dropping prior evidence
 requirement: The system MUST exclude from the effective order a participant disabled by session override that has no recorded evidence, and MUST keep in the effective order (and in the checkpoint) any participant with recorded evidence. A late terminal result from a participant that was disabled before completing and has no prior evidence MUST be discarded without writing evidence, and MUST NOT re-block the passage.
@@ -261,6 +254,13 @@ Given: a measured range contains production source changes together with changes
 When: the review-size forecast measures that range.
 Then: the production count reflects only the production source lines, the OpenSpec lines are counted as neither production nor tests, and identical source changes yield the same production count regardless of artifact size.
 
+## Scenario: orchestrator-owns-semantic-intent-routing
+title: The capable orchestrator owns semantic routing and explicit intent consent
+requirement: The system MUST make the parent orchestrator decide from the complete request whether to answer, investigate, start bounded work, or ask for a missing material decision, and MUST make it offer rather than infer the explicit intent channel when a decision-tree conversation would help.
+Given: a request has reached the parent unchanged
+When: its meaning is conversational, read-only, modifying, or materially underdefined
+Then: the parent selects the smallest safe route, asks only for missing material input, and does not activate `/ein:intent` without user consent
+
 ## Scenario: ordinary-close-guards-preserved
 title: Preserve ordinary close readiness
 requirement: The system MUST continue to require the normal close readiness guards for ordinary changes, including complete apply, fresh passing verification, fresh summary, no pending tasks, and existing synchronization, conflict, and sequence checks.
@@ -281,6 +281,13 @@ requirement: The system MUST derive `passageId` from `{ change, applyId, scopeId
 Given: A passage emitted with order `[ein-cleaner, ein-architect]`
 When: A participant is disabled mid-passage
 Then: The `passageId` does not change, and the durable checkpoint order is left untouched
+
+## Scenario: pi-input-always-reaches-orchestrator
+title: Every ordinary Pi input reaches the capable orchestrator unchanged
+requirement: The system MUST make the Pi runtime forward every ordinary interactive, RPC, and extension input to the parent orchestrator without lexical classification, rewriting, hidden confirmation state, or an input-hook `handled` result.
+Given: any user or extension text while zero, one, or multiple OpenSpec changes are active
+When: the Pi input hook receives the message
+Then: it returns continue, preserves the exact text, and creates no automatic intent conversation
 
 ## Scenario: planning-effort-follows-decision-ownership
 title: Planning phases receive the reasoning needed to close executor decisions

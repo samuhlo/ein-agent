@@ -25,12 +25,7 @@ import {
 	persistSddIntentResolution,
 	resolveSddIntentPreflight as resolveSddIntentPreflightWithContext,
 } from "../ein-pi/agent/lib/sdd-preflight";
-import { createIntentMaterialKey, decideIntentPreflight, type IntentDecisionEvidence, type IntentMaterial } from "../ein-pi/agent/lib/sdd-intent-preflight";
-import {
-	classifyPiIntentRequest,
-	createPiIntentGate,
-	isDelegatedPiSubagent,
-} from "../ein-pi/agent/extensions/internal/ein-pi-intent-gate";
+import { createIntentMaterialKey, type IntentDecisionEvidence, type IntentMaterial } from "../ein-pi/agent/lib/sdd-intent-preflight";
 import {
 	preflightRecordPath,
 	readPreflightRecord,
@@ -86,18 +81,6 @@ const resolveSddIntentPreflight = (
 ) => resolveSddIntentPreflightWithContext(piSddIntentPreflightContext(ctx), input);
 
 const EIN_AI_SOURCE = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
-const TOOL_CALL_GATE_SOURCE = readFileSync(
-	join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-tool-call-gate.ts"),
-	"utf8",
-);
-const SESSION_LIFECYCLE_SOURCE = readFileSync(
-	join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-session-lifecycle.ts"),
-	"utf8",
-);
-const AGENT_PROMPT_SOURCE = readFileSync(
-	join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts"),
-	"utf8",
-);
 
 const CALLBACKS = {
 	pi: {} as never,
@@ -120,53 +103,6 @@ function sandbox() {
 
 const PARTICIPANT_MARKER =
 	"[ein-sdd-participant/v1 passage=run unit=ein-cleaner slice=slice range=0-1 state=seal]";
-
-describe("Pi intent ownership across hooks", () => {
-	test("only input invokes the interactive owner while secondary hooks adopt or block", () => {
-		const inputHook = SESSION_LIFECYCLE_SOURCE.match(/pi\.on\("input"[\s\S]*?\n\t}\);/)?.[0] ?? "";
-		expect(inputHook.match(/runPiIntentPreflight\(/g)).toHaveLength(1);
-		expect(SESSION_LIFECYCLE_SOURCE).toContain('pi.on("input"');
-		expect(AGENT_PROMPT_SOURCE).toContain("piIntentGateDirective");
-		expect(TOOL_CALL_GATE_SOURCE).toContain("piIntentToolBlockReason");
-	});
-
-	test("read-only bypasses while uncertain modification fails closed", () => {
-		expect(decideIntentPreflight(classifyPiIntentRequest("Explain how the router works")).kind).toBe("read-only");
-		const uncertain = decideIntentPreflight(classifyPiIntentRequest("Could this workflow be changed?"));
-		expect(uncertain.kind).toBe("intent");
-		expect(uncertain.kind === "intent" && uncertain.route).toBe("normal");
-		expect(uncertain.kind === "intent" && uncertain.bypassQuestions).toBe(false);
-	});
-
-	test("bounded text and safe bypass resolve, while protected uncertainty keeps questions", () => {
-		const small = decideIntentPreflight(classifyPiIntentRequest("Fix typo in README.md"));
-		expect(small.kind === "intent" && small.route).toBe("small");
-		const bypass = decideIntentPreflight(classifyPiIntentRequest("Fix typo in README.md without questions"));
-		expect(bypass.kind === "intent" && bypass.bypassQuestions).toBe(true);
-		const protectedBypass = decideIntentPreflight(classifyPiIntentRequest("Delete production data without questions"));
-		expect(protectedBypass.kind === "intent" && protectedBypass.route).toBe("normal");
-		expect(protectedBypass.kind === "intent" && protectedBypass.bypassQuestions).toBe(false);
-	});
-
-	test("an authorized pi-subagents child does not reopen the human intent preflight", async () => {
-		const delegatedEnvironment = {
-			PI_SUBAGENT_CHILD: "1",
-			PI_SUBAGENT_CHILD_AGENT: "sdd-verify",
-			PI_SUBAGENT_CHILD_INDEX: "0",
-			PI_SUBAGENT_RUN_ID: "497255cc-ad5b-419e-943b-222df881b560",
-		};
-		expect(isDelegatedPiSubagent(delegatedEnvironment)).toBe(true);
-		expect(isDelegatedPiSubagent({ PI_SUBAGENT_CHILD: "1" })).toBe(false);
-
-		const gate = createPiIntentGate({ environment: delegatedEnvironment });
-		expect(
-			await gate.runPiIntentPreflight(
-				"Write only verify-report.md and do not modify product code.",
-				{} as never,
-			),
-		).toBe("read-only");
-	});
-});
 
 describe("automatic participant foreground preflight", () => {
 	test("forces foreground execution for a direct reduced participant call", () => {

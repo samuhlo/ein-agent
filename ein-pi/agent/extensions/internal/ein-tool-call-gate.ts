@@ -46,7 +46,6 @@ import {
 	type SddParticipant,
 } from "../../lib/sdd-participants.ts";
 import { isRecord } from "./ein-pi-event-contracts.ts";
-import type { PiIntentGate } from "./ein-pi-intent-gate.ts";
 import {
 	formatApplyPacketObservation,
 	observeNextApplyPacket,
@@ -57,7 +56,6 @@ import {
 } from "../../lib/apply-packet-observation-record.ts";
 
 type ToolCallGateDependencies = Readonly<{
-	intentGate: PiIntentGate;
 	scoutTracking: ScoutTracking;
 	rememberPhaseSnapshot: (
 		toolCallId: string,
@@ -82,12 +80,6 @@ export function registerToolCallGate(
 	}
 
 	pi.on("tool_call", async (event, ctx) => {
-		await dependencies.intentGate.adoptPiIntentGate(ctx);
-		const intentBlock = dependencies.intentGate.piIntentToolBlockReason(
-			ctx,
-			event.toolName,
-		);
-		if (intentBlock) return { block: true, reason: intentBlock };
 		if (event.toolName === "subagent") {
 			const scoutLaunch = normalizeScoutLaunch(
 				event.input,

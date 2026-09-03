@@ -69,7 +69,7 @@ describe("core parity: Claude coordinator contract", () => {
     for (const heading of [
       "# Ein Pi Workbench",
       "## Core Rules",
-      "## Automatic intent preflight",
+      "## Intent ownership",
       "## Linear (optional integration)",
       "## GitHub",
       "## Delivery Gate (deterministic)",
@@ -82,21 +82,18 @@ describe("core parity: Claude coordinator contract", () => {
     }
   });
 
-  test("publishes one automatic intent preflight without reviving the human-only channel", () => {
-    expect(canonical).toContain("modifies or may modify code, configuration, or persistent data");
-    expect(canonical).toContain("at most one third question");
-    expect(canonical).toContain("explicit final confirmation");
-    expect(canonical).toContain("one plain-language restatement line");
-    expect(canonical).toContain("declared lane remains authoritative");
-    expect(canonical).toContain("existing SDD router");
-    expect(canonical).toContain("must never invoke `/ein:intent`");
+  test("publishes transparent ingress while Claude keeps its post-ingress preflight", () => {
+    expect(canonical).toContain("Every ordinary input reaches the parent orchestrator unchanged");
+    expect(canonical).toContain("No adapter classifier may consume");
+    expect(canonical).toContain("never activates `/ein:intent` without user consent");
 
     expect(adapter).toContain("Invoke the automatic intent preflight exactly once");
     expect(adapter).toContain("adopt a resolution already stored in `preflight.json`");
     expect(adapter).not.toContain("Pi asks two questions before working a change");
     expect(adapter).not.toMatch(/ask them, and only once per change/i);
 
-    expect(count(generated, "## Automatic intent preflight")).toBe(1);
+    expect(count(generated, "## Intent ownership")).toBe(1);
+    expect(count(generated, "## Claude automatic intent preflight")).toBe(1);
     expect(count(generated, "Invoke the automatic intent preflight exactly once")).toBe(1);
     expect(generated).not.toContain("Pi asks two questions before working a change");
   });

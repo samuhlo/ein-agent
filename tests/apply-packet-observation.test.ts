@@ -75,10 +75,6 @@ async function invokeApplyHook(root: string, options: { hasUI?: boolean; appendF
 		},
 	};
 	registerToolCallGate(pi as never, {
-		intentGate: {
-			adoptPiIntentGate: async () => undefined,
-			piIntentToolBlockReason: () => null,
-		} as never,
 		scoutTracking: {} as never,
 		rememberPhaseSnapshot: () => undefined,
 	});
