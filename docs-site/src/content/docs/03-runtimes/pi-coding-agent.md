@@ -1,8 +1,8 @@
 ---
 title: "Pi Coding Agent"
 description: "Cómo usar EIN con Pi: superficie, migración y particularidades."
-sources: ["README.md", "ein-pi/README.md"]
-verified_rev: "eeceb7c"
+sources: ["README.md", "ein-pi/README.md", "ein-pi/agent/lib/pi-prelaunch-update.ts", "ein-pi/agent/surfaces/terminal-app-entrypoint.ts"]
+verified_rev: "405a6c1"
 ---
 
 Pi es el runtime para el que nació EIN, y donde la superficie está más completa.
@@ -51,21 +51,28 @@ bun ein-pi/migrate.ts           # la ejecuta
 Revertir es mover `~/.pi-ein/agent` de vuelta a `~/.pi/agent`, o restaurar el
 backup.
 
-## Dos actualizaciones que no se mezclan
+## Actualización antes de entrar
 
-Esto confunde al principio, y la separación es deliberada:
+Cuando eliges Pi desde `ein`, la aplicación ejecuta una sola vez por proceso
+`pi update --all --no-approve` antes de abrir la primera sesión. Así, una versión
+nueva del binario o de las extensiones se carga en esa misma entrada, sin abrir
+Pi, salir, actualizar y volver a entrar. `PI_OFFLINE=1 ein` omite esta
+reconciliación de red.
+
+Los accesos manuales siguen disponibles:
 
 ```bash
-ein-pi update --all                    # actualiza Pi: binario, extensiones, paquetes
-ein-install update                     # actualiza EIN desde el canal guardado
+ein-pi update --all                    # actualiza Pi directamente
+ein-install update                     # actualiza EIN, Pi y sus paquetes declarados
 ein-install update --channel alpha     # cambia EIN a alpha
 ein-install update --channel stable    # vuelve EIN a estable
 ```
 
 `ein-install update` verifica el payload y actualiza con backup y rollback. Un
 cambio de canal solo se guarda si el update termina correctamente; con
-`--dry-run` se puede previsualizar sin modificar la preferencia. No es un
-actualizador de Pi.
+`--dry-run` se puede previsualizar sin modificar la preferencia. Fuera de un
+dry-run, también resuelve Pi y los paquetes declarados desde `latest`, y compara
+el host instalado con la versión publicada antes de declarar éxito.
 
 ## Particularidades
 

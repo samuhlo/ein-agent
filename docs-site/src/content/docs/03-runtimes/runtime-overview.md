@@ -2,7 +2,7 @@
 title: "Runtimes"
 description: "Pi es el núcleo de EIN y Claude Code un relevo opcional."
 sources: ["README.md", "ein-cc/README.md", "ein-pi/README.md", "openspec/specs/installer-runtime/spec.md"]
-verified_rev: "eeceb7c"
+verified_rev: "405a6c1"
 ---
 
 EIN funciona sobre **Pi Coding Agent**. **Claude Code** es un relevo opcional
