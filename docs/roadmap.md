@@ -20,12 +20,15 @@ resultado correcto. La decisión y el programa viven en
 `docs/adr/0005-make-cheap-apply-verifiable.md`.
 
 `make-apply-handoff-executable` ya cerró el contrato `apply-packet/v2` por grupo
-y su observación report-only. El siguiente corte debe conservar esa observación
-como evidencia durable y medirla antes de convertirla en una puerta dura.
+y su observación report-only. `measure-live-apply-packets` instala el metro
+durable en el transcript padre y lo muestra en accounting. La foto anterior al
+metro está congelada en `evals/cheap-apply-accounting-baseline.json`; no es una
+comparación capaz/barato.
 
-- [ ] Persistir receipts pequeños de readiness en el borde vivo y contarlos sin
-  confundir una orden ejecutable con código correcto.
-- [ ] Acumular observaciones reales suficientes antes de endurecer la puerta.
+- [ ] Acumular 20 observaciones consecutivas `executable`, sin telemetría
+  malformada, repartidas entre al menos 3 cambios normales antes de endurecer
+  la puerta. Un fallo reinicia la racha después de corregir su causa aguas
+  arriba.
 - [ ] Impedir por herramienta escrituras y comandos fuera del packet.
 - [ ] Emitir receipts de verificación ligados a packet y estado resultante.
 - [ ] Unir accounting con resultado y ejecutar el canary capaz contra barato.

@@ -16,6 +16,12 @@
 // determinismo (R11).
 // =============================================================================
 
+import {
+	summarizeApplyPacketObservations,
+	type ApplyPacketObservationRecord,
+	type ApplyPacketReadinessReport,
+} from "./apply-packet-observation-record.ts";
+
 export type Provenance = "transcript" | "artifact" | "tree";
 export type RunRole = "parent" | "subagent";
 export type SampleUnit = "run" | "run-model" | "attempt";
@@ -71,6 +77,8 @@ export type SessionCorpus = Readonly<{
 	store: "present" | "absent";
 	generatedAt: string; // ISO-8601; el store posee el reloj
 	runs: readonly RunObservation[];
+	applyPacketObservations?: readonly ApplyPacketObservationRecord[];
+	malformedApplyPacketObservations?: number;
 	counts: Readonly<{ sessions: number; transcripts: number; artifacts: number; corrupt: number; missing: number }>;
 	discovery: Discovery;
 }>;
@@ -135,9 +143,10 @@ export type Snapshot = Readonly<{
 }>;
 
 export type AccountingReport = Readonly<{
-	schemaVersion: 1;
+	schemaVersion: 2;
 	store: "present" | "absent";
 	snapshot: Snapshot;
+	applyPackets: ApplyPacketReadinessReport;
 	overall: Slice;
 	partition: Readonly<{ parent: Slice; subagent: Slice }>;
 	byModel: readonly ModelAccounting[];
@@ -579,9 +588,13 @@ export function buildAccountingReport(corpus: SessionCorpus): AccountingReport {
 	const coverage = mergeCoverage(overall.coverage, partitionCoverage);
 
 	return {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		store: corpus.store,
 		snapshot,
+		applyPackets: summarizeApplyPacketObservations(
+			corpus.applyPacketObservations ?? [],
+			corpus.malformedApplyPacketObservations ?? 0,
+		),
 		overall,
 		partition: { parent, subagent },
 		byModel,

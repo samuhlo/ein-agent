@@ -51,6 +51,10 @@ import {
 	formatApplyPacketObservation,
 	observeNextApplyPacket,
 } from "../../lib/apply-packet-observation.ts";
+import {
+	APPLY_PACKET_OBSERVATION_CUSTOM_TYPE,
+	createApplyPacketObservationRecord,
+} from "../../lib/apply-packet-observation-record.ts";
 
 type ToolCallGateDependencies = Readonly<{
 	intentGate: PiIntentGate;
@@ -144,6 +148,22 @@ export function registerToolCallGate(
 			// delegación. La puerta dura llega solo después de medir planes reales.
 			if (delegationTargetsOnly(event.input, "sdd-apply")) {
 				const observation = observeNextApplyPacket(ctx.cwd);
+				try {
+					pi.appendEntry(
+						APPLY_PACKET_OBSERVATION_CUSTOM_TYPE,
+						createApplyPacketObservationRecord(observation, {
+							observedAt: new Date().toISOString(),
+							toolCallId: event.toolCallId,
+						}),
+					);
+				} catch (error) {
+					// La telemetría report-only nunca puede convertirse por accidente
+					// en una puerta de ejecución. La ausencia queda visible en UI.
+					if (ctx.hasUI) ctx.ui.notify(
+						`Apply packet v2: observation not persisted · ${error instanceof Error ? error.message : String(error)}`,
+						"warning",
+					);
+				}
 				if (ctx.hasUI) ctx.ui.notify(
 					formatApplyPacketObservation(observation),
 					observation.status === "executable" ? "info" : "warning",

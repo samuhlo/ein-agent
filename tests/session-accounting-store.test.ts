@@ -10,6 +10,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readAccountingReport, readSessionCorpus } from "../ein-pi/agent/lib/session-accounting-store.ts";
+import { APPLY_PACKET_OBSERVATION_CUSTOM_TYPE } from "../ein-pi/agent/lib/apply-packet-observation-record.ts";
 
 let root: string;
 let previousHome: string | undefined;
@@ -56,6 +57,14 @@ const messageLine = (usage: Record<string, unknown>) => ({
 	parentId: "m1",
 	timestamp: "2026-01-01T00:00:02.000Z",
 	message: { role: "assistant", content: [], usage },
+});
+const packetEntry = (data: unknown) => ({
+	type: "custom",
+	id: "packet-entry",
+	parentId: null,
+	timestamp: "2026-09-03T10:00:00.000Z",
+	customType: APPLY_PACKET_OBSERVATION_CUSTOM_TYPE,
+	data,
 });
 
 describe("readSessionCorpus", () => {
@@ -339,10 +348,34 @@ describe("readAccountingReport", () => {
 			messageLine({ cost: { total: 1.5 } }),
 		]);
 		const report = readAccountingReport();
-		expect(report.schemaVersion).toBe(1);
+		expect(report.schemaVersion).toBe(2);
 		expect(report.store).toBe("present");
 		expect(report.overall.cost.status).toBe("known");
 		if (report.overall.cost.status === "known") expect(report.overall.cost.value).toBe(1.5);
+	});
+
+	test("cuenta packet readiness válida y malformed en la misma pasada", () => {
+		writeParentTranscript("proj", "2026-09-03T10-00-00-000Z_uuid-a", [
+			sessionLine("/x/proj"),
+			packetEntry({
+				format: "apply-packet-observation/v1",
+				observedAt: "2026-09-03T10:00:00.000Z",
+				toolCallId: "call-1",
+				status: "unavailable",
+				code: "no-active-change",
+			}),
+			packetEntry({ format: "apply-packet-observation/v1", status: "executable" }),
+		]);
+		const corpus = readSessionCorpus();
+		expect(corpus.applyPacketObservations).toHaveLength(1);
+		expect(corpus.malformedApplyPacketObservations).toBe(1);
+		const report = readAccountingReport();
+		expect(report.applyPackets).toMatchObject({
+			observed: 1,
+			malformed: 1,
+			byStatus: { executable: 0, incomplete: 0, rejected: 0, unavailable: 1 },
+			executableRate: { status: "known", value: 0 },
+		});
 	});
 
 	test("empty corpus -> every figure unknown, never 0 (R1)", () => {
@@ -350,5 +383,6 @@ describe("readAccountingReport", () => {
 		const report = readAccountingReport();
 		expect(report.overall.cost.status).toBe("unknown");
 		expect(report.coverage.status).toBe("unknown");
+		expect(report.applyPackets.executableRate).toEqual({ status: "unknown" });
 	});
 });

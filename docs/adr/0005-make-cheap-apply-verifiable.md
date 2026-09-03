@@ -150,6 +150,34 @@ Hasta cerrar el bucle quedan fuera de prioridad:
 La política de seguir las últimas versiones de Pi y extensiones permanece: una
 rotura upstream es trabajo de adaptación, no motivo para congelar el runtime.
 
+## Estado de implementación — 2026-09-03
+
+El primer corte, `make-apply-handoff-executable`, está cerrado. Introdujo
+`apply-packet/v2`, la gramática obligatoria de `tasks.md` y la observación
+report-only en el borde real de delegación de Pi.
+
+El segundo corte, `measure-live-apply-packets`, hace durable esa observación.
+Cada intento reconocido que delega únicamente a `sdd-apply` escribe una entrada
+custom acotada y ligada a su `toolCallId`. Guarda estado, hashes de fuente
+disponibles, digest del packet y cardinalidades/códigos pequeños, pero nunca el
+packet completo, la tarea, el prompt ni el detalle libre de un error.
+Accounting v2 lee las entradas durante su recorrido acotado existente y expone
+estados válidos, evidencia malformada, packets distintos y tasa explícitamente
+desconocida cuando no hay muestras.
+
+La foto histórica inmediatamente anterior al registro durable vive en
+`evals/cheap-apply-accounting-baseline.json`: 1.003 runs y
+392,4294725149991 USD con cobertura parcial, pero cero observaciones de packet
+durables. Es referencia de actividad pasada, no evidencia de equivalencia de
+un ejecutor barato.
+
+El riesgo de fallback hallado durante la auditoría depende de la versión
+upstream. `pi-subagents` 0.57.0 instalado puede caer silenciosamente cuando su
+único modelo queda excluido por caché; npm latest 0.64.0 falla cerrado en esa
+rama exacta. El 2026-09-03 `tooling/verify-latest-pi-runtime.ts` instaló y cargó
+0.64.0 correctamente con Pi latest. Ein no duplica por tanto la selección de
+modelo upstream. El runtime instalado debe actualizarse antes del canary.
+
 ## Consecuencias
 
 - Ein no afirmará que el ejecutor barato funciona porque una delegación termine

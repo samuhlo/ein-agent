@@ -30,6 +30,20 @@ Given: a tasks document has a group with multiple pending tasks and concrete edi
 When: the v2 compiler selects the group containing the next pending task
 Then: the packet contains every pending step in order, excludes completed steps, and an absent or empty operation keeps it non-executable
 
+## Scenario: apply-packet-v2-observation-is-durable-and-bounded
+title: Packet readiness observations survive as bounded session evidence
+requirement: The system MUST persist exactly one bounded versioned pre-execution observation for each recognized sole sdd-apply delegation, MUST bind it to the tool call and available packet provenance, and MUST NOT copy full packet, task, prompt, or free-form issue detail into the session record.
+Given: a recognized sole sdd-apply delegation has been observed as executable, incomplete, rejected, or unavailable
+When: the pre-execution hook reports readiness during the report-only rollout
+Then: the active Pi session receives one parseable custom record while delegation mutation and blocking behavior remain unchanged
+
+## Scenario: apply-packet-v2-readiness-accounting-is-honest
+title: Accounting distinguishes valid readiness, malformed evidence, and no samples
+requirement: The system MUST parse durable packet observations fail closed in the existing bounded session pass, MUST count malformed matching records separately from all readiness statuses, and MUST represent the executable rate as unknown when no valid observation exists.
+Given: the session corpus contains valid, malformed, or no apply packet observation entries
+When: the accounting report is built and rendered
+Then: valid states, distinct executable packet digests and changes, and the current executable streak are counted, malformed entries remain visible but cannot improve any state, and absence is not reported as a zero percent executable rate
+
 ## Scenario: apply-packet-v2-requires-exact-live-sources
 title: V2 requires exact current design and tasks bindings
 requirement: The system MUST bind every v2 packet to exactly the current `design.md` and `tasks.md` digests and MUST reject an absent, additional, unreadable or stale binding with the offending source named.
