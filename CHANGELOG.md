@@ -4,6 +4,32 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.95.0-alpha.2] - 2026-09-03
+
+### Fixed
+
+- **Todo mensaje de Pi vuelve a llegar intacto al orquestador.** Se elimina el
+  preflight léxico que convertía `hola`, auditorías contextuales y mensajes de
+  extensión en un formulario, devolvía `handled` y dejaba al modelo sin la
+  petición original. El modelo capaz decide ahora por significado si responde,
+  trabaja o pregunta por una decisión material.
+- **El canal de intención recupera su frontera explícita.** `/ein:intent` sigue
+  disponible cuando una conversación de decisiones aporta valor, pero el
+  runtime no lo activa ni persiste intención por inferencia.
+
+### Changed
+
+- **Pi actualiza su runtime administrado antes de abrir una sesión.** El
+  launcher reconcilia host y extensiones `latest` una sola vez antes de entregar
+  el terminal; un fallo solo degrada si la instalación existente sigue siendo
+  utilizable y nunca filtra metadata efímera al updater.
+
+### Release
+
+- **El smoke publicado reproduce la reparación desde la alpha afectada.** La
+  actualización final parte de `installer-v0.95.0-alpha.1`, preserva el estado
+  del usuario y valida los assets públicos de `0.95.0-alpha.2`.
+
 ## [0.95.0-alpha.1] - 2026-09-03
 
 ### Added
