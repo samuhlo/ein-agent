@@ -5,6 +5,9 @@
   "intercomBridge": {
     "mode": "off"
   },
+  "modelExclusions": {
+    "defaultTtlMs": 300000
+  },
   "fleetViewPlacement": "aboveEditor",
   "asyncWidget": false
 }

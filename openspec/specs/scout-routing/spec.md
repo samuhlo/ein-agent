@@ -2,6 +2,13 @@
 format: openspec-spec/v1
 domain: scout-routing
 
+## Scenario: accept-runner-decorated-wrap-up-report
+title: Recover an exact runner wrap-up note without weakening the report contract
+requirement: The system MUST recover a scout report when a successful runtime branch prefixes `finalOutput` with the exact turn-budget wrap-up note reconstructed from that branch's structured metadata, MUST record that the recovered output may be partial as a material uncertainty, and MUST continue to reject arbitrary preambles or notes that are not proven by matching metadata.
+Given: a scout branch exits successfully with `wrapUpRequested: true`, a `turnBudget.outcome` of `wrap-up-requested`, and an exact runner-generated note before one JSON report
+When: the local scout adapter consumes the branch
+Then: only the exact reconstructed note is removed, the JSON still passes the complete `ein-scout-report/v1` validation, the wrap-up provenance reaches the parent as an uncertainty, and any mismatched preamble remains off-contract
+
 ## Scenario: construct-bounded-research-packet
 title: Construct a bounded research packet
 requirement: The system MUST ensure that each delegated research request provides a bounded RESEARCH PACKET with finite inputs, budgets, and requested outputs.
@@ -30,13 +37,6 @@ Given: a scout report contains accepted findings with citations and explicit unc
 When: the parent continues routing or scoping
 Then: the parent forwards the accepted findings and uncertainties without automatically repeating the scout research
 
-## Scenario: accept-runner-decorated-wrap-up-report
-title: Recover an exact runner wrap-up note without weakening the report contract
-requirement: The system MUST recover a scout report when a successful runtime branch prefixes `finalOutput` with the exact turn-budget wrap-up note reconstructed from that branch's structured metadata, MUST record that the recovered output may be partial as a material uncertainty, and MUST continue to reject arbitrary preambles or notes that are not proven by matching metadata.
-Given: a scout branch exits successfully with `wrapUpRequested: true`, a `turnBudget.outcome` of `wrap-up-requested`, and an exact runner-generated note before one JSON report
-When: the local scout adapter consumes the branch
-Then: only the exact reconstructed note is removed, the JSON still passes the complete `ein-scout-report/v1` validation, the wrap-up provenance reaches the parent as an uncertainty, and any mismatched preamble remains off-contract
-
 ## Scenario: limit-material-spot-checks
 title: Limit material spot-checks
 requirement: The system MAY allow the parent, after accepting a valid cited scout report, to perform no more than two spot-checks limited to material claims.
@@ -52,11 +52,11 @@ When: the parent gathers enough information to route the request
 Then: the parent performs at most two routing reads before delegation
 
 ## Scenario: off-contract-scout-result-does-not-free-the-turn
-title: Stop a scout relaunch loop after two wholly off-contract results
-requirement: The system MUST record a scout result that fails the report contract wholesale against the current turn instead of clearing it, and MUST reject a further scout launch in the same turn once two results have failed that way, naming the failure as an infrastructure incident. Only a wholesale failure counts: a report whose citations can be clamped or partially salvaged is accepted and MUST NOT consume the allowance, and in a fan-out the call counts as off-contract only when every branch fails. The rejection MUST report the observed result shape and MUST NOT assert an unverified cause.
-Given: a scout result that fails the report contract wholesale in the current turn
-When: the parent launches another scout in that same turn
-Then: the failed call remains recorded against the turn, a third launch is rejected as an infrastructure incident, a salvageable report leaves the allowance untouched, and the next user turn clears the record
+title: Stop scout relaunch loops while preserving runtime startup failures
+requirement: The system MUST record a scout report that fails the report contract wholesale as off-contract and MUST reject a further scout launch once two reports fail that way, but MUST classify an execution that produced no results and carries structured child errors as runtime unavailable, preserve its bounded cause, and reject the next launch in the same turn immediately. A salvageable report MUST consume neither allowance, and no rejection MAY assert an unverified async or foreground cause.
+Given: a scout call returns a malformed report, a partially salvageable fan-out, or zero results with structured workflow child failures
+When: the local adapter processes it and a later scout launch is considered in the same turn
+Then: malformed reports keep the two-strike rule, salvageable evidence passes, runtime unavailable names the original cause and cuts the next launch, and clearing turn tracking restores availability
 
 ## Scenario: readonly-scout-bounded-research-contract
 title: Scout research is normalized, tool-call bounded, and locally validated
@@ -92,6 +92,13 @@ requirement: The system MUST normalize every accepted ein-scout launch to a fore
 Given: a direct ein-scout launch request
 When: the launch is normalized
 Then: the normalized launch is foreground and no asynchronous scout call is produced
+
+## Scenario: scout-model-exclusion-cache-is-short-and-explicit
+title: Managed model exclusions recover quickly without hidden fallback
+requirement: The system MUST configure the managed subagent runtime to expire model exclusions after 300000 milliseconds, MUST continue failing closed while an exclusion is active, and MUST NOT add or select a fallback model without explicit user configuration.
+Given: a configured scout model produces an empty or provider-failed run and upstream records an exclusion
+When: the managed subagent configuration is loaded or reloaded
+Then: the exclusion lasts at most five minutes, active longer exclusions are shortened by upstream, and no different model is selected implicitly
 
 ## Scenario: scout-reference-end-line-clamped-to-file-end
 title: Clamp a citation that overruns the end of the file

@@ -146,6 +146,9 @@ describe("orchestrator — doctrina de dieta de contexto", () => {
 		expect(raw).toMatch(/When `ein-scout` is unavailable/);
 		expect(raw).toMatch(/infrastructure incident/i);
 		expect(raw).toMatch(/degrade to \*\*bounded\*\* reads|bounded.*reads only/i);
+		expect(raw).toContain("do not retry this turn");
+		expect(raw).toContain("/ein:models");
+		expect(raw).toContain("cached exclusion");
 	});
 
 	test("orientación acotada: nada de ritual de investigación al arrancar", () => {
