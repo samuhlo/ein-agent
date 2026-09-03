@@ -2,7 +2,7 @@
 title: "Tooling opcional"
 description: "Las integraciones que EIN puede usar, y qué pasa cuando no están."
 sources: ["installer/src/core/engram.ts", "installer/src/core/secrets.ts", "installer/src/core/deps.ts", "ein-pi/agent/mcp.json"]
-verified_rev: "eeceb7c"
+verified_rev: "405a6c1"
 ---
 
 EIN funciona sin ninguna de estas. Todas se pueden omitir en la instalación con

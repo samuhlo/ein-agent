@@ -2,7 +2,7 @@
 title: "CLI"
 description: "La aplicación de terminal, los comandos del instalador y sus flags."
 sources: ["README.md", "installer/README.md", "ein-pi/agent/app.ts", "ein-pi/agent/surfaces/terminal-app-entrypoint.ts", "installer/src/cli/install.ts", "installer/src/cli/doctor.ts", "installer/src/cli/update.ts", "installer/src/cli/restore.ts", "installer/src/cli/uninstall.ts"]
-verified_rev: "eeceb7c"
+verified_rev: "405a6c1"
 ---
 
 Hay dos binarios y hacen cosas distintas:
@@ -72,7 +72,8 @@ ein-install install --runtime pi|both
 ### `ein-install update`
 
 Actualiza EIN y su plantilla desde el canal guardado. Verifica el payload antes
-de aplicar, y crea backup con posibilidad de rollback.
+de aplicar, crea backup con posibilidad de rollback y, fuera de `--dry-run`,
+actualiza también el host Pi y los paquetes declarados del runtime aislado.
 
 ```bash
 ein-install update --channel alpha   # actualiza y deja alpha como preferencia
@@ -85,9 +86,13 @@ la preferencia persistida —o `stable` cuando todavía no existe—. El cambio 
 guarda de forma atómica solo después de una actualización correcta, también si
 la versión ya estaba al día. Un dry-run, un bloqueo o un fallo no lo guarda.
 
-**No actualiza el runtime.** Para Pi, eso es `ein-pi update --all`. Para Claude
-Code, actualiza Claude por su canal normal. La actualización de EIN sí renueva
-sus launchers y el payload Claude con los nombres actuales.
+El host Pi solo se considera `latest` cuando su versión observada coincide con
+la evidencia fresca de npm. Las herramientas externas opcionales conservan su
+confirmación aparte. Claude Code sigue actualizándose por su canal normal.
+
+Al elegir Pi desde la aplicación `ein`, esta ejecuta una vez por proceso
+`pi update --all --no-approve` antes del primer handoff. `PI_OFFLINE=1` omite
+ese paso; el acceso manual equivalente sigue siendo `ein-pi update --all`.
 
 ### `ein-install doctor`
 

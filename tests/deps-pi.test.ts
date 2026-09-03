@@ -16,6 +16,7 @@ import {
 	installDeclaredPackages,
 	installPi,
 	isCompatibleNodeVersion,
+	resolveLatestPiVersion,
 } from "../installer/src/core/deps";
 import { detectPlatform } from "../installer/src/core/platform";
 import { resolvePiInstallContext } from "../installer/src/core/paths";
@@ -73,6 +74,7 @@ describe("deps — pi siempre con scope", () => {
 				inspected.push(path);
 				return "9.8.7";
 			},
+			resolveLatestVersion: async () => ({ ok: true, version: "9.8.7" }),
 			run: async (command, args, options) => {
 				calls.push({ command, args: args ?? [], env: options?.env });
 				return { ok: true, code: 0, stdout: "", stderr: "" };
@@ -119,6 +121,7 @@ describe("deps — pi siempre con scope", () => {
 					inspected.push(path);
 					return "9.8.7";
 				},
+				resolveLatestVersion: async () => ({ ok: true, version: "9.8.7" }),
 				run: async (_command, _args, options) => {
 					calls.push(options?.env);
 					return { ok: true, code: 0, stdout: "", stderr: "" };
@@ -153,6 +156,7 @@ describe("deps — pi siempre con scope", () => {
 			inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
 			lookPath: (command) => command === "bun" ? "/fake/bun" : null,
 			readPiVersion: () => "not-a-version",
+			resolveLatestVersion: async () => ({ ok: true, version: "9.8.7" }),
 			run: async () => ({ ok: true, code: 0, stdout: "", stderr: "" }),
 		});
 
@@ -161,6 +165,69 @@ describe("deps — pi siempre con scope", () => {
 		expect(result.detail).toContain(PI_HOST_SPEC);
 		expect(result.detail).toContain(join(home, ".bun", "bin", "pi"));
 		expect(result.detail).not.toContain("instalado");
+	});
+
+	test("resuelve el dist-tag latest desde evidencia npm fresca y validada", async () => {
+		const requests: string[] = [];
+		const result = await resolveLatestPiVersion(async (input) => {
+			requests.push(String(input));
+			return new Response(JSON.stringify({ version: "9.8.7" }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+
+		expect(result).toEqual({ ok: true, version: "9.8.7" });
+		expect(requests).toHaveLength(1);
+		expect(requests[0]).toContain("registry.npmjs.org");
+		expect(requests[0]).toContain("pi-coding-agent");
+	});
+
+	test("la evidencia latest no disponible o malformada falla sin inventar frescura", async () => {
+		expect(await resolveLatestPiVersion(async () => new Response("down", { status: 503 }))).toMatchObject({
+			ok: false,
+			detail: expect.stringContaining("503"),
+		});
+		expect(await resolveLatestPiVersion(async () => new Response(JSON.stringify({ version: "latest" }), { status: 200 }))).toMatchObject({
+			ok: false,
+			detail: expect.stringContaining("malformada"),
+		});
+		expect(await resolveLatestPiVersion(async () => { throw new Error("offline"); })).toMatchObject({
+			ok: false,
+			detail: expect.stringContaining("no disponible"),
+		});
+	});
+
+	test("installPi rechaza una versión publicada válida que no coincide con latest", async () => {
+		const home = "/fake/home";
+		const result = await installPi({
+			home,
+			runtimeEnv: {},
+			inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
+			lookPath: (command) => command === "bun" ? "/fake/bun" : null,
+			readPiVersion: () => "9.8.6",
+			resolveLatestVersion: async () => ({ ok: true, version: "9.8.7" }),
+			run: async () => ({ ok: true, code: 0, stdout: "", stderr: "" }),
+		});
+
+		expect(result).toEqual({
+			ok: false,
+			detail: `pi latest no alcanzado en ${join(home, ".bun", "bin", "pi")}: esperada 9.8.7; observada 9.8.6`,
+		});
+	});
+
+	test("installPi no afirma latest cuando la evidencia remota no está disponible", async () => {
+		const result = await installPi({
+			home: "/fake/home",
+			runtimeEnv: {},
+			inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
+			lookPath: (command) => command === "bun" ? "/fake/bun" : null,
+			readPiVersion: () => "9.8.7",
+			resolveLatestVersion: async () => ({ ok: false, detail: "registro npm no disponible" }),
+			run: async () => ({ ok: true, code: 0, stdout: "", stderr: "" }),
+		});
+
+		expect(result).toEqual({ ok: false, detail: "pi latest no verificable: registro npm no disponible" });
 	});
 
 	test("Pi exige Node 22.19+ y explica cómo corregir un runtime ausente", async () => {

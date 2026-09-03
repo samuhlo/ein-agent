@@ -2,7 +2,7 @@
 title: "Troubleshooting"
 description: "Los fallos más frecuentes y cómo salir de ellos."
 sources: ["installer/src/cli/doctor.ts", "installer/src/core/deps.ts", "installer/src/core/backup.ts", "README.md"]
-verified_rev: "eeceb7c"
+verified_rev: "405a6c1"
 ---
 
 Empieza siempre por aquí:
