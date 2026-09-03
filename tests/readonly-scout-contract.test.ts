@@ -353,6 +353,39 @@ describe("readonly scout result handoff", () => {
 
 	});
 
+	test("un workflow sin results conserva el error hijo real y corta el retry", () => {
+		const message = "No usable subagent models remain after registry, scope, and cached-exclusion filtering.";
+		const details = {
+			mode: "workflow",
+			results: [],
+			workflow: {
+				value: {
+					productState: { ok: false, error: message },
+					codeHealth: { ok: false, error: message },
+				},
+				trace: [
+					{ operation: "run", key: "product-state", state: "failed", error: message },
+				],
+			},
+		};
+		const tracking = tracked();
+		let error = "";
+		try { acceptTrackedScoutResult(tracking, "scout-call", details, false, fixture()); }
+		catch (caught) { error = caught instanceof Error ? caught.message : String(caught); }
+
+		expect(error).toContain("ein-scout runtime unavailable");
+		expect(error).toContain(message);
+		expect(error).toContain("/ein:models");
+		expect(error).toContain("do not retry this turn");
+		expect(error).not.toContain("foreground");
+		expect(error.split(message)).toHaveLength(2);
+		expect(tracking.get("scout-call")).toBe("unavailable");
+		expect(() => normalizeScoutLaunch({ agent: "ein-scout", task: "retry" }, "scout-2", tracking)).toThrow("runtime unavailable earlier this turn");
+
+		tracking.clear();
+		expect(normalizeScoutLaunch({ agent: "ein-scout", task: "next turn" }, "scout-3", tracking)).toBeDefined();
+	});
+
 	// R4. Cada rama se valida por su cuenta: una rama fuera de contrato no
 	// arrastra a sus hermanas. Es la diferencia entre perder un ángulo y perder
 	// la investigación entera.

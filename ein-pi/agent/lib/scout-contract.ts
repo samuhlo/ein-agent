@@ -53,6 +53,12 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 // control-flow analysis: `if (!guard(x)) fail(...)` then narrows x below.
 function fail(message: string): never { throw new Error(`ein-scout contract: ${message}`); }
 
+class ScoutRuntimeUnavailableError extends Error {}
+
+function runtimeUnavailable(message: string): never {
+	throw new ScoutRuntimeUnavailableError(`ein-scout runtime unavailable: ${message}`);
+}
+
 function scoutName(input: unknown): boolean {
 	if (!isRecord(input)) return false;
 	if (input.agent === "ein-scout" || (isRecord(input.agent) && input.agent.name === "ein-scout")) return true;
@@ -89,6 +95,9 @@ export function normalizeScoutLaunch(input: unknown, toolCallId: string, trackin
 	// existía en la prosa del orquestador; aquí es lo que corta el gasto.
 	let offContract = 0;
 	for (const [, status] of tracking) {
+		if (status === "unavailable") {
+			fail("runtime unavailable earlier this turn; do not relaunch scout work until the next user turn");
+		}
 		if (status === "off-contract") offContract += 1;
 	}
 	if (offContract >= OFF_CONTRACT_LIMIT) fail("the scout returned off-contract twice this turn; treat it as an infrastructure incident, surface it, and degrade to bounded reads instead of relaunching");
@@ -309,12 +318,46 @@ function branchOutput(result: unknown): Pick<Branch, "finalOutput" | "runtimeUnc
 	};
 }
 
+function workflowRuntimeErrors(details: unknown): string[] {
+	if (!isRecord(details) || !isRecord(details.workflow)) return [];
+	const errors: string[] = [];
+	const add = (value: unknown): void => {
+		if (typeof value !== "string" || value.trim().length === 0) return;
+		const normalized = value.trim();
+		let bounded = normalized;
+		if (Buffer.byteLength(bounded, "utf8") > 512) {
+			bounded = normalized.slice(0, 400);
+			while (Buffer.byteLength(`${bounded}…`, "utf8") > 512) bounded = bounded.slice(0, -1);
+			bounded = `${bounded}…`;
+		}
+		if (!errors.includes(bounded) && errors.length < MAX_FANOUT_BRANCHES) errors.push(bounded);
+	};
+	if (isRecord(details.workflow.value)) {
+		for (const branch of Object.values(details.workflow.value)) {
+			if (isRecord(branch)) add(branch.error);
+		}
+	}
+	if (Array.isArray(details.workflow.trace)) {
+		for (const event of details.workflow.trace) {
+			if (isRecord(event) && event.state === "failed") add(event.error);
+		}
+	}
+	return errors;
+}
+
 function scoutBranches(details: unknown): Branch[] {
 	if (!isRecord(details) || !Array.isArray(details.results)) {
 		fail("the runtime returned no results list for this scout call");
 	}
 	if (details.results.length === 0) {
-		fail("the scout call returned 0 results in this turn — the shape of a launch that did not run foreground; a scout must run foreground to return its report");
+		const errors = workflowRuntimeErrors(details);
+		if (errors.length > 0) {
+			const excluded = errors.some((error) => error.includes("No usable subagent models remain"));
+			runtimeUnavailable(
+				`${errors.join("; ")}${excluded ? " Choose another model for ein-scout in /ein:models or wait for the cached exclusion to expire;" : ""} do not retry this turn`,
+			);
+		}
+		fail("the scout call returned 0 results in this turn; no verified runtime cause was provided");
 	}
 	if (details.results.length > MAX_FANOUT_BRANCHES) {
 		fail(`a read-only scout fan-out carries at most ${MAX_FANOUT_BRANCHES} branches; this call returned ${details.results.length}`);
@@ -362,6 +405,10 @@ export function acceptTrackedScoutResult(tracking: ScoutTracking, toolCallId: st
 		tracking.delete(toolCallId);
 		return accepted;
 	} catch (error) {
+		if (error instanceof ScoutRuntimeUnavailableError) {
+			tracking.set(toolCallId, "unavailable");
+			throw error;
+		}
 		// R8: fuera de contrato NO libera el turno. La entrada queda marcada para
 		// que el segundo intento fallido corte el tercero antes de que arranque.
 		tracking.set(toolCallId, "off-contract");

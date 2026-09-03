@@ -27,6 +27,7 @@ describe("subagent intercom bridge", () => {
 	const config = JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as {
 		intercomBridge?: { mode?: string };
 		control?: { needsAttentionAfterMs?: number };
+		modelExclusions?: { defaultTtlMs?: number };
 	};
 
 	test("intercomBridge.mode está en 'off' (sin detach vía supervisor)", () => {
@@ -35,5 +36,10 @@ describe("subagent intercom bridge", () => {
 
 	test("conserva el resto del control (needsAttentionAfterMs)", () => {
 		expect(typeof config.control?.needsAttentionAfterMs).toBe("number");
+	});
+
+	test("una exclusión transitoria caduca en cinco minutos sin fallback oculto", () => {
+		expect(config.modelExclusions).toEqual({ defaultTtlMs: 300_000 });
+		expect(JSON.stringify(config)).not.toContain("fallbackModels");
 	});
 });
