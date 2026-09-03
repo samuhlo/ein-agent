@@ -15,6 +15,11 @@ import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync } fr
 import { basename, join } from "node:path";
 import { AGENT_DIR } from "../extensions/ein-paths";
 import {
+	APPLY_PACKET_OBSERVATION_CUSTOM_TYPE,
+	parseApplyPacketObservationRecord,
+	type ApplyPacketObservationRecord,
+} from "./apply-packet-observation-record.ts";
+import {
 	buildAccountingReport,
 	type AccountingReport,
 	type ArtifactAttempt,
@@ -134,6 +139,8 @@ type TranscriptRead = Readonly<{
 	status: RunObservation["transcript"];
 	messages: readonly TranscriptMessage[];
 	cwdProject: string | null;
+	applyPacketObservations: readonly ApplyPacketObservationRecord[];
+	malformedApplyPacketObservations: number;
 }>;
 
 // Lectura línea a línea, acotada en bytes y en número de mensajes (R10). Una
@@ -142,8 +149,9 @@ type TranscriptRead = Readonly<{
 // medio escribir.
 function readTranscript(path: string): TranscriptRead {
 	const st = statOrNull(path);
-	if (!st) return { status: "missing", messages: [], cwdProject: null };
-	if (!st.isFile()) return { status: "unreadable", messages: [], cwdProject: null };
+	const empty = { messages: [], cwdProject: null, applyPacketObservations: [], malformedApplyPacketObservations: 0 } as const;
+	if (!st) return { status: "missing", ...empty };
+	if (!st.isFile()) return { status: "unreadable", ...empty };
 
 	let raw: Buffer;
 	let truncatedByBytes = false;
@@ -162,7 +170,7 @@ function readTranscript(path: string): TranscriptRead {
 			raw = readFileSync(path);
 		}
 	} catch {
-		return { status: "unreadable", messages: [], cwdProject: null };
+		return { status: "unreadable", ...empty };
 	}
 
 	const lines = raw.toString("utf8").split("\n");
@@ -172,6 +180,8 @@ function readTranscript(path: string): TranscriptRead {
 	let cwdProject: string | null = null;
 	let lastModel: string | null = null;
 	const messages: TranscriptMessage[] = [];
+	const applyPacketObservations: ApplyPacketObservationRecord[] = [];
+	let malformedApplyPacketObservations = 0;
 
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i]!;
@@ -199,6 +209,12 @@ function readTranscript(path: string): TranscriptRead {
 			if (modelId) lastModel = normalizeModelKey(modelId, asString(parsed.provider));
 			continue;
 		}
+		if (parsed.type === "custom" && parsed.customType === APPLY_PACKET_OBSERVATION_CUSTOM_TYPE) {
+			const observation = parseApplyPacketObservationRecord(parsed.data);
+			if (observation) applyPacketObservations.push(observation);
+			else malformedApplyPacketObservations += 1;
+			continue;
+		}
 		if (parsed.type !== "message") continue;
 		if (messages.length >= MAX_MESSAGES_PER_RUN) {
 			messagesTruncated = true;
@@ -211,7 +227,13 @@ function readTranscript(path: string): TranscriptRead {
 	}
 
 	const partial = lastLineIncomplete || unparsedCount > 0 || messagesTruncated;
-	return { status: partial ? "partial" : "present", messages, cwdProject };
+	return {
+		status: partial ? "partial" : "present",
+		messages,
+		cwdProject,
+		applyPacketObservations,
+		malformedApplyPacketObservations,
+	};
 }
 
 // --- artefactos de subagente (`<runId>_<agent>_meta.json`)
@@ -283,6 +305,8 @@ export function readSessionCorpus(_options: ReadSessionCorpusOptions = {}): Sess
 			store: "absent",
 			generatedAt,
 			runs: [],
+			applyPacketObservations: [],
+			malformedApplyPacketObservations: 0,
 			counts: { sessions: 0, transcripts: 0, artifacts: 0, corrupt: 0, missing: 0 },
 			discovery: { scanned: 0, skipped: 0, scanLimitExceeded: false },
 		};
@@ -300,6 +324,8 @@ export function readSessionCorpus(_options: ReadSessionCorpusOptions = {}): Sess
 	let artifacts = 0;
 	let corrupt = 0;
 	let missing = 0;
+	const applyPacketObservations: ApplyPacketObservationRecord[] = [];
+	let malformedApplyPacketObservations = 0;
 
 	function canScanMore(): boolean {
 		if (runsScanned >= MAX_RUNS_SCANNED) {
@@ -313,6 +339,8 @@ export function readSessionCorpus(_options: ReadSessionCorpusOptions = {}): Sess
 	function recordTranscript(read: TranscriptRead): void {
 		if (read.status === "missing") missing += 1;
 		else transcripts += 1;
+		applyPacketObservations.push(...read.applyPacketObservations);
+		malformedApplyPacketObservations += read.malformedApplyPacketObservations;
 	}
 
 	for (const dirName of scannedProjectNames) {
@@ -408,6 +436,8 @@ export function readSessionCorpus(_options: ReadSessionCorpusOptions = {}): Sess
 		store: "present",
 		generatedAt,
 		runs,
+		applyPacketObservations,
+		malformedApplyPacketObservations,
 		counts: { sessions, transcripts, artifacts, corrupt, missing },
 		discovery,
 	};

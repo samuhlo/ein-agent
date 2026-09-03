@@ -9,39 +9,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { compileApplyPacketV2 } from "./apply-packet-compile.ts";
-import {
-	type ApplyPacketIssue,
-	type ApplyPacketV2,
-	validateApplyPacketV2,
-} from "./apply-packet.ts";
+import { validateApplyPacketV2 } from "./apply-packet.ts";
 import { resolveChangesDir, resolveSddStatus } from "./sdd-router.ts";
 
-export type ApplyPacketObservation =
-	| Readonly<{
-		status: "executable";
-		change: string;
-		group: string;
-		packet: ApplyPacketV2;
-	}>
-	| Readonly<{
-		status: "incomplete";
-		change: string;
-		group: string;
-		issues: readonly ApplyPacketIssue[];
-	}>
-	| Readonly<{
-		status: "rejected";
-		change: string;
-		group: string;
-		code: string;
-		detail: string;
-		issues?: readonly ApplyPacketIssue[];
-	}>
-	| Readonly<{
-		status: "unavailable";
-		code: "no-active-change" | "ambiguous-change" | "missing-group" | "unreadable-artifact";
-		detail: string;
-	}>;
+export type { ApplyPacketObservation } from "./apply-packet-observation-record.ts";
+
+import type { ApplyPacketObservation } from "./apply-packet-observation-record.ts";
 
 function sha256(text: string): string {
 	return createHash("sha256").update(text).digest("hex");
@@ -92,7 +65,7 @@ export function observeNextApplyPacket(cwd: string): ApplyPacketObservation {
 			return {
 				status: compiled.code === "invalid-edit-grammar" ? "rejected" : "unavailable",
 				...(compiled.code === "invalid-edit-grammar"
-					? { change: status.change, group, code: compiled.code, detail: compiled.detail }
+					? { change: status.change, group, code: compiled.code, detail: compiled.detail, sources }
 					: { code: "missing-group" as const, detail: compiled.detail }),
 			} as ApplyPacketObservation;
 		}
@@ -102,7 +75,7 @@ export function observeNextApplyPacket(cwd: string): ApplyPacketObservation {
 			return { status: "executable", change: status.change, group, packet: validation.packet };
 		}
 		if (validation.level === "incomplete") {
-			return { status: "incomplete", change: status.change, group, issues: validation.issues };
+			return { status: "incomplete", change: status.change, group, sources, issues: validation.issues };
 		}
 		return {
 			status: "rejected",
@@ -110,6 +83,7 @@ export function observeNextApplyPacket(cwd: string): ApplyPacketObservation {
 			group,
 			code: validation.issues[0]?.code ?? "rejected",
 			detail: validation.issues[0]?.detail ?? "packet rechazado",
+			sources,
 			issues: validation.issues,
 		};
 	} catch (error) {

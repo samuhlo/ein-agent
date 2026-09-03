@@ -1,0 +1,67 @@
+{
+  "format": "cheap-apply-accounting-baseline/v1",
+  "capturedAt": "2026-09-03T10:27:06.902Z",
+  "source": {
+    "kind": "ein-session-accounting",
+    "reportSchemaVersion": 2,
+    "agentHome": "redacted-local-ein-pi-home"
+  },
+  "corpus": {
+    "from": "2026-05-15T13:47:03.613Z",
+    "to": "2026-08-28T13:59:23.721Z",
+    "sessions": 228,
+    "transcripts": 980,
+    "artifacts": 24,
+    "corruptFiles": 0,
+    "missingFiles": 23,
+    "runs": 1003,
+    "runsAttributed": 999,
+    "runsUnattributable": 4,
+    "scanLimitExceeded": false
+  },
+  "overall": {
+    "costUsd": {
+      "value": 392.4294725149991,
+      "coverage": "partial",
+      "attributed": 999,
+      "total": 1003
+    },
+    "outputTokens": {
+      "value": 7535715,
+      "coverage": "partial",
+      "attributed": 999,
+      "total": 1003
+    },
+    "peakPromptTokens": {
+      "samples": 979,
+      "mean": 49114.927477017365,
+      "p95": 136220,
+      "max": 317745
+    },
+    "peakSequenceTokens": {
+      "samples": 979,
+      "mean": 49758.03064351379,
+      "p95": 136469,
+      "max": 318404
+    },
+    "turnsPerRun": {
+      "samples": 24,
+      "mean": 16.041666666666668,
+      "p95": 39,
+      "max": 47
+    },
+    "processReruns": 25,
+    "maximumRunIndex": 9
+  },
+  "applyPackets": {
+    "observed": 0,
+    "malformed": 0,
+    "executableRate": "unknown"
+  },
+  "limitations": [
+    "This is a historical activity and cost snapshot, not a capable-versus-cheap comparison.",
+    "Packet observations are absent because durable recording starts after this snapshot.",
+    "Failure, fallback and turn coverage is partial; missing evidence must not be interpreted as zero.",
+    "The promotion baseline must come from controlled executions of the same packet and independent verification."
+  ]
+}

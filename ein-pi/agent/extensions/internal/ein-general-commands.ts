@@ -57,6 +57,20 @@ function formatSlice(title: string, slice: Slice): string[] {
 	];
 }
 
+function formatApplyPacketReadiness(report: ReturnType<typeof readAccountingReport>["applyPackets"]): string[] {
+	const rate = report.executableRate.status === "known"
+		? `${(report.executableRate.value * 100).toFixed(1)}%`
+		: "unknown";
+	const latest = report.latestObservedAt.status === "known" ? report.latestObservedAt.value : "unknown";
+	return [
+		t("accounting.apply-packets", "-- apply packet readiness --"),
+		`- observed=${report.observed} malformed=${report.malformed} latest=${latest}`,
+		`- executable=${report.byStatus.executable} incomplete=${report.byStatus.incomplete} rejected=${report.byStatus.rejected} unavailable=${report.byStatus.unavailable}`,
+		`- executableRate=${rate} distinctPackets=${report.distinctExecutablePackets} distinctChanges=${report.distinctChanges}`,
+		`- currentExecutableStreak=${report.currentExecutableStreak} acrossChanges=${report.currentStreakDistinctChanges}`,
+	];
+}
+
 function formatNamedSlices<T extends Slice>(
 	kind: "model" | "agent",
 	entries: readonly T[],
@@ -201,7 +215,7 @@ export function registerGeneralCommands(pi: ExtensionAPI): void {
 	pi.registerCommand("ein:accounting", {
 		description: t(
 			"cmd.accounting.description",
-			"Ver el coste medido de las sesiones de Ein (dinero, tokens, turnos y fallos)",
+			"Ver readiness de packets y coste medido de las sesiones de Ein",
 		),
 		handler: async (_args, ctx) => {
 			const report = readAccountingReport();
@@ -223,6 +237,8 @@ export function registerGeneralCommands(pi: ExtensionAPI): void {
 				`- corruptFiles=${snapshot.corruptFiles} missingFiles=${snapshot.missingFiles}`,
 				`- runsAttributed=${snapshot.runsAttributed} runsUnattributable=${snapshot.runsUnattributable}`,
 				`- discovery: scanned=${snapshot.discovery.scanned} skipped=${snapshot.discovery.skipped} scanLimitExceeded=${snapshot.discovery.scanLimitExceeded}`,
+				"",
+				...formatApplyPacketReadiness(report.applyPackets),
 				"",
 				...formatSlice(t("accounting.overall", "-- overall --"), report.overall),
 				"",
