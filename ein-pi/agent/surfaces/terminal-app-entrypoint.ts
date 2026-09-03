@@ -23,6 +23,14 @@ import {
 import { collectRuntimeSessions, type RuntimeSessionList } from "../lib/runtime-sessions.ts";
 import { createContinuityHandoffLifecycle, localExecutableAvailable, type ContinuityPrepareResult } from "../lib/continuity-handoff-lifecycle.ts";
 import { runContinueInPty } from "../lib/terminal-continue-transport.ts";
+import {
+  createPiPrelaunchCoordinator,
+  piOfflineEnabled,
+  type PiPrelaunchCommand,
+  type PiPrelaunchCoordinator,
+  type PiPrelaunchResult,
+} from "../lib/pi-prelaunch-update.ts";
+import { EIN_SDD_SESSION_BINDING_ENV_KEY } from "../lib/sdd-session-binding.ts";
 import { pick } from "../lib/lang.ts";
 import { createPalette, shouldUseColor } from "../lib/theme.ts";
 import {
@@ -169,15 +177,19 @@ export function createTerminalAppControllerFactoryForCwd(
   });
   const readSystem = options.system
     ?? (() => systemComponentsFrom(updateSnapshot?.read(), { engramInstalled: existsSync(engramHome()) }));
+  // One coordinator belongs to one terminal-app process/controller factory.
+  // Injected runtimes are test/alternate boundaries and remain fully owned by
+  // their caller; only the production edge performs automatic maintenance.
+  const prelaunch = options.runtime ? undefined : createProductionPiPrelaunchCoordinator();
   const launch = options.runtime?.launch
-    ?? ((provider, reference, focusedChange) => productionLaunch(cwd, provider, reference, focusedChange));
+    ?? ((provider, reference, focusedChange) => productionLaunch(cwd, provider, reference, focusedChange, prelaunch));
   const handoff = options.continuity ?? createContinuityHandoffLifecycle(cwd, {
     now: () => new Date().toISOString(),
     runtimeAvailable: (provider) => localExecutableAvailable(provider),
   });
   const continueLaunch = options.runtime?.continue
     ?? ((provider: RuntimeProvider, brief: string, focusedChange?: string) =>
-      productionContinue(cwd, provider, brief, focusedChange));
+      productionContinue(cwd, provider, brief, focusedChange, runContinueInPty, prelaunch));
   const runCommand = options.run ?? productionRun;
   const readSummary = options.summary
     ?? ((root: string, change?: string) =>
@@ -550,9 +562,12 @@ export async function productionContinue(
   brief: string,
   focusedChange?: string,
   run: typeof runContinueInPty = runContinueInPty,
+  prelaunch?: PiPrelaunchCoordinator,
 ): Promise<LaunchOutcome> {
   const resolved = productionLaunchPlan(cwd, provider, undefined, focusedChange);
   if (!resolved.ok) return resolved.outcome;
+  const prepared = await prepareRuntimeLaunch(resolved.plan, prelaunch);
+  if (prepared) return prepared;
   return run({
     cwd: resolved.plan.cwd,
     provider,
@@ -562,20 +577,91 @@ export async function productionContinue(
   });
 }
 
-async function productionLaunch(
+export async function productionLaunch(
   cwd: string,
   provider: RuntimeProvider,
   reference?: string,
   focusedChange?: string,
+  prelaunch?: PiPrelaunchCoordinator,
 ): Promise<LaunchOutcome> {
   const resolved = productionLaunchPlan(cwd, provider, reference, focusedChange);
   if (!resolved.ok) return resolved.outcome;
+  const prepared = await prepareRuntimeLaunch(resolved.plan, prelaunch);
+  if (prepared) return prepared;
   const executed = await executeLaunchPlan(resolved.plan);
   if (executed.outcome === "success") return { kind: "exited", code: 0 };
   if (executed.outcome === "unavailable") {
     return { kind: "unavailable", reason: executed.error?.code ?? "unavailable" };
   }
   return { kind: "exited", code: executed.error?.exitCode ?? 1 };
+}
+
+async function prepareRuntimeLaunch(
+  plan: LaunchPlan,
+  prelaunch?: PiPrelaunchCoordinator,
+): Promise<LaunchOutcome | undefined> {
+  if (!prelaunch) return undefined;
+  let result: PiPrelaunchResult;
+  try {
+    result = await prelaunch.prepare(plan);
+  } catch {
+    return { kind: "unavailable", reason: "pi-prelaunch-unavailable" };
+  }
+  return result.kind === "blocked"
+    ? { kind: "unavailable", reason: result.reason }
+    : undefined;
+}
+
+async function productionPiPrelaunchRun(input: PiPrelaunchCommand): Promise<{ code: number; stdout: string }> {
+  const capture = input.stdio === "capture";
+  const environment = { ...process.env, ...input.env } as Record<string, string>;
+  delete environment[EIN_SDD_SESSION_BINDING_ENV_KEY];
+  const child = Bun.spawn([input.executable, ...input.argv], {
+    cwd: input.cwd,
+    env: environment,
+    stdin: capture ? "ignore" : "inherit",
+    stdout: capture ? "pipe" : "inherit",
+    stderr: capture ? "pipe" : "inherit",
+  });
+  const stdoutPromise = capture ? new Response(child.stdout).text() : Promise.resolve("");
+  const stderrPromise = capture ? new Response(child.stderr).text() : Promise.resolve("");
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    try { child.kill(); } catch {}
+  }, input.timeoutMs);
+  try {
+    const [code, output] = await Promise.all([child.exited, stdoutPromise, stderrPromise]);
+    return { code: timedOut ? -1 : code, stdout: output };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function createProductionPiPrelaunchCoordinator(): PiPrelaunchCoordinator {
+  const coordinator = createPiPrelaunchCoordinator({
+    offline: piOfflineEnabled(process.env.PI_OFFLINE),
+    run: productionPiPrelaunchRun,
+  });
+  let announced = false;
+  return Object.freeze({
+    async prepare(plan: unknown): Promise<PiPrelaunchResult> {
+      const result = await coordinator.prepare(plan);
+      if (announced || result.kind === "skipped") return result;
+      announced = true;
+      if (result.kind === "ready") {
+        stdout.write(`${pick("Pi y extensiones actualizados antes de entrar.", "Pi and extensions updated before launch.")}\n`);
+      } else if (result.kind === "degraded") {
+        stdout.write(`${pick(
+          `No se pudo actualizar Pi; entrando con la versión instalada ${result.version} (frescura no verificada).`,
+          `Pi could not be updated; launching installed version ${result.version} (freshness unverified).`,
+        )}\n`);
+      } else {
+        stdout.write(`${pick("Pi no quedó disponible después del intento de actualización.", "Pi is unavailable after the update attempt.")}\n`);
+      }
+      return result;
+    },
+  });
 }
 
 /** Runs one of the app's own declared commands, inheriting the terminal. */

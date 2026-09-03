@@ -50,6 +50,7 @@ import {
 import {
   checkEinTemplateUpdate as checkEinTemplateUpdateProbe,
   checkPiBinaryUpdate as checkPiBinaryUpdateProbe,
+  formatEinPiVersionTag,
   readEinVersion,
 } from "../lib/update-probes";
 
@@ -596,7 +597,7 @@ export default function (pi: ExtensionAPI) {
             // El subtítulo y las versiones al costado del aparato en vez de
             // debajo. La composición la pone `ein-tv.ts` — la comparten el
             // instalador, el splash y la portada de `ein`.
-            const versionTag = `ein v${einVersion}  ·  pi v${VERSION}`;
+            const versionTag = formatEinPiVersionTag(einVersion, VERSION);
             const tvRows = placaRows({
               cut: tvCut,
               subtitle: SUBTITLE,
