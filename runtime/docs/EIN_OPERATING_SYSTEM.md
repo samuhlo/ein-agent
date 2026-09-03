@@ -13,7 +13,7 @@ Cuando abres Pi, hablas con Ein en lenguaje normal ("añade un botón aquí", "a
 ## Las 3 cosas que tienes que saber
 
 1. **Hablas normal.** No necesitas memorizar comandos. Los comandos `/ein:*` son botones de emergencia para control manual.
-2. **Para trabajo serio, Ein usa SDD.** Es una forma ordenada de trabajar en 5 pasos (lo vemos abajo).
+2. **Para trabajo serio, Ein usa SDD.** Es una forma ordenada de trabajar en 7 pasos (lo vemos abajo).
 3. **Ein recuerda y se mantiene solo.** Tiene memoria entre sesiones y puede actualizar sus propias capacidades (skills).
 
 ---
@@ -68,19 +68,21 @@ Ejemplos de cosas que puedes decirle:
 
 ---
 
-## SDD: trabajar en orden (5 pasos)
+## SDD: trabajar en orden (7 pasos)
 
-SDD es la forma seria de trabajar. Son 5 fases, cada una hecha por un ayudante distinto:
+SDD es la forma seria de trabajar. Son 7 fases, cada una hecha por un ayudante distinto:
 
 ```
 scope → map → design → tasks → apply → verify → close
 ```
 
-- **init**: entiende el proyecto.
+- **scope**: acuerda qué resultado quieres y qué queda fuera.
 - **map**: mira el código antes de tocar nada (qué hay, qué riesgos).
-- **design**: hace el plan (propuesta + especificación + lista de tareas).
+- **design**: decide cómo resolverlo por dentro y deja la especificación técnica.
+- **tasks**: convierte el diseño en encargos ejecutables y los guarda en `tasks.md`.
 - **apply**: programa, en trozos pequeños, con tests.
 - **verify**: comprueba que todo funciona de verdad.
+- **close**: guarda el resultado estable y aparta los papeles temporales del cambio.
 
 Para empezar SDD en un proyecto: `/ein:ai:install-sdd`. Luego trabajas hablando normal ("continúa con SDD").
 
@@ -92,13 +94,13 @@ Ein **no fija modelos concretos a propósito**: salen modelos nuevos y cambian d
 
 Configúralo a mano con **`/ein:models`**, que te dice la **recomendación por rol** y marca con `!` los agentes cuyo esfuerzo se desvía:
 
-- **Razonan** (modelo capaz, esfuerzo alto): el **orquestador** y **sdd-design** — son las compuertas de decisión.
+- **Razonan** (modelo capaz, esfuerzo alto): el **orquestador**, `sdd-scope`, `sdd-design` y `sdd-tasks` — cierran intención, arquitectura y orden ejecutable.
 - **Leen y verifican** (barato, esfuerzo medio): `sdd-map`, `sdd-verify`.
-- **Ejecutan** (esfuerzo **bajo**): `sdd-apply`, `sdd-scope`, `sdd-tasks`, `sdd-close`, entrega.
+- **Ejecutan** (esfuerzo **bajo**): `sdd-apply`, `sdd-close` y entrega.
 
 Dos ideas clave sobre el coste:
 - **El coste lo controla el esfuerzo (thinking), no abaratar el modelo.** Un esfuerzo bajo gasta poco por turno.
-- **Abaratar el modelo no ahorra: flaquea.** Un modelo barato en `sdd-apply` llegó a dar 135 turnos de prueba y error en un grupo con TDD estricto. Por eso apply se recomienda **capaz + esfuerzo bajo**: pocos turnos en trabajo mecánico y sin atascarse cuando toca razonar.
+- **Un modelo barato sobre un plan vago no ahorra.** Un `sdd-apply` llegó a dar 135 turnos de prueba y error en un grupo con TDD estricto. Durante el rollout se conserva **capaz + esfuerzo bajo**; barato/local se promociona por clase solo cuando el Apply Packet sea ejecutable, confinado y medido.
 
 > Tras cambiar el modelo del orquestador, reinicia Pi para que tome efecto. Los subagentes cambian al instante.
 

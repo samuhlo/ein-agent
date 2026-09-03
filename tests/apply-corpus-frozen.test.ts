@@ -21,7 +21,7 @@ const FROZEN = join(ROOT, "evals", "apply-corpus.json");
 // El mismo predicado para el escaneo real y para su triangulacion: si el test
 // probara una copia del regex, probaria la copia.
 function consumesCorpus(source: string): boolean {
-	return /from\s+"[^"]*(?:apply-corpus|apply-packet)/.test(source) || source.includes("evals/apply-corpus.json");
+	return /from\s+"[^"]*apply-corpus/.test(source) || source.includes("evals/apply-corpus.json");
 }
 
 function frozenText(): string {
@@ -81,11 +81,9 @@ describe("el corpus congelado describe el archivo real", () => {
 });
 
 describe("BLINDAJE: el corpus no es una segunda fuente de verdad", () => {
-	test("ningun modulo de runtime importa el corpus ni el packet", async () => {
+	test("ningun modulo de runtime importa el corpus congelado", async () => {
 		const { Glob } = await import("bun");
 		const owned = new Set([
-			"ein-pi/agent/lib/apply-packet.ts",
-			"ein-pi/agent/lib/apply-packet-compile.ts",
 			"ein-pi/agent/lib/apply-corpus.ts",
 		]);
 		const offenders: string[] = [];
@@ -108,6 +106,7 @@ describe("TRIANGULATE: el escaneo detecta de verdad", () => {
 		expect(consumesCorpus('import { x } from "./apply-corpus.ts";')).toBe(true);
 		expect(consumesCorpus('import corpus from "../evals/apply-corpus.json";')).toBe(true);
 		expect(consumesCorpus('const path = "evals/apply-corpus.json";')).toBe(true);
+		expect(consumesCorpus('import { validateApplyPacketV2 } from "./apply-packet.ts";')).toBe(false);
 	});
 
 	test("una mencion inocente no dispara falsos positivos", () => {

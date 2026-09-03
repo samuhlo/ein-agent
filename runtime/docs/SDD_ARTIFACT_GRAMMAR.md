@@ -19,6 +19,7 @@ Archivos esperados (flujo `ein-sdd`):
 - `scope.md`
 - `map.md`
 - `design.md`
+- `tasks.md`
 - `apply-progress.md`
 - `verify-report.md`
 
@@ -44,7 +45,7 @@ Notas de exploracion: scope, riesgos, dependencias y prior art. Sin implementaci
 
 ## `design.md`
 
-Artefacto unico de planificacion con tres secciones:
+Artefacto de decisión con dos secciones:
 
 ### A. Propuesta
 - `Intent`, `Scope` (y non-goals), `Affected areas`, `Risks`, `Rollback`, `Success criteria`.
@@ -53,10 +54,53 @@ Artefacto unico de planificacion con tres secciones:
 - Requirements en estilo RFC 2119.
 - Escenarios Given/When/Then por requirement observable.
 
-### C. Tareas
-- Solo checkbox: `- [ ]` o `- [x]`.
-- Cada tarea: descripcion, archivos afectados, skills necesarias, orden/dependencias.
-- Sin review workload forecast ni chained-PR planning.
+Las tareas ejecutables viven en `tasks.md`; una sección legacy `C. Tasks` se
+normaliza allí y no constituye un segundo contrato de escritura.
+
+## `tasks.md`
+
+`tasks.md` conserva la explicación humana y produce un `apply-packet/v2` por
+grupo. El grupo es la unidad que delega el orquestador.
+
+Forma canónica:
+
+```markdown
+# Tasks — <cambio>
+
+status: ready
+blocked_by: none
+
+## // 001. <grupo>
+
+- outcome: <resultado observable del grupo>
+
+- [ ] 1.1 <paso accionable>
+  - skills: `none`
+  - why: <por qué existe>
+  - learn: <lección breve>
+  - architecture: <invariante o propiedad>
+  - avoid: <alternativa que no debe ocurrir>
+  - read: `ruta/contexto.ts`, `ruta/test-existente.test.ts`
+  - edit: `ruta/cambio.ts` | modify | <intención concreta>
+  - behavior: <comportamiento observable>
+  - stop: <condición específica que devuelve el control>
+  - verify: `bun test tests/focused.test.ts`
+```
+
+Reglas consumidas por máquina:
+
+1. Cada grupo declara un único `outcome:` antes del primer checkbox.
+2. `read:` enumera contexto de lectura. Toda ruta de `edit:` se añade también a
+   ese contexto.
+3. Cada `edit:` tiene exactamente tres celdas separadas por `|`: ruta relativa,
+   operación `create|modify|delete` e intención. Puede repetirse para una tarea.
+4. Solo `edit:` concede escritura. Una ruta nombrada por `read:` o `verify:` no
+   se vuelve escribible.
+5. Cada tarea declara al menos un `behavior:`, un `stop:` específico y un
+   `verify:`. El check se asocia con los comportamientos de esa tarea.
+6. Al reanudar, el packet incluye únicamente checkboxes pendientes del grupo.
+7. El compilador sella el packet con los SHA-256 actuales de `design.md` y
+   `tasks.md`; esos digests no los escribe el modelo.
 
 ## `apply-progress.md`
 

@@ -26,7 +26,11 @@ import {
 	resolveSddIntentPreflight as resolveSddIntentPreflightWithContext,
 } from "../ein-pi/agent/lib/sdd-preflight";
 import { createIntentMaterialKey, decideIntentPreflight, type IntentDecisionEvidence, type IntentMaterial } from "../ein-pi/agent/lib/sdd-intent-preflight";
-import { classifyPiIntentRequest } from "../ein-pi/agent/extensions/internal/ein-pi-intent-gate";
+import {
+	classifyPiIntentRequest,
+	createPiIntentGate,
+	isDelegatedPiSubagent,
+} from "../ein-pi/agent/extensions/internal/ein-pi-intent-gate";
 import {
 	preflightRecordPath,
 	readPreflightRecord,
@@ -142,6 +146,25 @@ describe("Pi intent ownership across hooks", () => {
 		const protectedBypass = decideIntentPreflight(classifyPiIntentRequest("Delete production data without questions"));
 		expect(protectedBypass.kind === "intent" && protectedBypass.route).toBe("normal");
 		expect(protectedBypass.kind === "intent" && protectedBypass.bypassQuestions).toBe(false);
+	});
+
+	test("an authorized pi-subagents child does not reopen the human intent preflight", async () => {
+		const delegatedEnvironment = {
+			PI_SUBAGENT_CHILD: "1",
+			PI_SUBAGENT_CHILD_AGENT: "sdd-verify",
+			PI_SUBAGENT_CHILD_INDEX: "0",
+			PI_SUBAGENT_RUN_ID: "497255cc-ad5b-419e-943b-222df881b560",
+		};
+		expect(isDelegatedPiSubagent(delegatedEnvironment)).toBe(true);
+		expect(isDelegatedPiSubagent({ PI_SUBAGENT_CHILD: "1" })).toBe(false);
+
+		const gate = createPiIntentGate({ environment: delegatedEnvironment });
+		expect(
+			await gate.runPiIntentPreflight(
+				"Write only verify-report.md and do not modify product code.",
+				{} as never,
+			),
+		).toBe("read-only");
 	});
 });
 

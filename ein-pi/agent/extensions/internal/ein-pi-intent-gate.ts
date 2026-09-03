@@ -22,6 +22,20 @@ const READ_ONLY_INTENT = /^(?:(?:can|could|would)\s+you\s+|please\s+|(?:puedes|p
 const MODIFYING_INTENT = /\b(?:implement|add|change|update|fix|remove|delete|write|create|refactor|rename|move|install|configur|implementa|añade|agrega|cambia|actualiza|corrige|elimina|borra|escribe|crea|refactoriza|renombra|mueve|instala)\w*\b/iu;
 const SMALL_TEXT_INTENT = /^(?:fix|correct|update|corrige|actualiza)\s+(?:the\s+|el\s+|la\s+)?(?:typo|spelling|wording|text|errata|ortograf[ií]a|texto)\s+(?:in|en)\s+\S+(?:\s+(?:skip questions|without questions|don't ask|do not ask|sin preguntas|no preguntes))?\s*\.?$/iu;
 const SAFE_BYPASS_INTENT = /\b(?:skip questions|without questions|don't ask|do not ask|sin preguntas|no preguntes)\b/iu;
+const SUBAGENT_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/iu;
+const SUBAGENT_RUN_ID = /^[a-z0-9][a-z0-9-]{0,127}$/iu;
+
+export function isDelegatedPiSubagent(
+	environment: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+	const agent = environment.PI_SUBAGENT_CHILD_AGENT?.trim() ?? "";
+	const childIndex = environment.PI_SUBAGENT_CHILD_INDEX?.trim() ?? "";
+	const runId = environment.PI_SUBAGENT_RUN_ID?.trim() ?? "";
+	return environment.PI_SUBAGENT_CHILD === "1"
+		&& SUBAGENT_ID.test(agent)
+		&& /^\d+$/u.test(childIndex)
+		&& SUBAGENT_RUN_ID.test(runId);
+}
 
 export function classifyPiIntentRequest(text: string) {
 	const modifying = MODIFYING_INTENT.test(text);
@@ -52,8 +66,11 @@ function piIntentMaterial(text: string, answers?: string) {
 	};
 }
 
-export function createPiIntentGate() {
+export function createPiIntentGate(
+	options: Readonly<{ environment?: Readonly<Record<string, string | undefined>> }> = {},
+) {
 	const stateBySession = new Map<string, PiIntentGateState>();
+	const environment = options.environment ?? process.env;
 
 	function piIntentGateDirective(ctx: ExtensionContext): string {
 		const gate = stateBySession.get(sddPreflightSessionKey(ctx));
@@ -93,6 +110,13 @@ export function createPiIntentGate() {
 		text: string,
 		ctx: ExtensionContext,
 	): Promise<"read-only" | "pending" | "resolved"> {
+		// pi-subagents already received an authorized task and a bounded tool
+		// contract from its parent. Reopening the human clarification flow here
+		// consumes the child's only non-interactive input and makes it exit empty.
+		// `read-only` is only the input-hook control token; child tool permissions
+		// still come from pi-subagents and may include the phase-owned report.
+		if (isDelegatedPiSubagent(environment)) return "read-only";
+
 		const sessionKey = sddPreflightSessionKey(ctx);
 		const current = stateBySession.get(sessionKey);
 		if (current?.kind === "pending") {

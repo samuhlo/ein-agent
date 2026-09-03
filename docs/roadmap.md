@@ -11,6 +11,30 @@ El quickstart y el recorrido de primera ejecución viven en la documentación
 pública, y la matriz de runtimes declara Pi como referencia y los límites de
 Claude sin prometer paridad inexistente.
 
+## Principal — cerrar el bucle del ejecutor barato
+
+Objetivo: demostrar el principio económico de Ein con una cadena completa:
+modelo capaz que decide y descompone, packet ejecutable consumido por runtime,
+worker barato confinado, verificación independiente y coste atribuido al
+resultado correcto. La decisión y el programa viven en
+`docs/adr/0005-make-cheap-apply-verifiable.md`.
+
+`make-apply-handoff-executable` ya cerró el contrato `apply-packet/v2` por grupo
+y su observación report-only. El siguiente corte debe conservar esa observación
+como evidencia durable y medirla antes de convertirla en una puerta dura.
+
+- [ ] Persistir receipts pequeños de readiness en el borde vivo y contarlos sin
+  confundir una orden ejecutable con código correcto.
+- [ ] Acumular observaciones reales suficientes antes de endurecer la puerta.
+- [ ] Impedir por herramienta escrituras y comandos fuera del packet.
+- [ ] Emitir receipts de verificación ligados a packet y estado resultante.
+- [ ] Unir accounting con resultado y ejecutar el canary capaz contra barato.
+- [ ] Promocionar por clase de trabajo únicamente cuando la evidencia lo permita.
+
+Criterio de salida: al menos una clase de trabajo alcanza cero escapes, calidad
+equivalente y menor coste total sobre una muestra suficiente, y puede ejecutarse
+con modelo barato/local sin fallback oculto.
+
 ## Condicionado — liberar presupuesto de prompt
 
 Objetivo: crear espacio solo cuando un cambio de contrato observable demuestre que necesita tocar el orquestador.

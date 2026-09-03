@@ -31,12 +31,18 @@ blocked_by: none | <specific reason>
 
 ## // 001. <task group title>
 
+- outcome: <one observable result for the whole delegated group>
+
 - [ ] 1.1 <small actionable step>
   - skills: `<skill-a>`, `<skill-b>`
   - why: <why this task exists>
   - learn: <small lesson for the user>
   - architecture: <boundary/ownership decision>
   - avoid: <tempting worse alternative>
+  - read: `<repo-relative context path>`, `<another read-only path>`
+  - edit: `<repo-relative path>` | create|modify|delete | <concrete edit intent>
+  - behavior: <observable behavior this step must leave working>
+  - stop: <task-specific condition that returns control instead of deciding>
   - verify: `<focused command or manual check>`
 ```
 
@@ -44,9 +50,11 @@ Rules:
 
 - Use `status: ready` only when the checklist is actionable.
 - Use `status: blocked` when the design lacks enough detail to create safe tasks; explain the blocker in `blocked_by`.
-- Every actionable task MUST use `- [ ]` and include `skills`, `why`, `learn`, `architecture`, `avoid`, and `verify`.
+- Every group MUST declare one `outcome:` before its first checkbox. Every actionable task MUST use `- [ ]` and include `skills`, `why`, `learn`, `architecture`, `avoid`, `read`, at least one `edit`, `behavior`, `stop`, and `verify`.
+- `read:` is context, not permission to write. Every `edit:` is exactly `` `<path>` | create|modify|delete | <intent> ``; it grants the future apply gate permission only for that path. A path named only by `verify:` stays non-writable.
+- Resolve every decision here. Common stops (stale sources, new dependency, out-of-scope write) are runtime-owned; `stop:` names only a condition specific to this task.
 - Tasks must be small enough for one focused apply batch.
-- **Right-size every group — no monster groups (a foundational type is its OWN group).** A group must be completable in ONE bounded apply. Keep each group to **≤3-4 production files**; if a group would touch more, split it. A NEW foundational/cross-cutting artifact (a shared type, a fingerprint/snapshot contract, a schema) gets its **own minimal group** — NEVER bundle it with its consumers (the generate call, the store, the UI) in one group. Under **strict TDD, groups must be EXTRA small**: each production file is many RED/GREEN/TRIANGULATE/REFACTOR cycles, so a 4-file strict-TDD group blows the apply's turn budget. Prefer more small groups over fewer big ones (the flow resumes per group anyway).
+- Every group must fit ONE bounded apply and touch **≤3-4 production files**. A new foundational/cross-cutting artifact gets its OWN minimal group, separate from consumers. Under strict TDD split further: each production file multiplies the RED/GREEN/TRIANGULATE/REFACTOR cycles.
 - Order tasks by dependency: contracts before consumers, tests with the code they prove.
 
 ## Constraints
@@ -60,7 +68,7 @@ Rules:
 
 ## Return contract (compact envelope)
 
-Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every phase is exactly what fills it. Keep it SMALL. The full detail already lives in your on-disk artifact (`tasks.md`); the parent reads that from disk when it needs detail and never recovers it from your envelope. Return ONLY:
+Your FINAL message is copied into the parent's persistent context. Keep it SMALL; detail lives in `tasks.md`. Return ONLY:
 
 - `status` (+ `blocked_by` when blocked);
 - `executive_summary`: **≤ 3 lines / ≤ 60 words** — the outcome and the one fact the parent routes on, NOT the evidence;
@@ -69,4 +77,4 @@ Your FINAL message is copied VERBATIM into the parent orchestrator's context, an
 - `risks`: **≤ 3 short bullets**;
 - `skill_resolution`.
 
-NEVER paste into the envelope the artifact's content, full file lists, per-test tables, command output, or long prose evidence — that payload lives in `tasks.md` on disk. A verbose envelope is a defect, not thoroughness.
+Never paste artifact content, full file lists, tables or command output into the envelope.

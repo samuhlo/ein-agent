@@ -107,6 +107,13 @@ Given: canonical agent or coordinator content contains an untranslated Pi-only t
 When: synchronization translates or generates the Claude surface
 Then: synchronization exits unsuccessfully with the source token and location identified, and the generated surface is not accepted as synchronized
 
+## Scenario: delegated-child-does-not-reopen-human-intent
+title: A bounded child consumes its authorized task without a second human preflight
+requirement: The system MUST reserve the interactive intent preflight for human input, MUST let a child carrying the complete `pi-subagents` identity contract continue directly, and MUST NOT treat an incomplete child marker as sufficient authorization.
+Given: a non-interactive child launch includes the child marker, agent name, child index and run id
+When: its parent-authorized task contains modifying language
+Then: the task reaches the child model without an interactive confirmation and the runner's tool boundary remains unchanged
+
 ## Scenario: disabling-a-pending-participant-releases-the-passage
 title: Disabling a participant without evidence releases the passage without dropping prior evidence
 requirement: The system MUST exclude from the effective order a participant disabled by session override that has no recorded evidence, and MUST keep in the effective order (and in the checkpoint) any participant with recorded evidence. A late terminal result from a participant that was disabled before completing and has no prior evidence MUST be discarded without writing evidence, and MUST NOT re-block the passage.
@@ -274,6 +281,13 @@ requirement: The system MUST derive `passageId` from `{ change, applyId, scopeId
 Given: A passage emitted with order `[ein-cleaner, ein-architect]`
 When: A participant is disabled mid-passage
 Then: The `passageId` does not change, and the durable checkpoint order is left untouched
+
+## Scenario: planning-effort-follows-decision-ownership
+title: Planning phases receive the reasoning needed to close executor decisions
+requirement: The system MUST recommend high reasoning for scope, design and task decomposition, MUST describe apply as mechanical only when its handoff is executable, and MUST NOT overwrite the user's provider or model selection while applying those recommendations.
+Given: the user inspects model recommendations or workflow guidance for the SDD phases
+When: Ein describes who decides scope, architecture, decomposition and implementation steps
+Then: scope, design and tasks are capable-model decision gates, apply is a low-reasoning consumer of a closed packet, and provider/model choice remains the user's
 
 ## Scenario: project-state-binds-verification-to-exact-git-state
 title: Verification freshness is bound to the exact Git state

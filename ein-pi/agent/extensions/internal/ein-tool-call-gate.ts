@@ -22,6 +22,7 @@ import {
 import {
 	collectDelegationItems,
 	delegationShapeIsUnrecognized,
+	delegationTargetsOnly,
 } from "../../lib/delegation-shape.ts";
 import {
 	type DeliveryIntent,
@@ -46,6 +47,10 @@ import {
 } from "../../lib/sdd-participants.ts";
 import { isRecord } from "./ein-pi-event-contracts.ts";
 import type { PiIntentGate } from "./ein-pi-intent-gate.ts";
+import {
+	formatApplyPacketObservation,
+	observeNextApplyPacket,
+} from "../../lib/apply-packet-observation.ts";
 
 type ToolCallGateDependencies = Readonly<{
 	intentGate: PiIntentGate;
@@ -134,6 +139,15 @@ export function registerToolCallGate(
 						"warning",
 					);
 				}
+			}
+			// Rollout 1: observar el contrato vivo sin bloquear ni mutar la
+			// delegación. La puerta dura llega solo después de medir planes reales.
+			if (delegationTargetsOnly(event.input, "sdd-apply")) {
+				const observation = observeNextApplyPacket(ctx.cwd);
+				if (ctx.hasUI) ctx.ui.notify(
+					formatApplyPacketObservation(observation),
+					observation.status === "executable" ? "info" : "warning",
+				);
 			}
 			ensurePlanningAcceptance(event.input);
 			ensureApplyAcceptance(event.input);
