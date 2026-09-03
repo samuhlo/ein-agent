@@ -31,6 +31,7 @@ import {
 } from "./paths.ts";
 import {
   isPublishedPackageVersion,
+  PI_HOST_PACKAGE,
   PI_HOST_SPEC,
   PI_NODE_MIN_VERSION,
 } from "../../../shared/contracts/runtime-compat.ts";
@@ -237,9 +238,45 @@ export type PiInstallDeps = {
   inspectNode?: () => NodeRuntimeInspection;
   lookPath?: typeof lookPath;
   readPiVersion?: (path: string) => string | null;
+  resolveLatestVersion?: () => Promise<PiLatestVersionResolution>;
   run?: typeof run;
   runtimeEnv?: Record<string, string | undefined>;
 };
+
+export type PiLatestVersionResolution =
+  | { ok: true; version: string }
+  | { ok: false; detail: string };
+
+type FetchLike = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>;
+
+const PI_NPM_LATEST_URL = `https://registry.npmjs.org/${encodeURIComponent(PI_HOST_PACKAGE)}/latest`;
+const PI_LATEST_EVIDENCE_TIMEOUT_MS = 10_000;
+
+/** Resolve fresh npm dist-tag evidence without coupling the pure package contract to I/O. */
+export async function resolveLatestPiVersion(fetchFn: FetchLike = fetch): Promise<PiLatestVersionResolution> {
+  let response: Response;
+  try {
+    response = await fetchFn(PI_NPM_LATEST_URL, {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(PI_LATEST_EVIDENCE_TIMEOUT_MS),
+    });
+  } catch {
+    return { ok: false, detail: "registro npm no disponible" };
+  }
+  if (!response.ok) return { ok: false, detail: `registro npm respondió ${response.status}` };
+  try {
+    const payload = await response.json() as { version?: unknown };
+    const version = payload.version;
+    return typeof version === "string" && isPublishedPackageVersion(version)
+      ? { ok: true, version }
+      : { ok: false, detail: "evidencia npm latest malformada" };
+  } catch {
+    return { ok: false, detail: "evidencia npm latest malformada" };
+  }
+}
 
 type BunGlobalTarget = {
   binDir: string;
@@ -306,6 +343,20 @@ export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> 
     };
   }
 
+  let latest: PiLatestVersionResolution;
+  try {
+    latest = await (deps.resolveLatestVersion ?? resolveLatestPiVersion)();
+  } catch {
+    latest = { ok: false, detail: "registro npm no disponible" };
+  }
+  if (!latest.ok) return { ok: false, detail: `pi latest no verificable: ${latest.detail}` };
+  if (installedVersion !== latest.version) {
+    return {
+      ok: false,
+      detail: `pi latest no alcanzado en ${piPath}: esperada ${latest.version}; observada ${installedVersion}`,
+    };
+  }
+
   // Alpha installers once honored a user-wide Bun redirection and could leave
   // a second Pi installation shadowing the canonical ~/.bun/bin runtime. Keep
   // an existing scoped copy in lockstep, but do not create a new redirected
@@ -324,9 +375,9 @@ export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> 
       return { ok: false, detail: `Pi latest canónico instalado, pero la copia Bun heredada no se actualizó (${why(redirectedInstall)})` };
     }
     const redirectedVersion = (deps.readPiVersion ?? readPiVersion)(redirected.piPath);
-    if (redirectedVersion !== installedVersion) {
+    if (redirectedVersion !== latest.version) {
       const observed = redirectedVersion ?? "no resoluble";
-      return { ok: false, detail: `Pi latest quedó bifurcado: canónico ${installedVersion}; copia Bun heredada ${observed}` };
+      return { ok: false, detail: `Pi latest quedó bifurcado: esperada ${latest.version}; canónico ${installedVersion}; copia Bun heredada ${observed}` };
     }
     return { ok: true, detail: `pi ${installedVersion} instalado desde ${PI_HOST_SPEC}; copia Bun heredada reconciliada` };
   }

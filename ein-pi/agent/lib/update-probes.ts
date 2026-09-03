@@ -7,6 +7,7 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { isPublishedPackageVersion } from "./runtime-compat.ts";
 import {
   collectEinPiUpdateEvidence,
   UPDATE_CHECK_TIMEOUT_MS,
@@ -43,6 +44,16 @@ export function isNewerVersion(candidate: string, current: string): boolean {
   if (nextMajor !== major) return nextMajor > major;
   if (nextMinor !== minor) return nextMinor > minor;
   return nextPatch > patch;
+}
+
+function displayVersion(value: string): string {
+  const unprefixed = value.replace(/^v+/i, "");
+  return isPublishedPackageVersion(unprefixed) ? `v${unprefixed}` : value;
+}
+
+/** Final presentation boundary: callers may provide bare or already-prefixed versions. */
+export function formatEinPiVersionTag(einVersion: string, piVersion: string): string {
+  return `ein ${displayVersion(einVersion)}  ·  pi ${displayVersion(piVersion)}`;
 }
 
 /** Fail-closed: without an injected version there is nothing to compare against. */

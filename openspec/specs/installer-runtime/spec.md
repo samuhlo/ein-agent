@@ -16,6 +16,13 @@ Given: Ein with the Claude Code complement is selected
 When: installation runs
 Then: the Pi core deploys and verifies first; only then `bun ein-cc/sync.ts` runs, `ein-cc.fish` and `ein-cc-sdd` are published, and a Pi failure leaves every Claude step untouched
 
+## Scenario: claude-complement-failure-preserves-pi
+title: A failed Claude complement does not trap the working Pi core
+requirement: The system MUST keep a verified Pi deployment usable when the optional Claude complement fails and MUST admit a fresh, ownership-proven Pi or Pi-plus-Claude transaction on retry.
+Given: a `both` install journal completed every shared and Pi entry, failed in a Claude entry, and a fresh observation proves the Pi tree is installer-owned and isolated
+When: the user retries Ein alone or Ein with the Claude complement
+Then: the installer starts a fresh transaction from the verified Pi core, never treats Claude as the core, and either completes Pi alone or retries Claude only after Pi is ready; ambiguous ownership remains blocked.
+
 ## Scenario: claude-payload-materializes-canonical-orchestrator
 title: Claude payload materializes the canonical orchestrator asset into the installed home
 requirement: The system MUST validate and extract the packaged Claude payload, run its existing checkout/runtime sync hand-off, and leave the canonical orchestrator asset at the installed Claude home path `assets/orchestrator.md` with identical bytes.
@@ -72,6 +79,20 @@ Given: the Pi runtime path is selected
 When: installation runs with an isolated or legacy Pi agent state
 Then: the template targets the unchanged isolated Pi data directory, the `ein-pi` launcher is installed under the Fish functions directory, and a detected legacy installation is migrated without treating an ordinary vanilla Pi directory as Ein
 
+## Scenario: pi-runtime-latest-exact-evidence
+title: Lifecycle updates prove the canonical Pi host equals npm latest
+requirement: The system MUST resolve fresh npm latest dist-tag evidence after installing the Pi host, compare it exactly with the canonical installed executable, and fail without claiming latest when the evidence is unavailable, malformed, or different.
+Given: Ein is installing, repairing, or updating Pi through the managed Bun global target.
+When: The package-manager installation succeeds and the installer verifies the resulting host.
+Then: Success is returned only when fresh expected and observed versions are equal; every unavailable or mismatched state returns a bounded failure naming the useful expected and observed evidence.
+
+## Scenario: pi-runtime-tracks-latest
+title: Pi host and managed extensions track npm latest
+requirement: The system MUST resolve the Pi host and every Ein-managed Pi extension from the npm latest dist-tag during install and update, and MUST test Ein against the current host APIs in CI rather than pinning a previously verified version.
+Given: Pi or one of its managed extensions already exists at an older published version
+When: Ein installs, repairs, updates, or runs its CI compatibility gate
+Then: the package manager is asked for the current latest tag; offline doctor checks require the latest declaration and a concrete installed version without claiming registry freshness
+
 ## Scenario: pi-template-includes-all-shared-typescript
 title: Pi template includes every shared TypeScript module
 requirement: The system MUST derive the Pi template shared-module overlay from every regular TypeScript source in shared/contracts and shared/sdd instead of a duplicated hand-maintained inventory.
@@ -86,13 +107,6 @@ Given: a shared module is missing its facade, a facade contains runtime composit
 When: the installer builds the Pi template archive
 Then: the build fails before publishing the archive; a valid flat overlay resolves entirely inside the payload and all Pi runtime entrypoints compile from the installed layout
 
-## Scenario: pi-runtime-tracks-latest
-title: Pi host and managed extensions track npm latest
-requirement: The system MUST resolve the Pi host and every Ein-managed Pi extension from the npm latest dist-tag during install and update, and MUST test Ein against the current host APIs in CI rather than pinning a previously verified version.
-Given: Pi or one of its managed extensions already exists at an older published version
-When: Ein installs, repairs, updates, or runs its CI compatibility gate
-Then: the package manager is asked for the current latest tag; offline doctor checks require the latest declaration and a concrete installed version without claiming registry freshness
-
 ## Scenario: pre-mutation-pi-failure-retry
 title: Pre-mutation Pi failure supports fail-closed retry
 requirement: The system MUST provide a supported fail-closed retry or recovery path when a Pi install fails before any Pi mutation, while accepting both current deferred-Claude journals and completed-Claude journals written by alpha.3/alpha.4.
@@ -106,13 +120,6 @@ requirement: The system MUST snapshot recoverable user-owned Pi state from a rea
 Given: A Pi agent tree contains more than 10,000 files and 128 MiB in regenerable npm/node_modules payloads, an Omarchy-shaped `skills/omarchy` symlink to an external directory, package-manager `.bin` symlinks, and esbuild hardlinks alongside user-owned files.
 When: The installer creates and validates a current-state backup.
 Then: The backup succeeds without reading external symlink targets, records or restores safe symlink entries according to the backup contract, accepts safe hardlinked files, excludes regenerable dependency payloads, and restores user-owned regular files without escaping the agent tree.
-
-## Scenario: claude-complement-failure-preserves-pi
-title: A failed Claude complement does not trap the working Pi core
-requirement: The system MUST keep a verified Pi deployment usable when the optional Claude complement fails and MUST admit a fresh, ownership-proven Pi or Pi-plus-Claude transaction on retry.
-Given: a `both` install journal completed every shared and Pi entry, failed in a Claude entry, and a fresh observation proves the Pi tree is installer-owned and isolated
-When: the user retries Ein alone or Ein with the Claude complement
-Then: the installer starts a fresh transaction from the verified Pi core, never treats Claude as the core, and either completes Pi alone or retries Claude only after Pi is ready; ambiguous ownership remains blocked.
 
 ## Scenario: runtime-menu-target-selection
 title: Installer offers Ein with an optional Claude complement

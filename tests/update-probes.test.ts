@@ -11,6 +11,7 @@ import {
   checkClaudeCodeUpdate,
   checkEinTemplateUpdate,
   checkPiBinaryUpdate,
+	formatEinPiVersionTag,
   isNewerVersion,
   parseVersion,
   defaultPiManifestPaths,
@@ -72,6 +73,13 @@ describe("version comparison", () => {
     expect(isNewerVersion("v1.2.2", "v1.2.3")).toBe(false);
     expect(isNewerVersion("garbage", "v1.0.0")).toBe(false);
   });
+
+	test("the Pi banner version tag owns exactly one v prefix", () => {
+		expect(formatEinPiVersionTag("v0.95.0-alpha.1", "0.84.4")).toBe("ein v0.95.0-alpha.1  ·  pi v0.84.4");
+		expect(formatEinPiVersionTag("0.95.0-alpha.1", "v0.84.4")).toBe("ein v0.95.0-alpha.1  ·  pi v0.84.4");
+		expect(formatEinPiVersionTag("dev", "0.84.4")).toBe("ein dev  ·  pi v0.84.4");
+		expect(formatEinPiVersionTag("vv0.95.0-alpha.1", "vv0.84.4")).toBe("ein v0.95.0-alpha.1  ·  pi v0.84.4");
+	});
 });
 
 describe("checkPiBinaryUpdate — fail-closed without an injected version", () => {

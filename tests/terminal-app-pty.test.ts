@@ -4,7 +4,8 @@ import { chmodSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, 
 import { tmpdir } from "node:os";
 import { isContinueBriefTransportSafe, runContinueInPty, type ContinuePtyOptions } from "../ein-pi/agent/lib/terminal-continue-transport.ts";
 import type { LaunchOutcome } from "../ein-pi/agent/lib/terminal-app-controller.ts";
-import { productionContinue } from "../ein-pi/agent/surfaces/terminal-app-entrypoint.ts";
+import { productionContinue, productionLaunch } from "../ein-pi/agent/surfaces/terminal-app-entrypoint.ts";
+import { createPiPrelaunchCoordinator } from "../ein-pi/agent/lib/pi-prelaunch-update.ts";
 import {
   EIN_SDD_SESSION_BINDING_ENV_KEY,
   parseSessionBindingLaunchMetadataV1,
@@ -89,6 +90,40 @@ function occurrences(value: string, needle: string): number {
 }
 
 describe("terminal app real PTY lifecycle", () => {
+	test("one shared preparation precedes direct and continuity Pi handoffs", async () => {
+		const root = mkdtempSync(join(tmpdir(), "ein-terminal-prelaunch-"));
+		const bin = join(root, "bin");
+		const originalHome = process.env.HOME;
+		const originalPath = process.env.PATH;
+		mkdirSync(bin);
+		writeFileSync(join(bin, "pi"), "#!/bin/sh\nexit 0\n");
+		chmodSync(join(bin, "pi"), 0o755);
+		process.env.HOME = root;
+		process.env.PATH = bin;
+
+		try {
+			const events: string[] = [];
+			const preparation = createPiPrelaunchCoordinator({
+				run: async ({ argv }) => {
+					events.push(`prepare:${argv.join(" ")}`);
+					return { code: 0, stdout: "" };
+				},
+			});
+			expect(await productionLaunch(root, "pi", undefined, undefined, preparation)).toEqual({ kind: "exited", code: 0 });
+			expect(await productionContinue(root, "pi", "brief", undefined, async () => {
+				events.push("continue");
+				return { kind: "exited", code: 0 };
+			}, preparation)).toEqual({ kind: "exited", code: 0 });
+			expect(events).toEqual(["prepare:update --all --no-approve", "continue"]);
+		} finally {
+			if (originalHome === undefined) delete process.env.HOME;
+			else process.env.HOME = originalHome;
+			if (originalPath === undefined) delete process.env.PATH;
+			else process.env.PATH = originalPath;
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
   test("binding metadata reaches only validated Pi create before the separate brief", async () => {
     const root = mkdtempSync(join(tmpdir(), "ein-terminal-binding-"));
     const project = join(root, "project");
@@ -171,7 +206,7 @@ describe("terminal app real PTY lifecycle", () => {
       join(import.meta.dir, "..", "ein-pi", "agent", "surfaces", "terminal-app-entrypoint.ts"),
       "utf8",
     );
-		expect(source).toContain("productionLaunch(cwd, provider, reference, focusedChange)");
+		expect(source).toContain("productionLaunch(cwd, provider, reference, focusedChange, prelaunch)");
 		expect(source).toContain("productionLaunchPlan(cwd, provider, reference, focusedChange);");
 		expect(source).toContain("productionLaunchPlan(cwd, provider, undefined, focusedChange)");
 	});
