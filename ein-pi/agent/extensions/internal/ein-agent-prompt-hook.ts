@@ -40,17 +40,12 @@ import {
 	readAgentTask,
 	readExplicitSddChange,
 } from "./ein-pi-event-contracts.ts";
-import type { PiIntentGate } from "./ein-pi-intent-gate.ts";
 
-export function registerAgentPromptHook(
-	pi: ExtensionAPI,
-	intentGate: PiIntentGate,
-): void {
+export function registerAgentPromptHook(pi: ExtensionAPI): void {
 	const sessionStartVersion = new Map<string, string | null>();
 	const staleSessionNudged = new Set<string>();
 
 	pi.on("before_agent_start", async (event, ctx) => {
-		await intentGate.adoptPiIntentGate(ctx);
 		const isSddAgent = isSddAgentStartEvent(event);
 		const isNamedAgent = isNamedAgentStartEvent(event);
 		const preferences = getSddPreflightPreferences(ctx);
@@ -129,7 +124,7 @@ export function registerAgentPromptHook(
 		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
 		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${intentGate.piIntentGateDirective(ctx)}`,
+			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}`,
 		};
 	});
 }

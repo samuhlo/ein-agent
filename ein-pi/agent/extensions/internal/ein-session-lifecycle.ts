@@ -23,20 +23,13 @@ import {
 import { tf } from "../../lib/i18n/strings.ts";
 import { applySavedModelConfig } from "../../lib/model-config.ts";
 import { runOnboarding } from "../../lib/onboarding.ts";
-import {
-	resolveSddNext,
-	sddNextHandoff,
-} from "../../lib/sdd-router.ts";
-import { resolveActiveChange } from "../../lib/sdd-preflight-record.ts";
 import { ensureEinGitignore } from "../../lib/gitignore.ts";
 import { clearAgentControlSession } from "../../lib/agent-controls.ts";
 import { clearSddParticipantSession } from "../../lib/sdd-participants.ts";
 import type { ScoutTracking } from "../../lib/scout-contract.ts";
 import { memoryLifecycleForSession } from "./ein-sdd-memory.ts";
-import type { PiIntentGate } from "./ein-pi-intent-gate.ts";
 
 type SessionLifecycleDependencies = Readonly<{
-	intentGate: PiIntentGate;
 	scoutTracking: ScoutTracking;
 	recordDeliveryIntent: (ctx: ExtensionContext, text: string) => void;
 }>;
@@ -56,15 +49,6 @@ export function registerSessionLifecycle(
 		});
 		bootstrapOpenSpecConfig(ctx.cwd);
 		return preferences;
-	}
-
-	function continueAfterPiIntent(
-		ctx: ExtensionContext,
-		change: string | undefined,
-	): void {
-		if (!change) return;
-		const handoff = sddNextHandoff(resolveSddNext(ctx.cwd, change));
-		if (handoff) pi.sendUserMessage(handoff);
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
@@ -122,7 +106,6 @@ export function registerSessionLifecycle(
 	pi.on("session_shutdown", (_event, ctx) => {
 		dependencies.scoutTracking.clear();
 		const sessionKey = sddPreflightSessionKey(ctx);
-		dependencies.intentGate.clearPiIntentGate(ctx);
 		clearAgentControlSession(sessionKey);
 		clearSddParticipantSession(sessionKey);
 	});
@@ -134,14 +117,6 @@ export function registerSessionLifecycle(
 		}
 		if (typeof event.text !== "string") return { action: "continue" };
 		if (isSddPreflightTrigger(event.text)) await runSddPreflight(ctx);
-		const intent = await dependencies.intentGate.runPiIntentPreflight(
-			event.text,
-			ctx,
-		);
-		if (intent === "pending") return { action: "handled" };
-		if (intent === "resolved") {
-			continueAfterPiIntent(ctx, resolveActiveChange(ctx.cwd));
-		}
 		return { action: "continue" };
 	});
 

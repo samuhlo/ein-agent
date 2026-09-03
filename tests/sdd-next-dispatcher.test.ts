@@ -207,16 +207,15 @@ describe("participant advisory routing", () => {
 	});
 });
 
-describe("intent preflight continuation", () => {
+describe("transparent input leaves routing to the orchestrator", () => {
 	const src = readFileSync(SESSION_LIFECYCLE_PATH, "utf8");
 
-	test("resolved input returns to the existing router and handoff", () => {
-		const block = src.match(/function continueAfterPiIntent[\s\S]*?\n\t}/)?.[0] ?? "";
-		expect(block).toContain("resolveSddNext");
-		expect(block).toContain("sddNextHandoff");
-		expect(block).toContain("pi.sendUserMessage");
-		expect(block).not.toContain("sdd-scope");
-		expect(block).not.toContain("sdd-apply");
+	test("the input hook neither consumes nor reinjects a synthetic handoff", () => {
+		const block = src.match(/pi\.on\("input"[\s\S]*?\n\t}\);/)?.[0] ?? "";
+		expect(block).toContain('return { action: "continue" }');
+		expect(block).not.toContain('action: "handled"');
+		expect(block).not.toContain("sendUserMessage");
+		expect(src).not.toContain("continueAfterPiIntent");
 	});
 });
 

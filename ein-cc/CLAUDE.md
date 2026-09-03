@@ -17,14 +17,12 @@ This file is the shared coordinator policy source. Claude-specific runtime behav
 - For JS/TS/Vue/React/Nuxt/PHP/Java/CSS/HTML work, load `comment-style` and enforce it on touched blocks. Comments explain why; if a comment repeats the code, remove it.
 - For a library or framework with no curated skill — especially one you don't know well, or when you get stuck — fetch topic-scoped docs via Context7 (`resolve-library-id` → `query-docs` for the task's specific topic) instead of guessing or loading a whole manual. Apply only what the task needs.
 
-## Automatic intent preflight
+## Intent ownership
 
-- Before construction, run one automatic intent preflight for a request that modifies or may modify code, configuration, or persistent data. An unequivocally read-only request continues without it. Adopt a current resolution from `preflight.json` before presenting anything, and never start a second interaction from a secondary hook or adapter.
-- A declared lane remains authoritative. Without one, only positively proven bounded mechanical, non-behavioral work or bounded documentation/text takes the small route; risk, uncertainty, new behavior, or incomplete evidence takes the normal route.
-- The normal route presents two numbered questions together in one plain-text turn to close outcome, boundaries, and completion criteria. Ask at most one third question only for a concrete material decision with no persisted value or applicable default, then require explicit final confirmation before persistence or construction. TDD and lane are reused from persisted values or project defaults and are not a standing questionnaire.
-- The small route emits exactly one plain-language restatement line, requests no response, and continues. A requested bypass stays normal for security, persistent-data, destructive, or unknown risk.
-- Persistence remains in `preflight.json` through the shared intent coordinator and its preflight-record adapter. After confirmed, automatic-small, or allowed bypass resolution, return control to the existing SDD router; phase selection, verification, delivery, and OpenSpec bootstrap remain unchanged.
-- This automatic flow is separate from the explicitly human-only intent channel: it must never invoke `/ein:intent`, replace it, or mutate its `intent.md` artifact.
+- Every ordinary input reaches the parent orchestrator unchanged. No adapter classifier may consume, rewrite, postpone, or reinterpret an interactive, RPC, or extension message before the capable model sees it.
+- The parent decides from the complete meaning whether to answer, investigate, start bounded work, or ask for one missing material decision. Conversation and read-only work create no SDD state; clear modifications use the smallest safe harness and `sdd-scope` owns objective, boundaries, and completion criteria when a full change is needed.
+- The intent channel remains explicitly human-only. The parent may offer it when a decision-tree conversation would help, but never activates `/ein:intent` without user consent or mutates its `intent.md` by inference.
+- Existing `preflight.json` intent fields remain readable compatibility data. Technical TDD/lane preflight, SDD routing, verification, delivery, and OpenSpec bootstrap remain unchanged.
 
 ## Linear (optional integration)
 

@@ -11,7 +11,6 @@ import { registerAdvisoryTools } from "./internal/ein-advisory-tools.ts";
 import { registerGeneralCommands } from "./internal/ein-general-commands.ts";
 import { registerAgentPromptHook } from "./internal/ein-agent-prompt-hook.ts";
 import { registerDelegationResultHook } from "./internal/ein-delegation-results.ts";
-import { createPiIntentGate } from "./internal/ein-pi-intent-gate.ts";
 import { registerToolCallGate } from "./internal/ein-tool-call-gate.ts";
 import { registerOpenSpecWriteTools } from "./internal/ein-openspec-write-tools.ts";
 import { registerRuntimeCommands } from "./internal/ein-runtime-commands.ts";
@@ -30,19 +29,16 @@ const scoutTracking: ScoutTracking = new Map();
 // ─── Extensión ────────────────────────────────────────────────────────────────
 
 export default function einAi(pi: ExtensionAPI): void {
-	const intentGate = createPiIntentGate();
 	const delegationResults = registerDelegationResultHook(pi, scoutTracking);
 	const toolCallGate = registerToolCallGate(pi, {
-		intentGate,
 		scoutTracking,
 		rememberPhaseSnapshot: delegationResults.rememberPhaseSnapshot,
 	});
 	const sessionLifecycle = registerSessionLifecycle(pi, {
-		intentGate,
 		scoutTracking,
 		recordDeliveryIntent: toolCallGate.recordDeliveryIntent,
 	});
-	registerAgentPromptHook(pi, intentGate);
+	registerAgentPromptHook(pi);
 	registerRuntimeCommands(pi, sessionLifecycle.runSddPreflight);
 
 	const registerEinTool = createEinToolRegistrar(pi);
