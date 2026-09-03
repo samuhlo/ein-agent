@@ -1,6 +1,6 @@
 # Guía Ein (cómo trabajar)
 
-Ein es un workbench de IA sobre Pi Coding Agent. Combina orquestación, un flujo SDD en 5 fases, integración con Linear y GitHub, y un sistema de skills en 3 capas.
+Ein es un workbench de IA sobre Pi Coding Agent. Combina orquestación, un flujo SDD en 7 fases, integración con Linear y GitHub, y un sistema de skills en 3 capas.
 
 ## Cómo arrancar
 
@@ -41,7 +41,8 @@ sincroniza Linear
 
 Flujo único `ein-sdd`: **scope → map → design → tasks → apply → verify → close**.
 
-- `design` reúne propuesta + spec técnica + tareas en un solo `design.md`.
+- `design` decide la solución técnica en `design.md`.
+- `tasks` la convierte en encargos ejecutables dentro de `tasks.md`.
 - `apply` no ocurre solo: necesita un scope aprobado.
 - Con la integración de Linear **encendida**, su preflight corre antes de SDD (salvo "no linear"); **apagada** (por defecto) no hay Linear — el board es `openspec/changes/` + git + EIN.md. Cámbiala con `/ein:linear`.
 
@@ -55,12 +56,12 @@ Sin presets: los nombres de modelo y sus precios cambian cada semana. Configura 
 
 | Rol | Modelo | Esfuerzo |
 | --- | --- | --- |
-| Orquestador · `sdd-design` (deciden) | capaz | high |
+| Orquestador · `sdd-scope` · `sdd-design` · `sdd-tasks` (deciden) | capaz | high |
 | `sdd-map` · `sdd-verify` (leen/verifican) | barato | medium |
-| `sdd-apply` (ejecuta) | capaz | **low** |
-| `sdd-scope` · `sdd-tasks` · `sdd-close` · entrega | barato | low |
+| `sdd-apply` (ejecuta; barato/local tras superar el canary) | capaz durante rollout | **low** |
+| `sdd-close` · entrega | barato | low |
 
-El coste lo controla el **esfuerzo**, no abaratar el modelo: un modelo barato en apply no ahorra, flaquea (135 turnos en un grupo con TDD estricto).
+El coste lo controla primero el **esfuerzo**. Un modelo barato sobre un plan vago no ahorra: un apply llegó a 135 turnos. El Apply Packet debe cerrar la ruta antes de promocionar barato/local.
 
 ## Idioma
 
@@ -91,9 +92,11 @@ El perfil vive en `~/.pi/agent/skills/stack-profile.json`.
 | `ein-git` | Delivery GitHub, PR, review |
 | `sdd-scope` | Definir alcance y presupuesto del cambio SDD |
 | `sdd-map` | Mapear código y riesgos |
-| `sdd-design` | Propuesta + spec + tareas |
+| `sdd-design` | Decidir la solución técnica |
+| `sdd-tasks` | Convertir el diseño en encargos ejecutables |
 | `sdd-apply` | Implementar con TDD |
 | `sdd-verify` | Verificar evidencia y calidad |
+| `sdd-close` | Consolidar el resultado y archivar el cambio |
 
 Chain única: `ein-sdd`. Los builtins de pi-subagents (scout/worker/reviewer/oracle/context-builder) están desactivados.
 

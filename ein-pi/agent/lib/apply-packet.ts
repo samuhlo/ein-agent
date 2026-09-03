@@ -83,6 +83,45 @@ export type ApplyPacketValidation =
 	| Readonly<{ ok: true; level: "executable"; packet: ApplyPacket }>
 	| Readonly<{ ok: false; level: "incomplete" | "rejected"; issues: readonly ApplyPacketIssue[] }>;
 
+// V1 conserva la medida histórica. V2 es el contrato vivo: su unidad es el
+// grupo que el orquestador delega y no confunde leer, escribir y comprobar.
+export const APPLY_PACKET_V2_FORMAT = "apply-packet/v2";
+
+export type ApplyPacketV2Operation = "create" | "modify" | "delete";
+
+export type ApplyPacketV2Step = Readonly<{
+	taskId: string;
+	path: string;
+	operation: ApplyPacketV2Operation;
+	intent: string;
+}>;
+
+export type ApplyPacketV2Check = Readonly<{
+	command: string;
+	covers: readonly string[];
+}>;
+
+export type ApplyPacketV2Draft = Readonly<{
+	format: typeof APPLY_PACKET_V2_FORMAT;
+	change: string;
+	group: string;
+	outcome: string;
+	readContext: readonly string[];
+	writeAllowlist: readonly string[];
+	steps: readonly ApplyPacketV2Step[];
+	invariants: readonly string[];
+	behaviorSeams: readonly string[];
+	checks: readonly ApplyPacketV2Check[];
+	stopConditions: readonly string[];
+	sources: Readonly<Record<string, string>>;
+}>;
+
+export type ApplyPacketV2 = ApplyPacketV2Draft;
+
+export type ApplyPacketV2Validation =
+	| Readonly<{ ok: true; level: "executable"; packet: ApplyPacketV2 }>
+	| Readonly<{ ok: false; level: "incomplete" | "rejected"; issues: readonly ApplyPacketIssue[] }>;
+
 // Un fallo `rejected` significa que el packet AFIRMA algo falso o pide salir de
 // su frontera; `incomplete` es que le falta contenido. Mezclarlos escondería el
 // caso peligroso detrás del caso administrativo.
@@ -260,4 +299,198 @@ export function validateApplyPacket(
 
 	if (issues.length > 0) return reject(issues);
 	return { ok: true, level: "executable", packet: draft as unknown as ApplyPacket };
+}
+
+const APPLY_PACKET_V2_SOURCES = ["design.md", "tasks.md"] as const;
+const APPLY_PACKET_V2_OPERATIONS = new Set<ApplyPacketV2Operation>(["create", "modify", "delete"]);
+const APPLY_PACKET_V2_DENIED_ROOTS = new Set([".git", ".pi", ".atl"]);
+
+function rejectV2(issues: readonly ApplyPacketIssue[]): ApplyPacketV2Validation {
+	const level = issues.some((issue) => REJECTED_CODES.has(issue.code)) ? "rejected" : "incomplete";
+	return { ok: false, level, issues };
+}
+
+function repoRelativePath(value: unknown): value is string {
+	if (typeof value !== "string" || value.trim() !== value || value.length === 0) return false;
+	if (value.startsWith("/") || value.includes("\\")) return false;
+	const segments = value.split("/");
+	if (segments.some((segment) => segment.length === 0 || segment === "." || segment === "..")) return false;
+	return !APPLY_PACKET_V2_DENIED_ROOTS.has(segments[0] ?? "");
+}
+
+function pathStrings(issues: ApplyPacketIssue[], field: string, value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	const out: string[] = [];
+	value.forEach((item, index) => {
+		if (typeof item !== "string") {
+			issues.push({ code: "malformed", field: `${field}[${index}]`, detail: "la ruta no es texto" });
+			return;
+		}
+		if (!out.includes(item)) out.push(item);
+	});
+	return out;
+}
+
+function checkText(
+	issues: ApplyPacketIssue[],
+	field: string,
+	value: unknown,
+	missingCode: ApplyPacketIssueCode = "missing-field",
+): string {
+	const text = textOf(value).trim();
+	if (!text) {
+		issues.push({ code: missingCode, field, detail: "campo obligatorio vacío" });
+		return "";
+	}
+	const marker = unresolvedMarker(text);
+	if (marker) issues.push({ code: "unresolved-decision", field, detail: `decisión sin resolver: ${marker}` });
+	return text;
+}
+
+function checkTextList(
+	issues: ApplyPacketIssue[],
+	field: string,
+	value: unknown,
+	missingCode: ApplyPacketIssueCode = "missing-field",
+): string[] {
+	if (!Array.isArray(value) || value.length === 0) {
+		issues.push({ code: missingCode, field, detail: "campo obligatorio vacío" });
+		return [];
+	}
+	const out: string[] = [];
+	value.forEach((item, index) => {
+		const text = checkText(issues, `${field}[${index}]`, item);
+		if (text) out.push(text);
+	});
+	return out;
+}
+
+/**
+ * [CORE] VALIDAR UN PACKET V2 POR GRUPO
+ * ---------------------------------------------------------
+ * La lista de escritura solo concede escritura. Los checks son evidencia
+ * futura y pueden nombrar tests de solo lectura sin ensanchar ese permiso.
+ */
+export function validateApplyPacketV2(
+	draft: unknown,
+	currentSources: Readonly<Record<string, string>>,
+): ApplyPacketV2Validation {
+	if (!isRecord(draft)) {
+		return rejectV2([{ code: "malformed", field: "packet", detail: "el packet no es un objeto" }]);
+	}
+	if (draft.format !== APPLY_PACKET_V2_FORMAT) {
+		return rejectV2([{
+			code: "malformed",
+			field: "format",
+			detail: `formato no soportado: ${JSON.stringify(draft.format)}`,
+		}]);
+	}
+
+	const issues: ApplyPacketIssue[] = [];
+	checkText(issues, "change", draft.change);
+	checkText(issues, "group", draft.group);
+	checkText(issues, "outcome", draft.outcome);
+	checkTextList(issues, "invariants", draft.invariants, "missing-invariant");
+	const behaviorSeams = checkTextList(issues, "behaviorSeams", draft.behaviorSeams);
+	checkTextList(issues, "stopConditions", draft.stopConditions, "missing-stop");
+
+	const readContext = pathStrings(issues, "readContext", draft.readContext);
+	const writeAllowlist = pathStrings(issues, "writeAllowlist", draft.writeAllowlist);
+	if (!Array.isArray(draft.readContext) || draft.readContext.length === 0)
+		issues.push({ code: "missing-field", field: "readContext", detail: "campo obligatorio vacío" });
+	if (!Array.isArray(draft.writeAllowlist) || draft.writeAllowlist.length === 0)
+		issues.push({ code: "missing-field", field: "writeAllowlist", detail: "campo obligatorio vacío" });
+
+	for (const [field, paths] of [["readContext", readContext], ["writeAllowlist", writeAllowlist]] as const) {
+		paths.forEach((path, index) => {
+			if (!repoRelativePath(path)) {
+				issues.push({ code: "out-of-scope", field: `${field}[${index}]`, detail: `${path} no es una ruta relativa segura` });
+			}
+		});
+	}
+
+	const readable = new Set(readContext);
+	const writable = new Set(writeAllowlist);
+	writeAllowlist.forEach((path, index) => {
+		if (!readable.has(path)) {
+			issues.push({ code: "out-of-scope", field: `writeAllowlist[${index}]`, detail: `${path} no está en readContext` });
+		}
+	});
+
+	const stepPaths = new Set<string>();
+	if (!Array.isArray(draft.steps) || draft.steps.length === 0) {
+		issues.push({ code: "missing-field", field: "steps", detail: "un packet sin pasos deja la implementación al ejecutor" });
+	} else {
+		draft.steps.forEach((candidate, index) => {
+			if (!isRecord(candidate)) {
+				issues.push({ code: "malformed", field: `steps[${index}]`, detail: "el paso no es un objeto" });
+				return;
+			}
+			checkText(issues, `steps[${index}].taskId`, candidate.taskId);
+			const path = textOf(candidate.path);
+			if (!repoRelativePath(path)) {
+				issues.push({ code: "out-of-scope", field: `steps[${index}].path`, detail: `${path || "(sin ruta)"} no es una ruta relativa segura` });
+			} else if (!writable.has(path)) {
+				issues.push({ code: "out-of-scope", field: `steps[${index}].path`, detail: `${path} no está en writeAllowlist` });
+			} else {
+				stepPaths.add(path);
+			}
+			if (!APPLY_PACKET_V2_OPERATIONS.has(candidate.operation as ApplyPacketV2Operation)) {
+				issues.push({ code: "malformed", field: `steps[${index}].operation`, detail: "operación desconocida" });
+			}
+			checkText(issues, `steps[${index}].intent`, candidate.intent);
+		});
+	}
+	writeAllowlist.forEach((path, index) => {
+		if (!stepPaths.has(path)) {
+			issues.push({ code: "missing-field", field: `writeAllowlist[${index}]`, detail: `${path} no tiene un paso asociado` });
+		}
+	});
+
+	const covered = new Set<string>();
+	if (!Array.isArray(draft.checks) || draft.checks.length === 0) {
+		issues.push({ code: "missing-field", field: "checks", detail: "campo obligatorio vacío" });
+	} else {
+		draft.checks.forEach((candidate, index) => {
+			if (!isRecord(candidate)) {
+				issues.push({ code: "malformed", field: `checks[${index}]`, detail: "el check no es un objeto" });
+				return;
+			}
+			checkText(issues, `checks[${index}].command`, candidate.command);
+			const covers = checkTextList(issues, `checks[${index}].covers`, candidate.covers);
+			for (const seam of covers) {
+				if (!behaviorSeams.includes(seam)) {
+					issues.push({ code: "out-of-scope", field: `checks[${index}].covers`, detail: `${seam} no está en behaviorSeams` });
+				} else {
+					covered.add(seam);
+				}
+			}
+		});
+	}
+	behaviorSeams.forEach((seam, index) => {
+		if (!covered.has(seam)) {
+			issues.push({ code: "missing-field", field: `behaviorSeams[${index}]`, detail: "ningún check cubre este comportamiento" });
+		}
+	});
+
+	// Un source extra parece inocuo, pero haría que dos productores discreparan
+	// sobre qué artefactos dan identidad al mismo packet. El conjunto es exacto.
+	const declared = isRecord(draft.sources) ? draft.sources : {};
+	const live = isRecord(currentSources) ? currentSources : {};
+	for (const source of APPLY_PACKET_V2_SOURCES) {
+		const digest = textOf(declared[source]).trim();
+		if (!digest) {
+			issues.push({ code: "missing-field", field: `sources.${source}`, detail: "digest obligatorio ausente" });
+		} else if (live[source] !== digest) {
+			issues.push({ code: "stale-source", field: `sources.${source}`, detail: live[source] === undefined ? "sin digest actual" : "el artefacto cambió" });
+		}
+	}
+	for (const source of Object.keys(declared)) {
+		if (!(APPLY_PACKET_V2_SOURCES as readonly string[]).includes(source)) {
+			issues.push({ code: "out-of-scope", field: `sources.${source}`, detail: "fuente fuera del conjunto v2" });
+		}
+	}
+
+	if (issues.length > 0) return rejectV2(issues);
+	return { ok: true, level: "executable", packet: draft as unknown as ApplyPacketV2 };
 }

@@ -15,6 +15,8 @@ const CORE = join(import.meta.dir, "../runtime");
 // adaptador Pi (lib/, extensions/) sigue en agent/.
 const read = (p: string) =>
 	readFileSync(join(p.startsWith("agents/") || p.startsWith("assets/") || p === "AGENTS.md" ? CORE : AGENT, p), "utf8");
+const readRuntimeDoc = (name: string) =>
+	readFileSync(join(CORE, "docs", name), "utf8");
 
 describe("orchestrator: flujo por fases determinista", () => {
 	const orch = read("assets/orchestrator.md");
@@ -51,6 +53,22 @@ describe("orchestrator: flujo por fases determinista", () => {
 
 	test("incluye tasks y close en el flujo de 7", () => {
 		expect(orch).toContain("scope → map → design → tasks → apply → verify → close");
+	});
+
+	test("las guías humanas enseñan las siete fases y la autoría separada de tasks", () => {
+		const easy = readRuntimeDoc("EIN_OPERATING_SYSTEM.md");
+		const workflow = readRuntimeDoc("GUIA_PI_WORKFLOW.md");
+		for (const guide of [easy, workflow]) {
+			expect(guide).toContain("scope → map → design → tasks → apply → verify → close");
+			expect(guide).toMatch(/7 (?:pasos|fases)/i);
+			expect(guide).toContain("`tasks.md`");
+		}
+		expect(easy).toContain("**tasks**: convierte el diseño en encargos ejecutables");
+		expect(workflow).toContain("`design` decide la solución técnica en `design.md`");
+		expect(workflow).toContain("`tasks` la convierte en encargos ejecutables dentro de `tasks.md`");
+		for (const agent of ["sdd-scope", "sdd-map", "sdd-design", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-close"]) {
+			expect(workflow).toContain(`\`${agent}\``);
+		}
 	});
 
 	test("ein-scout es agente de apoyo, nunca una fase del router ni de la chain de 7", () => {
@@ -342,6 +360,12 @@ describe("sdd-tasks agent existe y produce tasks.md", () => {
 		expect(tasks).toContain("name: sdd-tasks");
 		expect(tasks).toContain("tasks.md");
 		expect(tasks).toContain("status: ready | blocked");
+		expect(tasks).toContain("- outcome:");
+		expect(tasks).toContain("- read:");
+		expect(tasks).toContain("- edit:");
+		expect(tasks).toContain("- behavior:");
+		expect(tasks).toContain("- stop:");
+		expect(tasks).toContain("create|modify|delete");
 	});
 	test("no remapea ni edita source code", () => {
 		expect(tasks.toLowerCase()).toContain("do not remap");

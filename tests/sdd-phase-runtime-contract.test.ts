@@ -189,6 +189,13 @@ describe("P5: foto de fase para reconciliar, sin ampliar el input del subagent",
     // El hook nunca amplía el input del subagent con campos de flujo/coste.
     expect(`${einAi}\n${delegationResults}`).not.toMatch(/(?:event\.input|input)\.(?:output|outputMode|flowId|runId|changeId)\s*=/);
   });
+
+  test("observa el packet v2 en report-only sin convertirlo en un gate", () => {
+    expect(toolCallGate).toContain("observeNextApplyPacket(ctx.cwd)");
+    expect(toolCallGate).toContain("formatApplyPacketObservation");
+    expect(toolCallGate).toContain("delegationTargetsOnly(event.input, \"sdd-apply\")");
+    expect(toolCallGate).not.toMatch(/observeNextApplyPacket[^;]{0,300}return\s+\{\s*block:\s*true/s);
+  });
 });
 
 describe("P5.5: scout queda fuera del runtime de fases", () => {

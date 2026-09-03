@@ -271,6 +271,13 @@ describe("routing de agentes de ~/.pi/agent/agents (fuente user)", () => {
 		expect(AGENT_EFFORT_RECOMMENDATIONS["ein-scout"]).toEqual(expect.objectContaining({ thinking: "low" }));
 	});
 
+	test("scope y tasks conservan el pensamiento caro antes del apply mecánico", () => {
+		expect(AGENT_EFFORT_RECOMMENDATIONS["sdd-scope"]).toMatchObject({ thinking: "high" });
+		expect(AGENT_EFFORT_RECOMMENDATIONS["sdd-design"]).toMatchObject({ thinking: "high" });
+		expect(AGENT_EFFORT_RECOMMENDATIONS["sdd-tasks"]).toMatchObject({ thinking: "high" });
+		expect(AGENT_EFFORT_RECOMMENDATIONS["sdd-apply"]).toMatchObject({ thinking: "low" });
+	});
+
 	test("applyModelConfigAsync escribe model: en el frontmatter, no en settings", async () => {
 		writeModelConfig(CWD, {
 			"ein-model-config-fixture": { model: "minimax/MiniMax-M2.7" },

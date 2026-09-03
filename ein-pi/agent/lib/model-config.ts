@@ -286,9 +286,9 @@ export function cloneModelConfig(config: AgentModelConfig): AgentModelConfig {
 
 // Thinking por defecto por fase. Sin fijarlo, cada agente hereda el thinking
 // alto del modelo y da vueltas quemando tokens (apply llegó a 47 turnos; map a
-// 222k). Solo RAZONAN de verdad orchestrator y sdd-design (compuertas de
-// decisión) → se dejan sin fijar (heredan la configuración activa). Las
-// fases que LEEN/EJECUTAN corren más bajo. El usuario/preset puede overridear.
+// 222k). Orchestrator, scope, design y tasks poseen decisiones → se dejan sin
+// fijar y heredan la configuración activa. Las fases que leen/ejecutan corren
+// más bajo. El usuario/preset siempre puede overridear.
 const DEFAULT_THINKING: Record<string, ThinkingLevel> = {
 	"sdd-apply": "low", // ejecuta el plan masticado (E0)
 	"sdd-map": "medium", // lee y resume impacto vía codegraph, no diseña (G)
@@ -301,9 +301,9 @@ export type AgentEffortRecommendation = { thinking: ThinkingLevel; reason: strin
 export const AGENT_EFFORT_RECOMMENDATIONS: Record<string, AgentEffortRecommendation> = {
 	orchestrator: { thinking: "high", reason: "decide el mapa; el cerebro del flujo" },
 	"sdd-design": { thinking: "high", reason: "última compuerta de razonamiento antes de ejecutar" },
-	"sdd-scope": { thinking: "low", reason: "extracción estructurada del alcance" },
+	"sdd-scope": { thinking: "high", reason: "cierra intención, límites y criterio de terminado" },
 	"sdd-map": { thinking: "medium", reason: "lee y resume impacto (codegraph), no diseña" },
-	"sdd-tasks": { thinking: "low", reason: "descompone el diseño en checklist" },
+	"sdd-tasks": { thinking: "high", reason: "cierra la orden ejecutable que apply no debe rediseñar" },
 	"sdd-apply": { thinking: "low", reason: "ejecuta un plan ya decidido" },
 	"sdd-verify": { thinking: "medium", reason: "corre tests y razona cobertura" },
 	"sdd-close": { thinking: "low", reason: "condensa el resumen" },
