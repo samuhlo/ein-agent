@@ -224,4 +224,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.resolve_release_tag.outputs.release_tag }}
-        run: ../e2e/release-update-test.sh installer-v0.95.0-alpha.1 "$RELEASE_TAG"
+        run: ../e2e/release-update-test.sh installer-v0.95.0-alpha.2 "$RELEASE_TAG"
