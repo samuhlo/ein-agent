@@ -4,6 +4,26 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.95.0-alpha.3] - 2026-09-03
+
+### Fixed
+
+- **Los fallos de arranque del scout conservan su causa real.** Si un workflow
+  no produce resultados porque ningún modelo resulta utilizable, Ein muestra
+  el error estructurado del runtime en lugar de culpar falsamente a foreground,
+  y corta el siguiente intento del mismo turno antes de gastar más ramas.
+- **Una respuesta vacía ya no inutiliza durante un día todos los agentes del
+  mismo modelo.** La caché administrada de exclusiones baja de 24 horas a cinco
+  minutos y acorta las entradas activas al reiniciar. Durante ese intervalo
+  sigue fallando cerrado y nunca selecciona un fallback sin configuración del
+  usuario.
+
+### Release
+
+- **El smoke publicado actualiza desde `0.95.0-alpha.2`.** La comprobación final
+  descarga los assets públicos, conserva el estado y verifica la nueva versión
+  antes de cerrar la release.
+
 ## [0.95.0-alpha.2] - 2026-09-03
 
 ### Fixed
