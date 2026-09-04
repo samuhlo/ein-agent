@@ -46,14 +46,27 @@ describe("deps — pi siempre con scope", () => {
 	});
 
 	test("acepta cualquier versión publicada y rechaza una salida que no sea SemVer", () => {
+		const treeDeps = { resolveRoot: () => "/fake/root/node_modules", readManifestFile: () => null };
 		expect(inspectPiRuntime([], {
 			lookPath: () => "/fake/pi",
 			readVersion: () => "0.1.0",
-		})).toEqual({ path: "/fake/pi", version: "0.1.0", compatible: true });
+			...treeDeps,
+		})).toMatchObject({ path: "/fake/pi", version: "0.1.0", compatible: true });
 		expect(inspectPiRuntime([], {
 			lookPath: () => "/fake/pi",
 			readVersion: () => "latest",
-		})).toEqual({ path: "/fake/pi", version: "latest", compatible: false });
+			...treeDeps,
+		})).toMatchObject({ path: "/fake/pi", version: "latest", compatible: false });
+	});
+
+	test("el árbol del host se declara fallo cuando el manifiesto no se puede leer (fail closed)", () => {
+		const result = inspectPiRuntime([], {
+			lookPath: () => "/fake/pi",
+			readVersion: () => "0.85.0",
+			resolveRoot: () => "/fake/root/node_modules",
+			readManifestFile: () => null,
+		});
+		expect(result.tree.coherent).toBe(false);
 	});
 
 	test("installPi resuelve latest en el destino administrado y verifica el binario canónico", async () => {

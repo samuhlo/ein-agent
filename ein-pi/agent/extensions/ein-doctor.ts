@@ -280,14 +280,15 @@ export function doctorSmokeReport(
   const groups: Array<{ title: string; checks: CheckResult[] }> = [
     { title: "// 011. CORE", checks: common.checks.core },
     { title: "// 012. PAQUETES PI", checks: common.checks.piPackages },
-    { title: "// 013. MCP", checks: common.checks.mcp },
-    { title: "// 014. AGENTES + CHAIN", checks: checksAgents },
-    { title: "// 015. EXTENSIONES", checks: checksExtensions },
-    { title: "// 016. SKILLS", checks: common.checks.skills },
-    { title: "// 017. GUARDRAILS", checks: common.checks.guardrails },
-    { title: "// 018. INTEGRACIONES", checks: checksIntegrations },
-    { title: "// 019. I18N", checks: checksI18n },
-    { title: "// 020. COHERENCIA", checks: common.checks.coherence },
+    { title: "// 013. PI HOST TREE", checks: common.checks.piHostTree },
+    { title: "// 014. MCP", checks: common.checks.mcp },
+    { title: "// 015. AGENTES + CHAIN", checks: checksAgents },
+    { title: "// 016. EXTENSIONES", checks: checksExtensions },
+    { title: "// 017. SKILLS", checks: common.checks.skills },
+    { title: "// 018. GUARDRAILS", checks: common.checks.guardrails },
+    { title: "// 019. INTEGRACIONES", checks: checksIntegrations },
+    { title: "// 020. I18N", checks: checksI18n },
+    { title: "// 021. COHERENCIA", checks: common.checks.coherence },
   ];
 
   const summary = summarizeDoctorChecks(groups);
