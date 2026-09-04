@@ -137,11 +137,24 @@ const REJECTED_CODES = new Set<ApplyPacketIssueCode>([
 // palabra suelta como "decidir" aparece en prosa legítima ("...sin decidir
 // nada") y marcaba packets válidos como ambiguos. Un marcador solo cuenta si
 // nadie lo escribe por accidente.
+//
+// El marcador de ángulos confundía sintaxis de TypeScript con un hueco sin
+// rellenar: `Record<string, unknown>`, `Set<string>` o una cota escrita con
+// comparadores (`< 1 || x >`) rechazaban encargos correctos. Dos condiciones
+// lo separan de un placeholder real, y las dos son necesarias:
+//   1. No pegado a un identificador — lookbehind `(?<![\p{L}\p{N}_$])`: un
+//      `<` precedido de letra/dígito/`_`/`$` es un parámetro de tipo, no un
+//      hueco (mismo criterio que `FILE_TOKEN_RE` más abajo).
+//   2. Sin espacios dentro — un placeholder es un token compacto; una
+//      expresión con operadores lleva espacios. Esto es lo que deja pasar la
+//      cota con comparadores sin necesitar parsear la expresión.
+// `\?{2,}` confundía igual el operador de fusión `??` con un hueco; solo una
+// tirada de tres o más interrogaciones es ambigüedad real.
 const UNRESOLVED_MARKERS: readonly RegExp[] = [
 	/\bTBD\b/i,
 	/\bTODO\b/,
-	/\?{2,}/,
-	/<[^<>]+>/,
+	/\?{3,}/,
+	/(?<![\p{L}\p{N}_$])<[^<>\s]+>/u,
 	/\[(?:decidir|elegir|pendiente)[^\]]*\]/i,
 ];
 
