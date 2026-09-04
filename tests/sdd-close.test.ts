@@ -531,7 +531,8 @@ describe("oversizedGroupWarnings (F)", () => {
 	test("un grupo con >4 ficheros de producción → warning; los tests no cuentan", () => {
 		const tasks = [
 			"## // 001. Grupo gordo",
-			"File boundary: app/a.ts, app/b.ts, app/c.vue, app/d.ts, app/e.ts and tests/a.test.ts.",
+			"- production files: `app/a.ts`, `app/b.ts`, `app/c.vue`, `app/d.ts`, `app/e.ts`",
+			"- test files: `tests/a.test.ts`",
 			"- [ ] 1.1 hacer\n  - verify: `bunx vitest run tests/a.test.ts tests/b.test.ts`",
 		].join("\n");
 		const w = oversizedGroupWarnings(tasks);
@@ -543,7 +544,8 @@ describe("oversizedGroupWarnings (F)", () => {
 	test("un grupo acotado (≤4 producción) no avisa", () => {
 		const tasks = [
 			"## // 001. Grupo acotado",
-			"File boundary: app/a.ts, app/b.ts and tests/a.test.ts, tests/b.test.ts.",
+			"- production files: `app/a.ts`, `app/b.ts`",
+			"- test files: `tests/a.test.ts`, `tests/b.test.ts`",
 			"- [ ] 1.1 hacer\n  - verify: `bunx vitest run tests/a.test.ts`",
 		].join("\n");
 		expect(oversizedGroupWarnings(tasks).length).toBe(0);
@@ -554,11 +556,42 @@ describe("oversizedGroupWarnings (F)", () => {
 			"status: ready",
 			"blocked_by: none",
 			"## // 001. Gordo",
-			"File boundary: app/a.ts, app/b.ts, app/c.ts, app/d.ts, app/e.ts, app/f.ts.",
+			"- production files: `app/a.ts`, `app/b.ts`, `app/c.ts`, `app/d.ts`, `app/e.ts`, `app/f.ts`",
 			"- [ ] 1.1 x\n  - skills: `x`\n  - why: a\n  - learn: b\n  - architecture: c\n  - avoid: d\n  - verify: `bun test`",
 		].join("\n");
 		const r = lintPhaseArtifact("tasks", tasks);
 		expect(r.issues.some((i) => i.code === "oversized-group")).toBe(true);
+	});
+
+	test("solo cuenta la frontera declarada en edit:, no el read:/prosa del cuerpo", () => {
+		// Fixture real: `openspec/changes/accept-scout-fanout-reports/tasks.md` //
+		// 004/005 — cuerpo con `read:` y prosa abundante pero 1 solo `edit:` de test.
+		const tasks = [
+			"## // 004. Grupo con contexto ruidoso",
+			"- [ ] 4.1 hacer algo",
+			"  - read: `openspec/changes/x/design.md`, `ein-pi/agent/lib/a.ts`, `ein-pi/agent/lib/b.ts`",
+			"  - why: usa `app/c.ts`, `app/d.ts` y `app/e.ts` como referencia de patrón",
+			"  - architecture: sigue el mismo enfoque que `app/f.ts` y `app/g.ts`",
+			"  - avoid: no dupliques `app/h.ts`",
+			"  - edit: `tests/fixtures/o.ts` | modify | importar `delegationIncludes` desde `../../ein-pi/agent/lib/delegation-shape.ts`",
+			"  - verify: `bun test tests/fixtures/o.test.ts`",
+		].join("\n");
+		expect(oversizedGroupWarnings(tasks).length).toBe(0);
+	});
+
+	test("varios edit: de producción sobre el umbral sí avisan (gramática v2)", () => {
+		const tasks = [
+			"## // 001. Grupo v2 gordo",
+			"- [ ] 1.1 a\n  - edit: `app/a.ts` | modify | x",
+			"- [ ] 1.2 b\n  - edit: `app/b.ts` | modify | x",
+			"- [ ] 1.3 c\n  - edit: `app/c.ts` | modify | x",
+			"- [ ] 1.4 d\n  - edit: `app/d.ts` | modify | x",
+			"- [ ] 1.5 e\n  - edit: `app/e.ts` | modify | x",
+		].join("\n");
+		const w = oversizedGroupWarnings(tasks);
+		expect(w.length).toBe(1);
+		expect(w[0].code).toBe("oversized-group");
+		expect(w[0].message).toContain("5 ficheros");
 	});
 });
 
