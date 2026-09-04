@@ -44,6 +44,13 @@ Given: An installed Pi host whose manifest declares its @earendil-works dependen
 When: An Ein doctor inspects the resolved Pi host runtime.
 Then: A coherent tree passes, while any dependency installed outside its declared range is reported as a failure that names the package, the required range, the installed version and the exact repair command, and the doctor leaves the installation untouched.
 
+## Scenario: installer-reconciles-pi-host-dependency-tree
+title: Install and update repair the Pi host dependency tree before declaring success
+requirement: The system MUST inspect the canonical Pi host dependency tree after installing npm latest, repair only the failing @earendil-works packages in that same managed Bun target, inspect the tree again, and refuse to report a successful install or update unless the second inspection is coherent; an existing redirected Bun copy MUST receive the same reconciliation, while unrelated global packages MUST remain outside every repair command.
+Given: Installing the latest Pi host leaves one or more host-declared @earendil-works packages missing or outside their required ranges because an older global manifest still declares them directly, and the machine may also contain an existing redirected Bun copy.
+When: Ein installs or updates its managed Pi runtime.
+Then: Ein installs only the failing internal package names from npm latest into each affected Bun target, proves coherence by reading the resulting manifests again, reports whether reconciliation occurred, and fails with the remaining dependency evidence when repair cannot produce a coherent tree.
+
 ## Scenario: pi-runtime-dependencies-remain-reproducible
 title: Pi runtime dependencies remain reproducible across install and update
 requirement: The system MUST install the compatible Pi host and every Ein-owned Pi package using exact versions inside the selected isolated agent home, replace stale or unversioned Ein package declarations during update, preserve unrelated user package declarations, fail a fresh installation when package reconciliation fails, and make both doctors fail when the deployed or installed package drifts from the compatible set.

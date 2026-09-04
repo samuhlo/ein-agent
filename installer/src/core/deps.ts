@@ -257,6 +257,7 @@ export async function installBun(): Promise<InstallStep> {
 export type PiInstallDeps = {
   home?: string;
   inspectNode?: () => NodeRuntimeInspection;
+  inspectHostTree?: (nodeModulesRoot: string) => PiHostTreeVerdict;
   lookPath?: typeof lookPath;
   readPiVersion?: (path: string) => string | null;
   resolveLatestVersion?: () => Promise<PiLatestVersionResolution>;
@@ -305,6 +306,64 @@ type BunGlobalTarget = {
   piPath: string;
 };
 
+type PiHostTreeRepairResult =
+  | { ok: true; repaired: boolean }
+  | { ok: false; detail: string };
+
+const PI_INTERNAL_PACKAGE_RE = /^@earendil-works\/[a-z0-9][a-z0-9._-]*$/;
+
+function targetEnvironment(target: BunGlobalTarget): Record<string, string> {
+  return {
+    BUN_INSTALL_GLOBAL_DIR: target.globalDir,
+    BUN_INSTALL_BIN: target.binDir,
+  };
+}
+
+function treeFailureDetail(verdict: Exclude<PiHostTreeVerdict, { coherent: true }>): string {
+  return verdict.failures
+    .map((failure) => `${failure.package}: ${failure.reason} (requerido ${failure.requiredRange ?? "?"}, instalado ${failure.installedVersion ?? "?"})`)
+    .join(" | ");
+}
+
+async function reconcilePiHostTree(
+  bun: string,
+  target: BunGlobalTarget,
+  managedPath: string[],
+  execute: typeof run,
+  inspect: (nodeModulesRoot: string) => PiHostTreeVerdict,
+): Promise<PiHostTreeRepairResult> {
+  const nodeModulesRoot = join(target.globalDir, "node_modules");
+  const before = inspect(nodeModulesRoot);
+  if (before.coherent) return { ok: true, repaired: false };
+
+  // Solo se reparan paquetes de la familia que el propio host declaró. Los
+  // demás paquetes globales pertenecen al usuario y quedan fuera del comando.
+  const packages = [...new Set(before.failures.map((failure) => failure.package))].sort();
+  if (packages.length === 0 || packages.some((name) => !PI_INTERNAL_PACKAGE_RE.test(name))) {
+    return { ok: false, detail: `árbol interno de Pi incoherente sin reparación segura: ${treeFailureDetail(before)}` };
+  }
+
+  const specs = packages.map((name) => `${name}@latest`);
+  const repaired = await execute(bun, ["install", "-g", ...specs], {
+    ...CAPTURED,
+    extraPath: managedPath,
+    env: targetEnvironment(target),
+  });
+  if (!repaired.ok) {
+    return {
+      ok: false,
+      detail: `reparación del árbol interno de Pi falló ('bun install -g ${specs.join(" ")}': ${why(repaired)})`,
+    };
+  }
+
+  // El comando terminado no es evidencia de reparación: solo la segunda
+  // lectura del árbol permite afirmar que el runtime ya puede cargar módulos.
+  const after = inspect(nodeModulesRoot);
+  return after.coherent
+    ? { ok: true, repaired: true }
+    : { ok: false, detail: `árbol interno de Pi sigue incoherente tras reparar: ${treeFailureDetail(after)}` };
+}
+
 function existingRedirectedPiTarget(
   canonicalBinDir: string,
   environment: Record<string, string | undefined>,
@@ -329,6 +388,7 @@ export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> 
   const localBinDir = join(home, ".local", "bin");
   const managedPath = [bunBinDir, localBinDir];
   const piPath = join(bunBinDir, "pi");
+  const canonicalTarget: BunGlobalTarget = { binDir: bunBinDir, globalDir: bunGlobalDir, piPath };
   const find = deps.lookPath ?? lookPath;
   const execute = deps.run ?? run;
   const node = (deps.inspectNode ?? inspectNodeRuntime)();
@@ -378,6 +438,10 @@ export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> 
     };
   }
 
+  const inspectHostTree = deps.inspectHostTree ?? ((root: string) => evaluatePiHostTree(root));
+  const canonicalTree = await reconcilePiHostTree(bun, canonicalTarget, managedPath, execute, inspectHostTree);
+  if (!canonicalTree.ok) return { ok: false, detail: canonicalTree.detail };
+
   // Alpha installers once honored a user-wide Bun redirection and could leave
   // a second Pi installation shadowing the canonical ~/.bun/bin runtime. Keep
   // an existing scoped copy in lockstep, but do not create a new redirected
@@ -400,9 +464,13 @@ export async function installPi(deps: PiInstallDeps = {}): Promise<InstallStep> 
       const observed = redirectedVersion ?? "no resoluble";
       return { ok: false, detail: `Pi latest quedó bifurcado: esperada ${latest.version}; canónico ${installedVersion}; copia Bun heredada ${observed}` };
     }
-    return { ok: true, detail: `pi ${installedVersion} instalado desde ${PI_HOST_SPEC}; copia Bun heredada reconciliada` };
+    const redirectedTree = await reconcilePiHostTree(bun, redirected, managedPath, execute, inspectHostTree);
+    if (!redirectedTree.ok) return { ok: false, detail: `copia Bun heredada: ${redirectedTree.detail}` };
+    const treeDetail = canonicalTree.repaired || redirectedTree.repaired ? "; árbol interno reconciliado" : "";
+    return { ok: true, detail: `pi ${installedVersion} instalado desde ${PI_HOST_SPEC}${treeDetail}; copia Bun heredada reconciliada` };
   }
-  return { ok: true, detail: `pi ${installedVersion} instalado desde ${PI_HOST_SPEC}` };
+  const treeDetail = canonicalTree.repaired ? "; árbol interno reconciliado" : "";
+  return { ok: true, detail: `pi ${installedVersion} instalado desde ${PI_HOST_SPEC}${treeDetail}` };
 }
 
 export type ClaudeCodeInstallDeps = {

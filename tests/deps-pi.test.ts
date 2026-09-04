@@ -24,6 +24,7 @@ import { PI_HOST_SPEC, PI_NODE_MIN_VERSION, PI_RUNTIME_DIST_TAG, REQUIRED_PI_PAC
 
 const DEPS_SOURCE = readFileSync(join(import.meta.dir, "..", "installer", "src", "core", "deps.ts"), "utf8");
 const SCOPED = "@earendil-works/pi-coding-agent";
+const COHERENT_HOST_TREE = { inspectHostTree: () => ({ coherent: true } as const) };
 
 describe("deps — pi siempre con scope", () => {
 	const deps = checkDeps(detectPlatform());
@@ -81,6 +82,7 @@ describe("deps — pi siempre con scope", () => {
 		const result = await installPi({
 			home,
 			runtimeEnv: {},
+			...COHERENT_HOST_TREE,
 			inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
 			lookPath: (command) => command === "bun" ? "/fake/bun" : null,
 			readPiVersion: (path) => {
@@ -106,6 +108,90 @@ describe("deps — pi siempre con scope", () => {
 		expect(result).toEqual({ ok: true, detail: `pi 9.8.7 instalado desde ${PI_HOST_SPEC}` });
 	});
 
+	test("installPi repara los paquetes internos que el host recién instalado deja fuera de rango", async () => {
+		const home = "/fake/home";
+		const calls: string[][] = [];
+		let inspections = 0;
+		const result = await installPi({
+			home,
+			runtimeEnv: {},
+			inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
+			lookPath: (command) => command === "bun" ? "/fake/bun" : null,
+			readPiVersion: () => "9.8.7",
+			resolveLatestVersion: async () => ({ ok: true, version: "9.8.7" }),
+			inspectHostTree: () => inspections++ === 0
+				? {
+					coherent: false,
+					failures: [
+						{
+							package: "@earendil-works/pi-agent-core",
+							reason: "versión instalada fuera del rango declarado",
+							requiredRange: "^0.85.0",
+							installedVersion: "0.78.0",
+							repairCommand: "bun install -g @earendil-works/pi-agent-core@latest",
+						},
+						{
+							package: "@earendil-works/pi-ai",
+							reason: "versión instalada fuera del rango declarado",
+							requiredRange: "^0.85.0",
+							installedVersion: "0.78.0",
+							repairCommand: "bun install -g @earendil-works/pi-ai@latest",
+						},
+					],
+				}
+				: { coherent: true },
+			run: async (_command, args) => {
+				calls.push(args ?? []);
+				return { ok: true, code: 0, stdout: "", stderr: "" };
+			},
+		});
+
+		expect(calls).toEqual([
+			["install", "-g", PI_HOST_SPEC],
+			[
+				"install",
+				"-g",
+				"@earendil-works/pi-agent-core@latest",
+				"@earendil-works/pi-ai@latest",
+			],
+		]);
+		expect(inspections).toBe(2);
+		expect(result).toEqual({
+			ok: true,
+			detail: `pi 9.8.7 instalado desde ${PI_HOST_SPEC}; árbol interno reconciliado`,
+		});
+	});
+
+	test("installPi nunca declara éxito si la reparación termina pero el árbol sigue incoherente", async () => {
+		const failure = {
+			package: "@earendil-works/pi-agent-core",
+			reason: "versión instalada fuera del rango declarado",
+			requiredRange: "^0.85.0",
+			installedVersion: "0.78.0",
+			repairCommand: "bun install -g @earendil-works/pi-agent-core@latest",
+		};
+		const calls: string[][] = [];
+		const result = await installPi({
+			home: "/fake/home",
+			runtimeEnv: {},
+			inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
+			lookPath: (command) => command === "bun" ? "/fake/bun" : null,
+			readPiVersion: () => "9.8.7",
+			resolveLatestVersion: async () => ({ ok: true, version: "9.8.7" }),
+			inspectHostTree: () => ({ coherent: false, failures: [failure] }),
+			run: async (_command, args) => {
+				calls.push(args ?? []);
+				return { ok: true, code: 0, stdout: "", stderr: "" };
+			},
+		});
+
+		expect(calls).toHaveLength(2);
+		expect(result.ok).toBe(false);
+		expect(result.detail).toContain("sigue incoherente");
+		expect(result.detail).toContain("@earendil-works/pi-agent-core");
+		expect(result.detail).not.toContain("instalado desde");
+	});
+
 	test("reconcilia una copia Bun redirigida existente sin crear otra por accidente", async () => {
 		const home = mkdtempSync(join(tmpdir(), "ein-pi-redirected-"));
 		try {
@@ -128,6 +214,7 @@ describe("deps — pi siempre con scope", () => {
 					BUN_INSTALL_BIN: redirectedBin,
 					BUN_INSTALL_GLOBAL_DIR: redirectedGlobal,
 				},
+				...COHERENT_HOST_TREE,
 				inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
 				lookPath: (command) => command === "bun" ? "/fake/bun" : null,
 				readPiVersion: (path) => {
@@ -155,6 +242,72 @@ describe("deps — pi siempre con scope", () => {
 			expect(result).toEqual({
 				ok: true,
 				detail: `pi 9.8.7 instalado desde ${PI_HOST_SPEC}; copia Bun heredada reconciliada`,
+			});
+		} finally {
+			rmSync(home, { recursive: true, force: true });
+		}
+	});
+
+	test("repara también el árbol interno de una copia Bun heredada", async () => {
+		const home = mkdtempSync(join(tmpdir(), "ein-pi-redirected-tree-"));
+		try {
+			const redirectedBin = join(home, ".omarchy", "bun", "bin");
+			const redirectedGlobal = join(home, ".omarchy", "bun", "global");
+			const redirectedPi = join(redirectedBin, "pi");
+			mkdirSync(join(redirectedGlobal, "node_modules", "@earendil-works", "pi-coding-agent"), { recursive: true });
+			mkdirSync(redirectedBin, { recursive: true });
+			writeFileSync(redirectedPi, "fixture");
+			writeFileSync(
+				join(redirectedGlobal, "node_modules", "@earendil-works", "pi-coding-agent", "package.json"),
+				JSON.stringify({ name: "@earendil-works/pi-coding-agent", version: "0.1.0" }),
+			);
+
+			const canonicalRoot = join(home, ".bun", "install", "global", "node_modules");
+			const redirectedRoot = join(redirectedGlobal, "node_modules");
+			let redirectedInspections = 0;
+			const calls: Array<{ args: string[]; globalDir: string | undefined }> = [];
+			const result = await installPi({
+				home,
+				runtimeEnv: {
+					BUN_INSTALL_BIN: redirectedBin,
+					BUN_INSTALL_GLOBAL_DIR: redirectedGlobal,
+				},
+				inspectNode: () => ({ path: "/fake/node", version: `v${PI_NODE_MIN_VERSION}`, compatible: true }),
+				lookPath: (command) => command === "bun" ? "/fake/bun" : null,
+				readPiVersion: () => "9.8.7",
+				resolveLatestVersion: async () => ({ ok: true, version: "9.8.7" }),
+				inspectHostTree: (root) => {
+					if (root === canonicalRoot) return { coherent: true };
+					expect(root).toBe(redirectedRoot);
+					redirectedInspections += 1;
+					return redirectedInspections === 1
+						? {
+							coherent: false,
+							failures: [{
+								package: "@earendil-works/pi-agent-core",
+								reason: "versión instalada fuera del rango declarado",
+								requiredRange: "^0.85.0",
+								installedVersion: "0.78.0",
+								repairCommand: "bun install -g @earendil-works/pi-agent-core@latest",
+							}],
+						}
+						: { coherent: true };
+				},
+				run: async (_command, args, options) => {
+					calls.push({ args: args ?? [], globalDir: options?.env?.BUN_INSTALL_GLOBAL_DIR });
+					return { ok: true, code: 0, stdout: "", stderr: "" };
+				},
+			});
+
+			expect(calls).toEqual([
+				{ args: ["install", "-g", PI_HOST_SPEC], globalDir: join(home, ".bun", "install", "global") },
+				{ args: ["install", "-g", PI_HOST_SPEC], globalDir: redirectedGlobal },
+				{ args: ["install", "-g", "@earendil-works/pi-agent-core@latest"], globalDir: redirectedGlobal },
+			]);
+			expect(redirectedInspections).toBe(2);
+			expect(result).toEqual({
+				ok: true,
+				detail: `pi 9.8.7 instalado desde ${PI_HOST_SPEC}; árbol interno reconciliado; copia Bun heredada reconciliada`,
 			});
 		} finally {
 			rmSync(home, { recursive: true, force: true });
