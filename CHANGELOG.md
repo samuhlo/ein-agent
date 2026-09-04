@@ -4,6 +4,32 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.95.0-alpha.4] - 2026-09-04
+
+### Fixed
+
+- **Los Apply Packets aceptan sintaxis TypeScript decidida.** Genéricos como
+  `Record<string, unknown>`, comparadores escritos con espacios y el operador
+  `??` ya no se confunden con placeholders o decisiones pendientes; los
+  marcadores reales siguen bloqueando el encargo.
+- **Scout conserva el trabajo útil de un modelo barato.** Los alias seguros
+  observados en producción se canonicalizan antes del cierre estricto, las
+  mezclas ambiguas continúan rechazándose y cada error de forma nombra la clave
+  que debe corregirse.
+- **El árbol interno de Pi se detecta y repara durante install/update.** Ein
+  comprueba los rangos que declara el host, actualiza solo los paquetes
+  `@earendil-works/*` incompatibles y vuelve a leer los manifiestos antes de
+  declarar éxito. El doctor verifica la misma coherencia de forma independiente.
+- **El aviso de grupos grandes cuenta escritura real.** Las rutas citadas como
+  contexto de lectura o dentro de explicaciones ya no inflan el número de
+  archivos que un grupo de Apply declara modificar.
+
+### Release
+
+- **El smoke publicado actualiza desde `0.95.0-alpha.3`.** La comprobación final
+  descarga los assets públicos, ejecuta el update real y exige que la nueva
+  instalación termine con el doctor en verde.
+
 ## [0.95.0-alpha.3] - 2026-09-03
 
 ### Fixed
