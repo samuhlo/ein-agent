@@ -9,6 +9,13 @@ Given: a scout branch exits successfully with `wrapUpRequested: true`, a `turnBu
 When: the local scout adapter consumes the branch
 Then: only the exact reconstructed note is removed, the JSON still passes the complete `ein-scout-report/v1` validation, the wrap-up provenance reaches the parent as an uncertainty, and any mismatched preamble remains off-contract
 
+## Scenario: accept-safe-cheap-model-report-variants
+title: Accept the safe natural variants of a cheap model report without weakening the citation gold
+requirement: The system MUST normalize a scout report that names the contract version under a top-level `schema` key, cites a reference range as `lineStart`/`lineEnd`, names the supporting text as `quote`, carries an extra `id` key inside a finding, or declares an empty `uncertainties` list as an explicit absence of uncertainty. The system MUST reject as ambiguous any report that carries both `schema` and `version`, or both `lines` and `lineStart`/`lineEnd`, or both `quote` and `supports`. The system MUST NOT synthesize a missing `summary` or `summaryReferenceIds`, and MUST keep validating every citation against the real file and line on disk.
+Given: a cheap model returns a schema-valid scout report expressed in one of the measured natural variants, or a report that carries an alias together with its canonical key
+When: the local scout adapter parses and validates the report
+Then: each safe variant is normalized to the canonical report shape and accepted, an empty uncertainty list is accepted as an explicit absence, a report mixing an alias with its canonical key is rejected as ambiguous, a report missing `summary` or `summaryReferenceIds` is still rejected, and disk citation validation stays unchanged
+
 ## Scenario: construct-bounded-research-packet
 title: Construct a bounded research packet
 requirement: The system MUST ensure that each delegated research request provides a bounded RESEARCH PACKET with finite inputs, budgets, and requested outputs.
@@ -50,6 +57,13 @@ requirement: The system MUST ensure that the parent performs no more than two ro
 Given: a pre-scope request meets a scout delegation boundary
 When: the parent gathers enough information to route the request
 Then: the parent performs at most two routing reads before delegation
+
+## Scenario: live-smoke-proves-three-branch-scout-fan-out
+title: Prove the fan-out end to end in the live smoke
+requirement: The system MUST make the live scout smoke launch a three-branch `ein-scout` fan-out and require all three returned reports to pass the report contract. The system MUST make the smoke observer recognize a scout launch through the same delegation shape logic as the contract, so a `workflowScript` fan-out is tracked exactly like a direct launch. The system MUST fail the smoke when more than one tracked tool result is observed for the fan-out call, and MUST fail it when the run selects a model other than the configured one.
+Given: the opt-in live scout smoke runs against a configured cheap model with a present provider credential
+When: the smoke launches one foreground fan-out of three independent read-only scout branches
+Then: the observer tracks the `workflowScript` launch, exactly one tool result is captured for that call, all three branch reports pass validation against the controlled evidence, and any retry or implicit model fallback fails the smoke
 
 ## Scenario: off-contract-scout-result-does-not-free-the-turn
 title: Stop scout relaunch loops while preserving runtime startup failures
