@@ -8,6 +8,12 @@ import {
   readInstalledPiPackageVersion,
   REQUIRED_PI_PACKAGES,
 } from "./runtime-compat.ts";
+import {
+  evaluatePiHostTree,
+  resolvePiHostRoot,
+  type EvaluatePiHostTreeDeps,
+  type ResolvePiHostRootDeps,
+} from "./pi-host-tree.ts";
 
 export type DoctorCheckLevel = "OK" | "WARN" | "FAIL";
 export type DoctorCheckResult = {
@@ -83,6 +89,7 @@ export type CommonDoctorInspection = {
   checks: {
     core: DoctorCheckResult[];
     piPackages: DoctorCheckResult[];
+    piHostTree: DoctorCheckResult[];
     mcp: DoctorCheckResult[];
     skills: DoctorCheckResult[];
     guardrails: DoctorCheckResult[];
@@ -91,11 +98,31 @@ export type CommonDoctorInspection = {
   evidence: { engramCommand: string | null };
 };
 
+// GUARD -> agentDir es el runtime aislado de Ein (extensiones), no el root de
+// instalación del host Pi. El ancla por defecto es el propio bundle en
+// ejecución (process.argv[1]); una búsqueda mínima en PATH es el segundo
+// intento. Ambos son inyectables para test.
+function findPiOnPath(): string | null {
+  const pathDirs = (process.env.PATH ?? "").split(":").filter(Boolean);
+  for (const dir of pathDirs) {
+    const candidate = join(dir, "pi");
+    try {
+      if (statSync(candidate).isFile()) return candidate;
+    } catch {
+      // no encontrado en este directorio, sigue
+    }
+  }
+  return null;
+}
+
 export function inspectCommonDoctor(input: {
   agentDir: string;
   linearCwd: string;
   localSkillsDir: string;
   downloadedSkillsDir: string;
+  piHostAnchor?: string | null;
+  piHostRootDeps?: ResolvePiHostRootDeps;
+  piHostTreeDeps?: EvaluatePiHostTreeDeps;
 }): CommonDoctorInspection {
   const { agentDir } = input;
   const brandFile = join(agentDir, "brand.json");
@@ -141,6 +168,11 @@ export function inspectCommonDoctor(input: {
   );
   const personaRaw = readDoctorText(join(agentDir, "lib", "persona.ts"));
   const linearInspection = inspectLinearIntegration(input.linearCwd, agentDir);
+  const piHostAnchor = input.piHostAnchor !== undefined
+    ? input.piHostAnchor
+    : (process.argv[1] ?? findPiOnPath());
+  const piHostRoot = resolvePiHostRoot(piHostAnchor, input.piHostRootDeps);
+  const piHostTreeVerdict = evaluatePiHostTree(piHostRoot, input.piHostTreeDeps);
   const hasDynamicLinearPrompt =
     agentPromptRaw.includes("buildEinPrompt(") &&
     agentPromptRaw.includes("readLinearIntegration(ctx.cwd)");
@@ -202,6 +234,20 @@ export function inspectCommonDoctor(input: {
             : `Declaración ${spec}; paquete no instalado en el runtime aislado.`,
         );
       }),
+      // Grupo separado de piPackages a propósito: piPackages son las
+      // extensiones que Ein declara (agentDir/npm/...); este es el árbol
+      // interno @earendil-works del host Pi ya instalado, otro root. Fundir
+      // ambos reproduciría el incidente: un doctor viendo verde donde el
+      // otro root está roto.
+      piHostTree: piHostTreeVerdict.coherent
+        ? [doctorCheck(true, "pi host tree", "Árbol interno @earendil-works del host coherente.")]
+        : piHostTreeVerdict.failures.map((f) =>
+            doctorCheck(
+              false,
+              `pi host tree ${f.package}`,
+              `${f.reason} (requerido ${f.requiredRange ?? "?"}, instalado ${f.installedVersion ?? "?"}) -> ${f.repairCommand}`,
+            ),
+          ),
       mcp: [
         doctorCheck(existsSync(mcpFile), "mcp.json", "Archivo MCP presente."),
         doctorCheck(mcp.ok, "mcp.json parse", "JSON MCP válido."),
