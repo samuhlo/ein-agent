@@ -40,8 +40,11 @@ quality:
   lint: ""
   lint_commands:
     []
-  typecheck: "cd installer && bun run typecheck"
+  typecheck: "bun run typecheck && (cd installer && bun run typecheck)"
   typecheck_commands:
+    - scope: "root"
+      command: "bun run typecheck"
+      framework: "type checker"
     - scope: "installer"
       command: "cd installer && bun run typecheck"
       framework: "type checker"
