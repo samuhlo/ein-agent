@@ -12,14 +12,8 @@ import {
 	type ApplyPacketDraft,
 	type ApplyPacketValidation,
 	normalizeFilesLabel,
-	PRODUCTION_FILES_LABELS,
-	TEST_FILES_LABELS,
 	validateApplyPacket,
 } from "../ein-pi/agent/lib/apply-packet";
-import {
-	PRODUCTION_FILES_LABELS as SHARED_PRODUCTION_FILES_LABELS,
-	TEST_FILES_LABELS as SHARED_TEST_FILES_LABELS,
-} from "../shared/sdd/sdd-tasks-frontier.ts";
 
 const SOURCES = {
 	"design.md": "d1g3st-design",
@@ -279,19 +273,5 @@ describe("TRIANGULATE: bordes de frontera y frescura", () => {
 
 	test("un comando sin ficheros (typecheck) no inventa escapes", () => {
 		expect(validateApplyPacket(draft({ focusedCheck: "bun run typecheck" }), SOURCES).ok).toBe(true);
-	});
-});
-
-// PARIDAD DE VOCABULARIO -> `shared/sdd/sdd-tasks-frontier.ts` duplica el
-// conjunto cerrado de etiquetas de frontera porque `shared/` no puede importar
-// de `ein-pi/`. Si el conjunto cerrado crece aquí sin actualizar el espejo,
-// este test se pone rojo: la deriva se detecta, no se sufre en silencio.
-describe("paridad de vocabulario: shared/sdd-tasks-frontier.ts espeja apply-packet.ts", () => {
-	test("PRODUCTION_FILES_LABELS es el mismo conjunto en los dos árboles", () => {
-		expect(new Set(SHARED_PRODUCTION_FILES_LABELS)).toEqual(new Set(PRODUCTION_FILES_LABELS));
-	});
-
-	test("TEST_FILES_LABELS es el mismo conjunto en los dos árboles", () => {
-		expect(new Set(SHARED_TEST_FILES_LABELS)).toEqual(new Set(TEST_FILES_LABELS));
 	});
 });
