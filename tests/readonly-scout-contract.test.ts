@@ -156,8 +156,86 @@ describe("readonly scout report validation", () => {
 		expect(validateScoutReport([report({ references: [{ id: "R1", path: "evidence.ts", lines: "2", supports: "line two" }] })], root).references[0])
 			.toEqual({ id: "R1", path: "evidence.ts", startLine: 2, endLine: 2, supports: "line two" });
 		// El oro sigue estricto donde el modelo no puede tener razón: un `lines` no
-		// numérico no es una cita, es otra cosa.
+		// numérico no es una cita, es otra cosa. El mensaje ahora nombra R1: sin eso,
+		// el fallo era mudo y el segundo intento no tenía qué corregir.
 		expect(() => validateScoutReport([report({ references: [{ id: "R1", path: "evidence.ts", lines: "abc", supports: "x" }] })], root)).toThrow("invalid reference");
+		expect(() => validateScoutReport([report({ references: [{ id: "R1", path: "evidence.ts", lines: "abc", supports: "x" }] })], root)).toThrow("R1");
+	});
+
+	// `// 002`: tercera forma de rango, alias del texto de apoyo, y ambigüedad
+	// nombrada. Mismo trato que `lines` en 0.30.0 — renombrar no es fabricar.
+	test("acepta `lineStart`/`lineEnd` normalizados a `startLine`/`endLine`", () => {
+		const root = fixture();
+		const validated = validateScoutReport([report({
+			references: [{ id: "R1", path: "evidence.ts", lineStart: 1, lineEnd: 3, supports: "lines 1 through 3" }],
+		})], root);
+		expect(validated.references[0]).toEqual({ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, supports: "lines 1 through 3" });
+	});
+
+	test("acepta `quote` como alias de `supports`", () => {
+		const root = fixture();
+		const validated = validateScoutReport([report({
+			references: [{ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, quote: "lines 1 through 3" }],
+		})], root);
+		expect(validated.references[0]).toEqual({ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, supports: "lines 1 through 3" });
+	});
+
+	test("rechaza `lineStart` junto a `startLine` nombrando R1 y ambas claves", () => {
+		const root = fixture();
+		expect(() => validateScoutReport([report({
+			references: [{ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, lineStart: 1, lineEnd: 3, supports: "x" }],
+		})], root)).toThrow("invalid reference");
+		try {
+			validateScoutReport([report({
+				references: [{ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, lineStart: 1, lineEnd: 3, supports: "x" }],
+			})], root);
+			throw new Error("expected validateScoutReport to throw");
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			expect(message).toContain("R1");
+			expect(message).toContain("lineStart");
+			expect(message).toContain("startLine");
+		}
+	});
+
+	test("rechaza `quote` junto a `supports` nombrando ambas claves", () => {
+		const root = fixture();
+		expect(() => validateScoutReport([report({
+			references: [{ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, quote: "x", supports: "y" }],
+		})], root)).toThrow("invalid reference");
+		try {
+			validateScoutReport([report({
+				references: [{ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, quote: "x", supports: "y" }],
+			})], root);
+			throw new Error("expected validateScoutReport to throw");
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			expect(message).toContain("quote");
+			expect(message).toContain("supports");
+		}
+	});
+
+	// TRIANGULATE: el alias renombra, no indulta — un `quote` demasiado largo
+	// sigue muriendo en la misma cota de `supports` (checkReference, ≤500).
+	test("`quote` sigue pasando por la cota de longitud de `supports`", () => {
+		const root = fixture();
+		expect(() => validateScoutReport([report({
+			references: [{ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, quote: "x".repeat(501) }],
+		})], root)).toThrow("invalid reference");
+	});
+
+	test("rechaza `lineStart` sin `lineEnd` nombrando la clave que falta", () => {
+		const root = fixture();
+		try {
+			validateScoutReport([report({
+				references: [{ id: "R1", path: "evidence.ts", lineStart: 1, supports: "x" }],
+			})], root);
+			throw new Error("expected validateScoutReport to throw");
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			expect(message).toContain("invalid reference");
+			expect(message).toContain("lineEnd");
+		}
 	});
 
 	// R1. El fallo medido en producción: dos reportes buenos descartados enteros
@@ -194,13 +272,82 @@ describe("readonly scout report validation", () => {
 		expect(message).toContain("3");
 	});
 
-	test("fails closed for missing, multiple, malformed, oversized, and uncertain reports", () => {
+	test("fails closed for missing, multiple, malformed, and oversized reports", () => {
 		const root = fixture();
 		expect(() => validateScoutReport([], root)).toThrow("missing");
 		expect(() => validateScoutReport([report(), report()], root)).toThrow("multiple");
 		expect(() => validateScoutReport(["{"], root)).toThrow("malformed");
 		expect(() => validateScoutReport(["x".repeat(SCOUT_REPORT_MAX_BYTES + 1)], root)).toThrow("exceeds");
-		expect(() => validateScoutReport([report({ uncertainties: [] })], root)).toThrow("invalid report schema");
+	});
+
+	// D4: transición RED->GREEN. Antes `uncertainties: []` moría en "invalid
+	// report schema"; ahora es una afirmación firmada de que el scout MIRÓ y no
+	// encontró nada material — distinto de la clave ausente, que sigue siendo
+	// olvido y sigue muriendo en el cierre.
+	test("D4: uncertainties vacío normaliza a una declaración explícita de ausencia; la clave ausente sigue muriendo", () => {
+		const root = fixture();
+		const normalized = validateScoutReport([report({ uncertainties: [] })], root);
+		expect(normalized.uncertainties).toEqual([{ level: "none", statement: "el scout declaró explícitamente que no hay incertidumbre material" }]);
+
+		const { uncertainties: _uncertainties, ...withoutUncertainties } = report();
+		void _uncertainties;
+		expect(() => validateScoutReport([withoutUncertainties], root)).toThrow(`missing "uncertainties"`);
+	});
+
+	// D1/D2: `schema` es la forma que un modelo barato usa para nombrar la
+	// versión, y algunos meten un `id` decorativo en cada finding. Se
+	// normalizan a la forma canónica ANTES del cierre estricto en vez de
+	// relajar `closed`, que dejaría claves no canónicas viajando hasta el padre.
+	test("D1/D2: acepta `schema` en la raíz e `id` sobrante en un finding, normalizados a la forma canónica", () => {
+		const root = fixture();
+		const { version: _version, ...withoutVersion } = report();
+		void _version;
+		const bySchema = validateScoutReport([{ ...withoutVersion, schema: "ein-scout-report/v1" }], root);
+		expect(bySchema.version).toBe("ein-scout-report/v1");
+		expect(bySchema).not.toHaveProperty("schema");
+
+		const withFindingId = validateScoutReport([report({ findings: [{ ...report().findings[0], id: "F1" }] })], root);
+		expect(withFindingId.findings[0]).toEqual({ claim: report().findings[0]!.claim, referenceIds: report().findings[0]!.referenceIds });
+	});
+
+	// D3: la ambigüedad no se resuelve en silencio. Elegir entre dos valores
+	// que el modelo escribió distintos sería fabricar contenido, así que el
+	// contrato falla nombrando las dos claves en conflicto.
+	test("D3: `schema` + `version` a la vez se rechaza nombrando ambas claves", () => {
+		const root = fixture();
+		expect(() => validateScoutReport([{ ...report(), schema: "ein-scout-report/v1" }], root))
+			.toThrow(/invalid report schema.*"schema".*"version"/);
+	});
+
+	test("todo rechazo de forma en la raíz o en un finding nombra la clave culpable", () => {
+		const root = fixture();
+		const { summary: _summary, ...withoutSummary } = report();
+		void _summary;
+		expect(() => validateScoutReport([withoutSummary], root)).toThrow(/invalid report schema.*summary/);
+		expect(() => validateScoutReport([report({ findings: [{ ...report().findings[0], extra: "nope" }] })], root))
+			.toThrow(/invalid finding.*extra/);
+	});
+
+	// D3-triangulación: renombrar una clave no compra permiso sobre su valor.
+	// Aceptar `schema` como nombre de la versión no puede aceptar un valor de
+	// versión distinto — el valor sigue pasando por la misma cota de siempre.
+	test("D3-triangulate: el alias `schema` sigue exigiendo el valor canónico de versión", () => {
+		const root = fixture();
+		const { version: _version, ...withoutVersion } = report();
+		void _version;
+		expect(() => validateScoutReport([{ ...withoutVersion, schema: "otra-cosa/v9" }], root)).toThrow("invalid report schema");
+	});
+
+	test("D3-triangulate: un finding con `id` Y otra clave sobrante nombra la otra clave, no `id`", () => {
+		const root = fixture();
+		let message = "";
+		try {
+			validateScoutReport([report({ findings: [{ ...report().findings[0], id: "F1", extra: "nope" }] })], root);
+		} catch (error) {
+			message = error instanceof Error ? error.message : String(error);
+		}
+		expect(message).toContain("invalid finding");
+		expect(message).toContain("extra");
 	});
 
 	// La coherencia INTERNA sigue estricta: es determinista, gratis, y es

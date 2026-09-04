@@ -144,25 +144,123 @@ function normalizeUncertainty(value: unknown): { level: string; statement: strin
 	return null;
 }
 
-// El mismo modelo emite la referencia con un único campo `lines` ("N" o "N-M")
-// en vez de `startLine`/`endLine` enteros. Se acepta y se normaliza a la forma
-// canónica; los tipos de id/path/supports los revalida `validateReference`
-// (regex, cotas, existencia en disco) — el oro no se relaja.
-function normalizeReference(value: unknown): { id: unknown; path: unknown; startLine: number; endLine: number; supports: unknown } | null {
-	if (!isRecord(value)) return null;
-	if ("startLine" in value || "endLine" in value) {
-		return closed(value, ["id", "path", "startLine", "endLine", "supports"])
-			? { id: value.id, path: value.path, startLine: value.startLine as number, endLine: value.endLine as number, supports: value.supports }
-			: null;
+type NormalizedReference = { id: unknown; path: unknown; startLine: number; endLine: number; supports: unknown };
+// `// 002`: devolver `null` en un rechazo tira justo lo que el segundo intento
+// necesita para corregirse. `reason` cuesta lo mismo de escribir y convierte un
+// fallo mudo en uno corregible (D3).
+type NormalizeReferenceResult = { ok: true; value: NormalizedReference } | { ok: false; reason: string };
+
+// El mismo modelo emite la referencia con un único campo `lines` ("N" o "N-M"),
+// con `lineStart`/`lineEnd` en vez de enteros `startLine`/`endLine`, o con
+// `quote` en vez de `supports`. Las tres se aceptan y se normalizan a la forma
+// canónica; los tipos de id/path/supports los revalida `checkReference` (regex,
+// cotas, existencia en disco) — el oro no se relaja aquí, solo se lee la forma.
+//
+// Mezclar dos formas de rango, o `quote` junto a `supports`, es AMBIGÜEDAD:
+// el modelo escribió dos verdades distintas y elegir una en silencio sería
+// fabricar contenido (D3). Se rechaza nombrando ambas claves en conflicto.
+function normalizeReference(value: unknown): NormalizeReferenceResult {
+	if (!isRecord(value)) return { ok: false, reason: "not an object" };
+
+	const hasStartEnd = "startLine" in value || "endLine" in value;
+	const hasLines = "lines" in value;
+	const hasLineStartEnd = "lineStart" in value || "lineEnd" in value;
+	const rangeForms = [hasStartEnd, hasLines, hasLineStartEnd].filter(Boolean).length;
+	if (rangeForms > 1) {
+		const present = [
+			hasStartEnd ? "startLine/endLine" : null,
+			hasLines ? "lines" : null,
+			hasLineStartEnd ? "lineStart/lineEnd" : null,
+		].filter((form): form is string => form !== null);
+		return { ok: false, reason: `"${present[0]}" and "${present[1]}" are both present; keep only one range form` };
 	}
-	if (closed(value, ["id", "path", "lines", "supports"]) && typeof value.lines === "string") {
+
+	let startLine: number;
+	let endLine: number;
+	if (hasStartEnd) {
+		if (!("startLine" in value)) return { ok: false, reason: `missing "startLine"` };
+		if (!("endLine" in value)) return { ok: false, reason: `missing "endLine"` };
+		startLine = value.startLine as number;
+		endLine = value.endLine as number;
+	} else if (hasLineStartEnd) {
+		if (!("lineStart" in value)) return { ok: false, reason: `missing "lineStart"` };
+		if (!("lineEnd" in value)) return { ok: false, reason: `missing "lineEnd"` };
+		startLine = value.lineStart as number;
+		endLine = value.lineEnd as number;
+	} else if (hasLines) {
+		if (typeof value.lines !== "string") return { ok: false, reason: `"lines" must be a string` };
 		const match = /^(\d+)\s*(?:-\s*(\d+))?$/.exec(value.lines.trim());
-		if (!match) return null;
-		const startLine = Number(match[1]);
-		const endLine = match[2] ? Number(match[2]) : startLine;
-		return { id: value.id, path: value.path, startLine, endLine, supports: value.supports };
+		if (!match) return { ok: false, reason: `"lines" is not a valid line range` };
+		startLine = Number(match[1]);
+		endLine = match[2] ? Number(match[2]) : startLine;
+	} else {
+		return { ok: false, reason: "no recognized line range form" };
 	}
-	return null;
+
+	const hasQuote = "quote" in value;
+	const hasSupports = "supports" in value;
+	if (hasQuote && hasSupports) return { ok: false, reason: `"quote" and "supports" are both present; keep only "supports"` };
+	const supports = hasQuote ? value.quote : value.supports;
+
+	const rangeKeys = hasStartEnd ? ["startLine", "endLine"] : hasLineStartEnd ? ["lineStart", "lineEnd"] : ["lines"];
+	const supportsKey = hasQuote ? "quote" : "supports";
+	if (!closed(value, ["id", "path", ...rangeKeys, supportsKey])) return { ok: false, reason: "unexpected key in reference" };
+
+	return { ok: true, value: { id: value.id, path: value.path, startLine, endLine, supports } };
+}
+
+const CANONICAL_ROOT_KEYS = ["version", "summary", "summaryReferenceIds", "findings", "references", "uncertainties"] as const;
+
+// D1: la normalización de forma vive AQUÍ, delante de `closed`, no dentro de
+// él. `closed` es el cierre — la única garantía de que ninguna clave que nadie
+// mira sobrevive hasta el JSON que se entrega al padre. Relajarlo para aceptar
+// alias abriría exactamente esa fuga; normalizar antes mantiene una sola
+// definición de "reporte canónico" y deja el cierre intacto.
+function canonicalizeReport(report: Record<string, unknown>): Record<string, unknown> {
+	const canonical: Record<string, unknown> = { ...report };
+
+	// Alias de raíz: un modelo barato nombra la versión `schema`. Renombrar es
+	// tolerar la forma; aceptar `schema` y `version` a la vez con valores
+	// distintos sería elegir en silencio cuál de las dos verdades del modelo
+	// vale, y eso es fabricar contenido (D3) — se rechaza nombrando ambas.
+	if ("schema" in canonical) {
+		if ("version" in canonical) fail(`invalid report schema: "schema" and "version" are both present; keep only "version"`);
+		canonical.version = canonical.schema;
+		delete canonical.schema;
+	}
+
+	for (const key of CANONICAL_ROOT_KEYS) if (!(key in canonical)) fail(`invalid report schema: missing "${key}"`);
+	for (const key of Object.keys(canonical)) if (!(CANONICAL_ROOT_KEYS as readonly string[]).includes(key)) fail(`invalid report schema: unexpected key "${key}"`);
+
+	// D4: la clave AUSENTE sigue siendo olvido y muere arriba en `missing
+	// "uncertainties"`. El array PRESENTE pero vacío es otra cosa: el scout miró
+	// y no encontró nada material, y esa afirmación necesita quedar escrita —
+	// una lista vacía aguas abajo se lee igual que "este campo no aplica",
+	// perdiendo el trabajo que el scout sí hizo. Se normaliza aquí, antes de la
+	// cota `length >= 1` de `parseReport`, que se queda intacta sobre el objeto
+	// ya normalizado.
+	if (Array.isArray(canonical.uncertainties) && canonical.uncertainties.length === 0) {
+		canonical.uncertainties = [{ level: "none", statement: "el scout declaró explícitamente que no hay incertidumbre material" }];
+	}
+
+	// Cada finding se RECONSTRUYE, no se valida in situ: es lo único que
+	// garantiza que un `id` decorativo (o cualquier otra clave) no sobreviva
+	// por un spread más adelante. El `id` se descarta sin inspeccionar su
+	// valor porque no tiene destino — el tipo `Report` no le da sitio y ningún
+	// `referenceIds` lo apunta; validar un dato que se tira es ceremonia.
+	// Cualquier OTRA clave sobrante sí se rechaza, nombrada.
+	if (Array.isArray(canonical.findings)) {
+		canonical.findings = canonical.findings.map((finding) => {
+			if (!isRecord(finding)) return finding;
+			const { id: _id, claim, referenceIds, ...rest } = finding;
+			void _id;
+			const extra = Object.keys(rest);
+			if (extra.length > 0) fail(`invalid finding: unexpected key "${extra[0]}"`);
+			return { claim, referenceIds };
+		});
+	}
+
+	return canonical;
 }
 
 function parseReport(payload: unknown): Report {
@@ -170,14 +268,28 @@ function parseReport(payload: unknown): Report {
 	if (Buffer.byteLength(raw, "utf8") > SCOUT_REPORT_MAX_BYTES) fail("report exceeds 16384 UTF-8 bytes");
 	let report: unknown;
 	try { report = typeof payload === "string" ? JSON.parse(payload) : payload; } catch { fail("malformed structured report"); }
-	if (!isRecord(report) || !closed(report, ["version", "summary", "summaryReferenceIds", "findings", "references", "uncertainties"])) fail("invalid report schema");
-	if (report.version !== "ein-scout-report/v1" || !boundedString(report.summary, 2000) || !uniqueStrings(report.summaryReferenceIds, 1, 8) || !Array.isArray(report.findings) || report.findings.length < 1 || report.findings.length > 12 || !Array.isArray(report.references) || report.references.length < 1 || report.references.length > 24 || !Array.isArray(report.uncertainties) || report.uncertainties.length < 1 || report.uncertainties.length > 8) fail("invalid report schema");
-	for (const finding of report.findings) if (!isRecord(finding) || !closed(finding, ["claim", "referenceIds"]) || !boundedString(finding.claim, 1000) || !uniqueStrings(finding.referenceIds, 1, 8)) fail("invalid finding");
-	const references = report.references.map(normalizeReference);
-	if (references.some((reference) => reference === null)) fail("invalid reference");
-	const uncertainties = report.uncertainties.map(normalizeUncertainty);
+	if (!isRecord(report)) fail("invalid report schema");
+	const canonical = canonicalizeReport(report);
+	if (!closed(canonical, CANONICAL_ROOT_KEYS as unknown as string[])) fail("invalid report schema");
+	if (canonical.version !== "ein-scout-report/v1" || !boundedString(canonical.summary, 2000) || !uniqueStrings(canonical.summaryReferenceIds, 1, 8) || !Array.isArray(canonical.findings) || canonical.findings.length < 1 || canonical.findings.length > 12 || !Array.isArray(canonical.references) || canonical.references.length < 1 || canonical.references.length > 24 || !Array.isArray(canonical.uncertainties) || canonical.uncertainties.length < 1 || canonical.uncertainties.length > 8) fail("invalid report schema");
+	for (const finding of canonical.findings) if (!isRecord(finding) || !boundedString(finding.claim, 1000) || !uniqueStrings(finding.referenceIds, 1, 8)) fail("invalid finding");
+	const rawReferences = canonical.references;
+	// R3: el rechazo nombra la referencia (por id, cuando lo trae) y su causa
+	// concreta, en vez del "invalid reference" mudo de antes — un mensaje sin
+	// nombre solo permite relanzar a ciegas.
+	const references: NormalizedReference[] = [];
+	for (let index = 0; index < rawReferences.length; index += 1) {
+		const normalized = normalizeReference(rawReferences[index]);
+		if (!normalized.ok) {
+			const raw = rawReferences[index];
+			const id = isRecord(raw) && typeof raw.id === "string" ? raw.id : "?";
+			fail(`invalid reference ${id}: ${normalized.reason}`);
+		}
+		references.push(normalized.value);
+	}
+	const uncertainties = canonical.uncertainties.map(normalizeUncertainty);
 	if (uncertainties.some((uncertainty) => uncertainty === null)) fail("missing or invalid uncertainty");
-	return { ...report, references, uncertainties } as Report;
+	return { ...canonical, references, uncertainties } as Report;
 }
 
 // R2. El mensaje dice QUÉ cita falla. Antes era "reference line range is

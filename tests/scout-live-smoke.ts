@@ -1,7 +1,8 @@
 import { copyFileSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { validateScoutReport } from "../ein-pi/agent/lib/scout-contract.ts";
+import { acceptTrackedScoutResult, normalizeScoutLaunch, type ScoutTracking } from "../ein-pi/agent/lib/scout-contract.ts";
+import { readAccountingReport } from "../ein-pi/agent/lib/session-accounting-store.ts";
 import { REQUIRED_PI_PACKAGES } from "../shared/contracts/runtime-compat.ts";
 
 const ROOT = join(import.meta.dir, "..");
@@ -39,39 +40,17 @@ function smokeConfiguration(): SmokeConfiguration {
 	return { model, credentialEnv, credential: process.env[credentialEnv]!, piBinary };
 }
 
-function reportPayload(details: unknown): unknown {
-	if (
-		typeof details !== "object" ||
-		details === null ||
-		Array.isArray(details) ||
-		(details as { mode?: unknown }).mode !== "single" ||
-		!Array.isArray((details as { results?: unknown }).results) ||
-		(details as { results: unknown[] }).results.length !== 1
-	) {
-		throw new Error("Live smoke failed: observer did not capture one direct scout result.");
-	}
-
-	const result = (details as { results: unknown[] }).results[0];
-	if (
-		typeof result !== "object" ||
-		result === null ||
-		Array.isArray(result) ||
-		typeof (result as { finalOutput?: unknown }).finalOutput !== "string" ||
-		(result as { finalOutput: string }).finalOutput.trim().length === 0
-	) {
-		throw new Error("Live smoke failed: direct scout result has no usable finalOutput report.");
-	}
-	return (result as { finalOutput: string }).finalOutput;
-}
-
-function isolatedEnvironment(config: SmokeConfiguration, root: string, observerOutput: string): Record<string, string> {
+function isolatedEnvironment(config: SmokeConfiguration, root: string, observerOutput: string): { env: Record<string, string>; agentHome: string; sessions: string } {
 	const home = join(root, "home");
 	const agentHome = join(root, "agent");
 	const einHome = join(root, "ein");
-	const sessions = join(root, "sessions");
+	// GUARD -> `sessionsRoot()` resuelve `EIN_PI_AGENT_HOME/sessions`; si esta
+	// ruta y el flag `--session-dir` de Pi divergen, el lector de contabilidad
+	// mira un directorio vacío y el anti-fallback pasa en vacío (D6).
+	const sessions = join(agentHome, "sessions");
 	for (const directory of [home, agentHome, einHome, sessions]) mkdirSync(directory, { recursive: true });
 
-	return {
+	const env = {
 		PATH: process.env.PATH ?? "",
 		HOME: home,
 		XDG_CACHE_HOME: join(root, "cache"),
@@ -85,6 +64,7 @@ function isolatedEnvironment(config: SmokeConfiguration, root: string, observerO
 		EIN_SCOUT_SMOKE_MODEL: config.model,
 		[config.credentialEnv]: config.credential,
 	};
+	return { env, agentHome, sessions };
 }
 
 async function run(): Promise<void> {
@@ -101,39 +81,97 @@ async function run(): Promise<void> {
 		copyFileSync(SCOUT_SOURCE, join(agents, "ein-scout.md"));
 		writeFileSync(join(project, EVIDENCE_FILE), "The controlled scout smoke evidence is exactly this file.\n");
 
-		const env = isolatedEnvironment(config, root, observerOutput);
+		const { env, agentHome, sessions } = isolatedEnvironment(config, root, observerOutput);
 		const version = Bun.spawnSync([config.piBinary, "--version"], { cwd: project, env });
 		if (version.exitCode !== 0) throw new Error("Live smoke failed: Pi version check did not complete in the isolated environment.");
 
-		const process = Bun.spawn([
+		// Fan-out de una sola llamada, tres ramas de solo lectura sobre EL MISMO
+		// fichero: las tres deben citar `EVIDENCE_FILE`, así la aserción de citas
+		// del final sigue siendo estricta (D5).
+		const fanoutPrompt = [
+			`Call ein-scout exactly once with a read-only fan-out of exactly three branches.`,
+			`All three branches must inspect only ${EVIDENCE_FILE} and run in the foreground.`,
+			`Branch 1: quote the literal contents of ${EVIDENCE_FILE}.`,
+			`Branch 2: report the exact number of lines in ${EVIDENCE_FILE}.`,
+			`Branch 3: confirm there is no other evidence file in the project besides ${EVIDENCE_FILE}.`,
+			`Return the structured result unchanged.`,
+		].join(" ");
+
+		const piProcess = Bun.spawn([
 			config.piBinary,
 			"--no-extensions",
 			"-e", PI_SUBAGENTS_SPEC,
 			"-e", EIN_AI_EXTENSION,
 			"-e", OBSERVER_EXTENSION,
-			"--session-dir", join(root, "sessions"),
+			"--session-dir", sessions,
 			"--no-context-files",
 			"--no-skills",
 			"--tools", "subagent",
 			"--model", config.model,
-			"-p", `Call ein-scout exactly once. Ask it to inspect only ${EVIDENCE_FILE}, then return its structured result unchanged.`,
+			"-p", fanoutPrompt,
 		], { cwd: project, env, stdout: "pipe", stderr: "pipe" });
-		const exitCode = await process.exited;
+		const exitCode = await piProcess.exited;
 		if (exitCode !== 0) throw new Error(`Live smoke failed: isolated Pi parent exited with code ${exitCode}.`);
 		if (!existsSync(observerOutput)) throw new Error("Live smoke failed: observer captured no tracked ein-scout tool result.");
 
-		const captured = JSON.parse(readFileSync(observerOutput, "utf8")) as { observations?: { details?: unknown; isError?: unknown }[] };
+		const captured = JSON.parse(readFileSync(observerOutput, "utf8")) as {
+			observations?: { toolCallId?: unknown; input?: unknown; details?: unknown; isError?: unknown }[];
+		};
+		// Anti-reintento -> con fan-out sigue habiendo UNA sola tool call; una
+		// segunda observación solo puede venir de un relanzamiento (D5).
 		if (!Array.isArray(captured.observations) || captured.observations.length !== 1) {
 			throw new Error("Live smoke failed: observer did not capture exactly one tracked ein-scout tool result.");
 		}
 		const observed = captured.observations[0]!;
+		if (typeof observed.toolCallId !== "string") throw new Error("Live smoke failed: tracked observation is missing its toolCallId.");
 		if (observed.isError === true) throw new Error("Live smoke failed: tracked ein-scout tool result was an error.");
-		const report = validateScoutReport([reportPayload(observed.details)], project);
-		if (!report.references.every((reference) => reference.path === EVIDENCE_FILE)) {
-			throw new Error("Live smoke failed: validated scout report cited data outside the controlled evidence file.");
+
+		// Camino de producción -> se siembra el tracking y se acepta el
+		// resultado exactamente como hace `ein-tool-call-gate`, sin reimplementar
+		// validación por rama (D5, D7).
+		const tracking: ScoutTracking = new Map();
+		normalizeScoutLaunch(observed.input, observed.toolCallId, tracking);
+		const accepted = acceptTrackedScoutResult(tracking, observed.toolCallId, observed.details, observed.isError === true, project);
+		// `acceptTrackedScoutResult` devuelve un `Report` pelado cuando el
+		// tracking solo vio una rama -> eso significa que el padre lanzó 1 rama,
+		// no 3, y el mensaje lo nombra (D5).
+		if (!accepted || !("branches" in accepted)) {
+			throw new Error(`Live smoke failed: esperaba 3 ramas, el fan-out devolvió ${accepted ? 1 : 0}.`);
+		}
+		if (accepted.branches.length !== 3 || accepted.dropped.length !== 0) {
+			throw new Error(
+				`Live smoke failed: esperaba 3 ramas aceptadas y 0 descartadas, obtuvo ${accepted.branches.length} aceptadas y ${accepted.dropped.length} descartadas.`,
+			);
+		}
+		for (const branch of accepted.branches) {
+			if (!branch.report.references.every((reference: { path: string }) => reference.path === EVIDENCE_FILE)) {
+				throw new Error(`Live smoke failed: la rama "${branch.task}" citó evidencia fuera del fichero controlado.`);
+			}
 		}
 
-		console.log(`Live smoke passed: Pi ${version.stdout.toString().trim()}, requested ${PI_SUBAGENTS_SPEC}, validated direct handoff, cleanup pending.`);
+		// Anti-fallback con evidencia positiva -> ausencia de datos NUNCA cuenta
+		// como ausencia de fallback (D6, D7). Se adopta el home aislado alrededor
+		// de la lectura porque `readAccountingReport()` resuelve su root por
+		// llamada, y se restaura después para no filtrar estado al proceso.
+		const previousAgentHome = process.env.EIN_PI_AGENT_HOME;
+		process.env.EIN_PI_AGENT_HOME = agentHome;
+		let report: ReturnType<typeof readAccountingReport>;
+		try {
+			report = readAccountingReport();
+		} finally {
+			if (previousAgentHome === undefined) delete process.env.EIN_PI_AGENT_HOME;
+			else process.env.EIN_PI_AGENT_HOME = previousAgentHome;
+		}
+		if (report.store !== "present" || report.overall.runs < 1) {
+			throw new Error("Live smoke failed: la contabilidad no observó ningún run: no hay evidencia de qué modelo corrió.");
+		}
+		if (report.overall.outcomes.modelFallbacks.count !== 0 || report.overall.outcomes.modelFallbacks.undetermined !== 0) {
+			throw new Error(
+				`Live smoke failed: la contabilidad declaró fallback de modelo (count: ${report.overall.outcomes.modelFallbacks.count}, undetermined: ${report.overall.outcomes.modelFallbacks.undetermined}).`,
+			);
+		}
+
+		console.log(`Live smoke passed: Pi ${version.stdout.toString().trim()}, requested ${PI_SUBAGENTS_SPEC}, validated 3-branch fan-out, cleanup pending.`);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 		cleaned = !existsSync(root);
