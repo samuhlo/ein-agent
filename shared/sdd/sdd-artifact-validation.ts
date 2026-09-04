@@ -4,7 +4,8 @@
 // no conocen runtimes y conservan el orden de issues como parte del contrato.
 // =============================================================================
 
-import { extractProductionFiles } from "./sdd-routing-core.ts";
+import { isProductionFile } from "./sdd-routing-core.ts";
+import { extractDeclaredFrontierPaths } from "./sdd-tasks-frontier.ts";
 
 export type PhaseRules = Readonly<{
 	requireProblemStatement?: boolean;
@@ -114,7 +115,10 @@ export function oversizedGroupWarnings(text: string): GuardrailIssue[] {
 	for (let index = 1; index < parts.length; index += 2) {
 		const heading = (parts[index] ?? "").trim();
 		const body = parts[index + 1] ?? "";
-		const files = extractProductionFiles(body);
+		// Cuenta la frontera DECLARADA (edit:/etiquetas v1), no el barrido del
+		// cuerpo: `read:` y prosa (`why:`/`architecture:`/`avoid:`) no son permiso
+		// de escritura y no deben inflar el aviso.
+		const files = extractDeclaredFrontierPaths(body).filter(isProductionFile);
 		if (files.length > MAX_GROUP_SOURCE_FILES) {
 			out.push({
 				level: "warning",
