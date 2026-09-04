@@ -9,6 +9,13 @@ Given: a frozen evaluation corpus derived from archived changes
 When: the corpus is read for a measurement run
 Then: each item carries its change identifier, lane, TDD stance, known outcome, touched files, and focused check, a second read reproduces the identical set in the identical order, and no phase tool consumes it as a routing or state source
 
+## Scenario: apply-packet-accepts-technical-notation-as-resolved
+title: Technical notation is not mistaken for an unresolved decision
+requirement: The system MUST distinguish an unfilled template placeholder from ordinary technical notation when it scans packet text for unresolved decisions. Programming-language notation that an author writes deliberately — a generic type parameter attached to an identifier, or a two-character nullish-coalescing operator — MUST NOT be reported as an unresolved decision and MUST NOT reject the packet. A placeholder that is genuinely unfilled — an angle-bracketed token that is not attached to a preceding identifier, such as one embedded in a path or standing alone, or a run of three or more question marks — MUST still be reported as an unresolved decision and MUST still reject the packet rather than degrade it to incomplete. The remaining unresolved markers MUST keep their current behaviour.
+Given: an Apply Packet whose text fields and steps mix deliberate technical notation with genuinely unfilled placeholders
+When: the packet is validated for unresolved decisions
+Then: a generic type attached to an identifier and a two-character nullish-coalescing operator leave the packet executable, while an unattached angle-bracketed placeholder, a run of three or more question marks, and the pre-existing word and bracket markers are each reported as an unresolved decision that rejects the packet with the offending field named
+
 ## Scenario: apply-packet-schema-rejects-unexecutable-packet
 title: The Apply Packet schema rejects a packet an executor could not run without deciding
 requirement: The system MUST validate an Apply Packet against a versioned schema before it can be treated as executable, and MUST reject a packet that declares no invariant, that leaves a decision to the executor, that was compiled from a source artifact which has since changed, or that names an edit or command outside its declared allowed files. Rejection MUST name the failing rule and the offending field. Uncertainty MUST fail closed as `unknown`: an unreadable or ambiguous source artifact MUST NOT yield a valid packet by default.

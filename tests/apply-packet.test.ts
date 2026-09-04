@@ -12,8 +12,14 @@ import {
 	type ApplyPacketDraft,
 	type ApplyPacketValidation,
 	normalizeFilesLabel,
+	PRODUCTION_FILES_LABELS,
+	TEST_FILES_LABELS,
 	validateApplyPacket,
 } from "../ein-pi/agent/lib/apply-packet";
+import {
+	PRODUCTION_FILES_LABELS as SHARED_PRODUCTION_FILES_LABELS,
+	TEST_FILES_LABELS as SHARED_TEST_FILES_LABELS,
+} from "../shared/sdd/sdd-tasks-frontier.ts";
 
 const SOURCES = {
 	"design.md": "d1g3st-design",
@@ -208,6 +214,46 @@ describe("TRIANGULATE: la prosa legitima no se confunde con ambiguedad", () => {
 		const result = validateApplyPacket(draft({ outcome: "Aplicar el slice [decidir cual]." }), SOURCES);
 		expect(fieldOf(result, "unresolved-decision")).toBe("outcome");
 	});
+
+	// GUARD -> Un genérico de TypeScript pegado a su identificador no es un hueco sin rellenar.
+	test("un generico de TypeScript pegado a su identificador sigue siendo ejecutable", () => {
+		const result = validateApplyPacket(
+			draft({ outcome: "Añade un registro de clave Record<string, unknown> al validador." }),
+			SOURCES,
+		);
+		expect(result.ok).toBe(true);
+	});
+
+	test("un genérico anidado sigue siendo ejecutable", () => {
+		const result = validateApplyPacket(
+			draft({ outcome: "Cachea el resultado en un Map<string, Set<string>>." }),
+			SOURCES,
+		);
+		expect(result.ok).toBe(true);
+	});
+
+	test("el operador de fusión ?? no es una decision pendiente", () => {
+		const result = validateApplyPacket(
+			draft({ outcome: "Usa el id cuando existe (??) y cae al valor por defecto." }),
+			SOURCES,
+		);
+		expect(result.ok).toBe(true);
+	});
+
+	test("una cota escrita con comparadores separados por espacios sigue siendo ejecutable", () => {
+		const result = validateApplyPacket(
+			draft({ expectedEvidence: "El conteo queda entre < 1 || report.uncertainties.length >." }),
+			SOURCES,
+		);
+		expect(result.ok).toBe(true);
+	});
+
+	test("una tirada de tres o mas signos de interrogacion SI es una decision pendiente", () => {
+		const result = validateApplyPacket(draft({ outcome: "No sabemos que hacer aqui ???" }), SOURCES);
+		expect(codes(result)).toContain("unresolved-decision");
+		expect(fieldOf(result, "unresolved-decision")).toBe("outcome");
+		if (!result.ok) expect(result.level).toBe("rejected");
+	});
 });
 
 describe("TRIANGULATE: bordes de frontera y frescura", () => {
@@ -233,5 +279,19 @@ describe("TRIANGULATE: bordes de frontera y frescura", () => {
 
 	test("un comando sin ficheros (typecheck) no inventa escapes", () => {
 		expect(validateApplyPacket(draft({ focusedCheck: "bun run typecheck" }), SOURCES).ok).toBe(true);
+	});
+});
+
+// PARIDAD DE VOCABULARIO -> `shared/sdd/sdd-tasks-frontier.ts` duplica el
+// conjunto cerrado de etiquetas de frontera porque `shared/` no puede importar
+// de `ein-pi/`. Si el conjunto cerrado crece aquí sin actualizar el espejo,
+// este test se pone rojo: la deriva se detecta, no se sufre en silencio.
+describe("paridad de vocabulario: shared/sdd-tasks-frontier.ts espeja apply-packet.ts", () => {
+	test("PRODUCTION_FILES_LABELS es el mismo conjunto en los dos árboles", () => {
+		expect(new Set(SHARED_PRODUCTION_FILES_LABELS)).toEqual(new Set(PRODUCTION_FILES_LABELS));
+	});
+
+	test("TEST_FILES_LABELS es el mismo conjunto en los dos árboles", () => {
+		expect(new Set(SHARED_TEST_FILES_LABELS)).toEqual(new Set(TEST_FILES_LABELS));
 	});
 });
