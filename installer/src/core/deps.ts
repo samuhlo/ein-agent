@@ -35,6 +35,13 @@ import {
   PI_HOST_SPEC,
   PI_NODE_MIN_VERSION,
 } from "../../../shared/contracts/runtime-compat.ts";
+import {
+  evaluatePiHostTree,
+  resolvePiHostRoot,
+  type EvaluatePiHostTreeDeps,
+  type PiHostTreeVerdict,
+  type ResolvePiHostRootDeps,
+} from "../../../shared/contracts/pi-host-tree.ts";
 
 export type DepId =
   | "git"
@@ -92,11 +99,14 @@ export type PiRuntimeInspection = {
   path: string | null;
   version: string | null;
   compatible: boolean;
+  tree: PiHostTreeVerdict;
 };
 
 export type PiRuntimeInspectionDeps = {
   lookPath?: typeof lookPath;
   readVersion?: (path: string) => string | null;
+  resolveRoot?: ResolvePiHostRootDeps["realpath"];
+  readManifestFile?: EvaluatePiHostTreeDeps["readManifestFile"];
 };
 
 function readPiVersion(path: string): string | null {
@@ -110,14 +120,25 @@ function readPiVersion(path: string): string | null {
   }
 }
 
+// FAIL CLOSED -> Un pi no resuelto no tiene root que inspeccionar: el árbol se
+// declara incoherente, nunca "no aplica" silencioso.
+function unresolvedTreeVerdict(): PiHostTreeVerdict {
+  return evaluatePiHostTree(null);
+}
+
 export function inspectPiRuntime(
   searchPath: string[] = EXTRA_PATH,
   deps: PiRuntimeInspectionDeps = {},
 ): PiRuntimeInspection {
   const path = (deps.lookPath ?? lookPath)("pi", searchPath);
-  if (!path) return { path: null, version: null, compatible: false };
+  if (!path) return { path: null, version: null, compatible: false, tree: unresolvedTreeVerdict() };
   const version = (deps.readVersion ?? readPiVersion)(path);
-  return { path, version, compatible: isPublishedPackageVersion(version) };
+  const root = resolvePiHostRoot(path, deps.resolveRoot ? { realpath: deps.resolveRoot } : {});
+  const tree = evaluatePiHostTree(
+    root,
+    deps.readManifestFile ? { readManifestFile: deps.readManifestFile } : {},
+  );
+  return { path, version, compatible: isPublishedPackageVersion(version), tree };
 }
 
 export type NodeRuntimeInspection = {
