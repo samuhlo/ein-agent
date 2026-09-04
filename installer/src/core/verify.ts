@@ -191,6 +191,15 @@ export function runDoctor(
       "codegraph cli",
       "Grafo de código disponible; `codegraph init` por proyecto lo activa.",
     ),
+    check(
+      piRuntime.tree.coherent,
+      "pi host tree",
+      piRuntime.tree.coherent
+        ? "Árbol interno @earendil-works del host coherente."
+        : piRuntime.tree.failures
+            .map((f) => `${f.package}: ${f.reason} (requerido ${f.requiredRange ?? "?"}, instalado ${f.installedVersion ?? "?"}) -> ${f.repairCommand}`)
+            .join(" | "),
+    ),
   ];
 
   const checksIntegrations: CheckResult[] = [
