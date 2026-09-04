@@ -5,7 +5,7 @@ verification_status: pass
 
 ## // 000. RESUMEN
 
-Scout canonicaliza reportes con variantes de forma segura (alias de clave, array vacío de incertidumbres) rechazando alias ambiguos antes de `closed`, con diagnóstico que nombra la clave culpable. Smoke de fan-out valida 3/3 ramas por producción sin reintento ni fallback de modelo.
+Scout canonicaliza reportes con variantes de forma segura (alias de clave, array vacío de incertidumbres) rechazando alias ambiguos antes de `closed`, con diagnóstico que nombra la clave culpable. El smoke opt-in queda preparado para demostrar en vivo 3/3 ramas por producción sin reintento ni fallback de modelo; esa corrida contra proveedor sigue pendiente.
 
 ## // 001. QUÉ CAMBIÓ
 
@@ -24,14 +24,14 @@ Scout canonicaliza reportes con variantes de forma segura (alias de clave, array
 2. Ambigüedad = rechazo nombrando ambas claves, no precedencia silenciosa — evita fabricar contenido cuando el modelo escribió dos valores.
 3. `uncertainties: []` → nivel `none` en `canonicalizeReport`, antes de cota `length >= 1` — distingue "miré y no hay nada" de "olvidó declarar".
 4. Observer usa función compartida `delegationIncludes` — elimina bifurcación de lógica entre arnés y contrato.
-5. Smoke seco (no ejecutado contra proveedor) — verifica forma y tipos; validación contra prompt/modelo es criterio de prueba real del usuario.
+5. Smoke seco (no ejecutado contra proveedor) — verifica forma y tipos; la validación contra prompt/modelo queda como aceptación obligatoria de la release, no se presenta como evidencia ya obtenida.
 
 ## // 004. VERIFICACIÓN
 
 - `bun test` → 3103 pass, 0 fail (3091 baseline + 5 tests 001 + 6 tests 002 + 1 neto 003, sin regresiones).
 - `bun run typecheck` (raíz) → limpio.
 - `cd installer && bun run typecheck` → limpio.
-- 7 seams verificadas: 5 variantes normalizan, 3 ambigüedades rechazan nombrando claves, rechazo nombra clave culpable, gold (`checkReference`) intacto, fan-out 3/3 acepta, observer reconoce forma, smoke seco typechecks.
+- 7 seams verificadas: 5 variantes normalizan, 3 ambigüedades rechazan nombrando claves, rechazo nombra clave culpable, gold (`checkReference`) intacto, la aceptación sintética de fan-out devuelve 3/3, observer reconoce forma y el smoke seco pasa typecheck.
 - verify: `bun test && bun run typecheck && (cd installer && bun run typecheck)`
 
 ## // 005. RIESGOS
