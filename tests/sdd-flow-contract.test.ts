@@ -123,9 +123,11 @@ describe("orchestrator: flujo por fases determinista", () => {
 	test("enseña primero en lenguaje humano y conserva la profundidad técnica", () => {
 		const agents = read("AGENTS.md");
 		expect(agents).toContain("everyday human language");
-		expect(agents).toContain("without software knowledge");
-		expect(agents).toContain("never stack unexplained jargon or acronyms");
-		expect(agents).toContain("Never infantilize the reader or lose technical correctness");
+		expect(agents).toContain("A localized fix with tests can use a few paragraphs");
+		expect(agents).toContain("Honor existing authorization");
+		expect(orch).toContain("without assuming software knowledge");
+		expect(orch).toContain("never stack unexplained jargon or acronyms");
+		expect(orch).toContain("File count alone does not make a change important");
 		expect(orch).toContain("**Human-first teaching.** Every answer, especially an important change");
 		expect(orch).toContain("reconcile/supersede OpenSpec artifacts");
 		expect(orch).toContain("guardar el trabajo terminado y apartar el plan antiguo");
@@ -334,7 +336,7 @@ describe("sdd-init conserva el comando manual mediante el bootstrap compartido",
 	});
 });
 
-describe("sdd-close agent existe (summary + índice EIN.md acotado)", () => {
+describe("sdd-close agent conserva el resumen sin ampliar el alcance", () => {
 	const close = read("agents/sdd-close.md");
 	test("nombre y output primario", () => {
 		expect(close).toContain("name: sdd-close");
@@ -343,9 +345,10 @@ describe("sdd-close agent existe (summary + índice EIN.md acotado)", () => {
 	test("no mueve ficheros (eso lo hace el parent determinista)", () => {
 		expect(close.toLowerCase()).toContain("do not move or delete files");
 	});
-	test("edición secundaria acotada al ## Índice de EIN.md", () => {
-		expect(close).toContain("## Índice");
-		expect(close.toLowerCase()).toContain("never rewrite");
+	test("EIN.md queda fuera del cierre y se conserva la evidencia terminal", () => {
+		expect(close).toContain("`EIN.md` is outside the closure write boundary");
+		expect(close).toContain("write only `summary.md`");
+		expect(close).toContain("incorporates application, verification and synchronization reports");
 	});
 });
 
