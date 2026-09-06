@@ -481,4 +481,19 @@ describe("normal, small, confirmation, third decision and bypass flows", () => {
 			box.cleanup();
 		}
 	});
+
+	test("refreshes cached session preferences after a change decision is recorded", async () => {
+		const box = sandbox();
+		try {
+			const dir = box.addChange("decision");
+			const { ctx, asks } = makeCtx(box.cwd, {});
+			await ensureSddPreflight(ctx, CALLBACKS);
+			writePreflightRecord(dir, { tdd: "strict", decidedBy: "pi" });
+			writeChangeLane(dir, "micro");
+			const current = await ensureSddPreflight(ctx, CALLBACKS);
+			expect(current.tddMode).toBe("strict");
+			expect(current.lane).toBe("micro");
+			expect(asks.execution).toBe(1);
+		} finally { box.cleanup(); }
+	});
 });
