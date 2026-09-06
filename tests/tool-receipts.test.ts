@@ -101,6 +101,17 @@ describe("reglas de voz, sobre todos los recibos", () => {
 });
 
 describe("lo que dice cada recibo", () => {
+	test("reports known preflight failures and reviewer configuration honestly", () => {
+		expect(receiptFor("ein_sdd_preflight", { ok: false, reason: "unknown change" }).line).toBe("el cambio todavía no existe");
+		const disabled = receiptFor("ein_sdd_participants", { status: "complete", order: [] });
+		expect(disabled.line).toBe("revisores automáticos desactivados");
+		const ready = receiptFor("ein_sdd_participants", { status: "ready", order: ["ein-cleaner"], next: { agent: "ein-cleaner" }, slices: [{}] });
+		expect(ready.detail.join(" ")).toContain("arquitecto está desactivado");
+		const reason = "summary.md: falta verification_status: pass y un comando de verificación exacto";
+		const failed = receiptFor("ein_sdd_close", { ok: false, reason });
+		expect(failed.line).toBe("cierre bloqueado · consulta el motivo");
+		expect(failed.detail.join(" ")).toContain(reason);
+	});
 	test("estado del cambio: fase siguiente, tareas y bloqueos", () => {
 		const status = {
 			change: "demo",

@@ -131,6 +131,11 @@ export function readLinearIntegration(cwd: string, agentDir?: string): LinearInt
 	);
 }
 
+export function linearIntegrationLabel(inspection: LinearIntegrationInspection): string {
+	const source = { project: "proyecto", global: "global", default: "defecto" }[inspection.source];
+	return `${inspection.status === "valid" ? inspection.value : "desconocido"} · ${source}`;
+}
+
 export function writeLinearIntegration(cwd: string, linear: LinearIntegration): void {
 	const path = linearIntegrationConfigPath(cwd);
 	mkdirSync(dirname(path), { recursive: true });

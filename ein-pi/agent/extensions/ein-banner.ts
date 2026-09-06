@@ -32,7 +32,7 @@ import { TDD_LABEL, readTddMode } from "../lib/tdd";
 import { readHypaMode, resolveHypaEnabled } from "../lib/hypa";
 import { readCodegraphMode, resolveCodegraphEnabled } from "../lib/codegraph";
 import { readPersonaMode } from "../lib/persona";
-import { readLinearIntegration } from "../lib/linear-integration";
+import { inspectLinearIntegration, linearIntegrationLabel } from "../lib/linear-integration";
 import { agentAutomaticParticipationLabel, readProjectAgentControlStatus } from "../lib/agent-controls";
 import { GitBannerController, renderGitBannerRows, type ProcessRunner } from "../lib/banner-git";
 import {
@@ -402,7 +402,7 @@ export default function (pi: ExtensionAPI) {
     const langArtifact = LANG_LABEL[readArtifactLang(ctx.cwd)];
     const tddLabel = TDD_LABEL[readTddMode(ctx.cwd)];
     const personaLabel = readPersonaMode(ctx.cwd);
-    const linearLabel = readLinearIntegration(ctx.cwd);
+    const linearLabel = linearIntegrationLabel(inspectLinearIntegration(ctx.cwd));
     // Hypa: modo + estado resuelto en auto (como TDD muestra su label).
     const hypaMode = readHypaMode(ctx.cwd);
     const hypaLabel =
