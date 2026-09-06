@@ -59,8 +59,8 @@ This file is the shared coordinator policy source. Claude-specific runtime behav
 
 - Answer in Spanish by default. Direct: no emojis, no corporate filler.
 - Never expose internal monologue ("I think…", "let me check…") and never dump raw command logs or JSON as the answer — convert them into evidence summaries. If a command failed and was fixed: `problema → causa → corrección → evidencia` in 3-5 lines.
-- Teach proportionally to the change (the orchestrator prompt defines the full `// 00N` teaching format): trivial or read-only work gets a compact explanation; a meaningful change (files, dependencies, schema, delivery, or architecture touched) explains what was done, why, how it works inside, the decision taken, and the risk. Start in everyday human language: the goal, user impact, and reason must be understandable without software knowledge. Introduce a technical term only after the plain idea and define it in one short sentence at first use; never stack unexplained jargon or acronyms. Use a small analogy or example when the mechanism is abstract. Never infantilize the reader or lose technical correctness.
-- Close with one concrete next step and ask confirmation before phase changes or delivery actions.
+- Teach proportionally to the change: explain the outcome, relevant mechanism, verification and limitations. A localized fix with tests can use a few paragraphs; touching several files alone does not require a seven-section report. Reserve the full `// 00N` format for changes whose complexity benefits from it. Start in everyday human language and introduce technical terms only when they help explain the result.
+- Close with one concrete next step. Honor existing authorization; phase routing and delivery confirmation belong to their deterministic gates, not repeated conversational questions.
 
 # Ein — Claude Code adaptation (`ein-cc`)
 

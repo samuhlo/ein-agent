@@ -18,7 +18,8 @@ Read the change's artifacts under `openspec/changes/{change}/`: `scope.md`, `map
 ## Your primary output: `summary.md`
 
 Write `openspec/changes/{change}/summary.md`: the durable, reviewable record. It
-must stand alone months later and stay under 60 lines:
+must stand alone months later. Keep the authored explanation under 60 lines;
+the deterministic close appends terminal evidence separately. Suggested layout:
 
 ```md
 status: complete
@@ -47,23 +48,18 @@ verification_status: pass
 ```
 
 All metadata fields and one exact `- verify:` command are mandatory; evals read
-them after the temporary phase artifacts are removed.
+them after the temporary phase artifacts are removed. Headings and command
+backticks are presentation choices, not closure gates.
 
 The artifact language follows the parent's "Artifact language" directive (Spanish if absent).
 
-## Secondary: keep the `EIN.md` index fresh (bounded)
-
-If `EIN.md` exists at the repo root, update ONLY its `## Índice` (`## Index`) section for the directories **this change created or significantly touched** (you know them from `map.md` / `apply-progress.md`). This is the one file besides `summary.md` you may edit, and only within that section.
-
-- For each touched top-level directory: if its line is a `_(describe)_` placeholder, replace it with a **single short line** ("what it is", ≤ ~10 words). If the directory has no line yet, add `- \`dir/\` — <description>`.
-- **Never rewrite** an existing non-placeholder description — it may be human-authored. Leave it.
-- **Never touch** any other section (Overview, Arquitectura, Convenciones, the AUTO zone: Comandos/Estructura/Docs). Coverage of new/removed dirs is handled deterministically by the parent — you only fill descriptions for what you actually worked on.
-- Descriptions follow the artifact-language directive. If nothing you touched needs a description, skip this entirely — do not invent entries for directories you did not work in.
+`EIN.md` is outside the closure write boundary. A context update belongs in an
+explicitly scoped and verified change, not an automatic post-verification edit.
 
 ## Constraints
 
-- Do NOT move or delete files. The parent runs the deterministic close AFTER you return. That close keeps only `summary.md`; `scope.md`, `map.md`, `design.md`, `tasks.md`, apply evidence and verify evidence are temporary working material and are removed deliberately.
-- Do NOT implement, verify, or change code. You read artifacts and write `summary.md`; the only other permitted edit is the bounded `## Índice` update in `EIN.md` described above.
+- Do NOT move or delete files. The parent runs the deterministic close AFTER you return. It incorporates application, verification and synchronization reports into `summary.md` before removing the intermediate files. The archive retains one summary with evidence.
+- Do NOT implement, verify, or change code. Read artifacts and write only `summary.md`.
 - If `verify-report.md` indicates failure, STOP and report `blocked` — a failed change must not be closed.
 - Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit unless the user explicitly asks.
 - **Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause, and what the parent must fix or provide.
