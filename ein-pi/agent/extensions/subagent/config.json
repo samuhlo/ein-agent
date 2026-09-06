@@ -8,6 +8,10 @@
   "modelExclusions": {
     "defaultTtlMs": 300000
   },
-  "fleetViewPlacement": "aboveEditor",
+  "fleetViewPlacement": "belowEditor",
+  "mainWindowRenderer": {
+    "compactResultMaxLines": 5,
+    "horizontalSpacing": 0
+  },
   "asyncWidget": false
 }

@@ -10,8 +10,9 @@ describe("shipped subagent widget layout", () => {
 	test("uses the tracked extension config for the single fleet surface policy", () => {
 		const config = JSON.parse(readFileSync(fleetConfigPath, "utf8")) as Record<string, unknown>;
 
-		expect(config.fleetViewPlacement).toBe("aboveEditor");
+		expect(config.fleetViewPlacement).toBe("belowEditor");
 		expect(config.asyncWidget).toBe(false);
+		expect(config.mainWindowRenderer).toEqual({ compactResultMaxLines: 5, horizontalSpacing: 0 });
 	});
 
 	test("keeps fleet and TODO in distinct ordered regions", () => {
@@ -19,7 +20,7 @@ describe("shipped subagent widget layout", () => {
 		const todoExtension = readFileSync(todoExtensionPath, "utf8");
 		const todoPlacement = todoExtension.match(/setWidget\(OVERLAY_KEY,[\s\S]*?placement: "([^"]+)"/)?.[1];
 
-		expect([config.fleetViewPlacement, todoPlacement]).toEqual(["aboveEditor", "belowEditor"]);
+		expect([config.fleetViewPlacement, todoPlacement]).toEqual(["belowEditor", "aboveEditor"]);
 		expect(config.fleetViewPlacement).not.toBe(todoPlacement);
 	});
 });
