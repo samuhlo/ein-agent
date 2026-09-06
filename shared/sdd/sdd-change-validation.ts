@@ -168,7 +168,7 @@ export function createLintChange(readExpectedPhases: ExpectedPhasesReader) {
 					message: `${PHASE_ARTIFACT[phase]} fue persistido por el parent (authored_by: parent-fallback), no por el executor de fase; revisar con atencion extra.`,
 				});
 			}
-			const report = lintPhaseArtifact(phase, content, phase === "design" ? { designRules } : {});
+			const report = lintPhaseArtifact(phase, content, { change, ...(phase === "design" ? { designRules } : {}) });
 			errors += report.errors;
 			warnings += report.warnings;
 			phases.push({ phase, present: true, report });

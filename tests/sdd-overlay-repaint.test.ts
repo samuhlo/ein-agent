@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -548,6 +548,7 @@ describe("sdd-close session binding invalidation", () => {
 		const box = sandbox(["alpha"]);
 		try {
 			markChangeReadyToClose(box.cwd, "alpha");
+			writeFileSync(join(box.cwd, "EIN.md"), "# Contexto curado\nNo pertenece a este cambio.\n");
 			const trace: string[] = [];
 			const painted: WidgetPaint[] = [];
 			const { pi, fire, runCommand, appended } = fakePi(trace);
@@ -559,6 +560,7 @@ describe("sdd-close session binding invalidation", () => {
 			trace.length = 0;
 
 			await runCommand("ein:sdd-close", "alpha", ctx);
+			expect(readFileSync(join(box.cwd, "EIN.md"), "utf8")).toBe("# Contexto curado\nNo pertenece a este cambio.\n");
 			fire("tool_execution_end", ctx);
 			fire("tool_execution_end", ctx);
 

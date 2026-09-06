@@ -222,6 +222,28 @@ export function recoveredResult(from: string, to: string, completion: CloseCompl
 		? { ok: true, from, to, reconciliation: completion.receipt }
 		: { ok: true, from, to };
 }
+
+function retainTerminalEvidence(from: string): void {
+	const summaryPath = join(from, "summary.md");
+	summarySha256(summaryPath);
+	const marker = "\n<!-- ein:terminal-evidence -->\n";
+	let summary = readFileSync(summaryPath, "utf8").split(marker)[0]!;
+	const sections: string[] = [];
+	for (const name of ["apply-progress.md", "verify-report.md", "sync-report.md"]) {
+		const path = join(from, name);
+		if (!existsSync(path)) continue;
+		if (!lstatSync(path).isFile()) throw new Error(`${name} debe ser un fichero regular para conservar su evidencia`);
+		const content = readFileSync(path, "utf8");
+		const anchor = `ein-evidence-${name.replace(".md", "")}`;
+		summary = summary.replaceAll(`](${name})`, `](#${anchor})`);
+		// A longer fence preserves reports containing their own fenced commands.
+		const longest = Math.max(2, ...[...content.matchAll(/`+/g)].map((match) => match[0].length));
+		const fence = "`".repeat(longest + 1);
+		sections.push(`<a id="${anchor}"></a>\n\n### ${name}\n\n${fence}text\n${content.trimEnd()}\n${fence}`);
+	}
+	if (sections.length) writeFileSync(summaryPath, `${summary.trimEnd()}${marker}\n## Evidencia conservada\n\nLos informes citados se conservan íntegros a continuación; los archivos intermedios se compactan al cerrar.\n\n${sections.join("\n\n")}\n`);
+}
+
 export function compactToArchive(
 	from: string,
 	to: string,
@@ -230,6 +252,9 @@ export function compactToArchive(
 	seam: CloseCompactionTestSeam,
 ): string | null {
 	try {
+		// Reconciliation already binds a reviewed summary hash and has no SDD
+		// phase reports. Normal closure keeps evidence before deleting originals.
+		if (completion.kind !== "reconciliation") retainTerminalEvidence(from);
 		const record: PendingCloseRecord = {
 			version: 1,
 			change,

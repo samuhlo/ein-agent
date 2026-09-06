@@ -6,6 +6,7 @@
 
 import { isProductionFile } from "./sdd-routing-core.ts";
 import { extractDeclaredFrontierPaths } from "./sdd-tasks-frontier.ts";
+import { summaryContractErrors } from "./sdd-summary-contract.ts";
 
 export type PhaseRules = Readonly<{
 	requireProblemStatement?: boolean;
@@ -30,6 +31,7 @@ export type DesignLintReport = {
 };
 
 export type DesignLintOptions = {
+	change?: string;
 	oversizeLineThreshold?: number;
 	designRules?: PhaseRules;
 };
@@ -216,6 +218,11 @@ export function lintPhaseArtifact(
 				code: `missing-${requirement.code}`,
 				message: `Falta señal obligatoria de ${phase}: ${requirement.label}.`,
 			});
+		}
+	}
+	if (phase === "close") {
+		for (const missing of summaryContractErrors(text, opts.change)) {
+			issues.push({ level: "error", code: "summary-contract-invalid", message: `summary.md: falta o no coincide ${missing}.` });
 		}
 	}
 

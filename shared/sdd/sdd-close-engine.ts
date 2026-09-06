@@ -22,6 +22,7 @@ import {
 } from "./sdd-close-compaction.ts";
 import type { AssessCloseReadiness } from "./sdd-close-readiness.ts";
 import { readSpecDeltaDeclaration } from "./sdd-change-validation.ts";
+import { summaryContractErrors } from "./sdd-summary-contract.ts";
 import {
 	OUT_OF_FLOW_EVIDENCE_PATH,
 	validateOutOfFlowReconciliation,
@@ -92,38 +93,17 @@ function reconciliationRecord(
 	};
 }
 
-const DURABLE_SUMMARY_SECTIONS = ["000", "001", "002", "003", "004", "005"] as const;
-
 function assessDurableSummary(from: string, change: string): CloseBlocker | null {
 	let text = "";
 	try { text = readFileSync(join(from, "summary.md"), "utf8").replaceAll("\r\n", "\n"); }
 	catch { return null; } // assessCloseReadiness owns the missing/unreadable case.
 
-	// CORTE -> los metadatos solo se leen de la cabecera (lo anterior a la primera
-	// sección). El cuerpo cita el verify-report, y `status: pass` dentro de
-	// `// 004` sobrescribía el `status: complete` declarado arriba: un resumen
-	// correcto bloqueaba su propio cierre.
-	const header = text.split(/^## /m)[0] ?? "";
-	const fields = new Map(
-		header.split("\n").flatMap((line) => {
-			const match = /^([a-z_]+):\s*(.*?)\s*$/.exec(line);
-			return match ? [[match[1]!, match[2]!] as const] : [];
-		}),
-	);
-	const groups = Number(fields.get("work_groups"));
-	const missingSections = DURABLE_SUMMARY_SECTIONS.filter((section) => !new RegExp(`^## // ${section}\\.`, "m").test(text));
-	const valid = fields.get("status") === "complete"
-		&& fields.get("change") === change
-		&& Number.isInteger(groups)
-		&& groups > 0
-		&& fields.get("verification_status") === "pass"
-		&& /^\s*-\s*verify\s*:\s*`[^`]+`\s*$/im.test(text)
-		&& missingSections.length === 0;
-	return valid
+	const missing = summaryContractErrors(text, change);
+	return missing.length === 0
 		? null
 		: {
 			code: "summary-contract-invalid",
-			message: "summary.md debe declarar status/change/work_groups/verification_status, las secciones // 000..005 y al menos un comando `- verify:` exacto.",
+			message: `summary.md: falta o no coincide ${missing.join(", ")}.`,
 		};
 }
 
