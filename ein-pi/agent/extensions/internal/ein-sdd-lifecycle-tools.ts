@@ -4,14 +4,12 @@
 // Close invalidates session focus and refreshes an existing EIN.md index.
 // =============================================================================
 
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { t } from "../../lib/i18n/strings.ts";
-import { einMdPath, writeEinMd } from "../../lib/project-context.ts";
 import { closeChange, type CloseOptions } from "../../lib/sdd-close.ts";
 import { parseSddCloseArgs } from "../../lib/sdd-close-args.ts";
 import { lintChange } from "../../lib/sdd-guardrails.ts";
@@ -50,7 +48,6 @@ async function performSddClose(
 			change,
 		});
 		memory = await saveArchivedCloseMemory(ctx, change, result.to);
-		if (existsSync(einMdPath(ctx.cwd))) writeEinMd(ctx.cwd);
 	}
 	return { result, memory };
 }
