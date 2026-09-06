@@ -216,32 +216,25 @@ export function piSddIntentPreflightContext(
 	};
 }
 
-// Decisión de TDD por TAREA cuando el modo global es "ask". El parent no
-// recupera control entre design y apply dentro de un chain, así que el "ask"
-// se resuelve de forma DETERMINISTA aquí (un ctx.ui.select real), no como
-// instrucción de prompt al padre (que en un chain nunca dispara).
-const tddRunOverride = new Map<string, TddMode>();
-
-// Modo de TDD sin preguntar: override de la tarea si existe; si el global es
-// "ask" pero aún no se preguntó, cae a "auto" (no bloquea ni asume estricto).
+// A technical fallback is not a decision. Only the change record owns the
+// answer; reads never promote defaults to a persisted human choice.
 function resolveTddNoAsk(ctx: ExtensionContext): TddMode {
-	const override = tddRunOverride.get(sddPreflightSessionKey(ctx));
-	if (override) return override;
+	const active = resolveActiveChange(ctx.cwd);
+	const recorded = active ? readChangeStance(ctx.cwd, active)?.tdd : undefined;
+	if (recorded) return recorded;
 	const global = readTddMode(ctx.cwd);
 	return global === "ask" ? "auto" : global;
 }
 
-// Fija el TDD de la tarea (override determinista) sin preguntar: lo usan tanto
-// el ask interactivo como el hint del orquestador y el salto de docs. Solo avisa
-// en `strict`: que TDD quede forzado ON sin preguntar SÍ importa saberlo; "off"
-// es un no-evento (mecánico/docs/trivial) y anunciarlo solo es ruido.
 function setTaskTddMode(ctx: ExtensionContext, mode: TddMode): void {
 	const key = sddPreflightSessionKey(ctx);
-	tddRunOverride.set(key, mode);
 	const cached = sddPreflightBySession.get(key);
 	if (cached) cached.tddMode = mode;
-	if (ctx.hasUI && mode === "strict")
-		ctx.ui.notify(`TDD para esta tarea: ${mode}`, "info");
+}
+
+function persistTaskTddMode(ctx: ExtensionContext, change: string, mode: "off" | "strict"): void {
+	const result = updateSddPreflightStance(ctx.cwd, change, { tdd: mode, author: "pi" });
+	setTaskTddMode(ctx, result.record?.tdd ?? mode);
 }
 
 // Pregunta el TDD de la tarea cuando el global es "ask". No-op si no hay UI o el
@@ -249,11 +242,14 @@ function setTaskTddMode(ctx: ExtensionContext, mode: TddMode): void {
 // no clasificó el cambio (sin hint) — un cambio de comportamiento de verdad.
 export async function askRunTddMode(ctx: ExtensionContext): Promise<void> {
 	if (!ctx.hasUI || readTddMode(ctx.cwd) !== "ask") return;
+	const change = resolveActiveChange(ctx.cwd);
+	if (!change || readChangeStance(ctx.cwd, change)?.tdd) return;
 	const picked = await ctx.ui.select(
 		"TDD estricto para esta tarea SDD (UI/visual/trivial → off)",
 		["off", "strict"],
 	);
-	setTaskTddMode(ctx, picked === "strict" ? "strict" : "off");
+	if (picked !== "strict" && picked !== "off") throw new Error("TDD pendiente: no se registró una decisión; la delegación no ha comenzado.");
+	persistTaskTddMode(ctx, change, picked);
 }
 
 // Normaliza un hint de TDD que el orquestador puede pasar en la delegación.
@@ -335,20 +331,21 @@ export async function gateTddForDelegation(
 	ctx: ExtensionContext,
 ): Promise<void> {
 	if (!ctx.hasUI || readTddMode(ctx.cwd) !== "ask") return;
-	// CORTE -> ya decidido en este run del SDD: no re-preguntar en applies
-	// sucesivos (slices). Una decisión por SDD completo, no por delegación.
-	if (tddRunOverride.has(sddPreflightSessionKey(ctx))) return;
+	// Do not ask before scope creates an owner for the answer. Disk remains
+	// authoritative across slices, new sessions and the other runtime.
+	const change = resolveActiveChange(ctx.cwd);
+	if (!change || readChangeStance(ctx.cwd, change)?.tdd) return;
 	// Se pregunta al ARRANCAR el SDD (fase scope) o, si el apply va suelto (tarea
 	// mediana sin scope), justo antes de él. En un chain ambos viven en la misma
 	// delegación → una sola pregunta al inicio.
 	if (!delegationStartsScope(input) && !delegationTargetsApply(input)) return;
 	if (delegationIsDocsOnly(input)) {
-		setTaskTddMode(ctx, "off");
+		persistTaskTddMode(ctx, change, "off");
 		return;
 	}
 	const hint = readDelegationTddHint(input);
-	if (hint) {
-		setTaskTddMode(ctx, hint);
+	if (hint === "off" || hint === "strict") {
+		persistTaskTddMode(ctx, change, hint);
 		return;
 	}
 	await askRunTddMode(ctx);
@@ -711,11 +708,8 @@ export async function ensureSddPreflight(
 	const existing = sddPreflightBySession.get(sessionKey);
 	if (existing) {
 		if (reusePreflightForChange(existing, active)) return existing;
-		// Cambio distinto → la postura del anterior caducó. También el override
-		// de TDD del run: si no, el gate de delegación seguiría cortando con la
-		// respuesta del cambio pasado.
+		// Session preferences survive; the next change reads its own stance.
 		sddPreflightBySession.delete(sessionKey);
-		tddRunOverride.delete(sessionKey);
 	}
 	const inFlight = sddPreflightInFlight.get(sessionKey);
 	if (inFlight) return inFlight;
