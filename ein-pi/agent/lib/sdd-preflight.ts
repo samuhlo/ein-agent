@@ -707,7 +707,12 @@ export async function ensureSddPreflight(
 	const active = resolveActiveChange(ctx.cwd);
 	const existing = sddPreflightBySession.get(sessionKey);
 	if (existing) {
-		if (reusePreflightForChange(existing, active)) return existing;
+		if (reusePreflightForChange(existing, active)) {
+			const recorded = active ? readChangeStance(ctx.cwd, active) : undefined;
+			existing.tddMode = recorded?.tdd ?? resolveTddNoAsk(ctx);
+			existing.lane = recorded?.lane ?? DEFAULT_LANE;
+			return existing;
+		}
 		// Session preferences survive; the next change reads its own stance.
 		sddPreflightBySession.delete(sessionKey);
 	}
