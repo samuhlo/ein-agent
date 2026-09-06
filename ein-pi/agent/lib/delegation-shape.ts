@@ -45,9 +45,8 @@ const IDENTIFIER_CHAR = /[A-Za-z0-9_$]/;
 
 type Literal = { value: string; next: number };
 
-// Lee un literal de string que empieza en `start` (comilla simple, doble o
-// backtick) y devuelve su contenido crudo. Los `${…}` de un template se
-// consumen como texto: la prosa de la task sigue ahí, que es lo que se evalúa.
+// Decode transport escapes without evaluating JavaScript. Identity checks need
+// the actual task bytes, not the spelling of its string literal.
 function readStringLiteral(src: string, start: number): Literal | null {
 	const quote = src[start];
 	if (quote !== "'" && quote !== '"' && quote !== "`") return null;
@@ -56,9 +55,25 @@ function readStringLiteral(src: string, start: number): Literal | null {
 	while (index < src.length) {
 		const char = src[index];
 		if (char === "\\") {
-			// Se preserva el carácter escapado, no la barra: `\'` es una comilla en
-			// la prosa, y `\n` no aporta nada a las señales que se buscan.
-			value += src[index + 1] ?? "";
+			const escaped = src[index + 1];
+			if (escaped === undefined) return null;
+			const escapes: Record<string, string> = { n: "\n", r: "\r", t: "\t", b: "\b", f: "\f", v: "\v", "0": "\0" };
+			if (escaped === "u" || escaped === "x") {
+				const rest = src.slice(index + 2);
+				const match = escaped === "x" ? /^[0-9a-f]{2}/i.exec(rest)
+					: /^(?:[0-9a-f]{4}|\{[0-9a-f]{1,6}\})/i.exec(rest);
+				if (!match) return null;
+				const point = Number.parseInt(match[0].replace(/[{}]/g, ""), 16);
+				if (point > 0x10ffff) return null;
+				value += String.fromCodePoint(point);
+				index += 2 + match[0].length;
+				continue;
+			}
+			if (escaped === "\r" || escaped === "\n") {
+				index += escaped === "\r" && src[index + 2] === "\n" ? 3 : 2;
+				continue;
+			}
+			value += escapes[escaped] ?? escaped;
 			index += 2;
 			continue;
 		}
