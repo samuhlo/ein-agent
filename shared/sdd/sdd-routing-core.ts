@@ -267,7 +267,7 @@ export function listActiveChanges(cwd: string): string[] {
 	}
 	const out: string[] = [];
 	for (const entry of entries) {
-		if (entry === "archive") continue;
+		if (entry === "archive" || entry.startsWith(".ein-init-")) continue;
 		try {
 			if (statSync(join(dir, entry)).isDirectory()) out.push(entry);
 		} catch {

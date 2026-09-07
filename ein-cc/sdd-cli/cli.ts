@@ -22,6 +22,7 @@
 
 import {
 	changeStanceDirective,
+	initializeSddChange,
 	closeChange,
 	commandIsExplicitlyAllowed,
 	commandRequiresConfirmation,
@@ -230,6 +231,13 @@ export function runPreflightCommand(
 		return index >= 0 ? args[index + 1] : undefined;
 	};
 	const force = args.includes("--force");
+	if (args.includes("--create")) {
+		const name = args[0];
+		const tdd = normalizeTddStance(flag("--tdd")), lane = normalizeLane(flag("--lane"));
+		if (!name || !tdd || !lane) return { text: "--create requires change, --tdd and --lane", exitCode: 1 };
+		try { return { text: changeStanceDirective(initializeSddChange(dir, name, tdd, lane, "claude")), exitCode: 0 }; }
+		catch (error) { return { text: String(error), exitCode: 1 }; }
+	}
 	const positional = args.filter((arg, index) => {
 		if (arg.startsWith("--")) return false;
 		const previous = args[index - 1];

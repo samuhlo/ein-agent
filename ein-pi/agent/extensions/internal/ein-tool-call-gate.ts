@@ -46,6 +46,7 @@ import {
 	type SddParticipant,
 } from "../../lib/sdd-participants.ts";
 import { isRecord } from "./ein-pi-event-contracts.ts";
+import { ensurePhaseContextBudget } from "../../lib/sdd-phase-context-budget.ts";
 import {
 	formatApplyPacketObservation,
 	observeNextApplyPacket,
@@ -165,6 +166,8 @@ export function registerToolCallGate(
 			ensureApplyAcceptance(event.input);
 			ensureApplyTurnBudget(event.input);
 			ensurePhaseRuntime(event.input);
+			try { ensurePhaseContextBudget(event.input); }
+			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			ensureDelegationAcceptance(event.input);
 			await gateTddForDelegation(event.input, ctx);
 			dependencies.rememberPhaseSnapshot(

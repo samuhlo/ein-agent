@@ -54,7 +54,7 @@ Missing or invalid persisted-delta provenance MUST continue through the existing
     max_reads: <number>    # default 30 for a normal change
     max_runtime_ms: <number>
   ```
-  This is the budget the chain propagates between phases. For a broad/unbounded scope do NOT inflate the budget — recommend decomposition into bounded slices instead.
+  This allocation belongs to map; its consumed/remaining balance is never design's allowance. For a broad/unbounded scope do NOT inflate the budget — recommend decomposition into bounded slices instead.
 ## Return contract (compact envelope)
 
 Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every phase is exactly what fills it. Keep it SMALL. The full detail already lives in your on-disk artifact (`scope.md`); the parent reads that from disk when it needs detail and never recovers it from your envelope. Return ONLY:
