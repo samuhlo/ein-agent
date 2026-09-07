@@ -37,6 +37,7 @@ function frontmatterField(text: string, field: string): string {
 function expectedClaudeTool(raw: string): string {
   const exact: Record<string, string> = {
     read: "Read",
+    ein_sdd_summary: "Bash",
     grep: "Grep",
     find: "Glob",
     edit: "Edit",

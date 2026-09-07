@@ -490,6 +490,13 @@ function readApplyOutcome(changePath: string): ApplyOutcome {
 	return "partial";
 }
 
+export function readSddCompletionEvidence(cwd: string, change: string) {
+	if (!isSafeChangeName(change)) throw new Error("Invalid change name");
+	const path = join(resolveChangesDir(cwd), change);
+	const present = Object.fromEntries(Object.keys(PHASE_ARTIFACT).map((phase) => [phase, existsSync(phaseArtifactPath(path, phase as SddPhase))])) as Record<SddPhase, boolean>;
+	return { apply: readApplyOutcome(path), verify: readVerifyOutcome(path), tasks: readTasksStatus(path), ...computeStaleness(cwd, path, present) };
+}
+
 // Estado determinista de UN cambio. Si no se pasa `change`, usa el único activo
 // (o el primero alfabético si hay varios; el caller decide si desambiguar).
 /**
