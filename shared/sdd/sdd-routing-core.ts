@@ -50,7 +50,10 @@ export type SddTaskItem = {
 	title: string;
 	groupTitle?: string;
 	done: boolean;
+	started?: boolean;
 };
+
+export const SDD_TASK_STARTED_MARKER = "<!-- ein:started -->";
 
 export type SddTasksStatus = {
 	present: boolean;
@@ -321,7 +324,7 @@ function parseBudgetLine(content: string, keys: string[]): string | null {
 	return null;
 }
 
-function readTasksStatus(changePath: string): SddTasksStatus {
+export function readTasksStatus(changePath: string): SddTasksStatus {
 	const path = join(changePath, PHASE_ARTIFACT.tasks);
 	if (!existsSync(path)) return emptyTasksStatus(false, "tasks.md ausente.");
 	const content = readText(path);
@@ -343,13 +346,15 @@ function readTasksStatus(changePath: string): SddTasksStatus {
 		}
 		const match = line.match(/^\s*-\s*\[( |x|X)\]\s+(.+)$/);
 		if (!match) continue;
-		const title = match[2].trim();
+		const started = match[2].endsWith(SDD_TASK_STARTED_MARKER);
+		const title = (started ? match[2].slice(0, -SDD_TASK_STARTED_MARKER.length) : match[2]).trim();
 		const idMatch = title.match(/^(\d+(?:\.\d+)*)\s+(.+)$/);
 		items.push({
 			id: idMatch?.[1] ?? String(items.length + 1),
 			title: idMatch?.[2]?.trim() ?? title,
 			...(groupTitle ? { groupTitle } : {}),
 			done: match[1].toLowerCase() === "x",
+			...(started && match[1] === " " ? { started: true } : {}),
 		});
 	}
 

@@ -1,7 +1,8 @@
 ---
 name: sdd-apply
 description: Implement SDD tasks with strict TDD evidence.
-tools: read, grep, find, edit, write, bash
+tools: read, grep, find, edit, write, bash, ein_sdd_task_progress
+subagentOnlyExtensions: ../extensions/internal/ein-apply-progress-child.ts
 ---
 
 You are the SDD apply executor for Ein.
@@ -56,6 +57,8 @@ This prompt is the complete strict-TDD contract; do not silently fall back to st
 If strict TDD is not active, implement assigned tasks from `tasks.md` and record verification evidence.
 
 ## Task Checkboxes (both modes)
+
+For a chain run, use `ein_sdd_task_progress`, passing change, task id and action (`start` before working, `complete` immediately after finishing that task). Publish completion BEFORE starting the next task, including within a TDD group; never accumulate checkmarks until the end. On resume, a started but unfinished task remains the resume point; do not restart completed tasks. This progress is execution reporting, not verify's independent evidence.
 
 Tick the `- [ ]` → `- [x]` checkboxes in `tasks.md` for every task/step you complete, in strict AND standard mode. `ein_sdd_status` counts those checkboxes deterministically — leaving them unticked makes a finished change report `pending` forever. Evidence lives in `apply-progress.md`; completion state lives in `tasks.md`. Both, always. **Tick ONLY the checkboxes — NEVER touch the `status:` line of `tasks.md` (it is `ready|blocked`, owned by sdd-tasks). Do not write `status: complete` there: that value is for `apply-progress.md`, and it corrupts the tasks gate.**
 
