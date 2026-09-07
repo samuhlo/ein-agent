@@ -57,6 +57,7 @@ import {
 } from "../../shared/ports/sdd.ts";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { writeVerifiedSddSummary } from "../../shared/sdd/sdd-summary-write.ts";
 import { join } from "node:path";
 import { formatSddCheck, formatSddStatus } from "./presentation.ts";
 import { runSyncCommand, type SyncCliResponse } from "./sync-command.ts";
@@ -424,7 +425,11 @@ export function runSummaryCommand(
 		return { text: "// sdd summary — stdin is empty. Pass the summary.md content on stdin.", exitCode: 1 };
 	}
 
-	const result = writeSddSummary({ cwd: dir, change, content });
+	let result;
+	try {
+		const structured = content.trimStart().startsWith("{") ? JSON.parse(content) : null;
+		result = structured ? writeVerifiedSddSummary({ cwd: dir, change, content: structured.content, commands: structured.commands }) : writeSddSummary({ cwd: dir, change, content });
+	} catch (error) { return { text: String(error), exitCode: 1 }; }
 	if (!result.ok) {
 		return { text: `// sdd summary — ${result.reason}.`, exitCode: 1 };
 	}

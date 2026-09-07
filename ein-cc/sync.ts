@@ -118,6 +118,7 @@ const EXACT_TOOL_MAP: Record<string, string> = {
   write: "Write",
   bash: "Bash",
   ein_openspec_delta_write: "Bash",
+  ein_sdd_summary: "Bash",
 };
 
 function translateTool(raw: string, source: string, agent: string): string {
@@ -155,6 +156,7 @@ const RUNTIME_TOKEN_RULES: ReadonlyArray<{
   token: string;
   replacement: string;
 }> = [
+  { source: "agents/sdd-close.md", token: "ein_sdd_summary", replacement: "ein-cc-sdd summary <change> (JSON on stdin)" },
   {
     // Antes traducía a la prosa "the OpenSpec delta writer": un nombre sin nada
     // detrás. El agente recibía la orden de usarlo Y la prohibición de escribir

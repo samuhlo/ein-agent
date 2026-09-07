@@ -43,6 +43,7 @@ function expectedClaudeTool(raw: string): string {
     write: "Write",
     bash: "Bash",
     ein_openspec_delta_write: "Bash",
+    ein_sdd_summary: "Bash",
   };
   return exact[raw] ?? (raw.startsWith("linear_") ? `mcp__linear__${raw}` : "");
 }
