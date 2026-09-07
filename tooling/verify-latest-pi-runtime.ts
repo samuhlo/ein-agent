@@ -73,6 +73,14 @@ try {
     );
   }
 
+  const widgetProbe = Bun.spawnSync(["bun", join(ROOT, "tooling/verify-subagent-widget-runtime.ts"), join(context.agentDir, "npm/node_modules/pi-subagents")], {
+    cwd: home,
+    env: { ...process.env, PI_CODING_AGENT_DIR: context.agentDir, NODE_PATH: join(ROOT, "node_modules"), PI_OFFLINE: "1" },
+    stdout: "pipe", stderr: "pipe",
+  });
+  if (widgetProbe.exitCode !== 0) throw new Error(new TextDecoder().decode(widgetProbe.stderr));
+  console.log(new TextDecoder().decode(widgetProbe.stdout).trim());
+
   console.log(`Pi latest ${hostVersion}; extensiones latest instaladas y cargadas: ${installed.map(({ name, version }) => `${name}@${version}`).join(", ")}`);
 } finally {
   rmSync(home, { recursive: true, force: true });

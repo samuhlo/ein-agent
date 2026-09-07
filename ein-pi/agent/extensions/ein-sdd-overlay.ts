@@ -1,6 +1,6 @@
 // =============================================================================
 // OVERLAY SDD
-// Pinta el cambio activo y su lista de tareas como un widget vivo sobre el
+// Pinta el cambio activo y su lista de tareas como un widget vivo bajo el
 // editor. Pegamento fino: toda la decisión de qué se ve vive en
 // `lib/sdd-overlay.ts`, que es puro y está fijado por tests.
 //
@@ -131,7 +131,7 @@ export default function (pi: ExtensionAPI): void {
 		const next = lines.join("\n");
 		if (next === painted) return;
 		painted = next;
-		ctx.ui.setWidget(OVERLAY_KEY, lines.length > 0 ? [...lines] : undefined, { placement: "aboveEditor" });
+		ctx.ui.setWidget(OVERLAY_KEY, lines.length > 0 ? [...lines] : undefined, { placement: "belowEditor" });
 	}
 
 	function rebindEventListener(ctx: ExtensionContext): void {

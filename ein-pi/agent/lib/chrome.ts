@@ -6,7 +6,7 @@
 //
 // Aquí no hay marco. La jerarquía sale del aire, de la sangría y del apagado:
 //   - un bloque se agrupa con una REGLA VERTICAL, no con una caja;
-//   - la fila con foco es una BANDA de fondo, no un borde;
+//   - la fila con foco se distingue por su marcador y el acento;
 //   - una sección es `// NNN. título`, sin `■` y sin regla debajo.
 //
 // Módulo PURO: entra texto y paleta, salen líneas. Sin fs, sin Pi, sin OpenTUI.
@@ -31,20 +31,6 @@ export const GLYPH = Object.freeze({
 	/** Distinto de `unknown`: esto SÍ se comprobó, y salió mal. */
 	failed: "×",
 });
-
-// Tintes derivados de `#0B0B0B` con la regla de STYLE.md // 001:
-// superficie semántica = mix(c, α) = 11 + α·(c − 11) por canal.
-// La banda de foco es yellow α 0.08 — cálida, para atarla al acento único.
-const BAND_RGB = Object.freeze({ r: 31, g: 26, b: 15 });
-
-const RESET = "\u001b[0m";
-
-/** Fondo de la banda de foco. Sin color, la banda no existe y manda el `▸`. */
-export function band(text: string, width: number, enabled: boolean): string {
-	const filled = padVisible(text, width);
-	if (!enabled) return filled;
-	return `\u001b[48;2;${BAND_RGB.r};${BAND_RGB.g};${BAND_RGB.b}m${filled}${RESET}`;
-}
 
 /**
  * Título de sección: `// NNN. título`. El `//` es el gesto de marca y va en
