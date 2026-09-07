@@ -28,6 +28,7 @@ export function recognizePiParticipantTerminal(input: {
 	toolName: unknown;
 	isError: unknown;
 	details: unknown;
+	content?: unknown;
 	agent: string;
 	task: string;
 }): PiParticipantTerminal {
@@ -35,7 +36,12 @@ export function recognizePiParticipantTerminal(input: {
 		return participantTerminalUnavailable("unsupported participant delivery");
 	}
 	if (input.isError !== false) {
-		return participantTerminalUnavailable("participant transport failed");
+		const diagnostic = Array.isArray(input.content)
+			? input.content.find((part) => isRecord(part) && part.type === "text" && typeof part.text === "string" && part.text.trim())
+			: undefined;
+		return participantTerminalUnavailable(
+			diagnostic ? diagnostic.text.trim().slice(0, 2048) : "participant transport failed",
+		);
 	}
 	if (!isRecord(input.details) ||
 		(input.details.mode !== "single" && input.details.mode !== "workflow") ||
