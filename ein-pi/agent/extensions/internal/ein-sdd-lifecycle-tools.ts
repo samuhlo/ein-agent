@@ -32,6 +32,8 @@ import {
 	skippedMemoryReceipt,
 } from "./ein-sdd-memory.ts";
 import type { EinToolRegistrar } from "./ein-tool-registration.ts";
+import { readSddAdvisoryStatus } from "../../lib/sdd-participants.ts";
+import { sddPreflightSessionKey } from "../../lib/sdd-preflight.ts";
 
 async function performSddClose(
 	pi: ExtensionAPI,
@@ -39,6 +41,7 @@ async function performSddClose(
 	change: string,
 	options: CloseOptions,
 ) {
+	const advisory = readSddAdvisoryStatus(ctx.cwd, sddPreflightSessionKey(ctx), change);
 	const result = closeChange(ctx.cwd, change, options);
 	let memory: SafeMemoryReceipt | undefined;
 	if (result.ok) {
@@ -49,7 +52,7 @@ async function performSddClose(
 		});
 		memory = await saveArchivedCloseMemory(ctx, change, result.to);
 	}
-	return { result, memory };
+	return { result, memory, advisory };
 }
 
 /** Register artifact checking and deterministic SDD close. */
@@ -74,7 +77,7 @@ export function registerSddLifecycleTools(
 			if (!change) {
 				return { content: [{ type: "text", text: (changeUnavailableMessage(ctx.cwd, "check", params?.change) ?? "// sdd check — no active change in openspec/changes/.") }], details: { ok: false, reason: "no active change" } };
 			}
-			const report = lintChange(ctx.cwd, change);
+			const report = Object.assign(lintChange(ctx.cwd, change), { advisory: readSddAdvisoryStatus(ctx.cwd, sddPreflightSessionKey(ctx), change) });
 			const phaseReport = params?.phase
 				? report.phases.find((entry) => entry.phase === params.phase)
 				: undefined;
@@ -116,7 +119,7 @@ export function registerSddLifecycleTools(
 			);
 			return;
 		}
-		const { result, memory } = await performSddClose(pi, ctx, change, {
+		const { result, memory, advisory } = await performSddClose(pi, ctx, change, {
 			force: parsed.force,
 			legacyReason: parsed.reason,
 			reconciliationProfile: parsed.reconciliationProfile,
@@ -133,7 +136,7 @@ export function registerSddLifecycleTools(
 				? `Reconciled out-of-flow change '${change}' closed with profile ${result.reconciliation.profile}.${memoryMessage}`
 				: `Verified change '${change}' closed. openspec/changes/ is clean.${memoryMessage}`;
 		ctx.ui.notify(
-			result.ok ? success : `No se cerró '${change}': ${result.reason}`,
+			(result.ok ? success : `No se cerró '${change}': ${result.reason}`) + (advisory ? ` Revisión asesora: ${advisory.status}${advisory.reason ? ` — ${advisory.reason}` : ""}.` : ""),
 			result.ok ? "info" : "warning",
 		);
 	}
@@ -163,7 +166,7 @@ export function registerSddLifecycleTools(
 				return { content: [{ type: "text", text: (changeUnavailableMessage(ctx.cwd, "close", params?.change) ?? "// sdd close — no active change to close.") }], details: { ok: false, reason: "no active change" } };
 			}
 			const reason = params?.reason;
-			const { result, memory } = await performSddClose(pi, ctx, change, {
+			const { result, memory, advisory } = await performSddClose(pi, ctx, change, {
 				force: Boolean(params?.force),
 				legacyReason: reason,
 				reconciliationProfile: params?.reconciliationProfile,
@@ -176,7 +179,7 @@ export function registerSddLifecycleTools(
 						? `// sdd close — Reconciled '${change}' with profile ${result.reconciliation.profile}; archived to ${result.to.replace(ctx.cwd, ".")}.`
 						: `// sdd close — Verified change '${change}' closed; archived to ${result.to.replace(ctx.cwd, ".")}.`
 				: `// sdd close — '${change}' NOT closed: ${result.reason}`;
-			return { content: [{ type: "text", text }], details: { ...result, memory } };
+			return { content: [{ type: "text", text: text + (advisory ? `\nRevisión asesora: ${advisory.status}${advisory.reason ? ` — ${advisory.reason}` : ""}.` : "") }], details: { ...result, memory, advisory } };
 		},
 	});
 }

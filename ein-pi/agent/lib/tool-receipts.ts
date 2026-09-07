@@ -157,10 +157,19 @@ function checkReceipt(details: unknown): ToolReceipt {
 	const present = list(details.phases).filter((entry) => isRecord(entry) && entry.present === true).length;
 	const line = warnings > 0
 		? meta([`${plural(present, "fase revisada", "fases revisadas")}`, plural(warnings, "aviso", "avisos")])
-		: `${plural(present, "fase revisada", "fases revisadas")}, sin problemas`;
+		: `${plural(present, "fase", "fases")} sin errores`;
 	const detail = [`Los documentos del cambio están completos en ${plural(present, "fase", "fases")}.`];
 	if (warnings > 0) detail.push("Hay avisos: no bloquean, pero conviene mirarlos.");
-	return receipt(line, detail);
+	return advisoryReceipt(receipt(line, detail), details);
+}
+
+function advisoryReceipt(base: ToolReceipt, details: Record<string, unknown>): ToolReceipt {
+	if (!isRecord(details.advisory)) return base;
+	const labels: Record<string, string> = { complete: "completada", unavailable: "no disponible", blocked: "bloqueada", disabled: "desactivada", pending: "pendiente" };
+	const status = String(details.advisory.status);
+	const label = labels[status] ?? "sin evidencia";
+	const reason = str(details.advisory.reason);
+	return receipt(`${base.line} · revisión asesora ${label}`, [...base.detail, `Revisión asesora ${label}.${reason ? ` ${reason}` : ""}`], base.bad || status === "unavailable" || status === "blocked");
 }
 
 function preflightReceipt(details: unknown): ToolReceipt {
@@ -206,10 +215,10 @@ function laneReceipt(details: unknown): ToolReceipt {
 function closeReceipt(details: unknown): ToolReceipt {
 	if (!isRecord(details) || typeof details.ok !== "boolean") return unreadable();
 	if (details.ok) {
-		return receipt("cambio archivado", [
+		return advisoryReceipt(receipt("cambio archivado", [
 			"El cambio queda cerrado en su resumen duradero.",
 			"A partir de aquí forma parte del historial, no del trabajo en curso.",
-		]);
+		]), details);
 	}
 	const reason = str(details.reason) ?? "no se dijo el motivo";
 	const line = `no se pudo cerrar: ${reason}`;

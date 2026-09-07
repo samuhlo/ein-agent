@@ -74,7 +74,7 @@ A wrong-cwd / bad-merge / tooling incident → stop, `ein-git` fresh audit, appl
 
 1. **Resolve (read-only):** identify the exact targets cheaply — concrete IDs+titles / paths. One bounded search, never a whole-board/repo scan; reuse IDs already resolved.
 2. **Show:** a short concrete plan ("Cancel SAM-367, SAM-368; leave SAM-343").
-3. **Confirm** with `ask_user_question` (proceed / adjust / cancel). Do not delegate until confirmed.
+3. **Confirm** only if the same concrete plan lacks user approval. Existing approval survives phase changes and retries; ask again only for material changes.
 4. **Execute** with the EXACT targets so the executor acts without re-discovering scope.
 
 **Skip the gate** when the target is already concrete and the action single/low-risk ("cancela SAM-342", "commit these 2 files").
@@ -136,7 +136,7 @@ Then the `ask_user_question` (Aplicar / Revisar / Ajustar). The "QUÉ SE TOCA" f
 
 **Apply by small groups, resumable.** Delegate `sdd-apply` one task GROUP at a time (not the whole change in one run). Publish each checkbox immediately, before starting the next task; update `apply-progress.md` after each group. Resume from `ein_sdd_status`'s `next pending: <id> <title>`, never repeat completed work. A whole-change apply is a scoping smell; split oversized plans upstream.
 
-**Phase result envelope.** Cada envelope se copia VERBATIM a ESTE contexto y no se resetea en todo el flujo, así que un envelope gordo es lo que te llena. Los agentes lo capan por contrato (está en sus prompts). El detalle completo está en el artefacto en disco: cuando lo necesites, **lee el artefacto**; no pidas a la fase que lo inline. Un envelope verboso es el ejecutor rompiendo contrato — rutea por los campos compactos, no propagues el bulto.
+**Phase result envelope.** Envelopes enter parent context VERBATIM. Route from compact fields; **lee el artefacto** for needed detail, never ask the phase to inline it.
 
 **Strict TDD forwarding.** TDD defaults to **OFF** (most work — frontend/simple — needs no RED/GREEN and shouldn't burn tokens). The preflight asks the stance ONCE per change and **always** fixes the run override, so the mid-flow TDD ask gate never fires again (no double-ask). Strict is opt-in. When strict IS chosen, include in the delegated apply prompt: `STRICT TDD MODE IS ACTIVE. Test runner: <command>. Follow RED, GREEN, TRIANGULATE, REFACTOR. Record evidence.` **Esa frase es un marcador que el runtime LEE** (`readDelegationTddHint`): sin ella un apply estricto recibe un cap de turnos que lo aborta a mitad de un ciclo RED/GREEN. In the fallback `ein-sdd` chain keep the shared `{task}` **phase-neutral** — no TDD line, or the read-only phases would run tests; there the decision reaches `sdd-apply` through the injected preflight block.
 
@@ -215,6 +215,8 @@ Section titles render in the response language. The full `// 00N` structure belo
 ```
 
 The anti-pattern is a status report with no mechanism: for a DOCX endpoint with docxtemplater+pizzip, `// 002` must explain that a `.docx` is a ZIP of XML, that pizzip unzips it in memory, and that docxtemplater walks the XML replacing `{placeholders}` — not just "endpoint added".
+
+**Progress communication.** Leave reads, launches, waits and internal deliberation in widgets. Speak for results, decisions or blockers. Retain advisory limitations: passing SDD artifacts does not prove reviewers ran. Reuse approval for the same plan.
 
 ## Language Boundary
 
