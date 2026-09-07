@@ -23,7 +23,7 @@
 // eligió nada".
 // =============================================================================
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, lstatSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import {
@@ -261,6 +261,32 @@ export function readChangeStance(cwd: string, change: string): SddChangeStance |
 export function readActiveChangeStance(cwd: string): SddChangeStance | undefined {
 	const change = resolveActiveChange(cwd);
 	return change ? readChangeStance(cwd, change) : undefined;
+}
+
+/** Publish both human decisions together, before any scope executor starts. */
+export function initializeSddChange(cwd: string, change: string, tdd: TddStance, lane: SddLane, author: PreflightAuthor): SddChangeStance {
+	if (!isSafeChangeName(change) || !STANCES.includes(tdd) || !["micro", "standard"].includes(lane) || !AUTHORS.includes(author)) throw new Error("Invalid change initialization");
+	const root = realpathSync(cwd);
+	let parent = root;
+	for (const part of ["openspec", "changes"]) {
+		parent = join(parent, part);
+		if (existsSync(parent) && (lstatSync(parent).isSymbolicLink() || !lstatSync(parent).isDirectory())) throw new Error("Unsafe change directory");
+	}
+	const target = join(parent, change);
+	if (existsSync(target)) {
+		if (lstatSync(target).isSymbolicLink()) throw new Error("Unsafe change directory");
+		const existing = readChangeStance(root, change);
+		if (existing?.tdd === tdd && existing.lane === lane && existing.laneDeclared) return existing;
+		throw new Error("Change already exists with a different or incomplete stance; read it before updating");
+	}
+	mkdirSync(parent, { recursive: true });
+	const staging = mkdtempSync(join(parent, ".ein-init-"));
+	try {
+		writePreflightRecord(staging, { tdd, decidedBy: author });
+		writeChangeLane(staging, lane);
+		renameSync(staging, target);
+	} finally { rmSync(staging, { recursive: true, force: true }); }
+	return readChangeStance(root, change)!;
 }
 
 /**

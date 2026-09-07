@@ -1,6 +1,7 @@
 {
   "theme": "ein",
   "quietStartup": true,
+  "hideThinkingBlock": true,
   "enableInstallTelemetry": false,
   "enableSkillCommands": true,
   "compaction": {

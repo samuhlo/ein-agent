@@ -26,6 +26,7 @@ export type { ChangeLintReport } from "../sdd/sdd-change-validation.ts";
 export { collectSddRemedies, formatSddRemedies } from "../sdd/sdd-remedies.ts";
 export { LANE_LABEL, laneSkips, normalizeLane, readChangeLane, writeChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
 export {
+	initializeSddChange,
 	changeStanceDirective,
 	normalizeTddStance,
 	readActiveChangeStance,

@@ -23,7 +23,7 @@ Invoke these with the `subagent` tool — never do their work from the parent. *
 | `sdd-tasks` | read, grep, find, write, edit | SDD tasks phase: turns `design.md` into executable `tasks.md`. |
 | `sdd-apply` | read, grep, find, edit, write, bash, ein_sdd_task_progress | SDD implementation phase. |
 | `sdd-verify` | read, grep, find, bash, write, edit | SDD verification phase. |
-| `sdd-close` | read, grep, find, write, bash | SDD close phase: condenses a verified change into `summary.md`. |
+| `sdd-close` | read, grep, find, write, bash, ein_sdd_summary | SDD close phase: condenses a verified change into `summary.md`. |
 
 ```
 await subagent({ agent: "ein-git", task: "commit files X,Y with message '...'", context: "fresh" })
@@ -74,7 +74,7 @@ A wrong-cwd / bad-merge / tooling incident → stop, `ein-git` fresh audit, appl
 
 1. **Resolve (read-only):** identify the exact targets cheaply — concrete IDs+titles / paths. One bounded search, never a whole-board/repo scan; reuse IDs already resolved.
 2. **Show:** a short concrete plan ("Cancel SAM-367, SAM-368; leave SAM-343").
-3. **Confirm** with `ask_user_question` (proceed / adjust / cancel). Do not delegate until confirmed.
+3. **Confirm** only if the same concrete plan lacks user approval. Existing approval survives phase changes and retries; ask again only for material changes.
 4. **Execute** with the EXACT targets so the executor acts without re-discovering scope.
 
 **Skip the gate** when the target is already concrete and the action single/low-risk ("cancela SAM-342", "commit these 2 files").
@@ -107,6 +107,8 @@ Resuming across sessions is free: call `ein_sdd_status` — no context dump, no 
 
 **Fallback (one-shot chain).** For the whole flow in a single call (or `/run-chain ein-sdd -- <task>`), an enabled Cleaner or Architect may be attempted as an advisory pass after apply, but unavailable or blocked participation MUST be reported before continuing to the mechanical `sdd-verify` gate. The `subagent` `chain` field is an **array of step objects**, never a string; `reads` is a JSON array (`["scope.md"]`), never a `+`-string; keep `task: "{task}"` on every step; **ALWAYS pass `maxRuntimeMs`** (`1800000` normal / `2700000` large) as the backstop against a stalled cheap-model step. Prefer the phase-by-phase loop. Never invoke `sdd-apply` directly for a full flow; `sdd-verify` may be invoked directly for a re-check.
 
+**Phase budgets.** Map and design have independent context allocations; never forward a previous phase's consumed/remaining balance as the next phase's budget. Pass an explicit `phase_budget: {"max_tokens":N,"max_reads":N}` line for overrides. Explicit user and shared total limits still apply.
+
 **Scope Gate (before `sdd-map`).** Build a SCOPE PACKET from the request: `scope`, `change_name`, `budget: { max_tokens: 15000, max_reads: 30 }` (override if explicit), `webfetch: true` only if the request needs the web; wrap `{task}` inside it. Pass explicit `canonical_spec_domains` only when known. Scope resolves only exact `openspec/specs/<domain>/spec.md` paths and records path/SHA-256/bytes; design reuses those references and may add only mapped domain hints. Both phases share a hard maximum of 3 files and 32 KiB UTF-8. If it exceeds either limit, stop with a narrower-selection request; never glob, truncate, use `.sdd`, or add an AI phase. Reject vague scope ("arregla todo") and ask; if clear but too broad (>50 files), decompose into slices first — one slice = one future SDD/PR.
 
 **Gatekeeper (`ein_sdd_check`)** only BLOCKS on signals with a mechanical consumer downstream: `tasks` needs its checkboxes (apply reads them to pick a group) and its `verify:` command; `apply` and `verify` need their status lines (the deterministic router reads them to pick the next phase); `map` needs `scope_status`. Everything else — a missing design section, `status`/`blocked_by` in tasks, placeholders, oversize, oversized groups — is a **warning that does not block**. The prose checks were removed outright (forbidden wording, `behavior_coverage`, and the `ledger`/`budget_*` telemetry of the cost ledger deleted in `3a2ec6b`): they policed how a document was written, not whether the code was right, and their failures were repaired by re-running phases. Run it after each phase; errors block advancing, warnings are information. `/ein:sdd-audit` is the canonical manual equivalent; `/ein:sdd-check` is a legacy alias.
@@ -118,7 +120,7 @@ Resuming across sessions is free: call `ein_sdd_status` — no context dump, no 
 - **OpenSpec spec state.** `ein_sdd_status` reporta el `specState` Y su remedio en la sección `cómo desbloquear`. Sigue la frase que te dé; no la deduzcas. `force` NUNCA archiva sobre un conflicto.
 - **A run marked failed is not always a failed phase — the runtime already checks.** A runner can report ✗ for reasons that say nothing about the work (a tool missing from the allowlist, an empty final response, a timeout during the closing read) with the artifact already written. When that happens the runtime reconciles it deterministically: if that phase's artifact was written **during that run** and passes its lint, the result comes back as `SDD RECONCILE — fase 'X' COMPLETA`, carrying the original error for your information. Treat it as done: do NOT re-run the phase and do NOT "verify" it by re-delegating. If you do NOT see that banner, the failure is real — apply the retry rule above.
 
-**Lazy preflight, per CHANGE.** Don't ask SDD setup at session start. The first explicit SDD request runs `/ein:ai:sdd-preflight` once, performs a create-if-absent bootstrap for `openspec/config.yaml`, and reuses the injected `## SDD Session Preflight` block. Bootstrap returns the original request to the router so `sdd-scope` is the first delegated phase; it is not a confirmation or permission to advance through later phases. The runtime asks the **stance of the change** — strict TDD, and lane (`micro` skips `map` and `tasks`, nothing else) — once per change, writes it to `preflight.json`, and adopts one already on disk. Never ask either yourself; read it with `ein_sdd_preflight`.
+**Lazy preflight, per CHANGE.** For an authorized new change, resolve only missing lane/TDD decisions, then call `ein_sdd_preflight` with explicit `change`, `tdd`, `lane`, `create:true` BEFORE `sdd-scope`. It publishes both choices together. Read-only requests never initialize a change. Adopt existing choices; never recreate an old change by inference. Session preflight owns mode, memory and create-if-absent bootstrap.
 
 **Execution mode — ONE human gate, before apply.** The read-only planning phases (`scope → map → design → tasks`) run **continuously, without a question between each** — they mutate no code, so pausing to ask "continue to map?" is pure friction. Show a one-line result per phase and move on. `interactive` (default): after `tasks`, **present a short TEACHING brief and THEN ask once** for a single confirmation before the first `sdd-apply`; that authorization covers **all** already-approved task groups. The brief is NOT a bare "¿aplico?" — never leave the plan opaque. Use the Samu format and teaching voice, reading `design.md` for the mechanism and the deterministic **plan preview** from `ein_sdd_status` (the `plan de apply:` block — groups + exact production files + verify) for what gets touched:
 
@@ -134,7 +136,7 @@ Then the `ask_user_question` (Aplicar / Revisar / Ajustar). The "QUÉ SE TOCA" f
 
 **Apply by small groups, resumable.** Delegate `sdd-apply` one task GROUP at a time (not the whole change in one run). Publish each checkbox immediately, before starting the next task; update `apply-progress.md` after each group. Resume from `ein_sdd_status`'s `next pending: <id> <title>`, never repeat completed work. A whole-change apply is a scoping smell; split oversized plans upstream.
 
-**Phase result envelope.** Cada envelope se copia VERBATIM a ESTE contexto y no se resetea en todo el flujo, así que un envelope gordo es lo que te llena. Los agentes lo capan por contrato (está en sus prompts). El detalle completo está en el artefacto en disco: cuando lo necesites, **lee el artefacto**; no pidas a la fase que lo inline. Un envelope verboso es el ejecutor rompiendo contrato — rutea por los campos compactos, no propagues el bulto.
+**Phase result envelope.** Envelopes enter parent context VERBATIM. Route from compact fields; **lee el artefacto** for needed detail, never ask the phase to inline it.
 
 **Strict TDD forwarding.** TDD defaults to **OFF** (most work — frontend/simple — needs no RED/GREEN and shouldn't burn tokens). The preflight asks the stance ONCE per change and **always** fixes the run override, so the mid-flow TDD ask gate never fires again (no double-ask). Strict is opt-in. When strict IS chosen, include in the delegated apply prompt: `STRICT TDD MODE IS ACTIVE. Test runner: <command>. Follow RED, GREEN, TRIANGULATE, REFACTOR. Record evidence.` **Esa frase es un marcador que el runtime LEE** (`readDelegationTddHint`): sin ella un apply estricto recibe un cap de turnos que lo aborta a mitad de un ciclo RED/GREEN. In the fallback `ein-sdd` chain keep the shared `{task}` **phase-neutral** — no TDD line, or the read-only phases would run tests; there the decision reaches `sdd-apply` through the injected preflight block.
 
@@ -213,6 +215,8 @@ Section titles render in the response language. The full `// 00N` structure belo
 ```
 
 The anti-pattern is a status report with no mechanism: for a DOCX endpoint with docxtemplater+pizzip, `// 002` must explain that a `.docx` is a ZIP of XML, that pizzip unzips it in memory, and that docxtemplater walks the XML replacing `{placeholders}` — not just "endpoint added".
+
+**Progress communication.** Leave reads, launches, waits and internal deliberation in widgets. Speak for results, decisions or blockers. Retain advisory limitations: passing SDD artifacts does not prove reviewers ran. Reuse approval for the same plan.
 
 ## Language Boundary
 

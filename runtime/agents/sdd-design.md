@@ -15,7 +15,7 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
 
 ## Inputs
 
-Read `scope.md`, `map.md`, the relevant existing code and tests, and `openspec/config.yaml` when present. Build on the map output; do not remap from scratch.
+Read `scope.md`, `map.md`, the relevant existing code and tests, and `openspec/config.yaml` when present. Build on the map output; do not remap from scratch. Design has its own context allowance (default 15000 tokens / 30 reads), not map's remaining balance. A supplied phase allocation and explicit user limits take precedence; previous-phase consumption is accounting only.
 
 ## Canonical spec context
 

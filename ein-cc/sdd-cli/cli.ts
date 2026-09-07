@@ -22,6 +22,7 @@
 
 import {
 	changeStanceDirective,
+	initializeSddChange,
 	closeChange,
 	commandIsExplicitlyAllowed,
 	commandRequiresConfirmation,
@@ -59,6 +60,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { updateSddTaskProgress } from "../../shared/sdd/sdd-task-progress.ts";
 import { join } from "node:path";
+import { writeVerifiedSddSummary } from "../../shared/sdd/sdd-summary-write.ts";
 import { formatSddCheck, formatSddStatus } from "./presentation.ts";
 import { runSyncCommand, type SyncCliResponse } from "./sync-command.ts";
 
@@ -231,6 +233,13 @@ export function runPreflightCommand(
 		return index >= 0 ? args[index + 1] : undefined;
 	};
 	const force = args.includes("--force");
+	if (args.includes("--create")) {
+		const name = args[0];
+		const tdd = normalizeTddStance(flag("--tdd")), lane = normalizeLane(flag("--lane"));
+		if (!name || !tdd || !lane) return { text: "--create requires change, --tdd and --lane", exitCode: 1 };
+		try { return { text: changeStanceDirective(initializeSddChange(dir, name, tdd, lane, "claude")), exitCode: 0 }; }
+		catch (error) { return { text: String(error), exitCode: 1 }; }
+	}
 	const positional = args.filter((arg, index) => {
 		if (arg.startsWith("--")) return false;
 		const previous = args[index - 1];
@@ -425,7 +434,11 @@ export function runSummaryCommand(
 		return { text: "// sdd summary — stdin is empty. Pass the summary.md content on stdin.", exitCode: 1 };
 	}
 
-	const result = writeSddSummary({ cwd: dir, change, content });
+	let result;
+	try {
+		const structured = content.trimStart().startsWith("{") ? JSON.parse(content) : null;
+		result = structured ? writeVerifiedSddSummary({ cwd: dir, change, content: structured.content, commands: structured.commands }) : writeSddSummary({ cwd: dir, change, content });
+	} catch (error) { return { text: String(error), exitCode: 1 }; }
 	if (!result.ok) {
 		return { text: `// sdd summary — ${result.reason}.`, exitCode: 1 };
 	}

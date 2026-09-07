@@ -20,6 +20,7 @@ import {
 	readChangeStance,
 	renderChangeStanceLine,
 	writePreflightRecord,
+	initializeSddChange,
 } from "../../lib/sdd-preflight-record.ts";
 import {
 	changeUnavailableMessage,
@@ -70,7 +71,7 @@ export function registerSddChangeSettings(
 	registerEinTool({
 		name: "ein_sdd_preflight",
 		label: "Ein SDD Preflight",
-		description: "Read (or record) how this change is driven: strict TDD stance and lane. Call it WITHOUT arguments to read the decision the preflight already stored — it is authoritative over `openspec/config.yaml` `strict_tdd`. A stance already decided is never replaced without `force`. Reads and writes only the filesystem.",
+		description: "Read or record a change's TDD stance and lane. Before first scope, use create:true with an explicit change, tdd and lane to publish both decisions together. Reads never create a change. Existing choices require force to replace.",
 		parameters: {
 			type: "object",
 			properties: {
@@ -78,9 +79,16 @@ export function registerSddChangeSettings(
 				tdd: { type: "string", enum: ["off", "strict"], description: "Omit to read without deciding." },
 				lane: { type: "string", enum: ["micro", "standard"], description: "Omit to leave the declared lane untouched." },
 				force: { type: "boolean", description: "Replace a stance that was already decided." },
+				create: { type: "boolean", description: "Initialize a named new change with both tdd and lane before scope." },
 			},
 		} as const,
-		async execute(_id, params: { change?: string; tdd?: string; lane?: string; force?: boolean }, _signal, _onUpdate, ctx: ExtensionContext) {
+		async execute(_id, params: { change?: string; tdd?: string; lane?: string; force?: boolean; create?: boolean }, _signal, _onUpdate, ctx: ExtensionContext) {
+			if (params.create) {
+				const tdd = normalizeTddStance(params.tdd), lane = normalizeLane(params.lane);
+				if (!params.change || !tdd || !lane) throw new Error("Creating a change requires explicit change, tdd and lane");
+				const stance = initializeSddChange(ctx.cwd, params.change, tdd, lane, "pi");
+				return { content: [{ type: "text", text: changeStanceDirective(stance) }], details: { ok: true, change: params.change, tdd: stance.tdd, lane: stance.lane } };
+			}
 			const change = params?.change ?? resolveSddStatus(ctx.cwd).change;
 			if (!change) {
 				return { content: [{ type: "text", text: (changeUnavailableMessage(ctx.cwd, "preflight", params?.change) ?? "// sdd preflight — no active change in openspec/changes/.") }], details: { ok: false, reason: "no active change" } };

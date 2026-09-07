@@ -270,7 +270,7 @@ export function listActiveChanges(cwd: string): string[] {
 	}
 	const out: string[] = [];
 	for (const entry of entries) {
-		if (entry === "archive") continue;
+		if (entry === "archive" || entry.startsWith(".ein-init-")) continue;
 		try {
 			if (statSync(join(dir, entry)).isDirectory()) out.push(entry);
 		} catch {
@@ -488,6 +488,13 @@ function readApplyOutcome(changePath: string): ApplyOutcome {
 	}
 	// Si existe pero no tiene status legible → treated as partial (backward-compat).
 	return "partial";
+}
+
+export function readSddCompletionEvidence(cwd: string, change: string) {
+	if (!isSafeChangeName(change)) throw new Error("Invalid change name");
+	const path = join(resolveChangesDir(cwd), change);
+	const present = Object.fromEntries(Object.keys(PHASE_ARTIFACT).map((phase) => [phase, existsSync(phaseArtifactPath(path, phase as SddPhase))])) as Record<SddPhase, boolean>;
+	return { apply: readApplyOutcome(path), verify: readVerifyOutcome(path), tasks: readTasksStatus(path), ...computeStaleness(cwd, path, present) };
 }
 
 // Estado determinista de UN cambio. Si no se pasa `change`, usa el único activo

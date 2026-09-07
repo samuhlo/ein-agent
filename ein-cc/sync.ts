@@ -112,6 +112,7 @@ function lineColumn(text: string, index: number): string {
 // linear_* son tools de un MCP de Linear: se prefijan mcp__linear__ (opt-in Team).
 const EXACT_TOOL_MAP: Record<string, string> = {
   read: "Read",
+  ein_sdd_summary: "Bash",
   grep: "Grep",
   find: "Glob",
   edit: "Edit",
@@ -166,6 +167,7 @@ const RUNTIME_TOKEN_RULES: ReadonlyArray<{
     token: "ein_openspec_delta_write",
     replacement: "ein-cc-sdd delta",
   },
+  { source: "agents/sdd-close.md", token: "ein_sdd_summary", replacement: "ein-cc-sdd summary <change> (JSON on stdin)" },
   {
     source: "agents/ein-git.md",
     token: "ein_review_forecast",
