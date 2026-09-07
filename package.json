@@ -9,6 +9,7 @@
     "solid-js": "1.9.12"
   },
   "scripts": {
+    "dev:install": "bun run tooling/dev-install.ts",
     "setup": "bun install && bun run sync:pi && cd installer && bun install",
     "sync:pi": "bun update --latest --no-save --force @earendil-works/pi-coding-agent @earendil-works/pi-tui",
     "test": "bun test",

@@ -176,13 +176,17 @@ work_groups: <entero positivo>
 verification_status: pass
 ```
 
-Después conserva, en formato `// 00N`, el resultado, el mecanismo, las
+Después conserva, con estructura proporcional al cambio, el resultado, el mecanismo, las
 decisiones, la verificación y los riesgos. Cada comprobación reutilizable se
 declara como `- verify: \`<comando exacto>\``.
 
 Los demás artefactos son una mesa de trabajo: permiten retomar y comprobar el
 cambio mientras está activo. El cierre requiere que el resumen sea posterior a
-apply/verify, copia únicamente `summary.md` al archivo y elimina el resto.
+apply/verify. Antes de eliminar los archivos intermedios, incorpora en
+`summary.md` los informes presentes de aplicación, verificación y sincronización.
+El archivo conserva ese único resumen con su evidencia. Los encabezados y las
+comillas del comando no bloquean el cierre; los metadatos sí tienen consumidores.
+Cerrar no modifica `EIN.md`.
 
 ## Gates Entre Fases
 

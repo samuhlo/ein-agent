@@ -164,6 +164,16 @@ function checkReceipt(details: unknown): ToolReceipt {
 }
 
 function preflightReceipt(details: unknown): ToolReceipt {
+	if (isRecord(details) && details.ok === false) {
+		const reasons: Record<string, string> = {
+			"no active change": "sin cambio activo",
+			"unknown change": "el cambio todavía no existe",
+			"already decided": "la decisión del cambio ya está registrada",
+			"unknown stance": "la opción de TDD no es válida",
+		};
+		const line = reasons[String(details.reason)];
+		if (line) return receipt(line, [line, "Consulta el cambio antes de registrar una decisión."], true);
+	}
 	if (!isRecord(details) || !str(details.lane)) return unreadable();
 	const lane = details.lane === "micro" ? "versión corta" : "siete fases";
 	const tdd = details.tdd === "strict" ? "pruebas primero" : details.tdd === "off" ? "sin pruebas primero" : "sin decidir";
@@ -197,12 +207,13 @@ function closeReceipt(details: unknown): ToolReceipt {
 	if (!isRecord(details) || typeof details.ok !== "boolean") return unreadable();
 	if (details.ok) {
 		return receipt("cambio archivado", [
-			"El cambio queda cerrado y guardado con todos sus documentos.",
+			"El cambio queda cerrado en su resumen duradero.",
 			"A partir de aquí forma parte del historial, no del trabajo en curso.",
 		]);
 	}
 	const reason = str(details.reason) ?? "no se dijo el motivo";
-	return receipt(`no se pudo cerrar: ${reason}`.slice(0, 60), [
+	const line = `no se pudo cerrar: ${reason}`;
+	return receipt(line.length <= 60 ? line : "cierre bloqueado · consulta el motivo", [
 		"El cierre se ha detenido y el cambio sigue abierto.",
 		`Motivo: ${reason}.`,
 		"Hay que resolver eso y volver a intentarlo.",
@@ -221,9 +232,10 @@ function participantsReceipt(details: unknown): ToolReceipt {
 		], true);
 	}
 	if (status === "unavailable") {
-		return receipt("sin revisores disponibles", ["Esta vez no hay nadie que revise después de aplicar."]);
+		return receipt("revisión no disponible", [str(details.blocker) ?? "No hay evidencia suficiente para completar la revisión."], true);
 	}
 	if (status === "complete") {
+		if (Array.isArray(details.order) && details.order.length === 0) return receipt("revisores automáticos desactivados", ["El limpiador y el arquitecto están desactivados; no se ha ejecutado una revisión automática."]);
 		return receipt("revisión terminada", ["Los revisores ya han pasado por el trabajo."]);
 	}
 
@@ -232,6 +244,7 @@ function participantsReceipt(details: unknown): ToolReceipt {
 	return receipt(`después de aplicar revisa ${next}`, [
 		`Cuando termine de aplicarse el cambio, ${next} lo revisa.`,
 		`Tiene ${plural(list(details.slices).length, "trozo", "trozos")} de trabajo asignados.`,
+		...(Array.isArray(details.order) ? Object.entries(AGENT_ES).filter(([agent]) => !list(details.order).includes(agent)).map(([, label]) => `${label} está desactivado para este recorrido.`) : []),
 	]);
 }
 

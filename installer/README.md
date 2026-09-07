@@ -73,9 +73,31 @@ Nunca toca `auth.json`, `sessions/` ni `backups/`.
 
 ## Desarrollo
 
+Desde la raíz del repositorio puedes desplegar el checkout actual sin publicar
+una alpha en GitHub:
+
+```bash
+bun run setup                       # una vez: dependencias del checkout
+bun run dev:install --dry-run        # compila y previsualiza sin instalar
+bun run dev:install                  # compila e instala; abre después una sesión nueva
+```
+
+El comando reconstruye el template y los binarios solo para tu plataforma,
+incluidos los cambios locales sin commit. Ejecuta el instalador compilado con
+el flujo habitual de backups y conservación de estado. Despliega en tu hogar
+activo de Ein; no crea un segundo perfil de pruebas. Acepta `--runtime pi|both`
+y las opciones habituales de `install`. `--build-only` genera los binarios sin
+desplegar. Conserva la versión del checkout: no crea tags, releases ni una
+versión de desarrollo nueva. Las dependencias ausentes pueden necesitar red.
+
+Para probar una PR, cambia primero a su rama. Para volver a una release publicada,
+usa `ein-install update --yes <tag>`; para probar otra rama, repite el despliegue.
+
+Comandos internos desde `installer/`:
+
 ```bash
 bun install
-bun run dev               # ejecuta sin compilar
+bun run dev --help        # inspecciona la CLI desde fuente; para instalar usa dev:install
 bun run typecheck
 bun run bundle-template   # compone ../runtime + ../vendor/skills + ../ein-pi/agent
 bun run build:all         # compila los 4 binarios en dist/

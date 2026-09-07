@@ -78,6 +78,28 @@ describe("closeChange", () => {
 		expect(readdirSync(closed)).toEqual(["summary.md"]);
 	});
 
+	test("retains terminal evidence inside the compact summary", () => {
+		makeFresh("evidence");
+		const source = join(DIR, "openspec/changes/evidence");
+		const verification = readFileSync(join(source, "verify-report.md"), "utf8");
+		writeFileSync(join(source, "sync-report.md"), "Contrato sincronizado: wizard\n");
+		expect(closeChange(DIR, "evidence").ok).toBe(true);
+		const summary = readFileSync(join(closedChangePath(DIR, "evidence"), "summary.md"), "utf8");
+		expect(summary).toContain(verification);
+		expect(summary).toContain("Contrato sincronizado: wizard");
+		expect(summary).toContain("verify-report.md");
+	});
+
+	test("check and close agree on mechanical fields without requiring prose headings", () => {
+		makeFresh("contract");
+		const source = join(DIR, "openspec/changes/contract");
+		const summary = "status: complete\nchange: contract\nwork_groups: 1\nverification_status: pass\n\n# Resumen\nCorrección verificada.\n- verify: bun test\n";
+		writeFileSync(join(source, "summary.md"), summary);
+		expect(lintPhaseArtifact("close", "# Resumen\nHecho").ok).toBe(false);
+		expect(lintPhaseArtifact("close", summary).ok).toBe(true);
+		expect(closeChange(DIR, "contract").ok).toBe(true);
+	});
+
 	test("retoma una compactación cuya poda se interrumpe", () => {
 		makeFresh("feat-retry");
 		let interrupted = false;

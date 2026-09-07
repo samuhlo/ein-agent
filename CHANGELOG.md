@@ -4,6 +4,35 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.96.0-alpha.1] - 2026-09-07
+
+### Added
+
+- **Despliegue local sin publicar una alpha.** `bun run dev:install` compila
+  únicamente para la máquina actual y ejecuta el instalador generado. Incluye
+  previsualización con `--dry-run` y compilación sin despliegue con `--build-only`.
+
+### Fixed
+
+- **Cleaner conserva su tarea al delegarla.** Los escapes mantienen su contenido
+  y las restricciones adicionales del padre no se confunden con una identidad
+  caducada; alcance y frescura siguen comprobándose.
+- **TDD tiene una sola decisión por cambio.** Se guarda en disco, se adopta al
+  reanudar y actualiza la caché; cancelar la elección no equivale a desactivarlo.
+- **El cierre y la revisión comparten contrato.** La forma de los encabezados
+  deja de bloquear. El resumen conserva los informes terminales antes de
+  compactar y el cierre no modifica `EIN.md`.
+- **El TODO se actualiza mientras trabajan los subagentes.** Se muestra sobre
+  el editor; la flota queda debajo y las tarjetas del chat son más compactas.
+- **Estados y errores explican su causa.** Se distingue una revisión desactivada
+  de una no disponible y se muestra la procedencia de la configuración Linear.
+
+### Changed
+
+- **Explicaciones proporcionales al cambio.** Los arreglos localizados no exigen
+  siete secciones ni confirmaciones repetidas. La política de Claude permanece
+  alineada con la fuente compartida.
+
 ## [0.95.0-alpha.4] - 2026-09-04
 
 ### Fixed

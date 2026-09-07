@@ -16,7 +16,7 @@ import {
 	readChatLang,
 } from "../../lib/lang.ts";
 import { t, tf } from "../../lib/i18n/strings.ts";
-import { readLinearIntegration } from "../../lib/linear-integration.ts";
+import { inspectLinearIntegration, linearIntegrationLabel } from "../../lib/linear-integration.ts";
 import { modelConfigPath } from "../../lib/model-config.ts";
 import {
 	aggregateSddBudget,
@@ -79,7 +79,7 @@ export function registerStatusCommands(pi: ExtensionAPI): void {
 			const artifactLang = readArtifactLang(ctx.cwd);
 			lines.push("// 000. ein status");
 			lines.push(`${t("status.author", "autor")}: samuhlo`);
-			lines.push(`${t("status.linear", "linear")}: ${readLinearIntegration(ctx.cwd)}`);
+			lines.push(`${t("status.linear", "linear")}: ${linearIntegrationLabel(inspectLinearIntegration(ctx.cwd))}`);
 			lines.push(`${t("status.persona", "persona")}: ${readPersonaMode(ctx.cwd)}`);
 			lines.push(`${t("status.git", "entrega git")}: ${readGitDeliveryMode(ctx.cwd)}`);
 			lines.push(
