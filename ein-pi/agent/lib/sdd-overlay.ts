@@ -1,6 +1,6 @@
 // =============================================================================
 // [CORE] OVERLAY DEL CAMBIO ACTIVO
-// Convierte el estado SDD en las líneas de un widget vivo sobre el editor: qué
+// Convierte el estado SDD en las líneas de un widget vivo bajo el editor: qué
 // cambio, por dónde va el CARRIL COMPLETO de fases, y qué toca ahora.
 //
 // POR QUÉ EL RAÍL -> antes esto solo proyectaba `tasks.md`. Cuando la última
@@ -23,7 +23,7 @@
 // lo que impide que una interfaz se degrade sin que nadie lo note.
 // =============================================================================
 
-import { GLYPH, band, joinMeta } from "./chrome.ts";
+import { GLYPH, joinMeta } from "./chrome.ts";
 import { LANE_PHASES } from "./sdd-lane.ts";
 import type { SddChangeStatus, SddPhase, SddTaskItem } from "./sdd-router.ts";
 import { createPalette, fit, padVisible, visibleWidth, type Palette } from "./theme.ts";
@@ -118,10 +118,6 @@ export function selectVisibleTasks(
 	return { visible, hiddenDone: items.slice(0, start).filter((item) => item.done).length };
 }
 
-/**
- * Fila de bloque: la regla vertical agrupa sin encerrar, y la fila con foco se
- * distingue por una BANDA de fondo, no por un borde (STYLE.md // 002).
- */
 function blockRow(
 	key: string,
 	title: string,
@@ -136,9 +132,9 @@ function blockRow(
 	const label = fit(title, Math.max(8, width - 16));
 	const body = `${INDENT}${bar} ${mark} ${head}${paint(label)}`;
 	if (state !== "current") return body;
-	// El `▸` se ancla a la derecha, dentro de la banda.
+	// El marcador conserva el foco incluso sin color ni fondo propio.
 	const pad = Math.max(1, width - visibleWidth(body) - 1);
-	return band(`${body}${" ".repeat(pad)}${palette.accent(GLYPH.focus)}`, width, palette.enabled);
+	return `${body}${" ".repeat(pad)}${palette.accent(GLYPH.focus)}`;
 }
 
 /** Las fases que aún faltan, cuando la lista de tareas ya no informa de nada. */

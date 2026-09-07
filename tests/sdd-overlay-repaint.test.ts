@@ -649,7 +649,7 @@ describe("la cache de pintura del overlay", () => {
 			expect(painted.length).toBe(count);
 		} finally { fire("session_shutdown", ctx); box.cleanup(); }
 	});
-	test("pinta TODO sobre el editor con una identidad estable y deduplica dentro de la sesion", () => {
+	test("pinta TODO bajo el editor con una identidad estable y deduplica dentro de la sesion", () => {
 		const box = sandbox();
 		try {
 			const painted: WidgetPaint[] = [];
@@ -666,7 +666,7 @@ describe("la cache de pintura del overlay", () => {
 			expect(painted.length).toBe(afterStart);
 			expect(afterStart).toBeGreaterThan(0);
 			expect(painted.every(({ key }) => key === "ein-sdd")).toBe(true);
-			expect(painted.every(({ options }) => options?.placement === "aboveEditor")).toBe(true);
+			expect(painted.every(({ options }) => options?.placement === "belowEditor")).toBe(true);
 		} finally {
 			box.cleanup();
 		}

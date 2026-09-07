@@ -23,21 +23,21 @@ Reglas duras:
 
 ### Tintes derivados
 
-El tema de Pi (`themes/ein.json`) deriva sus fondos de la base con dos reglas, no con valores elegidos a ojo:
+En la sesión Pi, mensajes de usuario, mensajes propios y herramientas heredan el fondo de la terminal (`""` en `themes/ein.json`). El TODO tampoco pinta un fondo: distingue la fila actual con texto, regla y `▸`. Así no aparecen placas negras ni franjas partidas en terminales con otro color de base.
+
+Los menús nativos conservan `selectedBg` para identificar la opción seleccionada. La app de terminal independiente y la exportación HTML conservan superficies propias:
 
 - **Superficie neutra** = gris puro escalonado sobre `#0B0B0B`.
 - **Superficie semántica** = su color mezclado a alfa baja: `mix(c, α) = 11 + α · (c − 11)` por canal.
 
 | Var | Hex | Derivación |
 |---|---|---|
-| `customMsgBg`, `toolPendingBg` | `#121212` | neutro +1 |
-| `userMsgBg`, `export.cardBg` | `#161616` | neutro +2 |
+| `export.cardBg` | `#161616` | neutro +2 |
 | `darkGray` | `#3A3A3A` | neutro |
 | `dimGray` | `#5A5A5A` | neutro |
+| `secondaryText` | `#9A9A9A` | texto secundario legible de la sesión Pi |
 | `selectedBg` | `#1F1A0F` | yellow α 0.08 |
 | `export.infoBg` | `#2D2612` | yellow α 0.14 |
-| `toolSuccessBg` | `#1A1C15` | green α 0.10 |
-| `toolErrorBg` | `#201513` | red α 0.10 |
 
 La banda de foco es **cálida**, no neutra: ata la regla del foco (`// 002`) al acento único de esta sección.
 
@@ -47,11 +47,11 @@ Diez reglas, y una que las gobierna: **el aire sustituye al borde**.
 
 1. **Cero recuadros.** Sin marcos, sin cajas, sin pestañas de sección. Un bloque se separa del siguiente con una línea en blanco.
 2. **La regla vertical agrupa sin encerrar.** Una barra de un carácter en el margen izquierdo (`▏`) marca un bloque. Es el único elemento estructural del cuerpo.
-3. **El foco es una banda de fondo**, no un borde ni un cursor: `selectedBg` a todo el ancho, con la regla vertical en amarillo.
+3. **El foco debe sobrevivir sin fondo propio.** En la sesión Pi lo marcan `▸`, la regla en amarillo y el texto. Los menús y la app independiente pueden añadir la banda `selectedBg`.
 4. **La etiqueta de sección conserva su número y pierde su peso**: `// NNN. sección`, con `//` en yellow y el resto en structure. Sin regla debajo, sin marcador `■`.
 5. **El punto medio `·` es el separador universal**, en metadatos (`apply · 3/7`) y en listas de atajos (`tab plegar · ctrl+c salir`).
 6. **Minúsculas en el texto corrido.** Mensajes de estado, ayudas y atajos van en minúscula; los títulos `// NNN` mantienen su forma.
-7. **Dos barras de chrome y nada más.** Una superior con identidad y contexto, una inferior con estado y atajos, ambas sobre `#121212`. El cuerpo flota entre ellas sin marco.
+7. **Cada superficie tiene una posición estable.** En Pi, la actividad nativa de subagentes va sobre el editor y el TODO debajo. El resumen persistente FleetView se oculta; el inspector sigue disponible en `/subagents-fleet`. La app independiente conserva sus barras de identidad y estado.
 8. **Espacio negativo generoso.** El vacío es la decisión de diseño, no lo que queda cuando no hay nada que poner.
 9. **La jerarquía la hace el apagado, no el color.**
 10. **El estado vivo es diminuto y permanente**: vive en la barra inferior, nunca volcado al cuerpo.
@@ -60,7 +60,7 @@ Diez reglas, y una que las gobierna: **el aire sustituye al borde**.
 |---|---|---|
 | `// NNN. título` | Título de panel, sección o salida de comando | `// 000. sdd status` |
 | `▏` | Regla vertical: agrupa un bloque | — |
-| `▸` | Fila con foco, sobre banda `selectedBg` | `▸ apply` |
+| `▸` | Fila con foco; no requiere banda | `▸ apply` |
 | `·` | Separador de metadatos y atajos | `standard · apply · 3/7` |
 
 Numeración de tres dígitos empezando en `000`. **Un solo prefijo, `//`**, en terminal y en markdown: las formas `///` y `■ NNN.` quedan retiradas. Español directo, sin relleno corporativo, sin emojis.

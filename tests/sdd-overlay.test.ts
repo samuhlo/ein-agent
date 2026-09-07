@@ -54,6 +54,12 @@ function status(overrides: Partial<SddChangeStatus> = {}, taskItems = items(4, 1
 }
 
 describe("overlay del cambio activo", () => {
+	test("retains a visible focus marker without painting a background", () => {
+		const lines = renderSddOverlay(status(), { palette: createPalette(true) });
+		expect(lines.join("\n")).toContain("▸");
+		expect(lines.join("\n")).not.toMatch(/\u001b\[(?:4[0-8]|10[0-7])(?:;|m)/);
+	});
+
 	test("sin cambio activo no roba ni una línea", () => {
 		expect(renderSddOverlay(status({ change: null, selection: { kind: "none" } }))).toEqual([]);
 	});
