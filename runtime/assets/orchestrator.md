@@ -21,7 +21,7 @@ Invoke these with the `subagent` tool — never do their work from the parent. *
 | `sdd-map` | read, grep, find, write, bash | SDD map phase: writes its own `map.md`; bash EXCLUSIVELY for read-only `codegraph` queries. |
 | `sdd-design` | read, grep, find, write, edit | SDD design phase (proposal + spec + decisions + success criteria). |
 | `sdd-tasks` | read, grep, find, write, edit | SDD tasks phase: turns `design.md` into executable `tasks.md`. |
-| `sdd-apply` | read, grep, find, edit, write, bash | SDD implementation phase. |
+| `sdd-apply` | read, grep, find, edit, write, bash, ein_sdd_task_progress | SDD implementation phase. |
 | `sdd-verify` | read, grep, find, bash, write, edit | SDD verification phase. |
 | `sdd-close` | read, grep, find, write, bash | SDD close phase: condenses a verified change into `summary.md`. |
 
@@ -132,7 +132,7 @@ Resuming across sessions is free: call `ein_sdd_status` — no context dump, no 
 
 Then the `ask_user_question` (Aplicar / Revisar / Ajustar). The "QUÉ SE TOCA" file list MUST come from the deterministic preview, not your paraphrase. `auto`: skip even that gate. In BOTH modes, once apply starts, `verify` and `close` proceed automatically when they pass — a `verify` fail, a blocker, or stale evidence STOPS the flow with the exact cause and next action, never a silent continue. Do NOT ask before a phase transition that mutates nothing; the only normal human gate is pre-apply (plus the Plan Gate for loose state-mutating requests). Execution mode AND the Strict TDD choice (off/strict/auto) are asked ONCE, up front, in the preflight — a user who picked `auto` + a TDD stance is never interrupted mid-flow.
 
-**Apply by small groups, resumable.** Delegate `sdd-apply` one task GROUP at a time (not the whole change in one run), and after each group the executor updates `tasks.md` (checkboxes) and `apply-progress.md`. `ein_sdd_status` reports `next pending: <id> <title>` — the resume point. If Pi is reopened mid-flow, route from that line: continue the next pending group, NEVER redo completed ones. A single apply that tries to do every group at once is a scoping smell (see the size rule) and loses this resumability.
+**Apply by small groups, resumable.** Delegate `sdd-apply` one task GROUP at a time (not the whole change in one run). Publish each checkbox immediately, before starting the next task; update `apply-progress.md` after each group. Resume from `ein_sdd_status`'s `next pending: <id> <title>`, never repeat completed work.
 
 **Phase result envelope.** Cada envelope se copia VERBATIM a ESTE contexto y no se resetea en todo el flujo, así que un envelope gordo es lo que te llena. Los agentes lo capan por contrato (está en sus prompts). El detalle completo está en el artefacto en disco: cuando lo necesites, **lee el artefacto**; no pidas a la fase que lo inline. Un envelope verboso es el ejecutor rompiendo contrato — rutea por los campos compactos, no propagues el bulto.
 

@@ -197,7 +197,7 @@ export function renderSddOverlay(
 	const rowSpace = maxLines - lines.length;
 	if (rowSpace <= 0) return lines;
 
-	const currentId = status.tasks.nextPending?.id ?? null;
+	const currentId = items.find((item) => item.started && !item.done)?.id ?? status.tasks.nextPending?.id ?? null;
 	// Sin tareas pendientes la lista ya no informa: el widget pasa a enseñar las
 	// FASES que faltan. Es el arreglo — antes se quedaba mudo en `7/7`.
 	if (items.length === 0 || currentId === null) {
@@ -222,8 +222,8 @@ export function renderSddOverlay(
 			: item.title;
 		return blockRow(
 			item.id,
-			title,
-			item.done ? "done" : item.id === currentId ? "current" : "pending",
+			item.started ? `iniciada · ${title}` : item.id === currentId ? `siguiente · ${title}` : title,
+			item.done ? "done" : item.started ? "current" : "pending",
 			width,
 			palette,
 		);

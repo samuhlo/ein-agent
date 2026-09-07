@@ -102,10 +102,16 @@ describe("overlay del cambio activo", () => {
 	});
 
 	test("cada tarea muestra su estado, y la actual se distingue", () => {
-		const lines = renderSddOverlay(status());
+		const state = status();
+		const pending = renderSddOverlay(state);
+		expect(pending[3]).toContain("siguiente");
+		expect(pending[3]).not.toContain("▸");
+		state.tasks.items[1]!.started = true;
+		const lines = renderSddOverlay(state);
 		expect(lines[2]).toContain("✓");
 		expect(lines[3]).toContain("▸");
 		expect(lines[3]).toContain("tarea 2");
+		expect(lines[3]).toContain("iniciada");
 		// Una pendiente que no es la actual no lleva marca.
 		expect(lines[4]).not.toContain("▸");
 		expect(lines[4]).not.toContain("✓");

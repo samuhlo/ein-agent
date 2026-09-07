@@ -57,6 +57,7 @@ import {
 } from "../../shared/ports/sdd.ts";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { updateSddTaskProgress } from "../../shared/sdd/sdd-task-progress.ts";
 import { join } from "node:path";
 import { formatSddCheck, formatSddStatus } from "./presentation.ts";
 import { runSyncCommand, type SyncCliResponse } from "./sync-command.ts";
@@ -598,6 +599,12 @@ if (import.meta.main) {
 		case "preflight": await preflightCmd(rest); break;
 		case "delta": await deltaCmd(rest); break;
 		case "summary": await summaryCmd(rest); break;
+		case "task-progress": {
+			const [change, task, action] = rest;
+			if (!change || !task || (action !== "start" && action !== "complete")) throw new Error("Usage: task-progress <change> <task> <start|complete>");
+			console.log(JSON.stringify(updateSddTaskProgress(process.cwd(), change, task, action)));
+			break;
+		}
 		case "sync": await syncCmd(rest); break;
 		default:
 			console.log("ein-cc-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]  |  lane [change] [micro|standard]  |  preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]  |  delta [change] --domain <domain> < operations.json  |  summary [change] < summary.md");

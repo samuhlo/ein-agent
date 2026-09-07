@@ -9,6 +9,7 @@ import { join } from "node:path";
 
 import createAiExtension from "../ein-pi/agent/extensions/ein-ai.ts";
 import createOverlayExtension from "../ein-pi/agent/extensions/ein-sdd-overlay.ts";
+import { updateSddTaskProgress } from "../shared/sdd/sdd-task-progress.ts";
 import {
 	EIN_SDD_SESSION_BINDING_ENV_KEY,
 	SDD_SESSION_BINDING_CUSTOM_TYPE,
@@ -623,6 +624,30 @@ describe("sdd-close session binding invalidation", () => {
 });
 
 describe("la cache de pintura del overlay", () => {
+	test("shows each completion while the parent waits, and restores a started task", async () => {
+		const box = sandbox();
+		const painted: WidgetPaint[] = [];
+		const { pi, fire } = fakePi();
+		createOverlayExtension(pi as never);
+		const ctx = fakeCtx(box.cwd, painted, []);
+		writeFileSync(join(box.cwd, "openspec/changes/un-cambio/tasks.md"), "status: ready\n- [ ] 001 first\n- [ ] 002 second\n- [ ] 003 third\n");
+		const waitFor = async (text: string) => {
+			const deadline = Date.now() + 2000;
+			while (!lastLines(painted).join("\n").includes(text) && Date.now() < deadline) await new Promise((done) => setTimeout(done, 20));
+			expect(lastLines(painted).join("\n")).toContain(text);
+		};
+		try {
+			fire("session_start", ctx);
+			for (const [index, task] of ["001", "002", "003"].entries()) {
+				updateSddTaskProgress(box.cwd, "un-cambio", task, "start");
+				await waitFor("iniciada");
+				if (index === 1) { fire("session_start", ctx); await waitFor("iniciada"); }
+				updateSddTaskProgress(box.cwd, "un-cambio", task, "complete");
+				await waitFor(`${index + 1}/3`);
+			}
+		} finally { fire("session_shutdown", ctx); box.cleanup(); }
+	});
+
 	test("repaints changes written by an async child without a parent tool event", async () => {
 		const box = sandbox();
 		const painted: WidgetPaint[] = [];
