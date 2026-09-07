@@ -133,6 +133,12 @@ export function registerAdvisoryTools(registerEinTool: EinToolRegistrar): void {
 		},
 	});
 
+	registerCleanerTools(registerEinTool);
+	registerArchitectTools(registerEinTool);
+}
+
+// Foreground children load only this surface, without coordinator hooks or tools.
+export function registerCleanerTools(registerEinTool: EinToolRegistrar): void {
 	registerEinTool({
 		name: "ein_cleaner_audit",
 		label: "Ein Cleaner Audit Evidence",
@@ -289,7 +295,9 @@ export function registerAdvisoryTools(registerEinTool: EinToolRegistrar): void {
 			return { content: [{ type: "text", text: JSON.stringify(outcome) }], details: outcome };
 		},
 	});
+}
 
+function registerArchitectTools(registerEinTool: EinToolRegistrar): void {
 	registerEinTool({
 		name: "ein_architect_evidence",
 		label: "Ein Architect Evidence",
