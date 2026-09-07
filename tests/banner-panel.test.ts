@@ -131,9 +131,9 @@ describe("panel de estado", () => {
 
 	test("la rejilla numera de izquierda a derecha: 000 y luego 001", () => {
 		const line = renderPanel(grid, panelDuration(grid)).map(flat)
-			.find((item) => item.includes("sistema"))!;
-		expect(line.indexOf("// 000. sistema")).toBe(0);
-		expect(line.indexOf("// 001. sesion")).toBe(PANEL_W / 2);
+			.find((item) => item.includes("SISTEMA"))!;
+		expect(line.indexOf("// 000  SISTEMA")).toBe(0);
+		expect(line.indexOf("// 001  SESION")).toBe(PANEL_W / 2);
 	});
 
 	test("cada mitad tiene su propia sangría de etiqueta", () => {

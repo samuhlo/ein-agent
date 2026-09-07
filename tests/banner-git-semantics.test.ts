@@ -358,7 +358,12 @@ describe("ein-banner Git adapter", () => {
 		expect(bannerSource).toContain("b.centerIn(width, block);");
 		expect(bannerSource).not.toContain("b.center(width);");
 		expect(bannerSource).not.toContain("composeColumns");
-		expect(bannerSource).toContain('label: index === 0 ? "RECIENTES" : ""');
+		// Las sesiones recientes tienen ahora su propia sección: el panel se ordena
+		// por VOLATILIDAD (repo y reanudar primero, inventario al fondo), así que
+		// la etiqueta suelta de la primera fila ya no existe.
+		expect(bannerSource).toContain('title: "REANUDAR"');
+		expect(bannerSource).toContain('title: "REPO"');
+		expect(bannerSource).not.toContain('title: "SISTEMA"');
 	});
 
 	test("renders project automatic Cleaner and Architect state in a centered partial row", () => {
@@ -372,11 +377,13 @@ describe("ein-banner Git adapter", () => {
 		expect(bannerSource).toContain('const isOn = (label: string) =>');
 		expect(bannerSource).toContain("const cleanerLabel = agentAutomaticParticipationLabel(");
 
-		// La placa tiene cuatro secciones nombradas y ya no reparte un marcador
-		// amarillo por fila: el acento vive en el marco y en las pestanas.
+		// La placa se ordena por VOLATILIDAD: primero lo que cambia entre dos
+		// arranques (repo, sesión que retomar), luego los ajustes de la sesión, y
+		// el inventario —que no cambia— al fondo y en una sola línea.
 		const plate = bannerSource.slice(bannerSource.indexOf("const panelData ="), bannerSource.indexOf("const TONE ="));
-		for (const title of ["SISTEMA", "SESION", "REPO"]) expect(plate).toContain(`title: "${title}"`);
-		expect(plate).toContain('label: "ACTIVO"');
+		for (const title of ["REPO", "REANUDAR", "SESIÓN"]) expect(plate).toContain(`title: "${title}"`);
+		expect(plate.indexOf('title: "REPO"')).toBeLessThan(plate.indexOf('title: "SESIÓN"'));
+		expect(plate).toContain("agentes ·");
 		expect(plate).not.toContain('b.add("▏ ", YELLOW)');
 	});
 });

@@ -185,6 +185,11 @@ const PALETTE = loadPalette();
 const CONCRETE: RGB = PALETTE.concrete;
 const STRUCTURE: RGB = PALETTE.structure;
 const YELLOW: RGB = PALETTE.yellow;
+// La escala de cuerpo de `lib/theme.ts`, en RGB. El banner pinta antes de que
+// exista una paleta ANSI, así que la duplica igual que duplica la marca.
+const SECONDARY: RGB = { r: 154, g: 154, b: 154 };
+const FAINT: RGB = { r: 90, g: 90, b: 90 };
+const RULE: RGB = { r: 58, g: 58, b: 58 };
 
 function clampByte(n: number): number {
   return Math.max(0, Math.min(255, Math.round(n)));
@@ -622,54 +627,64 @@ export default function (pi: ExtensionAPI) {
                   })),
                 );
 
+              // EL ORDEN ES LA VOLATILIDAD, no el inventario.
+              //
+              // Antes abría con SISTEMA (agentes, extensiones, tools, skills, mcp):
+              // cinco filas que no cambian entre dos arranques seguidos, con el
+              // mismo peso que la rama y lo que llevas sin confirmar. Lo que de
+              // verdad se mira al arrancar es en qué estado está el repo y qué
+              // sesión retomar, así que eso va primero y en primario; el recuento
+              // baja a una sola línea apagada al final.
               const panelData = {
                 title: "estado",
                 right: shortenHome(ctx.cwd),
                 sections: [
-                  // SISTEMA y SESION en paralelo: ninguna de las dos pasa de media
-                  // placa, así que apiladas desperdiciaban la otra mitad en cada
-                  // fila. Son cinco filas menos de arranque.
-                  { kind: "grid" as const, columns: [
-                    { title: "SISTEMA", fields: [
-                      { label: "AGENTES", value: `${agentsCount}` },
-                      { label: "EXTENSIONES", value: `${extensionsCount}` },
-                      { label: "TOOLS", value: `${toolsCount}` },
-                      { label: "SKILLS", value: `${skillsCount}` },
-                      { label: "MCP", value: `${mcpServersCount} srv` } ] },
-                    { title: "SESION", fields: [
-                      { label: "LINEAR", value: fit(linearLabel, GRID_VALUE_W) },
-                      { label: "PERSONA", value: fit(personaLabel, GRID_VALUE_W) },
-                      { label: "IDIOMA", value: langChat === langArtifact ? langChat : `${langChat} / ${langArtifact}` },
-                      { label: "TDD", value: fit(tddLabel, GRID_VALUE_W) } ] },
-                  ] as const },
-                  { kind: "chips" as const, label: "ACTIVO", chips: [
+                  { kind: "fields" as const, title: "REPO", fields: gitFields },
+                  ...(recentSessions.length
+                    ? [{ kind: "fields" as const, title: "REANUDAR", fields: [
+                        ...recentSessions.map((session) => ({
+                          label: "",
+                          // El proyecto en columna fija: sin esto las antigüedades
+                          // caen escalonadas y la lista deja de leerse como lista.
+                          value: session.project.padEnd(16),
+                          trail: humanizeAge(session.ageMs),
+                        })),
+                        { label: "", value: "pi -c continuar · pi -r elegir · /ein:resume", note: true },
+                      ] }]
+                    : []),
+                  { kind: "inline" as const, title: "SESIÓN", pairs: [
+                    { label: "persona", value: fit(personaLabel, GRID_VALUE_W) },
+                    { label: "idioma", value: langChat === langArtifact ? langChat : `${langChat}/${langArtifact}` },
+                    { label: "tdd", value: fit(tddLabel, GRID_VALUE_W) },
+                    { label: "linear", value: fit(linearLabel, GRID_VALUE_W) },
+                  ] },
+                  { kind: "chips" as const, label: "", chips: [
                     { text: "hypa", on: isOn(hypaLabel) },
                     { text: "codegraph", on: isOn(cgLabel) },
                     { text: "cleaner", on: isOn(cleanerLabel) },
                     { text: "architect", on: isOn(architectLabel) } ] },
-                  { kind: "fields" as const, title: "REPO", fields: gitFields },
-                  ...(recentSessions.length
-                    ? [{ kind: "loose" as const, fields: [
-                        ...recentSessions.map((session, index) => ({
-                          label: index === 0 ? "RECIENTES" : "",
-                          value: session.project,
-                          trail: humanizeAge(session.ageMs),
-                        })),
-                        { label: "", value: "pi -c continuar / pi -r elegir / /ein:resume", note: true },
-                      ] }]
-                    : []),
+                  { kind: "loose" as const, fields: [{
+                    label: "",
+                    // El inventario, en una línea y al fondo de la escala: informa
+                    // una vez y luego no vuelve a cambiar.
+                    value: `${agentsCount} agentes · ${extensionsCount} extensiones · ${toolsCount} tools · ${skillsCount} skills · ${mcpServersCount} mcp`,
+                    note: true,
+                  }] },
                 ],
               };
 
+              // Un solo gris de cuerpo. `label` ya no comparte tono con `dim`:
+              // eran dos papeles distintos pintados igual, y el atributo DIM que
+              // llevaba `dim` encima hundía el contraste por debajo del mínimo.
               const TONE: Record<PanelTone, RGB> = {
-                frame: YELLOW, label: STRUCTURE, value: CONCRETE, dim: STRUCTURE, accent: YELLOW,
+                frame: YELLOW, label: SECONDARY, value: CONCRETE,
+                dim: FAINT, structure: RULE, accent: YELLOW,
               };
               const panel: Cell[][] = renderPanel(panelData, tick - PANEL_START_TICK).map((line) =>
                 line.map((cell) => ({
                   text: cell.text,
                   color: TONE[cell.tone],
-                                    ...(cell.bold ? { bold: true } : {}),
-                  ...(cell.tone === "dim" ? { dim: true } : {}),
+                  ...(cell.bold ? { bold: true } : {}),
                 })),
               );
 

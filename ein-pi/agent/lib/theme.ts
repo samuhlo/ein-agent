@@ -17,9 +17,24 @@ export const BRAND = Object.freeze({
   yellow: "#FFCA40",
 });
 
+// LA ESCALA DE CUERPO, derivada de la marca y compartida con `themes/ein.json`.
+// POR QUÉ -> la misma pantalla pintaba tres grises distintos para decir «esto es
+// secundario»: el widget de subagentes iba a `secondaryText` (#9A9A9A, 6,99:1),
+// el banner a `structure` (#737373, 4,15:1) y el overlay a `structure` CON el
+// atributo DIM encima (~#4B4B4B, 2,2:1). El elemento más consultado era el menos
+// legible. Aquí hay un solo gris de cuerpo, y los otros dos niveles existen para
+// lo que de verdad debe pesar menos.
+export const SCALE = Object.freeze({
+  /** Secundario: claves, metadatos, lo hecho. Es el gris de cuerpo. */
+  secondary: "#9A9A9A",
+  /** Apagado: rutas, notas al pie, salvedades permanentes. */
+  faint: "#5A5A5A",
+  /** Estructura: reglas, ids, glifos de árbol, fases pendientes. */
+  structure: "#3A3A3A",
+});
+
 const RESET = "\u001b[0m";
 const BOLD = "\u001b[1m";
-const DIM = "\u001b[2m";
 const REVERSE = "\u001b[7m";
 
 // Matches the escape sequences this module and the renderer can emit: colour,
@@ -54,6 +69,8 @@ export type StyleName =
   | "accent"
   | "text"
   | "muted"
+  | "faint"
+  | "structure"
   | "key"
   | "danger"
   | "ok"
@@ -66,7 +83,12 @@ const STYLES: Readonly<Record<StyleName, string>> = {
   title: `${BOLD}${rgb(BRAND.yellow)}`,
   accent: rgb(BRAND.yellow),
   text: rgb(BRAND.concrete),
-  muted: `${DIM}${rgb(BRAND.structure)}`,
+  // SIN `DIM` -> el atributo se apilaba sobre un gris que ya estaba al límite y
+  // hundía el cuerpo por debajo del contraste mínimo. El nivel se elige con el
+  // color, no rebajando el que ya se eligió.
+  muted: rgb(SCALE.secondary),
+  faint: rgb(SCALE.faint),
+  structure: rgb(SCALE.structure),
   key: rgb(BRAND.yellow),
   danger: "\u001b[38;2;255;107;107m",
   ok: "\u001b[38;2;122;200;140m",

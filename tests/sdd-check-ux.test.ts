@@ -75,7 +75,7 @@ describe("formatChangeLint", () => {
 		]);
 
 		const out = formatChangeLint(report);
-		expect(out).toContain("// 000. sdd check — feat-x");
+		expect(out).toContain("// 000  SDD CHECK · feat-x");
 		expect(out).toContain("fases: 3/7 presentes  |  errores: 0  |  warnings: 0");
 		expect(out).toContain("▏ design — OK (presente, 10 lineas)");
 		expect(out).toContain("▏ apply — MISSING");

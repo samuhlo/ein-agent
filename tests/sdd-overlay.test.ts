@@ -77,10 +77,15 @@ describe("overlay del cambio activo", () => {
 		expect(text).toContain("feat-b");
 	});
 
+	// Dos anclas, no una tira de metadatos: QUÉ a la izquierda con su carril
+	// pegado, DÓNDE a la derecha. La fase lleva el acento y su `▸` porque es el
+	// único dato de la cabecera que contesta «y ahora qué».
 	test("la cabecera lleva cambio, carril, fase y progreso — sin marco ni placa", () => {
 		const [header] = renderSddOverlay(status());
 		expect(header).toContain("carril-rapido");
-		expect(header).toContain("micro · apply");
+		expect(header).toContain("micro");
+		expect(header).toContain("▸ apply");
+		expect(header!.indexOf("micro")).toBeLessThan(header!.indexOf("▸ apply"));
 		expect(header).toContain("1/4");
 		// La gramática nueva no dibuja contornos: ni caja, ni pestaña, ni ■.
 		expect(header).not.toContain("■");
@@ -93,8 +98,10 @@ describe("overlay del cambio activo", () => {
 	test("el raíl pinta todas las fases del carril, con su estado", () => {
 		const rail = renderSddOverlay(status())[1];
 		// micro = scope, design, apply, verify, close. `map` y `tasks` no son suyas.
-		expect(rail).toContain("scope ✓");
-		expect(rail).toContain("design ✓");
+		// La marca ABRE la celda: todas las fases arrancan en la misma columna de
+		// texto, así que el carril se lee como una fila y no como cinco etiquetas.
+		expect(rail).toContain("✓ scope");
+		expect(rail).toContain("✓ design");
 		expect(rail).toContain("▸ apply");
 		expect(rail).toContain("verify");
 		expect(rail).toContain("close");
@@ -117,15 +124,38 @@ describe("overlay del cambio activo", () => {
 		expect(lines[4]).not.toContain("✓");
 	});
 
-	test("las filas prefieren el título de grupo y conservan el checkbox como fallback", () => {
+	// EL GRUPO TIENE LÍNEA PROPIA, y la tarea dice siempre su título.
+	//
+	// Antes el grupo no tenía sitio: se colaba en la primera fila del grupo
+	// SUSTITUYENDO al título de su tarea, así que esa fila no decía qué tarea
+	// era. Costaba una fila igual — solo que a cambio de perder un dato.
+	test("el grupo se nombra en su línea y ninguna tarea pierde su título", () => {
 		const taskItems: SddTaskItem[] = [
 			{ id: "1.1", title: "Long checkbox sentence for router semantics", groupTitle: "Prerelease-aware selection", done: false },
 			{ id: "2.1", title: "Fallback checkbox title", done: false },
 		];
 		const body = renderSddOverlay(status({}, taskItems)).join("\n");
 		expect(body).toContain("Prerelease-aware selection");
-		expect(body).not.toContain("Long checkbox sentence");
+		expect(body).toContain("Long checkbox sentence");
 		expect(body).toContain("Fallback checkbox title");
+		// El encabezado va en su propia línea, nunca compartiendo la de una tarea.
+		const groupLine = body.split("\n").find((line) => line.includes("Prerelease-aware selection"))!;
+		expect(groupLine).not.toContain("1.1");
+		expect(groupLine).toContain("0 de 1");
+	});
+
+	// El sitio concedido manda sobre la composición: un encabezado de grupo cuesta
+	// una fila como cualquier otra, y no puede empujar al widget fuera de su alto.
+	test("los encabezados de grupo entran en el presupuesto de altura", () => {
+		const grouped: SddTaskItem[] = Array.from({ length: 8 }, (_, index) => ({
+			id: String(index + 1).padStart(3, "0"),
+			title: `tarea ${index + 1}`,
+			groupTitle: `grupo ${Math.floor(index / 2)}`,
+			done: false,
+		}));
+		for (const maxLines of [3, 5, 8]) {
+			expect(renderSddOverlay(status({}, grouped), { maxLines }).length).toBeLessThanOrEqual(maxLines);
+		}
 	});
 
 	test("un grupo visible se nombra una vez y luego enseña cada tarea real", () => {
