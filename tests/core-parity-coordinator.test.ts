@@ -37,13 +37,13 @@ function frontmatterField(text: string, field: string): string {
 function expectedClaudeTool(raw: string): string {
   const exact: Record<string, string> = {
     read: "Read",
+    ein_sdd_summary: "Bash",
     grep: "Grep",
     find: "Glob",
     edit: "Edit",
     write: "Write",
     bash: "Bash",
     ein_openspec_delta_write: "Bash",
-    ein_sdd_summary: "Bash",
   };
   return exact[raw] ?? (raw.startsWith("linear_") ? `mcp__linear__${raw}` : "");
 }

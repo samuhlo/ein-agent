@@ -57,8 +57,8 @@ import {
 } from "../../shared/ports/sdd.ts";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { writeVerifiedSddSummary } from "../../shared/sdd/sdd-summary-write.ts";
 import { join } from "node:path";
+import { writeVerifiedSddSummary } from "../../shared/sdd/sdd-summary-write.ts";
 import { formatSddCheck, formatSddStatus } from "./presentation.ts";
 import { runSyncCommand, type SyncCliResponse } from "./sync-command.ts";
 
