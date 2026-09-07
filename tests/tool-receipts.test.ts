@@ -13,6 +13,19 @@ import {
 	receiptFor,
 } from "../ein-pi/agent/lib/tool-receipts";
 
+test("passing SDD checks and archive retain unavailable advisory evidence", () => {
+	const advisory = { status: "unavailable", reason: "Cleaner tools missing" };
+	for (const [tool, details] of [
+		["ein_sdd_check", { errors: 0, warnings: 0, phases: [{ present: true }], advisory }],
+		["ein_sdd_close", { ok: true, advisory }],
+	] as const) {
+		const result = receiptFor(tool, details);
+		expect(result.line).toContain("asesora no disponible");
+		expect(result.detail.join("\n")).toContain("Cleaner tools missing");
+		expect(result.line).not.toContain("sin problemas");
+	}
+});
+
 const TOOLS = [
 	"ein_sdd_status",
 	"ein_sdd_check",
@@ -142,7 +155,7 @@ describe("lo que dice cada recibo", () => {
 			warnings: 0,
 			phases: [{ phase: "scope", present: true }, { phase: "design", present: true }],
 		});
-		expect(bueno.line).toBe("2 fases revisadas, sin problemas");
+		expect(bueno.line).toBe("2 fases sin errores");
 		expect(bueno.bad).toBe(false);
 	});
 

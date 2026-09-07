@@ -20,6 +20,7 @@ import {
 	type SddNextReport,
 } from "../../lib/sdd-router.ts";
 import type { SddPreflightPreferences } from "../../lib/sdd-preflight.ts";
+import type { SddAdvisoryStatus } from "../../lib/sdd-participants.ts";
 
 /** True when a named change directory exists in the configured change root. */
 export function changeDirExists(cwd: string, name: string): boolean {
@@ -41,7 +42,7 @@ export const PHASE_BY_FILE: Record<string, SddPhase> = {
 	"summary.md": "close",
 };
 
-export function formatChangeLint(report: ChangeLintReport): string {
+export function formatChangeLint(report: ChangeLintReport & { advisory?: SddAdvisoryStatus }): string {
 	const { change, errors, warnings, phases } = report;
 	const presentCount = phases.filter((phase) => phase.present).length;
 	const lines: string[] = [
@@ -49,6 +50,7 @@ export function formatChangeLint(report: ChangeLintReport): string {
 		"",
 		`fases: ${presentCount}/${phases.length} presentes  |  errores: ${errors}  |  warnings: ${warnings}`,
 	];
+	if (report.advisory) lines.push(`Revisión asesora: ${report.advisory.status}${report.advisory.reason ? ` — ${report.advisory.reason}` : ""}. Es independiente del control de artefactos.`);
 
 	if (report.issues.length > 0) {
 		lines.push("", "▏ consistencia:");

@@ -97,6 +97,17 @@ type TrackedCall = Readonly<{ runKey: string; call: SddParticipantCall }>;
 
 const runs = new Map<string, EphemeralRun>();
 const calls = new Map<string, TrackedCall>();
+
+export type SddAdvisoryStatus = Readonly<{ status: "pending" | "complete" | "blocked" | "unavailable" | "disabled"; reason?: string }>;
+
+/** Observe existing advice only; a status/check call must not start another audit. */
+export function readSddAdvisoryStatus(cwd: string, sessionKey: string, change: string): SddAdvisoryStatus | undefined {
+	const run = runs.get(runKey(sessionKey, change));
+	if (!run) return undefined;
+	if (run.order.length === 0) return { status: "disabled" };
+	if (run.outcome === "complete") observe(run, cwd);
+	return { status: run.outcome ?? "pending", ...(run.reason ? { reason: run.reason } : {}) };
+}
 const marker = /\[ein-sdd-participant\/v1 passage=([^\]\s]+) unit=(ein-cleaner|ein-architect) slice=([^\]\s]+) range=(\d+-\d+) state=([^\]\s]+)\]/;
 const markerPrefix = "[ein-sdd-participant/v1 ";
 const restricted = new Set([".atl", ".git", ".pi", "build", "coverage", "dist", "generated", "node_modules", "runtime", "vendor"]);

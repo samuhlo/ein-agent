@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { registerSddLifecycleTools } from "../ein-pi/agent/extensions/internal/ein-sdd-lifecycle-tools.ts";
 import { registerDelegationResultHook } from "../ein-pi/agent/extensions/internal/ein-delegation-results.ts";
 
 import { clearAgentControlSession, routeAgentControl } from "../ein-pi/agent/lib/agent-controls.ts";
@@ -17,6 +18,7 @@ import {
 	clearSddParticipantSession,
 	completeSddParticipantCall,
 	planSddParticipants,
+	readSddAdvisoryStatus,
 	type SddParticipantTerminal,
 } from "../ein-pi/agent/lib/sdd-participants.ts";
 
@@ -80,6 +82,30 @@ afterEach(() => {
 });
 
 describe("ephemeral participant coordinator", () => {
+	test("reads advisory state without creating work or losing a failed review", async () => {
+		const cwd = fixture("advisory-display", true, false);
+		expect(readSddAdvisoryStatus(cwd, "advisory-display", "change")).toBeUndefined();
+		const first = planSddParticipants(cwd, "advisory-display", "change");
+		finish(cwd, "advisory-display", "advisory-call", "ein-cleaner", first.next!.task, { status: "unavailable", reason: "missing tools" });
+		expect(readSddAdvisoryStatus(cwd, "advisory-display", "change")).toEqual({ status: "unavailable", reason: "missing tools" });
+		expect(planSddParticipants(cwd, "advisory-display", "change").status).toBe("unavailable");
+		const tools = new Map<string, any>();
+		registerSddLifecycleTools({ registerCommand() {}, events: { emit() {} } } as never, ((spec: any) => tools.set(spec.name, spec)) as never);
+		const checked = await tools.get("ein_sdd_check").execute("check", { change: "change" }, undefined, undefined, { cwd, sessionManager: { getSessionId: () => "advisory-display" } });
+		expect(checked.details.advisory).toEqual({ status: "unavailable", reason: "missing tools" });
+		expect(checked.content[0].text).toContain("missing tools");
+	});
+
+	test("a formerly complete review becomes unavailable after the source changes", () => {
+		const cwd = fixture("advisory-freshness", true, false);
+		const first = planSddParticipants(cwd, "advisory-freshness", "change");
+		finish(cwd, "advisory-freshness", "review", "ein-cleaner", first.next!.task);
+		expect(readSddAdvisoryStatus(cwd, "advisory-freshness", "change")?.status).toBe("complete");
+		writeFileSync(join(cwd, "src/a.ts"), "export const a = 2;\n");
+		expect(readSddAdvisoryStatus(cwd, "advisory-freshness", "change")?.status).toBe("unavailable");
+		expect(planSddParticipants(cwd, "advisory-freshness", "change").status).toBe("unavailable");
+	});
+
 	test.each([true, false])("distinguishes transport errors from unknown success envelopes (isError=%p)", (isError) => {
 		const session = `failed-launch-${isError}`;
 		const cwd = fixture(session, true, false);
