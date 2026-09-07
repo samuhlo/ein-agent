@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 import {
 	globalLinearIntegrationConfigPath,
 	inspectLinearIntegration,
+	linearIntegrationLabel,
 	linearDirective,
 	linearIntegrationConfigPath,
 	readLinearIntegration,
@@ -52,6 +53,15 @@ function writeGlobal(agentDir: string, contents: string): string {
 }
 
 describe("readLinearIntegration / writeLinearIntegration", () => {
+	test("shows the effective integration and its source without masking invalid evidence", () => {
+		const agentDir = join(DIR, "agent");
+		writeGlobal(agentDir, '{"linear":"on"}');
+		expect(linearIntegrationLabel(inspectLinearIntegration(DIR, agentDir))).toBe("on · global");
+		writeRaw(DIR, '{"linear":"off"}');
+		expect(linearIntegrationLabel(inspectLinearIntegration(DIR, agentDir))).toBe("off · proyecto");
+		writeRaw(DIR, '{broken');
+		expect(linearIntegrationLabel(inspectLinearIntegration(DIR, agentDir))).toBe("desconocido · proyecto");
+	});
 	test("sin configuración, Linear está apagado", () => {
 		expect(readLinearIntegration(DIR, join(DIR, "agent"))).toBe("off");
 	});

@@ -32,6 +32,10 @@ Ein instala siempre su núcleo Pi. El menú solo pregunta si quieres añadir **C
 
 Guía completa en [Getting Started](https://samuhlo.github.io/ein-agent/00-start/getting-started/).
 
+Para probar cambios del checkout sin publicar una alpha: `bun run dev:install`
+desde la raíz. Puedes previsualizar con `--dry-run` o solo compilar con
+`--build-only`. [Desarrollo local](installer/README.md#desarrollo).
+
 ## // 01_ EL_PROBLEMA
 
 Pides "arregla el login". El agente toca ocho ficheros y devuelve 400 líneas con un resumen optimista. Revisarlo cuesta más que haberlo escrito. Y al cerrar la conversación, el razonamiento se va con ella.

@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -548,6 +548,7 @@ describe("sdd-close session binding invalidation", () => {
 		const box = sandbox(["alpha"]);
 		try {
 			markChangeReadyToClose(box.cwd, "alpha");
+			writeFileSync(join(box.cwd, "EIN.md"), "# Contexto curado\nNo pertenece a este cambio.\n");
 			const trace: string[] = [];
 			const painted: WidgetPaint[] = [];
 			const { pi, fire, runCommand, appended } = fakePi(trace);
@@ -559,6 +560,7 @@ describe("sdd-close session binding invalidation", () => {
 			trace.length = 0;
 
 			await runCommand("ein:sdd-close", "alpha", ctx);
+			expect(readFileSync(join(box.cwd, "EIN.md"), "utf8")).toBe("# Contexto curado\nNo pertenece a este cambio.\n");
 			fire("tool_execution_end", ctx);
 			fire("tool_execution_end", ctx);
 
@@ -621,7 +623,33 @@ describe("sdd-close session binding invalidation", () => {
 });
 
 describe("la cache de pintura del overlay", () => {
-	test("pinta TODO bajo el editor con una identidad estable y deduplica dentro de la sesion", () => {
+	test("repaints changes written by an async child without a parent tool event", async () => {
+		const box = sandbox();
+		const painted: WidgetPaint[] = [];
+		const { pi, fire } = fakePi();
+		createOverlayExtension(pi as never);
+		const ctx = fakeCtx(box.cwd, painted, []);
+		try {
+			fire("session_start", ctx);
+			const before = lastLines(painted).join("\n");
+			writeFileSync(join(box.cwd, "openspec/changes/un-cambio/tasks.md"), "status: ready\n- [x] Live child completion\n");
+			const deadline = Date.now() + 2000;
+			while (lastLines(painted).join("\n") === before && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+			expect(lastLines(painted).join("\n")).not.toBe(before);
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			const completed = lastLines(painted).join("\n");
+			writeFileSync(join(box.cwd, "openspec/changes/un-cambio/tasks.md"), "status: ready\n- [ ] Next live task\n");
+			const nextDeadline = Date.now() + 2000;
+			while (lastLines(painted).join("\n") === completed && Date.now() < nextDeadline) await new Promise((resolve) => setTimeout(resolve, 20));
+			expect(lastLines(painted).join("\n")).not.toBe(completed);
+			fire("session_shutdown", ctx);
+			const count = painted.length;
+			writeFileSync(join(box.cwd, "openspec/changes/un-cambio/tasks.md"), "status: ready\n- [ ] After shutdown\n");
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			expect(painted.length).toBe(count);
+		} finally { fire("session_shutdown", ctx); box.cleanup(); }
+	});
+	test("pinta TODO sobre el editor con una identidad estable y deduplica dentro de la sesion", () => {
 		const box = sandbox();
 		try {
 			const painted: WidgetPaint[] = [];
@@ -638,7 +666,7 @@ describe("la cache de pintura del overlay", () => {
 			expect(painted.length).toBe(afterStart);
 			expect(afterStart).toBeGreaterThan(0);
 			expect(painted.every(({ key }) => key === "ein-sdd")).toBe(true);
-			expect(painted.every(({ options }) => options?.placement === "belowEditor")).toBe(true);
+			expect(painted.every(({ options }) => options?.placement === "aboveEditor")).toBe(true);
 		} finally {
 			box.cleanup();
 		}

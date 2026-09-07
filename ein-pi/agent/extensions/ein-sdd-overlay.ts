@@ -26,6 +26,7 @@ import {
 	type SessionBindingValidation,
 } from "../lib/sdd-session-binding.ts";
 import { createPalette, shouldUseColor } from "../lib/theme.ts";
+import { watchSddArtifacts } from "../lib/sdd-artifact-watch.ts";
 
 const COLLAPSE_KEY = "ctrl+shift+e";
 
@@ -43,6 +44,7 @@ export default function (pi: ExtensionAPI): void {
 	let launchIntentCaptured = false;
 	let activeContext: ExtensionContext | null = null;
 	let unsubscribeBindingEvent: (() => void) | null = null;
+	let stopWatching: (() => void) | undefined;
 
 	const palette = createPalette(
 		shouldUseColor({ isTTY: process.stdout.isTTY === true, env: process.env }),
@@ -129,10 +131,12 @@ export default function (pi: ExtensionAPI): void {
 		const next = lines.join("\n");
 		if (next === painted) return;
 		painted = next;
-		ctx.ui.setWidget(OVERLAY_KEY, lines.length > 0 ? [...lines] : undefined, { placement: "belowEditor" });
+		ctx.ui.setWidget(OVERLAY_KEY, lines.length > 0 ? [...lines] : undefined, { placement: "aboveEditor" });
 	}
 
 	function rebindEventListener(ctx: ExtensionContext): void {
+		stopWatching?.();
+		stopWatching = ctx.hasUI ? watchSddArtifacts(() => refresh(ctx)) : undefined;
 		unsubscribeBindingEvent?.();
 		activeContext = ctx;
 		unsubscribeBindingEvent = pi.events.on(SDD_SESSION_BINDING_EVENT_CHANNEL, (payload) => {
@@ -159,6 +163,8 @@ export default function (pi: ExtensionAPI): void {
 	}
 
 	function unbindEventListener(): void {
+		stopWatching?.();
+		stopWatching = undefined;
 		activeContext = null;
 		unsubscribeBindingEvent?.();
 		unsubscribeBindingEvent = null;
