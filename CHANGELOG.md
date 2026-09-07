@@ -4,6 +4,33 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.96.0-alpha.2] - 2026-09-07
+
+### Fixed
+
+- **Cleaner arranca con sus herramientas en primer plano.** Carga una extensión
+  propia sin los hooks del orquestador y conserva la causa de los fallos de
+  arranque como evidencia no disponible.
+- **Subagentes visibles durante el trabajo.** El panel nativo muestra agentes,
+  actividad y estado sobre el editor; el TODO ocupa su espacio debajo. Se
+  separan los nombres pegados y los mensajes heredan el fondo de la terminal.
+- **Progreso tarea a tarea.** Apply registra inicio y finalización en `tasks.md`
+  antes de avanzar. El TODO distingue una tarea iniciada de la siguiente
+  pendiente y recupera el progreso al reabrir la sesión.
+- **Cierre sin reintentos por formato.** Una herramienta genera los metadatos y
+  comandos del resumen a partir de evidencia aprobada y fresca. Rechaza
+  comandos no registrados y conserva las puertas de verificación y archivo.
+- **Decisiones guardadas antes de scope.** La inicialización explícita publica
+  modalidad y TDD conjuntamente. Mapa y diseño reciben asignaciones de contexto
+  independientes, respetando los límites del usuario.
+
+### Changed
+
+- **Comunicación más breve y estados más precisos.** El pensamiento se oculta
+  por defecto, las explicaciones se ajustan a la complejidad y la aprobación
+  del mismo plan se conserva. Comprobación y cierre mantienen visibles las
+  revisiones asesoras pendientes, fallidas o que ya no corresponden al código.
+
 ## [0.96.0-alpha.1] - 2026-09-07
 
 ### Added
