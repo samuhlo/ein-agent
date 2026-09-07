@@ -9,6 +9,7 @@ import { CLEANER_AUDIT_LIMITS } from "../ein-pi/agent/lib/cleaner-audit-evidence
 import { deriveContinuityCheckpoint } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
 import { readContinuityCheckpoint, writeContinuityCheckpoint } from "../ein-pi/agent/lib/continuity-checkpoint-store.ts";
 import { ensureEinGitignore } from "../ein-pi/agent/lib/gitignore.ts";
+import { collectDelegationItems } from "../ein-pi/agent/lib/delegation-shape.ts";
 import { projectProjectState } from "../ein-pi/agent/lib/project-state.ts";
 import {
 	admitSddParticipantCall,
@@ -267,6 +268,18 @@ describe("ephemeral participant coordinator", () => {
 
 		writeFileSync(join(cwd, "src/a.ts"), "export const a = 3;\n");
 		expect(planSddParticipants(cwd, "seals", "change")).toMatchObject({ status: "unavailable", blocker: expect.stringContaining("drifted") });
+	});
+
+	test("admits a transported task with parent constraints but rejects changes to its scope", () => {
+		const cwd = fixture("transport", true, true);
+		const plan = planSddParticipants(cwd, "transport", "change");
+		const original = plan.next!.task;
+		const input = { workflowScript: `runs.run("audit", {agent: "ein-cleaner", task: ${JSON.stringify(original + "\n\nParent authority: audit only; do not mutate source.")}})` };
+		const task = collectDelegationItems(input)[0]!.task!;
+		expect(admitSddParticipantCall(cwd, "transport", "tampered", "ein-cleaner", task.replace("src/a.ts", "src/other.ts"))).toContain("task contract");
+		expect(admitSddParticipantCall(cwd, "transport", "valid", "ein-cleaner", task)).toBeNull();
+		expect(completeSddParticipantCall(cwd, "transport", "valid", { status: "complete" }).ok).toBe(true);
+		expect(planSddParticipants(cwd, "transport", "change").next?.agent).toBe("ein-architect");
 	});
 
 	test("disabled participants are not invented and explicit completion is honest", () => {

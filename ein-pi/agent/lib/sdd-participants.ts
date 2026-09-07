@@ -438,7 +438,10 @@ export function admitSddParticipantCall(cwd: string, sessionKey: string, toolCal
 	const expectedTask = task(run, agent);
 	const nextSlice = agent === "ein-cleaner" ? run.slices[run.nextCleaner] : undefined;
 	const expectedRange = `${nextSlice?.start ?? 0}-${nextSlice?.end ?? run.scope.length}`;
-	if (unit !== agent || sliceId !== (nextSlice?.id ?? "none") || range !== expectedRange || expectedStateRef !== run.sourceSeal || taskText !== expectedTask) return "SDD participant unavailable: stale or late task identity.";
+	if (unit !== agent || sliceId !== (nextSlice?.id ?? "none") || range !== expectedRange || expectedStateRef !== run.sourceSeal) return "SDD participant unavailable: stale or late task identity.";
+	// Preserve the entire generated contract; allow the parent to append context
+	// and restrictions without misreporting a fresh identity as expired.
+	if (taskText !== expectedTask && !taskText.startsWith(`${expectedTask}\n\n`)) return "SDD participant unavailable: generated task contract was altered; request the current plan and preserve it before appending parent constraints.";
 	if (!observe(run, cwd)) return `SDD participant unavailable: ${run.reason ?? "source seal is stale"}.`;
 	const call: SddParticipantCall = { toolCallId, sessionKey, change: run.change, passageId: run.passageId, unit: agent, task: taskText, sliceId: sliceId!, expectedStateRef: expectedStateRef! };
 	run.inFlight = { toolCallId, agent, task: taskText, sliceId: sliceId!, expectedStateRef: expectedStateRef! };

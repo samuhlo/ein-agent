@@ -74,6 +74,11 @@ afterEach(() => {
 });
 
 describe("parseWorkflowScriptDelegations", () => {
+	test("preserves the task through JSON string transport without executing it", () => {
+		const task = 'Audit\n{"path":"src/á.ts"}\n\tKeep \\n literal; ${neverExecute()}';
+		const script = `runs.run("audit", {agent: "ein-cleaner", task: ${JSON.stringify(task)}})`;
+		expect(collectDelegationItems({ workflowScript: script })[0]?.task).toBe(task);
+	});
 	test("extrae agente y task de un runs.run", () => {
 		expect(parseWorkflowScriptDelegations(`return runs.run("deliver", { agent: "ein-git", task: "haz push" })`)).toEqual([
 			{ agent: "ein-git", task: "haz push" },
