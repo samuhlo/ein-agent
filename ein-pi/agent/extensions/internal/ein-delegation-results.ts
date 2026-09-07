@@ -92,7 +92,7 @@ export function registerDelegationResultHook(
 			);
 			return undefined;
 		}
-		if (ctx.hasUI && participantResultIsUnrecognized({
+		if (ctx.hasUI && !event.isError && participantResultIsUnrecognized({
 			toolName: event.toolName,
 			details: event.details,
 			hasTrackedCalls: sddParticipantCallsAreTracked(),
@@ -103,6 +103,7 @@ export function registerDelegationResultHook(
 				toolName: event.toolName,
 				isError: event.isError,
 				details: event.details,
+				content: event.content,
 				agent: tracked.unit,
 				task: tracked.task,
 			});

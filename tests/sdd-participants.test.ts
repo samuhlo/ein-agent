@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { registerDelegationResultHook } from "../ein-pi/agent/extensions/internal/ein-delegation-results.ts";
 
 import { clearAgentControlSession, routeAgentControl } from "../ein-pi/agent/lib/agent-controls.ts";
 import { CLEANER_AUDIT_LIMITS } from "../ein-pi/agent/lib/cleaner-audit-evidence.ts";
@@ -79,6 +80,25 @@ afterEach(() => {
 });
 
 describe("ephemeral participant coordinator", () => {
+	test.each([true, false])("distinguishes transport errors from unknown success envelopes (isError=%p)", (isError) => {
+		const session = `failed-launch-${isError}`;
+		const cwd = fixture(session, true, false);
+		const plan = planSddParticipants(cwd, session, "change");
+		expect(admitSddParticipantCall(cwd, session, "cleaner-launch", "ein-cleaner", plan.next!.task)).toBeNull();
+		let onResult: (event: unknown, ctx: unknown) => unknown = () => { throw new Error("hook not registered"); };
+		registerDelegationResultHook({ on(name: string, handler: typeof onResult) { if (name === "tool_result") onResult = handler; } } as never, new Map());
+		const notices: string[] = [];
+		const reason = "Cleaner child tools unavailable: ein_cleaner_evidence";
+		onResult({ toolName: "subagent", toolCallId: "cleaner-launch", isError, details: {}, content: [{ type: "text", text: reason }] }, {
+			cwd, hasUI: true, sessionManager: { getSessionId: () => session }, ui: { notify: (text: string) => notices.push(text) },
+		});
+		expect(planSddParticipants(cwd, session, "change")).toMatchObject({ status: "unavailable", ...(isError ? { blocker: reason } : {}) });
+		// An actual failed tool already explains the cause; an unknown success envelope still warns.
+		expect(notices).toHaveLength(isError ? 0 : 1);
+		expect(completeSddParticipantCall(cwd, session, "cleaner-launch", { status: "complete" })).toMatchObject({ ok: false });
+		expect(planSddParticipants(cwd, session, "change").status).toBe("unavailable");
+	});
+
 	test("starts fresh after cleanup and never creates continuity.json", () => {
 		const cwd = fixture("fresh", true, false);
 		const first = planSddParticipants(cwd, "fresh", "change");

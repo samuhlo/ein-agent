@@ -38,6 +38,18 @@ describe("packaged Cleaner runtime closure", () => {
       expect(evidence).toMatchObject({ environment: "cleaner-environment-evidence/v1", complexity: 2, operational: "cleaner-operational-evidence/v1" });
       expect(evidence.duplication).toBeGreaterThan(0);
       expect(readdirSync(cache)).toEqual([]);
+
+      const childOutput = execFileSync("bun", [join(ROOT, "tests/fixtures/cleaner-child-probe.ts"), join(payload, "agents/ein-cleaner.md"), project, home], {
+        cwd: project, encoding: "utf8", timeout: 15_000,
+        env: { ...process.env, HOME: home, PI_CODING_AGENT_DIR: home, EIN_PI_AGENT_HOME: home, PI_OFFLINE: "1", NODE_PATH: "" },
+      });
+      const child = JSON.parse(childOutput) as { active: string[]; registered: string[]; handlers: string[]; evidence: { version: string; audit: { files: { path: string }[] } } };
+      const cleanerTools = ["ein_cleaner_evidence", "ein_cleaner_active_evidence", "ein_cleaner_audit", "ein_cleaner_improve_admit", "ein_cleaner_improve_apply", "ein_cleaner_improve_complete"];
+      expect(child.registered.sort()).toEqual(cleanerTools.sort());
+      expect(child.active.sort()).toEqual([...cleanerTools, "read", "grep", "find"].sort());
+      expect(child.handlers).toEqual([]);
+      expect(child.evidence.version).toBe("cleaner-operational-evidence/v1");
+      expect(child.evidence.audit.files.map((file) => file.path)).toEqual(["src/sample.ts"]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
