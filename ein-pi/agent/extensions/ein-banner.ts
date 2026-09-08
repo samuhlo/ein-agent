@@ -24,6 +24,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { AGENT_DIR } from "./ein-paths";
 import { loadPalette, type RGB } from "./ein-brand";
+import { SURFACE } from "../lib/chrome.ts";
 import { GRID_VALUE_W, PANEL_FRAME_TICKS, PANEL_LEADER_TICKS, PANEL_ROW_TICKS, PANEL_W, renderPanel, type PanelTone } from "../lib/banner-panel";
 import { placaRows, TV_WIDTH, type TvCut, type TvTone } from "../lib/ein-tv";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
@@ -680,10 +681,16 @@ export default function (pi: ExtensionAPI) {
                 frame: YELLOW, label: SECONDARY, value: CONCRETE,
                 dim: FAINT, structure: RULE, accent: YELLOW,
               };
-              const panel: Cell[][] = renderPanel(panelData, tick - PANEL_START_TICK).map((line) =>
+              // LA CABECERA ES UNA BARRA DE CHROME, no una fila más.
+              // `renderPanel` la emite siempre primera y rellena hasta PANEL_W,
+              // así que teñirla entera la separa del cuerpo sin dibujar un
+              // borde — que es la regla de la gramática: aire y superficie en
+              // lugar de marco.
+              const panel: Cell[][] = renderPanel(panelData, tick - PANEL_START_TICK).map((line, index) =>
                 line.map((cell) => ({
                   text: cell.text,
                   color: TONE[cell.tone],
+                  ...(index === 0 ? { bg: SURFACE.chrome } : {}),
                   ...(cell.bold ? { bold: true } : {}),
                 })),
               );

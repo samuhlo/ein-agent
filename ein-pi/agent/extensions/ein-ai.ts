@@ -1,3 +1,4 @@
+import { withEinCommandSurfaces } from "../lib/command-surface.ts";
 // =============================================================================
 // EIN AI
 // Extensión principal de Ein: ensambla los módulos de lib/ (persona,
@@ -29,6 +30,7 @@ const scoutTracking: ScoutTracking = new Map();
 // ─── Extensión ────────────────────────────────────────────────────────────────
 
 export default function einAi(pi: ExtensionAPI): void {
+	pi = withEinCommandSurfaces(pi, "ein-ai");
 	const delegationResults = registerDelegationResultHook(pi, scoutTracking);
 	const toolCallGate = registerToolCallGate(pi, {
 		scoutTracking,

@@ -1,3 +1,4 @@
+import { withEinCommandSurfaces } from "../lib/command-surface.ts";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { homedir } from "node:os";
@@ -437,6 +438,7 @@ export function resolveSkillInjection(cwd: string, task: string, limit = 6): str
 }
 
 export default function einSkillRegistry(pi: ExtensionAPI) {
+	pi = withEinCommandSurfaces(pi, "ein-skill-registry");
 
   pi.registerTool({
     name: "ein_skill_registry",

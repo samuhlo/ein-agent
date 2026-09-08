@@ -1,3 +1,4 @@
+import { withEinCommandSurfaces } from "../lib/command-surface.ts";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import {
@@ -22,6 +23,7 @@ function statusLine(name: "pi" | "claude", result: Awaited<ReturnType<Continuity
 
 export function createEinContinuityExtension(dependencies: ExtensionDependencies = {}): (pi: ExtensionAPI) => void {
 	return (pi: ExtensionAPI): void => {
+		pi = withEinCommandSurfaces(pi, "ein-continuity");
 		let lifecycle: ContinuityHandoffLifecycle | null = null;
 		let thresholdNotified = false;
 		const active = (): ContinuityHandoffLifecycle | null => lifecycle;

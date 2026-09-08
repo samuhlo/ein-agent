@@ -54,7 +54,7 @@ export function formatChangeLint(report: ChangeLintReport & { advisory?: SddAdvi
 	if (report.advisory) lines.push(`Revisión asesora: ${report.advisory.status}${report.advisory.reason ? ` — ${report.advisory.reason}` : ""}. Es independiente del control de artefactos.`);
 
 	if (report.issues.length > 0) {
-		lines.push("", "▏ consistencia:");
+		lines.push("", `${GLYPH.rule} consistencia:`);
 		for (const issue of report.issues) {
 			lines.push(`  - ${issue.level.toUpperCase()} [${issue.code}]: ${issue.message}`);
 		}
@@ -62,14 +62,14 @@ export function formatChangeLint(report: ChangeLintReport & { advisory?: SddAdvi
 
 	for (const { phase, present, report: phaseReport } of phases) {
 		if (!present) {
-			lines.push(`▏ ${phase} — MISSING`);
+			lines.push(`${GLYPH.rule} ${phase} — MISSING`);
 			continue;
 		}
 		const icon = phaseReport!.errors === 0 ? "OK" : "ERRORS";
 		const detail = phaseReport!.lineCount > 0
 			? `, ${phaseReport!.lineCount} lineas`
 			: "";
-		lines.push(`▏ ${phase} — ${icon} (presente${detail})`);
+		lines.push(`${GLYPH.rule} ${phase} — ${icon} (presente${detail})`);
 		for (const issue of phaseReport!.issues) {
 			lines.push(`  - ${issue.level.toUpperCase()} [${issue.code}]: ${issue.message}`);
 		}
@@ -139,7 +139,7 @@ export function formatSddStatus(
 		budgetProblems: status.budget.problems,
 	});
 	if (blockers.length) {
-		lines.push("", `▏ ${t("sdd-status.blocked", "blockers")}:`);
+		lines.push("", `${GLYPH.rule} ${t("sdd-status.blocked", "blockers")}:`);
 		for (const blocker of blockers) lines.push(`- ${blocker}`);
 	}
 	const remedies = formatSddRemedies(collectSddRemedies(status));
@@ -184,7 +184,7 @@ export function formatSddNext(report: SddNextReport): string {
 		`accion sugerida: ${report.suggestedAction}`,
 	];
 	if (report.blocked.length > 0) {
-		lines.push("", "▏ revisar antes de avanzar:");
+		lines.push("", `${GLYPH.rule} revisar antes de avanzar:`);
 		for (const item of report.blocked) lines.push(`- ${item}`);
 	}
 	return lines.join("\n");

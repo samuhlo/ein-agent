@@ -4,6 +4,27 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.96.0-alpha.4] - 2026-09-08
+
+### Fixed
+
+- **El modelo elegido se conserva al cambiar de carpeta.** Las definiciones
+  antiguas de agentes en HOME dejan de sustituir el modelo y el contrato actuales.
+- **Las auditorías entre proyectos validan sus referencias desde el origen.**
+  Admiten el documento de la sesión padre, retiran citas sobrantes y descartan
+  afirmaciones cuyo respaldo queda incompleto. Los scouts usan una extensión
+  explícita de lectura y la recuperación evita pedir un reinicio de sesión.
+- **La salida de los comandos recibe su superficie real.** En TUI, las
+  notificaciones `/ein:*` muestran el comando y el nivel con el fondo del tema;
+  se guardan en el historial sin añadir mensajes al contexto del modelo.
+
+### Changed
+
+- **Superficies diferenciadas en Pi.** Los mensajes de usuario, las salidas
+  propias y los estados de herramientas recuperan sus tintes derivados. La
+  cabecera del banner gana un fondo neutro; el TODO y la actividad conservan
+  su fondo transparente. RPC, JSON, print y el modo sin color mantienen su salida.
+
 ## [0.96.0-alpha.3] - 2026-09-08
 
 ### Changed

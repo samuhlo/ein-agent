@@ -1,7 +1,9 @@
+import { withEinCommandSurfaces } from "../lib/command-surface.ts";
 import { bootstrapOpenSpecConfig } from "../lib/openspec-config-bootstrap.ts";
 type ExtensionAPI = any;
 
 export default function (pi: ExtensionAPI) {
+	pi = withEinCommandSurfaces(pi, "sdd-init");
 	pi.registerCommand("sdd-init", {
 		description:
 			"Auto-detect project stack and bootstrap openspec/config.yaml for SDD.",

@@ -1,3 +1,4 @@
+import { withEinCommandSurfaces } from "../lib/command-surface.ts";
 // =============================================================================
 // EIN SKILL MAINTENANCE
 // =============================================================================
@@ -229,6 +230,7 @@ function cleanSkills(profile: StackProfile, force: boolean): string {
 }
 
 export default function einSkillMaintenance(pi: ExtensionAPI): void {
+	pi = withEinCommandSurfaces(pi, "ein-skill-maintenance");
 	pi.registerCommand(commandName("skills"), {
 		description: t("cmd.skills.description", "Gestion de skills: status, update [--local|--downloaded], add, clean"),
 		handler: async (args, ctx) => {

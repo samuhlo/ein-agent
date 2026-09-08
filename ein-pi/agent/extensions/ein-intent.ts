@@ -1,3 +1,4 @@
+import { withEinCommandSurfaces } from "../lib/command-surface.ts";
 // =============================================================================
 // ein-intent — superficie Pi del canal de intención (`/ein:intent`, `/ein:eh`)
 // -----------------------------------------------------------------------------
@@ -34,6 +35,7 @@ function guardIdleAndInject(
 }
 
 export default function einIntent(pi: ExtensionAPI): void {
+	pi = withEinCommandSurfaces(pi, "ein-intent");
 	pi.registerCommand(INTENT_COMMAND, {
 		description: "Interroga la petición en rondas y cierra a disco en intent.md.",
 		handler: async (args, ctx: ExtensionContext): Promise<void> => {
