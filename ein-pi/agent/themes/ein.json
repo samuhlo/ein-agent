@@ -12,7 +12,13 @@
 		"dimGray": "#5A5A5A",
 		"secondaryText": "#9A9A9A",
 		"darkGray": "#3A3A3A",
-		"selectedBg": "#1F1A0F"
+
+		"selectedBg": "#1F1A0F",
+		"surface1": "#121212",
+		"surface2": "#161616",
+		"cmdBg": "#15130D",
+		"okBg": "#1A1C15",
+		"errorBg": "#201513"
 	},
 	"colors": {
 		"accent": "yellow",
@@ -28,14 +34,14 @@
 		"thinkingText": "structure",
 
 		"selectedBg": "selectedBg",
-		"userMessageBg": "",
+		"userMessageBg": "surface1",
 		"userMessageText": "concrete",
-		"customMessageBg": "",
+		"customMessageBg": "cmdBg",
 		"customMessageText": "concrete",
 		"customMessageLabel": "yellow",
-		"toolPendingBg": "",
-		"toolSuccessBg": "",
-		"toolErrorBg": "",
+		"toolPendingBg": "surface2",
+		"toolSuccessBg": "okBg",
+		"toolErrorBg": "errorBg",
 		"toolTitle": "concrete",
 		"toolOutput": "secondaryText",
 

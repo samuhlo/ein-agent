@@ -23,7 +23,7 @@ Reglas duras:
 
 ### Tintes derivados
 
-En la sesión Pi, mensajes de usuario, mensajes propios y herramientas heredan el fondo de la terminal (`""` en `themes/ein.json`). El TODO tampoco pinta un fondo: distingue la fila actual con texto, regla y `▸`. Así no aparecen placas negras ni franjas partidas en terminales con otro color de base.
+En la sesión Pi cada emisor lleva su superficie (ver «Superficies de la sesión», más abajo). El TODO y la actividad de subagentes son la excepción: se repintan en cada tick, así que distinguen la fila actual con texto, regla y `▸`, no con una franja.
 
 Los menús nativos conservan `selectedBg` para identificar la opción seleccionada. La app de terminal independiente y la exportación HTML conservan superficies propias:
 
@@ -57,11 +57,33 @@ Regla dura: **el nivel se elige con el color, nunca rebajando el que ya se eligi
 
 La banda de foco es **cálida**, no neutra: ata la regla del foco (`// 002`) al acento único de esta sección.
 
+### Superficies de la sesión
+
+**Cada emisor lleva su tinte.** Sin ellos la sesión entera es una sola superficie: tu mensaje, la respuesta, la acción que corre y la que falló llegan sobre el mismo negro y con el mismo peso.
+
+| Emisor | Clave del tema | Hex | Derivación |
+|---|---|---|---|
+| Lo que escribes tú | `userMessageBg` | `#121212` | neutro escalonado |
+| La salida de un `/ein:*` | `customMessageBg` | `#15130D` | yellow α 0.04 |
+| Acción en curso | `toolPendingBg` | `#161616` | neutro escalonado |
+| Acción resuelta | `toolSuccessBg` | `#1A1C15` | green α 0.10 |
+| Acción fallida | `toolErrorBg` | `#201513` | red α 0.10 |
+| La fila con el foco | `selectedBg` | `#1F1A0F` | yellow α 0.08 |
+
+Fuente doble y atada por `tests/pi-session-theme.test.ts`: `themes/ein.json` → `vars` para lo que pinta Pi, y `lib/chrome.ts` → `SURFACE` para lo que pinta Ein antes de que exista un tema cargado.
+
+Dos reglas duras, y las dos dicen lo mismo desde lados distintos:
+
+- **Lo que se repinta no se tiñe.** El overlay del cambio y la actividad de subagentes se redibujan en cada tick: una franja que aparece, cambia de alto y desaparece parte la pantalla en dos. Ahí distinguen la regla vertical y el color. Lo guardan `tests/sdd-overlay.test.ts` y `tooling/verify-subagent-widget-runtime.ts`.
+- **La superficie es refuerzo, nunca el único portador del significado.** El fondo de la terminal no es nuestro —el esquema de tema de Pi no expone ninguna clave de fondo global—, así que un tinte calculado sobre carbón se ve como un parche en cualquier otra base. La regla vertical, el glifo y la etiqueta van SIEMPRE; el tinte los acompaña.
+
+La prosa del orquestador es la excepción declarada: no tiene clave de fondo que declarar, así que se distingue solo por su regla y su `// NNN`.
+
 ## // 002. GRAMÁTICA DE TERMINAL
 
 Diez reglas, y una que las gobierna: **el aire sustituye al borde**.
 
-1. **Cero recuadros.** Sin marcos, sin cajas, sin pestañas de sección. Un bloque se separa del siguiente con una línea en blanco.
+1. **Cero recuadros.** Sin marcos, sin cajas, sin pestañas de sección. Un bloque se separa del siguiente con una línea en blanco, o con su superficie (`// 001`) — nunca con un borde.
 2. **La regla vertical agrupa sin encerrar.** Una barra de un carácter en el margen izquierdo (`▏`) marca un bloque. Es el único elemento estructural del cuerpo.
 3. **El foco debe sobrevivir sin fondo propio.** En la sesión Pi lo marcan `▸`, la regla en amarillo y el texto. Los menús y la app independiente pueden añadir la banda `selectedBg`.
 4. **La etiqueta de sección conserva su número y su peso lo lleva el título**: `// NNN  TÍTULO`, con `//` en yellow, el número en estructura y el TÍTULO en primario y mayúsculas. Sin regla debajo, sin marcador `■`. Era el elemento con menos peso de la pantalla siendo la única señal de estructura que hay: lo que se apaga es el número, no el título.
