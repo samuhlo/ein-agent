@@ -53,16 +53,16 @@ Rules:
 - Every group MUST declare one `outcome:` before its first checkbox. Every actionable task MUST use `- [ ]` and include `skills`, `why`, `learn`, `architecture`, `avoid`, `read`, at least one `edit`, `behavior`, `stop`, and `verify`.
 - `read:` is context, not permission to write. Every `edit:` is exactly `` `<path>` | create|modify|delete | <intent> ``; it grants the future apply gate permission only for that path. A path named only by `verify:` stays non-writable.
 - Resolve every decision here. Common stops (stale sources, new dependency, out-of-scope write) are runtime-owned; `stop:` names only a condition specific to this task.
-- Tasks must be small enough for one focused apply batch.
-- Every group must fit ONE bounded apply and touch **≤3-4 production files**. A new foundational/cross-cutting artifact gets its OWN minimal group, separate from consumers. Under strict TDD split further: each production file multiplies the RED/GREEN/TRIANGULATE/REFACTOR cycles.
-- Order tasks by dependency: contracts before consumers, tests with the code they prove.
+- One group delivers one observable behavior with its implementation and regression/compatibility tests. **Each checkbox must be independently completable:** keep code and the tests needed to finish it in the same task, using multiple `edit:` fields and ordered substeps. Do not create a later task merely to prove an earlier task complete, or another group for other cases of the same behavior. Independent final verification belongs to sdd-verify.
+- Every group must fit ONE bounded apply and touch **≤3-4 production files**. A new foundational/cross-cutting artifact gets its OWN minimal group, separate from consumers. Split further when independent outcomes or the required TDD cycles exceed that focused batch.
+- Order tasks by dependency: contracts before consumers.
 
 ## Constraints
 
 - **File-only phase.** Your only normal output file is `tasks.md`.
 - Do not write or edit source code, tests, docs, `apply-progress.md`, or `verify-report.md`.
 - Do not run tests/builds or install dependencies.
-- Do not invent scope that is not present in `design.md`. If the design is ambiguous, block instead of guessing.
+- Do not invent scope that is not present in `design.md`.
 - Do not launch child subagents. Parent/orchestrator owns delegation. Never commit unless the user explicitly asks.
 - **Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause in `blocked_by`, and what the parent must fix or provide.
 
