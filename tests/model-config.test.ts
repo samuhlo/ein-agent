@@ -20,6 +20,7 @@ process.env.EIN_PI_CONFIG_HOME = TEST_CONFIG_HOME;
 
 const {
 	applyModelConfigAsync,
+	applyModelConfig,
 	listDiscoverableAgents,
 	readModelConfig,
 	inspectModelConfig,
@@ -316,5 +317,23 @@ describe("routing de agentes de ~/.pi/agent/agents (fuente user)", () => {
 		names = listDiscoverableAgents(CWD).map((agent) => agent.name);
 		expect(names).not.toContain("scout");
 		expect(names).toContain("ein-model-config-fixture");
+	});
+
+	test("a global model choice reaches the user definition even when a project shadows it", async () => {
+		const project = mkdtempSync(join(tmpdir(), "ein-model-shadow-"));
+		const definitions = join(project, ".pi/agents");
+		const nested = join(project, "src");
+		mkdirSync(definitions, { recursive: true }); mkdirSync(nested);
+		const name = "ein-model-config-fixture";
+		const local = join(definitions, `${name}.md`), global = join(AGENTS_DIR, `${name}.md`);
+		const initial = `---\nname: ${name}\ndescription: fixture\nmodel: fixture/old\ntools: read\n---\n\ncontract\n`;
+		try {
+			for (const apply of [applyModelConfig, applyModelConfigAsync]) {
+				writeFileSync(local, initial); writeFileSync(global, initial);
+				expect(listDiscoverableAgents(nested).find((agent) => agent.name === name)?.filePath).toBe(local);
+				await apply(nested, { [name]: { model: "fixture/selected", thinking: "low" } });
+				for (const path of [local, global]) expect(readFileSync(path, "utf8")).toContain("model: fixture/selected");
+			}
+		} finally { rmSync(project, { recursive: true, force: true }); }
 	});
 });
