@@ -31,6 +31,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { AGENT_DIR } from "../extensions/ein-paths";
+import { findProjectAgentRoot } from "./agent-discovery-scope.ts";
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -510,42 +511,62 @@ function builtinAgentDirs(cwd: string): string[] {
 	];
 }
 
-export function listDiscoverableAgents(cwd: string): AgentEntry[] {
-	const agents = [
-		...builtinAgentDirs(cwd).flatMap((dir) => listAgentsFromDir(dir, "builtin")),
-		...listAgentsFromDir(join(agentHome(), "agents"), "user"),
-		...listAgentsFromDir(join(homedir(), ".agents"), "user"),
-		...listAgentsFromDir(join(cwd, ".agents"), "project"),
-		...listAgentsFromDir(join(cwd, ".pi", "agents"), "project"),
+function otherAgentDirs(cwd: string): Array<[string, AgentSource]> {
+	const projectRoot = findProjectAgentRoot(cwd);
+	return [
+		[join(agentHome(), "agents"), "user"],
+		[join(homedir(), ".agents"), "user"],
+		...(projectRoot ? [[join(projectRoot, ".agents"), "project"], [join(projectRoot, ".pi", "agents"), "project"]] as Array<[string, AgentSource]> : []),
 	];
+}
+
+function agentCandidates(cwd: string): AgentEntry[] {
+	return [
+		...builtinAgentDirs(cwd).flatMap((dir) => listAgentsFromDir(dir, "builtin")),
+		...otherAgentDirs(cwd).flatMap(([dir, source]) => listAgentsFromDir(dir, source)),
+	];
+}
+
+export function listDiscoverableAgents(cwd: string): AgentEntry[] {
+	const agents = agentCandidates(cwd);
 	const byName = new Map<string, AgentEntry>();
 	for (const agent of agents) byName.set(agent.name, agent);
 	return sortDiscovered(Array.from(byName.values()));
 }
 
-export async function listDiscoverableAgentsAsync(
-	cwd: string,
-): Promise<AgentEntry[]> {
+async function agentCandidatesAsync(cwd: string): Promise<AgentEntry[]> {
 	const agents: AgentEntry[] = [];
 	for (const dir of builtinAgentDirs(cwd)) {
 		agents.push(...(await listAgentsFromDirAsync(dir, "builtin")));
 	}
-	const otherDirs: Array<[string, AgentSource]> = [
-		[join(agentHome(), "agents"), "user"],
-		[join(homedir(), ".agents"), "user"],
-		[join(cwd, ".agents"), "project"],
-		[join(cwd, ".pi", "agents"), "project"],
-	];
-	for (const [dir, source] of otherDirs) {
+	for (const [dir, source] of otherAgentDirs(cwd)) {
 		agents.push(...(await listAgentsFromDirAsync(dir, source)));
 	}
+	return agents;
+}
+
+export async function listDiscoverableAgentsAsync(cwd: string): Promise<AgentEntry[]> {
+	const agents = await agentCandidatesAsync(cwd);
 	const byName = new Map<string, AgentEntry>();
 	for (const agent of agents) byName.set(agent.name, agent);
 	return sortDiscovered(Array.from(byName.values()));
 }
 
 function projectSettingsPath(cwd: string): string {
-	return join(cwd, ".pi", "settings.json");
+	return join(findProjectAgentRoot(cwd) ?? cwd, ".pi", "settings.json");
+}
+
+// Global choices must update the user definition even when a project shadows it.
+function routingTargets(agents: AgentEntry[]): AgentEntry[] {
+	const seen = new Set<string>();
+	const customNames = new Set(agents.filter((agent) => agent.source !== "builtin").map((agent) => agent.name));
+	return agents.filter((agent) => {
+		if (agent.source === "builtin" && customNames.has(agent.name)) return false;
+		const key = agent.source === "builtin" ? `builtin:${agent.name}` : agent.filePath!;
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
 }
 
 function globalSettingsPath(): string {
@@ -767,7 +788,7 @@ export function applyModelConfig(
 ): { updated: number; skipped: number } {
 	let updated = 0;
 	let skipped = 0;
-	for (const agent of listDiscoverableAgents(cwd)) {
+	for (const agent of routingTargets(agentCandidates(cwd))) {
 		const entry = withDefaultThinking(agent.name, config[agent.name]);
 		if (agent.source === "builtin") {
 			if (updateBuiltinModelOverride(cwd, agent.name, entry)) updated += 1;
@@ -796,7 +817,7 @@ export async function applyModelConfigAsync(
 ): Promise<{ updated: number; skipped: number }> {
 	let updated = 0;
 	let skipped = 0;
-	for (const agent of await listDiscoverableAgentsAsync(cwd)) {
+	for (const agent of routingTargets(await agentCandidatesAsync(cwd))) {
 		const entry = withDefaultThinking(agent.name, config[agent.name]);
 		if (agent.source === "builtin") {
 			if (await updateBuiltinModelOverrideAsync(cwd, agent.name, entry))

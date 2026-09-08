@@ -118,12 +118,11 @@ describe("frontmatter de agentes — sobrevive a los dos parsers de pi-subagents
 		});
 	}
 
-	test("ein-scout: extensions DEFINIDO y vacío (dispara --no-extensions sin token basura)", () => {
+	test("ein-scout: explicit isolated read-only extension", () => {
 		const fm = parseFrontmatter(readFileSync(join(CORE_AGENTS, "ein-scout.md"), "utf8"));
 		// Definido (clave presente) → pi-subagents pone disableAmbientExtensions=true.
 		expect(Object.hasOwn(fm, "extensions")).toBe(true);
-		// Y parsea a lista vacía → sin `--extension []`.
-		expect(parseFrontmatterList(fm.extensions)).toEqual([]);
+		expect(parseFrontmatterList(fm.extensions)).toEqual(["../extensions/internal/ein-scout-child.ts"]);
 	});
 
 	test("ein-scout: turnBudget y toolBudget siguen siendo JSON válido (regresión v0.24.0)", () => {

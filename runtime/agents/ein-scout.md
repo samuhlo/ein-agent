@@ -2,7 +2,7 @@
 name: ein-scout
 description: "Read-only repository scout: bounded evidence and uncertainty for parent decisions."
 tools: read, grep, find
-extensions:
+extensions: ../extensions/internal/ein-scout-child.ts
 defaultContext: fresh
 inheritProjectContext: false
 inheritSkills: false
@@ -33,7 +33,7 @@ Return evidence only, as one bounded structured report with EXACTLY these top-le
 - `summary`: a concise factual summary (≤ 2000 chars).
 - `summaryReferenceIds`: 1–8 unique reference IDs the summary rests on.
 - `findings`: 1–12 objects, each `{ "claim": string (≤1000), "referenceIds": [1–8 unique IDs] }`.
-- `references`: 1–24 objects, each `{ "id": "R1"|"R2"…, "path": repo-relative path, "lines": "N" or "N-M", "supports": string (≤500) }`. Cite `path`+`lines` you actually read; Ein clamps an end past EOF and drops a reference it cannot resolve.
+- `references`: 1–24 objects, each `{ "id": "R1"|"R2"…, "path": path relative to the delegated cwd, "lines": "N" or "N-M", "supports": string (≤500) }`. A reference in the parent session directory may use an absolute path or `../` relative to the delegated cwd. Cite only allowed files you actually read. Every listed reference must be used by a finding or the summary. Ein clamps an end past EOF and drops unresolved references and claims with incomplete support.
 - `uncertainties`: 1–8 short statement **strings** for every material gap, ambiguity, inaccessible file, or limit. When nothing is uncertain, return a single string that says so explicitly.
 
 Exact shape (copy this structure):

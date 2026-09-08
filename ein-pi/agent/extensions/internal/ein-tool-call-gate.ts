@@ -47,6 +47,7 @@ import {
 } from "../../lib/sdd-participants.ts";
 import { isRecord } from "./ein-pi-event-contracts.ts";
 import { ensurePhaseContextBudget } from "../../lib/sdd-phase-context-budget.ts";
+import { normalizeAgentDiscoveryScope } from "../../lib/agent-discovery-scope.ts";
 import {
 	formatApplyPacketObservation,
 	observeNextApplyPacket,
@@ -82,10 +83,13 @@ export function registerToolCallGate(
 
 	pi.on("tool_call", async (event, ctx) => {
 		if (event.toolName === "subagent") {
+			try { normalizeAgentDiscoveryScope(event.input, ctx.cwd); }
+			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			const scoutLaunch = normalizeScoutLaunch(
 				event.input,
 				event.toolCallId,
 				dependencies.scoutTracking,
+				ctx.cwd,
 			);
 			if (scoutLaunch) {
 				Object.assign(event.input as Record<string, unknown>, scoutLaunch);

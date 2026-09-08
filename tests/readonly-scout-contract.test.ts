@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { acceptTrackedScoutResult, normalizeScoutLaunch, SCOUT_REPORT_MAX_BYTES, validateScoutReport } from "../ein-pi/agent/lib/scout-contract.ts";
+import { acceptTrackedScoutResult, normalizeScoutLaunch, SCOUT_REPORT_MAX_BYTES, validateScoutReport, type ScoutTracking } from "../ein-pi/agent/lib/scout-contract.ts";
 import { scoutStaticContract } from "../ein-pi/agent/extensions/ein-doctor.ts";
 const SCOUT_FRONTMATTER = join(import.meta.dir, "../runtime/agents/ein-scout.md");
 const SCOUT_SPEC = join(import.meta.dir, "../openspec/specs/scout-routing/spec.md");
@@ -37,15 +37,15 @@ describe("readonly scout launch contract", () => {
 		expect(normalizeScoutLaunch({ agent: "other" }, "call", new Map())).toBeUndefined();
 	});
 
-	test("uses canonical empty frontmatter and rejects caller extension overrides", () => {
+	test("uses the explicit read-only child extension and rejects caller extension overrides", () => {
 		const scout = readFileSync(SCOUT_FRONTMATTER, "utf8");
-		expect(scout).toMatch(/^extensions:\s*$/m);
+		expect(scout).toContain("extensions: ../extensions/internal/ein-scout-child.ts");
 
 		const launch = normalizeScoutLaunch({ agent: "ein-scout", task: "inspect", extensions: ["leak"] }, "call-extensions", new Map())!;
 		expect(launch).not.toHaveProperty("extensions");
 	});
 
-	test("keeps the defined blank extensions declaration canonical and doctor-readable", () => {
+	test("keeps the explicit scout extension doctor-readable", () => {
 		const root = mkdtempSync(join(tmpdir(), "ein-scout-doctor-"));
 		try {
 			const agentsDir = join(root, "agents");
@@ -54,10 +54,10 @@ describe("readonly scout launch contract", () => {
 			mkdirSync(agentsDir);
 			writeFileSync(join(agentsDir, "ein-scout.md"), source);
 
-			expect(readFileSync(SCOUT_SPEC, "utf8")).toContain("defined but blank `extensions:`");
+			expect(readFileSync(SCOUT_SPEC, "utf8")).toContain("explicit `ein-scout-child.ts` extension");
 			expect(scoutStaticContract(agentsDir, launcherSource).extensions).toBe(true);
 
-			writeFileSync(join(agentsDir, "ein-scout.md"), source.replace(/^extensions:\s*$/m, "extensions: []"));
+			writeFileSync(join(agentsDir, "ein-scout.md"), source.replace(/^extensions:.*$/m, "extensions: []"));
 			expect(scoutStaticContract(agentsDir, launcherSource).extensions).toBe(false);
 		} finally {
 			rmSync(root, { recursive: true, force: true });
@@ -353,10 +353,12 @@ describe("readonly scout report validation", () => {
 	// La coherencia INTERNA sigue estricta: es determinista, gratis, y es
 	// responsabilidad del modelo. Lo que se vuelve tolerante es la cita contra
 	// disco, que es donde el modelo escribe un número a mano.
-	test("rejects unreferenced and internally inconsistent evidence", () => {
+	test("drops unused citations but rejects internally inconsistent evidence", () => {
 		const root = fixture();
 		expect(() => validateScoutReport([report({ findings: [{ claim: "uncited", referenceIds: [] }] })], root)).toThrow();
-		expect(() => validateScoutReport([report({ references: [...report().references, { id: "R2", path: "evidence.ts", startLine: 1, endLine: 1, supports: "unused" }] })], root)).toThrow("unreferenced");
+		const pruned = validateScoutReport([report({ references: [...report().references, { id: "R2", path: "unused-missing.ts", startLine: 1, endLine: 1, supports: "unused" }] })], root);
+		expect(pruned.references).toEqual(report().references);
+		expect(pruned.uncertainties.at(-1)?.statement).toContain("unreferenced reference");
 		expect(() => validateScoutReport([report({ findings: [{ claim: "ghost", referenceIds: ["R9"] }] })], root)).toThrow("unknown reference id");
 	});
 
@@ -379,8 +381,8 @@ describe("readonly scout report validation", () => {
 		})], root);
 
 		expect(salvaged.references.map((reference) => reference.id)).toEqual(["R1"]);
-		expect(salvaged.findings.map((finding) => finding.claim)).toEqual(["vive", "sobrevive con la cita viva"]);
-		expect(salvaged.findings[1]!.referenceIds).toEqual(["R1"]);
+		expect(salvaged.findings.map((finding) => finding.claim)).toEqual(["vive"]);
+		expect(salvaged.summary).not.toBe("Evidence found");
 		expect(salvaged.summaryReferenceIds).toEqual(["R1"]);
 		// El descarte viaja con procedencia (`// 002`): no se esconde, se declara.
 		expect(salvaged.uncertainties.some((uncertainty) => uncertainty.statement.includes("R2") && uncertainty.statement.includes("no-existe.ts"))).toBe(true);
@@ -393,23 +395,12 @@ describe("readonly scout report validation", () => {
 		expect(() => validateScoutReport([report({ references: [{ ...report().references[0], path: "no-existe.ts" }] })], root)).toThrow("no valid evidence");
 	});
 
-	// Un finding con UNA cita viva sobrevive con esa cita, aunque pierda las
-	// demás. Es el invariante que hace imposible la "referencia huérfana
-	// sobrevenida" que el diseño preveía podar: una referencia viva siempre
-	// mantiene vivo a su finding.
-	test("R3: un finding conserva sus citas vivas y pierde solo las muertas", () => {
+	test("rejects a report whose only finding lost part of its support", () => {
 		const root = fixture();
-		const salvaged = validateScoutReport([report({
-			summaryReferenceIds: ["R1"],
-			findings: [{ claim: "mixto", referenceIds: ["R1", "R2", "R3"] }],
-			references: [
-				{ id: "R1", path: "evidence.ts", startLine: 1, endLine: 3, supports: "ok" },
-				{ id: "R2", path: "no-existe.ts", startLine: 1, endLine: 5, supports: "irrecuperable" },
-				{ id: "R3", path: "evidence.ts", startLine: 2, endLine: 2, supports: "ok" },
-			],
-		})], root);
-		expect(salvaged.findings[0]!.referenceIds).toEqual(["R1", "R3"]);
-		expect(salvaged.references.map((reference) => reference.id)).toEqual(["R1", "R3"]);
+		expect(() => validateScoutReport([report({
+			findings: [{ claim: "mixed claim", referenceIds: ["R1", "R2"] }],
+			references: [...report().references, { id: "R2", path: "missing.ts", lines: "1", supports: "missing support" }],
+		})], root)).toThrow("no valid evidence");
 	});
 
 	test("rejects symlink escapes", () => {
