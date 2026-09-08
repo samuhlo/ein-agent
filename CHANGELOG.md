@@ -4,6 +4,27 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.96.0-alpha.3] - 2026-09-08
+
+### Changed
+
+- **Escala de contraste coherente en Pi.** El texto secundario deja de apilar
+  `DIM` sobre gris; fases hechas, actuales y pendientes tienen pesos distintos.
+  Los títulos de sección ganan presencia y el foco abre la fila por la izquierda.
+- **Banner centrado en el trabajo.** Repositorio y sesiones recientes aparecen
+  primero; los ajustes se agrupan en filas compactas y el inventario pasa al pie.
+  La nota de Engram se traduce y ocupa el final del estado SDD.
+
+### Fixed
+
+- **La tarea iniciada conserva su sitio.** El TODO cuenta los encabezados de
+  grupo y el resumen de tareas ocultas antes de seleccionar las filas visibles.
+  Evita tanto perder la tarea actual como dejar un encabezado sin tareas debajo.
+- **Los ajustes del banner no desaparecen al llenarse una fila.** Los pares
+  continúan en otra línea, incluyendo Linear con idiomas distintos o TDD estricto.
+- **El encabezado respeta terminales estrechas.** Reserva el ancho real de fase
+  y progreso antes de recortar el nombre, también con totales de varias cifras.
+
 ## [0.96.0-alpha.2] - 2026-09-07
 
 ### Fixed
