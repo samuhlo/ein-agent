@@ -89,6 +89,7 @@ export function registerToolCallGate(
 				event.input,
 				event.toolCallId,
 				dependencies.scoutTracking,
+				ctx.cwd,
 			);
 			if (scoutLaunch) {
 				Object.assign(event.input as Record<string, unknown>, scoutLaunch);

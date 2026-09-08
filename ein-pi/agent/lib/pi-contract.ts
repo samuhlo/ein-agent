@@ -62,6 +62,7 @@ export const PI_EXTENSION_API: readonly string[] = [
 	"registerTool",
 	"sendUserMessage",
 	"setThinkingLevel",
+	"setActiveTools",
 ];
 
 export type PiSurface = {
