@@ -58,6 +58,7 @@ export const PI_EXTENSION_API: readonly string[] = [
 	"getThinkingLevel",
 	"on",
 	"registerCommand",
+	"registerEntryRenderer",
 	"registerShortcut",
 	"registerTool",
 	"sendUserMessage",

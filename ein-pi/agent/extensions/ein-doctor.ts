@@ -1,3 +1,4 @@
+import { withEinCommandSurfaces } from "../lib/command-surface.ts";
 import { existsSync, readdirSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { join } from "node:path";
@@ -326,6 +327,7 @@ export function doctorSmokeReport(
 // =============================================================================
 
 export default function einDoctor(pi: ExtensionAPI): void {
+	pi = withEinCommandSurfaces(pi, "ein-doctor");
   pi.registerTool({
     name: "ein_pi_doctor",
     label: "Ein Doctor",

@@ -1,3 +1,4 @@
+import { withEinCommandSurfaces } from "../lib/command-surface.ts";
 import { existsSync, readFileSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, loadBrand, slashCommand } from "./ein-brand";
@@ -493,6 +494,7 @@ async function createIssue(input: {
 }
 
 export default function einLinear(pi: ExtensionAPI) {
+	pi = withEinCommandSurfaces(pi, "ein-linear");
   pi.registerTool({
     name: "linear_viewer",
     label: "Linear Viewer",

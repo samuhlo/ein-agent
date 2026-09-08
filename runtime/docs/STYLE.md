@@ -72,6 +72,8 @@ La banda de foco es **cálida**, no neutra: ata la regla del foco (`// 002`) al 
 
 Fuente doble y atada por `tests/pi-session-theme.test.ts`: `themes/ein.json` → `vars` para lo que pinta Pi, y `lib/chrome.ts` → `SURFACE` para lo que pinta Ein antes de que exista un tema cargado.
 
+Las notificaciones de comandos `/ein:*` pasan por `lib/command-surface.ts`: en TUI son entradas visuales con el nombre del comando, nivel explícito y fondo `customMessageBg`. Se conservan en el historial sin entrar al contexto del modelo. RPC, JSON y print mantienen la notificación nativa; `NO_COLOR` conserva las etiquetas sin escapes de color. Las notificaciones fuera de un comando no se redirigen.
+
 Dos reglas duras, y las dos dicen lo mismo desde lados distintos:
 
 - **Lo que se repinta no se tiñe.** El overlay del cambio y la actividad de subagentes se redibujan en cada tick: una franja que aparece, cambia de alto y desaparece parte la pantalla en dos. Ahí distinguen la regla vertical y el color. Lo guardan `tests/sdd-overlay.test.ts` y `tooling/verify-subagent-widget-runtime.ts`.
