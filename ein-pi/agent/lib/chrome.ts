@@ -26,6 +26,10 @@ export const GLYPH = Object.freeze({
 	sep: "·",
 	done: "✓",
 	pending: "·",
+	/** Rama y hoja del árbol de actividad. Los pinta Pi; se adoptan tal cual. */
+	branch: "├─",
+	lastBranch: "└─",
+	leaf: "⎿",
 	/** Fail-closed: lo que no se ha comprobado se dibuja como desconocido. */
 	unknown: "?",
 	/** Distinto de `unknown`: esto SÍ se comprobó, y salió mal. */
@@ -33,14 +37,16 @@ export const GLYPH = Object.freeze({
 });
 
 /**
- * Título de sección: `// NNN. título`. El `//` es el gesto de marca y va en
- * acento; el número y el título quedan apagados. La numeración se conserva —
- * es lo que hace reconocible una salida de Ein — y lo que se retira es el peso
- * que la rodeaba.
+ * Título de sección: `// NNN  TÍTULO`. El `//` conserva el acento —es el gesto
+ * de marca— pero el TÍTULO sube a primario.
+ *
+ * POR QUÉ -> el título era el elemento con menos peso de la pantalla, siendo la
+ * única señal de estructura que hay. Apagar la jerarquía entera no es hacer
+ * jerarquía: lo que se apaga es lo accesorio, y aquí eso es el número.
  */
 export function sectionTitle(index: number, title: string, palette: Palette): string {
 	const n = String(Math.max(0, Math.trunc(index))).padStart(3, "0");
-	return `${palette.accent("//")} ${palette.muted(`${n}. ${title.toLowerCase()}`)}`;
+	return `${palette.accent("//")} ${palette.structure(n)}  ${palette.text(title.toUpperCase())}`;
 }
 
 export type FieldOptions = Readonly<{

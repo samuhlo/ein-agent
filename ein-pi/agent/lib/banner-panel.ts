@@ -13,7 +13,7 @@
 // se cazó que el restyle anterior se había comido los iconos de las filas.
 // =============================================================================
 
-export type PanelTone = "frame" | "label" | "value" | "dim" | "accent";
+export type PanelTone = "frame" | "label" | "value" | "dim" | "structure" | "accent";
 export type PanelCell = Readonly<{ text: string; tone: PanelTone; bold?: boolean }>;
 export type PanelLine = readonly PanelCell[];
 
@@ -27,10 +27,15 @@ export type PanelChip = Readonly<{ text: string; on: boolean }>;
 // entero del panel, y aqui solo hay media.
 export type PanelColumn = Readonly<{ title: string; fields: readonly PanelField[] }>;
 
+// Compact session pairs share rows; overflow continues on the next row so
+// values such as Linear's state never disappear to save vertical space.
+export type PanelPair = Readonly<{ label: string; value: string }>;
+
 export type PanelSection =
 	| Readonly<{ kind: "fields"; title: string; fields: readonly PanelField[] }>
 	| Readonly<{ kind: "grid"; columns: readonly [PanelColumn, PanelColumn] }>
 	| Readonly<{ kind: "chips"; label: string; chips: readonly PanelChip[] }>
+	| Readonly<{ kind: "inline"; title?: string; pairs: readonly PanelPair[] }>
 	| Readonly<{ kind: "loose"; fields: readonly PanelField[] }>;
 
 export type PanelData = Readonly<{
@@ -42,6 +47,7 @@ export type PanelData = Readonly<{
 export const PANEL_W = 62;
 const INNER_W = PANEL_W - 4;
 const LABEL_W = 13;
+const INLINE_GAP = "   ";
 
 // LA REJILLA. Ni SISTEMA ni SESION pasan de media placa, asi que apiladas
 // desperdiciaban la otra mitad en cada fila. Media columna exacta: las dos
@@ -72,12 +78,35 @@ type GridCell =
 
 type Row =
 	| Readonly<{ kind: "tab"; text: string }>
+	| Readonly<{ kind: "inline"; pairs: readonly PanelPair[] }>
 	| Readonly<{ kind: "field"; label: string; value: string; trail: string }>
 	| Readonly<{ kind: "note"; text: string }>
 	| Readonly<{ kind: "chips"; label: string; chips: readonly PanelChip[] }>
 	| Readonly<{ kind: "grid"; left: GridCell; right: GridCell }>
 	| Readonly<{ kind: "blank" }>
 	| Readonly<{ kind: "divider" }>;
+
+// Pack before animation so every continuation row gets its own timing and height.
+function inlineRows(pairs: readonly PanelPair[]): Row[] {
+	const rows: Row[] = [];
+	let current: PanelPair[] = [];
+	let width = 0;
+	for (const pair of pairs) {
+		const label = fit(pair.label, PANEL_W - 1);
+		const value = fit(pair.value, PANEL_W - label.length - 1);
+		const size = label.length + 1 + value.length;
+		if (current.length > 0 && width + INLINE_GAP.length + size > PANEL_W) {
+			rows.push({ kind: "inline", pairs: current });
+			current = [];
+			width = 0;
+		}
+		if (current.length > 0) width += INLINE_GAP.length;
+		current.push({ label, value });
+		width += size;
+	}
+	if (current.length > 0) rows.push({ kind: "inline", pairs: current });
+	return rows;
+}
 
 /**
  * Las dos columnas se emiten fila a fila, no bloque tras bloque: la animacion
@@ -110,10 +139,11 @@ function gridCells(cell: GridCell, progress: number, nextSection: () => number):
 	const out: PanelCell[] = [];
 
 	if (cell?.kind === "tab") {
-		const full = `// ${String(nextSection()).padStart(3, "0")}. ${cell.text.toLowerCase()}`;
+		const full = `// ${String(nextSection()).padStart(3, "0")}  ${cell.text.toUpperCase()}`;
 		const shown = full.slice(0, Math.max(1, Math.ceil(full.length * progress)));
 		out.push({ text: shown.slice(0, 2), tone: "accent" });
-		if (shown.length > 2) out.push({ text: shown.slice(2), tone: "label" });
+		if (shown.length > 2) out.push({ text: shown.slice(2, 7), tone: "structure" });
+		if (shown.length > 7) out.push({ text: shown.slice(7), tone: "value" });
 	} else if (cell?.kind === "field") {
 		out.push({ text: cell.label.padEnd(LABEL_W), tone: cell.label ? "label" : "value" });
 		if (progress >= 1) out.push({ text: cell.value, tone: "value" });
@@ -141,6 +171,11 @@ export function panelRows(data: PanelData): readonly Row[] {
 		}
 		if (section.kind === "grid") {
 			rows.push(...gridRows(section.columns));
+			continue;
+		}
+		if (section.kind === "inline") {
+			if (section.title) rows.push({ kind: "tab", text: section.title });
+			rows.push(...inlineRows(section.pairs));
 			continue;
 		}
 		if (section.kind === "fields") rows.push({ kind: "tab", text: section.title });
@@ -212,17 +247,32 @@ export function renderPanel(data: PanelData, tick: number): readonly PanelLine[]
 		} else if (row.kind === "tab") {
 			// Título de sección: `// NNN. sección`, con el `//` en acento. Crece de
 			// izquierda a derecha al abrirse, como el resto de la cascada.
-			const full = `// ${String(sectionIndex).padStart(3, "0")}. ${row.text.toLowerCase()}`;
+			// `// NNN  TÍTULO`: el `//` conserva el acento y el TÍTULO sube a
+			// primario. Era el elemento con menos peso de la placa siendo la única
+			// señal de estructura que hay; lo que se apaga es el número.
+			const number = String(sectionIndex).padStart(3, "0");
+			const full = `// ${number}  ${row.text.toUpperCase()}`;
 			sectionIndex += 1;
 			const shown = full.slice(0, Math.max(1, Math.ceil(full.length * progress)));
 			cells.push({ text: shown.slice(0, 2), tone: "accent" });
-			if (shown.length > 2) cells.push({ text: shown.slice(2), tone: "label" });
+			if (shown.length > 2) cells.push({ text: shown.slice(2, 7), tone: "structure" });
+			if (shown.length > 7) cells.push({ text: shown.slice(7), tone: "value" });
 			cells.push({ text: " ".repeat(Math.max(0, PANEL_W - shown.length)), tone: "value" });
 		} else if (row.kind === "grid") {
 			// Izquierda antes que derecha: es lo que da `// 000.` y `// 001.` en el
 			// orden en que se leen.
 			cells.push(...gridCells(row.left, progress, () => sectionIndex++));
 			cells.push(...gridCells(row.right, progress, () => sectionIndex++));
+		} else if (row.kind === "inline") {
+			let used = 0;
+			for (const pair of row.pairs) {
+				const piece = `${pair.label} ${pair.value}`;
+				if (used > 0) { cells.push({ text: INLINE_GAP, tone: "value" }); used += INLINE_GAP.length; }
+				cells.push({ text: `${pair.label} `, tone: "label" });
+				cells.push({ text: pair.value, tone: "value" });
+				used += piece.length;
+			}
+			cells.push({ text: " ".repeat(Math.max(0, PANEL_W - used)), tone: "value" });
 		} else if (row.kind === "chips") {
 			cells.push({ text: row.label.padEnd(LABEL_W), tone: "label" });
 			let width = LABEL_W;

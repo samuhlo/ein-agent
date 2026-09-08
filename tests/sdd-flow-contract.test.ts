@@ -215,7 +215,11 @@ describe("contrato interno de notebook Engram", () => {
 	test("status y doctor son factuales, sin jerga E0/E2", () => {
 		const presentation = read("extensions/internal/ein-sdd-presentation.ts");
 		const doctor = read("extensions/ein-doctor.ts");
-		expect(presentation).toContain("optional project notebook: Engram");
+		// La salvedad pasó por i18n y bajó al pie del mensaje; lo que este contrato
+		// protege es que siga siendo factual, no dónde vive el literal.
+		expect(presentation).toContain('t("sdd-status.notebook"');
+		expect(presentation).toContain("optional project notebook");
+		expect(presentation).toContain("Engram ${prefs?.memoryMode ?? \"off\"}");
 		expect(presentation).toContain("OpenSpec is the canonical full record");
 		expect(doctor).not.toContain("E0");
 		expect(doctor).toContain("configurado no prueba");

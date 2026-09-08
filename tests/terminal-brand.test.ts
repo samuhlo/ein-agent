@@ -19,6 +19,8 @@ import {
 } from "../ein-pi/agent/lib/ein-logo";
 import { BRAND, MARK, SIGNAL, SURFACE, TONE_COLOR, rowColor, rowMark } from "../ein-pi/agent/surfaces/terminal-theme";
 import type { Row } from "../ein-pi/agent/lib/terminal-app";
+import { sectionTitle } from "../ein-pi/agent/lib/chrome";
+import { createPalette } from "../ein-pi/agent/lib/theme";
 
 const ROOT = join(import.meta.dir, "..");
 
@@ -233,10 +235,20 @@ describe("una sola gramatica de terminal", () => {
 		}
 	});
 
-	test("las tres bajan a minuscula el texto corrido", () => {
-		for (const [name, source] of Object.entries(sources)) {
-			expect(source, name).toContain("toLowerCase()");
+	// El texto corrido sigue en minúscula (STYLE // 002, regla 6). Lo que cambió
+	// es el TÍTULO de sección: la regla siempre le permitió conservar su forma, y
+	// ahora la usa —mayúsculas y primario— porque era el elemento con menos peso
+	// de la pantalla siendo la única señal de estructura que hay.
+	test("el texto corrido sigue en minuscula", () => {
+		for (const name of ["app", "installer"] as const) {
+			expect(sources[name], name).toContain("toLowerCase()");
 		}
+	});
+
+	test("el título de sección de la sesión Pi va en mayúsculas y en primario", () => {
+		const palette = createPalette(false);
+		expect(sectionTitle(2, "el carril", palette)).toBe("// 002  EL CARRIL");
+		expect(sources.banner).toContain("row.text.toUpperCase()");
 	});
 
 	test("las tres recortan en vez de desbordar el ancho", () => {

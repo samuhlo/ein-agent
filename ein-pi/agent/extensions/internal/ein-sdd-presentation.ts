@@ -6,6 +6,7 @@
 
 import { statSync } from "node:fs";
 import { join } from "node:path";
+import { GLYPH } from "../../lib/chrome.ts";
 import { t } from "../../lib/i18n/strings.ts";
 import type {
 	ChangeLintReport,
@@ -46,7 +47,7 @@ export function formatChangeLint(report: ChangeLintReport & { advisory?: SddAdvi
 	const { change, errors, warnings, phases } = report;
 	const presentCount = phases.filter((phase) => phase.present).length;
 	const lines: string[] = [
-		`// 000. sdd check — ${change}`,
+		`// 000  SDD CHECK · ${change}`,
 		"",
 		`fases: ${presentCount}/${phases.length} presentes  |  errores: ${errors}  |  warnings: ${warnings}`,
 	];
@@ -82,8 +83,15 @@ export function formatSddStatus(
 	active: string[],
 	prefs?: SddPreflightPreferences,
 ): string {
-	const notebook = `optional project notebook: Engram ${prefs?.memoryMode ?? "off"}${prefs?.engramAvailable ? " (configured; no retrieval or save is implied)" : " (unavailable or not configured)"}; OpenSpec is the canonical full record.`;
-	const lines = ["// 000. sdd status", ""];
+	// La salvedad del cuaderno es PERMANENTE, no un dato del cambio: baja al pie,
+	// agrupada con la regla vertical, en vez de quedarse a media lista con el
+	// mismo peso que la fase o las tareas. Y habla el idioma de la sesión.
+	const notebook = `${GLYPH.rule} ${t("sdd-status.notebook", "optional project notebook")}: Engram ${prefs?.memoryMode ?? "off"}${
+		prefs?.engramAvailable
+			? ` (${t("sdd-status.notebook.configured", "configured; no retrieval or save is implied")})`
+			: ` (${t("sdd-status.notebook.absent", "unavailable or not configured")})`
+	}. ${t("sdd-status.notebook.canonical", "OpenSpec is the canonical full record.")}`;
+	const lines = ["// 000  SDD STATUS", ""];
 	if (!status.change) {
 		if (status.selection.kind === "ambiguous") {
 			lines.push(`- ${status.selection.candidates.length} cambios activos y ninguno elegido.`);
@@ -95,7 +103,7 @@ export function formatSddStatus(
 				"No active SDD changes in openspec/changes/.",
 			));
 		}
-		lines.push(`- ${notebook}`);
+		lines.push("", notebook);
 		return lines.join("\n");
 	}
 
@@ -124,7 +132,6 @@ export function formatSddStatus(
 		lines.push(`${t("sdd-status.blocked-by", "blocked_by")}: ${status.tasks.blockedBy}`);
 	}
 	lines.push(`${t("sdd-status.budget", "budget")}: ${formatBudget(status.budget)}`);
-	lines.push(notebook);
 
 	const blockers = sddStatusBlockers({
 		blocked: status.blocked,
@@ -137,6 +144,7 @@ export function formatSddStatus(
 	}
 	const remedies = formatSddRemedies(collectSddRemedies(status));
 	if (remedies) lines.push("", remedies);
+	lines.push("", notebook);
 	return lines.join("\n");
 }
 
@@ -155,7 +163,7 @@ export function parseSddNextArgs(
 
 export function formatSddNextHelp(): string {
 	return [
-		"// 000. sdd next",
+		"// 000  SDD NEXT",
 		"",
 		"Uso: /ein:sdd-next <change>",
 		"",
@@ -167,7 +175,7 @@ export function formatSddNextHelp(): string {
 
 export function formatSddNext(report: SddNextReport): string {
 	const lines = [
-		"// 000. sdd next",
+		"// 000  SDD NEXT",
 		"",
 		`cambio: ${report.change ?? "ninguno"}`,
 		`fase actual: ${report.currentPhase}`,

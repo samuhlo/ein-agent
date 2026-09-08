@@ -39,6 +39,22 @@ Los menús nativos conservan `selectedBg` para identificar la opción selecciona
 | `selectedBg` | `#1F1A0F` | yellow α 0.08 |
 | `export.infoBg` | `#2D2612` | yellow α 0.14 |
 
+### La escala de cuerpo
+
+**Hay UN gris de cuerpo, no tres.** La misma pantalla llegó a pintar tres colores distintos para decir «esto es secundario»: el widget de subagentes a `#9A9A9A`, el banner a `#737373`, y el overlay SDD a `#737373` con el atributo ANSI `DIM` encima (≈`#4B4B4B`). El elemento más consultado era el menos legible.
+
+| Nivel | Hex | Contraste sobre carbón | Qué pinta |
+|---|---|---|---|
+| **Acento** | `#FFCA40` | 12,9:1 | la `i`, el foco, la fase actual, lo que está vivo |
+| **Primario** | `#FAF3F0` | 17,9:1 | título de tarea, valor de dato, título de sección |
+| **Secundario** | `#9A9A9A` | 6,99:1 | claves, metadatos, fases hechas — el gris de cuerpo |
+| **Apagado** | `#5A5A5A` | 2,85:1 | rutas, notas al pie, salvedades permanentes |
+| **Estructura** | `#3A3A3A` | 1,43:1 | reglas, glifos de árbol, ids, fases pendientes |
+
+Fuente: `lib/theme.ts` → `SCALE`, servido por `createPalette` como `muted` / `faint` / `structure`. Coincide con `secondaryText`, `dimGray` y `darkGray` de `themes/ein.json`, que es lo que permite que Pi y Ein pinten el mismo gris.
+
+Regla dura: **el nivel se elige con el color, nunca rebajando el que ya se eligió.** No se apila `DIM` sobre un tono de la escala; para pesar menos existe el nivel siguiente.
+
 La banda de foco es **cálida**, no neutra: ata la regla del foco (`// 002`) al acento único de esta sección.
 
 ## // 002. GRAMÁTICA DE TERMINAL
@@ -48,19 +64,21 @@ Diez reglas, y una que las gobierna: **el aire sustituye al borde**.
 1. **Cero recuadros.** Sin marcos, sin cajas, sin pestañas de sección. Un bloque se separa del siguiente con una línea en blanco.
 2. **La regla vertical agrupa sin encerrar.** Una barra de un carácter en el margen izquierdo (`▏`) marca un bloque. Es el único elemento estructural del cuerpo.
 3. **El foco debe sobrevivir sin fondo propio.** En la sesión Pi lo marcan `▸`, la regla en amarillo y el texto. Los menús y la app independiente pueden añadir la banda `selectedBg`.
-4. **La etiqueta de sección conserva su número y pierde su peso**: `// NNN. sección`, con `//` en yellow y el resto en structure. Sin regla debajo, sin marcador `■`.
+4. **La etiqueta de sección conserva su número y su peso lo lleva el título**: `// NNN  TÍTULO`, con `//` en yellow, el número en estructura y el TÍTULO en primario y mayúsculas. Sin regla debajo, sin marcador `■`. Era el elemento con menos peso de la pantalla siendo la única señal de estructura que hay: lo que se apaga es el número, no el título.
 5. **El punto medio `·` es el separador universal**, en metadatos (`apply · 3/7`) y en listas de atajos (`tab plegar · ctrl+c salir`).
 6. **Minúsculas en el texto corrido.** Mensajes de estado, ayudas y atajos van en minúscula; los títulos `// NNN` mantienen su forma.
 7. **Cada superficie tiene una posición estable.** En Pi, la actividad nativa de subagentes va sobre el editor y el TODO debajo. El resumen persistente FleetView se oculta; el inspector sigue disponible en `/subagents-fleet`. La app independiente conserva sus barras de identidad y estado.
 8. **Espacio negativo generoso.** El vacío es la decisión de diseño, no lo que queda cuando no hay nada que poner.
-9. **La jerarquía la hace el apagado, no el color.**
+9. **La jerarquía la hace el apagado, no el color** — pero se apaga lo ACCESORIO, no todo. Una pantalla en la que cada nivel está apagado no tiene jerarquía: tiene un solo nivel, y encima ilegible.
 10. **El estado vivo es diminuto y permanente**: vive en la barra inferior, nunca volcado al cuerpo.
 
 | Elemento | Qué es | Ejemplo |
 |---|---|---|
 | `// NNN. título` | Título de panel, sección o salida de comando | `// 000. sdd status` |
 | `▏` | Regla vertical: agrupa un bloque | — |
-| `▸` | Fila con foco; no requiere banda | `▸ apply` |
+| `▸` | Fila con foco; abre la fila por la IZQUIERDA, no la cierra | `▸ apply` |
+| `✓` | Hecho; en estructura, porque lo hecho ya no informa | `✓ scope` |
+| `├─ └─ ⎿` | Jerarquía real: el árbol de actividad de Pi, adoptado tal cual | `⎿ read src/x.ts` |
 | `·` | Separador de metadatos y atajos | `standard · apply · 3/7` |
 
 Numeración de tres dígitos empezando en `000`. **Un solo prefijo, `//`**, en terminal y en markdown: las formas `///` y `■ NNN.` quedan retiradas. Español directo, sin relleno corporativo, sin emojis.

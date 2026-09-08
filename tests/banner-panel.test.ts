@@ -62,6 +62,34 @@ const grid: PanelData = {
 };
 
 describe("panel de estado", () => {
+	test("wraps session pairs instead of dropping Linear, including bilingual and strict TDD settings", () => {
+		for (const idioma of ["Español", "Español/English"]) {
+			for (const tdd of ["off", "estricto", "auto (config)"]) {
+				const session: PanelData = { title: "estado", right: "project", sections: [{ kind: "inline", title: "SESIÓN", pairs: [
+					{ label: "persona", value: "samuhlo" }, { label: "idioma", value: idioma },
+					{ label: "tdd", value: tdd }, { label: "linear", value: "off · defecto" },
+				] }] };
+				const lines = renderPanel(session, panelDuration(session)).map(flat);
+				for (const pair of ["persona samuhlo", `idioma ${idioma}`, `tdd ${tdd}`, "linear off · defecto"]) {
+					expect(lines.join("\n")).toContain(pair);
+				}
+				for (const line of lines) expect(lineWidth([{ text: line }])).toBe(PANEL_W);
+			}
+		}
+	});
+
+	test("an inline pair can fill the row exactly, and an oversized pair does not hide its successor", () => {
+		for (const length of [PANEL_W - 2, PANEL_W * 2]) {
+			const session: PanelData = { title: "estado", right: "project", sections: [{ kind: "inline", pairs: [
+				{ label: "x", value: "v".repeat(length) }, { label: "linear", value: "on · proyecto" },
+			] }] };
+			const lines = renderPanel(session, panelDuration(session)).map(flat);
+			expect(lines.join("\n")).toContain(`x ${"v".repeat(PANEL_W - 2)}`);
+			expect(lines.join("\n")).toContain("linear on · proyecto");
+			for (const line of lines) expect([...line].length).toBe(PANEL_W);
+		}
+	});
+
 	// EL test del rediseño. Antes esto era imposible: git iba por libre.
 	test("todas las filas miden lo mismo — el marco cierra en columna", () => {
 		const lines = plain(panelDuration(data));
@@ -131,9 +159,9 @@ describe("panel de estado", () => {
 
 	test("la rejilla numera de izquierda a derecha: 000 y luego 001", () => {
 		const line = renderPanel(grid, panelDuration(grid)).map(flat)
-			.find((item) => item.includes("sistema"))!;
-		expect(line.indexOf("// 000. sistema")).toBe(0);
-		expect(line.indexOf("// 001. sesion")).toBe(PANEL_W / 2);
+			.find((item) => item.includes("SISTEMA"))!;
+		expect(line.indexOf("// 000  SISTEMA")).toBe(0);
+		expect(line.indexOf("// 001  SESION")).toBe(PANEL_W / 2);
 	});
 
 	test("cada mitad tiene su propia sangría de etiqueta", () => {

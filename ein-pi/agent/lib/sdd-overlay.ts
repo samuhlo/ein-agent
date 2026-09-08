@@ -23,7 +23,7 @@
 // lo que impide que una interfaz se degrade sin que nadie lo note.
 // =============================================================================
 
-import { GLYPH, joinMeta } from "./chrome.ts";
+import { GLYPH } from "./chrome.ts";
 import { LANE_PHASES } from "./sdd-lane.ts";
 import type { SddChangeStatus, SddPhase, SddTaskItem } from "./sdd-router.ts";
 import { createPalette, fit, padVisible, visibleWidth, type Palette } from "./theme.ts";
@@ -83,15 +83,27 @@ export function phaseStates(status: SddChangeStatus): readonly { phase: SddPhase
 	});
 }
 
+/**
+ * El carril de fases. TRES PESOS, no dos: hecha en secundario con su marca en
+ * estructura, actual en acento, pendiente en estructura.
+ *
+ * POR QUÉ -> hechas y pendientes se pintaban con el MISMO color y la única
+ * diferencia era un `✓` a esa misma intensidad. Siete fases y un solo dato
+ * legible: había que buscar el amarillo para saber por dónde iba el cambio.
+ *
+ * La marca abre la celda en vez de cerrarla: todas las fases arrancan en la
+ * misma columna de texto, así que el carril se lee como una fila y no como
+ * siete etiquetas de largo desigual.
+ */
 function railLine(status: SddChangeStatus, width: number, palette: Palette): string | null {
 	const cells = phaseStates(status).map(({ phase, state }) => {
-		if (state === "current") return `${palette.accent(GLYPH.focus)} ${palette.text(phase)}`;
-		if (state === "done") return palette.muted(`${phase} ${GLYPH.done}`);
-		if (state === "unknown") return palette.danger(`${GLYPH.unknown} ${phase}`);
-		if (state === "failed") return palette.danger(`${GLYPH.failed} ${phase}`);
-		return palette.muted(phase);
+		if (state === "current") return `${palette.accent(GLYPH.focus)} ${palette.accent(phase)}`;
+		if (state === "done") return `${palette.structure(GLYPH.done)} ${palette.muted(phase)}`;
+		if (state === "unknown") return `${palette.danger(GLYPH.unknown)} ${palette.danger(phase)}`;
+		if (state === "failed") return `${palette.danger(GLYPH.failed)} ${palette.danger(phase)}`;
+		return `  ${palette.structure(phase)}`;
 	});
-	const line = `${INDENT}${INDENT}${cells.join("   ")}`;
+	const line = `${INDENT}${cells.join("   ")}`;
 	// Si el carril no cabe, no se recorta: media fase pintada miente sobre por
 	// dónde va el cambio. Se retira entero y la cabecera sigue diciendo la fase.
 	return visibleWidth(line) <= width ? line : null;
@@ -118,6 +130,29 @@ export function selectVisibleTasks(
 	return { visible, hiddenDone: items.slice(0, start).filter((item) => item.done).length };
 }
 
+function selectTaskRows(items: readonly SddTaskItem[], currentId: string, maxRows: number) {
+	for (let limit = maxRows; limit > 0; limit -= 1) {
+		const selected = selectVisibleTasks(items, currentId, limit);
+		const groups = selected.visible.filter((item, index) => item.groupTitle && item.groupTitle !== selected.visible[index - 1]?.groupTitle).length;
+		const showSummary = selected.hiddenDone > 0;
+		if (selected.visible.length + groups + Number(showSummary) <= maxRows) {
+			return { ...selected, showGroups: true, showSummary };
+		}
+	}
+	// With only one or two rows, the current task takes precedence over metadata.
+	return { ...selectVisibleTasks(items, currentId, 1), showGroups: maxRows >= 2, showSummary: false };
+}
+
+/**
+ * Fila de tarea. Se ABRE por la izquierda: regla, marca de estado, id y título.
+ *
+ * POR QUÉ -> el `▸` del foco se pintaba al final de la línea, a ochenta columnas
+ * de la fila que marcaba. La lectura empieza por la izquierda, y el marcador de
+ * posición que llega al final llega cuando ya no hace falta.
+ *
+ * El id baja a estructura: identifica la tarea, no la describe, y competía con
+ * el título por el mismo peso.
+ */
 function blockRow(
 	key: string,
 	title: string,
@@ -125,16 +160,29 @@ function blockRow(
 	width: number,
 	palette: Palette,
 ): string {
-	const bar = state === "current" ? palette.accent(GLYPH.rule) : palette.muted(GLYPH.rule);
-	const mark = state === "done" ? palette.muted(GLYPH.done) : " ";
-	const paint = state === "current" ? palette.text : palette.muted;
-	const head = padVisible(palette.muted(fit(key, 6)), 7);
+	const bar = state === "current" ? palette.accent(GLYPH.rule) : palette.structure(GLYPH.rule);
+	const mark = state === "done"
+		? palette.structure(GLYPH.done)
+		: state === "current"
+			? palette.accent(GLYPH.focus)
+			: " ";
+	const paint = state === "current" ? palette.accent : state === "done" ? palette.faint : palette.text;
+	const head = padVisible(palette.structure(fit(key, 5)), 6);
 	const label = fit(title, Math.max(8, width - 16));
-	const body = `${INDENT}${bar} ${mark} ${head}${paint(label)}`;
-	if (state !== "current") return body;
-	// El marcador conserva el foco incluso sin color ni fondo propio.
-	const pad = Math.max(1, width - visibleWidth(body) - 1);
-	return `${body}${" ".repeat(pad)}${palette.accent(GLYPH.focus)}`;
+	return `${INDENT}${bar}  ${mark}  ${head}${paint(label)}`;
+}
+
+/**
+ * Encabezado de grupo: se nombra UNA vez, en su propia línea, con cuántas de
+ * sus tareas están hechas.
+ *
+ * POR QUÉ -> antes el grupo no tenía sitio propio: se colaba en la primera fila
+ * del grupo SUSTITUYENDO al título de su tarea, así que esa tarea no decía qué
+ * era. Costaba una fila igualmente, solo que a cambio de perder un dato.
+ */
+function groupRow(title: string, done: number, total: number, width: number, palette: Palette): string {
+	const label = fit(title, Math.max(8, width - 24));
+	return `${INDENT}${palette.structure(GLYPH.rule)}     ${palette.muted(label)}   ${palette.faint(`${done} de ${total}`)}`;
 }
 
 /** Las fases que aún faltan, cuando la lista de tareas ya no informa de nada. */
@@ -179,10 +227,19 @@ export function renderSddOverlay(
 	const done = status.tasks.counts.done;
 	const progress = items.length > 0 ? `${done}/${items.length}` : "";
 
-	// Cabecera: el cambio a la izquierda, dónde está a la derecha. Sin marco,
-	// sin placa y sin `■`: el aire y el apagado hacen la jerarquía.
-	const left = palette.text(fit(status.change, Math.max(12, width - 32)));
-	const right = joinMeta([status.lane, String(status.nextRecommended), progress], palette);
+	// Cabecera: QUÉ a la izquierda, DÓNDE a la derecha. Dos anclas en vez de una
+	// tira de metadatos — el nombre del cambio con su carril pegado, y la fase
+	// que toca con el progreso, en el margen contrario.
+	//
+	// La fase sube a acento y lleva su `▸`: es el único dato de la cabecera que
+	// contesta «y ahora qué».
+	const phase = `${palette.accent(GLYPH.focus)} ${palette.accent(String(status.nextRecommended))}`;
+	const right = progress ? `${phase}   ${palette.muted(progress)}` : phase;
+	const leftBudget = Math.max(0, width - INDENT.length - visibleWidth(right) - 1);
+	const lane = `   ${palette.muted(status.lane)}`;
+	const suffix = visibleWidth(lane) < leftBudget ? lane : "";
+	const name = palette.text(fit(status.change, leftBudget - visibleWidth(suffix)));
+	const left = `${name}${suffix}`;
 	const pad = Math.max(1, width - visibleWidth(left) - visibleWidth(right) - INDENT.length);
 	const header = `${INDENT}${left}${" ".repeat(pad)}${right}`;
 
@@ -204,35 +261,36 @@ export function renderSddOverlay(
 		return [...lines, ...remainingPhaseRows(status, rowSpace, width, palette)];
 	}
 
-	// La cabecera y el raíl ya ocupan lo suyo. Lo que queda son filas de tarea,
-	// salvo que haya que gastar una en decir cuántas se ocultaron — y ese resumen
-	// solo cabe si deja sitio para al menos una tarea.
-	const summaryFits = items.length > rowSpace && rowSpace >= 2;
-	const { visible, hiddenDone } = selectVisibleTasks(
-		items,
-		currentId,
-		summaryFits ? rowSpace - 1 : rowSpace,
-	);
-	const rows = visible.map((item, index) => {
-		const previous = visible[index - 1];
-		// El encabezado da contexto una vez. Repetirlo en cada checkbox convierte
-		// tareas distintas en copias visuales y oculta qué hizo realmente cada una.
-		const title = item.groupTitle && item.groupTitle !== previous?.groupTitle
-			? item.groupTitle
-			: item.title;
-		return blockRow(
+	// Count the complete composition before selecting a window: clipping it
+	// afterwards can discard the current task or leave a heading without a task.
+	const { visible, hiddenDone, showGroups, showSummary } = selectTaskRows(items, currentId, rowSpace);
+	const rows: string[] = [];
+	if (showSummary) {
+		const word = hiddenDone === 1 ? "completada" : "completadas";
+		rows.push(`${INDENT}${palette.muted(`… ${hiddenDone} ${word}`)}`);
+	}
+	let group: string | undefined;
+	for (const item of visible) {
+		if (showGroups && item.groupTitle && item.groupTitle !== group) {
+			const family = items.filter((entry) => entry.groupTitle === item.groupTitle);
+			rows.push(groupRow(
+				item.groupTitle,
+				family.filter((entry) => entry.done).length,
+				family.length,
+				width,
+				palette,
+			));
+		}
+		group = item.groupTitle;
+		rows.push(blockRow(
 			item.id,
-			item.started ? `iniciada · ${title}` : item.id === currentId ? `siguiente · ${title}` : title,
+			item.started ? `iniciada · ${item.title}` : item.id === currentId ? `siguiente · ${item.title}` : item.title,
 			item.done ? "done" : item.started ? "current" : "pending",
 			width,
 			palette,
-		);
-	});
-
-	if (summaryFits && hiddenDone > 0) {
-		const word = hiddenDone === 1 ? "completada" : "completadas";
-		rows.unshift(`${INDENT}${palette.muted(`… ${hiddenDone} ${word}`)}`);
+		));
 	}
+
 	return [...lines, ...rows];
 }
 

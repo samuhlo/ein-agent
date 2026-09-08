@@ -9,7 +9,7 @@ import {
 	renderSddOverlay,
 	selectVisibleTasks,
 } from "../ein-pi/agent/lib/sdd-overlay.ts";
-import { createPalette } from "../ein-pi/agent/lib/theme.ts";
+import { createPalette, stripAnsi } from "../ein-pi/agent/lib/theme.ts";
 import type { SddChangeStatus, SddTaskItem } from "../ein-pi/agent/lib/sdd-router.ts";
 
 // =============================================================================
@@ -54,6 +54,40 @@ function status(overrides: Partial<SddChangeStatus> = {}, taskItems = items(4, 1
 }
 
 describe("overlay del cambio activo", () => {
+	test("keeps the started task visible after counting group headings and completed summaries", () => {
+		for (const groupSize of [1, 2, 7]) {
+			for (const activeIndex of [0, 3, 6]) {
+				const grouped = items(7, activeIndex).map((item, index) => ({
+					...item, groupTitle: `grupo ${Math.floor(index / groupSize)}`, started: index === activeIndex,
+				}));
+				for (const maxLines of [3, 4, 5, 8]) {
+					for (const width of [40, 72]) {
+						const lines = renderSddOverlay(status({ lane: "standard" }, grouped), { maxLines, width, palette: createPalette(true) }).map(stripAnsi);
+						expect(lines.join("\n")).toContain(`iniciada · tarea ${activeIndex + 1}`);
+						expect(lines.length).toBeLessThanOrEqual(maxLines);
+						for (const [index, line] of lines.entries()) {
+							if (line.includes("grupo ")) expect(lines[index + 1]).toContain("tarea ");
+						}
+					}
+				}
+			}
+		}
+	});
+
+	test("fits the header to its actual metadata width while preserving phase and progress", () => {
+		for (const total of [12, 120]) {
+			const state = status({ change: "validar-fecha-inicio-generacion", lane: "standard", nextRecommended: "verify" }, items(total, total));
+			for (const width of [40, 41, 50, 72]) {
+				for (const enabled of [false, true]) {
+					const lines = renderSddOverlay(state, { width, collapsed: true, palette: createPalette(enabled) });
+					expect(overlayWidth(lines)).toBeLessThanOrEqual(width);
+					expect(stripAnsi(lines[0]!)).toContain("standard");
+					expect(stripAnsi(lines[0]!)).toContain(`▸ verify   ${total}/${total}`);
+				}
+			}
+		}
+	});
+
 	test("retains a visible focus marker without painting a background", () => {
 		const lines = renderSddOverlay(status(), { palette: createPalette(true) });
 		expect(lines.join("\n")).toContain("▸");
@@ -77,10 +111,15 @@ describe("overlay del cambio activo", () => {
 		expect(text).toContain("feat-b");
 	});
 
+	// Dos anclas, no una tira de metadatos: QUÉ a la izquierda con su carril
+	// pegado, DÓNDE a la derecha. La fase lleva el acento y su `▸` porque es el
+	// único dato de la cabecera que contesta «y ahora qué».
 	test("la cabecera lleva cambio, carril, fase y progreso — sin marco ni placa", () => {
 		const [header] = renderSddOverlay(status());
 		expect(header).toContain("carril-rapido");
-		expect(header).toContain("micro · apply");
+		expect(header).toContain("micro");
+		expect(header).toContain("▸ apply");
+		expect(header!.indexOf("micro")).toBeLessThan(header!.indexOf("▸ apply"));
 		expect(header).toContain("1/4");
 		// La gramática nueva no dibuja contornos: ni caja, ni pestaña, ni ■.
 		expect(header).not.toContain("■");
@@ -93,8 +132,10 @@ describe("overlay del cambio activo", () => {
 	test("el raíl pinta todas las fases del carril, con su estado", () => {
 		const rail = renderSddOverlay(status())[1];
 		// micro = scope, design, apply, verify, close. `map` y `tasks` no son suyas.
-		expect(rail).toContain("scope ✓");
-		expect(rail).toContain("design ✓");
+		// La marca ABRE la celda: todas las fases arrancan en la misma columna de
+		// texto, así que el carril se lee como una fila y no como cinco etiquetas.
+		expect(rail).toContain("✓ scope");
+		expect(rail).toContain("✓ design");
 		expect(rail).toContain("▸ apply");
 		expect(rail).toContain("verify");
 		expect(rail).toContain("close");
@@ -117,15 +158,38 @@ describe("overlay del cambio activo", () => {
 		expect(lines[4]).not.toContain("✓");
 	});
 
-	test("las filas prefieren el título de grupo y conservan el checkbox como fallback", () => {
+	// EL GRUPO TIENE LÍNEA PROPIA, y la tarea dice siempre su título.
+	//
+	// Antes el grupo no tenía sitio: se colaba en la primera fila del grupo
+	// SUSTITUYENDO al título de su tarea, así que esa fila no decía qué tarea
+	// era. Costaba una fila igual — solo que a cambio de perder un dato.
+	test("el grupo se nombra en su línea y ninguna tarea pierde su título", () => {
 		const taskItems: SddTaskItem[] = [
 			{ id: "1.1", title: "Long checkbox sentence for router semantics", groupTitle: "Prerelease-aware selection", done: false },
 			{ id: "2.1", title: "Fallback checkbox title", done: false },
 		];
 		const body = renderSddOverlay(status({}, taskItems)).join("\n");
 		expect(body).toContain("Prerelease-aware selection");
-		expect(body).not.toContain("Long checkbox sentence");
+		expect(body).toContain("Long checkbox sentence");
 		expect(body).toContain("Fallback checkbox title");
+		// El encabezado va en su propia línea, nunca compartiendo la de una tarea.
+		const groupLine = body.split("\n").find((line) => line.includes("Prerelease-aware selection"))!;
+		expect(groupLine).not.toContain("1.1");
+		expect(groupLine).toContain("0 de 1");
+	});
+
+	// El sitio concedido manda sobre la composición: un encabezado de grupo cuesta
+	// una fila como cualquier otra, y no puede empujar al widget fuera de su alto.
+	test("los encabezados de grupo entran en el presupuesto de altura", () => {
+		const grouped: SddTaskItem[] = Array.from({ length: 8 }, (_, index) => ({
+			id: String(index + 1).padStart(3, "0"),
+			title: `tarea ${index + 1}`,
+			groupTitle: `grupo ${Math.floor(index / 2)}`,
+			done: false,
+		}));
+		for (const maxLines of [3, 5, 8]) {
+			expect(renderSddOverlay(status({}, grouped), { maxLines }).length).toBeLessThanOrEqual(maxLines);
+		}
 	});
 
 	test("un grupo visible se nombra una vez y luego enseña cada tarea real", () => {
