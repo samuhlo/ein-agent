@@ -5,7 +5,7 @@
 // =============================================================================
 
 import { join } from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { formatSkillsForPrompt, type ExtensionAPI, type Skill } from "@earendil-works/pi-coding-agent";
 import {
 	getSddPreflightPreferences,
 	getSddSessionMemory,
@@ -41,6 +41,20 @@ import {
 	readExplicitSddChange,
 } from "./ein-pi-event-contracts.ts";
 
+// Usamos el renderizador público de Pi para reconocer solo su propio catálogo.
+// Si otra extensión lo modificó o duplicó, se conserva íntegro.
+export function compactParentSkillCatalog(systemPrompt: string, skills: Skill[] | undefined): string {
+	if (!skills?.length) return systemPrompt;
+	const catalogue = formatSkillsForPrompt(skills);
+	if (!catalogue) return systemPrompt;
+	const offset = systemPrompt.indexOf(catalogue);
+	if (offset < 0 || systemPrompt.indexOf(catalogue, offset + catalogue.length) >= 0) return systemPrompt;
+	const names = [...new Set(skills.filter((skill) => !skill.disableModelInvocation).map((skill) => skill.name))];
+	const index = `\n\nAvailable skill names: ${names.map((name) => JSON.stringify(name)).join(", ")}.\nUse ein_skill_resolve for the task or ein_skill_registry for an exact name to obtain descriptions and paths, then read the selected SKILL.md. Skills remain installed and explicit /skill commands still work.\n`;
+	if (Buffer.byteLength(index) >= Buffer.byteLength(catalogue)) return systemPrompt;
+	return systemPrompt.slice(0, offset) + index + systemPrompt.slice(offset + catalogue.length);
+}
+
 export function registerAgentPromptHook(pi: ExtensionAPI): void {
 	const sessionStartVersion = new Map<string, string | null>();
 	const staleSessionNudged = new Set<string>();
@@ -54,6 +68,9 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			!isNamedAgent && !isSddAgent ? getSddSessionMemory(ctx) : undefined,
 		);
 		const isParent = !isNamedAgent && !isSddAgent;
+		const basePrompt = isParent
+			? compactParentSkillCatalog(event.systemPrompt, event.systemPromptOptions?.skills)
+			: event.systemPrompt;
 		const isScout = startNames.includes("ein-scout");
 		if (isParent && ctx.hasUI) {
 			const sessionKey = sddPreflightSessionKey(ctx);
@@ -103,7 +120,8 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		) {
 			artifactPrompt = `\n\n${artifactLanguageDirective(readArtifactLang(ctx.cwd))}`;
 		}
-		const conventions = writesCode ? codeConventionSkillBlock(ctx.cwd) : "";
+		// El padre delega la escritura; las reglas de edición pertenecen a apply.
+		const conventions = startNames.includes("sdd-apply") ? codeConventionSkillBlock(ctx.cwd) : "";
 		const conventionsPrompt = conventions ? `\n\n${conventions}` : "";
 		const wantsContext = !isNamedAgent || isSddAgent;
 		const context = wantsContext ? einContextDirective(ctx.cwd) : "";
@@ -124,7 +142,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
 		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${event.systemPrompt}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}`,
+			systemPrompt: `${basePrompt}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}`,
 		};
 	});
 }
