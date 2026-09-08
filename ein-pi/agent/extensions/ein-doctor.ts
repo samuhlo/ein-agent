@@ -150,7 +150,7 @@ export function scoutStaticContract(
   const scout = readIfExists(join(agentsDir, "ein-scout.md"));
   return {
     tools: /^tools:\s*read, grep, find$/m.test(scout),
-    extensions: /^extensions:\s*$/m.test(scout),
+    extensions: /^extensions: \.\.\/extensions\/internal\/ein-scout-child\.ts$/m.test(scout),
     // Static compatibility only: this is not evidence about an individual run.
     compatibility:
       launcherSource.includes("input.extensions !== undefined") &&
