@@ -27,9 +27,8 @@ export type PanelChip = Readonly<{ text: string; on: boolean }>;
 // entero del panel, y aqui solo hay media.
 export type PanelColumn = Readonly<{ title: string; fields: readonly PanelField[] }>;
 
-// `inline` pone varios pares en UNA fila. Existe para lo que se consulta de un
-// vistazo y no merece una fila por dato: persona, idioma, tdd, linear. Apiladas
-// gastaban cuatro filas de arranque para cuatro palabras.
+// Compact session pairs share rows; overflow continues on the next row so
+// values such as Linear's state never disappear to save vertical space.
 export type PanelPair = Readonly<{ label: string; value: string }>;
 
 export type PanelSection =
@@ -48,6 +47,7 @@ export type PanelData = Readonly<{
 export const PANEL_W = 62;
 const INNER_W = PANEL_W - 4;
 const LABEL_W = 13;
+const INLINE_GAP = "   ";
 
 // LA REJILLA. Ni SISTEMA ni SESION pasan de media placa, asi que apiladas
 // desperdiciaban la otra mitad en cada fila. Media columna exacta: las dos
@@ -85,6 +85,28 @@ type Row =
 	| Readonly<{ kind: "grid"; left: GridCell; right: GridCell }>
 	| Readonly<{ kind: "blank" }>
 	| Readonly<{ kind: "divider" }>;
+
+// Pack before animation so every continuation row gets its own timing and height.
+function inlineRows(pairs: readonly PanelPair[]): Row[] {
+	const rows: Row[] = [];
+	let current: PanelPair[] = [];
+	let width = 0;
+	for (const pair of pairs) {
+		const label = fit(pair.label, PANEL_W - 1);
+		const value = fit(pair.value, PANEL_W - label.length - 1);
+		const size = label.length + 1 + value.length;
+		if (current.length > 0 && width + INLINE_GAP.length + size > PANEL_W) {
+			rows.push({ kind: "inline", pairs: current });
+			current = [];
+			width = 0;
+		}
+		if (current.length > 0) width += INLINE_GAP.length;
+		current.push({ label, value });
+		width += size;
+	}
+	if (current.length > 0) rows.push({ kind: "inline", pairs: current });
+	return rows;
+}
 
 /**
  * Las dos columnas se emiten fila a fila, no bloque tras bloque: la animacion
@@ -153,7 +175,7 @@ export function panelRows(data: PanelData): readonly Row[] {
 		}
 		if (section.kind === "inline") {
 			if (section.title) rows.push({ kind: "tab", text: section.title });
-			rows.push({ kind: "inline", pairs: section.pairs });
+			rows.push(...inlineRows(section.pairs));
 			continue;
 		}
 		if (section.kind === "fields") rows.push({ kind: "tab", text: section.title });
@@ -245,8 +267,7 @@ export function renderPanel(data: PanelData, tick: number): readonly PanelLine[]
 			let used = 0;
 			for (const pair of row.pairs) {
 				const piece = `${pair.label} ${pair.value}`;
-				if (used + piece.length + 3 > PANEL_W) break;
-				if (used > 0) { cells.push({ text: "   ", tone: "value" }); used += 3; }
+				if (used > 0) { cells.push({ text: INLINE_GAP, tone: "value" }); used += INLINE_GAP.length; }
 				cells.push({ text: `${pair.label} `, tone: "label" });
 				cells.push({ text: pair.value, tone: "value" });
 				used += piece.length;

@@ -9,7 +9,7 @@ import {
 	renderSddOverlay,
 	selectVisibleTasks,
 } from "../ein-pi/agent/lib/sdd-overlay.ts";
-import { createPalette } from "../ein-pi/agent/lib/theme.ts";
+import { createPalette, stripAnsi } from "../ein-pi/agent/lib/theme.ts";
 import type { SddChangeStatus, SddTaskItem } from "../ein-pi/agent/lib/sdd-router.ts";
 
 // =============================================================================
@@ -54,6 +54,40 @@ function status(overrides: Partial<SddChangeStatus> = {}, taskItems = items(4, 1
 }
 
 describe("overlay del cambio activo", () => {
+	test("keeps the started task visible after counting group headings and completed summaries", () => {
+		for (const groupSize of [1, 2, 7]) {
+			for (const activeIndex of [0, 3, 6]) {
+				const grouped = items(7, activeIndex).map((item, index) => ({
+					...item, groupTitle: `grupo ${Math.floor(index / groupSize)}`, started: index === activeIndex,
+				}));
+				for (const maxLines of [3, 4, 5, 8]) {
+					for (const width of [40, 72]) {
+						const lines = renderSddOverlay(status({ lane: "standard" }, grouped), { maxLines, width, palette: createPalette(true) }).map(stripAnsi);
+						expect(lines.join("\n")).toContain(`iniciada · tarea ${activeIndex + 1}`);
+						expect(lines.length).toBeLessThanOrEqual(maxLines);
+						for (const [index, line] of lines.entries()) {
+							if (line.includes("grupo ")) expect(lines[index + 1]).toContain("tarea ");
+						}
+					}
+				}
+			}
+		}
+	});
+
+	test("fits the header to its actual metadata width while preserving phase and progress", () => {
+		for (const total of [12, 120]) {
+			const state = status({ change: "validar-fecha-inicio-generacion", lane: "standard", nextRecommended: "verify" }, items(total, total));
+			for (const width of [40, 41, 50, 72]) {
+				for (const enabled of [false, true]) {
+					const lines = renderSddOverlay(state, { width, collapsed: true, palette: createPalette(enabled) });
+					expect(overlayWidth(lines)).toBeLessThanOrEqual(width);
+					expect(stripAnsi(lines[0]!)).toContain("standard");
+					expect(stripAnsi(lines[0]!)).toContain(`▸ verify   ${total}/${total}`);
+				}
+			}
+		}
+	});
+
 	test("retains a visible focus marker without painting a background", () => {
 		const lines = renderSddOverlay(status(), { palette: createPalette(true) });
 		expect(lines.join("\n")).toContain("▸");

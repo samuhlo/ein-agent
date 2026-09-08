@@ -130,6 +130,19 @@ export function selectVisibleTasks(
 	return { visible, hiddenDone: items.slice(0, start).filter((item) => item.done).length };
 }
 
+function selectTaskRows(items: readonly SddTaskItem[], currentId: string, maxRows: number) {
+	for (let limit = maxRows; limit > 0; limit -= 1) {
+		const selected = selectVisibleTasks(items, currentId, limit);
+		const groups = selected.visible.filter((item, index) => item.groupTitle && item.groupTitle !== selected.visible[index - 1]?.groupTitle).length;
+		const showSummary = selected.hiddenDone > 0;
+		if (selected.visible.length + groups + Number(showSummary) <= maxRows) {
+			return { ...selected, showGroups: true, showSummary };
+		}
+	}
+	// With only one or two rows, the current task takes precedence over metadata.
+	return { ...selectVisibleTasks(items, currentId, 1), showGroups: maxRows >= 2, showSummary: false };
+}
+
 /**
  * Fila de tarea. Se ABRE por la izquierda: regla, marca de estado, id y título.
  *
@@ -220,10 +233,13 @@ export function renderSddOverlay(
 	//
 	// La fase sube a acento y lleva su `▸`: es el único dato de la cabecera que
 	// contesta «y ahora qué».
-	const name = palette.text(fit(status.change, Math.max(12, width - 34)));
-	const left = `${name}   ${palette.muted(status.lane)}`;
 	const phase = `${palette.accent(GLYPH.focus)} ${palette.accent(String(status.nextRecommended))}`;
 	const right = progress ? `${phase}   ${palette.muted(progress)}` : phase;
+	const leftBudget = Math.max(0, width - INDENT.length - visibleWidth(right) - 1);
+	const lane = `   ${palette.muted(status.lane)}`;
+	const suffix = visibleWidth(lane) < leftBudget ? lane : "";
+	const name = palette.text(fit(status.change, leftBudget - visibleWidth(suffix)));
+	const left = `${name}${suffix}`;
 	const pad = Math.max(1, width - visibleWidth(left) - visibleWidth(right) - INDENT.length);
 	const header = `${INDENT}${left}${" ".repeat(pad)}${right}`;
 
@@ -245,28 +261,17 @@ export function renderSddOverlay(
 		return [...lines, ...remainingPhaseRows(status, rowSpace, width, palette)];
 	}
 
-	// La cabecera y el raíl ya ocupan lo suyo. Lo que queda son filas de tarea,
-	// salvo que haya que gastar una en decir cuántas se ocultaron — y ese resumen
-	// solo cabe si deja sitio para al menos una tarea.
-	const summaryFits = items.length > rowSpace && rowSpace >= 2;
-	const { visible, hiddenDone } = selectVisibleTasks(
-		items,
-		currentId,
-		summaryFits ? rowSpace - 1 : rowSpace,
-	);
-	// El GRUPO se nombra en su propia línea, con su recuento; la TAREA dice
-	// siempre su propio título.
-	//
-	// Antes el grupo no tenía sitio propio: se colaba en la primera fila del
-	// grupo sustituyendo al título de su tarea, así que esa fila no decía qué
-	// tarea era. Costaba una fila igual — solo que a cambio de perder un dato.
-	//
-	// El encabezado se emite solo si detrás queda sitio para al menos una tarea
-	// suya: un grupo anunciado sin nada debajo gasta la línea y no informa.
+	// Count the complete composition before selecting a window: clipping it
+	// afterwards can discard the current task or leave a heading without a task.
+	const { visible, hiddenDone, showGroups, showSummary } = selectTaskRows(items, currentId, rowSpace);
 	const rows: string[] = [];
+	if (showSummary) {
+		const word = hiddenDone === 1 ? "completada" : "completadas";
+		rows.push(`${INDENT}${palette.muted(`… ${hiddenDone} ${word}`)}`);
+	}
 	let group: string | undefined;
-	for (const [index, item] of visible.entries()) {
-		if (item.groupTitle && item.groupTitle !== group && index < visible.length - 1) {
+	for (const item of visible) {
+		if (showGroups && item.groupTitle && item.groupTitle !== group) {
 			const family = items.filter((entry) => entry.groupTitle === item.groupTitle);
 			rows.push(groupRow(
 				item.groupTitle,
@@ -286,13 +291,7 @@ export function renderSddOverlay(
 		));
 	}
 
-	if (summaryFits && hiddenDone > 0) {
-		const word = hiddenDone === 1 ? "completada" : "completadas";
-		rows.unshift(`${INDENT}${palette.muted(`… ${hiddenDone} ${word}`)}`);
-	}
-	// Los encabezados de grupo cuentan como filas: el sitio concedido manda sobre
-	// la composición, y lo que sobra se corta por la cola.
-	return [...lines, ...rows.slice(0, rowSpace)];
+	return [...lines, ...rows];
 }
 
 /** Ancho visible de la línea más larga. Para pruebas de encaje. */
