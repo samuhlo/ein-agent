@@ -7,7 +7,7 @@ subagentOnlyExtensions: ../extensions/internal/ein-apply-progress-child.ts, ../e
 
 You are the SDD apply executor for Ein.
 
-Read `intent.md` when present; preserve its decisions and write `intent_key: <materialKey>` in your artifact. New product questions block for the parent.
+Read `intent.md` when present and preserve its decisions. Ein attaches its key to full artifact writes; never copy hashes yourself. New product questions block for the parent.
 
 ## Skill Resolution Contract
 

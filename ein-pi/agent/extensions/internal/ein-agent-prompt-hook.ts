@@ -5,7 +5,9 @@
 // =============================================================================
 
 import { compileApplyHandoff } from "../../lib/apply-packet-handoff.ts";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { readAgreement } from "../../lib/intent-agreement.ts";
+import { PHASE_ARTIFACT, resolveChangesDir, type SddPhase } from "../../lib/sdd-routing-core.ts";
 import { formatSkillsForPrompt, type ExtensionAPI, type Skill } from "@earendil-works/pi-coding-agent";
 import {
 	getSddPreflightPreferences,
@@ -60,7 +62,22 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 	const sessionStartVersion = new Map<string, string | null>();
 	const staleSessionNudged = new Set<string>();
 	let handoffError: string | undefined;
-	pi.on("tool_call", () => handoffError ? { block: true, reason: handoffError } : undefined);
+	let agreementInput: { directory: string; artifact: string; key: string } | undefined;
+	pi.on("tool_call", (event, ctx) => {
+		if (handoffError) return { block: true, reason: handoffError };
+		if (!agreementInput || !["write", "edit", "bash", "ein_sdd_task_progress", "ein_openspec_delta_write", "ein_sdd_summary"].includes(event.toolName)) return;
+		const current = readAgreement(agreementInput.directory);
+		if (current.kind !== "valid" || current.agreement.status !== "confirmed" || current.agreement.materialKey !== agreementInput.key) {
+			return { block: true, reason: "Intent changed after this phase started; return blocked and re-plan against the current agreement." };
+		}
+		// Bind newly authored full output to the agreement actually supplied at
+		// launch. Never retag an existing artifact on read/check or a partial edit.
+		if (event.toolName === "write" && typeof event.input.path === "string" && typeof event.input.content === "string"
+			&& resolve(ctx.cwd, event.input.path) === agreementInput.artifact) {
+			const body = event.input.content.replace(/^[ \t]*(?:[-*][ \t]+)?intent_key:[^\r\n]*(?:\r?\n|$)/gm, "");
+			event.input.content = `${body}${body.endsWith("\n") ? "" : "\n"}\nintent_key: ${agreementInput.key}\n`;
+		}
+	});
 
 	pi.on("before_agent_start", async (event, ctx) => {
 		const isSddAgent = isSddAgentStartEvent(event);
@@ -78,8 +95,17 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			: event.systemPrompt;
 		const isScout = startNames.includes("ein-scout");
 		handoffError = undefined;
+		agreementInput = undefined;
+		const change = readExplicitSddChange(event);
+		const phase = startNames.find((name) => name.startsWith("sdd-"))?.slice(4) as SddPhase | undefined;
+		if (change && phase && PHASE_ARTIFACT[phase]) {
+			const directory = join(resolveChangesDir(ctx.cwd), change);
+			const stored = readAgreement(directory);
+			if (stored.kind === "valid" && stored.agreement.status === "confirmed") agreementInput = { directory, artifact: resolve(directory, PHASE_ARTIFACT[phase]), key: stored.agreement.materialKey };
+			else if (stored.kind !== "absent" || /^intent_work:/m.test(readAgentTask(event))) handoffError = "The phase's intent is absent, invalid or no longer confirmed";
+		}
 		let handoff: ReturnType<typeof compileApplyHandoff>;
-		try { handoff = startNames.includes("sdd-apply") ? compileApplyHandoff(ctx.cwd, readAgentTask(event)) : undefined; }
+		try { if (handoffError) throw new Error(handoffError); handoff = startNames.includes("sdd-apply") ? compileApplyHandoff(ctx.cwd, readAgentTask(event)) : undefined; }
 		catch (error) {
 			handoffError = error instanceof Error ? error.message : String(error);
 			return { systemPrompt: `${basePrompt}\n${phaseMarker}\nExecution blocked: ${handoffError}. Return status: blocked to the parent; tools are unavailable until the assignment is corrected.` };

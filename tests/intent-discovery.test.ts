@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { registerIntentDiscovery } from "../ein-pi/agent/extensions/internal/ein-intent-discovery.ts";
+import { registerAgentPromptHook } from "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts";
 import { readAgreement } from "../ein-pi/agent/lib/intent-agreement.ts";
 import { initializeSddChange } from "../ein-pi/agent/lib/sdd-preflight-record.ts";
 import { writeSddSummary, writeVerifiedSddSummary } from "../shared/sdd/sdd-summary-write.ts";
@@ -52,6 +53,29 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   expect((await h.call({ action: "record", material })).isError).toBe(true);
   await h.call({ action: "cancel" }); h.input("Some other text");
   expect((await h.call({ action: "record", material })).isError).toBe(true);
+ });
+ test("a phase binds its own full output, never old artifacts, and stops if the agreement changes", async () => {
+  const h = harness(); h.input("Implement the specified filtered CSV export");
+  await h.call({ action: "record", change: "export-csv", material });
+  const handlers = new Map<string, Function>();
+  registerAgentPromptHook({ on: (name: string, fn: Function) => handlers.set(name, fn) } as never);
+  const event = { systemPrompt: "You are the independent SDD verify executor.", prompt: "intent_work: export-csv\nVerify openspec/changes/export-csv/" };
+  await handlers.get("before_agent_start")!(event, h.ctx);
+  const directory = join(h.cwd, "openspec/changes/export-csv");
+  const stored = readAgreement(directory); if (stored.kind !== "valid") throw new Error("fixture agreement absent");
+  const write = { toolName: "write", input: { path: "openspec/changes/export-csv/verify-report.md", content: "status: pass\nbehavior_coverage: verified\nintent_key: typo\n\nChecked behavior.\nintent_key: typo\n" } };
+  expect(await handlers.get("tool_call")!(write, h.ctx)).toBeUndefined();
+  expect(artifactHasIntentKey(write.input.content, stored.agreement.materialKey)).toBe(true);
+  expect(write.input.content).toStartWith("status: pass\nbehavior_coverage: verified\n");
+  expect(write.input.content).toContain("Checked behavior.");
+  const other = { toolName: "write", input: { path: "openspec/changes/export-csv/design.md", content: "intent_key: old\nOld design" } };
+  await handlers.get("tool_call")!(other, h.ctx);
+  expect(other.input.content).toBe("intent_key: old\nOld design");
+  const partial = { toolName: "edit", input: { path: write.input.path, oldText: "x", newText: "y" } };
+  expect(await handlers.get("tool_call")!(partial, h.ctx)).toBeUndefined();
+  expect(partial.input).not.toHaveProperty("content");
+  await h.propose({ change: "export-csv", reopenReason: "New product choice" });
+  expect(await handlers.get("tool_call")!(write, h.ctx)).toMatchObject({ block: true });
  });
  test("read-only input reaches the model unchanged and creates no project state", () => {
   const h = harness();

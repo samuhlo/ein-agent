@@ -64,7 +64,7 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 		if (!change || !readAgentStartNames(event).some((name) => name.startsWith("sdd-"))) return;
 		const record = readAgreement(join(resolveChangesDir(ctx.cwd), change));
 		if (record.kind !== "valid" || record.agreement.status !== "confirmed") return;
-		return { systemPrompt: `${event.systemPrompt}\n\nRead ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change, "intent.md"))} as the agreed product contract. Preserve its objective, limits and success criteria. Scope/design must record intent_key: ${record.agreement.materialKey}. Return blocked with the concrete question if a new product decision is needed; the parent owns discovery.` };
+		return { systemPrompt: `${event.systemPrompt}\n\nRead ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change, "intent.md"))} as the agreed product contract. Preserve its objective, limits and success criteria. Ein binds full phase artifact writes to this agreement; preserve its decisions, never hand-copy control keys. Return blocked with the concrete question if a new product decision is needed; the parent owns discovery.` };
 	});
 	registerEinTool({
 		name: "ein_intent",

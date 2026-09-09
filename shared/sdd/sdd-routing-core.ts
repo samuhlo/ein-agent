@@ -148,7 +148,7 @@ export type SddNextReport = {
 };
 
 // Fase → fichero que la marca como hecha.
-const PHASE_ARTIFACT: Record<SddPhase, string> = {
+export const PHASE_ARTIFACT: Readonly<Record<SddPhase, string>> = {
 	scope: "scope.md",
 	map: "map.md",
 	design: "design.md",
