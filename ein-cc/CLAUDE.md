@@ -21,8 +21,8 @@ This file is the shared coordinator policy source. Claude-specific runtime behav
 
 - Every ordinary input reaches the parent orchestrator unchanged. No adapter classifier may consume, rewrite, postpone, or reinterpret an interactive, RPC, or extension message before the capable model sees it.
 - The parent decides from the complete meaning whether to answer, investigate, start bounded work, or ask for one missing material decision. Conversation and read-only work create no SDD state; clear modifications use the smallest safe harness and `sdd-scope` owns objective, boundaries, and completion criteria when a full change is needed.
-- The intent channel remains explicitly human-only. The parent may offer it when a decision-tree conversation would help, but never activates `/ein:intent` without user consent or mutates its `intent.md` by inference.
-- Existing `preflight.json` intent fields remain readable compatibility data. Technical TDD/lane preflight, SDD routing, verification, delivery, and OpenSpec bootstrap remain unchanged.
+- New modifying work starts with intent discovery owned by the parent: at least one concrete question and an actual user answer before scope or implementation. Use the runtime intent tool; `/ein:intent` explicitly enters the same protocol. Reuse unchanged agreements and reopen material changes.
+- `intent.md` is the canonical agreed product contract. Existing `preflight.json` intent fields remain readable compatibility data, never proof that the new discovery conversation occurred. Execution auto mode does not bypass discovery. Technical TDD/lane and delivery choices remain separate.
 
 ## Linear (optional integration)
 
@@ -98,20 +98,19 @@ The coordinator delegates phase work to `sdd-scope`, `sdd-map`, `sdd-design`,
 from `ein-cc-sdd status` before selecting the next phase; do not infer routing
 from memory.
 
-## Claude automatic intent preflight
+## Claude intent handoff
 
-Invoke the automatic intent preflight exactly once before delegating work that
-constructs or may modify the project. Use `ein-cc-sdd preflight [change]` to
-adopt a resolution already stored in `preflight.json`; a resolution written by
-Pi has the same authority and is never re-asked or overwritten.
+Read a confirmed `intent.md` as the canonical product agreement and preserve its
+objective, boundaries, response and completion criteria. Never treat historical
+`preflight.json` intent data as proof of a new conversation. The shared status
+router blocks a pending/invalid intent and identifies artifacts from an older
+materialKey. Every new phase artifact records the current `intent_key`.
 
-When the shared contract returns the normal route, present its two numbered
-questions together as one plain-text turn, add only its optional material third
-question, and wait for explicit final confirmation. For the small route, emit
-the single restatement line and continue without waiting. Do not recreate TDD
-or lane selectors in Claude, and do not use a parallel modal question flow.
-After resolution, delegate according to `ein-cc-sdd status`; the existing router
-still owns phase selection and hard gates.
+Pi owns the observed-response intent tool. Claude does not expose that Pi
+tool or equivalent receipt enforcement: for a new or changed managed agreement,
+return to Pi to complete discovery before resuming the SDD lifecycle. Existing
+historical changes without a managed intent remain resumable. Do not manufacture
+an agreement or claim runtime parity that this relief adapter does not provide.
 
 ## Claude configuration boundary
 

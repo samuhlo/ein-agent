@@ -133,7 +133,7 @@ describe("contrato estructural de SKILL.md (grupo 002 dependencia)", () => {
 		const raw = readFileSync(SKILL_PATH, "utf8");
 		const intentIdx = raw.indexOf("## /ein:intent");
 		const ehIdx = raw.indexOf("## /ein:eh");
-		const templateIdx = raw.indexOf("## Artefact template");
+		const templateIdx = raw.indexOf("## Artefacto canónico");
 		expect(intentIdx).toBeGreaterThan(-1);
 		expect(ehIdx).toBeGreaterThan(intentIdx);
 		expect(templateIdx).toBeGreaterThan(ehIdx);
@@ -169,8 +169,8 @@ describe("contrato estructural de SKILL.md (grupo 002 dependencia)", () => {
 		const raw = readFileSync(SKILL_PATH, "utf8");
 		expect(raw).toMatch(/## Ejecuci[oó]n/);
 		expect(raw).toContain("ein-scout");
-		expect(raw).toContain("resolveIntentPath");
-		expect(raw.toLowerCase()).toContain("shell");
+		expect(raw).toContain("ein_intent");
+		expect(raw).toContain("nunca fabrican la respuesta");
 	});
 });
 
@@ -192,7 +192,7 @@ describe("objetivo de /ein:eh: la invocacion nunca se restata a si misma", () =>
 	test("SKILL.md define el objetivo y sus casos borde", () => {
 		const raw = readFileSync(SKILL_PATH, "utf8");
 		const ehIdx = raw.indexOf("## /ein:eh");
-		const templateIdx = raw.indexOf("## Artefact template");
+		const templateIdx = raw.indexOf("## Artefacto canónico");
 		const targetIdx = raw.indexOf("### Qué mensaje se restata");
 		expect(targetIdx).toBeGreaterThan(ehIdx);
 		expect(targetIdx).toBeLessThan(templateIdx);

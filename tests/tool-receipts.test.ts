@@ -1,5 +1,5 @@
 // =============================================================================
-// TESTS: recibos humanos de las 18 herramientas de Ein
+// TESTS: recibos humanos de las herramientas registradas de Ein
 //   Cada frase de aquí la LEE UNA PERSONA en el chat. Se fijan antes de existir
 //   porque un texto sin prueba se degrada solo: basta un refactor para que un
 //   recibo empiece a decir `verification-passed` en vez de "verificada".
@@ -27,7 +27,7 @@ test("passing SDD checks and archive retain unavailable advisory evidence", () =
 });
 
 const TOOLS = [
-	"ein_sdd_status",
+	"ein_intent", "ein_sdd_status",
 	"ein_sdd_check",
 	"ein_sdd_preflight",
 	"ein_sdd_lane",
@@ -50,7 +50,7 @@ const TOOLS = [
 // Basura con la que se golpea TODO recibo: ninguno puede lanzar ni inventar.
 const RUBBISH: unknown[] = [undefined, null, 42, "texto", [], {}, { ok: "quizá" }, { details: null }];
 
-describe("cobertura: las 18 herramientas tienen recibo", () => {
+describe("cobertura: las herramientas registradas tienen recibo", () => {
 	test("no falta ninguna y no sobra ninguna", () => {
 		expect(Object.keys(TOOL_RECEIPTS).sort()).toEqual([...TOOLS].sort());
 		expect(Object.keys(TOOL_LABELS).sort()).toEqual([...TOOLS].sort());
@@ -337,6 +337,7 @@ describe("el detalle expandido habla como una persona", () => {
 
 describe("TRIANGULATE: ninguna herramienta se queda sin recibo por olvido", () => {
 	const SOURCES = [
+		new URL("../ein-pi/agent/extensions/internal/ein-intent-discovery.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/internal/ein-tool-registration.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/internal/ein-advisory-tools.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/internal/ein-openspec-write-tools.ts", import.meta.url).pathname,

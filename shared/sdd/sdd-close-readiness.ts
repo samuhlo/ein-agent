@@ -12,6 +12,8 @@ import { OUT_OF_FLOW_PROFILE, type ReconciliationBlocker } from "./sdd-reconcili
 import { resolveChangesDir, type SddChangeStatus } from "./sdd-routing-core.ts";
 
 export type CloseReadinessBlockerCode =
+	| "intent-unresolved"
+	| "intent-stale"
 	| "apply-not-complete"
 	| "verify-missing"
 	| "verify-failed"
@@ -144,6 +146,8 @@ export function createAssessCloseReadiness(
 		const status = dependencies.resolveSddStatus(cwd, change);
 		const blockers: CloseReadinessBlocker[] = [];
 		const add = (code: CloseReadinessBlockerCode, message: string) => blockers.push({ code, message });
+		if (status.intent && status.intent.state !== "confirmed") add("intent-unresolved", "La intención está pendiente, cancelada o inválida; resuélvela antes de cerrar.");
+		if (status.intent?.stalePhase) add("intent-stale", `El artefacto de ${status.intent.stalePhase} no corresponde al acuerdo actual; actualiza las fases afectadas antes de cerrar.`);
 		if (status.apply !== "complete") add("apply-not-complete", "apply no está `status: complete`.");
 		if (!status.present.verify) add("verify-missing", "falta verify-report.md.");
 		else if (status.verify === "fail") add("verify-failed", "verify-report indica fallo.");

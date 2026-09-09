@@ -15,6 +15,7 @@ import { dirname, join } from "node:path";
 
 import { isSafeChangeName, readSddCompletionEvidence, resolveChangesDir } from "./sdd-routing-core.ts";
 import { summaryContractErrors } from "./sdd-summary-contract.ts";
+import { artifactHasIntentKey, readAgreement } from "./intent-agreement.ts";
 
 export type SummaryWriteRequest = Readonly<{
 	cwd: string;
@@ -38,9 +39,9 @@ export function writeSddSummary(request: SummaryWriteRequest): SummaryWriteResul
 		return { ok: false, code: "invalid-change", reason: `invalid change name: ${JSON.stringify(change)}` };
 	}
 
-	const changeDir = join(cwd, "openspec", "changes", change);
+	const changeDir = join(resolveChangesDir(cwd), change);
 	if (!existsSync(changeDir)) {
-		return { ok: false, code: "no-change", reason: `change '${change}' does not exist in openspec/changes` };
+		return { ok: false, code: "no-change", reason: `change '${change}' does not exist in the active changes directory` };
 	}
 	if (content.trim().length === 0) {
 		return { ok: false, code: "empty-content", reason: "summary content is empty" };
@@ -63,6 +64,9 @@ export function writeVerifiedSddSummary(request: SummaryWriteRequest & { command
 		if (evidence.apply !== "complete" || evidence.verify !== "pass" || evidence.verifyStale || evidence.tasks.counts.pending > 0) throw new Error("Summary requires completed apply and fresh passing verification with no pending tasks");
 		const dir = join(resolveChangesDir(request.cwd), request.change);
 		const report = readFileSync(join(dir, "verify-report.md"), "utf8");
+		const intent = readAgreement(dir);
+		if (intent.kind === "invalid" || (intent.kind === "valid" && intent.agreement.status !== "confirmed")) throw new Error("Summary requires a confirmed intent");
+		if (intent.kind === "valid" && [report, readFileSync(join(dir, "apply-progress.md"), "utf8")].some((artifact) => !artifactHasIntentKey(artifact, intent.agreement.materialKey))) throw new Error("Apply and verify must reference the current intent before summary");
 		const recorded = new Set([
 			...[...report.matchAll(/`([^`\r\n]+)`/g)].map((match) => match[1]),
 			...report.split(/\r?\n/).flatMap((line) => line.split("|").map((part) => part.trim().replace(/^[-*]\s+/, "").replace(/^(?:verify|command|comando|executed|ejecutado):\s*/i, ""))),
@@ -73,8 +77,8 @@ export function writeVerifiedSddSummary(request: SummaryWriteRequest & { command
 		if (!content) throw new Error("Summary explanation is empty");
 		const heading = content.search(/^#{1,6}\s/m);
 		const headerEnd = heading < 0 ? content.length : heading;
-		const narrative = content.slice(0, headerEnd).replace(/^(?:status|change|work_groups|verification_status):[^\r\n]*\r?\n?/gm, "") + content.slice(headerEnd);
-		const summary = [`status: complete`, `change: ${request.change}`, `work_groups: ${groups}`, "verification_status: pass", "", narrative.trim(), "", "## Verification commands", ...[...new Set(request.commands)].map((command) => `- verify: ${command}`), ""].join("\n");
+		const narrative = (content.slice(0, headerEnd).replace(/^(?:status|change|work_groups|verification_status):[^\r\n]*\r?\n?/gm, "") + content.slice(headerEnd)).replace(/^[ \t]*(?:[-*][ \t]+)?intent_key:[^\r\n]*\r?\n?/gm, "");
+		const summary = [`status: complete`, `change: ${request.change}`, `work_groups: ${groups}`, "verification_status: pass", ...(intent.kind === "valid" ? [`intent_key: ${intent.agreement.materialKey}`] : []), "", narrative.trim(), "", "## Verification commands", ...[...new Set(request.commands)].map((command) => `- verify: ${command}`), ""].join("\n");
 		const errors = summaryContractErrors(summary, request.change);
 		if (errors.length) throw new Error(errors.join("; "));
 		return writeSddSummary({ ...request, content: summary });

@@ -88,6 +88,7 @@ describe("el orquestador es el único dueño semántico en Pi", () => {
 		const sources = [
 			"ein-pi/agent/extensions/ein-ai.ts",
 			"ein-pi/agent/extensions/internal/ein-session-lifecycle.ts",
+			"ein-pi/agent/extensions/internal/ein-intent-discovery.ts",
 			"ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts",
 			"ein-pi/agent/extensions/internal/ein-tool-call-gate.ts",
 		].map((path) => readFileSync(join(root, path), "utf8")).join("\n");
@@ -98,8 +99,8 @@ describe("el orquestador es el único dueño semántico en Pi", () => {
 		expect(sources).not.toContain("runPiIntentPreflight");
 		expect(sources).not.toContain('action: "handled"');
 		expect(orchestrator).toContain("Every ordinary input reaches you unchanged");
-		expect(orchestrator).toContain("offer `/ein:intent`");
+		expect(orchestrator).toContain("run `ein_intent`");
 		expect(policy).toContain("Every ordinary input reaches the parent orchestrator unchanged");
-		expect(policy).toContain("never activates `/ein:intent` without user consent");
+		expect(policy).toContain("at least one concrete question and an actual user answer");
 	});
 });

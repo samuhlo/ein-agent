@@ -1,0 +1,22 @@
+[
+  {
+    "turn": "Quiero añadir exportación CSV a la tabla de contactos, la única del prototipo. Usa SDD en modo auto.",
+    "answer": "Usaré SDD en modo auto tras acordar estas decisiones. Este piloto termina en la especificación de producto, sin implementar código.\n\n1. ¿Exportamos los contactos que coincidan con los filtros actuales, incluyendo todas las páginas? Lo recomiendo frente a exportar siempre todos los contactos.\n2. ¿Incluimos las columnas visibles, con sus encabezados y orden actuales, excluyendo botones de acciones? Recomiendo que sí.\n3. ¿El destino principal es Excel en español? En ese caso recomiendo UTF-8 con BOM y separador punto y coma; para otras herramientas podemos usar coma.",
+    "writes": 0
+  },
+  {
+    "turn": "Todas las filas filtradas (no solo la página) y en el orden visible. Columnas: nombre y correo. Sin exportar datos ocultos. CSV genérico con comas y UTF-8, no específico de Excel. Usa convenciones CSV estándar para escapar valores. Con eso puedes elaborar las specs.",
+    "answer": "Especificación creada en `openspec/changes/export-csv/design.md`.\n\nDefine el flujo: filtrar y ordenar antes de paginar, seleccionar únicamente nombre y correo y generar CSV con comas, UTF-8 y escape estándar. Incluye criterios de aceptación para evitar datos ocultos y conservar caracteres y valores especiales.\n\nQuedan señalados detalles no acordados, como encabezados y valores nulos. No se ha implementado código ni ejecutado pruebas.",
+    "writes": 1
+  },
+  {
+    "turn": "Cambio de idea: también quiero permitir exportar todas las filas, pero no tengo claro cómo debería elegirse.",
+    "answer": "Recomiendo que «Exportar CSV» abra un menú con dos opciones:\n- «Exportar filas filtradas».\n- «Exportar todas las filas».\n\nAsí eliges el alcance directamente, sin un diálogo adicional. «Todas» ignoraría los filtros, pero conservaría la ordenación y exportaría únicamente nombre y correo.\n\n¿Prefieres este menú o un diálogo con «Filtradas» preseleccionado y un botón de confirmación?",
+    "writes": 1
+  },
+  {
+    "turn": "Cancela este cambio de alcance; no implementes nada más.",
+    "answer": "Cancelada la ampliación de alcance. La especificación existente queda sin cambios, limitada a las filas filtradas. No implementaré nada ni continuaré el trabajo.",
+    "writes": 1
+  }
+]

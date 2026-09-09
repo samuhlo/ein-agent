@@ -23,8 +23,9 @@
 // eligió nada".
 // =============================================================================
 
-import { existsSync, mkdirSync, mkdtempSync, lstatSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, lstatSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { readAgreement } from "./intent-agreement.ts";
+import { dirname, join, relative, sep } from "node:path";
 
 import {
 	inspectChangeLane,
@@ -268,13 +269,19 @@ export function initializeSddChange(cwd: string, change: string, tdd: TddStance,
 	if (!isSafeChangeName(change) || !STANCES.includes(tdd) || !["micro", "standard"].includes(lane) || !AUTHORS.includes(author)) throw new Error("Invalid change initialization");
 	const root = realpathSync(cwd);
 	let parent = root;
-	for (const part of ["openspec", "changes"]) {
+	for (const part of relative(root, resolveChangesDir(root)).split(sep)) {
 		parent = join(parent, part);
 		if (existsSync(parent) && (lstatSync(parent).isSymbolicLink() || !lstatSync(parent).isDirectory())) throw new Error("Unsafe change directory");
 	}
 	const target = join(parent, change);
 	if (existsSync(target)) {
 		if (lstatSync(target).isSymbolicLink()) throw new Error("Unsafe change directory");
+		const intent = readAgreement(target);
+		if (readdirSync(target).every((name) => name === "intent.md") && intent.kind === "valid" && intent.agreement.status === "confirmed") {
+			writePreflightRecord(target, { tdd, decidedBy: author });
+			writeChangeLane(target, lane);
+			return readChangeStance(root, change)!;
+		}
 		const existing = readChangeStance(root, change);
 		if (existing?.tdd === tdd && existing.lane === lane && existing.laneDeclared) return existing;
 		throw new Error("Change already exists with a different or incomplete stance; read it before updating");
