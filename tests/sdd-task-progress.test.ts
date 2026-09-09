@@ -40,7 +40,7 @@ test("the native progress tool persists the checkbox without an executor edit", 
 	const source = "status: ready\nblocked_by: none\n## // 001. Behavior\n- [ ] 1.1 Implement and test\n- [ ] 1.2 Another step\n";
 	writeFileSync(path, source);
 	let tool: any;
-	registerProgress({ registerTool(value: any) { tool = value; } } as any);
+	registerProgress({ on() {}, registerTool(value: any) { tool = value; } } as any);
 	const execute = (task: string, action: string) => tool.execute("call", { change: "change", task, action }, undefined, undefined, { cwd });
 	try {
 		for (const id of ["001/1.1", "001 / 1.1", "missing"]) {
