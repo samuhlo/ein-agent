@@ -267,17 +267,19 @@ function detectStackFromTask(task: string): "node" | "frontend" | "fullstack" | 
   return "unknown";
 }
 
-function scoreSkill(entry: SkillEntry, task: string, taskTokens: Set<string>, stack: "node" | "frontend" | "fullstack" | "unknown"): number {
-  const lowerTask = task.toLowerCase();
-  const mentions = (name: string): boolean => {
+function mentionsSkillName(lowerTask: string, name: string): boolean {
     if (!name) return false;
     const escaped = name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp(`(?:^|[^a-z0-9_])${escaped}(?=$|[^a-z0-9_])`).test(lowerTask);
-  };
+}
+
+function scoreSkill(entry: SkillEntry, task: string, taskTokens: Set<string>, stack: "node" | "frontend" | "fullstack" | "unknown"): number {
+  const lowerTask = task.toLowerCase();
+
   let score = 0;
   // Name/key are the most precise signal: an exact mention of the skill.
-  if (mentions(entry.name)) score += 6;
-  if (mentions(entry.key)) score += 4;
+  if (mentionsSkillName(lowerTask, entry.name)) score += 6;
+  if (mentionsSkillName(lowerTask, entry.key)) score += 4;
   // Declared triggers, matched as whole words (not substrings, so "api" doesn't
   // hit "rapid"). This is the author's intent, now clean of file noise.
   for (const trigger of entry.triggers) {
@@ -299,10 +301,11 @@ export function resolveSkills(registry: SkillEntry[], task: string, explicitStac
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
 
-  const unique = new Map<string, SkillEntry>();
+  const explicit = scored.filter(({ entry }) => mentionsSkillName(task.toLowerCase(), entry.name) || mentionsSkillName(task.toLowerCase(), entry.key));
+  const unique = new Map<string, SkillEntry>(explicit.map(({ entry }) => [entry.key, entry]));
   for (const item of scored) {
-    if (!unique.has(item.entry.key)) unique.set(item.entry.key, item.entry);
     if (unique.size >= limit) break;
+    if (!unique.has(item.entry.key)) unique.set(item.entry.key, item.entry);
   }
   return [...unique.values()];
 }

@@ -78,7 +78,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			: event.systemPrompt;
 		const isScout = startNames.includes("ein-scout");
 		handoffError = undefined;
-		let handoff: string | undefined;
+		let handoff: ReturnType<typeof compileApplyHandoff>;
 		try { handoff = startNames.includes("sdd-apply") ? compileApplyHandoff(ctx.cwd, readAgentTask(event)) : undefined; }
 		catch (error) {
 			handoffError = error instanceof Error ? error.message : String(error);
@@ -122,7 +122,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			)}\n\n${internalAgentRoutingDirective()}`;
 		let skillsPrompt = "";
 		if ((isNamedAgent || isSddAgent) && !isScout) {
-			const block = resolveSkillInjection(ctx.cwd, readAgentTask(event), 6, startNames[0]);
+			const block = resolveSkillInjection(ctx.cwd, [readAgentTask(event), handoff?.skillTask].filter(Boolean).join("\n"), 6, startNames[0]);
 			if (block) skillsPrompt = `\n\n${block}`;
 		}
 		let artifactPrompt = "";
@@ -154,7 +154,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
 		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff}` : ""}`,
+			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff.prompt}` : ""}`,
 		};
 	});
 }

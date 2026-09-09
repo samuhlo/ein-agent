@@ -89,6 +89,11 @@ describe("resolveSkills — precise routing", () => {
     expect(resolved).toHaveLength(0);
   });
 
+  test("an automatic suggestion limit cannot discard explicitly named skills", () => {
+    const requested = Array.from({ length: 9 }, (_, index) => entry(`explicit-rule-${index}`, "Trigger: niche"));
+    expect(resolveSkills(requested, requested.map((skill) => skill.key).join(", "), undefined, 2)).toHaveLength(9);
+  });
+
   test("stack and workflow tags only rank skills with a relevant signal", () => {
     const workflow = entry("linear-workflow", "Trigger: Linear tickets", ["workflow"]);
     expect(resolveSkills([...registry, workflow], "Verify the Nuxt settings", "frontend")).toEqual([]);
