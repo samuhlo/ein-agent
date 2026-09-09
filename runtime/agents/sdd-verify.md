@@ -45,7 +45,7 @@ For every verify run, build a **new command plan** from the completed apply evid
 **Command hygiene (you run the heavy ones — a production build legitimately lives here).**
 
 - **Stream, don't buffer.** Never pipe a long-running command through `tail`/`head`/a pager: `cmd 2>&1 | tail -60` withholds all output until the command ends, so the runtime sees no activity and flags you as hung. Let it stream; if you only need the tail, redirect to a temp file and read it after (`<cmd> > "$(mktemp)" 2>&1; tail "$tmp"`).
-- **Always bound with `timeout`.** A build/test run gets `timeout 300 <cmd>` (raise only with reason) so a genuine hang aborts instead of burning the whole budget.
+- **Bound commands with the bash tool's native `timeout` parameter** (300 seconds for a build/test; raise only with reason). Run the command directly: do not assume a GNU `timeout` executable exists on the host.
 - **Builds need their env.** A production build of an app that reads a database (e.g. NeonDB) needs `DATABASE_URL` (and any other runtime secret) present, or a prerender/server step can block on the network. If the env is missing, report that the build can't be validated here rather than hanging on it.
 
 ## Behavioral coverage (a green build is NOT a pass)

@@ -13,7 +13,10 @@ import {
   type StartupProvenanceEvent,
 } from "../ein-pi/agent/lib/startup-provenance.ts";
 
+const { formatSkillsForPrompt } = await import("@earendil-works/pi-coding-agent");
+
 mock.module("@earendil-works/pi-coding-agent", () => ({
+  formatSkillsForPrompt,
   DefaultPackageManager: class {},
   SettingsManager: { create: () => ({}) },
   VERSION: "0.0.0",
