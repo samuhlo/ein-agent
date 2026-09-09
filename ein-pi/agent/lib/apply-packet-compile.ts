@@ -246,10 +246,13 @@ function orderedUnion(values: readonly string[]): string[] {
 function parseV2Edit(value: string, taskId: string):
 	| { ok: true; step: ApplyPacketV2Draft["steps"][number] }
 	| { ok: false; detail: string } {
-	const cells = value.split("|").map((cell) => cell.trim());
-	if (cells.length !== 3) {
+	// Only the first two separators delimit fields. The instruction is free
+	// text and may contain code operators such as `a || b` or a union type.
+	const fields = /^([^|]+)\|([^|]+)\|([\s\S]+)$/.exec(value);
+	if (!fields) {
 		return { ok: false, detail: `edit de ${taskId} debe tener ruta | operación | intención` };
 	}
+	const cells = fields.slice(1).map((cell) => cell.trim());
 	const path = stripTicks(cells[0] ?? "");
 	const operation = (cells[1] ?? "").toLowerCase();
 	const intent = cells[2] ?? "";
