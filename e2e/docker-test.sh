@@ -34,7 +34,8 @@ echo "/// e2e: compilando binario ($TARGET) contra Pi latest"
 test -x "$BINARY" || { echo "[error] no existe el binario: $BINARY"; exit 1; }
 
 echo "/// e2e: matriz determinista de update, rollback, uninstall y launcher"
-(cd "$ROOT" && bun test \
+# Match the normal CI budget: cold Linux process setup can exceed Bun's 5 s.
+(cd "$ROOT" && bun test --timeout 15000 \
   tests/release-update-integration.test.ts \
   tests/installer-uninstall.test.ts \
   tests/beta-launcher-e2e-hardening.test.ts)
