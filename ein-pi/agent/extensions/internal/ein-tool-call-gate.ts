@@ -33,10 +33,9 @@ import {
 import { t } from "../../lib/i18n/strings.ts";
 import { maybeWrapBashInput } from "../../lib/hypa.ts";
 import {
-	confirmCommand,
 	confirmDelegatedDelivery,
 } from "../../lib/guardrails.ts";
-import { evaluateStaging } from "../../lib/git-staging.ts";
+import { guardChildCommand } from "./ein-command-guard-child.ts";
 import {
 	normalizeScoutLaunch,
 	type ScoutTracking,
@@ -190,12 +189,8 @@ export function registerToolCallGate(
 		if (!isRecord(event.input) || typeof event.input.command !== "string") {
 			return undefined;
 		}
-		const guard = await confirmCommand(event.input.command, ctx);
+		const guard = await guardChildCommand(event, ctx);
 		if (guard) return guard;
-		const staging = evaluateStaging(ctx.cwd, event.input.command);
-		if (staging.kind === "blocked") {
-			return { block: true, reason: staging.reason };
-		}
 		maybeWrapBashInput(event.input as { command: string }, ctx.cwd);
 		return undefined;
 	});

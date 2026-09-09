@@ -21,7 +21,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { extractDeclaredFrontierPaths } from "./sdd-tasks-frontier.ts";
-import { artifactHasIntentKey, readAgreement } from "./intent-agreement.ts";
+import { artifactHasIntentKey, inspectArtifactIntentKey, readAgreement } from "./intent-agreement.ts";
 
 export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
 export type SddNext = SddPhase | "done";
@@ -668,7 +668,10 @@ function resolveSddStatus(
 		if (stale) {
 			intentStatus!.stalePhase = stale;
 			nextRecommended = stale;
-			blocked.push(`${PHASE_ARTIFACT[stale]} no corresponde al intent actual: regenera desde ${stale}, conservando solo el trabajo todavía válido.`);
+			const binding = inspectArtifactIntentKey(readFileSync(phaseArtifactPath(changePath, stale), "utf8"), intent.agreement.materialKey);
+			blocked.push(binding === "stale"
+				? `${PHASE_ARTIFACT[stale]} no corresponde al intent actual: regenera desde ${stale}, conservando solo el trabajo todavía válido.`
+				: `${PHASE_ARTIFACT[stale]}: intent_key ${binding}. Repara únicamente la declaración en este artefacto; no regeneres la fase por formato. Debe haber una sola clave, ligada al acuerdo que realmente usó la fase. No cambies una clave antigua por la actual para saltar una revisión.`);
 		}
 	}
 
@@ -793,6 +796,7 @@ export function resolveSddPlanPreview(cwd: string, change?: string): SddPlanPrev
 	for (let i = 1; i < parts.length; i += 2) {
 		const title = (parts[i] ?? "").trim();
 		const body = parts[i + 1] ?? "";
+		if (!/^\s*-\s*\[( |x|X)\]\s+.+$/m.test(body)) continue;
 		// Reuse the packet frontier grammar: context and intent prose grant no edits.
 		const declared = extractDeclaredFrontierPaths(body).filter((path) => !isProcessOrSpecPath(path));
 		const files = declared.filter(isProductionFile);

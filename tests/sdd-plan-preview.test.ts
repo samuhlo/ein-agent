@@ -56,7 +56,7 @@ describe("resolveSddPlanPreview", () => {
 	});
 
 	test("unlabelled legacy prose is not promoted to an exact write frontier", () => {
-		mkTasks("legacy", "## Old group\nMaybe edit source.ts; read EIN.md. Bun test is the runner.\n");
+		mkTasks("legacy", "## Old group\n- [ ] 1.1 Legacy task\nMaybe edit source.ts; read EIN.md. Bun test is the runner.\n");
 		const preview = resolveSddPlanPreview(DIR, "legacy");
 		expect(preview.groups[0].files).toEqual([]);
 		expect(preview.groups[0].verify).toBeNull();
@@ -64,7 +64,7 @@ describe("resolveSddPlanPreview", () => {
 	});
 
 	test("empty verify fields do not consume the following line; CRLF and duplicate fields are preserved", () => {
-		mkTasks("commands", "## Group\r\n  - verify:\r\n  - skills: Bun test\r\n  - verify: `npm run test -- --run`\r\n  - verify: `npm run test -- --run`\r\n");
+		mkTasks("commands", "## Group\r\n- [ ] 1.1 Run checks\r\n  - verify:\r\n  - skills: Bun test\r\n  - verify: `npm run test -- --run`\r\n  - verify: `npm run test -- --run`\r\n");
 		expect(resolveSddPlanPreview(DIR, "commands").groups[0].verify).toBe("`npm run test -- --run`");
 	});
 
