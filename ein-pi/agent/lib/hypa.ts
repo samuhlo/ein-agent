@@ -17,14 +17,17 @@
 // =============================================================================
 
 import {
+	accessSync,
+	constants,
 	existsSync,
 	mkdirSync,
 	readFileSync,
 	readdirSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, isAbsolute, join } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 // auto = detección de stack (on en toolchains verbosos no-Bun, off en Bun puro).
@@ -46,9 +49,10 @@ const REDUCER_HEADS = new Set([
 	"terraform", "tofu",
 ]);
 
-// Subcomandos de git con reducer y sin editor/interacción. `commit` abriría
-// editor; `push`/`pull` son entrega, no lectura → fuera.
-const GIT_READ_SUBCMDS = new Set(["diff", "status", "log", "show"]);
+// Status/log are navigation views. Diff/show are review evidence: Hypa 0.1.14
+// can omit changed lines without a recoverable original in its default output.
+// Keep them native so Pi owns truncation and its full-output reference.
+const GIT_READ_SUBCMDS = new Set(["status", "log"]);
 
 // Binarios node que se invocan vía bunx/bun y viven en ./node_modules/.bin.
 const LOCAL_BIN_TOOLS = new Set([
@@ -113,7 +117,8 @@ export function buildHypaCommand(
 	const { command, injectLocalBin } = normalizeBunPrefix(trimmed);
 	if (!isReducerTarget(command)) return null;
 
-	const wrapped = `${hypaBin} -c "${command}"`;
+	const binary = /^[\w./:\\-]+$/.test(hypaBin) ? hypaBin : `'${hypaBin.replace(/'/g, "'\\''")}'`;
+	const wrapped = `${binary} -c "${command}"`;
 	return injectLocalBin
 		? `env PATH="./node_modules/.bin:$PATH" ${wrapped}`
 		: wrapped;
@@ -121,15 +126,21 @@ export function buildHypaCommand(
 
 // ─── Resolución del binario ──────────────────────────────────────────────────
 
-// Rutas donde el installer/mise dejan hypa. Se prefiere HYPA_BIN explícito.
-export function resolveHypaBin(): string | undefined {
-	const explicit = process.env.HYPA_BIN;
-	if (explicit && existsSync(explicit)) return explicit;
+// Match installer discovery, including Homebrew, without searching the cwd.
+export function resolveHypaBin(env: NodeJS.ProcessEnv = process.env): string | undefined {
+	const executable = (path: string): boolean => {
+		try { accessSync(path, constants.X_OK); return statSync(path).isFile(); }
+		catch { return false; }
+	};
+	const explicit = env.HYPA_BIN;
+	if (explicit && executable(explicit)) return explicit;
+	const names = process.platform === "win32" ? ["hypa.exe", "hypa"] : ["hypa"];
 	const candidates = [
+		...(env.PATH ?? "").split(delimiter).filter(isAbsolute).flatMap((dir) => names.map((name) => join(dir, name))),
 		join(homedir(), ".local", "share", "mise", "shims", "hypa"),
 		join(homedir(), ".local", "bin", "hypa"),
 	];
-	return candidates.find((path) => existsSync(path));
+	return candidates.find(executable);
 }
 
 // ─── Detección de stack (modo auto) ──────────────────────────────────────────
@@ -225,7 +236,7 @@ export function maybeWrapBashInput(
 
 const HYPA_LABEL: Record<HypaMode, string> = {
 	auto: "auto — detecta stack (on en dotnet/gradle/tf…, off en Bun puro)",
-	on: "on — envuelve siempre tools con reducer (git/vitest/eslint…)",
+	on: "on — reduce salidas compatibles (git status/log, vitest…); diff/show sin compresión",
 	off: "off — bash crudo (context-mode sigue capando la salida)",
 };
 

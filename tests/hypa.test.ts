@@ -7,9 +7,10 @@
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
+import commandGuard from "../ein-pi/agent/extensions/internal/ein-command-guard-child.ts";
 
 const {
 	normalizeBunPrefix,
@@ -19,6 +20,7 @@ const {
 	hypaConfigPath,
 	detectStackWantsHypa,
 	resolveHypaEnabled,
+	resolveHypaBin,
 } = await import("../ein-pi/agent/lib/hypa");
 
 const BIN = "/bin/hypa";
@@ -60,8 +62,8 @@ describe("normalizeBunPrefix", () => {
 
 describe("buildHypaCommand — envuelve el allowlist", () => {
 	test("git de lectura", () => {
-		expect(buildHypaCommand("git diff HEAD~3", BIN)).toBe(
-			`${BIN} -c "git diff HEAD~3"`,
+		expect(buildHypaCommand("git log -5", BIN)).toBe(
+			`${BIN} -c "git log -5"`,
 		);
 	});
 
@@ -81,6 +83,11 @@ describe("buildHypaCommand — envuelve el allowlist", () => {
 });
 
 describe("buildHypaCommand — FAIL CLOSED (deja crudo)", () => {
+	test("los parches de revisión conservan salida y recuperación nativas", () => {
+		for (const command of ["git diff", "git diff HEAD~3", "git show HEAD", "git --no-pager diff"]) {
+			expect(buildHypaCommand(command, BIN)).toBeNull();
+		}
+	});
 	test("comando vacío", () => {
 		expect(buildHypaCommand("   ", BIN)).toBeNull();
 	});
@@ -199,5 +206,61 @@ describe("resolveHypaEnabled", () => {
 		// auto con marca → on
 		writeFileSync(join(cwd, "go.mod"), "\n");
 		expect(resolveHypaEnabled(cwd)).toBe(true);
+	});
+});
+
+describe("resolveHypaBin — instalación real", () => {
+	let dir: string;
+	beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "ein-hypa-path-")); });
+	afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+	const name = process.platform === "win32" ? "hypa.exe" : "hypa";
+	function binary(folder: string) {
+		mkdirSync(folder, { recursive: true }); const path = join(folder, name);
+		writeFileSync(path, "#!/bin/sh\nexit 0\n"); chmodSync(path, 0o755); return path;
+	}
+	test("encuentra Homebrew/PATH y conserva la prioridad del override", () => {
+		const found = binary(join(dir, "brew bin")); const explicit = binary(join(dir, "override"));
+		expect(resolveHypaBin({ PATH: join(dir, "brew bin") })).toBe(found);
+		expect(resolveHypaBin({ PATH: join(dir, "brew bin"), HYPA_BIN: explicit })).toBe(explicit);
+	});
+	test("omite entradas relativas y directorios que parecen binarios", () => {
+		const bad = join(dir, "bad"); mkdirSync(join(bad, name), { recursive: true });
+		const goodDir = join(dir, "good"); const good = binary(goodDir);
+		expect(resolveHypaBin({ PATH: [".", "", "node_modules/.bin", bad, goodDir].join(delimiter) })).toBe(good);
+	});
+	test("omite un archivo no ejecutable en Unix", () => {
+		if (process.platform === "win32") return;
+		const badDir = join(dir, "bad"); chmodSync(binary(badDir), 0o644);
+		const goodDir = join(dir, "good"); const good = binary(goodDir);
+		expect(resolveHypaBin({ PATH: [badDir, goodDir].join(delimiter) })).toBe(good);
+	});
+	test("el binario descubierto se cita como una sola palabra de shell", () => {
+		if (process.platform === "win32") return;
+		const path = binary(join(dir, "brew bin"));
+		const command = buildHypaCommand("git status", path)!;
+		expect(Bun.spawnSync(["/bin/sh", "-c", command]).exitCode).toBe(0);
+	});
+	test("el proveedor foreground respeta off, protege comandos y no envuelve dos veces", async () => {
+		const prior = process.env.HYPA_BIN;
+		process.env.HYPA_BIN = binary(join(dir, "bin"));
+		try {
+			let handler: any;
+			commandGuard({ on: (_event: string, callback: unknown) => { handler = callback; } } as never);
+			const ctx = { cwd: dir, hasUI: false };
+			const call = (command: string) => ({ toolName: "bash", toolCallId: "hypa", input: { command } });
+			writeHypaMode(dir, "on");
+			const log = call("git log -1");
+			expect(await handler(log, ctx)).toBeUndefined();
+			const wrapped = log.input.command;
+			expect(wrapped).toContain(' -c "git log -1"');
+			expect(await handler(log, ctx)).toBeUndefined();
+			expect(log.input.command).toBe(wrapped);
+			expect(await handler(call("git push --force origin main"), ctx)).toMatchObject({ block: true });
+			const diff = call("git diff"); await handler(diff, ctx); expect(diff.input.command).toBe("git diff");
+			writeHypaMode(dir, "off");
+			const off = call("git log -1"); await handler(off, ctx); expect(off.input.command).toBe("git log -1");
+		} finally {
+			if (prior === undefined) delete process.env.HYPA_BIN; else process.env.HYPA_BIN = prior;
+		}
 	});
 });

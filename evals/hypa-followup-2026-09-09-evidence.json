@@ -1,0 +1,116 @@
+{
+  "path": "/Users/samu/Documents/01_Proyectos/ein-agent/.pi/ein/evidence/hypa-followup-2026-09-09.tar.gz",
+  "sha256": "c889f16d91fc94e76b68a7da2566bc997d447ec44ad0ba4dd8873c84524f79d4",
+  "bytes": 93651,
+  "files": [
+    {
+      "path": "CommandRunnerService.cs",
+      "sha256": "8678a0803945b7c748cd02049a38fe875fac253104c595e613a94e36eeeec573"
+    },
+    {
+      "path": "HypaConfig.cs",
+      "sha256": "9f272d3c9574f12be47c6cf22d44d59c3ca44694e495abcfccbfc1e9410ea370"
+    },
+    {
+      "path": "JsonConfigLoader.cs",
+      "sha256": "3022897405e393a7f917c37041bfec059bdfcd1cf716de95d221184708b94687"
+    },
+    {
+      "path": "bun-test-off.txt",
+      "sha256": "599b7304f950ff63b220db8017496bfb4b199db705f53e9cc7d01d9e6682e34b"
+    },
+    {
+      "path": "bun-test-on.txt",
+      "sha256": "fd6e38c6458c4e3428bb7299eae20bbd0b2c75bf899b4e7da9f5d14827b17b47"
+    },
+    {
+      "path": "duplicate-provider.ts",
+      "sha256": "0b8777d4cc8a4538b24e6aab9cf158860374799652035ba32103d8893c2318f6"
+    },
+    {
+      "path": "failure-off.txt",
+      "sha256": "5bf12e35f4da0e2894862901305b74ebaa8e5028ab49f3ca9c19088edb7fa262"
+    },
+    {
+      "path": "failure-on.txt",
+      "sha256": "5bf12e35f4da0e2894862901305b74ebaa8e5028ab49f3ca9c19088edb7fa262"
+    },
+    {
+      "path": "final-routing.json",
+      "sha256": "5ca10b8fe5029031182f7fb1e072e7f9f1173766124c61b1add8af3584d89688"
+    },
+    {
+      "path": "final-tests.log",
+      "sha256": "ae3fc198dadc87a35858ae170c8773f57cad55b2d5cb3d8ac9b195ea982a661d"
+    },
+    {
+      "path": "final-typecheck.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "history-off.txt",
+      "sha256": "5ce79ff65266c473ea3f70b8f52614b19dd0dd85ba35aad53f2badb492a064e6"
+    },
+    {
+      "path": "history-on.txt",
+      "sha256": "90fe9868f45650d7a06b5756d0b607b361bf17e58d89ff10fbc982da0b0e97e8"
+    },
+    {
+      "path": "large-diff-off.txt",
+      "sha256": "057a15895f61f24071534d74c5d6edf1e9a896fc42333a3b6380f8c2bad9ce55"
+    },
+    {
+      "path": "large-diff-on.txt",
+      "sha256": "44957efd1759c1459b7323a4c9feb5d35bd19497c41367ed56ad93bea252f9d7"
+    },
+    {
+      "path": "large-diff-original.diff",
+      "sha256": "a18f09373265958382629cf8674a7815c9bd5fe29ab6926e24c555a070ff3694"
+    },
+    {
+      "path": "native-results.json",
+      "sha256": "8562d431479cc3c4eccd256cc305af982289c1ff69dba22d6040652c0158fa3a"
+    },
+    {
+      "path": "native.ts",
+      "sha256": "ecf6e7421e5ec6f63a1ed8b66371c7194bf7e1448ec3a168be12ae367f22720e"
+    },
+    {
+      "path": "probe.json",
+      "sha256": "bee338b52d988a656baad4319a1a5dfc5f6580d7ef4bbcd2591fb61bf22a1654"
+    },
+    {
+      "path": "probe.ts",
+      "sha256": "b26f0ddf6d13597e174abaed0e96623869125768b16a8d6b4756af9d4c0bbe1f"
+    },
+    {
+      "path": "results.json",
+      "sha256": "cd3f255ceeb0d8cf28da2d0e4b19587dd46b90c60b1706a893acf1c89f987ef5"
+    },
+    {
+      "path": "small-diff-off.txt",
+      "sha256": "e99738452e17a6999c0025f9ca21f4ec3f5e70533964ba0136c78997fe21f135"
+    },
+    {
+      "path": "small-diff-on.txt",
+      "sha256": "50f67fa51213b66b81c0b7abce1b4613883db8cd5c375883bd2cf1fb55b06629"
+    },
+    {
+      "path": "small-diff-original.diff",
+      "sha256": "e99738452e17a6999c0025f9ca21f4ec3f5e70533964ba0136c78997fe21f135"
+    },
+    {
+      "path": "typecheck.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "unit.log",
+      "sha256": "edfca6b4dac8fe051da87209cfaa7929f8e44c1f7c3d3b5311b78a6320263d86"
+    },
+    {
+      "path": "upstream-tree.txt",
+      "sha256": "42d3ae7b6d5672026ff2b9acaed217e994d91d059698485c28ca3d05dcc0bc24"
+    }
+  ],
+  "notes": "Only command-output probes; no model sessions, credentials or Hypa SQLite stores are included."
+}
