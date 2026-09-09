@@ -4,8 +4,8 @@ Base reviewed: `origin/main` at `a8e05228a6bf423688058d28a34d5c102e97840c` (incl
 
 ## Results
 
-- Complete suite: **3,242 passed, 0 failed**, 249 files (103.05 seconds).
-- Intent-specific integration suite: **30 passed, 0 failed**.
+- Complete suite at implementation commit `d4a72f3`: **3,242 passed, 0 failed**, 249 files (103.05 seconds).
+- Intent-specific integration suite, including the added input regressions: **33 passed, 0 failed**.
 - Final targeted path/intent/summary check: **44 passed, 0 failed**, including CRLF and the legacy `.sdd` root.
 - TypeScript check: passed. Both runtime payloads built successfully.
 - Real-model conversation: all five checks passed.
@@ -63,3 +63,20 @@ The pi-lens worktree currently exposes a probe configuration, not an integrated 
 ## Compatibility boundary
 
 Historical scoped changes without managed intent remain resumable. Existing legacy intent prose is preserved until an adoption round is answered. Claude can read confirmed agreements and shares routing/close validation, but this change does not implement Pi's response-capture tool in Claude: new or changed managed agreements must be resolved in Pi before handoff.
+
+## PR #365 regression: conversation remains with the parent
+
+The earlier P0 [PR #365](https://github.com/samuhlo/ein-agent/pull/365) removed a lexical input classifier that returned `handled` for unknown messages, preventing them from reaching the model. The new intent observer preserves `continue` and does not invoke discovery from the input hook. The parent initiates discovery through its tool only after receiving the message.
+
+Reproduction: `bun tooling/verify-intent-runtime.ts --conversation-only`. This mode uses the normal parent prompt without the original pilot's forced-SDD instruction. The actual transcript is in `conversation-regression.json`.
+
+Verified with the configured real parent model:
+
+1. A greeting reached the parent and received an ordinary answer; no intent was created.
+2. Thinking aloud about changing CSV, explicitly without starting work, produced a discussion of alternatives; no intent was created.
+3. An explicit request to start developing CSV caused the parent to propose intent.
+4. While intent was pending, asking for an explanation reached the parent unchanged and received the explanation. The agreement remained pending and no change files were created.
+
+Additional registered-hook regressions cover greetings, thanks, modifying language, exploratory discussion and extension briefs with zero, one and two existing changes, plus discussion during a pending round. `bun test tests/pi-input-transparency.test.ts tests/intent-discovery.test.ts`: **38 passed, 0 failed**. TypeScript check passed. These additions change the tests and pilot only; the runtime implementation was unchanged.
+
+This verifies transport transparency and the observed conversational cases. It does not guarantee that a model will classify every possible ambiguous request correctly.

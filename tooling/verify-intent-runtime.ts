@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerIntentDiscovery } from "../ein-pi/agent/extensions/internal/ein-intent-discovery.ts";
 import { artifactHasIntentKey, readAgreement } from "../ein-pi/agent/lib/intent-agreement.ts";
 import { buildEinPrompt } from "../ein-pi/agent/lib/persona.ts";
 
-const root = resolve(import.meta.dir, "..");
+const conversationOnly = process.argv.includes("--conversation-only");
 const installed = process.env.EIN_INTENT_PILOT_AGENT_HOME ?? join(homedir(), ".pi-ein/agent");
 const output = mkdtempSync("/tmp/ein-intent-live-");
 console.log(`Pilot artifacts: ${output}`);
@@ -46,10 +46,11 @@ const extension = (pi: ExtensionAPI) => {
  });
 };
 const sm = SettingsManager.inMemory({ retry: { enabled: false }, compaction: { enabled: false } });
+const parentSession = SessionManager.inMemory(cwd);
 const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager: sm, extensionFactories: [extension], noExtensions: true, noSkills: true, noPromptTemplates: true, noContextFiles: true,
- systemPrompt: `${buildEinPrompt("neutral")}\nThis controlled pilot exposes only intent and a design executor. Treat the request as SDD with work/change export-csv. After agreement, delegate exactly one sdd-design with change and intent_work markers, then report. Do not run other phases or read full workflow manuals; this pilot ends at the product specification.` });
+ systemPrompt: conversationOnly ? buildEinPrompt("neutral") : `${buildEinPrompt("neutral")}\nThis controlled pilot exposes only intent and a design executor. Treat the request as SDD with work/change export-csv. After agreement, delegate exactly one sdd-design with change and intent_work markers, then report. Do not run other phases or read full workflow manuals; this pilot ends at the product specification.` });
 await loader.reload();
-const { session } = await createAgentSession({ cwd, agentDir, modelRuntime: runtime, model, thinkingLevel: settings.defaultThinkingLevel, settingsManager: sm, resourceLoader: loader, sessionManager: SessionManager.inMemory(cwd), tools: ["ein_intent", "subagent", "read"] });
+const { session } = await createAgentSession({ cwd, agentDir, modelRuntime: runtime, model, thinkingLevel: settings.defaultThinkingLevel, settingsManager: sm, resourceLoader: loader, sessionManager: parentSession, tools: ["ein_intent", "subagent", "read"] });
 await session.bindExtensions({ mode: "rpc", onError: (error) => { throw new Error(String(error)); } });
 session.subscribe((event) => { if (["tool_execution_start", "tool_execution_end", "message_end"].includes(event.type)) events.push(event); });
 async function turn(text: string) {
@@ -62,6 +63,28 @@ async function turn(text: string) {
  return answer;
 }
 try {
+ if (conversationOnly) {
+  const hasState = () => parentSession.getBranch().some((entry) => entry.type === "custom" && entry.customType === "ein:intent-discovery");
+  const received = (text: string) => session.messages.some((message) => message.role === "user" && (typeof message.content === "string" ? message.content === text : message.content.some((part) => part.type === "text" && part.text === text)));
+  for (const text of ["Hola, ¿podemos hablar un momento?", "Estoy pensando en cambiar la exportación CSV, pero todavía no quiero empezar ningún cambio. Ayúdame a pensar qué conviene tener en cuenta."]) {
+   const answer = await turn(text);
+   assert(received(text), "The ordinary user message must reach the model verbatim");
+   assert(answer.trim(), "The orchestrator must answer the conversation");
+   assert.equal(hasState(), false, "Conversation must not automatically propose intent");
+   assert.equal(writes, 0); assert.equal(existsSync(join(cwd, "openspec")), false);
+  }
+  await turn("Ahora sí: quiero desarrollar exportación CSV para la tabla de contactos. Empecemos acordando el alcance; usa SDD en modo auto.");
+  assert.equal(hasState(), true, "The orchestrator should initiate intent once actual work is requested");
+  const explanation = "Antes de elegir, explícame la diferencia entre exportar las filas filtradas y exportarlas todas. Esto es una pregunta, todavía no estoy eligiendo ni confirmando.";
+  const answer = await turn(explanation);
+  assert(received(explanation), "A pending intent must not consume further conversation");
+  assert.match(answer, /filtrad|filter/i); assert.match(answer, /todas|todos|all/i);
+  const latest = [...parentSession.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === "ein:intent-discovery");
+  assert(latest?.type === "custom" && (latest.data as { status: string }).status === "pending");
+  assert.equal(writes, 0); assert.equal(existsSync(join(cwd, "openspec")), false);
+  writeFileSync(join(output, "result.json"), JSON.stringify({ passed: true, model: `${settings.defaultProvider}/${settings.defaultModel}`, regression: "PR #365", checks: ["greeting reaches parent", "exploratory conversation creates no intent", "parent starts intent for actual work", "conversation while intent is pending remains available", "explanation is not confirmation"] }, null, 2));
+  console.log(`PASS conversation ${output}`);
+ } else {
  const first = await turn("Quiero añadir exportación CSV a la tabla de contactos, la única del prototipo. Usa SDD en modo auto.");
  assert.match(first, /[?¿]/); assert.equal(writes, 0); assert.equal(existsSync(join(cwd, "openspec")), false);
  const second = await turn("Todas las filas filtradas (no solo la página) y en el orden visible. Columnas: nombre y correo. Sin exportar datos ocultos. CSV genérico con comas y UTF-8, no específico de Excel. Usa convenciones CSV estándar para escapar valores. Con eso puedes elaborar las specs.");
@@ -81,4 +104,5 @@ try {
  assert.equal(cancelled.kind === "valid" && cancelled.agreement.status, "cancelled");
  writeFileSync(join(output, "result.json"), JSON.stringify({ passed: true, model: `${settings.defaultProvider}/${settings.defaultModel}`, checks: ["auto asks before state", "real answer closes intent", "real model writes aligned specs", "scope change reopens discovery", "cancellation stops"], specification: design, second }, null, 2));
  console.log(`PASS ${output}`);
+ }
 } finally { session.dispose(); }

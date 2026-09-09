@@ -29,7 +29,7 @@ function harness(cwd = mkdtempSync(join(tmpdir(), "ein-intent-")), branch: any[]
   const status = JSON.parse((await call({ action: "status", change })).content[0].text);
   return call({ action: "confirm", change, responseId: status.response?.id });
  };
- return { cwd, branch, ctx, call, input, gate, propose, confirm, start: (event: object) => handlers.get("before_agent_start")!(event,ctx) };
+ return { cwd, branch, ctx, call, input, gate, propose, confirm, inputEvent: (event: object) => handlers.get("input")!(event,ctx), start: (event: object) => handlers.get("before_agent_start")!(event,ctx) };
 }
 
 describe("intent discovery through the registered Pi tool and hooks", () => {
@@ -40,6 +40,27 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   expect(existsSync(join(h.cwd, "openspec"))).toBe(false);
   expect(h.branch).toHaveLength(0);
  });
+ for (const count of [0, 1, 2]) {
+  test(`PR #365: all input reaches the parent with ${count} existing changes, including while intent is pending`, async () => {
+   const h=harness();
+   for(let n=0;n<count;n++) mkdirSync(join(h.cwd,"openspec/changes",`existing-${n}`),{recursive:true});
+   for(const [text,source] of [["hola","interactive"],["gracias","rpc"],["Arregla esto","interactive"],["Estoy pensando en cambiarlo, pero solo quiero hablar de alternativas","interactive"],["continuity-resume-brief/v1\ncontexto","extension"]]) {
+    const event=Object.freeze({type:"input",text,source,streamingBehavior:"followUp",images:[]});
+    const before=JSON.stringify(event);
+    expect(h.inputEvent(event)).toEqual({action:"continue"});
+    expect(JSON.stringify(event)).toBe(before);
+    expect(h.branch).toHaveLength(0);
+   }
+   await h.propose();
+   const event=Object.freeze({type:"input",source:"interactive",text:"Antes de responder, explícame las alternativas. No estoy confirmando."});
+   const before=JSON.stringify(event);
+   expect(h.inputEvent(event)).toEqual({action:"continue"});expect(JSON.stringify(event)).toBe(before);
+   const state=JSON.parse((await h.call({action:"status"})).content[0].text);
+   expect(state.agreement.status).toBe("pending");expect(state.response.text).toBe(event.text);
+   expect(h.branch.filter(entry=>entry.customType==="ein:intent-discovery")).toHaveLength(1);
+   expect(existsSync(join(h.cwd,"openspec/changes/export-csv"))).toBe(false);
+  });
+ }
  test("new small work and explicit SDD cannot launch without an agreement", () => {
   const h = harness();
   for (const agent of ["sdd-scope", "sdd-design", "sdd-apply"]) expect(h.gate({ agent, task: "Implement export" })).toMatchObject({ block: true });

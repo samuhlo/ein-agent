@@ -1,0 +1,22 @@
+[
+  {
+    "turn": "Hola, ¿podemos hablar un momento?",
+    "answer": "Claro. ¿De qué te gustaría hablar?",
+    "writes": 0
+  },
+  {
+    "turn": "Estoy pensando en cambiar la exportación CSV, pero todavía no quiero empezar ningún cambio. Ayúdame a pensar qué conviene tener en cuenta.",
+    "answer": "Sí. Podemos valorar las opciones sin tocar nada ni iniciar ningún cambio.\n\nLo principal es **quién utiliza el CSV y para qué**. No conviene diseñar igual una exportación que se abre en Excel que una que consume otro sistema.\n\nTendría en cuenta estos puntos:\n\n- **Compatibilidad:** ¿hay personas o procesos que dependan de los nombres, el orden de las columnas o los formatos actuales? Cambiarlos puede romper importaciones.\n- **Qué datos salen:** todos los registros o solo los filtrados; columnas visibles o un conjunto fijo; cómo representar valores vacíos.\n- **Formato:** separador, codificación, fechas, zona horaria y decimales. Las configuraciones regionales de las hojas de cálculo pueden interpretarlos de manera distinta.\n- **Corrección y seguridad:** conservar ceros iniciales en identificadores, escapar comillas y saltos de línea, y evitar que valores introducidos por usuarios se ejecuten como fórmulas.\n- **Volumen y experiencia:** cuánto tarda, qué ocurre si falla y si una exportación grande necesita generarse en segundo plano.\n- **Privacidad:** qué campos se pueden exportar y con qué permisos.\n\nMi recomendación sería partir del problema actual, no de una lista de funciones: **¿qué te hace pensar en cambiar la exportación y quién está notando esa limitación?**",
+    "writes": 0
+  },
+  {
+    "turn": "Ahora sí: quiero desarrollar exportación CSV para la tabla de contactos. Empecemos acordando el alcance; usa SDD en modo auto.",
+    "answer": "Acordemos el alcance antes de implementar. Usaremos SDD en modo auto después de resolver estas decisiones.\n\nPropuesta: exportar contactos respetando los permisos existentes, sin cambiar otras tablas ni la importación. Comprobaremos los datos exportados, el formato y los errores, incluyendo protección frente a fórmulas.\n\n1. ¿Qué contactos incluimos: todos los filtrados, solo la página actual o los seleccionados? Recomiendo todos los filtrados, incluidas las demás páginas, para evitar archivos incompletos.\n\n2. ¿Qué columnas: las visibles o un conjunto fijo? Recomiendo las visibles, en su mismo orden y sin controles ni acciones, para reflejar la vista.\n\n3. ¿Se abrirá principalmente en Excel con configuración española o lo consumirá otro sistema? Para Excel español recomiendo UTF-8 con BOM y punto y coma; una integración puede requerir otro formato.\n\n4. ¿Basta con un botón «Exportar CSV» y descarga directa, o necesitas generación en segundo plano? Recomiendo descarga directa inicialmente. Si manejáis grandes volúmenes, ¿de cuántos contactos hablamos aproximadamente?",
+    "writes": 0
+  },
+  {
+    "turn": "Antes de elegir, explícame la diferencia entre exportar las filas filtradas y exportarlas todas. Esto es una pregunta, todavía no estoy eligiendo ni confirmando.",
+    "answer": "**Exportar las filas filtradas** incluye solo los contactos que cumplen los filtros y la búsqueda activos. Normalmente abarca **todas las páginas de resultados**, no solo la que estás viendo.\n\n**Exportarlas todas** ignora esos filtros y exporta todos los contactos a los que tienes acceso. No debe saltarse los permisos.\n\nPor ejemplo: tienes 2.000 contactos, filtras por «Madrid» y quedan 150, repartidos en páginas de 25:\n- **Filtradas:** exporta 150.\n- **Todas:** exporta 2.000.\n- **Página actual:** sería una tercera opción; exporta 25.\n\nLas filtradas sirven para trabajar con un segmento concreto; todas, para obtener un listado completo. Si ofrecemos ambas, conviene indicarlo claramente: «Exportar resultados filtrados (150)» y «Exportar todos los contactos (2.000)».\n\nSeguimos valorando opciones: esto no confirma ninguna elección.",
+    "writes": 0
+  }
+]
