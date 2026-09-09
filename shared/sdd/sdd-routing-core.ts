@@ -20,6 +20,7 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { extractDeclaredFrontierPaths } from "./sdd-tasks-frontier.ts";
 
 export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
 export type SddNext = SddPhase | "done";
@@ -692,7 +693,7 @@ function resolveSddStatus(
 // ficheros de PRODUCCIÓN y un comando de verify representativo. Lo consume el
 // brief docente pre-apply para que "qué se toca" sean hechos, no la paráfrasis
 // del modelo. Puro y testeable.
-export type SddPlanGroup = { title: string; files: string[]; verify: string | null };
+export type SddPlanGroup = { title: string; files: string[]; testFiles?: string[]; verify: string | null };
 export type SddPlanPreview = { change: string; groups: SddPlanGroup[] };
 
 // Ficheros que el apply EDITA y que cuestan ciclos: código y CONTRATOS markdown
@@ -703,7 +704,6 @@ export type SddPlanPreview = { change: string; groups: SddPlanGroup[] };
 // (specs y deltas los gestiona el sync / la tool de deltas, no el apply a mano)
 // contarían como ruido en el sentido opuesto — se excluyen explícitamente.
 const SOURCE_FILE_RE = /[\w./-]+\.(?:ts|tsx|js|jsx|mjs|cjs|vue|svelte|py|rb|go|rs|java|kt|c|cc|cpp|cs|php|sql|css|scss|less|md)\b/g;
-const PLAN_VERIFY_RE = /\bbunx?\s+(?:vitest\s+run|vitest|test)\b[^`\n]*/i;
 const SDD_ARTIFACT_BASENAMES = new Set(["scope.md", "map.md", "design.md", "tasks.md", "apply-progress.md", "verify-report.md", "summary.md", "sync-report.md"]);
 
 export function isTestPath(path: string): boolean {
@@ -774,9 +774,12 @@ export function resolveSddPlanPreview(cwd: string, change?: string): SddPlanPrev
 	for (let i = 1; i < parts.length; i += 2) {
 		const title = (parts[i] ?? "").trim();
 		const body = parts[i + 1] ?? "";
-		const files = extractProductionFiles(body);
-		const verifyMatch = body.match(PLAN_VERIFY_RE);
-		groups.push({ title, files, verify: verifyMatch ? verifyMatch[0].trim() : null });
+		// Reuse the packet frontier grammar: context and intent prose grant no edits.
+		const declared = extractDeclaredFrontierPaths(body).filter((path) => !isProcessOrSpecPath(path));
+		const files = declared.filter(isProductionFile);
+		const testFiles = declared.filter(isTestPath);
+		const checks = [...new Set([...body.matchAll(/^[\t ]*-?[\t ]*verify:[\t ]*([^\r\n]*)\r?$/gim)].map((match) => match[1].trim()).filter(Boolean))];
+		groups.push({ title, files, testFiles, verify: checks.length ? checks.join("; ") : null });
 	}
 	return { change: target, groups };
 }
@@ -787,7 +790,8 @@ export function formatSddPlanPreview(preview: SddPlanPreview): string {
 	const lines = [`plan de apply: ${preview.groups.length} grupo(s)`];
 	for (const group of preview.groups) {
 		lines.push(`- ${group.title}`);
-		lines.push(`    toca: ${group.files.length ? group.files.join(", ") : "(sin ficheros de producción)"}`);
+		lines.push(`    toca: ${group.files.length ? group.files.join(", ") : "(sin rutas de producción declaradas)"}`);
+		if (group.testFiles?.length) lines.push(`    tests: ${group.testFiles.join(", ")}`);
 		if (group.verify) lines.push(`    verify: ${group.verify}`);
 	}
 	return lines.join("\n");

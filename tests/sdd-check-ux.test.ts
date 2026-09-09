@@ -144,7 +144,7 @@ describe("contract: ein_sdd_check tool devuelve texto formateado", () => {
 		expect(ai).toMatch(/name:\s*"ein_sdd_check"/);
 		expect(ai).not.toMatch(/JSON\.stringify\(lintChange/);
 		// El report crudo se conserva en details para uso programatico
-		expect(ai).toMatch(/details:\s*report/);
+		expect(ai).toMatch(/details:\s*\{\s*\.\.\.report/);
 		// El comando usa registerCommand
 		expect(ai).toMatch(/registerCommand\(\s*"ein:sdd-check"/);
 	});
