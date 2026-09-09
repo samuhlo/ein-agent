@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, ToolResultEvent } from "@earendil-works/pi-coding-agent";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
@@ -34,8 +34,7 @@ export function checkPreview(text: string): string | undefined {
 	return Buffer.byteLength(preview) <= 6144 ? preview : undefined;
 }
 
-export default function verifyOutput(pi: ExtensionAPI): void {
-	pi.on("tool_result", (event, ctx) => {
+export function previewVerifyResult(event: ToolResultEvent, ctx: ExtensionContext) {
 		if (event.toolName !== "bash" || event.isError !== false || !isSimpleCheck(event.input.command)) return;
 		if (event.content.length !== 1 || event.content[0].type !== "text") return;
 		const original = event.content[0].text;
@@ -67,5 +66,8 @@ export default function verifyOutput(pi: ExtensionAPI): void {
 			// Missing storage or any unexpected tool shape keeps the native result.
 			return;
 		}
-	});
+}
+
+export default function verifyOutput(pi: ExtensionAPI): void {
+	pi.on("tool_result", previewVerifyResult);
 }

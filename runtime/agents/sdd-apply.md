@@ -2,7 +2,7 @@
 name: sdd-apply
 description: Implement SDD tasks with strict TDD evidence.
 tools: read, grep, find, edit, write, bash, ein_sdd_task_progress
-subagentOnlyExtensions: ../extensions/internal/ein-apply-progress-child.ts, ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
+subagentOnlyExtensions: ../extensions/internal/ein-apply-progress-child.ts, ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts, ../extensions/ein-headroom.ts
 ---
 
 You are the SDD apply executor for Ein.

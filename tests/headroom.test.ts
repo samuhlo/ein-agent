@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createHeadroomExtension } from "../ein-pi/agent/extensions/ein-headroom.ts";
+import verifyOutput from "../ein-pi/agent/extensions/internal/ein-verify-output-child.ts";
 import { compressHeadroom, eligibleHeadroomOutput, headroomPayload, headroomConfig, headroomTableText, presentHeadroom, verifyHeadroomTable, verifyHeadroomRepresentation, saveHeadroomOriginal, type HeadroomConfig } from "../ein-pi/agent/lib/headroom.ts";
 
 const dirs: string[] = [];
@@ -29,6 +30,31 @@ function harness(config: HeadroomConfig, activeTools = ["bash", "read"]) {
 }
 
 describe("Headroom is an explicit, local experiment", () => {
+	test("verify check previews take precedence in either registration order without a compressor call", async () => {
+		let requests = 0;
+		const config = serve(() => { requests++; return compressed(); });
+		const outputs: string[] = [];
+		for (const headroomFirst of [true, false]) {
+			const handlers: Function[] = [];
+			const api = { on: (name: string, handler: Function) => { if (name === "tool_result") handlers.push(handler); }, registerCommand() {}, getActiveTools: () => ["read", "bash"], appendEntry() {} } as unknown as ExtensionAPI;
+			if (headroomFirst) createHeadroomExtension(config)(api);
+			verifyOutput(api);
+			if (!headroomFirst) createHeadroomExtension(config)(api);
+			const cwd = temp();
+			const text = "2026-09-09T08:00:00Z INFO case passed\n".repeat(1000) + "1000 tests passed\n";
+			let event: any = { ...candidate(), input: { command: "bun test checks.test.ts" }, content: [{ type: "text", text }] };
+			const ctx = { cwd, getSystemPrompt: () => "You are the independent SDD verify executor.", sessionManager: { getSessionId: () => "verify", getSessionFile: () => join(cwd, "session.jsonl") } };
+			for (const handler of handlers) event = { ...event, ...await handler(event, ctx) };
+			expect(event.content[0].text).toStartWith("[Check output preview;");
+			expect(event.details).toEqual(candidate().details);
+			expect(event.isError).toBe(false);
+			const path = event.content[0].text.match(/Full log: (.+)\]/)[1];
+			expect(readFileSync(path, "utf8")).toBe(text);
+			outputs.push(event.content[0].text.split("\n").slice(1).join("\n"));
+		}
+		expect(outputs[0]).toBe(outputs[1]);
+		expect(requests).toBe(0);
+	});
 	test("disabled by default and registers no hooks", () => {
 		expect(headroomConfig({})).toMatchObject({ mode: "off" });
 		expect(harness({ ...headroomConfig({}), mode: "off" }).handlers.size).toBe(0);

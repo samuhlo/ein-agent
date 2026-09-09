@@ -94,7 +94,7 @@ test("normal extension keeps controls available when off and Hypa cannot rewrite
   createHeadroomExtension()({ registerCommand: (name: string) => commands.push(name), on: (name: string) => hooks.push(name) } as unknown as ExtensionAPI);
   expect(commands).toEqual(["ein:headroom", "ein:hypa"]); expect(hooks).toContain("tool_result");
   const gate = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/internal/ein-tool-call-gate.ts"), "utf8");
-  expect(gate).not.toContain("maybeWrapBashInput"); expect(gate).toContain("confirmCommand(event.input.command");
+  expect(gate).not.toContain("maybeWrapBashInput"); expect(gate).toContain("guardChildCommand(event, ctx)");
 });
 
 test("does not post command data to an unrelated service on the configured port", async () => {

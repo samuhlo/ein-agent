@@ -1,3 +1,5 @@
+import { previewVerifyResult } from "./internal/ein-verify-output-child.ts";
+import { readAgentStartNames } from "./internal/ein-pi-event-contracts.ts";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { compressHeadroom, headroomSource, headroomPayload, headroomConfig, headroomNotice, headroomTableText, presentHeadroom, verifyHeadroomRepresentation, saveHeadroomOriginal, HEADROOM_DELIVERY_BYTES, type HeadroomConfig } from "../lib/headroom.ts";
 import { HEADROOM_OPTIONS, writeHeadroomMode, noteHeadroomAvailability } from "../lib/headroom-settings.ts";
@@ -84,6 +86,12 @@ export function createHeadroomExtension(fixed?: HeadroomConfig): (pi: ExtensionA
       let config: HeadroomConfig;
       try { config = configuration(ctx.cwd); } catch { noteHeadroomAvailability(ctx.cwd, "invalid"); return; }
       if (config.mode === "off" || consecutiveFailures >= 3 || !pi.getActiveTools().includes("read")) return;
+      // Verify's recognized check preview has priority regardless of extension
+      // registration order. Other eligible data retains reversible compression.
+      if (typeof ctx.getSystemPrompt === "function" && readAgentStartNames({ systemPrompt: ctx.getSystemPrompt() }).includes("sdd-verify")) {
+        const preview = previewVerifyResult(event, ctx);
+        if (preview) return preview;
+      }
       let source: Awaited<ReturnType<typeof headroomSource>>;
       try { source = await headroomSource(event); } catch { return; }
       if (!source) return;
