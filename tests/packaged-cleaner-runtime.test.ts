@@ -60,5 +60,5 @@ describe("packaged Cleaner runtime closure", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 });

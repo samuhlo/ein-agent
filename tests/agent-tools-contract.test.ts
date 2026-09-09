@@ -289,7 +289,14 @@ function participantFixture(session: string): { cwd: string; task: string; conte
 function participantHooks(): Map<string, Hook> {
 	const hooks = new Map<string, Hook>();
 	const pi = {
-		on(name: string, handler: Hook) { hooks.set(name, handler); },
+		on(name: string, handler: Hook) {
+      const previous = hooks.get(name);
+      hooks.set(name, async (...args: unknown[]) => {
+        const prior = await previous?.(...args);
+        if ((prior as { block?: boolean } | undefined)?.block) return prior;
+        return await handler(...args) ?? prior;
+      });
+    },
 		registerCommand() {},
 		registerTool() {},
 		sendUserMessage() {},
@@ -316,7 +323,7 @@ async function deliverParticipantResult(
 	expect(callOutcome).toBeUndefined();
 	expect(input.async).toBe(false);
 	expect(input.foregroundOnly).toBe(true);
-	const result = toolResult({
+	const result = await toolResult({
 		toolName: options.toolName ?? "subagent",
 		toolCallId: "participant-call",
 		isError: options.isError ?? false,
