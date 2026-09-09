@@ -28,14 +28,46 @@ const TASKS = [
 	"status: ready",
 	"blocked_by: none",
 	"## // 001. Contrato de snapshot",
-	"File boundary: shared/types/planning.types.ts, app/stores/planning.ts and tests/stores/planning.test.ts.",
+	"Production files: `shared/types/planning.types.ts`, `app/stores/planning.ts`\nTest files: `tests/stores/planning.test.ts`",
 	"- [ ] 1.1 hacer\n  - verify: `RED: bunx vitest run tests/stores/planning.test.ts`; `GREEN: bunx vitest run tests/stores/planning.test.ts`",
 	"## // 002. Guards de API",
-	"File boundary: server/api/cursos/index.post.ts and tests/server/api/cursos.test.ts.",
+	"Production files: `server/api/cursos/index.post.ts`\nTest files: `tests/server/api/cursos.test.ts`",
 	"- [ ] 2.1 hacer\n  - verify: `GREEN: bunx vitest run tests/server/api/cursos.test.ts`",
 ].join("\n");
 
 describe("resolveSddPlanPreview", () => {
+	test("uses edit/verify fields, never read paths, skill names or examples in prose", () => {
+		mkTasks("precise", [
+			"## // 001. Exact frontier",
+			"- [ ] 1.1 Deliver",
+			"  - skills: `Bun test`",
+			"  - read: `EIN.md`, `src/reference.ts`",
+			"  - avoid: Never edit forbidden.ts or run bun test imaginary.test.ts",
+			"  - edit: `src/result.ts` | modify | preserve `src/reference.ts`",
+			"  - edit: `tests/result.test.ts` | modify | assert behavior",
+			"  - edit: `config.json` | modify | retain other values",
+			"  - verify: `bun run test`; `bun run typecheck`",
+			"  - verify: `npm run lint -- --quiet`",
+		].join("\n"));
+		expect(resolveSddPlanPreview(DIR, "precise").groups[0]).toEqual({
+			title: "// 001. Exact frontier", files: ["src/result.ts", "config.json"],
+			testFiles: ["tests/result.test.ts"], verify: "`bun run test`; `bun run typecheck`; `npm run lint -- --quiet`",
+		});
+	});
+
+	test("unlabelled legacy prose is not promoted to an exact write frontier", () => {
+		mkTasks("legacy", "## Old group\nMaybe edit source.ts; read EIN.md. Bun test is the runner.\n");
+		const preview = resolveSddPlanPreview(DIR, "legacy");
+		expect(preview.groups[0].files).toEqual([]);
+		expect(preview.groups[0].verify).toBeNull();
+		expect(formatSddPlanPreview(preview)).toContain("sin rutas de producción declaradas");
+	});
+
+	test("empty verify fields do not consume the following line; CRLF and duplicate fields are preserved", () => {
+		mkTasks("commands", "## Group\r\n  - verify:\r\n  - skills: Bun test\r\n  - verify: `npm run test -- --run`\r\n  - verify: `npm run test -- --run`\r\n");
+		expect(resolveSddPlanPreview(DIR, "commands").groups[0].verify).toBe("`npm run test -- --run`");
+	});
+
 	test("extrae grupos con ficheros de producción (sin tests) y verify", () => {
 		mkTasks("feat-x", TASKS);
 		const preview = resolveSddPlanPreview(DIR, "feat-x");
@@ -62,7 +94,7 @@ describe("resolveSddPlanPreview", () => {
 			"status: ready",
 			"blocked_by: none",
 			"## // 001. Contrato del scout",
-			"Edita runtime/agents/ein-scout.md y runtime/assets/orchestrator.md.",
+			"Production files: `runtime/agents/ein-scout.md`, `runtime/assets/orchestrator.md`",
 			"Declara el delta en openspec/changes/feat-md/specs/scout-routing/spec.md y actualiza design.md y tasks.md.",
 			"- [ ] 1.1 hacer\n  - verify: `bunx vitest run tests/orchestrator-scope-gate.test.ts`",
 		].join("\n");

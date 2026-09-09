@@ -23,9 +23,13 @@ import {
 	changeUnavailableMessage,
 	resolveChangesDir,
 	resolveSddStatus,
+	resolveSddNext,
+	resolveSddPlanPreview,
+	formatSddPlanPreview,
 } from "../../lib/sdd-router.ts";
 import { SDD_SESSION_BINDING_EVENT_CHANNEL } from "../../lib/sdd-session-binding.ts";
-import { formatChangeLint } from "./ein-sdd-presentation.ts";
+import { formatChangeLint, formatSddNext } from "./ein-sdd-presentation.ts";
+import { readChangeStance, renderChangeStanceLine } from "../../lib/sdd-preflight-record.ts";
 import {
 	saveArchivedCloseMemory,
 	saveCheckedPhaseMemory,
@@ -63,7 +67,7 @@ export function registerSddLifecycleTools(
 	registerEinTool({
 		name: "ein_sdd_check",
 		label: "Ein SDD Check",
-		description: "Deterministic gatekeeper: lint every present SDD artifact of a change (sections, required signals like verify's status line, placeholders, size). Run it AFTER each phase before advancing. Returns a compact per-phase summary (OK/ERRORS + issues). Reads only the filesystem.",
+		description: "Validate SDD artifacts AFTER each phase. Returns gate issues plus the current deterministic next step, recorded stance and apply plan when relevant. Use that route directly: no extra ein_sdd_status/ein_sdd_next call on unchanged state. Gate errors block routing; a clean artifact does not replace fresh behavioral verification. May save an optional memory receipt.",
 		parameters: {
 			type: "object",
 			properties: {
@@ -84,6 +88,18 @@ export function registerSddLifecycleTools(
 			const candidateHasCleanArtifact = Boolean(
 				phaseReport?.present && phaseReport.report?.errors === 0,
 			);
+			const checkedResult = () => {
+				// Read navigation after memory/receipt writes; never cache it across calls.
+				if (report.errors > 0 || (params?.phase && !candidateHasCleanArtifact)) {
+					return { content: [{ type: "text" as const, text: `${formatChangeLint(report)}\n\nRuta bloqueada: el artefacto solicitado falta o no supera el gate. No avanzar.` }], details: { ...report, navigation: null } };
+				}
+				const next = resolveSddNext(ctx.cwd, change);
+				const stance = readChangeStance(ctx.cwd, change);
+				const plan = next.nextRecommended === "apply" && next.blocked.length === 0
+					? resolveSddPlanPreview(ctx.cwd, change) : undefined;
+				const text = [formatChangeLint(report), formatSddNext(next), renderChangeStanceLine(stance), plan ? formatSddPlanPreview(plan) : ""].filter(Boolean).join("\n\n");
+				return { content: [{ type: "text" as const, text }], details: { ...report, navigation: { ...next, stance, plan } } };
+			};
 			if (report.errors > 0 || (params?.memoryCandidate !== undefined && !candidateHasCleanArtifact)) {
 				const memory = safeMemoryReceipt(
 					skippedMemoryReceipt("artifact_gate_failed"),
@@ -91,7 +107,7 @@ export function registerSddLifecycleTools(
 				);
 				appendMemoryReceipt(join(resolveChangesDir(ctx.cwd), change), memory);
 				Object.assign(report, { memory });
-				return { content: [{ type: "text", text: formatChangeLint(report) }], details: report };
+				return checkedResult();
 			}
 			const memory = await saveCheckedPhaseMemory(
 				ctx,
@@ -101,7 +117,7 @@ export function registerSddLifecycleTools(
 			);
 			appendMemoryReceipt(join(resolveChangesDir(ctx.cwd), change), memory);
 			Object.assign(report, { memory });
-			return { content: [{ type: "text", text: formatChangeLint(report) }], details: report };
+			return checkedResult();
 		},
 	});
 
