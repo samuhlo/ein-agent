@@ -99,15 +99,16 @@ async function invokeApplyHook(root: string, options: { hasUI?: boolean; appendF
 
 describe("observación viva de apply-packet/v2", () => {
 	test("the selected group becomes the child's current checklist, not another group's plan", () => {
-		const root = project();
+		const root = project(tasks().replace("  - architecture:", "  - skills: `project-convention`\n  - architecture:"));
 		const task = "openspec/changes/demo/tasks.md\napply_group: // 001. Grupo vivo";
-		const first = compileApplyHandoff(root, task)!;
+		const first = compileApplyHandoff(root, task)!.prompt;
 		expect(first).toContain('"taskId":"1.1"');
+		expect(first).toContain("Group-declared skills: project-convention");
 		expect(first).toContain('"writeAllowlist":["src/demo.ts"]');
 		expect(compileApplyHandoff(root, "legacy task")).toBeUndefined();
 		expect(() => compileApplyHandoff(root, task.replace("Grupo vivo", "Other group"))).toThrow("differs");
 		writeFileSync(join(root, "openspec/changes/demo/design.md"), "# Changed design\n");
-		expect(compileApplyHandoff(root, task)).not.toBe(first);
+		expect(compileApplyHandoff(root, task)!.prompt).not.toBe(first);
 		writeFileSync(join(root, "openspec/changes/demo/tasks.md"), tasks().replace("[ ]", "[x]"));
 		expect(() => compileApplyHandoff(root, task)).toThrow("unavailable");
 	});

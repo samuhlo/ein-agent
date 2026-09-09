@@ -268,6 +268,11 @@ function parseV2Edit(value: string, taskId: string):
  * Conserva el orden de los checkboxes pendientes. Un grupo reanudado no vuelve
  * a incluir pasos ya marcados como completos.
  */
+export function applyGroupSkillNames(tasksText: string, groupTitle: string): string[] {
+	const group = splitGroups(tasksText).find((candidate) => normalizeGroupTitle(candidate.heading) === normalizeGroupTitle(groupTitle));
+	return group ? orderedUnion(v2TaskBlocks(group.body).filter((task) => !task.done).flatMap((task) => fieldValues(task.block, "skills"))) : [];
+}
+
 export function compileApplyPacketV2(input: CompileV2Input): CompileV2Result {
 	const wanted = normalizeGroupTitle(input.groupTitle);
 	const group = splitGroups(input.tasksText).find((candidate) => normalizeGroupTitle(candidate.heading) === wanted);
