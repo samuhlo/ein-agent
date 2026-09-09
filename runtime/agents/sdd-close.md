@@ -8,6 +8,8 @@ completionGuard: false
 
 You are the SDD close executor for Ein. You run as the FINAL phase, only after `sdd-verify` passed.
 
+Read `intent.md` when present; preserve its decisions and write `intent_key: <materialKey>` in your artifact. New product questions block for the parent.
+
 ## Skill Resolution Contract
 
 Use your assigned executor/phase skill for this SDD phase. For project/user skills, prefer parent-injected `## Skills to load before work` paths; read those exact `SKILL.md` files before work. Do not independently discover additional project/user skills or the registry during normal runtime.

@@ -8,6 +8,7 @@ import { withEinCommandSurfaces } from "../lib/command-surface.ts";
 // =============================================================================
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { registerIntentDiscovery } from "./internal/ein-intent-discovery.ts";
 import { registerAdvisoryTools } from "./internal/ein-advisory-tools.ts";
 import { registerGeneralCommands } from "./internal/ein-general-commands.ts";
 import { registerAgentPromptHook } from "./internal/ein-agent-prompt-hook.ts";
@@ -31,6 +32,8 @@ const scoutTracking: ScoutTracking = new Map();
 
 export default function einAi(pi: ExtensionAPI): void {
 	pi = withEinCommandSurfaces(pi, "ein-ai");
+	const registerEinTool = createEinToolRegistrar(pi);
+	if (process.env.PI_SUBAGENT_CHILD !== "1") registerIntentDiscovery(pi, registerEinTool);
 	const delegationResults = registerDelegationResultHook(pi, scoutTracking);
 	const toolCallGate = registerToolCallGate(pi, {
 		scoutTracking,
@@ -43,7 +46,6 @@ export default function einAi(pi: ExtensionAPI): void {
 	registerAgentPromptHook(pi);
 	registerRuntimeCommands(pi, sessionLifecycle.runSddPreflight);
 
-	const registerEinTool = createEinToolRegistrar(pi);
 
 	registerAdvisoryTools(registerEinTool);
 

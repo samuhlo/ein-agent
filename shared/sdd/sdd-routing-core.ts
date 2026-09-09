@@ -21,6 +21,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { extractDeclaredFrontierPaths } from "./sdd-tasks-frontier.ts";
+import { artifactHasIntentKey, readAgreement } from "./intent-agreement.ts";
 
 export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
 export type SddNext = SddPhase | "done";
@@ -109,6 +110,7 @@ export type SddSelection =
 	| { kind: "ambiguous"; candidates: readonly string[] };
 
 export type SddChangeStatus = {
+	intent?: { state: "pending" | "confirmed" | "cancelled" | "invalid"; materialKey?: string; stalePhase?: SddPhase };
 	change: string | null;
 	/** Procedencia de `change`: sin ella no se distingue una decisión de un azar. */
 	selection: SddSelection;
@@ -653,6 +655,22 @@ function resolveSddStatus(
 		blocked.push(specMapProvenanceBlocker(specState));
 		nextRecommended = "scope";
 	}
+	const storedIntent = readAgreement(changePath);
+	const missingManagedIntent = storedIntent.kind === "absent" && lanePhases.some((phase) => present[phase] && readFileSync(phaseArtifactPath(changePath, phase), "utf8").includes("intent_key:"));
+	const intent = missingManagedIntent ? { kind: "invalid" as const } : storedIntent;
+	const intentStatus: SddChangeStatus["intent"] = intent.kind === "absent" ? undefined
+		: intent.kind === "invalid" ? { state: "invalid" }
+		: { state: intent.agreement.status, materialKey: intent.agreement.materialKey };
+	if (intent.kind === "invalid" || (intent.kind === "valid" && intent.agreement.status !== "confirmed")) {
+		blocked.push("Intent pendiente o inválido: resuelve la conversación con el usuario mediante ein_intent antes de continuar.");
+	} else if (intent.kind === "valid") {
+		const stale = lanePhases.find((phase) => present[phase] && !artifactHasIntentKey(readFileSync(phaseArtifactPath(changePath, phase), "utf8"), intent.agreement.materialKey));
+		if (stale) {
+			intentStatus!.stalePhase = stale;
+			nextRecommended = stale;
+			blocked.push(`${PHASE_ARTIFACT[stale]} no corresponde al intent actual: regenera desde ${stale}, conservando solo el trabajo todavía válido.`);
+		}
+	}
 
 	if (["scope", "map", "design"].includes(nextRecommended) && !tasks.present) {
 		tasks.problems = tasks.problems.filter((problem) => problem !== "tasks.md ausente.");
@@ -671,6 +689,7 @@ function resolveSddStatus(
 
 	return {
 		change: target,
+		...(intentStatus ? { intent: intentStatus } : {}),
 		selection,
 		present,
 		currentPhase,
