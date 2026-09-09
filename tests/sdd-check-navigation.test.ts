@@ -31,7 +31,7 @@ function fixture() {
 test("a checked phase returns the existing router's route without another status call", async () => {
 	const { cwd, check } = fixture();
 	const result = await check("design");
-	expect(result.details.errors, result.content[0].text).toBe(0);
+	expect(result.details.errors as number).toBe(0);
 	expect(result.details).toMatchObject(lintChange(cwd, "change"));
 	expect(result.details.navigation).toMatchObject(resolveSddNext(cwd, "change"));
 	expect(result.details.navigation.nextRecommended).toBe("tasks");
@@ -43,7 +43,7 @@ test("tasks navigation includes the same exact apply preview as the status surfa
 	const { cwd, put, check, call } = fixture();
 	put("tasks.md", "status: ready\nblocked_by: none\n## // 001. One behavior\n- outcome: Bounded result.\n- [ ] 1.1 Change the behavior\n  - edit: `src/change.ts` | modify | implement\n  - verify: `bun test tests/change.test.ts`\n");
 	const result = await check("tasks");
-	expect(result.details.errors, result.content[0].text).toBe(0);
+	expect(result.details.errors as number).toBe(0);
 	expect(result.details.navigation.nextRecommended).toBe("apply");
 	expect(result.details.navigation.plan).toEqual(resolveSddPlanPreview(cwd, "change"));
 	const status = await call("ein_sdd_status", { change: "change" });
