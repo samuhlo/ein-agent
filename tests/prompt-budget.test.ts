@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { buildEinPrompt, getOrchestratorPrompt } from "../ein-pi/agent/lib/persona.ts";
 
 const ROOT = join(import.meta.dir, "..");
 
@@ -51,6 +52,15 @@ function overBudgetMessage(name: string, actual: number, budget: number): string
 }
 
 describe("presupuesto de prompt", () => {
+	test("identidad y voz no vuelven a duplicar el contrato del orquestador", () => {
+		for (const persona of ["samuhlo", "neutral"] as const) {
+			const prompt = buildEinPrompt(persona, "es", "off");
+			expect(Buffer.byteLength(prompt) - Buffer.byteLength(getOrchestratorPrompt())).toBeLessThanOrEqual(2_500);
+			// La postura de TDD procede del cambio, no de que el repo tenga tests.
+			expect(prompt).not.toContain("If tests exist, use strict TDD evidence");
+		}
+	});
+
 	test("el prompt del orquestador no crece sin que algo salga a cambio", () => {
 		const actual = bytesOf("runtime/assets/orchestrator.md");
 		if (actual > ORCHESTRATOR_BUDGET_BYTES) {

@@ -1,0 +1,289 @@
+{
+  "date": "2026-09-08",
+  "baselineCommit": "225f7a9651109ef57930be28b2a77a57b884dbe7",
+  "runtime": {
+    "pi": "0.85.1",
+    "piSubagents": "0.66.0",
+    "bun": "1.3.14"
+  },
+  "comparison": [
+    {
+      "case": "identity",
+      "arm": "before",
+      "exitCode": 0,
+      "seconds": 8.79,
+      "turns": 1,
+      "firstInputTokens": 41058,
+      "totalInputTokens": 41058,
+      "costUsd": 0.41273000000000004,
+      "systemBytes": 99755,
+      "tools": 57,
+      "response": "Soy Ein, un harness de desarrollo específico para Pi, con criterio de arquitecto sénior, que coordina subagentes y organiza cambios mediante artefactos de fase SDD/OpenSpec."
+    },
+    {
+      "case": "identity",
+      "arm": "after",
+      "exitCode": 0,
+      "seconds": 9.16,
+      "turns": 1,
+      "firstInputTokens": 23800,
+      "totalInputTokens": 23800,
+      "costUsd": 0.23990000000000003,
+      "systemBytes": 29246,
+      "tools": 57,
+      "response": "Soy Ein, un entorno de asistencia para programación sobre Pi que coordina subagentes y utiliza SDD/OpenSpec para convertir tus objetivos en cambios pequeños y verificados."
+    },
+    {
+      "case": "routing",
+      "arm": "after",
+      "exitCode": 0,
+      "seconds": 9.68,
+      "turns": 1,
+      "firstInputTokens": 23823,
+      "totalInputTokens": 23823,
+      "costUsd": 0.24218000000000003,
+      "systemBytes": 29246,
+      "tools": 57,
+      "response": "Corresponde una **edición pequeña y acotada delegada a `sdd-apply`**, indicando archivo y texto correcto, con comprobación focalizada.\n\n**No activaría SDD completo ni TDD estricto** por una errata. Esta consulta no ejecuta nada ni crea estado. El siguiente paso sería indicar el texto exacto que sustituir."
+    },
+    {
+      "case": "routing",
+      "arm": "before",
+      "exitCode": 0,
+      "seconds": 10.11,
+      "turns": 1,
+      "firstInputTokens": 41081,
+      "totalInputTokens": 41081,
+      "costUsd": 0.41521,
+      "systemBytes": 99755,
+      "tools": 57,
+      "response": "Corresponde un único **`sdd-apply` acotado**, con el archivo y la sustitución exacta; el padre no edita código.\n\n**Sin SDD completo ni TDD estricto**: es una corrección de texto, no de lógica. Bastaría una comprobación puntual del cambio.\n\nNo ejecuto nada; el siguiente paso sería delegar esa sustitución cuando la autorices."
+    },
+    {
+      "case": "skill",
+      "arm": "before",
+      "exitCode": 0,
+      "seconds": 47.68,
+      "turns": 5,
+      "firstInputTokens": 41063,
+      "totalInputTokens": 208606,
+      "costUsd": 0.6333420000000001,
+      "systemBytes": 99755,
+      "tools": 57,
+      "response": "La skill pertinente es **`web-design-guidelines`**: la he localizado con las herramientas de skills de Ein y he leído sus instrucciones, junto con `vue-best-practices`.\n\nSu protocolo exige consultar las directrices actualizadas antes de una auditoría y presentar hallazgos con `archivo:línea`. Aquí solo planteo qué revisaría:\n\n- **Teclado y foco:** navegación completa sin ratón, foco visible, orden lógico y ausencia de bloqueos.\n- **Semántica:** botones y enlaces nativos, encabezados ordenados y nombres accesibles para controles con iconos.\n- **Formularios:** etiquetas asociadas, instrucciones y errores vinculados al campo; no depender únicamente del color.\n- **Diálogos y menús:** apertura, cierre con Escape y gestión y devolución del foco.\n- **Contenido dinámico en Vue:** que `v-if`, cambios de ruta y actualizaciones asíncronas no pierdan el foco; anunciar estados relevantes mediante `aria-live`.\n- **Componentes propios:** que `aria-*`, identificadores y etiquetas lleguen al elemento HTML correcto.\n- **Percepción:** contraste, texto alternativo, ampliación y adaptación de contenido, objetivos táctiles y movimiento reducido.\n\nNo he inspeccionado código del proyecto ni modificado archivos. El siguiente paso sería delimitar una pantalla y su recorrido principal para revisarlos con teclado y lector de pantalla, además de comprobaciones automáticas."
+    },
+    {
+      "case": "skill",
+      "arm": "after",
+      "exitCode": 0,
+      "seconds": 50.38,
+      "turns": 5,
+      "firstInputTokens": 23805,
+      "totalInputTokens": 121892,
+      "costUsd": 0.38592400000000004,
+      "systemBytes": 29246,
+      "tools": 57,
+      "response": "He localizado con las herramientas de Ein **`web-design-guidelines`**, leído su `SKILL.md` y consultado las directrices enlazadas. Es pertinente para auditorías de accesibilidad de interfaces, también en Vue.\n\n**Revisaría:**\n- **Semántica:** botones para acciones, enlaces para navegación, encabezados jerárquicos y acceso directo al contenido principal.\n- **Teclado y foco:** manejo sin ratón, foco visible y no oculto por elementos fijos. En diálogos, entrada y devolución del foco.\n- **Nombres accesibles:** etiquetas de formularios, botones de icono identificables, alternativas textuales e iconos decorativos ocultos al lector.\n- **Formularios:** errores asociados a los campos, instrucciones claras, autocompletado adecuado y pegado permitido.\n- **Actualizaciones de Vue:** anuncios de validación o carga cuando corresponda; conservación del foco al cambiar rutas o renderizar condicionalmente.\n- **Componentes personalizados:** que transmitan atributos ARIA al elemento correcto y mantengan comportamiento nativo siempre que sea posible.\n- **Movimiento y multimedia:** respeto a `prefers-reduced-motion`, controles de pausa, subtítulos y manejo por teclado.\n\nComo complemento, comprobaría **contraste, zoom, redistribución del contenido y tamaño de objetivos según WCAG 2.2 AA**. Esta skill orienta la revisión, pero no acredita conformidad por sí sola.\n\nNo he inspeccionado código del proyecto ni modificado archivos. El siguiente paso sería acordar una pantalla o recorrido y comprobarlo con teclado y lector de pantalla."
+    }
+  ],
+  "fullFlow": [
+    {
+      "agent": "sdd-design",
+      "model": "openai-codex/gpt-6-astra:high",
+      "exitCode": 0,
+      "usage": {
+        "input": 12851,
+        "output": 2280,
+        "cacheRead": 9728,
+        "cacheWrite": 0,
+        "cost": 0.252238,
+        "turns": 5
+      },
+      "firstInputTokens": 2175,
+      "bashCalls": [],
+      "transcriptSha256": "7076cb4d402458b99a22aec6d173fc44b4c78240c32298314320079d9532721f"
+    },
+    {
+      "agent": "sdd-tasks",
+      "model": "openai-codex/gpt-5.6-sol:high",
+      "exitCode": 0,
+      "usage": {
+        "input": 9089,
+        "output": 3072,
+        "cacheRead": 4096,
+        "cacheWrite": 0,
+        "cost": 0.139653,
+        "turns": 3
+      },
+      "firstInputTokens": 2013,
+      "bashCalls": [],
+      "transcriptSha256": "a688110a1a8107a37546027451197b0a4eb8b0c11b3a1c07b9362b4ce10fc00c"
+    },
+    {
+      "agent": "sdd-apply",
+      "model": "openai-codex/gpt-5.6-luna:low",
+      "exitCode": 0,
+      "usage": {
+        "input": 34119,
+        "output": 1707,
+        "cacheRead": 140800,
+        "cacheWrite": 0,
+        "cost": 0.0116882,
+        "turns": 15
+      },
+      "firstInputTokens": 4071,
+      "bashCalls": [
+        {
+          "command": "bun run test && bun run typecheck",
+          "timeout": 120
+        }
+      ],
+      "transcriptSha256": "f4c43dba6cee1bb47032c4a933052dfe6e14cf916378f961085fd96a0b0c6a7c"
+    },
+    {
+      "agent": "sdd-apply",
+      "model": "openai-codex/gpt-5.6-luna:low",
+      "exitCode": 0,
+      "usage": {
+        "input": 17495,
+        "output": 2250,
+        "cacheRead": 100352,
+        "cacheWrite": 0,
+        "cost": 0.00820604,
+        "turns": 11
+      },
+      "firstInputTokens": 4075,
+      "bashCalls": [
+        {
+          "command": "bun test shared/webrtc/ice-servers.test.ts && bun run test && bun run typecheck",
+          "timeout": 120
+        }
+      ],
+      "transcriptSha256": "491c795dea2db7f3fc3c87cc4111b9b06d49cd8e97b695f9632b443278419102"
+    },
+    {
+      "agent": "sdd-verify",
+      "model": "openai-codex/gpt-5.6-luna:low",
+      "exitCode": 0,
+      "usage": {
+        "input": 14035,
+        "output": 1138,
+        "cacheRead": 31744,
+        "cacheWrite": 0,
+        "cost": 0.00480748,
+        "turns": 5
+      },
+      "firstInputTokens": 3369,
+      "bashCalls": [
+        {
+          "command": "timeout 300 bun run test",
+          "timeout": 310
+        },
+        {
+          "command": "timeout 300 bun run typecheck",
+          "timeout": 310
+        },
+        {
+          "command": "git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts && git status --short",
+          "timeout": 30
+        },
+        {
+          "command": "bun run test",
+          "timeout": 300
+        },
+        {
+          "command": "bun run typecheck",
+          "timeout": 300
+        }
+      ],
+      "transcriptSha256": "463a31d4fe6bc53b6fc31a2187ff2c962072a77691cc9cc46c06851551fdc22b"
+    }
+  ],
+  "negativeVerify": [
+    {
+      "agent": "sdd-verify",
+      "model": "openai-codex/gpt-5.6-luna:low",
+      "exitCode": 0,
+      "usage": {
+        "input": 14638,
+        "output": 1160,
+        "cacheRead": 49152,
+        "cacheWrite": 0,
+        "cost": 0.005302639999999999,
+        "turns": 7
+      },
+      "firstInputTokens": 3237,
+      "bashCalls": [
+        {
+          "command": "git status --short && git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts openspec/changes/stun-slot/tasks.md"
+        },
+        {
+          "command": "timeout 300 bun run test",
+          "timeout": 320
+        },
+        {
+          "command": "bun run test",
+          "timeout": 300
+        },
+        {
+          "command": "bun run typecheck",
+          "timeout": 300
+        }
+      ],
+      "transcriptSha256": "500753b25e2d993e6e4858ae707244a5fc032486b5133ef637e5d4f9c9eb7182"
+    }
+  ],
+  "restoredVerify": [
+    {
+      "agent": "sdd-verify",
+      "model": "openai-codex/gpt-5.6-luna:low",
+      "exitCode": 0,
+      "usage": {
+        "input": 15377,
+        "output": 1090,
+        "cacheRead": 50176,
+        "cacheWrite": 0,
+        "cost": 0.005386920000000001,
+        "turns": 7
+      },
+      "firstInputTokens": 3252,
+      "bashCalls": [
+        {
+          "command": "git status --short && git status --short --untracked-files=all",
+          "timeout": 300
+        },
+        {
+          "command": "git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts",
+          "timeout": 300
+        },
+        {
+          "command": "find . -name '*config*.yaml' -o -name '*config*.yml' -o -name 'package.json' | sort",
+          "timeout": 300
+        },
+        {
+          "command": "bun run test",
+          "timeout": 300
+        },
+        {
+          "command": "bun run typecheck",
+          "timeout": 300
+        },
+        {
+          "command": "git status --short --untracked-files=all",
+          "timeout": 300
+        }
+      ],
+      "transcriptSha256": "c2b6b277573e7bedeb7040b12607272f123477049e3cf05591af1dc70c7eafae"
+    }
+  ],
+  "limitations": [
+    "One paired run per scenario, not a distribution or benchmark across models.",
+    "Same 57 callable tools and declared installed packages in both isolated homes; external MCP servers disabled.",
+    "Scope and map supplied as fixture inputs; actual agents authored design, tasks, apply and verify.",
+    "Parent normalized the failing verify report status syntax; source and tests were not repaired by the verifier.",
+    "Old Pi 0.84.4 could not launch children with pi-subagents 0.66.0; the successful full flow used an isolated current Pi 0.85.1 installation.",
+    "No local model, automatic merge or user installation update.",
+    "Lower initial context does not guarantee lower latency or fewer calls on every task.",
+    "Full raw transcripts remain local, outside Git; the JSON summary omits credentials and provider reasoning signatures."
+  ]
+}

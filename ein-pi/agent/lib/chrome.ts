@@ -88,7 +88,31 @@ export function ruled(
 	return lines.map((line) => `${bar} ${line}`);
 }
 
-/** Une metadatos con el punto medio, apagando solo los separadores. */
+/**
+ * LAS SUPERFICIES DERIVADAS, en hex. Duplicadas de `themes/ein.json` por la
+ * misma razón que la marca: el banner pinta antes de que exista un tema
+ * cargado, y una superficie que solo existe en el JSON no puede usarla.
+ *
+ * Neutras: gris puro escalonado sobre carbón. Semánticas: el color mezclado a
+ * alfa baja sobre la base — `mix(c, α) = 11 + α · (c − 11)` por canal
+ * (`runtime/docs/STYLE.md // 001`), que es de donde salen exactamente estos
+ * valores y no de un ojo puesto encima.
+ */
+export const SURFACE = Object.freeze({
+	/** Barras de chrome y mensaje del usuario. */
+	chrome: { r: 0x12, g: 0x12, b: 0x12 },
+	/** Caja de herramienta en curso. */
+	pending: { r: 0x16, g: 0x16, b: 0x16 },
+	/** Salida de un comando de Ein — acento α 0.04. */
+	command: { r: 0x15, g: 0x13, b: 0x0d },
+	/** Acción resuelta — verde α 0.10. */
+	ok: { r: 0x1a, g: 0x1c, b: 0x15 },
+	/** Acción fallida — rojo α 0.10. */
+	failed: { r: 0x20, g: 0x15, b: 0x13 },
+	/** La fila con el foco — acento α 0.08. */
+	focus: { r: 0x1f, g: 0x1a, b: 0x0f },
+});
+
 export function joinMeta(parts: readonly string[], palette: Palette): string {
 	return parts.filter((part) => part.length > 0).join(palette.muted(` ${GLYPH.sep} `));
 }

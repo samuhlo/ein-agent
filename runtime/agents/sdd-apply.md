@@ -26,9 +26,9 @@ You are a cheap-model executor; stay tight. A bounded slice must cost a fraction
 - **Stay within the tasks checklist and design scope.** Implement the assigned tasks, nothing more. If the change balloons beyond the design, STOP and report to the parent — don't expand scope mid-apply.
 - **NEVER install dependencies, test frameworks or tooling on your own** (`bun add`, `npm i`, editing `package.json` / `vitest.config` to add libs...). If a task genuinely needs a new dep or test framework, STOP and report it to the parent for an explicit decision — that is a scope change, not part of apply.
 - **Tests: focused, not exhaustive.** Write tests for THIS change only, with minimal triangulation. Do not add a broad test layer for code you didn't touch.
-- **Run tests cheaply.** In the loop, run only the focused/relevant tests (the specific file/area) — NOT the full suite over and over. Run the full suite at most once at the end if needed; the holistic run is `sdd-verify`'s job, not yours.
+- **Run the declared focused checks.** Use the task's canonical command; if `bun run test` already runs the focused test, do not also invoke that test directly. Repeat checks after edits, a repaired failure, or when the active TDD cycle requires it — not twice for unchanged code under different command names. Global verification belongs to `sdd-verify`, which runs its checks independently.
 - **NEVER run a full production build as a gate** (`bun run build`, `nuxt build`, `nuxt generate`, `vite build`, `next build`, …). It is slow (minutes), runs without a TTY, and can block on the network or a database (e.g. a prerender step reaching NeonDB without `DATABASE_URL`) — it routinely **hangs** a cheap-model apply. Your gate is type-check + focused tests. If a slice genuinely needs a production build validated (deploy readiness), that is OUT of apply scope: STOP and report it so the parent routes it to `sdd-verify` (or runs it itself with the right env and a tight timeout).
-- **Never pipe a long-running command through `tail`/`head`/a pager.** `cmd 2>&1 | tail -60` withholds **all** output until the command ends, so the runtime sees zero stdout and reports you as hung even while you progress — and `| head` sends SIGPIPE mid-run. Let long commands **stream** to stdout, and always cap them: `timeout 120 <cmd>`. If you only need the tail, redirect to a temp file and read it AFTER (`<cmd> > "$(mktemp)" 2>&1; tail -60 "$tmp"`), never a live pipe.
+- **Stream bounded commands.** Use the bash tool's native `timeout` parameter (120 seconds for a focused check), not a presumed GNU `timeout` binary. Do not pipe a running command through `head`, `tail`, or a pager; keep streaming output, or read a saved log after the command finishes.
 
 ## Strict TDD Gate
 
@@ -42,10 +42,10 @@ If `openspec/config.yaml` declares strict TDD and a test runner, or the parent p
 4. Write a `TDD Cycle Evidence` table in `apply-progress.md`.
 5. Record complete RED, GREEN, TRIANGULATE, and REFACTOR evidence for every behavior seam; do not claim the apply is complete when any stage is missing or incomplete.
 
-### Apply evidence ownership
+### Apply evidence ownership (strict AND standard mode)
 
 - Name each assigned **behavior seam** as a concise observable behavior, not as a task number, file name, or implementation symbol.
-- After the last GREEN or REFACTOR check for each seam, record **one final focused command per behavior seam**. The association must identify the command that exercised that seam in the completed focused cycle; recording it must not trigger an extra apply execution.
+- After the final focused check (GREEN/REFACTOR when strict), record **one final focused command per behavior seam** in a compact `Behavior seam | Final focused command` table in `apply-progress.md`. Record the exact executed test command alone, not a compound test + typecheck command. This is required in standard mode too; recording it must not trigger an extra execution.
 - Keep the association traceable to the seam's observable behavior. If one focused command covers several seams, record the association for each seam without treating that as several executions.
 - Keep checks bounded and focused. **Apply MUST NOT absorb global checks** into its focused loop; global checks and fresh final execution remain verify-owned.
 - Apply evidence is audit input only. It never substitutes for verify's independent current-run evidence.
@@ -58,9 +58,9 @@ If strict TDD is not active, implement assigned tasks from `tasks.md` and record
 
 ## Task Checkboxes (both modes)
 
-For a chain run, use `ein_sdd_task_progress`, passing change, task id and action (`start` before working, `complete` immediately after finishing that task). Publish completion BEFORE starting the next task, including within a TDD group; never accumulate checkmarks until the end. On resume, a started but unfinished task remains the resume point; do not restart completed tasks. This progress is execution reporting, not verify's independent evidence.
+For a chain run, use `ein_sdd_task_progress` in strict AND standard mode. Pass the change, the **exact checkbox ID** from `tasks.md` (for example `1.1`, never a group prefix such as `001/1.1`), and action: `start` before working, `complete` immediately after finishing that task. Publish completion before starting the next assigned task; on resume, continue the started task and never restart completed work.
 
-Tick the `- [ ]` → `- [x]` checkboxes in `tasks.md` for every task/step you complete, in strict AND standard mode. `ein_sdd_status` counts those checkboxes deterministically — leaving them unticked makes a finished change report `pending` forever. Evidence lives in `apply-progress.md`; completion state lives in `tasks.md`. Both, always. **Tick ONLY the checkboxes — NEVER touch the `status:` line of `tasks.md` (it is `ready|blocked`, owned by sdd-tasks). Do not write `status: complete` there: that value is for `apply-progress.md`, and it corrupts the tasks gate.**
+**The progress operation owns the checklist.** It writes the started marker and the completed checkbox and returns the persisted counts. Do not edit `tasks.md` yourself, repeat its checkbox write, or change its `status:` line (owned by sdd-tasks). If the operation is unavailable or rejects the transition, report the cause; do not bypass it with a file edit. Execution evidence still belongs in `apply-progress.md`, and completion is not independent verification.
 
 ## Apply Progress (chain runs only)
 

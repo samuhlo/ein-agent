@@ -1,0 +1,20 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const packageRoot = process.argv[2];
+if (!packageRoot) throw new Error("Usage: bun tooling/verify-scout-runtime.ts <pi-subagents directory>");
+const root = resolve(import.meta.dir, "..");
+const { resolvePiLaunchToolPlan } = await import(pathToFileURL(join(resolve(packageRoot), "src/runs/shared/child-tool-plan.ts")).href);
+const source = readFileSync(join(root, "runtime/agents/ein-scout.md"), "utf8");
+const declaration = /^extensions: (.+)$/m.exec(source)?.[1];
+assert.equal(declaration, "../extensions/internal/ein-scout-child.ts");
+const childExtension = resolve(root, "ein-pi/agent/agents", declaration!);
+const plan = resolvePiLaunchToolPlan({ agentName: "ein-scout", tools: ["read", "grep", "find"], extensions: [childExtension] });
+assert.deepEqual(plan.warnings, []);
+assert.equal(plan.disableAmbientExtensions, true);
+assert.deepEqual(plan.declaredBuiltinTools, ["read", "grep", "find"]);
+assert(plan.extensionArgs.includes(childExtension));
+assert.equal(typeof (await import(pathToFileURL(childExtension).href)).default, "function");
+console.log("Scout runtime: explicit child extension loads; only read/grep/find declared; ambient extensions disabled; no empty-extension warning.");

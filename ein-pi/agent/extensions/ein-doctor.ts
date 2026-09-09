@@ -1,3 +1,4 @@
+import { withEinCommandSurfaces } from "../lib/command-surface.ts";
 import { existsSync, readdirSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { join } from "node:path";
@@ -161,7 +162,7 @@ export function scoutStaticContract(
   const scout = readIfExists(join(agentsDir, "ein-scout.md"));
   return {
     tools: /^tools:\s*read, grep, find$/m.test(scout),
-    extensions: /^extensions:\s*$/m.test(scout),
+    extensions: /^extensions: \.\.\/extensions\/internal\/ein-scout-child\.ts$/m.test(scout),
     // Static compatibility only: this is not evidence about an individual run.
     compatibility:
       launcherSource.includes("input.extensions !== undefined") &&
@@ -338,6 +339,7 @@ export function doctorSmokeReport(
 // =============================================================================
 
 export default function einDoctor(pi: ExtensionAPI): void {
+	pi = withEinCommandSurfaces(pi, "ein-doctor");
   pi.registerTool({
     name: "ein_pi_doctor",
     label: "Ein Doctor",

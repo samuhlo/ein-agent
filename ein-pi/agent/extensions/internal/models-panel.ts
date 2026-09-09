@@ -865,7 +865,7 @@ export async function handleModelsCommand(
 	}
 	notifyLines.push(
 		tf("models.global.config", `Config global: ${modelConfigPath(ctx.cwd)}`, modelConfigPath(ctx.cwd)),
-		tf("models.agents.updated", `Agentes actualizados: ${applyResult.updated}`, applyResult.updated),
+		tf("models.agents.updated", `Definiciones de agente actualizadas: ${applyResult.updated}`, applyResult.updated),
 		...describeModelConfig(ctx.cwd, subagentConfig),
 	);
 	ctx.ui.notify(notifyLines.join("\n"), "info");

@@ -38,15 +38,25 @@ Criterio de salida: al menos una clase de trabajo alcanza cero escapes, calidad
 equivalente y menor coste total sobre una muestra suficiente, y puede ejecutarse
 con modelo barato/local sin fallback oculto.
 
-## Condicionado — liberar presupuesto de prompt
+## Contexto inicial — reducción comprobada
 
-Objetivo: crear espacio solo cuando un cambio de contrato observable demuestre que necesita tocar el orquestador.
+La [prueba del 2026-09-08](../evals/orchestrator-context-2026-09-08.md) reduce la
+entrada inicial de unas 41.100 a 23.800 tokens con el núcleo bajo demanda y un
+catálogo compacto de skills. Se conserva el contrato completo en disco y el
+resolver existente. El flujo real design/tasks/apply/verify pasó; verify también
+rechazó una regresión sembrada. Es un caso probado, no una promoción general ni
+una validación de modelo local.
 
-`runtime/assets/orchestrator.md` pesa 42.730 bytes contra un techo de 43.011: quedan 281 bytes después de retirar duplicación al reparar el metro. Sigue siendo un margen estrecho. Hay 26 ficheros de test que fijan frases literales del texto, así que parte de esa prosa es portante y borrarla rompe mecanismos.
+El siguiente trabajo se decide desde el uso en proyectos. No se abre otra
+campaña de compresión ni un subsistema de presupuestos; se corrigen problemas
+concretos y se conserva la evidencia, incluidos fallos y reparaciones.
 
-- [ ] Si `map` o `design` prueban que una fase posterior necesita cambiar el prompt, retirar comportamiento duplicado y cicatrices que ya no protegen de nada, comprobando cada retirada contra sus consumidores. No comprimir prosa para ganar bytes.
-
-Criterio de salida: el cambio de contrato medido cabe con margen explícito y los consumidores de la prosa retirada siguen verdes. Sin necesidad demostrada, esta fase no se ejecuta.
+La [simplificación de apply](../evals/lean-apply-2026-09-08.md) elimina la doble
+edición de checkboxes y reúne cada tarea con las pruebas que necesita para
+completarse. Se conserva el backend de progreso y la verificación independiente.
+Las dos comparaciones se documentan por separado, sin convertir los 26 turnos
+históricos en una promesa de ahorro general. El siguiente ajuste se decide desde
+fallos concretos de uso, manteniendo los modelos elegidos por el usuario.
 
 ## Secundario
 

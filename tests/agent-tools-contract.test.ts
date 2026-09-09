@@ -199,12 +199,7 @@ describe("contrato de tools de los agentes", () => {
 	test("ein-scout es una allowlist portátil de investigación sin capacidades de mutación", () => {
 		const scout = readFileSync(join(CORE_AGENTS, "ein-scout.md"), "utf8");
 		expect(declaredTools("ein-scout.md")).toEqual(["read", "grep", "find"]);
-		// `extensions:` con valor VACÍO (no `[]`): pi-subagents parsea este campo
-		// con parseFrontmatterList (split por comas/saltos), no como JSON. El
-		// literal `[]` se convertía en el token `["[]"]` → `--extension []` →
-		// crash de arranque. Vacío define el campo (dispara `--no-extensions`) y
-		// parsea a lista vacía. Ver tests/agent-frontmatter-json.test.ts.
-		expect(scout).toMatch(/^extensions:\s*$/m);
+		expect(scout).toContain("extensions: ../extensions/internal/ein-scout-child.ts");
 		expect(scout).not.toMatch(/^tools:.*(?:MCP|provider)/m);
 		expect(scout).toMatch(/^defaultContext:\s*fresh$/m);
 		expect(scout).toMatch(/^inheritProjectContext:\s*false$/m);

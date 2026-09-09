@@ -25,6 +25,24 @@ describe("optimized verify plan: phase-boundary contract", () => {
 		expect(APPLY).toContain("one final focused command per behavior seam");
 	});
 
+	test("standard apply emits the same focused association as strict apply", () => {
+		expect(APPLY).toContain("Apply evidence ownership (strict AND standard mode)");
+		expect(APPLY).toContain("Behavior seam | Final focused command");
+		expect(read("agents/sdd-tasks.md")).toContain("List focused tests and structural checks separately");
+	});
+
+	test("verify resolves change stance before bounded history audit", () => {
+		expect(VERIFY).toContain("wins over project config");
+		expect(VERIFY).toContain("When strict TDD is OFF, do not search old sessions/transcripts");
+		expect(VERIFY).toContain("exact evidence references");
+		expect(VERIFY).toContain("do not recursively scan session directories");
+	});
+
+	test("a blocked verify uses the artifact's fail state without parent repair", () => {
+		expect(VERIFY).toContain("use `status: fail` in this artifact");
+		expect(VERIFY).toContain("A caveat does not turn missing required evidence into a pass");
+	});
+
 	test("verify keeps exactly one final focused command for every seam", () => {
 		expect(VERIFY).toContain("exactly one final focused command per behavior seam");
 		expect(VERIFY).toContain("each seam has exactly one focused association");

@@ -49,6 +49,7 @@ import {
 	PHASE_BY_FILE,
 } from "./ein-sdd-presentation.ts";
 import type { EinToolRegistrar } from "./ein-tool-registration.ts";
+import { readChangeStance, renderChangeStanceLine } from "../../lib/sdd-preflight-record.ts";
 
 function publishSessionBinding(
 	pi: ExtensionAPI,
@@ -149,6 +150,9 @@ export function registerSddReadSurface(
 			const active = listActiveChanges(ctx.cwd);
 			const preferences = getSddPreflightPreferences(ctx);
 			let text = formatSddStatus(status, active, preferences);
+			const stance = status.change ? readChangeStance(ctx.cwd, status.change) : undefined;
+			const stanceLine = renderChangeStanceLine(stance);
+			if (stanceLine) text += `\n${stanceLine}`;
 			const plan = status.nextRecommended === "apply" && status.change
 				? resolveSddPlanPreview(ctx.cwd, status.change)
 				: undefined;
@@ -158,7 +162,7 @@ export function registerSddReadSurface(
 			}
 			return {
 				content: [{ type: "text", text }],
-				details: { status, activeChanges: active, plan },
+				details: { status, activeChanges: active, plan, stance },
 			};
 		},
 	});

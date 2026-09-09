@@ -1,0 +1,3011 @@
+{
+  "date": "2026-09-08",
+  "baseCommit": "225f7a9651109ef57930be28b2a77a57b884dbe7",
+  "implementationCommit": "7577ce3",
+  "runtime": {
+    "pi": "0.85.1",
+    "piSubagents": "0.66.0",
+    "bun": "1.3.14",
+    "externalMcp": "disabled in both arms"
+  },
+  "comparisons": {
+    "fullFlow": {
+      "before": {
+        "parent": {
+          "tokens": 821360,
+          "input": 49776,
+          "output": 1792,
+          "cacheRead": 769792,
+          "costUsd": 1.357152,
+          "turns": 19
+        },
+        "firstParentInputTokens": 40313,
+        "tools": 57,
+        "systemBytes": 94567,
+        "children": [
+          {
+            "agent": "sdd-design",
+            "model": "openai-codex/gpt-6-astra:high",
+            "exitCode": 0,
+            "usage": {
+              "tokens": 19011,
+              "input": 7567,
+              "output": 2228,
+              "cacheRead": 9216,
+              "costUsd": 0.19628600000000002,
+              "turns": 4
+            },
+            "firstInputTokens": 2112,
+            "reads": [
+              "openspec/changes/stun-slot/scope.md",
+              "openspec/changes/stun-slot/map.md",
+              "openspec/config.yaml",
+              "package.json",
+              "tsconfig.json",
+              "EIN.md",
+              "shared/webrtc/ice-servers.ts",
+              "shared/webrtc/ice-servers.test.ts"
+            ],
+            "bashCommands": [],
+            "bashResults": [],
+            "errors": [],
+            "manualChecklistEdits": 0,
+            "transcriptSha256": "5b424a02d6b4212db6c768ec289211b3cd53864f49f4cadb7e6c763d76608136"
+          },
+          {
+            "agent": "sdd-tasks",
+            "model": "openai-codex/gpt-5.6-sol:high",
+            "exitCode": 0,
+            "usage": {
+              "tokens": 13664,
+              "input": 11864,
+              "output": 1800,
+              "cacheRead": 0,
+              "costUsd": 0.11332,
+              "turns": 3
+            },
+            "firstInputTokens": 1988,
+            "reads": [
+              "openspec/changes/stun-slot/scope.md",
+              "openspec/changes/stun-slot/map.md",
+              "openspec/changes/stun-slot/design.md"
+            ],
+            "bashCommands": [],
+            "bashResults": [],
+            "errors": [],
+            "manualChecklistEdits": 1,
+            "transcriptSha256": "e1f760035a548c61aa26424ef6c0e1f6f31cf82f29e5802c4181f8454884a8c4"
+          },
+          {
+            "agent": "sdd-apply",
+            "model": "openai-codex/gpt-5.6-luna:low",
+            "exitCode": 0,
+            "usage": {
+              "tokens": 159047,
+              "input": 35147,
+              "output": 2044,
+              "cacheRead": 121856,
+              "costUsd": 0.011919319999999997,
+              "turns": 14
+            },
+            "firstInputTokens": 4027,
+            "reads": [
+              "openspec/changes/stun-slot/tasks.md",
+              "openspec/changes/stun-slot/design.md",
+              "openspec/changes/stun-slot/scope.md",
+              "openspec/changes/stun-slot/map.md",
+              "/tmp/ein-verify-live-20260908/baseline-final/agent/skills/local/comment-style/SKILL.md",
+              "shared/webrtc/ice-servers.ts",
+              "shared/webrtc/ice-servers.test.ts"
+            ],
+            "bashCommands": [
+              {
+                "command": "bun run test && bun run typecheck",
+                "timeout": 120
+              },
+              {
+                "command": "sed -n '8,12l' openspec/changes/stun-slot/tasks.md"
+              },
+              {
+                "command": "git status --short && git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts"
+              }
+            ],
+            "bashResults": [
+              {
+                "bytes": 838,
+                "preview": false,
+                "isError": false
+              },
+              {
+                "bytes": 515,
+                "preview": false,
+                "isError": false
+              },
+              {
+                "bytes": 3262,
+                "preview": false,
+                "isError": false
+              }
+            ],
+            "errors": [
+              {
+                "tool": "edit",
+                "text": "Could not find the exact text in openspec/changes/stun-slot/tasks.md. The old text must match exactly including all whitespace and newlines."
+              },
+              {
+                "tool": "edit",
+                "text": "Could not find the exact text in openspec/changes/stun-slot/tasks.md. The old text must match exactly including all whitespace and newlines."
+              }
+            ],
+            "manualChecklistEdits": 3,
+            "transcriptSha256": "eefe1b41962208b89f0a6dd0dc7dae229a008378e4160110c1754338f768cba1"
+          },
+          {
+            "agent": "sdd-verify",
+            "model": "openai-codex/gpt-5.6-luna:low",
+            "exitCode": 0,
+            "usage": {
+              "tokens": 44202,
+              "input": 13409,
+              "output": 1097,
+              "cacheRead": 29696,
+              "costUsd": 0.00459212,
+              "turns": 5
+            },
+            "firstInputTokens": 3257,
+            "reads": [
+              "openspec/changes/stun-slot/design.md",
+              "openspec/changes/stun-slot/tasks.md",
+              "openspec/changes/stun-slot/apply-progress.md",
+              "openspec/changes/stun-slot/scope.md",
+              "openspec/changes/stun-slot/map.md",
+              "openspec/config.yaml",
+              "shared/webrtc/ice-servers.ts",
+              "shared/webrtc/ice-servers.test.ts"
+            ],
+            "bashCommands": [
+              {
+                "command": "timeout 300 bun run test",
+                "timeout": 320
+              },
+              {
+                "command": "timeout 300 bun run typecheck",
+                "timeout": 320
+              },
+              {
+                "command": "git status --short && git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts .gitignore",
+                "timeout": 30
+              },
+              {
+                "command": "bun run test",
+                "timeout": 300
+              },
+              {
+                "command": "bun run typecheck",
+                "timeout": 300
+              }
+            ],
+            "bashResults": [
+              {
+                "bytes": 68,
+                "preview": false,
+                "isError": true
+              },
+              {
+                "bytes": 68,
+                "preview": false,
+                "isError": true
+              },
+              {
+                "bytes": 3649,
+                "preview": false,
+                "isError": false
+              },
+              {
+                "bytes": 824,
+                "preview": false,
+                "isError": false
+              },
+              {
+                "bytes": 15,
+                "preview": false,
+                "isError": false
+              }
+            ],
+            "errors": [
+              {
+                "tool": "bash",
+                "text": "/bin/bash: timeout: command not found\n\n\nCommand exited with code 127"
+              },
+              {
+                "tool": "bash",
+                "text": "/bin/bash: timeout: command not found\n\n\nCommand exited with code 127"
+              }
+            ],
+            "manualChecklistEdits": 0,
+            "transcriptSha256": "5f7f914dd73be2dfd7ae56603bc258d735c9d23b230b7d6257eb4b491ef36baa"
+          }
+        ],
+        "total": {
+          "tokens": 1057284,
+          "input": 117763,
+          "output": 8961,
+          "cacheRead": 930560,
+          "costUsd": 1.68326944,
+          "turns": 45
+        },
+        "parentErrors": [],
+        "parentArtifactEdits": [],
+        "exit": {
+          "exitCode": 0,
+          "seconds": 360.99502086639404
+        }
+      },
+      "after": {
+        "parent": {
+          "tokens": 726978,
+          "input": 70121,
+          "output": 2137,
+          "cacheRead": 654720,
+          "costUsd": 1.46278,
+          "turns": 23
+        },
+        "firstParentInputTokens": 22925,
+        "tools": 57,
+        "systemBytes": 23860,
+        "children": [
+          {
+            "agent": "sdd-design",
+            "model": "openai-codex/gpt-6-astra:high",
+            "exitCode": 0,
+            "usage": {
+              "tokens": 19634,
+              "input": 9546,
+              "output": 2280,
+              "cacheRead": 7808,
+              "costUsd": 0.21726800000000002,
+              "turns": 4
+            },
+            "firstInputTokens": 2166,
+            "reads": [
+              "openspec/changes/stun-slot/scope.md",
+              "openspec/changes/stun-slot/map.md",
+              "openspec/changes/stun-slot/preflight.json",
+              "openspec/config.yaml",
+              "EIN.md",
+              "shared/webrtc/ice-servers.ts",
+              "shared/webrtc/ice-servers.test.ts",
+              "package.json",
+              "tsconfig.json"
+            ],
+            "bashCommands": [],
+            "bashResults": [],
+            "errors": [],
+            "manualChecklistEdits": 0,
+            "transcriptSha256": "d2229f9fd42a431506b95f8f0cb9d7c9698f379b6017875bde61bf3ba2f5b970"
+          },
+          {
+            "agent": "sdd-tasks",
+            "model": "openai-codex/gpt-5.6-sol:high",
+            "exitCode": 0,
+            "usage": {
+              "tokens": 22113,
+              "input": 7574,
+              "output": 2251,
+              "cacheRead": 12288,
+              "costUsd": 0.11154400000000002,
+              "turns": 4
+            },
+            "firstInputTokens": 2125,
+            "reads": [
+              "openspec/changes/stun-slot/scope.md",
+              "openspec/changes/stun-slot/map.md",
+              "openspec/changes/stun-slot/design.md",
+              "openspec/changes/stun-slot/preflight.json",
+              "openspec/changes/stun-slot/tasks.md"
+            ],
+            "bashCommands": [],
+            "bashResults": [],
+            "errors": [],
+            "manualChecklistEdits": 1,
+            "transcriptSha256": "b9486b948a95839f0bdae81ba20c2c232a7b3478b8b405163a928768ad6d6205"
+          },
+          {
+            "agent": "sdd-apply",
+            "model": "openai-codex/gpt-5.6-luna:low",
+            "exitCode": 0,
+            "usage": {
+              "tokens": 78050,
+              "input": 26665,
+              "output": 1209,
+              "cacheRead": 50176,
+              "costUsd": 0.0077873199999999995,
+              "turns": 8
+            },
+            "firstInputTokens": 4055,
+            "reads": [
+              "openspec/changes/stun-slot/scope.md",
+              "openspec/changes/stun-slot/map.md",
+              "openspec/changes/stun-slot/design.md",
+              "openspec/changes/stun-slot/tasks.md",
+              "openspec/changes/stun-slot/preflight.json",
+              "/tmp/ein-verify-live-20260908/complete/agent/skills/local/comment-style/SKILL.md",
+              "shared/webrtc/ice-servers.ts",
+              "shared/webrtc/ice-servers.test.ts"
+            ],
+            "bashCommands": [
+              {
+                "command": "bun run test",
+                "timeout": 120
+              },
+              {
+                "command": "bun run typecheck",
+                "timeout": 120
+              }
+            ],
+            "bashResults": [
+              {
+                "bytes": 812,
+                "preview": false,
+                "isError": false
+              },
+              {
+                "bytes": 15,
+                "preview": false,
+                "isError": false
+              }
+            ],
+            "errors": [],
+            "manualChecklistEdits": 0,
+            "transcriptSha256": "499c6dd62a380bac0c3a06b400c51f56684e138d50a12ac28acd3d1002edc958"
+          },
+          {
+            "agent": "sdd-verify",
+            "model": "openai-codex/gpt-5.6-luna:low",
+            "exitCode": 0,
+            "usage": {
+              "tokens": 30224,
+              "input": 11295,
+              "output": 1009,
+              "cacheRead": 17920,
+              "costUsd": 0.0038282000000000004,
+              "turns": 4
+            },
+            "firstInputTokens": 2907,
+            "reads": [
+              "openspec/changes/stun-slot/scope.md",
+              "openspec/changes/stun-slot/map.md",
+              "openspec/changes/stun-slot/design.md",
+              "openspec/changes/stun-slot/tasks.md",
+              "openspec/changes/stun-slot/apply-progress.md",
+              "openspec/changes/stun-slot/preflight.json",
+              "openspec/config.yaml",
+              "shared/webrtc/ice-servers.ts",
+              "shared/webrtc/ice-servers.test.ts"
+            ],
+            "bashCommands": [
+              {
+                "command": "bun run test",
+                "timeout": 300
+              },
+              {
+                "command": "bun run typecheck",
+                "timeout": 300
+              },
+              {
+                "command": "git diff --name-only -- openspec/changes/stun-slot shared/webrtc && git status --short",
+                "timeout": 30
+              }
+            ],
+            "bashResults": [
+              {
+                "bytes": 812,
+                "preview": false,
+                "isError": false
+              },
+              {
+                "bytes": 15,
+                "preview": false,
+                "isError": false
+              },
+              {
+                "bytes": 325,
+                "preview": false,
+                "isError": false
+              }
+            ],
+            "errors": [],
+            "manualChecklistEdits": 0,
+            "transcriptSha256": "1858bbfeac778063318f48c4df4cc590f5e62a4613842f3d3b2468bfcdb2ba07"
+          }
+        ],
+        "total": {
+          "tokens": 876999,
+          "input": 125201,
+          "output": 8886,
+          "cacheRead": 742912,
+          "costUsd": 1.80320752,
+          "turns": 43
+        },
+        "parentErrors": [],
+        "parentArtifactEdits": [],
+        "exit": {
+          "exitCode": 0,
+          "seconds": 416.3360769748688
+        }
+      },
+      "tokenReductionPercent": 17.05170985279263
+    },
+    "verifyFrozen409Tests": {
+      "before": {
+        "agent": "sdd-verify",
+        "model": "openai-codex/gpt-5.6-luna:low",
+        "exitCode": 0,
+        "usage": {
+          "tokens": 65923,
+          "input": 27109,
+          "output": 926,
+          "cacheRead": 37888,
+          "costUsd": 0.00729076,
+          "turns": 6
+        },
+        "firstInputTokens": 3323,
+        "reads": [
+          "openspec/changes/stun-slot/scope.md",
+          "openspec/changes/stun-slot/map.md",
+          "openspec/changes/stun-slot/design.md",
+          "openspec/changes/stun-slot/tasks.md",
+          "openspec/changes/stun-slot/apply-progress.md",
+          "openspec/changes/stun-slot/preflight.json",
+          "openspec/changes/stun-slot/lane.json",
+          "openspec/config.yaml",
+          "shared/webrtc/ice-servers.ts",
+          "shared/webrtc/ice-servers.test.ts",
+          "package.json"
+        ],
+        "bashCommands": [
+          {
+            "command": "git status --short && git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts"
+          },
+          {
+            "command": "bun run test",
+            "timeout": 300
+          },
+          {
+            "command": "bun run typecheck",
+            "timeout": 300
+          }
+        ],
+        "bashResults": [
+          {
+            "bytes": 60,
+            "preview": false,
+            "isError": false
+          },
+          {
+            "bytes": 21194,
+            "preview": false,
+            "isError": false
+          },
+          {
+            "bytes": 15,
+            "preview": false,
+            "isError": false
+          }
+        ],
+        "errors": [],
+        "manualChecklistEdits": 0,
+        "transcriptSha256": "b7d05e11a76a43e28f239debade63d37d7501d9e61329ccd6e3933c721d1d305"
+      },
+      "after": {
+        "agent": "sdd-verify",
+        "model": "openai-codex/gpt-5.6-luna:low",
+        "exitCode": 0,
+        "usage": {
+          "tokens": 39128,
+          "input": 18121,
+          "output": 1039,
+          "cacheRead": 19968,
+          "costUsd": 0.00527036,
+          "turns": 5
+        },
+        "firstInputTokens": 2893,
+        "reads": [
+          "openspec/changes/stun-slot/design.md",
+          "openspec/changes/stun-slot/tasks.md",
+          "openspec/changes/stun-slot/apply-progress.md",
+          "openspec/changes/stun-slot/scope.md",
+          "openspec/changes/stun-slot/map.md",
+          "openspec/changes/stun-slot/preflight.json",
+          "openspec/changes/stun-slot/lane.json",
+          "openspec/config.yaml",
+          "shared/webrtc/ice-servers.ts",
+          "shared/webrtc/ice-servers.test.ts",
+          "package.json",
+          "tsconfig.json"
+        ],
+        "bashCommands": [
+          {
+            "command": "git status --short && git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts"
+          },
+          {
+            "command": "bun run test",
+            "timeout": 300
+          },
+          {
+            "command": "bun run typecheck",
+            "timeout": 300
+          }
+        ],
+        "bashResults": [
+          {
+            "bytes": 60,
+            "preview": false,
+            "isError": false
+          },
+          {
+            "bytes": 2706,
+            "preview": true,
+            "isError": false
+          },
+          {
+            "bytes": 15,
+            "preview": false,
+            "isError": false
+          }
+        ],
+        "errors": [],
+        "manualChecklistEdits": 0,
+        "transcriptSha256": "f6d334169431775a68e44602b218f3db6bf01ba41534488eac549edb798f4d90"
+      },
+      "tokenReductionPercent": 40.64590507106776
+    }
+  },
+  "oracle": {
+    "baseline-final": {
+      "cases": 18,
+      "failures": [],
+      "pass": true
+    },
+    "final": {
+      "cases": 18,
+      "failures": [],
+      "pass": true
+    },
+    "complete": {
+      "cases": 18,
+      "failures": [],
+      "pass": true
+    },
+    "verify-clean": {
+      "cases": 18,
+      "failures": [],
+      "pass": true
+    }
+  },
+  "states": {
+    "negative": {
+      "verify": "fail",
+      "next": "verify",
+      "blocked": [
+        "verify-report indica fallo: remediar antes de cerrar."
+      ],
+      "verification": {
+        "quality": "unbound",
+        "reason": "legacy-source",
+        "reportedOutcome": "fail",
+        "effectiveOutcome": "fail",
+        "freshness": "unbound",
+        "currentStateRef": "git-v1:sha256:59d707e8e3b8076eb49763cd162a41baa1323c1511902fdfaeef379dbf6fdd96"
+      }
+    },
+    "false-green": {
+      "verify": "fail",
+      "next": "verify",
+      "blocked": [
+        "verify-report indica fallo: remediar antes de cerrar."
+      ],
+      "verification": {
+        "quality": "unbound",
+        "reason": "legacy-source",
+        "reportedOutcome": "fail",
+        "effectiveOutcome": "fail",
+        "freshness": "unbound",
+        "currentStateRef": "git-v1:sha256:14f37ecf932d4a9d8749c7df99d25441ad5f07bb8fcae5864e2f39acf8fcb77c"
+      }
+    },
+    "strict-valid": {
+      "verify": "fail",
+      "next": "verify",
+      "blocked": [
+        "verify-report indica fallo: remediar antes de cerrar."
+      ],
+      "verification": {
+        "quality": "unbound",
+        "reason": "legacy-source",
+        "reportedOutcome": "fail",
+        "effectiveOutcome": "fail",
+        "freshness": "unbound",
+        "currentStateRef": "git-v1:sha256:ba6dcd533a4ec8e019f5928dbc594c383815b09b5cfa60e1508b1357665f9c77"
+      }
+    },
+    "missing-association": {
+      "verify": "fail",
+      "next": "verify",
+      "blocked": [
+        "verify-report indica fallo: remediar antes de cerrar."
+      ],
+      "verification": {
+        "quality": "unbound",
+        "reason": "legacy-source",
+        "reportedOutcome": "fail",
+        "effectiveOutcome": "fail",
+        "freshness": "unbound",
+        "currentStateRef": "git-v1:sha256:3d909cf8ba84d8e763076258f30e8cddef6300aa85ef376c6b1b279667e3f98a"
+      }
+    },
+    "positive": {
+      "verify": "pass",
+      "next": "close",
+      "blocked": [],
+      "verification": {
+        "quality": "unbound",
+        "reason": "legacy-source",
+        "reportedOutcome": "pass",
+        "effectiveOutcome": "unknown",
+        "freshness": "unbound",
+        "currentStateRef": "git-v1:sha256:7b79197733fe51eb4cef15282aaafc641e7fbbf8857c3b400683c069714b5d76"
+      }
+    },
+    "changedAfterPass": {
+      "verify": "pass",
+      "next": "verify",
+      "blocked": [
+        "verify-report es anterior al último apply: re-verifica antes de cerrar (evidencia obsoleta)."
+      ],
+      "verification": {
+        "quality": "unbound",
+        "reason": "legacy-source",
+        "reportedOutcome": "pass",
+        "effectiveOutcome": "unknown",
+        "freshness": "unbound",
+        "currentStateRef": "git-v1:sha256:41612e5742f866a3413250fb02e12d31360acd401b07c1f363ec864ed5554929"
+      }
+    }
+  },
+  "integrity": {
+    "identicalInputs": {
+      "baseline-final": {
+        "request.txt": "13468821f560546b2df94123fabee93e1d47854695dc389b5f6eddee854c7cfe",
+        "package.json": "dbd721d17f981a3b637210e8d43c08b669bd69fd52ccd212f54701b4d37fef93",
+        "tsconfig.json": "49e38d7a3ed1c6238a9ef1f8b73ff9fc42737baf76c26337d41de06cabfd9b30",
+        "EIN.md": "e5f37c001530f93ee750351d87e447030f7fbdf9d0720b8c5e7c0edaf33d1efc",
+        "openspec/config.yaml": "8f9fa93bc5183e58bbf5a58c83a1b3df1498a2af19c20dcbdc52a71fc1178d3f",
+        "openspec/changes/stun-slot/scope.md": "4b5c9381d8cbc822119a5f59299f068a12f9b44ab3022c53bddb0f55175732d4",
+        "openspec/changes/stun-slot/map.md": "1490912db38dd51e74240e5539a131351f4ff377a6fb4928fc467254def70022",
+        "openspec/changes/stun-slot/preflight.json": "4e13af5880bedad058eaaa58e8762ccba23039585c8045111b872d78098e4281",
+        "openspec/changes/stun-slot/lane.json": "ce647afae9b62f3bcd6a98c08b53753d3be394cc5b8813135f353301c4fd4a6e",
+        "shared/webrtc/ice-servers.ts": "7a2bc27f6999b8b3096367d4c93b01af2a9e530ae3230eb454f06fc905e19dbe",
+        "shared/webrtc/ice-servers.test.ts": "51b256fefb978dfa5ad4eed01b2bddf5275a4f765fbac6972ee2273a396e231d"
+      },
+      "final": {
+        "request.txt": "13468821f560546b2df94123fabee93e1d47854695dc389b5f6eddee854c7cfe",
+        "package.json": "dbd721d17f981a3b637210e8d43c08b669bd69fd52ccd212f54701b4d37fef93",
+        "tsconfig.json": "49e38d7a3ed1c6238a9ef1f8b73ff9fc42737baf76c26337d41de06cabfd9b30",
+        "EIN.md": "e5f37c001530f93ee750351d87e447030f7fbdf9d0720b8c5e7c0edaf33d1efc",
+        "openspec/config.yaml": "8f9fa93bc5183e58bbf5a58c83a1b3df1498a2af19c20dcbdc52a71fc1178d3f",
+        "openspec/changes/stun-slot/scope.md": "4b5c9381d8cbc822119a5f59299f068a12f9b44ab3022c53bddb0f55175732d4",
+        "openspec/changes/stun-slot/map.md": "1490912db38dd51e74240e5539a131351f4ff377a6fb4928fc467254def70022",
+        "openspec/changes/stun-slot/preflight.json": "4e13af5880bedad058eaaa58e8762ccba23039585c8045111b872d78098e4281",
+        "openspec/changes/stun-slot/lane.json": "ce647afae9b62f3bcd6a98c08b53753d3be394cc5b8813135f353301c4fd4a6e",
+        "shared/webrtc/ice-servers.ts": "7a2bc27f6999b8b3096367d4c93b01af2a9e530ae3230eb454f06fc905e19dbe",
+        "shared/webrtc/ice-servers.test.ts": "51b256fefb978dfa5ad4eed01b2bddf5275a4f765fbac6972ee2273a396e231d"
+      },
+      "complete": {
+        "request.txt": "13468821f560546b2df94123fabee93e1d47854695dc389b5f6eddee854c7cfe",
+        "package.json": "dbd721d17f981a3b637210e8d43c08b669bd69fd52ccd212f54701b4d37fef93",
+        "tsconfig.json": "49e38d7a3ed1c6238a9ef1f8b73ff9fc42737baf76c26337d41de06cabfd9b30",
+        "EIN.md": "e5f37c001530f93ee750351d87e447030f7fbdf9d0720b8c5e7c0edaf33d1efc",
+        "openspec/config.yaml": "8f9fa93bc5183e58bbf5a58c83a1b3df1498a2af19c20dcbdc52a71fc1178d3f",
+        "openspec/changes/stun-slot/scope.md": "4b5c9381d8cbc822119a5f59299f068a12f9b44ab3022c53bddb0f55175732d4",
+        "openspec/changes/stun-slot/map.md": "1490912db38dd51e74240e5539a131351f4ff377a6fb4928fc467254def70022",
+        "openspec/changes/stun-slot/preflight.json": "4e13af5880bedad058eaaa58e8762ccba23039585c8045111b872d78098e4281",
+        "openspec/changes/stun-slot/lane.json": "ce647afae9b62f3bcd6a98c08b53753d3be394cc5b8813135f353301c4fd4a6e",
+        "shared/webrtc/ice-servers.ts": "7a2bc27f6999b8b3096367d4c93b01af2a9e530ae3230eb454f06fc905e19dbe",
+        "shared/webrtc/ice-servers.test.ts": "51b256fefb978dfa5ad4eed01b2bddf5275a4f765fbac6972ee2273a396e231d"
+      },
+      "verify-before": {
+        "package.json": "dbd721d17f981a3b637210e8d43c08b669bd69fd52ccd212f54701b4d37fef93",
+        "tsconfig.json": "49e38d7a3ed1c6238a9ef1f8b73ff9fc42737baf76c26337d41de06cabfd9b30",
+        "EIN.md": "e5f37c001530f93ee750351d87e447030f7fbdf9d0720b8c5e7c0edaf33d1efc",
+        "openspec/config.yaml": "8f9fa93bc5183e58bbf5a58c83a1b3df1498a2af19c20dcbdc52a71fc1178d3f",
+        "openspec/changes/stun-slot/scope.md": "4b5c9381d8cbc822119a5f59299f068a12f9b44ab3022c53bddb0f55175732d4",
+        "openspec/changes/stun-slot/map.md": "1490912db38dd51e74240e5539a131351f4ff377a6fb4928fc467254def70022",
+        "openspec/changes/stun-slot/preflight.json": "4e13af5880bedad058eaaa58e8762ccba23039585c8045111b872d78098e4281",
+        "openspec/changes/stun-slot/lane.json": "ce647afae9b62f3bcd6a98c08b53753d3be394cc5b8813135f353301c4fd4a6e",
+        "shared/webrtc/ice-servers.ts": "58d2169284849f2547b2b65bbd021ed51306f1c75c7bd5eaa3f8c62c004f4018",
+        "shared/webrtc/ice-servers.test.ts": "13768ac5ab50181144d8a23cda825522ee23a9d25c422f438bfc62b510612e8a",
+        "openspec/changes/stun-slot/design.md": "8253d0e9a042d9053240480449f019fe4fea41de8a9c7aa1be28722c9f3d5f41",
+        "openspec/changes/stun-slot/tasks.md": "e9c52ab77c43096ce1138883483e3bcdc8637391cd59eab099cdd1f88eca0f43",
+        "openspec/changes/stun-slot/apply-progress.md": "91dc412b86538bb983704099e257595dcd2850457389f019749c21914704adac"
+      },
+      "verify-clean": {
+        "package.json": "dbd721d17f981a3b637210e8d43c08b669bd69fd52ccd212f54701b4d37fef93",
+        "tsconfig.json": "49e38d7a3ed1c6238a9ef1f8b73ff9fc42737baf76c26337d41de06cabfd9b30",
+        "EIN.md": "e5f37c001530f93ee750351d87e447030f7fbdf9d0720b8c5e7c0edaf33d1efc",
+        "openspec/config.yaml": "8f9fa93bc5183e58bbf5a58c83a1b3df1498a2af19c20dcbdc52a71fc1178d3f",
+        "openspec/changes/stun-slot/scope.md": "4b5c9381d8cbc822119a5f59299f068a12f9b44ab3022c53bddb0f55175732d4",
+        "openspec/changes/stun-slot/map.md": "1490912db38dd51e74240e5539a131351f4ff377a6fb4928fc467254def70022",
+        "openspec/changes/stun-slot/preflight.json": "4e13af5880bedad058eaaa58e8762ccba23039585c8045111b872d78098e4281",
+        "openspec/changes/stun-slot/lane.json": "ce647afae9b62f3bcd6a98c08b53753d3be394cc5b8813135f353301c4fd4a6e",
+        "shared/webrtc/ice-servers.ts": "58d2169284849f2547b2b65bbd021ed51306f1c75c7bd5eaa3f8c62c004f4018",
+        "shared/webrtc/ice-servers.test.ts": "13768ac5ab50181144d8a23cda825522ee23a9d25c422f438bfc62b510612e8a",
+        "openspec/changes/stun-slot/design.md": "8253d0e9a042d9053240480449f019fe4fea41de8a9c7aa1be28722c9f3d5f41",
+        "openspec/changes/stun-slot/tasks.md": "e9c52ab77c43096ce1138883483e3bcdc8637391cd59eab099cdd1f88eca0f43",
+        "openspec/changes/stun-slot/apply-progress.md": "91dc412b86538bb983704099e257595dcd2850457389f019749c21914704adac"
+      }
+    },
+    "finalContracts": {
+      "runtime/agents/sdd-verify.md": {
+        "sha256": "f49ececcab705d977b1d729de511e4de3da1be364a24189e5da55c52d7fd0778",
+        "bytes": 8750
+      },
+      "runtime/agents/sdd-apply.md": {
+        "sha256": "c680d9bd1d8020f2d829536d462bfb7d37a5b75780b892d5c5874060d832bfee",
+        "bytes": 12597
+      },
+      "runtime/agents/sdd-tasks.md": {
+        "sha256": "5f92e1c8399a4896b6c98513b32292ff028d1694d0dcfbc508e4c061e723821e",
+        "bytes": 5107
+      },
+      "runtime/assets/orchestrator-core.md": {
+        "sha256": "667a9ea253c509f19e3f2f9040e8e4a3bae0a1b693d965ca600674eb3efe6e9a",
+        "bytes": 6074
+      },
+      "ein-pi/agent/extensions/ein-skill-registry.ts": {
+        "sha256": "d07ac5138b0b5559aedbc8c2ad44ae3662d9bee899c059a49679b2215f7c7303",
+        "bytes": 22334
+      },
+      "ein-pi/agent/extensions/internal/ein-verify-output-child.ts": {
+        "sha256": "82773559be7be31e67507df70c995459f9dc9429cb790d6cea736828977a6fd5",
+        "bytes": 3292
+      }
+    },
+    "packagedFilesMatch": true
+  },
+  "allRuns": {
+    "after": {
+      "parent": {
+        "tokens": 0,
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "costUsd": 0,
+        "turns": 1
+      },
+      "firstParentInputTokens": 0,
+      "tools": 57,
+      "systemBytes": 23646,
+      "children": [],
+      "total": {
+        "tokens": 0,
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "costUsd": 0,
+        "turns": 1
+      },
+      "parentErrors": [
+        "WebSocket error"
+      ],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 12.608333110809326
+      }
+    },
+    "after-retry": {
+      "parent": {
+        "tokens": 645578,
+        "input": 44173,
+        "output": 2365,
+        "cacheRead": 599040,
+        "costUsd": 1.15902,
+        "turns": 18
+      },
+      "firstParentInputTokens": 22827,
+      "tools": 57,
+      "systemBytes": 23646,
+      "children": [
+        {
+          "agent": "sdd-design",
+          "model": "openai-codex/gpt-6-astra:high",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 24763,
+            "input": 12768,
+            "output": 2267,
+            "cacheRead": 9728,
+            "costUsd": 0.25075800000000004,
+            "turns": 5
+          },
+          "firstInputTokens": 2183,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "package.json",
+            "tsconfig.json",
+            "EIN.md",
+            "openspec/config.yaml"
+          ],
+          "bashCommands": [],
+          "bashResults": [],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "602df0fe3e5c8f6af8fca4533b7e932832d142ba6a31cfdc5d8c0496d6c674d9"
+        },
+        {
+          "agent": "sdd-tasks",
+          "model": "openai-codex/gpt-5.6-sol:high",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 14072,
+            "input": 10399,
+            "output": 1753,
+            "cacheRead": 1920,
+            "costUsd": 0.105545,
+            "turns": 3
+          },
+          "firstInputTokens": 2102,
+          "reads": [
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/preflight.json"
+          ],
+          "bashCommands": [],
+          "bashResults": [],
+          "errors": [],
+          "manualChecklistEdits": 1,
+          "transcriptSha256": "f76fc2ab13b4e2a901fc58cafd2372d3fb1e5b1b15a06c6bf562b087191ed0eb"
+        },
+        {
+          "agent": "sdd-apply",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 78298,
+            "input": 16134,
+            "output": 1236,
+            "cacheRead": 60928,
+            "costUsd": 0.00592856,
+            "turns": 8
+          },
+          "firstInputTokens": 4062,
+          "reads": [
+            "/tmp/ein-verify-live-20260908/after/agent/skills/local/comment-style/SKILL.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts"
+          ],
+          "bashCommands": [
+            {
+              "command": "bun run test && bun run typecheck",
+              "timeout": 120
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 845,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "6eb49776b090164fe4dba3f11e1d13a415007189a8752514ae190c65229ee0ab"
+        },
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 41253,
+            "input": 12368,
+            "output": 1237,
+            "cacheRead": 27648,
+            "costUsd": 0.0045109600000000005,
+            "turns": 5
+          },
+          "firstInputTokens": 2850,
+          "reads": [
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/config.yaml",
+            "package.json"
+          ],
+          "bashCommands": [
+            {
+              "command": "git status --short && git diff --stat && git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts",
+              "timeout": 300
+            },
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 2321,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 830,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "09f8df2b1ab80fcea10192bae5dd5b82907f4b89c724929d04765264fb488a08"
+        }
+      ],
+      "total": {
+        "tokens": 803964,
+        "input": 95842,
+        "output": 8858,
+        "cacheRead": 699264,
+        "costUsd": 1.52576252,
+        "turns": 39
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 341.3710849285126
+      }
+    },
+    "baseline-final": {
+      "parent": {
+        "tokens": 821360,
+        "input": 49776,
+        "output": 1792,
+        "cacheRead": 769792,
+        "costUsd": 1.357152,
+        "turns": 19
+      },
+      "firstParentInputTokens": 40313,
+      "tools": 57,
+      "systemBytes": 94567,
+      "children": [
+        {
+          "agent": "sdd-design",
+          "model": "openai-codex/gpt-6-astra:high",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 19011,
+            "input": 7567,
+            "output": 2228,
+            "cacheRead": 9216,
+            "costUsd": 0.19628600000000002,
+            "turns": 4
+          },
+          "firstInputTokens": 2112,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/config.yaml",
+            "package.json",
+            "tsconfig.json",
+            "EIN.md",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts"
+          ],
+          "bashCommands": [],
+          "bashResults": [],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "5b424a02d6b4212db6c768ec289211b3cd53864f49f4cadb7e6c763d76608136"
+        },
+        {
+          "agent": "sdd-tasks",
+          "model": "openai-codex/gpt-5.6-sol:high",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 13664,
+            "input": 11864,
+            "output": 1800,
+            "cacheRead": 0,
+            "costUsd": 0.11332,
+            "turns": 3
+          },
+          "firstInputTokens": 1988,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md"
+          ],
+          "bashCommands": [],
+          "bashResults": [],
+          "errors": [],
+          "manualChecklistEdits": 1,
+          "transcriptSha256": "e1f760035a548c61aa26424ef6c0e1f6f31cf82f29e5802c4181f8454884a8c4"
+        },
+        {
+          "agent": "sdd-apply",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 159047,
+            "input": 35147,
+            "output": 2044,
+            "cacheRead": 121856,
+            "costUsd": 0.011919319999999997,
+            "turns": 14
+          },
+          "firstInputTokens": 4027,
+          "reads": [
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "/tmp/ein-verify-live-20260908/baseline-final/agent/skills/local/comment-style/SKILL.md",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts"
+          ],
+          "bashCommands": [
+            {
+              "command": "bun run test && bun run typecheck",
+              "timeout": 120
+            },
+            {
+              "command": "sed -n '8,12l' openspec/changes/stun-slot/tasks.md"
+            },
+            {
+              "command": "git status --short && git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts"
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 838,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 515,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 3262,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [
+            {
+              "tool": "edit",
+              "text": "Could not find the exact text in openspec/changes/stun-slot/tasks.md. The old text must match exactly including all whitespace and newlines."
+            },
+            {
+              "tool": "edit",
+              "text": "Could not find the exact text in openspec/changes/stun-slot/tasks.md. The old text must match exactly including all whitespace and newlines."
+            }
+          ],
+          "manualChecklistEdits": 3,
+          "transcriptSha256": "eefe1b41962208b89f0a6dd0dc7dae229a008378e4160110c1754338f768cba1"
+        },
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 44202,
+            "input": 13409,
+            "output": 1097,
+            "cacheRead": 29696,
+            "costUsd": 0.00459212,
+            "turns": 5
+          },
+          "firstInputTokens": 3257,
+          "reads": [
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/config.yaml",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts"
+          ],
+          "bashCommands": [
+            {
+              "command": "timeout 300 bun run test",
+              "timeout": 320
+            },
+            {
+              "command": "timeout 300 bun run typecheck",
+              "timeout": 320
+            },
+            {
+              "command": "git status --short && git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts .gitignore",
+              "timeout": 30
+            },
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 68,
+              "preview": false,
+              "isError": true
+            },
+            {
+              "bytes": 68,
+              "preview": false,
+              "isError": true
+            },
+            {
+              "bytes": 3649,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 824,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [
+            {
+              "tool": "bash",
+              "text": "/bin/bash: timeout: command not found\n\n\nCommand exited with code 127"
+            },
+            {
+              "tool": "bash",
+              "text": "/bin/bash: timeout: command not found\n\n\nCommand exited with code 127"
+            }
+          ],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "5f7f914dd73be2dfd7ae56603bc258d735c9d23b230b7d6257eb4b491ef36baa"
+        }
+      ],
+      "total": {
+        "tokens": 1057284,
+        "input": 117763,
+        "output": 8961,
+        "cacheRead": 930560,
+        "costUsd": 1.68326944,
+        "turns": 45
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 360.99502086639404
+      }
+    },
+    "before": {
+      "parent": {
+        "tokens": 320815,
+        "input": 37775,
+        "output": 672,
+        "cacheRead": 282368,
+        "costUsd": 0.6937180000000001,
+        "turns": 7
+      },
+      "firstParentInputTokens": 40137,
+      "tools": 57,
+      "systemBytes": 94103,
+      "children": [],
+      "total": {
+        "tokens": 320815,
+        "input": 37775,
+        "output": 672,
+        "cacheRead": 282368,
+        "costUsd": 0.6937180000000001,
+        "turns": 7
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 142.33868074417114
+      }
+    },
+    "before-resumed": {
+      "parent": {
+        "tokens": 761158,
+        "input": 29887,
+        "output": 1543,
+        "cacheRead": 729728,
+        "costUsd": 1.105748,
+        "turns": 18
+      },
+      "firstParentInputTokens": 39731,
+      "tools": 57,
+      "systemBytes": 94103,
+      "children": [
+        {
+          "agent": "sdd-tasks",
+          "model": "openai-codex/gpt-5.6-sol:high",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 23167,
+            "input": 20128,
+            "output": 3039,
+            "cacheRead": 0,
+            "costUsd": 0.19181000000000004,
+            "turns": 4
+          },
+          "firstInputTokens": 1979,
+          "reads": [
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/tasks.md"
+          ],
+          "bashCommands": [],
+          "bashResults": [],
+          "errors": [],
+          "manualChecklistEdits": 1,
+          "transcriptSha256": "71d3fdaecd00eab8799ce620b63e21b999e04f5d82ccac76f13987dac7a9eb8f"
+        },
+        {
+          "agent": "sdd-apply",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 114776,
+            "input": 19242,
+            "output": 1838,
+            "cacheRead": 93696,
+            "costUsd": 0.00792792,
+            "turns": 12
+          },
+          "firstInputTokens": 3979,
+          "reads": [
+            "/private/tmp/ein-verify-live-20260908/before/project/openspec/changes/stun-slot/tasks.md",
+            "/private/tmp/ein-verify-live-20260908/before/project/openspec/changes/stun-slot/design.md",
+            "/private/tmp/ein-verify-live-20260908/before/project/openspec/changes/stun-slot/apply-progress.md",
+            "/private/tmp/ein-verify-live-20260908/before/project/openspec/config.yaml",
+            "/private/tmp/ein-verify-live-20260908/before/project/shared/webrtc/ice-servers.ts",
+            "/private/tmp/ein-verify-live-20260908/before/project/shared/webrtc/ice-servers.test.ts",
+            "/private/tmp/ein-verify-live-20260908/before/project/openspec/changes/stun-slot/scope.md",
+            "/private/tmp/ein-verify-live-20260908/before/project/openspec/changes/stun-slot/map.md",
+            "/private/tmp/ein-verify-live-20260908/before/project/package.json",
+            "/private/tmp/ein-verify-live-20260908/before/project/openspec/changes/stun-slot/tasks.md"
+          ],
+          "bashCommands": [
+            {
+              "command": "bun run test",
+              "timeout": 120
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 120
+            },
+            {
+              "command": "git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts",
+              "timeout": 120
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 933,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 2144,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [
+            {
+              "tool": "read",
+              "text": "ENOENT: no such file or directory, access '/private/tmp/ein-verify-live-20260908/before/project/openspec/changes/stun-slot/apply-progress.md'"
+            },
+            {
+              "tool": "edit",
+              "text": "Could not find the exact text in /private/tmp/ein-verify-live-20260908/before/project/openspec/changes/stun-slot/tasks.md. The old text must match exactly including all whitespace and newlines."
+            }
+          ],
+          "manualChecklistEdits": 1,
+          "transcriptSha256": "01c21f579498a65145cf53acac5b5186aa72fc79b30fb15a7cb1748aa4630422"
+        },
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 60056,
+            "input": 13830,
+            "output": 1170,
+            "cacheRead": 45056,
+            "costUsd": 0.00507112,
+            "turns": 7
+          },
+          "firstInputTokens": 3225,
+          "reads": [
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/config.yaml",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts"
+          ],
+          "bashCommands": [
+            {
+              "command": "git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts .gitignore",
+              "timeout": 30
+            },
+            {
+              "command": "timeout 300 bun run test",
+              "timeout": 320
+            },
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 2483,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 68,
+              "preview": false,
+              "isError": true
+            },
+            {
+              "bytes": 934,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [
+            {
+              "tool": "bash",
+              "text": "/bin/bash: timeout: command not found\n\n\nCommand exited with code 127"
+            }
+          ],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "7e595396e7919a282d391ebbbd576c6d33f37a37857511fa7b31bedbd98f4316"
+        }
+      ],
+      "total": {
+        "tokens": 959157,
+        "input": 83087,
+        "output": 7590,
+        "cacheRead": 868480,
+        "costUsd": 1.31055704,
+        "turns": 41
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [
+        "openspec/changes/stun-slot/verify-report.md"
+      ],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 313.168292760849
+      }
+    },
+    "complete": {
+      "parent": {
+        "tokens": 726978,
+        "input": 70121,
+        "output": 2137,
+        "cacheRead": 654720,
+        "costUsd": 1.46278,
+        "turns": 23
+      },
+      "firstParentInputTokens": 22925,
+      "tools": 57,
+      "systemBytes": 23860,
+      "children": [
+        {
+          "agent": "sdd-design",
+          "model": "openai-codex/gpt-6-astra:high",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 19634,
+            "input": 9546,
+            "output": 2280,
+            "cacheRead": 7808,
+            "costUsd": 0.21726800000000002,
+            "turns": 4
+          },
+          "firstInputTokens": 2166,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/config.yaml",
+            "EIN.md",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "package.json",
+            "tsconfig.json"
+          ],
+          "bashCommands": [],
+          "bashResults": [],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "d2229f9fd42a431506b95f8f0cb9d7c9698f379b6017875bde61bf3ba2f5b970"
+        },
+        {
+          "agent": "sdd-tasks",
+          "model": "openai-codex/gpt-5.6-sol:high",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 22113,
+            "input": 7574,
+            "output": 2251,
+            "cacheRead": 12288,
+            "costUsd": 0.11154400000000002,
+            "turns": 4
+          },
+          "firstInputTokens": 2125,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/tasks.md"
+          ],
+          "bashCommands": [],
+          "bashResults": [],
+          "errors": [],
+          "manualChecklistEdits": 1,
+          "transcriptSha256": "b9486b948a95839f0bdae81ba20c2c232a7b3478b8b405163a928768ad6d6205"
+        },
+        {
+          "agent": "sdd-apply",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 78050,
+            "input": 26665,
+            "output": 1209,
+            "cacheRead": 50176,
+            "costUsd": 0.0077873199999999995,
+            "turns": 8
+          },
+          "firstInputTokens": 4055,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "/tmp/ein-verify-live-20260908/complete/agent/skills/local/comment-style/SKILL.md",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts"
+          ],
+          "bashCommands": [
+            {
+              "command": "bun run test",
+              "timeout": 120
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 120
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 812,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "499c6dd62a380bac0c3a06b400c51f56684e138d50a12ac28acd3d1002edc958"
+        },
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 30224,
+            "input": 11295,
+            "output": 1009,
+            "cacheRead": 17920,
+            "costUsd": 0.0038282000000000004,
+            "turns": 4
+          },
+          "firstInputTokens": 2907,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/config.yaml",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts"
+          ],
+          "bashCommands": [
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            },
+            {
+              "command": "git diff --name-only -- openspec/changes/stun-slot shared/webrtc && git status --short",
+              "timeout": 30
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 812,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 325,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "1858bbfeac778063318f48c4df4cc590f5e62a4613842f3d3b2468bfcdb2ba07"
+        }
+      ],
+      "total": {
+        "tokens": 876999,
+        "input": 125201,
+        "output": 8886,
+        "cacheRead": 742912,
+        "costUsd": 1.80320752,
+        "turns": 43
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 416.3360769748688
+      }
+    },
+    "false-green": {
+      "parent": {
+        "tokens": 180445,
+        "input": 17706,
+        "output": 819,
+        "cacheRead": 161920,
+        "costUsd": 0.37993,
+        "turns": 6
+      },
+      "firstParentInputTokens": 22422,
+      "tools": 57,
+      "systemBytes": 23682,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 38209,
+            "input": 11431,
+            "output": 1178,
+            "cacheRead": 25600,
+            "costUsd": 0.0042118,
+            "turns": 5
+          },
+          "firstInputTokens": 2801,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/lane.json",
+            "openspec/config.yaml",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "package.json",
+            "tsconfig.json"
+          ],
+          "bashCommands": [
+            {
+              "command": "git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts && git status --short",
+              "timeout": 300
+            },
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 4500,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 201,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "97c298f432125b0186431f8ff5f8c39950716ad175be50b94d6692b7e3ca7175"
+        }
+      ],
+      "total": {
+        "tokens": 218654,
+        "input": 29137,
+        "output": 1997,
+        "cacheRead": 187520,
+        "costUsd": 0.3841418,
+        "turns": 11
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 85.13308596611023
+      }
+    },
+    "final": {
+      "parent": {
+        "tokens": 842416,
+        "input": 27710,
+        "output": 2418,
+        "cacheRead": 812288,
+        "costUsd": 1.210288,
+        "turns": 24
+      },
+      "firstParentInputTokens": 22883,
+      "tools": 57,
+      "systemBytes": 23646,
+      "children": [
+        {
+          "agent": "sdd-design",
+          "model": "openai-codex/gpt-6-astra:high",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 55392,
+            "input": 19001,
+            "output": 1959,
+            "cacheRead": 34432,
+            "costUsd": 0.32239200000000007,
+            "turns": 8
+          },
+          "firstInputTokens": 2196,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/config.yaml",
+            "EIN.md",
+            "package.json",
+            "tsconfig.json",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "/Users/samu/Documents/03_Educacion/Estudios/PROGRAMACION/gentle-ai/internal/assets/skills/sdd-design/SKILL.md",
+            "/Users/samu/Documents/03_Educacion/Estudios/PROGRAMACION/gentle-ai/internal/assets/skills/_shared/sdd-phase-common.md",
+            "/Users/samu/Documents/03_Educacion/Estudios/PROGRAMACION/gentle-ai/internal/assets/skills/_shared/openspec-convention.md",
+            "openspec/changes/stun-slot/design.md"
+          ],
+          "bashCommands": [],
+          "bashResults": [],
+          "errors": [
+            {
+              "tool": "read",
+              "text": "ENOENT: no such file or directory, access '/private/tmp/ein-verify-live-20260908/final/project/openspec/changes/stun-slot/design.md'"
+            }
+          ],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "6c49b6977840d3e1e00935e9c4a7001c544432816ff2aa0a8f6356828c022f37"
+        },
+        {
+          "agent": "sdd-tasks",
+          "model": "openai-codex/gpt-5.6-sol:high",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 13682,
+            "input": 5930,
+            "output": 2120,
+            "cacheRead": 5632,
+            "costUsd": 0.09606599999999998,
+            "turns": 3
+          },
+          "firstInputTokens": 2134,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/preflight.json"
+          ],
+          "bashCommands": [],
+          "bashResults": [],
+          "errors": [],
+          "manualChecklistEdits": 1,
+          "transcriptSha256": "6624127ee044a32d94481bfad7f82ac3c0135c4b7ce4716ac60a403e58831a90"
+        },
+        {
+          "agent": "sdd-apply",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 100113,
+            "input": 29531,
+            "output": 1974,
+            "cacheRead": 68608,
+            "costUsd": 0.00964716,
+            "turns": 10
+          },
+          "firstInputTokens": 4074,
+          "reads": [
+            "/tmp/ein-verify-live-20260908/final/agent/skills/local/comment-style/SKILL.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts"
+          ],
+          "bashCommands": [
+            {
+              "command": "bun run test",
+              "timeout": 120
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 120
+            },
+            {
+              "command": "bun run test",
+              "timeout": 120
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 120
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 831,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 842,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "878f7c9492d75a81a805969e1420922ae37bbd7a3588e9ebdc2bc4204391fb3a"
+        },
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 30268,
+            "input": 11256,
+            "output": 1092,
+            "cacheRead": 17920,
+            "costUsd": 0.00392,
+            "turns": 4
+          },
+          "firstInputTokens": 2879,
+          "reads": [
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "openspec/config.yaml"
+          ],
+          "bashCommands": [
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            },
+            {
+              "command": "git diff --stat && git diff -- .gitignore shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 851,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 3195,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "cb9d96f0c095000f65595f7eae982a1081f78957c4ba2d359b5048d7344df16f"
+        }
+      ],
+      "total": {
+        "tokens": 1041871,
+        "input": 93428,
+        "output": 9563,
+        "cacheRead": 938880,
+        "costUsd": 1.64231316,
+        "turns": 49
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 427.9067599773407
+      }
+    },
+    "missing-association": {
+      "parent": {
+        "tokens": 180367,
+        "input": 34074,
+        "output": 757,
+        "cacheRead": 145536,
+        "costUsd": 0.524126,
+        "turns": 6
+      },
+      "firstParentInputTokens": 22457,
+      "tools": 57,
+      "systemBytes": 23730,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 49684,
+            "input": 15357,
+            "output": 1047,
+            "cacheRead": 33280,
+            "costUsd": 0.0049934,
+            "turns": 5
+          },
+          "firstInputTokens": 2847,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/lane.json",
+            "openspec/changes/stun-slot/continuity.json",
+            "openspec/config.yaml",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "package.json",
+            "tsconfig.json"
+          ],
+          "bashCommands": [
+            {
+              "command": "bun run test && bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 21237,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "aa06ea51b4eec86178cabc78ccb8d3db130bbdda355bc40a36f921893594df9b"
+        }
+      ],
+      "total": {
+        "tokens": 230051,
+        "input": 49431,
+        "output": 1804,
+        "cacheRead": 178816,
+        "costUsd": 0.5291194,
+        "turns": 11
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 97.74282908439636
+      }
+    },
+    "missing-association-final": {
+      "parent": {
+        "tokens": 180691,
+        "input": 34199,
+        "output": 828,
+        "cacheRead": 145664,
+        "costUsd": 0.529054,
+        "turns": 6
+      },
+      "firstParentInputTokens": 22457,
+      "tools": 57,
+      "systemBytes": 23730,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 40998,
+            "input": 26503,
+            "output": 1183,
+            "cacheRead": 13312,
+            "costUsd": 0.006986440000000001,
+            "turns": 5
+          },
+          "firstInputTokens": 2962,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/lane.json",
+            "openspec/changes/stun-slot/verify-report.md",
+            "openspec/config.yaml",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts"
+          ],
+          "bashCommands": [
+            {
+              "command": "git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts && git status --short"
+            },
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 159,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 2710,
+              "preview": true,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "38fa72706fd28ee4dec67469996fc9ca89b37b764981911e41cfe9a4d98df012"
+        }
+      ],
+      "total": {
+        "tokens": 221689,
+        "input": 60702,
+        "output": 2011,
+        "cacheRead": 158976,
+        "costUsd": 0.5360404400000001,
+        "turns": 11
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 88.27165985107422
+      }
+    },
+    "negative": {
+      "parent": {
+        "tokens": 180583,
+        "input": 34575,
+        "output": 856,
+        "cacheRead": 145152,
+        "costUsd": 0.533702,
+        "turns": 6
+      },
+      "firstParentInputTokens": 22415,
+      "tools": 57,
+      "systemBytes": 23664,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 67875,
+            "input": 25838,
+            "output": 1077,
+            "cacheRead": 40960,
+            "costUsd": 0.0072791999999999996,
+            "turns": 5
+          },
+          "firstInputTokens": 2833,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/lane.json",
+            "openspec/changes/stun-slot/verify-report.md",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "package.json",
+            "tsconfig.json"
+          ],
+          "bashCommands": [
+            {
+              "command": "git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts && git status --short"
+            },
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 833,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 32768,
+              "preview": false,
+              "isError": true
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [
+            {
+              "tool": "bash",
+              "text": "                                                                             ^\nerror: expect(received).toEqual(expected)\n\n  {\n-   \"error\": \"invalid-stun-url\",\n-   \"ok\": false,\n+   \"ok\": true,\n+   \"value\": [\n+     {\n+       \"urls\": \"turn:relay.example:337\",\n+     },\n+   ],\n  }\n\n- Expected  - 2\n+ Rece"
+            }
+          ],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "9dd7eaa53b71991ceb5897b486c5fe378e0671751bba0b230ae31d4e895f890c"
+        }
+      ],
+      "total": {
+        "tokens": 248458,
+        "input": 60413,
+        "output": 1933,
+        "cacheRead": 186112,
+        "costUsd": 0.5409812,
+        "turns": 11
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 84.13484597206116
+      }
+    },
+    "strict-final": {
+      "parent": {
+        "tokens": 149528,
+        "input": 34514,
+        "output": 966,
+        "cacheRead": 114048,
+        "costUsd": 0.507488,
+        "turns": 5
+      },
+      "firstParentInputTokens": 22452,
+      "tools": 57,
+      "systemBytes": 23688,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 41294,
+            "input": 19473,
+            "output": 1341,
+            "cacheRead": 20480,
+            "costUsd": 0.005913400000000001,
+            "turns": 4
+          },
+          "firstInputTokens": 2972,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/lane.json",
+            "openspec/changes/stun-slot/verify-report.md",
+            "openspec/config.yaml"
+          ],
+          "bashCommands": [
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            },
+            {
+              "command": "if [ -f .pi/ein/support/strict-tdd-verify.md ]; then cat .pi/ein/support/strict-tdd-verify.md; else echo 'NO_OVERRIDE'; fi"
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 2697,
+              "preview": true,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 12,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "e6beb3edb3ff8f9bc7fcb668e884029748b1c867ab12c957cf5bd26ff6e7e84d"
+        }
+      ],
+      "total": {
+        "tokens": 190822,
+        "input": 53987,
+        "output": 2307,
+        "cacheRead": 134528,
+        "costUsd": 0.5134014,
+        "turns": 9
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 88.5149519443512
+      }
+    },
+    "strict-missing": {
+      "parent": {
+        "tokens": 180722,
+        "input": 34748,
+        "output": 950,
+        "cacheRead": 145024,
+        "costUsd": 0.540004,
+        "turns": 6
+      },
+      "firstParentInputTokens": 22431,
+      "tools": 57,
+      "systemBytes": 23700,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 38544,
+            "input": 12775,
+            "output": 1193,
+            "cacheRead": 24576,
+            "costUsd": 0.00447812,
+            "turns": 5
+          },
+          "firstInputTokens": 2818,
+          "reads": [
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/config.yaml",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "package.json"
+          ],
+          "bashCommands": [
+            {
+              "command": "git status --short && git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts",
+              "timeout": 300
+            },
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 60,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 2610,
+              "preview": true,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "f0cc073c074633d684badbb77699aa86bfe397dd2ee0f6bb6961b85d4f158110"
+        }
+      ],
+      "total": {
+        "tokens": 219266,
+        "input": 47523,
+        "output": 2143,
+        "cacheRead": 169600,
+        "costUsd": 0.5444821200000001,
+        "turns": 11
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 87.62876081466675
+      }
+    },
+    "strict-valid": {
+      "parent": {
+        "tokens": 217806,
+        "input": 35022,
+        "output": 1152,
+        "cacheRead": 181632,
+        "costUsd": 0.589452,
+        "turns": 7
+      },
+      "firstParentInputTokens": 22452,
+      "tools": 57,
+      "systemBytes": 23688,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 48302,
+            "input": 13817,
+            "output": 1205,
+            "cacheRead": 33280,
+            "costUsd": 0.004875,
+            "turns": 6
+          },
+          "firstInputTokens": 2877,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/lane.json",
+            "openspec/config.yaml",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts"
+          ],
+          "bashCommands": [
+            {
+              "command": "git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts && git status --short",
+              "timeout": 300
+            },
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 60,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 2688,
+              "preview": true,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "e067528f7c501ecbdc7d0427f88525dd1df86ddf5c0b60a261c505ff970b31bb"
+        }
+      ],
+      "total": {
+        "tokens": 266108,
+        "input": 48839,
+        "output": 2357,
+        "cacheRead": 214912,
+        "costUsd": 0.5943269999999999,
+        "turns": 13
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [
+        "openspec/changes/stun-slot/verify-report.md"
+      ],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 98.12280511856079
+      }
+    },
+    "verify-after": {
+      "parent": {
+        "tokens": 180439,
+        "input": 34583,
+        "output": 832,
+        "cacheRead": 145024,
+        "costUsd": 0.532454,
+        "turns": 6
+      },
+      "firstParentInputTokens": 22422,
+      "tools": 57,
+      "systemBytes": 23688,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 38259,
+            "input": 15214,
+            "output": 1029,
+            "cacheRead": 22016,
+            "costUsd": 0.0047179200000000004,
+            "turns": 5
+          },
+          "firstInputTokens": 2791,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/lane.json",
+            "openspec/config.yaml",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "package.json"
+          ],
+          "bashCommands": [
+            {
+              "command": "git status --short && git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts"
+            },
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 60,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 2590,
+              "preview": true,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "1a9e7df216ceb09f0239786ed04fc531a37b05be0331ffe72ba635a6d7cce45c"
+        }
+      ],
+      "total": {
+        "tokens": 218698,
+        "input": 49797,
+        "output": 1861,
+        "cacheRead": 167040,
+        "costUsd": 0.53717192,
+        "turns": 11
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 81.65055704116821
+      }
+    },
+    "verify-before": {
+      "parent": {
+        "tokens": 180390,
+        "input": 34541,
+        "output": 825,
+        "cacheRead": 145024,
+        "costUsd": 0.531684,
+        "turns": 6
+      },
+      "firstParentInputTokens": 22422,
+      "tools": 57,
+      "systemBytes": 23694,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 65923,
+            "input": 27109,
+            "output": 926,
+            "cacheRead": 37888,
+            "costUsd": 0.00729076,
+            "turns": 6
+          },
+          "firstInputTokens": 3323,
+          "reads": [
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/lane.json",
+            "openspec/config.yaml",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "package.json"
+          ],
+          "bashCommands": [
+            {
+              "command": "git status --short && git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts"
+            },
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 60,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 21194,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "b7d05e11a76a43e28f239debade63d37d7501d9e61329ccd6e3933c721d1d305"
+        }
+      ],
+      "total": {
+        "tokens": 246313,
+        "input": 61650,
+        "output": 1751,
+        "cacheRead": 182912,
+        "costUsd": 0.53897476,
+        "turns": 12
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 82.24647402763367
+      }
+    },
+    "verify-clean": {
+      "parent": {
+        "tokens": 164043,
+        "input": 30058,
+        "output": 737,
+        "cacheRead": 133248,
+        "costUsd": 0.47067800000000004,
+        "turns": 6
+      },
+      "firstParentInputTokens": 22464,
+      "tools": 57,
+      "systemBytes": 23884,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 39128,
+            "input": 18121,
+            "output": 1039,
+            "cacheRead": 19968,
+            "costUsd": 0.00527036,
+            "turns": 5
+          },
+          "firstInputTokens": 2893,
+          "reads": [
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/lane.json",
+            "openspec/config.yaml",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "package.json",
+            "tsconfig.json"
+          ],
+          "bashCommands": [
+            {
+              "command": "git status --short && git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts"
+            },
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 60,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 2706,
+              "preview": true,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "f6d334169431775a68e44602b218f3db6bf01ba41534488eac549edb798f4d90"
+        }
+      ],
+      "total": {
+        "tokens": 203171,
+        "input": 48179,
+        "output": 1776,
+        "cacheRead": 153216,
+        "costUsd": 0.47594836,
+        "turns": 11
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 97.26483201980591
+      }
+    },
+    "verify-complete": {
+      "parent": {
+        "tokens": 267026,
+        "input": 17640,
+        "output": 810,
+        "cacheRead": 248576,
+        "costUsd": 0.465476,
+        "turns": 9
+      },
+      "firstParentInputTokens": 22450,
+      "tools": 57,
+      "systemBytes": 23688,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 54122,
+            "input": 17226,
+            "output": 1056,
+            "cacheRead": 35840,
+            "costUsd": 0.0054292,
+            "turns": 6
+          },
+          "firstInputTokens": 2966,
+          "reads": [
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/changes/stun-slot/verify-report.md",
+            "shared/webrtc/ice-servers.ts",
+            "package.json",
+            "tsconfig.json",
+            "openspec/config.yaml"
+          ],
+          "bashCommands": [
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 2709,
+              "preview": true,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "67a66a595cd4d1781da8d6f286976f113dc0136f5005a3ac80d3c0c1aac4c682"
+        }
+      ],
+      "total": {
+        "tokens": 321148,
+        "input": 34866,
+        "output": 1866,
+        "cacheRead": 284416,
+        "costUsd": 0.4709052,
+        "turns": 15
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 91.19760704040527
+      }
+    },
+    "verify-final": {
+      "parent": {
+        "tokens": 264115,
+        "input": 34692,
+        "output": 815,
+        "cacheRead": 228608,
+        "costUsd": 0.616278,
+        "turns": 9
+      },
+      "firstParentInputTokens": 22450,
+      "tools": 57,
+      "systemBytes": 23688,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 39002,
+            "input": 12302,
+            "output": 1100,
+            "cacheRead": 25600,
+            "costUsd": 0.004292400000000001,
+            "turns": 5
+          },
+          "firstInputTokens": 2876,
+          "reads": [
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/config.yaml",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "package.json",
+            "tsconfig.json",
+            "EIN.md"
+          ],
+          "bashCommands": [
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 2697,
+              "preview": true,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "a857b39f1c18ebdf81e585e62b73b70eeb28300b2559fcc51263d2f307b2a068"
+        }
+      ],
+      "total": {
+        "tokens": 303117,
+        "input": 46994,
+        "output": 1915,
+        "cacheRead": 254208,
+        "costUsd": 0.6205704,
+        "turns": 14
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 96.76821517944336
+      }
+    },
+    "verify-final-v2": {
+      "parent": {
+        "tokens": 181134,
+        "input": 34475,
+        "output": 867,
+        "cacheRead": 145792,
+        "costUsd": 0.533892,
+        "turns": 6
+      },
+      "firstParentInputTokens": 22450,
+      "tools": 57,
+      "systemBytes": 23688,
+      "children": [
+        {
+          "agent": "sdd-verify",
+          "model": "openai-codex/gpt-5.6-luna:low",
+          "exitCode": 0,
+          "usage": {
+            "tokens": 39387,
+            "input": 12671,
+            "output": 1116,
+            "cacheRead": 25600,
+            "costUsd": 0.0043854,
+            "turns": 5
+          },
+          "firstInputTokens": 2912,
+          "reads": [
+            "openspec/changes/stun-slot/preflight.json",
+            "openspec/changes/stun-slot/lane.json",
+            "openspec/changes/stun-slot/scope.md",
+            "openspec/changes/stun-slot/map.md",
+            "openspec/changes/stun-slot/design.md",
+            "openspec/changes/stun-slot/tasks.md",
+            "openspec/changes/stun-slot/apply-progress.md",
+            "openspec/config.yaml",
+            "shared/webrtc/ice-servers.ts",
+            "shared/webrtc/ice-servers.test.ts",
+            "package.json",
+            "tsconfig.json"
+          ],
+          "bashCommands": [
+            {
+              "command": "git diff -- shared/webrtc/ice-servers.ts shared/webrtc/ice-servers.test.ts && git status --short",
+              "timeout": 300
+            },
+            {
+              "command": "bun run test",
+              "timeout": 300
+            },
+            {
+              "command": "bun run typecheck",
+              "timeout": 300
+            }
+          ],
+          "bashResults": [
+            {
+              "bytes": 159,
+              "preview": false,
+              "isError": false
+            },
+            {
+              "bytes": 2718,
+              "preview": true,
+              "isError": false
+            },
+            {
+              "bytes": 15,
+              "preview": false,
+              "isError": false
+            }
+          ],
+          "errors": [],
+          "manualChecklistEdits": 0,
+          "transcriptSha256": "fcdef9293ef2509f37872b6ba3388c960973d894eb4376bd21fa5f97a9b43c1a"
+        }
+      ],
+      "total": {
+        "tokens": 220521,
+        "input": 47146,
+        "output": 1983,
+        "cacheRead": 171392,
+        "costUsd": 0.5382774,
+        "turns": 11
+      },
+      "parentErrors": [],
+      "parentArtifactEdits": [],
+      "exit": {
+        "exitCode": 0,
+        "seconds": 94.57402014732361
+      }
+    }
+  },
+  "limitations": [
+    "One real scoped pure TypeScript module; one final run per arm, no sampling seed or broad benchmark.",
+    "Scope and map supplied equally; actual design, tasks, apply and verify agents ran. Close/delivery intentionally excluded.",
+    "409-test output case adds a synthetic valid-port matrix to a real fixture; not 409 independent product requirements.",
+    "Totals sum uncached input, output and cache read/write, not peak context. USD is runtime-estimated cost, not an invoice.",
+    "External MCP disabled equally; no local model tested.",
+    "Parent and model decisions vary; cache and latency comparisons are indicative.",
+    "Earlier attempts, failed hypotheses, reverifications and one WebSocket interruption are retained, not substituted into the controlled baseline.",
+    "Full-workflow baseline is pinned to 225f7a9; the earlier before/after exploratory homes were inherited hybrids and are excluded from the final comparison.",
+    "The independent 18-case oracle comes from the previous evaluation; it is not a newly preregistered holdout.",
+    "Previews are a Pi transport optimization; unknown/composed commands, failures, many diagnostics and unavailable storage retain native output.",
+    "Model auditing is not a deterministic proof of semantic correctness; current tests are bounded evidence."
+  ]
+}

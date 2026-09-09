@@ -18,9 +18,8 @@ export const MAX_FANOUT_BRANCHES = 3;
 
 // LOS DOS NIVELES DE VALIDACIÓN (la decisión de diseño de este módulo):
 //
-//   Coherencia INTERNA -> estricta. Schema, ids únicos, ids conocidos, sin
-//     referencias huérfanas. Es determinista, gratis y es responsabilidad del
-//     modelo. Falla cerrado.
+//   Coherencia INTERNA -> schema e ids únicos/conocidos estrictos.
+//     Las citas sin uso se retiran con procedencia; no sostienen afirmaciones.
 //   Citas contra DISCO -> tolerante y con procedencia. Es donde el modelo
 //     escribe un número a mano y se equivoca. Se recorta lo recortable, se
 //     descarta lo irrecuperable, y el resto del reporte llega al padre.
@@ -42,7 +41,8 @@ export const MAX_FANOUT_BRANCHES = 3;
 // mantiene estricta es el oro — que cada cita apunte a un fichero:línea real.
 
 export type ScoutLaunch = Record<string, unknown>;
-export type ScoutTracking = Map<string, string>;
+type ScoutScope = { root: string; allowedRoots: string[] };
+export type ScoutTracking = Map<string, string | ScoutScope>;
 type Reference = { id: string; path: string; startLine: number; endLine: number; supports: string };
 type Uncertainty = { level: string; statement: string };
 type Report = { version: string; summary: string; summaryReferenceIds: string[]; findings: { claim: string; referenceIds: string[] }[]; references: Reference[]; uncertainties: Uncertainty[] };
@@ -77,7 +77,7 @@ function unsupportedForm(input: Record<string, unknown>): boolean {
 }
 
 /** Normalizes the only scout form the beta can associate with one result. */
-export function normalizeScoutLaunch(input: unknown, toolCallId: string, tracking: ScoutTracking): ScoutLaunch | undefined {
+export function normalizeScoutLaunch(input: unknown, toolCallId: string, tracking: ScoutTracking, parentRoot?: string): ScoutLaunch | undefined {
 	if (!scoutName(input)) return undefined;
 	if (!isRecord(input)) fail("invalid invocation");
 	if (unsupportedForm(input)) fail("nested, chain, parallel, background, or resume launch is unsupported");
@@ -101,12 +101,14 @@ export function normalizeScoutLaunch(input: unknown, toolCallId: string, trackin
 		if (status === "off-contract") offContract += 1;
 	}
 	if (offContract >= OFF_CONTRACT_LIMIT) fail("the scout returned off-contract twice this turn; treat it as an infrastructure incident, surface it, and degrade to bounded reads instead of relaunching");
-	tracking.set(toolCallId, "pending");
+	const root = parentRoot ? resolve(parentRoot, typeof input.cwd === "string" ? input.cwd : ".") : undefined;
+	tracking.set(toolCallId, root && parentRoot ? { root, allowedRoots: [...new Set([resolve(parentRoot), root])] } : "pending");
 	// `extensions` is not a supported parent-call field. The scout agent's
-	// explicit empty frontmatter declaration is the only extension policy.
+	// explicit frontmatter allowlist is the only extension policy.
 	const { extensions: _extensions, ...launch } = input;
 	void _extensions;
 	const contract = {
+		...(root ? { cwd: root } : {}),
 		context: "fresh",
 		maxRuntimeMs: 120_000,
 		turnBudget: { maxTurns: 12, graceTurns: 2 },
@@ -308,18 +310,22 @@ function lineCount(lines: string[]): number {
 
 type ReferenceCheck = { ok: true; reference: Reference } | { ok: false; reason: string };
 
-function checkReference(root: string, reference: Reference): ReferenceCheck {
-	const shape = isRecord(reference) && closed(reference, ["id", "path", "startLine", "endLine", "supports"]) && /^R[1-9][0-9]*$/.test(reference.id) && boundedString(reference.path, 512) && !isAbsolute(reference.path) && !reference.path.includes("\0") && !reference.path.split(/[\\/]/).some((part) => part === "" || part === "." || part === "..") && Number.isInteger(reference.startLine) && reference.startLine >= 1 && Number.isInteger(reference.endLine) && reference.endLine >= reference.startLine && boundedString(reference.supports, 500);
+function checkReference(root: string, reference: Reference, allowedRoots: string[]): ReferenceCheck {
+	const shape = isRecord(reference) && closed(reference, ["id", "path", "startLine", "endLine", "supports"]) && /^R[1-9][0-9]*$/.test(reference.id) && boundedString(reference.path, 512) && !reference.path.includes("\0") && Number.isInteger(reference.startLine) && reference.startLine >= 1 && Number.isInteger(reference.endLine) && reference.endLine >= reference.startLine && boundedString(reference.supports, 500);
 	if (!shape) return { ok: false, reason: `${isRecord(reference) && typeof reference.id === "string" ? reference.id : "?"}: invalid reference shape` };
 
-	const rootReal = realpathSync(root);
-	const candidate = resolve(rootReal, reference.path);
+	const candidate = resolve(root, reference.path);
+	const within = (base: string, path: string): boolean => {
+		const rel = relative(base, path);
+		return rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel);
+	};
+	if (!allowedRoots.some((base) => within(resolve(base), candidate))) return { ok: false, reason: `${cite(reference)}: escapes the repository root` };
 	let actual: string;
 	try {
 		if (!lstatSync(candidate).isFile()) return { ok: false, reason: `${cite(reference)}: not a regular file` };
 		actual = realpathSync(candidate);
-	} catch { return { ok: false, reason: `${cite(reference)}: missing or unreadable` }; }
-	if (relative(rootReal, actual).startsWith("..") || isAbsolute(relative(rootReal, actual))) return { ok: false, reason: `${cite(reference)}: escapes the repository root` };
+		if (!allowedRoots.some((base) => within(realpathSync(base), actual))) return { ok: false, reason: `${cite(reference)}: escapes the repository root` };
+	} catch { return { ok: false, reason: `${cite(reference)}: missing or unreadable (resolved from ${root})` }; }
 
 	let lines: string[];
 	try { lines = readFileSync(actual, "utf8").split(/\r?\n/); } catch { return { ok: false, reason: `${cite(reference)}: unreadable` }; }
@@ -332,7 +338,7 @@ function checkReference(root: string, reference: Reference): ReferenceCheck {
 	return { ok: true, reference: reference.endLine > last ? { ...reference, endLine: last } : reference };
 }
 
-export function validateScoutReport(payloads: readonly unknown[], root: string): Report {
+export function validateScoutReport(payloads: readonly unknown[], root: string, allowedRoots = [root]): Report {
 	if (payloads.length !== 1) fail(payloads.length === 0 ? "missing structured report" : "multiple structured reports");
 	const report = parseReport(payloads[0]);
 
@@ -341,35 +347,31 @@ export function validateScoutReport(payloads: readonly unknown[], root: string):
 	for (const reference of report.references) { if (ids.has(reference.id)) fail("duplicate reference id"); ids.add(reference.id); }
 	const used = new Set([...report.summaryReferenceIds, ...report.findings.flatMap((finding) => finding.referenceIds)]);
 	for (const id of used) if (!ids.has(id)) fail("unknown reference id");
-	if (used.size !== ids.size) fail("unreferenced reference");
 
 	// NIVEL 2 — citas contra disco: se recorta, se descarta, se declara.
 	const kept: Reference[] = [];
 	const dropped: string[] = [];
 	for (const reference of report.references) {
-		const checked = checkReference(root, reference);
+		if (!used.has(reference.id)) { dropped.push(`${reference.id}: unreferenced reference`); continue; }
+		const checked = checkReference(root, reference, allowedRoots);
 		if (checked.ok) kept.push(checked.reference);
 		else dropped.push(checked.reason);
 	}
 	if (dropped.length === 0) return { ...report, references: kept };
 
 	const live = new Set(kept.map((reference) => reference.id));
-	const findings = report.findings
-		.map((finding) => ({ ...finding, referenceIds: finding.referenceIds.filter((id) => live.has(id)) }))
-		.filter((finding) => finding.referenceIds.length > 0);
-	const summaryReferenceIds = report.summaryReferenceIds.filter((id) => live.has(id));
-	// NO se podan "huérfanas sobrevenidas": no existen. Un finding solo cae
-	// cuando TODAS sus referencias mueren, así que ninguna referencia viva puede
-	// quedarse sin usar por el descarte de un finding, y las del summary
-	// sobreviven al filtro. Se comprobó con un test que resultó imposible de
-	// poner en rojo; el filtro que lo implementaba era código muerto.
-	const references = kept;
+	const findings = report.findings.filter((finding) => finding.referenceIds.every((id) => live.has(id)));
+	const summaryIntact = report.summaryReferenceIds.every((id) => live.has(id));
+	const summaryReferenceIds = summaryIntact ? report.summaryReferenceIds : [...new Set(findings.flatMap((finding) => finding.referenceIds))].slice(0, 8);
+	const usedAfterDrop = new Set([...summaryReferenceIds, ...findings.flatMap((finding) => finding.referenceIds)]);
+	const references = kept.filter((reference) => usedAfterDrop.has(reference.id));
 
 	if (references.length === 0 || findings.length === 0 || summaryReferenceIds.length === 0) {
 		fail(`no valid evidence survived reference validation — ${dropped.join("; ")}`);
 	}
 	return {
 		...report,
+		summary: summaryIntact ? report.summary : "Partial evidence: see the surviving cited findings; the original summary lost supporting references.",
 		summaryReferenceIds,
 		findings,
 		references,
@@ -480,8 +482,9 @@ function scoutBranches(details: unknown): Branch[] {
 	}));
 }
 
-function validateBranch(branch: Branch, root: string): Report {
-	const report = validateScoutReport([branch.finalOutput], root);
+function validateBranch(branch: Branch, root: string, allowedRoots = [root], absolutePaths = false): Report {
+	const report = validateScoutReport([branch.finalOutput], root, allowedRoots);
+	if (absolutePaths) report.references = report.references.map((reference) => ({ ...reference, path: resolve(root, reference.path) }));
 	return branch.runtimeUncertainties.length === 0
 		? report
 		: { ...report, uncertainties: [...report.uncertainties, ...branch.runtimeUncertainties] };
@@ -490,12 +493,12 @@ function validateBranch(branch: Branch, root: string): Report {
 // Cada rama se valida por su cuenta: una rama fuera de contrato no arrastra a
 // sus hermanas. Es la diferencia entre perder un ángulo y perder la
 // investigación entera.
-function validateBranches(branches: Branch[], root: string): ScoutFanout {
+function validateBranches(branches: Branch[], root: string, allowedRoots: string[], absolutePaths: boolean): ScoutFanout {
 	const accepted: ScoutFanout["branches"] = [];
 	const dropped: string[] = [];
 	for (const branch of branches) {
 		if (branch.finalOutput.trim().length === 0) { dropped.push(`${branch.task}: returned no usable report`); continue; }
-		try { accepted.push({ task: branch.task, report: validateBranch(branch, root) }); }
+		try { accepted.push({ task: branch.task, report: validateBranch(branch, root, allowedRoots, absolutePaths) }); }
 		catch (error) { dropped.push(`${branch.task}: ${error instanceof Error ? error.message : "off-contract"}`); }
 	}
 	if (accepted.length === 0) fail(`every scout branch returned off-contract — ${dropped.join("; ")}`);
@@ -508,12 +511,16 @@ export function acceptTrackedScoutResult(tracking: ScoutTracking, toolCallId: st
 	// mensaje original tal cual (`isError` lo devuelve sin tocar aguas arriba).
 	if (isError) { tracking.delete(toolCallId); return undefined; }
 	try {
+		const scope = tracking.get(toolCallId);
+		const validationRoot = typeof scope === "object" ? scope.root : root;
+		const allowedRoots = typeof scope === "object" ? scope.allowedRoots : [root];
+		const absolutePaths = validationRoot !== root || allowedRoots.length > 1;
 		const branches = scoutBranches(details);
 		// Un solo resultado devuelve el reporte pelado, byte por byte como antes:
 		// es el caso mayoritario y no se rompe por añadir el fan-out.
 		const accepted = branches.length === 1
-			? validateBranch(branches[0]!, root)
-			: validateBranches(branches, root);
+			? validateBranch(branches[0]!, validationRoot, allowedRoots, absolutePaths)
+			: validateBranches(branches, validationRoot, allowedRoots, absolutePaths);
 		tracking.delete(toolCallId);
 		return accepted;
 	} catch (error) {

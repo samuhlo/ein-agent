@@ -80,4 +80,45 @@ describe("resolveSkills — precise routing", () => {
     const resolved = resolveSkills(registry, "Water the office plants");
     expect(resolved).toHaveLength(0);
   });
+
+  test("stack and workflow tags only rank skills with a relevant signal", () => {
+    const workflow = entry("linear-workflow", "Trigger: Linear tickets", ["workflow"]);
+    expect(resolveSkills([...registry, workflow], "Verify the Nuxt settings", "frontend")).toEqual([]);
+    expect(resolveSkills([workflow], "Update Linear tickets")).toEqual([workflow]);
+  });
+
+  test("control identifiers and substrings do not request a framework skill", () => {
+    const next = entry("next", "Trigger: Next applications", ["frontend"]);
+    const react = entry("react", "Trigger: React components", ["frontend"]);
+    expect(resolveSkills([next, react], "Nuxt reactive state; next_recommended: close")).toEqual([]);
+    expect(resolveSkills([next], "Verify Next.js route", "frontend")).toEqual([next]);
+    expect(resolveSkills([react], "Verify React component")).toEqual([react]);
+  });
+});
+
+// Pi passes the session context fifth; discovery must not fall back to the
+// process cwd when a delegated session belongs to another project.
+test("native skill tools return readable paths from the actual session project", async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { default: registerSkills } = await import("../ein-pi/agent/extensions/ein-skill-registry.ts");
+  const cwd = mkdtempSync(join(tmpdir(), "ein-skill-session-"));
+  try {
+    const path = join(cwd, ".pi", "skills", "fixture-local-accessibility", "SKILL.md");
+    mkdirSync(join(path, ".."), { recursive: true });
+    writeFileSync(path, "---\nname: fixture-local-accessibility\ndescription: Trigger: fixture-local-accessibility. Check focus order.\n---\nUse actual keyboard navigation.\n");
+    const tools = new Map<string, any>();
+    registerSkills({ registerTool(tool: any) { tools.set(tool.name, tool); }, registerCommand() {} } as any);
+    for (const name of ["ein_skill_registry", "ein_skill_resolve", "ein_skill_digest"]) {
+      const result = await tools.get(name).execute("call", {
+        query: "fixture-local-accessibility", task: "fixture-local-accessibility", limit: 1,
+      }, new AbortController().signal, undefined, { cwd });
+      const text = result.content.map((part: any) => part.text ?? "").join("\n");
+      expect(text).toContain(path);
+      if (name !== "ein_skill_digest") expect(text).toContain("Check focus order");
+    }
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
