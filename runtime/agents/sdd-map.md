@@ -2,7 +2,7 @@
 name: sdd-map
 description: Map an SDD change idea before the design phase.
 tools: read, grep, find, write, bash
-subagentOnlyExtensions: ../extensions/internal/ein-command-guard-child.ts
+subagentOnlyExtensions: ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 ---
 
@@ -92,7 +92,7 @@ THEN:
 
 ## Return contract (compact envelope)
 
-Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every phase is exactly what fills it. Keep it SMALL. The full detail already lives in your on-disk artifact (`map.md`); the parent reads that from disk when it needs detail and never recovers it from your envelope. Return ONLY:
+Your FINAL message is copied to the parent. Keep detail in the on-disk artifact; return ONLY:
 
 - `status` (+ `blocked_by` when blocked);
 - `executive_summary`: **≤ 3 lines / ≤ 60 words** — the outcome and the one fact the parent routes on, NOT the evidence;

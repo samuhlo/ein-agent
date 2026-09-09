@@ -37,6 +37,14 @@ const HONO = entry(
 );
 
 describe("extractTriggers — declared intent, not a file scan", () => {
+  test("dot-prefixed paths do not leave only a generic verb as the trigger", () => {
+    const vue = entry("vue", "Use when editing .vue files, creating Vue 3 components, writing composables, or testing Vue code - provides patterns");
+    const vueuse = entry("vueuse", "Apply VueUse composables where appropriate to build concise, maintainable Vue.js / Nuxt features.");
+    expect(extractTriggers(vue.description)).toContain("vue");
+    expect(resolveSkills([vue, vueuse], "Apply the planned TypeScript change, editing source.ts and testing source.test.ts")).toEqual([]);
+    expect(resolveSkills([vue], "Edit app/components/Card.vue")).toEqual([vue]);
+    expect(resolveSkills([vueuse], "Use VueUse for the watcher")).toEqual([vueuse]);
+  });
   test("uses the explicit Trigger: clause and ignores stack words before it", () => {
     const triggers = extractTriggers(ARCHITECTURE.description);
     expect(triggers).toContain("refactor");

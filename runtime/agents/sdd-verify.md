@@ -2,7 +2,7 @@
 name: sdd-verify
 description: Verify implementation against SDD design, tasks, apply progress, and strict TDD evidence.
 tools: read, grep, find, bash, write, edit
-subagentOnlyExtensions: ../extensions/internal/ein-verify-output-child.ts, ../extensions/internal/ein-command-guard-child.ts
+subagentOnlyExtensions: ../extensions/internal/ein-verify-output-child.ts, ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 ---
 
@@ -15,6 +15,10 @@ Read `intent.md` when present; preserve its decisions and write `intent_key: <ma
 Use your assigned executor/phase skill for this SDD phase. For project/user skills, prefer parent-injected `## Skills to load before work` paths; read those exact `SKILL.md` files before work. Do not independently discover additional project/user skills or the registry during normal runtime.
 
 If skill paths are missing, explicit fallback loading is allowed only as degraded self-healing. Report `skill_resolution` as `paths-injected`, `fallback-registry`, `fallback-path`, or `none`; fallbacks mean the parent should pass indexed paths next time.
+
+## Ad-hoc verification
+
+For an explicitly bounded non-SDD assignment with no change directory, the parent's agreed behavior, allowed files and checks replace the SDD artifacts below. Inspect source/tests, run the required checks independently and report status, behavioral coverage, findings and exact command results inline. Create no SDD/report files. Missing acceptance criteria block; a missing SDD document does not. Do not fix code.
 
 ## Read only what establishes the result
 
@@ -67,7 +71,7 @@ Never block on supervisor/intercom asks: you run non-interactive. Return `status
 
 ## Return contract (compact envelope)
 
-Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every phase is exactly what fills it. Keep it SMALL. The full detail already lives in your on-disk artifact (`verify-report.md`); the parent reads that from disk when it needs detail and never recovers it from your envelope. Return ONLY:
+Your FINAL message is copied to the parent. Keep detail in the on-disk artifact; return ONLY:
 
 - `status` (+ `blocked_by` when blocked);
 - `executive_summary`: **≤ 3 lines / ≤ 60 words** — the pass/fail outcome and `behavior_coverage`, NOT the evidence;

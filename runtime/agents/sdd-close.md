@@ -2,7 +2,7 @@
 name: sdd-close
 description: Close a verified SDD change — condense it into a clean, reviewable summary.md. The deterministic move is done by the parent via /ein:sdd-close.
 tools: read, grep, find, write, bash, ein_sdd_summary
-subagentOnlyExtensions: ../extensions/internal/ein-close-summary-child.ts, ../extensions/internal/ein-command-guard-child.ts
+subagentOnlyExtensions: ../extensions/internal/ein-close-summary-child.ts, ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 ---
 
@@ -59,7 +59,7 @@ explicitly scoped and verified change, not an automatic post-verification edit.
 
 ## Return contract (compact envelope)
 
-Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every phase is exactly what fills it. Keep it SMALL. The full detail already lives in your on-disk artifact (`summary.md`); the parent reads that from disk when it needs detail and never recovers it from your envelope. Return ONLY:
+Your FINAL message is copied to the parent. Keep detail in the on-disk artifact; return ONLY:
 
 - `status` (+ `blocked_by` when blocked);
 - `executive_summary`: **≤ 3 lines / ≤ 60 words** — that the change is ready to close, NOT a re-paste of the summary;

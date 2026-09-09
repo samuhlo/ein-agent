@@ -11,7 +11,7 @@ export const INTENT_INPUT = "ein:intent-response";
 export type IntentContext = Pick<ExtensionContext, "cwd" | "sessionManager">;
 export type IntentInput = { id: string; text: string; source: "interactive" | "rpc" };
 export type IntentRequest = {
-	action: "propose" | "status" | "confirm" | "cancel" | "delegate";
+	action: "propose" | "status" | "confirm" | "cancel" | "delegate" | "record";
 	work: string;
 	change?: string;
 	material?: IntentMaterial;
@@ -101,6 +101,18 @@ export function runIntentDiscovery(
 		append(INTENT_STATE, agreement);
 		return { agreement };
 	};
+	if (request.action === "record") {
+		if (!latestInput || !request.material) throw new Error("Record requires the current observed human request and complete material");
+		if (previous.agreement && previous.agreement.status !== "confirmed") throw new Error("An open or cancelled discovery cannot be bypassed with record; resolve it with the observed answer");
+		const material = normalizeIntentMaterial(request.material);
+		const materialKey = createIntentMaterialKey(material);
+		if (previous.agreement?.materialKey === materialKey && previous.agreement.change === request.change) return previous;
+		if (previous.agreement?.response?.id === latestInput.id) throw new Error("Changed material needs a new observed human request or a discovery round");
+		return publish({ version: 1, work: request.work, change: request.change, status: "confirmed", material, materialKey,
+			questions: [], fromRequest: true, response: latestInput, history: previous.agreement ? [
+				...(previous.agreement.history ?? []), { questions: previous.agreement.questions, response: previous.agreement.response! },
+			] : [], revision: randomUUID() });
+	}
 	if (request.action === "delegate") {
 		const explicit = /^(?:(?:resu[eé]lvelo t[uú]|hazlo|decide t[uú]|adelante|contin[uú]a)[,;:]?\s+)?(?:sin preguntas|sin preguntarme|no me preguntes|without questions|don['’]t ask me|do not ask me)[.!]?$/i;
 		if (!latestInput || !latestInput.text.split(/\r?\n/).some((line) => explicit.test(line.trim()))) {

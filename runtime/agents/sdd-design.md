@@ -2,6 +2,7 @@
 name: sdd-design
 description: SDD design phase — writes proposal, spec, decisions, and success criteria to design.md.
 tools: read, grep, find, write, edit
+subagentOnlyExtensions: ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 ---
 
@@ -63,7 +64,7 @@ Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit
 
 ## Return contract (compact envelope)
 
-Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every phase is exactly what fills it. Keep it SMALL. The full detail already lives in your on-disk artifact (`design.md`); the parent reads that from disk when it needs detail and never recovers it from your envelope. Return ONLY:
+Your FINAL message is copied to the parent. Keep detail in the on-disk artifact; return ONLY:
 
 - `status` (+ `blocked_by` when blocked);
 - `executive_summary`: **≤ 3 lines / ≤ 60 words** — the outcome and the one fact the parent routes on, NOT the evidence;

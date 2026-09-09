@@ -8,7 +8,7 @@ license: internal
 
 Este protocolo también se activa automáticamente antes de trabajo modificador nuevo. El padre conduce las decisiones; `/ein:intent` entra explícitamente en la misma conversación. `/ein:eh` sigue siendo exclusivamente humano.
 
-En Pi usa `ein_intent`: `propose` guarda la ronda en sesión, muestra sus preguntas y espera; `status` recupera la respuesta real y su `responseId`; `confirm` incorpora únicamente decisiones contestadas y guarda el acuerdo. Rechazo o cancelación nunca confirman. Si quedan decisiones, abre otra ronda. Para SDD, `change` y `work` comparten nombre; para cambios pequeños omite `change` y conserva el acuerdo en sesión. Reutiliza acuerdos idénticos; `auto` no omite esta conversación. `delegate` solo permite omitir preguntas si el mensaje humano actual lo pide explícitamente (“sin preguntas / without questions”); registra el objetivo, los límites y los supuestos delegados.
+En Pi usa `ein_intent`: `record` registra directamente una petición humana actual, completa y autorizada, cuando no falta ninguna decisión material; nunca sustituye una ronda pendiente ni convierte una conversación exploratoria en permiso. `propose` guarda la ronda en sesión, muestra sus preguntas y espera; `status` recupera la respuesta real y su `responseId`; `confirm` incorpora únicamente decisiones contestadas y guarda el acuerdo. Rechazo o cancelación nunca confirman. Si quedan decisiones, abre otra ronda. Para SDD, `change` y `work` comparten nombre; para cambios pequeños omite `change` y conserva el acuerdo en sesión. Reutiliza acuerdos idénticos; `auto` no omite esta conversación. `delegate` solo permite omitir preguntas si el mensaje humano actual lo pide explícitamente (“sin preguntas / without questions”); registra el objetivo, los límites y los supuestos delegados.
 
 ## /ein:intent
 
@@ -18,7 +18,7 @@ ya están cerrados.
 
 ### Ronda 1 (first round)
 
-La primera ronda sirve también para el arranque automático. En un cambio pequeño basta una pregunta concreta; no preguntes de nuevo lo que el usuario ya explicó.
+La primera ronda sirve también para el arranque automático. Pregunta solo si falta una decisión material; una petición completa se registra sin otra ronda. No preguntes de nuevo lo que el usuario ya explicó.
 
 - Solo decisiones sin prerequisitos entran en la ronda 1.
 - Cada pregunta va numerada y trae una recomendación.
@@ -42,8 +42,7 @@ La primera ronda sirve también para el arranque automático. En un cambio peque
 - Nunca se le pregunta al usuario algo que el código ya contesta.
 - Ninguna decisión se toma en nombre del usuario.
 - La sesión termina cuando la frontera queda vacía: no quedan decisiones sin
-  prerequisito cerrado. En ese punto se pide confirmación explícita antes de
-  escribir nada.
+  prerequisito cerrado. La petición o respuesta humana debe autorizar el trabajo; conserva esa autorización sin una confirmación duplicada.
 
 ### Cierre y confirmación (R8, R9)
 

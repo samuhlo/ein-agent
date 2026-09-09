@@ -12,6 +12,7 @@ export type IntentAgreement = {
 	materialKey: string;
 	questions: string[];
 	delegated?: true;
+	fromRequest?: true;
 	reopenReason?: string;
 	response?: { id: string; text: string; source: "interactive" | "rpc" };
 	history?: { questions: string[]; response: NonNullable<IntentAgreement["response"]> }[];
@@ -37,12 +38,12 @@ export function validateAgreement(value: unknown): IntentAgreement {
 		|| (record.change !== undefined && record.change !== record.work)
 		|| !["pending", "confirmed", "cancelled"].includes(record.status)
 		|| typeof record.revision !== "string" || !record.revision
-		|| !Array.isArray(record.questions) || (record.questions.length < 1 && !record.delegated) || record.questions.length > 4
+		|| !Array.isArray(record.questions) || (record.questions.length < 1 && !record.delegated && !record.fromRequest) || record.questions.length > 4
 		|| record.questions.some((q) => typeof q !== "string" || !q.trim())) throw new Error("Invalid intent agreement");
 	const material = normalizeIntentMaterial(record.material);
 	const validResponse = (response: IntentAgreement["response"]) => response && typeof response.id === "string" && response.id.trim()
 		&& typeof response.text === "string" && response.text.trim() && ["interactive", "rpc"].includes(response.source);
-	if ((record.delegated !== undefined && record.delegated !== true) || (record.reopenReason !== undefined && typeof record.reopenReason !== "string")) throw new Error("Invalid discovery metadata");
+	if ((record.fromRequest !== undefined && record.fromRequest !== true) || (record.fromRequest && (record.questions.length !== 0 || record.delegated)) || (record.delegated !== undefined && record.delegated !== true) || (record.reopenReason !== undefined && typeof record.reopenReason !== "string")) throw new Error("Invalid discovery metadata");
 	if (record.history && (!Array.isArray(record.history) || record.history.some((round) => !Array.isArray(round.questions)
 		|| round.questions.some((q) => typeof q !== "string") || !validResponse(round.response)))) throw new Error("Invalid discovery history");
 	if (createIntentMaterialKey(material) !== record.materialKey) throw new Error("Intent material changed without a new agreement");

@@ -35,6 +35,7 @@ import { maybeWrapBashInput } from "../../lib/hypa.ts";
 import {
 	confirmDelegatedDelivery,
 } from "../../lib/guardrails.ts";
+import { compileApplyHandoff } from "../../lib/apply-packet-handoff.ts";
 import { guardChildCommand } from "./ein-command-guard-child.ts";
 import {
 	normalizeScoutLaunch,
@@ -164,6 +165,10 @@ export function registerToolCallGate(
 					formatApplyPacketObservation(observation),
 					observation.status === "executable" ? "info" : "warning",
 				);
+			}
+			if (isRecord(event.input) && event.input.agent === "sdd-apply" && typeof event.input.task === "string") {
+				try { compileApplyHandoff(ctx.cwd, event.input.task); }
+				catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			}
 			ensurePlanningAcceptance(event.input);
 			ensureApplyAcceptance(event.input);

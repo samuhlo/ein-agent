@@ -151,6 +151,8 @@ const STOPWORDS = new Set([
   "users", "work", "works", "project", "projects", "file", "files", "code",
   "app", "apps", "web", "build", "building", "create", "creating", "add",
   "adding", "task", "tasks", "modern", "best", "practices",
+  "apply", "edit", "editing", "implement", "implementing", "implementation",
+  "write", "writing", "read", "reading", "testing", "appropriate", "concise", "maintainable", "where",
 ]);
 
 function tokenize(text: string): string[] {
@@ -168,8 +170,8 @@ function tokenize(text: string): string[] {
 export function extractTriggers(description: string): string[] {
   const lower = description.toLowerCase();
   const clause =
-    lower.match(/triggers?\s*[:—-]\s*([^.]*)/)?.[1] ??
-    lower.match(/\buse (?:when|it when|this skill (?:when|for)|for)\s+([^.]*)/)?.[1] ??
+    lower.match(/triggers?\s*[:—-]\s*((?:\.(?=\w)|[^.])*)/)?.[1] ??
+    lower.match(/\buse (?:when|it when|this skill (?:when|for)|for)\s+((?:\.(?=\w)|[^.])*)/)?.[1] ??
     "";
   const declared = tokenize(clause);
   return (declared.length ? declared : tokenize(description)).slice(0, 12);
@@ -417,7 +419,7 @@ export function codeConventionSkillBlock(cwd: string): string {
 // Called by the orchestrator (ein-ai before_agent_start) so phase/named
 // agents receive exact SKILL.md paths instead of relying on the parent
 // model to ask. Convention skills are filtered out (see CODE_CONVENTION_KEYS).
-export function resolveSkillInjection(cwd: string, task: string, limit = 6): string {
+export function resolveSkillInjection(cwd: string, task: string, limit = 6, agent?: string): string {
   const cleanTask = (task ?? "").trim();
   if (!cleanTask) return "";
   let registry: SkillEntry[] = [];
@@ -427,7 +429,8 @@ export function resolveSkillInjection(cwd: string, task: string, limit = 6): str
     registry = [];
   }
   const linear = readLinearIntegration(cwd);
-  const resolved = resolveSkills(registry, cleanTask, undefined, limit).filter(
+  const candidates = registry.filter((skill) => !(agent?.startsWith("sdd-") && skill.key === "intent-channel" && !cleanTask.includes("intent-channel")));
+  const resolved = resolveSkills(candidates, cleanTask, undefined, limit).filter(
     (skill) =>
       !CODE_CONVENTION_KEYS.includes(skill.key) &&
       skillAllowedWithLinear(skill.key, linear),

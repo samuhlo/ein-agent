@@ -15,6 +15,8 @@ import {
 	summarizeApplyPacketObservations,
 } from "../ein-pi/agent/lib/apply-packet-observation-record";
 import { registerToolCallGate } from "../ein-pi/agent/extensions/internal/ein-tool-call-gate";
+import { compileApplyHandoff } from "../ein-pi/agent/lib/apply-packet-handoff.ts";
+import { registerAgentPromptHook } from "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts";
 
 const roots: string[] = [];
 
@@ -96,6 +98,33 @@ async function invokeApplyHook(root: string, options: { hasUI?: boolean; appendF
 }
 
 describe("observación viva de apply-packet/v2", () => {
+	test("the selected group becomes the child's current checklist, not another group's plan", () => {
+		const root = project();
+		const task = "openspec/changes/demo/tasks.md\napply_group: // 001. Grupo vivo";
+		const first = compileApplyHandoff(root, task)!;
+		expect(first).toContain('"taskId":"1.1"');
+		expect(first).toContain('"writeAllowlist":["src/demo.ts"]');
+		expect(compileApplyHandoff(root, "legacy task")).toBeUndefined();
+		expect(() => compileApplyHandoff(root, task.replace("Grupo vivo", "Other group"))).toThrow("differs");
+		writeFileSync(join(root, "openspec/changes/demo/design.md"), "# Changed design\n");
+		expect(compileApplyHandoff(root, task)).not.toBe(first);
+		writeFileSync(join(root, "openspec/changes/demo/tasks.md"), tasks().replace("[ ]", "[x]"));
+		expect(() => compileApplyHandoff(root, task)).toThrow("unavailable");
+	});
+	test("the native prompt hook recognizes a role without agentName and injects its packet only once", async () => {
+		const root = project(); const handlers = new Map<string, Function>();
+		registerAgentPromptHook({ on: (name: string, handler: Function) => handlers.set(name, handler) } as never);
+		const ctx = { cwd: root, hasUI: false, sessionManager: { getSessionId: () => "child", getBranch: () => [] } };
+		const event = { systemPrompt: "You are the SDD apply executor for Ein.", prompt: "openspec/changes/demo/tasks.md\napply_group: Grupo vivo" };
+		const rendered = await handlers.get("before_agent_start")!(event, ctx);
+		expect(rendered.systemPrompt).toContain("## Compiled apply packet");
+		expect(rendered.systemPrompt).not.toContain("# Ein — parent coordination");
+		expect(await handlers.get("before_agent_start")!({ ...event, systemPrompt: rendered.systemPrompt }, ctx)).toBeUndefined();
+		writeFileSync(join(root, "openspec/changes/demo/tasks.md"), tasks({ behavior: "" }));
+		const blocked = await handlers.get("before_agent_start")!(event, ctx);
+		expect(blocked.systemPrompt).toContain("Execution blocked");
+		expect(await handlers.get("tool_call")!({ toolName: "write" }, ctx)).toMatchObject({ block: true });
+	});
 	test("lee el único cambio y devuelve el próximo grupo ejecutable", () => {
 		const root = project();
 		const before = readdirSync(join(root, "openspec", "changes", "demo")).sort();

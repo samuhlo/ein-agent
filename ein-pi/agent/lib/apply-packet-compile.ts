@@ -214,7 +214,7 @@ export function compileApplyPacket(input: CompileInput): CompileResult {
 
 type V2TaskBlock = Readonly<{ id: string; title: string; done: boolean; block: string }>;
 
-function normalizeGroupTitle(value: string): string {
+export function normalizeGroupTitle(value: string): string {
 	return value.trim().replace(/^\/\/\s*\d+\.\s*/, "").trim();
 }
 

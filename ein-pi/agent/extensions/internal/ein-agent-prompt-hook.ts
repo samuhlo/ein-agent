@@ -4,6 +4,7 @@
 // here; the individual prompt sources remain with their domain owners.
 // =============================================================================
 
+import { compileApplyHandoff } from "../../lib/apply-packet-handoff.ts";
 import { join } from "node:path";
 import { formatSkillsForPrompt, type ExtensionAPI, type Skill } from "@earendil-works/pi-coding-agent";
 import {
@@ -58,6 +59,8 @@ export function compactParentSkillCatalog(systemPrompt: string, skills: Skill[] 
 export function registerAgentPromptHook(pi: ExtensionAPI): void {
 	const sessionStartVersion = new Map<string, string | null>();
 	const staleSessionNudged = new Set<string>();
+	let handoffError: string | undefined;
+	pi.on("tool_call", () => handoffError ? { block: true, reason: handoffError } : undefined);
 
 	pi.on("before_agent_start", async (event, ctx) => {
 		const isSddAgent = isSddAgentStartEvent(event);
@@ -68,10 +71,19 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			!isNamedAgent && !isSddAgent ? getSddSessionMemory(ctx) : undefined,
 		);
 		const isParent = !isNamedAgent && !isSddAgent;
+		const phaseMarker = "<!-- ein:phase-context -->";
+		if (!isParent && event.systemPrompt.includes(phaseMarker)) return;
 		const basePrompt = isParent
 			? compactParentSkillCatalog(event.systemPrompt, event.systemPromptOptions?.skills)
 			: event.systemPrompt;
 		const isScout = startNames.includes("ein-scout");
+		handoffError = undefined;
+		let handoff: string | undefined;
+		try { handoff = startNames.includes("sdd-apply") ? compileApplyHandoff(ctx.cwd, readAgentTask(event)) : undefined; }
+		catch (error) {
+			handoffError = error instanceof Error ? error.message : String(error);
+			return { systemPrompt: `${basePrompt}\n${phaseMarker}\nExecution blocked: ${handoffError}. Return status: blocked to the parent; tools are unavailable until the assignment is corrected.` };
+		}
 		if (isParent && ctx.hasUI) {
 			const sessionKey = sddPreflightSessionKey(ctx);
 			const current = readInstalledVersion(
@@ -110,7 +122,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			)}\n\n${internalAgentRoutingDirective()}`;
 		let skillsPrompt = "";
 		if ((isNamedAgent || isSddAgent) && !isScout) {
-			const block = resolveSkillInjection(ctx.cwd, readAgentTask(event));
+			const block = resolveSkillInjection(ctx.cwd, readAgentTask(event), 6, startNames[0]);
 			if (block) skillsPrompt = `\n\n${block}`;
 		}
 		let artifactPrompt = "";
@@ -142,7 +154,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
 		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${basePrompt}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}`,
+			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff}` : ""}`,
 		};
 	});
 }

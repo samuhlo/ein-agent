@@ -33,6 +33,26 @@ function harness(cwd = mkdtempSync(join(tmpdir(), "ein-intent-")), branch: any[]
 }
 
 describe("intent discovery through the registered Pi tool and hooks", () => {
+ test("a complete request can be recorded with observed provenance, never a fake or extension response", async () => {
+  const h = harness();
+  expect((await h.call({ action: "record", material })).isError).toBe(true);
+  h.input("Export the filtered rows", "extension");
+  expect((await h.call({ action: "record", material })).isError).toBe(true);
+  const request = "Export the filtered rows as CSV, preserve filter and do not export hidden columns. Implement it.";
+  h.input(request, "rpc");
+  expect((await h.call({ action: "record", material, change: "export-csv" })).details.state).toBe("confirmed");
+  const stored = readAgreement(join(h.cwd, "openspec/changes/export-csv"));
+  expect(stored.kind).toBe("valid");
+  if (stored.kind !== "valid") return;
+  expect(stored.agreement).toMatchObject({ fromRequest: true, questions: [], response: { text: request, source: "rpc" } });
+  expect((await h.call({ action: "record", material: { ...material, objective: "Different work" }, change: "export-csv" })).isError).toBe(true);
+ });
+ test("record cannot bypass pending or cancelled discovery", async () => {
+  const h = harness(); h.input("Build an export"); await h.propose();
+  expect((await h.call({ action: "record", material })).isError).toBe(true);
+  await h.call({ action: "cancel" }); h.input("Some other text");
+  expect((await h.call({ action: "record", material })).isError).toBe(true);
+ });
  test("read-only input reaches the model unchanged and creates no project state", () => {
   const h = harness();
   expect(h.input("Explícame export.ts")).toEqual({ action: "continue" });
