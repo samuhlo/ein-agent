@@ -24,9 +24,9 @@ describe("sdd-apply no corre build de produccion como gate", () => {
 	});
 
 	test("regla anti-piping: no tuberiar comandos largos por tail/head", () => {
-		expect(sddApply).toContain("Never pipe a long-running command");
+		expect(sddApply).toContain("Do not pipe a running command");
 		expect(sddApply).toContain("tail");
-		expect(sddApply).toContain("timeout 120");
+		expect(sddApply).toContain("native `timeout` parameter (120 seconds");
 	});
 });
 

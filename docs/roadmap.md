@@ -51,6 +51,13 @@ El siguiente trabajo se decide desde el uso en proyectos. No se abre otra
 campaña de compresión ni un subsistema de presupuestos; se corrigen problemas
 concretos y se conserva la evidencia, incluidos fallos y reparaciones.
 
+La [simplificación de apply](../evals/lean-apply-2026-09-08.md) elimina la doble
+edición de checkboxes y reúne cada tarea con las pruebas que necesita para
+completarse. Se conserva el backend de progreso y la verificación independiente.
+Las dos comparaciones se documentan por separado, sin convertir los 26 turnos
+históricos en una promesa de ahorro general. El siguiente ajuste se decide desde
+fallos concretos de uso, manteniendo los modelos elegidos por el usuario.
+
 ## Secundario
 
 - Perfil mínimo para facilitar pruebas de terceros, sin convertirlo en el centro del producto.
