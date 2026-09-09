@@ -1,0 +1,53 @@
+[
+  {
+    "iteration": "v1",
+    "runs": 40,
+    "passed": 38,
+    "failures": [
+      {
+        "id": "full-report-2-on",
+        "answer": {
+          "failed": [
+            985
+          ]
+        },
+        "verifyExit": 0,
+        "compressionApplied": false
+      },
+      {
+        "id": "full-report-4-off",
+        "answer": {
+          "failed": [
+            979
+          ]
+        },
+        "verifyExit": 0,
+        "compressionApplied": false
+      }
+    ]
+  },
+  {
+    "iteration": "v2",
+    "runs": 40,
+    "passed": 39,
+    "failures": [
+      {
+        "id": "full-report-1-on",
+        "answer": {
+          "failed": [
+            "10",
+            "988"
+          ]
+        },
+        "verifyExit": 0,
+        "compressionApplied": true
+      }
+    ]
+  },
+  {
+    "iteration": "final",
+    "runs": 40,
+    "passed": 40,
+    "failures": []
+  }
+]

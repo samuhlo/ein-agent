@@ -75,12 +75,12 @@ describe("project directives", () => {
 	});
 
 	test("a Pi-only setting is reported as unsupported, never silently dropped", () => {
-		const claude = byId("claude", "hypa");
+		const claude = byId("claude", "headroom");
 		expect(claude.status).toBe("unsupported");
 		expect(claude.reason).toContain("Pi");
 		expect(claude.directive).toBe("");
 
-		expect(byId("pi", "hypa").status).not.toBe("unsupported");
+		expect(byId("pi", "headroom").status).not.toBe("unsupported");
 	});
 
 	// El agujero real que cerró esto: el proyecto pedía Cleaner automático y Claude
@@ -130,7 +130,7 @@ describe("project directives", () => {
 		expect(block).toContain("STRICT");
 		expect(block).toContain("ON");
 		expect(block).toContain("Not applied:");
-		expect(block).toContain("`hypa`");
+		expect(block).toContain("`headroom`");
 	});
 
 	test("a corrupt settings file never becomes a confident default", () => {

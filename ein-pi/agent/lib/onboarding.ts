@@ -1,7 +1,7 @@
 // =============================================================================
 // [FLOW] ONBOARDING FIRST-RUN
 // Primer contacto de Ein con un proyecto: si algún esencial no está configurado
-// (persona, idioma de artefactos, TDD, Hypa) o falta EIN.md, un wizard único en
+// (persona, idioma de artefactos, TDD, Headroom) o falta EIN.md, un wizard único en
 // session_start lo resuelve. Agnóstico a la edad del proyecto: no mira "¿es
 // nuevo?", mira "¿está configurado?" → un repo ya empezado se autoconfigura la
 // primera vez que abres pi con UI.
@@ -37,11 +37,12 @@ import {
 	writeTddMode,
 } from "./tdd.ts";
 import {
-	HYPA_OPTIONS,
-	hypaConfigPath,
-	readHypaMode,
-	writeHypaMode,
-} from "./hypa.ts";
+	HEADROOM_OPTIONS,
+	headroomConfigPath,
+	headroomConfigured,
+	readHeadroomMode,
+	writeHeadroomMode,
+} from "./headroom-settings.ts";
 import { einMdPath, writeEinMd } from "./project-context.ts";
 import {
 	agentControlsConfigPath,
@@ -50,13 +51,13 @@ import {
 	writeAgentActivationProfile,
 } from "./agent-controls.ts";
 
-export type Essential = "persona" | "lang" | "tdd" | "hypa" | "agents" | "einmd";
+export type Essential = "persona" | "lang" | "tdd" | "headroom" | "agents" | "einmd";
 
-const ALL_ESSENTIALS: Essential[] = ["persona", "lang", "tdd", "hypa", "agents", "einmd"];
+const ALL_ESSENTIALS: Essential[] = ["persona", "lang", "tdd", "headroom", "agents", "einmd"];
 
-const HYPA_ONBOARD_LABEL: Record<string, string> = {
-	auto: "auto — detecta el stack (recomendado)",
-	on: "on — siempre",
+const HEADROOM_ONBOARD_LABEL: Record<string, string> = {
+	observe: "observe — medir sin cambiar las salidas",
+	on: "on — compresión verificada si el servicio está disponible",
 	off: "off — nunca",
 };
 
@@ -75,8 +76,8 @@ export function applyDefault(cwd: string, item: Essential): void {
 		case "tdd":
 			writeTddMode(cwd, "auto");
 			break;
-		case "hypa":
-			writeHypaMode(cwd, "auto");
+		case "headroom":
+			writeHeadroomMode(cwd, "on");
 			break;
 		case "agents":
 			writeAgentActivationProfile(cwd, "balanced");
@@ -94,11 +95,11 @@ export function pendingEssentials(cwd: string): Essential[] {
 		["persona", personaConfigPath(cwd)],
 		["lang", langConfigPath(cwd)],
 		["tdd", tddConfigPath(cwd)],
-		["hypa", hypaConfigPath(cwd)],
+		["headroom", headroomConfigPath(cwd)],
 		["agents", agentControlsConfigPath(cwd)],
 		["einmd", einMdPath(cwd)],
 	];
-	return checks.filter(([, path]) => !existsSync(path)).map(([item]) => item);
+	return checks.filter(([item, path]) => item === "headroom" ? !headroomConfigured(cwd) : !existsSync(path)).map(([item]) => item);
 }
 
 // Rama "Personalizar": repasa los esenciales dados (todos, mostrando el valor
@@ -185,11 +186,11 @@ const FEATURE: Record<Exclude<Essential, "einmd" | "agents">, FeatureSpec> = {
 		(cwd, v) => writeTddMode(cwd, v as (typeof TDD_OPTIONS)[number]),
 		(cwd) => readTddMode(cwd),
 	],
-	hypa: [
-		"Compresión de salida de comandos (Hypa)",
-		HYPA_OPTIONS.map((h) => ({ label: HYPA_ONBOARD_LABEL[h] ?? h, value: h })),
-		(cwd, v) => writeHypaMode(cwd, v as (typeof HYPA_OPTIONS)[number]),
-		(cwd) => readHypaMode(cwd),
+	headroom: [
+		"Compresión de salida de comandos (Headroom)",
+		HEADROOM_OPTIONS.map((h) => ({ label: HEADROOM_ONBOARD_LABEL[h] ?? h, value: h })),
+		(cwd, v) => writeHeadroomMode(cwd, v as (typeof HEADROOM_OPTIONS)[number]),
+		(cwd) => readHeadroomMode(cwd),
 	],
 };
 
@@ -237,7 +238,7 @@ export async function runOnboarding(
 			"Ein configurado en este proyecto:",
 			...applied.map((a) => `  · ${a}`),
 			"Perfil automático SDD: /ein:onboard. Overrides de sesión: /ein:cleaner on|off y /ein:architect on|off.",
-			"Otros ajustes: /ein:persona · :lang · :tdd · :hypa.",
+			"Otros ajustes: /ein:persona · :lang · :tdd · :headroom.",
 		].join("\n"),
 		"info",
 	);

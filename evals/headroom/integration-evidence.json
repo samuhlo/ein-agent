@@ -1,0 +1,11 @@
+{
+  "archive": "/private/tmp/ein-pi-headroom/.pi/ein/evidence/headroom-integration-2026-09-09.tar.gz",
+  "sha256": "88205f3190ed3bef501490a7e92e875b67eef62218205d05549f2f5994186352",
+  "bytes": 6990556,
+  "files": 1395,
+  "manifestVerified": true,
+  "credentialsExcluded": true,
+  "baseCommit": "1a15c79a07cd16ced19e529cb1bef211c0fd86ac",
+  "patchSha256": "1e1add57a118b594ffcdf90042c77bf5bbadcb6399107b7de091a5cc3f3e9193",
+  "note": "Source snapshot is the final implementation. Intermediate trials preserve their fixtures/transcripts but do not have separate implementation commits."
+}

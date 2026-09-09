@@ -1,0 +1,68 @@
+{
+  "date": "2026-09-09",
+  "platform": "macOS arm64",
+  "method": "du -sk; allocated KiB, warmed environments after real compatibility probes; caches/interpreter outside venv excluded",
+  "measurementsKiB": {
+    "hypaNpmWithNativeBinary": 89012,
+    "headroomPython313Warmed": 550480,
+    "headroomPython314Warmed": 426908,
+    "privateUvTools": 39608
+  },
+  "runtimeInstall": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "first": {
+      "ok": true,
+      "detail": "Headroom 0.37.0 comprobado (Python 3.14). Headroom 0.37.0 verified and selected for the next service start. Running sessions were not changed; the previous managed version is retained for rollback."
+    },
+    "second": {
+      "ok": true,
+      "detail": "Headroom 0.37.0 comprobado (Python 3.14). Headroom 0.37.0 ya está verificado con Python 3.14; no se crea otra copia."
+    },
+    "installed": {
+      "version": "0.37.0",
+      "python": "3.14",
+      "profile": "ein-verified-v1"
+    },
+    "copiesBefore": 1,
+    "copiesAfter": 1,
+    "compatibility": {
+      "version": 1,
+      "service": "0.37.0",
+      "endpoint": "http://127.0.0.1:64632",
+      "pass": true,
+      "results": [
+        {
+          "id": "table",
+          "proof": "table",
+          "savedBytes": 11694,
+          "elapsedMs": 1322.387208,
+          "transforms": [
+            "router:smart_crusher:0.27"
+          ],
+          "pass": true
+        },
+        {
+          "id": "quoted",
+          "proof": "table",
+          "savedBytes": 6440,
+          "elapsedMs": 16.25566699999945,
+          "transforms": [
+            "router:smart_crusher:0.40"
+          ],
+          "pass": true
+        },
+        {
+          "id": "logs",
+          "proof": "prefix-lines",
+          "savedBytes": 4466,
+          "elapsedMs": 21.054667000000336,
+          "transforms": [
+            "router:search:0.68"
+          ],
+          "pass": true
+        }
+      ]
+    }
+  }
+}

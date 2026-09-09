@@ -47,7 +47,7 @@ function valueOf(id: string): string | undefined {
 describe("the catalogue covers what init configures", () => {
   test("every setting init writes is present", () => {
     const ids = SETTING_DEFINITIONS.map((definition) => definition.id).sort();
-    expect(ids).toEqual(["agents", "chat-lang", "codegraph", "hypa", "lang", "linear", "persona", "tdd"]);
+    expect(ids).toEqual(["agents", "chat-lang", "codegraph", "headroom", "lang", "linear", "persona", "tdd"]);
   });
 
   test("every setting declares at least two values to cycle between", () => {

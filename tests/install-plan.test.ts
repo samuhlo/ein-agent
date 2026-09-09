@@ -187,7 +187,7 @@ describe("install dry-run wiring", () => {
 
     expect(code).toBe(0);
     expect(mutationCalls).toBe(0);
-    expect(rendered).toBe(renderInstallPlan(createInstallPlan(planInput)));
+    expect(rendered).toBe(renderInstallPlan(createInstallPlan({ ...planInput, flags: { ...planInput.flags, noHypa: true } })));
     expect(rendered?.indexOf("pi.deploy-template")).toBeLessThan(rendered?.indexOf("claude.deploy-runtime") ?? -1);
   });
 

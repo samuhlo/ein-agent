@@ -42,6 +42,7 @@ import {
   type PiHostTreeVerdict,
   type ResolvePiHostRootDeps,
 } from "../../../shared/contracts/pi-host-tree.ts";
+import { refreshHeadroom } from "./headroom.ts";
 
 export type DepId =
   | "git"
@@ -198,7 +199,7 @@ export function checkDeps(platform: Platform): DepStatus[] {
     { id: "claude", required: false, hint: "complemento opcional: curl -fsSL https://claude.ai/install.sh | bash" },
     { id: "engram", required: false, hint: "memoria persistente (opcional)" },
     { id: "gh", required: false, hint: "GitHub CLI para entrega (opcional)" },
-    { id: "hypa", required: false, hint: "compresión de salida de comandos (opcional)" },
+    { id: "hypa", required: false, hint: "compresión externa legada (opcional); Ein-Pi usa Headroom" },
     { id: "codegraph", required: false, hint: "grafo de código para exploración barata (opcional)" },
   ];
 
@@ -779,10 +780,10 @@ export async function refreshEngram(
 
 // Refresca las tres deps externas presentes. El orden no importa; cada una es
 // independiente y best-effort.
-export async function refreshExternalTools(platform: Platform): Promise<InstallStep[]> {
+export async function refreshExternalTools(platform: Platform, options: { agentDir?: string; skipHeadroom?: boolean } = {}): Promise<InstallStep[]> {
   return [
     await refreshEngram(platform),
-    await refreshHypa(),
+    options.skipHeadroom ? { ok: true, detail: "Headroom: actualización omitida por --no-headroom." } : await refreshHeadroom(options.agentDir ?? defaultPiInstallContext().agentDir),
     await refreshCodegraph(),
   ];
 }

@@ -64,9 +64,9 @@ type Translator = (value: string, cwd: string) => string | null;
 const UNSUPPORTED: Readonly<Record<DirectiveRuntime, Readonly<Record<string, string>>>> = {
 	pi: {},
 	claude: {
-		// Hypa envuelve el tool `bash` desde una extensión de Pi. Claude no tiene
+		// Headroom transforma el tool `bash` desde una extensión de Pi. Claude no tiene
 		// ese punto de enganche, así que el ajuste se reporta, no se finge.
-		hypa: "Hypa wraps the Pi bash tool through a Pi extension; this runtime has no equivalent hook.",
+		headroom: "Headroom transforms Pi tool results through a Pi extension; this runtime has no equivalent hook.",
 		// Cleaner y Architect solo existen en Pi. Y aunque se portaran, la
 		// participación automática se quedaría OFF aquí a propósito: el perfil del
 		// proyecto declara una preferencia de CALIDAD, mientras que ejecutar pasadas
@@ -92,7 +92,7 @@ const TRANSLATORS: Readonly<Record<string, Translator>> = {
 	lang: (_value, cwd) => artifactLanguageDirective(readArtifactLang(cwd)),
 	// Ya devuelve "" cuando el grafo está apagado o sin indexar.
 	codegraph: (_value, cwd) => codegraphDirective(cwd) || null,
-	hypa: () => null,
+	headroom: () => null,
 };
 
 /**
@@ -164,7 +164,7 @@ export function resolveProjectDirectives(
 
 /**
  * Una línea con el valor de cada ajuste, para el status. Marca lo que el
- * runtime no honra: un status que enseña `hypa=auto` a secas afirma algo que no
+ * runtime no honra: un status que enseña `headroom=auto` a secas afirma algo que no
  * es cierto en Claude.
  */
 export function summarizeProjectDirectives(

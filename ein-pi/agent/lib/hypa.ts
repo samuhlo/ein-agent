@@ -12,7 +12,7 @@
 // FAIL CLOSED -> solo se envuelve un allowlist de tools con reducer real y
 // que terminan; cualquier operador de shell, comilla, o marca de streaming/
 // interactivo (dev, serve, --watch, logs, -f, -it) desactiva el wrap. El
-// genérico se deja crudo a propósito: de eso ya se encarga context-mode.
+// resto queda a cargo del runtime; no se presupone otro compresor activo.
 // Módulo puro en su núcleo (build/normalize) para testear sin spawns.
 // =============================================================================
 
@@ -24,7 +24,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, isAbsolute, join } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 // auto = detección de stack (on en toolchains verbosos no-Bun, off en Bun puro).
@@ -122,10 +122,11 @@ export function buildHypaCommand(
 // ─── Resolución del binario ──────────────────────────────────────────────────
 
 // Rutas donde el installer/mise dejan hypa. Se prefiere HYPA_BIN explícito.
-export function resolveHypaBin(): string | undefined {
-	const explicit = process.env.HYPA_BIN;
+export function resolveHypaBin(env: NodeJS.ProcessEnv = process.env): string | undefined {
+	const explicit = env.HYPA_BIN;
 	if (explicit && existsSync(explicit)) return explicit;
 	const candidates = [
+		...(env.PATH ?? "").split(delimiter).filter(isAbsolute).map((dir) => join(dir, "hypa")),
 		join(homedir(), ".local", "share", "mise", "shims", "hypa"),
 		join(homedir(), ".local", "bin", "hypa"),
 	];
