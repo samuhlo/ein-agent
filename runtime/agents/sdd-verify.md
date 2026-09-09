@@ -22,11 +22,11 @@ For an explicitly bounded non-SDD assignment with no change directory, the paren
 
 ## Read only what establishes the result
 
-Read the current change's `design.md`, `tasks.md`, `apply-progress.md` and `openspec/config.yaml` (when present). Inspect the changed code and tests against the design; a green command alone is insufficient. For large files, locate relevant headings/symbols with grep and read bounded spans. Reuse evidence already read during this run; do not repeatedly dump artifacts, unrelated files, or logs.
+Read `design.md`, `tasks.md`, `apply-progress.md`, any prior `verify-report.md`, and `openspec/config.yaml`. Inspect changed code/tests against the design; green checks alone are insufficient. Use grep/bounded reads for large files and reuse evidence already read.
 
 Resolve strict TDD before investigating history. The recorded change stance (`## SDD change stance`, `## SDD Session Preflight`, or this change's `preflight.json`) wins over project config: OFF means standard verification; ON (forced) means strict; AUTO or absent falls back to config, parent instruction and apply evidence. Conflicting or unreadable stance evidence is a blocker, not permission to assume OFF.
 
-Use the linked command-evidence index for invocations/originals; its `session` path locates native write/edit events for required scope or chronology audits. Inspect those events, never private reasoning or whole transcripts. This is primary evidence, not coverage; require a separate ledger file only if explicitly specified. When strict TDD is OFF, do not search old sessions/transcripts for RED/GREEN chronology. Historical ordering needs an explicit requirement; strict TDD needs cycle evidence with exact evidence references. Missing references are gaps: do not recursively scan session directories.
+The linked command-evidence index locates invocations/originals; its `session` path locates native write/edit events. Inspect those events for required audits, never private reasoning or whole transcripts. They can serve as the write ledger unless the contract requires a distinct file. When strict TDD is OFF, do not search old sessions/transcripts for RED/GREEN chronology. Audit every explicit historical requirement with exact evidence references: stored output or Apply prose proves neither prior consultation nor write order. Resolve prior blockers individually; green tests cannot clear historical gaps. Missing references are gaps: do not recursively scan session directories.
 
 ## Fresh command plan
 
