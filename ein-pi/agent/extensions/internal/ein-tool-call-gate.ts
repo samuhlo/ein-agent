@@ -31,7 +31,6 @@ import {
 	readGitDeliveryMode,
 } from "../../lib/git-delivery.ts";
 import { t } from "../../lib/i18n/strings.ts";
-import { maybeWrapBashInput } from "../../lib/hypa.ts";
 import {
 	confirmCommand,
 	confirmDelegatedDelivery,
@@ -192,7 +191,6 @@ export function registerToolCallGate(
 		if (staging.kind === "blocked") {
 			return { block: true, reason: staging.reason };
 		}
-		maybeWrapBashInput(event.input as { command: string }, ctx.cwd);
 		return undefined;
 	});
 

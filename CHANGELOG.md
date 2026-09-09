@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — Headroom en Ein-Pi
+
+- Headroom sustituye el wrapper de Hypa en el runtime. Preferencia por proyecto,
+  onboarding, banner, diagnóstico y `/ein:headroom`; el antiguo `hypa=off` sigue
+  apagado. La elección de dependencias del instalador se mantiene para otra fase.
+- Las vistas comprimidas se verifican contra todos los datos originales. Se
+  recuperan informes completos del spool de Pi y se conservan pies de comandos,
+  tipos JSON y duplicados de logs. Código, diffs y comandos fallidos pasan intactos.
+- Servicio opcional con arranque, parada propia, versión y fallback; mantenimiento
+  aislado con pruebas de compatibilidad, selección atómica y rollback.
+- Evaluación reproducible y límites publicados en `evals/headroom/integration-results.md`.
+
+
 Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createHeadroomExtension } from "../ein-pi/agent/extensions/ein-headroom.ts";
-import { compressHeadroom, eligibleHeadroomOutput, headroomConfig, headroomTableText, verifyHeadroomTable, saveHeadroomOriginal, type HeadroomConfig } from "../ein-pi/agent/lib/headroom.ts";
+import { compressHeadroom, eligibleHeadroomOutput, headroomPayload, headroomConfig, headroomTableText, presentHeadroom, verifyHeadroomTable, verifyHeadroomRepresentation, saveHeadroomOriginal, type HeadroomConfig } from "../ein-pi/agent/lib/headroom.ts";
 
 const dirs: string[] = [];
 const servers: ReturnType<typeof Bun.serve>[] = [];
@@ -50,17 +50,26 @@ describe("Headroom is an explicit, local experiment", () => {
 		expect(eligibleHeadroomOutput({ ...candidate(), content: [{ type: "text", text: "short" }] })).toBeUndefined();
 		expect(eligibleHeadroomOutput({ ...candidate(), content: [...candidate().content, { type: "text", text: raw }] })).toBeUndefined();
 	});
-	test("rejects logs after the live duplicate-count regression", () => {
+	test("log folding verifies every line and rejects the duplicate-count regression", () => {
 		const log = "2026-09-09T08:00:00Z INFO worker ready\n".repeat(350) + "2026-09-09T08:00:53Z ERROR job-173 EACCES\n";
-		expect(eligibleHeadroomOutput({ ...candidate(), input: { command: "cat worker.log" }, content: [{ type: "text", text: log }] })).toBeUndefined();
+		const folded = "2026-09-09T08\n" + log.replaceAll("2026-09-09T08:", "");
+		expect(eligibleHeadroomOutput({ ...candidate(), input: { command: "cat worker.log" }, content: [{ type: "text", text: log }] })).toBeDefined();
+		expect(verifyHeadroomRepresentation(log, folded)).toBe("prefix-lines");
+		const display = presentHeadroom(folded, "prefix-lines");
+		expect(display).toContain("2026-09-09T08:00:53Z ERROR job-173 EACCES");
+		expect(display.match(/ERROR/g)).toHaveLength(1);
+		expect(verifyHeadroomRepresentation(log, display)).toBe("prefix-lines");
+		expect(verifyHeadroomRepresentation(log, folded + "00:53Z ERROR job-173 EACCES\n")).toBeUndefined();
+		expect(verifyHeadroomRepresentation(log, folded.replace("00:53Z ERROR job-173 EACCES\n", ""))).toBeUndefined();
 	});
 	test("verifies every row, type, value and duplicate count", () => {
 		expect(verifyHeadroomTable(raw, table)).toBe(true);
 		expect(verifyHeadroomTable(raw, JSON.stringify(table + "\n"))).toBe(true);
 		expect(headroomTableText(JSON.stringify(table))).toBe(table);
 		for (const damaged of [table.replace("[180]", "[179]"), table.replace("0,", "1,"), table.replace("179,", "178,"), table.replace("id:int", "id:string"), table + "\n0,extra,ok", table.replace("ok", "failed")]) expect(verifyHeadroomTable(raw, damaged)).toBe(false);
-		expect(verifyHeadroomTable('[{"id":1,"message":"a,b"}]', '[1]{id:int,message:string}\n1,"a,b"')).toBe(false);
+		expect(verifyHeadroomTable('[{"id":1,"message":"a,b"}]', '[1]{id:int,message:string}\n1,"a,b"')).toBe(true);
 		expect(verifyHeadroomTable('[{"id":1,"nested":{"a":2}}]', '[1]{id:int,nested:string}\n1,[object Object]')).toBe(false);
+		expect(verifyHeadroomTable('[{"id":1,"id":2}]', '[1]{id:int}\n2')).toBe(false);
 	});
 });
 
@@ -107,11 +116,23 @@ describe("local compression and failure recovery", () => {
 		const h = harness(serve(() => compressed())); const event = candidate();
 		const result = await h.run(event);
 		expect(Object.keys(result)).toEqual(["content"]);
-		expect(result.content[0].text).toContain("Files on disk retain their original JSON format");
+		expect(result.content[0].text).toContain("Source JSON files remain JSON");
+		expect(result.content[0].text).toContain("int/float are JSON numbers");
 		const path = JSON.parse(result.content[0].text.match(/Original: (".*?")\./)[1]);
 		expect(readFileSync(path, "utf8")).toBe(raw); expect(statSync(path).mode & 0o777).toBe(0o600);
 		expect(event).toEqual(candidate()); // Input not mutated; details/usage/isError not replaced.
 		expect(await h.run(event)).toBeDefined(); // Identical repeated output remains retrievable.
+	});
+	test("mixed JSON and a shell footer retain the footer exactly once", async () => {
+		const text = raw + "\n__RC:0\n";
+		expect(headroomPayload(text)).toEqual({ payload: raw, prefix: "", suffix: "\n__RC:0\n" });
+		const h = harness(serve(() => compressed()));
+		const event = { ...candidate(), input: { command: 'bun diagnostics.ts; echo __RC:0' }, content: [{ type: "text" as const, text }] };
+		const result = await h.run(event);
+		expect(result.content[0].text.endsWith("\n__RC:0\n")).toBe(true);
+		expect(result.content[0].text.match(/__RC:/g)).toHaveLength(1);
+		const path = JSON.parse(result.content[0].text.match(/Original: (".*?")\./)[1]);
+		expect(readFileSync(path, "utf8")).toBe(text);
 	});
 	test("rejects a marginal saving after retrieval overhead", async () => {
 		const h = harness(serve(() => compressed(raw.slice(0, -50))));

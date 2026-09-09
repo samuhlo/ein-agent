@@ -1,0 +1,1700 @@
+{
+  "version": 1,
+  "model": "gpt-5.6-luna",
+  "provider": "openai-codex",
+  "method": "Five paired runs per workload, all attempts included. Real Pi and Headroom; controlled generated data. Monetary values are Pi estimates, not invoices. Cache and model choices were not normalized. Token counts of views use o200k_base; trial totals use Pi usage.",
+  "groups": [
+    {
+      "kind": "full-report",
+      "off": {
+        "runs": 5,
+        "passed": 5,
+        "tokens": 437076,
+        "estimatedCostUSD": 0.03541856,
+        "seconds": 158.87,
+        "turns": 44,
+        "compressed": 0,
+        "fullRecovered": 0
+      },
+      "on": {
+        "runs": 5,
+        "passed": 5,
+        "tokens": 468162,
+        "estimatedCostUSD": 0.03446988000000001,
+        "seconds": 132.356,
+        "turns": 37,
+        "compressed": 4,
+        "fullRecovered": 4
+      },
+      "tokensSavedPercent": -7.11,
+      "estimatedCostUSDSavedPercent": 2.68,
+      "secondsSavedPercent": 16.69
+    },
+    {
+      "kind": "api-table",
+      "off": {
+        "runs": 5,
+        "passed": 5,
+        "tokens": 260578,
+        "estimatedCostUSD": 0.02450576,
+        "seconds": 94.685,
+        "turns": 24,
+        "compressed": 0,
+        "fullRecovered": 0
+      },
+      "on": {
+        "runs": 5,
+        "passed": 5,
+        "tokens": 219265,
+        "estimatedCostUSD": 0.023022600000000004,
+        "seconds": 80.682,
+        "turns": 20,
+        "compressed": 5,
+        "fullRecovered": 5
+      },
+      "tokensSavedPercent": 15.85,
+      "estimatedCostUSDSavedPercent": 6.05,
+      "secondsSavedPercent": 14.79
+    },
+    {
+      "kind": "log-count",
+      "off": {
+        "runs": 5,
+        "passed": 5,
+        "tokens": 241749,
+        "estimatedCostUSD": 0.026168000000000004,
+        "seconds": 86.089,
+        "turns": 20,
+        "compressed": 0,
+        "fullRecovered": 0
+      },
+      "on": {
+        "runs": 5,
+        "passed": 5,
+        "tokens": 238757,
+        "estimatedCostUSD": 0.024892840000000003,
+        "seconds": 85.69800000000001,
+        "turns": 21,
+        "compressed": 5,
+        "fullRecovered": 0
+      },
+      "tokensSavedPercent": 1.24,
+      "estimatedCostUSDSavedPercent": 4.87,
+      "secondsSavedPercent": 0.45
+    },
+    {
+      "kind": "small-edit",
+      "off": {
+        "runs": 5,
+        "passed": 5,
+        "tokens": 116322,
+        "estimatedCostUSD": 0.01065544,
+        "seconds": 96.535,
+        "turns": 30,
+        "compressed": 0,
+        "fullRecovered": 0
+      },
+      "on": {
+        "runs": 5,
+        "passed": 5,
+        "tokens": 117920,
+        "estimatedCostUSD": 0.00939364,
+        "seconds": 93.74199999999999,
+        "turns": 31,
+        "compressed": 0,
+        "fullRecovered": 0
+      },
+      "tokensSavedPercent": -1.37,
+      "estimatedCostUSDSavedPercent": 11.84,
+      "secondsSavedPercent": 2.89
+    },
+    {
+      "kind": "all",
+      "off": {
+        "runs": 20,
+        "passed": 20,
+        "tokens": 1055725,
+        "estimatedCostUSD": 0.09674776,
+        "seconds": 436.17900000000003,
+        "turns": 118,
+        "compressed": 0,
+        "fullRecovered": 0
+      },
+      "on": {
+        "runs": 20,
+        "passed": 20,
+        "tokens": 1044104,
+        "estimatedCostUSD": 0.09177896,
+        "seconds": 392.478,
+        "turns": 109,
+        "compressed": 14,
+        "fullRecovered": 9
+      },
+      "tokensSavedPercent": 1.1,
+      "estimatedCostUSDSavedPercent": 5.14,
+      "secondsSavedPercent": 10.02
+    }
+  ],
+  "views": [
+    {
+      "trial": "full-report-0-on",
+      "completeSource": true,
+      "originalBytes": 116793,
+      "piViewBytes": 141,
+      "headroomViewBytes": 19462,
+      "savedOriginalBytes": 97331,
+      "originalTokens": 29354,
+      "headroomViewTokens": 11531,
+      "compressionMs": 25.883584000000155
+    },
+    {
+      "trial": "api-table-0-on",
+      "completeSource": true,
+      "originalBytes": 118703,
+      "piViewBytes": 51343,
+      "headroomViewBytes": 25778,
+      "savedOriginalBytes": 92925,
+      "originalTokens": 27903,
+      "headroomViewTokens": 14574,
+      "compressionMs": 68.05137500000001
+    },
+    {
+      "trial": "log-count-0-on",
+      "completeSource": false,
+      "originalBytes": 50966,
+      "piViewBytes": 50966,
+      "headroomViewBytes": 43037,
+      "savedOriginalBytes": 7929,
+      "originalTokens": 16796,
+      "headroomViewTokens": 11537,
+      "compressionMs": 37.79791699999987
+    },
+    {
+      "trial": "full-report-1-on",
+      "completeSource": true,
+      "originalBytes": 116781,
+      "piViewBytes": 51338,
+      "headroomViewBytes": 19450,
+      "savedOriginalBytes": 97331,
+      "originalTokens": 29347,
+      "headroomViewTokens": 11523,
+      "compressionMs": 26.54083300000002
+    },
+    {
+      "trial": "api-table-1-on",
+      "completeSource": true,
+      "originalBytes": 118703,
+      "piViewBytes": 51343,
+      "headroomViewBytes": 25778,
+      "savedOriginalBytes": 92925,
+      "originalTokens": 27903,
+      "headroomViewTokens": 14580,
+      "compressionMs": 65.47379099999944
+    },
+    {
+      "trial": "log-count-1-on",
+      "completeSource": false,
+      "originalBytes": 51018,
+      "piViewBytes": 51018,
+      "headroomViewBytes": 43089,
+      "savedOriginalBytes": 7929,
+      "originalTokens": 16821,
+      "headroomViewTokens": 11570,
+      "compressionMs": 32.80420800000047
+    },
+    {
+      "trial": "full-report-2-on",
+      "completeSource": true,
+      "originalBytes": 116781,
+      "piViewBytes": 51338,
+      "headroomViewBytes": 19450,
+      "savedOriginalBytes": 97331,
+      "originalTokens": 29347,
+      "headroomViewTokens": 11522,
+      "compressionMs": 23.88250000000062
+    },
+    {
+      "trial": "api-table-2-on",
+      "completeSource": true,
+      "originalBytes": 118703,
+      "piViewBytes": 51343,
+      "headroomViewBytes": 25778,
+      "savedOriginalBytes": 92925,
+      "originalTokens": 27903,
+      "headroomViewTokens": 14578,
+      "compressionMs": 64.54383300000063
+    },
+    {
+      "trial": "log-count-2-on",
+      "completeSource": false,
+      "originalBytes": 50966,
+      "piViewBytes": 50966,
+      "headroomViewBytes": 43037,
+      "savedOriginalBytes": 7929,
+      "originalTokens": 16796,
+      "headroomViewTokens": 11540,
+      "compressionMs": 32.76658300000054
+    },
+    {
+      "trial": "full-report-3-on",
+      "completeSource": true,
+      "originalBytes": 116781,
+      "piViewBytes": 51338,
+      "headroomViewBytes": 19450,
+      "savedOriginalBytes": 97331,
+      "originalTokens": 29347,
+      "headroomViewTokens": 11520,
+      "compressionMs": 29.14508300000034
+    },
+    {
+      "trial": "api-table-3-on",
+      "completeSource": true,
+      "originalBytes": 118703,
+      "piViewBytes": 51343,
+      "headroomViewBytes": 25778,
+      "savedOriginalBytes": 92925,
+      "originalTokens": 27903,
+      "headroomViewTokens": 14572,
+      "compressionMs": 65.2729159999999
+    },
+    {
+      "trial": "log-count-3-on",
+      "completeSource": false,
+      "originalBytes": 51018,
+      "piViewBytes": 51018,
+      "headroomViewBytes": 43089,
+      "savedOriginalBytes": 7929,
+      "originalTokens": 16821,
+      "headroomViewTokens": 11563,
+      "compressionMs": 27.134541000000354
+    },
+    {
+      "trial": "api-table-4-on",
+      "completeSource": true,
+      "originalBytes": 118703,
+      "piViewBytes": 51343,
+      "headroomViewBytes": 25778,
+      "savedOriginalBytes": 92925,
+      "originalTokens": 27903,
+      "headroomViewTokens": 14583,
+      "compressionMs": 256.4313750000001
+    },
+    {
+      "trial": "log-count-4-on",
+      "completeSource": false,
+      "originalBytes": 50966,
+      "piViewBytes": 50966,
+      "headroomViewBytes": 43037,
+      "savedOriginalBytes": 7929,
+      "originalTokens": 16796,
+      "headroomViewTokens": 11538,
+      "compressionMs": 168.757208
+    }
+  ],
+  "trials": [
+    {
+      "id": "full-report-0-off",
+      "kind": "full-report",
+      "seed": 0,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 34127,
+      "verified": true,
+      "verifyExit": 0,
+      "answer": {
+        "failed": [
+          3,
+          991
+        ]
+      },
+      "escaped": [],
+      "turns": 8,
+      "usage": {
+        "input": 15131,
+        "output": 789,
+        "cacheRead": 19968,
+        "cacheWrite": 0,
+        "totalTokens": 35888,
+        "cost": 0.00437236
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "full-report-0-on",
+      "kind": "full-report",
+      "seed": 0,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 24376,
+      "verified": true,
+      "verifyExit": 0,
+      "answer": {
+        "failed": [
+          3,
+          991
+        ]
+      },
+      "escaped": [],
+      "turns": 7,
+      "usage": {
+        "input": 19855,
+        "output": 469,
+        "cacheRead": 64512,
+        "cacheWrite": 0,
+        "totalTokens": 84836,
+        "cost": 0.005824040000000001
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_dGXepNG8gUlCbJ9ZQrGfbP1u|fc_0b7f337d706655f9016aa1262816d087d2b3ff7baac1a28a2c",
+          "outcome": "compressed",
+          "completeSource": true,
+          "elapsedMs": 25.883584000000155,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 1,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 97331,
+            "promptSavedBytes": -19321,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 25.883584000000155
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "api-table-0-on",
+      "kind": "api-table",
+      "seed": 0,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 14421,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "count": 900,
+        "failed": [
+          13,
+          437,
+          890
+        ]
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 18099,
+        "output": 285,
+        "cacheRead": 25600,
+        "cacheWrite": 0,
+        "totalTokens": 43984,
+        "cost": 0.004473800000000001
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_SruWvi9Ornyb8lWoRvurWzlW|fc_0aec484387a239d5016aa1263fe20487d2823afd1aa64ab15e",
+          "outcome": "compressed",
+          "completeSource": true,
+          "elapsedMs": 68.05137500000001,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 1,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 92925,
+            "promptSavedBytes": 25565,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 68.05137500000001
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "api-table-0-off",
+      "kind": "api-table",
+      "seed": 0,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 18611,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "count": 900,
+        "failed": [
+          13,
+          437,
+          890
+        ]
+      },
+      "escaped": [],
+      "turns": 5,
+      "usage": {
+        "input": 16357,
+        "output": 425,
+        "cacheRead": 38400,
+        "cacheWrite": 0,
+        "totalTokens": 55182,
+        "cost": 0.0045494
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "log-count-0-off",
+      "kind": "log-count",
+      "seed": 0,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 21556,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "errors": 1,
+        "job": "job-0",
+        "timestamp": "2026-09-09T08:01:13Z"
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 20502,
+        "output": 286,
+        "cacheRead": 27648,
+        "cacheWrite": 0,
+        "totalTokens": 48436,
+        "cost": 0.00499656
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "log-count-0-on",
+      "kind": "log-count",
+      "seed": 0,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 18910,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "errors": 1,
+        "job": "job-0",
+        "timestamp": "2026-09-09T08:01:13Z"
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 15129,
+        "output": 289,
+        "cacheRead": 22528,
+        "cacheWrite": 0,
+        "totalTokens": 37946,
+        "cost": 0.0038231600000000004
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_Y9a64RIBYgVDR3ZBaiPzLsMv|fc_0b08fc15f3c30f06016aa12679b10087d28b447209c78e4fa8",
+          "outcome": "compressed",
+          "completeSource": false,
+          "elapsedMs": 37.79791699999987,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 0,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 7929,
+            "promptSavedBytes": 7929,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 37.79791699999987
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "small-edit-0-on",
+      "kind": "small-edit",
+      "seed": 0,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 17031,
+      "verified": true,
+      "verifyExit": 0,
+      "escaped": [],
+      "turns": 6,
+      "usage": {
+        "input": 4332,
+        "output": 306,
+        "cacheRead": 18432,
+        "cacheWrite": 0,
+        "totalTokens": 23070,
+        "cost": 0.00160224
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "small-edit-0-off",
+      "kind": "small-edit",
+      "seed": 0,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 19402,
+      "verified": true,
+      "verifyExit": 0,
+      "escaped": [],
+      "turns": 6,
+      "usage": {
+        "input": 8337,
+        "output": 350,
+        "cacheRead": 14848,
+        "cacheWrite": 0,
+        "totalTokens": 23535,
+        "cost": 0.00238436
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "full-report-1-on",
+      "kind": "full-report",
+      "seed": 1,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 26221,
+      "verified": true,
+      "verifyExit": 0,
+      "answer": {
+        "failed": [
+          10,
+          988
+        ]
+      },
+      "escaped": [],
+      "turns": 7,
+      "usage": {
+        "input": 29318,
+        "output": 431,
+        "cacheRead": 54784,
+        "cacheWrite": 0,
+        "totalTokens": 84533,
+        "cost": 0.00747648
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_nEURQ2f095TnDqcxkg8d40z4|fc_0c8d609da78c9cbc016aa126afdcb087d2bb22c579d6c4f994",
+          "outcome": "compressed",
+          "completeSource": true,
+          "elapsedMs": 26.54083300000002,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 1,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 97331,
+            "promptSavedBytes": 31888,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 26.54083300000002
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "full-report-1-off",
+      "kind": "full-report",
+      "seed": 1,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 24945,
+      "verified": true,
+      "verifyExit": 0,
+      "answer": {
+        "failed": [
+          10,
+          988
+        ]
+      },
+      "escaped": [],
+      "turns": 8,
+      "usage": {
+        "input": 33552,
+        "output": 653,
+        "cacheRead": 75776,
+        "cacheWrite": 0,
+        "totalTokens": 109981,
+        "cost": 0.009009519999999998
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "api-table-1-off",
+      "kind": "api-table",
+      "seed": 1,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 20976,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "count": 900,
+        "failed": [
+          18,
+          439,
+          887
+        ]
+      },
+      "escaped": [],
+      "turns": 5,
+      "usage": {
+        "input": 19063,
+        "output": 479,
+        "cacheRead": 35840,
+        "cacheWrite": 0,
+        "totalTokens": 55382,
+        "cost": 0.0051042
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "api-table-1-on",
+      "kind": "api-table",
+      "seed": 1,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 16047,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "count": 900,
+        "failed": [
+          18,
+          439,
+          887
+        ]
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 17964,
+        "output": 249,
+        "cacheRead": 25600,
+        "cacheWrite": 0,
+        "totalTokens": 43813,
+        "cost": 0.004403600000000001
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_e9LiwWmmn4daDOuOkhMWCn46|fc_02a2810b15106773016aa126f6ca7887d2b06c7a8f2916c2df",
+          "outcome": "compressed",
+          "completeSource": true,
+          "elapsedMs": 65.47379099999944,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 1,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 92925,
+            "promptSavedBytes": 25565,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 65.47379099999944
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "log-count-1-on",
+      "kind": "log-count",
+      "seed": 1,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 16064,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "errors": 2,
+        "job": "job-1",
+        "timestamp": "2026-09-09T08:01:24Z"
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 20157,
+        "output": 256,
+        "cacheRead": 17408,
+        "cacheWrite": 0,
+        "totalTokens": 37821,
+        "cost": 0.00468676
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_V76gapEhlONRsGrZ2ua4S6G2|fc_018299af04277b5c016aa12707102087d29ba9cc7449e27955",
+          "outcome": "compressed",
+          "completeSource": false,
+          "elapsedMs": 32.80420800000047,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 0,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 7929,
+            "promptSavedBytes": 7929,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 32.80420800000047
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "log-count-1-off",
+      "kind": "log-count",
+      "seed": 1,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 16225,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "errors": 2,
+        "job": "job-1",
+        "timestamp": "2026-09-09T08:01:24Z"
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 22959,
+        "output": 244,
+        "cacheRead": 25088,
+        "cacheWrite": 0,
+        "totalTokens": 48291,
+        "cost": 0.005386360000000001
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "small-edit-1-off",
+      "kind": "small-edit",
+      "seed": 1,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 22227,
+      "verified": true,
+      "verifyExit": 0,
+      "escaped": [],
+      "turns": 7,
+      "usage": {
+        "input": 9297,
+        "output": 403,
+        "cacheRead": 17408,
+        "cacheWrite": 0,
+        "totalTokens": 27108,
+        "cost": 0.0026911599999999997
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "small-edit-1-on",
+      "kind": "small-edit",
+      "seed": 1,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 23133,
+      "verified": true,
+      "verifyExit": 0,
+      "escaped": [],
+      "turns": 7,
+      "usage": {
+        "input": 9783,
+        "output": 348,
+        "cacheRead": 16384,
+        "cacheWrite": 0,
+        "totalTokens": 26515,
+        "cost": 0.00270188
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "full-report-2-off",
+      "kind": "full-report",
+      "seed": 2,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 25059,
+      "verified": true,
+      "verifyExit": 0,
+      "answer": {
+        "failed": [
+          17,
+          985
+        ]
+      },
+      "escaped": [],
+      "turns": 7,
+      "usage": {
+        "input": 21560,
+        "output": 614,
+        "cacheRead": 70656,
+        "cacheWrite": 0,
+        "totalTokens": 92830,
+        "cost": 0.00646192
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "full-report-2-on",
+      "kind": "full-report",
+      "seed": 2,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 25181,
+      "verified": true,
+      "verifyExit": 0,
+      "answer": {
+        "failed": [
+          17,
+          985
+        ]
+      },
+      "escaped": [],
+      "turns": 7,
+      "usage": {
+        "input": 20101,
+        "output": 554,
+        "cacheRead": 65536,
+        "cacheWrite": 0,
+        "totalTokens": 86191,
+        "cost": 0.00599572
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_PYi8FfovMhczbq7XsiEiBkLX|fc_059f7cd1ab962e90016aa1276d065087d2b565ce07bcb41a7d",
+          "outcome": "compressed",
+          "completeSource": true,
+          "elapsedMs": 23.88250000000062,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 1,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 97331,
+            "promptSavedBytes": 31888,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 23.88250000000062
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "api-table-2-on",
+      "kind": "api-table",
+      "seed": 2,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 15541,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "count": 900,
+        "failed": [
+          23,
+          441,
+          884
+        ]
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 20527,
+        "output": 245,
+        "cacheRead": 23040,
+        "cacheWrite": 0,
+        "totalTokens": 43812,
+        "cost": 0.004860199999999999
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_UuQooEJiLlqg9Fu6H03Tk58N|fc_079278dfb0eb2d88016aa12785ed8887d29d0192f3af452490",
+          "outcome": "compressed",
+          "completeSource": true,
+          "elapsedMs": 64.54383300000063,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 1,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 92925,
+            "promptSavedBytes": 25565,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 64.54383300000063
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "api-table-2-off",
+      "kind": "api-table",
+      "seed": 2,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 15554,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "count": 900,
+        "failed": [
+          23,
+          441,
+          884
+        ]
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 18923,
+        "output": 390,
+        "cacheRead": 19968,
+        "cacheWrite": 0,
+        "totalTokens": 39281,
+        "cost": 0.00465196
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "log-count-2-off",
+      "kind": "log-count",
+      "seed": 2,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 14881,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "errors": 1,
+        "job": "job-2",
+        "timestamp": "2026-09-09T08:01:35Z"
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 23078,
+        "output": 288,
+        "cacheRead": 25088,
+        "cacheWrite": 0,
+        "totalTokens": 48454,
+        "cost": 0.005462960000000001
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "log-count-2-on",
+      "kind": "log-count",
+      "seed": 2,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 21719,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "errors": 1,
+        "job": "job-2",
+        "timestamp": "2026-09-09T08:01:35Z"
+      },
+      "escaped": [],
+      "turns": 5,
+      "usage": {
+        "input": 35648,
+        "output": 624,
+        "cacheRead": 51200,
+        "cacheWrite": 0,
+        "totalTokens": 87472,
+        "cost": 0.008902400000000001
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_D83ek3n90eIj4XJFi7eTfEkI|fc_02cd3baf21876e5d016aa127b3ccbc87d299394c91630a0062",
+          "outcome": "compressed",
+          "completeSource": false,
+          "elapsedMs": 32.76658300000054,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 0,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 7929,
+            "promptSavedBytes": 7929,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 32.76658300000054
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "small-edit-2-on",
+      "kind": "small-edit",
+      "seed": 2,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 19528,
+      "verified": true,
+      "verifyExit": 0,
+      "escaped": [],
+      "turns": 7,
+      "usage": {
+        "input": 6656,
+        "output": 323,
+        "cacheRead": 19456,
+        "cacheWrite": 0,
+        "totalTokens": 26435,
+        "cost": 0.00210792
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "small-edit-2-off",
+      "kind": "small-edit",
+      "seed": 2,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 18229,
+      "verified": true,
+      "verifyExit": 0,
+      "escaped": [],
+      "turns": 6,
+      "usage": {
+        "input": 6439,
+        "output": 371,
+        "cacheRead": 16384,
+        "cacheWrite": 0,
+        "totalTokens": 23194,
+        "cost": 0.00206068
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "full-report-3-on",
+      "kind": "full-report",
+      "seed": 3,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 29130,
+      "verified": true,
+      "verifyExit": 0,
+      "answer": {
+        "failed": [
+          24,
+          982
+        ]
+      },
+      "escaped": [],
+      "turns": 8,
+      "usage": {
+        "input": 33766,
+        "output": 617,
+        "cacheRead": 67072,
+        "cacheWrite": 0,
+        "totalTokens": 101455,
+        "cost": 0.008835040000000002
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_x6vAj7coO2eaUfvuBgLHGXhh|fc_0186c3af549c1fbb016aa127ef729c87d2b0a2128bb9f88fee",
+          "outcome": "compressed",
+          "completeSource": true,
+          "elapsedMs": 29.14508300000034,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 1,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 97331,
+            "promptSavedBytes": 31888,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 29.14508300000034
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "full-report-3-off",
+      "kind": "full-report",
+      "seed": 3,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 40725,
+      "verified": true,
+      "verifyExit": 0,
+      "answer": {
+        "failed": [
+          24,
+          982
+        ]
+      },
+      "escaped": [],
+      "turns": 10,
+      "usage": {
+        "input": 35194,
+        "output": 684,
+        "cacheRead": 108544,
+        "cacheWrite": 0,
+        "totalTokens": 144422,
+        "cost": 0.010030480000000001
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "api-table-3-off",
+      "kind": "api-table",
+      "seed": 3,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 20337,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "count": 900,
+        "failed": [
+          28,
+          443,
+          881
+        ]
+      },
+      "escaped": [],
+      "turns": 5,
+      "usage": {
+        "input": 21585,
+        "output": 474,
+        "cacheRead": 33280,
+        "cacheWrite": 0,
+        "totalTokens": 55339,
+        "cost": 0.0055514
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "api-table-3-on",
+      "kind": "api-table",
+      "seed": 3,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 21264,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "count": 900,
+        "failed": [
+          28,
+          443,
+          881
+        ]
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 20500,
+        "output": 244,
+        "cacheRead": 23040,
+        "cacheWrite": 0,
+        "totalTokens": 43784,
+        "cost": 0.004853600000000001
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_zqT26R9YqH3a7w4GvLXHGg62|fc_0f34edfbdae10ad6016aa1284ca67887d28c8ac180f6f53cbd",
+          "outcome": "compressed",
+          "completeSource": true,
+          "elapsedMs": 65.2729159999999,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 1,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 92925,
+            "promptSavedBytes": 25565,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 65.2729159999999
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "log-count-3-on",
+      "kind": "log-count",
+      "seed": 3,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 13927,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "errors": 2,
+        "job": "job-3",
+        "timestamp": "2026-09-09T08:01:46Z"
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 15011,
+        "output": 243,
+        "cacheRead": 22528,
+        "cacheWrite": 0,
+        "totalTokens": 37782,
+        "cost": 0.0037443600000000004
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_6ssh9nmiT9gmJDhRXHq2GEsJ|fc_073ef7c31af2830a016aa1285fb3c887d29901e25cf690e718",
+          "outcome": "compressed",
+          "completeSource": false,
+          "elapsedMs": 27.134541000000354,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 0,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 7929,
+            "promptSavedBytes": 7929,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 27.134541000000354
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "log-count-3-off",
+      "kind": "log-count",
+      "seed": 3,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 13775,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "errors": 2,
+        "job": "job-3",
+        "timestamp": "2026-09-09T08:01:46Z"
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 22957,
+        "output": 243,
+        "cacheRead": 25088,
+        "cacheWrite": 0,
+        "totalTokens": 48288,
+        "cost": 0.005384760000000001
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "small-edit-3-off",
+      "kind": "small-edit",
+      "seed": 3,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 16602,
+      "verified": true,
+      "verifyExit": 0,
+      "escaped": [],
+      "turns": 5,
+      "usage": {
+        "input": 5342,
+        "output": 297,
+        "cacheRead": 13824,
+        "cacheWrite": 0,
+        "totalTokens": 19463,
+        "cost": 0.0017012800000000001
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "small-edit-3-on",
+      "kind": "small-edit",
+      "seed": 3,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 15492,
+      "verified": true,
+      "verifyExit": 0,
+      "escaped": [],
+      "turns": 5,
+      "usage": {
+        "input": 4256,
+        "output": 294,
+        "cacheRead": 14848,
+        "cacheWrite": 0,
+        "totalTokens": 19398,
+        "cost": 0.0015009600000000002
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "full-report-4-off",
+      "kind": "full-report",
+      "seed": 4,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 34014,
+      "verified": true,
+      "verifyExit": 0,
+      "answer": {
+        "failed": [
+          31,
+          979
+        ]
+      },
+      "escaped": [],
+      "turns": 11,
+      "usage": {
+        "input": 18723,
+        "output": 928,
+        "cacheRead": 34304,
+        "cacheWrite": 0,
+        "totalTokens": 53955,
+        "cost": 0.0055442799999999995
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "full-report-4-on",
+      "kind": "full-report",
+      "seed": 4,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 27448,
+      "verified": true,
+      "verifyExit": 0,
+      "answer": {
+        "failed": [
+          31,
+          979
+        ]
+      },
+      "escaped": [],
+      "turns": 8,
+      "usage": {
+        "input": 18289,
+        "output": 698,
+        "cacheRead": 92160,
+        "cacheWrite": 0,
+        "totalTokens": 111147,
+        "cost": 0.0063386000000000015
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "api-table-4-on",
+      "kind": "api-table",
+      "seed": 4,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 13409,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "count": 900,
+        "failed": [
+          33,
+          445,
+          878
+        ]
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 18007,
+        "output": 265,
+        "cacheRead": 25600,
+        "cacheWrite": 0,
+        "totalTokens": 43872,
+        "cost": 0.004431400000000001
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_DNNwDC1hsOl2l1o8nUUTm309|fc_092b2f0a29128ada016aa128d8ab1c87d2ae62bf8125b86163",
+          "outcome": "compressed",
+          "completeSource": true,
+          "elapsedMs": 256.4313750000001,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 1,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 92925,
+            "promptSavedBytes": 25565,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 256.4313750000001
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "api-table-4-off",
+      "kind": "api-table",
+      "seed": 4,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 19207,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "count": 900,
+        "failed": [
+          33,
+          445,
+          878
+        ]
+      },
+      "escaped": [],
+      "turns": 5,
+      "usage": {
+        "input": 16512,
+        "output": 482,
+        "cacheRead": 38400,
+        "cacheWrite": 0,
+        "totalTokens": 55394,
+        "cost": 0.004648800000000001
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "log-count-4-off",
+      "kind": "log-count",
+      "seed": 4,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 19652,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "errors": 1,
+        "job": "job-4",
+        "timestamp": "2026-09-09T08:01:57Z"
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 20374,
+        "output": 258,
+        "cacheRead": 27648,
+        "cacheWrite": 0,
+        "totalTokens": 48280,
+        "cost": 0.004937360000000001
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "log-count-4-on",
+      "kind": "log-count",
+      "seed": 4,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 15078,
+      "verified": true,
+      "verifyExit": null,
+      "answer": {
+        "errors": 1,
+        "job": "job-4",
+        "timestamp": "2026-09-09T08:01:57Z"
+      },
+      "escaped": [],
+      "turns": 4,
+      "usage": {
+        "input": 14964,
+        "output": 244,
+        "cacheRead": 22528,
+        "cacheWrite": 0,
+        "totalTokens": 37736,
+        "cost": 0.0037361600000000005
+      },
+      "receipts": [
+        {
+          "version": 2,
+          "mode": "on",
+          "toolCallId": "call_YqVTliSgkEYu06qGDnbViyFG|fc_0a8ff9b3852643df016aa1290cd5d887d2a7dd70ee8cc36e93",
+          "outcome": "compressed",
+          "completeSource": false,
+          "elapsedMs": 168.757208,
+          "counts": {
+            "eligible": 1,
+            "compressed": 1,
+            "fullRecovered": 0,
+            "unchanged": 0,
+            "rejected": 0,
+            "failed": 0,
+            "savedBytes": 7929,
+            "promptSavedBytes": 7929,
+            "wouldSaveBytes": 0,
+            "elapsedMs": 168.757208
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "small-edit-4-on",
+      "kind": "small-edit",
+      "seed": 4,
+      "arm": "on",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 18558,
+      "verified": true,
+      "verifyExit": 0,
+      "escaped": [],
+      "turns": 6,
+      "usage": {
+        "input": 3772,
+        "output": 298,
+        "cacheRead": 18432,
+        "cacheWrite": 0,
+        "totalTokens": 22502,
+        "cost": 0.00148064
+      },
+      "receipts": [],
+      "pass": true
+    },
+    {
+      "id": "small-edit-4-off",
+      "kind": "small-edit",
+      "seed": 4,
+      "arm": "off",
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 20075,
+      "verified": true,
+      "verifyExit": 0,
+      "escaped": [],
+      "turns": 6,
+      "usage": {
+        "input": 5267,
+        "output": 347,
+        "cacheRead": 17408,
+        "cacheWrite": 0,
+        "totalTokens": 23022,
+        "cost": 0.0018179600000000002
+      },
+      "receipts": [],
+      "pass": true
+    }
+  ]
+}

@@ -6,6 +6,9 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { commandName, loadBrand, slashCommand } from "./ein-brand";
 import { t, tf } from "../lib/i18n/strings";
 import { pick } from "../lib/lang";
+import { headroomConfig } from "../lib/headroom.ts";
+import { headroomLabel } from "../lib/headroom-settings.ts";
+import { inspectHeadroomService, resolveHeadroomBinary } from "../lib/headroom-service.ts";
 import { PI_BUILTIN_TOOLS, formatDrift, verifyPiContract } from "../lib/pi-contract.ts";
 import {
   countDoctorSkillFiles,
@@ -41,6 +44,12 @@ async function cliExists(cmd: string): Promise<boolean> {
 // =============================================================================
 
 async function doctorReport(): Promise<string> {
+  let headroom = "configuración inválida; /ein:headroom status";
+  try {
+    const config = headroomConfig(process.env, process.cwd());
+    const health = config.mode === "off" ? { ready: false, version: undefined } : await inspectHeadroomService(config);
+    headroom = `${config.mode}; servicio=${health.ready ? `disponible ${health.version ?? ""}` : "sin conectar"}; /ein:headroom status`;
+  } catch { /* Other doctor checks still run. */ }
   const brand = loadBrand();
   const agentsDir = join(AGENT_DIR, "agents");
   const chainsDir = join(AGENT_DIR, "chains");
@@ -72,6 +81,8 @@ async function doctorReport(): Promise<string> {
   return `// 000. diagnostico ein
 
 **Agente:** \`${brand.agentName}\`  |  **Autor:** \`${brand.author}\`  |  **Prefijo:** \`${brand.commandPrefix}\`
+
+**Headroom:** ${headroom}
 
 // 001. AGENTES (${agents.length})
 
@@ -255,6 +266,7 @@ export function doctorSmokeReport(
   );
 
   const checksIntegrations: CheckResult[] = [
+    warn(headroomLabel(cwd) === "off" || !!resolveHeadroomBinary(), "headroom", `${headroomLabel(cwd)}; servicio opcional. /ein:headroom status comprueba conexión y versión; start inicia un binario instalado.`),
     warn(hasLinearToken, "linear token", "Token Linear detectable en entorno o archivo."),
     warn(
       existsSync(CONTEXT7_KEY_PATH) || Boolean(process.env.CONTEXT7_API_KEY),

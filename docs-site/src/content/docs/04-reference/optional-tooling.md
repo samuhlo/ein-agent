@@ -5,8 +5,9 @@ sources: ["installer/src/core/engram.ts", "installer/src/core/secrets.ts", "inst
 verified_rev: "405a6c1"
 ---
 
-EIN funciona sin ninguna de estas. Todas se pueden omitir en la instalación con
-su flag, y todas degradan sin romper nada.
+EIN funciona sin ninguna de estas. Las opciones del instalador conservan sus
+flags; Headroom se configura desde Ein-Pi. Si una integración no está disponible,
+la capacidad concreta queda inactiva y el flujo continúa.
 
 :::note
 Ninguna es obligatoria. Si una no está disponible, EIN sigue funcionando y lo
@@ -65,15 +66,39 @@ Funciona, gasta más presupuesto.
 
 **Flag:** `--no-codegraph`.
 
-## Hypa
+## Headroom (Ein-Pi)
 
-**Qué aporta.** Capacidades adicionales de análisis.
+**Qué aporta.** Reduce resultados grandes de comandos antes de que los lea el
+modelo. Ein comprueba que conserva todos los registros, valores, tipos y orden;
+si no puede verificarlo, entrega la salida normal de Pi. Puede recuperar el
+archivo completo que Pi guardó al recortar una salida.
 
-**Cuándo se usa.** Puntualmente, y no forma parte del flujo SDD.
+**Control.** `/ein:headroom on|observe|off`. `observe` mide sin cambiar lo que recibe
+el modelo. La preferencia vive en `.pi/ein/headroom.json`; un antiguo Hypa apagado
+permanece apagado durante la transición. `/ein:hypa` explica el nuevo comando y
+ya no envuelve comandos con el ejecutable de Hypa.
 
-**Sin ella.** Nada del flujo depende de esto.
+**Servicio local.** `/ein:headroom update 0.37.0` prepara una instalación aislada
+(requiere `uv`) y la selecciona solo si pasa las pruebas de compatibilidad. La
+versión 0.37.0 es la probada en esta entrega. `/ein:headroom start|stop|status`
+controla el servicio; Ein interactivo inicia en segundo plano un binario ya
+instalado. Los subagentes lo reutilizan. No se descargan dependencias al abrir
+una sesión. `/ein:headroom rollback` vuelve a una versión gestionada anterior.
 
-**Flag:** `--no-hypa`.
+**Qué queda intacto.** Comandos, permisos, código, diffs, errores de ejecución y
+contratos SDD. No cambia el proveedor ni su esfuerzo. Se admite un conjunto
+verificado de tablas JSON y logs con prefijo temporal; no cualquier resumen.
+El original queda recuperable con `read`, incluso al detener Headroom.
+
+**Sin servicio.** Se conserva la salida de Pi. `status` informa de conexión,
+versión, compresiones, originales completos y bytes. Esos bytes no equivalen
+al ahorro de factura de una sesión.
+
+## Hypa (compatibilidad del instalador)
+
+El instalador conserva la opción histórica y `--no-hypa` mientras se decide la
+oferta de dependencias. El binario puede usarse por separado, pero ya no es el
+motor de compresión de Ein-Pi. Instalar Hypa no instala ni activa Headroom.
 
 ## Instalar sin ninguna
 

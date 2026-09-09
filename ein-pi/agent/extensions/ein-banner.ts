@@ -29,7 +29,7 @@ import { placaRows, TV_WIDTH, type TvCut, type TvTone } from "../lib/ein-tv";
 import { humanizeAge, listRecentSessions, type RecentSession } from "../lib/sessions";
 import { LANG_LABEL, readArtifactLang, readChatLang, type Lang } from "../lib/lang";
 import { TDD_LABEL, readTddMode } from "../lib/tdd";
-import { readHypaMode, resolveHypaEnabled } from "../lib/hypa";
+import { headroomLabel } from "../lib/headroom-settings";
 import { readCodegraphMode, resolveCodegraphEnabled } from "../lib/codegraph";
 import { readPersonaMode } from "../lib/persona";
 import { inspectLinearIntegration, linearIntegrationLabel } from "../lib/linear-integration";
@@ -408,12 +408,6 @@ export default function (pi: ExtensionAPI) {
     const tddLabel = TDD_LABEL[readTddMode(ctx.cwd)];
     const personaLabel = readPersonaMode(ctx.cwd);
     const linearLabel = linearIntegrationLabel(inspectLinearIntegration(ctx.cwd));
-    // Hypa: modo + estado resuelto en auto (como TDD muestra su label).
-    const hypaMode = readHypaMode(ctx.cwd);
-    const hypaLabel =
-      hypaMode === "auto"
-        ? `auto·${resolveHypaEnabled(ctx.cwd) ? "on" : "off"}`
-        : hypaMode;
     // Codegraph: mismo formato modo·estado.
     const cgMode = readCodegraphMode(ctx.cwd);
     // `on` declara la intención; lo que importa enseñar es si está ACTIVO de
@@ -659,7 +653,7 @@ export default function (pi: ExtensionAPI) {
                     { label: "linear", value: fit(linearLabel, GRID_VALUE_W) },
                   ] },
                   { kind: "chips" as const, label: "", chips: [
-                    { text: "hypa", on: isOn(hypaLabel) },
+                    { text: `headroom·${headroomLabel(ctx.cwd)}`, on: headroomLabel(ctx.cwd) === "on" },
                     { text: "codegraph", on: isOn(cgLabel) },
                     { text: "cleaner", on: isOn(cleanerLabel) },
                     { text: "architect", on: isOn(architectLabel) } ] },

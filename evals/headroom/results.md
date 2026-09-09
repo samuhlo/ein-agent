@@ -1,5 +1,8 @@
 # Headroom en Ein — resultado del piloto
 
+> Registro histórico del primer piloto. La integración actual y sus pruebas
+> están en [integration-results.md](integration-results.md).
+
 Fecha: 2026-09-09. Rama: `experiment/pi-headroom`. Base: `b9e6959`.
 
 **Hay una compresión útil para JSON repetitivo; no hay evidencia suficiente para

@@ -1,16 +1,20 @@
 // Experimental tool-output compression. No provider routing, model calls or memory.
 import { createHash } from "node:crypto";
+import { constants } from "node:fs";
+import { tmpdir } from "node:os";
 import { lstat, mkdir, open, readFile, readdir, realpath, stat } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
+import { readHeadroomMode, type HeadroomMode } from "./headroom-settings.ts";
 
-export type HeadroomMode = "off" | "observe" | "on";
+export type { HeadroomMode } from "./headroom-settings.ts";
 export interface HeadroomConfig { mode: HeadroomMode; endpoint: string; timeoutMs: number }
 export const HEADROOM_MIN_BYTES = 8_192;
-export const HEADROOM_MAX_BYTES = 200_000;
+export const HEADROOM_MAX_BYTES = 512 * 1024;
+export const HEADROOM_DELIVERY_BYTES = 48_000;
 export const HEADROOM_SESSION_BYTES = 32 * 1024 * 1024;
 
-export function headroomConfig(env: NodeJS.ProcessEnv = process.env): HeadroomConfig {
-	const mode = env.EIN_HEADROOM_MODE ?? "off";
+export function headroomConfig(env: NodeJS.ProcessEnv = process.env, cwd?: string): HeadroomConfig {
+	const mode = env.EIN_HEADROOM_MODE ?? (cwd ? readHeadroomMode(cwd) : "off");
 	if (!["off", "observe", "on"].includes(mode)) throw new Error("EIN_HEADROOM_MODE must be off, observe or on");
 	const endpoint = new URL(env.EIN_HEADROOM_URL ?? "http://127.0.0.1:8787");
 	if (endpoint.protocol !== "http:" || !["127.0.0.1", "[::1]"].includes(endpoint.hostname) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash || endpoint.pathname !== "/") {
@@ -27,6 +31,25 @@ export interface OutputCandidate {
 }
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
+export function headroomPayload(text: string): { payload: string; prefix: string; suffix: string } {
+	const start = text.search(/\S/);
+	if (start >= 0 && text[start] === "[") {
+		let depth = 0, quoted = false, escaped = false;
+		for (let i = start; i < text.length; i++) {
+			const char = text[i];
+			if (quoted) { if (escaped) escaped = false; else if (char === "\\") escaped = true; else if (char === '"') quoted = false; continue; }
+			if (char === '"') quoted = true;
+			else if (char === "[") depth++;
+			else if (char === "]" && --depth === 0) {
+				const suffix = text.slice(i + 1);
+				if (suffix.length <= 2048) return { payload: text.slice(start, i + 1), prefix: text.slice(0, start), suffix };
+				break;
+			}
+		}
+	}
+	return { payload: text, prefix: "", suffix: "" };
+}
+
 export function eligibleHeadroomOutput(event: OutputCandidate): string | undefined {
 	// Read stays exact, including retrieval of our own originals. Evidence and
 	// delegated results are never intercepted. Already-reduced/truncated results
@@ -38,13 +61,39 @@ export function eligibleHeadroomOutput(event: OutputCandidate): string | undefin
 	const text = event.content[0].text;
 	if (!text || Buffer.byteLength(text) < HEADROOM_MIN_BYTES || Buffer.byteLength(text) > HEADROOM_MAX_BYTES) return;
 	if (/\[Ein Headroom|<<ccr:|Retrieve more: hash=|Full output:|\bapply-packet\/|\bstateRef\b|\bwriteAllowlist\b/.test(text)) return;
-	// The first live pilot miscounted a log despite retrieving its original.
-	// Only tabular JSON is eligible in the final profile. It must also pass the
-	// exact record verifier below; source, logs and prose remain untouched.
+	// Accept data tables and timestamped logs. Both require an exact, reversible
+	// representation check below; sampling or dropping records is never accepted.
 	try {
-		const data: unknown = JSON.parse(text);
+		const data: unknown = JSON.parse(headroomPayload(text).payload);
 		if (Array.isArray(data) && data.length >= 5 && data.every(record)) return text;
 	} catch { /* Unknown representations stay raw. */ }
+	const lines = text.replace(/\r?\n$/, "").split(/\r?\n/);
+	if (lines.length >= 30 && lines.every((line) => /^\d{4}-\d\d-\d\d[T ]\d\d:\d\d:\d\d/.test(line))) return text;
+}
+
+export async function headroomSource(event: OutputCandidate): Promise<{ text: string; full: boolean } | undefined> {
+	if (event.toolName !== "bash" || event.isError || !record(event.details) || !record(event.details.truncation) || !event.details.truncation.truncated) {
+		const text = eligibleHeadroomOutput(event); return text ? { text, full: false } : undefined;
+	}
+	const path = event.details.fullOutputPath;
+	// Only Pi's own bounded spool surface. Never open a path found in tool text,
+	// an arbitrary extension's details, a symlink or a special file.
+	if (typeof path !== "string" || !/^pi-bash-[a-f0-9]{16}\.log$/.test(basename(path))) return;
+	if (await realpath(dirname(path)) !== await realpath(tmpdir())) return;
+	const info = await lstat(path);
+	if (!info.isFile() || info.size > HEADROOM_MAX_BYTES || info.size < HEADROOM_MIN_BYTES) return;
+	const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+	try {
+		const before = await handle.stat(); if (before.ino !== info.ino || before.size !== info.size) return;
+		const buffer = Buffer.alloc(info.size + 1);
+		let length = 0;
+		while (length < buffer.length) { const part = await handle.read(buffer, length, buffer.length - length, length); if (!part.bytesRead) break; length += part.bytesRead; }
+		const after = await handle.stat(); if (length !== info.size || after.size !== info.size || after.mtimeMs !== before.mtimeMs) return;
+		const text = buffer.subarray(0, length).toString("utf8");
+		if (!buffer.subarray(0, length).equals(Buffer.from(text, "utf8"))) return;
+		const candidate = eligibleHeadroomOutput({ ...event, details: undefined, content: [{ type: "text", text }] });
+		return candidate ? { text: candidate, full: true } : undefined;
+	} finally { await handle.close(); }
 }
 
 export interface Compression { text: string; tokensBefore: number; tokensAfter: number; transforms: string[] }
@@ -95,32 +144,66 @@ export function headroomTableText(output: string): string {
 }
 
 export function verifyHeadroomTable(original: string, output: string): boolean {
-	// Intentionally a small verified subset of Headroom's csv-schema format,
-	// not a permissive CSV parser. Reject quoting, nesting, mixed schemas or
-	// type coercion. Every value, row order, column and multiplicity must match.
+	// Verify the upstream scalar csv-schema wire format by rebuilding its exact
+	// representation from the original. No heuristic parsing or type coercion.
 	try {
 		const rows: unknown = JSON.parse(original);
 		if (!Array.isArray(rows) || !rows.length || !rows.every(record)) return false;
+		// Reject duplicate object keys: parsing alone would silently keep the last
+		// value. Normalize lexical tokens without discarding repeated keys.
+		let exactNumbers = true;
+		const lexical = original.replace(/"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\s+/g, (token) => {
+			if (/^\s/.test(token)) return "";
+			const normalized = JSON.stringify(JSON.parse(token));
+			if (token[0] !== '"' && token !== normalized) exactNumbers = false;
+			return normalized;
+		});
+		if (!exactNumbers || lexical !== JSON.stringify(rows)) return false;
 		const table = headroomTableText(output);
 		const match = table.match(/^\[(\d+)\]\{([^\n}]+)\}\n/);
 		if (!match || Number(match[1]) !== rows.length) return false;
 		const columns = match[2].split(",").map((column) => column.split(":"));
-		if (columns.some(([key, type, extra]) => !key || !/^[a-zA-Z_]\w*$/.test(key) || !["string", "int", "bool"].includes(type) || extra !== undefined)) return false;
+		if (columns.some(([key, type, extra]) => !key || !/^[a-zA-Z_]\w*$/.test(key) || !/^(string|int|float|bool|null)\??$/.test(type) || extra !== undefined)) return false;
 		const keys = columns.map(([key]) => key);
 		if (new Set(keys).size !== keys.length) return false;
 		const lines: string[] = [];
 		for (const row of rows) {
 			if (Object.keys(row).length !== keys.length || !keys.every((key) => Object.hasOwn(row, key))) return false;
-			for (const [key, type] of columns) {
+			for (const [key, declared] of columns) {
 				const value = row[key];
-				if (type === "string" && (typeof value !== "string" || !value || /[,\r\n"\\]/.test(value) || value.trim() !== value)) return false;
+				const type = declared.replace(/\?$/, "");
+				if (value === null) { if (declared.endsWith("?") || type === "null") continue; return false; }
+				if (type === "null") return false;
+				if (type === "string" && typeof value !== "string") return false;
+				// csv-schema represents both null and empty strings as an empty cell.
+				// Refuse that ambiguous nullable-string combination.
+				if (type === "string" && declared.endsWith("?") && value === "") return false;
 				if (type === "int" && (typeof value !== "number" || !Number.isSafeInteger(value) || Object.is(value, -0))) return false;
+				if (type === "float" && (typeof value !== "number" || !Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER || Object.is(value, -0))) return false;
 				if (type === "bool" && typeof value !== "boolean") return false;
 			}
-			lines.push(keys.map((key) => String(row[key])).join(","));
+			lines.push(keys.map((key) => { const value = row[key]; if (value === null) return ""; if (typeof value === "string") return /[,"\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value; return String(value); }).join(","));
 		}
 		return table.replace(/\n$/, "") === match[0] + lines.join("\n");
 	} catch { return false; }
+}
+
+export type HeadroomProof = "table" | "prefix-lines";
+export function verifyHeadroomRepresentation(original: string, output: string): HeadroomProof | undefined {
+	if (verifyHeadroomTable(original, output)) return "table";
+	// Headroom sometimes folds a shared timestamp prefix onto one header line.
+	// Expand it and compare the ordered sequence, including duplicate events.
+	const rows = output.replace(/\r?\n$/, "").split(/\r?\n/);
+	const prefix = rows.shift();
+	if (!prefix || !/^\d{4}-\d\d-\d\d[T ]\d\d$/.test(prefix) || !rows.length) return;
+	const expanded = rows.map((line) => line.startsWith(`${prefix}:`) ? line : `${prefix}:${line}`).join("\n");
+	if (expanded === original.replace(/\r?\n$/, "").replace(/\r\n/g, "\n")) return "prefix-lines";
+}
+
+export function presentHeadroom(compact: string, proof: HeadroomProof): string {
+	if (proof !== "prefix-lines") return compact;
+	const lines = compact.replace(/\r?\n$/, "").split(/\r?\n/), prefix = lines.shift()!;
+	return [prefix, ...lines.map((line) => /\b(?:ERROR|WARN|WARNING|FATAL|EXCEPTION)\b/i.test(line) && !line.startsWith(`${prefix}:`) ? `${prefix}:${line}` : line)].join("\n");
 }
 
 export async function saveHeadroomOriginal(cwd: string, sessionId: string, original: string): Promise<string> {
@@ -131,6 +214,13 @@ export async function saveHeadroomOriginal(cwd: string, sessionId: string, origi
 	for (const part of [".pi", "ein", "headroom", sessionKey]) {
 		dir = join(dir, part); await mkdir(dir, { mode: 0o700 }).catch((error: NodeJS.ErrnoException) => { if (error.code !== "EEXIST") throw error; });
 		if (await realpath(dir) !== resolve(dir)) throw new Error("headroom-storage-symlink");
+	}
+	// Keep regenerable command output out of ordinary git add/status even in
+	// projects that do not already ignore .pi/ein. Never change their git config.
+	const ignorePath = join(project, ".pi", "ein", "headroom", ".gitignore");
+	try { const ignore = await open(ignorePath, "wx", 0o600); try { await ignore.writeFile("*\n"); } finally { await ignore.close(); } }
+	catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "EEXIST" || !(await lstat(ignorePath)).isFile() || await readFile(ignorePath, "utf8") !== "*\n") throw new Error("headroom-cache-ignore-conflict");
 	}
 	const path = join(dir, `${createHash("sha256").update(original).digest("hex")}.txt`);
 	// Repeated results reuse only an exact, non-symlink original. Count persisted
@@ -148,6 +238,7 @@ export async function saveHeadroomOriginal(cwd: string, sessionId: string, origi
 	return path;
 }
 
-export function headroomNotice(path: string): string {
-	return `[Ein Headroom: display table of a JSON array, verified against every original row and value. Files on disk retain their original JSON format. Original: ${JSON.stringify(path)}. Use read with offset/limit for original syntax.]\n`;
+export function headroomNotice(path: string, proof: HeadroomProof = "table"): string {
+	const representation = proof === "table" ? "table VIEW of JSON data; header types are authoritative: int/float are JSON numbers, bool is boolean, string is string. Preserve these types when writing JSON. Source JSON files remain JSON and no source file was rewritten" : "the first line is a shared timestamp prefix for abbreviated lines; diagnostic lines already show FULL timestamps";
+	return `[Ein Headroom: ${representation}. All original records and values verified, in order, including duplicates. Original: ${JSON.stringify(path)}. The archive contains the unmodified command output.]\n`;
 }

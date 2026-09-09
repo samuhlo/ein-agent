@@ -22,6 +22,7 @@ function loadCoreExtensions(): string[] {
     "ein-banner.ts",
     "ein-brand.ts",
     "ein-doctor.ts",
+    "ein-headroom.ts",
     "ein-linear.ts",
     "ein-paths.ts",
     "ein-skill-maintenance.ts",

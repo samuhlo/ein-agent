@@ -416,7 +416,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   const needHypa = !deps.find((d) => d.id === "hypa")?.present;
 
   if (needHypa && !flags.noHypa && !flags.yes) {
-    if (await confirm("Instalar hypa (compresión de salida)?", flags, false)) {
+    if (await confirm("Instalar Hypa como herramienta externa legada?", flags, false)) {
       const spinner = p.spinner();
       spinner.start("Instalando hypa");
       const result = await installHypa();

@@ -26,23 +26,23 @@ describe("pendingEssentials", () => {
 
 	test("proyecto sin configurar → los 6 esenciales pendientes, incluido agents", () => {
 		expect(pendingEssentials(cwd).sort()).toEqual(
-			(["agents", "einmd", "hypa", "lang", "persona", "tdd"] satisfies Essential[]).sort(),
+			(["agents", "einmd", "headroom", "lang", "persona", "tdd"] satisfies Essential[]).sort(),
 		);
 	});
 
 	test("aplicar un default lo saca de pendientes", () => {
-		applyDefault(cwd, "hypa");
-		expect(pendingEssentials(cwd)).not.toContain("hypa");
+		applyDefault(cwd, "headroom");
+		expect(pendingEssentials(cwd)).not.toContain("headroom");
 		expect(pendingEssentials(cwd)).toContain("persona");
 	});
 
 	test("missing agents config alone keeps onboarding pending", () => {
-		for (const item of ["persona", "lang", "tdd", "hypa", "einmd"] as const) applyDefault(cwd, item);
+		for (const item of ["persona", "lang", "tdd", "headroom", "einmd"] as const) applyDefault(cwd, item);
 		expect(pendingEssentials(cwd)).toEqual(["agents"]);
 	});
 
 	test("aplicar todos → nada pendiente + EIN.md en la raíz", () => {
-		for (const item of ["persona", "lang", "tdd", "hypa", "agents", "einmd"] as const) {
+		for (const item of ["persona", "lang", "tdd", "headroom", "agents", "einmd"] as const) {
 			applyDefault(cwd, item);
 		}
 		expect(pendingEssentials(cwd)).toEqual([]);
@@ -66,7 +66,7 @@ describe("pendingEssentials", () => {
 	});
 
 	test("personalized selection persists the chosen agent profile and advertises controls", async () => {
-		for (const item of ["persona", "lang", "tdd", "hypa", "agents", "einmd"] as const) applyDefault(cwd, item);
+		for (const item of ["persona", "lang", "tdd", "headroom", "agents", "einmd"] as const) applyDefault(cwd, item);
 		writeFileSync(join(cwd, ".pi", "ein", "agents.json"), `${JSON.stringify({ agents: {
 			cleaner: { enabled: false }, architect: { enabled: true },
 		} }, null, 2)}\n`);

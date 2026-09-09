@@ -198,7 +198,7 @@ export function checkDeps(platform: Platform): DepStatus[] {
     { id: "claude", required: false, hint: "complemento opcional: curl -fsSL https://claude.ai/install.sh | bash" },
     { id: "engram", required: false, hint: "memoria persistente (opcional)" },
     { id: "gh", required: false, hint: "GitHub CLI para entrega (opcional)" },
-    { id: "hypa", required: false, hint: "compresión de salida de comandos (opcional)" },
+    { id: "hypa", required: false, hint: "compresión externa legada (opcional); Ein-Pi usa Headroom" },
     { id: "codegraph", required: false, hint: "grafo de código para exploración barata (opcional)" },
   ];
 

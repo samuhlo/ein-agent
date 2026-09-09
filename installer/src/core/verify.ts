@@ -185,7 +185,7 @@ export function runDoctor(
     ),
     warn(hasEngramBin, "engram cli", "CLI engram disponible (memoria)."),
     warn(hasGh, "gh cli", "GitHub CLI disponible (entrega)."),
-    warn(hasHypa, "hypa cli", "Compresión de salida disponible; /ein:hypa la activa."),
+    warn(hasHypa, "hypa cli", "Herramienta opcional legada. Ein-Pi usa /ein:headroom para compresión; la elección del instalador se conserva por compatibilidad."),
     warn(
       resolveCodegraph(optionalPath) !== null,
       "codegraph cli",
