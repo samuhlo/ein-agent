@@ -59,7 +59,7 @@ Rules:
 - Include real compiler/test configuration and required context in `read:`; a cheap worker must not guess project options. Resolve every decision here. Common stops (stale sources, new dependency, out-of-scope write) are runtime-owned; `stop:` names only a condition specific to this task.
 - One group delivers one observable behavior with its implementation and regression/compatibility tests. **Each checkbox must be independently completable:** keep code and the tests needed to finish it in the same task, using multiple `edit:` fields and ordered substeps. Do not create a later task merely to prove an earlier task complete, or another group for other cases of the same behavior. Independent final verification belongs to sdd-verify.
 - Every group must fit ONE bounded apply and touch **≤3-4 production files**. A new foundational/cross-cutting artifact gets its OWN minimal group, separate from consumers. Split further when independent outcomes or the required TDD cycles exceed that focused batch.
-- Order tasks by dependency: contracts before consumers.
+- Declare skills needed to execute the group, not every skill used while planning. Order tasks by dependency: contracts before consumers.
 
 ## Constraints
 
