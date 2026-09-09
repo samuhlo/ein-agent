@@ -39,6 +39,8 @@ export default function verifyOutput(pi: ExtensionAPI): void {
 		if (event.toolName !== "bash" || event.isError !== false || !isSimpleCheck(event.input.command)) return;
 		if (event.content.length !== 1 || event.content[0].type !== "text") return;
 		const original = event.content[0].text;
+		// A verified Headroom view must not acquire a second, lossy preview.
+		if (original.startsWith("[Ein Headroom:")) return;
 		const preview = checkPreview(original);
 		if (preview === undefined) return;
 		try {

@@ -17,7 +17,6 @@ import {
   installEngramDep,
   installGh,
   installCodegraph,
-  installHypa,
   installPi,
   type DepStatus,
   type InstallStep,
@@ -87,6 +86,7 @@ import {
   LINEAR_INTEGRATION_OPTIONS,
   type LinearIntegration,
 } from "../../../shared/ports/linear.ts";
+import { chooseHeadroom, installHeadroom, type HeadroomInstallOptions } from "../core/headroom.ts";
 
 /** The one target selected by the menu or the direct installer default. */
 export type { InstallSelection, InstallTarget, RuntimeInstallTarget } from "../core/install-plan.ts";
@@ -97,6 +97,8 @@ export type InstallFlags = {
   noSecrets: boolean;
   noLinear: boolean;
   noHypa: boolean;
+  headroom?: boolean;
+  noHeadroom?: boolean;
   noCodegraph: boolean;
   dryRun: boolean;
   runtime: InstallSelection;
@@ -144,6 +146,7 @@ export type InstallOrchestratorOptions = {
 };
 
 export type InstallCommandOptions = {
+  headroom?: HeadroomInstallOptions;
   observations?: Omit<InstallPlanInput, "target" | "flags" | "platform"> & { platform: Platform };
   playBanner?: () => Promise<void>;
   writePlan?: (plan: InstallPlanV1) => void;
@@ -210,12 +213,15 @@ export function parseInstallFlags(args: string[]): InstallFlags {
     }
   }
 
+  if (args.includes("--headroom") && args.includes("--no-headroom")) throw new Error("No combines --headroom y --no-headroom.");
   return {
     yes: args.includes("--yes") || args.includes("-y"),
     noEngram: args.includes("--no-engram"),
     noSecrets: args.includes("--no-secrets"),
     noLinear: args.includes("--no-linear"),
     noHypa: args.includes("--no-hypa"),
+    ...(args.includes("--headroom") ? { headroom: true } : {}),
+    ...(args.includes("--no-headroom") || (args.includes("--no-hypa") && !args.includes("--headroom")) ? { noHeadroom: true } : {}),
     noCodegraph: args.includes("--no-codegraph"),
     dryRun: args.includes("--dry-run"),
     runtime,
@@ -413,18 +419,9 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   return success();
   },
   "pi.dependency.hypa": async () => {
-  const needHypa = !deps.find((d) => d.id === "hypa")?.present;
-
-  if (needHypa && !flags.noHypa && !flags.yes) {
-    if (await confirm("Instalar Hypa como herramienta externa legada?", flags, false)) {
-      const spinner = p.spinner();
-      spinner.start("Instalando hypa");
-      const result = await installHypa();
-      spinner.stop(result.detail);
-      return optionalInstallOutcome(result);
-    }
-  }
-  return success();
+    // Retain the V1 journal id for recovery, but never download the retired
+    // runtime wrapper. Headroom owns a separate verified optional transaction.
+    return { ok: true, detail: "Compatibilidad Hypa: no se instala; la compresión de Ein-Pi usa Headroom." };
   },
   "pi.dependency.codegraph": async () => {
   const needCodegraph = !deps.find((d) => d.id === "codegraph")?.present;
@@ -735,9 +732,9 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallSel
   const previousClaudeMarkerVersion = readInstallMarkerVersion(
     join(observations.home, ".claude-ein", ".ein-install.json"),
   );
-  const buildPlan = (linear: LinearIntegration): InstallPlanV1 => {
+  const buildPlan = (linear: LinearIntegration, legacyHypa = false): InstallPlanV1 => {
     const skipLinear = linear === "off";
-    return createInstallPlan({ ...observations, platform: { os: observations.platform.os, arch: observations.platform.arch }, target, flags: { yes: flags.yes, noEngram: flags.noEngram, noSecrets: flags.noSecrets, noHypa: flags.noHypa, noCodegraph: flags.noCodegraph, skipLinear } });
+    return createInstallPlan({ ...observations, platform: { os: observations.platform.os, arch: observations.platform.arch }, target, flags: { yes: flags.yes, noEngram: flags.noEngram, noSecrets: flags.noSecrets, noHypa: legacyHypa ? flags.noHypa : true, noCodegraph: flags.noCodegraph, skipLinear } });
   };
   let linear: LinearIntegration = "off";
   let plan = buildPlan(linear);
@@ -745,6 +742,10 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallSel
     const journal = journalStatus.journal;
     const candidates: { linear: LinearIntegration; plan: InstallPlanV1 }[] = [{ linear: "off", plan }];
     if (!flags.noLinear && !flags.yes) candidates.push({ linear: "on", plan: buildPlan("on") });
+    // Reconstruct old V1 digests only for recovery. New plans always skip Hypa;
+    // an admitted legacy dependency slot is a no-op, never a Headroom receipt.
+    candidates.push({ linear: "off", plan: buildPlan("off", true) });
+    if (!flags.noLinear && !flags.yes) candidates.push({ linear: "on", plan: buildPlan("on", true) });
     const admitted = candidates.find(
       ({ plan: candidate }) => classifyInstallJournalResume(journal, candidate) !== null,
     );
@@ -763,6 +764,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallSel
   p.report.field("plataforma", describePlatform(platform));
   p.report.section(1, "dependencias");
   for (const dep of deps) {
+    if (dep.id === "hypa") continue; // Kept only in the legacy recovery schema.
     if (dep.id === "claude" && target === "pi") continue;
     p.report.step(
       dep.present ? "ok" : dep.required ? "fail" : "warn",
@@ -776,6 +778,16 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallSel
     return 1;
   }
   p.log.info(formatLinearIntegrationSummary(linear));
+
+  const headroomChoice = await chooseHeadroom(flags, observations.piAgentDir, {
+    interactive: options.headroom?.confirm ? true : process.stdout.isTTY === true,
+    confirm: async (notice) => {
+      p.log.info(notice);
+      return (await p.confirm({ message: "Instalar Headroom (opcional, recomendado)?", initialValue: false })) === true;
+    },
+    ...options.headroom,
+  });
+  p.log.info(headroomChoice.detail);
 
   if (flags.dryRun) {
     (options.writePlan ?? ((value) => p.log.message(renderInstallPlan(value))))(plan);
@@ -860,6 +872,15 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallSel
     for (const collision of retirement.collisions) {
       p.log.warn(`Se conserva ${collision}: el ownership del artefacto antiguo no se pudo probar.`);
     }
+  }
+
+  if (headroomChoice.selected) {
+    const spinner = p.spinner(); spinner.start("Preparando Headroom en su entorno aislado");
+    let step: InstallStep;
+    try { step = await (options.headroom?.install ?? installHeadroom)(observations.piAgentDir); }
+    catch (error) { step = { ok: false, detail: `Headroom no instalado; Ein sigue disponible. ${error instanceof Error ? error.message : String(error)}` }; }
+    spinner.stop(step.ok ? "Headroom verificado y disponible" : "Ein instalado; Headroom pendiente");
+    p.log[step.ok ? "info" : "warn"](step.detail);
   }
 
   p.outro("Ein listo. Ejecuta `ein`.");

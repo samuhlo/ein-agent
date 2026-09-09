@@ -18,6 +18,7 @@ export type UpdateFlags = {
   selectorArgs: string[];
   dryRun: boolean;
   yes: boolean;
+  noHeadroom?: boolean;
   channel?: ReleaseChannel;
   error?: string;
 };
@@ -39,7 +40,7 @@ export type UpdateRunDependencies = {
   updatePi?: () => Promise<InstallStep>;
   syncPiPackages?: () => Promise<InstallStep>;
   confirmExternalToolsUpdate?: () => Promise<boolean>;
-  // Deps externas opcionales (engram/hypa/codegraph): binarios fuera de la
+  // Deps externas opcionales (engram/Headroom/codegraph): binarios fuera de la
   // transacción de Ein que envejecen en silencio. Este hook las refresca tras un
   // update exitoso; el default refresca las presentes de verdad.
   refreshExternalTools?: () => Promise<InstallStep[]>;
@@ -50,10 +51,12 @@ export function parseCliFlags(args: string[]): UpdateFlags {
   const selectorArgs: string[] = [];
   let dryRun = false;
   let yes = false;
+  let noHeadroom = false;
   let channel: ReleaseChannel | undefined;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
     if (arg === "--dry-run") dryRun = true;
+    else if (arg === "--no-headroom") noHeadroom = true;
     else if (arg === "--yes" || arg === "-y") yes = true;
     else if (arg === "--channel") {
       if (channel !== undefined) return { selectorArgs, dryRun, yes, channel, error: "--channel no puede repetirse" };
@@ -70,7 +73,7 @@ export function parseCliFlags(args: string[]): UpdateFlags {
       return { selectorArgs, dryRun, yes, channel, error: "--channel usa un valor separado: --channel alpha|stable" };
     } else selectorArgs.push(arg);
   }
-  return { selectorArgs, dryRun, yes, ...(channel ? { channel } : {}) };
+  return { selectorArgs, dryRun, yes, ...(noHeadroom ? { noHeadroom: true } : {}), ...(channel ? { channel } : {}) };
 }
 
 function failed(selector: ReleaseSelector | undefined, stage: Extract<UpdateOutcome, { type: "failed" }>["stage"], message: string): UpdateOutcome {
@@ -286,25 +289,26 @@ async function refreshPi(
       : interactive
         ? await confirmExternalToolsUpdate()
         : false;
-  if (refreshExternal) await refreshExternalDeps(dependencies, write);
+  if (refreshExternal) await refreshExternalDeps(dependencies, write, flags.noHeadroom);
   return pi.ok && pkgs.ok;
 }
 
 /**
  * Refresca, con confirmación salvo `--yes`, las herramientas externas presentes
- * (engram/hypa/codegraph) tras un update exitoso. Un fallo de red conserva su
+ * (engram/Headroom/codegraph) tras un update exitoso. Un fallo de red conserva su
  * versión actual y nunca tumba el update; no forman parte del runtime Pi que
  * Ein declara y verifica contra npm latest.
  */
 async function refreshExternalDeps(
   dependencies: UpdateRunDependencies,
   write: (line: string) => void,
+  skipHeadroom = false,
 ): Promise<void> {
   const interactive = dependencies.interactive !== false;
   const refresh = dependencies.refreshExternalTools
-    ?? (() => refreshExternalTools(detectPlatform()));
+    ?? (() => refreshExternalTools(detectPlatform(), { agentDir: dependencies.agentDir ?? AGENT_DIR, skipHeadroom }));
   const spinner = interactive ? p.spinner() : null;
-  spinner?.start("Actualizando herramientas externas (engram, hypa, codegraph)");
+  spinner?.start("Actualizando herramientas externas presentes (engram, Headroom, codegraph)");
   let steps: InstallStep[];
   try {
     steps = await refresh();
@@ -329,7 +333,7 @@ async function refreshExternalDeps(
 }
 
 async function confirmExternalToolsUpdate(): Promise<boolean> {
-  const response = await p.confirm({ message: "Actualizar también las herramientas externas presentes (engram/hypa/codegraph)?" });
+  const response = await p.confirm({ message: "Actualizar también las herramientas presentes (engram/Headroom/codegraph)? Headroom solo si ya está gestionado." });
   return p.isCancel(response) ? false : response;
 }
 

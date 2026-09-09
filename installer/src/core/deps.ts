@@ -42,6 +42,7 @@ import {
   type PiHostTreeVerdict,
   type ResolvePiHostRootDeps,
 } from "../../../shared/contracts/pi-host-tree.ts";
+import { refreshHeadroom } from "./headroom.ts";
 
 export type DepId =
   | "git"
@@ -779,10 +780,10 @@ export async function refreshEngram(
 
 // Refresca las tres deps externas presentes. El orden no importa; cada una es
 // independiente y best-effort.
-export async function refreshExternalTools(platform: Platform): Promise<InstallStep[]> {
+export async function refreshExternalTools(platform: Platform, options: { agentDir?: string; skipHeadroom?: boolean } = {}): Promise<InstallStep[]> {
   return [
     await refreshEngram(platform),
-    await refreshHypa(),
+    options.skipHeadroom ? { ok: true, detail: "Headroom: actualización omitida por --no-headroom." } : await refreshHeadroom(options.agentDir ?? defaultPiInstallContext().agentDir),
     await refreshCodegraph(),
   ];
 }

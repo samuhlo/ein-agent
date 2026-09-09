@@ -2,6 +2,11 @@
 
 Fecha: 2026-09-09. Worktree: `experiment/pi-headroom`, sobre el piloto `1a15c79`.
 
+Este informe conserva la evaluación del runtime. La integración posterior del
+instalador opcional, Python 3.14 y sus medidas se documentan en
+[Tamaño e instalación](size-and-installation.md); no se recalculan estos ensayos
+del modelo a partir de las pruebas de empaquetado.
+
 **La conversión del runtime está implementada y es publicable con el alcance
 descrito aquí.** Headroom sustituye el wrapper de Hypa, dispone de configuración,
 servicio gestionado, actualización comprobada y recuperación. La mejora más

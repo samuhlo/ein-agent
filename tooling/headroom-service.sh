@@ -3,7 +3,7 @@
 set -euo pipefail
 headroom_repo="$(cd "$(dirname "$0")/.." && pwd)"
 headroom_agent="${EIN_PI_AGENT_HOME:-${PI_CODING_AGENT_DIR:-$HOME/.pi-ein/agent}}"
-headroom_state="${EIN_HEADROOM_SERVICE_DIR:-$headroom_agent/headroom}"
+headroom_state="${EIN_HEADROOM_SERVICE_DIR:-${headroom_agent%/}.headroom}"
 headroom_port="${EIN_HEADROOM_PORT:-8787}"
 case "${1:-help}" in
   setup)

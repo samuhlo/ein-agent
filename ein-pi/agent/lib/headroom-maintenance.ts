@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync, openSync, closeSync } from "node:fs";
+import { accessSync, constants, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync, openSync, closeSync } from "node:fs";
 import { join, relative } from "node:path";
 import { randomUUID } from "node:crypto";
 import { HeadroomService, headroomServiceHome, inspectHeadroomService } from "./headroom-service.ts";
@@ -6,6 +6,26 @@ import { headroomConfig } from "./headroom.ts";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { verifyHeadroomCompatibility } from "./headroom-compatibility.ts";
+
+export const HEADROOM_RELEASE = "0.37.0";
+export const HEADROOM_PYTHON = "3.14";
+const PROFILE = "ein-verified-v1";
+
+export function inspectManagedHeadroom(home: string): { version: string; python?: string; profile?: string } | undefined {
+  try {
+    const target = realpathSync(join(home, "active"));
+    const path = relative(realpathSync(join(home, "versions")), target);
+    if (!path || path.startsWith("..") || !existsSync(join(target, "venv/bin/headroom"))) return;
+    accessSync(join(target, "venv/bin/headroom"), constants.X_OK);
+    const evidence = JSON.parse(readFileSync(join(target, "verified.json"), "utf8"));
+    if (evidence.pass !== true || !Array.isArray(evidence.results) || evidence.results.length < 3 || !evidence.results.every((row: { pass?: boolean }) => row.pass === true)) return;
+    const version = readFileSync(join(target, "selected-version.txt"), "utf8").trim();
+    if (evidence.service !== version || !/^\d+\.\d+\.\d+/.test(version)) return;
+    let profile: { python?: string; profile?: string } = {};
+    try { profile = JSON.parse(readFileSync(join(target, "installation.json"), "utf8")); } catch { /* Older managed installs migrate once. */ }
+    return { version, python: profile.python, profile: profile.profile };
+  } catch { return; }
+}
 
 export function selectHeadroomVersion(home: string, candidate: string): void {
   const versions = realpathSync(join(home, "versions")), target = realpathSync(candidate);
@@ -55,9 +75,11 @@ export async function maintainHeadroom(command: "update" | "rollback", version?:
   signal?.addEventListener("abort", abortService, { once: true });
   try {
     if (command === "rollback") { selectHeadroomVersion(home, realpathSync(join(home, "previous"))); return "Previous verified version selected for the next service start."; }
+    const installed = inspectManagedHeadroom(home);
+    if (installed && installed.version === version && installed.python === HEADROOM_PYTHON && installed.profile === PROFILE) return `Headroom ${version} ya está verificado con Python ${HEADROOM_PYTHON}; no se crea otra copia.`;
     const candidate = join(home, "versions", `${version}-${randomUUID()}`); mkdirSync(candidate, { recursive: true });
     let step = 0;
-    const run = async (args: string[]) => {
+    const run = async (args: [string, ...string[]]) => {
       signal?.throwIfAborted();
       const log = join(candidate, `step-${++step}.log`), fd = openSync(log, "w", 0o600);
       try {
@@ -72,8 +94,10 @@ export async function maintainHeadroom(command: "update" | "rollback", version?:
         });
       } finally { closeSync(fd); }
     };
-    await run(["uv", "venv", "--python", "3.13", join(candidate, "venv")]);
-    await run(["uv", "pip", "install", "--python", join(candidate, "venv/bin/python"), `headroom-ai[proxy]==${version}`]);
+    const managedUv = join(home, "tools", "uv");
+    const uv = existsSync(managedUv) ? managedUv : "uv";
+    await run([uv, "venv", "--python", HEADROOM_PYTHON, join(candidate, "venv")]);
+    await run([uv, "pip", "install", "--python", join(candidate, "venv/bin/python"), `headroom-ai[proxy]==${version}`]);
     signal?.throwIfAborted();
     service = new HeadroomService({ ...environment, EIN_HEADROOM_BIN: join(candidate, "venv/bin/headroom"), EIN_HEADROOM_SERVICE_DIR: join(candidate, "service") });
     const endpoint = `http://127.0.0.1:${await unusedPort()}`, config = headroomConfig({ EIN_HEADROOM_MODE: "on", EIN_HEADROOM_URL: endpoint, EIN_HEADROOM_TIMEOUT_MS: "5000" });
@@ -84,8 +108,9 @@ export async function maintainHeadroom(command: "update" | "rollback", version?:
     if (!result.pass) throw new Error(`Compatibility check failed; current version unchanged. See ${candidate}/verified.json`);
     await service.stop();
     signal?.throwIfAborted();
-    selectHeadroomVersion(home, candidate);
     writeFileSync(join(candidate, "selected-version.txt"), `${version}\n`);
+    writeFileSync(join(candidate, "installation.json"), JSON.stringify({ version, python: HEADROOM_PYTHON, profile: PROFILE }) + "\n");
+    selectHeadroomVersion(home, candidate);
     return `Headroom ${version} verified and selected for the next service start. Running sessions were not changed; the previous managed version is retained for rollback.`;
   } finally { signal?.removeEventListener("abort", abortService); await service?.stop(); release(); }
 }

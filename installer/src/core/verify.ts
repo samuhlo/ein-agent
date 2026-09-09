@@ -9,7 +9,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Platform } from "./platform.ts";
 import { lookPath } from "./exec.ts";
-import { inspectNodeRuntime, inspectPiRuntime, resolveCodegraph, resolveHypa } from "./deps.ts";
+import { inspectNodeRuntime, inspectPiRuntime, resolveCodegraph } from "./deps.ts";
 import {
   doctorCheck as check,
   doctorWarn as warn,
@@ -159,7 +159,6 @@ export function runDoctor(
   const nodeRuntime = inspectNodeRuntime(extraPath);
   const piRuntime = inspectPiRuntime(extraPath);
   const optionalPath = [...extraPath, context.miseShimDir];
-  const hasHypa = resolveHypa(optionalPath) !== null;
   const hasLinearToken = Boolean(
     process.env.LINEAR_API_KEY || process.env.LINEAR_TOKEN ||
       existsSync(join(context.secretsDir, "linear-api-key")),
@@ -185,7 +184,6 @@ export function runDoctor(
     ),
     warn(hasEngramBin, "engram cli", "CLI engram disponible (memoria)."),
     warn(hasGh, "gh cli", "GitHub CLI disponible (entrega)."),
-    warn(hasHypa, "hypa cli", "Herramienta opcional legada. Ein-Pi usa /ein:headroom para compresión; la elección del instalador se conserva por compatibilidad."),
     warn(
       resolveCodegraph(optionalPath) !== null,
       "codegraph cli",

@@ -5,7 +5,7 @@ Bun + TypeScript, compilado a binarios standalone, con TUI brutalista (paleta pl
 
 ## Instalación del núcleo y complemento
 
-El instalador siempre despliega Ein sobre Pi. La única elección es añadir o no el complemento Claude Code:
+El instalador siempre despliega Ein sobre Pi. Puedes añadir el complemento Claude Code y las herramientas opcionales:
 
 ```bash
 ein install --runtime pi
@@ -33,7 +33,20 @@ ein restore    # restaura desde un backup
 
 Flags: `--yes` (no interactivo), `--dry-run` (muestra el plan sin ejecutar nada),
 `--runtime <pi|both>` (Ein o Ein + Claude), `--no-engram`,
-`--no-secrets`, `--no-linear`, `--no-hypa`, `--no-codegraph`.
+`--no-secrets`, `--no-linear`, `--headroom`, `--no-headroom`, `--no-codegraph`.
+
+**Headroom es opcional y recomendado** para reducir el contexto que ocupan
+salidas grandes verificables. El wizard informa antes de elegir: unos **420 MiB**
+de dependencias, más Python/uv si faltan y las versiones retenidas para rollback.
+`--yes` solo no lo instala; `ein-install install --yes --headroom` sí lo solicita.
+`--no-headroom` lo omite, sin borrar una instalación existente. `--no-hypa` sigue
+aceptándose como alias de omisión; el instalador ya no instala ni actualiza Hypa.
+
+`ein update` mantiene únicamente un Headroom gestionado ya instalado, mediante
+la misma prueba de compatibilidad que `/ein:headroom update VERSION`. Respeta
+versiones más nuevas elegidas por el usuario; `ein update --no-headroom` omite el
+mantenimiento. Se usa el paquete oficial 0.37.0 con Python 3.14. No se descargan
+dependencias al abrir Pi. [Uso, resultados y límites](../evals/headroom/README.md).
 
 ## Backups
 
@@ -53,6 +66,11 @@ una instalación gestionada válida sigue activa allí):
   versión antigua compatible o recuperación manual. WU4B/repair definirá la
   limpieza explícita de `.recovery-*`; no se podan automáticamente.
 
+Headroom guarda sus entornos fuera del árbol de snapshots, en
+`~/.pi-ein/agent.headroom` (o junto al hogar Pi seleccionado, con sufijo
+`.headroom`). Un backup de Ein no duplica esas dependencias ni un restore
+cambia la versión activa. Su propio `rollback` selecciona la anterior.
+
 ## Qué hace `ein install`
 
 1. Detecta OS/arch/distro/shell.
@@ -68,6 +86,9 @@ una instalación gestionada válida sigue activa allí):
 4. Wizard de secrets opcional (`context7`, `linear`, `minimax`) en `~/.config/opencode-secrets/`.
 5. Añade el export de `CONTEXT7_API_KEY` a tu shell rc (idempotente).
 6. Corre el doctor y reporta el estado.
+7. Si elegiste Headroom, prepara su entorno aislado y solo lo activa si pasa las
+   pruebas con el servicio real. Si falla, informa sin invalidar el núcleo ya
+   instalado. Repetir la misma versión y perfil verificados no crea otra copia.
 
 Nunca toca `auth.json`, `sessions/` ni `backups/`.
 

@@ -6,15 +6,27 @@ comprobar que conserva los datos. [Resultados actuales](integration-results.md).
 
 ## Uso
 
-Con **esta versión completa de Ein-Pi** instalada:
+Instálalo desde el wizard de **esta versión completa de Ein** o explícitamente:
+
+```bash
+ein-install install --headroom
+```
+
+Es opcional y recomendado para trabajar con salidas grandes. El wizard explica
+su propósito y los **~420 MiB** de dependencias antes de pedir la elección;
+Python/uv pueden añadir espacio si faltan. `--yes` por sí solo no lo instala.
+`--no-headroom` lo omite y `--dry-run --headroom` solo muestra la intención.
+[Medidas y condiciones](size-and-installation.md).
+
+Una vez instalado:
 
 ```text
-/ein:headroom update 0.37.0
 /ein:headroom on
 /ein:headroom status
 ```
 
-`update` necesita `uv`. Prepara un entorno aislado con el paquete oficial,
+`/ein:headroom update VERSION` necesita `uv` en PATH o el uv privado que
+prepara el instalador. Usa Python 3.14 y el paquete oficial en un entorno aislado,
 lo arranca en un puerto temporal y ejecuta las pruebas de compatibilidad.
 Solo selecciona el candidato si pasan. La versión probada es 0.37.0; no se
 presume compatibilidad con cualquier versión futura.
@@ -91,13 +103,22 @@ factura o al contexto acumulado de toda la tarea.
 
 ## Mantenimiento y configuración avanzada
 
-Las versiones gestionadas viven bajo `~/.pi-ein/agent/headroom/versions`.
+Las versiones gestionadas viven bajo `~/.pi-ein/agent.headroom/versions`.
 `active` selecciona la comprobada y `previous` permite volver atrás. La selección
 es atómica; un candidato rechazado no reemplaza al activo y los procesos vivos
 conservan su versión. Un bloqueo evita mantenimientos simultáneos y recupera un
 dueño que haya muerto. No se eliminan bloqueos de procesos vivos o desconocidos.
 Cancelar conserva la selección anterior. Las instalaciones anteriores se guardan;
-`rollback` requiere una versión gestionada previa.
+`rollback` requiere una versión gestionada previa. Repetir la versión verificada
+con el mismo perfil de Python no crea otra copia. Este directorio es hermano
+del hogar Pi: los snapshots y restores de Ein no copian estas dependencias.
+
+`ein update` mantiene solo instalaciones gestionadas existentes, usando la
+versión que Ein ha probado. No instala Headroom por sorpresa ni rebaja una
+versión más nueva elegida manualmente. `ein update --no-headroom` omite este
+mantenimiento. La instalación opcional ocurre después de verificar el núcleo,
+en su propia transacción: un fallo se avisa y Ein sigue instalado. Los diarios
+V1 antiguos conservan su formato y los pasos retirados de Hypa son inocuos.
 
 | Variable | Uso |
 | --- | --- |
@@ -109,9 +130,9 @@ Cancelar conserva la selección anterior. Las instalaciones anteriores se guarda
 
 El perfil no usa ML, memoria, CCR, beacon, `headroom wrap` o Serena. No cambia
 URLs de proveedores, esfuerzo ni herramientas del modelo. La extensión no envía
-historial o credenciales del proveedor al compresor. El instalador conserva su
-oferta histórica de Hypa para una decisión posterior; instalar Hypa no activa
-Headroom.
+historial o credenciales del proveedor al compresor. El instalador ya no instala
+ni actualiza Hypa; conserva `--no-hypa` como alias de omisión compatible. No
+desinstala un Hypa que el usuario utilice por separado.
 
 ## Desarrollo y reproducción
 
@@ -123,6 +144,7 @@ del repositorio. Las pruebas utilizaron hogares Pi aislados.
 El mismo mantenimiento está disponible desde el checkout:
 
 ```bash
+bun tooling/verify-headroom-installation.ts  # prueba real aislada, necesita red
 bun tooling/headroom-maintain.ts update 0.37.0
 bun tooling/verify-headroom-runtime.ts http://127.0.0.1:8787
 bun tooling/headroom-maintain.ts rollback

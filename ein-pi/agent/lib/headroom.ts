@@ -1,4 +1,4 @@
-// Experimental tool-output compression. No provider routing, model calls or memory.
+// Verified tool-output compression. No provider routing, model calls or memory.
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { tmpdir } from "node:os";
@@ -72,6 +72,7 @@ export function eligibleHeadroomOutput(event: OutputCandidate): string | undefin
 }
 
 export async function headroomSource(event: OutputCandidate): Promise<{ text: string; full: boolean } | undefined> {
+	if (event.content.some((part) => part.type === "text" && (part.text?.startsWith("[Check output preview;") || part.text?.startsWith("[Ein Headroom:")))) return;
 	if (event.toolName !== "bash" || event.isError || !record(event.details) || !record(event.details.truncation) || !event.details.truncation.truncated) {
 		const text = eligibleHeadroomOutput(event); return text ? { text, full: false } : undefined;
 	}
@@ -161,9 +162,13 @@ export function verifyHeadroomTable(original: string, output: string): boolean {
 		if (!exactNumbers || lexical !== JSON.stringify(rows)) return false;
 		const table = headroomTableText(output);
 		const match = table.match(/^\[(\d+)\]\{([^\n}]+)\}\n/);
-		if (!match || Number(match[1]) !== rows.length) return false;
-		const columns = match[2].split(",").map((column) => column.split(":"));
-		if (columns.some(([key, type, extra]) => !key || !/^[a-zA-Z_]\w*$/.test(key) || !/^(string|int|float|bool|null)\??$/.test(type) || extra !== undefined)) return false;
+		if (!match?.[2] || Number(match[1]) !== rows.length) return false;
+		const columns: [string, string][] = [];
+		for (const column of match[2].split(",")) {
+			const [key, type, extra] = column.split(":");
+			if (!key || !type || !/^[a-zA-Z_]\w*$/.test(key) || !/^(string|int|float|bool|null)\??$/.test(type) || extra !== undefined) return false;
+			columns.push([key, type]);
+		}
 		const keys = columns.map(([key]) => key);
 		if (new Set(keys).size !== keys.length) return false;
 		const lines: string[] = [];

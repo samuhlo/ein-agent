@@ -1,12 +1,12 @@
 ---
 title: "Tooling opcional"
 description: "Las integraciones que EIN puede usar, y qué pasa cuando no están."
-sources: ["installer/src/core/engram.ts", "installer/src/core/secrets.ts", "installer/src/core/deps.ts", "ein-pi/agent/mcp.json"]
+sources: ["installer/src/core/engram.ts", "installer/src/core/secrets.ts", "installer/src/core/deps.ts", "installer/src/core/headroom.ts", "ein-pi/agent/lib/headroom-maintenance.ts", "ein-pi/agent/mcp.json"]
 verified_rev: "405a6c1"
 ---
 
-EIN funciona sin ninguna de estas. Las opciones del instalador conservan sus
-flags; Headroom se configura desde Ein-Pi. Si una integración no está disponible,
+EIN funciona sin ninguna de estas. Headroom se elige en el instalador y se
+controla desde Ein-Pi. Si una integración no está disponible,
 la capacidad concreta queda inactiva y el flujo continúa.
 
 :::note
@@ -73,13 +73,19 @@ modelo. Ein comprueba que conserva todos los registros, valores, tipos y orden;
 si no puede verificarlo, entrega la salida normal de Pi. Puede recuperar el
 archivo completo que Pi guardó al recortar una salida.
 
+**Instalación opcional, recomendada.** El wizard explica qué hace y su peso antes
+de elegir: **~420 MiB** de dependencias; Python/uv añaden espacio si faltan. Se
+puede pedir con `ein-install install --headroom` u omitir con `--no-headroom`.
+`--yes` por sí solo no lo instala. El ahorro depende del trabajo: tiene más
+sentido con tablas JSON y logs grandes que con respuestas cortas.
+
 **Control.** `/ein:headroom on|observe|off`. `observe` mide sin cambiar lo que recibe
 el modelo. La preferencia vive en `.pi/ein/headroom.json`; un antiguo Hypa apagado
 permanece apagado durante la transición. `/ein:hypa` explica el nuevo comando y
 ya no envuelve comandos con el ejecutable de Hypa.
 
 **Servicio local.** `/ein:headroom update 0.37.0` prepara una instalación aislada
-(requiere `uv`) y la selecciona solo si pasa las pruebas de compatibilidad. La
+(usa `uv` en PATH o el privado del instalador, y Python 3.14) y la selecciona solo si pasa las pruebas de compatibilidad. La
 versión 0.37.0 es la probada en esta entrega. `/ein:headroom start|stop|status`
 controla el servicio; Ein interactivo inicia en segundo plano un binario ya
 instalado. Los subagentes lo reutilizan. No se descargan dependencias al abrir
@@ -94,16 +100,22 @@ El original queda recuperable con `read`, incluso al detener Headroom.
 versión, compresiones, originales completos y bytes. Esos bytes no equivalen
 al ahorro de factura de una sesión.
 
-## Hypa (compatibilidad del instalador)
+**Actualizaciones.** `ein update` solo mantiene instalaciones gestionadas ya
+presentes, con la versión probada por Ein; no rebaja versiones más nuevas
+seleccionadas manualmente. `--no-headroom` omite ese mantenimiento. Repetir una
+versión y perfil verificados no crea otra copia. Los entornos viven junto al
+hogar Pi (`~/.pi-ein/agent.headroom` por defecto), fuera de los backups de Ein;
+las versiones anteriores se conservan para volver atrás y ocupan espacio.
 
-El instalador conserva la opción histórica y `--no-hypa` mientras se decide la
-oferta de dependencias. El binario puede usarse por separado, pero ya no es el
-motor de compresión de Ein-Pi. Instalar Hypa no instala ni activa Headroom.
+## Hypa (compatibilidad)
+
+El instalador ya no instala ni actualiza Hypa. `--no-hypa` se acepta como alias
+de omisión de Headroom. Un binario Hypa existente se conserva para uso separado.
 
 ## Instalar sin ninguna
 
 ```bash
-ein-install install --runtime pi --no-engram --no-linear --no-codegraph --no-hypa --no-secrets
+ein-install install --runtime pi --no-engram --no-linear --no-codegraph --no-headroom --no-secrets
 ```
 
 Instalación mínima: el núcleo, los agentes de fase y el flujo SDD. Es una
@@ -113,7 +125,8 @@ falla.
 ## Añadirlas después
 
 Vuelve a ejecutar `ein-install install` sin el flag correspondiente. El instalador
-detecta lo que ya está y añade lo que falte, con backup previo.
+detecta lo que ya está y añade lo que falte, con backup previo. Para Headroom,
+usa explícitamente `ein-install install --headroom` o acepta su pregunta.
 
 ## Siguiente
 

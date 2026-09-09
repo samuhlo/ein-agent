@@ -49,6 +49,11 @@ describe("verify-only native check output", () => {
 			expect(handle({ ...event, input: { command } }, ctx)).toBeUndefined();
 		}
 	});
+	test("does not apply a second preview to a verified Headroom result", () => {
+		const { handle, event, ctx } = fixture();
+		event.content[0].text = "[Ein Headroom: all rows verified]\n" + event.content[0].text;
+		expect(handle(event, ctx)).toBeUndefined();
+	});
 
 	test("reuses the native full log instead of saving its truncated tail as complete", () => {
 		const { root, handle, event, ctx } = fixture();

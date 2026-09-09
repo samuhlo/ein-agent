@@ -86,6 +86,7 @@ test("never follows an arbitrary output path or a symlink spool", async () => {
   try { expect(await headroomSource({ ...event, details: { ...event.details, fullOutputPath: linked } })).toBeUndefined(); }
   finally { rmSync(linked); }
   expect(await headroomSource({ ...event, isError: true })).toBeUndefined();
+  expect(await headroomSource({ ...event, content: [{ type: "text", text: "[Check output preview; omitted lines are not evidence of passing]\n[]" }] })).toBeUndefined();
 });
 
 test("normal extension keeps controls available when off and Hypa cannot rewrite commands", () => {

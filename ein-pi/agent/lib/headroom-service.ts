@@ -1,14 +1,19 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { accessSync, constants, mkdirSync, openSync, closeSync } from "node:fs";
-import { delimiter, isAbsolute, join } from "node:path";
+import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import type { HeadroomConfig } from "./headroom.ts";
 
+export function headroomHomeForAgent(agent: string): string {
+  if (!isAbsolute(agent)) throw new Error("El hogar Pi debe ser absoluto");
+  // External dependency, outside the tree copied by Ein snapshots/restores.
+  return `${resolve(agent)}.headroom`;
+}
 export function headroomServiceHome(env: NodeJS.ProcessEnv = process.env): string {
 	if (env.EIN_HEADROOM_SERVICE_DIR) { if (!isAbsolute(env.EIN_HEADROOM_SERVICE_DIR)) throw new Error("EIN_HEADROOM_SERVICE_DIR debe ser absoluto"); return env.EIN_HEADROOM_SERVICE_DIR; }
 	const agent = env.EIN_PI_AGENT_HOME ?? env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi-ein", "agent");
 	if (!isAbsolute(agent)) throw new Error("El hogar Pi debe ser absoluto");
-	return join(agent, "headroom");
+	return headroomHomeForAgent(agent);
 }
 export function resolveHeadroomBinary(env: NodeJS.ProcessEnv = process.env): string | undefined {
 	let home: string;

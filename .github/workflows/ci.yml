@@ -113,6 +113,20 @@ jobs:
         working-directory: installer
         run: bun run typecheck
 
+  headroom-installation:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Install and verify optional Headroom twice in an isolated home
+        run: bun tooling/verify-headroom-installation.ts
+
   docs-site:
     # Build del sitio (bloqueante) + procedencia de las páginas (informativo).
     # fetch-depth: 0 es obligatorio: con checkout superficial los `verified_rev`

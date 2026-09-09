@@ -16,6 +16,8 @@ const ALLOWED_PI_BRIDGES = [
 	"shared/ports/continuity.ts::../../ein-pi/agent/lib/continuity-handoff-lifecycle.ts",
 	"shared/ports/continuity.ts::../../ein-pi/agent/lib/terminal-continue-transport.ts",
 	"shared/ports/doctor.ts::../../ein-pi/agent/lib/doctor-core.ts",
+	"shared/ports/headroom.ts::../../ein-pi/agent/lib/headroom-maintenance.ts",
+	"shared/ports/headroom.ts::../../ein-pi/agent/lib/headroom-service.ts",
 	"shared/ports/linear.ts::../../ein-pi/agent/lib/linear-integration.ts",
 	"shared/ports/runtime-payload.ts::ein-pi/agent/surfaces/surface-runner.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/git-baseline.ts",

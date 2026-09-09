@@ -28,7 +28,12 @@ curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/in
 ein
 ```
 
-Ein instala siempre su núcleo Pi. El menú solo pregunta si quieres añadir **Claude Code** como relevo opcional. Sin menú: `ein install --runtime pi|both`.
+Ein instala siempre su núcleo Pi. El menú de runtime permite añadir **Claude Code** como relevo opcional. Sin menú: `ein install --runtime pi|both`.
+
+El instalador también ofrece **Headroom**, opcional y recomendado para reducir
+salidas grandes conservando sus datos. Advierte de sus **~420 MiB** antes de
+elegir; `--yes` no lo instala automáticamente. Para añadirlo explícitamente:
+`ein-install install --headroom`. [Funcionamiento y resultados](evals/headroom/README.md).
 
 Guía completa en [Getting Started](https://samuhlo.github.io/ein-agent/00-start/getting-started/).
 

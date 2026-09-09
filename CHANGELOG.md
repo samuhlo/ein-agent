@@ -4,7 +4,15 @@
 
 - Headroom sustituye el wrapper de Hypa en el runtime. Preferencia por proyecto,
   onboarding, banner, diagnóstico y `/ein:headroom`; el antiguo `hypa=off` sigue
-  apagado. La elección de dependencias del instalador se mantiene para otra fase.
+  apagado.
+- Instalador: Headroom opcional y recomendado, con aviso de ~420 MiB antes de
+  elegir. `--headroom` lo solicita y `--yes` solo no lo instala. El updater
+  mantiene únicamente instalaciones gestionadas existentes, sin rebajar
+  versiones más nuevas; `--no-headroom` permite omitirlo. Hypa deja de instalarse.
+- Python 3.14 reduce las dependencias frente al piloto con 3.13. Entornos fuera
+  del árbol de backups de Ein, sin otra copia al repetir una versión verificada.
+  CI instala el servicio real y comprueba compatibilidad e idempotencia en Linux
+  y macOS.
 - Las vistas comprimidas se verifican contra todos los datos originales. Se
   recuperan informes completos del spool de Pi y se conservan pies de comandos,
   tipos JSON y duplicados de logs. Código, diffs y comandos fallidos pasan intactos.

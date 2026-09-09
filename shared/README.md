@@ -21,6 +21,11 @@ Claude y el instalador consumen estas rutas públicas y nunca interiores de
 `ein-pi/agent/`. `tests/architecture-boundaries.test.ts` hace cumplir la regla y
 obliga a declarar cualquier puente nuevo.
 
+`ports/headroom.ts` comparte el mantenimiento verificado del motor local con el
+instalador. Su implementación sigue perteneciendo a Pi: crea procesos y conoce
+el hogar del servicio. Este puente se retirará si esa provisión adquiere un
+proveedor neutral; no se duplica la política de actualización en el instalador.
+
 ## Puentes SDD supervivientes
 
 Estos cinco puentes no son cinco trozos de cerebro pendientes de mover. Son los

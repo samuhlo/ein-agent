@@ -4,10 +4,12 @@ import { HEADROOM_OPTIONS, writeHeadroomMode, noteHeadroomAvailability } from ".
 import { HeadroomService, inspectHeadroomService, resolveHeadroomBinary } from "../lib/headroom-service.ts";
 import { pick } from "../lib/lang.ts";
 import { maintainHeadroom } from "../lib/headroom-maintenance.ts";
+import { withEinCommandSurfaces } from "../lib/command-surface.ts";
 
 /** Optional fixed config is a seam for replay tests; normal runtime reads project settings. */
 export function createHeadroomExtension(fixed?: HeadroomConfig): (pi: ExtensionAPI) => void {
   return (pi: ExtensionAPI): void => {
+    pi = withEinCommandSurfaces(pi, "headroom");
     if (fixed?.mode === "off") return;
     const service = new HeadroomService();
     let maintenance: AbortController | undefined;
