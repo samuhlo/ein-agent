@@ -80,6 +80,20 @@ describe("resolveSkills — precise routing", () => {
     const resolved = resolveSkills(registry, "Water the office plants");
     expect(resolved).toHaveLength(0);
   });
+
+  test("stack and workflow tags only rank skills with a relevant signal", () => {
+    const workflow = entry("linear-workflow", "Trigger: Linear tickets", ["workflow"]);
+    expect(resolveSkills([...registry, workflow], "Verify the Nuxt settings", "frontend")).toEqual([]);
+    expect(resolveSkills([workflow], "Update Linear tickets")).toEqual([workflow]);
+  });
+
+  test("control identifiers and substrings do not request a framework skill", () => {
+    const next = entry("next", "Trigger: Next applications", ["frontend"]);
+    const react = entry("react", "Trigger: React components", ["frontend"]);
+    expect(resolveSkills([next, react], "Nuxt reactive state; next_recommended: close")).toEqual([]);
+    expect(resolveSkills([next], "Verify Next.js route", "frontend")).toEqual([next]);
+    expect(resolveSkills([react], "Verify React component")).toEqual([react]);
+  });
 });
 
 // Pi passes the session context fifth; discovery must not fall back to the

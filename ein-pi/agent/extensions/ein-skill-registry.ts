@@ -156,7 +156,7 @@ const STOPWORDS = new Set([
 function tokenize(text: string): string[] {
   return [...new Set(
     text.toLowerCase()
-      .split(/[^a-z0-9+]+/)
+      .split(/[^a-z0-9_+]+/)
       .filter((word) => word.length >= 3 && !STOPWORDS.has(word)),
   )];
 }
@@ -267,16 +267,23 @@ function detectStackFromTask(task: string): "node" | "frontend" | "fullstack" | 
 
 function scoreSkill(entry: SkillEntry, task: string, taskTokens: Set<string>, stack: "node" | "frontend" | "fullstack" | "unknown"): number {
   const lowerTask = task.toLowerCase();
+  const mentions = (name: string): boolean => {
+    if (!name) return false;
+    const escaped = name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?:^|[^a-z0-9_])${escaped}(?=$|[^a-z0-9_])`).test(lowerTask);
+  };
   let score = 0;
   // Name/key are the most precise signal: an exact mention of the skill.
-  if (lowerTask.includes(entry.name.toLowerCase())) score += 6;
-  if (lowerTask.includes(entry.key)) score += 4;
+  if (mentions(entry.name)) score += 6;
+  if (mentions(entry.key)) score += 4;
   // Declared triggers, matched as whole words (not substrings, so "api" doesn't
   // hit "rapid"). This is the author's intent, now clean of file noise.
   for (const trigger of entry.triggers) {
     if (taskTokens.has(trigger)) score += 2;
   }
   // Stack is a coarse tie-breaker, not a driver — hence low weight.
+  // A shared stack/workflow alone must never introduce an unrelated skill.
+  if (score === 0) return 0;
   if (stack !== "unknown" && entry.stackTags.includes(stack)) score += 2;
   if (entry.stackTags.includes("workflow")) score += 1;
   return score;

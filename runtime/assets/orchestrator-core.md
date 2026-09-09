@@ -25,9 +25,9 @@ Available agents: `ein-scout`, `sdd-scope`, `sdd-map`, `sdd-design`, `sdd-tasks`
 
 ## Load detail only for the operation you are doing
 
-The full contract stays on disk. Use Pi's `read` tool with the exact path, offset and limit below, not a full-file dump. Read the relevant span before its first use in this context and again if compaction removed it. These references are regenerated from the actual section boundaries.
+The full contract stays on disk. Use Pi's `read` tool with the exact path, offset and limit below, not a full-file dump. Read the relevant span before its first use in this context and again if compaction removed it. For ordinary SDD phase calls, load only the SDD span: inventory and delegation basics are already above. Do not also load research/recovery merely because you are calling a child. These references are regenerated from the actual section boundaries.
 
-- Research and child execution/recovery: {{RESEARCH_READ}}
+- Pre-scope research, or recovery after a child failure: {{RESEARCH_READ}}
 - SDD planning, phase routing, acceptance, strict TDD and closing: {{SDD_READ}}
 - Git delivery/history recovery and Linear operations: {{DELIVERY_READ}}
 - Detailed teaching format for an important explanation: {{VOICE_READ}}

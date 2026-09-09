@@ -43,7 +43,7 @@ blocked_by: none | <specific reason>
   - edit: `<repo-relative path>` | create|modify|delete | <concrete edit intent>
   - behavior: <observable behavior this step must leave working>
   - stop: <task-specific condition that returns control instead of deciding>
-  - verify: `<focused command or manual check>`
+  - verify: `<focused command>`; `<separate structural check if required>`
 ```
 
 Rules:
@@ -51,6 +51,7 @@ Rules:
 - Use `status: ready` only when the checklist is actionable.
 - Use `status: blocked` when the design lacks enough detail to create safe tasks; explain the blocker in `blocked_by`.
 - Every group MUST declare one `outcome:` before its first checkbox. Every actionable task MUST use `- [ ]` and include `skills`, `why`, `learn`, `architecture`, `avoid`, `read`, at least one `edit`, `behavior`, `stop`, and `verify`.
+- Reuse configured canonical commands. List focused tests and structural checks separately in `verify:`; do not join them with `&&` or wrappers. Apply records the focused command alone so verify can merge exact duplicates with required global checks.
 - `read:` is context, not permission to write. Every `edit:` is exactly `` `<path>` | create|modify|delete | <intent> ``; it grants the future apply gate permission only for that path. A path named only by `verify:` stays non-writable.
 - Resolve every decision here. Common stops (stale sources, new dependency, out-of-scope write) are runtime-owned; `stop:` names only a condition specific to this task.
 - One group delivers one observable behavior with its implementation and regression/compatibility tests. **Each checkbox must be independently completable:** keep code and the tests needed to finish it in the same task, using multiple `edit:` fields and ordered substeps. Do not create a later task merely to prove an earlier task complete, or another group for other cases of the same behavior. Independent final verification belongs to sdd-verify.

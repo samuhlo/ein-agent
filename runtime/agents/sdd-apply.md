@@ -42,10 +42,10 @@ If `openspec/config.yaml` declares strict TDD and a test runner, or the parent p
 4. Write a `TDD Cycle Evidence` table in `apply-progress.md`.
 5. Record complete RED, GREEN, TRIANGULATE, and REFACTOR evidence for every behavior seam; do not claim the apply is complete when any stage is missing or incomplete.
 
-### Apply evidence ownership
+### Apply evidence ownership (strict AND standard mode)
 
 - Name each assigned **behavior seam** as a concise observable behavior, not as a task number, file name, or implementation symbol.
-- After the last GREEN or REFACTOR check for each seam, record **one final focused command per behavior seam**. The association must identify the command that exercised that seam in the completed focused cycle; recording it must not trigger an extra apply execution.
+- After the final focused check (GREEN/REFACTOR when strict), record **one final focused command per behavior seam** in a compact `Behavior seam | Final focused command` table in `apply-progress.md`. Record the exact executed test command alone, not a compound test + typecheck command. This is required in standard mode too; recording it must not trigger an extra execution.
 - Keep the association traceable to the seam's observable behavior. If one focused command covers several seams, record the association for each seam without treating that as several executions.
 - Keep checks bounded and focused. **Apply MUST NOT absorb global checks** into its focused loop; global checks and fresh final execution remain verify-owned.
 - Apply evidence is audit input only. It never substitutes for verify's independent current-run evidence.

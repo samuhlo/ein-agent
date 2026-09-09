@@ -151,6 +151,8 @@ status: complete
 
 ## `verify-report.md`
 
+Empieza con `status: pass` o `status: fail` y `behavior_coverage: verified | partial | none | n-a` como líneas de nivel superior. Los checks bloqueados y la evidencia obligatoria ausente usan `status: fail`; `blocked` pertenece al envelope del agente, no al estado de este artefacto.
+
 Secciones minimas:
 
 - `Estado global`: `Passed` | `Failed` | `Partial` | `Not Ready`
