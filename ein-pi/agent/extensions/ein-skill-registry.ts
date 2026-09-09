@@ -351,7 +351,7 @@ function formatRegistry(entries: SkillEntry[], source: string, totalFiltered: nu
   ];
 
   for (const entry of entries) {
-    lines.push(`- **${entry.name}** [${entry.source}/${entry.scope}] -> \`${entry.key}\` | tags: ${entry.stackTags.join(", ") || "none"}`);
+    lines.push(`- **${entry.name}** [${entry.source}/${entry.scope}] -> \`${entry.path}\` | tags: ${entry.stackTags.join(", ") || "none"}`, `  ${entry.description}`);
   }
   return lines.join("\n");
 }
@@ -443,9 +443,9 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
   pi.registerTool({
     name: "ein_skill_registry",
     label: "Ein Skill Registry",
-    description: "List and search Pi skills from project/user folders with inferred metadata.",
+    description: "Search project/user skills; return descriptions and exact SKILL.md paths ready to read.",
     parameters: registrySchema,
-    async execute(_id, params: RegistryParams, ctx: any) {
+    async execute(_id, params: RegistryParams, _signal, _update, ctx) {
       const cwd = ctx?.cwd ?? process.cwd();
       const registry = loadRegistry(cwd);
       const filtered = filteredRegistry(registry, params);
@@ -458,9 +458,9 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
   pi.registerTool({
     name: "ein_skill_resolve",
     label: "Ein Skill Resolve",
-    description: "Resolve the most relevant skills for a concrete task and stack.",
+    description: "Resolve relevant skills for a task and return descriptions and exact SKILL.md paths ready to read.",
     parameters: registrySchema,
-    async execute(_id, params: RegistryParams, ctx: any) {
+    async execute(_id, params: RegistryParams, _signal, _update, ctx) {
       const task = (params.task ?? params.query ?? "").trim();
       if (!task) throw new Error("task or query is required");
       const cwd = ctx?.cwd ?? process.cwd();
@@ -477,7 +477,7 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
       ];
 
       for (const skill of resolved) {
-        lines.push(`- **${skill.name}** -> \`${skill.key}\` (${skill.source}/${skill.scope})`);
+        lines.push(`- **${skill.name}** -> \`${skill.path}\` (${skill.source}/${skill.scope})`, `  ${skill.description}`);
       }
 
       if (!resolved.length) lines.push("- No hay coincidencias fuertes. Refina el task o especifica stack.");
@@ -490,7 +490,7 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
     label: "Ein Skill Digest",
     description: "Return exact SKILL.md paths to load before work, plus concise protocol.",
     parameters: registrySchema,
-    async execute(_id, params: RegistryParams, ctx: any) {
+    async execute(_id, params: RegistryParams, _signal, _update, ctx) {
       const task = (params.task ?? params.query ?? "").trim();
       if (!task) throw new Error("task or query is required");
       const stack = params.stack && params.stack !== "unknown" ? params.stack : detectStackFromTask(task);
