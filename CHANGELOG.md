@@ -4,7 +4,7 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
-## [Unreleased]
+## Pendiente de publicación
 
 ### Removed
 
