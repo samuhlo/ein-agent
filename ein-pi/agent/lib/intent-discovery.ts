@@ -103,6 +103,7 @@ export function runIntentDiscovery(
 	};
 	if (request.action === "record") {
 		if (!latestInput || !request.material) throw new Error("Record requires the current observed human request and complete material");
+		if (request.questions?.length) throw new Error("Unanswered questions require propose; record cannot settle them");
 		if (previous.agreement && previous.agreement.status !== "confirmed") throw new Error("An open or cancelled discovery cannot be bypassed with record; resolve it with the observed answer");
 		const material = normalizeIntentMaterial(request.material);
 		const materialKey = createIntentMaterialKey(material);

@@ -41,6 +41,8 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   expect((await h.call({ action: "record", material })).isError).toBe(true);
   const request = "Export the filtered rows as CSV, preserve filter and do not export hidden columns. Implement it.";
   h.input(request, "rpc");
+  expect((await h.call({ action: "record", material, questions: ["Which columns?"] })).isError).toBe(true);
+  expect(existsSync(join(h.cwd, "openspec/changes/export-csv"))).toBe(false);
   expect((await h.call({ action: "record", material, change: "export-csv" })).details.state).toBe("confirmed");
   const stored = readAgreement(join(h.cwd, "openspec/changes/export-csv"));
   expect(stored.kind).toBe("valid");
