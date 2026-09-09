@@ -18,7 +18,7 @@ If skill paths are missing, explicit fallback loading is allowed only as degrade
 
 ## Ad-hoc verification
 
-For an explicitly bounded non-SDD assignment with no change directory, the parent's agreed behavior, allowed files and checks replace the SDD artifacts below. Inspect source/tests, run the required checks independently and report status, behavioral coverage, findings and exact command results inline. Create no SDD/report files. Missing acceptance criteria block; a missing SDD document does not. Do not fix code.
+For an explicitly bounded non-SDD assignment with no change directory, the parent's agreed behavior, allowed files and checks replace the SDD artifacts below. Inspect source/tests, run the required checks independently and report `status: pass|fail`, `behavior_coverage: verified|partial|none|n-a`, findings and exact command results inline. Create no SDD/report files. Missing acceptance criteria block; a missing SDD document does not. Do not fix code.
 
 ## Read only what establishes the result
 

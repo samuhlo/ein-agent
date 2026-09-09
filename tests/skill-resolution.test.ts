@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   extractTriggers,
   resolveSkills,
+  resolvePhaseSkills,
   type SkillEntry,
 } from "../ein-pi/agent/extensions/ein-skill-registry";
 
@@ -68,6 +69,17 @@ describe("extractTriggers — declared intent, not a file scan", () => {
 });
 
 describe("resolveSkills — precise routing", () => {
+  test("automatic phase loading does not turn generic descriptions into mandatory manuals", () => {
+    const bun = entry("bun", "Use when building, testing, and deploying JavaScript/TypeScript applications.");
+    const vitest = entry("vitest", "Use when writing tests, mocking, configuring coverage, or working with test filtering and fixtures.");
+    const library = entry("ts-library", "Use when authoring TypeScript libraries or npm packages - covers project setup, package.json exports, build tooling, API design and testing.");
+    const readme = entry("readme-style", "README style: script-run H1 and stack table. Load when generating a project README.");
+    const projectRule = { ...entry("local-invariants", "Use when editing TypeScript"), scope: "project" as const };
+    const skills = [bun, vitest, library, readme, projectRule];
+    expect(resolvePhaseSkills(skills, "Fix TypeScript source.ts and tests, run bun test").map((skill) => skill.key)).toEqual(["bun", "local-invariants"]);
+    expect(resolvePhaseSkills(skills, "Use vitest and ts-library").map((skill) => skill.key)).toEqual(["ts-library", "vitest"]);
+    expect(resolvePhaseSkills([ARCHITECTURE], "Refactor the payments module")).toEqual([ARCHITECTURE]);
+  });
   const registry = [ARCHITECTURE, OMARCHY, HONO];
 
   test("a refactor task surfaces architecture and never the Linux-desktop skill", () => {

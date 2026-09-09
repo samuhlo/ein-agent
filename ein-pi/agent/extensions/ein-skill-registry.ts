@@ -418,6 +418,18 @@ export function codeConventionSkillBlock(cwd: string): string {
   ].join("\n");
 }
 
+// Discovery tools may suggest broad matches for a thinker to assess. Automatic
+// loading needs stronger evidence: a named skill/technology, an author's explicit
+// Trigger clause, or a project-owned convention. A word such as "tests" in a
+// conditional description is not permission to load every test framework.
+export function resolvePhaseSkills(registry: SkillEntry[], task: string, limit = 6): SkillEntry[] {
+  const lower = task.toLowerCase();
+  const candidates = registry.filter((entry) => entry.scope === "project"
+    || mentionsSkillName(lower, entry.name) || mentionsSkillName(lower, entry.key)
+    || /\btriggers?\s*[:—-]/i.test(entry.description));
+  return resolveSkills(candidates, task, undefined, limit);
+}
+
 // Deterministic skill injection for subagents.
 // Called by the orchestrator (ein-ai before_agent_start) so phase/named
 // agents receive exact SKILL.md paths instead of relying on the parent
@@ -433,7 +445,7 @@ export function resolveSkillInjection(cwd: string, task: string, limit = 6, agen
   }
   const linear = readLinearIntegration(cwd);
   const candidates = registry.filter((skill) => !(agent?.startsWith("sdd-") && skill.key === "intent-channel" && !cleanTask.includes("intent-channel")));
-  const resolved = resolveSkills(candidates, cleanTask, undefined, limit).filter(
+  const resolved = resolvePhaseSkills(candidates, cleanTask, limit).filter(
     (skill) =>
       !CODE_CONVENTION_KEYS.includes(skill.key) &&
       skillAllowedWithLinear(skill.key, linear),
