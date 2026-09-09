@@ -1,0 +1,27 @@
+{
+  "path": "/Users/samu/Documents/01_Proyectos/ein-agent/.pi/ein/evidence/closed-cheap-flow-2026-09-09.tar.gz",
+  "bytes": 50810529,
+  "sha256": "268ea15f908cd759195ce95cc3cb57e95ce81efb554ce766207e748735d5387e",
+  "counts": {
+    "files": 10556,
+    "sourceBytes": 360501714,
+    "archivedBytes": 270066053,
+    "filteredEvents": 214501,
+    "malformedJsonl": [],
+    "externalOriginals": 30,
+    "embeddedPrivateTextRedactions": 47
+  },
+  "privacy": "No credentials, private thinking/reasoning blocks, provider signatures or repeated streaming deltas. Four frozen runtime homes retained without authentication/model-store/MCP files. Original local sessions remain private and are not published.",
+  "sourceRoot": "/tmp/ein-flow-eval-20260909",
+  "notes": [
+    "Native originals are copies of surviving SDK spool files at audit time; their presence alone does not prove historical inspection.",
+    "Inspect report-visible-record-audit for the limited native record visibility check; it is not a complete historical verifier."
+  ],
+  "validation": {
+    "archiveSha256": "268ea15f908cd759195ce95cc3cb57e95ce81efb554ce766207e748735d5387e",
+    "filesHashVerified": 10555,
+    "jsonlRecordsChecked": 65424,
+    "credentialsExcluded": true,
+    "privateBlocksAndSignaturesExcluded": true
+  }
+}
