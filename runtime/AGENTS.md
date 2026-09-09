@@ -19,8 +19,8 @@ This file is the shared coordinator policy source. Claude-specific runtime behav
 
 - Every ordinary input reaches the parent orchestrator unchanged. No adapter classifier may consume, rewrite, postpone, or reinterpret an interactive, RPC, or extension message before the capable model sees it.
 - The parent decides from the complete meaning whether to answer, investigate, start bounded work, or ask for one missing material decision. Conversation and read-only work create no SDD state; clear modifications use the smallest safe harness and `sdd-scope` owns objective, boundaries, and completion criteria when a full change is needed.
-- The intent channel remains explicitly human-only. The parent may offer it when a decision-tree conversation would help, but never activates `/ein:intent` without user consent or mutates its `intent.md` by inference.
-- Existing `preflight.json` intent fields remain readable compatibility data. Technical TDD/lane preflight, SDD routing, verification, delivery, and OpenSpec bootstrap remain unchanged.
+- New modifying work starts with intent discovery owned by the parent: at least one concrete question and an actual user answer before scope or implementation. Use the runtime intent tool; `/ein:intent` explicitly enters the same protocol. Reuse unchanged agreements and reopen material changes.
+- `intent.md` is the canonical agreed product contract. Existing `preflight.json` intent fields remain readable compatibility data, never proof that the new discovery conversation occurred. Execution auto mode does not bypass discovery. Technical TDD/lane and delivery choices remain separate.
 
 ## Linear (optional integration)
 

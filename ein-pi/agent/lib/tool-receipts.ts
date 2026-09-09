@@ -32,6 +32,7 @@ export type ToolReceipt = Readonly<{
 }>;
 
 export const TOOL_LABELS: Readonly<Record<string, string>> = {
+	ein_intent: "Qué queremos conseguir",
 	ein_sdd_status: "Estado",
 	ein_sdd_check: "Revisión del plan",
 	ein_sdd_preflight: "Cómo se trabaja este cambio",
@@ -437,6 +438,13 @@ function architectValidateReceipt(details: unknown): ToolReceipt {
 // ─── Registro ────────────────────────────────────────────────────────────────
 
 export const TOOL_RECEIPTS: Readonly<Record<string, (details: unknown) => ToolReceipt>> = {
+	ein_intent: (details) => {
+		if (!isRecord(details) || typeof details.ok !== "boolean") return unreadable();
+		if (!details.ok) return receipt("falta resolver la intención", [String(details.reason ?? "Revisa la conversación antes de continuar.")], true);
+		const states: Record<string, string> = { pending: "esperando tu respuesta", confirmed: "objetivo y alcance acordados", cancelled: "trabajo cancelado", absent: "sin acuerdo todavía" };
+		const line = states[String(details.state)];
+		return line ? receipt(line, [line]) : unreadable();
+	},
 	ein_sdd_status: statusReceipt,
 	ein_sdd_check: checkReceipt,
 	ein_sdd_preflight: preflightReceipt,

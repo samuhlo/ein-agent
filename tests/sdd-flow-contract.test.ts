@@ -115,7 +115,7 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect((orch.match(/\| `sdd-scope` \|/g) ?? []).length).toBe(1);
 		// Modo interactivo redefinido (Fase 3): planificación continua, UNA compuerta
 		// antes de apply, verify/close automáticos si pasan pero STOP ante fallo.
-		expect(orch).toContain("ONE human gate, before apply");
+		expect(orch).toContain("discovery first, execution approval before apply");
 		expect(orch).toContain("single confirmation before the first `sdd-apply`");
 		expect(orch).toContain("STOPS the flow with the exact cause");
 	});
@@ -323,9 +323,9 @@ describe("adapter Pi: entrada transparente y decisión semántica del parent", (
 
 	test("el parent decide por significado y el intent explícito conserva consentimiento", () => {
 		expect(orchestrator).toContain("Every ordinary input reaches you unchanged");
-		expect(orchestrator).toContain("offer `/ein:intent`");
+		expect(orchestrator).toContain("run `ein_intent`");
 		expect(policy).toContain("Every ordinary input reaches the parent orchestrator unchanged");
-		expect(policy).toContain("never activates `/ein:intent` without user consent");
+		expect(policy).toContain("at least one concrete question and an actual user answer");
 	});
 });
 

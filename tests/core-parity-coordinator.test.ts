@@ -87,16 +87,16 @@ describe("core parity: Claude coordinator contract", () => {
   test("publishes transparent ingress while Claude keeps its post-ingress preflight", () => {
     expect(canonical).toContain("Every ordinary input reaches the parent orchestrator unchanged");
     expect(canonical).toContain("No adapter classifier may consume");
-    expect(canonical).toContain("never activates `/ein:intent` without user consent");
+    expect(canonical).toContain("at least one concrete question and an actual user answer");
 
-    expect(adapter).toContain("Invoke the automatic intent preflight exactly once");
-    expect(adapter).toContain("adopt a resolution already stored in `preflight.json`");
+    expect(adapter).toContain("Pi owns the observed-response intent tool");
+    expect(adapter).toContain("Never treat historical");
     expect(adapter).not.toContain("Pi asks two questions before working a change");
     expect(adapter).not.toMatch(/ask them, and only once per change/i);
 
     expect(count(generated, "## Intent ownership")).toBe(1);
-    expect(count(generated, "## Claude automatic intent preflight")).toBe(1);
-    expect(count(generated, "Invoke the automatic intent preflight exactly once")).toBe(1);
+    expect(count(generated, "## Claude intent handoff")).toBe(1);
+    expect(count(generated, "Pi owns the observed-response intent tool")).toBe(1);
     expect(generated).not.toContain("Pi asks two questions before working a change");
   });
 

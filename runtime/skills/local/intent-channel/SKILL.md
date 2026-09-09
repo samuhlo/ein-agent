@@ -1,15 +1,14 @@
 ---
 name: intent-channel
-description: Canal de intención pre-SDD — /ein:intent interroga la petición como árbol de decisiones y cierra a disco; /ein:eh restata sin actuar. Invocación explícita del usuario, único protocolo para ambos runtimes.
+description: Canal de intención pre-SDD — /ein:intent interroga la petición como árbol de decisiones y cierra a disco; /ein:eh restata sin actuar. Descubrimiento automático antes de cambios; entrada manual /ein:intent.
 license: internal
 ---
 
 # Canal de intención (`/ein:intent`, `/ein:eh`)
 
-Este skill define, en un único lugar, el protocolo de dos comandos de invocación
-**exclusivamente humana**: nunca lo ejecuta un agente por su cuenta, nunca aparece
-en una instrucción de otro comando, y ningún prompt de coordinador lo carga por
-defecto. Cada superficie (Pi, Claude) apunta aquí; ninguna reescribe estas reglas.
+Este protocolo también se activa automáticamente antes de trabajo modificador nuevo. El padre conduce las decisiones; `/ein:intent` entra explícitamente en la misma conversación. `/ein:eh` sigue siendo exclusivamente humano.
+
+En Pi usa `ein_intent`: `propose` guarda la ronda en sesión, muestra sus preguntas y espera; `status` recupera la respuesta real y su `responseId`; `confirm` incorpora únicamente decisiones contestadas y guarda el acuerdo. Rechazo o cancelación nunca confirman. Si quedan decisiones, abre otra ronda. Para SDD, `change` y `work` comparten nombre; para cambios pequeños omite `change` y conserva el acuerdo en sesión. Reutiliza acuerdos idénticos; `auto` no omite esta conversación. `delegate` solo permite omitir preguntas si el mensaje humano actual lo pide explícitamente (“sin preguntas / without questions”); registra el objetivo, los límites y los supuestos delegados.
 
 ## /ein:intent
 
@@ -19,9 +18,7 @@ ya están cerrados.
 
 ### Ronda 1 (first round)
 
-La ronda 1 es la única parte del protocolo que un futuro llamador (el tercer eje
-de preflight, todavía sin construir) podría querer pedir de forma aislada. Por eso
-vive en su propia sección `##` addressable, separada del resto del flujo.
+La primera ronda sirve también para el arranque automático. En un cambio pequeño basta una pregunta concreta; no preguntes de nuevo lo que el usuario ya explicó.
 
 - Solo decisiones sin prerequisitos entran en la ronda 1.
 - Cada pregunta va numerada y trae una recomendación.
@@ -53,8 +50,7 @@ vive en su propia sección `##` addressable, separada del resto del flujo.
 - **Nada se escribe a disco hasta la confirmación del usuario.** Abandonar la
   sesión a mitad de camino deja el árbol de trabajo intacto: ni directorio nuevo,
   ni artefacto parcial.
-- Al confirmar, se pide el nombre del cambio (si no existe ya) y se valida con
-  `isSafeChangeName` — el mismo validador que usa el router, no uno nuevo.
+- El padre propone un nombre descriptivo para el cambio; no obliga al usuario a inventarlo. `ein_intent` valida el nombre con el router.
 - Se escribe **exactamente un fichero**: `openspec/changes/<change>/intent.md`
   (fallback `.sdd/changes/<change>/intent.md` si esa es la raíz activa).
 
@@ -83,31 +79,9 @@ el usuario en prosa, anterior a esta invocación**.
 - Si esa petición ya se ejecutó, se restata igual, en pasado, sin proponer un
   siguiente paso ni volver a actuar.
 
-## Artefact template
+## Artefacto canónico
 
-`intent.md` lleva frontmatter (`change`, `phase: intent`, `created`) y estas
-secciones, en este orden:
-
-```markdown
----
-change: <nombre-del-cambio>
-phase: intent
-created: <ISO-8601>
----
-
-## Petición
-
-## Decisiones cerradas
-
-## Hechos verificados
-
-## Fuera de alcance
-
-## Abierto
-```
-
-- Cada decisión cerrada registra la opción elegida y una línea del porqué.
-- Cada hecho verificado trae una referencia `path:line` obtenida de `ein-scout`.
+`ein_intent` escribe `intent.md` con objetivo, límites, criterios de éxito, preguntas y la respuesta íntegra observada. Su bloque estructurado y su vista humana tienen un único escritor; no los edites a mano. El `materialKey` liga las fases a lo acordado. Las nuevas rondas de un cambio existente mantienen un estado pendiente durable para impedir que otra sesión continúe con el acuerdo anterior.
 
 ## Ejecución
 
@@ -115,18 +89,11 @@ created: <ISO-8601>
   (código, configuración, historial) se delega en `ein-scout`; el coordinador
   no lee, busca ni explora el árbol por su cuenta durante la sesión. La
   delegación no bloquea la ronda en curso (ver regla de rondas siguientes).
-- **La ruta del artefacto y la validación del nombre pasan siempre por
-  `resolveIntentPath` del módulo `intent-channel`.** Prohibido reimplementar
-  esa validación inline (p. ej. invocar `isSafeChangeName` por su cuenta):
-  dos validadores de la misma regla es justo lo que esa función evita.
-- No se sale a shell para datos que el entorno ya provee, incluido el
-  timestamp del frontmatter.
+- La escritura del acuerdo pasa por `ein_intent`; los agentes leen el fichero y nunca fabrican la respuesta del usuario.
 
 ## Activación
 
-Ambos comandos se invocan **únicamente** por el usuario, desde el prompt. Ningún
-agente, herramienta ni instrucción de otro comando debe invocarlos por su cuenta;
-la invocación explícita del usuario es el único disparador válido.
+`/ein:intent` es la entrada explícita; el orquestador usa el mismo protocolo automáticamente para nuevos cambios. `/ein:eh` solo se invoca por el usuario.
 
 ---
 
