@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join } from "node:path";
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 
 // Evidence is an index into real invocations, not a behavioral verdict. Keeping
-// it out of bash content also leaves native truncation/Headroom views untouched.
+// it out of bash content also leaves native output views untouched.
 export function registerCommandEvidence(pi: ExtensionAPI): (ctx: ExtensionContext) => string {
 	let problem = "";
 	const indexPath = (ctx: ExtensionContext): string => {
@@ -24,6 +24,7 @@ export function registerCommandEvidence(pi: ExtensionAPI): (ctx: ExtensionContex
 			const id = hash(event.toolCallId);
 			const output = event.content.map((part) => part.type === "text" ? part.text : "[non-text output]").join("\n");
 			const details = event.details as { fullOutputPath?: string; truncation?: unknown } | undefined;
+			// Historical preview markers remain ineligible as full originals.
 			let original: string | undefined;
 			if (details?.fullOutputPath && isAbsolute(details.fullOutputPath)) {
 				const stat = lstatSync(details.fullOutputPath);

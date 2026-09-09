@@ -4,11 +4,11 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createPiInstallHandlers, optionalInstallOutcome, runInstall } from "../installer/src/cli/install.ts";
 import { executeInstallPlan, InstallPlanExecutionError, type InstallPlanExecutionHandlers } from "../installer/src/core/install-executor.ts";
-import { createInstallPlan, InstallPlanInputError, InstallPlanValidationError, renderInstallPlan, serializeInstallPlan, type InstallPlanInput, type InstallPlanV1 } from "../installer/src/core/install-plan.ts";
+import { createInstallPlan, InstallPlanInputError, InstallPlanValidationError, renderInstallPlan, serializeInstallPlan, validateInstallPlan, type InstallPlanInput, type InstallPlanV1 } from "../installer/src/core/install-plan.ts";
 import { derivePiInstallPaths, resolvePiInstallContext } from "../installer/src/core/paths.ts";
 
 const HOME = "/synthetic/home";
-const ENTRY_ORACLE = { "shared.dependency.bun": "shared/ensure-dependency/external:selected|external:satisfied", "pi.dependency.pi": "pi/ensure-dependency/external:selected|external:satisfied", "pi.dependency.engram": "pi/ensure-dependency/external:selected|external:conditional|external:satisfied|external:skipped", "pi.dependency.gh": "pi/ensure-dependency/external:conditional|external:satisfied|external:skipped", "pi.dependency.hypa": "pi/ensure-dependency/external:conditional|external:satisfied|external:skipped", "pi.dependency.codegraph": "pi/ensure-dependency/external:conditional|external:satisfied|external:skipped", "pi.migrate-legacy": "pi/migrate/installer:selected|installer:skipped|unknown:blocked", "pi.backup-current": "pi/backup/installer:conditional|unknown:conditional", "pi.deploy-template": "pi/deploy/installer:selected|unknown:selected",
+const ENTRY_ORACLE = { "shared.dependency.bun": "shared/ensure-dependency/external:selected|external:satisfied", "pi.dependency.pi": "pi/ensure-dependency/external:selected|external:satisfied", "pi.dependency.engram": "pi/ensure-dependency/external:selected|external:conditional|external:satisfied|external:skipped", "pi.dependency.gh": "pi/ensure-dependency/external:conditional|external:satisfied|external:skipped", "pi.dependency.codegraph": "pi/ensure-dependency/external:conditional|external:satisfied|external:skipped", "pi.migrate-legacy": "pi/migrate/installer:selected|installer:skipped|unknown:blocked", "pi.backup-current": "pi/backup/installer:conditional|unknown:conditional", "pi.deploy-template": "pi/deploy/installer:selected|unknown:selected",
   "pi.configure-packages": "pi/configure/installer:selected|unknown:selected", "pi.configure-secrets": "pi/configure/installer:conditional|installer:skipped", "pi.configure-context7-export": "pi/configure/installer:conditional|installer:skipped", "pi.write-install-marker": "pi/write-marker/installer:selected|unknown:selected", "pi.verify-doctor": "pi/verify/installer:selected|unknown:selected", "pi.deploy-launcher": "pi/deploy/installer:selected|unknown:selected", "pi.promote-commands": "pi/promote-command/installer:conditional|unknown:conditional", "claude.dependency.claude": "claude/ensure-dependency/external:selected|external:conditional|external:satisfied", "claude.deploy-runtime": "claude/deploy/installer:selected", "claude.deploy-launcher": "claude/deploy/installer:selected", "shared.retire-legacy": "shared/retire-legacy/installer:selected" } as const;
 
 function input(target: InstallPlanInput["target"], patch: Partial<InstallPlanInput> = {}): InstallPlanInput {
@@ -31,6 +31,15 @@ function fakeHandlers(plan: InstallPlanV1, call: (id: string) => { ok: boolean; 
 }
 
 describe("managed install plan", () => {
+  test("new plans omit the compressor while V1 journals remain readable", () => {
+    const current = createInstallPlan(input("pi", { dependencies: { ...input("pi").dependencies, hypa: true } }));
+    expect(current.inventory.some((entry) => entry.id === "pi.dependency.hypa")).toBe(false);
+    const inventory = [...current.inventory];
+    inventory.splice(inventory.findIndex((entry) => entry.id === "pi.dependency.gh") + 1, 0,
+      { id: "pi.dependency.hypa", runtime: "pi", action: "ensure-dependency", state: "conditional", ownership: "external", reason: "hypa requires confirmation" });
+    expect(() => validateInstallPlan({ ...current, inventory })).not.toThrow();
+  });
+
 	test("un instalador opcional fallido se presenta como aviso sin bloquear", () => {
 		expect(optionalInstallOutcome({ ok: false, detail: "instala gh manualmente" })).toEqual({
 			ok: true,
@@ -73,7 +82,7 @@ describe("managed install plan", () => {
     ]);
     expect(both.inventory.filter((entry) => entry.id === "shared.dependency.bun")).toHaveLength(1);
     expect(both.inventory.map((entry) => entry.runtime)).toEqual([
-      "shared", ...Array(15).fill("pi"), "claude", "claude", "claude",
+      "shared", ...Array(14).fill("pi"), "claude", "claude", "claude",
       "shared",
     ]);
     expect(both.inventory.map((entry) => entry.id)).toEqual([
@@ -338,7 +347,10 @@ describe("install plan executor", () => {
     const pi = createPiInstallHandlers({ platform: { os: "darwin", arch: "arm64", distro: "unknown", packageManager: "brew", shell: "unknown", shellRc: join(HOME, ".profile"), home: HOME }, flags: { yes: true, noEngram: true, noSecrets: true, noLinear: true, noHypa: true, noCodegraph: true, dryRun: false, runtime: "pi" }, skipLinear: true, deps: Object.keys(source.dependencies).map((id) => ({ id: id as "bun", present: true, path: null, required: id === "bun" || id === "pi", hint: "fake" })), agentDir: context.agentDir, effects: {
       pi: async () => { calls.push("pi"); return { ok: true, detail: "pi latest" }; }, resolveContext: () => context, exists: () => true, spinner: () => ({ start: () => { spinnerStarts += 1; }, stop: () => { spinnerStops += 1; }, message: () => {} }), backup: async () => { calls.push("backup"); return { path: "backup", deduped: false, pruned: [] }; }, deploy: async () => { calls.push("deploy"); return { agentDir: context.agentDir, engramCommand: "engram", engramFound: true }; }, packages: async () => { calls.push("packages"); return { ok: true, detail: "ok" }; }, writePreference: () => ({ status: "explicit", channel: "stable" }), readPreference: () => ({ status: "explicit", channel: "stable" }), marker: () => { calls.push("marker"); return { version: "test", installedAt: "2026-01-01T00:00:00.000Z", channel: "stable" }; }, check: () => [], doctor: () => { calls.push("doctor"); return { groups: [], fail: 0, warn: 0, total: 0, result: "OK" }; }, launcher: () => { calls.push("launcher"); return { path: join(HOME, "ein-pi.fish"), changed: false }; }, promote: (options) => { calls.push("promote"); promoteOptions = options; return { installer: { path: "ein-install", written: false }, app: { path: "ein", written: true } }; },
     } });
-    const handlers = { ...fakeHandlers(plan), ...pi.handlers };
+    const { "pi.dependency.hypa": retired, ...active } = pi.handlers;
+    expect(await retired()).toMatchObject({ ok: true });
+    expect(calls).toEqual([]);
+    const handlers = { ...fakeHandlers(plan), ...active };
     // El ejecutor captura cualquier throw del handler, asi que una asercion
     // dentro del efecto se degrada a un `ok:false` sin causa. Se afirma fuera.
     const execution = await executeInstallPlan(plan, handlers);
@@ -362,6 +374,6 @@ describe("install plan executor", () => {
     // único que gira aquí es el del deploy. Los contadores son ACUMULADOS — no
     // se reinician entre bloques —, así que a los tres de arriba se les suma uno.
     await absent.handlers["pi.backup-current"](); await absent.handlers["pi.deploy-template"](); expect(calls).toEqual(["deploy"]); expect([spinnerStarts, spinnerStops]).toEqual([4, 4]);
-    for (const mode of ["returned", "thrown"] as const) { const lifecycle: string[] = [], failing = createPiInstallHandlers({ ...base, effects: { pi: async () => ({ ok: true, detail: "pi latest" }), resolveContext: () => context, exists: () => true, spinner: () => { lifecycle.push("spinner"); return { start: () => {}, stop: () => {}, message: () => {} }; }, backup: async () => { lifecycle.push("backup"); if (mode === "thrown") throw new Error("PRIVATE"); return { ok: false } as never; }, deploy: async () => { lifecycle.push("deploy"); return { agentDir: context.agentDir, engramCommand: "engram", engramFound: true }; } } }); const result = await executeInstallPlan(plan, { ...fakeHandlers(plan), ...failing.handlers }); expect(result.failures.pi).toBe("Pi installation failed at pi.backup-current"); expect(lifecycle).toEqual(["spinner", "backup"]); }
+    for (const mode of ["returned", "thrown"] as const) { const lifecycle: string[] = [], failing = createPiInstallHandlers({ ...base, effects: { pi: async () => ({ ok: true, detail: "pi latest" }), resolveContext: () => context, exists: () => true, spinner: () => { lifecycle.push("spinner"); return { start: () => {}, stop: () => {}, message: () => {} }; }, backup: async () => { lifecycle.push("backup"); if (mode === "thrown") throw new Error("PRIVATE"); return { ok: false } as never; }, deploy: async () => { lifecycle.push("deploy"); return { agentDir: context.agentDir, engramCommand: "engram", engramFound: true }; } } }); const { "pi.dependency.hypa": _retired, ...remaining } = failing.handlers; const result = await executeInstallPlan(plan, { ...fakeHandlers(plan), ...remaining }); expect(result.failures.pi).toBe("Pi installation failed at pi.backup-current"); expect(lifecycle).toEqual(["spinner", "backup"]); }
   });
 });

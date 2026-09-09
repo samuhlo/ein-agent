@@ -754,7 +754,7 @@ describe("release update CLI", () => {
     expect(code).toBe(EXIT_UPDATED);
     expect(piUpdated).toBe(1);
     expect(packagesSynced).toBe(1);
-    // Las deps externas (engram/hypa/codegraph) se refrescan tras un update ok.
+    // Las deps externas (engram/codegraph) se refrescan tras un update ok.
     expect(externalRefreshed).toBe(1);
     expect(output.join("\n")).toContain("pi actualizado");
     expect(output.join("\n")).toContain("engram actualizado a la última release");

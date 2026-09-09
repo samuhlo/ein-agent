@@ -25,7 +25,6 @@ test("registers the complete general command surface", () => {
 		"ein:lang",
 		"ein:tdd",
 		"ein:git",
-		"ein:hypa",
 		"ein:codegraph",
 		"ein:onboard",
 		"ein:linear",

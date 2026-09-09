@@ -10,6 +10,7 @@ export type InstallPlanAction =
   | "promote-command" | "write-marker" | "verify" | "retire-legacy";
 export type InstallPlanState = "selected" | "conditional" | "satisfied" | "skipped" | "blocked";
 export type InstallDependencyId = "bun" | "pi" | "claude" | "engram" | "gh" | "hypa" | "codegraph";
+// V1 decoding retains the retired Hypa id; new plans never generate its step.
 export const INSTALL_PLAN_ENTRY_IDS = [
   "shared.dependency.bun", "pi.dependency.pi", "pi.dependency.engram", "pi.dependency.gh", "pi.dependency.hypa", "pi.dependency.codegraph",
   "pi.migrate-legacy", "pi.backup-current", "pi.deploy-template", "pi.configure-packages", "pi.configure-secrets",
@@ -94,7 +95,9 @@ export function validateInstallPlan(plan: unknown): asserts plan is InstallPlanV
     if (!exact(plan, ["schemaVersion", "target", "home", "claudeConfigHome", "platform", "status", "blockers", "inventory"]) || plan.schemaVersion !== 1 || !["pi", "claude", "both"].includes(plan.target as string) || !["ready", "blocked"].includes(plan.status as string) || !safePath(plan.home) || !safePath(plan.claudeConfigHome)) throw 0;
     if (!exact(plan.platform, ["os", "arch"]) || !["darwin", "linux"].includes(plan.platform.os as string) || !["arm64", "x64"].includes(plan.platform.arch as string) || !Array.isArray(plan.blockers) || !Array.isArray(plan.inventory)) throw 0;
     const target = plan.target as InstallTarget;
-    const expected = ["shared.dependency.bun", ...(target === "claude" ? [] : PI_INSTALL_PLAN_ENTRY_IDS), ...(target === "pi" ? [] : CLAUDE_INSTALL_PLAN_ENTRY_IDS), "shared.retire-legacy"];
+    const piIds = plan.inventory.some((entry) => entry?.id === "pi.dependency.hypa")
+      ? PI_INSTALL_PLAN_ENTRY_IDS : PI_INSTALL_PLAN_ENTRY_IDS.filter((id) => id !== "pi.dependency.hypa");
+    const expected = ["shared.dependency.bun", ...(target === "claude" ? [] : piIds), ...(target === "pi" ? [] : CLAUDE_INSTALL_PLAN_ENTRY_IDS), "shared.retire-legacy"];
     if (plan.inventory.length !== expected.length) throw 0;
     for (let index = 0; index < expected.length; index += 1) {
       const entry = plan.inventory[index];
@@ -157,7 +160,6 @@ function piEntries(input: InstallPlanInput): ManagedInstallEntry[] {
     dependency(input, "pi", "pi", false, true),
     dependency(input, "engram", "pi", input.flags.noEngram),
     dependency(input, "gh", "pi", input.flags.yes),
-    dependency(input, "hypa", "pi", input.flags.noHypa || input.flags.yes),
     dependency(input, "codegraph", "pi", input.flags.noCodegraph || input.flags.yes),
     { id: "pi.migrate-legacy", runtime: "pi", action: "migrate", state: migrationState, destination: input.piAgentDir, ownership, reason: input.piOwnership.status === "ambiguous" ? input.piOwnership.reason : migrationState === "selected" ? "managed legacy install must move before deploy" : "no managed legacy install observed" },
     { id: "pi.backup-current", runtime: "pi", action: "backup", state: "conditional", destination: input.piAgentDir, ownership, reason: input.piAgentDirExists ? "existing target is snapshotted before deploy" : "target existence is rechecked before deploy" },

@@ -130,7 +130,7 @@ export const BACKUP_DIR = join(AGENT_DIR, "backups", "installer");
 
 export const BUN_BIN_DIR = join(HOME, ".bun", "bin");
 export const LOCAL_BIN_DIR = join(HOME, ".local", "bin");
-// mise shima los binarios instalados vía npm global (p.ej. hypa) aquí.
+// mise shima los binarios instalados vía npm global (p.ej. herramientas de código) aquí.
 export const MISE_SHIM_DIR = join(HOME, ".local", "share", "mise", "shims");
 
 export const PI_BIN = join(BUN_BIN_DIR, "pi");

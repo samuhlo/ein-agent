@@ -4,6 +4,15 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [Unreleased]
+
+### Removed
+
+- Integración de Hypa en el runtime, ajustes, onboarding, banner, doctor e
+  instalación/actualización. Headroom queda fuera del producto. Se conservan
+  las guardas, el manejo nativo de salida y la verificación independiente.
+  Decisión: [ADR 0006](docs/adr/0006-remove-runtime-compressors.md).
+
 ## [0.96.0-alpha.4] - 2026-09-08
 
 ### Fixed

@@ -113,12 +113,12 @@ describe("el ejecutor cuenta lo que hace", () => {
     const result = await executeInstallPlan(
       plan,
       handlersFor(plan, {
-        "pi.dependency.hypa": () => ({ ok: true, warning: true, detail: "opcional no instalado" }),
+        "pi.dependency.codegraph": () => ({ ok: true, warning: true, detail: "opcional no instalado" }),
       }),
       (event) => { seen.push(event); },
     );
     expect(result.ok).toBe(true);
-    expect(seen.find((event) => event.kind === "done" && event.id === "pi.dependency.hypa"))
+    expect(seen.find((event) => event.kind === "done" && event.id === "pi.dependency.codegraph"))
       .toMatchObject({ ok: true, warning: true, detail: "opcional no instalado" });
   });
 });
@@ -169,16 +169,16 @@ describe("el avance que se pinta", () => {
 
   test("un aviso suma al contador pero no se pinta como logrado", () => {
     let model = startProgress(plan);
-    model = advanceProgress(model, { kind: "start", id: "pi.dependency.hypa" });
+    model = advanceProgress(model, { kind: "start", id: "pi.dependency.codegraph" });
     model = advanceProgress(model, {
       kind: "done",
-      id: "pi.dependency.hypa",
+      id: "pi.dependency.codegraph",
       ok: true,
       warning: true,
       detail: "opcional no instalado",
     });
     expect(model.done).toBe(1);
-    expect(model.status["pi.dependency.hypa"]).toBe("warning");
+    expect(model.status["pi.dependency.codegraph"]).toBe("warning");
   });
 
   test("el contador nunca pasa del total, pase lo que pase con los eventos", () => {
