@@ -1,0 +1,9 @@
+{
+  "observed": "2026-09-09",
+  "source": "GitHub REST repos/{owner}/{repo}, read with gh api",
+  "repositories": [
+    {"repository": "headroomlabs-ai/headroom", "stars": 70890, "pushed_at": "2026-09-09T00:19:10Z"},
+    {"repository": "Hypabolic/Hypa", "stars": 180, "pushed_at": "2026-08-13T01:19:35Z"}
+  ],
+  "interpretation": "Activity and adoption signals, not evidence of answer accuracy or reliability in Ein."
+}

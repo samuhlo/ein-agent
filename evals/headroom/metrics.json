@@ -1,0 +1,1443 @@
+{
+  "method": "o200k_base counts on actual replay text including retrieval notices; live usage as reported by Pi; no provider-cache normalization; tiny supervised pilot, not production savings",
+  "replay": {
+    "version": 1,
+    "baseCommit": "b9e6959b665ba2517cbcb9d02270ff61eb3f7f9b",
+    "date": "2026-09-09T07:50:36.060Z",
+    "endpoint": "http://127.0.0.1:18789",
+    "runtime": {
+      "bun": "1.3.14",
+      "hypa": "0.1.14",
+      "headroom": "0.37.0"
+    },
+    "existingEinHypa": {
+      "resolved": "/opt/homebrew/bin/hypa",
+      "enabledForRepo": false
+    },
+    "corpus": {
+      "runnerExitCode": 0,
+      "origin": "real repo outputs plus two labeled synthetic stress cases; not session-wide savings"
+    },
+    "warmRpcMs": [
+      8.027916999999889,
+      12.490791999999828,
+      6.674250000000029,
+      7.5175839999999425,
+      8.708958000000166,
+      7.8657919999998285,
+      7.268583000000035,
+      8.208750000000009,
+      8.071208999999953,
+      7.1109590000000935
+    ],
+    "results": [
+      {
+        "scenario": "inventory",
+        "kind": "real-repo-metadata",
+        "arm": "headroom",
+        "rawBytes": 19672,
+        "resultBytes": 10805,
+        "rawSha256": "ecd2adcbaf5bce5ba166d7bcd0c0437f2ce69f001ebcfb3217acb7db233efe39",
+        "resultSha256": "f66a12335245df3499d97c6de7a8f6668c3933c4fd9bfaf52f34c9ed94169208",
+        "elapsedMs": 15.376458999999954,
+        "hypaWrapped": false,
+        "outcome": "compressed",
+        "truncatedBeforeExtension": false,
+        "metadataUnchanged": true,
+        "rawTokens": 5563,
+        "resultTokens": 3610,
+        "savedTokenPercent": 35.11
+      },
+      {
+        "scenario": "inventory",
+        "kind": "real-repo-metadata",
+        "arm": "hypa-plus-headroom",
+        "rawBytes": 19672,
+        "resultBytes": 10805,
+        "rawSha256": "ecd2adcbaf5bce5ba166d7bcd0c0437f2ce69f001ebcfb3217acb7db233efe39",
+        "resultSha256": "011ef29ea08d405f9a06997090396b6ac4f1f1779c85cfa70ed758a535ac9e09",
+        "elapsedMs": 8.307916999999975,
+        "hypaWrapped": false,
+        "outcome": "compressed",
+        "truncatedBeforeExtension": false,
+        "metadataUnchanged": true,
+        "rawTokens": 5563,
+        "resultTokens": 3613,
+        "savedTokenPercent": 35.05
+      },
+      {
+        "scenario": "inventory",
+        "kind": "real-repo-metadata",
+        "arm": "hypa-wrapper",
+        "rawBytes": 19672,
+        "resultBytes": 19672,
+        "hypaWrapped": false,
+        "rawTokens": 5563,
+        "resultTokens": 5563,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "inventory",
+        "kind": "real-repo-metadata",
+        "arm": "hypa-generic-experimental",
+        "rawBytes": 19672,
+        "resultBytes": 19805,
+        "exitCode": 0,
+        "rawTokens": 5563,
+        "resultTokens": 5604,
+        "savedTokenPercent": -0.74
+      },
+      {
+        "scenario": "diagnostics",
+        "kind": "synthetic-adversarial-json",
+        "arm": "headroom",
+        "rawBytes": 18091,
+        "resultBytes": 8977,
+        "rawSha256": "5ac24172aa9f7071604d2dc6f2a3c255ffe9805c715f3b40b6226affc56686d5",
+        "resultSha256": "ea7e73881b76677627d9f980cfbfc633d9478e6a0ed3941973d8acd8553d4512",
+        "elapsedMs": 8.570542000000046,
+        "hypaWrapped": false,
+        "outcome": "compressed",
+        "truncatedBeforeExtension": false,
+        "metadataUnchanged": true,
+        "rawTokens": 4151,
+        "resultTokens": 2478,
+        "savedTokenPercent": 40.3
+      },
+      {
+        "scenario": "diagnostics",
+        "kind": "synthetic-adversarial-json",
+        "arm": "hypa-plus-headroom",
+        "rawBytes": 18091,
+        "resultBytes": 8977,
+        "rawSha256": "5ac24172aa9f7071604d2dc6f2a3c255ffe9805c715f3b40b6226affc56686d5",
+        "resultSha256": "75d83363152b09cef913d22c50399d10ea20f67d3f3fdb05f4359f64de0fcc45",
+        "elapsedMs": 10.311666999999943,
+        "hypaWrapped": false,
+        "outcome": "compressed",
+        "truncatedBeforeExtension": false,
+        "metadataUnchanged": true,
+        "rawTokens": 4151,
+        "resultTokens": 2475,
+        "savedTokenPercent": 40.38
+      },
+      {
+        "scenario": "diagnostics",
+        "kind": "synthetic-adversarial-json",
+        "arm": "hypa-wrapper",
+        "rawBytes": 18091,
+        "resultBytes": 18091,
+        "hypaWrapped": false,
+        "rawTokens": 4151,
+        "resultTokens": 4151,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "diagnostics",
+        "kind": "synthetic-adversarial-json",
+        "arm": "hypa-generic-experimental",
+        "rawBytes": 18091,
+        "resultBytes": 18224,
+        "exitCode": 0,
+        "rawTokens": 4151,
+        "resultTokens": 4192,
+        "savedTokenPercent": -0.99
+      },
+      {
+        "scenario": "worker-log",
+        "kind": "synthetic-repeated-log",
+        "arm": "headroom",
+        "rawBytes": 27186,
+        "resultBytes": 27186,
+        "rawSha256": "03013611c6f368791b5ea2e25b49ef5dedfe8b053e95ec69403e9e6819a4afea",
+        "resultSha256": "03013611c6f368791b5ea2e25b49ef5dedfe8b053e95ec69403e9e6819a4afea",
+        "elapsedMs": 0.2757080000000087,
+        "hypaWrapped": false,
+        "outcome": "ineligible",
+        "truncatedBeforeExtension": false,
+        "metadataUnchanged": true,
+        "rawTokens": 8958,
+        "resultTokens": 8958,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "worker-log",
+        "kind": "synthetic-repeated-log",
+        "arm": "hypa-plus-headroom",
+        "rawBytes": 27186,
+        "resultBytes": 27186,
+        "rawSha256": "03013611c6f368791b5ea2e25b49ef5dedfe8b053e95ec69403e9e6819a4afea",
+        "resultSha256": "03013611c6f368791b5ea2e25b49ef5dedfe8b053e95ec69403e9e6819a4afea",
+        "elapsedMs": 0.172916999999984,
+        "hypaWrapped": false,
+        "outcome": "ineligible",
+        "truncatedBeforeExtension": false,
+        "metadataUnchanged": true,
+        "rawTokens": 8958,
+        "resultTokens": 8958,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "worker-log",
+        "kind": "synthetic-repeated-log",
+        "arm": "hypa-wrapper",
+        "rawBytes": 27186,
+        "resultBytes": 27186,
+        "hypaWrapped": false,
+        "rawTokens": 8958,
+        "resultTokens": 8958,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "worker-log",
+        "kind": "synthetic-repeated-log",
+        "arm": "hypa-generic-experimental",
+        "rawBytes": 27186,
+        "resultBytes": 27319,
+        "exitCode": 0,
+        "rawTokens": 8958,
+        "resultTokens": 8999,
+        "savedTokenPercent": -0.46
+      },
+      {
+        "scenario": "runner",
+        "kind": "real-ein-tests",
+        "arm": "headroom",
+        "rawBytes": 11960,
+        "resultBytes": 11960,
+        "rawSha256": "b1c9ba131544b544e55c631fe37b72d5c1d7a72edd3fa31e018f15937e7b1f46",
+        "resultSha256": "b1c9ba131544b544e55c631fe37b72d5c1d7a72edd3fa31e018f15937e7b1f46",
+        "elapsedMs": 0.22612499999991087,
+        "hypaWrapped": false,
+        "outcome": "ineligible",
+        "truncatedBeforeExtension": false,
+        "metadataUnchanged": true,
+        "rawTokens": 3145,
+        "resultTokens": 3145,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "runner",
+        "kind": "real-ein-tests",
+        "arm": "hypa-plus-headroom",
+        "rawBytes": 11960,
+        "resultBytes": 11960,
+        "rawSha256": "b1c9ba131544b544e55c631fe37b72d5c1d7a72edd3fa31e018f15937e7b1f46",
+        "resultSha256": "b1c9ba131544b544e55c631fe37b72d5c1d7a72edd3fa31e018f15937e7b1f46",
+        "elapsedMs": 0.12741600000003928,
+        "hypaWrapped": false,
+        "outcome": "ineligible",
+        "truncatedBeforeExtension": false,
+        "metadataUnchanged": true,
+        "rawTokens": 3145,
+        "resultTokens": 3145,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "runner",
+        "kind": "real-ein-tests",
+        "arm": "hypa-wrapper",
+        "rawBytes": 11960,
+        "resultBytes": 11960,
+        "hypaWrapped": false,
+        "rawTokens": 3145,
+        "resultTokens": 3145,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "runner",
+        "kind": "real-ein-tests",
+        "arm": "hypa-generic-experimental",
+        "rawBytes": 11960,
+        "resultBytes": 12092,
+        "exitCode": 0,
+        "rawTokens": 3145,
+        "resultTokens": 3185,
+        "savedTokenPercent": -1.27
+      },
+      {
+        "scenario": "source",
+        "kind": "protected-real-source",
+        "arm": "headroom",
+        "rawBytes": 10389,
+        "resultBytes": 10389,
+        "rawSha256": "9f9e8ae434b3cdd4bab5e26ca894674da34ea17e73b69276bfa1415ee2d447e9",
+        "resultSha256": "9f9e8ae434b3cdd4bab5e26ca894674da34ea17e73b69276bfa1415ee2d447e9",
+        "elapsedMs": 0.1305409999999938,
+        "hypaWrapped": false,
+        "outcome": "ineligible",
+        "truncatedBeforeExtension": false,
+        "metadataUnchanged": true,
+        "rawTokens": 2631,
+        "resultTokens": 2631,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "source",
+        "kind": "protected-real-source",
+        "arm": "hypa-plus-headroom",
+        "rawBytes": 10389,
+        "resultBytes": 10389,
+        "rawSha256": "9f9e8ae434b3cdd4bab5e26ca894674da34ea17e73b69276bfa1415ee2d447e9",
+        "resultSha256": "9f9e8ae434b3cdd4bab5e26ca894674da34ea17e73b69276bfa1415ee2d447e9",
+        "elapsedMs": 0.0816660000000411,
+        "hypaWrapped": false,
+        "outcome": "ineligible",
+        "truncatedBeforeExtension": false,
+        "metadataUnchanged": true,
+        "rawTokens": 2631,
+        "resultTokens": 2631,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "source",
+        "kind": "protected-real-source",
+        "arm": "hypa-wrapper",
+        "rawBytes": 10389,
+        "resultBytes": 10389,
+        "hypaWrapped": false,
+        "rawTokens": 2631,
+        "resultTokens": 2631,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "source",
+        "kind": "protected-real-source",
+        "arm": "hypa-generic-experimental",
+        "rawBytes": 10389,
+        "resultBytes": 10521,
+        "exitCode": 0,
+        "rawTokens": 2631,
+        "resultTokens": 2671,
+        "savedTokenPercent": -1.52
+      },
+      {
+        "scenario": "diff",
+        "kind": "protected-real-diff",
+        "arm": "headroom",
+        "rawBytes": 51334,
+        "resultBytes": 51334,
+        "rawSha256": "50a9f9057136df44977fb760736fc9c978de8d4ab861f58cddbd93fa1ff12b52",
+        "resultSha256": "50a9f9057136df44977fb760736fc9c978de8d4ab861f58cddbd93fa1ff12b52",
+        "elapsedMs": 0.17033300000002782,
+        "hypaWrapped": true,
+        "outcome": "ineligible",
+        "truncatedBeforeExtension": true,
+        "metadataUnchanged": true,
+        "rawTokens": 14733,
+        "resultTokens": 14733,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "diff",
+        "kind": "protected-real-diff",
+        "arm": "hypa-plus-headroom",
+        "rawBytes": 51334,
+        "resultBytes": 19326,
+        "rawSha256": "50a9f9057136df44977fb760736fc9c978de8d4ab861f58cddbd93fa1ff12b52",
+        "resultSha256": "dd898f5910a986ecfa8b452b828aad5e9be28ada01a3458290d2f0902e3de2a2",
+        "elapsedMs": 0.12137499999994361,
+        "hypaWrapped": true,
+        "outcome": "ineligible",
+        "truncatedBeforeExtension": true,
+        "metadataUnchanged": true,
+        "rawTokens": 14733,
+        "resultTokens": 5361,
+        "savedTokenPercent": 63.61
+      },
+      {
+        "scenario": "diff",
+        "kind": "protected-real-diff",
+        "arm": "hypa-wrapper",
+        "rawBytes": 51334,
+        "resultBytes": 19326,
+        "hypaWrapped": true,
+        "rawTokens": 14733,
+        "resultTokens": 5361,
+        "savedTokenPercent": 63.61
+      },
+      {
+        "scenario": "diff",
+        "kind": "protected-real-diff",
+        "arm": "hypa-generic-experimental",
+        "rawBytes": 51334,
+        "resultBytes": 8533,
+        "exitCode": 0,
+        "rawTokens": 14733,
+        "resultTokens": 2514,
+        "savedTokenPercent": 82.94
+      },
+      {
+        "scenario": "git-log",
+        "kind": "real-git-log",
+        "arm": "headroom",
+        "rawBytes": 10194,
+        "resultBytes": 10194,
+        "rawSha256": "37e60db0f03633003dad0ca2e57fbac93b6f866edbc9eaea92678b1c2387e087",
+        "resultSha256": "37e60db0f03633003dad0ca2e57fbac93b6f866edbc9eaea92678b1c2387e087",
+        "elapsedMs": 0.2011250000000473,
+        "hypaWrapped": true,
+        "outcome": "ineligible",
+        "truncatedBeforeExtension": false,
+        "metadataUnchanged": true,
+        "rawTokens": 3027,
+        "resultTokens": 3027,
+        "savedTokenPercent": 0.0
+      },
+      {
+        "scenario": "git-log",
+        "kind": "real-git-log",
+        "arm": "hypa-plus-headroom",
+        "rawBytes": 10194,
+        "resultBytes": 7136,
+        "rawSha256": "37e60db0f03633003dad0ca2e57fbac93b6f866edbc9eaea92678b1c2387e087",
+        "resultSha256": "3f47c1e9990e548b689a909033d279d30e6311b69e54ffdccef3fd143102940b",
+        "elapsedMs": 0.12470800000005511,
+        "hypaWrapped": true,
+        "outcome": "ineligible",
+        "truncatedBeforeExtension": false,
+        "metadataUnchanged": true,
+        "rawTokens": 3027,
+        "resultTokens": 2161,
+        "savedTokenPercent": 28.61
+      },
+      {
+        "scenario": "git-log",
+        "kind": "real-git-log",
+        "arm": "hypa-wrapper",
+        "rawBytes": 10194,
+        "resultBytes": 7136,
+        "hypaWrapped": true,
+        "rawTokens": 3027,
+        "resultTokens": 2161,
+        "savedTokenPercent": 28.61
+      },
+      {
+        "scenario": "git-log",
+        "kind": "real-git-log",
+        "arm": "hypa-generic-experimental",
+        "rawBytes": 10194,
+        "resultBytes": 10326,
+        "exitCode": 0,
+        "rawTokens": 3027,
+        "resultTokens": 3067,
+        "savedTokenPercent": -1.32
+      }
+    ]
+  },
+  "live": {
+    "version": 1,
+    "model": "gpt-5.6-luna",
+    "provider": "openai-codex",
+    "trials": [
+      {
+        "id": "repair-0-off",
+        "scenario": "repair",
+        "repeat": 0,
+        "arm": "off",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "exitCode": 0,
+        "timedOut": false,
+        "elapsedMs": 21936,
+        "verified": true,
+        "verifyExit": 0,
+        "changed": [
+          "source.ts"
+        ],
+        "escaped": [],
+        "pass": true,
+        "turns": 6,
+        "usage": {
+          "input": 9905,
+          "output": 334,
+          "cacheRead": 29184,
+          "cacheWrite": 0,
+          "totalTokens": 39423,
+          "cost": 0.00296548
+        },
+        "compression": [],
+        "readOriginal": false,
+        "tools": [
+          {
+            "name": "read",
+            "args": {
+              "path": "tasks.md"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "design.md"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "find . -maxdepth 2 -type f | sort"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "cat diagnostics.json"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "source.ts"
+            }
+          },
+          {
+            "name": "write",
+            "args": {
+              "path": "source.ts",
+              "content": "export function retryDelay(attempt: number): number {\n  return Math.min(3000, Math.max(0, attempt) * 100);\n}\n"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "bun test visible.test.ts",
+              "timeout": 120
+            }
+          }
+        ]
+      },
+      {
+        "id": "repair-0-on",
+        "scenario": "repair",
+        "repeat": 0,
+        "arm": "on",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "exitCode": 0,
+        "timedOut": false,
+        "elapsedMs": 25241,
+        "verified": true,
+        "verifyExit": 0,
+        "changed": [
+          "source.ts"
+        ],
+        "escaped": [],
+        "pass": true,
+        "turns": 7,
+        "usage": {
+          "input": 14104,
+          "output": 425,
+          "cacheRead": 24576,
+          "cacheWrite": 0,
+          "totalTokens": 39105,
+          "cost": 0.0038223199999999997
+        },
+        "compression": [
+          {
+            "version": 1,
+            "mode": "on",
+            "toolCallId": "call_YZvbh8Pq7KemQTmhIwgWu59e|fc_016fc6caa9f691ec016aa10fe9bea887d2a92737e21ca1a994",
+            "outcome": "compressed",
+            "elapsedMs": 26.03691600000002,
+            "counts": {
+              "eligible": 1,
+              "compressed": 1,
+              "unchanged": 0,
+              "rejected": 0,
+              "failed": 0,
+              "savedBytes": 9104,
+              "wouldSaveBytes": 0,
+              "elapsedMs": 26.03691600000002
+            }
+          }
+        ],
+        "readOriginal": false,
+        "tools": [
+          {
+            "name": "read",
+            "args": {
+              "path": "tasks.md"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "design.md"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "cat diagnostics.json"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "find . -name source.ts -print"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "source.ts"
+            }
+          },
+          {
+            "name": "edit",
+            "args": {
+              "path": "source.ts",
+              "edits": [
+                {
+                  "oldText": "export function retryDelay(attempt: number): number { return attempt * 100; }\n",
+                  "newText": "export function retryDelay(attempt: number): number {\n  return Math.min(3000, Math.max(0, attempt) * 100);\n}\n"
+                }
+              ]
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "bun test visible.test.ts",
+              "timeout": 120
+            }
+          }
+        ]
+      },
+      {
+        "id": "inventory-0-on",
+        "scenario": "inventory",
+        "repeat": 0,
+        "arm": "on",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "exitCode": 0,
+        "timedOut": false,
+        "elapsedMs": 17737,
+        "verified": true,
+        "verifyExit": null,
+        "changed": [
+          "answer.json"
+        ],
+        "escaped": [],
+        "pass": true,
+        "turns": 5,
+        "usage": {
+          "input": 10879,
+          "output": 358,
+          "cacheRead": 18432,
+          "cacheWrite": 0,
+          "totalTokens": 29669,
+          "cost": 0.0029740400000000003
+        },
+        "compression": [
+          {
+            "version": 1,
+            "mode": "on",
+            "toolCallId": "call_fXtq3uASPzXG16B10KVVFqS0|fc_094f4c6b6fe17bad016aa1100199f887d2b0cc0afec2ecbe0c",
+            "outcome": "compressed",
+            "elapsedMs": 25.344333999999435,
+            "counts": {
+              "eligible": 1,
+              "compressed": 1,
+              "unchanged": 0,
+              "rejected": 0,
+              "failed": 0,
+              "savedBytes": 8854,
+              "wouldSaveBytes": 0,
+              "elapsedMs": 25.344333999999435
+            }
+          }
+        ],
+        "readOriginal": false,
+        "tools": [
+          {
+            "name": "read",
+            "args": {
+              "path": "tasks.md"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "design.md"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "cat inventory.json",
+              "timeout": 120
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "python3 - <<'PY'\nimport json\nwith open('inventory.json') as f: data=json.load(f)\nprint(len(data), sum(r['bytes'] for r in data), max(data,key=lambda r:r['bytes'])['path'])\nPY",
+              "timeout": 120
+            }
+          },
+          {
+            "name": "write",
+            "args": {
+              "path": "answer.json",
+              "content": "{\"count\":139,\"totalBytes\":1146038,\"largestPath\":\"ein-pi/agent/lib/i18n/strings.ts\"}\n"
+            }
+          }
+        ],
+        "answer": {
+          "count": 139,
+          "totalBytes": 1146038,
+          "largestPath": "ein-pi/agent/lib/i18n/strings.ts"
+        }
+      },
+      {
+        "id": "inventory-0-off",
+        "scenario": "inventory",
+        "repeat": 0,
+        "arm": "off",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "exitCode": 0,
+        "timedOut": false,
+        "elapsedMs": 20188,
+        "verified": true,
+        "verifyExit": null,
+        "changed": [
+          "answer.json"
+        ],
+        "escaped": [],
+        "pass": true,
+        "turns": 5,
+        "usage": {
+          "input": 21394,
+          "output": 347,
+          "cacheRead": 13824,
+          "cacheWrite": 0,
+          "totalTokens": 35565,
+          "cost": 0.00497168
+        },
+        "compression": [],
+        "readOriginal": false,
+        "tools": [
+          {
+            "name": "read",
+            "args": {
+              "path": "tasks.md"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "design.md"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "cat inventory.json",
+              "timeout": 120
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "python3 - <<'PY'\nimport json\nr=json.load(open('inventory.json'))\nprint(len(r), sum(x['bytes'] for x in r), max(r,key=lambda x:x['bytes']))\nPY",
+              "timeout": 120
+            }
+          },
+          {
+            "name": "write",
+            "args": {
+              "path": "answer.json",
+              "content": "{\"count\":139,\"totalBytes\":1146038,\"largestPath\":\"ein-pi/agent/lib/i18n/strings.ts\"}\n"
+            }
+          }
+        ],
+        "answer": {
+          "count": 139,
+          "totalBytes": 1146038,
+          "largestPath": "ein-pi/agent/lib/i18n/strings.ts"
+        }
+      },
+      {
+        "id": "logs-0-off",
+        "scenario": "logs",
+        "repeat": 0,
+        "arm": "off",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "exitCode": 0,
+        "timedOut": false,
+        "elapsedMs": 18479,
+        "verified": true,
+        "verifyExit": null,
+        "changed": [
+          "answer.json"
+        ],
+        "escaped": [],
+        "pass": true,
+        "turns": 4,
+        "usage": {
+          "input": 13225,
+          "output": 567,
+          "cacheRead": 19456,
+          "cacheWrite": 0,
+          "totalTokens": 33248,
+          "cost": 0.0037145200000000002
+        },
+        "compression": [],
+        "readOriginal": false,
+        "tools": [
+          {
+            "name": "read",
+            "args": {
+              "path": "tasks.md"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "design.md"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "cat worker.log"
+            }
+          },
+          {
+            "name": "write",
+            "args": {
+              "path": "answer.json",
+              "content": "{\"job\":\"job-173\",\"error\":\"EACCES\",\"path\":\"/cache/lock\",\"timestamp\":\"2026-09-09T08:00:53Z\",\"occurrences\":1}"
+            }
+          }
+        ],
+        "answer": {
+          "job": "job-173",
+          "error": "EACCES",
+          "path": "/cache/lock",
+          "timestamp": "2026-09-09T08:00:53Z",
+          "occurrences": 1
+        }
+      },
+      {
+        "id": "logs-0-on",
+        "scenario": "logs",
+        "repeat": 0,
+        "arm": "on",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "exitCode": 0,
+        "timedOut": false,
+        "elapsedMs": 14359,
+        "verified": true,
+        "verifyExit": null,
+        "changed": [
+          "answer.json"
+        ],
+        "escaped": [],
+        "pass": true,
+        "turns": 4,
+        "usage": {
+          "input": 15494,
+          "output": 271,
+          "cacheRead": 16896,
+          "cacheWrite": 0,
+          "totalTokens": 32661,
+          "cost": 0.00376192
+        },
+        "compression": [],
+        "readOriginal": false,
+        "tools": [
+          {
+            "name": "read",
+            "args": {
+              "path": "tasks.md"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "design.md"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "cat worker.log"
+            }
+          },
+          {
+            "name": "write",
+            "args": {
+              "path": "answer.json",
+              "content": "{\"job\":\"job-173\",\"error\":\"EACCES\",\"path\":\"/cache/lock\",\"timestamp\":\"2026-09-09T08:00:53Z\",\"occurrences\":1}\n"
+            }
+          }
+        ],
+        "answer": {
+          "job": "job-173",
+          "error": "EACCES",
+          "path": "/cache/lock",
+          "timestamp": "2026-09-09T08:00:53Z",
+          "occurrences": 1
+        }
+      },
+      {
+        "id": "repair-1-on",
+        "scenario": "repair",
+        "repeat": 1,
+        "arm": "on",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "exitCode": 0,
+        "timedOut": false,
+        "elapsedMs": 16727,
+        "verified": true,
+        "verifyExit": 0,
+        "changed": [
+          "source.ts"
+        ],
+        "escaped": [],
+        "pass": true,
+        "turns": 6,
+        "usage": {
+          "input": 10173,
+          "output": 339,
+          "cacheRead": 22016,
+          "cacheWrite": 0,
+          "totalTokens": 32528,
+          "cost": 0.0028817200000000004
+        },
+        "compression": [
+          {
+            "version": 1,
+            "mode": "on",
+            "toolCallId": "call_fHuJlEzBPt9a9t1r903V3rtI|fc_087e9cdb8d578d4a016aa11046b45887d2b751b6ce60dfea79",
+            "outcome": "compressed",
+            "elapsedMs": 23.049082999999882,
+            "counts": {
+              "eligible": 1,
+              "compressed": 1,
+              "unchanged": 0,
+              "rejected": 0,
+              "failed": 0,
+              "savedBytes": 9104,
+              "wouldSaveBytes": 0,
+              "elapsedMs": 23.049082999999882
+            }
+          }
+        ],
+        "readOriginal": false,
+        "tools": [
+          {
+            "name": "read",
+            "args": {
+              "path": "tasks.md"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "design.md"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "cat diagnostics.json"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "source.ts"
+            }
+          },
+          {
+            "name": "edit",
+            "args": {
+              "path": "source.ts",
+              "edits": [
+                {
+                  "oldText": "export function retryDelay(attempt: number): number { return attempt * 100; }",
+                  "newText": "export function retryDelay(attempt: number): number {\n  return Math.min(3000, Math.max(0, attempt * 100));\n}"
+                }
+              ]
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "bun test visible.test.ts",
+              "timeout": 120
+            }
+          }
+        ]
+      },
+      {
+        "id": "repair-1-off",
+        "scenario": "repair",
+        "repeat": 1,
+        "arm": "off",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "exitCode": 0,
+        "timedOut": false,
+        "elapsedMs": 20725,
+        "verified": true,
+        "verifyExit": 0,
+        "changed": [
+          "source.ts"
+        ],
+        "escaped": [],
+        "pass": true,
+        "turns": 6,
+        "usage": {
+          "input": 10743,
+          "output": 342,
+          "cacheRead": 28160,
+          "cacheWrite": 0,
+          "totalTokens": 39245,
+          "cost": 0.0031222
+        },
+        "compression": [],
+        "readOriginal": false,
+        "tools": [
+          {
+            "name": "read",
+            "args": {
+              "path": "tasks.md"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "design.md"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "cat diagnostics.json"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "source.ts"
+            }
+          },
+          {
+            "name": "edit",
+            "args": {
+              "path": "source.ts",
+              "edits": [
+                {
+                  "oldText": "export function retryDelay(attempt: number): number { return attempt * 100; }\n",
+                  "newText": "export function retryDelay(attempt: number): number {\n  return Math.min(3000, Math.max(0, attempt * 100));\n}\n"
+                }
+              ]
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "bun test visible.test.ts",
+              "timeout": 120
+            }
+          }
+        ]
+      },
+      {
+        "id": "inventory-1-off",
+        "scenario": "inventory",
+        "repeat": 1,
+        "arm": "off",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "exitCode": 0,
+        "timedOut": false,
+        "elapsedMs": 14965,
+        "verified": true,
+        "verifyExit": null,
+        "changed": [
+          "answer.json"
+        ],
+        "escaped": [],
+        "pass": true,
+        "turns": 4,
+        "usage": {
+          "input": 14427,
+          "output": 323,
+          "cacheRead": 11264,
+          "cacheWrite": 0,
+          "totalTokens": 26014,
+          "cost": 0.00349828
+        },
+        "compression": [],
+        "readOriginal": false,
+        "tools": [
+          {
+            "name": "read",
+            "args": {
+              "path": "tasks.md"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "design.md"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "cat inventory.json",
+              "timeout": 120
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "python3 - <<'PY'\nimport json\nwith open('inventory.json') as f: records=json.load(f)\nresult={'count':len(records),'totalBytes':sum(r['bytes'] for r in records),'largestPath':max(records,key=lambda r:r['bytes'])['path']}\nwith open('answer.json','w') as f: json.dump(result,f,separators=(',',':'))\nPY\ncat answer.json",
+              "timeout": 120
+            }
+          }
+        ],
+        "answer": {
+          "count": 139,
+          "totalBytes": 1146038,
+          "largestPath": "ein-pi/agent/lib/i18n/strings.ts"
+        }
+      },
+      {
+        "id": "inventory-1-on",
+        "scenario": "inventory",
+        "repeat": 1,
+        "arm": "on",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "exitCode": 0,
+        "timedOut": false,
+        "elapsedMs": 46774,
+        "verified": true,
+        "verifyExit": null,
+        "changed": [
+          "answer.json"
+        ],
+        "escaped": [],
+        "pass": true,
+        "turns": 5,
+        "usage": {
+          "input": 10894,
+          "output": 370,
+          "cacheRead": 18432,
+          "cacheWrite": 0,
+          "totalTokens": 29696,
+          "cost": 0.00299144
+        },
+        "compression": [
+          {
+            "version": 1,
+            "mode": "on",
+            "toolCallId": "call_2G3Oz3UJZFMpiVRS3hQ1hTn9|fc_00b3aac6ee0c66d3016aa1107ed9d487d2b07e3e86900c01e8",
+            "outcome": "compressed",
+            "elapsedMs": 22.94733300000007,
+            "counts": {
+              "eligible": 1,
+              "compressed": 1,
+              "unchanged": 0,
+              "rejected": 0,
+              "failed": 0,
+              "savedBytes": 8854,
+              "wouldSaveBytes": 0,
+              "elapsedMs": 22.94733300000007
+            }
+          }
+        ],
+        "readOriginal": false,
+        "tools": [
+          {
+            "name": "read",
+            "args": {
+              "path": "tasks.md"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "design.md"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "cat inventory.json",
+              "timeout": 120
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "python3 - <<'PY'\nimport json\nwith open('inventory.json') as f:\n    rows=json.load(f)\nprint(len(rows))\nprint(sum(r['bytes'] for r in rows))\nprint(max(rows, key=lambda r:r['bytes'])['path'])\nPY",
+              "timeout": 120
+            }
+          },
+          {
+            "name": "write",
+            "args": {
+              "path": "answer.json",
+              "content": "{\"count\":139,\"totalBytes\":1146038,\"largestPath\":\"ein-pi/agent/lib/i18n/strings.ts\"}\n"
+            }
+          }
+        ],
+        "answer": {
+          "count": 139,
+          "totalBytes": 1146038,
+          "largestPath": "ein-pi/agent/lib/i18n/strings.ts"
+        }
+      },
+      {
+        "id": "logs-1-on",
+        "scenario": "logs",
+        "repeat": 1,
+        "arm": "on",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "exitCode": 0,
+        "timedOut": false,
+        "elapsedMs": 16802,
+        "verified": true,
+        "verifyExit": null,
+        "changed": [
+          "answer.json"
+        ],
+        "escaped": [],
+        "pass": true,
+        "turns": 5,
+        "usage": {
+          "input": 19016,
+          "output": 275,
+          "cacheRead": 16896,
+          "cacheWrite": 0,
+          "totalTokens": 36187,
+          "cost": 0.00447112
+        },
+        "compression": [],
+        "readOriginal": false,
+        "tools": [
+          {
+            "name": "read",
+            "args": {
+              "path": "tasks.md"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "design.md"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "cat worker.log"
+            }
+          },
+          {
+            "name": "write",
+            "args": {
+              "path": "answer.json",
+              "content": "{\"job\":\"job-173\",\"error\":\"EACCES\",\"path\":\"/cache/lock\",\"timestamp\":\"2026-09-09T08:00:53Z\",\"occurrences\":1}\n"
+            }
+          }
+        ],
+        "answer": {
+          "job": "job-173",
+          "error": "EACCES",
+          "path": "/cache/lock",
+          "timestamp": "2026-09-09T08:00:53Z",
+          "occurrences": 1
+        }
+      },
+      {
+        "id": "logs-1-off",
+        "scenario": "logs",
+        "repeat": 1,
+        "arm": "off",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "exitCode": 0,
+        "timedOut": false,
+        "elapsedMs": 14578,
+        "verified": true,
+        "verifyExit": null,
+        "changed": [
+          "answer.json"
+        ],
+        "escaped": [],
+        "pass": true,
+        "turns": 4,
+        "usage": {
+          "input": 22147,
+          "output": 273,
+          "cacheRead": 10240,
+          "cacheWrite": 0,
+          "totalTokens": 32660,
+          "cost": 0.004961800000000001
+        },
+        "compression": [],
+        "readOriginal": false,
+        "tools": [
+          {
+            "name": "read",
+            "args": {
+              "path": "tasks.md"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "design.md"
+            }
+          },
+          {
+            "name": "bash",
+            "args": {
+              "command": "cat worker.log"
+            }
+          },
+          {
+            "name": "write",
+            "args": {
+              "path": "answer.json",
+              "content": "{\"job\":\"job-173\",\"error\":\"EACCES\",\"path\":\"/cache/lock\",\"timestamp\":\"2026-09-09T08:00:53Z\",\"occurrences\":1}"
+            }
+          }
+        ],
+        "answer": {
+          "job": "job-173",
+          "error": "EACCES",
+          "path": "/cache/lock",
+          "timestamp": "2026-09-09T08:00:53Z",
+          "occurrences": 1
+        }
+      }
+    ]
+  },
+  "groups": [
+    {
+      "scenario": "repair",
+      "off": {
+        "runs": 2,
+        "passed": 2,
+        "inputIncludingCache": 77992,
+        "tokens": 78668,
+        "reportedCostUSD": 0.00608768,
+        "seconds": 42.661,
+        "turns": 12,
+        "rawRetrievalRuns": 0
+      },
+      "on": {
+        "runs": 2,
+        "passed": 2,
+        "inputIncludingCache": 70869,
+        "tokens": 71633,
+        "reportedCostUSD": 0.00670404,
+        "seconds": 41.968,
+        "turns": 13,
+        "rawRetrievalRuns": 0
+      },
+      "tokensReductionPercent": 8.94,
+      "inputIncludingCacheReductionPercent": 9.13,
+      "reportedCostUSDReductionPercent": -10.12,
+      "secondsReductionPercent": 1.62
+    },
+    {
+      "scenario": "inventory",
+      "off": {
+        "runs": 2,
+        "passed": 2,
+        "inputIncludingCache": 60909,
+        "tokens": 61579,
+        "reportedCostUSD": 0.00846996,
+        "seconds": 35.153,
+        "turns": 9,
+        "rawRetrievalRuns": 0
+      },
+      "on": {
+        "runs": 2,
+        "passed": 2,
+        "inputIncludingCache": 58637,
+        "tokens": 59365,
+        "reportedCostUSD": 0.0059654800000000004,
+        "seconds": 64.511,
+        "turns": 10,
+        "rawRetrievalRuns": 0
+      },
+      "tokensReductionPercent": 3.6,
+      "inputIncludingCacheReductionPercent": 3.73,
+      "reportedCostUSDReductionPercent": 29.57,
+      "secondsReductionPercent": -83.51
+    },
+    {
+      "scenario": "logs",
+      "off": {
+        "runs": 2,
+        "passed": 2,
+        "inputIncludingCache": 65068,
+        "tokens": 65908,
+        "reportedCostUSD": 0.008676320000000001,
+        "seconds": 33.057,
+        "turns": 8,
+        "rawRetrievalRuns": 0
+      },
+      "on": {
+        "runs": 2,
+        "passed": 2,
+        "inputIncludingCache": 68302,
+        "tokens": 68848,
+        "reportedCostUSD": 0.00823304,
+        "seconds": 31.161,
+        "turns": 9,
+        "rawRetrievalRuns": 0
+      },
+      "tokensReductionPercent": -4.46,
+      "inputIncludingCacheReductionPercent": -4.97,
+      "reportedCostUSDReductionPercent": 5.11,
+      "secondsReductionPercent": 5.74
+    },
+    {
+      "scenario": "all",
+      "off": {
+        "runs": 6,
+        "passed": 6,
+        "inputIncludingCache": 203969,
+        "tokens": 206155,
+        "reportedCostUSD": 0.02323396,
+        "seconds": 110.871,
+        "turns": 29,
+        "rawRetrievalRuns": 0
+      },
+      "on": {
+        "runs": 6,
+        "passed": 6,
+        "inputIncludingCache": 197808,
+        "tokens": 199846,
+        "reportedCostUSD": 0.02090256,
+        "seconds": 137.64,
+        "turns": 32,
+        "rawRetrievalRuns": 0
+      },
+      "tokensReductionPercent": 3.06,
+      "inputIncludingCacheReductionPercent": 3.02,
+      "reportedCostUSDReductionPercent": 10.03,
+      "secondsReductionPercent": -24.14
+    }
+  ],
+  "warmRpcMsMedian": 7.9468544999998585,
+  "warmRpcMsMax": 12.490791999999828
+}

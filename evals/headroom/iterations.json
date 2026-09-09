@@ -1,0 +1,46 @@
+[
+  {
+    "version": "v1-log-and-json",
+    "runs": 12,
+    "passed": 11,
+    "failed": [
+      {
+        "id": "logs-0-on",
+        "answer": {
+          "job": "job-173",
+          "error": "EACCES",
+          "path": "/cache/lock",
+          "timestamp": "2026-09-09T08:00:53Z",
+          "occurrences": 2
+        },
+        "readOriginal": true
+      }
+    ],
+    "totals": {
+      "off": {
+        "tokens": 212516,
+        "reportedCostUSD": 0.0260352
+      },
+      "on": {
+        "tokens": 199679,
+        "reportedCostUSD": 0.022652040000000002
+      }
+    }
+  },
+  {
+    "version": "v2-verified-json-quoted-view",
+    "runs": 12,
+    "passed": 12,
+    "failed": [],
+    "totals": {
+      "off": {
+        "tokens": 232457,
+        "reportedCostUSD": 0.02314056
+      },
+      "on": {
+        "tokens": 240122,
+        "reportedCostUSD": 0.02660828
+      }
+    }
+  }
+]

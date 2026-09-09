@@ -19,9 +19,18 @@ const {
 	hypaConfigPath,
 	detectStackWantsHypa,
 	resolveHypaEnabled,
+	resolveHypaBin,
 } = await import("../ein-pi/agent/lib/hypa");
 
 const BIN = "/bin/hypa";
+
+test("resolves Hypa installed on PATH, including Homebrew-style locations", () => {
+	const dir = mkdtempSync(join(tmpdir(), "ein-hypa-path-"));
+	writeFileSync(join(dir, "hypa"), "#!/bin/sh\n", { mode: 0o755 });
+	expect(resolveHypaBin({ PATH: dir })).toBe(join(dir, "hypa"));
+	expect(resolveHypaBin({ PATH: dir, HYPA_BIN: join(dir, "hypa") })).toBe(join(dir, "hypa"));
+	rmSync(dir, { recursive: true, force: true });
+});
 
 describe("normalizeBunPrefix", () => {
 	test("desenvuelve bunx <tool-con-reducer>", () => {
