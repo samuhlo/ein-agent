@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { resolveChangesDir } from "./sdd-router.ts";
-import { normalizeGroupTitle, applyGroupSkillNames } from "./apply-packet-compile.ts";
+import { normalizeGroupTitle, applyGroupSkillNames, applyGroupText } from "./apply-packet-compile.ts";
 import { readExplicitSddChange } from "../extensions/internal/ein-pi-event-contracts.ts";
 
 // Opt-in via an exact group selector, so a legacy or deliberately different
@@ -23,7 +23,14 @@ export function compileApplyHandoff(cwd: string, task: string): { prompt: string
 	const tasks = readFileSync(join(resolveChangesDir(cwd), change, "tasks.md"), "utf8");
 	if (createHash("sha256").update(tasks).digest("hex") !== observation.packet.sources["tasks.md"]) throw new Error("Tasks changed while preparing the handoff; refresh the current group");
 	const skills = applyGroupSkillNames(tasks, observation.packet.group);
-	const block = JSON.stringify(observation.packet);
-	if (Buffer.byteLength(block + skills.join("; ")) > 16 * 1024) throw new Error("Apply packet exceeds 16 KiB; split this group before launching a cheap executor");
-	return { skillTask: [observation.packet.outcome, ...observation.packet.readContext, ...observation.packet.behaviorSeams, ...skills].join("\n"), prompt: `## Compiled apply packet\n${block}\nGroup-declared skills: ${skills.join("; ") || "none"}.\nUse this current group as your primary checklist. Read its readContext, relevant project rules/configuration (including tsconfig and its extends), and current source/tests. Read design/tasks spans only for a specific missing decision or inconsistency; do not reconstruct the full plan. Preserve the exact task IDs for progress and return unanswered decisions to the parent. The writeAllowlist is the assigned scope, not a claim of shell confinement.` };
+	const groupText = applyGroupText(tasks, observation.packet.group);
+	const header = JSON.stringify({ change, group: observation.packet.group, pendingTaskIds: [...new Set(observation.packet.steps.map((step) => step.taskId))], writeAllowlist: observation.packet.writeAllowlist, sourceDigests: observation.packet.sources });
+	const prompt = `## Compiled apply packet
+Validated group metadata: ${header}
+Group-declared skills: ${skills.join("; ") || "none"}.
+The original group and global notes below are your primary instructions; preserve all substeps. Execute only pending task IDs. Read the declared context, real compiler/test configuration (including tsconfig extends), and current source/tests. Expand design/tasks reads for a concrete gap; do not reconstruct other groups. Return unanswered decisions to the parent. The writeAllowlist describes the assignment, not shell confinement.
+
+${groupText}`;
+	if (Buffer.byteLength(prompt) > 16 * 1024) throw new Error("Apply handoff exceeds 16 KiB; narrow the group or its global notes before launching a cheap executor");
+	return { prompt, skillTask: [observation.packet.outcome, ...observation.packet.readContext, ...observation.packet.behaviorSeams, ...skills].join("\n") };
 }

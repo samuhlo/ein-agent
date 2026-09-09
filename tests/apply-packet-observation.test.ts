@@ -99,11 +99,12 @@ async function invokeApplyHook(root: string, options: { hasUI?: boolean; appendF
 
 describe("observación viva de apply-packet/v2", () => {
 	test("the selected group becomes the child's current checklist, not another group's plan", () => {
-		const root = project(tasks().replace("  - architecture:", "  - skills: `project-convention`\n  - architecture:"));
+		const root = project(tasks().replace("  - architecture:", "  - skills: `project-convention`\n  - steps: Capture the original before editing; preserve exact status values.\n  - architecture:"));
 		const task = "openspec/changes/demo/tasks.md\napply_group: // 001. Grupo vivo";
 		const first = compileApplyHandoff(root, task)!.prompt;
-		expect(first).toContain('"taskId":"1.1"');
+		expect(first).toContain('"pendingTaskIds":["1.1"]');
 		expect(first).toContain("Group-declared skills: project-convention");
+		expect(first).toContain("Capture the original before editing; preserve exact status values.");
 		expect(first).toContain('"writeAllowlist":["src/demo.ts"]');
 		expect(compileApplyHandoff(root, "legacy task")).toBeUndefined();
 		expect(() => compileApplyHandoff(root, task.replace("Grupo vivo", "Other group"))).toThrow("differs");

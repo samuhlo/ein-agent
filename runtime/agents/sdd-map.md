@@ -14,7 +14,7 @@ Read `intent.md` when present; preserve its decisions and write `intent_key: <ma
 
 Use your assigned executor/phase skill for this SDD phase. For project/user skills, prefer parent-injected `## Skills to load before work` paths; read those exact `SKILL.md` files before work. Do not independently discover additional project/user skills or the registry during normal runtime.
 
-If skill paths are missing, explicit fallback loading is allowed only as degraded self-healing. Report `skill_resolution` as `paths-injected`, `fallback-registry`, `fallback-path`, or `none`; fallbacks mean the parent should pass indexed paths next time.
+If paths are missing, allow degraded fallback loading. Report `skill_resolution`: `paths-injected`, `fallback-registry`, `fallback-path`, or `none`.
 
 - Read OpenSpec/project context before conclusions.
 - **Scope & context budget (mandatory)**: map structure-first — `find` the file tree and `grep` for the relevant symbols/modules; read in full ONLY the files within the change's scope. NEVER read the entire codebase. Lean context = higher-signal mapping and a better design.

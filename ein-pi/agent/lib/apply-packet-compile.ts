@@ -268,6 +268,16 @@ function parseV2Edit(value: string, taskId: string):
  * Conserva el orden de los checkboxes pendientes. Un grupo reanudado no vuelve
  * a incluir pasos ya marcados como completos.
  */
+// Preserve authored instructions the v2 structural schema does not encode (for
+// example ordered substeps), plus global notes. Neighboring work groups stay on
+// disk; completed tasks inside this group remain visibly checked.
+export function applyGroupText(tasksText: string, groupTitle: string): string {
+	const selected = normalizeGroupTitle(groupTitle);
+	const preamble = tasksText.split(GROUP_SPLIT_RE)[0] ?? "";
+	const sections = splitGroups(tasksText).filter((group) => normalizeGroupTitle(group.heading) === selected || v2TaskBlocks(group.body).length === 0);
+	return preamble + sections.map((group) => `## ${group.heading}${group.body}`).join("");
+}
+
 export function applyGroupSkillNames(tasksText: string, groupTitle: string): string[] {
 	const group = splitGroups(tasksText).find((candidate) => normalizeGroupTitle(candidate.heading) === normalizeGroupTitle(groupTitle));
 	return group ? orderedUnion(v2TaskBlocks(group.body).filter((task) => !task.done).flatMap((task) => fieldValues(task.block, "skills"))) : [];
