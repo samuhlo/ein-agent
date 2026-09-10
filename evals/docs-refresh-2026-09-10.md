@@ -29,7 +29,7 @@ Se retiraron procedimientos de recuperación basados en mover hogares completos,
 
 | Comprobación | Resultado |
 | --- | --- |
-| Tests README, detector de drift, informe de drift y fronteras de arquitectura | 33 pass, 0 fail; 164 aserciones. |
+| Tests README, detector e informe de drift, arquitectura y rutas legacy | 40 pass, 0 fail; 240 aserciones. |
 | `bun run --cwd docs-site build` | 24 HTML generados: 22 guías, portada y 404; índice Pagefind y sitemap generados. |
 | Detector `--check-sources` | 22 guías, cero rutas ausentes. |
 | Detector de drift | 22 clean, 0 drifted, 0 unknown. |
@@ -46,8 +46,10 @@ Se retiraron procedimientos de recuperación basados en mover hogares completos,
 Comando de tests:
 
 ```bash
-bun test tests/readme-release-ia.test.ts tests/docs-site-drift-detector.test.ts tests/docs-site-drift-report.test.ts tests/architecture-boundaries.test.ts
+bun test tests/readme-release-ia.test.ts tests/docs-site-drift-detector.test.ts tests/docs-site-drift-report.test.ts tests/architecture-boundaries.test.ts tests/legacy-paths-veto.test.ts
 ```
+
+La primera pasada general de CI dio 3.238 tests correctos y uno fallido: `legacy-paths-veto` exigía la frase antigua que atribuía `ein` al instalador. Se actualizó esa aserción para exigir el dueño del ciclo de vida y su delegación explícita, conservando las comprobaciones de fronteras. La selección local ampliada pasa los 40 tests indicados.
 
 ## Límites
 

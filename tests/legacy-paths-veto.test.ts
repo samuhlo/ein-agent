@@ -82,7 +82,9 @@ describe("estructura canónica de ein-pi", () => {
 		expect(content).toContain("`runtime/` es el contenido propio y portable");
 		expect(content).toContain("`vendor/skills/` deja visible lo externo");
 		expect(content).toContain("`shared/contracts/` contiene lógica sin dependencia de adaptadores");
-		expect(content).toContain("├── installer/      # dueño de `ein`");
+		// La aplicación posee `ein`; el instalador posee su ciclo de vida.
+		expect(content).toContain("├── installer/      # ciclo de vida: ein-install");
+		expect(content).toContain("Los verbos de ciclo de vida los ejecuta `ein-install`");
 	});
 
 	test("el corte portable/runtime es el declarado", () => {
