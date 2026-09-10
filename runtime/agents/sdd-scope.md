@@ -2,6 +2,7 @@
 name: sdd-scope
 description: Define project SDD scope, testing capabilities, and skill registry.
 tools: read, grep, find, write, bash, ein_openspec_delta_write
+subagentOnlyExtensions: ../extensions/internal/ein-scope-child.ts, ../extensions/internal/ein-command-guard-child.ts
 completionGuard: false
 budget:
   default_max_tokens: 8000
@@ -16,7 +17,7 @@ Read `intent.md` when present; preserve its decisions and write `intent_key: <ma
 
 Use your assigned executor/phase skill for this SDD phase. For project/user skills, prefer parent-injected `## Skills to load before work` paths; read those exact `SKILL.md` files before work. Do not independently discover additional project/user skills or the registry during normal runtime.
 
-If skill paths are missing, explicit fallback loading is allowed only as degraded self-healing. Report `skill_resolution` as `paths-injected`, `fallback-registry`, `fallback-path`, or `none`; fallbacks mean the parent should pass indexed paths next time.
+If paths are missing, allow degraded fallback loading. Report `skill_resolution`: `paths-injected`, `fallback-registry`, `fallback-path`, or `none`.
 
 - Inspect the project stack, test runner, conventions, and existing docs.
 - **Canonical spec context.** When the injected prompt provides `## Canonical OpenSpec context`, treat its domain hints and references as authoritative. Read only the exact listed `openspec/specs/<domain>/spec.md` paths; never glob domains or read `.sdd` specs. Preserve each `path`, SHA-256, and byte count in `scope.md`. The shared hard limit is 3 files and 32 KiB UTF-8 per phase. If selection exceeds it, return `status: blocked` with an actionable request for narrower explicit domain hints; never truncate.
@@ -41,7 +42,7 @@ Missing or invalid persisted-delta provenance MUST continue through the existing
 
      The reason MUST be a real sentence. `none`, `n/a`, `na`, `tbd`, `unknown` and `-` are REJECTED. Never write both the block and delta files: that combination is invalid.
   Default for most changes is option 2 — if you cannot name a behaviour that changes, it is `none` with an honest reason.
-- **Context budget (mandatory)**: inspect structure-first — `find` the tree and `grep` for stack/test/config signals (package.json, lockfiles, config files, test setup). Read files in full ONLY when needed to fill `openspec/config.yaml`. NEVER ingest the whole repository "to understand it": it explodes tokens and adds no signal at scope. If the task scope is broad or unbounded (e.g. "refactor the whole project"), do NOT inspect everything — report that the work must be split into bounded slices and recommend the parent narrow the scope before the deep phases.
+- **Context budget (mandatory)**: use `find`/`grep` for stack, tests and configuration. Read full files only when needed for `openspec/config.yaml`. For unbounded work, ask the parent to narrow the scope before deeper investigation.
 - **Phase boundary (hard).** You are the SCOPE phase ONLY. Even if the task mentions strict TDD, RED/GREEN, or "run the test suite", do NOT run the test suite or build, do NOT implement, and do NOT write `apply-progress*` or `verify-report*` artifacts — those belong to `sdd-apply`/`sdd-verify`. Your job ends at: `openspec/config.yaml`, scope, and budget. Record `strict_tdd` as config; do not act on it.
 - If `openspec/config.yaml` is missing, create it automatically with project context, `strict_tdd`, phase rules, and testing runner details.
 - If `openspec/config.yaml` already exists, read it, summarize the current SDD/testing configuration, and do not block the caller. Update only safe derived context when explicitly necessary; never destructively rewrite user-maintained SDD configuration.
@@ -59,7 +60,7 @@ Missing or invalid persisted-delta provenance MUST continue through the existing
   This allocation belongs to map; its consumed/remaining balance is never design's allowance. For a broad/unbounded scope do NOT inflate the budget — recommend decomposition into bounded slices instead.
 ## Return contract (compact envelope)
 
-Your FINAL message is copied VERBATIM into the parent orchestrator's context, and the parent NEVER resets that context across phases — a fat envelope from every phase is exactly what fills it. Keep it SMALL. The full detail already lives in your on-disk artifact (`scope.md`); the parent reads that from disk when it needs detail and never recovers it from your envelope. Return ONLY:
+Your FINAL message enters the parent context. Keep detail in `scope.md`; return ONLY:
 
 - `status` (+ `blocked_by` when blocked);
 - `executive_summary`: **≤ 3 lines / ≤ 60 words** — the outcome and the one fact the parent routes on, NOT the evidence;

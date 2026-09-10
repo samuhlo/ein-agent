@@ -18,9 +18,17 @@ export type IntentAgreement = {
 	revision: string;
 };
 
+export function inspectArtifactIntentKey(source: string, key: string): "current" | "missing" | "malformed" | "duplicate" | "stale" {
+	const lines = source.replaceAll("\r\n", "\n").split("\n").filter((line) => /^[ \t]*(?:[-*][ \t]+)?intent_key:/.test(line));
+	if (!lines.length) return "missing";
+	if (lines.length !== 1) return "duplicate";
+	const declaration = lines[0]!.match(/^[ \t]*(?:[-*][ \t]+)?intent_key:[ \t]*`?(sha256:[a-f0-9]{64})`?[ \t]*$/);
+	if (!declaration) return "malformed";
+	return declaration[1] === key ? "current" : "stale";
+}
+
 export function artifactHasIntentKey(source: string, key: string): boolean {
-	const declarations = [...source.matchAll(/^[ \t]*(?:[-*][ \t]+)?intent_key:[ \t]*`?(sha256:[a-f0-9]{64})`?[ \t]*$/gm)];
-	return declarations.length === 1 && declarations[0]![1] === key;
+	return inspectArtifactIntentKey(source, key) === "current";
 }
 
 export function validateAgreement(value: unknown): IntentAgreement {

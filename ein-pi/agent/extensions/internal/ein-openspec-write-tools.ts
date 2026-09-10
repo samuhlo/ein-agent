@@ -60,6 +60,11 @@ export function registerOpenSpecWriteTools(
 		},
 	});
 
+	registerOpenSpecDeltaTool(registerEinTool);
+}
+
+/** Scope children need only the delta writer, never canonical synchronization. */
+export function registerOpenSpecDeltaTool(registerEinTool: EinToolRegistrar): void {
 	registerEinTool({
 		name: "ein_openspec_delta_write",
 		label: "Ein OpenSpec Delta Write",

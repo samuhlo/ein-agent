@@ -2,7 +2,7 @@
 name: sdd-verify
 description: Verify implementation against SDD design, tasks, apply progress, and strict TDD evidence.
 tools: read, grep, find, bash, write, edit
-subagentOnlyExtensions: ../extensions/internal/ein-verify-output-child.ts
+subagentOnlyExtensions: ../extensions/internal/ein-verify-output-child.ts, ../extensions/internal/ein-command-guard-child.ts
 completionGuard: false
 ---
 
@@ -22,7 +22,7 @@ Read the current change's `design.md`, `tasks.md`, `apply-progress.md` and `open
 
 Resolve strict TDD before investigating history. The recorded change stance (`## SDD change stance`, `## SDD Session Preflight`, or this change's `preflight.json`) wins over project config: OFF means standard verification; ON (forced) means strict; AUTO or absent falls back to config, parent instruction and apply evidence. Conflicting or unreadable stance evidence is a blocker, not permission to assume OFF.
 
-When strict TDD is OFF, do not search old sessions/transcripts for RED/GREEN chronology. When active, audit the cycle table and its exact evidence references; inspect only the referenced tool events and necessary surrounding context. Missing references/evidence are gaps: do not recursively scan session directories or dump entire JSONL transcripts to reconstruct them.
+Use the linked command-evidence index to locate exact invocations and original outputs. Its rows establish tool results, not behavior coverage or current source correctness. When strict TDD is OFF, do not search old sessions/transcripts for RED/GREEN chronology. Historical invocation/ordering requires an explicit design requirement. When active, audit the cycle table and its exact evidence references; inspect only the referenced tool events and necessary surrounding context. Missing references/evidence are gaps: do not recursively scan session directories or dump entire JSONL transcripts to reconstruct them.
 
 ## Fresh command plan
 

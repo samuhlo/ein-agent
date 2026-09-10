@@ -2,6 +2,7 @@
 name: sdd-map
 description: Map an SDD change idea before the design phase.
 tools: read, grep, find, write, bash
+subagentOnlyExtensions: ../extensions/internal/ein-command-guard-child.ts
 completionGuard: false
 ---
 

@@ -50,8 +50,15 @@ describe("packaged Cleaner runtime closure", () => {
       expect(child.handlers).toEqual([]);
       expect(child.evidence.version).toBe("cleaner-operational-evidence/v1");
       expect(child.evidence.audit.files.map((file) => file.path)).toEqual(["src/sample.ts"]);
+      const phases = JSON.parse(execFileSync("bun", [join(ROOT, "tests/fixtures/phase-child-probe.ts"), payload, project, home], {
+        cwd: project, encoding: "utf8", timeout: 15_000,
+        env: { ...process.env, PI_CODING_AGENT_DIR: home, EIN_PI_AGENT_HOME: home, PI_OFFLINE: "1" },
+      })) as Array<{ role: string; active: string[]; protectedCommand?: { block: boolean } }>;
+      expect(phases.map((phase) => phase.role)).toEqual(["scope", "map", "design", "tasks", "apply", "verify", "close"]);
+      for (const phase of phases) if (phase.active.includes("bash")) expect(phase.protectedCommand?.block).toBe(true);
+
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 });
