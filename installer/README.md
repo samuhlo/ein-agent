@@ -33,7 +33,7 @@ ein restore    # restaura desde un backup
 
 Flags: `--yes` (no interactivo), `--dry-run` (muestra el plan sin ejecutar nada),
 `--runtime <pi|both>` (Ein o Ein + Claude), `--no-engram`,
-`--no-secrets`, `--no-linear`, `--no-hypa`, `--no-codegraph`.
+`--no-secrets`, `--no-linear`, `--no-codegraph`.
 
 ## Backups
 

@@ -21,6 +21,12 @@ function touch(rel: string): void {
 }
 
 describe("cleanManagedDirs", () => {
+  test("retires installed compressor code without deleting personal state", () => {
+    for (const file of ["lib/hypa.ts", "lib/headroom.ts", "extensions/ein-headroom.ts", "hypa.json", "auth.json"]) touch(file);
+    cleanManagedDirs(DIR);
+    for (const file of ["lib/hypa.ts", "lib/headroom.ts", "extensions/ein-headroom.ts"]) expect(existsSync(join(DIR, file))).toBe(false);
+    for (const file of ["hypa.json", "auth.json"]) expect(existsSync(join(DIR, file))).toBe(true);
+  });
 	beforeEach(() => {
 		rmSync(DIR, { recursive: true, force: true });
 		mkdirSync(DIR, { recursive: true });

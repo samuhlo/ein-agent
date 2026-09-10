@@ -88,7 +88,7 @@ function readStringPath(value: unknown, path: string[]): string | undefined {
 }
 
 export function readAgentStartNames(event: unknown): string[] {
-	return [
+	const explicit = [
 		readStringPath(event, ["agentName"]),
 		readStringPath(event, ["agent"]),
 		readStringPath(event, ["name"]),
@@ -98,6 +98,12 @@ export function readAgentStartNames(event: unknown): string[] {
 		.filter((value): value is string => value !== undefined)
 		.map((value) => value.trim())
 		.filter((value) => value.length > 0);
+	if (explicit.length) return explicit;
+	// Native Pi emits prompt text without agentName; recognize only our role
+	// declaration, not a phase mentioned elsewhere in the task.
+	const prompt = readStringPath(event, ["systemPrompt"]) ?? "";
+	const role = prompt.match(/^You are (?:the |an? )?(?:independent )?SDD (scope|map|design|tasks|apply|verify|close) executor\b/im)?.[1];
+	return role ? [`sdd-${role.toLowerCase()}`] : [];
 }
 
 export function isSddAgentStartEvent(event: unknown): boolean {

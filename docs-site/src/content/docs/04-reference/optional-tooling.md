@@ -65,20 +65,10 @@ Funciona, gasta más presupuesto.
 
 **Flag:** `--no-codegraph`.
 
-## Hypa
-
-**Qué aporta.** Capacidades adicionales de análisis.
-
-**Cuándo se usa.** Puntualmente, y no forma parte del flujo SDD.
-
-**Sin ella.** Nada del flujo depende de esto.
-
-**Flag:** `--no-hypa`.
-
 ## Instalar sin ninguna
 
 ```bash
-ein-install install --runtime pi --no-engram --no-linear --no-codegraph --no-hypa --no-secrets
+ein-install install --runtime pi --no-engram --no-linear --no-codegraph --no-secrets
 ```
 
 Instalación mínima: el núcleo, los agentes de fase y el flujo SDD. Es una

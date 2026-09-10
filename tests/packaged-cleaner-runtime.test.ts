@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -24,6 +24,12 @@ describe("packaged Cleaner runtime closure", () => {
       execFileSync("git", ["init", "-q"], { cwd: project }); execFileSync("git", ["config", "user.email", "fixture@example.com"], { cwd: project }); execFileSync("git", ["config", "user.name", "Fixture"], { cwd: project }); execFileSync("git", ["add", "."], { cwd: project }); execFileSync("git", ["commit", "-qm", "fixture"], { cwd: project });
       execFileSync("bun", ["run", join(ROOT, "installer/scripts/bundle-template.ts")], { cwd: ROOT, env: { ...process.env, EIN_TEMPLATE_OUT: archive, EIN_APP_BINARY: app, EIN_APP_TARGET: "test-target" } });
       execFileSync("tar", ["-xzf", archive, "-C", payload]);
+      for (const file of ["lib/hypa.ts", "lib/headroom.ts", "extensions/ein-headroom.ts"]) {
+        expect(existsSync(join(payload, file))).toBe(false);
+      }
+      mkdirSync(join(project, ".pi/ein"), { recursive: true });
+      writeFileSync(join(project, ".pi/ein/hypa.json"), '{"mode":"on"}');
+      writeFileSync(join(project, ".pi/ein/headroom.json"), '{"version":1,"mode":"on"}');
       const manifest = JSON.parse(readFileSync(join(payload, "template-manifest.json"), "utf8")) as { runtimeDependencies: Array<{ name: string; version: string; path: string; sha256: string }> };
       const runtime = manifest.runtimeDependencies[0]!;
       expect(runtime).toMatchObject({ name: "typescript", version: "5.9.3", path: "lib/vendor/typescript/typescript.js" });
@@ -50,8 +56,15 @@ describe("packaged Cleaner runtime closure", () => {
       expect(child.handlers).toEqual([]);
       expect(child.evidence.version).toBe("cleaner-operational-evidence/v1");
       expect(child.evidence.audit.files.map((file) => file.path)).toEqual(["src/sample.ts"]);
+      const phases = JSON.parse(execFileSync("bun", [join(ROOT, "tests/fixtures/phase-child-probe.ts"), payload, project, home], {
+        cwd: project, encoding: "utf8", timeout: 15_000,
+        env: { ...process.env, PI_CODING_AGENT_DIR: home, EIN_PI_AGENT_HOME: home, PI_OFFLINE: "1" },
+      })) as Array<{ role: string; active: string[]; protectedCommand?: { block: boolean } }>;
+      expect(phases.map((phase) => phase.role)).toEqual(["scope", "map", "design", "tasks", "apply", "verify", "close"]);
+      for (const phase of phases) if (phase.active.includes("bash")) expect(phase.protectedCommand?.block).toBe(true);
+
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 });

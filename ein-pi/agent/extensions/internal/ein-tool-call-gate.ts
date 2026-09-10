@@ -31,12 +31,11 @@ import {
 	readGitDeliveryMode,
 } from "../../lib/git-delivery.ts";
 import { t } from "../../lib/i18n/strings.ts";
-import { maybeWrapBashInput } from "../../lib/hypa.ts";
 import {
-	confirmCommand,
 	confirmDelegatedDelivery,
 } from "../../lib/guardrails.ts";
-import { evaluateStaging } from "../../lib/git-staging.ts";
+import { compileApplyHandoff } from "../../lib/apply-packet-handoff.ts";
+import { guardChildCommand } from "./ein-command-guard-child.ts";
 import {
 	normalizeScoutLaunch,
 	type ScoutTracking,
@@ -166,6 +165,10 @@ export function registerToolCallGate(
 					observation.status === "executable" ? "info" : "warning",
 				);
 			}
+			if (isRecord(event.input) && event.input.agent === "sdd-apply" && typeof event.input.task === "string") {
+				try { compileApplyHandoff(ctx.cwd, event.input.task); }
+				catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
+			}
 			ensurePlanningAcceptance(event.input);
 			ensureApplyAcceptance(event.input);
 			ensureApplyTurnBudget(event.input);
@@ -190,13 +193,8 @@ export function registerToolCallGate(
 		if (!isRecord(event.input) || typeof event.input.command !== "string") {
 			return undefined;
 		}
-		const guard = await confirmCommand(event.input.command, ctx);
+		const guard = await guardChildCommand(event, ctx);
 		if (guard) return guard;
-		const staging = evaluateStaging(ctx.cwd, event.input.command);
-		if (staging.kind === "blocked") {
-			return { block: true, reason: staging.reason };
-		}
-		maybeWrapBashInput(event.input as { command: string }, ctx.cwd);
 		return undefined;
 	});
 

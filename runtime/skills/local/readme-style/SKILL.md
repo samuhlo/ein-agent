@@ -1,6 +1,6 @@
 ---
 name: readme-style
-description: "Samuhlo's README style: Swiss Grid Brutalism — script-run H1, numbered // sections, honest _note: margins, stack table with real tech only. Load when generating or refreshing a project README."
+description: "Samuhlo's README style: Swiss Grid Brutalism — script-run H1, numbered // sections, honest _note: margins, stack table with real tech only. Load when generating or refreshing a project README. Trigger: README."
 license: internal
 metadata:
   author: samuhlo

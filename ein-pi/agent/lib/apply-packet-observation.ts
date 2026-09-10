@@ -21,9 +21,9 @@ function sha256(text: string): string {
 }
 
 /** Observe el próximo grupo sin convertir incertidumbre en una elección. */
-export function observeNextApplyPacket(cwd: string): ApplyPacketObservation {
+export function observeNextApplyPacket(cwd: string, change?: string): ApplyPacketObservation {
 	try {
-		const status = resolveSddStatus(cwd);
+		const status = resolveSddStatus(cwd, change);
 		if (status.selection.kind === "ambiguous") {
 			return {
 				status: "unavailable",

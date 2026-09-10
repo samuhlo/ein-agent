@@ -151,6 +151,8 @@ const STOPWORDS = new Set([
   "users", "work", "works", "project", "projects", "file", "files", "code",
   "app", "apps", "web", "build", "building", "create", "creating", "add",
   "adding", "task", "tasks", "modern", "best", "practices",
+  "apply", "edit", "editing", "implement", "implementing", "implementation",
+  "write", "writing", "read", "reading", "testing", "appropriate", "concise", "maintainable", "where",
 ]);
 
 function tokenize(text: string): string[] {
@@ -168,8 +170,8 @@ function tokenize(text: string): string[] {
 export function extractTriggers(description: string): string[] {
   const lower = description.toLowerCase();
   const clause =
-    lower.match(/triggers?\s*[:—-]\s*([^.]*)/)?.[1] ??
-    lower.match(/\buse (?:when|it when|this skill (?:when|for)|for)\s+([^.]*)/)?.[1] ??
+    lower.match(/triggers?\s*[:—-]\s*((?:\.(?=\w)|[^.])*)/)?.[1] ??
+    lower.match(/\buse (?:when|it when|this skill (?:when|for)|for)\s+((?:\.(?=\w)|[^.])*)/)?.[1] ??
     "";
   const declared = tokenize(clause);
   return (declared.length ? declared : tokenize(description)).slice(0, 12);
@@ -265,17 +267,19 @@ function detectStackFromTask(task: string): "node" | "frontend" | "fullstack" | 
   return "unknown";
 }
 
-function scoreSkill(entry: SkillEntry, task: string, taskTokens: Set<string>, stack: "node" | "frontend" | "fullstack" | "unknown"): number {
-  const lowerTask = task.toLowerCase();
-  const mentions = (name: string): boolean => {
+function mentionsSkillName(lowerTask: string, name: string): boolean {
     if (!name) return false;
     const escaped = name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp(`(?:^|[^a-z0-9_])${escaped}(?=$|[^a-z0-9_])`).test(lowerTask);
-  };
+}
+
+function scoreSkill(entry: SkillEntry, task: string, taskTokens: Set<string>, stack: "node" | "frontend" | "fullstack" | "unknown"): number {
+  const lowerTask = task.toLowerCase();
+
   let score = 0;
   // Name/key are the most precise signal: an exact mention of the skill.
-  if (mentions(entry.name)) score += 6;
-  if (mentions(entry.key)) score += 4;
+  if (mentionsSkillName(lowerTask, entry.name)) score += 6;
+  if (mentionsSkillName(lowerTask, entry.key)) score += 4;
   // Declared triggers, matched as whole words (not substrings, so "api" doesn't
   // hit "rapid"). This is the author's intent, now clean of file noise.
   for (const trigger of entry.triggers) {
@@ -297,10 +301,11 @@ export function resolveSkills(registry: SkillEntry[], task: string, explicitStac
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
 
-  const unique = new Map<string, SkillEntry>();
+  const explicit = scored.filter(({ entry }) => mentionsSkillName(task.toLowerCase(), entry.name) || mentionsSkillName(task.toLowerCase(), entry.key));
+  const unique = new Map<string, SkillEntry>(explicit.map(({ entry }) => [entry.key, entry]));
   for (const item of scored) {
-    if (!unique.has(item.entry.key)) unique.set(item.entry.key, item.entry);
     if (unique.size >= limit) break;
+    if (!unique.has(item.entry.key)) unique.set(item.entry.key, item.entry);
   }
   return [...unique.values()];
 }
@@ -413,11 +418,23 @@ export function codeConventionSkillBlock(cwd: string): string {
   ].join("\n");
 }
 
+// Discovery tools may suggest broad matches for a thinker to assess. Automatic
+// loading needs stronger evidence: a named skill/technology, an author's explicit
+// Trigger clause, or a project-owned convention. A word such as "tests" in a
+// conditional description is not permission to load every test framework.
+export function resolvePhaseSkills(registry: SkillEntry[], task: string, limit = 6): SkillEntry[] {
+  const lower = task.toLowerCase();
+  const candidates = registry.filter((entry) => entry.scope === "project"
+    || mentionsSkillName(lower, entry.name) || mentionsSkillName(lower, entry.key)
+    || /\btriggers?\s*[:—-]/i.test(entry.description));
+  return resolveSkills(candidates, task, undefined, limit);
+}
+
 // Deterministic skill injection for subagents.
 // Called by the orchestrator (ein-ai before_agent_start) so phase/named
 // agents receive exact SKILL.md paths instead of relying on the parent
 // model to ask. Convention skills are filtered out (see CODE_CONVENTION_KEYS).
-export function resolveSkillInjection(cwd: string, task: string, limit = 6): string {
+export function resolveSkillInjection(cwd: string, task: string, limit = 6, agent?: string): string {
   const cleanTask = (task ?? "").trim();
   if (!cleanTask) return "";
   let registry: SkillEntry[] = [];
@@ -427,7 +444,8 @@ export function resolveSkillInjection(cwd: string, task: string, limit = 6): str
     registry = [];
   }
   const linear = readLinearIntegration(cwd);
-  const resolved = resolveSkills(registry, cleanTask, undefined, limit).filter(
+  const candidates = registry.filter((skill) => !(agent?.startsWith("sdd-") && skill.key === "intent-channel" && !cleanTask.includes("intent-channel")));
+  const resolved = resolvePhaseSkills(candidates, cleanTask, limit).filter(
     (skill) =>
       !CODE_CONVENTION_KEYS.includes(skill.key) &&
       skillAllowedWithLinear(skill.key, linear),

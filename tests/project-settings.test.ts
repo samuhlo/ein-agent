@@ -6,7 +6,7 @@
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -45,9 +45,18 @@ function valueOf(id: string): string | undefined {
 }
 
 describe("the catalogue covers what init configures", () => {
+  test("old compressor files neither activate settings nor become writable options", () => {
+    const dir = join(cwd, ".pi/ein"); mkdirSync(dir, { recursive: true });
+    for (const id of ["hypa", "headroom"]) {
+      const path = join(dir, id + ".json"), content = '{"mode":"on"}'; writeFileSync(path, content);
+      expect(readSettings(cwd).some((setting) => setting.id === id)).toBe(false);
+      expect(applySetting(cwd, id, "on")).toBe(false);
+      expect(readFileSync(path, "utf8")).toBe(content);
+    }
+  });
   test("every setting init writes is present", () => {
     const ids = SETTING_DEFINITIONS.map((definition) => definition.id).sort();
-    expect(ids).toEqual(["agents", "chat-lang", "codegraph", "hypa", "lang", "linear", "persona", "tdd"]);
+    expect(ids).toEqual(["agents", "chat-lang", "codegraph", "lang", "linear", "persona", "tdd"]);
   });
 
   test("every setting declares at least two values to cycle between", () => {

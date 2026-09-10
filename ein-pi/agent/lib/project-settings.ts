@@ -7,7 +7,6 @@
 
 import { readLinearIntegration, writeLinearIntegration, type LinearIntegration } from "./linear-integration.ts";
 import { readTddMode, writeTddMode, type TddMode } from "./tdd.ts";
-import { readHypaMode, writeHypaMode, type HypaMode } from "./hypa.ts";
 import { readCodegraphMode, writeCodegraphMode, type CodegraphMode } from "./codegraph.ts";
 import { readPersonaMode, writePersonaMode, type PersonaMode } from "./persona.ts";
 import {
@@ -55,7 +54,6 @@ function accepted<T extends string>(options: readonly T[], value: string): T | u
 
 const LINEAR_STATES: readonly LinearIntegration[] = ["off", "on"];
 const TDD_MODES: readonly TddMode[] = ["auto", "strict", "ask", "off"];
-const HYPA_MODES: readonly HypaMode[] = ["auto", "on", "off"];
 const CODEGRAPH_MODES: readonly CodegraphMode[] = ["on", "off"];
 const PERSONA_MODES: readonly PersonaMode[] = ["samuhlo", "neutral"];
 // Solo los tres perfiles soportados son elegibles. La lectura puede devolver
@@ -73,7 +71,6 @@ const ARTIFACT_LANGS: readonly string[] = ["auto", ...ACTIVE_LANGS];
 const VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   linear: { off: "apagada", on: "encendida" },
   tdd: { auto: "auto", strict: "estricto", ask: "preguntar", off: "off" },
-  hypa: { auto: "auto", on: "on", off: "off" },
   codegraph: { on: "on (ofrece indexar)", off: "off" },
   persona: { samuhlo: "samuhlo", neutral: "neutral" },
   agents: {
@@ -153,17 +150,6 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = Object.freeze([
     write: (cwd, value) => {
       const mode = accepted(TDD_MODES, value);
       if (mode) writeTddMode(cwd, mode);
-    },
-  },
-  {
-    id: "hypa",
-    label: "Hypa",
-    hint: pick("compresión de contexto", "context compression"),
-    options: HYPA_MODES,
-    read: (cwd) => readHypaMode(cwd),
-    write: (cwd, value) => {
-      const mode = accepted(HYPA_MODES, value);
-      if (mode) writeHypaMode(cwd, mode);
     },
   },
   {

@@ -15,7 +15,7 @@
 // proyecto quiere el grafo, y cuando falta el índice Ein OFRECE crearlo en vez
 // de callarse. El modo antiguo `auto` significaba "solo si ya está indexado",
 // que en un proyecto que nunca lo arrancó era un no permanente sin salida; se
-// lee como `on` para no romper la config existente. Calcado de tdd.ts/hypa.ts.
+// lee como `on` para no romper la config existente. Calcado de tdd.ts.
 // =============================================================================
 
 import { execFileSync } from "node:child_process";

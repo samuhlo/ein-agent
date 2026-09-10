@@ -1,0 +1,103 @@
+{
+  "hypaVersion": "0.1.14",
+  "piVersion": "0.85.1",
+  "tokenizer": "o200k_base",
+  "baselineIntegrationCommit": "26811b4",
+  "modelRuns": 0,
+  "resolvedBinary": "/opt/homebrew/bin/hypa",
+  "rows": [
+    {
+      "case": "small-diff",
+      "command": "git diff fa48bbd^ fa48bbd -- ein-pi/agent/lib/apply-packet-compile.ts",
+      "piTokens": 326,
+      "hypaTokensIncludingFooter": 332,
+      "reductionPercent": -1.84,
+      "ms": [
+        30.3,
+        502.1
+      ],
+      "failed": [
+        false,
+        false
+      ],
+      "finalAutomaticWrap": false,
+      "originalChangedLines": 7,
+      "preservedChangedLines": 7,
+      "missingChangedLines": 0,
+      "originalSha256": "e99738452e17a6999c0025f9ca21f4ec3f5e70533964ba0136c78997fe21f135"
+    },
+    {
+      "case": "large-diff",
+      "command": "git diff b9e6959 26811b4 -- ein-pi",
+      "piTokens": 13351,
+      "hypaTokensIncludingFooter": 6029,
+      "reductionPercent": 54.84,
+      "ms": [
+        26.6,
+        229.9
+      ],
+      "failed": [
+        false,
+        false
+      ],
+      "finalAutomaticWrap": false,
+      "originalChangedLines": 1156,
+      "preservedChangedLines": 208,
+      "missingChangedLines": 948,
+      "originalSha256": "a18f09373265958382629cf8674a7815c9bd5fe29ab6926e24c555a070ff3694"
+    },
+    {
+      "case": "history",
+      "command": "git log -150 --oneline 26811b4",
+      "piTokens": 3081,
+      "hypaTokensIncludingFooter": 2095,
+      "reductionPercent": 32.0,
+      "ms": [
+        25.6,
+        208.1
+      ],
+      "failed": [
+        false,
+        false
+      ],
+      "finalAutomaticWrap": true,
+      "commits": [
+        150,
+        100
+      ]
+    },
+    {
+      "case": "failure",
+      "command": "git show ein-nonexistent-ref-20260909",
+      "piTokens": 62,
+      "hypaTokensIncludingFooter": 62,
+      "reductionPercent": 0.0,
+      "ms": [
+        7.6,
+        199.8
+      ],
+      "failed": [
+        true,
+        true
+      ],
+      "finalAutomaticWrap": false
+    },
+    {
+      "case": "bun-test",
+      "command": "bun test tests/apply-packet-v2-compile.test.ts",
+      "piTokens": 259,
+      "hypaTokensIncludingFooter": 259,
+      "reductionPercent": 0.0,
+      "ms": [
+        53.8,
+        32.5
+      ],
+      "failed": [
+        false,
+        false
+      ],
+      "finalAutomaticWrap": false
+    }
+  ],
+  "interpretation": "Command-output replay, not total flow cost. Experimental old Hypa wrapper used for diff/show; final integration deliberately leaves these commands native. Hypa footer savings exclude its own footer; counts here include it. Headroom comparison reuses earlier evidence, no service or model run added."
+}

@@ -75,7 +75,7 @@ const NEGATABLE_DELIVERY_VERBS =
 // "no hagas push" niega push; "no toques los tests y haz push" NO lo niega —
 // ese "no" negaba otra cosa. Antes una negación cualquiera cancelaba TODO el
 // texto y bloqueaba entregas legítimas ("abre PR pero no hagas merge").
-const DELIVERY_NEGATION_SOURCE = `\\b(?:no|don'?t|do\\s+not|never|nunca|without|sin(?:\\s+hacer)?)\\b[^.,;\\n]{0,16}?\\b(?:${NEGATABLE_DELIVERY_VERBS})\\b`;
+const DELIVERY_NEGATION_SOURCE = `\\b(?:no|ni|don'?t|do\\s+not|never|nunca|without|sin(?:\\s+hacer)?)\\b[^.,;\\n]{0,16}?\\b(?:${NEGATABLE_DELIVERY_VERBS})\\b`;
 const DELIVERY_NEGATION_TEST = new RegExp(DELIVERY_NEGATION_SOURCE, "i");
 const DELIVERY_NEGATION_STRIP = new RegExp(DELIVERY_NEGATION_SOURCE, "gi");
 
