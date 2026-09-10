@@ -1,11 +1,13 @@
 import * as p from "../tui/ui.ts";
 import { dirname, join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { INSTALLER_COMMAND, promoteCommandNames } from "../core/command-names.ts";
 import { detectPlatform, type Platform } from "../core/platform.ts";
 import { installDeclaredPackages, installPi, refreshExternalTools, type InstallStep } from "../core/deps.ts";
 import { AGENT_DIR, INSTALL_MARKER } from "../core/paths.ts";
 import { parseSelector } from "../core/release-resolver.ts";
-import { isReleaseChannel, type ReleaseChannel, type ReleaseSelector, type UpdateOutcome } from "../core/release-types.ts";
+import { isReleaseChannel, type ReleaseChannel, type ReleaseSelector, type ReleaseTag, type UpdateOutcome } from "../core/release-types.ts";
+import { INSTALLER_VERSION } from "../core/version.ts";
 import { readReleaseChannelPreference, writeReleaseChannelPreference } from "../core/release-channel-preference.ts";
 import { recoverPendingTransaction, runUpdateTransaction } from "../core/transaction.ts";
 import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
@@ -41,7 +43,7 @@ export type UpdateRunDependencies = {
   confirmExternalToolsUpdate?: () => Promise<boolean>;
   // Deps externas opcionales (engram/codegraph): binarios fuera de la
   // transacción de Ein que envejecen en silencio. Este hook las refresca tras un
-  // update exitoso; el default refresca las presentes de verdad.
+  // proceso ya instalado. Tras un reemplazo, la política pertenece al hijo nuevo.
   refreshExternalTools?: () => Promise<InstallStep[]>;
   promote?: typeof promoteCommandNames;
 };
@@ -177,7 +179,11 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
   // latest tags after every successful, non-dry-run Ein update.
   let runtimeLatest = true;
   if (rendered.exitCode === 0 && !flags.dryRun) {
-    runtimeLatest = await refreshPi(flags, dependencies, write);
+    const installed = (outcome.type === "updated" || outcome.type === "already-current")
+      && (outcome.type === "updated" || outcome.release.release.tag !== `installer-v${INSTALLER_VERSION}`)
+      ? { candidatePath: destinationPath, releaseTag: outcome.release.release.tag, caps }
+      : undefined;
+    runtimeLatest = await refreshPi(flags, dependencies, write, installed);
     // `ein` is the terminal app and `ein-install` is this binary. Promoting on
     // every successful update is what migrates a machine still on the old
     // layout, where `ein` was the installer, in a single step.
@@ -250,6 +256,7 @@ async function refreshPi(
   flags: UpdateFlags,
   dependencies: UpdateRunDependencies,
   write: (line: string) => void,
+  installed?: { candidatePath: string; releaseTag: ReleaseTag; caps: UpdateCaps },
 ): Promise<boolean> {
   const interactive = dependencies.interactive !== false;
   const updatePi = dependencies.updatePi ?? installPi;
@@ -286,7 +293,7 @@ async function refreshPi(
       : interactive
         ? await confirmExternalToolsUpdate()
         : false;
-  if (refreshExternal) await refreshExternalDeps(dependencies, write);
+  if (refreshExternal) await refreshExternalDeps(dependencies, write, installed);
   return pi.ok && pkgs.ok;
 }
 
@@ -299,12 +306,20 @@ async function refreshPi(
 async function refreshExternalDeps(
   dependencies: UpdateRunDependencies,
   write: (line: string) => void,
+  installed?: { candidatePath: string; releaseTag: ReleaseTag; caps: UpdateCaps },
 ): Promise<void> {
   const interactive = dependencies.interactive !== false;
-  const refresh = dependencies.refreshExternalTools
-    ?? (() => refreshExternalTools(detectPlatform()));
+  // Replacing an executable does not replace the running process. Once a new
+  // version is installed, only that binary owns its optional-tool policy.
+  const refresh = installed
+    ? async (): Promise<InstallStep[]> => {
+      const result = await spawnContinuation({ ...installed, txId: randomUUID(), runtimeSurfaces: "external-tools" });
+      if (!result.ok) return [{ ok: false, detail: `Herramientas externas: no se pudo usar la política del instalador nuevo (${result.error.message}); no se ejecuta la anterior.` }];
+      return result.value.externalTools!;
+    }
+    : dependencies.refreshExternalTools ?? (() => refreshExternalTools(detectPlatform()));
   const spinner = interactive ? p.spinner() : null;
-  spinner?.start("Actualizando herramientas externas (engram, codegraph)");
+  spinner?.start("Revisando herramientas externas de la versión instalada");
   let steps: InstallStep[];
   try {
     steps = await refresh();
@@ -329,7 +344,7 @@ async function refreshExternalDeps(
 }
 
 async function confirmExternalToolsUpdate(): Promise<boolean> {
-  const response = await p.confirm({ message: "Actualizar también las herramientas externas presentes (engram/codegraph)?" });
+  const response = await p.confirm({ message: "Actualizar también las herramientas externas presentes de la versión instalada?" });
   return p.isCancel(response) ? false : response;
 }
 

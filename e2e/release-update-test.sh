@@ -80,13 +80,44 @@ ein-install --version | grep -Fq "ein-installer $source_version"
 seed_preserved_state
 assert_preserved_state
 
+# Make the removed tool observable without installing it or running its updater.
+# Older published callers may still execute their old post-update policy once.
+export EIN_TEST_RETIRED_TOOL_AUDIT="$HOME/retired-tools-first-update.log"
+: >"$EIN_TEST_RETIRED_TOOL_AUDIT"
+cat >"$HOME/.local/bin/hypa" <<'SPY'
+#!/bin/sh
+printf '%s\n' 'hypa-cli' >>"$EIN_TEST_RETIRED_TOOL_AUDIT"
+printf '%s\n' 'retired-tool-fixture'
+SPY
+cat >"$HOME/.local/bin/curl" <<'SPY'
+#!/bin/sh
+case "$*" in
+  *hypabolic.github.io/Hypa/*|*github.com/Hypabolic/Hypa/*)
+    printf '%s\n' 'hypa-installer' >>"$EIN_TEST_RETIRED_TOOL_AUDIT"
+    printf '%s\n' 'exit 0'
+    exit 0 ;;
+esac
+exec /usr/bin/curl "$@"
+SPY
+chmod +x "$HOME/.local/bin/hypa" "$HOME/.local/bin/curl"
+
 echo "/// release-update: $source_tag -> $target_tag"
 ein-install update --yes "$target_tag"
 ein-install --version | grep -Fq "ein-installer $target_version"
 grep -Fq "\"version\": \"$target_version\"" "$marker"
 grep -Fq '"channel": "alpha"' "$marker"
 assert_preserved_state
+for retired in lib/hypa.ts lib/headroom.ts extensions/ein-headroom.ts; do
+  test ! -e "$HOME/.pi-ein/agent/$retired" || { echo "[assert] compresor retirado en runtime: $retired" >&2; exit 1; }
+done
+echo "LEGACY_CALLER_RETIRED_TOOL_CALLS=$(wc -l <"$EIN_TEST_RETIRED_TOOL_AUDIT" | tr -d ' ')"
+# The installed version must not maintain the retired tool, even when present.
+export EIN_TEST_RETIRED_TOOL_AUDIT="$HOME/retired-tools-installed-version.log"
+: >"$EIN_TEST_RETIRED_TOOL_AUDIT"
+ein-install update --yes "$target_tag"
+assert_preserved_state
 ein-install doctor
+test ! -s "$EIN_TEST_RETIRED_TOOL_AUDIT" || { echo "[assert] la versión instalada invocó Hypa" >&2; exit 1; }
 
 echo "E2E_RELEASE_UPDATE_RESULT=OK:$source_tag->$target_tag"
 EOF

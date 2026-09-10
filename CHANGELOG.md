@@ -4,6 +4,17 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## Pendiente de publicación
+
+### Fixed
+
+- Tras reemplazar el instalador, la revisión de herramientas externas usa la
+  política del binario instalado. El proceso anterior no vuelve a mantener
+  herramientas que el destino haya retirado. Una continuación no compatible
+  produce un aviso y nunca reactiva la política antigua como alternativa.
+- La prueba de salto entre releases incluye Hypa simulado y distingue los
+  últimos efectos del instalador anterior de los de la versión ya instalada.
+
 ## [0.97.0-alpha.1] - 2026-09-10
 
 ### Added

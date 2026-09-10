@@ -13,6 +13,7 @@ import { runRestore } from "./cli/restore.ts";
 import { INSTALLER_VERSION, versionOutputLines } from "./core/version.ts";
 import { deployTemplate, readBundledManifest } from "./core/deploy.ts";
 import { detectPlatform } from "./core/platform.ts";
+import { refreshExternalTools } from "./core/deps.ts";
 import { runUpdateContinuation } from "./core/child-continuation.ts";
 import { normalizeTag, resolveReleaseContract } from "./core/release-resolver.ts";
 import { activeHome } from "./core/paths.ts";
@@ -42,7 +43,7 @@ async function printVersion(): Promise<number> {
 
 // `<binary> --ein-continuation=<txId> --ein-release=<tag>` — spawned by the
 // updater on the freshly-swapped binary to confirm its identity matches the
-// release before the template deploy / marker commit proceed. Emits the JSON
+// release before preparing surfaces or running the selected maintenance action. Emits the JSON
 // ContinuationMessage the parent parses; never a human entry point.
 async function runContinuationEntry(argv: string[]): Promise<number> {
   const txId = argv.find((a) => a.startsWith("--ein-continuation="))!.slice("--ein-continuation=".length);
@@ -69,6 +70,8 @@ async function runContinuationEntry(argv: string[]): Promise<number> {
         rollbackRuntimeSurfaceRetirementByTransaction({ home: activeHome(), transactionId: txId });
       } else if (action === "commit") {
         finalizeRuntimeSurfaceRetirementByTransaction({ home: activeHome(), transactionId: txId, globalCommit: true });
+      } else if (action === "external-tools") {
+        message = { ...message, externalTools: await refreshExternalTools(detectPlatform()) };
       } else {
         throw new Error("invalid-runtime-surface-action");
       }
