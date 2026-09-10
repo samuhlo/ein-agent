@@ -58,6 +58,25 @@ El índice de evidencia sigue reconociendo el marcador de una vista histórica d
 Headroom para no confundirla con una salida completa. Reconocer ese texto no
 carga ni ejecuta un compresor.
 
+## Transición desde un instalador anterior
+
+Sustituir el ejecutable en disco no sustituye el proceso que ya está corriendo.
+Se reprodujo el salto desde `0.96.0-alpha.4` a `0.97.0-alpha.1` con Hypa presente:
+el proceso anterior ejecuta una última revisión de Hypa, aunque el runtime nuevo
+ya no lo contiene. Una ejecución posterior del instalador `0.97.0-alpha.1` no
+lo invoca. La retirada del runtime y los efectos de la transición son controles
+diferentes; comprobar solo el marker y los archivos instalados era insuficiente.
+
+La corrección delega la política de herramientas externas al binario instalado,
+mediante la continuación ya existente y comprobando su identidad. Si el destino
+no soporta la acción o devuelve una respuesta inválida, se informa del fallo
+opcional y no se ejecuta la política anterior como alternativa. Los avisos del
+padre no enumeran herramientas que puedan haber sido retiradas por el destino.
+
+Esta corrección protege las actualizaciones iniciadas con el instalador
+corregido; no puede cambiar retroactivamente el código de los binarios antiguos
+ya publicados. Sus últimos efectos heredados se registran en la prueba de salto.
+
 ## Evidencia y validación
 
 Los informes [del flujo completo](../../evals/closed-cheap-flow-2026-09-09.md) y

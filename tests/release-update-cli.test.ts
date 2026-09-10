@@ -718,6 +718,7 @@ describe("release update CLI", () => {
     chmodSync(destinationPath, 0o755);
     writeFileSync(markerPath, marker());
     const base = defaultUpdateCaps();
+    let candidateRefreshes = 0;
     const caps: UpdateCaps = {
       ...base,
       http: updateHttp(),
@@ -725,7 +726,10 @@ describe("release update CLI", () => {
         async spawn(_command, args) {
           if (args.some((arg) => arg.startsWith("--ein-continuation="))) {
             const txId = args.find((arg) => arg.startsWith("--ein-continuation="))!.split("=")[1]!;
-            return { code: 0, stdout: JSON.stringify({ txId, releaseTag: "installer-v0.20.0", binaryVersion: "0.20.0", templateVersion: "0.20.0", status: "ok" }) };
+            const external = args.includes("--ein-runtime-surfaces=external-tools");
+            if (external) candidateRefreshes += 1;
+            return { code: 0, stdout: JSON.stringify({ txId, releaseTag: "installer-v0.20.0", binaryVersion: "0.20.0", templateVersion: "0.20.0", status: "ok",
+              ...(external ? { externalTools: [{ ok: true, detail: "engram actualizado por la versión instalada" }] } : {}) }) };
           }
           return { code: 0, stdout: "ein-installer 0.20.0\ntemplate-version 0.20.0\n" };
         },
@@ -749,15 +753,30 @@ describe("release update CLI", () => {
       updatePi: async () => { piUpdated += 1; return { ok: true, detail: "pi actualizado" }; },
       syncPiPackages: async () => { packagesSynced += 1; return { ok: true, detail: "2 paquetes al dia" }; },
       confirmExternalToolsUpdate: async () => true,
-      refreshExternalTools: async () => { externalRefreshed += 1; return [{ ok: true, detail: "engram actualizado a la última release" }]; },
+      refreshExternalTools: async () => { externalRefreshed += 1; return [{ ok: true, detail: "hypa actualizado por el proceso anterior" }]; },
     });
     expect(code).toBe(EXIT_UPDATED);
     expect(piUpdated).toBe(1);
     expect(packagesSynced).toBe(1);
     // Las deps externas (engram/codegraph) se refrescan tras un update ok.
-    expect(externalRefreshed).toBe(1);
+    expect(externalRefreshed).toBe(0);
+    expect(candidateRefreshes).toBe(1);
     expect(output.join("\n")).toContain("pi actualizado");
-    expect(output.join("\n")).toContain("engram actualizado a la última release");
+    expect(output.join("\n")).toContain("engram actualizado por la versión instalada");
+    expect(output.join("\n")).not.toContain("hypa");
+
+    const unavailableOutput: string[] = [];
+    const unavailable = await runUpdate(["--yes"], {
+      caps: { ...caps, child: { spawn: async (command, args, options) => args.includes("--ein-runtime-surfaces=external-tools")
+        ? { code: 1, stdout: "unsupported continuation" } : caps.child.spawn(command, args, options) } },
+      platform: { os: "linux", arch: "x64" }, agentDir, markerPath, journalPath, destinationPath, interactive: false,
+      write: (line) => unavailableOutput.push(line),
+      refreshExternalTools: async () => { externalRefreshed += 1; return [{ ok: true, detail: "hypa legacy fallback" }]; },
+    });
+    expect(unavailable).toBe(EXIT_ALREADY_CURRENT);
+    expect(externalRefreshed).toBe(0);
+    expect(unavailableOutput.join("\n")).toContain("no se ejecuta la anterior");
+    expect(unavailableOutput.join("\n")).not.toContain("hypa");
 
     const failedOutput: string[] = [];
     const failedCode = await runUpdate([], {

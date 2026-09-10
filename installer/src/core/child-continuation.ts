@@ -2,6 +2,7 @@ import { normalizeTag } from "./release-resolver.ts";
 import type { BinaryIdentity } from "./binary-probe.ts";
 import type { ReleaseTag, Result, UpdateStageError } from "./release-types.ts";
 import type { UpdateCaps } from "./update-caps.ts";
+import type { InstallStep } from "./deps.ts";
 
 export type ContinuationMessage = {
   txId: string;
@@ -10,6 +11,7 @@ export type ContinuationMessage = {
   templateVersion: string;
   status: "ok" | "failed";
   error?: string;
+  externalTools?: InstallStep[];
 };
 
 export type ContinuationError = UpdateStageError;
@@ -19,7 +21,7 @@ export type ContinuationOptions = {
   txId: string;
   releaseTag: ReleaseTag;
   caps: UpdateCaps;
-  runtimeSurfaces?: "prepare" | "rollback" | "commit";
+  runtimeSurfaces?: "prepare" | "rollback" | "commit" | "external-tools";
 };
 
 function continuationError(code: string, message: string): ContinuationError {
@@ -38,6 +40,8 @@ function parseMessage(stdout: string): ContinuationMessage | null {
     ) return null;
     const releaseTag = normalizeTag(value.releaseTag);
     if (!releaseTag.ok) return null;
+    if (value.externalTools !== undefined && (!Array.isArray(value.externalTools)
+      || value.externalTools.some((step) => !step || typeof step.ok !== "boolean" || typeof step.detail !== "string"))) return null;
     return { ...value, releaseTag: releaseTag.value } as ContinuationMessage;
   } catch {
     return null;
@@ -60,6 +64,11 @@ export async function spawnContinuation(
     if (!message) return { ok: false, error: continuationError("invalid-message", "Continuation returned invalid JSON") };
     if (message.status !== "ok" || message.txId !== txId || message.releaseTag !== releaseTag) {
       return { ok: false, error: continuationError("continuation-failed", message.error ?? "Continuation rejected release identity") };
+    }
+    if (options.runtimeSurfaces === "external-tools"
+      && (message.binaryVersion !== releaseTag.slice("installer-v".length)
+        || message.templateVersion !== message.binaryVersion || !message.externalTools)) {
+      return { ok: false, error: continuationError("external-policy-unavailable", "Installed version did not provide its external-tool results") };
     }
     return { ok: true, value: message };
   } catch (error) {
