@@ -7,7 +7,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { handleCodegraphCommand } from "../../lib/codegraph.ts";
 import { handleGitCommand } from "../../lib/git-delivery.ts";
-import { handleHypaCommand } from "../../lib/hypa.ts";
 import { t } from "../../lib/i18n/strings.ts";
 import { handleLangCommand } from "../../lib/lang.ts";
 import { handleLinearIntegrationCommand } from "../../lib/linear-integration.ts";
@@ -134,16 +133,6 @@ export function registerGeneralCommands(pi: ExtensionAPI): void {
 		},
 	});
 
-	pi.registerCommand("ein:hypa", {
-		description: t(
-			"cmd.hypa.description",
-			"Ver o cambiar la compresión de salida de comandos con Hypa (auto/on/off)",
-		),
-		handler: async (_args, ctx) => {
-			await handleHypaCommand(ctx);
-		},
-	});
-
 	pi.registerCommand("ein:codegraph", {
 		description: t(
 			"cmd.codegraph.description",
@@ -157,7 +146,7 @@ export function registerGeneralCommands(pi: ExtensionAPI): void {
 	pi.registerCommand("ein:onboard", {
 		description: t(
 			"cmd.onboard.description",
-			"Reconfigurar los esenciales del proyecto (persona, idioma, TDD, Hypa, EIN.md)",
+			"Reconfigurar los esenciales del proyecto (persona, idioma, TDD, EIN.md)",
 		),
 		handler: async (_args, ctx) => {
 			await handleOnboardCommand(ctx);

@@ -30,7 +30,7 @@ Abre la aplicación de terminal. Cinco vistas que rotan con `tab`:
 | Vista | Qué muestra |
 | :--- | :--- |
 | Estado | Proyecto, fase de OpenSpec, verificación y git |
-| Configuración | Modo de trabajo, TDD, Hypa, CodeGraph y persona |
+| Configuración | Modo de trabajo, TDD, CodeGraph y persona |
 | Sesiones | Las recientes, con la última cosa que pediste en cada una |
 | Sistema | Actualizaciones por componente y diagnóstico |
 | Runtime | Elegir Pi o Claude Code, ver sus sesiones y lanzar |
@@ -120,7 +120,6 @@ Restaura desde un backup previo.
 | `--no-engram` | omite la capacidad opcional de memoria persistente (Engram) |
 | `--no-secrets` | omite la configuración de secrets |
 | `--no-linear` | omite la integración con Linear |
-| `--no-hypa` | omite Hypa |
 | `--no-codegraph` | omite el bootstrap asistido opcional del grafo de código |
 
 :::tip[LA PRIMERA VEZ]

@@ -63,6 +63,16 @@ function document(): string {
 }
 
 describe("compilación apply-packet/v2 por grupo", () => {
+	test("conserva operadores de código en la instrucción sin ampliar las rutas", () => {
+		const intent = "Rechazar `!validated.ok || !STUN_SCHEMES.has(validated.scheme)`; conservar `A | B`.";
+		const result = compileApplyPacketV2({ change: "demo", designText: "# Design",
+			tasksText: document().replace("Añadir el contrato nuevo.", intent),
+			groupTitle: "Grupo ejecutable", sources: SOURCES });
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.draft.steps[0]).toMatchObject({ path: "src/core.ts", operation: "modify", intent });
+		expect(result.draft.writeAllowlist).toEqual(["src/core.ts", "src/facade.ts"]);
+	});
 	test("agrega todos y solo los pasos pendientes del grupo en orden", () => {
 		const result = compileApplyPacketV2({
 			change: "demo",

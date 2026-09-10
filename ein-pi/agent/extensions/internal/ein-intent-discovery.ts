@@ -64,16 +64,16 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 		if (!change || !readAgentStartNames(event).some((name) => name.startsWith("sdd-"))) return;
 		const record = readAgreement(join(resolveChangesDir(ctx.cwd), change));
 		if (record.kind !== "valid" || record.agreement.status !== "confirmed") return;
-		return { systemPrompt: `${event.systemPrompt}\n\nRead ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change, "intent.md"))} as the agreed product contract. Preserve its objective, limits and success criteria. Scope/design must record intent_key: ${record.agreement.materialKey}. Return blocked with the concrete question if a new product decision is needed; the parent owns discovery.` };
+		return { systemPrompt: `${event.systemPrompt}\n\nRead ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change, "intent.md"))} as the agreed product contract. Preserve its objective, limits and success criteria. Ein binds full phase artifact writes to this agreement; preserve its decisions, never hand-copy control keys. Return blocked with the concrete question if a new product decision is needed; the parent owns discovery.` };
 	});
 	registerEinTool({
 		name: "ein_intent",
 		label: "Ein Intent",
-		description: "Agree what to build BEFORE new work. propose records objective/boundaries/completionCriteria and 1–4 concrete product questions in session; show them and STOP for the user. status returns the observed response and its id. confirm requires that responseId; incorporate only choices actually answered in material. Never confirm a refusal, cancellation, unrelated reply or unresolved choices: ask another round. Small work needs one question; auto does not skip it. Reuse an identical confirmed intent. change is optional (SDD only, same as work); confirmed SDD intent.md is the canonical handoff. cancel stops the work. delegate skips questions ONLY when the current user explicitly says sin preguntas / without questions; provide material with the assumptions they delegated. Auto alone never permits it. After confirmation put intent_work: <work> in delegated tasks. Read-only work needs no intent.",
+		description: "Record the agreed objective/boundaries/completionCriteria before new modifying work. For a complete, authorized current human request with no missing product decisions, record persists that observed request directly; never use it for discussion-only requests, invented choices or an open/cancelled discovery. For ambiguity, propose 1–4 concrete questions, show them and STOP. status returns the observed answer/id; confirm requires that responseId and only answered choices. Refusal, cancellation or unresolved choices need another round. Reuse unchanged agreements. change is SDD-only and must equal work. delegate is only for an explicit current sin preguntas / without questions instruction with recorded assumptions; auto alone is not consent. Put intent_work: <work> in delegated tasks. Read-only work needs no intent.",
 		parameters: {
 			type: "object", required: ["action", "work"],
 			properties: {
-				action: { type: "string", enum: ["propose", "status", "confirm", "cancel", "delegate"] },
+				action: { type: "string", enum: ["propose", "status", "confirm", "cancel", "delegate", "record"] },
 				work: { type: "string" }, change: { type: "string" }, responseId: { type: "string" },
 				reopenReason: { type: "string", description: "New material product decision discovered after agreement, even if the objective is unchanged. Reopens discovery; never use for routine phase transitions." },
 				questions: { type: "array", minItems: 1, maxItems: 4, items: { type: "string" } },

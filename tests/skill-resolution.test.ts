@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   extractTriggers,
   resolveSkills,
+  resolvePhaseSkills,
   type SkillEntry,
 } from "../ein-pi/agent/extensions/ein-skill-registry";
 
@@ -37,6 +38,14 @@ const HONO = entry(
 );
 
 describe("extractTriggers — declared intent, not a file scan", () => {
+  test("dot-prefixed paths do not leave only a generic verb as the trigger", () => {
+    const vue = entry("vue", "Use when editing .vue files, creating Vue 3 components, writing composables, or testing Vue code - provides patterns");
+    const vueuse = entry("vueuse", "Apply VueUse composables where appropriate to build concise, maintainable Vue.js / Nuxt features.");
+    expect(extractTriggers(vue.description)).toContain("vue");
+    expect(resolveSkills([vue, vueuse], "Apply the planned TypeScript change, editing source.ts and testing source.test.ts")).toEqual([]);
+    expect(resolveSkills([vue], "Edit app/components/Card.vue")).toEqual([vue]);
+    expect(resolveSkills([vueuse], "Use VueUse for the watcher")).toEqual([vueuse]);
+  });
   test("uses the explicit Trigger: clause and ignores stack words before it", () => {
     const triggers = extractTriggers(ARCHITECTURE.description);
     expect(triggers).toContain("refactor");
@@ -60,6 +69,17 @@ describe("extractTriggers — declared intent, not a file scan", () => {
 });
 
 describe("resolveSkills — precise routing", () => {
+  test("automatic phase loading does not turn generic descriptions into mandatory manuals", () => {
+    const bun = entry("bun", "Use when building, testing, and deploying JavaScript/TypeScript applications.");
+    const vitest = entry("vitest", "Use when writing tests, mocking, configuring coverage, or working with test filtering and fixtures.");
+    const library = entry("ts-library", "Use when authoring TypeScript libraries or npm packages - covers project setup, package.json exports, build tooling, API design and testing.");
+    const readme = entry("readme-style", "README style: script-run H1 and stack table. Load when generating a project README.");
+    const projectRule = { ...entry("local-invariants", "Use when editing TypeScript"), scope: "project" as const };
+    const skills = [bun, vitest, library, readme, projectRule];
+    expect(resolvePhaseSkills(skills, "Fix TypeScript source.ts and tests, run bun test").map((skill) => skill.key)).toEqual(["bun", "local-invariants"]);
+    expect(resolvePhaseSkills(skills, "Use vitest and ts-library").map((skill) => skill.key)).toEqual(["ts-library", "vitest"]);
+    expect(resolvePhaseSkills([ARCHITECTURE], "Refactor the payments module")).toEqual([ARCHITECTURE]);
+  });
   const registry = [ARCHITECTURE, OMARCHY, HONO];
 
   test("a refactor task surfaces architecture and never the Linux-desktop skill", () => {
@@ -79,6 +99,11 @@ describe("resolveSkills — precise routing", () => {
   test("skills with zero signal score out entirely", () => {
     const resolved = resolveSkills(registry, "Water the office plants");
     expect(resolved).toHaveLength(0);
+  });
+
+  test("an automatic suggestion limit cannot discard explicitly named skills", () => {
+    const requested = Array.from({ length: 9 }, (_, index) => entry(`explicit-rule-${index}`, "Trigger: niche"));
+    expect(resolveSkills(requested, requested.map((skill) => skill.key).join(", "), undefined, 2)).toHaveLength(9);
   });
 
   test("stack and workflow tags only rank skills with a relevant signal", () => {

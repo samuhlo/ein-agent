@@ -71,7 +71,7 @@ assert_preserved_state() {
 }
 
 /usr/local/bin/ein-old install --yes --runtime pi \
-  --no-engram --no-secrets --no-linear --no-hypa --no-codegraph \
+  --no-engram --no-secrets --no-linear --no-codegraph \
   --release-channel alpha --release-tag "$source_tag"
 
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"

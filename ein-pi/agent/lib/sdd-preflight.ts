@@ -385,7 +385,7 @@ export function delegationIsPlanningOnly(input: unknown): boolean {
 
 // Inyecta `acceptance: { level: "none" }` determinista en una delegación a
 // fases de planificación que no lo trae. Muta el input EN SITIO (igual que el
-// wrap de Hypa en tool_call): sin esto, el runner infiere un nivel con forma de
+// adaptaciones de argumentos en tool_call): sin esto, el runner infiere un nivel con forma de
 // código y RECHAZA en falso un artefacto documental que `ein_sdd_check` ya
 // valida — un ✗ que dependía de que el orquestador recordara pasar el acceptance.
 // Devuelve true si mutó. No pisa un acceptance explícito ni toca applies.

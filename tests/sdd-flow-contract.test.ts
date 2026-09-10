@@ -125,12 +125,15 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(agents).toContain("everyday human language");
 		expect(agents).toContain("A localized fix with tests can use a few paragraphs");
 		expect(agents).toContain("Honor existing authorization");
-		expect(orch).toContain("without assuming software knowledge");
-		expect(orch).toContain("never stack unexplained jargon or acronyms");
-		expect(orch).toContain("File count alone does not make a change important");
-		expect(orch).toContain("**Human-first teaching.** Every answer, especially an important change");
-		expect(orch).toContain("reconcile/supersede OpenSpec artifacts");
-		expect(orch).toContain("guardar el trabajo terminado y apartar el plan antiguo");
+		// The communication update shortens these instructions without changing
+		// their contract. Check the obligations, not one wording or example.
+		const teaching = orch.split("**Human-first teaching.**")[1]?.split("\n\n")[0] ?? "";
+		expect(teaching).toMatch(/everyday (?:human )?language/);
+		expect(teaching).toMatch(/(?:never stack|avoid) unexplained jargon/);
+		expect(teaching).toMatch(/(?:defining|define) technical terms|defining each technical term/);
+		expect(teaching).toContain("step by step");
+		expect(teaching).toMatch(/technical (?:correctness|depth)/);
+		expect(orch).toMatch(/File count alone does not make (?:a change|it) important/);
 		const human = orch.indexOf("EN LENGUAJE HUMANO:");
 		const inside = orch.indexOf("POR DENTRO:");
 		expect(human).toBeGreaterThan(-1);

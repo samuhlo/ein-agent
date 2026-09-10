@@ -39,7 +39,7 @@ export type UpdateRunDependencies = {
   updatePi?: () => Promise<InstallStep>;
   syncPiPackages?: () => Promise<InstallStep>;
   confirmExternalToolsUpdate?: () => Promise<boolean>;
-  // Deps externas opcionales (engram/hypa/codegraph): binarios fuera de la
+  // Deps externas opcionales (engram/codegraph): binarios fuera de la
   // transacción de Ein que envejecen en silencio. Este hook las refresca tras un
   // update exitoso; el default refresca las presentes de verdad.
   refreshExternalTools?: () => Promise<InstallStep[]>;
@@ -292,7 +292,7 @@ async function refreshPi(
 
 /**
  * Refresca, con confirmación salvo `--yes`, las herramientas externas presentes
- * (engram/hypa/codegraph) tras un update exitoso. Un fallo de red conserva su
+ * (engram/codegraph) tras un update exitoso. Un fallo de red conserva su
  * versión actual y nunca tumba el update; no forman parte del runtime Pi que
  * Ein declara y verifica contra npm latest.
  */
@@ -304,7 +304,7 @@ async function refreshExternalDeps(
   const refresh = dependencies.refreshExternalTools
     ?? (() => refreshExternalTools(detectPlatform()));
   const spinner = interactive ? p.spinner() : null;
-  spinner?.start("Actualizando herramientas externas (engram, hypa, codegraph)");
+  spinner?.start("Actualizando herramientas externas (engram, codegraph)");
   let steps: InstallStep[];
   try {
     steps = await refresh();
@@ -329,7 +329,7 @@ async function refreshExternalDeps(
 }
 
 async function confirmExternalToolsUpdate(): Promise<boolean> {
-  const response = await p.confirm({ message: "Actualizar también las herramientas externas presentes (engram/hypa/codegraph)?" });
+  const response = await p.confirm({ message: "Actualizar también las herramientas externas presentes (engram/codegraph)?" });
   return p.isCancel(response) ? false : response;
 }
 

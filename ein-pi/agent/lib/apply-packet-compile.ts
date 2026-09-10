@@ -214,7 +214,7 @@ export function compileApplyPacket(input: CompileInput): CompileResult {
 
 type V2TaskBlock = Readonly<{ id: string; title: string; done: boolean; block: string }>;
 
-function normalizeGroupTitle(value: string): string {
+export function normalizeGroupTitle(value: string): string {
 	return value.trim().replace(/^\/\/\s*\d+\.\s*/, "").trim();
 }
 
@@ -246,10 +246,13 @@ function orderedUnion(values: readonly string[]): string[] {
 function parseV2Edit(value: string, taskId: string):
 	| { ok: true; step: ApplyPacketV2Draft["steps"][number] }
 	| { ok: false; detail: string } {
-	const cells = value.split("|").map((cell) => cell.trim());
-	if (cells.length !== 3) {
+	// Only the first two separators delimit fields. The instruction is free
+	// text and may contain code operators such as `a || b` or a union type.
+	const fields = /^([^|]+)\|([^|]+)\|([\s\S]+)$/.exec(value);
+	if (!fields) {
 		return { ok: false, detail: `edit de ${taskId} debe tener ruta | operación | intención` };
 	}
+	const cells = fields.slice(1).map((cell) => cell.trim());
 	const path = stripTicks(cells[0] ?? "");
 	const operation = (cells[1] ?? "").toLowerCase();
 	const intent = cells[2] ?? "";
@@ -268,6 +271,21 @@ function parseV2Edit(value: string, taskId: string):
  * Conserva el orden de los checkboxes pendientes. Un grupo reanudado no vuelve
  * a incluir pasos ya marcados como completos.
  */
+// Preserve authored instructions the v2 structural schema does not encode (for
+// example ordered substeps), plus global notes. Neighboring work groups stay on
+// disk; completed tasks inside this group remain visibly checked.
+export function applyGroupText(tasksText: string, groupTitle: string): string {
+	const selected = normalizeGroupTitle(groupTitle);
+	const preamble = tasksText.split(GROUP_SPLIT_RE)[0] ?? "";
+	const sections = splitGroups(tasksText).filter((group) => normalizeGroupTitle(group.heading) === selected || v2TaskBlocks(group.body).length === 0);
+	return preamble + sections.map((group) => `## ${group.heading}${group.body}`).join("");
+}
+
+export function applyGroupSkillNames(tasksText: string, groupTitle: string): string[] {
+	const group = splitGroups(tasksText).find((candidate) => normalizeGroupTitle(candidate.heading) === normalizeGroupTitle(groupTitle));
+	return group ? orderedUnion(v2TaskBlocks(group.body).filter((task) => !task.done).flatMap((task) => fieldValues(task.block, "skills"))) : [];
+}
+
 export function compileApplyPacketV2(input: CompileV2Input): CompileV2Result {
 	const wanted = normalizeGroupTitle(input.groupTitle);
 	const group = splitGroups(input.tasksText).find((candidate) => normalizeGroupTitle(candidate.heading) === wanted);

@@ -1,0 +1,3815 @@
+{
+  "date": "2026-09-09",
+  "objective": "Pensar bien permite ejecutar de forma más sencilla, barata y local, manteniendo las exigencias de calidad. Local es futuro opcional.",
+  "runtime": {
+    "pi": "0.85.1",
+    "piSubagents": "0.66.0",
+    "bun": "1.3.14",
+    "headroom": "0.37.0",
+    "host": "macOS arm64"
+  },
+  "versions": {
+    "baseline": "3c5231b",
+    "mainMeasuredCandidate": "5c954cd",
+    "directRecordDefensiveGuard": "fb8e7ab",
+    "finalVerifyInstructions": "4e8d3b7",
+    "finalPacketOperatorFix": "fa48bbd",
+    "headroomIntegration": "1c4a2b1"
+  },
+  "costMeaning": "SDK-reported estimates, not invoice; include observed flow retries, exclude development/audit, compaction costs not fully exposed; partial usage remains partial.",
+  "historicalExclusion": "All report pairs excluded from economic acceptance after native transcript audit. A functional oracle and declared PASS do not establish consultation/order. See report-visible-record-audit and the narrative.",
+  "acceptedMatchedPairs": [
+    {
+      "case": "small",
+      "repeat": 1
+    },
+    {
+      "case": "csv",
+      "repeat": 1
+    },
+    {
+      "case": "stun",
+      "repeat": 1
+    },
+    {
+      "case": "csv",
+      "repeat": 2
+    },
+    {
+      "case": "progress",
+      "repeat": 2
+    },
+    {
+      "case": "stun",
+      "repeat": 2
+    },
+    {
+      "case": "small",
+      "repeat": 3
+    }
+  ],
+  "acceptedMatchedTotals": {
+    "baseline": {
+      "costUsd": 18.60020356,
+      "tokens": 10893424,
+      "input": 1532834,
+      "output": 112462,
+      "cacheRead": 9248128,
+      "turns": 450
+    },
+    "candidate": {
+      "costUsd": 17.06390692,
+      "tokens": 10199669,
+      "input": 1453766,
+      "output": 114863,
+      "cacheRead": 8631040,
+      "turns": 454
+    }
+  },
+  "acceptedMatchedParentTotals": {
+    "baseline": {
+      "costUsd": 13.383854,
+      "tokens": 7401599,
+      "input": 555572,
+      "output": 20043,
+      "cacheRead": 6825984,
+      "turns": 213
+    },
+    "candidate": {
+      "costUsd": 12.077222,
+      "tokens": 6794739,
+      "input": 490418,
+      "output": 17729,
+      "cacheRead": 6286592,
+      "turns": 186
+    }
+  },
+  "flows": [
+    {
+      "case": "small",
+      "repeat": 1,
+      "baseline": {
+        "name": "small-1-before",
+        "total": {
+          "tokens": 505689,
+          "input": 61521,
+          "output": 2952,
+          "cacheRead": 441216,
+          "costUsd": 0.86998732,
+          "turns": 29
+        },
+        "parent": {
+          "tokens": 445733,
+          "input": 37754,
+          "output": 1579,
+          "cacheRead": 406400,
+          "costUsd": 0.86289,
+          "turns": 17
+        },
+        "maxParentInput": 28332,
+        "firstParentInput": 23876,
+        "maxChildInput": 6476,
+        "seconds": 207.01300191879272,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": false,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "small-1-measured",
+        "total": {
+          "tokens": 191138,
+          "input": 45634,
+          "output": 1760,
+          "cacheRead": 143744,
+          "costUsd": 0.39813380000000004,
+          "turns": 15
+        },
+        "parent": {
+          "tokens": 124222,
+          "input": 25839,
+          "output": 719,
+          "cacheRead": 97664,
+          "costUsd": 0.392004,
+          "turns": 5
+        },
+        "maxParentInput": 25284,
+        "firstParentInput": 23856,
+        "maxChildInput": 8241,
+        "seconds": 130.8252899646759,
+        "questionRounds": 0,
+        "userTurns": 1,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": false,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "applyRuns": 1
+      },
+      "order": [
+        "small-1-before",
+        "small-1-measured"
+      ]
+    },
+    {
+      "case": "report",
+      "repeat": 1,
+      "baseline": {
+        "name": "report-1-before",
+        "total": {
+          "tokens": 2350819,
+          "input": 390826,
+          "output": 24889,
+          "cacheRead": 1935104,
+          "costUsd": 4.26846668,
+          "turns": 81
+        },
+        "parent": {
+          "tokens": 1436502,
+          "input": 165008,
+          "output": 4422,
+          "cacheRead": 1267072,
+          "costUsd": 3.138252,
+          "turns": 39
+        },
+        "maxParentInput": 48475,
+        "firstParentInput": 24238,
+        "maxChildInput": 55685,
+        "seconds": 1007.1961607933044,
+        "questionRounds": 1,
+        "userTurns": 3,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": false,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "report-1-after",
+        "total": {
+          "tokens": 1838085,
+          "input": 224791,
+          "output": 22126,
+          "cacheRead": 1591168,
+          "costUsd": 2.7422558400000003,
+          "turns": 78
+        },
+        "parent": {
+          "tokens": 1038704,
+          "input": 66079,
+          "output": 2897,
+          "cacheRead": 969728,
+          "costUsd": 1.775368,
+          "turns": 29
+        },
+        "maxParentInput": 41972,
+        "firstParentInput": 24212,
+        "maxChildInput": 33909,
+        "seconds": 836.3838419914246,
+        "questionRounds": 0,
+        "userTurns": 1,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": false,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "order": [
+        "report-1-after",
+        "report-1-before"
+      ]
+    },
+    {
+      "case": "csv",
+      "repeat": 1,
+      "baseline": {
+        "name": "csv-1-before",
+        "total": {
+          "tokens": 1803851,
+          "input": 285376,
+          "output": 19979,
+          "cacheRead": 1498496,
+          "costUsd": 2.9765010000000003,
+          "turns": 72
+        },
+        "parent": {
+          "tokens": 1136829,
+          "input": 74797,
+          "output": 3088,
+          "cacheRead": 1058944,
+          "costUsd": 1.961314,
+          "turns": 32
+        },
+        "maxParentInput": 42581,
+        "firstParentInput": 23915,
+        "maxChildInput": 30349,
+        "seconds": 754.3871653079987,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "csv-1-after",
+        "total": {
+          "tokens": 1704149,
+          "input": 230341,
+          "output": 19088,
+          "cacheRead": 1454720,
+          "costUsd": 3.03504892,
+          "turns": 75
+        },
+        "parent": {
+          "tokens": 1189698,
+          "input": 94364,
+          "output": 3110,
+          "cacheRead": 1092224,
+          "costUsd": 2.191364,
+          "turns": 33
+        },
+        "maxParentInput": 43375,
+        "firstParentInput": 23889,
+        "maxChildInput": 19553,
+        "seconds": 786.9277899265289,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "order": [
+        "csv-1-before",
+        "csv-1-after"
+      ]
+    },
+    {
+      "case": "progress",
+      "repeat": 1,
+      "baseline": {
+        "name": "progress-1-before",
+        "total": {
+          "tokens": 1935666,
+          "input": 270237,
+          "output": 23701,
+          "cacheRead": 1641728,
+          "costUsd": 3.27379968,
+          "turns": 78
+        },
+        "parent": {
+          "tokens": 1200398,
+          "input": 80464,
+          "output": 3774,
+          "cacheRead": 1116160,
+          "costUsd": 2.1095,
+          "turns": 33
+        },
+        "maxParentInput": 44464,
+        "firstParentInput": 24371,
+        "maxChildInput": 25726,
+        "seconds": 867.9685180187225,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "partial"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": false,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "progress-1-after",
+        "total": {
+          "tokens": 1660806,
+          "input": 211832,
+          "output": 21774,
+          "cacheRead": 1427200,
+          "costUsd": 2.7388668,
+          "turns": 76
+        },
+        "parent": {
+          "tokens": 1045058,
+          "input": 67150,
+          "output": 3060,
+          "cacheRead": 974848,
+          "costUsd": 1.799348,
+          "turns": 29
+        },
+        "maxParentInput": 42274,
+        "firstParentInput": 24345,
+        "maxChildInput": 22555,
+        "seconds": 897.3881821632385,
+        "questionRounds": 0,
+        "userTurns": 1,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "order": [
+        "progress-1-after",
+        "progress-1-before"
+      ]
+    },
+    {
+      "case": "stun",
+      "repeat": 1,
+      "baseline": {
+        "name": "stun-1-before",
+        "total": {
+          "tokens": 2014233,
+          "input": 270666,
+          "output": 20303,
+          "cacheRead": 1723264,
+          "costUsd": 3.6181168,
+          "turns": 79
+        },
+        "parent": {
+          "tokens": 1409983,
+          "input": 121501,
+          "output": 3746,
+          "cacheRead": 1284736,
+          "costUsd": 2.687046,
+          "turns": 38
+        },
+        "maxParentInput": 48216,
+        "firstParentInput": 23927,
+        "maxChildInput": 23088,
+        "seconds": 857.1730411052704,
+        "questionRounds": 1,
+        "userTurns": 3,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "stun-1-after",
+        "total": {
+          "tokens": 1555075,
+          "input": 243037,
+          "output": 18342,
+          "cacheRead": 1293696,
+          "costUsd": 2.9037842,
+          "turns": 73
+        },
+        "parent": {
+          "tokens": 1072452,
+          "input": 94714,
+          "output": 2634,
+          "cacheRead": 975104,
+          "costUsd": 2.053944,
+          "turns": 30
+        },
+        "maxParentInput": 41767,
+        "firstParentInput": 23901,
+        "maxChildInput": 20628,
+        "seconds": 726.2134580612183,
+        "questionRounds": 0,
+        "userTurns": 1,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "order": [
+        "stun-1-before",
+        "stun-1-after"
+      ]
+    },
+    {
+      "case": "small",
+      "repeat": 2,
+      "baseline": {
+        "name": "small-2-before",
+        "total": {
+          "tokens": 489319,
+          "input": 48543,
+          "output": 3912,
+          "cacheRead": 436864,
+          "costUsd": 0.7261297600000001,
+          "turns": 30
+        },
+        "parent": {
+          "tokens": 423406,
+          "input": 22569,
+          "output": 1861,
+          "cacheRead": 398976,
+          "costUsd": 0.717716,
+          "turns": 16
+        },
+        "maxParentInput": 31893,
+        "firstParentInput": 23876,
+        "maxChildInput": 6749,
+        "seconds": 204.2081859111786,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": false,
+        "unsolicitedSdd": true,
+        "declaredProtocolComplete": false,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "small-2-after",
+        "total": {
+          "tokens": 170748,
+          "input": 56717,
+          "output": 1903,
+          "cacheRead": 112128,
+          "costUsd": 0.37421288,
+          "turns": 14
+        },
+        "parent": {
+          "tokens": 99122,
+          "input": 25695,
+          "output": 723,
+          "cacheRead": 72704,
+          "costUsd": 0.365804,
+          "turns": 4
+        },
+        "maxParentInput": 25209,
+        "firstParentInput": 23850,
+        "maxChildInput": 8305,
+        "seconds": 80.46609592437744,
+        "questionRounds": 0,
+        "userTurns": 1,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": false,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "applyRuns": 1
+      },
+      "order": [
+        "small-2-after",
+        "small-2-before"
+      ]
+    },
+    {
+      "case": "report",
+      "repeat": 2,
+      "baseline": {
+        "name": "report-2-before",
+        "total": {
+          "tokens": 3024005,
+          "input": 371303,
+          "output": 28702,
+          "cacheRead": 2624000,
+          "costUsd": 4.15997576,
+          "turns": 97
+        },
+        "parent": {
+          "tokens": 1762805,
+          "input": 98250,
+          "output": 4907,
+          "cacheRead": 1659648,
+          "costUsd": 2.887498,
+          "turns": 43
+        },
+        "maxParentInput": 53153,
+        "firstParentInput": 24238,
+        "maxChildInput": 52398,
+        "seconds": 1060.5989809036255,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": false,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 2
+      },
+      "candidate": {
+        "name": "report-2-after",
+        "total": {
+          "tokens": 1936291,
+          "input": 232396,
+          "output": 24407,
+          "cacheRead": 1679488,
+          "costUsd": 2.77029868,
+          "turns": 81
+        },
+        "parent": {
+          "tokens": 1035042,
+          "input": 66164,
+          "output": 3246,
+          "cacheRead": 965632,
+          "costUsd": 1.789572,
+          "turns": 29
+        },
+        "maxParentInput": 42027,
+        "firstParentInput": 24212,
+        "maxChildInput": 31669,
+        "seconds": 886.9391980171204,
+        "questionRounds": 0,
+        "userTurns": 1,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": false,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "order": [
+        "report-2-before",
+        "report-2-after"
+      ]
+    },
+    {
+      "case": "csv",
+      "repeat": 2,
+      "baseline": {
+        "name": "csv-2-before",
+        "total": {
+          "tokens": 1931459,
+          "input": 341232,
+          "output": 21715,
+          "cacheRead": 1568512,
+          "costUsd": 3.64490144,
+          "turns": 76
+        },
+        "parent": {
+          "tokens": 1279820,
+          "input": 119597,
+          "output": 3231,
+          "cacheRead": 1156992,
+          "costUsd": 2.514512,
+          "turns": 35
+        },
+        "maxParentInput": 44102,
+        "firstParentInput": 23915,
+        "maxChildInput": 23960,
+        "seconds": 777.07839012146,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "csv-2-after",
+        "total": {
+          "tokens": 2815836,
+          "input": 396247,
+          "output": 32133,
+          "cacheRead": 2387456,
+          "costUsd": 4.41410628,
+          "turns": 116
+        },
+        "parent": {
+          "tokens": 1800937,
+          "input": 106246,
+          "output": 4451,
+          "cacheRead": 1690240,
+          "costUsd": 2.97525,
+          "turns": 47
+        },
+        "maxParentInput": 47504,
+        "firstParentInput": 23889,
+        "maxChildInput": 24714,
+        "seconds": 1190.848592042923,
+        "questionRounds": 1,
+        "userTurns": 3,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 2
+      },
+      "order": [
+        "csv-2-after",
+        "csv-2-before"
+      ]
+    },
+    {
+      "case": "progress",
+      "repeat": 2,
+      "baseline": {
+        "name": "progress-2-before",
+        "total": {
+          "tokens": 1998795,
+          "input": 267534,
+          "output": 21949,
+          "cacheRead": 1709312,
+          "costUsd": 3.2299634399999997,
+          "turns": 81
+        },
+        "parent": {
+          "tokens": 1265591,
+          "input": 78534,
+          "output": 3185,
+          "cacheRead": 1183872,
+          "costUsd": 2.128462,
+          "turns": 35
+        },
+        "maxParentInput": 43707,
+        "firstParentInput": 24371,
+        "maxChildInput": 24130,
+        "seconds": 818.0242478847504,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "progress-2-after",
+        "total": {
+          "tokens": 2233963,
+          "input": 289006,
+          "output": 24061,
+          "cacheRead": 1920896,
+          "costUsd": 3.4194154,
+          "turns": 90
+        },
+        "parent": {
+          "tokens": 1492466,
+          "input": 81017,
+          "output": 3577,
+          "cacheRead": 1407872,
+          "costUsd": 2.3968920000000002,
+          "turns": 38
+        },
+        "maxParentInput": 48492,
+        "firstParentInput": 24345,
+        "maxChildInput": 24459,
+        "seconds": 878.8500401973724,
+        "questionRounds": 0,
+        "userTurns": 1,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 2
+      },
+      "order": [
+        "progress-2-before",
+        "progress-2-after"
+      ]
+    },
+    {
+      "case": "stun",
+      "repeat": 2,
+      "baseline": {
+        "name": "stun-2-before",
+        "total": {
+          "tokens": 2047712,
+          "input": 255619,
+          "output": 22237,
+          "cacheRead": 1769856,
+          "costUsd": 3.29373472,
+          "turns": 81
+        },
+        "parent": {
+          "tokens": 1333015,
+          "input": 85474,
+          "output": 3381,
+          "cacheRead": 1244160,
+          "costUsd": 2.26795,
+          "turns": 36
+        },
+        "maxParentInput": 45288,
+        "firstParentInput": 23927,
+        "maxChildInput": 26169,
+        "seconds": 813.1496069431305,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "stun-2-after",
+        "total": {
+          "tokens": 1515634,
+          "input": 186917,
+          "output": 17485,
+          "cacheRead": 1311232,
+          "costUsd": 2.51956068,
+          "turns": 70
+        },
+        "parent": {
+          "tokens": 1015976,
+          "input": 62665,
+          "output": 2527,
+          "cacheRead": 950784,
+          "costUsd": 1.703784,
+          "turns": 29
+        },
+        "maxParentInput": 40607,
+        "firstParentInput": 23901,
+        "maxChildInput": 19651,
+        "seconds": 646.717924118042,
+        "questionRounds": 0,
+        "userTurns": 1,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "order": [
+        "stun-2-after",
+        "stun-2-before"
+      ]
+    },
+    {
+      "case": "small",
+      "repeat": 3,
+      "baseline": {
+        "name": "small-3-before",
+        "total": {
+          "tokens": 591685,
+          "input": 50886,
+          "output": 3327,
+          "cacheRead": 537472,
+          "costUsd": 0.9669988400000001,
+          "turns": 32
+        },
+        "parent": {
+          "tokens": 530628,
+          "input": 37915,
+          "output": 1833,
+          "cacheRead": 490880,
+          "costUsd": 0.9616800000000001,
+          "turns": 20
+        },
+        "maxParentInput": 28664,
+        "firstParentInput": 23876,
+        "maxChildInput": 6654,
+        "seconds": 174.99414491653442,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": false,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "small-3-after",
+        "total": {
+          "tokens": 183874,
+          "input": 62584,
+          "output": 1994,
+          "cacheRead": 119296,
+          "costUsd": 0.37385764000000005,
+          "turns": 15
+        },
+        "parent": {
+          "tokens": 98988,
+          "input": 25573,
+          "output": 711,
+          "cacheRead": 72704,
+          "costUsd": 0.36398400000000003,
+          "turns": 4
+        },
+        "maxParentInput": 25155,
+        "firstParentInput": 23850,
+        "maxChildInput": 10095,
+        "seconds": 80.64811706542969,
+        "questionRounds": 0,
+        "userTurns": 1,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": false,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "applyRuns": 1
+      },
+      "order": [
+        "small-3-before",
+        "small-3-after"
+      ]
+    },
+    {
+      "case": "report",
+      "repeat": 3,
+      "baseline": {
+        "name": "report-3-before",
+        "total": {
+          "tokens": 2329734,
+          "input": 334074,
+          "output": 23820,
+          "cacheRead": 1971840,
+          "costUsd": 3.11828192,
+          "turns": 77
+        },
+        "parent": {
+          "tokens": 1145879,
+          "input": 77080,
+          "output": 3583,
+          "cacheRead": 1065216,
+          "costUsd": 2.015166,
+          "turns": 32
+        },
+        "maxParentInput": 43303,
+        "firstParentInput": 24238,
+        "maxChildInput": 63798,
+        "seconds": 845.7749218940735,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": false,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "report-3-after",
+        "total": {
+          "tokens": 2788718,
+          "input": 359999,
+          "output": 29999,
+          "cacheRead": 2398720,
+          "costUsd": 3.5245970800000004,
+          "turns": 91
+        },
+        "parent": {
+          "tokens": 1171254,
+          "input": 109957,
+          "output": 3633,
+          "cacheRead": 1057664,
+          "costUsd": 2.338884,
+          "turns": 32
+        },
+        "maxParentInput": 50503,
+        "firstParentInput": 24212,
+        "maxChildInput": 65379,
+        "seconds": 1030.1934061050415,
+        "questionRounds": 0,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "verified"
+        },
+        "archived": false,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": false,
+        "historicalAuditEligible": false,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "order": [
+        "report-3-after",
+        "report-3-before"
+      ]
+    },
+    {
+      "case": "csv",
+      "repeat": 3,
+      "baseline": {
+        "name": "csv-3-before",
+        "total": {
+          "tokens": 2395935,
+          "input": 367607,
+          "output": 23592,
+          "cacheRead": 2004736,
+          "costUsd": 3.8694475600000002,
+          "turns": 88
+        },
+        "parent": {
+          "tokens": 1493190,
+          "input": 89048,
+          "output": 3950,
+          "cacheRead": 1400192,
+          "costUsd": 2.488172,
+          "turns": 38
+        },
+        "maxParentInput": 49190,
+        "firstParentInput": 23915,
+        "maxChildInput": 32679,
+        "seconds": 907.516695022583,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": true,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "csv-3-after",
+        "total": {
+          "tokens": 1653776,
+          "input": 230781,
+          "output": 19859,
+          "cacheRead": 1403136,
+          "costUsd": 2.77641144,
+          "turns": 75
+        },
+        "parent": {
+          "tokens": 1140366,
+          "input": 75182,
+          "output": 3424,
+          "cacheRead": 1061760,
+          "costUsd": 1.98478,
+          "turns": 32
+        },
+        "maxParentInput": 42846,
+        "firstParentInput": 23889,
+        "maxChildInput": 19188,
+        "seconds": 747.6800158023834,
+        "questionRounds": 1,
+        "userTurns": 2,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "order": [
+        "csv-3-before",
+        "csv-3-after"
+      ]
+    },
+    {
+      "case": "progress",
+      "repeat": 3,
+      "baseline": {
+        "name": "progress-3-before",
+        "total": {
+          "tokens": 2635251,
+          "input": 334247,
+          "output": 28236,
+          "cacheRead": 2272768,
+          "costUsd": 4.04002076,
+          "turns": 104
+        },
+        "parent": {
+          "tokens": 1652887,
+          "input": 119226,
+          "output": 5085,
+          "cacheRead": 1528576,
+          "costUsd": 2.975086,
+          "turns": 43
+        },
+        "maxParentInput": 51416,
+        "firstParentInput": 24371,
+        "maxChildInput": 22484,
+        "seconds": 1003.7049412727356,
+        "questionRounds": 1,
+        "userTurns": 4,
+        "partialUsage": true,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "progress-3-after",
+        "total": {
+          "tokens": 2310789,
+          "input": 336649,
+          "output": 25212,
+          "cacheRead": 1948928,
+          "costUsd": 3.15166332,
+          "turns": 101
+        },
+        "parent": {
+          "tokens": 1422206,
+          "input": 55126,
+          "output": 3752,
+          "cacheRead": 1363328,
+          "costUsd": 2.102188,
+          "turns": 38
+        },
+        "maxParentInput": 44697,
+        "firstParentInput": 24345,
+        "maxChildInput": 22019,
+        "seconds": 935.0316920280457,
+        "questionRounds": 0,
+        "userTurns": 1,
+        "partialUsage": false,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 2
+      },
+      "order": [
+        "progress-3-after",
+        "progress-3-before"
+      ]
+    },
+    {
+      "case": "stun",
+      "repeat": 3,
+      "baseline": {
+        "name": "stun-3-before",
+        "total": {
+          "tokens": 2111618,
+          "input": 300240,
+          "output": 21298,
+          "cacheRead": 1790080,
+          "costUsd": 3.84674548,
+          "turns": 84
+        },
+        "parent": {
+          "tokens": 1489961,
+          "input": 124950,
+          "output": 4243,
+          "cacheRead": 1360768,
+          "costUsd": 2.822418,
+          "turns": 40
+        },
+        "maxParentInput": 49354,
+        "firstParentInput": 23927,
+        "maxChildInput": 22137,
+        "seconds": 816.568806886673,
+        "questionRounds": 1,
+        "userTurns": 4,
+        "partialUsage": true,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "candidate": {
+        "name": "stun-3-after",
+        "total": {
+          "tokens": 2309100,
+          "input": 365146,
+          "output": 22162,
+          "cacheRead": 1921792,
+          "costUsd": 4.854787760000001,
+          "turns": 85
+        },
+        "parent": {
+          "tokens": 1759883,
+          "input": 211972,
+          "output": 5639,
+          "cacheRead": 1542272,
+          "costUsd": 3.9439420000000003,
+          "turns": 41
+        },
+        "maxParentInput": 55740,
+        "firstParentInput": 24118,
+        "maxChildInput": 21695,
+        "seconds": 910.3259830474854,
+        "questionRounds": 0,
+        "userTurns": 4,
+        "partialUsage": true,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "archived": true,
+        "unsolicitedSdd": false,
+        "declaredProtocolComplete": true,
+        "historicalAuditEligible": true,
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-astra"
+        ],
+        "applyRuns": 1
+      },
+      "order": [
+        "stun-3-before",
+        "stun-3-after"
+      ]
+    }
+  ],
+  "studies": {
+    "workers": {
+      "csv-1-capable": {
+        "usage": {
+          "input": 42558,
+          "output": 3092,
+          "cacheRead": 161536,
+          "tokens": 207186,
+          "usd": 0.44180084000000003
+        },
+        "seconds": 120.4951400756836,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "52c900bcb9b5efaefb2b1d983c895b8e703cd59013126769c63fbb78a8d3e0a1",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 21107,
+              "output": 1984,
+              "cacheRead": 125184,
+              "tokens": 148275,
+              "usd": 0.435454
+            },
+            "turns": 9,
+            "peakInput": 19745,
+            "firstInput": 5701,
+            "visibleToolBytes": 43576,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 21451,
+              "output": 1108,
+              "cacheRead": 36352,
+              "tokens": 58911,
+              "usd": 0.00634684
+            },
+            "turns": 5,
+            "peakInput": 16356,
+            "firstInput": 2944,
+            "visibleToolBytes": 41757,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "csv-1-cheap": {
+        "usage": {
+          "input": 48855,
+          "output": 3627,
+          "cacheRead": 190976,
+          "tokens": 243458,
+          "usd": 0.01794292
+        },
+        "seconds": 94.94948506355286,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "52c900bcb9b5efaefb2b1d983c895b8e703cd59013126769c63fbb78a8d3e0a1",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 31066,
+              "output": 2486,
+              "cacheRead": 145408,
+              "tokens": 178960,
+              "usd": 0.01210456
+            },
+            "turns": 10,
+            "peakInput": 20408,
+            "firstInput": 5701,
+            "visibleToolBytes": 43554,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 17789,
+              "output": 1141,
+              "cacheRead": 45568,
+              "tokens": 64498,
+              "usd": 0.005838360000000001
+            },
+            "turns": 6,
+            "peakInput": 14793,
+            "firstInput": 2944,
+            "visibleToolBytes": 35509,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "csv-2-capable": {
+        "usage": {
+          "input": 38582,
+          "output": 3232,
+          "cacheRead": 190720,
+          "tokens": 232534,
+          "usd": 0.46341903999999995
+        },
+        "seconds": 122.02522492408752,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "52c900bcb9b5efaefb2b1d983c895b8e703cd59013126769c63fbb78a8d3e0a1",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 21174,
+              "output": 2034,
+              "cacheRead": 144128,
+              "tokens": 167336,
+              "usd": 0.457568
+            },
+            "turns": 10,
+            "peakInput": 19734,
+            "firstInput": 5701,
+            "visibleToolBytes": 43412,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 17408,
+              "output": 1198,
+              "cacheRead": 46592,
+              "tokens": 65198,
+              "usd": 0.00585104
+            },
+            "turns": 6,
+            "peakInput": 15546,
+            "firstInput": 2944,
+            "visibleToolBytes": 39352,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "csv-2-cheap": {
+        "usage": {
+          "input": 57988,
+          "output": 3286,
+          "cacheRead": 145408,
+          "tokens": 206682,
+          "usd": 0.01844896
+        },
+        "seconds": 91.52961683273315,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "52c900bcb9b5efaefb2b1d983c895b8e703cd59013126769c63fbb78a8d3e0a1",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 24624,
+              "output": 1960,
+              "cacheRead": 110080,
+              "tokens": 136664,
+              "usd": 0.0094784
+            },
+            "turns": 8,
+            "peakInput": 19436,
+            "firstInput": 5701,
+            "visibleToolBytes": 42221,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 33364,
+              "output": 1326,
+              "cacheRead": 35328,
+              "tokens": 70018,
+              "usd": 0.00897056
+            },
+            "turns": 7,
+            "peakInput": 15108,
+            "firstInput": 2944,
+            "visibleToolBytes": 37207,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "csv-3-capable": {
+        "usage": {
+          "input": 48571,
+          "output": 3120,
+          "cacheRead": 179840,
+          "tokens": 231531,
+          "usd": 0.510502
+        },
+        "seconds": 121.8675971031189,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "52c900bcb9b5efaefb2b1d983c895b8e703cd59013126769c63fbb78a8d3e0a1",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 26639,
+              "output": 1973,
+              "cacheRead": 138880,
+              "tokens": 167492,
+              "usd": 0.50392
+            },
+            "turns": 10,
+            "peakInput": 19733,
+            "firstInput": 5701,
+            "visibleToolBytes": 43460,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 21932,
+              "output": 1147,
+              "cacheRead": 40960,
+              "tokens": 64039,
+              "usd": 0.006582
+            },
+            "turns": 6,
+            "peakInput": 14788,
+            "firstInput": 2944,
+            "visibleToolBytes": 37764,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "csv-3-cheap": {
+        "usage": {
+          "input": 44871,
+          "output": 3164,
+          "cacheRead": 162816,
+          "tokens": 210851,
+          "usd": 0.01602732
+        },
+        "seconds": 83.04697728157043,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "52c900bcb9b5efaefb2b1d983c895b8e703cd59013126769c63fbb78a8d3e0a1",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 24752,
+              "output": 2016,
+              "cacheRead": 110080,
+              "tokens": 136848,
+              "usd": 0.0095712
+            },
+            "turns": 8,
+            "peakInput": 19484,
+            "firstInput": 5701,
+            "visibleToolBytes": 42166,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 20119,
+              "output": 1148,
+              "cacheRead": 52736,
+              "tokens": 74003,
+              "usd": 0.00645612
+            },
+            "turns": 7,
+            "peakInput": 14993,
+            "firstInput": 2944,
+            "visibleToolBytes": 36378,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "progress-1-capable": {
+        "usage": {
+          "input": 44884,
+          "output": 4151,
+          "cacheRead": 257408,
+          "tokens": 306443,
+          "usd": 0.5819200400000001
+        },
+        "seconds": 178.32896208763123,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "8ffe2687fdc4dc414cfb86fa4f022e6828719f464290474f20db5c0fe996fe0f",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 22803,
+              "output": 2823,
+              "cacheRead": 205696,
+              "tokens": 231322,
+              "usd": 0.574876
+            },
+            "turns": 13,
+            "peakInput": 21307,
+            "firstInput": 6281,
+            "visibleToolBytes": 41766,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 22081,
+              "output": 1328,
+              "cacheRead": 51712,
+              "tokens": 75121,
+              "usd": 0.00704404
+            },
+            "turns": 6,
+            "peakInput": 18212,
+            "firstInput": 2939,
+            "visibleToolBytes": 46830,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "progress-1-cheap": {
+        "usage": {
+          "input": 55541,
+          "output": 3733,
+          "cacheRead": 115200,
+          "tokens": 174474,
+          "usd": 0.017891800000000003
+        },
+        "seconds": 101.67739987373352,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "8ffe2687fdc4dc414cfb86fa4f022e6828719f464290474f20db5c0fe996fe0f",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 31036,
+              "output": 2437,
+              "cacheRead": 83968,
+              "tokens": 117441,
+              "usd": 0.010810960000000001
+            },
+            "turns": 10,
+            "peakInput": 13447,
+            "firstInput": 6281,
+            "visibleToolBytes": 18627,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 24505,
+              "output": 1296,
+              "cacheRead": 31232,
+              "tokens": 57033,
+              "usd": 0.007080840000000001
+            },
+            "turns": 5,
+            "peakInput": 17178,
+            "firstInput": 2939,
+            "visibleToolBytes": 43157,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "progress-2-capable": {
+        "usage": {
+          "input": 51725,
+          "output": 4328,
+          "cacheRead": 264192,
+          "tokens": 320245,
+          "usd": 0.56870816
+        },
+        "seconds": 165.08757519721985,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "8ffe2687fdc4dc414cfb86fa4f022e6828719f464290474f20db5c0fe996fe0f",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 23039,
+              "output": 2827,
+              "cacheRead": 187904,
+              "tokens": 213770,
+              "usd": 0.559644
+            },
+            "turns": 12,
+            "peakInput": 21406,
+            "firstInput": 6281,
+            "visibleToolBytes": 42485,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 28686,
+              "output": 1501,
+              "cacheRead": 76288,
+              "tokens": 106475,
+              "usd": 0.00906416
+            },
+            "turns": 7,
+            "peakInput": 21824,
+            "firstInput": 2939,
+            "visibleToolBytes": 58678,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "progress-2-cheap": {
+        "usage": {
+          "input": 42546,
+          "output": 4231,
+          "cacheRead": 166400,
+          "tokens": 213177,
+          "usd": 0.0169144
+        },
+        "seconds": 114.1414909362793,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "8ffe2687fdc4dc414cfb86fa4f022e6828719f464290474f20db5c0fe996fe0f",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 22396,
+              "output": 2884,
+              "cacheRead": 121344,
+              "tokens": 146624,
+              "usd": 0.01036688
+            },
+            "turns": 12,
+            "peakInput": 14304,
+            "firstInput": 6281,
+            "visibleToolBytes": 19890,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 20150,
+              "output": 1347,
+              "cacheRead": 45056,
+              "tokens": 66553,
+              "usd": 0.00654752
+            },
+            "turns": 5,
+            "peakInput": 17944,
+            "firstInput": 2939,
+            "visibleToolBytes": 44546,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "progress-3-capable": {
+        "usage": {
+          "input": 63637,
+          "output": 4066,
+          "cacheRead": 274176,
+          "tokens": 341879,
+          "usd": 0.5648626400000001
+        },
+        "seconds": 149.78663206100464,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "8ffe2687fdc4dc414cfb86fa4f022e6828719f464290474f20db5c0fe996fe0f",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 22837,
+              "output": 2768,
+              "cacheRead": 186624,
+              "tokens": 212229,
+              "usd": 0.553394
+            },
+            "turns": 12,
+            "peakInput": 21269,
+            "firstInput": 6281,
+            "visibleToolBytes": 41940,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 40800,
+              "output": 1298,
+              "cacheRead": 87552,
+              "tokens": 129650,
+              "usd": 0.01146864
+            },
+            "turns": 9,
+            "peakInput": 18668,
+            "firstInput": 2939,
+            "visibleToolBytes": 48802,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "progress-3-cheap": {
+        "usage": {
+          "input": 47376,
+          "output": 4414,
+          "cacheRead": 228864,
+          "tokens": 280654,
+          "usd": 0.01934928
+        },
+        "seconds": 117.60669302940369,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "8ffe2687fdc4dc414cfb86fa4f022e6828719f464290474f20db5c0fe996fe0f",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 26126,
+              "output": 3137,
+              "cacheRead": 173056,
+              "tokens": 202319,
+              "usd": 0.01245072
+            },
+            "turns": 13,
+            "peakInput": 17860,
+            "firstInput": 6281,
+            "visibleToolBytes": 32164,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 21250,
+              "output": 1277,
+              "cacheRead": 55808,
+              "tokens": 78335,
+              "usd": 0.00689856
+            },
+            "turns": 6,
+            "peakInput": 18415,
+            "firstInput": 2939,
+            "visibleToolBytes": 45562,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "report-1-capable": {
+        "usage": {
+          "input": 66687,
+          "output": 4027,
+          "cacheRead": 627328,
+          "tokens": 698042,
+          "usd": 1.12229084
+        },
+        "seconds": 162.0940601825714,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "87bbdf6dff048a58cb699a390217120beb8debdba5821ea47500cfffec1e0240",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 45806,
+              "output": 2227,
+              "cacheRead": 544896,
+              "tokens": 592929,
+              "usd": 1.114306
+            },
+            "turns": 16,
+            "peakInput": 43710,
+            "firstInput": 6368,
+            "visibleToolBytes": 113464,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 20881,
+              "output": 1800,
+              "cacheRead": 82432,
+              "tokens": 105113,
+              "usd": 0.00798484
+            },
+            "turns": 8,
+            "peakInput": 17359,
+            "firstInput": 2941,
+            "visibleToolBytes": 47166,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "report-1-cheap": {
+        "usage": {
+          "input": 65404,
+          "output": 3819,
+          "cacheRead": 278016,
+          "tokens": 347239,
+          "usd": 0.023223920000000002
+        },
+        "seconds": 97.8318259716034,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "87bbdf6dff048a58cb699a390217120beb8debdba5821ea47500cfffec1e0240",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 42922,
+              "output": 2120,
+              "cacheRead": 227328,
+              "tokens": 272370,
+              "usd": 0.01567496
+            },
+            "turns": 10,
+            "peakInput": 31639,
+            "firstInput": 6368,
+            "visibleToolBytes": 87921,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 22482,
+              "output": 1699,
+              "cacheRead": 50688,
+              "tokens": 74869,
+              "usd": 0.00754896
+            },
+            "turns": 7,
+            "peakInput": 14735,
+            "firstInput": 2941,
+            "visibleToolBytes": 36845,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "report-2-capable": {
+        "usage": {
+          "input": 96668,
+          "output": 5941,
+          "cacheRead": 690816,
+          "tokens": 793425,
+          "usd": 1.24425784
+        },
+        "seconds": 188.60251116752625,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "87bbdf6dff048a58cb699a390217120beb8debdba5821ea47500cfffec1e0240",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 50284,
+              "output": 2716,
+              "cacheRead": 590464,
+              "tokens": 643464,
+              "usd": 1.229104
+            },
+            "turns": 16,
+            "peakInput": 48221,
+            "firstInput": 6368,
+            "visibleToolBytes": 121547,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 46384,
+              "output": 3225,
+              "cacheRead": 100352,
+              "tokens": 149961,
+              "usd": 0.01515384
+            },
+            "turns": 9,
+            "peakInput": 20864,
+            "firstInput": 2941,
+            "visibleToolBytes": 51711,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "report-2-cheap": {
+        "usage": {
+          "input": 80759,
+          "output": 4644,
+          "cacheRead": 407552,
+          "tokens": 492955,
+          "usd": 0.029875640000000002
+        },
+        "seconds": 117.21938705444336,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "87bbdf6dff048a58cb699a390217120beb8debdba5821ea47500cfffec1e0240",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 41929,
+              "output": 2789,
+              "cacheRead": 376320,
+              "tokens": 421038,
+              "usd": 0.019259000000000002
+            },
+            "turns": 14,
+            "peakInput": 34207,
+            "firstInput": 6368,
+            "visibleToolBytes": 95307,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 38830,
+              "output": 1855,
+              "cacheRead": 31232,
+              "tokens": 71917,
+              "usd": 0.01061664
+            },
+            "turns": 6,
+            "peakInput": 17091,
+            "firstInput": 2941,
+            "visibleToolBytes": 42455,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "report-3-capable": {
+        "usage": {
+          "input": 70877,
+          "output": 3794,
+          "cacheRead": 596864,
+          "tokens": 671535,
+          "usd": 1.20021344
+        },
+        "seconds": 146.99278569221497,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "87bbdf6dff048a58cb699a390217120beb8debdba5821ea47500cfffec1e0240",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 53195,
+              "output": 2233,
+              "cacheRead": 550272,
+              "tokens": 605700,
+              "usd": 1.193872
+            },
+            "turns": 16,
+            "peakInput": 44756,
+            "firstInput": 6368,
+            "visibleToolBytes": 113495,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 17682,
+              "output": 1561,
+              "cacheRead": 46592,
+              "tokens": 65835,
+              "usd": 0.00634144
+            },
+            "turns": 6,
+            "peakInput": 14926,
+            "firstInput": 2941,
+            "visibleToolBytes": 38242,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "report-3-cheap": {
+        "usage": {
+          "input": 68400,
+          "output": 4282,
+          "cacheRead": 331264,
+          "tokens": 403946,
+          "usd": 0.02544368
+        },
+        "seconds": 108.5844988822937,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "87bbdf6dff048a58cb699a390217120beb8debdba5821ea47500cfffec1e0240",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 40332,
+              "output": 2279,
+              "cacheRead": 276480,
+              "tokens": 319091,
+              "usd": 0.0163308
+            },
+            "turns": 11,
+            "peakInput": 33423,
+            "firstInput": 6368,
+            "visibleToolBytes": 94351,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 28068,
+              "output": 2003,
+              "cacheRead": 54784,
+              "tokens": 84855,
+              "usd": 0.00911288
+            },
+            "turns": 7,
+            "peakInput": 18617,
+            "firstInput": 2941,
+            "visibleToolBytes": 46738,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "stun-1-capable": {
+        "usage": {
+          "input": 50487,
+          "output": 3111,
+          "cacheRead": 196608,
+          "tokens": 250206,
+          "usd": 0.4813708
+        },
+        "seconds": 147.46388912200928,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "261bb7433e400bc1d66c29d47e2f1495b160f60ba796ccfb38c7edb359e8eec1",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 26565,
+              "output": 1708,
+              "cacheRead": 122368,
+              "tokens": 150641,
+              "usd": 0.473418
+            },
+            "turns": 9,
+            "peakInput": 19799,
+            "firstInput": 5847,
+            "visibleToolBytes": 44402,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 23922,
+              "output": 1403,
+              "cacheRead": 74240,
+              "tokens": 99565,
+              "usd": 0.0079528
+            },
+            "turns": 9,
+            "peakInput": 16621,
+            "firstInput": 2928,
+            "visibleToolBytes": 42441,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "stun-1-cheap": {
+        "usage": {
+          "input": 62949,
+          "output": 3072,
+          "cacheRead": 214016,
+          "tokens": 280037,
+          "usd": 0.020556520000000002
+        },
+        "seconds": 96.24538707733154,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "261bb7433e400bc1d66c29d47e2f1495b160f60ba796ccfb38c7edb359e8eec1",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 39959,
+              "output": 1766,
+              "cacheRead": 129536,
+              "tokens": 171261,
+              "usd": 0.012701720000000001
+            },
+            "turns": 11,
+            "peakInput": 17354,
+            "firstInput": 5847,
+            "visibleToolBytes": 38412,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 22990,
+              "output": 1306,
+              "cacheRead": 84480,
+              "tokens": 108776,
+              "usd": 0.0078548
+            },
+            "turns": 9,
+            "peakInput": 16774,
+            "firstInput": 2928,
+            "visibleToolBytes": 42445,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "stun-2-capable": {
+        "usage": {
+          "input": 53164,
+          "output": 3096,
+          "cacheRead": 170368,
+          "tokens": 226628,
+          "usd": 0.4403894
+        },
+        "seconds": 129.2486321926117,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "261bb7433e400bc1d66c29d47e2f1495b160f60ba796ccfb38c7edb359e8eec1",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 21187,
+              "output": 1807,
+              "cacheRead": 129408,
+              "tokens": 152402,
+              "usd": 0.431628
+            },
+            "turns": 9,
+            "peakInput": 20207,
+            "firstInput": 5847,
+            "visibleToolBytes": 45634,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 31977,
+              "output": 1289,
+              "cacheRead": 40960,
+              "tokens": 74226,
+              "usd": 0.0087614
+            },
+            "turns": 6,
+            "peakInput": 18706,
+            "firstInput": 2928,
+            "visibleToolBytes": 49746,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "stun-2-cheap": {
+        "usage": {
+          "input": 47468,
+          "output": 2982,
+          "cacheRead": 156672,
+          "tokens": 207122,
+          "usd": 0.01620544
+        },
+        "seconds": 90.2382264137268,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "261bb7433e400bc1d66c29d47e2f1495b160f60ba796ccfb38c7edb359e8eec1",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 23403,
+              "output": 1687,
+              "cacheRead": 114688,
+              "tokens": 139778,
+              "usd": 0.008998760000000001
+            },
+            "turns": 9,
+            "peakInput": 17460,
+            "firstInput": 5847,
+            "visibleToolBytes": 39242,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 24065,
+              "output": 1295,
+              "cacheRead": 41984,
+              "tokens": 67344,
+              "usd": 0.00720668
+            },
+            "turns": 6,
+            "peakInput": 16271,
+            "firstInput": 2928,
+            "visibleToolBytes": 40899,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "stun-3-capable": {
+        "usage": {
+          "input": 55090,
+          "output": 3238,
+          "cacheRead": 187648,
+          "tokens": 245976,
+          "usd": 0.42974944000000004
+        },
+        "seconds": 137.2173879146576,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "261bb7433e400bc1d66c29d47e2f1495b160f60ba796ccfb38c7edb359e8eec1",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 20742,
+              "output": 1683,
+              "cacheRead": 128256,
+              "tokens": 150681,
+              "usd": 0.41982600000000003
+            },
+            "turns": 9,
+            "peakInput": 19782,
+            "firstInput": 5847,
+            "visibleToolBytes": 44393,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 34348,
+              "output": 1555,
+              "cacheRead": 59392,
+              "tokens": 95295,
+              "usd": 0.00992344
+            },
+            "turns": 8,
+            "peakInput": 16196,
+            "firstInput": 2928,
+            "visibleToolBytes": 41196,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "stun-3-cheap": {
+        "usage": {
+          "input": 60813,
+          "output": 3260,
+          "cacheRead": 194560,
+          "tokens": 258633,
+          "usd": 0.0199658
+        },
+        "seconds": 101.20875120162964,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "261bb7433e400bc1d66c29d47e2f1495b160f60ba796ccfb38c7edb359e8eec1",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 39357,
+              "output": 1753,
+              "cacheRead": 98816,
+              "tokens": 139926,
+              "usd": 0.01195132
+            },
+            "turns": 9,
+            "peakInput": 17487,
+            "firstInput": 5847,
+            "visibleToolBytes": 39189,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 21456,
+              "output": 1507,
+              "cacheRead": 95744,
+              "tokens": 118707,
+              "usd": 0.008014480000000001
+            },
+            "turns": 10,
+            "peakInput": 16073,
+            "firstInput": 2928,
+            "visibleToolBytes": 39319,
+            "checkPreviews": 0
+          }
+        ]
+      }
+    },
+    "headroom-workers": {
+      "report-1-off": {
+        "usage": {
+          "input": 59540,
+          "output": 3922,
+          "cacheRead": 355328,
+          "tokens": 418790,
+          "usd": 0.02372096
+        },
+        "seconds": 105.07905578613281,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "87bbdf6dff048a58cb699a390217120beb8debdba5821ea47500cfffec1e0240",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 39309,
+              "output": 2163,
+              "cacheRead": 306688,
+              "tokens": 348160,
+              "usd": 0.01659116
+            },
+            "turns": 12,
+            "peakInput": 33022,
+            "firstInput": 6375,
+            "visibleToolBytes": 93170,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 20231,
+              "output": 1759,
+              "cacheRead": 48640,
+              "tokens": 70630,
+              "usd": 0.0071298
+            },
+            "turns": 6,
+            "peakInput": 16639,
+            "firstInput": 2943,
+            "visibleToolBytes": 41708,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "report-1-on": {
+        "usage": {
+          "input": 73191,
+          "output": 4900,
+          "cacheRead": 404480,
+          "tokens": 482571,
+          "usd": 0.028607800000000003
+        },
+        "seconds": 126.52586817741394,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "87bbdf6dff048a58cb699a390217120beb8debdba5821ea47500cfffec1e0240",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 41639,
+              "output": 2890,
+              "cacheRead": 358912,
+              "tokens": 403441,
+              "usd": 0.01897404
+            },
+            "turns": 14,
+            "peakInput": 32934,
+            "firstInput": 6375,
+            "visibleToolBytes": 63230,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 31552,
+              "output": 2010,
+              "cacheRead": 45568,
+              "tokens": 79130,
+              "usd": 0.00963376
+            },
+            "turns": 7,
+            "peakInput": 14897,
+            "firstInput": 2943,
+            "visibleToolBytes": 36350,
+            "checkPreviews": 0
+          }
+        ],
+        "headroom": [
+          {
+            "outcome": "compressed",
+            "completeSource": true,
+            "counts": {
+              "eligible": 1,
+              "compressed": 1,
+              "fullRecovered": 1,
+              "unchanged": 0,
+              "rejected": 0,
+              "failed": 0,
+              "savedBytes": 97323,
+              "promptSavedBytes": 31880,
+              "wouldSaveBytes": 0,
+              "elapsedMs": 938.5761249999996
+            }
+          }
+        ]
+      },
+      "report-2-off": {
+        "usage": {
+          "input": 64644,
+          "output": 4100,
+          "cacheRead": 290304,
+          "tokens": 359048,
+          "usd": 0.02365488
+        },
+        "seconds": 103.45808124542236,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "87bbdf6dff048a58cb699a390217120beb8debdba5821ea47500cfffec1e0240",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 39202,
+              "output": 2309,
+              "cacheRead": 245248,
+              "tokens": 286759,
+              "usd": 0.01551616
+            },
+            "turns": 10,
+            "peakInput": 33447,
+            "firstInput": 6375,
+            "visibleToolBytes": 94431,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 25442,
+              "output": 1791,
+              "cacheRead": 45056,
+              "tokens": 72289,
+              "usd": 0.00813872
+            },
+            "turns": 6,
+            "peakInput": 17913,
+            "firstInput": 2943,
+            "visibleToolBytes": 45008,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "report-2-on": {
+        "usage": {
+          "input": 111098,
+          "output": 5352,
+          "cacheRead": 680448,
+          "tokens": 796898,
+          "usd": 0.042250960000000004
+        },
+        "seconds": 142.75993871688843,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "87bbdf6dff048a58cb699a390217120beb8debdba5821ea47500cfffec1e0240",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 91375,
+              "output": 3748,
+              "cacheRead": 610304,
+              "tokens": 705427,
+              "usd": 0.034978680000000005
+            },
+            "turns": 20,
+            "peakInput": 47708,
+            "firstInput": 6375,
+            "visibleToolBytes": 116641,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 19723,
+              "output": 1604,
+              "cacheRead": 70144,
+              "tokens": 91471,
+              "usd": 0.007272280000000001
+            },
+            "turns": 8,
+            "peakInput": 14553,
+            "firstInput": 2943,
+            "visibleToolBytes": 36369,
+            "checkPreviews": 0
+          }
+        ],
+        "headroom": [
+          {
+            "outcome": "compressed",
+            "completeSource": true,
+            "counts": {
+              "eligible": 1,
+              "compressed": 1,
+              "fullRecovered": 1,
+              "unchanged": 0,
+              "rejected": 0,
+              "failed": 0,
+              "savedBytes": 97323,
+              "promptSavedBytes": 31880,
+              "wouldSaveBytes": 0,
+              "elapsedMs": 245.42683299999953
+            }
+          }
+        ]
+      },
+      "report-3-off": {
+        "usage": {
+          "input": 83529,
+          "output": 4467,
+          "cacheRead": 329216,
+          "tokens": 417212,
+          "usd": 0.028650520000000002
+        },
+        "seconds": 111.0136091709137,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "87bbdf6dff048a58cb699a390217120beb8debdba5821ea47500cfffec1e0240",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 40000,
+              "output": 2480,
+              "cacheRead": 310784,
+              "tokens": 353264,
+              "usd": 0.01719168
+            },
+            "turns": 12,
+            "peakInput": 33677,
+            "firstInput": 6375,
+            "visibleToolBytes": 94511,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 43529,
+              "output": 1987,
+              "cacheRead": 18432,
+              "tokens": 63948,
+              "usd": 0.011458840000000001
+            },
+            "turns": 5,
+            "peakInput": 17359,
+            "firstInput": 2943,
+            "visibleToolBytes": 43248,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "report-3-on": {
+        "usage": {
+          "input": 77990,
+          "output": 4306,
+          "cacheRead": 397312,
+          "tokens": 479608,
+          "usd": 0.028711439999999998
+        },
+        "seconds": 129.3309350013733,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "firstPacketDigest": "87bbdf6dff048a58cb699a390217120beb8debdba5821ea47500cfffec1e0240",
+        "oraclePass": true,
+        "phases": [
+          {
+            "phase": "apply",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 41374,
+              "output": 2692,
+              "cacheRead": 332800,
+              "tokens": 376866,
+              "usd": 0.0181612
+            },
+            "turns": 13,
+            "peakInput": 32949,
+            "firstInput": 6375,
+            "visibleToolBytes": 64072,
+            "checkPreviews": 0
+          },
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 36616,
+              "output": 1614,
+              "cacheRead": 64512,
+              "tokens": 102742,
+              "usd": 0.01055024
+            },
+            "turns": 8,
+            "peakInput": 16791,
+            "firstInput": 2943,
+            "visibleToolBytes": 42543,
+            "checkPreviews": 0
+          }
+        ],
+        "headroom": [
+          {
+            "outcome": "compressed",
+            "completeSource": true,
+            "counts": {
+              "eligible": 1,
+              "compressed": 1,
+              "fullRecovered": 1,
+              "unchanged": 0,
+              "rejected": 0,
+              "failed": 0,
+              "savedBytes": 97323,
+              "promptSavedBytes": 31880,
+              "wouldSaveBytes": 0,
+              "elapsedMs": 279.87058300000035
+            }
+          }
+        ]
+      }
+    },
+    "verify-replays": {
+      "good-csv": {
+        "usage": {
+          "input": 34428,
+          "output": 1434,
+          "cacheRead": 44032,
+          "tokens": 79894,
+          "usd": 0.00948704
+        },
+        "seconds": 41.53359413146973,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": true,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 34428,
+              "output": 1434,
+              "cacheRead": 44032,
+              "tokens": 79894,
+              "usd": 0.00948704
+            },
+            "turns": 7,
+            "peakInput": 15180,
+            "firstInput": 2953,
+            "visibleToolBytes": 35643,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "good-report": {
+        "usage": {
+          "input": 29597,
+          "output": 1568,
+          "cacheRead": 26624,
+          "tokens": 57789,
+          "usd": 0.00833348
+        },
+        "seconds": 39.28560519218445,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": true,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 29597,
+              "output": 1568,
+              "cacheRead": 26624,
+              "tokens": 57789,
+              "usd": 0.00833348
+            },
+            "turns": 5,
+            "peakInput": 15074,
+            "firstInput": 2950,
+            "visibleToolBytes": 40150,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "headroom-report-1": {
+        "usage": {
+          "input": 38297,
+          "output": 1815,
+          "cacheRead": 35840,
+          "tokens": 75952,
+          "usd": 0.010554200000000001
+        },
+        "seconds": 53.84434986114502,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": true,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 38297,
+              "output": 1815,
+              "cacheRead": 35840,
+              "tokens": 75952,
+              "usd": 0.010554200000000001
+            },
+            "turns": 6,
+            "peakInput": 18337,
+            "firstInput": 2954,
+            "visibleToolBytes": 45543,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "main-report-3": {
+        "usage": {
+          "input": 27493,
+          "output": 1938,
+          "cacheRead": 54272,
+          "tokens": 83703,
+          "usd": 0.00890964
+        },
+        "seconds": 56.67839694023132,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": false,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 27493,
+              "output": 1938,
+              "cacheRead": 54272,
+              "tokens": 83703,
+              "usd": 0.00890964
+            },
+            "turns": 6,
+            "peakInput": 22304,
+            "firstInput": 2952,
+            "visibleToolBytes": 57100,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "mutation-progress": {
+        "usage": {
+          "input": 30488,
+          "output": 1470,
+          "cacheRead": 132096,
+          "tokens": 164054,
+          "usd": 0.01050352
+        },
+        "seconds": 42.64625096321106,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "partial"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": false,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 30488,
+              "output": 1470,
+              "cacheRead": 132096,
+              "tokens": 164054,
+              "usd": 0.01050352
+            },
+            "turns": 9,
+            "peakInput": 26019,
+            "firstInput": 2946,
+            "visibleToolBytes": 67785,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "mutation-stun": {
+        "usage": {
+          "input": 34977,
+          "output": 1491,
+          "cacheRead": 78336,
+          "tokens": 114804,
+          "usd": 0.01035132
+        },
+        "seconds": 50.60908102989197,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "partial"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": false,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 34977,
+              "output": 1491,
+              "cacheRead": 78336,
+              "tokens": 114804,
+              "usd": 0.01035132
+            },
+            "turns": 9,
+            "peakInput": 16482,
+            "firstInput": 2948,
+            "visibleToolBytes": 42681,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "worker-report-1": {
+        "usage": {
+          "input": 23666,
+          "output": 1799,
+          "cacheRead": 69632,
+          "tokens": 95097,
+          "usd": 0.008284640000000001
+        },
+        "seconds": 53.983757972717285,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": true,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 23666,
+              "output": 1799,
+              "cacheRead": 69632,
+              "tokens": 95097,
+              "usd": 0.008284640000000001
+            },
+            "turns": 7,
+            "peakInput": 19326,
+            "firstInput": 2954,
+            "visibleToolBytes": 52383,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "worker-report-2": {
+        "usage": {
+          "input": 26160,
+          "output": 1749,
+          "cacheRead": 65024,
+          "tokens": 92933,
+          "usd": 0.00863128
+        },
+        "seconds": 57.76495718955994,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": true,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 26160,
+              "output": 1749,
+              "cacheRead": 65024,
+              "tokens": 92933,
+              "usd": 0.00863128
+            },
+            "turns": 7,
+            "peakInput": 19628,
+            "firstInput": 2954,
+            "visibleToolBytes": 53035,
+            "checkPreviews": 0
+          }
+        ]
+      }
+    },
+    "verify-replays-v2": {
+      "good-csv": {
+        "usage": {
+          "input": 27069,
+          "output": 1420,
+          "cacheRead": 41984,
+          "tokens": 70473,
+          "usd": 0.007957480000000001
+        },
+        "seconds": 45.05879783630371,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": true,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 27069,
+              "output": 1420,
+              "cacheRead": 41984,
+              "tokens": 70473,
+              "usd": 0.007957480000000001
+            },
+            "turns": 8,
+            "peakInput": 12088,
+            "firstInput": 2944,
+            "visibleToolBytes": 31328,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "good-report": {
+        "usage": {
+          "input": 25971,
+          "output": 2037,
+          "cacheRead": 94208,
+          "tokens": 122216,
+          "usd": 0.00952276
+        },
+        "seconds": 57.461589097976685,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": true,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 25971,
+              "output": 2037,
+              "cacheRead": 94208,
+              "tokens": 122216,
+              "usd": 0.00952276
+            },
+            "turns": 10,
+            "peakInput": 16435,
+            "firstInput": 2941,
+            "visibleToolBytes": 42508,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "headroom-report-1": {
+        "usage": {
+          "input": 18048,
+          "output": 1706,
+          "cacheRead": 38912,
+          "tokens": 58666,
+          "usd": 0.0064350399999999995
+        },
+        "seconds": 41.56677865982056,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": true,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 18048,
+              "output": 1706,
+              "cacheRead": 38912,
+              "tokens": 58666,
+              "usd": 0.0064350399999999995
+            },
+            "turns": 5,
+            "peakInput": 16511,
+            "firstInput": 2945,
+            "visibleToolBytes": 42166,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "main-report-3-repeat-2": {
+        "usage": {
+          "input": 26940,
+          "output": 1840,
+          "cacheRead": 74752,
+          "tokens": 103532,
+          "usd": 0.00909104
+        },
+        "seconds": 50.70741295814514,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": false,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 26940,
+              "output": 1840,
+              "cacheRead": 74752,
+              "tokens": 103532,
+              "usd": 0.00909104
+            },
+            "turns": 7,
+            "peakInput": 22664,
+            "firstInput": 2949,
+            "visibleToolBytes": 59245,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "main-report-3-repeat-3": {
+        "usage": {
+          "input": 32794,
+          "output": 2087,
+          "cacheRead": 56320,
+          "tokens": 91201,
+          "usd": 0.0101896
+        },
+        "seconds": 58.06963396072388,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": false,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 32794,
+              "output": 2087,
+              "cacheRead": 56320,
+              "tokens": 91201,
+              "usd": 0.0101896
+            },
+            "turns": 8,
+            "peakInput": 15175,
+            "firstInput": 2949,
+            "visibleToolBytes": 40026,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "main-report-3": {
+        "usage": {
+          "input": 20921,
+          "output": 2037,
+          "cacheRead": 53760,
+          "tokens": 76718,
+          "usd": 0.0077038
+        },
+        "seconds": 51.392478227615356,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": false,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 20921,
+              "output": 2037,
+              "cacheRead": 53760,
+              "tokens": 76718,
+              "usd": 0.0077038
+            },
+            "turns": 6,
+            "peakInput": 18131,
+            "firstInput": 2943,
+            "visibleToolBytes": 46612,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "mutation-progress": {
+        "usage": {
+          "input": 29931,
+          "output": 1554,
+          "cacheRead": 56320,
+          "tokens": 87805,
+          "usd": 0.0089774
+        },
+        "seconds": 42.937790870666504,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "partial"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": false,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 29931,
+              "output": 1554,
+              "cacheRead": 56320,
+              "tokens": 87805,
+              "usd": 0.0089774
+            },
+            "turns": 6,
+            "peakInput": 24645,
+            "firstInput": 2937,
+            "visibleToolBytes": 63436,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "mutation-stun": {
+        "usage": {
+          "input": 22862,
+          "output": 1536,
+          "cacheRead": 100352,
+          "tokens": 124750,
+          "usd": 0.00842264
+        },
+        "seconds": 48.28659987449646,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "partial"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": false,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 22862,
+              "output": 1536,
+              "cacheRead": 100352,
+              "tokens": 124750,
+              "usd": 0.00842264
+            },
+            "turns": 9,
+            "peakInput": 18642,
+            "firstInput": 2939,
+            "visibleToolBytes": 51385,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "worker-report-1": {
+        "usage": {
+          "input": 30709,
+          "output": 1964,
+          "cacheRead": 87552,
+          "tokens": 120225,
+          "usd": 0.01024964
+        },
+        "seconds": 55.377519845962524,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": true,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 30709,
+              "output": 1964,
+              "cacheRead": 87552,
+              "tokens": 120225,
+              "usd": 0.01024964
+            },
+            "turns": 7,
+            "peakInput": 26276,
+            "firstInput": 2945,
+            "visibleToolBytes": 70686,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "worker-report-2": {
+        "usage": {
+          "input": 43207,
+          "output": 2018,
+          "cacheRead": 56832,
+          "tokens": 102057,
+          "usd": 0.01219964
+        },
+        "seconds": 58.31427717208862,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": true,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-5.6-luna",
+            "usage": {
+              "input": 43207,
+              "output": 2018,
+              "cacheRead": 56832,
+              "tokens": 102057,
+              "usd": 0.01219964
+            },
+            "turns": 7,
+            "peakInput": 20396,
+            "firstInput": 2945,
+            "visibleToolBytes": 54943,
+            "checkPreviews": 0
+          }
+        ]
+      }
+    },
+    "verify-capable": {
+      "headroom-report-1": {
+        "usage": {
+          "input": 47345,
+          "output": 3913,
+          "cacheRead": 336256,
+          "tokens": 387514,
+          "usd": 1.0053560000000001
+        },
+        "seconds": 155.83808207511902,
+        "verdict": {
+          "status": "pass",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": true,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 47345,
+              "output": 3913,
+              "cacheRead": 336256,
+              "tokens": 387514,
+              "usd": 1.0053560000000001
+            },
+            "turns": 15,
+            "peakInput": 41125,
+            "firstInput": 2937,
+            "visibleToolBytes": 91829,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "main-report-3": {
+        "usage": {
+          "input": 40317,
+          "output": 3251,
+          "cacheRead": 196736,
+          "tokens": 240304,
+          "usd": 0.762456
+        },
+        "seconds": 135.2232129573822,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "partial"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": false,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 40317,
+              "output": 3251,
+              "cacheRead": 196736,
+              "tokens": 240304,
+              "usd": 0.762456
+            },
+            "turns": 11,
+            "peakInput": 33737,
+            "firstInput": 2935,
+            "visibleToolBytes": 86601,
+            "checkPreviews": 0
+          }
+        ]
+      },
+      "worker-report-2": {
+        "usage": {
+          "input": 45824,
+          "output": 3534,
+          "cacheRead": 171904,
+          "tokens": 221262,
+          "usd": 0.806844
+        },
+        "seconds": 140.77918219566345,
+        "verdict": {
+          "status": "fail",
+          "behavior_coverage": "verified"
+        },
+        "sourceUnchanged": true,
+        "expectedPass": true,
+        "oraclePass": null,
+        "phases": [
+          {
+            "phase": "verify",
+            "model": "gpt-6-astra",
+            "usage": {
+              "input": 45824,
+              "output": 3534,
+              "cacheRead": 171904,
+              "tokens": 221262,
+              "usd": 0.806844
+            },
+            "turns": 12,
+            "peakInput": 27675,
+            "firstInput": 2937,
+            "visibleToolBytes": 69545,
+            "checkPreviews": 0
+          }
+        ]
+      }
+    },
+    "mutations": {}
+  },
+  "nativeOutputOrder": [
+    {
+      "order": "headroom-first",
+      "nativeViewBytes": 43449,
+      "originalBytes": 151573,
+      "deliveredBytes": 1371,
+      "preview": true,
+      "compressions": 0,
+      "metadataPreserved": true,
+      "originalPreserved": true
+    },
+    {
+      "order": "verify-first",
+      "nativeViewBytes": 43449,
+      "originalBytes": 151573,
+      "deliveredBytes": 1371,
+      "preview": true,
+      "compressions": 0,
+      "metadataPreserved": true,
+      "originalPreserved": true
+    }
+  ],
+  "continuity": [
+    {
+      "name": "long-baseline",
+      "checks": 13,
+      "pass": true,
+      "questionRounds": 3,
+      "subagents": [
+        {
+          "agent": "sdd-apply",
+          "context": "fresh"
+        },
+        {
+          "agent": "sdd-verify",
+          "context": "fresh"
+        },
+        {
+          "agent": "sdd-apply",
+          "context": "fresh"
+        },
+        {
+          "agent": "sdd-verify",
+          "context": "fresh"
+        },
+        {
+          "agent": "sdd-apply",
+          "context": "fresh"
+        },
+        {
+          "agent": "sdd-verify",
+          "context": "fresh"
+        }
+      ],
+      "compactUnchanged": true,
+      "readOnlyUnchanged": true
+    },
+    {
+      "name": "long-candidate",
+      "checks": 13,
+      "pass": true,
+      "questionRounds": 0,
+      "subagents": [
+        {
+          "agent": "sdd-apply",
+          "context": "fresh"
+        },
+        {
+          "agent": "sdd-verify",
+          "context": "fresh"
+        },
+        {
+          "agent": "sdd-apply",
+          "context": "fresh"
+        },
+        {
+          "agent": "sdd-verify",
+          "context": "fresh"
+        },
+        {
+          "agent": "sdd-apply",
+          "context": "fresh"
+        },
+        {
+          "agent": "sdd-verify",
+          "context": "fresh"
+        }
+      ],
+      "compactUnchanged": true,
+      "readOnlyUnchanged": true
+    }
+  ],
+  "recordGuardReplay": {
+    "observedCalls": 20,
+    "nonemptyQuestions": 0
+  },
+  "verification": {
+    "combinedTests": 3303,
+    "failures": 0,
+    "compatibility402Tests": 42,
+    "primaryBehaviorOracles": "30/30",
+    "extendedCompatibilityOracles": "29/30; report-1-after changes inputs explicitly left outside its contract",
+    "closedWorkerExtendedOracles": "24/24",
+    "firstPacketDigestEquality": "12/12",
+    "finalKnownNegativeReplays": "5/5 blocked; two planted code defects and three repetitions of the unmet historical plan",
+    "localModelTested": false
+  },
+  "limitations": [
+    "Three pairs per scenario, not class certification (ADR requires at least 20 groups).",
+    "Progress frozen packet required supervised notation clarification before six worker starts. STUN parser defect fixed before its six starts; per-class runtime versions are recorded.",
+    "Final prompt clarification and parser fix have targeted real replays; the entire economic cohort was not rerun on fa48bbd.",
+    "Chronology-sensitive cheap verify still has both conservatism and prior false approvals; report class not promoted.",
+    "No shell confinement claim. Scope audit combines final diff and native write/edit inspection.",
+    "MCP-enabled smoke has correct source but candidate omits the machine-readable behavior_coverage label.",
+    "Latency is descriptive: concurrent trials, retries and service conditions differ."
+  ]
+}
