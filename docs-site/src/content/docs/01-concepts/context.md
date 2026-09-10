@@ -1,82 +1,41 @@
 ---
-title: "Contexto"
-description: "Por qué el contexto es el recurso que escasea y cómo lo administra EIN."
-sources: ["runtime/assets/orchestrator.md", "openspec/specs/scout-routing/spec.md"]
-verified_rev: "29861f5"
+title: "Contexto y ahorro"
+description: "Cómo Ein reduce entrada innecesaria sin perder acceso a la evidencia."
+sources: ["runtime/assets/orchestrator-core.md", "ein-pi/agent/lib/apply-packet-compile.ts", "runtime/agents/sdd-verify.md", "docs/adr/0006-remove-runtime-compressors.md"]
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
-El contexto es lo que el agente tiene delante cuando piensa: tu petición, lo que
-ha leído, lo que lleva hecho. Es finito, y se gasta.
+El ahorro buscado es el del trabajo completo con calidad comparable. Reducir tokens en un hijo ayuda, pero puede quedar anulado si el padre necesita más turnos, más entrada no cacheada o reintentos.
 
-Y no se gasta solo en tokens. Se gasta en **atención**: cuanto más ruido hay
-dentro, peor razona el modelo sobre lo que sí importa.
+## Qué recibe cada uno
 
-## El vocabulario mínimo
+| Superficie | Información necesaria |
+| --- | --- |
+| Padre | Núcleo de coordinación, petición, ajustes y estado; detalle del flujo cuando lo necesita. |
+| Agente pensante | Encargo, intención y fuentes pertinentes para resolver decisiones. |
+| Apply | Grupo ejecutable, contexto y skills pertinentes, cambios y checks definidos. |
+| Verify | Criterios, cambios, plan de verificación y referencias a evidencias; ejecuta sus propias comprobaciones. |
 
-| Término | Qué es |
-| :--- | :--- |
-| **Ventana de contexto** | el total que cabe |
-| `max_tokens` | el presupuesto que una fase tiene asignado |
-| `max_reads` | cuántos ficheros puede leer antes de parar |
-| **fresh** | arrancar a un subagente limpio, solo con su encargo |
-| **fork** | arrancarlo heredando toda la conversación del padre |
+**Contexto fresco no significa contexto vacío.** El hijo necesita instrucciones del sistema, herramientas, su rol y el contexto de su encargo. Evita heredar toda la conversación anterior; no garantiza un número fijo de tokens ni un rendimiento perfecto.
 
-## fresh o fork: la decisión que más cuesta
+## Skills a demanda
 
-Cuando el orquestador delega, elige una de las dos. Y la intuición engaña.
+El catálogo permite descubrir nombres, descripciones y rutas. Pi resuelve las skills pertinentes por rol, proyecto y tarea, preserva nombres pedidos expresamente y da prioridad a las reglas del proyecto. El ejecutor lee las instrucciones completas de las skills seleccionadas.
 
-**`fork` hereda la conversación entera.** En una sesión larga, eso arrastra
-cientos de miles de tokens al hijo. Un commit trivial delegado con `fork` llegó
-a medir 382k tokens de entrada por esa vía.
+No se inyecta todo el catálogo de instrucciones al padre ni se recortan semánticamente las skills para fabricar fragmentos nuevos. Si el trabajo necesita más información, se consulta la fuente pertinente. Claude usa su adaptación y descubrimiento nativo; no tiene equivalencia completa con la inyección de Pi.
 
-**`fresh` arranca en unos 2000 tokens** más el encargo.
+## Apply y verify acotados
 
-La regla práctica: si el subagente puede averiguar lo que necesita por su cuenta
-—mirando git, leyendo ficheros, consultando el estado— va `fresh`. Entrega,
-revisión de diffs, auditorías: todas `fresh`. Solo se usa `fork` cuando el hijo
-necesita de verdad el hilo de la conversación, y aun así solo si la sesión es
-corta.
+En los planes compatibles, Pi compila el grupo indicado por `apply_group` con sus instrucciones, subpasos, notas y metadatos validados. Comprueba su vigencia antes del lanzamiento y al arrancar el hijo. Los planes antiguos conservan su ruta compatible: no es un sandbox universal ni una prueba de que el diseño esté completo.
 
-:::caution[CONTRAINTUITIVO]
-Delegar en un modelo más barato **no abarata la ejecución** si lo arrancas con
-`fork`. El coste dominante es el contexto que le metes, no el precio por token.
-Un modelo barato con 382k tokens de entrada sale más caro que uno bueno con
-2000.
-:::
+Verify combina comandos exactamente duplicados cuando las asociaciones declaradas lo permiten. Las suites y builds globales pertinentes le corresponden a verify, evitando repetirlos mecánicamente en cada grupo de apply. Los checks grandes reconocidos que terminan correctamente pueden mostrar una vista breve con enlace al log original. Una salida ambigua requiere inspección; los fallos y las carencias de cobertura no se ocultan.
 
-## Por qué hay presupuestos por fase
+El padre recibe un resultado compacto, no tablas y logs enteros. En SDD la evidencia permanece en los artefactos y, al cerrar, los informes de apply y verify se conservan dentro del resumen archivado.
 
-Cada fase recibe `max_tokens` y `max_reads`. No es burocracia: es lo que impide
-que una fase de exploración se lea el repositorio entero "para entenderlo".
+## Cómo interpretar una medición
 
-Leerlo entero suena a diligencia y no lo es. Produce un contexto lleno de
-ficheros que no vienen al caso, y un mapa peor que si se hubiera buscado con
-criterio. La instrucción es explorar por estructura primero —listar, buscar
-símbolos— y leer completo solo lo que está dentro del alcance.
+Distingue tamaño de contexto, tokens procesados acumulados, entrada cacheada, entrada nueva, salida, coste y tiempo. Sumar tokens de muchos turnos no mide el máximo de contexto. Un porcentaje cacheado tampoco demuestra por sí solo ahorro de dinero.
 
-Cuando una fase se queda sin presupuesto, **para y lo dice**. No acelera
-saltándose comprobaciones para llegar al final.
+Compara tareas equivalentes con el mismo nivel de calidad y considera reintentos, fallos y trabajo de revisión. Una ejecución por variante no demuestra ahorro universal. La ejecución local necesita pruebas con el modelo y hardware reales antes de declararse validada.
 
-## Alcance sin acotar
-
-Si le pides a EIN "refactoriza el proyecto entero", la fase de exploración no lo
-intenta. Devuelve una recomendación de partirlo en trozos acotados, uno por
-cambio.
-
-No es pereza: un mapa de todo el repositorio no cabe en ninguna ventana útil, y
-el resultado sería un resumen inútil de todo en vez de un mapa preciso de algo.
-
-## Cómo se nota esto usándolo
-
-En que las fases devuelven sobres cortos. Un subagente que ha hecho un trabajo
-de 300 líneas de artefacto vuelve con cinco líneas: qué hizo, dónde lo dejó, qué
-riesgos ve.
-
-El detalle está en el fichero. Si el orquestador lo necesita, lo lee del disco;
-si no, no lo carga. Un sobre gordo por fase llena la conversación del
-coordinador en tres delegaciones, y a partir de ahí coordina peor.
-
-## Siguiente
-
-[Límites deterministas](/ein-agent/01-concepts/deterministic-boundaries/) — qué
-decide un modelo y qué comprueba una herramienta.
+Hypa y Headroom están retirados; se conservan el manejo nativo de Pi y las vistas acotadas de verify. La [decisión](https://github.com/samuhlo/ein-agent/blob/main/docs/adr/0006-remove-runtime-compressors.md) explica la evidencia y sus límites.

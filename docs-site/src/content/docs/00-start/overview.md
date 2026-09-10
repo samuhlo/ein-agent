@@ -1,97 +1,30 @@
 ---
-title: "Overview"
-description: "Qué es EIN, qué problema resuelve y para quién está pensado."
-sources: ["README.md", "docs/roadmap.md", "runtime/docs/EIN_OPERATING_SYSTEM.md"]
-verified_rev: "29861f5"
+title: "Qué es Ein"
+description: "Pensar bien para ejecutar con menos coste y mantener el trabajo revisable."
+sources: ["runtime/assets/orchestrator-core.md", "docs/adr/0006-remove-runtime-compressors.md", "README.md"]
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
-EIN es un **harness de coding-agent**: una capa de disciplina que se instala
-encima de un agente de programación y le impone una forma de trabajar.
+**Hacer que pensar bien permita ejecutar de forma más sencilla, barata y local, manteniendo las exigencias de calidad.**
 
-No es un agente. No es un modelo. Es lo que rodea al agente para que el trabajo
-salga en piezas pequeñas, verificadas y explicadas, en lugar de en un volcado de
-código que nadie revisa.
+Ein es un arnés de agentes sobre Pi Coding Agent, con Claude Code como relevo opcional. El modelo capaz aclara la petición y toma decisiones; los ejecutores reciben encargos concretos con criterios de terminación. Lo que se puede calcular —estado del cambio, contratos, progreso— se deja a herramientas.
 
-El runtime de EIN es **Pi Coding Agent**. **Claude Code** puede añadirse como
-relevo opcional para continuar trabajo sobre el mismo estado del proyecto.
+Puedes usar modelos baratos alojados como ejecutores. El uso local es futuro y opcional: no necesitas una GPU ni un modelo local para usar Ein. Tampoco se da por demostrado que cualquier modelo cumpla el contrato; se comprueba sobre trabajo real antes de confiarle más.
 
-## El problema
+## Un flujo proporcionado al trabajo
 
-Pides a un agente "arregla el login". Entiende algo, toca ocho ficheros y
-devuelve un diff de 400 líneas con un resumen optimista. Puede que funcione.
-Revisarlo cuesta más que haberlo escrito.
+Una edición pequeña y clara puede pasar por apply y una verificación independiente sin crear un expediente SDD. Para cambios que necesitan diseño, continuidad entre sesiones o un flujo SDD solicitado expresamente, las fases dejan su estado en `openspec/`.
 
-Y cuando cierras la conversación, el razonamiento se va con ella: por qué se
-eligió ese enfoque, qué se descartó, qué quedó a medias. Mañana, o en otro
-runtime, empiezas de cero.
+El padre dirige y explica. `design` decide cómo resolver el problema; `tasks` convierte esas decisiones en grupos ejecutables; `apply` implementa; `verify` revisa el código y ejecuta las comprobaciones por su cuenta. Una respuesta optimista de apply no sustituye ese resultado.
 
-EIN ataca las dos cosas:
+## Ahorrar sin ocultar pruebas
 
-- **El tamaño del cambio.** El trabajo se parte en fases con un contrato cada
-  una. Ninguna fase hace el trabajo de la siguiente.
-- **La memoria.** El estado del cambio vive en disco, no en la conversación.
-  Otra sesión, otra máquina u otro runtime lo retoman leyendo los artefactos.
+El orquestador carga el detalle del flujo a demanda. Los hijos reciben contexto fresco y las skills pertinentes, y devuelven resultados breves con referencias a los artefactos. Verify puede recibir vistas acotadas de logs correctos, conservando el original para inspeccionarlo.
 
-## Cómo lo hace
+Ein retiró Hypa y Headroom: la evaluación no justificó mantener esas integraciones para el ahorro del flujo completo. La prioridad está en mejores encargos y menos trabajo repetido, no en añadir otro compresor.
 
-Una cadena de siete fases, cada una ejecutada por un subagente con
-responsabilidades acotadas:
+## Qué significa «verificado»
 
-```text
-scope → map → design → tasks → apply → verify → close
-```
+Significa que hay comprobaciones y una evaluación del contrato declarado. No garantiza que los requisitos sean perfectos ni que no queden errores. El informe debe identificar cobertura insuficiente, pruebas bloqueadas y riesgos materiales.
 
-Cada fase deja un artefacto en `openspec/changes/<cambio>/`. El coordinador
-decide, enruta y explica; no escribe el código él mismo.
-
-La parte incómoda, y deliberada: **hay comprobaciones que no dependen del
-modelo**. Un guardrail determinista valida los artefactos, un gate controla qué
-llega a git, y el estado de las fases lo calcula una herramienta, no una
-opinión. Un modelo puede equivocarse al decir que algo está hecho; un comando
-no.
-
-## Aislamiento primero
-
-EIN no toca tu instalación normal. Cada runtime tiene su casa separada:
-
-La entrada normal es `ein`. Las superficies de la tabla son accesos directos
-avanzados para entrar en un runtime concreto.
-
-| Runtime | Superficie EIN | Casa de EIN | Tu runtime vanilla |
-| :--- | :--- | :--- | :--- |
-| Pi Coding Agent | `ein-pi` | `~/.pi-ein/agent` | `pi` → `~/.pi/agent` |
-| Claude Code | `ein-cc` | `~/.claude-ein` | `claude` → `~/.claude` |
-
-Sigues teniendo `pi` y `claude` intactos. EIN entra por comandos explícitos, no
-contaminando tu configuración.
-
-## Para quién es
-
-Para quien ya usa un agente de programación a diario y ha llegado al punto de no
-fiarse del todo de lo que le devuelve. Si tu problema es que el agente escribe
-poco código, EIN no ayuda: hace lo contrario, mete fricción a propósito.
-
-Es útil cuando el cuello de botella es **revisar**, no producir.
-
-## Qué no intenta resolver
-
-- No sustituye la revisión humana. Reduce lo que hay que revisar de golpe.
-- No garantiza que el código sea correcto. Garantiza que sabes qué se comprobó y
-  qué no.
-- No es portable a cualquier agente. Hoy son Pi y Claude Code, cada uno con su
-  adaptador y con capacidades que **no son idénticas**.
-
-## Estado
-
-:::caution[BETA]
-EIN está en beta. El registro honesto de qué está probado, qué no y qué puede
-cambiar vive en [`docs/roadmap.md`](https://github.com/samuhlo/ein-agent/blob/main/docs/roadmap.md).
-:::
-
-La release vigente se publica en
-[GitHub Releases](https://github.com/samuhlo/ein-agent/releases/latest).
-
-## Siguiente
-
-[Getting Started](/ein-agent/00-start/getting-started/) — instalar y comprobar
-que funciona.
+Empieza por [instalación](/ein-agent/00-start/getting-started/), sigue con [tu primer cambio](/ein-agent/00-start/first-run/) y consulta las [limitaciones](/ein-agent/05-debug/known-limitations/). Las [notas de release](https://github.com/samuhlo/ein-agent/releases) indican qué contiene cada versión publicada; `main` puede incluir correcciones pendientes de release.

@@ -1,93 +1,32 @@
 ---
 title: "Pi Coding Agent"
-description: "Cómo usar EIN con Pi: superficie, migración y particularidades."
-sources: ["README.md", "ein-pi/README.md", "ein-pi/agent/lib/pi-prelaunch-update.ts", "ein-pi/agent/surfaces/terminal-app-entrypoint.ts"]
-verified_rev: "405a6c1"
+description: "El runtime principal de Ein y sus controles."
+sources: ["ein-pi/README.md", "runtime/assets/orchestrator-core.md", "ein-pi/agent/extensions/internal/ein-general-commands.ts", "ein-pi/agent/extensions/ein-intent.ts"]
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
-Pi es el runtime para el que nació EIN, y donde la superficie está más completa.
+Pi es el núcleo. Abre `ein` desde el proyecto y elige Pi. `ein-pi` ofrece acceso directo avanzado en Fish y fija el hogar `~/.pi-ein/agent` solo para esa ejecución.
 
-## Instalar y abrir
+## Coordinación y ejecución
 
-```bash
-ein-install install --runtime pi
-ein                         # entrada normal
-ein-pi                      # acceso directo avanzado
-```
+El padre carga un contrato pequeño y lee detalle cuando lo necesita. Los agentes de Ein se delegan con contexto fresco: no se copian conversaciones largas a apply o verify. Pi selecciona las skills pertinentes y les entrega las rutas; cada hijo lee sus instrucciones.
 
-`ein-pi` es una función de shell que exporta `PI_CODING_AGENT_DIR` y
-`EIN_PI_AGENT_HOME` **solo para esa invocación**, y arranca Pi apuntando a
-`~/.pi-ein/agent`.
+Los grupos compatibles de tasks se compilan para apply. Verify mantiene inspección y comprobaciones independientes; el índice de evidencia y las vistas acotadas de checks evitan repetir grandes logs en el padre. No se integran Hypa ni Headroom.
 
-Tu `pi` de siempre sigue usando `~/.pi/agent` y no se entera de nada.
+## Ajustes
 
-## Dónde vive
+`/ein:settings` muestra los ajustes del proyecto. `/ein:models` configura modelos y esfuerzo por rol; `/ein:skills` muestra el estado de skills. El proyecto comparte sus ajustes en `.pi/ein/`, pero las credenciales y sesiones pertenecen al hogar del runtime.
 
-```text
-~/.pi-ein/agent/          la casa de EIN para Pi
-├── agents/               ejecutores de fase
-├── skills/               local/ y downloaded/
-├── extensions/           extensiones del runtime
-├── backups/installer/    snapshots del instalador
-└── auth.json             tu autenticación
-```
+`/ein:intent` entra explícitamente en el protocolo de intención. No es obligatorio escribir un comando para cada petición: el padre reconoce cuándo hay trabajo nuevo y qué decisiones faltan. Las solicitudes completas autorizadas pueden registrarse directamente.
 
-## Migrar desde una instalación antigua
+TDD y el carril se resuelven por cambio. Linear, Engram y Codegraph son integraciones opcionales; sus ajustes de ejecución son distintos de los flags que omiten su instalación. Consulta [integraciones](/ein-agent/04-reference/optional-tooling/).
 
-Si tienes una instalación previa de EIN dentro de `~/.pi/agent`, el instalador
-la mueve a la casa aislada. Pero solo si encuentra un marcador válido de EIN:
-**un directorio vanilla de Pi no se toca**.
+## Modelos baratos y locales
 
-La migración crea un backup `.tar.gz`, mueve el árbol y reescribe las rutas
-absolutas de la plantilla. Conserva login, sesiones e historial.
+Asigna capacidad de razonamiento a quienes deciden y prueba ejecutores más baratos con encargos bien cerrados. No hay un preset universal ni una garantía de calidad por tamaño del modelo. El uso local es futuro y opcional: necesita evaluación con el modelo y hardware elegidos antes de recomendarlo como ruta validada.
 
-Desde un checkout del repositorio puedes inspeccionarla antes:
+## Actualización y aislamiento
 
-```bash
-bun ein-pi/migrate.ts --dry     # enseña qué haría
-bun ein-pi/migrate.ts           # la ejecuta
-```
+Usa `ein-install update` y abre después una sesión nueva. La sesión anterior puede conservar extensiones ya cargadas. La migración de hogares legacy corresponde al instalador y requiere reconocer propiedad de Ein; no muevas directorios completos sobre un hogar vanilla.
 
-Revertir es mover `~/.pi-ein/agent` de vuelta a `~/.pi/agent`, o restaurar el
-backup.
-
-## Actualización antes de entrar
-
-Cuando eliges Pi desde `ein`, la aplicación ejecuta una sola vez por proceso
-`pi update --all --no-approve` antes de abrir la primera sesión. Así, una versión
-nueva del binario o de las extensiones se carga en esa misma entrada, sin abrir
-Pi, salir, actualizar y volver a entrar. `PI_OFFLINE=1 ein` omite esta
-reconciliación de red.
-
-Los accesos manuales siguen disponibles:
-
-```bash
-ein-pi update --all                    # actualiza Pi directamente
-ein-install update                     # actualiza EIN, Pi y sus paquetes declarados
-ein-install update --channel alpha     # cambia EIN a alpha
-ein-install update --channel stable    # vuelve EIN a estable
-```
-
-`ein-install update` verifica el payload y actualiza con backup y rollback. Un
-cambio de canal solo se guarda si el update termina correctamente; con
-`--dry-run` se puede previsualizar sin modificar la preferencia. Fuera de un
-dry-run, también resuelve Pi y los paquetes declarados desde `latest`, y compara
-el host instalado con la versión publicada antes de declarar éxito.
-
-## Particularidades
-
-**Los subagentes van por la herramienta visible de delegación.** Los subagentes
-integrados del runtime están desactivados a propósito: toda la delegación pasa
-por la superficie de EIN, que es la que aplica los contratos de fase.
-
-**El enrutado de modelos viene de la configuración de EIN**, no de decisiones
-sobre la marcha. Cada agente tiene su modelo declarado.
-
-**Comandos del flujo:** `/ein:status`, `/ein:focus <cambio>`, `/ein:sdd-next`,
-`/ein:doctor-output`, `/ein:init`. Los `/skill:*` nativos siguen disponibles
-como escape.
-
-## Siguiente
-
-[Claude Code](/ein-agent/03-runtimes/claude-code/) — el otro adaptador y en qué
-cambia.
+Consulta los [comandos](/ein-agent/04-reference/cli/) y [recuperación](/ein-agent/05-debug/uninstall-recovery/).

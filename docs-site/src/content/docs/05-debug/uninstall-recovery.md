@@ -1,135 +1,46 @@
 ---
 title: "Desinstalar y recuperar"
-description: "Cómo volver atrás: backups, rollback y salir del todo sin perder nada."
-sources: ["installer/src/core/backup.ts", "installer/src/cli/uninstall.ts", "installer/src/cli/restore.ts", "installer/src/core/pi-migration.ts"]
-verified_rev: "eeceb7c"
+description: "Recuperación del despliegue sin borrar estado privado."
+sources: ["installer/src/cli/uninstall.ts", "installer/src/core/uninstall-recovery.ts", "installer/src/core/backup.ts", "installer/src/cli/restore.ts", "installer/src/core/pi-migration.ts"]
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
-Poder salir es parte de poder entrar. Si desinstalar EIN fuera complicado,
-probarlo sería una decisión más grande de lo que debería.
+Puedes volver a `pi` o `claude` sin desinstalar Ein: esos comandos usan sus entradas vanilla. Esto no convierte automáticamente tus sesiones de Ein en sesiones del otro hogar.
 
-## Volver al runtime vanilla, ya
-
-No hace falta desinstalar nada:
+## Desinstalar contenido gestionado
 
 ```bash
-pi        # tu Pi de siempre
-claude    # tu Claude Code de siempre
-```
-
-Nunca dejaron de funcionar. EIN vive en `~/.pi-ein/agent` y `~/.claude-ein`; tus
-runtimes originales están en `~/.pi/agent` y `~/.claude`, intactos.
-
-## Desinstalar
-
-```bash
+ein-install uninstall --dry-run
 ein-install uninstall
 ```
 
-Crea un backup antes, elimina la casa de EIN y **conserva**:
+El plan identifica activos propiedad de Ein y los mueve a una recuperación privada. Conserva autenticación, sesiones, historial, secretos, memoria y backups. No borra a ciegas el hogar entero ni archivos personales por coincidir sus nombres.
 
-- `auth.json` — tu autenticación
-- `~/.config/opencode-secrets/` — las claves de las integraciones
-- tus sesiones e historial
+Si encuentra un marcador inválido o una recuperación incompleta, puede bloquear la operación. Conserva la ruta que muestra y revisa su estado antes de reintentar. No sustituyas ese diagnóstico por `rm -rf`.
 
-Es deliberado: reinstalar no te obliga a reconfigurar ni a volver a
-autenticarte.
+`--runtime pi`, `--runtime claude` o `--runtime both` acotan **la desinstalación**. Esto no permite una instalación nueva solo de Claude: Pi sigue siendo el núcleo.
 
-La transición a `ein-pi`, `ein-cc` y `ein-cc-sdd` es un corte de comandos, no
-una migración de datos. El instalador publica primero las superficies nuevas y
-solo pone en recuperación un artefacto anterior cuyo ownership puede probar. Si
-encuentra una función homónima modificada por ti, la deja byte a byte intacta.
+## Snapshots y restore
 
-Para una limpieza total, borra además el directorio de secrets a mano. Perderás
-las claves.
+Los snapshots del árbol gestionado viven normalmente en `~/.pi-ein/agent/backups/installer/`, con manifest, metadata y contenido verificable. Se preparan antes de reemplazos gestionados; un dry-run o una operación sin cambios no implica crear otro snapshot.
 
-## Los backups
-
-Van a `backups/installer/` dentro de la casa de EIN, como directorios `.snapshot`
-con manifest, metadata y contenido verificable:
+Se deduplican árboles sin cambios y se podan snapshots no protegidos según la política de retención. `ein-install restore --pin <nombre>` protege uno y `--unpin` lo libera. Al restaurar se comprueban hashes, tamaños y modos antes de reemplazar contenido gestionado. Credenciales y sesiones quedan fuera de lo que se sobrescribe.
 
 ```bash
-ls ~/.pi-ein/agent/backups/installer/
-```
-
-Se crea uno **automáticamente** antes de cada operación destructiva: `install`
-sobre un árbol existente, `update`, `uninstall` y `restore`. No hay que
-acordarse de nada.
-
-Al restaurar, EIN valida hashes, tamaños y permisos antes de reemplazar el árbol
-gestionado. El original queda como `.recovery-*` privado y pineado: no se poda
-automáticamente. WU4B/repair definirá su limpieza explícita.
-
-Los `.tar.gz` legacy aparecen en la lista, pero esta versión falla cerrado antes
-de extraerlos. Para recuperarlos, usa un instalador antiguo compatible o haz una
-recuperación manual.
-
-## Restaurar
-
-```bash
+ein-install doctor
 ein-install restore
 ```
 
-Te deja elegir un backup y lo aplica. Es la salida de una actualización que dejó
-algo raro.
+Restore permite seleccionar un snapshot. El árbol reemplazado queda en una recuperación privada `.recovery-*`, protegida de poda automática. No se garantiza que restaurar resuelva un problema externo de dependencias, credenciales o red.
 
-## Una actualización falló
+Los backups `.tar.gz` legacy se reconocen pero no se extraen con este instalador. Si necesitas uno, conserva el original y prepara una recuperación específica; no lo extraigas directamente sobre tu hogar activo.
 
-```bash
-ein-install doctor      # ver qué está mal
-ein-install restore     # volver al estado anterior
-```
+## Hogares legacy
 
-`ein-install update` verifica el payload antes de aplicarlo y crea backup, así que un
-fallo a mitad no debería dejarte a medias. Si te deja, `restore` lo resuelve.
+La migración solo actúa sobre instalaciones reconocidas como gestionadas por Ein. No reviertas moviendo `~/.pi-ein/agent` encima de `~/.pi/agent`: puede existir un hogar vanilla y estado nuevo en ambos. Diagnostica primero y conserva ambos árboles.
 
-## Revertir la migración de Pi
+## Estado de tus proyectos
 
-Si el instalador movió una instalación legacy de `~/.pi/agent` a
-`~/.pi-ein/agent` y quieres deshacerlo, hay dos formas:
+Desinstalar Ein no elimina tu código, `openspec/` ni el historial de decisiones del proyecto. Los ajustes `.pi/ein/` y el contexto `EIN.md` también pertenecen al proyecto. Decide por separado si deseas conservarlos; no es necesario borrarlos para reparar una instalación.
 
-```bash
-# mover de vuelta
-mv ~/.pi-ein/agent ~/.pi/agent
-
-# o restaurar el backup que la migración creó
-ls ~/.pi-ein/agent/backups/installer/
-```
-
-La migración conserva login, sesiones e historial, así que revertirla no pierde
-nada.
-
-:::note
-La migración solo mueve un árbol si encuentra un marcador válido de EIN
-(`.ein-install.json`). Un directorio vanilla de Pi nunca se toca, ni en la
-instalación ni en la reversión.
-:::
-
-## Y en tus proyectos
-
-`ein-install uninstall` no toca el código de tus proyectos. El directorio `openspec/` de
-cada uno sigue donde estaba, con sus cambios y su archivo.
-
-Si además quieres quitar EIN de un proyecto concreto, borra su `openspec/` y su
-`EIN.md`. Ojo: eso borra el histórico de decisiones de los cambios archivados,
-que suele ser lo más valioso que deja EIN.
-
-## Checklist de salida limpia
-
-```bash
-ein-install uninstall                          # quita EIN, conserva credenciales
-rm -rf ~/.config/opencode-secrets      # opcional: borra las claves
-rm ~/.local/bin/ein                    # opcional: quita el binario
-```
-
-Y comprueba que todo sigue en su sitio:
-
-```bash
-pi --version
-claude --version
-```
-
-## Siguiente
-
-Vuelve al [Overview](/ein-agent/00-start/overview/), o pasa por
-[GitHub](https://github.com/samuhlo/ein-agent) si algo no encaja.
+Las claves de `~/.config/opencode-secrets/` pueden seguir siendo útiles para otras herramientas. Borrarlas no forma parte del procedimiento normal de recuperación.

@@ -1,113 +1,57 @@
 ---
-title: "Getting Started"
-description: "Instalar EIN, añadir Claude opcionalmente y comprobar que el despliegue está sano."
-sources: ["README.md", "installer/README.md"]
-verified_rev: "eeceb7c"
+title: "Instalar Ein"
+description: "Instalación estable o alpha, requisitos y primera comprobación."
+sources: ["installer/install.sh", "installer/src/core/deps.ts", "installer/README.md"]
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
-De cero a EIN funcionando. Al terminar tendrás `ein`, su núcleo Pi desplegado
-en una casa aislada y el diagnóstico en verde. Claude Code es opcional.
+Ein soporta macOS y Linux, en ARM64 y x64. Windows no está soportado. Pi es el núcleo y requiere Node **22.19.0 o posterior**; si no cumple el requisito, el instalador se detiene con instrucciones. Los binarios del instalador son standalone; el runtime tiene sus propias dependencias y autenticación.
 
-## Requisitos
-
-- **macOS o Linux.** No hay soporte de Windows.
-- **Pi Coding Agent.** Es el runtime principal de EIN; el instalador lo prepara.
-- **Claude Code es opcional.** Puedes añadirlo como relevo durante la instalación.
-- Un shell con `curl`.
-
-El instalador comprueba y prepara sus propias dependencias durante `install`.
-
-## 1. Instalar el binario
+## Canal estable
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
-```
-
-El bootstrap detecta tu plataforma, descarga el binario de la última release y lo
-deja en `~/.local/bin/ein`, o en `/usr/local/bin` si es escribible.
-
-:::note
-Si `ein` no aparece tras instalarlo, `~/.local/bin` no está en tu `PATH`. Añádelo
-y reabre la terminal.
-:::
-
-## 2. Instalar Ein y decidir si añadir Claude
-
-```bash
 ein
 ```
 
-Se abre el menú con dos opciones: **Ein** y **Ein + Claude Code**. Pi se instala
-siempre; Claude solo se prepara después como complemento aislado.
+El bootstrap descarga el instalador, comprueba el asset y lo ejecuta. Conserva `ein-install` como herramienta de ciclo de vida e instala `ein` como aplicación de terminal. Puede ser necesario abrir una terminal nueva para recoger el PATH.
 
-Si prefieres no pasar por el menú:
+## Probar una alpha
+
+El comando anterior selecciona **estable**. Para una alpha, copia el comando exacto de sus [notas de release](https://github.com/samuhlo/ein-agent/releases): el bootstrap exige juntos `--release-channel` y `--release-tag`. El enlace de GitHub `releases/latest` no selecciona prereleases.
+
+Si ya tienes Ein:
 
 ```bash
-ein-install install --runtime pi        # solo Pi
-ein-install install --runtime both      # Pi + complemento Claude Code
+ein-install update --channel alpha
 ```
 
-Con `--yes` no pregunta nada, y con `--dry-run` enseña el plan sin tocar nada —
-útil la primera vez, para ver qué va a hacer antes de dejarle hacerlo.
+Guarda alpha como preferencia tras una actualización correcta. Para volver al canal estable usa `ein-install update --channel stable`. Para fijar una versión, pasa a `update` el tag exacto de sus notas. Abre una sesión nueva de Ein después de actualizar.
 
-## 3. Comprobar
+## Pi y Claude
+
+Pi se instala siempre. Puedes añadir Claude Code como relevo opcional:
+
+```bash
+ein-install install --runtime pi
+# Alternativa, con Claude:
+ein-install install --runtime both
+```
+
+No ejecutes ambos para una instalación normal: elige uno. Los hogares de Ein son `~/.pi-ein/agent` y `~/.claude-ein`. `pi` y `claude` conservan sus entradas vanilla. Consulta la [matriz](/ein-agent/03-runtimes/runtime-matrix/) antes de elegir Claude para un cambio.
+
+`--yes` evita las preguntas del instalador; no autoriza por adelantado cualquier acción futura sobre tus proyectos. Las [integraciones opcionales](/ein-agent/04-reference/optional-tooling/) no son requisitos para empezar.
+
+## Comprobar y trabajar
 
 ```bash
 ein-install doctor
-```
-
-Diagnostica el despliegue sin lanzar ningún runtime: rutas, dependencias,
-superficies instaladas y configuración. Es el comando al que volver siempre que
-algo se comporte raro.
-
-Si algo sale en rojo, [Troubleshooting](/ein-agent/05-debug/troubleshooting/)
-cubre los fallos más frecuentes.
-
-## 4. Abrir EIN
-
-Empieza por la aplicación:
-
-```bash
+cd /ruta/a/tu/proyecto
 ein
 ```
 
-Abre la aplicación de terminal: estado del proyecto, configuración, sesiones
-recientes, actualizaciones pendientes, y desde ahí eliges Pi o Claude Code y
-lanzas. `tab` rota entre las vistas, `q` sale.
+Doctor diagnostica el despliegue, no la calidad de tu proyecto. Configura la autenticación y los modelos que vayas a usar en el runtime. Puedes empezar con servicios alojados; el modelo local es un objetivo futuro y opcional.
 
-También puedes ir directo al runtime:
+Para probar código del repositorio sin publicar, sigue [desarrollo local](https://github.com/samuhlo/ein-agent/blob/main/installer/README.md#desarrollo). Ese despliegue modifica tu instalación activa: no crea un perfil desechable.
 
-```bash
-ein-pi      # Pi con EIN
-ein-cc      # Claude Code con EIN
-```
-
-Son comandos distintos de `pi` y `claude` a propósito. Tus runtimes originales
-siguen intactos y sin tocar; EIN vive en `~/.pi-ein/agent` y `~/.claude-ein`.
-
-## Qué acabas de instalar
-
-| Comando | Qué hace |
-| :--- | :--- |
-| `ein` | abre la aplicación de terminal |
-| `ein-install` | menú interactivo del instalador |
-| `ein-install install` | instala o repara |
-| `ein-install update` | actualiza EIN y su plantilla, con backup previo |
-| `ein-install doctor` | diagnostica sin lanzar runtimes |
-| `ein-install uninstall` | elimina EIN y conserva auth, secrets y sesiones |
-| `ein-install restore` | restaura desde un backup |
-
-Cada `install` sobre un árbol existente, cada `update`, `uninstall` y `restore`
-crea antes un directorio `.snapshot` respaldado por manifest. El restore valida
-hashes y permisos, conserva el estado de usuario excluido y deja el árbol anterior
-como `.recovery-*` pineado para reparación o limpieza explícita. Los `.tar.gz`
-legacy requieren un instalador antiguo compatible o recuperación manual. Consulta
-[Uninstall & Recovery](/ein-agent/05-debug/uninstall-recovery/).
-
-La referencia completa de comandos y flags está en
-[CLI](/ein-agent/04-reference/cli/).
-
-## Siguiente
-
-[First Run](/ein-agent/00-start/first-run/) — un cambio real de principio a fin,
-para ver cómo se siente usar EIN.
+Sigue con [tu primer cambio](/ein-agent/00-start/first-run/).

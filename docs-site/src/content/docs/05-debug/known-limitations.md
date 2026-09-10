@@ -1,143 +1,38 @@
 ---
 title: "Limitaciones conocidas"
-description: "Qué está probado de verdad, qué no, y qué puede cambiar."
-sources: ["docs/roadmap.md"]
-verified_rev: "eeceb7c"
+description: "Qué sigue requiriendo pruebas y revisión humana."
+sources: ["docs/adr/0006-remove-runtime-compressors.md", "runtime/assets/orchestrator-core.md", "ein-cc/README.md", "runtime/agents/sdd-verify.md"]
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
-Página obligatoria de la beta. Sin suavizar.
+Ein está en desarrollo beta y publica prereleases alpha. Los formatos, comandos y capacidades pueden cambiar; las [notas de release](https://github.com/samuhlo/ein-agent/releases) y el [changelog](https://github.com/samuhlo/ein-agent/blob/main/CHANGELOG.md) identifican lo publicado.
 
-:::caution[BETA]
-EIN está en beta. Eso no es una etiqueta de marketing: significa que hay cosas
-probadas, cosas probadas a medias y cosas que van a cambiar.
-:::
+## Plataformas y modelos
 
-## Plataformas
+Se construyen binarios para Linux y macOS en ARM64 y x64. La evidencia de una plataforma o un escenario no certifica todos los entornos. Windows no está soportado.
 
-| | Estado |
-| :--- | :--- |
-| Linux | probado |
-| macOS | soportado, con menos ejercicio real que Linux |
-| Windows | **no soportado** |
+La ejecución local es futura y opcional. No se declara validado un modelo o GPU concretos sin ejecutar pruebas con ellos. Un ejecutor barato alojado es una ruta válida, sujeto a encargos suficientemente claros y a la misma verificación.
 
-## Runtimes
+## Coste y contexto
 
-Pi Coding Agent es el núcleo soportado y se instala siempre. Claude Code es un
-relevo opcional con hogar aislado.
-Lo que **no** está demostrado:
+Menos contexto inicial no garantiza menor coste total. El padre puede compensar el ahorro con más turnos o entradas no cacheadas; los fallos y reintentos también cuentan. Los pilotos históricos describen sus escenarios, no un ahorro universal.
 
-**El MCP externo de Claude Code no se ha ejercitado contra servicios en vivo.**
-La evidencia archivada de la paridad entre runtimes lo registra explícitamente.
-Las integraciones opcionales se configuran; que funcionen contra servicios
-reales no está comprobado.
+Contexto fresco evita heredar toda la conversación, pero incluye instrucciones, herramientas y contexto de la tarea. No tiene un tamaño fijo ni elimina el riesgo de que el hijo se equivoque.
 
-**La traducción de herramientas Pi → Claude es best-effort.** El sincronizador
-sustituye un conjunto acotado de referencias. Una herramienta específica de Pi
-que no conozca llega literal a Claude Code, donde no existe, y **no falla
-ruidosamente**.
+## Calidad y controles
 
-**El enrutado de modelos está escrito a mano.** Coincide con los agentes
-actuales por mantenimiento, no por mecanismo. Un agente nuevo no obtiene
-enrutado automático ni aviso.
+Un `verify: pass` describe el contrato comprobado y su cobertura declarada. No garantiza ausencia de errores ni calidad de requisitos. Build, tipos y lint solos no prueban comportamiento; los checks obligatorios bloqueados deben declararse.
 
-## Lo que el gate de shell no cubre
+Los packets y patrones de shell no son un sandbox completo. La procedencia de evidencia no demuestra su suficiencia semántica. Tampoco hay una garantía general para escritores paralelos sobre un mismo árbol: las mutaciones del flujo se mantienen secuenciales.
 
-El hook de Claude Code intercepta **comandos de shell**. Eso significa que:
+## Claude y servicios externos
 
-- Gatea git, y bien: el force-push está denegado siempre.
-- **No** fuerza que la escritura de ficheros pase por los subagentes.
-- **No** intercepta las ediciones directas de ficheros.
+Claude es un relevo menor que Pi. Los acuerdos gestionados nuevos o modificados deben resolverse en Pi antes del handoff. Skills, contexto, evidencia, permisos y perfiles automáticos no tienen paridad completa. Consulta la [matriz](/ein-agent/03-runtimes/runtime-matrix/).
 
-Entrar en el flujo SDD depende del coordinador, no del hook.
+Los smokes históricos de MCP no garantizan disponibilidad actual de credenciales o servicios. Las sesiones siguen siendo privadas por runtime; el handoff no migra conversaciones.
 
-## Verificación: qué significa y qué no
+## Instaladores antiguos
 
-Un cambio con `verify: pass` significa que **los criterios declarados por el
-cambio y su carril se cumplieron**. Prueba ese contrato local, no una garantía
-universal de que el código sea correcto ni de que los criterios fueran los
-adecuados.
+`0.97.0-alpha.1` retira Hypa del runtime. Un proceso anterior que actualiza a esa versión todavía puede terminar su propia revisión antigua de herramientas. La corrección posterior de [PR #407](https://github.com/samuhlo/ein-agent/pull/407) está integrada en `main`, pero no forma parte de ese binario ya publicado ni lo cambia retroactivamente.
 
-Cuando un proyecto no tiene runner de tests, la fase lo declara y usa
-comprobaciones mecánicas en su lugar. Es honesto, y es menos garantía que un
-ciclo de tests real.
-
-Codegraph ofrece un bootstrap asistido opcional cuando falta su índice. Su modo
-`on` por defecto no lo convierte en una dependencia obligatoria. Engram también
-es opcional y, cuando está habilitado, conserva el contexto compartido por
-cambio en vez de convertirse en memoria universal.
-
-El puente entre Pi y Claude es el proyecto y su checkpoint en disco. Los
-historiales privados de cada runtime siguen siendo privados y no se transfieren
-entre sesiones.
-
-## Traducción fail-closed
-
-La traducción conserva un estado visible para cada directiva. Solo `applied`
-representa una directiva inyectada en el runtime; los demás estados no
-representan aplicación exitosa ni un valor predeterminado:
-
-| Estado | Significado |
-| :--- | :--- |
-| `unreadable` | La fuente no se puede leer. |
-| `unsupported` | El runtime no admite la directiva. |
-| `inactive` | La capacidad o configuración no está activa. |
-| `unhandled` | No existe un traductor o manejador para la directiva. |
-| `applied` | La directiva se inyecta en el runtime. |
-
-Los estados `unreadable`, `unsupported`, `inactive` y `unhandled` permanecen
-visibles para diagnóstico. El comportamiento fail-closed no los convierte en
-defaults ni oculta la ausencia de aplicación.
-
-La participación automática de Cleaner y Architect está disponible únicamente
-en Pi. Claude los marca como no aplicable o no soportado; la ausencia de esa
-participación no se presenta como ejecución del perfil.
-
-## Flujos que aún no están maduros
-
-**El launcher.** Hay trabajo mergeado en esa dirección —estado compartido de
-proyecto, adaptadores de sesión, un workbench mínimo— pero el camino completo
-sigue la secuencia declarada en el roadmap y no está terminado. El registro
-mantenido de qué está hecho y con qué evidencia vive en
-[`docs/roadmap.md`](https://github.com/samuhlo/ein-agent/blob/main/docs/roadmap.md).
-
-**El updater universal.** `ein-install update` actualiza EIN. No es un actualizador
-genérico de cualquier runtime y no debe presentarse como tal.
-
-**Paralelismo con worktrees.** No hay garantías sobre escritores paralelos ni
-sobre worktrees compartidos.
-
-## Fuera del compromiso de beta
-
-Descartado **para la beta** de forma explícita, y por tanto no es criterio
-implícito de aceptación:
-
-- Dashboard o TUI de navegación general.
-- Convertir el instalador en launcher.
-- Migrar historiales privados de conversación entre runtimes: las sesiones
-  siguen siendo privadas de cada runtime.
-- Procesos automáticos de limpieza o arquitectura.
-
-## Qué puede cambiar
-
-En beta, y con impacto en quien ya lo use:
-
-- La forma de los artefactos SDD.
-- Los comandos del CLI y sus flags.
-- Las rutas de instalación.
-- Qué integraciones vienen por defecto.
-
-Los cambios con impacto van al
-[CHANGELOG](https://github.com/samuhlo/ein-agent/blob/main/CHANGELOG.md).
-
-## La fuente de verdad
-
-Esta página resume. El registro mantenido, con su evidencia y sus criterios de
-salida, es
-[`docs/roadmap.md`](https://github.com/samuhlo/ein-agent/blob/main/docs/roadmap.md).
-
-Si algo de aquí y de allí no coincide, manda el roadmap.
-
-## Siguiente
-
-[Uninstall & Recovery](/ein-agent/05-debug/uninstall-recovery/) — volver atrás
-sin perder nada.
+Consulta [troubleshooting](/ein-agent/05-debug/troubleshooting/) si ves ese mensaje. No indica por sí solo que Hypa siga cargándose en el runtime nuevo.
