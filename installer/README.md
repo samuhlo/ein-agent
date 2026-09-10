@@ -20,12 +20,14 @@ ein install --runtime both
 curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
 ```
 
+Sin opciones, el bootstrap selecciona la **release estable**, no la alpha más reciente. Para una alpha usa el comando con `--release-channel alpha` y `--release-tag` de sus [notas de release](https://github.com/samuhlo/ein-agent/releases). Ambos flags deben ir juntos.
+
 El bootstrap detecta tu plataforma, descarga inicialmente el instalador y lo ejecuta. La instalación conserva ese binario como `ein-install` y promociona la aplicación terminal como `ein` en `~/.local/bin` (o `/usr/local/bin` si es escribible). Luego:
 
 ```bash
 ein            # menú interactivo
 ein install    # instala/repara Ein (deps + deploy + secrets + doctor)
-ein update     # actualiza Ein y los runtimes instalados (con backup previo)
+ein update     # actualiza Ein, Pi y sus paquetes; Claude tiene su propio canal
 ein doctor     # diagnóstico del despliegue (sin lanzar runtimes)
 ein uninstall  # elimina Ein (conserva auth.json/secrets/sessions)
 ein restore    # restaura desde un backup
@@ -37,8 +39,8 @@ Flags: `--yes` (no interactivo), `--dry-run` (muestra el plan sin ejecutar nada)
 
 ## Backups
 
-Cada `install` (sobre un árbol existente), `update`, `uninstall` y `restore` crea
-antes un directorio snapshot `.snapshot` con manifest, metadata y contenido en
+Las operaciones que reemplazan un árbol gestionado existente preparan antes
+un directorio snapshot `.snapshot` con manifest, metadata y contenido en
 `~/.pi-ein/agent/backups/installer/` por defecto (o en el hogar Pi legacy si
 una instalación gestionada válida sigue activa allí):
 
@@ -69,7 +71,7 @@ una instalación gestionada válida sigue activa allí):
 5. Añade el export de `CONTEXT7_API_KEY` a tu shell rc (idempotente).
 6. Corre el doctor y reporta el estado.
 
-Nunca toca `auth.json`, `sessions/` ni `backups/`.
+El despliegue conserva autenticación y sesiones. Los backups sí se crean y gestionan según la política anterior; un `--dry-run` no aplica cambios. Hypa y Headroom ya no forman parte del runtime ni de los nuevos planes de instalación. Los antiguos flags y registros de Hypa solo se leen por compatibilidad, sin activar esa integración.
 
 ## Desarrollo
 
@@ -97,20 +99,24 @@ Comandos internos desde `installer/`:
 
 ```bash
 bun install
+bun run bundle-template:host  # prepara assets y app para tu plataforma
 bun run dev --help        # inspecciona la CLI desde fuente; para instalar usa dev:install
 bun run typecheck
-bun run bundle-template   # compone ../runtime + ../vendor/skills + ../ein-pi/agent
 bun run build:all         # compila los 4 binarios en dist/
 bun run build:all linux-x64   # un solo target
-./e2e/docker-test.sh      # matriz de ciclo de vida en hogares Ubuntu desechables
+../e2e/docker-test.sh     # matriz de ciclo de vida en hogares Ubuntu desechables
 ```
 
-`./e2e/docker-test.sh` instala dos veces y prueba Ein, Ein + Claude y uninstall
+Desde la raíz del repositorio, `./e2e/docker-test.sh` instala dos veces y prueba Ein, Ein + Claude y uninstall
 recuperable. Además ejecuta la matriz determinista de update/rollback,
 preservación de estado privado y el launcher beta con PTY. Para comprobar la
 ruta pública entre releases, ejecuta `./e2e/release-update-test.sh
 <tag-origen> <tag-destino>`: descarga el asset anterior y actualiza mediante la
 API y los assets reales de GitHub dentro de Docker.
+
+`bundle-template` es el paso interno: requiere la app compilada y los valores
+`EIN_APP_BINARY` y `EIN_APP_TARGET`. Para preparar assets de desarrollo usa
+`bundle-template:host`; `build:all` prepara los suyos por target.
 
 El contenido de Ein se empaqueta componiendo `../runtime` (contenido propio),
 `../vendor/skills` (fuentes externas) y `../ein-pi/agent` (adaptador Pi) con una
@@ -128,10 +134,10 @@ de modo que una interfaz rota no elimina la vía de reparación.
 
 La publicación canónica vive en GitHub Actions; no hay publicación local ni en npm.
 
-1. Actualiza `installer/package.json`, `src/core/version.ts` y `CHANGELOG.md` con la
+1. Actualiza `installer/package.json`, `installer/src/core/version.ts` y `CHANGELOG.md` con la
    misma versión SemVer.
 2. Ejecuta los checks definidos para la release.
-3. Crea y sube el tag `installer-v<semver>`.
+3. Con los cambios integrados, crea y sube `installer-v<semver>` sobre el tip exacto de `main`.
 4. `.github/workflows/installer-release.yml` compila los cuatro targets, genera
    `checksums.txt` y publica la GitHub Release con los binarios e `install.sh`.
 5. Ya publicada, el workflow instala la alpha anterior en un hogar desechable,
@@ -140,3 +146,9 @@ La publicación canónica vive en GitHub Actions; no hay publicación local ni e
 El bootstrap y `ein update` consumen esos assets de GitHub Release. Las notas de
 una prerelease incluyen el comando con canal y tag exactos; las de una release
 final conservan el bootstrap del canal estable.
+
+## Transición desde instaladores anteriores
+
+Al actualizar, el proceso antiguo puede terminar acciones de su propia versión después de reemplazar el ejecutable. Por eso el salto desde una versión con Hypa a `0.97.0-alpha.1` puede mostrar una última actualización de Hypa aunque el runtime instalado ya lo haya retirado. Una nueva sesión carga el runtime nuevo; no es necesario repetir la actualización para retirar sus archivos.
+
+La corrección de [PR #407](https://github.com/samuhlo/ein-agent/pull/407), integrada en `main` después de publicar esa alpha, encarga el mantenimiento de herramientas externas al binario de destino verificado. No cambia retroactivamente los binarios publicados ni traslada a esa continuación la actualización de Pi y sus paquetes. Consulta la [decisión completa](../docs/adr/0006-remove-runtime-compressors.md).

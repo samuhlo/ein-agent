@@ -2,10 +2,10 @@
   <img src="docs-site/public/assets/brand/ein-logo.png" alt="Ein · coding-agent harness" width="440">
   <h1><code>./EIN.sh</code></h1>
 
-**Un harness de coding-agent construido sobre Pi, con Claude Code como relevo opcional.**
+**Hacer que pensar bien permita ejecutar de forma más sencilla, barata y local, manteniendo las exigencias de calidad.**
 
 [Documentación](https://samuhlo.github.io/ein-agent/) ·
-[Releases](https://github.com/samuhlo/ein-agent/releases/latest) ·
+[Releases y alphas](https://github.com/samuhlo/ein-agent/releases) ·
 [Changelog](CHANGELOG.md) ·
 [Issues](https://github.com/samuhlo/ein-agent/issues)
 
@@ -15,7 +15,7 @@
 
 ---
 
-Ein convierte trabajo ambiguo en cambios **pequeños, verificados y explicados**.
+Ein convierte trabajo ambiguo en cambios **pequeños, verificados y explicados**. Los modelos capaces resuelven las decisiones; los ejecutores reciben encargos acotados. Un modelo barato alojado sirve hoy como ejecutor. La ejecución local es un objetivo futuro y opcional: no necesitas hardware propio para usar Ein.
 
 No es un agente ni un modelo: es la capa que rodea al agente para que el trabajo salga en piezas revisables, con el estado del cambio en disco y no en la conversación.
 
@@ -28,7 +28,9 @@ curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/in
 ein
 ```
 
-Ein instala siempre su núcleo Pi. El menú solo pregunta si quieres añadir **Claude Code** como relevo opcional. Sin menú: `ein install --runtime pi|both`.
+Este bootstrap selecciona el canal **estable**. Para probar una alpha, copia el comando con canal y tag de sus [notas de release](https://github.com/samuhlo/ein-agent/releases); `releases/latest` solo apunta a la estable.
+
+Ein instala siempre su núcleo Pi. El menú solo pregunta si quieres añadir **Claude Code** como relevo opcional. Sin menú: `ein install --runtime pi` o `ein install --runtime both`.
 
 Guía completa en [Getting Started](https://samuhlo.github.io/ein-agent/00-start/getting-started/).
 
@@ -57,9 +59,13 @@ Comparten el núcleo, **no las capacidades**. Las diferencias, sin maquillar, en
 scope → map → design → tasks → apply → verify → close
 ```
 
-Cada fase la ejecuta un subagente acotado y deja un artefacto en `openspec/changes/<cambio>/`. El parent decide, enruta y explica; no escribe el código.
+Un cambio pequeño y bien definido puede ir directamente a `apply` y a una verificación independiente, sin crear un expediente SDD. Si faltan decisiones, se aclaran antes de editar. Una petición completa ya autorizada no necesita una confirmación ritual.
 
-Y hay comprobaciones que no dependen del modelo: el estado de las fases lo calcula una herramienta, no una opinión.
+En SDD, cada fase la ejecuta un subagente acotado y deja un artefacto en `openspec/changes/<cambio>/`. El parent decide, enruta y explica; no escribe el código.
+
+El padre carga el detalle del flujo cuando lo necesita y los hijos reciben contexto fresco con las skills pertinentes. `design` decide; `tasks` concreta grupos ejecutables; `apply` implementa; `verify` inspecciona código y ejecuta las comprobaciones por su cuenta. Los logs completos quedan referenciados, sin volcarlos en la conversación del padre.
+
+El estado de las fases y la validez estructural de los artefactos se calculan por herramienta. Eso ayuda a revisar el trabajo; no demuestra por sí solo que todas las decisiones o el código sean correctos.
 
 > _note: qué garantiza Ein y qué solo observa está escrito sin rebajas en [límites deterministas](https://samuhlo.github.io/ein-agent/01-concepts/deterministic-boundaries/)._
 
@@ -72,7 +78,7 @@ ein-agent/
 ├── vendor/skills/  # skills externas curadas; no son código propio
 ├── ein-pi/         # adaptador Pi, launcher avanzado y migración
 ├── ein-cc/         # adaptador Claude, launcher, sync y CLI SDD
-├── installer/      # dueño de `ein`, deploy, backups y releases
+├── installer/      # ciclo de vida: ein-install, deploy, backups y releases
 ├── tooling/        # mantenimiento del repositorio; no se distribuye
 └── docs-site/      # documentación pública (Astro + Starlight)
 ```
@@ -129,7 +135,7 @@ ein-cc-sdd status  # canal determinista SDD de Claude
 | [Overview](https://samuhlo.github.io/ein-agent/00-start/overview/) | qué es y para quién |
 | [Getting Started](https://samuhlo.github.io/ein-agent/00-start/getting-started/) | instalar y comprobar |
 | [First Run](https://samuhlo.github.io/ein-agent/00-start/first-run/) | un cambio real de principio a fin |
-| [Workflow](https://samuhlo.github.io/ein-agent/02-workflow/workflow-overview/) | las siete fases |
+| [Workflow](https://samuhlo.github.io/ein-agent/02-workflow/workflow-overview/) | cuándo usar ad-hoc o SDD y cómo verificar |
 | [Runtimes](https://samuhlo.github.io/ein-agent/03-runtimes/runtime-overview/) | Pi, Claude Code y sus diferencias |
 | [Limitaciones](https://samuhlo.github.io/ein-agent/05-debug/known-limitations/) | qué está probado y qué no |
 

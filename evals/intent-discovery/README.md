@@ -2,6 +2,8 @@
 
 Base reviewed: `origin/main` at `a8e05228a6bf423688058d28a34d5c102e97840c` (includes PRs #392–#399). Implementation lives on `feat/intent-discovery`, in an isolated worktree.
 
+> Historical report for the commits below, not the current runtime contract. Current Ein can record a complete authorized request without an extra question; unresolved material decisions still require a real reply. Hypa and Headroom have been retired, and pi-lens is not an integrated runtime capability. Reproduction commands and integration plans below belong to the evaluated checkout; removed probes require that historical revision. See the [current workflow](https://samuhlo.github.io/ein-agent/02-workflow/workflow-overview/) and [retirement decision](../../docs/adr/0006-remove-runtime-compressors.md).
+
 ## Results
 
 - Complete suite at implementation commit `d4a72f3`: **3,242 passed, 0 failed**, 249 files (103.05 seconds).

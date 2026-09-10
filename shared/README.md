@@ -15,7 +15,7 @@ proyecto que forman su protocolo público, como `openspec/changes/` y
 `openspec/specs/`. No puede conocer hogares, configuración privada o interfaz de
 un runtime, ni lanzar procesos. Git, reloj y ejecución de comandos llegan como
 dependencias explícitas. La decisión completa vive en
-`docs/adr/0003-shared-runtime-boundary.md`.
+[ADR 0003](../docs/adr/0003-shared-runtime-boundary.md).
 
 Claude y el instalador consumen estas rutas públicas y nunca interiores de
 `ein-pi/agent/`. `tests/architecture-boundaries.test.ts` hace cumplir la regla y
@@ -43,3 +43,5 @@ bundle. Cada módulo tiene una fachada homónima y de re-export puro en
 `ein-pi/agent/lib/`; las composiciones Pi viven bajo otro nombre. El bundler
 rechaza módulos anidados, imports que salgan del payload y entrypoints cuyos
 exports no enlacen después del overlay.
+
+Los contratos de intención vinculan los artefactos al acuerdo vigente; la captura de respuestas pertenece al adaptador. El cierre conserva los informes de apply y verify dentro del resumen archivado antes de retirar sus archivos intermedios. Validar esa estructura y procedencia no sustituye juzgar la calidad del código.
