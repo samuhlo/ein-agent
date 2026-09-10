@@ -4,7 +4,39 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
-## Pendiente de publicación
+## [0.97.0-alpha.1] - 2026-09-10
+
+### Added
+
+- **Acuerdo de intención antes de modificar.** Se conserva el objetivo, los
+  límites y los criterios de terminación. Una petición completa y autorizada
+  puede registrarse directamente; las decisiones pendientes siguen preguntándose.
+- **Evidencia de ejecución recuperable.** Apply deja referencias a los comandos,
+  su resultado y los originales para que Verify pueda comprobar lo sucedido.
+
+### Changed
+
+- **Encargos más concretos para los ejecutores baratos.** Apply recibe el grupo
+  validado de tareas con sus instrucciones, subpasos y referencias. Las fases
+  cargan las skills pertinentes y conservan contexto fresco.
+- **Menos trabajo repetido en el orquestador.** La guía detallada de SDD se carga
+  cuando se necesita. Las correcciones pequeñas utilizan apply y verificación
+  independiente sin crear un expediente SDD innecesario.
+- **Verificación independiente y proporcionada.** Se evitan comprobaciones
+  duplicadas y lecturas completas repetidas; los criterios de calidad, la
+  evidencia histórica exigida y las pruebas frescas siguen siendo obligatorios.
+- **Comunicación de progreso.** Ein explica el propósito del trabajo y las
+  delegaciones, comunica resultados y bloqueos y conserva explicaciones humanas.
+
+### Fixed
+
+- Herramientas y guardas necesarias disponibles también en los hijos foreground.
+- Skills explícitas preservadas y selección automática más precisa, evitando
+  manuales de frameworks ajenos por coincidencias genéricas.
+- Nuevos artefactos ligados al acuerdo vigente sin copiar claves a mano;
+  los acuerdos cambiados bloquean la mutación y las claves obsoletas no se retocan.
+- Operadores como `||` conservados dentro de las instrucciones del grupo;
+  encabezados sin tareas y prohibiciones con «ni» interpretados correctamente.
 
 ### Removed
 
@@ -12,6 +44,10 @@ Todos los cambios relevantes de Ein. El formato sigue
   instalación/actualización. Headroom queda fuera del producto. Se conservan
   las guardas, el manejo nativo de salida y la verificación independiente.
   Decisión: [ADR 0006](docs/adr/0006-remove-runtime-compressors.md).
+
+La ejecución local sigue siendo futura y opcional. Esta alpha prepara y evalúa
+el flujo con modelos baratos alojados; no acredita compatibilidad ni rendimiento
+con un modelo local concreto.
 
 ## [0.96.0-alpha.4] - 2026-09-08
 
