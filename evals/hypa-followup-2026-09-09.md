@@ -1,5 +1,7 @@
 # Hypa: detección corregida y utilidad delimitada
 
+> Registro histórico. La [decisión vigente](../docs/adr/0006-remove-runtime-compressors.md) retira ambos compresores de Ein.
+
 Seguimiento breve del 2026-09-09. La PR #401 de Headroom queda **cerrada, conservando rama e historial**. Se mantiene Hypa como opción; esta evaluación no recomienda activarlo de forma general ni atribuye ahorro al flujo completo.
 
 ## Corrección

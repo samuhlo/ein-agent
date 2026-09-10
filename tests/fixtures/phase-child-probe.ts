@@ -25,9 +25,10 @@ for (const role of ["scope", "map", "design", "tasks", "apply", "verify", "close
 		const bash = session.agent.state.tools.find((tool) => tool.name === "bash");
 		let output: unknown; let protectedCommand: unknown;
 		if (bash) {
-			const args = { command: "printf 'phase fixture'" };
+			const args = { command: "git log -1 --oneline" };
 			const toolCall = { type: "toolCall" as const, id: `probe-${role}`, name: "bash", arguments: args };
 			await session.agent.beforeToolCall!({ toolCall, args } as never);
+			if (args.command !== "git log -1 --oneline") throw new Error(`${role}: shell command was rewritten`);
 			const result = await bash.execute(toolCall.id, args);
 			await session.agent.afterToolCall!({ toolCall, args, result, isError: false } as never);
 			output = result.content;

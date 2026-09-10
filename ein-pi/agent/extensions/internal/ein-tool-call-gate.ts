@@ -31,7 +31,6 @@ import {
 	readGitDeliveryMode,
 } from "../../lib/git-delivery.ts";
 import { t } from "../../lib/i18n/strings.ts";
-import { maybeWrapBashInput } from "../../lib/hypa.ts";
 import {
 	confirmDelegatedDelivery,
 } from "../../lib/guardrails.ts";
@@ -196,7 +195,6 @@ export function registerToolCallGate(
 		}
 		const guard = await guardChildCommand(event, ctx);
 		if (guard) return guard;
-		maybeWrapBashInput(event.input as { command: string }, ctx.cwd);
 		return undefined;
 	});
 

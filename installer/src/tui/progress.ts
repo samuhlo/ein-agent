@@ -42,7 +42,7 @@ const LABEL: Readonly<Record<InstallPlanEntryId, string>> = Object.freeze({
   "pi.dependency.pi": "pi",
   "pi.dependency.engram": "engram",
   "pi.dependency.gh": "gh",
-  "pi.dependency.hypa": "hypa",
+  "pi.dependency.hypa": "paso legado retirado",
   "pi.dependency.codegraph": "codegraph",
   "pi.migrate-legacy": "migrar instalación previa",
   "pi.backup-current": "backup del estado actual",

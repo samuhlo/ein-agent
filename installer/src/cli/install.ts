@@ -17,7 +17,6 @@ import {
   installEngramDep,
   installGh,
   installCodegraph,
-  installHypa,
   installPi,
   type DepStatus,
   type InstallStep,
@@ -96,6 +95,7 @@ export type InstallFlags = {
   noEngram: boolean;
   noSecrets: boolean;
   noLinear: boolean;
+  /** Accepted only for old invocations/journals; has no effect. */
   noHypa: boolean;
   noCodegraph: boolean;
   dryRun: boolean;
@@ -412,20 +412,8 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   }
   return success();
   },
-  "pi.dependency.hypa": async () => {
-  const needHypa = !deps.find((d) => d.id === "hypa")?.present;
-
-  if (needHypa && !flags.noHypa && !flags.yes) {
-    if (await confirm("Instalar hypa (compresión de salida)?", flags, false)) {
-      const spinner = p.spinner();
-      spinner.start("Instalando hypa");
-      const result = await installHypa();
-      spinner.stop(result.detail);
-      return optionalInstallOutcome(result);
-    }
-  }
-  return success();
-  },
+  // Historical V1 journals may contain this step; it must never install anything.
+  "pi.dependency.hypa": async () => ({ ok: true, detail: "Paso retirado; no se instala ni activa ningún compresor" }),
   "pi.dependency.codegraph": async () => {
   const needCodegraph = !deps.find((d) => d.id === "codegraph")?.present;
 
@@ -678,7 +666,7 @@ function observePlan(platform: Platform, deps: readonly DepStatus[]): Omit<Insta
     piOwnership,
     claudeConfigHome: join(home, ".claude-ein"),
     platform,
-    dependencies: { bun: present("bun"), pi: present("pi"), claude: present("claude"), engram: present("engram"), gh: present("gh"), hypa: present("hypa"), codegraph: present("codegraph") },
+    dependencies: { bun: present("bun"), pi: present("pi"), claude: present("claude"), engram: present("engram"), gh: present("gh"), hypa: false, codegraph: present("codegraph") },
   };
 }
 
@@ -729,7 +717,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallSel
   }
 
   const deps: DepStatus[] = options.observations
-    ? (Object.keys(options.observations.dependencies) as InstallDependencyId[]).map((id) => ({ id, present: options.observations!.dependencies[id], path: null, required: id === "bun" || id === "pi", hint: "injected observation" }))
+    ? (Object.keys(options.observations.dependencies) as InstallDependencyId[]).filter((id): id is Exclude<InstallDependencyId, "hypa"> => id !== "hypa").map((id) => ({ id, present: options.observations!.dependencies[id], path: null, required: id === "bun" || id === "pi", hint: "injected observation" }))
     : checkDeps(platform);
   const observations = options.observations ?? observePlan(platform, deps);
   const previousClaudeMarkerVersion = readInstallMarkerVersion(

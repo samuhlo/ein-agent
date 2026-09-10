@@ -1,5 +1,7 @@
 # Pensar bien para ejecutar más barato: implementación y evaluación
 
+> Registro histórico. La [decisión vigente](../docs/adr/0006-remove-runtime-compressors.md) retira ambos compresores de Ein.
+
 2026-09-09. Alcance aprobado: reparar el traspaso entre fases, entregar encargos cerrados, medir el conjunto y evaluar Headroom como opción. **La ejecución local sigue siendo futura y opcional.** No se han probado Qwen ni una GPU local, ni cambiado los modelos instalados del usuario.
 
 ## Decisión

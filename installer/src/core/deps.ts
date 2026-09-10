@@ -52,7 +52,6 @@ export type DepId =
   | "claude"
   | "engram"
   | "gh"
-  | "hypa"
   | "codegraph";
 
 export type DepStatus = {
@@ -65,16 +64,7 @@ export type DepStatus = {
 
 const EXTRA_PATH = [BUN_BIN_DIR, LOCAL_BIN_DIR];
 
-// hypa: el installer oficial lo deja en ~/.local/bin, o mise lo shima cuando el
-// script prefiere npm global. Se busca en ambos además del PATH.
-const HYPA_PATH = [BUN_BIN_DIR, LOCAL_BIN_DIR, MISE_SHIM_DIR];
-
-export function resolveHypa(searchPath: string[] = HYPA_PATH): string | null {
-  return lookPath("hypa", searchPath);
-}
-
-// codegraph: npm global (mise lo shima) o instaladores en ~/.local/bin.
-export function resolveCodegraph(searchPath: string[] = HYPA_PATH): string | null {
+export function resolveCodegraph(searchPath: string[] = [BUN_BIN_DIR, LOCAL_BIN_DIR, MISE_SHIM_DIR]): string | null {
   return lookPath("codegraph", searchPath);
 }
 
@@ -198,17 +188,12 @@ export function checkDeps(platform: Platform): DepStatus[] {
     { id: "claude", required: false, hint: "complemento opcional: curl -fsSL https://claude.ai/install.sh | bash" },
     { id: "engram", required: false, hint: "memoria persistente (opcional)" },
     { id: "gh", required: false, hint: "GitHub CLI para entrega (opcional)" },
-    { id: "hypa", required: false, hint: "compresión de salida de comandos (opcional)" },
     { id: "codegraph", required: false, hint: "grafo de código para exploración barata (opcional)" },
   ];
 
   return defs.map((d) => {
     if (d.id === "engram") {
       return { ...d, present: engram.found, path: engram.found ? engram.command : null };
-    }
-    if (d.id === "hypa") {
-      const path = resolveHypa();
-      return { ...d, present: path !== null, path };
     }
     if (d.id === "codegraph") {
       const path = resolveCodegraph();
@@ -689,28 +674,12 @@ export async function installCodegraph(): Promise<InstallStep> {
   return { ok: true, detail: "codegraph instalado (telemetría off)" };
 }
 
-// hypa: best-effort vía el instalador oficial (verifica checksum, cae en
-// ~/.local/bin o npm global). Opcional, nunca bloquea. El script prefiere npm
-// si existe; si no, baja el binario self-contained por plataforma.
-export async function installHypa(): Promise<InstallStep> {
-  if (resolveHypa()) return { ok: true, detail: "hypa ya presente" };
-  const res = await run(
-    "sh",
-    ["-c", "curl -fsSL https://hypabolic.github.io/Hypa/install.sh | sh"],
-    CAPTURED,
-  );
-  if (!res.ok) return { ok: false, detail: "instala hypa manualmente: hypabolic.github.io/Hypa" };
-  return resolveHypa()
-    ? { ok: true, detail: "hypa instalado" }
-    : { ok: false, detail: "hypa instalado pero no resuelto en PATH (reinicia shell)" };
-}
-
 // ── Refresh de deps externas (auto-update) ──────────────────────────────────
 // Los instaladores de arriba hacen skip-si-presente para que `install` sea
 // rápido. Estas variantes RE-EJECUTAN el instalador oficial (que baja la última
 // versión) SOLO para las herramientas ya presentes, de modo que `ein update` las
 // mantenga al día. Si el tool no está, no se instala: respeta el opt-out
-// (--no-hypa/--no-codegraph/--no-engram). Best-effort: nunca bloquean el update,
+// (--no-codegraph/--no-engram). Best-effort: nunca bloquean el update,
 // y un fallo de red conserva la versión actual.
 
 export async function refreshCodegraph(): Promise<InstallStep> {
@@ -726,18 +695,6 @@ export async function refreshCodegraph(): Promise<InstallStep> {
   const bin = resolveCodegraph();
   if (bin) await run(bin, ["telemetry", "off"]);
   return { ok: true, detail: "codegraph actualizado (telemetría off)" };
-}
-
-export async function refreshHypa(): Promise<InstallStep> {
-  if (!resolveHypa()) return { ok: true, detail: "hypa no instalado; nada que actualizar" };
-  const res = await run(
-    "sh",
-    ["-c", "curl -fsSL https://hypabolic.github.io/Hypa/install.sh | sh"],
-    CAPTURED,
-  );
-  return res.ok
-    ? { ok: true, detail: "hypa actualizado" }
-    : { ok: false, detail: `hypa: falló al actualizar, se conserva la versión actual (${why(res)})` };
 }
 
 // Inyectables para poder fijar el contrato de honestidad sin tocar la red ni
@@ -777,12 +734,11 @@ export async function refreshEngram(
     : { ok: false, detail: `engram: falló al actualizar (${result.detail})` };
 }
 
-// Refresca las tres deps externas presentes. El orden no importa; cada una es
+// Refresca las deps externas presentes. El orden no importa; cada una es
 // independiente y best-effort.
 export async function refreshExternalTools(platform: Platform): Promise<InstallStep[]> {
   return [
     await refreshEngram(platform),
-    await refreshHypa(),
     await refreshCodegraph(),
   ];
 }

@@ -26,7 +26,7 @@ const data: PanelData = {
 			{ label: "AGENTES", value: "12" },
 			{ label: "MCP", value: "3 srv" } ] },
 		{ kind: "chips", label: "ACTIVO", chips: [
-			{ text: "hypa", on: true },
+			{ text: "codegraph", on: true },
 			{ text: "architect", on: false } ] },
 		{ kind: "fields", title: "REPO", fields: [
 			{ label: "PROYECTO", value: "~/dev/ein-agent" },
@@ -57,7 +57,7 @@ const grid: PanelData = {
 				{ label: "MODO", value: "solo" },
 				{ label: "TDD", value: "preguntar" } ] },
 		] },
-		{ kind: "chips", label: "ACTIVO", chips: [{ text: "hypa", on: true }] },
+		{ kind: "chips", label: "ACTIVO", chips: [{ text: "codegraph", on: true }] },
 	],
 };
 
@@ -137,7 +137,7 @@ describe("panel de estado", () => {
 
 	test("lo apagado se muestra en hueco, no desaparece", () => {
 		const line = plain(panelDuration(data)).find((item) => item.includes("ACTIVO"))!;
-		expect(line).toContain("◆ hypa");
+		expect(line).toContain("◆ codegraph");
 		expect(line).toContain("◇ architect");
 	});
 
