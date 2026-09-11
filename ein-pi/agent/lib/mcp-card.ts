@@ -14,6 +14,7 @@ export type McpCard = {
   expanded: boolean;
   durationMs?: number;
   expandHint: string;
+  presentation?: { server: string; operation: string; preview?: string };
 };
 
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -143,7 +144,7 @@ function summarize(result: McpCardResult, error: boolean): string {
 
 export function renderMcpCard(card: McpCard, width: number, theme: Pick<Theme, "fg" | "bold">): string[] {
   const safeWidth = Math.max(1, Math.floor(width));
-  const target = identity(card);
+  const target = card.presentation ? { ...card.presentation, input: {} } : identity(card);
   const details = record(card.result?.details) ? card.result.details : {};
   const cancelled = ["aborted", "cancelled", "canceled"].includes(String(details.error))
     || card.error && card.result?.content.some((block) => block.type === "text" && /^(?:Tool execution aborted|Operation cancelled)\.?$/.test(block.text?.trim() ?? ""));
@@ -157,7 +158,7 @@ export function renderMcpCard(card: McpCard, width: number, theme: Pick<Theme, "
   const lines = [truncateToWidth(title + (duration && room >= 2 ? " ".repeat(room) + theme.fg("dim", duration) : ""), safeWidth)];
   const add = (text: string, color: Parameters<Theme["fg"]>[0] = "muted") => lines.push(truncateToWidth(theme.fg(color, `  ${text}`), safeWidth));
   if (!card.expanded) {
-    const preview = previewInput(target.input);
+    const preview = card.presentation?.preview ?? previewInput(target.input);
     if (preview) add(preview);
     add(pending ? card.started ? "En curso" : "Preparando llamada" : cancelled ? "Llamada cancelada" : summarize(card.result!, failed), failed && !pending && !cancelled ? "error" : "muted");
     add(card.expandHint ? `${card.expandHint} · detalles` : "Detalles · atajo sin asignar", "dim");

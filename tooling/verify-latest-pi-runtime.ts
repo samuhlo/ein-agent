@@ -89,6 +89,13 @@ try {
   if (discoveryProbe.exitCode !== 0) throw new Error(new TextDecoder().decode(discoveryProbe.stderr));
   console.log(new TextDecoder().decode(discoveryProbe.stdout).trim());
 
+  const nativeCardsProbe = Bun.spawnSync(["bun", join(ROOT, "tooling/verify-native-cards-runtime.ts")], {
+    cwd: home, env: { ...process.env, NODE_PATH: join(ROOT, "node_modules"), PI_OFFLINE: "1" },
+    stdout: "pipe", stderr: "pipe",
+  });
+  if (nativeCardsProbe.exitCode !== 0) throw new Error(new TextDecoder().decode(nativeCardsProbe.stderr));
+  console.log(new TextDecoder().decode(nativeCardsProbe.stdout).trim());
+
   const mcpCardsProbe = Bun.spawnSync(["bun", join(ROOT, "tooling/verify-mcp-cards-runtime.ts"), join(context.agentDir, "npm/node_modules/pi-mcp-adapter")], {
     cwd: home,
     env: { ...process.env, NODE_PATH: join(ROOT, "node_modules"), PI_OFFLINE: "1" },
