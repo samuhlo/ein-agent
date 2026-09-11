@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import {
 	formatApplyPacketObservation,
+	applyPacketNotification,
 	observeNextApplyPacket,
 } from "../ein-pi/agent/lib/apply-packet-observation";
 import {
@@ -163,6 +164,29 @@ describe("observación viva de apply-packet/v2", () => {
 
 	test("sin cambio activo se declara unavailable", () => {
 		expect(observeNextApplyPacket(emptyProject())).toMatchObject({ status: "unavailable", code: "no-active-change" });
+	});
+
+	test("an ordinary apply without SDD retains telemetry without a warning", async () => {
+		const { notifications, appended, result } = await invokeApplyHook(emptyProject());
+		expect(notifications.filter((message) => message.includes("Apply packet v2"))).toEqual([]);
+		expect(appended[0]?.data).toMatchObject({ status: "unavailable", code: "no-active-change" });
+		expect(result).toBeUndefined();
+	});
+
+	test("a requested but absent contract remains actionable and visible", () => {
+		const observation = observeNextApplyPacket(emptyProject());
+		expect(applyPacketNotification(observation, false)).toBeUndefined();
+		expect(applyPacketNotification(observation, true)).toMatchObject({ level: "warning" });
+		expect(applyPacketNotification(observation, true)?.message).toContain("comprueba su referencia");
+	});
+
+	test("ambiguous and broken artifacts are never silenced", () => {
+		for (const code of ["ambiguous-change", "missing-group", "unreadable-artifact"] as const) {
+			const notification = applyPacketNotification({ status: "unavailable", code, detail: "diagnostic" }, false);
+			expect(notification?.level).toBe("warning");
+			expect(notification?.message).toContain(code);
+			expect(notification?.message).toContain("no bloquea");
+		}
 	});
 
 	test("un artefacto que desaparece se declara unreadable sin lanzar", () => {

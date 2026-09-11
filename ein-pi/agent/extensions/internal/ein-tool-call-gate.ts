@@ -44,11 +44,11 @@ import {
 	admitSddParticipantCall,
 	type SddParticipant,
 } from "../../lib/sdd-participants.ts";
-import { isRecord } from "./ein-pi-event-contracts.ts";
+import { isRecord, readExplicitSddChange } from "./ein-pi-event-contracts.ts";
 import { ensurePhaseContextBudget } from "../../lib/sdd-phase-context-budget.ts";
 import { normalizeAgentDiscoveryScope } from "../../lib/agent-discovery-scope.ts";
 import {
-	formatApplyPacketObservation,
+	applyPacketNotification,
 	observeNextApplyPacket,
 } from "../../lib/apply-packet-observation.ts";
 import {
@@ -143,7 +143,9 @@ export function registerToolCallGate(
 			// Rollout 1: observar el contrato vivo sin bloquear ni mutar la
 			// delegación. La puerta dura llega solo después de medir planes reales.
 			if (delegationTargetsOnly(event.input, "sdd-apply")) {
-				const observation = observeNextApplyPacket(ctx.cwd);
+				const change = readExplicitSddChange(event);
+				const observation = observeNextApplyPacket(ctx.cwd, change);
+				const contractRequested = Boolean(change) || items.some((item) => /^apply_group:[\t ]*\S/m.test(item.task ?? ""));
 				try {
 					pi.appendEntry(
 						APPLY_PACKET_OBSERVATION_CUSTOM_TYPE,
@@ -160,10 +162,8 @@ export function registerToolCallGate(
 						"warning",
 					);
 				}
-				if (ctx.hasUI) ctx.ui.notify(
-					formatApplyPacketObservation(observation),
-					observation.status === "executable" ? "info" : "warning",
-				);
+				const notification = applyPacketNotification(observation, contractRequested);
+				if (ctx.hasUI && notification) ctx.ui.notify(notification.message, notification.level);
 			}
 			if (isRecord(event.input) && event.input.agent === "sdd-apply" && typeof event.input.task === "string") {
 				try { compileApplyHandoff(ctx.cwd, event.input.task); }

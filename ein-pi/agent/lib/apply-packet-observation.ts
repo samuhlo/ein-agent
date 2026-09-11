@@ -109,3 +109,20 @@ export function formatApplyPacketObservation(observation: ApplyPacketObservation
 	}
 	return `Apply packet v2: unavailable · ${observation.code}`;
 }
+
+export function applyPacketNotification(observation: ApplyPacketObservation, contractRequested: boolean): { message: string; level: "info" | "warning" } | undefined {
+	if (observation.status === "unavailable" && observation.code === "no-active-change" && !contractRequested) return;
+	const label = formatApplyPacketObservation(observation);
+	if (observation.status === "executable") return { message: label, level: "info" };
+	const guidance = observation.status === "incomplete"
+		? "Faltan campos del grupo; completa las tareas antes de usar el contrato compilado."
+		: observation.status === "rejected"
+			? "El grupo no cumple el contrato; revisa su gramática de edición y sus campos."
+			: {
+				"no-active-change": "La delegación solicita un cambio SDD que no está disponible; comprueba su referencia.",
+				"ambiguous-change": "Hay varios cambios activos; indica openspec/changes/<cambio>/ en la delegación.",
+				"missing-group": "No hay un grupo pendiente legible; revisa tasks.md y el progreso del cambio.",
+				"unreadable-artifact": "No se pueden leer los artefactos del cambio; comprueba design.md y tasks.md.",
+			}[observation.code];
+	return { message: `${label}. ${guidance} Esta observación por sí sola no bloquea la ejecución.`, level: "warning" };
+}
