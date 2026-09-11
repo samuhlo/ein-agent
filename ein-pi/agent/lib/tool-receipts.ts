@@ -34,6 +34,7 @@ export type ToolReceipt = Readonly<{
 export const TOOL_LABELS: Readonly<Record<string, string>> = {
 	ein_intent: "Qué queremos conseguir",
 	ein_sdd_status: "Estado",
+	ein_sdd_task_progress: "Progreso de la tarea",
 	ein_sdd_check: "Revisión del plan",
 	ein_sdd_preflight: "Cómo se trabaja este cambio",
 	ein_sdd_lane: "Carril",
@@ -444,6 +445,14 @@ export const TOOL_RECEIPTS: Readonly<Record<string, (details: unknown) => ToolRe
 		const states: Record<string, string> = { pending: "esperando tu respuesta", confirmed: "objetivo y alcance acordados", cancelled: "trabajo cancelado", absent: "sin acuerdo todavía" };
 		const line = states[String(details.state)];
 		return line ? receipt(line, [line]) : unreadable();
+	},
+	ein_sdd_task_progress: (details) => {
+		if (!isRecord(details) || !isRecord(details.counts) || typeof details.task !== "string"
+			|| !["start", "complete"].includes(String(details.action))) return unreadable();
+		const done = num(details.counts.done), total = Array.isArray(details.items) ? details.items.length : null;
+		if (done === null || total === null) return unreadable();
+		const line = `Tarea ${details.task} ${details.action === "complete" ? "completada" : "iniciada"} · ${done}/${total}`;
+		return receipt(line, [line, `Cambio: ${String(details.change)}`, "Progreso registrado en tasks.md; la verificación independiente es posterior."]);
 	},
 	ein_sdd_status: statusReceipt,
 	ein_sdd_check: checkReceipt,

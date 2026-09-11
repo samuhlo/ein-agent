@@ -54,6 +54,7 @@ export const PI_HOOKS: readonly string[] = [
 export const PI_EXTENSION_API: readonly string[] = [
 	"appendEntry",
 	"getAllTools",
+	"getActiveTools",
 	"getCommands",
 	"getThinkingLevel",
 	"on",

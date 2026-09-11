@@ -1,4 +1,4 @@
-import { readFileSync, mkdirSync } from "node:fs";
+import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { createAgentSession, DefaultResourceLoader, initTheme, parseFrontmatter, SessionManager, SettingsManager } from "@earendil-works/pi-coding-agent";
 
@@ -36,7 +36,17 @@ for (const role of ["scope", "map", "design", "tasks", "apply", "verify", "close
 			protectedCommand = await session.agent.beforeToolCall!({ toolCall: { ...toolCall, id: `guard-${role}`, arguments: guarded }, args: guarded } as never);
 			if (!(protectedCommand as any)?.block || !/Ein safety policy blocked/.test((protectedCommand as any).reason)) throw new Error(`${role}: guard did not block`);
 		}
-		results.push({ role, active, protectedCommand, output });
+		let progress: unknown;
+		if (role === "apply") {
+			const dir = join(cwd, "openspec/changes/progress-probe"); mkdirSync(dir, { recursive: true });
+			const path = join(dir, "tasks.md");
+			writeFileSync(path, "status: ready\nblocked_by: none\n## Group\n- [ ] 1.1 Implement\n- [ ] 1.2 Verify\n");
+			const tool = session.agent.state.tools.find((tool) => tool.name === "ein_sdd_task_progress")!;
+			await tool.execute("start-progress", { change: "progress-probe", task: "1.1", action: "start" });
+			progress = (await tool.execute("complete-progress", { change: "progress-probe", task: "1.1", action: "complete" })).details;
+			if (!readFileSync(path, "utf8").includes("- [x] 1.1")) throw new Error("Packaged child did not persist completion");
+		}
+		results.push({ role, active, protectedCommand, output, progress });
 	} finally { session.dispose(); }
 }
 console.log(JSON.stringify(results));
