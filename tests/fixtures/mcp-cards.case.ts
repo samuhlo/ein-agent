@@ -146,6 +146,21 @@ describe("native MCP renderer bridge", () => {
     } finally { release(); }
   });
 
+  test("an outer transcript adapter can shut down later without accumulating MCP layers", () => {
+    const prototype = ToolExecutionComponent.prototype;
+    const native = prototype.render;
+    const owner = () => ({ tools: () => [info("mcp")], duration: () => undefined });
+    const first = installMcpRendererBridge(prototype, owner())!;
+    const mcp = prototype.render;
+    prototype.render = function (width) { return mcp.call(this, width); };
+    first();
+    prototype.render = mcp;
+    const second = installMcpRendererBridge(prototype, owner())!;
+    expect(prototype.render).toBe(mcp);
+    second();
+    expect(prototype.render).toBe(native);
+  });
+
   test("headless sessions install no renderer and live timings are bounded to the session", () => {
     const handlers = new Map<string, Function>();
     const prototype = ToolExecutionComponent.prototype as any;

@@ -16,7 +16,7 @@ type Host = {
 };
 type Owner = { tools(): ToolInfo[]; duration(id: string): number | undefined };
 const BRIDGE = Symbol.for("ein.mcp-renderer-bridge");
-type Bridge = { owners: Set<Owner>; release(): void };
+type Bridge = { owners: Set<Owner>; activate(): void; release(): void };
 
 export function isMcpAdapterTool(tool: ToolInfo): boolean {
   return /^npm:pi-mcp-adapter(?:@|$)/.test(tool.sourceInfo.source)
@@ -33,7 +33,7 @@ export function installMcpRendererBridge(prototype: object, owner: Owner): (() =
   if (!bridge) {
     const owners = new Set<Owner>();
     const originals = { call: host.getCallRenderer, result: host.getResultRenderer, shell: host.getRenderShell, render: host.render };
-    const refreshed = new WeakSet<object>();
+    let refreshed = new WeakSet<object>();
     const frames = new WeakMap<object, { result?: McpCardResult }>();
     const findOwner = (name: string) => [...owners].find((candidate) => candidate.tools().some((tool) => tool.name === name && isMcpAdapterTool(tool)));
     const frame = (context: ToolRenderContext) => {
@@ -89,16 +89,25 @@ export function installMcpRendererBridge(prototype: object, owner: Owner): (() =
     host.getResultRenderer = result;
     host.getRenderShell = shell;
     host.render = render;
-    bridge = { owners, release() {
+    bridge = { owners, activate() {
+      if (!owners.size) refreshed = new WeakSet<object>();
+      if (host.getCallRenderer === originals.call) host.getCallRenderer = call;
+      if (host.getResultRenderer === originals.result) host.getResultRenderer = result;
+      if (host.getRenderShell === originals.shell) host.getRenderShell = shell;
+      if (host.render === originals.render) host.render = render;
+    }, release() {
       if (owners.size) return;
       if (host.getCallRenderer === call) host.getCallRenderer = originals.call;
       if (host.getResultRenderer === result) host.getResultRenderer = originals.result;
       if (host.getRenderShell === shell) host.getRenderShell = originals.shell;
       if (host.render === render) host.render = originals.render;
-      delete host[BRIDGE];
+      // Another extension may still wrap render and restore this layer later.
+      // Retain the dormant bridge in that case so reload reuses it, not stacks it.
+      if (host.render === originals.render) delete host[BRIDGE];
     } };
     host[BRIDGE] = bridge;
   }
+  bridge.activate();
   bridge.owners.add(owner);
   let disposed = false;
   return () => {
