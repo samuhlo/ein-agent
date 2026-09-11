@@ -2,7 +2,7 @@ import type { Theme, ToolInfo } from "@earendil-works/pi-coding-agent";
 import { renderMcpCard, redactMcpText, type McpCard } from "./mcp-card.ts";
 
 const labels: Record<string, string> = {
-  bash: "Ejecutar comando", read: "Leer archivo", edit: "Editar archivo",
+  bash: "Ejecutar comando", powershell: "Ejecutar PowerShell", read: "Leer archivo", edit: "Editar archivo",
   write: "Escribir archivo", grep: "Buscar contenido", find: "Buscar archivos", ls: "Listar archivos",
 };
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -39,7 +39,7 @@ function summary(card: McpCard): string {
   const args = record(card.args) ? card.args : {};
   const command = typeof args.command === "string" ? args.command.trim() : "";
   if (/^git\s+branch\s+--show-current\s*$/.test(command) && /^[^\s]+\s*$/.test(text)) return `Rama: ${redactMcpText(text.trim())}`;
-  if (card.tool === "bash") return text.trim() ? "Comando completado · salida disponible" : "Comando completado · sin salida";
+  if (card.tool === "bash" || card.tool === "powershell") return text.trim() ? "Comando completado · salida disponible" : "Comando completado · sin salida";
   return text.trim() ? "Consulta completada · resultados disponibles" : "Consulta completada · sin salida";
 }
 
@@ -50,7 +50,7 @@ export function renderNativeCard(card: McpCard, width: number, theme: Pick<Theme
   const progress = path && /(?:^|\/)openspec\/changes\/[^/]+\/(?:tasks|apply-progress)\.md$/.test(path);
   const label = card.tool === "bash" ? commandLabel(command)
     : progress && (card.tool === "edit" || card.tool === "write") ? "Actualizar progreso" : labels[card.tool] ?? card.tool;
-  const preview = card.tool === "bash"
+  const preview = card.tool === "bash" || card.tool === "powershell"
     ? command.length > 100 || command.includes("\n") ? "Script · abrir detalles" : `Comando: ${redactMcpText(command)}`
     : [path ? `Ruta: ${redactMcpText(path)}` : "", typeof args.pattern === "string" ? `Patrón: ${redactMcpText(args.pattern)}` : ""].filter(Boolean).join(" · ");
   const result = card.result && {

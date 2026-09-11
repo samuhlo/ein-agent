@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { stripVTControlCharacters } from "node:util";
-import { ToolExecutionComponent, initTheme } from "@earendil-works/pi-coding-agent";
+import { ToolExecutionComponent, initTheme, createBashToolDefinition } from "@earendil-works/pi-coding-agent";
 import { renderNativeCard, isNativeCardTool } from "../../ein-pi/agent/lib/native-card.ts";
 import { installToolCardBridge } from "../../ein-pi/agent/lib/tool-card-renderer-bridge.ts";
 import { installMcpRendererBridge } from "../../ein-pi/agent/lib/mcp-renderer-bridge.ts";
@@ -37,7 +37,7 @@ test("MCP and native owners share one seam through either shutdown order and his
   const prototype = ToolExecutionComponent.prototype as any;
   const original = prototype.getCallRenderer;
   for (const reverse of [false, true]) {
-    const view = new ToolExecutionComponent("bash", "history", { command: "git branch --show-current" }, {}, undefined, { requestRender() {} } as any, process.cwd());
+    const view = new ToolExecutionComponent("bash", "history", { command: "git branch --show-current" }, {}, createBashToolDefinition(process.cwd()), { requestRender() {} } as any, process.cwd());
     view.updateResult({ content: [{ type: "text", text: "dev" }], isError: false });
     const native = installToolCardBridge(prototype, owner)!;
     const shared = prototype.getCallRenderer;
