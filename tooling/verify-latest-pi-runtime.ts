@@ -89,6 +89,14 @@ try {
   if (discoveryProbe.exitCode !== 0) throw new Error(new TextDecoder().decode(discoveryProbe.stderr));
   console.log(new TextDecoder().decode(discoveryProbe.stdout).trim());
 
+  const mcpCardsProbe = Bun.spawnSync(["bun", join(ROOT, "tooling/verify-mcp-cards-runtime.ts"), join(context.agentDir, "npm/node_modules/pi-mcp-adapter")], {
+    cwd: home,
+    env: { ...process.env, NODE_PATH: join(ROOT, "node_modules"), PI_OFFLINE: "1" },
+    stdout: "pipe", stderr: "pipe",
+  });
+  if (mcpCardsProbe.exitCode !== 0) throw new Error(new TextDecoder().decode(mcpCardsProbe.stderr));
+  console.log(new TextDecoder().decode(mcpCardsProbe.stdout).trim());
+
   console.log(`Pi latest ${hostVersion}; extensiones latest instaladas y cargadas: ${installed.map(({ name, version }) => `${name}@${version}`).join(", ")}`);
 } finally {
   rmSync(home, { recursive: true, force: true });

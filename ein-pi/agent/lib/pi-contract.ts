@@ -45,6 +45,7 @@ export const PI_HOOKS: readonly string[] = [
 	"session_start",
 	"session_shutdown",
 	"tool_call",
+	"tool_execution_start",
 	"tool_execution_end",
 	"tool_result",
 	"turn_end",
