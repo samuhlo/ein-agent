@@ -59,7 +59,8 @@ describe("packaged Cleaner runtime closure", () => {
       const phases = JSON.parse(execFileSync("bun", [join(ROOT, "tests/fixtures/phase-child-probe.ts"), payload, project, home], {
         cwd: project, encoding: "utf8", timeout: 15_000,
         env: { ...process.env, PI_CODING_AGENT_DIR: home, EIN_PI_AGENT_HOME: home, PI_OFFLINE: "1" },
-      })) as Array<{ role: string; active: string[]; protectedCommand?: { block: boolean } }>;
+      })) as Array<{ role: string; active: string[]; progress?: { counts: { done: number } }; protectedCommand?: { block: boolean } }>;
+      expect(phases.find((phase) => phase.role === "apply")?.progress?.counts.done).toBe(1);
       expect(phases.map((phase) => phase.role)).toEqual(["scope", "map", "design", "tasks", "apply", "verify", "close"]);
       for (const phase of phases) if (phase.active.includes("bash")) expect(phase.protectedCommand?.block).toBe(true);
 

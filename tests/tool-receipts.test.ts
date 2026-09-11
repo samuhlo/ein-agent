@@ -27,7 +27,7 @@ test("passing SDD checks and archive retain unavailable advisory evidence", () =
 });
 
 const TOOLS = [
-	"ein_intent", "ein_sdd_status",
+	"ein_intent", "ein_sdd_status", "ein_sdd_task_progress",
 	"ein_sdd_check",
 	"ein_sdd_preflight",
 	"ein_sdd_lane",
@@ -337,6 +337,7 @@ describe("el detalle expandido habla como una persona", () => {
 
 describe("TRIANGULATE: ninguna herramienta se queda sin recibo por olvido", () => {
 	const SOURCES = [
+		new URL("../ein-pi/agent/extensions/internal/ein-apply-progress-child.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/internal/ein-intent-discovery.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/internal/ein-tool-registration.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/internal/ein-advisory-tools.ts", import.meta.url).pathname,

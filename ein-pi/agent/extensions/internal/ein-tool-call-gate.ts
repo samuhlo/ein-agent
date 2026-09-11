@@ -1,3 +1,4 @@
+import { askDeliveryConsent } from "../../lib/delivery-consent.ts";
 // =============================================================================
 // EIN TOOL CALL GATE
 // Owns Pi's pre-execution boundary: intent, delegation normalization, delivery
@@ -26,6 +27,7 @@ import {
 } from "../../lib/delegation-shape.ts";
 import {
 	type DeliveryIntent,
+	bindDeliveryWork,
 	deliveryIntentActive,
 	nextDeliveryIntent,
 	readGitDeliveryMode,
@@ -44,11 +46,11 @@ import {
 	admitSddParticipantCall,
 	type SddParticipant,
 } from "../../lib/sdd-participants.ts";
-import { isRecord } from "./ein-pi-event-contracts.ts";
+import { isRecord, readExplicitSddChange } from "./ein-pi-event-contracts.ts";
 import { ensurePhaseContextBudget } from "../../lib/sdd-phase-context-budget.ts";
 import { normalizeAgentDiscoveryScope } from "../../lib/agent-discovery-scope.ts";
 import {
-	formatApplyPacketObservation,
+	applyPacketNotification,
 	observeNextApplyPacket,
 } from "../../lib/apply-packet-observation.ts";
 import {
@@ -95,6 +97,14 @@ export function registerToolCallGate(
 				return undefined;
 			}
 			const items = collectDelegationItems(event.input);
+			const workKeys = [...new Set(items.flatMap((item) => {
+				const match = item.task?.match(/^intent_work:\s*([^\s]+)\s*$/m);
+				return match ? [match[1]!] : [];
+			}))];
+			const deliveryWork = workKeys.length === 1 ? workKeys[0] : undefined;
+			const deliveryKey = sddPreflightSessionKey(ctx);
+			const boundIntent = bindDeliveryWork(deliveryIntentBySession.get(deliveryKey), deliveryWork);
+			if (boundIntent) deliveryIntentBySession.set(deliveryKey, boundIntent);
 			for (const item of items) {
 				if (
 					(item.agent !== "ein-cleaner" && item.agent !== "ein-architect")
@@ -143,7 +153,9 @@ export function registerToolCallGate(
 			// Rollout 1: observar el contrato vivo sin bloquear ni mutar la
 			// delegación. La puerta dura llega solo después de medir planes reales.
 			if (delegationTargetsOnly(event.input, "sdd-apply")) {
-				const observation = observeNextApplyPacket(ctx.cwd);
+				const change = readExplicitSddChange(event);
+				const observation = observeNextApplyPacket(ctx.cwd, change);
+				const contractRequested = Boolean(change) || items.some((item) => /^apply_group:[\t ]*\S/m.test(item.task ?? ""));
 				try {
 					pi.appendEntry(
 						APPLY_PACKET_OBSERVATION_CUSTOM_TYPE,
@@ -160,10 +172,8 @@ export function registerToolCallGate(
 						"warning",
 					);
 				}
-				if (ctx.hasUI) ctx.ui.notify(
-					formatApplyPacketObservation(observation),
-					observation.status === "executable" ? "info" : "warning",
-				);
+				const notification = applyPacketNotification(observation, contractRequested);
+				if (ctx.hasUI && notification) ctx.ui.notify(notification.message, notification.level);
 			}
 			if (isRecord(event.input) && event.input.agent === "sdd-apply" && typeof event.input.task === "string") {
 				try { compileApplyHandoff(ctx.cwd, event.input.task); }
@@ -184,8 +194,10 @@ export function registerToolCallGate(
 			);
 			return confirmDelegatedDelivery(event.input, ctx, {
 				mode: readGitDeliveryMode(ctx.cwd),
+				confirm: (preview) => askDeliveryConsent(ctx, preview),
 				userRequested: deliveryIntentActive(
 					deliveryIntentBySession.get(sddPreflightSessionKey(ctx)),
+					Date.now(), deliveryWork,
 				),
 			});
 		}
