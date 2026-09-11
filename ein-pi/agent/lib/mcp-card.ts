@@ -35,7 +35,16 @@ export function redactMcpText(text: string): string {
 
 function displayJson(value: unknown): string {
   try {
-    return redactMcpText(JSON.stringify(value, (key, item) => SECRET_KEY.test(key) ? "[oculto]" : item, 2) ?? "");
+    return redactMcpText(JSON.stringify(value, (key, item) => {
+      if (SECRET_KEY.test(key)) return "[oculto]";
+      if (typeof item !== "string") return item;
+      // The MCP proxy also accepts JSON-encoded argument objects. Decode only
+      // containers for presentation so escaped credential fields are redacted too.
+      if (item.length <= DISPLAY_LIMIT) {
+        try { const parsed: unknown = JSON.parse(item); if (record(parsed) || Array.isArray(parsed)) return parsed; } catch { /* Ordinary strings stay strings. */ }
+      }
+      return redactMcpText(item);
+    }, 2) ?? "");
   } catch { return "[argumentos no representables]"; }
 }
 
