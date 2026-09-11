@@ -84,7 +84,7 @@ describe("ensurePlanningAcceptance", () => {
 // no reaparece. cwd único por test evita compartir preferencias de sesión.
 let cwdSeq = 0;
 function ctxStub(
-	answers: { execution: string; memory?: string; budget?: string },
+	answers: { execution: string; budget?: string },
 	cwd = `/tmp/does-not-exist-planning-acceptance-${cwdSeq++}`,
 ) {
 	const notes: string[] = [];
@@ -97,7 +97,6 @@ function ctxStub(
 				select: async (title: string, opts: string[]) => {
 					selectTitles.push(title);
 					if (/execution mode/i.test(title)) return answers.execution;
-					if (/notebook/i.test(title)) return answers.memory ?? "off";
 					return opts[0];
 				},
 				input: async () => answers.budget ?? "400",
@@ -115,7 +114,7 @@ describe("collectSddPreflightPreferences — postura técnica sin selector por c
 		try {
 			writeTddMode(cwd, "strict");
 			const { ctx, selectTitles } = ctxStub({ execution: "auto" }, cwd);
-			const prefs = await collectSddPreflightPreferences(ctx, false);
+			const prefs = await collectSddPreflightPreferences(ctx);
 			expect(prefs.tddMode).toBe("strict");
 			expect(prefs.executionMode).toBe("auto");
 			expect(prefs.prompted).toBe(true);
@@ -127,22 +126,22 @@ describe("collectSddPreflightPreferences — postura técnica sin selector por c
 
 	test("usa off por defecto y respeta la ejecución interactiva", async () => {
 		const { ctx, selectTitles } = ctxStub({ execution: "interactive" });
-		const prefs = await collectSddPreflightPreferences(ctx, false);
+		const prefs = await collectSddPreflightPreferences(ctx);
 		expect(prefs.tddMode).toBe("off");
 		expect(prefs.executionMode).toBe("interactive");
 		expect(selectTitles.some((title) => /strict tdd|tdd estricto|lane/i.test(title))).toBe(false);
 	});
 
 	test("las demás preferencias de sesión no alteran el default técnico", async () => {
-		const { ctx, selectTitles } = ctxStub({ execution: "interactive", memory: "off", budget: "250" });
-		const prefs = await collectSddPreflightPreferences(ctx, false);
+		const { ctx, selectTitles } = ctxStub({ execution: "interactive", budget: "250" });
+		const prefs = await collectSddPreflightPreferences(ctx);
 		expect(prefs.tddMode).toBe("off");
 		expect(selectTitles.some((title) => /strict tdd|tdd estricto|lane/i.test(title))).toBe(false);
 	});
 
 	test("sin UI → defaults sin preguntar", async () => {
 		const ctx = { hasUI: false, cwd: "/tmp/does-not-exist-planning-acceptance" } as never;
-		const prefs = await collectSddPreflightPreferences(ctx, false);
+		const prefs = await collectSddPreflightPreferences(ctx);
 		expect(prefs.prompted).toBe(false);
 		expect(prefs.executionMode).toBe("interactive");
 	});
@@ -161,14 +160,13 @@ describe("collectSddPreflightPreferences — postura técnica sin selector por c
 					select: async (title: string, opts: string[]) => {
 						if (/strict tdd|tdd estricto/i.test(title)) { tddAsks += 1; return "off"; }
 						if (/execution mode/i.test(title)) return "interactive";
-						if (/notebook/i.test(title)) return "off";
 						return opts[0];
 					},
 					input: async () => "400",
 					notify: () => {},
 				},
 			} as never;
-			const prefs = await collectSddPreflightPreferences(ctx, false);
+			const prefs = await collectSddPreflightPreferences(ctx);
 			expect(prefs.tddMode).toBe("auto");
 			expect(tddAsks).toBe(0);
 			await gateTddForDelegation({ agent: "sdd-scope", task: "x" }, ctx);

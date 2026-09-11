@@ -117,12 +117,6 @@ export function runDoctor(
 
   const checksMcp: CheckResult[] = [
     ...common.checks.mcp,
-    check(
-      Boolean(common.evidence.engramCommand) &&
-        !common.evidence.engramCommand?.includes("{{"),
-      "engram command",
-      "Ruta de engram resuelta (sin tokens sin templar).",
-    ),
   ];
 
   const manifest = loadTemplateManifest(agentDir);
@@ -153,7 +147,6 @@ export function runDoctor(
     ...common.checks.coherence,
   ];
 
-  const hasEngramBin = lookPath("engram", extraPath) !== null;
   const hasGh = lookPath("gh", extraPath) !== null;
   const hasBun = lookPath("bun", extraPath) !== null;
   const nodeRuntime = inspectNodeRuntime(extraPath);
@@ -182,7 +175,6 @@ export function runDoctor(
         ? `Pi ${piRuntime.version} detectado; Ein sigue ${PI_HOST_SPEC}.`
         : `Pi no resoluble; instala ${PI_HOST_SPEC}.`,
     ),
-    warn(hasEngramBin, "engram cli", "CLI engram disponible (memoria)."),
     warn(hasGh, "gh cli", "GitHub CLI disponible (entrega)."),
     warn(
       resolveCodegraph(optionalPath) !== null,

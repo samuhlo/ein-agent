@@ -6,6 +6,8 @@ import {
   type InstallPlanV1,
 } from "./install-plan.ts";
 
+export type JournalEntryId = InstallPlanEntryId | "pi.dependency.engram";
+
 export type InstallJournalState = "prepared" | "executing" | "recovery-required" | "complete";
 export type InstallJournalEntryState = "not-run" | "pending" | "completed" | "failed";
 export type InstallExecutionJournalV1 = Readonly<{
@@ -16,12 +18,12 @@ export type InstallExecutionJournalV1 = Readonly<{
   platform: InstallPlanV1["platform"];
   state: InstallJournalState;
   entries: readonly Readonly<{
-    id: InstallPlanEntryId;
+    id: JournalEntryId;
     runtime: InstallPlanRuntime;
     status: InstallJournalEntryState;
     detail?: string;
   }>[];
-  pendingEntryId?: InstallPlanEntryId;
+  pendingEntryId?: JournalEntryId;
   recoveryCode?: "handler-failed" | "interrupted";
 }>;
 

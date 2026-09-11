@@ -6,8 +6,8 @@
 
 import { statSync } from "node:fs";
 import { join } from "node:path";
-import { GLYPH } from "../../lib/chrome.ts";
 import { t } from "../../lib/i18n/strings.ts";
+import { GLYPH } from "../../lib/chrome.ts";
 import type {
 	ChangeLintReport,
 	SddPhase,
@@ -20,7 +20,6 @@ import {
 	type SddChangeStatus,
 	type SddNextReport,
 } from "../../lib/sdd-router.ts";
-import type { SddPreflightPreferences } from "../../lib/sdd-preflight.ts";
 import type { SddAdvisoryStatus } from "../../lib/sdd-participants.ts";
 
 /** True when a named change directory exists in the configured change root. */
@@ -81,16 +80,7 @@ export function formatChangeLint(report: ChangeLintReport & { advisory?: SddAdvi
 export function formatSddStatus(
 	status: SddChangeStatus,
 	active: string[],
-	prefs?: SddPreflightPreferences,
 ): string {
-	// La salvedad del cuaderno es PERMANENTE, no un dato del cambio: baja al pie,
-	// agrupada con la regla vertical, en vez de quedarse a media lista con el
-	// mismo peso que la fase o las tareas. Y habla el idioma de la sesión.
-	const notebook = `${GLYPH.rule} ${t("sdd-status.notebook", "optional project notebook")}: Engram ${prefs?.memoryMode ?? "off"}${
-		prefs?.engramAvailable
-			? ` (${t("sdd-status.notebook.configured", "configured; no retrieval or save is implied")})`
-			: ` (${t("sdd-status.notebook.absent", "unavailable or not configured")})`
-	}. ${t("sdd-status.notebook.canonical", "OpenSpec is the canonical full record.")}`;
 	const lines = ["// 000  SDD STATUS", ""];
 	if (!status.change) {
 		if (status.selection.kind === "ambiguous") {
@@ -103,7 +93,6 @@ export function formatSddStatus(
 				"No active SDD changes in openspec/changes/.",
 			));
 		}
-		lines.push("", notebook);
 		return lines.join("\n");
 	}
 
@@ -144,7 +133,6 @@ export function formatSddStatus(
 	}
 	const remedies = formatSddRemedies(collectSddRemedies(status));
 	if (remedies) lines.push("", remedies);
-	lines.push("", notebook);
 	return lines.join("\n");
 }
 

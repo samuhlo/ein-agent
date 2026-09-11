@@ -1,7 +1,7 @@
 // =============================================================================
 // TESTS: el preflight SDD es POR CAMBIO, no por sesión
 // -----------------------------------------------------------------------------
-// A) Lo que se pregunta una vez por SESIÓN (modo de ejecución, cuaderno Engram)
+// A) Lo que se pregunta una vez por SESIÓN (modo de ejecución)
 //    no se repite; lo que describe UN CAMBIO (TDD estricto, carril) se vuelve a
 //    preguntar cuando el cambio activo es otro. Antes todo se cacheaba por
 //    sesión y el segundo cambio heredaba en silencio la respuesta del primero.
@@ -34,7 +34,7 @@ import {
 } from "../ein-pi/agent/lib/sdd-preflight-record";
 import { laneConfigPath, readChangeLane, writeChangeLane } from "../ein-pi/agent/lib/sdd-lane";
 
-type AskLog = { execution: number; tdd: number; lane: number; memory: number };
+type AskLog = { execution: number; tdd: number; lane: number };
 
 // El preflight cachea por sesión en mapas de módulo. Cada test estrena sesión:
 // compartir el id haría que un test heredara la postura del anterior, que es
@@ -42,7 +42,7 @@ type AskLog = { execution: number; tdd: number; lane: number; memory: number };
 let sessionSeq = 0;
 
 function makeCtx(cwd: string, answers: { tdd?: string; lane?: string; execution?: string }) {
-	const asks: AskLog = { execution: 0, tdd: 0, lane: 0, memory: 0 };
+	const asks: AskLog = { execution: 0, tdd: 0, lane: 0 };
 	const sessionId = `session-${(sessionSeq += 1)}`;
 	const ctx = {
 		hasUI: true,
@@ -62,10 +62,6 @@ function makeCtx(cwd: string, answers: { tdd?: string; lane?: string; execution?
 					asks.lane += 1;
 					return answers.lane ?? "standard";
 				}
-				if (/notebook/i.test(title)) {
-					asks.memory += 1;
-					return "off";
-				}
 				return options[0];
 			},
 			input: async () => "400",
@@ -83,7 +79,6 @@ const resolveSddIntentPreflight = (
 const EIN_AI_SOURCE = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-ai.ts"), "utf8");
 
 const CALLBACKS = {
-	pi: {} as never,
 	installAssets: () => ({ agents: 0, chains: 0, support: 0, skipped: 0, installed: 0 }),
 	applyModelConfig: () => ({ updated: 0, skipped: 0 }),
 };
@@ -474,7 +469,6 @@ describe("normal, small, confirmation, third decision and bypass flows", () => {
 			const { ctx, asks } = makeCtx(box.cwd, {});
 			await ensureSddPreflight(ctx, CALLBACKS);
 			expect(asks.execution).toBe(1);
-			expect(asks.memory).toBe(1);
 			expect(asks.tdd).toBe(0);
 			expect(asks.lane).toBe(0);
 		} finally {

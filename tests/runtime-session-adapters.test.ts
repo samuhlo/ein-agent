@@ -1091,7 +1091,6 @@ describe("fixed isolated launch boundary", () => {
 			env: {
 				PI_CODING_AGENT_DIR: "/home/test-user/.pi-ein/agent",
 				EIN_PI_AGENT_HOME: "/home/test-user/.pi-ein/agent",
-				ENGRAM_DATA_DIR: "/home/test-user/.engram-ein",
 			},
 			shell: false,
 		});
@@ -1110,7 +1109,6 @@ describe("fixed isolated launch boundary", () => {
 		if (claude.outcome !== "success") throw new Error("expected Claude launch plan");
 		expect(claude.data.env).toEqual({
 			CLAUDE_CONFIG_DIR: "/home/test-user/.claude-ein",
-			ENGRAM_DATA_DIR: "/home/test-user/.engram-ein",
 			PATH: "/home/test-user/.claude-ein/bin:/usr/bin",
 		});
 		expect(claude.data.argv).toEqual([]);
@@ -1161,7 +1159,6 @@ describe("fixed isolated launch boundary", () => {
 			env: {
 				PI_CODING_AGENT_DIR: "/home/test-user/.pi-ein/agent",
 				EIN_PI_AGENT_HOME: "/home/test-user/.pi-ein/agent",
-				ENGRAM_DATA_DIR: "/home/test-user/.engram-ein",
 			},
 			shell: false,
 			signal: expect.any(AbortSignal),
@@ -1319,14 +1316,12 @@ describe("fixed isolated launch boundary", () => {
 				mutations: [
 					["PI_CODING_AGENT_DIR", "/home/test-user/.pi-ein/agent-mutated"],
 					["EIN_PI_AGENT_HOME", "/home/test-user/.pi-ein/other"],
-					["ENGRAM_DATA_DIR", "/home/test-user/.engram-ein-mutated"],
 				] as const,
 			},
 			{
 				provider: "claude" as const,
 				mutations: [
 					["CLAUDE_CONFIG_DIR", "/home/test-user/.claude-ein-mutated"],
-					["ENGRAM_DATA_DIR", "/home/test-user/.engram-ein-mutated"],
 					["PATH", "/home/test-user/.claude-ein/bin:/usr/bin:/mutated"],
 				] as const,
 			},

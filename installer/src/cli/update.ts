@@ -41,7 +41,7 @@ export type UpdateRunDependencies = {
   updatePi?: () => Promise<InstallStep>;
   syncPiPackages?: () => Promise<InstallStep>;
   confirmExternalToolsUpdate?: () => Promise<boolean>;
-  // Deps externas opcionales (engram/codegraph): binarios fuera de la
+  // Deps externas opcionales (codegraph): binarios fuera de la
   // transacción de Ein que envejecen en silencio. Este hook las refresca tras un
   // proceso ya instalado. Tras un reemplazo, la política pertenece al hijo nuevo.
   refreshExternalTools?: () => Promise<InstallStep[]>;
@@ -299,7 +299,7 @@ async function refreshPi(
 
 /**
  * Refresca, con confirmación salvo `--yes`, las herramientas externas presentes
- * (engram/codegraph) tras un update exitoso. Un fallo de red conserva su
+ * (codegraph) tras un update exitoso. Un fallo de red conserva su
  * versión actual y nunca tumba el update; no forman parte del runtime Pi que
  * Ein declara y verifica contra npm latest.
  */

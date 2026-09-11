@@ -27,7 +27,6 @@ import { ensureEinGitignore } from "../../lib/gitignore.ts";
 import { clearAgentControlSession } from "../../lib/agent-controls.ts";
 import { clearSddParticipantSession } from "../../lib/sdd-participants.ts";
 import type { ScoutTracking } from "../../lib/scout-contract.ts";
-import { memoryLifecycleForSession } from "./ein-sdd-memory.ts";
 
 type SessionLifecycleDependencies = Readonly<{
 	scoutTracking: ScoutTracking;
@@ -42,8 +41,6 @@ export function registerSessionLifecycle(
 		ctx: ExtensionContext,
 	): Promise<SddPreflightPreferences> {
 		const preferences = await ensureSddPreflight(ctx, {
-			pi,
-			memoryLifecycle: memoryLifecycleForSession(ctx),
 			installAssets: (cwd) => installSddAssets(cwd, false),
 			applyModelConfig: async () => applySavedModelConfig(ctx),
 		});

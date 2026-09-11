@@ -183,10 +183,10 @@ describe("readGitBaseline (repo real)", () => {
 describe("integración con el preflight", () => {
 	const PREFS = {
 		executionMode: "auto",
-		memoryMode: "off",
+
 		reviewBudgetLines: 400,
 		tddMode: "off",
-		engramAvailable: false,
+
 		prompted: true,
 	} as const;
 

@@ -6,7 +6,6 @@
 
 import { existsSync, statSync } from "node:fs";
 import { basename, delimiter, isAbsolute, join, normalize } from "node:path";
-import { resolveEngramDataDir } from "./memory-contract.ts";
 import {
 	failure,
 	isRecord,
@@ -289,19 +288,16 @@ export function buildLaunchPlan(
 
 	const piHome = join(home, ".pi-ein", "agent");
 	const claudeHome = join(home, ".claude-ein");
-	const engramHome = resolveEngramDataDir(provider, { HOME: home })!;
 	const env: Readonly<Record<string, string>> = provider === "pi"
 		? {
 				PI_CODING_AGENT_DIR: piHome,
 				EIN_PI_AGENT_HOME: piHome,
-				ENGRAM_DATA_DIR: engramHome,
 				...(bindingMetadata
 					? { [EIN_SDD_SESSION_BINDING_ENV_KEY]: bindingMetadata }
 					: {}),
 			}
 		: {
 				CLAUDE_CONFIG_DIR: claudeHome,
-				ENGRAM_DATA_DIR: engramHome,
 				PATH: [
 					join(claudeHome, "bin"),
 					typeof environment.PATH === "string" ? environment.PATH : "",

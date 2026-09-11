@@ -7,8 +7,6 @@
 export type TemplateVars = {
   HOME: string;
   AGENT_DIR: string;
-  ENGRAM_BIN: string;
-  ENGRAM_DATA_DIR: string;
 };
 
 const TOKEN_RE = /\{\{(\w+)\}\}/g;

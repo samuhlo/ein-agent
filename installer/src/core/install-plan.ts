@@ -9,21 +9,21 @@ export type InstallPlanAction =
   | "ensure-dependency" | "migrate" | "backup" | "deploy" | "configure"
   | "promote-command" | "write-marker" | "verify" | "retire-legacy";
 export type InstallPlanState = "selected" | "conditional" | "satisfied" | "skipped" | "blocked";
-export type InstallDependencyId = "bun" | "pi" | "claude" | "engram" | "gh" | "hypa" | "codegraph";
+export type InstallDependencyId = "bun" | "pi" | "claude" | "gh" | "hypa" | "codegraph";
 // V1 decoding retains the retired Hypa id; new plans never generate its step.
 export const INSTALL_PLAN_ENTRY_IDS = [
-  "shared.dependency.bun", "pi.dependency.pi", "pi.dependency.engram", "pi.dependency.gh", "pi.dependency.hypa", "pi.dependency.codegraph",
+  "shared.dependency.bun", "pi.dependency.pi", "pi.dependency.gh", "pi.dependency.hypa", "pi.dependency.codegraph",
   "pi.migrate-legacy", "pi.backup-current", "pi.deploy-template", "pi.configure-packages", "pi.configure-secrets",
   "pi.configure-context7-export", "pi.write-install-marker", "pi.verify-doctor", "pi.deploy-launcher", "pi.promote-commands",
   "claude.dependency.claude", "claude.deploy-runtime", "claude.deploy-launcher",
   "shared.retire-legacy",
 ] as const;
 export type InstallPlanEntryId = typeof INSTALL_PLAN_ENTRY_IDS[number];
-export const PI_INSTALL_PLAN_ENTRY_IDS = INSTALL_PLAN_ENTRY_IDS.slice(1, 16), CLAUDE_INSTALL_PLAN_ENTRY_IDS = INSTALL_PLAN_ENTRY_IDS.slice(16, 19);
+export const PI_INSTALL_PLAN_ENTRY_IDS = INSTALL_PLAN_ENTRY_IDS.slice(1, 15), CLAUDE_INSTALL_PLAN_ENTRY_IDS = INSTALL_PLAN_ENTRY_IDS.slice(15, 18);
 type EntryContract = readonly [InstallPlanRuntime, InstallPlanAction, readonly string[]];
 export const INSTALL_PLAN_ENTRY_CONTRACTS = {
   "shared.dependency.bun": ["shared", "ensure-dependency", ["external:selected", "external:satisfied"]], "pi.dependency.pi": ["pi", "ensure-dependency", ["external:selected", "external:satisfied"]],
-  "pi.dependency.engram": ["pi", "ensure-dependency", ["external:selected", "external:conditional", "external:satisfied", "external:skipped"]], "pi.dependency.gh": ["pi", "ensure-dependency", ["external:conditional", "external:satisfied", "external:skipped"]],
+  "pi.dependency.gh": ["pi", "ensure-dependency", ["external:conditional", "external:satisfied", "external:skipped"]],
   "pi.dependency.hypa": ["pi", "ensure-dependency", ["external:conditional", "external:satisfied", "external:skipped"]], "pi.dependency.codegraph": ["pi", "ensure-dependency", ["external:conditional", "external:satisfied", "external:skipped"]],
   "pi.migrate-legacy": ["pi", "migrate", ["installer:selected", "installer:skipped", "unknown:blocked"]], "pi.backup-current": ["pi", "backup", ["installer:conditional", "unknown:conditional"]],
   "pi.deploy-template": ["pi", "deploy", ["installer:selected", "unknown:selected"]], "pi.configure-packages": ["pi", "configure", ["installer:selected", "unknown:selected"]],
@@ -49,7 +49,7 @@ export type InstallPlanInput = {
   claudeConfigHome: string;
   platform: { os: "darwin" | "linux"; arch: "arm64" | "x64" };
   dependencies: Readonly<Record<InstallDependencyId, boolean>>;
-  flags: { yes: boolean; noEngram: boolean; noSecrets: boolean; noHypa: boolean; noCodegraph: boolean; skipLinear: boolean };
+  flags: { yes: boolean; noSecrets: boolean; noHypa: boolean; noCodegraph: boolean; skipLinear: boolean };
 };
 
 export type ManagedInstallEntry = Readonly<{
@@ -120,13 +120,13 @@ function validateInput(input: InstallPlanInput): void {
   if (typeof value.target !== "string" || !["pi", "claude", "both"].includes(value.target)) throw new InstallPlanInputError("invalid-target");
   if (!exact(value.platform, ["os", "arch"]) || typeof value.platform.os !== "string" || typeof value.platform.arch !== "string" || !["darwin", "linux"].includes(value.platform.os) || !["arm64", "x64"].includes(value.platform.arch)) throw new InstallPlanInputError("invalid-platform");
   if (![value.home, value.piAgentDir, value.claudeConfigHome].every(safePath) || typeof value.piAgentDirExists !== "boolean") throw new InstallPlanInputError("invalid-path");
-  const dependencyKeys: InstallDependencyId[] = ["bun", "pi", "claude", "engram", "gh", "hypa", "codegraph"];
+  const dependencyKeys: InstallDependencyId[] = ["bun", "pi", "claude", "gh", "hypa", "codegraph"];
   const dependencies = value.dependencies;
   if (!exact(dependencies, dependencyKeys) || dependencyKeys.some((key) => typeof dependencies[key] !== "boolean")) throw new InstallPlanInputError("invalid-dependencies");
   const owner = value.piOwnership;
   const validOwner = exact(owner, ["status"]) && owner.status === "absent" || exact(owner, ["status", "layout"]) && owner.status === "managed" && (owner.layout === "isolated" || owner.layout === "legacy") || exact(owner, ["status", "reason"]) && owner.status === "ambiguous" && (owner.reason === "legacy-destination-conflict" || owner.reason === "unmarked-existing-target");
   if (!validOwner) throw new InstallPlanInputError("invalid-ownership");
-  const flagKeys = ["yes", "noEngram", "noSecrets", "noHypa", "noCodegraph", "skipLinear"];
+  const flagKeys = ["yes", "noSecrets", "noHypa", "noCodegraph", "skipLinear"];
   const flags = value.flags;
   if (!exact(flags, flagKeys) || flagKeys.some((key) => typeof flags[key] !== "boolean")) throw new InstallPlanInputError("invalid-flags");
 }
@@ -158,7 +158,6 @@ function piEntries(input: InstallPlanInput): ManagedInstallEntry[] {
   const migrationState: InstallPlanState = input.piOwnership.status === "ambiguous" ? "blocked" : input.piOwnership.status === "managed" && input.piOwnership.layout === "legacy" ? "selected" : "skipped";
   return [
     dependency(input, "pi", "pi", false, true),
-    dependency(input, "engram", "pi", input.flags.noEngram),
     dependency(input, "gh", "pi", input.flags.yes),
     dependency(input, "codegraph", "pi", input.flags.noCodegraph || input.flags.yes),
     { id: "pi.migrate-legacy", runtime: "pi", action: "migrate", state: migrationState, destination: input.piAgentDir, ownership, reason: input.piOwnership.status === "ambiguous" ? input.piOwnership.reason : migrationState === "selected" ? "managed legacy install must move before deploy" : "no managed legacy install observed" },

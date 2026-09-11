@@ -18,7 +18,6 @@ Use this skill whenever work should be tracked in Linear:
 
 - Linear = external source of truth for work status.
 - SDD = local execution system for exploration, implementation, and verification.
-- Engram = memory of decisions, lessons, and solved problems.
 - Git/PR = final code delivery.
 
 ## Default Workspace Rules
@@ -362,4 +361,4 @@ Explain Linear actions simply:
 - why it was done
 - what the user should understand about the workflow
 
-Keep it short but not cold. Linear is the board, SDD is the workbench, Engram is the notebook.
+Keep it short but not cold. Linear is the board, SDD is the workbench.

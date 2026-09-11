@@ -1,6 +1,6 @@
 // =============================================================================
 // DEPENDENCIES
-// Check + install the tools Ein needs. bun/pi are required; engram/gh optional.
+// Check + install the tools Ein needs. bun/pi are required; gh optional.
 // git/curl are check-only prerequisites.
 // =============================================================================
 
@@ -15,12 +15,6 @@ import {
   type RunOptions,
   type RunResult,
 } from "./exec.ts";
-import {
-  brewFailureDetail,
-  ENGRAM_FORMULA,
-  installEngram,
-  resolveEngram,
-} from "./engram.ts";
 import {
   activeHome,
   BUN_BIN_DIR,
@@ -50,7 +44,6 @@ export type DepId =
   | "bun"
   | "pi"
   | "claude"
-  | "engram"
   | "gh"
   | "codegraph";
 
@@ -176,7 +169,6 @@ export function inspectNodeRuntime(
 }
 
 export function checkDeps(platform: Platform): DepStatus[] {
-  const engram = resolveEngram(platform);
   const nodeRuntime = inspectNodeRuntime();
   const piRuntime = inspectPiRuntime();
   const defs: Array<Omit<DepStatus, "present" | "path">> = [
@@ -186,15 +178,11 @@ export function checkDeps(platform: Platform): DepStatus[] {
     { id: "bun", required: true, hint: "curl -fsSL https://bun.sh/install | bash" },
     { id: "pi", required: true, hint: `bun install -g ${PI_HOST_SPEC}` },
     { id: "claude", required: false, hint: "complemento opcional: curl -fsSL https://claude.ai/install.sh | bash" },
-    { id: "engram", required: false, hint: "memoria persistente (opcional)" },
     { id: "gh", required: false, hint: "GitHub CLI para entrega (opcional)" },
     { id: "codegraph", required: false, hint: "grafo de código para exploración barata (opcional)" },
   ];
 
   return defs.map((d) => {
-    if (d.id === "engram") {
-      return { ...d, present: engram.found, path: engram.found ? engram.command : null };
-    }
     if (d.id === "codegraph") {
       const path = resolveCodegraph();
       return { ...d, present: path !== null, path };
@@ -532,11 +520,6 @@ export async function installClaudeCode(deps: ClaudeCodeInstallDeps = {}): Promi
   return { ok: true, detail: "claude code instalado" };
 }
 
-export async function installEngramDep(platform: Platform): Promise<InstallStep> {
-  const result = await installEngram(platform);
-  return { ok: result.ok, detail: result.detail };
-}
-
 // Install Pi extension packages declared in settings.json (pi-subagents,
 // pi-mcp-adapter, ask-user-question, i18n...). Idempotent: `pi install`
 // reports "up to date". The caller decides whether a failed reconciliation is
@@ -679,7 +662,7 @@ export async function installCodegraph(): Promise<InstallStep> {
 // rápido. Estas variantes RE-EJECUTAN el instalador oficial (que baja la última
 // versión) SOLO para las herramientas ya presentes, de modo que `ein update` las
 // mantenga al día. Si el tool no está, no se instala: respeta el opt-out
-// (--no-codegraph/--no-engram). Best-effort: nunca bloquean el update,
+// (--no-codegraph). Best-effort: nunca bloquean el update,
 // y un fallo de red conserva la versión actual.
 
 export async function refreshCodegraph(): Promise<InstallStep> {
@@ -697,48 +680,10 @@ export async function refreshCodegraph(): Promise<InstallStep> {
   return { ok: true, detail: "codegraph actualizado (telemetría off)" };
 }
 
-// Inyectables para poder fijar el contrato de honestidad sin tocar la red ni
-// depender del brew de la máquina que corre los tests.
-export type EngramRefreshDeps = {
-  run?: typeof run;
-  installEngram?: typeof installEngram;
-  resolveEngram?: typeof resolveEngram;
-};
-
-/**
- * BLINDAJE -> El resultado de brew se comprueba SIEMPRE. La versión anterior
- * descartaba el exit code y reportaba éxito fijo asumiendo que un fallo solo
- * podía significar "ya al día"; con el gate de taps no confiados de Homebrew eso
- * pasó a tapar un fallo real y dejar engram congelado sin decirlo.
- */
-export async function refreshEngram(
-  platform: Platform,
-  deps: EngramRefreshDeps = {},
-): Promise<InstallStep> {
-  const exec = deps.run ?? run;
-  const resolve = deps.resolveEngram ?? resolveEngram;
-  const install = deps.installEngram ?? installEngram;
-
-  if (!resolve(platform).found) return { ok: true, detail: "engram no instalado; nada que actualizar" };
-  if (platform.os === "darwin" && platform.packageManager === "brew") {
-    // brew upgrade es idempotente: con la última ya instalada sale 0 sin hacer nada.
-    const res = await exec("brew", ["upgrade", "--formula", ENGRAM_FORMULA], CAPTURED);
-    return res.ok
-      ? { ok: true, detail: "engram: brew upgrade aplicado (o ya al día)" }
-      : { ok: false, detail: brewFailureDetail("upgrade", res) };
-  }
-  // Linux: installEngram siempre baja la última release y sobrescribe el binario.
-  const result = await install(platform);
-  return result.ok
-    ? { ok: true, detail: "engram actualizado a la última release" }
-    : { ok: false, detail: `engram: falló al actualizar (${result.detail})` };
-}
-
 // Refresca las deps externas presentes. El orden no importa; cada una es
 // independiente y best-effort.
 export async function refreshExternalTools(platform: Platform): Promise<InstallStep[]> {
   return [
-    await refreshEngram(platform),
     await refreshCodegraph(),
   ];
 }

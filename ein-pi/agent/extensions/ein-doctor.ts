@@ -60,7 +60,6 @@ async function doctorReport(): Promise<string> {
   const localSkills = countDoctorSkillFiles(LOCAL_SKILLS_DIR);
   const downloadedSkills = countDoctorSkillFiles(DOWNLOADED_SKILLS_DIR);
 
-  const hasEngram = await cliExists("engram");
   const hasGh = await cliExists("gh");
   const hasLinearToken = Boolean(
     process.env.LINEAR_API_KEY || process.env.LINEAR_TOKEN || existsSync(LINEAR_KEY_PATH),
@@ -93,7 +92,6 @@ ${extensions.map((e) => `- \`${e}\``).join("\n") || "- ninguna"}
 
 // 005. INTEGRACIONES
 
-- **Engram CLI:** ${hasEngram ? "OK → `engram` disponible (estar configurado no prueba que se recupere ni se guarde)" : "FALTA → `engram` no disponible (configurado no prueba recuperación ni persistencia)"}
 - **MCP config:** ${hasMcp ? "OK → \`mcp.json\` presente" : "FALTA → crea \`mcp.json\`"}
 - **GitHub CLI:** ${hasGh ? "OK → \`gh\` disponible" : "FALTA → instala \`gh\` via brew"}
 - **Linear API:** ${hasLinearToken ? "OK → token detectable en entorno o archivo" : "PENDIENTE → define \`LINEAR_API_KEY\` o \`LINEAR_TOKEN\`"}
@@ -104,8 +102,7 @@ ${extensions.map((e) => `- \`${e}\``).join("\n") || "- ninguna"}
 
 Ein es un workbench estructurado sobre Pi Coding Agent. El flujo principal es lenguaje natural.
 Para trabajo serio usa la chain \`ein-sdd\` (scope → map → design → tasks → apply → verify → close).
-Los comandos \`/ein:*\` son control manual y fallback, no la ruta principal.
-Engram es un cuaderno opcional por proyecto; estar configurado no prueba recuperación ni persistencia.`;
+Los comandos \`/ein:*\` son control manual y fallback, no la ruta principal.`;
 }
 
 // =============================================================================
