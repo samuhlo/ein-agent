@@ -4,9 +4,38 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
-## Pendiente de publicación
+## [0.98.0-alpha.1] - 2026-09-11
+
+### Added
+
+- **Tarjetas coherentes para MCP y herramientas nativas.** Comandos, lecturas,
+  búsquedas y ediciones muestran estado, resumen y detalles desplegables. Los
+  scripts y diffs extensos quedan plegados; se conservan imágenes y resultados
+  originales. Compatibilidad comprobada con Pi 0.84.4 y 0.85.1, incluido
+  PowerShell en esta última.
+- **Autorizaciones de entrega explicadas.** El diálogo muestra la acción, el
+  repositorio, la rama, el encargo y el motivo de la confirmación. Los detalles
+  se desplazan manteniendo visibles las opciones. Un permiso vinculado a un
+  trabajo conserva su vigencia durante la planificación de ese mismo trabajo.
+
+### Changed
+
+- Historial del terminal más limpio, sin cabeceras redundantes ni filas vacías
+  de pensamiento; indicador de actividad integrado con opción sin movimiento.
+- Documentación de instalación, actualización, recuperación y flujo SDD
+  alineada con el comportamiento actual de Ein.
 
 ### Fixed
+
+- Las prohibiciones largas, como «sin branches/commit/push/PR/merge», ya no
+  disparan una autorización de push durante una implementación local.
+- El ejecutor comprueba la disponibilidad de la herramienta de progreso y
+  registra las transiciones con un recibo compacto; la prueba del paquete
+  verifica la persistencia desde una sesión Pi real.
+- Una aplicación ordinaria sin contrato SDD solicitado no muestra un warning
+  de cambio activo ausente. Los contratos requeridos que faltan siguen visibles.
+- La búsqueda de proyectos de Neon prepara primero el contexto de organización,
+  evitando la llamada inicial sin org_id.
 
 - Tras reemplazar el instalador, la revisión de herramientas externas usa la
   política del binario instalado. El proceso anterior no vuelve a mantener

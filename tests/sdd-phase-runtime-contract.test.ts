@@ -191,8 +191,8 @@ describe("P5: foto de fase para reconciliar, sin ampliar el input del subagent",
   });
 
   test("observa el packet v2 en report-only sin convertirlo en un gate", () => {
-    expect(toolCallGate).toContain("observeNextApplyPacket(ctx.cwd)");
-    expect(toolCallGate).toContain("formatApplyPacketObservation");
+    expect(toolCallGate).toContain("observeNextApplyPacket(ctx.cwd, change)");
+    expect(toolCallGate).toContain("applyPacketNotification");
     expect(toolCallGate).toContain("delegationTargetsOnly(event.input, \"sdd-apply\")");
     expect(toolCallGate).not.toMatch(/observeNextApplyPacket[^;]{0,300}return\s+\{\s*block:\s*true/s);
   });
