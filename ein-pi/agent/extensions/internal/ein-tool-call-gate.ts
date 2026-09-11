@@ -26,6 +26,7 @@ import {
 } from "../../lib/delegation-shape.ts";
 import {
 	type DeliveryIntent,
+	bindDeliveryWork,
 	deliveryIntentActive,
 	nextDeliveryIntent,
 	readGitDeliveryMode,
@@ -95,6 +96,14 @@ export function registerToolCallGate(
 				return undefined;
 			}
 			const items = collectDelegationItems(event.input);
+			const workKeys = [...new Set(items.flatMap((item) => {
+				const match = item.task?.match(/^intent_work:\s*([^\s]+)\s*$/m);
+				return match ? [match[1]!] : [];
+			}))];
+			const deliveryWork = workKeys.length === 1 ? workKeys[0] : undefined;
+			const deliveryKey = sddPreflightSessionKey(ctx);
+			const boundIntent = bindDeliveryWork(deliveryIntentBySession.get(deliveryKey), deliveryWork);
+			if (boundIntent) deliveryIntentBySession.set(deliveryKey, boundIntent);
 			for (const item of items) {
 				if (
 					(item.agent !== "ein-cleaner" && item.agent !== "ein-architect")
@@ -186,6 +195,7 @@ export function registerToolCallGate(
 				mode: readGitDeliveryMode(ctx.cwd),
 				userRequested: deliveryIntentActive(
 					deliveryIntentBySession.get(sddPreflightSessionKey(ctx)),
+					Date.now(), deliveryWork,
 				),
 			});
 		}

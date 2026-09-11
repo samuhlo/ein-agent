@@ -1,3 +1,5 @@
+import { askDeliveryConsent } from "./delivery-consent.ts";
+import { deliveryPreview } from "./delivery-preview.ts";
 // =============================================================================
 // GUARDRAILS
 // Política de seguridad de Ein para comandos bash: patrones denegados
@@ -399,19 +401,13 @@ export async function confirmDelegatedDelivery(
 	}
 	// Sin UI no podemos confirmar aquí; el guard de bash del subagente decide.
 	if (!ctx.hasUI) return undefined;
-	const preview = truncatePreview(texts.join(" | "), 180);
-	const approved = await ctx.ui.confirm(
-		pick(
-			"¿Autorizar push delegado al subagente?",
-			"Authorize delegated push to the subagent?",
-		),
-		preview,
-	);
+	const preview = deliveryPreview(texts, ctx.cwd, options.mode);
+	const approved = await askDeliveryConsent(ctx, preview);
 	if (!approved) {
 		return {
 			block: true,
 			reason:
-				"El usuario no autorizó la entrega delegada (push). Pregunta qué quiere hacer antes de reintentar.",
+				"El usuario no autorizó la entrega Git. Pregunta qué quiere hacer antes de reintentar.",
 		};
 	}
 	grantDelegatedDelivery(ctx.cwd);

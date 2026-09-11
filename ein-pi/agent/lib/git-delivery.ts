@@ -81,13 +81,22 @@ const DELIVERY_NEGATION_STRIP = new RegExp(DELIVERY_NEGATION_SOURCE, "gi");
 
 // ¿El texto niega explícitamente algún verbo de entrega en su cláusula?
 export function textNegatesDelivery(text: string): boolean {
-	return DELIVERY_NEGATION_TEST.test(text);
+	return DELIVERY_NEGATION_TEST.test(text) || stripNegatedDelivery(text) !== text;
 }
 
 // Elimina del texto los verbos de entrega NEGADOS, dejando los afirmados.
 // "abre PR pero no hagas merge" → "abre PR pero " (el PR sobrevive).
 export function stripNegatedDelivery(text: string): string {
-	return text.replace(DELIVERY_NEGATION_STRIP, " ");
+	// A prohibition may be a long comma/slash list ("Sin dependencias,
+	// config, branches/commit/push/PR/merge"). Stop at an affirmative clause
+	// so "sin push, pero abre PR" still requests the PR.
+	const lists = text.replace(/\b(?:sin|without|no|never|nunca|do\s+not|don't)\b[^.;\n]*/gi, (clause) => {
+		const boundary = clause.search(/\b(?:pero|but|then|luego|después)\b|(?:,|\by\b|\band\b)\s*(?:haz|hace|abre|crea|sube|publica|ejecuta|realiza|actualiza|git|push|open|create|run|commit)\b/i);
+		const negative = boundary < 0 ? clause : clause.slice(0, boundary);
+		const rest = boundary < 0 ? "" : clause.slice(boundary);
+		return negative.replace(/\b(?:git\s+)?(?:commit(?:s)?|push|PRs?|pull\s+requests?|merge)\b/gi, " ") + rest;
+	});
+	return lists.replace(DELIVERY_NEGATION_STRIP, " ");
 }
 
 // Verbos de entrega en imperativo/petición (ES/EN). Detectan que el mensaje del
@@ -137,7 +146,14 @@ export function messageRequestsDelivery(text: string): boolean {
 // hora no autorice una entrega por iniciativa del agente.
 export const DELIVERY_INTENT_TTL_MS = 30 * 60 * 1000;
 
-export type DeliveryIntent = { requested: boolean; at: number };
+export type DeliveryIntent = { requested: boolean; at: number; work?: string };
+
+// Bind authorization while it is fresh, before long planning phases consume
+// its TTL. A different work key never inherits the bound authorization.
+export function bindDeliveryWork(intent: DeliveryIntent | undefined, work: string | undefined, now = Date.now()): DeliveryIntent | undefined {
+	if (!intent?.requested || !work || intent.work) return intent;
+	return now - intent.at <= DELIVERY_INTENT_TTL_MS ? { ...intent, work } : intent;
+}
 
 // Estado siguiente de la intención ante un mensaje del usuario. Puro: el
 // almacén (Map por sesión) vive en la extensión.
@@ -152,7 +168,7 @@ export function nextDeliveryIntent(
 	if (typeof text === "string" && textNegatesDelivery(text))
 		return { requested: false, at: now };
 	// Mensaje neutro: se conserva mientras siga viva.
-	if (previous?.requested && now - previous.at <= DELIVERY_INTENT_TTL_MS)
+	if (previous?.requested && (previous.work || now - previous.at <= DELIVERY_INTENT_TTL_MS))
 		return previous;
 	return { requested: false, at: now };
 }
@@ -160,8 +176,10 @@ export function nextDeliveryIntent(
 export function deliveryIntentActive(
 	intent: DeliveryIntent | undefined,
 	now: number = Date.now(),
+	work?: string,
 ): boolean {
 	if (!intent?.requested) return false;
+	if (intent.work) return intent.work === work;
 	return now - intent.at <= DELIVERY_INTENT_TTL_MS;
 }
 
