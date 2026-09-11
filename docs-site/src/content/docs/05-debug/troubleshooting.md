@@ -2,7 +2,7 @@
 title: "Resolver problemas"
 description: "Diagnóstico, actualización, fases bloqueadas y documentación."
 sources: ["installer/src/cli/doctor.ts", "installer/src/cli/update.ts", "installer/src/cli/uninstall.ts", "ein-cc/README.md", "docs/adr/0006-remove-runtime-compressors.md"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
 Empieza con `ein-install doctor`. Revisa el diagnóstico antes de reparar; un problema de autenticación, PATH o dependencia no se resuelve siempre reinstalando.

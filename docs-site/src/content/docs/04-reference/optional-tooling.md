@@ -1,8 +1,8 @@
 ---
 title: "Integraciones opcionales"
 description: "Qué aporta cada integración y qué implica omitirla."
-sources: ["installer/src/core/deps.ts", "installer/README.md", "runtime/assets/orchestrator-core.md", "docs/adr/0006-remove-runtime-compressors.md"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+sources: ["installer/src/core/deps.ts", "installer/src/core/deploy.ts", "ein-cc/sync.ts", "runtime/AGENTS.md", "runtime/agents/ein-scout.md", "installer/README.md", "runtime/assets/orchestrator-core.md", "docs/adr/0006-remove-runtime-compressors.md"]
+verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
 Las integraciones añaden capacidades concretas; no sustituyen el contrato de trabajo ni la verificación. Una integración puede estar instalada pero desactivada, o configurada y temporalmente inaccesible.
@@ -10,21 +10,26 @@ Las integraciones añaden capacidades concretas; no sustituyen el contrato de tr
 | Integración | Utilidad | Si no está disponible |
 | --- | --- | --- |
 | Context7 | Documentación de librerías a demanda. | Consultar documentación o fuentes pertinentes por otra vía; declarar lo que no se pudo verificar. |
-| Engram | Notas de memoria opcionales, como contexto orientativo. | Trabajar con fuentes actuales y artefactos del proyecto. |
 | Linear | Operaciones sobre tickets cuando están habilitadas o se piden explícitamente. | El trabajo local sigue; una operación que necesita Linear queda pendiente hasta tener acceso. |
 | Codegraph | Consultar un índice de relaciones del código cuando existe. | Usar búsqueda y lectura de fuentes; el índice no es obligatorio. |
 
-La fuente actual y la petición vigente prevalecen sobre una nota de memoria. Engram no obliga a convertir cada sesión en memoria universal. Linear se activa por su ajuste de integración o una petición explícita, no simplemente por elegir modo auto/manual.
+Linear se activa por su ajuste de integración o una petición explícita, no simplemente por elegir modo auto/manual.
 
 ## Instalación y ejecución son decisiones distintas
 
 ```bash
-ein-install install --runtime pi --no-engram --no-secrets --no-linear --no-codegraph
+ein-install install --runtime pi --no-secrets --no-linear --no-codegraph
 ```
 
 Omite esos pasos opcionales de instalación o configuración. No borra credenciales existentes, no desinstala herramientas usadas por otros proyectos y no garantiza ejecución sin red. En particular, `--no-codegraph` no equivale a apagar el ajuste Codegraph del proyecto.
 
 Los ajustes del runtime se consultan y cambian en Pi o en la aplicación. Claude consume los compatibles y muestra los que no puede aplicar.
+
+## Engram retirado
+
+Ein deja de instalar, actualizar y usar Engram para reducir piezas que mantener. La continuidad se recupera desde los archivos del proyecto, los artefactos OpenSpec y la evidencia de Git. Cuando hace falta investigar, `ein-scout` reúne evidencia acotada; no se añade otro sistema de memoria ni un paso nuevo al trabajo habitual.
+
+Al actualizar Ein o sincronizar su configuración para Claude, se retiran las conexiones MCP que mantienen la configuración original de Ein. Las configuraciones personalizadas, los datos de `~/.engram-ein` y el binario global se conservan. No se migran notas a otro sistema.
 
 ## Hypa y Headroom retirados
 

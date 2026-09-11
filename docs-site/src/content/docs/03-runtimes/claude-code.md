@@ -2,7 +2,7 @@
 title: "Claude Code"
 description: "Relevo SDD con límites explícitos."
 sources: ["ein-cc/README.md", "ein-cc/sync.ts", "ein-cc/sdd-cli/cli.ts"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
 Añade Claude con `ein-install install --runtime both`. La aplicación `ein` permite arrancarlo; `ein-cc` es el acceso avanzado en Fish. Su hogar de configuración es `~/.claude-ein`.
@@ -27,7 +27,9 @@ La inyección proactiva de skills de Pi no tiene equivalente completo: Claude us
 
 El hook de Bash aplica patrones compartidos de denegación y confirmación. No intercepta todas las escrituras ni constituye un sandbox de shell. Cleaner y Architect automáticos no se ejecutan en Claude.
 
-Context7 y Engram se configuran cuando están disponibles. Hay smokes históricos de conexión; no certifican disponibilidad permanente ni paridad de todos los servicios. El login compartido puede dar acceso a conectores de la misma cuenta aunque los hogares locales estén separados.
+Context7 se configura cuando está disponible. Hay smokes históricos de conexión; no certifican disponibilidad permanente ni paridad de todos los servicios. El login compartido puede dar acceso a conectores de la misma cuenta aunque los hogares locales estén separados.
+
+El sync retira la entrada MCP antigua de Engram solo si conserva la firma gestionada por Ein. Las configuraciones personalizadas y los datos se preservan; consulta [la retirada de Engram](/ein-agent/04-reference/optional-tooling/#engram-retirado).
 
 ## Desarrollo
 
