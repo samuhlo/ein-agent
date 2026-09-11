@@ -92,7 +92,7 @@ describe("native transcript presentation", () => {
     for (const motion of [false, true]) {
       const handlers = new Map<string, Function>();
       const indicators: any[] = [];
-      terminalActivity({ on: (name: string, fn: Function) => handlers.set(name, fn), registerFlag() {}, getFlag: () => motion } as any);
+      terminalActivity({ on: (name: string, fn: Function) => handlers.set(name, fn), registerFlag(name: string, options: any) { expect(name).toBe("ein-no-motion"); expect(options.default).toBe(false); }, getFlag: () => !motion } as any);
       const ctx = { hasUI: true, ui: { setHiddenThinkingLabel() {}, setWorkingIndicator: (value: unknown) => indicators.push(value), theme: { fg: (_color: string, value: string) => value } } };
       await handlers.get("session_start")!({}, ctx);
       expect(indicators[0].frames.length).toBe(motion && process.env.TERM !== "dumb" ? 4 : 1);

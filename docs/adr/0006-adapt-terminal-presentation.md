@@ -2,7 +2,7 @@
 
 Ein muestra el trabajo en curso con un destello junto al editor. El indicador usa
 el temporizador y el ciclo de vida nativos de Pi: desaparece al terminar o cancelar
-el turno. `ein-pi --ein-motion false` mantiene una estrella estática. No modifica
+el turno. `ein-pi --ein-no-motion` mantiene una estrella estática. No modifica
 el editor, sus atajos, selección ni pegado.
 
 Los bloques de pensamiento ocultos no ocupan filas en la conversación. La opción

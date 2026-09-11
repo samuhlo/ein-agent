@@ -2,7 +2,7 @@ import { AssistantMessageComponent, ToolExecutionComponent, type ExtensionAPI, t
 import { adaptTranscriptRenderer, cleanHiddenThinking, cleanSubagentHeading, HIDDEN_THINKING_LABEL } from "../lib/terminal-transcript.ts";
 
 export default function terminalActivity(pi: ExtensionAPI): void {
-  pi.registerFlag("ein-motion", { description: "Animate Ein's working indicator (false uses a static star)", type: "boolean", default: true });
+  pi.registerFlag("ein-no-motion", { description: "Use a static star for Ein's working indicator", type: "boolean", default: false });
   let dispose: (() => void) | undefined;
 
   const configure = (ctx: ExtensionContext) => {
@@ -15,7 +15,7 @@ export default function terminalActivity(pi: ExtensionAPI): void {
       dispose = () => releases.forEach((release) => release());
     }
     ctx.ui.setHiddenThinkingLabel(HIDDEN_THINKING_LABEL);
-    const motion = pi.getFlag("ein-motion") !== false && process.env.TERM !== "dumb";
+    const motion = pi.getFlag("ein-no-motion") !== true && process.env.TERM !== "dumb";
     const stars = motion ? ["·", "✧", "✦", "✧"] : ["✦"];
     ctx.ui.setWorkingIndicator({ frames: stars.map((star) => ctx.ui.theme.fg("accent", star)), intervalMs: 180 });
   };
