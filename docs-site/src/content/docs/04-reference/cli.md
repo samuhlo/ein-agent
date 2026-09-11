@@ -2,7 +2,7 @@
 title: "CLI"
 description: "La aplicación de terminal, los comandos del instalador y sus flags."
 sources: ["README.md", "installer/README.md", "ein-pi/agent/app.ts", "ein-pi/agent/surfaces/terminal-app-entrypoint.ts", "installer/src/cli/install.ts", "installer/src/cli/doctor.ts", "installer/src/cli/update.ts", "installer/src/cli/restore.ts", "installer/src/cli/uninstall.ts"]
-verified_rev: "405a6c1"
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
 Hay dos binarios y hacen cosas distintas:
@@ -12,14 +12,9 @@ Hay dos binarios y hacen cosas distintas:
 - **`ein-install`** gestiona la instalación, la actualización y el diagnóstico.
   No lanza los runtimes: eso lo hacen `ein-pi`, `ein-cc` y la propia app.
 
-Si vienes de una versión anterior, `ein` era el instalador. Los verbos viejos
-siguen reconocidos y te dicen dónde han ido:
-
-```bash
-$ ein update
-`ein update` ahora es `ein-install update`.
-`ein` sin argumentos abre la aplicación.
-```
+La aplicación delega `install`, `update`, `doctor`, `restore` y `uninstall` en
+`ein-install`. No se limita a imprimir una redirección. Conserva el comando
+`ein-install` como vía de reparación si la aplicación falla.
 
 ## La aplicación
 
@@ -63,10 +58,12 @@ En Pi, el panel vivo se abre con `ctrl+shift+e`. Muestra el cambio activo, el ca
 Instala o repara EIN: comprueba dependencias, instala las que falten, despliega
 las superficies, configura secrets y ejecuta el doctor al terminar.
 
-Sobre un árbol existente crea un backup antes de tocar nada.
+Antes de reemplazar un árbol gestionado existente prepara su snapshot.
 
 ```bash
-ein-install install --runtime pi|both
+ein-install install --runtime pi
+# Alternativa con Claude:
+ein-install install --runtime both
 ```
 
 ### `ein-install update`
@@ -103,7 +100,7 @@ Sale con código 0 si el resultado es OK o WARN, y 1 si hay algún FAIL.
 
 ### `ein-install uninstall`
 
-Elimina EIN **conservando** `auth.json`, secrets y sesiones. Crea backup antes.
+Retira activos reconocidos de Ein a recuperación privada **conservando** autenticación, secrets y sesiones. Consulta el plan antes.
 
 ### `ein-install restore`
 
@@ -111,16 +108,21 @@ Restaura desde un backup previo.
 
 ## Flags
 
+Estas opciones pertenecen a los subcomandos que las usan: `--channel` es de
+`update` y `--no-*` omiten pasos de instalación/configuración. No desactivan
+automáticamente integraciones ya configuradas. En `uninstall`, `--runtime`
+también acepta `claude` para retirar solo ese complemento.
+
 | Flag | Qué hace |
 | :--- | :--- |
 | `--runtime pi\|both` | instalar Ein o Ein + Claude Code |
 | `--yes` | no interactivo, acepta los valores por defecto |
 | `--dry-run` | enseña el plan sin ejecutar nada |
 | `--channel alpha\|stable` | elige y, tras un update correcto, persiste el canal |
-| `--no-engram` | omite la capacidad opcional de memoria persistente (Engram) |
+| `--no-engram` | omite el paso opcional de instalación de Engram |
 | `--no-secrets` | omite la configuración de secrets |
-| `--no-linear` | omite la integración con Linear |
-| `--no-codegraph` | omite el bootstrap asistido opcional del grafo de código |
+| `--no-linear` | omite la configuración opcional de Linear |
+| `--no-codegraph` | omite el paso opcional de instalación de Codegraph |
 
 :::tip[LA PRIMERA VEZ]
 `ein-install install --dry-run` enseña exactamente qué va a hacer sin tocar nada. Vale
@@ -129,11 +131,14 @@ la pena antes de la primera instalación.
 
 ### Capacidades opcionales
 
-**Codegraph** es un bootstrap asistido opcional cuando falta el índice. Su modo es `on` por defecto, pero no convierte el índice en una dependencia: puedes desactivarlo con `--no-codegraph`.
+**Codegraph** es un bootstrap asistido opcional cuando falta el índice. Su modo es `on` por defecto, pero no convierte el índice en una dependencia: `--no-codegraph` omite su instalación; para desactivarlo en el proyecto usa su ajuste en Pi o en la aplicación.
 
 **Engram** aporta memoria persistente como capacidad opcional. La instalación puede omitirla con `--no-engram`; su ausencia o configuración no cambia la validez del flujo principal.
 
 ## Comandos del flujo SDD
+
+En Pi, `/ein:intent` abre el acuerdo de trabajo; `/ein:models` configura modelos
+y esfuerzo por rol, y `/ein:skills` muestra las skills.
 
 Estos no vienen del instalador: pertenecen al runtime.
 
@@ -153,20 +158,21 @@ está documentado arriba.
 
 ```text
 /ein:status [cambio]     # muestra el cambio activo, la fase y lo pendiente
-/ein:settings            # consulta y ajusta la configuración de Ein
+/ein:settings            # consulta la configuración; los selectores están en Pi o en la aplicación
 ```
 
-## Riesgos que conviene conocer
+## Actualización y conservación
 
 **`ein-install update` puede cambiar la plantilla.** Crea backup y permite rollback,
 pero si tienes modificaciones a mano en la casa de EIN, revísalas antes.
 
-**`ein-install uninstall` no borra tus credenciales** a propósito. Si quieres una
-limpieza total, hay que borrarlas aparte.
+**`ein-install uninstall` conserva credenciales y estado privado**. No hace falta
+borrarlos para reparar el despliegue.
 
-**Ningún comando toca tus runtimes vanilla.** `~/.pi/agent` y `~/.claude` no
-están en el alcance de este binario, salvo la migración explícita de una
-instalación legacy de EIN.
+**El despliegue tiene hogares propios.** Una instalación legacy solo se migra
+si se reconoce como gestionada por Ein. La actualización del ejecutable Pi
+puede afectar a quienes usen ese mismo binario; aislamiento de configuración
+no significa tener una versión independiente del host.
 
 ## Siguiente
 

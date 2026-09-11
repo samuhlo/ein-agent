@@ -1,142 +1,74 @@
 ---
-title: "Troubleshooting"
-description: "Los fallos más frecuentes y cómo salir de ellos."
-sources: ["installer/src/cli/doctor.ts", "installer/src/core/deps.ts", "installer/src/core/backup.ts", "README.md"]
-verified_rev: "405a6c1"
+title: "Resolver problemas"
+description: "Diagnóstico, actualización, fases bloqueadas y documentación."
+sources: ["installer/src/cli/doctor.ts", "installer/src/cli/update.ts", "installer/src/cli/uninstall.ts", "ein-cc/README.md", "docs/adr/0006-remove-runtime-compressors.md"]
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
-Empieza siempre por aquí:
+Empieza con `ein-install doctor`. Revisa el diagnóstico antes de reparar; un problema de autenticación, PATH o dependencia no se resuelve siempre reinstalando.
 
-```bash
-ein-install doctor
-```
+## No se encuentra `ein`
 
-Casi todo lo de esta página se detecta ahí. Lo que sigue son los casos concretos
-y su salida.
+Comprueba `command -v ein` y `command -v ein-install`. El bootstrap suele instalar en `~/.local/bin` o `/usr/local/bin`. Si falta el directorio en el PATH, añádelo a la configuración de tu shell y abre una terminal nueva.
 
-## `ein: command not found`
-
-El binario está en `~/.local/bin` y esa ruta no está en tu `PATH`.
-
-```bash
-echo $PATH | tr ':' '\n' | grep -q "$HOME/.local/bin" && echo "está" || echo "falta"
-```
-
-Si falta, añádelo a la configuración de tu shell y abre una terminal nueva.
-
-## `ein-pi` o `ein-cc` no existen
-
-Son funciones de shell que instala `ein-install install`. Si el comando no aparece:
-
-1. Comprueba el núcleo con `ein-install doctor`; para `ein-cc`, comprueba además que añadiste Claude.
-2. Abre una terminal nueva — las funciones se cargan al arrancar el shell.
-3. Si sigue sin estar: `ein-install install --runtime pi` para Ein o `--runtime both` para repararlo también con Claude.
-
-La entrada normal sigue siendo `ein`; estos dos comandos son accesos directos
-avanzados.
-
-## Quedó un fichero con el nombre anterior tras actualizar
-
-El instalador solo retira un launcher antiguo cuando sus bytes coinciden con
-una versión publicada por Ein. Si modificaste una función con ese mismo nombre,
-la conserva y muestra un aviso: el nombre por sí solo no demuestra ownership.
-
-Ejecuta `ein-install install` para reparar las superficies actuales. No borres
-funciones ni hogares completos a ciegas; `~/.pi-ein/agent` y `~/.claude-ein`
-siguen siendo los hogares vigentes y no se migran con este cambio.
-
-## El doctor da FAIL
-
-Antes de investigar:
+Si `ein-install` funciona, puedes reparar desde él aunque la aplicación no arranque:
 
 ```bash
 ein-install install
 ```
 
-Repara sobre lo existente y crea backup antes. Resuelve la mayoría de los FAIL,
-que suelen ser ficheros que faltan o una sincronización a medias.
+## No aparecen `ein-pi` o `ein-cc`
 
-## Cambié el código y el comportamiento no cambia (Claude Code)
+Son funciones Fish de acceso avanzado. Abre una nueva sesión Fish y comprueba que instalaste el runtime correspondiente. La entrada habitual es `ein`; no necesitas copiar funciones a mano para usar la aplicación desde otro shell.
 
-El CLI `ein-cc-sdd` está **compilado**, no interpretado. Un cambio en el código
-del repositorio no llega al binario instalado hasta que sincronizas:
+## Hypa aparece al actualizar
+
+En un salto desde una versión antigua a `0.97.0-alpha.1`, el proceso del actualizador viejo puede mostrar una última revisión de Hypa después de instalar los archivos nuevos. Reemplazar el ejecutable en disco no sustituye el proceso que ya está corriendo.
+
+El runtime de esa alpha ya no integra Hypa. Comprueba la versión con `ein-install --version`, ejecuta `ein-install doctor` y abre una sesión nueva de Ein para cargar el runtime actualizado. No hace falta repetir la actualización para retirar sus archivos ni desinstalar herramientas globales que uses por tu cuenta.
+
+La [PR #407](https://github.com/samuhlo/ein-agent/pull/407), integrada después de publicar esa alpha, delega el mantenimiento de herramientas externas en el binario de destino verificado. Protege las actualizaciones iniciadas con el instalador corregido; no modifica retroactivamente los instaladores publicados.
+
+## La versión coincide, pero la evidencia aparece pendiente
+
+El número de versión instalado, la identidad del artifact y su frescura son comprobaciones distintas. `verification-pending`, `unknown` o `alpha-expiration-evidence-unavailable` no equivalen a una identidad verificada. Conserva la salida completa y revisa el diagnóstico; no conviertas la coincidencia del número de versión en una prueba de todo lo demás.
+
+## Cambié fuentes y no cambia el runtime
+
+Editar el checkout no actualiza la instalación. Para desplegarlo, consulta [desarrollo local](https://github.com/samuhlo/ein-agent/blob/main/installer/README.md#desarrollo). En Claude, `bun ein-cc/sync.ts` reconstruye el adaptador y el CLI. Abre una sesión nueva después.
+
+`ein-cc/CLAUDE.md` es generado. Edita `CLAUDE.adapter.md` o las fuentes compartidas y vuelve a sincronizar.
+
+## Una fase está bloqueada
+
+Lee el bloqueo concreto. Puede faltar una decisión, un artefacto vigente, una evidencia o una comprobación. También puede ser un defecto del flujo; estar bloqueado no demuestra por sí solo que todo funcione correctamente.
+
+En Claude, desde el proyecto:
 
 ```bash
-bun ein-cc/sync.ts
+ein-cc-sdd status
+ein-cc-sdd check nombre-del-cambio
 ```
 
-Es la causa más habitual de "lo he arreglado pero sigue igual".
+En Pi consulta el estado SDD. Corrige la causa en la fase correspondiente; no cambies `fail` por `pass` ni relajes criterios para avanzar.
 
-## Edité `ein-cc/CLAUDE.md` y se perdió
+## Los tests fallan
 
-Es un fichero **generado**. Se compone de la política compartida más la
-adaptación de Claude, y `sync.ts` lo reescribe entero.
+Comprueba dependencias y compara con una base limpia en otro checkout o worktree. Conserva intacto el árbol con tu trabajo. No des por hecho que un fallo es preexistente ni uses un stash automático como primer diagnóstico.
 
-Edita `ein-cc/CLAUDE.adapter.md` o la fuente compartida, y vuelve a sincronizar.
+## Actualización incompleta o desinstalación
 
-## Una actualización salió mal
+Sigue [recuperación](/ein-agent/05-debug/uninstall-recovery/). No borres hogares completos ni secretos para reparar el despliegue. Si hay recuperación pendiente, conserva sus archivos y resuelve ese estado antes de repetir operaciones.
 
-```bash
-ls ~/.pi-ein/agent/backups/installer/
-ein-install restore
-```
+## La documentación parece antigua
 
-`ein-install update` crea un backup antes de tocar nada. `restore` te devuelve al estado
-anterior.
-
-## Una fase SDD se queda bloqueada
-
-Es comportamiento correcto, no un fallo. La causa está en el mensaje:
+Desde la raíz del repositorio:
 
 ```bash
-ein-cc-sdd check <cambio>
-```
-
-Los bloqueos típicos son un artefacto que falta, una señal obligatoria que no se
-escribió, o una declaración de spec delta mal formada. El mensaje dice cuál.
-
-## Los tests fallan y no son míos
-
-Comprueba si ya fallaban antes de tu cambio:
-
-```bash
-git stash push -u -m "temp"
-bun test
-git stash apply
-```
-
-En este repositorio hay fallos preexistentes conocidos relacionados con
-dependencias del instalador que no están instaladas en todos los árboles. No son
-tuyos.
-
-## Sospecho que la documentación no coincide con el código
-
-Justo para eso está el detector:
-
-```bash
+bun ein-pi/agent/lib/docs-site-drift-detector.ts --check-sources
 bun ein-pi/agent/lib/docs-site-drift-detector.ts
 ```
 
-Lista qué páginas declaran fuentes que han cambiado desde que se verificaron.
+El primer comando comprueba rutas declaradas; el segundo detecta cambios desde la revisión documentada. Un resultado limpio no sustituye revisar el significado del texto. Las guías del checkout pueden describir código aún pendiente de release.
 
-## Quiero empezar de cero
-
-```bash
-ein-install uninstall     # conserva auth, secrets y sesiones
-ein-install install
-```
-
-Si quieres una limpieza total, borra además
-`~/.config/opencode-secrets/`. Perderás las claves de las integraciones.
-
-## Nada de esto funciona
-
-Abre un issue con la salida completa de `ein-install doctor`, tu sistema operativo y qué
-runtime usas:
-
-[github.com/samuhlo/ein-agent/issues](https://github.com/samuhlo/ein-agent/issues)
-
-## Siguiente
-
-[Uninstall & Recovery](/ein-agent/05-debug/uninstall-recovery/) — cómo volver
-atrás del todo.
+Si persiste el problema, abre un [issue](https://github.com/samuhlo/ein-agent/issues) con versión, plataforma, pasos y diagnóstico. Revisa que la salida no incluya credenciales antes de publicarla.

@@ -2,7 +2,7 @@
 title: "Doctor"
 description: "Qué comprueba `ein-install doctor`, cómo leer su salida y qué hacer con cada nivel."
 sources: ["installer/src/cli/doctor.ts", "installer/src/core/verify.ts"]
-verified_rev: "eeceb7c"
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
 ```bash
@@ -14,22 +14,10 @@ que volver cuando algo va raro, y el que conviene pegar si pides ayuda.
 
 ## Cómo se lee la salida
 
-```text
-/// DOCTOR EIN
-
-resultado: WARN
-fail: 0  |  warn: 2  |  total: 47
-
-■ CORE
-  ✓ OK   agent dir: ~/.pi-ein/agent
-  ✓ OK   marcador: .ein-install.json válido
-
-■ INTEGRACIONES
-  ! WARN context7: sin clave configurada
-
-■ DECISION
-  usable; resolver WARN para endurecer baseline.
-```
+La salida muestra el resultado global, recuentos y grupos de comprobaciones.
+Los grupos completamente correctos se resumen en una línea; los avisos y fallos
+muestran su detalle. El número de checks depende del despliegue, no es una cifra
+fija que debas reproducir.
 
 Tres niveles, y la diferencia importa:
 
@@ -44,11 +32,12 @@ algún FAIL. Sirve para encadenarlo en scripts.
 
 ## Qué comprueba
 
-Nueve grupos:
+Diez grupos:
 
 | Grupo | Qué mira |
 | :--- | :--- |
 | **CORE** | rutas, marcador de instalación, estructura del despliegue |
+| **PAQUETES PI** | paquetes declarados del runtime |
 | **MCP** | servidores MCP configurados |
 | **AGENTES + CHAIN** | que los ejecutores de fase están y la cadena es coherente |
 | **EXTENSIONES** | extensiones del runtime desplegadas |
@@ -65,27 +54,21 @@ Nueve grupos:
 **Hay WARN.** Se puede trabajar. Los más frecuentes son integraciones opcionales
 sin configurar, y son WARN precisamente porque no bloquean nada.
 
-**Hay FAIL.** Antes de investigar a mano, prueba:
+**Hay FAIL.** Lee primero el detalle. Si faltan archivos gestionados, puedes reparar con:
 
 ```bash
 ein-install install
 ```
 
-Repara sobre la instalación existente y crea backup antes. Resuelve la mayoría
-de los FAIL, que suelen ser ficheros que faltan o una sincronización a medias.
+Puede reparar archivos gestionados que faltan o un despliegue incompleto. Revisa antes el fallo: una dependencia, credencial o servicio externo necesita su propia corrección. El instalador conserva estado privado y prepara recuperación según la operación.
 
 Si persiste, [Troubleshooting](/ein-agent/05-debug/troubleshooting/) cubre los
 casos concretos.
 
 ## Si EIN no está instalado
 
-```text
-Ein no esta desplegado: no existe ~/.pi-ein/agent.
-Ejecuta `ein-install install` primero.
-```
-
-Sale con código 1. No es un error del doctor: es que no hay nada que
-diagnosticar.
+El doctor informa de que no existe el hogar de Ein y pide instalarlo. Sale con
+código 1: no hay un despliegue que diagnosticar.
 
 ## Su límite
 
@@ -93,7 +76,7 @@ El doctor comprueba **el despliegue**, no tu trabajo. Que salga todo en verde
 significa que EIN está bien instalado, no que tu proyecto esté bien ni que un
 cambio esté correcto.
 
-Para eso están `ein-cc-sdd check` y los artefactos del cambio.
+Para evaluar el cambio hacen falta revisión de fuentes y comprobaciones pertinentes. `ein-cc-sdd check` valida el contrato SDD en Claude; no ejecuta por sí solo toda la verificación de comportamiento.
 
 ## Siguiente
 

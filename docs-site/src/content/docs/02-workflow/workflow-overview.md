@@ -1,133 +1,52 @@
 ---
-title: "Carriles del flujo SDD"
-description: "Qué fases componen los carriles standard y micro y cómo se persisten por cambio."
-sources: ["openspec/specs/sdd-lifecycle/spec.md", "runtime/docs/GUIA_PI_WORKFLOW.md"]
-verified_rev: "29861f5"
+title: "Flujo de trabajo"
+description: "La ruta mínima útil, con decisiones claras y verificación independiente."
+sources: ["runtime/assets/orchestrator-core.md", "runtime/agents/sdd-tasks.md", "runtime/agents/sdd-verify.md"]
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
-El flujo SDD ofrece dos carriles que se declaran para cada cambio. `standard`
-proporciona el recorrido completo; `micro` reduce la preparación cuando el
-cambio no necesita mapear el repositorio ni desglosar tareas.
+Primero se entiende el resultado. Después se elige la ruta más pequeña que permita hacerlo y comprobarlo bien. Los modelos caros resuelven decisiones para que los ejecutores puedan trabajar con menos razonamiento y contexto.
 
-## Carril `standard`
+## Antes de modificar
 
-El carril `standard` recorre todas las fases del cambio:
+Una petición completa y autorizada puede registrarse directamente. Si faltan decisiones materiales, el padre pregunta y espera la respuesta real. Un cambio de objetivo reabre el acuerdo e invalida lo que ya no corresponda; el modo auto no inventa consentimiento.
+
+Una consulta de solo lectura no necesita este expediente.
+
+## Ad-hoc: una edición acotada
+
+```text
+acuerdo → apply → verify independiente → explicación
+```
+
+El encargo define resultado, archivos, contexto y comprobaciones. Apply edita; otro hijo con contexto fresco revisa y comprueba. No se exige crear un directorio SDD ni un informe en disco para justificar una modificación pequeña.
+
+## SDD standard
 
 ```text
 scope → map → design → tasks → apply → verify → close
 ```
 
-Usa `standard` cuando el cambio necesita localizar sus superficies, resolver
-conflictos entre fuentes y convertir el diseño en un checklist ejecutable.
+| Fase | Responsabilidad |
+| --- | --- |
+| scope | Fijar límites, éxito y restricciones. |
+| map | Localizar fuentes y puntos de intervención. |
+| design | Resolver comportamiento, decisiones y riesgos. |
+| tasks | Convertir el diseño en grupos ejecutables y verificables. |
+| apply | Implementar el grupo asignado y registrar progreso y evidencia. |
+| verify | Inspeccionar cambios, ejecutar checks propios y juzgar cobertura. |
+| close | Preparar el resumen y archivar con evidencia, cuando los controles lo permiten. |
 
-## Carril `micro`
+El padre valida la fase terminada y sigue la navegación calculada. No da un cambio por verificado porque apply diga que terminó. Un plan incompleto vuelve a la fase pensante correspondiente: tasks y apply no rebajan criterios para poder avanzar.
 
-El carril `micro` recorre las fases siguientes:
+## Micro y TDD
 
-```text
-scope → design → apply → verify → close
-```
+El carril micro existente usa `scope → design → apply → verify → close`. El carril y la postura TDD pertenecen al cambio; no se convierten automáticamente por contar archivos o encontrar un runner. Una petición explícita de SDD se respeta.
 
-`micro` omite únicamente `map` y `tasks`. Conserva `scope`, `design`, `apply`,
-`verify` y `close`; no elimina la verificación ni el cierre del cambio.
+Con TDD estricto se exige evidencia de los ciclos declarados, incluida la secuencia histórica. Con TDD desactivado no se inventa un historial RED/GREEN; siguen siendo necesarias las comprobaciones pertinentes. Un test verde hoy no prueba que fallara antes ni subsana una evidencia histórica obligatoria ausente.
 
-## Persistencia por cambio
+## Entrega
 
-El carril y la postura TDD se persisten por cambio. Pi y Claude consultan esa
-decisión en los artefactos del cambio actual: no se hereda entre cambios ni se
-infiere por el tamaño, el contenido o el runtime que lo ejecuta.
+La respuesta explica resultado, pruebas y límites. Commit, PR, merge y publicación siguen la autorización existente del usuario. Cerrar el expediente SDD no publica el proyecto por sí mismo.
 
-La postura TDD determina cómo se realiza `apply`. Con TDD activa y un runner
-disponible, el trabajo sigue ciclos RED, GREEN, TRIANGULATE y REFACTOR; con otra
-postura, se aplica la verificación que el cambio haya declarado.
-
-## Responsabilidades de las fases
-
-Las fases explican responsabilidades concretas y solo aparecen cuando el
-carril del cambio las incluye.
-
-### scope
-
-Acota qué entra, qué no y con qué presupuesto se trabaja. También detecta las
-capacidades del proyecto —como el runner de tests y los comandos de calidad— y
-declara si el cambio altera comportamiento observable.
-
-**Prohibido:** explorar el repositorio entero "para entenderlo", implementar
-nada o tocar tests.
-
-Si el alcance viene sin acotar —"refactoriza el proyecto"— no lo acepta:
-recomienda partirlo en trozos.
-
-### map
-
-Localiza dónde vive el código que hay que tocar, qué lo llama y qué se rompe si
-cambia. También identifica conflictos entre fuentes y declara cuál manda y por
-qué.
-
-**Prohibido:** escribir código, aunque sea una línea. Su única salida es
-`map.md`.
-
-### design
-
-Decide qué se va a hacer, qué alternativas se descartan y **con qué criterios
-se sabrá si salió bien**. Un diseño sin criterios de aceptación deja a `verify`
-sin nada contra qué verificar.
-
-**Prohibido:** implementar o cambiar el alcance por su cuenta. Si el diseño
-revela que el trabajo es el doble, se dice, no se asume.
-
-### tasks
-
-Convierte el diseño en un checklist ejecutable, agrupado en lotes con
-dependencias explícitas. Cada tarea lleva su comando de verificación.
-
-**Prohibido:** rediseñar. Si un criterio del diseño no es comprobable tal como
-está escrito, se reformula aquí **dejando constancia** de que sustituye al
-original.
-
-### apply
-
-Implementa, lote a lote. La salida real de cada ejecución queda registrada; no
-se fabrica un "todos en verde" sin evidencia.
-
-**Prohibido:** fabricar salidas de tests que no se ejecutaron, relajar una regla
-del contrato para que el código encaje o salirse de la superficie de escritura
-declarada.
-
-Si se queda sin presupuesto, para y devuelve dónde llegó. No acelera saltándose
-comprobaciones.
-
-### verify
-
-Comprueba la implementación contra el **diseño**, no contra la intención.
-Ejecuta los comandos por su cuenta en lugar de fiarse de lo que `apply` diga
-haber ejecutado. Cuando un criterio no es comprobable por comando, lo dice en
-vez de darlo por bueno.
-
-**Prohibido:** arreglar lo que encuentra. Lo reporta con evidencia y criterio
-incumplido; arreglarlo es otra pasada.
-
-### close
-
-Condensa el cambio en un `summary.md` revisable: qué se hizo, qué se decidió y
-qué quedó abierto.
-
-**Prohibido:** afirmar que algo está desplegado, publicado o terminado si no lo
-está. Un resumen que envejece mal es peor que no tenerlo.
-
-## El estado no se recuerda, se consulta
-
-En cualquier momento:
-
-```bash
-ein-cc-sdd status     # en qué fase va y qué falta
-ein-cc-sdd check      # valida los artefactos presentes
-```
-
-Lo calculan leyendo el disco. El agente no puede afirmar que va por `apply` si
-`design.md` no existe.
-
-## Siguiente
-
-[Artefactos](/ein-agent/02-workflow/artifacts/) — qué problema resuelve cada
-fichero.
+Consulta [artefactos](/ein-agent/02-workflow/artifacts/) y [un ejemplo histórico real](/ein-agent/02-workflow/real-workflow-example/).

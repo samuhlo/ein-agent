@@ -7,7 +7,8 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: "EIN",
-			description: "Multi-agent coding harness. Trabajo ambiguo en cambios pequeños, explicados y verificados.",
+			description: "Pensar bien para ejecutar de forma más sencilla, barata y local, manteniendo las exigencias de calidad.",
+			favicon: "/assets/brand/ein-logo.png",
 			defaultLocale: "root",
 			locales: { root: { label: "Español", lang: "es" } },
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/samuhlo/ein-agent" }],

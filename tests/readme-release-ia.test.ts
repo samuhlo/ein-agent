@@ -7,7 +7,7 @@ import { join } from "node:path";
 // del repositorio contradicen.
 //
 // Lo que SÍ cambió (2026-08): el README dejó de declarar un número de versión y
-// pasó a enlazar `releases/latest`. La versión que no se escribe no se queda
+// pasó a enlazar las releases. El índice incluye alphas; `latest` solo la estable. La versión que no se escribe no se queda
 // desfasada, así que aquí se invierte la comprobación: antes se exigía que el
 // literal coincidiera; ahora se prohíbe el literal. La coherencia de versión
 // entre CHANGELOG, package.json, version.ts y el workflow se sigue verificando,
@@ -61,7 +61,8 @@ describe("contrato offline del README para release e instalación", () => {
     // declarar v0.40.0 con el instalador en 0.42.0. Prohibirlo es más barato que
     // vigilarlo.
     expect(readme).not.toMatch(/v?\d+\.\d+\.\d+/);
-    expect(readme).toContain(`${REPOSITORY_URL}/releases/latest`);
+    expect(readme).toContain(`[Releases y alphas](${REPOSITORY_URL}/releases)`);
+    expect(readme).toContain("canal **estable**");
     expect(readme).not.toContain("einDisplayVersion");
   });
 
@@ -74,7 +75,9 @@ describe("contrato offline del README para release e instalación", () => {
     expect(readme).not.toContain("https://raw.githubusercontent.com/samuhlo/ein-agent/main/install.sh");
     expect(readme).toContain("Pi");
     expect(readme).toContain("Claude Code");
-    expect(readme).toContain("--runtime pi|both");
+    expect(readme).toContain("ein install --runtime pi`");
+    expect(readme).toContain("ein install --runtime both`");
+    expect(readme).not.toContain("--runtime pi|both");
     expect(readme).not.toContain("--runtime pi|claude|both");
     expect(readme.indexOf("## // 00_ QUICK_START")).toBeLessThan(readme.indexOf("## // 04_ BLUEPRINT"));
   });
@@ -115,7 +118,7 @@ describe("contrato offline del README para release e instalación", () => {
     const urls = readme.match(/https?:\/\/[^)\s"<]+/g) ?? [];
 
     expect(urls).toEqual(
-      expect.arrayContaining([INSTALL_COMMAND.split(" ")[2], `${REPOSITORY_URL}/releases/latest`, DOCS_URL]),
+      expect.arrayContaining([INSTALL_COMMAND.split(" ")[2], `${REPOSITORY_URL}/releases`, DOCS_URL]),
     );
     expect(
       urls.every(

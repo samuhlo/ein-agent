@@ -13,7 +13,7 @@ const runtimes = [
 const entries = [
 	{ key: "0", label: "START", href: `${base}/00-start/overview/`, desc: "Qué es, cómo se instala, primera ejecución" },
 	{ key: "1", label: "CONCEPTS", href: `${base}/01-concepts/orchestrator/`, desc: "Orquestador, SDD, contexto, límites" },
-	{ key: "2", label: "WORKFLOW", href: `${base}/02-workflow/workflow-overview/`, desc: "Las siete fases y sus artefactos" },
+	{ key: "2", label: "WORKFLOW", href: `${base}/02-workflow/workflow-overview/`, desc: "Ad-hoc, SDD y verificación independiente" },
 	{ key: "3", label: "RUNTIMES", href: `${base}/03-runtimes/runtime-overview/`, desc: "Pi, Claude Code y sus diferencias" },
 	{ key: "4", label: "REFERENCE", href: `${base}/04-reference/cli/`, desc: "CLI, filesystem, integraciones" },
 	{ key: "5", label: "DEBUG", href: `${base}/05-debug/troubleshooting/`, desc: "Fallos, doctor, límites, desinstalar" },
@@ -29,9 +29,11 @@ const entries = [
 			<span class="badge">BETA</span>
 		</div>
 		<p class="tagline">
-			Un harness de coding-agent que convierte trabajo ambiguo en cambios
-			<strong>pequeños, explicados y verificados</strong>.
+			Hacer que pensar bien permita ejecutar de forma más sencilla, barata y local,
+			<strong>manteniendo las exigencias de calidad</strong>.
 		</p>
+		<p class="note">Modelos capaces para decidir; encargos acotados para ejecutar.
+			Puedes usar modelos baratos alojados. La ejecución local es futura y opcional.</p>
 		<div class="actions">
 			<a class="btn primary" href={`${base}/00-start/getting-started/`}>
 				<span class="k">[I]</span> Instalar
@@ -54,7 +56,9 @@ const entries = [
 		<pre><code>curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
 ein</code></pre>
 		<p class="note">
-			EIN instala siempre su núcleo Pi y pregunta si quieres añadir Claude. Tus
+			El comando instala el canal estable. Para una alpha, usa el comando de sus
+			<a href="https://github.com/samuhlo/ein-agent/releases">notas de release</a>.
+			EIN instala Pi y pregunta si quieres añadir Claude. Tus
 			<code>pi</code> y <code>claude</code> vanilla quedan intactos.
 		</p>
 	</section>
@@ -71,8 +75,8 @@ ein</code></pre>
 				))}
 			</ol>
 			<p class="note">
-				Cada fase deja un artefacto en disco. El estado del cambio vive fuera de
-				la conversación, así que se puede retomar en otra sesión o en otro runtime.
+				Para cambios que necesitan SDD, cada fase deja estado en disco. Una edición
+				pequeña puede ir a apply y verify independientes, sin crear un expediente.
 			</p>
 		</section>
 

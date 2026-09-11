@@ -1,118 +1,43 @@
 ---
-title: "Artefactos"
-description: "Qué problema resuelve cada fichero de un cambio y cuál deberías leer tú."
-sources: ["runtime/docs/SDD_ARTIFACT_GRAMMAR.md", "openspec/specs/sdd-lifecycle/spec.md"]
-verified_rev: "29861f5"
+title: "Artefactos y evidencia"
+description: "Qué conserva cada fase y cómo revisar el resultado."
+sources: ["runtime/agents/sdd-tasks.md", "runtime/agents/sdd-verify.md", "shared/sdd/sdd-summary-write.ts", "shared/sdd/sdd-close-compaction.ts"]
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
-Un cambio es un directorio en `openspec/changes/<nombre>/`. Cada fase deja
-dentro un fichero, y cada fichero existe para resolver un problema concreto.
+En SDD los artefactos viven en `openspec/changes/<cambio>/`. Su propósito es permitir ejecutar y revisar el trabajo sin cargar toda la conversación en cada hijo. La ruta ad-hoc no exige estos archivos.
 
-```text
-scope.md            ──►  ¿qué entra y qué no?
-map.md              ──►  ¿dónde vive y qué se rompe?
-design.md           ──►  ¿qué se hace y cómo sabremos si salió bien?
-tasks.md            ──►  ¿en qué orden y con qué comprobación?
-apply-progress.md   ──►  ¿qué se hizo y qué devolvieron los tests?
-verify-report.md    ──►  ¿qué se comprobó y qué NO?
-summary.md          ──►  ¿qué le cuento a quien lo lea en seis meses?
-```
+| Archivo | Contenido |
+| --- | --- |
+| `intent.md` | Acuerdo gestionado y su material vigente. |
+| `scope.md` | Límites, éxito y restricciones del cambio. |
+| `map.md` | Fuentes y localización del trabajo. |
+| `design.md` | Decisiones, comportamiento y contrato de la solución. |
+| `tasks.md` | Grupos accionables con contexto, ediciones, checks y condiciones de parada. |
+| `apply-progress.md` | Progreso de las tareas y evidencia de ejecución. |
+| `verify-report.md` | Dictamen independiente, cobertura, comandos y bloqueos. |
+| `summary.md` | Resultado duradero con evidencia conservada al cerrar. |
 
-## scope.md
+Los carriles e históricos admitidos pueden requerir otro conjunto. Las herramientas de estado y validación determinan el caso; no se añaden archivos vacíos para fingir fases.
 
-Fija los límites. Sin él, cada fase decide por su cuenta qué es "el cambio" y el
-alcance crece sin que nadie lo note.
+## Lo que debe recibir apply
 
-Lleva también el presupuesto que la cadena propaga entre fases, y la declaración
-de si el cambio altera comportamiento observable.
+Un grupo declara un resultado observable. Cada tarea contiene las skills, lecturas, archivos que se editan, comportamiento, condición de parada y comprobaciones. Las decisiones se resuelven antes; una referencia de lectura no es permiso para ampliar las escrituras.
 
-## map.md
+En Pi, `apply_group: <título exacto del siguiente grupo>` junto a la ruta del cambio permite compilar el paquete compatible. Conserva instrucciones, subpasos y notas pertinentes; valida metadatos y vigencia. Un rechazo exige corregir el encargo, no ignorar la validación. Los planes legacy mantienen su ruta compatible y este mecanismo no equivale a confinamiento total de comandos.
 
-Evita que `design` decida a ciegas. Localiza el código, los símbolos que lo
-tocan y lo que se rompe si cambia.
+## Qué revisa verify
 
-Es donde se resuelven los conflictos entre fuentes: si dos ficheros describen lo
-mismo de forma distinta, aquí se declara cuál manda.
+Verify inspecciona código y tests cambiados, ejecuta los checks requeridos por su cuenta y vincula resultados con comportamientos. Combina comandos exactamente duplicados cuando las asociaciones declaradas son suficientes; no inventa qué requisito cubre un test ambiguo.
 
-## design.md
+El informe empieza con `status: pass` o `status: fail` y declara `behavior_coverage: verified`, `partial`, `none` o `n-a`. Un cambio de documentación puede ser `n-a`; un build correcto sobre código nuevo no basta para declarar toda su conducta verificada.
 
-**El más importante para ti.** Contiene la decisión: qué se va a hacer, qué se
-descartó y por qué.
+Las evidencias se referencian con comando, resultado y origen. El índice permite localizar logs y eventos nativos de la sesión sin exigir otro registro duplicado. Una vista acotada no significa que se haya leído el log entero. Las dudas requieren consultar el original.
 
-Y los criterios de aceptación, que son el contrato con `verify`. Escritos como
-comandos siempre que se pueda:
+Con TDD estricto o una obligación histórica explícita hay que acreditar la secuencia exigida. Cada bloqueo previo se resuelve individualmente; un check verde actual no borra una carencia histórica.
 
-```text
-1. Existen 10 ficheros bajo docs-site/src/content/docs/ y ninguno más.
-2. Cada uno tiene las cuatro claves de frontmatter en orden.
-3. Cada ruta declarada en `sources` existe en el repositorio.
-```
+## Al cerrar
 
-Un criterio que dependa de juicio editorial no sirve: `verify` no puede
-responderlo sin opinar.
+La herramienta de resumen deriva campos terminales de apply completo y verify vigente, con las tareas terminadas y el acuerdo correspondiente. La explicación del agente acompaña esos datos.
 
-## tasks.md
-
-El checklist ejecutable, en lotes con dependencias. Cada tarea lleva su comando
-de comprobación.
-
-El estado de las casillas se lee del fichero, no se recuerda. Por eso
-`ein-cc-sdd status` puede decirte cuántas quedan sin preguntarle a nadie.
-
-## apply-progress.md
-
-La crónica de la implementación, con **la salida real** de cada ejecución de
-tests. No "los tests pasan": la salida.
-
-```text
-✗ rechaza direcciones sin dominio    (fail)
- 36 pass, 1 fail
-→ implementación
- 37 pass, 0 fail
-```
-
-Si el proyecto no tiene runner, se declara aquí explícitamente en lugar de
-fingir un ciclo que no existe.
-
-## verify-report.md
-
-Responde los criterios del diseño uno a uno. Y tiene una sección que suele ser
-la más informativa: **lo que quedó fuera de cobertura**.
-
-Un criterio que no se puede comprobar por comando se declara como tal en vez de
-darlo por bueno. Eso es lo que separa una verificación de un visto bueno.
-
-## summary.md
-
-El resumen de cierre. Qué se hizo, cómo funciona por dentro, qué se decidió y
-qué queda abierto.
-
-Es lo que alguien leerá dentro de seis meses. Lo escribe un modelo, así que es
-una condensación, no una transcripción. Mientras el cambio está activo se puede
-contrastar con los demás artefactos; después del cierre se convierte en el
-registro permanente del cambio.
-
-## Al archivar
-
-Solo `summary.md` se mueve a `openspec/changes/archive/<nombre>/`. El resto son
-papeles de trabajo y se elimina. El resumen archivado debe bastar para entender
-el resultado, el mecanismo, las decisiones, las comprobaciones y los riesgos.
-
-## Qué leer tú, y en qué orden
-
-Mientras está activo:
-
-1. **`design.md`** — la decisión. Si el enfoque está mal, el resto da igual.
-2. **El diff.**
-3. **`verify-report.md`**, y en concreto lo que dice que no comprobó.
-
-`map.md` y `apply-progress.md` son para cuando algo no cuadra y hay que
-reconstruir por qué.
-
-Cuando ya está cerrado, lee `summary.md`: es la única pieza histórica que se
-mantiene deliberadamente.
-
-## Siguiente
-
-[Ejemplo real](/ein-agent/02-workflow/real-workflow-example/) — un cambio de
-verdad, con sus artefactos.
+El cierre incorpora íntegros `apply-progress.md` y `verify-report.md` en el resumen antes de compactar los originales. También conserva `sync-report.md` cuando existe. El archivo normal queda en `openspec/changes/archive/<cambio>/summary.md`. Los logs externos referenciados no se convierten automáticamente en archivos portables: conserva sus originales si los necesitas fuera de esa máquina.

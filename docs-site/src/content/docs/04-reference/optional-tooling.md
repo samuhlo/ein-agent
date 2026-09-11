@@ -1,86 +1,35 @@
 ---
-title: "Tooling opcional"
-description: "Las integraciones que EIN puede usar, y qué pasa cuando no están."
-sources: ["installer/src/core/engram.ts", "installer/src/core/secrets.ts", "installer/src/core/deps.ts", "ein-pi/agent/mcp.json"]
-verified_rev: "405a6c1"
+title: "Integraciones opcionales"
+description: "Qué aporta cada integración y qué implica omitirla."
+sources: ["installer/src/core/deps.ts", "installer/README.md", "runtime/assets/orchestrator-core.md", "docs/adr/0006-remove-runtime-compressors.md"]
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
-EIN funciona sin ninguna de estas. Todas se pueden omitir en la instalación con
-su flag, y todas degradan sin romper nada.
+Las integraciones añaden capacidades concretas; no sustituyen el contrato de trabajo ni la verificación. Una integración puede estar instalada pero desactivada, o configurada y temporalmente inaccesible.
 
-:::note
-Ninguna es obligatoria. Si una no está disponible, EIN sigue funcionando y lo
-que se pierde es la capacidad concreta, no el flujo.
-:::
+| Integración | Utilidad | Si no está disponible |
+| --- | --- | --- |
+| Context7 | Documentación de librerías a demanda. | Consultar documentación o fuentes pertinentes por otra vía; declarar lo que no se pudo verificar. |
+| Engram | Notas de memoria opcionales, como contexto orientativo. | Trabajar con fuentes actuales y artefactos del proyecto. |
+| Linear | Operaciones sobre tickets cuando están habilitadas o se piden explícitamente. | El trabajo local sigue; una operación que necesita Linear queda pendiente hasta tener acceso. |
+| Codegraph | Consultar un índice de relaciones del código cuando existe. | Usar búsqueda y lectura de fuentes; el índice no es obligatorio. |
 
-## Context7
+La fuente actual y la petición vigente prevalecen sobre una nota de memoria. Engram no obliga a convertir cada sesión en memoria universal. Linear se activa por su ajuste de integración o una petición explícita, no simplemente por elegir modo auto/manual.
 
-**Qué aporta.** Documentación actualizada de librerías y frameworks, buscada por
-tema en lugar de por memoria del modelo.
-
-**Cuándo se usa.** Cuando el trabajo toca una librería que el agente no conoce
-bien, o cuya API ha cambiado. En vez de improvisar, consulta.
-
-**Sin ella.** El agente tira de lo que sabe, con el riesgo de usar una API que ya
-no existe. Es la integración que más previene errores silenciosos.
-
-**Flag:** se configura durante `install`; la clave va a
-`~/.config/opencode-secrets/context7-api-key`.
-
-## Engram
-
-**Qué aporta.** Memoria persistente entre sesiones: decisiones, convenciones y
-hallazgos que sobreviven al cierre de la conversación.
-
-**Cuándo se usa.** Es un cuaderno del coordinador, no del flujo. Los subagentes
-no la invocan.
-
-**Sin ella.** El contexto del proyecto sale de `EIN.md` y de los artefactos
-OpenSpec, que son el registro canónico de todas formas. Engram no los sustituye.
-
-**Flag:** `--no-engram`. Vive en `~/.engram-ein`.
-
-## Linear
-
-**Qué aporta.** Sincronización con un tablero: issues, estados, comentarios.
-
-**Cuándo se usa.** Solo en modo equipo. En modo individual —el de por defecto—
-el tablero es `openspec/changes/` más git, y la integración queda dormida.
-
-**Sin ella.** No cambia nada salvo que trabajes con un tablero de equipo.
-
-**Flag:** `--no-linear`. Clave en
-`~/.config/opencode-secrets/linear-api-key`.
-
-## Codegraph
-
-**Qué aporta.** Un grafo del código preindexado: quién llama a qué, dónde se
-define un símbolo, qué se rompe si cambia.
-
-**Cuándo se usa.** En la fase de exploración. Una consulta al grafo sustituye
-una decena de búsquedas y lecturas, lo que ahorra contexto además de tiempo.
-
-**Sin ella.** La exploración se hace con búsqueda y lectura de ficheros.
-Funciona, gasta más presupuesto.
-
-**Flag:** `--no-codegraph`.
-
-## Instalar sin ninguna
+## Instalación y ejecución son decisiones distintas
 
 ```bash
-ein-install install --runtime pi --no-engram --no-linear --no-codegraph --no-secrets
+ein-install install --runtime pi --no-engram --no-secrets --no-linear --no-codegraph
 ```
 
-Instalación mínima: el núcleo, los agentes de fase y el flujo SDD. Es una
-configuración perfectamente válida, y la más fácil de diagnosticar cuando algo
-falla.
+Omite esos pasos opcionales de instalación o configuración. No borra credenciales existentes, no desinstala herramientas usadas por otros proyectos y no garantiza ejecución sin red. En particular, `--no-codegraph` no equivale a apagar el ajuste Codegraph del proyecto.
 
-## Añadirlas después
+Los ajustes del runtime se consultan y cambian en Pi o en la aplicación. Claude consume los compatibles y muestra los que no puede aplicar.
 
-Vuelve a ejecutar `ein-install install` sin el flag correspondiente. El instalador
-detecta lo que ya está y añade lo que falte, con backup previo.
+## Hypa y Headroom retirados
 
-## Siguiente
+Ein ya no los instala, actualiza ni carga en su runtime actual. Los archivos antiguos `hypa.json` y `headroom.json` quedan ignorados incluso si contienen `on`. El flag antiguo `--no-hypa` se acepta sin efecto por compatibilidad, no como una integración opcional soportada.
 
-[Troubleshooting](/ein-agent/05-debug/troubleshooting/) — cuando algo no
-funciona.
+Se mantienen el manejo nativo de Pi, las guardas y las vistas acotadas de verify con acceso al original. La evaluación no acreditó ahorro del flujo completo suficiente para mantener los compresores. Eso es una decisión sobre Ein, no una afirmación universal sobre esas herramientas.
+
+Si viste «hypa actualizado» al saltar desde un instalador antiguo, consulta [la explicación de la transición](/ein-agent/05-debug/troubleshooting/#hypa-aparece-al-actualizar).

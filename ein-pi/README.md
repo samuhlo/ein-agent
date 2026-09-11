@@ -1,38 +1,28 @@
-# ein-pi — EIN sobre Pi, aislado
+# Ein sobre Pi
 
-Hace que la edición Pi de EIN corra como **`ein-pi`** en un config aislado (`~/.pi-ein/agent`), dejando **`pi` como Pi vanilla**. Simétrico con `ein-cc` (EIN sobre Claude Code). EIN pasa de *dueño* de `~/.pi` a *invitado aislado*.
-
-La entrada normal del producto es `ein`; `ein-pi` es el acceso directo avanzado.
-
-## El estado simétrico
-
-| Comando | Config | Qué es |
-|---|---|---|
-| `pi` | `~/.pi/agent` | Pi vanilla, sin EIN |
-| `ein-pi` | `~/.pi-ein/agent` | EIN sobre Pi (aislado) |
-| `claude` | `~/.claude` | Claude vanilla |
-| `ein-cc` | `~/.claude-ein` | EIN sobre Claude (aislado) |
-
-## Cómo funciona el aislamiento
-
-Pi documenta **`PI_CODING_AGENT_DIR`** (= "Override config directory, default `~/.pi/agent`") — su equivalente a `CLAUDE_CONFIG_DIR`. Relocaliza config **+ auth + sesiones + settings** por completo (verificado: `pi list` con el override apuntando a un dir vacío no ve los paquetes de EIN). El launcher fuente `ein-pi/launchers/ein-pi.fish` setea, function-scoped (no contamina tu shell):
-
-- `PI_CODING_AGENT_DIR=~/.pi-ein/agent` → Pi carga de ahí.
-- `EIN_PI_AGENT_HOME=~/.pi-ein/agent` → el código de EIN (`ein-paths`) resuelve sus rutas ahí.
-
-## Migración (una vez)
+Pi es el núcleo de Ein. La entrada habitual es `ein`; `ein-pi` es el acceso avanzado mediante una función Fish. El instalador administra ambos.
 
 ```bash
-bun ein-pi/migrate.ts --dry    # enseña qué haría
-bun ein-pi/migrate.ts          # mueve ~/.pi/agent → ~/.pi-ein/agent
-cp ein-pi/launchers/ein-pi.fish ~/.config/fish/functions/
+ein-install install --runtime pi
+ein
 ```
 
-`migrate.ts` hace un backup `.tar.gz`, mueve el dir (conserva login/sesiones/historial) y **reescribe las rutas absolutas** que el template bakea en `settings.json` (`~/.pi/agent` → `~/.pi-ein/agent`). Reversible: `mv ~/.pi-ein/agent ~/.pi/agent`.
+Para obtener el instalador, sigue el [inicio rápido](../README.md). Para desarrollar desde este checkout, usa [dev:install](../installer/README.md#desarrollo); no copies manualmente piezas del despliegue.
 
-## Estado
+## Aislamiento
 
-El installer despliega, actualiza, diagnostica y desinstala sobre el hogar
-aislado `~/.pi-ein/agent`. La migración conserva login, sesiones e historial;
-el runtime vanilla `pi` y su hogar `~/.pi/agent` quedan fuera del despliegue
-normal de Ein.
+El launcher fija `PI_CODING_AGENT_DIR` y `EIN_PI_AGENT_HOME` en `~/.pi-ein/agent` solo para la invocación. Configuración, autenticación y sesiones de Ein se resuelven en ese hogar. `pi` sigue usando su hogar habitual `~/.pi/agent`.
+
+El instalador reconoce instalaciones antiguas mediante un marcador gestionado válido antes de migrarlas. No muevas `~/.pi-ein/agent` encima de un hogar vanilla: revisa el diagnóstico y los backups con `ein-install doctor` y `ein-install restore`. `migrate.ts` es una herramienta histórica, no el procedimiento normal de instalación o recuperación.
+
+## Flujo actual
+
+- El padre resuelve la intención y las decisiones. Una petición completa ya autorizada puede registrarse directamente; pregunta cuando falta una decisión material.
+- Una edición pequeña puede usar apply y verify independientes sin crear `openspec/`. SDD conserva intención, diseño, tareas y evidencias en disco para cambios que necesitan ese recorrido.
+- El padre carga las secciones detalladas del flujo a demanda. Los hijos reciben contexto fresco y rutas de skills seleccionadas por rol, proyecto y tarea; leen el contenido completo de las skills necesarias.
+- Apply recibe un grupo acotado con contexto, cambios y comprobaciones. Verify inspecciona las fuentes modificadas y ejecuta sus propias comprobaciones. Las salidas grandes reconocidas de checks correctos pueden llegar como vistas acotadas con acceso al log original.
+- Hypa y Headroom están retirados. Sus antiguos ajustes quedan ignorados; Ein no desinstala herramientas externas que uses por tu cuenta.
+
+Consulta [contexto y ahorro](https://samuhlo.github.io/ein-agent/01-concepts/context/), [flujo](https://samuhlo.github.io/ein-agent/02-workflow/workflow-overview/) y [comandos](https://samuhlo.github.io/ein-agent/04-reference/cli/). `/ein:models` permite elegir modelos y esfuerzo por rol. La ejecución local es futura y opcional; un modelo barato alojado es válido, sujeto a las mismas exigencias de verificación.
+
+Después de actualizar o desplegar el checkout, abre una sesión nueva de Ein. Reemplazar archivos no recarga extensiones en una sesión que ya está abierta.

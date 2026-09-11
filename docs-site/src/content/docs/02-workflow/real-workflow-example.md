@@ -2,10 +2,12 @@
 title: "Ejemplo real"
 description: "Un cambio de verdad de principio a fin, con lo que salió torcido incluido."
 sources: ["openspec/changes/archive/docs-sync-contract/summary.md"]
-verified_rev: "29861f5"
+verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
 ---
 
-El resumen permanente de un cambio real, archivado en este repositorio:
+Este ejemplo conserva la evidencia y las cifras de un cambio histórico; no describe el inventario ni los resultados actuales. El cierre actual incorpora los informes de apply y verify al resumen antes de retirar sus archivos originales.
+
+El resumen permanente del cambio histórico está archivado en este repositorio:
 [`openspec/changes/archive/docs-sync-contract/`](https://github.com/samuhlo/ein-agent/tree/main/openspec/changes/archive/docs-sync-contract).
 
 Durante el trabajo existieron `scope.md`, `design.md`, `tasks.md` y los informes
@@ -13,11 +15,11 @@ de ejecución. Al cerrar se condensaron en `summary.md` y se eliminaron. Lo que
 sigue cuenta las decisiones e incidencias que ese resumen conservó; no pretende
 ser una transcripción de los artefactos temporales.
 
-::note
+:::note
 Este es un ejemplo histórico de un cambio `standard` archivado. La postura TDD
 pertenece al cambio documentado, no a una regla universal; este ejemplo no
 documenta una ejecución `micro`.
-::
+:::
 
 Lo cuento entero, con los errores intermedios. Una demo en la que todo sale a la
 primera no enseña nada sobre cómo se siente esto.
@@ -112,7 +114,7 @@ El `summary.md` no dice "terminado". Dice qué falta:
 
 ## El resultado
 
-El detector, corriendo sobre esta misma documentación:
+La salida del detector en aquel momento (no el estado actual de esta web):
 
 ```text
 Drift de fuentes de docs-site: 5 clean, 16 drifted, 0 unknown (de 21 páginas).
