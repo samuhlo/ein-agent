@@ -39,12 +39,6 @@ function ctxStub(hasUI: boolean, confirmAnswer = true) {
 			hasUI,
 			cwd: CWD,
 			ui: {
-				custom: async (factory: Function) => {
-					let approved: boolean | undefined;
-					const view = factory({ terminal: { rows: 24 }, requestRender() {} }, { fg: (_: string, text: string) => text, bold: (text: string) => text }, {}, (value: boolean) => { approved = value; });
-					calls.push(view.preview.body);
-					return confirmAnswer;
-				},
 				confirm: async (_title: string, preview: string) => {
 					calls.push(preview);
 					return confirmAnswer;

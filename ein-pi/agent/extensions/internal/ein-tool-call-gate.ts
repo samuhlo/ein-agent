@@ -1,3 +1,4 @@
+import { askDeliveryConsent } from "../../lib/delivery-consent.ts";
 // =============================================================================
 // EIN TOOL CALL GATE
 // Owns Pi's pre-execution boundary: intent, delegation normalization, delivery
@@ -193,6 +194,7 @@ export function registerToolCallGate(
 			);
 			return confirmDelegatedDelivery(event.input, ctx, {
 				mode: readGitDeliveryMode(ctx.cwd),
+				confirm: (preview) => askDeliveryConsent(ctx, preview),
 				userRequested: deliveryIntentActive(
 					deliveryIntentBySession.get(sddPreflightSessionKey(ctx)),
 					Date.now(), deliveryWork,

@@ -1,5 +1,4 @@
-import { askDeliveryConsent } from "./delivery-consent.ts";
-import { deliveryPreview } from "./delivery-preview.ts";
+import { deliveryPreview, type DeliveryPreview } from "./delivery-preview.ts";
 // =============================================================================
 // GUARDRAILS
 // Política de seguridad de Ein para comandos bash: patrones denegados
@@ -379,6 +378,7 @@ export interface DeliveryGateOptions {
 	// ¿El último mensaje del usuario pidió explícitamente la entrega? En modo
 	// `auto` esto salta la confirmación (ya la autorizó al pedirla).
 	userRequested: boolean;
+	confirm?: (preview: DeliveryPreview) => Promise<boolean>;
 }
 
 export async function confirmDelegatedDelivery(
@@ -402,7 +402,7 @@ export async function confirmDelegatedDelivery(
 	// Sin UI no podemos confirmar aquí; el guard de bash del subagente decide.
 	if (!ctx.hasUI) return undefined;
 	const preview = deliveryPreview(texts, ctx.cwd, options.mode);
-	const approved = await askDeliveryConsent(ctx, preview);
+	const approved = options.confirm ? await options.confirm(preview) : await ctx.ui.confirm(preview.title, preview.body);
 	if (!approved) {
 		return {
 			block: true,

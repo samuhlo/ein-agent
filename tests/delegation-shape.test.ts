@@ -55,7 +55,7 @@ const CWD = "/tmp/proyecto-irrelevante";
 function ctxStub(hasUI: boolean, confirmAnswer = true) {
 	const calls: string[] = [];
 	return {
-		ctx: { hasUI, cwd: CWD, ui: { custom: async (factory: Function) => { const view = factory({ terminal: { rows: 24 }, requestRender() {} }, { fg: (_: string, text: string) => text, bold: (text: string) => text }, {}, () => {}); calls.push(view.preview.body); return confirmAnswer; }, confirm: async (_t: string, preview: string) => { calls.push(preview); return confirmAnswer; } } } as never,
+		ctx: { hasUI, cwd: CWD, ui: { confirm: async (_t: string, preview: string) => { calls.push(preview); return confirmAnswer; } } } as never,
 		calls,
 	};
 }
