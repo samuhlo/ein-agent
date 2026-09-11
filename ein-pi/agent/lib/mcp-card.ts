@@ -30,12 +30,12 @@ export function redactMcpText(text: string): string {
     .replace(/(https?:\/\/)[^\s/@]+@/gi, "$1[credenciales]@")
     .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi, "Bearer [oculto]")
     .replace(/([?&](?:token|key|api_key|access_token|secret|password)=)[^&\s"']*/gi, "$1[oculto]")
-    .replace(/((?:["']?)(?:password|passwd|secret|token|authorization|cookie|api[_-]?key|connection[_-]?(?:string|url)|database[_-]?url|dsn)["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;}]+)/gi, "$1[oculto]");
+    .replace(/((?:["']?)(?:password|passwd|secret|token|authorization|cookie|api[_-]?key|connection[_-]?(?:string|url)|database[_-]?url|dsn)["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;}]+)/gi, '$1"[oculto]"');
 }
 
 function displayJson(value: unknown): string {
   try {
-    return redactMcpText(JSON.stringify(value, (key, item) => {
+    return JSON.stringify(value, (key, item) => {
       if (SECRET_KEY.test(key)) return "[oculto]";
       if (typeof item !== "string") return item;
       // The MCP proxy also accepts JSON-encoded argument objects. Decode only
@@ -44,7 +44,7 @@ function displayJson(value: unknown): string {
         try { const parsed: unknown = JSON.parse(item); if (record(parsed) || Array.isArray(parsed)) return parsed; } catch { /* Ordinary strings stay strings. */ }
       }
       return redactMcpText(item);
-    }, 2) ?? "");
+    }, 2) ?? "";
   } catch { return "[argumentos no representables]"; }
 }
 
@@ -58,8 +58,9 @@ function displayText(text: string): string {
 function displayBlock(block: McpCardBlock): string {
   if (block.type === "text") return displayText((block.text ?? "").slice(0, DISPLAY_LIMIT));
   return [
-    `[${block.type}${block.mimeType ? `: ${block.mimeType}` : ""}]`,
-    block.name, block.uri ?? block.resource?.uri,
+    redactMcpText(`[${block.type}${block.mimeType ? `: ${block.mimeType}` : ""}]`),
+    block.name ? redactMcpText(block.name) : undefined,
+    block.uri || block.resource?.uri ? redactMcpText(block.uri ?? block.resource!.uri!) : undefined,
     block.resource?.text ? displayText(block.resource.text.slice(0, DISPLAY_LIMIT)) : undefined,
   ].filter(Boolean).join("\n");
 }
@@ -165,7 +166,7 @@ export function renderMcpCard(card: McpCard, width: number, theme: Pick<Theme, "
   add(`Herramienta: ${redactMcpText(card.tool)}`, "dim");
   const expanded = ["Argumentos", displayJson(card.args), ...(card.result ? ["Respuesta", ...card.result.content.map(displayBlock)] : [card.started ? "En curso" : "Preparando llamada"])].join("\n");
   const bounded = expanded.slice(0, DISPLAY_LIMIT);
-  for (const line of wrapTextWithAnsi(redactMcpText(bounded), Math.max(1, safeWidth - 2))) add(line);
+  for (const line of wrapTextWithAnsi(bounded, Math.max(1, safeWidth - 2))) add(line);
   if (bounded.length < expanded.length || card.result?.content.some((block) => (block.text?.length ?? 0) > DISPLAY_LIMIT || (block.resource?.text?.length ?? 0) > DISPLAY_LIMIT)) add("Vista limitada a 256 KiB; la salida original se conserva en la sesión.");
   return lines;
 }

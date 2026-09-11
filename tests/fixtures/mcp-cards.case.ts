@@ -53,10 +53,12 @@ describe("MCP cards", () => {
       for (const secret of ["swordfish", "abcdef", "abc.def", "private", "hidden value", "user:secret", "a:b@"]) expect(output).not.toContain(secret);
     }
     expect(JSON.stringify({ args, result })).toBe(before);
-    const encodedArgs = { tool: "neon_list_projects", args: JSON.stringify({ password: "encoded-password", nested: { token: "encoded-token" } }) };
+    const encodedArgs = { tool: "neon_list_projects", args: JSON.stringify({ password: "encoded-password", nested: { token: "encoded-token" }, note: 'password="inline-secret"' }) };
     const encodedResult = textResult(JSON.stringify({ payload: JSON.stringify({ api_key: "encoded-key" }) }));
     const encoded = render({ args: encodedArgs, result: encodedResult, expanded: true });
-    for (const secret of ["encoded-password", "encoded-token", "encoded-key"]) expect(encoded).not.toContain(secret);
+    for (const secret of ["encoded-password", "encoded-token", "encoded-key", "inline-secret"]) expect(encoded).not.toContain(secret);
+    const displayedArgs = encoded.split("  Argumentos\n")[1]!.split("  Respuesta\n")[0]!;
+    expect(JSON.parse(displayedArgs).args.password).toBe("[oculto]");
   });
 
   test("links, resources and line breaks survive expansion; terminal controls do not", () => {
