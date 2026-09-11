@@ -64,7 +64,7 @@ function emptyProject(): string {
 	return root;
 }
 
-async function invokeApplyHook(root: string, options: { hasUI?: boolean; appendFails?: boolean } = {}) {
+async function invokeApplyHook(root: string, options: { hasUI?: boolean; appendFails?: boolean; task?: string } = {}) {
 	let toolCall: ((event: any, ctx: any) => Promise<unknown>) | undefined;
 	const notifications: string[] = [];
 	const appended: Array<{ customType: string; data: unknown }> = [];
@@ -84,7 +84,7 @@ async function invokeApplyHook(root: string, options: { hasUI?: boolean; appendF
 	if (!toolCall) throw new Error("tool_call hook no registrado");
 	const input: Record<string, unknown> = {
 		agent: "sdd-apply",
-		task: "STRICT TDD MODE IS ACTIVE. Aplica el grupo vivo.",
+		task: options.task ?? "STRICT TDD MODE IS ACTIVE. Aplica el grupo vivo.",
 	};
 	const result = await toolCall({ toolName: "subagent", toolCallId: "call-1", input }, {
 		cwd: root,
@@ -178,6 +178,17 @@ describe("observación viva de apply-packet/v2", () => {
 		expect(applyPacketNotification(observation, false)).toBeUndefined();
 		expect(applyPacketNotification(observation, true)).toMatchObject({ level: "warning" });
 		expect(applyPacketNotification(observation, true)?.message).toContain("comprueba su referencia");
+	});
+
+	test("the hook observes the explicitly requested change instead of an ambiguous default", async () => {
+		const root = project();
+		const second = join(root, "openspec/changes/otro");
+		mkdirSync(second, { recursive: true });
+		writeFileSync(join(second, "design.md"), "# Design\n");
+		writeFileSync(join(second, "tasks.md"), tasks());
+		const observed = await invokeApplyHook(root, { task: "STRICT TDD MODE IS ACTIVE. Aplica openspec/changes/otro/tasks.md" });
+		expect(observed.appended[0]?.data).toMatchObject({ status: "executable", change: "otro" });
+		expect(observed.result).toBeUndefined();
 	});
 
 	test("ambiguous and broken artifacts are never silenced", () => {
