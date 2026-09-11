@@ -2,7 +2,7 @@
 title: "Pi Coding Agent"
 description: "El runtime principal de Ein y sus controles."
 sources: ["ein-pi/README.md", "runtime/assets/orchestrator-core.md", "ein-pi/agent/extensions/internal/ein-general-commands.ts", "ein-pi/agent/extensions/ein-intent.ts"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
 Pi es el núcleo. Abre `ein` desde el proyecto y elige Pi. `ein-pi` ofrece acceso directo avanzado en Fish y fija el hogar `~/.pi-ein/agent` solo para esa ejecución.
@@ -19,7 +19,7 @@ Los grupos compatibles de tasks se compilan para apply. Verify mantiene inspecci
 
 `/ein:intent` entra explícitamente en el protocolo de intención. No es obligatorio escribir un comando para cada petición: el padre reconoce cuándo hay trabajo nuevo y qué decisiones faltan. Las solicitudes completas autorizadas pueden registrarse directamente.
 
-TDD y el carril se resuelven por cambio. Linear, Engram y Codegraph son integraciones opcionales; sus ajustes de ejecución son distintos de los flags que omiten su instalación. Consulta [integraciones](/ein-agent/04-reference/optional-tooling/).
+TDD y el carril se resuelven por cambio. Linear y Codegraph son integraciones opcionales; sus ajustes de ejecución son distintos de los flags que omiten su instalación. Consulta [integraciones](/ein-agent/04-reference/optional-tooling/).
 
 ## Modelos baratos y locales
 

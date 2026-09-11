@@ -2,7 +2,7 @@
 title: "CLI"
 description: "La aplicación de terminal, los comandos del instalador y sus flags."
 sources: ["README.md", "installer/README.md", "ein-pi/agent/app.ts", "ein-pi/agent/surfaces/terminal-app-entrypoint.ts", "installer/src/cli/install.ts", "installer/src/cli/doctor.ts", "installer/src/cli/update.ts", "installer/src/cli/restore.ts", "installer/src/cli/uninstall.ts"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
 Hay dos binarios y hacen cosas distintas:
@@ -119,7 +119,6 @@ también acepta `claude` para retirar solo ese complemento.
 | `--yes` | no interactivo, acepta los valores por defecto |
 | `--dry-run` | enseña el plan sin ejecutar nada |
 | `--channel alpha\|stable` | elige y, tras un update correcto, persiste el canal |
-| `--no-engram` | omite el paso opcional de instalación de Engram |
 | `--no-secrets` | omite la configuración de secrets |
 | `--no-linear` | omite la configuración opcional de Linear |
 | `--no-codegraph` | omite el paso opcional de instalación de Codegraph |
@@ -133,7 +132,7 @@ la pena antes de la primera instalación.
 
 **Codegraph** es un bootstrap asistido opcional cuando falta el índice. Su modo es `on` por defecto, pero no convierte el índice en una dependencia: `--no-codegraph` omite su instalación; para desactivarlo en el proyecto usa su ajuste en Pi o en la aplicación.
 
-**Engram** aporta memoria persistente como capacidad opcional. La instalación puede omitirla con `--no-engram`; su ausencia o configuración no cambia la validez del flujo principal.
+La integración con Engram se ha retirado. La continuidad queda en los archivos del proyecto, OpenSpec y Git. La actualización conserva las notas y el binario existentes; consulta [qué cambia con Engram](/ein-agent/04-reference/optional-tooling/#engram-retirado).
 
 ## Comandos del flujo SDD
 

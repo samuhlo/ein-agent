@@ -56,12 +56,12 @@ describe("orchestrator.md Scope Gate Contract", () => {
       "RESEARCH PACKET",
       "concrete question",
       "allowed repository roots",
-      "optional specific memory query",
       "optional bounded documentation topics",
       "max_reads: 20",
       "max_output_bytes: 12288",
       "max_runtime_ms: 300000",
     ]);
+    expect(content).not.toContain("optional specific memory query");
   });
 
   test("reserva la síntesis de decisiones para el parent", () => {

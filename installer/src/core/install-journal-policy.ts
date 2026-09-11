@@ -11,14 +11,15 @@ import {
   InstallJournalError,
   isValidInstallFailureDetail,
   type InstallExecutionJournalV1,
+  type JournalEntryId,
 } from "./install-journal-contract.ts";
 import {
   validateInstallPlan,
-  type InstallPlanEntryId,
   type InstallPlanV1,
 } from "./install-plan.ts";
 
 export type InstallJournalResumeKind =
+  | "retired-dependency-restart"
   | "pre-mutation-retry"
   | "post-verification-restart"
   | "claude-complement-restart"
@@ -171,6 +172,13 @@ export function classifyInstallJournalResume(
     validateInstallPlan(plan);
     validateInstallJournal(journal);
     if (plan.status !== "ready") return null;
+    if (journal.entries.some(({ id }) => id === "pi.dependency.engram")
+      && journal.target === plan.target
+      && journal.platform.os === plan.platform.os && journal.platform.arch === plan.platform.arch
+      && journal.entries.every(({ id, status }) => id.includes(".dependency.") || status === "not-run")
+      && (journal.pendingEntryId === undefined || journal.pendingEntryId.includes(".dependency."))) {
+      return "retired-dependency-restart";
+    }
     if (supportsPostVerificationRestart(journal, plan)) return "post-verification-restart";
     if (supportsClaudeComplementRestart(journal, plan)) return "claude-complement-restart";
     if (!installJournalMatchesPlan(journal, plan)) return null;
@@ -186,7 +194,7 @@ function validJournal(journal: InstallExecutionJournalV1): InstallExecutionJourn
   return journal;
 }
 
-function entryIndex(journal: InstallExecutionJournalV1, id: InstallPlanEntryId): number {
+function entryIndex(journal: InstallExecutionJournalV1, id: JournalEntryId): number {
   const index = journal.entries.findIndex((entry) => entry.id === id);
   if (index < 0) throw new InstallJournalError("recovery-required");
   return index;
@@ -214,7 +222,7 @@ export function createPreparedInstallJournal(
 
 export function markInstallJournalEntryPending(
   journal: InstallExecutionJournalV1,
-  id: InstallPlanEntryId,
+  id: JournalEntryId,
 ): InstallExecutionJournalV1 {
   validateInstallJournal(journal);
   const index = entryIndex(journal, id);
@@ -243,7 +251,7 @@ export function markInstallJournalEntryPending(
 
 export function markInstallJournalEntryCompleted(
   journal: InstallExecutionJournalV1,
-  id: InstallPlanEntryId,
+  id: JournalEntryId,
 ): InstallExecutionJournalV1 {
   validateInstallJournal(journal);
   const index = entryIndex(journal, id);
@@ -271,7 +279,7 @@ export function markInstallJournalEntryCompleted(
 
 export function failInstallJournalEntry(
   journal: InstallExecutionJournalV1,
-  id: InstallPlanEntryId,
+  id: JournalEntryId,
   detail?: string,
 ): InstallExecutionJournalV1 {
   validateInstallJournal(journal);

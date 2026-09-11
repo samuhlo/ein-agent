@@ -22,8 +22,10 @@ export function snapshotTemplate(
       const source = join(agentDir, dir);
       if (caps.fs.exists(source)) caps.fs.copyDir(source, join(snapshotPath, dir));
     }
-    const manifest = join(agentDir, "template-manifest.json");
-    if (caps.fs.exists(manifest)) caps.fs.copyFile(manifest, join(snapshotPath, "template-manifest.json"));
+    for (const name of ["template-manifest.json", "mcp.json"]) {
+      const source = join(agentDir, name);
+      if (caps.fs.exists(source)) caps.fs.copyFile(source, join(snapshotPath, name));
+    }
     return { ok: true, value: { path: snapshotPath } };
   } catch (error) {
     return { ok: false, error: templateError("snapshot-failed", error instanceof Error ? error.message : "Could not snapshot managed template") };
@@ -52,10 +54,13 @@ export function restoreTemplate(
       const source = join(options.snapshotPath, dir);
       if (options.caps.fs.exists(source)) options.caps.fs.copyDir(source, join(options.agentDir, dir));
     }
-    const manifest = join(options.snapshotPath, "template-manifest.json");
-    const deployedManifest = join(options.agentDir, "template-manifest.json");
-    if (options.caps.fs.exists(manifest)) options.caps.fs.copyFile(manifest, deployedManifest);
-    else if (options.caps.fs.exists(deployedManifest)) options.caps.fs.removeFile(deployedManifest);
+    for (const name of ["template-manifest.json", "mcp.json"]) {
+      const source = join(options.snapshotPath, name);
+      const deployed = join(options.agentDir, name);
+      if (options.caps.fs.exists(source)) options.caps.fs.copyFile(source, deployed);
+      // Older snapshots did not capture MCP config; never erase it in that case.
+      else if (name === "template-manifest.json" && options.caps.fs.exists(deployed)) options.caps.fs.removeFile(deployed);
+    }
     return { ok: true, value: undefined };
   } catch (error) {
     return { ok: false, error: templateError("restore-failed", error instanceof Error ? error.message : "Could not restore managed template") };

@@ -497,39 +497,36 @@ describe("the system component list", () => {
   ];
 
   test("an available update names the component and its exact command", () => {
-    const components = systemComponentsFrom(observations, { engramInstalled: true });
+    const components = systemComponentsFrom(observations);
     const ein = components.find((component) => component.id === "ein");
     expect(ein?.status).toBe("update-available");
     expect(ein?.command).toEqual(["ein-install", "update"]);
   });
 
   test("a component with no evidence is unknown, never healthy", () => {
-    const claude = systemComponentsFrom(observations, { engramInstalled: true })
+    const claude = systemComponentsFrom(observations)
       .find((component) => component.id === "claude");
     expect(claude?.status).toBeUndefined();
   });
 
   test("a component that is up to date offers nothing to run", () => {
-    const binary = systemComponentsFrom(observations, { engramInstalled: true })
+    const binary = systemComponentsFrom(observations)
       .find((component) => component.id === "binary");
     expect(binary?.command).toBeUndefined();
   });
 
   test("diagnostics are offered as a command the user confirms", () => {
-    const diagnostics = systemComponentsFrom([], { engramInstalled: true })
+    const diagnostics = systemComponentsFrom([])
       .find((component) => component.id === "doctor");
     expect(diagnostics?.command).toEqual(["ein-install", "doctor"]);
   });
 
-  test("Engram is reported as the component it is, not as a project switch", () => {
-    expect(systemComponentsFrom([], { engramInstalled: false }).find((c) => c.id === "engram")?.status)
-      .toMatch(/^(?:no instalado|not installed)$/);
-    expect(systemComponentsFrom([], { engramInstalled: true }).find((c) => c.id === "engram")?.command)
-      .toBeUndefined();
+  test("the system view excludes retired integrations", () => {
+    expect(systemComponentsFrom([]).map((component) => component.id)).not.toContain("engram");
   });
 
   test("every command is a literal argv, never a shell string", () => {
-    for (const component of systemComponentsFrom(observations, { engramInstalled: true })) {
+    for (const component of systemComponentsFrom(observations)) {
       for (const argument of component.command ?? []) {
         expect(argument).not.toContain(" ");
         expect(argument).not.toContain(";");

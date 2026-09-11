@@ -4,7 +4,7 @@
 // deja escrito el bloque "## SDD Session Preflight" que el motor inyecta en el
 // prompt. Dos mitades del mismo dominio (control de la sesión SDD):
 //
-//   1. PREFERENCIAS DE SESIÓN (modo de ejecución, cuaderno Engram), preguntadas
+//   1. PREFERENCIAS DE SESIÓN (modo de ejecución), preguntadas
 //      una vez. La intención del CAMBIO sigue un único flujo propietario:
 //      adopta o reabre por materialKey, presenta normal/small/bypass y solo
 //      persiste resoluciones cerradas. TDD y lane se consumen desde disco o sus
@@ -15,17 +15,15 @@
 //      chain el parent no puede preguntar), e inyecta `acceptance`/turn-budget en
 //      fases de planificación/apply para que el runner no las rechace en falso.
 //
-// Piezas que NO son de este dominio viven aparte: la memoria de sesión en
-// `sdd-session-memory.ts` y la instalación de assets en `sdd-assets.ts` (ambos
-// re-exportados aquí por compatibilidad de imports).
+// La instalación de assets vive en `sdd-assets.ts`, re-exportada aquí.
 //
 // Fallback sin UI: sin `ctx.hasUI` (subagente/headless) se aplican defaults
-// (interactive / memory off / budgets por defecto / carril standard) y el bloque se
+// (interactive / budgets por defecto / carril standard) y el bloque se
 // inyecta igual. Ahí NADIE decidió nada, así que la postura no se persiste: un
 // headless no puede dejar escrito en el cambio un "off" que no eligió nadie.
 // =============================================================================
 
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SddIntentPreflightContext } from "./sdd-intent-preflight-context.ts";
 import {
 	collectDelegationAgentNames,
@@ -55,31 +53,9 @@ import {
 	type SddIntentPreflightInput,
 	type SddIntentPreflightOutcome,
 } from "./sdd-intent-resolution.ts";
-import { type PreparedMemory } from "./memory-lifecycle.ts";
 import { installSddAssets, sddGlobalAssetDriftCount } from "./sdd-assets.ts";
-import {
-	type MemoryPreparationLifecycle,
-	type SddMemoryMode,
-	createSddMemoryLifecycle,
-	hasEngramToolCapability,
-	normalizeSddMemoryMode,
-	prepareSddSessionMemory,
-	renderMemoryAdvisory,
-} from "./sdd-session-memory.ts";
 
-// Re-export de conveniencia: ein-ai y otros consumidores siguen importando
-// memoria/assets desde sdd-preflight, pero su implementación vive en los
-// módulos propios (sdd-session-memory.ts, sdd-assets.ts).
-export {
-	type MemoryPreparationLifecycle,
-	type SddMemoryMode,
-	createSddMemoryLifecycle,
-	normalizeSddMemoryMode,
-	prepareSddSessionMemory,
-	renderMemoryAdvisory,
-	installSddAssets,
-	sddGlobalAssetDriftCount,
-};
+export { installSddAssets, sddGlobalAssetDriftCount };
 
 export type SddExecutionMode = "interactive" | "auto";
 
@@ -87,8 +63,6 @@ export type SddExecutionMode = "interactive" | "auto";
 // no el cambio. Repetirlo en cada cambio sería la fricción que § 004 prohíbe.
 export interface SddSessionAnswers {
 	executionMode: SddExecutionMode;
-	memoryMode: SddMemoryMode;
-	engramAvailable: boolean;
 	prompted: boolean;
 }
 
@@ -100,10 +74,8 @@ export interface SddChangeStanceAnswers {
 
 export interface SddPreflightPreferences {
 	executionMode: SddExecutionMode;
-	memoryMode: SddMemoryMode;
 	reviewBudgetLines: number;
 	tddMode: TddMode;
-	engramAvailable: boolean;
 	prompted: boolean;
 	// Opcionales por compatibilidad: preferencias legacy (y tests que las
 	// construyen a mano) no declaran carril ni cambio, y deben seguir
@@ -119,8 +91,6 @@ export interface SddPreflightPreferences {
 }
 
 interface SddPreflightCallbacks {
-	pi: ExtensionAPI;
-	memoryLifecycle?: MemoryPreparationLifecycle;
 	installAssets?: (cwd: string) =>
 		| {
 				agents: number;
@@ -150,10 +120,8 @@ const DEFAULT_REVIEW_BUDGET_LINES = 400;
 
 const DEFAULT_SDD_PREFLIGHT: SddPreflightPreferences = {
 	executionMode: "interactive",
-	memoryMode: "off",
 	reviewBudgetLines: DEFAULT_REVIEW_BUDGET_LINES,
 	tddMode: "auto",
-	engramAvailable: false,
 	prompted: false,
 };
 
@@ -162,7 +130,6 @@ const sddPreflightBySession = new Map<string, SddPreflightPreferences>();
 // postura técnica se resuelven aparte, sin volver a preguntar estas preferencias.
 const sddSessionAnswersBySession = new Map<string, SddSessionAnswers>();
 const sddPreflightInFlight = new Map<string, Promise<SddPreflightPreferences>>();
-const sddSessionMemoryBySession = new Map<string, PreparedMemory>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -561,13 +528,10 @@ export function resolveSddIntentPreflight(
 // después: describen cómo trabaja el humano hoy, no qué es este cambio.
 export async function collectSddSessionAnswers(
 	ctx: ExtensionContext,
-	engramAvailable: boolean,
 ): Promise<SddSessionAnswers> {
 	if (!ctx.hasUI) {
 		return {
 			executionMode: DEFAULT_SDD_PREFLIGHT.executionMode,
-			memoryMode: DEFAULT_SDD_PREFLIGHT.memoryMode,
-			engramAvailable,
 			prompted: false,
 		};
 	}
@@ -575,13 +539,9 @@ export async function collectSddSessionAnswers(
 		"interactive",
 		"auto",
 	]);
-	const memoryOptions = engramAvailable ? ["off", "engram"] : ["off"];
-	const memoryMode = await ctx.ui.select("Optional Engram project notebook", memoryOptions);
 	return {
 		executionMode:
 			executionMode === "auto" ? "auto" : DEFAULT_SDD_PREFLIGHT.executionMode,
-		memoryMode: normalizeSddMemoryMode({ memoryMode }),
-		engramAvailable,
 		prompted: true,
 	};
 }
@@ -602,21 +562,19 @@ export async function collectSddChangeStance(
  */
 export async function collectSddPreflightPreferences(
 	ctx: ExtensionContext,
-	engramAvailable: boolean,
 	opts: { session?: SddSessionAnswers; stance?: SddChangeStanceAnswers } = {},
 ): Promise<SddPreflightPreferences> {
-	const session = opts.session ?? (await collectSddSessionAnswers(ctx, engramAvailable));
+	const session = opts.session ?? (await collectSddSessionAnswers(ctx));
 	const stance = opts.stance ?? (await collectSddChangeStance(ctx));
 	setTaskTddMode(ctx, stance.tddMode);
 	// Technical defaults are consumed, never promoted to a human change stance.
 	const stanceSource: "adopted" = "adopted";
 	return {
 		executionMode: session.executionMode,
-		memoryMode: session.memoryMode,
+
 		reviewBudgetLines: DEFAULT_REVIEW_BUDGET_LINES,
 		tddMode: stance.tddMode,
 		lane: stance.lane,
-		engramAvailable: session.engramAvailable,
 		prompted: session.prompted,
 		stanceSource,
 	};
@@ -677,7 +635,6 @@ export function renderSddPreflightPrompt(
 		sourceLine,
 		`- Execution mode: ${prefs.executionMode}`,
 		"- OpenSpec: canonical full SDD record (always present).",
-		`- Optional project notebook: Engram ${prefs.memoryMode}${prefs.engramAvailable ? " (configured; no retrieval or save is implied)" : " (unavailable in this session)"}.`,
 		`- Review budget: ${prefs.reviewBudgetLines} changed lines / ${DEFAULT_REVIEW_BUDGET_BYTES.toLocaleString("en-US")} changed non-whitespace bytes`,
 	];
 	if (includeTdd) lines.push(tddPreflightLine(prefs.tddMode));
@@ -719,18 +676,17 @@ export async function ensureSddPreflight(
 	const inFlight = sddPreflightInFlight.get(sessionKey);
 	if (inFlight) return inFlight;
 	const promise = (async () => {
-		const engramAvailable = hasEngramToolCapability(callbacks.pi);
+
 		// Una postura ya escrita se ADOPTA, no se re-pregunta: puede haberla
 		// dejado Claude, o esta misma sesión antes de un compact.
 		const recorded = active ? readChangeStance(ctx.cwd, active) : undefined;
-		const prefs = await collectSddPreflightPreferences(ctx, engramAvailable, {
+		const prefs = await collectSddPreflightPreferences(ctx, {
 			session: sddSessionAnswersBySession.get(sessionKey),
 			...(recorded?.tdd ? { stance: { tddMode: recorded.tdd, lane: recorded.lane } } : {}),
 		});
 		sddSessionAnswersBySession.set(sessionKey, {
 			executionMode: prefs.executionMode,
-			memoryMode: prefs.memoryMode,
-			engramAvailable: prefs.engramAvailable,
+
 			prompted: prefs.prompted,
 		});
 		prefs.activeChange = active;
@@ -753,7 +709,6 @@ export async function ensureSddPreflight(
 					"Ein SDD preflight complete.",
 					`Mode: ${prefs.executionMode}`,
 					"OpenSpec: canonical full SDD record (always present)",
-					`Optional project notebook: Engram ${prefs.memoryMode}${prefs.engramAvailable ? " (configured; no retrieval or save is implied)" : " (unavailable)"}`,
 					`Review budget: ${prefs.reviewBudgetLines} changed lines`,
 					`Strict TDD: ${prefs.tddMode}${prefs.stanceSource === "adopted" ? " (leído del cambio, no preguntado)" : ""}`,
 					`Carril: ${LANE_LABEL[prefs.lane ?? DEFAULT_LANE]}`,
@@ -765,10 +720,6 @@ export async function ensureSddPreflight(
 			);
 		}
 		sddPreflightBySession.set(sessionKey, prefs);
-		// Retrieval is advisory: it never delays or gates the canonical preflight.
-		void prepareSddSessionMemory(prefs, callbacks.memoryLifecycle, sessionKey).then((memory) => {
-			if (memory) sddSessionMemoryBySession.set(sessionKey, memory);
-		});
 		return prefs;
 	})();
 	sddPreflightInFlight.set(sessionKey, promise);
@@ -783,8 +734,4 @@ export function getSddPreflightPreferences(
 	ctx: ExtensionContext,
 ): SddPreflightPreferences | undefined {
 	return sddPreflightBySession.get(sddPreflightSessionKey(ctx));
-}
-
-export function getSddSessionMemory(ctx: ExtensionContext): PreparedMemory | undefined {
-	return sddSessionMemoryBySession.get(sddPreflightSessionKey(ctx));
 }

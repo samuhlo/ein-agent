@@ -188,7 +188,7 @@ install_twice() {
   for pass in 1 2; do
     local log="/tmp/ein-${scenario}-${pass}.log"
     echo "== install ${scenario} pass ${pass} =="
-    if ! ein install --yes --no-engram --no-secrets --no-linear --no-codegraph "${args[@]}" >"$log" 2>&1; then
+    if ! ein install --yes --no-secrets --no-linear --no-codegraph "${args[@]}" >"$log" 2>&1; then
       cat "$log"
       if grep -Eiq 'network|timed out|temporary failure|could not resolve|curl:|fetch failed|ECONN' "$log"; then
         echo "E2E_RESULT=BLOCKED: dependencia externa/red en ${scenario} pass ${pass}" >&2
@@ -219,7 +219,7 @@ case "$scenario" in
     echo "== invalid and Claude-only installs: no side effects =="
     for invalid_runtime in nope claude; do
       invalid_log="/tmp/ein-invalid-$invalid_runtime.log"
-      if ein install --yes --runtime "$invalid_runtime" --no-engram --no-secrets --no-linear >"$invalid_log" 2>&1; then
+      if ein install --yes --runtime "$invalid_runtime" --no-secrets --no-linear >"$invalid_log" 2>&1; then
         echo "[assert] runtime inválido fue aceptado: $invalid_runtime" >&2
         exit 1
       fi
@@ -303,7 +303,7 @@ case "$scenario" in
 
     candidate_version="$(ein --version | sed -n 's/^ein-installer //p')"
     echo "== recuperar primero el diario Pi de alpha.1 =="
-    ein install --yes --runtime pi --no-engram --no-secrets --no-linear \
+    ein install --yes --runtime pi --no-secrets --no-linear \
       --no-codegraph --release-channel alpha \
       --release-tag "installer-v$candidate_version"
     echo "== completar Pi + Claude desde el estado ya recuperado =="

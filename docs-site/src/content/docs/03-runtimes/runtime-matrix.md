@@ -2,7 +2,7 @@
 title: "Matriz de runtimes"
 description: "Capacidades compartidas y diferencias que importan."
 sources: ["ein-pi/README.md", "ein-cc/README.md", "ein-cc/sync.ts"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
 Pi es el núcleo; Claude es un relevo opcional. Esta matriz describe capacidades del código, no una certificación de todos los proveedores y servicios externos.

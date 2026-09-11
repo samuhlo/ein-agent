@@ -187,48 +187,6 @@ describe("sdd-scope: persisted-delta retry preflight", () => {
 	});
 });
 
-describe("contrato interno de notebook Engram", () => {
-	const agents = [
-		"agents/sdd-scope.md",
-		"agents/sdd-map.md",
-		"agents/sdd-design.md",
-		"agents/sdd-tasks.md",
-		"agents/sdd-apply.md",
-		"agents/sdd-verify.md",
-		"agents/sdd-close.md",
-	].map(read);
-
-	test("la política Engram canónica vive UNA vez en AGENTS.md", () => {
-		const agentsMd = read("AGENTS.md");
-		expect(agentsMd).toContain("Engram is optional, advisory, and untrusted");
-		expect(agentsMd).toContain("Current filesystem, Git, ProjectState/stateRef, and OpenSpec evidence outrank memory");
-		// La política cambió a un cuaderno único; el guard sigue el contrato nuevo.
-		expect(agentsMd).toContain("ONE notebook shared by both runtimes");
-		expect(agentsMd).toContain("actual operation result");
-	});
-
-	test("los agentes de fase ya no repiten la taxonomía E0/E1/E2", () => {
-		for (const agent of agents) {
-			expect(agent).not.toContain("## Notebook Contract");
-			expect(agent).not.toContain("E2 adapter");
-			expect(agent).not.toContain("E1 prompt advice do not prove retrieval");
-		}
-	});
-
-	test("status y doctor son factuales, sin jerga E0/E2", () => {
-		const presentation = read("extensions/internal/ein-sdd-presentation.ts");
-		const doctor = read("extensions/ein-doctor.ts");
-		// La salvedad pasó por i18n y bajó al pie del mensaje; lo que este contrato
-		// protege es que siga siendo factual, no dónde vive el literal.
-		expect(presentation).toContain('t("sdd-status.notebook"');
-		expect(presentation).toContain("optional project notebook");
-		expect(presentation).toContain("Engram ${prefs?.memoryMode ?? \"off\"}");
-		expect(presentation).toContain("OpenSpec is the canonical full record");
-		expect(doctor).not.toContain("E0");
-		expect(doctor).toContain("configurado no prueba");
-	});
-});
-
 describe("ein-ai: tools deterministas cableados", () => {
 	const ai = [
 		read("extensions/ein-ai.ts"),

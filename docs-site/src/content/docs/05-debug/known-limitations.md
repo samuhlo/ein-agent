@@ -2,7 +2,7 @@
 title: "Limitaciones conocidas"
 description: "Qué sigue requiriendo pruebas y revisión humana."
 sources: ["docs/adr/0006-remove-runtime-compressors.md", "runtime/assets/orchestrator-core.md", "ein-cc/README.md", "runtime/agents/sdd-verify.md"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
 Ein está en desarrollo beta y publica prereleases alpha. Los formatos, comandos y capacidades pueden cambiar; las [notas de release](https://github.com/samuhlo/ein-agent/releases) y el [changelog](https://github.com/samuhlo/ein-agent/blob/main/CHANGELOG.md) identifican lo publicado.
