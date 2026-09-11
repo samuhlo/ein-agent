@@ -36,25 +36,10 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      # `fish` hace falta de verdad: `tests/surface-wiring.test.ts` lanza los
-      # launchers con `fish -c`. Lo que cuelga el job es la DESCARGA, y ya van
-      # tres arreglos porque las dos primeras veces se atacó el síntoma.
-      #
-      # La causa, medida en el run 32271873659: el runner trae un mirrorlist en
-      # `/etc/apt/apt-mirrors.txt` que apunta a `azure.archive.ubuntu.com`. Ese
-      # mirror se cae a ratos y devuelve `Ign` en TODO. Entonces
-      # `Acquire::Retries=5` lo reintenta con backoff exponencial —1s, 2s, 4s…—
-      # por cada una de las cuatro listas, y se come los cinco minutos del paso
-      # ANTES de llegar a probar el mirror bueno. Los reintentos eran el
-      # problema, no el timeout: subir el límite solo hacía esperar más.
-      #
-      # Así que se quita el mirror muerto de la ecuación en vez de tolerarlo
-      # mejor: el mirrorlist pasa a apuntar solo al archivo canónico. Y los
-      # reintentos bajan a 2, para que un mirror caído en el futuro falle rápido
-      # con log en vez de agotar el presupuesto en silencio.
-      #
-      # `--no-install-recommends` se queda: evita bajar `xsel` (clipboard, que
-      # en CI no usa nadie) y fue lo que arregló el primer cuelgue de todos.
+      # Los launchers se prueban con Fish real. APT necesita timeouts por
+      # transporte: Acquire::Timeout no limita las esperas HTTP/HTTPS.
+      # HTTPS evita la ruta HTTP lenta observada en los runners; las pruebas
+      # no necesitan traducciones de los índices ni paquetes recomendados.
       - name: Instalar Fish en Linux
         if: runner.os == 'Linux'
         timeout-minutes: 5
@@ -62,10 +47,12 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
           NEEDRESTART_MODE: a
         run: |
-          echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt
+          echo "https://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt
           apt_opts=(
             -o Acquire::Retries=2
-            -o Acquire::Timeout=15
+            -o Acquire::http::Timeout=15
+            -o Acquire::https::Timeout=15
+            -o Acquire::Languages=none
             -o DPkg::Lock::Timeout=120
           )
           sudo -E apt-get update "${apt_opts[@]}"
