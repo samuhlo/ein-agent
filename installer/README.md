@@ -156,3 +156,19 @@ final conservan el bootstrap del canal estable.
 Al actualizar, el proceso antiguo puede terminar acciones de su propia versión después de reemplazar el ejecutable. Por eso el salto desde una versión con Hypa a `0.97.0-alpha.1` puede mostrar una última actualización de Hypa aunque el runtime instalado ya lo haya retirado. Una nueva sesión carga el runtime nuevo; no es necesario repetir la actualización para retirar sus archivos.
 
 La corrección de [PR #407](https://github.com/samuhlo/ein-agent/pull/407), integrada en `main` después de publicar esa alpha, encarga el mantenimiento de herramientas externas al binario de destino verificado. No cambia retroactivamente los binarios publicados ni traslada a esa continuación la actualización de Pi y sus paquetes. Consulta la [decisión completa](../docs/adr/0006-remove-runtime-compressors.md).
+
+### Compatibilidad de herramientas de subagentes
+
+Tras instalar los paquetes declarados, Ein reconcilia el filtro de herramientas de
+`pi-subagents` que en 0.67.0 descartaba herramientas de extensiones como
+`ein_sdd_task_progress`. La corrección conserva el filtro de herramientas nativas,
+las exclusiones y los límites de permisos. Es idempotente y reemplaza el módulo de
+forma atómica. Si cambia la estructura del filtro y no se reconoce, la instalación
+falla con un diagnóstico en lugar de aplicar una sustitución aproximada.
+
+`tooling/verify-latest-pi-runtime.ts` verifica ese contrato con el paquete instalado
+y carga las siete fases desde el plan de herramientas resultante. El piloto optativo
+`tooling/verify-async-apply-runtime.ts` usa las credenciales locales y el modelo
+configurado para `sdd-apply`, ejecuta una delegación real en un proyecto temporal y
+comprueba las llamadas `start`/`complete`, el test y el estado terminal del hijo.
+Después de actualizar, abre una sesión Pi nueva para cargar el planificador corregido.
