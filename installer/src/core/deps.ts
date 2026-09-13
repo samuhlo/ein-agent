@@ -7,6 +7,7 @@
 import { existsSync, readFileSync, renameSync, unlinkSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import type { Platform } from "./platform.ts";
+import { ensureSubagentToolCompatibility } from "./subagent-tool-compat.ts";
 import {
   EXTERNAL_TOOL_TIMEOUT_MS,
   lastLine,
@@ -527,6 +528,7 @@ export async function installClaudeCode(deps: ClaudeCodeInstallDeps = {}): Promi
 export type PiPackageInstallDeps = {
   lookPath?: typeof lookPath;
   run?: typeof run;
+  ensureChildTools?: typeof ensureSubagentToolCompatibility;
 };
 
 export async function installDeclaredPackages(
@@ -563,7 +565,13 @@ export async function installDeclaredPackages(
     if (res.ok) ok += 1;
     else failed.push({ pkg, reason: why(res) });
   }
-  if (failed.length === 0) return { ok: true, detail: `${ok} paquetes instalados/al dia` };
+  if (failed.length === 0) {
+    if (packages.some((pkg) => /^npm:pi-subagents(?:@|$)/.test(pkg))) {
+      try { (deps.ensureChildTools ?? ensureSubagentToolCompatibility)(context.agentDir); }
+      catch (error) { return { ok: false, detail: `pi-subagents: no se pudo conservar la capacidad de herramientas del hijo: ${error instanceof Error ? error.message : String(error)}` }; }
+    }
+    return { ok: true, detail: `${ok} paquetes instalados/al dia` };
+  }
 
   const first = failed[0]!;
   const remaining = failed.length - 1;

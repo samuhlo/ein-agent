@@ -1,15 +1,22 @@
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { createAgentSession, DefaultResourceLoader, initTheme, parseFrontmatter, SessionManager, SettingsManager } from "@earendil-works/pi-coding-agent";
 
 const [payload, cwd, agentDir] = process.argv.slice(2) as [string, string, string];
+const packageRoot = process.argv[5];
+const resolveToolPlan = packageRoot ? (await import(pathToFileURL(join(packageRoot, "src/runs/shared/child-tool-plan.ts")).href)).resolvePiLaunchToolPlan : undefined;
 initTheme("dark");
 const results = [];
 for (const role of ["scope", "map", "design", "tasks", "apply", "verify", "close"]) {
 	const agentPath = join(payload, `agents/sdd-${role}.md`);
 	const { frontmatter } = parseFrontmatter<Record<string, string>>(readFileSync(agentPath, "utf8"));
-	const tools = frontmatter.tools!.split(",").map((name) => name.trim());
-	const extensionPaths = (frontmatter.subagentOnlyExtensions ?? "").split(",").filter(Boolean).map((path) => resolve(dirname(agentPath), path.trim()));
+	const declared = frontmatter.tools!.split(",").map((name) => name.trim());
+	const providers = (frontmatter.subagentOnlyExtensions ?? "").split(",").filter(Boolean).map((path) => resolve(dirname(agentPath), path.trim()));
+	const plan = resolveToolPlan?.({ agentName: `sdd-${role}`, tools: declared, subagentOnlyExtensions: providers, hostAvailableBuiltins: ["read", "bash", "edit", "write", "grep", "find", "ls"] });
+	const tools: string[] = plan?.effectiveToolAllowlist ?? declared;
+	const extensionPaths = plan?.extensionArgs ?? providers;
+	if (declared.some((name) => !tools.includes(name))) throw new Error(`${role}: launch dropped declared tools: ${JSON.stringify(plan?.warnings)}`);
 	const settingsManager = SettingsManager.inMemory({});
 	const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager, noExtensions: true, noSkills: true,
 		noPromptTemplates: true, noThemes: true, noContextFiles: true, additionalExtensionPaths: extensionPaths });

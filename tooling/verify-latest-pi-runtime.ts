@@ -97,6 +97,12 @@ try {
   if (discoveryProbe.exitCode !== 0) throw new Error(new TextDecoder().decode(discoveryProbe.stderr));
   console.log(new TextDecoder().decode(discoveryProbe.stdout).trim());
 
+  const childToolsProbe = Bun.spawnSync(["bun", join(ROOT, "tooling/verify-child-tools-runtime.ts"), join(context.agentDir, "npm/node_modules/pi-subagents")], {
+    cwd: home, env: { ...process.env, NODE_PATH: join(ROOT, "node_modules"), PI_OFFLINE: "1" }, stdout: "pipe", stderr: "pipe",
+  });
+  if (childToolsProbe.exitCode !== 0) throw new Error(new TextDecoder().decode(childToolsProbe.stderr));
+  console.log(new TextDecoder().decode(childToolsProbe.stdout).trim());
+
   const nativeCardsProbe = Bun.spawnSync(["bun", join(ROOT, "tooling/verify-native-cards-runtime.ts")], {
     cwd: home, env: { ...process.env, NODE_PATH: join(ROOT, "node_modules"), PI_OFFLINE: "1" },
     stdout: "pipe", stderr: "pipe",
