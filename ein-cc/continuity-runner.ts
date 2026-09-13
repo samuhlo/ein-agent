@@ -13,7 +13,6 @@ import {
   runContinueInPty,
   type ContinuityHandoffLifecycle,
 } from "../shared/ports/continuity.ts";
-import { resolveEngramDataDir } from "../shared/contracts/memory-contract.ts";
 
 const ENDPOINT = "EIN_CONTINUITY_ENDPOINT", TOKEN = "EIN_CONTINUITY_TOKEN";
 const USAGE = "usage: /ein:handoff status|to pi|to claude|refresh|clear";
@@ -194,8 +193,7 @@ export async function runClaudeContinuity(argv: readonly string[]): Promise<numb
   let stopSource!: (code: number) => void; const stopped = new Promise<number>((resolve) => { stopSource = resolve; }); sourceStop = stopped;
   const handler = createSupervisorHandler(lifecycle, (target, brief) => { replacement = { target, brief }; termination = terminateSource(child!).then((ok) => { if (!ok) { child?.unref(); stopSource(70); } return ok; }); }, () => accepting);
   const ipc = await listenIpc(path, token, handler);
-  const env: NodeJS.ProcessEnv = { ...process.env, [ENDPOINT]: path, [TOKEN]: token }; delete env.ENGRAM_DATA_DIR;
-  const sourceEngram = resolveEngramDataDir("claude", env); if (sourceEngram) env.ENGRAM_DATA_DIR = sourceEngram;
+  const env: NodeJS.ProcessEnv = { ...process.env, [ENDPOINT]: path, [TOKEN]: token };
   try {
     const onSignal = (code: number): void => { if (interrupted) return; interrupted = true; termination ??= terminateSource(child!).then((ok) => { if (!ok) child?.unref(); return ok; }); stopSource(code); }, onInt = (): void => onSignal(130), onTerm = (): void => onSignal(143); process.once("SIGINT", onInt); process.once("SIGTERM", onTerm);
     let code: number; try { code = await runSource(argv, env, (value) => { child = value; }); }
@@ -204,8 +202,7 @@ export async function runClaudeContinuity(argv: readonly string[]): Promise<numb
     if (!replacement || interrupted) return code;
     if (!await termination) { lifecycle.restoreCancelledReplacement(); replacement = undefined; return 70; }
     await ipc.close();
-    const cleanEnv = { ...process.env }; delete cleanEnv[ENDPOINT]; delete cleanEnv[TOKEN]; delete cleanEnv.ENGRAM_DATA_DIR;
-    const destinationEngram = resolveEngramDataDir(replacement.target, cleanEnv); if (destinationEngram) cleanEnv.ENGRAM_DATA_DIR = destinationEngram;
+    const cleanEnv = { ...process.env }; delete cleanEnv[ENDPOINT]; delete cleanEnv[TOKEN];
     if (replacement.target === "pi") { delete cleanEnv.CLAUDE_CONFIG_DIR; cleanEnv.EIN_PI_AGENT_HOME ||= join(cleanEnv.HOME ?? "", ".pi-ein", "agent"); } else delete cleanEnv.EIN_PI_AGENT_HOME;
     const outcome = await runContinueInPty({ cwd: process.cwd(), provider: replacement.target, brief: replacement.brief, env: cleanEnv });
     return outcome.kind === "exited" ? outcome.code : 69;

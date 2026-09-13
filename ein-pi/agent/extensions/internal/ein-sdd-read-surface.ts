@@ -148,8 +148,7 @@ export function registerSddReadSurface(
 		async execute(_id, params: { change?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const status = resolveSddStatus(ctx.cwd, params?.change);
 			const active = listActiveChanges(ctx.cwd);
-			const preferences = getSddPreflightPreferences(ctx);
-			let text = formatSddStatus(status, active, preferences);
+			let text = formatSddStatus(status, active);
 			const stance = status.change ? readChangeStance(ctx.cwd, status.change) : undefined;
 			const stanceLine = renderChangeStanceLine(stance);
 			if (stanceLine) text += `\n${stanceLine}`;

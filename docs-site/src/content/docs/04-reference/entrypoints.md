@@ -2,7 +2,7 @@
 title: "Entry points"
 description: "Quién posee cada comando y qué código ejecuta realmente."
 sources: ["installer/src/core/command-names.ts", "installer/scripts/build-terminal-app.ts", "ein-pi/agent/app.ts", "ein-pi/launchers/ein-pi.fish", "ein-cc/launchers/ein-cc.fish"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
 Ein expone una puerta pública y conserva dos accesos avanzados a los runtimes.

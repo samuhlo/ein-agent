@@ -13,16 +13,16 @@ import { gateTddForDelegation } from "../ein-pi/agent/lib/sdd-preflight.ts";
 import { readChangeStance, writePreflightRecord } from "../ein-pi/agent/lib/sdd-preflight-record.ts";
 import { writeTddMode } from "../ein-pi/agent/lib/tdd.ts";
 
-const { collectSddPreflightPreferences, normalizeSddMemoryMode, renderSddPreflightPrompt } = await import(
+const { collectSddPreflightPreferences, renderSddPreflightPrompt } = await import(
 	"../ein-pi/agent/lib/sdd-preflight"
 );
 
 const PREFS = {
 	executionMode: "auto",
-	memoryMode: "off",
+
 	reviewBudgetLines: 400,
 	tddMode: "strict",
-	engramAvailable: false,
+
 	prompted: true,
 } as const;
 
@@ -49,7 +49,7 @@ describe("renderSddPreflightPrompt TDD gate", () => {
 			expect(asks).toBe(2);
 			writePreflightRecord(join(cwd, "openspec/changes/second"), { tdd: "off", decidedBy: "claude" });
 			await gateTddForDelegation(input, ctx);
-			expect((await collectSddPreflightPreferences({ ...ctx as object, hasUI: false } as never, false)).tddMode).toBe("off");
+			expect((await collectSddPreflightPreferences({ ...ctx as object, hasUI: false } as never)).tddMode).toBe("off");
 		} finally { rmSync(cwd, { recursive: true, force: true }); }
 	});
 
@@ -62,11 +62,6 @@ describe("renderSddPreflightPrompt TDD gate", () => {
 			await expect(gateTddForDelegation({ agent: "sdd-apply", task: "Fix behavior" }, ctx)).rejects.toThrow("TDD");
 			expect(readChangeStance(cwd, "change")?.tdd).toBeUndefined();
 		} finally { rmSync(cwd, { recursive: true, force: true }); }
-	});
-	test("normaliza preferencias legacy sin hacer seleccionable OpenSpec", () => {
-		expect(normalizeSddMemoryMode({ artifactStore: "openspec" })).toBe("off");
-		expect(normalizeSddMemoryMode({ artifactStore: "engram" })).toBe("engram");
-		expect(normalizeSddMemoryMode({ artifactStore: "both" })).toBe("engram");
 	});
 
 	test("por defecto incluye la linea Strict TDD (compat: parent/apply)", () => {
@@ -85,7 +80,7 @@ describe("renderSddPreflightPrompt TDD gate", () => {
 		expect(out).not.toContain("Strict TDD");
 		expect(out).toContain("## SDD Session Preflight");
 		expect(out).toContain("OpenSpec: canonical full SDD record");
-		expect(out).toContain("Optional project notebook: Engram off");
+		expect(out).not.toContain("Engram");
 		expect(out).not.toContain("Artifact store");
 		expect(out).not.toContain("retrieved");
 		expect(out).not.toContain("saved");
@@ -106,7 +101,7 @@ describe("renderSddPreflightPrompt TDD gate", () => {
 				notify: () => {},
 			},
 		} as never;
-		const prefs = await collectSddPreflightPreferences(ctx, false);
+		const prefs = await collectSddPreflightPreferences(ctx);
 		expect(selected.some((title) => /strict tdd|lane/i.test(title))).toBe(false);
 		expect(["auto", "off", "strict"]).toContain(prefs.tddMode);
 	});

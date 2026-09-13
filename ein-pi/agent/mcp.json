@@ -1,17 +1,11 @@
 {
   "mcpServers": {
-    "engram": {
-      "command": "/opt/homebrew/bin/engram",
-      "args": ["mcp", "--tools=agent"],
-      "environment": {
-        "ENGRAM_DATA_DIR": "/Users/samu/.engram-ein"
-      },
-      "directTools": false,
-      "lifecycle": "lazy"
-    },
     "context7": {
       "command": "bunx",
-      "args": ["--bun", "@upstash/context7-mcp"],
+      "args": [
+        "--bun",
+        "@upstash/context7-mcp"
+      ],
       "lifecycle": "lazy",
       "directTools": true
     }

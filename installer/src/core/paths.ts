@@ -7,7 +7,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { engramStoreDir } from "../../../shared/contracts/memory-contract.ts";
 
 // Respect $HOME when set (standard on POSIX, and lets tests use a temp home).
 // Keep HOME for the established no-context callers; new install flows use the
@@ -31,7 +30,6 @@ export type PiInstallContext = PiInstallPaths & {
   localSkillsDir: string;
   downloadedSkillsDir: string;
   secretsDir: string;
-  engramDir: string;
   bunBinDir: string;
   localBinDir: string;
   miseShimDir: string;
@@ -88,7 +86,6 @@ function makeContext(paths: PiInstallPaths, agentDir: string): PiInstallContext 
     localSkillsDir: join(agentDir, "skills", "local"),
     downloadedSkillsDir: join(agentDir, "skills", "downloaded"),
     secretsDir: join(paths.home, ".config", "opencode-secrets"),
-    engramDir: engramStoreDir(paths.home),
     bunBinDir: join(paths.home, ".bun", "bin"),
     localBinDir: join(paths.home, ".local", "bin"),
     miseShimDir: join(paths.home, ".local", "share", "mise", "shims"),
@@ -123,7 +120,6 @@ function resolveAgentDir(): string {
 
 export const AGENT_DIR = resolveAgentDir();
 export const SECRETS_DIR = join(HOME, ".config", "opencode-secrets");
-export const ENGRAM_DIR = engramStoreDir(HOME);
 export const LOCAL_SKILLS_DIR = join(AGENT_DIR, "skills", "local");
 export const DOWNLOADED_SKILLS_DIR = join(AGENT_DIR, "skills", "downloaded");
 export const BACKUP_DIR = join(AGENT_DIR, "backups", "installer");

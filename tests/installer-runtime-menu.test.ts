@@ -732,7 +732,7 @@ describe("Installer Linear integration selection", () => {
         resolveContext: () => context,
         deploy: async (_platform, options) => {
           deployedOptions = options;
-          return { agentDir: context.agentDir, engramCommand: "engram", engramFound: true };
+          return { agentDir: context.agentDir };
         },
       },
     });

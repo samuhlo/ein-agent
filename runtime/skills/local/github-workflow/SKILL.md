@@ -24,11 +24,10 @@ Do not create, edit, push, commit, review, or sync GitHub delivery unless all re
 Required gates for PRs:
 
 - `github-workflow` is loaded before any `git`/`gh` delivery command.
-- Engram context is recovered before acting: `mem_context` plus project-specific search for GitHub, PR style, auth, CodeRabbit, Linear, and delivery notes.
 - Branch, remote, status, staged diff, unstaged diff, and base diff are inspected.
 - Work branches are cut from `dev` and target base `dev`; only hotfixes branch from and target `main`. If `dev` is missing, create it from `main` before branching (see Branch Flow).
 - Repo-local delivery files are read when present: `.github/pull_request_template.md`, `.coderabbit.yaml`, `AGENTS.md`, `CLAUDE.md`.
-- PR body uses repo template and memory first, not generic copy.
+- PR body uses the repo template and current change evidence, not generic copy.
 - PR body is Spanish by default and uses rich Markdown unless user explicitly asks otherwise.
 - Verification claims are evidence-backed. If a command/manual check did not run in the current session, write `Skipped` with reason.
 - If `gh auth status` fails but `gh auth token` works, retry with `GH_TOKEN=$(gh auth token)`.
@@ -61,7 +60,6 @@ Before any operation that creates/pushes/publishes when repo ownership is unclea
 - Linear = board: what work exists and status.
 - SDD = workbench: how the work is planned and implemented.
 - GitHub = delivery: branch, commit, PR, review. Code flows `feature -> dev -> main`.
-- Engram = notebook: lessons and decisions.
 
 ## Branch Flow (Delivery Model)
 

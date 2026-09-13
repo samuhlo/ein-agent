@@ -14,7 +14,7 @@ import { finalizeRuntimeSurfaceRetirement, retireOwnedLegacyRuntimeArtifacts, ro
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 const home = (): string => { const value = mkdtempSync(join(realpathSync(tmpdir()), "ein-install-journal-")); roots.push(value); return value; };
-function plan(target: InstallPlanInput["target"] = "both", root = home(), piOwnership: InstallPlanInput["piOwnership"] = { status: "absent" }): InstallPlanV1 { return createInstallPlan({ target, home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership, claudeConfigHome: join(root, ".claude-ein"), platform: { os: "darwin", arch: "arm64" }, dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false }, flags: { yes: true, noEngram: false, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true } }); }
+function plan(target: InstallPlanInput["target"] = "both", root = home(), piOwnership: InstallPlanInput["piOwnership"] = { status: "absent" }): InstallPlanV1 { return createInstallPlan({ target, home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership, claudeConfigHome: join(root, ".claude-ein"), platform: { os: "darwin", arch: "arm64" }, dependencies: { bun: false, pi: false, claude: true, gh: false, hypa: false, codegraph: false }, flags: { yes: true, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true } }); }
 const handlers = (value: InstallPlanV1, call: (id: string) => { ok: boolean; detail?: string } = () => ({ ok: true })): InstallPlanExecutionHandlers => Object.fromEntries(value.inventory.map(({ id }) => [id, () => call(id)])) as InstallPlanExecutionHandlers;
 const fsOps = (): InstallJournalFs => ({ read: (path) => readFileSync(path), mkdir: (path, mode) => mkdirSync(path, { mode }), open: (path, flags, mode) => openSync(path, flags, mode), write: (fd, data, offset) => writeSync(fd, data, offset, data.length - offset), fsync: fsyncSync, close: closeSync, rename: renameSync, unlink: unlinkSync, inspect: (path) => { try { const item = lstatSync(path); return { kind: item.isSymbolicLink() ? "symlink" : item.isFile() ? "file" : item.isDirectory() ? "directory" : "other", mode: item.mode & 0o777, size: item.size }; } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "missing", mode: 0, size: 0 }; throw error; } } });
 function recovery(target: InstallPlanInput["target"], patterns: Partial<Record<"shared" | "pi" | "claude", string>>): InstallExecutionJournalV1 { const value = plan(target), indexes = { shared: 0, pi: 0, claude: 0 }, states = { c: "completed", f: "failed", p: "pending", n: "not-run" } as const; const entries = value.inventory.filter(({ state }) => state === "selected" || state === "conditional").map(({ id, runtime }) => ({ id, runtime, status: states[(patterns[runtime]?.[indexes[runtime]++] ?? "n") as keyof typeof states] })); const terminal = entries.find(({ status }) => status === "pending") ?? entries.find(({ status }) => status === "failed"); return { schemaVersion: 1, transactionId: "eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee", planDigest: installPlanDigest(value), target, platform: value.platform, state: "recovery-required", entries, pendingEntryId: terminal!.id, recoveryCode: entries.some(({ status }) => status === "failed") ? "handler-failed" : "interrupted" }; }
@@ -78,7 +78,7 @@ describe("install execution journal", () => {
     const failure = new BackupFailure("snapshot:copy", "settings.json", new Error(`permission denied ${agentDir}/private\nstdout=secret\n${"界".repeat(400)}`), [agentDir]);
     const pi = createPiInstallHandlers({
       platform: { os: "darwin", arch: "arm64", distro: "unknown", packageManager: "brew", shell: "unknown", shellRc: join(value.home, ".profile"), home: value.home },
-      flags: { yes: true, noEngram: false, noSecrets: true, noLinear: true, noHypa: false, noCodegraph: false, dryRun: false, runtime: "pi" },
+      flags: { yes: true, noSecrets: true, noLinear: true, noHypa: false, noCodegraph: false, dryRun: false, runtime: "pi" },
       skipLinear: true,
       deps: [],
       agentDir,
@@ -189,8 +189,8 @@ describe("install execution journal", () => {
       piOwnership: { status: "managed", layout: "isolated" },
       claudeConfigHome: join(root, ".claude-ein"),
       platform: { os: "darwin", arch: "arm64" },
-      dependencies: { bun: true, pi: false, claude: true, engram: true, gh: false, hypa: true, codegraph: true },
-      flags: { yes: true, noEngram: false, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true },
+      dependencies: { bun: true, pi: false, claude: true, gh: false, hypa: true, codegraph: true },
+      flags: { yes: true, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true },
     });
     const calls: string[] = [];
     const recovered = await executeInstallPlanJournaled(
@@ -229,8 +229,8 @@ describe("install execution journal", () => {
       piOwnership: { status: "managed", layout: "isolated" },
       claudeConfigHome: join(root, ".claude-ein"),
       platform: { os: "darwin", arch: "arm64" },
-      dependencies: { bun: true, pi: true, claude: false, engram: true, gh: true, hypa: true, codegraph: true },
-      flags: { yes: true, noEngram: false, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true },
+      dependencies: { bun: true, pi: true, claude: false, gh: true, hypa: true, codegraph: true },
+      flags: { yes: true, noSecrets: true, noHypa: false, noCodegraph: false, skipLinear: true },
     });
     const calls: string[] = [];
     const recovered = await executeInstallPlanJournaled(
@@ -317,7 +317,7 @@ describe("install execution journal", () => {
 
   test("admits only the supported pre-mutation recovery at install startup", async () => {
     const value = plan(), root = value.home;
-    const observations = { home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" } as const, claudeConfigHome: join(root, ".claude-ein"), dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false }, platform: { os: "darwin" as const, arch: "arm64" as const, distro: "unknown" as const, packageManager: "brew" as const, shell: "unknown" as const, shellRc: join(root, ".profile"), home: root } };
+    const observations = { home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" } as const, claudeConfigHome: join(root, ".claude-ein"), dependencies: { bun: false, pi: false, claude: true, gh: false, hypa: false, codegraph: false }, platform: { os: "darwin" as const, arch: "arm64" as const, distro: "unknown" as const, packageManager: "brew" as const, shell: "unknown" as const, shellRc: join(root, ".profile"), home: root } };
     await executeInstallPlanJournaled(value, handlers(value, (id) => id === "pi.backup-current" ? { ok: false, detail: "backup failed before Pi mutation" } : { ok: true }));
     const calls: string[] = [], banners: number[] = [];
     const code = await runInstall(["--yes", "--no-secrets", "--runtime", "both"], undefined, { observations, playBanner: async () => { banners.push(1); }, handlers: handlers(value, (id) => { calls.push(id); return { ok: true }; }) });
@@ -334,7 +334,7 @@ describe("install execution journal", () => {
     const blocked = async (value: InstallPlanV1, journal: InstallExecutionJournalV1): Promise<void> => {
       mkdirSync(join(value.home, ".ein-installer"), { recursive: true, mode: 0o700 });
       writeFileSync(installJournalPath(value.home), `${JSON.stringify(journal)}\n`, { mode: 0o600 });
-      const observations = { home: value.home, piAgentDir: join(value.home, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" } as const, claudeConfigHome: join(value.home, ".claude-ein"), dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false }, platform: { os: "darwin" as const, arch: "arm64" as const, distro: "unknown" as const, packageManager: "brew" as const, shell: "unknown" as const, shellRc: join(value.home, ".profile"), home: value.home } };
+      const observations = { home: value.home, piAgentDir: join(value.home, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" } as const, claudeConfigHome: join(value.home, ".claude-ein"), dependencies: { bun: false, pi: false, claude: true, gh: false, hypa: false, codegraph: false }, platform: { os: "darwin" as const, arch: "arm64" as const, distro: "unknown" as const, packageManager: "brew" as const, shell: "unknown" as const, shellRc: join(value.home, ".profile"), home: value.home } };
       let banners = 0, calls = 0;
       expect(await runInstall(["--yes", "--no-secrets", "--runtime", value.target], undefined, { observations, playBanner: async () => { banners += 1; }, handlers: handlers(value, () => { calls += 1; return { ok: true }; }) })).toBe(1);
       expect(banners).toBe(0);
@@ -479,7 +479,7 @@ describe("install execution journal", () => {
 
   test("blocks startup before banner/handlers, reinstalls over a complete journal, and leaves dry-run untouched", async () => {
     const value = plan("both"), root = value.home; await executeInstallPlanJournaled(value, handlers(value, () => ({ ok: false })));
-    let effects = 0; const observations = { home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" } as const, claudeConfigHome: join(root, ".claude-ein"), dependencies: { bun: false, pi: false, claude: true, engram: false, gh: false, hypa: false, codegraph: false }, platform: { os: "darwin" as const, arch: "arm64" as const, distro: "unknown" as const, packageManager: "brew" as const, shell: "unknown" as const, shellRc: join(root, ".profile"), home: root } };
+    let effects = 0; const observations = { home: root, piAgentDir: join(root, ".pi-ein", "agent"), piAgentDirExists: false, piOwnership: { status: "absent" } as const, claudeConfigHome: join(root, ".claude-ein"), dependencies: { bun: false, pi: false, claude: true, gh: false, hypa: false, codegraph: false }, platform: { os: "darwin" as const, arch: "arm64" as const, distro: "unknown" as const, packageManager: "brew" as const, shell: "unknown" as const, shellRc: join(root, ".profile"), home: root } };
     expect(await runInstall(["--runtime", "both"], undefined, { observations, playBanner: async () => { effects += 1; }, handlers: handlers(value, () => { effects += 1; return { ok: true }; }) })).toBe(1); expect(effects).toBe(0);
     const impossible = recovery("claude", { shared: "n", claude: "p" }), errors: string[] = [], originalError = console.error; writeFileSync(installJournalPath(root), `${JSON.stringify(impossible)}\n`, { mode: 0o600 }); console.error = (...parts: unknown[]) => { errors.push(parts.join(" ")); }; try { expect(await runInstall(["--runtime", "both"], undefined, { observations, playBanner: async () => { effects += 1; }, handlers: handlers(value, () => { effects += 1; return { ok: true }; }) })).toBe(1); } finally { console.error = originalError; } expect(effects).toBe(0); expect(errors).toEqual(["Install recovery status: recovery-required"]); expect(inspectInstallJournal(root)).toEqual({ status: "invalid" });
     unlinkSync(installJournalPath(root)); expect(await runInstall(["--dry-run", "--runtime", "both"], undefined, { observations, playBanner: async () => {}, writePlan: () => {} })).toBe(0); expect(inspectInstallJournal(root)).toEqual({ status: "missing" });

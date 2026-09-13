@@ -8,7 +8,7 @@ Expose the supported project settings through their existing disk-backed owners.
 
 ### Requirement: Read and mutate supported project settings
 
-The system MUST expose and persist work mode, agent language, artifact language, persona, strict TDD and CodeGraph. Each mutation MUST use the existing owner for that setting, and the displayed value after a mutation MUST come from rereading storage rather than from the requested value. Engram MUST remain a session-level choice and MUST NOT become a project setting.
+The system MUST expose and persist work mode, agent language, artifact language, persona, strict TDD and CodeGraph. Each mutation MUST use the existing owner for that setting, and the displayed value after a mutation MUST come from rereading storage rather than from the requested value.
 
 #### Scenario: Successful setting change round-trips through storage
 
@@ -26,4 +26,4 @@ The system MUST expose and persist work mode, agent language, artifact language,
 
 - GIVEN the configuration view is opened
 - WHEN its setting catalog is rendered
-- THEN all seven supported settings are present and Engram is absent from the mutation catalog
+- THEN all supported settings are present in the mutation catalog

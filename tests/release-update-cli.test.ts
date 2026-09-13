@@ -729,7 +729,7 @@ describe("release update CLI", () => {
             const external = args.includes("--ein-runtime-surfaces=external-tools");
             if (external) candidateRefreshes += 1;
             return { code: 0, stdout: JSON.stringify({ txId, releaseTag: "installer-v0.20.0", binaryVersion: "0.20.0", templateVersion: "0.20.0", status: "ok",
-              ...(external ? { externalTools: [{ ok: true, detail: "engram actualizado por la versión instalada" }] } : {}) }) };
+              ...(external ? { externalTools: [{ ok: true, detail: "codegraph actualizado por la versión instalada" }] } : {}) }) };
           }
           return { code: 0, stdout: "ein-installer 0.20.0\ntemplate-version 0.20.0\n" };
         },
@@ -758,11 +758,11 @@ describe("release update CLI", () => {
     expect(code).toBe(EXIT_UPDATED);
     expect(piUpdated).toBe(1);
     expect(packagesSynced).toBe(1);
-    // Las deps externas (engram/codegraph) se refrescan tras un update ok.
+    // Las deps externas (codegraph) se refrescan tras un update ok.
     expect(externalRefreshed).toBe(0);
     expect(candidateRefreshes).toBe(1);
     expect(output.join("\n")).toContain("pi actualizado");
-    expect(output.join("\n")).toContain("engram actualizado por la versión instalada");
+    expect(output.join("\n")).toContain("codegraph actualizado por la versión instalada");
     expect(output.join("\n")).not.toContain("hypa");
 
     const unavailableOutput: string[] = [];

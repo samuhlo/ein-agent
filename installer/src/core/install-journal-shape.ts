@@ -12,6 +12,11 @@ import {
   type InstallPlanV1,
 } from "./install-plan.ts";
 
+// Decode the retired dependency only for existing V1 journals. New plans never emit it.
+const JOURNAL_ENTRY_IDS: readonly string[] = [
+  ...INSTALL_PLAN_ENTRY_IDS.slice(0, 2), "pi.dependency.engram", ...INSTALL_PLAN_ENTRY_IDS.slice(2),
+];
+
 const JOURNAL_TARGETS = ["pi", "claude", "both"] as const;
 const JOURNAL_STATES: readonly InstallJournalState[] = ["prepared", "executing", "recovery-required", "complete"];
 const ENTRY_STATES: readonly InstallJournalEntryState[] = ["not-run", "pending", "completed", "failed"];
@@ -68,7 +73,7 @@ function isJournalEnvelope(value: unknown): value is JournalEnvelope {
     && /^[0-9a-f]{64}$/.test(value.planDigest)
     && JOURNAL_TARGETS.includes(value.target as InstallPlanV1["target"])
     && JOURNAL_STATES.includes(value.state as InstallJournalState)
-    && (!own.pendingEntryId || INSTALL_PLAN_ENTRY_IDS.includes(value.pendingEntryId as InstallPlanEntryId))
+    && (!own.pendingEntryId || JOURNAL_ENTRY_IDS.includes(value.pendingEntryId as string))
     && (!own.recoveryCode || RECOVERY_CODES.includes(value.recoveryCode as typeof RECOVERY_CODES[number]))
     && hasExactDataProperties(value.platform, ["os", "arch"])
     && ["darwin", "linux"].includes(value.platform.os as string)
@@ -95,8 +100,8 @@ function areJournalEntriesValid(
       : {};
     const detail = own.detail ? ["detail"] : [];
     const id = own.id && "value" in own.id ? own.id.value : undefined;
-    const order = typeof id === "string" ? INSTALL_PLAN_ENTRY_IDS.indexOf(id as InstallPlanEntryId) : -1;
-    const expectedRuntime = order >= 0 ? INSTALL_PLAN_ENTRY_CONTRACTS[id as InstallPlanEntryId][0] : undefined;
+    const order = typeof id === "string" ? JOURNAL_ENTRY_IDS.indexOf(id) : -1;
+    const expectedRuntime = id === "pi.dependency.engram" ? "pi" : order >= 0 ? INSTALL_PLAN_ENTRY_CONTRACTS[id as InstallPlanEntryId][0] : undefined;
 
     if (!hasExactDataProperties(entry, ["id", "runtime", "status", ...detail])) return false;
     if (order <= previous || ids.has(entry.id as string)) return false;

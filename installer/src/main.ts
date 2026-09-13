@@ -173,7 +173,7 @@ function printHelp(): void {
   console.log("  ein-install update --channel alpha");
   console.log("  ein-install update --channel stable");
   console.log("");
-  console.log("flags: --yes --dry-run --channel alpha|stable --no-engram --no-secrets --no-linear --no-codegraph");
+  console.log("flags: --yes --dry-run --channel alpha|stable --no-secrets --no-linear --no-codegraph");
 }
 
 async function main(): Promise<number> {

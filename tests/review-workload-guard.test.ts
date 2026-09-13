@@ -28,10 +28,10 @@ const { renderSddPreflightPrompt } = await import("../ein-pi/agent/lib/sdd-prefl
 
 const PREFS = {
 	executionMode: "auto",
-	memoryMode: "off",
+
 	reviewBudgetLines: 400,
 	tddMode: "off",
-	engramAvailable: false,
+
 	prompted: true,
 } as const;
 

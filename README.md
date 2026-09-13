@@ -44,6 +44,8 @@ Pides "arregla el login". El agente toca ocho ficheros y devuelve 400 líneas co
 
 Ein ataca las dos cosas: parte el trabajo en fases con contrato, y deja el estado en `openspec/` para que otra sesión, otra máquina u otro runtime lo retomen.
 
+Para simplificar el proyecto, Ein retira su integración con Engram: la continuidad se recupera desde los archivos, OpenSpec y Git, con investigaciones acotadas de `ein-scout` cuando hacen falta. La actualización conserva las notas y el binario existentes; no migra datos a otro sistema. [Qué cambia al actualizar](installer/README.md#actualizar-desde-una-instalación-con-engram).
+
 ## // 02_ RUNTIME_SURFACE
 
 | PAPEL | SUPERFICIE | HOGAR DE EIN | RUNTIME VANILLA |

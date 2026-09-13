@@ -185,6 +185,7 @@ describe("release update state primitives", () => {
     mkdirSync(join(agentDir, "skills", "downloaded"), { recursive: true });
     writeFileSync(join(agentDir, "agents", "old.md"), "old");
     writeFileSync(join(agentDir, "auth.json"), "secret");
+    writeFileSync(join(agentDir, "mcp.json"), '{"mcpServers":{"custom":{"command":"original"}}}\n');
     writeFileSync(join(agentDir, "skills", "downloaded", "user.md"), "user");
     const caps = capsWithTemplate(agentDir);
     const snapshot = snapshotTemplate({ agentDir, snapshotPath: join(root(), "snapshot"), caps });
@@ -192,10 +193,12 @@ describe("release update state primitives", () => {
     expect((await deployEmbeddedTemplate({ binaryPath: "/verified/ein", agentDir, caps })).ok).toBe(true);
     expect(await validateDeployedManifest({ agentDir, expectedVersion: "0.20.0", caps })).toEqual({ ok: true, value: undefined });
     expect(existsSync(join(agentDir, "agents", "new.md"))).toBe(true);
+    writeFileSync(join(agentDir, "mcp.json"), '{"mcpServers":{}}\n');
     if (snapshot.ok) expect(restoreTemplate({ agentDir, snapshotPath: snapshot.value.path, caps }).ok).toBe(true);
     expect(existsSync(join(agentDir, "agents", "new.md"))).toBe(false);
     expect(readFileSync(join(agentDir, "agents", "old.md"), "utf8")).toBe("old");
     expect(readFileSync(join(agentDir, "auth.json"), "utf8")).toBe("secret");
+    expect(JSON.parse(readFileSync(join(agentDir, "mcp.json"), "utf8")).mcpServers.custom.command).toBe("original");
     expect(readFileSync(join(agentDir, "skills", "downloaded", "user.md"), "utf8")).toBe("user");
     expect(await validateDeployedManifest({ agentDir, expectedVersion: "0.20.0", caps })).toEqual(expect.objectContaining({ error: expect.objectContaining({ code: "manifest-mismatch" }) }));
   });

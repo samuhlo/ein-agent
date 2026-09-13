@@ -40,7 +40,6 @@ export type InstallProgressModel = Readonly<{
 const LABEL: Readonly<Record<InstallPlanEntryId, string>> = Object.freeze({
   "shared.dependency.bun": "bun",
   "pi.dependency.pi": "pi",
-  "pi.dependency.engram": "engram",
   "pi.dependency.gh": "gh",
   "pi.dependency.hypa": "paso legado retirado",
   "pi.dependency.codegraph": "codegraph",

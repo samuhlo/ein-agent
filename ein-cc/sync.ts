@@ -27,9 +27,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { resolveEngramDataDir } from "../shared/contracts/memory-contract.ts";
 import { compileStyleContract } from "../shared/contracts/style-contract.ts";
 import {
   ORCHESTRATOR_SOURCE as ORCHESTRATOR_REPOSITORY_PATH,
@@ -462,8 +461,6 @@ function validateCoordinator(canonical: string, adapter: string): string {
   if (adapter.indexOf(HARNESS_START) > adapter.indexOf(HARNESS_END)) {
     throw parity("PARITY_INVALID_COORDINATOR", "adapter harness markers are out of order");
   }
-  // El almacén de Engram ya NO se reescribe por runtime: los dos comparten
-  // cuaderno, así que la línea canónica vale tal cual para Claude.
   const translatedCanonical = translateBody(canonical, "AGENTS.md").trimEnd();
   const normalizedAdapter = translateBody(adapter, "CLAUDE.adapter.md").trimEnd();
   const output = `${PROVENANCE}\n\n${translatedCanonical}\n\n${normalizedAdapter}\n`;
@@ -589,6 +586,22 @@ function write(dest: string, content: string) {
   writeFileSync(dest, content, "utf8");
 }
 
+export function removeLegacyEngramMcp(configPath: string, home: string | undefined = process.env.HOME): boolean {
+  if (typeof home !== "string" || !isAbsolute(home) || !existsSync(configPath)) return false;
+  const config = JSON.parse(readFileSync(configPath, "utf8"));
+  const entry = config?.mcpServers?.engram;
+  // PRESERVACIÓN -> Solo retiramos la firma que escribía el sync de EIN.
+  if (entry?.type !== "stdio" || typeof entry.command !== "string" || basename(entry.command) !== "engram"
+    || Object.keys(entry).sort().join(",") !== "args,command,env,type"
+    || !Array.isArray(entry.args) || entry.args.length !== 2
+    || entry.args[0] !== "mcp" || entry.args[1] !== "--tools=agent"
+    || !entry.env || typeof entry.env !== "object" || Array.isArray(entry.env)
+    || Object.keys(entry.env).length !== 1 || entry.env.ENGRAM_DATA_DIR !== join(home, ".engram-ein")) return false;
+  delete config.mcpServers.engram;
+  writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
+  return true;
+}
+
 export type SyncResult = {
   ok: boolean;
   requiredFailures: string[];
@@ -668,7 +681,6 @@ export function compileClaudeSurfaceRunnerPayload(options: ClaudeSurfaceRunnerPa
 export function runSync(): SyncResult {
   const requiredFailures: string[] = [];
   const optionalWarnings: string[] = [];
-  const claudeEngramHome = resolveEngramDataDir("claude", process.env);
 
   try {
     // Compile and validate all coordinator, agent, tool, runtime, and routing
@@ -792,16 +804,14 @@ export function runSync(): SyncResult {
     return { ok: false, requiredFailures, optionalWarnings };
   }
 
-  // ── 8. MCP: Context7 (docs on-demand) + Engram (memoria, si está) ──────────
   // Son integraciones opcionales: su disponibilidad nunca oculta un sync core
   // correcto ni convierte una instalación utilizable en un fallo.
-  function mcpUser(name: string, argv: string[], env: Record<string, string> = {}): void {
+  function mcpUser(name: string, argv: string[]): void {
     if (DRY) { log(`MCP se configuraría (scope user): ${name}`); return; }
     const base = { ...process.env, CLAUDE_CONFIG_DIR: DEST };
     try { execFileSync("claude", ["mcp", "remove", "-s", "user", name], { env: base, stdio: "ignore" }); } catch { /* no existía */ }
-    const envFlags = Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]);
     try {
-      execFileSync("claude", ["mcp", "add", "-s", "user", name, ...envFlags, "--", ...argv], { env: base, stdio: "ignore" });
+      execFileSync("claude", ["mcp", "add", "-s", "user", name, "--", ...argv], { env: base, stdio: "ignore" });
       log(`MCP configurado (scope user): ${name}`);
     } catch (error) {
       const warning = `MCP ${name} no configurado: ${failureMessage(error)}`;
@@ -812,13 +822,14 @@ export function runSync(): SyncResult {
 
   mcpUser("context7", ["bunx", "--bun", "@upstash/context7-mcp"]);
 
-  // Engram es opcional: solo si el binario está en el sistema.
-  let engramBin = "";
-  try { engramBin = execFileSync("which", ["engram"], { encoding: "utf8" }).trim(); } catch { /* no está */ }
-  if (engramBin && claudeEngramHome) {
-    mcpUser("engram", [engramBin, "mcp", "--tools=agent"], { ENGRAM_DATA_DIR: claudeEngramHome });
-  } else {
-    log(engramBin ? "HOME inválido: memoria opcional omitida" : "engram no encontrado en PATH: memoria opcional omitida");
+  if (DRY) log("Se retiraría la entrada MCP Engram gestionada del hogar aislado");
+  else {
+    try { removeLegacyEngramMcp(join(DEST, ".claude.json")); }
+    catch (error) {
+      const warning = `No se pudo retirar el MCP Engram anterior: ${failureMessage(error)}`;
+      optionalWarnings.push(warning);
+      log(warning);
+    }
   }
 
   console.log("ein-cc sync core listo. Lanza con: ein-cc");

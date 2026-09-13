@@ -1,7 +1,7 @@
 // =============================================================================
 // TESTS: installer deps — codegraph opcional
 // Fija el contrato: codegraph aparece en checkDeps como dependencia NO
-// obligatoria (nunca bloquea install/doctor), igual que engram/gh/hypa.
+// obligatoria (nunca bloquea install/doctor), igual que gh/hypa.
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";

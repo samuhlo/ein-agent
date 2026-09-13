@@ -44,7 +44,7 @@ describe("Claude SDD runtime closure", () => {
 		const closure = runtimeClosure(EIN_CC_PAYLOAD_SOURCE_ENTRIES);
 
 		expect(closure).toContain("shared/sdd/sdd-routing-core.ts");
-		for (const path of RETIRED_ROUTING_COLLATERAL) expect(closure).not.toContain(path);
+		for (const path of [...RETIRED_ROUTING_COLLATERAL, ...RETIRED_INTENT_COLLATERAL.filter((path) => /engram|memory/.test(path))]) expect(closure).not.toContain(path);
 	});
 
 	test("keeps the historical Pi remedies entrypoint outside the complete Claude payload", () => {

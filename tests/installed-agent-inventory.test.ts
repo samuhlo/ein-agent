@@ -61,7 +61,7 @@ const LINEAR_DOCTOR_CHECKS = [
 	"linear integration evidence",
 ] as const;
 const SHARED_DOCTOR_GROUPS = new Set(["CORE", "PAQUETES PI", "MCP", "SKILLS", "GUARDRAILS", "COHERENCIA"]);
-const INSTALLER_ONLY_DOCTOR_CHECKS = new Set(["extensions-manifest.json", "engram command", "terminal app"]);
+const INSTALLER_ONLY_DOCTOR_CHECKS = new Set(["extensions-manifest.json", "terminal app"]);
 
 describe("inventario instalado de agentes", () => {
 	test("el scan fuente genera agents, assets/agents y manifest idénticos", () => {
@@ -88,9 +88,7 @@ describe("inventario instalado de agentes", () => {
 			expect(sharedIntent).toContain("createSddIntentPreflightCoordinator");
 			expect(sharedIntent).not.toContain("Compatibility entrypoint");
 			expect(existsSync(join(staging.payload, "lib", "mode.ts"))).toBe(false);
-			expect(policy).toContain("Current filesystem, Git, ProjectState/stateRef, and OpenSpec evidence outrank memory");
-			expect(policy).toContain(".engram-ein");
-			expect(policy).toContain("ONE notebook shared by both runtimes");
+			expect(policy).not.toContain(".engram-ein");
 		} finally {
 			rmSync(staging.root, { recursive: true, force: true });
 		}
@@ -165,6 +163,35 @@ describe("inventario instalado de agentes", () => {
 			}
 		});
 	}
+
+	test("actualizar el template retira memoria gestionada y conserva MCP ajeno, binario y datos", async () => {
+		const staging = bundledTemplate();
+		const home = join(staging.root, "home");
+		const context = resolvePiInstallContext(home);
+		const oldFiles = ["lib/engram-cli.ts", "lib/memory-lifecycle.ts", "lib/memory-contract.ts", "lib/sdd-memory-save.ts", "extensions/internal/ein-sdd-memory.ts"];
+		try {
+			for (const file of oldFiles) {
+				const target = join(context.agentDir, file);
+				mkdirSync(target.slice(0, target.lastIndexOf("/")), { recursive: true });
+				writeFileSync(target, "old managed module");
+			}
+			mkdirSync(join(home, ".engram-ein"), { recursive: true });
+			mkdirSync(join(home, ".local/bin"), { recursive: true });
+			writeFileSync(join(home, ".engram-ein/store"), "PRIVATE-MEMORY");
+			writeFileSync(join(home, ".local/bin/engram"), "GLOBAL-BINARY");
+			writeFileSync(join(context.agentDir, "mcp.json"), JSON.stringify({ mcpServers: {
+				engram: { command: "/opt/homebrew/bin/engram", args: ["mcp", "--tools=agent"], environment: { ENGRAM_DATA_DIR: join(home, ".engram-ein") }, directTools: false, lifecycle: "lazy" },
+				custom: { command: "user-service" },
+			} }));
+			await deployTemplate({ ...detectPlatform(), home }, { archivePath: staging.archive }, context);
+			for (const file of oldFiles) expect(existsSync(join(context.agentDir, file))).toBe(false);
+			const mcp = JSON.parse(readFileSync(join(context.agentDir, "mcp.json"), "utf8"));
+			expect(mcp.mcpServers.engram).toBeUndefined();
+			expect(mcp.mcpServers.custom).toEqual({ command: "user-service" });
+			expect(readFileSync(join(home, ".engram-ein/store"), "utf8")).toBe("PRIVATE-MEMORY");
+			expect(readFileSync(join(home, ".local/bin/engram"), "utf8")).toBe("GLOBAL-BINARY");
+		} finally { rmSync(staging.root, { recursive: true, force: true }); }
+	});
 
 	test("los doctors reales mantienen paridad común para Linear válido y roturas staged", async () => {
 		const staging = bundledTemplate();

@@ -14,7 +14,6 @@ import {
   installBun,
   installClaudeCode,
   installDeclaredPackages,
-  installEngramDep,
   installGh,
   installCodegraph,
   installPi,
@@ -92,7 +91,6 @@ export type { InstallSelection, InstallTarget, RuntimeInstallTarget } from "../c
 
 export type InstallFlags = {
   yes: boolean;
-  noEngram: boolean;
   noSecrets: boolean;
   noLinear: boolean;
   /** Accepted only for old invocations/journals; has no effect. */
@@ -212,7 +210,6 @@ export function parseInstallFlags(args: string[]): InstallFlags {
 
   return {
     yes: args.includes("--yes") || args.includes("-y"),
-    noEngram: args.includes("--no-engram"),
     noSecrets: args.includes("--no-secrets"),
     noLinear: args.includes("--no-linear"),
     noHypa: args.includes("--no-hypa"),
@@ -387,20 +384,6 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
     }
   return success();
   },
-  "pi.dependency.engram": async () => {
-  const needEngram = !deps.find((d) => d.id === "engram")?.present;
-
-  if (needEngram && !flags.noEngram) {
-    if (await confirm("Instalar engram (memoria persistente)?", flags)) {
-      const spinner = p.spinner();
-      spinner.start("Instalando engram");
-      const result = await installEngramDep(platform);
-      spinner.stop(result.detail);
-      return optionalInstallOutcome(result);
-    }
-  }
-  return success();
-  },
   "pi.dependency.gh": async () => {
   const needGh = !deps.find((d) => d.id === "gh")?.present;
 
@@ -466,7 +449,7 @@ export function createPiInstallHandlers(options: PiInstallOptions): { handlers: 
   try {
     const deployed = await effects.deploy(platform, deployOpts, piContext);
     spinner.stop(
-      `Ein desplegado (engram: ${deployed.engramFound ? deployed.engramCommand : "no resuelto, usando PATH"})`,
+      "Ein desplegado",
     );
   } catch (error) {
     spinner.stop("Fallo el deploy.");
@@ -666,7 +649,7 @@ function observePlan(platform: Platform, deps: readonly DepStatus[]): Omit<Insta
     piOwnership,
     claudeConfigHome: join(home, ".claude-ein"),
     platform,
-    dependencies: { bun: present("bun"), pi: present("pi"), claude: present("claude"), engram: present("engram"), gh: present("gh"), hypa: false, codegraph: present("codegraph") },
+    dependencies: { bun: present("bun"), pi: present("pi"), claude: present("claude"), gh: present("gh"), hypa: false, codegraph: present("codegraph") },
   };
 }
 
@@ -725,7 +708,7 @@ export async function runInstall(args: string[], explicitMenuTarget?: InstallSel
   );
   const buildPlan = (linear: LinearIntegration): InstallPlanV1 => {
     const skipLinear = linear === "off";
-    return createInstallPlan({ ...observations, platform: { os: observations.platform.os, arch: observations.platform.arch }, target, flags: { yes: flags.yes, noEngram: flags.noEngram, noSecrets: flags.noSecrets, noHypa: flags.noHypa, noCodegraph: flags.noCodegraph, skipLinear } });
+    return createInstallPlan({ ...observations, platform: { os: observations.platform.os, arch: observations.platform.arch }, target, flags: { yes: flags.yes, noSecrets: flags.noSecrets, noHypa: flags.noHypa, noCodegraph: flags.noCodegraph, skipLinear } });
   };
   let linear: LinearIntegration = "off";
   let plan = buildPlan(linear);

@@ -22,7 +22,7 @@ Identidad fija: `agentName=Ein`, `author=samuhlo`. Solo `commandPrefix` es confi
 2. **Branding**: `ein-brand.ts` carga nombre, prefijo y autor.
 3. **Rutas**: `ein-paths.ts` centraliza paths y binarios.
 4. **Orquestación**: el prompt padre (cargado por `ein-ai.ts` desde `assets/orchestrator.md`) decide directo vs agentes/chains.
-5. **Herramientas**: Linear, Doctor, Engram, Context7, skills, guardrails.
+5. **Herramientas**: Linear, Doctor, Context7, skills, guardrails.
 6. **Skills**: stack curado + advisor de tarea + Context7 para el resto.
 
 ## Extensiones (9)
@@ -77,13 +77,11 @@ El orquestador se controla con `defaultProvider`/`defaultModel` en `settings.jso
 
 En `ein-ai.ts`: bloquea comandos destructivos, escrituras en secretos y cambios peligrosos en Git en runtime (no solo por prompt).
 
-## Memoria y MCP
+## Contexto y MCP
 
-`~/.pi/agent/mcp.json` conecta Engram (stdio) sobre `~/.engram-ein` y Context7 (`bunx --bun @upstash/context7-mcp`). Ambos lazy. `CONTEXT7_API_KEY` se exporta desde el shell rc, no va en `mcp.json`.
+La continuidad del proyecto vive en disco, OpenSpec y Git. `~/.pi/agent/mcp.json` conecta Context7 (`bunx --bun @upstash/context7-mcp`), que arranca bajo demanda. `CONTEXT7_API_KEY` se exporta desde el shell rc, no va en `mcp.json`.
 
-El cableado MCP usa **`pi-mcp-adapter`** (declarado en `settings.json` packages): un proxy de un solo tool `mcp()` (~200 tokens) en vez de cargar todas las defs (10k+ tokens/server). Estrategia híbrida:
-- **engram** → proxy (`directTools: false`). Sus 15 tools no inflan el contexto; el modelo los descubre on-demand vía `mcp()`. Ahí está el ahorro.
-- **context7** → `directTools: true`. Sus 2 tools (`resolve-library-id`, `query-docs`) se exponen como first-class para que el modelo traiga docs del topic on-demand (regla en `AGENTS.md`) sin fricción.
+El cableado MCP usa **`pi-mcp-adapter`** (declarado en `settings.json` packages). Context7 usa `directTools: true`: sus tools `resolve-library-id` y `query-docs` se exponen como first-class para traer documentación por tema (regla en `AGENTS.md`).
 
 Comandos del adapter: `/mcp` (panel), `/mcp setup`, `/mcp reconnect <server>`. Tras tocar `directTools`, `/mcp reconnect context7` fuerza el registro de tools.
 
@@ -141,7 +139,7 @@ OpenSpec file-backed: `openspec/config.yaml` y `openspec/changes/`. El flujo `ei
 
 ## Instalador
 
-Carpeta `installer/` del repo (Bun + TypeScript, compilado a binarios standalone). Comandos del binario `ein`: `install`, `update`, `uninstall`, `restore`, `doctor` (+ menú TUI sin args). Flags: `--yes`, `--no-engram`, `--no-secrets`, `--no-linear`. Backups en `~/.pi/agent/backups/installer/` antes de mutar; restore reversible. Releases por tag `installer-v*` (GitHub Actions cross-compila 4 targets).
+Carpeta `installer/` del repo (Bun + TypeScript, compilado a binarios standalone). Comandos del binario `ein`: `install`, `update`, `uninstall`, `restore`, `doctor` (+ menú TUI sin args). Flags: `--yes`, `--no-secrets`, `--no-linear`. Backups en `~/.pi/agent/backups/installer/` antes de mutar; restore reversible. Releases por tag `installer-v*` (GitHub Actions cross-compila 4 targets).
 
 ## Reglas de mantenimiento
 
