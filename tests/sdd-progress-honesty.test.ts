@@ -41,3 +41,11 @@ test("a passing heading cannot override admitted missing coverage or rescue a fa
   expect(reconcilePhaseFailure(cwd,"verify",{}).reconciled).toBe(false);
  } finally {rmSync(cwd,{recursive:true,force:true});}
 });
+
+test("historical group failures stay in the narrative without becoming the current global blocker", () => {
+ const report=normalizeApplyProgress("status: partial\n## Earlier group\nstatus: blocked\nOriginal failure retained.\n",1,2);
+ expect(report).toStartWith("status: partial\n");expect(report).toContain("Reported group status: blocked");
+ expect(normalizeApplyProgress(report,1,2)).toBe(report);
+ expect(normalizeApplyProgress("status: blocked\nCurrent impediment",1,2)).toStartWith("status: blocked");
+ expect(normalizeApplyProgress("status: blocked\nRetained failure",1,2,false)).toStartWith("status: partial");
+});

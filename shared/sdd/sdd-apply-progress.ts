@@ -4,19 +4,20 @@ import { basename, dirname, join, resolve } from "node:path";
 import { isSafeChangeName, readTasksStatus, resolveChangesDir } from "./sdd-routing-core.ts";
 
 // Only control metadata is derived. Group narratives, failures and fenced evidence remain intact.
-export function normalizeApplyProgress(content: string, pending: number, total: number): string {
+export function normalizeApplyProgress(content: string, pending: number, total: number, preserveBlocked = true): string {
   let fence = "";
-  let blocked = false;
-  const body = content.split(/\r?\n/).filter((line) => {
+  let declared: string | undefined;
+  const body = content.split(/\r?\n/).flatMap((line) => {
     const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
-    if (marker) { if (!fence) fence = marker; else if (marker[0] === fence[0] && marker.length >= fence.length) fence = ""; return true; }
-    if (fence) return true;
+    if (marker) { if (!fence) fence = marker; else if (marker[0] === fence[0] && marker.length >= fence.length) fence = ""; return [line]; }
+    if (fence) return [line];
     const status = /^status:\s*(complete|partial|blocked)\s*(?:#.*)?$/i.exec(line);
-    if (!status) return true;
-    blocked ||= status[1]!.toLowerCase() === "blocked";
-    return false;
+    if (!status) return [line];
+    if (declared !== undefined) return [`Reported group status: ${status[1]!.toLowerCase()}`];
+    declared = status[1]!.toLowerCase();
+    return [];
   }).join("\n").replace(/^\n+/, "");
-  const state = blocked ? "blocked" : pending > 0 || total === 0 ? "partial" : "complete";
+  const state = preserveBlocked && declared === "blocked" ? "blocked" : pending > 0 || total === 0 ? "partial" : "complete";
   return `status: ${state}\n\n${body}`;
 }
 
@@ -34,7 +35,8 @@ export function reconcileApplyProgress(cwd: string, change: string): void {
   if (!existsSync(path)) return;
   if (!lstatSync(path).isFile() || lstatSync(path).isSymbolicLink()) throw new Error("Unsafe apply progress path");
   const original = readFileSync(path, "utf8");
-  const content = normalizeApplyProgressWrite(cwd, path, original);
+  const tasks = readTasksStatus(dirname(path));
+  const content = normalizeApplyProgress(original, tasks.counts.pending, tasks.items.length, false);
   if (content === original) return;
   const temporary = `${path}.${randomUUID()}.tmp`;
   try {
