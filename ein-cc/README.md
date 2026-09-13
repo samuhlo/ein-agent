@@ -19,7 +19,7 @@ Claude lee los ajustes del proyecto en `.pi/ein/`. `/ein:status` y `/ein:setting
 
 ## Límites del relevo
 
-- Puede consumir acuerdos confirmados y el estado SDD en disco. La captura de respuestas que confirma acuerdos nuevos o modificados pertenece a Pi: resuélvelos allí antes del handoff.
+- Puede consumir acuerdos de Pi y registrar acuerdos nuevos o modificados en Claude mediante `ein-cc-sdd intent`, con procedencia explícita del coordinador.
 - La selección proactiva de skills y las herramientas de contexto y evidencia de Pi no tienen equivalencia completa en Claude. Se usan descubrimiento nativo, rutas explícitas y el CLI disponible.
 - El hook de Bash comparte patrones de denegación y confirmación con Pi. No intercepta todas las ediciones ni es un sandbox completo de shell.
 - Context7 se configura cuando está disponible. Los smokes históricos de conexión no garantizan la disponibilidad del servicio ni paridad entre runtimes.
@@ -40,3 +40,38 @@ bun ein-cc/sync.ts
 Compila y despliega en el hogar Claude de Ein: modifica tu instalación. Para probar el producto completo desde el checkout, consulta [dev:install](../installer/README.md#desarrollo). Abre una sesión nueva tras sincronizar.
 
 Consulta la [matriz vigente](https://samuhlo.github.io/ein-agent/03-runtimes/runtime-matrix/) antes de elegir el runtime para un cambio.
+
+## Continuar y cerrar cambios sin Pi
+
+Claude puede registrar el acuerdo, retomar uno de Pi y cerrar el cambio con el CLI
+standalone. `ein-cc-sdd intent <change> show` consulta el acuerdo y
+`ein-cc-sdd intent --help` muestra el formato de entrada para `record`.
+
+El coordinador registra las preguntas, la respuesta literal ya recibida y el alcance
+acordado mediante JSON por stdin. La procedencia `claude-coordinator` indica que el
+coordinador atesta la conversación: no equivale al recibo de entrada observado por
+Pi ni a una firma criptográfica del usuario. Un acuerdo confirmado con el mismo
+alcance se reutiliza conservando su procedencia y su revisión. Preflight conserva
+la decisión TDD existente y no vuelve a preguntar por ese acuerdo.
+
+Para recuperar un `intent.md` escrito a mano, primero se lee `show`, se contrasta
+el documento con la conversación y se pasa su `expectedDigest` junto con
+`reopenReason` al registro. El CLI conserva una copia del original. Para cambiar
+un acuerdo gestionado exige `expectedRevision` y un motivo; las claves de las fases
+anteriores quedan obsoletas hasta su revisión. No modifica artefactos de fase.
+
+Cada ejecutor de Claude lee el acuerdo y escribe una única línea
+`intent_key: <materialKey>` en el artefacto que acaba de producir o revisar.
+El verificador registra cada comando obligatorio con
+`required_check: {"command":"bun test","exitCode":0}` usando el código real
+(null si no pudo ejecutarlo). Un resultado fallido o mal formado impide cerrar,
+aunque el texto del informe diga `status: pass`. Los informes históricos siguen
+siendo legibles; su procedencia y contenido no se inventan al retomar.
+
+El ejecutor de cierre usa `ein-cc-sdd summary <change>` con
+`{"content":"Texto del resumen", "commands":["comando exacto del informe"]}`
+por stdin. El CLI genera los metadatos y verifica la evidencia; el coordinador
+termina con `ein-cc-sdd close <change>`. El archivo conserva el acuerdo, su copia
+anterior si existe y los informes de aplicación, verificación y sincronización.
+`--force` no permite saltarse intención pendiente, pruebas fallidas, tareas pendientes
+ni conflictos de especificación.

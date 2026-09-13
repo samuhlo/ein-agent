@@ -63,6 +63,9 @@ import { join } from "node:path";
 import { writeVerifiedSddSummary } from "../../shared/sdd/sdd-summary-write.ts";
 import { formatSddCheck, formatSddStatus } from "./presentation.ts";
 import { runSyncCommand, type SyncCliResponse } from "./sync-command.ts";
+import { runIntentCommand } from "./intent-command.ts";
+import { readAgreement } from "../../shared/sdd/intent-agreement.ts";
+import { resolveChangesDir } from "../../shared/sdd/sdd-routing-core.ts";
 
 const cwd = process.cwd();
 
@@ -337,6 +340,9 @@ export async function runClaudePreflightInputCommand(
 ): Promise<{ intent?: SddIntentPreflightOutcome; text: string; exitCode: 0 | 1 }> {
 	const fallback = preflightIntentInput(dir, args);
 	if (!fallback) return runPreflightCommand(dir, args);
+	const agreement = readAgreement(join(resolveChangesDir(dir), fallback.change));
+	if (agreement.kind === "valid" && agreement.agreement.status === "confirmed") return runPreflightCommand(dir, args);
+	if (agreement.kind !== "absent") return { text: `Intent pendiente o inválido. Usa ein-cc-sdd intent ${fallback.change} show y ein-cc-sdd intent --help.`, exitCode: 1 };
 	let input = fallback;
 	if (rawInput.trim().length > 0) {
 		try {
@@ -603,6 +609,12 @@ async function syncCmd(args: readonly string[]): Promise<void> {
 // guard el dispatch correría con el argv del test runner y mataría el proceso.
 if (import.meta.main) {
 	switch (cmd) {
+		case "intent": {
+			const result = runIntentCommand(cwd, rest, rest[1] === "record" ? await Bun.stdin.text() : "");
+			console.log(result.text);
+			process.exitCode = result.exitCode;
+			break;
+		}
 		case "status": statusCmd(); break;
 		case "check": checkCmd(); break;
 		case "close": closeCmd(); break;
@@ -620,7 +632,7 @@ if (import.meta.main) {
 		}
 		case "sync": await syncCmd(rest); break;
 		default:
-			console.log("ein-cc-sdd <status|check|sync> [change]  |  close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>]  |  guard (hook)  |  settings [--hook]  |  lane [change] [micro|standard]  |  preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]  |  delta [change] --domain <domain> < operations.json  |  summary [change] < summary.md");
+			console.log("ein-cc-sdd <status|check|sync> [change] | intent <change> [show|record] (intent --help for JSON) | close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>] | guard (hook) | settings [--hook] | lane [change] [micro|standard] | preflight [change] [--tdd off|strict] [--lane micro|standard] [--force] | delta [change] --domain <domain> < operations.json | summary [change] < summary.json");
 			process.exit(1);
 	}
 }

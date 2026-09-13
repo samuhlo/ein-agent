@@ -68,6 +68,7 @@ export function writeVerifiedSddSummary(request: SummaryWriteRequest & { command
 		if (intent.kind === "invalid" || (intent.kind === "valid" && intent.agreement.status !== "confirmed")) throw new Error("Summary requires a confirmed intent");
 		if (intent.kind === "valid" && [report, readFileSync(join(dir, "apply-progress.md"), "utf8")].some((artifact) => !artifactHasIntentKey(artifact, intent.agreement.materialKey))) throw new Error("Apply and verify must reference the current intent before summary");
 		const recorded = new Set([
+			...report.split(/\r?\n/).filter((line) => /^\s*(?:[-*]\s*)?required_check:/.test(line)).map((line) => JSON.parse(line.replace(/^\s*(?:[-*]\s*)?required_check:\s*/, "")).command as string),
 			...[...report.matchAll(/`([^`\r\n]+)`/g)].map((match) => match[1]),
 			...report.split(/\r?\n/).flatMap((line) => line.split("|").map((part) => part.trim().replace(/^[-*]\s+/, "").replace(/^(?:verify|command|comando|executed|ejecutado):\s*/i, ""))),
 		]);

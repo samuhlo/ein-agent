@@ -10,7 +10,7 @@ ein-cc-sdd settings
 
 `status` y `check` leen el estado y los contratos; no sustituyen los tests ni la revisión de comportamiento. `settings` muestra los ajustes compartidos del proyecto. `close` archiva un cambio solo si cumple las condiciones del cierre.
 
-Las fases y hooks también usan `lane`, `preflight`, `delta`, `summary`, `task-progress`, `sync` y `guard`. Sus argumentos y entradas estructuradas están definidos en [cli.ts](cli.ts). `guard` consume el JSON del hook de Bash por stdin; no es un comando de diagnóstico general. `sync` sincroniza specs OpenSpec; no reconstruye el adaptador Claude.
+Las fases y hooks también usan `intent`, `lane`, `preflight`, `delta`, `summary`, `task-progress`, `sync` y `guard`. Sus argumentos y entradas estructuradas están definidos en [cli.ts](cli.ts). `intent --help` explica el registro y recuperación de acuerdos sin Pi; [intent-command.ts](intent-command.ts) implementa esa entrada. `guard` consume el JSON del hook de Bash por stdin; no es un comando de diagnóstico general. `sync` sincroniza specs OpenSpec; no reconstruye el adaptador Claude.
 
 ## Desarrollo y frontera
 

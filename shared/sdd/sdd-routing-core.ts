@@ -410,11 +410,19 @@ function readVerifyOutcome(changePath: string): VerifyOutcome {
 	if (!existsSync(path)) return "absent";
 	let content = "";
 	try {
-		content = readFileSync(path, "utf8").toLowerCase();
+		content = readFileSync(path, "utf8");
 	} catch {
 		return "unknown";
 	}
+	// RESULTADO -> Un fallo obligatorio registrado prevalece sobre el veredicto narrativo.
+	for (const line of content.split(/\r?\n/).filter((line) => /^\s*(?:[-*]\s*)?required_check:/.test(line))) {
+		try {
+			const check = JSON.parse(line.replace(/^\s*(?:[-*]\s*)?required_check:\s*/, ""));
+			if (typeof check.command !== "string" || !check.command.trim() || check.exitCode !== 0) return "fail";
+		} catch { return "fail"; }
+	}
 	// Busca una línea explícita `status: pass|fail` (o "result: ...").
+	content = content.toLowerCase();
 	const match = content.match(/\b(?:status|result|resultado)\s*[:=]\s*(pass|fail|passed|failed|ok|pasa|falla)\b/);
 	if (match) {
 		return /pass|passed|ok|pasa/.test(match[1]) ? "pass" : "fail";
@@ -662,7 +670,7 @@ function resolveSddStatus(
 		: intent.kind === "invalid" ? { state: "invalid" }
 		: { state: intent.agreement.status, materialKey: intent.agreement.materialKey };
 	if (intent.kind === "invalid" || (intent.kind === "valid" && intent.agreement.status !== "confirmed")) {
-		blocked.push("Intent pendiente o inválido: resuelve la conversación con el usuario mediante ein_intent antes de continuar.");
+		blocked.push("Intent pendiente o inválido: resuelve la conversación con el usuario mediante ein_intent (Pi) o ein-cc-sdd intent (Claude) antes de continuar.");
 	} else if (intent.kind === "valid") {
 		const stale = lanePhases.find((phase) => present[phase] && !artifactHasIntentKey(readFileSync(phaseArtifactPath(changePath, phase), "utf8"), intent.agreement.materialKey));
 		if (stale) {

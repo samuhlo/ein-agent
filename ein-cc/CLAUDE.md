@@ -89,6 +89,11 @@ lifecycle checks:
 - `ein-cc-sdd close <change>` archives a verified change.
 - `ein-cc-sdd guard` enforces the shell guard contract.
 - `ein-cc-sdd preflight [change]` reads how this change is driven.
+- `ein-cc-sdd intent <change> show` reads the agreement without changing it.
+- `ein-cc-sdd intent <change> record < agreement.json` records a confirmed agreement;
+  `ein-cc-sdd intent --help` documents its JSON input and recovery procedure.
+- `ein-cc-sdd summary <change> < summary.json` generates validated close metadata
+  from `{ "content": "narrative", "commands": ["exact verified command"] }`.
 
 The coordinator delegates phase work to `sdd-scope`, `sdd-map`, `sdd-design`,
 `sdd-tasks`, `sdd-apply`, `sdd-verify`, and `sdd-close`. Read the `next:` result
@@ -103,11 +108,31 @@ objective, boundaries, response and completion criteria. Never treat historical
 router blocks a pending/invalid intent and identifies artifacts from an older
 materialKey. Every new phase artifact records the current `intent_key`.
 
-Pi owns the observed-response intent tool. Claude does not expose that Pi
-tool or equivalent receipt enforcement: for a new or changed managed agreement,
-return to Pi to complete discovery before resuming the SDD lifecycle. Existing
-historical changes without a managed intent remain resumable. Do not manufacture
-an agreement or claim runtime parity that this relief adapter does not provide.
+Claude records agreements through `ein-cc-sdd intent`, using the literal user
+answer and the agreed material. Its provenance is `claude-coordinator`: the
+coordinator attests the conversation; this is not a Pi observed-response receipt
+or a cryptographic user signature. Never invent answers or edit the encoded block.
+Reuse an unchanged agreement from either runtime without asking again. For an
+unmanaged intent.md already agreed in this conversation, use the recovery procedure
+in `intent --help`, preserving the original and reviewing the existing phases.
+An authorization to continue remains valid; ask only for an unresolved material
+decision, not for permission to run the next phase. Carry the agreed branch,
+scope, TDD stance and exact delivery files into each delegation.
+
+Each phase reads `intent show` and includes exactly one `intent_key: <materialKey>`
+in the artifact it produces. Claude has no automatic Pi write hook. Never replace
+an old key without checking and updating that phase against the changed agreement.
+After recovery of an unmanaged agreement, review each existing phase before adding
+its missing key; rerun verification if implementation or acceptance criteria changed.
+`--force` cannot bypass intent, failed verification, pending tasks or spec conflicts.
+
+The close executor writes summary.json through the summary command and fixes input
+errors in the same run. The coordinator archives after checking its output. A failed
+required check is `status: fail`, including an expected regression. Report exact exit
+codes; when redirecting output, preserve the command's exit code. Do not repeat a
+successful check unless changes, failures or missing evidence require it.
+Before reporting a commit complete, compare its actual paths with the delegated
+path list, including new tests; file counts alone are insufficient.
 
 ## Claude configuration boundary
 

@@ -89,14 +89,14 @@ describe("core parity: Claude coordinator contract", () => {
     expect(canonical).toContain("No adapter classifier may consume");
     expect(canonical).toContain("at least one concrete question and an actual user answer");
 
-    expect(adapter).toContain("Pi owns the observed-response intent tool");
+    expect(adapter).toContain("Claude records agreements through `ein-cc-sdd intent`");
     expect(adapter).toContain("Never treat historical");
     expect(adapter).not.toContain("Pi asks two questions before working a change");
     expect(adapter).not.toMatch(/ask them, and only once per change/i);
 
     expect(count(generated, "## Intent ownership")).toBe(1);
     expect(count(generated, "## Claude intent handoff")).toBe(1);
-    expect(count(generated, "Pi owns the observed-response intent tool")).toBe(1);
+    expect(count(generated, "Claude records agreements through `ein-cc-sdd intent`")).toBe(1);
     expect(generated).not.toContain("Pi asks two questions before working a change");
   });
 
