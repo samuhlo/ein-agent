@@ -298,3 +298,13 @@ describe("contrato del scout sobre workflowScript", () => {
 		expect(normalizeScoutLaunch({ workflowScript: DELIVERY_SCRIPT }, "call-3", new Map())).toBeUndefined();
 	});
 });
+
+test("rewrites only literal task slots and preserves the surrounding workflow", async () => {
+ const {rewriteDelegationTasks}=await import("../ein-pi/agent/lib/delegation-shape.ts");
+ const input={workflowScript:'// task: "keep"\nconst out = await runs.run("one", { agent: "ein-cleaner", task: "ref", turnBudget: { maxTurns: 3 } }); return out;'};
+ rewriteDelegationTasks(input,(agent,task)=>agent==="ein-cleaner"&&task==="ref"?'generated\ncontract with "quotes"':task);
+ expect(collectDelegationItems(input)[0]?.task).toBe('generated\ncontract with "quotes"');
+ expect(input.workflowScript).toContain('// task: "keep"');expect(input.workflowScript).toContain('turnBudget: { maxTurns: 3 }');
+ expect(()=>rewriteDelegationTasks({workflowScript:'runs.run("one", {agent:"ein-cleaner",task:"ref" + secret})'},()=>"changed")).toThrow("standalone string literal");
+ const single={agent:"ein-cleaner",task:"ref"};rewriteDelegationTasks(single,()=>"full");expect(single.task).toBe("full");
+});
