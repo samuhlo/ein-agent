@@ -4,6 +4,23 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.98.0-alpha.2] - 2026-09-13
+
+### Changed
+
+- Retirado Engram de la instalación, los launchers y el flujo de trabajo.
+  La continuidad se recupera desde los archivos del proyecto, Git y OpenSpec.
+
+### Fixed
+
+- Claude puede registrar acuerdos, retomar cambios de Pi y completar el cierre
+  SDD sin volver a Pi ni recurrir a `--force`. Conserva las respuestas y la
+  evidencia histórica al recuperar acuerdos escritos a mano.
+- Las instrucciones de los ejecutores de Claude usan las herramientas disponibles
+  para asociar artefactos al acuerdo y generar el resumen validado.
+- El cierre rechaza resultados obligatorios fallidos o mal formados aunque el
+  informe declare `pass`; el resumen reconoce sus comandos estructurados.
+
 ## [0.98.0-alpha.1] - 2026-09-11
 
 ### Added
