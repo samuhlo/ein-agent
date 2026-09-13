@@ -155,7 +155,7 @@ describe("lo que dice cada recibo", () => {
 			warnings: 0,
 			phases: [{ phase: "scope", present: true }, { phase: "design", present: true }],
 		});
-		expect(bueno.line).toBe("2 fases sin errores");
+		expect(bueno.line).toBe("2 artefactos con formato válido");
 		expect(bueno.bad).toBe(false);
 	});
 

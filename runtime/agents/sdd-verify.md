@@ -55,7 +55,7 @@ For every changed behavior, inspect whether a test or observable runtime check a
 - `none`: only structural checks; no changed behavior exercised.
 - `n-a`: non-behavioral change (docs, comments, formatting or pure config/dependency change).
 
-`none` or `partial` cannot be an unqualified PASS. If structural checks pass and the report uses `status: pass`, explicitly state that observable behavior was not fully confirmed, a regression could pass unseen, and the specific missing check. Never suppress the gatekeeper's coverage warning.
+`none` or `partial` means `status: fail` for behavioral acceptance; structural success cannot close that gap. For each claimed gap, cite its design/task requirement, the existing test inspected, and the precise missing observable assertion. Search existing cases before claiming absence; several tests may jointly establish a requirement. Do not enlarge the agreed acceptance matrix or require it in one test. Report a concrete counterexample when code or a test double contradicts the claimed guarantee; a test count is neither coverage nor a defect.
 
 ## Strict TDD Verification
 

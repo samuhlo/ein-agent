@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { isSafeChangeName, readTasksStatus, resolveChangesDir, SDD_TASK_STARTED_MARKER } from "./sdd-routing-core.ts";
+import { reconcileApplyProgress } from "./sdd-apply-progress.ts";
 
 export function updateSddTaskProgress(cwd: string, change: string, task: string, action: "start" | "complete") {
 	if (!isSafeChangeName(change) || !["start", "complete"].includes(action)) throw new Error("Invalid task progress request");
@@ -15,6 +16,7 @@ export function updateSddTaskProgress(cwd: string, change: string, task: string,
 	const item = matches[0]!;
 	if (item.done) {
 		if (action === "start") throw new Error("Task is already complete");
+		reconcileApplyProgress(cwd, change);
 		return status;
 	}
 	if (action === "complete" && !item.started) throw new Error("Task must be started before completion");
@@ -33,5 +35,6 @@ export function updateSddTaskProgress(cwd: string, change: string, task: string,
 		if (readFileSync(path, "utf8") !== source) throw new Error("Task checklist changed during progress update");
 		renameSync(temp, path);
 	} finally { rmSync(temp, { force: true }); }
+	reconcileApplyProgress(cwd, change);
 	return readTasksStatus(dirname(path));
 }
