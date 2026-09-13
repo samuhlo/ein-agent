@@ -2,6 +2,18 @@ import { expect, test } from "bun:test";
 import { bindDeliveryWork, nextDeliveryIntent, deliveryIntentActive, DELIVERY_INTENT_TTL_MS, messageRequestsDelivery } from "../ein-pi/agent/lib/git-delivery.ts";
 import { taskRequestsGuardedDelivery } from "../ein-pi/agent/lib/guardrails.ts";
 import { deliveryPreview } from "../ein-pi/agent/lib/delivery-preview.ts";
+import { confirmDelegatedDelivery } from "../ein-pi/agent/lib/guardrails.ts";
+
+test("the reported apply verification clause never opens delivery consent", async () => {
+  const task = "Verifica: env -u DATABASE_URL -u APP_ENV -u DATABASE_ENV bunx vitest run tests/api/cursos-capa-autoral.test.ts; env -u DATABASE_URL -u APP_ENV -u DATABASE_ENV bun run typecheck; git diff --check. No build/suite completa todavía, DB/Neon/migraciones/esquema/dependencias, commit/push. Preservar todo trabajo previo y cambios locales ajenos.";
+  for (const text of [task, "Sin DB, commit/push/PR.", "No dependencias, commit / push.", "Without database changes, commit/push.", "No DB, run/build, commit/push/PR."]) {
+    expect(taskRequestsGuardedDelivery(text), text).toBe(false);
+    let asked = false;
+    const result = await confirmDelegatedDelivery({ agent: "sdd-apply", task: text }, { cwd: "/tmp/unused", hasUI: true } as never, { mode: "ask", userRequested: false, confirm: async () => { asked = true; return true; } });
+    expect(result).toBeUndefined(); expect(asked).toBe(false);
+  }
+  for (const text of ["No DB, pero haz push de la rama.", "Sin migraciones; commit and push the branch.", "Without database changes, push the branch to origin.", "No cambies tests, commit and push.", "No DB, git commit -m fix && git push."]) expect(taskRequestsGuardedDelivery(text), text).toBe(true);
+});
 
 test("the alpha migration prohibition is not a request to push", () => {
   const task = "intent_work: alpha-v1-01-centros-asignaciones-migracion\nImplementa SOLO //003 / tarea3.1. Ejecuta bun run db:generate LOCAL.\nNo db:push/migrate/seed ni CLI BetterAuth.\nSin nuevas dependencias, secretos, config, branches/commit/push/PR/merge; preservar todos cambios ajenos.";
