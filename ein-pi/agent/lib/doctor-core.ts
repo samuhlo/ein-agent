@@ -2,7 +2,6 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { inspectLinearIntegration } from "./linear-integration.ts";
-import { ENGRAM_STORE_DIRNAME } from "./memory-contract.ts";
 import {
   isPublishedPackageVersion,
   readInstalledPiPackageVersion,
@@ -95,7 +94,6 @@ export type CommonDoctorInspection = {
     guardrails: DoctorCheckResult[];
     coherence: DoctorCheckResult[];
   };
-  evidence: { engramCommand: string | null };
 };
 
 // GUARD -> agentDir es el runtime aislado de Ein (extensiones), no el root de
@@ -134,9 +132,6 @@ export function inspectCommonDoctor(input: {
   const settings = readDoctorJson(settingsFile);
   const mcp = readDoctorJson(mcpFile);
   const mcpServers = (mcp.value.mcpServers as Record<string, unknown>) ?? {};
-  const engramServer = mcpServers.engram as Record<string, unknown> | undefined;
-  const engramEnv =
-    (engramServer?.environment as Record<string, unknown>) ?? {};
   const settingsPackages = Array.isArray(settings.value.packages)
     ? settings.value.packages.filter(
         (value): value is string => typeof value === "string",
@@ -251,18 +246,6 @@ export function inspectCommonDoctor(input: {
       mcp: [
         doctorCheck(existsSync(mcpFile), "mcp.json", "Archivo MCP presente."),
         doctorCheck(mcp.ok, "mcp.json parse", "JSON MCP válido."),
-        doctorCheck(
-          "engram" in mcpServers,
-          "mcp engram",
-          "Servidor Engram configurado.",
-        ),
-        doctorCheck(
-          String(engramEnv.ENGRAM_DATA_DIR ?? "").includes(
-            ENGRAM_STORE_DIRNAME,
-          ),
-          "engram data dir",
-          `Engram apunta al cuaderno de Ein (~/${ENGRAM_STORE_DIRNAME}).`,
-        ),
         doctorCheck(
           "context7" in mcpServers,
           "mcp context7",
@@ -389,10 +372,6 @@ export function inspectCommonDoctor(input: {
           "Gatekeeper (ein_sdd_check) y fase close cableados.",
         ),
       ],
-    },
-    evidence: {
-      engramCommand:
-        typeof engramServer?.command === "string" ? engramServer.command : null,
     },
   };
 }

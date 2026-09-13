@@ -11,8 +11,6 @@ import { PHASE_ARTIFACT, resolveChangesDir, type SddPhase } from "../../lib/sdd-
 import { formatSkillsForPrompt, type ExtensionAPI, type Skill } from "@earendil-works/pi-coding-agent";
 import {
 	getSddPreflightPreferences,
-	getSddSessionMemory,
-	renderMemoryAdvisory,
 	renderSddPreflightPrompt,
 	sddPreflightSessionKey,
 } from "../../lib/sdd-preflight.ts";
@@ -84,9 +82,6 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const isNamedAgent = isNamedAgentStartEvent(event);
 		const preferences = getSddPreflightPreferences(ctx);
 		const startNames = readAgentStartNames(event);
-		const memoryPrompt = renderMemoryAdvisory(
-			!isNamedAgent && !isSddAgent ? getSddSessionMemory(ctx) : undefined,
-		);
 		const isParent = !isNamedAgent && !isSddAgent;
 		const phaseMarker = "<!-- ein:phase-context -->";
 		if (!isParent && event.systemPrompt.includes(phaseMarker)) return;
@@ -180,7 +175,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
 		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${einPrompt}${sddPrompt}${memoryPrompt ? `\n\n${memoryPrompt}` : ""}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff.prompt}` : ""}`,
+			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff.prompt}` : ""}`,
 		};
 	});
 }

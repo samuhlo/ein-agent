@@ -34,7 +34,7 @@ ein restore    # restaura desde un backup
 ```
 
 Flags: `--yes` (no interactivo), `--dry-run` (muestra el plan sin ejecutar nada),
-`--runtime <pi|both>` (Ein o Ein + Claude), `--no-engram`,
+`--runtime <pi|both>` (Ein o Ein + Claude),
 `--no-secrets`, `--no-linear`, `--no-codegraph`.
 
 ## Backups
@@ -62,16 +62,20 @@ una instalación gestionada válida sigue activa allí):
    complemento Claude. Pi requiere Node `>=22.19.0`; si falta o es antiguo, el
    instalador se detiene con un diagnóstico accionable. El host Pi y sus
    extensiones administradas se resuelven siempre desde el tag npm `latest`;
-   Ein no conserva una versión antigua conocida. Claude, `engram` y `gh` no
+   Ein no conserva una versión antigua conocida. Claude y `gh` no
    forman parte del núcleo.
 3. Despliega las superficies seleccionadas desde el template de Ein (embebido en el
    binario), manteniéndolas aisladas y **templando las rutas** (`mcp.json`, `settings.json`)
-   según tu `$HOME` y la ubicación real de `engram`.
+   según tu `$HOME`.
 4. Wizard de secrets opcional (`context7`, `linear`, `minimax`) en `~/.config/opencode-secrets/`.
 5. Añade el export de `CONTEXT7_API_KEY` a tu shell rc (idempotente).
 6. Corre el doctor y reporta el estado.
 
 El despliegue conserva autenticación y sesiones. Los backups sí se crean y gestionan según la política anterior; un `--dry-run` no aplica cambios. Hypa y Headroom ya no forman parte del runtime ni de los nuevos planes de instalación. Los antiguos flags y registros de Hypa solo se leen por compatibilidad, sin activar esa integración.
+
+## Actualizar desde una instalación con Engram
+
+Ein deja de instalar, actualizar y usar Engram. Al actualizar el despliegue se retiran solo las entradas MCP reconocidas como gestionadas por Ein; las configuraciones personalizadas, los datos de `~/.engram-ein` y el binario global se conservan. No se migran notas a otro sistema. El proyecto se retoma desde sus archivos, OpenSpec y Git; `ein-scout` puede reunir evidencia acotada cuando hace falta investigar.
 
 ## Desarrollo
 

@@ -2,7 +2,7 @@
 title: "Instalar Ein"
 description: "Instalación estable o alpha, requisitos y primera comprobación."
 sources: ["installer/install.sh", "installer/src/core/deps.ts", "installer/README.md"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
 Ein soporta macOS y Linux, en ARM64 y x64. Windows no está soportado. Pi es el núcleo y requiere Node **22.19.0 o posterior**; si no cumple el requisito, el instalador se detiene con instrucciones. Los binarios del instalador son standalone; el runtime tiene sus propias dependencias y autenticación.

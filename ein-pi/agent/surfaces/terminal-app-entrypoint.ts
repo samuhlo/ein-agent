@@ -12,7 +12,6 @@ import { basename, join } from "node:path";
 import { bannerFinal, TAGLINE } from "../lib/banner.ts";
 import { projectProjectState, type ProjectStateV1 } from "../lib/project-state.ts";
 import { applySetting, readSettings, type Setting } from "../lib/project-settings.ts";
-import { engramStoreDir } from "../lib/memory-contract.ts";
 import {
   buildLaunchPlan,
   createRuntimeSessionAdapter,
@@ -176,7 +175,7 @@ export function createTerminalAppControllerFactoryForCwd(
     claude: () => checkClaudeCodeUpdate(spawnVersionProbe),
   });
   const readSystem = options.system
-    ?? (() => systemComponentsFrom(updateSnapshot?.read(), { engramInstalled: existsSync(engramHome()) }));
+    ?? (() => systemComponentsFrom(updateSnapshot?.read()));
   // One coordinator belongs to one terminal-app process/controller factory.
   // Injected runtimes are test/alternate boundaries and remain fully owned by
   // their caller; only the production edge performs automatic maintenance.
@@ -259,7 +258,6 @@ type UpdateObservation = Readonly<{ source?: unknown; status?: unknown }>;
  */
 export function systemComponentsFrom(
   observations: readonly UpdateObservation[] | undefined,
-  facts: Readonly<{ engramInstalled: boolean }>,
 ): readonly SystemComponent[] {
   const components: SystemComponent[] = Object.keys(UPDATE_LABELS).map((source) => {
     const observation = observations?.find((item) => item.source === source);
@@ -275,13 +273,6 @@ export function systemComponentsFrom(
     };
   });
 
-  components.push({
-    id: "engram",
-    label: "Engram",
-    // A component of the installation, not a project setting: there is no
-    // persisted on/off, so a switch here would switch nothing.
-    status: facts.engramInstalled ? pick("instalado", "installed") : pick("no instalado", "not installed"),
-  });
   components.push({
     id: "doctor",
     label: pick("Diagnóstico", "Diagnostics"),
@@ -493,9 +484,6 @@ function resolveAgentDir(): string {
   return process.env.EIN_PI_AGENT_HOME ?? join(homedir(), ".pi", "agent");
 }
 
-function engramHome(): string {
-  return engramStoreDir(homedir());
-}
 
 function productionSessions(cwd: string): RuntimeSessionList {
   const state = projectProjectState({ cwd });

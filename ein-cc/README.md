@@ -22,10 +22,12 @@ Claude lee los ajustes del proyecto en `.pi/ein/`. `/ein:status` y `/ein:setting
 - Puede consumir acuerdos de Pi y registrar acuerdos nuevos o modificados en Claude mediante `ein-cc-sdd intent`, con procedencia explícita del coordinador.
 - La selección proactiva de skills y las herramientas de contexto y evidencia de Pi no tienen equivalencia completa en Claude. Se usan descubrimiento nativo, rutas explícitas y el CLI disponible.
 - El hook de Bash comparte patrones de denegación y confirmación con Pi. No intercepta todas las ediciones ni es un sandbox completo de shell.
-- Context7 y Engram se configuran cuando están disponibles. Los smokes históricos de conexión no garantizan la disponibilidad del servicio ni paridad entre runtimes.
+- Context7 se configura cuando está disponible. Los smokes históricos de conexión no garantizan la disponibilidad del servicio ni paridad entre runtimes.
 - Cleaner y Architect automáticos pertenecen a Pi.
 
 `/ein:handoff status`, `/ein:handoff to pi` y `/ein:handoff to claude` operan sobre el estado del proyecto. Un handoff abre una sesión nueva; no traslada el historial privado ni reanuda la conversación del otro runtime.
+
+El sync deja de configurar Engram y retira solo su entrada MCP anterior cuando conserva la firma gestionada por Ein. Preserva las configuraciones personalizadas, `~/.engram-ein` y el binario global; no migra notas a otro sistema. La continuidad se apoya en los archivos del proyecto, OpenSpec y Git.
 
 ## Desarrollo
 

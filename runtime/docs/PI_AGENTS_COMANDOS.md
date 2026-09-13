@@ -108,7 +108,7 @@ Reglas: team por defecto `Samuhlodev`; reutiliza antes de crear duplicados.
 | `/mcp setup` | Configuración guiada / importar configs |
 | `/mcp reconnect <server>` | Conecta/reconecta un servidor (fuerza el registro de directTools) |
 
-MCP va por el adapter: engram por proxy (`mcp()`, ahorro de contexto), context7 con `directTools` (tools first-class para el digest). El tool `ask_user_question` (de rpiv-ask-user-question) no es un comando: Ein lo invoca en checkpoints para pedirte decisiones con diálogos estructurados.
+MCP va por el adapter: Context7 usa `directTools` (tools first-class para el digest). El tool `ask_user_question` (de rpiv-ask-user-question) no es un comando: Ein lo invoca en checkpoints para pedirte decisiones con diálogos estructurados.
 
 `FAIL` bloquea: hay algo roto. `OK` = todo en orden.
 
@@ -125,7 +125,7 @@ MCP va por el adapter: engram por proxy (`mcp()`, ahorro de contexto), context7 
 | `ein uninstall` | Quita Ein (conserva auth.json, secrets y sesiones) |
 | `ein restore` | Restaura desde un backup |
 
-Flags: `--yes` (no interactivo), `--no-engram`, `--no-secrets`, `--no-linear`.
+Flags: `--yes` (no interactivo), `--no-secrets`, `--no-linear`.
 
 ---
 

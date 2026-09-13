@@ -110,9 +110,9 @@ Las claves viven en `~/.config/opencode-secrets/` y nunca se commitean:
 
 `CONTEXT7_API_KEY` se exporta desde tu shell rc (no va en `mcp.json`).
 
-## Memoria
+## Contexto y documentación
 
-Engram corre como MCP (`~/.pi/agent/mcp.json`) sobre la DB `~/.engram-ein`. Context7 corre via `bunx @upstash/context7-mcp`. Ambos son lazy: arrancan solo cuando el modelo llama una tool.
+La continuidad se recupera desde los archivos del proyecto, OpenSpec y Git. Context7 corre como MCP (`~/.pi/agent/mcp.json`) vía `bunx @upstash/context7-mcp` y arranca cuando el modelo llama una tool.
 
 ## Diagnóstico
 

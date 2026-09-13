@@ -180,19 +180,19 @@ if (process.env.EIN_CONTINUITY_ENDPOINT) {
   const hook = Bun.spawn([process.execPath, runner, "hook"], { stdin: "pipe", stdout: "inherit", stderr: "inherit", env: process.env });
   hook.stdin.write(JSON.stringify({ hook_event_name: "UserPromptSubmit", prompt })); hook.stdin.end(); await hook.exited; setInterval(() => {}, 1000);
 } else {
-  console.log("DEST:" + basename(process.argv[1]!) + ":" + JSON.stringify(process.argv.slice(2)) + ":IPC=" + Boolean(process.env.EIN_CONTINUITY_ENDPOINT) + ":CC=" + (process.env.CLAUDE_CONFIG_DIR ?? "none") + ":PI=" + (process.env.EIN_PI_AGENT_HOME ?? "none") + ":ENGRAM=" + (process.env.ENGRAM_DATA_DIR ?? "none"));
+  console.log("DEST:" + basename(process.argv[1]!) + ":" + JSON.stringify(process.argv.slice(2)) + ":IPC=" + Boolean(process.env.EIN_CONTINUITY_ENDPOINT) + ":CC=" + (process.env.CLAUDE_CONFIG_DIR ?? "none") + ":PI=" + (process.env.EIN_PI_AGENT_HOME ?? "none"));
   process.stdin.on("data", () => process.exit(0)); process.stdin.resume(); process.stdout.write("\\u001b[?2004h");
 }`;
     for (const provider of ["pi", "claude"]) { const path = join(bin, provider); writeFileSync(path, stub); chmodSync(path, 0o755); }
     const execute = async (mode: "handoff" | "resist-handoff" | "signal" | "exit", target = "pi"): Promise<{ code: number; output: string }> => {
       let output = ""; const terminal = new Bun.Terminal({ data: (_terminal, bytes) => { output += new TextDecoder().decode(bytes); } });
-      const child = Bun.spawn([process.execPath, runner, "supervise", "-c", "--resume", "hook"], { cwd: root, env: { ...process.env, HOME: root, CLAUDE_CONFIG_DIR: join(root, "claude-config"), EIN_PI_AGENT_HOME: join(root, "pi-agent"), ENGRAM_DATA_DIR: "/hostile/source", PATH: `${bin}:${process.env.PATH ?? ""}`, EIN_TEST_RUNNER: runner, EIN_TEST_MODE: mode, EIN_TEST_TARGET: target }, terminal });
+      const child = Bun.spawn([process.execPath, runner, "supervise", "-c", "--resume", "hook"], { cwd: root, env: { ...process.env, HOME: root, CLAUDE_CONFIG_DIR: join(root, "claude-config"), EIN_PI_AGENT_HOME: join(root, "pi-agent"), PATH: `${bin}:${process.env.PATH ?? ""}`, EIN_TEST_RUNNER: runner, EIN_TEST_MODE: mode, EIN_TEST_TARGET: target }, terminal });
       const signalTimer = mode === "signal" ? setInterval(() => { if (output.includes("SOCKET:")) { clearInterval(signalTimer); child.kill("SIGTERM"); } }, 5) : undefined; let timer: ReturnType<typeof setTimeout> | undefined;
       try { const code = await Promise.race([child.exited, new Promise<number>((_, reject) => { timer = setTimeout(() => reject(new Error(output)), 4000); })]); return { code, output }; }
       finally { if (timer) clearTimeout(timer); if (signalTimer) clearInterval(signalTimer); if (child.exitCode === null) child.kill(); terminal.close(); }
     };
     try {
-      for (const target of ["pi", "claude"]) { const result = await execute("handoff", target); if (result.code !== 0) throw new Error(result.output); expect(result.output).toContain('SOURCEARGV:["-c","--resume","hook"]'); expect(result.output).toContain(`DEST:${target}:[]:IPC=false`); expect(result.output).toContain(target === "pi" ? `:CC=none:PI=${join(root, "pi-agent")}:ENGRAM=${join(root, ".engram-ein")}` : `:CC=${join(root, "claude-config")}:PI=none:ENGRAM=${join(root, ".engram-ein")}`); expect(result.output).not.toContain("/hostile/source"); expect(result.output).not.toContain("PRIVATE-BRIEF"); }
+      for (const target of ["pi", "claude"]) { const result = await execute("handoff", target); if (result.code !== 0) throw new Error(result.output); expect(result.output).toContain('SOURCEARGV:["-c","--resume","hook"]'); expect(result.output).toContain(`DEST:${target}:[]:IPC=false`); expect(result.output).toContain(target === "pi" ? `:CC=none:PI=${join(root, "pi-agent")}` : `:CC=${join(root, "claude-config")}:PI=none`); expect(result.output).not.toContain("PRIVATE-BRIEF"); }
       const resistant = await execute("resist-handoff"); expect(resistant.code).toBe(0); expect(resistant.output.split("SOURCE-TERM")).toHaveLength(2); expect(resistant.output.split("DEST:pi")).toHaveLength(2);
       const signalled = await execute("signal"); expect(signalled.code).toBe(143); const socket = signalled.output.match(/SOCKET:([^\r\n]+)/)?.[1]; expect(socket && existsSync(socket)).toBe(false); expect(signalled.output).not.toContain("DEST:");
       expect(await execute("exit")).toMatchObject({ code: 7 });

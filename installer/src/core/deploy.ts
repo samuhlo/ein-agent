@@ -10,7 +10,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
   globalLinearIntegrationConfigPath,
   type LinearIntegration,
@@ -19,7 +19,6 @@ import {
 // the bundled asset path.
 import templateTarball from "../assets/template.tar.gz" with { type: "file" };
 import type { Platform } from "./platform.ts";
-import { resolveEngram } from "./engram.ts";
 import { renderTemplate, type TemplateVars } from "./template.ts";
 import { run } from "./exec.ts";
 import { defaultPiInstallContext, type PiInstallContext } from "./paths.ts";
@@ -70,8 +69,6 @@ export type DeployOptions = {
 
 export type DeployResult = {
   agentDir: string;
-  engramCommand: string;
-  engramFound: boolean;
 };
 
 function writeGlobalLinearIntegration(agentDir: string, linear: LinearIntegration): void {
@@ -110,6 +107,37 @@ function templateConfig(fileName: string, vars: TemplateVars, agentDir: string):
   writeFileSync(path, rendered);
 }
 
+type McpConfig = Record<string, unknown> & { mcpServers?: Record<string, unknown> };
+
+function readMcpConfig(agentDir: string): McpConfig | undefined {
+  const path = join(agentDir, "mcp.json");
+  if (!existsSync(path)) return undefined;
+  const config = JSON.parse(readFileSync(path, "utf8"));
+  if (!config || typeof config !== "object" || Array.isArray(config)
+    || (config.mcpServers !== undefined && (!config.mcpServers || typeof config.mcpServers !== "object" || Array.isArray(config.mcpServers)))) {
+    throw new Error("mcp.json inválido; se conserva sin desplegar");
+  }
+  return config;
+}
+
+// Only retire the exact service shape Ein shipped. Custom services, including
+// a user-owned service named engram, remain user configuration.
+export function mergeMcpConfig(bundled: McpConfig, previous: McpConfig | undefined, home: string): McpConfig {
+  if (!previous) return bundled;
+  const servers = { ...previous.mcpServers };
+  const legacy = servers.engram as Record<string, any> | undefined;
+  if (legacy && typeof legacy === "object"
+    && typeof legacy.command === "string" && basename(legacy.command) === "engram"
+    && JSON.stringify(legacy.args) === JSON.stringify(["mcp", "--tools=agent"])
+    && legacy.environment?.ENGRAM_DATA_DIR === join(home, ".engram-ein")
+    && Object.keys(legacy.environment).length === 1
+    && legacy.directTools === false && legacy.lifecycle === "lazy"
+    && Object.keys(legacy).sort().join() === ["command", "args", "environment", "directTools", "lifecycle"].sort().join()) {
+    delete servers.engram;
+  }
+  return { ...bundled, ...previous, mcpServers: { ...bundled.mcpServers, ...servers } };
+}
+
 export async function deployTemplate(
   platform: Platform,
   opts: DeployOptions = {},
@@ -118,6 +146,7 @@ export async function deployTemplate(
   // Read user-owned settings before the tarball overwrites settings.json.
   const { agentDir } = context;
   const userSettings = readUserSettings(agentDir);
+  const userMcp = readMcpConfig(agentDir);
 
   // Stage the selected asset to a real file: `tar` needs a concrete path,
   // not a bun:// import. Production and staged fixtures join the same pipeline here.
@@ -131,19 +160,15 @@ export async function deployTemplate(
     cleanManagedDirs(agentDir);
     await extractTarball(stagedTar, agentDir);
 
-    const engram = resolveEngram(platform, {
-      bunBinDir: context.bunBinDir,
-      localBinDir: context.localBinDir,
-    });
     const vars: TemplateVars = {
       HOME: context.home,
       AGENT_DIR: agentDir,
-      ENGRAM_BIN: engram.command,
-      ENGRAM_DATA_DIR: context.engramDir,
     };
 
     templateConfig("mcp.json", vars, agentDir);
     templateConfig("settings.json", vars, agentDir);
+    const mcp = mergeMcpConfig(readMcpConfig(agentDir)!, userMcp, context.home);
+    writeFileSync(join(agentDir, "mcp.json"), `${JSON.stringify(mcp, null, 2)}\n`);
 
     // Re-apply user-owned fields the tarball reset.
     mergeUserSettings(agentDir, userSettings);
@@ -153,8 +178,6 @@ export async function deployTemplate(
 
     return {
       agentDir,
-      engramCommand: engram.command,
-      engramFound: engram.found,
     };
   } finally {
     rmSync(staging, { recursive: true, force: true });

@@ -2,7 +2,7 @@
 title: "El orquestador"
 description: "Dónde se toman decisiones y qué se delega."
 sources: ["runtime/assets/orchestrator-core.md", "runtime/assets/orchestrator.md"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
 El orquestador mantiene la conversación, aclara decisiones, elige el siguiente paso y explica los resultados. El código de aplicación lo modifica apply. La investigación extensa se delega a scout para que vuelva con hallazgos y fuentes, sin llenar la conversación principal de lecturas.

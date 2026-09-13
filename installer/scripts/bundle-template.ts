@@ -105,21 +105,6 @@ assertSharedOverlayFacades(join(AGENT_SOURCE, "lib"), SHARED_OVERLAY_GROUPS);
 const AGENT_FILES = ["app.ts", "brand.json", "extensions-manifest.json", "models.json", "mcp.json", "settings.json"];
 const AGENT_DIRS = ["chains", "extensions", "lib", "surfaces", "themes"];
 
-function tokenizeMcp(staging: string): void {
-  const path = join(staging, "mcp.json");
-  const cfg = JSON.parse(readFileSync(path, "utf8")) as {
-    mcpServers?: Record<string, { command?: string; environment?: Record<string, string> }>;
-  };
-  const engram = cfg.mcpServers?.engram;
-  if (engram) {
-    engram.command = "{{ENGRAM_BIN}}";
-    if (engram.environment && "ENGRAM_DATA_DIR" in engram.environment) {
-      engram.environment.ENGRAM_DATA_DIR = "{{ENGRAM_DATA_DIR}}";
-    }
-  }
-  writeFileSync(path, `${JSON.stringify(cfg, null, 2)}\n`);
-}
-
 function tokenizeSettings(staging: string): void {
   const path = join(staging, "settings.json");
   const cfg = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
@@ -252,7 +237,6 @@ async function main(): Promise<void> {
       cpSync(src, join(staging, "assets", dir), { recursive: true, force: true });
     }
 
-    tokenizeMcp(staging);
     tokenizeSettings(staging);
     const terminalApp = stageTerminalApp(staging);
     const runtimeDependencies = vendorTypescriptRuntime(staging);
