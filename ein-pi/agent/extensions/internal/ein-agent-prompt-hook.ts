@@ -34,6 +34,7 @@ import {
 } from "../ein-skill-registry.ts";
 import { AGENT_DIR } from "../ein-paths.ts";
 import { canonicalSpecPrompt } from "./ein-canonical-spec-context.ts";
+import { changeStanceDirective, readChangeStance } from "../../lib/sdd-preflight-record.ts";
 import {
 	isNamedAgentStartEvent,
 	isSddAgentStartEvent,
@@ -92,6 +93,9 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		handoffError = undefined;
 		agreementInput = undefined;
 		const change = readExplicitSddChange(event);
+		const stancePrompt = change && isSddAgent ? changeStanceDirective(readChangeStance(ctx.cwd, change)) : "";
+		const directoryContext = change && isSddAgent
+			? `\nSDD change directory: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change))}. Resolve phase artifacts here, not at the repository root.\nCanonical intent path: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change, "intent.md"))}.\n${stancePrompt}` : "";
 		const phase = startNames.find((name) => name.startsWith("sdd-"))?.slice(4) as SddPhase | undefined;
 		if (change && phase && PHASE_ARTIFACT[phase]) {
 			const directory = join(resolveChangesDir(ctx.cwd), change);
@@ -130,7 +134,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const writesCode = isParent || startNames.includes("sdd-apply");
 		const sddPrompt = preferences && (!isNamedAgent || isSddAgent)
 			? `\n\n${renderSddPreflightPrompt(preferences, {
-				includeTdd: writesCode,
+				includeTdd: writesCode && !stancePrompt,
 				includeBaseline: isParent,
 			})}`
 			: "";
@@ -175,7 +179,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
 		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff.prompt}` : ""}`,
+			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${directoryContext}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff.prompt}` : ""}`,
 		};
 	});
 }

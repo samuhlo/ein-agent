@@ -324,3 +324,27 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   expect(existsSync(join(outside, "changes"))).toBe(false);
  });
 });
+
+test("verification continuation reuses the confirmed session change without another intent request", async () => {
+ const h=harness();h.input("Implement the filtered CSV export");await h.call({action:"record",change:"export-csv",material});
+ const task={agent:"sdd-verify",task:"Repeat independent verification of the agreed work."};
+ expect(h.gate(task)).toBeUndefined();
+ expect(task.task).toStartWith("change: export-csv\nintent_work: export-csv\n");
+ expect(task.task).toEndWith("Repeat independent verification of the agreed work.");
+ expect(h.gate({agent:"sdd-scope",task:"Start new work"})).toMatchObject({block:true});
+ const other={agent:"sdd-verify",task:"change: another-change\nVerify that other change"};
+ expect(h.gate(other)).toMatchObject({block:true});expect(other.task).toStartWith("change: another-change");
+ await h.call({action:"cancel",change:"export-csv"});
+ expect(h.gate({agent:"sdd-verify",task:"Continue verification"})).toMatchObject({block:true});
+});
+
+test("phase context names the canonical intent path and per-change TDD decision", async () => {
+ const h=harness();h.input("Implement the specified export");await h.call({action:"record",change:"export-csv",material});
+ const dir=join(h.cwd,"openspec/changes/export-csv");
+ writeFileSync(join(dir,"preflight.json"),JSON.stringify({version:1,tdd:"off",decidedBy:"pi"}));
+ const handlers=new Map<string,Function>();registerAgentPromptHook({on:(name:string,fn:Function)=>handlers.set(name,fn)} as never);
+ const result=await handlers.get("before_agent_start")!({systemPrompt:"You are the independent SDD verify executor.",prompt:"intent_work: export-csv\nVerify the current change."},h.ctx);
+ expect(result.systemPrompt).toContain(join(dir,"intent.md"));
+ expect(result.systemPrompt).toContain("Strict TDD: OFF");
+ expect(existsSync(join(h.cwd,"intent.md"))).toBe(false);
+});
