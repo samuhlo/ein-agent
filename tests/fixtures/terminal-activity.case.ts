@@ -76,6 +76,36 @@ describe("native transcript presentation", () => {
     ]) expect(cleanSubagentHeading(lines)).toBe(lines);
   });
 
+  test("workflow result owns one title while wrapped lanes and rejected retries remain visible", () => {
+    const release = adaptTranscriptRenderer(ToolExecutionComponent.prototype, cleanSubagentHeading);
+    const heading = "subagent workflow · background · 2 lanes: cleaner-remediation, verify-remediation";
+    const error = "SDD participant unavailable: generated task contract was altered";
+    const args = { workflowScript: "await workflow.parallel([])", async: true };
+    try {
+      for (const width of [40,60,80,120]) for (const expanded of [false,true]) {
+        const tool = { name:"subagent", label:"subagent", description:"", parameters:{},
+          renderCall:()=>new Text(heading,0,0),
+          renderResult:(_result:unknown,_options:unknown,_theme:unknown,context:{isError:boolean})=>new Text(context.isError ? error : "✓ workflow · 2/2 done · in:114k out:6.1k $0.2649\n✓ Workflow 2 done\noutput: /tmp/workflow.md",0,0),
+        };
+        const failed = new ToolExecutionComponent("subagent","rejected",args,{},tool as any,{requestRender(){}} as any,process.cwd());
+        expect(plain(failed.render(width))).toContain("subagent workflow");
+        failed.updateResult({content:[{type:"text",text:error}],isError:true},false);
+        failed.setExpanded(expanded);
+        const rejected=plain(failed.render(width));
+        expect(rejected).toContain("✗ workflow"); expect(rejected).not.toContain("subagent workflow");
+        expect(rejected.replace(/\s+/g," ")).toContain(error);
+        const success = new ToolExecutionComponent("subagent","retry",args,{},tool as any,{requestRender(){}} as any,process.cwd());
+        success.updateResult({content:[{type:"text",text:"Done"}],details:{mode:"workflow"},isError:false},false);
+        success.setExpanded(expanded);
+        const text=plain(success.render(width));
+        expect(text).not.toContain("subagent workflow");
+        expect(text.match(/✓ workflow/g)).toHaveLength(1);
+        expect(text).toContain("cleaner-remediation"); expect(text).toContain("verify-remediation");
+        expect(text.replace(/\s+/g," ")).toContain("2/2 done"); expect(text).toContain("output: /tmp/workflow.md");
+      }
+    } finally { release(); }
+  });
+
   test("reload does not stack adapters and disposal restores native rendering", () => {
     const prototype = { render: () => ["native"] };
     const original = prototype.render;
