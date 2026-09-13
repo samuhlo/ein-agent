@@ -229,7 +229,7 @@ function retainTerminalEvidence(from: string): void {
 	const marker = "\n<!-- ein:terminal-evidence -->\n";
 	let summary = readFileSync(summaryPath, "utf8").split(marker)[0]!;
 	const sections: string[] = [];
-	for (const name of ["apply-progress.md", "verify-report.md", "sync-report.md"]) {
+	for (const name of ["intent.md", ...readdirSync(from).filter((name) => /^intent-before-claude-[a-f0-9]{64}\.md$/.test(name)).sort(), "apply-progress.md", "verify-report.md", "sync-report.md"]) {
 		const path = join(from, name);
 		if (!existsSync(path)) continue;
 		if (!lstatSync(path).isFile()) throw new Error(`${name} debe ser un fichero regular para conservar su evidencia`);

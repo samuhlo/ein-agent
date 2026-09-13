@@ -49,9 +49,10 @@ La primera ronda sirve también para el arranque automático. Pregunta solo si f
 - **Nada se escribe a disco hasta la confirmación del usuario.** Abandonar la
   sesión a mitad de camino deja el árbol de trabajo intacto: ni directorio nuevo,
   ni artefacto parcial.
-- El padre propone un nombre descriptivo para el cambio; no obliga al usuario a inventarlo. `ein_intent` valida el nombre con el router.
+- El padre propone un nombre descriptivo para el cambio; no obliga al usuario a inventarlo. El escritor del runtime valida el nombre con el router.
 - Se escribe **exactamente un fichero**: `openspec/changes/<change>/intent.md`
   (fallback `.sdd/changes/<change>/intent.md` si esa es la raíz activa).
+  Al recuperar un acuerdo manual existente en Claude, se conserva además su copia original.
 
 ## /ein:eh
 
@@ -80,7 +81,7 @@ el usuario en prosa, anterior a esta invocación**.
 
 ## Artefacto canónico
 
-`ein_intent` escribe `intent.md` con objetivo, límites, criterios de éxito, preguntas y la respuesta íntegra observada. Su bloque estructurado y su vista humana tienen un único escritor; no los edites a mano. El `materialKey` liga las fases a lo acordado. Las nuevas rondas de un cambio existente mantienen un estado pendiente durable para impedir que otra sesión continúe con el acuerdo anterior.
+En Pi, `ein_intent` escribe `intent.md` con objetivo, límites, criterios de éxito, preguntas y la respuesta íntegra observada. En Claude, usa `ein-cc-sdd intent <change> record` con JSON por stdin (contrato y recuperación en `ein-cc-sdd intent --help`): registra la respuesta literal con procedencia `claude-coordinator`, atestada por el coordinador, sin simular el recibo de Pi. Su bloque estructurado y su vista humana tienen un único escritor; no los edites a mano. El `materialKey` liga las fases a lo acordado. En Pi, las nuevas rondas mantienen un estado pendiente durable. En Claude, no delegues fases durante una decisión pendiente; registra el acuerdo actualizado antes de continuar.
 
 ## Ejecución
 
@@ -88,7 +89,7 @@ el usuario en prosa, anterior a esta invocación**.
   (código, configuración, historial) se delega en `ein-scout`; el coordinador
   no lee, busca ni explora el árbol por su cuenta durante la sesión. La
   delegación no bloquea la ronda en curso (ver regla de rondas siguientes).
-- La escritura del acuerdo pasa por `ein_intent`; los agentes leen el fichero y nunca fabrican la respuesta del usuario.
+- La escritura del acuerdo pasa por el escritor del runtime descrito arriba; los agentes leen el fichero y nunca fabrican la respuesta del usuario.
 
 ## Activación
 
