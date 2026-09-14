@@ -99,11 +99,10 @@ export function runIntentDiscovery(
 	if (request.action === "investigate") {
 		if (!previous.agreement || !request.evidence) throw new Error("Prepare the bounded evidence plan for the pending intent");
 		const responses = [previous.response, previous.agreement.response, ...(previous.agreement.history ?? []).map((round) => round.response), latestInput];
-		const response = request.responseId ? responses.find((r) => r?.id === request.responseId) : previous.response ?? latestInput;
+		const saved = evidenceFor(entries(ctx), request.work);
+		const response = request.responseId ? responses.find((r) => r?.id === request.responseId) : previous.response ?? (saved?.decisionId === request.evidence.decisionId ? saved.authorization : undefined) ?? latestInput;
 		const evidence = prepareEvidence(previous.agreement, request.evidence, response, evidenceFor(entries(ctx), request.work));
 		if (evidence.roots.some((root) => !evidenceReadAllowed(ctx.cwd, root, [ctx.cwd]))) throw new Error("Evidence read roots must exist inside the current project");
-		const prior = evidenceFor(entries(ctx), request.work);
-		if (prior?.authorization.id === evidence.authorization.id && evidence.roots.some((root) => !evidenceReadAllowed(ctx.cwd, root, prior.roots))) throw new Error("The evidence read scope expanded. Keep the existing bounds for a technical retry, or use the authorization for the new scope");
 		append(INTENT_EVIDENCE, evidence);
 		return { ...previous, evidence };
 	}

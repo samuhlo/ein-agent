@@ -16,8 +16,10 @@ agente, un scheduler ni otra cadena SDD. El ensayo es acotado y síncrono: su re
 vuelve al padre en la misma ejecución para continuar las rondas.
 
 Un rechazo técnico conserva la autorización. Reintentar dentro de los mismos límites
-no necesita otra pregunta; ampliar las raíces de lectura requiere la autorización
-correspondiente. El permiso de evidencia no admite scope, apply, otra forma de
+no necesita otra pregunta. Los ajustes de archivos o comandos locales para el mismo
+hecho reutilizan el permiso; las raíces concretas de cada encargo siguen limitando
+al hijo y deben estar dentro del proyecto. Cambiar el objetivo material u operar
+sobre producto/red requiere resolver ese alcance con el usuario. El permiso de evidencia no admite scope, apply, otra forma de
 ejecución ni un informe SDD. Los resultados fallidos siguen siendo observaciones;
 no se convierten automáticamente en hechos resueltos o en verificación del producto.
 
@@ -50,7 +52,7 @@ se comprobó después con otras 49 pruebas focalizadas, también sin fallos. Typ
 - `tests/intent-evidence.test.ts` reproduce selector → respuesta archivada → ensayo
   → rechazo técnico y recuperación con el mismo permiso → comando local real →
   siguiente ronda. Comprueba intent pendiente, producto intacto y ausencia de SDD.
-  Rechaza scope/apply, tareas alteradas, ampliación de raíces con el mismo permiso,
+  Rechaza scope/apply, tareas alteradas, raíces fuera del proyecto,
   workflows incrustados, escrituras del hijo y comandos no incluidos en el encargo.
 - `bun tooling/verify-intent-questionnaire.ts`: pasa con el plugin real instalado.
 - `bun tooling/verify-intent-evidence.ts`: pasa con padre `openai-codex/gpt-6-astra`

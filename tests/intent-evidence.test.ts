@@ -39,11 +39,15 @@ test("block 05: a selector answer authorizes evidence, then another round withou
   const pending = nodes.map((d) => d.id === "permission" ? { ...d, status: "resolved", resolution: "User selected local experiment" } : d);
   await call({ action: "propose", decisions: pending, questionnaire: [] });
   expect((await call({ action: "status" })).nextAction).toBe("prepare-evidence");
-  const prepared = await call({ action: "investigate", responseId: answer.response.id, evidence: { decisionId: "calendar-fact", objective: "Compare complete and partial module hours", roots: ["engine.js"], commands: ["bun engine.js"] } });
+  let prepared = await call({ action: "investigate", responseId: answer.response.id, evidence: { decisionId: "calendar-fact", objective: "Compare complete and partial module hours", roots: ["engine.js"], commands: ["bun engine.js"] } });
   expect(prepared.agreement.status).toBe("pending");
   expect(prepared.evidence.authorization.source).toBe("ask_user_question");
   expect(prepared.nextAction).toBe("run-evidence");
-  await expect(call({ action: "investigate", responseId: answer.response.id, evidence: { decisionId: "calendar-fact", objective: "Compare complete and partial module hours", roots: ["."], commands: ["bun engine.js"] } })).rejects.toThrow("read scope expanded");
+  await expect(call({ action: "investigate", responseId: answer.response.id, evidence: { decisionId: "calendar-fact", objective: "Compare complete and partial module hours", roots: ["/etc"], commands: ["bun engine.js"] } })).rejects.toThrow("inside the current project");
+  const adjusted = await call({ action: "investigate", evidence: { decisionId: "calendar-fact", objective: "Compare complete and partial module hours", roots: ["engine.js"], commands: ["bun ./engine.js"] } });
+  expect(adjusted.evidence.authorization.id).toBe(answer.response.id);
+  prepared = await call({ action: "investigate", evidence: { decisionId: "calendar-fact", objective: "Compare complete and partial module hours", roots: ["engine.js"], commands: ["bun engine.js"] } });
+
   const restored: any = { ...ctx, sessionManager: { getBranch: () => structuredClone(branch) } };
   const status = JSON.parse((await spec.execute("status", { action: "status", work: "block-05" }, undefined, undefined, restored)).content[0].text);
   expect(status.evidence.authorization.id).toBe(answer.response.id);
