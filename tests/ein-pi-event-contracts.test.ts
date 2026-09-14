@@ -36,3 +36,16 @@ test("deduplicates no evidence and preserves event order", () => {
 		subagent: { name: "ein-scout" },
 	})).toEqual(["sdd-map", "sdd-map", "ein-scout"]);
 });
+
+test("a tracked native Cleaner report survives redaction and a sibling verification result", () => {
+ const child={agent:"ein-cleaner",task:"[prompt redacted]",exitCode:0,finalOutput:"## Audit findings\nMissing regression for deleted modules."};
+ const input={toolName:"subagent",isError:false,agent:"ein-cleaner",task:"bound original contract",callMatched:true,details:{mode:"workflow",results:[child,{agent:"sdd-verify",task:"verify",exitCode:1,finalOutput:"status: fail"}]}};
+ expect(recognizePiParticipantTerminal(input)).toMatchObject({status:"complete",reason:expect.stringContaining("report received")});
+ expect(recognizePiParticipantTerminal({...input,isError:true})).toMatchObject({status:"complete"});
+ expect(recognizePiParticipantTerminal({...input,callMatched:false})).toMatchObject({status:"unavailable"});
+ for(const changes of [{task:"different task"},{exitCode:1},{finalOutput:""},{finalOutput:"status: complete\nstatus: blocked"}]) {
+  expect(recognizePiParticipantTerminal({...input,details:{mode:"single",results:[{...child,...changes}]}})).toMatchObject({status:"unavailable"});
+ }
+ expect(recognizePiParticipantTerminal({...input,details:{mode:"workflow",results:[child,child]}})).toMatchObject({status:"unavailable"});
+ expect(recognizePiParticipantTerminal({...input,details:{mode:"single",results:[{...child,finalOutput:"status: blocked\nreason: missing source"}]}})).toEqual({status:"blocked",reason:"missing source"});
+});

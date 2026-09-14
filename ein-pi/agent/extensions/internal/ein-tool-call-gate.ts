@@ -24,6 +24,7 @@ import {
 	collectDelegationItems,
 	delegationShapeIsUnrecognized,
 	delegationTargetsOnly,
+	rewriteDelegationTasks,
 } from "../../lib/delegation-shape.ts";
 import {
 	type DeliveryIntent,
@@ -44,6 +45,7 @@ import {
 } from "../../lib/scout-contract.ts";
 import {
 	admitSddParticipantCall,
+	expandSddParticipantTask,
 	type SddParticipant,
 } from "../../lib/sdd-participants.ts";
 import { isRecord, readExplicitSddChange } from "./ein-pi-event-contracts.ts";
@@ -84,6 +86,8 @@ export function registerToolCallGate(
 
 	pi.on("tool_call", async (event, ctx) => {
 		if (event.toolName === "subagent") {
+			try { rewriteDelegationTasks(event.input, (agent, task) => expandSddParticipantTask(ctx.cwd, sddPreflightSessionKey(ctx), agent, task)); }
+			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			try { normalizeAgentDiscoveryScope(event.input, ctx.cwd); }
 			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			const scoutLaunch = normalizeScoutLaunch(

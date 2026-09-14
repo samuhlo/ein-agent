@@ -111,7 +111,7 @@ export function registerAdvisoryTools(registerEinTool: EinToolRegistrar): void {
 	registerEinTool({
 		name: "ein_sdd_participants",
 		label: "Ein SDD Participants",
-		description: "Attempt a best-effort advisory Cleaner/Architect pass after apply when enabled and return the next bounded participant task. Report unavailable or blocked audits honestly, then continue to sdd-verify; a source mutation invalidates freshness and must be verified.",
+		description: "Attempt a best-effort advisory Cleaner/Architect pass. Delegate next.agent with next.taskRef; Ein restores its contract. Report unavailable or blocked audits honestly; complete means report received, not acceptance. Continue to sdd-verify; a source mutation invalidates freshness and must be verified.",
 		parameters: {
 			type: "object",
 			properties: { change: { type: "string" } },
@@ -126,8 +126,9 @@ export function registerAdvisoryTools(registerEinTool: EinToolRegistrar): void {
 				sddPreflightSessionKey(ctx),
 				params.change,
 			);
+			const modelPlan = { ...plan, ...(plan.next ? { next: { agent: plan.next.agent, taskRef: plan.next.taskRef } } : {}) };
 			return {
-				content: [{ type: "text", text: JSON.stringify(plan) }],
+				content: [{ type: "text", text: JSON.stringify(modelPlan) }],
 				details: plan,
 			};
 		},
