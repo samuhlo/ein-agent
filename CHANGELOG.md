@@ -4,6 +4,26 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.2] - 2026-09-14
+
+### Changed
+
+- Intent explica las alternativas en el chat y recoge las respuestas con
+  `ask_user_question`, incluidas opciones concretas y respuesta libre. Las tandas
+  de una misma ronda conservan sus respuestas y la revisión ofrece confirmar,
+  ajustar o cancelar. Si el selector no está disponible, continúa por texto.
+- El TODO muestra intent desde antes de scope, sus decisiones pendientes y la
+  revisión final; el raíl SDD conserva la fase y vuelve a ella al reabrir el acuerdo.
+
+### Fixed
+
+- Los resultados del selector quedan ligados a su sesión, ronda y opciones;
+  cuestionarios ajenos, obsoletos, cancelados o fallidos no confirman el acuerdo.
+- Las tarjetas distinguen respuestas recibidas de espera de respuesta.
+- Las listas «Excluidos … commits/push/PR» en encargos de planificación ya no
+  provocan una petición de autorización Git. Se conservan las peticiones
+  afirmativas de entrega en otras cláusulas.
+
 ## [0.99.0-alpha.1] - 2026-09-14
 
 ### Changed
