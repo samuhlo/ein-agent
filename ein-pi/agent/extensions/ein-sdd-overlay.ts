@@ -1,17 +1,20 @@
+import { validateAgreement, type IntentAgreement } from "../lib/intent-agreement.ts";
+import { INTENT_STATE } from "../lib/intent-discovery.ts";
 // =============================================================================
 // OVERLAY SDD
 // Pinta el cambio activo y su lista de tareas como un widget vivo bajo el
 // editor. Pegamento fino: toda la decisión de qué se ve vive en
 // `lib/sdd-overlay.ts`, que es puro y está fijado por tests.
 //
-// Fuente: `resolveSddStatus`, o sea `tasks.md` en disco. NUNCA la conversación.
+// Fuentes: resolveSddStatus en disco y el estado tipado de intent en la rama
+// de sesión; no se reconstruye progreso interpretando mensajes del chat.
 // Esta extensión no escribe nada del cambio; solo lee y dibuja.
 // =============================================================================
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { isSafeChangeName, listActiveChanges, resolveSddStatus, type SddChangeStatus } from "../lib/sdd-router.ts";
-import { OVERLAY_KEY, renderSddOverlay } from "../lib/sdd-overlay.ts";
+import { OVERLAY_KEY, renderSddOverlay, renderIntentOverlay } from "../lib/sdd-overlay.ts";
 import {
 	EIN_SDD_SESSION_BINDING_ENV_KEY,
 	SDD_SESSION_BINDING_CUSTOM_TYPE,
@@ -126,6 +129,15 @@ export default function (pi: ExtensionAPI): void {
 				// Rendering failure removes stale UI without inventing another focus.
 				lines = [];
 			}
+		}
+		let intent: IntentAgreement | undefined;
+		try {
+			const entries = ctx.sessionManager.getBranch();
+			const latest = [...entries].reverse().find((entry) => entry.type === "custom" && (entry.customType === INTENT_STATE || entry.customType === SDD_SESSION_BINDING_CUSTOM_TYPE));
+			if (latest?.type === "custom" && latest.customType === INTENT_STATE) intent = validateAgreement(latest.data);
+		} catch { /* Old sessions can have only SDD state. */ }
+		if (intent && (intent.status !== "confirmed" || !status?.change)) {
+			lines = renderIntentOverlay(intent, { collapsed, palette, width: overlayWidth() });
 		}
 		if (!ctx.hasUI) return;
 		const next = lines.join("\n");

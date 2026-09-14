@@ -142,10 +142,15 @@ y esfuerzo por rol, y `/ein:skills` muestra las skills.
 También puedes pedir «vamos a hacer el intent». Antes de un nuevo SDD, el padre
 recorre las decisiones por rondas: pregunta juntas las independientes, recomienda
 respuestas e investiga los hechos con scout. Las preguntas dependientes esperan.
+Explica las alternativas en el chat y recoge la elección con `ask_user_question`,
+que permite elegir opciones o escribir libremente. Una ronda de más de cuatro
+preguntas se divide en tandas del mismo cuestionario. Si el selector no está
+disponible, la conversación continúa por texto.
 Contestar una ronda no cierra el cambio: primero se revisa el acuerdo completo y
 se confirma con una respuesta nueva. Pedir solo intent no autoriza implementación.
 
-Las ramas y respuestas se conservan en la sesión; al confirmar, `intent.md` pasa
+El TODO muestra intent y sus decisiones desde antes de scope, incluida la revisión
+final. Las ramas y respuestas se conservan en la sesión; al confirmar, `intent.md` pasa
 a ser el contrato de scope y las fases posteriores. Si aparece una nueva decisión
 de producto, se reabre la parte afectada. Los ajustes mecánicos completos pueden
 registrarse directamente, y el modo auto no omite la entrevista de un SDD.

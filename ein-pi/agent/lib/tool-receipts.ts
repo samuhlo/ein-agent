@@ -443,7 +443,9 @@ export const TOOL_RECEIPTS: Readonly<Record<string, (details: unknown) => ToolRe
 		if (!isRecord(details) || typeof details.ok !== "boolean") return unreadable();
 		if (!details.ok) return receipt("falta resolver la intención", [String(details.reason ?? "Revisa la conversación antes de continuar.")], true);
 		const states: Record<string, string> = { pending: "esperando tu respuesta", confirmed: "objetivo y alcance acordados", cancelled: "trabajo cancelado", absent: "sin acuerdo todavía" };
-		const line = states[String(details.state)];
+		const line = details.state === "pending" && details.hasResponse === true ? "respuestas recibidas · acuerdo pendiente"
+			: details.state === "pending" && details.stage === "review" ? "revisión final · esperando tu respuesta"
+			: states[String(details.state)];
 		return line ? receipt(line, [line]) : unreadable();
 	},
 	ein_sdd_task_progress: (details) => {

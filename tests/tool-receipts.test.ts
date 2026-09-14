@@ -383,3 +383,9 @@ describe("TRIANGULATE: ninguna herramienta se queda sin recibo por olvido", () =
 		expect(text).not.toMatch(/firstText\(result\)/);
 	});
 });
+
+test("intent receipt distinguishes a received answer from waiting on final review", () => {
+ expect(receiptFor("ein_intent", { ok: true, state: "pending", hasResponse: true }).line).toBe("respuestas recibidas · acuerdo pendiente");
+ expect(receiptFor("ein_intent", { ok: true, state: "pending", stage: "review", hasResponse: false }).line).toBe("revisión final · esperando tu respuesta");
+ expect(receiptFor("ein_intent", { ok: true, state: "confirmed", stage: "review" }).line).toBe("objetivo y alcance acordados");
+});

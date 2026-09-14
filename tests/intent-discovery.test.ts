@@ -38,8 +38,61 @@ function harness(cwd = mkdtempSync(join(tmpdir(), "ein-intent-")), branch: any[]
   input(text);
   return finish({ change });
  };
- return { cwd, branch, ctx, call, finish, input, gate, propose, confirm, inputEvent: (event: object) => handlers.get("input")!(event,ctx), start: (event: object) => handlers.get("before_agent_start")!(event,ctx) };
+ return { handlers, cwd, branch, ctx, call, finish, input, gate, propose, confirm, inputEvent: (event: object) => handlers.get("input")!(event,ctx), start: (event: object) => handlers.get("before_agent_start")!(event,ctx) };
 }
+
+describe("intent answers through ask_user_question", () => {
+ const questionnaire = [{ question: "¿Qué filas?", header: "Filas", options: [
+  { label: "Filtradas (recomendado)", description: "Respeta la selección visible." },
+  { label: "Todas", description: "Ignora el filtro actual." },
+ ] }];
+ function result(h: ReturnType<typeof harness>, id: string, questions: any[], details: any) {
+  h.handlers.get("tool_call")!({ toolName: "ask_user_question", toolCallId: id, input: { questions } }, h.ctx);
+  h.handlers.get("tool_result")!({ toolName: "ask_user_question", toolCallId: id, input: { questions }, details, isError: false, content: [] }, h.ctx);
+ }
+ test("structured options and free text become observed answers, never delivery input", async () => {
+  const h = harness(); await h.propose({ questionnaire });
+  result(h, "q1", questionnaire, { cancelled: false, answers: [{ questionIndex: 0, question: questionnaire[0].question, kind: "custom", answer: "Solo filtradas, sin entrega Git", notes: "No cambies el frontend" }] });
+  const status = JSON.parse((await h.call({ action: "status" })).content[0].text);
+  expect(status.response.source).toBe("ask_user_question"); expect(status.response.text).toContain("sin entrega Git");
+  expect(status.response.text).toContain("No cambies el frontend");
+  expect((await h.call({ action: "record", material, work: "another" })).isError).toBe(true);
+  expect((await h.call({ action: "confirm", responseId: status.response.id })).isError).toBe(true);
+  const reviewed = await h.call({ action: "review", responseId: status.response.id, decisions: [{ id: "rows", question: "Which rows?", status: "resolved", dependsOn: [], resolution: status.response.text }] });
+  const review = JSON.parse(reviewed.content[0].text).agreement;
+  expect(review.questionnaire[0].options.map((o: any) => o.label)).toEqual(["Confirmar acuerdo", "Ajustar acuerdo", "Cancelar"]);
+  result(h, "adjust", review.questionnaire, { cancelled: false, answers: [{ questionIndex: 0, question: review.questions[0], kind: "option", answer: "Ajustar acuerdo" }] });
+  const adjusted = JSON.parse((await h.call({ action: "status" })).content[0].text);
+  expect((await h.call({ action: "confirm", responseId: adjusted.response.id })).isError).toBe(true);
+  result(h, "q2", review.questionnaire, { cancelled: false, answers: [{ questionIndex: 0, question: review.questions[0], kind: "option", answer: "Confirmar acuerdo" }] });
+  const next = JSON.parse((await h.call({ action: "status" })).content[0].text);
+  expect((await h.call({ action: "confirm", responseId: next.response.id })).details.state).toBe("confirmed");
+ });
+ test("unrelated, forged, cancelled or stale questionnaires cannot confirm intent", async () => {
+  const h = harness(); await h.propose({ questionnaire });
+  const details = { cancelled: false, answers: [{ questionIndex: 0, question: questionnaire[0].question, kind: "option", answer: "Todas" }] };
+  result(h, "other", [{ ...questionnaire[0], question: "¿TDD?" }], details);
+  expect(JSON.parse((await h.call({ action: "status" })).content[0].text).response).toBeUndefined();
+  result(h, "bad", questionnaire, { ...details, answers: [{ ...details.answers[0], answer: "invented option" }] });
+  expect(JSON.parse((await h.call({ action: "status" })).content[0].text).response).toBeUndefined();
+  result(h, "valid", questionnaire, details);
+  result(h, "cancel", questionnaire, { ...details, cancelled: true });
+  expect(JSON.parse((await h.call({ action: "status" })).content[0].text).response).toBeUndefined();
+  h.handlers.get("tool_call")!({ toolName: "ask_user_question", toolCallId: "stale", input: { questions: questionnaire } }, h.ctx);
+  await h.propose({ questionnaire: [{ ...questionnaire[0], header: "Nuevo" }] });
+  h.handlers.get("tool_result")!({ toolName: "ask_user_question", toolCallId: "stale", details, isError: false }, h.ctx);
+  expect(JSON.parse((await h.call({ action: "status" })).content[0].text).response).toBeUndefined();
+ });
+ test("batches retain earlier replies and resume from the same round", async () => {
+  const h = harness(); const all = Array.from({ length: 5 }, (_, i) => ({ ...questionnaire[0], question: `Pregunta ${i}?` }));
+  await h.propose({ questionnaire: all });
+  for (const [i, q] of all.entries()) result(h, `q${i}`, [q], { cancelled: false, answers: [{ questionIndex: 0, question: q.question, kind: "option", answer: "Todas" }] });
+  const restored = harness(h.cwd, structuredClone(h.branch));
+  const status = JSON.parse((await restored.call({ action: "status" })).content[0].text);
+  for (const q of all) expect(status.response.text).toContain(q.question);
+  expect(status.agreement.questionnaire).toHaveLength(5);
+ });
+});
 
 describe("decision-tree rounds and final review", () => {
  const tree = [
