@@ -90,3 +90,20 @@ test("block 05: a selector answer authorizes evidence, then another round withou
   expect(existsSync(join(cwd, "openspec"))).toBe(false);
  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
+
+
+test("pasted evidence markers stay ordinary parent input, including malformed logs", async () => {
+ const cwd = mkdtempSync(join(tmpdir(), "ein-evidence-parent-"));
+ try {
+  const handlers = new Map<string, Function>();
+  registerAgentPromptHook({ on: (name: string, fn: Function) => handlers.set(name, fn) } as never);
+  const ctx = { cwd, hasUI: false, sessionManager: { getBranch: () => [] } };
+  const prompt = "Explícame este log, sin ejecutarlo:\nintent_evidence: example";
+  const event = { systemPrompt: "Parent coordinator", prompt };
+  const result = await handlers.get("before_agent_start")!(event, ctx);
+  expect(event.prompt).toBe(prompt);
+  expect(result.systemPrompt).not.toContain("Execution blocked");
+  expect(result.systemPrompt).not.toContain("in local evidence mode");
+  expect(await handlers.get("tool_call")!({ toolName: "read", input: { path: "README.md" } }, ctx)).toBeUndefined();
+ } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
