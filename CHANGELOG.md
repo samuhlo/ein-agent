@@ -4,6 +4,27 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.1] - 2026-09-14
+
+### Changed
+
+- Intent pasa a una entrevista por árbol de decisiones antes de nuevos cambios
+  SDD y al pedirlo en lenguaje natural. Pregunta juntas las decisiones independientes,
+  recomienda respuestas y conserva las ramas dependientes para rondas posteriores.
+- El acuerdo final se revisa antes de confirmar. Responder una ronda no cierra el
+  cambio ni autoriza implementación cuando se ha pedido solamente hacer el intent.
+- Los cambios mecánicos completos conservan el registro directo, sin entrevista
+  artificial; los acuerdos históricos siguen siendo legibles entre Pi y Claude.
+
+### Fixed
+
+- Las respuestas parciales, las ramas pendientes y los hechos todavía en investigación
+  no desbloquean SDD. La confirmación necesita una respuesta nueva al material revisado.
+- El árbol y sus dependencias sobreviven a nuevas rondas y reanudaciones. Los cambios
+  de alcance reabren el acuerdo y una corrección no modifica silenciosamente lo confirmado.
+- Invocar `/ein:intent` sin argumentos aprovecha la petición del contexto previo
+  antes de preguntar de nuevo qué se quiere hacer.
+
 ## [0.98.0-alpha.4] - 2026-09-14
 
 ### Fixed
