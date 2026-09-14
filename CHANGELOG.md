@@ -4,6 +4,19 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.98.0-alpha.3] - 2026-09-13
+
+### Fixed
+
+- Las delegaciones de Pi conservan las herramientas proporcionadas por extensiones
+  del hijo. `sdd-apply` ya puede registrar inicio y fin con `ein_sdd_task_progress`,
+  en vez de bloquearse al recibir un inventario que solo enumeraba herramientas nativas.
+- Instalación y actualización aplican una corrección acotada al filtro de
+  `pi-subagents`, sin eliminar las exclusiones ni los límites explícitos de permisos.
+- La comprobación de compatibilidad pasa ahora por el planificador de lanzamiento
+  y arranca las siete fases con su lista efectiva de herramientas. Se verificó además
+  una delegación asíncrona real con edición, test y persistencia del progreso.
+
 ## [0.98.0-alpha.2] - 2026-09-13
 
 ### Changed

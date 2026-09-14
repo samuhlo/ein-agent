@@ -72,7 +72,7 @@ export type SddParticipantPlan = Readonly<{
 	planningBlockers: readonly SddPlanningBlocker[];
 	order: readonly SddParticipant[];
 	sourceSeal?: string;
-	next?: Readonly<{ agent: SddParticipant; task: string }>;
+	next?: Readonly<{ agent: SddParticipant; task: string; taskRef: string }>;
 	inFlight?: Readonly<{ toolCallId: string; agent: SddParticipant }>;
 	blocker?: string;
 }>;
@@ -337,7 +337,8 @@ function planResult(run: EphemeralRun, status: SddParticipantPlan["status"], blo
 				: run.order.includes("ein-architect") && run.nextCleaner >= run.slices.length
 					? "ein-architect"
 					: undefined);
-	const next = nextAgent ? { agent: nextAgent, task: run.inFlight?.task ?? task(run, nextAgent) } : undefined;
+	const nextTask = nextAgent ? run.inFlight?.task ?? task(run, nextAgent) : undefined;
+	const next = nextAgent && nextTask ? { agent: nextAgent, task: nextTask, taskRef: nextTask.split("\n")[0]! } : undefined;
 	return {
 		status,
 		passageId: run.passageId,
@@ -416,6 +417,12 @@ function createRun(cwd: string, sessionKey: string, change: string, scope: Chang
 export function planSddParticipants(cwd: string, sessionKey: string, change: string): SddParticipantPlan {
 	const key = runKey(sessionKey, change);
 	let run = runs.get(key);
+	if (run?.outcome && !run.inFlight) {
+		try {
+			const scope = changedScope(cwd, change);
+			if (scope.seal !== run.sourceSeal) { run = createRun(cwd, sessionKey, change, scope); runs.set(key, run); }
+		} catch (error) { return unavailablePlan(sessionKey, change, error instanceof Error ? error.message : "changed scope is unavailable"); }
+	}
 	if (!run) {
 		let scope: ChangedScope;
 		try {
@@ -434,6 +441,18 @@ export function planSddParticipants(cwd: string, sessionKey: string, change: str
 	if (run.order.includes("ein-architect")) return planResult(run, "ready");
 	run.outcome = "complete";
 	return planResult(run, "complete");
+}
+
+export function expandSddParticipantTask(cwd: string, sessionKey: string, agent: string, text: string): string {
+	const identity = marker.exec(text);
+	if (!identity) return text;
+	const header = identity[0];
+	if (text !== header && !text.startsWith(`${header}\n\n`)) return text;
+	const run = [...runs.values()].find((candidate) => candidate.sessionKey === sessionKey && candidate.passageId === identity[1]);
+	if (!run) throw new Error("SDD participant reference is unknown or stale; request the current plan");
+	const plan = planSddParticipants(cwd, sessionKey, run.change);
+	if (plan.status !== "ready" || plan.next?.agent !== agent || plan.next.taskRef !== header) throw new Error("SDD participant reference does not match the current scope");
+	return plan.next.task + text.slice(header.length);
 }
 
 export function admitSddParticipantCall(cwd: string, sessionKey: string, toolCallId: string, agent: SddParticipant, taskText: string): string | null {
