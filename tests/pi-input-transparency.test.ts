@@ -99,8 +99,8 @@ describe("el orquestador es el único dueño semántico en Pi", () => {
 		expect(sources).not.toContain("runPiIntentPreflight");
 		expect(sources).not.toContain('action: "handled"');
 		expect(orchestrator).toContain("Every ordinary input reaches you unchanged");
-		expect(orchestrator).toContain("run `ein_intent`");
+		expect(orchestrator).toContain("`ein_intent`");
 		expect(policy).toContain("Every ordinary input reaches the parent orchestrator unchanged");
-		expect(policy).toContain("at least one concrete question and an actual user answer");
+		expect(policy).toContain("resolve its decision tree and final review");
 	});
 });

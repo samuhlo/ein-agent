@@ -61,7 +61,7 @@ export function buildIntentKickoff(peticion?: string): KickoffMessage {
 	const base = `Ejecuta el protocolo de la skill \`${SKILL_NAME}\`, sección \`/ein:intent\`: modela la petición como árbol de decisiones y recorre la frontera por rondas.`;
 	if (!trimmed) {
 		return {
-			text: `${base} No hay petición inicial: arranque en frío -- la ronda 1 es una sola pregunta abierta ("¿qué quieres hacer?"), nunca un formulario.`,
+			text: `${base} No hay argumentos: recupera la petición del contexto previo. Solo sin petición ni contexto hay arranque en frío: una pregunta abierta ("¿qué quieres hacer?"), nunca un formulario.`,
 		};
 	}
 	return {
