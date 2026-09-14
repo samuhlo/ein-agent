@@ -33,8 +33,11 @@ async function call(name: string, input: any) {
   const result = await handler({ toolName: name, toolCallId, input }, ctx);
   assert(!result?.block, result?.reason);
  }
- const result = await tools.get(name).execute(toolCallId, input, undefined, undefined, ctx);
- for (const handler of handlers.get("tool_result") ?? []) await handler({ toolName: name, toolCallId, input, ...result, isError: result.isError === true }, ctx);
+ let result = await tools.get(name).execute(toolCallId, input, undefined, undefined, ctx);
+ for (const handler of handlers.get("tool_result") ?? []) {
+  const patch = await handler({ toolName: name, toolCallId, input, ...result, isError: result.isError === true }, ctx);
+  if (patch) result = { ...result, ...patch };
+ }
  assert(!result.isError, JSON.stringify(result.content));
  return result;
 }
@@ -51,8 +54,11 @@ try {
  assert.equal(renderIntentOverlay(state.agreement).length, 3);
  assert(!renderIntentOverlay(state.agreement).join("\n").includes("0/1"));
  choice = "custom";
- await call("ask_user_question", { questions: state.agreement.questionnaire });
- state = JSON.parse((await call("ein_intent", { action: "status", work: "cuentas" })).content[0].text);
+ const answered = await call("ask_user_question", { questions: state.agreement.questionnaire });
+ const receipt = JSON.parse(answered.content.at(-1).text).intentResponse;
+ state = JSON.parse((await call("ein_intent", { action: "status" })).content[0].text);
+ assert.equal(receipt.responseId, state.response.id);
+ assert.equal(receipt.status, "received");
  assert.equal(state.response.source, "ask_user_question");
  assert(state.response.text.includes("no autorizo entrega Git"));
  await call("ein_intent", { action: "review", work: "cuentas", responseId: state.response.id,
@@ -65,9 +71,9 @@ try {
  const cancelled = JSON.parse((await call("ein_intent", { action: "status", work: "cuentas" })).content[0].text);
  assert.equal(cancelled.response, undefined); assert.equal(cancelled.agreement.status, "pending");
  choice = "option";
- await call("ask_user_question", { questions: state.agreement.questionnaire });
- state = JSON.parse((await call("ein_intent", { action: "status", work: "cuentas" })).content[0].text);
- await call("ein_intent", { action: "confirm", work: "cuentas", responseId: state.response.id });
+ const final = await call("ask_user_question", { questions: state.agreement.questionnaire });
+ const finalReceipt = JSON.parse(final.content.at(-1).text).intentResponse;
+ await call("ein_intent", { action: "confirm", work: "cuentas", responseId: finalReceipt.responseId });
  assert(dialogs[0]!.options.length === 3, "Native plugin includes its free-text option");
  console.log(JSON.stringify({ passed: true, checks: ["real plugin RPC dialogs", "native free text", "observed round provenance", "TODO before scope", "cancel remains pending", "review confirmed through native option"], dialogs }, null, 2));
 } finally { rmSync(cwd, { recursive: true, force: true }); }

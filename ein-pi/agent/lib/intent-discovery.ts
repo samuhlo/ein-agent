@@ -192,8 +192,11 @@ export function runIntentDiscovery(
 	}
 	if (previous.response.source === "ask_user_question" && previous.agreement.stage === "review") {
 		const replies = previous.response.text.split("\n").map((line) => JSON.parse(line));
-		const last = replies.at(-1)?.answers?.at(-1)?.answer;
-		if (last === "Ajustar acuerdo" || last === "Cancelar") throw new Error("The user did not confirm the review; adjust or cancel intent");
+		const reply = replies.at(-1);
+		const last = reply?.answers?.at(-1);
+		if (last?.answer !== "Confirmar acuerdo" || last?.notes || reply?.globalNote) {
+			throw new Error("The selector review needs Confirmar acuerdo without amendments. Incorporate free text or notes into the agreement and review again; never infer confirmation from a negative or empty answer.");
+		}
 	}
 	if (previous.agreement.stage !== "review") throw new Error("A round answer does not close intent. Recompute the tree and use review before final confirmation.");
 	if (request.material && createIntentMaterialKey(normalizeIntentMaterial(request.material)) !== previous.agreement.materialKey) throw new Error("Changed material requires a new review and a fresh human response");

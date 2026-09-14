@@ -1,5 +1,5 @@
 import { evidenceTask, readEvidenceTask, INTENT_EVIDENCE } from "../../lib/intent-evidence.ts";
-import { questionnaireBatch, questionnaireAnswer, type IntentQuestion } from "../../lib/intent-questionnaire.ts";
+import { questionnaireBatch, questionnaireAnswer, retainOtherQuestionnaireAnswers, type IntentQuestion } from "../../lib/intent-questionnaire.ts";
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
@@ -51,8 +51,17 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 		if (current.agreement?.status !== "pending" || current.agreement.revision !== pending.revision) return;
 		const text = event.isError ? undefined : questionnaireAnswer(pending.questions, event.details);
 		const previous = current.response?.source === "ask_user_question" ? current.response.text : undefined;
-		pi.appendEntry(INTENT_INPUT, { id: randomUUID(), source: "ask_user_question", revision: pending.revision,
-			text: text ? [previous, text].filter(Boolean).join("\n") : "Questionnaire cancelled or unavailable", cancelled: !text });
+		const retained = !text && current.agreement.stage !== "review" ? retainOtherQuestionnaireAnswers(previous, pending.questions) : undefined;
+		const response = { id: randomUUID(), source: "ask_user_question" as const, revision: pending.revision,
+			text: text ? [previous, text].filter(Boolean).join("\n") : retained ?? "Questionnaire cancelled or unavailable", cancelled: !text && !retained };
+		pi.appendEntry(INTENT_INPUT, response);
+		// El recibo usa exactamente la respuesta persistida; nunca fabrica consentimiento.
+		return { content: [...(event.content ?? []), { type: "text" as const, text: JSON.stringify({ intentResponse: {
+			work: pending.work, revision: pending.revision, responseId: text ? response.id : undefined, responseText: text ? response.text : undefined,
+			status: text ? "received" : event.details && isRecord(event.details) && event.details.cancelled === true ? "cancelled" : "unavailable",
+			instruction: text ? "Use this responseId directly. Incorporate only answered decisions, explore their consequences and ask the next ready frontier. Review only when no material assumptions remain; confirm requires a fresh final-review answer. status is for recovery, not required after this receipt."
+				: "No answer recorded for this call. Recover with status or ask in chat; do not infer agreement.",
+		} }) }] };
 	});
 	pi.on("tool_call", (event, ctx) => {
 		try {
@@ -118,16 +127,16 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 	registerEinTool({
 		name: "ein_intent",
 		label: "Ein Intent",
-		description: "Record the agreed objective/boundaries/completionCriteria before new modifying work. For a complete, authorized current human request with no missing product decisions, record persists that observed request directly; never use it for discussion-only requests, invented choices or an open/cancelled discovery. For discovery (including natural-language requests to do intent), load intent-channel first. propose the whole ready frontier in numbered questions with recommendations and retain the WHOLE known decision tree, including deferred questions with their dependsOn prerequisites (decisions: id, question, dependsOn, status open/waiting/resolved, resolution with evidence). Supply questionnaire with concrete alternative options, recommended first; explain the tradeoffs in prose, then call ask_user_question with the returned questionnaire (batches of up to four). The plugin supplies free text. status returns the observed answer/id from chat or the matched questionnaire. Recompute the tree after each answer; use review with the responseId only once ALL branches are resolved. Show the returned final material and wait. confirm requires a NEW responseId to that review; round answers cannot close intent. record is only for complete authorized mechanical work, never an explicit interview. Refusal, cancellation or unresolved choices need another round. Reuse unchanged agreements. change is SDD-only and must equal work. delegate is only for an explicit current sin preguntas / without questions instruction with recorded assumptions; auto alone is not consent. Put intent_work: <work> in delegated tasks. For an authorized local experiment needed to finish discovery, use investigate with a waiting fact decisionId, existing responseId (also from history), objective, read roots and exact local commands. First incorporate answered permission prerequisites with propose; material may be omitted to reuse the current scope, and an empty questionnaire is valid while waiting on evidence. investigate returns a bounded sdd-verify delegation without confirming product intent. Reuse that authorization; technical rejection never means asking the same permission again. Read-only work needs no intent.",
+		description: "Persist product intent; load intent-channel for interviews. propose retains the whole known decision tree (including deferred dependsOn nodes) and returns the ready questionnaire. Explain its tradeoffs, then use ask_user_question; its intentResponse receipt supplies the observed responseId directly. status recovers after resume or missing receipts; work may be omitted only for status. Incorporate answers and explore consequences before review; confirm requires a fresh explicit answer to that final review. record is only for complete authorized mechanical requests, never an interview or pending agreement. delegate requires explicit human instructions to decide without questions; auto is not consent. investigate prepares a bounded local evidence delegation for a waiting fact using existing authorization, exact commands and roots; follow references/pi-protocol.md. No SDD phases before agreement. Pass intent_work: <work> to executors. Read-only work needs no intent.",
 		parameters: {
-			type: "object", required: ["action", "work"],
+			type: "object", required: ["action"],
 			properties: {
 				action: { type: "string", enum: ["propose", "status", "confirm", "cancel", "delegate", "record", "review", "investigate"] },
 				title: { type: "string", description: "Short human label, e.g. Bloque 05 · Cursos propios" },
 				evidence: { type: "object", required: ["decisionId", "objective", "roots", "commands"], properties: {
 					decisionId: { type: "string" }, objective: { type: "string" }, roots: { type: "array", items: { type: "string" } }, commands: { type: "array", items: { type: "string" } },
 				} },
-				work: { type: "string" }, change: { type: "string" }, responseId: { type: "string" },
+				work: { type: "string", description: "Required except status, which can recover the latest work in this session." }, change: { type: "string" }, responseId: { type: "string" },
 				reopenReason: { type: "string", description: "New material product decision discovered after agreement, even if the objective is unchanged. Reopens discovery; never use for routine phase transitions." },
 				decisions: { type: "array", description: "Whole known tree: resolved, ready AND deferred questions. Keep dependent questions as open nodes with dependsOn; questions contains only the ready frontier.", items: { type: "object", required: ["id", "question", "dependsOn", "status"], properties: { kind: { type: "string", enum: ["decision", "fact", "permission"] }, title: { type: "string" }, id: { type: "string" }, question: { type: "string" }, dependsOn: { type: "array", items: { type: "string" } }, status: { type: "string", enum: ["open", "waiting", "resolved"] }, resolution: { type: "string" } } } },
 				questionnaire: { type: "array", items: { type: "object", required: ["question", "header", "options"], properties: {
@@ -142,8 +151,13 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 				} },
 			},
 		} as const,
-		async execute(_id, request: IntentRequest, _signal, _update, ctx) {
+		async execute(_id, input: Omit<IntentRequest, "work"> & { work?: string }, _signal, _update, ctx) {
 			try {
+				const latest = input.action === "status" && !input.work
+					? [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === INTENT_STATE) : undefined;
+				const work = input.work ?? (latest?.type === "custom" ? (latest.data as { work?: string }).work : undefined);
+				if (!work) throw new Error("Provide work; status can omit it only when this session already has an intent agreement");
+				const request: IntentRequest = { ...input, work };
 				const snapshot = runIntentDiscovery(ctx, request, (type, data) => pi.appendEntry(type, data), latestInputs.get(sddPreflightSessionKey(ctx)));
 				const state = snapshot.agreement?.status ?? "absent";
 				const reviewing = snapshot.agreement?.stage === "review";
@@ -155,7 +169,7 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 						? "Interpret the final review response. Confirm only explicit agreement with unchanged material; corrections reopen a round."
 						: "Interpret the round response and recompute every branch. Propose the next frontier; when all branches resolve, call review with this responseId. Do not confirm a round.";
 					else instruction = reviewing
-						? "Show the final objective, boundaries, decisions and success criteria, then call ask_user_question with the returned questionnaire. Wait for its result and call status; a fresh answer confirms only this agreement."
+						? "Show the final objective, boundaries, decisions and success criteria, then call ask_user_question with the returned questionnaire. Use the intentResponse receipt from its result; a fresh answer confirms only this agreement."
 						: "Explain the ready questions with alternatives and recommendations in plain language, then call ask_user_question with the returned questionnaire, up to four per call. If unavailable or there are no concrete options, use the same questions in chat and wait. If every branch waits on research, await its facts instead of asking or closing.";
 				}
 				const nextAction = nextIntentAction(snapshot);
