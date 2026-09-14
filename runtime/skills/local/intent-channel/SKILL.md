@@ -1,58 +1,106 @@
 ---
 name: intent-channel
-description: Canal de intención pre-SDD — /ein:intent interroga la petición como árbol de decisiones y cierra a disco; /ein:eh restata sin actuar. Descubrimiento automático antes de cambios; entrada manual /ein:intent.
+description: Entrevista de decisiones antes de SDD o cuando el usuario pide hacer el intent, acordar o contrastar una idea. /ein:eh reformula sin actuar.
 license: internal
 ---
 
-# Canal de intención (`/ein:intent`, `/ein:eh`)
+# Canal de intención
 
-Este protocolo también se activa automáticamente antes de trabajo modificador nuevo. El padre conduce las decisiones; `/ein:intent` entra explícitamente en la misma conversación. `/ein:eh` sigue siendo exclusivamente humano.
-
-En Pi usa `ein_intent`: `record` registra directamente una petición humana actual, completa y autorizada, cuando no falta ninguna decisión material; nunca sustituye una ronda pendiente ni convierte una conversación exploratoria en permiso. `propose` guarda la ronda en sesión, muestra sus preguntas y espera; `status` recupera la respuesta real y su `responseId`; `confirm` incorpora únicamente decisiones contestadas y guarda el acuerdo. Rechazo o cancelación nunca confirman. Si quedan decisiones, abre otra ronda. Para SDD, `change` y `work` comparten nombre; para cambios pequeños omite `change` y conserva el acuerdo en sesión. Reutiliza acuerdos idénticos; `auto` no omite esta conversación. `delegate` solo permite omitir preguntas si el mensaje humano actual lo pide explícitamente (“sin preguntas / without questions”); registra el objetivo, los límites y los supuestos delegados.
+El padre conduce esta conversación; los ejecutores reciben después el acuerdo.
+Actívala cuando el usuario pide intent en lenguaje natural o con `/ein:intent`,
+y antes de un nuevo cambio SDD. Lee el contexto ya disponible: un bloque de una
+hoja de ruta describe trabajo, pero no demuestra que sus decisiones estén resueltas.
+Una petición explícita de entrevista nunca se despacha con `record`.
+Para trabajo mecánico completo y autorizado, `record` conserva la petición sin
+inventar una entrevista. Conversar o investigar no inicia un cambio SDD.
 
 ## /ein:intent
 
-Modela la petición del usuario como un **árbol de decisiones** y recorre su
-**frontera**: en cada ronda solo se preguntan las decisiones cuyos prerequisitos
-ya están cerrados.
+Construye un árbol de decisiones sobre el resultado que quiere el usuario.
+Cada decisión abre otras que dependen de ella. Recorre el árbol por rondas hasta
+alcanzar entendimiento compartido; no lo reduzcas a confirmar un resumen del alcance.
 
 ### Ronda 1 (first round)
 
-La primera ronda sirve también para el arranque automático. Pregunta solo si falta una decisión material; una petición completa se registra sin otra ronda. No preguntes de nuevo lo que el usuario ya explicó.
+Adopta decisiones ya explícitas en la petición o en documentación acordada,
+con su referencia. Busca las interpretaciones diferentes que producirían resultados
+materialmente distintos: actores, relaciones, reglas, escenarios y límites relevantes
+para esta petición. No uses ese listado como formulario fijo.
 
-- Solo decisiones sin prerequisitos entran en la ronda 1.
-- Cada pregunta va numerada y trae una recomendación.
-- La ronda se entrega como **un solo mensaje de texto plano**, respondible de una
-  sola vez (`"1A, 2B"`); nunca como un diálogo modal ni una pregunta a la vez.
-- **Arranque en frío**: si no hay petición inicial ni contexto previo, la ronda 1
-  es una sola pregunta abierta y llana (`"¿qué quieres hacer?"`), nunca un
-  formulario. Si llega una petición inicial, la ronda 1 ya modela el árbol sobre
-  ella y no vuelve a preguntar qué quiere.
-- **Forma de las opciones**: cada opción es una respuesta concreta ya redactada,
-  que el usuario acepta, matiza o rechaza tal cual. Nunca una plantilla con
-  huecos entre corchetes para que la rellene él — si no hay una respuesta
-  concreta que proponer, la pregunta todavía no está lista para la ronda.
+La **frontera** son todas las decisiones cuyos prerequisitos están resueltos.
+Antes de incluir una pregunta, comprueba: si el usuario eligiera otra respuesta
+a una decisión aún abierta, ¿cambiarían sus opciones o tu recomendación? Si sí,
+registra esa dependencia y aplázala. Por ejemplo, acordar una identidad con varios
+papeles puede abrir la elección de contexto de entrada; esa entrada condiciona
+la cabecera. No presentes las tres como decisiones independientes ni marques
+todas las dependencias vacías por conveniencia.
+
+Pregunta toda esa frontera en un único mensaje de texto plano, con preguntas
+numeradas y una recomendación concreta y razonada por pregunta. El usuario puede
+aceptar, matizar o rechazar. No uses un selector modal para sustituir la entrevista.
+No limites la ronda a una pregunta ni a un cupo fijo; tampoco fuerces preguntas
+sobre algo ya resuelto. Sin petición ni contexto, pregunta solamente qué quiere hacer.
+
+Ejemplo de formato:
+
+**1. Identidad de la cuenta.** ¿Una persona puede enseñar y gestionar un centro
+con la misma cuenta, o son altas independientes?
+Recomiendo una cuenta con ambos contextos si una misma persona puede ejercerlos:
+evita duplicar su identidad y permite cambiar de contexto.
+
+Ese ejemplo ilustra una decisión, no una pregunta obligatoria. Si la identidad
+ya está acordada, empieza por la siguiente decisión abierta.
 
 ### Rondas siguientes
 
-- Regla: los hechos los busco yo, las decisiones son tuyas — toda búsqueda de hechos se
-  delega a `ein-scout` y **no bloquea** la emisión de la ronda — la ronda sale con
-  lo que ya se sabe, y los hallazgos de scout (con referencia `path:line`) se
-  incorporan a la ronda **siguiente**, nunca retrasando la actual.
-- Nunca se le pregunta al usuario algo que el código ya contesta.
-- Ninguna decisión se toma en nombre del usuario.
-- La sesión termina cuando la frontera queda vacía: no quedan decisiones sin
-  prerequisito cerrado. La petición o respuesta humana debe autorizar el trabajo; conserva esa autorización sin una confirmación duplicada.
+Después de cada respuesta, incorpora únicamente lo contestado y recalcula el árbol.
+Las preguntas dependientes de una decisión abierta pertenecen a una ronda posterior.
+Una respuesta parcial mantiene las demás abiertas. Explicar una alternativa, rechazar
+una recomendación o pedir estado no confirma nada. No reformules la misma pregunta
+cuando el usuario ya la resolvió; abre sus consecuencias.
 
-### Cierre y confirmación (R8, R9)
+Los hechos los busca `ein-scout` con contexto fresco y devuelve referencias `path:line`.
+Nunca preguntes al usuario algo que puedes investigar. Una exploración pendiente
+es un prerequisito sin resolver: espera solo para sus preguntas dependientes y
+plantea las independientes. Si toda la frontera espera hechos, espera los resultados;
+una frontera temporalmente vacía no significa que el árbol esté resuelto.
 
-- **Nada se escribe a disco hasta la confirmación del usuario.** Abandonar la
-  sesión a mitad de camino deja el árbol de trabajo intacto: ni directorio nuevo,
-  ni artefacto parcial.
-- El padre propone un nombre descriptivo para el cambio; no obliga al usuario a inventarlo. El escritor del runtime valida el nombre con el router.
-- Se escribe **exactamente un fichero**: `openspec/changes/<change>/intent.md`
-  (fallback `.sdd/changes/<change>/intent.md` si esa es la raíz activa).
-  Al recuperar un acuerdo manual existente en Claude, se conserva además su copia original.
+### Estado y cierre en Pi
+
+Usa `ein_intent` como único escritor:
+
+- `propose`: guarda la ronda, el material provisional y `decisions` (id, question,
+  dependsOn, status open/waiting/resolved; incluye tanto la frontera actual como
+  las preguntas futuras conocidas que todavía dependen de ella, no solo lo que
+  vas a preguntar hoy. resolution explica la decisión y su
+  respuesta o fuente). Conserva las ramas anteriores, incluidas las descartadas
+  explícitamente, y añade las descubiertas. Muestra las preguntas y espera.
+- `status`: recupera la respuesta literal y su `responseId`; también tras reanudar.
+- Otra `propose` incorpora la respuesta y abre la siguiente frontera. No cierres
+  con `confirm` por haber contestado una ronda.
+- `review`: cuando todas las ramas estén resueltas, pasa el árbol completo y el
+  `responseId` de la última ronda. Presenta el objetivo, decisiones, límites y
+  criterios observables devueltos. Pregunta si ese acuerdo recoge lo que quiere.
+- `confirm`: solo tras una nueva respuesta afirmativa a esa revisión final.
+  Una corrección requiere actualizar el acuerdo y revisarlo de nuevo.
+- `cancel`: detiene el trabajo. `delegate` requiere una instrucción humana explícita
+  de decidir sin preguntas; `auto` no equivale a esa instrucción.
+
+No se crea un directorio de cambio durante la primera entrevista. El estado vive
+en la sesión durable; al confirmar se escribe `intent.md`. Reabrir un acuerdo ya
+existente sí actualiza su estado pendiente para impedir que otra sesión ejecute
+un acuerdo obsoleto. El padre propone el nombre; el runtime lo valida.
+
+### Paso a SDD
+
+Para SDD, `work` y `change` coinciden; para trabajo pequeño se conserva el acuerdo
+en sesión. `intent.md` es el contrato canónico: scope lo consume, no repite la
+entrevista. Una nueva decisión de producto descubierta por map vuelve al padre;
+reabre solo las ramas afectadas. Reutiliza el resto del acuerdo con su procedencia.
+
+Acordar qué se quiere no autoriza a implementarlo. Si se pidió solo intent, termina
+al guardar el acuerdo. Si ya se autorizó continuar con planificación, continúa;
+la autorización de apply y entrega pertenece a sus controles existentes.
 
 ## /ein:eh
 
@@ -79,22 +127,17 @@ el usuario en prosa, anterior a esta invocación**.
 - Si esa petición ya se ejecutó, se restata igual, en pasado, sin proponer un
   siguiente paso ni volver a actuar.
 
-## Artefacto canónico
+## Continuidad y Claude
 
-En Pi, `ein_intent` escribe `intent.md` con objetivo, límites, criterios de éxito, preguntas y la respuesta íntegra observada. En Claude, usa `ein-cc-sdd intent <change> record` con JSON por stdin (contrato y recuperación en `ein-cc-sdd intent --help`): registra la respuesta literal con procedencia `claude-coordinator`, atestada por el coordinador, sin simular el recibo de Pi. Su bloque estructurado y su vista humana tienen un único escritor; no los edites a mano. El `materialKey` liga las fases a lo acordado. En Pi, las nuevas rondas mantienen un estado pendiente durable. En Claude, no delegues fases durante una decisión pendiente; registra el acuerdo actualizado antes de continuar.
-
-## Ejecución
-
-- **Nada de exploración directa del coordinador.** Todo hallazgo de repositorio
-  (código, configuración, historial) se delega en `ein-scout`; el coordinador
-  no lee, busca ni explora el árbol por su cuenta durante la sesión. La
-  delegación no bloquea la ronda en curso (ver regla de rondas siguientes).
-- La escritura del acuerdo pasa por el escritor del runtime descrito arriba; los agentes leen el fichero y nunca fabrican la respuesta del usuario.
-
-## Activación
-
-`/ein:intent` es la entrada explícita; el orquestador usa el mismo protocolo automáticamente para nuevos cambios. `/ein:eh` solo se invoca por el usuario.
+El bloque estructurado de `intent.md` y su vista humana tienen un único escritor;
+no los edites a mano. El `materialKey` liga las fases al material acordado.
+En Claude aplica las mismas rondas y revisión final; registra el acuerdo con
+`ein-cc-sdd intent <change> record` (JSON por stdin, contrato en `--help`). Conserva
+la respuesta literal con procedencia `claude-coordinator`, sin simular recibos Pi.
+No delegues fases mientras haya decisiones pendientes.
 
 ---
 
-Basado en `grilling` de mattpocock/skills (MIT, Copyright 2026 Matt Pocock); Ein añade el cierre a disco vía `intent.md` y delega la búsqueda de hechos a `ein-scout`.
+Adaptado de [grilling](https://github.com/mattpocock/skills/blob/main/skills/productivity/grilling/SKILL.md)
+de Matt Pocock (MIT, Copyright 2026 Matt Pocock). Ein añade persistencia, revisión
+versionada y consumo del acuerdo por SDD.

@@ -133,31 +133,16 @@ describe("contrato estructural de SKILL.md (grupo 002 dependencia)", () => {
 		const raw = readFileSync(SKILL_PATH, "utf8");
 		const intentIdx = raw.indexOf("## /ein:intent");
 		const ehIdx = raw.indexOf("## /ein:eh");
-		const templateIdx = raw.indexOf("## Artefacto canónico");
+		const templateIdx = raw.indexOf("## Continuidad y Claude");
 		expect(intentIdx).toBeGreaterThan(-1);
 		expect(ehIdx).toBeGreaterThan(intentIdx);
 		expect(templateIdx).toBeGreaterThan(ehIdx);
 	});
 
-	test("trae el vocabulario Spanish requerido (R16)", () => {
+	test("conserva la atribución a la fuente adaptada", () => {
 		const raw = readFileSync(SKILL_PATH, "utf8");
-		for (const word of ["árbol de decisiones", "frontera", "ronda"]) {
-			expect(raw).toContain(word);
-		}
-		expect(raw).toContain("los hechos los busco yo, las decisiones son tuyas");
-	});
-
-	test("declara activacion solo por invocacion explicita del usuario (R5)", () => {
-		const raw = readFileSync(SKILL_PATH, "utf8");
-		expect(raw.toLowerCase()).toContain("invocaci");
-	});
-
-	test("la ultima linea no vacia atribuye a grilling / Matt Pocock (R15)", () => {
-		const raw = readFileSync(SKILL_PATH, "utf8");
-		const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
-		const last = lines[lines.length - 1] ?? "";
-		expect(last).toContain("grilling");
-		expect(last).toContain("Matt Pocock");
+		expect(raw).toContain("https://github.com/mattpocock/skills/");
+		expect(raw).toContain("Matt Pocock");
 	});
 
 	test("el primer round es una seccion addressable propia (R17)", () => {
@@ -165,13 +150,6 @@ describe("contrato estructural de SKILL.md (grupo 002 dependencia)", () => {
 		expect(raw).toMatch(/## .*[Rr]onda 1|## .*[Ff]irst [Rr]ound/);
 	});
 
-	test("declara una seccion de Ejecucion con las tres reglas de herramientas", () => {
-		const raw = readFileSync(SKILL_PATH, "utf8");
-		expect(raw).toMatch(/## Ejecuci[oó]n/);
-		expect(raw).toContain("ein-scout");
-		expect(raw).toContain("ein_intent");
-		expect(raw).toContain("nunca fabrican la respuesta");
-	});
 });
 
 // El log de la primera sesión real: /ein:eh restató su propia invocación. El
@@ -192,7 +170,7 @@ describe("objetivo de /ein:eh: la invocacion nunca se restata a si misma", () =>
 	test("SKILL.md define el objetivo y sus casos borde", () => {
 		const raw = readFileSync(SKILL_PATH, "utf8");
 		const ehIdx = raw.indexOf("## /ein:eh");
-		const templateIdx = raw.indexOf("## Artefacto canónico");
+		const templateIdx = raw.indexOf("## Continuidad y Claude");
 		const targetIdx = raw.indexOf("### Qué mensaje se restata");
 		expect(targetIdx).toBeGreaterThan(ehIdx);
 		expect(targetIdx).toBeLessThan(templateIdx);

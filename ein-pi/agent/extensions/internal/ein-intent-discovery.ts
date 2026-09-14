@@ -6,7 +6,7 @@ import { INTENT_INPUT, INTENT_STATE, requireIntent, runIntentDiscovery, type Int
 import { collectDelegationItems, delegationShapeIsUnrecognized, rewriteDelegationTasks } from "../../lib/delegation-shape.ts";
 import { readAuthorizedContinuation } from "../../lib/sdd-continuation.ts";
 import { resolveChangesDir } from "../../lib/sdd-routing-core.ts";
-import { artifactHasIntentKey, readAgreement } from "../../lib/intent-agreement.ts";
+import { artifactHasIntentKey, readAgreement, intentFrontier } from "../../lib/intent-agreement.ts";
 import { isRecord, readExplicitSddChange, readAgentStartNames } from "./ein-pi-event-contracts.ts";
 import { sddPreflightSessionKey } from "../../lib/sdd-preflight.ts";
 import type { EinToolRegistrar } from "./ein-tool-registration.ts";
@@ -74,14 +74,15 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 	registerEinTool({
 		name: "ein_intent",
 		label: "Ein Intent",
-		description: "Record the agreed objective/boundaries/completionCriteria before new modifying work. For a complete, authorized current human request with no missing product decisions, record persists that observed request directly; never use it for discussion-only requests, invented choices or an open/cancelled discovery. For ambiguity, propose 1–4 concrete questions, show them and STOP. status returns the observed answer/id; confirm requires that responseId and only answered choices. Refusal, cancellation or unresolved choices need another round. Reuse unchanged agreements. change is SDD-only and must equal work. delegate is only for an explicit current sin preguntas / without questions instruction with recorded assumptions; auto alone is not consent. Put intent_work: <work> in delegated tasks. Read-only work needs no intent.",
+		description: "Record the agreed objective/boundaries/completionCriteria before new modifying work. For a complete, authorized current human request with no missing product decisions, record persists that observed request directly; never use it for discussion-only requests, invented choices or an open/cancelled discovery. For discovery (including natural-language requests to do intent), load intent-channel first. propose the whole ready frontier in numbered questions with recommendations and retain the WHOLE known decision tree, including deferred questions with their dependsOn prerequisites (decisions: id, question, dependsOn, status open/waiting/resolved, resolution with evidence). status returns the observed answer/id. Recompute the tree after each answer; use review with the responseId only once ALL branches are resolved. Show the returned final material and wait. confirm requires a NEW responseId to that review; round answers cannot close intent. record is only for complete authorized mechanical work, never an explicit interview. Refusal, cancellation or unresolved choices need another round. Reuse unchanged agreements. change is SDD-only and must equal work. delegate is only for an explicit current sin preguntas / without questions instruction with recorded assumptions; auto alone is not consent. Put intent_work: <work> in delegated tasks. Read-only work needs no intent.",
 		parameters: {
 			type: "object", required: ["action", "work"],
 			properties: {
-				action: { type: "string", enum: ["propose", "status", "confirm", "cancel", "delegate", "record"] },
+				action: { type: "string", enum: ["propose", "status", "confirm", "cancel", "delegate", "record", "review"] },
 				work: { type: "string" }, change: { type: "string" }, responseId: { type: "string" },
 				reopenReason: { type: "string", description: "New material product decision discovered after agreement, even if the objective is unchanged. Reopens discovery; never use for routine phase transitions." },
-				questions: { type: "array", minItems: 1, maxItems: 4, items: { type: "string" } },
+				decisions: { type: "array", description: "Whole known tree: resolved, ready AND deferred questions. Keep dependent questions as open nodes with dependsOn; questions contains only the ready frontier.", items: { type: "object", required: ["id", "question", "dependsOn", "status"], properties: { id: { type: "string" }, question: { type: "string" }, dependsOn: { type: "array", items: { type: "string" } }, status: { type: "string", enum: ["open", "waiting", "resolved"] }, resolution: { type: "string" } } } },
+				questions: { type: "array", items: { type: "string" } },
 				material: { type: "object", required: ["objective", "boundaries", "completionCriteria"], properties: {
 					objective: { type: "string" },
 					boundaries: { type: "object", required: ["in", "out"], properties: { in: { type: "array", items: { type: "string" } }, out: { type: "array", items: { type: "string" } } } },
@@ -93,10 +94,20 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 			try {
 				const snapshot = runIntentDiscovery(ctx, request, (type, data) => pi.appendEntry(type, data), latestInputs.get(sddPreflightSessionKey(ctx)));
 				const state = snapshot.agreement?.status ?? "absent";
-				const instruction = state === "pending"
-					? snapshot.response ? "Interpret the observed answer. Confirm only answered decisions, otherwise propose the next round." : "Show the questions below in one plain-text message and STOP. Wait for the user."
-					: state === "confirmed" ? `Intent agreed. Use intent_work: ${request.work}. Reopen only material changes.` : "No authorized work; answer or clarify with the user.";
-				return { content: [{ type: "text", text: JSON.stringify({ ...snapshot, instruction }) }], details: { ok: true, state, work: request.work } };
+				const reviewing = snapshot.agreement?.stage === "review";
+				let instruction = state === "confirmed"
+					? `Intent agreed. Use intent_work: ${request.work}. Reopen only material changes. Continue only within the user's authorized scope; intent alone does not authorize implementation.`
+					: "No authorized work; answer or clarify with the user.";
+				if (state === "pending") {
+					if (snapshot.response) instruction = reviewing
+						? "Interpret the final review response. Confirm only explicit agreement with unchanged material; corrections reopen a round."
+						: "Interpret the round response and recompute every branch. Propose the next frontier; when all branches resolve, call review with this responseId. Do not confirm a round.";
+					else instruction = reviewing
+						? "Show the final objective, boundaries, decisions and success criteria, ask for agreement and STOP. Wait for a fresh human response."
+						: "Show the ready questions numbered with recommendations in one plain-text message and STOP. If every branch waits on research, await its facts instead of asking or closing.";
+				}
+				const frontier = snapshot.agreement?.decisions ? intentFrontier(snapshot.agreement.decisions).map((d) => d.id) : undefined;
+				return { content: [{ type: "text", text: JSON.stringify({ ...snapshot, frontier, instruction }) }], details: { ok: true, state, work: request.work } };
 			} catch (error) {
 				const reason = error instanceof Error ? error.message : String(error);
 				return { content: [{ type: "text", text: reason }], details: { ok: false, reason }, isError: true };

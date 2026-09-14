@@ -7,6 +7,8 @@ import { registerIntentDiscovery } from "../ein-pi/agent/extensions/internal/ein
 import { artifactHasIntentKey, readAgreement } from "../ein-pi/agent/lib/intent-agreement.ts";
 import { buildEinPrompt } from "../ein-pi/agent/lib/persona.ts";
 
+const intentSkill = readFileSync(new URL("../runtime/skills/local/intent-channel/SKILL.md", import.meta.url), "utf8");
+const block04 = process.argv.includes("--block04");
 const conversationOnly = process.argv.includes("--conversation-only");
 const installed = process.env.EIN_INTENT_PILOT_AGENT_HOME ?? join(homedir(), ".pi-ein/agent");
 const output = mkdtempSync("/tmp/ein-intent-live-");
@@ -48,7 +50,7 @@ const extension = (pi: ExtensionAPI) => {
 const sm = SettingsManager.inMemory({ retry: { enabled: false }, compaction: { enabled: false } });
 const parentSession = SessionManager.inMemory(cwd);
 const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager: sm, extensionFactories: [extension], noExtensions: true, noSkills: true, noPromptTemplates: true, noContextFiles: true,
- systemPrompt: conversationOnly ? buildEinPrompt("neutral") : `${buildEinPrompt("neutral")}\nThis controlled pilot exposes only intent and a design executor. Treat the request as SDD with work/change export-csv. After agreement, delegate exactly one sdd-design with change and intent_work markers, then report. Do not run other phases or read full workflow manuals; this pilot ends at the product specification.` });
+ systemPrompt: block04 ? `${buildEinPrompt("neutral")}\n${intentSkill}\nThe project roadmap has block 04: teacher/academy accounts, required centre data, roles, context-based entry, role headers, profile collaborations. Blocks 06 and 08 own the full dashboards. No additional product decisions have been agreed. This test exposes no scout; use these supplied facts and ask product decisions. Do not invent implementation facts.` : conversationOnly ? `${buildEinPrompt("neutral")}\n${intentSkill}` : `${buildEinPrompt("neutral")}\n${intentSkill}\nThis controlled pilot exposes only intent and a design executor. Treat the request as SDD with work/change export-csv. After agreement, delegate exactly one sdd-design with change and intent_work markers, then report. Do not run other phases or read full workflow manuals; this pilot ends at the product specification.` });
 await loader.reload();
 const { session } = await createAgentSession({ cwd, agentDir, modelRuntime: runtime, model, thinkingLevel: settings.defaultThinkingLevel, settingsManager: sm, resourceLoader: loader, sessionManager: parentSession, tools: ["ein_intent", "subagent", "read"] });
 await session.bindExtensions({ mode: "rpc", onError: (error) => { throw new Error(String(error)); } });
@@ -58,12 +60,36 @@ async function turn(text: string) {
  try { await session.prompt(text); }
  finally { clearTimeout(timer); writeFileSync(join(output, "events.json"), JSON.stringify(events, null, 2)); }
  const last = [...session.messages].reverse().find((message) => message.role === "assistant");
+ if (last && "stopReason" in last && last.stopReason === "error") throw new Error("errorMessage" in last ? String(last.errorMessage) : "Provider failed during intent pilot");
  const answer = last && "content" in last ? (last.content as any[]).filter((part) => part.type === "text").map((part) => part.text).join("\n") : "";
  console.log(JSON.stringify({ turn: text, answer, writes }));
  return answer;
 }
 try {
- if (conversationOnly) {
+ if (block04) {
+  const first = await turn("Nos toca el bloque 04 creo de los cambios. Vamos a hacer el intent. Solo quiero acordarlo, no implementar.");
+  assert.match(first, /[?¿]/);
+  let state = [...parentSession.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === "ein:intent-discovery");
+  assert(state?.type === "custom");
+  const initial = state.data as any;
+  assert.equal(initial.status, "pending"); assert.equal(initial.stage, "round");
+  assert(initial.decisions?.length >= 2, "An interview must expose distinct product decisions");
+  assert(initial.decisions.some((d: any) => d.status === "open" && d.dependsOn.length > 0), "Entry/header choices depend on unresolved identity/context decisions");
+  assert(initial.questions.length >= 2, "Do not replace the ready frontier with a blanket scope approval");
+  const second = await turn("Una misma persona puede enseñar y gestionar centros con la misma cuenta. Puede colaborar con varios centros. Eso sí lo tengo claro; las otras decisiones todavía no las he tomado.");
+  assert.match(second, /[?¿]/);
+  state = [...parentSession.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === "ein:intent-discovery");
+  assert(state?.type === "custom" && (state.data as any).status === "pending");
+  const next = (state.data as any).decisions;
+  assert(initial.decisions.every((d: any) => next.some((n: any) => n.id === d.id)), "Earlier branches survive the partial answer");
+  assert(next.filter((d: any) => d.status === "resolved").length > initial.decisions.filter((d: any) => d.status === "resolved").length, "The answer resolves decisions, not just prose");
+  assert(next.some((d: any) => d.status === "open" && d.dependsOn.length), "Dependent decisions remain pending");
+  assert.equal(writes, 0); assert.equal(existsSync(join(cwd, "openspec")), false);
+  await turn("Antes de responder: explícame qué diferencia hay entre recordar el contexto y recordar un papel. No estoy eligiendo ni confirmando.");
+  assert.equal(writes, 0); assert.equal(existsSync(join(cwd, "openspec")), false);
+  writeFileSync(join(output, "result.json"), JSON.stringify({ passed: true, model: `${settings.defaultProvider}/${settings.defaultModel}`, checks: ["natural-language intent starts a product interview", "several concrete decisions", "partial answer opens dependent questions", "explanation is not confirmation", "intent-only creates no SDD or code"], first, second }, null, 2));
+  console.log(`PASS block04 ${output}`);
+ } else if (conversationOnly) {
   const hasState = () => parentSession.getBranch().some((entry) => entry.type === "custom" && entry.customType === "ein:intent-discovery");
   const received = (text: string) => session.messages.some((message) => message.role === "user" && (typeof message.content === "string" ? message.content === text : message.content.some((part) => part.type === "text" && part.text === text)));
   for (const text of ["Hola, ¿podemos hablar un momento?", "Estoy pensando en cambiar la exportación CSV, pero todavía no quiero empezar ningún cambio. Ayúdame a pensar qué conviene tener en cuenta."]) {
@@ -88,6 +114,7 @@ try {
  const first = await turn("Quiero añadir exportación CSV a la tabla de contactos, la única del prototipo. Usa SDD en modo auto.");
  assert.match(first, /[?¿]/); assert.equal(writes, 0); assert.equal(existsSync(join(cwd, "openspec")), false);
  const second = await turn("Todas las filas filtradas (no solo la página) y en el orden visible. Columnas: nombre y correo. Sin exportar datos ocultos. CSV genérico con comas y UTF-8, no específico de Excel. Usa convenciones CSV estándar para escapar valores. Con eso puedes elaborar las specs.");
+ await turn("Sí, el acuerdo final recoge exactamente lo que quiero. Puedes elaborar las specs, sin implementar código.");
  const agreement = readAgreement(join(cwd, "openspec/changes/export-csv"));
  assert.equal(agreement.kind, "valid"); if (agreement.kind !== "valid") throw new Error("Missing agreement");
  assert.equal(agreement.agreement.status, "confirmed"); assert.equal(writes, 1);

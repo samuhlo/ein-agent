@@ -24,14 +24,91 @@ function harness(cwd = mkdtempSync(join(tmpdir(), "ein-intent-")), branch: any[]
  const call = async (args: object) => spec.execute("call", { work: "export-csv", ...args }, undefined, undefined, ctx);
  const input = (text: string, source = "interactive") => handlers.get("input")!({ text, source }, ctx);
  const gate = (input: object, toolName = "subagent") => handlers.get("tool_call")!({ toolName, input }, ctx);
- const propose = (extra = {}) => call({ action: "propose", material, questions: ["Recomiendo exportar lo filtrado. ¿Eso o todos los registros?"], ...extra });
+ const propose = (extra = {}) => call({ action: "propose", material, decisions: [{ id: "rows", question: "Which rows?", dependsOn: [], status: "open" }], questions: ["Recomiendo exportar lo filtrado. ¿Eso o todos los registros?"], ...extra });
+ const finish = async (extra: any = {}) => {
+  const status = JSON.parse((await call({ action: "status", ...extra })).content[0].text);
+  const review = await call({ action: "review", responseId: status.response?.id,
+   decisions: [{ id: "rows", question: "Which rows?", dependsOn: [], status: "resolved", resolution: status.response?.text }], ...extra });
+  if (review.isError) return review;
+  input("Sí, ese acuerdo recoge lo que quiero.");
+  const reviewed = JSON.parse((await call({ action: "status", ...extra })).content[0].text);
+  return call({ action: "confirm", responseId: reviewed.response?.id, ...extra });
+ };
  const confirm = async (change?: string, text = "Los filtrados, adelante.") => {
   input(text);
-  const status = JSON.parse((await call({ action: "status", change })).content[0].text);
-  return call({ action: "confirm", change, responseId: status.response?.id });
+  return finish({ change });
  };
- return { cwd, branch, ctx, call, input, gate, propose, confirm, inputEvent: (event: object) => handlers.get("input")!(event,ctx), start: (event: object) => handlers.get("before_agent_start")!(event,ctx) };
+ return { cwd, branch, ctx, call, finish, input, gate, propose, confirm, inputEvent: (event: object) => handlers.get("input")!(event,ctx), start: (event: object) => handlers.get("before_agent_start")!(event,ctx) };
 }
+
+describe("decision-tree rounds and final review", () => {
+ const tree = [
+  { id: "identity", question: "¿Una identidad con varios papeles?", dependsOn: [], status: "open" },
+  { id: "entry", question: "¿Qué contexto abre al entrar?", dependsOn: ["identity"], status: "open" },
+  { id: "facts", question: "Comprobar los datos obligatorios del centro", dependsOn: [], status: "waiting" },
+ ];
+ test("answering the first frontier cannot confirm the whole block or create SDD", async () => {
+  const h = harness();
+  await h.propose({ change: "export-csv", decisions: tree }); h.input("Una identidad con varios papeles");
+  const state = JSON.parse((await h.call({ action: "status" })).content[0].text);
+  expect((await h.call({ action: "confirm", responseId: state.response.id })).isError).toBe(true);
+  const partial = tree.map((d) => d.id === "identity" ? { ...d, status: "resolved", resolution: state.response.text } : d);
+  expect((await h.call({ action: "review", responseId: state.response.id, decisions: partial })).isError).toBe(true);
+  expect((await h.call({ action: "review", responseId: state.response.id, decisions: [partial[0]] })).isError).toBe(true);
+  expect((await h.propose({ decisions: [partial[0]] })).isError).toBe(true);
+  expect(h.gate({ agent: "sdd-scope", task: "intent_work: export-csv" })).toMatchObject({ block: true });
+  expect(existsSync(join(h.cwd, "openspec"))).toBe(false);
+ });
+ test("a fresh response is required for the exact final material, including after resume", async () => {
+  const h = harness(); await h.propose(); h.input("Solo filtrados");
+  const state = JSON.parse((await h.call({ action: "status" })).content[0].text);
+  const decisions = [{ id: "rows", question: "Which rows?", dependsOn: [], status: "resolved", resolution: "User: solo filtrados" }];
+  expect((await h.call({ action: "review", responseId: state.response.id, decisions })).details.state).toBe("pending");
+  expect((await h.call({ action: "confirm", responseId: state.response.id })).isError).toBe(true);
+  const restored = harness(h.cwd, structuredClone(h.branch)); restored.input("Sí, ese es el acuerdo");
+  const review = JSON.parse((await restored.call({ action: "status" })).content[0].text);
+  expect(review.agreement.stage).toBe("review");
+  expect((await restored.call({ action: "confirm", responseId: review.response.id, material: { ...material, objective: "Export everything" } })).isError).toBe(true);
+  expect((await restored.call({ action: "confirm", responseId: review.response.id })).details.state).toBe("confirmed");
+ });
+ test("a temporarily empty frontier preserves waiting research instead of closing", async () => {
+  const h = harness();
+  const decisions = [
+   { id: "facts", question: "Read centre validation", status: "waiting", dependsOn: [] },
+   { id: "required", question: "Which extra fields?", status: "open", dependsOn: ["facts"] },
+  ];
+  const result = await h.propose({ questions: [], decisions });
+  const pending = JSON.parse(result.content[0].text);
+  expect(pending.frontier).toEqual([]); expect(pending.agreement.status).toBe("pending");
+  h.input("Sigue investigando");
+  expect((await h.call({ action: "record", material, decisions })).isError).toBe(true);
+  const status = JSON.parse((await h.call({ action: "status" })).content[0].text);
+  expect((await h.call({ action: "review", responseId: status.response.id })).isError).toBe(true);
+ });
+ test("research completion can reach review without inventing an extra human round", async () => {
+  const h = harness(); await h.propose(); h.input("Solo filtrados");
+  const answer = JSON.parse((await h.call({ action: "status" })).content[0].text).response;
+  const decisions = [
+   { id: "rows", question: "Which rows?", dependsOn: [], status: "resolved", resolution: answer.text },
+   { id: "facts", question: "Read export constraints", dependsOn: [], status: "waiting" },
+  ];
+  await h.propose({ questions: [], decisions });
+  const complete = decisions.map((d) => ({ ...d, status: "resolved", resolution: d.resolution ?? "export.ts:10 supports filtered rows" }));
+  const review = await h.call({ action: "review", decisions: complete, responseId: answer.id });
+  expect(review.details.state).toBe("pending");
+  const revision = JSON.parse(review.content[0].text).agreement.revision;
+  expect(JSON.parse((await h.call({ action: "review", decisions: complete, responseId: answer.id })).content[0].text).agreement.revision).toBe(revision);
+  expect((await h.call({ action: "confirm", responseId: answer.id })).isError).toBe(true);
+ });
+ test("more than four independent questions form one round; malformed trees do not", async () => {
+  const h = harness();
+  const decisions = Array.from({ length: 6 }, (_, n) => ({ id: `q${n}`, question: `Decision ${n}?`, dependsOn: [], status: "open" }));
+  expect((await h.propose({ decisions, questions: decisions.map((d) => d.question) })).details.state).toBe("pending");
+  const cyclic = decisions.map((d, n) => ({ ...d, dependsOn: [`q${(n + 1) % 6}`] }));
+  expect((await h.propose({ decisions: cyclic })).isError).toBe(true);
+  expect((await h.propose({ decisions: [decisions[0], decisions[0]] })).isError).toBe(true);
+ });
+});
 
 describe("intent discovery through the registered Pi tool and hooks", () => {
  test("a complete request can be recorded with observed provenance, never a fake or extension response", async () => {
@@ -166,7 +243,7 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   await h.propose({work:"another-work"}); h.input("Sí");
   const other=JSON.parse((await h.call({action:"status",work:"another-work"})).content[0].text);
   expect((await h.call({action:"confirm",responseId:other.response.id})).isError).toBe(true);
-  expect((await h.call({action:"confirm",work:"another-work",responseId:other.response.id})).details.state).toBe("confirmed");
+  expect((await h.finish({work:"another-work"})).details.state).toBe("confirmed");
  });
  test("a legacy intent is preserved until the user answers the adoption round", async () => {
   const h=harness(); const dir=join(h.cwd,"openspec/changes/export-csv"); mkdirSync(dir,{recursive:true});
@@ -187,10 +264,10 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   h.input("Solo filtrados; conserva también el orden.", "rpc");
   const state = JSON.parse((await h.call({ action: "status", change: "export-csv" })).content[0].text);
   const updated = { ...material, completionCriteria: [...material.completionCriteria, "Conserva el orden visible"] };
-  expect((await h.call({ action: "confirm", change: "export-csv", responseId: state.response.id, material: updated })).details.state).toBe("confirmed");
+  expect((await h.finish({ change: "export-csv", material: updated })).details.state).toBe("confirmed");
   const stored = readAgreement(join(h.cwd, "openspec/changes/export-csv"));
   expect(stored.kind).toBe("valid");
-  if (stored.kind === "valid") expect(stored.agreement.response).toMatchObject({ text: "Solo filtrados; conserva también el orden.", source: "rpc" });
+  if (stored.kind === "valid") expect(stored.agreement.history?.[0]?.response).toMatchObject({ text: "Solo filtrados; conserva también el orden.", source: "rpc" });
   expect(h.gate({ change: "export-csv", create: true }, "ein_sdd_preflight")).toBeUndefined();
   expect(initializeSddChange(h.cwd, "export-csv", "off", "standard", "pi").tdd).toBe("off");
  });
@@ -214,7 +291,7 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
  test("same material is adopted after a fresh session without another question", async () => {
   const h = harness(); await h.propose({ change: "export-csv" }); await h.confirm("export-csv");
   const restored = harness(h.cwd);
-  expect((await restored.propose({ change: "export-csv" })).details.state).toBe("confirmed");
+  expect((await restored.call({ action: "status", change: "export-csv" })).details.state).toBe("confirmed");
   expect(restored.gate({ agent: "sdd-scope", task: "change: export-csv\nintent_work: export-csv" })).toBeUndefined();
  });
  test("pending round and observed answer survive reopening the same session", async () => {
@@ -222,7 +299,7 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   const restored = harness(h.cwd, structuredClone(h.branch));
   const status = JSON.parse((await restored.call({ action: "status" })).content[0].text);
   expect(status.response.text).toBe("Lo filtrado");
-  expect((await restored.call({ action: "confirm", responseId: status.response.id })).details.state).toBe("confirmed");
+  expect((await restored.finish()).details.state).toBe("confirmed");
  });
  test("new material invalidates agreement across sessions and needs a new answer", async () => {
   const h = harness(); await h.propose({ change: "export-csv" }); await h.confirm("export-csv");

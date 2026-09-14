@@ -3,8 +3,42 @@ import { existsSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { join } from "node:path";
 import { createIntentMaterialKey, normalizeIntentMaterial, type IntentMaterial } from "./sdd-intent-preflight.ts";
 
+export type IntentDecision = {
+	id: string;
+	question: string;
+	dependsOn: string[];
+	status: "open" | "waiting" | "resolved";
+	resolution?: string;
+};
+
+export function validateIntentDecisions(decisions: IntentDecision[]): void {
+	if (!Array.isArray(decisions) || !decisions.length) throw new Error("Record the decision tree before reviewing intent");
+	const ids = new Set(decisions.map((d) => d.id));
+	if (ids.size !== decisions.length) throw new Error("Duplicate intent decision");
+	for (const d of decisions) {
+		if (!d.id?.trim() || !d.question?.trim() || !Array.isArray(d.dependsOn)
+			|| d.dependsOn.some((id) => !ids.has(id) || id === d.id)
+			|| !["open", "waiting", "resolved"].includes(d.status)
+			|| (d.status === "resolved" && !d.resolution?.trim())) throw new Error("Invalid intent decision");
+	}
+	const visited = new Set<string>();
+	const visit = (id: string, path: Set<string>) => {
+		if (path.has(id)) throw new Error("Cyclic intent decisions");
+		if (visited.has(id)) return;
+		for (const parent of decisions.find((d) => d.id === id)!.dependsOn) visit(parent, new Set([...path, id]));
+		visited.add(id);
+	};
+	for (const d of decisions) visit(d.id, new Set());
+}
+
+export function intentFrontier(decisions: IntentDecision[]) {
+	return decisions.filter((d) => d.status === "open" && d.dependsOn.every((id) => decisions.find((parent) => parent.id === id)?.status === "resolved"));
+}
+
 export type IntentAgreement = {
 	version: 1;
+	stage?: "round" | "review";
+	decisions?: IntentDecision[];
 	work: string;
 	change?: string;
 	status: "pending" | "confirmed" | "cancelled";
@@ -38,8 +72,12 @@ export function validateAgreement(value: unknown): IntentAgreement {
 		|| (record.change !== undefined && record.change !== record.work)
 		|| !["pending", "confirmed", "cancelled"].includes(record.status)
 		|| typeof record.revision !== "string" || !record.revision
-		|| !Array.isArray(record.questions) || (record.questions.length < 1 && !record.delegated && !record.fromRequest) || record.questions.length > 4
+		|| !Array.isArray(record.questions) || (record.questions.length < 1 && !record.delegated && !record.fromRequest && !record.decisions?.length)
 		|| record.questions.some((q) => typeof q !== "string" || !q.trim())) throw new Error("Invalid intent agreement");
+	if (record.status === "confirmed" && record.stage === "round") throw new Error("A round is not a final agreement");
+	if (record.stage !== undefined && !["round", "review"].includes(record.stage)) throw new Error("Invalid intent stage");
+	if (record.decisions !== undefined) validateIntentDecisions(record.decisions);
+	if (record.stage === "review" && (!record.decisions?.length || record.decisions.some((d) => d.status !== "resolved"))) throw new Error("Unresolved branches prevent final review");
 	const material = normalizeIntentMaterial(record.material);
 	const validResponse = (response: IntentAgreement["response"]) => response && typeof response.id === "string" && response.id.trim()
 		&& typeof response.text === "string" && response.text.trim() && ["interactive", "rpc", "claude-coordinator"].includes(response.source);
@@ -54,7 +92,8 @@ export function validateAgreement(value: unknown): IntentAgreement {
 export function renderAgreement(record: IntentAgreement): string {
 	validateAgreement(record);
 	const bullets = (items: string[]) => items.map((item) => `- ${item}`).join("\n") || "- —";
-	const history = (record.reopenReason ? `Motivo de reapertura: ${record.reopenReason}\n\n` : "") + (record.history?.map((round, index) => `### Ronda ${index + 1}\n\n${bullets(round.questions)}\n\n${round.response.text}\n\n`).join("") ?? "");
+	const tree = record.decisions ? `## Decisiones\n\n${record.decisions.map((d) => `- ${d.id} [${d.status}]: ${d.question} — ${d.resolution ?? "Pendiente"}`).join("\n")}\n\n` : "";
+	const history = tree + (record.reopenReason ? `Motivo de reapertura: ${record.reopenReason}\n\n` : "") + (record.history?.map((round, index) => `### Ronda ${index + 1}\n\n${bullets(round.questions)}\n\n${round.response.text}\n\n`).join("") ?? "");
 	// El bloque estructurado y la vista humana se validan juntos: editar solo
 	// una mitad nunca convierte una interpretación distinta en un acuerdo.
 	return `# Intent — ${record.work}\n\nEstado: ${record.status}\n\n## Objetivo\n\n${record.material.objective}\n\n## Dentro del alcance\n\n${bullets(record.material.boundaries.in)}\n\n## Fuera del alcance\n\n${bullets(record.material.boundaries.out)}\n\n## Criterios de éxito\n\n${bullets(record.material.completionCriteria)}\n\n## Preguntas\n\n${bullets(record.questions)}\n\n${history}## Respuesta del usuario\n\n${record.response?.text ?? "Pendiente"}\n\n<!-- ein:intent-agreement:${Buffer.from(JSON.stringify(record)).toString("base64")} -->\n`;
