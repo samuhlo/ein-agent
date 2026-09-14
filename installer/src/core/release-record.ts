@@ -61,7 +61,7 @@ function parseRecord(payload: Uint8Array): Result<AdaptedReleaseRecord, ReleaseE
   }
 }
 
-function parseCandidateList(payload: Uint8Array): Result<AdaptedReleaseRecord[], ReleaseError> {
+function parseCandidateList(payload: Uint8Array): Result<{ records: AdaptedReleaseRecord[]; count: number }, ReleaseError> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(new TextDecoder().decode(payload));
@@ -77,7 +77,7 @@ function parseCandidateList(payload: Uint8Array): Result<AdaptedReleaseRecord[],
     const record = adaptReleaseRecord(candidate);
     if (record.ok) records.push(record.value);
   }
-  return { ok: true, value: records };
+  return { ok: true, value: { records, count: parsed.length } };
 }
 
 async function fetchResponse(
@@ -113,20 +113,30 @@ async function fetchRecord(
 }
 
 const RELEASE_CANDIDATE_LIMIT = 30;
+const RELEASE_PAGE_LIMIT = 10;
 
 export async function fetchLatestRelease(
   caps: Pick<UpdateCaps, "http">,
   repo = INSTALLER_REPO,
   channel: ReleaseChannel = "stable",
 ): Promise<Result<ReleaseRecord, ReleaseError>> {
-  const url = `https://api.github.com/repos/${repo}/releases?per_page=${RELEASE_CANDIDATE_LIMIT}`;
-  const response = await fetchResponse(url, caps, "Release candidate list was not found");
-  if (!response.ok) return response;
-  const candidates = parseCandidateList(response.value);
-  if (!candidates.ok) return candidates;
-  const selected = selectHighestRelease(candidates.value, channel);
-  if (!selected.ok) return { ok: false, error: releaseError("ineligible", selected.error.message) };
-  return selected;
+  const base = `https://api.github.com/repos/${repo}/releases?per_page=${RELEASE_CANDIDATE_LIMIT}`;
+  const records: AdaptedReleaseRecord[] = [];
+  for (let page = 1; page <= RELEASE_PAGE_LIMIT; page++) {
+    const response = await fetchResponse(page === 1 ? base : `${base}&page=${page}`, caps, "Release candidate list was not found");
+    if (!response.ok) return response;
+    const candidates = parseCandidateList(response.value);
+    if (!candidates.ok) return candidates;
+    records.push(...candidates.value.records);
+    // Count provider entries, including malformed/other-channel releases: they
+    // still consume page slots. A truncated scan cannot prove the highest version.
+    if (candidates.value.count < RELEASE_CANDIDATE_LIMIT) {
+      const selected = selectHighestRelease(records, channel);
+      if (!selected.ok) return { ok: false, error: releaseError("ineligible", selected.error.message) };
+      return selected;
+    }
+  }
+  return { ok: false, error: releaseError("candidate-limit", "Release history exceeds the bounded search; select an exact release tag") };
 }
 
 export async function fetchReleaseByTag(
