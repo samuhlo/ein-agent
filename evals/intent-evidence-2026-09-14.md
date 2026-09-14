@@ -10,7 +10,8 @@ el TODO mezclaba hechos, permisos y decisiones en un contador y recortaba pregun
 `ein_intent investigate` conserva la respuesta observada, también si ya pasó al
 historial, y prepara un encargo de evidencia al sdd-verify existente. El acuerdo
 de producto permanece pendiente. El padre valida el encargo contra su registro
-de sesión; el hijo recibe raíces de lectura y comandos exactos. No se añade otro
+de sesión; guarda además un resultado acotado con toolCallId y señal de truncación
+para retomarlo sin repetir el ensayo; el hijo recibe raíces de lectura y comandos exactos. No se añade otro
 agente, un scheduler ni otra cadena SDD. El ensayo es acotado y síncrono: su resultado
 vuelve al padre en la misma ejecución para continuar las rondas.
 
@@ -42,7 +43,8 @@ con el ancho del host y comprueban expansión, reanudación y límites de línea
 ## Validación
 
 - Suite completa: 3.253 pruebas, cero fallos. Tras el último ajuste de límites:
-  57 pruebas focalizadas, cero fallos. Typecheck y empaquetado del template correctos.
+  57 pruebas focalizadas, cero fallos. La conservación del resultado al reanudar
+se comprobó después con otras 49 pruebas focalizadas, también sin fallos. Typecheck y empaquetado del template correctos.
 - El prompt compacto del padre pasa de 7.839 a 7.619 bytes. Con las referencias
   reales inyectadas ocupa 7.948 bytes, dentro del límite de 8 KiB.
 - `tests/intent-evidence.test.ts` reproduce selector → respuesta archivada → ensayo

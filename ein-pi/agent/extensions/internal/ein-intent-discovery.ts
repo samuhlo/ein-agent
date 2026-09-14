@@ -36,7 +36,10 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 			try { packet = readEvidenceTask(event.input.task); } catch { return; }
 			if (packet) {
 				const current = intentSnapshot(ctx, packet.work).evidence;
-				if (current?.toolCallId === event.toolCallId) pi.appendEntry(INTENT_EVIDENCE, { ...current, state: event.isError ? "blocked" : "returned" });
+				if (current?.toolCallId === event.toolCallId) {
+					const text = (event.content ?? []).flatMap((part) => part.type === "text" ? [part.text] : []).join("\n");
+					pi.appendEntry(INTENT_EVIDENCE, { ...current, state: event.isError ? "blocked" : "returned", result: { text: text.slice(0, 6000), truncated: text.length > 6000, isError: event.isError } });
+				}
 			}
 			return;
 		}
@@ -161,7 +164,7 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 					acceptance: { level: "none", reason: "Diagnostic evidence for pending intent, not verification of an implementation" },
 				} : undefined;
 				if (["prepare-evidence", "run-evidence", "repair-evidence-with-existing-authorization"].includes(nextAction)) instruction = "The product intent is still open. Reuse the investigation authorization already in response/history. Prepare investigate or run its exact delegation; do not ask permission again for the same bounded experiment, do not confirm product intent or start an SDD phase. Scout reads static facts; investigate runs the local experiment.";
-				if (nextAction === "incorporate-evidence") instruction = "Interpret the returned experiment result. Record supported facts and their command evidence in propose, leave unsupported facts open, and ask the newly ready decisions with ask_user_question in this turn. No extra user continue or authorization is needed.";
+				if (nextAction === "incorporate-evidence") instruction = "Interpret the saved experiment result (if truncated, recover its full toolCallId output before concluding). Record supported facts and their command evidence in propose, leave unsupported facts open, and ask the newly ready decisions with ask_user_question in this turn. No extra user continue or authorization is needed.";
 				const frontier = snapshot.agreement?.decisions ? intentFrontier(snapshot.agreement.decisions).map((d) => d.id) : undefined;
 				return { content: [{ type: "text", text: JSON.stringify({ ...snapshot, frontier, nextAction, delegation, instruction }) }], details: { ok: true, state, nextAction, stage: snapshot.agreement?.stage, hasResponse: !!snapshot.response, work: request.work } };
 			} catch (error) {

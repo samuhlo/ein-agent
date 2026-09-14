@@ -74,8 +74,10 @@ test("block 05: a selector answer authorizes evidence, then another round withou
   expect(await child.get("tool_call")!({ toolName: "bash", input: { command: "bun engine.js" } }, ctx)).toBeUndefined();
   const output = execFileSync(process.execPath, ["engine.js"], { cwd, encoding: "utf8" });
   expect(JSON.parse(output)).toEqual({ full: 180, partial: 120 });
-  handlers.get("tool_result")!({ toolName: "subagent", toolCallId: "probe", input: prepared.delegation, isError: false }, ctx);
+  handlers.get("tool_result")!({ toolName: "subagent", toolCallId: "probe", input: prepared.delegation, isError: false, content: [{ type: "text", text: output }] }, ctx);
   expect((await call({ action: "status" })).nextAction).toBe("incorporate-evidence");
+  const resumed = JSON.parse((await spec.execute("status", { action: "status", work: "block-05" }, undefined, undefined, restored)).content[0].text);
+  expect(resumed.evidence.result).toEqual({ text: output, truncated: false, isError: false });
   const resolved = pending.map((d) => d.id === "calendar-fact" ? { ...d, status: "resolved", resolution: `bun engine.js: ${output.trim()}` } : d);
   const next = await call({ action: "propose", material, decisions: resolved, questions: ["¿Calendario parcial o completo?"] });
   expect(next.nextAction).toBe("ask-next-round");

@@ -11,6 +11,7 @@ export type IntentEvidence = EvidencePlan & {
  authorization: NonNullable<IntentAgreement["response"]>;
  state: "ready" | "running" | "returned" | "blocked";
  toolCallId?: string;
+ result?: { text: string; truncated: boolean; isError: boolean };
 };
 
 export function evidenceFor(entries: readonly unknown[], work: string): IntentEvidence | undefined {
@@ -28,7 +29,7 @@ export function prepareEvidence(agreement: IntentAgreement, plan: EvidencePlan, 
   || !Array.isArray(plan.commands) || !plan.commands.length || plan.commands.some((c) => typeof c !== "string" || !c.trim())) throw new Error("Supply a bounded evidence objective, read roots and exact local commands");
  const unchanged = previous && previous.materialKey === agreement.materialKey && previous.decisionId === plan.decisionId
   && previous.objective === plan.objective && JSON.stringify(previous.roots) === JSON.stringify(plan.roots) && JSON.stringify(previous.commands) === JSON.stringify(plan.commands);
- if (unchanged) return previous.state === "blocked" ? { ...previous, state: "ready", toolCallId: undefined } : previous;
+ if (unchanged) return previous.state === "blocked" ? { ...previous, state: "ready", toolCallId: undefined, result: undefined } : previous;
  if (!response?.id || !response.text) throw new Error("Recover the existing authorization response from intent status/history; a technical rejection is not missing user permission");
  return { ...plan, version: 1, id: randomUUID(), work: agreement.work, materialKey: agreement.materialKey, authorization: response, state: "ready" };
 }
@@ -36,7 +37,7 @@ export function prepareEvidence(agreement: IntentAgreement, plan: EvidencePlan, 
 // The parent checks this packet against its durable authorization. The child
 // receives that exact packet, not a prose claim that ordinary SDD is read-only.
 export function evidenceTask(evidence: IntentEvidence): string {
- const packet = { ...evidence, state: "ready" as const, toolCallId: undefined };
+ const packet = { ...evidence, state: "ready" as const, toolCallId: undefined, result: undefined };
  return `${EVIDENCE_MARKER}${Buffer.from(JSON.stringify(packet)).toString("base64")}\n${evidence.objective}\nRead only the allowed roots. Execute only the supplied local commands. Return observations and exact command results inline; do not implement, create SDD artifacts or ask the user to authorize this same investigation again.`;
 }
 
