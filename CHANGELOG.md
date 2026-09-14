@@ -4,6 +4,27 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.3] - 2026-09-14
+
+### Fixed
+
+- Los ensayos locales necesarios para terminar un intent pueden ejecutarse con
+  el verificador existente, sin confirmar antes el acuerdo de producto ni iniciar
+  una fase SDD. Se conserva el permiso ya observado al corregir un rechazo técnico.
+- Intent guarda el resultado del ensayo para reanudar sin repetirlo y distingue
+  la evidencia pendiente, el ensayo en curso y el resultado que debe alimentar
+  la siguiente ronda. Una ronda sin preguntas es válida mientras espera hechos.
+- El encargo de evidencia restringe las lecturas y los comandos del hijo; no sirve
+  para arrancar scope/apply ni para crear artefactos SDD.
+
+### Changed
+
+- El TODO resume título humano, actividad y siguiente paso en hasta tres líneas,
+  usando el ancho real de la TUI. Ctrl+Shift+E despliega los detalles. Se retira
+  el contador que mezclaba hechos, permisos y decisiones de producto.
+- Las tarjetas muestran el estado del ensayo en lugar de pedir una respuesta
+  humana cuando ya existe autorización. El prompt compacto del padre se reduce.
+
 ## [0.99.0-alpha.2] - 2026-09-14
 
 ### Changed
