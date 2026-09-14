@@ -60,7 +60,21 @@ Una respuesta parcial mantiene las demás abiertas. Explicar una alternativa, re
 una recomendación o pedir estado no confirma nada. No reformules la misma pregunta
 cuando el usuario ya la resolvió; abre sus consecuencias.
 
-Los hechos los busca `ein-scout` con contexto fresco y devuelve referencias `path:line`.
+Los hechos estáticos los busca `ein-scout` con contexto fresco y referencias `path:line`.
+Si hace falta ejecutar un ensayo local, usa `ein_intent investigate`: reutiliza
+la autorización ya observada (responseId de la respuesta o del historial), vincula
+el ensayo a su hecho pendiente y aporta objetivo, raíces de lectura y comandos
+exactos. La herramienta devuelve un encargo acotado a `sdd-verify`; ejecútalo tal
+cual. Este modo produce evidencia, sin exigir cerrar el intent ni crear una fase
+SDD. No delegues un ensayo como una verificación SDD ordinaria.
+
+Tras recibir el resultado, incorpora los hechos sustentados mediante propose y
+presenta la siguiente ronda en ese mismo turno. No hace falta otro «vamos».
+Un rechazo técnico no invalida el permiso del ensayo: corrige el encargo dentro
+de su alcance y reutiliza la respuesta guardada, sin pedir autorización de nuevo.
+No ofrezcas saltarte el arnés ejecutándolo directamente. Una ampliación material
+sí requiere una nueva decisión humana. Un ensayo fallido puede aportar evidencia;
+no cambies código ni conviertas su fracaso en aprobación de una solución.
 Nunca preguntes al usuario algo que puedes investigar. Una exploración pendiente
 es un prerequisito sin resolver: espera solo para sus preguntas dependientes y
 plantea las independientes. Si toda la frontera espera hechos, espera los resultados;
@@ -75,7 +89,8 @@ Usa `ein_intent` como único escritor:
   multiSelect solo para elecciones combinables. La recomendación va primero y
   marcada como tal. No añadas «Otra»: el plugin incorpora respuesta libre. Mantén
   las alternativas concretas; «seguir» frente a «no seguir» no explora una decisión.
-  `questions` se deriva automáticamente de questionnaire. Conserva `decisions` (id, question,
+  `questions` se deriva automáticamente de questionnaire. Da un title corto al
+  acuerdo y a sus nodos. Conserva `decisions` (kind: decision/fact/permission, id, question,
   dependsOn, status open/waiting/resolved; incluye tanto la frontera actual como
   las preguntas futuras conocidas que todavía dependen de ella, no solo lo que
   vas a preguntar hoy. resolution explica la decisión y su
@@ -102,6 +117,12 @@ No se crea un directorio de cambio durante la primera entrevista. El estado vive
 en la sesión durable; al confirmar se escribe `intent.md`. Reabrir un acuerdo ya
 existente sí actualiza su estado pendiente para impedir que otra sesión ejecute
 un acuerdo obsoleto. El padre propone el nombre; el runtime lo valida.
+
+Consulta el nextAction devuelto por status: distingue incorporar respuestas,
+preparar/ejecutar evidencia, esperar un ensayo real, incorporar su resultado y
+abrir la siguiente ronda. Un hecho pendiente sin ensayo arrancado no es una espera.
+El TODO muestra un resumen de actividad y siguiente paso; su atajo despliega detalles.
+No cuentes hechos ni permisos como decisiones de producto.
 
 Si el plugin no está disponible, falla o la pregunta todavía no tiene alternativas
 concretas (por ejemplo el arranque en frío), usa texto y espera la respuesta real.

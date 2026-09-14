@@ -149,8 +149,14 @@ disponible, la conversación continúa por texto.
 Contestar una ronda no cierra el cambio: primero se revisa el acuerdo completo y
 se confirma con una respuesta nueva. Pedir solo intent no autoriza implementación.
 
-El TODO muestra intent y sus decisiones desde antes de scope, incluida la revisión
-final. Las ramas y respuestas se conservan en la sesión; al confirmar, `intent.md` pasa
+Si el acuerdo necesita un ensayo local, intent reutiliza su autorización guardada
+y prepara un encargo de evidencia al verificador, sin cerrar el acuerdo ni iniciar
+una fase SDD. El resultado alimenta la siguiente ronda; un rechazo técnico no
+requiere volver a pedir el mismo permiso.
+
+El TODO resume actividad y siguiente paso en hasta tres líneas, desde antes de
+scope y durante la revisión final. `Ctrl+Shift+E` despliega sus detalles. Hechos,
+permisos y decisiones no se mezclan en un porcentaje de progreso. Las ramas y respuestas se conservan en la sesión; al confirmar, `intent.md` pasa
 a ser el contrato de scope y las fases posteriores. Si aparece una nueva decisión
 de producto, se reabre la parte afectada. Los ajustes mecánicos completos pueden
 registrarse directamente, y el modo auto no omite la entrevista de un SDD.

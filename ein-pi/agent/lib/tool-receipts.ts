@@ -443,7 +443,8 @@ export const TOOL_RECEIPTS: Readonly<Record<string, (details: unknown) => ToolRe
 		if (!isRecord(details) || typeof details.ok !== "boolean") return unreadable();
 		if (!details.ok) return receipt("falta resolver la intención", [String(details.reason ?? "Revisa la conversación antes de continuar.")], true);
 		const states: Record<string, string> = { pending: "esperando tu respuesta", confirmed: "objetivo y alcance acordados", cancelled: "trabajo cancelado", absent: "sin acuerdo todavía" };
-		const line = details.state === "pending" && details.hasResponse === true ? "respuestas recibidas · acuerdo pendiente"
+		const activity: Record<string, string> = { "prepare-evidence": "pendiente de evidencia", "run-evidence": "ensayo autorizado · preparado", "wait-evidence": "ensayo en curso", "incorporate-evidence": "evidencia recibida · siguiente ronda", "repair-evidence-with-existing-authorization": "ensayo bloqueado · autorización conservada" };
+		const line = details.state === "pending" && activity[String(details.nextAction)] ? activity[String(details.nextAction)] : details.state === "pending" && details.hasResponse === true ? "respuestas recibidas · acuerdo pendiente"
 			: details.state === "pending" && details.stage === "review" ? "revisión final · esperando tu respuesta"
 			: states[String(details.state)];
 		return line ? receipt(line, [line]) : unreadable();

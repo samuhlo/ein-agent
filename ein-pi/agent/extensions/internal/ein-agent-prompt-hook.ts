@@ -1,3 +1,4 @@
+import { evidenceReadAllowed, readEvidenceTask, type IntentEvidence } from "../../lib/intent-evidence.ts";
 // =============================================================================
 // EIN AGENT PROMPT HOOK
 // Builds the context added before each Pi agent starts. Selection rules live
@@ -60,9 +61,15 @@ export function compactParentSkillCatalog(systemPrompt: string, skills: Skill[] 
 export function registerAgentPromptHook(pi: ExtensionAPI): void {
 	const sessionStartVersion = new Map<string, string | null>();
 	const staleSessionNudged = new Set<string>();
+	let evidence: IntentEvidence | undefined;
 	let handoffError: string | undefined;
 	let agreementInput: { directory: string; artifact: string; key: string } | undefined;
 	pi.on("tool_call", (event, ctx) => {
+		if (evidence) {
+			if (event.toolName === "bash") return evidence.commands.includes(String(event.input.command)) ? undefined : { block: true, reason: "Run only the exact commands supplied for this authorized evidence experiment" };
+			if (["read", "grep", "find"].includes(event.toolName) && evidenceReadAllowed(ctx.cwd, ("path" in event.input ? event.input.path : ".") ?? ".", evidence.roots)) return;
+			return { block: true, reason: "Evidence mode permits only scoped reads and the supplied commands; product writes and SDD artifacts are unavailable" };
+		}
 		if (handoffError) return { block: true, reason: handoffError };
 		if (!agreementInput || !["write", "edit", "bash", "ein_sdd_task_progress", "ein_openspec_delta_write", "ein_sdd_summary"].includes(event.toolName)) return;
 		const current = readAgreement(agreementInput.directory);
@@ -84,6 +91,15 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const preferences = getSddPreflightPreferences(ctx);
 		const startNames = readAgentStartNames(event);
 		const isParent = !isNamedAgent && !isSddAgent;
+		evidence = undefined;
+		const packet = readEvidenceTask(readAgentTask(event));
+		if (packet) {
+			if (!startNames.includes("sdd-verify")) throw new Error("Intent evidence uses only the bounded verify executor");
+			evidence = packet;
+			handoffError = undefined;
+			agreementInput = undefined;
+			return { systemPrompt: `You are the independent SDD verify executor in local evidence mode for an ongoing intent interview. This bounded experiment is already authorized. It is not an SDD phase or implementation verification. Read only these roots: ${JSON.stringify(packet.roots)}. Execute only these exact local commands: ${JSON.stringify(packet.commands)}. Do not write source, tests, configuration or SDD artifacts; do not contact remote services or use credentials. Return actual command outcomes, observations, limitations and cited source references inline. A failing experiment is useful evidence, never a reason to change product code or ask the same authorization again. The parent resumes discovery after this result. Objective: ${packet.objective}` };
+		}
 		const phaseMarker = "<!-- ein:phase-context -->";
 		if (!isParent && event.systemPrompt.includes(phaseMarker)) return;
 		const basePrompt = isParent

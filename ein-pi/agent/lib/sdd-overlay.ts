@@ -1,3 +1,4 @@
+import type { IntentEvidence } from "./intent-evidence.ts";
 import type { IntentAgreement } from "./intent-agreement.ts";
 // =============================================================================
 // [CORE] OVERLAY DEL CAMBIO ACTIVO
@@ -30,6 +31,8 @@ import type { SddChangeStatus, SddPhase, SddTaskItem } from "./sdd-router.ts";
 import { createPalette, fit, padVisible, visibleWidth, type Palette } from "./theme.ts";
 
 export type OverlayOptions = Readonly<{
+	expanded?: boolean;
+	evidence?: IntentEvidence;
 	/** Ancho útil del terminal. Por debajo de 40 el overlay se calla. */
 	width?: number;
 	/** Altura MÁXIMA del widget, cabecera incluida. Es el sitio que le cedes en
@@ -310,15 +313,20 @@ export function renderIntentOverlay(intent: IntentAgreement, options: OverlayOpt
  if (width < MIN_WIDTH) return [];
  const palette = options.palette ?? createPalette(false);
  const decisions = intent.decisions ?? [];
- const resolved = decisions.filter((d) => d.status === "resolved").length;
- const stage = intent.status === "cancelled" ? "cancelado" : intent.status === "confirmed" ? "acordado" : intent.stage === "review" ? "revisión final" : "decisiones pendientes";
- const lines = [`${INDENT}${palette.accent(fit(`intent · ${stage} · ${intent.work}`, width - 2))}`];
- if (options.collapsed) return lines;
- lines.push(`${INDENT}${palette.muted(fit(`${resolved}/${decisions.length} decisiones resueltas · ${intent.status === "cancelled" ? "trabajo detenido" : intent.status === "confirmed" ? intent.change ? "siguiente: scope" : "acuerdo registrado" : "antes de ejecutar"}`, width - 2))}`);
- if (intent.status === "pending") {
-  for (const d of decisions.filter((d) => d.status !== "resolved")) {
-   lines.push(`${INDENT}${palette.text(fit(`${d.status === "waiting" ? "esperando hechos" : "pendiente"}: ${d.question}`, width - 2))}`);
-  }
+ const evidence = options.evidence?.materialKey === intent.materialKey && decisions.some((d) => d.id === options.evidence?.decisionId && d.status === "waiting") ? options.evidence : undefined;
+ const stage = intent.status === "cancelled" ? "Cancelado" : intent.status === "confirmed" ? "Acordado" : intent.stage === "review" ? "Revisión final" : evidence
+  ? { ready: "Ensayo preparado", running: "Ensayo en curso", returned: "Evidencia disponible", blocked: "Ensayo bloqueado" }[evidence.state]
+  : decisions.some((d) => d.status === "waiting") ? "Pendiente de evidencia" : "Decisiones pendientes";
+ const next = decisions.find((d) => d.status === "open" && d.kind === "decision");
+ const hint = intent.status === "cancelled" ? "Trabajo detenido" : intent.status === "confirmed" ? intent.change ? "Después: alcance SDD" : "Acuerdo registrado"
+  : intent.stage === "review" ? "Confirma o ajusta el acuerdo en el selector"
+  : evidence?.state === "returned" ? "Después: incorporar el resultado y continuar la ronda"
+  : `Después: ${next?.title ?? "continuar la entrevista"}`;
+ const line = (text: string) => `${INDENT}${fit(text, width - 2)}`;
+ const lines = [line(palette.text(intent.title ?? intent.material.objective)), line(palette.accent(`Intent · ${stage}`)), line(palette.muted(hint))];
+ if (options.collapsed) return [line(palette.accent(`Intent · ${stage}`))];
+ if (options.expanded) {
+  for (const d of decisions.filter((d) => d.status !== "resolved")) lines.push(line(`${d.kind === "fact" || d.status === "waiting" ? "Hecho" : d.kind === "permission" ? "Permiso" : d.kind === "decision" ? "Decisión" : "Pendiente"}: ${d.title ?? d.question}`));
  }
- return lines.slice(0, Math.max(1, options.maxLines ?? DEFAULT_MAX_LINES));
+ return lines.slice(0, Math.max(1, options.maxLines ?? (options.expanded ? 8 : 3)));
 }
