@@ -148,7 +148,7 @@ export function readExplicitSddChange(event: unknown): string | undefined {
 		readStringPath(event, ["input", "change"]),
 	].find((value) => value !== undefined);
 	if (direct && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(direct)) return direct;
-	const match = /(?:openspec\/changes\/|\bchange\s*[:=]\s*)([a-z0-9]+(?:-[a-z0-9]+)*)\b/i.exec(
+	const match = /(?:(?:openspec|\.sdd)\/changes\/|\b(?:change|intent_work)\s*[:=]\s*)([a-z0-9]+(?:-[a-z0-9]+)*)\b/i.exec(
 		readAgentTask(event),
 	);
 	return match?.[1];

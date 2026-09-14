@@ -172,3 +172,16 @@ y carga las siete fases desde el plan de herramientas resultante. El piloto opta
 configurado para `sdd-apply`, ejecuta una delegación real en un proyecto temporal y
 comprueba las llamadas `start`/`complete`, el test y el estado terminal del hijo.
 Después de actualizar, abre una sesión Pi nueva para cargar el planificador corregido.
+
+### Esperas y reintentos del proveedor
+
+El perfil de fábrica usa el timeout HTTP nativo de Pi de 120 segundos y una sola
+repetición del agente, sin otra capa de reintentos dentro del proveedor. Evita que
+los reintentos se multipliquen hasta agotar el límite global de un hijo. El timeout
+HTTP no sustituye el límite de una herramienta ni el de toda la fase; una operación
+larga con actividad conserva sus controles nativos. No se añade otro watchdog.
+
+La actualización sustituye el perfil de reintentos de fábrica antiguo. Las opciones
+personalizadas de retry y los timeouts HTTP/WebSocket se conservan; los campos no
+personalizados reciben los nuevos valores de fábrica. `httpIdleTimeoutMs: 0` sigue
+siendo la desactivación explícita del timeout nativo.

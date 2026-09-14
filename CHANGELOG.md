@@ -4,6 +4,26 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.98.0-alpha.4] - 2026-09-14
+
+### Fixed
+
+- El progreso distingue grupos implementados de aceptación verificada: no declara
+  completo un cambio con tareas pendientes ni convierte cobertura parcial en pass.
+- Las revisiones nativas conservan sus resultados y contratos; la continuación
+  recupera el acuerdo vigente sin reabrir decisiones ya autorizadas.
+- Los límites nativos de inactividad y reintentos evitan multiplicar esperas del
+  proveedor, conservando la configuración personalizada durante actualizaciones.
+- Las prohibiciones de commit/push no disparan permisos de publicación. El diálogo
+  de entrega acepta las teclas nativas y se muestra sin comprimir el editor.
+- Los workflows muestran una sola cabecera por resultado y distinguen los rechazos
+  de lanzamiento de los intentos que sí se ejecutaron.
+
+### Added
+
+- Parche manual y prueba de continuidad del spinner de pi-subagents 0.67.0.
+  Este parche no se aplica automáticamente desde el instalador.
+
 ## [0.98.0-alpha.3] - 2026-09-13
 
 ### Fixed

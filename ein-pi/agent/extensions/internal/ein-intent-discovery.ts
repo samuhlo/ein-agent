@@ -3,7 +3,8 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { INTENT_INPUT, INTENT_STATE, requireIntent, runIntentDiscovery, type IntentInput, type IntentRequest } from "../../lib/intent-discovery.ts";
-import { collectDelegationItems, delegationShapeIsUnrecognized } from "../../lib/delegation-shape.ts";
+import { collectDelegationItems, delegationShapeIsUnrecognized, rewriteDelegationTasks } from "../../lib/delegation-shape.ts";
+import { readAuthorizedContinuation } from "../../lib/sdd-continuation.ts";
 import { resolveChangesDir } from "../../lib/sdd-routing-core.ts";
 import { artifactHasIntentKey, readAgreement } from "../../lib/intent-agreement.ts";
 import { isRecord, readExplicitSddChange, readAgentStartNames } from "./ein-pi-event-contracts.ts";
@@ -32,6 +33,10 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 				requireIntent(ctx, change, change);
 			}
 			if (event.toolName !== "subagent") return;
+			rewriteDelegationTasks(event.input, (agent, task) => {
+				const change = readAuthorizedContinuation(ctx, agent, task);
+				return change ? `change: ${change}\nintent_work: ${change}\n\n${task}` : task;
+			});
 			if (delegationShapeIsUnrecognized(event.input)) throw new Error("Intent cannot validate this execution shape; use explicit agent/task calls");
 			for (const item of collectDelegationItems(event.input)) {
 				if (!item.agent?.startsWith("sdd-")) continue;
