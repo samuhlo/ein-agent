@@ -15,6 +15,7 @@ import { collectDelegationItems } from "../ein-pi/agent/lib/delegation-shape.ts"
 import { projectProjectState } from "../ein-pi/agent/lib/project-state.ts";
 import {
 	admitSddParticipantCall,
+	expandSddParticipantTask,
 	clearSddParticipantSession,
 	completeSddParticipantCall,
 	planSddParticipants,
@@ -103,7 +104,9 @@ describe("ephemeral participant coordinator", () => {
 		expect(readSddAdvisoryStatus(cwd, "advisory-freshness", "change")?.status).toBe("complete");
 		writeFileSync(join(cwd, "src/a.ts"), "export const a = 2;\n");
 		expect(readSddAdvisoryStatus(cwd, "advisory-freshness", "change")?.status).toBe("unavailable");
-		expect(planSddParticipants(cwd, "advisory-freshness", "change").status).toBe("unavailable");
+		const next = planSddParticipants(cwd, "advisory-freshness", "change");
+		expect(next.status).toBe("ready");
+		expect(next.next?.task).not.toBe(first.next!.task);
 	});
 
 	test.each([true, false])("distinguishes transport errors from unknown success envelopes (isError=%p)", (isError) => {
@@ -335,4 +338,29 @@ describe("ephemeral participant coordinator", () => {
 		const plan = planSddParticipants(architectOnly, "architect-only", "change");
 		expect(plan.next?.agent).toBe("ein-architect");
 	});
+});
+
+test("a short participant reference expands to the current generated contract without asking the model to copy it", () => {
+ const cwd=fixture("reference",true,false);
+ const plan=planSddParticipants(cwd,"reference","change");
+ const expanded=expandSddParticipantTask(cwd,"reference","ein-cleaner",plan.next!.taskRef+"\n\nRead-only; preserve source.");
+ expect(expanded).toBe(plan.next!.task+"\n\nRead-only; preserve source.");
+ expect(admitSddParticipantCall(cwd,"reference","ref-call","ein-cleaner",expanded)).toBeNull();
+ expect(completeSddParticipantCall(cwd,"reference","ref-call",{status:"complete"}).ok).toBe(true);
+ expect(expandSddParticipantTask(cwd,"reference","ein-cleaner","ordinary unrelated task")).toBe("ordinary unrelated task");
+ expect(()=>expandSddParticipantTask(cwd,"another-session","ein-cleaner",plan.next!.taskRef)).toThrow("unknown or stale");
+});
+
+test("registered result hook records native redacted advice inside a two-child workflow", () => {
+ const session="native-workflow";const cwd=fixture(session,true,false);const plan=planSddParticipants(cwd,session,"change");
+ const task=expandSddParticipantTask(cwd,session,"ein-cleaner",plan.next!.taskRef);
+ expect(admitSddParticipantCall(cwd,session,"workflow-call","ein-cleaner",task)).toBeNull();
+ let onResult:(event:unknown,ctx:unknown)=>unknown=()=>{};
+ registerDelegationResultHook({on(name:string,fn:typeof onResult){if(name==="tool_result")onResult=fn;}} as never,new Map());
+ onResult({toolName:"subagent",toolCallId:"workflow-call",isError:false,details:{mode:"workflow",results:[
+  {agent:"ein-cleaner",task:"[prompt redacted]",exitCode:0,finalOutput:"# Audit findings\nAdd a test for the missing behavior."},
+  {agent:"sdd-verify",task:"[prompt redacted]",exitCode:0,finalOutput:"status: fail\nCoverage gap."},
+ ]},content:[]},{cwd,hasUI:false,sessionManager:{getSessionId:()=>session}});
+ expect(readSddAdvisoryStatus(cwd,session,"change")?.status).toBe("complete");
+ expect(completeSddParticipantCall(cwd,session,"workflow-call",{status:"complete"}).ok).toBe(false);
 });

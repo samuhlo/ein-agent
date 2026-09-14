@@ -31,11 +31,12 @@ export function recognizePiParticipantTerminal(input: {
 	content?: unknown;
 	agent: string;
 	task: string;
+	callMatched?: boolean;
 }): PiParticipantTerminal {
 	if (input.toolName !== "subagent") {
 		return participantTerminalUnavailable("unsupported participant delivery");
 	}
-	if (input.isError !== false) {
+	if (input.isError !== false && !(input.isError === true && input.callMatched && isRecord(input.details) && input.details.mode === "workflow")) {
 		const diagnostic = Array.isArray(input.content)
 			? input.content.find((part) => isRecord(part) && part.type === "text" && typeof part.text === "string" && part.text.trim())
 			: undefined;
@@ -45,21 +46,26 @@ export function recognizePiParticipantTerminal(input: {
 	}
 	if (!isRecord(input.details) ||
 		(input.details.mode !== "single" && input.details.mode !== "workflow") ||
-		!Array.isArray(input.details.results) ||
-		input.details.results.length !== 1) {
+		!Array.isArray(input.details.results)) {
 		return participantTerminalUnavailable("participant terminal result is missing or ambiguous");
 	}
-	const child = input.details.results[0];
-	if (!isRecord(child) || child.agent !== input.agent || child.task !== input.task ||
+	const matches = input.details.results.filter((child) => isRecord(child) && child.agent === input.agent);
+	if (matches.length !== 1 || (!input.callMatched && input.details.results.length !== 1)) return participantTerminalUnavailable("participant terminal result is missing or ambiguous");
+	const child = matches[0];
+	if (!isRecord(child) || child.agent !== input.agent || (child.task !== input.task && !(input.callMatched && child.task === "[prompt redacted]")) ||
 		typeof child.finalOutput !== "string" || child.finalOutput.trim().length === 0) {
 		return participantTerminalUnavailable("participant terminal child identity or output is missing");
 	}
+	if (child.exitCode !== undefined && child.exitCode !== 0) return participantTerminalUnavailable(typeof child.error === "string" ? child.error : "participant execution failed");
+	if (child.timedOut === true || child.stopped === true || child.interrupted === true) return participantTerminalUnavailable("participant execution did not finish");
 	if (Buffer.byteLength(child.finalOutput, "utf8") > MAX_PI_PARTICIPANT_OUTPUT_BYTES) {
 		return participantTerminalUnavailable("participant terminal output exceeds the bounded limit");
 	}
 	const statusLines = child.finalOutput
 		.split(/\r?\n/u)
 		.filter((line) => /^\s*status\s*:/u.test(line));
+	// A native successful report is delivered advice, not an acceptance verdict.
+	if (statusLines.length === 0 && input.callMatched && child.exitCode === 0) return { status: "complete", reason: "native participant report received; independent verification remains required" };
 	if (statusLines.length !== 1) {
 		return participantTerminalUnavailable("participant terminal status is missing or ambiguous");
 	}
