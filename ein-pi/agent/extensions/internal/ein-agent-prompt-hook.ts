@@ -92,9 +92,8 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const startNames = readAgentStartNames(event);
 		const isParent = !isNamedAgent && !isSddAgent;
 		evidence = undefined;
-		const packet = readEvidenceTask(readAgentTask(event));
+		const packet = startNames.includes("sdd-verify") ? readEvidenceTask(readAgentTask(event)) : undefined;
 		if (packet) {
-			if (!startNames.includes("sdd-verify")) throw new Error("Intent evidence uses only the bounded verify executor");
 			evidence = packet;
 			handoffError = undefined;
 			agreementInput = undefined;

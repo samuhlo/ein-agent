@@ -8,6 +8,8 @@ Todos los cambios relevantes de Ein. El formato sigue
 
 ### Fixed
 
+- Los marcadores de evidencia pegados en logs del chat no activan el modo del
+  ejecutor: el padre conserva la conversación normal.
 - Los ensayos locales necesarios para terminar un intent pueden ejecutarse con
   el verificador existente, sin confirmar antes el acuerdo de producto ni iniciar
   una fase SDD. Se conserva el permiso ya observado al corregir un rechazo técnico.
