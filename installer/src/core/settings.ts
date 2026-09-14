@@ -19,7 +19,18 @@ const USER_SETTINGS_KEYS = [
   "lastChangelogVersion",
   "enabledModels",
   "packages",
+  "retry",
+  "httpIdleTimeoutMs",
+  "websocketConnectTimeoutMs",
 ] as const;
+
+const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
+function legacyRetryDefault(value: unknown): boolean {
+  if (!record(value) || Object.keys(value).sort().join() !== "baseDelayMs,enabled,maxRetries,provider") return false;
+  return value.enabled === true && value.maxRetries === 6 && value.baseDelayMs === 2000 && record(value.provider)
+    && Object.keys(value.provider).join() === "maxRetryDelayMs" && value.provider.maxRetryDelayMs === 60000;
+}
 
 export type UserSettings = Partial<Record<(typeof USER_SETTINGS_KEYS)[number], unknown>>;
 
@@ -32,6 +43,7 @@ export function readUserSettings(agentDir: string): UserSettings {
     const record = parsed as Record<string, unknown>;
     const result: UserSettings = {};
     for (const key of USER_SETTINGS_KEYS) {
+      if (key === "retry" && legacyRetryDefault(record[key])) continue;
       if (key in record) result[key] = record[key];
     }
     return result;
@@ -49,6 +61,11 @@ export function mergeUserSettings(agentDir: string, saved: UserSettings): void {
     const template = parsed as Record<string, unknown>;
     const { packages: savedPackages, ...savedFields } = saved;
     const merged: Record<string, unknown> = { ...template, ...savedFields };
+    if (record(template.retry) && record(saved.retry)) {
+      merged.retry = { ...template.retry, ...saved.retry,
+        ...(record(template.retry.provider) && record(saved.retry.provider) ? { provider: { ...template.retry.provider, ...saved.retry.provider } } : {}),
+      };
+    }
     if (Array.isArray(template.packages) && Array.isArray(savedPackages)) {
       const templatePackages = template.packages.filter(
         (value): value is string => typeof value === "string",

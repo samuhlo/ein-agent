@@ -415,6 +415,7 @@ function readVerifyOutcome(changePath: string): VerifyOutcome {
 		return "unknown";
 	}
 	// RESULTADO -> Un fallo obligatorio registrado prevalece sobre el veredicto narrativo.
+	if (/^\s*(?:\*\*)?behavior_coverage\s*:\s*(?:partial|none)\b/im.test(content)) return "fail";
 	for (const line of content.split(/\r?\n/).filter((line) => /^\s*(?:[-*]\s*)?required_check:/.test(line))) {
 		try {
 			const check = JSON.parse(line.replace(/^\s*(?:[-*]\s*)?required_check:\s*/, ""));
@@ -493,7 +494,7 @@ function readApplyOutcome(changePath: string): ApplyOutcome {
 	const match = content.match(/\bstatus\s*[:=]\s*(complete|partial|blocked)\b/i);
 	if (match) {
 		const v = match[1].toLowerCase();
-		if (v === "complete") return "complete";
+		if (v === "complete") return readTasksStatus(changePath).counts.pending > 0 ? "partial" : "complete";
 		if (v === "partial") return "partial";
 		if (v === "blocked") return "blocked";
 	}

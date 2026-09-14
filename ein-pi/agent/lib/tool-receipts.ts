@@ -35,7 +35,7 @@ export const TOOL_LABELS: Readonly<Record<string, string>> = {
 	ein_intent: "Qué queremos conseguir",
 	ein_sdd_status: "Estado",
 	ein_sdd_task_progress: "Progreso de la tarea",
-	ein_sdd_check: "Revisión del plan",
+	ein_sdd_check: "Validar artefactos",
 	ein_sdd_preflight: "Cómo se trabaja este cambio",
 	ein_sdd_lane: "Carril",
 	ein_sdd_close: "Cierre",
@@ -151,16 +151,16 @@ function checkReceipt(details: unknown): ToolReceipt {
 		const parts = [plural(errors, "error", "errores")];
 		if (warnings > 0) parts.push(plural(warnings, "aviso", "avisos"));
 		return receipt(meta(parts), [
-			"El plan del cambio no pasa la revisión.",
+			"Los artefactos no cumplen el contrato del flujo.",
 			`Hay ${plural(errors, "cosa que hay que corregir", "cosas que hay que corregir")} antes de seguir.`,
 		], true);
 	}
 
 	const present = list(details.phases).filter((entry) => isRecord(entry) && entry.present === true).length;
 	const line = warnings > 0
-		? meta([`${plural(present, "fase revisada", "fases revisadas")}`, plural(warnings, "aviso", "avisos")])
-		: `${plural(present, "fase", "fases")} sin errores`;
-	const detail = [`Los documentos del cambio están completos en ${plural(present, "fase", "fases")}.`];
+		? meta([`${plural(present, "artefacto revisado", "artefactos revisados")}`, plural(warnings, "aviso", "avisos")])
+		: `${plural(present, "artefacto", "artefactos")} con formato válido`;
+	const detail = [`Se ha comprobado el formato de ${plural(present, "artefacto", "artefactos")}; no certifica implementación ni cobertura.`];
 	if (warnings > 0) detail.push("Hay avisos: no bloquean, pero conviene mirarlos.");
 	return advisoryReceipt(receipt(line, detail), details);
 }

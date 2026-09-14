@@ -67,23 +67,13 @@ For a chain run, use `ein_sdd_task_progress` in strict AND standard mode. Pass t
 
 ## Apply Progress (chain runs only)
 
-When you run as a phase of the SDD chain — a `design.md` and an `openspec/changes/{change}/` directory exist — update `openspec/changes/{change}/apply-progress.md` cumulatively. If previous progress exists, merge it with new progress; never overwrite completed work. **Keep it COMPACT: your entry per group is a SUMMARY (~20-40 lines) — status, what changed, TDD evidence in a few lines, residual risks — never per-test tables or pasted command output.** The file accumulates across every group, so a verbose entry per group balloons it (one change reached 906 lines and tripped the oversize gate). Summarize your own prior entries if already verbose; never erase them.
+In an SDD change, update `openspec/changes/{change}/apply-progress.md` cumulatively. Preserve prior groups and their evidence. Keep each entry compact: status, changed behavior, exact checks, residual gaps and strict-TDD evidence when applicable. Do not paste command logs or claim completion for unimplemented acceptance clauses.
 
 **Bounded exception:** one `## Files changed` section is REQUIRED (machine-read scope): one backticked path per line, the only permitted list. See `SDD_ARTIFACT_GRAMMAR.md`.
 
-`apply-progress.md` **must** include one top-level status line:
+The global `status:` describes the **whole change**, not this child's assigned group: `partial` while any task remains, `complete` only when every task is implemented, or `blocked` for an unresolved impediment. Ein derives this metadata from the checklist on native writes/progress updates. Keep one global status when writing through another runtime. Group outcomes belong in their narrative sections. Implementation counts are declarations, not independent acceptance.
 
-```
-status: complete   # apply done, all tasks finished → router advances to verify
-status: partial    # apply in progress, some tasks done → router stays on apply
-status: blocked    # apply blocked by an impediment → router stays on apply
-```
-
-- `complete` — all assigned tasks implemented and verified.
-- `partial` — work started but not finished; more apply needed.
-- `blocked` — external impediment (missing deps, waiting on decision, etc.).
-
-The status line is the contract the router reads. Without it, the gatekeeper (`ein_sdd_check`) will error.
+Before completing a task, compare every assigned acceptance clause with the actual code and test assertions. Cite the concrete test/observable check for each behavior; a green command alone does not establish its coverage. If a clause is unmet, preserve the partial work and state the exact missing behavior rather than marking the task done.
 
 Include:
 

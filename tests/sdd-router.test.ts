@@ -247,7 +247,7 @@ describe("resolveSddStatus", () => {
 	test("normalización post-verify (apply nuevo, fichero entregado intacto) → NO verifyStale", () => {
 		const c = change("feat-x");
 		for (const f of ["scope.md", "map.md", "design.md"]) put(c, f, "x\n");
-		put(c, "tasks.md", "status: ready\nblocked_by: none\n## // 001. G\nEdita app/foo.ts.\n- [ ] 1.1 hacer\n");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n## // 001. G\nEdita app/foo.ts.\n- [x] 1.1 hacer\n");
 		put(c, "apply-progress.md", "status: complete\n");
 		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
 		mkdirSync(join(DIR, "app"), { recursive: true });
@@ -266,7 +266,7 @@ describe("resolveSddStatus", () => {
 	test("cambio real post-verify (fichero entregado tocado DESPUÉS) → verifyStale", () => {
 		const c = change("feat-x");
 		for (const f of ["scope.md", "map.md", "design.md"]) put(c, f, "x\n");
-		put(c, "tasks.md", "status: ready\nblocked_by: none\n## // 001. G\nEdita app/foo.ts.\n- [ ] 1.1 hacer\n");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n## // 001. G\nEdita app/foo.ts.\n- [x] 1.1 hacer\n");
 		put(c, "apply-progress.md", "status: complete\n");
 		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
 		mkdirSync(join(DIR, "app"), { recursive: true });
@@ -295,7 +295,7 @@ describe("resolveSddStatus", () => {
 	test("accepted Cleaner mutation makes prior generic verification stale and routes to verify", () => {
 		const c = change("cleaner-mutation");
 		for (const f of ["scope.md", "map.md", "design.md"]) put(c, f, "x\n");
-		put(c, "tasks.md", "status: ready\nblocked_by: none\n## // 001. Cleaner\nEdita src/target.ts.\n- [ ] 1.1 limpiar\n");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n## // 001. Cleaner\nEdita src/target.ts.\n- [x] 1.1 limpiar\n");
 		put(c, "apply-progress.md", "status: complete\nparticipant_outcome: complete\n");
 		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
 		mkdirSync(join(DIR, "src"), { recursive: true });

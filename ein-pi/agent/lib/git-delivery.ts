@@ -91,7 +91,7 @@ export function stripNegatedDelivery(text: string): string {
 	// config, branches/commit/push/PR/merge"). Stop at an affirmative clause
 	// so "sin push, pero abre PR" still requests the PR.
 	const lists = text.replace(/\b(?:sin|without|no|never|nunca|do\s+not|don't)\b[^.;\n]*/gi, (clause) => {
-		const boundary = clause.search(/\b(?:pero|but|then|luego|después)\b|(?:,|\by\b|\band\b)\s*(?:haz|hace|abre|crea|sube|publica|ejecuta|realiza|actualiza|git|push|open|create|run|commit)\b/i);
+		const boundary = clause.search(/\b(?:pero|but|then|luego|después)\b|(?:,|\by\b|\band\b)\s*(?:haz|hace|abre|crea|sube|publica|ejecuta|realiza|actualiza|open|create|run|git\s+(?:push|commit)|(?:push|commit)\s+(?:the|this|changes|commits|branch|to|and\s+push))\b(?!\s*[/,])/i);
 		const negative = boundary < 0 ? clause : clause.slice(0, boundary);
 		const rest = boundary < 0 ? "" : clause.slice(boundary);
 		return negative.replace(/\b(?:git\s+)?(?:commit(?:s)?|push|PRs?|pull\s+requests?|merge)\b/gi, " ") + rest;

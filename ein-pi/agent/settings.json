@@ -11,10 +11,11 @@
   },
   "retry": {
     "enabled": true,
-    "maxRetries": 6,
+    "maxRetries": 1,
     "baseDelayMs": 2000,
     "provider": {
-      "maxRetryDelayMs": 60000
+      "maxRetryDelayMs": 60000,
+      "maxRetries": 0
     }
   },
   "extensions": [
@@ -40,5 +41,6 @@
   ],
   "subagents": {
     "disableBuiltins": true
-  }
+  },
+  "httpIdleTimeoutMs": 120000
 }

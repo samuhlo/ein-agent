@@ -25,6 +25,7 @@ import { join } from "node:path";
 import { collectDelegationAgents } from "./guardrails.ts";
 import { lintPhaseArtifact, type GuardrailIssue, type SddPhase } from "./sdd-guardrails.ts";
 import { listActiveChanges, resolveChangesDir } from "./sdd-router.ts";
+import { readSddCompletionEvidence } from "./sdd-routing-core.ts";
 
 // Fase → artefacto que la da por hecha. Espejo del router y del lint; se repite
 // aquí para no exportar el mapa privado de ninguno de los dos.
@@ -159,6 +160,13 @@ export function reconcilePhaseFailure(
 			warnings: [],
 			reason: `${PHASE_ARTIFACT[phase]} tiene ${report.errors} error(es) de lint: ${errors.map((i) => i.code).join(", ")}`,
 		};
+	}
+	if (phase === "apply" || phase === "verify") {
+		const evidence = readSddCompletionEvidence(cwd, change);
+		const complete = phase === "apply"
+			? evidence.apply === "complete" && evidence.tasks.counts.pending === 0
+			: evidence.verify === "pass" && !evidence.verifyStale;
+		if (!complete) return { reconciled: false, phase, warnings: [], reason: `${PHASE_ARTIFACT[phase]} conserva trabajo parcial, bloqueado o verificación fallida; el formato válido no rescata el resultado.` };
 	}
 
 	return {
