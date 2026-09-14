@@ -17,6 +17,9 @@ Todos los cambios relevantes de Ein. El formato sigue
 
 ### Fixed
 
+- La búsqueda de actualizaciones recorre varias páginas de releases: publicar
+  más de 30 alphas ya no oculta la última estable. Si la búsqueda queda incompleta,
+  informa del límite en vez de seleccionar una versión sin evidencia suficiente.
 - Los resultados del selector quedan ligados a su sesión, ronda y opciones;
   cuestionarios ajenos, obsoletos, cancelados o fallidos no confirman el acuerdo.
 - Las tarjetas distinguen respuestas recibidas de espera de respuesta.
