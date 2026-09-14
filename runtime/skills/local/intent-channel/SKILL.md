@@ -35,9 +35,10 @@ papeles puede abrir la elección de contexto de entrada; esa entrada condiciona
 la cabecera. No presentes las tres como decisiones independientes ni marques
 todas las dependencias vacías por conveniencia.
 
-Pregunta toda esa frontera en un único mensaje de texto plano, con preguntas
-numeradas y una recomendación concreta y razonada por pregunta. El usuario puede
-aceptar, matizar o rechazar. No uses un selector modal para sustituir la entrevista.
+Explica toda esa frontera en texto humano: preguntas numeradas, alternativas
+concretas y una recomendación razonada por pregunta. Después recoge las respuestas
+con `ask_user_question`. La explicación y sus consecuencias permanecen en el chat;
+el selector facilita elegir, matizar o escribir una respuesta libre.
 No limites la ronda a una pregunta ni a un cupo fijo; tampoco fuerces preguntas
 sobre algo ya resuelto. Sin petición ni contexto, pregunta solamente qué quiere hacer.
 
@@ -69,19 +70,30 @@ una frontera temporalmente vacía no significa que el árbol esté resuelto.
 
 Usa `ein_intent` como único escritor:
 
-- `propose`: guarda la ronda, el material provisional y `decisions` (id, question,
+- `propose`: guarda la ronda, el material provisional y `questionnaire`: question,
+  header (hasta 16 caracteres), options (2–4 alternativas con label y description),
+  multiSelect solo para elecciones combinables. La recomendación va primero y
+  marcada como tal. No añadas «Otra»: el plugin incorpora respuesta libre. Mantén
+  las alternativas concretas; «seguir» frente a «no seguir» no explora una decisión.
+  `questions` se deriva automáticamente de questionnaire. Conserva `decisions` (id, question,
   dependsOn, status open/waiting/resolved; incluye tanto la frontera actual como
   las preguntas futuras conocidas que todavía dependen de ella, no solo lo que
   vas a preguntar hoy. resolution explica la decisión y su
   respuesta o fuente). Conserva las ramas anteriores, incluidas las descartadas
-  explícitamente, y añade las descubiertas. Muestra las preguntas y espera.
-- `status`: recupera la respuesta literal y su `responseId`; también tras reanudar.
+  explícitamente, y añade las descubiertas. Explica las preguntas y llama a `ask_user_question` con el questionnaire devuelto
+  sin cambiar sus preguntas ni opciones. El plugin admite hasta cuatro por llamada:
+  divide una frontera mayor en tandas de la misma ronda, sin avanzar decisiones
+  dependientes entre tandas. No vuelvas a propose para abrir cada tanda.
+- `status`: recupera la respuesta observada y su `responseId` después del selector;
+  también tras reanudar. Sus respuestas no son mensajes de chat: el runtime las
+  vincula al cuestionario y revisión exactos. No las copies a un input inventado.
+  Cancelar el selector no confirma ni cancela por sí solo el trabajo.
 - Otra `propose` incorpora la respuesta y abre la siguiente frontera. No cierres
   con `confirm` por haber contestado una ronda.
 - `review`: cuando todas las ramas estén resueltas, pasa el árbol completo y el
   `responseId` de la última ronda. Presenta el objetivo, decisiones, límites y
-  criterios observables devueltos. Pregunta si ese acuerdo recoge lo que quiere.
-- `confirm`: solo tras una nueva respuesta afirmativa a esa revisión final.
+  criterios observables devueltos. Recoge esa decisión con el questionnaire final devuelto: Confirmar acuerdo, Ajustar acuerdo o Cancelar.
+- `confirm`: solo tras una nueva respuesta afirmativa a esa revisión final, obtenida mediante status.
   Una corrección requiere actualizar el acuerdo y revisarlo de nuevo.
 - `cancel`: detiene el trabajo. `delegate` requiere una instrucción humana explícita
   de decidir sin preguntas; `auto` no equivale a esa instrucción.
@@ -90,6 +102,12 @@ No se crea un directorio de cambio durante la primera entrevista. El estado vive
 en la sesión durable; al confirmar se escribe `intent.md`. Reabrir un acuerdo ya
 existente sí actualiza su estado pendiente para impedir que otra sesión ejecute
 un acuerdo obsoleto. El padre propone el nombre; el runtime lo valida.
+
+Si el plugin no está disponible, falla o la pregunta todavía no tiene alternativas
+concretas (por ejemplo el arranque en frío), usa texto y espera la respuesta real.
+No simules que el selector obtuvo una respuesta ni exijas instalarlo para conversar.
+El TODO muestra intent desde esta conversación, sus decisiones pendientes y su
+revisión; al confirmar, continúa mostrando intent como completado antes de scope.
 
 ### Paso a SDD
 

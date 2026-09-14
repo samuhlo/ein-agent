@@ -90,7 +90,9 @@ export function stripNegatedDelivery(text: string): string {
 	// A prohibition may be a long comma/slash list ("Sin dependencias,
 	// config, branches/commit/push/PR/merge"). Stop at an affirmative clause
 	// so "sin push, pero abre PR" still requests the PR.
-	const lists = text.replace(/\b(?:sin|without|no|never|nunca|do\s+not|don't)\b[^.;\n]*/gi, (clause) => {
+	const exclusions = text.replace(/(?:^|\n)[ \t]*(?:excluid[oa]s?|fuera de alcance|excluded|out of scope)\b(?:(?!\.(?:\s|$)|[;\n]|\b(?:pero|but)\b)[\s\S])*/gi,
+		(clause) => clause.replace(/\b(?:git\s+)?(?:commits?|push|PRs?|pull\s+requests?|merge)\b/gi, " "));
+	const lists = exclusions.replace(/\b(?:sin|without|no|never|nunca|do\s+not|don't)\b[^.;\n]*/gi, (clause) => {
 		const boundary = clause.search(/\b(?:pero|but|then|luego|después)\b|(?:,|\by\b|\band\b)\s*(?:haz|hace|abre|crea|sube|publica|ejecuta|realiza|actualiza|open|create|run|git\s+(?:push|commit)|(?:push|commit)\s+(?:the|this|changes|commits|branch|to|and\s+push))\b(?!\s*[/,])/i);
 		const negative = boundary < 0 ? clause : clause.slice(0, boundary);
 		const rest = boundary < 0 ? "" : clause.slice(boundary);

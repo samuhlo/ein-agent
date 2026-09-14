@@ -515,3 +515,11 @@ describe("commandIsExplicitlyAllowed", () => {
 		expect(commandIsExplicitlyAllowed("git diff && git branch -D x")).toBe(false);
 	});
 });
+
+
+test("scope exclusions with dotted paths do not request Git delivery", () => {
+ const task = "Actualiza SOLO scope. No operaciones remotas ni Git delivery.\nExcluidos app/, .design/, shared/types/academia.types.ts, funciones 08/09, commits/push/PR/publicación y toda operación remota de escritura. Frontend tiene worktree separado.";
+ expect(delegationIsDelivery({ agent: "sdd-scope", task })).toBe(false);
+ expect(delegationIsDelivery({ agent: "sdd-scope", task: `${task}\nAbre PR con el resultado.` })).toBe(true);
+ expect(delegationIsDelivery({ agent: "sdd-scope", task: "Excluidos commits/push/PR; abre PR" })).toBe(true);
+});

@@ -1,3 +1,4 @@
+import type { IntentAgreement } from "./intent-agreement.ts";
 // =============================================================================
 // [CORE] OVERLAY DEL CAMBIO ACTIVO
 // Convierte el estado SDD en las líneas de un widget vivo bajo el editor: qué
@@ -47,7 +48,8 @@ const MIN_WIDTH = 40;
 const INDENT = "  ";
 
 /** Qué hace cada fase, en una frase. Para cuando el raíl sustituye a la lista. */
-const PHASE_WORK: Readonly<Record<SddPhase, string>> = Object.freeze({
+const PHASE_WORK: Readonly<Record<SddPhase | "intent", string>> = Object.freeze({
+	intent: "acordar qué queremos conseguir",
 	scope: "acotar el cambio",
 	map: "mapear el terreno",
 	design: "decidir el mecanismo",
@@ -69,18 +71,21 @@ export type PhaseState = "done" | "current" | "pending" | "unknown" | "failed";
  *   suspenso, y durante un tiempo se pintó igual que un aprobado porque el
  *   `fail` caía por el hueco hasta la rama de "artefacto presente = fase hecha".
  */
-export function phaseStates(status: SddChangeStatus): readonly { phase: SddPhase; state: PhaseState }[] {
+export function phaseStates(status: SddChangeStatus): readonly { phase: SddPhase | "intent"; state: PhaseState }[] {
 	const phases = LANE_PHASES[status.lane] ?? LANE_PHASES.standard;
 	const current = status.nextRecommended;
-	return phases.map((phase) => {
+	const intent = status.intent;
+	const blockedByIntent = intent && intent.state !== "confirmed";
+	const entries = phases.map((phase) => {
 		if (phase === "verify" && status.present?.verify) {
 			if (status.verifyStale || status.verify === "unknown") return { phase, state: "unknown" as const };
 			if (status.verify === "fail") return { phase, state: "failed" as const };
 		}
-		if (phase === current) return { phase, state: "current" as const };
+		if (phase === current && !blockedByIntent) return { phase, state: "current" as const };
 		if (status.present?.[phase]) return { phase, state: "done" as const };
 		return { phase, state: "pending" as const };
 	});
+	return intent ? [{ phase: "intent", state: intent.state === "confirmed" ? "done" : intent.state === "invalid" ? "unknown" : intent.state === "cancelled" ? "failed" : "current" }, ...entries] : entries;
 }
 
 /**
@@ -233,7 +238,7 @@ export function renderSddOverlay(
 	//
 	// La fase sube a acento y lleva su `▸`: es el único dato de la cabecera que
 	// contesta «y ahora qué».
-	const phase = `${palette.accent(GLYPH.focus)} ${palette.accent(String(status.nextRecommended))}`;
+	const phase = `${palette.accent(GLYPH.focus)} ${palette.accent(status.intent && status.intent.state !== "confirmed" ? "intent" : String(status.nextRecommended))}`;
 	const right = progress ? `${phase}   ${palette.muted(progress)}` : phase;
 	const leftBudget = Math.max(0, width - INDENT.length - visibleWidth(right) - 1);
 	const lane = `   ${palette.muted(status.lane)}`;
@@ -257,7 +262,7 @@ export function renderSddOverlay(
 	const currentId = items.find((item) => item.started && !item.done)?.id ?? status.tasks.nextPending?.id ?? null;
 	// Sin tareas pendientes la lista ya no informa: el widget pasa a enseñar las
 	// FASES que faltan. Es el arreglo — antes se quedaba mudo en `7/7`.
-	if (items.length === 0 || currentId === null) {
+	if (items.length === 0 || currentId === null || (status.intent && status.intent.state !== "confirmed")) {
 		return [...lines, ...remainingPhaseRows(status, rowSpace, width, palette)];
 	}
 
@@ -297,4 +302,23 @@ export function renderSddOverlay(
 /** Ancho visible de la línea más larga. Para pruebas de encaje. */
 export function overlayWidth(lines: readonly string[]): number {
 	return lines.reduce((max, line) => Math.max(max, visibleWidth(line)), 0);
+}
+
+/** Session-owned discovery exists before a change directory or tasks.md. */
+export function renderIntentOverlay(intent: IntentAgreement, options: OverlayOptions = {}): readonly string[] {
+ const width = options.width ?? DEFAULT_WIDTH;
+ if (width < MIN_WIDTH) return [];
+ const palette = options.palette ?? createPalette(false);
+ const decisions = intent.decisions ?? [];
+ const resolved = decisions.filter((d) => d.status === "resolved").length;
+ const stage = intent.status === "cancelled" ? "cancelado" : intent.status === "confirmed" ? "acordado" : intent.stage === "review" ? "revisión final" : "decisiones pendientes";
+ const lines = [`${INDENT}${palette.accent(fit(`intent · ${stage} · ${intent.work}`, width - 2))}`];
+ if (options.collapsed) return lines;
+ lines.push(`${INDENT}${palette.muted(fit(`${resolved}/${decisions.length} decisiones resueltas · ${intent.status === "cancelled" ? "trabajo detenido" : intent.status === "confirmed" ? intent.change ? "siguiente: scope" : "acuerdo registrado" : "antes de ejecutar"}`, width - 2))}`);
+ if (intent.status === "pending") {
+  for (const d of decisions.filter((d) => d.status !== "resolved")) {
+   lines.push(`${INDENT}${palette.text(fit(`${d.status === "waiting" ? "esperando hechos" : "pendiente"}: ${d.question}`, width - 2))}`);
+  }
+ }
+ return lines.slice(0, Math.max(1, options.maxLines ?? DEFAULT_MAX_LINES));
 }

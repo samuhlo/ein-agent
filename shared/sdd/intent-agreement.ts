@@ -1,3 +1,4 @@
+import { validateIntentQuestionnaire, type IntentQuestion } from "./intent-questionnaire.ts";
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -38,6 +39,7 @@ export function intentFrontier(decisions: IntentDecision[]) {
 export type IntentAgreement = {
 	version: 1;
 	stage?: "round" | "review";
+	questionnaire?: IntentQuestion[];
 	decisions?: IntentDecision[];
 	work: string;
 	change?: string;
@@ -48,7 +50,7 @@ export type IntentAgreement = {
 	delegated?: true;
 	fromRequest?: true;
 	reopenReason?: string;
-	response?: { id: string; text: string; source: "interactive" | "rpc" | "claude-coordinator" };
+	response?: { id: string; text: string; source: "interactive" | "rpc" | "claude-coordinator" | "ask_user_question" };
 	history?: { questions: string[]; response: NonNullable<IntentAgreement["response"]> }[];
 	revision: string;
 };
@@ -78,9 +80,13 @@ export function validateAgreement(value: unknown): IntentAgreement {
 	if (record.stage !== undefined && !["round", "review"].includes(record.stage)) throw new Error("Invalid intent stage");
 	if (record.decisions !== undefined) validateIntentDecisions(record.decisions);
 	if (record.stage === "review" && (!record.decisions?.length || record.decisions.some((d) => d.status !== "resolved"))) throw new Error("Unresolved branches prevent final review");
+	if (record.questionnaire) {
+		validateIntentQuestionnaire(record.questionnaire);
+		if (JSON.stringify(record.questions) !== JSON.stringify(record.questionnaire.map((q) => q.question))) throw new Error("Questionnaire does not match the intent round");
+	}
 	const material = normalizeIntentMaterial(record.material);
 	const validResponse = (response: IntentAgreement["response"]) => response && typeof response.id === "string" && response.id.trim()
-		&& typeof response.text === "string" && response.text.trim() && ["interactive", "rpc", "claude-coordinator"].includes(response.source);
+		&& typeof response.text === "string" && response.text.trim() && ["interactive", "rpc", "claude-coordinator", "ask_user_question"].includes(response.source);
 	if ((record.fromRequest !== undefined && record.fromRequest !== true) || (record.fromRequest && (record.questions.length !== 0 || record.delegated)) || (record.delegated !== undefined && record.delegated !== true) || (record.reopenReason !== undefined && typeof record.reopenReason !== "string")) throw new Error("Invalid discovery metadata");
 	if (record.history && (!Array.isArray(record.history) || record.history.some((round) => !Array.isArray(round.questions)
 		|| round.questions.some((q) => typeof q !== "string") || !validResponse(round.response)))) throw new Error("Invalid discovery history");

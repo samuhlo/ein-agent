@@ -1,3 +1,4 @@
+import type { IntentQuestion } from "./intent-questionnaire.ts";
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, realpathSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -9,7 +10,7 @@ import { isSafeChangeName, resolveChangesDir } from "./sdd-routing-core.ts";
 export const INTENT_STATE = "ein:intent-discovery";
 export const INTENT_INPUT = "ein:intent-response";
 export type IntentContext = Pick<ExtensionContext, "cwd" | "sessionManager">;
-export type IntentInput = { id: string; text: string; source: "interactive" | "rpc" };
+export type IntentInput = { id: string; text: string; source: "interactive" | "rpc" | "ask_user_question"; cancelled?: boolean };
 export type IntentRequest = {
 	action: "propose" | "status" | "confirm" | "cancel" | "delegate" | "record" | "review";
 	decisions?: IntentDecision[];
@@ -17,6 +18,7 @@ export type IntentRequest = {
 	change?: string;
 	material?: IntentMaterial;
 	questions?: string[];
+	questionnaire?: IntentQuestion[];
 	responseId?: string;
 	reopenReason?: string;
 };
@@ -36,7 +38,7 @@ export function intentSnapshot(ctx: IntentContext, work: string): Snapshot {
 			agreement = validateAgreement(entry.data);
 			response = undefined;
 		} else if (agreement?.status === "pending" && entry.customType === INTENT_INPUT) {
-			if ((entry.data as { revision?: string })?.revision === agreement.revision) response = entry.data as IntentInput;
+			if ((entry.data as { revision?: string })?.revision === agreement.revision) response = (entry.data as IntentInput).cancelled ? undefined : entry.data as IntentInput;
 		}
 	}
 	return { agreement, response };
@@ -90,7 +92,7 @@ export function runIntentDiscovery(
 		const pending = intentSnapshot(ctx, request.work);
 		previous = pending.agreement?.status === "pending" ? pending : {};
 	}
-	request = { ...request, change: request.change ?? previous.agreement?.change };
+	request = { ...request, questions: request.questionnaire?.map((q) => q.question) ?? request.questions, change: request.change ?? previous.agreement?.change };
 	if (request.action === "status") {
 		if (previous.agreement?.status === "pending" && intentSnapshot(ctx, request.work).agreement?.revision !== previous.agreement.revision) append(INTENT_STATE, previous.agreement);
 		return previous;
@@ -139,12 +141,13 @@ export function runIntentDiscovery(
 			&& (!request.decisions || JSON.stringify(request.decisions) === JSON.stringify(previous.agreement.decisions))) return previous;
 		if (previous.agreement?.status === "pending" && previous.agreement.materialKey === materialKey
 			&& previous.agreement.change === request.change && JSON.stringify(previous.agreement.decisions) === JSON.stringify(request.decisions)
+			&& JSON.stringify(previous.agreement.questionnaire) === JSON.stringify(request.questionnaire)
 			&& previous.agreement.stage === "round" && JSON.stringify(previous.agreement.questions) === JSON.stringify(request.questions)) return previous;
 		const history = [...(previous.agreement?.history ?? [])];
 		const response = previous.response ?? previous.agreement?.response;
 		if (response && previous.agreement && history.at(-1)?.response.id !== response.id) history.push({ questions: previous.agreement.questions, response });
 		return publish({ version: 1, work: request.work, change: request.change, status: "pending", material,
-			materialKey, stage: "round", decisions: request.decisions ?? previous.agreement?.decisions, questions: request.questions, reopenReason: request.reopenReason?.trim(), history, revision: randomUUID() });
+			materialKey, stage: "round", decisions: request.decisions ?? previous.agreement?.decisions, questions: request.questions, questionnaire: request.questionnaire, reopenReason: request.reopenReason?.trim(), history, revision: randomUUID() });
 	}
 	if (!previous.agreement) throw new Error("Propose the intent before resolving it");
 	if (request.action === "cancel") return publish({ ...previous.agreement, status: "cancelled" });
@@ -161,6 +164,11 @@ export function runIntentDiscovery(
 		const material = request.material ? normalizeIntentMaterial(request.material) : previous.agreement.material;
 		return publish({ ...previous.agreement, status: "pending", stage: "review", decisions,
 			material, materialKey: createIntentMaterialKey(material), questions: ["¿Este acuerdo recoge lo que quieres conseguir?"],
+			questionnaire: [{ question: "¿Este acuerdo recoge lo que quieres conseguir?", header: "Acuerdo", options: [
+				{ label: "Confirmar acuerdo", description: "Recoge lo que quiero; conserva el alcance autorizado." },
+				{ label: "Ajustar acuerdo", description: "Quiero corregir o precisar algo antes de confirmarlo." },
+				{ label: "Cancelar", description: "Detener este trabajo sin empezar su ejecución." },
+			] }],
 			history: previous.response ? [...(previous.agreement.history ?? []), { questions: previous.agreement.questions, response: previous.response }] : previous.agreement.history,
 			response: undefined, revision: randomUUID() });
 	}
@@ -168,6 +176,11 @@ export function runIntentDiscovery(
 	if (previous.agreement.status === "confirmed") return previous;
 	if (previous.agreement.status !== "pending" || !previous.response || previous.response.id !== request.responseId) {
 		throw new Error("Wait for a real user response after the question; call status to obtain its responseId. Model declarations and extension messages do not confirm intent.");
+	}
+	if (previous.response.source === "ask_user_question" && previous.agreement.stage === "review") {
+		const replies = previous.response.text.split("\n").map((line) => JSON.parse(line));
+		const last = replies.at(-1)?.answers?.at(-1)?.answer;
+		if (last === "Ajustar acuerdo" || last === "Cancelar") throw new Error("The user did not confirm the review; adjust or cancel intent");
 	}
 	if (previous.agreement.stage !== "review") throw new Error("A round answer does not close intent. Recompute the tree and use review before final confirmation.");
 	if (request.material && createIntentMaterialKey(normalizeIntentMaterial(request.material)) !== previous.agreement.materialKey) throw new Error("Changed material requires a new review and a fresh human response");

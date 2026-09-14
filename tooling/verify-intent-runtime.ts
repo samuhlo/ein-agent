@@ -8,6 +8,11 @@ import { artifactHasIntentKey, readAgreement } from "../ein-pi/agent/lib/intent-
 import { buildEinPrompt } from "../ein-pi/agent/lib/persona.ts";
 
 const intentSkill = readFileSync(new URL("../runtime/skills/local/intent-channel/SKILL.md", import.meta.url), "utf8");
+const questionnairePilot = process.argv.includes("--questionnaire");
+let nativeQuestionnaire: any;
+let registerNativeQuestionnaire: any;
+const nativeQuestionnaireResults: any[] = [];
+let nativeQuestionnaireCalls = 0;
 const block04 = process.argv.includes("--block04");
 const conversationOnly = process.argv.includes("--conversation-only");
 const installed = process.env.EIN_INTENT_PILOT_AGENT_HOME ?? join(homedir(), ".pi-ein/agent");
@@ -26,7 +31,18 @@ const events: unknown[] = [];
 let writes = 0;
 const cwd = join(output, "project"); mkdirSync(cwd);
 writeFileSync(join(cwd, "README.md"), "Prototype: exporting a filtered table to CSV. New behavior needs an agreed product specification.\n");
+if (questionnairePilot) {
+ const plugin = await import(join(installed, "npm/node_modules/@juicesharp/rpiv-ask-user-question/ask-user-question.ts"));
+ registerNativeQuestionnaire = plugin.registerAskUserQuestionTool;
+}
 const extension = (pi: ExtensionAPI) => {
+ if (questionnairePilot) registerNativeQuestionnaire({ events: pi.events, registerTool: (spec: any) => { nativeQuestionnaire = spec; } });
+ if (questionnairePilot) pi.registerTool({ ...nativeQuestionnaire, execute: async (id: string, params: any, signal: any, update: any, ctx: any) => {
+  nativeQuestionnaireCalls++;
+  const result = await nativeQuestionnaire.execute(id, params, signal, update, { ...ctx, hasUI: true, mode: "rpc", ui: { select: async () => undefined, input: async () => undefined } });
+  nativeQuestionnaireResults.push(result);
+  return result;
+ } });
  registerIntentDiscovery(pi, (spec) => pi.registerTool(spec));
  pi.registerTool({
   name: "subagent", label: "Design executor", description: "Delegate agreed design to sdd-design. task must include change and intent_work. Produces design.md using a real child model.",
@@ -52,7 +68,7 @@ const parentSession = SessionManager.inMemory(cwd);
 const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager: sm, extensionFactories: [extension], noExtensions: true, noSkills: true, noPromptTemplates: true, noContextFiles: true,
  systemPrompt: block04 ? `${buildEinPrompt("neutral")}\n${intentSkill}\nThe project roadmap has block 04: teacher/academy accounts, required centre data, roles, context-based entry, role headers, profile collaborations. Blocks 06 and 08 own the full dashboards. No additional product decisions have been agreed. This test exposes no scout; use these supplied facts and ask product decisions. Do not invent implementation facts.` : conversationOnly ? `${buildEinPrompt("neutral")}\n${intentSkill}` : `${buildEinPrompt("neutral")}\n${intentSkill}\nThis controlled pilot exposes only intent and a design executor. Treat the request as SDD with work/change export-csv. After agreement, delegate exactly one sdd-design with change and intent_work markers, then report. Do not run other phases or read full workflow manuals; this pilot ends at the product specification.` });
 await loader.reload();
-const { session } = await createAgentSession({ cwd, agentDir, modelRuntime: runtime, model, thinkingLevel: settings.defaultThinkingLevel, settingsManager: sm, resourceLoader: loader, sessionManager: parentSession, tools: ["ein_intent", "subagent", "read"] });
+const { session } = await createAgentSession({ cwd, agentDir, modelRuntime: runtime, model, thinkingLevel: settings.defaultThinkingLevel, settingsManager: sm, resourceLoader: loader, sessionManager: parentSession, tools: ["ein_intent", "subagent", "read", ...(questionnairePilot ? ["ask_user_question"] : [])] });
 await session.bindExtensions({ mode: "rpc", onError: (error) => { throw new Error(String(error)); } });
 session.subscribe((event) => { if (["tool_execution_start", "tool_execution_end", "message_end"].includes(event.type)) events.push(event); });
 async function turn(text: string) {
@@ -68,7 +84,7 @@ async function turn(text: string) {
 try {
  if (block04) {
   const first = await turn("Nos toca el bloque 04 creo de los cambios. Vamos a hacer el intent. Solo quiero acordarlo, no implementar.");
-  assert.match(first, /[?¿]/);
+  if (!questionnairePilot) assert.match(first, /[?¿]/);
   let state = [...parentSession.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === "ein:intent-discovery");
   assert(state?.type === "custom");
   const initial = state.data as any;
@@ -76,6 +92,19 @@ try {
   assert(initial.decisions?.length >= 2, "An interview must expose distinct product decisions");
   assert(initial.decisions.some((d: any) => d.status === "open" && d.dependsOn.length > 0), "Entry/header choices depend on unresolved identity/context decisions");
   assert(initial.questions.length >= 2, "Do not replace the ready frontier with a blanket scope approval");
+  if (questionnairePilot) {
+   const askIndex = (events as any[]).findIndex((e) => e.type === "tool_execution_start" && e.toolName === "ask_user_question");
+   assert((events as any[]).slice(0, askIndex).some((e) => e.type === "message_end" && e.message?.role === "assistant" && e.message.content?.some((part: any) => part.type === "text" && part.text.length > 100 && /[?¿]/.test(part.text))), "Explain the decisions in prose before the native selector");
+   assert.equal(nativeQuestionnaireCalls, 1, "Use the native selector and respect its cancellation");
+   assert.equal(nativeQuestionnaireResults[0]?.details?.cancelled, true);
+   assert(!nativeQuestionnaireResults[0]?.details?.error && !nativeQuestionnaireResults[0]?.isError, "Cancellation must come from the native UI, not a plugin error");
+   assert(initial.questionnaire?.length >= 2, "Author concrete alternatives for the frontier");
+   assert(initial.questionnaire.every((q: any) => q.options.length >= 2 && q.options.length <= 4));
+   assert.equal(writes, 0); assert.equal(existsSync(join(cwd, "openspec")), false);
+   writeFileSync(join(output, "result.json"), JSON.stringify({ passed: true, model: `${settings.defaultProvider}/${settings.defaultModel}`, checks: ["model supplies concrete alternatives", "real native questionnaire called", "cancellation keeps intent pending", "no SDD/code writes"], first }, null, 2));
+   console.log(`PASS questionnaire ${output}`);
+   process.exitCode = 0;
+  } else {
   const second = await turn("Una misma persona puede enseñar y gestionar centros con la misma cuenta. Puede colaborar con varios centros. Eso sí lo tengo claro; las otras decisiones todavía no las he tomado.");
   assert.match(second, /[?¿]/);
   state = [...parentSession.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === "ein:intent-discovery");
@@ -89,6 +118,7 @@ try {
   assert.equal(writes, 0); assert.equal(existsSync(join(cwd, "openspec")), false);
   writeFileSync(join(output, "result.json"), JSON.stringify({ passed: true, model: `${settings.defaultProvider}/${settings.defaultModel}`, checks: ["natural-language intent starts a product interview", "several concrete decisions", "partial answer opens dependent questions", "explanation is not confirmation", "intent-only creates no SDD or code"], first, second }, null, 2));
   console.log(`PASS block04 ${output}`);
+  }
  } else if (conversationOnly) {
   const hasState = () => parentSession.getBranch().some((entry) => entry.type === "custom" && entry.customType === "ein:intent-discovery");
   const received = (text: string) => session.messages.some((message) => message.role === "user" && (typeof message.content === "string" ? message.content === text : message.content.some((part) => part.type === "text" && part.text === text)));
