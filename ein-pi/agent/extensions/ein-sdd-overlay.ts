@@ -1,3 +1,4 @@
+import { evidenceFor } from "../lib/intent-evidence.ts";
 import { validateAgreement, type IntentAgreement } from "../lib/intent-agreement.ts";
 import { INTENT_STATE } from "../lib/intent-discovery.ts";
 // =============================================================================
@@ -35,6 +36,8 @@ const COLLAPSE_KEY = "ctrl+shift+e";
 
 export default function (pi: ExtensionAPI): void {
 	let collapsed = false;
+	let intentExpanded = false;
+	let showingIntent = false;
 	// Última pintura, para no repintar lo idéntico: el widget se refresca en
 	// cada herramienta y un setWidget por llamada es trabajo y parpadeo gratis.
 	//
@@ -136,14 +139,23 @@ export default function (pi: ExtensionAPI): void {
 			const latest = [...entries].reverse().find((entry) => entry.type === "custom" && (entry.customType === INTENT_STATE || entry.customType === SDD_SESSION_BINDING_CUSTOM_TYPE));
 			if (latest?.type === "custom" && latest.customType === INTENT_STATE) intent = validateAgreement(latest.data);
 		} catch { /* Old sessions can have only SDD state. */ }
+		showingIntent = !!intent && (intent.status !== "confirmed" || !status?.change);
 		if (intent && (intent.status !== "confirmed" || !status?.change)) {
-			lines = renderIntentOverlay(intent, { collapsed, palette, width: overlayWidth() });
+			lines = renderIntentOverlay(intent, { expanded: intentExpanded, palette, width: overlayWidth(), evidence: evidenceFor(ctx.sessionManager.getBranch(), intent.work) });
 		}
 		if (!ctx.hasUI) return;
 		const next = lines.join("\n");
 		if (next === painted) return;
 		painted = next;
-		ctx.ui.setWidget(OVERLAY_KEY, lines.length > 0 ? [...lines] : undefined, { placement: "belowEditor" });
+		if (showingIntent && intent) {
+			const snapshot = intent;
+			const evidence = evidenceFor(ctx.sessionManager.getBranch(), intent.work);
+			ctx.ui.setWidget(OVERLAY_KEY, (tui) => ({
+				render: (width: number) => [...renderIntentOverlay(snapshot, { expanded: intentExpanded, palette, width,
+					maxLines: Math.max(1, Math.min(intentExpanded ? 8 : 3, Math.floor(tui.terminal.rows / 4))), evidence })],
+				invalidate: () => {},
+			}), { placement: "belowEditor" });
+		} else ctx.ui.setWidget(OVERLAY_KEY, lines.length > 0 ? [...lines] : undefined, { placement: "belowEditor" });
 	}
 
 	function rebindEventListener(ctx: ExtensionContext): void {
@@ -209,6 +221,7 @@ export default function (pi: ExtensionAPI): void {
 		if (transition.persist) persist(transition.persist);
 		refresh(ctx);
 	});
+	pi.on("tool_execution_start", (_event, ctx) => refresh(ctx));
 	pi.on("turn_end", (_event, ctx) => refresh(ctx));
 	pi.on("tool_execution_end", (_event, ctx) => refresh(ctx));
 	pi.on("agent_end", (_event, ctx) => refresh(ctx));
@@ -217,7 +230,8 @@ export default function (pi: ExtensionAPI): void {
 	pi.registerShortcut(COLLAPSE_KEY, {
 		description: "Plegar o desplegar el overlay del cambio activo",
 		handler: (ctx) => {
-			collapsed = !collapsed;
+			if (showingIntent) intentExpanded = !intentExpanded;
+			else collapsed = !collapsed;
 			painted = null;
 			refresh(ctx);
 		},

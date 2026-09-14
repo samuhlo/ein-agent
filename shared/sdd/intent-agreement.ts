@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { createIntentMaterialKey, normalizeIntentMaterial, type IntentMaterial } from "./sdd-intent-preflight.ts";
 
 export type IntentDecision = {
+	kind?: "decision" | "fact" | "permission";
+	title?: string;
 	id: string;
 	question: string;
 	dependsOn: string[];
@@ -17,7 +19,9 @@ export function validateIntentDecisions(decisions: IntentDecision[]): void {
 	const ids = new Set(decisions.map((d) => d.id));
 	if (ids.size !== decisions.length) throw new Error("Duplicate intent decision");
 	for (const d of decisions) {
-		if (!d.id?.trim() || !d.question?.trim() || !Array.isArray(d.dependsOn)
+		if ((d.kind !== undefined && !["decision", "fact", "permission"].includes(d.kind))
+			|| (d.title !== undefined && (typeof d.title !== "string" || !d.title.trim()))
+			|| !d.id?.trim() || !d.question?.trim() || !Array.isArray(d.dependsOn)
 			|| d.dependsOn.some((id) => !ids.has(id) || id === d.id)
 			|| !["open", "waiting", "resolved"].includes(d.status)
 			|| (d.status === "resolved" && !d.resolution?.trim())) throw new Error("Invalid intent decision");
@@ -37,6 +41,7 @@ export function intentFrontier(decisions: IntentDecision[]) {
 }
 
 export type IntentAgreement = {
+	title?: string;
 	version: 1;
 	stage?: "round" | "review";
 	questionnaire?: IntentQuestion[];
@@ -84,6 +89,7 @@ export function validateAgreement(value: unknown): IntentAgreement {
 		validateIntentQuestionnaire(record.questionnaire);
 		if (JSON.stringify(record.questions) !== JSON.stringify(record.questionnaire.map((q) => q.question))) throw new Error("Questionnaire does not match the intent round");
 	}
+	if (record.title !== undefined && (typeof record.title !== "string" || !record.title.trim())) throw new Error("Invalid intent title");
 	const material = normalizeIntentMaterial(record.material);
 	const validResponse = (response: IntentAgreement["response"]) => response && typeof response.id === "string" && response.id.trim()
 		&& typeof response.text === "string" && response.text.trim() && ["interactive", "rpc", "claude-coordinator", "ask_user_question"].includes(response.source);

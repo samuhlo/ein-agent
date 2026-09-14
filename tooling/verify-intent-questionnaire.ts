@@ -48,7 +48,8 @@ try {
   ] }],
  });
  let state = JSON.parse((await call("ein_intent", { action: "status", work: "cuentas" })).content[0].text);
- assert(renderIntentOverlay(state.agreement).join("\n").includes("0/1 decisiones"));
+ assert.equal(renderIntentOverlay(state.agreement).length, 3);
+ assert(!renderIntentOverlay(state.agreement).join("\n").includes("0/1"));
  choice = "custom";
  await call("ask_user_question", { questions: state.agreement.questionnaire });
  state = JSON.parse((await call("ein_intent", { action: "status", work: "cuentas" })).content[0].text);
@@ -58,7 +59,7 @@ try {
   decisions: [{ id: "identity", question: "¿Qué identidad?", dependsOn: [], status: "resolved", resolution: state.response.text }],
  });
  state = JSON.parse((await call("ein_intent", { action: "status", work: "cuentas" })).content[0].text);
- assert(renderIntentOverlay(state.agreement).join("\n").includes("revisión final"));
+ assert(renderIntentOverlay(state.agreement).join("\n").includes("Revisión final"));
  choice = "cancel";
  await call("ask_user_question", { questions: state.agreement.questionnaire });
  const cancelled = JSON.parse((await call("ein_intent", { action: "status", work: "cuentas" })).content[0].text);

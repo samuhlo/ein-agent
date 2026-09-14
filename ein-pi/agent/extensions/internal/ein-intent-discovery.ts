@@ -1,9 +1,10 @@
+import { evidenceTask, readEvidenceTask, INTENT_EVIDENCE } from "../../lib/intent-evidence.ts";
 import { questionnaireBatch, questionnaireAnswer, type IntentQuestion } from "../../lib/intent-questionnaire.ts";
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { INTENT_INPUT, INTENT_STATE, intentSnapshot, requireIntent, runIntentDiscovery, type IntentInput, type IntentRequest } from "../../lib/intent-discovery.ts";
+import { INTENT_INPUT, INTENT_STATE, intentSnapshot, validateEvidenceDelegation, nextIntentAction, requireIntent, runIntentDiscovery, type IntentInput, type IntentRequest } from "../../lib/intent-discovery.ts";
 import { collectDelegationItems, delegationShapeIsUnrecognized, rewriteDelegationTasks } from "../../lib/delegation-shape.ts";
 import { readAuthorizedContinuation } from "../../lib/sdd-continuation.ts";
 import { resolveChangesDir } from "../../lib/sdd-routing-core.ts";
@@ -30,6 +31,18 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 	pi.on("session_shutdown", (_event, ctx) => { latestInputs.delete(sddPreflightSessionKey(ctx));
 		for (const [id, pending] of questionnaires) if (pending.session === sddPreflightSessionKey(ctx)) questionnaires.delete(id); });
 	pi.on("tool_result", (event, ctx) => {
+		if (event.toolName === "subagent" && typeof event.input?.task === "string") {
+			let packet;
+			try { packet = readEvidenceTask(event.input.task); } catch { return; }
+			if (packet) {
+				const current = intentSnapshot(ctx, packet.work).evidence;
+				if (current?.toolCallId === event.toolCallId) {
+					const text = (event.content ?? []).flatMap((part) => part.type === "text" ? [part.text] : []).join("\n");
+					pi.appendEntry(INTENT_EVIDENCE, { ...current, state: event.isError ? "blocked" : "returned", result: { text: text.slice(0, 6000), truncated: text.length > 6000, isError: event.isError } });
+				}
+			}
+			return;
+		}
 		if (event.toolName !== "ask_user_question") return;
 		const pending = questionnaires.get(event.toolCallId);
 		questionnaires.delete(event.toolCallId);
@@ -58,6 +71,12 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 				requireIntent(ctx, change, change);
 			}
 			if (event.toolName !== "subagent") return;
+			const evidence = validateEvidenceDelegation(ctx, event.input);
+			if (evidence) {
+				if (evidence.state === "returned") return { block: true, reason: "Evidence already returned; incorporate it into the next intent round instead of repeating the experiment" };
+				pi.appendEntry(INTENT_EVIDENCE, { ...evidence, state: "running", toolCallId: event.toolCallId });
+				return;
+			}
 			rewriteDelegationTasks(event.input, (agent, task) => {
 				const change = readAuthorizedContinuation(ctx, agent, task);
 				return change ? `change: ${change}\nintent_work: ${change}\n\n${task}` : task;
@@ -99,14 +118,18 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 	registerEinTool({
 		name: "ein_intent",
 		label: "Ein Intent",
-		description: "Record the agreed objective/boundaries/completionCriteria before new modifying work. For a complete, authorized current human request with no missing product decisions, record persists that observed request directly; never use it for discussion-only requests, invented choices or an open/cancelled discovery. For discovery (including natural-language requests to do intent), load intent-channel first. propose the whole ready frontier in numbered questions with recommendations and retain the WHOLE known decision tree, including deferred questions with their dependsOn prerequisites (decisions: id, question, dependsOn, status open/waiting/resolved, resolution with evidence). Supply questionnaire with concrete alternative options, recommended first; explain the tradeoffs in prose, then call ask_user_question with the returned questionnaire (batches of up to four). The plugin supplies free text. status returns the observed answer/id from chat or the matched questionnaire. Recompute the tree after each answer; use review with the responseId only once ALL branches are resolved. Show the returned final material and wait. confirm requires a NEW responseId to that review; round answers cannot close intent. record is only for complete authorized mechanical work, never an explicit interview. Refusal, cancellation or unresolved choices need another round. Reuse unchanged agreements. change is SDD-only and must equal work. delegate is only for an explicit current sin preguntas / without questions instruction with recorded assumptions; auto alone is not consent. Put intent_work: <work> in delegated tasks. Read-only work needs no intent.",
+		description: "Record the agreed objective/boundaries/completionCriteria before new modifying work. For a complete, authorized current human request with no missing product decisions, record persists that observed request directly; never use it for discussion-only requests, invented choices or an open/cancelled discovery. For discovery (including natural-language requests to do intent), load intent-channel first. propose the whole ready frontier in numbered questions with recommendations and retain the WHOLE known decision tree, including deferred questions with their dependsOn prerequisites (decisions: id, question, dependsOn, status open/waiting/resolved, resolution with evidence). Supply questionnaire with concrete alternative options, recommended first; explain the tradeoffs in prose, then call ask_user_question with the returned questionnaire (batches of up to four). The plugin supplies free text. status returns the observed answer/id from chat or the matched questionnaire. Recompute the tree after each answer; use review with the responseId only once ALL branches are resolved. Show the returned final material and wait. confirm requires a NEW responseId to that review; round answers cannot close intent. record is only for complete authorized mechanical work, never an explicit interview. Refusal, cancellation or unresolved choices need another round. Reuse unchanged agreements. change is SDD-only and must equal work. delegate is only for an explicit current sin preguntas / without questions instruction with recorded assumptions; auto alone is not consent. Put intent_work: <work> in delegated tasks. For an authorized local experiment needed to finish discovery, use investigate with a waiting fact decisionId, existing responseId (also from history), objective, read roots and exact local commands. First incorporate answered permission prerequisites with propose; material may be omitted to reuse the current scope, and an empty questionnaire is valid while waiting on evidence. investigate returns a bounded sdd-verify delegation without confirming product intent. Reuse that authorization; technical rejection never means asking the same permission again. Read-only work needs no intent.",
 		parameters: {
 			type: "object", required: ["action", "work"],
 			properties: {
-				action: { type: "string", enum: ["propose", "status", "confirm", "cancel", "delegate", "record", "review"] },
+				action: { type: "string", enum: ["propose", "status", "confirm", "cancel", "delegate", "record", "review", "investigate"] },
+				title: { type: "string", description: "Short human label, e.g. Bloque 05 · Cursos propios" },
+				evidence: { type: "object", required: ["decisionId", "objective", "roots", "commands"], properties: {
+					decisionId: { type: "string" }, objective: { type: "string" }, roots: { type: "array", items: { type: "string" } }, commands: { type: "array", items: { type: "string" } },
+				} },
 				work: { type: "string" }, change: { type: "string" }, responseId: { type: "string" },
 				reopenReason: { type: "string", description: "New material product decision discovered after agreement, even if the objective is unchanged. Reopens discovery; never use for routine phase transitions." },
-				decisions: { type: "array", description: "Whole known tree: resolved, ready AND deferred questions. Keep dependent questions as open nodes with dependsOn; questions contains only the ready frontier.", items: { type: "object", required: ["id", "question", "dependsOn", "status"], properties: { id: { type: "string" }, question: { type: "string" }, dependsOn: { type: "array", items: { type: "string" } }, status: { type: "string", enum: ["open", "waiting", "resolved"] }, resolution: { type: "string" } } } },
+				decisions: { type: "array", description: "Whole known tree: resolved, ready AND deferred questions. Keep dependent questions as open nodes with dependsOn; questions contains only the ready frontier.", items: { type: "object", required: ["id", "question", "dependsOn", "status"], properties: { kind: { type: "string", enum: ["decision", "fact", "permission"] }, title: { type: "string" }, id: { type: "string" }, question: { type: "string" }, dependsOn: { type: "array", items: { type: "string" } }, status: { type: "string", enum: ["open", "waiting", "resolved"] }, resolution: { type: "string" } } } },
 				questionnaire: { type: "array", items: { type: "object", required: ["question", "header", "options"], properties: {
 					question: { type: "string" }, header: { type: "string", maxLength: 16 }, multiSelect: { type: "boolean" },
 					options: { type: "array", minItems: 2, maxItems: 4, items: { type: "object", required: ["label", "description"], properties: { label: { type: "string", maxLength: 60 }, description: { type: "string" } } } },
@@ -135,8 +158,15 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 						? "Show the final objective, boundaries, decisions and success criteria, then call ask_user_question with the returned questionnaire. Wait for its result and call status; a fresh answer confirms only this agreement."
 						: "Explain the ready questions with alternatives and recommendations in plain language, then call ask_user_question with the returned questionnaire, up to four per call. If unavailable or there are no concrete options, use the same questions in chat and wait. If every branch waits on research, await its facts instead of asking or closing.";
 				}
+				const nextAction = nextIntentAction(snapshot);
+				const delegation = snapshot.evidence && snapshot.evidence.state === "ready" ? {
+					agent: "sdd-verify", task: evidenceTask(snapshot.evidence), context: "fresh", async: false, maxRuntimeMs: 120000,
+					acceptance: { level: "none", reason: "Diagnostic evidence for pending intent, not verification of an implementation" },
+				} : undefined;
+				if (["prepare-evidence", "run-evidence", "repair-evidence-with-existing-authorization"].includes(nextAction)) instruction = "The product intent is still open. Reuse the investigation authorization already in response/history. Prepare investigate or run its exact delegation; do not ask permission again for the same bounded experiment, do not confirm product intent or start an SDD phase. Scout reads static facts; investigate runs the local experiment.";
+				if (nextAction === "incorporate-evidence") instruction = "Interpret the saved experiment result (if truncated, recover its full toolCallId output before concluding). Record supported facts and their command evidence in propose, leave unsupported facts open, and ask the newly ready decisions with ask_user_question in this turn. No extra user continue or authorization is needed.";
 				const frontier = snapshot.agreement?.decisions ? intentFrontier(snapshot.agreement.decisions).map((d) => d.id) : undefined;
-				return { content: [{ type: "text", text: JSON.stringify({ ...snapshot, frontier, instruction }) }], details: { ok: true, state, stage: snapshot.agreement?.stage, hasResponse: !!snapshot.response, work: request.work } };
+				return { content: [{ type: "text", text: JSON.stringify({ ...snapshot, frontier, nextAction, delegation, instruction }) }], details: { ok: true, state, nextAction, stage: snapshot.agreement?.stage, hasResponse: !!snapshot.response, work: request.work } };
 			} catch (error) {
 				const reason = error instanceof Error ? error.message : String(error);
 				return { content: [{ type: "text", text: reason }], details: { ok: false, reason }, isError: true };

@@ -1,3 +1,4 @@
+import { validateEvidenceDelegation } from "../../lib/intent-discovery.ts";
 import { askDeliveryConsent } from "../../lib/delivery-consent.ts";
 // =============================================================================
 // EIN TOOL CALL GATE
@@ -86,6 +87,8 @@ export function registerToolCallGate(
 
 	pi.on("tool_call", async (event, ctx) => {
 		if (event.toolName === "subagent") {
+			try { if (validateEvidenceDelegation(ctx, event.input)) return; }
+			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			try { rewriteDelegationTasks(event.input, (agent, task) => expandSddParticipantTask(ctx.cwd, sddPreflightSessionKey(ctx), agent, task)); }
 			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			try { normalizeAgentDiscoveryScope(event.input, ctx.cwd); }
