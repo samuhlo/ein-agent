@@ -45,5 +45,33 @@ try {
       }
     }
   }
+  for (const status of ["running", "completed", "failed", "stopped", "rejected"]) {
+    for (const width of [40, 60, 80, 120]) for (const expanded of [false, true]) {
+      Object.defineProperty(process.stdout, "columns", { value: width, configurable: true });
+      const error = "SDD participant unavailable: generated task contract was altered";
+      const entries = ["cleaner-remediation", "verify-remediation"].map((agent) => ({
+        agent, exitCode: status === "running" ? -1 : status === "failed" ? 1 : 0,
+        stopped: status === "stopped", task: "Review fixture", messages: [{ role: "assistant", content: [{ type: "text", text: "Workflow reviewed" }], stopReason: "stop" }],
+        usage: { input: 100, output: 30, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 1 }, model: "test/model", durationMs: 1000,
+      }));
+      const tool = {
+        name: "subagent", label: "subagent", description: "", parameters: {},
+        renderCall: () => new Text("subagent workflow · background · 2 lanes: cleaner-remediation, verify-remediation", 0, 0),
+        renderResult: (result: object, options: unknown, theme: unknown, context: { isError: boolean }) => renderSubagentResult({ ...result, isError: context.isError }, options, theme, undefined, { compactResultMaxLines: 5, horizontalSpacing: 1 }),
+      };
+      const view = new ToolExecutionComponent("subagent", "workflow-probe", { workflowScript: "await workflow.parallel([])", async: true }, {}, tool as any, { requestRender() {} } as any, process.cwd());
+      view.updateResult({ content: [{ type: "text", text: status === "rejected" ? error : "Workflow reviewed" }], details: status === "rejected" ? undefined : { mode: "workflow", results: entries }, isError: status === "failed" || status === "rejected" }, status === "running");
+      view.setExpanded(expanded);
+      const lines = view.render(width); const text = lines.map(stripVTControlCharacters).join("\n");
+      assert(!text.includes("subagent workflow"), `${status}/${width}/${expanded}: ${text}`);
+      assert.equal((text.match(/[✓✗■●◉⏳⟳] workflow/g) ?? []).length, 1, text);
+      assert(text.includes("cleaner-remediation") && text.includes("verify-remediation"), text);
+      if (status === "rejected") {
+        assert(text.includes("SDD participant unavailable:"), text);
+        if (width >= 120) assert(text.replace(/\s+/g, " ").includes(error), text);
+      }
+      assert(lines.every((line) => visibleWidth(line) <= width)); count++;
+    }
+  }
 } finally { release(); }
 console.log(`Terminal transcript: ${count} native subagent renders passed.`);

@@ -19,12 +19,26 @@ export function cleanHiddenThinking(lines: string[]): string[] {
   return result;
 }
 
-export function cleanSubagentHeading(lines: string[]): string[] {
+export function cleanSubagentHeading(lines: string[], context?: unknown): string[] {
   const visible = lines.map((line, index) => ({ text: stripAnsi(line).trim(), index }))
     .filter(({ text }) => text);
   const call = visible[0];
   const result = visible[1];
   if (!call || !result) return lines;
+  const view = context as { toolName?: string; args?: { workflowScript?: unknown; workflowScriptPath?: unknown }; result?: { isError?: boolean; details?: { mode?: string } } } | undefined;
+  const workflow = view?.toolName === "subagent" && (typeof view.args?.workflowScript === "string" || typeof view.args?.workflowScriptPath === "string");
+  if (workflow && /^subagent workflow(?:\s|$)/.test(call.text)) {
+    const summary = view.result?.details?.mode === "workflow"
+      ? visible.find(({ text, index }) => index > call.index && /^[✓✗■●◉⏳⟳] workflow(?:\s|$)/u.test(text)) : undefined;
+    if (summary) {
+      // Retain wrapped lane metadata and diagnostics; the native result owns the title.
+      const metadata = lines.slice(call.index, summary.index);
+      metadata[0] = metadata[0]!.replace(/\bsubagent\b/, "").replace(/\bworkflow\b/, "");
+      return [...lines.slice(0, call.index), lines[summary.index]!, ...metadata, ...lines.slice(summary.index + 1)];
+    }
+    // A rejected launch is a separate attempt, not a duplicate to erase.
+    if (view.result?.isError) return lines.map((line, index) => index === call.index ? line.replace(/\bsubagent\b/, "✗") : line);
+  }
   const agent = /^subagent ([\w.-]+)$/.exec(call.text)?.[1];
   if (!agent) return lines;
   const resultAgent = /^[✓✗■●◉⏳⟳] ([\w.-]+)(?:\s|$)/u.exec(result.text)?.[1];
@@ -38,12 +52,12 @@ type AdaptedRenderer = Renderer & { [ADAPTER]?: { original: Renderer["render"]; 
 
 // Pi exposes these components but has no tool-renderer override hook. Limit the
 // compatibility adapter to rendered rows; execution and persisted data stay native.
-export function adaptTranscriptRenderer(prototype: Renderer, clean: (lines: string[]) => string[]): () => void {
+export function adaptTranscriptRenderer(prototype: Renderer, clean: (lines: string[], context?: unknown) => string[]): () => void {
   const target = prototype as AdaptedRenderer;
   let state = target[ADAPTER];
   if (!state) {
     const original = target.render;
-    const wrapped: Renderer["render"] = function (this: Renderer, width) { return clean(original.call(this, width)); };
+    const wrapped: Renderer["render"] = function (this: Renderer, width) { return clean(original.call(this, width), this); };
     state = { original, wrapped, users: 0 };
     target[ADAPTER] = state;
     target.render = wrapped;
