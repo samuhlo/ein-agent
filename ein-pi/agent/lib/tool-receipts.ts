@@ -167,7 +167,7 @@ function checkReceipt(details: unknown): ToolReceipt {
 
 function advisoryReceipt(base: ToolReceipt, details: Record<string, unknown>): ToolReceipt {
 	if (!isRecord(details.advisory)) return base;
-	const labels: Record<string, string> = { complete: "completada", unavailable: "no disponible", blocked: "bloqueada", disabled: "desactivada", pending: "pendiente" };
+	const labels: Record<string, string> = { complete: "informe recibido", unavailable: "no disponible", blocked: "bloqueada", disabled: "desactivada", pending: "pendiente" };
 	const status = String(details.advisory.status);
 	const label = labels[status] ?? "sin evidencia";
 	const reason = str(details.advisory.reason);
