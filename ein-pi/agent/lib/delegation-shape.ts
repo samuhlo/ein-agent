@@ -44,6 +44,7 @@ const IDENTIFIER_START = /[A-Za-z_$]/;
 const IDENTIFIER_CHAR = /[A-Za-z0-9_$]/;
 
 type Literal = { value: string; next: number };
+const taskLocations = new WeakMap<DelegationItem, { start: number; end: number }>();
 
 // Decode transport escapes without evaluating JavaScript. Identity checks need
 // the actual task bytes, not the spelling of its string literal.
@@ -106,7 +107,7 @@ function assignCapturedValue(
 	const literal = readStringLiteral(src, valueStart);
 	if (!literal) return null;
 	if (key === "agent") frame.agent = literal.value;
-	else if (key === "task") frame.task = literal.value;
+	else if (key === "task") { frame.task = literal.value; taskLocations.set(frame, { start: valueStart, end: literal.next }); }
 	else frame.tdd = literal.value;
 	return literal.next;
 }
@@ -229,6 +230,26 @@ export function collectDelegationItems(input: unknown): DelegationItem[] {
 		if (single.agent !== undefined || single.task !== undefined) items.push(single);
 	}
 	return items;
+}
+
+// Rewrite only parsed literal task slots; never execute or rebuild a workflow program.
+export function rewriteDelegationTasks(input: unknown, rewrite: (agent: string, task: string) => string): void {
+	if (!isRecord(input) || typeof input.action === "string") return;
+	if (typeof input.workflowScript === "string") {
+		let script = input.workflowScript;
+		const edits = parseWorkflowScriptDelegations(script).flatMap((item) => {
+			if (!item.agent || !item.task) return [];
+			const content = rewrite(item.agent, item.task); if (content === item.task) return [];
+			const location = taskLocations.get(item)!;
+			if (!/[,}]/.test(script[skipWhitespace(script, location.end)] ?? "") || (script[location.start] === "`" && script.slice(location.start, location.end).includes("${"))) throw new Error("A generated task reference must be a standalone string literal");
+			return [{ ...location, content }];
+		});
+		for (const edit of edits.sort((a, b) => b.start - a.start)) script = script.slice(0, edit.start) + JSON.stringify(edit.content) + script.slice(edit.end);
+		input.workflowScript = script;
+	}
+	for (const entry of [input, ...LEGACY_ITEM_KEYS.flatMap((key) => Array.isArray(input[key]) ? input[key] as unknown[] : [])]) {
+		if (isRecord(entry) && typeof entry.agent === "string" && typeof entry.task === "string") entry.task = rewrite(entry.agent, entry.task);
+	}
 }
 
 export function collectDelegationAgentNames(input: unknown): string[] {

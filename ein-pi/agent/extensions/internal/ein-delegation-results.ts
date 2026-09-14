@@ -106,6 +106,7 @@ export function registerDelegationResultHook(
 				content: event.content,
 				agent: tracked.unit,
 				task: tracked.task,
+				callMatched: true,
 			});
 			completeSddParticipantCall(
 				ctx.cwd,
