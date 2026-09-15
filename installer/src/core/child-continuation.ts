@@ -3,6 +3,7 @@ import type { BinaryIdentity } from "./binary-probe.ts";
 import type { ReleaseTag, Result, UpdateStageError } from "./release-types.ts";
 import type { UpdateCaps } from "./update-caps.ts";
 import type { InstallStep } from "./deps.ts";
+import type { PiRuntimeResult } from "./pi-runtime-maintenance.ts";
 
 export type ContinuationMessage = {
   txId: string;
@@ -12,6 +13,7 @@ export type ContinuationMessage = {
   status: "ok" | "failed";
   error?: string;
   externalTools?: InstallStep[];
+  piRuntime?: PiRuntimeResult;
 };
 
 export type ContinuationError = UpdateStageError;
@@ -21,7 +23,7 @@ export type ContinuationOptions = {
   txId: string;
   releaseTag: ReleaseTag;
   caps: UpdateCaps;
-  runtimeSurfaces?: "prepare" | "rollback" | "commit" | "external-tools";
+  runtimeSurfaces?: "prepare" | "rollback" | "commit" | "external-tools" | "pi-runtime";
 };
 
 function continuationError(code: string, message: string): ContinuationError {
@@ -42,6 +44,8 @@ function parseMessage(stdout: string): ContinuationMessage | null {
     if (!releaseTag.ok) return null;
     if (value.externalTools !== undefined && (!Array.isArray(value.externalTools)
       || value.externalTools.some((step) => !step || typeof step.ok !== "boolean" || typeof step.detail !== "string"))) return null;
+    if (value.piRuntime !== undefined && (!value.piRuntime || [value.piRuntime.pi, value.piRuntime.packages]
+      .some((step) => !step || typeof step.ok !== "boolean" || typeof step.detail !== "string"))) return null;
     return { ...value, releaseTag: releaseTag.value } as ContinuationMessage;
   } catch {
     return null;
@@ -69,6 +73,11 @@ export async function spawnContinuation(
       && (message.binaryVersion !== releaseTag.slice("installer-v".length)
         || message.templateVersion !== message.binaryVersion || !message.externalTools)) {
       return { ok: false, error: continuationError("external-policy-unavailable", "Installed version did not provide its external-tool results") };
+    }
+    if (options.runtimeSurfaces === "pi-runtime"
+      && (message.binaryVersion !== releaseTag.slice("installer-v".length)
+        || message.templateVersion !== message.binaryVersion || !message.piRuntime)) {
+      return { ok: false, error: continuationError("pi-policy-unavailable", "Installed version did not provide its Pi runtime results") };
     }
     return { ok: true, value: message };
   } catch (error) {

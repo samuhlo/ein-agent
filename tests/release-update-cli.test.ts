@@ -46,6 +46,13 @@ function runUpdate(args: string[], dependencies: UpdateRunDependencies = {}): Pr
 }
 const assetDigest = createHash("sha256").update(assetBytes).digest("hex");
 
+function runtimeReceipt(args: string[], piOk = true) {
+  const txId = args.find((arg) => arg.startsWith("--ein-continuation="))!.split("=")[1]!;
+  const releaseTag = args.find((arg) => arg.startsWith("--ein-release="))!.split("=")[1]!;
+  return { code: 0, stdout: JSON.stringify({ txId, releaseTag, binaryVersion: releaseTag.slice(11), templateVersion: releaseTag.slice(11), status: "ok",
+    piRuntime: { pi: { ok: piOk, detail: piOk ? "pi actualizado" : "pi latest no resolvió" }, packages: { ok: true, detail: "2 paquetes al dia" } } }) };
+}
+
 function root(): string {
   const dir = mkdtempSync(join(tmpdir(), "ein-release-cli-"));
   roots.push(dir);
@@ -210,6 +217,7 @@ describe("release update CLI", () => {
         async spawn(_command, args) {
           if (args.some((arg) => arg.startsWith("--ein-continuation="))) {
             const txId = args.find((arg) => arg.startsWith("--ein-continuation="))!.split("=")[1]!;
+            if (args.includes("--ein-runtime-surfaces=pi-runtime")) return runtimeReceipt(args);
             return { code: 0, stdout: JSON.stringify({ txId, releaseTag: "installer-v0.21.0", binaryVersion: "0.21.0", templateVersion: "0.21.0", status: "ok" }) };
           }
           return { code: 0, stdout: "ein-installer 0.21.0\ntemplate-version 0.21.0\n" };
@@ -360,7 +368,7 @@ describe("release update CLI", () => {
     const caps: UpdateCaps = {
       ...base,
       http: updateHttp(),
-      child: { spawn: async () => ({ code: 0, stdout: "ein-installer 0.20.0\ntemplate-version 0.20.0\n" }) },
+      child: { spawn: async (_command, args) => args.includes("--ein-runtime-surfaces=pi-runtime") ? runtimeReceipt(args) : ({ code: 0, stdout: "ein-installer 0.20.0\ntemplate-version 0.20.0\n" }) },
     };
     const output: string[] = [];
 
@@ -451,6 +459,7 @@ describe("release update CLI", () => {
         async spawn(_command, args) {
           if (args.some((arg) => arg.startsWith("--ein-continuation="))) {
             const txId = args.find((arg) => arg.startsWith("--ein-continuation="))!.split("=")[1]!;
+            if (args.includes("--ein-runtime-surfaces=pi-runtime")) return runtimeReceipt(args);
             return { code: 0, stdout: JSON.stringify({ txId, releaseTag: "installer-v0.20.0", binaryVersion: "0.20.0", templateVersion: "0.20.0", status: "ok" }) };
           }
           return { code: 0, stdout: "ein-installer 0.20.0\ntemplate-version 0.20.0\n" };
@@ -649,7 +658,7 @@ describe("release update CLI", () => {
     const caps: UpdateCaps = {
       ...base,
       http: updateHttp(),
-      child: { spawn: async () => ({ code: 0, stdout: "ein-installer 0.20.0\ntemplate-version 0.20.0\n" }) },
+      child: { spawn: async (_command, args) => args.includes("--ein-runtime-surfaces=pi-runtime") ? runtimeReceipt(args) : ({ code: 0, stdout: "ein-installer 0.20.0\ntemplate-version 0.20.0\n" }) },
     };
     const output: string[] = [];
     let promoted = "";
@@ -686,6 +695,7 @@ describe("release update CLI", () => {
         async spawn(_command, args) {
           if (args.some((arg) => arg.startsWith("--ein-continuation="))) {
             const txId = args.find((arg) => arg.startsWith("--ein-continuation="))!.split("=")[1]!;
+            if (args.includes("--ein-runtime-surfaces=pi-runtime")) return runtimeReceipt(args);
             return { code: 0, stdout: JSON.stringify({ txId, releaseTag: "installer-v0.20.0", binaryVersion: "0.20.0", templateVersion: "0.20.0", status: "ok" }) };
           }
           return { code: 0, stdout: "ein-installer 0.20.0\ntemplate-version 0.20.0\n" };
@@ -719,6 +729,7 @@ describe("release update CLI", () => {
     writeFileSync(markerPath, marker());
     const base = defaultUpdateCaps();
     let candidateRefreshes = 0;
+    let runtimeRefreshes = 0;
     const caps: UpdateCaps = {
       ...base,
       http: updateHttp(),
@@ -727,6 +738,7 @@ describe("release update CLI", () => {
           if (args.some((arg) => arg.startsWith("--ein-continuation="))) {
             const txId = args.find((arg) => arg.startsWith("--ein-continuation="))!.split("=")[1]!;
             const external = args.includes("--ein-runtime-surfaces=external-tools");
+            if (args.includes("--ein-runtime-surfaces=pi-runtime")) { runtimeRefreshes++; return runtimeReceipt(args); }
             if (external) candidateRefreshes += 1;
             return { code: 0, stdout: JSON.stringify({ txId, releaseTag: "installer-v0.20.0", binaryVersion: "0.20.0", templateVersion: "0.20.0", status: "ok",
               ...(external ? { externalTools: [{ ok: true, detail: "codegraph actualizado por la versión instalada" }] } : {}) }) };
@@ -756,8 +768,9 @@ describe("release update CLI", () => {
       refreshExternalTools: async () => { externalRefreshed += 1; return [{ ok: true, detail: "hypa actualizado por el proceso anterior" }]; },
     });
     expect(code).toBe(EXIT_UPDATED);
-    expect(piUpdated).toBe(1);
-    expect(packagesSynced).toBe(1);
+    expect(piUpdated).toBe(0);
+    expect(packagesSynced).toBe(0);
+    expect(runtimeRefreshes).toBe(1);
     // Las deps externas (codegraph) se refrescan tras un update ok.
     expect(externalRefreshed).toBe(0);
     expect(candidateRefreshes).toBe(1);
@@ -780,7 +793,9 @@ describe("release update CLI", () => {
 
     const failedOutput: string[] = [];
     const failedCode = await runUpdate([], {
-      caps, platform: { os: "linux", arch: "x64" }, agentDir, markerPath, journalPath, destinationPath, interactive: false,
+      caps: { ...caps, child: { spawn: async (command, args, options) => args.includes("--ein-runtime-surfaces=pi-runtime")
+        ? runtimeReceipt(args, false) : caps.child.spawn(command, args, options) } },
+      platform: { os: "linux", arch: "x64" }, agentDir, markerPath, journalPath, destinationPath, interactive: false,
       write: (line) => failedOutput.push(line),
       updatePi: async () => ({ ok: false, detail: "pi latest no resolvió" }),
       syncPiPackages: async () => ({ ok: true, detail: "extensiones latest" }),
@@ -789,6 +804,19 @@ describe("release update CLI", () => {
     expect(failedOutput).toContain("pi latest no resolvió");
     expect(failedOutput).toContain("Ein se actualizó, pero Pi o sus extensiones no alcanzaron npm latest.");
     expect(failedOutput).not.toContain("Ya está actualizado.");
+
+    const unsupportedOutput: string[] = [];
+    const unsupported = await runUpdate([], {
+      caps: { ...caps, child: { spawn: async (command, args, options) => args.includes("--ein-runtime-surfaces=pi-runtime")
+        ? { code: 1, stdout: "unsupported" } : caps.child.spawn(command, args, options) } },
+      platform: { os: "linux", arch: "x64" }, agentDir, markerPath, journalPath, destinationPath, interactive: false,
+      write: (line) => unsupportedOutput.push(line),
+      updatePi: async () => { piUpdated++; return { ok: true, detail: "old Pi policy" }; },
+      syncPiPackages: async () => { packagesSynced++; return { ok: true, detail: "old package policy" }; },
+    });
+    expect(unsupported).toBe(EXIT_FAILED);
+    expect(piUpdated).toBe(0); expect(packagesSynced).toBe(0);
+    expect(unsupportedOutput.join("\n")).toContain("No se ejecuta la política anterior");
   });
 
   test("skips pi and external-tool refresh on dry-run and on failure", async () => {

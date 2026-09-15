@@ -6,10 +6,12 @@ also schedules repaint requests by clock frame, avoiding an extra skipped tick
 when interval callbacks arrive slightly early. Status filesystem reconciliation
 retains its existing five-second interval.
 
-This is a temporary correction for the installed `pi-subagents@0.67.0`, not an
-automatic installer patch or a replacement for the `latest` dependency policy.
-Updating that package can overwrite it; the fix belongs upstream. Check the
-actual installed package with:
+The installer now reapplies this correction after refreshing `pi-subagents`.
+`installer/src/core/subagent-widget-compat.ts` recognizes the known source shapes
+in 0.67 and 0.68 and already corrected sources. It validates every file before
+writing; unsupported source shapes report an incomplete package update.
+The patch below remains the historical 0.67 reference, not an extra install step.
+Check the actual installed package with:
 
 ```sh
 NODE_PATH="$PWD/node_modules" bun tooling/verify-subagent-widget-animation.ts /path/to/pi-subagents
@@ -25,8 +27,9 @@ git -C /path/to/pi-subagents apply "$PWD/tooling/patches/pi-subagents-0.67.0-wid
 ```
 
 Run both probes after applying it and restart Ein to load the changed modules.
-Merging this PR alone does not deploy the correction to users' installations.
+Run the new installer to reconcile packages, then restart Ein to load the modules.
 
 The animation probe checks sequential frames, stable phase during progress,
 mounted-component reuse, terminal states, the real quiet-job repaint timer,
 suspension, and disposal. It intentionally fails against the unpatched 0.67.0.
+The latest-runtime CI probe now runs this animation check after package install.

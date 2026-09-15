@@ -39,6 +39,7 @@ gh release view "$TARGET_TAG" --repo "$REPOSITORY" >/dev/null
 
 docker build -t "$IMAGE" -f "$HERE/Dockerfile.ubuntu" "$HERE"
 docker run --rm -i \
+  -e GH_TOKEN -e GITHUB_TOKEN \
   -v "$SOURCE_BINARY:/usr/local/bin/ein-old:ro" \
   "$IMAGE" -euo pipefail -s -- "$SOURCE_TAG" "$TARGET_TAG" <<'EOF'
 source_tag="${1:?falta source tag}"

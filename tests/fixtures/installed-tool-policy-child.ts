@@ -4,6 +4,14 @@ import { appendFileSync } from "node:fs";
 const deps = await import("../../installer/src/core/deps.ts");
 mock.module("../../installer/src/core/deps.ts", () => ({
   ...deps,
+  installPi: async () => {
+    appendFileSync(process.env.EIN_TEST_TOOL_POLICY_LOG!, "new-pi\n");
+    return { ok: true, detail: "new Pi policy" };
+  },
+  installDeclaredPackages: async () => {
+    appendFileSync(process.env.EIN_TEST_TOOL_POLICY_LOG!, "new-packages\n");
+    return { ok: true, detail: "new package compatibility" };
+  },
   refreshExternalTools: async () => {
     appendFileSync(process.env.EIN_TEST_TOOL_POLICY_LOG!, "new-policy\n");
     return [{ ok: true, detail: "new-policy tool only" }];

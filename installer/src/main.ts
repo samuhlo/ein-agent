@@ -14,6 +14,7 @@ import { INSTALLER_VERSION, versionOutputLines } from "./core/version.ts";
 import { deployTemplate, readBundledManifest } from "./core/deploy.ts";
 import { detectPlatform } from "./core/platform.ts";
 import { refreshExternalTools } from "./core/deps.ts";
+import { refreshPiRuntime } from "./core/pi-runtime-maintenance.ts";
 import { runUpdateContinuation } from "./core/child-continuation.ts";
 import { normalizeTag, resolveReleaseContract } from "./core/release-resolver.ts";
 import { activeHome } from "./core/paths.ts";
@@ -72,6 +73,8 @@ async function runContinuationEntry(argv: string[]): Promise<number> {
         finalizeRuntimeSurfaceRetirementByTransaction({ home: activeHome(), transactionId: txId, globalCommit: true });
       } else if (action === "external-tools") {
         message = { ...message, externalTools: await refreshExternalTools(detectPlatform()) };
+      } else if (action === "pi-runtime") {
+        message = { ...message, piRuntime: await refreshPiRuntime() };
       } else {
         throw new Error("invalid-runtime-surface-action");
       }

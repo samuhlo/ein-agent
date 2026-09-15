@@ -35,7 +35,7 @@ test("package installation reconciles child tools and rejects an unsupported ups
   try {
     mkdirSync(join(file, ".."), { recursive: true });
     writeFileSync(join(ctx.agentDir, "settings.json"), JSON.stringify({ packages: ["npm:pi-subagents@latest"] }));
-    const deps = { lookPath: () => "/fake/pi", run: async () => ({ ok: true, code: 0, stdout: "", stderr: "" }) };
+    const deps = { lookPath: () => "/fake/pi", ensureWidget: () => {}, run: async () => ({ ok: true, code: 0, stdout: "", stderr: "" }) };
     writeFileSync(file, source);
     expect((await installDeclaredPackages(ctx, deps)).ok).toBe(true);
     expect(readFileSync(file, "utf8")).toBe(repairSubagentToolPlan(source));

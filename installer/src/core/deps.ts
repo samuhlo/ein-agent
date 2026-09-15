@@ -8,6 +8,7 @@ import { existsSync, readFileSync, renameSync, unlinkSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import type { Platform } from "./platform.ts";
 import { ensureSubagentToolCompatibility } from "./subagent-tool-compat.ts";
+import { ensureSubagentWidgetCompatibility } from "./subagent-widget-compat.ts";
 import {
   EXTERNAL_TOOL_TIMEOUT_MS,
   lastLine,
@@ -529,6 +530,7 @@ export type PiPackageInstallDeps = {
   lookPath?: typeof lookPath;
   run?: typeof run;
   ensureChildTools?: typeof ensureSubagentToolCompatibility;
+  ensureWidget?: typeof ensureSubagentWidgetCompatibility;
 };
 
 export async function installDeclaredPackages(
@@ -569,6 +571,8 @@ export async function installDeclaredPackages(
     if (packages.some((pkg) => /^npm:pi-subagents(?:@|$)/.test(pkg))) {
       try { (deps.ensureChildTools ?? ensureSubagentToolCompatibility)(context.agentDir); }
       catch (error) { return { ok: false, detail: `pi-subagents: no se pudo conservar la capacidad de herramientas del hijo: ${error instanceof Error ? error.message : String(error)}` }; }
+      try { (deps.ensureWidget ?? ensureSubagentWidgetCompatibility)(context.agentDir); }
+      catch (error) { return { ok: false, detail: `pi-subagents: no se pudo restaurar la animación: ${error instanceof Error ? error.message : String(error)}` }; }
     }
     return { ok: true, detail: `${ok} paquetes instalados/al dia` };
   }
