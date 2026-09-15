@@ -185,7 +185,7 @@ try {
  } else {
  const first = await turn("Quiero añadir exportación CSV a la tabla de contactos, la única del prototipo. Usa SDD en modo auto.");
  assert.match(first, /[?¿]/); assert.equal(writes, 0); assert.equal(existsSync(join(cwd, "openspec")), false);
- const second = await turn("Todas las filas filtradas (no solo la página) y en el orden visible. Columnas: nombre y correo. Sin exportar datos ocultos. CSV genérico con comas y UTF-8, no específico de Excel. Usa convenciones CSV estándar para escapar valores. Con eso puedes elaborar las specs.");
+ const second = await turn("Todas las filas filtradas (no solo la página) y en el orden visible. Columnas: nombre y correo. Sin exportar datos ocultos. CSV genérico con comas y UTF-8, no específico de Excel. Usa convenciones CSV estándar para escapar valores. Si no hay resultados, desactiva la exportación. Con eso puedes elaborar las specs.");
  await turn("Sí, el acuerdo final recoge exactamente lo que quiero. Puedes elaborar las specs, sin implementar código.");
  const agreement = readAgreement(join(cwd, "openspec/changes/export-csv"));
  assert.equal(agreement.kind, "valid"); if (agreement.kind !== "valid") throw new Error("Missing agreement");

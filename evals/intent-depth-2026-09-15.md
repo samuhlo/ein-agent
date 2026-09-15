@@ -83,3 +83,9 @@ del producto. Las pruebas del protocolo siguen cubriendo recibos, revisión y ci
 
 Validación local: 77 pruebas de intent, canal y paridad; `bun run typecheck`;
 validador `quick_validate.py` de la skill. Todas pasan.
+
+El ensayo adicional de continuidad hasta design detectó que su guion original
+no resolvía qué hacer con un CSV sin resultados. La revisión mantuvo esa decisión
+abierta incluso ante un «sí» genérico; el assert de cierre falló correctamente.
+El guion ahora especifica desactivar la exportación sin resultados para poder
+comprobar un acuerdo completo, sin rebajar el requisito de respuesta.
