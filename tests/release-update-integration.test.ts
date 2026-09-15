@@ -90,6 +90,11 @@ function scriptedChild(script: ChildScript): { child: UpdateCaps["child"]; calls
     child: {
       async spawn(command, args, options) {
         calls.push({ command, args, env: options?.env });
+        if (args.includes("--ein-runtime-surfaces=pi-runtime")) {
+          const txId = args.find((arg) => arg.startsWith("--ein-continuation="))!.split("=")[1]!;
+          return { code: 0, stdout: JSON.stringify({ txId, releaseTag: TARGET_TAG, binaryVersion: TARGET_VERSION, templateVersion: TARGET_VERSION, status: "ok",
+            piRuntime: { pi: { ok: true, detail: "Pi fixture" }, packages: { ok: true, detail: "Packages fixture" } } }) };
+        }
         const result = script(args) ?? { stdout: "", exitCode: 0 };
         return { code: result.exitCode, stdout: result.stdout };
       },

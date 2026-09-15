@@ -81,6 +81,12 @@ try {
   if (widgetProbe.exitCode !== 0) throw new Error(new TextDecoder().decode(widgetProbe.stderr));
   console.log(new TextDecoder().decode(widgetProbe.stdout).trim());
 
+  const animationProbe = Bun.spawnSync(["bun", join(ROOT, "tooling/verify-subagent-widget-animation.ts"), join(context.agentDir, "npm/node_modules/pi-subagents")], {
+    cwd: home, env: { ...process.env, NODE_PATH: join(ROOT, "node_modules"), PI_OFFLINE: "1" }, stdout: "pipe", stderr: "pipe",
+  });
+  if (animationProbe.exitCode !== 0) throw new Error(new TextDecoder().decode(animationProbe.stderr));
+  console.log(new TextDecoder().decode(animationProbe.stdout).trim());
+
   const transcriptProbe = Bun.spawnSync(["bun", join(ROOT, "tooling/verify-terminal-transcript-runtime.ts"), join(context.agentDir, "npm/node_modules/pi-subagents")], {
     cwd: home,
     env: { ...process.env, NODE_PATH: join(ROOT, "node_modules"), PI_OFFLINE: "1" },

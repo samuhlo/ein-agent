@@ -39,3 +39,33 @@ test("external-tool continuation fails closed for an unsupported or malformed ca
     expect(result.ok).toBe(false);
   }
 });
+
+test("the installed CLI owns Pi maintenance and checks identity before touching packages", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ein-pi-policy-"));
+  try {
+    for (const valid of [true, false]) {
+      const log = join(dir, `${valid}.log`);
+      const child = Bun.spawn([process.execPath, join(import.meta.dir, "fixtures/installed-tool-policy-child.ts"),
+        "--ein-continuation=pi-policy", `--ein-release=${valid ? tag.value : "installer-v999.0.0"}`, "--ein-runtime-surfaces=pi-runtime"],
+        { env: { ...process.env, EIN_TEST_TOOL_POLICY_LOG: log }, stdout: "pipe", stderr: "pipe" });
+      const [stdout, stderr, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+      expect(code, stderr).toBe(valid ? 0 : 1);
+      if (valid) {
+        expect(JSON.parse(stdout).piRuntime).toEqual({ pi: { ok: true, detail: "new Pi policy" }, packages: { ok: true, detail: "new package compatibility" } });
+        expect(readFileSync(log, "utf8")).toBe("new-pi\nnew-packages\n");
+      } else expect(existsSync(log)).toBe(false);
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("Pi maintenance rejects missing or malformed results and carries a package failure", async () => {
+  for (const piRuntime of [undefined, {}, { pi: { ok: "yes", detail: "bad" }, packages: { ok: true, detail: "ok" } },
+    { pi: { ok: true, detail: "Pi updated" }, packages: { ok: false, detail: "Unknown package contract" } }]) {
+    const base = defaultUpdateCaps();
+    const result = await spawnContinuation({ candidatePath: "/installed/ein-install", txId: "pi-policy", releaseTag: tag.value, runtimeSurfaces: "pi-runtime",
+      caps: { ...base, child: { spawn: async () => ({ code: 0, stdout: JSON.stringify({ txId: "pi-policy", releaseTag: tag.value,
+        binaryVersion: INSTALLER_VERSION, templateVersion: INSTALLER_VERSION, status: "ok", piRuntime }) }) } } });
+    expect(result.ok).toBe(piRuntime?.pi?.ok === true);
+    if (result.ok) expect(result.value.piRuntime?.packages.ok).toBe(false);
+  }
+});

@@ -109,10 +109,14 @@ async function defaultHttpGet(raw: string, options?: HttpGetOptions): Promise<Ht
   const timeoutMs = options?.timeoutMs ?? REQUEST_TIMEOUT_MS;
   let url = assertSafeUrl(raw);
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+    const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
     const response = await fetch(url, {
       redirect: "manual",
       signal: AbortSignal.timeout(timeoutMs),
-      headers: { Accept: "application/vnd.github+json" },
+      // Re-evaluate each redirect; GitHub API credentials never reach asset hosts.
+      headers: { Accept: "application/vnd.github+json",
+        ...(url.hostname === "api.github.com" && token ? { Authorization: `Bearer ${token}` } : {}),
+      },
     });
     const headers = Object.fromEntries(response.headers.entries());
     if (response.status >= 300 && response.status < 400) {

@@ -4,6 +4,20 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.5] - 2026-09-15
+
+### Fixed
+
+- Tras reemplazar el instalador, el mantenimiento de Pi y sus extensiones se
+  ejecuta desde el binario nuevo. El proceso anterior ya no aplica su contrato
+  antiguo de compatibilidad ni informa de un éxito si el mantenimiento falla.
+- El instalador restaura la animación del widget de subagentes después de
+  actualizar paquetes: fotogramas cada 80 ms, fase independiente de la actividad
+  y repintado durante esperas. La prueba contra npm latest comprueba la animación.
+- Las consultas de releases usan `GH_TOKEN` o `GITHUB_TOKEN` si están disponibles,
+  solo para la API de GitHub y sin enviarlos a los hosts de descarga. El smoke de
+  actualización recibe el token de CI para evitar el límite de consultas anónimas.
+
 ## [0.99.0-alpha.4] - 2026-09-15
 
 ### Fixed

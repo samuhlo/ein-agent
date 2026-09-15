@@ -259,32 +259,46 @@ async function refreshPi(
   installed?: { candidatePath: string; releaseTag: ReleaseTag; caps: UpdateCaps },
 ): Promise<boolean> {
   const interactive = dependencies.interactive !== false;
-  const updatePi = dependencies.updatePi ?? installPi;
-  const syncPackages = dependencies.syncPiPackages ?? installDeclaredPackages;
+  let runtimeOk: boolean;
+  if (installed) {
+    // Swapping the binary leaves the caller's old compatibility code in memory.
+    const spinner = interactive ? p.spinner() : null;
+    spinner?.start("Actualizando Pi y extensiones con la versión instalada");
+    const result = await spawnContinuation({ ...installed, txId: randomUUID(), runtimeSurfaces: "pi-runtime" });
+    runtimeOk = result.ok && result.value.piRuntime!.pi.ok && result.value.piRuntime!.packages.ok;
+    spinner?.stop(runtimeOk ? "Pi y extensiones actualizados" : "Pi o extensiones pendientes de actualizar");
+    if (result.ok) {
+      for (const step of [result.value.piRuntime!.pi, result.value.piRuntime!.packages]) write(step.detail);
+    } else write(`No se pudo actualizar Pi con el instalador nuevo: ${result.error.message}. No se ejecuta la política anterior.`);
+  } else {
+    const updatePi = dependencies.updatePi ?? installPi;
+    const syncPackages = dependencies.syncPiPackages ?? installDeclaredPackages;
 
-  const piSpinner = interactive ? p.spinner() : null;
-  piSpinner?.start("Actualizando pi desde npm latest");
-  let pi: InstallStep;
-  try {
-    pi = await updatePi();
-  } catch {
-    pi = { ok: false, detail: "pi latest: la actualización lanzó un error" };
-  }
-  piSpinner?.stop(pi.ok ? pi.detail : "Pi latest no actualizado");
-  if (!interactive) write(pi.detail);
-  else if (!pi.ok) p.log.warn(pi.detail);
+    const piSpinner = interactive ? p.spinner() : null;
+    piSpinner?.start("Actualizando pi desde npm latest");
+    let pi: InstallStep;
+    try {
+      pi = await updatePi();
+    } catch {
+      pi = { ok: false, detail: "pi latest: la actualización lanzó un error" };
+    }
+    piSpinner?.stop(pi.ok ? pi.detail : "Pi latest no actualizado");
+    if (!interactive) write(pi.detail);
+    else if (!pi.ok) p.log.warn(pi.detail);
 
-  const pkgSpinner = interactive ? p.spinner() : null;
-  pkgSpinner?.start("Verificando paquetes de Pi declarados");
-  let pkgs: InstallStep;
-  try {
-    pkgs = await syncPackages();
-  } catch {
-    pkgs = { ok: false, detail: "extensiones Pi latest: la actualización lanzó un error" };
+    const pkgSpinner = interactive ? p.spinner() : null;
+    pkgSpinner?.start("Verificando paquetes de Pi declarados");
+    let pkgs: InstallStep;
+    try {
+      pkgs = await syncPackages();
+    } catch {
+      pkgs = { ok: false, detail: "extensiones Pi latest: la actualización lanzó un error" };
+    }
+    pkgSpinner?.stop(pkgs.ok ? pkgs.detail : "Extensiones Pi latest no actualizadas");
+    if (!interactive) write(pkgs.detail);
+    else if (!pkgs.ok) p.log.warn(pkgs.detail);
+    runtimeOk = pi.ok && pkgs.ok;
   }
-  pkgSpinner?.stop(pkgs.ok ? pkgs.detail : "Extensiones Pi latest no actualizadas");
-  if (!interactive) write(pkgs.detail);
-  else if (!pkgs.ok) p.log.warn(pkgs.detail);
 
   const refreshExternal = flags.yes
     ? true
@@ -294,7 +308,7 @@ async function refreshPi(
         ? await confirmExternalToolsUpdate()
         : false;
   if (refreshExternal) await refreshExternalDeps(dependencies, write, installed);
-  return pi.ok && pkgs.ok;
+  return runtimeOk;
 }
 
 /**

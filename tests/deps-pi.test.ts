@@ -426,6 +426,7 @@ describe("deps — pi siempre con scope", () => {
 			const result = await installDeclaredPackages(context, {
 				lookPath: () => "/fake/pi",
 				ensureChildTools: (agentDir) => { expect(agentDir).toBe(context.agentDir); },
+				ensureWidget: (agentDir) => { expect(agentDir).toBe(context.agentDir); },
 				run: async (_command, args, options) => {
 					calls.push({ args: args ?? [], env: options?.env });
 					return { ok: true, code: 0, stdout: "", stderr: "" };
