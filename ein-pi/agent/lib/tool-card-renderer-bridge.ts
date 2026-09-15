@@ -39,7 +39,7 @@ export function installToolCardBridge(prototype: object, owner: CardOwner): (() 
     const call: Host["getCallRenderer"] = function (this: Host) {
       const original = originals.call.call(this);
       const selected = findOwner(this.toolName);
-      if (!selected || !original) return original;
+      if (!selected) return original;
       const tool = this.toolName;
       return (args, theme, context) => {
         const current = frame(context);
@@ -56,7 +56,7 @@ export function installToolCardBridge(prototype: object, owner: CardOwner): (() 
     const result: Host["getResultRenderer"] = function (this: Host) {
       const original = originals.result.call(this);
       const selected = findOwner(this.toolName);
-      if (!selected || !original) return original;
+      if (!selected) return original;
       const tool = this.toolName;
       return (output, options, theme, context) => {
         frame(context).result = output;
