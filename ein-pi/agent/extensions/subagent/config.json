@@ -5,9 +5,6 @@
   "intercomBridge": {
     "mode": "off"
   },
-  "modelExclusions": {
-    "defaultTtlMs": 300000
-  },
   "fleetView": false,
   "mainWindowRenderer": {
     "compactResultMaxLines": 5,

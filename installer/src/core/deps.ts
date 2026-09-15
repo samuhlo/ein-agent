@@ -8,6 +8,7 @@ import { existsSync, readFileSync, renameSync, unlinkSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import type { Platform } from "./platform.ts";
 import { ensureSubagentToolCompatibility } from "./subagent-tool-compat.ts";
+import { removeRetiredSubagentConfig } from "./subagent-config-compat.ts";
 import { ensureSubagentWidgetCompatibility } from "./subagent-widget-compat.ts";
 import {
   EXTERNAL_TOOL_TIMEOUT_MS,
@@ -553,6 +554,13 @@ export async function installDeclaredPackages(
     return { ok: false, detail: "settings.json ilegible" };
   }
   if (packages.length === 0) return { ok: true, detail: "sin paquetes declarados" };
+
+  if (packages.some((pkg) => /^npm:pi-subagents(?:@|$)/.test(pkg))) {
+    try { removeRetiredSubagentConfig(context.agentDir); }
+    catch (error) {
+      return { ok: false, detail: `pi-subagents: configuración incompatible: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  }
 
   let ok = 0;
   const failed: Array<{ pkg: string; reason: string }> = [];

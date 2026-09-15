@@ -38,8 +38,8 @@ describe("subagent intercom bridge", () => {
 		expect(typeof config.control?.needsAttentionAfterMs).toBe("number");
 	});
 
-	test("una exclusión transitoria caduca en cinco minutos sin fallback oculto", () => {
-		expect(config.modelExclusions).toEqual({ defaultTtlMs: 300_000 });
+	test("no distribuye exclusiones retiradas ni fallback oculto", () => {
+		expect(Object.hasOwn(config, "modelExclusions")).toBe(false);
 		expect(JSON.stringify(config)).not.toContain("fallbackModels");
 	});
 });
