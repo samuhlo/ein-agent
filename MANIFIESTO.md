@@ -176,6 +176,9 @@ El trabajo se corta para que **una persona pueda revisarlo**.
 
 ## // 006. INTERFAZ
 
+**Ein te pregunta lo necesario para descubrir qué quieres, te explica la solución
+de forma que puedas juzgarla y muestra únicamente información útil durante el proceso.**
+
 La interfaz importa. No como adorno: como parte del producto.
 
 - **Útil antes que bonita, pero bonita.** Cada elemento en pantalla responde a
