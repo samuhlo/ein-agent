@@ -15,7 +15,12 @@ const RULES = [
 
 // COMPAT -> 0.67 confunde herramientas de extensión con nativas al aplicar el inventario del padre.
 export function repairSubagentToolPlan(source: string): string {
-  let result = source;
+	// pi-subagents 0.68 already prunes host builtins without the legacy
+	// coordination exception; it is compatible as-is and needs no rewrite.
+	if (source.includes("const declaredBuiltinTools = hostAvailableSet")
+		&& source.includes("ceilingFilteredBuiltinTools.filter((tool) => !PI_BUILTIN_TOOL_NAMES.has(tool) || hostAvailableSet.has(tool))")
+		&& source.includes("ceilingFilteredBuiltinTools.filter((tool) => PI_BUILTIN_TOOL_NAMES.has(tool) && !hostAvailableSet.has(tool))")) return source;
+	let result = source;
   for (const [before, after] of RULES) {
     if (result.includes(after) && !result.includes(before)) continue;
     if (result.split(before).length !== 2 || result.includes(after)) throw new Error("pi-subagents: contrato de herramientas desconocido; actualiza la compatibilidad de Ein antes de instalar");

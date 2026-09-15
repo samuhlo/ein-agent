@@ -18,6 +18,16 @@ test("repairs both sides of the host filter once, preserving unrelated code", ()
   expect(() => repairSubagentToolPlan("unknown upstream format")).toThrow("contrato de herramientas desconocido");
 });
 
+test("accepts the current upstream host filter without rewriting it", () => {
+	const current = `const declaredBuiltinTools = hostAvailableSet
+	  ? ceilingFilteredBuiltinTools.filter((tool) => !PI_BUILTIN_TOOL_NAMES.has(tool) || hostAvailableSet.has(tool))
+	  : ceilingFilteredBuiltinTools;
+const unavailableHostBuiltins = hostAvailableSet
+	  ? ceilingFilteredBuiltinTools.filter((tool) => PI_BUILTIN_TOOL_NAMES.has(tool) && !hostAvailableSet.has(tool))
+	  : [];`;
+	expect(repairSubagentToolPlan(current)).toBe(current);
+});
+
 test("package installation reconciles child tools and rejects an unsupported upstream without changing it", async () => {
   const home = mkdtempSync(join(tmpdir(), "ein-subagent-compat-"));
   const ctx = resolvePiInstallContext(home);
