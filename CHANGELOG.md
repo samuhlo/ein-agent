@@ -4,6 +4,17 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.7] - 2026-09-15
+
+### Fixed
+
+- El instalador retira `modelExclusions`, una opción eliminada por
+  `pi-subagents`, antes de actualizar paquetes. Conserva el resto de la
+  configuración y rechaza archivos inválidos sin modificarlos.
+- El router SDD mantiene `apply` mientras queden tareas aunque exista un
+  `verify-report.md` de un acuerdo anterior. Las escrituras de progreso
+  normalizan además una única cabecera global sin ocultar estados ambiguos.
+
 ## [0.99.0-alpha.6] - 2026-09-15
 
 ### Fixed
