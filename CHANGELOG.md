@@ -4,6 +4,22 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.4] - 2026-09-15
+
+### Fixed
+
+- El intent profundiza en las consecuencias de las decisiones y mantiene abiertas
+  las ramas que dependen de hechos o respuestas posteriores.
+- `ask_user_question` devuelve el recibo de la respuesta persistida para continuar
+  sin una consulta `status` adicional; `status` sigue recuperando sesiones.
+- Las respuestas y notas de tandas anteriores sobreviven a la cancelación de otra
+  tanda, y una revisión solo confirma con una respuesta afirmativa sin enmiendas.
+
+### Changed
+
+- El protocolo Pi del intent se separa de la guía de entrevista y se carga bajo
+  demanda para reducir contexto y mantener las instrucciones enfocadas.
+
 ## [0.99.0-alpha.3] - 2026-09-14
 
 ### Fixed
