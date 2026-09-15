@@ -59,3 +59,15 @@ export function questionnaireAnswer(questions: IntentQuestion[], details: unknow
  if (!answers.length && !globalNote) return;
  return JSON.stringify({ answers, ...(globalNote ? { globalNote } : {}) });
 }
+
+/** Una tanda cancelada no debe descartar las respuestas de otras tandas. */
+export function retainOtherQuestionnaireAnswers(text: string | undefined, cancelled: IntentQuestion[]): string | undefined {
+ if (!text) return;
+ const excluded = new Set(cancelled.map((q) => q.question));
+ const retained = text.split("\n").flatMap((line) => {
+  const reply = JSON.parse(line);
+  const answers = reply.answers.filter((a: { question: string }) => !excluded.has(a.question));
+  return answers.length || reply.globalNote ? [JSON.stringify({ ...reply, answers })] : [];
+ });
+ return retained.length ? retained.join("\n") : undefined;
+}

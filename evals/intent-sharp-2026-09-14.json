@@ -1,0 +1,172 @@
+{
+  "method": "controlled prompt comparison on current adapter; one sample per variant; supplied facts, no scout or engine benchmark",
+  "runs": [
+    {
+      "variant": "base",
+      "model": "openai-codex/gpt-6-astra",
+      "turnMetrics": [
+        {
+          "elapsedMs": 32100,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ]
+        },
+        {
+          "elapsedMs": 30956,
+          "tools": [
+            "ein_intent"
+          ]
+        },
+        {
+          "elapsedMs": 9414,
+          "tools": []
+        }
+      ],
+      "answers": [
+        "Solo acordaremos el intent; no habrá implementación ni fases SDD.\n\nPartimos de cursos completos o parciales, centro opcional, sin límite artificial y contenido y evaluaciones por módulo. Cambiar la selección de módulos recalcula las fechas. Aquí tratamos el backend; el frontend corresponde a otro agente.\n\n**1. Al retirar un módulo de un curso, ¿qué debe ocurrir con su contenido y sus evaluaciones?**\n\n- **Conservar fuera del curso activo — recomendado.** Se guarda la información, pero el módulo deja de estar seleccionado. Evita perder trabajo y permite recuperarlo después.\n- **Impedir retirarlo si tiene información.** Protege los datos, pero limita los cambios de selección.\n- **Eliminar su contenido y evaluaciones.** Borra la información de ese módulo en el curso; necesitaríamos acordar una protección frente a pérdidas accidentales.\n\n¿Qué opción prefieres? Puedes matizarla. Según tu respuesta, abordaremos la recuperación.\n\nEl calendario parcial queda pendiente del experimento: no hay herramienta disponible aquí para ejecutarlo y no daré su resultado por supuesto. Esa dependencia no impide acordar ahora la gestión de los módulos.",
+        "Queda registrado: **retirar un módulo conserva su contenido para recuperarlo si vuelve al mismo curso**. No doy por resuelta la política de evaluaciones.\n\n**1. Al retirar un módulo, ¿qué debe ocurrir con sus evaluaciones en ese curso?**\n- **Conservarlas apartadas — recomendado:** evita perder información y mantiene su vínculo con el módulo y el curso.\n- **Eliminarlas:** conserva el contenido, pero borra las evaluaciones; habría que acordar protección frente al borrado.\n- **Bloquear la retirada si hay evaluaciones:** protege los datos, pero limita los cambios de módulos.\n\n**2. Al volver a seleccionar el módulo en el mismo curso, ¿cómo debe recuperarse su contenido guardado?**\n- **Automáticamente — recomendado:** vuelve a mostrarse sin pasos adicionales.\n- **Con confirmación explícita:** permanece guardado hasta que se solicite recuperarlo.\n\nEl ensayo sigue pendiente, junto con las decisiones de calendario que dependan de su resultado. No cerramos todavía el acuerdo.",
+        "**Recuperar contenido no implica necesariamente recuperar sus fechas antiguas.** Son dos cosas distintas: lo guardado en el módulo y su colocación en el calendario del curso.\n\nSi retiras un módulo, cambias la selección y después lo reincorporas:\n\n- **El contenido se conserva**, conforme a lo que has decidido para ese mismo curso.\n- **Las fechas se recalculan**, porque reincorporarlo cambia los módulos seleccionados.\n- Si ese contenido tiene fechas asociadas, habrá que decidir cómo tratarlas. Mantener las antiguas podría dejarlas fuera del nuevo periodo; adaptarlas podría desplazar plazos; dejarlas pendientes de revisión evitaría asumir una correspondencia, pero exigiría trabajo manual. Son consecuencias posibles, no una política acordada.\n- **Las evaluaciones siguen siendo una decisión aparte.** No hemos acordado conservarlas ni, por tanto, qué ocurriría con sus posibles fechas.\n\nPor ejemplo: un módulo retirado estaba previsto para marzo y vuelve cuando el calendario ya lo sitúa en mayo. Recuperar sus materiales no exige que vuelvan también los plazos de marzo.\n\nEl ensayo pendiente debe aportar evidencia sobre cómo funciona el calendario parcial; **no decidirá por ti qué comportamiento debe tener el producto**.\n\nNo registro ninguna elección nueva ni confirmación."
+      ],
+      "decisions": [
+        {
+          "id": "base",
+          "title": "Alcance conocido",
+          "question": "¿Cuál es el alcance establecido?",
+          "dependsOn": [],
+          "status": "resolved",
+          "resolution": "Contexto suministrado: cursos propios completos o parciales, centro opcional, sin límite artificial; contenido y evaluaciones por módulo; backend aquí y frontend por otro agente. Cambiar módulos recalcula fechas. Solo intent autorizado."
+        },
+        {
+          "id": "module-removal",
+          "title": "Retirar módulos",
+          "question": "Al retirar un módulo de un curso, ¿qué debe ocurrir con su contenido y sus evaluaciones?",
+          "dependsOn": [
+            "base"
+          ],
+          "status": "resolved",
+          "resolution": "Respuesta del usuario: «Al retirar un módulo, conservar su contenido para recuperarlo si vuelve al mismo curso. Las demás decisiones siguen abiertas y el ensayo aún está pendiente». Resuelto solo el contenido: se conserva vinculado al mismo curso. La política de evaluaciones se separa como decisión abierta."
+        },
+        {
+          "id": "evaluations-removal",
+          "title": "Evaluaciones",
+          "question": "Al retirar un módulo, ¿qué debe ocurrir con sus evaluaciones en ese curso?",
+          "dependsOn": [
+            "module-removal"
+          ],
+          "status": "open"
+        },
+        {
+          "id": "module-restore",
+          "title": "Recuperar contenido",
+          "question": "Al volver a seleccionar el módulo en el mismo curso, ¿cómo debe recuperarse su contenido guardado?",
+          "dependsOn": [
+            "module-removal"
+          ],
+          "status": "open"
+        },
+        {
+          "id": "evaluations-restore",
+          "title": "Recuperar evaluaciones",
+          "question": "Si se conservan las evaluaciones, ¿cómo se recuperan al volver a seleccionar el módulo?",
+          "dependsOn": [
+            "evaluations-removal"
+          ],
+          "status": "open"
+        },
+        {
+          "id": "calendar-evidence",
+          "kind": "fact",
+          "title": "Calendario parcial",
+          "question": "¿Qué resultado ofrece el experimento pendiente del motor de calendario parcial?",
+          "dependsOn": [],
+          "status": "waiting",
+          "resolution": "El usuario confirma que el ensayo sigue pendiente. No hay herramienta de ensayo ni scout disponible en este piloto; sin resultados."
+        },
+        {
+          "id": "calendar-rules",
+          "title": "Reglas de calendario",
+          "question": "¿Qué reglas de calendario parcial acordaremos a la vista del experimento?",
+          "dependsOn": [
+            "calendar-evidence"
+          ],
+          "status": "open"
+        }
+      ]
+    },
+    {
+      "variant": "revised",
+      "model": "openai-codex/gpt-6-astra",
+      "turnMetrics": [
+        {
+          "elapsedMs": 44427,
+          "tools": [
+            "ein_intent",
+            "ein_intent",
+            "ein_intent"
+          ]
+        },
+        {
+          "elapsedMs": 26669,
+          "tools": [
+            "ein_intent"
+          ]
+        },
+        {
+          "elapsedMs": 12516,
+          "tools": []
+        }
+      ],
+      "answers": [
+        "Vamos a acordar **solo el intent**, sin implementar ni iniciar fases SDD.\n\nPartimos de cursos propios completos o parciales, centro opcional y sin límite artificial de cursos. El contenido y las evaluaciones pertenecen a cada módulo; cambiar la selección recalcula las fechas. Aquí tratamos el backend, no el frontend.\n\n**1. Si quitas un módulo que ya tiene contenido o evaluaciones, ¿qué debe ocurrir?**\n\n- **Conservar para recuperar:** apartar sus datos sin borrarlos. Recomiendo esta opción para evitar pérdidas, aunque exige acordar después cómo se recuperan.\n- **Eliminar con aviso:** borrarlos tras advertir de la pérdida; simplifica el comportamiento, pero no permite recuperarlos.\n- **Impedir quitarlo mientras tenga datos:** protege la información, pero obliga a vaciarlo expresamente antes.\n\n¿Cuál prefieres? Puedes plantear otra alternativa.\n\nEl ensayo del calendario parcial sigue pendiente y aquí no tengo herramientas para ejecutarlo. No daré su resultado por supuesto; podemos avanzar con esta decisión independiente.",
+        "Queda recogido: **retirar un módulo conserva su contenido para recuperarlo al volver al mismo curso**. No doy por acordadas las demás decisiones; el ensayo sigue pendiente.\n\nHay dos cuestiones que podemos resolver sin esperar al calendario:\n\n**1. ¿Qué hacemos con las evaluaciones?**\n- **Conservar y recuperar junto al contenido.** Lo recomiendo para evitar pérdidas, aunque habrá que comprobar su vigencia.\n- **Conservar como histórico**, sin reactivarlas.\n- **Eliminar al retirar**, conservando únicamente el contenido.\n\n**2. Si el módulo cambia mientras está retirado, ¿qué recuperamos?**\n- **Lo guardado en ese curso**, sin incorporar novedades automáticamente. Lo recomiendo porque la recuperación es previsible; las novedades quedarían fuera.\n- **Revisar los cambios antes de recuperarlo**, con más control pero un paso adicional.\n- **Activar la versión actual**, dejando lo anterior como histórico: mantiene las novedades, pero no devuelve el curso a su estado anterior.\n\n¿Qué opción prefieres en cada caso?",
+        "**Recuperar el contenido no implica recuperar sus fechas antiguas.** Son dos aspectos distintos: qué trabajo se conserva y cómo encaja después en el calendario vigente.\n\nPor ejemplo: retiras un módulo previsto para marzo, cambias la selección y se recalculan las fechas. Más adelante vuelves a añadirlo, cuando le corresponde junio. Su contenido guardado puede recuperarse, pero cualquier fecha asociada necesita un tratamiento explícito:\n\n- **Mantener fechas antiguas** conserva la planificación original, pero puede dejar actividades fuera del nuevo periodo o con plazos ya vencidos.\n- **Adaptarlas al calendario nuevo** mantiene la coherencia temporal, pero modifica la planificación guardada y puede alterar separaciones entre actividades.\n- **Recuperar el contenido dejando las fechas pendientes de revisión** evita ajustes automáticos incorrectos, pero exige trabajo manual antes de utilizarlo.\n\nSi el contenido no tiene fechas ni depende de ellas, este problema no aparece. En las evaluaciones, **si existen plazos o resultados registrados**, habría que distinguir la planificación futura del historial: mover un plazo no debería confundirse con cambiar cuándo ocurrió una evaluación.\n\nLo acordado hasta ahora es conservar el contenido para recuperarlo en el mismo curso y recalcular fechas al cambiar los módulos seleccionados. **No está acordado cómo encajan las fechas del contenido recuperado en ese recálculo.** El ensayo pendiente debe aportar evidencia sobre lo que permite el motor; no decidirá por ti la política.\n\nEsta explicación no cambia el acuerdo ni supone una confirmación."
+      ],
+      "decisions": [
+        {
+          "id": "base",
+          "question": "¿Qué alcance ya está establecido?",
+          "dependsOn": [],
+          "status": "resolved",
+          "resolution": "Hechos suministrados: cursos completos y parciales, centro opcional, sin límite artificial; contenido y evaluaciones por módulo; cambiar selección recalcula fechas. Backend aquí, frontend de otro agente. Solo intent autorizado."
+        },
+        {
+          "id": "module-removal",
+          "question": "Al quitar un módulo de un curso, ¿qué ocurre con su contenido y sus evaluaciones?",
+          "dependsOn": [],
+          "status": "resolved",
+          "resolution": "El usuario indica: «Al retirar un módulo, conservar su contenido para recuperarlo si vuelve al mismo curso». La política de evaluaciones se mantiene abierta en un nodo separado."
+        },
+        {
+          "id": "evaluations",
+          "question": "¿También se conservan y recuperan las evaluaciones al volver el módulo al mismo curso?",
+          "dependsOn": [],
+          "status": "open"
+        },
+        {
+          "id": "module-restore",
+          "question": "Si el módulo cambia mientras está retirado, ¿qué contenido se recupera al volver al mismo curso?",
+          "dependsOn": [
+            "module-removal"
+          ],
+          "status": "open"
+        },
+        {
+          "id": "calendar-experiment",
+          "kind": "fact",
+          "question": "¿Qué resultado da el ensayo pendiente del motor de calendario parcial?",
+          "dependsOn": [],
+          "status": "waiting"
+        },
+        {
+          "id": "calendar-consequences",
+          "question": "¿Qué comportamiento de calendario parcial acordamos según el ensayo?",
+          "dependsOn": [
+            "calendar-experiment"
+          ],
+          "status": "open"
+        }
+      ]
+    }
+  ]
+}

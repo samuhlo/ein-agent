@@ -48,8 +48,81 @@ describe("intent answers through ask_user_question", () => {
  ] }];
  function result(h: ReturnType<typeof harness>, id: string, questions: any[], details: any) {
   h.handlers.get("tool_call")!({ toolName: "ask_user_question", toolCallId: id, input: { questions } }, h.ctx);
-  h.handlers.get("tool_result")!({ toolName: "ask_user_question", toolCallId: id, input: { questions }, details, isError: false, content: [] }, h.ctx);
+  return h.handlers.get("tool_result")!({ toolName: "ask_user_question", toolCallId: id, input: { questions }, details, isError: false, content: [] }, h.ctx);
  }
+ test("the selector receipt advances through review and confirmation without status calls", async () => {
+  const h = harness(); await h.propose({ questionnaire });
+  const received = result(h, "round", questionnaire, { cancelled: false, answers: [{ questionIndex: 0, question: questionnaire[0].question, kind: "option", answer: "Todas" }] });
+  const receipt = JSON.parse(received.content.at(-1).text).intentResponse;
+  expect(receipt).toMatchObject({ work: "export-csv", status: "received" });
+  expect(receipt.responseId).toBe(h.branch.at(-1).data.id);
+  expect(receipt.responseText).toBe(h.branch.at(-1).data.text);
+  expect((await h.call({ action: "confirm", responseId: receipt.responseId })).isError).toBe(true);
+  const review = JSON.parse((await h.call({ action: "review", responseId: receipt.responseId,
+   decisions: [{ id: "rows", question: "Which rows?", dependsOn: [], status: "resolved", resolution: "Todas" }] })).content[0].text).agreement;
+  const confirmed = result(h, "review", review.questionnaire, { cancelled: false, answers: [{ questionIndex: 0, question: review.questions[0], kind: "option", answer: "Confirmar acuerdo" }] });
+  const final = JSON.parse(confirmed.content.at(-1).text).intentResponse;
+  expect(final.responseId).not.toBe(receipt.responseId);
+  expect((await h.call({ action: "confirm", responseId: final.responseId })).details.state).toBe("confirmed");
+ });
+ test("selector cancellation and malformed results have distinct receipts without a usable responseId", async () => {
+  const h = harness(); await h.propose({ questionnaire });
+  for (const [details, status] of [[{ cancelled: true }, "cancelled"], [{ answers: [] }, "unavailable"]]) {
+   const received = result(h, String(status), questionnaire, details);
+   const receipt = JSON.parse(received.content.at(-1).text).intentResponse;
+   expect(receipt.status).toBe(status); expect(receipt.responseId).toBeUndefined();
+  }
+ });
+ test("status without work recovers the session only; mutations still require work", async () => {
+  const h = harness();
+  expect((await h.call({ action: "status", work: undefined })).isError).toBe(true);
+  await h.propose(); h.input("Solo filtrados");
+  const recovered = await h.call({ action: "status", work: undefined });
+  expect(recovered.details).toMatchObject({ ok: true, work: "export-csv", hasResponse: true });
+  expect((await h.call({ action: "cancel", work: undefined })).isError).toBe(true);
+  const restored = harness(h.cwd, structuredClone(h.branch));
+  expect((await restored.call({ action: "status", work: undefined })).details).toMatchObject({ work: "export-csv", hasResponse: true });
+ });
+ test("cancelling a later batch preserves earlier answers through resume and the next batch", async () => {
+  const h = harness();
+  const all = [questionnaire[0], { ...questionnaire[0], question: "¿Qué orden?" }];
+  await h.propose({ questionnaire: all });
+  result(h, "first", [all[0]], { cancelled: false, answers: [{ questionIndex: 0, question: all[0].question, kind: "option", answer: "Todas" }] });
+  result(h, "cancel-second", [all[1]], { cancelled: true });
+  const restored = harness(h.cwd, structuredClone(h.branch));
+  const recovered = JSON.parse((await restored.call({ action: "status" })).content[0].text);
+  expect(recovered.response.text).toContain(all[0].question);
+  result(restored, "second", [all[1]], { cancelled: false, answers: [{ questionIndex: 0, question: all[1].question, kind: "custom", answer: "Orden visible" }] });
+  const complete = JSON.parse((await restored.call({ action: "status" })).content[0].text);
+  expect(complete.response.text).toContain(all[0].question);
+  expect(complete.response.text).toContain("Orden visible");
+ });
+ test("a global note survives cancellation of another batch", async () => {
+  const h = harness();
+  const all = [questionnaire[0], { ...questionnaire[0], question: "¿Qué orden?" }];
+  await h.propose({ questionnaire: all });
+  result(h, "note", [all[0]], { cancelled: false, answers: [], globalNote: "Solo backend, sin entrega Git" });
+  result(h, "cancel", [all[1]], { cancelled: true });
+  const status = JSON.parse((await h.call({ action: "status" })).content[0].text);
+  expect(status.response.text).toContain("Solo backend, sin entrega Git");
+  expect(status.agreement.status).toBe("pending");
+ });
+ test("free-text refusal and amended selector reviews cannot confirm", async () => {
+  const h = harness(); await h.propose({ questionnaire }); h.input("Todas");
+  const round = JSON.parse((await h.call({ action: "status" })).content[0].text);
+  const review = JSON.parse((await h.call({ action: "review", responseId: round.response.id, decisions: [{ id: "rows", question: "Which rows?", dependsOn: [], status: "resolved", resolution: "Todas" }] })).content[0].text).agreement;
+  const q = review.questionnaire[0];
+  for (const details of [
+   { cancelled: false, answers: [], globalNote: "No confirmo; quiero cambiarlo" },
+   { cancelled: false, answers: [{ questionIndex: 0, question: q.question, kind: "custom", answer: "No" }] },
+   { cancelled: false, answers: [{ questionIndex: 0, question: q.question, kind: "option", answer: "Confirmar acuerdo", notes: "Pero cambia el alcance" }] },
+  ]) {
+   const observed = result(h, "review", [q], details);
+   const receipt = JSON.parse(observed.content.at(-1).text).intentResponse;
+   expect((await h.call({ action: "confirm", responseId: receipt.responseId })).isError).toBe(true);
+   expect(existsSync(join(h.cwd, "openspec"))).toBe(false);
+  }
+ });
  test("structured options and free text become observed answers, never delivery input", async () => {
   const h = harness(); await h.propose({ questionnaire });
   result(h, "q1", questionnaire, { cancelled: false, answers: [{ questionIndex: 0, question: questionnaire[0].question, kind: "custom", answer: "Solo filtradas, sin entrega Git", notes: "No cambies el frontend" }] });

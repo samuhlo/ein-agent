@@ -7,7 +7,10 @@ import { registerIntentDiscovery } from "../ein-pi/agent/extensions/internal/ein
 import { artifactHasIntentKey, readAgreement } from "../ein-pi/agent/lib/intent-agreement.ts";
 import { buildEinPrompt } from "../ein-pi/agent/lib/persona.ts";
 
-const intentSkill = readFileSync(new URL("../runtime/skills/local/intent-channel/SKILL.md", import.meta.url), "utf8");
+const skillPath = process.env.EIN_INTENT_PILOT_SKILL ?? new URL("../runtime/skills/local/intent-channel/SKILL.md", import.meta.url).pathname;
+const intentSkill = `${readFileSync(skillPath, "utf8")}\nSkill source: ${skillPath}. Resolve reference links relative to that file.`;
+const block05 = process.argv.includes("--block05");
+const turnMetrics: { elapsedMs: number; tools: string[] }[] = [];
 const questionnairePilot = process.argv.includes("--questionnaire");
 let nativeQuestionnaire: any;
 let registerNativeQuestionnaire: any;
@@ -66,23 +69,36 @@ const extension = (pi: ExtensionAPI) => {
 const sm = SettingsManager.inMemory({ retry: { enabled: false }, compaction: { enabled: false } });
 const parentSession = SessionManager.inMemory(cwd);
 const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager: sm, extensionFactories: [extension], noExtensions: true, noSkills: true, noPromptTemplates: true, noContextFiles: true,
- systemPrompt: block04 ? `${buildEinPrompt("neutral")}\n${intentSkill}\nThe project roadmap has block 04: teacher/academy accounts, required centre data, roles, context-based entry, role headers, profile collaborations. Blocks 06 and 08 own the full dashboards. No additional product decisions have been agreed. This test exposes no scout; use these supplied facts and ask product decisions. Do not invent implementation facts.` : conversationOnly ? `${buildEinPrompt("neutral")}\n${intentSkill}` : `${buildEinPrompt("neutral")}\n${intentSkill}\nThis controlled pilot exposes only intent and a design executor. Treat the request as SDD with work/change export-csv. After agreement, delegate exactly one sdd-design with change and intent_work markers, then report. Do not run other phases or read full workflow manuals; this pilot ends at the product specification.` });
+ systemPrompt: block05 ? `${buildEinPrompt("neutral")}\n${intentSkill}\nControlled interview: work/change block05. Supplied project facts: own full/partial courses, optional centre, no artificial course limit, content and evaluations stored per module. Frontend is another agent's job; backend here. Changing selected modules recalculates dates. No policy for removing/restoring module content is agreed. The partial-calendar engine needs an experiment whose result is pending. No scout or experiment tool is exposed in this pilot: do not invent results, keep that fact waiting and continue independent product questions. Only intent is authorized; no SDD/code writes.` : block04 ? `${buildEinPrompt("neutral")}\n${intentSkill}\nThe project roadmap has block 04: teacher/academy accounts, required centre data, roles, context-based entry, role headers, profile collaborations. Blocks 06 and 08 own the full dashboards. No additional product decisions have been agreed. This test exposes no scout; use these supplied facts and ask product decisions. Do not invent implementation facts.` : conversationOnly ? `${buildEinPrompt("neutral")}\n${intentSkill}` : `${buildEinPrompt("neutral")}\n${intentSkill}\nThis controlled pilot exposes only intent and a design executor. Treat the request as SDD with work/change export-csv. After agreement, delegate exactly one sdd-design with change and intent_work markers, then report. Do not run other phases or read full workflow manuals; this pilot ends at the product specification.` });
 await loader.reload();
 const { session } = await createAgentSession({ cwd, agentDir, modelRuntime: runtime, model, thinkingLevel: settings.defaultThinkingLevel, settingsManager: sm, resourceLoader: loader, sessionManager: parentSession, tools: ["ein_intent", "subagent", "read", ...(questionnairePilot ? ["ask_user_question"] : [])] });
 await session.bindExtensions({ mode: "rpc", onError: (error) => { throw new Error(String(error)); } });
 session.subscribe((event) => { if (["tool_execution_start", "tool_execution_end", "message_end"].includes(event.type)) events.push(event); });
 async function turn(text: string) {
+ const started = performance.now(); const firstEvent = events.length;
  const timer = setTimeout(() => void session.abort(), 180_000);
  try { await session.prompt(text); }
  finally { clearTimeout(timer); writeFileSync(join(output, "events.json"), JSON.stringify(events, null, 2)); }
  const last = [...session.messages].reverse().find((message) => message.role === "assistant");
  if (last && "stopReason" in last && last.stopReason === "error") throw new Error("errorMessage" in last ? String(last.errorMessage) : "Provider failed during intent pilot");
  const answer = last && "content" in last ? (last.content as any[]).filter((part) => part.type === "text").map((part) => part.text).join("\n") : "";
+ turnMetrics.push({ elapsedMs: Math.round(performance.now() - started), tools: (events.slice(firstEvent) as any[]).filter((e) => e.type === "tool_execution_start").map((e) => e.toolName) });
  console.log(JSON.stringify({ turn: text, answer, writes }));
  return answer;
 }
 try {
- if (block04) {
+ if (block05) {
+  const latest = () => [...parentSession.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === "ein:intent-discovery") as any;
+  const first = await turn("Vamos con el intent del bloque 05 de cursos propios. Solo quiero acordarlo, no implementar.");
+  assert.equal(latest()?.data.status, "pending");
+  const second = await turn("Al retirar un módulo, conservar su contenido para recuperarlo si vuelve al mismo curso. Las demás decisiones siguen abiertas y el ensayo aún está pendiente.");
+  assert.equal(latest()?.data.status, "pending");
+  const third = await turn("Antes de elegir nada más: explícame qué consecuencias tiene recuperar contenido después de cambiar el calendario. No estoy confirmando ni eligiendo una política nueva.");
+  assert.equal(latest()?.data.status, "pending");
+  assert.equal(writes, 0); assert.equal(existsSync(join(cwd, "openspec")), false);
+  writeFileSync(join(output, "result.json"), JSON.stringify({ passed: true, kind: "controlled-prompt-comparison", skillPath, model: `${settings.defaultProvider}/${settings.defaultModel}`, turnMetrics, first, second, third, decisions: latest()?.data.decisions, checks: ["partial answer leaves intent open", "pending evidence does not become agreement", "explanation does not confirm", "no SDD writes"], limitations: "Supplied facts; no real scout or engine experiment. Interview quality requires reviewing the actual questions; timing is not end-to-end production latency." }, null, 2));
+  console.log(`PASS block05 ${output}`);
+ } else if (block04) {
   const first = await turn("Nos toca el bloque 04 creo de los cambios. Vamos a hacer el intent. Solo quiero acordarlo, no implementar.");
   if (!questionnairePilot) assert.match(first, /[?¿]/);
   let state = [...parentSession.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === "ein:intent-discovery");
