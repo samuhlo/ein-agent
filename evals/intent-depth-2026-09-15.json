@@ -1,0 +1,1920 @@
+{
+  "schema": "ein-intent-depth-comparison/v1",
+  "date": "2026-09-15",
+  "baselineCommit": "64e0ae3",
+  "skillVersions": {
+    "baseline": "1e12fc419fe1f35ca70e60edbb47c79c015d5e6c6762c409174a5be569be1c41",
+    "candidate": "8b07d67900bf636d911c15c7e83f303def326ff27d20796de7d43f950ce6dcc1",
+    "final-candidate": "13ccfea8377abb086f6d5528f8c45b7b134713589b33c9e0e57e84ba5d8de915"
+  },
+  "variantNote": "candidate contains the initial refinement before distinguishing overlapping work scope and role permissions; final-candidate is the delivered skill. Values are SHA-256 hashes of SKILL.md.",
+  "casesSource": "tooling/intent-depth-cases.ts",
+  "model": "openai-codex/gpt-6-astra",
+  "incompleteRuns": [
+    {
+      "variant": "candidate",
+      "case": "block06",
+      "reason": "WebSocket closed 1006 Connection ended",
+      "completedTurns": 2,
+      "replacement": "candidate/block06/2"
+    }
+  ],
+  "samples": [
+    {
+      "variant": "final-candidate",
+      "case": "natural06",
+      "sample": 1,
+      "passed": true,
+      "actions": [
+        "propose",
+        "propose",
+        "status",
+        "propose"
+      ],
+      "turns": [
+        {
+          "prompt": "Vamos con el 06, hagamos el intent.",
+          "answer": "**Abrimos el intent del 06, sin implementar todavía.** Mantenemos lo acordado en el 05: cursos propios completos o parciales, sin límite artificial. El filtrado de anexos queda para el 07 y los paneles de centro para el 08.\n\nYa existen agrupación, panel por rol, carga aislada y progreso por anexo; eso no resuelve qué debe significar el progreso para cada docente.\n\n1. **En un curso parcial, ¿qué debe medir el progreso?**\n   - **Solo sus módulos:** refleja su responsabilidad, pero no muestra el estado global.\n   - **Todo el curso:** ofrece contexto global, aunque el porcentaje depende de trabajo ajeno.\n   - **Ambos, separados:** permite distinguirlos, a costa de añadir información al panel.\n\n   Recomiendo **solo sus módulos**, para que el indicador corresponda al trabajo que tiene asignado.\n\n2. **Si un docente no tiene ningún módulo asignado en un curso, ¿qué debe ver?**\n   - **No mostrar el curso:** evita cursos sin trabajo asignado.\n   - **Mostrar una tarjeta sin acceso al contenido ni porcentaje:** mantiene la referencia, aunque no tenga tareas.\n   - **Permitir consulta del curso:** conserva contexto; tendríamos que concretar qué puede consultar.\n\n   Recomiendo **no mostrarlo**, si el panel debe representar sus asignaciones actuales.\n\nDespués abordaremos qué ocurre con el progreso cuando cambian las asignaciones. ¿Qué opción prefieres en cada caso? Puedes matizarlas.",
+          "elapsedMs": 42124,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "En un curso parcial, ¿qué conjunto debe medir el progreso del docente?",
+            "¿Qué debe ver un docente cuando no tiene ningún módulo asignado en un curso?"
+          ],
+          "decisions": [
+            {
+              "id": "partial-progress",
+              "question": "En un curso parcial, ¿qué conjunto debe medir el progreso del docente?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-changes",
+              "question": "¿Cómo debe evolucionar el progreso visible cuando cambian los módulos asignados?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué debe ver un docente cuando no tiene ningún módulo asignado en un curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "consultation-scope",
+              "question": "Si se mantiene acceso sin módulos, ¿qué contenido podrá consultar?",
+              "dependsOn": [
+                "zero-modules"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Resumen por anexo.",
+          "answer": "**Anotado: resumen por anexo.** Eso fija el desglose, pero aún falta decidir qué incluye cada resumen.\n\n1. **Dentro de cada anexo, ¿medimos solo sus módulos, todo el curso o ambos por separado?** Recomiendo solo sus módulos: refleja su responsabilidad, aunque no muestra el avance global. Por ejemplo, si ha terminado su parte pero otros docentes no, su resumen aparecería completo.\n\n2. **Si no tiene ningún módulo asignado, ¿ocultamos el curso, mostramos una tarjeta sin contenido ni progreso, o permitimos consultarlo?** Recomiendo ocultarlo para mantener el panel centrado en asignaciones actuales; la tarjeta conservaría la referencia y la consulta requeriría concretar el acceso.",
+          "elapsedMs": 25486,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "Dentro de cada anexo, ¿qué debe medir el resumen?",
+            "Si no tiene módulos asignados, ¿qué debe ver del curso?"
+          ],
+          "decisions": [
+            {
+              "id": "summary-unit",
+              "question": "¿Cómo se desglosa el resumen?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "El usuario indica: «Resumen por anexo». El desglose es por anexo; no determina el conjunto medido."
+            },
+            {
+              "id": "partial-progress",
+              "question": "Dentro de cada anexo, ¿el resumen mide solo los módulos asignados al docente, todo el curso o ambos por separado?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-changes",
+              "question": "¿Cómo debe evolucionar el progreso visible cuando cambian los módulos asignados?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué debe ver un docente cuando no tiene ningún módulo asignado en un curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "consultation-scope",
+              "question": "Si se mantiene acceso sin módulos, ¿qué contenido podrá consultar?",
+              "dependsOn": [
+                "zero-modules"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "¿Qué pasa si cambio los módulos asignados a un docente?",
+          "answer": "Depende de qué acordemos que mide el resumen por anexo; todavía no está decidido.\n\nSi mide **los módulos actualmente asignados**, al cambiarlos se recalcula:\n- Añadir módulos pendientes puede bajar el porcentaje.\n- Retirar módulos pendientes puede subirlo, aunque el docente no haya completado nada nuevo.\n\n**Recomiendo que refleje la asignación actual**, porque representa el trabajo que le corresponde ahora. La alternativa es conservar una referencia histórica, pero dejaría de representar exactamente su responsabilidad actual.\n\nHay otra decisión distinta: **qué ocurre con el trabajo ya realizado en los módulos retirados**. Recomiendo conservarlo vinculado al módulo, de modo que una reasignación no borre trabajo y el siguiente docente pueda continuarlo.\n\n¿Prefieres **resumen por anexo sobre la asignación actual y conservar el trabajo al reasignar**, o necesitas mantener también el progreso histórico de cada docente?",
+          "elapsedMs": 8858,
+          "tools": [],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "Dentro de cada anexo, ¿qué debe medir el resumen?",
+            "Si no tiene módulos asignados, ¿qué debe ver del curso?"
+          ],
+          "decisions": [
+            {
+              "id": "summary-unit",
+              "question": "¿Cómo se desglosa el resumen?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "El usuario indica: «Resumen por anexo». El desglose es por anexo; no determina el conjunto medido."
+            },
+            {
+              "id": "partial-progress",
+              "question": "Dentro de cada anexo, ¿el resumen mide solo los módulos asignados al docente, todo el curso o ambos por separado?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-changes",
+              "question": "¿Cómo debe evolucionar el progreso visible cuando cambian los módulos asignados?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué debe ver un docente cuando no tiene ningún módulo asignado en un curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "consultation-scope",
+              "question": "Si se mantiene acceso sin módulos, ¿qué contenido podrá consultar?",
+              "dependsOn": [
+                "zero-modules"
+              ],
+              "status": "open"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "baseline",
+      "case": "natural06",
+      "sample": 1,
+      "passed": true,
+      "actions": [
+        "propose",
+        "propose",
+        "status",
+        "propose"
+      ],
+      "turns": [
+        {
+          "prompt": "Vamos con el 06, hagamos el intent.",
+          "answer": "Vamos con el **intent del 06**, sin implementar todavía. Partimos del 05: cursos propios completos o parciales, sin límite artificial. Dejamos fuera el filtrado de anexos (07) y los paneles de centro (08).\n\nHay dos decisiones iniciales:\n\n**1. En un curso parcial, ¿qué mide el progreso del docente?**\n- **Solo sus módulos asignados.** Recomiendo esta opción: mide su responsabilidad, aunque no muestra el avance global.\n- **Todo el curso.** Ofrece contexto global, pero incluye trabajo que no depende de él.\n- **Ambos, diferenciados.** Aporta las dos perspectivas, con más información en pantalla.\n\nPor ejemplo: si tiene 2 módulos de 10 y termina ambos, ¿debe ver su trabajo al 100 %?\n\n**2. Si se queda sin módulos asignados, ¿qué ocurre con el curso en su panel?**\n- **Desaparece del panel.** Recomiendo esta opción para mostrar únicamente sus asignaciones actuales; ocultarlo no implica borrar trabajo.\n- **Sigue visible, sin acceso al contenido.** Conserva la referencia y muestra «sin módulos asignados».\n- **Sigue visible con consulta del trabajo anterior.** Facilita recuperar contexto, pero tendremos que delimitar qué puede seguir consultando.\n\nDespués concretaremos qué pasa con el progreso cuando se añaden o retiran asignaciones. Puedes elegir estas opciones o plantear otro comportamiento.",
+          "elapsedMs": 44765,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "En un curso parcial, ¿qué representa el progreso del docente?",
+            "Si un docente se queda sin módulos asignados, ¿qué ocurre con ese curso en su panel?"
+          ],
+          "decisions": [
+            {
+              "id": "partial-progress",
+              "question": "En un curso parcial, ¿el progreso del docente se calcula sobre sus módulos asignados o sobre todo el curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-change",
+              "question": "¿Cómo debe comportarse el progreso cuando cambia la asignación de módulos?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué ve un docente cuando se queda sin módulos asignados en un curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "previous-access",
+              "question": "Si conserva consulta de trabajo anterior, ¿qué información sigue accesible?",
+              "dependsOn": [
+                "zero-modules"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Resumen por anexo.",
+          "answer": "Anotado: **resumen por anexo**. Quedan dos aspectos por concretar:\n\n1. **En un curso parcial, cada anexo resume…**\n   - Solo los módulos asignados al docente: recomiendo esto para reflejar su responsabilidad.\n   - Todo el curso: aporta visión global, pero incluye trabajo ajeno.\n   - Ambos, separados: ofrece más contexto, a costa de recargar el panel.\n\n2. **Si el docente se queda sin módulos asignados…**\n   - El curso desaparece del panel: mi recomendación; refleja los permisos actuales sin borrar trabajo.\n   - Sigue visible, pero sin acceso al contenido.\n   - Permite consultar trabajo anterior: habría que delimitar qué acceso conserva.",
+          "elapsedMs": 27076,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "En cada anexo, ¿qué abarca el resumen de un curso parcial?",
+            "Si se queda sin módulos asignados, ¿qué ocurre con el curso?"
+          ],
+          "decisions": [
+            {
+              "id": "progress-presentation",
+              "question": "¿Cómo se presenta el progreso?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "El usuario indica: «Resumen por anexo»."
+            },
+            {
+              "id": "partial-progress",
+              "question": "En cada anexo de un curso parcial, ¿el resumen abarca solo los módulos asignados al docente o todo el curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-change",
+              "question": "¿Cómo debe comportarse el progreso cuando cambia la asignación de módulos?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué ve un docente cuando se queda sin módulos asignados en un curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "previous-access",
+              "question": "Si conserva consulta de trabajo anterior, ¿qué información sigue accesible?",
+              "dependsOn": [
+                "zero-modules"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "¿Qué pasa si cambio los módulos asignados a un docente?",
+          "answer": "Eso aún tenemos que acordarlo. **Si el resumen por anexo refleja los módulos asignados actualmente**, al cambiarlos se recalcularía:\n\n- **Añades módulos:** entran en el resumen con su avance existente; el porcentaje podría bajar si están pendientes.\n- **Retiras módulos:** dejan de contar para ese docente, sin borrar el trabajo realizado.\n- **Reasignas un módulo:** recomiendo que su avance pertenezca al módulo, no al docente, para que el nuevo responsable continúe lo anterior.\n\nLa alternativa es conservar un resumen histórico por docente: permite consultar su responsabilidad anterior, pero ya no representa únicamente su asignación actual.\n\n**¿Quieres resumen de la asignación actual, conservando el trabajo de cada módulo, o también un histórico por docente?**",
+          "elapsedMs": 6471,
+          "tools": [],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "En cada anexo, ¿qué abarca el resumen de un curso parcial?",
+            "Si se queda sin módulos asignados, ¿qué ocurre con el curso?"
+          ],
+          "decisions": [
+            {
+              "id": "progress-presentation",
+              "question": "¿Cómo se presenta el progreso?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "El usuario indica: «Resumen por anexo»."
+            },
+            {
+              "id": "partial-progress",
+              "question": "En cada anexo de un curso parcial, ¿el resumen abarca solo los módulos asignados al docente o todo el curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-change",
+              "question": "¿Cómo debe comportarse el progreso cuando cambia la asignación de módulos?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué ve un docente cuando se queda sin módulos asignados en un curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "previous-access",
+              "question": "Si conserva consulta de trabajo anterior, ¿qué información sigue accesible?",
+              "dependsOn": [
+                "zero-modules"
+              ],
+              "status": "open"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "candidate",
+      "case": "natural06",
+      "sample": 1,
+      "passed": true,
+      "actions": [
+        "propose",
+        "status",
+        "propose"
+      ],
+      "turns": [
+        {
+          "prompt": "Vamos con el 06, hagamos el intent.",
+          "answer": "Vamos con el **intent del bloque 06**, sin implementar todavía.\n\nMantenemos lo acordado en el 05: cursos propios completos o parciales, sin límite artificial. Ya existen agrupación, panel por rol, carga aislada y progreso por anexo; eso no determina las reglas de producto pendientes. El filtrado de anexos queda para el 07 y los paneles de centro para el 08.\n\n**1. En un curso parcial, ¿qué debe medir el progreso del docente?**\n- **Solo sus módulos:** refleja su responsabilidad, pero no indica cuánto falta al curso entero. **Lo recomiendo.**\n- **Todo el curso:** da una referencia global, aunque dependa del trabajo de otros.\n- **Ambos, diferenciados:** permite comparar lo propio con lo global, a costa de añadir complejidad al panel.\n\n**2. Si un docente no tiene ningún módulo asignado, ¿qué debe ver?**\n- **Un estado vacío, sin cursos:** explica que no tiene asignaciones y evita accesos confusos. **Lo recomiendo.**\n- **Los cursos vinculados, solo para consulta:** conserva el contexto, pero permite acceso incluso sin trabajo asignado.\n\nPuedes elegir estas opciones o matizarlas. Después concretaremos qué sucede con el progreso y el trabajo guardado cuando cambien las asignaciones.",
+          "elapsedMs": 26552,
+          "tools": [
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "En un curso parcial, ¿qué debe medir el progreso del docente?",
+            "¿Qué debe ver un docente sin módulos asignados?"
+          ],
+          "decisions": [
+            {
+              "id": "partial-progress",
+              "question": "En un curso parcial, ¿qué debe medir el progreso del docente?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-changes",
+              "question": "¿Cómo debe cambiar el progreso y conservarse el trabajo al cambiar las asignaciones?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué debe ver un docente sin módulos asignados?",
+              "dependsOn": [],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Resumen por anexo.",
+          "answer": "Anotado: **resumen por anexo**. Falta concretar qué cuenta ese resumen:\n\n1. **En un curso parcial**, ¿cada anexo resume **solo sus módulos**, **todo el curso** o **ambos por separado**? Recomiendo solo sus módulos: refleja su responsabilidad, aunque no muestra el avance global. Ambos aporta contexto, pero complica la lectura.\n\n2. **Sin módulos asignados**, ¿mostramos **un estado vacío sin cursos** o **los cursos vinculados solo para consulta**? Recomiendo el estado vacío para mantener el acceso ligado a las asignaciones; la consulta conserva contexto, pero permite entrar sin tener módulos.",
+          "elapsedMs": 24512,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "En cada anexo de un curso parcial, ¿qué debe medir el resumen?",
+            "¿Qué debe ver un docente sin módulos asignados?"
+          ],
+          "decisions": [
+            {
+              "id": "annex-summary",
+              "question": "¿Cómo se presenta el progreso?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "El usuario indica: «Resumen por anexo». Queda acordada la presentación por anexo, no el universo de cálculo."
+            },
+            {
+              "id": "partial-progress",
+              "question": "En cada anexo de un curso parcial, ¿el resumen mide solo los módulos asignados al docente, todo el curso o ambos por separado?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-changes",
+              "question": "¿Cómo debe cambiar el progreso y conservarse el trabajo al cambiar las asignaciones?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué debe ver un docente sin módulos asignados?",
+              "dependsOn": [],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "¿Qué pasa si cambio los módulos asignados a un docente?",
+          "answer": "Eso todavía tenemos que acordarlo. **Recomiendo recalcular el resumen de cada anexo según la asignación vigente y conservar el trabajo guardado.**\n\nPor ejemplo, si un docente pasa de tener los módulos A y B a tener B y C:\n- El resumen pasa a contar B y C; puede bajar sin que se haya perdido trabajo.\n- Lo guardado en A se conserva, pero el docente deja de poder editarlo.\n- B mantiene su avance y C refleja el trabajo que ya tenga, si existe.\n\nLa alternativa es mantener una referencia histórica: evita que cambie el porcentaje por una reasignación, pero deja de reflejar exactamente su responsabilidad actual.\n\n**¿Prefieres recalcular con los módulos actuales y conservar lo realizado, o mantener esa referencia histórica?** El ejemplo presupone un resumen de sus módulos; si eliges todo el curso, cambiar el docente asignado no debería alterar por sí solo el progreso global.",
+          "elapsedMs": 8710,
+          "tools": [],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "En cada anexo de un curso parcial, ¿qué debe medir el resumen?",
+            "¿Qué debe ver un docente sin módulos asignados?"
+          ],
+          "decisions": [
+            {
+              "id": "annex-summary",
+              "question": "¿Cómo se presenta el progreso?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "El usuario indica: «Resumen por anexo». Queda acordada la presentación por anexo, no el universo de cálculo."
+            },
+            {
+              "id": "partial-progress",
+              "question": "En cada anexo de un curso parcial, ¿el resumen mide solo los módulos asignados al docente, todo el curso o ambos por separado?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-changes",
+              "question": "¿Cómo debe cambiar el progreso y conservarse el trabajo al cambiar las asignaciones?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué debe ver un docente sin módulos asignados?",
+              "dependsOn": [],
+              "status": "open"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "baseline",
+      "case": "block06",
+      "sample": 1,
+      "passed": true,
+      "actions": [
+        "propose",
+        "status",
+        "propose",
+        "status",
+        "propose"
+      ],
+      "turns": [
+        {
+          "prompt": "Vamos a hacer el intent del bloque 06 con lo que ya sabemos. Solo quiero acordarlo.",
+          "answer": "Solo acordaremos el bloque 06; no iniciaré planificación ni implementación.\n\nPartimos de los cursos propios completos o parciales, sin límite artificial. Ya existen agrupación, panel por rol, carga aislada y progreso por anexo. Dejamos fuera el filtrado de anexos (07) y los paneles de centro (08).\n\nHay dos decisiones iniciales:\n\n**1. ¿Qué mide el progreso de un curso parcialmente asignado?**\n- **Solo lo asignado:** puede llegar al 100 % al completar sus módulos.\n- **Todo el curso:** refleja el conjunto, pero incluye trabajo que no corresponde al docente.\n\nRecomiendo **solo lo asignado**: representa su responsabilidad, aunque ese 100 % no significa que todo el curso esté completo.\n\n**2. ¿Qué ve un docente sin módulos asignados?**\n- **Estado vacío explicativo:** indica que no tiene asignaciones, sin mostrar cursos para trabajar.\n- **Cursos vinculados, sin acceso al trabajo:** mantiene las tarjetas y señala que no tiene módulos asignados.\n\nRecomiendo **estado vacío explicativo**, para evitar entradas sin utilidad; a cambio, pierde la referencia visual de sus cursos vinculados.\n\n¿Qué prefieres en cada caso? Puedes matizar las opciones. Después abordaremos qué ocurre con el progreso cuando cambian las asignaciones.",
+          "elapsedMs": 26869,
+          "tools": [
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Qué debe representar el progreso de un curso parcialmente asignado?",
+            "¿Qué debe mostrar el panel a un docente sin módulos asignados?"
+          ],
+          "decisions": [
+            {
+              "id": "partial-progress",
+              "question": "¿Qué debe representar el progreso de un curso parcialmente asignado?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-changes",
+              "question": "¿Cómo debe comportarse el progreso al cambiar los módulos asignados?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué debe mostrar el panel a un docente sin módulos asignados?",
+              "dependsOn": [],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Mantengamos el resumen por anexo. Esto solo responde al detalle visual; aún no he decidido cómo cuentan los módulos ni las demás reglas.",
+          "answer": "Queda registrado **solo mantener el resumen visual por anexo**. El cómputo, los cambios de asignación y el caso sin módulos siguen abiertos.\n\n**1. Dentro de cada anexo, ¿qué módulos cuentan?**\n- **Solo los asignados:** refleja la responsabilidad del docente.\n- **Todos los del curso:** refleja el conjunto, pero incluye trabajo ajeno.\n\nRecomiendo solo los asignados: permitiría alcanzar el 100 % de su trabajo, sin implicar que todo el curso esté completo.\n\n**2. Si el docente no tiene módulos asignados, ¿qué ve?**\n- **Estado vacío explicativo:** evita entradas sin trabajo disponible.\n- **Cursos vinculados sin acceso al trabajo:** conserva la referencia visual, pero muestra tarjetas sin actividad posible.\n\nRecomiendo el estado vacío por claridad.\n\n¿Qué prefieres en cada caso? Después concretaremos las consecuencias de cambiar las asignaciones.",
+          "elapsedMs": 23827,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "Dentro de cada anexo, ¿qué módulos cuentan para el progreso?",
+            "¿Qué debe mostrar el panel a un docente sin módulos asignados?"
+          ],
+          "decisions": [
+            {
+              "id": "annex-summary",
+              "question": "¿Cómo se presenta el resumen del progreso?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Mantener el resumen por anexo. La respuesta del usuario solo resuelve la presentación visual, no el cómputo ni otras reglas."
+            },
+            {
+              "id": "partial-progress",
+              "question": "Dentro de cada anexo, ¿cuentan solo los módulos asignados al docente o todos los del curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-changes",
+              "question": "¿Cómo debe comportarse el progreso al cambiar los módulos asignados?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué debe mostrar el panel a un docente sin módulos asignados?",
+              "dependsOn": [],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Corrijo lo visual: sí quiero un desglose por módulo además del resumen. Las demás decisiones siguen pendientes; no confirmo el acuerdo.",
+          "answer": "Corregido: **resumen por anexo más desglose por módulo**. Solo queda resuelta la presentación; el acuerdo sigue pendiente y no iniciaré SDD ni implementación.\n\nSiguen abiertas estas decisiones:\n\n1. **¿Qué módulos cuentan en el progreso?** Solo los asignados o todos los del curso. Recomiendo los asignados: mide la responsabilidad del docente, aunque no representa la finalización del curso completo.\n2. **¿Qué ve quien no tiene módulos asignados?** Un estado vacío explicativo o sus cursos vinculados sin acceso al trabajo. Recomiendo el estado vacío por claridad; mantener las tarjetas conservaría la referencia de sus cursos.\n\n¿Qué prefieres en cada caso? Los cambios de asignación siguen pendientes y los concretaremos después del cómputo.",
+          "elapsedMs": 23766,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "Dentro de cada anexo, ¿qué módulos cuentan para el progreso?",
+            "¿Qué debe mostrar el panel a un docente sin módulos asignados?"
+          ],
+          "decisions": [
+            {
+              "id": "annex-summary",
+              "question": "¿Cómo se presenta el progreso?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Corrección explícita del usuario: conservar el resumen por anexo y añadir un desglose por módulo. Solo resuelve la presentación; no confirma el acuerdo ni las demás reglas."
+            },
+            {
+              "id": "partial-progress",
+              "question": "Dentro de cada anexo, ¿cuentan solo los módulos asignados al docente o todos los del curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-changes",
+              "question": "¿Cómo debe comportarse el progreso al cambiar los módulos asignados?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué debe mostrar el panel a un docente sin módulos asignados?",
+              "dependsOn": [],
+              "status": "open"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "candidate",
+      "case": "block06",
+      "sample": 1,
+      "passed": true,
+      "actions": [
+        "propose",
+        "propose",
+        "status",
+        "propose",
+        "status",
+        "propose"
+      ],
+      "turns": [
+        {
+          "prompt": "Vamos a hacer el intent del bloque 06 con lo que ya sabemos. Solo quiero acordarlo.",
+          "answer": "Solo acordaremos el bloque 06, sin implementar ni iniciar fases SDD.\n\nReutilizamos lo acordado en el 05: **cursos propios completos o parciales, sin límite artificial**. Ya existen agrupación, panel por rol, carga aislada y progreso por anexo; eso no resuelve las decisiones de comportamiento pendientes. Quedan fuera el filtrado de anexos (07) y los paneles de centro (08).\n\n**1. En un curso parcial, ¿qué progreso ve el docente?**\n- **Solo sus módulos asignados.** Recomiendo esta opción: puede alcanzar el 100 % de su responsabilidad, aunque no representa el curso entero.\n- **Todo el curso.** Ofrece una referencia global, pero depende de trabajo ajeno.\n- **Ambos, diferenciados.** Aporta las dos perspectivas, a costa de añadir información al panel.\n\n**2. Si no tiene ningún módulo asignado, ¿qué muestra el panel?**\n- **Un estado vacío explicativo, sin cursos navegables.** Lo recomiendo porque evita entradas sin contenido accesible; pierde la referencia visual a cursos vinculados.\n- **Los cursos vinculados, visibles pero sin acceso.** Mantiene esa referencia, aunque añade entradas que no puede utilizar.\n\nPuedes elegir una opción por pregunta o matizarlas. Después abordaremos qué ocurre con el progreso al cambiar las asignaciones.",
+          "elapsedMs": 46183,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "En un curso parcial, ¿sobre qué se calcula el progreso del docente?",
+            "¿Qué muestra el panel de un docente sin módulos asignados?"
+          ],
+          "decisions": [
+            {
+              "id": "base",
+              "question": "¿Qué acuerdos y evidencia se reutilizan?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Acuerdo block05: cursos propios completos o parciales, sin límite artificial. Evidencia suministrada: agrupación, panel por rol, carga aislada y progreso por anexo ya existen; esto no constituye acuerdo sobre nuevas semánticas."
+            },
+            {
+              "id": "partial",
+              "question": "En un curso parcial, ¿sobre qué se calcula el progreso del docente?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "changes",
+              "question": "Al cambiar los módulos asignados, ¿cómo debe adaptarse el progreso mostrado?",
+              "dependsOn": [
+                "partial"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero",
+              "question": "¿Qué muestra el panel de un docente sin módulos asignados?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "recover",
+              "question": "Si se retira un módulo y después se reasigna, ¿qué ocurre con su progreso anterior?",
+              "dependsOn": [
+                "changes"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Mantengamos el resumen por anexo. Esto solo responde al detalle visual; aún no he decidido cómo cuentan los módulos ni las demás reglas.",
+          "answer": "Queda registrado **el resumen por anexo únicamente como decisión visual**. El cómputo, los cambios de asignación y el caso sin módulos siguen abiertos.\n\n**1. Dentro de cada anexo, ¿qué módulos cuentan para el progreso?**\n- **Solo los asignados:** recomiendo esta opción porque refleja la responsabilidad del docente, aunque no informa del curso completo.\n- **Todos los del curso:** ofrece una referencia global, pero depende también del trabajo ajeno.\n- **Ambos cómputos separados:** permite distinguirlos, a costa de añadir información.\n\n**2. Si el docente no tiene módulos asignados, ¿qué ve?**\n- **Estado vacío explicativo, sin cursos navegables:** lo recomiendo para evitar entradas sin contenido accesible.\n- **Cursos vinculados visibles, pero sin acceso:** conserva esa referencia, aunque no pueda trabajar en ellos.\n\nEstas elecciones no decidirán automáticamente qué ocurre al retirar o reasignar módulos; lo trataremos después.",
+          "elapsedMs": 28833,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "Dentro del resumen por anexo, ¿qué módulos cuentan para el progreso?",
+            "¿Qué muestra el panel de un docente sin módulos asignados?"
+          ],
+          "decisions": [
+            {
+              "id": "base",
+              "question": "¿Qué acuerdos y evidencia se reutilizan?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Acuerdo block05: cursos propios completos o parciales, sin límite artificial. Evidencia suministrada: agrupación, panel por rol, carga aislada y progreso por anexo ya existen; esto no constituye acuerdo sobre nuevas semánticas."
+            },
+            {
+              "id": "visual",
+              "question": "¿Cómo se presenta el resumen?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "El usuario mantiene el resumen por anexo exclusivamente como decisión visual; no decide el cómputo de módulos ni las demás reglas."
+            },
+            {
+              "id": "partial",
+              "question": "Dentro del resumen por anexo, ¿cuentan solo los módulos asignados, todos los del curso o se muestran ambos cómputos separados?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "changes",
+              "question": "Al cambiar los módulos asignados, ¿cómo debe adaptarse el progreso mostrado?",
+              "dependsOn": [
+                "partial"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero",
+              "question": "¿Qué muestra el panel de un docente sin módulos asignados?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "recover",
+              "question": "Si se retira un módulo y después se reasigna, ¿qué ocurre con su progreso anterior?",
+              "dependsOn": [
+                "changes"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Corrijo lo visual: sí quiero un desglose por módulo además del resumen. Las demás decisiones siguen pendientes; no confirmo el acuerdo.",
+          "answer": "Corregido: **resumen por anexo más desglose por módulo**. Solo queda acordada esa presentación; el acuerdo general sigue pendiente y no iniciaremos SDD.\n\nEl desglose abre una distinción: **mostrar un módulo no implica que cuente en el resumen ni que se pueda abrir**.\n\n1. **¿Qué módulos cuentan en el resumen?**\n   - Solo asignados — lo recomiendo para reflejar la responsabilidad propia, no el curso completo.\n   - Todos — referencia global, dependiente también del trabajo ajeno.\n   - Ambos cómputos separados — más contexto, pero más información.\n\n2. **¿Qué módulos aparecen en el desglose?**\n   - Solo asignados — lo recomiendo por claridad, aunque se pierde contexto del resto.\n   - Todos, pero los ajenos sin detalle ni acceso — mantiene la estructura del curso.\n   - Todos con su progreso, permitiendo abrir solo los propios — ofrece visibilidad del avance ajeno.\n\n3. **¿Qué ve un docente sin módulos asignados?**\n   - Estado vacío explicativo — lo recomiendo para evitar entradas inutilizables.\n   - Cursos vinculados visibles, sin acceso — conserva esa referencia.\n\nLos cambios de asignación y la recuperación del progreso anterior también siguen pendientes.",
+          "elapsedMs": 32348,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Qué módulos cuentan en el resumen por anexo?",
+            "En un curso parcial, ¿qué módulos aparecen en el desglose?",
+            "¿Qué muestra el panel de un docente sin módulos asignados?"
+          ],
+          "decisions": [
+            {
+              "id": "base",
+              "question": "¿Qué acuerdos y evidencia se reutilizan?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Acuerdo block05: cursos propios completos o parciales, sin límite artificial. Evidencia suministrada: agrupación, panel por rol, carga aislada y progreso por anexo ya existen; no constituye acuerdo sobre nuevas semánticas."
+            },
+            {
+              "id": "visual",
+              "question": "¿Cómo se presenta el progreso?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Corrección explícita del usuario: resumen por anexo y además desglose por módulo. Solo presentación; no decide cómputo ni otras reglas y no confirma el acuerdo."
+            },
+            {
+              "id": "partial",
+              "question": "Dentro del resumen por anexo, ¿cuentan solo los módulos asignados, todos los del curso o ambos cómputos separados?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "visibility",
+              "question": "En un curso parcial, ¿qué módulos aparecen en el desglose?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "changes",
+              "question": "Al cambiar los módulos asignados, ¿cómo debe adaptarse el progreso mostrado?",
+              "dependsOn": [
+                "partial"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero",
+              "question": "¿Qué muestra el panel de un docente sin módulos asignados?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "recover",
+              "question": "Si se retira un módulo y después se reasigna, ¿qué ocurre con su progreso anterior?",
+              "dependsOn": [
+                "changes"
+              ],
+              "status": "open"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "baseline",
+      "case": "block06",
+      "sample": 2,
+      "passed": true,
+      "actions": [
+        "propose",
+        "status",
+        "propose",
+        "status",
+        "propose"
+      ],
+      "turns": [
+        {
+          "prompt": "Vamos a hacer el intent del bloque 06 con lo que ya sabemos. Solo quiero acordarlo.",
+          "answer": "Vamos a acordarlo, sin implementar ni iniciar fases SDD.\n\nPartimos de lo conocido: cursos propios completos o parciales, sin límite artificial; ya existen agrupación, panel por rol, carga aislada y progreso por anexo. Quedan fuera el filtrado de anexos (bloque 07) y los paneles de centro (bloque 08).\n\n**1. En un curso parcial, ¿qué representa el progreso del docente?**\n- **Solo sus módulos asignados — recomendado:** refleja su responsabilidad; puede alcanzar el 100 % aunque el curso entero no esté completo.\n- **Todo el curso:** da una referencia global, pero incluye trabajo ajeno.\n- **Ambos:** muestra progreso propio y global, a costa de añadir complejidad al panel.\n\n**2. Si el docente no tiene ningún módulo asignado, ¿qué ve?**\n- **Estado vacío explicativo, sin cursos — recomendado:** evita ofrecer navegación sin trabajo asignado, aunque pierde la referencia de sus cursos vinculados.\n- **Cursos vinculados visibles, sin acceso al contenido:** conserva esa referencia, indicando claramente «sin módulos asignados».\n\nDespués concretaremos qué ocurre con el progreso al cambiar las asignaciones, según la referencia que elijamos.\n\n¿Qué opción prefieres en cada caso? Puedes matizarlas o proponer otra.",
+          "elapsedMs": 27127,
+          "tools": [
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Sobre qué debe calcularse el progreso de un curso parcial para el docente?",
+            "¿Qué debe ver un docente cuando no tiene ningún módulo asignado?"
+          ],
+          "decisions": [
+            {
+              "id": "partial-progress",
+              "question": "¿Sobre qué debe calcularse el progreso de un curso parcial para el docente?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "assignment-changes",
+              "question": "¿Qué debe ocurrir con el progreso cuando cambia la asignación de módulos?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué debe ver un docente cuando no tiene ningún módulo asignado?",
+              "dependsOn": [],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Mantengamos el resumen por anexo. Esto solo responde al detalle visual; aún no he decidido cómo cuentan los módulos ni las demás reglas.",
+          "answer": "Queda registrado **solo mantener el resumen visual por anexo**. El cómputo, los cambios de asignación y el caso sin módulos siguen abiertos.\n\n**1. Dentro de cada anexo, ¿qué módulos cuentan?**\n- **Solo los asignados — recomiendo esta opción:** refleja la responsabilidad del docente, pero no el estado global del curso.\n- **Todos los del curso:** ofrece una referencia global, incluyendo trabajo ajeno.\n- **Dos referencias separadas:** muestra progreso propio y global, con más complejidad visual.\n\nPor ejemplo: si tiene 2 de los 8 módulos, ¿su referencia son esos 2 o los 8? Después concretaremos cómo contribuye cada módulo al cálculo.\n\n**2. Si no tiene ningún módulo asignado, ¿qué ve?**\n- **Estado vacío sin cursos — recomendado:** explica que no hay asignaciones, aunque oculta la referencia de los cursos vinculados.\n- **Cursos vinculados sin acceso al contenido:** mantiene esa referencia e indica «sin módulos asignados».\n\nPuedes elegir o matizar cada opción; ninguna queda asumida por mantener el resumen por anexo.",
+          "elapsedMs": 26381,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "Dentro del resumen por anexo, ¿qué módulos cuentan para el progreso del docente?",
+            "¿Qué debe ver un docente cuando no tiene ningún módulo asignado?"
+          ],
+          "decisions": [
+            {
+              "id": "annex-summary",
+              "question": "¿Se mantiene el resumen visual por anexo?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "El usuario confirma mantener el resumen por anexo únicamente como presentación visual; no decide el cómputo ni las demás reglas."
+            },
+            {
+              "id": "partial-progress",
+              "question": "Dentro del resumen por anexo, ¿cuentan solo los módulos asignados al docente o todos los del curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "module-counting",
+              "question": "¿Cómo contribuyen los módulos al progreso de cada anexo?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "assignment-changes",
+              "question": "¿Qué debe ocurrir con el progreso cuando cambia la asignación de módulos?",
+              "dependsOn": [
+                "partial-progress",
+                "module-counting"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué debe ver un docente cuando no tiene ningún módulo asignado?",
+              "dependsOn": [],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Corrijo lo visual: sí quiero un desglose por módulo además del resumen. Las demás decisiones siguen pendientes; no confirmo el acuerdo.",
+          "answer": "Corregido: **resumen por anexo y desglose por módulo**. Solo queda resuelta la presentación visual; el acuerdo sigue pendiente, sin iniciar implementación.\n\nSeguimos con dos decisiones independientes:\n\n1. **¿Qué módulos cuentan para el progreso?**\n   - **Solo los asignados — recomendado:** refleja la responsabilidad del docente, no el estado global.\n   - **Todos los del curso:** incluye también trabajo ajeno.\n   - **Ambas referencias separadas:** permite comparar progreso propio y global, con más complejidad visual.\n\n2. **¿Qué ve un docente sin módulos asignados?**\n   - **Estado vacío sin cursos — recomendado:** evita navegación sin trabajo asignado, pero oculta los cursos vinculados.\n   - **Cursos vinculados sin acceso al contenido:** conserva esa referencia indicando «sin módulos asignados».\n\nCómo contribuye cada módulo al cálculo y qué sucede al cambiar las asignaciones también siguen pendientes.",
+          "elapsedMs": 26771,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "Dentro del resumen por anexo, ¿qué módulos cuentan para el progreso del docente?",
+            "¿Qué debe ver un docente cuando no tiene ningún módulo asignado?"
+          ],
+          "decisions": [
+            {
+              "id": "annex-summary",
+              "question": "¿Qué presentación visual tendrá el progreso?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Corrección explícita del usuario: mantener el resumen por anexo y añadir un desglose por módulo. Esto no resuelve el cómputo ni las demás reglas y no confirma el acuerdo."
+            },
+            {
+              "id": "partial-progress",
+              "question": "Dentro del resumen por anexo, ¿cuentan solo los módulos asignados al docente o todos los del curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "module-counting",
+              "question": "¿Cómo contribuyen los módulos al progreso de cada anexo?",
+              "dependsOn": [
+                "partial-progress"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "assignment-changes",
+              "question": "¿Qué debe ocurrir con el progreso cuando cambia la asignación de módulos?",
+              "dependsOn": [
+                "partial-progress",
+                "module-counting"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "zero-modules",
+              "question": "¿Qué debe ver un docente cuando no tiene ningún módulo asignado?",
+              "dependsOn": [],
+              "status": "open"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "candidate",
+      "case": "block06",
+      "sample": 2,
+      "passed": true,
+      "actions": [
+        "propose",
+        "propose",
+        "status",
+        "propose",
+        "status",
+        "propose"
+      ],
+      "turns": [
+        {
+          "prompt": "Vamos a hacer el intent del bloque 06 con lo que ya sabemos. Solo quiero acordarlo.",
+          "answer": "Vamos a acordarlo, **sin implementar ni iniciar fases SDD**.\n\nPartimos del bloque 05: cursos propios completos o parciales, sin límite artificial. Ya existen agrupación, panel por rol, carga aislada y progreso por anexo; eso demuestra qué hay, no resuelve qué comportamiento queremos. Quedan fuera el filtrado de anexos (07) y los paneles de centro (08).\n\nPrimero, dos decisiones:\n\n**1. ¿Qué mide el progreso de un curso parcial?**\n- **Solo los módulos asignados — recomiendo esta opción.** El docente puede completar el 100 % de su parte, aunque no representa todo el curso.\n- **El curso completo.** Ofrece una referencia global, pero incluye trabajo que puede quedar fuera de sus permisos.\n- **Ambas referencias.** Distingue avance propio y global, aunque añade complejidad y exige delimitar qué información puede ver.\n\n**2. ¿Qué ve un docente sin módulos asignados en un curso?**\n- **Curso visible, sin trabajo accesible — recomiendo esta opción.** Explica que falta asignación, sin mostrar un porcentaje engañoso; a cambio, ocupa espacio en el panel.\n- **Curso oculto.** Mantiene el panel centrado en trabajo disponible, pero el curso desaparece de su vista.\n\nPuedes elegir las opciones o matizarlas. Después abordaremos cómo afectan los cambios de asignación al progreso y qué navegación queda permitida.",
+          "elapsedMs": 47519,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Qué debe medir el progreso de un curso parcial?",
+            "¿Qué ve un docente sin módulos asignados en un curso?"
+          ],
+          "decisions": [
+            {
+              "id": "known",
+              "question": "Acuerdos previos y evidencia",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Block05 acuerda cursos propios completos/parciales sin límite artificial. Evidencia facilitada: existen agrupación, panel por rol, carga aislada y progreso por anexo; no implica acuerdo de producto."
+            },
+            {
+              "id": "partial",
+              "question": "¿Qué debe medir el progreso de un curso parcial?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "empty",
+              "question": "¿Qué ve un docente sin módulos asignados en un curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "changes",
+              "question": "¿Cómo afecta al progreso un cambio en los módulos asignados?",
+              "dependsOn": [
+                "partial"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "recovery",
+              "question": "¿Qué ocurre con el progreso anterior al retirar y volver a asignar módulos?",
+              "dependsOn": [
+                "changes"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "navigation",
+              "question": "¿Qué navegación se permite hacia contenido no asignado?",
+              "dependsOn": [
+                "partial",
+                "empty"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Mantengamos el resumen por anexo. Esto solo responde al detalle visual; aún no he decidido cómo cuentan los módulos ni las demás reglas.",
+          "answer": "Queda registrado: **mantenemos el resumen por anexo solo como presentación visual**. El cómputo y las demás reglas siguen abiertos.\n\n**1. ¿Qué módulos cuentan para el progreso de un curso parcial?**\n- **Solo los asignados — recomiendo esta opción:** el 100 % indica que ha terminado su parte, no todo el curso.\n- **Todos los del curso:** ofrece una referencia global, pero incluye trabajo ajeno a su responsabilidad.\n- **Dos referencias separadas:** muestra progreso propio y global, con más complejidad y visibilidad por delimitar.\n\n**2. ¿Qué ve un docente sin módulos asignados?**\n- **Curso visible, sin trabajo accesible — recomiendo esta opción:** explica la falta de asignación, sin porcentaje engañoso, aunque ocupa espacio.\n- **Curso oculto:** despeja el panel, pero el curso desaparece de su vista.\n\nDespués quedan por resolver los cambios de asignación, la recuperación del progreso y la navegación. Puedes elegir o plantear otras alternativas.",
+          "elapsedMs": 31590,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "Manteniendo el resumen por anexo, ¿qué módulos cuentan para el progreso de un curso parcial?",
+            "¿Qué ve un docente sin módulos asignados en un curso?"
+          ],
+          "decisions": [
+            {
+              "id": "known",
+              "question": "Acuerdos previos y evidencia",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Block05 acuerda cursos propios completos/parciales sin límite artificial. Evidencia facilitada: existen agrupación, panel por rol, carga aislada y progreso por anexo; no implica acuerdo de producto."
+            },
+            {
+              "id": "visual",
+              "question": "¿Cómo se presenta el resumen?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "El usuario acuerda mantener el resumen por anexo, exclusivamente como detalle visual; no decide el cómputo de módulos ni otras reglas."
+            },
+            {
+              "id": "partial",
+              "question": "¿Qué debe medir el progreso de un curso parcial?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "empty",
+              "question": "¿Qué ve un docente sin módulos asignados en un curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "changes",
+              "question": "¿Cómo afecta al progreso un cambio en los módulos asignados?",
+              "dependsOn": [
+                "partial"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "recovery",
+              "question": "¿Qué ocurre con el progreso anterior al retirar y volver a asignar módulos?",
+              "dependsOn": [
+                "changes"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "navigation",
+              "question": "¿Qué navegación se permite hacia contenido no asignado?",
+              "dependsOn": [
+                "partial",
+                "empty"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Corrijo lo visual: sí quiero un desglose por módulo además del resumen. Las demás decisiones siguen pendientes; no confirmo el acuerdo.",
+          "answer": "Corregido: **resumen por anexo más desglose por módulo**. Esto no decide qué módulos se muestran ni cómo computan. El acuerdo sigue pendiente, sin confirmación ni implementación.\n\nSiguen abiertas estas dos preguntas:\n\n**1. ¿Qué módulos cuentan para el progreso parcial?**\n- **Solo los asignados — recomendado:** el 100 % representa su parte, no todo el curso.\n- **Todos:** referencia global, pero incluye trabajo ajeno.\n- **Dos referencias:** progreso propio y global; más información, pero mayor complejidad.\n\n**2. ¿Qué ocurre cuando no tiene módulos asignados?**\n- **Curso visible sin trabajo accesible — recomendado:** explica la situación, aunque ocupa espacio.\n- **Curso oculto:** despeja el panel, pero el curso desaparece.\n\nLos cambios de asignación, la recuperación del progreso y la visibilidad y navegación del desglose siguen también pendientes.",
+          "elapsedMs": 29284,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "Con resumen por anexo y desglose por módulo, ¿qué módulos cuentan para el progreso de un curso parcial?",
+            "¿Qué ve un docente sin módulos asignados en un curso?"
+          ],
+          "decisions": [
+            {
+              "id": "known",
+              "question": "Acuerdos previos y evidencia",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Block05 acuerda cursos propios completos/parciales sin límite artificial. Evidencia facilitada: existen agrupación, panel por rol, carga aislada y progreso por anexo; no implica acuerdo de producto."
+            },
+            {
+              "id": "visual",
+              "question": "¿Cómo se presenta el progreso?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Corrección explícita del usuario: resumen por anexo más desglose por módulo. Solo decide presentación; no resuelve cómputo, visibilidad ni otras reglas y no confirma el acuerdo."
+            },
+            {
+              "id": "partial",
+              "question": "¿Qué debe medir el progreso de un curso parcial?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "empty",
+              "question": "¿Qué ve un docente sin módulos asignados en un curso?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "changes",
+              "question": "¿Cómo afecta al progreso un cambio en los módulos asignados?",
+              "dependsOn": [
+                "partial"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "recovery",
+              "question": "¿Qué ocurre con el progreso anterior al retirar y volver a asignar módulos?",
+              "dependsOn": [
+                "changes"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "navigation",
+              "question": "¿Qué módulos aparecen en el desglose y qué navegación se permite hacia contenido no asignado?",
+              "dependsOn": [
+                "partial",
+                "empty"
+              ],
+              "status": "open"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "baseline",
+      "case": "ambiguous",
+      "sample": 1,
+      "passed": true,
+      "actions": [
+        "propose",
+        "propose",
+        "status",
+        "propose"
+      ],
+      "turns": [
+        {
+          "prompt": "Hagamos el intent para añadir avisos a las tareas; ahora la gente se pierde cosas.",
+          "answer": "Vamos a concretar qué se está perdiendo el equipo y cómo avisarlo. Solo haremos el intent, sin implementar nada.\n\n**1. ¿Qué debe generar un aviso?**\n- **Asignaciones y vencimientos:** saber qué me toca y qué está próximo a vencer.\n- **También cambios de la tarea:** más cobertura, pero habrá que seleccionar qué cambios importan.\n- **Solo asignaciones:** empezar con lo mínimo; no resuelve los olvidos de fechas.\n\nRecomiendo **asignaciones y vencimientos** para empezar con avisos relevantes y poco ruido.\n\n**2. ¿Dónde deben llegar?**\n- **Dentro del tablero:** quedan disponibles al entrar, pero quien no entra puede perdérselos.\n- **Por correo:** llegan sin abrir el tablero, a costa de más mensajes.\n- **Tablero y correo:** combina consulta y alcance; tendremos que limitar qué se envía por correo.\n\nRecomiendo **tablero y correo** si el problema incluye a personas que no consultan el tablero habitualmente.\n\n¿Qué opciones encajan? Puedes proponer otras o contarme un caso concreto de algo que se haya pasado por alto.",
+          "elapsedMs": 39272,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Qué hechos deben generar avisos?",
+            "¿Dónde deben recibirse los avisos?"
+          ],
+          "decisions": [
+            {
+              "id": "eventos",
+              "question": "¿Qué hechos deben generar avisos?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "canal",
+              "question": "¿Dónde deben recibirse los avisos?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "destinatarios",
+              "question": "¿Quién recibe cada aviso y qué ocurre con las acciones propias?",
+              "dependsOn": [
+                "eventos"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "plazos",
+              "question": "¿Cuándo se avisa y cómo se tratan cambios posteriores?",
+              "dependsOn": [
+                "eventos"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "lectura",
+              "question": "¿Cómo se gestionan los avisos pendientes y las preferencias?",
+              "dependsOn": [
+                "canal"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Los quiero dentro de la aplicación. No estoy eligiendo todavía destinatarios, eventos ni frecuencia.",
+          "answer": "Queda acordado únicamente el canal: **dentro de la aplicación**. Destinatarios, eventos y frecuencia siguen abiertos; no doy por aceptadas mis recomendaciones anteriores.\n\nSobre la consulta: **¿los avisos deben conservarse para verlos después?**\n\n- **Bandeja persistente:** permite recuperarlos al volver; habrá que gestionar los pendientes.\n- **Solo avisos momentáneos:** menos interfaz, pero pueden pasar inadvertidos.\n- **Ambos:** quedan guardados y aparecen en el momento, aunque interrumpen más.\n\nRecomiendo **bandeja persistente** para evitar que se pierdan avisos sin añadir interrupciones. Puedes elegir otra alternativa.",
+          "elapsedMs": 22944,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Los avisos deben conservarse para consultarlos después?"
+          ],
+          "decisions": [
+            {
+              "id": "eventos",
+              "question": "¿Qué hechos deben generar avisos?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "canal",
+              "question": "¿Dónde deben recibirse los avisos?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Dentro de la aplicación. La respuesta no elige destinatarios, eventos ni frecuencia."
+            },
+            {
+              "id": "destinatarios",
+              "question": "¿Quién recibe cada aviso y qué ocurre con las acciones propias?",
+              "dependsOn": [
+                "eventos"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "plazos",
+              "question": "¿Cuándo se avisa y cómo se tratan cambios posteriores?",
+              "dependsOn": [
+                "eventos"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "lectura",
+              "question": "¿Los avisos deben conservarse para consultarlos después?",
+              "dependsOn": [
+                "canal"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "gestion",
+              "question": "¿Cómo se gestionan la lectura, conservación y preferencias de los avisos?",
+              "dependsOn": [
+                "lectura",
+                "eventos"
+              ],
+              "status": "open"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "candidate",
+      "case": "ambiguous",
+      "sample": 1,
+      "passed": true,
+      "actions": [
+        "propose",
+        "propose",
+        "status",
+        "propose"
+      ],
+      "turns": [
+        {
+          "prompt": "Hagamos el intent para añadir avisos a las tareas; ahora la gente se pierde cosas.",
+          "answer": "Vamos a acordar qué avisar y cómo, sin implementar todavía. Tenemos un tablero con responsables individuales y fechas límite opcionales; ningún comportamiento de avisos está decidido.\n\n1. **¿Qué situaciones deben generar avisos?**\n   - Solo asignaciones.\n   - **Asignaciones y vencimientos: mi recomendación inicial**, para cubrir responsabilidades y plazos sin demasiado ruido.\n   - También cambios en las tareas: mayor seguimiento, pero habría que elegir qué modificaciones importan.\n\n2. **¿Quién debe recibirlos?**\n   - **La persona asignada: recomiendo empezar aquí**, para que cada aviso sea relevante.\n   - La persona asignada y quienes se suscriban: permite seguir tareas ajenas, pero añade gestión de suscripciones.\n   - Todo el equipo: más visibilidad, a costa de más interrupciones.\n\n3. **¿Dónde deben llegar?**\n   - Dentro del tablero: menos intrusivo, pero exige entrar.\n   - Correo electrónico: llega a quienes no consultan el tablero, pero puede saturar.\n   - **Tablero y correo: lo recomiendo si el problema es que la gente no entra**, aunque puede duplicar avisos.\n\nPuedes elegir una opción por pregunta o proponer otra. Después concretaremos los casos que se abran con tus respuestas.",
+          "elapsedMs": 46202,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Qué situaciones deben generar avisos inicialmente?",
+            "¿Quién debe recibir los avisos?",
+            "¿Dónde deben recibirse los avisos?"
+          ],
+          "decisions": [
+            {
+              "id": "eventos",
+              "question": "¿Qué situaciones deben generar avisos?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "destinatarios",
+              "question": "¿Quién debe recibir los avisos?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "canal",
+              "question": "¿Dónde deben recibirse los avisos?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "reglas-eventos",
+              "question": "¿Qué reglas concretas aplicamos a los eventos elegidos, incluidos cambios posteriores y fechas opcionales?",
+              "dependsOn": [
+                "eventos"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "seguimiento",
+              "question": "¿Qué reglas de seguimiento y acciones propias aplicamos a los destinatarios elegidos?",
+              "dependsOn": [
+                "destinatarios",
+                "eventos"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "entrega",
+              "question": "¿Cómo tratamos acumulación, lectura y fallos según el canal elegido?",
+              "dependsOn": [
+                "canal"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Los quiero dentro de la aplicación. No estoy eligiendo todavía destinatarios, eventos ni frecuencia.",
+          "answer": "Queda acordado únicamente **el canal: dentro de la aplicación**. Destinatarios, eventos y frecuencia siguen abiertos; no doy por aceptadas mis recomendaciones.\n\nPodemos concretar la presentación sin decidir todavía lo anterior:\n\n1. **Bandeja de avisos con contador**: recomiendo esta opción para poder consultarlos después sin interrupciones, aunque exige revisarla.\n2. **Mensajes emergentes**: llaman la atención mientras trabajas, pero pueden pasar desapercibidos.\n3. **Bandeja y emergentes**: combina consulta posterior y atención inmediata, con más interrupciones.\n\n¿Cuál prefieres? Puedes proponer otra forma.",
+          "elapsedMs": 28133,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Cómo quieres que se vean los avisos dentro de la aplicación?"
+          ],
+          "decisions": [
+            {
+              "id": "eventos",
+              "question": "¿Qué situaciones deben generar avisos?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "destinatarios",
+              "question": "¿Quién debe recibir los avisos?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "canal",
+              "question": "¿Dónde deben recibirse los avisos?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "El usuario elige avisos dentro de la aplicación. No elige destinatarios, eventos ni frecuencia."
+            },
+            {
+              "id": "presentacion",
+              "question": "¿Cómo deben presentarse los avisos dentro de la aplicación?",
+              "dependsOn": [
+                "canal"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "frecuencia",
+              "question": "¿Cuándo se entregan o agrupan los avisos y deben repetirse?",
+              "dependsOn": [
+                "eventos"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "reglas-eventos",
+              "question": "¿Qué reglas concretas aplicamos a los eventos elegidos, incluidos cambios posteriores y fechas opcionales?",
+              "dependsOn": [
+                "eventos"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "seguimiento",
+              "question": "¿Qué reglas de seguimiento y acciones propias aplicamos a los destinatarios elegidos?",
+              "dependsOn": [
+                "destinatarios",
+                "eventos"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "entrega",
+              "question": "¿Cómo tratamos conservación, lectura y fallos de los avisos?",
+              "dependsOn": [
+                "presentacion"
+              ],
+              "status": "open"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "baseline",
+      "case": "partial",
+      "sample": 1,
+      "passed": true,
+      "actions": [
+        "propose",
+        "propose",
+        "status",
+        "propose",
+        "status",
+        "propose"
+      ],
+      "turns": [
+        {
+          "prompt": "Quiero hacer el intent para exportar contactos a CSV.",
+          "answer": "Acordaremos el comportamiento, sin implementar nada todavía. Hay tres decisiones iniciales:\n\n1. **¿Qué contactos se exportan?**\n   - Todos los que cumplen los filtros, incluyendo todas las páginas.\n   - Solo los de la página actual.\n   - Todos los contactos, ignorando filtros.\n\n   Recomiendo **todos los filtrados**: exporta el resultado completo de la búsqueda, aunque puede generar archivos grandes.\n\n2. **¿Qué columnas se incluyen?**\n   - Las visibles, en el orden de la tabla.\n   - Un conjunto fijo, independiente de lo que se muestre.\n   - Elegirlas cada vez que se exporta.\n\n   Recomiendo **las visibles** para reflejar lo que estás consultando; un conjunto fijo sería mejor si necesitas archivos siempre homogéneos.\n\n3. **¿Dónde utilizarás el CSV?**\n   - Excel en español.\n   - Importación en otro sistema: dime cuál.\n   - Uso general, con comas y UTF-8.\n\n   Si no hay un destino concreto, recomiendo **uso general**, aunque Excel podría requerir configurar la importación.\n\nPuedes responder por número o describir otro comportamiento.",
+          "elapsedMs": 41787,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Qué contactos debe incluir el CSV?",
+            "¿Qué columnas debe incluir el CSV?",
+            "¿Dónde utilizarás principalmente el CSV?"
+          ],
+          "decisions": [
+            {
+              "id": "rows",
+              "question": "¿Qué contactos debe incluir el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "columns",
+              "question": "¿Qué columnas debe incluir el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "format",
+              "question": "¿Dónde utilizarás principalmente el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "empty",
+              "question": "¿Qué ocurre si no hay contactos que exportar?",
+              "dependsOn": [
+                "rows"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "column-details",
+              "question": "¿Qué campos y orden debe tener la exportación?",
+              "dependsOn": [
+                "columns"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "format-details",
+              "question": "¿Qué reglas de formato y tratamiento de valores requiere el destino?",
+              "dependsOn": [
+                "format"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Solo filas filtradas, incluidas las de otras páginas. Lo demás sigue abierto.",
+          "answer": "Queda acordado: **solo los contactos filtrados, incluyendo todas las páginas**. Lo demás sigue abierto.\n\n1. **Columnas:** ¿las visibles y en su orden, un conjunto fijo o elegirlas al exportar? Recomiendo las visibles por coherencia con la tabla; un conjunto fijo facilita reutilizar el CSV en procesos repetidos.\n\n2. **Destino:** ¿Excel en español, otro sistema —cuál— o uso general? Sin un destino específico, recomiendo comas y UTF-8; Excel podría requerir configurar la importación.\n\n3. **Sin resultados:** si los filtros no devuelven contactos, ¿avisamos sin descargar o generamos un CSV solo con cabeceras? Recomiendo avisar para evitar descargas vacías; las cabeceras pueden ser útiles para procesos que esperan siempre un archivo.",
+          "elapsedMs": 25943,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Qué columnas debe incluir el CSV?",
+            "¿Dónde utilizarás principalmente el CSV?",
+            "¿Qué ocurre si los filtros no devuelven contactos?"
+          ],
+          "decisions": [
+            {
+              "id": "rows",
+              "question": "¿Qué contactos debe incluir el CSV?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Solo los contactos que cumplen los filtros, incluidas todas las páginas; respuesta explícita del usuario."
+            },
+            {
+              "id": "columns",
+              "question": "¿Qué columnas debe incluir el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "format",
+              "question": "¿Dónde utilizarás principalmente el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "empty",
+              "question": "¿Qué ocurre si no hay contactos que exportar?",
+              "dependsOn": [
+                "rows"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "column-details",
+              "question": "¿Qué campos y orden debe tener la exportación?",
+              "dependsOn": [
+                "columns"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "format-details",
+              "question": "¿Qué reglas de formato y tratamiento de valores requiere el destino?",
+              "dependsOn": [
+                "format"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Rectifico: quiero elegir entre todas y filtradas al exportar. No he decidido las columnas ni confirmado nada.",
+          "answer": "Rectificado: **al exportar podrás elegir entre todos los contactos y los filtrados, incluyendo todas las páginas**. Las columnas siguen abiertas y **no hay confirmación final**.\n\nQueda por decidir:\n\n1. **Selección inicial:** filtrados, todos o exigir elegir cada vez. Recomiendo exigir elección: evita asumir el alcance, a cambio de un paso adicional.\n2. **Columnas:** visibles y en su orden, conjunto fijo o elegir al exportar. Recomiendo visibles por coherencia con la tabla; un conjunto fijo ofrece archivos más homogéneos.\n3. **Destino:** Excel en español, otro sistema —indica cuál— o uso general. Sin destino concreto, recomiendo uso general; puede requerir configurar la importación.\n4. **Sin contactos:** avisar sin descargar o descargar solo cabeceras. Recomiendo avisar para evitar archivos vacíos, sin cambiar automáticamente de filtrados a todos.\n\nPuedes responder solo a las que tengas claras.",
+          "elapsedMs": 32146,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Debe haber una opción de contactos preseleccionada?",
+            "¿Qué columnas debe incluir el CSV?",
+            "¿Dónde utilizarás principalmente el CSV?",
+            "¿Qué ocurre si la opción elegida no contiene contactos?"
+          ],
+          "decisions": [
+            {
+              "id": "rows",
+              "question": "¿Qué contactos debe incluir el CSV?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Corrección del usuario: elegir al exportar entre todos los contactos (sin filtros) y los filtrados, incluyendo todas las páginas. Sustituye la elección anterior; no es confirmación final."
+            },
+            {
+              "id": "row-choice",
+              "question": "¿Debe haber una opción de contactos preseleccionada?",
+              "dependsOn": [
+                "rows"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "columns",
+              "question": "¿Qué columnas debe incluir el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "format",
+              "question": "¿Dónde utilizarás principalmente el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "empty",
+              "question": "¿Qué ocurre si la opción elegida no contiene contactos?",
+              "dependsOn": [
+                "rows"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "column-details",
+              "question": "¿Qué campos y orden debe tener la exportación?",
+              "dependsOn": [
+                "columns"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "format-details",
+              "question": "¿Qué reglas de formato y tratamiento de valores requiere el destino?",
+              "dependsOn": [
+                "format"
+              ],
+              "status": "open"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "candidate",
+      "case": "partial",
+      "sample": 1,
+      "passed": true,
+      "actions": [
+        "propose",
+        "propose",
+        "status",
+        "propose",
+        "propose",
+        "status",
+        "propose"
+      ],
+      "turns": [
+        {
+          "prompt": "Quiero hacer el intent para exportar contactos a CSV.",
+          "answer": "Vamos a acordar el comportamiento, sin implementar nada. La tabla tiene filtros, paginación y columnas visibles u ocultas.\n\n1. **¿Qué contactos se exportan?**\n   - Todos los que cumplen los filtros, de todas las páginas.\n   - Solo la página actual.\n   - Todos los contactos, ignorando los filtros.\n\n   Recomiendo **todos los filtrados**: permite exportar la búsqueda completa, aunque incluya más contactos de los que ves en pantalla.\n\n2. **¿Qué columnas se incluyen?**\n   - Las visibles, en su orden actual.\n   - Todas las de la tabla, incluidas las ocultas.\n   - Un conjunto fijo, independiente de la vista.\n\n   Recomiendo **las visibles** para que el archivo refleje tu selección. Un conjunto fijo es más adecuado para importaciones recurrentes porque no cambia con la vista.\n\n3. **¿Dónde vas a utilizar el CSV?**\n   - Excel con configuración española.\n   - Otro sistema: dime cuál.\n   - Uso general, sin aplicación concreta.\n\n   Si el objetivo es abrirlo y trabajar manualmente, recomiendo **priorizar Excel**; facilita la apertura directa, pero condiciona el formato para otros programas.\n\nPuedes responder con las opciones o explicar otro comportamiento.",
+          "elapsedMs": 46587,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Qué contactos debe incluir el CSV?",
+            "¿Qué columnas debe incluir el CSV?",
+            "¿Dónde se utilizará principalmente el CSV?"
+          ],
+          "decisions": [
+            {
+              "id": "rows",
+              "question": "¿Qué contactos debe incluir el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "columns",
+              "question": "¿Qué columnas debe incluir el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "destination",
+              "question": "¿Dónde se utilizará principalmente el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "empty-errors",
+              "question": "¿Qué debe ocurrir sin resultados o si falla la exportación?",
+              "dependsOn": [
+                "rows"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "column-details",
+              "question": "¿Qué campos y orden deben exportarse?",
+              "dependsOn": [
+                "columns"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "format",
+              "question": "¿Qué convenciones de formato necesita el destinatario?",
+              "dependsOn": [
+                "destination"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Solo filas filtradas, incluidas las de otras páginas. Lo demás sigue abierto.",
+          "answer": "Queda acordado: **solo contactos que cumplan los filtros, de todas las páginas**. El resto sigue abierto.\n\n1. **Columnas:** ¿las visibles en su orden actual, todas —incluidas las ocultas— o un conjunto fijo? Recomiendo las visibles si buscas reflejar la tabla; un conjunto fijo ofrece más estabilidad para importaciones.\n\n2. **Destino:** ¿Excel en España, otro sistema —cuál— o uso general? Para trabajo manual recomiendo priorizar Excel; para importar, conviene adaptar el formato al receptor.\n\n3. **Sin resultados o con errores:**\n   - Avisar sin descargar cuando no haya contactos; tampoco entregar archivos parciales si falla.\n   - Descargar solo las cabeceras cuando no haya contactos; si falla, avisar sin entregar un archivo parcial.\n   - Permitir archivos parciales identificados cuando falle; concretaríamos también el caso vacío.\n\n   Recomiendo la primera: evita confundir un archivo vacío o incompleto con una exportación correcta. La segunda resulta útil si necesitas conservar el esquema.\n\nPuedes elegir opciones o responder por separado a cada caso.",
+          "elapsedMs": 48413,
+          "tools": [
+            "ein_intent",
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Qué columnas debe incluir el CSV?",
+            "¿Dónde se utilizará principalmente el CSV?",
+            "¿Qué debe ocurrir sin resultados o si falla la exportación?"
+          ],
+          "decisions": [
+            {
+              "id": "rows",
+              "question": "¿Qué contactos debe incluir el CSV?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "El usuario elige solo filas filtradas, incluidas las de otras páginas."
+            },
+            {
+              "id": "columns",
+              "question": "¿Qué columnas debe incluir el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "destination",
+              "question": "¿Dónde se utilizará principalmente el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "empty-errors",
+              "question": "¿Qué debe ocurrir sin resultados o si falla la exportación?",
+              "dependsOn": [
+                "rows"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "column-details",
+              "question": "¿Qué campos y orden deben exportarse?",
+              "dependsOn": [
+                "columns"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "format",
+              "question": "¿Qué convenciones de formato necesita el destinatario?",
+              "dependsOn": [
+                "destination"
+              ],
+              "status": "open"
+            }
+          ]
+        },
+        {
+          "prompt": "Rectifico: quiero elegir entre todas y filtradas al exportar. No he decidido las columnas ni confirmado nada.",
+          "answer": "Corregido: **al exportar podrás elegir entre todos los contactos o los filtrados, incluyendo todas las páginas**. Las columnas siguen abiertas y **no hay confirmación final**.\n\nQuedan estas decisiones; las recomendaciones no cuentan como respuestas:\n\n1. **Elección de filas:** ¿elegir expresamente cada vez, preseleccionar «filtrados» o recordar la última elección? Recomiendo elegir cada vez: añade una acción, pero evita exportar todos por accidente.\n\n2. **Columnas:** ¿visibles en su orden actual, todas —también las ocultas— o un conjunto fijo? Recomiendo visibles para reflejar la tabla; fijo si necesitas importaciones estables.\n\n3. **Destino:** ¿Excel en España, otro sistema —cuál— o uso general? Para trabajo manual recomiendo Excel; condiciona el formato frente a otros receptores.\n\n4. **Vacío y errores:** ¿avisar sin descargar cuando no haya contactos, o descargar solo cabeceras? Si falla, ¿descartar el archivo incompleto o permitir uno parcial identificado? Recomiendo avisar sin descargar en ambos casos para evitar archivos que parezcan completos sin serlo.\n\nPuedes contestar solo lo que tengas decidido.",
+          "elapsedMs": 33655,
+          "tools": [
+            "ein_intent",
+            "ein_intent"
+          ],
+          "status": "pending",
+          "stage": "round",
+          "questions": [
+            "¿Cómo se elige entre todos y filtrados en cada exportación?",
+            "¿Qué columnas debe incluir el CSV?",
+            "¿Dónde se utilizará principalmente el CSV?",
+            "¿Qué debe ocurrir sin resultados o si falla la exportación?"
+          ],
+          "decisions": [
+            {
+              "id": "rows",
+              "question": "¿Qué contactos debe incluir el CSV?",
+              "dependsOn": [],
+              "status": "resolved",
+              "resolution": "Rectificación del usuario: elegir al exportar entre todos los contactos y los filtrados. Se mantiene que los filtrados incluyen otras páginas. Sustituye la opción anterior de exportar siempre solo filtrados; no hay confirmación final."
+            },
+            {
+              "id": "row-choice",
+              "question": "¿Cómo se elige entre todos y filtrados en cada exportación?",
+              "dependsOn": [
+                "rows"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "columns",
+              "question": "¿Qué columnas debe incluir el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "destination",
+              "question": "¿Dónde se utilizará principalmente el CSV?",
+              "dependsOn": [],
+              "status": "open"
+            },
+            {
+              "id": "empty-errors",
+              "question": "¿Qué debe ocurrir sin resultados o si falla la exportación?",
+              "dependsOn": [
+                "rows"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "column-details",
+              "question": "¿Qué campos y orden deben exportarse?",
+              "dependsOn": [
+                "columns"
+              ],
+              "status": "open"
+            },
+            {
+              "id": "format",
+              "question": "¿Qué convenciones de formato necesita el destinatario?",
+              "dependsOn": [
+                "destination"
+              ],
+              "status": "open"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "baseline",
+      "case": "mechanical",
+      "sample": 1,
+      "passed": true,
+      "actions": [
+        "record"
+      ],
+      "turns": [
+        {
+          "prompt": "Cambia únicamente el texto del botón de Exportar a Descargar CSV en app/export.ts, sin cambiar comportamiento ni estilo. Está autorizado y completamente definido.",
+          "answer": "Petición registrada y autorizada: cambiar «Exportar» por «Descargar CSV» en `app/export.ts`, sin tocar comportamiento ni estilo.\n\nNo he modificado el archivo: este entorno no dispone de herramientas de edición ni de un ejecutor SDD.",
+          "elapsedMs": 9573,
+          "tools": [
+            "ein_intent"
+          ],
+          "status": "confirmed",
+          "questions": [],
+          "decisions": []
+        }
+      ]
+    },
+    {
+      "variant": "candidate",
+      "case": "mechanical",
+      "sample": 1,
+      "passed": true,
+      "actions": [
+        "record"
+      ],
+      "turns": [
+        {
+          "prompt": "Cambia únicamente el texto del botón de Exportar a Descargar CSV en app/export.ts, sin cambiar comportamiento ni estilo. Está autorizado y completamente definido.",
+          "answer": "Petición registrada y autorizada: sustituir «Exportar» por «Descargar CSV» en `app/export.ts`, sin alterar comportamiento ni estilo.\n\nNo he modificado el archivo: esta sesión no dispone de herramientas de edición ni de un ejecutor.",
+          "elapsedMs": 9755,
+          "tools": [
+            "ein_intent"
+          ],
+          "status": "confirmed",
+          "questions": [],
+          "decisions": []
+        }
+      ]
+    }
+  ]
+}

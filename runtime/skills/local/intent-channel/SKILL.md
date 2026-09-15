@@ -21,14 +21,18 @@ por rondas, con alternativas concretas y tu recomendación razonada.
 
 ### Ronda 1 (first round)
 
-Usa la petición y los acuerdos disponibles, con su procedencia. Una hoja de ruta
-no resuelve por sí sola las ambigüedades de comportamiento. Sin petición ni contexto,
+Separa acuerdos del usuario, hechos comprobados y decisiones pendientes, con su
+procedencia. El código demuestra qué ocurre hoy, no qué comportamiento se desea;
+una hoja de ruta tampoco resuelve esa intención. Reutiliza acuerdos vigentes sin
+volver a negociarlos. Sin petición ni contexto,
 pregunta solamente qué quiere hacer; con contexto, empieza por la primera decisión real.
 
-Busca dónde dos interpretaciones razonables producirían resultados distintos.
-Pon a prueba el resultado con un escenario concreto: qué ocurre al cambiar algo,
-al fallar o al recuperar trabajo anterior. Investiga primero lo que ya responde
-el proyecto; pregunta lo que corresponde decidir al usuario. No impongas un formulario.
+Busca dónde dos interpretaciones razonables producirían resultados distintos para
+las personas afectadas: caso habitual, cambios posteriores y situaciones sin datos
+o con errores. Usa solo escenarios relevantes al encargo, no un formulario fijo.
+Si se superponen alcances, separa qué pertenece al trabajo de qué puede ver o hacer
+cada papel. Resolver uno no decide el otro ni qué conjunto mide cada resumen.
+Investiga lo comprobable; pregunta las decisiones de producto que sigan abiertas.
 
 Explica la frontera completa en un mensaje: preguntas numeradas, alternativas
 viables y una recomendación cuyo beneficio y coste sean visibles. Una alternativa
@@ -38,8 +42,9 @@ Si no hay alternativas concretas o el selector falla, pregunta en texto.
 
 ### Rondas siguientes
 
-Incorpora solo lo contestado y abre sus consecuencias. Antes de dar una rama por
-cerrada, comprueba qué comportamiento todavía quedaría a elección del implementador.
+Incorpora solo lo contestado y abre sus consecuencias con un caso concreto: «Si
+elegimos esto, cuando ocurra aquello…». Antes de dar una rama por cerrada, comprueba
+qué comportamiento todavía quedaría a elección del implementador.
 Por ejemplo, «conservar para recuperar» puede dejar abierta la compatibilidad con
 cambios posteriores. Expón ese caso si cambia el resultado; no conviertas el ejemplo
 en una pregunta obligatoria para todos los proyectos.
@@ -48,10 +53,11 @@ Una respuesta parcial deja preguntas abiertas. Una corrección reabre solo las r
 afectadas; un rechazo requiere entender qué falla en las opciones. Pedir estado,
 cancelar un selector o explicar una opción no confirma el acuerdo.
 
-Pregunta juntas las decisiones independientes. Si otra respuesta todavía abierta
+Pregunta juntas hasta cuatro decisiones independientes por tanda. Si otra respuesta todavía abierta
 cambiaría las opciones o tu recomendación, aplaza esa pregunta y registra dependsOn.
 No inventes dependencias para serializar la conversación. Tampoco cierres una rama
-solo porque el usuario eligió la recomendación. No hay cuota mínima de preguntas.
+solo porque el usuario eligió la recomendación o aceptó una presentación visual.
+No hay cuota mínima: importa resolver decisiones, no contar preguntas ni confirmaciones.
 
 ### Hechos sin detener la entrevista
 
@@ -69,10 +75,12 @@ sus hallazgos para preparar comandos; consulta el protocolo de ensayos del runti
 
 ### Cierre y paso a SDD
 
-Antes de revisar el acuerdo, recorre las ramas conocidas: cada una debe quedar
-resuelta con respuesta o evidencia, o excluida explícitamente. Pregunta sobre
-supuestos materiales pendientes; deja al diseño los detalles que no cambian el
-resultado acordado. Una lista de nodos formalmente cerrados no demuestra cobertura.
+Antes de revisar, contrasta el acuerdo con los escenarios relevantes: cada decisión
+de comportamiento necesita respuesta o acuerdo previo identificable; cada hecho,
+evidencia. Marca las exclusiones explícitas. Si el texto final introduce una regla
+nueva, vuelve a su pregunta: no la conviertas en acuerdo dentro del resumen.
+Deja al diseño los detalles que no cambian el resultado. Una lista de nodos cerrados
+no demuestra cobertura, ni una confirmación global sustituye decisiones pendientes.
 
 Presenta objetivo, decisiones, límites y criterios observables y pide una confirmación
 final. No escribas intent.md ni inicies fases mientras el acuerdo siga abierto.
