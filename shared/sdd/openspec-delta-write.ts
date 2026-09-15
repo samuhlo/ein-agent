@@ -15,7 +15,7 @@
 // =============================================================================
 
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, rmdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { DOMAIN_ID_PATTERN } from "./openspec-spec-contract.ts";
@@ -57,6 +57,7 @@ export type DeltaWriteResult =
 				| "stale-delta"
 				| "existing-delta-invalid"
 				| "revision-out-of-scope"
+				| "write-locked"
 				| "write-failed";
 			reason: string;
 	  }>;
@@ -133,57 +134,75 @@ export function writeOpenSpecDelta(request: DeltaWriteRequest): DeltaWriteResult
 	}
 
 	const path = join(cwd, "openspec", "changes", change, "specs", domain, "spec.md");
-	let previous: string | null = null;
+	const lockPath = `${path}.lock`;
 	try {
 		mkdirSync(dirname(path), { recursive: true });
-		if (existsSync(path)) previous = readFileSync(path, "utf8");
+		mkdirSync(lockPath);
 	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+			return { ok: false, code: "write-locked", reason: "another delta writer is already changing this domain" };
+		}
 		return { ok: false, code: "write-failed", reason: error instanceof Error ? error.message : String(error) };
 	}
 
-	const nextSha256 = sha256(built.value.contents);
-	if (previous === built.value.contents) {
-		return { ok: true, change, domain, path, operations: operations.length, changed: false, sha256: nextSha256, revisedScenarioIds: [] };
-	}
-
-	let revisedScenarioIds: string[] = [];
-	if (previous !== null) {
-		if (!request.revision) {
-			return { ok: false, code: "revision-required", reason: "an existing delta can change only with revision.expectedSha256 and revision.scenarioIds" };
-		}
-		const authorized = [...new Set(request.revision.scenarioIds)].sort();
-		if (!SHA256_PATTERN.test(request.revision.expectedSha256) || authorized.length === 0 || authorized.some((id) => !DOMAIN_ID_PATTERN.test(id))) {
-			return { ok: false, code: "invalid-revision", reason: "revision needs a lowercase SHA-256 digest and at least one kebab-case scenario ID" };
-		}
-		if (sha256(previous) !== request.revision.expectedSha256) {
-			return { ok: false, code: "stale-delta", reason: "the persisted delta no longer matches revision.expectedSha256; read and reassess the current file" };
-		}
-		const parsedPrevious = parseOpenSpecDelta(previous);
-		if (!parsedPrevious.ok) {
-			return { ok: false, code: "existing-delta-invalid", reason: "the persisted delta is invalid and cannot use the bounded revision path" };
-		}
-		revisedScenarioIds = changedScenarioIds(parsedPrevious.value.operations, operations);
-		const unauthorized = revisedScenarioIds.filter((id) => !authorized.includes(id));
-		if (unauthorized.length > 0) {
-			return { ok: false, code: "revision-out-of-scope", reason: `revision changes undeclared scenario IDs: ${unauthorized.join(", ")}` };
-		}
-	} else if (request.revision) {
-		return { ok: false, code: "invalid-revision", reason: "revision authority was supplied but no persisted delta exists" };
-	}
-
-	const temporary = `${path}.tmp-${process.pid}-${randomUUID()}`;
 	try {
-		const mode = previous === null ? 0o644 : lstatSync(path).mode;
-		writeFileSync(temporary, built.value.contents, { flag: "wx", mode });
-		renameSync(temporary, path);
-	} catch (error) {
+		let previous: string | null = null;
 		try {
-			rmSync(temporary, { force: true });
-		} catch {
-			// The original write error is the useful failure; cleanup is best effort.
+			if (existsSync(path)) previous = readFileSync(path, "utf8");
+		} catch (error) {
+			return { ok: false, code: "write-failed", reason: error instanceof Error ? error.message : String(error) };
 		}
-		return { ok: false, code: "write-failed", reason: error instanceof Error ? error.message : String(error) };
-	}
 
-	return { ok: true, change, domain, path, operations: operations.length, changed: true, sha256: nextSha256, revisedScenarioIds };
+		const nextSha256 = sha256(built.value.contents);
+		if (previous === built.value.contents) {
+			return { ok: true, change, domain, path, operations: operations.length, changed: false, sha256: nextSha256, revisedScenarioIds: [] };
+		}
+
+		let revisedScenarioIds: string[] = [];
+		if (previous !== null) {
+			if (!request.revision) {
+				return { ok: false, code: "revision-required", reason: "an existing delta can change only with revision.expectedSha256 and revision.scenarioIds" };
+			}
+			const authorized = [...new Set(request.revision.scenarioIds)].sort();
+			if (!SHA256_PATTERN.test(request.revision.expectedSha256) || authorized.length === 0 || authorized.some((id) => !DOMAIN_ID_PATTERN.test(id))) {
+				return { ok: false, code: "invalid-revision", reason: "revision needs a lowercase SHA-256 digest and at least one kebab-case scenario ID" };
+			}
+			if (sha256(previous) !== request.revision.expectedSha256) {
+				return { ok: false, code: "stale-delta", reason: "the persisted delta no longer matches revision.expectedSha256; read and reassess the current file" };
+			}
+			const parsedPrevious = parseOpenSpecDelta(previous);
+			if (!parsedPrevious.ok) {
+				return { ok: false, code: "existing-delta-invalid", reason: "the persisted delta is invalid and cannot use the bounded revision path" };
+			}
+			revisedScenarioIds = changedScenarioIds(parsedPrevious.value.operations, operations);
+			const unauthorized = revisedScenarioIds.filter((id) => !authorized.includes(id));
+			if (unauthorized.length > 0) {
+				return { ok: false, code: "revision-out-of-scope", reason: `revision changes undeclared scenario IDs: ${unauthorized.join(", ")}` };
+			}
+		} else if (request.revision) {
+			return { ok: false, code: "invalid-revision", reason: "revision authority was supplied but no persisted delta exists" };
+		}
+
+		const temporary = `${path}.tmp-${process.pid}-${randomUUID()}`;
+		try {
+			const mode = previous === null ? 0o644 : lstatSync(path).mode;
+			writeFileSync(temporary, built.value.contents, { flag: "wx", mode });
+			renameSync(temporary, path);
+		} catch (error) {
+			try {
+				rmSync(temporary, { force: true });
+			} catch {
+				// The original write error is the useful failure; cleanup is best effort.
+			}
+			return { ok: false, code: "write-failed", reason: error instanceof Error ? error.message : String(error) };
+		}
+
+		return { ok: true, change, domain, path, operations: operations.length, changed: true, sha256: nextSha256, revisedScenarioIds };
+	} finally {
+		try {
+			rmdirSync(lockPath);
+		} catch {
+			// A later call reports a retained lock instead of guessing that it is stale.
+		}
+	}
 }

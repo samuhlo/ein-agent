@@ -70,6 +70,16 @@ describe("OpenSpec delta writing is shared, not Pi-only", () => {
 		expect(second).toMatchObject({ ok: true, changed: false });
 	});
 
+	test("a concurrent writer lock fails closed without creating the delta", () => {
+		const path = join(cwd, "openspec", "changes", "probe", "specs", "scout-routing", "spec.md");
+		mkdirSync(`${path}.lock`, { recursive: true });
+
+		const result = writeOpenSpecDelta({ cwd, change: "probe", domain: "scout-routing", operations: [OPERATION] });
+
+		expect(result).toMatchObject({ ok: false, code: "write-locked" });
+		expect(() => readFileSync(path, "utf8")).toThrow();
+	});
+
 	test("a bounded correction needs the current digest and preserves unrelated scenarios", () => {
 		const initial = writeOpenSpecDelta({ cwd, change: "probe", domain: "scout-routing", operations: [OPERATION, UNCHANGED_OPERATION] });
 		expect(initial.ok).toBe(true);

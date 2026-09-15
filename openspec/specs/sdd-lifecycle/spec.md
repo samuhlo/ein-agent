@@ -448,7 +448,7 @@ title: Explicit scope corrections can revise valid persisted deltas
 requirement: The system MUST allow sdd-scope to correct a semantically wrong but structurally valid persisted delta when a newer explicit instruction establishes the correction, while rejecting stale or broader rewrites without changing the persisted file.
 Given: A valid persisted delta conflicts with a newer explicit user or parent instruction and sdd-scope has read its exact current bytes.
 When: sdd-scope submits the complete corrected domain operations with the current SHA-256 and every affected scenario ID.
-Then: The writer atomically replaces the delta only when the digest still matches and no undeclared scenario changes; otherwise it rejects the revision and preserves the previous bytes.
+Then: Under its per-delta writer lock, the writer atomically replaces the delta only when the digest matches and no undeclared scenario changes; otherwise it rejects the revision and preserves the previous bytes.
 
 ## Scenario: sdd-apply-progress-declares-changed-files
 title: Declare the passage scope in apply-progress
