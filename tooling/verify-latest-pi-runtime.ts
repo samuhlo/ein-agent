@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,6 +28,13 @@ const home = mkdtempSync(join(tmpdir(), "ein-pi-latest-"));
 try {
   const context = resolvePiInstallContext(home);
   mkdirSync(context.agentDir, { recursive: true });
+  const subagentConfigDir = join(context.agentDir, "extensions/subagent");
+  mkdirSync(subagentConfigDir, { recursive: true });
+  const bundledConfig = readFileSync(join(ROOT, "ein-pi/agent/extensions/subagent/config.json"), "utf8");
+  if (Object.hasOwn(JSON.parse(bundledConfig), "modelExclusions")) {
+    throw new Error("La configuración empaquetada conserva modelExclusions, retirada por pi-subagents");
+  }
+  writeFileSync(join(subagentConfigDir, "config.json"), bundledConfig);
   writeFileSync(join(context.agentDir, "settings.json"), `${JSON.stringify({
     npmCommand: ["bun"],
     packages: REQUIRED_PI_PACKAGE_SPECS,
@@ -66,7 +73,7 @@ try {
     .map((output) => new TextDecoder().decode(output))
     .join("\n");
   const missingFlags = ["--mcp-config", "--locale"].filter((flag) => !help.includes(flag));
-  if (loadProbe.exitCode !== 0 || missingFlags.length > 0) {
+  if (loadProbe.exitCode !== 0 || missingFlags.length > 0 || /Failed to load extension|Failed to load subagent config/i.test(help)) {
     const detail = new TextDecoder().decode(loadProbe.stderr).trim().split("\n").at(-1);
     throw new Error(
       `Pi latest no pudo cargar las extensiones latest${missingFlags.length > 0 ? ` (faltan ${missingFlags.join(", ")})` : ""}${detail ? `: ${detail}` : ""}`,

@@ -72,6 +72,9 @@ describe("inventario instalado de agentes", () => {
 			const assets = readdirSync(join(staging.payload, "assets", "agents")).filter((file) => file.endsWith(".md")).sort();
 			const manifest = JSON.parse(readFileSync(join(staging.payload, "template-manifest.json"), "utf8")) as { agents: string[]; terminalApp: { path: string; target: string; mode: string } };
 			const settings = JSON.parse(readFileSync(join(staging.payload, "settings.json"), "utf8")) as Record<string, unknown>;
+			const subagentConfig = readFileSync(join(staging.payload, "extensions/subagent/config.json"), "utf8");
+			expect(subagentConfig).toBe(readFileSync(join(ROOT, "ein-pi/agent/extensions/subagent/config.json"), "utf8"));
+			expect(JSON.parse(subagentConfig)).not.toHaveProperty("modelExclusions");
 			const policy = readFileSync(join(staging.payload, "AGENTS.md"), "utf8");
 			expect(source).toContain("ein-scout.md");
 			expect(staged).toEqual(source);

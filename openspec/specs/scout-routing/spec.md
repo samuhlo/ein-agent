@@ -107,12 +107,12 @@ Given: a direct ein-scout launch request
 When: the launch is normalized
 Then: the normalized launch is foreground and no asynchronous scout call is produced
 
-## Scenario: scout-model-exclusion-cache-is-short-and-explicit
-title: Managed model exclusions recover quickly without hidden fallback
-requirement: The system MUST configure the managed subagent runtime to expire model exclusions after 300000 milliseconds, MUST continue failing closed while an exclusion is active, and MUST NOT add or select a fallback model without explicit user configuration.
-Given: a configured scout model produces an empty or provider-failed run and upstream records an exclusion
-When: the managed subagent configuration is loaded or reloaded
-Then: the exclusion lasts at most five minutes, active longer exclusions are shortened by upstream, and no different model is selected implicitly
+## Scenario: scout-config-retires-model-exclusions
+title: Managed subagent configuration remains loadable after model exclusions are retired
+requirement: The system MUST omit modelExclusions from the bundled subagent configuration and remove that retired key from existing regular configuration files before package maintenance, preserving unrelated settings and rejecting invalid JSON without modifying it.
+Given: a managed installation has a legacy subagent configuration containing modelExclusions
+When: the installer reconciles the declared subagent package
+Then: the retired key is removed before Pi is invoked, unrelated settings and file permissions survive, repeated reconciliation is idempotent, and no fallback model is added
 
 ## Scenario: scout-reference-end-line-clamped-to-file-end
 title: Clamp a citation that overruns the end of the file
