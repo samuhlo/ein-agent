@@ -14,11 +14,12 @@
 // de reventar el sync en el cierre.
 // =============================================================================
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { DOMAIN_ID_PATTERN } from "./openspec-spec-contract.ts";
-import { buildOpenSpecDelta, type OpenSpecDeltaOperation } from "./openspec-spec-parser.ts";
+import { buildOpenSpecDelta, parseOpenSpecDelta, type OpenSpecDeltaOperation } from "./openspec-spec-parser.ts";
 import { isSafeChangeName } from "./sdd-routing-core.ts";
 
 export type DeltaWriteRequest = Readonly<{
@@ -26,15 +27,60 @@ export type DeltaWriteRequest = Readonly<{
 	change: string;
 	domain: string;
 	operations: readonly unknown[];
+	revision?: Readonly<{
+		expectedSha256: string;
+		scenarioIds: readonly string[];
+	}>;
 }>;
 
 export type DeltaWriteResult =
-	| Readonly<{ ok: true; change: string; domain: string; path: string; operations: number }>
+	| Readonly<{
+			ok: true;
+			change: string;
+			domain: string;
+			path: string;
+			operations: number;
+			changed: boolean;
+			sha256: string;
+			revisedScenarioIds: readonly string[];
+	  }>
 	| Readonly<{
 			ok: false;
-			code: "no-change" | "invalid-change" | "invalid-domain" | "no-operations" | "malformed" | "write-failed";
+			code:
+				| "no-change"
+				| "invalid-change"
+				| "invalid-domain"
+				| "no-operations"
+				| "malformed"
+				| "revision-required"
+				| "invalid-revision"
+				| "stale-delta"
+				| "existing-delta-invalid"
+				| "revision-out-of-scope"
+				| "write-failed";
 			reason: string;
 	  }>;
+
+const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
+
+function sha256(value: string): string {
+	return createHash("sha256").update(value).digest("hex");
+}
+
+function operationId(operation: OpenSpecDeltaOperation): string {
+	return operation.kind === "REMOVED" ? operation.scenarioId : operation.scenario.id;
+}
+
+function changedScenarioIds(
+	before: readonly OpenSpecDeltaOperation[],
+	after: readonly OpenSpecDeltaOperation[],
+): string[] {
+	const previous = new Map(before.map((operation) => [operationId(operation), JSON.stringify(operation)]));
+	const next = new Map(after.map((operation) => [operationId(operation), JSON.stringify(operation)]));
+	return [...new Set([...previous.keys(), ...next.keys()])]
+		.filter((id) => previous.get(id) !== next.get(id))
+		.sort();
+}
 
 /**
  * Normaliza una operación cruda a la forma que espera el serializador. Un
@@ -87,12 +133,57 @@ export function writeOpenSpecDelta(request: DeltaWriteRequest): DeltaWriteResult
 	}
 
 	const path = join(cwd, "openspec", "changes", change, "specs", domain, "spec.md");
+	let previous: string | null = null;
 	try {
 		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, built.value.contents);
+		if (existsSync(path)) previous = readFileSync(path, "utf8");
 	} catch (error) {
 		return { ok: false, code: "write-failed", reason: error instanceof Error ? error.message : String(error) };
 	}
 
-	return { ok: true, change, domain, path, operations: operations.length };
+	const nextSha256 = sha256(built.value.contents);
+	if (previous === built.value.contents) {
+		return { ok: true, change, domain, path, operations: operations.length, changed: false, sha256: nextSha256, revisedScenarioIds: [] };
+	}
+
+	let revisedScenarioIds: string[] = [];
+	if (previous !== null) {
+		if (!request.revision) {
+			return { ok: false, code: "revision-required", reason: "an existing delta can change only with revision.expectedSha256 and revision.scenarioIds" };
+		}
+		const authorized = [...new Set(request.revision.scenarioIds)].sort();
+		if (!SHA256_PATTERN.test(request.revision.expectedSha256) || authorized.length === 0 || authorized.some((id) => !DOMAIN_ID_PATTERN.test(id))) {
+			return { ok: false, code: "invalid-revision", reason: "revision needs a lowercase SHA-256 digest and at least one kebab-case scenario ID" };
+		}
+		if (sha256(previous) !== request.revision.expectedSha256) {
+			return { ok: false, code: "stale-delta", reason: "the persisted delta no longer matches revision.expectedSha256; read and reassess the current file" };
+		}
+		const parsedPrevious = parseOpenSpecDelta(previous);
+		if (!parsedPrevious.ok) {
+			return { ok: false, code: "existing-delta-invalid", reason: "the persisted delta is invalid and cannot use the bounded revision path" };
+		}
+		revisedScenarioIds = changedScenarioIds(parsedPrevious.value.operations, operations);
+		const unauthorized = revisedScenarioIds.filter((id) => !authorized.includes(id));
+		if (unauthorized.length > 0) {
+			return { ok: false, code: "revision-out-of-scope", reason: `revision changes undeclared scenario IDs: ${unauthorized.join(", ")}` };
+		}
+	} else if (request.revision) {
+		return { ok: false, code: "invalid-revision", reason: "revision authority was supplied but no persisted delta exists" };
+	}
+
+	const temporary = `${path}.tmp-${process.pid}-${randomUUID()}`;
+	try {
+		const mode = previous === null ? 0o644 : lstatSync(path).mode;
+		writeFileSync(temporary, built.value.contents, { flag: "wx", mode });
+		renameSync(temporary, path);
+	} catch (error) {
+		try {
+			rmSync(temporary, { force: true });
+		} catch {
+			// The original write error is the useful failure; cleanup is best effort.
+		}
+		return { ok: false, code: "write-failed", reason: error instanceof Error ? error.message : String(error) };
+	}
+
+	return { ok: true, change, domain, path, operations: operations.length, changed: true, sha256: nextSha256, revisedScenarioIds };
 }

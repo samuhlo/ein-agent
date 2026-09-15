@@ -438,10 +438,17 @@ Then: The result is an explicit provider-scoped unsupported or unavailable error
 
 ## Scenario: scope-retry-preserves-valid-delta
 title: Scope retries preserve valid persisted deltas
-requirement: The system MUST preserve a valid persisted OpenSpec delta as the authoritative declaration when sdd-scope is retried, instead of writing a contradictory declaration or delta.
-Given: An active canonical OpenSpec change already contains a delta that passes existing delta validation and its scope phase is retried.
+requirement: The system MUST preserve a valid persisted OpenSpec delta as the authoritative baseline when sdd-scope is retried without a newer instruction that corrects its meaning.
+Given: An active canonical OpenSpec change already contains a delta that passes existing delta validation, its scope phase is retried, and no newer explicit instruction changes the agreed behaviour.
 When: sdd-scope resumes or re-evaluates the change.
 Then: The validated persisted delta remains unchanged and authoritative, no contradictory spec_delta: none declaration is introduced, and the scope contract remains resumable.
+
+## Scenario: scope-correction-revises-valid-delta
+title: Explicit scope corrections can revise valid persisted deltas
+requirement: The system MUST allow sdd-scope to correct a semantically wrong but structurally valid persisted delta when a newer explicit instruction establishes the correction, while rejecting stale or broader rewrites without changing the persisted file.
+Given: A valid persisted delta conflicts with a newer explicit user or parent instruction and sdd-scope has read its exact current bytes.
+When: sdd-scope submits the complete corrected domain operations with the current SHA-256 and every affected scenario ID.
+Then: The writer atomically replaces the delta only when the digest still matches and no undeclared scenario changes; otherwise it rejects the revision and preserves the previous bytes.
 
 ## Scenario: sdd-apply-progress-declares-changed-files
 title: Declare the passage scope in apply-progress

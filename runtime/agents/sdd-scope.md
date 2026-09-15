@@ -24,9 +24,11 @@ If paths are missing, allow degraded fallback loading. Report `skill_resolution`
 
 ## Persisted-delta preflight
 
-Before any retry or re-evaluation of the active canonical change, validate the active canonical change's persisted delta set with the existing declaration/parser rules. Inspect the complete persisted delta set, not just one file.
+Before retrying, validate the active canonical change's persisted delta set with existing parser rules; inspect every delta.
 
-When the persisted delta validation succeeds, treat the complete persisted delta set and its exact bytes as authoritative and preserve every validated delta byte-for-byte. MUST NOT declare `spec_delta: none`, MUST NOT invoke `ein_openspec_delta_write`, MUST NOT replace a persisted delta, and MUST NOT regenerate delta content; perform this preflight before any of those operations.
+When valid, the set is the authoritative baseline. Unless a newer explicit user or parent instruction corrects its meaning, preserve its bytes. MUST NOT declare `spec_delta: none` with deltas.
+
+A newer explicit instruction authorizes correction; do not ask the user to confirm it again. Call `ein_openspec_delta_write` with all operations and `revision: { expectedSha256, scenarioIds }` for the current bytes and every changed ID. It rejects stale or broader edits. Preserve other scenarios and revalidate the complete persisted delta set.
 
 Missing or invalid persisted-delta provenance MUST continue through the existing validation and declaration path. MUST NOT define partial-delta preservation, repair, reconciliation, staging, or rollback behavior for that fallback.
 

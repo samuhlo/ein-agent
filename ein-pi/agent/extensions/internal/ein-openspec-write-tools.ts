@@ -68,7 +68,7 @@ export function registerOpenSpecDeltaTool(registerEinTool: EinToolRegistrar): vo
 	registerEinTool({
 		name: "ein_openspec_delta_write",
 		label: "Ein OpenSpec Delta Write",
-		description: "Write a change's OpenSpec behaviour delta (openspec/changes/<change>/specs/<domain>/spec.md) from STRUCTURED operations — never hand-write the delta markdown. Serializes deterministically and re-parses with the strict grammar before writing; refuses (writes nothing) if the operations are malformed (e.g. requirement not starting with 'The system MUST/SHOULD/MAY', empty fields, duplicate scenario IDs, no operations). Operation order is irrelevant; output is sorted by scenario ID. Reads and writes only the filesystem; never commits.",
+		description: "Write a change's OpenSpec behaviour delta (openspec/changes/<change>/specs/<domain>/spec.md) from STRUCTURED operations — never hand-write the delta markdown. Creation is validated and identical retries are idempotent. Changing an existing delta requires revision.expectedSha256 plus every affected scenario ID; stale or broader revisions write nothing. Operation order is irrelevant; output is sorted by scenario ID. Reads and writes only the filesystem; never commits.",
 		parameters: {
 			type: "object",
 			properties: {
@@ -98,10 +98,23 @@ export function registerOpenSpecDeltaTool(registerEinTool: EinToolRegistrar): vo
 						required: ["kind"],
 					},
 				},
+				revision: {
+					type: "object",
+					description: "Required only to change an existing delta. Binds the correction to the exact bytes read and limits it to named scenarios.",
+					properties: {
+						expectedSha256: { type: "string", description: "Lowercase SHA-256 of the current exact delta bytes." },
+						scenarioIds: {
+							type: "array",
+							items: { type: "string" },
+							description: "Every scenario ID that the correction may add, remove, or modify.",
+						},
+					},
+					required: ["expectedSha256", "scenarioIds"],
+				},
 			},
 			required: ["domain", "operations"],
 		} as const,
-		async execute(_id, params: { change?: string; domain?: string; operations?: unknown[] }, _signal, _onUpdate, ctx: ExtensionContext) {
+		async execute(_id, params: { change?: string; domain?: string; operations?: unknown[]; revision?: { expectedSha256?: string; scenarioIds?: string[] } }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const unavailable = changeUnavailableMessage(ctx.cwd, "delta", params?.change);
 			if (unavailable) {
 				return { content: [{ type: "text", text: unavailable }], details: { ok: false, reason: "no change selected" } };
@@ -111,6 +124,12 @@ export function registerOpenSpecDeltaTool(registerEinTool: EinToolRegistrar): vo
 				change: params?.change ?? resolveSddStatus(ctx.cwd).change ?? "",
 				domain: params?.domain ?? "",
 				operations: Array.isArray(params?.operations) ? params.operations : [],
+				revision: params?.revision
+					? {
+						expectedSha256: params.revision.expectedSha256 ?? "",
+						scenarioIds: Array.isArray(params.revision.scenarioIds) ? params.revision.scenarioIds : [],
+					}
+					: undefined,
 			});
 			if (!result.ok) {
 				const text = result.code === "malformed"
@@ -119,7 +138,7 @@ export function registerOpenSpecDeltaTool(registerEinTool: EinToolRegistrar): vo
 				return { content: [{ type: "text", text }], details: { ok: false, reason: result.reason } };
 			}
 			return {
-				content: [{ type: "text", text: `// openspec delta — '${result.change}': escrito openspec/changes/${result.change}/specs/${result.domain}/spec.md (${result.operations} operación(es), validado). No escribas la declaración spec_delta: none: el delta ES la declaración.` }],
+				content: [{ type: "text", text: `// openspec delta — '${result.change}': ${result.changed ? "escrito" : "sin cambios"} openspec/changes/${result.change}/specs/${result.domain}/spec.md (${result.operations} operación(es), validado, sha256 ${result.sha256}). No escribas la declaración spec_delta: none: el delta ES la declaración.` }],
 				details: { ...result },
 			};
 		},
