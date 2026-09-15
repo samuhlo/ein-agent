@@ -144,25 +144,16 @@ describe("orchestrator: flujo por fases determinista", () => {
 describe("sdd-scope: persisted-delta retry preflight", () => {
 	const scope = read("agents/sdd-scope.md");
 
-	test("valid persisted deltas are validated before every destructive retry path", () => {
+	test("valid persisted deltas remain the baseline unless later instructions correct them", () => {
 		const preflight = scope.indexOf("## Persisted-delta preflight");
 		expect(preflight).toBeGreaterThan(-1);
 
 		const validation = scope.indexOf("validate the active canonical change's persisted delta", preflight);
 		const preflightText = scope.slice(preflight);
 		expect(validation).toBeGreaterThan(preflight);
-		expect(preflightText).toContain("exact bytes");
-		expect(preflightText).toContain("byte-for-byte");
-
-		const destructiveOperationAnchors = [
-			"spec_delta: none",
-			"invoke `ein_openspec_delta_write`",
-			"replace a persisted delta",
-			"regenerate delta content",
-		];
-		for (const operation of destructiveOperationAnchors) {
-			expect(scope.indexOf(operation)).toBeGreaterThan(validation);
-		}
+		expect(preflightText).toContain("authoritative baseline");
+		expect(preflightText).toContain("newer explicit user or parent instruction");
+		expect(preflightText).toContain("do not ask the user to confirm it again");
 	});
 
 	test("missing or invalid provenance keeps the existing fallback without repair instructions", () => {
@@ -176,14 +167,15 @@ describe("sdd-scope: persisted-delta retry preflight", () => {
 		);
 	});
 
-	test("the valid branch explicitly excludes none, replacement, and regeneration", () => {
+	test("a correction is bounded by digest and scenario IDs", () => {
 		const preflight = scope.indexOf("## Persisted-delta preflight");
 		const fallback = scope.indexOf("Missing or invalid persisted-delta provenance", preflight);
 		const validBranch = scope.slice(preflight, fallback);
 
 		expect(validBranch).toContain("MUST NOT declare `spec_delta: none`");
-		expect(validBranch).toContain("MUST NOT replace a persisted delta");
-		expect(validBranch).toContain("MUST NOT regenerate delta content");
+		expect(validBranch).toContain("expectedSha256");
+		expect(validBranch).toContain("scenarioIds");
+		expect(validBranch).toContain("revalidate the complete persisted delta set");
 	});
 });
 

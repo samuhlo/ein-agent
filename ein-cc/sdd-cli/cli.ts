@@ -389,6 +389,7 @@ export function runDeltaCommand(
 	const change = resolvedDelta.change;
 
 	let operations: unknown[];
+	let revision: { expectedSha256: string; scenarioIds: string[] } | undefined;
 	try {
 		const parsed: unknown = JSON.parse(rawStdin);
 		// Se acepta el array suelto o envuelto en `{ operations: [...] }`: el
@@ -398,11 +399,20 @@ export function runDeltaCommand(
 			: Array.isArray((parsed as { operations?: unknown })?.operations)
 				? (parsed as { operations: unknown[] }).operations
 				: [];
+		if (!Array.isArray(parsed) && typeof parsed === "object" && parsed !== null) {
+			const candidate = (parsed as { revision?: { expectedSha256?: unknown; scenarioIds?: unknown } }).revision;
+			if (candidate) {
+				revision = {
+					expectedSha256: typeof candidate.expectedSha256 === "string" ? candidate.expectedSha256 : "",
+					scenarioIds: Array.isArray(candidate.scenarioIds) ? candidate.scenarioIds.map(String) : [],
+				};
+			}
+		}
 	} catch {
 		return { text: "// openspec delta — stdin is not valid JSON. Pass the operations array (or { operations: [...] }).", exitCode: 1 };
 	}
 
-	const result = writeOpenSpecDelta({ cwd: dir, change, domain, operations });
+	const result = writeOpenSpecDelta({ cwd: dir, change, domain, operations, revision });
 	if (!result.ok) {
 		const text = result.code === "malformed"
 			? `// openspec delta — REJECTED, nothing written: ${result.reason}. Fix the operations and retry; the delta is validated with the SAME grammar as sync.`
@@ -410,7 +420,7 @@ export function runDeltaCommand(
 		return { text, exitCode: 1 };
 	}
 	return {
-		text: `// openspec delta — '${result.change}': wrote openspec/changes/${result.change}/specs/${result.domain}/spec.md (${result.operations} operation(s), validated). Do NOT also write the 'spec_delta: none' declaration: the delta IS the declaration.`,
+		text: `// openspec delta — '${result.change}': ${result.changed ? "wrote" : "unchanged"} openspec/changes/${result.change}/specs/${result.domain}/spec.md (${result.operations} operation(s), validated, sha256 ${result.sha256}). Do NOT also write the 'spec_delta: none' declaration: the delta IS the declaration.`,
 		exitCode: 0,
 	};
 }

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,6 +21,20 @@ const OPERATION = {
 		then: "the delta is validated with the strict grammar and written",
 	},
 };
+
+const UNCHANGED_OPERATION = {
+	kind: "ADDED",
+	scenario: {
+		id: "unrelated-scenario",
+		title: "An unrelated scenario",
+		requirement: "The system MUST preserve scenarios outside an authorized correction.",
+		given: "a valid persisted delta contains another scenario",
+		when: "one scenario is corrected",
+		then: "the unrelated scenario remains unchanged",
+	},
+};
+
+const sha256 = (value: string): string => createHash("sha256").update(value).digest("hex");
 
 let cwd: string;
 
@@ -44,6 +59,81 @@ describe("OpenSpec delta writing is shared, not Pi-only", () => {
 		const written = readFileSync(result.path, "utf8");
 		expect(parseOpenSpecDelta(written).ok).toBe(true);
 		expect(written).toContain("domain: scout-routing");
+		expect(result.changed).toBe(true);
+	});
+
+	test("an identical retry is idempotent without revision authority", () => {
+		const first = writeOpenSpecDelta({ cwd, change: "probe", domain: "scout-routing", operations: [OPERATION] });
+		expect(first.ok).toBe(true);
+		const second = writeOpenSpecDelta({ cwd, change: "probe", domain: "scout-routing", operations: [OPERATION] });
+
+		expect(second).toMatchObject({ ok: true, changed: false });
+	});
+
+	test("a concurrent writer lock fails closed without creating the delta", () => {
+		const path = join(cwd, "openspec", "changes", "probe", "specs", "scout-routing", "spec.md");
+		mkdirSync(`${path}.lock`, { recursive: true });
+
+		const result = writeOpenSpecDelta({ cwd, change: "probe", domain: "scout-routing", operations: [OPERATION] });
+
+		expect(result).toMatchObject({ ok: false, code: "write-locked" });
+		expect(() => readFileSync(path, "utf8")).toThrow();
+	});
+
+	test("a bounded correction needs the current digest and preserves unrelated scenarios", () => {
+		const initial = writeOpenSpecDelta({ cwd, change: "probe", domain: "scout-routing", operations: [OPERATION, UNCHANGED_OPERATION] });
+		expect(initial.ok).toBe(true);
+		if (!initial.ok) return;
+		const before = readFileSync(initial.path, "utf8");
+		const corrected = {
+			...OPERATION,
+			scenario: { ...OPERATION.scenario, requirement: "The system MUST let an explicit correction revise its affected scenario." },
+		};
+
+		const withoutRevision = writeOpenSpecDelta({ cwd, change: "probe", domain: "scout-routing", operations: [corrected, UNCHANGED_OPERATION] });
+		expect(withoutRevision).toMatchObject({ ok: false, code: "revision-required" });
+		expect(readFileSync(initial.path, "utf8")).toBe(before);
+
+		const stale = writeOpenSpecDelta({
+			cwd,
+			change: "probe",
+			domain: "scout-routing",
+			operations: [corrected, UNCHANGED_OPERATION],
+			revision: { expectedSha256: "0".repeat(64), scenarioIds: ["claude-writes-delta"] },
+		});
+		expect(stale).toMatchObject({ ok: false, code: "stale-delta" });
+		expect(readFileSync(initial.path, "utf8")).toBe(before);
+
+		const revised = writeOpenSpecDelta({
+			cwd,
+			change: "probe",
+			domain: "scout-routing",
+			operations: [corrected, UNCHANGED_OPERATION],
+			revision: { expectedSha256: sha256(before), scenarioIds: ["claude-writes-delta"] },
+		});
+		expect(revised).toMatchObject({ ok: true, changed: true, revisedScenarioIds: ["claude-writes-delta"] });
+		expect(readFileSync(initial.path, "utf8")).toContain(UNCHANGED_OPERATION.scenario.requirement);
+	});
+
+	test("a correction cannot alter a scenario outside its declared boundary", () => {
+		const initial = writeOpenSpecDelta({ cwd, change: "probe", domain: "scout-routing", operations: [OPERATION, UNCHANGED_OPERATION] });
+		expect(initial.ok).toBe(true);
+		if (!initial.ok) return;
+		const before = readFileSync(initial.path, "utf8");
+		const changedBoth = [
+			{ ...OPERATION, scenario: { ...OPERATION.scenario, title: "Corrected title" } },
+			{ ...UNCHANGED_OPERATION, scenario: { ...UNCHANGED_OPERATION.scenario, title: "Unexpected edit" } },
+		];
+		const result = writeOpenSpecDelta({
+			cwd,
+			change: "probe",
+			domain: "scout-routing",
+			operations: changedBoth,
+			revision: { expectedSha256: sha256(before), scenarioIds: ["claude-writes-delta"] },
+		});
+
+		expect(result).toMatchObject({ ok: false, code: "revision-out-of-scope" });
+		expect(readFileSync(initial.path, "utf8")).toBe(before);
 	});
 
 	// Fail closed: un delta malformado se rechaza ANTES de tocar el disco, en vez
@@ -71,6 +161,21 @@ describe("OpenSpec delta writing is shared, not Pi-only", () => {
 
 		const wrapped = runDeltaCommand(cwd, ["probe", "--domain", "surface-wiring"], JSON.stringify({ operations: [OPERATION] }));
 		expect(wrapped.exitCode).toBe(0);
+	});
+
+	test("the Claude command forwards bounded revision authority", () => {
+		const first = runDeltaCommand(cwd, ["probe", "--domain", "scout-routing"], JSON.stringify([OPERATION, UNCHANGED_OPERATION]));
+		expect(first.exitCode).toBe(0);
+		const path = join(cwd, "openspec", "changes", "probe", "specs", "scout-routing", "spec.md");
+		const before = readFileSync(path, "utf8");
+		const corrected = { ...OPERATION, scenario: { ...OPERATION.scenario, title: "Corrected title" } };
+		const result = runDeltaCommand(cwd, ["probe", "--domain", "scout-routing"], JSON.stringify({
+			operations: [corrected, UNCHANGED_OPERATION],
+			revision: { expectedSha256: sha256(before), scenarioIds: ["claude-writes-delta"] },
+		}));
+
+		expect(result.exitCode).toBe(0);
+		expect(readFileSync(path, "utf8")).toContain("title: Corrected title");
 	});
 
 	test("invalid stdin fails loudly instead of writing an empty delta", () => {
