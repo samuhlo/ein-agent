@@ -4,6 +4,15 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.6] - 2026-09-15
+
+### Fixed
+
+- `sdd-scope` puede corregir un delta válido de formato cuando una instrucción
+  posterior corrige su significado. La revisión queda limitada por la huella
+  SHA-256, los escenarios declarados y un bloqueo por delta compartido entre Pi
+  y Claude; los reintentos idénticos siguen siendo idempotentes.
+
 ## [0.99.0-alpha.5] - 2026-09-15
 
 ### Fixed
