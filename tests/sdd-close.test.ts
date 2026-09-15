@@ -521,6 +521,16 @@ describe("lintPhaseArtifact / lintChange", () => {
 		expect(lintPhaseArtifact("apply", "status: blocked\nbloqueado por X\n").ok).toBe(true);
 	});
 
+	test("apply con varias líneas globales status avisa mientras el router falla cerrado", () => {
+		const result = lintPhaseArtifact("apply", "status: partial\n# Apply progress\nstatus: complete\n");
+		expect(result.ok).toBe(true);
+		expect(result.issues.some((issue) => issue.code === "duplicate-status-line")).toBe(true);
+	});
+
+	test("apply ignora ejemplos status dentro de bloques de código", () => {
+		expect(lintPhaseArtifact("apply", "status: partial\n```text\nstatus: blocked\n```\n").ok).toBe(true);
+	});
+
 	test("artefacto vacío → error", () => {
 		expect(lintPhaseArtifact("apply", "   ").ok).toBe(false);
 	});

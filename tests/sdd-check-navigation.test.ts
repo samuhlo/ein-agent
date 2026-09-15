@@ -6,6 +6,8 @@ import { registerSddLifecycleTools } from "../ein-pi/agent/extensions/internal/e
 import { registerSddReadSurface } from "../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts";
 import { resolveSddNext, resolveSddPlanPreview } from "../ein-pi/agent/lib/sdd-router.ts";
 import { lintChange } from "../ein-pi/agent/lib/sdd-guardrails.ts";
+import { writeAgreement } from "../shared/sdd/intent-agreement.ts";
+import { createIntentMaterialKey } from "../shared/sdd/sdd-intent-preflight.ts";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -49,6 +51,45 @@ test("tasks navigation includes the same exact apply preview as the status surfa
 	const status = await call("ein_sdd_status", { change: "change" });
 	expect(status.details.plan).toEqual(result.details.navigation.plan);
 	expect(status.details.stance.tdd).toBe("off");
+});
+
+test("check keeps pending apply ahead of a stale verify intent", async () => {
+	const { dir, put, check } = fixture();
+	const material = {
+		objective: "Complete the remaining implementation groups",
+		boundaries: { in: ["Backend"], out: ["Frontend"] },
+		completionCriteria: ["All groups are implemented"],
+	};
+	const key = createIntentMaterialKey(material);
+	writeAgreement(dir, {
+		version: 1,
+		work: "change",
+		change: "change",
+		status: "confirmed",
+		material,
+		materialKey: key,
+		questions: ["Proceed?"],
+		response: { id: "response-1", text: "Confirmed", source: "interactive" },
+		revision: "revision-1",
+	});
+	put("scope.md", `# Scope\n## Spec delta declaration\nspec_delta: none\nspec_delta_reason: routing-only regression\nintent_key: ${key}\n`);
+	put("map.md", `# Map\nscope_status: ok\nintent_key: ${key}\n`);
+	put("design.md", `# Design\nintent_key: ${key}\n`);
+	put("tasks.md", `status: ready\nblocked_by: none\n- [x] 10.1 Contract\n- [ ] 11.1 Create\n  - verify: \`bun test\`\nintent_key: ${key}\n`);
+	put("apply-progress.md", `status: partial\nintent_key: ${key}\n`);
+	put("verify-report.md", `status: pass\nintent_key: sha256:${"a".repeat(64)}\n`);
+
+	const partial = await check("apply");
+	expect(partial.details.errors).toBe(0);
+	expect(partial.details.navigation.nextRecommended).toBe("apply");
+	expect(partial.content[0].text).toContain("siguiente recomendado: apply");
+	expect(partial.content[0].text).not.toContain("verify-report.md no corresponde");
+
+	put("tasks.md", `status: ready\nblocked_by: none\n- [x] 10.1 Contract\n- [x] 11.1 Create\n  - verify: \`bun test\`\nintent_key: ${key}\n`);
+	put("apply-progress.md", `status: complete\nintent_key: ${key}\n`);
+	const complete = await check("apply");
+	expect(complete.details.navigation.nextRecommended).toBe("verify");
+	expect(complete.content[0].text).toContain("verify-report.md no corresponde");
 });
 
 test("missing or invalid requested artifacts never emit a route", async () => {

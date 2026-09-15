@@ -22,12 +22,25 @@ export function normalizeApplyProgress(content: string, pending: number, total: 
 }
 
 export function normalizeApplyProgressWrite(cwd: string, path: string, content: string): string {
-  const absolute = resolve(cwd, path);
-  if (basename(absolute) !== "apply-progress.md") return content;
-  const dir = dirname(absolute); const change = basename(dir);
-  if (!isSafeChangeName(change) || dirname(dir) !== resolve(resolveChangesDir(cwd)) || !existsSync(join(dir, "tasks.md"))) return content;
-  const tasks = readTasksStatus(dir);
-  return normalizeApplyProgress(content, tasks.counts.pending, tasks.items.length);
+	const change = applyProgressChangeForPath(cwd, path);
+	if (!change) return content;
+	const dir = join(resolveChangesDir(cwd), change);
+	const tasks = readTasksStatus(dir);
+	return normalizeApplyProgress(content, tasks.counts.pending, tasks.items.length);
+}
+
+function applyProgressChangeForPath(cwd: string, path: string): string | null {
+	const absolute = resolve(cwd, path);
+	if (basename(absolute) !== "apply-progress.md") return null;
+	const dir = dirname(absolute);
+	const change = basename(dir);
+	if (!isSafeChangeName(change) || dirname(dir) !== resolve(resolveChangesDir(cwd)) || !existsSync(join(dir, "tasks.md"))) return null;
+	return change;
+}
+
+export function reconcileApplyProgressPath(cwd: string, path: string): void {
+	const change = applyProgressChangeForPath(cwd, path);
+	if (change) reconcileApplyProgress(cwd, change);
 }
 
 export function reconcileApplyProgress(cwd: string, change: string): void {

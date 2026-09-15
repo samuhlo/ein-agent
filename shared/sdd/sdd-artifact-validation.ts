@@ -5,6 +5,7 @@
 // =============================================================================
 
 import { isProductionFile } from "./sdd-routing-core.ts";
+import { collectDeclaredApplyStatuses } from "./sdd-apply-status.ts";
 import { extractDeclaredFrontierPaths } from "./sdd-tasks-frontier.ts";
 import { summaryContractErrors } from "./sdd-summary-contract.ts";
 
@@ -183,11 +184,6 @@ export const PHASE_ARTIFACT: Record<SddPhase, string> = {
 const PHASE_REQUIRED: Partial<Record<SddPhase, { code: string; label: string; pattern: RegExp }[]>> = {
 	scope: [{ code: "scope", label: "scope", pattern: /\bscope\b/i }],
 	map: [{ code: "scope-status", label: "scope_status", pattern: /\bscope_status\b/i }],
-	apply: [{
-		code: "status-line",
-		label: "status: complete|partial|blocked",
-		pattern: /\bstatus\s*[:=]\s*(complete|partial|blocked)\b/i,
-	}],
 	verify: [{
 		code: "status-line",
 		label: "status: pass|fail",
@@ -218,6 +214,14 @@ export function lintPhaseArtifact(
 				code: `missing-${requirement.code}`,
 				message: `Falta señal obligatoria de ${phase}: ${requirement.label}.`,
 			});
+		}
+	}
+	if (phase === "apply") {
+		const statuses = collectDeclaredApplyStatuses(text);
+		if (statuses.length === 0) {
+			issues.push({ level: "error", code: "missing-status-line", message: "Falta señal obligatoria de apply: status: complete|partial|blocked." });
+		} else if (statuses.length > 1) {
+			issues.push({ level: "warning", code: "duplicate-status-line", message: "apply-progress.md debe contener una sola línea global status: complete|partial|blocked; el siguiente write/edit de apply la normalizará." });
 		}
 	}
 	if (phase === "close") {

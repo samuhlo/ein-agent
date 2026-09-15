@@ -10,6 +10,8 @@ import { assessCloseReadiness, changeUnavailableMessage, listActiveChanges, reso
 import { planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
 import { serializeOpenSpec } from "../ein-pi/agent/lib/openspec-spec-contract";
 import { createAssessCloseReadiness } from "../shared/sdd/sdd-close-readiness";
+import { writeAgreement } from "../shared/sdd/intent-agreement";
+import { createIntentMaterialKey } from "../shared/sdd/sdd-intent-preflight";
 
 const assessSharedCloseReadiness = createAssessCloseReadiness({ resolveSddStatus });
 
@@ -21,6 +23,27 @@ function change(name: string): string {
 }
 function put(changePath: string, file: string, body = "x"): void {
 	writeFileSync(join(changePath, file), body);
+}
+
+function confirmedIntent(changePath: string, work: string): string {
+	const material = {
+		objective: "Finish the approved implementation",
+		boundaries: { in: ["Backend"], out: ["Frontend"] },
+		completionCriteria: ["Every planned group is implemented"],
+	};
+	const materialKey = createIntentMaterialKey(material);
+	writeAgreement(changePath, {
+		version: 1,
+		work,
+		change: work,
+		status: "confirmed",
+		material,
+		materialKey,
+		questions: ["Proceed with this scope?"],
+		response: { id: "response-1", text: "Confirmed", source: "interactive" },
+		revision: "revision-1",
+	});
+	return materialKey;
 }
 
 type BlockedProvenanceState = "unresolved" | "conflict";
@@ -196,6 +219,39 @@ describe("resolveSddStatus", () => {
 		const s = resolveSddStatus(DIR);
 		expect(s.apply).toBe("partial");
 		expect(s.nextRecommended).toBe("apply");
+	});
+
+	test("apply con estados globales duplicados no avanza aunque no queden tareas", () => {
+		const c = change("feat-x");
+		for (const file of ["scope.md", "map.md", "design.md"]) put(c, file);
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n- [x] 1.1 Done\n");
+		put(c, "apply-progress.md", "status: partial\n# Apply progress\nstatus: complete\n");
+		const status = resolveSddStatus(DIR, "feat-x");
+		expect(status.apply).toBe("unknown");
+		expect(status.nextRecommended).toBe("apply");
+	});
+
+	test("verify de un intent anterior no salta tareas de apply pendientes", () => {
+		const c = change("feat-x");
+		const key = confirmedIntent(c, "feat-x");
+		for (const file of ["scope.md", "map.md", "design.md"]) put(c, file, `intent_key: ${key}\n`);
+		put(c, "tasks.md", `status: ready\nblocked_by: none\n- [x] 10.1 Contract\n- [ ] 11.1 Create\n- [ ] 12.1 Duplicate\nintent_key: ${key}\n`);
+		put(c, "apply-progress.md", `status: partial\nintent_key: ${key}\n`);
+		put(c, "verify-report.md", `status: pass\nintent_key: sha256:${"a".repeat(64)}\n`);
+
+		const partial = resolveSddStatus(DIR, "feat-x");
+		expect(partial.apply).toBe("partial");
+		expect(partial.nextRecommended).toBe("apply");
+		expect(partial.tasks.nextPending?.id).toBe("11.1");
+		expect(partial.intent?.stalePhase).toBe("verify");
+		expect(partial.blocked.some((item) => item.includes("verify-report.md no corresponde"))).toBe(false);
+		expect(resolveSddNext(DIR, "feat-x").nextRecommended).toBe("apply");
+
+		put(c, "tasks.md", `status: ready\nblocked_by: none\n- [x] 10.1 Contract\n- [x] 11.1 Create\n- [x] 12.1 Duplicate\nintent_key: ${key}\n`);
+		put(c, "apply-progress.md", `status: complete\nintent_key: ${key}\n`);
+		const complete = resolveSddStatus(DIR, "feat-x");
+		expect(complete.nextRecommended).toBe("verify");
+		expect(complete.blocked.some((item) => item.includes("verify-report.md no corresponde"))).toBe(true);
 	});
 
 	test("apply-progress.md con status: blocked → siguiente apply + blocked", () => {
