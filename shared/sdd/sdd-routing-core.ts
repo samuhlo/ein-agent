@@ -22,6 +22,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { extractDeclaredFrontierPaths } from "./sdd-tasks-frontier.ts";
 import { artifactHasIntentKey, inspectArtifactIntentKey, readAgreement } from "./intent-agreement.ts";
+import { collectDeclaredApplyStatuses } from "./sdd-apply-status.ts";
 
 export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
 export type SddNext = SddPhase | "done";
@@ -491,13 +492,14 @@ function readApplyOutcome(changePath: string): ApplyOutcome {
 	}
 	// BLINDAJE -> Solo `status: complete` permite avanzar a verify.
 	// partial y blocked satisfacen el formato pero no son complete.
-	const match = content.match(/\bstatus\s*[:=]\s*(complete|partial|blocked)\b/i);
-	if (match) {
-		const v = match[1].toLowerCase();
+	const statuses = collectDeclaredApplyStatuses(content);
+	if (statuses.length === 1) {
+		const v = statuses[0]!;
 		if (v === "complete") return readTasksStatus(changePath).counts.pending > 0 ? "partial" : "complete";
 		if (v === "partial") return "partial";
 		if (v === "blocked") return "blocked";
 	}
+	if (statuses.length > 1) return readTasksStatus(changePath).counts.pending > 0 ? "partial" : "unknown";
 	// Si existe pero no tiene status legible → treated as partial (backward-compat).
 	return "partial";
 }
@@ -676,11 +678,18 @@ function resolveSddStatus(
 		const stale = lanePhases.find((phase) => present[phase] && !artifactHasIntentKey(readFileSync(phaseArtifactPath(changePath, phase), "utf8"), intent.agreement.materialKey));
 		if (stale) {
 			intentStatus!.stalePhase = stale;
-			nextRecommended = stale;
-			const binding = inspectArtifactIntentKey(readFileSync(phaseArtifactPath(changePath, stale), "utf8"), intent.agreement.materialKey);
-			blocked.push(binding === "stale"
-				? `${PHASE_ARTIFACT[stale]} no corresponde al intent actual: regenera desde ${stale}, conservando solo el trabajo todavía válido.`
-				: `${PHASE_ARTIFACT[stale]}: intent_key ${binding}. Repara únicamente la declaración en este artefacto; no regeneres la fase por formato. Debe haber una sola clave, ligada al acuerdo que realmente usó la fase. No cambies una clave antigua por la actual para saltar una revisión.`);
+			const nextIndex = lanePhases.indexOf(nextRecommended);
+			const staleIndex = lanePhases.indexOf(stale);
+			// Intent freshness may rewind the flow, but it must never jump over
+			// unfinished work. A stale verify report is expected while apply is
+			// partial; it becomes actionable once the checklist reaches verify.
+			if (nextIndex < 0 || staleIndex <= nextIndex) {
+				nextRecommended = stale;
+				const binding = inspectArtifactIntentKey(readFileSync(phaseArtifactPath(changePath, stale), "utf8"), intent.agreement.materialKey);
+				blocked.push(binding === "stale"
+					? `${PHASE_ARTIFACT[stale]} no corresponde al intent actual: regenera desde ${stale}, conservando solo el trabajo todavía válido.`
+					: `${PHASE_ARTIFACT[stale]}: intent_key ${binding}. Repara únicamente la declaración en este artefacto; no regeneres la fase por formato. Debe haber una sola clave, ligada al acuerdo que realmente usó la fase. No cambies una clave antigua por la actual para saltar una revisión.`);
+			}
 		}
 	}
 

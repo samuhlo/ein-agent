@@ -31,5 +31,16 @@ test("apply checks active capability and writes start/complete through one owner
     const again = await tool.execute("repeat", { change: "demo", task: "1.1", action: "complete" }, undefined, undefined, ctx);
     expect(again.details.counts.done).toBe(1);
     expect(readFileSync(join(dir, "tasks.md"), "utf8")).toBe(source);
+
+		const progressPath = join(dir, "apply-progress.md");
+		writeFileSync(progressPath, "status: partial\n# Apply progress\nstatus: complete\nGroup narrative.\n");
+		handlers.get("tool_result")!(
+			{ toolName: "edit", input: { path: progressPath }, isError: false },
+			ctx,
+		);
+		const progress = readFileSync(progressPath, "utf8");
+		expect(progress).toStartWith("status: partial\n");
+		expect(progress.match(/^status: (?:complete|partial|blocked)$/gm)).toEqual(["status: partial"]);
+		expect(progress).toContain("Reported group status: complete");
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

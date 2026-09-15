@@ -5,6 +5,8 @@ import { join } from "node:path";
 
 import { resolveSddStatus as resolvePiStatus } from "../ein-pi/agent/lib/sdd-routing-runtime.ts";
 import { resolveSddStatus as resolveClaudeStatus } from "../shared/ports/sdd.ts";
+import { writeAgreement } from "../shared/sdd/intent-agreement.ts";
+import { createIntentMaterialKey } from "../shared/sdd/sdd-intent-preflight.ts";
 
 let cwd: string;
 
@@ -44,5 +46,40 @@ describe("SDD routing composition parity", () => {
 		const claude = resolveClaudeStatus(cwd, "probe");
 		expect(claude).toEqual(pi);
 		expect(claude).toMatchObject({ lane: "micro", nextRecommended: "apply", specState: "synchronized" });
+	});
+
+	test("Pi and Claude keep pending apply ahead of stale verify intent", () => {
+		const material = {
+			objective: "Complete pending work",
+			boundaries: { in: ["Backend"], out: ["Frontend"] },
+			completionCriteria: ["All tasks complete"],
+		};
+		const key = createIntentMaterialKey(material);
+		seedChange("probe", {
+			"scope.md": `scope\nintent_key: ${key}\n`,
+			"map.md": `scope_status: ok\nintent_key: ${key}\n`,
+			"design.md": `design\nintent_key: ${key}\n`,
+			"tasks.md": `status: ready\nblocked_by: none\n- [x] 10.1 Contract\n- [ ] 11.1 Create\nintent_key: ${key}\n`,
+			"apply-progress.md": `status: partial\nintent_key: ${key}\n`,
+			"verify-report.md": `status: pass\nintent_key: sha256:${"a".repeat(64)}\n`,
+		});
+		const dir = join(cwd, "openspec", "changes", "probe");
+		writeAgreement(dir, {
+			version: 1,
+			work: "probe",
+			change: "probe",
+			status: "confirmed",
+			material,
+			materialKey: key,
+			questions: ["Proceed?"],
+			response: { id: "response-1", text: "Confirmed", source: "interactive" },
+			revision: "revision-1",
+		});
+
+		const pi = resolvePiStatus(cwd, "probe");
+		const claude = resolveClaudeStatus(cwd, "probe");
+		expect(claude).toEqual(pi);
+		expect(pi.nextRecommended).toBe("apply");
+		expect(pi.tasks.nextPending?.id).toBe("11.1");
 	});
 });

@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { createEinToolRegistrar } from "./ein-tool-registration.ts";
 import { registerCommandEvidence } from "./ein-command-evidence-child.ts";
 import { updateSddTaskProgress } from "../../lib/sdd-task-progress.ts";
-import { normalizeApplyProgressWrite } from "../../lib/sdd-apply-progress.ts";
+import { normalizeApplyProgressWrite, reconcileApplyProgressPath } from "../../lib/sdd-apply-progress.ts";
 
 export default function applyProgress(pi: ExtensionAPI): void {
 	const evidence = registerCommandEvidence(pi);
@@ -13,6 +13,10 @@ export default function applyProgress(pi: ExtensionAPI): void {
 		if (event.toolName === "write" && typeof event.input.path === "string" && typeof event.input.content === "string") {
 			event.input.content = normalizeApplyProgressWrite(ctx.cwd, event.input.path, event.input.content);
 		}
+	});
+	pi.on("tool_result", (event, ctx) => {
+		if (event.isError || (event.toolName !== "write" && event.toolName !== "edit")) return;
+		if (typeof event.input.path === "string") reconcileApplyProgressPath(ctx.cwd, event.input.path);
 	});
 	pi.on("before_agent_start", (event) => {
 		if (unavailable()) return { systemPrompt: `${event.systemPrompt}
