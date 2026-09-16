@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { registerIntentDiscovery } from "../ein-pi/agent/extensions/internal/ein-intent-discovery.ts";
 import { renderIntentOverlay } from "../ein-pi/agent/lib/sdd-overlay.ts";
+import { ToolExecutionComponent, initTheme } from "@earendil-works/pi-coding-agent";
+import { stripVTControlCharacters } from "node:util";
+import { visibleWidth } from "@earendil-works/pi-tui";
+import questionCards from "../ein-pi/agent/extensions/ein-question-cards.ts";
 
 const home = process.env.EIN_INTENT_PILOT_AGENT_HOME ?? join(homedir(), ".pi-ein/agent");
 const plugin = await import(pathToFileURL(join(home, "npm/node_modules/@juicesharp/rpiv-ask-user-question/ask-user-question.ts")).href);
@@ -22,11 +26,15 @@ const pi: any = {
 };
 registerIntentDiscovery(pi, (spec) => pi.registerTool(spec));
 plugin.registerAskUserQuestionTool(pi);
+questionCards(pi);
+initTheme("dark");
 const ctx: any = { cwd, hasUI: true, mode: "rpc", sessionManager: { getBranch: () => branch }, ui: {
  select: async (title: string, options: string[]) => { dialogs.push({ title, options }); return choice === "cancel" ? undefined : choice === "custom" ? options.at(-1) : options[0]; },
  input: async () => "Una cuenta con varios papeles; no autorizo entrega Git.",
 } };
 let seq = 0;
+let renders = 0;
+for (const handler of handlers.get("session_start") ?? []) await handler({}, ctx);
 async function call(name: string, input: any) {
  const toolCallId = `pilot-${++seq}`;
  for (const handler of handlers.get("tool_call") ?? []) {
@@ -39,6 +47,24 @@ async function call(name: string, input: any) {
   if (patch) result = { ...result, ...patch };
  }
  assert(!result.isError, JSON.stringify(result.content));
+ if (name === "ask_user_question") {
+  const before = JSON.stringify(result);
+  const view = new ToolExecutionComponent(name, toolCallId, input, {}, tools.get(name), { requestRender() {} } as any, cwd);
+  view.updateResult({ ...result, isError: false });
+  for (const width of [32, 80, 120]) for (const expanded of [false, true]) {
+   view.setExpanded(expanded);
+   const lines = view.render(width);
+   const plain = stripVTControlCharacters(lines.join("\n"));
+   assert(lines.every((line) => visibleWidth(line) <= width));
+   assert(plain.includes("ein · Tu respuesta"));
+   assert(!/User has answered|intentResponse|responseId|Recommended|recomendado/.test(plain));
+   if (result.details.cancelled) assert(plain.includes("Cuestionario cancelado"));
+   else assert(plain.includes(choice === "custom" ? "no autorizo entrega Git" : "Confirmar acuerdo"));
+   renders++;
+   if (width === 80 && !expanded) console.log(lines.join("\n"));
+  }
+  assert.equal(JSON.stringify(result), before);
+ }
  return result;
 }
 const material = { objective: "Acordar cuentas", boundaries: { in: ["Identidad y papeles"], out: ["Frontend y entrega Git"] }, completionCriteria: ["Identidad acordada"] };
@@ -75,5 +101,8 @@ try {
  const finalReceipt = JSON.parse(final.content.at(-1).text).intentResponse;
  await call("ein_intent", { action: "confirm", work: "cuentas", responseId: finalReceipt.responseId });
  assert(dialogs[0]!.options.length === 3, "Native plugin includes its free-text option");
- console.log(JSON.stringify({ passed: true, checks: ["real plugin RPC dialogs", "native free text", "observed round provenance", "TODO before scope", "cancel remains pending", "review confirmed through native option"], dialogs }, null, 2));
-} finally { rmSync(cwd, { recursive: true, force: true }); }
+ console.log(JSON.stringify({ passed: true, renders, checks: ["real plugin RPC dialogs and Pi terminal rendering", "native free text", "observed round provenance", "TODO before scope", "cancel remains pending", "review confirmed through native option"], dialogs }, null, 2));
+} finally {
+ for (const handler of handlers.get("session_shutdown") ?? []) await handler({}, ctx);
+ rmSync(cwd, { recursive: true, force: true });
+}
