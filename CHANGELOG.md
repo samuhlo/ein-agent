@@ -4,6 +4,25 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.8] - 2026-09-16
+
+### Changed
+
+- El intent separa acuerdos, hechos y decisiones pendientes; explora las
+  consecuencias de cada respuesta y conserva las ramas materiales antes de la
+  revisión final, sin convertir una preferencia visual en reglas no acordadas.
+- Después del mapa, Ein explica primero qué ocurre para la persona y qué se
+  pretende cambiar, con un ejemplo concreto, antes de entrar en el mecanismo
+  técnico. El manifiesto fija esta claridad como principio del producto.
+
+### Fixed
+
+- Las respuestas de `ask_user_question` usan una tarjeta propia de Ein: muestran
+  la selección, las notas y los estados comprensibles sin exponer el texto inglés
+  del plugin, identificadores internos ni JSON de continuidad.
+- Las respuestas vacías y los borradores cancelados mantienen su pregunta y se
+  presentan como «Sin respuesta» o «Respuestas sin enviar».
+
 ## [0.99.0-alpha.7] - 2026-09-15
 
 ### Fixed
