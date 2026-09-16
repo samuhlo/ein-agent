@@ -6,10 +6,14 @@ import { createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager
 import { registerIntentDiscovery } from "../ein-pi/agent/extensions/internal/ein-intent-discovery.ts";
 import { artifactHasIntentKey, readAgreement } from "../ein-pi/agent/lib/intent-agreement.ts";
 import { buildEinPrompt } from "../ein-pi/agent/lib/persona.ts";
+import { intentDepthCases } from "./intent-depth-cases.ts";
 
-const skillPath = process.env.EIN_INTENT_PILOT_SKILL ?? new URL("../runtime/skills/local/intent-channel/SKILL.md", import.meta.url).pathname;
+const skillPath = process.argv.find((arg) => arg.startsWith("--skill="))?.slice("--skill=".length) ?? process.env.EIN_INTENT_PILOT_SKILL ?? new URL("../runtime/skills/local/intent-channel/SKILL.md", import.meta.url).pathname;
 const intentSkill = `${readFileSync(skillPath, "utf8")}\nSkill source: ${skillPath}. Resolve reference links relative to that file.`;
 const block05 = process.argv.includes("--block05");
+const depthCaseName = process.argv.find((arg) => arg.startsWith("--depth="))?.slice("--depth=".length);
+if (depthCaseName && !(depthCaseName in intentDepthCases)) throw new Error(`Unknown depth case: ${depthCaseName}`);
+const depthCase = depthCaseName ? intentDepthCases[depthCaseName as keyof typeof intentDepthCases] : undefined;
 const turnMetrics: { elapsedMs: number; tools: string[] }[] = [];
 const questionnairePilot = process.argv.includes("--questionnaire");
 let nativeQuestionnaire: any;
@@ -69,9 +73,10 @@ const extension = (pi: ExtensionAPI) => {
 const sm = SettingsManager.inMemory({ retry: { enabled: false }, compaction: { enabled: false } });
 const parentSession = SessionManager.inMemory(cwd);
 const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager: sm, extensionFactories: [extension], noExtensions: true, noSkills: true, noPromptTemplates: true, noContextFiles: true,
+ systemPromptOverride: depthCase ? () => `${buildEinPrompt("neutral")}\n${intentSkill}\nControlled interview pilot: ${depthCase.facts}` : undefined,
  systemPrompt: block05 ? `${buildEinPrompt("neutral")}\n${intentSkill}\nControlled interview: work/change block05. Supplied project facts: own full/partial courses, optional centre, no artificial course limit, content and evaluations stored per module. Frontend is another agent's job; backend here. Changing selected modules recalculates dates. No policy for removing/restoring module content is agreed. The partial-calendar engine needs an experiment whose result is pending. No scout or experiment tool is exposed in this pilot: do not invent results, keep that fact waiting and continue independent product questions. Only intent is authorized; no SDD/code writes.` : block04 ? `${buildEinPrompt("neutral")}\n${intentSkill}\nThe project roadmap has block 04: teacher/academy accounts, required centre data, roles, context-based entry, role headers, profile collaborations. Blocks 06 and 08 own the full dashboards. No additional product decisions have been agreed. This test exposes no scout; use these supplied facts and ask product decisions. Do not invent implementation facts.` : conversationOnly ? `${buildEinPrompt("neutral")}\n${intentSkill}` : `${buildEinPrompt("neutral")}\n${intentSkill}\nThis controlled pilot exposes only intent and a design executor. Treat the request as SDD with work/change export-csv. After agreement, delegate exactly one sdd-design with change and intent_work markers, then report. Do not run other phases or read full workflow manuals; this pilot ends at the product specification.` });
 await loader.reload();
-const { session } = await createAgentSession({ cwd, agentDir, modelRuntime: runtime, model, thinkingLevel: settings.defaultThinkingLevel, settingsManager: sm, resourceLoader: loader, sessionManager: parentSession, tools: ["ein_intent", "subagent", "read", ...(questionnairePilot ? ["ask_user_question"] : [])] });
+const { session } = await createAgentSession({ cwd, agentDir, modelRuntime: runtime, model, thinkingLevel: settings.defaultThinkingLevel, settingsManager: sm, resourceLoader: loader, sessionManager: parentSession, tools: ["ein_intent", ...(depthCase ? [] : ["subagent"]), "read", ...(questionnairePilot ? ["ask_user_question"] : [])] });
 await session.bindExtensions({ mode: "rpc", onError: (error) => { throw new Error(String(error)); } });
 session.subscribe((event) => { if (["tool_execution_start", "tool_execution_end", "message_end"].includes(event.type)) events.push(event); });
 async function turn(text: string) {
@@ -87,7 +92,28 @@ async function turn(text: string) {
  return answer;
 }
 try {
- if (block05) {
+ if (depthCase) {
+  const transcript = [];
+  for (const prompt of depthCase.turns) {
+   const answer = await turn(prompt);
+   const latest = [...parentSession.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === "ein:intent-discovery") as any;
+   const state = latest?.data;
+   transcript.push({ prompt, answer, state });
+   assert.equal(writes, 0);
+   if (depthCaseName !== "mechanical") {
+    assert.equal(state?.status, "pending", "Incomplete answers must keep intent pending");
+    assert.equal(state?.stage, "round", "Do not review unresolved product choices");
+    assert.equal(existsSync(join(cwd, "openspec")), false, "Interview creates no SDD files");
+   }
+  }
+  const actions = (events as any[]).filter((event) => event.type === "tool_execution_start" && event.toolName === "ein_intent").map((event) => event.args?.action);
+  if (depthCaseName === "mechanical") {
+   assert(actions.includes("record"), "Fully specified mechanical work should be recorded");
+   assert(!actions.some((action) => ["propose", "review", "confirm"].includes(action)), "Do not invent interview rounds for mechanical work");
+  }
+  writeFileSync(join(output, "result.json"), JSON.stringify({ passed: true, kind: "intent-depth", depthCaseName, skillPath, model: `${settings.defaultProvider}/${settings.defaultModel}`, turnMetrics, actions, transcript, limitations: "Controlled supplied facts, text answers, no scout or native selector. Review actual questions and decision provenance; invariants alone do not establish interview quality. Mechanical case records intent only; no implementation is exposed." }, null, 2));
+  console.log(`PASS depth ${depthCaseName} ${output}`);
+ } else if (block05) {
   const latest = () => [...parentSession.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === "ein:intent-discovery") as any;
   const first = await turn("Vamos con el intent del bloque 05 de cursos propios. Solo quiero acordarlo, no implementar.");
   assert.equal(latest()?.data.status, "pending");
@@ -159,7 +185,7 @@ try {
  } else {
  const first = await turn("Quiero añadir exportación CSV a la tabla de contactos, la única del prototipo. Usa SDD en modo auto.");
  assert.match(first, /[?¿]/); assert.equal(writes, 0); assert.equal(existsSync(join(cwd, "openspec")), false);
- const second = await turn("Todas las filas filtradas (no solo la página) y en el orden visible. Columnas: nombre y correo. Sin exportar datos ocultos. CSV genérico con comas y UTF-8, no específico de Excel. Usa convenciones CSV estándar para escapar valores. Con eso puedes elaborar las specs.");
+ const second = await turn("Todas las filas filtradas (no solo la página) y en el orden visible. Columnas: nombre y correo. Sin exportar datos ocultos. CSV genérico con comas y UTF-8, no específico de Excel. Usa convenciones CSV estándar para escapar valores. Si no hay resultados, desactiva la exportación. Con eso puedes elaborar las specs.");
  await turn("Sí, el acuerdo final recoge exactamente lo que quiero. Puedes elaborar las specs, sin implementar código.");
  const agreement = readAgreement(join(cwd, "openspec/changes/export-csv"));
  assert.equal(agreement.kind, "valid"); if (agreement.kind !== "valid") throw new Error("Missing agreement");
