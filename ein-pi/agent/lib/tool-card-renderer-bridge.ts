@@ -8,13 +8,15 @@ type ToolRenderContext = Parameters<CallRenderer>[2];
 type ResultRenderer = NonNullable<ToolDefinition["renderResult"]>;
 type Host = {
   toolName: string;
+  args?: unknown;
+  result?: McpCardResult;
   getCallRenderer(): CallRenderer | undefined;
   getResultRenderer(): ResultRenderer | undefined;
   getRenderShell(): "self" | "default";
   render(width: number): string[];
   invalidate(): void;
 };
-export type CardOwner = { matches(name: string): boolean; duration(id: string): number | undefined; render: (card: McpCard, width: number, theme: Parameters<CallRenderer>[1]) => string[] };
+export type CardOwner = { matches(name: string): boolean; owns?(args: unknown, result: McpCardResult | undefined): boolean; duration(id: string): number | undefined; render: (card: McpCard, width: number, theme: Parameters<CallRenderer>[1]) => string[] };
 const BRIDGE = Symbol.for("ein.tool-card-renderer-bridge");
 type Bridge = { owners: Set<CardOwner>; activate(): void; release(): void };
 
@@ -30,7 +32,7 @@ export function installToolCardBridge(prototype: object, owner: CardOwner): (() 
     const originals = { call: host.getCallRenderer, result: host.getResultRenderer, shell: host.getRenderShell, render: host.render };
     let refreshed = new WeakSet<object>();
     const frames = new WeakMap<object, { result?: McpCardResult }>();
-    const findOwner = (name: string) => [...owners].find((candidate) => candidate.matches(name));
+    const findOwner = (target: Host) => [...owners].find((candidate) => candidate.matches(target.toolName) && (!candidate.owns || candidate.owns(target.args, target.result)));
     const frame = (context: ToolRenderContext) => {
       let value = frames.get(context.state);
       if (!value) { value = {}; frames.set(context.state, value); }
@@ -38,7 +40,7 @@ export function installToolCardBridge(prototype: object, owner: CardOwner): (() 
     };
     const call: Host["getCallRenderer"] = function (this: Host) {
       const original = originals.call.call(this);
-      const selected = findOwner(this.toolName);
+      const selected = findOwner(this);
       if (!selected) return original;
       const tool = this.toolName;
       return (args, theme, context) => {
@@ -55,7 +57,7 @@ export function installToolCardBridge(prototype: object, owner: CardOwner): (() 
     };
     const result: Host["getResultRenderer"] = function (this: Host) {
       const original = originals.result.call(this);
-      const selected = findOwner(this.toolName);
+      const selected = findOwner(this);
       if (!selected) return original;
       const tool = this.toolName;
       return (output, options, theme, context) => {
@@ -69,12 +71,12 @@ export function installToolCardBridge(prototype: object, owner: CardOwner): (() 
       };
     };
     const shell: Host["getRenderShell"] = function (this: Host) {
-      return findOwner(this.toolName) ? "self" : originals.shell.call(this);
+      return findOwner(this) ? "self" : originals.shell.call(this);
     };
     const render: Host["render"] = function (this: Host, width) {
       // Pi rebuilds history before session_start on reload. Refresh its cached
       // render slots once so those already-mounted rows also receive the card.
-      if (!refreshed.has(this) && findOwner(this.toolName)) {
+      if (!refreshed.has(this) && findOwner(this)) {
         refreshed.add(this);
         this.invalidate();
       }
