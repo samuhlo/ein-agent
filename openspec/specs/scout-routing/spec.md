@@ -149,6 +149,13 @@ Given: a report contains `R6` with `lines: "49-83,91-117"`
 When: the adapter validates the report
 Then: both exact spans are checked against disk and retained, no evidence is invented for lines 84–90, and other claims remain usable if either span is rejected
 
+## Scenario: recover-scout-evidence-after-interruption
+title: Resume research from its recorded validation result
+requirement: The system MUST persist an evidence receipt with complete, partial, rejected or unavailable status alongside the original runner details and content. Parent-facing results MUST identify how to recover only material gaps; the terminal MUST distinguish evidence acceptance from process completion. After two citation or report-format failures, bounded read-only recovery within the existing authorization and remaining budget MUST take precedence over the generic subagent retry-stop instruction. No recovery permits writes, scope expansion, treating unsupported claims as verified, or bypassing the runtime-unavailable guard.
+Given: a scout result was recorded before the parent was interrupted
+When: the session resumes
+Then: the saved accepted evidence can be reused without repeating the scout, and remaining evidence is obtained through bounded reads while preserving prior agreements
+
 ## Scenario: use-independent-scouts-before-scope
 title: Use bounded independent scouts before scope
 requirement: The system MUST ensure that the parent uses at most three scouts with independent research angles and MUST NOT invoke speculative sdd-map for pre-scope research.
