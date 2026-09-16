@@ -280,6 +280,56 @@ describe("readonly scout report validation", () => {
 		expect(() => validateScoutReport(["x".repeat(SCOUT_REPORT_MAX_BYTES + 1)], root)).toThrow("exceeds");
 	});
 
+	test("rescata los hallazgos bien formados cuando otro rompe solo el array de findings", () => {
+		const root = fixture();
+		const source = report({
+			findings: [
+				{ claim: "The file has three lines", referenceIds: ["R1"] },
+				{ claim: "This finding will break", referenceIds: ["R2", "R3"] },
+			],
+			references: [
+				...report().references,
+				{ id: "R2", path: "evidence.ts", startLine: 1, endLine: 1, supports: "first line" },
+				{ id: "R3", path: "evidence.ts", startLine: 2, endLine: 2, supports: "second line" },
+			],
+		});
+		const malformed = JSON.stringify(source).replace(
+			'{"claim":"This finding will break","referenceIds":["R2","R3"]}',
+			'{"claim":"This finding will break.[R2","R3"]}',
+		);
+		const salvaged = validateScoutReport([malformed], root);
+
+		expect(salvaged.findings).toEqual([source.findings[0]]);
+		expect(salvaged.references.map((reference) => reference.id)).toEqual(["R1"]);
+		expect(salvaged.uncertainties.some((entry) => entry.statement.includes("1 hallazgo fue descartado") && entry.statement.includes("estructura"))).toBe(true);
+		expect(salvaged.uncertainties.filter((entry) => entry.statement.includes("unreferenced reference"))).toHaveLength(2);
+	});
+
+	test("descarta un finding con forma inválida sin perder sus hermanos válidos", () => {
+		const root = fixture();
+		const salvaged = validateScoutReport([report({
+			findings: [
+				{ claim: "The file has three lines", referenceIds: ["R1"] },
+				{ claim: "Missing its reference identifiers" },
+			],
+		})], root);
+
+		expect(salvaged.findings).toHaveLength(1);
+		expect(salvaged.uncertainties.some((entry) => entry.statement.includes("1 hallazgo fue descartado"))).toBe(true);
+	});
+
+	test("mantiene el rechazo si el daño no está acotado o no queda ningún hallazgo válido", () => {
+		const root = fixture();
+		const outside = JSON.stringify(report()).replace('"summary":"Evidence found"', '"summary":"Evidence found');
+		expect(() => validateScoutReport([outside], root)).toThrow("malformed structured report");
+
+		const onlyFinding = JSON.stringify(report()).replace(
+			'{"claim":"The file has three lines","referenceIds":["R1"]}',
+			'{"claim":"broken.[R1","R2"]}',
+		);
+		expect(() => validateScoutReport([onlyFinding], root)).toThrow("malformed structured report");
+	});
+
 	// D4: transición RED->GREEN. Antes `uncertainties: []` moría en "invalid
 	// report schema"; ahora es una afirmación firmada de que el scout MIRÓ y no
 	// encontró nada material — distinto de la clave ausente, que sigue siendo

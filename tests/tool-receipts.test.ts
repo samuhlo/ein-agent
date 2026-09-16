@@ -27,7 +27,7 @@ test("passing SDD checks and archive retain unavailable advisory evidence", () =
 });
 
 const TOOLS = [
-	"ein_intent", "ein_sdd_status", "ein_sdd_task_progress",
+	"ein_intent", "ein_skill_registry", "ein_skill_resolve", "ein_skill_digest", "ein_sdd_status", "ein_sdd_task_progress",
 	"ein_sdd_check",
 	"ein_sdd_preflight",
 	"ein_sdd_lane",
@@ -114,6 +114,45 @@ describe("reglas de voz, sobre todos los recibos", () => {
 });
 
 describe("lo que dice cada recibo", () => {
+	test("registro de skills: resume el resultado y reserva las rutas para el detalle", () => {
+		const found = receiptFor("ein_skill_registry", {
+			total: 1,
+			shown: 1,
+			source: "all",
+			query: "intent",
+			entries: [{
+				name: "intent-channel",
+				source: "local",
+				scope: "user",
+				path: "/tmp/intent-channel/SKILL.md",
+				tags: [],
+			}],
+		});
+		expect(found.line).toBe("1 skill encontrada · fuente: todas");
+		expect(found.detail.join("\n")).toContain("intent-channel");
+		expect(found.detail.join("\n")).toContain("/tmp/intent-channel/SKILL.md");
+		expect(found.bad).toBe(false);
+
+		const empty = receiptFor("ein_skill_registry", {
+			total: 0,
+			shown: 0,
+			source: "project",
+			query: "",
+			entries: [],
+		});
+		expect(empty.line).toBe("sin skills encontradas · fuente: proyecto");
+
+		expect(receiptFor("ein_skill_resolve", {
+			stack: "frontend",
+			count: 1,
+			entries: [{ name: "vue", path: "/tmp/vue/SKILL.md" }],
+		}).line).toBe("1 skill sugerida · frontend");
+		expect(receiptFor("ein_skill_digest", {
+			stack: "unknown",
+			count: 0,
+			entries: [],
+		}).line).toBe("ninguna skill preparada");
+	});
 	test("reports known preflight failures and reviewer configuration honestly", () => {
 		expect(receiptFor("ein_sdd_preflight", { ok: false, reason: "unknown change" }).line).toBe("el cambio todavía no existe");
 		const disabled = receiptFor("ein_sdd_participants", { status: "complete", order: [] });
@@ -346,6 +385,7 @@ describe("TRIANGULATE: ninguna herramienta se queda sin recibo por olvido", () =
 		new URL("../ein-pi/agent/extensions/internal/ein-sdd-lifecycle-tools.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/ein-ai.ts", import.meta.url).pathname,
+		new URL("../ein-pi/agent/extensions/ein-skill-registry.ts", import.meta.url).pathname,
 	];
 
 	async function source(): Promise<string> {
