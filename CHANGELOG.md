@@ -4,6 +4,17 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.9] - 2026-09-16
+
+### Fixed
+
+- `ein-scout` conserva los hallazgos y citas válidos cuando un hallazgo aislado
+  llega con la estructura dañada. Descarta únicamente esa parte, declara la
+  incertidumbre y mantiene el rechazo para informes sin evidencia utilizable.
+- El registro, la resolución y el digest de skills usan recibos compactos de
+  Ein; el detalle expandido conserva nombres, rutas, filtros y procedencia sin
+  volcar toda la salida en el flujo normal.
+
 ## [0.99.0-alpha.8] - 2026-09-16
 
 ### Changed
