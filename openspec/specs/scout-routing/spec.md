@@ -11,10 +11,10 @@ Then: only the exact reconstructed note is removed, the JSON still passes the co
 
 ## Scenario: accept-safe-cheap-model-report-variants
 title: Accept the safe natural variants of a cheap model report without weakening the citation gold
-requirement: The system MUST normalize a scout report that names the contract version under a top-level `schema` key, cites a reference range as `lineStart`/`lineEnd`, names the supporting text as `quote`, carries an extra `id` key inside a finding, or declares an empty `uncertainties` list as an explicit absence of uncertainty. The system MUST reject as ambiguous any report that carries both `schema` and `version`, or both `lines` and `lineStart`/`lineEnd`, or both `quote` and `supports`. The system MUST NOT synthesize a missing `summary` or `summaryReferenceIds`, and MUST keep validating every citation against the real file and line on disk.
+requirement: The system MUST normalize a scout report that names the contract version under a top-level `schema` key, cites a reference range as `lineStart`/`lineEnd`, names the supporting text as `quote`, carries an extra `id` key inside a finding, or declares an empty `uncertainties` list as an explicit absence of uncertainty. Root ambiguity (`schema` and `version` together) MUST reject the report. Reference-local ambiguity (`lines` with `lineStart`/`lineEnd`, or `quote` with `supports`) MUST reject that reference and every dependent finding, while retaining unrelated evidence. The system MUST NOT synthesize a missing `summary` or `summaryReferenceIds`, and MUST keep validating every citation against the real file and line on disk.
 Given: a cheap model returns a schema-valid scout report expressed in one of the measured natural variants, or a report that carries an alias together with its canonical key
 When: the local scout adapter parses and validates the report
-Then: each safe variant is normalized to the canonical report shape and accepted, an empty uncertainty list is accepted as an explicit absence, a report mixing an alias with its canonical key is rejected as ambiguous, a report missing `summary` or `summaryReferenceIds` is still rejected, and disk citation validation stays unchanged
+Then: safe variants normalize to the canonical shape, empty uncertainty is accepted as explicit absence, root ambiguity still rejects the report, local citation ambiguity preserves unrelated findings, and missing summary fields or invalid disk citations remain rejected
 
 ## Scenario: salvage-isolated-malformed-findings
 title: Keep verified scout evidence when one finding has malformed structure
@@ -137,10 +137,17 @@ Then: the message names the reference identifier, the path, and the cited range,
 
 ## Scenario: scout-report-survives-a-single-invalid-reference
 title: Salvage a report that carries one unresolvable citation
-requirement: The system MUST drop an unresolvable reference and the findings that rest solely on it instead of discarding the whole report, MUST record each dropped reference and finding as an explicit uncertainty carrying its rejection reason, and MUST reject the report entirely only when the summary retains no valid reference.
+requirement: The system MUST drop an unresolvable reference and every finding that loses any required support instead of discarding the whole report. It MUST retain the rejection reasons and counts of omitted findings in runtime recovery metadata, replace a potentially unsupported summary after any finding loss or reference parsing failure, and reject reports without surviving valid findings or references. The model input schema remains closed; recovery metadata is generated only by the adapter.
 Given: a schema-valid scout report whose references include at least one that cannot be resolved against disk
 When: the report is validated
-Then: the unresolvable reference and the findings resting solely on it are dropped, each drop is returned as an explicit uncertainty naming its reason, the remaining cited evidence reaches the parent, and only a summary left without any valid reference fails the report as a whole
+Then: incomplete claims are omitted with recovery provenance, an affected summary is replaced by a partial-evidence notice, and the remaining cited findings reach the parent without consuming the wholesale-failure retry budget
+
+## Scenario: preserve-discontinuous-citation-support
+title: Preserve exact disjoint line spans without widening citations
+requirement: The system MUST normalize comma-separated line spans into individual canonical references, allocate non-colliding identifiers, and remap every dependent finding and summary reference list to require all spans. It MUST retain the 24-reference output limit and reject only the citation that cannot fit or be interpreted. A missing span MUST invalidate any claim that depends on the whole citation.
+Given: a report contains `R6` with `lines: "49-83,91-117"`
+When: the adapter validates the report
+Then: both exact spans are checked against disk and retained, no evidence is invented for lines 84–90, and other claims remain usable if either span is rejected
 
 ## Scenario: use-independent-scouts-before-scope
 title: Use bounded independent scouts before scope
