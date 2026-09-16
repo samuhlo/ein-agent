@@ -45,8 +45,14 @@ type ScoutScope = { root: string; allowedRoots: string[] };
 export type ScoutTracking = Map<string, string | ScoutScope>;
 type Reference = { id: string; path: string; startLine: number; endLine: number; supports: string };
 type Uncertainty = { level: string; statement: string };
-type Report = { version: string; summary: string; summaryReferenceIds: string[]; findings: { claim: string; referenceIds: string[] }[]; references: Reference[]; uncertainties: Uncertainty[] };
+export type ScoutReport = { version: string; summary: string; summaryReferenceIds: string[]; findings: { claim: string; referenceIds: string[] }[]; references: Reference[]; uncertainties: Uncertainty[]; recovery?: { droppedReferences: string[]; droppedFindings: number } };
+type Report = ScoutReport;
 export type ScoutFanout = { version: "ein-scout-fanout/v1"; branches: { task: string; report: Report }[]; dropped: string[] };
+
+export function scoutEvidenceStatus(report: Report | ScoutFanout): "complete" | "partial" {
+	if ("branches" in report) return report.dropped.length || report.branches.some(({ report }) => scoutEvidenceStatus(report) === "partial") ? "partial" : "complete";
+	return report.recovery || report.uncertainties.some(({ level }) => level === "material") ? "partial" : "complete";
+}
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 // Declared (not an unannotated arrow const) so TypeScript applies never-returning
@@ -124,7 +130,9 @@ export function normalizeScoutLaunch(input: unknown, toolCallId: string, trackin
 	if (delegationWorkflowScript(input) !== undefined) {
 		return { ...launch, ...contract, async: false };
 	}
-	return { ...launch, ...contract, agent: "ein-scout", async: false };
+	const task = typeof launch.task === "string" ? launch.task : "";
+	const capabilities = "Scout capabilities: only read, grep, find; no codegraph or shell. Inspect relevant imported helpers only within the authorized roots; otherwise report the exact missing path and why it matters. A call to an unread authorization helper is an evidence gap, not proof of missing authorization.";
+	return { ...launch, ...contract, ...(task && !task.includes(capabilities) ? { task: `${task}\n\n${capabilities}` } : {}), agent: "ein-scout", async: false };
 }
 
 
@@ -359,7 +367,7 @@ function parseScoutJson(raw: string): ParsedScoutJson {
 	}
 }
 
-function parseReport(payload: unknown): Report {
+function parseReport(payload: unknown): { report: Report; rejected: string[]; droppedFindings: number } {
 	const raw = typeof payload === "string" ? payload : JSON.stringify(payload);
 	if (Buffer.byteLength(raw, "utf8") > SCOUT_REPORT_MAX_BYTES) fail("report exceeds 16384 UTF-8 bytes");
 	const parsed = typeof payload === "string" ? parseScoutJson(payload) : { value: payload, droppedFindings: 0 };
@@ -374,19 +382,51 @@ function parseReport(payload: unknown): Report {
 	if (validFindings.length === 0) fail("no valid findings survived report normalization");
 	canonical.findings = validFindings;
 	const rawReferences = canonical.references;
-	// R3: el rechazo nombra la referencia (por id, cuando lo trae) y su causa
-	// concreta, en vez del "invalid reference" mudo de antes — un mensaje sin
-	// nombre solo permite relanzar a ciegas.
-	const references: NormalizedReference[] = [];
-	for (let index = 0; index < rawReferences.length; index += 1) {
-		const normalized = normalizeReference(rawReferences[index]);
-		if (!normalized.ok) {
-			const raw = rawReferences[index];
-			const id = isRecord(raw) && typeof raw.id === "string" ? raw.id : "?";
-			fail(`invalid reference ${id}: ${normalized.reason}`);
-		}
-		references.push(normalized.value);
+	const ids = new Set<string>();
+	for (const reference of rawReferences) {
+		if (!isRecord(reference) || typeof reference.id !== "string" || !/^R[1-9][0-9]*$/.test(reference.id)) fail("invalid reference: missing or invalid id");
+		if (ids.has(reference.id)) fail("duplicate reference id");
+		ids.add(reference.id);
 	}
+	const findings = validFindings as Report["findings"];
+	const summaryIds = canonical.summaryReferenceIds as string[];
+	for (const id of [...summaryIds, ...findings.flatMap(({ referenceIds }) => referenceIds)]) if (!ids.has(id)) fail("unknown reference id");
+	const reserved = new Set(ids);
+	const expanded = new Map<string, string[]>();
+	const references: NormalizedReference[] = [];
+	const rejected: string[] = [];
+	let availableExtraRanges = 24 - rawReferences.length;
+	for (let index = 0; index < rawReferences.length; index += 1) {
+		const raw = rawReferences[index] as Record<string, unknown>;
+		const id = raw.id as string;
+		const ranges = typeof raw.lines === "string" ? raw.lines.split(",") : [undefined];
+		if (ranges.length - 1 > availableExtraRanges) {
+			rejected.push(`invalid reference ${id}: discontinuous ranges exceed the 24-reference budget`);
+			continue;
+		}
+		const parts = ranges.map((lines) => normalizeReference(lines === undefined ? raw : { ...raw, lines }));
+		const failure = parts.find((part) => !part.ok);
+		if (failure && !failure.ok) { rejected.push(`invalid reference ${id}: ${failure.reason}`); continue; }
+		const mapped: string[] = [];
+		for (const part of parts) {
+			if (!part.ok) continue;
+			let partId = id;
+			if (mapped.length) {
+				let suffix = 1;
+				while (reserved.has(`R${suffix}`)) suffix += 1;
+				partId = `R${suffix}`;
+				reserved.add(partId);
+			}
+			references.push({ ...part.value, id: partId });
+			mapped.push(partId);
+		}
+		availableExtraRanges -= ranges.length - 1;
+		expanded.set(id, mapped);
+	}
+	// SUPPORT -> Each disjoint span remains required; never fill the gap or keep half a claim.
+	const remap = (values: string[]) => values.flatMap((id) => expanded.get(id) ?? [id]);
+	canonical.findings = findings.map((finding) => ({ ...finding, referenceIds: remap(finding.referenceIds) }));
+	canonical.summaryReferenceIds = remap(summaryIds);
 	const uncertainties = canonical.uncertainties.map(normalizeUncertainty);
 	if (uncertainties.some((uncertainty) => uncertainty === null)) fail("missing or invalid uncertainty");
 	const droppedFindings = parsed.droppedFindings + invalidFindings;
@@ -394,7 +434,7 @@ function parseReport(payload: unknown): Report {
 		level: "material",
 		statement: `${droppedFindings === 1 ? "1 hallazgo fue descartado" : `${droppedFindings} hallazgos fueron descartados`} porque su estructura estaba dañada; el resto del informe conserva la validación normal`,
 	}];
-	return { ...canonical, references, uncertainties: [...uncertainties, ...salvageUncertainty] } as Report;
+	return { report: { ...canonical, references, uncertainties: [...uncertainties, ...salvageUncertainty] } as Report, rejected, droppedFindings };
 }
 
 // R2. El mensaje dice QUÉ cita falla. Antes era "reference line range is
@@ -443,28 +483,25 @@ function checkReference(root: string, reference: Reference, allowedRoots: string
 
 export function validateScoutReport(payloads: readonly unknown[], root: string, allowedRoots = [root]): Report {
 	if (payloads.length !== 1) fail(payloads.length === 0 ? "missing structured report" : "multiple structured reports");
-	const report = parseReport(payloads[0]);
-
-	// NIVEL 1 — coherencia interna: estricta, determinista, del modelo.
-	const ids = new Set<string>();
-	for (const reference of report.references) { if (ids.has(reference.id)) fail("duplicate reference id"); ids.add(reference.id); }
+	const parsed = parseReport(payloads[0]);
+	const { report } = parsed;
 	const used = new Set([...report.summaryReferenceIds, ...report.findings.flatMap((finding) => finding.referenceIds)]);
-	for (const id of used) if (!ids.has(id)) fail("unknown reference id");
 
 	// NIVEL 2 — citas contra disco: se recorta, se descarta, se declara.
 	const kept: Reference[] = [];
-	const dropped: string[] = [];
+	const dropped: string[] = [...parsed.rejected];
 	for (const reference of report.references) {
 		if (!used.has(reference.id)) { dropped.push(`${reference.id}: unreferenced reference`); continue; }
 		const checked = checkReference(root, reference, allowedRoots);
 		if (checked.ok) kept.push(checked.reference);
 		else dropped.push(checked.reason);
 	}
-	if (dropped.length === 0) return { ...report, references: kept };
+	if (dropped.length === 0 && parsed.droppedFindings === 0) return { ...report, references: kept };
 
 	const live = new Set(kept.map((reference) => reference.id));
 	const findings = report.findings.filter((finding) => finding.referenceIds.every((id) => live.has(id)));
-	const summaryIntact = report.summaryReferenceIds.every((id) => live.has(id));
+	// SUMMARY -> A malformed finding may have carried a conclusion repeated in the summary.
+	const summaryIntact = parsed.droppedFindings === 0 && parsed.rejected.length === 0 && report.summaryReferenceIds.every((id) => live.has(id)) && findings.length === report.findings.length;
 	const summaryReferenceIds = summaryIntact ? report.summaryReferenceIds : [...new Set(findings.flatMap((finding) => finding.referenceIds))].slice(0, 8);
 	const usedAfterDrop = new Set([...summaryReferenceIds, ...findings.flatMap((finding) => finding.referenceIds)]);
 	const references = kept.filter((reference) => usedAfterDrop.has(reference.id));
@@ -474,10 +511,11 @@ export function validateScoutReport(payloads: readonly unknown[], root: string, 
 	}
 	return {
 		...report,
-		summary: summaryIntact ? report.summary : "Partial evidence: see the surviving cited findings; the original summary lost supporting references.",
+		summary: summaryIntact ? report.summary : "Partial evidence: use only the surviving cited findings; the original summary was withheld after report recovery.",
 		summaryReferenceIds,
 		findings,
 		references,
+		recovery: { droppedReferences: dropped, droppedFindings: parsed.droppedFindings + report.findings.length - findings.length },
 		// El descarte viaja con procedencia (`// 002`): no se esconde, se declara.
 		// El tope de 8 incertidumbres vale para el reporte de ENTRADA, que valida
 		// al modelo; la salida es enriquecimiento de Ein y no puede quedar muda
