@@ -33,6 +33,7 @@ test("an uninterpretable R6 loses only its claim, replaces the summary and recor
 	expect(report.findings.some(({ referenceIds }) => referenceIds.includes("R6"))).toBe(false);
 	expect(report.summary).not.toBe(source.summary);
 	expect(report.recovery?.droppedReferences.join(" ")).toContain("R6");
+	expect(report.recovery?.droppedReferences.join(" ")).toContain("source.ts");
 	expect(report.recovery?.droppedFindings).toBe(1);
 	expect(scoutEvidenceStatus(report)).toBe("partial");
 });

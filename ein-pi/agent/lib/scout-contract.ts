@@ -399,14 +399,16 @@ function parseReport(payload: unknown): { report: Report; rejected: string[]; dr
 	for (let index = 0; index < rawReferences.length; index += 1) {
 		const raw = rawReferences[index] as Record<string, unknown>;
 		const id = raw.id as string;
+		const location = typeof raw.path === "string" ? raw.path.slice(0, 512) : "missing path";
+		const reject = (reason: string) => rejected.push(`invalid reference ${id} (${location}): ${reason}`);
 		const ranges = typeof raw.lines === "string" ? raw.lines.split(",") : [undefined];
 		if (ranges.length - 1 > availableExtraRanges) {
-			rejected.push(`invalid reference ${id}: discontinuous ranges exceed the 24-reference budget`);
+			reject("discontinuous ranges exceed the 24-reference budget");
 			continue;
 		}
 		const parts = ranges.map((lines) => normalizeReference(lines === undefined ? raw : { ...raw, lines }));
 		const failure = parts.find((part) => !part.ok);
-		if (failure && !failure.ok) { rejected.push(`invalid reference ${id}: ${failure.reason}`); continue; }
+		if (failure && !failure.ok) { reject(failure.reason); continue; }
 		const mapped: string[] = [];
 		for (const part of parts) {
 			if (!part.ok) continue;
