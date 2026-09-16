@@ -116,7 +116,7 @@ describe("orchestrator: flujo por fases determinista", () => {
 		// Modo interactivo redefinido (Fase 3): planificación continua, UNA compuerta
 		// antes de apply, verify/close automáticos si pasan pero STOP ante fallo.
 		expect(orch).toContain("discovery first, execution approval before apply");
-		expect(orch).toContain("single confirmation before the first `sdd-apply`");
+		expect(orch).toMatch(/THEN ask once.*before the first `sdd-apply`/);
 		expect(orch).toContain("STOPS the flow with the exact cause");
 	});
 
@@ -125,14 +125,13 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(agents).toContain("everyday human language");
 		expect(agents).toContain("A localized fix with tests can use a few paragraphs");
 		expect(agents).toContain("Honor existing authorization");
-		// The communication update shortens these instructions without changing
-		// their contract. Check the obligations, not one wording or example.
+		// SCOPE -> This checks prompt obligations; model behavior is replayed in evals.
 		const teaching = orch.split("**Human-first teaching.**")[1]?.split("\n\n")[0] ?? "";
-		expect(teaching).toMatch(/everyday (?:human )?language/);
-		expect(teaching).toMatch(/(?:never stack|avoid) unexplained jargon/);
-		expect(teaching).toMatch(/(?:defining|define) technical terms|defining each technical term/);
-		expect(teaching).toContain("step by step");
-		expect(teaching).toMatch(/technical (?:correctness|depth)/);
+		expect(teaching).toContain("without programming knowledge");
+		expect(teaching).toContain("ordinary verbs in the opening paragraph");
+		expect(teaching).toContain("technical vocabulary in the mechanism and define them");
+		expect(teaching).toContain("how the pieces connect");
+		expect(teaching).toContain("Keep risks");
 		expect(orch).toMatch(/File count alone does not make (?:a change|it) important/);
 		const human = orch.indexOf("EN LENGUAJE HUMANO:");
 		const inside = orch.indexOf("POR DENTRO:");

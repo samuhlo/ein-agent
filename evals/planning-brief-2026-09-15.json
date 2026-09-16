@@ -1,0 +1,90 @@
+{
+  "model": "openai-codex/gpt-6-astra",
+  "limitations": "Read-only prose replay with supplied evidence, not an end-to-end SDD run. Assess actual explanations manually; no claim of deterministic language quality.",
+  "results": [
+    {
+      "sample": 1,
+      "variant": "baseline",
+      "scenario": "after-map",
+      "elapsedMs": 6753,
+      "answer": "Map confirma la causa: el calculador recibe **todos los módulos del certificado**, aunque el progreso debe limitarse a los seleccionados para el curso y, para docentes, a los de su asignación.\n\nLa propuesta es conservar esa selección al abrir el curso en `use-cursos.ts` y filtrar los módulos **antes de pasarlos al calculador existente**, sin cambiar su lógica. Deben mantenerse las protecciones que impiden que una respuesta tardía de otro curso sobrescriba el actual.\n\n**Map es parcial:** falta comprobar el estado sin módulos asignados. No hay código cambiado ni pruebas ejecutadas.\n\nEl siguiente paso autorizado es **design**: concretar este mecanismo y sus criterios de aceptación, dejando explícita esa incertidumbre. No se inicia implementación."
+    },
+    {
+      "sample": 1,
+      "variant": "baseline",
+      "scenario": "before-apply",
+      "elapsedMs": 14840,
+      "answer": "## // PLAN — Selección de módulos del curso\n\n**// QUÉ**  \nHacer que la cabecera y el progreso reflejen la misma selección de módulos, limitada a los asignados al docente.\n\n**// CÓMO FUNCIONA**  \n`use-cursos.ts` conservará `selectedModuleIds`. Después, `use-curso-panel.ts` tomará únicamente los módulos que estén **seleccionados y asignados al docente**, y pasará ese conjunto al calculador actual.\n\nPor ejemplo: si se seleccionan A y B, pero el docente solo tiene asignado B, el cálculo usará B. No cambia la regla de completitud. Se mantiene la protección frente a respuestas tardías; la vista sin módulos mostrará **«Sin módulos asignados»**.\n\n**// QUÉ SE TOCA**\n- **Grupo 1:** `app/composables/use-cursos.ts`  \n  Verificación: `bun run test tests/composables/use-cursos.test.ts` + typecheck.\n- **Grupo 2:** `app/composables/use-curso-panel.ts` y `app/pages/cursos/[id].vue`  \n  Verificación: `bun run test tests/composables/use-curso-panel.test.ts tests/pages/curso-panel.test.ts` + typecheck.\n\n**// RIESGOS**  \nMezclar la selección de un curso con la de otro al navegar. La selección debe mantenerse dentro del curso correspondiente, incluso cuando lleguen respuestas tardías.\n\nTodavía **no se ha cambiado código ni ejecutado pruebas**.\n\n¿**Aplicar** ambos grupos y verificarlos, **Revisar** el plan o **Ajustar** su alcance?"
+    },
+    {
+      "sample": 1,
+      "variant": "baseline",
+      "scenario": "small-change",
+      "elapsedMs": 3084,
+      "answer": "Cambiaré únicamente la etiqueta «Guardar» por «Guardar curso» mediante una edición delegada, sin tocar estilos ni comportamiento."
+    },
+    {
+      "sample": 1,
+      "variant": "revised",
+      "scenario": "after-map",
+      "elapsedMs": 7343,
+      "answer": "Hoy, al abrir un curso, el progreso se calcula con todos los módulos del certificado, aunque el curso tenga seleccionados solo algunos. El acuerdo pide contar únicamente los módulos del curso y, para docentes, solo los de su asignación. Por ejemplo, un módulo ajeno al curso no debería alterar su porcentaje.\n\nLa propuesta es conservar en `use-cursos.ts` la selección que ya guarda el curso y filtrar los módulos antes de pasarlos al calculador existente, sin cambiar ese calculador. Deben mantenerse las protecciones que impiden que una respuesta tardía del curso anterior sobrescriba el actual.\n\nEl mapa es parcial: falta comprobar qué ocurre cuando no hay módulos asignados. **El siguiente paso autorizado es design**, donde se concretará el mecanismo y se hará explícita esa incertidumbre. No se ha cambiado código ni ejecutado pruebas."
+    },
+    {
+      "sample": 1,
+      "variant": "revised",
+      "scenario": "before-apply",
+      "elapsedMs": 13081,
+      "answer": "## // PLAN — Selección de módulos del curso\n\n**// QUÉ**  \nLa cabecera y el progreso usarán la misma selección. Por ejemplo, si seleccionas dos módulos, pero solo uno está asignado al docente, el progreso se calculará sobre ese módulo. No cambia qué se considera completo. Si no hay módulos asignados, se mostrará **«Sin módulos asignados»**.\n\n**// CÓMO FUNCIONA**  \n`use-cursos.ts` conservará `selectedModuleIds`, la lista de módulos seleccionados. `use-curso-panel.ts` tomará solo los módulos que estén **tanto seleccionados como asignados al docente** y los pasará al calculador actual. Se mantendrá la protección para que una respuesta tardía no sustituya los datos vigentes.\n\n**// QUÉ SE TOCA**\n- **Grupo 1:** `app/composables/use-cursos.ts`  \n  Comprobación: `bun run test tests/composables/use-cursos.test.ts` y typecheck.\n- **Grupo 2:** `app/composables/use-curso-panel.ts` y `app/pages/cursos/[id].vue`  \n  Comprobación: `bun run test tests/composables/use-curso-panel.test.ts tests/pages/curso-panel.test.ts` y typecheck.\n\n**// RIESGOS**  \nEl principal riesgo es mezclar selecciones o datos entre cursos al cambiar de uno a otro.\n\nTodavía no se ha cambiado código ni ejecutado pruebas.\n\n**¿Cómo seguimos?**\n- **Aplicar** — implementar ambos grupos y verificar.\n- **Revisar** — examinar el plan antes de implementar.\n- **Ajustar** — modificar el alcance o el comportamiento propuesto."
+    },
+    {
+      "sample": 1,
+      "variant": "revised",
+      "scenario": "small-change",
+      "elapsedMs": 3322,
+      "answer": "Cambiaré únicamente el texto del botón de «Guardar» a «Guardar curso», sin tocar su comportamiento ni ningún otro texto. Delegaré esta edición puntual, sin iniciar una cadena SDD."
+    },
+    {
+      "sample": 2,
+      "variant": "baseline",
+      "scenario": "after-map",
+      "elapsedMs": 8350,
+      "answer": "Map ha localizado el desajuste: **el calculador recibe todos los módulos del certificado**, aunque el progreso debe limitarse a los del curso y, para docentes, a los de su asignación.\n\nLa propuesta es conservar en `use-cursos.ts` la selección que ya guarda el curso y filtrar los módulos **antes de pasarlos al calculador existente**, sin cambiar su lógica. Deben mantenerse las protecciones que impiden que una respuesta tardía de otro curso sobrescriba el actual.\n\n**El mapa es parcial:** falta comprobar el estado sin módulos asignados. No hay código cambiado ni pruebas ejecutadas.\n\nEl siguiente paso autorizado es **design**: concretar este mecanismo, preservar esas protecciones y dejar explícita la comprobación pendiente. Esto no autoriza todavía la implementación."
+    },
+    {
+      "sample": 2,
+      "variant": "baseline",
+      "scenario": "before-apply",
+      "elapsedMs": 11381,
+      "answer": "## // PLAN — Selección coherente en el panel del curso\n\n**// QUÉ**  \nCabecera y progreso usarán la misma selección de módulos, respetando los asignados al docente.\n\n**// CÓMO FUNCIONA**  \n`use-cursos.ts` conservará `selectedModuleIds`. Antes de calcular el progreso, `use-curso-panel.ts` tomará únicamente los módulos que estén **seleccionados y asignados al docente** y los pasará al calculador actual.\n\nNo cambia la regla de completitud. Se mantiene la protección para que una respuesta tardía no sobrescriba el estado vigente. La vista sin módulos mostrará **«Sin módulos asignados»**.\n\n**// QUÉ SE TOCA**\n- **Grupo 1:** `app/composables/use-cursos.ts`  \n  Verificación: `bun run test tests/composables/use-cursos.test.ts` + typecheck.\n- **Grupo 2:** `app/composables/use-curso-panel.ts` y `app/pages/cursos/[id].vue`  \n  Verificación: `bun run test tests/composables/use-curso-panel.test.ts tests/pages/curso-panel.test.ts` + typecheck.\n\n**// RIESGOS**  \nMezclar selecciones entre cursos: habrá que comprobar que cada curso conserva su propio alcance.\n\nTodavía no se ha cambiado código ni ejecutado pruebas.\n\n¿Qué prefieres: **Aplicar** el plan completo, **Revisar** el detalle o **Ajustar** el planteamiento?"
+    },
+    {
+      "sample": 2,
+      "variant": "baseline",
+      "scenario": "small-change",
+      "elapsedMs": 2924,
+      "answer": "Cambiaré únicamente el texto del botón de «Guardar» a «Guardar curso» mediante una delegación puntual, sin cadena SDD ni cambios de lógica o estilo."
+    },
+    {
+      "sample": 2,
+      "variant": "revised",
+      "scenario": "after-map",
+      "elapsedMs": 7139,
+      "answer": "Hoy, al abrir un curso, el progreso se calcula con todos los módulos del certificado, incluidos los que no pertenecen al curso. La propuesta es contar solo los seleccionados para ese curso y, si quien consulta es docente, únicamente los que además tenga asignados.\n\nEl curso ya guarda su selección, pero `use-cursos.ts` no la conserva al abrirlo. En **design** se concretará cómo mantenerla y filtrar los módulos antes de pasarlos al calculador existente, sin sustituirlo ni perder las protecciones que impiden que una respuesta tardía de otro curso sobrescriba el actual.\n\nEl mapa es parcial: queda por comprobar el estado **sin módulos asignados**. Esa incertidumbre debe quedar explícita en el diseño. No hay código cambiado ni pruebas ejecutadas; el siguiente paso autorizado es **design**, no implementar."
+    },
+    {
+      "sample": 2,
+      "variant": "revised",
+      "scenario": "before-apply",
+      "elapsedMs": 13008,
+      "answer": "## // PLAN — Selección y progreso del curso\n\n**// QUÉ**  \nLa cabecera y el progreso usarán la misma selección de módulos. Por ejemplo, si seleccionas dos módulos y solo uno está asignado al docente, el progreso se calculará sobre ese módulo. No cambia qué se considera completo. Sin módulos asignados, se mostrará **«Sin módulos asignados»**.\n\n**// CÓMO FUNCIONA**  \n`use-cursos.ts` conservará `selectedModuleIds`, la lista de módulos seleccionados. `use-curso-panel.ts` tomará únicamente los módulos que estén tanto en esa selección como entre los asignados al docente y los pasará al calculador actual. Se mantendrá la protección que impide que una respuesta tardía sustituya los datos vigentes.\n\n**// QUÉ SE TOCA**\n- **Grupo 1:** `app/composables/use-cursos.ts`  \n  Comprobación: `bun run test tests/composables/use-cursos.test.ts` + typecheck.\n- **Grupo 2:** `app/composables/use-curso-panel.ts` y `app/pages/cursos/[id].vue`  \n  Comprobación: `bun run test tests/composables/use-curso-panel.test.ts tests/pages/curso-panel.test.ts` + typecheck.\n\n**// RIESGOS**  \nMezclar selecciones o datos entre cursos al cambiar de curso. Será importante comprobar ese aislamiento.\n\nTodavía no se ha cambiado código ni ejecutado pruebas.\n\n**¿Cómo seguimos?**\n- **Aplicar (recomendado):** ejecutar ambos grupos y verificar.\n- **Revisar:** examinar el diseño antes de aplicar.\n- **Ajustar:** modificar el plan."
+    },
+    {
+      "sample": 2,
+      "variant": "revised",
+      "scenario": "small-change",
+      "elapsedMs": 3420,
+      "answer": "Cambiaré únicamente el texto del botón de «Guardar» a «Guardar curso». Lo delegaré como un cambio mecánico, sin tocar estilos ni comportamiento y sin iniciar una cadena SDD."
+    }
+  ]
+}
