@@ -9,6 +9,7 @@ import { buildConventionBlock } from "../lib/style-contract.ts";
 import { pick } from "../lib/lang";
 import { readLinearIntegration, type LinearIntegration } from "../lib/linear-integration";
 import { AGENT_DIR, DOWNLOADED_SKILLS_DIR, LOCAL_SKILLS_DIR } from "./ein-paths";
+import { createEinToolRegistrar } from "./internal/ein-tool-registration.ts";
 
 type SkillScope = "project" | "user";
 
@@ -464,8 +465,9 @@ export function resolveSkillInjection(cwd: string, task: string, limit = 6, agen
 
 export default function einSkillRegistry(pi: ExtensionAPI) {
 	pi = withEinCommandSurfaces(pi, "ein-skill-registry");
+	const registerEinTool = createEinToolRegistrar(pi);
 
-  pi.registerTool({
+  registerEinTool({
     name: "ein_skill_registry",
     label: "Ein Skill Registry",
     description: "Search project/user skills; return descriptions and exact SKILL.md paths ready to read.",
@@ -476,11 +478,27 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
       const filtered = filteredRegistry(registry, params);
       const limit = Math.max(1, Math.min(params.limit ?? filtered.length, 100));
       const output = formatRegistry(filtered.slice(0, limit), params.source ?? "all", filtered.length);
-      return { content: [{ type: "text", text: output }], details: { total: filtered.length } };
+      const shown = filtered.slice(0, limit);
+      return {
+        content: [{ type: "text", text: output }],
+        details: {
+          total: filtered.length,
+          shown: shown.length,
+          source: params.source ?? "all",
+          query: params.query?.trim() ?? "",
+          entries: shown.map((entry) => ({
+            name: entry.name,
+            source: entry.source,
+            scope: entry.scope,
+            path: entry.path,
+            tags: entry.stackTags,
+          })),
+        },
+      };
     },
   });
 
-  pi.registerTool({
+  registerEinTool({
     name: "ein_skill_resolve",
     label: "Ein Skill Resolve",
     description: "Resolve relevant skills for a task and return descriptions and exact SKILL.md paths ready to read.",
@@ -506,11 +524,18 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
       }
 
       if (!resolved.length) lines.push("- No hay coincidencias fuertes. Refina el task o especifica stack.");
-      return { content: [{ type: "text", text: lines.join("\n") }], details: { stack, count: resolved.length } };
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        details: {
+          stack,
+          count: resolved.length,
+          entries: resolved.map((skill) => ({ name: skill.name, path: skill.path })),
+        },
+      };
     },
   });
 
-  pi.registerTool({
+  registerEinTool({
     name: "ein_skill_digest",
     label: "Ein Skill Digest",
     description: "Return exact SKILL.md paths to load before work, plus concise protocol.",
@@ -523,7 +548,14 @@ export default function einSkillRegistry(pi: ExtensionAPI) {
       const registry = loadRegistry(cwd);
       const resolved = resolveSkills(registry, task, stack, Math.max(1, Math.min(params.limit ?? 6, 12)));
       const digest = digestSkillGuidelines(resolved, task, stack);
-      return { content: [{ type: "text", text: digest }], details: { stack, count: resolved.length } };
+      return {
+        content: [{ type: "text", text: digest }],
+        details: {
+          stack,
+          count: resolved.length,
+          entries: resolved.map((skill) => ({ name: skill.name, path: skill.path })),
+        },
+      };
     },
   });
 

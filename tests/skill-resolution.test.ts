@@ -135,6 +135,10 @@ test("native skill tools return readable paths from the actual session project",
     writeFileSync(path, "---\nname: fixture-local-accessibility\ndescription: Trigger: fixture-local-accessibility. Check focus order.\n---\nUse actual keyboard navigation.\n");
     const tools = new Map<string, any>();
     registerSkills({ registerTool(tool: any) { tools.set(tool.name, tool); }, registerCommand() {} } as any);
+    expect(typeof tools.get("ein_skill_registry").renderCall).toBe("function");
+    expect(typeof tools.get("ein_skill_registry").renderResult).toBe("function");
+    expect(typeof tools.get("ein_skill_resolve").renderResult).toBe("function");
+    expect(typeof tools.get("ein_skill_digest").renderResult).toBe("function");
     for (const name of ["ein_skill_registry", "ein_skill_resolve", "ein_skill_digest"]) {
       const result = await tools.get(name).execute("call", {
         query: "fixture-local-accessibility", task: "fixture-local-accessibility", limit: 1,
@@ -142,6 +146,14 @@ test("native skill tools return readable paths from the actual session project",
       const text = result.content.map((part: any) => part.text ?? "").join("\n");
       expect(text).toContain(path);
       if (name !== "ein_skill_digest") expect(text).toContain("Check focus order");
+      if (name === "ein_skill_registry") {
+        expect(result.details).toMatchObject({ total: 1, shown: 1, source: "all" });
+        expect(result.details.entries[0]).toMatchObject({ name: "fixture-local-accessibility", path });
+        const theme = { fg: (_token: string, value: string) => value, bold: (value: string) => value };
+        expect(tools.get(name).renderCall({}, theme).text).toBe("ein · Consultar skills");
+        expect(tools.get(name).renderResult(result, { expanded: false }, theme).text).toBe("1 skill encontrada · fuente: todas");
+        expect(tools.get(name).renderResult(result, { expanded: true }, theme).text).toContain(path);
+      }
     }
   } finally {
     rmSync(cwd, { recursive: true, force: true });

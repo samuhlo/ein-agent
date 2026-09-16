@@ -33,6 +33,9 @@ export type ToolReceipt = Readonly<{
 
 export const TOOL_LABELS: Readonly<Record<string, string>> = {
 	ein_intent: "Qué queremos conseguir",
+	ein_skill_registry: "Consultar skills",
+	ein_skill_resolve: "Resolver skills",
+	ein_skill_digest: "Preparar skills",
 	ein_sdd_status: "Estado",
 	ein_sdd_task_progress: "Progreso de la tarea",
 	ein_sdd_check: "Validar artefactos",
@@ -436,6 +439,59 @@ function architectValidateReceipt(details: unknown): ToolReceipt {
 	], true);
 }
 
+function skillRegistryReceipt(details: unknown): ToolReceipt {
+	if (!isRecord(details) || num(details.total) === null || num(details.shown) === null
+		|| !Array.isArray(details.entries) || typeof details.source !== "string") return unreadable();
+	const total = num(details.total) ?? 0;
+	const shown = num(details.shown) ?? 0;
+	const sourceNames: Record<string, string> = {
+		all: "todas",
+		project: "proyecto",
+		local: "locales",
+		downloaded: "descargadas",
+	};
+	const source = sourceNames[details.source] ?? details.source;
+	const line = total === 0
+		? `sin skills encontradas · fuente: ${source}`
+		: `${plural(total, "skill encontrada", "skills encontradas")} · fuente: ${source}`;
+	const entries = details.entries.map((entry) => {
+		if (!isRecord(entry) || !str(entry.name) || !str(entry.path)
+			|| !str(entry.source) || !str(entry.scope) || !Array.isArray(entry.tags)) return null;
+		const tags = entry.tags.filter((tag): tag is string => typeof tag === "string");
+		return [
+			`${entry.name} · ${entry.source}/${entry.scope}${tags.length > 0 ? ` · ${tags.join(", ")}` : ""}`,
+			String(entry.path),
+		];
+	}).filter((entry): entry is string[] => entry !== null).flat();
+	if (entries.length !== shown * 2) return unreadable();
+	const query = str(details.query);
+	return receipt(line, [
+		`${plural(shown, "resultado mostrado", "resultados mostrados")} de ${total}.`,
+		...(query ? [`Búsqueda: ${query}.`] : []),
+		...entries,
+	]);
+}
+
+function skillSelectionReceipt(details: unknown, action: "sugerida" | "preparada"): ToolReceipt {
+	if (!isRecord(details) || num(details.count) === null || !Array.isArray(details.entries)
+		|| typeof details.stack !== "string") return unreadable();
+	const count = num(details.count) ?? 0;
+	const entries = details.entries.map((entry) => {
+		if (!isRecord(entry) || !str(entry.name) || !str(entry.path)) return null;
+		return [`${entry.name}`, String(entry.path)];
+	}).filter((entry): entry is string[] => entry !== null).flat();
+	if (entries.length !== count * 2) return unreadable();
+	const suffix = details.stack === "unknown" ? "" : ` · ${details.stack}`;
+	const pluralAction = action === "sugerida" ? "skills sugeridas" : "skills preparadas";
+	return receipt(
+		count === 0 ? `ninguna skill ${action}` : `${count === 1 ? `1 skill ${action}` : `${count} ${pluralAction}`}${suffix}`,
+		[
+			count === 0 ? "No hay una coincidencia suficientemente fuerte para esta tarea." : `${plural(count, "skill elegida", "skills elegidas")} para esta tarea.`,
+			...entries,
+		],
+	);
+}
+
 // ─── Registro ────────────────────────────────────────────────────────────────
 
 export const TOOL_RECEIPTS: Readonly<Record<string, (details: unknown) => ToolReceipt>> = {
@@ -449,6 +505,9 @@ export const TOOL_RECEIPTS: Readonly<Record<string, (details: unknown) => ToolRe
 			: states[String(details.state)];
 		return line ? receipt(line, [line]) : unreadable();
 	},
+	ein_skill_registry: skillRegistryReceipt,
+	ein_skill_resolve: (details) => skillSelectionReceipt(details, "sugerida"),
+	ein_skill_digest: (details) => skillSelectionReceipt(details, "preparada"),
 	ein_sdd_task_progress: (details) => {
 		if (!isRecord(details) || !isRecord(details.counts) || typeof details.task !== "string"
 			|| !["start", "complete"].includes(String(details.action))) return unreadable();

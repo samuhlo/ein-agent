@@ -265,16 +265,114 @@ function canonicalizeReport(report: Record<string, unknown>): Record<string, unk
 	return canonical;
 }
 
+type ParsedScoutJson = { value: unknown; droppedFindings: number };
+
+function propertyPosition(raw: string, property: string, from = 0): number {
+	let quoted = false;
+	let escaped = false;
+	for (let index = from; index < raw.length; index += 1) {
+		const char = raw[index];
+		if (quoted) {
+			if (escaped) escaped = false;
+			else if (char === "\\") escaped = true;
+			else if (char === '"') quoted = false;
+			continue;
+		}
+		if (char !== '"') continue;
+		const token = `"${property}"`;
+		if (raw.startsWith(token, index)) {
+			let cursor = index + token.length;
+			while (/\s/.test(raw[cursor] ?? "")) cursor += 1;
+			if (raw[cursor] === ":") return index;
+		}
+		quoted = true;
+	}
+	return -1;
+}
+
+function findingObjects(raw: string): { objects: string[]; dropped: number; start: number; end: number } | null {
+	const findingsKey = propertyPosition(raw, "findings");
+	const referencesKey = propertyPosition(raw, "references", findingsKey + '"findings"'.length);
+	if (findingsKey < 0 || referencesKey < 0) return null;
+	const start = raw.indexOf("[", findingsKey);
+	const end = raw.lastIndexOf("]", referencesKey);
+	if (start < 0 || end <= start) return null;
+
+	const segment = raw.slice(start + 1, end);
+	const objects: string[] = [];
+	let dropped = 0;
+	let objectStart = -1;
+	let depth = 0;
+	let quoted = false;
+	let escaped = false;
+	for (let index = 0; index < segment.length; index += 1) {
+		const char = segment[index];
+		if (quoted) {
+			if (escaped) escaped = false;
+			else if (char === "\\") escaped = true;
+			else if (char === '"') quoted = false;
+			continue;
+		}
+		if (char === '"') {
+			if (depth === 0) return null;
+			quoted = true;
+			continue;
+		}
+		if (char === "{") {
+			if (depth === 0) objectStart = index;
+			depth += 1;
+			continue;
+		}
+		if (char !== "}") {
+			if (depth === 0 && char !== "," && !/\s/.test(char ?? "")) return null;
+			continue;
+		}
+		depth -= 1;
+		if (depth < 0 || objectStart < 0) return null;
+		if (depth !== 0) continue;
+		const candidate = segment.slice(objectStart, index + 1);
+		try {
+			const parsed = JSON.parse(candidate);
+			if (!isRecord(parsed)) return null;
+			objects.push(candidate);
+		} catch {
+			dropped += 1;
+		}
+		objectStart = -1;
+	}
+	if (quoted || depth !== 0 || objectStart !== -1 || dropped === 0) return null;
+	return { objects, dropped, start: start + 1, end };
+}
+
+// Un hallazgo roto no puede convertir sus afirmaciones en evidencia, pero
+// tampoco debe borrar los demás hallazgos ya citados. Solo se reconstruye el
+// array cuando sus objetos siguen delimitados con claridad; el objeto dañado se
+// descarta entero y el JSON completo vuelve a pasar por el contrato habitual.
+function parseScoutJson(raw: string): ParsedScoutJson {
+	try { return { value: JSON.parse(raw), droppedFindings: 0 }; }
+	catch {
+		const salvage = findingObjects(raw);
+		if (!salvage || salvage.objects.length === 0) fail("malformed structured report");
+		const repaired = `${raw.slice(0, salvage.start)}${salvage.objects.join(",")}${raw.slice(salvage.end)}`;
+		try { return { value: JSON.parse(repaired), droppedFindings: salvage.dropped }; }
+		catch { fail("malformed structured report"); }
+	}
+}
+
 function parseReport(payload: unknown): Report {
 	const raw = typeof payload === "string" ? payload : JSON.stringify(payload);
 	if (Buffer.byteLength(raw, "utf8") > SCOUT_REPORT_MAX_BYTES) fail("report exceeds 16384 UTF-8 bytes");
-	let report: unknown;
-	try { report = typeof payload === "string" ? JSON.parse(payload) : payload; } catch { fail("malformed structured report"); }
+	const parsed = typeof payload === "string" ? parseScoutJson(payload) : { value: payload, droppedFindings: 0 };
+	const report = parsed.value;
 	if (!isRecord(report)) fail("invalid report schema");
 	const canonical = canonicalizeReport(report);
 	if (!closed(canonical, CANONICAL_ROOT_KEYS as unknown as string[])) fail("invalid report schema");
 	if (canonical.version !== "ein-scout-report/v1" || !boundedString(canonical.summary, 2000) || !uniqueStrings(canonical.summaryReferenceIds, 1, 8) || !Array.isArray(canonical.findings) || canonical.findings.length < 1 || canonical.findings.length > 12 || !Array.isArray(canonical.references) || canonical.references.length < 1 || canonical.references.length > 24 || !Array.isArray(canonical.uncertainties) || canonical.uncertainties.length < 1 || canonical.uncertainties.length > 8) fail("invalid report schema");
-	for (const finding of canonical.findings) if (!isRecord(finding) || !boundedString(finding.claim, 1000) || !uniqueStrings(finding.referenceIds, 1, 8)) fail("invalid finding");
+	const validFindings = canonical.findings.filter((finding) =>
+		isRecord(finding) && boundedString(finding.claim, 1000) && uniqueStrings(finding.referenceIds, 1, 8));
+	const invalidFindings = canonical.findings.length - validFindings.length;
+	if (validFindings.length === 0) fail("no valid findings survived report normalization");
+	canonical.findings = validFindings;
 	const rawReferences = canonical.references;
 	// R3: el rechazo nombra la referencia (por id, cuando lo trae) y su causa
 	// concreta, en vez del "invalid reference" mudo de antes — un mensaje sin
@@ -291,7 +389,12 @@ function parseReport(payload: unknown): Report {
 	}
 	const uncertainties = canonical.uncertainties.map(normalizeUncertainty);
 	if (uncertainties.some((uncertainty) => uncertainty === null)) fail("missing or invalid uncertainty");
-	return { ...canonical, references, uncertainties } as Report;
+	const droppedFindings = parsed.droppedFindings + invalidFindings;
+	const salvageUncertainty = droppedFindings === 0 ? [] : [{
+		level: "material",
+		statement: `${droppedFindings === 1 ? "1 hallazgo fue descartado" : `${droppedFindings} hallazgos fueron descartados`} porque su estructura estaba dañada; el resto del informe conserva la validación normal`,
+	}];
+	return { ...canonical, references, uncertainties: [...uncertainties, ...salvageUncertainty] } as Report;
 }
 
 // R2. El mensaje dice QUÉ cita falla. Antes era "reference line range is
