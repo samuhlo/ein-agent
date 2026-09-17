@@ -391,6 +391,24 @@ describe("resolveSddStatus", () => {
 		expect(s.blocked.length).toBeGreaterThan(0);
 	});
 
+	test("un ejemplo pass posterior no domina el fail global", () => {
+		const c = change("verify-example");
+		for (const f of ["scope.md", "map.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: complete\n");
+		put(c, "verify-report.md", "# Verify\nstatus: fail\nbehavior_coverage: verified\n## Example\nExample expected result: pass\n");
+		const status = resolveSddStatus(DIR, "verify-example");
+		expect(status.verify).toBe("fail");
+		expect(status.nextRecommended).toBe("verify");
+	});
+
+	test("metadata global duplicada no se convierte en pass", () => {
+		const c = change("verify-ambiguous");
+		for (const f of ["scope.md", "map.md", "design.md", "tasks.md", "apply-progress.md"]) put(c, f, "status: complete\n");
+		put(c, "verify-report.md", "status: pass\nresult: ok\nbehavior_coverage: verified\n");
+		const status = resolveSddStatus(DIR, "verify-ambiguous");
+		expect(status.verify).toBe("unknown");
+		expect(status.nextRecommended).toBe("verify");
+	});
+
 	// GUARDIÁN -> con dos cambios abiertos el router elegía `active[0]`, o sea el
 	// orden de `readdirSync`, y trabajaba sobre él sin decirlo. La incertidumbre
 	// sobre cuál es el cambio activo no puede convertirse en una respuesta segura.

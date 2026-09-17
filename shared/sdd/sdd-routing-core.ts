@@ -23,6 +23,7 @@ import { join } from "node:path";
 import { extractDeclaredFrontierPaths } from "./sdd-tasks-frontier.ts";
 import { artifactHasIntentKey, inspectArtifactIntentKey, readAgreement } from "./intent-agreement.ts";
 import { collectDeclaredApplyStatuses } from "./sdd-apply-status.ts";
+import { parseVerificationReport } from "./sdd-verification-outcome.ts";
 
 export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
 export type SddNext = SddPhase | "done";
@@ -415,23 +416,7 @@ function readVerifyOutcome(changePath: string): VerifyOutcome {
 	} catch {
 		return "unknown";
 	}
-	// RESULTADO -> Un fallo obligatorio registrado prevalece sobre el veredicto narrativo.
-	if (/^\s*(?:\*\*)?behavior_coverage\s*:\s*(?:partial|none)\b/im.test(content)) return "fail";
-	for (const line of content.split(/\r?\n/).filter((line) => /^\s*(?:[-*]\s*)?required_check:/.test(line))) {
-		try {
-			const check = JSON.parse(line.replace(/^\s*(?:[-*]\s*)?required_check:\s*/, ""));
-			if (typeof check.command !== "string" || !check.command.trim() || check.exitCode !== 0) return "fail";
-		} catch { return "fail"; }
-	}
-	// Busca una línea explícita `status: pass|fail` (o "result: ...").
-	content = content.toLowerCase();
-	const match = content.match(/\b(?:status|result|resultado)\s*[:=]\s*(pass|fail|passed|failed|ok|pasa|falla)\b/);
-	if (match) {
-		return /pass|passed|ok|pasa/.test(match[1]) ? "pass" : "fail";
-	}
-	// Heurística suave: marcas claras de fallo sin línea de status.
-	if (/\bfail\b|\bfailed\b|\bcritical\b|\bblocker\b/.test(content)) return "fail";
-	return "unknown";
+	return parseVerificationReport(content).outcome;
 }
 
 function fileMtimeMs(path: string): number | null {
