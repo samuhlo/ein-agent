@@ -128,7 +128,11 @@ export type ProjectVerificationState = ProjectStateSource & {
 	reportedOutcome: ProjectVerificationOutcome;
 	effectiveOutcome: ProjectVerificationOutcome;
 	freshness: ProjectVerificationFreshness;
+	currentVerificationSurfaceRef?: string;
+	observedVerificationSurfaceRef?: string;
+	/** @deprecated Verification freshness is no longer bound to aggregate Git state. */
 	currentStateRef?: string;
+	/** @deprecated Verification freshness is no longer bound to aggregate Git state. */
 	observedStateRef?: string;
 };
 

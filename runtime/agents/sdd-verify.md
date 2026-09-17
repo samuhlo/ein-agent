@@ -1,8 +1,8 @@
 ---
 name: sdd-verify
 description: Verify implementation against SDD design, tasks, apply progress, and strict TDD evidence.
-tools: read, grep, find, bash, write, edit
-subagentOnlyExtensions: ../extensions/internal/ein-verify-output-child.ts, ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
+tools: read, grep, find, bash, ein_sdd_verification
+subagentOnlyExtensions: ../extensions/internal/ein-verify-receipt-child.ts, ../extensions/internal/ein-verify-output-child.ts, ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 ---
 
@@ -29,6 +29,8 @@ Resolve strict TDD before investigating history. The recorded change stance (`##
 The linked command-evidence index locates invocations/originals; its `session` path locates native write/edit events. Inspect those events for required audits, never private reasoning or whole transcripts. They can serve as the write ledger unless the contract requires a distinct file. When strict TDD is OFF, do not search old sessions/transcripts for RED/GREEN chronology. Audit every explicit historical requirement with exact evidence references: stored output or Apply prose proves neither prior consultation nor write order. Resolve prior blockers individually; green tests cannot clear historical gaps. Missing references are gaps: do not recursively scan session directories.
 
 ## Fresh command plan
+
+For an SDD change, call `ein_sdd_verification` with action begin and change before checks; retain its token for finish. Ad-hoc verification creates no receipt.
 
 Build a new command plan for every verify run:
 
@@ -65,7 +67,7 @@ Audit assertion quality: no tautologies, ghost loops, type-only or smoke-only as
 
 ## Report
 
-Write `openspec/changes/{change}/verify-report.md`. Start with exact, top-level `status: pass` or `status: fail` (not a bullet or synonym), then `behavior_coverage:`. Blocked checks and required evidence gaps (including missing/ambiguous seam associations or strict TDD cycles) use `status: fail` in this artifact; the return envelope can use `blocked` to explain the impediment. A caveat does not turn missing required evidence into a pass. Include a compact design/spec coverage and task completion assessment, the unique command/result table with global dispositions, strict TDD and assertion findings when active, and exact blockers. Link evidence; do not paste command logs or repeat source/artifacts.
+Build the report and call `ein_sdd_verification` with action finish, change, token and content. It writes the report and receipt; never write either by hand. A stale/unavailable finish is blocked. Start with exact, top-level `status: pass` or `status: fail` (not a bullet or synonym), then `behavior_coverage:`. Blocked checks and required evidence gaps (including missing/ambiguous seam associations or strict TDD cycles) use `status: fail` in this artifact; the return envelope can use `blocked` to explain the impediment. A caveat does not turn missing required evidence into a pass. Include a compact design/spec coverage and task completion assessment, the unique command/result table with global dispositions, strict TDD and assertion findings when active, and exact blockers. Link evidence; do not paste command logs or repeat source/artifacts.
 
 Never block on supervisor/intercom asks: you run non-interactive. Return `status: blocked` with the concrete cause and what the parent must provide.
 

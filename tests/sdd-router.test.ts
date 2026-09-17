@@ -4,6 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assessCloseReadiness, changeUnavailableMessage, listActiveChanges, resolveSddNext, resolveSddPlanPreview, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
@@ -12,6 +13,7 @@ import { serializeOpenSpec } from "../ein-pi/agent/lib/openspec-spec-contract";
 import { createAssessCloseReadiness } from "../shared/sdd/sdd-close-readiness";
 import { writeAgreement } from "../shared/sdd/intent-agreement";
 import { createIntentMaterialKey } from "../shared/sdd/sdd-intent-preflight";
+import { beginVerification, finishVerification } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 
 const assessSharedCloseReadiness = createAssessCloseReadiness({ resolveSddStatus });
 
@@ -23,6 +25,10 @@ function change(name: string): string {
 }
 function put(changePath: string, file: string, body = "x"): void {
 	writeFileSync(join(changePath, file), body);
+	if (file === "verify-report.md") {
+		const begun = beginVerification({ cwd: DIR, changePath });
+		if (begun.ok) finishVerification({ cwd: DIR, changePath, token: begun.value.token, content: body });
+	}
 }
 
 function confirmedIntent(changePath: string, work: string): string {
@@ -65,6 +71,7 @@ function expectProvenanceNext(report: ReturnType<typeof resolveSddNext>, state: 
 
 beforeEach(() => {
 	DIR = mkdtempSync(join(tmpdir(), "sdd-router-"));
+	execFileSync("git", ["init", "-q"], { cwd: DIR });
 });
 afterEach(() => {
 	rmSync(DIR, { recursive: true, force: true });
@@ -281,7 +288,7 @@ describe("resolveSddStatus", () => {
 		expect(s.verifyStale).toBe(false);
 	});
 
-	test("verify pass pero apply tocado DESPUÉS → verifyStale, vuelve a verify", () => {
+	test("reescribir solo apply-progress después de verify no invalida la superficie", () => {
 		const c = change("feat-x");
 		for (const f of ["scope.md", "map.md", "design.md", "tasks.md"]) put(c, f, "status: complete\n");
 		put(c, "apply-progress.md", "status: complete\n");
@@ -291,9 +298,8 @@ describe("resolveSddStatus", () => {
 		utimesSync(join(c, "apply-progress.md"), new Date(3_000_000), new Date(3_000_000));
 		const s = resolveSddStatus(DIR);
 		expect(s.verify).toBe("pass");
-		expect(s.verifyStale).toBe(true);
-		expect(s.nextRecommended).toBe("verify");
-		expect(s.blocked.join(" ")).toContain("obsoleta");
+		expect(s.verifyStale).toBe(false);
+		expect(s.nextRecommended).toBe("close");
 	});
 
 	// P2-F: la staleness se basa en la SUPERFICIE ENTREGADA (producción + tests
@@ -305,9 +311,9 @@ describe("resolveSddStatus", () => {
 		for (const f of ["scope.md", "map.md", "design.md"]) put(c, f, "x\n");
 		put(c, "tasks.md", "status: ready\nblocked_by: none\n## // 001. G\nEdita app/foo.ts.\n- [x] 1.1 hacer\n");
 		put(c, "apply-progress.md", "status: complete\n");
-		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
 		mkdirSync(join(DIR, "app"), { recursive: true });
 		writeFileSync(join(DIR, "app", "foo.ts"), "export const x = 1;\n");
+		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
 		// El fichero entregado es ANTERIOR a verify; apply-progress se reescribió DESPUÉS
 		// (normalización), pero sin tocar app/foo.ts.
 		utimesSync(join(DIR, "app", "foo.ts"), new Date(2_000_000), new Date(2_000_000));
@@ -324,12 +330,13 @@ describe("resolveSddStatus", () => {
 		for (const f of ["scope.md", "map.md", "design.md"]) put(c, f, "x\n");
 		put(c, "tasks.md", "status: ready\nblocked_by: none\n## // 001. G\nEdita app/foo.ts.\n- [x] 1.1 hacer\n");
 		put(c, "apply-progress.md", "status: complete\n");
-		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
 		mkdirSync(join(DIR, "app"), { recursive: true });
-		writeFileSync(join(DIR, "app", "foo.ts"), "export const x = 2;\n");
+		writeFileSync(join(DIR, "app", "foo.ts"), "export const x = 1;\n");
+		put(c, "verify-report.md", "# Verify\nstatus: pass\n");
 		utimesSync(join(c, "verify-report.md"), new Date(3_000_000), new Date(3_000_000));
 		utimesSync(join(c, "apply-progress.md"), new Date(3_000_000), new Date(3_000_000));
 		// El fichero entregado se editó DESPUÉS de verify → evidencia obsoleta.
+		writeFileSync(join(DIR, "app", "foo.ts"), "export const x = 2;\n");
 		utimesSync(join(DIR, "app", "foo.ts"), new Date(5_000_000), new Date(5_000_000));
 		const s = resolveSddStatus(DIR);
 		expect(s.verifyStale).toBe(true);

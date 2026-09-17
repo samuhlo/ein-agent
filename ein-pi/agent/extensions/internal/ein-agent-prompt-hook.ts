@@ -71,7 +71,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			return { block: true, reason: "Evidence mode permits only scoped reads and the supplied commands; product writes and SDD artifacts are unavailable" };
 		}
 		if (handoffError) return { block: true, reason: handoffError };
-		if (!agreementInput || !["write", "edit", "bash", "ein_sdd_task_progress", "ein_openspec_delta_write", "ein_sdd_summary"].includes(event.toolName)) return;
+		if (!agreementInput || !["write", "edit", "bash", "ein_sdd_task_progress", "ein_openspec_delta_write", "ein_sdd_summary", "ein_sdd_verification"].includes(event.toolName)) return;
 		const current = readAgreement(agreementInput.directory);
 		if (current.kind !== "valid" || current.agreement.status !== "confirmed" || current.agreement.materialKey !== agreementInput.key) {
 			return { block: true, reason: "Intent changed after this phase started; return blocked and re-plan against the current agreement." };
