@@ -155,6 +155,21 @@ describe("reconcilePhaseFailure — NO reconcilia cuando el trabajo no está", (
 		expect(result.reason).toContain("error");
 	});
 
+	test("un fail global con un ejemplo pass no rescata verify", () => {
+		const cwd = project();
+		const before = snapshotPhaseArtifacts(cwd, "verify");
+		writeArtifact(
+			changeDir(cwd, "c"),
+			"verify-report.md",
+			2000,
+			"# Verify\nstatus: fail\nbehavior_coverage: verified\n## Example\nExample expected result: pass\n",
+		);
+
+		const result = reconcilePhaseFailure(cwd, "verify", before);
+		expect(result.reconciled).toBe(false);
+		expect(result.reason).toContain("verificación fallida");
+	});
+
 	test("artefacto vacío → el fallo se respeta", () => {
 		const cwd = project();
 		const before = snapshotPhaseArtifacts(cwd, "map");

@@ -13,6 +13,7 @@ import { lintChange, lintPhaseArtifact, oversizedGroupWarnings } from "../ein-pi
 import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
 import { closedChangePath as sharedClosedChangePath } from "../shared/sdd/sdd-close-compaction.ts";
 import { createCloseChange } from "../shared/sdd/sdd-close-engine.ts";
+import { writeVerifiedSddSummary } from "../shared/sdd/sdd-summary-write.ts";
 
 let DIR: string;
 function durableSummary(change: string): string {
@@ -224,6 +225,45 @@ describe("closeChange", () => {
 		expect(r.ok).toBe(true);
 		expect(existsSync(join(DIR, "openspec", "changes", "archive", "feat-ready"))).toBe(true);
 	});
+
+	test("el resumen usa los required_check del parser e ignora ejemplos dentro de fences", () => {
+		makeFresh("parsed-checks");
+		const report = [
+			"status: pass",
+			"behavior_coverage: verified",
+			"required_check: {\"command\":\"bun test tests/example.test.ts\",\"exitCode\":0}",
+			"```text",
+			"required_check: no-json",
+			"```",
+		].join("\n");
+		writeFileSync(join(DIR, "openspec", "changes", "parsed-checks", "verify-report.md"), report);
+		const result = writeVerifiedSddSummary({
+			cwd: DIR,
+			change: "parsed-checks",
+			content: "## Resultado\nVerificación válida.",
+			commands: ["bun test tests/example.test.ts"],
+		});
+		expect(result.ok).toBe(true);
+	});
+
+	for (const [name, report] of [
+		["global-fail-after-example", "# Verify\nstatus: fail\nbehavior_coverage: verified\n## Example\nExample expected result: pass\n"],
+		["duplicate-pass", "status: pass\nresult: ok\nbehavior_coverage: verified\n"],
+		["missing-status", "behavior_coverage: verified\nTodo parece correcto.\n"],
+		["partial-coverage", "status: pass\nbehavior_coverage: partial\n"],
+		["null-check", "status: pass\nbehavior_coverage: verified\nrequired_check: {\"command\":\"bun test\",\"exitCode\":null}\n"],
+		["broken-check", "status: pass\nbehavior_coverage: verified\nrequired_check: no-json\n"],
+	] as const) {
+		test(`no archiva verify inseguro: ${name}`, () => {
+			makeFresh(name);
+			writeFileSync(join(DIR, "openspec", "changes", name, "verify-report.md"), report);
+			setMtime(name, "verify-report.md", 2_000_000);
+			const result = closeChange(DIR, name);
+			expect(result.ok).toBe(false);
+			expect(existsSync(join(DIR, "openspec", "changes", name))).toBe(true);
+			expect(existsSync(join(DIR, "openspec", "changes", "archive", name))).toBe(false);
+		});
+	}
 
 	test("solo summary.md (sin verify/apply) → NO cierra", () => {
 		mkChange("feat-bare", { "summary.md": "x", "scope.md": "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: fixture" });
@@ -501,6 +541,22 @@ describe("lintPhaseArtifact / lintChange", () => {
 
 	test("verify CON status: pass → ok", () => {
 		expect(lintPhaseArtifact("verify", "status: pass\n").ok).toBe(true);
+	});
+
+	test("verify con estado global duplicado → error de contrato", () => {
+		const result = lintPhaseArtifact("verify", "status: pass\nresult: ok\nbehavior_coverage: verified\n");
+		expect(result.ok).toBe(false);
+		expect(result.issues.some((issue) => issue.code === "duplicate-status")).toBe(true);
+	});
+
+	test("verify con required_check malformado → error de contrato", () => {
+		const result = lintPhaseArtifact("verify", "status: pass\nbehavior_coverage: verified\nrequired_check: no-json\n");
+		expect(result.ok).toBe(false);
+		expect(result.issues.some((issue) => issue.code === "invalid-required-check")).toBe(true);
+	});
+
+	test("verify fail bien declarado sigue siendo un artefacto válido", () => {
+		expect(lintPhaseArtifact("verify", "status: fail\nbehavior_coverage: verified\n").ok).toBe(true);
 	});
 
 	test("apply SIN línea status → error (falta signal obligatorio)", () => {
