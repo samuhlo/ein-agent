@@ -27,6 +27,7 @@ import {
   writeReleaseChannelPreference,
 } from "../installer/src/core/release-channel-preference.ts";
 import { createTransaction, recoverPendingTransaction } from "../installer/src/core/transaction.ts";
+import { TEMPLATE_REPLACE_TREES } from "../installer/src/core/template-inventory.ts";
 function createArtifactId(releaseTag: string, sha256: string): ArtifactId {
   const result = deriveArtifactId(releaseTag, sha256);
   if (!result.ok) throw new Error(`Invalid fixture artifact identity: ${result.error.message}`);
@@ -36,6 +37,14 @@ function createArtifactId(releaseTag: string, sha256: string): ArtifactId {
 const roots: string[] = [];
 const encoder = new TextEncoder();
 const assetBytes = encoder.encode("verified-release-0.20.0");
+
+function inventoryQuery(version: string): Promise<{ code: number; stdout: string }> {
+  return Promise.resolve({ code: 0, stdout: JSON.stringify({
+    binaryVersion: version,
+    templateVersion: version,
+    inventory: { schemaVersion: 1, replaceTrees: [...TEMPLATE_REPLACE_TREES], overlayFiles: ["ein-mode.json", "template-manifest.json"] },
+  }) });
+}
 
 function runUpdate(args: string[], dependencies: UpdateRunDependencies = {}): Promise<number> {
   return runUpdateImpl(args, {
@@ -224,6 +233,7 @@ describe("release update CLI", () => {
         },
       },
       template: {
+        queryInventory: async () => inventoryQuery("0.21.0"),
         async deploy(_binary, target) {
           writeFileSync(join(target, "template-manifest.json"), JSON.stringify({ templateVersion: "0.21.0" }));
         },
@@ -466,6 +476,7 @@ describe("release update CLI", () => {
         },
       },
       template: {
+        queryInventory: async () => inventoryQuery("0.20.0"),
         async deploy(_binary, target) {
           writeFileSync(join(target, "template-manifest.json"), JSON.stringify({ templateVersion: "0.20.0" }));
         },
@@ -702,6 +713,7 @@ describe("release update CLI", () => {
         },
       },
       template: {
+        queryInventory: async () => inventoryQuery("0.20.0"),
         async deploy(_binary, target) {
           writeFileSync(join(target, "template-manifest.json"), JSON.stringify({ templateVersion: "0.20.0" }));
         },
@@ -747,6 +759,7 @@ describe("release update CLI", () => {
         },
       },
       template: {
+        queryInventory: async () => inventoryQuery("0.20.0"),
         async deploy(_binary, target) {
           writeFileSync(join(target, "template-manifest.json"), JSON.stringify({ templateVersion: "0.20.0" }));
         },

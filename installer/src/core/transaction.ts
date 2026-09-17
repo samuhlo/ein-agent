@@ -11,7 +11,7 @@ import { deriveArtifactId, isReleaseChannel } from "./release-types.ts";
 import type { ArtifactId, MarkerV2, OwnershipMarker, ReleaseChannel, ReleaseSelector, ReleaseTag, ResolvedRelease, Result, UpdateOutcome, UpdateStageError } from "./release-types.ts";
 import { fetchLatestRelease, fetchReleaseByTag } from "./release-record.ts";
 import { resolveRecord } from "./release-resolver.ts";
-import { deployEmbeddedTemplate, restoreTemplate, snapshotTemplate, validateDeployedManifest } from "./template-transaction.ts";
+import { deployEmbeddedTemplate, queryCandidateTemplateInventory, restoreTemplate, snapshotTemplate, validateDeployedManifest } from "./template-transaction.ts";
 import type { UpdateCaps } from "./update-caps.ts";
 
 export type TransactionState =
@@ -530,10 +530,33 @@ export async function runUpdateTransaction(options: UpdateTransactionOptions): P
       return { type: "already-current", release };
     }
 
-    const snapshot = snapshotTemplate({ agentDir: options.agentDir, caps: options.caps });
-    if (!snapshot.ok) return failure(snapshot.error, options.selector, release);
     const candidate = prepareExecutableCandidate({ sourcePath: acquired.value.stagedPath, destinationPath: options.destinationPath, caps: options.caps });
     if (!candidate.ok) return failure(candidate.error, options.selector, release);
+
+    const identity = await probeBinaryVersion(candidate.value.candidatePath, options.caps);
+    if (!identity.ok) {
+      cleanup([candidate.value.candidatePath], options.caps);
+      return failure(identity.error, options.selector, release);
+    }
+    const verified = verifyBinaryIdentity(identity.value, expectedVersion);
+    if (!verified.ok) {
+      cleanup([candidate.value.candidatePath], options.caps);
+      return failure(verified.error, options.selector, release);
+    }
+    const candidateInventory = await queryCandidateTemplateInventory({
+      binaryPath: candidate.value.candidatePath,
+      expectedVersion,
+      caps: options.caps,
+    });
+    if (!candidateInventory.ok) {
+      cleanup([candidate.value.candidatePath], options.caps);
+      return failure(candidateInventory.error, options.selector, release);
+    }
+    const snapshot = snapshotTemplate({ agentDir: options.agentDir, inventory: candidateInventory.value.inventory, caps: options.caps });
+    if (!snapshot.ok) {
+      cleanup([candidate.value.candidatePath], options.caps);
+      return failure(snapshot.error, options.selector, release);
+    }
 
     // Un candidato descartado son ~100 MB al lado del binario bueno, y el
     // snapshot del template otro tanto. La ruta de fallo siguiente ya limpiaba;
@@ -541,17 +564,6 @@ export async function runUpdateTransaction(options: UpdateTransactionOptions): P
     const discardCandidate = (): void => {
       cleanup([candidate.value.candidatePath, snapshot.value.path], options.caps);
     };
-
-    const identity = await probeBinaryVersion(candidate.value.candidatePath, options.caps);
-    if (!identity.ok) {
-      discardCandidate();
-      return failure(identity.error, options.selector, release);
-    }
-    const verified = verifyBinaryIdentity(identity.value, expectedVersion);
-    if (!verified.ok) {
-      discardCandidate();
-      return failure(verified.error, options.selector, release);
-    }
 
     const markerBackup = marker ? options.caps.fs.createSiblingFile(markerPath) : undefined;
     try {
