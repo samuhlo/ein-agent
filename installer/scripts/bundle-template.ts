@@ -34,6 +34,7 @@ import {
   assertSharedOverlayFacades,
   type SharedOverlayGroup,
 } from "./pi-payload-validation.ts";
+import { createTemplateInventory } from "../src/core/template-inventory.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = dirname(HERE);
@@ -152,6 +153,7 @@ function writeManifest(staging: string, runtimeDependencies: readonly Record<str
     runtimeDependencies,
     topLevelDirs: topDirs,
     topLevelFiles: [...topFiles, "template-manifest.json"].sort(),
+    inventory: createTemplateInventory(staging, ["ein-mode.json"]),
   };
   writeFileSync(join(staging, "template-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 }
