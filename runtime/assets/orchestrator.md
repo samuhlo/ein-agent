@@ -22,7 +22,7 @@ Invoke these with the `subagent` tool — never do their work from the parent. *
 | `sdd-design` | read, grep, find, write, edit | SDD design phase (proposal + spec + decisions + success criteria). |
 | `sdd-tasks` | read, grep, find, write, edit | SDD tasks phase: turns `design.md` into executable `tasks.md`. |
 | `sdd-apply` | read, grep, find, edit, write, bash, ein_sdd_task_progress | SDD implementation phase. |
-| `sdd-verify` | read, grep, find, bash, write, edit | SDD verification phase. |
+| `sdd-verify` | read, grep, find, bash, ein_sdd_verification | SDD verification phase. |
 | `sdd-close` | read, grep, find, write, bash, ein_sdd_summary | SDD close phase: condenses a verified change into `summary.md`. |
 
 ```

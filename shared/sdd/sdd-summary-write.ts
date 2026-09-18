@@ -17,6 +17,7 @@ import { isSafeChangeName, readSddCompletionEvidence, resolveChangesDir } from "
 import { summaryContractErrors } from "./sdd-summary-contract.ts";
 import { artifactHasIntentKey, readAgreement } from "./intent-agreement.ts";
 import { parseVerificationReport } from "./sdd-verification-outcome.ts";
+import type { VerificationFreshness } from "./sdd-verification-receipt.ts";
 
 export type SummaryWriteRequest = Readonly<{
 	cwd: string;
@@ -59,10 +60,13 @@ export function writeSddSummary(request: SummaryWriteRequest): SummaryWriteResul
 	return { ok: true, change, path };
 }
 
-export function writeVerifiedSddSummary(request: SummaryWriteRequest & { commands: readonly string[] }): SummaryWriteResult {
+export function writeVerifiedSddSummary(request: SummaryWriteRequest & {
+	commands: readonly string[];
+	readVerification: (cwd: string, changePath: string) => VerificationFreshness;
+}): SummaryWriteResult {
 	try {
-		const evidence = readSddCompletionEvidence(request.cwd, request.change);
-		if (evidence.apply !== "complete" || evidence.verify !== "pass" || evidence.verifyStale || evidence.tasks.counts.pending > 0) throw new Error("Summary requires completed apply and fresh passing verification with no pending tasks");
+		const evidence = readSddCompletionEvidence(request.cwd, request.change, request.readVerification);
+		if (evidence.apply !== "complete" || evidence.verify !== "pass" || evidence.verification.state !== "current" || evidence.tasks.counts.pending > 0) throw new Error("Summary requires completed apply and current passing verification with no pending tasks");
 		const dir = join(resolveChangesDir(request.cwd), request.change);
 		const report = readFileSync(join(dir, "verify-report.md"), "utf8");
 		const parsedReport = parseVerificationReport(report);

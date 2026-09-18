@@ -18,6 +18,9 @@ Desde la raíz del repositorio, `bun ein-cc/sync.ts` reconstruye y despliega el 
 
 - `cli.ts` coordina subcomandos y adapta argv, stdin/stdout y códigos de salida.
 - `presentation.ts` transforma resultados SDD en texto, sin tocar el proceso.
-- `sync-command.ts` ejecuta la sincronización y devuelve un resultado cerrado, sin decidir cómo se emite ni terminar el proceso.
+- `sync-command.ts` ejecuta la sincronización y devuelve un resultado cerrado,
+  sin decidir cómo se emite ni terminar el proceso.
+- `verification-command.ts` adapta `begin|finish` al servicio público de recibos;
+  el informe entra por stdin y nunca se interpola en un comando shell.
 
 El motor de dominio entra por `shared/ports/sdd.ts`; el progreso de tareas y la escritura del resumen también consumen módulos de `shared/sdd/`. La clausura de imports del payload incluye estos módulos automáticamente desde `cli.ts`.

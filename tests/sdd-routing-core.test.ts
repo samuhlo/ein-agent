@@ -11,6 +11,8 @@ import {
 	selectedChange,
 } from "../shared/sdd/sdd-routing-core.ts";
 
+const currentVerification = () => ({ state: "current" as const, reason: "fixture" });
+
 let cwd: string;
 
 function change(name: string, files: Readonly<Record<string, string>> = {}): string {
@@ -48,6 +50,7 @@ describe("shared SDD routing core", () => {
 		const synchronized = createSddRoutingCore({
 			readLane: () => "standard",
 			readSpecState: () => "synchronized",
+			readVerification: currentVerification,
 		});
 		expect(synchronized.resolveSddStatus(cwd, "probe")).toMatchObject({
 			change: "probe",
@@ -61,6 +64,7 @@ describe("shared SDD routing core", () => {
 		const unresolved = createSddRoutingCore({
 			readLane: () => "standard",
 			readSpecState: () => "unresolved",
+			readVerification: currentVerification,
 		});
 		const blocked = unresolved.resolveSddStatus(cwd, "probe");
 		expect(blocked.nextRecommended).toBe("scope");
@@ -72,6 +76,7 @@ describe("shared SDD routing core", () => {
 		const routing = createSddRoutingCore({
 			readLane: () => "micro",
 			readSpecState: () => "synchronized",
+			readVerification: currentVerification,
 		});
 		const status = routing.resolveSddStatus(cwd, "micro");
 		expect(status.nextRecommended).toBe("apply");
