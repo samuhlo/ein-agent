@@ -4,6 +4,7 @@ import { basename, join } from "node:path";
 
 import { captureVerificationSurface, type VerificationSurfaceEntry, type VerificationSurfacePorts } from "./sdd-verification-surface.ts";
 import { parseVerificationReport, type VerificationOutcome } from "./sdd-verification-outcome.ts";
+import { readAgreement } from "./intent-agreement.ts";
 
 export type VerificationFreshness = Readonly<{
 	state: "current" | "stale" | "unbound" | "unavailable" | "invalid";
@@ -70,9 +71,10 @@ function parseReceipt(value: unknown): VerificationReceipt | null {
 	return value as unknown as VerificationReceipt;
 }
 function intentKey(changePath: string): string | undefined {
-	const value = readJson(join(changePath, "preflight.json"));
-	if (!record(value) || !record(value.intent)) return undefined;
-	return typeof value.intent.materialKey === "string" ? value.intent.materialKey : undefined;
+	const agreement = readAgreement(changePath);
+	return agreement.kind === "valid" && agreement.agreement.status === "confirmed"
+		? agreement.agreement.materialKey
+		: undefined;
 }
 function canonicalContent(content: string, key: string | undefined): string {
 	let normalized = content.replace(/\r\n?/g, "\n").replace(/^[ \t]*(?:[-*][ \t]+)?intent_key:[^\r\n]*(?:\r?\n|$)/gm, "");
@@ -119,9 +121,9 @@ export function createVerificationService(dependencies: VerificationServiceDepen
 		const surface = capture(request, session.entries);
 		if (!surface.ok) return fail(surface.code, surface.reason);
 		if (surface.root !== session.root || basename(request.changePath) !== session.change) return fail("session-mismatch", "verification root or change changed");
-		if (surface.surfaceRef !== session.surfaceRef || surface.decisionRef !== session.decisionRef) return fail("verification-stale", "verification surface changed during verification");
 		const key = intentKey(request.changePath);
 		if (key !== session.intentKey) return fail("intent-stale", "verification intent agreement changed");
+		if (surface.surfaceRef !== session.surfaceRef || surface.decisionRef !== session.decisionRef) return fail("verification-stale", "verification surface changed during verification");
 		const content = canonicalContent(request.content, key);
 		const parsed = parseVerificationReport(content);
 		const reportPath = join(request.changePath, REPORT);

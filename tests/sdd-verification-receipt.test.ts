@@ -3,6 +3,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { writeAgreement } from "../shared/sdd/intent-agreement.ts";
+import { createIntentMaterialKey } from "../shared/sdd/sdd-intent-preflight.ts";
 import { createVerificationService } from "../shared/sdd/sdd-verification-receipt.ts";
 
 let root: string;
@@ -30,6 +32,27 @@ function service() {
 	});
 }
 const PASS = "# Verify\r\nstatus: pass\r\nbehavior_coverage: verified\r\nrequired_check: {\"command\":\"bun test\",\"exitCode\":0}\r\n";
+
+function writeIntent(status: "pending" | "confirmed", objective = "Verify the agreed change"): string {
+	const material = {
+		objective,
+		boundaries: { in: ["Runtime"], out: ["Installer"] },
+		completionCriteria: ["Verification is bound to the agreement"],
+	};
+	const materialKey = createIntentMaterialKey(material);
+	writeAgreement(changePath, {
+		version: 1,
+		work: "probe",
+		change: "probe",
+		status,
+		material,
+		materialKey,
+		questions: ["Proceed?"],
+		...(status === "confirmed" ? { response: { id: "answer-1", text: "Yes", source: "interactive" as const } } : {}),
+		revision: `revision-${objective}`,
+	});
+	return materialKey;
+}
 
 describe("createVerificationService", () => {
 	test("begin/finish publica un recibo actual sin autorreferencia", () => {
@@ -97,8 +120,7 @@ describe("createVerificationService", () => {
 	});
 
 	test("normaliza intent_key con el acuerdo vigente sin aceptar una clave vieja", () => {
-		const key = `sha256:${"a".repeat(64)}`;
-		writeFileSync(join(changePath, "preflight.json"), JSON.stringify({ tdd: "off", intent: { materialKey: key } }));
+		const key = writeIntent("confirmed");
 		const api = service();
 		const begun = api.beginVerification({ cwd: root, changePath });
 		if (!begun.ok) throw new Error(begun.reason);
@@ -107,5 +129,26 @@ describe("createVerificationService", () => {
 		const report = readFileSync(join(changePath, "verify-report.md"), "utf8");
 		expect(report.match(/^intent_key:/gm)).toHaveLength(1);
 		expect(report).toContain(`intent_key: ${key}`);
+	});
+
+	test("solo liga acuerdos confirmados y detecta si cambian durante verify", () => {
+		writeIntent("pending");
+		const api = service();
+		const pending = api.beginVerification({ cwd: root, changePath });
+		if (!pending.ok) throw new Error(pending.reason);
+		expect(pending.value.intentKey).toBeUndefined();
+
+		writeFileSync(join(changePath, "intent.md"), "invalid intent\n");
+		const invalid = api.beginVerification({ cwd: root, changePath });
+		if (!invalid.ok) throw new Error(invalid.reason);
+		expect(invalid.value.intentKey).toBeUndefined();
+
+		const original = writeIntent("confirmed", "Original agreement");
+		const begun = api.beginVerification({ cwd: root, changePath });
+		if (!begun.ok) throw new Error(begun.reason);
+		expect(begun.value.intentKey).toBe(original);
+		writeIntent("confirmed", "Changed agreement");
+		expect(api.finishVerification({ cwd: root, changePath, token: begun.value.token, content: PASS }))
+			.toMatchObject({ ok: false, code: "intent-stale" });
 	});
 });

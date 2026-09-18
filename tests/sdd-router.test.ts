@@ -245,6 +245,7 @@ describe("resolveSddStatus", () => {
 		put(c, "tasks.md", `status: ready\nblocked_by: none\n- [x] 10.1 Contract\n- [ ] 11.1 Create\n- [ ] 12.1 Duplicate\nintent_key: ${key}\n`);
 		put(c, "apply-progress.md", `status: partial\nintent_key: ${key}\n`);
 		put(c, "verify-report.md", `status: pass\nintent_key: sha256:${"a".repeat(64)}\n`);
+		writeFileSync(join(c, "verify-report.md"), `status: pass\nintent_key: sha256:${"a".repeat(64)}\n`);
 
 		const partial = resolveSddStatus(DIR, "feat-x");
 		expect(partial.apply).toBe("partial");
