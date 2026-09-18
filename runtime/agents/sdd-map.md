@@ -1,7 +1,7 @@
 ---
 name: sdd-map
 description: Map an SDD change idea before the design phase.
-tools: read, grep, find, write, bash
+tools: read, grep, find, write, bash, ein_sdd_phase_complete
 subagentOnlyExtensions: ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 ---

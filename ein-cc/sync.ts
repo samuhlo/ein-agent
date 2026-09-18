@@ -137,6 +137,7 @@ function translateTool(raw: string, source: string, agent: string): string {
 function translateTools(piTools: string, source: string, agent: string): string {
   const out: string[] = [];
   for (const raw of piTools.split(",").map((tool) => tool.trim()).filter(Boolean)) {
+    if (raw === "ein_sdd_phase_complete") continue;
     const translated = translateTool(raw, source, agent);
     if (!out.includes(translated)) out.push(translated);
   }
