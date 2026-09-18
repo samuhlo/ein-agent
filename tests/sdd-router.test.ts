@@ -3,11 +3,11 @@
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assessCloseReadiness, changeUnavailableMessage, listActiveChanges, resolveSddNext, resolveSddPlanPreview, resolveSddStatus } from "../ein-pi/agent/lib/sdd-router";
+import { assessCloseReadiness, changeUnavailableMessage, listActiveChanges, readTasksStatus, resolveSddNext, resolveSddPlanPreview, resolveSddStatus, sddNextHandoff } from "../ein-pi/agent/lib/sdd-router";
 import { planOpenSpecSync, serializeSyncReport } from "../ein-pi/agent/lib/openspec-spec-sync";
 import { serializeOpenSpec } from "../ein-pi/agent/lib/openspec-spec-contract";
 import { createAssessCloseReadiness } from "../shared/sdd/sdd-close-readiness";
@@ -166,12 +166,79 @@ describe("resolveSddStatus", () => {
 		expect(s.tasks.nextPending).toBeNull();
 	});
 
+	test("tareas terminadas sin metadatos avanzan a close sin mutar tasks.md", () => {
+		const c = change("completed-without-metadata");
+		for (const file of ["scope.md", "map.md", "design.md"]) put(c, file);
+		const tasksPath = join(c, "tasks.md");
+		put(c, "tasks.md", "## Completed work\n- [x] 1 Implemented\n- verify: bun test\n");
+		put(c, "apply-progress.md", "status: complete\n");
+		put(c, "verify-report.md", "status: pass\n");
+		const before = { content: readFileSync(tasksPath, "utf8"), mtimeMs: statSync(tasksPath).mtimeMs };
+
+		const status = resolveSddStatus(DIR, "completed-without-metadata");
+		const next = resolveSddNext(DIR, "completed-without-metadata");
+		const handoff = sddNextHandoff(next);
+
+		expect(status.tasks.status).toBeNull();
+		expect(status.tasks.blockedBy).toBeNull();
+		expect(status.tasks.counts).toEqual({ pending: 0, ready: 0, blocked: 0, done: 1 });
+		expect(status.tasks.problems).not.toContain("tasks.md sin status ready|blocked.");
+		expect(status.tasks.problems).not.toContain("tasks.md sin blocked_by.");
+		expect(next.nextRecommended).toBe("close");
+		expect(next.blocked).not.toContain("tasks.md sin status ready|blocked.");
+		expect(next.blocked).not.toContain("tasks.md sin blocked_by.");
+		expect(handoff).not.toContain("tasks.md sin status ready|blocked.");
+		expect(handoff).not.toContain("tasks.md sin blocked_by.");
+		expect(readFileSync(tasksPath, "utf8")).toBe(before.content);
+		expect(statSync(tasksPath).mtimeMs).toBe(before.mtimeMs);
+	});
+
+	test("una tarea pendiente sin metadatos conserva ambos diagnósticos", () => {
+		const c = change("pending-without-metadata");
+		put(c, "tasks.md", "- [ ] 1 Pending\n- verify: bun test\n");
+		const tasks = resolveSddStatus(DIR, "pending-without-metadata").tasks;
+		expect(tasks.counts.pending).toBe(1);
+		expect(tasks.problems).toContain("tasks.md sin status ready|blocked.");
+		expect(tasks.problems).toContain("tasks.md sin blocked_by.");
+	});
+
+	test("texto sin checkboxes no se considera una lista terminada", () => {
+		const c = change("no-checkboxes");
+		put(c, "tasks.md", "todas terminadas\n- verify: bun test\n");
+		const tasks = resolveSddStatus(DIR, "no-checkboxes").tasks;
+		expect(tasks.counts.done).toBe(0);
+		expect(tasks.problems).toContain("tasks.md sin checkboxes parseables.");
+		expect(tasks.problems).toContain("tasks.md sin status ready|blocked.");
+		expect(tasks.problems).toContain("tasks.md sin blocked_by.");
+	});
+
+	test("tasks.md ausente, vacío o ilegible nunca se considera terminado", () => {
+		const absent = change("tasks-absent");
+		const empty = change("tasks-empty");
+		const unreadable = change("tasks-unreadable");
+		put(empty, "tasks.md", "");
+		mkdirSync(join(unreadable, "tasks.md"));
+
+		expect(readTasksStatus(absent).problems).toContain("tasks.md ausente.");
+		expect(readTasksStatus(empty).problems).toContain("tasks.md sin checkboxes parseables.");
+		expect(readTasksStatus(unreadable).problems).toContain("tasks.md no se pudo leer.");
+		expect(readTasksStatus(unreadable).counts.done).toBe(0);
+	});
+
 	test("tasks.md bloqueado alimenta contadores y blockers", () => {
 		const c = change("feat-x");
 		put(c, "tasks.md", "status: blocked\nblocked_by: decision missing\n- [ ] 1.1 Build router\n");
 		const s = resolveSddStatus(DIR, "feat-x");
 		expect(s.tasks.counts.blocked).toBe(1);
 		expect(s.blocked).toContain("tasks.md bloqueado por: decision missing");
+	});
+
+	test("un bloqueo explícito sigue visible aunque todas las tareas estén terminadas", () => {
+		const c = change("completed-but-blocked");
+		put(c, "tasks.md", "status: blocked\nblocked_by: decision missing\n- [X] 1 Done\n- verify: bun test\n");
+		const status = resolveSddStatus(DIR, "completed-but-blocked");
+		expect(status.tasks.counts).toEqual({ pending: 0, ready: 0, blocked: 0, done: 1 });
+		expect(status.blocked).toContain("tasks.md bloqueado por: decision missing");
 	});
 
 	test("scope, map y design tratan tasks.md ausente como trabajo futuro", () => {

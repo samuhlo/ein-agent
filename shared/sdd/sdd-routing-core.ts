@@ -368,12 +368,13 @@ export function readTasksStatus(changePath: string): SddTasksStatus {
 
 	const done = items.filter((item) => item.done).length;
 	const pending = items.length - done;
+	const allDone = items.length > 0 && pending === 0;
 	const blocked = status === "blocked" ? pending : 0;
 	const ready = status === "ready" ? pending : 0;
 	const nextPending = items.find((item) => !item.done) ?? null;
 	const problems: string[] = [];
-	if (!status) problems.push("tasks.md sin status ready|blocked.");
-	if (!blockedByMatch) problems.push("tasks.md sin blocked_by.");
+	if (!allDone && !status) problems.push("tasks.md sin status ready|blocked.");
+	if (!allDone && !blockedByMatch) problems.push("tasks.md sin blocked_by.");
 	if (items.length === 0) problems.push("tasks.md sin checkboxes parseables.");
 
 	return { present: true, status, blockedBy, items, nextPending, counts: { pending, ready, blocked, done }, problems };
