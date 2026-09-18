@@ -187,9 +187,9 @@ describe("delegationIsDelivery — determinista por agente", () => {
 		expect(delegationIsDelivery({ agent: "sdd-apply", task: "arregla el bug y haz push de la rama" })).toBe(true);
 	});
 
-	test("cubre los modos parallel (tasks[]) y chain (steps[])", () => {
-		expect(delegationIsDelivery({ tasks: [{ agent: "sdd-map", task: "mapea" }, { agent: "ein-git", task: "entrega" }] })).toBe(true);
-		expect(delegationIsDelivery({ steps: [{ agent: "ein-git", task: "entrega" }] })).toBe(true);
+	test("los arrays legacy no se interpretan como autorización de entrega", () => {
+		expect(delegationIsDelivery({ tasks: [{ agent: "sdd-map", task: "mapea" }, { agent: "ein-git", task: "entrega" }] })).toBe(false);
+		expect(delegationIsDelivery({ steps: [{ agent: "ein-git", task: "entrega" }] })).toBe(false);
 		expect(delegationIsDelivery({ steps: [{ agent: "sdd-map", task: "mapea el módulo" }] })).toBe(false);
 	});
 
@@ -319,15 +319,15 @@ describe("confirmDelegatedDelivery (tool subagent)", () => {
 		expect(existsSync(deliveryGrantPath())).toBe(false);
 	});
 
-	test("también inspecciona tasks[] y steps[]", async () => {
+	test("no emite grants para arrays legacy", async () => {
 		const { ctx, calls } = ctxStub(true, true);
 		await confirmDelegatedDelivery(
 			{ tasks: [{ agent: "ein-github", task: "sube rama y abre PR" }] },
 			ctx,
 			ASK,
 		);
-		expect(calls.length).toBe(1);
-		expect(consumeDelegatedDelivery(CWD)).toBe(true);
+		expect(calls.length).toBe(0);
+		expect(consumeDelegatedDelivery(CWD)).toBe(false);
 	});
 
 	test("modo ask sin UI: queda bloqueado por el guard y no emite grant", async () => {

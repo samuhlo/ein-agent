@@ -105,7 +105,6 @@ describe("automatic participant foreground preflight", () => {
 			agent: "ein-cleaner",
 			task: `${PARTICIPANT_MARKER}\nRun the bounded audit.`,
 			async: true,
-			foregroundOnly: false,
 		};
 
 		expect(isSddParticipantMarker(input.task)).toBe(true);
@@ -116,9 +115,8 @@ describe("automatic participant foreground preflight", () => {
 
 	test("forces foreground execution for a one-child workflow call", () => {
 		const input: Record<string, unknown> = {
-			workflowScript: `runs.run("audit", { agent: "ein-cleaner", task: "${PARTICIPANT_MARKER}" })`,
+			workflowScript: `return runs.run("audit", { agent: "ein-cleaner", task: "${PARTICIPANT_MARKER}" })`,
 			async: true,
-			foregroundOnly: false,
 		};
 
 		expect(ensureParticipantForeground(input)).toBe(true);

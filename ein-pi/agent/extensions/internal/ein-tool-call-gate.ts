@@ -12,7 +12,6 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
 	ensureApplyAcceptance,
-	ensureApplyTurnBudget,
 	ensureDelegationAcceptance,
 	ensureParticipantForeground,
 	ensurePhaseRuntime,
@@ -23,10 +22,11 @@ import {
 } from "../../lib/sdd-preflight.ts";
 import {
 	collectDelegationItems,
-	delegationShapeIsUnrecognized,
 	delegationTargetsOnly,
+	normalizeDelegationForRunner,
 	rewriteDelegationTasks,
 } from "../../lib/delegation-shape.ts";
+import { admitDelegation } from "../../lib/delegation-admission.ts";
 import {
 	type DeliveryIntent,
 	bindDeliveryWork,
@@ -34,7 +34,6 @@ import {
 	nextDeliveryIntent,
 	readGitDeliveryMode,
 } from "../../lib/git-delivery.ts";
-import { t } from "../../lib/i18n/strings.ts";
 import {
 	confirmDelegatedDelivery,
 } from "../../lib/guardrails.ts";
@@ -75,8 +74,6 @@ export function registerToolCallGate(
 	dependencies: ToolCallGateDependencies,
 ) {
 	const deliveryIntentBySession = new Map<string, DeliveryIntent>();
-	const shapeDriftWarned = new Set<string>();
-
 	function recordDeliveryIntent(ctx: ExtensionContext, text: string): void {
 		const key = sddPreflightSessionKey(ctx);
 		deliveryIntentBySession.set(
@@ -87,6 +84,14 @@ export function registerToolCallGate(
 
 	pi.on("tool_call", async (event, ctx) => {
 		if (event.toolName === "subagent") {
+			const initialAdmission = admitDelegation(event.input);
+			if (initialAdmission.kind === "rejected") {
+				return {
+					block: true,
+					reason: `[${initialAdmission.code}] ${initialAdmission.reason}${initialAdmission.line ? ` (line ${initialAdmission.line}, column ${initialAdmission.column})` : ""}`,
+				};
+			}
+			if (initialAdmission.kind === "management") return undefined;
 			try { if (validateEvidenceDelegation(ctx, event.input)) return; }
 			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			try { rewriteDelegationTasks(event.input, (agent, task) => expandSddParticipantTask(ctx.cwd, sddPreflightSessionKey(ctx), agent, task)); }
@@ -101,6 +106,9 @@ export function registerToolCallGate(
 			);
 			if (scoutLaunch) {
 				Object.assign(event.input as Record<string, unknown>, scoutLaunch);
+				delete (event.input as Record<string, unknown>).turnBudget;
+				try { normalizeDelegationForRunner(event.input); }
+				catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 				return undefined;
 			}
 			const items = collectDelegationItems(event.input);
@@ -144,19 +152,6 @@ export function registerToolCallGate(
 				}
 			}
 			ensureParticipantForeground(event.input);
-			if (ctx.hasUI && delegationShapeIsUnrecognized(event.input)) {
-				const driftKey = sddPreflightSessionKey(ctx);
-				if (!shapeDriftWarned.has(driftKey)) {
-					shapeDriftWarned.add(driftKey);
-					ctx.ui.notify(
-						t(
-							"ai.delegation.shape-drift",
-							"Ein no reconoce la forma de esta delegación: los gates de entrega y TDD no se aplican. Si el runtime de subagentes se acaba de actualizar, actualiza Ein (`ein update`).",
-						),
-						"warning",
-					);
-				}
-			}
 			// Rollout 1: observar el contrato vivo sin bloquear ni mutar la
 			// delegación. La puerta dura llega solo después de medir planes reales.
 			if (delegationTargetsOnly(event.input, "sdd-apply")) {
@@ -188,12 +183,13 @@ export function registerToolCallGate(
 			}
 			ensurePlanningAcceptance(event.input);
 			ensureApplyAcceptance(event.input);
-			ensureApplyTurnBudget(event.input);
 			ensurePhaseRuntime(event.input);
 			try { ensurePhaseContextBudget(event.input); }
 			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			ensureDelegationAcceptance(event.input);
 			await gateTddForDelegation(event.input, ctx);
+			try { normalizeDelegationForRunner(event.input); }
+			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			dependencies.rememberPhaseSnapshot(
 				event.toolCallId,
 				event.input,
