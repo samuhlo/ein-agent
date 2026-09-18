@@ -17,7 +17,7 @@ export const DELEGATION_CALL_MAX = 64;
 
 const RUN_KEY = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const LEGACY_KEYS = ["tasks", "steps", "chain"] as const;
-const EIN_METADATA_KEYS = new Set(["tdd", "allowBudgetIncrease"]);
+const EIN_METADATA_KEYS = new Set(["tdd", "turnBudget", "allowBudgetIncrease"]);
 const CHILD_KEYS = new Set([
 	"agent", "task", "cwd", "context", "timeoutMs", "maxRuntimeMs", "toolTimeoutMs",
 	"toolBudget", "usageBudget", "acceptance", "agentContract", "output", "outputMode",
@@ -166,7 +166,7 @@ function validateOptionTypes(item: Record<string, unknown>, source?: typescript.
 	for (const key of ["cwd", "context", "model", "baseRef", "sessionDir", "phase", "label", "chatProgress", "isolation", "agentScope"]) {
 		if (item[key] !== undefined && typeof item[key] !== "string") return rejected(`${prefix}.${key} must be a string`, key, source, node);
 	}
-	for (const key of ["toolBudget", "usageBudget", "acceptance", "agentContract", "outputMode", "outputSchema", "lane", "extensionBindings", "preflight"]) {
+	for (const key of ["turnBudget", "toolBudget", "usageBudget", "acceptance", "agentContract", "outputMode", "outputSchema", "lane", "extensionBindings", "preflight"]) {
 		if (item[key] !== undefined && !isRecord(item[key])) return rejected(`${prefix}.${key} must be a JSON object`, key, source, node);
 	}
 	if (item.output !== undefined && typeof item.output !== "string" && typeof item.output !== "boolean") return rejected(`${prefix}.output must be a string or boolean`, "output", source, node);

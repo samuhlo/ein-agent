@@ -1,9 +1,9 @@
 // =============================================================================
 // TESTS: TDD phase boundary
-// Regresion: el padre volcaba "STRICT TDD MODE IS ACTIVE" en el task compartido
+// Regresion: el padre volcaba un marcador de prosa TDD en el task compartido
 // del chain ein-sdd, que se reenvia a las fases -> scope/map/design corrian
-// tests y escribian apply/verify. Fix: orchestrator no lo mete en la tarea de
-// chain (solo en apply directo), y las fases read-only lo ignoran (defensa).
+// tests y escribian apply/verify. Fix: la postura viaja como contrato generado
+// solo a cada apply, y las fases read-only conservan su defensa.
 // =============================================================================
 
 import { describe, expect, test } from "bun:test";
@@ -112,12 +112,13 @@ describe("orchestrator: TDD forwarding distingue chain vs directo", () => {
 	const orch = read("assets/orchestrator.md");
 
 	test("instruye a NO meter TDD en la tarea compartida del chain", () => {
-		expect(orch).toContain("ein-sdd` chain");
+		expect(orch).toContain("shared fallback-chain task");
 		expect(orch.toLowerCase()).toContain("phase-neutral");
 	});
 
-	test("conserva la linea TDD para invocacion directa de sdd-apply", () => {
-		expect(orch).toContain("STRICT TDD MODE IS ACTIVE");
+	test("la invocacion directa recibe contrato mecanico, no una frase obligatoria", () => {
+		expect(orch).toContain("ein_effective_tdd");
+		expect(orch).toContain("Do not repeat a magic phrase");
 	});
 });
 
