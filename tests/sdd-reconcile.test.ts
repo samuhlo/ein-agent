@@ -205,28 +205,24 @@ describe("formatReconciliation", () => {
 describe("resolveDelegationPhase", () => {
 	test("una sola fase SDD → esa fase", () => {
 		expect(resolveDelegationPhase({ agent: "sdd-map", task: "mapea" })).toBe("map");
-		expect(resolveDelegationPhase({ steps: [{ agent: "sdd-verify", task: "v" }] })).toBe("verify");
+		expect(resolveDelegationPhase({ workflowScript: `return runs.run("verify", { agent: "sdd-verify", task: "v" })` })).toBe("verify");
 	});
 
 	test("varias fases distintas → null (ambiguo)", () => {
 		expect(
-			resolveDelegationPhase({
-				steps: [
-					{ agent: "sdd-map", task: "a" },
-					{ agent: "sdd-design", task: "b" },
-				],
-			}),
+			resolveDelegationPhase({ workflowScript: `return runs.all([
+				{ key: "map", agent: "sdd-map", task: "a" },
+				{ key: "design", agent: "sdd-design", task: "b" }
+			])` }),
 		).toBeNull();
 	});
 
 	test("la misma fase repetida sigue siendo esa fase", () => {
 		expect(
-			resolveDelegationPhase({
-				tasks: [
-					{ agent: "sdd-apply", task: "a" },
-					{ agent: "sdd-apply", task: "b" },
-				],
-			}),
+			resolveDelegationPhase({ workflowScript: `return runs.all([
+				{ key: "apply-a", agent: "sdd-apply", task: "a" },
+				{ key: "apply-b", agent: "sdd-apply", task: "b" }
+			])` }),
 		).toBe("apply");
 	});
 

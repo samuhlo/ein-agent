@@ -75,7 +75,7 @@ describe("readonly scout launch contract", () => {
 	});
 
 	test("R4: acepta el fan-out en workflowScript y lo deja en foreground", () => {
-		const script = 'runs.all([{ agent: "ein-scout", task: "angulo A" }, { agent: "ein-scout", task: "angulo B" }])';
+		const script = 'return runs.all([{ key: "a", agent: "ein-scout", task: "angulo A" }, { key: "b", agent: "ein-scout", task: "angulo B" }])';
 		const launch = normalizeScoutLaunch({ workflowScript: script }, "call-fanout", new Map())!;
 		expect(launch.async).toBe(false);
 		expect(launch.context).toBe("fresh");
