@@ -31,7 +31,7 @@ describe("delegationTargetsApply", () => {
 		);
 	});
 
-	test("chain con sdd-apply en un paso → true", () => {
+	test("chain legacy con sdd-apply no se interpreta", () => {
 		const input = {
 			task: "feature X",
 			chain: [
@@ -42,7 +42,7 @@ describe("delegationTargetsApply", () => {
 				{ agent: "sdd-verify", task: "{task}" },
 			],
 		};
-		expect(delegationTargetsApply(input)).toBe(true);
+		expect(delegationTargetsApply(input)).toBe(false);
 	});
 
 	test("chain solo de fases read-only → false", () => {
@@ -57,18 +57,18 @@ describe("delegationTargetsApply", () => {
 		expect(delegationTargetsApply(input)).toBe(false);
 	});
 
-	test("steps[] (nombre alternativo de chain) con sdd-apply → true", () => {
+	test("steps[] legacy no se interpreta", () => {
 		expect(
 			delegationTargetsApply({ steps: [{ agent: "sdd-apply", task: "y" }] }),
-		).toBe(true);
+		).toBe(false);
 	});
 
-	test("tasks[] paralelo con sdd-apply → true", () => {
+	test("tasks[] legacy no se interpreta", () => {
 		expect(
 			delegationTargetsApply({
 				tasks: [{ agent: "sdd-map" }, { agent: "sdd-apply" }],
 			}),
-		).toBe(true);
+		).toBe(false);
 	});
 
 	test("entradas inválidas → false (no lanza)", () => {
@@ -109,7 +109,7 @@ describe("readDelegationTddHint", () => {
 		).toBeUndefined();
 	});
 
-	test("hint del paso sdd-apply dentro de chain gana", () => {
+	test("hint dentro de chain legacy no se consume", () => {
 		const input = {
 			task: "feature",
 			chain: [
@@ -117,7 +117,7 @@ describe("readDelegationTddHint", () => {
 				{ agent: "sdd-apply", task: "{task}", tdd: "off" },
 			],
 		};
-		expect(readDelegationTddHint(input)).toBe("off");
+		expect(readDelegationTddHint(input)).toBeUndefined();
 	});
 
 	test("marcador de texto: 'STRICT TDD MODE IS ACTIVE' → strict", () => {
@@ -182,13 +182,13 @@ describe("delegationIsDocsOnly — documentación pura nunca pregunta TDD", () =
 		expect(delegationIsDocsOnly({})).toBe(false);
 	});
 
-	test("docs en un paso de chain también cuenta", () => {
+	test("docs en un chain legacy no se interpretan", () => {
 		expect(
 			delegationIsDocsOnly({
 				task: "documentación",
 				chain: [{ agent: "sdd-apply", task: "escribe docs/guia.md" }],
 			}),
-		).toBe(true);
+		).toBe(false);
 	});
 });
 
@@ -197,7 +197,7 @@ describe("delegationStartsScope — pregunta TDD al arrancar el SDD", () => {
 		expect(delegationStartsScope({ agent: "sdd-scope", task: "x" })).toBe(true);
 	});
 
-	test("chain que empieza en scope → true", () => {
+	test("chain legacy que empieza en scope no se interpreta", () => {
 		const input = {
 			task: "feature X",
 			chain: [
@@ -205,7 +205,7 @@ describe("delegationStartsScope — pregunta TDD al arrancar el SDD", () => {
 				{ agent: "sdd-apply", task: "{task}" },
 			],
 		};
-		expect(delegationStartsScope(input)).toBe(true);
+		expect(delegationStartsScope(input)).toBe(false);
 	});
 
 	test("apply suelto sin scope → false (lo caza delegationTargetsApply)", () => {

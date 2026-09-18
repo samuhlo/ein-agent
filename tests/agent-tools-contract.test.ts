@@ -315,14 +315,14 @@ async function deliverParticipantResult(
 	const toolCall = hooks.get("tool_call");
 	const toolResult = hooks.get("tool_result");
 	if (!toolCall || !toolResult) throw new Error("participant hooks were not registered");
-	const workflowTask = JSON.stringify(fixture.task).replace(/\\n/g, "\n");
+	const workflowTask = JSON.stringify(fixture.task);
 	const input: Record<string, unknown> = options.workflow
-		? { workflowScript: `runs.run("audit", { agent: "ein-cleaner", task: ${workflowTask} })`, async: true, foregroundOnly: false }
-		: { agent: "ein-cleaner", task: fixture.task, async: true, foregroundOnly: false };
+		? { workflowScript: `return runs.run("audit", { agent: "ein-cleaner", task: ${workflowTask} })`, async: true }
+		: { agent: "ein-cleaner", task: fixture.task, async: true };
 	const callOutcome = await toolCall({ toolName: "subagent", toolCallId: "participant-call", input }, fixture.context);
 	expect(callOutcome).toBeUndefined();
 	expect(input.async).toBe(false);
-	expect(input.foregroundOnly).toBe(true);
+	expect(input.foregroundOnly).toBeUndefined();
 	const result = await toolResult({
 		toolName: options.toolName ?? "subagent",
 		toolCallId: "participant-call",
@@ -366,14 +366,13 @@ describe("Pi participant terminal edge", () => {
 		if (!toolCall) throw new Error("participant tool_call hook was not registered");
 		const task = JSON.stringify(fixture.task);
 		const input: Record<string, unknown> = {
-			workflowScript: `runs.run("audit-one", { agent: "ein-cleaner", task: ${task} }); runs.run("audit-two", { agent: "ein-cleaner", task: ${task} })`,
+			workflowScript: `await runs.run("audit-one", { agent: "ein-cleaner", task: ${task} }); return runs.run("audit-two", { agent: "ein-cleaner", task: ${task} })`,
 			async: true,
-			foregroundOnly: false,
 		};
 
 		expect(await toolCall({ toolName: "subagent", toolCallId: "participant-call", input }, fixture.context)).toMatchObject({ block: true });
 		expect(input.async).toBe(true);
-		expect(input.foregroundOnly).toBe(false);
+		expect(input.foregroundOnly).toBeUndefined();
 	});
 
 	test.each([

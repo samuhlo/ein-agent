@@ -35,12 +35,12 @@ describe("delegationIsPlanningOnly", () => {
 		expect(delegationIsPlanningOnly({ agent: "ein-git", task: "commit" })).toBe(false);
 	});
 
-	test("chain/tasks solo de planificación → true; con un apply → false", () => {
+	test("fan-out estático solo de planificación → true; con un apply → false", () => {
 		expect(
-			delegationIsPlanningOnly({ chain: [{ agent: "sdd-scope" }, { agent: "sdd-map" }] }),
+			delegationIsPlanningOnly({ workflowScript: `return runs.all([{key:"scope",agent:"sdd-scope",task:"s"},{key:"map",agent:"sdd-map",task:"m"}])` }),
 		).toBe(true);
 		expect(
-			delegationIsPlanningOnly({ tasks: [{ agent: "sdd-map" }, { agent: "sdd-apply" }] }),
+			delegationIsPlanningOnly({ workflowScript: `return runs.all([{key:"map",agent:"sdd-map",task:"m"},{key:"apply",agent:"sdd-apply",task:"a"}])` }),
 		).toBe(false);
 	});
 
