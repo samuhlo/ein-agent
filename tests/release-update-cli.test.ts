@@ -168,7 +168,7 @@ describe("release update CLI", () => {
     const cases: Array<[UpdateOutcome, number, string]> = [
       [{ type: "updated", release: resolved }, EXIT_UPDATED, "Instalado verificado: v0.20.0"],
       [{ type: "already-current", release: resolved }, EXIT_ALREADY_CURRENT, "Ya está actualizado."],
-      [{ type: "dry-run", release: resolved, owner: { type: "standalone" } }, EXIT_DRY_RUN, "no se modifico ningun archivo"],
+      [{ type: "dry-run", release: resolved, owner: { type: "standalone" } }, EXIT_DRY_RUN, "no se modificó la instalación"],
       [{ type: "blocked-external-owner", owner: { type: "package-manager", manager: "homebrew" }, release: resolved }, EXIT_BLOCKED_EXTERNAL_OWNER, "homebrew"],
       [{ type: "failed", stage: "verifying", message: "checksum mismatch", selector: resolved.selector, release: resolved }, EXIT_FAILED, "verifying"],
     ];
@@ -612,7 +612,7 @@ describe("release update CLI", () => {
     expect(interrupted.join("\n")).toContain("recuperación");
   });
 
-  test("does not block the next normal run after proven local recovery finalizes", async () => {
+  test("dry-run preserves a journal after proven local recovery finalizes", async () => {
     const dir = root();
     const markerPath = join(dir, "marker.json");
     const journalPath = join(dir, "journal.json");
@@ -648,8 +648,8 @@ describe("release update CLI", () => {
       write: (line) => output.push(line),
     });
     expect(code).toBe(EXIT_DRY_RUN);
-    expect(output.join("\\n")).not.toContain("recuperación requerida");
-    expect(files.has(journalPath)).toBe(false);
+    expect(output.join("\\n")).toContain("Recuperación pendiente");
+    expect(files.has(journalPath)).toBe(true);
   });
 
   test("reports already-current only after marker, binary, template, and digest agree", async () => {
