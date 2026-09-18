@@ -116,6 +116,12 @@ try {
   if (childToolsProbe.exitCode !== 0) throw new Error(new TextDecoder().decode(childToolsProbe.stderr));
   console.log(new TextDecoder().decode(childToolsProbe.stdout).trim());
 
+  const phaseBudgetProbe = Bun.spawnSync(["bun", join(ROOT, "tooling/verify-phase-tool-budget.ts"), join(context.agentDir, "npm/node_modules/pi-subagents")], {
+    cwd: home, env: { ...process.env, NODE_PATH: join(ROOT, "node_modules"), PI_OFFLINE: "1" }, stdout: "pipe", stderr: "pipe",
+  });
+  if (phaseBudgetProbe.exitCode !== 0) throw new Error(new TextDecoder().decode(phaseBudgetProbe.stderr));
+  console.log(new TextDecoder().decode(phaseBudgetProbe.stdout).trim());
+
   const nativeCardsProbe = Bun.spawnSync(["bun", join(ROOT, "tooling/verify-native-cards-runtime.ts")], {
     cwd: home, env: { ...process.env, NODE_PATH: join(ROOT, "node_modules"), PI_OFFLINE: "1" },
     stdout: "pipe", stderr: "pipe",

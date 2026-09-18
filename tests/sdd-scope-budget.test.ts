@@ -38,10 +38,9 @@ describe("sdd-scope.md budget contract", () => {
     expect(content).toContain("~200");
   });
 
-  test("emite scope + max_reads para propagar el SCOPE PACKET a map", () => {
-    // Sin scope/max_reads concretos en scope.md, map corre sin tope de
-    // lectura en modo chain (causa de la explosion de tokens).
+  test("emite scope + max_tool_calls para propagar el SCOPE PACKET a map", () => {
+    // El runner limita llamadas totales; no presenta el umbral como lecturas.
     expect(content).toContain("scope:");
-    expect(content).toContain("max_reads");
+    expect(content).toContain("max_tool_calls");
   });
 });

@@ -234,7 +234,12 @@ export function registerToolCallGate(
 			ensurePlanningAcceptance(event.input);
 			ensureApplyAcceptance(event.input);
 			ensurePhaseRuntime(event.input);
-			try { ensurePhaseContextBudget(event.input); }
+			try {
+				const phaseBudgets = ensurePhaseContextBudget(event.input);
+				for (const allocation of phaseBudgets.allocations) {
+					if (allocation.warning && ctx.hasUI) ctx.ui.notify(`${allocation.agent}: ${allocation.warning}`, "warning");
+				}
+			}
 			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			ensureDelegationAcceptance(event.input);
 			try { normalizeDelegationForRunner(event.input); }

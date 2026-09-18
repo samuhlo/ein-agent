@@ -111,6 +111,14 @@ describe("delegation admission", () => {
 		rejection({ workflowScript: `return runs.all([{key:"same",agent:"ein-scout",task:"x"},{key:"same",agent:"ein-scout",task:"y"}])` }, "key");
 	});
 
+	test("validates the runner tool budget contract before launch", () => {
+		expect(execution({ agent: "sdd-map", task: "map", toolBudget: { hard: 30, soft: 24, block: ["read", "bash"] } }).items[0]?.toolBudget).toEqual({ hard: 30, soft: 24, block: ["read", "bash"] });
+		rejection({ agent: "sdd-map", task: "map", toolBudget: { hard: "30" } }, "toolBudget.hard");
+		rejection({ workflowScript: `return runs.run("map", {agent:"sdd-map",task:"map",toolBudget:{hard:4,soft:5}})` }, "toolBudget.soft");
+		rejection({ workflowScript: `return runs.run("map", {agent:"sdd-map",task:"map",toolBudget:{hard:4,block:"read"}})` }, "toolBudget.block");
+		rejection({ agent: "sdd-map", task: "map", toolBudget: { hard: 4, mystery: true } }, "toolBudget.mystery");
+	});
+
 	test("enforces byte and call bounds", () => {
 		const oversized = `return runs.status("${"x".repeat(DELEGATION_SCRIPT_MAX_BYTES)}")`;
 		expect(rejection({ workflowScript: oversized }).reason).toContain("bytes");
