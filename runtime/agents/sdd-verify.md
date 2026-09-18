@@ -1,7 +1,7 @@
 ---
 name: sdd-verify
 description: Verify implementation against SDD design, tasks, apply progress, and strict TDD evidence.
-tools: read, grep, find, bash, ein_sdd_verification
+tools: read, grep, find, bash, ein_sdd_verification, ein_sdd_phase_complete
 subagentOnlyExtensions: ../extensions/internal/ein-verify-receipt-child.ts, ../extensions/internal/ein-verify-output-child.ts, ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 ---

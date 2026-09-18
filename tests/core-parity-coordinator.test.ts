@@ -177,7 +177,7 @@ describe("core parity: Claude coordinator contract", () => {
         .split(",")
         .map((tool) => tool.trim())
         .filter(Boolean);
-      const expected = [...new Set(rawTools.map(expectedClaudeTool))].join(", ");
+      const expected = [...new Set(rawTools.filter((tool) => tool !== "ein_sdd_phase_complete").map(expectedClaudeTool))].join(", ");
       expect(expected, `${file} has an unregistered fixture tool`).not.toBe("");
       expect(frontmatterField(surface.agents[file], "tools"), file).toBe(expected);
       expect(surface.agents[file]).not.toContain("completionGuard:");

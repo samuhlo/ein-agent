@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { normalizeApplyProgress, normalizeApplyProgressWrite } from "../shared/sdd/sdd-apply-progress.ts";
 import { updateSddTaskProgress } from "../shared/sdd/sdd-task-progress.ts";
 import { readSddCompletionEvidence } from "../shared/sdd/sdd-routing-core.ts";
-import { reconcilePhaseFailure } from "../ein-pi/agent/lib/sdd-reconcile.ts";
 import { readVerificationFreshness } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 const readVerification = (cwd: string, changePath: string) => readVerificationFreshness({ cwd, changePath });
 
@@ -28,19 +27,18 @@ test("one group cannot complete the whole change; both runtimes repair existing 
  } finally {rmSync(cwd,{recursive:true,force:true});}
 });
 
-test("a passing heading cannot override admitted missing coverage or rescue a failed phase", () => {
+test("a passing heading cannot override admitted missing coverage", () => {
  const cwd=mkdtempSync(join(tmpdir(),"ein-honest-verify-"));const dir=join(cwd,"openspec/changes/probe");mkdirSync(dir,{recursive:true});
  try {
   writeFileSync(join(dir,"tasks.md"),"status: ready\n- [ ] 1.1 Pending\n");
   writeFileSync(join(dir,"apply-progress.md"),"status: complete\n");
-  expect(reconcilePhaseFailure(cwd,"apply",{}).reconciled).toBe(false);
+	 expect(readSddCompletionEvidence(cwd,"probe",readVerification).apply).toBe("partial");
   for (const outcome of ["partial","none"]) {
    writeFileSync(join(dir,"verify-report.md"),`status: pass\nbehavior_coverage: ${outcome}\n`);
    expect(readSddCompletionEvidence(cwd,"probe",readVerification).verify).toBe("fail");
-   expect(reconcilePhaseFailure(cwd,"verify",{}).reconciled).toBe(false);
   }
   writeFileSync(join(dir,"verify-report.md"),"status: fail\nbehavior_coverage: verified\n");
-  expect(reconcilePhaseFailure(cwd,"verify",{}).reconciled).toBe(false);
+	 expect(readSddCompletionEvidence(cwd,"probe",readVerification).verify).toBe("fail");
  } finally {rmSync(cwd,{recursive:true,force:true});}
 });
 

@@ -1,7 +1,7 @@
 ---
 name: sdd-tasks
 description: SDD tasks phase — turns design.md into the executable tasks.md contract.
-tools: read, grep, find, write, edit
+tools: read, grep, find, write, edit, ein_sdd_phase_complete
 subagentOnlyExtensions: ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 ---
