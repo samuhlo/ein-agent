@@ -31,6 +31,7 @@ function verifyReport(dir: string, content: string): void {
 	if (!finished.ok) throw new Error(finished.reason);
 }
 function ready(dir: string, key: string) {
+	const cwd = resolve(dir, "../../..");
 	const files = {
 		"scope.md": "scope: export\nbudget_allocated: 1\n## Spec delta declaration\nspec_delta: none\nspec_delta_reason: fixture only",
 		"map.md": "Map", "design.md": "Design",
@@ -39,6 +40,7 @@ function ready(dir: string, key: string) {
 		"verify-report.md": 'status: pass\nbehavior_coverage: verified\n- command: `bun test`\nrequired_check: {"command":"bun test","exitCode":0}',
 	};
 	for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), `${text}\nintent_key: ${key}\n`);
+	writeFileSync(join(cwd, "src.ts"), "export const value = 1;\n");
 	utimesSync(join(dir, "apply-progress.md"), new Date(1000000), new Date(1000000));
 	verifyReport(dir, files["verify-report.md"]);
 }
@@ -144,7 +146,7 @@ describe("Claude completes SDD without Pi", () => {
 		expect(content).toContain(input.response);
 		expect(content).toContain("intent.md");
 		if (origin === "unmanaged") expect(content).toContain("Acuerdo anterior: solo filas visibles");
-		expect(readdirSync(closed.to)).toEqual(["summary.md", "verification-receipt.json"]);
+		expect(readdirSync(closed.to).sort()).toEqual(["summary.md", "verification-receipt.json"]);
 	});
 	for (const failure of ["tests", "contradictory", "tasks", "spec", "stale"] as const) test(`close still blocks ${failure}, even with force`, () => {
 		const f = fixture(); const { agreement } = JSON.parse(record(f.cwd).text); ready(f.dir, agreement.materialKey);
@@ -153,7 +155,7 @@ describe("Claude completes SDD without Pi", () => {
 		if (failure === "contradictory") writeFileSync(join(f.dir, "verify-report.md"), `status: pass\nintent_key: ${agreement.materialKey}\nrequired_check: {"command":"bun test","exitCode":1}\n12 failed (expected regression)`);
 		if (failure === "tasks") writeFileSync(join(f.dir, "tasks.md"), `- [ ] 1.1 Pending\nintent_key: ${agreement.materialKey}`);
 		if (failure === "spec") writeFileSync(join(f.dir, "scope.md"), `spec_delta: invalid\nintent_key: ${agreement.materialKey}`);
-		if (failure === "stale") writeFileSync(join(f.dir, "apply-progress.md"), `status: complete\nchanged: true\nintent_key: ${agreement.materialKey}`);
+		if (failure === "stale") writeFileSync(join(f.cwd, "src.ts"), "export const value = 2;\n");
 		expect(closeChange(f.cwd, f.change, { force: true }).ok).toBe(false);
 	});
 	test("refuses symlinked change roots", () => {
