@@ -88,7 +88,7 @@ describe("orchestrator: flujo por fases determinista", () => {
 
 	test("conserva la chain como fallback (no como ruta primaria)", () => {
 		expect(orch.toLowerCase()).toContain("fallback");
-		expect(orch).toContain("ein-sdd` chain");
+		expect(orch).toContain("shared fallback-chain task");
 	});
 
 	test("documenta sdd-next como traspaso manual sin sustituir el router interno", () => {

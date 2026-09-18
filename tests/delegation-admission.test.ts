@@ -103,10 +103,10 @@ describe("delegation admission", () => {
 		}
 	});
 
-	test("rejects ambiguous mixtures, unknown fields, invalid keys, and turnBudget", () => {
+	test("rejects ambiguous mixtures, unknown fields and invalid keys; retains Ein-only turnBudget metadata", () => {
 		rejection({ workflowScript: `return runs.run("x", {agent:"ein-scout",task:"x"})`, agent: "ein-scout", task: "x" }, "workflowScript");
 		rejection({ workflowScript: `return runs.run("x", {agent:"ein-scout",task:"x",mystery:true})` }, "mystery");
-		rejection({ workflowScript: `return runs.run("x", {agent:"ein-scout",task:"x",turnBudget:{maxTurns:2}})` }, "turnBudget");
+		expect(admitDelegation({ workflowScript: `return runs.run("x", {agent:"sdd-apply",task:"x",turnBudget:{maxTurns:2}})` })).toMatchObject({ kind: "execution", items: [{ turnBudget: { maxTurns: 2 } }] });
 		rejection({ workflowScript: `return runs.all([{key:"bad key",agent:"ein-scout",task:"x"}])` }, "key");
 		rejection({ workflowScript: `return runs.all([{key:"same",agent:"ein-scout",task:"x"},{key:"same",agent:"ein-scout",task:"y"}])` }, "key");
 	});

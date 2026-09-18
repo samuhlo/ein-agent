@@ -127,7 +127,7 @@ export function isNamedAgentStartEvent(event: unknown): boolean {
 }
 
 export function readAgentTask(event: unknown): string {
-	const candidates = [
+	const candidates = [...new Set([
 		readStringPath(event, ["task"]),
 		readStringPath(event, ["prompt"]),
 		readStringPath(event, ["userPrompt"]),
@@ -136,7 +136,7 @@ export function readAgentTask(event: unknown): string {
 		readStringPath(event, ["message"]),
 	].filter(
 		(value): value is string => typeof value === "string" && value.trim().length > 0,
-	);
+	))];
 	return candidates.length > 0
 		? candidates.join("\n")
 		: readStringPath(event, ["systemPrompt"]) ?? "";

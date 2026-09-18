@@ -52,10 +52,10 @@ describe("E1 — ensureApplyAcceptance", () => {
 });
 
 describe("E4 — ensureApplyTurnBudget", () => {
-	test("sdd-apply sin turnBudget → backstop inyectado", () => {
+	test("sdd-apply sin turnBudget no finge un backstop que el runner no admite", () => {
 		const input: Record<string, unknown> = { agent: "sdd-apply", task: "x" };
-		expect(ensureApplyTurnBudget(input)).toBe(true);
-		expect(input.turnBudget).toMatchObject({ maxTurns: expect.any(Number), graceTurns: expect.any(Number) });
+		expect(ensureApplyTurnBudget(input)).toBe(false);
+		expect(input.turnBudget).toBeUndefined();
 	});
 
 	test("respeta un turnBudget explícito y no toca otros agentes", () => {
@@ -77,9 +77,9 @@ describe("E4 — ensureApplyTurnBudget", () => {
 		expect(strict.turnBudget).toBeUndefined();
 	});
 
-	test("apply normal → cap generoso (60), no el tight de 40 que abortaba trabajo real", () => {
+	test("el cap 60+3 solo se materializa si el transporte declara soporte", () => {
 		const input: Record<string, unknown> = { agent: "sdd-apply", task: "x" };
-		expect(ensureApplyTurnBudget(input)).toBe(true);
+		expect(ensureApplyTurnBudget(input, undefined, true)).toBe(true);
 		expect(input.turnBudget).toEqual({ maxTurns: 60, graceTurns: 3 });
 	});
 });
