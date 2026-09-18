@@ -18,7 +18,7 @@ If paths are missing, allow degraded fallback loading. Report `skill_resolution`
 
 ## Inputs
 
-Read `scope.md`, `map.md`, the relevant existing code and tests, and `openspec/config.yaml` when present. Build on the map output; do not remap from scratch. Design has its own context allowance (default 15000 tokens / 30 reads), not map's remaining balance. A supplied phase allocation and explicit user limits take precedence; previous-phase consumption is accounting only.
+Read `scope.md`, `map.md`, relevant code/tests and `openspec/config.yaml`. Do not remap. Design gets 30 total tool calls per execution: research blocks after the limit but artifact writes remain. 15000 tokens is guidance, not measured use or a cap. On block, save partial `design.md` plus gaps; a new call reuses it with a new per-execution allocation.
 
 ## Canonical spec context
 

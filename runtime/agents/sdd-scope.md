@@ -55,11 +55,11 @@ Missing or invalid persisted-delta provenance MUST continue through the existing
   ```
   scope: <bounded 1-3 sentence description of the change, extracted from the task>
   budget_allocated:
-    max_tokens: <number>   # default 15000 for a normal change
-    max_reads: <number>    # default 30 for a normal change
+    max_tokens: <number>       # guidance; default 15000
+    max_tool_calls: <number>   # total calls this execution; default 30
     max_runtime_ms: <number>
   ```
-  This allocation belongs to map; its consumed/remaining balance is never design's allowance. For a broad/unbounded scope do NOT inflate the budget — recommend decomposition into bounded slices instead.
+  Tokens are guidance, not measured use or a cap; tool calls include writes. Do NOT inflate broad scope: split it. A continuation gets a new allocation and reuses the partial artifact; no balance persists.
 ## Return contract (compact envelope)
 
 Your FINAL message enters the parent context. Keep detail in `scope.md`; return ONLY:
