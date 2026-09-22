@@ -1,4 +1,5 @@
 import { evidenceReadAllowed, readEvidenceTask, type IntentEvidence } from "../../lib/intent-evidence.ts";
+import { observeContinuityGuard } from "../../lib/continuity-operation-adapter.ts";
 // =============================================================================
 // EIN AGENT PROMPT HOOK
 // Builds the context added before each Pi agent starts. Selection rules live
@@ -71,7 +72,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 	let evidence: IntentEvidence | undefined;
 	let handoffError: string | undefined;
 	let agreementInput: { directory: string; artifact: string; key: string } | undefined;
-	pi.on("tool_call", (event, ctx) => {
+	pi.on("tool_call", observeContinuityGuard((event, ctx) => {
 		if (evidence) {
 			if (event.toolName === "bash") return evidence.commands.includes(String(event.input.command)) ? undefined : { block: true, reason: "Run only the exact commands supplied for this authorized evidence experiment" };
 			if (["read", "grep", "find"].includes(event.toolName) && evidenceReadAllowed(ctx.cwd, ("path" in event.input ? event.input.path : ".") ?? ".", evidence.roots)) return;
@@ -91,7 +92,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			const body = event.input.content.replace(/^[ \t]*(?:[-*][ \t]+)?intent_key:[^\r\n]*(?:\r?\n|$)/gm, "");
 			event.input.content = `${body}${body.endsWith("\n") ? "" : "\n"}\nintent_key: ${agreementInput.key}\n`;
 		}
-	});
+	}, "agent-prompt"));
 
 	pi.on("before_agent_start", async (event, ctx) => {
 		const isSddAgent = isSddAgentStartEvent(event);
@@ -115,8 +116,6 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const isScout = startNames.includes("ein-scout");
 		handoffError = undefined;
 		agreementInput = undefined;
-		const phaseRunBound = /^ein_phase_run:[\t ]*\{/m.test(readAgentTask(event));
-		const completionPrompt = phaseRunBound ? "\nBefore the final message call ein_sdd_phase_complete: complete only after finishing the assigned phase; partial or blocked preserves progress without claiming success.\n" : "";
 		const task = readAgentTask(event);
 		const transported = startNames.includes("sdd-apply") ? parseResolvedApplyTdd(task) : { kind: "absent" as const };
 		let change = readExplicitSddChange(event);
@@ -140,6 +139,8 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const directoryContext = change && isSddAgent
 			? `\nSDD change directory: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change))}. Resolve phase artifacts here, not at the repository root.\nCanonical intent path: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change, "intent.md"))}.\n${stancePrompt}` : "";
 		const adHocStanceContext = !change && stancePrompt ? `\n${stancePrompt}` : "";
+		const phaseRunBound = /^ein_phase_run:[\t ]*\{/m.test(readAgentTask(event));
+		const completionPrompt = phaseRunBound ? "\nBefore the final message call ein_sdd_phase_complete: complete only after finishing the assigned phase; partial or blocked preserves progress without claiming success.\n" : "";
 		const phase = startNames.find((name) => name.startsWith("sdd-"))?.slice(4) as SddPhase | undefined;
 		if (change && phase && PHASE_ARTIFACT[phase]) {
 			const directory = join(resolveChangesDir(ctx.cwd), change);

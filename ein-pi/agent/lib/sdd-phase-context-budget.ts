@@ -78,23 +78,23 @@ function readToolBudget(value: unknown): Partial<ToolBudget> {
 	return { hard, ...(soft === undefined ? {} : { soft }), ...(block === undefined ? {} : { block }) };
 }
 
-function mergeBlockedTools(explicit: ToolBudget["block"] | undefined): ToolBudget["block"] {
-	if (explicit === "*") return "*";
-	return [...new Set([...RESEARCH_TOOLS, ...(explicit ?? [])])];
+function mergeBlockedTools(...explicit: (ToolBudget["block"] | undefined)[]): ToolBudget["block"] {
+	if (explicit.includes("*")) return "*";
+	return [...new Set([...RESEARCH_TOOLS, ...explicit.flatMap((block) => Array.isArray(block) ? block : [])])];
 }
 
-function allocationFor(item: DelegationItem): PhaseToolBudgetAllocation | null {
+function allocationFor(item: DelegationItem, inherited: Partial<ToolBudget>): PhaseToolBudgetAllocation | null {
 	if (item.agent !== "sdd-map" && item.agent !== "sdd-design") return null;
 	const phase = parsePhaseBudget(item.task);
 	const caller = readToolBudget(item.toolBudget);
 	const allowIncrease = item.allowBudgetIncrease === true;
-	const requestedHard = caller.hard === undefined ? phase.maxToolCalls : Math.min(phase.maxToolCalls, caller.hard);
+	const requestedHard = Math.min(phase.maxToolCalls, caller.hard ?? Infinity, inherited.hard ?? Infinity);
 	if (!allowIncrease && (phase.maxTokens > DEFAULT_MAX_TOKENS || requestedHard > DEFAULT_TOOL_CALLS)) {
 		throw new Error("phase budget increases require allowBudgetIncrease:true");
 	}
 	const hard = allowIncrease ? requestedHard : Math.min(DEFAULT_TOOL_CALLS, requestedHard);
-	const soft = caller.soft === undefined ? Math.min(DEFAULT_SOFT_TOOL_CALLS, hard) : Math.min(caller.soft, hard);
-	const block = mergeBlockedTools(caller.block);
+	const soft = Math.min(caller.soft ?? inherited.soft ?? DEFAULT_SOFT_TOOL_CALLS, inherited.soft ?? Infinity, hard);
+	const block = mergeBlockedTools(inherited.block, caller.block);
 	return {
 		agent: item.agent,
 		maxTokensGuidance: allowIncrease ? phase.maxTokens : Math.min(DEFAULT_MAX_TOKENS, phase.maxTokens),
@@ -129,9 +129,10 @@ export function ensurePhaseContextBudget(input: unknown): PhaseToolBudgetResult 
 	if (!isRecord(input)) return { changed: false, allocations: [] };
 	const admission = admitDelegation(input);
 	if (admission.kind !== "execution") return { changed: false, allocations: [] };
+	const inherited = typeof input.workflowScript === "string" ? readToolBudget(input.toolBudget) : {};
 	const allocations: PhaseToolBudgetAllocation[] = [];
 	const items = admission.items.map((item) => {
-		const allocation = allocationFor(item);
+		const allocation = allocationFor(item, inherited);
 		if (!allocation) return item;
 		allocations.push(allocation);
 		return applyAllocation(item, allocation);

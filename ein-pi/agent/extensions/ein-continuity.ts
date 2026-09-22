@@ -8,9 +8,12 @@ import {
 	type ContinuityHandoffLifecycle,
 } from "../lib/continuity-handoff-lifecycle.ts";
 import { showContinuityObjective, type ContinuityObjectiveResult } from "../lib/continuity-objective.ts";
+import { piContinuityOperation, continuityToolOutcome } from "../lib/continuity-operation-adapter.ts";
+import { createContinuityRecoveryEvidence } from "../lib/continuity-recovery-evidence.ts";
+import type { OperationStart, RecoveryAssessment } from "../lib/continuity-operation-runtime.ts";
+import { redactMcpText } from "../lib/mcp-card.ts";
 
 export const HANDOFF_USAGE = "Usage: /ein:handoff status|refresh|clear|to pi|to claude";
-const MUTATING_TOOLS = new Set(["write", "edit", "bash", "subagent", "ein_cleaner_improve_apply", "ein_openspec_sync", "ein_openspec_delta_write"]);
 const REQUEST_ENTRY = "ein:continuity-objective-request";
 
 type ExtensionDependencies = Readonly<{
@@ -30,10 +33,13 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 		let lifecycle: ContinuityHandoffLifecycle | null = null;
 		let observedRequestId: string | null = null;
 		let thresholdNotified = false;
+		let nativeContext: ExtensionContext | undefined;
+		const calls = new Map<string, OperationStart>();
 		const active = (): ContinuityHandoffLifecycle | null => lifecycle;
 		const create = dependencies.createLifecycle ?? ((cwd: string) => createContinuityHandoffLifecycle(cwd, {
 			now: () => new Date().toISOString(),
 			runtimeAvailable: (provider) => provider === "pi" || localExecutableAvailable("claude"),
+			recoveryEvidence: createContinuityRecoveryEvidence(cwd, { sessionId: () => nativeContext?.sessionManager.getSessionId(), entries: () => nativeContext?.sessionManager.getBranch() ?? [] }),
 		}));
 
 		pi.registerCommand("ein:handoff", {
@@ -109,6 +115,7 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 		});
 
 		pi.on("session_start", (_event, ctx) => {
+			nativeContext = ctx; calls.clear();
 			lifecycle = create(ctx.cwd); thresholdNotified = false;
 			const latest = [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === REQUEST_ENTRY);
 			const data = latest?.type === "custom" ? latest.data as { id?: unknown } : undefined;
@@ -123,8 +130,36 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 			const current = active(); if (current) { current.captureInput(event.text); await current.refresh(false); }
 			return { action: "continue" as const };
 		});
-		pi.on("tool_result", async (event) => {
-			if (MUTATING_TOOLS.has(event.toolName)) await active()?.mutationResult(!event.isError);
+		pi.on("tool_call", (event, ctx) => {
+			try {
+				const input = piContinuityOperation(event, ctx); if (!input) return;
+				const current = active(); if (!current) return { block: true, reason: "continuity-operation-unavailable" };
+				const result = current.beginOperation(input);
+				if (!result.ok) { current.recordAdmissionDenied(input, "continuity-start-failed"); return { block: true, reason: `continuity-operation:${result.reason}` }; }
+				calls.set(event.toolCallId, input);
+			} catch { return { block: true, reason: "continuity-operation-identity-unavailable" }; }
+		});
+		pi.on("tool_result", async (event, ctx) => {
+			try {
+				const input = calls.get(event.toolCallId) ?? piContinuityOperation(event, ctx); if (!input) return;
+				const outcome = continuityToolOutcome({ toolName: event.toolName, input: event.input, isError: event.isError, details: event.details, content: event.content });
+				const result = active()?.finishOperation(input, outcome); calls.delete(event.toolCallId);
+				if (result && !result.ok) notify(ctx, `continuity-operation:${result.reason}`, "warning");
+			} catch { await active()?.mutationResult(false); }
+		});
+		pi.registerTool({
+			name: "ein_continuity_recover", label: "Ein Recuperar operación", description: "Inspect an uncertain operation and explicitly resolve it against its native call and existing evidence. Does not retry tools or authorize new effects.",
+			parameters: { type: "object", required: ["action"], properties: { action: { type: "string", enum: ["inspect", "resolve"] }, id: { type: "string", description: "Omit on inspect to list unresolved operation IDs." }, token: { type: "string" }, assessment: { type: "object", required: ["kind", "summary", "callRef", "evidenceRefs", "evidencePaths"], properties: {
+				kind: { type: "string", enum: ["local-attested", "external-observed"] }, summary: { type: "string" }, callRef: { type: "object", required: ["sessionRef", "toolCallId"], properties: { sessionRef: { type: "string" }, toolCallId: { type: "string" } } }, evidenceRefs: { type: "array", items: { type: "string" } }, evidencePaths: { type: "array", items: { type: "string" } },
+			} } } } as never,
+			async execute(_id, params: { action: string; id?: string; token?: string; assessment?: RecoveryAssessment }) {
+				const current = active();
+				const result = !current ? { ok: false, reason: "lifecycle-unavailable" }
+					: params.action === "inspect" ? params.id ? current.inspectOperation(params.id) : current.listOperations()
+					: params.action === "resolve" && params.id && params.token && params.assessment ? current.resolveOperation(params.id, params.token, params.assessment, "pi-coordinator")
+					: { ok: false, reason: "recovery-input-required" };
+				return { content: [{ type: "text" as const, text: redactMcpText(JSON.stringify(result)) }], details: result, isError: !result.ok };
+			},
 		});
 		pi.on("agent_settled", async (_event, ctx) => {
 			const current = active(); if (!current) return; const outcome = await current.refresh(false);

@@ -185,6 +185,8 @@ function validateOptionTypes(item: Record<string, unknown>, source?: typescript.
 	for (const key of ["turnBudget", "toolBudget", "usageBudget", "agentContract", "lane", "extensionBindings", "preflight"]) {
 		if (item[key] !== undefined && !isRecord(item[key])) return rejected(`${prefix}.${key} must be a JSON object`, key, source, node);
 	}
+	const invalidToolBudget = validateToolBudget(item.toolBudget, source, node, prefix);
+	if (invalidToolBudget) return invalidToolBudget;
 	if (item.outputMode !== undefined && item.outputMode !== "inline" && item.outputMode !== "file-only") return rejected(`${prefix}.outputMode must be inline or file-only`, "outputMode", source, node);
 	if (item.outputSchema !== undefined && item.outputSchema !== false && !isRecord(item.outputSchema)) return rejected(`${prefix}.outputSchema must be an object or false`, "outputSchema", source, node);
 	if (item.acceptance !== undefined && item.acceptance !== false && !isRecord(item.acceptance)) {
@@ -194,8 +196,6 @@ function validateOptionTypes(item: Record<string, unknown>, source?: typescript.
 		}
 		if (!valid) return rejected(`${prefix}.acceptance must be a policy object, JSON object string, auto, attested, checked, or false`, "acceptance", source, node);
 	}
-	const invalidToolBudget = validateToolBudget(item.toolBudget, source, node, prefix);
-	if (invalidToolBudget) return invalidToolBudget;
 	if (item.output !== undefined && typeof item.output !== "string" && typeof item.output !== "boolean") return rejected(`${prefix}.output must be a string or boolean`, "output", source, node);
 	if (item.skill !== undefined && typeof item.skill !== "string" && typeof item.skill !== "boolean" && !(Array.isArray(item.skill) && item.skill.every((value) => typeof value === "string"))) return rejected(`${prefix}.skill must be a string, string array, or boolean`, "skill", source, node);
 	return null;

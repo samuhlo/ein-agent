@@ -120,10 +120,10 @@ describe("continuity handoff lifecycle", () => {
 		const lifecycle = createContinuityHandoffLifecycle(root, ports()); expect(await lifecycle.refresh(true)).toBe("refreshed"); const saved = checkpoint(root); expect(saved.objective).toBe("STALE-OBJECTIVE-CANARY"); expect(JSON.stringify({ completed: saved.completed, nextAction: saved.nextAction, unresolvedDecisions: saved.unresolvedDecisions })).not.toContain("CANARY");
 	});
 
-	test("successful mutations refresh while uncertainty suppresses automatic boundaries until explicit refresh", async () => {
+	test("successful mutations refresh but explicit refresh cannot erase a failed legacy mutation", async () => {
 		const root = fixture(); let writes = 0; const lifecycle = createContinuityHandoffLifecycle(root, ports({ write: (...args: Parameters<typeof writeContinuityCheckpoint>) => { writes += 1; return writeContinuityCheckpoint(...args); } }));
 		expect(await lifecycle.mutationResult(true)).toBe("refreshed"); expect(writes).toBe(1); expect(await lifecycle.mutationResult(false)).toBe("mutation-uncertain");
-		expect(await lifecycle.refresh(false)).toBe("mutation-uncertain"); const blocked = await lifecycle.prepare("pi"); expect(blocked.ok).toBeFalse(); if (!blocked.ok) expect(blocked.reason).toBe("mutation-uncertain"); expect(writes).toBe(1); expect(await lifecycle.refresh(true)).toBe("refreshed"); expect(writes).toBe(2);
+		expect(await lifecycle.refresh(false)).toBe("mutation-uncertain"); const blocked = await lifecycle.prepare("pi"); expect(blocked.ok).toBeFalse(); if (!blocked.ok) expect(blocked.reason).toBe("mutation-uncertain"); expect(writes).toBe(1); expect(await lifecycle.refresh(true)).toBe("mutation-uncertain"); expect(writes).toBe(1);
 	});
 
 	test("a new lifecycle blocks on a live stateRef mismatch after an uncheckpointed partial mutation", async () => {

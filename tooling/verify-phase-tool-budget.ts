@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { subagentModulePath } from "../installer/src/core/subagent-module-path.ts";
 
 const packageRoot = process.argv[2];
 if (!packageRoot) throw new Error("Uso: bun tooling/verify-phase-tool-budget.ts <pi-subagents-package-root>");
@@ -16,8 +17,7 @@ if (!existsSync(peerLink)) {
 	process.on("exit", () => { if (linkedHostPeers) unlinkSync(peerLink); });
 }
 
-const runtimePath = join(packageRoot, "src/runs/shared/subagent-prompt-runtime.ts");
-if (!existsSync(runtimePath)) throw new Error(`El runner no expone el runtime inyectable esperado: ${runtimePath}`);
+const runtimePath = subagentModulePath(packageRoot, "src/runs/shared/subagent-prompt-runtime.ts");
 
 const { default: registerChildRuntime } = hostRequire(runtimePath) as {
 	default: (pi: unknown, config: Record<string, unknown>) => void;

@@ -25,6 +25,8 @@ import {
 	type ContinuityObjectiveResult,
 } from "./continuity-objective.ts";
 import { projectProjectState, type ProjectRuntimeProvider, type ProjectStateV1 } from "./project-state.ts";
+import { createContinuityOperationRuntime } from "./continuity-operation-runtime.ts";
+import type { ContinuityRecoveryEvidencePort } from "./continuity-recovery-evidence.ts";
 import { readAgreement } from "./intent-agreement.ts";
 import { resolveChangesDir } from "./sdd-routing-core.ts";
 
@@ -54,13 +56,20 @@ type Ports = Readonly<{
 	clear?: typeof clearContinuityCheckpoint;
 	sddStatus?: (cwd: string, change: string) => SddChangeStatus;
 	operationGate?: () => Promise<void>;
+	recoveryEvidence?: ContinuityRecoveryEvidencePort;
 	setObjective?: typeof setContinuityObjective;
 }>;
 export type ContinuityHandoffLifecycle = Readonly<{
+	listOperations: ReturnType<typeof createContinuityOperationRuntime>["list"];
+	beginOperation: ReturnType<typeof createContinuityOperationRuntime>["begin"];
+	finishOperation: ReturnType<typeof createContinuityOperationRuntime>["finish"];
+	inspectOperation: ReturnType<typeof createContinuityOperationRuntime>["inspect"];
+	resolveOperation: ReturnType<typeof createContinuityOperationRuntime>["resolve"];
+	recordAdmissionDenied: ReturnType<typeof createContinuityOperationRuntime>["denied"];
 	captureInput: (value: unknown) => void;
 	setObjective: (request: ContinuityObjectiveRequest, expectedRevision: string) => Promise<ContinuityObjectiveResult>;
 	refresh: (explicit?: boolean) => Promise<ContinuityRefreshCode>;
-	mutationResult: (successful: boolean) => Promise<ContinuityRefreshCode>;
+	mutationResult: (successful: boolean, runtime?: "pi" | "claude") => Promise<ContinuityRefreshCode>;
 	status: () => Promise<ContinuityStatus>;
 	prepare: (target: unknown) => Promise<ContinuityPrepareResult>;
 	clear: () => Promise<ContinuityClearCode>;
@@ -115,10 +124,12 @@ export function localExecutableAvailable(name: string, pathValue = process.env.P
 export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): ContinuityHandoffLifecycle {
 	const read = ports.read ?? readContinuityCheckpoint, write = ports.write ?? writeContinuityCheckpoint, clearStore = ports.clear ?? clearContinuityCheckpoint;
 	let facts: Omit<ContinuityCheckpointFacts, "capturedAt"> = GENERIC;
-	let uncertain = false, suppressShutdown = false, disposed = false;
+	let suppressShutdown = false, disposed = false;
 	let active: Promise<unknown> | null = null, pendingAutomatic: Promise<ContinuityRefreshCode> | null = null, shutdownPromise: Promise<ContinuityRefreshCode> | null = null;
 	const runtimes = (): ProjectStateV1["runtimes"] => ({ pi: runtimeMetadata("pi", ports.runtimeAvailable("pi")), claude: runtimeMetadata("claude", ports.runtimeAvailable("claude")) });
 	const state = (): ProjectStateV1 => ports.projectState?.(cwd, runtimes()) ?? projectProjectState({ cwd, runtime: runtimes() });
+	const operations = createContinuityOperationRuntime(cwd, { now: ports.now, stateRef: () => state().git.stateRef ?? null, evidence: ports.recoveryEvidence });
+	const uncertain = () => operations.uncertain();
 	const processObservation = (): ContinuityProcessObservation => ports.processObservation?.() ?? "unknown";
 	/**
 	 * En un cambio SDD activo el progreso ya está en disco: `tasks.md` dice qué se
@@ -194,8 +205,8 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 	};
 	const doRefresh = (explicit: boolean): ContinuityRefreshCode => {
 		if (disposed) return "disposed";
-		if (uncertain && !explicit) return "mutation-uncertain";
-		const result = refreshOnce(); if (explicit && result === "refreshed") uncertain = false; return result;
+		if (uncertain()) return "mutation-uncertain";
+		return refreshOnce();
 	};
 
 	try {
@@ -212,6 +223,12 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 	} catch { facts = GENERIC; }
 
 	return Object.freeze({
+		listOperations: operations.list,
+		beginOperation: operations.begin,
+		finishOperation: operations.finish,
+		inspectOperation: operations.inspect,
+		resolveOperation: operations.resolve,
+		recordAdmissionDenied: operations.denied,
 		// Existing input hooks stay compatible; only explicit producers set objectives.
 		captureInput(_value: unknown): void {},
 		setObjective(request: ContinuityObjectiveRequest, expectedRevision: string): Promise<ContinuityObjectiveResult> {
@@ -225,9 +242,9 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 			}, { outcome: "unavailable", reason: "busy" });
 		},
 		refresh(explicit = false): Promise<ContinuityRefreshCode> { return disposed ? Promise.resolve("disposed") : explicit === true ? command(() => doRefresh(true), "busy") : automatic(); },
-		mutationResult(successful: boolean): Promise<ContinuityRefreshCode> {
+		mutationResult(successful: boolean, runtime: "pi" | "claude" = "pi"): Promise<ContinuityRefreshCode> {
 			if (disposed) return Promise.resolve("disposed");
-			if (!successful) { uncertain = true; return Promise.resolve("mutation-uncertain"); }
+			if (!successful) { operations.legacyFailure(runtime); return Promise.resolve("mutation-uncertain"); }
 			return automatic();
 		},
 		status(): Promise<ContinuityStatus> {
@@ -235,10 +252,10 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 			return command(() => {
 				const snapshot = current();
 				if (!snapshot) {
-					const input = { state: state(), checkpoint: { status: "failure", reason: "read-failure" } as const, mutation: uncertain ? "uncertain" as const : "settled" as const, process: processObservation() };
+					const input = { state: state(), checkpoint: { status: "failure", reason: "read-failure" } as const, mutation: uncertain() ? "uncertain" as const : "settled" as const, process: processObservation(), operationHistoryObserved: operations.read().status === "valid" };
 					return Object.freeze({ operation: "complete" as const, checkpoint: "unavailable" as const, freshness: "unknown" as const, pi: auditContinuityReadiness({ ...input, target: "pi" }), claude: auditContinuityReadiness({ ...input, target: "claude" }) });
 				}
-				const input = { state: snapshot.state, checkpoint: snapshot.read, mutation: uncertain ? "uncertain" as const : "settled" as const, process: processObservation() };
+				const input = { state: snapshot.state, checkpoint: snapshot.read, mutation: uncertain() ? "uncertain" as const : "settled" as const, process: processObservation(), operationHistoryObserved: operations.read().status === "valid" };
 				const pi = auditContinuityReadiness({ ...input, target: "pi" }), claude = auditContinuityReadiness({ ...input, target: "claude" });
 				return Object.freeze({ operation: "complete" as const, checkpoint: checkpointPresence(snapshot.read), freshness: freshness(snapshot.read, pi), pi, claude });
 			}, BUSY_STATUS);
@@ -248,10 +265,10 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 			return command<ContinuityPrepareResult>(() => {
 				if (target !== "pi" && target !== "claude") return { ok: false, reason: "handoff-blocked", blockers: ["invalid-input"] };
 				const provider: ProjectRuntimeProvider = target;
-				if (uncertain) return { ok: false, reason: "mutation-uncertain", blockers: ["mutation-uncertain"] };
+				if (uncertain()) return { ok: false, reason: "mutation-uncertain", blockers: ["mutation-uncertain"] };
 				if (doRefresh(false) !== "refreshed") return { ok: false, reason: "refresh-failed", blockers: [] };
 				const snapshot = current(); if (!snapshot) return { ok: false, reason: "refresh-failed", blockers: [] };
-				const input = { state: snapshot.state, checkpoint: snapshot.read, target: provider, mutation: "settled" as const, process: processObservation() };
+				const input = { state: snapshot.state, checkpoint: snapshot.read, target: provider, mutation: "settled" as const, process: processObservation(), operationHistoryObserved: operations.read().status === "valid" };
 				const readiness = auditContinuityReadiness(input); if (readiness.status === "blocked") return Object.freeze({ ok: false, reason: "handoff-blocked", blockers: Object.freeze([...readiness.blockers]) });
 				const brief = buildContinuityResumeBrief(input); return brief.ok ? Object.freeze({ ok: true, brief }) : { ok: false, reason: "handoff-blocked", blockers: [] };
 			}, { ok: false, reason: "busy", blockers: [] });
@@ -272,7 +289,7 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 			if (shutdownPromise) return shutdownPromise;
 				disposed = true; pendingAutomatic = null;
 			const running = active;
-			if (!running && !suppressShutdown && !uncertain) { let result: ContinuityRefreshCode; try { result = refreshOnce(); } catch { result = "refresh-failed"; } shutdownPromise = Promise.resolve(result); return shutdownPromise; }
+			if (!running && !suppressShutdown && !uncertain()) { let result: ContinuityRefreshCode; try { result = refreshOnce(); } catch { result = "refresh-failed"; } shutdownPromise = Promise.resolve(result); return shutdownPromise; }
 			shutdownPromise = running ? running.then(() => "disposed", () => "disposed") : Promise.resolve("disposed");
 			return shutdownPromise;
 		},

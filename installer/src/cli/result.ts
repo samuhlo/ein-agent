@@ -76,9 +76,14 @@ export function renderOutcome(outcome: UpdateOutcome, evidence?: InstallerUpdate
           ...releaseLines(outcome.release),
           ...statusLines,
           outcome.owner.type === "package-manager"
-            ? `Gestionado por ${outcome.owner.manager}: no se reemplazaria el binario.`
-            : "Dry-run: se verificaria y reemplazaria solo el binario administrado por Ein.",
-          "Dry-run completado: no se modifico ningun archivo.",
+            ? `Propietario detectado: ${outcome.owner.manager}; Ein no reemplazaría sus artefactos.`
+            : "Propietario detectado: Ein; se comprobarían y actualizarían binario, template, marker y superficies del runtime.",
+          ...(outcome.pendingRecovery === "cleanup"
+            ? ["Recuperación pendiente: un update real limpiaría el journal de una recuperación ya completada."]
+            : outcome.pendingRecovery === "finalize"
+              ? ["Finalización pendiente: un update real finalizaría las superficies del runtime y limpiaría el journal comprometido."]
+              : []),
+          "Dry-run completado: no se modificó la instalación.",
         ],
         exitCode: EXIT_DRY_RUN,
       };

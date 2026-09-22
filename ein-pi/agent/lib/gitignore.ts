@@ -29,7 +29,7 @@ const BLOCK_START = "# === Ein / Pi runtime (auto-gestionado, no editar) ===";
 const BLOCK_END = "# === fin Ein / Pi runtime ===";
 
 // Entradas gestionadas, en orden estable.
-const ENTRIES = [".pi/ein/", ".piagents/", ".pi-subagents/", ".codegraph/", "openspec/changes/**/continuity.json", ".ein/continuity.json", ".ein/intent-drafts/"];
+const ENTRIES = [".pi/ein/", ".piagents/", ".pi-subagents/", ".codegraph/", "openspec/changes/**/continuity.json", ".ein/continuity.json", ".ein/intent-drafts/", ".ein/continuity-operations.json", ".ein/continuity-operations.json.lock", ".ein/continuity-operations.json.lock.release-*", ".ein/continuity-operations.json.tmp-*"];
 
 // Restos de versiones previas que migramos al bloque nuevo: antes Ein escribía
 // `.atl/` bajo un header propio, y `.atl/` ahora vive dentro de `.pi/ein/`.

@@ -1,20 +1,21 @@
 // =============================================================================
 // RECENT SESSIONS
 // Lists recent Pi sessions across all projects for the banner and /ein:resume.
-// Sessions live at ~/.pi/agent/sessions/<cwd-encoded>/<timestamp>_<uuid>.jsonl.
+// Sessions live under Ein's isolated agent home (or the explicit launcher override).
 // The first line is {"type":"session","id","timestamp","cwd"} — we read only
 // that line (sessions are large) to derive a project label and a resume id.
 // =============================================================================
 
 import { closeSync, openSync, readSync, readdirSync, statSync } from "node:fs";
 import { basename, isAbsolute, join, normalize, sep } from "node:path";
-import { AGENT_DIR } from "../extensions/ein-paths";
+import { defaultHomeProbe, resolveEinAgentHome, type HomeProbe } from "./agent-home.ts";
 import { pick } from "./lang";
 
 // Resolved per call, not at module load: the terminal app adopts the isolated
 // home after this module is already in memory, and tests move it between cases.
-function sessionsDir(): string {
-  return join(process.env.EIN_PI_AGENT_HOME ?? AGENT_DIR, "sessions");
+function sessionsDir(probe: HomeProbe): string | undefined {
+  const home = resolveEinAgentHome(probe);
+  return home ? join(home, "sessions") : undefined;
 }
 
 export type RecentSession = {
@@ -41,9 +42,10 @@ export type Candidate = { path: string; mtimeMs: number };
 export type CandidateScan = { candidates: Candidate[]; store: SessionStorePresence };
 
 // Cheap pass: collect top-level .jsonl files across project dirs with mtime.
-function collectCandidateScan(): CandidateScan {
+function collectCandidateScan(probe: HomeProbe = defaultHomeProbe()): CandidateScan {
   const out: Candidate[] = [];
-  const root = sessionsDir();
+  const root = sessionsDir(probe);
+  if (!root) return { candidates: out, store: "absent" };
   let projectDirs: string[] = [];
   try {
     projectDirs = readdirSync(root);
@@ -166,9 +168,10 @@ export function matchesProjectScope(meta: { cwd: string }, scope: ProjectSession
 export function scanProjectSessions(
   scope: ProjectSessionScope,
   limit = 10,
+  probe: HomeProbe = defaultHomeProbe(),
 ): ProjectSessionScan {
   const boundedLimit = Math.min(MAX_PROJECT_SESSIONS, Math.max(1, Math.trunc(limit)));
-  const scan = collectCandidateScan();
+  const scan = collectCandidateScan(probe);
   const candidates = scan.candidates.sort(
     (a, b) => b.mtimeMs - a.mtimeMs || a.path.localeCompare(b.path),
   );

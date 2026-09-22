@@ -643,6 +643,17 @@ describe("lintPhaseArtifact / lintChange", () => {
 		expect(r.ok).toBe(true);
 	});
 
+	test("tasks terminadas admiten metadatos ausentes pero siguen exigiendo verify", () => {
+		const completed = lintPhaseArtifact("tasks", "## Completed work\n- [X] 1 Implemented\n- verify: bun test\n");
+		expect(completed.ok).toBe(true);
+		expect(completed.issues.some((issue) => issue.code === "missing-status-line")).toBe(false);
+		expect(completed.issues.some((issue) => issue.code === "missing-blocked-by")).toBe(false);
+
+		const withoutVerify = lintPhaseArtifact("tasks", "## Completed work\n- [x] 1 Implemented\n");
+		expect(withoutVerify.ok).toBe(false);
+		expect(withoutVerify.issues.some((issue) => issue.code === "missing-verify")).toBe(true);
+	});
+
 	test("lintChange agrega las fases presentes", () => {
 		mkChange("feat-x", {
 			"scope.md": "scope: x\nbudget_allocated: 1",
