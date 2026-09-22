@@ -182,11 +182,20 @@ function validateOptionTypes(item: Record<string, unknown>, source?: typescript.
 	for (const key of ["cwd", "context", "model", "baseRef", "sessionDir", "phase", "label", "chatProgress", "isolation", "agentScope"]) {
 		if (item[key] !== undefined && typeof item[key] !== "string") return rejected(`${prefix}.${key} must be a string`, key, source, node);
 	}
-	for (const key of ["turnBudget", "toolBudget", "usageBudget", "acceptance", "agentContract", "outputMode", "outputSchema", "lane", "extensionBindings", "preflight"]) {
+	for (const key of ["turnBudget", "toolBudget", "usageBudget", "agentContract", "lane", "extensionBindings", "preflight"]) {
 		if (item[key] !== undefined && !isRecord(item[key])) return rejected(`${prefix}.${key} must be a JSON object`, key, source, node);
 	}
 	const invalidToolBudget = validateToolBudget(item.toolBudget, source, node, prefix);
 	if (invalidToolBudget) return invalidToolBudget;
+	if (item.outputMode !== undefined && item.outputMode !== "inline" && item.outputMode !== "file-only") return rejected(`${prefix}.outputMode must be inline or file-only`, "outputMode", source, node);
+	if (item.outputSchema !== undefined && item.outputSchema !== false && !isRecord(item.outputSchema)) return rejected(`${prefix}.outputSchema must be an object or false`, "outputSchema", source, node);
+	if (item.acceptance !== undefined && item.acceptance !== false && !isRecord(item.acceptance)) {
+		let valid = typeof item.acceptance === "string" && ["auto", "attested", "checked"].includes(item.acceptance);
+		if (!valid && typeof item.acceptance === "string" && item.acceptance.trimStart().startsWith("{")) {
+			try { valid = isRecord(JSON.parse(item.acceptance)); } catch { valid = false; }
+		}
+		if (!valid) return rejected(`${prefix}.acceptance must be a policy object, JSON object string, auto, attested, checked, or false`, "acceptance", source, node);
+	}
 	if (item.output !== undefined && typeof item.output !== "string" && typeof item.output !== "boolean") return rejected(`${prefix}.output must be a string or boolean`, "output", source, node);
 	if (item.skill !== undefined && typeof item.skill !== "string" && typeof item.skill !== "boolean" && !(Array.isArray(item.skill) && item.skill.every((value) => typeof value === "string"))) return rejected(`${prefix}.skill must be a string, string array, or boolean`, "skill", source, node);
 	return null;
@@ -315,7 +324,7 @@ export function admitDelegation(input: unknown): DelegationAdmission {
 		}
 	}
 	if (typeof input.action === "string") {
-		if (input.workflowScript !== undefined || input.agent !== undefined || input.task !== undefined) return rejected("management actions cannot be mixed with execution fields", "action");
+		if (input.workflowScript !== undefined || input.task !== undefined) return rejected("management actions cannot be mixed with execution fields", "action");
 		return { kind: "management", action: input.action };
 	}
 	if (input.workflowScript !== undefined) {
