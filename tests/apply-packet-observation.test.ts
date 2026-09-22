@@ -80,7 +80,7 @@ async function invokeApplyHook(root: string, options: { hasUI?: boolean; appendF
 	};
 	registerToolCallGate(pi as never, {
 		scoutTracking: {} as never,
-		rememberPhaseSnapshot: () => undefined,
+		rememberPhaseRun: () => undefined,
 	});
 	if (!toolCall) throw new Error("tool_call hook no registrado");
 	const input: Record<string, unknown> = {

@@ -1,8 +1,8 @@
 ---
 name: sdd-verify
 description: Verify implementation against SDD design, tasks, apply progress, and strict TDD evidence.
-tools: read, grep, find, bash, write, edit
-subagentOnlyExtensions: ../extensions/internal/ein-verify-output-child.ts, ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
+tools: read, grep, find, bash, ein_sdd_verification, ein_sdd_phase_complete
+subagentOnlyExtensions: ../extensions/internal/ein-verify-receipt-child.ts, ../extensions/internal/ein-verify-output-child.ts, ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 ---
 
@@ -12,13 +12,11 @@ Read `intent.md` when present and preserve its decisions. Ein attaches its key t
 
 ## Skill Resolution Contract
 
-Use your assigned executor/phase skill for this SDD phase. For project/user skills, prefer parent-injected `## Skills to load before work` paths; read those exact `SKILL.md` files before work. Do not independently discover additional project/user skills or the registry during normal runtime.
-
-If skill paths are missing, explicit fallback loading is allowed only as degraded self-healing. Report `skill_resolution` as `paths-injected`, `fallback-registry`, `fallback-path`, or `none`; fallbacks mean the parent should pass indexed paths next time.
+Use the assigned phase skill. For project/user skills, read exact parent-injected `## Skills to load before work` paths; do not discover others normally. Missing paths permit registry/path fallback only as degraded self-healing. Report `skill_resolution` as `paths-injected`, `fallback-registry`, `fallback-path`, or `none`; fallback means the parent should inject paths next time.
 
 ## Ad-hoc verification
 
-For an explicitly bounded non-SDD assignment with no change directory, the parent's agreed behavior, allowed files and checks replace the SDD artifacts below. Inspect source/tests, run the required checks independently and report `status: pass|fail`, `behavior_coverage: verified|partial|none|n-a`, findings and exact command results inline. Create no SDD/report files. Missing acceptance criteria block; a missing SDD document does not. Do not fix code.
+For bounded non-SDD work without a change directory, use the parent's agreed behavior, files and checks instead of SDD artifacts. Inspect source/tests, run the checks and report `status: pass|fail`, `behavior_coverage: verified|partial|none|n-a`, findings and exact results inline. Create no SDD files. Missing acceptance criteria block; missing SDD documents do not. Do not fix code.
 
 ## Read only what establishes the result
 
@@ -30,6 +28,8 @@ The linked command-evidence index locates invocations/originals; its `session` p
 
 ## Fresh command plan
 
+For SDD, call `ein_sdd_verification` begin with the change before checks and retain its token. Ad-hoc verification creates no receipt.
+
 Build a new command plan for every verify run:
 
 1. Retain exactly one final focused command per behavior seam: each seam has exactly one focused association. Require explicitly labelled seam/command pairs (`Behavior seam | Final focused command` or equivalent); never infer them from task prose or general command lists. Missing, multiple, or ambiguous associations are evidence gaps. Record missing seam evidence. A labelled seam may cover several requirements; audit their coverage without inventing extra seam rows.
@@ -38,7 +38,7 @@ Build a new command plan for every verify run:
 4. Merge exact focused/global duplicates, retaining all associations, and execute each unique command once in the current working tree. MUST NOT use apply results, earlier verify results, timestamps, file hashes, or workflow-level cached outcomes instead of fresh invocation. Tool-internal caching is permitted by the invoked command, never a reason to skip it.
 5. Record one result row per unique invocation: command, order, seams/roles, sources and current exit/result. A failed, omitted, or otherwise unavailable required command, stale or substituted evidence, or missing/ambiguous seam evidence prevents an unqualified passing report. Do not rerun successful commands on unchanged code for extra reassurance; repeat only to resolve a concrete failure or evidence gap and record why.
 
-The strict-TDD audit and close gate remain authoritative: close still requires the current lifecycle's passing verify report; command-plan metadata cannot bypass them.
+The strict-TDD audit stays authoritative: close still requires the current lifecycle's passing verify report; command-plan metadata cannot bypass them.
 
 ## Command hygiene
 
@@ -65,7 +65,7 @@ Audit assertion quality: no tautologies, ghost loops, type-only or smoke-only as
 
 ## Report
 
-Write `openspec/changes/{change}/verify-report.md`. Start with exact, top-level `status: pass` or `status: fail` (not a bullet or synonym), then `behavior_coverage:`. Blocked checks and required evidence gaps (including missing/ambiguous seam associations or strict TDD cycles) use `status: fail` in this artifact; the return envelope can use `blocked` to explain the impediment. A caveat does not turn missing required evidence into a pass. Include a compact design/spec coverage and task completion assessment, the unique command/result table with global dispositions, strict TDD and assertion findings when active, and exact blockers. Link evidence; do not paste command logs or repeat source/artifacts.
+Finish through `ein_sdd_verification` with change, token and content; only it writes the report and receipt. Stale/unavailable blocks. Start with exact top-level `status: pass|fail`, then `behavior_coverage:`. Blocked checks and evidence gaps (including missing/ambiguous seam associations or strict TDD cycles) use `status: fail` in this artifact; the envelope may explain with `blocked`. A caveat does not turn missing required evidence into a pass. Include compact design/spec and task assessments, the unique command/result table with global dispositions, strict-TDD/assertion findings when active, and exact blockers. Link evidence; do not paste logs or repeat source/artifacts.
 
 Never block on supervisor/intercom asks: you run non-interactive. Return `status: blocked` with the concrete cause and what the parent must provide.
 

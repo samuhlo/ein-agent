@@ -57,7 +57,7 @@ export function mergeUserSettings(agentDir: string, saved: UserSettings): void {
   const path = join(agentDir, "settings.json");
   try {
     const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("settings.json del template no es un objeto");
     const template = parsed as Record<string, unknown>;
     const { packages: savedPackages, ...savedFields } = saved;
     const merged: Record<string, unknown> = { ...template, ...savedFields };
@@ -81,7 +81,7 @@ export function mergeUserSettings(agentDir: string, saved: UserSettings): void {
       merged.packages = [...templatePackages, ...userPackages];
     }
     writeFileSync(path, `${JSON.stringify(merged, null, "\t")}\n`);
-  } catch {
-    // Leave freshly-extracted file as-is if merge fails
+  } catch (error) {
+    throw new Error(`No se pudieron restaurar las preferencias personales: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

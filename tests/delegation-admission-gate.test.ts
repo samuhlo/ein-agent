@@ -23,7 +23,7 @@ function harness() {
 		appendEntry(_type: string, value: unknown) { appended.push(value); },
 	} as never, {
 		scoutTracking: scoutTracking as never,
-		rememberPhaseSnapshot(_id: string, input: unknown) { snapshots.push(structuredClone(input)); },
+		rememberPhaseRun(reference: unknown) { snapshots.push(structuredClone(reference)); },
 	});
 	const ctx = {
 		cwd: root,
@@ -77,16 +77,17 @@ describe("delegation admission gate", () => {
 		const h = harness();
 		const input = { agent: "worker", task: "inspect", outputMode: "inline", outputSchema: false, acceptance: false };
 		expect(await h.gate(input)).toBeUndefined();
-		expect(h.snapshots[0]).toMatchObject({ outputMode: "inline", outputSchema: false, acceptance: false });
+		expect(input).toMatchObject({ outputMode: "inline", outputSchema: false, acceptance: false });
+		expect(h.snapshots).toEqual([]);
 	});
 
-	test("normalizes a valid single and records one admitted snapshot", async () => {
+	test("normalizes an ad-hoc single without inventing a phase receipt", async () => {
 		const h = harness();
 		const input: Record<string, unknown> = { agent: "worker", task: "read the bounded file", tdd: "off" };
 		expect(await h.gate(input)).toBeUndefined();
 		expect(input.tdd).toBeUndefined();
 		expect(input.acceptance).toMatchObject({ level: "none" });
-		expect(h.snapshots).toHaveLength(1);
+		expect(h.snapshots).toHaveLength(0);
 		expect(h.appended).toEqual([]);
 	});
 

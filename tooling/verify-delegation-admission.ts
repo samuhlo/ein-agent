@@ -28,14 +28,14 @@ try {
 
 	const handlers = new Map<string, Function>();
 	let persistenceAttempts = 0;
-	let snapshotAttempts = 0;
+	let phaseReceiptAttempts = 0;
 	let launchAttempts = 0;
 	registerToolCallGate({
 		on(name: string, handler: Function) { handlers.set(name, handler); },
 		appendEntry() { persistenceAttempts += 1; },
 	} as never, {
 		scoutTracking: new Map(),
-		rememberPhaseSnapshot() { snapshotAttempts += 1; },
+		rememberPhaseRun() { phaseReceiptAttempts += 1; },
 	});
 	const hook = handlers.get("tool_call");
 	if (!hook) throw new Error("tool_call gate was not registered");
@@ -61,12 +61,12 @@ try {
 		const result = await invoke(input, `rejected-${index}`);
 		if (!result?.block) throw new Error(`rejected fixture ${index} reached the launcher`);
 	}
-	if (launchAttempts !== 0 || persistenceAttempts !== 0 || snapshotAttempts !== 0) throw new Error("a rejected delegation produced an effect");
+	if (launchAttempts !== 0 || persistenceAttempts !== 0 || phaseReceiptAttempts !== 0) throw new Error("a rejected delegation produced an effect");
 
 	const task = "read byte-for-byte\nwith \\n and ${literal}";
 	const valid = { workflowScript: `return runs.run("valid", { agent: "worker", task: ${JSON.stringify(task)} })` };
 	const result = await invoke(valid, "valid");
-	if (result?.block || Number(launchAttempts) !== 1 || Number(snapshotAttempts) !== 1) throw new Error("the valid delegation did not reach the launcher exactly once");
+	if (result?.block || Number(launchAttempts) !== 1 || Number(phaseReceiptAttempts) !== 0) throw new Error("the valid delegation did not reach the launcher exactly once");
 	if (!String(valid.workflowScript).includes(JSON.stringify(task))) throw new Error("the valid task changed during normalization");
 
 	console.log(JSON.stringify({

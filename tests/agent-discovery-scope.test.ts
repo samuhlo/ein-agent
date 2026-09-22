@@ -55,7 +55,7 @@ test("honors native git-root policy without letting an outer repository replace 
 test("the actual tool-call hook applies user scope before launching from an unconfigured directory", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "ein-agent-hook-"));
 	let handler: (event: any, ctx: any) => Promise<any> = async () => { throw new Error("hook missing"); };
-	registerToolCallGate({ on(_name: string, callback: typeof handler) { handler = callback; } } as never, { scoutTracking: new Map(), rememberPhaseSnapshot() {} });
+	registerToolCallGate({ on(_name: string, callback: typeof handler) { handler = callback; } } as never, { scoutTracking: new Map(), rememberPhaseRun() {} });
 	try {
 		const input = { agent: "custom-reader", task: "inspect" };
 		await handler({ toolName: "subagent", toolCallId: "scope-probe", input }, { cwd, hasUI: false });
