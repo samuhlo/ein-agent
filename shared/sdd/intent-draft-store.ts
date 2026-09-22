@@ -1,6 +1,7 @@
-import { constants, openSync, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, readSync, readdirSync, renameSync, unlinkSync, writeSync } from "node:fs";
+import { constants, existsSync, openSync, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, readSync, readdirSync, renameSync, unlinkSync, writeSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createIntentDraft, INTENT_DRAFT_LIMITS, isSafeDraftWork, validateIntentDraft, type IntentDraftBody, type IntentDraftV1, type IntentRuntimePorts } from "./intent-draft.ts";
+import { readAgreement, writeAgreement } from "./intent-agreement.ts";
 
 export type IntentDraftRead = { status: "valid"; draft: IntentDraftV1 } | { status: "absent" } | { status: "invalid"; reason: string };
 export type IntentDraftMutation = { ok: true; draft: IntentDraftV1 } | { ok: false; code: "busy" | "conflict" | "invalid" | "io" | "published-unverified"; reason: string };
@@ -131,4 +132,63 @@ export function transactIntentDraft(root: string, work: string, expectedRevision
     const code = error instanceof IntentDraftError && ["busy", "conflict", "invalid"].includes(error.code) ? error.code as "busy" | "conflict" | "invalid" : "io";
     return { ok: false, code: published ? "published-unverified" : code, reason: error instanceof Error ? error.message : String(error) };
   }
+}
+
+export function intentCanonicalDirectory(root: string, work: string, create = false): string {
+  if (!isSafeDraftWork(work)) throw new IntentDraftError("invalid", "Invalid intent work name");
+  const base = resolve(root);
+  const layout = !existsSync(join(base, "openspec/changes")) && existsSync(join(base, ".sdd/changes")) ? ".sdd" : "openspec";
+  let path = base;
+  for (const part of [layout, "changes", work]) {
+    path = join(path, part);
+    try {
+      const stat = lstatSync(path);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) throw new IntentDraftError("invalid", "Unsafe canonical intent directory");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      if (create) mkdirSync(path, { mode: 0o700 });
+    }
+  }
+  return path;
+}
+
+export function recoverIntentDraft(root: string, work: string, expectedRevision: string, ports: IntentRuntimePorts,
+  seam: { afterCanonical?(): void } = {}): IntentDraftMutation {
+  return transactIntentDraft(root, work, expectedRevision, (draft) => {
+    if (!draft) throw new IntentDraftError("conflict", "Intent draft disappeared before recovery");
+    const publication = draft.publication;
+    if (publication.state === "none") return draft;
+    const directory = intentCanonicalDirectory(root, work);
+    const canonical = readAgreement(directory);
+    if (canonical.kind === "valid" && JSON.stringify(canonical.agreement) === JSON.stringify(publication.agreement)) return { ...draft, publication: { ...publication, state: "published" } };
+    if (publication.state === "published") throw new IntentDraftError("conflict", "Published intent no longer matches the canonical agreement");
+    if (canonical.kind === "invalid" || (canonical.kind === "absent" ? "absent" : canonical.agreement.revision) !== publication.expectedCanonicalRevision
+      || (canonical.kind === "valid" ? canonical.agreement.materialKey : null) !== publication.expectedCanonicalMaterialKey) throw new IntentDraftError("conflict", "Canonical intent changed; recovery cannot overwrite it");
+    writeAgreement(intentCanonicalDirectory(root, work, true), publication.agreement);
+    seam.afterCanonical?.();
+    const verified = readAgreement(directory);
+    if (verified.kind !== "valid" || JSON.stringify(verified.agreement) !== JSON.stringify(publication.agreement)) throw new Error("Canonical intent publication was not verified");
+    return { ...draft, publication: { ...publication, state: "published" } };
+  }, ports);
+}
+
+export function publishIntentDraft(root: string, body: IntentDraftBody, expectedRevision: string, ports: IntentRuntimePorts,
+  seam: { afterJournal?(): void; afterCanonical?(): void } = {}): IntentDraftMutation {
+  const journal = transactIntentDraft(root, body.work, expectedRevision, (previous) => {
+    if (previous && ["promoting", "invalidating"].includes(previous.publication.state)) throw new IntentDraftError("conflict", "Recover the interrupted intent publication first");
+    if (!body.agreement.change) return { ...body, publication: { state: "none" } };
+    const canonical = readAgreement(intentCanonicalDirectory(root, body.work));
+    if (canonical.kind === "invalid") throw new IntentDraftError("conflict", "Canonical intent is invalid; explicit reviewed adoption is required");
+    if (body.agreement.status !== "confirmed" && canonical.kind === "absent") return { ...body, publication: { state: "none" } };
+    return { ...body, publication: {
+      state: body.agreement.status === "confirmed" ? "promoting" : "invalidating",
+      expectedCanonicalRevision: canonical.kind === "valid" ? canonical.agreement.revision : "absent",
+      expectedCanonicalMaterialKey: canonical.kind === "valid" ? canonical.agreement.materialKey : null,
+      agreement: body.agreement,
+    } };
+  }, ports);
+  if (!journal.ok || journal.draft.publication.state === "none") return journal;
+  try { seam.afterJournal?.(); }
+  catch (error) { return { ok: false, code: "published-unverified", reason: error instanceof Error ? error.message : String(error) }; }
+  return recoverIntentDraft(root, body.work, journal.draft.revision, ports, seam);
 }
