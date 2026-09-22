@@ -40,9 +40,10 @@ function sha256(value: string | Buffer): string { return createHash("sha256").up
 function fail<T>(code: string, reason: string): Result<T> { return { ok: false, code, reason }; }
 function record(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function readJson(path: string): unknown { try { return JSON.parse(readFileSync(path, "utf8")); } catch { return null; } }
-function intentKey(changePath: string): string | null {
+function intentKey(changePath: string): string | null | undefined {
 	const intent = readAgreement(changePath);
-	return intent.kind === "valid" && intent.agreement.status === "confirmed" ? intent.agreement.materialKey : null;
+	if (intent.kind === "absent") return null;
+	return intent.kind === "valid" && intent.agreement.status === "confirmed" ? intent.agreement.materialKey : undefined;
 }
 function fileSha(path: string): string | null {
 	try { return lstatSync(path).isFile() && !lstatSync(path).isSymbolicLink() ? sha256(readFileSync(path)) : null; }
@@ -110,18 +111,20 @@ export function createPhaseReceiptService(dependencies: PhaseReceiptServiceDepen
 			if (!lstatSync(changePath).isDirectory() || lstatSync(changePath).isSymbolicLink() || !realpathSync(changePath).startsWith(`${root.value}/`)) return fail("unsafe-change", "change directory is unsafe");
 		} catch { return fail("unsafe-change", "change directory is unsafe"); }
 		const artifact = join(changePath, PHASE_ARTIFACT[input.phase]);
+		const currentIntent = intentKey(changePath);
+		if (currentIntent === undefined) return fail("intent-unresolved", "phase requires an absent legacy or confirmed agreement");
 		const paths = runPaths(changePath, input.toolCallId);
 		const matches = findRuns(changesRoot, input.toolCallId);
 		if (matches.length > 0) {
 			const existing = matches.length === 1 ? matches[0]! : null;
-			return existing && existing.root === root.value && existing.change === input.change && existing.phase === input.phase && existing.artifact === artifact
+			return existing && existing.toolCallId === input.toolCallId && existing.root === root.value && existing.change === input.change && existing.phase === input.phase && existing.artifact === artifact && existing.intentKey === currentIntent
 				? { ok: true, value: existing }
 				: fail("run-conflict", "toolCallId already belongs to another phase run");
 		}
 		if (!safeRunDirectory(changePath, paths.directory)) return fail("unsafe-run-path", "phase run directory is unsafe");
 		const launch: PhaseLaunch = {
 			version: 1, toolCallId: input.toolCallId, nonce: dependencies.newToken(), root: root.value,
-			change: input.change, phase: input.phase, artifact, intentKey: intentKey(changePath),
+			change: input.change, phase: input.phase, artifact, intentKey: currentIntent,
 			startedAt: dependencies.now(), initialArtifactSha256: fileSha(artifact),
 		};
 		try { writeFileSync(paths.launch, `${JSON.stringify(launch, null, 2)}\n`, { flag: "wx" }); }
@@ -139,7 +142,7 @@ export function createPhaseReceiptService(dependencies: PhaseReceiptServiceDepen
 		if (matches.length === 1) {
 			const launch = matches[0]!;
 			const expectedChangePath = join(changes, launch.change);
-			if (launch.root !== root.value || dirname(launch.artifact) !== expectedChangePath || !launch.artifact.startsWith(`${expectedChangePath}/`)) return fail("run-invalid", "phase launch paths do not match the current project");
+			if (launch.toolCallId !== input.toolCallId || launch.root !== root.value || launch.artifact !== join(expectedChangePath, PHASE_ARTIFACT[launch.phase])) return fail("run-invalid", "phase launch identity or paths do not match the current project");
 			const paths = runPaths(dirname(launch.artifact), input.toolCallId);
 			return { ok: true, value: { launch, completion: parseCompletion(readJson(paths.completion)) } };
 		}
@@ -152,7 +155,7 @@ export function createPhaseReceiptService(dependencies: PhaseReceiptServiceDepen
 		const { launch } = read.value;
 		if (launch.nonce !== input.nonce) return fail("nonce-mismatch", "phase nonce does not match the launch");
 		const currentIntent = intentKey(dirname(launch.artifact));
-		if (currentIntent !== launch.intentKey) return fail("intent-stale", "phase intent changed after launch");
+		if (currentIntent === undefined || currentIntent !== launch.intentKey) return fail("intent-stale", "phase intent changed after launch");
 		const digest = fileSha(launch.artifact);
 		if (!digest) return fail("artifact-unavailable", "phase artifact is missing, unreadable or unsafe");
 		let content: string;
@@ -189,7 +192,11 @@ export function createPhaseReceiptService(dependencies: PhaseReceiptServiceDepen
 		const { launch, completion } = read.value;
 		if ((input.nonce && input.nonce !== launch.nonce) || (input.change && input.change !== launch.change) || (input.phase && input.phase !== launch.phase)) return { state: "invalid", reason: "phase run identity does not match", launch };
 		if (!completion) return { state: "unconfirmed", reason: "artifact may be partial; finalization receipt is absent", launch };
-		if (completion.nonce !== launch.nonce || completion.change !== launch.change || completion.phase !== launch.phase || completion.artifactSha256 !== fileSha(launch.artifact) || completion.intentKey !== intentKey(dirname(launch.artifact))) return { state: "invalid", reason: "phase receipt is stale or belongs to another run", launch, completion };
+		if (completion.toolCallId !== launch.toolCallId || completion.nonce !== launch.nonce || completion.change !== launch.change || completion.phase !== launch.phase || completion.artifactSha256 !== fileSha(launch.artifact) || completion.intentKey !== launch.intentKey || completion.intentKey !== intentKey(dirname(launch.artifact))) return { state: "invalid", reason: "phase receipt is stale or belongs to another run", launch, completion };
+		if (completion.status === "complete" && (launch.phase === "apply" || launch.phase === "close")) {
+			const evidence = readSddCompletionEvidence(launch.root, launch.change, dependencies.readVerification);
+			if (evidence.apply !== "complete" || evidence.tasks.counts.pending > 0 || (launch.phase === "close" && (evidence.verify !== "pass" || evidence.verification.state !== "current"))) return { state: "invalid", reason: "phase completion prerequisites changed after finalization", launch, completion };
+		}
 		if (launch.phase === "verify") {
 			const current = fileSha(join(dirname(launch.artifact), "verification-receipt.json"));
 			if (!current || current !== completion.verificationReceiptSha256 || dependencies.readVerification(launch.root, dirname(launch.artifact)).state !== "current") return { state: "invalid", reason: "verification receipt is stale or unbound", launch, completion };

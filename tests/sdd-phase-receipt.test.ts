@@ -88,4 +88,41 @@ describe("phase receipt service", () => {
 		expect(f.api.beginPhaseRun({ cwd: f.cwd, change: "escape", phase: "map", toolCallId: "call" })).toMatchObject({ ok: false, code: "unsafe-change" });
 		expect(existsSync(join(outside, ".phase-runs"))).toBe(false);
 	});
+
+	test("a malformed intent cannot be treated as an absent legacy agreement", () => {
+		const f = fixture(); const dir = f.change();
+		writeFileSync(join(dir, "design.md"), "Draft reviewed\n");
+		const begun = f.api.beginPhaseRun({ cwd: f.cwd, change: "change-a", phase: "design", toolCallId: "intent" });
+		if (!begun.ok) throw new Error(begun.reason);
+		expect(f.api.finishPhaseRun({ cwd: f.cwd, toolCallId: "intent", nonce: begun.value.nonce, status: "complete" }).ok).toBe(true);
+		writeFileSync(join(dir, "intent.md"), "malformed agreement\n");
+		expect(f.api.assessPhaseRecovery({ cwd: f.cwd, toolCallId: "intent" }).state).toBe("invalid");
+		expect(f.api.finishPhaseRun({ cwd: f.cwd, toolCallId: "intent", nonce: begun.value.nonce, status: "complete" }).ok).toBe(false);
+		expect(f.api.beginPhaseRun({ cwd: f.cwd, change: "change-a", phase: "design", toolCallId: "another" }).ok).toBe(false);
+	});
+
+	test("completion and launch must retain the requested tool call identity", () => {
+		for (const file of ["launch.json", "completion.json"]) {
+			const f = fixture(); const dir = f.change();
+			writeFileSync(join(dir, "design.md"), "Reviewed design\n");
+			const begun = f.api.beginPhaseRun({ cwd: f.cwd, change: "change-a", phase: "design", toolCallId: "identity" });
+			if (!begun.ok) throw new Error(begun.reason);
+			expect(f.api.finishPhaseRun({ cwd: f.cwd, toolCallId: "identity", nonce: begun.value.nonce, status: "complete" }).ok).toBe(true);
+			const path = join(dir, ".phase-runs", createHash("sha256").update("identity").digest("hex"), file);
+			const record = JSON.parse(readFileSync(path, "utf8"));
+			writeFileSync(path, JSON.stringify({ ...record, toolCallId: "another-run" }));
+			expect(f.api.assessPhaseRecovery({ cwd: f.cwd, toolCallId: "identity" }).state).toBe("invalid");
+		}
+	});
+
+	test("reopened tasks invalidate a previously completed apply without rewriting its artifact", () => {
+		const f = fixture(); const dir = f.change();
+		writeFileSync(join(dir, "tasks.md"), "- [x] completed\n- verify: bun test\n");
+		writeFileSync(join(dir, "apply-progress.md"), "status: complete\n");
+		const begun = f.api.beginPhaseRun({ cwd: f.cwd, change: "change-a", phase: "apply", toolCallId: "reopened" });
+		if (!begun.ok) throw new Error(begun.reason);
+		expect(f.api.finishPhaseRun({ cwd: f.cwd, toolCallId: "reopened", nonce: begun.value.nonce, status: "complete" }).ok).toBe(true);
+		writeFileSync(join(dir, "tasks.md"), "- [ ] pending again\n- verify: bun test\n");
+		expect(f.api.assessPhaseRecovery({ cwd: f.cwd, toolCallId: "reopened" }).state).toBe("invalid");
+	});
 });
