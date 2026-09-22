@@ -22,16 +22,23 @@ afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: 
 
 describe("continuity handoff lifecycle", () => {
 	test("hydrates a valid canonical checkpoint and otherwise uses generic facts", async () => {
-		const root = fixture(), first = createContinuityHandoffLifecycle(root, ports()); first.captureInput("Preserve this safe objective."); expect(await first.refresh(true)).toBe("refreshed");
+		const root = fixture(), first = createContinuityHandoffLifecycle(root, ports()); expect(await first.refresh(true)).toBe("refreshed");
+		const initial = checkpoint(root); expect((await first.setObjective({ objective: "Preserve this safe objective.", evidence: { kind: "pi-observed", requestId: "request-1", recordedAt: NOW } }, initial.revision)).outcome).toBe("set");
 		const hydrated = createContinuityHandoffLifecycle(root, ports()); expect(await hydrated.refresh(true)).toBe("refreshed"); expect(checkpoint(root).objective).toBe("Preserve this safe objective.");
 		const other = fixture(); expect(await createContinuityHandoffLifecycle(other, ports()).refresh(true)).toBe("refreshed"); expect(checkpoint(other).objective).toBe("Continue the current project task safely.");
 	});
 
-	test("persists safe input but rejects unsafe, secret-like, private, transcript, tool, and over-budget input without fragments", async () => {
-		const safe = fixture(), lifecycle = createContinuityHandoffLifecycle(safe, ports()); lifecycle.captureInput("Implement the bounded lifecycle."); await lifecycle.refresh(true); expect(checkpoint(safe).objective).toBe("Implement the bounded lifecycle.");
+	test("keeps captured responses ephemeral and changes objectives only through the explicit setter", async () => {
+		const safe = fixture(), lifecycle = createContinuityHandoffLifecycle(safe, ports()); await lifecycle.refresh(true); const before = checkpoint(safe);
+		lifecycle.captureInput("sí, continúa"); await lifecycle.refresh(true); expect(checkpoint(safe).objective).toBe("Continue the current project task safely.");
+		const current = checkpoint(safe); expect((await lifecycle.setObjective({ objective: "Sí", evidence: { kind: "pi-observed", requestId: "request-short", recordedAt: NOW } }, current.revision)).outcome).toBe("set");
+		expect(checkpoint(safe)).toMatchObject({ objective: "Sí", objectiveEvidence: { kind: "pi-observed", requestId: "request-short" } });
 		for (const value of ["line\ncontrol-canary", "password=secret-canary", "/Users/private-canary/work", "transcript: transcript-canary", "<tool_result>tool-canary</tool_result>", `long-canary-${"x".repeat(600)}`]) {
-			const root = fixture(), item = createContinuityHandoffLifecycle(root, ports()); item.captureInput(value); await item.refresh(true); const serialized = JSON.stringify(checkpoint(root)); expect(serialized).not.toContain("canary"); expect(checkpoint(root).objective).toBe("Continue the current project task safely.");
+			lifecycle.captureInput(value); await lifecycle.refresh(true); expect(checkpoint(safe).objective).toBe("Sí");
 		}
+		const revision = checkpoint(safe).revision;
+		expect((await lifecycle.setObjective({ objective: "password=unsafe", evidence: { kind: "pi-observed", requestId: "request-bad", recordedAt: NOW } }, revision)).outcome).toBe("invalid");
+		expect(checkpoint(safe).objective).toBe("Sí"); expect(before.objective).toBe("Continue the current project task safely.");
 	});
 
 	test("selects ad-hoc and canonical SDD locations", async () => {
@@ -40,6 +47,16 @@ describe("continuity handoff lifecycle", () => {
 		const base = projectProjectState({ cwd: sdd });
 		const selected = (): ProjectStateV1 => ({ ...base, openspec: { ...base.openspec, quality: "current", reason: "read-success", activeChanges: ["safe-change"], selection: "selected", selectedChange: "safe-change", provenance: "canonical" } });
 		expect(await createContinuityHandoffLifecycle(sdd, ports({ projectState: selected })).refresh(true)).toBe("refreshed"); expect(existsSync(join(sdd, "openspec", "changes", "safe-change", "continuity.json"))).toBeTrue();
+	});
+
+	test("does not carry an ad-hoc objective into a different selected change", async () => {
+		const root = fixture(); let live = projectProjectState({ cwd: root });
+		const lifecycle = createContinuityHandoffLifecycle(root, ports({ projectState: () => live })); await lifecycle.refresh(true);
+		const adhoc = checkpoint(root); expect((await lifecycle.setObjective({ objective: "Objetivo anterior", evidence: { kind: "pi-observed", requestId: "old-request", recordedAt: NOW } }, adhoc.revision)).outcome).toBe("set");
+		mkdirSync(join(root, "openspec/changes/new-work"), { recursive: true });
+		live = { ...projectProjectState({ cwd: root }), openspec: { ...live.openspec, quality: "current", reason: "read-success", activeChanges: ["new-work"], selection: "selected", selectedChange: "new-work", provenance: "canonical" } };
+		expect(await lifecycle.refresh(true)).toBe("refreshed");
+		expect(checkpoint(root, { mode: "sdd", change: "new-work" })).toMatchObject({ objective: "Continue the current project task safely.", objectiveEvidence: { kind: "unknown" } });
 	});
 
 	test("writes absent and matching checkpoints, retries one CAS conflict, and closes exhausted conflicts", async () => {
@@ -72,7 +89,7 @@ describe("continuity handoff lifecycle", () => {
 			return { ok: false, outcome: "not-published", reason: "conflict" };
 		} }));
 		expect(await lifecycle.refresh(true)).toBe("refreshed"); expect(expectations).toHaveLength(2); expect(expectations[0]).toBe(initial.checkpoint.revision); expect(expectations[1]).not.toBe(expectations[0]);
-		const saved = checkpoint(root); expect(saved).toMatchObject({ objective: "Preserve generic CAS.", completed: ["Keep the current facts."], nextAction: "Retry the generic refresh." }); expect("sddParticipants" in saved).toBeFalse();
+		const saved = checkpoint(root); expect(saved).toMatchObject({ objective: "Concurrent generic update.", completed: ["Keep the current facts."], nextAction: "Retry the generic refresh." }); expect("sddParticipants" in saved).toBeFalse();
 	});
 
 	test("bounds concurrent automatic refresh pressure to one active and one coalesced pending operation", async () => {
@@ -96,11 +113,11 @@ describe("continuity handoff lifecycle", () => {
 		const disposed = await lifecycle.status(), prepared = await lifecycle.prepare("pi"); expect(Object.isFrozen(disposed.pi.warnings)).toBeTrue(); expect(() => (disposed.pi.warnings as unknown as string[]).push("poison")).toThrow(); if (!prepared.ok) { expect(Object.isFrozen(prepared.blockers)).toBeTrue(); expect(() => (prepared.blockers as unknown as string[]).push("poison")).toThrow(); } expect((await lifecycle.status()).pi.blockers).toEqual(["audit-failed"]);
 	});
 
-	test("rejects stale checkpoint facts during hydration and republishes only generic facts", async () => {
+	test("preserves the objective while rederiving stale progress facts", async () => {
 		const root = fixture(), before = projectProjectState({ cwd: root });
 		const stale = deriveContinuityCheckpoint(before, { capturedAt: NOW, objective: "STALE-OBJECTIVE-CANARY", completed: ["STALE-COMPLETED-CANARY"], nextAction: "STALE-NEXT-CANARY", unresolvedDecisions: ["STALE-DECISION-CANARY"] }); if (!stale.ok) throw new Error(stale.reason);
 		expect(writeContinuityCheckpoint(root, { mode: "adhoc" }, stale.checkpoint, { kind: "absent" }).ok).toBeTrue(); writeFileSync(join(root, "safe.txt"), "changed after checkpoint\n");
-		const lifecycle = createContinuityHandoffLifecycle(root, ports()); expect(await lifecycle.refresh(true)).toBe("refreshed"); const saved = JSON.stringify(checkpoint(root)); expect(saved).not.toContain("CANARY"); expect(checkpoint(root).objective).toBe("Continue the current project task safely.");
+		const lifecycle = createContinuityHandoffLifecycle(root, ports()); expect(await lifecycle.refresh(true)).toBe("refreshed"); const saved = checkpoint(root); expect(saved.objective).toBe("STALE-OBJECTIVE-CANARY"); expect(JSON.stringify({ completed: saved.completed, nextAction: saved.nextAction, unresolvedDecisions: saved.unresolvedDecisions })).not.toContain("CANARY");
 	});
 
 	test("successful mutations refresh while uncertainty suppresses automatic boundaries until explicit refresh", async () => {

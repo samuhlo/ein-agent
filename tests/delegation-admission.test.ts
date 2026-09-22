@@ -123,12 +123,20 @@ describe("delegation admission", () => {
 		}
 	});
 
-	test("rejects ambiguous mixtures, unknown fields, invalid keys, and turnBudget", () => {
+	test("rejects ambiguous mixtures, unknown fields and invalid keys; retains Ein-only turnBudget metadata", () => {
 		rejection({ workflowScript: `return runs.run("x", {agent:"ein-scout",task:"x"})`, agent: "ein-scout", task: "x" }, "workflowScript");
 		rejection({ workflowScript: `return runs.run("x", {agent:"ein-scout",task:"x",mystery:true})` }, "mystery");
-		rejection({ workflowScript: `return runs.run("x", {agent:"ein-scout",task:"x",turnBudget:{maxTurns:2}})` }, "turnBudget");
+		expect(admitDelegation({ workflowScript: `return runs.run("x", {agent:"sdd-apply",task:"x",turnBudget:{maxTurns:2}})` })).toMatchObject({ kind: "execution", items: [{ turnBudget: { maxTurns: 2 } }] });
 		rejection({ workflowScript: `return runs.all([{key:"bad key",agent:"ein-scout",task:"x"}])` }, "key");
 		rejection({ workflowScript: `return runs.all([{key:"same",agent:"ein-scout",task:"x"},{key:"same",agent:"ein-scout",task:"y"}])` }, "key");
+	});
+
+	test("validates the runner tool budget contract before launch", () => {
+		expect(execution({ agent: "sdd-map", task: "map", toolBudget: { hard: 30, soft: 24, block: ["read", "bash"] } }).items[0]?.toolBudget).toEqual({ hard: 30, soft: 24, block: ["read", "bash"] });
+		rejection({ agent: "sdd-map", task: "map", toolBudget: { hard: "30" } }, "toolBudget.hard");
+		rejection({ workflowScript: `return runs.run("map", {agent:"sdd-map",task:"map",toolBudget:{hard:4,soft:5}})` }, "toolBudget.soft");
+		rejection({ workflowScript: `return runs.run("map", {agent:"sdd-map",task:"map",toolBudget:{hard:4,block:"read"}})` }, "toolBudget.block");
+		rejection({ agent: "sdd-map", task: "map", toolBudget: { hard: 4, mystery: true } }, "toolBudget.mystery");
 	});
 
 	test("enforces byte and call bounds", () => {

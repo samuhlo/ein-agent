@@ -17,7 +17,7 @@ export const DELEGATION_CALL_MAX = 64;
 
 const RUN_KEY = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const LEGACY_KEYS = ["tasks", "steps", "chain"] as const;
-const EIN_METADATA_KEYS = new Set(["tdd", "allowBudgetIncrease"]);
+const EIN_METADATA_KEYS = new Set(["tdd", "turnBudget", "allowBudgetIncrease"]);
 const CHILD_KEYS = new Set([
 	"agent", "task", "cwd", "context", "timeoutMs", "maxRuntimeMs", "toolTimeoutMs",
 	"toolBudget", "usageBudget", "acceptance", "agentContract", "output", "outputMode",
@@ -156,6 +156,22 @@ function validatePositiveInteger(value: unknown): boolean {
 	return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
+function validateToolBudget(value: unknown, source?: typescript.SourceFile, node?: typescript.Node, prefix = "child"): DelegationRejected | null {
+	if (value === undefined) return null;
+	if (!isRecord(value)) return rejected(`${prefix}.toolBudget must be a JSON object`, "toolBudget", source, node);
+	const unknown = Object.keys(value).find((key) => !["hard", "soft", "block"].includes(key));
+	if (unknown) return rejected(`${prefix}.toolBudget.${unknown} is not supported`, `toolBudget.${unknown}`, source, node);
+	if (!validatePositiveInteger(value.hard)) return rejected(`${prefix}.toolBudget.hard must be a positive integer`, "toolBudget.hard", source, node);
+	if (value.soft !== undefined && !validatePositiveInteger(value.soft)) return rejected(`${prefix}.toolBudget.soft must be a positive integer`, "toolBudget.soft", source, node);
+	if (typeof value.soft === "number" && value.soft > (value.hard as number)) return rejected(`${prefix}.toolBudget.soft must be <= toolBudget.hard`, "toolBudget.soft", source, node);
+	if (value.block !== undefined && value.block !== "*") {
+		if (!Array.isArray(value.block) || value.block.length === 0 || value.block.some((item) => typeof item !== "string" || !item.trim())) {
+			return rejected(`${prefix}.toolBudget.block must be "*" or a non-empty string array`, "toolBudget.block", source, node);
+		}
+	}
+	return null;
+}
+
 function validateOptionTypes(item: Record<string, unknown>, source?: typescript.SourceFile, node?: typescript.Node, prefix = "child"): DelegationRejected | null {
 	for (const key of ["timeoutMs", "maxRuntimeMs", "toolTimeoutMs", "globalConcurrencyLimit", "maxSubagentSpawnsPerRun"]) {
 		if (item[key] !== undefined && !validatePositiveInteger(item[key])) return rejected(`${prefix}.${key} must be a positive integer`, key, source, node);
@@ -166,7 +182,7 @@ function validateOptionTypes(item: Record<string, unknown>, source?: typescript.
 	for (const key of ["cwd", "context", "model", "baseRef", "sessionDir", "phase", "label", "chatProgress", "isolation", "agentScope"]) {
 		if (item[key] !== undefined && typeof item[key] !== "string") return rejected(`${prefix}.${key} must be a string`, key, source, node);
 	}
-	for (const key of ["toolBudget", "usageBudget", "agentContract", "lane", "extensionBindings", "preflight"]) {
+	for (const key of ["turnBudget", "toolBudget", "usageBudget", "agentContract", "lane", "extensionBindings", "preflight"]) {
 		if (item[key] !== undefined && !isRecord(item[key])) return rejected(`${prefix}.${key} must be a JSON object`, key, source, node);
 	}
 	if (item.outputMode !== undefined && item.outputMode !== "inline" && item.outputMode !== "file-only") return rejected(`${prefix}.outputMode must be inline or file-only`, "outputMode", source, node);
@@ -178,6 +194,8 @@ function validateOptionTypes(item: Record<string, unknown>, source?: typescript.
 		}
 		if (!valid) return rejected(`${prefix}.acceptance must be a policy object, JSON object string, auto, attested, checked, or false`, "acceptance", source, node);
 	}
+	const invalidToolBudget = validateToolBudget(item.toolBudget, source, node, prefix);
+	if (invalidToolBudget) return invalidToolBudget;
 	if (item.output !== undefined && typeof item.output !== "string" && typeof item.output !== "boolean") return rejected(`${prefix}.output must be a string or boolean`, "output", source, node);
 	if (item.skill !== undefined && typeof item.skill !== "string" && typeof item.skill !== "boolean" && !(Array.isArray(item.skill) && item.skill.every((value) => typeof value === "string"))) return rejected(`${prefix}.skill must be a string, string array, or boolean`, "skill", source, node);
 	return null;

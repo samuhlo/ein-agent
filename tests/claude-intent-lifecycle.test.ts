@@ -8,6 +8,7 @@ import { runClaudePreflightInputCommand, runSummaryCommand } from "../ein-cc/sdd
 import { readAgreement, writeAgreement } from "../shared/sdd/intent-agreement.ts";
 import { closeChange, resolveSddStatus } from "../shared/ports/sdd.ts";
 import { compileClaudeSurface } from "../ein-cc/sync.ts";
+import { readContinuityCheckpoint } from "../ein-pi/agent/lib/continuity-checkpoint-store.ts";
 import { bundleEinCcPayload } from "../installer/scripts/bundle-ein-cc.ts";
 import { beginVerification, finishVerification } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 
@@ -60,6 +61,12 @@ describe("Claude completes SDD without Pi", () => {
 				const result = Bun.spawnSync([binary, ...args], { cwd: f.cwd, stdin: data === undefined ? undefined : Buffer.from(JSON.stringify(data)) });
 				return { code: result.exitCode, text: result.stdout.toString() + result.stderr.toString() };
 			};
+			if (origin === "claude") {
+				expect(JSON.parse(cli(["objective", "show"]).text)).toMatchObject({ kind: "absent" });
+				const objective = cli(["objective", "set"], { objective: "Preparar exportacion", expectedRevision: "absent", requestId: "packaged-human", requestText: "Prepara la exportacion" });
+				expect(objective.code, objective.text).toBe(0);
+				expect(JSON.parse(cli(["objective", "show"]).text)).toMatchObject({ objective: "Preparar exportacion", objectiveEvidence: { kind: "claude-attested" } });
+			}
 			let request = { ...input };
 			if (origin === "pi") {
 				const prior = JSON.parse(record(f.cwd).text).agreement;
@@ -92,6 +99,8 @@ describe("Claude completes SDD without Pi", () => {
 	});
 	test("records Claude provenance and preflight reuses the agreement and TDD choice", async () => {
 		const f = fixture(); expect(record(f.cwd).exitCode).toBe(0);
+		const objective = readContinuityCheckpoint(f.cwd, { mode: "sdd", change: f.change });
+		expect(objective.status === "valid" && objective.checkpoint).toMatchObject({ objective: input.material.objective, objectiveEvidence: { kind: "intent", work: f.change } });
 		const before = readFileSync(join(f.dir, "intent.md"), "utf8");
 		expect(JSON.parse(runIntentCommand(f.cwd, [f.change]).text).agreement.response.source).toBe("claude-coordinator");
 		expect(JSON.parse(record(f.cwd).text).outcome).toBe("adopted");

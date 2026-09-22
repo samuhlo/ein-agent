@@ -96,9 +96,9 @@ describe("parseWorkflowScriptDelegations", () => {
 		]);
 	});
 
-	test("un objeto anidado no genera item propio", () => {
+	test("turnBudget se conserva como metadata del child, no como item propio", () => {
 		const script = `return runs.run("a", { agent: "sdd-apply", task: "t", turnBudget: { maxTurns: 5, graceTurns: 1 } })`;
-		expect(parseWorkflowScriptDelegations(script)).toEqual([]);
+		expect(parseWorkflowScriptDelegations(script)).toEqual([{ key: "a", agent: "sdd-apply", task: "t", turnBudget: { maxTurns: 5, graceTurns: 1 } }]);
 	});
 
 	test("acepta template literals, claves entrecomilladas y comillas escapadas", () => {
@@ -221,10 +221,12 @@ describe("shaping SDD sobre workflowScript", () => {
 		expect((input as Record<string, unknown>).acceptance).toMatchObject({ level: "none" });
 	});
 
-	test("apply solo recibe acceptance/turnBudget si es el único child", () => {
+	test("apply solo recibe acceptance; turnBudget requiere soporte declarado por el runner", () => {
 		const single = script("sdd-apply");
 		expect(ensureApplyAcceptance(single)).toBe(true);
-		expect(ensureApplyTurnBudget(single)).toBe(true);
+		expect(ensureApplyTurnBudget(single)).toBe(false);
+		expect((single as Record<string, unknown>).turnBudget).toBeUndefined();
+		expect(ensureApplyTurnBudget(single, undefined, true)).toBe(true);
 		expect((single as Record<string, unknown>).turnBudget).toMatchObject({ maxTurns: 60 });
 		// Mixto: el default bajaría a TODOS los children del workflow.
 		const mixed = { workflowScript: `return runs.all([{ key:"apply", agent: "sdd-apply", task: "a" }, { key:"verify", agent: "sdd-verify", task: "v" }])` };

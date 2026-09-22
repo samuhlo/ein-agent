@@ -7,6 +7,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createIntentMaterialKey, normalizeIntentMaterial, type IntentMaterial } from "./sdd-intent-preflight.ts";
 import { readAgreement, validateAgreement, writeAgreement, type IntentAgreement, validateIntentDecisions, type IntentDecision } from "./intent-agreement.ts";
 import { isSafeChangeName, resolveChangesDir } from "./sdd-routing-core.ts";
+import { setContinuityObjective, showContinuityObjective, type ContinuityObjectiveResult } from "./continuity-objective.ts";
 
 export const INTENT_STATE = "ein:intent-discovery";
 export const INTENT_INPUT = "ein:intent-response";
@@ -26,7 +27,7 @@ export type IntentRequest = {
 	reopenReason?: string;
 };
 type Entry = { type?: string; customType?: string; data?: unknown };
-export type Snapshot = { agreement?: IntentAgreement; response?: IntentInput; evidence?: IntentEvidence };
+export type Snapshot = { agreement?: IntentAgreement; response?: IntentInput; evidence?: IntentEvidence; continuityWarning?: string };
 
 function entries(ctx: IntentContext): Entry[] {
 	return ctx.sessionManager.getBranch() as Entry[];
@@ -84,6 +85,7 @@ export function runIntentDiscovery(
 	request: IntentRequest,
 	append: (type: string, data: unknown) => void,
 	latestInput?: IntentInput,
+	writeObjective: typeof setContinuityObjective = setContinuityObjective,
 ): Snapshot {
 	if (!isSafeChangeName(request.work) || (request.change !== undefined && request.change !== request.work)) throw new Error("Use a bounded work name; for SDD, work and change must match");
 	let previous: Snapshot;
@@ -116,7 +118,17 @@ export function runIntentDiscovery(
 			writeAgreement(changeDirectory(ctx.cwd, agreement.change, true), agreement);
 		}
 		append(INTENT_STATE, agreement);
-		return { agreement, evidence: evidenceFor(entries(ctx), agreement.work) };
+		let continuityWarning: string | undefined;
+		if (agreement.status === "confirmed") {
+			const current = showContinuityObjective(ctx.cwd);
+			const result: ContinuityObjectiveResult = current.kind === "unavailable"
+				? { outcome: "unavailable", reason: current.reason }
+				: writeObjective(ctx.cwd, { objective: agreement.material.objective, evidence: {
+					kind: "intent", work: agreement.work, materialKey: agreement.materialKey, agreementRevision: agreement.revision,
+				} }, current.expectedRevision);
+			if (result.outcome !== "set" && result.outcome !== "unchanged") continuityWarning = `continuity-objective-${result.outcome}:${result.reason ?? "unknown"}`;
+		}
+		return { agreement, evidence: evidenceFor(entries(ctx), agreement.work), ...(continuityWarning ? { continuityWarning } : {}) };
 	};
 	if (request.action === "record") {
 		if (!latestInput || !request.material) throw new Error("Record requires the current observed human request and complete material");

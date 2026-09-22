@@ -37,6 +37,12 @@ import { AGENT_DIR } from "../ein-paths.ts";
 import { canonicalSpecPrompt } from "./ein-canonical-spec-context.ts";
 import { changeStanceDirective, readChangeStance } from "../../lib/sdd-preflight-record.ts";
 import {
+	parseResolvedApplyTdd,
+	renderResolvedApplyTdd,
+	revalidateResolvedApplyTdd,
+	resolveApplyTdd,
+} from "../../lib/apply-tdd-contract.ts";
+import {
 	isNamedAgentStartEvent,
 	isSddAgentStartEvent,
 	readAgentStartNames,
@@ -107,12 +113,31 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const isScout = startNames.includes("ein-scout");
 		handoffError = undefined;
 		agreementInput = undefined;
-		const change = readExplicitSddChange(event);
-		const stancePrompt = change && isSddAgent ? changeStanceDirective(readChangeStance(ctx.cwd, change)) : "";
 		const phaseRunBound = /^ein_phase_run:[\t ]*\{/m.test(readAgentTask(event));
+		const completionPrompt = phaseRunBound ? "\nBefore the final message call ein_sdd_phase_complete: complete only after finishing the assigned phase; partial or blocked preserves progress without claiming success.\n" : "";
+		const task = readAgentTask(event);
+		const transported = startNames.includes("sdd-apply") ? parseResolvedApplyTdd(task) : { kind: "absent" as const };
+		let change = readExplicitSddChange(event);
+		let stancePrompt = change && isSddAgent ? changeStanceDirective(readChangeStance(ctx.cwd, change)) : "";
+		if (startNames.includes("sdd-apply")) {
+			if (transported.kind === "invalid") handoffError = transported.reason;
+			else if (transported.kind === "resolved") {
+				change = transported.contract.change ?? change;
+				const freshness = revalidateResolvedApplyTdd(ctx.cwd, transported.contract);
+				if (!freshness.current) handoffError = freshness.reason;
+				else stancePrompt = renderResolvedApplyTdd(transported.contract, true);
+			} else {
+				const legacy = resolveApplyTdd({ cwd: ctx.cwd, task });
+				if (legacy.kind !== "resolved") handoffError = legacy.kind === "invalid" ? legacy.reason : legacy.message;
+				else {
+					change = legacy.contract.change ?? change;
+					stancePrompt = renderResolvedApplyTdd(legacy.contract, false);
+				}
+			}
+		}
 		const directoryContext = change && isSddAgent
 			? `\nSDD change directory: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change))}. Resolve phase artifacts here, not at the repository root.\nCanonical intent path: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change, "intent.md"))}.\n${stancePrompt}` : "";
-		const completionPrompt = phaseRunBound ? "\nBefore the final message call ein_sdd_phase_complete: complete only after finishing the assigned phase; partial or blocked preserves progress without claiming success.\n" : "";
+		const adHocStanceContext = !change && stancePrompt ? `\n${stancePrompt}` : "";
 		const phase = startNames.find((name) => name.startsWith("sdd-"))?.slice(4) as SddPhase | undefined;
 		if (change && phase && PHASE_ARTIFACT[phase]) {
 			const directory = join(resolveChangesDir(ctx.cwd), change);
@@ -121,7 +146,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			else if (stored.kind !== "absent" || /^intent_work:/m.test(readAgentTask(event))) handoffError = "The phase's intent is absent, invalid or no longer confirmed";
 		}
 		let handoff: ReturnType<typeof compileApplyHandoff>;
-		try { if (handoffError) throw new Error(handoffError); handoff = startNames.includes("sdd-apply") ? compileApplyHandoff(ctx.cwd, readAgentTask(event)) : undefined; }
+		try { if (handoffError) throw new Error(handoffError); handoff = startNames.includes("sdd-apply") ? compileApplyHandoff(ctx.cwd, task) : undefined; }
 		catch (error) {
 			handoffError = error instanceof Error ? error.message : String(error);
 			return { systemPrompt: `${basePrompt}\n${phaseMarker}\nExecution blocked: ${handoffError}. Return status: blocked to the parent; tools are unavailable until the assignment is corrected.` };
@@ -196,7 +221,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
 		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${directoryContext}${completionPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff.prompt}` : ""}`,
+			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${directoryContext}${adHocStanceContext}${completionPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff.prompt}` : ""}`,
 		};
 	});
 }

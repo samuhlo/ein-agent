@@ -2,7 +2,6 @@ import { accessSync, constants, statSync } from "node:fs";
 import { delimiter, join } from "node:path";
 
 import {
-	CONTINUITY_CHECKPOINT_LIMITS,
 	deriveContinuityCheckpoint,
 	type ContinuityCheckpointFacts,
 } from "./continuity-checkpoint.ts";
@@ -19,7 +18,14 @@ import {
 } from "./continuity-checkpoint-store.ts";
 import { auditContinuityReadiness, type ContinuityReadinessResult } from "./continuity-readiness.ts";
 import { buildContinuityResumeBrief, type ContinuityResumeBriefSuccess } from "./continuity-resume-brief.ts";
+import {
+	setContinuityObjective,
+	type ContinuityObjectiveRequest,
+	type ContinuityObjectiveResult,
+} from "./continuity-objective.ts";
 import { projectProjectState, type ProjectRuntimeProvider, type ProjectStateV1 } from "./project-state.ts";
+import { readAgreement } from "./intent-agreement.ts";
+import { resolveChangesDir } from "./sdd-routing-core.ts";
 
 export type ContinuityRefreshCode = "refreshed" | "mutation-uncertain" | "refresh-conflict" | "refresh-failed" | "busy" | "disposed";
 export type ContinuityClearCode = "cleared" | "checkpoint-absent" | "clear-conflict" | "clear-failed" | "busy" | "disposed";
@@ -47,9 +53,11 @@ type Ports = Readonly<{
 	clear?: typeof clearContinuityCheckpoint;
 	sddStatus?: (cwd: string, change: string) => SddChangeStatus;
 	operationGate?: () => Promise<void>;
+	setObjective?: typeof setContinuityObjective;
 }>;
 export type ContinuityHandoffLifecycle = Readonly<{
 	captureInput: (value: unknown) => void;
+	setObjective: (request: ContinuityObjectiveRequest, expectedRevision: string) => Promise<ContinuityObjectiveResult>;
 	refresh: (explicit?: boolean) => Promise<ContinuityRefreshCode>;
 	mutationResult: (successful: boolean) => Promise<ContinuityRefreshCode>;
 	status: () => Promise<ContinuityStatus>;
@@ -62,11 +70,11 @@ export type ContinuityHandoffLifecycle = Readonly<{
 
 const GENERIC: Omit<ContinuityCheckpointFacts, "capturedAt"> = Object.freeze({
 	objective: "Continue the current project task safely.",
+	objectiveEvidence: Object.freeze({ kind: "unknown" as const }),
 	completed: Object.freeze([]),
 	nextAction: "Inspect current project state and continue from a verified boundary.",
 	unresolvedDecisions: Object.freeze([]),
 });
-const encoder = new TextEncoder();
 const CLOSED_BLOCKERS = Object.freeze(["audit-failed"] as const), CLOSED_WARNINGS = Object.freeze([] as const);
 const BUSY_READINESS: ContinuityReadinessResult = Object.freeze({ status: "blocked", blockers: CLOSED_BLOCKERS, warnings: CLOSED_WARNINGS });
 const BUSY_STATUS: ContinuityStatus = Object.freeze({ operation: "busy", checkpoint: "unavailable", freshness: "unknown", pi: BUSY_READINESS, claude: BUSY_READINESS });
@@ -105,7 +113,7 @@ export function localExecutableAvailable(name: string, pathValue = process.env.P
 
 export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): ContinuityHandoffLifecycle {
 	const read = ports.read ?? readContinuityCheckpoint, write = ports.write ?? writeContinuityCheckpoint, clearStore = ports.clear ?? clearContinuityCheckpoint;
-	let facts: Omit<ContinuityCheckpointFacts, "capturedAt"> = GENERIC, capturedInput: string | null = null;
+	let facts: Omit<ContinuityCheckpointFacts, "capturedAt"> = GENERIC;
 	let uncertain = false, suppressShutdown = false, disposed = false;
 	let active: Promise<unknown> | null = null, pendingAutomatic: Promise<ContinuityRefreshCode> | null = null, shutdownPromise: Promise<ContinuityRefreshCode> | null = null;
 	const runtimes = (): ProjectStateV1["runtimes"] => ({ pi: runtimeMetadata("pi", ports.runtimeAvailable("pi")), claude: runtimeMetadata("claude", ports.runtimeAvailable("claude")) });
@@ -145,18 +153,37 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 		const observed = state(), location = locationFor(observed, { ...facts, capturedAt: ports.now() });
 		return location ? { state: observed, location, read: read(cwd, location) } : null;
 	};
-		const refreshOnce = (): ContinuityRefreshCode => {
+	const objectiveFacts = (checkpoint: Extract<ContinuityCheckpointRead, { status: "valid" }>["checkpoint"]): Pick<ContinuityCheckpointFacts, "objective" | "objectiveEvidence"> => ({
+		objective: checkpoint.objective,
+		objectiveEvidence: checkpoint.version === 2 ? checkpoint.objectiveEvidence : { kind: "legacy" },
+	});
+	const refreshOnce = (): ContinuityRefreshCode => {
 		for (let attempt = 0; attempt < 2; attempt += 1) {
 			const observed = state();
-			let candidate = { ...facts, ...sddFacts(observed), ...(capturedInput === null ? {} : { objective: capturedInput }), capturedAt: ports.now() };
+			const proposedLocation = locationFor(observed, { ...facts, capturedAt: ports.now() });
+			if (!proposedLocation) return "refresh-failed";
+			const before = read(cwd, proposedLocation);
+			let persistedObjective = applicable(before, proposedLocation) ? objectiveFacts(before.checkpoint) : { objective: GENERIC.objective, objectiveEvidence: GENERIC.objectiveEvidence };
+			if (proposedLocation.mode === "sdd") {
+				const agreement = readAgreement(join(resolveChangesDir(cwd), proposedLocation.change));
+				const provenance = persistedObjective.objectiveEvidence;
+				const observedRevision = provenance?.kind === "pi-observed" || provenance?.kind === "claude-attested" ? provenance.observedAgreementRevision : undefined;
+				if (agreement.kind === "valid" && agreement.agreement.status === "confirmed" && observedRevision !== agreement.agreement.revision) persistedObjective = {
+					objective: agreement.agreement.material.objective,
+					objectiveEvidence: { kind: "intent", work: agreement.agreement.work, materialKey: agreement.agreement.materialKey, agreementRevision: agreement.agreement.revision },
+				};
+			}
+			let candidate = { ...facts, ...persistedObjective, ...sddFacts(observed), capturedAt: ports.now() };
 			let derived = deriveContinuityCheckpoint(observed, candidate);
-			if (!derived.ok) { candidate = { ...GENERIC, capturedAt: ports.now() }; derived = deriveContinuityCheckpoint(observed, candidate); }
+			if (!derived.ok) { candidate = { ...GENERIC, ...persistedObjective, capturedAt: ports.now() }; derived = deriveContinuityCheckpoint(observed, candidate); }
 			if (!derived.ok) return "refresh-failed";
 			const location: ContinuityCheckpointLocation = derived.checkpoint.mode === "sdd" ? { mode: "sdd", change: derived.checkpoint.change! } : { mode: "adhoc" };
-			const before = read(cwd, location), expected = expectation(before);
+			const currentRead = location.mode === proposedLocation.mode && (location.mode === "adhoc" || proposedLocation.mode === "sdd" && location.change === proposedLocation.change)
+				? before : read(cwd, location);
+			const expected = expectation(currentRead);
 			if (!expected) return "refresh-failed";
 			const result = write(cwd, location, derived.checkpoint, expected);
-			if (result.ok) { facts = { objective: candidate.objective, completed: candidate.completed, nextAction: candidate.nextAction, unresolvedDecisions: candidate.unresolvedDecisions }; capturedInput = null; return "refreshed"; }
+			if (result.ok) { facts = { objective: candidate.objective, objectiveEvidence: candidate.objectiveEvidence, completed: candidate.completed, nextAction: candidate.nextAction, unresolvedDecisions: candidate.unresolvedDecisions }; return "refreshed"; }
 			if (result.reason !== "conflict") return "refresh-failed";
 		}
 		return "refresh-conflict";
@@ -172,15 +199,26 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 		if (initialLocation) {
 			const initial = read(cwd, initialLocation);
 			const readiness = auditContinuityReadiness({ state: initialState, checkpoint: initial, target: "pi", mutation: "settled", process: processObservation() });
-			if (applicable(initial, initialLocation) && readiness.status !== "blocked") facts = { objective: initial.checkpoint.objective, completed: [...initial.checkpoint.completed], nextAction: initial.checkpoint.nextAction, unresolvedDecisions: [...initial.checkpoint.unresolvedDecisions] };
+			if (applicable(initial, initialLocation)) {
+				facts = readiness.status === "blocked"
+					? { ...GENERIC, ...objectiveFacts(initial.checkpoint) }
+					: { ...objectiveFacts(initial.checkpoint), completed: [...initial.checkpoint.completed], nextAction: initial.checkpoint.nextAction, unresolvedDecisions: [...initial.checkpoint.unresolvedDecisions] };
+			}
 		}
 	} catch { facts = GENERIC; }
 
 	return Object.freeze({
-		captureInput(value: unknown): void {
-			if (disposed) return;
-			capturedInput = typeof value === "string" && value.length > 0 && !/[\u0000-\u001f\u007f]/.test(value)
-				&& encoder.encode(value).byteLength <= CONTINUITY_CHECKPOINT_LIMITS.maxObjectiveBytes ? value : null;
+		// Existing input hooks stay compatible; only explicit producers set objectives.
+		captureInput(_value: unknown): void {},
+		setObjective(request: ContinuityObjectiveRequest, expectedRevision: string): Promise<ContinuityObjectiveResult> {
+			if (disposed) return Promise.resolve({ outcome: "unavailable", reason: "disposed" });
+			return command(() => {
+				const result = (ports.setObjective ?? setContinuityObjective)(cwd, request, expectedRevision);
+				if ((result.outcome === "set" || result.outcome === "unchanged") && result.revision) {
+					facts = { ...facts, objective: request.objective, objectiveEvidence: request.evidence };
+				}
+				return result;
+			}, { outcome: "unavailable", reason: "busy" });
 		},
 		refresh(explicit = false): Promise<ContinuityRefreshCode> { return disposed ? Promise.resolve("disposed") : explicit === true ? command(() => doRefresh(true), "busy") : automatic(); },
 		mutationResult(successful: boolean): Promise<ContinuityRefreshCode> {
@@ -228,7 +266,7 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 		restoreCancelledReplacement(): void { suppressShutdown = false; },
 		shutdown(): Promise<ContinuityRefreshCode> {
 			if (shutdownPromise) return shutdownPromise;
-			disposed = true; capturedInput = null; pendingAutomatic = null;
+				disposed = true; pendingAutomatic = null;
 			const running = active;
 			if (!running && !suppressShutdown && !uncertain) { let result: ContinuityRefreshCode; try { result = refreshOnce(); } catch { result = "refresh-failed"; } shutdownPromise = Promise.resolve(result); return shutdownPromise; }
 			shutdownPromise = running ? running.then(() => "disposed", () => "disposed") : Promise.resolve("disposed");

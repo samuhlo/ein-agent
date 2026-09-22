@@ -12,6 +12,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
 	ensureApplyAcceptance,
+	ensureApplyTurnBudget,
 	ensureDelegationAcceptance,
 	ensureParticipantForeground,
 	ensurePhaseRuntime,
@@ -27,6 +28,12 @@ import {
 	rewriteDelegationTasks,
 } from "../../lib/delegation-shape.ts";
 import { admitDelegation } from "../../lib/delegation-admission.ts";
+import {
+	attachResolvedApplyTdd,
+	decideApplyTurnBudget,
+	resolveApplyTdd,
+	type ResolvedApplyTdd,
+} from "../../lib/apply-tdd-contract.ts";
 import {
 	type DeliveryIntent,
 	bindDeliveryWork,
@@ -122,7 +129,7 @@ export function registerToolCallGate(
 				catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 				return undefined;
 			}
-			const items = collectDelegationItems(event.input);
+			let items = collectDelegationItems(event.input);
 			const workKeys = [...new Set(items.flatMap((item) => {
 				const match = item.task?.match(/^intent_work:\s*([^\s]+)\s*$/m);
 				return match ? [match[1]!] : [];
@@ -163,6 +170,49 @@ export function registerToolCallGate(
 				}
 			}
 			ensureParticipantForeground(event.input);
+			// Resolve one effective TDD contract per apply child. The existing gate
+			// may persist a missing change decision; resolution happens only after
+			// that opportunity, and the result itself is then reused for budget and
+			// child transport.
+			await gateTddForDelegation(event.input, ctx);
+			items = collectDelegationItems(event.input);
+			const applyContracts: ResolvedApplyTdd[] = [];
+			for (const item of items) {
+				if (item.agent !== "sdd-apply") continue;
+				let resolution = resolveApplyTdd({ cwd: ctx.cwd, task: item.task, structuredHint: item.tdd });
+				if (resolution.kind === "needs-decision" && resolution.reason === "project-ask" && ctx.hasUI) {
+					const picked = await ctx.ui.select("TDD estricto para este apply ad-hoc", ["off", "strict"]);
+					if (picked === "off" || picked === "strict") {
+						resolution = resolveApplyTdd({ cwd: ctx.cwd, task: item.task, structuredHint: picked, change: null });
+					}
+				}
+				if (resolution.kind !== "resolved") {
+					return {
+						block: true,
+						reason: resolution.kind === "invalid"
+							? `Invalid apply TDD contract: ${resolution.reason}`
+							: `Apply TDD decision required: ${resolution.message}`,
+					};
+				}
+				const explicitBudget = item.turnBudget ?? (isRecord(event.input) ? event.input.turnBudget : undefined);
+				const budget = decideApplyTurnBudget(resolution.contract, explicitBudget);
+				if (budget.status === "unavailable" && explicitBudget !== undefined) {
+					return { block: true, reason: `${budget.message}; the apply was not launched` };
+				}
+				if (budget.status === "unavailable" && ctx.hasUI) ctx.ui.notify(
+					"Apply: límite de turnos no disponible en el runner; maxRuntimeMs sigue activo.",
+					"warning",
+				);
+				applyContracts.push(resolution.contract);
+			}
+			if (applyContracts.length > 0) {
+				let applyIndex = 0;
+				rewriteDelegationTasks(event.input, (agent, task) => agent === "sdd-apply"
+					? attachResolvedApplyTdd(task, applyContracts[applyIndex++]!)
+					: task);
+				if (items.length === 1) ensureApplyTurnBudget(event.input, applyContracts[0]);
+				items = collectDelegationItems(event.input);
+			}
 			// Rollout 1: observar el contrato vivo sin bloquear ni mutar la
 			// delegación. La puerta dura llega solo después de medir planes reales.
 			if (delegationTargetsOnly(event.input, "sdd-apply")) {
@@ -195,10 +245,14 @@ export function registerToolCallGate(
 			ensurePlanningAcceptance(event.input);
 			ensureApplyAcceptance(event.input);
 			ensurePhaseRuntime(event.input);
-			try { ensurePhaseContextBudget(event.input); }
+			try {
+				const phaseBudgets = ensurePhaseContextBudget(event.input);
+				for (const allocation of phaseBudgets.allocations) {
+					if (allocation.warning && ctx.hasUI) ctx.ui.notify(`${allocation.agent}: ${allocation.warning}`, "warning");
+				}
+			}
 			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			ensureDelegationAcceptance(event.input);
-			await gateTddForDelegation(event.input, ctx);
 			try { normalizeDelegationForRunner(event.input); }
 			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			const deliveryGate = await confirmDelegatedDelivery(event.input, ctx, {

@@ -6,4 +6,11 @@ export {
 	localExecutableAvailable,
 	type ContinuityHandoffLifecycle,
 } from "../../ein-pi/agent/lib/continuity-handoff-lifecycle.ts";
+export {
+	setContinuityObjective,
+	showContinuityObjective,
+	type ContinuityObjectiveRequest,
+	type ContinuityObjectiveResult,
+	type ContinuityObjectiveView,
+} from "../../ein-pi/agent/lib/continuity-objective.ts";
 export { runContinueInPty } from "../../ein-pi/agent/lib/terminal-continue-transport.ts";

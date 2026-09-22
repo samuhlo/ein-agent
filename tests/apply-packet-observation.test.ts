@@ -54,6 +54,7 @@ function project(taskText = tasks(), change = "demo"): string {
 	mkdirSync(changeDir, { recursive: true });
 	writeFileSync(join(changeDir, "design.md"), "# Design\n\nUn diseño actual.\n");
 	writeFileSync(join(changeDir, "tasks.md"), taskText);
+	writeFileSync(join(changeDir, "preflight.json"), JSON.stringify({ tdd: "off", decidedBy: "pi", decidedAt: "2026-09-18T00:00:00.000Z" }));
 	return root;
 }
 
@@ -159,6 +160,7 @@ describe("observación viva de apply-packet/v2", () => {
 		mkdirSync(second, { recursive: true });
 		writeFileSync(join(second, "design.md"), "# Design\n");
 		writeFileSync(join(second, "tasks.md"), tasks());
+		writeFileSync(join(second, "preflight.json"), JSON.stringify({ tdd: "strict", decidedBy: "pi", decidedAt: "2026-09-18T00:00:00.000Z" }));
 		expect(observeNextApplyPacket(root)).toMatchObject({ status: "unavailable", code: "ambiguous-change" });
 	});
 
@@ -186,6 +188,7 @@ describe("observación viva de apply-packet/v2", () => {
 		mkdirSync(second, { recursive: true });
 		writeFileSync(join(second, "design.md"), "# Design\n");
 		writeFileSync(join(second, "tasks.md"), tasks());
+		writeFileSync(join(second, "preflight.json"), JSON.stringify({ tdd: "strict", decidedBy: "pi", decidedAt: "2026-09-18T00:00:00.000Z" }));
 		const observed = await invokeApplyHook(root, { task: "STRICT TDD MODE IS ACTIVE. Aplica openspec/changes/otro/tasks.md" });
 		expect(observed.appended[0]?.data).toMatchObject({ status: "executable", change: "otro" });
 		expect(observed.result).toBeUndefined();

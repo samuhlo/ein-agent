@@ -92,6 +92,9 @@ lifecycle checks:
 - `ein-cc-sdd intent <change> show` reads the agreement without changing it.
 - `ein-cc-sdd intent <change> record < agreement.json` records a confirmed agreement;
   `ein-cc-sdd intent --help` documents its JSON input and recovery procedure.
+- `ein-cc-sdd objective show` reads the checkpoint objective and revision without writing.
+- `ein-cc-sdd objective set < objective.json` records a new semantic objective with
+  the literal human request attestation; a short reply never replaces it implicitly.
 - `ein-cc-sdd summary <change> < summary.json` generates validated close metadata
   from `{ "content": "narrative", "commands": ["exact verified command"] }`.
 
@@ -118,6 +121,12 @@ in `intent --help`, preserving the original and reviewing the existing phases.
 An authorization to continue remains valid; ask only for an unresolved material
 decision, not for permission to run the next phase. Carry the agreed branch,
 scope, TDD stance and exact delivery files into each delegation.
+
+Use `objective set` only when a real human request starts new work or materially
+corrects the objective, passing the revision from `objective show`. The JSON is
+`{ "objective", "expectedRevision", "requestId", "requestText" }`; do not invent
+the request fields. A response such as “sí, continúa” remains a response. A
+confirmed intent writes its own `material.objective` and is the canonical source.
 
 Each phase reads `intent show` and includes exactly one `intent_key: <materialKey>`
 in the artifact it produces. Claude has no automatic Pi write hook. Never replace
