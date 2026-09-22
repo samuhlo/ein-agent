@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
-import { resolve, join } from "node:path";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { subagentModulePath } from "../installer/src/core/subagent-module-path.ts";
 
 // Run against a supplied installed package, so this catches regressions in the
 // dependency that actually draws the widget rather than a local imitation.
 const [packageRoot] = process.argv.slice(2);
 if (!packageRoot) throw new Error("Usage: bun tooling/verify-subagent-widget-animation.ts <pi-subagents directory>");
-const { renderWidget } = await import(pathToFileURL(join(resolve(packageRoot), "src/tui/render.ts")).href);
-const { createAsyncJobTracker } = await import(pathToFileURL(join(resolve(packageRoot), "src/runs/background/async-job-tracker.ts")).href);
+const { renderWidget } = await import(pathToFileURL(subagentModulePath(resolve(packageRoot), "src/tui/render.ts")).href);
+const { createAsyncJobTracker } = await import(pathToFileURL(subagentModulePath(resolve(packageRoot), "src/runs/background/async-job-tracker.ts")).href);
 const frames = [..."⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"];
 const originalNow = Date.now;
 const origin = 1_800_000_000_000;
