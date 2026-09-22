@@ -42,7 +42,7 @@ function gateHarness(root: string, picked: "off" | "strict" = "off") {
 		appendEntry() {},
 	} as never, {
 		scoutTracking: new Map() as never,
-		rememberPhaseSnapshot: (_id, input) => snapshots.push(structuredClone(input)),
+		rememberPhaseRun: (reference) => snapshots.push(structuredClone(reference)),
 	});
 	const ctx = {
 		cwd: root,

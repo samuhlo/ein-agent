@@ -1,7 +1,7 @@
 ---
 name: sdd-scope
 description: Define project SDD scope, testing capabilities, and skill registry.
-tools: read, grep, find, write, bash, ein_openspec_delta_write
+tools: read, grep, find, write, bash, ein_openspec_delta_write, ein_sdd_phase_complete
 subagentOnlyExtensions: ../extensions/internal/ein-scope-child.ts, ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 budget:

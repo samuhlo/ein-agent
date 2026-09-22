@@ -193,6 +193,7 @@ describe("contrato de tools de los agentes", () => {
 			"write",
 			"bash",
 			"ein_openspec_delta_write",
+			"ein_sdd_phase_complete",
 		]);
 	});
 

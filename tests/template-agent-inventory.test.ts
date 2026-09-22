@@ -9,6 +9,8 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { TEMPLATE_REPLACE_TREES } from "../installer/src/core/template-inventory.ts";
+import { readBundledManifest } from "../installer/src/core/deploy.ts";
 
 const REPO = join(import.meta.dir, "..");
 const BUNDLE = readFileSync(join(REPO, "installer", "scripts", "bundle-template.ts"), "utf8");
@@ -38,6 +40,16 @@ function covered(path: string): boolean {
 }
 
 describe("Pi template agent inventory", () => {
+	test("the embedded manifest remains readable after its temporary archive is cleaned", async () => {
+		const manifest = await readBundledManifest();
+		expect(manifest?.inventory?.schemaVersion).toBe(1);
+		expect(manifest?.inventory?.replaceTrees).toEqual([...TEMPLATE_REPLACE_TREES].sort());
+	});
+	test("bundle inventory owns the same clean-replace trees as deployment", () => {
+		expect(TEMPLATE_REPLACE_TREES).toEqual(["agents", "assets", "bin", "chains", "docs", "extensions", "lib", "prompts"]);
+		expect(BUNDLE).toContain("createTemplateInventory(staging");
+		expect(BUNDLE).toContain('["ein-mode.json"]');
+	});
 	test("template stages only the target-specific production app under managed bin", () => {
 		expect(BUNDLE).toContain('join(staging, "bin", "ein")');
 		expect(BUNDLE).toContain("EIN_APP_TARGET");

@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { registerSddLifecycleTools } from "../ein-pi/agent/extensions/internal/ein-sdd-lifecycle-tools.ts";
@@ -8,11 +9,13 @@ import { resolveSddNext, resolveSddPlanPreview } from "../ein-pi/agent/lib/sdd-r
 import { lintChange } from "../ein-pi/agent/lib/sdd-guardrails.ts";
 import { writeAgreement } from "../shared/sdd/intent-agreement.ts";
 import { createIntentMaterialKey } from "../shared/sdd/sdd-intent-preflight.ts";
+import { beginVerification, finishVerification } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 function fixture() {
 	const cwd = mkdtempSync(join(tmpdir(), "ein-check-navigation-")); roots.push(cwd);
+	execFileSync("git", ["init", "-q"], { cwd });
 	const dir = join(cwd, "openspec/changes/change"); mkdirSync(dir, { recursive: true });
 	const put = (name: string, body: string) => writeFileSync(join(dir, name), body);
 	writeFileSync(join(cwd, "openspec/config.yaml"), "schema: spec-driven\n");
@@ -103,16 +106,21 @@ test("missing or invalid requested artifacts never emit a route", async () => {
 });
 
 test("a valid fail report and stale pass retain router blockers; no result is cached", async () => {
-	const { dir, put, check } = fixture();
+	const { cwd, dir, put, check } = fixture();
 	put("tasks.md", "status: ready\n- [x] 1.1 Done\n  - verify: `bun test`\n");
 	put("apply-progress.md", "status: complete\n## Files changed\n`src/change.ts`\n");
+	writeFileSync(join(cwd, "src-change.ts"), "export const value = 1;\n");
 	put("verify-report.md", "status: fail\nbehavior_coverage: none\n");
 	const fail = await check("verify");
 	expect(fail.details.navigation.nextRecommended).toBe("verify");
 	expect(fail.details.navigation.blocked.length).toBeGreaterThan(0);
 	put("verify-report.md", "status: pass\nbehavior_coverage: verified\n");
+	const begun = beginVerification({ cwd, changePath: dir });
+	if (!begun.ok) throw new Error(begun.reason);
+	const finished = finishVerification({ cwd, changePath: dir, token: begun.value.token, content: "status: pass\nbehavior_coverage: verified\n" });
+	if (!finished.ok) throw new Error(finished.reason);
 	expect((await check("verify")).details.navigation.nextRecommended).toBe("close");
-	utimesSync(join(dir, "apply-progress.md"), new Date(Date.now() + 5000), new Date(Date.now() + 5000));
+	writeFileSync(join(cwd, "src-change.ts"), "export const value = 2;\n");
 	expect((await check("verify")).details.navigation.nextRecommended).toBe("verify");
 });
 

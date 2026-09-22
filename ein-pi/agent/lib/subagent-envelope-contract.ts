@@ -78,7 +78,17 @@ export const ENVELOPE_CONSUMER_INVENTORY: Readonly<Record<string, EnvelopeConsum
 	originalError: {
 		failureMode: "safe-degradation",
 		protection: "none",
-		note: "reconciliación de fallo de fase; el veredicto real lo da ein_sdd_check sobre el artefacto en disco",
+		note: "conserva el error del runner; el rescate exige un recibo ligado a toolCallId, cambio, fase, nonce y digest",
+	},
+	phaseReference: {
+		failureMode: "safe-degradation",
+		protection: "none",
+		note: "restaura solo una referencia explícita persistida; assessPhaseRecovery vuelve a validar disco e identidad completa",
+	},
+	phaseResultDetails: {
+		failureMode: "safe-degradation",
+		protection: "none",
+		note: "adjunta referencia y evaluación revalidada sin convertir los details del runner en autoridad",
 	},
 };
 

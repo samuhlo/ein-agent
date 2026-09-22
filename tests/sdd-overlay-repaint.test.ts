@@ -6,6 +6,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 
 import createAiExtension from "../ein-pi/agent/extensions/ein-ai.ts";
 import createOverlayExtension from "../ein-pi/agent/extensions/ein-sdd-overlay.ts";
@@ -16,6 +17,7 @@ import {
 	SDD_SESSION_BINDING_EVENT_CHANNEL,
 	serializeSessionBindingLaunchMetadataV1,
 } from "../ein-pi/agent/lib/sdd-session-binding.ts";
+import { beginVerification, finishVerification } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 
 type Handler = (event: unknown, ctx: unknown) => void;
 type CommandHandler = (args: string | string[], ctx: unknown) => void | Promise<void>;
@@ -128,10 +130,16 @@ function markChangeReadyToClose(cwd: string, name: string): void {
 		].join("\n"),
 	};
 	for (const [file, contents] of Object.entries(files)) writeFileSync(join(change, file), contents);
+	const begun = beginVerification({ cwd, changePath: change });
+	if (!begun.ok) throw new Error(begun.reason);
+	const finished = finishVerification({ cwd, changePath: change, token: begun.value.token, content: files["verify-report.md"] });
+	if (!finished.ok) throw new Error(finished.reason);
+	writeFileSync(join(change, "summary.md"), files["summary.md"]);
 }
 
 function sandbox(names: readonly string[] = ["un-cambio"]): { cwd: string; cleanup: () => void } {
 	const cwd = mkdtempSync(join(tmpdir(), "ein-overlay-repaint-"));
+	execFileSync("git", ["init", "-q"], { cwd });
 	for (const name of names) addChange(cwd, name);
 	return { cwd, cleanup: () => rmSync(cwd, { recursive: true, force: true }) };
 }
@@ -548,7 +556,6 @@ describe("sdd-close session binding invalidation", () => {
 	test("close clears the focused change immediately and only once across later refreshes", async () => {
 		const box = sandbox(["alpha"]);
 		try {
-			markChangeReadyToClose(box.cwd, "alpha");
 			writeFileSync(join(box.cwd, "EIN.md"), "# Contexto curado\nNo pertenece a este cambio.\n");
 			const trace: string[] = [];
 			const painted: WidgetPaint[] = [];
@@ -558,6 +565,7 @@ describe("sdd-close session binding invalidation", () => {
 			const entries = [bindingEntry({ version: 1, state: "bound", change: "alpha" })];
 			const ctx = fakeCtx(box.cwd, painted, entries, true, trace);
 			fire("session_start", ctx, { reason: "resume" });
+			markChangeReadyToClose(box.cwd, "alpha");
 			trace.length = 0;
 
 			await runCommand("ein:sdd-close", "alpha", ctx);

@@ -30,6 +30,7 @@ const [provider, ...modelParts] = modelName.split("/");
 const modelId = modelParts.join("/");
 writeFileSync(join(home, "settings.json"), JSON.stringify({ defaultProvider: provider, defaultModel: modelId, defaultThinkingLevel: thinking, subagents: { disableBuiltins: true }, packages: [], retry: { enabled: false } }));
 import { readSddCompletionEvidence } from "../shared/sdd/sdd-routing-core.ts";
+import { readVerificationFreshness } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 writeFileSync(join(project,"math.ts"),"export function add(a: number, b: number) { return a + b; }\n");
 const positive='import {test,expect} from "bun:test"; import {add} from "./math"; test("R1 positive addition",()=>expect(add(2,3)).toBe(5));\n';
 writeFileSync(join(project,"math.test.ts"),positive);
@@ -52,7 +53,7 @@ console.log(`Acceptance pilot: ${scratch}; configured verifier: ${modelName}:${t
 try {
  const tool=session.agent.state.tools.find(t=>t.name==="subagent");assert(tool);
  const task="change: acceptance-probe\nIndependently verify the current code and tests against openspec/changes/acceptance-probe/design.md and tasks.md. This legacy fixture has no intent.md; the complete acceptance is in design.md. TDD off. Inspect actual assertions and run the required command. No source/test changes, new requirements, external operations or implementation. Write verify-report.md with your current verdict, coverage, exact evidence and any precise missing requirement. Skills none (plain Bun fixture).";
- const verify=async(id:string)=>{const before=["math.ts","math.test.ts"].map(name=>readFileSync(join(project,name),"utf8"));const result=await tool.execute(id,{agent:"sdd-verify",task,async:false,context:"fresh",timeoutMs:180000,acceptance:{level:"none",reason:"The verification report is the result being evaluated"}});writeFileSync(join(scratch,`${id}.json`),JSON.stringify(result,null,2));assert.deepEqual(["math.ts","math.test.ts"].map(name=>readFileSync(join(project,name),"utf8")),before);return readSddCompletionEvidence(project,"acceptance-probe").verify;};
+ const verify=async(id:string)=>{const before=["math.ts","math.test.ts"].map(name=>readFileSync(join(project,name),"utf8"));const result=await tool.execute(id,{agent:"sdd-verify",task,async:false,context:"fresh",timeoutMs:180000,acceptance:{level:"none",reason:"The verification report is the result being evaluated"}});writeFileSync(join(scratch,`${id}.json`),JSON.stringify(result,null,2));assert.deepEqual(["math.ts","math.test.ts"].map(name=>readFileSync(join(project,name),"utf8")),before);return readSddCompletionEvidence(project,"acceptance-probe",(cwd,changePath)=>readVerificationFreshness({cwd,changePath})).verify;};
  assert.equal(await verify("missing-case"),"fail");
  const first=readFileSync(join(dir,"verify-report.md"),"utf8");assert(/R2|negative|negativ/i.test(first));copyFileSync(join(dir,"verify-report.md"),join(scratch,"missing-case-report.md"));
  writeFileSync(join(project,"math.test.ts"),positive+'test("R2 negative addition",()=>expect(add(-2,-3)).toBe(-5));\n');

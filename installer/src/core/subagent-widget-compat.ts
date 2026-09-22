@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { subagentModulePath } from "./subagent-module-path.ts";
 
 const RULES = {
   "src/shared/types.ts": [[
@@ -25,11 +26,15 @@ export const SUBAGENT_WIDGET_FILES = Object.keys(RULES) as (keyof typeof RULES)[
 export function repairSubagentWidget(path: keyof typeof RULES, source: string): string {
   let result = source;
   for (const [before, after] of RULES[path]) {
-    if (result.includes(after) && !result.includes(before)) continue;
-    if (result.split(before).length !== 2 || result.includes(after)) {
+    const compiledBefore = before.replaceAll("\t", "    ").replace("if (frame === undefined) return seed;", "if (frame === undefined)\n        return seed;");
+    const compiledAfter = after.replaceAll("\t", "    ");
+    const candidate = result.includes(before) || result.includes(after) ? [before, after] : [compiledBefore, compiledAfter];
+    const [needle, replacement] = candidate as [string, string];
+    if (result.includes(replacement) && !result.includes(needle)) continue;
+    if (result.split(needle).length !== 2 || result.includes(replacement)) {
       throw new Error(`pi-subagents: contrato de animación desconocido en ${path}`);
     }
-    result = result.replace(before, after);
+    result = result.replace(needle, replacement);
   }
   return result;
 }
@@ -38,7 +43,7 @@ export function repairSubagentWidget(path: keyof typeof RULES, source: string): 
 export function ensureSubagentWidgetCompatibility(agentDir: string): void {
   const root = join(agentDir, "npm/node_modules/pi-subagents");
   const changes = SUBAGENT_WIDGET_FILES.map((file) => {
-    const path = join(root, file);
+    const path = subagentModulePath(root, file);
     const source = readFileSync(path, "utf8");
     return { path, source, repaired: repairSubagentWidget(file, source), mode: statSync(path).mode & 0o777,
       temporary: `${path}.${randomUUID()}.ein-tmp` };

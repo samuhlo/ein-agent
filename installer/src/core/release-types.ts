@@ -146,7 +146,7 @@ export type MarkerV2 = MarkerV1 & {
 export type UpdateOutcome =
   | { type: "updated"; release: ResolvedRelease }
   | { type: "already-current"; release: ResolvedRelease }
-  | { type: "dry-run"; release: ResolvedRelease; owner: OwnershipMarker }
+  | { type: "dry-run"; release: ResolvedRelease; owner: OwnershipMarker; pendingRecovery?: "cleanup" | "finalize" }
   | { type: "blocked-external-owner"; owner: Extract<OwnershipMarker, { type: "package-manager" }>; release?: ResolvedRelease }
   | { type: "failed"; stage: UpdateStage; message: string; selector?: ReleaseSelector; release?: ResolvedRelease };
 

@@ -25,6 +25,7 @@ import {
   defaultPiInstallContext,
   type PiInstallContext,
 } from "./paths.ts";
+import type { TemplateInventory } from "./template-inventory.ts";
 
 export type CheckLevel = SharedCheckLevel;
 export type CheckResult = SharedCheckResult;
@@ -49,6 +50,7 @@ export type TemplateManifest = {
   chains?: string[];
   extensions?: string[];
   terminalApp?: { path: string; target: string; mode: string; sha256: string };
+  inventory?: TemplateInventory;
 };
 
 // Bundle ships template-manifest.json describing exactly what it contains;

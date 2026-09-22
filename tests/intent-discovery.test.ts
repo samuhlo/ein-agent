@@ -13,6 +13,8 @@ import { writeSddSummary, writeVerifiedSddSummary } from "../shared/sdd/sdd-summ
 import { createAssessCloseReadiness } from "../shared/sdd/sdd-close-readiness.ts";
 import { artifactHasIntentKey } from "../shared/sdd/intent-agreement.ts";
 import { resolveSddStatus } from "../ein-pi/agent/lib/sdd-router.ts";
+import { execFileSync } from "node:child_process";
+import { beginVerification, finishVerification, readVerificationFreshness } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 
 const sandboxes: string[] = [];
 afterEach(() => { for (const path of sandboxes.splice(0)) rmSync(path, { recursive: true, force: true }); });
@@ -520,7 +522,10 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   const dir=join(h.cwd,"openspec/changes/export-csv");const agreement=readAgreement(dir);if(agreement.kind!=="valid")throw new Error("fixture");
   const marker=`intent_key: ${agreement.agreement.materialKey}\n`;
   for(const [file,content] of Object.entries({"scope.md":"## Spec delta declaration\nspec_delta: none\nspec_delta_reason: Test only\n", "map.md":"scope_status: valid\n", "design.md":"Filtered rows only\n", "tasks.md":"## Group\n- [x] Task done\n", "apply-progress.md":"status: complete\n", "verify-report.md":"status: pass\nExecuted: bun test\n"})) writeFileSync(join(dir,file),marker+content);
-  const result=writeVerifiedSddSummary({cwd:h.cwd,change:"export-csv",content:"## Resultado\nObjetivo verificado.",commands:["bun test"]});
+  execFileSync("git",["init","-q"],{cwd:h.cwd});
+  const begun=beginVerification({cwd:h.cwd,changePath:dir});if(!begun.ok)throw new Error(begun.reason);
+  const finished=finishVerification({cwd:h.cwd,changePath:dir,token:begun.value.token,content:marker+"status: pass\nExecuted: bun test\n"});if(!finished.ok)throw new Error(finished.reason);
+  const result=writeVerifiedSddSummary({cwd:h.cwd,change:"export-csv",content:"## Resultado\nObjetivo verificado.",commands:["bun test"],readVerification:(cwd,changePath)=>readVerificationFreshness({cwd,changePath})});
   expect(result.ok).toBe(true);
   expect(artifactHasIntentKey(readFileSync(join(dir,"summary.md"),"utf8"),agreement.agreement.materialKey)).toBe(true);
   expect(resolveSddStatus(h.cwd,"export-csv").intent).toEqual({state:"confirmed",materialKey:agreement.agreement.materialKey});

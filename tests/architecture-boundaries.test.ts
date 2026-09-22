@@ -27,6 +27,7 @@ const ALLOWED_PI_BRIDGES = [
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/project-directives.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-lane.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-preflight-record.ts",
+	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-verification-runtime.ts",
 ] as const;
 
 function typescriptFiles(directory: string): string[] {

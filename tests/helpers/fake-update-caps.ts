@@ -19,6 +19,9 @@ export type FakeCapsOptions = Omit<Partial<UpdateCaps>, "fs"> & {
 
 export function fakeUpdateCaps(options: FakeCapsOptions = {}): UpdateCaps {
   const files = options.files ?? new Map<string, Uint8Array>();
+  const directories = new Set<string>();
+  const directoryExists = (path: string): boolean => directories.has(path)
+    || [...files.keys()].some((file) => file.startsWith(`${path}/`));
   let counter = 0;
   const fallback: UpdateCaps = {
     http: { get: async () => { throw new Error("Unscripted HTTP request"); } },
@@ -31,10 +34,18 @@ export function fakeUpdateCaps(options: FakeCapsOptions = {}): UpdateCaps {
         if (!data) throw new Error(`Missing fake file: ${path}`);
         return data;
       },
-      exists: (path) => files.has(path),
-      makeDir: () => undefined,
+      exists: (path) => files.has(path) || directoryExists(path),
+      makeDir: (path) => directories.add(path),
+      listDir: (path) => [...new Set([...directories, ...files.keys()]
+        .filter((entry) => entry.startsWith(`${path}/`))
+        .map((entry) => entry.slice(path.length + 1).split("/")[0]!)
+        .filter(Boolean))].sort(),
       copyDir: () => undefined,
-      removeDir: (path) => options.removedDirs?.push(path),
+      removeDir: (path) => {
+        options.removedDirs?.push(path);
+        for (const file of [...files.keys()]) if (file === path || file.startsWith(`${path}/`)) files.delete(file);
+        for (const directory of [...directories]) if (directory === path || directory.startsWith(`${path}/`)) directories.delete(directory);
+      },
       inspect: (path) => ({ kind: files.has(path) ? "file" : "directory", mode: 0o755, uid: 0, dev: 1 }),
       currentUid: () => 0,
       createSiblingFile: (destinationPath) => `${destinationPath}.candidate-${counter++}`,
@@ -57,6 +68,7 @@ export function fakeUpdateCaps(options: FakeCapsOptions = {}): UpdateCaps {
     template: {
       deploy: async () => undefined,
       readManifest: async () => null,
+      queryInventory: async () => ({ code: 1, stdout: "" }),
     },
     clock: { now: () => new Date(0) },
     signals: { on: () => () => undefined },

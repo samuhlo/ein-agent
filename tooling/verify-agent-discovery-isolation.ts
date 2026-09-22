@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { subagentModulePath } from "../installer/src/core/subagent-module-path.ts";
 
 const packageRoot = process.argv[2];
 if (!packageRoot) throw new Error("Usage: verify-agent-discovery-isolation.ts <pi-subagents directory>");
@@ -39,7 +40,7 @@ try {
 	process.env.PI_OFFLINE = "1";
 	const { normalizeAgentDiscoveryScope } = await import("../ein-pi/agent/lib/agent-discovery-scope.ts");
 	const { applyModelConfigAsync, listDiscoverableAgents } = await import("../ein-pi/agent/lib/model-config.ts");
-	const { resolveSubagentLaunchContract } = await import(pathToFileURL(join(resolve(packageRoot), "src/api/preflight.ts")).href);
+	const { resolveSubagentLaunchContract } = await import(pathToFileURL(subagentModulePath(resolve(packageRoot), "src/api/preflight.ts")).href);
 	const availableModels = ["minimax/MiniMax-M2.7", "fixture/selected", "fixture/changed", "fixture/old-project"].map((fullId) => ({ fullId, provider: fullId.split("/")[0], id: fullId.split("/")[1], reasoning: true }));
 	const input = { agent: "sdd-apply", task: "Read the fixture", cwd: target, context: "fresh", skill: false, output: false, artifacts: false, availableModels };
 	const before = await resolveSubagentLaunchContract(input);
