@@ -4,6 +4,7 @@ import { ensureOperationIsolation, readContinuityOperations, transactContinuityO
 import { continuityEvidenceFile, createContinuityRecoveryEvidence, knownExternalContinuityCall, type ContinuityRecoveryEvidencePort } from "./continuity-recovery-evidence.ts";
 import { projectProjectState } from "./project-state.ts";
 import { sessionReferenceFor } from "./runtime-session-identity.ts";
+import { isSafeCheckpointText } from "./continuity-checkpoint.ts";
 
 export type OperationStart = Pick<ContinuityOperation, "runtime" | "tool" | "inputDigest" | "nativeCallRef" | "effectScope">;
 export type RecoveryAssessment = { kind: "local-attested" | "external-observed"; summary: string; callRef: NativeCallRef; evidenceRefs: string[]; evidencePaths: string[] };
@@ -63,7 +64,12 @@ export function createContinuityOperationRuntime(cwd: string, ports: Ports = {})
       const operation = journal.journal.operations.find((op) => op.id === id); if (!operation) return { ok: false, reason: "operation-not-found" };
       const ref = stateRef(); if (!ref) return { ok: false, reason: "state-ref-unavailable" };
       const call = evidence.readCall(operation.nativeCallRef);
-      return { ok: true, value: { operation, token: token(journal.journal.revision, ref, operation), stateRef: ref, call } };
+      const preview = (value: unknown) => {
+        const text = JSON.stringify(value) ?? "";
+        return { text: isSafeCheckpointText(text, 64 * 1024 * 1024) ? text.slice(0, 2048) : "[sensitive content omitted]", truncated: text.length > 2048 };
+      };
+      const inspectedCall = call ? { ...call, input: preview(call.input), result: preview(call.result) } : undefined;
+      return { ok: true, value: { operation, token: token(journal.journal.revision, ref, operation), stateRef: ref, call: inspectedCall } };
     },
     resolve(id: string, suppliedToken: string, assessment: RecoveryAssessment, source: OperationRecovery["source"]): Result<ContinuityOperation> {
       try {
@@ -86,7 +92,7 @@ export function createContinuityOperationRuntime(cwd: string, ports: Ports = {})
         const written = transactContinuityOperations(cwd, before.journal.revision, (items) => items.map((op) => op.id === id ? resolved : op), { beforePublish() {
           ports.beforeRecoveryPublish?.();
           const currentCall = evidence.readCall(old.nativeCallRef);
-          if (stateRef() !== ref || !currentCall || currentCall.inputDigest !== old.inputDigest
+          if (stateRef() !== ref || !currentCall || currentCall.tool !== old.tool || currentCall.inputDigest !== old.inputDigest
             || paths.some((path) => continuityEvidenceFile(cwd, path.path).digest !== path.digest)
             || refs.some((item) => evidence.readEvidence(item!.ref, currentCall)?.digest !== item!.digest)) throw new Error("inspection-stale");
         } });

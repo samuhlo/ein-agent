@@ -62,7 +62,7 @@ export function ensureOperationIsolation(root: string): { ok: true } | { ok: fal
 				const parent = resolve(dir, ".."); if (parent === dir) break; dir = parent; }
 			return { ok: true };
 		}
-		if (git(["ls-files", "--cached", "-z", "--", ".ein/continuity-operations.json*"]).length) return { ok: false, reason: "state-store-not-isolated" };
+		if (git(["ls-files", "--cached", "-z", "--", `.ein/${FILE}`, `.ein/${FILE}.lock`, `.ein/${FILE}.lock.release-*`, `.ein/${FILE}.tmp-*`]).length) return { ok: false, reason: "state-store-not-isolated" };
 		try { if (lstatSync(join(root, ".gitignore")).isSymbolicLink()) return { ok: false, reason: "state-store-not-isolated" }; } catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
 		ensureEinGitignore(root);
 		for (const path of [`.ein/${FILE}`, `.ein/${FILE}.lock`, `.ein/${FILE}.tmp-probe`]) git(["check-ignore", "--no-index", "-q", "--", path]);

@@ -56,6 +56,12 @@ test("tracked journals are refused without changing the index", () => {
 	expect(transactContinuityOperations(root, "absent", () => [operation()])).toMatchObject({ ok: false, reason: "state-store-not-isolated" });
 	expect(readFileSync(join(root, ".git/index"))).toEqual(index);
 });
+test("a tracked neighboring example is not an owned journal or lock", () => {
+	mkdirSync(join(root, ".ein")); writeFileSync(join(root, ".ein/continuity-operations.json-example"), "example");
+	execFileSync("git", ["add", ".ein/continuity-operations.json-example"], { cwd: root });
+	expect(transactContinuityOperations(root, "absent", () => [operation()]).ok).toBe(true);
+	expect(readFileSync(join(root, ".ein/continuity-operations.json-example"), "utf8")).toBe("example");
+});
 test("retention removes settled entries only and bounds active operations", () => {
 	const active = Array.from({ length: 32 }, (_, i) => operation(i));
 	const settled = Array.from({ length: 70 }, (_, i) => ({ ...operation(i + 100), status: "settled" as const, outcome: "succeeded" as const }));
