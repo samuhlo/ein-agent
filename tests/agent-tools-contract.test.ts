@@ -215,7 +215,7 @@ describe("contrato de tools de los agentes", () => {
 		for (const forbidden of ["bash", "write", "edit", "subagent", "delivery", "MCP", "provider"]) {
 			expect(declaredTools("ein-scout.md")).not.toContain(forbidden);
 		}
-		expect(scout).toMatch(/no authority to design architecture, choose a solution, implement work/i);
+		expect(scout).toMatch(/never design, decide, implement, route SDD, deliver, or mutate OpenSpec/i);
 		expect(scout).toMatch(/references/i);
 		expect(scout).toMatch(/uncertainties/i);
 	});

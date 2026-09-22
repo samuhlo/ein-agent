@@ -1,0 +1,205 @@
+{
+  "passed": true,
+  "scoutModel": "openai-codex/gpt-5.6-luna",
+  "parentModel": "openai-codex/gpt-6-astra",
+  "scoutReads": [
+    "docs/plan.md",
+    "server/course-scope.ts",
+    "server/export.ts"
+  ],
+  "parentReads": [
+    "server/auth/course-access.ts"
+  ],
+  "launches": 1,
+  "generatedReport": {
+    "version": "ein-scout-report/v1",
+    "summary": "La exportación filtra documentos por los módulos seleccionados: usa todos los módulos de certificado para cursos completos y los IDs seleccionados para cursos parciales [R1][R2]. Antes de filtrar, exige `canAccessCourse(user, course)` y lanza `Forbidden` si falla [R3]. Falta leer el helper de autorización para comprobar su comportamiento; está fuera de las raíces permitidas [R3].",
+    "summaryReferenceIds": [
+      "R1",
+      "R2",
+      "R3"
+    ],
+    "findings": [
+      {
+        "claim": "El plan del bloque 07 especifica filtrar anexos y exportación por los módulos del curso, distinguiendo el soporte previo para cursos completos o parciales.",
+        "referenceIds": [
+          "R1"
+        ]
+      },
+      {
+        "claim": "`selectedModules(course)` devuelve `course.certificateModules` cuando el modo es `full` y `course.selectedModuleIds` en caso contrario.",
+        "referenceIds": [
+          "R2"
+        ]
+      },
+      {
+        "claim": "`exportCourse` comprueba `canAccessCourse(user, course)` antes de exportar; cuando la comprobación es falsa, lanza `Error('Forbidden')`.",
+        "referenceIds": [
+          "R3"
+        ]
+      },
+      {
+        "claim": "La implementación filtra `course.documents` conservando únicamente documentos cuyo `moduleId` está incluido en `selectedModules(course)`.",
+        "referenceIds": [
+          "R3"
+        ]
+      }
+    ],
+    "references": [
+      {
+        "id": "R1",
+        "path": "docs/plan.md",
+        "lines": "1-6",
+        "supports": "Describe el bloque 07, el filtrado por módulos y el contexto de cursos completos o parciales."
+      },
+      {
+        "id": "R2",
+        "path": "server/course-scope.ts",
+        "lines": "1-6",
+        "supports": "Define la selección de módulos según el modo del curso."
+      },
+      {
+        "id": "R3",
+        "path": "server/export.ts",
+        "lines": "1-6",
+        "supports": "Importa y llama a `canAccessCourse`, rechaza con `Forbidden` y filtra documentos por módulo."
+      }
+    ],
+    "uncertainties": [
+      "No se leyó `server/auth/course-access.ts` porque está fuera de las raíces permitidas; por tanto, no está comprobado qué reglas aplica `canAccessCourse` ni si cubre todos los casos de autorización.",
+      "No se ejecutaron pruebas en esta consulta de solo lectura."
+    ]
+  },
+  "injectedRegression": {
+    "multiRange": "1-2,4-5",
+    "unsupportedReference": {
+      "path": "server/auth/course-access.ts",
+      "lines": "900-901"
+    },
+    "unsupportedClaim": "Authorization helper has been verified"
+  },
+  "accepted": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"version\":\"ein-scout-report/v1\",\"summary\":\"Partial evidence: use only the surviving cited findings; the original summary was withheld after report recovery.\",\"summaryReferenceIds\":[\"R1\",\"R4\",\"R2\",\"R3\"],\"findings\":[{\"claim\":\"El plan del bloque 07 especifica filtrar anexos y exportación por los módulos del curso, distinguiendo el soporte previo para cursos completos o parciales.\",\"referenceIds\":[\"R1\",\"R4\"]},{\"claim\":\"`selectedModules(course)` devuelve `course.certificateModules` cuando el modo es `full` y `course.selectedModuleIds` en caso contrario.\",\"referenceIds\":[\"R2\"]},{\"claim\":\"`exportCourse` comprueba `canAccessCourse(user, course)` antes de exportar; cuando la comprobación es falsa, lanza `Error('Forbidden')`.\",\"referenceIds\":[\"R3\"]},{\"claim\":\"La implementación filtra `course.documents` conservando únicamente documentos cuyo `moduleId` está incluido en `selectedModules(course)`.\",\"referenceIds\":[\"R3\"]}],\"references\":[{\"id\":\"R1\",\"path\":\"docs/plan.md\",\"startLine\":1,\"endLine\":2,\"supports\":\"Describe el bloque 07, el filtrado por módulos y el contexto de cursos completos o parciales.\"},{\"id\":\"R4\",\"path\":\"docs/plan.md\",\"startLine\":4,\"endLine\":5,\"supports\":\"Describe el bloque 07, el filtrado por módulos y el contexto de cursos completos o parciales.\"},{\"id\":\"R2\",\"path\":\"server/course-scope.ts\",\"startLine\":1,\"endLine\":6,\"supports\":\"Define la selección de módulos según el modo del curso.\"},{\"id\":\"R3\",\"path\":\"server/export.ts\",\"startLine\":1,\"endLine\":6,\"supports\":\"Importa y llama a `canAccessCourse`, rechaza con `Forbidden` y filtra documentos por módulo.\"}],\"uncertainties\":[{\"level\":\"material\",\"statement\":\"No se leyó `server/auth/course-access.ts` porque está fuera de las raíces permitidas; por tanto, no está comprobado qué reglas aplica `canAccessCourse` ni si cubre todos los casos de autorización.\"},{\"level\":\"material\",\"statement\":\"No se ejecutaron pruebas en esta consulta de solo lectura.\"},{\"level\":\"material\",\"statement\":\"Authorization helper server/auth/course-access.ts has not been inspected.\"},{\"level\":\"material\",\"statement\":\"referencia descartada — R999 server/auth/course-access.ts 900-901: startLine 900 is past the last line (5)\"}],\"recovery\":{\"droppedReferences\":[\"R999 server/auth/course-access.ts 900-901: startLine 900 is past the last line (5)\"],\"droppedFindings\":1}}"
+      },
+      {
+        "type": "text",
+        "text": "Use the accepted findings and references now. This partial result is accepted, not a failed attempt. Recover only material gaps with bounded read-only reads within the original authorized roots and remaining budget; preserve prior agreements. Do not repeat the whole scout or request a restart."
+      }
+    ],
+    "receipt": {
+      "status": "partial",
+      "findings": 4,
+      "references": 4,
+      "uncertainties": [
+        "No se leyó `server/auth/course-access.ts` porque está fuera de las raíces permitidas; por tanto, no está comprobado qué reglas aplica `canAccessCourse` ni si cubre todos los casos de autorización.",
+        "No se ejecutaron pruebas en esta consulta de solo lectura.",
+        "Authorization helper server/auth/course-access.ts has not been inspected.",
+        "referencia descartada — R999 server/auth/course-access.ts 900-901: startLine 900 is past the last line (5)"
+      ],
+      "recovery": "Use the accepted findings and references now. This partial result is accepted, not a failed attempt. Recover only material gaps with bounded read-only reads within the original authorized roots and remaining budget; preserve prior agreements. Do not repeat the whole scout or request a restart."
+    }
+  },
+  "transcript": [
+    {
+      "actor": "scout",
+      "kind": "tool_call",
+      "tool": "read",
+      "args": {
+        "path": "docs/plan.md"
+      }
+    },
+    {
+      "actor": "scout",
+      "kind": "tool_call",
+      "tool": "read",
+      "args": {
+        "path": "server/course-scope.ts"
+      }
+    },
+    {
+      "actor": "scout",
+      "kind": "tool_call",
+      "tool": "read",
+      "args": {
+        "path": "server/export.ts"
+      }
+    },
+    {
+      "actor": "scout",
+      "kind": "answer",
+      "text": "{\"version\":\"ein-scout-report/v1\",\"summary\":\"La exportación filtra documentos por los módulos seleccionados: usa todos los módulos de certificado para cursos completos y los IDs seleccionados para cursos parciales [R1][R2]. Antes de filtrar, exige `canAccessCourse(user, course)` y lanza `Forbidden` si falla [R3]. Falta leer el helper de autorización para comprobar su comportamiento; está fuera de las raíces permitidas [R3].\",\"summaryReferenceIds\":[\"R1\",\"R2\",\"R3\"],\"findings\":[{\"claim\":\"El plan del bloque 07 especifica filtrar anexos y exportación por los módulos del curso, distinguiendo el soporte previo para cursos completos o parciales.\",\"referenceIds\":[\"R1\"]},{\"claim\":\"`selectedModules(course)` devuelve `course.certificateModules` cuando el modo es `full` y `course.selectedModuleIds` en caso contrario.\",\"referenceIds\":[\"R2\"]},{\"claim\":\"`exportCourse` comprueba `canAccessCourse(user, course)` antes de exportar; cuando la comprobación es falsa, lanza `Error('Forbidden')`.\",\"referenceIds\":[\"R3\"]},{\"claim\":\"La implementación filtra `course.documents` conservando únicamente documentos cuyo `moduleId` está incluido en `selectedModules(course)`.\",\"referenceIds\":[\"R3\"]}],\"references\":[{\"id\":\"R1\",\"path\":\"docs/plan.md\",\"lines\":\"1-6\",\"supports\":\"Describe el bloque 07, el filtrado por módulos y el contexto de cursos completos o parciales.\"},{\"id\":\"R2\",\"path\":\"server/course-scope.ts\",\"lines\":\"1-6\",\"supports\":\"Define la selección de módulos según el modo del curso.\"},{\"id\":\"R3\",\"path\":\"server/export.ts\",\"lines\":\"1-6\",\"supports\":\"Importa y llama a `canAccessCourse`, rechaza con `Forbidden` y filtra documentos por módulo.\"}],\"uncertainties\":[\"No se leyó `server/auth/course-access.ts` porque está fuera de las raíces permitidas; por tanto, no está comprobado qué reglas aplica `canAccessCourse` ni si cubre todos los casos de autorización.\",\"No se ejecutaron pruebas en esta consulta de solo lectura.\"]}"
+    },
+    {
+      "actor": "parent-before-interruption",
+      "kind": "tool_call",
+      "tool": "read",
+      "args": {
+        "path": "<repository>/runtime/assets/orchestrator.md",
+        "offset": 11,
+        "limit": 83
+      }
+    },
+    {
+      "actor": "parent-before-interruption",
+      "kind": "tool_call",
+      "tool": "subagent",
+      "args": {
+        "agent": "ein-scout",
+        "task": "Investigación de solo lectura del prototipo block07 en <fixture>. Pregunta concreta: qué establece el plan del bloque 07, cómo se delimita el curso y cómo funciona su endpoint de exportación; distinguir evidencia y lagunas de autorización. Paquete inicial limitado a los tres archivos del plan, alcance del curso y endpoint de exportación del fixture; localízalos bajo esa raíz sin ampliar a dependencias de autorización. Devuelve findings, references con rutas y líneas, uncertainties; señala la dependencia exacta necesaria para cerrar cualquier laguna. No diseñes, implementes ni crees SDD. max_reads:20, max_output_bytes:12288, max_runtime_ms:300000. Intención de síntesis del padre: explicar lo comprobado y recuperar de forma acotada la evidencia de autorización que falte."
+      }
+    },
+    {
+      "actor": "production-hook",
+      "kind": "validated_result",
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"version\":\"ein-scout-report/v1\",\"summary\":\"Partial evidence: use only the surviving cited findings; the original summary was withheld after report recovery.\",\"summaryReferenceIds\":[\"R1\",\"R4\",\"R2\",\"R3\"],\"findings\":[{\"claim\":\"El plan del bloque 07 especifica filtrar anexos y exportación por los módulos del curso, distinguiendo el soporte previo para cursos completos o parciales.\",\"referenceIds\":[\"R1\",\"R4\"]},{\"claim\":\"`selectedModules(course)` devuelve `course.certificateModules` cuando el modo es `full` y `course.selectedModuleIds` en caso contrario.\",\"referenceIds\":[\"R2\"]},{\"claim\":\"`exportCourse` comprueba `canAccessCourse(user, course)` antes de exportar; cuando la comprobación es falsa, lanza `Error('Forbidden')`.\",\"referenceIds\":[\"R3\"]},{\"claim\":\"La implementación filtra `course.documents` conservando únicamente documentos cuyo `moduleId` está incluido en `selectedModules(course)`.\",\"referenceIds\":[\"R3\"]}],\"references\":[{\"id\":\"R1\",\"path\":\"docs/plan.md\",\"startLine\":1,\"endLine\":2,\"supports\":\"Describe el bloque 07, el filtrado por módulos y el contexto de cursos completos o parciales.\"},{\"id\":\"R4\",\"path\":\"docs/plan.md\",\"startLine\":4,\"endLine\":5,\"supports\":\"Describe el bloque 07, el filtrado por módulos y el contexto de cursos completos o parciales.\"},{\"id\":\"R2\",\"path\":\"server/course-scope.ts\",\"startLine\":1,\"endLine\":6,\"supports\":\"Define la selección de módulos según el modo del curso.\"},{\"id\":\"R3\",\"path\":\"server/export.ts\",\"startLine\":1,\"endLine\":6,\"supports\":\"Importa y llama a `canAccessCourse`, rechaza con `Forbidden` y filtra documentos por módulo.\"}],\"uncertainties\":[{\"level\":\"material\",\"statement\":\"No se leyó `server/auth/course-access.ts` porque está fuera de las raíces permitidas; por tanto, no está comprobado qué reglas aplica `canAccessCourse` ni si cubre todos los casos de autorización.\"},{\"level\":\"material\",\"statement\":\"No se ejecutaron pruebas en esta consulta de solo lectura.\"},{\"level\":\"material\",\"statement\":\"Authorization helper server/auth/course-access.ts has not been inspected.\"},{\"level\":\"material\",\"statement\":\"referencia descartada — R999 server/auth/course-access.ts 900-901: startLine 900 is past the last line (5)\"}],\"recovery\":{\"droppedReferences\":[\"R999 server/auth/course-access.ts 900-901: startLine 900 is past the last line (5)\"],\"droppedFindings\":1}}"
+        },
+        {
+          "type": "text",
+          "text": "Use the accepted findings and references now. This partial result is accepted, not a failed attempt. Recover only material gaps with bounded read-only reads within the original authorized roots and remaining budget; preserve prior agreements. Do not repeat the whole scout or request a restart."
+        }
+      ],
+      "receipt": {
+        "status": "partial",
+        "findings": 4,
+        "references": 4,
+        "uncertainties": [
+          "No se leyó `server/auth/course-access.ts` porque está fuera de las raíces permitidas; por tanto, no está comprobado qué reglas aplica `canAccessCourse` ni si cubre todos los casos de autorización.",
+          "No se ejecutaron pruebas en esta consulta de solo lectura.",
+          "Authorization helper server/auth/course-access.ts has not been inspected.",
+          "referencia descartada — R999 server/auth/course-access.ts 900-901: startLine 900 is past the last line (5)"
+        ],
+        "recovery": "Use the accepted findings and references now. This partial result is accepted, not a failed attempt. Recover only material gaps with bounded read-only reads within the original authorized roots and remaining budget; preserve prior agreements. Do not repeat the whole scout or request a restart."
+      }
+    },
+    {
+      "actor": "parent-resumed",
+      "kind": "tool_call",
+      "tool": "read",
+      "args": {
+        "path": "<fixture>/server/auth/course-access.ts",
+        "offset": 1,
+        "limit": 40
+      }
+    },
+    {
+      "actor": "parent-resumed",
+      "kind": "answer",
+      "text": "La investigación confirma el filtrado por módulos y permite cerrar la laguna sobre autorización. **Hay un riesgo de permisos que conviene distinguir del funcionamiento comprobado.**\n\n### Qué está comprobado\n- **Plan:** el bloque 07 contempla filtrar anexos y exportación por los módulos del curso, distinguiendo cursos completos y parciales (`docs/plan.md:1-5`).\n- **Alcance:** `selectedModules(course)` devuelve `certificateModules` para cursos completos y `selectedModuleIds` para los demás (`server/course-scope.ts:1-6`).\n- **Exportación:** `exportCourse` comprueba primero el acceso; si falla, lanza `Error('Forbidden')`. Si pasa, filtra los documentos por los módulos seleccionados del curso (`server/export.ts:1-6`).\n\n### Laguna de autorización resuelta\nHe leído directamente `server/auth/course-access.ts:1-5`, dentro del alcance autorizado. Permite acceder:\n- Al propietario del curso.\n- A cualquier docente del curso que tenga al menos un módulo asignado.\n\n**La autorización abre el acceso al curso, pero el filtro de exportación no lo restringe a los módulos asignados al docente.** Por tanto, según este código, un docente con un único módulo asignado puede obtener documentos de otros módulos incluidos en el curso. Si se exige aislamiento por docente, esta lógica no lo garantiza.\n\n### Límites\nEsto está comprobado por lectura del prototipo, no mediante pruebas ejecutadas. Tampoco queda acreditado cómo se traduce `Forbidden` a una respuesta HTTP ni si existen controles adicionales fuera de estas funciones.\n\nNo he implementado cambios ni creado estado SDD."
+    }
+  ],
+  "limitations": "Real configured scout and parent model with actual SDK reads and production result hook. Subagent dispatch is a controlled SDK tool delivering the earlier generated report with injected citation errors; this is not the live pi-subagents launcher. The interruption is a deliberate abort AFTER persisted tool_result, followed by SessionManager.open; it does not simulate or repair a provider WebSocket failure. Raw sessions and credentials are deleted; only visible messages, reports and tool calls remain.",
+  "parentPolicyReads": [
+    "runtime/assets/orchestrator.md"
+  ],
+  "execution": {
+    "command": "bun tests/scout-recovery-live.ts",
+    "finalLocation": "tests/e2e/scout-recovery-live.ts",
+    "relocation": "After this successful run, moved into tests/e2e and adjusted only relative imports and repository-root resolution; no further live model execution."
+  }
+}

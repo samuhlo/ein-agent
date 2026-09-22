@@ -16,6 +16,8 @@ import { dirname, join } from "node:path";
 import { isSafeChangeName, readSddCompletionEvidence, resolveChangesDir } from "./sdd-routing-core.ts";
 import { summaryContractErrors } from "./sdd-summary-contract.ts";
 import { artifactHasIntentKey, readAgreement } from "./intent-agreement.ts";
+import { parseVerificationReport } from "./sdd-verification-outcome.ts";
+import type { VerificationFreshness } from "./sdd-verification-receipt.ts";
 
 export type SummaryWriteRequest = Readonly<{
 	cwd: string;
@@ -58,17 +60,21 @@ export function writeSddSummary(request: SummaryWriteRequest): SummaryWriteResul
 	return { ok: true, change, path };
 }
 
-export function writeVerifiedSddSummary(request: SummaryWriteRequest & { commands: readonly string[] }): SummaryWriteResult {
+export function writeVerifiedSddSummary(request: SummaryWriteRequest & {
+	commands: readonly string[];
+	readVerification: (cwd: string, changePath: string) => VerificationFreshness;
+}): SummaryWriteResult {
 	try {
-		const evidence = readSddCompletionEvidence(request.cwd, request.change);
-		if (evidence.apply !== "complete" || evidence.verify !== "pass" || evidence.verifyStale || evidence.tasks.counts.pending > 0) throw new Error("Summary requires completed apply and fresh passing verification with no pending tasks");
+		const evidence = readSddCompletionEvidence(request.cwd, request.change, request.readVerification);
+		if (evidence.apply !== "complete" || evidence.verify !== "pass" || evidence.verification.state !== "current" || evidence.tasks.counts.pending > 0) throw new Error("Summary requires completed apply and current passing verification with no pending tasks");
 		const dir = join(resolveChangesDir(request.cwd), request.change);
 		const report = readFileSync(join(dir, "verify-report.md"), "utf8");
+		const parsedReport = parseVerificationReport(report);
 		const intent = readAgreement(dir);
 		if (intent.kind === "invalid" || (intent.kind === "valid" && intent.agreement.status !== "confirmed")) throw new Error("Summary requires a confirmed intent");
 		if (intent.kind === "valid" && [report, readFileSync(join(dir, "apply-progress.md"), "utf8")].some((artifact) => !artifactHasIntentKey(artifact, intent.agreement.materialKey))) throw new Error("Apply and verify must reference the current intent before summary");
 		const recorded = new Set([
-			...report.split(/\r?\n/).filter((line) => /^\s*(?:[-*]\s*)?required_check:/.test(line)).map((line) => JSON.parse(line.replace(/^\s*(?:[-*]\s*)?required_check:\s*/, "")).command as string),
+			...parsedReport.requiredChecks.map((check) => check.command),
 			...[...report.matchAll(/`([^`\r\n]+)`/g)].map((match) => match[1]),
 			...report.split(/\r?\n/).flatMap((line) => line.split("|").map((part) => part.trim().replace(/^[-*]\s+/, "").replace(/^(?:verify|command|comando|executed|ejecutado):\s*/i, ""))),
 		]);

@@ -22,7 +22,7 @@ Invoke these with the `subagent` tool — never do their work from the parent. *
 | `sdd-design` | read, grep, find, write, edit | SDD design phase (proposal + spec + decisions + success criteria). |
 | `sdd-tasks` | read, grep, find, write, edit | SDD tasks phase: turns `design.md` into executable `tasks.md`. |
 | `sdd-apply` | read, grep, find, edit, write, bash, ein_sdd_task_progress | SDD implementation phase. |
-| `sdd-verify` | read, grep, find, bash, write, edit | SDD verification phase. |
+| `sdd-verify` | read, grep, find, bash, ein_sdd_verification | SDD verification phase. |
 | `sdd-close` | read, grep, find, write, bash, ein_sdd_summary | SDD close phase: condenses a verified change into `summary.md`. |
 
 ```
@@ -54,7 +54,9 @@ Route each task through the smallest safe harness — but "smallest" NEVER means
 
 **RESEARCH PACKET (pre-scope scouts only).** Every delegated pre-scope scout receives a bounded packet: a `concrete question`, `allowed repository roots`, and `optional bounded documentation topics`. Its request ceilings are `max_reads: 20`, `max_output_bytes: 12288`, and `max_runtime_ms: 300000`. These ceilings narrow the request only: they grant no tools, schema fields, report-size limit, or runtime increase; the existing `maxRuntimeMs: 120000` launch normalizer remains the stricter effective runtime limit. The packet separates **Scout evidence** — existing `findings`, `references`, and `uncertainties` only — from **Parent synthesis intent**. After local validation, the parent alone performs `severity classification`, compares `bounded alternatives`, and derives `optional candidate slices`; none are scout-report fields. Pre-scope routing must not select `sdd-map`: it selects `ein-scout`; `sdd-map` remains behind the bounded scope gate.
 
-**Cross-directory scouts.** Source `cwd` for all lanes; parent documents use absolute/`../` paths. Retry only rejected evidence. After two citation failures, finish read-only via bounded reads within the original budget, declaring gaps (retry-stop exception). Do not request a session restart.
+**Cross-directory scouts.** Source `cwd`; parent documents use absolute/`../` paths. Dependencies outside authorized roots remain gaps.
+
+**Scout evidence recovery (retry-stop exception).** Partial evidence is accepted, not a failed attempt. Preserve accepted findings and agreements; recover material gaps. After interruption or citation/format failure, inspect saved tool results and output/session/artifact pointers before relaunching. After two citation/format failures, use bounded read-only recovery within original roots and remaining budget; declare gaps. Never request harness repair or session restart. No writes, wider scope, bypass of unavailable guards, or unsupported decisions.
 
 **When `ein-scout` is unavailable:** infrastructure incident; report the cause, do not retry this turn. Wait for cached exclusion or use `/ein:models`. Bounded reads only. Other failures get one retry.
 
@@ -62,7 +64,7 @@ Route each task through the smallest safe harness — but "smallest" NEVER means
 
 A wrong-cwd / bad-merge / tooling incident → stop, `ein-git` fresh audit, apply only confirmed recovery.
 
-**Subagent retry — HARD STOP:** if a subagent fails or returns off-target output, retry **once** with a clearer task. For an `ein-git` recovery timeout, run the required read-only reconciliation first: acceptance already satisfied is complete with no retry; only an unambiguous partial state may retry once for the exact remaining delta; ambiguous state or a second failed attempt stops for the user. After two failures, stop and ask the user. Never loop retries.
+**Subagent retry — HARD STOP:** **Scout evidence recovery** and the scout-unavailable guard above take precedence for scouts. For other failures/off-target output, retry **once** with a clearer task, then stop and ask the user. For `ein-git` recovery timeouts, apply the read-only reconciliation rule above before any retry. Never loop retries.
 
 **Subagent budget exhausted — HARD STOP, NEVER fall to inline.** A spawn/quota wall removes the execution layer. Do not compensate by writing code or phase artifacts in the parent, inventing evidence, or marking your own work verified. STOP and report the actual blocker: open a fresh session (`pi -c` / `pi -r`) or raise the limit. A read-only routing peek may answer a direct question. Persist nothing new; report the existing artifact state for resumption.
 
