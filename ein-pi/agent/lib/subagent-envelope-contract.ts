@@ -49,11 +49,7 @@ export interface EnvelopeConsumerEntry {
 	readonly note: string;
 }
 
-// Inventario declarado de los cuatro consumidores reales de
-// `ein-delegation-results.ts`. `ein-continuity.ts:81` queda fuera con criterio:
-// solo lee
-// `event.isError` para tools mutadoras, nunca deriva estado del payload de un
-// subagente.
+// `ein-continuity.ts` queda fuera: lee isError de mutaciones, no sus payloads.
 export const ENVELOPE_CONSUMER_INVENTORY: Readonly<Record<string, EnvelopeConsumerEntry>> = {
 	completeSddParticipantCall: {
 		failureMode: "silent-incorrect-state",
@@ -65,6 +61,11 @@ export const ENVELOPE_CONSUMER_INVENTORY: Readonly<Record<string, EnvelopeConsum
 		protection: "scout-launch-normalized",
 		note: "una cita irrecuperable descarta esa cita, no el reporte; en fan-out, una rama caída no arrastra a sus hermanas",
 	},
+	scoutResultDetails: {
+		failureMode: "safe-degradation",
+		protection: "scout-launch-normalized",
+		note: "conserva el resultado original y adjunta el recibo validado; nunca acepta evidencia por su cuenta",
+	},
 	participantResultIsUnrecognized: {
 		failureMode: "safe-degradation",
 		protection: "none",
@@ -73,7 +74,17 @@ export const ENVELOPE_CONSUMER_INVENTORY: Readonly<Record<string, EnvelopeConsum
 	originalError: {
 		failureMode: "safe-degradation",
 		protection: "none",
-		note: "reconciliación de fallo de fase; el veredicto real lo da ein_sdd_check sobre el artefacto en disco",
+		note: "conserva el error del runner; el rescate exige un recibo ligado a toolCallId, cambio, fase, nonce y digest",
+	},
+	phaseReference: {
+		failureMode: "safe-degradation",
+		protection: "none",
+		note: "restaura solo una referencia explícita persistida; assessPhaseRecovery vuelve a validar disco e identidad completa",
+	},
+	phaseResultDetails: {
+		failureMode: "safe-degradation",
+		protection: "none",
+		note: "adjunta referencia y evaluación revalidada sin convertir los details del runner en autoridad",
 	},
 };
 

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { subagentModulePath } from "./subagent-module-path.ts";
 
 const RULES = [
   [
@@ -15,6 +16,11 @@ const RULES = [
 
 // COMPAT -> 0.67 confunde herramientas de extensión con nativas al aplicar el inventario del padre.
 export function repairSubagentToolPlan(source: string): string {
+	// COMPAT -> 0.70 delegates availability to the child and retains every explicit requirement.
+	if (source.includes("const declaredBuiltinTools = ceilingFilteredBuiltinTools;")
+		&& source.includes("const effectiveDeclaredBuiltinTools = declaredBuiltinTools.filter((tool) => !excludedToolSet.has(tool));")
+		&& source.includes("const requiredChildTools = explicitToolAllowlist")
+		&& source.includes("...(input.tools !== undefined ? effectiveDeclaredBuiltinTools : [])")) return source;
 	// pi-subagents 0.68 already prunes host builtins without the legacy
 	// coordination exception; it is compatible as-is and needs no rewrite.
 	if (source.includes("const declaredBuiltinTools = hostAvailableSet")
@@ -31,7 +37,7 @@ export function repairSubagentToolPlan(source: string): string {
 
 export function ensureSubagentToolCompatibility(agentDir: string): void {
   const root = join(agentDir, "npm/node_modules/pi-subagents");
-  const path = join(root, "src/runs/shared/child-tool-plan.ts");
+  const path = subagentModulePath(root, "src/runs/shared/child-tool-plan.ts");
   const source = readFileSync(path, "utf8");
   const repaired = repairSubagentToolPlan(source);
   if (repaired === source) return;

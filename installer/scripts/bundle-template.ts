@@ -34,6 +34,7 @@ import {
   assertSharedOverlayFacades,
   type SharedOverlayGroup,
 } from "./pi-payload-validation.ts";
+import { createTemplateInventory } from "../src/core/template-inventory.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = dirname(HERE);
@@ -152,6 +153,7 @@ function writeManifest(staging: string, runtimeDependencies: readonly Record<str
     runtimeDependencies,
     topLevelDirs: topDirs,
     topLevelFiles: [...topFiles, "template-manifest.json"].sort(),
+    inventory: createTemplateInventory(staging, ["ein-mode.json"]),
   };
   writeFileSync(join(staging, "template-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 }
@@ -165,7 +167,7 @@ function vendorTypescriptRuntime(staging: string): readonly Record<string, strin
   for (const file of ["LICENSE.txt", "ThirdPartyNoticeText.txt"]) cpSync(join(source, file), join(destination, file));
   const compiler = readFileSync(join(source, "lib", "typescript.js"));
   writeFileSync(join(destination, "typescript.js"), compiler);
-  for (const file of ["cleaner-complexity-evidence.ts", "cleaner-duplication-evidence.ts", "cleaner-script-regions.ts"]) {
+  for (const file of ["cleaner-complexity-evidence.ts", "cleaner-duplication-evidence.ts", "cleaner-script-regions.ts", "delegation-admission.ts"]) {
     const path = join(staging, "lib", file);
     const sourceText = readFileSync(path, "utf8");
     const rewritten = sourceText.replace('from "typescript"', 'from "./vendor/typescript/typescript.js"');

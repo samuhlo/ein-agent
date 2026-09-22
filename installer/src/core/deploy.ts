@@ -10,7 +10,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, relative, sep } from "node:path";
 import {
   globalLinearIntegrationConfigPath,
   type LinearIntegration,
@@ -32,6 +32,24 @@ import {
 export { mergeUserSettings, readUserSettings, type UserSettings };
 
 import type { TemplateManifest } from "./verify.ts";
+import {
+  assertTemplateInventory,
+  TEMPLATE_REPLACE_TREES,
+} from "./template-inventory.ts";
+
+async function readManifestFromTar(stagedTar: string): Promise<TemplateManifest | null> {
+  for (const member of ["./template-manifest.json", "template-manifest.json"]) {
+    const result = await run("tar", ["-xzOf", stagedTar, member]);
+    if (result.ok && result.stdout) {
+      try {
+        return JSON.parse(result.stdout) as TemplateManifest;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
 
 // Read template-manifest.json straight out of the embedded tarball (no deploy).
 // Powers `--dry-run`. Tries both "./name" and "name" spellings: GNU tar matches
@@ -42,17 +60,7 @@ export async function readBundledManifest(): Promise<TemplateManifest | null> {
   try {
     const stagedTar = join(staging, "template.tar.gz");
     writeFileSync(stagedTar, new Uint8Array(bytes));
-    for (const member of ["./template-manifest.json", "template-manifest.json"]) {
-      const result = await run("tar", ["-xzOf", stagedTar, member]);
-      if (result.ok && result.stdout) {
-        try {
-          return JSON.parse(result.stdout) as TemplateManifest;
-        } catch {
-          return null;
-        }
-      }
-    }
-    return null;
+    return await readManifestFromTar(stagedTar);
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
@@ -81,11 +89,11 @@ function writeGlobalLinearIntegration(agentDir: string, linear: LinearIntegratio
 // only adds/overwrites, never deletes. Deliberately excludes skills/ and
 // themes/ (user-managed) and the agent root (auth.json, sessions/, backups/,
 // .sdd/, ...).
-export const MANAGED_DIRS = ["agents", "assets", "bin", "chains", "docs", "extensions", "lib", "prompts"];
+export const MANAGED_DIRS = TEMPLATE_REPLACE_TREES;
 
 // Clean-replace the template-owned dirs. No-op on a fresh install (dirs absent).
-export function cleanManagedDirs(agentDir: string): void {
-  for (const dir of MANAGED_DIRS) {
+export function cleanManagedDirs(agentDir: string, replaceTrees: readonly string[] = MANAGED_DIRS): void {
+  for (const dir of replaceTrees) {
     const full = join(agentDir, dir);
     if (existsSync(full)) rmSync(full, { recursive: true, force: true });
   }
@@ -155,9 +163,15 @@ export async function deployTemplate(
   const stagedTar = join(staging, "template.tar.gz");
   try {
     writeFileSync(stagedTar, new Uint8Array(bytes));
+    const manifest = await readManifestFromTar(stagedTar);
+    const inventory = assertTemplateInventory(manifest?.inventory);
+    const linearEffect = relative(agentDir, globalLinearIntegrationConfigPath(agentDir)).split(sep).join("/");
+    if (!inventory.overlayFiles.includes(linearEffect)) {
+      throw new Error(`El inventario no declara la escritura adicional: ${linearEffect}`);
+    }
     // Clean first so upstream deletions/renames don't leave orphans; user state
     // (skills/, auth.json, ...) is not in MANAGED_DIRS so it survives.
-    cleanManagedDirs(agentDir);
+    cleanManagedDirs(agentDir, inventory.replaceTrees);
     await extractTarball(stagedTar, agentDir);
 
     const vars: TemplateVars = {

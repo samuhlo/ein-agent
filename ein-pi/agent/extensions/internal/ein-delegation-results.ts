@@ -8,15 +8,13 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { t } from "../../lib/i18n/strings.ts";
 import {
 	formatReconciliation,
-	reconcilePhaseFailure,
-	resolveDelegationPhase,
-	snapshotPhaseArtifacts,
-	type PhaseSnapshot,
 } from "../../lib/sdd-reconcile.ts";
-import type { SddPhase } from "../../lib/sdd-guardrails.ts";
+import { assessPhaseRecovery } from "../../lib/sdd-phase-runtime.ts";
+import type { PhaseRunReference } from "../../lib/sdd-phase-receipt.ts";
 import { sddPreflightSessionKey } from "../../lib/sdd-preflight.ts";
 import {
 	acceptTrackedScoutResult,
@@ -29,16 +27,27 @@ import {
 	sddParticipantCallsAreTracked,
 } from "../../lib/sdd-participants.ts";
 import { recognizePiParticipantTerminal } from "./ein-pi-event-contracts.ts";
+import { acceptedScoutReceipt, rejectedScoutReceipt, renderScoutCard, scoutReceipt, scoutResultDetails } from "../../lib/scout-receipt.ts";
+import { installToolCardBridge } from "../../lib/tool-card-renderer-bridge.ts";
 
 export function registerDelegationResultHook(
 	pi: ExtensionAPI,
 	scoutTracking: ScoutTracking,
 ) {
-	const phaseSnapshotByToolCall = new Map<
-		string,
-		{ phase: SddPhase; before: PhaseSnapshot }
-	>();
+	const phaseRunByToolCall = new Map<string, PhaseRunReference>();
 	const participantResultDriftWarned = new Set<string>();
+	let releaseScoutCard: (() => void) | undefined;
+	pi.on("session_start", (_event, ctx) => {
+		if (!ctx.hasUI || releaseScoutCard) return;
+		releaseScoutCard = installToolCardBridge(ToolExecutionComponent.prototype, {
+			matches: (name) => name === "subagent",
+			owns: (_args, result) => Boolean(scoutReceipt(result?.details)),
+			duration: () => undefined,
+			render: renderScoutCard,
+		});
+		if (!releaseScoutCard) ctx.ui.notify("No se puede mostrar la tarjeta de evidencia; consulta el resultado validado en los detalles de la herramienta.", "warning");
+	});
+	pi.on("session_shutdown", () => { releaseScoutCard?.(); releaseScoutCard = undefined; });
 
 	function warnParticipantResultDrift(ctx: ExtensionContext): void {
 		const key = sddPreflightSessionKey(ctx);
@@ -53,18 +62,7 @@ export function registerDelegationResultHook(
 		);
 	}
 
-	function rememberPhaseSnapshot(
-		toolCallId: string,
-		input: unknown,
-		cwd: string,
-	): void {
-		const phase = resolveDelegationPhase(input);
-		if (!phase) return;
-		phaseSnapshotByToolCall.set(toolCallId, {
-			phase,
-			before: snapshotPhaseArtifacts(cwd, phase),
-		});
-	}
+	function rememberPhaseRun(reference: PhaseRunReference): void { phaseRunByToolCall.set(reference.toolCallId, reference); }
 
 	pi.on("tool_result", (event, ctx) => {
 		if (event.toolName === "subagent_wait") {
@@ -123,35 +121,39 @@ export function registerDelegationResultHook(
 				event.isError,
 				ctx.cwd,
 			);
-			if (report) return {
-				isError: false,
-				content: [{ type: "text", text: JSON.stringify(report) }],
-			};
+			if (report) {
+				const receipt = acceptedScoutReceipt(report);
+				return {
+					isError: false,
+					details: scoutResultDetails(event.details, receipt, event.content),
+					content: [{ type: "text", text: JSON.stringify(report) }, { type: "text", text: receipt.recovery }],
+				};
+			}
 		} catch (error) {
+			const reason = error instanceof Error ? error.message : "ein-scout contract: validation failed";
+			const failures = [...scoutTracking.values()].filter((status) => status === "off-contract").length;
+			const receipt = rejectedScoutReceipt(reason, failures, scoutTracking.get(event.toolCallId) === "unavailable");
 			return {
 				isError: true,
+				details: scoutResultDetails(event.details, receipt, event.content),
 				content: [{
 					type: "text",
-					text: error instanceof Error
-						? error.message
-						: "ein-scout contract: validation failed",
+					text: `${reason}\n\n${receipt.recovery}`,
 				}],
 			};
 		}
-		const snapshot = phaseSnapshotByToolCall.get(event.toolCallId);
-		phaseSnapshotByToolCall.delete(event.toolCallId);
-		if (!snapshot || !event.isError) return undefined;
-		const result = reconcilePhaseFailure(
-			ctx.cwd,
-			snapshot.phase,
-			snapshot.before,
-		);
-		if (!result.reconciled) return undefined;
+		const reference = phaseRunByToolCall.get(event.toolCallId) ?? phaseReference(event.details, event.toolCallId);
+		phaseRunByToolCall.delete(event.toolCallId);
+		if (!reference) return undefined;
+		const result = assessPhaseRecovery({ cwd: ctx.cwd, ...reference });
 		const originalError = event.content
 			.map((part) => (part.type === "text" ? part.text : ""))
 			.join("\n");
+		const details = phaseResultDetails(event.details, reference, result);
+		if (!event.isError) return { isError: false, details, content: event.content };
 		return {
-			isError: false,
+			isError: result.state !== "complete",
+			details,
 			content: [{
 				type: "text",
 				text: formatReconciliation(result, originalError),
@@ -159,5 +161,16 @@ export function registerDelegationResultHook(
 		};
 	});
 
-	return { rememberPhaseSnapshot };
+	return { rememberPhaseRun };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
+function phaseReference(details: unknown, toolCallId: string): PhaseRunReference | undefined {
+	if (!isRecord(details) || !isRecord(details.einPhaseRun)) return undefined;
+	const value = details.einPhaseRun;
+	if (value.version !== 1 || value.toolCallId !== toolCallId || typeof value.change !== "string" || typeof value.phase !== "string" || typeof value.nonce !== "string") return undefined;
+	return value as unknown as PhaseRunReference;
+}
+function phaseResultDetails(details: unknown, reference: PhaseRunReference, recovery: ReturnType<typeof assessPhaseRecovery>) {
+	return { ...(isRecord(details) ? details : {}), einPhaseRun: reference, phaseRecovery: recovery };
 }

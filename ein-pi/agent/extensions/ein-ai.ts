@@ -37,7 +37,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	const delegationResults = registerDelegationResultHook(pi, scoutTracking);
 	const toolCallGate = registerToolCallGate(pi, {
 		scoutTracking,
-		rememberPhaseSnapshot: delegationResults.rememberPhaseSnapshot,
+		rememberPhaseRun: delegationResults.rememberPhaseRun,
 	});
 	const sessionLifecycle = registerSessionLifecycle(pi, {
 		scoutTracking,
