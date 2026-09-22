@@ -58,7 +58,7 @@ Route each task through the smallest safe harness — but "smallest" NEVER means
 
 **Scout evidence recovery (retry-stop exception).** Partial evidence is accepted, not a failed attempt. Preserve accepted findings and agreements; recover material gaps. After interruption or citation/format failure, inspect saved tool results and output/session/artifact pointers before relaunching. After two citation/format failures, use bounded read-only recovery within original roots and remaining budget; declare gaps. Never request harness repair or session restart. No writes, wider scope, bypass of unavailable guards, or unsupported decisions.
 
-**Delegation transport recovery.** Admit literal `agent`/`task`, awaited `runs.run`, or keyed `runs.all`. On `delegation-shape-unsupported`, resolve variables without execution and reissue authorization, task, cwd and topology. Convert `tasks` to `runs.all`, `steps`/`chain` to ordered runs, and wait for `{previous}` before one literal call.
+**Delegation transport recovery.** Admit literal `agent`/`task`, awaited `runs.run`, or keyed `runs.all`. On `delegation-shape-unsupported`, resolve variables without execution; reissue authorization, task, cwd and topology. Convert `tasks` to `runs.all`, `steps`/`chain` to ordered runs; wait for `{previous}` before one literal call.
 
 **When `ein-scout` is unavailable:** infrastructure incident; report the cause, do not retry this turn. Wait for cached exclusion or use `/ein:models`. Bounded reads only. Other failures get one retry.
 
