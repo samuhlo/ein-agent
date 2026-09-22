@@ -18,6 +18,7 @@ import { refreshPiRuntime } from "./core/pi-runtime-maintenance.ts";
 import { runUpdateContinuation } from "./core/child-continuation.ts";
 import { normalizeTag, resolveReleaseContract } from "./core/release-resolver.ts";
 import { activeHome } from "./core/paths.ts";
+import { assertTemplateInventory } from "./core/template-inventory.ts";
 import { refreshManagedRuntimeSurfaces } from "./core/runtime-surface-upgrade.ts";
 import {
   finalizeRuntimeSurfaceRetirementByTransaction,
@@ -39,6 +40,17 @@ async function bundledTemplateVersion(): Promise<string> {
 // installer and template versions (binary-probe.ts parses two labeled lines).
 async function printVersion(): Promise<number> {
   console.log(versionOutputLines(await bundledTemplateVersion()).join("\n"));
+  return 0;
+}
+
+async function printTemplateInventory(): Promise<number> {
+  const manifest = await readBundledManifest();
+  if (!manifest?.templateVersion || !manifest.inventory) throw new Error("El candidato no contiene inventario de template");
+  console.log(JSON.stringify({
+    binaryVersion: INSTALLER_VERSION,
+    templateVersion: manifest.templateVersion,
+    inventory: assertTemplateInventory(manifest.inventory),
+  }));
   return 0;
 }
 
@@ -187,6 +199,7 @@ async function main(): Promise<number> {
   // candidate/new binary, never typed by a human). Matched by prefix because
   // they carry an inline value (`--flag=value`).
   if (argv.some((a) => a.startsWith("--ein-continuation="))) return runContinuationEntry(argv);
+  if (cmd === "--ein-template-inventory") return printTemplateInventory();
   const deployTpl = argv.find((a) => a.startsWith("--ein-deploy-template="));
   if (deployTpl) return runDeployTemplateEntry();
 

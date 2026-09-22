@@ -9,7 +9,7 @@ import { parseSelector } from "../core/release-resolver.ts";
 import { isReleaseChannel, type ReleaseChannel, type ReleaseSelector, type ReleaseTag, type UpdateOutcome } from "../core/release-types.ts";
 import { INSTALLER_VERSION } from "../core/version.ts";
 import { readReleaseChannelPreference, writeReleaseChannelPreference } from "../core/release-channel-preference.ts";
-import { recoverPendingTransaction, runUpdateTransaction } from "../core/transaction.ts";
+import { inspectPendingTransaction, recoverPendingTransaction, runUpdateTransaction } from "../core/transaction.ts";
 import { defaultUpdateCaps, type UpdateCaps } from "../core/update-caps.ts";
 import { readInstallerUpdateEvidence, type InstallerUpdateReadEvidence } from "../core/update-advisor-read.ts";
 import { spawnContinuation } from "../core/child-continuation.ts";
@@ -102,6 +102,33 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
       "resolving",
       `Release channel preference unavailable: ${preference.status === "unavailable" ? preference.reason : "effective-channel-unavailable"}`,
     );
+  } else if (!selector.ok) {
+    outcome = failed(undefined, selector.error.stage, selector.error.message);
+  } else if (flags.dryRun) {
+    const inspection = inspectPendingTransaction({ fs: caps.fs, journalPath: dependencies.journalPath });
+    if (inspection.status === "recovery-required" || inspection.status === "unreadable") {
+      outcome = failed(
+        selector.value,
+        "recovering",
+        "La simulación detecta una recuperación pendiente; no se ha modificado la instalación",
+      );
+    } else {
+      outcome = await runUpdateTransaction({
+        caps,
+        selector: selector.value,
+        channel: effectiveChannel,
+        platform: dependencies.platform ?? detectPlatform(),
+        agentDir: dependencies.agentDir ?? AGENT_DIR,
+        markerPath,
+        journalPath: dependencies.journalPath,
+        destinationPath,
+        dryRun: true,
+      });
+      if (outcome.type === "dry-run") {
+        if (inspection.status === "terminal-cleanup-pending") outcome = { ...outcome, pendingRecovery: "cleanup" };
+        if (inspection.status === "committed-finalization-pending") outcome = { ...outcome, pendingRecovery: "finalize" };
+      }
+    }
   } else {
     const recovery = await recoverPendingTransaction({
       caps,
@@ -115,9 +142,7 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
       })).ok,
     });
     if (!recovery.ok) {
-      outcome = failed(selector.ok ? selector.value : undefined, recovery.error.stage, recovery.error.message);
-    } else if (!selector.ok) {
-      outcome = failed(undefined, selector.error.stage, selector.error.message);
+      outcome = failed(selector.value, recovery.error.stage, recovery.error.message);
     } else {
       outcome = await runUpdateTransaction({
         caps,
@@ -128,7 +153,6 @@ export async function runUpdate(args: string[], dependencies: UpdateRunDependenc
         markerPath,
         journalPath: dependencies.journalPath,
         destinationPath,
-        dryRun: flags.dryRun,
       });
     }
   }
