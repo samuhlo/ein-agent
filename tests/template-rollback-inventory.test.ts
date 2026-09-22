@@ -38,6 +38,9 @@ describe("inventory-driven template rollback", () => {
     writeFileSync(join(agentDir, "skills", "local", "personal.md"), "personal-skill");
     writeFileSync(join(agentDir, "auth.json"), "secret");
     chmodSync(join(agentDir, "app.ts"), 0o640);
+    chmodSync(agentDir, 0o700);
+    chmodSync(join(agentDir, "skills"), 0o710);
+    chmodSync(join(agentDir, "skills", "local"), 0o750);
 
     const caps = defaultUpdateCaps();
     const snapshot = snapshotTemplate({ agentDir, snapshotPath, inventory, caps });
@@ -51,6 +54,10 @@ describe("inventory-driven template rollback", () => {
     writeFileSync(join(agentDir, "skills", "local", "ein.md"), "new-ein-skill");
     mkdirSync(join(agentDir, "surfaces"), { recursive: true });
     writeFileSync(join(agentDir, "surfaces", "new.ts"), "new-surface");
+    // RECOVERY -> Exercise directory modes independently of the host tar's defaults.
+    chmodSync(agentDir, 0o755);
+    chmodSync(join(agentDir, "skills"), 0o755);
+    chmodSync(join(agentDir, "skills", "local"), 0o755);
 
     expect(restoreTemplate({ agentDir, snapshotPath, caps })).toEqual({ ok: true, value: undefined });
     expect(readFileSync(join(agentDir, "agents", "old.md"), "utf8")).toBe("old-agent");
@@ -62,6 +69,9 @@ describe("inventory-driven template rollback", () => {
     expect(readFileSync(join(agentDir, "skills", "local", "personal.md"), "utf8")).toBe("personal-skill");
     expect(readFileSync(join(agentDir, "auth.json"), "utf8")).toBe("secret");
     expect(existsSync(join(agentDir, "surfaces"))).toBe(false);
+    expect(statSync(agentDir).mode & 0o777).toBe(0o700);
+    expect(statSync(join(agentDir, "skills")).mode & 0o777).toBe(0o710);
+    expect(statSync(join(agentDir, "skills", "local")).mode & 0o777).toBe(0o750);
   });
 
   test("runs the same snapshot and restore algorithm through fake capabilities", () => {

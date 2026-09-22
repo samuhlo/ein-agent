@@ -20,6 +20,8 @@ type SnapshotIndex = {
   inventory: TemplateInventory;
   entries: SnapshotEntry[];
   absentParents: string[];
+  rootMode: number | null;
+  overlayDirectories: { path: string; mode: number }[];
 };
 
 export type TemplateSnapshot = { path: string; inventory: TemplateInventory };
@@ -170,11 +172,15 @@ export function snapshotTemplate(options: {
     caps.fs.makeDir(snapshotPath);
     const entries = inventory.replaceTrees.flatMap((tree) => captureTree(agentDir, snapshotPath, tree, caps));
     const absentParents = new Set<string>();
+    const overlayDirectories = new Map<string, number>();
     for (const path of inventory.overlayFiles) {
       for (const parent of parents(path)) {
         const full = join(agentDir, parent);
         if (!caps.fs.exists(full)) absentParents.add(parent);
-        else assertDirectory(full, caps);
+        else {
+          assertDirectory(full, caps);
+          overlayDirectories.set(parent, mode(caps.fs.inspect(full)));
+        }
       }
       const source = join(agentDir, path);
       if (!caps.fs.exists(source)) entries.push({ path, kind: "absent" });
@@ -185,6 +191,8 @@ export function snapshotTemplate(options: {
       inventory,
       entries: entries.sort((left, right) => left.path.localeCompare(right.path)),
       absentParents: [...absentParents].sort(),
+      rootMode: caps.fs.exists(agentDir) ? mode(caps.fs.inspect(agentDir)) : null,
+      overlayDirectories: [...overlayDirectories].map(([path, mode]) => ({ path, mode })),
     };
     const encoded = new TextEncoder().encode(`${JSON.stringify(index, null, 2)}\n`);
     caps.fs.writeFile(join(snapshotPath, SNAPSHOT_INDEX), encoded);
@@ -210,6 +218,7 @@ export async function deployEmbeddedTemplate(options: {
 }
 
 function parseSnapshot(snapshotPath: string, caps: UpdateCaps): SnapshotIndex {
+  assertDirectory(snapshotPath, caps);
   const path = join(snapshotPath, SNAPSHOT_INDEX);
   const sealPath = join(snapshotPath, SNAPSHOT_SEAL);
   if (!caps.fs.exists(path) || !caps.fs.exists(sealPath)) throw new Error("Snapshot legacy sin inventario verificable");
@@ -218,11 +227,20 @@ function parseSnapshot(snapshotPath: string, caps: UpdateCaps): SnapshotIndex {
   if (seal !== digest(encoded)) throw new Error("Índice de snapshot corrupto o incompleto");
   const parsed = JSON.parse(new TextDecoder().decode(encoded)) as Partial<SnapshotIndex>;
   const inventory = validateTemplateInventory(parsed.inventory);
-  if (parsed.schemaVersion !== 1 || !inventory || !Array.isArray(parsed.entries) || !Array.isArray(parsed.absentParents)) {
+  const validMode = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 0o7777;
+  if (parsed.schemaVersion !== 1 || !inventory || !Array.isArray(parsed.entries) || !Array.isArray(parsed.absentParents)
+    || (parsed.rootMode !== null && !validMode(parsed.rootMode)) || !Array.isArray(parsed.overlayDirectories)) {
     throw new Error("Índice de snapshot inválido");
   }
   const allowedParents = new Set(inventory.overlayFiles.flatMap(parents));
   if (parsed.absentParents.some((item) => typeof item !== "string" || !allowedParents.has(item))) throw new Error("Padres ausentes inválidos");
+  const directoryPaths = new Set(parsed.absentParents);
+  for (const directory of parsed.overlayDirectories) {
+    if (!directory || typeof directory.path !== "string" || !allowedParents.has(directory.path)
+      || directoryPaths.has(directory.path) || !validMode(directory.mode)) throw new Error("Directorios de overlay inválidos");
+    directoryPaths.add(directory.path);
+  }
+  if (directoryPaths.size !== allowedParents.size) throw new Error("Directorios de overlay incompletos");
   const entries = parsed.entries as SnapshotEntry[];
   const seen = new Set<string>();
   for (const entry of entries) {
@@ -233,14 +251,14 @@ function parseSnapshot(snapshotPath: string, caps: UpdateCaps): SnapshotIndex {
     const overlay = inventory.overlayFiles.includes(entry.path);
     if (!tree && !overlay) throw new Error(`Ruta fuera del inventario: ${entry.path}`);
     if (overlay && entry.kind === "directory") throw new Error(`Overlay no regular: ${entry.path}`);
-    if (entry.kind === "file" && (typeof entry.mode !== "number" || !/^[0-9a-f]{64}$/.test(entry.sha256 ?? ""))) {
+    if (entry.kind === "file" && (!validMode(entry.mode) || !/^[0-9a-f]{64}$/.test(entry.sha256 ?? ""))) {
       throw new Error(`Metadatos incompletos: ${entry.path}`);
     }
-    if (entry.kind === "directory" && typeof entry.mode !== "number") throw new Error(`Modo ausente: ${entry.path}`);
+    if (entry.kind === "directory" && !validMode(entry.mode)) throw new Error(`Modo ausente: ${entry.path}`);
   }
   for (const tree of inventory.replaceTrees) if (!seen.has(tree)) throw new Error(`Árbol ausente del índice: ${tree}`);
   for (const file of inventory.overlayFiles) if (!seen.has(file)) throw new Error(`Overlay ausente del índice: ${file}`);
-  return { schemaVersion: 1, inventory, entries, absentParents: [...new Set(parsed.absentParents)] };
+  return { schemaVersion: 1, inventory, entries, absentParents: [...new Set(parsed.absentParents)], rootMode: parsed.rootMode, overlayDirectories: parsed.overlayDirectories };
 }
 
 function prevalidateRestore(agentDir: string, snapshotPath: string, index: SnapshotIndex, caps: UpdateCaps): void {
@@ -248,15 +266,22 @@ function prevalidateRestore(agentDir: string, snapshotPath: string, index: Snaps
   for (const entry of index.entries) {
     if (entry.kind === "file") {
       const source = join(snapshotPath, SNAPSHOT_DATA, entry.path);
+      assertSafePath(snapshotPath, `${SNAPSHOT_DATA}/${entry.path}`, caps, "file");
       if (!caps.fs.exists(source) || caps.fs.inspect(source).kind !== "file"
         || digest(caps.fs.readFile(source)) !== entry.sha256) throw new Error(`Preimage corrupta: ${entry.path}`);
     }
   }
   for (const tree of index.inventory.replaceTrees) assertSafePath(agentDir, tree, caps, "directory");
   for (const file of index.inventory.overlayFiles) assertSafePath(agentDir, file, caps, "file");
+  for (const directory of index.overlayDirectories) assertSafePath(agentDir, directory.path, caps, "directory");
 }
 
 function verifyRestored(agentDir: string, index: SnapshotIndex, caps: UpdateCaps): void {
+  if (index.rootMode !== null && mode(caps.fs.inspect(agentDir)) !== index.rootMode) throw new Error("Modo raíz restaurado incorrecto");
+  for (const directory of index.overlayDirectories) {
+    const inspected = caps.fs.inspect(join(agentDir, directory.path));
+    if (inspected.kind !== "directory" || mode(inspected) !== directory.mode) throw new Error(`Modo de directorio restaurado incorrecto: ${directory.path}`);
+  }
   for (const entry of index.entries) {
     const target = join(agentDir, entry.path);
     if (entry.kind === "absent") {
@@ -314,6 +339,10 @@ export function restoreTemplate(options: {
       const target = join(options.agentDir, path);
       if (options.caps.fs.exists(target) && options.caps.fs.listDir(target).length === 0) options.caps.fs.removeDir(target);
     }
+    for (const directory of [...index.overlayDirectories].sort((a, b) => depth(b.path) - depth(a.path))) {
+      options.caps.fs.chmod(join(options.agentDir, directory.path), directory.mode);
+    }
+    if (index.rootMode !== null) options.caps.fs.chmod(options.agentDir, index.rootMode);
     verifyRestored(options.agentDir, index, options.caps);
     return { ok: true, value: undefined };
   } catch (error) {
