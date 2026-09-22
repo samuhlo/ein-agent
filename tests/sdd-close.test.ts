@@ -13,6 +13,8 @@ import { lintChange, lintPhaseArtifact, oversizedGroupWarnings } from "../ein-pi
 import { synchronizeOpenSpecFilesystem } from "../ein-pi/agent/lib/openspec-spec-sync-fs.ts";
 import { closedChangePath as sharedClosedChangePath } from "../shared/sdd/sdd-close-compaction.ts";
 import { createCloseChange } from "../shared/sdd/sdd-close-engine.ts";
+import { writeVerifiedSddSummary } from "../shared/sdd/sdd-summary-write.ts";
+import { beginVerification, finishVerification, readVerificationFreshness } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 
 let DIR: string;
 function durableSummary(change: string): string {
@@ -45,8 +47,16 @@ function mkChange(name: string, files: Record<string, string>): string {
 	return p;
 }
 
+function publishVerification(changePath: string, content: string): void {
+	const begun = beginVerification({ cwd: DIR, changePath });
+	if (!begun.ok) throw new Error(begun.reason);
+	const finished = finishVerification({ cwd: DIR, changePath, token: begun.value.token, content });
+	if (!finished.ok) throw new Error(finished.reason);
+}
+
 beforeEach(() => {
 	DIR = mkdtempSync(join(tmpdir(), "sdd-close-"));
+	execFileSync("git", ["init", "-q"], { cwd: DIR });
 });
 afterEach(() => {
 	rmSync(DIR, { recursive: true, force: true });
@@ -75,14 +85,16 @@ describe("closeChange", () => {
 		const closed = join(DIR, "openspec", "changes", "archive", "feat-x");
 		expect(existsSync(join(closed, "summary.md"))).toBe(true);
 		expect(readFileSync(join(closed, "summary.md"), "utf8")).toContain("cierre");
-		expect(readdirSync(closed)).toEqual(["summary.md"]);
+		expect(readdirSync(closed).sort()).toEqual(["summary.md", "verification-receipt.json"]);
 	});
 
 	test("retains terminal evidence inside the compact summary", () => {
 		makeFresh("evidence");
 		const source = join(DIR, "openspec/changes/evidence");
-		const verification = readFileSync(join(source, "verify-report.md"), "utf8");
 		writeFileSync(join(source, "sync-report.md"), "Contrato sincronizado: wizard\n");
+		publishVerification(source, READY_FILES["verify-report.md"]);
+		writeFileSync(join(source, "summary.md"), durableSummary("evidence"));
+		const verification = readFileSync(join(source, "verify-report.md"), "utf8");
 		expect(closeChange(DIR, "evidence").ok).toBe(true);
 		const summary = readFileSync(join(closedChangePath(DIR, "evidence"), "summary.md"), "utf8");
 		expect(summary).toContain(verification);
@@ -124,7 +136,7 @@ describe("closeChange", () => {
 
 		const retry = closeChange(DIR, "feat-retry");
 		expect(retry.ok).toBe(true);
-		expect(readdirSync(archived)).toEqual(["summary.md"]);
+		expect(readdirSync(archived).sort()).toEqual(["summary.md", "verification-receipt.json"]);
 	});
 
 	test("no pisa si ya existe en storage interno (idempotente-safe)", () => {
@@ -173,10 +185,10 @@ describe("closeChange", () => {
 	});
 
 	test("no archiva un summary.md que sea un enlace simbólico", () => {
-		makeFresh("feat-linked-summary");
-		const active = join(DIR, "openspec", "changes", "feat-linked-summary");
 		const external = join(DIR, "external-summary.md");
 		writeFileSync(external, durableSummary("feat-linked-summary"));
+		makeFresh("feat-linked-summary");
+		const active = join(DIR, "openspec", "changes", "feat-linked-summary");
 		rmSync(join(active, "summary.md"));
 		symlinkSync(external, join(active, "summary.md"));
 		setMtime("feat-linked-summary", "summary.md", 3_000_000);
@@ -213,17 +225,77 @@ describe("closeChange", () => {
 	function makeFresh(change: string): void {
 		const path = mkChange(change, READY_FILES);
 		writeFileSync(join(path, "summary.md"), durableSummary(change));
+		const begun = beginVerification({ cwd: DIR, changePath: path });
+		if (!begun.ok) throw new Error(begun.reason);
+		const finished = finishVerification({ cwd: DIR, changePath: path, token: begun.value.token, content: READY_FILES["verify-report.md"] });
+		if (!finished.ok) throw new Error(finished.reason);
 		setMtime(change, "apply-progress.md", 1_000_000);
 		setMtime(change, "verify-report.md", 2_000_000);
 		setMtime(change, "summary.md", 3_000_000);
 	}
 
 	test("cambio completo, verificado y fresco → cierra SIN force", () => {
+		mkdirSync(join(DIR, "src"));
+		writeFileSync(join(DIR, "src", "durable.ts"), "export const durable = true;\n");
 		makeFresh("feat-ready");
 		const r = closeChange(DIR, "feat-ready");
 		expect(r.ok).toBe(true);
-		expect(existsSync(join(DIR, "openspec", "changes", "archive", "feat-ready"))).toBe(true);
+		const archived = join(DIR, "openspec", "changes", "archive", "feat-ready");
+		expect(existsSync(archived)).toBe(true);
+		expect(existsSync(join(archived, "verification-receipt.json"))).toBe(true);
 	});
+
+	test("el resumen usa los required_check del parser e ignora ejemplos dentro de fences", () => {
+		makeFresh("parsed-checks");
+		const report = [
+			"status: pass",
+			"behavior_coverage: verified",
+			"required_check: {\"command\":\"bun test tests/example.test.ts\",\"exitCode\":0}",
+			"```text",
+			"required_check: no-json",
+			"```",
+		].join("\n");
+		publishVerification(join(DIR, "openspec", "changes", "parsed-checks"), report);
+		const result = writeVerifiedSddSummary({
+			cwd: DIR,
+			change: "parsed-checks",
+			content: "## Resultado\nVerificación válida.",
+			commands: ["bun test tests/example.test.ts"],
+			readVerification: (cwd, changePath) => readVerificationFreshness({ cwd, changePath }),
+		});
+		expect(result.ok).toBe(true);
+	});
+
+	test("borrar un fichero verificado impide el cierre real", () => {
+		mkdirSync(join(DIR, "src"));
+		const delivered = join(DIR, "src", "deleted-after-verify.ts");
+		writeFileSync(delivered, "export const present = true;\n");
+		makeFresh("feat-deleted");
+		rmSync(delivered);
+		const result = closeChange(DIR, "feat-deleted");
+		expect(result.ok).toBe(false);
+		expect(result.reason).toContain("re-verifica");
+		expect(existsSync(join(DIR, "openspec", "changes", "archive", "feat-deleted"))).toBe(false);
+	});
+
+	for (const [name, report] of [
+		["global-fail-after-example", "# Verify\nstatus: fail\nbehavior_coverage: verified\n## Example\nExample expected result: pass\n"],
+		["duplicate-pass", "status: pass\nresult: ok\nbehavior_coverage: verified\n"],
+		["missing-status", "behavior_coverage: verified\nTodo parece correcto.\n"],
+		["partial-coverage", "status: pass\nbehavior_coverage: partial\n"],
+		["null-check", "status: pass\nbehavior_coverage: verified\nrequired_check: {\"command\":\"bun test\",\"exitCode\":null}\n"],
+		["broken-check", "status: pass\nbehavior_coverage: verified\nrequired_check: no-json\n"],
+	] as const) {
+		test(`no archiva verify inseguro: ${name}`, () => {
+			makeFresh(name);
+			writeFileSync(join(DIR, "openspec", "changes", name, "verify-report.md"), report);
+			setMtime(name, "verify-report.md", 2_000_000);
+			const result = closeChange(DIR, name);
+			expect(result.ok).toBe(false);
+			expect(existsSync(join(DIR, "openspec", "changes", name))).toBe(true);
+			expect(existsSync(join(DIR, "openspec", "changes", "archive", name))).toBe(false);
+		});
+	}
 
 	test("solo summary.md (sin verify/apply) → NO cierra", () => {
 		mkChange("feat-bare", { "summary.md": "x", "scope.md": "## Spec delta declaration\nspec_delta: none\nspec_delta_reason: fixture" });
@@ -233,13 +305,13 @@ describe("closeChange", () => {
 		expect(existsSync(join(DIR, "openspec", "changes", "feat-bare"))).toBe(true);
 	});
 
-	test("verify obsoleto (apply tocado DESPUÉS de verify) → NO cierra", () => {
+	test("summary anterior a apply → NO cierra aunque verify siga vigente", () => {
 		makeFresh("feat-stale");
 		// Una corrección posterior reescribe apply-progress: ahora es más nuevo.
 		setMtime("feat-stale", "apply-progress.md", 4_000_000);
 		const r = closeChange(DIR, "feat-stale");
 		expect(r.ok).toBe(false);
-		expect(r.reason).toContain("obsoleta");
+		expect(r.reason).toContain("regenera el resumen");
 	});
 
 	// El prompt de `sdd-close` pide volcar en `// 004` los resultados del
@@ -315,6 +387,8 @@ describe("closeChange", () => {
 			"verify-report.md": "status: pass\n",
 			"summary.md": durableSummary("fix-legacy"),
 		})) writeFileSync(join(p, file), body);
+		publishVerification(p, "status: pass\n");
+		writeFileSync(join(p, "summary.md"), durableSummary("fix-legacy"));
 		const r = closeChange(DIR, "fix-legacy", { force: true });
 		expect(r).toEqual({ ok: true, from: join(DIR, ".sdd", "changes", "fix-legacy"), to: join(DIR, ".sdd", "changes", "archive", "fix-legacy") });
 	});
@@ -503,6 +577,22 @@ describe("lintPhaseArtifact / lintChange", () => {
 		expect(lintPhaseArtifact("verify", "status: pass\n").ok).toBe(true);
 	});
 
+	test("verify con estado global duplicado → error de contrato", () => {
+		const result = lintPhaseArtifact("verify", "status: pass\nresult: ok\nbehavior_coverage: verified\n");
+		expect(result.ok).toBe(false);
+		expect(result.issues.some((issue) => issue.code === "duplicate-status")).toBe(true);
+	});
+
+	test("verify con required_check malformado → error de contrato", () => {
+		const result = lintPhaseArtifact("verify", "status: pass\nbehavior_coverage: verified\nrequired_check: no-json\n");
+		expect(result.ok).toBe(false);
+		expect(result.issues.some((issue) => issue.code === "invalid-required-check")).toBe(true);
+	});
+
+	test("verify fail bien declarado sigue siendo un artefacto válido", () => {
+		expect(lintPhaseArtifact("verify", "status: fail\nbehavior_coverage: verified\n").ok).toBe(true);
+	});
+
 	test("apply SIN línea status → error (falta signal obligatorio)", () => {
 		const r = lintPhaseArtifact("apply", "completed tasks:\n- [x] foo\n");
 		expect(r.ok).toBe(false);
@@ -543,6 +633,17 @@ describe("lintPhaseArtifact / lintChange", () => {
 	test("tasks delega en lint rico", () => {
 		const r = lintPhaseArtifact("tasks", "status: ready\nblocked_by: none\n- [ ] do\n  - skills: `comment-style`\n  - why: x\n  - learn: y\n  - architecture: z\n  - avoid: n\n  - verify: `bun test`\n");
 		expect(r.ok).toBe(true);
+	});
+
+	test("tasks terminadas admiten metadatos ausentes pero siguen exigiendo verify", () => {
+		const completed = lintPhaseArtifact("tasks", "## Completed work\n- [X] 1 Implemented\n- verify: bun test\n");
+		expect(completed.ok).toBe(true);
+		expect(completed.issues.some((issue) => issue.code === "missing-status-line")).toBe(false);
+		expect(completed.issues.some((issue) => issue.code === "missing-blocked-by")).toBe(false);
+
+		const withoutVerify = lintPhaseArtifact("tasks", "## Completed work\n- [x] 1 Implemented\n");
+		expect(withoutVerify.ok).toBe(false);
+		expect(withoutVerify.issues.some((issue) => issue.code === "missing-verify")).toBe(true);
 	});
 
 	test("lintChange agrega las fases presentes", () => {
@@ -659,11 +760,15 @@ describe("closeChange — force fail-closed matrix", () => {
 	function ready(name: string): string {
 		const path = mkChange(name, READY);
 		writeFileSync(join(path, "summary.md"), durableSummary(name));
+		publishVerification(path, READY["verify-report.md"]);
+		writeFileSync(join(path, "summary.md"), durableSummary(name));
 		return path;
 	}
 	function declarationless(name: string): string {
 		const path = ready(name);
 		writeFileSync(join(path, "scope.md"), "# Scope legacy\n");
+		publishVerification(path, READY["verify-report.md"]);
+		writeFileSync(join(path, "summary.md"), durableSummary(name));
 		return path;
 	}
 

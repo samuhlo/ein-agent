@@ -42,7 +42,7 @@ const runtime=await ModelRuntime.create({authPath:join(home,"auth.json"),modelsP
 const model=runtime.getModel(provider!,modelId);assert(model);
 const settingsManager=SettingsManager.inMemory({retry:{enabled:false}});
 const loader=new DefaultResourceLoader({cwd:project,agentDir:home,settingsManager,noExtensions:true,noSkills:true,noContextFiles:true,noPromptTemplates:true,additionalExtensionPaths:[join(packageRoot,"index.ts")],extensionFactories:[pi=>{
- const scoutTracking=new Map();const results=registerDelegationResultHook(pi,scoutTracking);registerToolCallGate(pi,{scoutTracking,rememberPhaseSnapshot:results.rememberPhaseSnapshot});
+ const scoutTracking=new Map();const results=registerDelegationResultHook(pi,scoutTracking);registerToolCallGate(pi,{scoutTracking,rememberPhaseRun:results.rememberPhaseRun});
 }]});
 await loader.reload();assert.deepEqual(loader.getExtensions().errors,[]);
 const manager=SessionManager.create(project,join(home,"sessions"));

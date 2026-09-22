@@ -78,7 +78,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			return { block: true, reason: "Evidence mode permits only scoped reads and the supplied commands; product writes and SDD artifacts are unavailable" };
 		}
 		if (handoffError) return { block: true, reason: handoffError };
-		if (!agreementInput || !["write", "edit", "bash", "ein_sdd_task_progress", "ein_openspec_delta_write", "ein_sdd_summary"].includes(event.toolName)) return;
+		if (!agreementInput || !["write", "edit", "bash", "ein_sdd_task_progress", "ein_openspec_delta_write", "ein_sdd_summary", "ein_sdd_verification", "ein_sdd_phase_complete"].includes(event.toolName)) return;
 		const current = readAgreement(agreementInput.directory);
 		if (current.kind !== "valid" || current.agreement.status !== "confirmed" || current.agreement.materialKey !== agreementInput.key) {
 			return { block: true, reason: "Intent changed after this phase started; return blocked and re-plan against the current agreement." };
@@ -137,6 +137,8 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const directoryContext = change && isSddAgent
 			? `\nSDD change directory: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change))}. Resolve phase artifacts here, not at the repository root.\nCanonical intent path: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change, "intent.md"))}.\n${stancePrompt}` : "";
 		const adHocStanceContext = !change && stancePrompt ? `\n${stancePrompt}` : "";
+		const phaseRunBound = /^ein_phase_run:[\t ]*\{/m.test(readAgentTask(event));
+		const completionPrompt = phaseRunBound ? "\nBefore the final message call ein_sdd_phase_complete: complete only after finishing the assigned phase; partial or blocked preserves progress without claiming success.\n" : "";
 		const phase = startNames.find((name) => name.startsWith("sdd-"))?.slice(4) as SddPhase | undefined;
 		if (change && phase && PHASE_ARTIFACT[phase]) {
 			const directory = join(resolveChangesDir(ctx.cwd), change);
@@ -224,7 +226,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
 		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${directoryContext}${adHocStanceContext}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff.prompt}` : ""}`,
+			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${directoryContext}${adHocStanceContext}${completionPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff.prompt}` : ""}`,
 		};
 	});
 }

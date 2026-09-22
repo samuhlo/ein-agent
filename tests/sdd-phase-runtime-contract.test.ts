@@ -177,12 +177,13 @@ describe("P4: runtime y tamaño del apply estricto", () => {
   });
 });
 
-describe("P5: foto de fase para reconciliar, sin ampliar el input del subagent", () => {
-  test("recuerda la foto antes de delegar y reconcilia después", () => {
-    expect(delegationResults).toContain("before: snapshotPhaseArtifacts(cwd, phase)");
-    expect(delegationResults).toContain("reconcilePhaseFailure(");
-    expect(delegationResults).toContain("snapshot.before");
-    expect(toolCallGate).toContain("dependencies.rememberPhaseSnapshot(");
+describe("P5: recibo de fase ligado a la invocación", () => {
+  test("crea el manifest antes de delegar y revalida el recibo después", () => {
+    expect(toolCallGate).toContain("beginPhaseRun(");
+    expect(toolCallGate).toContain("ein_phase_run:");
+    expect(delegationResults).toContain("assessPhaseRecovery(");
+    expect(delegationResults).not.toContain("snapshotPhaseArtifacts");
+    expect(delegationResults).not.toContain("reconcilePhaseFailure");
     // El ledger de procedencia se retiró: la delegación no mints receipts ni observa coste.
     expect(delegationResults).not.toContain("beginDelegationObservation");
     expect(delegationResults).not.toContain("observeDelegationResult");

@@ -112,6 +112,7 @@ function lineColumn(text: string, index: number): string {
 const EXACT_TOOL_MAP: Record<string, string> = {
   read: "Read",
   ein_sdd_summary: "Bash",
+  ein_sdd_verification: "Bash",
   grep: "Grep",
   find: "Glob",
   edit: "Edit",
@@ -136,6 +137,7 @@ function translateTool(raw: string, source: string, agent: string): string {
 function translateTools(piTools: string, source: string, agent: string): string {
   const out: string[] = [];
   for (const raw of piTools.split(",").map((tool) => tool.trim()).filter(Boolean)) {
+    if (raw === "ein_sdd_phase_complete") continue;
     const translated = translateTool(raw, source, agent);
     if (!out.includes(translated)) out.push(translated);
   }
@@ -167,6 +169,7 @@ const RUNTIME_TOKEN_RULES: ReadonlyArray<{
     replacement: "ein-cc-sdd delta",
   },
   { source: "agents/sdd-close.md", token: "ein_sdd_summary", replacement: "ein-cc-sdd summary <change> (JSON on stdin)" },
+  { source: "agents/sdd-verify.md", token: "ein_sdd_verification", replacement: "ein-cc-sdd verification" },
   {
     source: "agents/ein-git.md",
     token: "ein_review_forecast",

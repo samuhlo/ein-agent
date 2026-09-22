@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, utimesSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -8,6 +9,8 @@ import * as sharedSummaryWriter from "../shared/sdd/sdd-summary-write.ts";
 import { runSummaryCommand } from "../ein-cc/sdd-cli/cli.ts";
 import { collectSddRemedies } from "../ein-pi/agent/lib/sdd-remedies.ts";
 import { summaryContractErrors } from "../shared/sdd/sdd-summary-contract.ts";
+import { readVerificationFreshness } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
+import { beginVerification, finishVerification } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 
 const { writeSddSummary } = sharedSummaryWriter;
 
@@ -16,7 +19,11 @@ test("builds mechanical summary fields and rejects unsupported or stale verifica
 	writeFileSync(join(dir, "tasks.md"), "status: ready\n## One\n- [x] first\n## Two\n- [x] second\n");
 	writeFileSync(join(dir, "apply-progress.md"), "status: complete\n");
 	writeFileSync(join(dir, "verify-report.md"), "status: pass\nExecuted: bun test\n");
-	const request = { cwd, change: "probe", content: "## Resultado\nFecha validada.\n", commands: ["bun test"] };
+	const begun = beginVerification({ cwd, changePath: dir });
+	if (!begun.ok) throw new Error(begun.reason);
+	const finished = finishVerification({ cwd, changePath: dir, token: begun.value.token, content: "status: pass\nExecuted: bun test\n" });
+	if (!finished.ok) throw new Error(finished.reason);
+	const request = { cwd, change: "probe", content: "## Resultado\nFecha validada.\n", commands: ["bun test"], readVerification: (cwd: string, changePath: string) => readVerificationFreshness({ cwd, changePath }) };
 	const result = sharedSummaryWriter.writeVerifiedSddSummary(request);
 	expect(result.ok).toBe(true);
 	const text = readFileSync(join(dir, "summary.md"), "utf8");
@@ -45,6 +52,7 @@ let cwd: string;
 
 beforeEach(() => {
 	cwd = mkdtempSync(join(tmpdir(), "ein-summary-"));
+	execFileSync("git", ["init", "-q"], { cwd });
 	mkdirSync(join(cwd, "openspec", "changes", "probe"), { recursive: true });
 });
 

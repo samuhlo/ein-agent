@@ -1,7 +1,7 @@
 ---
 name: sdd-design
 description: SDD design phase — writes proposal, spec, decisions, and success criteria to design.md.
-tools: read, grep, find, write, edit
+tools: read, grep, find, write, edit, ein_sdd_phase_complete
 subagentOnlyExtensions: ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 ---

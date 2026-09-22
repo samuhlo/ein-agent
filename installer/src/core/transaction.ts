@@ -11,7 +11,7 @@ import { deriveArtifactId, isReleaseChannel } from "./release-types.ts";
 import type { ArtifactId, MarkerV2, OwnershipMarker, ReleaseChannel, ReleaseSelector, ReleaseTag, ResolvedRelease, Result, UpdateOutcome, UpdateStageError } from "./release-types.ts";
 import { fetchLatestRelease, fetchReleaseByTag } from "./release-record.ts";
 import { resolveRecord } from "./release-resolver.ts";
-import { deployEmbeddedTemplate, restoreTemplate, snapshotTemplate, validateDeployedManifest } from "./template-transaction.ts";
+import { deployEmbeddedTemplate, queryCandidateTemplateInventory, restoreTemplate, snapshotTemplate, validateDeployedManifest } from "./template-transaction.ts";
 import type { UpdateCaps } from "./update-caps.ts";
 
 export type TransactionState =
@@ -66,6 +66,14 @@ export type Journal = {
 
 export type TransactionError = UpdateStageError & { recoveryArtifacts: string[] };
 export type RecoveryStatus = "clean" | "recovered" | "recovery-required";
+export type PendingTransactionInspection =
+  | { status: "absent" }
+  | { status: "terminal-cleanup-pending"; journal: Journal; pendingAction: "cleanup" }
+  | { status: "committed-finalization-pending"; journal: Journal; pendingAction: "finalize" }
+  | { status: "recovery-required"; journal: Journal; pendingAction: "recover" }
+  | { status: "unreadable"; reason: string };
+
+type JournalReadCaps = Pick<UpdateCaps["fs"], "exists" | "readFile">;
 
 type Rollback = () => Promise<void> | void;
 
@@ -130,14 +138,21 @@ function sameRollbackOutcome(left: RollbackOutcome | undefined, right: RollbackO
   return right.status === "failed" && left.message === right.message;
 }
 
-function readJournal(caps: UpdateCaps, journalPath: string): Journal | null {
-  if (!caps.fs.exists(journalPath)) return null;
+function isJournalOwner(value: unknown): value is OwnershipMarker {
+  if (!value || typeof value !== "object" || !("type" in value)) return false;
+  const owner = value as OwnershipMarker;
+  return owner.type === "standalone" || owner.type === "legacy-standalone" ||
+    (owner.type === "package-manager" && typeof owner.manager === "string" && owner.manager.length > 0) ||
+    (owner.type === "ownership-ambiguous" && typeof owner.reason === "string" && owner.reason.length > 0);
+}
+
+function parseJournal(bytes: Uint8Array): Journal | null {
   try {
-    const parsed = JSON.parse(new TextDecoder().decode(caps.fs.readFile(journalPath))) as Partial<Journal>;
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as Partial<Journal>;
     const isTerminalRecovery = parsed.state === "recovery-succeeded";
     if (
       parsed.schemaVersion !== 1 || typeof parsed.txId !== "string" || typeof parsed.target !== "string" ||
-      !parsed.owner || typeof parsed.owner !== "object" || typeof parsed.state !== "string" ||
+      !isJournalOwner(parsed.owner) || typeof parsed.state !== "string" ||
       !parsed.artifacts || typeof parsed.artifacts !== "object" || (!isTerminalRecovery && !Object.prototype.hasOwnProperty.call(TRANSITIONS, parsed.state)) ||
       (parsed.channel !== undefined && !isReleaseChannel(parsed.channel)) ||
       (hasEvidenceFields(parsed) && !hasLocalEvidence(parsed as Journal)) ||
@@ -147,6 +162,46 @@ function readJournal(caps: UpdateCaps, journalPath: string): Journal | null {
   } catch {
     return null;
   }
+}
+
+function readJournal(caps: Pick<UpdateCaps, "fs">, journalPath: string): Journal | null {
+  try {
+    if (!caps.fs.exists(journalPath)) return null;
+    return parseJournal(caps.fs.readFile(journalPath));
+  } catch {
+    return null;
+  }
+}
+
+/** Classifies durable recovery state without exposing any write or process capability. */
+export function inspectPendingTransaction(options: {
+  fs: JournalReadCaps;
+  journalPath?: string;
+}): PendingTransactionInspection {
+  const journalPath = options.journalPath ?? defaultJournalPath();
+  try {
+    if (!options.fs.exists(journalPath)) return { status: "absent" };
+  } catch (error) {
+    return { status: "unreadable", reason: error instanceof Error ? error.message : "Could not inspect pending transaction journal" };
+  }
+
+  let journal: Journal | null;
+  try {
+    journal = parseJournal(options.fs.readFile(journalPath));
+  } catch (error) {
+    return { status: "unreadable", reason: error instanceof Error ? error.message : "Could not read pending transaction journal" };
+  }
+  if (!journal) return { status: "unreadable", reason: "Pending transaction journal is malformed" };
+  if (journal.owner.type === "ownership-ambiguous") {
+    return { status: "recovery-required", journal, pendingAction: "recover" };
+  }
+  if (journal.state === "recovery-succeeded") {
+    return { status: "terminal-cleanup-pending", journal, pendingAction: "cleanup" };
+  }
+  if (journal.state === "complete") {
+    return { status: "committed-finalization-pending", journal, pendingAction: "finalize" };
+  }
+  return { status: "recovery-required", journal, pendingAction: "recover" };
 }
 
 function persistJournal(caps: UpdateCaps, journalPath: string, journal: Journal): void {
@@ -385,16 +440,20 @@ export async function recoverPendingTransaction(options: {
   finalizeCommitted?: (journal: Journal) => Promise<boolean> | boolean;
 }): Promise<Result<RecoveryStatus, TransactionError>> {
   const journalPath = options.journalPath ?? defaultJournalPath();
-  const journal = readJournal(options.caps, journalPath);
-  if (!options.caps.fs.exists(journalPath)) return { ok: true, value: "clean" };
-  const persistRecoveryOutcome = (outcome: RollbackOutcome): Result<void, TransactionError> =>
-    journal ? persistLocalRollbackOutcome(options.caps, journalPath, journal, outcome, "Could not persist recovery outcome") : { ok: true, value: undefined };
-  if (!journal || journal.owner.type === "ownership-ambiguous") {
-    return { ok: false, error: transactionError("recovering", "recovery-required", "Pending transaction identity is ambiguous", journal ?? {
+  const inspection = inspectPendingTransaction({ fs: options.caps.fs, journalPath });
+  if (inspection.status === "absent") return { ok: true, value: "clean" };
+  if (inspection.status === "unreadable") {
+    return { ok: false, error: transactionError("recovering", "recovery-required", inspection.reason, {
       schemaVersion: 1, txId: "unknown", target: "installer-vunknown" as ReleaseTag, owner: { type: "ownership-ambiguous", reason: "invalid journal" }, state: "prepared", artifacts: {},
     }) };
   }
-  if (journal.state === "complete") {
+  const journal = inspection.journal;
+  const persistRecoveryOutcome = (outcome: RollbackOutcome): Result<void, TransactionError> =>
+    persistLocalRollbackOutcome(options.caps, journalPath, journal, outcome, "Could not persist recovery outcome");
+  if (journal.owner.type === "ownership-ambiguous") {
+    return { ok: false, error: transactionError("recovering", "recovery-required", "Pending transaction identity is ambiguous", journal) };
+  }
+  if (inspection.status === "committed-finalization-pending") {
     try {
       if (options.finalizeCommitted && !await options.finalizeCommitted(journal)) {
         return { ok: false, error: transactionError("recovering", "recovery-required", "Committed runtime surfaces could not be finalized", journal) };
@@ -405,7 +464,7 @@ export async function recoverPendingTransaction(options: {
       return { ok: false, error: transactionError("recovering", "journal-cleanup-failed", error instanceof Error ? error.message : "Could not clean committed journal", journal) };
     }
   }
-  if (journal.state === "recovery-succeeded") return cleanTerminalRecovery(options.caps, journalPath, journal);
+  if (inspection.status === "terminal-cleanup-pending") return cleanTerminalRecovery(options.caps, journalPath, journal);
   // Journals written by the previous recovery implementation can already contain
   // durable success without the terminal state; finalize those before cleanup.
   if (hasLocalEvidence(journal) && journal.rollbackOutcome.status === "succeeded") {
@@ -530,10 +589,33 @@ export async function runUpdateTransaction(options: UpdateTransactionOptions): P
       return { type: "already-current", release };
     }
 
-    const snapshot = snapshotTemplate({ agentDir: options.agentDir, caps: options.caps });
-    if (!snapshot.ok) return failure(snapshot.error, options.selector, release);
     const candidate = prepareExecutableCandidate({ sourcePath: acquired.value.stagedPath, destinationPath: options.destinationPath, caps: options.caps });
     if (!candidate.ok) return failure(candidate.error, options.selector, release);
+
+    const identity = await probeBinaryVersion(candidate.value.candidatePath, options.caps);
+    if (!identity.ok) {
+      cleanup([candidate.value.candidatePath], options.caps);
+      return failure(identity.error, options.selector, release);
+    }
+    const verified = verifyBinaryIdentity(identity.value, expectedVersion);
+    if (!verified.ok) {
+      cleanup([candidate.value.candidatePath], options.caps);
+      return failure(verified.error, options.selector, release);
+    }
+    const candidateInventory = await queryCandidateTemplateInventory({
+      binaryPath: candidate.value.candidatePath,
+      expectedVersion,
+      caps: options.caps,
+    });
+    if (!candidateInventory.ok) {
+      cleanup([candidate.value.candidatePath], options.caps);
+      return failure(candidateInventory.error, options.selector, release);
+    }
+    const snapshot = snapshotTemplate({ agentDir: options.agentDir, inventory: candidateInventory.value.inventory, caps: options.caps });
+    if (!snapshot.ok) {
+      cleanup([candidate.value.candidatePath], options.caps);
+      return failure(snapshot.error, options.selector, release);
+    }
 
     // Un candidato descartado son ~100 MB al lado del binario bueno, y el
     // snapshot del template otro tanto. La ruta de fallo siguiente ya limpiaba;
@@ -541,17 +623,6 @@ export async function runUpdateTransaction(options: UpdateTransactionOptions): P
     const discardCandidate = (): void => {
       cleanup([candidate.value.candidatePath, snapshot.value.path], options.caps);
     };
-
-    const identity = await probeBinaryVersion(candidate.value.candidatePath, options.caps);
-    if (!identity.ok) {
-      discardCandidate();
-      return failure(identity.error, options.selector, release);
-    }
-    const verified = verifyBinaryIdentity(identity.value, expectedVersion);
-    if (!verified.ok) {
-      discardCandidate();
-      return failure(verified.error, options.selector, release);
-    }
 
     const markerBackup = marker ? options.caps.fs.createSiblingFile(markerPath) : undefined;
     try {
