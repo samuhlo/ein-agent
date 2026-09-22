@@ -15,6 +15,8 @@
 //                                 comportamiento desde operaciones estructuradas
 //   ein-cc-sdd summary [change] < summary.md  escribe summary.md desde stdin,
 //                                 canal determinista para el cierre
+//   ein-cc-sdd verification <change> begin|finish [--token <uuid>]
+//                                 liga verify-report.md a la superficie comprobada
 //   ein-cc-sdd settings [--hook]   ajustes del proyecto → directivas
 //   ein-cc-sdd preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]
 //                                 lee o fija la postura del cambio (TDD + carril)
@@ -55,18 +57,19 @@ import {
 	writeChangeLane,
 	writeOpenSpecDelta,
 	writeSddSummary,
+	writeVerifiedSddSummary,
 } from "../../shared/ports/sdd.ts";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { updateSddTaskProgress } from "../../shared/sdd/sdd-task-progress.ts";
 import { join } from "node:path";
-import { writeVerifiedSddSummary } from "../../shared/sdd/sdd-summary-write.ts";
 import { formatSddCheck, formatSddStatus } from "./presentation.ts";
 import { runSyncCommand, type SyncCliResponse } from "./sync-command.ts";
 import { runIntentCommand } from "./intent-command.ts";
 import { runObjectiveCommand } from "./objective-command.ts";
 import { readAgreement } from "../../shared/sdd/intent-agreement.ts";
 import { resolveChangesDir } from "../../shared/sdd/sdd-routing-core.ts";
+import { runVerificationCommand } from "./verification-command.ts";
 
 const cwd = process.cwd();
 
@@ -471,6 +474,14 @@ async function summaryCmd(args: readonly string[]): Promise<void> {
 	if (exitCode !== 0) process.exit(exitCode);
 }
 
+async function verificationCmd(args: readonly string[]): Promise<void> {
+	const action = args[1];
+	const input = action === "finish" ? await Bun.stdin.text() : "";
+	const { text, exitCode } = runVerificationCommand(cwd, args, input);
+	console.log(text);
+	if (exitCode !== 0) process.exit(exitCode);
+}
+
 // Ajustes del proyecto → directivas. `--hook` emite el sobre de SessionStart
 // (lo llama settings.json); sin flag imprime el bloque en claro, que es lo que
 // un agente lee por Bash y lo que un humano quiere ver.
@@ -639,6 +650,7 @@ if (import.meta.main) {
 		case "preflight": await preflightCmd(rest); break;
 		case "delta": await deltaCmd(rest); break;
 		case "summary": await summaryCmd(rest); break;
+		case "verification": await verificationCmd(rest); break;
 		case "task-progress": {
 			const [change, task, action] = rest;
 			if (!change || !task || (action !== "start" && action !== "complete")) throw new Error("Usage: task-progress <change> <task> <start|complete>");

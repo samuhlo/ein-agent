@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
 import { runIntentCommand } from "../ein-cc/sdd-cli/intent-command.ts";
 import { runClaudePreflightInputCommand, runSummaryCommand } from "../ein-cc/sdd-cli/cli.ts";
 import { readAgreement, writeAgreement } from "../shared/sdd/intent-agreement.ts";
@@ -9,11 +10,13 @@ import { closeChange, resolveSddStatus } from "../shared/ports/sdd.ts";
 import { compileClaudeSurface } from "../ein-cc/sync.ts";
 import { readContinuityCheckpoint } from "../ein-pi/agent/lib/continuity-checkpoint-store.ts";
 import { bundleEinCcPayload } from "../installer/scripts/bundle-ein-cc.ts";
+import { beginVerification, finishVerification } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 
 const roots: string[] = [];
 afterEach(() => { for (const path of roots.splice(0)) rmSync(path, { recursive: true, force: true }); });
 function fixture() {
 	const cwd = mkdtempSync(join(tmpdir(), "claude-lifecycle-")); roots.push(cwd);
+	execFileSync("git", ["init", "-q"], { cwd });
 	return { cwd, dir: join(cwd, "openspec/changes/export-csv"), change: "export-csv" };
 }
 const input = {
@@ -21,7 +24,15 @@ const input = {
 	questions: ["Export only visible rows?"], response: "Sí, las visibles. Sigue aquí.", confirmed: true,
 };
 function record(cwd: string, extra = {}) { return runIntentCommand(cwd, ["export-csv", "record"], JSON.stringify({ ...input, ...extra })); }
+function verifyReport(dir: string, content: string): void {
+	const cwd = resolve(dir, "../../..");
+	const begun = beginVerification({ cwd, changePath: dir });
+	if (!begun.ok) throw new Error(begun.reason);
+	const finished = finishVerification({ cwd, changePath: dir, token: begun.value.token, content });
+	if (!finished.ok) throw new Error(finished.reason);
+}
 function ready(dir: string, key: string) {
+	const cwd = resolve(dir, "../../..");
 	const files = {
 		"scope.md": "scope: export\nbudget_allocated: 1\n## Spec delta declaration\nspec_delta: none\nspec_delta_reason: fixture only",
 		"map.md": "Map", "design.md": "Design",
@@ -30,8 +41,9 @@ function ready(dir: string, key: string) {
 		"verify-report.md": 'status: pass\nbehavior_coverage: verified\n- command: `bun test`\nrequired_check: {"command":"bun test","exitCode":0}',
 	};
 	for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), `${text}\nintent_key: ${key}\n`);
+	writeFileSync(join(cwd, "src.ts"), "export const value = 1;\n");
 	utimesSync(join(dir, "apply-progress.md"), new Date(1000000), new Date(1000000));
-	utimesSync(join(dir, "verify-report.md"), new Date(2000000), new Date(2000000));
+	verifyReport(dir, files["verify-report.md"]);
 }
 
 describe("Claude completes SDD without Pi", () => {
@@ -70,9 +82,9 @@ describe("Claude completes SDD without Pi", () => {
 			const agreement = JSON.parse(recorded.text).agreement;
 			expect(agreement.response.source).toBe(origin === "pi" ? "interactive" : "claude-coordinator");
 			const stance = cli(["preflight", f.change, "--tdd", "off", "--lane", "standard"]); expect(stance.code, stance.text).toBe(0);
+			expect(cli(["sync", f.change]).code).toBe(0);
 			ready(f.dir, agreement.materialKey);
 			expect(cli(["status", f.change]).text).not.toContain("Intent pendiente");
-			expect(cli(["sync", f.change]).code).toBe(0);
 			const summary = cli(["summary", f.change], { content: "# Resumen\nExportación verificada.", commands: ["bun test"] }); expect(summary.code, summary.text).toBe(0);
 			const closed = cli(["close", f.change]); expect(closed.code, closed.text).toBe(0);
 			expect(existsSync(join(f.cwd, "openspec/changes/archive", f.change, "summary.md"))).toBe(true);
@@ -143,7 +155,7 @@ describe("Claude completes SDD without Pi", () => {
 		expect(content).toContain(input.response);
 		expect(content).toContain("intent.md");
 		if (origin === "unmanaged") expect(content).toContain("Acuerdo anterior: solo filas visibles");
-		expect(readdirSync(closed.to)).toEqual(["summary.md"]);
+		expect(readdirSync(closed.to).sort()).toEqual(["summary.md", "verification-receipt.json"]);
 	});
 	for (const failure of ["tests", "contradictory", "tasks", "spec", "stale"] as const) test(`close still blocks ${failure}, even with force`, () => {
 		const f = fixture(); const { agreement } = JSON.parse(record(f.cwd).text); ready(f.dir, agreement.materialKey);
@@ -152,7 +164,7 @@ describe("Claude completes SDD without Pi", () => {
 		if (failure === "contradictory") writeFileSync(join(f.dir, "verify-report.md"), `status: pass\nintent_key: ${agreement.materialKey}\nrequired_check: {"command":"bun test","exitCode":1}\n12 failed (expected regression)`);
 		if (failure === "tasks") writeFileSync(join(f.dir, "tasks.md"), `- [ ] 1.1 Pending\nintent_key: ${agreement.materialKey}`);
 		if (failure === "spec") writeFileSync(join(f.dir, "scope.md"), `spec_delta: invalid\nintent_key: ${agreement.materialKey}`);
-		if (failure === "stale") utimesSync(join(f.dir, "apply-progress.md"), new Date(), new Date());
+		if (failure === "stale") writeFileSync(join(f.cwd, "src.ts"), "export const value = 2;\n");
 		expect(closeChange(f.cwd, f.change, { force: true }).ok).toBe(false);
 	});
 	test("refuses symlinked change roots", () => {
@@ -163,13 +175,13 @@ describe("Claude completes SDD without Pi", () => {
 	});
 	test("summary accepts exact commands recorded only in required_check rows", () => {
 		const f = fixture(); const { agreement } = JSON.parse(record(f.cwd).text); ready(f.dir, agreement.materialKey);
-		writeFileSync(join(f.dir, "verify-report.md"), `status: pass\nintent_key: ${agreement.materialKey}\nrequired_check: {"command":"bun test","exitCode":0}`);
+		verifyReport(f.dir, `status: pass\nintent_key: ${agreement.materialKey}\nrequired_check: {"command":"bun test","exitCode":0}`);
 		expect(runSummaryCommand(f.cwd, [f.change], JSON.stringify({ content: "Done", commands: ["bun test"] })).exitCode).toBe(0);
 		expect(runSummaryCommand(f.cwd, [f.change], JSON.stringify({ content: "Done", commands: ["bun run build"] })).exitCode).toBe(1);
 	});
 	for (const result of ['{"command":"bun test","exitCode":null}', '{"command":"bun test"}', 'not JSON', '{"command":"","exitCode":0}']) test(`invalid required result blocks summary: ${result}`, () => {
 		const f = fixture(); const { agreement } = JSON.parse(record(f.cwd).text); ready(f.dir, agreement.materialKey);
-		writeFileSync(join(f.dir, "verify-report.md"), `status: pass\nintent_key: ${agreement.materialKey}\nrequired_check: ${result}\nExecuted: bun test`);
+		verifyReport(f.dir, `status: pass\nintent_key: ${agreement.materialKey}\nrequired_check: ${result}\nExecuted: bun test`);
 		expect(runSummaryCommand(f.cwd, [f.change], JSON.stringify({ content: "Done", commands: ["bun test"] })).exitCode).toBe(1);
 	});
 	test("generated agents know Claude writes phase keys and close uses its structured writer", () => {

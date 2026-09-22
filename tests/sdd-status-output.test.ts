@@ -76,7 +76,7 @@ describe("sdd-status output format", () => {
 		expect(out).toContain("next: apply");
 	});
 
-	test("apply completo → verify presente", () => {
+	test("un verify legacy sin recibo vuelve a verify", () => {
 		const c = change("feat-x");
 		put(c, "scope.md");
 		put(c, "map.md");
@@ -88,7 +88,8 @@ describe("sdd-status output format", () => {
 		const out = formatSddStatus(DIR);
 		expect(out).toContain("apply: complete");
 		expect(out).toContain("verify: pass");
-		expect(out).toContain("next: close");
+		expect(out).toContain("next: verify");
+		expect(out).toContain("verification receipt is absent");
 	});
 
 	// Esta suite reproduce el handler de `/ein:sdd-status` en vez de importarlo:
