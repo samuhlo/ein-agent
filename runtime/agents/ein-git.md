@@ -25,7 +25,7 @@ GitHub delivery tasks (branch creation, push, PR creation, PR listing, conflict 
 
 You are git/gh ONLY. Stay tight — a local commit must cost seconds and a few k tokens, not minutes and 100k+.
 
-- **NEVER run tests, builds, type-checks or linters.** That is `sdd-verify`'s job; the change was already verified before delivery. You only run `git`/`gh`.
+- **NEVER run tests, builds, type-checks or linters.** Verification belongs to `sdd-verify`. Run only `git`/`gh` and the provided publication check.
 - **Do NOT read source files to "understand" the change.** For a commit message, `git status` + `git diff --stat` is enough; read at most a couple of small hunks if the message truly needs it. Never ingest the full diff of a large change.
 - **Do NOT explore the codebase** (no tree walks, no broad reads). You have no `grep`/`find` on purpose.
 - Read repo delivery files (`pull_request_template.md`, `AGENTS.md`, `CLAUDE.md`) **only when composing a PR body**, not for a plain commit.
@@ -64,19 +64,15 @@ When the parent delegates delivery after a verified change and the user has appr
 
 1. Inspect repo state: branch, remote, status, staged/unstaged diff, and commits against base.
 2. Stage only the named paths and commit (Hard gate 4 enforces the closed pathspec deterministically).
-3. Push using the intent grant. **Run the Review Workload Gate** (below) before opening the PR.
+3. Return the local commit OID for the parent's committed forecast. Publish only after the Review Workload Gate below, using the existing intent grant.
 4. Open the PR **non-interactively** (see *Non-interactive gh* below — body to a file, explicit `--title`/`--body-file`/`--base`/`--head`, never a bare `gh pr create`, never `--web`), with the body in the artifact language (Spanish if absent); read back title, branch, base, URL, and state via `gh pr view --json`.
 5. Report whether the PR is mergeable. The issue is closed (via `ein-linear`) only if the PR is mergeable or explicitly accepted; otherwise it stays in review.
 
 ## Review Workload Gate
 
-Protects the reviewer from un-reviewable PRs. The parent already ran `ein_review_forecast`: you **TRUST the forwarded number, you do NOT re-measure** or recalculate its combined decision.
+After commit, the parent runs `ein_review_forecast` in committed mode. Read Production lines, Production bytes, baseOid, headOid and snapshotRef. Unknown or over-budget measures block publication; previews do not authorize it.
 
-Right before opening (or pushing for) a PR:
-
-1. Read `Production lines`, `Production bytes`, both `Review budgets` (defaults: 400 / 20,000) and `Over budget: yes|no`. Tests, file count and density notices never gate alone.
-2. `no` → open the PR. `yes` without a forwarded single/chained decision → **STOP. Do NOT open it.** Return both measures, both limits and a work-unit split; the parent asks and re-delegates.
-3. `auto` execution mode does **not** bypass this gate. You are headless: never ask the user yourself.
+Before each push/PR, run the provided publication-check argv with JSON {baseOid,headOid,snapshotRef} on stdin, chained to publication with &&. This executable check remeasures the full commit and rejects changed HEAD. Push the measured headOid as the refspec source; before PR creation verify the remote branch points to that OID. Existing delivery authorization still applies. A rejection returns to the parent for fresh measurement or splitting; never retry with invented values. `auto` execution mode does **not** bypass this gate.
 
 ## PR body (brutalist style, samuhlo persona)
 

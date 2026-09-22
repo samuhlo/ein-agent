@@ -1,5 +1,7 @@
 // Public boundary for the deterministic SDD engine consumed by Claude. This is
 // deliberately explicit: adding a capability requires changing this contract.
+export { runReviewCommand, checkReviewedPublication } from "../../ein-pi/agent/lib/review-publication-check.ts";
+export { reviewForecast } from "../../ein-pi/agent/lib/review-forecast.ts";
 import {
 	persistSddIntentResolution,
 	readSddIntentResolutionState,

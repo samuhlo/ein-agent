@@ -170,8 +170,9 @@ const RUNTIME_TOKEN_RULES: ReadonlyArray<{
   {
     source: "agents/ein-git.md",
     token: "ein_review_forecast",
-    replacement: "the review-size forecast",
+    replacement: "ein-cc-sdd review-forecast (JSON on stdin)",
   },
+  { source: "agents/ein-git.md", token: "provided publication-check argv", replacement: "ein-cc-sdd review-publication-check" },
   {
     source: "agents/sdd-apply.md",
     token: "ein_sdd_status",

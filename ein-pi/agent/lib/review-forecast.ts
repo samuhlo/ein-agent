@@ -1,40 +1,12 @@
-// =============================================================================
-// REVIEW FORECAST
-// Mide el tamaño de un cambio para el Review Workload Guard: líneas y volumen
-// de producción frente a líneas de tests (se reportan, no gatean). Git decide
-// qué cambió mediante un único pathspec; este módulo traduce el diff a datos.
-//
-// Antes esta medición vivía como STRING DE PROMPT en TRES sitios (orchestrator,
-// ein-git, preflight), ejecutada inline por el parent caro, con un test
-// anti-drift vigilando que las 3 copias no se desincronizaran. Ahora el pathspec
-// vive UNA vez, aquí, y el parent llama a la tool `ein_review_forecast` en vez
-// de ejecutar git — el comandante manda, la tool mide.
-// =============================================================================
-
-import { execFileSync } from "node:child_process";
-
-// Excluye tests y generados de la cuenta de PRODUCCIÓN. Fuente única del
-// pathspec: si cambia, cambia aquí y en ningún otro sitio.
-const PRODUCTION_EXCLUDES = [
-	":(exclude)*.test.*",
-	":(exclude)*.spec.*",
-	":(exclude)**/tests/**",
-	":(exclude)**/__tests__/**",
-	":(exclude)**/e2e/**",
-	":(exclude)*.snap",
-	":(exclude)*-lock.*",
-	":(exclude)dist/**",
-	":(exclude).output/**",
-	":(exclude).nuxt/**",
-	":(exclude)coverage/**",
-	":(exclude)*.min.*",
-	":(exclude)openspec/**",
-] as const;
-
-// Solo tests: se reportan aparte (`+N en tests`), nunca cuentan para el budget.
-const TEST_PATHSPEC = ["*.test.*", "*.spec.*", "**/tests/**"] as const;
+import { readReviewSnapshot, type ReviewRequest } from "./review-snapshot.ts";
+export type { ReviewRequest } from "./review-snapshot.ts";
 
 export type ReviewForecast = {
+	mode?: ReviewRequest["mode"];
+	baseOid?: string;
+	headOid?: string;
+	snapshotRef?: string;
+	reason?: string;
 	// insertions + deletions en ficheros de producción (lo que gatea el budget).
 	production: number;
 	// Bytes UTF-8 no blancos en líneas añadidas y eliminadas de producción.
@@ -67,7 +39,8 @@ export type ReviewBudget = {
 export type ReviewEvaluation = {
 	overLines: boolean;
 	overBytes: boolean;
-	overBudget: boolean;
+	overBudget: boolean | null;
+	decision: "within" | "over" | "unknown";
 	densityNotices: ReviewFileVolume[];
 };
 
@@ -78,26 +51,6 @@ type DiffFile = {
 	path: string;
 	changedLines: number;
 };
-
-function gitDiff(
-	cwd: string,
-	range: string[],
-	options: readonly string[],
-	pathspec: readonly string[],
-): string | null {
-	try {
-		return execFileSync("git", ["diff", ...options, ...range, "--", ...pathspec], {
-			cwd,
-			encoding: "utf8",
-			stdio: ["ignore", "pipe", "ignore"],
-			timeout: 10_000,
-			maxBuffer: 16 * 1024 * 1024,
-			shell: false,
-		});
-	} catch {
-		return null;
-	}
-}
 
 // `--numstat -z` deja las rutas sin escapar. En un rename, la primera entrada
 // termina tras el segundo tab y Git añade origen y destino como dos campos NUL.
@@ -144,47 +97,6 @@ function changedBytes(section: string): number {
 	return bytes;
 }
 
-function measureProduction(
-	cwd: string,
-	range: string[],
-): { lines: number; bytes: number; files: ReviewFileVolume[] } | null {
-	const pathspec = [".", ...PRODUCTION_EXCLUDES];
-	const numstat = gitDiff(cwd, range, ["--numstat", "-z"], pathspec);
-	const patch = gitDiff(cwd, range, ["--no-color", "--no-ext-diff", "--unified=0"], pathspec);
-	if (numstat === null || patch === null) return null;
-
-	const diffFiles = parseNumstat(numstat);
-	if (diffFiles === null) return null;
-	const sections = patch.length === 0 ? [] : patch.split(/^diff --git /mu).slice(1);
-	if (sections.length !== diffFiles.length) return null;
-
-	const files = diffFiles.map((file, index) => {
-		const bytes = changedBytes(sections[index] ?? "");
-		const bytesPerLine = file.changedLines === 0
-			? 0
-			: Math.round((bytes / file.changedLines) * 100) / 100;
-		return {
-			path: file.path,
-			changedLines: file.changedLines,
-			changedBytes: bytes,
-			bytesPerLine,
-		};
-	});
-
-	return {
-		lines: files.reduce((sum, file) => sum + file.changedLines, 0),
-		bytes: files.reduce((sum, file) => sum + file.changedBytes, 0),
-		files,
-	};
-}
-
-function measureTestLines(cwd: string, range: string[]): number | null {
-	const output = gitDiff(cwd, range, ["--numstat", "-z"], TEST_PATHSPEC);
-	if (output === null) return null;
-	const files = parseNumstat(output);
-	return files?.reduce((sum, file) => sum + file.changedLines, 0) ?? null;
-}
-
 function formatInteger(value: number): string {
 	return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
@@ -208,50 +120,41 @@ export function evaluateReviewForecast(
 	return {
 		overLines,
 		overBytes,
-		overBudget: overLines || overBytes,
+		overBudget: forecast.ok ? overLines || overBytes : null,
+		decision: !forecast.ok ? "unknown" : overLines || overBytes ? "over" : "within",
 		densityNotices: forecast.ok
 			? forecast.fileVolumes.filter((file) => file.bytesPerLine > budget.densityBytesPerLine)
 			: [],
 	};
 }
 
-function unavailableForecast(range: string): ReviewForecast {
-	return {
-		production: 0,
-		productionBytes: 0,
-		productionFiles: 0,
-		fileVolumes: [],
-		tests: 0,
-		range,
-		ok: false,
-	};
+
+function classify(path: string): "production" | "test" | "excluded" {
+ if (/^(?:openspec|dist|\.output|\.nuxt|coverage)\//.test(path) || /(?:\.snap$|-lock\.|\.min\.)/.test(path)) return "excluded";
+ return /(?:^|\/)(?:tests|__tests__|e2e)(?:\/|$)|\.(?:test|spec)\./.test(path) ? "test" : "production";
 }
 
-function measureRange(cwd: string, range: string[], rangeLabel: string): ReviewForecast {
-	const production = measureProduction(cwd, range);
-	const tests = measureTestLines(cwd, range);
-	return {
-		production: production?.lines ?? 0,
-		productionBytes: production?.bytes ?? 0,
-		productionFiles: production?.files.length ?? 0,
-		fileVolumes: production?.files ?? [],
-		tests: tests ?? 0,
-		range: rangeLabel,
-		ok: production !== null && tests !== null,
-	};
-}
-
-/**
- * Mide producción y tests de un cambio. Con `base`, compara `base..head`; sin
- * ella, mide staged + unstaged contra HEAD. El `head` explícito permite
- * reproducir el diff de una PR mergeada sin mover el checkout actual.
- */
-export function reviewForecast(cwd: string, base?: string, head = "HEAD"): ReviewForecast {
-	if (!base) return measureRange(cwd, ["HEAD"], "working-tree");
-	const safeRef = /^[\w./-]+$/;
-	const rangeLabel = `${base}..${head}`;
-	if (!safeRef.test(base) || !safeRef.test(head)) return unavailableForecast(rangeLabel);
-	return measureRange(cwd, [rangeLabel], rangeLabel);
+export function reviewForecast(cwd: string, request?: ReviewRequest): ReviewForecast;
+export function reviewForecast(cwd: string, base?: string, head?: string): ReviewForecast;
+export function reviewForecast(cwd: string, input?: ReviewRequest | string, head = "HEAD"): ReviewForecast {
+ const request: ReviewRequest = typeof input === "string" ? { mode: "committed", base: input, head } : input ?? { mode: "working-tree" };
+ const range = request.mode === "working-tree" ? "working-tree" : `${request.base ?? "HEAD"}..${request.head ?? "HEAD"}`;
+ const snapshot = readReviewSnapshot(cwd, request);
+ const unavailable = (reason: string): ReviewForecast => ({ ok: false, production: 0, productionBytes: 0, productionFiles: 0, fileVolumes: [], tests: 0, range, mode: request.mode, reason });
+ if (!snapshot.ok) return unavailable(snapshot.reason);
+ const files = parseNumstat(snapshot.numstatZ);
+ const sections = snapshot.patch.length === 0 ? [] : snapshot.patch.split(/^diff --git /mu).slice(1);
+ if (!files || files.length !== sections.length) return unavailable("snapshot diff is inconsistent");
+ const volumes: ReviewFileVolume[] = [];
+ let tests = 0;
+ files.forEach((file, index) => {
+  const kind = classify(file.path);
+  if (kind === "test") tests += file.changedLines;
+  if (kind !== "production") return;
+  const bytes = changedBytes(sections[index] ?? "");
+  volumes.push({ path: file.path, changedLines: file.changedLines, changedBytes: bytes, bytesPerLine: file.changedLines ? Math.round(bytes / file.changedLines * 100) / 100 : 0 });
+ });
+ return { ok: true, production: volumes.reduce((sum, f) => sum + f.changedLines, 0), productionBytes: volumes.reduce((sum, f) => sum + f.changedBytes, 0), productionFiles: volumes.length, fileVolumes: volumes, tests, range, mode: snapshot.mode, baseOid: snapshot.baseOid, headOid: snapshot.headOid, snapshotRef: snapshot.snapshotRef };
 }
 
 // Render compacto para el envelope del tool: el parent transporta esta decisión.
@@ -261,7 +164,7 @@ export function formatReviewForecast(
 	evaluation = evaluateReviewForecast(forecast, budgetInput),
 ): string {
 	if (!forecast.ok) {
-		return "// review forecast — no medible (¿repo git?, ¿base válida?). Mide a ojo o nombra un base.";
+		return `// review forecast — no medible: ${forecast.reason ?? "Git no disponible"}. No publicar hasta obtener una medida válida.`;
 	}
 	const budget = normalizeBudget(budgetInput);
 	const productionUnit = forecast.productionFiles === 1 ? "fichero" : "ficheros";

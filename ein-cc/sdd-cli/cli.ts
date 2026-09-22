@@ -21,6 +21,7 @@
 // =============================================================================
 
 import {
+	runReviewCommand,
 	changeStanceDirective,
 	initializeSddChange,
 	closeChange,
@@ -619,6 +620,11 @@ async function syncCmd(args: readonly string[]): Promise<void> {
 // guard el dispatch correría con el argv del test runner y mataría el proceso.
 if (import.meta.main) {
 	switch (cmd) {
+		case "review-forecast":
+		case "review-publication-check": {
+			const result = runReviewCommand(cwd, cmd, await Bun.stdin.text());
+			console.log(result.text); process.exitCode = result.exitCode; break;
+		}
 		case "intent": {
 			const result = runIntentCommand(cwd, rest, rest[1] === "record" ? await Bun.stdin.text() : "");
 			console.log(result.text);
@@ -642,7 +648,7 @@ if (import.meta.main) {
 		}
 		case "sync": await syncCmd(rest); break;
 		default:
-			console.log("ein-cc-sdd <status|check|sync> [change] | intent <change> [show|record] (intent --help for JSON) | close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>] | guard (hook) | settings [--hook] | lane [change] [micro|standard] | preflight [change] [--tdd off|strict] [--lane micro|standard] [--force] | delta [change] --domain <domain> < operations.json | summary [change] < summary.json");
+			console.log("ein-cc-sdd <status|check|sync> [change] | intent <change> [show|record] (intent --help for JSON) | close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>] | guard (hook) | settings [--hook] | lane [change] [micro|standard] | preflight [change] [--tdd off|strict] [--lane micro|standard] [--force] | delta [change] --domain <domain> < operations.json | summary [change] < summary.json | review-forecast < request.json | review-publication-check < measurement.json");
 			process.exit(1);
 	}
 }

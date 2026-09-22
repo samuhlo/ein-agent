@@ -280,6 +280,7 @@ describe("evaluateReviewForecast — puerta combinada y aviso localizado", () =>
 			fileVolumes: [{ path: "boundary.ts", changedLines: 1, changedBytes: 160, bytesPerLine: 160 }],
 		}), budget);
 		expect(result).toEqual({
+			decision: "within",
 			overLines: false,
 			overBytes: false,
 			overBudget: false,
@@ -309,8 +310,8 @@ describe("el pathspec vive en UN sitio (anti-drift eliminado)", () => {
 		}
 	});
 
-	test("el pathspec vive en review-forecast.ts", () => {
-		expect(readFileSync(join(AGENT, "lib/review-forecast.ts"), "utf8")).toContain(":(exclude)*.test.*");
+	test("la medición consume el snapshot común", () => {
+		expect(readFileSync(join(AGENT, "lib/review-forecast.ts"), "utf8")).toContain("readReviewSnapshot(cwd, request)");
 	});
 });
 
@@ -327,10 +328,10 @@ describe("el parent llama la tool; ein-git confía en el número", () => {
 		expect(orchestrator.toLowerCase()).toContain("bytes");
 	});
 
-	test("ein-git confía en el número reenviado, no re-mide", () => {
+	test("ein-git comprueba mecánicamente el commit medido", () => {
 		expect(einGit).toContain("Review Workload Gate");
-		expect(einGit).toContain("TRUST the forwarded number");
-		expect(einGit).toContain("do NOT re-measure");
+		expect(einGit).toContain("provided publication-check argv");
+		expect(einGit).toContain("chained to publication with &&");
 		expect(einGit).toContain("Production bytes");
 		expect(einGit).toContain("`auto` execution mode does **not** bypass this gate");
 	});

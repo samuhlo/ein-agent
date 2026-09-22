@@ -291,7 +291,7 @@ function deltaWriteReceipt(details: unknown): ToolReceipt {
 
 function forecastReceipt(details: unknown): ToolReceipt {
 	if (!isRecord(details) || num(details.production) === null) return unreadable();
-	if (details.ok !== true) {
+	if (details.ok !== true || details.decision === "unknown") {
 		return receipt("no se pudo medir el tamaño", ["No se ha podido leer el estado del repositorio para medir el cambio."], true);
 	}
 	const production = num(details.production) ?? 0;

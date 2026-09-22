@@ -35,6 +35,8 @@ coincida exactamente con los imports autorizados de `shared/ports/sdd.ts`.
 | `../../ein-pi/agent/lib/project-directives.ts` | Lee configuración y directivas cuya persistencia sigue perteneciendo al runtime. | `ein-pi/agent/lib/project-directives.ts` | Cuando exista un contrato neutral de configuración del proyecto y cada runtime adapte su almacenamiento sin inventar valores. |
 | `../../ein-pi/agent/lib/sdd-lane.ts` | Persiste y recupera el lane declarado del cambio. | `ein-pi/agent/lib/sdd-lane.ts` | Cuando el lane sea parte del protocolo persistido compartido y una migración instalada preserve los registros existentes. |
 | `../../ein-pi/agent/lib/sdd-preflight-record.ts` | Persiste intención, stance TDD y procedencia previa al flujo. | `ein-pi/agent/lib/sdd-preflight-record.ts` | Cuando esos registros tengan almacenamiento neutral versionado y la compatibilidad con hogares ya instalados esté probada. |
+| `../../ein-pi/agent/lib/review-forecast.ts` | Medición Git única para Pi/Claude. | `ein-pi/agent/lib/review-forecast.ts` | Cuando exista un proveedor Git neutral con paridad probada. |
+| `../../ein-pi/agent/lib/review-publication-check.ts` | Comprueba HEAD y medida antes de publicar, sin conceder autorización. | `ein-pi/agent/lib/review-publication-check.ts` | Cuando el proveedor Git neutral incluya la misma comprobación y CLI. |
 
 El template de Pi deriva el inventario de todos los `.ts` regulares situados en
 la raíz de `contracts/` y `sdd/`. Ambos se despliegan a un único `lib/`, por lo

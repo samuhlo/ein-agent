@@ -19,6 +19,8 @@ const ALLOWED_PI_BRIDGES = [
 	"shared/ports/linear.ts::../../ein-pi/agent/lib/linear-integration.ts",
 	"shared/ports/runtime-payload.ts::ein-pi/agent/surfaces/surface-runner.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/git-baseline.ts",
+	"shared/ports/sdd.ts::../../ein-pi/agent/lib/review-forecast.ts",
+	"shared/ports/sdd.ts::../../ein-pi/agent/lib/review-publication-check.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/guardrails.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/project-directives.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-lane.ts",

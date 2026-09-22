@@ -1,0 +1,50 @@
+import { expect, test } from "bun:test";
+import { execFileSync, spawnSync } from "node:child_process";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { registerSddReadSurface } from "../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts";
+import { registerAgentPromptHook } from "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts";
+import { reviewForecast } from "../ein-pi/agent/lib/review-forecast.ts";
+import { receiptFor } from "../ein-pi/agent/lib/tool-receipts.ts";
+
+test("the actual Pi tool and Claude CLI measure identical requests without project writes", async () => {
+	const cwd = mkdtempSync(join(tmpdir(), "review-tool-"));
+	try {
+		execFileSync("git", ["init", "-q"], { cwd });
+		execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=t@example.test", "commit", "--allow-empty", "-qm", "base"], { cwd });
+		writeFileSync(join(cwd, "new.ts"), "new\n");
+		let tool: any;
+		registerSddReadSurface({ registerCommand() {}, events: { on() {}, emit() {} } } as never,
+			((definition: any) => { if (definition.name === "ein_review_forecast") tool = definition; }) as never);
+		const request = { mode: "working-tree", base: "HEAD" } as const;
+		const before = execFileSync("git", ["status", "--porcelain"], { cwd, encoding: "utf8" });
+		const result = await tool.execute("test", request, undefined, undefined, { cwd, hasUI: false });
+		const expected = reviewForecast(cwd, request);
+		expect(result.details).toMatchObject(expected); expect(result.details.decision).toBe("within");
+		const cli = spawnSync(process.execPath, [resolve(import.meta.dir, "../ein-cc/sdd-cli/cli.ts"), "review-forecast"], { cwd, encoding: "utf8", input: JSON.stringify(request) });
+		expect(cli.status).toBe(0); expect(JSON.parse(cli.stdout)).toMatchObject(expected);
+		expect(execFileSync("git", ["status", "--porcelain"], { cwd, encoding: "utf8" })).toBe(before);
+		expect(readFileSync(join(cwd, "new.ts"), "utf8")).toBe("new\n");
+		const unknown = await tool.execute("bad", { mode: "committed", base: "missing" }, undefined, undefined, { cwd, hasUI: false });
+		expect(unknown.details).toMatchObject({ decision: "unknown", overBudget: null });
+		expect(receiptFor("ein_review_forecast", unknown.details).line).not.toContain("dentro");
+	} finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("the git agent receives a real Pi entrypoint independent of Claude installation", async () => {
+	const cwd = mkdtempSync(join(tmpdir(), "review-prompt-"));
+	try {
+		const handlers = new Map<string, any>();
+		registerAgentPromptHook({ on(name: string, fn: any) { handlers.set(name, fn); } } as never);
+		const result = await handlers.get("before_agent_start")({ agentName: "ein-git", systemPrompt: "Git task", prompt: "Prepare delivery" }, { cwd, hasUI: false });
+		const line = result.systemPrompt.match(/Publication-check argv: (\[[^\n]+?\])/);
+		expect(line).not.toBeNull();
+		const argv = JSON.parse(line[1]); expect(argv[0]).toBe("bun");
+		expect(readFileSync(argv[1], "utf8")).toContain("checkReviewedPublication");
+		const installed = join(cwd, "isolated Pi with spaces", "lib"); mkdirSync(installed, { recursive: true });
+		for (const name of ["review-publication-check.ts", "review-forecast.ts", "review-snapshot.ts"]) copyFileSync(resolve(import.meta.dir, "../ein-pi/agent/lib", name), join(installed, name));
+		const run = spawnSync(process.execPath, [join(installed, "review-publication-check.ts")], { cwd, encoding: "utf8", input: "{}" });
+		expect(run.status).toBe(1); expect(JSON.parse(run.stdout).reason).toBe("invalid publication measurement");
+	} finally { rmSync(cwd, { recursive: true, force: true }); }
+});
