@@ -14,3 +14,6 @@ export {
 	type ContinuityObjectiveView,
 } from "../../ein-pi/agent/lib/continuity-objective.ts";
 export { runContinueInPty } from "../../ein-pi/agent/lib/terminal-continue-transport.ts";
+export { createContinuityOperationRuntime, type OperationStart, type RecoveryAssessment } from "../../ein-pi/agent/lib/continuity-operation-runtime.ts";
+export { operationInputDigest, operationId, classifyContinuityTool, validNativeCallRef, type NativeCallRef } from "../../ein-pi/agent/lib/continuity-operations.ts";
+export { sessionReferenceFor } from "../../ein-pi/agent/lib/runtime-session-identity.ts";

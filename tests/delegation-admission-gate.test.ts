@@ -29,7 +29,7 @@ function harness() {
 		cwd: root,
 		hasUI: false,
 		ui: { notify() {}, select: async () => "off" },
-		sessionManager: { getSessionId: () => "delegation-gate-test" },
+		sessionManager: { getSessionId: () => "delegation-gate-test", getBranch: () => [] },
 	};
 	const gate = (input: Record<string, unknown>, id = "call-1") => handlers.get("tool_call")!({ toolName: "subagent", toolCallId: id, input }, ctx);
 	return { appended, gate, root, scoutTracking, snapshots };

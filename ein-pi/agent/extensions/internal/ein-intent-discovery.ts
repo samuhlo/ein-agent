@@ -1,4 +1,5 @@
 import { evidenceTask, readEvidenceTask, INTENT_EVIDENCE } from "../../lib/intent-evidence.ts";
+import { observeContinuityGuard } from "../../lib/continuity-operation-adapter.ts";
 import { questionnaireBatch, questionnaireAnswer, retainOtherQuestionnaireAnswers, type IntentQuestion } from "../../lib/intent-questionnaire.ts";
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -63,7 +64,7 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 				: "No answer recorded for this call. Recover with status or ask in chat; do not infer agreement.",
 		} }) }] };
 	});
-	pi.on("tool_call", (event, ctx) => {
+	pi.on("tool_call", observeContinuityGuard((event, ctx) => {
 		try {
 			if (event.toolName === "ask_user_question") {
 				const latest = [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === INTENT_STATE);
@@ -109,7 +110,7 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 				}
 			}
 		} catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
-	});
+	}, "intent-discovery"));
 	pi.on("before_agent_start", (event, ctx) => {
 		if (readAgentStartNames(event).length === 0) {
 			const latest = [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === INTENT_STATE);

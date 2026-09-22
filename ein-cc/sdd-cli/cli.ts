@@ -65,6 +65,8 @@ import { formatSddCheck, formatSddStatus } from "./presentation.ts";
 import { runSyncCommand, type SyncCliResponse } from "./sync-command.ts";
 import { runIntentCommand } from "./intent-command.ts";
 import { runObjectiveCommand } from "./objective-command.ts";
+import { runContinuityCommand } from "./continuity-command.ts";
+import { createContinuityOperationRuntime, operationInputDigest, sessionReferenceFor } from "../../shared/ports/continuity.ts";
 import { readAgreement } from "../../shared/sdd/intent-agreement.ts";
 import { resolveChangesDir } from "../../shared/sdd/sdd-routing-core.ts";
 
@@ -142,6 +144,12 @@ export function resolveGuardDecision(
 async function guardCmd(): Promise<void> {
 	const raw = await Bun.stdin.text();
 	const result = resolveGuardDecision(raw, cwd);
+	if (result?.decision === "deny") {
+		try {
+			const input = JSON.parse(raw);
+			if (typeof input.session_id === "string" && typeof input.tool_use_id === "string") createContinuityOperationRuntime(cwd).denied({ runtime: "claude", tool: input.tool_name ?? "Bash", inputDigest: operationInputDigest(input.tool_input), nativeCallRef: { sessionRef: sessionReferenceFor("claude", input.session_id), toolCallId: input.tool_use_id }, effectScope: "external-or-unknown" }, "claude-command-policy");
+		} catch { /* Denial remains authoritative even if diagnostic persistence fails. */ }
+	}
 	if (result) emitDecision(result.decision, result.reason);
 }
 
@@ -634,6 +642,10 @@ if (import.meta.main) {
 		case "check": checkCmd(); break;
 		case "close": closeCmd(); break;
 		case "guard": await guardCmd(); break;
+		case "continuity": {
+			const result = runContinuityCommand(cwd, rest, rest[0] === "resolve" ? await Bun.stdin.text() : "");
+			console.log(result.text); process.exitCode = result.exitCode; break;
+		}
 		case "settings": settingsCmd(rest); break;
 		case "lane": laneCmd(rest); break;
 		case "preflight": await preflightCmd(rest); break;
@@ -647,6 +659,7 @@ if (import.meta.main) {
 		}
 		case "sync": await syncCmd(rest); break;
 		default:
+			console.log("continuity inspect [opId] | continuity resolve <opId> < recovery.json");
 			console.log("ein-cc-sdd <status|check|sync> [change] | intent <change> [show|record] | objective [show|set] | close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>] | guard (hook) | settings [--hook] | lane [change] [micro|standard] | preflight [change] [--tdd off|strict] [--lane micro|standard] [--force] | delta [change] --domain <domain> < operations.json | summary [change] < summary.json");
 			process.exit(1);
 	}

@@ -12,6 +12,7 @@ import {
   localExecutableAvailable,
   runContinueInPty,
   type ContinuityHandoffLifecycle,
+  classifyContinuityTool, operationInputDigest, sessionReferenceFor, validNativeCallRef, type OperationStart,
 } from "../shared/ports/continuity.ts";
 
 const ENDPOINT = "EIN_CONTINUITY_ENDPOINT", TOKEN = "EIN_CONTINUITY_TOKEN";
@@ -19,7 +20,8 @@ const USAGE = "usage: /ein:handoff status|to pi|to claude|refresh|clear";
 const encoder = new TextEncoder(), CONTROL = /[\u0000-\u001f\u007f]/u;
 type Action = "status" | "to-pi" | "to-claude" | "refresh" | "clear";
 type Tool = "Write" | "Edit" | "Bash" | "Task";
-type Event = { kind: "control"; action: Action } | { kind: "prompt"; text: string } | { kind: "mutation"; tool: Tool; success: boolean } | { kind: "refresh"; boundary: "stop" | "compact-manual" | "compact-auto" } | { kind: "shutdown"; reason: "clear" | "resume" | "logout" | "prompt_input_exit" | "bypass_permissions_disabled" | "other" };
+type OperationEvent = { kind: "operation-start" | "operation-denied"; operation: OperationStart } | { kind: "operation-result"; operation: OperationStart; outcome: "succeeded" | "failed" | "unavailable" };
+type Event = OperationEvent | { kind: "control"; action: Action } | { kind: "prompt"; text: string } | { kind: "mutation"; tool: Tool; success: boolean } | { kind: "refresh"; boundary: "stop" | "compact-manual" | "compact-auto" } | { kind: "shutdown"; reason: "clear" | "resume" | "logout" | "prompt_input_exit" | "bypass_permissions_disabled" | "other" };
 type HookResult = Readonly<{ stdout: string; exitCode: 0 }>;
 const FRAME_BYTES = 2_048, IO_MS = 1_000, RESPONSE_MS = 3_000, TERM_MS = 500; let sourceStop: Promise<number> | undefined;
 
@@ -56,7 +58,7 @@ async function sendIpc(event: Event): Promise<string> {
       if (transportTimer) clearTimeout(transportTimer);
       responseTimer = setTimeout(() => finish("unavailable"), RESPONSE_MS);
     };
-    const socket = createConnection(path, () => socket.write(`${JSON.stringify({ v: 1, token, event })}\n`, armResponseDeadline));
+    const socket = createConnection(path, () => socket.write(`${JSON.stringify({ v: event.kind.startsWith("operation-") ? 2 : 1, token, event })}\n`, armResponseDeadline));
     socket.setEncoding("utf8"); socket.on("data", (chunk) => { if (!settled && output.length < 256) output += chunk; });
     transportTimer = setTimeout(() => finish("unavailable"), IO_MS);
     socket.on("end", () => finish(output.trim())); socket.on("error", () => finish("unavailable")); socket.on("close", () => finish("unavailable"));
@@ -78,12 +80,27 @@ export async function handleClaudeHook(input: unknown, send: (event: Event) => P
       if (prompt.length > 0 && encoder.encode(prompt).byteLength <= CONTINUITY_CHECKPOINT_LIMITS.maxObjectiveBytes && !CONTROL.test(prompt)) {
         await send({ kind: "prompt", text: prompt });
       }
-    } else if ((name === "PostToolUse" || name === "PostToolUseFailure") && ["Write", "Edit", "Bash", "Task"].includes(String(value.tool_name))) {
-      await send({ kind: "mutation", tool: value.tool_name as Tool, success: name === "PostToolUse" });
+    } else if (["PreToolUse", "PostToolUse", "PostToolUseFailure"].includes(String(name)) && ["Write", "Edit", "Bash", "Task"].includes(String(value.tool_name))) {
+      if (classifyContinuityTool(String(value.tool_name), value.tool_input) === "read") return { exitCode: 0, stdout: "" };
+      const deny = (reason: string): HookResult => ({ exitCode: 0, stdout: `${JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: reason } })}\n` });
+      if (typeof value.session_id !== "string" || !value.session_id || typeof value.tool_use_id !== "string" || !value.tool_use_id) {
+        if (name === "PreToolUse") return deny("continuity-native-call-identity-unavailable");
+        await send({ kind: "mutation", tool: value.tool_name as Tool, success: false }); return { exitCode: 0, stdout: "" };
+      }
+      const operation: OperationStart = { runtime: "claude", tool: value.tool_name as Tool, inputDigest: operationInputDigest(value.tool_input), nativeCallRef: { sessionRef: sessionReferenceFor("claude", value.session_id), toolCallId: value.tool_use_id }, effectScope: "external-or-unknown" };
+      if (name === "PreToolUse") {
+        let result = "unavailable"; try { result = await send({ kind: "operation-start", operation }); } catch {}
+        if (result !== "operation-recorded") { try { await send({ kind: "operation-denied", operation }); } catch {} return deny(`continuity-operation:${result}`); }
+      } else {
+        const outcome = name === "PostToolUseFailure" ? "failed" : value.tool_name === "Task" ? "unavailable" : "succeeded";
+        await send({ kind: "operation-result", operation, outcome });
+      }
     } else if (name === "Stop") await send({ kind: "refresh", boundary: "stop" });
     else if (name === "PreCompact") await send({ kind: "refresh", boundary: value.trigger === "manual" ? "compact-manual" : "compact-auto" });
     else if (name === "SessionEnd") await send({ kind: "shutdown", reason: ["clear", "resume", "logout", "prompt_input_exit", "bypass_permissions_disabled"].includes(String(value.reason)) ? value.reason as Extract<Event, { kind: "shutdown" }>["reason"] : "other" });
-  } catch {}
+  } catch {
+    if (input && typeof input === "object" && (input as Record<string, unknown>).hook_event_name === "PreToolUse") return { exitCode: 0, stdout: `${JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: "continuity-operation-unavailable" } })}\n` };
+  }
   return { exitCode: 0, stdout: "" };
 }
 
@@ -97,9 +114,13 @@ export function createSupervisorHandler(lifecycle: ContinuityHandoffLifecycle, r
     if (ownership === "committed") return "replacing";
     if (ownership === "preparing") return "busy";
     if (event.kind === "prompt") { lifecycle.captureInput(event.text); return lifecycle.refresh(); }
-    if (event.kind === "mutation") return lifecycle.mutationResult(event.success);
+    if (event.kind === "mutation") return lifecycle.mutationResult(false, "claude");
+    if (event.kind === "operation-start") { const result = lifecycle.beginOperation(event.operation); return result.ok ? "operation-recorded" : `operation:${result.reason}`; }
+    if (event.kind === "operation-denied") { const result = lifecycle.recordAdmissionDenied(event.operation, "claude-continuity-start"); return result.ok ? "operation-recorded" : `operation:${result.reason}`; }
+    if (event.kind === "operation-result") { const result = lifecycle.finishOperation(event.operation, event.outcome); return result.ok ? "operation-recorded" : `operation:${result.reason}`; }
     if (event.kind === "refresh") return lifecycle.refresh();
     if (event.kind === "shutdown") return lifecycle.shutdown();
+    if (event.kind !== "control") return "unavailable";
     if (event.action === "status") return statusCode(await lifecycle.status());
     if (event.action === "refresh") return lifecycle.refresh(true);
     if (event.action === "clear") return lifecycle.clear();
@@ -121,8 +142,16 @@ export function parseIpcFrame(raw: string, token: string): Readonly<{ ok: true; 
   if (!record(frame) || typeof frame.token !== "string") return { ok: false, code: "unavailable" };
   const supplied = Buffer.from(frame.token), expected = Buffer.from(token);
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return { ok: false, code: "unavailable" };
-  if (duplicateKey(raw) || !exact(frame, ["v", "token", "event"]) || frame.v !== 1 || !record(frame.event)) return { ok: false, code: "invalid-frame" };
+  if (duplicateKey(raw) || !exact(frame, ["v", "token", "event"]) || (frame.v !== 1 && frame.v !== 2) || !record(frame.event)) return { ok: false, code: "invalid-frame" };
   const event = frame.event, kind = event.kind;
+  if (frame.v === 2) {
+    if (!["operation-start", "operation-result", "operation-denied"].includes(String(kind)) || !exact(event, kind === "operation-result" ? ["kind", "operation", "outcome"] : ["kind", "operation"])) return { ok: false, code: "invalid-frame" };
+    const op = event.operation;
+    if (!record(op) || !exact(op, ["runtime", "tool", "inputDigest", "nativeCallRef", "effectScope"]) || op.runtime !== "claude" || !["Write", "Edit", "Bash", "Task"].includes(String(op.tool))
+      || typeof op.inputDigest !== "string" || !/^sha256:[a-f0-9]{64}$/.test(op.inputDigest) || !validNativeCallRef(op.nativeCallRef) || !op.nativeCallRef.sessionRef.startsWith("claude:") || op.effectScope !== "external-or-unknown"
+      || kind === "operation-result" && !["succeeded", "failed", "unavailable"].includes(String(event.outcome))) return { ok: false, code: "invalid-frame" };
+    return { ok: true, event: event as OperationEvent };
+  }
   if (kind === "control" && exact(event, ["kind", "action"]) && ["status", "to-pi", "to-claude", "refresh", "clear"].includes(String(event.action))) return { ok: true, event: event as Event };
   if (kind === "prompt" && exact(event, ["kind", "text"]) && typeof event.text === "string" && event.text.length > 0 && encoder.encode(event.text).byteLength <= CONTINUITY_CHECKPOINT_LIMITS.maxObjectiveBytes && !CONTROL.test(event.text)) return { ok: true, event: event as Event };
   if (kind === "mutation" && exact(event, ["kind", "tool", "success"]) && ["Write", "Edit", "Bash", "Task"].includes(String(event.tool)) && typeof event.success === "boolean") return { ok: true, event: event as Event };

@@ -22,7 +22,7 @@ export type ContinuityReadinessBlocker = typeof CONTINUITY_READINESS_BLOCKER_ORD
 export const CONTINUITY_READINESS_WARNING_ORDER = [
 	"git-dirty", "git-staged", "git-untracked", "verification-stale", "verification-failed",
 	"verification-not-run", "verification-unknown", "provider-runtime-unavailable",
-	"process-active", "process-unknown",
+	"process-active", "process-unknown", "operation-history-unobserved",
 ] as const;
 export type ContinuityReadinessWarning = typeof CONTINUITY_READINESS_WARNING_ORDER[number];
 export type ContinuityReadinessInput = Readonly<{
@@ -31,6 +31,7 @@ export type ContinuityReadinessInput = Readonly<{
 	target: ProjectRuntimeProvider;
 	mutation: "settled" | "uncertain";
 	process: "none" | "active" | "unknown";
+	operationHistoryObserved?: boolean;
 }>;
 export type ContinuityReadinessResult =
 	| Readonly<{ status: "ready"; blockers: readonly []; warnings: readonly [] }>
@@ -128,11 +129,12 @@ function finish(blockers: Set<ContinuityReadinessBlocker>, warnings: Set<Continu
 export function auditContinuityReadiness(input: ContinuityReadinessInput): ContinuityReadinessResult {
 	try {
 		const copied = copyOwnData(input);
-		if (!record(copied) || !shape(copied, ["state", "checkpoint", "target", "mutation", "process"])) return finish(new Set(["invalid-input"]), new Set());
+		if (!record(copied) || !shape(copied, ["state", "checkpoint", "target", "mutation", "process"], ["operationHistoryObserved"]) || copied.operationHistoryObserved !== undefined && typeof copied.operationHistoryObserved !== "boolean") return finish(new Set(["invalid-input"]), new Set());
 		if ((copied.target !== "pi" && copied.target !== "claude") || (copied.mutation !== "settled" && copied.mutation !== "uncertain") || !["none", "active", "unknown"].includes(copied.process as string)) return finish(new Set(["invalid-input"]), new Set());
 		if (!validState(copied.state)) return finish(new Set(["invalid-live-state"]), new Set());
 		const state = copied.state, blockers = new Set<ContinuityReadinessBlocker>(), warnings = new Set<ContinuityReadinessWarning>();
 		if (copied.mutation === "uncertain") blockers.add("mutation-uncertain");
+		if (copied.operationHistoryObserved === false) warnings.add("operation-history-unobserved");
 		if (copied.process === "active") warnings.add("process-active"); else if (copied.process === "unknown") warnings.add("process-unknown");
 		const checkpointRead = copied.checkpoint;
 		let checkpoint: ContinuityCheckpoint | undefined;

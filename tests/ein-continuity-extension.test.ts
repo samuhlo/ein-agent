@@ -13,6 +13,10 @@ function ready() { return { status: "ready" as const, blockers: [] as const, war
 function lifecycle(overrides: Partial<ContinuityHandoffLifecycle> = {}) {
 	const calls: string[] = [];
 	const value: ContinuityHandoffLifecycle = {
+		listOperations: () => ({ ok: true, observed: false, operations: [] }),
+		beginOperation: () => ({ ok: true, journal: { schemaVersion: 1, revision: "fixture", operations: [] } }),
+		finishOperation: (_input, outcome) => { calls.push(`mutation:${outcome === "succeeded"}`); return { ok: true, journal: { schemaVersion: 1, revision: "fixture", operations: [] } }; },
+		inspectOperation: () => ({ ok: false, reason: "fixture" }), resolveOperation: () => ({ ok: false, reason: "fixture" }), recordAdmissionDenied: () => ({ ok: false, reason: "fixture", outcome: "not-published" }),
 		captureInput: (text) => { calls.push(`capture:${String(text)}`); }, refresh: async (explicit) => { calls.push(`refresh:${String(explicit)}`); return "refreshed"; },
 		setObjective: async () => ({ outcome: "set", revision: `sha256:${"a".repeat(64)}` }),
 		mutationResult: async (success) => { calls.push(`mutation:${success}`); return success ? "refreshed" : "mutation-uncertain"; },
@@ -34,7 +38,7 @@ function harness(instances = [lifecycle()]) {
 
 describe("ein continuity extension", () => {
 	test("registers one command and each lifecycle hook exactly once", () => {
-		const app = harness(); expect(app.commands.get("ein:handoff")).toHaveLength(1); expect(app.tools.has("ein_continuity_objective")).toBeTrue(); expect([...app.hooks.keys()].sort()).toEqual(["agent_settled", "input", "session_before_compact", "session_shutdown", "session_start", "tool_result"]); expect([...app.hooks.values()].every((items) => items.length === 1)).toBeTrue();
+		const app = harness(); expect(app.commands.get("ein:handoff")).toHaveLength(1); expect(app.tools.has("ein_continuity_objective")).toBeTrue(); expect(app.tools.has("ein_continuity_recover")).toBeTrue(); expect([...app.hooks.keys()].sort()).toEqual(["agent_settled", "input", "session_before_compact", "session_shutdown", "session_start", "tool_call", "tool_result"]); expect([...app.hooks.values()].every((items) => items.length === 1)).toBeTrue();
 	});
 
 	test("sets an objective from the last real human request without accepting a model-supplied request id", async () => {
@@ -88,10 +92,10 @@ describe("ein continuity extension", () => {
 		expect(instance.calls).toEqual(["capture:user objective", "refresh:false"]);
 	});
 
-	test("classifies mutating tool results by name and error without reading payload fields", async () => {
+	test("unreadable or unbound mutation results remain uncertain instead of asserting success", async () => {
 		const instance = lifecycle(), app = harness([instance]); await app.emit("session_start", { type: "session_start" });
 		const event = { type: "tool_result", toolName: "bash", isError: false } as Record<string, unknown>; Object.defineProperty(event, "content", { get: () => { throw new Error("content read"); } }); Object.defineProperty(event, "details", { get: () => { throw new Error("details read"); } }); Object.defineProperty(event, "input", { get: () => { throw new Error("input read"); } });
-		await app.emit("tool_result", event); await app.emit("tool_result", { type: "tool_result", toolName: "read", isError: false }); await app.emit("tool_result", { type: "tool_result", toolName: "ein_openspec_sync", isError: true }); expect(instance.calls).toEqual(["mutation:true", "mutation:false"]);
+		await app.emit("tool_result", event); await app.emit("tool_result", { type: "tool_result", toolName: "read", isError: false }); await app.emit("tool_result", { type: "tool_result", toolName: "ein_openspec_sync", isError: true }); expect(instance.calls).toEqual(["mutation:false", "mutation:false"]);
 	});
 
 	test("saves settled boundaries and emits the context threshold notice once", async () => {

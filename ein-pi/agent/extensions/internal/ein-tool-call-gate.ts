@@ -1,4 +1,5 @@
 import { validateEvidenceDelegation } from "../../lib/intent-discovery.ts";
+import { observeContinuityGuard } from "../../lib/continuity-operation-adapter.ts";
 import { askDeliveryConsent } from "../../lib/delivery-consent.ts";
 import { resolve } from "node:path";
 // =============================================================================
@@ -90,7 +91,7 @@ export function registerToolCallGate(
 		);
 	}
 
-	pi.on("tool_call", async (event, ctx) => {
+	pi.on("tool_call", observeContinuityGuard(async (event, ctx) => {
 		if (event.toolName === "subagent") {
 			const initialAdmission = admitDelegation(event.input);
 			if (initialAdmission.kind === "rejected") {
@@ -274,7 +275,7 @@ export function registerToolCallGate(
 		const guard = await guardChildCommand(event, ctx);
 		if (guard) return guard;
 		return undefined;
-	});
+	}, "tool-call-gate"));
 
 	return { recordDeliveryIntent };
 }

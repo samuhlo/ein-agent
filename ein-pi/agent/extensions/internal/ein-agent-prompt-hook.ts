@@ -1,4 +1,5 @@
 import { evidenceReadAllowed, readEvidenceTask, type IntentEvidence } from "../../lib/intent-evidence.ts";
+import { observeContinuityGuard } from "../../lib/continuity-operation-adapter.ts";
 // =============================================================================
 // EIN AGENT PROMPT HOOK
 // Builds the context added before each Pi agent starts. Selection rules live
@@ -70,7 +71,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 	let evidence: IntentEvidence | undefined;
 	let handoffError: string | undefined;
 	let agreementInput: { directory: string; artifact: string; key: string } | undefined;
-	pi.on("tool_call", (event, ctx) => {
+	pi.on("tool_call", observeContinuityGuard((event, ctx) => {
 		if (evidence) {
 			if (event.toolName === "bash") return evidence.commands.includes(String(event.input.command)) ? undefined : { block: true, reason: "Run only the exact commands supplied for this authorized evidence experiment" };
 			if (["read", "grep", "find"].includes(event.toolName) && evidenceReadAllowed(ctx.cwd, ("path" in event.input ? event.input.path : ".") ?? ".", evidence.roots)) return;
@@ -89,7 +90,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			const body = event.input.content.replace(/^[ \t]*(?:[-*][ \t]+)?intent_key:[^\r\n]*(?:\r?\n|$)/gm, "");
 			event.input.content = `${body}${body.endsWith("\n") ? "" : "\n"}\nintent_key: ${agreementInput.key}\n`;
 		}
-	});
+	}, "agent-prompt"));
 
 	pi.on("before_agent_start", async (event, ctx) => {
 		const isSddAgent = isSddAgentStartEvent(event);
