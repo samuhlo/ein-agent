@@ -1,7 +1,7 @@
 import {
 	deriveContinuityCheckpoint,
 	parseContinuityCheckpoint,
-	type ContinuityCheckpointV1,
+	type ContinuityCheckpoint,
 	type ContinuityCheckpointFacts,
 	type ContinuityWarning,
 } from "./continuity-checkpoint.ts";
@@ -135,7 +135,7 @@ export function auditContinuityReadiness(input: ContinuityReadinessInput): Conti
 		if (copied.mutation === "uncertain") blockers.add("mutation-uncertain");
 		if (copied.process === "active") warnings.add("process-active"); else if (copied.process === "unknown") warnings.add("process-unknown");
 		const checkpointRead = copied.checkpoint;
-		let checkpoint: ContinuityCheckpointV1 | undefined;
+		let checkpoint: ContinuityCheckpoint | undefined;
 		if (!record(checkpointRead) || typeof checkpointRead.status !== "string") blockers.add("invalid-input");
 		else if (checkpointRead.status === "absent") blockers.add(shape(checkpointRead, ["status"]) ? "checkpoint-absent" : "invalid-input");
 		else if (checkpointRead.status === "failure") blockers.add(!shape(checkpointRead, ["status", "reason"]) || !["invalid-content", "read-failure", "unsafe-request"].includes(checkpointRead.reason as string) ? "invalid-input" : checkpointRead.reason === "invalid-content" ? "checkpoint-invalid" : "checkpoint-unreadable");
@@ -170,7 +170,7 @@ export function auditContinuityReadiness(input: ContinuityReadinessInput): Conti
 		if (state.git.changes.some((change) => change.indexStatus !== "." && change.indexStatus !== "?" && change.indexStatus !== "U")) warnings.add("git-staged");
 		if (state.git.changes.some((change) => change.indexStatus === "?" || change.worktreeStatus === "?")) warnings.add("git-untracked");
 		if (checkpoint) {
-			const facts: ContinuityCheckpointFacts = { capturedAt: checkpoint.capturedAt, objective: checkpoint.objective, completed: checkpoint.completed, nextAction: checkpoint.nextAction, unresolvedDecisions: checkpoint.unresolvedDecisions };
+			const facts: ContinuityCheckpointFacts = { capturedAt: checkpoint.capturedAt, objective: checkpoint.objective, objectiveEvidence: checkpoint.version === 2 ? checkpoint.objectiveEvidence : { kind: "legacy" }, completed: checkpoint.completed, nextAction: checkpoint.nextAction, unresolvedDecisions: checkpoint.unresolvedDecisions };
 			const derived = deriveContinuityCheckpoint(state, facts);
 			if (!derived.ok) blockers.add("invalid-live-state");
 			else {

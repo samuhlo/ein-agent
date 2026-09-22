@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
 
-import { deriveContinuityCheckpoint, type ContinuityCheckpointFacts, type ContinuityCheckpointV1 } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
+import { deriveContinuityCheckpoint, type ContinuityCheckpoint, type ContinuityCheckpointFacts } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
 import { CONTINUITY_RESUME_BRIEF_MAX_BYTES, buildContinuityResumeBrief } from "../ein-pi/agent/lib/continuity-resume-brief.ts";
 import type { ContinuityReadinessInput } from "../ein-pi/agent/lib/continuity-readiness.ts";
 import type { ProjectStateV1 } from "../ein-pi/agent/lib/project-state.ts";
@@ -24,7 +24,7 @@ function state(): ProjectStateV1 {
 	};
 }
 
-function checkpoint(project: ProjectStateV1, facts: ContinuityCheckpointFacts = FACTS): ContinuityCheckpointV1 {
+function checkpoint(project: ProjectStateV1, facts: ContinuityCheckpointFacts = FACTS): ContinuityCheckpoint {
 	const result = deriveContinuityCheckpoint(project, facts);
 	if (!result.ok) throw new Error(`fixture failed: ${result.reason}`);
 	return result.checkpoint;
@@ -55,7 +55,17 @@ describe("continuity resume brief", () => {
 		const payload = payloadLine.slice("UNTRUSTED_JSON_DATA=".length);
 		expect(first.payloadByteLength).toBe(new TextEncoder().encode(payload).byteLength);
 		expect(first.payloadSha256).toBe(`sha256:${createHash("sha256").update(payload).digest("hex")}`);
-		expect(data(first.content)).toMatchObject({ target: "claude", checkpointVersion: 1, objective: FACTS.objective });
+		expect(data(first.content)).toMatchObject({ target: "claude", checkpointVersion: 2, objective: FACTS.objective, objectiveEvidence: { kind: "unknown" } });
+	});
+
+	test("presents a valid v1 objective as legacy without rewriting its revision", () => {
+		const current = checkpoint(state()); if (current.version !== 2) throw new Error("fixture");
+		const { revision: ignoredRevision, objectiveEvidence, ...content } = current; void ignoredRevision; void objectiveEvidence;
+		const legacyContent = { ...content, version: 1 as const };
+		const legacy: ContinuityCheckpoint = { ...legacyContent, revision: `sha256:${createHash("sha256").update(JSON.stringify(legacyContent)).digest("hex")}` };
+		const result = success(input(state(), FACTS, { checkpoint: { status: "valid", checkpoint: legacy } }));
+		expect(result.checkpointRevision).toBe(legacy.revision);
+		expect(data(result.content)).toMatchObject({ checkpointVersion: 1, objective: FACTS.objective, objectiveEvidence: { kind: "legacy" } });
 	});
 
 	test("allows ready-with-warnings and exposes only closed warning codes", () => {
@@ -87,7 +97,7 @@ describe("continuity resume brief", () => {
 
 	test("emits generic checkpoint data without participant payload or bootstrap guidance", () => {
 		const result = success(input());
-		expect(data(result.content)).toMatchObject({ checkpointVersion: 1, checkpointRevision: result.checkpointRevision, objective: FACTS.objective });
+		expect(data(result.content)).toMatchObject({ checkpointVersion: 2, checkpointRevision: result.checkpointRevision, objective: FACTS.objective, objectiveEvidence: { kind: "unknown" } });
 		expect(data(result.content)).not.toHaveProperty("sddParticipants");
 		expect(result.content).not.toContain("sddParticipants");
 		expect(result.content).not.toContain("continue participant work in Pi");
@@ -133,7 +143,7 @@ describe("continuity resume brief", () => {
 	test("rejects malformed, tampered, proxy, nested proxy, and getter input without side effects", () => {
 		let calls = 0;
 		const proxy = new Proxy({}, { ownKeys() { calls += 1; throw new Error("trap"); }, getOwnPropertyDescriptor() { calls += 1; throw new Error("trap"); }, getPrototypeOf() { calls += 1; throw new Error("trap"); } });
-		const base = input(), tampered = { ...base, checkpoint: { status: "valid", checkpoint: { ...(base.checkpoint as { status: "valid"; checkpoint: ContinuityCheckpointV1 }).checkpoint, revision: `sha256:${"0".repeat(64)}` } } };
+		const base = input(), tampered = { ...base, checkpoint: { status: "valid", checkpoint: { ...(base.checkpoint as { status: "valid"; checkpoint: ContinuityCheckpoint }).checkpoint, revision: `sha256:${"0".repeat(64)}` } } };
 		const getter = Object.defineProperty({}, "state", { enumerable: true, get() { calls += 1; throw new Error("getter"); } });
 		for (const value of [null, [], {}, proxy, { ...base, state: { ...base.state, identity: proxy } }, getter, tampered]) expect(buildContinuityResumeBrief(value as ContinuityReadinessInput).ok).toBeFalse();
 		expect(calls).toBe(0);
@@ -150,7 +160,7 @@ describe("continuity resume brief", () => {
 			const request = input();
 			const candidate = index % 2 === 0
 				? { ...request, state: { ...request.state, runtimes: { ...request.state.runtimes, claude: { ...request.state.runtimes.claude, references: array } } } }
-				: { ...request, checkpoint: { status: "valid" as const, checkpoint: { ...(request.checkpoint as { status: "valid"; checkpoint: ContinuityCheckpointV1 }).checkpoint, completed: array } } };
+				: { ...request, checkpoint: { status: "valid" as const, checkpoint: { ...(request.checkpoint as { status: "valid"; checkpoint: ContinuityCheckpoint }).checkpoint, completed: array } } };
 			expect(buildContinuityResumeBrief(candidate)).toEqual({ ok: false, reason: "invalid-input" });
 			expect("content" in buildContinuityResumeBrief(candidate)).toBeFalse();
 		}
@@ -162,7 +172,7 @@ describe("continuity resume brief", () => {
 		const candidate = {
 			...request,
 			state: { ...request.state, runtimes: { ...request.state.runtimes, claude: { ...request.state.runtimes.claude, references: Object.freeze([] as string[]) } } },
-			checkpoint: { status: "valid" as const, checkpoint: { ...(request.checkpoint as { status: "valid"; checkpoint: ContinuityCheckpointV1 }).checkpoint, completed: Object.freeze([] as string[]) } },
+			checkpoint: { status: "valid" as const, checkpoint: { ...(request.checkpoint as { status: "valid"; checkpoint: ContinuityCheckpoint }).checkpoint, completed: Object.freeze([] as string[]) } },
 		};
 		expect(buildContinuityResumeBrief(candidate).ok).toBeTrue();
 	});

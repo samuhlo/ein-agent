@@ -1,4 +1,5 @@
 import { withEinCommandSurfaces } from "../lib/command-surface.ts";
+import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import {
@@ -6,9 +7,11 @@ import {
 	localExecutableAvailable,
 	type ContinuityHandoffLifecycle,
 } from "../lib/continuity-handoff-lifecycle.ts";
+import { showContinuityObjective, type ContinuityObjectiveResult } from "../lib/continuity-objective.ts";
 
 export const HANDOFF_USAGE = "Usage: /ein:handoff status|refresh|clear|to pi|to claude";
 const MUTATING_TOOLS = new Set(["write", "edit", "bash", "subagent", "ein_cleaner_improve_apply", "ein_openspec_sync", "ein_openspec_delta_write"]);
+const REQUEST_ENTRY = "ein:continuity-objective-request";
 
 type ExtensionDependencies = Readonly<{
 	createLifecycle?: (cwd: string) => ContinuityHandoffLifecycle;
@@ -25,6 +28,7 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 	return (pi: ExtensionAPI): void => {
 		pi = withEinCommandSurfaces(pi, "ein-continuity");
 		let lifecycle: ContinuityHandoffLifecycle | null = null;
+		let observedRequestId: string | null = null;
 		let thresholdNotified = false;
 		const active = (): ContinuityHandoffLifecycle | null => lifecycle;
 		const create = dependencies.createLifecycle ?? ((cwd: string) => createContinuityHandoffLifecycle(cwd, {
@@ -74,9 +78,48 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 			},
 		});
 
-		pi.on("session_start", (_event, ctx) => { lifecycle = create(ctx.cwd); thresholdNotified = false; });
+		pi.registerTool({
+			name: "ein_continuity_objective",
+			label: "Continuity objective",
+			description: "Show the current objective and expectedRevision with action=show. Set the semantic objective from the latest real human request when recognizing a new task or objective correction; ordinary replies never replace it automatically.",
+			parameters: { type: "object", properties: {
+				action: { type: "string", enum: ["show", "set"] },
+				objective: { type: "string" }, expectedRevision: { type: "string", description: "The checkpoint revision returned by status/show, or absent." },
+			} } as const,
+			async execute(_id, params: { action?: "show" | "set"; objective?: string; expectedRevision?: string }, _signal, _onUpdate, ctx) {
+				if (params.action === "show") {
+					const view = showContinuityObjective(ctx.cwd);
+					return { content: [{ type: "text" as const, text: JSON.stringify(view) }], details: view, isError: view.kind === "unavailable" };
+				}
+				const current = active();
+				let result: ContinuityObjectiveResult;
+				if (!current || !observedRequestId) {
+					result = { outcome: "unavailable", reason: !current ? "lifecycle-unavailable" : "human-request-unavailable" };
+					return { content: [{ type: "text" as const, text: JSON.stringify(result) }], details: result, isError: true };
+				}
+				if (typeof params.objective !== "string" || typeof params.expectedRevision !== "string") {
+					result = { outcome: "invalid", reason: "objective-and-revision-required" };
+					return { content: [{ type: "text" as const, text: JSON.stringify(result) }], details: result, isError: true };
+				}
+				result = await current.setObjective({ objective: params.objective, evidence: {
+					kind: "pi-observed", requestId: observedRequestId, recordedAt: new Date().toISOString(),
+				} }, params.expectedRevision);
+				return { content: [{ type: "text" as const, text: JSON.stringify(result) }], details: result, isError: result.outcome !== "set" && result.outcome !== "unchanged" };
+			},
+		});
+
+		pi.on("session_start", (_event, ctx) => {
+			lifecycle = create(ctx.cwd); thresholdNotified = false;
+			const latest = [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === REQUEST_ENTRY);
+			const data = latest?.type === "custom" ? latest.data as { id?: unknown } : undefined;
+			observedRequestId = typeof data?.id === "string" ? data.id : null;
+		});
 		pi.on("input", async (event) => {
 			if (event.source === "extension") return { action: "continue" as const };
+			if ((event.source === "interactive" || event.source === "rpc") && event.text.trim()) {
+				observedRequestId = randomUUID();
+				pi.appendEntry(REQUEST_ENTRY, { id: observedRequestId });
+			}
 			const current = active(); if (current) { current.captureInput(event.text); await current.refresh(false); }
 			return { action: "continue" as const };
 		});
@@ -91,7 +134,7 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 			}
 		});
 		pi.on("session_before_compact", async (event) => { if (event.reason === "threshold" || event.reason === "overflow") await active()?.refresh(false); });
-		pi.on("session_shutdown", async () => { const current = active(); lifecycle = null; if (current) await current.shutdown(); });
+		pi.on("session_shutdown", async () => { const current = active(); lifecycle = null; observedRequestId = null; if (current) await current.shutdown(); });
 	};
 }
 

@@ -43,6 +43,7 @@ export const EIN_CC_PAYLOAD_SDD_ENTRY = "ein-cc/sdd-cli/cli.ts" as const;
 export const EIN_CC_PAYLOAD_SOURCE_ENTRIES = [
   "ein-cc/sync.ts",
   EIN_CC_PAYLOAD_SDD_ENTRY,
+  "ein-cc/sdd-cli/objective-command.ts",
   SURFACE_RUNNER_SOURCE,
   "ein-cc/continuity-runner.ts",
 ] as const;

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { readAgreement, validateAgreement, writeAgreement, type IntentAgreement } from "../../shared/sdd/intent-agreement.ts";
 import { createIntentMaterialKey, normalizeIntentMaterial, type IntentMaterial } from "../../shared/sdd/sdd-intent-preflight.ts";
 import { isSafeChangeName, resolveChangesDir } from "../../shared/sdd/sdd-routing-core.ts";
+import { setContinuityObjective, showContinuityObjective } from "../../shared/ports/continuity.ts";
 
 export const INTENT_HELP = `ein-cc-sdd intent <change> [show|record] < agreement.json
 show is read-only. record requires JSON:
@@ -28,6 +29,15 @@ type RecordInput = {
 	rounds?: { questions: string[]; response: string }[];
 };
 
+function publishObjective(cwd: string, agreement: IntentAgreement): string | undefined {
+	const shown = showContinuityObjective(cwd);
+	if (shown.kind === "unavailable") return `continuity-objective-unavailable:${shown.reason}`;
+	const result = setContinuityObjective(cwd, { objective: agreement.material.objective, evidence: {
+		kind: "intent", work: agreement.work, materialKey: agreement.materialKey, agreementRevision: agreement.revision,
+	} }, shown.expectedRevision);
+	return result.outcome === "set" || result.outcome === "unchanged" ? undefined : `continuity-objective-${result.outcome}:${result.reason ?? "unknown"}`;
+}
+
 export function runIntentCommand(cwd: string, args: readonly string[], raw = ""): { text: string; exitCode: number } {
 	try {
 		const [change, action = "show"] = args;
@@ -50,7 +60,10 @@ export function runIntentCommand(cwd: string, args: readonly string[], raw = "")
 		const materialKey = createIntentMaterialKey(material);
 		const previous = current.kind === "valid" ? current.agreement : undefined;
 		if (previous && previous.work !== change) throw new Error("Agreement belongs to a different change");
-		if (previous?.status === "confirmed" && previous.materialKey === materialKey) return { text: JSON.stringify({ outcome: "adopted", agreement: previous }), exitCode: 0 };
+		if (previous?.status === "confirmed" && previous.materialKey === materialKey) {
+			const continuityWarning = publishObjective(cwd, previous);
+			return { text: JSON.stringify({ outcome: "adopted", agreement: previous, ...(continuityWarning ? { continuityWarning } : {}) }), exitCode: 0 };
+		}
 		if (current.kind !== "absent") {
 			if (!input.reopenReason?.trim()) throw new Error("Existing intent requires reopenReason");
 			if (previous ? input.expectedRevision !== previous.revision : input.expectedDigest !== digest) throw new Error("Intent changed or was not reviewed: use the revision/digest from intent show");
@@ -76,7 +89,8 @@ export function runIntentCommand(cwd: string, args: readonly string[], raw = "")
 			} else writeFileSync(backup, original, { flag: "wx", mode: 0o600 });
 		}
 		writeAgreement(dir, agreement);
-		return { text: JSON.stringify({ outcome: "recorded", agreement }), exitCode: 0 };
+		const continuityWarning = publishObjective(cwd, agreement);
+		return { text: JSON.stringify({ outcome: "recorded", agreement, ...(continuityWarning ? { continuityWarning } : {}) }), exitCode: 0 };
 	} catch (error) {
 		return { text: error instanceof Error ? error.message : String(error), exitCode: 1 };
 	}

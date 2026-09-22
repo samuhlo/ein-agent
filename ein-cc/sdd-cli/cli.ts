@@ -64,6 +64,7 @@ import { writeVerifiedSddSummary } from "../../shared/sdd/sdd-summary-write.ts";
 import { formatSddCheck, formatSddStatus } from "./presentation.ts";
 import { runSyncCommand, type SyncCliResponse } from "./sync-command.ts";
 import { runIntentCommand } from "./intent-command.ts";
+import { runObjectiveCommand } from "./objective-command.ts";
 import { readAgreement } from "../../shared/sdd/intent-agreement.ts";
 import { resolveChangesDir } from "../../shared/sdd/sdd-routing-core.ts";
 
@@ -619,6 +620,10 @@ async function syncCmd(args: readonly string[]): Promise<void> {
 // guard el dispatch correría con el argv del test runner y mataría el proceso.
 if (import.meta.main) {
 	switch (cmd) {
+		case "objective": {
+			const result = runObjectiveCommand(cwd, rest, rest[0] === "set" ? await Bun.stdin.text() : "");
+			console.log(result.text); process.exitCode = result.exitCode; break;
+		}
 		case "intent": {
 			const result = runIntentCommand(cwd, rest, rest[1] === "record" ? await Bun.stdin.text() : "");
 			console.log(result.text);
@@ -642,7 +647,7 @@ if (import.meta.main) {
 		}
 		case "sync": await syncCmd(rest); break;
 		default:
-			console.log("ein-cc-sdd <status|check|sync> [change] | intent <change> [show|record] (intent --help for JSON) | close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>] | guard (hook) | settings [--hook] | lane [change] [micro|standard] | preflight [change] [--tdd off|strict] [--lane micro|standard] [--force] | delta [change] --domain <domain> < operations.json | summary [change] < summary.json");
+			console.log("ein-cc-sdd <status|check|sync> [change] | intent <change> [show|record] | objective [show|set] | close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>] | guard (hook) | settings [--hook] | lane [change] [micro|standard] | preflight [change] [--tdd off|strict] [--lane micro|standard] [--force] | delta [change] --domain <domain> < operations.json | summary [change] < summary.json");
 			process.exit(1);
 	}
 }

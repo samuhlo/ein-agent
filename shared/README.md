@@ -21,6 +21,12 @@ Claude y el instalador consumen estas rutas públicas y nunca interiores de
 `ein-pi/agent/`. `tests/architecture-boundaries.test.ts` hace cumplir la regla y
 obliga a declarar cualquier puente nuevo.
 
+`shared/ports/continuity.ts` publica temporalmente
+`ein-pi/agent/lib/continuity-objective.ts`, cuyo dueño sigue siendo Pi. El puente
+se retira cuando el checkpoint y su escritor atómico tengan un dueño neutral
+consumido por ambos runtimes; hasta entonces evita que Claude cree otro almacén
+de objetivos.
+
 ## Puentes SDD supervivientes
 
 Estos cinco puentes no son cinco trozos de cerebro pendientes de mover. Son los

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
@@ -13,6 +14,7 @@ function lifecycle(overrides: Partial<ContinuityHandoffLifecycle> = {}) {
 	const calls: string[] = [];
 	const value: ContinuityHandoffLifecycle = {
 		captureInput: (text) => { calls.push(`capture:${String(text)}`); }, refresh: async (explicit) => { calls.push(`refresh:${String(explicit)}`); return "refreshed"; },
+		setObjective: async () => ({ outcome: "set", revision: `sha256:${"a".repeat(64)}` }),
 		mutationResult: async (success) => { calls.push(`mutation:${success}`); return success ? "refreshed" : "mutation-uncertain"; },
 		status: async () => ({ operation: "complete", checkpoint: "present", freshness: "current", pi: ready(), claude: ready() }),
 		prepare: async (target) => { calls.push(`prepare:${String(target)}`); return { ok: true, brief: { ok: true, version: 1, format: "continuity-resume-brief/v1", content: "PRIVATE-BRIEF-CANARY", byteLength: 20, payloadByteLength: 1, payloadSha256: `sha256:${"a".repeat(64)}`, target: target as "pi" | "claude", checkpointRevision: `sha256:${"b".repeat(64)}`, truncated: false, omissions: { changedPaths: 0, completed: 0, unresolvedDecisions: 0 }, warnings: [] } }; },
@@ -21,17 +23,46 @@ function lifecycle(overrides: Partial<ContinuityHandoffLifecycle> = {}) {
 	return { value, calls };
 }
 function harness(instances = [lifecycle()]) {
-	const hooks = new Map<string, Hook[]>(), commands = new Map<string, Command[]>(), notifications: string[] = []; let created = 0;
-	const api = { on: (name: string, handler: Hook) => hooks.set(name, [...(hooks.get(name) ?? []), handler]), registerCommand: (name: string, definition: { handler: Command }) => commands.set(name, [...(commands.get(name) ?? []), definition.handler]) } as unknown as ExtensionAPI;
+	const hooks = new Map<string, Hook[]>(), commands = new Map<string, Command[]>(), tools = new Map<string, any>(), notifications: string[] = []; let created = 0;
+	const entries: { type: "custom"; customType: string; data: unknown }[] = [];
+	const api = { appendEntry: (customType: string, data: unknown) => entries.push({ type: "custom", customType, data }), on: (name: string, handler: Hook) => hooks.set(name, [...(hooks.get(name) ?? []), handler]), registerCommand: (name: string, definition: { handler: Command }) => commands.set(name, [...(commands.get(name) ?? []), definition.handler]), registerTool: (tool: any) => tools.set(tool.name, tool) } as unknown as ExtensionAPI;
 	createEinContinuityExtension({ createLifecycle: () => instances[Math.min(created++, instances.length - 1)]!.value })(api);
-	const context = (patch: Record<string, unknown> = {}) => ({ cwd: "/project", hasUI: true, ui: { notify: (message: string) => notifications.push(message) }, getContextUsage: () => ({ tokens: 90, contextWindow: 100, percent: 90 }), waitForIdle: async () => { instances[0]!.calls.push("idle"); }, ...patch }) as unknown as ExtensionCommandContext;
+	const context = (patch: Record<string, unknown> = {}) => ({ cwd: "/project", hasUI: true, sessionManager: { getBranch: () => entries }, ui: { notify: (message: string) => notifications.push(message) }, getContextUsage: () => ({ tokens: 90, contextWindow: 100, percent: 90 }), waitForIdle: async () => { instances[0]!.calls.push("idle"); }, ...patch }) as unknown as ExtensionCommandContext;
 	const emit = async (name: string, event: Record<string, unknown>, ctx = context()) => { for (const hook of hooks.get(name) ?? []) await hook(event, ctx); };
-	return { hooks, commands, notifications, context, emit, command: commands.get("ein:handoff")![0]!, instances };
+	return { hooks, commands, tools, notifications, context, emit, command: commands.get("ein:handoff")![0]!, instances };
 }
 
 describe("ein continuity extension", () => {
 	test("registers one command and each lifecycle hook exactly once", () => {
-		const app = harness(); expect(app.commands.get("ein:handoff")).toHaveLength(1); expect([...app.hooks.keys()].sort()).toEqual(["agent_settled", "input", "session_before_compact", "session_shutdown", "session_start", "tool_result"]); expect([...app.hooks.values()].every((items) => items.length === 1)).toBeTrue();
+		const app = harness(); expect(app.commands.get("ein:handoff")).toHaveLength(1); expect(app.tools.has("ein_continuity_objective")).toBeTrue(); expect([...app.hooks.keys()].sort()).toEqual(["agent_settled", "input", "session_before_compact", "session_shutdown", "session_start", "tool_result"]); expect([...app.hooks.values()].every((items) => items.length === 1)).toBeTrue();
+	});
+
+	test("sets an objective from the last real human request without accepting a model-supplied request id", async () => {
+		let observed: any;
+		const instance = lifecycle({ setObjective: async (request, revision) => { observed = { request, revision }; return { outcome: "set", revision: `sha256:${"c".repeat(64)}` }; } });
+		const app = harness([instance]); await app.emit("session_start", { type: "session_start" });
+		const tool = app.tools.get("ein_continuity_objective");
+		expect(tool.parameters.properties).not.toHaveProperty("requestId");
+		expect((await tool.execute("call", { objective: "Objetivo nuevo", expectedRevision: "absent" })).isError).toBeTrue();
+		await app.emit("input", { type: "input", source: "interactive", text: "Cambia el objetivo" });
+		const result = await tool.execute("call", { objective: "Sí", expectedRevision: "absent", requestId: "invented" });
+		expect(result.isError).toBeFalse(); expect(observed.revision).toBe("absent");
+		expect(observed.request).toMatchObject({ objective: "Sí", evidence: { kind: "pi-observed" } });
+		expect(observed.request.evidence.requestId).not.toBe("invented");
+		const observedId = observed.request.evidence.requestId;
+		await app.emit("session_shutdown", {}); await app.emit("session_start", {});
+		await tool.execute("resumed", { objective: "Objetivo recuperado", expectedRevision: "absent" });
+		expect(observed.request.evidence.requestId).toBe(observedId);
+	});
+
+	test("shows the CAS revision without a human request or writing project state", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "ein-objective-view-"));
+		try {
+			const app = harness(); const ctx = app.context({ cwd }); await app.emit("session_start", {}, ctx);
+			const result = await app.tools.get("ein_continuity_objective").execute("show", { action: "show" }, undefined, undefined, ctx);
+			expect(result.isError).toBeFalse(); expect(result.details).toEqual({ kind: "absent", expectedRevision: "absent" });
+			expect(existsSync(join(cwd, ".ein"))).toBeFalse();
+		} finally { rmSync(cwd, { recursive: true, force: true }); }
 	});
 
 	test("handles usage, status, refresh, and clear with closed output", async () => {
