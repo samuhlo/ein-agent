@@ -74,9 +74,9 @@ describe("orchestrator.md Scope Gate Contract", () => {
   });
 
   test("mantiene la intención de síntesis fuera del reporte cerrado del scout", () => {
-    expect(scout).toContain("not top-level scout report fields");
-    expect(scout).toContain("exactly the existing `ein-scout-report/v1` fields");
-    expect(scout).toContain("`severity`, `alternatives`, or `candidate_slices`");
+    expect(scout).toContain("EXACTLY these top-level fields — no more, no less");
+    expect(scout).toContain('`version`: the string `"ein-scout-report/v1"`');
+    expect(scout).toContain("`severity`, `alternatives` and `candidate_slices` belong to parent synthesis after validation, never scout fields");
   });
 
   test("el routing pre-scope no selecciona sdd-map", () => {
