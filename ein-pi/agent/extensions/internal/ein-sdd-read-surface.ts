@@ -12,9 +12,6 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { t, tf } from "../../lib/i18n/strings.ts";
 import {
-	getSddPreflightPreferences,
-} from "../../lib/sdd-preflight.ts";
-import {
 	lintChange,
 	lintPhaseArtifact,
 } from "../../lib/sdd-guardrails.ts";
@@ -28,8 +25,7 @@ import {
 	sddNextHandoff,
 } from "../../lib/sdd-router.ts";
 import {
-	DEFAULT_REVIEW_BUDGET_BYTES,
-	DEFAULT_REVIEW_DENSITY_NOTICE_BYTES_PER_LINE,
+	DEFAULT_REVIEW_BUDGET,
 	evaluateReviewForecast,
 	formatReviewForecast,
 	reviewForecast,
@@ -188,11 +184,7 @@ export function registerSddReadSurface(
 			},
 		} as const,
 		async execute(_id, params: { base?: string; mode?: "working-tree" | "committed"; head?: string; paths?: string[] }, _signal, _onUpdate, ctx: ExtensionContext) {
-			const budget = {
-				lines: getSddPreflightPreferences(ctx)?.reviewBudgetLines ?? 400,
-				bytes: DEFAULT_REVIEW_BUDGET_BYTES,
-				densityBytesPerLine: DEFAULT_REVIEW_DENSITY_NOTICE_BYTES_PER_LINE,
-			};
+			const budget = DEFAULT_REVIEW_BUDGET;
 			const forecast = reviewForecast(ctx.cwd, { ...params, mode: params?.mode ?? "working-tree" });
 			const evaluation = evaluateReviewForecast(forecast, budget);
 			return {

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkReviewedPublication } from "../ein-pi/agent/lib/review-publication-check.ts";
 import { reviewForecast } from "../ein-pi/agent/lib/review-forecast.ts";
+import { bundleEinCcPayload } from "../installer/scripts/bundle-ein-cc.ts";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -27,11 +28,12 @@ test("Pi entry and Claude CLI check the same immutable measurement", () => {
 	const { root, request } = fixture();
 	expect(checkReviewedPublication(root, request)).toEqual({ ok: true });
 	for (const entry of [pi, claude]) { const result = cli(root, entry, request); expect(result.status).toBe(0); expect(JSON.parse(result.stdout)).toEqual({ ok: true }); }
+	for (const entry of [pi, claude]) expect(spawnSync(process.execPath, [entry, "review-publication-check", "--paths=feature.ts"], { cwd: root, input: JSON.stringify(request) }).status).toBe(1);
 });
 test("invalid, partial, over-budget or old-HEAD measurements prevent the fake publisher", () => {
 	const box = fixture();
 	const publish = (request: unknown) => spawnSync("sh", ["-c", '"$1" "$2" review-publication-check && touch published', "check", process.execPath, pi], { cwd: box.root, input: JSON.stringify(request), encoding: "utf8" });
-	for (const request of [{ ...box.request, snapshotRef: `sha256:${"0".repeat(64)}` }, { ...box.request, baseOid: "bad" }]) {
+	for (const request of [{ ...box.request, snapshotRef: `sha256:${"0".repeat(64)}` }, { ...box.request, baseOid: "bad" }, { ...box.request, paths: [] }, { ...box.request, budget: 1000 }]) {
 		expect(publish(request).status).not.toBe(0); expect(existsSync(join(box.root, "published"))).toBe(false);
 	}
 	box.git("commit", "--allow-empty", "-qm", "new head"); expect(publish(box.request).status).not.toBe(0); expect(existsSync(join(box.root, "published"))).toBe(false);
@@ -42,3 +44,21 @@ test("invalid, partial, over-budget or old-HEAD measurements prevent the fake pu
 	expect(publish({ baseOid: fresh.baseOid, headOid: fresh.headOid, snapshotRef: fresh.snapshotRef }).status).toBe(0);
 	expect(existsSync(join(box.root, "published"))).toBe(true);
 });
+
+test("the packaged standalone Claude CLI measures and checks actual committed changes", async () => {
+	const distribution = mkdtempSync(join(tmpdir(), "review-cli-payload-")); roots.push(distribution);
+	const archive = join(distribution, "runtime.tar.gz"), binary = join(distribution, "ein-cc-sdd");
+	await bundleEinCcPayload({ repoRoot: resolve(import.meta.dir, ".."), outputPath: archive });
+	expect(spawnSync("tar", ["-xzf", archive, "-C", distribution]).status).toBe(0);
+	const build = spawnSync(process.execPath, ["build", "--compile", join(distribution, "ein-cc/sdd-cli/cli.ts"), "--outfile", binary], { cwd: distribution, encoding: "utf8" });
+	expect(build.status, build.stderr).toBe(0);
+	for (const lines of [1, 600]) {
+		const box = fixture(lines);
+		const measured = spawnSync(binary, ["review-forecast"], { cwd: box.root, encoding: "utf8", input: JSON.stringify({ mode: "committed", base: box.request.baseOid }) });
+		expect(measured.status).toBe(0); const forecast = JSON.parse(measured.stdout);
+		expect(forecast).toMatchObject({ production: lines, lineBudget: 400, byteBudget: 20_000, decision: lines === 1 ? "within" : "over" });
+		const { baseOid, headOid, snapshotRef } = forecast;
+		const checked = spawnSync(binary, ["review-publication-check"], { cwd: box.root, encoding: "utf8", input: JSON.stringify({ baseOid, headOid, snapshotRef }) });
+		expect(checked.status).toBe(lines === 1 ? 0 : 1);
+	}
+}, 30_000);

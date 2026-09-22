@@ -29,6 +29,17 @@ test("the actual Pi tool and Claude CLI measure identical requests without proje
 		const unknown = await tool.execute("bad", { mode: "committed", base: "missing" }, undefined, undefined, { cwd, hasUI: false });
 		expect(unknown.details).toMatchObject({ decision: "unknown", overBudget: null });
 		expect(receiptFor("ein_review_forecast", unknown.details).line).not.toContain("dentro");
+		const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+		writeFileSync(join(cwd, "new.ts"), "new\n".repeat(600)); execFileSync("git", ["add", "new.ts"], { cwd });
+		execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=t@example.test", "commit", "-qm", "large"], { cwd });
+		const committed = { mode: "committed", base };
+		const measured = await tool.execute("large", committed, undefined, undefined, { cwd, hasUI: false });
+		expect(measured.details).toMatchObject({ decision: "over", lineBudget: 400, byteBudget: 20_000 });
+		const largeCli = spawnSync(process.execPath, [resolve(import.meta.dir, "../ein-cc/sdd-cli/cli.ts"), "review-forecast"], { cwd, encoding: "utf8", input: JSON.stringify(committed) });
+		expect(largeCli.status).toBe(0); expect(JSON.parse(largeCli.stdout)).toMatchObject({ decision: "over", lineBudget: 400, byteBudget: 20_000 });
+		const { baseOid, headOid, snapshotRef } = measured.details;
+		const check = spawnSync(process.execPath, [resolve(import.meta.dir, "../ein-cc/sdd-cli/cli.ts"), "review-publication-check"], { cwd, encoding: "utf8", input: JSON.stringify({ baseOid, headOid, snapshotRef }) });
+		expect(check.status).toBe(1);
 	} finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
@@ -46,5 +57,15 @@ test("the git agent receives a real Pi entrypoint independent of Claude installa
 		for (const name of ["review-publication-check.ts", "review-forecast.ts", "review-snapshot.ts"]) copyFileSync(resolve(import.meta.dir, "../ein-pi/agent/lib", name), join(installed, name));
 		const run = spawnSync(process.execPath, [join(installed, "review-publication-check.ts")], { cwd, encoding: "utf8", input: "{}" });
 		expect(run.status).toBe(1); expect(JSON.parse(run.stdout).reason).toBe("invalid publication measurement");
+		execFileSync("git", ["init", "-q"], { cwd });
+		const commit = (message: string, empty = false) => execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=t@example.test", "commit", ...(empty ? ["--allow-empty"] : []), "-qm", message], { cwd });
+		commit("base", true); const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+		writeFileSync(join(cwd, "feature.ts"), "feature\n"); execFileSync("git", ["add", "feature.ts"], { cwd }); commit("feature");
+		const measured = spawnSync(process.execPath, [join(installed, "review-publication-check.ts"), "review-forecast"], { cwd, encoding: "utf8", input: JSON.stringify({ mode: "committed", base }) });
+		expect(measured.status).toBe(0); const { baseOid, headOid, snapshotRef } = JSON.parse(measured.stdout);
+		const request = JSON.stringify({ baseOid, headOid, snapshotRef });
+		expect(spawnSync(process.execPath, [join(installed, "review-publication-check.ts")], { cwd, input: request }).status).toBe(0);
+		commit("moved head", true);
+		expect(spawnSync(process.execPath, [join(installed, "review-publication-check.ts")], { cwd, input: request }).status).toBe(1);
 	} finally { rmSync(cwd, { recursive: true, force: true }); }
 });

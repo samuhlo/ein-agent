@@ -44,8 +44,10 @@ export type ReviewEvaluation = {
 	densityNotices: ReviewFileVolume[];
 };
 
+export const DEFAULT_REVIEW_BUDGET_LINES = 400;
 export const DEFAULT_REVIEW_BUDGET_BYTES = 20_000;
 export const DEFAULT_REVIEW_DENSITY_NOTICE_BYTES_PER_LINE = 160;
+export const DEFAULT_REVIEW_BUDGET: Readonly<ReviewBudget> = Object.freeze({ lines: DEFAULT_REVIEW_BUDGET_LINES, bytes: DEFAULT_REVIEW_BUDGET_BYTES, densityBytesPerLine: DEFAULT_REVIEW_DENSITY_NOTICE_BYTES_PER_LINE });
 
 type DiffFile = {
 	path: string;

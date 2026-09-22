@@ -633,6 +633,7 @@ if (import.meta.main) {
 	switch (cmd) {
 		case "review-forecast":
 		case "review-publication-check": {
+			if (rest.length) { console.log(JSON.stringify({ ok: false, reason: "Review commands accept JSON on stdin, not positional arguments" })); process.exitCode = 1; break; }
 			const result = runReviewCommand(cwd, cmd, await Bun.stdin.text());
 			console.log(result.text); process.exitCode = result.exitCode; break;
 		}

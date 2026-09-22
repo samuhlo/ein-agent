@@ -33,7 +33,7 @@ import {
 	delegationTargetsOnly,
 } from "./delegation-shape.ts";
 import { type GitBaseline, readGitBaseline, renderGitBaselineLine } from "./git-baseline";
-import { DEFAULT_REVIEW_BUDGET_BYTES } from "./review-forecast.ts";
+import { DEFAULT_REVIEW_BUDGET_BYTES, DEFAULT_REVIEW_BUDGET_LINES } from "./review-forecast.ts";
 import { type TddMode, readTddMode } from "./tdd";
 import {
 	DEFAULT_LANE,
@@ -117,7 +117,6 @@ interface SddPreflightCallbacks {
 // El budget de revisión es fijo (400): el Review Workload Guard lo usa como
 // umbral para avisar de un PR irrevisable. Ya no se pregunta al arrancar —
 // casi nadie lo cambiaba y era la pregunta de más fricción del preflight.
-const DEFAULT_REVIEW_BUDGET_LINES = 400;
 
 const DEFAULT_SDD_PREFLIGHT: SddPreflightPreferences = {
 	executionMode: "interactive",
