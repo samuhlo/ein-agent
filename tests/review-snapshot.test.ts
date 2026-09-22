@@ -58,3 +58,12 @@ test("unmeasurable inputs never become a within-budget decision", () => {
 		expect(evaluateReviewForecast(result, 400)).toMatchObject({ decision: "unknown", overBudget: null });
 	}
 });
+
+test("file-directory replacements count both removed and added files", () => {
+	const root = fixture(); rmSync(join(root, "base.ts")); mkdirSync(join(root, "base.ts"));
+	writeFileSync(join(root, "base.ts/child.ts"), "new child\n");
+	expect(reviewForecast(root)).toMatchObject({ ok: true, production: 2, productionFiles: 2 });
+	git(root, "add", "base.ts"); git(root, "commit", "-qm", "directory");
+	rmSync(join(root, "base.ts"), { recursive: true }); writeFileSync(join(root, "base.ts"), "file again\n");
+	expect(reviewForecast(root)).toMatchObject({ ok: true, production: 2, productionFiles: 2 });
+});

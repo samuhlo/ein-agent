@@ -28,7 +28,8 @@ function treeEntry(root: string, oid: string, path: string): Entry {
 	const raw = git(root, ["--literal-pathspecs", "ls-tree", "-z", oid, "--", path]).toString();
 	if (!raw) return null;
 	const match = /^(\d+) (blob|commit|tree) ([a-f0-9]+)\t([^\0]*)\0$/.exec(raw);
-	if (!match || match[4] !== path || match[2] !== "blob") throw new Error(`unsupported Git entry: ${path}`);
+	if (!match || match[4] !== path || match[2] === "commit") throw new Error(`unsupported Git entry: ${path}`);
+	if (match[2] === "tree") return null;
 	return { mode: match[1]!, content: git(root, ["cat-file", "blob", match[3]!]) };
 }
 function workingEntry(root: string, path: string): Entry {
@@ -36,14 +37,16 @@ function workingEntry(root: string, path: string): Entry {
 	try {
 		for (let i = 1; i < parts.length; i++) {
 			const parent = lstatSync(join(root, ...parts.slice(0, i)));
+			if (parent.isFile()) return null;
 			if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Error(`unsafe parent: ${path}`);
 		}
 		const full = join(root, path), stat = lstatSync(full);
+		if (stat.isDirectory()) return null;
 		if (stat.isSymbolicLink()) return { mode: "120000", content: Buffer.from(readlinkSync(full)) };
 		if (!stat.isFile() || stat.size > MAX_BYTES) throw new Error(`unsupported or oversized entry: ${path}`);
 		return { mode: stat.mode & 0o111 ? "100755" : "100644", content: readFileSync(full) };
 	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+		if (["ENOENT", "ENOTDIR"].includes((error as NodeJS.ErrnoException).code ?? "")) return null;
 		throw error;
 	}
 }
