@@ -154,6 +154,23 @@ describe("parent and child share one resolved apply TDD contract", () => {
 		expect(String(input.workflowScript)).not.toContain("turnBudget");
 	});
 
+	test("resolves persisted stance in the child's declared cwd for direct and workflow launches", async () => {
+		const parent = project();
+		const target = join(parent, "target");
+		writePreflight(parent, "demo", "off");
+		writePreflight(target, "demo", "strict");
+		for (const input of [
+			{ agent: "sdd-apply", cwd: "target", task: "change: demo\nImplement." },
+			{ cwd: "target", workflowScript: `return runs.run("apply",{agent:"sdd-apply",task:"change: demo\\nImplement."})` },
+			{ workflowScript: `return runs.run("apply",{agent:"sdd-apply",cwd:"target",task:"change: demo\\nImplement."})` },
+		] as Record<string, unknown>[]) {
+			expect(await gateHarness(parent).gate(input)).toBeUndefined();
+			const task = input.workflowScript ? parseWorkflowScriptDelegations(String(input.workflowScript))[0]!.task : String(input.task);
+			expect(parseResolvedApplyTdd(task)).toMatchObject({ kind: "resolved", contract: { mode: "strict", source: "change" } });
+			expect((await childHarness(target).start(task)).systemPrompt).not.toContain("Execution blocked");
+		}
+	});
+
 	test("unsupported explicit turn restrictions block instead of being dropped", async () => {
 		const root = project();
 		const input: Record<string, unknown> = { agent: "sdd-apply", task: "Implement.", tdd: "strict", turnBudget: { maxTurns: 5 } };

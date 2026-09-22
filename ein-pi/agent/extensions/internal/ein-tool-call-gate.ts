@@ -1,5 +1,6 @@
 import { validateEvidenceDelegation } from "../../lib/intent-discovery.ts";
 import { askDeliveryConsent } from "../../lib/delivery-consent.ts";
+import { resolve } from "node:path";
 // =============================================================================
 // EIN TOOL CALL GATE
 // Owns Pi's pre-execution boundary: intent, delegation normalization, delivery
@@ -163,16 +164,24 @@ export function registerToolCallGate(
 			// may persist a missing change decision; resolution happens only after
 			// that opportunity, and the result itself is then reused for budget and
 			// child transport.
-			await gateTddForDelegation(event.input, ctx);
+			const childCwd = (item: Record<string, unknown>) => resolve(ctx.cwd,
+				typeof item.cwd === "string" ? item.cwd : isRecord(event.input) && typeof event.input.cwd === "string" ? event.input.cwd : ".");
+			for (const item of items) {
+				if (item.agent !== "sdd-apply" && item.agent !== "sdd-scope") continue;
+				const child = { ...item };
+				delete child.key;
+				await gateTddForDelegation(child, { ...ctx, cwd: childCwd(item) });
+			}
 			items = collectDelegationItems(event.input);
 			const applyContracts: ResolvedApplyTdd[] = [];
 			for (const item of items) {
 				if (item.agent !== "sdd-apply") continue;
-				let resolution = resolveApplyTdd({ cwd: ctx.cwd, task: item.task, structuredHint: item.tdd });
+				const cwd = childCwd(item);
+				let resolution = resolveApplyTdd({ cwd, task: item.task, structuredHint: item.tdd });
 				if (resolution.kind === "needs-decision" && resolution.reason === "project-ask" && ctx.hasUI) {
 					const picked = await ctx.ui.select("TDD estricto para este apply ad-hoc", ["off", "strict"]);
 					if (picked === "off" || picked === "strict") {
-						resolution = resolveApplyTdd({ cwd: ctx.cwd, task: item.task, structuredHint: picked, change: null });
+						resolution = resolveApplyTdd({ cwd, task: item.task, structuredHint: picked, change: null });
 					}
 				}
 				if (resolution.kind !== "resolved") {
@@ -228,7 +237,7 @@ export function registerToolCallGate(
 				if (ctx.hasUI && notification) ctx.ui.notify(notification.message, notification.level);
 			}
 			if (isRecord(event.input) && event.input.agent === "sdd-apply" && typeof event.input.task === "string") {
-				try { compileApplyHandoff(ctx.cwd, event.input.task); }
+				try { compileApplyHandoff(childCwd(event.input), event.input.task); }
 				catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			}
 			ensurePlanningAcceptance(event.input);
