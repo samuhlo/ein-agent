@@ -66,6 +66,24 @@ describe("phase tool budget", () => {
 		expect(result.allocations[0]?.warning).toContain("partial artifact");
 	});
 
+	test("workflow defaults remain a ceiling when phase budgets are materialized per child", () => {
+		const input = {
+			toolBudget: { hard: 5, soft: 3, block: "*" },
+			workflowScript: `return runs.all([{key:"map",agent:"sdd-map",task:"map",toolBudget:{hard:9,soft:4,block:["webfetch"]}},{key:"design",agent:"sdd-design",task:"design"},{key:"worker",agent:"worker",task:"other"}])`,
+		};
+		ensurePhaseContextBudget(input);
+		const items = collectDelegationItems(input);
+		for (const item of items.slice(0, 2)) expect(item.toolBudget).toEqual({ hard: 5, soft: 3, block: "*" });
+		expect(items[2]?.toolBudget).toBeUndefined();
+		expect(input.toolBudget).toEqual({ hard: 5, soft: 3, block: "*" });
+	});
+
+	test("combines inherited and child restrictions without discarding either tool list", () => {
+		const input = { toolBudget: { hard: 12, soft: 9, block: ["webfetch"] }, workflowScript: `return runs.run("map",{agent:"sdd-map",task:"map",toolBudget:{hard:6,soft:5,block:["write"]}})` };
+		ensurePhaseContextBudget(input);
+		expect(collectDelegationItems(input)[0]?.toolBudget).toEqual({ hard: 6, soft: 5, block: [...DEFAULT_BUDGET.block, "webfetch", "write"] });
+	});
+
 	test("does not change scouts or create a cross-invocation balance", () => {
 		const scout = { agent: "ein-scout", task: "read", toolBudget: { hard: 3, block: "*" } };
 		expect(ensurePhaseContextBudget(scout)).toEqual({ changed: false, allocations: [] });

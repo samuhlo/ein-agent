@@ -62,6 +62,26 @@ describe("delegation admission", () => {
 			script: `return runs.status("run-1")`,
 		});
 		expect(admitDelegation({ action: "get", id: "run-1" })).toMatchObject({ kind: "management", action: "get" });
+		expect(admitDelegation({ action: "get", agent: "ein-scout" })).toMatchObject({ kind: "management", action: "get" });
+	});
+
+	test("preserves public output and acceptance option forms in direct and workflow calls", () => {
+		for (const options of [
+			{ outputMode: "inline", outputSchema: false, acceptance: false },
+			{ outputMode: "file-only", output: "report.md", acceptance: "checked" },
+			{ outputSchema: { type: "object" }, acceptance: { level: "none" } },
+		]) {
+			const child = { agent: "worker", task: "inspect", ...options };
+			for (const input of [child, { workflowScript: `return runs.run("one", ${JSON.stringify(child)})` }]) {
+				const result = execution(input);
+				expect(result.items[0]).toMatchObject(child);
+				expect(execution({ workflowScript: result.script }).items[0]).toMatchObject(child);
+			}
+		}
+		for (const options of [{ outputMode: {} }, { outputMode: "discard" }, { outputSchema: true }, { acceptance: true }, { acceptance: "reviewed" }]) {
+			expect(admitDelegation({ agent: "worker", task: "inspect", ...options }).kind).toBe("rejected");
+		}
+		expect(admitDelegation({ action: "get", agent: "ein-scout", task: "execute" }).kind).toBe("rejected");
 	});
 
 	test("rejects variables, interpolation, calls, spreads, computed and duplicate keys", () => {
