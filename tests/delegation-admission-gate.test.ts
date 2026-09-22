@@ -67,9 +67,17 @@ describe("delegation admission gate", () => {
 	test("allows literal status without execution policy effects", async () => {
 		const h = harness();
 		expect(await h.gate({ workflowScript: `return runs.status("run-1")` })).toBeUndefined();
+		expect(await h.gate({ action: "get", agent: "ein-git" })).toBeUndefined();
 		expect(h.appended).toEqual([]);
 		expect(h.snapshots).toEqual([]);
 		expect(h.scoutTracking.size).toBe(0);
+	});
+
+	test("forwards valid public output options through the full launch gate", async () => {
+		const h = harness();
+		const input = { agent: "worker", task: "inspect", outputMode: "inline", outputSchema: false, acceptance: false };
+		expect(await h.gate(input)).toBeUndefined();
+		expect(h.snapshots[0]).toMatchObject({ outputMode: "inline", outputSchema: false, acceptance: false });
 	});
 
 	test("normalizes a valid single and records one admitted snapshot", async () => {
