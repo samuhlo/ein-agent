@@ -15,6 +15,8 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { beginVerification, finishVerification } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 
 const {
 	formatReconciliation,
@@ -35,6 +37,7 @@ const VALID: Record<string, string> = {
 function project(): string {
 	const dir = mkdtempSync(join(tmpdir(), "ein-reconcile-"));
 	mkdirSync(join(dir, "openspec", "changes"), { recursive: true });
+	execFileSync("git", ["init", "-q"], { cwd: dir });
 	return dir;
 }
 
@@ -49,6 +52,16 @@ function changeDir(cwd: string, change: string): string {
 function writeArtifact(dir: string, file: string, mtimeSeconds: number, body?: string) {
 	const path = join(dir, file);
 	writeFileSync(path, body ?? VALID[file] ?? "# vacio\n");
+	utimesSync(path, mtimeSeconds, mtimeSeconds);
+	return path;
+}
+
+function writeVerifiedArtifact(cwd: string, dir: string, mtimeSeconds: number, body = VALID["verify-report.md"]): string {
+	const begun = beginVerification({ cwd, changePath: dir });
+	if (!begun.ok) throw new Error(begun.reason);
+	const finished = finishVerification({ cwd, changePath: dir, token: begun.value.token, content: body });
+	if (!finished.ok) throw new Error(finished.reason);
+	const path = join(dir, "verify-report.md");
 	utimesSync(path, mtimeSeconds, mtimeSeconds);
 	return path;
 }
@@ -89,7 +102,7 @@ describe("reconcilePhaseFailure — reconcilia cuando el trabajo SÍ está", () 
 		writeArtifact(dir, "verify-report.md", 1000);
 		const before = snapshotPhaseArtifacts(cwd, "verify");
 		// El run lo reescribe (mtime posterior).
-		writeArtifact(dir, "verify-report.md", 2000);
+		writeVerifiedArtifact(cwd, dir, 2000);
 
 		expect(reconcilePhaseFailure(cwd, "verify", before).reconciled).toBe(true);
 	});
@@ -110,7 +123,7 @@ describe("reconcilePhaseFailure — reconcilia cuando el trabajo SÍ está", () 
 		// Artefacto válido (status presente → sin error) pero con un placeholder
 		// sin rellenar → warning. El invariante bajo prueba es que un warning
 		// viaja hasta el resultado, no cuál warning concreto lo produce.
-		writeArtifact(changeDir(cwd, "c"), "verify-report.md", 2000, "# Verify\n\nstatus: pass\nnotas: {change}\n");
+		writeVerifiedArtifact(cwd, changeDir(cwd, "c"), 2000, "# Verify\n\nstatus: pass\nnotas: {change}\n");
 
 		const result = reconcilePhaseFailure(cwd, "verify", before);
 		expect(result.reconciled).toBe(true);
@@ -153,6 +166,21 @@ describe("reconcilePhaseFailure — NO reconcilia cuando el trabajo no está", (
 		const result = reconcilePhaseFailure(cwd, "verify", before);
 		expect(result.reconciled).toBe(false);
 		expect(result.reason).toContain("error");
+	});
+
+	test("un fail global con un ejemplo pass no rescata verify", () => {
+		const cwd = project();
+		const before = snapshotPhaseArtifacts(cwd, "verify");
+		writeArtifact(
+			changeDir(cwd, "c"),
+			"verify-report.md",
+			2000,
+			"# Verify\nstatus: fail\nbehavior_coverage: verified\n## Example\nExample expected result: pass\n",
+		);
+
+		const result = reconcilePhaseFailure(cwd, "verify", before);
+		expect(result.reconciled).toBe(false);
+		expect(result.reason).toContain("verificación fallida");
 	});
 
 	test("artefacto vacío → el fallo se respeta", () => {

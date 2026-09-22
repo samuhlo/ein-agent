@@ -8,6 +8,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { deployTemplate } from "../installer/src/core/deploy.ts";
+import { detectPlatform } from "../installer/src/core/platform.ts";
+import { resolvePiInstallContext } from "../installer/src/core/paths.ts";
 import {
 	mergeUserSettings,
 	readUserSettings,
@@ -72,12 +75,11 @@ describe("readUserSettings + mergeUserSettings", () => {
 		expect(merged.campoNuevoDelTemplate).toBe(42);
 	});
 
-	test("settings ausente o roto: no revienta, devuelve vacío", () => {
+	test("settings ausente o roto se lee vacío, pero un template roto bloquea la mezcla", () => {
 		expect(readUserSettings(join(DIR, "no-existe"))).toEqual({});
 		writeFileSync(SETTINGS, "{roto");
 		expect(readUserSettings(DIR)).toEqual({});
-		// merge sobre fichero roto no lanza
-		mergeUserSettings(DIR, { defaultModel: "MiniMax-M3" });
+		expect(() => mergeUserSettings(DIR, { defaultModel: "MiniMax-M3" })).toThrow("preferencias personales");
 	});
 
 	test("actualiza los paquetes de Ein a latest y conserva extras del usuario", () => {
@@ -110,5 +112,20 @@ describe("readUserSettings + mergeUserSettings", () => {
 		mergeUserSettings(DIR, { packages: "npm:pi-subagents" });
 		const merged = JSON.parse(readFileSync(SETTINGS, "utf8")) as { packages: string[] };
 		expect(merged.packages).toEqual([...REQUIRED_PI_PACKAGE_SPECS]);
+	});
+
+	test("un archive sin inventario válido falla antes de limpiar la instalación temporal", async () => {
+		const home = join(DIR, "invalid-inventory-home");
+		const context = resolvePiInstallContext(home);
+		const payload = join(DIR, "invalid-inventory-payload");
+		const archive = join(DIR, "invalid-inventory.tar.gz");
+		mkdirSync(join(context.agentDir, "agents"), { recursive: true });
+		writeFileSync(join(context.agentDir, "agents", "old.md"), "old");
+		mkdirSync(payload, { recursive: true });
+		writeFileSync(join(payload, "template-manifest.json"), JSON.stringify({ templateVersion: "1.0.0" }));
+		const tar = Bun.spawn(["tar", "-czf", archive, "-C", payload, "."], { stdout: "pipe", stderr: "pipe" });
+		expect(await tar.exited).toBe(0);
+		await expect(deployTemplate({ ...detectPlatform(), home }, { archivePath: archive }, context)).rejects.toThrow("Inventario");
+		expect(readFileSync(join(context.agentDir, "agents", "old.md"), "utf8")).toBe("old");
 	});
 });

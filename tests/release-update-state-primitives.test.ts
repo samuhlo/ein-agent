@@ -10,6 +10,7 @@ import { deriveArtifactId, type ArtifactId, type MarkerV1, type ResolvedRelease 
 import { fakeUpdateCaps } from "./helpers/fake-update-caps.ts";
 import { deployEmbeddedTemplate, restoreTemplate, snapshotTemplate, validateDeployedManifest } from "../installer/src/core/template-transaction.ts";
 import { defaultUpdateCaps, type UpdateCaps } from "../installer/src/core/update-caps.ts";
+import { TEMPLATE_REPLACE_TREES } from "../installer/src/core/template-inventory.ts";
 
 const roots: string[] = [];
 
@@ -135,6 +136,10 @@ function transactionFixture(candidates: Record<string, unknown>[]): {
       },
       template: {
         ...baseTemplate,
+        async queryInventory() {
+          return { code: 0, stdout: JSON.stringify({ binaryVersion: "1.2.0", templateVersion: "1.2.0",
+            inventory: { schemaVersion: 1, replaceTrees: [...TEMPLATE_REPLACE_TREES], overlayFiles: ["ein-mode.json", "template-manifest.json"] } }) };
+        },
         async deploy(_binaryPath, target) {
           writeFileSync(join(target, "template-manifest.json"), JSON.stringify({ templateVersion: "1.2.0" }));
         },
@@ -160,6 +165,10 @@ function capsWithTemplate(agentDir: string): UpdateCaps {
   return {
     ...base,
     template: {
+      async queryInventory() {
+        return { code: 0, stdout: JSON.stringify({ binaryVersion: "0.20.0", templateVersion: "0.20.0",
+          inventory: { schemaVersion: 1, replaceTrees: [...TEMPLATE_REPLACE_TREES], overlayFiles: ["ein-mode.json", "template-manifest.json"] } }) };
+      },
       async deploy(binaryPath, target) {
         expect(binaryPath).toBe("/verified/ein");
         mkdirSync(join(target, "agents"), { recursive: true });
@@ -188,7 +197,16 @@ describe("release update state primitives", () => {
     writeFileSync(join(agentDir, "mcp.json"), '{"mcpServers":{"custom":{"command":"original"}}}\n');
     writeFileSync(join(agentDir, "skills", "downloaded", "user.md"), "user");
     const caps = capsWithTemplate(agentDir);
-    const snapshot = snapshotTemplate({ agentDir, snapshotPath: join(root(), "snapshot"), caps });
+    const snapshot = snapshotTemplate({
+      agentDir,
+      snapshotPath: join(root(), "snapshot"),
+      inventory: {
+        schemaVersion: 1,
+        replaceTrees: [...TEMPLATE_REPLACE_TREES],
+        overlayFiles: ["ein-mode.json", "mcp.json", "template-manifest.json"],
+      },
+      caps,
+    });
     expect(snapshot.ok).toBe(true);
     expect((await deployEmbeddedTemplate({ binaryPath: "/verified/ein", agentDir, caps })).ok).toBe(true);
     expect(await validateDeployedManifest({ agentDir, expectedVersion: "0.20.0", caps })).toEqual({ ok: true, value: undefined });

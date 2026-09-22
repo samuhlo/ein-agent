@@ -8,6 +8,7 @@ import { isProductionFile } from "./sdd-routing-core.ts";
 import { collectDeclaredApplyStatuses } from "./sdd-apply-status.ts";
 import { extractDeclaredFrontierPaths } from "./sdd-tasks-frontier.ts";
 import { summaryContractErrors } from "./sdd-summary-contract.ts";
+import { parseVerificationReport } from "./sdd-verification-outcome.ts";
 
 export type PhaseRules = Readonly<{
 	requireProblemStatement?: boolean;
@@ -184,11 +185,6 @@ export const PHASE_ARTIFACT: Record<SddPhase, string> = {
 const PHASE_REQUIRED: Partial<Record<SddPhase, { code: string; label: string; pattern: RegExp }[]>> = {
 	scope: [{ code: "scope", label: "scope", pattern: /\bscope\b/i }],
 	map: [{ code: "scope-status", label: "scope_status", pattern: /\bscope_status\b/i }],
-	verify: [{
-		code: "status-line",
-		label: "status: pass|fail",
-		pattern: /\b(?:status|result|resultado)\s*[:=]\s*(pass|fail|passed|failed|ok|pasa|falla)\b/i,
-	}],
 };
 
 export function lintPhaseArtifact(
@@ -222,6 +218,16 @@ export function lintPhaseArtifact(
 			issues.push({ level: "error", code: "missing-status-line", message: "Falta señal obligatoria de apply: status: complete|partial|blocked." });
 		} else if (statuses.length > 1) {
 			issues.push({ level: "warning", code: "duplicate-status-line", message: "apply-progress.md debe contener una sola línea global status: complete|partial|blocked; el siguiente write/edit de apply la normalizará." });
+		}
+	}
+	if (phase === "verify") {
+		const parsed = parseVerificationReport(text);
+		for (const issue of parsed.issues.filter((item) => !["missing-coverage", "required-check-failed"].includes(item.code))) {
+			issues.push({
+				level: "error",
+				code: issue.code === "missing-status" ? "missing-status-line" : issue.code,
+				message: issue.message,
+			});
 		}
 	}
 	if (phase === "close") {
