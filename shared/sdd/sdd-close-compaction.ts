@@ -42,6 +42,8 @@ export type CloseOptions = {
 /** Permite interrumpir la poda en tests sin depender de permisos del sistema. */
 export type CloseCompactionTestSeam = Readonly<{
 	removeEntry?: (path: string) => void;
+	beforeArchive?: (record: { summarySha256: string; verificationReceiptSha256?: string }) => void;
+	afterArchive?: () => void;
 }>;
 
 const INVALID_LEGACY_REASONS = new Set(["none", "n/a", "na", "tbd", "unknown", "-"]);
@@ -269,8 +271,11 @@ export function compactToArchive(
 			completion,
 		};
 		writeFileSync(join(from, CLOSE_PENDING_FILE), `${JSON.stringify(record, null, 2)}\n`, { flag: "wx" });
+		seam.beforeArchive?.(record);
 		renameSync(from, to);
-		return prunePromotedChange(to, record, seam);
+		const result = prunePromotedChange(to, record, seam);
+		if (result === null) seam.afterArchive?.();
+		return result;
 	} catch (error) {
 		return errorMessage(error);
 	}

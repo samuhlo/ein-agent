@@ -50,6 +50,9 @@ export const EIN_CC_PAYLOAD_SOURCE_ENTRIES = [
 
 /** Paths required before a staged sync can be considered usable. */
 export const EIN_CC_PAYLOAD_REQUIRED_PATHS = [
+	"shared/ports/intent.ts",
+	"shared/sdd/intent-draft-store.ts",
+	"shared/sdd/intent-discovery.ts",
   "ein-cc/sync.ts",
   EIN_CC_PAYLOAD_SDD_ENTRY,
   SURFACE_RUNNER_SOURCE,

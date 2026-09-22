@@ -16,6 +16,8 @@ export function readIntentAdmission(input: { root: string; work: string; changeD
   if (draft.status === "valid") {
     const { agreement, publication, revision } = draft.draft;
     const base = { agreement, draftRevision: revision };
+    if (publication.state === "archived") return { ...base, admitted: false, state: "cancelled", reason: "Archived intent is historical; reopen explicitly before another execution" };
+    if (publication.state === "archiving") return { ...base, admitted: false, state: "pending", reason: "Intent archive publication requires recovery" };
     if (publication.state === "promoting" || publication.state === "invalidating") return { ...base, admitted: false, state: "pending", reason: "Intent publication interrupted; recover the saved draft revision" };
     if (agreement.status !== "confirmed") return { ...base, admitted: false, state: agreement.status, reason: "Intent draft is not confirmed" };
     if (input.requiresCanonical || agreement.change || publication.state === "published") {

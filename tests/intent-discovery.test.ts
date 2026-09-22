@@ -6,6 +6,8 @@ import { registerIntentDiscovery } from "../ein-pi/agent/extensions/internal/ein
 import { registerAgentPromptHook } from "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts";
 import { readAgreement } from "../ein-pi/agent/lib/intent-agreement.ts";
 import { runIntentDiscovery } from "../ein-pi/agent/lib/intent-discovery.ts";
+import { readIntentDraft } from "../ein-pi/agent/lib/intent-draft-store.ts";
+import { createIntentDraftRuntime } from "../ein-pi/agent/lib/intent-draft-runtime.ts";
 import { readContinuityCheckpoint } from "../ein-pi/agent/lib/continuity-checkpoint-store.ts";
 import { setContinuityObjective } from "../ein-pi/agent/lib/continuity-objective.ts";
 import { initializeSddChange } from "../ein-pi/agent/lib/sdd-preflight-record.ts";
@@ -26,7 +28,10 @@ function harness(cwd = mkdtempSync(join(tmpdir(), "ein-intent-")), branch: any[]
  const pi = { on: (event: string, handler: Function) => handlers.set(event, handler), appendEntry: (customType: string, data: unknown) => branch.push({ type: "custom", customType, data }) };
  registerIntentDiscovery(pi as never, ((tool: any) => { spec = tool; }) as never);
  const ctx = { cwd, sessionManager: { getBranch: () => branch } };
- const call = async (args: object) => spec.execute("call", { work: "export-csv", ...args }, undefined, undefined, ctx);
+ const call = async (args: object) => {
+  const draft = readIntentDraft(cwd, (args as { work?: string }).work ?? "export-csv");
+  return spec.execute("call", { work: "export-csv", expectedRevision: draft.status === "valid" ? draft.draft.revision : "absent", ...args }, undefined, undefined, ctx);
+ };
  const input = (text: string, source = "interactive") => handlers.get("input")!({ text, source }, ctx);
  const gate = (input: object, toolName = "subagent") => handlers.get("tool_call")!({ toolName, input }, ctx);
  const propose = (extra = {}) => call({ action: "propose", material, decisions: [{ id: "rows", question: "Which rows?", dependsOn: [], status: "open" }], questions: ["Recomiendo exportar lo filtrado. ¿Eso o todos los registros?"], ...extra });
@@ -264,8 +269,8 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
 	test("keeps a published agreement and exposes a warning when continuity cannot be updated", () => {
 		const h = harness();
 		const latest = { id: "request-1", text: "Exporta los resultados", source: "interactive" as const };
-		const snapshot = runIntentDiscovery(h.ctx as never, { action: "record", work: "export-csv", change: "export-csv", material }, (type, data) => h.branch.push({ type: "custom", customType: type, data }), latest,
-			() => ({ outcome: "unavailable", reason: "io" }));
+		const snapshot = runIntentDiscovery(h.ctx as never, { action: "record", work: "export-csv", change: "export-csv", material, expectedRevision: "absent" }, (type, data) => h.branch.push({ type: "custom", customType: type, data }), latest,
+			{ ...createIntentDraftRuntime(h.cwd, { mutating: true }), publishObjective: () => ({ status: "warning", code: "continuity-objective-unavailable:io" }) });
 		expect(snapshot.agreement?.status).toBe("confirmed"); expect(snapshot.continuityWarning).toBe("continuity-objective-unavailable:io");
 		expect(readAgreement(join(h.cwd, "openspec/changes/export-csv")).kind).toBe("valid");
 	});

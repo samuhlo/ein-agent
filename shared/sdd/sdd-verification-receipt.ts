@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 import { captureVerificationSurface, type VerificationSurfaceEntry, type VerificationSurfacePorts } from "./sdd-verification-surface.ts";
 import { parseVerificationReport, type VerificationOutcome } from "./sdd-verification-outcome.ts";
 import { readAgreement } from "./intent-agreement.ts";
+import { readIntentAdmission } from "./intent-admission.ts";
 
 export type VerificationFreshness = Readonly<{
 	state: "current" | "stale" | "unbound" | "unavailable" | "invalid";
@@ -111,6 +112,7 @@ export function createVerificationService(dependencies: VerificationServiceDepen
 
 	function beginVerification(request: VerificationRequest): ServiceResult<VerificationSession> {
 		if (!validChangeDir(request.changePath)) return fail("invalid-change", "change directory is unavailable or unsafe");
+		if (!readIntentAdmission({ root: request.cwd, work: basename(request.changePath), changeDir: request.changePath, requiresCanonical: false }).admitted) return fail("intent-unresolved", "verification cannot bypass an unresolved intent draft");
 		const surface = capture(request);
 		if (!surface.ok) return fail(surface.code, surface.reason);
 		const key = intentKey(request.changePath);
@@ -133,8 +135,7 @@ export function createVerificationService(dependencies: VerificationServiceDepen
 		if (surface.root !== session.root || basename(request.changePath) !== session.change) return fail("session-mismatch", "verification root or change changed");
 		const key = intentKey(request.changePath);
 		if (key !== session.intentKey) return fail("intent-stale", "verification intent agreement changed");
-		const agreement = readAgreement(request.changePath);
-		if (agreement.kind === "invalid" || (agreement.kind === "valid" && agreement.agreement.status !== "confirmed")) {
+		if (!readIntentAdmission({ root: request.cwd, work: basename(request.changePath), changeDir: request.changePath, requiresCanonical: false }).admitted) {
 			return fail("intent-unresolved", "verification requires the current confirmed intent agreement");
 		}
 		if (surface.surfaceRef !== session.surfaceRef || surface.decisionRef !== session.decisionRef) return fail("verification-stale", "verification surface changed during verification");
@@ -157,8 +158,7 @@ export function createVerificationService(dependencies: VerificationServiceDepen
 	}
 
 	function readVerificationFreshness(request: VerificationRequest): VerificationFreshness {
-		const agreement = readAgreement(request.changePath);
-		if (agreement.kind === "invalid" || (agreement.kind === "valid" && agreement.agreement.status !== "confirmed")) {
+		if (!readIntentAdmission({ root: request.cwd, work: basename(request.changePath), changeDir: request.changePath, requiresCanonical: false }).admitted) {
 			return { state: "invalid", reason: "verification intent agreement is unresolved" };
 		}
 		const receiptPath = join(request.changePath, RECEIPT);

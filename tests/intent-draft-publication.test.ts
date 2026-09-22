@@ -51,3 +51,12 @@ test("recovery never overwrites a competing canonical revision", () => {
   expect(readAgreement(f.dir)).toMatchObject({ kind: "valid", agreement: { revision: "another-session" } });
   expect(readIntentDraft(f.root, "export")).toMatchObject({ status: "valid", draft: { revision: draft.draft.revision } });
 });
+
+test("a canonical size failure never strands an unrecoverable promotion journal", () => {
+  const f = fixture();
+  const oversized = f.body("confirmed", "large-review");
+  oversized.agreement = { ...oversized.agreement, response: { id: "long-answer", source: "rpc", text: "x".repeat(50000) } };
+  expect(publishIntentDraft(f.root, oversized, "absent", ports)).toMatchObject({ ok: false, code: "invalid" });
+  expect(readIntentDraft(f.root, "export")).toEqual({ status: "absent" });
+  expect(readAgreement(f.dir)).toMatchObject({ kind: "valid", agreement: { revision: "old" } });
+});

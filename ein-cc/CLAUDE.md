@@ -105,6 +105,18 @@ from memory.
 
 ## Claude intent handoff
 
+For a pending interview, use `ein-cc-sdd intent <work> draft-show` or
+`ein-cc-sdd intent draft-list`. Read `.ein/intent-drafts/<work>.json` before asking
+again; preserve recorded response IDs and their runtime provenance. The draft
+grants no implementation authority. `draft-propose`, `draft-answer`, `draft-review`,
+`draft-confirm`, `draft-cancel` and `draft-recover` take JSON stdin with
+`expectedRevision`; answer/review/confirm also require the current `roundRevision`.
+Answer records literal `text` as claude-coordinator. Review uses `responseId` and
+the resolved decision tree; confirm needs a NEW answer to that final review.
+Use `absent` only to create a draft. A conflict preserves the uncommitted answer;
+reload rather than discard it. A running experiment needs its recorded result,
+never an automatic relaunch. An archived draft is history, not new authorization.
+
 Read a confirmed `intent.md` as the canonical product agreement and preserve its
 objective, boundaries, response and completion criteria. Never treat historical
 `preflight.json` intent data as proof of a new conversation. The shared status

@@ -8,6 +8,7 @@ import { evidenceReadAllowed, readEvidenceTask, type IntentEvidence } from "../.
 import { compileApplyHandoff } from "../../lib/apply-packet-handoff.ts";
 import { join, resolve } from "node:path";
 import { readAgreement } from "../../lib/intent-agreement.ts";
+import { readIntentAdmission } from "../../lib/intent-admission.ts";
 import { PHASE_ARTIFACT, resolveChangesDir, type SddPhase } from "../../lib/sdd-routing-core.ts";
 import { formatSkillsForPrompt, type ExtensionAPI, type Skill } from "@earendil-works/pi-coding-agent";
 import {
@@ -79,7 +80,8 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		if (handoffError) return { block: true, reason: handoffError };
 		if (!agreementInput || !["write", "edit", "bash", "ein_sdd_task_progress", "ein_openspec_delta_write", "ein_sdd_summary", "ein_sdd_verification", "ein_sdd_phase_complete"].includes(event.toolName)) return;
 		const current = readAgreement(agreementInput.directory);
-		if (current.kind !== "valid" || current.agreement.status !== "confirmed" || current.agreement.materialKey !== agreementInput.key) {
+		const admitted = current.kind === "valid" && readIntentAdmission({ root: ctx.cwd, work: current.agreement.work, changeDir: agreementInput.directory, requiresCanonical: true }).admitted;
+		if (!admitted || current.kind !== "valid" || current.agreement.status !== "confirmed" || current.agreement.materialKey !== agreementInput.key) {
 			return { block: true, reason: "Intent changed after this phase started; return blocked and re-plan against the current agreement." };
 		}
 		// Bind newly authored full output to the agreement actually supplied at

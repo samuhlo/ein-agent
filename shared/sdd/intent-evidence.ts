@@ -21,7 +21,7 @@ export function evidenceFor(entries: readonly unknown[], work: string): IntentEv
  }
 }
 
-export function prepareEvidence(agreement: IntentAgreement, plan: EvidencePlan, response: IntentAgreement["response"], previous?: IntentEvidence): IntentEvidence {
+export function prepareEvidence(agreement: IntentAgreement, plan: EvidencePlan, response: IntentAgreement["response"], previous?: IntentEvidence, newId: () => string = randomUUID): IntentEvidence {
  const fact = agreement.decisions?.find((d) => d.id === plan.decisionId);
  if (agreement.status !== "pending" || !fact || fact.status !== "waiting") throw new Error("Evidence must answer an unresolved fact in the current intent");
  if (fact.dependsOn.some((id) => !agreement.decisions?.some((d) => d.id === id && d.status === "resolved"))) throw new Error("Incorporate the existing response to settle the evidence prerequisites first");
@@ -31,7 +31,7 @@ export function prepareEvidence(agreement: IntentAgreement, plan: EvidencePlan, 
   && previous.objective === plan.objective && JSON.stringify(previous.roots) === JSON.stringify(plan.roots) && JSON.stringify(previous.commands) === JSON.stringify(plan.commands);
  if (unchanged) return previous.state === "blocked" ? { ...previous, state: "ready", toolCallId: undefined, result: undefined } : previous;
  if (!response?.id || !response.text) throw new Error("Recover the existing authorization response from intent status/history; a technical rejection is not missing user permission");
- return { ...plan, version: 1, id: randomUUID(), work: agreement.work, materialKey: agreement.materialKey, authorization: response, state: "ready" };
+ return { ...plan, version: 1, id: newId(), work: agreement.work, materialKey: agreement.materialKey, authorization: response, state: "ready" };
 }
 
 // The parent checks this packet against its durable authorization. The child

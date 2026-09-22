@@ -11,6 +11,8 @@ import { compileClaudeSurface } from "../ein-cc/sync.ts";
 import { readContinuityCheckpoint } from "../ein-pi/agent/lib/continuity-checkpoint-store.ts";
 import { bundleEinCcPayload } from "../installer/scripts/bundle-ein-cc.ts";
 import { beginVerification, finishVerification } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
+import { runIntentDiscovery } from "../shared/sdd/intent-discovery.ts";
+import { createIntentDraftRuntime } from "../shared/ports/intent.ts";
 
 const roots: string[] = [];
 afterEach(() => { for (const path of roots.splice(0)) rmSync(path, { recursive: true, force: true }); });
@@ -24,6 +26,10 @@ const input = {
 	questions: ["Export only visible rows?"], response: "Sí, las visibles. Sigue aquí.", confirmed: true,
 };
 function record(cwd: string, extra = {}) { return runIntentCommand(cwd, ["export-csv", "record"], JSON.stringify({ ...input, ...extra })); }
+function recordPi(cwd: string, source: "interactive" | "rpc"): void {
+	runIntentDiscovery({ cwd, sessionManager: { getBranch: () => [] } }, { action: "record", work: "export-csv", change: "export-csv", material: input.material, expectedRevision: "absent" }, () => {},
+		{ id: "observed-pi", text: input.response, source }, createIntentDraftRuntime(cwd, { mutating: true }));
+}
 function verifyReport(dir: string, content: string): void {
 	const cwd = resolve(dir, "../../..");
 	const begun = beginVerification({ cwd, changePath: dir });
@@ -69,8 +75,7 @@ describe("Claude completes SDD without Pi", () => {
 			}
 			let request = { ...input };
 			if (origin === "pi") {
-				const prior = JSON.parse(record(f.cwd).text).agreement;
-				writeAgreement(f.dir, { ...prior, response: { ...prior.response, source: "interactive" } });
+				recordPi(f.cwd, "interactive");
 			}
 			if (origin === "unmanaged") {
 				mkdirSync(f.dir, { recursive: true }); writeFileSync(join(f.dir, "intent.md"), "Acuerdo confirmado en Claude antes del relevo.");
@@ -139,10 +144,10 @@ describe("Claude completes SDD without Pi", () => {
 			const { digest } = JSON.parse(runIntentCommand(f.cwd, [f.change]).text);
 			extra = { expectedDigest: digest, reopenReason: "Register already agreed scope in Claude" };
 		}
+		if (origin === "pi") recordPi(f.cwd, "rpc");
 		const result = record(f.cwd, extra); expect(result.exitCode).toBe(0);
 		const agreement = JSON.parse(result.text).agreement;
 		if (origin === "pi") {
-			writeAgreement(f.dir, { ...agreement, response: { ...agreement.response, source: "rpc" } });
 			const before = readFileSync(join(f.dir, "intent.md"), "utf8");
 			expect(record(f.cwd).exitCode).toBe(0);
 			expect(readFileSync(join(f.dir, "intent.md"), "utf8")).toBe(before);

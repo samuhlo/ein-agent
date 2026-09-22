@@ -29,6 +29,13 @@ de objetivos.
 
 ## Puentes SDD supervivientes
 
+`shared/ports/intent.ts` publica el borrador neutral y el puente
+`../../ein-pi/agent/lib/intent-draft-runtime.ts`: Git comprueba el aislamiento
+privado y el adaptador publica el objetivo mediante el setter de continuidad.
+Propietario: `ein-pi/agent/lib/intent-draft-runtime.ts`. Retirar el puente cuando
+Git y la composición de continuidad tengan proveedores neutrales con la misma
+admisión y CAS probados en Pi y Claude. El núcleo intent nunca lanza procesos.
+
 Estos seis puentes no son seis trozos de cerebro pendientes de mover. Son los
 enchufes con los que el cerebro compartido pide capacidades que pertenecen al
 runtime. La tabla es parte de la frontera: el test de arquitectura exige que

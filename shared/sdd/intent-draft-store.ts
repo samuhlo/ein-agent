@@ -1,11 +1,13 @@
-import { constants, existsSync, openSync, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, readSync, readdirSync, renameSync, unlinkSync, writeSync } from "node:fs";
+import { constants, existsSync, openSync, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, readFileSync, writeFileSync, readSync, readdirSync, renameSync, unlinkSync, writeSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { createIntentDraft, INTENT_DRAFT_LIMITS, isSafeDraftWork, validateIntentDraft, type IntentDraftBody, type IntentDraftV1, type IntentRuntimePorts } from "./intent-draft.ts";
-import { readAgreement, writeAgreement } from "./intent-agreement.ts";
+import { readAgreement, renderAgreement, writeAgreement } from "./intent-agreement.ts";
 
 export type IntentDraftRead = { status: "valid"; draft: IntentDraftV1 } | { status: "absent" } | { status: "invalid"; reason: string };
 export type IntentDraftMutation = { ok: true; draft: IntentDraftV1 } | { ok: false; code: "busy" | "conflict" | "invalid" | "io" | "published-unverified"; reason: string };
 export type DraftStoreSeam = { beforePublish?(): void; afterPublish?(): void };
+export type LockedIntentDraftWriter = (expectedRevision: string, transition: (previous: IntentDraftV1 | null) => IntentDraftBody, seam?: DraftStoreSeam) => IntentDraftMutation;
 const READ = constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
 export class IntentDraftError extends Error { constructor(public code: string, message: string) { super(message); } }
 type Proof = { path: string; ino: number; dev: number }[];
@@ -70,13 +72,13 @@ export function listIntentDrafts(root: string): { status: "ok"; drafts: IntentDr
     return { status: "ok", drafts };
   } catch (error) { return { status: "invalid", reason: error instanceof Error ? error.message : String(error) }; }
 }
-function admit(root: string, ports: IntentRuntimePorts): void {
+function admit(root: string, ports: IntentRuntimePorts, publication = false, mode: "inspect" | "initialize" = "initialize"): void {
   if (!ports?.admission?.check) throw new IntentDraftError("invalid", "Intent mutation requires runtime admission");
-  const result = ports.admission.check(resolve(root));
-  if (result.status === "rejected" || resolve(result.root) !== resolve(root)) throw new IntentDraftError("invalid", result.reason ?? "Intent draft storage is not isolated");
+  const result = ports.admission.check(resolve(root), mode);
+  if (result.status === "rejected" || publication && result.status === "lock-only" || resolve(result.root) !== resolve(root)) throw new IntentDraftError("invalid", result.reason ?? "Intent draft storage is not isolated");
 }
-export function withIntentAdmissionLock<T>(root: string, work: string, callback: () => T, ports: IntentRuntimePorts): T {
-  const path = intentDraftPath(root, work); admit(root, ports);
+export function withIntentAdmissionLock<T>(root: string, work: string, callback: (publish: LockedIntentDraftWriter) => T, ports: IntentRuntimePorts): T {
+  const path = intentDraftPath(root, work); admit(root, ports, false, "inspect");
   const proof = prepare(root, true)!; const lock = `${path}.lock`;
   let fd: number;
   try { fd = openSync(lock, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600); }
@@ -85,7 +87,11 @@ export function withIntentAdmissionLock<T>(root: string, work: string, callback:
   try {
     fsyncSync(fd); admit(root, ports);
     if (!unchanged(proof)) throw new IntentDraftError("invalid", "Intent directory changed before transaction");
-    return callback();
+    return callback((expected, transition, seam) => {
+      const currentLock = lstatSync(lock);
+      if (!unchanged(proof) || currentLock.ino !== owned.ino || currentLock.dev !== owned.dev || currentLock.isSymbolicLink()) throw new IntentDraftError("busy", "Intent lock identity changed");
+      return publishLocked(root, work, expected, transition, ports, seam);
+    });
   } finally {
     closeSync(fd);
     if (unchanged(proof)) {
@@ -93,11 +99,12 @@ export function withIntentAdmissionLock<T>(root: string, work: string, callback:
     }
   }
 }
-export function transactIntentDraft(root: string, work: string, expectedRevision: string,
+function publishLocked(root: string, work: string, expectedRevision: string,
   transition: (previous: IntentDraftV1 | null) => IntentDraftBody, ports: IntentRuntimePorts, seam: DraftStoreSeam = {}): IntentDraftMutation {
   let published = false;
   try {
-    return withIntentAdmissionLock(root, work, () => {
+    return (() => {
+      admit(root, ports, true);
       const path = intentDraftPath(root, work); const current = readIntentDraft(root, work);
       if (current.status === "invalid") throw new IntentDraftError("invalid", current.reason);
       if ((current.status === "absent" ? "absent" : current.draft.revision) !== expectedRevision) throw new IntentDraftError("conflict", "Intent draft revision changed; reload without discarding the observed response");
@@ -112,7 +119,7 @@ export function transactIntentDraft(root: string, work: string, expectedRevision
         const bytes = Buffer.from(JSON.stringify(draft)); let offset = 0;
         while (offset < bytes.length) offset += writeSync(fd, bytes, offset);
         fsyncSync(fd); closeSync(fd); fd = undefined;
-        seam.beforePublish?.(); admit(root, ports);
+        seam.beforePublish?.(); admit(root, ports, true);
         const reread = readIntentDraft(root, work);
         if (!unchanged(proof) || (reread.status === "absent" ? "absent" : reread.status === "valid" ? reread.draft.revision : "invalid") !== expectedRevision) throw new IntentDraftError("conflict", "Intent draft changed during publication");
         renameSync(temp, path); published = true;
@@ -127,11 +134,17 @@ export function transactIntentDraft(root: string, work: string, expectedRevision
         try { if (owned && unchanged(proof)) { const stat = lstatSync(temp); if (Number(stat.ino) === owned.ino && Number(stat.dev) === owned.dev) unlinkSync(temp); } }
         catch { /* Successful rename already removed the temporary. */ }
       }
-    }, ports);
+    })();
   } catch (error) {
     const code = error instanceof IntentDraftError && ["busy", "conflict", "invalid"].includes(error.code) ? error.code as "busy" | "conflict" | "invalid" : "io";
     return { ok: false, code: published ? "published-unverified" : code, reason: error instanceof Error ? error.message : String(error) };
   }
+}
+
+export function transactIntentDraft(root: string, work: string, expectedRevision: string,
+  transition: (previous: IntentDraftV1 | null) => IntentDraftBody, ports: IntentRuntimePorts, seam: DraftStoreSeam = {}): IntentDraftMutation {
+  try { return withIntentAdmissionLock(root, work, (publish) => publish(expectedRevision, transition, seam), ports); }
+  catch (error) { return { ok: false, code: error instanceof IntentDraftError && error.code === "busy" ? "busy" : "invalid", reason: String(error) }; }
 }
 
 export function intentCanonicalDirectory(root: string, work: string, create = false): string {
@@ -153,16 +166,25 @@ export function intentCanonicalDirectory(root: string, work: string, create = fa
 }
 
 export function recoverIntentDraft(root: string, work: string, expectedRevision: string, ports: IntentRuntimePorts,
-  seam: { afterCanonical?(): void } = {}): IntentDraftMutation {
+  seam: { afterCanonical?(): void } = {}, adoption?: { expectedDigest: string; reason: string }): IntentDraftMutation {
   return transactIntentDraft(root, work, expectedRevision, (draft) => {
     if (!draft) throw new IntentDraftError("conflict", "Intent draft disappeared before recovery");
     const publication = draft.publication;
     if (publication.state === "none") return draft;
+    if (!("expectedCanonicalRevision" in publication)) return recoverArchivePublication(root, draft);
     const directory = intentCanonicalDirectory(root, work);
     const canonical = readAgreement(directory);
     if (canonical.kind === "valid" && JSON.stringify(canonical.agreement) === JSON.stringify(publication.agreement)) return { ...draft, publication: { ...publication, state: "published" } };
     if (publication.state === "published") throw new IntentDraftError("conflict", "Published intent no longer matches the canonical agreement");
-    if (canonical.kind === "invalid" || (canonical.kind === "absent" ? "absent" : canonical.agreement.revision) !== publication.expectedCanonicalRevision
+    if (canonical.kind === "invalid") {
+      if (!adoption?.reason.trim() || publication.expectedCanonicalRevision !== `unmanaged:${adoption.expectedDigest}`) throw new IntentDraftError("conflict", "Automatic recovery cannot adopt unmanaged intent content");
+      const raw = unmanagedIntent(directory);
+      if (raw.digest !== adoption.expectedDigest) throw new IntentDraftError("conflict", "Unmanaged intent changed after review");
+      const backup = join(directory, `intent-before-draft-${raw.digest.slice(7)}.md`);
+      if (existsSync(backup)) {
+        if (lstatSync(backup).isSymbolicLink() || readFileSync(backup, "utf8") !== raw.content) throw new IntentDraftError("conflict", "Intent backup conflicts");
+      } else writeFileSync(backup, raw.content, { flag: "wx", mode: 0o600 });
+    } else if ((canonical.kind === "absent" ? "absent" : canonical.agreement.revision) !== publication.expectedCanonicalRevision
       || (canonical.kind === "valid" ? canonical.agreement.materialKey : null) !== publication.expectedCanonicalMaterialKey) throw new IntentDraftError("conflict", "Canonical intent changed; recovery cannot overwrite it");
     writeAgreement(intentCanonicalDirectory(root, work, true), publication.agreement);
     seam.afterCanonical?.();
@@ -172,13 +194,32 @@ export function recoverIntentDraft(root: string, work: string, expectedRevision:
   }, ports);
 }
 
+function unmanagedIntent(directory: string): { content: string; digest: string } {
+  const path = join(directory, "intent.md");
+  const stat = lstatSync(path);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 64 * 1024) throw new IntentDraftError("invalid", "Unmanaged intent is unreadable or unsafe");
+  const content = readFileSync(path, "utf8");
+  return { content, digest: `sha256:${createHash("sha256").update(content).digest("hex")}` };
+}
+
 export function publishIntentDraft(root: string, body: IntentDraftBody, expectedRevision: string, ports: IntentRuntimePorts,
-  seam: { afterJournal?(): void; afterCanonical?(): void } = {}): IntentDraftMutation {
+  seam: { afterJournal?(): void; afterCanonical?(): void } = {}, explicitAdoption?: { expectedDigest: string; reason: string }): IntentDraftMutation {
+  let adoption = explicitAdoption;
   const journal = transactIntentDraft(root, body.work, expectedRevision, (previous) => {
-    if (previous && ["promoting", "invalidating"].includes(previous.publication.state)) throw new IntentDraftError("conflict", "Recover the interrupted intent publication first");
+    if (previous && ["promoting", "invalidating", "archiving"].includes(previous.publication.state)) throw new IntentDraftError("conflict", "Recover the interrupted intent publication first");
+    if (previous?.publication.state === "archived" && (body.agreement.status !== "pending" || body.agreement.revision === previous.agreement.revision || !body.agreement.reopenReason?.trim())) throw new IntentDraftError("conflict", "Archived work requires an explicit new intent revision");
     if (!body.agreement.change) return { ...body, publication: { state: "none" } };
     const canonical = readAgreement(intentCanonicalDirectory(root, body.work));
-    if (canonical.kind === "invalid") throw new IntentDraftError("conflict", "Canonical intent is invalid; explicit reviewed adoption is required");
+    if ((body.agreement.status === "confirmed" || canonical.kind === "valid") && Buffer.byteLength(renderAgreement(body.agreement)) > 64 * 1024) throw new IntentDraftError("invalid", "Canonical intent exceeds 64 KiB; existing draft responses remain unchanged");
+    if (canonical.kind === "invalid") {
+      const raw = unmanagedIntent(intentCanonicalDirectory(root, body.work));
+      const legacyDigest = previous?.publication.state === "none" ? previous.publication.legacyDigest : undefined;
+      if (legacyDigest && legacyDigest !== raw.digest) throw new IntentDraftError("conflict", "Legacy intent changed during its adoption review");
+      if (body.agreement.status !== "confirmed") return { ...body, publication: { state: "none", legacyDigest: raw.digest } };
+      if (!adoption && legacyDigest && previous?.agreement.stage === "review" && previous.response?.id === body.agreement.response?.id) adoption = { expectedDigest: legacyDigest, reason: "Observed final review of unmanaged agreement" };
+      if (!adoption?.reason.trim() || adoption.expectedDigest !== raw.digest) throw new IntentDraftError("conflict", "Canonical intent requires explicit reviewed adoption");
+      return { ...body, publication: { state: "promoting", expectedCanonicalRevision: `unmanaged:${raw.digest}`, expectedCanonicalMaterialKey: null, agreement: body.agreement } };
+    }
     if (body.agreement.status !== "confirmed" && canonical.kind === "absent") return { ...body, publication: { state: "none" } };
     return { ...body, publication: {
       state: body.agreement.status === "confirmed" ? "promoting" : "invalidating",
@@ -190,5 +231,31 @@ export function publishIntentDraft(root: string, body: IntentDraftBody, expected
   if (!journal.ok || journal.draft.publication.state === "none") return journal;
   try { seam.afterJournal?.(); }
   catch (error) { return { ok: false, code: "published-unverified", reason: error instanceof Error ? error.message : String(error) }; }
-  return recoverIntentDraft(root, body.work, journal.draft.revision, ports, seam);
+  return recoverIntentDraft(root, body.work, journal.draft.revision, ports, seam, adoption);
+}
+
+export function recoverArchivePublication(root: string, draft: IntentDraftV1): IntentDraftBody {
+  const publication = draft.publication;
+  if (publication.state !== "archiving" && publication.state !== "archived") throw new IntentDraftError("invalid", "No archive publication to recover");
+  const active = intentCanonicalDirectory(root, draft.work);
+  const archiveParent = join(active, "..", "archive"); const archived = join(archiveParent, draft.work);
+  const hasArchive = existsSync(archived);
+  const directory = hasArchive ? archived : active;
+  for (const path of hasArchive ? [archiveParent, archived] : [active]) {
+    const stat = lstatSync(path);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new IntentDraftError("conflict", "Unsafe intent archive destination");
+  }
+  const digest = (name: string) => {
+    const path = join(directory, name); const stat = lstatSync(path);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new IntentDraftError("conflict", "Unsafe archived evidence");
+    return createHash("sha256").update(readFileSync(path)).digest("hex");
+  };
+  if (digest("summary.md") !== publication.summarySha256 || publication.verificationReceiptSha256 && digest("verification-receipt.json") !== publication.verificationReceiptSha256) throw new IntentDraftError("conflict", "Archive evidence belongs to another revision");
+  if (hasArchive) {
+    if (existsSync(active)) throw new IntentDraftError("conflict", "Both active and archived work exist");
+    return { ...draft, publication: { ...publication, state: "archived" } };
+  }
+  const canonical = readAgreement(active);
+  if (publication.state === "archived" || canonical.kind !== "valid" || JSON.stringify(canonical.agreement) !== JSON.stringify(draft.agreement)) throw new IntentDraftError("conflict", "Unpublished archive no longer matches the agreed intent");
+  return { ...draft, publication: { state: "published", expectedCanonicalRevision: draft.agreement.revision, expectedCanonicalMaterialKey: draft.agreement.materialKey, agreement: draft.agreement } };
 }

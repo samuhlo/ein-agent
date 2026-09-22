@@ -4,10 +4,12 @@ import { validateIntentQuestionnaire, type IntentQuestion } from "./intent-quest
 import type { IntentEvidence } from "./intent-evidence.ts";
 
 export const INTENT_DRAFT_LIMITS = { bytes: 256 * 1024, listed: 32, bindings: 4 } as const;
-export const isSafeDraftWork = (work: unknown): work is string => typeof work === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(work) && work.length <= 128;
+export const isSafeDraftWork = (work: unknown): work is string => typeof work === "string" && work !== "archive" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(work) && work.length <= 128;
 export type IntentDraftResponse = NonNullable<IntentAgreement["response"]> & { revision: string; cancelled?: boolean };
 export type IntentQuestionnaireBinding = { toolCallId: string; revision: string; questions: IntentQuestion[]; fingerprint: string };
-export type IntentPublication = { state: "none" } | {
+export type IntentPublication = { state: "none"; legacyDigest?: string } | {
+  state: "archiving" | "archived"; change: string; agreementRevision: string; summarySha256: string; verificationReceiptSha256?: string;
+} | {
   state: "promoting" | "invalidating" | "published";
   expectedCanonicalRevision: string | "absent";
   expectedCanonicalMaterialKey: string | null;
@@ -20,7 +22,7 @@ export type IntentDraftV1 = {
 };
 export type IntentDraftBody = Omit<IntentDraftV1, "revision">;
 export type IntentRuntimePorts = {
-  admission: { check(root: string): { status: "isolated" | "not-git" | "rejected"; root: string; reason?: string } };
+  admission: { check(root: string, mode?: "inspect" | "initialize"): { status: "isolated" | "not-git" | "lock-only" | "rejected"; root: string; reason?: string } };
   now(): string;
   newId(): string;
   publishObjective(input: { objective: string; work: string; materialKey: string; agreementRevision: string; kind: "intent" | "intent-draft" }): { status: "updated" } | { status: "warning"; code: string };
@@ -61,10 +63,13 @@ export function validateIntentDraft(value: unknown): IntentDraftV1 {
     if (binding.fingerprint !== questionnaireFingerprint(binding.questions as IntentQuestion[])) throw new Error("Questionnaire binding changed");
     ids.add(binding.toolCallId);
   }
-  keys(value.publication, ["state", "expectedCanonicalRevision", "expectedCanonicalMaterialKey", "agreement"]);
+  keys(value.publication, ["state", "legacyDigest", "expectedCanonicalRevision", "expectedCanonicalMaterialKey", "agreement", "change", "agreementRevision", "summarySha256", "verificationReceiptSha256"]);
   const publication = value.publication;
   if (publication.state === "none") {
-    if (Object.keys(publication).length !== 1) throw new Error("Invalid unpublished draft");
+    if (Object.keys(publication).some((key) => !["state", "legacyDigest"].includes(key)) || publication.legacyDigest !== undefined && !/^sha256:[a-f0-9]{64}$/.test(String(publication.legacyDigest))) throw new Error("Invalid unpublished draft");
+  } else if (publication.state === "archiving" || publication.state === "archived") {
+    if (publication.change !== value.work || publication.agreementRevision !== agreement.revision || !/^[a-f0-9]{64}$/.test(String(publication.summarySha256))
+      || publication.verificationReceiptSha256 !== undefined && !/^[a-f0-9]{64}$/.test(String(publication.verificationReceiptSha256))) throw new Error("Invalid archived intent identity");
   } else {
     if (!["promoting", "invalidating", "published"].includes(String(publication.state)) || typeof publication.expectedCanonicalRevision !== "string"
       || (publication.expectedCanonicalMaterialKey !== null && typeof publication.expectedCanonicalMaterialKey !== "string")
@@ -78,7 +83,8 @@ export function validateIntentDraft(value: unknown): IntentDraftV1 {
       || !["ready", "running", "returned", "blocked"].includes(String(evidence.state))
       || !Array.isArray(evidence.roots) || !evidence.roots.every((r) => typeof r === "string")
       || !Array.isArray(evidence.commands) || !evidence.commands.every((c) => typeof c === "string")
-      || !object(evidence.authorization) || typeof evidence.authorization.id !== "string" || typeof evidence.authorization.text !== "string") throw new Error("Invalid draft evidence");
+      || !object(evidence.authorization) || typeof evidence.authorization.id !== "string" || typeof evidence.authorization.text !== "string"
+      || !["interactive", "rpc", "claude-coordinator", "ask_user_question"].includes(String(evidence.authorization.source))) throw new Error("Invalid draft evidence");
     if (evidence.result !== undefined) {
       keys(evidence.result, ["text", "truncated", "isError"]);
       if (typeof evidence.result.text !== "string" || evidence.result.text.length > 6000 || typeof evidence.result.truncated !== "boolean" || typeof evidence.result.isError !== "boolean") throw new Error("Invalid bounded evidence result");

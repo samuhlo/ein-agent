@@ -6,6 +6,7 @@ import {
 	type ContinuityCheckpointFacts,
 } from "./continuity-checkpoint.ts";
 import { continuitySddFacts } from "./continuity-sdd-facts.ts";
+import { continuityIntentFacts } from "./continuity-intent-facts.ts";
 import type { SddChangeStatus } from "./sdd-routing-core.ts";
 import { resolveSddStatus } from "./sdd-routing-runtime.ts";
 import {
@@ -173,8 +174,11 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 					objectiveEvidence: { kind: "intent", work: agreement.agreement.work, materialKey: agreement.agreement.materialKey, agreementRevision: agreement.agreement.revision },
 				};
 			}
-			let candidate = { ...facts, ...persistedObjective, ...sddFacts(observed), capturedAt: ports.now() };
+			const intent = continuityIntentFacts(cwd, proposedLocation.mode === "sdd" ? proposedLocation.change : undefined, persistedObjective.objectiveEvidence);
+			if (intent.kind === "unavailable") return "refresh-failed";
+			let candidate = { ...facts, ...persistedObjective, ...sddFacts(observed), ...(intent.kind === "pending" ? intent.facts : {}), capturedAt: ports.now() };
 			let derived = deriveContinuityCheckpoint(observed, candidate);
+			if (!derived.ok && intent.kind === "pending") return "refresh-failed";
 			if (!derived.ok) { candidate = { ...GENERIC, ...persistedObjective, capturedAt: ports.now() }; derived = deriveContinuityCheckpoint(observed, candidate); }
 			if (!derived.ok) return "refresh-failed";
 			const location: ContinuityCheckpointLocation = derived.checkpoint.mode === "sdd" ? { mode: "sdd", change: derived.checkpoint.change! } : { mode: "adhoc" };

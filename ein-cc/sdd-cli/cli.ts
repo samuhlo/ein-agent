@@ -636,7 +636,8 @@ if (import.meta.main) {
 			console.log(result.text); process.exitCode = result.exitCode; break;
 		}
 		case "intent": {
-			const result = runIntentCommand(cwd, rest, rest[1] === "record" ? await Bun.stdin.text() : "");
+			const intentRead = rest[0] === "draft-list" || rest.includes("--help") || !rest[1] || ["show", "draft-show", "draft-list"].includes(rest[1]);
+			const result = runIntentCommand(cwd, rest, intentRead ? "" : await Bun.stdin.text());
 			console.log(result.text);
 			process.exitCode = result.exitCode;
 			break;

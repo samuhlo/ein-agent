@@ -5,6 +5,7 @@ import {
 	readSddIntentResolutionState,
 } from "../../ein-pi/agent/lib/sdd-preflight-record.ts";
 import { readRepositoryStateIdentity } from "../../ein-pi/agent/lib/git-baseline.ts";
+import { withIntentAdmissionLock, createIntentDraftRuntime } from "./intent.ts";
 import { verificationService } from "../../ein-pi/agent/lib/sdd-verification-runtime.ts";
 import { LANE_PHASES, readChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
 import { createAssessCloseReadiness } from "../sdd/sdd-close-readiness.ts";
@@ -58,6 +59,7 @@ export const lintChange = createLintChange(
 	(changePath) => LANE_PHASES[readChangeLane(changePath)],
 );
 export const closeChange = createCloseChange({
+	withIntentAdmissionLock: (cwd, work, action) => withIntentAdmissionLock(cwd, work, action, createIntentDraftRuntime(cwd, { mutating: true, lockOnly: true })),
 	assessCloseReadiness: closeReadiness,
 	resolveSddStatus: routingCore.resolveSddStatus,
 	readRepositoryStateIdentity,
