@@ -3,6 +3,11 @@ import { describe, expect, test } from "bun:test";
 import { parseVerificationReport } from "../shared/sdd/sdd-verification-outcome.ts";
 
 describe("parseVerificationReport", () => {
+	test("indented code and HTML comments cannot supply a global verdict", () => {
+		expect(parseVerificationReport("    status: pass\n").outcome).toBe("unknown");
+		expect(parseVerificationReport("<!--\nstatus: pass\n-->\n").outcome).toBe("unknown");
+		expect(parseVerificationReport("status: pass\n\n    status: fail\n<!--\nstatus: fail\n-->\n").outcome).toBe("pass");
+	});
 	test("conserva un pass sano y los comandos exactos", () => {
 		const parsed = parseVerificationReport([
 			"# Verify",
