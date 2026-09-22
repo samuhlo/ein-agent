@@ -11,7 +11,7 @@ test("native provider stops an unanswered request and does not multiply HTTP ret
   const context={messages:[{role:"user" as const,content:"fixture",timestamp:Date.now()}]};
   // Pi 0.87 requires the branded transcript returned by its public normalizer.
   const transcript="normalizeContext" in piAi && typeof piAi.normalizeContext==="function" ? piAi.normalizeContext(context) : context;
-  const result=await streamSimple(model,transcript,{apiKey:"fixture-only",timeoutMs:500,maxRetries:0}).result();
+  const result=await streamSimple(model,transcript as Parameters<typeof streamSimple>[1],{apiKey:"fixture-only",timeoutMs:500,maxRetries:0}).result();
   expect(result.stopReason).toBe("error");expect(result.errorMessage).toMatch(/timed? out|timeout/i);expect(requests).toBe(1);
  } finally {await server.stop(true);}
 },5000);
