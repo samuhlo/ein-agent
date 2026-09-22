@@ -1,11 +1,12 @@
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { subagentModulePath } from "../../installer/src/core/subagent-module-path.ts";
 import { createAgentSession, DefaultResourceLoader, initTheme, parseFrontmatter, SessionManager, SettingsManager } from "@earendil-works/pi-coding-agent";
 
 const [payload, cwd, agentDir] = process.argv.slice(2) as [string, string, string];
 const packageRoot = process.argv[5];
-const resolveToolPlan = packageRoot ? (await import(pathToFileURL(join(packageRoot, "src/runs/shared/child-tool-plan.ts")).href)).resolvePiLaunchToolPlan : undefined;
+const resolveToolPlan = packageRoot ? (await import(pathToFileURL(subagentModulePath(packageRoot, "src/runs/shared/child-tool-plan.ts")).href)).resolvePiLaunchToolPlan : undefined;
 initTheme("dark");
 const results = [];
 for (const role of ["scope", "map", "design", "tasks", "apply", "verify", "close"]) {
