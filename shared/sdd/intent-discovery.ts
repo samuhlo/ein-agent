@@ -321,6 +321,14 @@ export function migrateLegacyIntentDraft(ctx: IntentContext, work: string, ports
  if (current.status === "valid") return snapshotFromDraft(current.draft);
  const legacy = legacyIntentSnapshot(ctx, work);
  if (!legacy.agreement) return {};
+ if (legacy.agreement.change) {
+  const canonical = readAgreement(intentCanonicalDirectory(ctx.cwd, work));
+  if (canonical.kind === "invalid" || canonical.kind === "valid" && JSON.stringify(canonical.agreement) !== JSON.stringify(legacy.agreement)) throw new IntentDraftError("conflict", "The legacy session disagrees with canonical intent; do not overwrite newer evidence");
+  if (legacy.agreement.status === "confirmed") {
+   if (canonical.kind !== "valid") throw new IntentDraftError("conflict", "The canonical agreement is missing; session migration cannot recreate confirmation");
+   return { agreement: canonical.agreement };
+  }
+ }
  const result = publishIntentDraft(ctx.cwd, { schemaVersion: 1, work, agreement: legacy.agreement,
   response: legacy.response ? { ...legacy.response, revision: legacy.agreement.revision } : undefined,
   evidence: legacy.evidence, questionnaireBindings: [], publication: { state: "none" } }, "absent", ports);
@@ -333,7 +341,7 @@ export function selectIntentDraft(ctx: IntentContext, explicitWork?: string, obj
  if (objectiveWork) {
   const selected = readIntentDraft(ctx.cwd, objectiveWork);
   if (selected.status === "invalid") throw new IntentDraftError("invalid", selected.reason);
-  if (selected.status === "valid") return { work: objectiveWork };
+  if (selected.status === "valid" && selected.draft.publication.state !== "archived" && selected.draft.agreement.status !== "cancelled") return { work: objectiveWork };
  }
  const listed = listIntentDrafts(ctx.cwd);
  if (listed.status !== "ok") throw new IntentDraftError("invalid", listed.reason);

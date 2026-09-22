@@ -37,6 +37,21 @@ function unchanged(proof: Proof): boolean {
     try { const stat = lstatSync(path); return stat.isDirectory() && !stat.isSymbolicLink() && Number(stat.ino) === ino && Number(stat.dev) === dev; } catch { return false; }
   });
 }
+function ownsFile(path: string, owner: { ino: number; dev: number }): boolean {
+  try { const stat = lstatSync(path); return stat.isFile() && !stat.isSymbolicLink() && Number(stat.ino) === Number(owner.ino) && Number(stat.dev) === Number(owner.dev); }
+  catch { return false; }
+}
+function temporaryMatches(path: string, owner: { ino: number; dev: number }, bytes: Buffer): boolean {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, READ); const stat = fstatSync(fd);
+    if (!stat.isFile() || Number(stat.ino) !== owner.ino || Number(stat.dev) !== owner.dev || stat.size !== bytes.length) return false;
+    const observed = Buffer.alloc(bytes.length + 1); let offset = 0;
+    while (offset < observed.length) { const count = readSync(fd, observed, offset, observed.length - offset, null); if (!count) break; offset += count; }
+    return offset === bytes.length && observed.subarray(0, offset).equals(bytes) && ownsFile(path, owner);
+  } catch { return false; }
+  finally { if (fd !== undefined) closeSync(fd); }
+}
 function readFile(path: string): IntentDraftRead {
   let fd: number | undefined;
   try {
@@ -84,13 +99,13 @@ export function withIntentAdmissionLock<T>(root: string, work: string, callback:
   try { fd = openSync(lock, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600); }
   catch (error) { throw new IntentDraftError((error as NodeJS.ErrnoException).code === "EEXIST" ? "busy" : "io", "Intent draft is locked; do not expire or break its lock automatically"); }
   const owned = fstatSync(fd);
+  const ownsLock = () => unchanged(proof) && ownsFile(lock, owned);
   try {
     fsyncSync(fd); admit(root, ports);
     if (!unchanged(proof)) throw new IntentDraftError("invalid", "Intent directory changed before transaction");
     return callback((expected, transition, seam) => {
-      const currentLock = lstatSync(lock);
-      if (!unchanged(proof) || currentLock.ino !== owned.ino || currentLock.dev !== owned.dev || currentLock.isSymbolicLink()) throw new IntentDraftError("busy", "Intent lock identity changed");
-      return publishLocked(root, work, expected, transition, ports, seam);
+      if (!ownsLock()) throw new IntentDraftError("busy", "Intent lock identity changed");
+      return publishLocked(root, work, expected, transition, ports, ownsLock, seam);
     });
   } finally {
     closeSync(fd);
@@ -100,7 +115,7 @@ export function withIntentAdmissionLock<T>(root: string, work: string, callback:
   }
 }
 function publishLocked(root: string, work: string, expectedRevision: string,
-  transition: (previous: IntentDraftV1 | null) => IntentDraftBody, ports: IntentRuntimePorts, seam: DraftStoreSeam = {}): IntentDraftMutation {
+  transition: (previous: IntentDraftV1 | null) => IntentDraftBody, ports: IntentRuntimePorts, ownsLock: () => boolean, seam: DraftStoreSeam = {}): IntentDraftMutation {
   let published = false;
   try {
     return (() => {
@@ -122,12 +137,13 @@ function publishLocked(root: string, work: string, expectedRevision: string,
         seam.beforePublish?.(); admit(root, ports, true);
         const reread = readIntentDraft(root, work);
         if (!unchanged(proof) || (reread.status === "absent" ? "absent" : reread.status === "valid" ? reread.draft.revision : "invalid") !== expectedRevision) throw new IntentDraftError("conflict", "Intent draft changed during publication");
+        if (!owned || !ownsLock() || !temporaryMatches(temp, owned, bytes) || !unchanged(proof) || !ownsLock() || !ownsFile(temp, owned)) throw new IntentDraftError("busy", "Intent publication lost its lock or temporary identity");
         renameSync(temp, path); published = true;
         const directory = openSync(proof.at(-1)!.path, READ);
         try { fsyncSync(directory); } catch (error) { if (!["EINVAL", "ENOTSUP", "EISDIR", "EBADF"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error; } finally { closeSync(directory); }
         seam.afterPublish?.();
         const verified = readIntentDraft(root, work);
-        if (!unchanged(proof) || verified.status !== "valid" || verified.draft.revision !== draft.revision) throw new Error("Intent draft publication could not be verified");
+        if (!unchanged(proof) || !ownsLock() || verified.status !== "valid" || verified.draft.revision !== draft.revision) throw new Error("Intent draft publication could not be verified");
         return { ok: true as const, draft };
       } finally {
         if (fd !== undefined) closeSync(fd);

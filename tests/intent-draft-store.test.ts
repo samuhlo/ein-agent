@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -70,4 +70,23 @@ test("automatic listing is bounded and rejects unknown fields or mismatched hash
   for (let index = 0; index < 33; index++) writeFileSync(join(root, `.ein/intent-drafts/work-${index}.json`), "{}");
   expect(listIntentDrafts(root).status).toBe("invalid");
   expect(() => createIntentDraft({ ...body(), unexpected: true } as never)).toThrow();
+});
+
+test.each(["lock", "temporary", "bytes"])("publication rejects replaced %s before overwriting the prior draft", (attack) => {
+  const root = fixture(); const ports = { ...testPorts(), newId: () => "fixed-temp" };
+  const created = transactIntentDraft(root, "export", "absent", body, ports);
+  if (!created.ok) throw new Error(created.reason);
+  const target = intentDraftPath(root, "export"); const original = readFileSync(target, "utf8");
+  const lock = `${target}.lock`; const temporary = `${target}.fixed-temp.tmp`;
+  const result = transactIntentDraft(root, "export", created.draft.revision, (old) => ({ ...old!, response: { id: "answer", text: "New answer", source: "rpc", revision: "round-1" } }), ports, {
+    beforePublish() {
+      const path = attack === "lock" ? lock : temporary;
+      if (attack !== "bytes") renameSync(path, `${path}.original-inode`);
+      writeFileSync(path, "foreign bytes");
+    },
+  });
+  expect(result.ok).toBe(false);
+  expect(readFileSync(target, "utf8")).toBe(original);
+  if (attack === "lock") expect(readFileSync(lock, "utf8")).toBe("foreign bytes");
+  if (attack === "temporary") expect(readFileSync(temporary, "utf8")).toBe("foreign bytes");
 });
