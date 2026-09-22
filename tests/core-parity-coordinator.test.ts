@@ -38,6 +38,7 @@ function expectedClaudeTool(raw: string): string {
   const exact: Record<string, string> = {
     read: "Read",
     ein_sdd_summary: "Bash",
+    ein_sdd_verification: "Bash",
     grep: "Grep",
     find: "Glob",
     edit: "Edit",

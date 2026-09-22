@@ -28,6 +28,7 @@ import { readProjectEinState } from "../ein-pi/agent/lib/project-state-ein";
 import { readProjectVerificationState } from "../ein-pi/agent/lib/project-state-verification";
 import { parseProjectGitStatus } from "../ein-pi/agent/lib/project-state-git-status";
 import { readProjectGitState } from "../ein-pi/agent/lib/project-state-git";
+import { beginVerification, finishVerification } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 
 const QUALITY_VALUES: readonly ProjectStateQuality[] = [
 	"current",
@@ -282,7 +283,6 @@ function writeVerificationFixture(cwd: string, change = "verification-change", d
 		mkdirSync(join(cwd, deliveredFile, ".."), { recursive: true });
 		writeFileSync(join(cwd, deliveredFile), "delivered\n");
 	}
-	writeFileSync(join(cwd, ".gitignore"), `openspec/changes/${change}/verify-report.md\n`);
 	return join(changePath, "verify-report.md");
 }
 
@@ -291,6 +291,14 @@ function commitVerificationFixture(cwd: string, change = "verification-change", 
 	git(cwd, ["add", "--all"]);
 	git(cwd, ["commit", "--quiet", "-m", "verification fixture"]);
 	return reportPath;
+}
+
+function publishStateVerification(cwd: string, reportPath: string, content = "status: pass\nbehavior_coverage: verified\n"): void {
+	const changePath = join(reportPath, "..");
+	const begun = beginVerification({ cwd, changePath });
+	if (!begun.ok) throw new Error(begun.reason);
+	const finished = finishVerification({ cwd, changePath, token: begun.value.token, content });
+	if (!finished.ok) throw new Error(finished.reason);
 }
 
 describe("OpenSpec active projection", () => {
@@ -344,6 +352,7 @@ describe("OpenSpec active projection", () => {
 	test("OpenSpec unique active change composes phase, next, artifacts, blockers, and router verify", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "ein-project-state-openspec-"));
 		try {
+			execFileSync("git", ["init", "-q"], { cwd });
 			const changePath = join(cwd, "openspec", "changes", "unique-change");
 			mkdirSync(changePath, { recursive: true });
 			writeFileSync(join(changePath, "scope.md"), "# Scope\n## Spec delta declaration\nspec_delta: none\nspec_delta_reason: no delta needed\n");
@@ -352,6 +361,7 @@ describe("OpenSpec active projection", () => {
 			writeFileSync(join(changePath, "tasks.md"), "status: ready\nblocked_by: none\n- [x] 1 done\n");
 			writeFileSync(join(changePath, "apply-progress.md"), "status: complete\n");
 			writeFileSync(join(changePath, "verify-report.md"), "status: pass\n");
+			publishStateVerification(cwd, join(changePath, "verify-report.md"), "status: pass\n");
 
 			const state = projectProjectState({ cwd });
 			expect(state.openspec).toMatchObject({
@@ -568,11 +578,10 @@ describe("verification freshness and source degradation", () => {
 		);
 	});
 
-	test("verification bound pass is fresh only with exact complete Git binding", () => {
+	test("verification pass is current only with the exact surface receipt", () => {
 		withRepository((cwd) => {
 			const reportPath = commitVerificationFixture(cwd);
-			const currentRef = projectProjectState({ cwd }).git.stateRef!;
-			writeFileSync(reportPath, `status: pass\nproject_state_git_ref: ${currentRef}\n`);
+			publishStateVerification(cwd, reportPath);
 
 			const state = projectProjectState({ cwd });
 			expect(state.openspec.verify).toBe("pass");
@@ -583,9 +592,10 @@ describe("verification freshness and source degradation", () => {
 				reportedOutcome: "pass",
 				effectiveOutcome: "pass",
 				freshness: "current",
-				currentStateRef: currentRef,
-				observedStateRef: currentRef,
 			});
+			expect(state.verification.currentVerificationSurfaceRef).toMatch(/^sha256:/);
+			expect(state.verification.observedVerificationSurfaceRef).toMatch(/^sha256:/);
+			expect(state.verification.currentVerificationSurfaceRef).toBe(state.verification.observedVerificationSurfaceRef);
 		});
 	});
 
@@ -601,40 +611,37 @@ describe("verification freshness and source degradation", () => {
 				reportedOutcome: "pass",
 				effectiveOutcome: "unknown",
 				freshness: "unbound",
-				currentStateRef: state.git.stateRef,
 			});
-			expect(state.verification.observedStateRef).toBeUndefined();
+			expect(state.verification.observedVerificationSurfaceRef).toBeUndefined();
 		});
 	});
 
-	test("verification mismatch is stale and exposes observed and current references", () => {
+	test("verification mismatch is stale and exposes observed and current surface references", () => {
 		withRepository((cwd) => {
 			const reportPath = commitVerificationFixture(cwd);
-			const currentRef = projectProjectState({ cwd }).git.stateRef!;
-			const observedRef = `git-v1:sha256:${"0".repeat(64)}`;
-			writeFileSync(reportPath, `status: pass\nproject_state_git_ref: ${observedRef}\n`);
+			publishStateVerification(cwd, reportPath);
+			writeFileSync(join(cwd, "changed-after-verify"), "new\n");
 
 			const state = projectProjectState({ cwd });
 			expect(state.verification).toMatchObject({
 				quality: "stale",
-				reason: "state-mismatch",
+				reason: "stale-source",
 				reportedOutcome: "pass",
 				effectiveOutcome: "unknown",
 				freshness: "stale",
-				currentStateRef: currentRef,
-				observedStateRef: observedRef,
+				currentVerificationSurfaceRef: expect.stringMatching(/^sha256:/),
+				observedVerificationSurfaceRef: expect.stringMatching(/^sha256:/),
 			});
+			expect(state.verification.currentVerificationSurfaceRef).not.toBe(state.verification.observedVerificationSurfaceRef);
 		});
 	});
 
-	test("verification router staleness stays stale despite a matching binding", () => {
+	test("editing a verified delivered file makes ProjectState stale", () => {
 		withRepository((cwd) => {
 			const deliveredFile = "src/delivered.ts";
 			const reportPath = commitVerificationFixture(cwd, "stale-verification", deliveredFile);
-			const currentRef = projectProjectState({ cwd }).git.stateRef!;
-			writeFileSync(reportPath, `status: pass\nproject_state_git_ref: ${currentRef}\n`);
-			utimesSync(reportPath, new Date(2_000_000), new Date(2_000_000));
-			utimesSync(join(cwd, deliveredFile), new Date(3_000_000), new Date(3_000_000));
+			publishStateVerification(cwd, reportPath);
+			writeFileSync(join(cwd, deliveredFile), "changed\n");
 
 			const state = projectProjectState({ cwd });
 			expect(state.openspec.verifyStale).toBe(true);
@@ -642,10 +649,10 @@ describe("verification freshness and source degradation", () => {
 				quality: "stale",
 				reason: "stale-source",
 				reportedOutcome: "pass",
-				effectiveOutcome: "pass",
+				effectiveOutcome: "unknown",
 				freshness: "stale",
-				currentStateRef: currentRef,
-				observedStateRef: currentRef,
+				currentVerificationSurfaceRef: expect.stringMatching(/^sha256:/),
+				observedVerificationSurfaceRef: expect.stringMatching(/^sha256:/),
 			});
 		});
 	});
@@ -653,39 +660,34 @@ describe("verification freshness and source degradation", () => {
 	test("verification absent, failed, and malformed evidence remain explicit", () => {
 		withRepository((cwd) => {
 			const reportPath = commitVerificationFixture(cwd);
-			const currentRef = projectProjectState({ cwd }).git.stateRef!;
 
 			const absent = projectProjectState({ cwd }).verification;
 			expect(absent).toMatchObject({
-				quality: "absent",
-				reason: "not-found",
+				quality: "unbound",
+				reason: "legacy-source",
 				reportedOutcome: "absent",
-				effectiveOutcome: "absent",
-				freshness: "unavailable",
-				currentStateRef: currentRef,
+				effectiveOutcome: "unknown",
+				freshness: "unbound",
 			});
 
-			writeFileSync(reportPath, `status: fail\nproject_state_git_ref: ${currentRef}\n`);
+			publishStateVerification(cwd, reportPath, "status: fail\nbehavior_coverage: verified\n");
 			const failed = projectProjectState({ cwd }).verification;
 			expect(failed).toMatchObject({
+				quality: "current",
+				reason: "read-success",
+				reportedOutcome: "fail",
+				effectiveOutcome: "fail",
+				freshness: "current",
+			});
+
+			writeFileSync(join(reportPath, "..", "verification-receipt.json"), "{broken");
+			const malformed = projectProjectState({ cwd }).verification;
+			expect(malformed).toMatchObject({
 				quality: "incomplete",
 				reason: "invalid-source",
 				reportedOutcome: "fail",
 				effectiveOutcome: "fail",
 				freshness: "invalid",
-				currentStateRef: currentRef,
-				observedStateRef: currentRef,
-			});
-
-			writeFileSync(reportPath, `status: pass\nproject_state_git_ref: ${currentRef}\nproject_state_git_ref: ${currentRef}\n`);
-			const malformed = projectProjectState({ cwd }).verification;
-			expect(malformed).toMatchObject({
-				quality: "incomplete",
-				reason: "invalid-source",
-				reportedOutcome: "pass",
-				effectiveOutcome: "unknown",
-				freshness: "invalid",
-				currentStateRef: currentRef,
 			});
 
 			writeFileSync(reportPath, "not a verification report\n");
@@ -696,7 +698,6 @@ describe("verification freshness and source degradation", () => {
 				reportedOutcome: "unknown",
 				effectiveOutcome: "unknown",
 				freshness: "invalid",
-				currentStateRef: currentRef,
 			});
 		});
 	});
@@ -719,11 +720,11 @@ describe("verification freshness and source degradation", () => {
 				complete: true,
 			});
 			expect(state.verification).toMatchObject({
-				quality: "unavailable",
-				reason: "not-a-repository",
+				quality: "unbound",
+				reason: "legacy-source",
 				reportedOutcome: "pass",
 				effectiveOutcome: "unknown",
-				freshness: "unavailable",
+				freshness: "unbound",
 			});
 		} finally {
 			rmSync(cwd, { recursive: true, force: true });
@@ -742,11 +743,11 @@ describe("verification freshness and source degradation", () => {
 			expect(state.git).toMatchObject({ complete: false, quality: "incomplete" });
 			expect(state.git.stateRef).toBeUndefined();
 			expect(state.verification).toMatchObject({
-				quality: "unavailable",
-				reason: "incomplete-source",
+				quality: "unbound",
+				reason: "legacy-source",
 				reportedOutcome: "pass",
 				effectiveOutcome: "unknown",
-				freshness: "unavailable",
+				freshness: "unbound",
 			});
 		});
 	});

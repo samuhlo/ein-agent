@@ -12,6 +12,24 @@ const upstream = [
   "let nextWidgetAnimationAt = Date.now() + WIDGET_ANIMATION_INTERVAL_MS;\nif (runningJobIds.size > 0 && now >= nextWidgetAnimationAt) {\n\t\t\t\tnextWidgetAnimationAt = now + WIDGET_ANIMATION_INTERVAL_MS;\nrequestLastWidgetRender();\n}\nconst livenessIntervalMs = 5000;",
 ];
 
+test("compiled JS widgets receive the same bounded repair and remain idempotent", () => {
+  const home = mkdtempSync(join(tmpdir(), "ein-js-widget-"));
+  const paths = SUBAGENT_WIDGET_FILES.map((file) => join(home, "npm/node_modules/pi-subagents", file.replace(/\.ts$/, ".js")));
+  try {
+    paths.forEach((path, i) => {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, upstream[i]!.replaceAll("\t", "    ").replace("if (frame === undefined) return seed;", "if (frame === undefined)\n        return seed;"));
+    });
+    ensureSubagentWidgetCompatibility(home);
+    const fixed = paths.map((path) => readFileSync(path, "utf8"));
+    expect(fixed[0]).toContain("= 80;");
+    expect(new Function(`${fixed[1]}; return animatedSeed;`)()(200, 5)).toBe(5);
+    expect(fixed[2]).toContain("animationFrame !== lastWidgetAnimationFrame");
+    ensureSubagentWidgetCompatibility(home);
+    expect(paths.map((path) => readFileSync(path, "utf8"))).toEqual(fixed);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
 test("package install and repeated package refresh restore animation and preserve liveness cadence", async () => {
   const home = mkdtempSync(join(tmpdir(), "ein-widget-compat-"));
   const ctx = resolvePiInstallContext(home);

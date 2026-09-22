@@ -8,6 +8,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { t } from "../../lib/i18n/strings.ts";
 import {
 	formatReconciliation,
@@ -29,6 +30,8 @@ import {
 	sddParticipantCallsAreTracked,
 } from "../../lib/sdd-participants.ts";
 import { recognizePiParticipantTerminal } from "./ein-pi-event-contracts.ts";
+import { acceptedScoutReceipt, rejectedScoutReceipt, renderScoutCard, scoutReceipt, scoutResultDetails } from "../../lib/scout-receipt.ts";
+import { installToolCardBridge } from "../../lib/tool-card-renderer-bridge.ts";
 
 export function registerDelegationResultHook(
 	pi: ExtensionAPI,
@@ -39,6 +42,18 @@ export function registerDelegationResultHook(
 		{ phase: SddPhase; before: PhaseSnapshot }
 	>();
 	const participantResultDriftWarned = new Set<string>();
+	let releaseScoutCard: (() => void) | undefined;
+	pi.on("session_start", (_event, ctx) => {
+		if (!ctx.hasUI || releaseScoutCard) return;
+		releaseScoutCard = installToolCardBridge(ToolExecutionComponent.prototype, {
+			matches: (name) => name === "subagent",
+			owns: (_args, result) => Boolean(scoutReceipt(result?.details)),
+			duration: () => undefined,
+			render: renderScoutCard,
+		});
+		if (!releaseScoutCard) ctx.ui.notify("No se puede mostrar la tarjeta de evidencia; consulta el resultado validado en los detalles de la herramienta.", "warning");
+	});
+	pi.on("session_shutdown", () => { releaseScoutCard?.(); releaseScoutCard = undefined; });
 
 	function warnParticipantResultDrift(ctx: ExtensionContext): void {
 		const key = sddPreflightSessionKey(ctx);
@@ -123,18 +138,24 @@ export function registerDelegationResultHook(
 				event.isError,
 				ctx.cwd,
 			);
-			if (report) return {
-				isError: false,
-				content: [{ type: "text", text: JSON.stringify(report) }],
-			};
+			if (report) {
+				const receipt = acceptedScoutReceipt(report);
+				return {
+					isError: false,
+					details: scoutResultDetails(event.details, receipt, event.content),
+					content: [{ type: "text", text: JSON.stringify(report) }, { type: "text", text: receipt.recovery }],
+				};
+			}
 		} catch (error) {
+			const reason = error instanceof Error ? error.message : "ein-scout contract: validation failed";
+			const failures = [...scoutTracking.values()].filter((status) => status === "off-contract").length;
+			const receipt = rejectedScoutReceipt(reason, failures, scoutTracking.get(event.toolCallId) === "unavailable");
 			return {
 				isError: true,
+				details: scoutResultDetails(event.details, receipt, event.content),
 				content: [{
 					type: "text",
-					text: error instanceof Error
-						? error.message
-						: "ein-scout contract: validation failed",
+					text: `${reason}\n\n${receipt.recovery}`,
 				}],
 			};
 		}

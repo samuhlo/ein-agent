@@ -6,6 +6,8 @@ import { normalizeApplyProgress, normalizeApplyProgressWrite } from "../shared/s
 import { updateSddTaskProgress } from "../shared/sdd/sdd-task-progress.ts";
 import { readSddCompletionEvidence } from "../shared/sdd/sdd-routing-core.ts";
 import { reconcilePhaseFailure } from "../ein-pi/agent/lib/sdd-reconcile.ts";
+import { readVerificationFreshness } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
+const readVerification = (cwd: string, changePath: string) => readVerificationFreshness({ cwd, changePath });
 
 test("one group cannot complete the whole change; both runtimes repair existing report metadata", () => {
  const cwd=mkdtempSync(join(tmpdir(),"ein-honest-progress-"));const dir=join(cwd,"openspec/changes/probe");mkdirSync(dir,{recursive:true});
@@ -13,7 +15,7 @@ test("one group cannot complete the whole change; both runtimes repair existing 
   writeFileSync(join(dir,"tasks.md"),"status: ready\n- [ ] 1.1 First\n- [ ] 2.1 Next\n");
   const original="status: complete\n\n## First\nImplemented first group.\nstatus: complete\n\n```text\nstatus: blocked\nHistorical diagnostic\n```\n";
   writeFileSync(join(dir,"apply-progress.md"),original);
-  expect(readSddCompletionEvidence(cwd,"probe").apply).toBe("partial");
+  expect(readSddCompletionEvidence(cwd,"probe",readVerification).apply).toBe("partial");
   expect(readFileSync(join(dir,"apply-progress.md"),"utf8")).toBe(original);
   updateSddTaskProgress(cwd,"probe","1.1","start");updateSddTaskProgress(cwd,"probe","1.1","complete");
   const report=readFileSync(join(dir,"apply-progress.md"),"utf8");
@@ -34,7 +36,7 @@ test("a passing heading cannot override admitted missing coverage or rescue a fa
   expect(reconcilePhaseFailure(cwd,"apply",{}).reconciled).toBe(false);
   for (const outcome of ["partial","none"]) {
    writeFileSync(join(dir,"verify-report.md"),`status: pass\nbehavior_coverage: ${outcome}\n`);
-   expect(readSddCompletionEvidence(cwd,"probe").verify).toBe("fail");
+   expect(readSddCompletionEvidence(cwd,"probe",readVerification).verify).toBe("fail");
    expect(reconcilePhaseFailure(cwd,"verify",{}).reconciled).toBe(false);
   }
   writeFileSync(join(dir,"verify-report.md"),"status: fail\nbehavior_coverage: verified\n");

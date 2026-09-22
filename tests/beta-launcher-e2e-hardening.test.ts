@@ -17,6 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import { resolve, join, relative } from "node:path";
 import { projectProjectState } from "../ein-pi/agent/lib/project-state.ts";
+import { beginVerification, finishVerification } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 import {
   buildLaunchPlan,
   createRuntimeSessionAdapter,
@@ -139,8 +140,10 @@ function makeFixture(): {
   git(project, ["config", "user.name", "Ein Tests"]);
   git(project, ["add", "--all"]);
   git(project, ["commit", "--quiet", "-m", "fixture"]);
-  const currentStateRef = projectProjectState({ cwd: project }).git.stateRef!;
-  writeText(join(change, "verify-report.md"), `status: pass\nproject_state_git_ref: ${currentStateRef}\n`);
+  const begun = beginVerification({ cwd: project, changePath: change });
+  if (!begun.ok) throw new Error(begun.reason);
+  const finished = finishVerification({ cwd: project, changePath: change, token: begun.value.token, content: "status: pass\nbehavior_coverage: verified\n" });
+  if (!finished.ok) throw new Error(finished.reason);
   const scenario = (overrides: Partial<Scenario> = {}): Scenario => ({
     home,
     runtimeHome,
@@ -524,7 +527,8 @@ describe("project fixtures and ownership manifests", () => {
       expect(state.schemaVersion).toBe(1);
       expect(state.openspec).toMatchObject({ selection: "selected", provenance: "canonical", verify: "pass" });
       expect(state.git).toMatchObject({ repository: true, quality: "current", complete: true });
-      expect(state.verification).toMatchObject({ freshness: "current", effectiveOutcome: "pass", currentStateRef: state.git.stateRef });
+      expect(state.verification).toMatchObject({ freshness: "current", effectiveOutcome: "pass" });
+      expect(state.verification.currentVerificationSurfaceRef).toBe(state.verification.observedVerificationSurfaceRef);
       expect(fixture.baselineProject.git?.stateRef).toBe(state.git.stateRef);
     } finally {
       fixture.dispose();
@@ -538,7 +542,8 @@ describe("project fixtures and ownership manifests", () => {
       writeFileSync(fixture.tracked, "export const fixture = 'mutated';\n");
       const mutated = projectProjectState({ cwd: fixture.project });
       expect(mutated.git.stateRef).not.toBe(baseline.git.stateRef);
-      expect(mutated.verification).toMatchObject({ freshness: "stale", effectiveOutcome: "unknown", observedStateRef: baseline.git.stateRef });
+      expect(mutated.verification).toMatchObject({ freshness: "stale", effectiveOutcome: "unknown", observedVerificationSurfaceRef: baseline.verification.observedVerificationSurfaceRef });
+      expect(mutated.verification.currentVerificationSurfaceRef).not.toBe(baseline.verification.currentVerificationSurfaceRef);
       const after = manifest(fixture.project, true);
       const changed = after.entries.filter((entry, index) => JSON.stringify(entry) !== JSON.stringify(fixture.baselineProject.entries[index]));
       expect(changed.map((entry) => entry.path)).toContain("src/tracked.ts");
@@ -585,12 +590,16 @@ describe("project fixtures and ownership manifests", () => {
     const fixture = makeFixture();
     try {
       const report = join(fixture.project, "openspec", "changes", "beta-fixture", "verify-report.md");
-      writeFileSync(report, "status: fail\nproject_state_git_ref: invalid\n");
+      const receipt = join(fixture.project, "openspec", "changes", "beta-fixture", "verification-receipt.json");
+      const validReceipt = readFileSync(receipt);
+      writeFileSync(report, "status: fail\n");
+      writeFileSync(receipt, "{broken");
       expect(projectProjectState({ cwd: fixture.project }).verification).toMatchObject({ freshness: "invalid", effectiveOutcome: "fail", quality: "incomplete" });
       writeFileSync(report, "not a verification report\n");
       expect(projectProjectState({ cwd: fixture.project }).verification).toMatchObject({ freshness: "invalid", effectiveOutcome: "unknown", reportedOutcome: "unknown" });
+      writeFileSync(receipt, validReceipt);
       rmSync(report);
-      expect(projectProjectState({ cwd: fixture.project }).verification).toMatchObject({ freshness: "unavailable", effectiveOutcome: "absent", quality: "absent" });
+      expect(projectProjectState({ cwd: fixture.project }).verification).toMatchObject({ freshness: "unavailable", effectiveOutcome: "unknown", quality: "unavailable", reportedOutcome: "absent" });
     } finally {
       fixture.dispose();
     }
