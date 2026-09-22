@@ -19,6 +19,9 @@ export type CloseReadinessBlockerCode =
 	| "verify-failed"
 	| "verify-unclear"
 	| "verify-stale"
+	| "verify-unbound"
+	| "verify-unavailable"
+	| "verify-invalid"
 	| "summary-missing"
 	| "summary-stale"
 	| "tasks-pending"
@@ -72,7 +75,7 @@ function declarationlessLegacyEligible(cwd: string, change: string, status: SddC
 	}
 
 	return status.apply === "complete" &&
-		status.present.verify && status.verify === "pass" && !status.verifyStale &&
+		status.present.verify && status.verify === "pass" && status.verification.state === "current" &&
 		status.present.close && !status.summaryStale &&
 		status.tasks.counts.pending === 0;
 }
@@ -152,7 +155,12 @@ export function createAssessCloseReadiness(
 		if (!status.present.verify) add("verify-missing", "falta verify-report.md.");
 		else if (status.verify === "fail") add("verify-failed", "verify-report indica fallo.");
 		else if (status.verify !== "pass") add("verify-unclear", "verify-report sin `status: pass` claro.");
-		if (status.verifyStale) add("verify-stale", "verify-report es anterior al último apply (evidencia obsoleta): re-verifica.");
+		if (status.present.verify) {
+			if (status.verification.state === "stale") add("verify-stale", `${status.verification.reason}: re-verifica.`);
+			else if (status.verification.state === "unbound") add("verify-unbound", "verify-report no tiene recibo de superficie: re-verifica.");
+			else if (status.verification.state === "unavailable") add("verify-unavailable", `no se pudo comprobar la frescura: ${status.verification.reason}.`);
+			else if (status.verification.state === "invalid") add("verify-invalid", `recibo de verificación inválido: ${status.verification.reason}.`);
+		}
 		if (!status.present.close) add("summary-missing", "falta summary.md.");
 		else if (status.summaryStale) add("summary-stale", "summary.md es anterior a apply/verify: regenera el resumen.");
 		if (status.tasks.counts.pending > 0) add("tasks-pending", `quedan ${status.tasks.counts.pending} tarea(s) sin completar.`);

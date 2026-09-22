@@ -8,7 +8,7 @@
 // =============================================================================
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmodSync, readdirSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readdirSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,6 +23,7 @@ import { bannerStatic, bannerVersionLabel, readBannerState } from "../installer/
 import { INSTALLER_VERSION } from "../installer/src/core/version.ts";
 import { defaultUpdateCaps, type HttpResponse, type UpdateCaps } from "../installer/src/core/update-caps.ts";
 import { recoverPendingTransaction, runUpdateTransaction } from "../installer/src/core/transaction.ts";
+import { TEMPLATE_REPLACE_TREES } from "../installer/src/core/template-inventory.ts";
 
 const roots: string[] = [];
 const encoder = new TextEncoder();
@@ -104,6 +105,10 @@ function scriptedChild(script: ChildScript): { child: UpdateCaps["child"]; calls
 
 function scriptedTemplate(templateVersion: string): UpdateCaps["template"] {
   return {
+    async queryInventory() {
+      return { code: 0, stdout: JSON.stringify({ binaryVersion: templateVersion, templateVersion,
+        inventory: { schemaVersion: 1, replaceTrees: [...TEMPLATE_REPLACE_TREES], overlayFiles: ["ein-mode.json", "template-manifest.json"] } }) };
+    },
     async deploy(_binary, agentDir) {
       mkdirSync(join(agentDir, "agents"), { recursive: true });
       writeFileSync(join(agentDir, "template-manifest.json"), JSON.stringify({ templateVersion }));
@@ -506,6 +511,84 @@ describe("release update integration", () => {
     expect(readFileSync(destinationPath)).toEqual(priorBinary);
     expect(JSON.parse(readFileSync(markerPath, "utf8"))).toMatchObject({ version: PRIOR_VERSION });
     expect(output.join("\n")).toMatch(/continuing|recovering/);
+  });
+
+  test("a failure after template extraction restores every inventoried preimage and absence", async () => {
+    const dir = root();
+    const agentDir = join(dir, "agent");
+    const destinationPath = join(dir, "ein");
+    const markerPath = join(dir, "marker.json");
+    const journalPath = join(dir, "journal.json");
+    mkdirSync(join(agentDir, "agents"), { recursive: true });
+    mkdirSync(join(agentDir, "skills", "local"), { recursive: true });
+    writeFileSync(destinationPath, priorBytes(PRIOR_VERSION));
+    chmodSync(destinationPath, 0o755);
+    writeFileSync(markerPath, markerBytes(PRIOR_VERSION, { type: "standalone" }));
+    writeFileSync(join(agentDir, "agents", "old.md"), "old-agent");
+    writeFileSync(join(agentDir, "app.ts"), "old-app");
+    writeFileSync(join(agentDir, "settings.json"), '{"defaultModel":"personal"}');
+    writeFileSync(join(agentDir, "skills", "local", "ein.md"), "old-managed-skill");
+    writeFileSync(join(agentDir, "skills", "local", "personal.md"), "personal-skill");
+    writeFileSync(join(agentDir, "auth.json"), "secret");
+
+    const base = defaultUpdateCaps();
+    const child = scriptedChild((args) => {
+      if (args.includes("--version")) return { stdout: `ein-installer ${TARGET_VERSION}\ntemplate-version ${TARGET_VERSION}\n`, exitCode: 0 };
+      if (args.some((arg) => arg.startsWith("--ein-continuation="))) {
+        const txId = args.find((arg) => arg.startsWith("--ein-continuation="))!.split("=")[1]!;
+        return { stdout: JSON.stringify({ txId, releaseTag: TARGET_TAG, binaryVersion: TARGET_VERSION, templateVersion: TARGET_VERSION, status: "ok" }), exitCode: 0 };
+      }
+      return undefined;
+    });
+    const overlayFiles = ["app.ts", "ein-mode.json", "settings.json", "skills/local/ein.md", "surfaces/new.ts", "template-manifest.json"];
+    const caps: UpdateCaps = {
+      ...base,
+      http: scriptedHttp({
+        [apiLatest]: releasePayload(),
+        [assetUrl]: assetBytes,
+        [checksumsUrl]: encoder.encode(`${assetDigest}  ${ASSET_NAME}\n`),
+      }),
+      child: child.child,
+      template: {
+        async queryInventory() {
+          return { code: 0, stdout: JSON.stringify({ binaryVersion: TARGET_VERSION, templateVersion: TARGET_VERSION,
+            inventory: { schemaVersion: 1, replaceTrees: [...TEMPLATE_REPLACE_TREES], overlayFiles } }) };
+        },
+        async deploy(_binary, target) {
+          rmSync(join(target, "agents"), { recursive: true, force: true });
+          mkdirSync(join(target, "agents"), { recursive: true });
+          writeFileSync(join(target, "agents", "new.md"), "new-agent");
+          writeFileSync(join(target, "app.ts"), "new-app");
+          writeFileSync(join(target, "settings.json"), '{"defaultModel":"new"}');
+          writeFileSync(join(target, "skills", "local", "ein.md"), "new-managed-skill");
+          mkdirSync(join(target, "surfaces"), { recursive: true });
+          writeFileSync(join(target, "surfaces", "new.ts"), "new-surface");
+          writeFileSync(join(target, "template-manifest.json"), JSON.stringify({ templateVersion: TARGET_VERSION }));
+          throw new Error("injected failure after extraction");
+        },
+        async readManifest() { return null; },
+      },
+    };
+
+    const outcome = await runUpdateTransaction({
+      caps,
+      selector: { kind: "latest", raw: "latest" },
+      platform: { os: "linux", arch: "x64" },
+      agentDir,
+      markerPath,
+      journalPath,
+      destinationPath,
+    });
+    expect(outcome.type).toBe("failed");
+    expect(readFileSync(destinationPath)).toEqual(priorBytes(PRIOR_VERSION));
+    expect(readFileSync(join(agentDir, "agents", "old.md"), "utf8")).toBe("old-agent");
+    expect(existsSync(join(agentDir, "agents", "new.md"))).toBe(false);
+    expect(readFileSync(join(agentDir, "app.ts"), "utf8")).toBe("old-app");
+    expect(readFileSync(join(agentDir, "settings.json"), "utf8")).toContain("personal");
+    expect(readFileSync(join(agentDir, "skills", "local", "ein.md"), "utf8")).toBe("old-managed-skill");
+    expect(readFileSync(join(agentDir, "skills", "local", "personal.md"), "utf8")).toBe("personal-skill");
+    expect(readFileSync(join(agentDir, "auth.json"), "utf8")).toBe("secret");
+    expect(existsSync(join(agentDir, "surfaces", "new.ts"))).toBe(false);
   });
 
   test("interruption during a prepared transaction is detected as recovery-required on the next invocation", async () => {
