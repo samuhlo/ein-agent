@@ -81,3 +81,13 @@ test("record cannot skip an open draft and read-only CLI does not initialize fil
   const bytes = readFileSync(path, "utf8");
   cli(root, "draft-show"); expect(readFileSync(path, "utf8")).toBe(bytes);
 });
+
+test("a reply stays with this session's explicit work when another session changes the checkpoint objective", async () => {
+  const root = project(); const first = pi(root); const second = pi(root);
+  await first.call({ action: "propose", work: "first", expectedRevision: "absent", material, decisions: [rows], questions: [rows.question] });
+  await second.call({ action: "propose", work: "second", expectedRevision: "absent", material, decisions: [rows], questions: [rows.question] });
+  first.input("Only first work");
+  expect(readIntentDraft(root, "first")).toMatchObject({ status: "valid", draft: { response: { text: "Only first work" } } });
+  const other = readIntentDraft(root, "second");
+  expect(other.status === "valid" && other.draft.response).toBeUndefined();
+});

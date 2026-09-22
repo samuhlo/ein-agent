@@ -1,7 +1,7 @@
 import { evidenceTask, readEvidenceTask, INTENT_EVIDENCE } from "../../lib/intent-evidence.ts";
 import { questionnaireBatch, questionnaireAnswer, retainOtherQuestionnaireAnswers, type IntentQuestion } from "../../lib/intent-questionnaire.ts";
 import { randomUUID } from "node:crypto";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { INTENT_INPUT, INTENT_STATE, intentSnapshot, legacyIntentSnapshot, selectIntentDraft, migrateLegacyIntentDraft, bindIntentQuestionnaire, observeIntentResponse, observeIntentEvidence, validateEvidenceDelegation, nextIntentAction, requireIntent, runIntentDiscovery, type IntentInput, type IntentRequest } from "../../lib/intent-discovery.ts";
@@ -19,8 +19,11 @@ import type { EinToolRegistrar } from "./ein-tool-registration.ts";
 export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinToolRegistrar): void {
 	const questionnaires = new Map<string, { session: string; work: string; revision: string; questions: IntentQuestion[] }>();
 	const latestInputs = new Map<string, IntentInput>();
-	function selectedWork(ctx: Parameters<typeof intentSnapshot>[0], explicit?: string): string | undefined {
+	const selectedWorks = new Map<string, string>();
+	function selectedWork(ctx: ExtensionContext, explicit?: string): string | undefined {
 		if (explicit) return explicit;
+		const selected = selectedWorks.get(sddPreflightSessionKey(ctx));
+		if (selected) return selected;
 		const objective = showContinuityObjective(ctx.cwd);
 		const evidence = objective.kind === "valid" ? objective.objectiveEvidence : undefined;
 		const selection = selectIntentDraft(ctx, undefined, evidence && (evidence.kind === "intent" || evidence.kind === "intent-draft") ? evidence.work : undefined);
@@ -29,7 +32,7 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 		const latest = [...ctx.sessionManager.getBranch()].reverse().find((entry: any) => entry.type === "custom" && entry.customType === INTENT_STATE) as { data?: { work?: string } } | undefined;
 		return latest?.data?.work;
 	}
-	function hydrate(ctx: Parameters<typeof intentSnapshot>[0], work: string): void {
+	function hydrate(ctx: ExtensionContext, work: string): void {
 		const stored = readIntentDraft(ctx.cwd, work);
 		if (stored.status === "absent" && legacyIntentSnapshot(ctx, work).agreement) migrateLegacyIntentDraft(ctx, work, createIntentDraftRuntime(ctx.cwd, { mutating: true }));
 		const snapshot = intentSnapshot(ctx, work);
@@ -59,7 +62,7 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 		}
 		return { action: "continue" };
 	});
-	pi.on("session_shutdown", (_event, ctx) => { latestInputs.delete(sddPreflightSessionKey(ctx));
+	pi.on("session_shutdown", (_event, ctx) => { latestInputs.delete(sddPreflightSessionKey(ctx)); selectedWorks.delete(sddPreflightSessionKey(ctx));
 		for (const [id, pending] of questionnaires) if (pending.session === sddPreflightSessionKey(ctx)) questionnaires.delete(id); });
 	pi.on("tool_result", (event, ctx) => {
 		if (event.toolName === "subagent" && typeof event.input?.task === "string") {
@@ -215,6 +218,7 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 				hydrate(ctx, work);
 				const request: IntentRequest = { ...input, work };
 				const snapshot = runIntentDiscovery(ctx, request, (type, data) => pi.appendEntry(type, data), latestInputs.get(sddPreflightSessionKey(ctx)), createIntentDraftRuntime(ctx.cwd, { mutating: request.action !== "status" }));
+				if (input.work) selectedWorks.set(sddPreflightSessionKey(ctx), work);
 				const state = snapshot.agreement?.status ?? "absent";
 				const reviewing = snapshot.agreement?.stage === "review";
 				let instruction = state === "confirmed"
