@@ -57,6 +57,7 @@ export function parseVerificationReport(content: string): VerificationReportPars
 	let invalidRequiredCheck = false;
 	let failedRequiredCheck = false;
 	let fence: Fence | null = null;
+	let inComment = false;
 	let atDocumentStart = true;
 	let inFrontmatter = false;
 	let preambleOpen = true;
@@ -89,6 +90,18 @@ export function parseVerificationReport(content: string): VerificationReportPars
 			fence = marker;
 			continue;
 		}
+		// Hidden examples and indented code are not report metadata.
+		if (inComment || line.includes("<!--")) {
+			let offset = 0;
+			while (offset < line.length) {
+				const boundary = line.indexOf(inComment ? "-->" : "<!--", offset);
+				if (boundary < 0) break;
+				offset = boundary + (inComment ? 3 : 4);
+				inComment = !inComment;
+			}
+			continue;
+		}
+		if (/^(?: {4}|\t)/.test(line)) continue;
 
 		if (preambleOpen && /^ {0,3}#{1,6}(?:\s+|$)/.test(line)) {
 			if (!preambleContentSeen && /^ {0,3}#(?:\s+|$)/.test(line)) {
