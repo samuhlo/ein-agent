@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { constants, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync, renameSync, unlinkSync, writeSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { CONTINUITY_CHECKPOINT_LIMITS, parseContinuityCheckpoint, type ContinuityCheckpointV1 } from "./continuity-checkpoint.ts";
+import { CONTINUITY_CHECKPOINT_LIMITS, parseContinuityCheckpoint, type ContinuityCheckpoint } from "./continuity-checkpoint.ts";
 
 export type ContinuityCheckpointLocation = Readonly<{ mode: "adhoc" }> | Readonly<{ mode: "sdd"; change: string }>;
 export type ContinuityCheckpointExpectation = Readonly<{ kind: "absent" }> | Readonly<{ kind: "revision"; revision: string }>;
 export type ContinuityCheckpointRead =
-	| Readonly<{ status: "valid"; checkpoint: ContinuityCheckpointV1 }>
+	| Readonly<{ status: "valid"; checkpoint: ContinuityCheckpoint }>
 	| Readonly<{ status: "absent" }>
 	| Readonly<{ status: "failure"; reason: "invalid-content" | "read-failure" | "unsafe-request" }>;
 export type ContinuityCheckpointMutation =
@@ -137,8 +137,8 @@ function releaseOwned(path: string, owned: Identity | undefined, proof: readonly
 	catch { /* Uncertain identity: preserve the quarantined inode. */ } finally { if (fd !== undefined) try { closeSync(fd); } catch { /* cleanup only */ } }
 }
 
-function mutate(request: Request, expectation: ContinuityCheckpointExpectation, checkpoint: ContinuityCheckpointV1 | null, callbacks: Callbacks): ContinuityCheckpointMutation {
-	let canonical: ContinuityCheckpointV1 | null = null;
+function mutate(request: Request, expectation: ContinuityCheckpointExpectation, checkpoint: ContinuityCheckpoint | null, callbacks: Callbacks): ContinuityCheckpointMutation {
+	let canonical: ContinuityCheckpoint | null = null;
 	if (checkpoint) { const parsed = parseContinuityCheckpoint(checkpoint); if (!parsed.ok || parsed.checkpoint.mode !== request.location.mode || (request.location.mode === "adhoc" ? parsed.checkpoint.change !== null : parsed.checkpoint.change !== request.location.change)) return { ok: false, outcome: "not-published", reason: "invalid" }; canonical = parsed.checkpoint; }
 	const parent = prepare(request, checkpoint !== null); if (parent.state !== "present") return { ok: false, outcome: "not-published", reason: "invalid" };
 	const path = request.target, lock = `${path}.lock`, temp = `${path}.tmp`, token = randomUUID();
@@ -180,7 +180,7 @@ function mutate(request: Request, expectation: ContinuityCheckpointExpectation, 
 }
 
 function invalid(): ContinuityCheckpointMutation { return { ok: false, outcome: "not-published", reason: "invalid" }; }
-export function writeContinuityCheckpoint(root: string, location: ContinuityCheckpointLocation, checkpoint: ContinuityCheckpointV1, expectation: ContinuityCheckpointExpectation, seam?: ContinuityCheckpointStoreTestSeam): ContinuityCheckpointMutation {
+export function writeContinuityCheckpoint(root: string, location: ContinuityCheckpointLocation, checkpoint: ContinuityCheckpoint, expectation: ContinuityCheckpointExpectation, seam?: ContinuityCheckpointStoreTestSeam): ContinuityCheckpointMutation {
 	try { const request = requestFor(root, location), expected = expectationFor(expectation), callbacks = callbacksFor(seam); return request && expected && callbacks ? mutate(request, expected, checkpoint, callbacks) : invalid(); } catch { return invalid(); }
 }
 export function clearContinuityCheckpoint(root: string, location: ContinuityCheckpointLocation, expectation: ContinuityCheckpointExpectation, seam?: ContinuityCheckpointStoreTestSeam): ContinuityCheckpointMutation {
