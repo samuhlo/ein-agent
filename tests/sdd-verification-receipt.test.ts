@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -55,6 +55,25 @@ function writeIntent(status: "pending" | "confirmed", objective = "Verify the ag
 }
 
 describe("createVerificationService", () => {
+	test("an unconfirmed agreement cannot publish passing verification", () => {
+		writeIntent("pending");
+		const api = service();
+		const begun = api.beginVerification({ cwd: root, changePath });
+		if (!begun.ok) return;
+		expect(api.finishVerification({ cwd: root, changePath, token: begun.value.token, content: PASS }).ok).toBe(false);
+		expect(api.readVerificationFreshness({ cwd: root, changePath }).state).not.toBe("current");
+	});
+
+	test("a report symlink cannot overwrite another project file", () => {
+		const api = service();
+		const begun = api.beginVerification({ cwd: root, changePath });
+		if (!begun.ok) throw new Error(begun.reason);
+		const target = join(root, "src.ts");
+		const original = readFileSync(target, "utf8");
+		symlinkSync(target, join(changePath, "verify-report.md"));
+		expect(api.finishVerification({ cwd: root, changePath, token: begun.value.token, content: PASS }).ok).toBe(false);
+		expect(readFileSync(target, "utf8")).toBe(original);
+	});
 	test("begin/finish publica un recibo actual sin autorreferencia", () => {
 		const api = service();
 		const begun = api.beginVerification({ cwd: root, changePath });

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
@@ -45,6 +45,7 @@ const RECEIPT = "verification-receipt.json";
 const REPORT = "verify-report.md";
 const HASH = /^[a-f0-9]{64}$/;
 const REF = /^sha256:[a-f0-9]{64}$/;
+const TOKEN = /^[A-Za-z0-9_-]{1,128}$/;
 
 function sha256(content: string | Buffer): string { return createHash("sha256").update(content).digest("hex"); }
 function fail<T>(code: string, reason: string): ServiceResult<T> { return { ok: false, code, reason }; }
@@ -57,7 +58,7 @@ function validEntries(value: unknown): value is VerificationSurfaceEntry[] {
 		(entry.sha256 === "missing" || (typeof entry.sha256 === "string" && HASH.test(entry.sha256))));
 }
 function parseSession(value: unknown): VerificationSession | null {
-	if (!record(value) || value.version !== 1 || typeof value.token !== "string" || !value.token || typeof value.root !== "string" ||
+	if (!record(value) || value.version !== 1 || typeof value.token !== "string" || !TOKEN.test(value.token) || typeof value.root !== "string" ||
 		typeof value.change !== "string" || !iso(value.startedAt) || !REF.test(String(value.surfaceRef)) ||
 		!REF.test(String(value.decisionRef)) || !validEntries(value.entries) || (value.intentKey !== undefined && typeof value.intentKey !== "string")) return null;
 	return value as unknown as VerificationSession;
@@ -87,9 +88,18 @@ function canonicalContent(content: string, key: string | undefined): string {
 	return normalized;
 }
 function atomicJson(path: string, value: unknown, token: string): void {
-	const temp = join(path.slice(0, -basename(path).length), `.ein-verification-${token}`);
-	try { writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx" }); renameSync(temp, path); }
-	finally { rmSync(temp, { force: true }); }
+	atomicText(path, `${JSON.stringify(value, null, 2)}\n`, token);
+}
+function atomicText(path: string, content: string, token: string): void {
+	const temp = join(path.slice(0, -basename(path).length), `.ein-verification-${token}-${randomUUID()}`);
+	let created = false;
+	try {
+		try { if (lstatSync(path).isSymbolicLink()) throw new Error("verification output must not be a symlink"); }
+		catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+		writeFileSync(temp, content, { flag: "wx" });
+		created = true;
+		renameSync(temp, path);
+	} finally { if (created) rmSync(temp, { force: true }); }
 }
 function validChangeDir(changePath: string): boolean {
 	try { const stat = lstatSync(changePath); return stat.isDirectory() && !stat.isSymbolicLink(); } catch { return false; }
@@ -123,11 +133,15 @@ export function createVerificationService(dependencies: VerificationServiceDepen
 		if (surface.root !== session.root || basename(request.changePath) !== session.change) return fail("session-mismatch", "verification root or change changed");
 		const key = intentKey(request.changePath);
 		if (key !== session.intentKey) return fail("intent-stale", "verification intent agreement changed");
+		const agreement = readAgreement(request.changePath);
+		if (agreement.kind === "invalid" || (agreement.kind === "valid" && agreement.agreement.status !== "confirmed")) {
+			return fail("intent-unresolved", "verification requires the current confirmed intent agreement");
+		}
 		if (surface.surfaceRef !== session.surfaceRef || surface.decisionRef !== session.decisionRef) return fail("verification-stale", "verification surface changed during verification");
 		const content = canonicalContent(request.content, key);
 		const parsed = parseVerificationReport(content);
 		const reportPath = join(request.changePath, REPORT);
-		try { writeFileSync(reportPath, content); }
+		try { atomicText(reportPath, content, session.token); }
 		catch (error) { return fail("write-failed", error instanceof Error ? error.message : String(error)); }
 		if (parsed.outcome === "unknown") return fail("outcome-unknown", "verification report has no publishable global outcome");
 		const existing = parseReceipt(readJson(join(request.changePath, RECEIPT)));
@@ -143,6 +157,10 @@ export function createVerificationService(dependencies: VerificationServiceDepen
 	}
 
 	function readVerificationFreshness(request: VerificationRequest): VerificationFreshness {
+		const agreement = readAgreement(request.changePath);
+		if (agreement.kind === "invalid" || (agreement.kind === "valid" && agreement.agreement.status !== "confirmed")) {
+			return { state: "invalid", reason: "verification intent agreement is unresolved" };
+		}
 		const receiptPath = join(request.changePath, RECEIPT);
 		if (!existsSync(receiptPath)) return { state: "unbound", reason: "verification receipt is absent" };
 		const receipt = parseReceipt(readJson(receiptPath));
