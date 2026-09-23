@@ -20,7 +20,7 @@ describe("higiene del repositorio", () => {
 		expect(documents).toContain("docs/README.md");
 		expect(documents).toContain("docs/roadmap.md");
 		expect(documents.filter((path) => path !== "docs/README.md" && path !== "docs/roadmap.md")
-			.every((path) => /^docs\/adr\/\d{4}-[a-z0-9-]+\.md$/.test(path))).toBe(true);
+			.every((path) => /^docs\/(?:adr\/\d{4}-[a-z0-9-]+|audits\/\d{4}-\d{2}-\d{2}-[a-z0-9-]+|plans\/manifesto-hardening\/(?:\d{2}-[a-z0-9-]+|README|prompts|estado-ejecucion-\d{4}-\d{2}-\d{2}))\.md$/.test(path))).toBe(true);
 	});
 
 	test("la raíz y el instalador no acumulan temporales de compilación de Bun", () => {
