@@ -4,6 +4,17 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.14] - 2026-09-23
+
+### Fixed
+
+- `/ein:models` aplica al proceso actual el modelo elegido para el orquestador,
+  además de guardarlo para sesiones nuevas. Muestra el modelo efectivo y avisa
+  cuando Pi rechaza el cambio.
+- «La última de Pi» y «La última de Claude» abren la sesión guardada más
+  reciente de su runtime. Ya no intentan un relevo nuevo ni bloquean esa
+  reanudación por `mutation-uncertain`.
+
 ## [0.99.0-alpha.13] - 2026-09-23
 
 ### Fixed
