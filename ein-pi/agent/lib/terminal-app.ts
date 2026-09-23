@@ -32,6 +32,7 @@ export type RowAction =
   | { kind: "open-view"; view: ViewKind }
   | { kind: "launch"; provider: RuntimeProvider; reference?: string; focusedChange?: string }
   | { kind: "continue"; provider: RuntimeProvider }
+  | { kind: "latest-session"; provider: RuntimeProvider }
   | { kind: "session"; provider: RuntimeProvider; reference: string }
   | { kind: "setting"; settingId: string }
   | { kind: "focus-change"; change: string }
@@ -196,13 +197,13 @@ export function buildDashboard(summary: ProjectSummary): View {
       label: pick("La última de Pi", "The last Pi one"),
       icon: ICON.pi,
       key: DASHBOARD_KEYS.continuePi,
-      action: { kind: "continue", provider: "pi" },
+      action: { kind: "latest-session", provider: "pi" },
     },
     {
       label: pick("La última de Claude", "The last Claude one"),
       icon: ICON.claude,
       key: DASHBOARD_KEYS.continueClaude,
-      action: { kind: "continue", provider: "claude" },
+      action: { kind: "latest-session", provider: "claude" },
     },
   ];
   const taller: Row[] = [
@@ -477,6 +478,7 @@ export type AppEffect =
   /** Hands the terminal over; the driver leaves raw mode first. */
   | { kind: "launch"; provider: RuntimeProvider; reference?: string; focusedChange?: string }
   | { kind: "continue"; provider: RuntimeProvider }
+  | { kind: "latest-session"; provider: RuntimeProvider }
   /** The driver persists it: writing is I/O and stays at the edge. */
   | { kind: "apply-setting"; settingId: string; value: string }
   | { kind: "focus-change"; change: string }
@@ -584,6 +586,8 @@ function activate(model: AppModel, row: Row): KeyOutcome {
       };
     case "continue":
       return { model, effect: { kind: "continue", provider: row.action.provider } };
+    case "latest-session":
+      return { model, effect: { kind: "latest-session", provider: row.action.provider } };
     case "session":
       return {
         model,

@@ -781,13 +781,31 @@ export async function handleModelsCommand(
 			return;
 		}
 	}
+	const previousActiveModel = ctx.model
+		? `${ctx.model.provider}/${ctx.model.id}`
+		: undefined;
+	let activeModel = previousActiveModel;
+	let modelApplied = false;
+	if (requestedModel && requestedModel !== previousActiveModel) {
+		const available = await ctx.modelRegistry.getAvailable();
+		const target = available.find((model) => `${model.provider}/${model.id}` === requestedModel);
+		if (!target) {
+			ctx.ui.notify(`Modelo predeterminado guardado, pero ${requestedModel} no está disponible para esta sesión. El modelo activo sigue siendo ${previousActiveModel ?? "desconocido"}.`, "warning");
+			return;
+		}
+		let accepted = false;
+		try { accepted = await pi.setModel(target); } catch { /* Report the effective state, not a successful switch. */ }
+		if (!accepted) {
+			ctx.ui.notify(`Modelo predeterminado guardado, pero Pi no pudo activar ${requestedModel}. El modelo activo sigue siendo ${previousActiveModel ?? "desconocido"}.`, "warning");
+			return;
+		}
+		activeModel = requestedModel;
+		modelApplied = true;
+	}
 	writeModelConfig(ctx.cwd, subagentConfig);
 	const applyResult = await applyModelConfigAsync(ctx.cwd, subagentConfig);
 
 	const notifyLines: string[] = [t("models.saved", "Config de modelos guardada.")];
-	const activeModel = ctx.model
-		? `${ctx.model.provider}/${ctx.model.id}`
-		: undefined;
 	const activeModelLabel = activeModel ?? t("models.orch.model.unknown", "desconocido");
 	const requestedModelIsActive =
 		activeModel !== undefined &&
@@ -801,7 +819,7 @@ export async function handleModelsCommand(
 				activeModelLabel,
 			),
 		);
-	} else if (modelChanged) {
+	} else if (modelChanged || modelApplied) {
 		if (!requestedModel) {
 			notifyLines.push(
 				tf(
@@ -820,7 +838,7 @@ export async function handleModelsCommand(
 			);
 		}
 	}
-	if (thinkingChanged) {
+	if (thinkingChanged || (modelApplied && requestedThinking !== undefined)) {
 		if (!requestedThinking) {
 			notifyLines.push(
 				tf(

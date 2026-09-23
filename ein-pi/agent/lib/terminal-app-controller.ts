@@ -233,6 +233,19 @@ export function createTerminalAppController(ports: TerminalAppControllerPorts): 
       case "continue":
         executeContinue(effect.provider);
         return;
+      case "latest-session": {
+        const sessions = ports.readSessions();
+        const latest = sessions.entries.find((entry) => entry.provider === effect.provider);
+        if (!latest) {
+          const unavailable = sessions.unavailable.some((gap) => gap.provider === effect.provider);
+          publish({ ...model, status: unavailable
+            ? pick(`No se pudo leer el store de ${RUNTIME_LABEL[effect.provider]}`, `Could not read the ${RUNTIME_LABEL[effect.provider]} store`)
+            : pick(`No hay sesión previa de ${RUNTIME_LABEL[effect.provider]}`, `No previous ${RUNTIME_LABEL[effect.provider]} session`) });
+          return;
+        }
+        executeExternal({ kind: "launch", provider: effect.provider, reference: latest.reference });
+        return;
+      }
       case "status":
       case "none":
         publish(model);
