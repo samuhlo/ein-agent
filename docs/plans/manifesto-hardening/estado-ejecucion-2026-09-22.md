@@ -1,19 +1,23 @@
-# Revisión e integración del 22 de septiembre
+# Revisión e integración del 22–23 de septiembre
 
 Estado de trabajo, no cierre definitivo. El usuario autorizó revisar, corregir y
-completar las PRs del plan, dejándolas listas para revisión humana. No autorizó
-fusionarlas ni publicar una versión en este encargo.
+completar las PRs del plan, dejándolas listas para revisión humana. El 23 de
+septiembre autorizó encadenar también las PR de documentación y `alpha.10`.
+Las PRs siguen abiertas para revisión y el tag de release espera a que se integren.
 
 ## Cadena de entrega
 
 Orden preparado: #462 (compatibilidad SDK) → #451 → #452 → #453 (01) →
 #454 (02) → #455 (04) → #456 (13) → #457 (05) → #458 (03) →
-#459 (09) → #460 (11) → #461 (10) → #463 (07).
+#459 (09) → #460 (11) → #461 (10) → #463 (07) → #465 (08) →
+#466 (06) → #467 (12, pendiente de publicar).
 
 Cada rama contiene su base. Las PRs se han retargeteado para que el diff muestre
-su cambio, sin bases agregadas que requieran otra integración manual. Los puntos
-08, 06 y 12 siguen en trabajo y se encadenarán a continuación. Se conserva todo
-el historial; no se ha usado force-push ni fusionado PRs.
+su cambio, sin bases agregadas que requieran otra integración manual. Las PR
+#465 y #466 tienen CI verde en Linux, macOS y documentación. Ninguna PR se ha
+fusionado. El punto 12 está integrado localmente sobre #466, con suite completa
+y verificaciones locales correctas; la publicación de #467 está en curso. Se
+conserva todo el historial; no se ha usado force-push.
 
 ## Hallazgos corregidos
 
@@ -45,15 +49,17 @@ el historial; no se ha usado force-push ni fusionado PRs.
 Los números anteriores identifican ejecuciones concretas; no certifican las
 ramas aún en desarrollo. El estado de CI definitivo debe releerse en cada PR.
 
-## Trabajo en curso
+## Puntos 08, 06 y 12
 
 - 08: journal de operaciones, consumidores de continuidad, guards y recuperación
-  por referencias nativas. Checkout `/private/tmp/ein-manifesto-08`.
+  por referencias nativas. PR #465. 3475 pruebas, ambos typechecks y bundle
+  locales correctos; CI Linux/macOS/docs verde.
 - 06: borrador neutral, máquina compartida, publicación/recuperación y consumidores
-  de cierre. Checkout `/private/tmp/ein-manifesto-06`.
-- 12: snapshots de revisión y comprobación previa a publicación implementados,
-  en revisión independiente antes de la integración final. Checkout
-  `/private/tmp/ein-manifesto-12`.
+  de cierre. PR #466 sobre #465. 3505 pruebas y verificaciones focales,
+  typechecks, bundle, paridad y piloto correctos; CI Linux/macOS/docs verde.
+- 12: snapshots de revisión y comprobación previa a publicación. Integrado sobre
+  #466 en `84a53d07`; 3529 pruebas, 77 pruebas de consumidores, ambos typechecks,
+  bundle y CLI correctos. PR #467 pendiente de publicación.
 
 Las rutas son ubicaciones de trabajo, no requisitos del producto. El workspace
 original con cambios ajenos sigue preservado.
