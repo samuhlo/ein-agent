@@ -64,7 +64,7 @@ describe("core parity: Claude coordinator contract", () => {
     );
     expect(adapter).toContain("Claude Code");
     expect(adapter).toContain("ein-cc-sdd");
-    expect(adapter).toMatch(/`Task` tool/);
+    expect(adapter).toContain("through `Task` to `sdd-apply`");
     expect(adapter).toContain("CLAUDE_CONFIG_DIR");
   });
 
