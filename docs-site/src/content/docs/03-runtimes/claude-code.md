@@ -9,7 +9,7 @@ Añade Claude con `ein-install install --runtime both`. La aplicación `ein` per
 
 ## Estado compartido, sesiones separadas
 
-Claude consume los artefactos en `openspec/` y los ajustes de `.pi/ein/`. Puede retomar un acuerdo ya confirmado. La captura de respuestas para acuerdos gestionados nuevos o modificados corresponde a Pi: resuelve esa parte antes del handoff.
+Claude consume los artefactos en `openspec/` y los ajustes de `.pi/ein/`. Puede retomar una entrevista de intención guardada, pero el trabajo ordinario no necesita crearla. Pi sigue siendo el runtime principal.
 
 `/ein:handoff status`, `/ein:handoff to pi` y `/ein:handoff to claude` permiten consultar o cambiar de runtime. El destino empieza una sesión nueva; no se transfieren historiales privados.
 

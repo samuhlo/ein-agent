@@ -3,16 +3,15 @@ import { observeContinuityGuard } from "../../lib/continuity-operation-adapter.t
 import { questionnaireBatch, questionnaireAnswer, retainOtherQuestionnaireAnswers, type IntentQuestion } from "../../lib/intent-questionnaire.ts";
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { INTENT_INPUT, INTENT_STATE, intentSnapshot, legacyIntentSnapshot, selectIntentDraft, migrateLegacyIntentDraft, bindIntentQuestionnaire, observeIntentResponse, observeIntentEvidence, validateEvidenceDelegation, nextIntentAction, requireIntent, runIntentDiscovery, type IntentInput, type IntentRequest } from "../../lib/intent-discovery.ts";
+import { INTENT_INPUT, INTENT_STATE, intentSnapshot, legacyIntentSnapshot, selectIntentDraft, migrateLegacyIntentDraft, bindIntentQuestionnaire, observeIntentResponse, observeIntentEvidence, validateEvidenceDelegation, nextIntentAction, runIntentDiscovery, type IntentInput, type IntentRequest } from "../../lib/intent-discovery.ts";
 import { createIntentDraftRuntime } from "../../lib/intent-draft-runtime.ts";
 import { readIntentDraft } from "../../lib/intent-draft-store.ts";
 import { showContinuityObjective } from "../../lib/continuity-objective.ts";
-import { collectDelegationItems, delegationShapeIsUnrecognized, rewriteDelegationTasks } from "../../lib/delegation-shape.ts";
+import { rewriteDelegationTasks } from "../../lib/delegation-shape.ts";
 import { readAuthorizedContinuation } from "../../lib/sdd-continuation.ts";
 import { resolveChangesDir } from "../../lib/sdd-routing-core.ts";
-import { artifactHasIntentKey, readAgreement, intentFrontier } from "../../lib/intent-agreement.ts";
+import { readAgreement, intentFrontier } from "../../lib/intent-agreement.ts";
 import { isRecord, readExplicitSddChange, readAgentStartNames } from "./ein-pi-event-contracts.ts";
 import { sddPreflightSessionKey } from "../../lib/sdd-preflight.ts";
 import type { EinToolRegistrar } from "./ein-tool-registration.ts";
@@ -131,10 +130,6 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 				}
 				return;
 			}
-			if (event.toolName === "ein_sdd_preflight" && isRecord(event.input) && event.input.create === true) {
-				const change = typeof event.input.change === "string" ? event.input.change : undefined;
-				requireIntent(ctx, change, change);
-			}
 			if (event.toolName !== "subagent") return;
 			const evidence = validateEvidenceDelegation(ctx, event.input);
 			if (evidence) {
@@ -148,36 +143,11 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 			}
 			rewriteDelegationTasks(event.input, (agent, task) => {
 				const change = readAuthorizedContinuation(ctx, agent, task);
-				return change ? `change: ${change}\nintent_work: ${change}\n\n${task}` : task;
+				return change ? `change: ${change}\n\n${task}` : task;
 			});
-			if (delegationShapeIsUnrecognized(event.input)) throw new Error("Intent cannot validate this execution shape; use explicit agent/task calls");
-			for (const item of collectDelegationItems(event.input)) {
-				if (!item.agent?.startsWith("sdd-")) continue;
-				const change = readExplicitSddChange({ task: item.task });
-				const work = item.task?.match(/^intent_work:\s*([a-z0-9]+(?:-[a-z0-9]+)*)\s*$/m)?.[1];
-				const dir = change ? join(resolveChangesDir(ctx.cwd), change) : undefined;
-				// Los cambios anteriores con scope siguen siendo reanudables. No se
-				// fabrica un acuerdo histórico ni se aplica esa excepción a un scope nuevo.
-				if (!work && dir && !existsSync(join(dir, "intent.md")) && existsSync(join(dir, "scope.md"))
-					&& readIntentDraft(ctx.cwd, change!).status === "absent" && !readFileSync(join(dir, "scope.md"), "utf8").includes("intent_key:") && item.agent !== "sdd-scope") continue;
-				const agreement = requireIntent(ctx, work ?? change, change);
-				const agreedDir = agreement.change ? join(resolveChangesDir(ctx.cwd), agreement.change) : undefined;
-				if (agreedDir && ["sdd-tasks", "sdd-apply"].includes(item.agent)) {
-					if (!existsSync(join(agreedDir, "design.md"))) throw new Error("Create the agreed design first; run SDD phase by phase so discovery can reopen between phases");
-					const design = readFileSync(join(agreedDir, "design.md"), "utf8");
-					if (!artifactHasIntentKey(design, agreement.materialKey)) throw new Error("Design does not reference the current intent; update the design before tasks or apply");
-				}
-			}
 		} catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 	}, "intent-discovery"));
 	pi.on("before_agent_start", (event, ctx) => {
-		if (readAgentStartNames(event).length === 0) {
-			const latest = [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === INTENT_STATE);
-			if (latest?.type === "custom") {
-				const state = latest.data as { work: string; status: string };
-				return { systemPrompt: `${event.systemPrompt}\nIntent session: work=${state.work}, status=${state.status}. Call ein_intent status to recover the agreement and actual response; reopen only material changes.` };
-			}
-		}
 		const change = readExplicitSddChange(event);
 		if (!change || !readAgentStartNames(event).some((name) => name.startsWith("sdd-"))) return;
 		const record = readAgreement(join(resolveChangesDir(ctx.cwd), change));
@@ -187,7 +157,7 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 	registerEinTool({
 		name: "ein_intent",
 		label: "Ein Intent",
-		description: "Persist product intent; load intent-channel for interviews. propose retains the whole known decision tree (including deferred dependsOn nodes) and returns the ready questionnaire. Explain its tradeoffs, then use ask_user_question; its intentResponse receipt supplies the observed responseId directly. status recovers after resume or missing receipts; work may be omitted only for status. Incorporate answers and explore consequences before review; confirm requires a fresh explicit answer to that final review. record is only for complete authorized mechanical requests, never an interview or pending agreement. delegate requires explicit human instructions to decide without questions; auto is not consent. investigate prepares a bounded local evidence delegation for a waiting fact using existing authorization, exact commands and roots; follow references/pi-protocol.md. No SDD phases before agreement. Pass intent_work: <work> to executors. Read-only work needs no intent.",
+		description: "Optional product intent interview, used only when the user requests it. Load intent-channel for interviews. propose retains the decision tree and returns the questionnaire; status recovers a draft. Ordinary work and SDD do not require this tool or an intent_work marker.",
 		parameters: {
 			type: "object", required: ["action"],
 			properties: {
@@ -223,8 +193,8 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 				const state = snapshot.agreement?.status ?? "absent";
 				const reviewing = snapshot.agreement?.stage === "review";
 				let instruction = state === "confirmed"
-					? `Intent agreed. Use intent_work: ${request.work}. Reopen only material changes. Continue only within the user's authorized scope; intent alone does not authorize implementation.`
-					: "No authorized work; answer or clarify with the user.";
+					? `Optional interview recorded for ${request.work}. Continue within the user's authorized scope; the interview does not grant or remove execution authority.`
+					: "This optional interview is unfinished. It does not restrict separately authorized work.";
 				if (state === "pending") {
 					if (snapshot.response) instruction = reviewing
 						? "Interpret the final review response. Confirm only explicit agreement with unchanged material; corrections reopen a round."

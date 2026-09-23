@@ -42,13 +42,13 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("out-of-order artifact");
 	});
 
-	test("el gate pre-apply presenta un brief docente con qué se toca determinista", () => {
-		expect(orch).toContain("present a short TEACHING brief");
+	test("antes de apply presenta un brief docente sin repetir permisos", () => {
+		expect(orch).toContain("present a short teaching brief");
 		expect(orch).toContain("## // PLAN —");
 		expect(orch).toContain("QUÉ SE TOCA");
 		// La lista de ficheros viene del preview determinista, no de la paráfrasis.
 		expect(orch).toContain("plan preview");
-		expect(orch).toContain("MUST come from the deterministic preview");
+		expect(orch).toContain("comes from the deterministic preview");
 	});
 
 	test("incluye tasks y close en el flujo de 7", () => {
@@ -113,11 +113,9 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(orch).toContain("create-if-absent bootstrap");
 		expect(orch).toContain("sdd-scope");
 		expect((orch.match(/\| `sdd-scope` \|/g) ?? []).length).toBe(1);
-		// Modo interactivo redefinido (Fase 3): planificación continua, UNA compuerta
-		// antes de apply, verify/close automáticos si pasan pero STOP ante fallo.
-		expect(orch).toContain("discovery first, execution approval before apply");
-		expect(orch).toMatch(/THEN ask once.*before the first `sdd-apply`/);
-		expect(orch).toContain("STOPS the flow with the exact cause");
+		expect(orch).toContain("reuse the user's authorization");
+		expect(orch).toContain("proceed without another question");
+		expect(orch).toContain("stops the flow with its concrete cause");
 	});
 
 	test("enseña primero en lenguaje humano y conserva la profundidad técnica", () => {
@@ -277,7 +275,7 @@ describe("adapter Pi: entrada transparente y decisión semántica del parent", (
 		expect(orchestrator).toContain("Every ordinary input reaches you unchanged");
 		expect(orchestrator).toContain("`ein_intent`");
 		expect(policy).toContain("Every ordinary input reaches the parent orchestrator unchanged");
-		expect(policy).toContain("resolve its decision tree and final review");
+		expect(policy).toContain("optional interview");
 	});
 });
 

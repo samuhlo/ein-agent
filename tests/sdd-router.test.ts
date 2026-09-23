@@ -318,7 +318,7 @@ describe("resolveSddStatus", () => {
 		expect(partial.apply).toBe("partial");
 		expect(partial.nextRecommended).toBe("apply");
 		expect(partial.tasks.nextPending?.id).toBe("11.1");
-		expect(partial.intent?.stalePhase).toBe("verify");
+		expect(partial.intent).toBeUndefined();
 		expect(partial.blocked.some((item) => item.includes("verify-report.md no corresponde"))).toBe(false);
 		expect(resolveSddNext(DIR, "feat-x").nextRecommended).toBe("apply");
 
@@ -326,7 +326,7 @@ describe("resolveSddStatus", () => {
 		put(c, "apply-progress.md", `status: complete\nintent_key: ${key}\n`);
 		const complete = resolveSddStatus(DIR, "feat-x");
 		expect(complete.nextRecommended).toBe("verify");
-		expect(complete.blocked.some((item) => item.includes("verify-report.md no corresponde"))).toBe(true);
+		expect(complete.blocked.some((item) => item.includes("verify-report.md no corresponde"))).toBe(false);
 	});
 
 	test("apply-progress.md con status: blocked → siguiente apply + blocked", () => {

@@ -9,7 +9,7 @@ En SDD los artefactos viven en `openspec/changes/<cambio>/`. Su propósito es pe
 
 | Archivo | Contenido |
 | --- | --- |
-| `intent.md` | Acuerdo gestionado y su material vigente. |
+| `intent.md` | Entrevista voluntaria de intención, cuando existe. |
 | `scope.md` | Límites, éxito y restricciones del cambio. |
 | `map.md` | Fuentes y localización del trabajo. |
 | `design.md` | Decisiones, comportamiento y contrato de la solución. |
@@ -38,6 +38,6 @@ Con TDD estricto o una obligación histórica explícita hay que acreditar la se
 
 ## Al cerrar
 
-La herramienta de resumen deriva campos terminales de apply completo y verify vigente, con las tareas terminadas y el acuerdo correspondiente. La explicación del agente acompaña esos datos.
+La herramienta de resumen deriva campos terminales de apply completo y verify vigente, con las tareas terminadas. La explicación del agente acompaña esos datos.
 
 El cierre incorpora íntegros `apply-progress.md` y `verify-report.md` en el resumen antes de compactar los originales. También conserva `sync-report.md` cuando existe. El archivo normal queda en `openspec/changes/archive/<cambio>/summary.md`. Los logs externos referenciados no se convierten automáticamente en archivos portables: conserva sus originales si los necesitas fuera de esa máquina.

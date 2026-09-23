@@ -192,7 +192,7 @@ describe("decision-tree rounds and final review", () => {
   expect((await h.call({ action: "review", responseId: state.response.id, decisions: partial })).isError).toBe(true);
   expect((await h.call({ action: "review", responseId: state.response.id, decisions: [partial[0]] })).isError).toBe(true);
   expect((await h.propose({ decisions: [partial[0]] })).isError).toBe(true);
-  expect(h.gate({ agent: "sdd-scope", task: "intent_work: export-csv" })).toMatchObject({ block: true });
+  expect(h.gate({ agent: "sdd-scope", task: "change: export-csv" })).toBeUndefined();
   expect(existsSync(join(h.cwd, "openspec"))).toBe(false);
  });
  test("a fresh response is required for the exact final material, including after resume", async () => {
@@ -331,10 +331,10 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
    expect(existsSync(join(h.cwd,"openspec/changes/export-csv"))).toBe(false);
   });
  }
- test("new small work and explicit SDD cannot launch without an agreement", () => {
+ test("new small work and explicit SDD launch without an intent agreement", () => {
   const h = harness();
-  for (const agent of ["sdd-scope", "sdd-design", "sdd-apply"]) expect(h.gate({ agent, task: "Implement export" })).toMatchObject({ block: true });
-  expect(h.gate({ change: "export-csv", create: true, tdd: "off", lane: "micro" }, "ein_sdd_preflight")).toMatchObject({ block: true });
+  for (const agent of ["sdd-scope", "sdd-design", "sdd-apply", "sdd-verify"]) expect(h.gate({ agent, task: "Implement export" })).toBeUndefined();
+  expect(h.gate({ change: "export-csv", create: true, tdd: "off", lane: "micro" }, "ein_sdd_preflight")).toBeUndefined();
  });
  test("one question stays pending; model confirmation and extension answers cannot satisfy it", async () => {
   const h = harness();
@@ -344,7 +344,7 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   expect((await h.call({ action: "confirm", responseId: "invented" })).isError).toBe(true);
   h.input("Sí", "extension");
   expect((await h.call({ action: "confirm", responseId: "invented" })).isError).toBe(true);
-  expect(h.gate({ agent: "sdd-apply", task: "intent_work: export-csv\nImplement" })).toMatchObject({ block: true });
+  expect(h.gate({ agent: "sdd-apply", task: "change: export-csv\nImplement" })).toBeUndefined();
  });
  test("auto cannot waive discovery; an explicit current human opt-out can", async () => {
   const h = harness(); h.input("Usa modo auto");
@@ -370,13 +370,13 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   expect(after.agreement.revision).toBe(before.agreement.revision);
   expect(after.response.id).toBe(before.response.id);
  });
- test("deleting intent.md cannot downgrade managed work to the legacy exception", async () => {
+ test("deleting an optional intent.md does not block separately authorized work", async () => {
   const h=harness();await h.propose({change:"export-csv"});await h.confirm("export-csv");
   const dir=join(h.cwd,"openspec/changes/export-csv"); const record=readAgreement(dir);if(record.kind!=="valid")throw new Error("fixture");
   writeFileSync(join(dir,"scope.md"),`intent_key: ${record.agreement.materialKey}\nScope`);rmSync(join(dir,"intent.md"));
-  expect(h.gate({agent:"sdd-design",task:"intent_work: export-csv"})).toMatchObject({block:true});
-  expect(harness(h.cwd).gate({agent:"sdd-design",task:"change: export-csv"})).toMatchObject({block:true});
-  expect(resolveSddStatus(h.cwd,"export-csv").intent?.state).toBe("invalid");
+  expect(h.gate({agent:"sdd-design",task:"change: export-csv"})).toBeUndefined();
+  expect(harness(h.cwd).gate({agent:"sdd-design",task:"change: export-csv"})).toBeUndefined();
+  expect(resolveSddStatus(h.cwd,"export-csv").intent).toBeUndefined();
  });
  test("a new round retains earlier answers in the canonical agreement", async () => {
   const h = harness(); await h.propose({ change: "export-csv" }); h.input("Solo lo filtrado");
@@ -423,7 +423,7 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   expect((await h.propose({change:"export-csv",reopenReason:"Map found a choice between visible and export-specific headings",questions:["¿Qué cabeceras usamos?"]})).details.state).toBe("pending");
   const stored=readAgreement(join(h.cwd,"openspec/changes/export-csv"));
   expect(stored.kind === "valid" && stored.agreement.history?.[0]?.response.text).toBe("Los filtrados, adelante.");
-  expect(h.gate({agent:"sdd-design",task:"change: export-csv"})).toMatchObject({block:true});
+  expect(h.gate({agent:"sdd-design",task:"change: export-csv"})).toBeUndefined();
  });
  test("a legacy .sdd root keeps intent and preflight in the same change directory", async () => {
   const h=harness();mkdirSync(join(h.cwd,".sdd/changes"),{recursive:true});
@@ -448,34 +448,35 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   expect(status.response.text).toBe("Lo filtrado");
   expect((await restored.finish()).details.state).toBe("confirmed");
  });
- test("new material invalidates agreement across sessions and needs a new answer", async () => {
+ test("new interview material needs a new answer without blocking separate work", async () => {
   const h = harness(); await h.propose({ change: "export-csv" }); await h.confirm("export-csv");
   await h.propose({ change: "export-csv", material: { ...material, objective: "Exportar todos los resultados" } });
-  expect(h.gate({ agent: "sdd-scope", task: "change: export-csv" })).toMatchObject({ block: true });
-  expect(harness(h.cwd).gate({ agent: "sdd-design", task: "change: export-csv" })).toMatchObject({ block: true });
-  expect(resolveSddStatus(h.cwd, "export-csv").blocked.join(" ")).toContain("Intent pendiente");
+  expect(h.gate({ agent: "sdd-scope", task: "change: export-csv" })).toBeUndefined();
+  expect(harness(h.cwd).gate({ agent: "sdd-design", task: "change: export-csv" })).toBeUndefined();
+  expect(resolveSddStatus(h.cwd, "export-csv").blocked.join(" ")).not.toContain("Intent pendiente");
   expect((await h.call({ action: "confirm", change: "export-csv", responseId: "old" })).isError).toBe(true);
  });
- test("cancellation never permits execution or creates a new change", async () => {
+ test("cancellation creates no change and does not become a workflow gate", async () => {
   const h = harness(); await h.propose({ change: "export-csv" }); h.input("Cancela");
   expect((await h.call({ action: "cancel", change: "export-csv" })).details.state).toBe("cancelled");
   expect(existsSync(join(h.cwd, "openspec"))).toBe(false);
-  expect(h.gate({ agent: "sdd-scope", task: "change: export-csv" })).toMatchObject({ block: true });
+  expect(h.gate({ agent: "sdd-scope", task: "change: export-csv" })).toBeUndefined();
  });
  test("another work cannot reuse this answer or its material", async () => {
   const h = harness(); await h.propose(); await h.confirm();
-  expect(h.gate({ agent: "sdd-apply", task: "intent_work: other-work\nImplement" })).toMatchObject({ block: true });
+  expect(h.gate({ agent: "sdd-apply", task: "change: other-work\nImplement" })).toBeUndefined();
   expect((await h.propose({ change: "other-work" })).isError).toBe(true);
  });
- test("all supported delegation containers enforce intent before running", () => {
+ test("ordinary delegation needs no intent metadata while unsupported shapes remain rejected", () => {
   const h = harness();
-  for (const input of [{ chain: [{ agent: "sdd-scope", task: "change: new-work" }] }, { tasks: [{ agent: "sdd-apply", task: "Implement" }] }, { workflowScript: 'await runs.run("scope", {agent:"sdd-scope", task:"change: new-work"})' }]) expect(h.gate(input)).toMatchObject({ block: true });
+  expect(h.gate({ agent: "sdd-scope", task: "change: new-work" })).toBeUndefined();
+  expect(h.gate({ chain: [{ agent: "sdd-scope", task: "change: new-work" }] })).toMatchObject({ block: true });
   expect(h.gate({ action: "status", id: "existing" })).toBeUndefined();
  });
  test("a historical scoped change remains resumable without inventing approval", () => {
   const h = harness(); const dir = join(h.cwd, "openspec/changes/legacy"); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, "scope.md"), "Existing scope");
   expect(h.gate({ agent: "sdd-design", task: "change: legacy" })).toBeUndefined();
-  expect(h.gate({ agent: "sdd-scope", task: "change: legacy" })).toMatchObject({ block: true });
+  expect(h.gate({ agent: "sdd-scope", task: "change: legacy" })).toBeUndefined();
  });
  test("a Windows CRLF checkout preserves the same canonical agreement", async () => {
   const h=harness();await h.propose({change:"export-csv"});await h.confirm("export-csv");
@@ -483,38 +484,38 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   const before=readAgreement(dir);writeFileSync(path,readFileSync(path,"utf8").replaceAll("\n","\r\n"));
   expect(readAgreement(dir)).toEqual(before);
  });
- test("modified prose invalidates its machine record and blocks execution", async () => {
+ test("modified intent prose invalidates that record without blocking ordinary execution", async () => {
   const h = harness(); await h.propose({ change: "export-csv" }); await h.confirm("export-csv");
   const path = join(h.cwd, "openspec/changes/export-csv/intent.md");
   writeFileSync(path, readFileSync(path, "utf8").replace("Exportar resultados filtrados", "Exportar secretos"));
   expect(readAgreement(join(h.cwd, "openspec/changes/export-csv")).kind).toBe("invalid");
-  expect(h.gate({ agent: "sdd-scope", task: "change: export-csv" })).toMatchObject({ block: true });
+  expect(h.gate({ agent: "sdd-scope", task: "change: export-csv" })).toBeUndefined();
  });
- test("design without the current agreement cannot reach apply", async () => {
+ test("design does not need an intent key to reach apply", async () => {
   const h = harness(); await h.propose({ change: "export-csv" }); await h.confirm("export-csv");
   const dir = join(h.cwd, "openspec/changes/export-csv"); writeFileSync(join(dir, "design.md"), "Old design");
-  expect(h.gate({ agent: "sdd-apply", task: "change: export-csv" })).toMatchObject({ block: true });
+  expect(h.gate({ agent: "sdd-apply", task: "change: export-csv" })).toBeUndefined();
   const stored = readAgreement(dir); if (stored.kind !== "valid") throw new Error("invalid fixture");
   writeFileSync(join(dir, "design.md"), `intent_key: ${stored.agreement.materialKey}\nExport filtered rows`);
   expect(h.gate({ agent: "sdd-apply", task: "change: export-csv" })).toBeUndefined();
  });
- test("omitting change cannot bypass the persisted agreement or design binding", async () => {
+ test("an optional agreement does not require intent_work in delegation", async () => {
   const h = harness(); await h.propose({ change: "export-csv" }); await h.confirm("export-csv");
-  expect(h.gate({ agent: "sdd-apply", task: "intent_work: export-csv" })).toMatchObject({ block: true });
+  expect(h.gate({ agent: "sdd-apply", task: "Implement the agreed export" })).toBeUndefined();
   const second = harness(h.cwd);
   await second.propose({ change: "export-csv", material: { ...material, objective: "Otra conducta" } });
-  expect(h.gate({ agent: "sdd-design", task: "intent_work: export-csv" })).toMatchObject({ block: true });
+  expect(h.gate({ agent: "sdd-design", task: "change: export-csv" })).toBeUndefined();
  });
- test("router returns the first artifact from the previous agreement", async () => {
+ test("router follows phase artifacts even when an optional agreement changes", async () => {
   const h = harness(); await h.propose({ change: "export-csv" }); await h.confirm("export-csv");
   const dir = join(h.cwd, "openspec/changes/export-csv");
   const initial = readAgreement(dir); if(initial.kind !== "valid") throw new Error("fixture");
   for (const name of ["scope.md", "map.md", "design.md"]) writeFileSync(join(dir,name), `intent_key: ${initial.agreement.materialKey}\nExisting ${name}\n`);
   await h.propose({ change: "export-csv", material: { ...material, objective: "Exportar con orden nuevo" } }); await h.confirm("export-csv");
-  expect(resolveSddStatus(h.cwd,"export-csv").nextRecommended).toBe("scope");
+  expect(resolveSddStatus(h.cwd,"export-csv").nextRecommended).toBe("tasks");
   const updated=readAgreement(dir); if(updated.kind !== "valid") throw new Error("fixture");
   writeFileSync(join(dir,"scope.md"),`intent_key: ${updated.agreement.materialKey}\nUpdated scope\n`);
-  expect(resolveSddStatus(h.cwd,"export-csv").nextRecommended).toBe("map");
+  expect(resolveSddStatus(h.cwd,"export-csv").nextRecommended).toBe("tasks");
  });
  test("Markdown presentation of the key is accepted, duplicate or old keys are not", () => {
   const key="sha256:"+"a".repeat(64);
@@ -533,16 +534,16 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   const result=writeVerifiedSddSummary({cwd:h.cwd,change:"export-csv",content:"## Resultado\nObjetivo verificado.",commands:["bun test"],readVerification:(cwd,changePath)=>readVerificationFreshness({cwd,changePath})});
   expect(result.ok).toBe(true);
   expect(artifactHasIntentKey(readFileSync(join(dir,"summary.md"),"utf8"),agreement.agreement.materialKey)).toBe(true);
-  expect(resolveSddStatus(h.cwd,"export-csv").intent).toEqual({state:"confirmed",materialKey:agreement.agreement.materialKey});
+  expect(resolveSddStatus(h.cwd,"export-csv").intent).toBeUndefined();
   expect(createAssessCloseReadiness({resolveSddStatus})(h.cwd,"export-csv").blockers.map(b=>b.code)).not.toContain("intent-stale");
  });
- test("close readiness cannot archive pending or stale intent", async () => {
+ test("close readiness reports real work without adding intent blockers", async () => {
   const h=harness(); await h.propose({change:"export-csv"}); await h.confirm("export-csv");
   const dir=join(h.cwd,"openspec/changes/export-csv"); writeFileSync(join(dir,"scope.md"),"Old scope");
   const assess=createAssessCloseReadiness({resolveSddStatus});
-  expect(assess(h.cwd,"export-csv").blockers.map(b=>b.code)).toContain("intent-stale");
+  expect(assess(h.cwd,"export-csv").blockers.map(b=>b.code)).not.toContain("intent-stale");
   await h.propose({change:"export-csv",material:{...material,objective:"Otra conducta"}});
-  expect(assess(h.cwd,"export-csv").blockers.map(b=>b.code)).toContain("intent-unresolved");
+  expect(assess(h.cwd,"export-csv").blockers.map(b=>b.code)).not.toContain("intent-unresolved");
  });
  test("symlinked change roots cannot write outside the project", async () => {
   const h = harness(); const outside = mkdtempSync(join(tmpdir(), "ein-intent-outside-")); sandboxes.push(outside);
@@ -556,22 +557,22 @@ test("verification continuation reuses the confirmed session change without anot
  const h=harness();h.input("Implement the filtered CSV export");await h.call({action:"record",change:"export-csv",material});
  const task={agent:"sdd-verify",task:"Repeat independent verification of the agreed work."};
  expect(h.gate(task)).toBeUndefined();
- expect(task.task).toStartWith("change: export-csv\nintent_work: export-csv\n");
+ expect(task.task).toStartWith("change: export-csv\n");
  expect(task.task).toEndWith("Repeat independent verification of the agreed work.");
- expect(h.gate({agent:"sdd-scope",task:"Start new work"})).toMatchObject({block:true});
+ expect(h.gate({agent:"sdd-scope",task:"Start new work"})).toBeUndefined();
  const other={agent:"sdd-verify",task:"change: another-change\nVerify that other change"};
- expect(h.gate(other)).toMatchObject({block:true});expect(other.task).toStartWith("change: another-change");
+ expect(h.gate(other)).toBeUndefined();expect(other.task).toStartWith("change: another-change");
  await h.call({action:"cancel",change:"export-csv"});
- expect(h.gate({agent:"sdd-verify",task:"Continue verification"})).toMatchObject({block:true});
+ expect(h.gate({agent:"sdd-verify",task:"Continue verification"})).toBeUndefined();
 });
 
-test("phase context names the canonical intent path and per-change TDD decision", async () => {
+test("phase context names the change directory and per-change TDD decision", async () => {
  const h=harness();h.input("Implement the specified export");await h.call({action:"record",change:"export-csv",material});
  const dir=join(h.cwd,"openspec/changes/export-csv");
  writeFileSync(join(dir,"preflight.json"),JSON.stringify({version:1,tdd:"off",decidedBy:"pi"}));
  const handlers=new Map<string,Function>();registerAgentPromptHook({on:(name:string,fn:Function)=>handlers.set(name,fn)} as never);
  const result=await handlers.get("before_agent_start")!({systemPrompt:"You are the independent SDD verify executor.",prompt:"intent_work: export-csv\nVerify the current change."},h.ctx);
- expect(result.systemPrompt).toContain(join(dir,"intent.md"));
+ expect(result.systemPrompt).toContain(dir);
  expect(result.systemPrompt).toContain("Strict TDD: OFF");
  expect(existsSync(join(h.cwd,"intent.md"))).toBe(false);
 });

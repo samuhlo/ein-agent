@@ -344,6 +344,7 @@ export async function runClaudePreflightInputCommand(
 	args: readonly string[],
 	rawInput: string,
 ): Promise<{ intent?: SddIntentPreflightOutcome; text: string; exitCode: 0 | 1 }> {
+	if (!rawInput.trim()) return runPreflightCommand(dir, args);
 	const fallback = preflightIntentInput(dir, args);
 	if (!fallback) return runPreflightCommand(dir, args);
 	const agreement = readAgreement(join(resolveChangesDir(dir), fallback.change));

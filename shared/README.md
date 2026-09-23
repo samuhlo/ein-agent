@@ -60,7 +60,7 @@ bundle. Cada módulo tiene una fachada homónima y de re-export puro en
 rechaza módulos anidados, imports que salgan del payload y entrypoints cuyos
 exports no enlacen después del overlay.
 
-Los contratos de intención vinculan los artefactos al acuerdo vigente; la captura de respuestas pertenece al adaptador. El cierre conserva los informes de apply y verify dentro del resumen archivado antes de retirar sus archivos intermedios. Validar esa estructura y procedencia no sustituye juzgar la calidad del código.
+Los contratos de intención conservan entrevistas voluntarias; la captura de respuestas pertenece al adaptador. Los artefactos SDD ordinarios no necesitan ese acuerdo. El cierre conserva los informes de apply y verify dentro del resumen archivado antes de retirar sus archivos intermedios. Validar esa estructura y procedencia no sustituye juzgar la calidad del código.
 La continuidad de operaciones se comparte mediante `shared/ports/continuity.ts`:
 `../../ein-pi/agent/lib/continuity-operation-runtime.ts` es la composición del journal y evidencia,
 `../../ein-pi/agent/lib/continuity-operations.ts` define IDs y contratos, y

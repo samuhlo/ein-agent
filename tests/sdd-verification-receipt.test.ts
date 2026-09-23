@@ -55,13 +55,13 @@ function writeIntent(status: "pending" | "confirmed", objective = "Verify the ag
 }
 
 describe("createVerificationService", () => {
-	test("an unconfirmed agreement cannot publish passing verification", () => {
+	test("an optional unconfirmed agreement does not block passing verification", () => {
 		writeIntent("pending");
 		const api = service();
 		const begun = api.beginVerification({ cwd: root, changePath });
 		if (!begun.ok) return;
-		expect(api.finishVerification({ cwd: root, changePath, token: begun.value.token, content: PASS }).ok).toBe(false);
-		expect(api.readVerificationFreshness({ cwd: root, changePath }).state).not.toBe("current");
+		expect(api.finishVerification({ cwd: root, changePath, token: begun.value.token, content: PASS }).ok).toBe(true);
+		expect(api.readVerificationFreshness({ cwd: root, changePath }).state).toBe("current");
 	});
 
 	test("a report symlink cannot overwrite another project file", () => {
@@ -154,11 +154,11 @@ describe("createVerificationService", () => {
 		writeIntent("pending");
 		const api = service();
 		const pending = api.beginVerification({ cwd: root, changePath });
-		expect(pending).toMatchObject({ ok: false, code: "intent-unresolved" });
+		expect(pending.ok).toBe(true);
 
 		writeFileSync(join(changePath, "intent.md"), "invalid intent\n");
 		const invalid = api.beginVerification({ cwd: root, changePath });
-		expect(invalid).toMatchObject({ ok: false, code: "intent-unresolved" });
+		expect(invalid.ok).toBe(true);
 
 		const original = writeIntent("confirmed", "Original agreement");
 		const begun = api.beginVerification({ cwd: root, changePath });

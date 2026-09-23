@@ -35,20 +35,17 @@ function fixture(legacy = false) {
 }
 function current(root: string) { const read = readIntentDraft(root, "export"); if (read.status !== "valid") throw new Error("missing draft"); return read.draft; }
 
-test("an interrupted reopen blocks real routing, summary, recovery and Pi/Claude force close", () => {
+test("an interrupted optional interview remains recoverable without blocking ordinary routing", () => {
   const f = fixture(); const before = current(f.root);
   const run = beginPhaseRun({ cwd: f.root, change: "export", phase: "map", toolCallId: "map" }); if (!run.ok) throw new Error(run.reason);
   expect(finishPhaseRun({ cwd: f.root, toolCallId: "map", nonce: run.value.nonce, status: "complete" }).ok).toBe(true);
   const canonical = readFileSync(join(f.dir, "intent.md"), "utf8");
   expect(publishIntentDraft(f.root, { ...before, agreement: { ...before.agreement, status: "pending", revision: "new-round" } }, before.revision, f.ports, { afterJournal: () => { throw new Error("crash"); } }).ok).toBe(false);
   expect(readFileSync(join(f.dir, "intent.md"), "utf8")).toBe(canonical);
-  expect(resolveSddStatus(f.root, "export").intent?.state).toBe("pending");
-  expect(f.summary().ok).toBe(false);
-  expect(assessPhaseRecovery({ cwd: f.root, toolCallId: "map" }).state).toBe("invalid");
-  expect(closeChange(f.root, "export", { force: true }).ok).toBe(false);
-  const cli = Bun.spawnSync([process.execPath, join(import.meta.dir, "../ein-cc/sdd-cli/cli.ts"), "close", "export", "--force"], { cwd: f.root, stdout: "pipe", stderr: "pipe" });
-  expect(cli.exitCode).toBe(1);
-  expect(existsSync(join(f.root, "openspec/changes/archive/export"))).toBe(false);
+  expect(resolveSddStatus(f.root, "export").intent).toBeUndefined();
+  expect(f.summary().ok).toBe(true);
+  expect(assessPhaseRecovery({ cwd: f.root, toolCallId: "map" }).state).toBe("complete");
+  expect(readIntentDraft(f.root, "export").status).toBe("valid");
 });
 
 test("successful archive leaves a historical tombstone without implementation authority", () => {
@@ -83,14 +80,10 @@ test("the final close lock excludes reopening and is released after errors", () 
   expect(retried.ok, retried.reason).toBe(true);
 });
 
-test("first legacy close and concurrent first reopen never initialize gitignore during the close", () => {
+test("first legacy close does not initialize optional intent state", () => {
   const f = fixture(true); expect(existsSync(join(f.root, ".gitignore"))).toBe(false);
-  let blocked = false;
-  const result = closeChange(f.root, "export", {}, { beforeArchive() {
-    try { runIntentDiscovery(f.ctx, { action: "propose", work: "export", change: "export", expectedRevision: "absent", material, decisions: [{ id: "rows", question: "Which rows?", dependsOn: [], status: "open" }], questions: ["Which rows?"] }, () => {}, undefined, f.ports); }
-    catch (error) { blocked = String(error).includes("lock"); }
-  } });
-  expect(result.ok, result.reason).toBe(true); expect(blocked).toBe(true);
+  const result = closeChange(f.root, "export");
+  expect(result.ok, result.reason).toBe(true);
   expect(existsSync(join(f.root, ".gitignore"))).toBe(false);
   expect(readIntentDraft(f.root, "export")).toEqual({ status: "absent" });
 });

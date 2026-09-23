@@ -9,14 +9,14 @@ Primero se entiende el resultado. Después se elige la ruta más pequeña que pe
 
 ## Antes de modificar
 
-Una petición completa y autorizada puede registrarse directamente. Si faltan decisiones materiales, el padre pregunta y espera la respuesta real. Un cambio de objetivo reabre el acuerdo e invalida lo que ya no corresponda; el modo auto no inventa consentimiento.
+Una petición completa y autorizada pasa al trabajo. Si faltan decisiones materiales, el padre pregunta y espera la respuesta real. Un cambio de objetivo exige revisar el alcance; el modo auto no inventa consentimiento.
 
-Una consulta de solo lectura no necesita este expediente.
+Una consulta de solo lectura no necesita artefactos SDD.
 
 ## Ad-hoc: una edición acotada
 
 ```text
-acuerdo → apply → verify independiente → explicación
+encargo acotado → apply → verify independiente → explicación
 ```
 
 El encargo define resultado, archivos, contexto y comprobaciones. Apply edita; otro hijo con contexto fresco revisa y comprueba. No se exige crear un directorio SDD ni un informe en disco para justificar una modificación pequeña.

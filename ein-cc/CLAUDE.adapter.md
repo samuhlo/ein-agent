@@ -56,11 +56,10 @@ Use `absent` only to create a draft. A conflict preserves the uncommitted answer
 reload rather than discard it. A running experiment needs its recorded result,
 never an automatic relaunch. An archived draft is history, not new authorization.
 
-Read a confirmed `intent.md` as the canonical product agreement and preserve its
-objective, boundaries, response and completion criteria. Never treat historical
-`preflight.json` intent data as proof of a new conversation. The shared status
-router blocks a pending/invalid intent and identifies artifacts from an older
-materialKey. Every new phase artifact records the current `intent_key`.
+Read a confirmed `intent.md` when the user chose the optional interview and
+preserve its objective, boundaries, response and completion criteria. Ordinary
+work proceeds from the user's request without an intent record. A pending draft
+does not block separately authorized work.
 
 Claude records agreements through `ein-cc-sdd intent`, using the literal user
 answer and the agreed material. Its provenance is `claude-coordinator`: the
@@ -79,12 +78,10 @@ corrects the objective, passing the revision from `objective show`. The JSON is
 the request fields. A response such as “sí, continúa” remains a response. A
 confirmed intent writes its own `material.objective` and is the canonical source.
 
-Each phase reads `intent show` and includes exactly one `intent_key: <materialKey>`
-in the artifact it produces. Claude has no automatic Pi write hook. Never replace
-an old key without checking and updating that phase against the changed agreement.
-After recovery of an unmanaged agreement, review each existing phase before adding
-its missing key; rerun verification if implementation or acceptance criteria changed.
-`--force` cannot bypass intent, failed verification, pending tasks or spec conflicts.
+When an optional confirmed agreement exists, use it as context. Claude has no
+automatic Pi write hook. Rerun verification if implementation or acceptance
+criteria changed. `--force` cannot bypass failed verification, pending tasks or
+spec conflicts.
 
 The close executor writes summary.json through the summary command and fixes input
 errors in the same run. The coordinator archives after checking its output. A failed

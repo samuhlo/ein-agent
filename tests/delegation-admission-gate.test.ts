@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -89,6 +89,18 @@ describe("delegation admission gate", () => {
 		expect(input.acceptance).toMatchObject({ level: "none" });
 		expect(h.snapshots).toHaveLength(0);
 		expect(h.appended).toEqual([]);
+	});
+
+	test("starts the authorized baseline verifier without an intent record", async () => {
+		const h = harness();
+		const input: Record<string, unknown> = {
+			agent: "sdd-verify",
+			context: "fresh",
+			task: "Check the current branch, run the existing tests and typecheck, and report browser prerequisites without changing files.",
+		};
+		expect(await h.gate(input)).toBeUndefined();
+		expect(existsSync(join(h.root, "openspec"))).toBe(false);
+		expect(existsSync(join(h.root, ".ein"))).toBe(false);
 	});
 
 	test("keeps a valid three-scout fan-out and tracks its launcher once", async () => {
