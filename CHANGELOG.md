@@ -4,6 +4,15 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.12] - 2026-09-23
+
+### Fixed
+
+- Los planes con varios trabajos recuperan los encabezados numerados `// 00N`
+  con títulos libres. El prompt inicial pide explicar primero el resultado que
+  verá una persona, aclarar la jerga y separar lo comprobado de lo propuesto,
+  sin cargar el formato completo en respuestas simples.
+
 ## [0.99.0-alpha.11] - 2026-09-23
 
 ### Fixed
