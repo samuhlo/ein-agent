@@ -13,7 +13,7 @@ native call reference and existing evidence. Do not retry the original action
 or invent a successful result. Missing external read-back remains a blocker.
 Local recovery is an explicit coordinator attestation, not proof of execution.
 External Git recovery currently requires a push of a literal commit to a literal
-credential-free repository destination and matching native ls-remote evidence;
+credential-free repository destination and subsequent native ls-remote evidence in the same session;
 mutable aliases or other external effects remain unproven.
 
 The input file is `{"token":"<inspection token>","assessment":{"kind":"local-attested",

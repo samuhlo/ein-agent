@@ -9,6 +9,7 @@ export type OperationRecovery = {
 };
 export type ContinuityOperation = {
 	id: string; runtime: "pi" | "claude"; tool: string; inputDigest: string;
+	admissionRef?: string;
 	startedAt: string; beforeStateRef: string | null; nativeCallRef: NativeCallRef;
 	effectScope: "local" | "external-or-unknown"; status: "running" | "uncertain" | "settled";
 	outcome?: "succeeded" | "not-started" | "recovered"; afterStateRef?: string | null;
@@ -59,11 +60,12 @@ function validRecovery(value: unknown): value is OperationRecovery {
 		&& Array.isArray(value.evidence) && value.evidence.length <= 16 && value.evidence.every((e) => record(e) && exact(e, ["path", "digest"]) && text(e.path, 1024) && typeof e.digest === "string" && HASH.test(e.digest));
 }
 export function validContinuityOperation(value: unknown): value is ContinuityOperation {
-	if (!record(value) || !exact(value, ["id", "runtime", "tool", "inputDigest", "startedAt", "beforeStateRef", "nativeCallRef", "effectScope", "status", "outcome", "afterStateRef", "reason", "recovery"])) return false;
+	if (!record(value) || !exact(value, ["id", "runtime", "tool", "inputDigest", "admissionRef", "startedAt", "beforeStateRef", "nativeCallRef", "effectScope", "status", "outcome", "afterStateRef", "reason", "recovery"])) return false;
 	if (!text(value.id) || !["pi", "claude"].includes(String(value.runtime)) || !text(value.tool, 128) || typeof value.inputDigest !== "string" || !HASH.test(value.inputDigest)
 		|| !date(value.startedAt) || !state(value.beforeStateRef) || !validNativeCallRef(value.nativeCallRef)
 		|| !["local", "external-or-unknown"].includes(String(value.effectScope)) || !["running", "uncertain", "settled"].includes(String(value.status))) return false;
 	if (value.afterStateRef !== undefined && !state(value.afterStateRef) || value.reason !== undefined && !text(value.reason, 512)) return false;
+	if (value.admissionRef !== undefined && (typeof value.admissionRef !== "string" || !HASH.test(value.admissionRef))) return false;
 	if (!value.nativeCallRef.sessionRef.startsWith(`${value.runtime}:`) || value.id !== operationId(value.runtime as "pi" | "claude", value.nativeCallRef)) return false;
 	if (value.status === "settled" ? !["succeeded", "not-started", "recovered"].includes(String(value.outcome)) : value.outcome !== undefined) return false;
 	return value.outcome === "recovered" ? validRecovery(value.recovery) : value.recovery === undefined;

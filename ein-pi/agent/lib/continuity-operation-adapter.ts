@@ -10,6 +10,7 @@ import { normalizeScoutLaunch } from "./scout-contract.ts";
 import { listDiscoverableAgents } from "./model-config.ts";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 
 function admittedReadOnlyScout(input: unknown, toolCallId: string, cwd: string): boolean {
   try {
@@ -35,7 +36,7 @@ export function piContinuityOperation(event: Pick<ToolCallEvent, "toolName" | "t
   const nativeCallRef = { sessionRef: sessionReferenceFor("pi", sessionId), toolCallId: event.toolCallId };
   const native = observedCallFromEntries(nativeCallRef, ctx.sessionManager.getBranch());
   if (event.toolName === "subagent" && admittedReadOnlyScout(native?.input ?? event.input, event.toolCallId, ctx.cwd)) { identities.set(event, null); return; }
-  const input: OperationStart = { runtime: "pi", tool: event.toolName, inputDigest: native?.inputDigest ?? operationInputDigest(event.input), nativeCallRef, effectScope: "external-or-unknown" };
+  const input: OperationStart = { runtime: "pi", tool: event.toolName, inputDigest: native?.inputDigest ?? operationInputDigest(event.input), nativeCallRef, effectScope: "external-or-unknown", admissionRef: operationInputDigest(randomUUID()) };
   identities.set(event, input); return input;
 }
 export function observeContinuityGuard(handler: (event: ToolCallEvent, ctx: ExtensionContext) => ToolCallEventResult | void | Promise<ToolCallEventResult | void>, guardId: string) {

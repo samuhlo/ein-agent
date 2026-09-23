@@ -13,6 +13,7 @@ import {
   runContinueInPty,
   type ContinuityHandoffLifecycle,
   classifyContinuityTool, operationInputDigest, sessionReferenceFor, validNativeCallRef, type OperationStart,
+  createContinuityOperationRuntime,
 } from "../shared/ports/continuity.ts";
 
 const ENDPOINT = "EIN_CONTINUITY_ENDPOINT", TOKEN = "EIN_CONTINUITY_TOKEN";
@@ -63,6 +64,14 @@ async function sendIpc(event: Event): Promise<string> {
     transportTimer = setTimeout(() => finish("unavailable"), IO_MS);
     socket.on("end", () => finish(output.trim())); socket.on("error", () => finish("unavailable")); socket.on("close", () => finish("unavailable"));
   });
+}
+
+export async function recordClaudeAdmissionDenied(input: unknown, cwd: string): Promise<void> {
+  if (!input || typeof input !== "object") return;
+  const value = input as Record<string, unknown>;
+  if (typeof value.session_id !== "string" || typeof value.tool_use_id !== "string") return;
+  const operation: OperationStart = { runtime: "claude", tool: typeof value.tool_name === "string" ? value.tool_name : "Bash", inputDigest: operationInputDigest(value.tool_input), nativeCallRef: { sessionRef: sessionReferenceFor("claude", value.session_id), toolCallId: value.tool_use_id }, effectScope: "external-or-unknown" };
+  if (await sendIpc({ kind: "operation-denied", operation }) !== "operation-recorded") createContinuityOperationRuntime(cwd).denied(operation, "claude-command-policy");
 }
 
 function block(reason: string): HookResult {
