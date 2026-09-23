@@ -223,6 +223,24 @@ export function parseResolvedApplyTdd(task: string): { kind: "absent" } | { kind
 	return { kind: "resolved", contract: value as ResolvedApplyTdd };
 }
 
+export function resumedApplyTdd(task: string, entries: readonly unknown[], cwd: string): ApplyTddResolution | undefined {
+	if (!task.includes("You are reviving a previous subagent conversation.") || !task.includes("Original agent: sdd-apply")) return;
+	for (const entry of [...entries].reverse()) {
+		if (!isRecord(entry) || entry.type !== "message" || !isRecord(entry.message) || entry.message.role !== "user") continue;
+		const content = entry.message.content;
+		if (!Array.isArray(content)) continue;
+		for (const part of [...content].reverse()) {
+			if (!isRecord(part) || part.type !== "text" || typeof part.text !== "string" || !part.text.includes(CONTRACT_PREFIX)) continue;
+			const previous = parseResolvedApplyTdd(part.text);
+			if (previous.kind === "invalid") return previous;
+			if (previous.kind === "resolved") {
+				const freshness = revalidateResolvedApplyTdd(cwd, previous.contract);
+				return freshness.current ? previous : { kind: "invalid", reason: freshness.reason };
+			}
+		}
+	}
+}
+
 export function revalidateResolvedApplyTdd(cwd: string, contract: ResolvedApplyTdd): { current: true } | { current: false; reason: string } {
 	if (contract.source === "delegation-field" || contract.source === "legacy-text") return { current: true };
 	const current = contract.source === "change" && contract.change

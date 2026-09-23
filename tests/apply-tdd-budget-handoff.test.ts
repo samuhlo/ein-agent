@@ -57,14 +57,22 @@ function gateHarness(root: string, picked: "off" | "strict" = "off") {
 	};
 }
 
-function childHarness(root: string) {
+function childHarness(root: string, entries: readonly unknown[] = []) {
 	const handlers = new Map<string, Function>();
 	registerAgentPromptHook({ on: (name: string, fn: Function) => handlers.set(name, fn) } as never);
-	const ctx = { cwd: root, hasUI: false, sessionManager: { getSessionId: () => `child-${root}`, getBranch: () => [] } };
+	const ctx = { cwd: root, hasUI: false, sessionManager: { getSessionId: () => `child-${root}`, getBranch: () => entries } };
 	return {
 		start: (task: string) => handlers.get("before_agent_start")!({ agentName: "sdd-apply", task, prompt: task, systemPrompt: "You are the SDD apply executor for Ein." }, ctx),
 		tool: () => handlers.get("tool_call")!({ toolName: "write", input: { path: "src/a.ts", content: "x" } }, ctx),
 	};
+}
+
+function revivedTask(message: string): string {
+	return `You are reviving a previous subagent conversation.\n\nOriginal run: fixture-run\nOriginal agent: sdd-apply\nOriginal session file: /tmp/fixture.jsonl\n\nUse the stored session context as background. Answer the orchestrator's follow-up below. Do not assume the original child session is still running.\n\nFollow-up:\n${message}`;
+}
+
+function originalTaskEntry(task: string): unknown {
+	return { type: "message", message: { role: "user", content: [{ type: "text", text: task }] } };
 }
 
 describe("parent and child share one resolved apply TDD contract", () => {
@@ -189,6 +197,37 @@ describe("parent and child share one resolved apply TDD contract", () => {
 });
 
 describe("ad-hoc compatibility", () => {
+	test("native async resume reuses the first apply contract; a changed choice uses a bounded new launch", async () => {
+		const root = project();
+		writeGlobal(root, "ask");
+		const input: Record<string, unknown> = { agent: "sdd-apply", task: "Fix the migrator error.code handling.", tdd: "off" };
+		expect(await gateHarness(root).gate(input)).toBeUndefined();
+		const child = childHarness(root, [originalTaskEntry(String(input.task))]);
+		const resumed = await child.start(revivedTask("Continue the missing error.code fix."));
+		expect(resumed.systemPrompt).toContain("Strict TDD: OFF");
+		expect(resumed.systemPrompt).not.toContain("Execution blocked");
+		expect(await child.tool()).toBeUndefined();
+		const continuation: Record<string, unknown> = { agent: "sdd-apply", task: "Continue the existing migrator diff: reproduce error.code, fix it, then verify.", tdd: "strict" };
+		expect(await gateHarness(root).gate(continuation)).toBeUndefined();
+		const changed = await child.start(String(continuation.task));
+		expect(changed.systemPrompt).toContain("Strict TDD: ON (forced)");
+		expect(changed.systemPrompt).not.toContain("Execution blocked");
+		expect(await child.tool()).toBeUndefined();
+	});
+
+	test("resume checks the persisted change stance again before allowing writes", async () => {
+		const root = project();
+		writePreflight(root, "demo", "strict");
+		const input: Record<string, unknown> = { agent: "sdd-apply", task: "change: demo\nFix the remaining assertion." };
+		expect(await gateHarness(root).gate(input)).toBeUndefined();
+		const child = childHarness(root, [originalTaskEntry(String(input.task))]);
+		expect((await child.start(revivedTask("Continue the fix."))).systemPrompt).toContain("Strict TDD: ON (forced)");
+		writePreflight(root, "demo", "off");
+		const rejected = await child.start(revivedTask("Continue the fix."));
+		expect(rejected.systemPrompt).toContain("Execution blocked");
+		expect(await child.tool()).toMatchObject({ block: true });
+	});
+
 	test("structured and legacy hints resolve without creating SDD state", async () => {
 		for (const input of [
 			{ agent: "sdd-apply", task: "Implement.", tdd: "strict" },
