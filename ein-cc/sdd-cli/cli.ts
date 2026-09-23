@@ -69,7 +69,6 @@ import { runSyncCommand, type SyncCliResponse } from "./sync-command.ts";
 import { runIntentCommand } from "./intent-command.ts";
 import { runObjectiveCommand } from "./objective-command.ts";
 import { runContinuityCommand } from "./continuity-command.ts";
-import { recordClaudeAdmissionDenied } from "../continuity-runner.ts";
 import { readAgreement } from "../../shared/sdd/intent-agreement.ts";
 import { resolveChangesDir } from "../../shared/sdd/sdd-routing-core.ts";
 import { runVerificationCommand } from "./verification-command.ts";
@@ -148,11 +147,6 @@ export function resolveGuardDecision(
 async function guardCmd(): Promise<void> {
 	const raw = await Bun.stdin.text();
 	const result = resolveGuardDecision(raw, cwd);
-	if (result?.decision === "deny") {
-		try {
-			await recordClaudeAdmissionDenied(JSON.parse(raw), cwd);
-		} catch { /* Denial remains authoritative even if diagnostic persistence fails. */ }
-	}
 	if (result) emitDecision(result.decision, result.reason);
 }
 

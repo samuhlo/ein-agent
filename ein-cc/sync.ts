@@ -565,7 +565,7 @@ export function buildClaudeHooks(
   const continuity = cmd(`"${continuityBin}" hook`);
   const mutations = "Write|Edit|Bash|Task";
   return Object.freeze({
-    PreToolUse: [{ matcher: "Bash", hooks: [cmd(`"${guardBin}" guard`)] }, { matcher: mutations, hooks: [continuity] }],
+    PreToolUse: [{ matcher: "Bash", hooks: [cmd(`"${guardBin}" guard`)] }],
     SessionStart: [
       { matcher: "startup|resume|clear|compact", hooks: [cmd(`"${guardBin}" settings --hook`)] },
     ],
