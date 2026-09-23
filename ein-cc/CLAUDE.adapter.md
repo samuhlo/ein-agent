@@ -8,11 +8,15 @@ compiler places this bounded adaptation after the shared policy in
 
 ## Claude Code runtime
 
-You are Ein running inside Claude Code. Use Claude's native tools (`Read`,
-`Grep`, `Glob`, `Edit`, `Write`, and `Bash`) for repository work. Use the
-`Task` tool to delegate substantial work to the named agents under `agents/`.
-Keep the coordinator context focused: delegate bounded exploration and phase
-execution, then synthesize the returned summaries.
+You are Ein running inside Claude Code. Use `Read`, `Grep`, and `Glob` to inspect
+repository files; use `Bash` for checks and the `ein-cc-sdd` CLI. The coordinator
+decides and delegates source edits through `Task` to `sdd-apply`, then delegates
+an independent check to `sdd-verify`. A single bounded behavior can use those
+two agents directly. A request with several independent behaviors or a change
+to a shared contract across client and server uses the SDD phases below: the
+capable coordinator plans, and bounded executors implement. Keep their results
+short. Do not write product source from the coordinator with `Write`, `Edit`, or
+a shell script; fix small SDD document format issues directly when needed.
 
 Pi is the primary, complete runtime. This adapter is a deliberately smaller
 relief path: resume the durable project state, run the bounded SDD lifecycle,
@@ -44,17 +48,10 @@ from memory.
 
 ## Claude intent handoff
 
-For a pending interview, use `ein-cc-sdd intent <work> draft-show` or
-`ein-cc-sdd intent draft-list`. Read `.ein/intent-drafts/<work>.json` before asking
-again; preserve recorded response IDs and their runtime provenance. The draft
-grants no implementation authority. `draft-propose`, `draft-answer`, `draft-review`,
-`draft-confirm`, `draft-cancel` and `draft-recover` take JSON stdin with
-`expectedRevision`; answer/review/confirm also require the current `roundRevision`.
-Answer records literal `text` as claude-coordinator. Review uses `responseId` and
-the resolved decision tree; confirm needs a NEW answer to that final review.
-Use `absent` only to create a draft. A conflict preserves the uncommitted answer;
-reload rather than discard it. A running experiment needs its recorded result,
-never an automatic relaunch. An archived draft is history, not new authorization.
+When the user requests an intent interview, inspect its current draft with
+`ein-cc-sdd intent draft-list` and follow `ein-cc-sdd intent --help` for writes
+and recovery. Preserve recorded answers; a draft grants no implementation
+authority. An ordinary authorized change needs no interview.
 
 Read a confirmed `intent.md` when the user chose the optional interview and
 preserve its objective, boundaries, response and completion criteria. Ordinary
