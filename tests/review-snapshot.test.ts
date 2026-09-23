@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { evaluateReviewForecast, reviewForecast } from "../ein-pi/agent/lib/review-forecast.ts";
@@ -162,4 +162,35 @@ test("a staged deletion stays deleted when an ignored physical copy remains", ()
 	writeFileSync(join(root, ".git/info/exclude"), "base.ts\n");
 	expect(reviewForecast(root)).toMatchObject({ ok: true, production: 1, productionFiles: 1 });
 	expect(readFileSync(join(root, "base.ts"), "utf8")).toBe("base\n");
+});
+
+test("scratch case aliases cannot follow a Git symlink outside the snapshot", () => {
+	const root = fixture(), base = git(root, "rev-parse", "HEAD").trim();
+	const outside = join(root, "guard"); mkdirSync(outside); writeFileSync(join(outside, "child"), "KEEP\n");
+	const foldsCase = existsSync(join(root, "GUARD"));
+	const blob = (content: string) => execFileSync("git", ["hash-object", "-w", "--stdin"], { cwd: root, input: content, encoding: "utf8" }).trim();
+	const tree = (content: string) => execFileSync("git", ["mktree", "-z"], { cwd: root, input: content, encoding: "utf8" }).trim();
+	const target = blob(outside), replacement = blob("REPLACED\n");
+	const child = tree(`100644 blob ${replacement}\tchild\0`);
+	const top = tree(`120000 blob ${target}\tLink\0` + `040000 tree ${child}\tlink\0`);
+	const head = git(root, "commit-tree", top, "-p", base, "-m", "link alias without checkout").trim();
+	const result = reviewForecast(root, { mode: "committed", base, head });
+	expect(readFileSync(join(outside, "child"), "utf8")).toBe("KEEP\n");
+	if (foldsCase) expect(evaluateReviewForecast(result, 400)).toMatchObject({ decision: "unknown", overBudget: null });
+	else expect(result.ok).toBeTrue();
+});
+
+test("scratch rejects leaf and directory collisions instead of overwriting or merging Git entries", () => {
+	const root = fixture(), base = git(root, "rev-parse", "HEAD").trim();
+	writeFileSync(join(root, "case-probe"), "probe"); const foldsCase = existsSync(join(root, "CASE-PROBE"));
+	const blob = (content: string) => execFileSync("git", ["hash-object", "-w", "--stdin"], { cwd: root, input: content, encoding: "utf8" }).trim();
+	const tree = (content: string) => execFileSync("git", ["mktree", "-z"], { cwd: root, input: content, encoding: "utf8" }).trim();
+	const large = blob("large\n".repeat(600)), small = blob("small\n");
+	const left = tree(`100644 blob ${large}\tleft.ts\0`), right = tree(`100644 blob ${small}\tright.ts\0`);
+	for (const top of [tree(`100644 blob ${large}\tFile.ts\0` + `100644 blob ${small}\tfile.ts\0`), tree(`040000 tree ${left}\tDir\0` + `040000 tree ${right}\tdir\0`)]) {
+		const head = git(root, "commit-tree", top, "-p", base, "-m", "case aliases without checkout").trim();
+		const result = reviewForecast(root, { mode: "committed", base, head });
+		if (foldsCase) expect(result).toMatchObject({ ok: false, reason: "scratch path collision" });
+		else expect(result).toMatchObject({ ok: true, production: 602 });
+	}
 });
