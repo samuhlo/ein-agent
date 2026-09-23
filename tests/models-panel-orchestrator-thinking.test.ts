@@ -264,7 +264,7 @@ describe("esfuerzo del orquestador en /ein:models", () => {
 
 		expect(result.setModelCalls).toEqual(["minimax/MiniMax-M3"]);
 		expect(result.setThinkingCalls).toEqual(["xhigh"]);
-		expect(result.notifications.join("\n")).toContain("ya efectivo");
+		expect(result.notifications.join("\n")).toMatch(/ya efectivo|already effective/);
 	});
 
 	test("la selección de modelo del orquestador cambia sesión y predeterminado", async () => {
@@ -273,8 +273,8 @@ describe("esfuerzo del orquestador en /ein:models", () => {
 		expect(result.setModelCalls).toEqual(["openai-codex/gpt-6-sol"]);
 		const settings = JSON.parse(readFileSync(join(AGENT_HOME, "settings.json"), "utf8"));
 		expect(settings.defaultModel).toBe("gpt-6-sol");
-		expect(result.notifications.join("\n")).toContain("ya efectivo");
-		expect(result.notifications.join("\n")).not.toContain("Reinicia Pi");
+		expect(result.notifications.join("\n")).toMatch(/ya efectivo|already effective/);
+		expect(result.notifications.join("\n")).not.toMatch(/Reinicia Pi|Restart Pi/);
 	});
 
 	test("guardar otra vez aplica un predeterminado ya persistido a la sesión antigua", async () => {
@@ -282,7 +282,7 @@ describe("esfuerzo del orquestador en /ein:models", () => {
 		const result = await runPanel({ activeModel: "openai-codex/gpt-6-astra", effective: "medium" });
 		expect(result.setModelCalls).toEqual(["openai-codex/gpt-6-sol"]);
 		expect(result.setThinkingCalls).toEqual(["high"]);
-		expect(result.notifications.join("\n")).toContain("ya efectivo");
+		expect(result.notifications.join("\n")).toMatch(/ya efectivo|already effective/);
 	});
 
 	test("si Pi rechaza el modelo, no afirma que quedó activo", async () => {
