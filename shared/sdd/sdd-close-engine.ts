@@ -23,6 +23,9 @@ import {
 import type { AssessCloseReadiness } from "./sdd-close-readiness.ts";
 import { readSpecDeltaDeclaration } from "./sdd-change-validation.ts";
 import { summaryContractErrors } from "./sdd-summary-contract.ts";
+import { isSafeDraftWork, type IntentPublication } from "./intent-draft.ts";
+import { readIntentAdmission } from "./intent-admission.ts";
+import { readIntentDraft, recoverArchivePublication, type LockedIntentDraftWriter } from "./intent-draft-store.ts";
 import {
 	OUT_OF_FLOW_EVIDENCE_PATH,
 	validateOutOfFlowReconciliation,
@@ -51,6 +54,7 @@ export type CloseChange = (
 	seam?: CloseCompactionTestSeam,
 ) => CloseResult;
 export type CloseEngineDependencies = Readonly<{
+	withIntentAdmissionLock: <T>(cwd: string, change: string, action: (write: LockedIntentDraftWriter) => T) => T;
 	assessCloseReadiness: AssessCloseReadiness;
 	resolveSddStatus: (cwd: string, change: string) => SddChangeStatus;
 	readRepositoryStateIdentity: (cwd: string, capturedAt: unknown) => RepositoryStateIdentity | null;
@@ -160,7 +164,7 @@ function assessReconciliationClose(
 // `archive/` conserva el registro duradero; los artefactos intermedios existen
 // únicamente mientras el cambio está activo.
 export function createCloseChange(dependencies: CloseEngineDependencies): CloseChange {
-	return (
+	const closeUnlocked: CloseChange = (
 		cwd: string,
 		change: string,
 		options: CloseOptions = {},
@@ -243,5 +247,50 @@ export function createCloseChange(dependencies: CloseEngineDependencies): CloseC
 			},
 		}
 		: { ok: true, from, to };
+	};
+	return (cwd, change, options = {}, seam = {}) => {
+		if (!isSafeDraftWork(change)) return closeUnlocked(cwd, change, options, seam);
+		const from = join(resolveChangesDir(cwd), change); const to = closedChangePath(cwd, change);
+		try {
+			return dependencies.withIntentAdmissionLock(cwd, change, (write) => {
+				let current = readIntentDraft(cwd, change);
+				let priorArchive: Extract<IntentPublication, { state: "archiving" | "archived" }> | undefined;
+				if (current.status === "invalid") throw new Error(current.reason);
+				if (current.status === "valid" && ["archiving", "archived"].includes(current.draft.publication.state)) {
+					priorArchive = current.draft.publication as typeof priorArchive;
+					const recovered = write(current.draft.revision, (draft) => recoverArchivePublication(cwd, draft!));
+					if (!recovered.ok) throw new Error(recovered.reason);
+					current = { status: "valid", draft: recovered.draft };
+					if (recovered.draft.publication.state === "archived") {
+						const pending = recoverPendingCompaction(from, to, change, seam);
+						if (pending.handled && "error" in pending) throw new Error(pending.error);
+						return { ok: true, from, to };
+					}
+				}
+				const admitted = () => readIntentAdmission({ root: cwd, work: change, changeDir: from, requiresCanonical: false }).admitted;
+				if (!admitted()) throw new Error("Intent draft prevents closing; resolve or recover it first");
+				let archiveRevision: string | undefined;
+				const result = closeUnlocked(cwd, change, options, { ...seam, beforeArchive(record) {
+					if (!admitted()) throw new Error("Intent changed before archive publication");
+					if (current.status === "valid") {
+						const published = write(current.draft.revision, (draft) => ({ ...draft!, publication: { state: "archiving", change, agreementRevision: draft!.agreement.revision, summarySha256: record.summarySha256,
+							...(record.verificationReceiptSha256 ? { verificationReceiptSha256: record.verificationReceiptSha256 } : {}) } }));
+						if (!published.ok) throw new Error(published.reason);
+						archiveRevision = published.draft.revision;
+					}
+					seam.beforeArchive?.(record);
+				} });
+				if (result.ok && archiveRevision) {
+					const completed = write(archiveRevision, (draft) => recoverArchivePublication(cwd, draft!));
+					if (!completed.ok) throw new Error(completed.reason);
+				} else if (result.ok && priorArchive && current.status === "valid") {
+					const completed = write(current.draft.revision, (draft) => recoverArchivePublication(cwd, { ...draft!, publication: priorArchive! }));
+					if (!completed.ok) throw new Error(completed.reason);
+				}
+				return result;
+			});
+		} catch (error) {
+			return { ok: false, from, to, reason: String(error), blockers: [{ code: "intent-unresolved", message: String(error) }] };
+		}
 	};
 }

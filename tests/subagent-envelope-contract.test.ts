@@ -78,6 +78,8 @@ describe("subagent envelope contract — T2 integración (detector de novedad, m
 		const resultHookSource = readFileSync(DELEGATION_RESULTS_PATH, "utf8");
 		const body = extractToolResultHandlerBody(resultHookSource);
 		const found = findEnvelopeConsumers(body);
+		const continuitySource = readFileSync(join(import.meta.dir, "../ein-pi/agent/extensions/ein-continuity.ts"), "utf8");
+		for (const consumer of findEnvelopeConsumers(extractToolResultHandlerBody(continuitySource))) found.add(consumer);
 		const declared = new Set(Object.keys(ENVELOPE_CONSUMER_INVENTORY).map((consumer) => consumer === "completeSddParticipantCall" ? "recognizePiParticipantTerminal" : consumer));
 		expect(found).toEqual(declared);
 	});

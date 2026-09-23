@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { readAgreement } from "./intent-agreement.ts";
+import { readIntentAdmission } from "./intent-admission.ts";
 import { lintPhaseArtifact, type SddPhase } from "./sdd-artifact-validation.ts";
 import { isSafeChangeName, PHASE_ARTIFACT, readSddCompletionEvidence, resolveChangesDir } from "./sdd-routing-core.ts";
 import type { VerificationFreshness } from "./sdd-verification-receipt.ts";
@@ -40,10 +40,10 @@ function sha256(value: string | Buffer): string { return createHash("sha256").up
 function fail<T>(code: string, reason: string): Result<T> { return { ok: false, code, reason }; }
 function record(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function readJson(path: string): unknown { try { return JSON.parse(readFileSync(path, "utf8")); } catch { return null; } }
-function intentKey(changePath: string): string | null | undefined {
-	const intent = readAgreement(changePath);
-	if (intent.kind === "absent") return null;
-	return intent.kind === "valid" && intent.agreement.status === "confirmed" ? intent.agreement.materialKey : undefined;
+function intentKey(root: string, changePath: string, work: string): string | null | undefined {
+	const intent = readIntentAdmission({ root, work, changeDir: changePath, requiresCanonical: false });
+	if (!intent.admitted) return undefined;
+	return intent.agreement?.materialKey ?? null;
 }
 function fileSha(path: string): string | null {
 	try { return lstatSync(path).isFile() && !lstatSync(path).isSymbolicLink() ? sha256(readFileSync(path)) : null; }
@@ -111,7 +111,7 @@ export function createPhaseReceiptService(dependencies: PhaseReceiptServiceDepen
 			if (!lstatSync(changePath).isDirectory() || lstatSync(changePath).isSymbolicLink() || !realpathSync(changePath).startsWith(`${root.value}/`)) return fail("unsafe-change", "change directory is unsafe");
 		} catch { return fail("unsafe-change", "change directory is unsafe"); }
 		const artifact = join(changePath, PHASE_ARTIFACT[input.phase]);
-		const currentIntent = intentKey(changePath);
+		const currentIntent = intentKey(root.value, changePath, input.change);
 		if (currentIntent === undefined) return fail("intent-unresolved", "phase requires an absent legacy or confirmed agreement");
 		const paths = runPaths(changePath, input.toolCallId);
 		const matches = findRuns(changesRoot, input.toolCallId);
@@ -154,7 +154,7 @@ export function createPhaseReceiptService(dependencies: PhaseReceiptServiceDepen
 		if (!read.ok) return read;
 		const { launch } = read.value;
 		if (launch.nonce !== input.nonce) return fail("nonce-mismatch", "phase nonce does not match the launch");
-		const currentIntent = intentKey(dirname(launch.artifact));
+		const currentIntent = intentKey(launch.root, dirname(launch.artifact), launch.change);
 		if (currentIntent === undefined || currentIntent !== launch.intentKey) return fail("intent-stale", "phase intent changed after launch");
 		const digest = fileSha(launch.artifact);
 		if (!digest) return fail("artifact-unavailable", "phase artifact is missing, unreadable or unsafe");
@@ -192,7 +192,7 @@ export function createPhaseReceiptService(dependencies: PhaseReceiptServiceDepen
 		const { launch, completion } = read.value;
 		if ((input.nonce && input.nonce !== launch.nonce) || (input.change && input.change !== launch.change) || (input.phase && input.phase !== launch.phase)) return { state: "invalid", reason: "phase run identity does not match", launch };
 		if (!completion) return { state: "unconfirmed", reason: "artifact may be partial; finalization receipt is absent", launch };
-		if (completion.toolCallId !== launch.toolCallId || completion.nonce !== launch.nonce || completion.change !== launch.change || completion.phase !== launch.phase || completion.artifactSha256 !== fileSha(launch.artifact) || completion.intentKey !== launch.intentKey || completion.intentKey !== intentKey(dirname(launch.artifact))) return { state: "invalid", reason: "phase receipt is stale or belongs to another run", launch, completion };
+		if (completion.toolCallId !== launch.toolCallId || completion.nonce !== launch.nonce || completion.change !== launch.change || completion.phase !== launch.phase || completion.artifactSha256 !== fileSha(launch.artifact) || completion.intentKey !== launch.intentKey || completion.intentKey !== intentKey(launch.root, dirname(launch.artifact), launch.change)) return { state: "invalid", reason: "phase receipt is stale or belongs to another run", launch, completion };
 		if (completion.status === "complete" && (launch.phase === "apply" || launch.phase === "close")) {
 			const evidence = readSddCompletionEvidence(launch.root, launch.change, dependencies.readVerification);
 			if (evidence.apply !== "complete" || evidence.tasks.counts.pending > 0 || (launch.phase === "close" && (evidence.verify !== "pass" || evidence.verification.state !== "current"))) return { state: "invalid", reason: "phase completion prerequisites changed after finalization", launch, completion };

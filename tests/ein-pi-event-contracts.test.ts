@@ -49,3 +49,12 @@ test("a tracked native Cleaner report survives redaction and a sibling verificat
  expect(recognizePiParticipantTerminal({...input,details:{mode:"workflow",results:[child,child]}})).toMatchObject({status:"unavailable"});
  expect(recognizePiParticipantTerminal({...input,details:{mode:"single",results:[{...child,finalOutput:"status: blocked\nreason: missing source"}]}})).toEqual({status:"blocked",reason:"missing source"});
 });
+test("whole JSON participant status overrides native zero exit without interpreting prose examples", () => {
+	const terminal = (finalOutput: string, agent = "ein-cleaner") => recognizePiParticipantTerminal({ toolName: "subagent", isError: false, agent, task: "audit", callMatched: true, details: { mode: "single", results: [{ agent, task: "audit", exitCode: 0, finalOutput }] } });
+	expect(terminal('{"status":"blocked","reason":"unresolved finding"}')).toEqual({ status: "blocked", reason: "unresolved finding" });
+	for (const status of ["partial", "fail", "unavailable", "unknown"]) expect(terminal(JSON.stringify({ status })).status).toBe("unavailable");
+	expect(terminal('{"status":"complete"}').status).toBe("complete");
+	expect(terminal('{"status":"pass"}', "sdd-verify").status).toBe("complete");
+	expect(terminal('Reviewed documentation example {"status":"blocked"}; no outstanding work.').status).toBe("complete");
+	expect(terminal('{"status":').status).toBe("unavailable");
+});

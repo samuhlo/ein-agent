@@ -43,12 +43,17 @@ export const EIN_CC_PAYLOAD_SDD_ENTRY = "ein-cc/sdd-cli/cli.ts" as const;
 export const EIN_CC_PAYLOAD_SOURCE_ENTRIES = [
   "ein-cc/sync.ts",
   EIN_CC_PAYLOAD_SDD_ENTRY,
+  "ein-cc/sdd-cli/objective-command.ts",
+  "ein-cc/sdd-cli/continuity-command.ts",
   SURFACE_RUNNER_SOURCE,
   "ein-cc/continuity-runner.ts",
 ] as const;
 
 /** Paths required before a staged sync can be considered usable. */
 export const EIN_CC_PAYLOAD_REQUIRED_PATHS = [
+	"shared/ports/intent.ts",
+	"shared/sdd/intent-draft-store.ts",
+	"shared/sdd/intent-discovery.ts",
   "ein-cc/sync.ts",
   EIN_CC_PAYLOAD_SDD_ENTRY,
   SURFACE_RUNNER_SOURCE,

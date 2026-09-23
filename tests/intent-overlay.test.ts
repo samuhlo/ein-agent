@@ -5,6 +5,7 @@ import { join } from "node:path";
 import overlay from "../ein-pi/agent/extensions/ein-sdd-overlay.ts";
 import { renderIntentOverlay, phaseStates, overlayWidth } from "../ein-pi/agent/lib/sdd-overlay.ts";
 import { runIntentDiscovery, INTENT_STATE } from "../ein-pi/agent/lib/intent-discovery.ts";
+import { createIntentDraftRuntime } from "../ein-pi/agent/lib/intent-draft-runtime.ts";
 import type { SddChangeStatus } from "../ein-pi/agent/lib/sdd-router.ts";
 
 const material = { objective: "Acordar cuentas", boundaries: { in: ["Cuenta y centro"], out: ["Frontend"] }, completionCriteria: ["Contrato acordado"] };
@@ -16,10 +17,10 @@ test("TODO shows intent before SDD exists, restores it and advances to final rev
   const branch: any[] = []; const paints: string[][] = []; const handlers = new Map<string, Function>();
   const ctx: any = { cwd, hasUI: true, sessionManager: { getBranch: () => branch, getEntries: () => branch }, ui: { setWidget: (_key: string, content: any) => paints.push(typeof content === "function" ? content({ terminal: { rows: 24 } }).render(48) : content ?? []) } };
   const append = (customType: string, data: unknown) => branch.push({ type: "custom", customType, data });
-  const { agreement } = runIntentDiscovery(ctx, { action: "propose", work: "cuentas", material, questions: ["¿Una cuenta?"], decisions: [
+  const { agreement } = runIntentDiscovery(ctx, { action: "propose", work: "cuentas", expectedRevision: "absent", material, questions: ["¿Una cuenta?"], decisions: [
    { id: "account", question: "¿Una cuenta?", dependsOn: [], status: "open" },
    { id: "entry", question: "¿Dónde entra?", dependsOn: ["account"], status: "open" },
-  ] }, append);
+  ] }, append, undefined, createIntentDraftRuntime(cwd, { mutating: true }));
   overlay({ on: (event: string, handler: Function) => handlers.set(event, handler), events: { on: () => () => {} }, appendEntry: append, registerShortcut: (_key: string, spec: any) => { shortcut = spec.handler; } } as never);
   handlers.get("session_start")!({}, ctx);
   expect(paints.at(-1)?.join("\n")).toContain("Intent · Decisiones pendientes");

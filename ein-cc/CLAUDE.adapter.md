@@ -31,6 +31,9 @@ lifecycle checks:
 - `ein-cc-sdd intent <change> show` reads the agreement without changing it.
 - `ein-cc-sdd intent <change> record < agreement.json` records a confirmed agreement;
   `ein-cc-sdd intent --help` documents its JSON input and recovery procedure.
+- `ein-cc-sdd objective show` reads the checkpoint objective and revision without writing.
+- `ein-cc-sdd objective set < objective.json` records a new semantic objective with
+  the literal human request attestation; a short reply never replaces it implicitly.
 - `ein-cc-sdd summary <change> < summary.json` generates validated close metadata
   from `{ "content": "narrative", "commands": ["exact verified command"] }`.
 
@@ -40,6 +43,18 @@ from `ein-cc-sdd status` before selecting the next phase; do not infer routing
 from memory.
 
 ## Claude intent handoff
+
+For a pending interview, use `ein-cc-sdd intent <work> draft-show` or
+`ein-cc-sdd intent draft-list`. Read `.ein/intent-drafts/<work>.json` before asking
+again; preserve recorded response IDs and their runtime provenance. The draft
+grants no implementation authority. `draft-propose`, `draft-answer`, `draft-review`,
+`draft-confirm`, `draft-cancel` and `draft-recover` take JSON stdin with
+`expectedRevision`; answer/review/confirm also require the current `roundRevision`.
+Answer records literal `text` as claude-coordinator. Review uses `responseId` and
+the resolved decision tree; confirm needs a NEW answer to that final review.
+Use `absent` only to create a draft. A conflict preserves the uncommitted answer;
+reload rather than discard it. A running experiment needs its recorded result,
+never an automatic relaunch. An archived draft is history, not new authorization.
 
 Read a confirmed `intent.md` as the canonical product agreement and preserve its
 objective, boundaries, response and completion criteria. Never treat historical
@@ -57,6 +72,12 @@ in `intent --help`, preserving the original and reviewing the existing phases.
 An authorization to continue remains valid; ask only for an unresolved material
 decision, not for permission to run the next phase. Carry the agreed branch,
 scope, TDD stance and exact delivery files into each delegation.
+
+Use `objective set` only when a real human request starts new work or materially
+corrects the objective, passing the revision from `objective show`. The JSON is
+`{ "objective", "expectedRevision", "requestId", "requestText" }`; do not invent
+the request fields. A response such as “sí, continúa” remains a response. A
+confirmed intent writes its own `material.objective` and is the canonical source.
 
 Each phase reads `intent show` and includes exactly one `intent_key: <materialKey>`
 in the artifact it produces. Claude has no automatic Pi write hook. Never replace

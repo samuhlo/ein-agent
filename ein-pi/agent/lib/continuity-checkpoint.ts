@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { isAbsolute, posix } from "node:path";
 import type { ProjectStateV1 } from "./project-state.ts";
-export const CONTINUITY_CHECKPOINT_VERSION = 1 as const;
+export const CONTINUITY_CHECKPOINT_VERSION = 2 as const;
 export const CONTINUITY_CHECKPOINT_LIMITS = Object.freeze({
 	maxObjectiveBytes: 512,
 	maxNextActionBytes: 512,
@@ -26,8 +26,15 @@ export type ContinuityWarning =
 	| "verification-unknown"
 	| "openspec-ambiguous"
 	| "provider-runtime-unavailable";
+export type ContinuityObjectiveEvidence =
+	| Readonly<{ kind: "legacy" }>
+	| Readonly<{ kind: "unknown" }>
+	| Readonly<{ kind: "pi-observed"; requestId: string; recordedAt: string; observedAgreementRevision?: string }>
+	| Readonly<{ kind: "claude-attested"; requestId: string; recordedAt: string; observedAgreementRevision?: string }>
+	| Readonly<{ kind: "intent"; work: string; materialKey: string; agreementRevision: string }>
+	| Readonly<{ kind: "intent-draft"; work: string; materialKey: string; agreementRevision: string }>;
 export type ContinuityCheckpointV1 = Readonly<{
-	version: typeof CONTINUITY_CHECKPOINT_VERSION;
+	version: 1;
 	revision: string;
 	mode: ContinuityMode;
 	change: string | null;
@@ -44,6 +51,11 @@ export type ContinuityCheckpointV1 = Readonly<{
 	}>;
 	warnings: readonly ContinuityWarning[];
 }>;
+export type ContinuityCheckpointV2 = Readonly<Omit<ContinuityCheckpointV1, "version" | "objectiveEvidence"> & {
+	version: typeof CONTINUITY_CHECKPOINT_VERSION;
+	objectiveEvidence: ContinuityObjectiveEvidence;
+}>;
+export type ContinuityCheckpoint = ContinuityCheckpointV1 | ContinuityCheckpointV2;
 export type ContinuityCheckpointReason =
 	| "invalid-state"
 	| "invalid-checkpoint"
@@ -53,16 +65,19 @@ export type ContinuityCheckpointReason =
 	| "limit-exceeded"
 	| "revision-mismatch";
 export type ContinuityCheckpointResult =
-	| Readonly<{ ok: true; checkpoint: ContinuityCheckpointV1 }>
+	| Readonly<{ ok: true; checkpoint: ContinuityCheckpoint }>
 	| Readonly<{ ok: false; reason: ContinuityCheckpointReason }>;
 export type ContinuityCheckpointFacts = Readonly<{
 	capturedAt: string;
 	objective: string;
+	objectiveEvidence?: ContinuityObjectiveEvidence;
 	completed: readonly string[];
 	nextAction: string;
 	unresolvedDecisions: readonly string[];
 }>;
-type CheckpointContent = Omit<ContinuityCheckpointV1, "revision">;
+type CheckpointContentV1 = Omit<ContinuityCheckpointV1, "revision">;
+type CheckpointContentV2 = Omit<ContinuityCheckpointV2, "revision">;
+type CheckpointContent = CheckpointContentV1 | CheckpointContentV2;
 const STATE_REF = /^git-v1:sha256:[a-f0-9]{64}$/;
 const REVISION = /^sha256:[a-f0-9]{64}$/;
 const CONTROL = /[\u0000-\u001f\u007f]/;
@@ -109,8 +124,15 @@ function validIsoTimestamp(value: unknown): value is string {
 function validStateRef(value: unknown): value is string {
 	return typeof value === "string" && STATE_REF.test(value);
 }
-function canonicalContent(checkpoint: ContinuityCheckpointV1 | CheckpointContent): CheckpointContent {
-	return {
+function canonicalObjectiveEvidence(evidence: ContinuityObjectiveEvidence): ContinuityObjectiveEvidence {
+	if (evidence.kind === "legacy" || evidence.kind === "unknown") return { kind: evidence.kind };
+	if (evidence.kind === "intent" || evidence.kind === "intent-draft") return { kind: evidence.kind, work: evidence.work, materialKey: evidence.materialKey, agreementRevision: evidence.agreementRevision };
+	return { kind: evidence.kind, requestId: evidence.requestId, recordedAt: evidence.recordedAt,
+		...(evidence.observedAgreementRevision ? { observedAgreementRevision: evidence.observedAgreementRevision } : {}) };
+}
+
+function canonicalContent(checkpoint: ContinuityCheckpoint | CheckpointContent): CheckpointContent {
+	const common = {
 		version: checkpoint.version, mode: checkpoint.mode, change: checkpoint.change, stateRef: checkpoint.stateRef,
 		capturedAt: checkpoint.capturedAt, objective: checkpoint.objective, completed: [...checkpoint.completed],
 		nextAction: checkpoint.nextAction, unresolvedDecisions: [...checkpoint.unresolvedDecisions],
@@ -118,19 +140,25 @@ function canonicalContent(checkpoint: ContinuityCheckpointV1 | CheckpointContent
 			status: checkpoint.verification.status, observedStateRef: checkpoint.verification.observedStateRef,
 		}, warnings: [...checkpoint.warnings],
 	};
+	return checkpoint.version === 2
+		? { ...common, objectiveEvidence: canonicalObjectiveEvidence(checkpoint.objectiveEvidence) } as CheckpointContentV2
+		: common as CheckpointContentV1;
 }
 
 function revisionFor(content: CheckpointContent): string {
 	return `sha256:${createHash("sha256").update(JSON.stringify(canonicalContent(content))).digest("hex")}`;
 }
 
-function checkpointFrom(content: CheckpointContent, revision = revisionFor(content)): ContinuityCheckpointV1 {
-	return {
+function checkpointFrom(content: CheckpointContent, revision = revisionFor(content)): ContinuityCheckpoint {
+	const common = {
 		version: content.version, revision, mode: content.mode, change: content.change, stateRef: content.stateRef,
 		capturedAt: content.capturedAt, objective: content.objective, completed: content.completed,
 		nextAction: content.nextAction, unresolvedDecisions: content.unresolvedDecisions,
 		changedPaths: content.changedPaths, verification: content.verification, warnings: content.warnings,
 	};
+	return content.version === 2
+		? { ...common, version: 2, objectiveEvidence: Object.freeze({ ...content.objectiveEvidence }) } as ContinuityCheckpointV2
+		: { ...common, version: 1 } as ContinuityCheckpointV1;
 }
 
 function utf8Bytes(value: string): number {
@@ -141,7 +169,7 @@ function serializedBytes(value: unknown): number {
 	return utf8Bytes(JSON.stringify(value));
 }
 
-function verificationFrom(state: ProjectStateV1): ContinuityCheckpointV1["verification"] {
+function verificationFrom(state: ProjectStateV1): ContinuityCheckpoint["verification"] {
 	const verification = state.verification;
 	const current = validStateRef(state.git.stateRef) ? state.git.stateRef : null;
 	const observed = validStateRef(verification.observedStateRef) ? verification.observedStateRef : null;
@@ -189,6 +217,22 @@ function validateFacts(facts: ContinuityCheckpointFacts): ContinuityCheckpointRe
 	return null;
 }
 
+function validObjectiveEvidence(value: unknown): value is ContinuityObjectiveEvidence {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+	const evidence = value as Record<string, unknown>;
+	const keys = Object.keys(evidence).sort().join(",");
+	if ((evidence.kind === "legacy" || evidence.kind === "unknown") && keys === "kind") return true;
+	if ((evidence.kind === "pi-observed" || evidence.kind === "claude-attested") && ["kind,recordedAt,requestId", "kind,observedAgreementRevision,recordedAt,requestId"].includes(keys)) {
+		return textReason(evidence.requestId, 512) === null && validIsoTimestamp(evidence.recordedAt)
+			&& (evidence.observedAgreementRevision === undefined || textReason(evidence.observedAgreementRevision, 512) === null);
+	}
+	if ((evidence.kind === "intent" || evidence.kind === "intent-draft") && keys === "agreementRevision,kind,materialKey,work") {
+		return typeof evidence.work === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(evidence.work) && safeChange(evidence.work)
+			&& typeof evidence.materialKey === "string" && REVISION.test(evidence.materialKey) && textReason(evidence.agreementRevision, 512) === null;
+	}
+	return false;
+}
+
 export function deriveContinuityCheckpoint(state: ProjectStateV1, facts: ContinuityCheckpointFacts): ContinuityCheckpointResult {
 	try {
 		const factsError = validateFacts(facts); if (factsError) return { ok: false, reason: factsError };
@@ -206,10 +250,12 @@ export function deriveContinuityCheckpoint(state: ProjectStateV1, facts: Continu
 			&& (state.openspec.quality === "current" || state.openspec.quality === "incomplete")
 			&& state.openspec.activeChanges.length === 1 && state.openspec.activeChanges[0] === selected && safeChange(selected);
 		const verification = verificationFrom(state);
+		const objectiveEvidence = facts.objectiveEvidence ?? { kind: "unknown" as const };
+		if (!validObjectiveEvidence(objectiveEvidence)) return { ok: false, reason: "invalid-checkpoint" };
 		const content: CheckpointContent = canonicalContent({
-			version: 1, mode: sdd ? "sdd" : "adhoc", change: sdd ? selected : null,
+			version: 2, mode: sdd ? "sdd" : "adhoc", change: sdd ? selected : null,
 			stateRef: validStateRef(state.git.stateRef) ? state.git.stateRef : null, capturedAt: facts.capturedAt,
-			objective: facts.objective, completed: facts.completed, nextAction: facts.nextAction,
+			objective: facts.objective, objectiveEvidence, completed: facts.completed, nextAction: facts.nextAction,
 			unresolvedDecisions: facts.unresolvedDecisions, changedPaths: [...paths].sort(), verification,
 			warnings: deriveWarnings(state, verification.status),
 		});
@@ -228,10 +274,15 @@ export function parseContinuityCheckpoint(input: unknown): ContinuityCheckpointR
 	try {
 		if (typeof input === "string" && new TextEncoder().encode(input).byteLength > CONTINUITY_CHECKPOINT_LIMITS.maxSerializedBytes) return { ok: false, reason: "limit-exceeded" };
 		const value: unknown = typeof input === "string" ? JSON.parse(input) : input;
-		const keys = ["version", "revision", "mode", "change", "stateRef", "capturedAt", "objective", "completed", "nextAction", "unresolvedDecisions", "changedPaths", "verification", "warnings"] as const;
-		if (!recordWithKeys(value, keys) || value.version !== 1 || typeof value.revision !== "string" || !REVISION.test(value.revision)
+		const v1Keys = ["version", "revision", "mode", "change", "stateRef", "capturedAt", "objective", "completed", "nextAction", "unresolvedDecisions", "changedPaths", "verification", "warnings"] as const;
+		const v2Keys = [...v1Keys, "objectiveEvidence"] as const;
+		if (value === null || typeof value !== "object" || Array.isArray(value)) return { ok: false, reason: "invalid-checkpoint" };
+		const version = (value as Record<string, unknown>).version;
+		const keys = version === 1 ? v1Keys : version === 2 ? v2Keys : [];
+		if (!recordWithKeys(value, keys) || (version !== 1 && version !== 2) || typeof value.revision !== "string" || !REVISION.test(value.revision)
 			|| (value.mode !== "adhoc" && value.mode !== "sdd") || (value.mode === "adhoc" ? value.change !== null : !safeChange(value.change))
 			|| (value.stateRef !== null && !validStateRef(value.stateRef)) || !validIsoTimestamp(value.capturedAt)) return { ok: false, reason: "invalid-checkpoint" };
+		if (version === 2 && !validObjectiveEvidence(value.objectiveEvidence)) return { ok: false, reason: "invalid-checkpoint" };
 		const facts = { capturedAt: value.capturedAt, objective: value.objective, completed: value.completed, nextAction: value.nextAction, unresolvedDecisions: value.unresolvedDecisions };
 		const factsError = validateFacts(facts as ContinuityCheckpointFacts); if (factsError) return { ok: false, reason: factsError };
 		if (!Array.isArray(value.changedPaths)) return { ok: false, reason: "invalid-checkpoint" };
@@ -247,7 +298,7 @@ export function parseContinuityCheckpoint(input: unknown): ContinuityCheckpointR
 		const warnings = value.warnings;
 		if (new Set(warnings).size !== warnings.length || warnings.some((warning) => !WARNING_ORDER.includes(warning as ContinuityWarning))
 			|| WARNING_ORDER.filter((warning) => warnings.includes(warning)).some((warning, index) => warning !== warnings[index])) return { ok: false, reason: "invalid-checkpoint" };
-		const checkpoint = value as ContinuityCheckpointV1;
+		const checkpoint = value as unknown as ContinuityCheckpoint;
 		const verificationWarnings = ["verification-stale", "verification-failed", "verification-unknown"] as const;
 		const expectedWarning: ContinuityWarning | null = checkpoint.verification.status === "stale" ? "verification-stale"
 			: checkpoint.verification.status === "failed" ? "verification-failed" : checkpoint.verification.status === "unknown" ? "verification-unknown" : null;
@@ -258,4 +309,23 @@ export function parseContinuityCheckpoint(input: unknown): ContinuityCheckpointR
 		if (revisionFor(canonicalContent(checkpoint)) !== checkpoint.revision) return { ok: false, reason: "revision-mismatch" };
 		return { ok: true, checkpoint: checkpointFrom(canonicalContent(checkpoint), checkpoint.revision) };
 	} catch { return { ok: false, reason: "invalid-checkpoint" }; }
+}
+
+export function replaceContinuityObjective(
+	checkpoint: ContinuityCheckpoint,
+	objective: string,
+	objectiveEvidence: ContinuityObjectiveEvidence,
+): ContinuityCheckpointResult {
+	const parsed = parseContinuityCheckpoint(checkpoint);
+	if (!parsed.ok) return parsed;
+	const reason = textReason(objective, CONTINUITY_CHECKPOINT_LIMITS.maxObjectiveBytes);
+	if (reason) return { ok: false, reason };
+	if (!validObjectiveEvidence(objectiveEvidence) || objectiveEvidence.kind === "legacy") return { ok: false, reason: "invalid-checkpoint" };
+	const source = parsed.checkpoint;
+	const content: CheckpointContentV2 = {
+		...canonicalContent(source), version: 2, objective, objectiveEvidence,
+	} as CheckpointContentV2;
+	const updated = checkpointFrom(content);
+	if (serializedBytes(updated) > CONTINUITY_CHECKPOINT_LIMITS.maxSerializedBytes) return { ok: false, reason: "limit-exceeded" };
+	return { ok: true, checkpoint: updated };
 }
