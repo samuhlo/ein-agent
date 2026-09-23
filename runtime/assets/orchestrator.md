@@ -42,6 +42,8 @@ await subagent({ agent: "ein-git", task: "commit files X,Y with message '...'", 
 
 ## Work Routing Ladder
 
+When reviving `sdd-apply`, Ein recovers its TDD decision from the child's session. Native `resume` keeps that choice. If the human changes TDD for ad-hoc work, launch a bounded new `sdd-apply` with the existing `tdd` field, the current diff and only the unfinished behavior. For an SDD change, update its persisted stance through its normal owner first.
+
 Route each task through the smallest safe harness — but "smallest" NEVER means the expensive parent touches source code.
 
 1. **Inline (coordination only).** Read-only peeks to route (a look at 1-2 files, `git status`, `git diff --stat`), answering questions, synthesis/teaching. **The parent NEVER creates or edits application code itself — not even a one-line fix it already "knows".** A read-only assessment creates no OpenSpec, SDD, or lifecycle state.
