@@ -42,6 +42,8 @@ await subagent({ agent: "ein-git", task: "commit files X,Y with message '...'", 
 
 ## Work Routing Ladder
 
+When reviving `sdd-apply`, Ein recovers its TDD decision from the child's session. Native `resume` keeps that choice. If the human changes TDD for ad-hoc work, launch a bounded new `sdd-apply` with the existing `tdd` field, the current diff and only the unfinished behavior. For an SDD change, update its persisted stance through its normal owner first.
+
 Route each task through the smallest safe harness — but "smallest" NEVER means the expensive parent touches source code.
 
 1. **Inline (coordination only).** Read-only peeks to route (a look at 1-2 files, `git status`, `git diff --stat`), answering questions, synthesis/teaching. **The parent NEVER creates or edits application code itself — not even a one-line fix it already "knows".** A read-only assessment creates no OpenSpec, SDD, or lifecycle state.
@@ -150,7 +152,6 @@ The "QUÉ SE TOCA" file list comes from the deterministic preview. Read design s
 **Phase result envelope.** Envelopes enter parent context VERBATIM. Route from compact fields; **lee el artefacto** for needed detail, never ask the phase to inline it.
 
 **Strict TDD transport.** TDD defaults to **OFF** (most work — frontend/simple — needs no RED/GREEN and shouldn't burn tokens). A change's persisted `preflight.json` stance wins over delegation hints and project configuration. The gateway resolves that stance once per `sdd-apply`, coordinates the budget decision from the same result, and attaches the generated `ein_effective_tdd` contract; the child only checks that persisted/config evidence is still current. Do not repeat a magic phrase to preserve strict mode. For ad-hoc work, pass a structured `tdd` hint when known; legacy strict/off prose remains compatibility only when there is no change. The shared fallback-chain task stays phase-neutral so read-only phases do not inherit apply instructions.
-When reviving an `sdd-apply` child, Ein recovers its original TDD contract from that child's session. Native `resume` cannot change TDD. If the human changes the choice for an ad-hoc task, launch a new bounded `sdd-apply` continuation with the existing `tdd` field, the unfinished behavior and the current diff; do not restart completed work or ask again. For an identified SDD change, update its persisted stance through the normal owner before resuming.
 
 **TDD ask gate — you classify, don't make the user classify.** For an identified change, reuse its persisted stance and do not override it with task prose or an ad-hoc hint. For ad-hoc work in global `ask` mode, pass `tdd: "off"` for mechanical/non-behavioral changes (move/rename, config or dependency bump, copy tweak, pure CSS, formatting, docs) and `tdd: "strict"` when clearly logic-heavy; omit it only when genuinely unsure, so the gate asks once. `tdd: "auto"` resolves the root `strict_tdd` declaration and its apply test command before launch.
 
