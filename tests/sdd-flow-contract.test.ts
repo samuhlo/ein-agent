@@ -120,8 +120,10 @@ describe("orchestrator: flujo por fases determinista", () => {
 
 	test("enseña primero en lenguaje humano y conserva la profundidad técnica", () => {
 		const agents = read("AGENTS.md");
-		expect(agents).toContain("everyday human language");
-		expect(agents).toContain("A localized fix with tests can use a few paragraphs");
+		expect(agents).toContain("multi-part plans use numbered `// 00N` sections");
+		expect(agents).toContain("flexible titles");
+		expect(agents).toContain("Title each step by what the person will notice");
+		expect(agents).toContain("A localized fix can use a few paragraphs");
 		expect(agents).toContain("Honor existing authorization");
 		// SCOPE -> This checks prompt obligations; model behavior is replayed in evals.
 		const teaching = orch.split("**Human-first teaching.**")[1]?.split("\n\n")[0] ?? "";

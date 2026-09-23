@@ -61,6 +61,18 @@ describe("presupuesto de prompt", () => {
 		}
 	});
 
+	test("un plan con varios trabajos lleva el formato docente en el prompt inicial", () => {
+		const prompt = buildEinPrompt("samuhlo", "es", "off");
+		for (const section of ["## // 000.", "## // 001."]) {
+			expect(prompt).toContain(section);
+		}
+		expect(prompt).toContain("Choose the titles and number of sections to fit the plan");
+		expect(prompt).toContain("Title each step by what a person will notice before and after");
+		expect(prompt).toContain("keep internal agent names, commands and file paths out of those titles");
+		expect(prompt).toContain("Gloss project jargon on first use even if the user used it");
+		expect(prompt).toContain("Separate confirmed facts from proposed work");
+	});
+
 	test("el prompt del orquestador no crece sin que algo salga a cambio", () => {
 		const actual = bytesOf("runtime/assets/orchestrator.md");
 		if (actual > ORCHESTRATOR_BUDGET_BYTES) {
