@@ -230,7 +230,7 @@ export function runIntentDiscovery(
 }
 
 export function requireIntent(ctx: IntentContext, work?: string, change?: string): IntentAgreement {
-	if (!work) throw new Error("Intent required: call ein_intent before delegating new work, then include intent_work: <work> in the task");
+	if (!work) throw new Error("Select the optional intent interview work before reading its agreement");
 	const { agreement } = discoveryAgreement(ctx, work, change);
 	const admission = readIntentAdmission({ root: ctx.cwd, work, changeDir: changeDirectory(ctx.cwd, change ?? work), requiresCanonical: Boolean(agreement?.change) });
 	if (!admission.admitted && admission.state !== "absent") throw new Error(admission.reason ?? "Intent pending; recover or resolve the saved draft");

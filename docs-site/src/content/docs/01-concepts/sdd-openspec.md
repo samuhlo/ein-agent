@@ -13,7 +13,7 @@ openspec/
   specs/
   changes/
     nombre-del-cambio/
-      intent.md
+      intent.md  # solo si se pidió una entrevista de intención
       scope.md
       map.md
       design.md
@@ -28,9 +28,9 @@ Es el recorrido standard. Los archivos aparecen según avanza el trabajo; no se 
 
 ## Intención y contrato
 
-`intent.md` recoge el acuerdo gestionado: objetivo, límites y criterios de terminación. Si una decisión material cambia, se reabre y se detectan los artefactos que ya no corresponden al acuerdo vigente. No se actualizan claves de archivos antiguos para aparentar vigencia.
+`intent.md` conserva una entrevista de intención cuando se pidió expresamente. No es requisito para abrir, ejecutar, verificar o cerrar un cambio SDD.
 
-Scope acota; map localiza; design decide; tasks concreta el trabajo. Verify contrasta implementación, criterios y evidencias con ese contrato, incluida la intención vigente. No basta cumplir una interpretación antigua del diseño.
+Scope acota; map localiza; design decide; tasks concreta el trabajo. Verify contrasta implementación, criterios y evidencias con el alcance y diseño vigentes. No basta cumplir una interpretación antigua del diseño.
 
 ## Especificaciones y cierre
 

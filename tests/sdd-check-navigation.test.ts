@@ -92,7 +92,7 @@ test("check keeps pending apply ahead of a stale verify intent", async () => {
 	put("apply-progress.md", `status: complete\nintent_key: ${key}\n`);
 	const complete = await check("apply");
 	expect(complete.details.navigation.nextRecommended).toBe("verify");
-	expect(complete.content[0].text).toContain("verify-report.md no corresponde");
+	expect(complete.content[0].text).toContain("verification receipt is absent");
 });
 
 test("missing or invalid requested artifacts never emit a route", async () => {

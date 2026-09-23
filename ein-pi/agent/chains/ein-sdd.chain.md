@@ -9,7 +9,7 @@ output: scope.md
 outputMode: file-only
 progress: true
 
-Require confirmed intent.md before starting this chain. Every phase reads it and records its intent_key in its artifact. An unresolved product decision stops the chain for the parent. Define SDD scope for {task} before any planning or implementation. If `openspec/config.yaml` is missing, inspect the project and create it automatically. If it already exists, read it, refresh only safe derived context when appropriate, and report the current SDD/testing configuration without blocking the chain.
+Use any existing intent.md as context when the user explicitly created one; it is not required to start this chain. An unresolved product decision returns to the parent. Define SDD scope for {task} before any planning or implementation. If `openspec/config.yaml` is missing, inspect the project and create it automatically. If it already exists, read it, refresh only safe derived context when appropriate, and report the current SDD/testing configuration without blocking the chain.
 
 ## sdd-map
 

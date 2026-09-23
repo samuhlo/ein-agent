@@ -101,6 +101,6 @@ describe("el orquestador es el único dueño semántico en Pi", () => {
 		expect(orchestrator).toContain("Every ordinary input reaches you unchanged");
 		expect(orchestrator).toContain("`ein_intent`");
 		expect(policy).toContain("Every ordinary input reaches the parent orchestrator unchanged");
-		expect(policy).toContain("resolve its decision tree and final review");
+		expect(policy).toContain("optional interview");
 	});
 });

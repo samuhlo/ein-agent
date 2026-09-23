@@ -250,6 +250,8 @@ export function createCloseChange(dependencies: CloseEngineDependencies): CloseC
 	};
 	return (cwd, change, options = {}, seam = {}) => {
 		if (!isSafeDraftWork(change)) return closeUnlocked(cwd, change, options, seam);
+		const optionalDraft = readIntentDraft(cwd, change);
+		if (optionalDraft.status !== "valid" || optionalDraft.draft.agreement.status !== "confirmed") return closeUnlocked(cwd, change, options, seam);
 		const from = join(resolveChangesDir(cwd), change); const to = closedChangePath(cwd, change);
 		try {
 			return dependencies.withIntentAdmissionLock(cwd, change, (write) => {

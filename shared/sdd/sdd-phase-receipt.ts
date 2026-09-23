@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { readIntentAdmission } from "./intent-admission.ts";
+import { readAgreement } from "./intent-agreement.ts";
 import { lintPhaseArtifact, type SddPhase } from "./sdd-artifact-validation.ts";
 import { isSafeChangeName, PHASE_ARTIFACT, readSddCompletionEvidence, resolveChangesDir } from "./sdd-routing-core.ts";
 import type { VerificationFreshness } from "./sdd-verification-receipt.ts";
@@ -40,10 +40,9 @@ function sha256(value: string | Buffer): string { return createHash("sha256").up
 function fail<T>(code: string, reason: string): Result<T> { return { ok: false, code, reason }; }
 function record(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function readJson(path: string): unknown { try { return JSON.parse(readFileSync(path, "utf8")); } catch { return null; } }
-function intentKey(root: string, changePath: string, work: string): string | null | undefined {
-	const intent = readIntentAdmission({ root, work, changeDir: changePath, requiresCanonical: false });
-	if (!intent.admitted) return undefined;
-	return intent.agreement?.materialKey ?? null;
+function intentKey(_root: string, changePath: string, _work: string): string | null {
+	const intent = readAgreement(changePath);
+	return intent.kind === "valid" && intent.agreement.status === "confirmed" ? intent.agreement.materialKey : null;
 }
 function fileSha(path: string): string | null {
 	try { return lstatSync(path).isFile() && !lstatSync(path).isSymbolicLink() ? sha256(readFileSync(path)) : null; }
@@ -112,7 +111,6 @@ export function createPhaseReceiptService(dependencies: PhaseReceiptServiceDepen
 		} catch { return fail("unsafe-change", "change directory is unsafe"); }
 		const artifact = join(changePath, PHASE_ARTIFACT[input.phase]);
 		const currentIntent = intentKey(root.value, changePath, input.change);
-		if (currentIntent === undefined) return fail("intent-unresolved", "phase requires an absent legacy or confirmed agreement");
 		const paths = runPaths(changePath, input.toolCallId);
 		const matches = findRuns(changesRoot, input.toolCallId);
 		if (matches.length > 0) {
@@ -155,7 +153,7 @@ export function createPhaseReceiptService(dependencies: PhaseReceiptServiceDepen
 		const { launch } = read.value;
 		if (launch.nonce !== input.nonce) return fail("nonce-mismatch", "phase nonce does not match the launch");
 		const currentIntent = intentKey(launch.root, dirname(launch.artifact), launch.change);
-		if (currentIntent === undefined || currentIntent !== launch.intentKey) return fail("intent-stale", "phase intent changed after launch");
+		if (currentIntent !== launch.intentKey) return fail("intent-stale", "phase intent changed after launch");
 		const digest = fileSha(launch.artifact);
 		if (!digest) return fail("artifact-unavailable", "phase artifact is missing, unreadable or unsafe");
 		let content: string;

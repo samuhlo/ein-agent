@@ -15,7 +15,7 @@ import { dirname, join } from "node:path";
 
 import { isSafeChangeName, readSddCompletionEvidence, resolveChangesDir } from "./sdd-routing-core.ts";
 import { summaryContractErrors } from "./sdd-summary-contract.ts";
-import { artifactHasIntentKey } from "./intent-agreement.ts";
+import { readAgreement } from "./intent-agreement.ts";
 import { parseVerificationReport } from "./sdd-verification-outcome.ts";
 import type { VerificationFreshness } from "./sdd-verification-receipt.ts";
 
@@ -70,9 +70,9 @@ export function writeVerifiedSddSummary(request: SummaryWriteRequest & {
 		const dir = join(resolveChangesDir(request.cwd), request.change);
 		const report = readFileSync(join(dir, "verify-report.md"), "utf8");
 		const parsedReport = parseVerificationReport(report);
-		if (!evidence.intentAdmission.admitted) throw new Error("Summary requires a confirmed intent; recover the pending draft first");
-		const intent = evidence.intentAdmission.agreement ? { kind: "valid" as const, agreement: evidence.intentAdmission.agreement } : { kind: "absent" as const };
-		if (intent.kind === "valid" && [report, readFileSync(join(dir, "apply-progress.md"), "utf8")].some((artifact) => !artifactHasIntentKey(artifact, intent.agreement.materialKey))) throw new Error("Apply and verify must reference the current intent before summary");
+		const agreement = readAgreement(dir);
+		const intent = agreement.kind === "valid" && agreement.agreement.status === "confirmed"
+			? agreement : { kind: "absent" as const };
 		const recorded = new Set([
 			...parsedReport.requiredChecks.map((check) => check.command),
 			...[...report.matchAll(/`([^`\r\n]+)`/g)].map((match) => match[1]),

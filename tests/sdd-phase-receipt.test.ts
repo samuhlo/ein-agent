@@ -89,16 +89,16 @@ describe("phase receipt service", () => {
 		expect(existsSync(join(outside, ".phase-runs"))).toBe(false);
 	});
 
-	test("a malformed intent cannot be treated as an absent legacy agreement", () => {
+	test("a malformed optional intent cannot invalidate an otherwise complete phase", () => {
 		const f = fixture(); const dir = f.change();
 		writeFileSync(join(dir, "design.md"), "Draft reviewed\n");
 		const begun = f.api.beginPhaseRun({ cwd: f.cwd, change: "change-a", phase: "design", toolCallId: "intent" });
 		if (!begun.ok) throw new Error(begun.reason);
 		expect(f.api.finishPhaseRun({ cwd: f.cwd, toolCallId: "intent", nonce: begun.value.nonce, status: "complete" }).ok).toBe(true);
 		writeFileSync(join(dir, "intent.md"), "malformed agreement\n");
-		expect(f.api.assessPhaseRecovery({ cwd: f.cwd, toolCallId: "intent" }).state).toBe("invalid");
-		expect(f.api.finishPhaseRun({ cwd: f.cwd, toolCallId: "intent", nonce: begun.value.nonce, status: "complete" }).ok).toBe(false);
-		expect(f.api.beginPhaseRun({ cwd: f.cwd, change: "change-a", phase: "design", toolCallId: "another" }).ok).toBe(false);
+		expect(f.api.assessPhaseRecovery({ cwd: f.cwd, toolCallId: "intent" }).state).toBe("complete");
+		expect(f.api.finishPhaseRun({ cwd: f.cwd, toolCallId: "intent", nonce: begun.value.nonce, status: "complete" }).ok).toBe(true);
+		expect(f.api.beginPhaseRun({ cwd: f.cwd, change: "change-a", phase: "design", toolCallId: "another" }).ok).toBe(true);
 	});
 
 	test("completion and launch must retain the requested tool call identity", () => {

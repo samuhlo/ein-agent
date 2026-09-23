@@ -17,7 +17,7 @@ Los grupos compatibles de tasks se compilan para apply. Verify mantiene inspecci
 
 `/ein:settings` muestra los ajustes del proyecto. `/ein:models` configura modelos y esfuerzo por rol; `/ein:skills` muestra el estado de skills. El proyecto comparte sus ajustes en `.pi/ein/`, pero las credenciales y sesiones pertenecen al hogar del runtime.
 
-`/ein:intent` entra explícitamente en el protocolo de intención. No es obligatorio escribir un comando para cada petición: el padre reconoce cuándo hay trabajo nuevo y qué decisiones faltan. Las solicitudes completas autorizadas pueden registrarse directamente.
+`/ein:intent` abre una entrevista voluntaria. Para una petición clara y autorizada, el padre empieza el trabajo sin registrar un acuerdo ni exigir ese comando.
 
 TDD y el carril se resuelven por cambio. Linear y Codegraph son integraciones opcionales; sus ajustes de ejecución son distintos de los flags que omiten su instalación. Consulta [integraciones](/ein-agent/04-reference/optional-tooling/).
 

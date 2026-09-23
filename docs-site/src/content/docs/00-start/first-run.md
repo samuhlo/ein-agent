@@ -11,9 +11,9 @@ Abre `ein` desde el proyecto y expresa qué debe cambiar y cómo reconocerás qu
 
 ## Acordar lo necesario
 
-Ein comprueba si la petición ya define el resultado, los límites y los criterios de terminación. Si está completa y autorizada, puede registrar el acuerdo directamente. Si falta una decisión —por ejemplo, cuándo mostrar el error— pregunta antes de editar. No hace falta volver a aprobar lo que ya quedó claro.
+Ein toma de tu petición el resultado, los límites y las comprobaciones. Si está clara y autorizada, empieza. Si falta una decisión —por ejemplo, cuándo mostrar el error— pregunta antes de editar. No hace falta registrar un acuerdo ni volver a aprobar lo que ya quedó claro.
 
-Una conversación o una consulta de solo lectura no necesita abrir SDD ni crear un acuerdo de modificación.
+Una conversación o una consulta de solo lectura no necesita abrir SDD.
 
 ## Aplicar y verificar
 
@@ -23,7 +23,7 @@ Esta ruta ad-hoc no crea `openspec/changes/` ni exige un informe artificial en d
 
 ## Cuando sí necesitas SDD
 
-Puedes pedirlo expresamente. Para trabajo que necesita diseño y seguimiento, Ein usa [el flujo SDD](/ein-agent/02-workflow/workflow-overview/): intención, alcance, mapa, diseño, tareas, aplicación, verificación y cierre. Cada fase deja información en disco para poder retomar el cambio en otra sesión.
+Puedes pedirlo expresamente. Para trabajo que necesita diseño y seguimiento, Ein usa [el flujo SDD](/ein-agent/02-workflow/workflow-overview/): alcance, mapa, diseño, tareas, aplicación, verificación y cierre. Cada fase deja información en disco para poder retomar el cambio en otra sesión.
 
 La postura TDD se decide para el cambio. Tener tests existentes no activa por sí solo TDD estricto. En cualquier postura se conserva la exigencia de pruebas pertinentes y revisión independiente.
 

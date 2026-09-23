@@ -16,8 +16,8 @@ Los accesos avanzados son funciones Fish. Los comandos `pi` y `claude` mantienen
 
 ## Elegir sin suponer paridad
 
-Usa Pi para el flujo completo: descubrimiento de intención, configuración interactiva, modelos por rol, selección proactiva de skills y extensiones de contexto y evidencia. Claude puede retomar estado SDD y acuerdos confirmados, usando su CLI y sus hooks.
+Usa Pi para el flujo completo: trabajo ordinario, entrevistas de intención voluntarias, configuración interactiva, modelos por rol, selección proactiva de skills y extensiones de contexto y evidencia. Claude puede retomar estado SDD y entrevistas guardadas, usando su CLI y sus hooks.
 
-Los acuerdos gestionados nuevos o modificados se resuelven en Pi antes de pasarlos a Claude. Un handoff abre una sesión nueva apoyada en el estado del proyecto; no transfiere la conversación del runtime anterior.
+El trabajo ordinario no requiere un acuerdo gestionado en ninguno de los dos runtimes. Un handoff abre una sesión nueva apoyada en el estado del proyecto; no transfiere la conversación del runtime anterior.
 
 Consulta [Pi](/ein-agent/03-runtimes/pi-coding-agent/), [Claude](/ein-agent/03-runtimes/claude-code/) y la [matriz de capacidades](/ein-agent/03-runtimes/runtime-matrix/).

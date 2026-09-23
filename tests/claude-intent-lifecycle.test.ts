@@ -124,7 +124,7 @@ describe("Claude completes SDD without Pi", () => {
 		const result = record(f.cwd, { ...patch, expectedRevision: prior.revision });
 		expect(result.exitCode).toBe(0);
 		expect(JSON.parse(result.text).agreement.history[0].response.text).toBe(input.response);
-		expect(resolveSddStatus(f.cwd, f.change).intent?.stalePhase).toBe("scope");
+		expect(resolveSddStatus(f.cwd, f.change).intent).toBeUndefined();
 		expect(closeChange(f.cwd, f.change, { force: true }).ok).toBe(false);
 	});
 	test("retains multiple human rounds during recovery", () => {
@@ -193,7 +193,7 @@ describe("Claude completes SDD without Pi", () => {
 		const surface = compileClaudeSurface();
 		for (const [name, prompt] of Object.entries(surface.agents).filter(([name]) => name.startsWith("sdd-"))) {
 			expect(prompt, name).not.toContain("never copy hashes yourself");
-			expect(prompt).toContain("ein-cc-sdd intent <change> show");
+			expect(prompt).toContain("No intent_key is required to execute the phase");
 		}
 		expect(surface.agents["sdd-close.md"]).toContain("ein-cc-sdd summary");
 		expect(surface.coordinator).not.toContain("return to Pi to complete discovery");

@@ -8,6 +8,11 @@ Todos los cambios relevantes de Ein. El formato sigue
 
 ### Fixed
 
+- Pi ejecuta el trabajo ya autorizado sin exigir `ein_intent`, `intent_work`
+  ni una revisión interna del acuerdo. El canal de intención queda disponible
+  como entrevista voluntaria; sus borradores ya no bloquean delegación,
+  verificación ni cierre de otros trabajos. Se conserva la verificación real
+  y la protección de operaciones destructivas.
 - Claude vuelve a usar solo el guard original antes de ejecutar comandos.
   La continuidad observa el resultado después, sin bloquear `Bash` cuando
   el supervisor no está disponible. El registro de operaciones de Pi sigue

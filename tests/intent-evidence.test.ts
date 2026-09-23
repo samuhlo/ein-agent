@@ -55,7 +55,7 @@ test("block 05: a selector answer authorizes evidence, then another round withou
   expect(status.evidence.authorization.id).toBe(answer.response.id);
   const normalGate = handlers.get("tool_call")!;
   for (const agent of ["sdd-scope", "sdd-apply", "sdd-verify"]) {
-   expect(normalGate({ toolName: "subagent", toolCallId: "ordinary", input: { agent, task: "intent_work: block-05\nRun SDD" } }, ctx)).toMatchObject({ block: true });
+   expect(normalGate({ toolName: "subagent", toolCallId: "ordinary", input: { agent, task: "change: block-05\nRun SDD" } }, ctx)).toBeUndefined();
   }
   expect(normalGate({ toolName: "subagent", toolCallId: "bad", input: { ...prepared.delegation, agent: "sdd-apply" } }, ctx)).toMatchObject({ block: true });
   expect(normalGate({ toolName: "subagent", toolCallId: "nested", input: { ...prepared.delegation, workflowScript: "run implementation" } }, ctx)).toMatchObject({ block: true });

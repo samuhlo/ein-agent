@@ -10,7 +10,6 @@ import { compileApplyHandoff } from "../../lib/apply-packet-handoff.ts";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readAgreement } from "../../lib/intent-agreement.ts";
-import { readIntentAdmission } from "../../lib/intent-admission.ts";
 import { PHASE_ARTIFACT, resolveChangesDir, type SddPhase } from "../../lib/sdd-routing-core.ts";
 import { formatSkillsForPrompt, type ExtensionAPI, type Skill } from "@earendil-works/pi-coding-agent";
 import {
@@ -82,8 +81,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		if (handoffError) return { block: true, reason: handoffError };
 		if (!agreementInput || !["write", "edit", "bash", "ein_sdd_task_progress", "ein_openspec_delta_write", "ein_sdd_summary", "ein_sdd_verification", "ein_sdd_phase_complete"].includes(event.toolName)) return;
 		const current = readAgreement(agreementInput.directory);
-		const admitted = current.kind === "valid" && readIntentAdmission({ root: ctx.cwd, work: current.agreement.work, changeDir: agreementInput.directory, requiresCanonical: true }).admitted;
-		if (!admitted || current.kind !== "valid" || current.agreement.status !== "confirmed" || current.agreement.materialKey !== agreementInput.key) {
+		if (current.kind !== "valid" || current.agreement.status !== "confirmed" || current.agreement.materialKey !== agreementInput.key) {
 			return { block: true, reason: "Intent changed after this phase started; return blocked and re-plan against the current agreement." };
 		}
 		// Bind newly authored full output to the agreement actually supplied at
@@ -138,7 +136,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			}
 		}
 		const directoryContext = change && isSddAgent
-			? `\nSDD change directory: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change))}. Resolve phase artifacts here, not at the repository root.\nCanonical intent path: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change, "intent.md"))}.\n${stancePrompt}` : "";
+			? `\nSDD change directory: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change))}. Resolve phase artifacts here, not at the repository root.\n${stancePrompt}` : "";
 		const adHocStanceContext = !change && stancePrompt ? `\n${stancePrompt}` : "";
 		const phaseRunBound = /^ein_phase_run:[\t ]*\{/m.test(readAgentTask(event));
 		const completionPrompt = phaseRunBound ? "\nBefore the final message call ein_sdd_phase_complete: complete only after finishing the assigned phase; partial or blocked preserves progress without claiming success.\n" : "";
@@ -147,7 +145,6 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			const directory = join(resolveChangesDir(ctx.cwd), change);
 			const stored = readAgreement(directory);
 			if (stored.kind === "valid" && stored.agreement.status === "confirmed") agreementInput = { directory, artifact: resolve(directory, PHASE_ARTIFACT[phase]), key: stored.agreement.materialKey };
-			else if (stored.kind !== "absent" || /^intent_work:/m.test(readAgentTask(event))) handoffError = "The phase's intent is absent, invalid or no longer confirmed";
 		}
 		let handoff: ReturnType<typeof compileApplyHandoff>;
 		try { if (handoffError) throw new Error(handoffError); handoff = startNames.includes("sdd-apply") ? compileApplyHandoff(ctx.cwd, task) : undefined; }

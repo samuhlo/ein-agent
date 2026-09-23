@@ -415,7 +415,7 @@ function translateAgent(src: string, source: string, routing: Record<string, Cla
     if (route.effort) lines.push(`effort: ${route.effort}`);
   }
   lines.push("---");
-  const body = parsed.body.replace("Ein attaches its key to full artifact writes; never copy hashes yourself.", "Read the materialKey with ein-cc-sdd intent <change> show and include it once as intent_key in your phase artifact; review the agreement before writing.");
+  const body = parsed.body.replace("Ein attaches its key to full artifact writes; never copy hashes yourself.", "If an optional confirmed intent.md exists, read it as context. No intent_key is required to execute the phase.");
   const verifyEvidence = source === "agents/sdd-verify.md"
     ? '\nFor each required command, write `required_check: {"command":"exact command","exitCode":0}` outside code fences, using its actual exit code (null if unavailable). Any failed required check, including an expected regression, means status: fail. The close gate rejects nonzero or malformed results even if prose says pass.\n'
     : "";

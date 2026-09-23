@@ -21,8 +21,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { extractDeclaredFrontierPaths } from "./sdd-tasks-frontier.ts";
-import { artifactHasIntentKey, inspectArtifactIntentKey } from "./intent-agreement.ts";
-import { readIntentAdmission } from "./intent-admission.ts";
 import { collectDeclaredApplyStatuses } from "./sdd-apply-status.ts";
 import { parseVerificationReport } from "./sdd-verification-outcome.ts";
 import type { VerificationFreshness } from "./sdd-verification-receipt.ts";
@@ -481,9 +479,7 @@ export function readSddCompletionEvidence(
 	const path = join(resolveChangesDir(cwd), change);
 	const present = Object.fromEntries(Object.keys(PHASE_ARTIFACT).map((phase) => [phase, existsSync(phaseArtifactPath(path, phase as SddPhase))])) as Record<SddPhase, boolean>;
 	const verification = readVerification(cwd, path);
-	const requiresCanonical = Object.values(PHASE_ARTIFACT).some((file) => readText(join(path, file))?.includes("intent_key:"));
-	const intentAdmission = readIntentAdmission({ root: cwd, work: change, changeDir: path, requiresCanonical });
-	return { apply: readApplyOutcome(path), verify: readVerifyOutcome(path), verification, intentAdmission, tasks: readTasksStatus(path), ...computeStaleness(path, present, verification) };
+	return { apply: readApplyOutcome(path), verify: readVerifyOutcome(path), verification, tasks: readTasksStatus(path), ...computeStaleness(path, present, verification) };
 }
 
 // Estado determinista de UN cambio. Si no se pasa `change`, usa el único activo
@@ -642,32 +638,6 @@ function resolveSddStatus(
 		blocked.push(specMapProvenanceBlocker(specState));
 		nextRecommended = "scope";
 	}
-	const intent = readIntentAdmission({ root: cwd, work: target, changeDir: changePath, requiresCanonical: false });
-	const missingManagedIntent = intent.state === "absent" && lanePhases.some((phase) => present[phase] && readFileSync(phaseArtifactPath(changePath, phase), "utf8").includes("intent_key:"));
-	const intentStatus: SddChangeStatus["intent"] = missingManagedIntent ? { state: "invalid" }
-		: intent.state === "absent" ? undefined : { state: intent.state, ...(intent.agreement ? { materialKey: intent.agreement.materialKey } : {}) };
-	if (!intent.admitted || missingManagedIntent) {
-		blocked.push("Intent pendiente o inválido: resuelve la conversación con el usuario mediante ein_intent (Pi) o ein-cc-sdd intent (Claude) antes de continuar.");
-	} else if (intent.agreement) {
-		const agreement = intent.agreement;
-		const stale = lanePhases.find((phase) => present[phase] && !artifactHasIntentKey(readFileSync(phaseArtifactPath(changePath, phase), "utf8"), agreement.materialKey));
-		if (stale) {
-			intentStatus!.stalePhase = stale;
-			const nextIndex = lanePhases.indexOf(nextRecommended);
-			const staleIndex = lanePhases.indexOf(stale);
-			// Intent freshness may rewind the flow, but it must never jump over
-			// unfinished work. A stale verify report is expected while apply is
-			// partial; it becomes actionable once the checklist reaches verify.
-			if (nextIndex < 0 || staleIndex <= nextIndex) {
-				nextRecommended = stale;
-				const binding = inspectArtifactIntentKey(readFileSync(phaseArtifactPath(changePath, stale), "utf8"), intent.agreement.materialKey);
-				blocked.push(binding === "stale"
-					? `${PHASE_ARTIFACT[stale]} no corresponde al intent actual: regenera desde ${stale}, conservando solo el trabajo todavía válido.`
-					: `${PHASE_ARTIFACT[stale]}: intent_key ${binding}. Repara únicamente la declaración en este artefacto; no regeneres la fase por formato. Debe haber una sola clave, ligada al acuerdo que realmente usó la fase. No cambies una clave antigua por la actual para saltar una revisión.`);
-			}
-		}
-	}
-
 	if (["scope", "map", "design"].includes(nextRecommended) && !tasks.present) {
 		tasks.problems = tasks.problems.filter((problem) => problem !== "tasks.md ausente.");
 	}
@@ -685,7 +655,6 @@ function resolveSddStatus(
 
 	return {
 		change: target,
-		...(intentStatus ? { intent: intentStatus } : {}),
 		selection,
 		present,
 		currentPhase,

@@ -43,8 +43,8 @@ Consulta la [matriz vigente](https://samuhlo.github.io/ein-agent/03-runtimes/run
 
 ## Continuar y cerrar cambios sin Pi
 
-Claude puede registrar el acuerdo, retomar uno de Pi y cerrar el cambio con el CLI
-standalone. `ein-cc-sdd intent <change> show` consulta el acuerdo y
+Claude puede retomar una entrevista voluntaria de Pi y cerrar cambios con el CLI
+standalone sin exigir un acuerdo previo. `ein-cc-sdd intent <change> show` consulta un acuerdo existente y
 `ein-cc-sdd intent --help` muestra el formato de entrada para `record`.
 
 El coordinador registra las preguntas, la respuesta literal ya recibida y el alcance
@@ -60,8 +60,8 @@ el documento con la conversación y se pasa su `expectedDigest` junto con
 un acuerdo gestionado exige `expectedRevision` y un motivo; las claves de las fases
 anteriores quedan obsoletas hasta su revisión. No modifica artefactos de fase.
 
-Cada ejecutor de Claude lee el acuerdo y escribe una única línea
-`intent_key: <materialKey>` en el artefacto que acaba de producir o revisar.
+Cada ejecutor de Claude usa un acuerdo existente como contexto cuando lo hay.
+Ninguna fase exige `intent_key` para poder trabajar.
 El verificador registra cada comando obligatorio con
 `required_check: {"command":"bun test","exitCode":0}` usando el código real
 (null si no pudo ejecutarlo). Un resultado fallido o mal formado impide cerrar,

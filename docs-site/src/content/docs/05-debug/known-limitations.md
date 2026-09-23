@@ -27,7 +27,7 @@ Los packets y patrones de shell no son un sandbox completo. La procedencia de ev
 
 ## Claude y servicios externos
 
-Claude es un relevo menor que Pi. Los acuerdos gestionados nuevos o modificados deben resolverse en Pi antes del handoff. Skills, contexto, evidencia, permisos y perfiles automáticos no tienen paridad completa. Consulta la [matriz](/ein-agent/03-runtimes/runtime-matrix/).
+Claude es un relevo menor que Pi. Puede continuar trabajo ordinario sin un acuerdo de intención previo. Skills, contexto, evidencia, permisos y perfiles automáticos no tienen paridad completa. Consulta la [matriz](/ein-agent/03-runtimes/runtime-matrix/).
 
 Los smokes históricos de MCP no garantizan disponibilidad actual de credenciales o servicios. Las sesiones siguen siendo privadas por runtime; el handoff no migra conversaciones.
 
