@@ -43,12 +43,16 @@ type HarnessOptions = {
 	activeModel: string;
 	effective: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 	input?: string;
+	keys?: string[];
+	customModel?: string;
+	modelSwitch?: "accept" | "deny";
 	clamp?: boolean;
 };
 
 async function runPanel(options: HarnessOptions): Promise<{
 	rendered: string;
 	setThinkingCalls: string[];
+	setModelCalls: string[];
 	notifications: string[];
 }> {
 	const previousAgentHome = process.env.EIN_PI_AGENT_HOME;
@@ -59,11 +63,17 @@ async function runPanel(options: HarnessOptions): Promise<{
 	const provider = options.activeModel.slice(0, slash);
 	const id = options.activeModel.slice(slash + 1);
 	const setThinkingCalls: string[] = [];
+	const setModelCalls: string[] = [];
 	const notifications: string[] = [];
 	let rendered = "";
 	let effective = options.effective;
+	let customStarted = false;
 
 	const pi = {
+		setModel: async (model: { provider: string; id: string }) => {
+			setModelCalls.push(`${model.provider}/${model.id}`);
+			return options.modelSwitch !== "deny";
+		},
 		getThinkingLevel: () => effective,
 		setThinkingLevel: (level: typeof effective) => {
 			setThinkingCalls.push(level);
@@ -74,10 +84,15 @@ async function runPanel(options: HarnessOptions): Promise<{
 	const ctx = {
 		cwd: ROOT,
 		model: { provider, id },
-		modelRegistry: { getAvailable: async () => [] },
+		modelRegistry: { getAvailable: async () => [
+			{ provider: "openai-codex", id: "gpt-5.6-sol" },
+			{ provider: "openai-codex", id: "gpt-6-astra" },
+			{ provider: "openai-codex", id: "gpt-6-sol" },
+			{ provider: "minimax", id: "MiniMax-M3" },
+		] },
 		ui: {
 			notify: (message: string) => notifications.push(message),
-			input: async () => undefined,
+			input: async () => options.customModel,
 			custom: async (factory: Function) => {
 				let callbackResult: unknown;
 				const component = factory(
@@ -88,7 +103,11 @@ async function runPanel(options: HarnessOptions): Promise<{
 						callbackResult = value;
 					},
 				);
-				if (options.input) component.handleInput(options.input);
+				if (options.customModel && !customStarted) {
+					customStarted = true;
+					return { type: "custom", agent: "__orchestrator__", config: component.saveResult().config, orchestratorThinkingTouched: false };
+				}
+				for (const key of options.keys ?? (options.input ? [options.input] : [])) component.handleInput(key);
 				rendered = component.render(100).map(stripAnsi).join("\n");
 				// No depende de `matchesKey`: otros tests del repo mockean pi-tui de
 				// forma global, mientras esta prueba valida estado/aplicación, no teclas.
@@ -99,7 +118,7 @@ async function runPanel(options: HarnessOptions): Promise<{
 
 	try {
 		await handleModelsCommand(pi, ctx);
-		return { rendered, setThinkingCalls, notifications };
+		return { rendered, setThinkingCalls, setModelCalls, notifications };
 	} finally {
 		if (previousAgentHome === undefined) delete process.env.EIN_PI_AGENT_HOME;
 		else process.env.EIN_PI_AGENT_HOME = previousAgentHome;
@@ -228,7 +247,7 @@ describe("esfuerzo del orquestador en /ein:models", () => {
 		expect(inheritedRow).not.toBe(explicitRow);
 	});
 
-	test("si el modelo solicitado no es el activo, difiere el esfuerzo al reinicio", async () => {
+	test("si el modelo guardado no es el activo, lo aplica en esta sesión", async () => {
 		writeFileSync(
 			join(AGENT_HOME, "settings.json"),
 			JSON.stringify({
@@ -243,10 +262,35 @@ describe("esfuerzo del orquestador en /ein:models", () => {
 			effective: "high",
 		});
 
-		expect(result.setThinkingCalls).toEqual([]);
-		expect(result.notifications.join("\n").toLowerCase()).toMatch(
-			/reinici|restart/,
-		);
+		expect(result.setModelCalls).toEqual(["minimax/MiniMax-M3"]);
+		expect(result.setThinkingCalls).toEqual(["xhigh"]);
+		expect(result.notifications.join("\n")).toMatch(/ya efectivo|already effective/);
+	});
+
+	test("la selección de modelo del orquestador cambia sesión y predeterminado", async () => {
+		writeFileSync(join(AGENT_HOME, "settings.json"), JSON.stringify({ defaultProvider: "openai-codex", defaultModel: "gpt-5.6-sol", defaultThinkingLevel: "high" }));
+		const result = await runPanel({ activeModel: "openai-codex/gpt-6-astra", effective: "medium", customModel: "openai-codex/gpt-6-sol" });
+		expect(result.setModelCalls).toEqual(["openai-codex/gpt-6-sol"]);
+		const settings = JSON.parse(readFileSync(join(AGENT_HOME, "settings.json"), "utf8"));
+		expect(settings.defaultModel).toBe("gpt-6-sol");
+		expect(result.notifications.join("\n")).toMatch(/ya efectivo|already effective/);
+		expect(result.notifications.join("\n")).not.toMatch(/Reinicia Pi|Restart Pi/);
+	});
+
+	test("guardar otra vez aplica un predeterminado ya persistido a la sesión antigua", async () => {
+		writeFileSync(join(AGENT_HOME, "settings.json"), JSON.stringify({ defaultProvider: "openai-codex", defaultModel: "gpt-6-sol", defaultThinkingLevel: "high" }));
+		const result = await runPanel({ activeModel: "openai-codex/gpt-6-astra", effective: "medium" });
+		expect(result.setModelCalls).toEqual(["openai-codex/gpt-6-sol"]);
+		expect(result.setThinkingCalls).toEqual(["high"]);
+		expect(result.notifications.join("\n")).toMatch(/ya efectivo|already effective/);
+	});
+
+	test("si Pi rechaza el modelo, no afirma que quedó activo", async () => {
+		writeFileSync(join(AGENT_HOME, "settings.json"), JSON.stringify({ defaultProvider: "openai-codex", defaultModel: "gpt-6-sol", defaultThinkingLevel: "high" }));
+		const result = await runPanel({ activeModel: "openai-codex/gpt-6-astra", effective: "medium", modelSwitch: "deny" });
+		expect(result.setModelCalls).toEqual(["openai-codex/gpt-6-sol"]);
+		expect(result.notifications.join("\n")).toContain("no pudo activar");
+		expect(result.notifications.join("\n")).not.toContain("Config de modelos guardada");
 	});
 
 	test("un valor persistido inválido se representa como desconocido", async () => {

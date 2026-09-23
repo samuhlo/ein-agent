@@ -40,7 +40,10 @@ const code = await runTerminalApp({
   io: productionTerminalIO(),
   summary: () => summary,
   settings: { read: () => [], apply: () => true },
-  sessions: () => ({ entries: [], unavailable: [] }),
+  sessions: () => ({ entries: scenario.startsWith("continue-") ? [
+    { provider: "pi", reference: "pi:last", modifiedAtMs: 2, age: "now", lastAction: undefined },
+    { provider: "claude", reference: "claude:last", modifiedAtMs: 1, age: "now", lastAction: undefined },
+  ] : [], unavailable: [] }),
   system: () => [],
   runtime: {
     launch,
@@ -49,7 +52,10 @@ const code = await runTerminalApp({
       command: [process.execPath, join(import.meta.dir, "terminal-continue-provider-stub.ts"), provider],
     }),
   },
-  continuity: { prepare: async (target) => brief(target as "pi" | "claude") },
+  continuity: { prepare: async (target) => {
+    if (scenario.startsWith("continue-")) throw new Error("last session must not prepare continuity");
+    return brief(target as "pi" | "claude");
+  } },
   run: async () => 0,
 });
 process.exit(code);

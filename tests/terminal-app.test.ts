@@ -174,9 +174,9 @@ describe("the dashboard", () => {
     expect(press(dashboard(), DASHBOARD_KEYS.claude).effects[0]).toMatchObject({ kind: "launch", provider: "claude" });
   });
 
-  test("P and C continue in fresh provider sessions", () => {
-    expect(press(dashboard(), DASHBOARD_KEYS.continuePi).effects[0]).toEqual({ kind: "continue", provider: "pi" });
-    expect(press(dashboard(), DASHBOARD_KEYS.continueClaude).effects[0]).toEqual({ kind: "continue", provider: "claude" });
+  test("P and C request the most recent stored session for each provider", () => {
+    expect(press(dashboard(), DASHBOARD_KEYS.continuePi).effects[0]).toEqual({ kind: "latest-session", provider: "pi" });
+    expect(press(dashboard(), DASHBOARD_KEYS.continueClaude).effects[0]).toEqual({ kind: "latest-session", provider: "claude" });
   });
 
   test("a focused change makes the main Pi action explicit and carries launch metadata", () => {

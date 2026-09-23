@@ -8,7 +8,6 @@ import {
 } from "../ein-pi/agent/lib/terminal-app-controller.ts";
 import { DASHBOARD_KEYS, visibleRows, type ProjectSummary } from "../ein-pi/agent/lib/terminal-app.ts";
 import type { Setting } from "../ein-pi/agent/lib/project-settings.ts";
-import type { ContinuityPrepareResult } from "../ein-pi/agent/lib/continuity-handoff-lifecycle.ts";
 
 const ENTER = "\r";
 const SUMMARY: ProjectSummary = {
@@ -199,64 +198,36 @@ describe("terminal app controller effects", () => {
     expect(controller.snapshot().status).toContain("executable-unavailable");
   });
 
-  test("Continue prepares before release, suppresses duplicates, and resumes once when unavailable", async () => {
-    const order: string[] = [];
-    let resolvePrepare!: (value: ContinuityPrepareResult) => void;
-    const prepared = new Promise<ContinuityPrepareResult>((resolve) => { resolvePrepare = resolve; });
-    const { controller, lifecycle } = harness({
-      prepareContinue: async (provider) => { order.push(`prepare:${provider}`); return prepared; },
-      continueLaunch: async (provider, brief) => { order.push(`launch:${provider}:${brief === "PRIVATE-BRIEF-CANARY"}`); return { kind: "unavailable", reason: "executable-unavailable" }; },
+  test("dashboard opens the newest stored Pi and Claude sessions without preparing a handoff", async () => {
+    const calls: unknown[][] = [];
+    const { controller } = harness({
+      readSessions: () => ({ entries: [
+        { provider: "claude", reference: "claude:latest", modifiedAtMs: 40, age: "now", lastAction: undefined },
+        { provider: "pi", reference: "pi:latest", modifiedAtMs: 30, age: "1m", lastAction: undefined },
+        { provider: "pi", reference: "pi:older", modifiedAtMs: 10, age: "1h", lastAction: undefined },
+      ], unavailable: [] }),
+      prepareContinue: async () => { throw new Error("continuity must not run"); },
+      launch: async (...args) => { calls.push(args); return { kind: "exited", code: 0 }; },
     });
+    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
+    await tick();
     controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continueClaude });
-    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continueClaude });
-    expect(order).toEqual(["prepare:claude"]);
-    expect(lifecycle).toEqual([]);
-    resolvePrepare({ ok: true, brief: {
-      ok: true, version: 1, format: "continuity-resume-brief/v1", content: "PRIVATE-BRIEF-CANARY", byteLength: 20,
-      payloadByteLength: 1, payloadSha256: `sha256:${"a".repeat(64)}`, target: "claude", checkpointRevision: `sha256:${"b".repeat(64)}`,
-      truncated: false, omissions: { changedPaths: 0, completed: 0, unresolvedDecisions: 0 }, warnings: [],
-    } });
-    await tick(); await tick();
-    expect(order).toEqual(["prepare:claude", "launch:claude:true"]);
-    expect(lifecycle).toEqual(["release", "resume"]);
+    await tick();
+    expect(calls).toEqual([["pi", "pi:latest"], ["claude", "claude:latest"]]);
   });
 
-  test("continue captures focus before async preparation while preserving no-focus and Claude intent", async () => {
-    let resolvePrepare!: (value: ContinuityPrepareResult) => void;
-    const prepared = new Promise<ContinuityPrepareResult>((resolve) => { resolvePrepare = resolve; });
+  test("dashboard reports no prior session without starting a new one", () => {
     const calls: unknown[][] = [];
-    const summary = { ...SUMMARY, change: "focus-before", activeChanges: ["focus-before", "focus-after"] };
-    const focused = harness({
-      readSummary: (focusedChange, sessions) => ({ ...summary, change: focusedChange ?? summary.change, sessions }),
-      prepareContinue: async () => prepared,
-      continueLaunch: async (...args) => { calls.push(args); return { kind: "exited", code: 0 }; },
+    const { controller, lifecycle } = harness({
+      launch: async (...args) => { calls.push(args); return { kind: "exited", code: 0 }; },
     });
-    focusChange(focused.controller, "focus-before");
-    focused.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
-    focusChange(focused.controller, "focus-after");
-    resolvePrepare({ ok: true, brief: {
-      ok: true, version: 1, format: "continuity-resume-brief/v1", content: "PRIVATE-BRIEF-CANARY", byteLength: 20,
-      payloadByteLength: 1, payloadSha256: `sha256:${"a".repeat(64)}`, target: "pi", checkpointRevision: `sha256:${"b".repeat(64)}`,
-      truncated: false, omissions: { changedPaths: 0, completed: 0, unresolvedDecisions: 0 }, warnings: [],
-    } });
-    await tick(); await tick();
-    expect(calls).toEqual([["pi", "PRIVATE-BRIEF-CANARY", "focus-before"]]);
-
-    const noFocusCalls: unknown[][] = [];
-    const noFocus = harness({ continueLaunch: async (...args) => { noFocusCalls.push(args); return { kind: "exited", code: 0 }; } });
-    noFocus.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
-    await tick(); await tick();
-    expect(noFocusCalls).toEqual([["pi", "PRIVATE-BRIEF-CANARY", undefined]]);
-
-    const claudeCalls: unknown[][] = [];
-    const claude = harness({
-      readSummary: (focusedChange, sessions) => ({ ...summary, change: focusedChange ?? summary.change, sessions }),
-      continueLaunch: async (...args) => { claudeCalls.push(args); return { kind: "exited", code: 0 }; },
-    });
-    focusChange(claude.controller, "focus-before");
-    claude.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continueClaude });
-    await tick(); await tick();
-    expect(claudeCalls).toEqual([["claude", "PRIVATE-BRIEF-CANARY", "focus-before"]]);
+    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
+    expect(calls).toEqual([]);
+    expect(lifecycle).toEqual([]);
+    expect(controller.snapshot().status).toMatch(/No hay sesión previa de Pi|No previous Pi session/);
+		const unavailable = harness({ readSessions: () => ({ entries: [], unavailable: [{ provider: "pi", reason: "no-store" }] }) });
+		unavailable.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
+		expect(unavailable.controller.snapshot().status).toMatch(/No se pudo leer el store de Pi|Could not read the Pi store/);
   });
 
   test("direct create carries visible focus while picked resume remains session-owned", async () => {
@@ -274,64 +245,6 @@ describe("terminal app controller effects", () => {
       ["pi", undefined, "terminal-app-controller"],
       ["claude", "claude:v1:sha256:opaque"],
     ]);
-  });
-
-  test("quit invalidates pending Continue before its preparation completes", async () => {
-    let resolvePrepare!: (value: ContinuityPrepareResult) => void;
-    const prepared = new Promise<ContinuityPrepareResult>((resolve) => { resolvePrepare = resolve; });
-    const trace: string[] = [], published: string[] = [];
-    const { controller } = harness({
-      prepareContinue: async () => prepared,
-      continueLaunch: async () => { trace.push("launch"); return { kind: "exited", code: 0 }; },
-      lifecycle: { release: () => trace.push("release"), resume: () => trace.push("resume"), exit: (code) => trace.push(`exit:${code}`) },
-    });
-    controller.subscribe((snapshot) => { published.push(snapshot.status); });
-    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi }); controller.dispatch({ kind: "key", key: "q" });
-    resolvePrepare({ ok: true, brief: { content: "PRIVATE-BRIEF-CANARY" } } as ContinuityPrepareResult);
-    await tick(); expect(trace).toEqual(["exit:0"]); expect(published).toEqual([]);
-  });
-
-  test("Start and Resume cannot compete with pending Continue", async () => {
-    const prepared = new Promise<ContinuityPrepareResult>(() => {});
-    const { controller, lifecycle } = harness({
-      prepareContinue: async () => prepared,
-    });
-    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi }); controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.pi });
-    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.sessions }); controller.dispatch({ kind: "key", key: ENTER });
-    expect(lifecycle).toEqual([]);
-    expect(controller.snapshot().status).toMatch(/Continuación en curso|Continue already in progress/);
-  });
-
-  test("unsafe Continue briefs fail before terminal release", async () => {
-    const launched: string[] = [];
-    const { controller, lifecycle } = harness({
-      prepareContinue: async () => ({ ok: true, brief: { content: "safe\n\u001b[201~injected" } } as ContinuityPrepareResult),
-      continueLaunch: async () => { launched.push("launch"); return { kind: "exited", code: 0 }; },
-    });
-    controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
-    await tick();
-    expect(lifecycle).toEqual([]); expect(launched).toEqual([]);
-    expect(controller.snapshot().status).toContain("unsafe-brief");
-  });
-
-  test("blocked Continue stays owned and launch rejection exits fail-safe", async () => {
-    const blocked = harness({ prepareContinue: async () => ({ ok: false, reason: "mutation-uncertain", blockers: ["PRIVATE"] }) });
-    blocked.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
-    await tick();
-    expect(blocked.lifecycle).toEqual([]);
-    expect(blocked.controller.snapshot().status).toContain("mutation-uncertain");
-    expect(blocked.controller.snapshot().status).not.toContain("PRIVATE");
-
-    const failed = harness({ prepareContinue: async () => { throw new Error("PRIVATE"); } });
-    failed.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
-    await tick();
-    expect(failed.lifecycle).toEqual([]);
-    expect(failed.controller.snapshot().status).toContain("refresh-failed");
-
-    const rejected = harness({ continueLaunch: async () => { throw new Error("PRIVATE"); } });
-    rejected.controller.dispatch({ kind: "key", key: DASHBOARD_KEYS.continuePi });
-    await tick(); await tick();
-    expect(rejected.lifecycle).toEqual(["release", "exit:1"]);
   });
 
   test("launch and command failures release ownership and exit safely", async () => {
