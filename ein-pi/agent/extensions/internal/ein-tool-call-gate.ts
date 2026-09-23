@@ -209,10 +209,6 @@ export function registerToolCallGate(
 				if (budget.status === "unavailable" && explicitBudget !== undefined) {
 					return { block: true, reason: `${budget.message}; the apply was not launched` };
 				}
-				if (budget.status === "unavailable" && ctx.hasUI) ctx.ui.notify(
-					"Apply: límite de turnos no disponible en el runner; maxRuntimeMs sigue activo.",
-					"warning",
-				);
 				applyContracts.push(resolution.contract);
 			}
 			if (applyContracts.length > 0) {
