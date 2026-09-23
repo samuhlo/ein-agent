@@ -32,11 +32,37 @@ function harness(instances = [lifecycle()]) {
 	const api = { appendEntry: (customType: string, data: unknown) => entries.push({ type: "custom", customType, data }), on: (name: string, handler: Hook) => hooks.set(name, [...(hooks.get(name) ?? []), handler]), registerCommand: (name: string, definition: { handler: Command }) => commands.set(name, [...(commands.get(name) ?? []), definition.handler]), registerTool: (tool: any) => tools.set(tool.name, tool) } as unknown as ExtensionAPI;
 	createEinContinuityExtension({ createLifecycle: () => instances[Math.min(created++, instances.length - 1)]!.value })(api);
 	const context = (patch: Record<string, unknown> = {}) => ({ cwd: "/project", hasUI: true, sessionManager: { getBranch: () => entries }, ui: { notify: (message: string) => notifications.push(message) }, getContextUsage: () => ({ tokens: 90, contextWindow: 100, percent: 90 }), waitForIdle: async () => { instances[0]!.calls.push("idle"); }, ...patch }) as unknown as ExtensionCommandContext;
-	const emit = async (name: string, event: Record<string, unknown>, ctx = context()) => { for (const hook of hooks.get(name) ?? []) await hook(event, ctx); };
+	const emit = async (name: string, event: Record<string, unknown>, ctx = context()) => { let result: unknown; for (const hook of hooks.get(name) ?? []) result = await hook(event, ctx); return result; };
 	return { hooks, commands, tools, notifications, context, emit, command: commands.get("ein:handoff")![0]!, instances };
 }
 
 describe("ein continuity extension", () => {
+	test("recording failure lets local edits continue without fabricating a result; external effects still stop", async () => {
+		const instance = lifecycle({ beginOperation: () => ({ ok: false, reason: "journal-unavailable", outcome: "not-published" }) });
+		const app = harness([instance]);
+		const ctx = app.context({ sessionManager: { getBranch: () => [], getSessionId: () => "fixture-session" } });
+		await app.emit("session_start", {}, ctx);
+		for (const [toolName, toolCallId] of [["write", "write-1"], ["edit", "edit-1"]] as const) {
+			expect(await app.emit("tool_call", { toolName, toolCallId, input: { path: "src/a.ts" } }, ctx)).toBeUndefined();
+			await app.emit("tool_result", { toolName, toolCallId, input: { path: "src/a.ts" }, isError: false }, ctx);
+		}
+		expect(instance.calls).toEqual([]);
+		expect(app.notifications).toEqual(["Continuidad no disponible; revisa el estado antes de cambiar de runtime."]);
+		await app.command("status", ctx);
+		expect(app.notifications.at(-1)).toContain("recording=unavailable");
+		await app.command("to claude", ctx);
+		expect(app.notifications.at(-1)).toBe("handoff=blocked;reason=continuity-recording-unavailable");
+		expect(await app.emit("tool_call", { toolName: "bash", toolCallId: "bash-1", input: { command: "git push" } }, ctx)).toMatchObject({ block: true });
+	});
+
+	test("missing native identity does not turn a local edit into a continuity denial", async () => {
+		const app = harness();
+		await app.emit("session_start", {});
+		expect(await app.emit("tool_call", { toolName: "write", toolCallId: "write-2", input: { path: "src/a.ts" } })).toBeUndefined();
+		await app.emit("tool_result", { toolName: "write", toolCallId: "write-2", input: { path: "src/a.ts" }, isError: false });
+		expect(app.notifications).toEqual(["Continuidad no disponible; revisa el estado antes de cambiar de runtime."]);
+	});
+
 	test("registers one command and each lifecycle hook exactly once", () => {
 		const app = harness(); expect(app.commands.get("ein:handoff")).toHaveLength(1); expect(app.tools.has("ein_continuity_objective")).toBeTrue(); expect(app.tools.has("ein_continuity_recover")).toBeTrue(); expect([...app.hooks.keys()].sort()).toEqual(["agent_settled", "input", "session_before_compact", "session_shutdown", "session_start", "tool_call", "tool_result"]); expect([...app.hooks.values()].every((items) => items.length === 1)).toBeTrue();
 	});

@@ -33,8 +33,18 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 		let lifecycle: ContinuityHandoffLifecycle | null = null;
 		let observedRequestId: string | null = null;
 		let thresholdNotified = false;
+		let recordingNotified = false;
 		let nativeContext: ExtensionContext | undefined;
 		const calls = new Map<string, OperationStart>();
+		const unrecordedLocal = new Set<string>();
+		const localWrite = (toolName: string) => toolName === "write" || toolName === "edit";
+		const continueLocalWrite = (toolCallId: string, ctx: ExtensionContext) => {
+			unrecordedLocal.add(toolCallId);
+			if (!recordingNotified) {
+				recordingNotified = true;
+				notify(ctx, "Continuidad no disponible; revisa el estado antes de cambiar de runtime.", "warning");
+			}
+		};
 		const active = (): ContinuityHandoffLifecycle | null => lifecycle;
 		const create = dependencies.createLifecycle ?? ((cwd: string) => createContinuityHandoffLifecycle(cwd, {
 			now: () => new Date().toISOString(),
@@ -47,10 +57,14 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 			handler: async (args, ctx): Promise<void> => {
 				const command = args;
 				const current = active(); if (!current) { notify(ctx, "handoff-unavailable", "warning"); return; }
+				if (recordingNotified && (command === "to pi" || command === "to claude")) {
+					notify(ctx, "handoff=blocked;reason=continuity-recording-unavailable", "warning");
+					return;
+				}
 				if (command === "status") {
 					const result = await current.status();
 					if (result.operation === "busy") { notify(ctx, "handoff-status=busy", "warning"); return; }
-					notify(ctx, `checkpoint=${result.checkpoint};freshness=${result.freshness};${statusLine("pi", result.pi)};${statusLine("claude", result.claude)}`);
+					notify(ctx, `checkpoint=${result.checkpoint};freshness=${result.freshness};${statusLine("pi", result.pi)};${statusLine("claude", result.claude)}${recordingNotified ? ";recording=unavailable" : ""}`);
 					return;
 				}
 				if (command === "refresh") {
@@ -115,7 +129,7 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 		});
 
 		pi.on("session_start", (_event, ctx) => {
-			nativeContext = ctx; calls.clear();
+			nativeContext = ctx; calls.clear(); unrecordedLocal.clear(); recordingNotified = false;
 			lifecycle = create(ctx.cwd); thresholdNotified = false;
 			const latest = [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === REQUEST_ENTRY);
 			const data = latest?.type === "custom" ? latest.data as { id?: unknown } : undefined;
@@ -133,13 +147,25 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 		pi.on("tool_call", (event, ctx) => {
 			try {
 				const input = piContinuityOperation(event, ctx); if (!input) return;
-				const current = active(); if (!current) return { block: true, reason: "continuity-operation-unavailable" };
+				const current = active();
+				if (!current) {
+					if (localWrite(event.toolName)) { continueLocalWrite(event.toolCallId, ctx); return; }
+					return { block: true, reason: "continuity-operation-unavailable" };
+				}
 				const result = current.beginOperation(input);
-				if (!result.ok) { current.recordAdmissionDenied(input, "continuity-start-failed"); return { block: true, reason: `continuity-operation:${result.reason}` }; }
+				if (!result.ok) {
+					if (localWrite(event.toolName)) { continueLocalWrite(event.toolCallId, ctx); return; }
+					current.recordAdmissionDenied(input, "continuity-start-failed");
+					return { block: true, reason: `continuity-operation:${result.reason}` };
+				}
 				calls.set(event.toolCallId, input);
-			} catch { return { block: true, reason: "continuity-operation-identity-unavailable" }; }
+			} catch {
+				if (localWrite(event.toolName)) { continueLocalWrite(event.toolCallId, ctx); return; }
+				return { block: true, reason: "continuity-operation-identity-unavailable" };
+			}
 		});
 		pi.on("tool_result", async (event, ctx) => {
+			if (unrecordedLocal.delete(event.toolCallId)) return;
 			try {
 				const input = calls.get(event.toolCallId) ?? piContinuityOperation(event, ctx); if (!input) return;
 				const outcome = continuityToolOutcome({ toolName: event.toolName, input: event.input, isError: event.isError, details: event.details, content: event.content });
@@ -169,7 +195,7 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 			}
 		});
 		pi.on("session_before_compact", async (event) => { if (event.reason === "threshold" || event.reason === "overflow") await active()?.refresh(false); });
-		pi.on("session_shutdown", async () => { const current = active(); lifecycle = null; observedRequestId = null; if (current) await current.shutdown(); });
+		pi.on("session_shutdown", async () => { const current = active(); lifecycle = null; observedRequestId = null; calls.clear(); unrecordedLocal.clear(); if (current) await current.shutdown(); });
 	};
 }
 

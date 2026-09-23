@@ -40,6 +40,7 @@ import { canonicalSpecPrompt } from "./ein-canonical-spec-context.ts";
 import { changeStanceDirective, readChangeStance } from "../../lib/sdd-preflight-record.ts";
 import {
 	parseResolvedApplyTdd,
+	resumedApplyTdd,
 	renderResolvedApplyTdd,
 	revalidateResolvedApplyTdd,
 	resolveApplyTdd,
@@ -127,7 +128,8 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 				if (!freshness.current) handoffError = freshness.reason;
 				else stancePrompt = renderResolvedApplyTdd(transported.contract, true);
 			} else {
-				const legacy = resolveApplyTdd({ cwd: ctx.cwd, task });
+				const legacy = resumedApplyTdd(task, ctx.sessionManager.getBranch(), ctx.cwd)
+					?? resolveApplyTdd({ cwd: ctx.cwd, task });
 				if (legacy.kind !== "resolved") handoffError = legacy.kind === "invalid" ? legacy.reason : legacy.message;
 				else {
 					change = legacy.contract.change ?? change;

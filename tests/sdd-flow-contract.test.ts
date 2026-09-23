@@ -86,9 +86,10 @@ describe("orchestrator: flujo por fases determinista", () => {
 		expect(chain.match(/^## sdd-/gm)).toHaveLength(7);
 	});
 
-	test("conserva la chain como fallback (no como ruta primaria)", () => {
-		expect(orch.toLowerCase()).toContain("fallback");
-		expect(orch).toContain("shared fallback-chain task");
+	test("documenta solo las formas de delegación que acepta el gateway", () => {
+		expect(orch).toContain("static `workflowScript`");
+		expect(orch).toContain("gateway rejects legacy `chain`/`tasks`/`steps` arrays");
+		expect(orch).toContain("Runtime policy sets `maxRuntimeMs`");
 	});
 
 	test("documenta sdd-next como traspaso manual sin sustituir el router interno", () => {
