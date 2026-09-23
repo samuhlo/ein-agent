@@ -6,7 +6,7 @@ import { projectProjectState } from "./project-state.ts";
 import { MAX_PROJECT_SESSIONS, scanProjectSessions } from "./sessions.ts";
 import { scanClaudeProjectSessions } from "./claude-sessions.ts";
 
-export type ObservedContinuityCall = { ref: NativeCallRef; tool: string; input: unknown; inputDigest: string; terminal: "succeeded" | "failed" | "unavailable"; result?: unknown };
+export type ObservedContinuityCall = { ref: NativeCallRef; tool: string; input: unknown; inputDigest: string; terminal: "succeeded" | "failed" | "unavailable"; result?: unknown; nativeOrder?: { call: number; result?: number } };
 export type ObservedContinuityEvidence = { ref: string; digest: string; source: "pi" | "claude"; result: unknown; matchesExternalEffect?: boolean };
 export type ContinuityRecoveryEvidencePort = {
   readCall(ref: NativeCallRef): ObservedContinuityCall | undefined;
@@ -17,23 +17,23 @@ export function continuityEvidenceRef(ref: NativeCallRef): string { return `${re
 
 export function observedCallFromEntries(ref: NativeCallRef, entries: readonly unknown[]): ObservedContinuityCall | undefined {
   if (!validNativeCallRef(ref)) return;
-  const calls: { tool: string; input: unknown }[] = [], results: { failed: boolean; value: unknown }[] = [];
-  for (const entry of entries) {
+  const calls: { tool: string; input: unknown; order: number }[] = [], results: { failed: boolean; value: unknown; order: number }[] = [];
+  for (const [order, entry] of entries.entries()) {
     if (!record(entry)) continue;
     const message = record(entry.message) ? entry.message : entry;
-    if (message.role === "toolResult" && message.toolCallId === ref.toolCallId) results.push({ failed: message.isError === true, value: { content: Array.isArray(message.content) ? message.content.filter((part) => record(part) && part.type === "text").map((part) => ({ type: "text", text: part.text })) : [] } });
+    if (message.role === "toolResult" && message.toolCallId === ref.toolCallId) results.push({ order, failed: message.isError === true, value: { content: Array.isArray(message.content) ? message.content.filter((part) => record(part) && part.type === "text").map((part) => ({ type: "text", text: part.text })) : [] } });
     if (!Array.isArray(message.content)) continue;
     for (const block of message.content) {
       if (!record(block)) continue;
       if (message.role === "assistant" && ["toolCall", "tool_use"].includes(block.type) && block.id === ref.toolCallId && typeof block.name === "string") {
-        calls.push({ tool: block.name, input: block.type === "toolCall" ? block.arguments : block.input });
+        calls.push({ order, tool: block.name, input: block.type === "toolCall" ? block.arguments : block.input });
       }
-      if (message.role === "user" && block.type === "tool_result" && block.tool_use_id === ref.toolCallId) results.push({ failed: block.is_error === true, value: block.content });
+      if (message.role === "user" && block.type === "tool_result" && block.tool_use_id === ref.toolCallId) results.push({ order, failed: block.is_error === true, value: block.content });
     }
   }
   if (calls.length !== 1 || results.length > 1) return;
   const call = calls[0]!;
-  return { ref, ...call, inputDigest: operationInputDigest(call.input), terminal: !results.length ? "unavailable" : results[0]!.failed ? "failed" : "succeeded", ...(results.length ? { result: results[0]!.value } : {}) };
+  return { ref, tool: call.tool, input: call.input, inputDigest: operationInputDigest(call.input), nativeOrder: { call: call.order, ...(results.length ? { result: results[0]!.order } : {}) }, terminal: !results.length ? "unavailable" : results[0]!.failed ? "failed" : "succeeded", ...(results.length ? { result: results[0]!.value } : {}) };
 }
 
 export function createContinuityRecoveryEvidence(cwd: string, current?: { sessionId(): string | undefined; entries(): readonly unknown[] }): ContinuityRecoveryEvidencePort {
@@ -52,7 +52,7 @@ export function createContinuityRecoveryEvidence(cwd: string, current?: { sessio
       try {
         const stat = fstatSync(fd); if (!stat.isFile() || stat.size > 64 * 1024 * 1024) return;
         // PROVENANCE -> Only matching tool records leave the native transcript boundary.
-        const entries = readFileSync(fd, "utf8").split("\n").filter((line) => line.includes(JSON.stringify(ref.toolCallId))).flatMap((line) => { try { return [JSON.parse(line)]; } catch { return []; } });
+        const entries = readFileSync(fd, "utf8").split("\n").map((line) => { if (!line.includes(JSON.stringify(ref.toolCallId))) return; try { return JSON.parse(line); } catch { return; } });
         return observedCallFromEntries(ref, entries);
       } finally { closeSync(fd); }
     } catch { return; }
@@ -69,6 +69,7 @@ export function createContinuityRecoveryEvidence(cwd: string, current?: { sessio
 }
 
 function matchingGitReadback(subject: ObservedContinuityCall, readback: ObservedContinuityCall): boolean {
+  if (subject.ref.sessionRef !== readback.ref.sessionRef || !subject.nativeOrder || !readback.nativeOrder || readback.nativeOrder.call <= (subject.nativeOrder.result ?? subject.nativeOrder.call)) return false;
   if (!["bash", "Bash"].includes(subject.tool) || !["bash", "Bash"].includes(readback.tool) || !record(subject.input) || !record(readback.input)) return false;
   const push = /^git push ([A-Za-z0-9_.:/@-]+) ([a-f0-9]{40}|[a-f0-9]{64}):(refs\/heads\/[A-Za-z0-9_./-]+)$/.exec(subject.input.command);
   if (!push || readback.input.command !== `git ls-remote --exit-code ${push[1]} ${push[3]}`) return false;
@@ -79,9 +80,13 @@ function matchingGitReadback(subject: ObservedContinuityCall, readback: Observed
   return output.trim() === `${push[2]}\t${push[3]}`;
 }
 
-export function knownExternalContinuityCall(call: ObservedContinuityCall): boolean {
-  return ["bash", "Bash"].includes(call.tool) && record(call.input) && typeof call.input.command === "string"
-    && /^(?:git\s+push\b|gh\s+(?:pr|release|issue)\s+(?:create|merge|edit)\b|(?:curl|wget)\b)/.test(call.input.command.trim());
+export function requiresExternalContinuityProof(call: ObservedContinuityCall): boolean {
+  if (!["bash", "Bash"].includes(call.tool) || !record(call.input) || typeof call.input.command !== "string") return false;
+  // UNCERTAINTY -> Flags, wrappers and compound commands cannot turn an identifiable remote effect into local proof.
+  const command = call.input.command.replace(/\\\r?\n/g, " ");
+  return /\bgit\b[\s\S]*\bpush\b/i.test(command)
+    || /\bgh\b[\s\S]*\b(?:pr|release|issue)\s+(?:create|merge|edit)\b/i.test(command)
+    || /\b(?:curl|wget)\b/i.test(command);
 }
 
 export function continuityEvidenceFile(cwd: string, path: string): { path: string; digest: string } {

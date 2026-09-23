@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { operationId, operationInputDigest, validContinuityOperation, type NativeCallRef, type ContinuityOperation, type OperationRecovery } from "./continuity-operations.ts";
 import { ensureOperationIsolation, readContinuityOperations, transactContinuityOperations, type OperationWrite } from "./continuity-operation-store.ts";
-import { continuityEvidenceFile, createContinuityRecoveryEvidence, knownExternalContinuityCall, type ContinuityRecoveryEvidencePort } from "./continuity-recovery-evidence.ts";
+import { continuityEvidenceFile, createContinuityRecoveryEvidence, requiresExternalContinuityProof, type ContinuityRecoveryEvidencePort } from "./continuity-recovery-evidence.ts";
 import { projectProjectState } from "./project-state.ts";
 import { sessionReferenceFor } from "./runtime-session-identity.ts";
 import { isSafeCheckpointText } from "./continuity-checkpoint.ts";
 
-export type OperationStart = Pick<ContinuityOperation, "runtime" | "tool" | "inputDigest" | "nativeCallRef" | "effectScope">;
+export type OperationStart = Pick<ContinuityOperation, "runtime" | "tool" | "inputDigest" | "nativeCallRef" | "effectScope" | "admissionRef">;
 export type RecoveryAssessment = { kind: "local-attested" | "external-observed"; summary: string; callRef: NativeCallRef; evidenceRefs: string[]; evidencePaths: string[] };
 type Result<T> = { ok: true; value: T } | { ok: false; reason: string };
 type Ports = { now?: () => string; stateRef?: () => string | null; evidence?: ContinuityRecoveryEvidencePort; beforeRecoveryPublish?: () => void };
@@ -14,12 +14,16 @@ export function createContinuityOperationRuntime(cwd: string, ports: Ports = {})
   const now = ports.now ?? (() => new Date().toISOString());
   const stateRef = ports.stateRef ?? (() => projectProjectState({ cwd }).git.stateRef ?? null);
   const evidence = ports.evidence ?? createContinuityRecoveryEvidence(cwd);
+  const admissions = new Map<string, string>();
   const read = () => readContinuityOperations(cwd);
   const update = (transition: (items: readonly ContinuityOperation[]) => readonly ContinuityOperation[]): OperationWrite => {
     const before = read(); if (before.status === "failure") return { ok: false, reason: before.reason, outcome: "not-published" };
     return transactContinuityOperations(cwd, before.status === "absent" ? "absent" : before.journal.revision, transition);
   };
-  const candidate = (input: OperationStart): ContinuityOperation => ({ ...input, id: operationId(input.runtime, input.nativeCallRef), startedAt: now(), beforeStateRef: stateRef(), status: "running" });
+  const candidate = (input: OperationStart): ContinuityOperation => {
+    const id = operationId(input.runtime, input.nativeCallRef);
+    return { ...input, id, admissionRef: input.admissionRef ?? admissions.get(id) ?? operationInputDigest(randomUUID()), startedAt: now(), beforeStateRef: stateRef(), status: "running" };
+  };
   const compatible = (old: ContinuityOperation, next: ContinuityOperation) => {
     if (old.inputDigest !== next.inputDigest || old.tool !== next.tool || old.runtime !== next.runtime) throw new Error("operation-identity-conflict");
   };
@@ -32,28 +36,46 @@ export function createContinuityOperationRuntime(cwd: string, ports: Ports = {})
     begin(input: OperationStart): OperationWrite {
       const isolated = ensureOperationIsolation(cwd); if (!isolated.ok) return { ...isolated, outcome: "not-published" };
       const next = candidate(input);
-      return update((items) => { const old = items.find((op) => op.id === next.id); if (old) { compatible(old, next); return items; } return [...items, next]; });
+      const result = update((items) => {
+        const old = items.find((op) => op.id === next.id);
+        if (old) {
+          compatible(old, next);
+          if (old.status !== "running") throw new Error("operation-terminal-conflict");
+          if (old.admissionRef !== next.admissionRef) throw new Error("operation-attempt-conflict");
+          return items;
+        }
+        return [...items, next];
+      });
+      if (result.ok && result.journal.operations.some((op) => op.id === next.id && op.status === "running")) admissions.set(next.id, next.admissionRef!);
+      return result;
     },
     finish(input: OperationStart, outcome: "succeeded" | "failed" | "unavailable"): OperationWrite {
       const next = candidate(input);
-      return update((items) => {
+      const result = update((items) => {
         const old = items.find((op) => op.id === next.id);
         if (!old) return [...items, { ...next, beforeStateRef: null, status: "uncertain", reason: "missing-start", afterStateRef: stateRef() }];
         compatible(old, next); if (old.status === "settled") return items;
+        if (old.status === "uncertain") { if (outcome === "succeeded") throw new Error("operation-terminal-conflict"); return items; }
         const settled: ContinuityOperation = outcome === "succeeded"
           ? { ...old, status: "settled", outcome: "succeeded", afterStateRef: stateRef() }
           : { ...old, status: "uncertain", reason: `native-${outcome}`, afterStateRef: stateRef() };
         return items.map((op) => op.id === old.id ? settled : op);
       });
+      if (result.ok) admissions.delete(next.id);
+      return result;
     },
     denied(input: OperationStart, guardId: string): OperationWrite {
       const next = candidate(input);
-      return update((items) => {
+      const result = update((items) => {
         const old = items.find((op) => op.id === next.id); if (old) compatible(old, next);
+        if (old?.status === "uncertain") throw new Error("operation-terminal-conflict");
+        if (old?.status === "running" && (!old.admissionRef || old.admissionRef !== next.admissionRef)) throw new Error("operation-attempt-conflict");
         if (old?.status === "settled") { if (old.outcome !== "not-started") throw new Error("operation-terminal-conflict"); return items; }
         const denied: ContinuityOperation = { ...(old ?? next), status: "settled", outcome: "not-started", reason: `ein-guard:${guardId}` };
         return [...items.filter((op) => op.id !== next.id), denied];
       });
+      if (result.ok) admissions.delete(next.id);
+      return result;
     },
     legacyFailure(runtime: "pi" | "claude" = "pi"): OperationWrite {
       const ref = { sessionRef: sessionReferenceFor(runtime, "legacy-unobserved"), toolCallId: randomUUID() };
@@ -80,7 +102,7 @@ export function createContinuityOperationRuntime(cwd: string, ports: Ports = {})
         const call = evidence.readCall(old.nativeCallRef);
         if (!call || call.inputDigest !== old.inputDigest || call.tool !== old.tool) return { ok: false, reason: "native-call-unavailable" };
         if (!Array.isArray(assessment.evidenceRefs) || !Array.isArray(assessment.evidencePaths) || assessment.evidenceRefs.length > 16 || assessment.evidencePaths.length > 16) return { ok: false, reason: "invalid-recovery" };
-        if (assessment.kind === "local-attested" && knownExternalContinuityCall(call)) return { ok: false, reason: "external-proof-required" };
+        if (assessment.kind === "local-attested" && requiresExternalContinuityProof(call)) return { ok: false, reason: "external-proof-required" };
         const refs = assessment.evidenceRefs.map((value) => evidence.readEvidence(value, call));
         if (refs.some((value) => !value)) return { ok: false, reason: "evidence-unavailable" };
         if (assessment.kind === "external-observed" && !refs.some((value) => value?.matchesExternalEffect === true)) return { ok: false, reason: "external-proof-required" };

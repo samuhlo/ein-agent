@@ -75,9 +75,38 @@ test("running survives process replacement; denied-before-begin never reopens; m
   const { cwd, runtime, start } = fixture();
   runtime.begin(start); expect(createContinuityOperationRuntime(cwd).uncertain()).toBe(true);
   expect(runtime.denied(start, "command-policy").ok).toBe(true);
-  expect(runtime.begin(start).ok).toBe(true); expect(runtime.uncertain()).toBe(false);
+  expect(runtime.begin(start)).toMatchObject({ ok: false, reason: "operation-terminal-conflict" }); expect(runtime.uncertain()).toBe(false);
   expect(runtime.finish(start, "failed").ok).toBe(true); expect(runtime.uncertain()).toBe(false);
   expect(runtime.begin({ ...start, inputDigest: operationInputDigest({ command: "other" }) }).ok).toBe(false);
+});
+
+test("late admission denial cannot erase a failed or unavailable execution", () => {
+  for (const outcome of ["failed", "unavailable"] as const) {
+    const { runtime, start } = fixture(); runtime.begin(start); runtime.finish(start, outcome);
+    expect(runtime.denied(start, "replayed-guard")).toMatchObject({ ok: false, reason: "operation-terminal-conflict" });
+    expect(runtime.begin(start).ok).toBe(false);
+    expect(runtime.finish(start, "succeeded").ok).toBe(false);
+    expect(runtime.uncertain()).toBe(true);
+  }
+});
+test("a new runtime cannot deny away an original running attempt", () => {
+  const { cwd, runtime, start } = fixture(); runtime.begin(start);
+  const restarted = createContinuityOperationRuntime(cwd);
+  expect(restarted.denied(start, "replayed-guard")).toMatchObject({ ok: false, reason: "operation-attempt-conflict" });
+  expect(restarted.begin(start)).toMatchObject({ ok: false, reason: "operation-attempt-conflict" });
+  expect(restarted.uncertain()).toBe(true);
+});
+
+test("known external command variants cannot use local attestation as a shortcut", () => {
+  for (const command of ["git -C repo push origin main", "cd repo && git push origin main", "env FLAG=1 git push origin main", "/usr/bin/git -c advice.pushUpdateRejected=false push origin main", "sh -c 'git push origin main'"]) {
+    const { cwd, start, id, callRef } = fixture(), input = { command };
+    const entries = [{ message: { role: "assistant", content: [{ type: "toolCall", id: callRef.toolCallId, name: "bash", arguments: input }] } }];
+    const runtime = createContinuityOperationRuntime(cwd, { evidence: createContinuityRecoveryEvidence(cwd, { sessionId: () => "fixture", entries: () => entries }) });
+    const actual = { ...start, inputDigest: operationInputDigest(input) }; runtime.begin(actual); runtime.finish(actual, "failed");
+    const view = runtime.inspect(id); if (!view.ok) throw new Error(view.reason);
+    expect(runtime.resolve(id, view.value.token, { kind: "local-attested", summary: "Claimed local", callRef, evidencePaths: ["package.json"], evidenceRefs: [] }, "pi-coordinator")).toMatchObject({ ok: false, reason: "external-proof-required" });
+    expect(runtime.uncertain()).toBe(true);
+  }
 });
 
 test("external recovery binds literal destination, branch and SHA; aliases and borrowed read-back never suffice", () => {
@@ -89,6 +118,7 @@ test("external recovery binds literal destination, branch and SHA; aliases and b
       entries.push({ message: { role: "assistant", content: [{ type: "toolCall", id, name: "bash", arguments: { command } }] } });
       entries.push({ message: { role: "toolResult", toolCallId: id, isError: failed, content: [{ type: "text", text }] } });
     };
+    add("before-push", `git ls-remote --exit-code ${destination} ${branch}`, `${sha}\t${branch}`);
     add("push", input.command, "connection lost", true);
     add("readback", `git ls-remote --exit-code ${destination} ${branch}`, `${sha}\t${branch}`);
     add("borrowed", `git ls-remote --exit-code https://github.com/fixture/other.git ${branch}`, `${sha}\t${branch}`);
@@ -100,7 +130,7 @@ test("external recovery binds literal destination, branch and SHA; aliases and b
     const id = operationId("pi", ref), view = runtime.inspect(id); if (!view.ok) throw new Error(view.reason);
     const assessment = { kind: "external-observed" as const, summary: "Observed the requested remote branch and commit", callRef: ref, evidenceRefs: [], evidencePaths: [] };
     expect(runtime.resolve(id, view.value.token, { ...assessment, kind: "local-attested", evidencePaths: ["package.json"] }, "pi-coordinator")).toMatchObject({ ok: false, reason: "external-proof-required" });
-    for (const toolCallId of ["borrowed", "wrong-sha", "wrong-ref"]) expect(runtime.resolve(id, view.value.token, { ...assessment, evidenceRefs: [continuityEvidenceRef({ ...ref, toolCallId })] }, "pi-coordinator").ok).toBe(false);
+    for (const toolCallId of ["before-push", "borrowed", "wrong-sha", "wrong-ref"]) expect(runtime.resolve(id, view.value.token, { ...assessment, evidenceRefs: [continuityEvidenceRef({ ...ref, toolCallId })] }, "pi-coordinator").ok).toBe(false);
     const result = runtime.resolve(id, view.value.token, { ...assessment, evidenceRefs: [continuityEvidenceRef({ ...ref, toolCallId: "readback" })] }, "pi-coordinator");
     expect(result.ok).toBe(destination === remote);
   }
