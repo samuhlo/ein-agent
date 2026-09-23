@@ -15,11 +15,12 @@ describe("higiene del repositorio", () => {
 		expect(tracked().filter((path) => !path.includes("/") && /\.(?:png|webp|jpe?g|gif|svg)$/i.test(path))).toEqual([]);
 	});
 
-	test("docs contiene un índice, un roadmap y ADR con nombres duraderos", () => {
+	test("docs contiene el plan vigente, el índice, el roadmap y el archivo histórico", () => {
 		const documents = tracked("docs");
 		expect(documents).toContain("docs/README.md");
 		expect(documents).toContain("docs/roadmap.md");
-		expect(documents.filter((path) => path !== "docs/README.md" && path !== "docs/roadmap.md")
+		expect(documents).toContain("docs/plans/2026-09-23-recuperacion-arneses.md");
+		expect(documents.filter((path) => !["docs/README.md", "docs/roadmap.md", "docs/plans/2026-09-23-recuperacion-arneses.md"].includes(path))
 			.every((path) => /^docs\/(?:adr\/\d{4}-[a-z0-9-]+|audits\/\d{4}-\d{2}-\d{2}-[a-z0-9-]+|plans\/manifesto-hardening\/(?:\d{2}-[a-z0-9-]+|README|prompts|estado-ejecucion-\d{4}-\d{2}-\d{2}))\.md$/.test(path))).toBe(true);
 	});
 

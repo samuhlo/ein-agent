@@ -4,11 +4,13 @@ Este directorio contiene documentación interna vigente y trabajo de corrección
 solicitado explícitamente:
 
 - [`roadmap.md`](roadmap.md): trabajo actual y siguiente.
+- [`plans/2026-09-23-recuperacion-arneses.md`](plans/2026-09-23-recuperacion-arneses.md):
+  recuperación de Pi y Claude tras alpha.10, con criterios de aceptación.
 - [`adr/`](adr/): decisiones duraderas y su razón.
 - [`audits/2026-09-16-manifiesto.md`](audits/2026-09-16-manifiesto.md): auditoría
   de garantías del arnés, con alcance, evidencia y límites.
 - [`plans/manifesto-hardening/README.md`](plans/manifesto-hardening/README.md):
-  diseños y paquetes acotados para corregir sus 13 hallazgos.
+  archivo del plan de 13 hallazgos que desembocó en alpha.10.
 
 El comportamiento vigente vive en `openspec/specs/`, las guías de usuario en `docs-site/`, los cambios cerrados en sus resúmenes OpenSpec y el detalle histórico en Git.
 
