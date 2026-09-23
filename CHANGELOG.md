@@ -4,6 +4,28 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.13] - 2026-09-23
+
+### Fixed
+
+- Pi recupera la decisión TDD del encargo original al reanudar `sdd-apply`.
+  Una elección nueva para trabajo ad hoc se pasa mediante una continuación
+  acotada, conservando las ediciones ya hechas.
+- Pi permite `write` y `edit` locales cuando falla el registro auxiliar de
+  continuidad. Avisa de la limitación y bloquea el relevo de runtime durante
+  esa sesión, sin fingir que la operación quedó registrada.
+- La guía de delegación usa las formas admitidas por el runner y deja de
+  mostrar el aviso repetitivo sobre límites de turnos automáticos. Un límite
+  explícito que el runner no puede cumplir sigue rechazándose.
+- La adaptación de Claude indica cuándo delegar cambios a `sdd-apply` y
+  `sdd-verify`, cuándo usar las fases SDD y qué herramientas usar para leer
+  el repositorio. La guía de entrevista opcional ocupa menos contexto.
+
+### Documentation
+
+- El plan de recuperación registra los incidentes de Pi y Claude, las
+  decisiones sobre alpha.10 y los criterios para un piloto con modelos reales.
+
 ## [0.99.0-alpha.12] - 2026-09-23
 
 ### Fixed
