@@ -30,9 +30,9 @@
 // LO QUE ESTE MÓDULO NO CUBRE (`// 007`, no vender cobertura que no existe):
 // no previene "el tercer consumidor" en general. Previene dos cosas concretas:
 // (a) un consumidor nuevo, no declarado, sobre la superficie `pi.on("tool_result")`
-// de `ein-delegation-results.ts`; (b) una protección declarada que desaparece
+// de `ein-delegation-results.ts` y `ein-continuity.ts`; (b) una protección declarada que desaparece
 // de la fuente. Es
-// mundo cerrado sobre un único handler: un consumidor cableado por otra vía (otro
+// mundo cerrado sobre estos handlers: un consumidor cableado por otra vía (otro
 // hook, o que reciba el texto del envelope indirectamente) se escapa.
 //
 // CONDICIÓN DE RETIRADA: cuando `ENVELOPE_CONSUMER_INVENTORY` quede vacío —
@@ -49,8 +49,12 @@ export interface EnvelopeConsumerEntry {
 	readonly note: string;
 }
 
-// `ein-continuity.ts` queda fuera: lee isError de mutaciones, no sus payloads.
 export const ENVELOPE_CONSUMER_INVENTORY: Readonly<Record<string, EnvelopeConsumerEntry>> = {
+	continuityToolOutcome: {
+		failureMode: "safe-degradation",
+		protection: "none",
+		note: "un terminal incompleto o background conserva incertidumbre durable; nunca lo convierte en mutación asentada",
+	},
 	completeSddParticipantCall: {
 		failureMode: "silent-incorrect-state",
 		protection: "foreground-forced",

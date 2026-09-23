@@ -48,6 +48,8 @@ function changeCoordinates(root: string, changePath: string): { base: "openspec"
 }
 
 function isExcludedProcessPath(path: string, coordinates: { base: "openspec" | ".sdd"; change: string }): boolean {
+	const draftLock = /^\.ein\/intent-drafts\/([a-z0-9]+(?:-[a-z0-9]+)*)\.json\.lock$/.exec(path);
+	if (draftLock && draftLock[1] !== "archive" && draftLock[1].length <= 128) return true;
 	const roots = [
 		`${coordinates.base}/changes/${coordinates.change}/`,
 		`${coordinates.base}/changes/archive/${coordinates.change}/`,

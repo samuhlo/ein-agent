@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { registerIntentDiscovery } from "../ein-pi/agent/extensions/internal/ein-intent-discovery.ts";
 import { registerToolCallGate } from "../ein-pi/agent/extensions/internal/ein-tool-call-gate.ts";
 import { registerAgentPromptHook } from "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts";
+import { readIntentDraft } from "../ein-pi/agent/lib/intent-draft-store.ts";
 
 const material = { objective: "Acordar cursos parciales", boundaries: { in: ["Motor y servidor"], out: ["Frontend", "Neon", "Implementación"] }, completionCriteria: ["Política de fechas acordada con evidencia"] };
 const nodes = [
@@ -21,7 +22,8 @@ test("block 05: a selector answer authorizes evidence, then another round withou
  const append = (customType: string, data: unknown) => branch.push({ type: "custom", customType, data });
  registerIntentDiscovery({ on: (name: string, fn: Function) => handlers.set(name, fn), appendEntry: append } as never, ((tool: any) => { spec = tool; }) as never);
  const call = async (args: any) => {
-  const result = await spec.execute("intent", { work: "block-05", ...args }, undefined, undefined, ctx);
+  const draft = readIntentDraft(cwd, "block-05");
+  const result = await spec.execute("intent", { work: "block-05", expectedRevision: draft.status === "valid" ? draft.draft.revision : "absent", ...args }, undefined, undefined, ctx);
   if (result.isError) throw new Error(result.content[0].text);
   return JSON.parse(result.content[0].text);
  };
@@ -68,7 +70,7 @@ test("block 05: a selector answer authorizes evidence, then another round withou
   const other = new Map<string, Function>();
   registerToolCallGate({ on: (name: string, fn: Function) => other.set(name, fn) } as never, {} as never);
   expect(await other.get("tool_call")!({ toolName: "subagent", toolCallId: "probe", input: prepared.delegation }, ctx)).toBeUndefined();
-  expect((await call({ action: "status" })).nextAction).toBe("wait-evidence");
+  expect((await call({ action: "status" })).nextAction).toBe("recover-evidence-result");
   const child = new Map<string, Function>();
   registerAgentPromptHook({ on: (name: string, fn: Function) => child.set(name, fn) } as never);
   const start = await child.get("before_agent_start")!({ agentName: "sdd-verify", task: prepared.delegation.task, prompt: prepared.delegation.task, systemPrompt: "You are the independent SDD verify executor." }, ctx);

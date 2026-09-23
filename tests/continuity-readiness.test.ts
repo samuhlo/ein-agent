@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { deriveContinuityCheckpoint, type ContinuityCheckpointFacts, type ContinuityCheckpointV1 } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
+import { deriveContinuityCheckpoint, type ContinuityCheckpoint, type ContinuityCheckpointFacts } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
 import { auditContinuityReadiness, type ContinuityReadinessInput } from "../ein-pi/agent/lib/continuity-readiness.ts";
 import type { ProjectStateV1 } from "../ein-pi/agent/lib/project-state.ts";
 const REF = `git-v1:sha256:${"a".repeat(64)}`;
@@ -19,7 +19,7 @@ function state(): ProjectStateV1 {
 		},
 	};
 }
-function checkpoint(project = state(), facts: ContinuityCheckpointFacts = FACTS): ContinuityCheckpointV1 {
+function checkpoint(project = state(), facts: ContinuityCheckpointFacts = FACTS): ContinuityCheckpoint {
 	const result = deriveContinuityCheckpoint(project, facts); if (!result.ok) throw new Error("fixture derivation failed"); return result.checkpoint;
 }
 function input(project = state(), overrides: Partial<ContinuityReadinessInput> = {}): ContinuityReadinessInput {

@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, closeSync, constants, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readlinkSync, readSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { closeSync, constants, fchmodSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readlinkSync, readSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 export type ReviewRequest = { mode: "working-tree" | "committed"; base?: string; head?: string; paths?: readonly string[] };
 export type ReviewSnapshotResult = {
@@ -127,13 +127,37 @@ function workingEntry(root: string, path: string, capture: Capture): Entry {
 function identity(entry: Entry): unknown {
 	return entry ? [entry.mode, createHash("sha256").update(entry.content).digest("hex")] : null;
 }
-function materialize(root: string, path: string, entry: Entry, capture: Capture): void {
+function materialize(root: string, path: string, entry: Entry, capture: Capture, directories: Map<string, string>): void {
 	if (!entry) return;
 	capture.take(entry.content.length);
-	const dest = join(root, path);
-	mkdirSync(dirname(dest), { recursive: true });
-	if (entry.mode === "120000") symlinkSync(entry.content, dest);
-	else { writeFileSync(dest, entry.content); chmodSync(dest, entry.mode === "100755" ? 0o755 : 0o644); }
+	const directory = (path: string, create = false) => {
+		capture.check();
+		let created = false;
+		if (create) {
+			try { mkdirSync(path, { mode: 0o700 }); created = true; }
+			catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
+		}
+		const stat = lstatSync(path), key = `${stat.dev}:${stat.ino}`;
+		if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("unsafe scratch ancestor");
+		// Case or Unicode aliases must not merge distinct Git directory names.
+		if (directories.has(key) ? directories.get(key) !== path : create && !created) throw new Error("scratch path collision");
+		directories.set(key, path);
+	};
+	let parent = root; directory(parent);
+	const parts = path.split("/");
+	for (const part of parts.slice(0, -1)) { parent = join(parent, part); directory(parent, true); }
+	const dest = join(parent, parts.at(-1)!);
+	try {
+		if (entry.mode === "120000") symlinkSync(entry.content, dest);
+		else {
+			const mode = entry.mode === "100755" ? 0o755 : 0o644;
+			const fd = openSync(dest, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0), mode);
+			try { writeFileSync(fd, entry.content); fchmodSync(fd, mode); } finally { closeSync(fd); }
+		}
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("scratch path collision");
+		throw error;
+	}
 }
 function diff(cwd: string, options: string[], capture: Capture): string {
 	return decode(capture.git(cwd, ["-c", "core.quotePath=true", "diff", "--no-index", "--find-renames", "--no-ext-diff", "--no-textconv", ...options, "--", "before", "after"], undefined, true));
@@ -195,12 +219,13 @@ export function readReviewSnapshot(cwd: string, request: ReviewRequest, seam: Re
 		scratch = mkdtempSync(join(tmpdir(), "ein-review-"));
 		mkdirSync(join(scratch, "before")); mkdirSync(join(scratch, "after"));
 		const facts: unknown[] = [], afterFacts: string[] = [];
+		const beforeDirectories = new Map<string, string>(), afterDirectories = new Map<string, string>();
 		for (const path of paths) {
 			capture.check();
 			const before = fromTree(beforeTree, path);
 			const after = request.mode === "committed" ? fromTree(afterTree, path) : eligible?.has(path) ? workingEntry(root, path, capture) : null;
 			facts.push([path, identity(before), identity(after)]); afterFacts.push(JSON.stringify(identity(after)));
-			materialize(join(scratch, "before"), path, before, capture); materialize(join(scratch, "after"), path, after, capture);
+			materialize(join(scratch, "before"), path, before, capture, beforeDirectories); materialize(join(scratch, "after"), path, after, capture, afterDirectories);
 		}
 		const numstatZ = normalizeNumstat(diff(scratch, ["--numstat", "-z"], capture));
 		const patch = diff(scratch, ["--no-color", "--unified=0"], capture);

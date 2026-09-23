@@ -1,11 +1,15 @@
 # Protocolo Pi
 
 `ein_intent` es el único escritor. `work` identifica el acuerdo; en SDD, `change`
-debe coincidir. El runtime valida el nombre. La sesión durable guarda el borrador;
+debe coincidir. El runtime valida el nombre. `.ein/intent-drafts/<work>.json` guarda el borrador privado;
 la primera entrevista no crea directorio de cambio hasta confirmar `intent.md`.
 Reabrir un acuerdo existente lo marca pendiente para impedir ejecutar material obsoleto.
 
 ## Rondas y recibos
+
+Cada mutación pasa `expectedRevision`: `draftRevision` del último estado/recibo,
+o `absent` al crear. Un conflicto conserva la respuesta en su sesión de origen:
+recarga y reutilízala en la misma ronda, sin confirmar material distinto.
 
 - `propose`: conserva el árbol conocido completo en `decisions`, también los nodos
   aplazados y resueltos: id, question, dependsOn, status (open/waiting/resolved),
@@ -20,10 +24,11 @@ Reabrir un acuerdo existente lo marca pendiente para impedir ejecutar material o
 - Explica la ronda y usa el cuestionario devuelto sin alterar opciones. El selector
   admite cuatro preguntas por llamada: divide fronteras mayores en tandas de la
   misma ronda sin otro propose ni avanzar dependencias entre tandas.
-- `ask_user_question` añade `intentResponse` con work, revision y responseId observado.
+- `ask_user_question` añade `intentResponse` con work, revision, draftRevision y responseId observado.
   Usa ese recibo directamente. No es un mensaje de chat ni debes fabricar inputs.
   Si falta, o al reanudar, `status` recupera acuerdo y respuesta; sin work consulta
-  el último acuerdo de esta sesión. Cancelación o error no producen responseId usable.
+  el work del objetivo o el único borrador pendiente. Varios borradores requieren
+  elegir work explícito. Cancelación o error no producen responseId usable.
 - Otra `propose` incorpora únicamente lo contestado y conserva las ramas anteriores.
   `review` recibe el árbol completo resuelto y responseId de la última ronda.
   Presenta el material devuelto y pregunta con su cuestionario final.
@@ -36,8 +41,11 @@ Reabrir un acuerdo existente lo marca pendiente para impedir ejecutar material o
 
 Si falla el selector o la pregunta es abierta, usa texto y espera una respuesta real.
 No simules recibos. `status` distingue incorporar respuesta, preparar evidencia,
-ejecutarla, esperar un ensayo iniciado y procesar su resultado mediante nextAction.
+ejecutarla, recuperar el resultado de un ensayo iniciado y procesarlo mediante nextAction.
 Un hecho pendiente no implica que un ensayo esté en marcha.
+`recover-publication` exige `ein_intent recover` con work y expectedRevision para
+recuperar el journal exacto; no volver a pedir un acuerdo
+ya observado. Un recibo `archived` es historia y no autoriza otra ejecución.
 
 ## Ensayos locales
 

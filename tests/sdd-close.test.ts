@@ -15,6 +15,7 @@ import { closedChangePath as sharedClosedChangePath } from "../shared/sdd/sdd-cl
 import { createCloseChange } from "../shared/sdd/sdd-close-engine.ts";
 import { writeVerifiedSddSummary } from "../shared/sdd/sdd-summary-write.ts";
 import { beginVerification, finishVerification, readVerificationFreshness } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
+import { readRepositoryStateIdentity } from "../ein-pi/agent/lib/git-baseline.ts";
 
 let DIR: string;
 function durableSummary(change: string): string {
@@ -70,6 +71,7 @@ describe("closeChange", () => {
 
 	test("el motor neutral rechaza nombres inseguros antes de pedir capacidades", () => {
 		const neutralClose = createCloseChange({
+			withIntentAdmissionLock: () => { throw new Error("intent lock must not run"); },
 			assessCloseReadiness: () => { throw new Error("readiness must not run"); },
 			resolveSddStatus: () => { throw new Error("status must not run"); },
 			readRepositoryStateIdentity: () => { throw new Error("git must not run"); },
@@ -454,12 +456,17 @@ describe("closeChange — scope-only out-of-flow reconciliation", () => {
 
 	test("archives an eligible record and returns a reconciliation receipt distinct from legacyEscape", () => {
 		const fixture = reconciliationFixture();
+		expect(existsSync(join(DIR, ".gitignore"))).toBe(false);
 		const options = {
 			reconciliationProfile: profile,
 			reconciliationEvidencePath: fixture.evidencePath,
 			legacyReason: reason,
 		};
 		const interrupted = closeChange(DIR, "legacy-delivery", options, {
+			beforeArchive() {
+				expect(readRepositoryStateIdentity(DIR, fixture.identity.capturedAt)).toEqual(fixture.identity);
+				expect(existsSync(join(DIR, ".gitignore"))).toBe(false);
+			},
 			removeEntry(path) {
 				if (path.endsWith("scope.md")) throw new Error("poda interrumpida");
 				rmSync(path, { recursive: true, force: true });
@@ -471,6 +478,7 @@ describe("closeChange — scope-only out-of-flow reconciliation", () => {
 		expect(result.ok).toBe(true);
 		expect(result.reconciliation).toMatchObject({ profile, change: "legacy-delivery", reason, checkIds: ["core-tests"], repositoryState: fixture.identity });
 		expect(result).not.toHaveProperty("legacyEscape");
+		expect(existsSync(join(DIR, ".gitignore"))).toBe(false);
 		expect(existsSync(fixture.source)).toBe(false);
 		expect(existsSync(join(DIR, "openspec", "changes", "archive", "legacy-delivery", "summary.md"))).toBe(true);
 	});

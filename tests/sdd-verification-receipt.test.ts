@@ -154,13 +154,11 @@ describe("createVerificationService", () => {
 		writeIntent("pending");
 		const api = service();
 		const pending = api.beginVerification({ cwd: root, changePath });
-		if (!pending.ok) throw new Error(pending.reason);
-		expect(pending.value.intentKey).toBeUndefined();
+		expect(pending).toMatchObject({ ok: false, code: "intent-unresolved" });
 
 		writeFileSync(join(changePath, "intent.md"), "invalid intent\n");
 		const invalid = api.beginVerification({ cwd: root, changePath });
-		if (!invalid.ok) throw new Error(invalid.reason);
-		expect(invalid.value.intentKey).toBeUndefined();
+		expect(invalid).toMatchObject({ ok: false, code: "intent-unresolved" });
 
 		const original = writeIntent("confirmed", "Original agreement");
 		const begun = api.beginVerification({ cwd: root, changePath });

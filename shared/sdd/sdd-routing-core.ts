@@ -21,7 +21,8 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { extractDeclaredFrontierPaths } from "./sdd-tasks-frontier.ts";
-import { artifactHasIntentKey, inspectArtifactIntentKey, readAgreement } from "./intent-agreement.ts";
+import { artifactHasIntentKey, inspectArtifactIntentKey } from "./intent-agreement.ts";
+import { readIntentAdmission } from "./intent-admission.ts";
 import { collectDeclaredApplyStatuses } from "./sdd-apply-status.ts";
 import { parseVerificationReport } from "./sdd-verification-outcome.ts";
 import type { VerificationFreshness } from "./sdd-verification-receipt.ts";
@@ -480,7 +481,9 @@ export function readSddCompletionEvidence(
 	const path = join(resolveChangesDir(cwd), change);
 	const present = Object.fromEntries(Object.keys(PHASE_ARTIFACT).map((phase) => [phase, existsSync(phaseArtifactPath(path, phase as SddPhase))])) as Record<SddPhase, boolean>;
 	const verification = readVerification(cwd, path);
-	return { apply: readApplyOutcome(path), verify: readVerifyOutcome(path), verification, tasks: readTasksStatus(path), ...computeStaleness(path, present, verification) };
+	const requiresCanonical = Object.values(PHASE_ARTIFACT).some((file) => readText(join(path, file))?.includes("intent_key:"));
+	const intentAdmission = readIntentAdmission({ root: cwd, work: change, changeDir: path, requiresCanonical });
+	return { apply: readApplyOutcome(path), verify: readVerifyOutcome(path), verification, intentAdmission, tasks: readTasksStatus(path), ...computeStaleness(path, present, verification) };
 }
 
 // Estado determinista de UN cambio. Si no se pasa `change`, usa el único activo
@@ -639,16 +642,15 @@ function resolveSddStatus(
 		blocked.push(specMapProvenanceBlocker(specState));
 		nextRecommended = "scope";
 	}
-	const storedIntent = readAgreement(changePath);
-	const missingManagedIntent = storedIntent.kind === "absent" && lanePhases.some((phase) => present[phase] && readFileSync(phaseArtifactPath(changePath, phase), "utf8").includes("intent_key:"));
-	const intent = missingManagedIntent ? { kind: "invalid" as const } : storedIntent;
-	const intentStatus: SddChangeStatus["intent"] = intent.kind === "absent" ? undefined
-		: intent.kind === "invalid" ? { state: "invalid" }
-		: { state: intent.agreement.status, materialKey: intent.agreement.materialKey };
-	if (intent.kind === "invalid" || (intent.kind === "valid" && intent.agreement.status !== "confirmed")) {
+	const intent = readIntentAdmission({ root: cwd, work: target, changeDir: changePath, requiresCanonical: false });
+	const missingManagedIntent = intent.state === "absent" && lanePhases.some((phase) => present[phase] && readFileSync(phaseArtifactPath(changePath, phase), "utf8").includes("intent_key:"));
+	const intentStatus: SddChangeStatus["intent"] = missingManagedIntent ? { state: "invalid" }
+		: intent.state === "absent" ? undefined : { state: intent.state, ...(intent.agreement ? { materialKey: intent.agreement.materialKey } : {}) };
+	if (!intent.admitted || missingManagedIntent) {
 		blocked.push("Intent pendiente o inválido: resuelve la conversación con el usuario mediante ein_intent (Pi) o ein-cc-sdd intent (Claude) antes de continuar.");
-	} else if (intent.kind === "valid") {
-		const stale = lanePhases.find((phase) => present[phase] && !artifactHasIntentKey(readFileSync(phaseArtifactPath(changePath, phase), "utf8"), intent.agreement.materialKey));
+	} else if (intent.agreement) {
+		const agreement = intent.agreement;
+		const stale = lanePhases.find((phase) => present[phase] && !artifactHasIntentKey(readFileSync(phaseArtifactPath(changePath, phase), "utf8"), agreement.materialKey));
 		if (stale) {
 			intentStatus!.stalePhase = stale;
 			const nextIndex = lanePhases.indexOf(nextRecommended);

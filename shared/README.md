@@ -21,7 +21,20 @@ Claude y el instalador consumen estas rutas públicas y nunca interiores de
 `ein-pi/agent/`. `tests/architecture-boundaries.test.ts` hace cumplir la regla y
 obliga a declarar cualquier puente nuevo.
 
+`shared/ports/continuity.ts` publica temporalmente
+`ein-pi/agent/lib/continuity-objective.ts`, cuyo dueño sigue siendo Pi. El puente
+se retira cuando el checkpoint y su escritor atómico tengan un dueño neutral
+consumido por ambos runtimes; hasta entonces evita que Claude cree otro almacén
+de objetivos.
+
 ## Puentes SDD supervivientes
+
+`shared/ports/intent.ts` publica el borrador neutral y el puente
+`../../ein-pi/agent/lib/intent-draft-runtime.ts`: Git comprueba el aislamiento
+privado y el adaptador publica el objetivo mediante el setter de continuidad.
+Propietario: `ein-pi/agent/lib/intent-draft-runtime.ts`. Retirar el puente cuando
+Git y la composición de continuidad tengan proveedores neutrales con la misma
+admisión y CAS probados en Pi y Claude. El núcleo intent nunca lanza procesos.
 
 Estos seis puentes no son seis trozos de cerebro pendientes de mover. Son los
 enchufes con los que el cerebro compartido pide capacidades que pertenecen al
@@ -48,3 +61,9 @@ rechaza módulos anidados, imports que salgan del payload y entrypoints cuyos
 exports no enlacen después del overlay.
 
 Los contratos de intención vinculan los artefactos al acuerdo vigente; la captura de respuestas pertenece al adaptador. El cierre conserva los informes de apply y verify dentro del resumen archivado antes de retirar sus archivos intermedios. Validar esa estructura y procedencia no sustituye juzgar la calidad del código.
+La continuidad de operaciones se comparte mediante `shared/ports/continuity.ts`:
+`../../ein-pi/agent/lib/continuity-operation-runtime.ts` es la composición del journal y evidencia,
+`../../ein-pi/agent/lib/continuity-operations.ts` define IDs y contratos, y
+`../../ein-pi/agent/lib/runtime-session-identity.ts` deriva referencias opacas.
+El dueño es continuidad Pi; retirar estos puentes cuando el proveedor de sesiones y filesystem
+tenga implementación neutral con paridad de recuperación probada. No se comparte un supervisor.

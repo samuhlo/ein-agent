@@ -83,6 +83,9 @@ type PayloadFixtureOptions = {
 };
 
 const PAYLOAD_FIXTURE_FILES = [
+  "shared/ports/intent.ts",
+  "shared/sdd/intent-draft-store.ts",
+  "shared/sdd/intent-discovery.ts",
   "ein-cc/sync.ts",
   "ein-cc/sdd-cli/cli.ts",
   "ein-pi/agent/surfaces/surface-runner.ts",

@@ -1,4 +1,5 @@
 import { evidenceReadAllowed, readEvidenceTask, type IntentEvidence } from "../../lib/intent-evidence.ts";
+import { observeContinuityGuard } from "../../lib/continuity-operation-adapter.ts";
 // =============================================================================
 // EIN AGENT PROMPT HOOK
 // Builds the context added before each Pi agent starts. Selection rules live
@@ -9,6 +10,7 @@ import { compileApplyHandoff } from "../../lib/apply-packet-handoff.ts";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readAgreement } from "../../lib/intent-agreement.ts";
+import { readIntentAdmission } from "../../lib/intent-admission.ts";
 import { PHASE_ARTIFACT, resolveChangesDir, type SddPhase } from "../../lib/sdd-routing-core.ts";
 import { formatSkillsForPrompt, type ExtensionAPI, type Skill } from "@earendil-works/pi-coding-agent";
 import {
@@ -71,7 +73,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 	let evidence: IntentEvidence | undefined;
 	let handoffError: string | undefined;
 	let agreementInput: { directory: string; artifact: string; key: string } | undefined;
-	pi.on("tool_call", (event, ctx) => {
+	pi.on("tool_call", observeContinuityGuard((event, ctx) => {
 		if (evidence) {
 			if (event.toolName === "bash") return evidence.commands.includes(String(event.input.command)) ? undefined : { block: true, reason: "Run only the exact commands supplied for this authorized evidence experiment" };
 			if (["read", "grep", "find"].includes(event.toolName) && evidenceReadAllowed(ctx.cwd, ("path" in event.input ? event.input.path : ".") ?? ".", evidence.roots)) return;
@@ -80,7 +82,8 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		if (handoffError) return { block: true, reason: handoffError };
 		if (!agreementInput || !["write", "edit", "bash", "ein_sdd_task_progress", "ein_openspec_delta_write", "ein_sdd_summary", "ein_sdd_verification", "ein_sdd_phase_complete"].includes(event.toolName)) return;
 		const current = readAgreement(agreementInput.directory);
-		if (current.kind !== "valid" || current.agreement.status !== "confirmed" || current.agreement.materialKey !== agreementInput.key) {
+		const admitted = current.kind === "valid" && readIntentAdmission({ root: ctx.cwd, work: current.agreement.work, changeDir: agreementInput.directory, requiresCanonical: true }).admitted;
+		if (!admitted || current.kind !== "valid" || current.agreement.status !== "confirmed" || current.agreement.materialKey !== agreementInput.key) {
 			return { block: true, reason: "Intent changed after this phase started; return blocked and re-plan against the current agreement." };
 		}
 		// Bind newly authored full output to the agreement actually supplied at
@@ -90,7 +93,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			const body = event.input.content.replace(/^[ \t]*(?:[-*][ \t]+)?intent_key:[^\r\n]*(?:\r?\n|$)/gm, "");
 			event.input.content = `${body}${body.endsWith("\n") ? "" : "\n"}\nintent_key: ${agreementInput.key}\n`;
 		}
-	});
+	}, "agent-prompt"));
 
 	pi.on("before_agent_start", async (event, ctx) => {
 		const isSddAgent = isSddAgentStartEvent(event);
