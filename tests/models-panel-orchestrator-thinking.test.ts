@@ -44,6 +44,7 @@ type HarnessOptions = {
 	effective: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 	input?: string;
 	keys?: string[];
+	customModel?: string;
 	modelSwitch?: "accept" | "deny";
 	clamp?: boolean;
 };
@@ -66,6 +67,7 @@ async function runPanel(options: HarnessOptions): Promise<{
 	const notifications: string[] = [];
 	let rendered = "";
 	let effective = options.effective;
+	let customStarted = false;
 
 	const pi = {
 		setModel: async (model: { provider: string; id: string }) => {
@@ -90,7 +92,7 @@ async function runPanel(options: HarnessOptions): Promise<{
 		] },
 		ui: {
 			notify: (message: string) => notifications.push(message),
-			input: async () => undefined,
+			input: async () => options.customModel,
 			custom: async (factory: Function) => {
 				let callbackResult: unknown;
 				const component = factory(
@@ -101,6 +103,10 @@ async function runPanel(options: HarnessOptions): Promise<{
 						callbackResult = value;
 					},
 				);
+				if (options.customModel && !customStarted) {
+					customStarted = true;
+					return { type: "custom", agent: "__orchestrator__", config: component.saveResult().config, orchestratorThinkingTouched: false };
+				}
 				for (const key of options.keys ?? (options.input ? [options.input] : [])) component.handleInput(key);
 				rendered = component.render(100).map(stripAnsi).join("\n");
 				// No depende de `matchesKey`: otros tests del repo mockean pi-tui de
@@ -263,8 +269,7 @@ describe("esfuerzo del orquestador en /ein:models", () => {
 
 	test("la selección de modelo del orquestador cambia sesión y predeterminado", async () => {
 		writeFileSync(join(AGENT_HOME, "settings.json"), JSON.stringify({ defaultProvider: "openai-codex", defaultModel: "gpt-5.6-sol", defaultThinkingLevel: "high" }));
-		const keys = ["\r", ..."gpt-6-sol", "\r", "\x13"];
-		const result = await runPanel({ activeModel: "openai-codex/gpt-6-astra", effective: "medium", keys });
+		const result = await runPanel({ activeModel: "openai-codex/gpt-6-astra", effective: "medium", customModel: "openai-codex/gpt-6-sol" });
 		expect(result.setModelCalls).toEqual(["openai-codex/gpt-6-sol"]);
 		const settings = JSON.parse(readFileSync(join(AGENT_HOME, "settings.json"), "utf8"));
 		expect(settings.defaultModel).toBe("gpt-6-sol");

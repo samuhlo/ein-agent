@@ -272,16 +272,15 @@ describe("terminal app real PTY lifecycle", () => {
     }
   });
 
-  test("queues the first live message until the provider attaches input and leaves the child interactive", async () => {
-    for (const [provider, key, code] of [["pi", "P", 6], ["claude", "C", 8]] as const) {
+  test("the last-session shortcuts resume the selected provider without a continuity brief", async () => {
+    for (const [provider, key] of [["pi", "P"], ["claude", "C"]] as const) {
       const run = start(`continue-${provider}`);
       try {
         await run.waitFor("ein-agent");
         run.write(key);
-        await run.waitFor(`DELIVERED:${provider}`);
+        await run.waitFor(`HANDOFF:${provider}:${provider}:last`);
         expect(run.output()).not.toContain("PRIVATE-BRIEF-CANARY");
-        run.write("x");
-        await run.waitFor(`code ${code}`);
+        await run.waitFor("code 7");
         run.write("q");
         expect(await exitWithin(run)).toBe(0);
         expect(occurrences(run.output(), ALT_ENTER)).toBe(2);

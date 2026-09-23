@@ -67,6 +67,7 @@ export const PI_EXTENSION_API: readonly string[] = [
 	"registerShortcut",
 	"registerTool",
 	"sendUserMessage",
+	"setModel",
 	"setThinkingLevel",
 	"setActiveTools",
 ];
