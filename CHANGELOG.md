@@ -4,6 +4,32 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.10] - 2026-09-23
+
+### Added
+
+- El objetivo del trabajo y el intent pendiente sobreviven al relevo entre Pi
+  y Claude. Respuestas, identificadores y decisiones no se vuelven a pedir por
+  cambiar de sesión; un acuerdo aún pendiente no concede permisos de ejecución.
+- Las operaciones de resultado incierto se conservan con su procedencia hasta
+  resolverlas con evidencia. Reiniciar, refrescar o cerrar no borra esa duda.
+- El tamaño de una entrega se mide sobre archivos nuevos y el commit publicado;
+  un dato desconocido o un HEAD cambiado impiden usar una medida anterior.
+
+### Fixed
+
+- Verify comparte un resultado global y un recibo ligado al contenido actual.
+  Un ejemplo `pass`, un archivo borrado o un intent pendiente no permiten un
+  cierre falso.
+- La reconciliación solo recupera la ejecución y la fase que produjeron la
+  evidencia. Lint y router coinciden sobre tareas realmente terminadas.
+- Delegación y presupuestos conservan las restricciones del runner, la postura
+  TDD y el directorio efectivo del hijo; una forma ambigua no omite políticas.
+- El rollback restaura rutas y permisos gestionados; dry-run ya no finaliza ni
+  limpia una recuperación.
+- El instalador acepta la distribución actual de pi-subagents, que publica
+  módulos compilados, y mantiene sus probes reales.
+
 ## [0.99.0-alpha.9] - 2026-09-16
 
 ### Fixed
