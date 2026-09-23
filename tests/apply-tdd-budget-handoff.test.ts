@@ -99,7 +99,7 @@ describe("parent and child share one resolved apply TDD contract", () => {
 		expect(await h.gate(input)).toBeUndefined();
 		expect(input.turnBudget).toBeUndefined();
 		expect(parseResolvedApplyTdd(String(input.task))).toMatchObject({ kind: "resolved", contract: { mode: "off", source: "change" } });
-		expect(h.notifications).toContain("Apply: límite de turnos no disponible en el runner; maxRuntimeMs sigue activo.");
+		expect(h.notifications).not.toContain("Apply: límite de turnos no disponible en el runner; maxRuntimeMs sigue activo.");
 	});
 
 	test("a preflight decision made in this gate controls the same launch", async () => {

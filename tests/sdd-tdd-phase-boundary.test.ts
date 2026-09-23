@@ -111,9 +111,9 @@ describe("strict-TDD audit and close-gate invariants", () => {
 describe("orchestrator: TDD forwarding distingue chain vs directo", () => {
 	const orch = read("assets/orchestrator.md");
 
-	test("instruye a NO meter TDD en la tarea compartida del chain", () => {
-		expect(orch).toContain("shared fallback-chain task");
-		expect(orch.toLowerCase()).toContain("phase-neutral");
+	test("acota la decisión TDD al ejecutor apply", () => {
+		expect(orch).toContain("once per `sdd-apply`");
+		expect(orch).toContain("For ad-hoc work, pass a structured `tdd` hint");
 	});
 
 	test("la invocacion directa recibe contrato mecanico, no una frase obligatoria", () => {
