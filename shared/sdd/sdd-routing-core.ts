@@ -21,8 +21,11 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { extractDeclaredFrontierPaths } from "./sdd-tasks-frontier.ts";
-import { artifactHasIntentKey, inspectArtifactIntentKey, readAgreement } from "./intent-agreement.ts";
+import { artifactHasIntentKey, inspectArtifactIntentKey } from "./intent-agreement.ts";
+import { readIntentAdmission } from "./intent-admission.ts";
 import { collectDeclaredApplyStatuses } from "./sdd-apply-status.ts";
+import { parseVerificationReport } from "./sdd-verification-outcome.ts";
+import type { VerificationFreshness } from "./sdd-verification-receipt.ts";
 
 export type SddPhase = "scope" | "map" | "design" | "tasks" | "apply" | "verify" | "close";
 export type SddNext = SddPhase | "done";
@@ -40,6 +43,7 @@ export const LANE_PHASES: Readonly<Record<SddLane, readonly SddPhase[]>> = Objec
 export type SddRoutingCoreDependencies = Readonly<{
 	readLane: (changePath: string) => SddLane;
 	readSpecState: (cwd: string, change: string) => SddSpecState;
+	readVerification: (cwd: string, changePath: string) => VerificationFreshness;
 }>;
 
 export type SddArtifactStatus = {
@@ -126,6 +130,7 @@ export type SddChangeStatus = {
 	budget: SddBudgetStatus;
 	apply: ApplyOutcome;
 	verify: VerifyOutcome;
+	verification: VerificationFreshness;
 	// verify-report.md es anterior al último apply → una corrección posterior
 	// invalidó la verificación; no se puede cerrar con evidencia obsoleta.
 	verifyStale: boolean;
@@ -364,12 +369,13 @@ export function readTasksStatus(changePath: string): SddTasksStatus {
 
 	const done = items.filter((item) => item.done).length;
 	const pending = items.length - done;
+	const allDone = items.length > 0 && pending === 0;
 	const blocked = status === "blocked" ? pending : 0;
 	const ready = status === "ready" ? pending : 0;
 	const nextPending = items.find((item) => !item.done) ?? null;
 	const problems: string[] = [];
-	if (!status) problems.push("tasks.md sin status ready|blocked.");
-	if (!blockedByMatch) problems.push("tasks.md sin blocked_by.");
+	if (!allDone && !status) problems.push("tasks.md sin status ready|blocked.");
+	if (!allDone && !blockedByMatch) problems.push("tasks.md sin blocked_by.");
 	if (items.length === 0) problems.push("tasks.md sin checkboxes parseables.");
 
 	return { present: true, status, blockedBy, items, nextPending, counts: { pending, ready, blocked, done }, problems };
@@ -415,23 +421,7 @@ function readVerifyOutcome(changePath: string): VerifyOutcome {
 	} catch {
 		return "unknown";
 	}
-	// RESULTADO -> Un fallo obligatorio registrado prevalece sobre el veredicto narrativo.
-	if (/^\s*(?:\*\*)?behavior_coverage\s*:\s*(?:partial|none)\b/im.test(content)) return "fail";
-	for (const line of content.split(/\r?\n/).filter((line) => /^\s*(?:[-*]\s*)?required_check:/.test(line))) {
-		try {
-			const check = JSON.parse(line.replace(/^\s*(?:[-*]\s*)?required_check:\s*/, ""));
-			if (typeof check.command !== "string" || !check.command.trim() || check.exitCode !== 0) return "fail";
-		} catch { return "fail"; }
-	}
-	// Busca una línea explícita `status: pass|fail` (o "result: ...").
-	content = content.toLowerCase();
-	const match = content.match(/\b(?:status|result|resultado)\s*[:=]\s*(pass|fail|passed|failed|ok|pasa|falla)\b/);
-	if (match) {
-		return /pass|passed|ok|pasa/.test(match[1]) ? "pass" : "fail";
-	}
-	// Heurística suave: marcas claras de fallo sin línea de status.
-	if (/\bfail\b|\bfailed\b|\bcritical\b|\bblocker\b/.test(content)) return "fail";
-	return "unknown";
+	return parseVerificationReport(content).outcome;
 }
 
 function fileMtimeMs(path: string): number | null {
@@ -445,39 +435,17 @@ function fileMtimeMs(path: string): number | null {
 // mtime más nuevo entre los ficheros ENTREGADOS (producción + tests) que
 // tasks.md declara. `null` si no se pueden enumerar (sin tasks.md, o rutas
 // ilustrativas sin fichero real): el llamador cae al proxy conservador.
-function newestDeliveredMtime(cwd: string, changePath: string): number | null {
-	const tasks = readText(phaseArtifactPath(changePath, "tasks"));
-	if (tasks === null) return null;
-	let newest: number | null = null;
-	for (const rel of extractDeliveredFiles(tasks)) {
-		const m = fileMtimeMs(join(cwd, rel));
-		if (m !== null && (newest === null || m > newest)) newest = m;
-	}
-	return newest;
-}
-
-// Obsolescencia determinista por mtime. P2-F: la evidencia de verify se invalida
-// por cambios en la SUPERFICIE ENTREGADA (producción + tests), no por que el
-// apply reescribiera apply-progress.md. Una normalización post-verify (cabecera
-// de un spec canónico bajo openspec/, docs) bombea apply-progress.md pero no toca
-// código ni tests → no debe forzar un re-verify caro. Fuente fina: el mtime de
-// los ficheros que tasks.md declara. Si no se pueden enumerar, se cae al proxy
-// conservador por apply-progress.md (comportamiento previo). Comparación estricta
-// (`>`): ante empate, fresco.
 function computeStaleness(
-	cwd: string,
 	changePath: string,
 	present: Record<SddPhase, boolean>,
+	verification: VerificationFreshness,
 ): { verifyStale: boolean; summaryStale: boolean } {
 	const applyM = present.apply ? fileMtimeMs(phaseArtifactPath(changePath, "apply")) : null;
 	const verifyM = present.verify ? fileMtimeMs(phaseArtifactPath(changePath, "verify")) : null;
 	const summaryM = present.close ? fileMtimeMs(phaseArtifactPath(changePath, "close")) : null;
-	const deliveredM = newestDeliveredMtime(cwd, changePath);
-	const newerThan = (ref: number): boolean =>
-		deliveredM !== null ? deliveredM > ref : applyM !== null && applyM > ref;
-	const verifyStale = verifyM !== null && newerThan(verifyM);
+	const verifyStale = verification.state === "stale";
 	const summaryStale =
-		summaryM !== null && (newerThan(summaryM) || (verifyM !== null && verifyM > summaryM));
+		summaryM !== null && ((applyM !== null && applyM > summaryM) || (verifyM !== null && verifyM > summaryM));
 	return { verifyStale, summaryStale };
 }
 
@@ -504,11 +472,18 @@ function readApplyOutcome(changePath: string): ApplyOutcome {
 	return "partial";
 }
 
-export function readSddCompletionEvidence(cwd: string, change: string) {
+export function readSddCompletionEvidence(
+	cwd: string,
+	change: string,
+	readVerification: (cwd: string, changePath: string) => VerificationFreshness,
+) {
 	if (!isSafeChangeName(change)) throw new Error("Invalid change name");
 	const path = join(resolveChangesDir(cwd), change);
 	const present = Object.fromEntries(Object.keys(PHASE_ARTIFACT).map((phase) => [phase, existsSync(phaseArtifactPath(path, phase as SddPhase))])) as Record<SddPhase, boolean>;
-	return { apply: readApplyOutcome(path), verify: readVerifyOutcome(path), tasks: readTasksStatus(path), ...computeStaleness(cwd, path, present) };
+	const verification = readVerification(cwd, path);
+	const requiresCanonical = Object.values(PHASE_ARTIFACT).some((file) => readText(join(path, file))?.includes("intent_key:"));
+	const intentAdmission = readIntentAdmission({ root: cwd, work: change, changeDir: path, requiresCanonical });
+	return { apply: readApplyOutcome(path), verify: readVerifyOutcome(path), verification, intentAdmission, tasks: readTasksStatus(path), ...computeStaleness(path, present, verification) };
 }
 
 // Estado determinista de UN cambio. Si no se pasa `change`, usa el único activo
@@ -587,6 +562,7 @@ function resolveSddStatus(
 			budget,
 			apply: "absent",
 			verify: "absent",
+			verification: { state: "unbound", reason: "no active change" },
 			verifyStale: false,
 			specState: "legacy",
 			summaryStale: false,
@@ -602,9 +578,10 @@ function resolveSddStatus(
 
 	const apply = readApplyOutcome(changePath);
 	const verify = readVerifyOutcome(changePath);
+	const verification = dependencies.readVerification(cwd, changePath);
 	const tasks = readTasksStatus(changePath);
 	const budget = readBudgetStatus(changePath);
-	const { verifyStale, summaryStale } = computeStaleness(cwd, changePath, present);
+	const { verifyStale, summaryStale } = computeStaleness(changePath, present, verification);
 	const specState = dependencies.readSpecState(cwd, target);
 	const lane = dependencies.readLane(join(resolveChangesDir(cwd), target));
 
@@ -650,10 +627,9 @@ function resolveSddStatus(
 	else if (verify === "fail") {
 		nextRecommended = "verify";
 		blocked.push("verify-report indica fallo: remediar antes de cerrar.");
-	} else if (verify === "pass" && verifyStale) {
-		// Corrección posterior a verify: la evidencia es obsoleta, re-verificar.
+	} else if (verify === "pass" && verification.state !== "current") {
 		nextRecommended = "verify";
-		blocked.push("verify-report es anterior al último apply: re-verifica antes de cerrar (evidencia obsoleta).");
+		blocked.push(`verificación ${verification.state}: ${verification.reason}; re-verifica antes de cerrar.`);
 	} else if (verify === "pass") nextRecommended = "close";
 	else {
 		// verify presente pero sin status legible → re-verificar para refrescar evidencia.
@@ -666,16 +642,15 @@ function resolveSddStatus(
 		blocked.push(specMapProvenanceBlocker(specState));
 		nextRecommended = "scope";
 	}
-	const storedIntent = readAgreement(changePath);
-	const missingManagedIntent = storedIntent.kind === "absent" && lanePhases.some((phase) => present[phase] && readFileSync(phaseArtifactPath(changePath, phase), "utf8").includes("intent_key:"));
-	const intent = missingManagedIntent ? { kind: "invalid" as const } : storedIntent;
-	const intentStatus: SddChangeStatus["intent"] = intent.kind === "absent" ? undefined
-		: intent.kind === "invalid" ? { state: "invalid" }
-		: { state: intent.agreement.status, materialKey: intent.agreement.materialKey };
-	if (intent.kind === "invalid" || (intent.kind === "valid" && intent.agreement.status !== "confirmed")) {
+	const intent = readIntentAdmission({ root: cwd, work: target, changeDir: changePath, requiresCanonical: false });
+	const missingManagedIntent = intent.state === "absent" && lanePhases.some((phase) => present[phase] && readFileSync(phaseArtifactPath(changePath, phase), "utf8").includes("intent_key:"));
+	const intentStatus: SddChangeStatus["intent"] = missingManagedIntent ? { state: "invalid" }
+		: intent.state === "absent" ? undefined : { state: intent.state, ...(intent.agreement ? { materialKey: intent.agreement.materialKey } : {}) };
+	if (!intent.admitted || missingManagedIntent) {
 		blocked.push("Intent pendiente o inválido: resuelve la conversación con el usuario mediante ein_intent (Pi) o ein-cc-sdd intent (Claude) antes de continuar.");
-	} else if (intent.kind === "valid") {
-		const stale = lanePhases.find((phase) => present[phase] && !artifactHasIntentKey(readFileSync(phaseArtifactPath(changePath, phase), "utf8"), intent.agreement.materialKey));
+	} else if (intent.agreement) {
+		const agreement = intent.agreement;
+		const stale = lanePhases.find((phase) => present[phase] && !artifactHasIntentKey(readFileSync(phaseArtifactPath(changePath, phase), "utf8"), agreement.materialKey));
 		if (stale) {
 			intentStatus!.stalePhase = stale;
 			const nextIndex = lanePhases.indexOf(nextRecommended);
@@ -720,6 +695,7 @@ function resolveSddStatus(
 		budget,
 		apply,
 		verify,
+		verification,
 		verifyStale,
 		specState,
 		lane,

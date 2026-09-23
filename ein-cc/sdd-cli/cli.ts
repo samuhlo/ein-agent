@@ -15,12 +15,15 @@
 //                                 comportamiento desde operaciones estructuradas
 //   ein-cc-sdd summary [change] < summary.md  escribe summary.md desde stdin,
 //                                 canal determinista para el cierre
+//   ein-cc-sdd verification <change> begin|finish [--token <uuid>]
+//                                 liga verify-report.md a la superficie comprobada
 //   ein-cc-sdd settings [--hook]   ajustes del proyecto → directivas
 //   ein-cc-sdd preflight [change] [--tdd off|strict] [--lane micro|standard] [--force]
 //                                 lee o fija la postura del cambio (TDD + carril)
 // =============================================================================
 
 import {
+	runReviewCommand,
 	changeStanceDirective,
 	initializeSddChange,
 	closeChange,
@@ -55,17 +58,21 @@ import {
 	writeChangeLane,
 	writeOpenSpecDelta,
 	writeSddSummary,
+	writeVerifiedSddSummary,
 } from "../../shared/ports/sdd.ts";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { updateSddTaskProgress } from "../../shared/sdd/sdd-task-progress.ts";
 import { join } from "node:path";
-import { writeVerifiedSddSummary } from "../../shared/sdd/sdd-summary-write.ts";
 import { formatSddCheck, formatSddStatus } from "./presentation.ts";
 import { runSyncCommand, type SyncCliResponse } from "./sync-command.ts";
 import { runIntentCommand } from "./intent-command.ts";
+import { runObjectiveCommand } from "./objective-command.ts";
+import { runContinuityCommand } from "./continuity-command.ts";
+import { recordClaudeAdmissionDenied } from "../continuity-runner.ts";
 import { readAgreement } from "../../shared/sdd/intent-agreement.ts";
 import { resolveChangesDir } from "../../shared/sdd/sdd-routing-core.ts";
+import { runVerificationCommand } from "./verification-command.ts";
 
 const cwd = process.cwd();
 
@@ -141,6 +148,11 @@ export function resolveGuardDecision(
 async function guardCmd(): Promise<void> {
 	const raw = await Bun.stdin.text();
 	const result = resolveGuardDecision(raw, cwd);
+	if (result?.decision === "deny") {
+		try {
+			await recordClaudeAdmissionDenied(JSON.parse(raw), cwd);
+		} catch { /* Denial remains authoritative even if diagnostic persistence fails. */ }
+	}
 	if (result) emitDecision(result.decision, result.reason);
 }
 
@@ -470,6 +482,14 @@ async function summaryCmd(args: readonly string[]): Promise<void> {
 	if (exitCode !== 0) process.exit(exitCode);
 }
 
+async function verificationCmd(args: readonly string[]): Promise<void> {
+	const action = args[1];
+	const input = action === "finish" ? await Bun.stdin.text() : "";
+	const { text, exitCode } = runVerificationCommand(cwd, args, input);
+	console.log(text);
+	if (exitCode !== 0) process.exit(exitCode);
+}
+
 // Ajustes del proyecto → directivas. `--hook` emite el sobre de SessionStart
 // (lo llama settings.json); sin flag imprime el bloque en claro, que es lo que
 // un agente lee por Bash y lo que un humano quiere ver.
@@ -619,8 +639,19 @@ async function syncCmd(args: readonly string[]): Promise<void> {
 // guard el dispatch correría con el argv del test runner y mataría el proceso.
 if (import.meta.main) {
 	switch (cmd) {
+		case "review-forecast":
+		case "review-publication-check": {
+			if (rest.length) { console.log(JSON.stringify({ ok: false, reason: "Review commands accept JSON on stdin, not positional arguments" })); process.exitCode = 1; break; }
+			const result = runReviewCommand(cwd, cmd, await Bun.stdin.text());
+			console.log(result.text); process.exitCode = result.exitCode; break;
+		}
+		case "objective": {
+			const result = runObjectiveCommand(cwd, rest, rest[0] === "set" ? await Bun.stdin.text() : "");
+			console.log(result.text); process.exitCode = result.exitCode; break;
+		}
 		case "intent": {
-			const result = runIntentCommand(cwd, rest, rest[1] === "record" ? await Bun.stdin.text() : "");
+			const intentRead = rest[0] === "draft-list" || rest.includes("--help") || !rest[1] || ["show", "draft-show", "draft-list"].includes(rest[1]);
+			const result = runIntentCommand(cwd, rest, intentRead ? "" : await Bun.stdin.text());
 			console.log(result.text);
 			process.exitCode = result.exitCode;
 			break;
@@ -629,11 +660,16 @@ if (import.meta.main) {
 		case "check": checkCmd(); break;
 		case "close": closeCmd(); break;
 		case "guard": await guardCmd(); break;
+		case "continuity": {
+			const result = runContinuityCommand(cwd, rest, rest[0] === "resolve" ? await Bun.stdin.text() : "");
+			console.log(result.text); process.exitCode = result.exitCode; break;
+		}
 		case "settings": settingsCmd(rest); break;
 		case "lane": laneCmd(rest); break;
 		case "preflight": await preflightCmd(rest); break;
 		case "delta": await deltaCmd(rest); break;
 		case "summary": await summaryCmd(rest); break;
+		case "verification": await verificationCmd(rest); break;
 		case "task-progress": {
 			const [change, task, action] = rest;
 			if (!change || !task || (action !== "start" && action !== "complete")) throw new Error("Usage: task-progress <change> <task> <start|complete>");
@@ -642,7 +678,8 @@ if (import.meta.main) {
 		}
 		case "sync": await syncCmd(rest); break;
 		default:
-			console.log("ein-cc-sdd <status|check|sync> [change] | intent <change> [show|record] (intent --help for JSON) | close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>] | guard (hook) | settings [--hook] | lane [change] [micro|standard] | preflight [change] [--tdd off|strict] [--lane micro|standard] [--force] | delta [change] --domain <domain> < operations.json | summary [change] < summary.json");
+			console.log("continuity inspect [opId] | continuity resolve <opId> < recovery.json");
+			console.log("ein-cc-sdd <status|check|sync> [change] | intent <change> [show|record] (intent --help for JSON) | objective [show|set] | close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>] | guard (hook) | settings [--hook] | lane [change] [micro|standard] | preflight [change] [--tdd off|strict] [--lane micro|standard] [--force] | delta [change] --domain <domain> < operations.json | summary [change] < summary.json | review-forecast < request.json | review-publication-check < measurement.json");
 			process.exit(1);
 	}
 }

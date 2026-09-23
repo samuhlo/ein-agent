@@ -61,6 +61,17 @@ export function recognizePiParticipantTerminal(input: {
 	if (Buffer.byteLength(child.finalOutput, "utf8") > MAX_PI_PARTICIPANT_OUTPUT_BYTES) {
 		return participantTerminalUnavailable("participant terminal output exceeds the bounded limit");
 	}
+	// CONTRACT -> Only a whole JSON report declares status; examples embedded in prose do not.
+	if (child.finalOutput.trimStart().startsWith("{")) {
+		let report: unknown;
+		try { report = JSON.parse(child.finalOutput); }
+		catch { return participantTerminalUnavailable("participant JSON report is malformed"); }
+		if (isRecord(report) && Object.hasOwn(report, "status")) {
+			if (report.status === "complete" || input.agent === "sdd-verify" && report.status === "pass") return { status: "complete" };
+			if (report.status === "blocked") return { status: "blocked", ...(typeof report.reason === "string" ? { reason: report.reason.slice(0, 2048) } : {}) };
+			return participantTerminalUnavailable("participant JSON status is not complete");
+		}
+	}
 	const statusLines = child.finalOutput
 		.split(/\r?\n/u)
 		.filter((line) => /^\s*status\s*:/u.test(line));
@@ -127,7 +138,7 @@ export function isNamedAgentStartEvent(event: unknown): boolean {
 }
 
 export function readAgentTask(event: unknown): string {
-	const candidates = [
+	const candidates = [...new Set([
 		readStringPath(event, ["task"]),
 		readStringPath(event, ["prompt"]),
 		readStringPath(event, ["userPrompt"]),
@@ -136,7 +147,7 @@ export function readAgentTask(event: unknown): string {
 		readStringPath(event, ["message"]),
 	].filter(
 		(value): value is string => typeof value === "string" && value.trim().length > 0,
-	);
+	))];
 	return candidates.length > 0
 		? candidates.join("\n")
 		: readStringPath(event, ["systemPrompt"]) ?? "";

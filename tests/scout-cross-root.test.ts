@@ -22,7 +22,7 @@ describe("scout migration audit", () => {
 			});
 			for (const cwd of [source, "../nuxt"]) {
 				const tracking: ScoutTracking = new Map();
-				const launch = normalizeScoutLaunch({ workflowScript: 'runs.all([{agent:"ein-scout",task:"source"}])', cwd }, "audit", tracking, target);
+				const launch = normalizeScoutLaunch({ workflowScript: 'return runs.all([{key:"source",agent:"ein-scout",task:"source"}])', cwd }, "audit", tracking, target);
 				expect(launch?.cwd).toBe(source);
 				const result: any = acceptTrackedScoutResult(tracking, "audit", { results: [1, 2, 3].map(() => ({ finalOutput: makeReport("app.vue"), cwd: outside })) }, false, target);
 				expect(result.branches).toHaveLength(3);

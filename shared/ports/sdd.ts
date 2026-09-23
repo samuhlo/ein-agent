@@ -1,16 +1,21 @@
 // Public boundary for the deterministic SDD engine consumed by Claude. This is
 // deliberately explicit: adding a capability requires changing this contract.
+export { runReviewCommand, checkReviewedPublication } from "../../ein-pi/agent/lib/review-publication-check.ts";
+export { reviewForecast } from "../../ein-pi/agent/lib/review-forecast.ts";
 import {
 	persistSddIntentResolution,
 	readSddIntentResolutionState,
 } from "../../ein-pi/agent/lib/sdd-preflight-record.ts";
 import { readRepositoryStateIdentity } from "../../ein-pi/agent/lib/git-baseline.ts";
+import { withIntentAdmissionLock, createIntentDraftRuntime } from "./intent.ts";
+import { verificationService } from "../../ein-pi/agent/lib/sdd-verification-runtime.ts";
 import { LANE_PHASES, readChangeLane } from "../../ein-pi/agent/lib/sdd-lane.ts";
 import { createAssessCloseReadiness } from "../sdd/sdd-close-readiness.ts";
 import { createCloseChange } from "../sdd/sdd-close-engine.ts";
 import { createSddIntentPreflightCoordinator } from "../sdd/sdd-intent-resolution.ts";
 import { createSddRoutingCore } from "../sdd/sdd-routing-core.ts";
 import { createLintChange, readOpenSpecState } from "../sdd/sdd-change-validation.ts";
+import { writeVerifiedSddSummary as writeVerifiedSummary } from "../sdd/sdd-summary-write.ts";
 
 export {
 	resolveSddPlanPreview,
@@ -20,6 +25,7 @@ export {
 	listActiveChanges,
 	isSafeChangeName,
 	resolveActiveSelection,
+	resolveChangesDir,
 	type SddChangeStatus,
 } from "../sdd/sdd-routing-core.ts";
 export type { ChangeLintReport } from "../sdd/sdd-change-validation.ts";
@@ -45,6 +51,7 @@ const intentCoordinator = createSddIntentPreflightCoordinator({
 const routingCore = createSddRoutingCore({
 	readLane: readChangeLane,
 	readSpecState: readOpenSpecState,
+	readVerification: (cwd, changePath) => verificationService.readVerificationFreshness({ cwd, changePath }),
 });
 const closeReadiness = createAssessCloseReadiness({
 	resolveSddStatus: routingCore.resolveSddStatus,
@@ -54,6 +61,7 @@ export const lintChange = createLintChange(
 	(changePath) => LANE_PHASES[readChangeLane(changePath)],
 );
 export const closeChange = createCloseChange({
+	withIntentAdmissionLock: (cwd, work, action) => withIntentAdmissionLock(cwd, work, action, createIntentDraftRuntime(cwd, { mutating: true, lockOnly: true })),
 	assessCloseReadiness: closeReadiness,
 	resolveSddStatus: routingCore.resolveSddStatus,
 	readRepositoryStateIdentity,
@@ -61,6 +69,12 @@ export const closeChange = createCloseChange({
 
 export const resolveSddIntentPreflight = intentCoordinator.resolve;
 export const resolveSddStatus = routingCore.resolveSddStatus;
+export const beginVerification = verificationService.beginVerification;
+export const finishVerification = verificationService.finishVerification;
+export const readVerificationFreshness = verificationService.readVerificationFreshness;
+export const writeVerifiedSddSummary = (request: { cwd: string; change: string; content: string; commands: readonly string[] }) =>
+	writeVerifiedSummary({ ...request, readVerification: (cwd, changePath) => verificationService.readVerificationFreshness({ cwd, changePath }) });
+export type { VerificationFreshness, VerificationReceipt, VerificationSession } from "../sdd/sdd-verification-receipt.ts";
 export type {
 	SddIntentPreflightInput,
 	SddIntentPreflightOutcome,

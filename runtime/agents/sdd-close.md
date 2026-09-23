@@ -1,7 +1,7 @@
 ---
 name: sdd-close
 description: Close a verified SDD change — condense it into a clean, reviewable summary.md. The deterministic move is done by the parent via /ein:sdd-close.
-tools: read, grep, find, write, bash, ein_sdd_summary
+tools: read, grep, find, write, bash, ein_sdd_summary, ein_sdd_phase_complete
 subagentOnlyExtensions: ../extensions/internal/ein-close-summary-child.ts, ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 ---

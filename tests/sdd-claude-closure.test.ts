@@ -11,7 +11,6 @@ const RETIRED_INTENT_COLLATERAL = [
 	"ein-pi/agent/lib/engram-cli.ts",
 	"ein-pi/agent/lib/memory-contract.ts",
 	"ein-pi/agent/lib/memory-lifecycle.ts",
-	"ein-pi/agent/lib/review-forecast.ts",
 	"ein-pi/agent/lib/sdd-assets.ts",
 	"ein-pi/agent/lib/sdd-intent-preflight.ts",
 	"ein-pi/agent/lib/sdd-preflight.ts",
@@ -37,6 +36,8 @@ describe("Claude SDD runtime closure", () => {
 		expect(closure).toContain("shared/sdd/sdd-intent-preflight.ts");
 		expect(closure).toContain("shared/sdd/sdd-intent-resolution.ts");
 		expect(closure).toContain("shared/sdd/sdd-routing-core.ts");
+		expect(closure).toContain("ein-pi/agent/lib/review-forecast.ts");
+		expect(closure).toContain("ein-pi/agent/lib/review-publication-check.ts");
 		for (const path of RETIRED_INTENT_COLLATERAL) expect(closure).not.toContain(path);
 	});
 

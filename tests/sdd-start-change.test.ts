@@ -24,14 +24,13 @@ test("initializes an explicitly named change with both decisions before scope", 
 
 test("each phase receives its own allocation, never the map's consumed balance", () => {
 	const input = { agent: "sdd-design", task: "Map ledger: budget_consumed=14999; remaining=1" };
-	expect(ensurePhaseContextBudget(input)).toBe(true);
-	expect(input.task).toContain('"max_tokens":15000');
-	expect(input.task).toContain("not a remaining balance");
-	expect(ensurePhaseContextBudget(input)).toBe(false);
+	expect(ensurePhaseContextBudget(input).changed).toBe(true);
+	expect(input.task).toContain('"max_tokens_guidance":15000');
+	expect(input.task).toContain("new per-execution allocation");
 	const explicit = { agent: "sdd-map", task: 'phase_budget: {"max_tokens":2000,"max_reads":5}' };
 	ensurePhaseContextBudget(explicit);
-	expect(explicit.task).toContain('"max_tokens":2000,"max_reads":5');
-	expect(ensurePhaseContextBudget({ agent: "ein-scout", task: "read" })).toBe(false);
+	expect(explicit.task).toContain('"max_tokens_guidance":2000');
+	expect(ensurePhaseContextBudget({ agent: "ein-scout", task: "read" }).changed).toBe(false);
 });
 
 test("the Pi tool and Claude CLI initialize explicitly; reads never create", async () => {

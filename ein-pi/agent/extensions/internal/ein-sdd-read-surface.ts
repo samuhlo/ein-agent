@@ -12,9 +12,6 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { t, tf } from "../../lib/i18n/strings.ts";
 import {
-	getSddPreflightPreferences,
-} from "../../lib/sdd-preflight.ts";
-import {
 	lintChange,
 	lintPhaseArtifact,
 } from "../../lib/sdd-guardrails.ts";
@@ -28,8 +25,7 @@ import {
 	sddNextHandoff,
 } from "../../lib/sdd-router.ts";
 import {
-	DEFAULT_REVIEW_BUDGET_BYTES,
-	DEFAULT_REVIEW_DENSITY_NOTICE_BYTES_PER_LINE,
+	DEFAULT_REVIEW_BUDGET,
 	evaluateReviewForecast,
 	formatReviewForecast,
 	reviewForecast,
@@ -175,22 +171,21 @@ export function registerSddReadSurface(
 			"non-whitespace UTF-8 bytes, touched files and per-file volume; test lines stay separate.",
 			"The result exceeds the review budget when either production lines or bytes exceed their limit.",
 			"File density is a localized notice and never blocks by itself.",
-			"With `base` it measures `base..HEAD`; without it, the working tree.",
+			"Choose working-tree (includes untracked) or committed (immutable commit range). Unknown never permits publication.",
 			"Call this before delegating a PR. Reads git only.",
 		].join(" "),
 		parameters: {
 			type: "object",
 			properties: {
+				mode: { type: "string", enum: ["working-tree", "committed"] },
+				head: { type: "string", description: "Commit head; committed mode only." },
+				paths: { type: "array", items: { type: "string" }, description: "Literal relative paths; omit for the full publication measure." },
 				base: { type: "string", description: "PR base ref (e.g. `main`, `dev`). Omit to measure the working tree (staged + unstaged)." },
 			},
 		} as const,
-		async execute(_id, params: { base?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
-			const budget = {
-				lines: getSddPreflightPreferences(ctx)?.reviewBudgetLines ?? 400,
-				bytes: DEFAULT_REVIEW_BUDGET_BYTES,
-				densityBytesPerLine: DEFAULT_REVIEW_DENSITY_NOTICE_BYTES_PER_LINE,
-			};
-			const forecast = reviewForecast(ctx.cwd, params?.base);
+		async execute(_id, params: { base?: string; mode?: "working-tree" | "committed"; head?: string; paths?: string[] }, _signal, _onUpdate, ctx: ExtensionContext) {
+			const budget = DEFAULT_REVIEW_BUDGET;
+			const forecast = reviewForecast(ctx.cwd, { ...params, mode: params?.mode ?? "working-tree" });
 			const evaluation = evaluateReviewForecast(forecast, budget);
 			return {
 				content: [{ type: "text", text: formatReviewForecast(forecast, budget, evaluation) }],

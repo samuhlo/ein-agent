@@ -1,4 +1,5 @@
 import { evidenceReadAllowed, readEvidenceTask, type IntentEvidence } from "../../lib/intent-evidence.ts";
+import { observeContinuityGuard } from "../../lib/continuity-operation-adapter.ts";
 // =============================================================================
 // EIN AGENT PROMPT HOOK
 // Builds the context added before each Pi agent starts. Selection rules live
@@ -7,7 +8,9 @@ import { evidenceReadAllowed, readEvidenceTask, type IntentEvidence } from "../.
 
 import { compileApplyHandoff } from "../../lib/apply-packet-handoff.ts";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { readAgreement } from "../../lib/intent-agreement.ts";
+import { readIntentAdmission } from "../../lib/intent-admission.ts";
 import { PHASE_ARTIFACT, resolveChangesDir, type SddPhase } from "../../lib/sdd-routing-core.ts";
 import { formatSkillsForPrompt, type ExtensionAPI, type Skill } from "@earendil-works/pi-coding-agent";
 import {
@@ -37,6 +40,12 @@ import { AGENT_DIR } from "../ein-paths.ts";
 import { canonicalSpecPrompt } from "./ein-canonical-spec-context.ts";
 import { changeStanceDirective, readChangeStance } from "../../lib/sdd-preflight-record.ts";
 import {
+	parseResolvedApplyTdd,
+	renderResolvedApplyTdd,
+	revalidateResolvedApplyTdd,
+	resolveApplyTdd,
+} from "../../lib/apply-tdd-contract.ts";
+import {
 	isNamedAgentStartEvent,
 	isSddAgentStartEvent,
 	readAgentStartNames,
@@ -64,16 +73,17 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 	let evidence: IntentEvidence | undefined;
 	let handoffError: string | undefined;
 	let agreementInput: { directory: string; artifact: string; key: string } | undefined;
-	pi.on("tool_call", (event, ctx) => {
+	pi.on("tool_call", observeContinuityGuard((event, ctx) => {
 		if (evidence) {
 			if (event.toolName === "bash") return evidence.commands.includes(String(event.input.command)) ? undefined : { block: true, reason: "Run only the exact commands supplied for this authorized evidence experiment" };
 			if (["read", "grep", "find"].includes(event.toolName) && evidenceReadAllowed(ctx.cwd, ("path" in event.input ? event.input.path : ".") ?? ".", evidence.roots)) return;
 			return { block: true, reason: "Evidence mode permits only scoped reads and the supplied commands; product writes and SDD artifacts are unavailable" };
 		}
 		if (handoffError) return { block: true, reason: handoffError };
-		if (!agreementInput || !["write", "edit", "bash", "ein_sdd_task_progress", "ein_openspec_delta_write", "ein_sdd_summary"].includes(event.toolName)) return;
+		if (!agreementInput || !["write", "edit", "bash", "ein_sdd_task_progress", "ein_openspec_delta_write", "ein_sdd_summary", "ein_sdd_verification", "ein_sdd_phase_complete"].includes(event.toolName)) return;
 		const current = readAgreement(agreementInput.directory);
-		if (current.kind !== "valid" || current.agreement.status !== "confirmed" || current.agreement.materialKey !== agreementInput.key) {
+		const admitted = current.kind === "valid" && readIntentAdmission({ root: ctx.cwd, work: current.agreement.work, changeDir: agreementInput.directory, requiresCanonical: true }).admitted;
+		if (!admitted || current.kind !== "valid" || current.agreement.status !== "confirmed" || current.agreement.materialKey !== agreementInput.key) {
 			return { block: true, reason: "Intent changed after this phase started; return blocked and re-plan against the current agreement." };
 		}
 		// Bind newly authored full output to the agreement actually supplied at
@@ -83,7 +93,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			const body = event.input.content.replace(/^[ \t]*(?:[-*][ \t]+)?intent_key:[^\r\n]*(?:\r?\n|$)/gm, "");
 			event.input.content = `${body}${body.endsWith("\n") ? "" : "\n"}\nintent_key: ${agreementInput.key}\n`;
 		}
-	});
+	}, "agent-prompt"));
 
 	pi.on("before_agent_start", async (event, ctx) => {
 		const isSddAgent = isSddAgentStartEvent(event);
@@ -107,10 +117,31 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const isScout = startNames.includes("ein-scout");
 		handoffError = undefined;
 		agreementInput = undefined;
-		const change = readExplicitSddChange(event);
-		const stancePrompt = change && isSddAgent ? changeStanceDirective(readChangeStance(ctx.cwd, change)) : "";
+		const task = readAgentTask(event);
+		const transported = startNames.includes("sdd-apply") ? parseResolvedApplyTdd(task) : { kind: "absent" as const };
+		let change = readExplicitSddChange(event);
+		let stancePrompt = change && isSddAgent ? changeStanceDirective(readChangeStance(ctx.cwd, change)) : "";
+		if (startNames.includes("sdd-apply")) {
+			if (transported.kind === "invalid") handoffError = transported.reason;
+			else if (transported.kind === "resolved") {
+				change = transported.contract.change ?? change;
+				const freshness = revalidateResolvedApplyTdd(ctx.cwd, transported.contract);
+				if (!freshness.current) handoffError = freshness.reason;
+				else stancePrompt = renderResolvedApplyTdd(transported.contract, true);
+			} else {
+				const legacy = resolveApplyTdd({ cwd: ctx.cwd, task });
+				if (legacy.kind !== "resolved") handoffError = legacy.kind === "invalid" ? legacy.reason : legacy.message;
+				else {
+					change = legacy.contract.change ?? change;
+					stancePrompt = renderResolvedApplyTdd(legacy.contract, false);
+				}
+			}
+		}
 		const directoryContext = change && isSddAgent
 			? `\nSDD change directory: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change))}. Resolve phase artifacts here, not at the repository root.\nCanonical intent path: ${JSON.stringify(join(resolveChangesDir(ctx.cwd), change, "intent.md"))}.\n${stancePrompt}` : "";
+		const adHocStanceContext = !change && stancePrompt ? `\n${stancePrompt}` : "";
+		const phaseRunBound = /^ein_phase_run:[\t ]*\{/m.test(readAgentTask(event));
+		const completionPrompt = phaseRunBound ? "\nBefore the final message call ein_sdd_phase_complete: complete only after finishing the assigned phase; partial or blocked preserves progress without claiming success.\n" : "";
 		const phase = startNames.find((name) => name.startsWith("sdd-"))?.slice(4) as SddPhase | undefined;
 		if (change && phase && PHASE_ARTIFACT[phase]) {
 			const directory = join(resolveChangesDir(ctx.cwd), change);
@@ -119,7 +150,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			else if (stored.kind !== "absent" || /^intent_work:/m.test(readAgentTask(event))) handoffError = "The phase's intent is absent, invalid or no longer confirmed";
 		}
 		let handoff: ReturnType<typeof compileApplyHandoff>;
-		try { if (handoffError) throw new Error(handoffError); handoff = startNames.includes("sdd-apply") ? compileApplyHandoff(ctx.cwd, readAgentTask(event)) : undefined; }
+		try { if (handoffError) throw new Error(handoffError); handoff = startNames.includes("sdd-apply") ? compileApplyHandoff(ctx.cwd, task) : undefined; }
 		catch (error) {
 			handoffError = error instanceof Error ? error.message : String(error);
 			return { systemPrompt: `${basePrompt}\n${phaseMarker}\nExecution blocked: ${handoffError}. Return status: blocked to the parent; tools are unavailable until the assignment is corrected.` };
@@ -171,6 +202,10 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			&& startNames.some((name) => name === "ein-git" || name === "ein-linear")
 		) {
 			artifactPrompt = `\n\n${artifactLanguageDirective(readArtifactLang(ctx.cwd))}`;
+			if (startNames.includes("ein-git")) {
+				const entry = fileURLToPath(new URL("../../lib/review-publication-check.ts", import.meta.url));
+				artifactPrompt += `\nPublication-check argv: ${JSON.stringify(["bun", entry, "review-publication-check"])}. Pass the committed baseOid/headOid/snapshotRef as JSON on stdin. Publication must be chained with && after a successful check.`;
+			}
 		}
 		// El padre delega la escritura; las reglas de edición pertenecen a apply.
 		const conventions = startNames.includes("sdd-apply") ? codeConventionSkillBlock(ctx.cwd) : "";
@@ -194,7 +229,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 		const codegraph = wantsContext ? codegraphDirective(ctx.cwd) : "";
 		const codegraphPrompt = codegraph ? `\n\n${codegraph}` : "";
 		return {
-			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${directoryContext}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff.prompt}` : ""}`,
+			systemPrompt: `${basePrompt}${!isParent ? `\n${phaseMarker}` : ""}${directoryContext}${adHocStanceContext}${completionPrompt}${einPrompt}${sddPrompt}${skillsPrompt}${artifactPrompt}${conventionsPrompt}${contextPrompt}${canonicalSpecContext}${codegraphPrompt}${handoff ? `\n\n${handoff.prompt}` : ""}`,
 		};
 	});
 }

@@ -25,6 +25,7 @@
 
 import { existsSync, mkdirSync, mkdtempSync, lstatSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { readAgreement } from "./intent-agreement.ts";
+import { readContinuityCheckpoint } from "./continuity-checkpoint-store.ts";
 import { dirname, join, relative, sep } from "node:path";
 
 import {
@@ -277,7 +278,8 @@ export function initializeSddChange(cwd: string, change: string, tdd: TddStance,
 	if (existsSync(target)) {
 		if (lstatSync(target).isSymbolicLink()) throw new Error("Unsafe change directory");
 		const intent = readAgreement(target);
-		if (readdirSync(target).every((name) => name === "intent.md") && intent.kind === "valid" && intent.agreement.status === "confirmed") {
+		const continuity = readContinuityCheckpoint(root, { mode: "sdd", change });
+		if (readdirSync(target).every((name) => name === "intent.md" || name === "continuity.json" && continuity.status === "valid") && intent.kind === "valid" && intent.agreement.status === "confirmed") {
 			writePreflightRecord(target, { tdd, decidedBy: author });
 			writeChangeLane(target, lane);
 			return readChangeStance(root, change)!;

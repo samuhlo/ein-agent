@@ -1,7 +1,7 @@
 ---
 name: sdd-map
 description: Map an SDD change idea before the design phase.
-tools: read, grep, find, write, bash
+tools: read, grep, find, write, bash, ein_sdd_phase_complete
 subagentOnlyExtensions: ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
 completionGuard: false
 ---
@@ -45,8 +45,8 @@ SCOPE PACKET = """
 scope: <bounded description of the change, 1-3 sentences>
 change_name: <name of the change>
 budget:
-  max_tokens: <number>
-  max_reads: <number, optional>
+  max_tokens: <context guidance>
+  max_tool_calls: <total calls this execution, optional>
 webfetch: <true | false — true ONLY if the request explicitly asks for it>
 excluded: <areas out of scope, optional>
 """
@@ -63,9 +63,9 @@ IF no `scope` reaches you from EITHER source:
 ## Effective Budget (hard default — there is never an unbounded exploration)
 
 IF `scope` is present but the budget numbers are missing, zero, or still `<number>` placeholders:
-  - Apply the HARD DEFAULT: max_tokens: 15000, max_reads: 30
+  - Apply: max_tokens: 15000, max_tool_calls: 30
   - Record `budget_source: default` in the ledger
-The Fail-Fast below ALWAYS runs against this effective budget. You never map without a concrete token/read cap — a missing budget means "use the default", not "read freely".
+`max_tokens` is guidance, not measured use or a runtime cap. The runner counts every call; after `max_tool_calls` it blocks configured research tools. Legacy `max_reads` means total calls, not reads.
 
 WHEN webfetch: true:
   - Add webfetch to the active tools list
@@ -81,14 +81,9 @@ ledger:
   webfetch_urls: [string]  # only if webfetch_used
   budget_consumed: { tokens, reads }
 
-## Fail-Fast by Budget
+## Budget Exhaustion
 
-IF reads.length >= budget.max_reads
-  OR estimated_tokens >= budget.max_tokens
-THEN:
-  - Stop exploration
-  - Return artifact with partial reads + budget_exceeded: true
-  - DO NOT continue reading more files
+When research blocks, stop and write partial `map.md` from accepted evidence with `budget_exceeded: true` and remaining gaps. `write` still works by default, though it counts. A new call gets a new per-execution allocation: reuse the artifact; do not retry old reads or claim a persistent balance.
 
 ## Return contract (compact envelope)
 

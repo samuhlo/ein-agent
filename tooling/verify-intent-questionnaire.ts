@@ -9,6 +9,7 @@ import { ToolExecutionComponent, initTheme } from "@earendil-works/pi-coding-age
 import { stripVTControlCharacters } from "node:util";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import questionCards from "../ein-pi/agent/extensions/ein-question-cards.ts";
+import { readIntentDraft } from "../ein-pi/agent/lib/intent-draft-store.ts";
 
 const home = process.env.EIN_INTENT_PILOT_AGENT_HOME ?? join(homedir(), ".pi-ein/agent");
 const plugin = await import(pathToFileURL(join(home, "npm/node_modules/@juicesharp/rpiv-ask-user-question/ask-user-question.ts")).href);
@@ -36,6 +37,10 @@ let seq = 0;
 let renders = 0;
 for (const handler of handlers.get("session_start") ?? []) await handler({}, ctx);
 async function call(name: string, input: any) {
+ if (name === "ein_intent" && input.action !== "status") {
+  const draft = readIntentDraft(cwd, input.work);
+  input = { ...input, expectedRevision: draft.status === "valid" ? draft.draft.revision : "absent" };
+ }
  const toolCallId = `pilot-${++seq}`;
  for (const handler of handlers.get("tool_call") ?? []) {
   const result = await handler({ toolName: name, toolCallId, input }, ctx);

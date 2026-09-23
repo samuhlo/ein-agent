@@ -33,7 +33,7 @@ import {
 	delegationTargetsOnly,
 } from "./delegation-shape.ts";
 import { type GitBaseline, readGitBaseline, renderGitBaselineLine } from "./git-baseline";
-import { DEFAULT_REVIEW_BUDGET_BYTES } from "./review-forecast.ts";
+import { DEFAULT_REVIEW_BUDGET_BYTES, DEFAULT_REVIEW_BUDGET_LINES } from "./review-forecast.ts";
 import { type TddMode, readTddMode } from "./tdd";
 import {
 	DEFAULT_LANE,
@@ -54,6 +54,7 @@ import {
 	type SddIntentPreflightOutcome,
 } from "./sdd-intent-resolution.ts";
 import { installSddAssets, sddGlobalAssetDriftCount } from "./sdd-assets.ts";
+import { decideApplyTurnBudget, type ResolvedApplyTdd } from "./apply-tdd-contract.ts";
 
 export { installSddAssets, sddGlobalAssetDriftCount };
 
@@ -116,7 +117,6 @@ interface SddPreflightCallbacks {
 // El budget de revisión es fijo (400): el Review Workload Guard lo usa como
 // umbral para avisar de un PR irrevisable. Ya no se pregunta al arrancar —
 // casi nadie lo cambiaba y era la pregunta de más fricción del preflight.
-const DEFAULT_REVIEW_BUDGET_LINES = 400;
 
 const DEFAULT_SDD_PREFLIGHT: SddPreflightPreferences = {
 	executionMode: "interactive",
@@ -233,10 +233,9 @@ function normalizeTddHint(value: unknown): TddMode | undefined {
 	return undefined;
 }
 
-// Marcadores en el TEXTO de la task del apply: canal de respaldo garantizado
-// (la task siempre llega al hook; un campo `tdd` extra podría no sobrevivir al
-// schema del tool). El parent ya escribe "STRICT TDD MODE IS ACTIVE" en applies
-// directos → strict. "NO TDD"/"SIN TDD"/"TDD: off|skip" → off.
+// Marcadores legacy en el TEXTO de una task ad-hoc. El contrato generado es la
+// autoridad normal; estas frases solo mantienen lanzamientos directos antiguos
+// sin change dir. "NO TDD"/"SIN TDD"/"TDD: off|skip" → off.
 function tddHintFromText(text: string): TddMode | undefined {
 	if (/\bstrict\s+tdd\s+mode\s+is\s+active\b/i.test(text)) return "strict";
 	if (/\bno[-\s]?tdd\b|\bsin\s+tdd\b|\btdd\s*[:=]?\s*(?:off|skip)\b/i.test(text))
@@ -443,13 +442,17 @@ export function ensureDelegationAcceptance(input: unknown): boolean {
 // a 60. Un grupo que lo toque devuelve `partial` y el orquestador continúa.
 const APPLY_TURN_BUDGET = { maxTurns: 60, graceTurns: 3 } as const;
 
-export function ensureApplyTurnBudget(input: unknown): boolean {
+export function ensureApplyTurnBudget(input: unknown, contract?: ResolvedApplyTdd, runnerSupportsTurnBudget = false): boolean {
 	if (!isRecord(input)) return false;
 	if (!delegationTargetsOnly(input, "sdd-apply")) return false;
 	if (input.turnBudget != null) return false;
-	// TDD estricto → sin cap de turnos (lo limita maxRuntimeMs); un cap tight
-	// mataba applies reales a mitad de los ciclos RED/GREEN.
-	if (readDelegationTddHint(input) === "strict") return false;
+	if (!contract) {
+		if (readDelegationTddHint(input) === "strict" || !runnerSupportsTurnBudget) return false;
+		input.turnBudget = { ...APPLY_TURN_BUDGET };
+		return true;
+	}
+	const decision = decideApplyTurnBudget(contract, undefined, runnerSupportsTurnBudget);
+	if (decision.status !== "automatic") return false;
 	input.turnBudget = { ...APPLY_TURN_BUDGET };
 	return true;
 }

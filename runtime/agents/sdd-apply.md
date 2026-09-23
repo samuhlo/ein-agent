@@ -1,7 +1,7 @@
 ---
 name: sdd-apply
 description: Implement SDD tasks with strict TDD evidence.
-tools: read, grep, find, edit, write, bash, ein_sdd_task_progress
+tools: read, grep, find, edit, write, bash, ein_sdd_task_progress, ein_sdd_phase_complete
 subagentOnlyExtensions: ../extensions/internal/ein-apply-progress-child.ts, ../extensions/internal/ein-command-guard-child.ts, ../extensions/internal/ein-phase-context-child.ts
 ---
 
@@ -34,9 +34,9 @@ You are a cheap-model executor; stay tight. A bounded slice must cost a fraction
 
 ## Strict TDD Gate
 
-**Change stance (highest priority):** this change's stance is recorded on disk and wins over `openspec/config.yaml`. It reaches you as a `## SDD change stance` or `## SDD Session Preflight` block; read it with `ein_sdd_preflight` when neither did. `Strict TDD: OFF` → Standard Mode, no RED/GREEN cycle, even if the project config declares strict TDD. `ON (forced)` → strict regardless of config. `AUTO`, or no stance at all → fall back to the config rule below.
+**Effective stance (highest priority):** use the injected `## Effective apply TDD (mechanical contract)` block. The parent resolved it from the persisted change stance, structured ad-hoc hint, or project setting, and the runtime revalidated its fingerprint before enabling tools. `Strict TDD: OFF` means Standard Mode even when project config says strict; `ON (forced)` means strict regardless of config. A legacy direct launch without the generated contract is labelled as uncoordinated and may use strict/off prose only for ad-hoc compatibility.
 
-If `openspec/config.yaml` declares strict TDD and a test runner, or the parent prompt says strict TDD is active:
+When the effective contract says strict:
 
 1. Follow RED → GREEN → TRIANGULATE → REFACTOR for every assigned task.
 2. Do not write production code before a failing test or equivalent RED test is written.

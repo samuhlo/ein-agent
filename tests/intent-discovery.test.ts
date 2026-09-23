@@ -5,11 +5,18 @@ import { join } from "node:path";
 import { registerIntentDiscovery } from "../ein-pi/agent/extensions/internal/ein-intent-discovery.ts";
 import { registerAgentPromptHook } from "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts";
 import { readAgreement } from "../ein-pi/agent/lib/intent-agreement.ts";
+import { runIntentDiscovery } from "../ein-pi/agent/lib/intent-discovery.ts";
+import { readIntentDraft } from "../ein-pi/agent/lib/intent-draft-store.ts";
+import { createIntentDraftRuntime } from "../ein-pi/agent/lib/intent-draft-runtime.ts";
+import { readContinuityCheckpoint } from "../ein-pi/agent/lib/continuity-checkpoint-store.ts";
+import { setContinuityObjective } from "../ein-pi/agent/lib/continuity-objective.ts";
 import { initializeSddChange } from "../ein-pi/agent/lib/sdd-preflight-record.ts";
 import { writeSddSummary, writeVerifiedSddSummary } from "../shared/sdd/sdd-summary-write.ts";
 import { createAssessCloseReadiness } from "../shared/sdd/sdd-close-readiness.ts";
 import { artifactHasIntentKey } from "../shared/sdd/intent-agreement.ts";
 import { resolveSddStatus } from "../ein-pi/agent/lib/sdd-router.ts";
+import { execFileSync } from "node:child_process";
+import { beginVerification, finishVerification, readVerificationFreshness } from "../ein-pi/agent/lib/sdd-verification-runtime.ts";
 
 const sandboxes: string[] = [];
 afterEach(() => { for (const path of sandboxes.splice(0)) rmSync(path, { recursive: true, force: true }); });
@@ -21,7 +28,10 @@ function harness(cwd = mkdtempSync(join(tmpdir(), "ein-intent-")), branch: any[]
  const pi = { on: (event: string, handler: Function) => handlers.set(event, handler), appendEntry: (customType: string, data: unknown) => branch.push({ type: "custom", customType, data }) };
  registerIntentDiscovery(pi as never, ((tool: any) => { spec = tool; }) as never);
  const ctx = { cwd, sessionManager: { getBranch: () => branch } };
- const call = async (args: object) => spec.execute("call", { work: "export-csv", ...args }, undefined, undefined, ctx);
+ const call = async (args: object) => {
+  const draft = readIntentDraft(cwd, (args as { work?: string }).work ?? "export-csv");
+  return spec.execute("call", { work: "export-csv", expectedRevision: draft.status === "valid" ? draft.draft.revision : "absent", ...args }, undefined, undefined, ctx);
+ };
  const input = (text: string, source = "interactive") => handlers.get("input")!({ text, source }, ctx);
  const gate = (input: object, toolName = "subagent") => handlers.get("tool_call")!({ toolName, input }, ctx);
  const propose = (extra = {}) => call({ action: "propose", material, decisions: [{ id: "rows", question: "Which rows?", dependsOn: [], status: "open" }], questions: ["Recomiendo exportar lo filtrado. ¿Eso o todos los registros?"], ...extra });
@@ -239,6 +249,7 @@ describe("decision-tree rounds and final review", () => {
 describe("intent discovery through the registered Pi tool and hooks", () => {
  test("a complete request can be recorded with observed provenance, never a fake or extension response", async () => {
   const h = harness();
+	setContinuityObjective(h.cwd, { objective: "Objetivo anterior", evidence: { kind: "pi-observed", requestId: "previous-request", recordedAt: "2026-09-22T12:00:00Z" } }, "absent");
   expect((await h.call({ action: "record", material })).isError).toBe(true);
   h.input("Export the filtered rows", "extension");
   expect((await h.call({ action: "record", material })).isError).toBe(true);
@@ -251,8 +262,18 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   expect(stored.kind).toBe("valid");
   if (stored.kind !== "valid") return;
   expect(stored.agreement).toMatchObject({ fromRequest: true, questions: [], response: { text: request, source: "rpc" } });
+	const continuity = readContinuityCheckpoint(h.cwd, { mode: "sdd", change: "export-csv" });
+	expect(continuity.status === "valid" && continuity.checkpoint).toMatchObject({ objective: material.objective, objectiveEvidence: { kind: "intent", work: "export-csv", materialKey: stored.agreement.materialKey, agreementRevision: stored.agreement.revision } });
   expect((await h.call({ action: "record", material: { ...material, objective: "Different work" }, change: "export-csv" })).isError).toBe(true);
  });
+	test("keeps a published agreement and exposes a warning when continuity cannot be updated", () => {
+		const h = harness();
+		const latest = { id: "request-1", text: "Exporta los resultados", source: "interactive" as const };
+		const snapshot = runIntentDiscovery(h.ctx as never, { action: "record", work: "export-csv", change: "export-csv", material, expectedRevision: "absent" }, (type, data) => h.branch.push({ type: "custom", customType: type, data }), latest,
+			{ ...createIntentDraftRuntime(h.cwd, { mutating: true }), publishObjective: () => ({ status: "warning", code: "continuity-objective-unavailable:io" }) });
+		expect(snapshot.agreement?.status).toBe("confirmed"); expect(snapshot.continuityWarning).toBe("continuity-objective-unavailable:io");
+		expect(readAgreement(join(h.cwd, "openspec/changes/export-csv")).kind).toBe("valid");
+	});
  test("record cannot bypass pending or cancelled discovery", async () => {
   const h = harness(); h.input("Build an export"); await h.propose();
   expect((await h.call({ action: "record", material })).isError).toBe(true);
@@ -506,7 +527,10 @@ describe("intent discovery through the registered Pi tool and hooks", () => {
   const dir=join(h.cwd,"openspec/changes/export-csv");const agreement=readAgreement(dir);if(agreement.kind!=="valid")throw new Error("fixture");
   const marker=`intent_key: ${agreement.agreement.materialKey}\n`;
   for(const [file,content] of Object.entries({"scope.md":"## Spec delta declaration\nspec_delta: none\nspec_delta_reason: Test only\n", "map.md":"scope_status: valid\n", "design.md":"Filtered rows only\n", "tasks.md":"## Group\n- [x] Task done\n", "apply-progress.md":"status: complete\n", "verify-report.md":"status: pass\nExecuted: bun test\n"})) writeFileSync(join(dir,file),marker+content);
-  const result=writeVerifiedSddSummary({cwd:h.cwd,change:"export-csv",content:"## Resultado\nObjetivo verificado.",commands:["bun test"]});
+  execFileSync("git",["init","-q"],{cwd:h.cwd});
+  const begun=beginVerification({cwd:h.cwd,changePath:dir});if(!begun.ok)throw new Error(begun.reason);
+  const finished=finishVerification({cwd:h.cwd,changePath:dir,token:begun.value.token,content:marker+"status: pass\nExecuted: bun test\n"});if(!finished.ok)throw new Error(finished.reason);
+  const result=writeVerifiedSddSummary({cwd:h.cwd,change:"export-csv",content:"## Resultado\nObjetivo verificado.",commands:["bun test"],readVerification:(cwd,changePath)=>readVerificationFreshness({cwd,changePath})});
   expect(result.ok).toBe(true);
   expect(artifactHasIntentKey(readFileSync(join(dir,"summary.md"),"utf8"),agreement.agreement.materialKey)).toBe(true);
   expect(resolveSddStatus(h.cwd,"export-csv").intent).toEqual({state:"confirmed",materialKey:agreement.agreement.materialKey});

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { resolve, join } from "node:path";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { subagentModulePath } from "../installer/src/core/subagent-module-path.ts";
 import { stripVTControlCharacters } from "node:util";
 import { initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { Text, visibleWidth } from "@earendil-works/pi-tui";
@@ -8,7 +9,7 @@ import { adaptTranscriptRenderer, cleanSubagentHeading } from "../ein-pi/agent/l
 
 const packagePath = process.argv[2];
 if (!packagePath) throw new Error("Usage: bun tooling/verify-terminal-transcript-runtime.ts <pi-subagents directory>");
-const { renderSubagentResult } = await import(pathToFileURL(join(resolve(packagePath), "src/tui/render.ts")).href);
+const { renderSubagentResult } = await import(pathToFileURL(subagentModulePath(resolve(packagePath), "src/tui/render.ts")).href);
 initTheme("dark");
 const release = adaptTranscriptRenderer(ToolExecutionComponent.prototype, cleanSubagentHeading);
 let count = 0;

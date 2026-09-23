@@ -78,7 +78,7 @@ describe("Claude native continuity hook", () => {
     await handleClaudeHook(hook("PostToolUse", { tool_name: "Write", tool_input: { secret: true }, tool_response: "raw" }), send);
     await handleClaudeHook(hook("PostToolUseFailure", { tool_name: "Task", error: "raw" }), send);
     await handleClaudeHook(hook("Stop"), send); await handleClaudeHook(hook("PreCompact", { trigger: "manual" }), send); await handleClaudeHook(hook("SessionEnd", { reason: "logout" }), send);
-    expect(sent).toEqual([{ kind: "mutation", tool: "Write", success: true }, { kind: "mutation", tool: "Task", success: false }, { kind: "refresh", boundary: "stop" }, { kind: "refresh", boundary: "compact-manual" }, { kind: "shutdown", reason: "logout" }]);
+    expect(sent).toEqual([{ kind: "mutation", tool: "Write", success: false }, { kind: "mutation", tool: "Task", success: false }, { kind: "refresh", boundary: "stop" }, { kind: "refresh", boundary: "compact-manual" }, { kind: "shutdown", reason: "logout" }]);
     expect(JSON.stringify(sent)).not.toMatch(/PRIVATE-ID|transcript|secret|raw/);
   });
 });

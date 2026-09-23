@@ -42,6 +42,8 @@ export type CloseOptions = {
 /** Permite interrumpir la poda en tests sin depender de permisos del sistema. */
 export type CloseCompactionTestSeam = Readonly<{
 	removeEntry?: (path: string) => void;
+	beforeArchive?: (record: { summarySha256: string; verificationReceiptSha256?: string }) => void;
+	afterArchive?: () => void;
 }>;
 
 const INVALID_LEGACY_REASONS = new Set(["none", "n/a", "na", "tbd", "unknown", "-"]);
@@ -58,6 +60,7 @@ type PendingCloseRecord = {
 	version: 1;
 	change: string;
 	summarySha256: string;
+	verificationReceiptSha256?: string;
 	completion: CloseCompletion;
 };
 
@@ -155,8 +158,10 @@ function inspectPendingClose(dir: string, change: string): PendingCloseInspectio
 	const value = readJson(path);
 	if (!isObject(value) || value.version !== 1 || value.change !== change || !SHA256.test(String(value.summarySha256 ?? ""))) return { kind: "invalid" };
 	const completion = parseCompletion(value.completion, change);
+	const verificationReceiptSha256 = value.verificationReceiptSha256;
+	if (verificationReceiptSha256 !== undefined && !SHA256.test(String(verificationReceiptSha256))) return { kind: "invalid" };
 	return completion
-		? { kind: "valid", record: { version: 1, change, summarySha256: String(value.summarySha256), completion } }
+		? { kind: "valid", record: { version: 1, change, summarySha256: String(value.summarySha256), ...(verificationReceiptSha256 ? { verificationReceiptSha256: String(verificationReceiptSha256) } : {}), completion } }
 		: { kind: "invalid" };
 }
 
@@ -167,12 +172,15 @@ function errorMessage(error: unknown): string {
 function prunePromotedChange(to: string, record: PendingCloseRecord, seam: CloseCompactionTestSeam): string | null {
 	try {
 		if (summarySha256(join(to, "summary.md")) !== record.summarySha256) throw new Error("el resumen archivado no coincide con la marca de recuperación");
+		if (record.verificationReceiptSha256 && summarySha256(join(to, "verification-receipt.json")) !== record.verificationReceiptSha256) throw new Error("el recibo de verificación archivado no coincide con la marca de recuperación");
 		const removeEntry = seam.removeEntry ?? ((path: string) => rmSync(path, { recursive: true, force: true }));
 		for (const entry of readdirSync(to).sort()) {
-			if (entry !== "summary.md" && entry !== CLOSE_PENDING_FILE) removeEntry(join(to, entry));
+			const durableReceipt = entry === "verification-receipt.json" && record.verificationReceiptSha256 !== undefined;
+			if (entry !== "summary.md" && entry !== CLOSE_PENDING_FILE && !durableReceipt) removeEntry(join(to, entry));
 		}
 		const durableEntries = readdirSync(to).filter((entry) => entry !== CLOSE_PENDING_FILE);
-		if (durableEntries.length !== 1 || durableEntries[0] !== "summary.md") throw new Error("el archivo no pudo reducirse a summary.md");
+		const expected = record.verificationReceiptSha256 ? ["summary.md", "verification-receipt.json"] : ["summary.md"];
+		if (durableEntries.sort().join("\0") !== expected.sort().join("\0")) throw new Error("el archivo no pudo reducirse a su evidencia duradera");
 		removeEntry(join(to, CLOSE_PENDING_FILE));
 		return null;
 	} catch (error) {
@@ -259,11 +267,15 @@ export function compactToArchive(
 			version: 1,
 			change,
 			summarySha256: summarySha256(join(from, "summary.md")),
+			...(completion.kind === "normal" ? { verificationReceiptSha256: summarySha256(join(from, "verification-receipt.json")) } : {}),
 			completion,
 		};
 		writeFileSync(join(from, CLOSE_PENDING_FILE), `${JSON.stringify(record, null, 2)}\n`, { flag: "wx" });
+		seam.beforeArchive?.(record);
 		renameSync(from, to);
-		return prunePromotedChange(to, record, seam);
+		const result = prunePromotedChange(to, record, seam);
+		if (result === null) seam.afterArchive?.();
+		return result;
 	} catch (error) {
 		return errorMessage(error);
 	}

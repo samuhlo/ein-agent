@@ -1,5 +1,7 @@
 import { validateEvidenceDelegation } from "../../lib/intent-discovery.ts";
+import { observeContinuityGuard } from "../../lib/continuity-operation-adapter.ts";
 import { askDeliveryConsent } from "../../lib/delivery-consent.ts";
+import { resolve } from "node:path";
 // =============================================================================
 // EIN TOOL CALL GATE
 // Owns Pi's pre-execution boundary: intent, delegation normalization, delivery
@@ -23,10 +25,17 @@ import {
 } from "../../lib/sdd-preflight.ts";
 import {
 	collectDelegationItems,
-	delegationShapeIsUnrecognized,
 	delegationTargetsOnly,
+	normalizeDelegationForRunner,
 	rewriteDelegationTasks,
 } from "../../lib/delegation-shape.ts";
+import { admitDelegation } from "../../lib/delegation-admission.ts";
+import {
+	attachResolvedApplyTdd,
+	decideApplyTurnBudget,
+	resolveApplyTdd,
+	type ResolvedApplyTdd,
+} from "../../lib/apply-tdd-contract.ts";
 import {
 	type DeliveryIntent,
 	bindDeliveryWork,
@@ -34,7 +43,6 @@ import {
 	nextDeliveryIntent,
 	readGitDeliveryMode,
 } from "../../lib/git-delivery.ts";
-import { t } from "../../lib/i18n/strings.ts";
 import {
 	confirmDelegatedDelivery,
 } from "../../lib/guardrails.ts";
@@ -60,23 +68,32 @@ import {
 	APPLY_PACKET_OBSERVATION_CUSTOM_TYPE,
 	createApplyPacketObservationRecord,
 } from "../../lib/apply-packet-observation-record.ts";
+import { beginPhaseRun } from "../../lib/sdd-phase-runtime.ts";
+import { phaseForAgent } from "../../lib/sdd-reconcile.ts";
+import type { PhaseRunReference } from "../../lib/sdd-phase-receipt.ts";
 
 type ToolCallGateDependencies = Readonly<{
 	scoutTracking: ScoutTracking;
-	rememberPhaseSnapshot: (
-		toolCallId: string,
-		input: unknown,
-		cwd: string,
-	) => void;
+	rememberPhaseRun?: (reference: PhaseRunReference) => void;
 }>;
+
+function explicitPhaseTarget(input: unknown): { change: string; phase: NonNullable<ReturnType<typeof phaseForAgent>> } | null {
+	const items = collectDelegationItems(input);
+	if (items.length !== 1) return null;
+	const phase = phaseForAgent(items[0]!.agent);
+	if (!phase) return null;
+	const targets = new Set<string>();
+	for (const match of items[0]!.task.matchAll(/^(?:change|intent_work)[\t ]*[:=][\t ]*([^\s]+)[\t ]*$/gm)) targets.add(match[1]!);
+	for (const match of items[0]!.task.matchAll(/(?:^|[\s`"'])(?:openspec|\.sdd)\/changes\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/|(?=[\s`"']|$))/g)) targets.add(match[1]!);
+	if (targets.size > 1) throw new Error(`phase delegation names conflicting changes: ${[...targets].join(", ")}`);
+	return targets.size === 1 ? { change: [...targets][0]!, phase } : null;
+}
 
 export function registerToolCallGate(
 	pi: ExtensionAPI,
 	dependencies: ToolCallGateDependencies,
 ) {
 	const deliveryIntentBySession = new Map<string, DeliveryIntent>();
-	const shapeDriftWarned = new Set<string>();
-
 	function recordDeliveryIntent(ctx: ExtensionContext, text: string): void {
 		const key = sddPreflightSessionKey(ctx);
 		deliveryIntentBySession.set(
@@ -85,8 +102,16 @@ export function registerToolCallGate(
 		);
 	}
 
-	pi.on("tool_call", async (event, ctx) => {
+	pi.on("tool_call", observeContinuityGuard(async (event, ctx) => {
 		if (event.toolName === "subagent") {
+			const initialAdmission = admitDelegation(event.input);
+			if (initialAdmission.kind === "rejected") {
+				return {
+					block: true,
+					reason: `[${initialAdmission.code}] ${initialAdmission.reason}${initialAdmission.line ? ` (line ${initialAdmission.line}, column ${initialAdmission.column})` : ""}`,
+				};
+			}
+			if (initialAdmission.kind === "management") return undefined;
 			try { if (validateEvidenceDelegation(ctx, event.input)) return; }
 			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			try { rewriteDelegationTasks(event.input, (agent, task) => expandSddParticipantTask(ctx.cwd, sddPreflightSessionKey(ctx), agent, task)); }
@@ -101,9 +126,12 @@ export function registerToolCallGate(
 			);
 			if (scoutLaunch) {
 				Object.assign(event.input as Record<string, unknown>, scoutLaunch);
+				delete (event.input as Record<string, unknown>).turnBudget;
+				try { normalizeDelegationForRunner(event.input); }
+				catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 				return undefined;
 			}
-			const items = collectDelegationItems(event.input);
+			let items = collectDelegationItems(event.input);
 			const workKeys = [...new Set(items.flatMap((item) => {
 				const match = item.task?.match(/^intent_work:\s*([^\s]+)\s*$/m);
 				return match ? [match[1]!] : [];
@@ -144,18 +172,56 @@ export function registerToolCallGate(
 				}
 			}
 			ensureParticipantForeground(event.input);
-			if (ctx.hasUI && delegationShapeIsUnrecognized(event.input)) {
-				const driftKey = sddPreflightSessionKey(ctx);
-				if (!shapeDriftWarned.has(driftKey)) {
-					shapeDriftWarned.add(driftKey);
-					ctx.ui.notify(
-						t(
-							"ai.delegation.shape-drift",
-							"Ein no reconoce la forma de esta delegación: los gates de entrega y TDD no se aplican. Si el runtime de subagentes se acaba de actualizar, actualiza Ein (`ein update`).",
-						),
-						"warning",
-					);
+			// Resolve one effective TDD contract per apply child. The existing gate
+			// may persist a missing change decision; resolution happens only after
+			// that opportunity, and the result itself is then reused for budget and
+			// child transport.
+			const childCwd = (item: Record<string, unknown>) => resolve(ctx.cwd,
+				typeof item.cwd === "string" ? item.cwd : isRecord(event.input) && typeof event.input.cwd === "string" ? event.input.cwd : ".");
+			for (const item of items) {
+				if (item.agent !== "sdd-apply" && item.agent !== "sdd-scope") continue;
+				const child = { ...item };
+				delete child.key;
+				await gateTddForDelegation(child, { ...ctx, cwd: childCwd(item) });
+			}
+			items = collectDelegationItems(event.input);
+			const applyContracts: ResolvedApplyTdd[] = [];
+			for (const item of items) {
+				if (item.agent !== "sdd-apply") continue;
+				const cwd = childCwd(item);
+				let resolution = resolveApplyTdd({ cwd, task: item.task, structuredHint: item.tdd });
+				if (resolution.kind === "needs-decision" && resolution.reason === "project-ask" && ctx.hasUI) {
+					const picked = await ctx.ui.select("TDD estricto para este apply ad-hoc", ["off", "strict"]);
+					if (picked === "off" || picked === "strict") {
+						resolution = resolveApplyTdd({ cwd, task: item.task, structuredHint: picked, change: null });
+					}
 				}
+				if (resolution.kind !== "resolved") {
+					return {
+						block: true,
+						reason: resolution.kind === "invalid"
+							? `Invalid apply TDD contract: ${resolution.reason}`
+							: `Apply TDD decision required: ${resolution.message}`,
+					};
+				}
+				const explicitBudget = item.turnBudget ?? (isRecord(event.input) ? event.input.turnBudget : undefined);
+				const budget = decideApplyTurnBudget(resolution.contract, explicitBudget);
+				if (budget.status === "unavailable" && explicitBudget !== undefined) {
+					return { block: true, reason: `${budget.message}; the apply was not launched` };
+				}
+				if (budget.status === "unavailable" && ctx.hasUI) ctx.ui.notify(
+					"Apply: límite de turnos no disponible en el runner; maxRuntimeMs sigue activo.",
+					"warning",
+				);
+				applyContracts.push(resolution.contract);
+			}
+			if (applyContracts.length > 0) {
+				let applyIndex = 0;
+				rewriteDelegationTasks(event.input, (agent, task) => agent === "sdd-apply"
+					? attachResolvedApplyTdd(task, applyContracts[applyIndex++]!)
+					: task);
+				if (items.length === 1) ensureApplyTurnBudget(event.input, applyContracts[0]);
+				items = collectDelegationItems(event.input);
 			}
 			// Rollout 1: observar el contrato vivo sin bloquear ni mutar la
 			// delegación. La puerta dura llega solo después de medir planes reales.
@@ -183,23 +249,23 @@ export function registerToolCallGate(
 				if (ctx.hasUI && notification) ctx.ui.notify(notification.message, notification.level);
 			}
 			if (isRecord(event.input) && event.input.agent === "sdd-apply" && typeof event.input.task === "string") {
-				try { compileApplyHandoff(ctx.cwd, event.input.task); }
+				try { compileApplyHandoff(childCwd(event.input), event.input.task); }
 				catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			}
 			ensurePlanningAcceptance(event.input);
 			ensureApplyAcceptance(event.input);
-			ensureApplyTurnBudget(event.input);
 			ensurePhaseRuntime(event.input);
-			try { ensurePhaseContextBudget(event.input); }
+			try {
+				const phaseBudgets = ensurePhaseContextBudget(event.input);
+				for (const allocation of phaseBudgets.allocations) {
+					if (allocation.warning && ctx.hasUI) ctx.ui.notify(`${allocation.agent}: ${allocation.warning}`, "warning");
+				}
+			}
 			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
 			ensureDelegationAcceptance(event.input);
-			await gateTddForDelegation(event.input, ctx);
-			dependencies.rememberPhaseSnapshot(
-				event.toolCallId,
-				event.input,
-				ctx.cwd,
-			);
-			return confirmDelegatedDelivery(event.input, ctx, {
+			try { normalizeDelegationForRunner(event.input); }
+			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
+			const deliveryGate = await confirmDelegatedDelivery(event.input, ctx, {
 				mode: readGitDeliveryMode(ctx.cwd),
 				confirm: (preview) => askDeliveryConsent(ctx, preview),
 				userRequested: deliveryIntentActive(
@@ -207,6 +273,18 @@ export function registerToolCallGate(
 					Date.now(), deliveryWork,
 				),
 			});
+			if (deliveryGate) return deliveryGate;
+			let target: ReturnType<typeof explicitPhaseTarget>;
+			try { target = explicitPhaseTarget(event.input); }
+			catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
+			if (target) {
+				const begun = beginPhaseRun({ cwd: ctx.cwd, change: target.change, phase: target.phase, toolCallId: event.toolCallId });
+				if (!begun.ok) return { block: true, reason: `[phase-run:${begun.code}] ${begun.reason}` };
+				const reference: PhaseRunReference = { version: 1, toolCallId: begun.value.toolCallId, change: begun.value.change, phase: begun.value.phase, nonce: begun.value.nonce };
+				rewriteDelegationTasks(event.input, (_agent, task) => `${task}\nein_phase_run: ${JSON.stringify(reference)}`);
+				dependencies.rememberPhaseRun?.(reference);
+			}
+			return undefined;
 		}
 		if (event.toolName !== "bash") return undefined;
 		if (!isRecord(event.input) || typeof event.input.command !== "string") {
@@ -215,7 +293,7 @@ export function registerToolCallGate(
 		const guard = await guardChildCommand(event, ctx);
 		if (guard) return guard;
 		return undefined;
-	});
+	}, "tool-call-gate"));
 
 	return { recordDeliveryIntent };
 }

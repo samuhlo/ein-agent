@@ -72,8 +72,9 @@ describe("sdd-map.md SCOPE PACKET contract", () => {
   });
 
   test("tiene budget hard-default para no mapear sin tope", () => {
-    // La explosion de tokens venia de mapear sin presupuesto en modo chain.
-    expect(content).toContain("HARD DEFAULT");
+    // El tope efectivo es de llamadas del runner; tokens son orientación.
+    expect(content).toContain("max_tool_calls: 30");
+    expect(content).toContain("not measured use or a runtime cap");
     expect(content).toContain("15000");
     expect(content).toContain("budget_allocated"); // lee el budget de scope.md
   });

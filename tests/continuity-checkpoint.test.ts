@@ -4,7 +4,7 @@ import {
 	CONTINUITY_CHECKPOINT_LIMITS,
 	deriveContinuityCheckpoint,
 	parseContinuityCheckpoint,
-	type ContinuityCheckpointV1,
+	type ContinuityCheckpoint,
 	type ContinuityCheckpointFacts,
 } from "../ein-pi/agent/lib/continuity-checkpoint.ts";
 import type { ProjectStateV1 } from "../ein-pi/agent/lib/project-state.ts";
@@ -56,7 +56,7 @@ describe("continuity checkpoint derivation", () => {
 		expect(first).toEqual(second);
 		expect(first.ok).toBe(true);
 		if (!first.ok) return;
-		expect(first.checkpoint).toMatchObject({ version: 1, mode: "sdd", change: "continuity", stateRef: REF, verification: { status: "fresh", observedStateRef: REF } });
+		expect(first.checkpoint).toMatchObject({ version: 2, mode: "sdd", change: "continuity", stateRef: REF, objectiveEvidence: { kind: "unknown" }, verification: { status: "fresh", observedStateRef: REF } });
 		expect(first.checkpoint.changedPaths).toEqual(["new.ts", "src/a.ts", "src/z.ts"]);
 		expect(first.checkpoint.warnings).toEqual(["git-dirty", "git-staged", "git-untracked", "provider-runtime-unavailable"]);
 		expect(first.checkpoint.revision).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -119,6 +119,17 @@ describe("continuity checkpoint derivation", () => {
 });
 
 describe("continuity checkpoint parser", () => {
+	test("canonicalizes objective evidence order and rejects private or malformed provenance", () => {
+		const evidence = { kind: "pi-observed" as const, requestId: "request-1", recordedAt: FACTS.capturedAt };
+		const left = derive(state(), { ...FACTS, objectiveEvidence: evidence });
+		const right = derive(state(), { ...FACTS, objectiveEvidence: { recordedAt: evidence.recordedAt, requestId: evidence.requestId, kind: evidence.kind } });
+		expect(left).toEqual(right);
+		for (const invalid of [
+			{ ...evidence, requestId: "password=secret" },
+			{ ...evidence, observedAgreementRevision: "/Users/private/session" },
+			{ kind: "intent", work: "valid-work", materialKey: "invented", agreementRevision: "revision-1" },
+		]) expect(derive(state(), { ...FACTS, objectiveEvidence: invalid as never }).ok).toBeFalse();
+	});
 	test("rejects malformed, extended, unsafe, and tampered input without throwing", () => {
 		const result = derive();
 		if (!result.ok) throw new Error("fixture derivation failed");
@@ -150,17 +161,27 @@ describe("continuity checkpoint parser", () => {
 		if (!result.ok) throw new Error("fixture derivation failed");
 		expect(Object.keys(result.checkpoint)).toEqual([
 			"version", "revision", "mode", "change", "stateRef", "capturedAt", "objective", "completed", "nextAction",
-			"unresolvedDecisions", "changedPaths", "verification", "warnings",
+			"unresolvedDecisions", "changedPaths", "verification", "warnings", "objectiveEvidence",
 		]);
-		expect(result.checkpoint.version).toBe(1);
+		expect(result.checkpoint.version).toBe(2);
 		expect(result.checkpoint).not.toHaveProperty("sddParticipants");
 		expect(JSON.stringify(result.checkpoint)).not.toContain("sddParticipants");
 		expect(parseContinuityCheckpoint(JSON.stringify(result.checkpoint))).toEqual(result);
 		expect(parseContinuityCheckpoint(JSON.stringify({ ...result.checkpoint, sddParticipants: null }))).toEqual({ ok: false, reason: "invalid-checkpoint" });
 
-		const legacy = resign({ ...result.checkpoint, version: 2 as const, sddParticipants: null });
-		expect(parseContinuityCheckpoint(legacy)).toEqual({ ok: false, reason: "invalid-checkpoint" });
-		expect(parseContinuityCheckpoint(JSON.stringify(legacy))).toEqual({ ok: false, reason: "invalid-checkpoint" });
-		expect(parseContinuityCheckpoint({ ...result.checkpoint, version: 3 as const, sddParticipants: null })).toEqual({ ok: false, reason: "invalid-checkpoint" });
+		const participant = resign({ ...result.checkpoint, sddParticipants: null });
+		expect(parseContinuityCheckpoint(participant)).toEqual({ ok: false, reason: "invalid-checkpoint" });
+		expect(parseContinuityCheckpoint({ ...result.checkpoint, version: 3 as const })).toEqual({ ok: false, reason: "invalid-checkpoint" });
+	});
+
+	test("reads a valid v1 with its original hash and marks migration evidence outside the record", () => {
+		const result = derive();
+		if (!result.ok || result.checkpoint.version !== 2) throw new Error("fixture derivation failed");
+		const { objectiveEvidence, ...withoutEvidence } = result.checkpoint;
+		void objectiveEvidence;
+		const legacy = resign({ ...withoutEvidence, version: 1 as const }) as ContinuityCheckpoint;
+		const parsed = parseContinuityCheckpoint(legacy);
+		expect(parsed).toEqual({ ok: true, checkpoint: legacy });
+		expect(parseContinuityCheckpoint({ ...legacy, objective: "tampered" })).toEqual({ ok: false, reason: "revision-mismatch" });
 	});
 });

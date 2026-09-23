@@ -12,6 +12,7 @@ import {
   openSync,
   closeSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   unlinkSync,
@@ -36,6 +37,7 @@ const MAX_RESPONSE_BYTES = 256 * 1024 * 1024;
 // for the asset download; everything else uses the short default.
 const REQUEST_TIMEOUT_MS = 30_000;
 const ASSET_TIMEOUT_MS = 300_000;
+const MAX_TEMPLATE_INVENTORY_BYTES = 1024 * 1024;
 const GITHUB_HOSTS = new Set([
   "api.github.com",
   "github.com",
@@ -70,6 +72,7 @@ export type UpdateCaps = {
     readFile(path: string): Uint8Array;
     exists(path: string): boolean;
     makeDir(path: string): void;
+    listDir(path: string): string[];
     copyDir(sourcePath: string, destinationPath: string): void;
     removeDir(path: string): void;
     inspect(path: string): FileEntry;
@@ -85,6 +88,7 @@ export type UpdateCaps = {
   template: {
     deploy(binaryPath: string, agentDir: string): Promise<void>;
     readManifest(agentDir: string): Promise<{ templateVersion?: string } | null>;
+    queryInventory(binaryPath: string): Promise<{ code: number; stdout: string }>;
   };
   clock: { now(): Date };
   signals: { on(signal: "SIGINT" | "SIGTERM", handler: () => void): () => void };
@@ -156,6 +160,7 @@ export function defaultUpdateCaps(): UpdateCaps {
       readFile: (path) => new Uint8Array(readFileSync(path)),
       exists: (path) => existsSync(path),
       makeDir: (path) => mkdirSync(path, { recursive: true }),
+      listDir: (path) => readdirSync(path).sort(),
       copyDir: (sourcePath, destinationPath) => cpSync(sourcePath, destinationPath, { recursive: true }),
       removeDir: (path) => rmSync(path, { recursive: true, force: true }),
       inspect(path) {
@@ -205,6 +210,30 @@ export function defaultUpdateCaps(): UpdateCaps {
         if (!existsSync(path)) return null;
         return JSON.parse(readFileSync(path, "utf8")) as { templateVersion?: string };
       },
+      async queryInventory(binaryPath) {
+        const child = Bun.spawn([binaryPath, "--ein-template-inventory"], { stdout: "pipe", stderr: "ignore" });
+        const reader = child.stdout.getReader();
+        const chunks: Uint8Array[] = [];
+        let size = 0;
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          size += chunk.value.byteLength;
+          if (size > MAX_TEMPLATE_INVENTORY_BYTES) {
+            child.kill();
+            await child.exited;
+            throw new Error("Candidate template inventory exceeds size limit");
+          }
+          chunks.push(chunk.value);
+        }
+        const bytes = new Uint8Array(size);
+        let offset = 0;
+        for (const chunk of chunks) {
+          bytes.set(chunk, offset);
+          offset += chunk.byteLength;
+        }
+        return { code: await child.exited, stdout: new TextDecoder().decode(bytes) };
+      },
     },
     clock: { now: () => new Date() },
     signals: {
@@ -221,4 +250,4 @@ export function stageError(stage: UpdateStageError["stage"], code: string, messa
   return { stage, code, message };
 }
 
-export const updateCapsLimits = { MAX_REDIRECTS, MAX_RESPONSE_BYTES, REQUEST_TIMEOUT_MS, ASSET_TIMEOUT_MS };
+export const updateCapsLimits = { MAX_REDIRECTS, MAX_RESPONSE_BYTES, REQUEST_TIMEOUT_MS, ASSET_TIMEOUT_MS, MAX_TEMPLATE_INVENTORY_BYTES };

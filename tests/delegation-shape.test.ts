@@ -76,12 +76,12 @@ afterEach(() => {
 describe("parseWorkflowScriptDelegations", () => {
 	test("preserves the task through JSON string transport without executing it", () => {
 		const task = 'Audit\n{"path":"src/á.ts"}\n\tKeep \\n literal; ${neverExecute()}';
-		const script = `runs.run("audit", {agent: "ein-cleaner", task: ${JSON.stringify(task)}})`;
+		const script = `return runs.run("audit", {agent: "ein-cleaner", task: ${JSON.stringify(task)}})`;
 		expect(collectDelegationItems({ workflowScript: script })[0]?.task).toBe(task);
 	});
 	test("extrae agente y task de un runs.run", () => {
 		expect(parseWorkflowScriptDelegations(`return runs.run("deliver", { agent: "ein-git", task: "haz push" })`)).toEqual([
-			{ agent: "ein-git", task: "haz push" },
+			{ key: "deliver", agent: "ein-git", task: "haz push" },
 		]);
 	});
 
@@ -91,25 +91,23 @@ describe("parseWorkflowScriptDelegations", () => {
 			return runs.run("apply", { agent: "sdd-apply", task: "implementa el corte", tdd: "strict" });
 		`;
 		expect(parseWorkflowScriptDelegations(script)).toEqual([
-			{ agent: "sdd-map", task: "mapea el cambio" },
-			{ agent: "sdd-apply", task: "implementa el corte", tdd: "strict" },
+			{ key: "map", agent: "sdd-map", task: "mapea el cambio" },
+			{ key: "apply", agent: "sdd-apply", task: "implementa el corte", tdd: "strict" },
 		]);
 	});
 
-	test("un objeto anidado no genera item propio", () => {
-		const script = `runs.run("a", { agent: "sdd-apply", task: "t", turnBudget: { maxTurns: 5, graceTurns: 1 } })`;
-		expect(parseWorkflowScriptDelegations(script)).toEqual([
-			{ agent: "sdd-apply", task: "t" },
-		]);
+	test("turnBudget se conserva como metadata del child, no como item propio", () => {
+		const script = `return runs.run("a", { agent: "sdd-apply", task: "t", turnBudget: { maxTurns: 5, graceTurns: 1 } })`;
+		expect(parseWorkflowScriptDelegations(script)).toEqual([{ key: "a", agent: "sdd-apply", task: "t", turnBudget: { maxTurns: 5, graceTurns: 1 } }]);
 	});
 
 	test("acepta template literals, claves entrecomilladas y comillas escapadas", () => {
-		const script = "runs.run('x', { 'agent': 'ein-git', task: `haz push y abre PR\nsin force` })";
+		const script = "return runs.run('x', { 'agent': 'ein-git', task: `haz push y abre PR\nsin force` })";
 		expect(parseWorkflowScriptDelegations(script)).toEqual([
-			{ agent: "ein-git", task: "haz push y abre PR\nsin force" },
+			{ key: "x", agent: "ein-git", task: "haz push y abre PR\nsin force" },
 		]);
-		expect(parseWorkflowScriptDelegations(`runs.run('x', { agent: 'ein-git', task: 'abre el PR de \\'entrega\\'' })`)).toEqual([
-			{ agent: "ein-git", task: "abre el PR de 'entrega'" },
+		expect(parseWorkflowScriptDelegations(`return runs.run('x', { agent: 'ein-git', task: 'abre el PR de \\'entrega\\'' })`)).toEqual([
+			{ key: "x", agent: "ein-git", task: "abre el PR de 'entrega'" },
 		]);
 	});
 
@@ -119,11 +117,11 @@ describe("parseWorkflowScriptDelegations", () => {
 			/* agent: "ein-git" */
 			return runs.run("apply", { agent: chosenAgent, task: "implementa" });
 		`;
-		expect(parseWorkflowScriptDelegations(script)).toEqual([{ task: "implementa" }]);
+		expect(parseWorkflowScriptDelegations(script)).toEqual([]);
 	});
 
 	test("runs.all es fan-out aunque el array se construya en runtime", () => {
-		expect(workflowScriptFansOut(`return runs.all(files.map((f) => ({ agent: "sdd-apply", task: f })))`)).toBe(true);
+		expect(workflowScriptFansOut(`return runs.all(files.map((f) => ({ agent: "sdd-apply", task: f })))`)).toBe(false);
 		expect(workflowScriptFansOut(DELIVERY_SCRIPT)).toBe(false);
 	});
 });
@@ -132,8 +130,8 @@ describe("collectDelegationItems", () => {
 	test("lee la forma nueva y las legacy", () => {
 		expect(collectDelegationAgentNames({ workflowScript: DELIVERY_SCRIPT })).toEqual(["ein-git"]);
 		expect(collectDelegationAgentNames({ agent: "ein-git", task: "haz push" })).toEqual(["ein-git"]);
-		expect(collectDelegationAgentNames({ steps: [{ agent: "sdd-map", task: "m" }, { agent: "sdd-design", task: "d" }] })).toEqual(["sdd-map", "sdd-design"]);
-		expect(collectDelegationTaskTexts({ tasks: [{ agent: "sdd-apply", task: "implementa" }] })).toEqual(["implementa"]);
+		expect(collectDelegationAgentNames({ steps: [{ agent: "sdd-map", task: "m" }, { agent: "sdd-design", task: "d" }] })).toEqual([]);
+		expect(collectDelegationTaskTexts({ tasks: [{ agent: "sdd-apply", task: "implementa" }] })).toEqual([]);
 	});
 
 	test("una llamada de GESTIÓN no es un lanzamiento", () => {
@@ -143,8 +141,8 @@ describe("collectDelegationItems", () => {
 	});
 
 	test("delegationTargetsOnly exige que TODOS los children sean ese agente", () => {
-		expect(delegationTargetsOnly({ workflowScript: `runs.run("a", { agent: "sdd-apply", task: "t" })` }, "sdd-apply")).toBe(true);
-		expect(delegationTargetsOnly({ workflowScript: `runs.all([{ agent: "sdd-apply", task: "t" }, { agent: "sdd-verify", task: "v" }])` }, "sdd-apply")).toBe(false);
+		expect(delegationTargetsOnly({ workflowScript: `return runs.run("a", { agent: "sdd-apply", task: "t" })` }, "sdd-apply")).toBe(true);
+		expect(delegationTargetsOnly({ workflowScript: `return runs.all([{ key:"apply", agent: "sdd-apply", task: "t" }, { key:"verify", agent: "sdd-verify", task: "v" }])` }, "sdd-apply")).toBe(false);
 		expect(delegationTargetsOnly({}, "sdd-apply")).toBe(false);
 	});
 });
@@ -168,11 +166,11 @@ describe("gate de entrega sobre workflowScript", () => {
 	});
 
 	test("reconoce la entrega por la prosa aunque el agente no sea de entrega", () => {
-		expect(delegationIsDelivery({ workflowScript: `runs.run("x", { agent: "worker", task: "cuando acabes, haz push y abre PR" })` })).toBe(true);
+		expect(delegationIsDelivery({ workflowScript: `return runs.run("x", { agent: "worker", task: "cuando acabes, haz push y abre PR" })` })).toBe(true);
 	});
 
 	test("un script sin entrega no abre el grant", () => {
-		expect(delegationIsDelivery({ workflowScript: `runs.run("x", { agent: "sdd-map", task: "mapea el cambio" })` })).toBe(false);
+		expect(delegationIsDelivery({ workflowScript: `return runs.run("x", { agent: "sdd-map", task: "mapea el cambio" })` })).toBe(false);
 	});
 
 	test("REGRESIÓN: auto + petición explícita emite grant y el push headless pasa", async () => {
@@ -212,7 +210,7 @@ describe("shaping SDD sobre workflowScript", () => {
 		expect(delegationStartsScope(script("sdd-scope"))).toBe(true);
 		expect(delegationTargetsApply(script("sdd-apply"))).toBe(true);
 		expect(delegationTargetsApply(script("sdd-map"))).toBe(false);
-		expect(delegationTargetsApply({ workflowScript: `runs.all([{ agent: "sdd-map", task: "m" }, { agent: "sdd-apply", task: "a" }])` })).toBe(true);
+		expect(delegationTargetsApply({ workflowScript: `return runs.all([{ key:"map", agent: "sdd-map", task: "m" }, { key:"apply", agent: "sdd-apply", task: "a" }])` })).toBe(true);
 	});
 
 	test("planning-only inyecta acceptance: none", () => {
@@ -223,13 +221,15 @@ describe("shaping SDD sobre workflowScript", () => {
 		expect((input as Record<string, unknown>).acceptance).toMatchObject({ level: "none" });
 	});
 
-	test("apply solo recibe acceptance/turnBudget si es el único child", () => {
+	test("apply solo recibe acceptance; turnBudget requiere soporte declarado por el runner", () => {
 		const single = script("sdd-apply");
 		expect(ensureApplyAcceptance(single)).toBe(true);
-		expect(ensureApplyTurnBudget(single)).toBe(true);
+		expect(ensureApplyTurnBudget(single)).toBe(false);
+		expect((single as Record<string, unknown>).turnBudget).toBeUndefined();
+		expect(ensureApplyTurnBudget(single, undefined, true)).toBe(true);
 		expect((single as Record<string, unknown>).turnBudget).toMatchObject({ maxTurns: 60 });
 		// Mixto: el default bajaría a TODOS los children del workflow.
-		const mixed = { workflowScript: `runs.all([{ agent: "sdd-apply", task: "a" }, { agent: "sdd-verify", task: "v" }])` };
+		const mixed = { workflowScript: `return runs.all([{ key:"apply", agent: "sdd-apply", task: "a" }, { key:"verify", agent: "sdd-verify", task: "v" }])` };
 		expect(ensureApplyAcceptance(mixed)).toBe(false);
 		expect(ensureApplyTurnBudget(mixed)).toBe(false);
 	});
@@ -259,14 +259,14 @@ describe("shaping SDD sobre workflowScript", () => {
 	});
 
 	test("el hint de TDD del child de apply gana; strict no recibe cap de turnos", () => {
-		const strict = { workflowScript: `runs.run("a", { agent: "sdd-apply", task: "implementa", tdd: "strict" })` };
+		const strict = { workflowScript: `return runs.run("a", { agent: "sdd-apply", task: "implementa", tdd: "strict" })` };
 		expect(readDelegationTddHint(strict)).toBe("strict");
 		expect(ensureApplyTurnBudget(strict)).toBe(false);
 	});
 
 	test("resuelve la fase para reconciliar un ✗ con artefacto entregado", () => {
 		expect(resolveDelegationPhase(script("sdd-map"))).toBe("map");
-		expect(resolveDelegationPhase({ workflowScript: `runs.all([{ agent: "sdd-map", task: "m" }, { agent: "sdd-design", task: "d" }])` })).toBeNull();
+		expect(resolveDelegationPhase({ workflowScript: `return runs.all([{ key:"map", agent: "sdd-map", task: "m" }, { key:"design", agent: "sdd-design", task: "d" }])` })).toBeNull();
 	});
 });
 
@@ -289,7 +289,7 @@ describe("contrato del scout sobre workflowScript", () => {
 	// runtime devuelve un SingleResult por hijo, así que sí puede; el contrato
 	// valida rama a rama y el bound de 3 lo aplica `acceptTrackedScoutResult`.
 	test("acepta un fan-out de scouts y lo mantiene en foreground", () => {
-		const launch = normalizeScoutLaunch({ workflowScript: `return runs.all([{ agent: "ein-scout", task: "a" }, { agent: "ein-scout", task: "b" }])` }, "call-2", new Map())!;
+		const launch = normalizeScoutLaunch({ workflowScript: `return runs.all([{ key:"a", agent: "ein-scout", task: "a" }, { key:"b", agent: "ein-scout", task: "b" }])` }, "call-2", new Map())!;
 		expect(launch.async).toBe(false);
 		expect(launch.toolBudget).toEqual({ hard: 30, soft: 24, block: "*" });
 	});
@@ -301,10 +301,10 @@ describe("contrato del scout sobre workflowScript", () => {
 
 test("rewrites only literal task slots and preserves the surrounding workflow", async () => {
  const {rewriteDelegationTasks}=await import("../ein-pi/agent/lib/delegation-shape.ts");
- const input={workflowScript:'// task: "keep"\nconst out = await runs.run("one", { agent: "ein-cleaner", task: "ref", turnBudget: { maxTurns: 3 } }); return out;'};
+ const input={workflowScript:'// task: "keep"\nreturn runs.run("one", { agent: "ein-cleaner", task: "ref" });'};
  rewriteDelegationTasks(input,(agent,task)=>agent==="ein-cleaner"&&task==="ref"?'generated\ncontract with "quotes"':task);
  expect(collectDelegationItems(input)[0]?.task).toBe('generated\ncontract with "quotes"');
- expect(input.workflowScript).toContain('// task: "keep"');expect(input.workflowScript).toContain('turnBudget: { maxTurns: 3 }');
- expect(()=>rewriteDelegationTasks({workflowScript:'runs.run("one", {agent:"ein-cleaner",task:"ref" + secret})'},()=>"changed")).toThrow("standalone string literal");
+ expect(input.workflowScript).not.toContain('// task: "keep"');expect(input.workflowScript).toContain('runs.run');
+ expect(()=>rewriteDelegationTasks({workflowScript:'return runs.run("one", {agent:"ein-cleaner",task:"ref" + secret})'},()=>"changed")).toThrow("JSON literal");
  const single={agent:"ein-cleaner",task:"ref"};rewriteDelegationTasks(single,()=>"full");expect(single.task).toBe("full");
 });

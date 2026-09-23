@@ -12,17 +12,25 @@ const SHARED_FACADE_ROOTS = [CONTRACT_ROOT, SDD_CORE_ROOT] as const;
 const SHARED_README = readFileSync(join(ROOT, "shared", "README.md"), "utf8");
 
 const ALLOWED_PI_BRIDGES = [
+	"shared/ports/intent.ts::../../ein-pi/agent/lib/intent-draft-runtime.ts",
 	"shared/ports/continuity.ts::../../ein-pi/agent/lib/continuity-checkpoint.ts",
 	"shared/ports/continuity.ts::../../ein-pi/agent/lib/continuity-handoff-lifecycle.ts",
+	"shared/ports/continuity.ts::../../ein-pi/agent/lib/continuity-objective.ts",
+	"shared/ports/continuity.ts::../../ein-pi/agent/lib/continuity-operation-runtime.ts",
+	"shared/ports/continuity.ts::../../ein-pi/agent/lib/continuity-operations.ts",
+	"shared/ports/continuity.ts::../../ein-pi/agent/lib/runtime-session-identity.ts",
 	"shared/ports/continuity.ts::../../ein-pi/agent/lib/terminal-continue-transport.ts",
 	"shared/ports/doctor.ts::../../ein-pi/agent/lib/doctor-core.ts",
 	"shared/ports/linear.ts::../../ein-pi/agent/lib/linear-integration.ts",
 	"shared/ports/runtime-payload.ts::ein-pi/agent/surfaces/surface-runner.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/git-baseline.ts",
+	"shared/ports/sdd.ts::../../ein-pi/agent/lib/review-forecast.ts",
+	"shared/ports/sdd.ts::../../ein-pi/agent/lib/review-publication-check.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/guardrails.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/project-directives.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-lane.ts",
 	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-preflight-record.ts",
+	"shared/ports/sdd.ts::../../ein-pi/agent/lib/sdd-verification-runtime.ts",
 ] as const;
 
 function typescriptFiles(directory: string): string[] {

@@ -323,7 +323,7 @@ describe("ephemeral participant coordinator", () => {
 		const cwd = fixture("transport", true, true);
 		const plan = planSddParticipants(cwd, "transport", "change");
 		const original = plan.next!.task;
-		const input = { workflowScript: `runs.run("audit", {agent: "ein-cleaner", task: ${JSON.stringify(original + "\n\nParent authority: audit only; do not mutate source.")}})` };
+		const input = { workflowScript: `return runs.run("audit", {agent: "ein-cleaner", task: ${JSON.stringify(original + "\n\nParent authority: audit only; do not mutate source.")}})` };
 		const task = collectDelegationItems(input)[0]!.task!;
 		expect(admitSddParticipantCall(cwd, "transport", "tampered", "ein-cleaner", task.replace("src/a.ts", "src/other.ts"))).toContain("task contract");
 		expect(admitSddParticipantCall(cwd, "transport", "valid", "ein-cleaner", task)).toBeNull();
