@@ -306,20 +306,41 @@ jobs:
           ```
           EOF
           fi
-          gh release create "$RELEASE_TAG" \
-            $release_prerelease_flag \
-            --title "EIN v${release_version}" \
-            --notes-file /tmp/release-notes.md \
-            dist/ein-installer-darwin-arm64 \
-            dist/ein-installer-darwin-x64 \
-            dist/ein-installer-linux-arm64 \
-            dist/ein-installer-linux-x64 \
-            dist/checksums.txt \
-            install.sh
+          if gh release view "$RELEASE_TAG" --json tagName,isDraft,isPrerelease,assets > /tmp/ein-existing-release.json 2>/dev/null; then
+            jq -e --arg tag "$RELEASE_TAG" --argjson prerelease "$([[ "$RELEASE_CHANNEL" == "alpha" ]] && echo true || echo false)" '
+              .tagName == $tag and .isDraft == false and .isPrerelease == $prerelease and
+              ([.assets[].name] | sort) == (["checksums.txt", "ein-installer-darwin-arm64", "ein-installer-darwin-x64", "ein-installer-linux-arm64", "ein-installer-linux-x64", "install.sh"] | sort)
+            ' /tmp/ein-existing-release.json
+            echo "Release already contains the expected assets; running the upgrade smoke again."
+          else
+            gh release create "$RELEASE_TAG" \
+              $release_prerelease_flag \
+              --title "EIN v${release_version}" \
+              --notes-file /tmp/release-notes.md \
+              dist/ein-installer-darwin-arm64 \
+              dist/ein-installer-darwin-x64 \
+              dist/ein-installer-linux-arm64 \
+              dist/ein-installer-linux-x64 \
+              dist/checksums.txt \
+              install.sh
+          fi
 
       - name: Published release upgrade smoke
         timeout-minutes: 20
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.resolve_release_tag.outputs.release_tag }}
-        run: ../e2e/release-update-test.sh installer-v0.95.0-alpha.3 "$RELEASE_TAG"
+          HOTFIX: ${{ steps.resolve_release_tag.outputs.hotfix }}
+          SMOKE_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          if [[ "$HOTFIX" == "true" ]]; then
+            # The maintenance commit predates hotfix support in this smoke script.
+            # Use the workflow's main commit while testing immutable published assets.
+            git fetch origin main
+            mkdir -p /tmp/ein-release-e2e
+            git show "$SMOKE_SOURCE_SHA":e2e/release-update-test.sh > /tmp/ein-release-e2e/release-update-test.sh
+            git show "$SMOKE_SOURCE_SHA":e2e/Dockerfile.ubuntu > /tmp/ein-release-e2e/Dockerfile.ubuntu
+            bash /tmp/ein-release-e2e/release-update-test.sh installer-v0.95.0-alpha.3 "$RELEASE_TAG"
+          else
+            ../e2e/release-update-test.sh installer-v0.95.0-alpha.3 "$RELEASE_TAG"
+          fi

@@ -12,7 +12,7 @@ REPOSITORY="${EIN_INSTALLER_REPO:-samuhlo/ein-agent}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE="ein-release-update-ubuntu"
 
-tag_pattern='^installer-v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$'
+tag_pattern='^installer-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-alpha\.(0|[1-9][0-9]*)(\.[1-9][0-9]*)?$'
 for tag in "$SOURCE_TAG" "$TARGET_TAG"; do
   [[ "$tag" =~ $tag_pattern ]] || { echo "[assert] tag alpha no canónico: $tag" >&2; exit 1; }
 done
