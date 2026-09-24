@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { checkReviewedPublication } from "../ein-pi/agent/lib/review-publication-check.ts";
+import { checkCurrentPublication, checkReviewedPublication } from "../ein-pi/agent/lib/review-publication-check.ts";
 import { reviewForecast } from "../ein-pi/agent/lib/review-forecast.ts";
 import { bundleEinCcPayload } from "../installer/scripts/bundle-ein-cc.ts";
 
@@ -29,6 +29,36 @@ test("Pi entry and Claude CLI check the same immutable measurement", () => {
 	expect(checkReviewedPublication(root, request)).toEqual({ ok: true });
 	for (const entry of [pi, claude]) { const result = cli(root, entry, request); expect(result.status).toBe(0); expect(JSON.parse(result.stdout)).toEqual({ ok: true }); }
 	for (const entry of [pi, claude]) expect(spawnSync(process.execPath, [entry, "review-publication-check", "--paths=feature.ts"], { cwd: root, input: JSON.stringify(request) }).status).toBe(1);
+});
+test("a delegated git agent can check the current commit without forwarded measurement fields", () => {
+	const box = fixture();
+	const base = box.request.baseOid;
+	for (const entry of [pi, claude]) {
+		const result = spawnSync(process.execPath, [entry, "review-current", base], { cwd: box.root, encoding: "utf8" });
+		expect(result.status, result.stderr).toBe(0);
+		expect(result.stdout.trim()).toBe(box.request.headOid);
+	}
+	expect(checkCurrentPublication(box.root, base)).toEqual({ ok: true, headOid: box.request.headOid });
+	expect(spawnSync(process.execPath, [pi, "review-current"], { cwd: box.root }).status).toBe(1);
+	expect(spawnSync(process.execPath, [pi, "review-current", "--bad"], { cwd: box.root }).status).toBe(1);
+	const large = fixture(600);
+	expect(checkCurrentPublication(large.root, large.request.baseOid).ok).toBe(false);
+});
+test("the self-contained check gates a real push to a local remote", () => {
+	const remote = mkdtempSync(join(tmpdir(), "review-push-remote-")); roots.push(remote);
+	execFileSync("git", ["init", "--bare", "-q", remote]);
+	const push = (box: ReturnType<typeof fixture>) => {
+		box.git("remote", "add", "origin", remote);
+		return spawnSync("sh", ["-c", 'oid="$(bun "$EIN_PI_AGENT_HOME/lib/review-publication-check.ts" review-current "$1")" && git push origin "$oid:refs/heads/delivery"', "publish", box.request.baseOid], {
+			cwd: box.root, encoding: "utf8", env: { ...process.env, EIN_PI_AGENT_HOME: resolve(import.meta.dir, "../ein-pi/agent") },
+		});
+	};
+	const small = fixture();
+	expect(push(small).status).toBe(0);
+	expect(execFileSync("git", ["rev-parse", "refs/heads/delivery"], { cwd: remote, encoding: "utf8" }).trim()).toBe(small.request.headOid);
+	const large = fixture(600);
+	expect(push(large).status).not.toBe(0);
+	expect(execFileSync("git", ["rev-parse", "refs/heads/delivery"], { cwd: remote, encoding: "utf8" }).trim()).toBe(small.request.headOid);
 });
 test("invalid, partial, over-budget or old-HEAD measurements prevent the fake publisher", () => {
 	const box = fixture();
