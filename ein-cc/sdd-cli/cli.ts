@@ -24,6 +24,7 @@
 
 import {
 	runReviewCommand,
+	closeDeliveryViolation,
 	changeStanceDirective,
 	initializeSddChange,
 	closeChange,
@@ -114,13 +115,19 @@ export function resolveGuardDecision(
 	cwd: string,
 ): { decision: GuardDecision; reason: string } | null {
 	let command = "";
+	let agentType = "";
 	try {
-		const input = JSON.parse(rawInput) as { tool_input?: { command?: string } };
+		const input = JSON.parse(rawInput) as { agent_type?: string; tool_input?: { command?: string } };
 		command = input?.tool_input?.command ?? "";
+		agentType = input?.agent_type ?? "";
 	} catch {
 		return null; // JSON malformado → degrada abierto, sin decisión ni log.
 	}
 	if (!command) return null;
+	if (agentType === "sdd-close") {
+		const violation = closeDeliveryViolation(command);
+		if (violation) return { decision: "deny", reason: violation };
+	}
 
 	const denied = evaluateDeniedCommand(command);
 	if (denied) {

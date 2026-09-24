@@ -34,6 +34,7 @@ import {
 } from "./delegation-shape.ts";
 import type { GitDeliveryMode } from "./git-delivery.ts";
 import { stripNegatedDelivery } from "./git-delivery.ts";
+import { invokesBinarySubcommand, invokesGitSubcommand } from "./git-staging.ts";
 import { pick } from "./lang.ts";
 
 const DENIED_BASH_PATTERNS: RegExp[] = [
@@ -52,6 +53,24 @@ const CONFIRM_BASH_PATTERNS: RegExp[] = [
 	/\bnpm\s+publish\b/,
 	/\bpi\s+remove\b/,
 ];
+
+const CLOSE_GIT_MUTATIONS = [
+	"add", "commit", "commit-tree", "push", "tag", "merge", "rebase",
+	"reset", "clean", "cherry-pick", "revert", "stash", "update-ref",
+	"am", "apply", "worktree", "rm", "mv", "checkout", "switch", "restore",
+] as const;
+
+export function closeDeliveryViolation(command: string): string | null {
+	if (invokesBinarySubcommand(command, "gh", "pr")) {
+		return "sdd-close solo escribe summary.md: las PR pertenecen a la entrega posterior por ein-git.";
+	}
+	for (const sub of CLOSE_GIT_MUTATIONS) {
+		if (invokesGitSubcommand(command, sub)) {
+			return `sdd-close solo escribe summary.md: git ${sub} pertenece a la entrega posterior por ein-git.`;
+		}
+	}
+	return null;
+}
 
 // Agentes cuya RAZÓN DE SER es la entrega. Delegarles algo ES una entrega: no
 // hay que deducirlo de la prosa. Antes el gate solo miraba el texto de la task
