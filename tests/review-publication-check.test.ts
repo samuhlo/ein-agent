@@ -47,15 +47,20 @@ test("a delegated git agent can check the current commit without forwarded measu
 test("the self-contained check gates a real push to a local remote", () => {
 	const remote = mkdtempSync(join(tmpdir(), "review-push-remote-")); roots.push(remote);
 	execFileSync("git", ["init", "--bare", "-q", remote]);
-	const push = (box: ReturnType<typeof fixture>) => {
-		box.git("remote", "add", "origin", remote);
-		return spawnSync("sh", ["-c", 'oid="$(bun "$EIN_PI_AGENT_HOME/lib/review-publication-check.ts" review-current "$1")" && git push origin "$oid:refs/heads/delivery"', "publish", box.request.baseOid], {
+	const push = (box: ReturnType<typeof fixture>, shell = "sh", branch = "delivery") => {
+		if (!box.git("remote").split("\n").includes("origin")) box.git("remote", "add", "origin", remote);
+		return spawnSync(shell, ["-c", 'oid="$(bun "$EIN_PI_AGENT_HOME/lib/review-publication-check.ts" review-current "$1")" && git push origin "${oid}:refs/heads/$2"', "publish", box.request.baseOid, branch], {
 			cwd: box.root, encoding: "utf8", env: { ...process.env, EIN_PI_AGENT_HOME: resolve(import.meta.dir, "../ein-pi/agent") },
 		});
 	};
 	const small = fixture();
 	expect(push(small).status).toBe(0);
 	expect(execFileSync("git", ["rev-parse", "refs/heads/delivery"], { cwd: remote, encoding: "utf8" }).trim()).toBe(small.request.headOid);
+	if (spawnSync("zsh", ["-c", ":"]).status === 0) {
+		// The old "$oid:refs/..." expands incorrectly in Zsh, Ein's local shell.
+		expect(push(small, "zsh", "delivery-zsh").status).toBe(0);
+		expect(execFileSync("git", ["rev-parse", "refs/heads/delivery-zsh"], { cwd: remote, encoding: "utf8" }).trim()).toBe(small.request.headOid);
+	}
 	const large = fixture(600);
 	expect(push(large).status).not.toBe(0);
 	expect(execFileSync("git", ["rev-parse", "refs/heads/delivery"], { cwd: remote, encoding: "utf8" }).trim()).toBe(small.request.headOid);

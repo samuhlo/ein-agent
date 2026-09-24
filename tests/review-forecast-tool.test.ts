@@ -52,6 +52,7 @@ test("the git agent uses a stable installed checker without parent handoff field
 		expect(result.systemPrompt).not.toContain("Publication-check argv:");
 		const agent = readFileSync(resolve(import.meta.dir, "../runtime/agents/ein-git.md"), "utf8");
 		expect(agent).toContain("$EIN_PI_AGENT_HOME/lib/review-publication-check.ts");
+		expect(agent).toContain('"${oid}:refs/heads/<delivery-branch>"');
 		const installed = join(cwd, "isolated Pi with spaces", "lib"); mkdirSync(installed, { recursive: true });
 		for (const name of ["review-publication-check.ts", "review-exception.ts", "review-forecast.ts", "review-snapshot.ts"]) copyFileSync(resolve(import.meta.dir, "../ein-pi/agent/lib", name), join(installed, name));
 		const run = spawnSync(process.execPath, [join(installed, "review-publication-check.ts")], { cwd, encoding: "utf8", input: "{}" });
