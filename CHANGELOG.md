@@ -4,6 +4,20 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.15] - 2026-09-24
+
+### Fixed
+
+- La entrega Git mide el commit actual antes de publicar, sin pasar referencias
+  ni rutas de ejecutables entre agentes. Conserva el límite de revisión.
+- `sdd-close` no puede crear commits ni PR. El cierre escribe el resumen y la
+  entrega queda en manos de `ein-git`, tanto en Pi como en Claude.
+
+### Changed
+
+- El cuadro de autorización Git enseña primero la acción, el proyecto, la rama
+  y la base de PR pedida; los detalles técnicos se abren con `d`.
+
 ## [0.99.0-alpha.14] - 2026-09-23
 
 ### Fixed
