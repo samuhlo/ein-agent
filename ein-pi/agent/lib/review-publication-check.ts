@@ -23,6 +23,25 @@ export function checkReviewedPublication(cwd: string, request: PublicationReques
 	} catch { return { ok: false, reason: "Git publication identity unavailable" }; }
 }
 
+export function checkCurrentPublication(cwd: string, base: string): { ok: true; headOid: string } | { ok: false; reason: string } {
+	if (!base || !/^[\w./-]+$/.test(base) || base.startsWith("-")) return { ok: false, reason: "invalid PR base" };
+	const forecast = reviewForecast(cwd, { mode: "committed", base });
+	if (!forecast.ok || !forecast.headOid) return { ok: false, reason: forecast.reason ?? "committed change unavailable" };
+	const evaluation = evaluateReviewForecast(forecast, DEFAULT_REVIEW_BUDGET);
+	if (evaluation.decision !== "within") return { ok: false, reason: `PR exceeds review budget: ${forecast.production}/${DEFAULT_REVIEW_BUDGET.lines} production lines, ${forecast.productionBytes}/${DEFAULT_REVIEW_BUDGET.bytes} bytes` };
+	try {
+		const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8", timeout: 10_000, stdio: ["ignore", "pipe", "pipe"] }).trim();
+		if (head !== forecast.headOid) return { ok: false, reason: "HEAD changed during publication check" };
+		return { ok: true, headOid: head };
+	} catch { return { ok: false, reason: "Git publication identity unavailable" }; }
+}
+
+export function runCurrentPublicationCommand(cwd: string, args: readonly string[]): { text: string; exitCode: number } {
+	if (args.length !== 1) return { text: "Expected one PR base ref", exitCode: 1 };
+	const result = checkCurrentPublication(cwd, args[0]!);
+	return result.ok ? { text: result.headOid, exitCode: 0 } : { text: result.reason, exitCode: 1 };
+}
+
 export function runReviewCommand(cwd: string, command: "review-forecast" | "review-publication-check", input: string): { text: string; exitCode: number } {
 	try {
 		const request: unknown = JSON.parse(input);
@@ -38,7 +57,11 @@ export function runReviewCommand(cwd: string, command: "review-forecast" | "revi
 
 if (import.meta.main) {
 	const command = process.argv[2];
-	if (process.argv.length > 3 || command !== undefined && command !== "review-publication-check" && command !== "review-forecast") process.exitCode = 1;
+	if (command === "review-current") {
+		const result = runCurrentPublicationCommand(process.cwd(), process.argv.slice(3));
+		(result.exitCode ? console.error : console.log)(result.text); process.exitCode = result.exitCode;
+	}
+	else if (process.argv.length > 3 || command !== undefined && command !== "review-publication-check" && command !== "review-forecast") process.exitCode = 1;
 	else {
 		const result = runReviewCommand(process.cwd(), command ?? "review-publication-check", await Bun.stdin.text());
 		console.log(result.text); process.exitCode = result.exitCode;

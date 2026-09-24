@@ -24,6 +24,7 @@
 
 import {
 	runReviewCommand,
+	runCurrentPublicationCommand,
 	changeStanceDirective,
 	initializeSddChange,
 	closeChange,
@@ -634,6 +635,10 @@ async function syncCmd(args: readonly string[]): Promise<void> {
 // guard el dispatch correría con el argv del test runner y mataría el proceso.
 if (import.meta.main) {
 	switch (cmd) {
+		case "review-current": {
+			const result = runCurrentPublicationCommand(cwd, rest);
+			(result.exitCode ? console.error : console.log)(result.text); process.exitCode = result.exitCode; break;
+		}
 		case "review-forecast":
 		case "review-publication-check": {
 			if (rest.length) { console.log(JSON.stringify({ ok: false, reason: "Review commands accept JSON on stdin, not positional arguments" })); process.exitCode = 1; break; }
@@ -674,7 +679,7 @@ if (import.meta.main) {
 		case "sync": await syncCmd(rest); break;
 		default:
 			console.log("continuity inspect [opId] | continuity resolve <opId> < recovery.json");
-			console.log("ein-cc-sdd <status|check|sync> [change] | intent <change> [show|record] (intent --help for JSON) | objective [show|set] | close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>] | guard (hook) | settings [--hook] | lane [change] [micro|standard] | preflight [change] [--tdd off|strict] [--lane micro|standard] [--force] | delta [change] --domain <domain> < operations.json | summary [change] < summary.json | review-forecast < request.json | review-publication-check < measurement.json");
+			console.log("ein-cc-sdd <status|check|sync> [change] | intent <change> [show|record] (intent --help for JSON) | objective [show|set] | close <change> [--force] [--reconciliation-profile <profile>] [--reconciliation-evidence <path>] [--reason <reason>] | guard (hook) | settings [--hook] | lane [change] [micro|standard] | preflight [change] [--tdd off|strict] [--lane micro|standard] [--force] | delta [change] --domain <domain> < operations.json | summary [change] < summary.json | review-forecast < request.json | review-current <base-ref> | review-publication-check < measurement.json");
 			process.exit(1);
 	}
 }
