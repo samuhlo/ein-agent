@@ -4,6 +4,13 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.15.2] - 2026-09-24
+
+### Fixed
+
+- La instrucción de publicación usa una expansión de variable válida en Zsh,
+  el shell local, al construir la referencia remota del push.
+
 ## [0.99.0-alpha.15.1] - 2026-09-24
 
 ### Fixed
