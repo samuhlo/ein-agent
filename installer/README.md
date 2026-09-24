@@ -151,6 +151,17 @@ El bootstrap y `ein update` consumen esos assets de GitHub Release. Las notas de
 una prerelease incluyen el comando con canal y tag exactos; las de una release
 final conservan el bootstrap del canal estable.
 
+### Hotfix de una alpha publicada
+
+Para corregir una alpha sin arrastrar cambios posteriores de `main`, crea una
+rama `maintenance/<version-base>` desde su tag publicado. Una PR a esa rama
+incluye arreglo, pruebas, versión `alpha.N.H` y changelog. Tras fusionarla,
+ejecuta `installer-release.yml` desde `main` con `release_tag` nuevo y
+`maintenance_branch` exacta. El workflow comprueba la base publicada, la PR
+fusionada, el contenido y el tip de la rama; construye y prueba antes de crear
+el tag. Lleva después el arreglo de código a `main`. La secuencia operativa y
+un ejemplo están en [release](../runtime/skills/local/release/SKILL.md).
+
 ## Transición desde instaladores anteriores
 
 Al actualizar, el proceso antiguo puede terminar acciones de su propia versión después de reemplazar el ejecutable. Por eso el salto desde una versión con Hypa a `0.97.0-alpha.1` puede mostrar una última actualización de Hypa aunque el runtime instalado ya lo haya retirado. Una nueva sesión carga el runtime nuevo; no es necesario repetir la actualización para retirar sus archivos.
