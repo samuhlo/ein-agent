@@ -70,7 +70,7 @@ When the parent delegates delivery after a verified change and the user has appr
 
 ## Review Workload Gate
 
-Before push, run `bun "$EIN_PI_AGENT_HOME/lib/review-publication-check.ts" review-current origin/<PR-base>`. It remeasures HEAD and emits an OID if within budget or when the parent has bound the user's single-PR choice to this diff. Push that OID in the same command: `oid="$(bun "$EIN_PI_AGENT_HOME/lib/review-publication-check.ts" review-current origin/<PR-base>)" && git push origin "$oid:refs/heads/<delivery-branch>"`. Use the actual base and branch. Recheck before PR and compare the remote OID. Unknown or changed evidence blocks. Put accepted exception metrics and reason in the PR body; no label is needed. Existing delivery authorization applies; `auto` does not bypass it.
+Before push, run `bun "$EIN_PI_AGENT_HOME/lib/review-publication-check.ts" review-current origin/<PR-base>`. It remeasures HEAD and emits an OID if within budget or when the parent has bound the user's single-PR choice to this diff. Push that OID in the same command: `oid="$(bun "$EIN_PI_AGENT_HOME/lib/review-publication-check.ts" review-current origin/<PR-base>)" && git push origin "${oid}:refs/heads/<delivery-branch>"`. Use the actual base and branch. Recheck before PR and compare the remote OID. Unknown or changed evidence blocks. Put accepted exception metrics and reason in the PR body; no label is needed. Existing delivery authorization applies; `auto` does not bypass it.
 
 ## PR body (brutalist style, samuhlo persona)
 
