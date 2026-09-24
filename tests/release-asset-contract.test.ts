@@ -193,14 +193,14 @@ function runMetadataGate(
   }
 }
 
-function runPublish(workflow: string, channel: "stable" | "alpha", hotfix = false): { code: number | null; args: string[]; notes: string } {
+function runPublish(workflow: string, channel: "stable" | "alpha", hotfix = false, existingRelease = ""): { code: number | null; args: string[]; notes: string } {
   const root = mkdtempSync(join(tmpdir(), "ein-release-publish-"));
   const binDir = join(root, "bin");
   const capturePath = join(root, "gh-args");
   mkdirSync(binDir);
   writeFileSync(join(root, "package.json"), JSON.stringify({ version: "0.82.0" }));
   const ghPath = join(binDir, "gh");
-  writeFileSync(ghPath, '#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "$GH_CAPTURE"\n');
+  writeFileSync(ghPath, '#!/usr/bin/env bash\nif [[ "$1" == "release" && "$2" == "view" ]]; then\n  [[ -n "$GH_EXISTING_RELEASE" ]] || exit 1\n  printf "%s\\n" "$GH_EXISTING_RELEASE"\n  exit 0\nfi\nprintf "%s\\n" "$@" > "$GH_CAPTURE"\n');
   chmodSync(ghPath, 0o755);
   try {
     const result = runWorkflowScript(
@@ -211,6 +211,7 @@ function runPublish(workflow: string, channel: "stable" | "alpha", hotfix = fals
         RELEASE_CHANNEL: channel,
         HOTFIX: String(hotfix),
         GH_CAPTURE: capturePath,
+        GH_EXISTING_RELEASE: existingRelease,
         PATH: `${binDir}:${process.env.PATH ?? ""}`,
       },
       root,
@@ -501,6 +502,33 @@ describe("release asset contract", () => {
     expect(hotfix.code).toBe(0);
     expect(hotfix.args).toContain("--prerelease");
     expect(hotfix.notes).toContain("/releases/download/installer-v0.82.0/install.sh");
+  });
+
+  test("an existing complete hotfix release can rerun its upgrade smoke", () => {
+    const workflow = readFileSync(WORKFLOW_PATH, "utf8");
+    const assets = ["checksums.txt", ...DOCUMENTED_ASSETS, "install.sh"].map((name) => ({ name }));
+    const complete = JSON.stringify({ tagName: "installer-v0.82.0", isDraft: false, isPrerelease: true, assets });
+    expect(runPublish(workflow, "alpha", true, complete).code).toBe(0);
+    expect(runPublish(workflow, "alpha", true, JSON.stringify({ tagName: "installer-v0.82.0", isDraft: false, isPrerelease: true, assets: assets.slice(1) })).code).not.toBe(0);
+    const smoke = workflowStep(workflow, "- name: Published release upgrade smoke");
+    expect(smoke).toContain('SMOKE_SOURCE_SHA: ${{ github.sha }}');
+    expect(smoke).toContain('"$SMOKE_SOURCE_SHA":e2e/release-update-test.sh');
+    expect(smoke).toContain('"$SMOKE_SOURCE_SHA":e2e/Dockerfile.ubuntu');
+  });
+
+  test("the published upgrade smoke accepts alpha hotfix tags", () => {
+    const script = readFileSync(RELEASE_UPDATE_E2E_SCRIPT_PATH, "utf8");
+    const pattern = script.split("\n").find((line) => line.startsWith("tag_pattern="));
+    expect(pattern).toBeDefined();
+    for (const [tag, accepted] of [
+      ["installer-v0.99.0-alpha.15", true],
+      ["installer-v0.99.0-alpha.15.1", true],
+      ["installer-v0.99.0-alpha.15.0", false],
+      ["installer-v0.99.0-alpha.015.1", false],
+    ] as const) {
+      const result = spawnSync("bash", ["-c", `${pattern}\n[[ "$1" =~ $tag_pattern ]]`, "_", tag]);
+      expect(result.status === 0).toBe(accepted);
+    }
   });
 
   test("manual dispatch requires a validated release tag for checkout and publishing", () => {
