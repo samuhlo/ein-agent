@@ -135,7 +135,7 @@ function sha256(hexChars: string): string {
   return hexChars.repeat(64).slice(0, 64);
 }
 
-function runResolver(workflow: string, eventName: "push" | "workflow_dispatch", tag: string): { code: number | null; outputs: Record<string, string>; stderr: string } {
+function runResolver(workflow: string, eventName: "push" | "workflow_dispatch", tag: string, maintenanceBranch = "", dispatchRef = "refs/heads/main"): { code: number | null; outputs: Record<string, string>; stderr: string } {
   const root = mkdtempSync(join(tmpdir(), "ein-release-resolver-"));
   const outputPath = join(root, "github-output");
   writeFileSync(outputPath, "");
@@ -145,6 +145,8 @@ function runResolver(workflow: string, eventName: "push" | "workflow_dispatch", 
       {
         EVENT_NAME: eventName,
         INPUT_RELEASE_TAG: eventName === "workflow_dispatch" ? tag : "",
+        INPUT_MAINTENANCE_BRANCH: maintenanceBranch,
+        DISPATCH_REF: dispatchRef,
         PUSH_TAG: eventName === "push" ? tag : "",
         GITHUB_OUTPUT: outputPath,
       },
@@ -191,7 +193,7 @@ function runMetadataGate(
   }
 }
 
-function runPublish(workflow: string, channel: "stable" | "alpha"): { code: number | null; args: string[]; notes: string } {
+function runPublish(workflow: string, channel: "stable" | "alpha", hotfix = false): { code: number | null; args: string[]; notes: string } {
   const root = mkdtempSync(join(tmpdir(), "ein-release-publish-"));
   const binDir = join(root, "bin");
   const capturePath = join(root, "gh-args");
@@ -207,6 +209,7 @@ function runPublish(workflow: string, channel: "stable" | "alpha"): { code: numb
         GH_TOKEN: "fixture-token",
         RELEASE_TAG: "installer-v0.82.0",
         RELEASE_CHANNEL: channel,
+        HOTFIX: String(hotfix),
         GH_CAPTURE: capturePath,
         PATH: `${binDir}:${process.env.PATH ?? ""}`,
       },
@@ -404,7 +407,7 @@ describe("release asset contract", () => {
       ] as const) {
         const result = runResolver(workflow, eventName, tag);
         expect(result.code).toBe(0);
-        expect(result.outputs).toEqual({ release_tag: tag, release_channel: channel });
+        expect(result.outputs).toMatchObject({ release_tag: tag, release_channel: channel, source_ref: tag, hotfix: "false" });
       }
 
       for (const rejected of [
@@ -417,6 +420,21 @@ describe("release asset contract", () => {
         expect(runResolver(workflow, eventName, rejected).code).not.toBe(0);
       }
     }
+  });
+
+  test("hotfix dispatch binds the new tag to one maintenance branch", () => {
+    const workflow = readFileSync(WORKFLOW_PATH, "utf8");
+    const tag = "installer-v0.99.0-alpha.15.1";
+    const branch = "maintenance/0.99.0-alpha.15";
+    const valid = runResolver(workflow, "workflow_dispatch", tag, branch);
+    expect(valid.code).toBe(0);
+    expect(valid.outputs).toMatchObject({ release_tag: tag, release_channel: "alpha", source_ref: branch, hotfix: "true", base_tag: "installer-v0.99.0-alpha.15" });
+    for (const [candidate, source, ref] of [
+      [tag, "maintenance/0.99.0-alpha.14", "refs/heads/main"],
+      [tag, branch, "refs/heads/maintenance/0.99.0-alpha.15"],
+      ["installer-v0.99.0-alpha.15.0", branch, "refs/heads/main"],
+      ["installer-v0.99.0-alpha.15.01", branch, "refs/heads/main"],
+    ] as const) expect(runResolver(workflow, "workflow_dispatch", candidate, source, ref).code).not.toBe(0);
   });
 
   test("workflow gates tag, package, runtime, and leading changelog metadata before build", () => {
@@ -479,6 +497,10 @@ describe("release asset contract", () => {
     expect(alphaArgs).toEqual(expect.objectContaining({ code: 0 }));
     expect(alphaArgs.args).toContain("--prerelease");
     expect(alphaArgs.notes).toContain('--release-channel alpha --release-tag installer-v0.82.0');
+    const hotfix = runPublish(workflow, "alpha", true);
+    expect(hotfix.code).toBe(0);
+    expect(hotfix.args).toContain("--prerelease");
+    expect(hotfix.notes).toContain("/releases/download/installer-v0.82.0/install.sh");
   });
 
   test("manual dispatch requires a validated release tag for checkout and publishing", () => {
@@ -500,7 +522,8 @@ describe("release asset contract", () => {
     expect(resolver).toContain('release_tag="$INPUT_RELEASE_TAG"');
     expect(resolver).toContain('release_tag="$PUSH_TAG"');
     expect(resolver).toContain('echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"');
-    expect(checkout).toContain(`ref: ${RELEASE_TAG_OUTPUT}`);
+    expect(resolver).toContain('echo "source_ref=$source_ref" >> "$GITHUB_OUTPUT"');
+    expect(checkout).toContain("ref: ${{ steps.resolve_release_tag.outputs.source_ref }}");
     expect(publish).toContain(`RELEASE_TAG: ${RELEASE_TAG_OUTPUT}`);
     expect(publish).toContain('gh release create "$RELEASE_TAG"');
     expect(publish).not.toContain('gh release create "${GITHUB_REF_NAME}"');
@@ -510,30 +533,30 @@ describe("release asset contract", () => {
   });
 
   // El release `installer-v0.73.0` se publicó vacío: el tag apuntaba a un
-  // commit que era ancestro de `main`, no su punta, y el workflow no lo
-  // detectó (la versión del commit SÍ coincidía con el tag). Este test fija
-  // que exista un paso que compare el commit etiquetado contra `origin/main`
-  // ANTES de construir, con una vía de escape explícita para hotfixes.
-  test("workflow rejects a tagged commit that is not the tip of main before building", () => {
+  // commit que era ancestro de `main`, no su punta. El hotfix tiene una ruta
+  // separada y acotada a una rama de mantenimiento con PR fusionada.
+  test("workflow checks main or a validated maintenance tip before building", () => {
     const workflow = readFileSync(WORKFLOW_PATH, "utf8");
     const checkoutStart = workflow.indexOf("- uses: actions/checkout@v5");
     const buildStart = workflow.indexOf("- name: Build all targets (bundles template + cross-compiles)");
-    const guardStart = workflow.indexOf("- name: Verify tagged commit is the tip of main");
+    const guardStart = workflow.indexOf("- name: Verify release source");
 
     expect(checkoutStart).toBeGreaterThanOrEqual(0);
     expect(buildStart).toBeGreaterThanOrEqual(0);
     expect(guardStart).toBeGreaterThan(checkoutStart);
     expect(guardStart).toBeLessThan(buildStart);
 
-    const guardStep = workflowStep(workflow, "- name: Verify tagged commit is the tip of main");
+    const guardStep = workflowStep(workflow, "- name: Verify release source");
     expect(guardStep).toContain("git fetch origin main");
     expect(guardStep).toMatch(/git rev-parse (origin\/main|HEAD)/);
-    expect(guardStep).toContain("ALLOW_NON_MAIN_TAG: ${{ inputs.allow_non_main_tag }}");
-    expect(guardStep).toContain("allow_non_main_tag=true");
+    expect(guardStep).toContain('if [[ "$HOTFIX" != "true" ]]');
+    expect(guardStep).toContain('git merge-base --is-ancestor "$base" "$candidate"');
+    expect(guardStep).toContain('gh pr list --base "$MAINTENANCE_BRANCH" --state merged');
+    expect(guardStep).not.toContain("ALLOW_NON_MAIN_TAG");
     expect(guardStep).toContain("main");
     expect(guardStep.toLowerCase()).toContain("hotfix");
     expect(guardStep).toContain("exit 1");
-    expect(workflow.indexOf("- name: Verify tagged commit is the tip of main")).toBeLessThan(
+    expect(workflow.indexOf("- name: Verify release source")).toBeLessThan(
       workflow.indexOf("- name: Verify release metadata coherence"),
     );
   });

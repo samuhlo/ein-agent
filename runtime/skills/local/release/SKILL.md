@@ -66,3 +66,29 @@ gh run watch <run-id> --exit-status
 
 - If the workflow fails, inspect it with `gh run view <run-id> --log`.
 - Do not substitute npm or a local publish for the GitHub asset workflow.
+
+## Alpha hotfix from a published tag
+
+Use this route only for an actual fix to a published alpha. `installer-v0.99.0-alpha.15`
+is followed by `installer-v0.99.0-alpha.15.1`; never move or replace the original
+tag or its assets.
+
+1. Create `maintenance/0.99.0-alpha.15` from the published base tag in an
+   isolated worktree. Do not merge later `main` commits into it.
+2. Open one PR against that maintenance branch containing the fix, its tests,
+   the matching version in the three release pointers, and the changelog.
+   Merge only after required CI passes. The branch tip must be the merged PR.
+3. Run the workflow from `main` with the proposed tag and exact branch:
+
+   ```bash
+   gh workflow run installer-release.yml --ref main \
+     -f release_tag=installer-v0.99.0-alpha.15.1 \
+     -f maintenance_branch=maintenance/0.99.0-alpha.15
+   ```
+
+   Do not push the hotfix tag yourself. The workflow verifies the published
+   base, ancestry, merged PR, version pointers, build and installer E2E before
+   creating the tag. It then publishes the same six assets as a normal alpha.
+4. Verify the workflow, release assets, and published upgrade smoke. Bring the
+   fix code forward to `main` in a separate PR; leave the maintenance version
+   pointers on the maintenance branch.

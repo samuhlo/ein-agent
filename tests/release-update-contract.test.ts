@@ -433,6 +433,19 @@ describe("release update contract", () => {
     });
   });
 
+  test("alpha hotfixes sort after their base and before the next alpha", () => {
+    const record = (tag: string): ReleaseRecord => ({
+      tag: tag as ReleaseTag, htmlUrl: `https://example.test/${tag}`,
+      draft: false, prerelease: true, assets: [],
+    });
+    const base = record("installer-v0.99.0-alpha.15");
+    const hotfix = record("installer-v0.99.0-alpha.15.1");
+    const next = record("installer-v0.99.0-alpha.16");
+    expect(resolveReleases({ kind: "latest", raw: "latest" }, [base, hotfix], "alpha")).toMatchObject({ ok: true, value: { release: hotfix } });
+    expect(resolveReleases({ kind: "latest", raw: "latest" }, [hotfix, next], "alpha")).toMatchObject({ ok: true, value: { release: next } });
+    expect(resolveReleases({ kind: "latest", raw: "latest" }, [base, hotfix], "stable").ok).toBe(false);
+  });
+
   test("fails closed for unusable candidate-list payloads and preserves exact-tag fetches", async () => {
     const encoder = new TextEncoder();
     const responseFor = (body: unknown) => ({
