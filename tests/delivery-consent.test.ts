@@ -51,11 +51,13 @@ test("delivery confirmation puts operation and reason before internal task conte
   const task = "intent_work: example\n" + "Detalles de implementación irrelevantes. ".repeat(20) + "\nSube la rama fix/example a origin y abre PR hacia dev.";
   const preview = deliveryPreview([task], "/nonexistent/ein-consent-fixture", "ask");
   expect(preview.title).toContain("entrega");
-  expect(preview.body).toContain("Acción:");
+  expect(preview.summary?.[0]).toBe("Subir la rama y abrir una PR");
+  expect(preview.summary).toContain("Base de PR pedida  dev");
   expect(preview.body).toContain("origin");
   expect(preview.body).toContain("hacia dev");
   expect(preview.body).toContain("preguntar siempre");
   expect(preview.body).not.toContain("intent_work:");
   expect(preview.body).not.toContain("Detalles de implementación");
-  expect(deliveryPreview(["Abre PR hacia dev"], "/nonexistent", "auto").title).not.toContain("push");
+  expect(deliveryPreview(["Abre PR hacia dev"], "/nonexistent", "auto").summary?.[0]).toBe("Abrir una PR");
+  expect(deliveryPreview(["Crea un commit local"], "/nonexistent", "ask").summary?.[0]).toBe("Crear un commit");
 });
