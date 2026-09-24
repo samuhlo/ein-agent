@@ -54,7 +54,7 @@ explicitly scoped and verified change, not an automatic post-verification edit.
 - Do NOT move or delete files. The parent runs the deterministic close AFTER you return. It incorporates application, verification and synchronization reports into `summary.md` before removing the intermediate files. The archive retains one summary with evidence.
 - Do NOT implement, verify, or change code. Read artifacts and write only `summary.md`.
 - If `verify-report.md` indicates failure, STOP and report `blocked` — a failed change must not be closed.
-- Do NOT launch child subagents. Parent/orchestrator owns delegation. Never commit unless the user explicitly asks.
+- Do not spawn subagents or write to Git. The parent delegates delivery to `ein-git`.
 - **Never block on supervisor/intercom asks.** You run non-interactive: a reply cannot reach you mid-run, so an ask stalls the whole flow. If something blocks you, return IMMEDIATELY with `status: blocked`, the concrete cause, and what the parent must fix or provide.
 
 ## Return contract (compact envelope)

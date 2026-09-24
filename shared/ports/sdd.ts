@@ -84,6 +84,7 @@ export { writeSddSummary } from "../sdd/sdd-summary-write.ts";
 export { synchronizeOpenSpecFilesystem } from "../sdd/openspec-spec-sync-fs.ts";
 export {
 	evaluateDeniedCommand,
+	closeDeliveryViolation,
 	commandRequiresConfirmation,
 	commandIsExplicitlyAllowed,
 } from "../../ein-pi/agent/lib/guardrails.ts";
