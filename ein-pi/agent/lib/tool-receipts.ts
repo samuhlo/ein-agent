@@ -46,6 +46,7 @@ export const TOOL_LABELS: Readonly<Record<string, string>> = {
 	ein_openspec_sync: "Contratos",
 	ein_openspec_delta_write: "Cambio de contrato",
 	ein_review_forecast: "Tamaño de la PR",
+	ein_review_exception: "Excepción de revisión",
 	ein_cleaner_audit: "Auditoría del código",
 	ein_cleaner_evidence: "Evidencia del código",
 	ein_cleaner_active_evidence: "Evidencia en caliente",
@@ -525,6 +526,12 @@ export const TOOL_RECEIPTS: Readonly<Record<string, (details: unknown) => ToolRe
 	ein_openspec_sync: syncReceipt,
 	ein_openspec_delta_write: deltaWriteReceipt,
 	ein_review_forecast: forecastReceipt,
+	ein_review_exception: (details) => {
+		if (!isRecord(details) || typeof details.ok !== "boolean") return unreadable();
+		return details.ok
+			? receipt("excepción ligada al commit", ["Tu elección de una PR quedó ligada al diff actual. Se volverá a medir antes de publicar."])
+			: receipt("excepción no registrada", [String(details.reason ?? "Falta una decisión humana vigente para este diff.")], true);
+	},
 	ein_cleaner_audit: cleanerAuditReceipt,
 	ein_cleaner_evidence: cleanerEvidenceReceipt,
 	ein_cleaner_active_evidence: cleanerActiveEvidenceReceipt,

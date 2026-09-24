@@ -654,7 +654,7 @@ export function renderSddPreflightPrompt(
 		if (baselineLine) lines.push(baselineLine);
 	}
 	lines.push(
-		`- Review Workload Guard: before delegating a PR, call \`ein_review_forecast\` with the PR base. It owns the pathspec and evaluates production against the ${prefs.reviewBudgetLines}-line and ${DEFAULT_REVIEW_BUDGET_BYTES.toLocaleString("en-US")}-byte review budgets; tests, file count and density notices never gate. If its combined result is over budget, pause and ask the user (single PR vs chained PRs). Forward \`Production lines\`, \`Production bytes\`, both \`Review budgets\` and the \`Over budget\` result so ein-git trusts the same decision without re-measuring. \`auto\` does NOT bypass this gate.`,
+		`- Review Workload Guard: \`ein_review_forecast\` measures the full PR against the ${prefs.reviewBudgetLines}-line and ${DEFAULT_REVIEW_BUDGET_BYTES.toLocaleString("en-US")}-byte review budgets; tests and density do not gate. If over, ask the user for one PR or a split. For an explicit single-PR choice, call \`ein_review_exception\` after commit; it binds that recorded answer to the unchanged diff. \`ein-git\` remeasures before push and PR. Unknown or changed evidence blocks. Do not ask again; \`auto\` does not bypass the budget.`,
 	);
 	return lines.join("\n");
 }
