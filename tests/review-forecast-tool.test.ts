@@ -43,16 +43,15 @@ test("the actual Pi tool and Claude CLI measure identical requests without proje
 	} finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-test("the git agent receives a real Pi entrypoint independent of Claude installation", async () => {
+test("the git agent uses a stable installed checker without parent handoff fields", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "review-prompt-"));
 	try {
 		const handlers = new Map<string, any>();
 		registerAgentPromptHook({ on(name: string, fn: any) { handlers.set(name, fn); } } as never);
 		const result = await handlers.get("before_agent_start")({ agentName: "ein-git", systemPrompt: "Git task", prompt: "Prepare delivery" }, { cwd, hasUI: false });
-		const line = result.systemPrompt.match(/Publication-check argv: (\[[^\n]+?\])/);
-		expect(line).not.toBeNull();
-		const argv = JSON.parse(line[1]); expect(argv[0]).toBe("bun");
-		expect(readFileSync(argv[1], "utf8")).toContain("checkReviewedPublication");
+		expect(result.systemPrompt).not.toContain("Publication-check argv:");
+		const agent = readFileSync(resolve(import.meta.dir, "../runtime/agents/ein-git.md"), "utf8");
+		expect(agent).toContain("$EIN_PI_AGENT_HOME/lib/review-publication-check.ts");
 		const installed = join(cwd, "isolated Pi with spaces", "lib"); mkdirSync(installed, { recursive: true });
 		for (const name of ["review-publication-check.ts", "review-forecast.ts", "review-snapshot.ts"]) copyFileSync(resolve(import.meta.dir, "../ein-pi/agent/lib", name), join(installed, name));
 		const run = spawnSync(process.execPath, [join(installed, "review-publication-check.ts")], { cwd, encoding: "utf8", input: "{}" });
@@ -61,11 +60,11 @@ test("the git agent receives a real Pi entrypoint independent of Claude installa
 		const commit = (message: string, empty = false) => execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=t@example.test", "commit", ...(empty ? ["--allow-empty"] : []), "-qm", message], { cwd });
 		commit("base", true); const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
 		writeFileSync(join(cwd, "feature.ts"), "feature\n"); execFileSync("git", ["add", "feature.ts"], { cwd }); commit("feature");
-		const measured = spawnSync(process.execPath, [join(installed, "review-publication-check.ts"), "review-forecast"], { cwd, encoding: "utf8", input: JSON.stringify({ mode: "committed", base }) });
-		expect(measured.status).toBe(0); const { baseOid, headOid, snapshotRef } = JSON.parse(measured.stdout);
-		const request = JSON.stringify({ baseOid, headOid, snapshotRef });
-		expect(spawnSync(process.execPath, [join(installed, "review-publication-check.ts")], { cwd, input: request }).status).toBe(0);
+		const check = () => spawnSync("sh", ["-c", 'bun "$EIN_PI_AGENT_HOME/lib/review-publication-check.ts" review-current "$1"', "check", base], { cwd, encoding: "utf8", env: { ...process.env, EIN_PI_AGENT_HOME: join(cwd, "isolated Pi with spaces") } });
+		const measured = check();
+		expect(measured.status, measured.stderr).toBe(0);
+		expect(measured.stdout.trim()).toBe(execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim());
 		commit("moved head", true);
-		expect(spawnSync(process.execPath, [join(installed, "review-publication-check.ts")], { cwd, input: request }).status).toBe(1);
+		expect(check().status).toBe(0);
 	} finally { rmSync(cwd, { recursive: true, force: true }); }
 });

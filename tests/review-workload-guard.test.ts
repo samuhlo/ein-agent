@@ -330,10 +330,10 @@ describe("el parent llama la tool; ein-git confía en el número", () => {
 
 	test("ein-git comprueba mecánicamente el commit medido", () => {
 		expect(einGit).toContain("Review Workload Gate");
-		expect(einGit).toContain("provided publication-check argv");
-		expect(einGit).toContain("chained to publication with &&");
-		expect(einGit).toContain("Production bytes");
-		expect(einGit).toContain("`auto` execution mode does **not** bypass this gate");
+		expect(einGit).toContain("$EIN_PI_AGENT_HOME/lib/review-publication-check.ts");
+		expect(einGit).toContain("review-current origin/<PR-base>");
+		expect(einGit).toContain("&& git push origin");
+		expect(einGit).toContain("`auto` does not bypass it");
 	});
 
 	test("el preflight apunta a la tool con el budget", () => {
