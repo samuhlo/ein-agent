@@ -8,7 +8,6 @@ import { observeContinuityGuard } from "../../lib/continuity-operation-adapter.t
 
 import { compileApplyHandoff } from "../../lib/apply-packet-handoff.ts";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { readAgreement } from "../../lib/intent-agreement.ts";
 import { PHASE_ARTIFACT, resolveChangesDir, type SddPhase } from "../../lib/sdd-routing-core.ts";
 import { formatSkillsForPrompt, type ExtensionAPI, type Skill } from "@earendil-works/pi-coding-agent";
@@ -201,10 +200,6 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			&& startNames.some((name) => name === "ein-git" || name === "ein-linear")
 		) {
 			artifactPrompt = `\n\n${artifactLanguageDirective(readArtifactLang(ctx.cwd))}`;
-			if (startNames.includes("ein-git")) {
-				const entry = fileURLToPath(new URL("../../lib/review-publication-check.ts", import.meta.url));
-				artifactPrompt += `\nPublication-check argv: ${JSON.stringify(["bun", entry, "review-publication-check"])}. Pass the committed baseOid/headOid/snapshotRef as JSON on stdin. Publication must be chained with && after a successful check.`;
-			}
 		}
 		// El padre delega la escritura; las reglas de edición pertenecen a apply.
 		const conventions = startNames.includes("sdd-apply") ? codeConventionSkillBlock(ctx.cwd) : "";

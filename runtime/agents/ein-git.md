@@ -64,15 +64,13 @@ When the parent delegates delivery after a verified change and the user has appr
 
 1. Inspect repo state: branch, remote, status, staged/unstaged diff, and commits against base.
 2. Stage only the named paths and commit (Hard gate 4 enforces the closed pathspec deterministically).
-3. Return the local commit OID for the parent's committed forecast. Publish only after the Review Workload Gate below, using the existing intent grant.
+3. Publish only after the Review Workload Gate below, using the existing intent grant.
 4. Open the PR **non-interactively** (see *Non-interactive gh* below — body to a file, explicit `--title`/`--body-file`/`--base`/`--head`, never a bare `gh pr create`, never `--web`), with the body in the artifact language (Spanish if absent); read back title, branch, base, URL, and state via `gh pr view --json`.
 5. Report whether the PR is mergeable. The issue is closed (via `ein-linear`) only if the PR is mergeable or explicitly accepted; otherwise it stays in review.
 
 ## Review Workload Gate
 
-After commit, the parent runs `ein_review_forecast` in committed mode. Read Production lines, Production bytes, baseOid, headOid and snapshotRef. Unknown or over-budget measures block publication; previews do not authorize it.
-
-Before each push/PR, run the provided publication-check argv with JSON {baseOid,headOid,snapshotRef} on stdin, chained to publication with &&. This executable check remeasures the full commit and rejects changed HEAD. Push the measured headOid as the refspec source; before PR creation verify the remote branch points to that OID. Existing delivery authorization still applies. A rejection returns to the parent for fresh measurement or splitting; never retry with invented values. `auto` execution mode does **not** bypass this gate.
+Before push, run `bun "$EIN_PI_AGENT_HOME/lib/review-publication-check.ts" review-current origin/<PR-base>`. It measures the full committed change at the current HEAD and prints its OID only when within the review budget. Use that OID as the push refspec source, in the same shell command: `oid="$(bun "$EIN_PI_AGENT_HOME/lib/review-publication-check.ts" review-current origin/<PR-base>)" && git push origin "$oid:refs/heads/<delivery-branch>"`. Replace the placeholders with the actual base and branch from the assignment. Do not invent a base. Before PR creation, run the same check again and verify the remote branch points to the measured OID. Unknown or over-budget results stop publication and return their concrete reason to the parent. The parent need not forward measurement hashes or an executable path. Existing delivery authorization still applies; `auto` does not bypass it.
 
 ## PR body (brutalist style, samuhlo persona)
 

@@ -7,15 +7,19 @@ import { askDeliveryConsent, DeliveryConsent } from "../../ein-pi/agent/lib/deli
 initTheme("dark");
 setKeybindings(new KeybindingsManager());
 const theme = { fg: (_: string, text: string) => text, bold: (text: string) => text };
-test("consent stays bounded, scrolls details, and requires an explicit selection", () => {
+test("consent stays bounded, hides technical detail, and requires an explicit selection", () => {
   let result: boolean | undefined;
-  const view = new DeliveryConsent({ title: "¿Autorizar esta entrega Git?", body: Array.from({ length: 45 }, (_, i) => `Detalle ${i + 1}: rama, destino y contenido`).join("\n") }, theme, () => 24, (value) => { result = value; }, () => {});
+  const view = new DeliveryConsent({ title: "Confirmar entrega Git", summary: ["Subir la rama y abrir una PR", "Proyecto  planificador", "Rama  fix/migrador", "Base de PR pedida  dev", "Hay cambios locales pendientes"], details: Array.from({ length: 45 }, (_, i) => `Detalle ${i + 1}: rama, destino y contenido`).join("\n"), body: "" }, theme, () => 24, (value) => { result = value; }, () => {});
   for (const width of [32, 40, 60, 80, 120]) {
     const lines = view.render(width);
     expect(lines.length).toBeLessThanOrEqual(24);
     expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
   }
   expect(result).toBeUndefined();
+  expect(view.render(80).join("\n")).toContain("Base de PR pedida  dev");
+  expect(view.render(80).join("\n")).not.toContain("Detalle 1:");
+  view.handleInput("d");
+  expect(view.render(80).join("\n")).toContain("Detalle 1:");
   view.handleInput("\x1b[B");
   expect(view.render(80).join("\n")).toContain("Detalle 2:");
   view.handleInput("\r");
@@ -42,7 +46,7 @@ test("narrow terminals retain both choices and the escape hint without crowding 
     expect(rendered.length).toBeLessThanOrEqual(rows-2);
     expect(rendered.join("\n")).toContain("Autorizar entrega");
     expect(rendered.join("\n")).toContain("Cancelar");
-    expect(rendered.join("\n")).toContain("esc cancelar");
+    expect(rendered.join("\n")).toContain("esc cancela");
     expect(rendered.every(line=>visibleWidth(line)<=width)).toBe(true);
   }
   let options: unknown;

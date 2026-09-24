@@ -5,6 +5,7 @@ import type { DeliveryPreview } from "./delivery-preview.ts";
 export class DeliveryConsent implements Component {
   private offset = 0;
   private selected = 1;
+  private expanded = false;
   private maxOffset = 0;
   constructor(private preview: DeliveryPreview, private theme: Pick<Theme, "fg" | "bold">, private rows: () => number, private done: (approved: boolean) => void, private refresh: () => void) {}
   invalidate() {}
@@ -12,30 +13,38 @@ export class DeliveryConsent implements Component {
     const keys = getKeybindings();
     if (keys.matches(data, "tui.select.cancel")) { this.done(false); return; }
     if (keys.matches(data, "tui.select.confirm") || data === "\n") { this.done(this.selected === 0); return; }
-    if (matchesKey(data, "tab") || matchesKey(data, "left") || matchesKey(data, "right")) this.selected = 1 - this.selected;
-    else if (keys.matches(data, "tui.select.up")) this.offset = Math.max(0, this.offset - 1);
-    else if (keys.matches(data, "tui.select.down")) this.offset = Math.min(this.maxOffset, this.offset + 1);
+    if (data.toLowerCase() === "d") { this.expanded = !this.expanded; this.offset = 0; }
+    else if (matchesKey(data, "tab") || matchesKey(data, "left") || matchesKey(data, "right")) this.selected = 1 - this.selected;
+    else if (this.expanded && keys.matches(data, "tui.select.up")) this.offset = Math.max(0, this.offset - 1);
+    else if (this.expanded && keys.matches(data, "tui.select.down")) this.offset = Math.min(this.maxOffset, this.offset + 1);
     this.refresh();
   }
   render(width: number): string[] {
     const inner = Math.max(1, width - 4);
-    const body = wrapTextWithAnsi(this.preview.body, inner);
-    const height = Math.max(8, Math.min(24, this.rows() - 2));
-    const options = ["Autorizar entrega", "Cancelar"].map((label, i) => i === this.selected
+    const available = Math.max(4, this.rows() - 4);
+    const summary = this.preview.summary ?? this.preview.body.split("\n").slice(0, 3);
+    const details = wrapTextWithAnsi(this.preview.details ?? this.preview.body, inner);
+    const optionLabels = ["Autorizar entrega", "Cancelar"];
+    const options = optionLabels.map((label, i) => i === this.selected
       ? this.theme.fg("accent", this.theme.bold(`[ ${label} ]`)) : this.theme.fg("muted", label));
-    const buttons = inner < 40 ? options : [options.join("    ")];
-    const hints = wrapTextWithAnsi("←→ / tab elegir · enter aceptar · esc cancelar", inner).map((line) => this.theme.fg("dim", line));
-    const budget = Math.max(0, height - 6 - buttons.length - hints.length);
-    this.maxOffset = Math.max(0, body.length - budget);
+    const buttons = inner < 46 ? options : [options.join("    ")];
+    const hint = inner < 42 ? "d/tab · enter · esc cancela" : "d detalles · ←→/tab elegir · enter aceptar · esc cancelar";
+    const footer = [...buttons, this.theme.fg("dim", truncateToWidth(hint, inner))];
+    const heading = this.theme.fg("accent", this.theme.bold("ein  /  ENTREGA"));
+    const action = this.theme.fg("text", this.theme.bold(summary[0] ?? this.preview.title));
+    const meta = summary.slice(1, this.expanded ? 3 : 5).map((line) => this.theme.fg("muted", line));
+    const toggle = this.theme.fg("accent", this.expanded ? "▾ Ocultar detalles (d)" : "▸ Ver detalles (d)");
+    const fixed = [heading, action, ...meta, toggle];
+    const room = Math.max(0, available - fixed.length - footer.length);
+    const detailBudget = this.expanded ? room : 0;
+    this.maxOffset = Math.max(0, details.length - detailBudget);
     this.offset = Math.min(this.offset, this.maxOffset);
-    const title = this.theme.fg("accent", this.theme.bold(`ein · ${this.preview.title}`));
-    const content = [title, "", ...body.slice(this.offset, this.offset + budget).map((line) => this.theme.fg("text", line)),
-      this.theme.fg("dim", this.maxOffset ? `↑↓ Detalle ${this.offset + 1}–${Math.min(body.length, this.offset + budget)} de ${body.length}` : ""),
-      "", ...buttons, ...hints];
-    const edge = (left: string, right: string) => this.theme.fg("muted", left + "─".repeat(Math.max(0, width - 2)) + right);
+    const shown = this.expanded ? details.slice(this.offset, this.offset + detailBudget).map((line) => this.theme.fg("text", line)) : [];
+    const content = [...fixed, ...shown, ...footer];
+    const edge = (left: string, right: string) => this.theme.fg("borderAccent", left + "─".repeat(Math.max(0, width - 2)) + right);
     return [edge("╭", "╮"), ...content.map((line) => {
-      const text = truncateToWidth(line, inner);
-      return `${this.theme.fg("muted", "│")} ${text}${" ".repeat(Math.max(0, inner - visibleWidth(text)))} ${this.theme.fg("muted", "│")}`;
+      const value = truncateToWidth(line, inner);
+      return `${this.theme.fg("borderMuted", "│")} ${value}${" ".repeat(Math.max(0, inner - visibleWidth(value)))} ${this.theme.fg("borderMuted", "│")}`;
     }), edge("╰", "╯")].map((line) => truncateToWidth(line, Math.max(1, width)));
   }
 }
@@ -44,6 +53,6 @@ export async function askDeliveryConsent(ctx: ExtensionContext, preview: Deliver
   return ctx.ui.custom<boolean>((tui, theme, _keys, done) =>
     new DeliveryConsent(preview, theme, () => tui.terminal.rows, done, () => tui.requestRender()), {
       overlay: true,
-      overlayOptions: { width: 84, maxHeight: "95%", anchor: "center", margin: 1 },
+      overlayOptions: { width: 76, maxHeight: "90%", anchor: "center", margin: 1 },
     });
 }
