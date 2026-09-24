@@ -1,11 +1,12 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { writeVerifiedSddSummary } from "../../lib/sdd-summary-write.ts";
 import { readVerificationFreshness } from "../../lib/sdd-verification-runtime.ts";
-import { closeDeliveryViolation } from "../../lib/guardrails.ts";
+import { closeDeliveryViolation, evaluateDeniedCommand } from "../../lib/guardrails.ts";
 
 export default function closeSummary(pi: ExtensionAPI): void {
 	pi.on("tool_call", async (event) => {
 		if (event.toolName !== "bash" || typeof event.input.command !== "string") return undefined;
+		if (evaluateDeniedCommand(event.input.command)) return undefined;
 		const reason = closeDeliveryViolation(event.input.command);
 		return reason ? { block: true, reason } : undefined;
 	});

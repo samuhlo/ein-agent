@@ -32,6 +32,7 @@ test("Claude denies the same commit only while sdd-close is active", () => {
 	expect(resolveGuardDecision(hook(command, "ein-git"), "/tmp")?.decision).toBe("allow");
 	expect(resolveGuardDecision(JSON.stringify({ tool_input: { command } }), "/tmp")?.decision).toBe("allow");
 	expect(resolveGuardDecision(hook("ein-cc-sdd summary cambio < summary.json"), "/tmp")).toBeNull();
+	expect(resolveGuardDecision(hook("git push --force origin main"), "/tmp")?.reason).toContain("Ein safety policy blocked");
 	const cli = spawnSync(process.execPath, [resolve(import.meta.dir, "../ein-cc/sdd-cli/cli.ts"), "guard"], { input: hook(command), encoding: "utf8" });
 	expect(cli.status).toBe(0);
 	expect(JSON.parse(cli.stdout).hookSpecificOutput).toMatchObject({ permissionDecision: "deny", permissionDecisionReason: expect.stringContaining("ein-git") });
@@ -43,4 +44,5 @@ test("Pi close child denies commit before Bash executes", async () => {
 	expect(handler).toBeDefined();
 	expect(await handler!({ toolName: "bash", input: { command: "git commit -m cierre" } })).toMatchObject({ block: true, reason: expect.stringContaining("ein-git") });
 	expect(await handler!({ toolName: "bash", input: { command: "git status --short" } })).toBeUndefined();
+	expect(await handler!({ toolName: "bash", input: { command: "git push --force origin main" } })).toBeUndefined();
 });

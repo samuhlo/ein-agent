@@ -124,17 +124,16 @@ export function resolveGuardDecision(
 		return null; // JSON malformado → degrada abierto, sin decisión ni log.
 	}
 	if (!command) return null;
-	if (agentType === "sdd-close") {
-		const violation = closeDeliveryViolation(command);
-		if (violation) return { decision: "deny", reason: violation };
-	}
-
 	const denied = evaluateDeniedCommand(command);
 	if (denied) {
 		return {
 			decision: "deny",
 			reason: `${denied.reason ?? "Ein safety policy blocked a destructive command."}${sddAdvisoryNote(cwd)}`,
 		};
+	}
+	if (agentType === "sdd-close") {
+		const violation = closeDeliveryViolation(command);
+		if (violation) return { decision: "deny", reason: violation };
 	}
 	if (commandRequiresConfirmation(command)) {
 		return {
