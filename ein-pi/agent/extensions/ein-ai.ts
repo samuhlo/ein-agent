@@ -20,6 +20,7 @@ import { registerSessionLifecycle } from "./internal/ein-session-lifecycle.ts";
 import { registerSddLifecycleTools } from "./internal/ein-sdd-lifecycle-tools.ts";
 import { registerSddChangeSettings } from "./internal/ein-sdd-change-settings.ts";
 import { registerSddReadSurface } from "./internal/ein-sdd-read-surface.ts";
+import { registerReviewExceptionTool } from "./internal/ein-review-exception-tool.ts";
 import { registerStatusCommands } from "./internal/ein-status-commands.ts";
 import { createEinToolRegistrar } from "./internal/ein-tool-registration.ts";
 import type { ScoutTracking } from "../lib/scout-contract.ts";
@@ -52,6 +53,7 @@ export default function einAi(pi: ExtensionAPI): void {
 	registerGeneralCommands(pi);
 
 	registerSddReadSurface(pi, registerEinTool);
+	registerReviewExceptionTool(registerEinTool);
 
 	registerSddChangeSettings(registerEinTool);
 

@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { DEFAULT_REVIEW_BUDGET, evaluateReviewForecast, reviewForecast } from "./review-forecast.ts";
+import { readReviewException } from "./review-exception.ts";
 import type { ReviewRequest } from "./review-snapshot.ts";
 
 type PublicationRequest = { baseOid: string; headOid: string; snapshotRef: string };
@@ -23,23 +24,27 @@ export function checkReviewedPublication(cwd: string, request: PublicationReques
 	} catch { return { ok: false, reason: "Git publication identity unavailable" }; }
 }
 
-export function checkCurrentPublication(cwd: string, base: string): { ok: true; headOid: string } | { ok: false; reason: string } {
+export function checkCurrentPublication(cwd: string, base: string): { ok: true; headOid: string; exception?: { production: number; productionBytes: number } } | { ok: false; reason: string } {
 	if (!base || !/^[\w./-]+$/.test(base) || base.startsWith("-")) return { ok: false, reason: "invalid PR base" };
 	const forecast = reviewForecast(cwd, { mode: "committed", base });
 	if (!forecast.ok || !forecast.headOid) return { ok: false, reason: forecast.reason ?? "committed change unavailable" };
 	const evaluation = evaluateReviewForecast(forecast, DEFAULT_REVIEW_BUDGET);
-	if (evaluation.decision !== "within") return { ok: false, reason: `PR exceeds review budget: ${forecast.production}/${DEFAULT_REVIEW_BUDGET.lines} production lines, ${forecast.productionBytes}/${DEFAULT_REVIEW_BUDGET.bytes} bytes` };
+	if (evaluation.decision === "unknown") return { ok: false, reason: "committed change unavailable" };
+	const exception = evaluation.decision === "over" ? readReviewException(cwd, base, forecast) : undefined;
+	if (exception && !exception.ok) return { ok: false, reason: `PR exceeds review budget: ${forecast.production}/${DEFAULT_REVIEW_BUDGET.lines} production lines, ${forecast.productionBytes}/${DEFAULT_REVIEW_BUDGET.bytes} bytes; ${exception.reason}` };
 	try {
 		const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8", timeout: 10_000, stdio: ["ignore", "pipe", "pipe"] }).trim();
 		if (head !== forecast.headOid) return { ok: false, reason: "HEAD changed during publication check" };
-		return { ok: true, headOid: head };
+		return { ok: true, headOid: head, ...(exception?.ok ? { exception: { production: forecast.production, productionBytes: forecast.productionBytes } } : {}) };
 	} catch { return { ok: false, reason: "Git publication identity unavailable" }; }
 }
 
-export function runCurrentPublicationCommand(cwd: string, args: readonly string[]): { text: string; exitCode: number } {
+export function runCurrentPublicationCommand(cwd: string, args: readonly string[]): { text: string; exitCode: number; notice?: string } {
 	if (args.length !== 1) return { text: "Expected one PR base ref", exitCode: 1 };
 	const result = checkCurrentPublication(cwd, args[0]!);
-	return result.ok ? { text: result.headOid, exitCode: 0 } : { text: result.reason, exitCode: 1 };
+	return result.ok ? { text: result.headOid, exitCode: 0,
+		...(result.exception ? { notice: `Review exception: ${result.exception.production} production lines, ${result.exception.productionBytes} bytes; include the human decision in the PR.` } : {}) }
+		: { text: result.reason, exitCode: 1 };
 }
 
 export function runReviewCommand(cwd: string, command: "review-forecast" | "review-publication-check", input: string): { text: string; exitCode: number } {
@@ -59,6 +64,7 @@ if (import.meta.main) {
 	const command = process.argv[2];
 	if (command === "review-current") {
 		const result = runCurrentPublicationCommand(process.cwd(), process.argv.slice(3));
+		if (result.notice) console.error(result.notice);
 		(result.exitCode ? console.error : console.log)(result.text); process.exitCode = result.exitCode;
 	}
 	else if (process.argv.length > 3 || command !== undefined && command !== "review-publication-check" && command !== "review-forecast") process.exitCode = 1;

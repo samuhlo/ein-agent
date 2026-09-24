@@ -643,6 +643,7 @@ if (import.meta.main) {
 	switch (cmd) {
 		case "review-current": {
 			const result = runCurrentPublicationCommand(cwd, rest);
+			if (result.notice) console.error(result.notice);
 			(result.exitCode ? console.error : console.log)(result.text); process.exitCode = result.exitCode; break;
 		}
 		case "review-forecast":

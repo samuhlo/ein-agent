@@ -36,6 +36,7 @@ const TOOLS = [
 	"ein_openspec_sync",
 	"ein_openspec_delta_write",
 	"ein_review_forecast",
+	"ein_review_exception",
 	"ein_cleaner_audit",
 	"ein_cleaner_evidence",
 	"ein_cleaner_active_evidence",
@@ -384,6 +385,7 @@ describe("TRIANGULATE: ninguna herramienta se queda sin recibo por olvido", () =
 		new URL("../ein-pi/agent/extensions/internal/ein-sdd-change-settings.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/internal/ein-sdd-lifecycle-tools.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts", import.meta.url).pathname,
+		new URL("../ein-pi/agent/extensions/internal/ein-review-exception-tool.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/ein-ai.ts", import.meta.url).pathname,
 		new URL("../ein-pi/agent/extensions/ein-skill-registry.ts", import.meta.url).pathname,
 	];
