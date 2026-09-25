@@ -4,6 +4,32 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.17] - 2026-09-25
+
+### Added
+
+- La entrega desde Pi prepara las PR con badge en el título, el cuerpo acordado
+  y la etiqueta de tipo, y comprueba después los datos publicados.
+
+### Fixed
+
+- Una issue de GitHub ya no es requisito para abrir una PR. La autorización de
+  una excepción de tamaño se conserva entre worktrees y al corregir solo tests.
+- Las operaciones antiguas con resultado incierto no agotan las plazas de
+  continuidad destinadas a trabajo en curso.
+- La verificación final exige sincronizar antes las especificaciones OpenSpec
+  pendientes. `apply` sigue recibiendo tareas concretas y acotadas.
+- Las salidas largas de comandos se guardan completas fuera del contexto del
+  orquestador, con una vista breve y una ruta para consultarlas.
+
+## [0.99.0-alpha.16.1] - 2026-09-25
+
+### Fixed
+
+- Pi vuelve a cargar `browser-verification`: su descripción en `SKILL.md` es
+  YAML válido. Una prueba usa el cargador real de skills para detectar este
+  fallo antes de publicar.
+
 ## [0.99.0-alpha.16] - 2026-09-25
 
 ### Fixed
