@@ -35,6 +35,7 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 		let observedRequestId: string | null = null;
 		let thresholdNotified = false;
 		let recordingNotified = false;
+		let limitNotified = false;
 		let nativeContext: ExtensionContext | undefined;
 		const calls = new Map<string, OperationStart>();
 		const unrecordedLocal = new Set<string>();
@@ -101,18 +102,21 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 		pi.registerCommand("ein:continuity", {
 			description: "Reconcile observed subagent results and explicitly allow one more operation when the journal is full.",
 			handler: async (args, ctx): Promise<void> => {
-				if (args.trim() !== "continue") { notify(ctx, "Usage: /ein:continuity continue", "warning"); return; }
+				if (!args.trim()) { notify(ctx, "Para seguir con tu tarea, escríbelo en lenguaje natural. Si se agota el registro, /ein:continuity continue autoriza una plaza adicional."); return; }
+				if (args.trim() !== "continue") { notify(ctx, "Usa /ein:continuity continue para ampliar el registro cuando esté lleno.", "warning"); return; }
 				await ctx.waitForIdle();
 				const current = active(); if (!current) { notify(ctx, "continuity-continue=lifecycle-unavailable", "error"); return; }
 				const reconciled = current.reconcileNativeSubagents();
 				if (!reconciled.ok) { notify(ctx, `continuity-continue=blocked;reason=${reconciled.reason}`, "error"); return; }
 				if (reconciled.value.active < reconciled.value.limit) {
-					notify(ctx, `continuity-continue=ready;reconciled=${reconciled.value.reconciled};active=${reconciled.value.active};limit=${reconciled.value.limit}`);
+					limitNotified = false;
+					notify(ctx, `Puedes continuar tu tarea. Revisé ${reconciled.value.reconciled} resultados parciales; quedan ${reconciled.value.active} de ${reconciled.value.limit} operaciones abiertas.`);
 					return;
 				}
 				const granted = current.grantActiveSlot();
 				if (!granted.ok) { notify(ctx, `continuity-continue=blocked;reason=${granted.reason}`, "error"); return; }
-				notify(ctx, `continuity-continue=ready;reconciled=${reconciled.value.reconciled};active=${reconciled.value.active};limit=${OPERATION_LIMITS.active + (granted.journal.extraActiveSlots ?? 0)};human-grant=1`, "warning");
+				limitNotified = false;
+				notify(ctx, `Puedes continuar tu tarea. Autoricé una plaza adicional en el registro: ${reconciled.value.active} de ${OPERATION_LIMITS.active + (granted.journal.extraActiveSlots ?? 0)} operaciones abiertas.`, "warning");
 			},
 		});
 
@@ -147,7 +151,7 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 		});
 
 		pi.on("session_start", (_event, ctx) => {
-			nativeContext = ctx; calls.clear(); unrecordedLocal.clear(); recordingNotified = false;
+			nativeContext = ctx; calls.clear(); unrecordedLocal.clear(); recordingNotified = false; limitNotified = false;
 			lifecycle = create(ctx.cwd); thresholdNotified = false;
 			const latest = [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === REQUEST_ENTRY);
 			const data = latest?.type === "custom" ? latest.data as { id?: unknown } : undefined;
@@ -170,12 +174,21 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 					if (localWrite(event.toolName)) { continueLocalWrite(event.toolCallId, ctx); return; }
 					return { block: true, reason: "continuity-operation-unavailable" };
 				}
-				const result = current.beginOperation(input);
+				let result = current.beginOperation(input);
+				if (!result.ok && result.reason.startsWith("active-limit:") && !limitNotified) {
+					const recovered = current.reconcileNativeSubagents();
+					if (recovered.ok && recovered.value.active < recovered.value.limit) result = current.beginOperation(input);
+				}
 				if (!result.ok) {
 					if (localWrite(event.toolName)) { continueLocalWrite(event.toolCallId, ctx); return; }
 					current.recordAdmissionDenied(input, "continuity-start-failed");
+					if (result.reason.startsWith("active-limit:")) {
+						if (!limitNotified) { limitNotified = true; notify(ctx, "El registro de continuidad está lleno. Usa /ein:continuity continue para autorizar una plaza adicional.", "warning"); }
+						return { block: true, reason: "continuity-operation:active-limit;human-command=/ein:continuity continue" };
+					}
 					return { block: true, reason: `continuity-operation:${result.reason}` };
 				}
+				limitNotified = false;
 				calls.set(event.toolCallId, input);
 			} catch {
 				if (localWrite(event.toolName)) { continueLocalWrite(event.toolCallId, ctx); return; }
