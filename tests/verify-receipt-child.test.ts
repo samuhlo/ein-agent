@@ -47,4 +47,13 @@ describe("ein_sdd_verification", () => {
 		const finished = await box.execute({ action: "finish", change: "probe", token: begun.details.value.token, content: "status: pass\nbehavior_coverage: verified\n" });
 		expect(finished.details.code).toBe("verification-stale");
 	});
+
+	test("does not start expensive checks while a spec delta is pending synchronization", async () => {
+		const box = fixture();
+		const delta = join(box.changePath, "specs", "academia");
+		mkdirSync(delta, { recursive: true });
+		writeFileSync(join(delta, "spec.md"), "# OpenSpec Delta\nformat: openspec-delta/v1\ndomain: academia\n\n## ADDED\n### Scenario: course\ntitle: Course\nrequirement: The system MUST create a course\nGiven: an admin\nWhen: creating\nThen: it exists\n");
+		const begun = await box.execute({ action: "begin", change: "probe" });
+		expect(begun.details).toMatchObject({ ok: false, code: "spec-not-synchronized" });
+	});
 });
