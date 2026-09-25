@@ -6,7 +6,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 // These tools return source or derived text, not acceptance receipts. Keep their
 // full output recoverable while preventing a single read from filling the parent.
 export const PARENT_OUTPUT_LIMIT_BYTES = 4 * 1024;
-const BOUNDED_TOOLS = new Set(["read", "ctx_execute", "ctx_execute_file", "ctx_batch_execute"]);
+const BOUNDED_TOOLS = new Set(["read", "bash", "ctx_execute", "ctx_execute_file", "ctx_batch_execute"]);
 
 export function budgetParentOutput(input: {
 	toolName: string;
@@ -22,11 +22,12 @@ export function budgetParentOutput(input: {
 	const file = join(directory, `${digest}.txt`);
 	mkdirSync(directory, { recursive: true, mode: 0o700 });
 	writeFileSync(file, full, { mode: 0o600 });
-	const preview = Buffer.from(full).subarray(0, 1536).toString("utf8").replace(/\uFFFD$/u, "");
+	const bytes = Buffer.from(full);
+	const preview = (input.toolName === "bash" ? bytes.subarray(-1536) : bytes.subarray(0, 1536)).toString("utf8").replace(/\uFFFD$/u, "");
 	const text = [
 		`Large ${input.toolName} result: ${originalBytes} bytes. Full output: ${file}`,
 		`sha256: ${digest}. Read only the needed span with read offset/limit. The result was not verified by this receipt.`,
-		"Preview (beginning only):",
+		input.toolName === "bash" ? "Preview (end only):" : "Preview (beginning only):",
 		preview,
 	].join("\n");
 	return { content: [{ type: "text", text }], originalBytes, deliveredBytes: Buffer.byteLength(text) };

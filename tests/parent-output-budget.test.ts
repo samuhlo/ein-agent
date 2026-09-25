@@ -26,11 +26,19 @@ describe("parent output budget", () => {
 
 	test("small, error, unrelated, and non-text results retain their original semantics", () => {
 		const sessionDir = root();
-		for (const toolName of ["read", "ctx_execute_file"]) {
+		for (const toolName of ["read", "ctx_execute_file", "bash"]) {
 			expect(budgetParentOutput({ toolName, content: [{ type: "text", text: "small error" }], sessionDir })).toBeUndefined();
 		}
 		expect(budgetParentOutput({ toolName: "ein_sdd_verification", content: [{ type: "text", text: "x".repeat(12_000) }], sessionDir })).toBeUndefined();
 		expect(budgetParentOutput({ toolName: "read", content: [{ type: "image" }], sessionDir })).toBeUndefined();
+	});
+
+	test("large bash output is recoverable without changing its error status", () => {
+		const original = "error detail\n".repeat(1_000);
+		const result = budgetParentOutput({ toolName: "bash", content: [{ type: "text", text: original }], sessionDir: root() });
+		expect(result).toBeDefined();
+		expect(result!.deliveredBytes).toBeLessThan(PARENT_OUTPUT_LIMIT_BYTES);
+		expect(result!.content[0]!.text).toContain("Preview (end only):");
 	});
 
 	test("runtime hook applies only to the interactive parent and preserves isError", () => {
