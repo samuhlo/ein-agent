@@ -44,6 +44,7 @@ function expectedClaudeTool(raw: string): string {
     edit: "Edit",
     write: "Write",
     bash: "Bash",
+    ein_pr_create: "Bash",
       ein_openspec_delta_write: "Bash",
       ein_sdd_task_progress: "Bash",
   };
@@ -131,6 +132,14 @@ describe("core parity: Claude coordinator contract", () => {
     expect(surface.agents["ein-linear.md"]).toContain("mcp__linear__linear_get_issue");
     expect(surface.agents["sdd-apply.md"]).toContain("ein-cc-sdd status");
     expect(surface.agents["sdd-apply.md"]).not.toContain("ein_sdd_status");
+  });
+
+  test("Claude keeps a real Bash PR route instead of claiming Pi's structured tool", () => {
+    const git = compileClaudeSurface().agents["ein-git.md"]!;
+    expect(git).not.toContain("ein_pr_create");
+    expect(git).toContain("gh pr create --base");
+    expect(git).toContain("--body-file <path>");
+    expect(frontmatterField(git, "tools")).toContain("Bash");
   });
 
   test("reserva Opus para decidir y usa modelos menores para ejecutar la rutina", () => {
