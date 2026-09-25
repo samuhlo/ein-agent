@@ -12,11 +12,11 @@ export type ContinuityOperation = {
 	admissionRef?: string;
 	startedAt: string; beforeStateRef: string | null; nativeCallRef: NativeCallRef;
 	effectScope: "local" | "external-or-unknown"; status: "running" | "uncertain" | "settled";
-	outcome?: "succeeded" | "not-started" | "recovered"; afterStateRef?: string | null;
+	outcome?: "succeeded" | "observed" | "not-started" | "recovered"; afterStateRef?: string | null;
 	reason?: string; recovery?: OperationRecovery;
 };
-export type ContinuityOperationJournal = { schemaVersion: 1; revision: string; operations: ContinuityOperation[] };
-export const OPERATION_LIMITS = { active: 32, settled: 64, bytes: 256 * 1024 } as const;
+export type ContinuityOperationJournal = { schemaVersion: 1; revision: string; operations: ContinuityOperation[]; extraActiveSlots?: number };
+export const OPERATION_LIMITS = { active: 32, extraActiveSlots: 32, settled: 64, bytes: 256 * 1024 } as const;
 export const MUTATING_CONTINUITY_TOOLS = new Set(["write", "edit", "bash", "subagent", "ein_cleaner_improve_apply", "ein_openspec_sync", "ein_openspec_delta_write", "ein_sdd_preflight", "Write", "Edit", "Bash", "Task"]);
 const READ_TOOLS = new Set(["read", "grep", "find", "Read", "Grep", "Glob"]);
 const READ_COMMANDS = new Set(["false", "true", "git diff --check", "git status --short", "git rev-parse HEAD"]);
@@ -67,26 +67,28 @@ export function validContinuityOperation(value: unknown): value is ContinuityOpe
 	if (value.afterStateRef !== undefined && !state(value.afterStateRef) || value.reason !== undefined && !text(value.reason, 512)) return false;
 	if (value.admissionRef !== undefined && (typeof value.admissionRef !== "string" || !HASH.test(value.admissionRef))) return false;
 	if (!value.nativeCallRef.sessionRef.startsWith(`${value.runtime}:`) || value.id !== operationId(value.runtime as "pi" | "claude", value.nativeCallRef)) return false;
-	if (value.status === "settled" ? !["succeeded", "not-started", "recovered"].includes(String(value.outcome)) : value.outcome !== undefined) return false;
+	if (value.status === "settled" ? !["succeeded", "observed", "not-started", "recovered"].includes(String(value.outcome)) : value.outcome !== undefined) return false;
 	return value.outcome === "recovered" ? validRecovery(value.recovery) : value.recovery === undefined;
 }
-export function buildOperationJournal(operations: readonly ContinuityOperation[]): ContinuityOperationJournal {
+export function buildOperationJournal(operations: readonly ContinuityOperation[], extraActiveSlots = 0): ContinuityOperationJournal {
 	if (!operations.every(validContinuityOperation) || new Set(operations.map((o) => o.id)).size !== operations.length) throw new Error("invalid-operations");
+	if (!Number.isInteger(extraActiveSlots) || extraActiveSlots < 0 || extraActiveSlots > OPERATION_LIMITS.extraActiveSlots) throw new Error("invalid-active-slots");
 	const active = operations.filter((o) => o.status !== "settled");
-	if (active.length > OPERATION_LIMITS.active) throw new Error(`active-limit:${active.map((o) => o.id).join(",")}`);
+	if (active.length > OPERATION_LIMITS.active + extraActiveSlots) throw new Error(`active-limit:${active.map((o) => o.id).join(",")}`);
 	const settled = operations.filter((o) => o.status === "settled").sort((a, b) => a.startedAt.localeCompare(b.startedAt) || a.id.localeCompare(b.id)).slice(-OPERATION_LIMITS.settled);
 	for (;;) {
 		const items = [...active, ...settled].sort((a, b) => a.id.localeCompare(b.id));
-		const journal = { schemaVersion: 1 as const, revision: operationInputDigest({ schemaVersion: 1, operations: items }), operations: items };
+		const fields = { schemaVersion: 1 as const, operations: items, ...(extraActiveSlots ? { extraActiveSlots } : {}) };
+		const journal = { ...fields, revision: operationInputDigest(fields) };
 		if (Buffer.byteLength(JSON.stringify(journal)) <= OPERATION_LIMITS.bytes) return journal;
 		if (!settled.length) throw new Error("journal-size-limit");
 		settled.shift();
 	}
 }
 export function parseOperationJournal(value: unknown): ContinuityOperationJournal | null {
-	if (!record(value) || !exact(value, ["schemaVersion", "revision", "operations"]) || value.schemaVersion !== 1 || typeof value.revision !== "string" || !Array.isArray(value.operations)) return null;
+	if (!record(value) || !exact(value, ["schemaVersion", "revision", "operations", "extraActiveSlots"]) || value.schemaVersion !== 1 || typeof value.revision !== "string" || !Array.isArray(value.operations)) return null;
 	try {
-		const canonical = buildOperationJournal(value.operations);
-		return canonical.operations.length === value.operations.length && canonical.revision === value.revision ? canonical : null;
+		const canonical = buildOperationJournal(value.operations, value.extraActiveSlots === undefined ? 0 : value.extraActiveSlots as number);
+		return canonical.operations.length === value.operations.length && canonical.revision === value.revision && (canonical.extraActiveSlots ?? 0) === (value.extraActiveSlots ?? 0) ? canonical : null;
 	} catch { return null; }
 }

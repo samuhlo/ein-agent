@@ -74,7 +74,7 @@ function release(path: string, id: Identity | undefined, proof: Proof): void {
 	const quarantine = `${path}.release-${randomUUID()}`;
 	try { renameSync(path, quarantine); if (validProof(proof) && same(quarantine, id)) unlinkSync(quarantine); } catch { /* Preserve any uncertain inode. */ }
 }
-export function transactContinuityOperations(root: string, expected: string, transition: (operations: readonly ContinuityOperation[]) => readonly ContinuityOperation[], seam: { beforePublish?: () => void; afterPublish?: () => void } = {}): OperationWrite {
+export function transactContinuityOperations(root: string, expected: string, transition: (operations: readonly ContinuityOperation[]) => readonly ContinuityOperation[], seam: { beforePublish?: () => void; afterPublish?: () => void; grantActiveSlot?: true } = {}): OperationWrite {
 	let proof: Proof = [], lockFd: number | undefined, tempFd: number | undefined, lockId: Identity | undefined, tempId: Identity | undefined, published = false;
 	const path = join(resolve(root), ".ein", FILE), lock = `${path}.lock`, temp = `${path}.tmp-${randomUUID()}`;
 	const fail = (reason: string): OperationWrite => ({ ok: false, reason, outcome: published ? "published-unverified" : "not-published" });
@@ -87,7 +87,8 @@ export function transactContinuityOperations(root: string, expected: string, tra
 		const before = readFile(path); if (before.status === "failure") return fail(before.reason);
 		const revision = before.status === "absent" ? "absent" : before.journal.revision;
 		if (expected !== revision) return fail("conflict");
-		const journal = buildOperationJournal(transition(before.status === "valid" ? before.journal.operations : []));
+		const extraActiveSlots = (before.status === "valid" ? before.journal.extraActiveSlots ?? 0 : 0) + (seam.grantActiveSlot ? 1 : 0);
+		const journal = buildOperationJournal(transition(before.status === "valid" ? before.journal.operations : []), extraActiveSlots);
 		const buffer = Buffer.from(JSON.stringify(journal));
 		tempFd = openSync(temp, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600); tempId = identity(fstatSync(tempFd));
 		let offset = 0; while (offset < buffer.length) { const count = writeSync(tempFd, buffer, offset); if (!count) throw new Error("write-failed"); offset += count; } fsyncSync(tempFd);

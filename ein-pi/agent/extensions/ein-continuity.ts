@@ -9,6 +9,7 @@ import {
 } from "../lib/continuity-handoff-lifecycle.ts";
 import { showContinuityObjective, type ContinuityObjectiveResult } from "../lib/continuity-objective.ts";
 import { piContinuityOperation, continuityToolOutcome } from "../lib/continuity-operation-adapter.ts";
+import { OPERATION_LIMITS } from "../lib/continuity-operations.ts";
 import { createContinuityRecoveryEvidence } from "../lib/continuity-recovery-evidence.ts";
 import type { OperationStart, RecoveryAssessment } from "../lib/continuity-operation-runtime.ts";
 import { redactMcpText } from "../lib/mcp-card.ts";
@@ -97,6 +98,23 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 				notify(ctx, HANDOFF_USAGE, "warning");
 			},
 		});
+		pi.registerCommand("ein:continuity", {
+			description: "Reconcile observed subagent results and explicitly allow one more operation when the journal is full.",
+			handler: async (args, ctx): Promise<void> => {
+				if (args.trim() !== "continue") { notify(ctx, "Usage: /ein:continuity continue", "warning"); return; }
+				await ctx.waitForIdle();
+				const current = active(); if (!current) { notify(ctx, "continuity-continue=lifecycle-unavailable", "error"); return; }
+				const reconciled = current.reconcileNativeSubagents();
+				if (!reconciled.ok) { notify(ctx, `continuity-continue=blocked;reason=${reconciled.reason}`, "error"); return; }
+				if (reconciled.value.active < reconciled.value.limit) {
+					notify(ctx, `continuity-continue=ready;reconciled=${reconciled.value.reconciled};active=${reconciled.value.active};limit=${reconciled.value.limit}`);
+					return;
+				}
+				const granted = current.grantActiveSlot();
+				if (!granted.ok) { notify(ctx, `continuity-continue=blocked;reason=${granted.reason}`, "error"); return; }
+				notify(ctx, `continuity-continue=ready;reconciled=${reconciled.value.reconciled};active=${reconciled.value.active};limit=${OPERATION_LIMITS.active + (granted.journal.extraActiveSlots ?? 0)};human-grant=1`, "warning");
+			},
+		});
 
 		pi.registerTool({
 			name: "ein_continuity_objective",
@@ -175,13 +193,14 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 		});
 		pi.registerTool({
 			name: "ein_continuity_recover", label: "Ein Recuperar operación", description: "Inspect an uncertain operation and explicitly resolve it against its native call and existing evidence. Does not retry tools or authorize new effects.",
-			parameters: { type: "object", required: ["action"], properties: { action: { type: "string", enum: ["inspect", "resolve"] }, id: { type: "string", description: "Omit on inspect to list unresolved operation IDs." }, token: { type: "string" }, assessment: { type: "object", required: ["kind", "summary", "callRef", "evidenceRefs", "evidencePaths"], properties: {
+			parameters: { type: "object", required: ["action"], properties: { action: { type: "string", enum: ["inspect", "resolve", "reconcile-native"] }, id: { type: "string", description: "Omit on inspect to list unresolved operation IDs." }, token: { type: "string" }, assessment: { type: "object", required: ["kind", "summary", "callRef", "evidenceRefs", "evidencePaths"], properties: {
 				kind: { type: "string", enum: ["local-attested", "external-observed"] }, summary: { type: "string" }, callRef: { type: "object", required: ["sessionRef", "toolCallId"], properties: { sessionRef: { type: "string" }, toolCallId: { type: "string" } } }, evidenceRefs: { type: "array", items: { type: "string" } }, evidencePaths: { type: "array", items: { type: "string" } },
 			} } } } as never,
 			async execute(_id, params: { action: string; id?: string; token?: string; assessment?: RecoveryAssessment }) {
 				const current = active();
 				const result = !current ? { ok: false, reason: "lifecycle-unavailable" }
 					: params.action === "inspect" ? params.id ? current.inspectOperation(params.id) : current.listOperations()
+					: params.action === "reconcile-native" ? current.reconcileNativeSubagents()
 					: params.action === "resolve" && params.id && params.token && params.assessment ? current.resolveOperation(params.id, params.token, params.assessment, "pi-coordinator")
 					: { ok: false, reason: "recovery-input-required" };
 				return { content: [{ type: "text" as const, text: redactMcpText(JSON.stringify(result)) }], details: result, isError: !result.ok };
