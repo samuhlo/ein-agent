@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 import { browserVerificationSkillTask } from "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts";
 import { extractTriggers, resolvePhaseSkills, type SkillEntry } from "../ein-pi/agent/extensions/ein-skill-registry.ts";
 
@@ -21,8 +22,10 @@ describe("browser verification is loaded only for a declared browser check", () 
 
 	test("its declared triggers resolve from the injected name", () => {
 		const path = join(import.meta.dir, "../runtime/skills/local/browser-verification/SKILL.md");
-		const source = readFileSync(path, "utf8");
-		const description = source.match(/^description: (.+)$/m)?.[1] ?? "";
+		const loaded = loadSkillsFromDir({ dir: dirname(path), source: "ein-local" });
+		expect(loaded.diagnostics).toEqual([]);
+		expect(loaded.skills.map((skill) => skill.name)).toEqual(["browser-verification"]);
+		const description = loaded.skills[0]!.description;
 		const entry: SkillEntry = { key: "browser-verification", name: "browser-verification", source: "local", scope: "user", path, description, stackTags: ["frontend"], triggers: extractTriggers(description) };
 		expect(resolvePhaseSkills([entry], "browser-verification")).toEqual([entry]);
 		expect(resolvePhaseSkills([entry], "verify a pure function with bun test")).toEqual([]);

@@ -1,6 +1,6 @@
 ---
 name: browser-verification
-description: Use when SDD verification requires a real browser, Playwright, or a declared E2E command. Trigger: browser, Playwright, e2e.
+description: "Use when SDD verification requires a real browser, Playwright, or a declared E2E command. Trigger: browser, Playwright, e2e."
 license: internal
 ---
 

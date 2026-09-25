@@ -4,6 +4,14 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.16.1] - 2026-09-25
+
+### Fixed
+
+- Pi vuelve a cargar `browser-verification`: su descripción en `SKILL.md` es
+  YAML válido. Una prueba usa el cargador real de skills para detectar este
+  fallo antes de publicar.
+
 ## [0.99.0-alpha.16] - 2026-09-25
 
 ### Fixed
