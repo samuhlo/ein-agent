@@ -15,29 +15,29 @@ import { join } from "node:path";
 const AGENT = join(import.meta.dir, "../ein-pi/agent");
 const CORE = join(import.meta.dir, "../runtime");
 const einGit = readFileSync(join(CORE, "agents/ein-git.md"), "utf8");
+const prPublisher = readFileSync(join(AGENT, "lib/pr-publication.ts"), "utf8");
+const commandGuard = readFileSync(join(AGENT, "extensions/internal/ein-command-guard-child.ts"), "utf8");
 const orchestrator = readFileSync(join(CORE, "assets/orchestrator.md"), "utf8");
 const agentsGuide = readFileSync(join(CORE, "AGENTS.md"), "utf8");
 
 describe("ein-git crea PRs de forma no interactiva (no cuelga)", () => {
-	test("manda body-file + flags explícitos, prohíbe bare y --web", () => {
-		expect(einGit).toContain("--body-file");
-		expect(einGit).toContain("--head");
-		expect(einGit).toContain("never a bare `gh pr create`");
-		expect(einGit).toContain("never `--web`");
+	test("la tool crea la PR con body-file y flags explícitos; bash libre se redirige", () => {
+		expect(einGit).toContain("ein_pr_create");
+		for (const flag of ["--body-file", "--head", "--base", "--title"]) expect(prPublisher).toContain(flag);
+		expect(commandGuard).toContain("Use ein_pr_create");
 	});
 
 	test("fuerza entorno no interactivo (sin prompt, sin pager)", () => {
-		expect(einGit).toContain("GH_PROMPT_DISABLED=1");
-		expect(einGit).toContain("GH_PAGER=cat");
+		expect(prPublisher).toContain('GH_PROMPT_DISABLED: "1"');
+		expect(prPublisher).toContain('GH_PAGER: "cat"');
 	});
 
 	test("read-back por JSON (no paginable)", () => {
-		expect(einGit).toContain("gh pr view");
-		expect(einGit).toContain("--json");
+		expect(prPublisher).toContain('["pr", "view", createdUrl, "--json"');
 	});
 
-	test("no reintenta el comando idéntico que se cuelga", () => {
-		expect(einGit.toLowerCase()).toContain("do **not** retry the identical command");
+	test("una creación incierta devuelve la URL para inspeccionar sin duplicar", () => {
+		expect(prPublisher).toContain("inspect it before retrying");
 	});
 });
 

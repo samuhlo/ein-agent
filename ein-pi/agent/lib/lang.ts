@@ -215,6 +215,10 @@ const ARTIFACT_LABELS: Record<Lang, {
 	},
 };
 
+export function prArtifactLabels(lang: Lang): { intent: string; sections: readonly [string, string, string, string] } {
+	return { intent: ARTIFACT_LABELS[lang].intent, sections: ARTIFACT_LABELS[lang].pr };
+}
+
 /**
  * Directiva de idioma de artefactos: la inyecta el padre en la tarea de los
  * subagentes ein-git / ein-linear. Manda sobre el idioma por defecto que

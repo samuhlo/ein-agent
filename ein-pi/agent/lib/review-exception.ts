@@ -1,6 +1,7 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { DEFAULT_REVIEW_BUDGET, evaluateReviewForecast, reviewForecast, type ReviewForecast } from "./review-forecast.ts";
 
 type ReviewException = {
@@ -26,36 +27,83 @@ export function reviewExceptionPath(cwd: string): string {
 	return join(realpathSync(cwd), ".pi", "ein", "review-exception.json");
 }
 
-function isSinglePrException(value: unknown): boolean {
-	if (typeof value !== "string") return false;
-	return /\buna\s+pr\b.*\bexcepci[oó]n\b/i.test(value)
-		|| /\bsingle\s+(?:pr|pull request)\b.*\bexception\b/i.test(value);
+function approvedSinglePrChoice(answer: unknown, question: unknown): boolean {
+	if (typeof answer !== "string" || typeof question !== "string" || !/\bPR\b|pull request/i.test(question)) return false;
+	const selected = answer.replace(/\s*\(Recommended\)\s*$/i, "").trim();
+	if (!/^(?:(?:s[ií]|yes|autorizo|apruebo|confirmo)\s*,?\s*)?(?:una\s+(?:sola\s+)?PR|PR\s+[uú]nica|single\s+(?:PR|pull request))\b/i.test(selected)) return false;
+	return /excepci[oó]n|excepcional|exception/i.test(`${selected} ${question}`);
 }
 
-function sameForecast(details: any, forecast: ReviewForecast): boolean {
+function explicitMessageApproval(text: unknown, headOid: string): boolean {
+	return typeof text === "string"
+		&& /^(?:autorizo|apruebo|confirmo|i authorize|i approve)\b/i.test(text.trim())
+		&& /\b(?:una\s+(?:sola\s+)?PR|PR\s+[uú]nica|single\s+(?:PR|pull request))\b/i.test(text)
+		&& /excepci[oó]n|excepcional|exception/i.test(text)
+		&& text.toLowerCase().includes(headOid.slice(0, 7));
+}
+
+function exactForecast(details: any, forecast: ReviewForecast): boolean {
 	return details?.mode === "committed" && details?.decision === "over"
 		&& details.baseOid === forecast.baseOid && details.headOid === forecast.headOid
 		&& details.snapshotRef === forecast.snapshotRef
 		&& details.production === forecast.production && details.productionBytes === forecast.productionBytes;
 }
 
-function approvalInSession(sessionFile: string, forecast: ReviewForecast): { forecastMessageId: string; approvalMessageId: string } | null {
+function sameProductionAfterTestRepair(cwd: string, oldHead: string, current: ReviewForecast): boolean {
+	if (!OID.test(oldHead) || !current.baseOid || !current.headOid || oldHead === current.headOid) return false;
+	try {
+		execFileSync("git", ["merge-base", "--is-ancestor", oldHead, current.headOid], { cwd, timeout: 10_000 });
+		const changed = execFileSync("git", ["diff", "--name-only", "-z", oldHead, current.headOid, "--"], { cwd, encoding: "utf8", timeout: 10_000 }).split("\0").filter(Boolean);
+		if (!changed.length || changed.some((path) => !/(?:^|\/)(?:tests|__tests__|e2e)(?:\/|$)|\.(?:test|spec)\./u.test(path))) return false;
+		const old = reviewForecast(cwd, { mode: "committed", base: current.baseOid, head: oldHead });
+		if (!old.ok || old.production !== current.production || old.productionBytes !== current.productionBytes) return false;
+		const paths = [...new Set([...old.fileVolumes, ...current.fileVolumes].map((file) => file.path))].sort();
+		const digest = (head: string) => createHash("sha256").update(execFileSync("git", ["diff", "--no-ext-diff", "--binary", current.baseOid!, head, "--", ...paths], { cwd, timeout: 10_000, maxBuffer: 8 * 1024 * 1024 })).digest("hex");
+		return digest(oldHead) === digest(current.headOid);
+	} catch { return false; }
+}
+
+function matchingForecastHead(details: any, cwd: string, forecast: ReviewForecast): string | null {
+	if (exactForecast(details, forecast)) return forecast.headOid ?? null;
+	if (details?.mode !== "committed" || details?.decision !== "over" || details.baseOid !== forecast.baseOid || !OID.test(String(details.headOid))) return null;
+	return sameProductionAfterTestRepair(cwd, details.headOid, forecast) ? details.headOid : null;
+}
+
+function approvalInSession(sessionFile: string, cwd: string, forecast: ReviewForecast): { forecastMessageId: string; approvalMessageId: string } | null {
 	if (statSync(sessionFile).size > MAX_SESSION_BYTES) return null;
 	let matchingForecast = "";
+	let approvedHead = "";
 	let approval: { forecastMessageId: string; approvalMessageId: string } | null = null;
 	for (const line of readFileSync(sessionFile, "utf8").split("\n")) {
 		if (!line) continue;
 		const entry = JSON.parse(line) as any;
-		if (entry?.type !== "message" || entry?.message?.role !== "toolResult" || typeof entry.id !== "string") continue;
+		if (entry?.type !== "message" || typeof entry.id !== "string") continue;
 		const message = entry.message;
-		if (message.toolName === "ein_review_forecast") matchingForecast = sameForecast(message.details, forecast) ? entry.id : "";
+		if (message?.role === "user" && matchingForecast && Array.isArray(message.content)
+			&& message.content.some((part: any) => part?.type === "text" && explicitMessageApproval(part.text, approvedHead))) {
+			approval = { forecastMessageId: matchingForecast, approvalMessageId: entry.id };
+		}
+		if (message?.role !== "toolResult") continue;
+		if (message.toolName === "ein_review_forecast") {
+			approvedHead = matchingForecastHead(message.details, cwd, forecast) ?? "";
+			matchingForecast = approvedHead ? entry.id : "";
+		}
 		if (message.toolName !== "ask_user_question" || !matchingForecast || message.details?.cancelled !== false) continue;
 		if (Array.isArray(message.details.answers) && message.details.answers.some((answer: any) =>
-			isSinglePrException(answer?.answer) && typeof answer.question === "string" && /\bPR\b|pull request/i.test(answer.question))) {
+			approvedSinglePrChoice(answer?.answer, answer?.question))) {
 			approval = { forecastMessageId: matchingForecast, approvalMessageId: entry.id };
 		}
 	}
 	return approval;
+}
+
+export function resolveReviewTarget(parentCwd: string, requested?: string): string {
+	const target = realpathSync(requested ?? parentCwd);
+	const git = (cwd: string, args: string[]) => execFileSync("git", ["rev-parse", ...args], { cwd, encoding: "utf8", timeout: 10_000 }).trim();
+	const top = realpathSync(git(target, ["--show-toplevel"]));
+	const common = (cwd: string) => realpathSync(resolve(cwd, git(cwd, ["--git-common-dir"])));
+	if (target !== top || common(parentCwd) !== common(target)) throw new Error("delivery worktree must be the root of this repository");
+	return target;
 }
 
 function matchingReceipt(value: unknown, cwd: string, base: string, forecast: ReviewForecast): value is ReviewException {
@@ -72,12 +120,12 @@ function matchingReceipt(value: unknown, cwd: string, base: string, forecast: Re
 
 export function recordReviewException(cwd: string, base: string, sessionFile: string): Result {
 	try {
-		if (!base || !/^[\w./-]+$/.test(base) || base.startsWith("-")) return { ok: false, reason: "invalid PR base" };
+		if (!base || !/^[\w./-]+$/.test(base) || base.startsWith("-") || !OID.test(base) && !/^origin\/[\w./-]+$/.test(base)) return { ok: false, reason: "use the exact origin/<PR-base> ref" };
 		const forecast = reviewForecast(cwd, { mode: "committed", base });
 		if (!forecast.ok || evaluateReviewForecast(forecast, DEFAULT_REVIEW_BUDGET).decision !== "over") return { ok: false, reason: "no current over-budget committed change" };
 		if (!forecast.baseOid || !forecast.headOid || !forecast.snapshotRef) return { ok: false, reason: "publication identity unavailable" };
 		const source = realpathSync(sessionFile);
-		const approval = approvalInSession(source, forecast);
+		const approval = approvalInSession(source, cwd, forecast);
 		if (!approval) return { ok: false, reason: "matching human single-PR decision unavailable" };
 		const receipt: ReviewException = { version: 1, cwd: realpathSync(cwd), base, baseOid: forecast.baseOid,
 			headOid: forecast.headOid, snapshotRef: forecast.snapshotRef, production: forecast.production,
@@ -96,7 +144,7 @@ export function readReviewException(cwd: string, base: string, forecast: ReviewF
 		const value: unknown = JSON.parse(readFileSync(reviewExceptionPath(cwd), "utf8"));
 		if (!matchingReceipt(value, cwd, base, forecast)) return { ok: false, reason: "review exception does not match this commit" };
 		const receipt = value as ReviewException;
-		const approval = approvalInSession(receipt.sessionFile, forecast);
+		const approval = approvalInSession(receipt.sessionFile, cwd, forecast);
 		if (!approval || approval.forecastMessageId !== receipt.forecastMessageId || approval.approvalMessageId !== receipt.approvalMessageId) {
 			return { ok: false, reason: "review exception approval is unavailable" };
 		}

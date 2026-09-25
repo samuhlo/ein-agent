@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { registerSddReadSurface } from "../ein-pi/agent/extensions/internal/ein-sdd-read-surface.ts";
@@ -10,6 +10,7 @@ import { receiptFor } from "../ein-pi/agent/lib/tool-receipts.ts";
 
 test("the actual Pi tool and Claude CLI measure identical requests without project writes", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "review-tool-"));
+	const deliveryWorktree = `${cwd}-delivery`;
 	try {
 		execFileSync("git", ["init", "-q"], { cwd });
 		execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=t@example.test", "commit", "--allow-empty", "-qm", "base"], { cwd });
@@ -35,12 +36,16 @@ test("the actual Pi tool and Claude CLI measure identical requests without proje
 		const committed = { mode: "committed", base };
 		const measured = await tool.execute("large", committed, undefined, undefined, { cwd, hasUI: false });
 		expect(measured.details).toMatchObject({ decision: "over", lineBudget: 400, byteBudget: 20_000 });
+		execFileSync("git", ["worktree", "add", "-q", "-b", "delivery", deliveryWorktree, "HEAD"], { cwd });
+		const fromDelivery = await tool.execute("delivery", { ...committed, worktree: deliveryWorktree }, undefined, undefined, { cwd, hasUI: false });
+		expect(fromDelivery.details).toMatchObject({ baseOid: measured.details.baseOid, headOid: measured.details.headOid, snapshotRef: measured.details.snapshotRef, worktree: realpathSync(deliveryWorktree) });
+		expect(fromDelivery.content[0].text).toContain(`worktree: ${realpathSync(deliveryWorktree)}`);
 		const largeCli = spawnSync(process.execPath, [resolve(import.meta.dir, "../ein-cc/sdd-cli/cli.ts"), "review-forecast"], { cwd, encoding: "utf8", input: JSON.stringify(committed) });
 		expect(largeCli.status).toBe(0); expect(JSON.parse(largeCli.stdout)).toMatchObject({ decision: "over", lineBudget: 400, byteBudget: 20_000 });
 		const { baseOid, headOid, snapshotRef } = measured.details;
 		const check = spawnSync(process.execPath, [resolve(import.meta.dir, "../ein-cc/sdd-cli/cli.ts"), "review-publication-check"], { cwd, encoding: "utf8", input: JSON.stringify({ baseOid, headOid, snapshotRef }) });
 		expect(check.status).toBe(1);
-	} finally { rmSync(cwd, { recursive: true, force: true }); }
+	} finally { rmSync(deliveryWorktree, { recursive: true, force: true }); rmSync(cwd, { recursive: true, force: true }); }
 });
 
 test("the git agent uses a stable installed checker without parent handoff fields", async () => {

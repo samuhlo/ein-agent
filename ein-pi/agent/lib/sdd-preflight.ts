@@ -654,7 +654,7 @@ export function renderSddPreflightPrompt(
 		if (baselineLine) lines.push(baselineLine);
 	}
 	lines.push(
-		`- Review Workload Guard: \`ein_review_forecast\` measures the full PR against the ${prefs.reviewBudgetLines}-line and ${DEFAULT_REVIEW_BUDGET_BYTES.toLocaleString("en-US")}-byte review budgets; tests and density do not gate. If over, ask the user for one PR or a split. For an explicit single-PR choice, call \`ein_review_exception\` after commit; it binds that recorded answer to the unchanged diff. \`ein-git\` remeasures before push and PR. Unknown or changed evidence blocks. Do not ask again; \`auto\` does not bypass the budget.`,
+		`- Review Workload Guard: \`ein_review_forecast\` measures the delivery worktree against the ${prefs.reviewBudgetLines}-line and ${DEFAULT_REVIEW_BUDGET_BYTES.toLocaleString("en-US")}-byte review budgets; tests and density do not gate. If over, reuse a human one-PR/split choice already given; otherwise ask once. After one-PR approval, call \`ein_review_exception\` with that worktree and exact base after commit. \`ein-git\` remeasures before push and PR. Unknown or changed evidence blocks; do not ask again. \`auto\` does not bypass the budget.`,
 	);
 	return lines.join("\n");
 }

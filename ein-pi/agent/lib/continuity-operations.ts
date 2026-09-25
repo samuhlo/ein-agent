@@ -18,7 +18,7 @@ export type ContinuityOperation = {
 export type ContinuityOperationJournal = { schemaVersion: 1; revision: string; operations: ContinuityOperation[]; extraActiveSlots?: number };
 // The active limit covers in-flight calls; uncertain results remain recoverable evidence.
 export const OPERATION_LIMITS = { active: 32, extraActiveSlots: 32, settled: 64, bytes: 256 * 1024 } as const;
-export const MUTATING_CONTINUITY_TOOLS = new Set(["write", "edit", "bash", "subagent", "ein_cleaner_improve_apply", "ein_openspec_sync", "ein_openspec_delta_write", "ein_sdd_preflight", "Write", "Edit", "Bash", "Task"]);
+export const MUTATING_CONTINUITY_TOOLS = new Set(["write", "edit", "bash", "subagent", "ein_pr_create", "ein_cleaner_improve_apply", "ein_openspec_sync", "ein_openspec_delta_write", "ein_sdd_preflight", "Write", "Edit", "Bash", "Task"]);
 const READ_TOOLS = new Set(["read", "grep", "find", "Read", "Grep", "Glob"]);
 const READ_COMMANDS = new Set(["false", "true", "git diff --check", "git status --short", "git rev-parse HEAD"]);
 const HASH = /^sha256:[a-f0-9]{64}$/;
