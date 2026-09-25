@@ -185,6 +185,19 @@ export function invokesBinarySubcommand(command: string, binary: string, sub: st
 	return false;
 }
 
+export function binarySubcommandArgs(command: string, binary: string, sub: string): string[] | null {
+	for (const segment of expandCommands(command)) {
+		const at = segment.findIndex((token) => !token.quoted && (token.value === binary || token.value.endsWith(`/${binary}`)));
+		if (at < 0) continue;
+		let index = at + 1;
+		while (index < segment.length && isFlag(segment[index]!)) {
+			index += ["-R", "--repo", "--host"].includes(segment[index]!.value) ? 2 : 1;
+		}
+		if (segment[index]?.value === sub) return segment.slice(index + 1).map((token) => token.value);
+	}
+	return null;
+}
+
 export function invokesGitSubcommand(command: string, sub: string): boolean {
 	return expandCommands(command).some((segment) => gitSubcommand(segment, sub) !== null);
 }
