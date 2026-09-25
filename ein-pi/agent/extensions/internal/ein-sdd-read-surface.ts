@@ -30,6 +30,7 @@ import {
 	formatReviewForecast,
 	reviewForecast,
 } from "../../lib/review-forecast.ts";
+import { resolveReviewTarget } from "../../lib/review-exception.ts";
 import {
 	SDD_SESSION_BINDING_EVENT_CHANNEL,
 	type SessionBindingEventV1,
@@ -181,16 +182,22 @@ export function registerSddReadSurface(
 				head: { type: "string", description: "Commit head; committed mode only." },
 				paths: { type: "array", items: { type: "string" }, description: "Literal relative paths; omit for the full publication measure." },
 				base: { type: "string", description: "PR base ref (e.g. `main`, `dev`). Omit to measure the working tree (staged + unstaged)." },
+				worktree: { type: "string", description: "Absolute root of the delivery worktree; defaults to the current repo." },
 			},
 		} as const,
-		async execute(_id, params: { base?: string; mode?: "working-tree" | "committed"; head?: string; paths?: string[] }, _signal, _onUpdate, ctx: ExtensionContext) {
+		async execute(_id, params: { base?: string; mode?: "working-tree" | "committed"; head?: string; paths?: string[]; worktree?: string }, _signal, _onUpdate, ctx: ExtensionContext) {
 			const budget = DEFAULT_REVIEW_BUDGET;
-			const forecast = reviewForecast(ctx.cwd, { ...params, mode: params?.mode ?? "working-tree" });
+			let target: string;
+			try { target = params.worktree ? resolveReviewTarget(ctx.cwd, params.worktree) : ctx.cwd; }
+			catch { return { content: [{ type: "text", text: "Delivery worktree is unavailable or belongs to another repository." }], details: { ok: false, reason: "invalid-delivery-worktree" }, isError: true }; }
+			const { worktree: _worktree, ...request } = params;
+			const forecast = reviewForecast(target, { ...request, mode: params?.mode ?? "working-tree" });
 			const evaluation = evaluateReviewForecast(forecast, budget);
 			return {
-				content: [{ type: "text", text: formatReviewForecast(forecast, budget, evaluation) }],
+				content: [{ type: "text", text: `worktree: ${target}\n${formatReviewForecast(forecast, budget, evaluation)}` }],
 				details: {
 					...forecast,
+					worktree: target,
 					budget: budget.lines,
 					lineBudget: budget.lines,
 					byteBudget: budget.bytes,
