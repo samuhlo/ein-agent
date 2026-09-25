@@ -31,9 +31,9 @@ export function createContinuityOperationRuntime(cwd: string, ports: Ports = {})
   const token = (_revision: string, ref: string, op: ContinuityOperation) => operationInputDigest({ operationRevision: operationInputDigest(op), stateRef: ref });
   return {
     read,
-    list() { const result = read(); return result.status === "failure" ? { ok: false as const, reason: result.reason } : { ok: true as const, observed: result.status === "valid", operations: result.status === "valid" ? result.journal.operations.filter((op) => op.status !== "settled").map(({ id, tool, status }) => ({ id, tool, status })) : [] }; },
+    list(offset = 0) { const result = read(); if (result.status === "failure") return { ok: false as const, reason: result.reason }; const pending = result.status === "valid" ? result.journal.operations.filter((op) => op.status !== "settled") : []; const start = Number.isInteger(offset) && offset >= 0 ? offset : 0; return { ok: true as const, observed: result.status === "valid", total: pending.length, operations: pending.slice(start, start + 8).map(({ id, tool, status }) => ({ id, tool, status })), nextOffset: start + 8 < pending.length ? start + 8 : null }; },
     uncertain(): boolean { const result = read(); return result.status === "failure" || result.status === "valid" && result.journal.operations.some((op) => op.status !== "settled"); },
-    reconcileNativeSubagents(): Result<{ reconciled: number; active: number; limit: number }> {
+    reconcileNativeSubagents(): Result<{ reconciled: number; active: number; uncertain: number; limit: number }> {
       const before = read(); if (before.status !== "valid") return { ok: false, reason: before.status === "failure" ? before.reason : "journal-unavailable" };
       const observed = (op: ContinuityOperation) => {
         if (op.runtime !== "pi" || op.tool !== "subagent" || op.status !== "uncertain" || op.reason !== "native-unavailable") return false;
@@ -47,9 +47,10 @@ export function createContinuityOperationRuntime(cwd: string, ports: Ports = {})
           && call.nativeOrder?.result !== undefined && call.nativeOrder.result > call.nativeOrder.call;
       };
       const candidates = before.journal.operations.filter(observed);
-      const active = before.journal.operations.filter((op) => op.status !== "settled").length;
+      const active = before.journal.operations.filter((op) => op.status === "running").length;
+      const uncertain = before.journal.operations.filter((op) => op.status === "uncertain").length;
       const limit = OPERATION_LIMITS.active + (before.journal.extraActiveSlots ?? 0);
-      if (!candidates.length) return { ok: true, value: { reconciled: 0, active, limit } };
+      if (!candidates.length) return { ok: true, value: { reconciled: 0, active, uncertain, limit } };
       const ids = new Set(candidates.map((op) => op.id));
       const written = transactContinuityOperations(cwd, before.journal.revision, (items) => items.map((op) => ids.has(op.id)
         ? { ...op, status: "settled" as const, outcome: "observed" as const, reason: "native-result-observed" } : op), {
@@ -57,12 +58,12 @@ export function createContinuityOperationRuntime(cwd: string, ports: Ports = {})
           if (candidates.some((op) => !observed(op))) throw new Error("native-result-stale");
         },
       });
-      return written.ok ? { ok: true, value: { reconciled: candidates.length, active: active - candidates.length, limit } }
+      return written.ok ? { ok: true, value: { reconciled: candidates.length, active, uncertain: uncertain - candidates.length, limit } }
         : { ok: false, reason: written.reason };
     },
     grantActiveSlot(): OperationWrite {
       const before = read(); if (before.status !== "valid") return { ok: false, reason: before.status === "failure" ? before.reason : "journal-unavailable", outcome: "not-published" };
-      const active = before.journal.operations.filter((op) => op.status !== "settled").length;
+      const active = before.journal.operations.filter((op) => op.status === "running").length;
       const limit = OPERATION_LIMITS.active + (before.journal.extraActiveSlots ?? 0);
       if (active < limit) return { ok: false, reason: "grant-not-needed", outcome: "not-published" };
       return transactContinuityOperations(cwd, before.journal.revision, (items) => items, { grantActiveSlot: true });

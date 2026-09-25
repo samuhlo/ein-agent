@@ -16,6 +16,7 @@ export type ContinuityOperation = {
 	reason?: string; recovery?: OperationRecovery;
 };
 export type ContinuityOperationJournal = { schemaVersion: 1; revision: string; operations: ContinuityOperation[]; extraActiveSlots?: number };
+// The active limit covers in-flight calls; uncertain results remain recoverable evidence.
 export const OPERATION_LIMITS = { active: 32, extraActiveSlots: 32, settled: 64, bytes: 256 * 1024 } as const;
 export const MUTATING_CONTINUITY_TOOLS = new Set(["write", "edit", "bash", "subagent", "ein_cleaner_improve_apply", "ein_openspec_sync", "ein_openspec_delta_write", "ein_sdd_preflight", "Write", "Edit", "Bash", "Task"]);
 const READ_TOOLS = new Set(["read", "grep", "find", "Read", "Grep", "Glob"]);
@@ -74,7 +75,9 @@ export function buildOperationJournal(operations: readonly ContinuityOperation[]
 	if (!operations.every(validContinuityOperation) || new Set(operations.map((o) => o.id)).size !== operations.length) throw new Error("invalid-operations");
 	if (!Number.isInteger(extraActiveSlots) || extraActiveSlots < 0 || extraActiveSlots > OPERATION_LIMITS.extraActiveSlots) throw new Error("invalid-active-slots");
 	const active = operations.filter((o) => o.status !== "settled");
-	if (active.length > OPERATION_LIMITS.active + extraActiveSlots) throw new Error(`active-limit:${active.map((o) => o.id).join(",")}`);
+	const running = active.filter((o) => o.status === "running");
+	// A failed call remains evidence for handoff/recovery, not an in-flight slot.
+	if (running.length > OPERATION_LIMITS.active + extraActiveSlots) throw new Error(`active-limit:${running.map((o) => o.id).join(",")}`);
 	const settled = operations.filter((o) => o.status === "settled").sort((a, b) => a.startedAt.localeCompare(b.startedAt) || a.id.localeCompare(b.id)).slice(-OPERATION_LIMITS.settled);
 	for (;;) {
 		const items = [...active, ...settled].sort((a, b) => a.id.localeCompare(b.id));
