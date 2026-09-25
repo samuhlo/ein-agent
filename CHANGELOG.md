@@ -4,6 +4,30 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.16] - 2026-09-25
+
+### Fixed
+
+- El orquestador conserva fuera de su contexto las salidas grandes de lectura y
+  `ctx_*`, con una ruta para recuperar el texto completo por fragmentos. Los
+  ejecutores y los recibos de verificación conservan sus resultados íntegros.
+- `sdd-apply` enlaza el único cambio activo cuando falta su ruta en un encargo
+  compilado. Un grupo pendiente distinto sigue bloqueado con una indicación de
+  reanudación o reconciliación.
+- La continuidad recupera resultados parciales comprobables de `sdd-apply` y
+  permite seguir sin repetir el preflight ni ocupar plazas inciertas. La
+  ampliación de capacidad permanece bajo orden humana.
+- La entrega Git usa un refspec compatible con Zsh y respeta las excepciones
+  de tamaño de PR aprobadas para una entrega concreta.
+
+### Changed
+
+- La verificación carga la guía de navegador solo si el cambio declara
+  Playwright o `test:e2e`. Se conserva el runner del proyecto y la evidencia
+  de navegador separada de la autorización real del servidor.
+- El flujo de publicación admite hotfixes de alpha desde ramas de mantenimiento
+  y comprueba una actualización real entre releases publicadas.
+
 ## [0.99.0-alpha.15] - 2026-09-24
 
 ### Fixed
