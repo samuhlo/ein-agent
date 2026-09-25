@@ -25,6 +25,7 @@ El prefijo (`ein`) sale de `~/.pi/agent/brand.json`. Si quieres otro prefijo, ca
 | `/ein:persona neutral` | Modo directo (texto plano) |
 | `/ein:lang` | Idioma de conversación/UI y de artefactos (ver «Idioma») |
 | `/ein:resume` | Lista sesiones recientes (todos los proyectos) con `pi --session <id>` para recuperarlas |
+| `/ein:continuity continue` | Revisa resultados nativos de subagentes que quedaron inciertos y, si el registro sigue lleno, autoriza una operación registrada adicional. No marca tareas SDD como terminadas ni elimina operaciones inciertas. |
 
 Recuperar una sesión: `pi -c` (continuar la última), `pi -r` (elegir de una lista), o `pi --session <id>` (una concreta). El banner muestra las sesiones recientes al arrancar.
 
